@@ -60,7 +60,6 @@ public:
 
     expr_c visit(tensor_c v) override {
         // avoid constant_optimizer for loop index dependent tensor
-        // TODO(longsheng): why ssa break beacuse of this
         return v;
     }
 
@@ -73,7 +72,7 @@ public:
             new_const->attr().set(attr_keys::force_simd_encode, true);
             return builder::make_broadcast(new_const, dtype.lanes_);
         } else if (HAS_KEY_LOAD(v)) {
-            return make_expr<intrin_call_node>(intrin_type::mem_load,
+            return make_expr<intrin_call_node>(intrin_type::load_const_mem,
                     std::vector<expr> {v.remove_const()}, any_map_t());
         } else {
             return v;

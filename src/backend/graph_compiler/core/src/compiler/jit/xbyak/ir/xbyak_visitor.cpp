@@ -44,15 +44,24 @@ stmt_c xbyak_visitor_t::visit(for_loop_c v) {
     return vv;
 }
 
+expr_c xbyak_visitor_t::visit(tensor_c v) {
+    // do not dispatch into tensor
+    return v;
+}
+
 expr_c xbyak_visitor_t::visit(low_level_intrin_c v) {
-    auto vv = v.dyn_as<xbyak_intrin_c>();
-    if (vv.defined()) {
-        return visit(std::move(vv));
-    } else {
-        auto e = make_xbyak_intrin(
-                v->dtype_, v->args_, static_cast<xbyak_intrin_type>(v->type_))
-                         .static_as<xbyak_intrin_c>();
-        return visit(std::move(e));
+    switch (v->kind_) {
+        case low_level_intrin_kind::x86_general: {
+            return ir_visitor_t::visit(std::move(v));
+        } break;
+        case low_level_intrin_kind::x86_xbyak: {
+            auto vv = v.checked_as<xbyak_intrin_c>();
+            return visit(std::move(vv));
+        } break;
+        default: {
+            assert(0 && "Invalid intrin kind.");
+            return ir_visitor_t::visit(std::move(v));
+        }
     }
 }
 

@@ -36,57 +36,7 @@ static volatility_result_t::state_t merge_state(
 }
 
 static bool expr_can_hoist(const expr_base *s) {
-    switch (s->node_type_) {
-        case sc_expr_type::var:
-        case sc_expr_type::cast:
-        case sc_expr_type::select:
-        case sc_expr_type::constant:
-        case sc_expr_type::ssa_phi: return true; break;
-        case sc_expr_type::call:
-            return is_pure_func_call(s->node_ptr_from_this());
-        case sc_expr_type::intrin_call: {
-            switch (static_cast<const intrin_call_node *>(s)->type_) {
-                case intrin_type::min:
-                case intrin_type::max:
-                case intrin_type::abs:
-                case intrin_type::round:
-                case intrin_type::floor:
-                case intrin_type::ceil:
-                case intrin_type::exp:
-                case intrin_type::sqrt:
-                case intrin_type::rsqrt:
-                case intrin_type::reduce_add:
-                case intrin_type::reduce_mul:
-                case intrin_type::reduce_max:
-                case intrin_type::reduce_min:
-                case intrin_type::fmadd:
-                case intrin_type::unpack_low:
-                case intrin_type::unpack_high:
-                case intrin_type::shuffle:
-                case intrin_type::permute:
-                case intrin_type::int_and:
-                case intrin_type::int_or:
-                case intrin_type::int_xor:
-                case intrin_type::reinterpret:
-                case intrin_type::broadcast:
-                case intrin_type::permutex2var:
-                case intrin_type::isnan:
-                case intrin_type::saturated_cast:
-                case intrin_type::round_and_cast:
-                case intrin_type::shl:
-                case intrin_type::shr: return true; break;
-                default: break;
-            }
-            return false;
-            break;
-        }
-        default:
-            if (dynamic_cast<const binary_node *>(s)) { return true; }
-            if (dynamic_cast<const logic_node *>(s)) { return true; }
-            if (dynamic_cast<const cmp_node *>(s)) { return true; }
-            return false;
-            break;
-    }
+    return non_volatile_expr(s) || is_pure_func_call(s->node_ptr_from_this());
 }
 
 void volatility_analysis_t::view(const define_c &v, pass_phase phase) {

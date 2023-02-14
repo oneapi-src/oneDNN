@@ -77,6 +77,13 @@ public:
         return std::move(v);
     }
 
+    stmt_c visit(evaluate_c v) override {
+        if (v->value_.isa<low_level_intrin>()) {
+            x86_intrinsics_transform(expr(), v->value_);
+        }
+        return std::move(v);
+    }
+
     void x86_intrinsics_transform(const expr &dst, const expr &val) {
         switch (val->node_type_) {
             case sc_expr_type::add: {
@@ -142,6 +149,10 @@ public:
             case sc_expr_type::intrin_call: {
                 auto intrin = val.static_as<intrin_call>();
                 transform_intrin_call(dst, intrin);
+            } break;
+            case sc_expr_type::low_level_intrin: {
+                auto intrin = val.static_as<low_level_intrin>();
+                transform_low_level_intrin(dst, intrin);
             } break;
             case sc_expr_type::cast: {
                 auto src = val.static_as<cast>();
@@ -336,13 +347,25 @@ public:
                         transform_intrin(xbyak_intrin_type::round_and_cast),
                         transform_intrin(xbyak_intrin_type::round_and_cast));
             } break;
-            case intrin_type::mem_load: {
+            case intrin_type::load_const_mem: {
                 transform(dst, {intrin->args_[0]},
                         dst->dtype_, //
-                        transform_disabled("mem_load"), transform_assign());
+                        transform_disabled("load_const_mem"),
+                        transform_assign());
             } break;
             default: add_assignment(dst, intrin); break;
         }
+    }
+
+    void transform_low_level_intrin(
+            const expr &dst, const low_level_intrin &intrin) {
+        if (intrin->kind_ == low_level_intrin_kind::x86_xbyak) {
+            add_assignment(dst, intrin);
+            return;
+        }
+        // Currently all x86 low_level_intrin are not in PRODUCTION
+        // When there are x86_intrins in PRODUCTION, remove this
+        COMPILE_ASSERT(false, "No low level intrinsic supported!");
     }
 
     void transform_cast(const expr &dst, const cast &src) {
@@ -548,6 +571,19 @@ public:
                 v, make_xbyak_intrin(v->dtype_, args.as_vector(), intrin, isa));
     }
 
+    void transform_intrin_eval(array_ref<expr> args, //
+            xbyak_intrin_type intrin, xbyak_intrin_isa isa) {
+        add_evaluate(make_xbyak_intrin(
+                datatypes::void_t, args.as_vector(), intrin, isa));
+    }
+
+    void transform_intrin_eval_attr(const expr &v, array_ref<expr> args, //
+            xbyak_intrin_type intrin, xbyak_intrin_isa isa) {
+        add_evaluate(copy_attr(*v,
+                make_xbyak_intrin(
+                        datatypes::void_t, args.as_vector(), intrin, isa)));
+    }
+
     void transform_3a_to_2a(const expr &dst, const expr &lhs, const expr &rhs,
             xbyak_intrin_type intrin, xbyak_intrin_isa isa) {
         // dst = lhs
@@ -720,7 +756,7 @@ public:
     // Intrin helpers
     // --------------
 
-    expr load_when_imm(expr v, const std::string &name) {
+    expr load_when_imm(const expr &v, const std::string &name) {
         if (v.isa<constant>()) {
             auto tmp = builder::make_var(v->dtype_, name);
             add_defination(tmp, linkage::local);
@@ -729,6 +765,13 @@ public:
         } else {
             return v;
         }
+    }
+
+    expr load_to_reg(const expr &v, const Xbyak::Reg &reg) {
+        auto ret = make_physical_reg(v->dtype_, reg);
+        add_defination(ret, linkage::local);
+        add_assignment(ret, v);
+        return ret;
     }
 
     // If simd cond is not mask type, cast to mask
@@ -748,6 +791,10 @@ public:
 
     void add_assignment(const expr &var, const expr &value) {
         transform_seq_.emplace_back(make_stmt<assign_node_t>(var, value));
+    }
+
+    void add_evaluate(const expr &value) {
+        transform_seq_.emplace_back(make_stmt<evaluate_node_t>(value));
     }
 
     void add_defination(const expr &var, linkage link) {

@@ -259,12 +259,6 @@ public:
         return xbyak_visitor_t::visit(std::move(v));
     }
 
-    expr_c visit(tensorptr_c v) override {
-        // TODO(XXX): why this temp_data go missing?
-        v->base_->temp_data() = xbyak_expr_data_t();
-        return xbyak_visitor_t::visit(std::move(v));
-    }
-
     expr_c visit(indexing_c v) override {
         GET_VIRTUAL_REG(v).set_spilled();
         return xbyak_visitor_t::visit(std::move(v));
@@ -408,7 +402,6 @@ public:
 
 protected:
     stmt_c resolve_spill(for_loop_c v) {
-        // TODO(XXX): temp_data missing
         auto stmt_data = v->get_temp_data();
         auto vv = xbyak_visitor_t::visit(std::move(v))
                           .remove_const()
@@ -543,29 +536,33 @@ protected:
             } break;
         }
         // Special cases
-        auto type = static_cast<xbyak_intrin_type>(v->type_);
-        if (type == xbyak_intrin_type::call_arg) {
-            auto &arg = v->args_.back();
-            auto &virt_reg = GET_VIRTUAL_REG(arg);
-            if (dst_is_mem_ && virt_reg.buffered()) {
-                // local stack tensor as func arg passed to stack
-                auto node = builder::make_cast(sc_data_type_t::generic(), arg);
-                v->args_ = {insert_load(std::move(node), cur_index_)};
-                return v;
-            } else if (dst_is_mem_ && const_exceed_32bit(arg)) {
-                // int exceeds 32bit as func arg passed to stack
-                v->args_ = {insert_load(std::move(arg), cur_index_)};
-                return v;
-            }
-        } else if (type == xbyak_intrin_type::mask_mov) {
-            if (dst_is_mem_ && v->modifier_.zero_mask_) {
-                // store to a var in memory with zero-masking
-                resolve_dst_ = resolve_dst::store;
-            } else if (dst_is_mem_ && spilled_args_sum(v->args_) > 0) {
-                // dst might be indexing, do not change ptr/idx liveness
-                resolve_dst_ = resolve_dst::none;
-                return resolve();
-            }
+        switch (static_cast<xbyak_intrin_type>(v->type_)) {
+            case xbyak_intrin_type::call_arg: {
+                auto &arg = v->args_.back();
+                auto &virt_reg = GET_VIRTUAL_REG(arg);
+                if (dst_is_mem_ && virt_reg.buffered()) {
+                    // local stack tensor as func arg passed to stack
+                    auto node = builder::make_cast(
+                            sc_data_type_t::generic(), arg);
+                    v->args_ = {insert_load(std::move(node), cur_index_)};
+                    return v;
+                } else if (dst_is_mem_ && const_exceed_32bit(arg)) {
+                    // int exceeds 32bit as func arg passed to stack
+                    v->args_ = {insert_load(std::move(arg), cur_index_)};
+                    return v;
+                }
+            } break;
+            case xbyak_intrin_type::mask_mov: {
+                if (dst_is_mem_ && v->modifier_.zero_mask_) {
+                    // store to a var in memory with zero-masking
+                    resolve_dst_ = resolve_dst::store;
+                } else if (dst_is_mem_ && spilled_args_sum(v->args_) > 0) {
+                    // dst might be indexing, do not change ptr/idx liveness
+                    resolve_dst_ = resolve_dst::none;
+                    return resolve();
+                }
+            } break;
+            default: break;
         }
         return v;
     }

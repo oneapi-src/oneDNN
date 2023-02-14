@@ -20,6 +20,7 @@
 #include "../viewer.hpp"
 #include <compiler/ir/intrinsics.hpp>
 #include <compiler/ir/ir_module.hpp>
+#include <compiler/jit/xbyak/ir/xbyak_expr.hpp>
 #include <util/bf16.hpp>
 
 namespace sc {
@@ -188,7 +189,16 @@ void ir_printer_t::view(ssa_phi_c v) {
 }
 
 void ir_printer_t::view(low_level_intrin_c v) {
-    os_ << "low_level_intrin" << '[' << v->type_ << ']' << '(';
+    switch (v->kind_) {
+        case low_level_intrin_kind::x86_xbyak: {
+            v.checked_as<sc_xbyak::xbyak_intrin_c>()->to_string(os_);
+            return;
+        } break;
+        default: {
+            assert(0 && "Not supported.");
+        } break;
+    }
+    os_ << '(';
     if (!v->args_.empty()) {
         for (unsigned i = 0; i < v->args_.size() - 1; i++) {
             do_dispatch(v->args_.at(i)) << ", ";

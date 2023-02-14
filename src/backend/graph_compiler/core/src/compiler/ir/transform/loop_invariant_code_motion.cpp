@@ -19,8 +19,10 @@
 #include "loop_invariant_code_motion.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/pass_dep_util.hpp>
+#include <compiler/ir/passlet/volatility_analysis.hpp>
 #include <compiler/ir/ssa_data.hpp>
 #include <compiler/ir/ssa_visitor.hpp>
+#include <compiler/ir/transform/pointer_alias_info.hpp>
 #include <unordered_map>
 #include <unordered_set>
 #include <util/any_map.hpp>
@@ -55,12 +57,11 @@ static bool unordered_intersects(const std::unordered_set<expr_c> &a,
     return false;
 }
 
-// Currently tensor/indexing/tptr/call/intrin_call can not be hoisted.
+// Promotion depends on call, call nodes must be hoisted before this pass.
+// Currently tensorptr can not be hoisted.
 static bool expr_can_hoist(const expr_c &s) {
-    return s.isa<var_c>() || s.isa<cast_c>() || (s.instanceof <binary_c>())
-            || (s.instanceof <cmp_c>()) || (s.instanceof <logic_c>())
-            || s.isa<select_c>() || s.isa<constant_c>() || s.isa<ssa_phi_c>()
-            || s.isa<intrin_call>() || s.isa<tensor>() || s.isa<indexing>();
+    return passlet::non_volatile_expr(s.get()) || s.isa<tensor>()
+            || s.isa<indexing>();
 }
 
 static bool stmt_can_hoist(const stmt_c &s) {
@@ -77,6 +78,8 @@ struct loop_analysis_viewer_t : public ssa_viewer_t {
     std::vector<expr_c> cur_loop_vars_;
     std::unordered_map<expr_c, bool> call_volatile_map_;
     std::unordered_map<expr_c, std::unordered_set<expr_c>> tensor_volatile_map_;
+    std::unordered_map<alias_info::tensor_alias_identity_t *, expr_c>
+            alias_map_;
 
     void view(for_loop_c v) override {
         cur_loop_vars_.emplace_back(v->var_);
@@ -87,6 +90,23 @@ struct loop_analysis_viewer_t : public ssa_viewer_t {
         if (call_volatile_map_[v->var_]) {
             for (const auto &loop_var : cur_loop_vars_) {
                 call_volatile_map_[loop_var] = true;
+            }
+        }
+        // If current loop contain volatile tensor, mark all alias as volatile
+        auto &cur_tensor_volatile_map = tensor_volatile_map_[v->var_];
+        for (const auto &tsr : cur_tensor_volatile_map) {
+            auto alias = alias_info::get_alias_info(*tsr);
+            if (!alias || alias->has_no_alias()) { continue; }
+            for (auto &cliq : alias->alias_cliques_) {
+                for (auto aid : cliq->set_) {
+                    auto other_alias_id = aid.lock();
+                    // if the tensor has been removed, skip
+                    if (!other_alias_id) { continue; }
+                    auto itr = alias_map_.find(other_alias_id.get());
+                    if (itr != alias_map_.end()) {
+                        cur_tensor_volatile_map.insert(itr->second);
+                    }
+                }
             }
         }
         cur_loop_vars_.pop_back();
@@ -107,6 +127,11 @@ struct loop_analysis_viewer_t : public ssa_viewer_t {
             for (const auto &loop_var : cur_loop_vars_) {
                 tensor_volatile_map_[loop_var].insert(v);
             }
+        }
+        // Prepare for tensor alias analysis
+        if (v.isa<tensor>()) {
+            auto alias = alias_info::get_alias_info(*v);
+            if (alias) { alias_map_[alias] = v; }
         }
     }
 

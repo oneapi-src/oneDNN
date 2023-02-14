@@ -68,6 +68,11 @@ public:
         return xbyak_visitor_t::visit(std::move(v));
     }
 
+    expr_c visit(tensorptr_c v) override {
+        initialize_expr_data(v->base_, nullptr);
+        return xbyak_visitor_t::visit(std::move(v));
+    }
+
     expr_c visit(indexing_c v) override {
         auto ret = xbyak_visitor_t::visit(std::move(v));
         assert(ret.isa<indexing>());

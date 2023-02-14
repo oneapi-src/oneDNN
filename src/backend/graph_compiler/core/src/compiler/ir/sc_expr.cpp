@@ -119,12 +119,23 @@ ostream &operator<<(ostream &os, intrin_type val) {
         HANDLE_CASE(shl)
         HANDLE_CASE(shr)
         HANDLE_CASE(permutex2var)
-        HANDLE_CASE(mem_load)
+        HANDLE_CASE(load_const_mem)
         HANDLE_CASE(brgemm)
         HANDLE_CASE(list_brgemm)
         HANDLE_CASE(NUM_INTRINSICS)
 #undef HANDLE_CASE
         default: os << "(unrecognized intrin_type value)"; break;
+    }
+    return os;
+}
+
+ostream &operator<<(ostream &os, x86_intrin_type::x86_intrin_type_t val) {
+    switch (val) {
+#define HANDLE_CASE(X) \
+    case sc::x86_intrin_type::X: os << "x86_intrin_type::" #X; break;
+        HANDLE_CASE(NUM_INTRINSICS)
+#undef HANDLE_CASE
+        default: os << "(unrecognized x86_intrin_type value)"; break;
     }
     return os;
 }
@@ -684,15 +695,21 @@ bool ssa_phi_node::equals(expr_c v, ir_comparer &ctx) const {
 }
 
 low_level_intrin_node::low_level_intrin_node(
-        int64_t intrin, const std::vector<expr> &args)
-    : expr_base(sc_expr_type::low_level_intrin), type_(intrin), args_(args) {}
+        low_level_intrin_kind kind, int64_t type, const std::vector<expr> &args)
+    : expr_base(sc_expr_type::low_level_intrin)
+    , kind_(kind)
+    , type_(type)
+    , args_(args) {}
 
 expr low_level_intrin_node::remake() const {
-    return copy_attr(*this, make_expr<low_level_intrin_node>(type_, args_));
+    auto ret = make_expr<low_level_intrin_node>(kind_, type_, args_);
+    ret->dtype_ = dtype_;
+    return copy_attr(*this, std::move(ret));
 }
 
 bool low_level_intrin_node::equals(expr_c v, ir_comparer &ctx) const {
     ASCAST_OR_RETURN(v, other);
+    if (kind_ != other->kind_) { RETURN(false); }
     if (type_ != other->type_) { RETURN(false); }
     RETURN(ctx.expr_arr_equals(args_, other->args_));
 }

@@ -333,12 +333,12 @@ struct prefetch_handler_t : public intrinsic_handler_t {
     prefetch_handler_t() : intrinsic_handler_t("prefetch") {}
 };
 
-struct mem_load_handler_t : public intrinsic_handler_t {
+struct load_const_mem_handler_t : public intrinsic_handler_t {
     void on_initialize(intrin_call_node &node) override {
         assert(node.args_.size() == 1);
         node.dtype_ = node.args_[0]->dtype_;
     }
-    mem_load_handler_t() : intrinsic_handler_t("mem_load") {}
+    load_const_mem_handler_t() : intrinsic_handler_t("load_const_mem") {}
 };
 
 struct get_group_id_handler_t : public intrinsic_handler_t {
@@ -457,7 +457,7 @@ static std::unique_ptr<intrinsic_handler_t> handlers[] = {
         utils::make_unique<write_struct_handler_t>(),
         utils::make_unique<set_thread_idle_func_handler_t>(),
         utils::make_unique<prefetch_handler_t>(),
-        utils::make_unique<mem_load_handler_t>(),
+        utils::make_unique<load_const_mem_handler_t>(),
         utils::make_unique<get_group_id_handler_t>(),
         utils::make_unique<get_group_thread_id_handler_t>(),
         utils::make_unique<brgemm_handler_t>(
