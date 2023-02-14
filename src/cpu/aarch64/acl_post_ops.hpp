@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Arm Ltd. and affiliates
+* Copyright 2022-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -156,8 +156,7 @@ struct acl_post_ops_t {
             for (int idx = 1; idx < base_post_ops.len(); ++idx) {
                 // Construct empty entry then copy, so that we can check for failure
                 post_ops.entry_.emplace_back();
-                CHECK(post_ops.entry_.back().copy_from(
-                        base_post_ops.entry_[idx]));
+                post_ops.entry_.back().copy_from(base_post_ops.entry_[idx]);
             }
             return init(engine, post_ops, dst_md);
 
