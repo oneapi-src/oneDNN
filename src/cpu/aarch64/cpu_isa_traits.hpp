@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
-* Copyright 2020-2022 FUJITSU LIMITED
+* Copyright 2018-2023 Intel Corporation
+* Copyright 2020-2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -181,15 +181,19 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
     if ((cpu_isa_mask & cpu_isa) != cpu_isa) return false;
 
     switch (cpu_isa) {
-        case asimd: return cpu().has(Cpu::tADVSIMD);
+        case asimd: return cpu().has(XBYAK_AARCH64_HWCAP_ADVSIMD);
         case sve_128:
-            return cpu().has(Cpu::tSVE) && cpu().getSveLen() >= SVE_128;
+            return cpu().has(XBYAK_AARCH64_HWCAP_SVE)
+                    && cpu().getSveLen() >= SVE_128;
         case sve_256:
-            return cpu().has(Cpu::tSVE) && cpu().getSveLen() >= SVE_256;
+            return cpu().has(XBYAK_AARCH64_HWCAP_SVE)
+                    && cpu().getSveLen() >= SVE_256;
         case sve_384:
-            return cpu().has(Cpu::tSVE) && cpu().getSveLen() >= SVE_384;
+            return cpu().has(XBYAK_AARCH64_HWCAP_SVE)
+                    && cpu().getSveLen() >= SVE_384;
         case sve_512:
-            return cpu().has(Cpu::tSVE) && cpu().getSveLen() >= SVE_512;
+            return cpu().has(XBYAK_AARCH64_HWCAP_SVE)
+                    && cpu().getSveLen() >= SVE_512;
         case isa_undef: return true;
         case isa_all: return false;
     }

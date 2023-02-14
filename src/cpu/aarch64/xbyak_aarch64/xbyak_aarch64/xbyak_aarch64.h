@@ -1,6 +1,6 @@
 #pragma once
 /*******************************************************************************
- * Copyright 2019-2021 FUJITSU LIMITED
+ * Copyright 2019-2023 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,9 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <windows.h>
 #undef mvn
 #endif
@@ -51,6 +53,7 @@
 #include <unistd.h>
 #endif
 
+#include <cstdint>
 #include <iomanip>
 #include <sstream>
 
@@ -65,6 +68,8 @@
 #define MAP_JIT 0x800
 #endif
 #endif
+
+#include "xbyak_aarch64_err.h"
 
 namespace Xbyak_aarch64 {
 const uint64_t SP_IDX = 31;
