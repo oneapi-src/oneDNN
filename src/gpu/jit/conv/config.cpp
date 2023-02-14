@@ -800,7 +800,7 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
     }
 
     // Allow internal reorder for plain weights.
-    for (auto *t : {"abx", "axb"}) {
+    for (auto *t : {"abx", "axb", "xba"}) {
         if (matches_tag(wei_md, t)) {
             user_wei_tag = t;
             break;
