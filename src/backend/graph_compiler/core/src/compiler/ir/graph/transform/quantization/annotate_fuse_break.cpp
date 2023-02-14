@@ -83,6 +83,29 @@ void annotate_fusion_break(sc_graph_t &mgr, const context_ptr &ctx) {
                     }
                 }
             }
+            // auto break qadd branch
+            else if (op->isa<add_op_t>()) {
+                bool is_bf16 = op->get_outputs()[0]->details_.dtype_
+                        == sc_data_etype::BF16;
+                sc_op *prev = nullptr;
+                for (size_t i = 0; i < op->get_inputs().size(); i++) {
+                    auto producer = op->get_inputs()[i]->producer_owner_;
+                    if (is_bf16 && producer->isa<cast_op_t>())
+                        prev = producer;
+                    else if (!is_bf16
+                            && producer->isa<quantize::dequantize_op_t>())
+                        prev = producer;
+                }
+                if (!prev) continue;
+                if (is_bf16) { prev = prev->get_inputs()[0]->producer_owner_; }
+                if (!prev->isa<quantize::dequantize_op_t>()) continue;
+                auto forked_op = prev->get_inputs()[0]->producer_owner_;
+                if (!forked_op->isa<quantize::quantize_op_t>()
+                        || forked_op->get_outputs()[0]->uses_.size() != 2)
+                    continue;
+                // set deq op break_pre_fuse
+                prev->attrs_[op_attr_key::break_pre_fuse] = true;
+            }
         }
     }
 }
