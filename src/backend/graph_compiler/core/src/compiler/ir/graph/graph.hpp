@@ -113,7 +113,8 @@ struct sc_op_weak_ptr_t : public std::weak_ptr<sc_op> {
 // the logical tensor for in the graph to represent a result value in the graph.
 // It contains the tensor details (shape, dtype, etc.) and the connectivity of
 // the value in the graph
-struct SC_API graph_tensor SC_EXTENDS_LEAK_CHECK(graph_tensor) {
+struct SC_API graph_tensor : public std::enable_shared_from_this<graph_tensor>
+                             SC_EXTENDS_LEAK_CHECK(graph_tensor) {
     logical_tensor_t details_;
     // todo(zhichen/yijie): producer_owner should be used weak pointer.
     sc_op *producer_owner_ {nullptr};

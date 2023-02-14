@@ -330,9 +330,9 @@ void mxp_buffer_allocator::replace_buffer(graph_tensor *gt, expr &new_buffer) {
         tsr2anch_map_.erase(old_buffer);
     }
     if (b2g_map_.find(old_buffer) != b2g_map_.end()) {
-        auto gt = b2g_map_[old_buffer];
+        auto old_gt = b2g_map_[old_buffer];
         b2g_map_.erase(old_buffer);
-        b2g_map_[new_buffer] = gt;
+        b2g_map_[new_buffer] = old_gt;
     }
     // get real tsr
     auto old_tsr = get_real_tensor(old_buffer),
@@ -813,16 +813,16 @@ void mxp_buffer_allocator::merge(mxp_buffer_allocator &other,
     auto common_buffer_anchor = common_buffer_anchor_pair.first,
          common_other_buffer_anchor = common_buffer_anchor_pair.second;
     for (auto &other_g2b : other.g2b_map_.datamap_) {
+        auto other_gt = other_g2b.first;
         // if other tensor has conflict in current tensor, redirect it to common
         // buffer anchor
-        if (g2b_map_.haskey(other_g2b.first)) {
-            auto existed_buf = g2b_map_.get(other_g2b.first);
+        if (g2b_map_.haskey(other_gt)) {
+            auto existed_buf = g2b_map_.get(other_gt);
             buffer_map[other_g2b.second] = existed_buf;
-            if ((binded_mxp_->is_parti_inp(other_g2b.first)
-                        && other.binded_mxp_->is_parti_inp(other_g2b.first))
-                    || (binded_mxp_->is_parti_out(other_g2b.first)
-                            && other.binded_mxp_->is_parti_out(
-                                    other_g2b.first)))
+            if ((binded_mxp_->is_parti_inp(other_gt)
+                        && other.binded_mxp_->is_parti_inp(other_gt))
+                    || (binded_mxp_->is_parti_out(other_gt)
+                            && other.binded_mxp_->is_parti_out(other_gt)))
                 continue;
             COMPILE_ASSERT(common_buffer_anchor,
                     "Conflict buffer: "
@@ -830,9 +830,14 @@ void mxp_buffer_allocator::merge(mxp_buffer_allocator &other,
                             << " is detected but no common buffer anchor "
                                "is found for redirection")
             tsr2anch_map_[get_real_tensor(existed_buf)] = common_buffer_anchor;
+            // the existed buffer will become intermediate buffer, which may be
+            // shrinked
+            if (b2g_map_.find(existed_buf) == b2g_map_.end()) {
+                b2g_map_[existed_buf] = other_gt->shared_from_this();
+            }
         } else {
-            auto buffer = other.g2b_map_.get(other_g2b.first);
-            g2b_map_.get(other_g2b.first) = buffer;
+            auto buffer = other.g2b_map_.get(other_gt);
+            g2b_map_.get(other_gt) = buffer;
             if (other.b2g_map_.find(buffer) != other.b2g_map_.end()) {
                 b2g_map_[buffer] = other.b2g_map_[buffer];
             }
@@ -2481,18 +2486,72 @@ for_loop mixed_parti_t::get_next_inner_loop_with_anchor(
     return for_loop();
 }
 
+class var_replacer_t : public ir_visitor_t {
+public:
+    var_replacer_t(const std::unordered_map<expr_c, expr_c> &remap)
+        : remap_(remap) {}
+    std::unordered_map<expr_c, expr_c> remap_;
+    using ir_visitor_t::dispatch;
+    using ir_visitor_t::visit;
+    expr_c visit(var_c v) override {
+        auto itr = remap_.find(v);
+        if (itr != remap_.end()) { return itr->second; }
+        return v;
+    }
+};
+
 void mixed_parti_t::try_split_outermost_loop_on_num_threads(
         int64_t num_groups) {
     auto outer_loops = get_outer_loops();
     if (outer_loops.empty()) return;
     auto outermost_loop = outer_loops[0];
 
+    // cache original largest anchor inside outermost loop
+    auto origin_large_anchor = get_anchor_inside_loop(outermost_loop);
+    // node ptr replace map
     node_ptr_map remap;
     // change IR and record replace map
-    outermost_loop->split_on_num_threads(num_groups, &remap);
+    auto split_inner_loop
+            = outermost_loop->split_on_num_threads(num_groups, &remap);
     // split outer loop axis binder
     ax_binder_.split_init_axis(0);
     mxp_replacer_t(remap).replace_anchor(fanchors_);
+    // if original largest anchor not null, create new largest anchor under new
+    // outermost loop
+    if (origin_large_anchor) {
+        auto s = builder::make_stmts_unattached({}).checked_as<stmts>();
+        add_parent_node(s, outermost_loop->body_);
+        outermost_loop->body_.checked_as<stmts>()->seq_.emplace_back(s);
+        // dummy fsmap, the tensor belongs to this scope will not be shrinked
+        fslice_map new_fsmap;
+        // copy from original fsmap
+        new_fsmap.datamap_ = origin_large_anchor->fsmap_.datamap_;
+        // create var inplacer
+        std::unordered_map<expr_c, expr_c> vmap
+                = {{split_inner_loop->var_, expr(0)}};
+        var_replacer_t repl(vmap);
+        //  modify slice range
+        for (auto &fspair : new_fsmap.datamap_) {
+            for (auto &srange : fspair.second) {
+                for (auto &r : srange) {
+                    auto new_v = repl.dispatch(r.first);
+                    // if necesary
+                    if (!new_v.ptr_same(r.first)) {
+                        // set new offset
+                        r.first = new_v.remove_const();
+                        // set new range
+                        r.second = dim2unsigned(get_expr_as_int(r.second)
+                                * (get_expr_as_int(split_inner_loop->iter_end_)
+                                        - get_expr_as_int(
+                                                split_inner_loop
+                                                        ->iter_begin_)));
+                    }
+                }
+            }
+        }
+        // append new anchor into parti
+        append_fusion_anchor(std::make_shared<fuse_anchor_map_t>(s, new_fsmap));
+    }
 }
 
 void mixed_parti_t::try_split_outermost_loop(int64_t block) {
