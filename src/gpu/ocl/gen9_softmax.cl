@@ -70,12 +70,12 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
             + channel_id;
 #endif
 
-    float d[VECT_SIZE];
+    float d[THREAD_BUF_SIZE];
     float max_ = -FLT_MAX;
     float denom_ = 0.f;
 
     src += data_off;
-    for (int k = 0, axis_channel_id = CHANNELS * buf_chunk; k < VECT_SIZE;
+    for (int k = 0, axis_channel_id = CHANNELS * buf_chunk; k < THREAD_BUF_SIZE;
             ++k, axis_channel_id += CHANNELS) {
         d[k] = DATA_TO_FLOAT(SRC, src[axis_channel_id]);
         max_ = max(d[k], max_);
@@ -87,7 +87,7 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     max_ = work_group_reduce_max(max_);
 #endif
 
-    for (int k = 0; k < VECT_SIZE; ++k) {
+    for (int k = 0; k < THREAD_BUF_SIZE; ++k) {
 #if LOGSOFTMAX
         denom_ += exp(d[k] - max_);
 #else
@@ -110,7 +110,7 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 
     dst += data_off;
 
-    for (int k = 0, axis_channel_id = CHANNELS * buf_chunk; k < VECT_SIZE;
+    for (int k = 0, axis_channel_id = CHANNELS * buf_chunk; k < THREAD_BUF_SIZE;
             ++k, axis_channel_id += CHANNELS) {
 #if LOGSOFTMAX
         d[k] = d[k] - max_ - denom_;

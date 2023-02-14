@@ -45,6 +45,7 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
+            auto arch = compute_engine->device_info()->gpu_arch();
             const memory_desc_wrapper src_d(src_md());
             const memory_desc_wrapper dst_d(dst_md());
             const auto src_dt = src_d.data_type();
@@ -77,8 +78,35 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
                 return status::unimplemented;
             }
 
-            if (is_nhwc || is_blocked) {
-                group_size = subgroup_size * (axis_size() / buffer_size);
+            if (is_nhwc) {
+                int axis_padded = utils::rnd_up(axis_size(), subgroup_size);
+                group_size = subgroup_size
+                        * utils::div_up(axis_size(), buffer_size);
+                // max lws size on Xe-HP* series is 1024 x 1024 x 1024
+                // max lws size on Xe-LP is 512 x 512 x 512
+                int max_lws = 256; // for Gen9, Gen11
+                if (arch >= compute::gpu_arch_t::xe_hp) {
+                    max_lws = 1024;
+                } else if (arch == compute::gpu_arch_t::xe_lp) {
+                    max_lws = 512;
+                }
+                if (group_size > max_lws) {
+                    int old_group_size = group_size;
+                    int max_lws_ratio = old_group_size / max_lws;
+                    // need to balance between number of threads
+                    // and reads and writes per thread
+                    group_size
+                            = (max_lws_ratio >= 2 && max_lws_ratio <= 4)
+                            ? max_lws / max_lws_ratio
+                            : max_lws;
+                    thread_reads
+                            = thread_buffer * (old_group_size / group_size);
+                    buffer_size *= (old_group_size / group_size);
+                    thread_buffer = thread_reads;
+                }
+            } else if (is_blocked) {
+                group_size = subgroup_size
+                        * utils::div_up(axis_size(), buffer_size);
             } else {
                 group_size = subgroup_size;
             }
@@ -104,8 +132,10 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
         size_t group_size = 0;
         const int subgroup_size = 16;
         const int byte_alignment = 16;
+        int thread_reads = 0;
+        int thread_buffer = 8;
         // 8x16 load and store commands (Vector_Size x Sub_Group_Size)
-        const int buffer_size = 128;
+        int buffer_size = 128;
     };
 
     status_t init(engine_t *engine) override {
@@ -118,6 +148,7 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
         kernel_ctx.define_int("SOFTMAX_BUF", pd()->buffer_size);
         kernel_ctx.define_int("GROUP_SIZE", pd()->group_size);
         kernel_ctx.define_int("SUB_GROUP_SIZE", pd()->subgroup_size);
+        kernel_ctx.define_int("THREAD_BUF_SIZE", pd()->thread_buffer);
         kernel_ctx.define_int(
                 "CHANNELS_PADDED", pd()->src_md()->padded_dims[1]);
         kernel_ctx.define_int("CHANNELS",
