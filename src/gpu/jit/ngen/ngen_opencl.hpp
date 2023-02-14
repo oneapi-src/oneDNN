@@ -230,7 +230,7 @@ HW OpenCLCodeGenerator<hw>::detectHW(cl_context context, cl_device_id device)
 template <HW hw>
 void OpenCLCodeGenerator<hw>::detectHWInfo(cl_context context, cl_device_id device, HW &outHW, int &outStepping)
 {
-    const char *dummyCL = "kernel void _(){}";
+    const char *dummyCL = "kernel void _ngen_hw_detect(){}";
     const char *dummyOptions = "";
 
     auto binary = detail::getOpenCLCProgramBinary(context, device, dummyCL, dummyOptions);
