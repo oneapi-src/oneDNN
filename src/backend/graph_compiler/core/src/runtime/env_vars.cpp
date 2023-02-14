@@ -26,8 +26,8 @@
 #include <windows.h>
 #endif
 namespace sc {
-#define DEF_ENV(x) "ONEDNN_GRAPH_COMPILER_" #x
-#define DEF_ENV_TRACE() "ONEDNN_GRAPH_COMPILER_KERNEL_TRACE"
+#define DEF_ENV(x) "ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_" #x
+#define DEF_ENV_TRACE() "ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_KERNEL_TRACE"
 const char *env_names[] = {
         DEF_ENV(CPU_JIT),
         DEF_ENV(OPT_LEVEL),
