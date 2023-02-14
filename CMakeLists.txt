@@ -91,7 +91,7 @@ endif()
 set(LIB_NAME dnnl_graph)
 set(PROJECT_NAME "oneDNN Graph")
 set(PROJECT_FULL_NAME "oneAPI Deep Neural Network Library Graph API (oneDNN Graph)")
-set(PROJECT_VERSION 0.8.0)
+set(PROJECT_VERSION 0.9.0)
 
 if (CMAKE_VERSION VERSION_LESS 3.0)
     project(${PROJECT_NAME} C CXX)
