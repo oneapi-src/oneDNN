@@ -119,48 +119,29 @@ void tensor_detail_to_ir_tensor(sc_graph_t &graph,
 }
 } // namespace graph
 
+void mxp_buffer_allocator::set_buffer_inplace_hint(
+        const expr &target_buf, const expr &inplace_buf) {
+    auto target_id = alias_info::get_or_create_alias_info(*target_buf.get());
+    SC_MODULE_INFO << "Mark inplace hint for buffer: " << inplace_buf << " ==> "
+                   << target_buf;
+    inplace_buf->attr()[attr_keys::tensor_inplace_hint]
+            = std::vector<temp_tensor_inplace_info_t> {
+                    {target_id, inplace_kind::ZERO_OFFSET}};
+    // update inner inaplce map
+    inplace_map_[(uintptr_t)inplace_buf.get()]
+            = std::vector<std::pair<uintptr_t, inplace_kind>> {
+                    {(uintptr_t)target_buf.get(), inplace_kind::ZERO_OFFSET}};
+}
+
 void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
     auto &graph = op->get_owner_graph();
+    // allocate input buffer
     graph::tensor_detail_to_ir_tensor(graph,
             op->op_name_ + "_" + std::to_string(op->logical_op_id_) + "_ins_",
             op->get_inputs(), this);
 
-    // inter-op inplace inferring
-    auto query_inplace = [&](const graph_tensor_ptr &out,
-                                 const graph_tensor_ptr &in) -> bool {
-        return (!op->isa<tunable_op_t>()) && (in->uses_.size() == 1)
-                && (out != in)
-                && (out->details_.get_blocking_dims()
-                        == in->details_.get_blocking_dims())
-                && (out->details_.dtype_ == in->details_.dtype_)
-                && (out->details_.get_format() == in->details_.get_format())
-                && (binded_mxp_->contains(
-                        in->producer_owner_)) // inputs of partition should not
-                // be inplaced
-                && (!in->producer_owner_->isa<tunable_op_t>())
-                && (!(g2b_map_.get(in).isa<tensor>()
-                        && g2b_map_.get(in)
-                                   .static_as<tensor>()
-                                   ->init_value_)); // TODO(XXX): inplace inited
-        // tensor
-    };
-    for (auto &out : op->get_outputs()) {
-        if (out->attrs_.get_or_else(mixed_partition_hint::no_inplace, false)) {
-            continue;
-        }
-        // query input
-        for (auto &inp : op->get_inputs()) {
-            if (inp->attrs_.get_or_else(
-                        mixed_partition_hint::no_inplace, false)) {
-                continue;
-            }
-            if (query_inplace(out, inp)) {
-                g2b_map_.get(out) = g2b_map_.get(inp);
-                break;
-            }
-        }
-    }
-
+    /* deal with special ops: explict inplace input */
+    // tensorview op
     if (auto tv_op = op->dyn_cast<tensor_view_op_t>()) {
         auto inp = tv_op->get_inputs()[0];
         if ((inp->uses_.size() == 1)
@@ -181,15 +162,75 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
         }
     }
 
+    // reduce collect op
+    if (auto collc_op = op->dyn_cast<reduce_collect_op_t>()) {
+        if (collc_op->is_place_holder_op()) {
+            // inplace reduce_compute_op output
+            COMPILE_ASSERT(
+                    op->get_inputs()[0]
+                            ->producer_owner_->isa<reduce_compute_op_t>(),
+                    "reduce collect op is expected to follow reduce compute "
+                    "op, but got "
+                            << op->get_inputs()[0]->producer_owner_->op_name_)
+            // no code generated
+            g2b_map_.get(op->get_outputs()[0])
+                    = g2b_map_.get(op->get_inputs()[0]);
+        }
+    }
+
+    // allocate output buffer
     graph::tensor_detail_to_ir_tensor(graph,
             op->op_name_ + "_" + std::to_string(op->logical_op_id_) + "_outs_",
             op->get_outputs(), this);
+
+    // reorder op
     if (auto reo_op = op->dyn_cast<reorder_op_t>()) {
         if (reo_op->check_padding()) {
             op->get_outputs()[0]->attrs_.set(
                     mixed_partition_hint::no_inplace, true);
         }
     }
+
+    /* infer post-op inplace */
+    auto query_inplace = [&](const graph_tensor_ptr &out,
+                                 const graph_tensor_ptr &in) -> bool {
+        return (!op->isa<tunable_op_t>()) && (in->uses_.size() == 1)
+                && (out != in)
+                && (out->details_.get_blocking_dims()
+                        == in->details_.get_blocking_dims())
+                && (out->details_.dtype_ == in->details_.dtype_)
+                && (out->details_.get_format() == in->details_.get_format())
+                && (binded_mxp_->contains(
+                        in->producer_owner_)) // inputs of partition should not
+                // be inplaced
+                && (!in->producer_owner_->isa<tunable_op_t>())
+                && (!(g2b_map_.get(in).isa<tensor>()
+                        && g2b_map_.get(in)
+                                   .static_as<tensor>()
+                                   ->init_value_)); // TODO(XXX): inplace inited
+        // tensor
+    };
+
+    for (auto &out : op->get_outputs()) {
+        if (out->attrs_.get_or_else(mixed_partition_hint::no_inplace, false)) {
+            continue;
+        }
+        // query input
+        for (auto &inp : op->get_inputs()) {
+            if (inp->attrs_.get_or_else(
+                        mixed_partition_hint::no_inplace, false)) {
+                continue;
+            }
+            if (query_inplace(out, inp)) {
+                // set buffer inplace hint for output buffer
+                set_buffer_inplace_hint(g2b_map_.get(inp), g2b_map_.get(out));
+                break;
+            }
+        }
+    }
+
+    /* deal with special ops: set tensor initial value */
+    // reduce compute op
     if (op->isa<reduce_compute_op_t>()) {
         auto buf = g2b_map_.get(op->get_outputs()[0]);
         COMPILE_ASSERT(buf.isa<tensor>(),
@@ -198,6 +239,7 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
                 = tensor_node::get_zero_tensor_initializer();
     }
 
+    // reduce collect op
     if (auto collc_op = op->dyn_cast<reduce_collect_op_t>()) {
         if (!collc_op->is_place_holder_op()) {
             auto buf = g2b_map_.get(op->get_outputs()[0]);
@@ -205,19 +247,10 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
                     "output of reduce_collect_op_t should be tensor type")
             buf.checked_as<tensor>()->init_value_
                     = tensor_node::get_zero_tensor_initializer();
-        } else {
-            // inplace reduce_compute_op output
-            COMPILE_ASSERT(
-                    op->get_inputs()[0]
-                            ->producer_owner_->isa<reduce_compute_op_t>(),
-                    "reduce collect op is expected to follow reduce compute "
-                    "op, but got "
-                            << op->get_inputs()[0]->producer_owner_->op_name_)
-            g2b_map_.get(op->get_outputs()[0])
-                    = g2b_map_.get(op->get_inputs()[0]);
         }
     }
 
+    /* infer pre-op inplace */
     if (op->isa<padding_op_t>() && op->get_inputs()[0]->uses_.size() == 1
             && !binded_mxp_->empty()) {
         auto out = op->get_outputs()[0];
@@ -256,17 +289,6 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
     }
 }
 
-size_t mxp_buffer_allocator::get_total_allocated_buffer_size() const {
-    size_t already_allocated_size = 0;
-    for (auto &tsr2anch : tsr2anch_map_) {
-        auto tsr = tsr2anch.first.checked_as<tensor>();
-        already_allocated_size
-                += (get_dims_product(get_expr_to_dims(tsr->dims_))
-                        * utils::get_sizeof_etype(tsr->elem_dtype_.type_code_));
-    }
-    return already_allocated_size;
-}
-
 std::vector<memory_optim::memory_alloc_trace_t>
 mxp_buffer_allocator::get_real_mem_trace(
         const std::unordered_set<graph_tensor *> &keep_cut_set) const {
@@ -303,10 +325,9 @@ mxp_buffer_allocator::get_real_mem_trace(
     return shrink_trace;
 }
 
-size_t get_buffer_usage_from_trace(
+size_t get_buffer_usage(const context_ptr &ctx,
         const std::vector<memory_optim::memory_alloc_trace_t> &mem_trace,
-        const context_ptr &ctx) {
-    memory_optim::inplace_info_map inplace_map;
+        const memory_optim::inplace_info_map &inplace_map) {
     std::unordered_map<uintptr_t, std::size_t> out_schedule;
     std::unordered_map<uintptr_t, std::vector<uintptr_t>> out_inplace_selection;
     return schedule_memory_allocations(mem_trace, /*alignment*/ 64,
@@ -315,7 +336,8 @@ size_t get_buffer_usage_from_trace(
 }
 
 size_t mxp_buffer_allocator::get_real_buffer_usage() const {
-    return get_buffer_usage_from_trace(get_real_mem_trace(), binded_mxp_->ctx_);
+    return get_buffer_usage(
+            binded_mxp_->ctx_, get_real_mem_trace(), inplace_map_);
 }
 
 void mxp_buffer_allocator::replace_buffer(graph_tensor *gt, expr &new_buffer) {
@@ -566,8 +588,21 @@ static void collect_inplace_info(graph_tensor *cur_gt, graph_tensor *ref_gt,
         // reset ref_gt
         ref_gt = cur_gt;
     }
-    // mark visited
-    visited_set.insert(cur_buf);
+
+    // recursively mark visited
+    auto &inplace_map = alloc->inplace_map_;
+    while (true) {
+        visited_set.insert(cur_buf);
+        auto iter = inplace_map.find((uintptr_t)cur_buf.get());
+        if (iter != inplace_map.end()) {
+            COMPILE_ASSERT(iter->second.size() == 1,
+                    "Unexpected inplace info size during partition")
+            cur_buf = ((expr_base *)iter->second[0].first)
+                              ->node_ptr_from_this();
+        } else {
+            break;
+        }
+    }
     // get cur op
     auto elem_op = cur_gt->producer_owner_;
     // recursively collect inplace information
@@ -649,17 +684,8 @@ void mxp_buffer_allocator::query_buffer_inplace() {
             // skip repeated replaced
             if (replaced_buffer.find(inplace_buf) != replaced_buffer.end())
                 continue;
-
-            auto target_id
-                    = alias_info::get_or_create_alias_info(*target_buf.get());
-
-            SC_MODULE_INFO << "Mark inplace hint for buffer: " << inplace_buf
-                           << " ==> " << target_buf;
-
-            inplace_buf->attr()[attr_keys::tensor_inplace_hint]
-                    = std::vector<temp_tensor_inplace_info_t> {
-                            {target_id, inplace_kind::ZERO_OFFSET}};
-            replaced_buffer.insert(inplace_buf);
+            // set inplace hint
+            set_buffer_inplace_hint(target_buf, inplace_buf);
         }
     }
 }
@@ -785,8 +811,28 @@ std::vector<memory_optim::memory_alloc_trace_t> merge_mem_trace(
     return ret;
 }
 
-std::vector<memory_optim::memory_alloc_trace_t> merge_real_mem_trace(
-        const mxp_buffer_allocator &alloc1,
+memory_optim::inplace_info_map merge_inplace_map(
+        const memory_optim::inplace_info_map &inplace_map1,
+        const memory_optim::inplace_info_map &inplace_map2,
+        const std::unordered_map<expr, expr> &buffer_map) {
+    auto ret = inplace_map1;
+    for (auto &inplace_pair : inplace_map2) {
+        COMPILE_ASSERT(inplace_pair.second.size() == 1,
+                "Unexpected inplace info size during partition")
+        memory_optim::inplace_info info = inplace_pair.second[0];
+        auto tsr = ((expr_base *)info.first)->node_ptr_from_this();
+        auto iter = buffer_map.find(tsr);
+        ret[inplace_pair.first]
+                = std::vector<std::pair<uintptr_t, inplace_kind>> {
+                        {iter != buffer_map.end()
+                                        ? (uintptr_t)iter->second.get()
+                                        : info.first,
+                                info.second}};
+    }
+    return ret;
+}
+
+mxp_mem_info merge_real_mem_info(const mxp_buffer_allocator &alloc1,
         const mxp_buffer_allocator &alloc2) {
     // get buffer replace map
     std::unordered_map<expr, expr> buffer_map;
@@ -801,8 +847,11 @@ std::vector<memory_optim::memory_alloc_trace_t> merge_real_mem_trace(
             }
         }
     }
-    return merge_mem_trace(alloc1.get_real_mem_trace(keep_cut_set),
-            alloc2.get_real_mem_trace(keep_cut_set), buffer_map);
+    return std::make_pair(
+            merge_mem_trace(alloc1.get_real_mem_trace(keep_cut_set),
+                    alloc2.get_real_mem_trace(keep_cut_set), buffer_map),
+            merge_inplace_map(
+                    alloc1.inplace_map_, alloc2.inplace_map_, buffer_map));
 }
 
 void mxp_buffer_allocator::merge(mxp_buffer_allocator &other,
@@ -854,6 +903,9 @@ void mxp_buffer_allocator::merge(mxp_buffer_allocator &other,
     }
     // merge mem trace
     mem_trace_ = merge_mem_trace(mem_trace_, other.mem_trace_, buffer_map);
+    // merge inplace map
+    inplace_map_
+            = merge_inplace_map(inplace_map_, other.inplace_map_, buffer_map);
 }
 
 void mxp_buffer_allocator::clear() {
@@ -3174,11 +3226,6 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
         if (itr != orig_2_graph.end()) { return itr->second; }
         auto ret = std::make_shared<graph_tensor>(nullptr, orig_lr->details_);
         orig_2_graph.insert(std::make_pair(orig_lr, ret));
-        // remove hint attr if necessary
-        if (orig_lr->attrs_.get_or_else(
-                    mixed_partition_hint::no_inplace, false)) {
-            orig_lr->attrs_.remove(mixed_partition_hint::no_inplace);
-        }
         return ret;
     };
     auto visitor = op_visitor_t::dfs_topology_sort(g.ops_.size());
@@ -3231,7 +3278,8 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
                                                    << " outputs")
                 auto out_buffer = parti.buf_alloc_.g2b_map_.get(out);
                 // if outbuffer is already reused, set attr on output op
-                if (parti.buf_alloc_.use_count(out_buffer) > 1) {
+                if (out_buffer->attr().has_key(
+                            attr_keys::tensor_inplace_hint)) {
                     new_out_op->attrs_.set("buffer_already_reused", true);
                 }
                 arg_out.emplace_back(out_buffer);

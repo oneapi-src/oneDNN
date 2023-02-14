@@ -134,9 +134,14 @@ struct mxp_buffer_allocator {
     std::vector<memory_optim::memory_alloc_trace_t>
             mem_trace_; // memory allocation trace
 
+    memory_optim::inplace_info_map inplace_map_; // inplace map
+
     // support inplace logic, allocate buffer including either tensor or
     // tensorptr
     void allocate_buffer(sc_op *op);
+    // set inplace hint
+    void set_buffer_inplace_hint(
+            const expr &target_buf, const expr &inplace_buf);
     // get allocated buffer
     std::tuple<std::vector<expr>, std::vector<expr>> get_buffer(sc_op *op);
     // update input buffer info
@@ -164,8 +169,6 @@ struct mxp_buffer_allocator {
     void tensor_initialize();
     // replace the specific buffer
     void replace_buffer(graph_tensor *gt, expr &new_buffer);
-    // calculate total allocated buffer size
-    size_t get_total_allocated_buffer_size() const;
     // get real mem trace, taking consider of tensor shrink and ignore cut
     // buffer except for those in `keep_cut_set`
     std::vector<memory_optim::memory_alloc_trace_t> get_real_mem_trace(
@@ -440,17 +443,25 @@ void extract_anchor_from_fmgr_to_parti(fusion_manager *fmgr,
 
 void search_op_anchor_in_parti(sc_op *op, mixed_parti_t *parti);
 
+using mxp_mem_info = std::pair<std::vector<memory_optim::memory_alloc_trace_t>,
+        memory_optim::inplace_info_map>;
+
+mxp_mem_info merge_real_mem_info(
+        const mxp_buffer_allocator &alloc1, const mxp_buffer_allocator &alloc2);
+
 std::vector<memory_optim::memory_alloc_trace_t> merge_mem_trace(
         const std::vector<memory_optim::memory_alloc_trace_t> &mem_trace1,
         const std::vector<memory_optim::memory_alloc_trace_t> &mem_trace2,
         const std::unordered_map<expr, expr> &buffer_map);
 
-std::vector<memory_optim::memory_alloc_trace_t> merge_real_mem_trace(
-        const mxp_buffer_allocator &alloc1, const mxp_buffer_allocator &alloc2);
+memory_optim::inplace_info_map merge_inplace_map(
+        const memory_optim::inplace_info_map &inplace_map1,
+        const memory_optim::inplace_info_map &inplace_map2,
+        const std::unordered_map<expr, expr> &buffer_map);
 
-size_t get_buffer_usage_from_trace(
+size_t get_buffer_usage(const context_ptr &ctx,
         const std::vector<memory_optim::memory_alloc_trace_t> &mem_trace,
-        const context_ptr &ctx);
+        const memory_optim::inplace_info_map &inplace_map);
 
 void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph);
 

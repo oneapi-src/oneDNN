@@ -111,12 +111,12 @@ bool static_fusion_cost_model_t::make_decision_for_parti(
     /* cache efficiency */
     // skip standalone parti
     if (binded_mxp_->ops.size() == 1) return true;
-    // get real merged trace
-    auto merged_real_mem_trace
-            = merge_real_mem_trace(binded_mxp_->buf_alloc_, parti->buf_alloc_);
+    // get real merged trace and merged inplace map
+    auto merged_mem_info
+            = merge_real_mem_info(binded_mxp_->buf_alloc_, parti->buf_alloc_);
     // get real buffer usage
-    auto buffer_usage = get_buffer_usage_from_trace(
-            merged_real_mem_trace, binded_mxp_->ctx_);
+    auto buffer_usage = get_buffer_usage(
+            binded_mxp_->ctx_, merged_mem_info.first, merged_mem_info.second);
     // get threshold
     auto threshold = binded_mxp_->ctx_->machine_.cpu_flags_.getDCacheSize(2);
 
