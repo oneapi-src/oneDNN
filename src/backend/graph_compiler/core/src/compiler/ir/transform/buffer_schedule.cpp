@@ -1116,7 +1116,8 @@ static std::vector<size_t> schedule_tensor_memory_planner(
                         auto hint_itr
                                 = identity_to_tensor.find(hint.to_reuse_.get());
                         if (hint_itr == identity_to_tensor.end()) {
-                            SC_WARN << "Bad temp tensor in-place identity:"
+                            SC_MODULE_WARN
+                                    << "Bad temp tensor in-place identity:"
                                     << tsr;
                         } else {
                             auto &victim = hint_itr->second;
