@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 FUJITSU LIMITED
+ * Copyright 2022-2023 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,19 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#define XBYAK_AARCH64_MAKE_INSTANCE
-#include "xbyak_aarch64.h"
-#include <memory.h>
-#include <stdio.h>
-#ifdef _WIN32
-#include <intrin.h>
-#include <processthreadsapi.h> // FlushInstructionCache
-#endif
-
-namespace Xbyak_aarch64 {
-
-#include "err_impl.h"
-#include "xbyak_aarch64_impl.h"
-#include "xbyak_aarch64_mnemonic.h"
-
-} // namespace Xbyak_aarch64
+static const int majorVersion = 1;
+static const int minorVersion = 0;
+static const int patchVersion = 0;
+static int getVersion() { return (majorVersion << 16) + (minorVersion << 8) + patchVersion; }
+static const char *getVersionString() { return "1.0.0"; }

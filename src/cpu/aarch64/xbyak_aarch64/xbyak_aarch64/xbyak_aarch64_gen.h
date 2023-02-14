@@ -1,6 +1,6 @@
 #pragma once
 /*******************************************************************************
- * Copyright 2019-2022 FUJITSU LIMITED
+ * Copyright 2019-2023 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 
 #include "xbyak_aarch64_adr.h"
 #include "xbyak_aarch64_code_array.h"
-#include "xbyak_aarch64_err.h"
 #include "xbyak_aarch64_label.h"
 #include "xbyak_aarch64_reg.h"
 
@@ -740,8 +739,6 @@ public:
     labelMgr_.set(this);
   }
 
-  unsigned int getVersion() const { return VERSION; }
-
   void L(Label &label) { labelMgr_.defineClabel(label); }
   Label L() {
     Label label;
@@ -771,16 +768,7 @@ public:
     labelMgr_.set(this);
   }
   bool hasUndefinedLabel() const { return labelMgr_.hasUndefClabel(); }
-  void clearCache(void *begin, void *end) {
-#ifdef _WIN32
-    (void)begin;
-    (void)end;
-#elif defined(__APPLE__)
-    sys_icache_invalidate(begin, ((char *)end) - ((char *)begin));
-#else
-    __builtin___clear_cache((char *)begin, (char *)end);
-#endif
-  }
+  void clearCache(void *begin, void *end);
   /*
           MUST call ready() to complete generating code if you use AutoGrow
      mode.
@@ -842,6 +830,7 @@ public:
 
 #include "xbyak_aarch64_meta_mnemonic.h"
 #include "xbyak_aarch64_mnemonic_def.h"
+#include "xbyak_aarch64_version.h"
 
   void align(size_t x) {
     if (x == 4)

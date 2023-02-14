@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2019-2021 FUJITSU LIMITED
+ * Copyright 2019-2023 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@
 #define _XBYAK_AARCH64_LABEL_
 
 #include "xbyak_aarch64_code_array.h"
-#include "xbyak_aarch64_err.h"
 #include "xbyak_aarch64_inner.h"
 
 struct JmpLabel {

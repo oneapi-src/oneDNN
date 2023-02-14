@@ -1,6 +1,6 @@
 #pragma once
 /*******************************************************************************
- * Copyright 2019-2021 FUJITSU LIMITED
+ * Copyright 2019-2023 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,7 @@
  * limitations under the License.
  *******************************************************************************/
 
-enum {
-  DEFAULT_MAX_CODE_SIZE = 4096,
-  VERSION = 0x5800 /* 0xABCD = A.BC(D) */
-};
+enum { DEFAULT_MAX_CODE_SIZE = 4096 };
 
 namespace inner {
 
