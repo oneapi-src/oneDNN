@@ -276,7 +276,15 @@ void work() {
                 new_body->seq_.insert(new_body->seq_.end(), body->seq_.begin(),
                         body->seq_.end());
                 single_thread_body = stmts();
-            } else if (old_body[i].isa<define_c>()) {
+            } else if (old_body[i]
+                               .cast<define>()
+                               .filter([](const define &v) {
+                                   return !v->init_.defined()
+                                           || !v->init_.isa<indexing>();
+                               })
+                               .has_value()) {
+                // if the statement is a define node and the init value is not
+                // indexing (bypass a LLVM bug)
                 single_thread_body = stmts();
                 new_body->seq_.emplace_back(
                         dispatch(old_body[i]).remove_const());
