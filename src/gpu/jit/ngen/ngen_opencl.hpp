@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -230,7 +230,7 @@ HW OpenCLCodeGenerator<hw>::detectHW(cl_context context, cl_device_id device)
 template <HW hw>
 void OpenCLCodeGenerator<hw>::detectHWInfo(cl_context context, cl_device_id device, HW &outHW, int &outStepping)
 {
-    const char *dummyCL = "kernel void _(){}";
+    const char *dummyCL = "kernel void _ngen_hw_detect(){}";
     const char *dummyOptions = "";
 
     auto binary = detail::getOpenCLCProgramBinary(context, device, dummyCL, dummyOptions);
