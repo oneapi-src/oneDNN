@@ -1362,8 +1362,8 @@ enum class intrin_type {
     // intrin_attrs_["locality"]. It should be an int from 0 to 3, ranging from
     // very local to cache (0, or _MM_HINT_T0) to not local (3)
     prefetch,
-    // explicitly load from memory
-    mem_load,
+    // explicitly load from const memory location
+    load_const_mem,
     // used in nested parallel flattening
     get_group_id,
     get_group_thread_id,
@@ -1456,13 +1456,28 @@ public:
 };
 SC_DEFINE_EXPR_NODE_PTR(func_addr)
 
-enum class low_level_intrin_type {
+// intrin_type for low_level_intrin_kind::x86_general
+namespace x86_intrin_type {
+enum x86_intrin_type_t {
     NUM_INTRINSICS,
+};
+} // namespace x86_intrin_type
+
+extern ostream &operator<<(ostream &os, x86_intrin_type::x86_intrin_type_t t);
+
+/**
+ * The backend specific intrinsic kinds
+ **/
+enum class low_level_intrin_kind {
+    x86_general = 0,
+    x86_xbyak,
+    NUM_INTRIN_KINDS,
 };
 
 /**
  * The low-level-intrinsic node
- * @param intrin the intrinsic
+ * @param kind the backend specific intrinsic kind
+ * @param type the intrinsic type, defined by each backend
  * @param args the arguments
  * @note low-level-intrinsics will be used on low level ir for different
  * backends to express target-specific intrinsic, e.g. operations and
@@ -1474,9 +1489,11 @@ class low_level_intrin_node
       public visitable_t<low_level_intrin_node, expr_base> {
 public:
     static constexpr sc_expr_type type_code_ = sc_expr_type::low_level_intrin;
+    low_level_intrin_kind kind_;
     int64_t type_;
     std::vector<expr> args_;
-    low_level_intrin_node(int64_t intrin, const std::vector<expr> &args);
+    low_level_intrin_node(low_level_intrin_kind kind, int64_t type,
+            const std::vector<expr> &args);
     expr remake() const override;
     bool equals(expr_c other, ir_comparer &ctx) const override;
 };

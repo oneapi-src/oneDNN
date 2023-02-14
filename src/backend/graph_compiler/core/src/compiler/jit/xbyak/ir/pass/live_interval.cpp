@@ -15,6 +15,7 @@
  *******************************************************************************/
 
 #include <map>
+#include <string>
 #include <utility>
 
 #include <compiler/ir/ir_module.hpp>
@@ -205,7 +206,7 @@ private:
                 update_liveness(v.static_as<intrin_call>()->args_, index);
             } break;
             case sc_expr_type::low_level_intrin: {
-                auto val = v.static_as<xbyak_intrin>();
+                auto val = v.checked_as<xbyak_intrin>();
                 update_liveness(val->args_, index);
                 if (val->modifier_.cond_mask_.defined()) {
                     update_liveness({val->modifier_.cond_mask_}, index);
@@ -216,8 +217,8 @@ private:
 };
 
 func_c live_interval_t::operator()(func_c v) {
+    if (v->name_.find("_should_inline_") != std::string::npos) { return v; }
     live_interval_impl_t live_interval;
-
     return live_interval.dispatch(std::move(v));
 }
 

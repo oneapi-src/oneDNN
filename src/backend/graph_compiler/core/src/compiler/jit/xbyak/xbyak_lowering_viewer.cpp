@@ -409,7 +409,7 @@ void xbyak_lowering_viewer::handle_operations(
             handle_tensorptr(lhs, rhs.static_as<tensorptr_c>());
         } break;
         case sc_expr_type::low_level_intrin: {
-            handle_xbyak_intrin(lhs, rhs.static_as<xbyak_intrin_c>());
+            handle_xbyak_intrin(lhs, rhs.checked_as<xbyak_intrin_c>());
         } break;
         default: {
             COMPILE_ASSERT(false, "Not supported op: " << lhs << " = " << rhs);
@@ -1100,10 +1100,17 @@ void xbyak_lowering_viewer::handle_reinterpret(
             }
         } break;
         case 8: { // 64-bit
-            COMPILE_ASSERT(!is_x86_simd(dtype_dst) && !is_x86_simd(dtype_src),
-                    FUNC_INFO << "Invalid type: " << dtype_dst << " <- "
-                              << dtype_src);
-            handle_x86_mov(op_dst, op_src);
+            if (is_x86_simd(dtype_dst) && is_x86_simd(dtype_src)) {
+                // 64-bit sub xmm
+                handle_avx_movq(op_dst, op_src);
+            } else if (!is_x86_simd(dtype_dst) && !is_x86_simd(dtype_src)) {
+                // 64-bit int
+                handle_x86_mov(op_dst, op_src);
+            } else {
+                COMPILE_ASSERT(false,
+                        FUNC_INFO << "Invalid type: " << dtype_dst << " <- "
+                                  << dtype_src);
+            }
         } break;
         case 16: { // 128-bit xmm
             handle_avx_movps(op_dst, op_src);
@@ -1187,7 +1194,6 @@ void xbyak_lowering_viewer::handle_x86_cmp(
 
 void xbyak_lowering_viewer::handle_x86_set(const operand &op_dst,
         const xbyak_condition &code, const x86_64::cpu_data_type &cpu_dtype) {
-    // TODO(XXX): unsigned set
     const auto &op = op_dst.get_operand();
     switch (cpu_dtype) {
         case cpu_data_type::uint_8:

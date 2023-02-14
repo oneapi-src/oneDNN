@@ -30,10 +30,11 @@ public:
     using ir_visitor_t::dispatch_expr_vector;
     using ir_visitor_t::visit;
 
-    expr_c visit(low_level_intrin_c v) override;
-
     stmt_c visit(stmts_c v) override;
     stmt_c visit(for_loop_c v) override;
+
+    expr_c visit(tensor_c v) override;
+    expr_c visit(low_level_intrin_c v) override;
 
     virtual expr_c visit(xbyak_intrin_c v);
 

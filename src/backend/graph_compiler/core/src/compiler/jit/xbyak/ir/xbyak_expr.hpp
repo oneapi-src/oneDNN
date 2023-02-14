@@ -68,10 +68,7 @@ struct xbyak_expr_data_t {
  * The begining numbers are reserved for low_level_intrin
  * */
 enum class xbyak_intrin_type {
-    call_arg = static_cast<int>(
-            low_level_intrin_type::NUM_INTRINSICS), // special intrin to
-    // represent call arg
-    // location (reg/stack)
+    call_arg = 0, // special intrin to represent call arg location (reg/stack)
     sign_ext, // special intrin to represent CWD/CDQ/CQO/XOR before div/idiv
     mask_mov, // special intrin to represent avx512 zero masked move
     test, // special intrin to represent x86 bool logical compare
