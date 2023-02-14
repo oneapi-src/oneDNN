@@ -163,9 +163,7 @@ private:
 
     const char *bd_mask_buffer_ptr_ = nullptr;
     std::vector<size_t> adj_bd_mask_buffer_;
-    size_t *adj_bd_mask_buffer_ptr_ = nullptr;
     std::vector<size_t> skipped_bd_mask_buffer_;
-    size_t *skipped_bd_mask_buffer_ptr_ = nullptr;
     palette_config_t palette_;
     // used to store offsets within wsp buffer where the data is
     // transformed(downconverted), to reuse when needed.
@@ -238,6 +236,11 @@ private:
         dim_iteration_t() = default;
     };
 
+    struct bd_iteration_t : public dim_iteration_t {
+        std::vector<char> bd_mask;
+        std::vector<size_t> adj_bd_mask;
+    };
+
     struct bs_iteration_t {
         size_t idx = 0;
         size_t pos = 0;
@@ -251,13 +254,13 @@ private:
 
     struct iteration_map_t {
         std::vector<dim_iteration_t> ldis;
-        std::vector<dim_iteration_t> bdis;
+        std::vector<bd_iteration_t> bdis;
         std::vector<bs_iteration_t> bsis;
         std::vector<dim_iteration_t> rdis;
         bool is_last_ldi(const dim_iteration_t &ldi) const {
             return (ldi.idx == ldis.size() - 1);
         }
-        bool is_last_bdi(const dim_iteration_t &bdi) const {
+        bool is_last_bdi(const bd_iteration_t &bdi) const {
             return (bdi.idx == bdis.size() - 1);
         }
         bool is_last_rdi(const dim_iteration_t &rdi) const {
@@ -266,7 +269,7 @@ private:
     };
 
     struct brgemm_iteration_t {
-        dim_iteration_t bdi;
+        bd_iteration_t bdi;
         dim_iteration_t ldi;
         bs_iteration_t bsi;
         dim_iteration_t rdi;
@@ -450,8 +453,8 @@ private:
     size_t zp_comp_a_offset(int ldb) const noexcept;
     size_t zp_comp_b_offset(int bd) const noexcept;
     size_t zp_c_values_offset(brgemm_iteration_t &bi, int ldb) const noexcept;
-    bool is_out_bd(const dim_iteration_t &bdi, int bdb, int inp_bd) const;
-    int get_out_bd(const dim_iteration_t &bdi, int bdb, int inp_bd) const;
+    bool is_out_bd(const bd_iteration_t &bdi, int bdb, int inp_bd) const;
+    int get_out_bd(const bd_iteration_t &bdi, int bdb, int inp_bd) const;
 
     void maybe_tilestore(brgemm_iteration_t &bi, int bdb_idx, int ldb_idx,
             bool do_pre_tilestore, bool do_post_tilestore);
@@ -530,18 +533,16 @@ void jit_brgemm_amx_uker_base_t::prepare_bd_mask() noexcept {
     bd_mask_buffer_ptr_ = brg.brgattr.bd_mask;
     const auto bd_mask_size = brg.bcast_dim;
     adj_bd_mask_buffer_.resize(bd_mask_size);
-    adj_bd_mask_buffer_ptr_ = adj_bd_mask_buffer_.data();
     skipped_bd_mask_buffer_.resize(bd_mask_size);
-    skipped_bd_mask_buffer_ptr_ = skipped_bd_mask_buffer_.data();
-    if (!utils::any_null(bd_mask_buffer_ptr_, adj_bd_mask_buffer_ptr_)) {
+    if (bd_mask_buffer_ptr_ != nullptr) {
         int out_ibd = 0;
         for (int i = 0; i < bd_mask_size; i++) {
-            adj_bd_mask_buffer_ptr_[i] = out_ibd;
+            adj_bd_mask_buffer_[i] = out_ibd;
             out_ibd += bd_mask_buffer_ptr_[i];
-            skipped_bd_mask_buffer_ptr_[i] = i;
+            skipped_bd_mask_buffer_[i] = i;
             for (auto ii = i; ii < bd_mask_size; ii++) {
                 if (bd_mask_buffer_ptr_[ii]) {
-                    skipped_bd_mask_buffer_ptr_[i] = ii;
+                    skipped_bd_mask_buffer_[i] = ii;
                     break;
                 }
             }
@@ -554,7 +555,7 @@ int jit_brgemm_amx_uker_base_t::skipped_bd_mask(int inp_bd) noexcept {
     if (brg.brgattr.bd_mask_level != 2)
         return inp_bd;
     else
-        return skipped_bd_mask_buffer_ptr_[inp_bd];
+        return skipped_bd_mask_buffer_[inp_bd];
 }
 
 size_t jit_brgemm_amx_uker_base_t::A_offset(
@@ -632,18 +633,20 @@ size_t jit_brgemm_amx_uker_base_t::zp_c_values_offset(
 }
 
 bool jit_brgemm_amx_uker_base_t::is_out_bd(
-        const dim_iteration_t &bdi, int bdb, int inp_bd) const {
+        const bd_iteration_t &bdi, int bdb, int inp_bd) const {
     const auto bd = bdi.pos(bdb) + inp_bd;
-    return IMPLICATION(brg.brgattr.bd_mask_level, bd_mask_buffer_ptr_[bd] != 0);
+    return IMPLICATION(
+            brg.brgattr.bd_mask_level, bdi.bd_mask[bd - bdi.pos(0)] != 0);
 }
 
 int jit_brgemm_amx_uker_base_t::get_out_bd(
-        const dim_iteration_t &bdi, int bdb, int inp_bd) const {
+        const bd_iteration_t &bdi, int bdb, int inp_bd) const {
     if (!is_out_bd(bdi, bdb, inp_bd)) return -1;
     const auto bd = bdi.pos(bdb) + inp_bd;
-    if (brg.brgattr.bd_mask_level)
-        return adj_bd_mask_buffer_ptr_[bd];
-    else
+    if (brg.brgattr.bd_mask_level) {
+        assert(bdi.adj_bd_mask[bd - bdi.pos(0)] == adj_bd_mask_buffer_[bd]);
+        return bdi.adj_bd_mask[bd - bdi.pos(0)];
+    } else
         return bd;
 }
 
@@ -1893,7 +1896,7 @@ void jit_brgemm_amx_uker_base_t::fill_imap() {
     imap_.bsis.reserve(brg.brgattr.max_bs);
 
     auto bdi_pos = skipped_bd_mask(0);
-    dim_iteration_t bdi;
+    bd_iteration_t bdi;
     bdi.blocks.reserve(brg.bd_block2);
     for (int bdb = 0; bdb < brg.bdb; bdb += brg.bd_block2) {
         bdi.blocks.clear();
@@ -1911,6 +1914,18 @@ void jit_brgemm_amx_uker_base_t::fill_imap() {
             bdi_pos = skipped_bd_mask(bdi_pos);
         }
         bdi.idx = imap_.bdis.size();
+
+        if (brg.brgattr.bd_mask_level > 0) {
+            const auto lidx = bdi.blocks.size() - 1;
+            const auto bdm_sz = bdi.pos(lidx) + bdi.blocks[lidx].block;
+            bdi.bd_mask.resize(bdm_sz);
+            bdi.adj_bd_mask.resize(bdm_sz);
+            for (size_t i = 0; i < bdm_sz; i++) {
+                bdi.bd_mask[i] = bd_mask_buffer_ptr_[bdi.pos(0) + i];
+                bdi.adj_bd_mask[i] = adj_bd_mask_buffer_[bdi.pos(0) + i];
+            }
+        }
+
         imap_.bdis.push_back(bdi);
     }
 
