@@ -128,8 +128,9 @@ struct tensor_tick_info_t {
     int64_t delete_ = TICK_NOT_EXIST; // the tick that the tensor scope is done
     bool is_arg_ = false; // if is the tensor defined in function args
     // if the tensor is already scheduled, infered from the define stmt's
-    // init_.defined()
-    bool is_already_scheduled_ = false;
+    // init_. If the tensor is arg tensor, already_scheduled_base_ is the tensor
+    // itself
+    expr_c already_scheduled_base_;
     uint64_t scope_ = NOT_THREAD_LOCAL; // parallel scope id
     bool has_hint_ = false; // if the tensor has hint tick info
     // the tensors that the current tensor can inplace reuse buffer with. Not
@@ -145,6 +146,10 @@ struct tensor_tick_info_t {
     // is used to record the A and B data tensors that the address list tensor
     // of list_brgemm points to.
     std::unique_ptr<std::unordered_set<expr_c>> list_brgemm_tensors_;
+
+    bool is_already_scheduled() const {
+        return already_scheduled_base_.defined();
+    }
     int64_t get_last_access() const {
         int64_t last_access = last_read_;
         if (!writes_.empty()) {
@@ -207,8 +212,6 @@ public:
     // the map of tensor identity to the tensor
     std::unordered_map<alias_info::tensor_alias_identity_t *, expr_c>
             identity_to_tensor_;
-    // if a tsr is addressing from the rescheduled tensor
-    std::unordered_map<expr_c, tensor_c> map_expr_to_sched_tsr;
     reference_tick_finder_t(std::unordered_map<expr_c, tensor_tick_info_t> &out,
             std::vector<expr_c> &defined_tensors)
         : out_(out), defined_tensors_(defined_tensors) {}
@@ -234,6 +237,11 @@ public:
             int64_t for_end_tick, char rw_mask) {
         auto itr = out_.find(t);
         if (itr != out_.end()) {
+            if (itr->second.already_scheduled_base_.defined()
+                    && !t.ptr_same(itr->second.already_scheduled_base_)) {
+                update_complex_scope_ticks(itr->second.already_scheduled_base_,
+                        for_start_tick, for_end_tick, rw_mask);
+            }
             assert(for_start_tick != TICK_NOT_EXIST
                     && for_start_tick != COMPLICATED_ACCESS);
             assert(itr->second.first_access_ != TICK_NOT_EXIST);
@@ -283,6 +291,10 @@ public:
     void set_read_tick(const expr_c &t, int64_t tick) {
         auto itr = out_.find(t);
         if (itr != out_.end()) {
+            if (itr->second.already_scheduled_base_.defined()
+                    && !t.ptr_same(itr->second.already_scheduled_base_)) {
+                set_read_tick(itr->second.already_scheduled_base_, tick);
+            }
             if (itr->second.last_read_ == TICK_NOT_EXIST
                     && itr->second.writes_.empty()) {
                 itr->second.first_access_ = tick;
@@ -310,6 +322,10 @@ public:
     void set_write_tick(const expr_c &t, int64_t tick) {
         auto itr = out_.find(t);
         if (itr != out_.end()) {
+            if (itr->second.already_scheduled_base_.defined()
+                    && !t.ptr_same(itr->second.already_scheduled_base_)) {
+                set_write_tick(itr->second.already_scheduled_base_, tick);
+            }
             if (itr->second.last_read_ == TICK_NOT_EXIST
                     && itr->second.writes_.empty()) {
                 itr->second.first_access_ = tick;
@@ -336,6 +352,10 @@ public:
     void set_both_tick(const expr_c &t, int64_t tick) {
         auto itr = out_.find(t);
         if (itr != out_.end()) {
+            if (itr->second.already_scheduled_base_.defined()
+                    && !t.ptr_same(itr->second.already_scheduled_base_)) {
+                set_both_tick(itr->second.already_scheduled_base_, tick);
+            }
             if (tick == COMPLICATED_ACCESS) {
                 itr->second.last_read_ = tick;
                 itr->second.writes_.clear();
@@ -448,27 +468,12 @@ public:
             out_[t].delete_ = tick_;
         }
         tensor_in_scope_.pop_back();
-        for (auto &itr : out_) {
-            if (map_expr_to_sched_tsr.find(itr.first)
-                    != map_expr_to_sched_tsr.end()) {
-                if (out_.find(map_expr_to_sched_tsr.at(itr.first))
-                        != out_.end()) {
-                    auto &tick = out_.at(map_expr_to_sched_tsr.at(itr.first));
-                    if (itr.second.last_read_ < 0
-                            || itr.second.last_read_ > tick.last_read_) {
-                        tick.last_read_ = itr.second.last_read_;
-                    }
-                    if (!itr.second.writes_.empty()) {
-                        tick.writes_.insert(*itr.second.writes_.crbegin());
-                    }
-                }
-            }
-        }
         return v;
     }
 
     stmt_c visit(define_c v) override {
         if (v->var_.isa<tensor>()) {
+            expr already_scheduled_base;
             // only process local tensors here
             if (v->linkage_ == linkage::local
                     && (!v->attr_
@@ -482,13 +487,13 @@ public:
                     // e.g., tensor A_list : [pointer * 8] =
                     // &__rescheduled_0[0UL] which is built in former
                     // buffer_schedule process
-                    auto tsr = v->init_.static_as<tensorptr_c>()
-                                       ->base_->ptr_.checked_as<tensor_c>();
+                    const auto &tsr
+                            = v->init_.static_as<tensorptr>()->base_->ptr_;
                     if (tsr->attr_
                             && tsr->attr_->get_or_else(
                                     attr_keys::can_be_scheduled, false)) {
                         flag = true;
-                        map_expr_to_sched_tsr[v->var_] = tsr;
+                        already_scheduled_base = tsr;
                     }
                 } else {
                     flag = false;
@@ -502,7 +507,8 @@ public:
                         out_[v->var_].scope_ = scope_id_;
                     }
                     if (v->init_.defined()) {
-                        out_[v->var_].is_already_scheduled_ = true;
+                        out_[v->var_].already_scheduled_base_
+                                = already_scheduled_base;
                     }
                     if (auto identity = alias_info::get_alias_info(*v->var_)) {
                         auto itr = identity_to_tensor_.find(identity);
@@ -518,6 +524,13 @@ public:
                     defined_tensors_.emplace_back(v->var_);
                     tensor_in_scope_.back().emplace_back(v->var_);
                     good_tensor_ = true;
+                    dispatch(v->var_);
+                    if (v->init_.defined()) {
+                        good_tensor_ = true;
+                        dispatch(v->init_);
+                        good_tensor_ = false;
+                    }
+                    return v;
                 }
             }
         }
@@ -714,7 +727,7 @@ public:
                 info.create_ = 0;
                 info.delete_ = std::numeric_limits<int64_t>::max();
                 info.is_arg_ = true;
-                info.is_already_scheduled_ = true;
+                info.already_scheduled_base_ = p;
             }
         }
         dispatch(v->body_);
@@ -765,7 +778,7 @@ public:
             if (itr != out_.end()) {
                 auto last_read = itr->second.last_read_;
                 bool should_remove = !itr->second.is_arg_
-                        && !itr->second.is_already_scheduled_
+                        && !itr->second.is_already_scheduled()
                         && !itr->second.scope_ && !itr->second.has_hint_
                         && last_read != COMPLICATED_ACCESS
                         && tick_ > itr->second.last_read_;
@@ -814,7 +827,7 @@ static bool check_if_tensor_valid(
         bool &need_remove) {
     int64_t lastread = itr.second.last_read_;
     if (lastread == TICK_NOT_EXIST && itr.second.writes_.empty()
-            && !itr.second.is_arg_ && !itr.second.is_already_scheduled_) {
+            && !itr.second.is_arg_ && !itr.second.is_already_scheduled()) {
         // the tensor is neither read or written, remove the tensor
         SC_MODULE_INFO << "Removing unused " << itr.first;
         need_remove = true;
@@ -1055,7 +1068,7 @@ static std::vector<size_t> schedule_tensor_memory_planner(
     for (auto &itr_ptr : sorted_ticks) {
         auto &itr = *itr_ptr;
         auto tsr = itr.first.checked_as<tensor>();
-        if (itr.second.is_arg_ || itr.second.is_already_scheduled_) {
+        if (itr.second.is_arg_ || itr.second.is_already_scheduled()) {
             // skip arg tensor for now
             // skip already scheduled tensors
             continue;
