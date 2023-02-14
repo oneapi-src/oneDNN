@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
-* Copyright 2021-2022 FUJITSU LIMITED
+* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,13 +35,11 @@ namespace impl {
 namespace cpu {
 namespace aarch64 {
 
-namespace {
-
 using namespace Xbyak_aarch64;
 
 using data_t = int8_t;
 
-struct call_params_t {
+struct jit_uni_bnorm_s8_call_params_t {
     // keep int sizes at 8 bytes -- jit code expects this
     size_t channel_offt_count, spat_offt_count;
     float eps;
@@ -52,7 +50,7 @@ struct call_params_t {
 template <cpu_isa_t isa>
 struct jit_bnorm_base_t : public jit_generator {
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_t)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_s8_t)
 
     const int vlen = cpu_isa_traits<isa>::vlen;
 
@@ -73,16 +71,23 @@ struct jit_bnorm_base_t : public jit_generator {
     XReg reg_var = x14;
     XReg reg_channel_offt_1byte = x15;
     XReg reg_channel_offt_4byte = x1;
+    WReg reg_relu_alpha = WReg(abi_not_param1.getIdx());
+
+    PReg kstore_mask = p1;
 
     ZReg vzero = z29;
     ZReg vone = z30;
     ZReg veps = z31;
+    ZReg vmm_aux = z28;
     ZReg z_tmp0 = z25;
 
+    size_t simd_w_ = cpu_isa_traits<isa>::vlen / sizeof(float);
     size_t c_in_xmm_ = 16;
-    size_t num_c16_blocks_;
+    size_t chan_data_offt_;
+    size_t num_c_blocks_;
     size_t c_tail_;
     bool with_relu_;
+    bool has_alpha_value_;
 
     PReg p_lsb_128 = p6;
     PReg p_tmp0 = p5;
@@ -112,41 +117,36 @@ struct jit_bnorm_base_t : public jit_generator {
     }
 
     void compute_predefined_variables() {
-        num_c16_blocks_ = pd_->C() / c_in_xmm_;
+        chan_data_offt_ = pd_->C() * sizeof(float);
+        num_c_blocks_ = pd_->C() / c_in_xmm_;
         c_tail_ = pd_->C() % c_in_xmm_;
-        with_relu_ = (pd_->with_relu_post_op() || pd_->fuse_norm_relu())
+        with_relu_ = (pd_->with_relu_post_op(false) || pd_->fuse_norm_relu())
                 && pd_->is_fwd();
+        has_alpha_value_ = with_relu_ && pd_->with_relu_post_op(false)
+                && pd_->alpha() != 0;
     }
 
     void load_common_params() {
-        mov(WReg(IDX(reg_tmp)), float2int(1.0f));
-        dup(vone.s, WReg(IDX(reg_tmp)));
+        fmov(vone.s, 1.0);
 
-#define PARAM_OFF(x) offsetof(call_params_t, x)
-#define PARAM_OFF_DIFF(x, y) \
-    (static_cast<int32_t>(PARAM_OFF(x)) - static_cast<int32_t>(PARAM_OFF(y)))
-#define LDR_PARAM(r, x, y) \
-    assert(-256 <= PARAM_OFF_DIFF(x, y) && PARAM_OFF_DIFF(x, y) <= 255); \
-    ldr(r, pre_ptr(X_DEFAULT_ADDR, PARAM_OFF_DIFF(x, y)))
-
-        mov(X_DEFAULT_ADDR, reg_param);
-
-        ldr(W_TMP_0, pre_ptr(X_DEFAULT_ADDR, PARAM_OFF(eps)));
-        dup(veps.s, W_TMP_0);
+#define PARAM_OFF(x) (int32_t)(offsetof(jit_uni_bnorm_s8_call_params_t, x))
+        ld1rw(veps.s, P_ALL_ONE / T_z, ptr(reg_param, PARAM_OFF(eps)));
         uni_eor(vzero, vzero, vzero);
 
-        LDR_PARAM(reg_channel_offt_count, channel_offt_count, eps);
-        LDR_PARAM(reg_spat_offt_count, spat_offt_count, channel_offt_count);
-        LDR_PARAM(reg_src, src, spat_offt_count);
-        LDR_PARAM(reg_dst, dst, src);
-        LDR_PARAM(reg_mean, mean, dst);
-        LDR_PARAM(reg_scale, scale, mean);
-        LDR_PARAM(reg_shift, shift, scale);
-        LDR_PARAM(reg_var, var, shift);
-
+        ldr(reg_channel_offt_count,
+                ptr(reg_param, PARAM_OFF(channel_offt_count)));
+        ldr(reg_spat_offt_count, ptr(reg_param, PARAM_OFF(spat_offt_count)));
+        ldr(reg_src, ptr(reg_param, PARAM_OFF(src)));
+        ldr(reg_dst, ptr(reg_param, PARAM_OFF(dst)));
+        ldr(reg_mean, ptr(reg_param, PARAM_OFF(mean)));
+        ldr(reg_scale, ptr(reg_param, PARAM_OFF(scale)));
+        ldr(reg_shift, ptr(reg_param, PARAM_OFF(shift)));
+        ldr(reg_var, ptr(reg_param, PARAM_OFF(var)));
 #undef PARAM_OFF
-#undef PARAM_OFF_DIFF
-#undef LDR_PARAM
+
+        if (has_alpha_value_) {
+            mov_imm(reg_relu_alpha, float2int(pd_->alpha()));
+        }
     }
 
     XReg mean_ptr(size_t offt = 0) {
@@ -191,8 +191,8 @@ struct jit_bnorm_base_t : public jit_generator {
 
         if (pd_->use_scale() && pd_->use_shift()) {
             load_scale(vscale, offt, need_tail);
-            load_shift(vshift, offt, need_tail);
             uni_fdiv(vscale.s, vscale.s, vsqrtvar.s, z_tmp0.s, P_ALL_ONE);
+            load_shift(vshift, offt, need_tail);
             fmls(vshift.s, P_ALL_ONE / T_m, vmean.s, vscale.s);
         } else if (pd_->use_scale()) {
             load_scale(vscale, offt, need_tail);
@@ -200,8 +200,8 @@ struct jit_bnorm_base_t : public jit_generator {
             fmul(vmean.s, vmean.s, vscale.s);
             uni_fsub(vshift.s, vzero.s, vmean.s);
         } else if (pd_->use_shift()) {
-            load_shift(vshift, offt, need_tail);
             uni_fdiv(vscale.s, vone.s, vsqrtvar.s, z_tmp0.s, P_ALL_ONE);
+            load_shift(vshift, offt, need_tail);
             fmls(vshift.s, P_ALL_ONE / T_m, vmean.s, vscale.s);
         } else {
             uni_fdiv(vscale.s, vone.s, vsqrtvar.s, z_tmp0.s, P_ALL_ONE);
@@ -215,9 +215,9 @@ struct jit_bnorm_base_t : public jit_generator {
                 reg_channel_offt_1byte);
         eor(reg_channel_offt_4byte, reg_channel_offt_4byte,
                 reg_channel_offt_4byte);
-        mov(WReg(IDX(reg_tmp)), sizeof(data_t) * c_in_xmm_);
+        mov(WReg(reg_tmp.getIdx()), sizeof(data_t) * c_in_xmm_);
 
-        if (num_c16_blocks_) compute_dst(false);
+        if (num_c_blocks_) compute_dst(false);
         if (c_tail_) compute_dst(true);
     }
 
@@ -227,6 +227,8 @@ struct jit_bnorm_base_t : public jit_generator {
     void generate() override {
         preamble();
 
+        // Only SVE512 is supported.
+        assert(isa == sve_512);
         if (isa == sve_512) { ptrue(p_lsb_128.b, VL16); }
 
         compute_predefined_variables();
@@ -240,32 +242,16 @@ struct jit_bnorm_base_t : public jit_generator {
 };
 
 template <cpu_isa_t isa>
-struct jit_bnorm_t;
+struct jit_bnorm_s8_t;
 
 template <>
-struct jit_bnorm_t<sve_512> : public jit_bnorm_base_t<sve_512> {
+struct jit_bnorm_s8_t<sve_512> : public jit_bnorm_base_t<sve_512> {
     PReg tail_opmask = PReg(1); // f32 mask for channel math
 
     void prepare_tail_mask() override {
         if (!c_tail_) return;
 
-        // The kmovw instrucion here can be translated correctly by translator
-        uint32_t idx = IDX(tail_opmask);
-        switch (c_tail_) {
-            case 16: ptrue(PRegS(idx), VL16); break;
-            case 8: ptrue(PRegS(idx), VL8); break;
-            case 7: ptrue(PRegS(idx), VL7); break;
-            case 6: ptrue(PRegS(idx), VL6); break;
-            case 5: ptrue(PRegS(idx), VL5); break;
-            case 4: ptrue(PRegS(idx), VL4); break;
-            case 3: ptrue(PRegS(idx), VL3); break;
-            case 2: ptrue(PRegS(idx), VL2); break;
-            case 1: ptrue(PRegS(idx), VL1); break;
-            default:
-                index(z_tmp0.s, 1, 1);
-                cmple(PRegS(idx), P_ALL_ONE / T_z, z_tmp0.s, c_tail_);
-                break;
-        }
+        set_preg(tail_opmask.s, c_tail_, X_TMP_0, X_TMP_1);
     }
 
     void load_mean_and_var(const ZReg &vmean, const ZReg &vsqrtvar, size_t offt,
@@ -295,7 +281,14 @@ struct jit_bnorm_t<sve_512> : public jit_bnorm_base_t<sve_512> {
         }
     }
 
-    void compute_dst(bool need_tail = false) override {
+    void process_relu_alpha(ZReg vmm_dst) {
+        dup(vmm_aux.s, reg_relu_alpha);
+        fcmge(kstore_mask.s, P_ALL_ONE / T_z, vmm_dst.s, 0.f);
+        fmul(vmm_aux.s, kstore_mask / T_m, vmm_dst.s);
+        mov(vmm_dst.s, kstore_mask / T_m, vmm_aux.s);
+    }
+
+    void compute_dst(bool need_tail) override {
         Label c_loop;
         L(c_loop);
         {
@@ -315,50 +308,30 @@ struct jit_bnorm_t<sve_512> : public jit_bnorm_base_t<sve_512> {
             L(mb_sp_loop);
             {
                 if (need_tail) {
-                    if (c_tail_ != 0) {
-                        if (c_tail_ <= 8) {
-                            ptrue(p_tmp0.b, Pattern((int)c_tail_));
-                        } else {
-                            ptrue(p_tmp0.b, Pattern((int)c_tail_ - 8));
-                            ptrue(P_TMP_1.b, VL8);
-                            zip1(p_tmp0.d, P_TMP_1.d, p_tmp0.d);
-                        }
-                        ld1b(v.b, p_tmp0 / T_m, ptr(src_ptr()));
-                    }
-                    zip1(z_tmp0.b, v.b, v.b);
-                    zip1(z_tmp0.h, z_tmp0.h, z_tmp0.h);
-                    sxtb(v.s, P_ALL_ONE / T_m, z_tmp0.s);
+                    set_preg(p_tmp0.s, c_tail_, X_TMP_0, X_TMP_1);
+                    ld1sb(v.s, p_tmp0 / T_z, ptr(src_ptr()));
                 } else {
-                    ld1b(z_tmp0.b, p_lsb_128 / T_z, ptr(src_ptr()));
-                    zip1(z_tmp0.b, z_tmp0.b, z_tmp0.b);
-                    zip1(z_tmp0.h, z_tmp0.h, z_tmp0.h);
-                    sxtb(v.s, P_ALL_ONE / T_m, z_tmp0.s);
+                    ld1sb(v.s, P_ALL_ONE / T_z, ptr(src_ptr()));
                 }
 
                 scvtf(v.s, P_ALL_ONE / T_m, v.s);
 
                 fmad(v.s, P_ALL_ONE, vscale.s, vshift.s);
-                if (with_relu_) uni_fmax(v, v, vzero);
+                if (with_relu_) {
+                    if (has_alpha_value_)
+                        process_relu_alpha(v);
+                    else
+                        uni_fmax(v, v, vzero);
+                }
 
                 frinti(v.s, P_ALL_ONE / T_m, v.s);
                 fcvtzs(v.s, P_ALL_ONE / T_m, v.s);
-                if (need_tail) {
-                    mov(z_tmp0.d, v.d);
-                    dup(v.d, 0);
-                    smin(z_tmp0.s, 127);
-                    smax(z_tmp0.s, -128);
-                    uzp1(z_tmp0.h, z_tmp0.h, v.h);
-                    uzp1(v.b, z_tmp0.b, v.b);
-
-                    if (c_tail_ != 0) {
-                        st1b(v.b, p_tmp0 / T_m, ptr(dst_ptr()));
-                    }
-                } else {
-                    mov(z_tmp0.d, v.d);
-                    smin(z_tmp0.s, 127);
-                    smax(z_tmp0.s, -128);
-                    st1b(z_tmp0.s, P_ALL_ONE / T_m, ptr(dst_ptr()));
-                }
+                smin(v.s, 127);
+                smax(v.s, -128);
+                if (need_tail)
+                    st1b(v.s, p_tmp0, ptr(dst_ptr()));
+                else
+                    st1b(v.s, P_ALL_ONE, ptr(dst_ptr()));
 
                 add(reg_spat_offt, reg_spat_offt, reg_channel_offt_count);
                 cmp(reg_spat_offt, reg_spat_offt_count);
@@ -376,11 +349,9 @@ struct jit_bnorm_t<sve_512> : public jit_bnorm_base_t<sve_512> {
         }
     }
 
-    jit_bnorm_t(const batch_normalization_pd_t *pd)
+    jit_bnorm_s8_t(const batch_normalization_pd_t *pd)
         : jit_bnorm_base_t<sve_512>(pd) {}
 };
-
-} // namespace
 
 namespace bnorm_s8_impl {
 
@@ -401,7 +372,7 @@ struct driver_t : public c_compatible {
         dim_t W = pd_->W();
         dim_t SP = D * H * W;
 
-        call_params_t p;
+        jit_uni_bnorm_s8_call_params_t p;
 
         p.eps = pd_->desc()->batch_norm_epsilon;
 
@@ -426,7 +397,7 @@ struct driver_t : public c_compatible {
 private:
     const batch_normalization_pd_t *pd_;
 
-    jit_bnorm_t<isa> ker_;
+    jit_bnorm_s8_t<isa> ker_;
 };
 
 } // namespace bnorm_s8_impl
@@ -446,10 +417,13 @@ status_t jit_uni_batch_normalization_s8_fwd_t<isa>::pd_t::init(
             && one_of(ndims(), 4, 5) && stats_is_src()
             && src_md()->data_type == s8 && check_scale_shift_data_type()
             && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
-            /* separate scale and shift are not supported */
-            && !use_scale() && !use_shift()
-            && (attr()->has_default_values() || this->with_relu_post_op());
+            && (attr()->has_default_values() || this->with_relu_post_op(false))
+            && set_default_formats_common()
+            && memory_desc_wrapper(src_md()) == memory_desc_wrapper(dst_md());
     if (!ok) return status::unimplemented;
+
+    // BN+Add+Relu fusion is not currently implemented
+    if (fuse_norm_add_relu()) return status::unimplemented;
 
     return status::success;
 }
@@ -469,15 +443,14 @@ status_t jit_uni_batch_normalization_s8_fwd_t<isa>::init(engine_t *engine) {
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_s8_fwd_t<isa>::execute(
         const exec_ctx_t &ctx) const {
-    status_t status = status::success;
+
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto scale = CTX_IN_MEM(const float *, DNNL_ARG_SCALE);
     auto shift = CTX_IN_MEM(const float *, DNNL_ARG_SHIFT);
     auto mean = const_cast<float *>(CTX_IN_MEM(const float *, DNNL_ARG_MEAN));
     auto var
             = const_cast<float *>(CTX_IN_MEM(const float *, DNNL_ARG_VARIANCE));
-    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
-    CHECK(status);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
     // do sequential if the problem is less than one 4K memory page
     const bool force_sequential
