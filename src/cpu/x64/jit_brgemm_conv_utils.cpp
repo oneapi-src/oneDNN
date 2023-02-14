@@ -2139,10 +2139,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     if (try_exec_type_res == false) return status::unimplemented;
 
-    // TODO(keola): Check if other execution types support plain weights.
-    if (jcp.exec_type != exec_vpad && jcp.wei_plain)
-        return status::unimplemented;
-
     // ============ end blocking ===========================================
     if (jcp.exec_type == exec_vpad)
         jcp.max_vpad = nstl::max(jcp.l_pad, jcp.r_pad);

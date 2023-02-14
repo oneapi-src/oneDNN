@@ -14,4 +14,4 @@
 --dir=FWD_B
 --mb=2
 --wtag=xba --batch=shapes_resnet_50_v1_5
---wtag=xcab --batch=shapes_basic --batch=shapes_googlenet_v3 --batch=shapes_mobilenet
+--wtag=xcab --batch=shapes_basic --batch=shapes_gemm --batch=shapes_googlenet_v3 --batch=shapes_mobilenet
