@@ -5225,6 +5225,10 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasGeluU8s8u8MixBf16) {
 
     std::string qtype = "per_channel";
     std::vector<int64_t> groups = {1, 4};
+    std::vector<float> scales = {1.f, 1 / 255.f};
+    std::vector<int64_t> zps = {0, 110};
+    for_(const auto &scale : scales)
+    for_(const auto &zp : zps)
     for (const auto &g_ : groups) {
         int64_t in_channel = 8, out_channel = 8;
         std::vector<int64_t> src_shape = {1, in_channel, 12, 12};
@@ -5251,15 +5255,15 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasGeluU8s8u8MixBf16) {
         std::uniform_real_distribution<float> distribution3(0.0f, 20.0f);
         std::generate(bias_data.begin(), bias_data.end(),
                 [&]() { return distribution3(generator); });
-        float scale_src = 1 / 255.f; // map to 0~255
-        int64_t zp_src = 110;
+        float scale_src = scale; // map to 0~255
+        int64_t zp_src = zp;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
         std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
-        float scale_out = 1 / 255.f; // map to 0~255
-        int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 110;
+        float scale_out = scale; // map to 0~255
+        int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : zp;
 
         graph::op_t dqdata_op(0, graph::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
