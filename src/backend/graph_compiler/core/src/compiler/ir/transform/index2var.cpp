@@ -25,7 +25,9 @@
 #include <compiler/ir/viewer.hpp>
 #include <unordered_map>
 #include <unordered_set>
+#include <util/any_map.hpp>
 #include <util/utils.hpp>
+#include <util/weakptr_utils.hpp>
 
 SC_MODULE(pass.index2var)
 
@@ -43,12 +45,28 @@ SC_DECL_PASS_INFO(index2var,
 // `is_valid_` = false, meaning that the indices are untraceable - we are unable
 // to tell if the indices are changed after some statements.
 class var_dependency_finder_t : public ir_viewer_t {
-    std::unordered_set<expr_c> *vars_;
+    utils::weakptr_hashset_t<expr_base> *vars_;
     // the output flag to mark if the input expr is good for index2var_t
     bool is_valid_ = true;
-    var_dependency_finder_t(std::unordered_set<expr_c> *vars) : vars_(vars) {}
+    var_dependency_finder_t(utils::weakptr_hashset_t<expr_base> *vars)
+        : vars_(vars) {}
 
     void view(call_c v) override {
+        bool is_pure_no_args
+                = some_opt(dynamic_cast<func_base *>(v->func_.get()))
+                          .filter([](func_base *f) {
+                              return f->params_.empty();
+                          })
+                          .map([](func_base *f) { return f->attr_.get(); })
+                          .filter([](any_map_t *m) {
+                              return m->get_or_else(
+                                      function_attrs::pure, false);
+                          })
+                          .has_value();
+        if (is_pure_no_args) {
+            ir_viewer_t::view(v);
+            return;
+        }
         is_valid_ = false;
         SC_MODULE_INFO << "Found call node in index: " << v;
     }
@@ -56,11 +74,11 @@ class var_dependency_finder_t : public ir_viewer_t {
         is_valid_ = false;
         SC_MODULE_INFO << "Found indexing node in index: " << v;
     }
-    void view(var_c v) override { vars_->insert(v); }
+    void view(var_c v) override { vars_->insert(v.impl); }
 
 public:
-    static bool find(
-            std::unordered_set<expr_c> &vars, const std::vector<expr> &idx) {
+    static bool find(utils::weakptr_hashset_t<expr_base> &vars,
+            const std::vector<expr> &idx) {
         var_dependency_finder_t f(&vars);
         for (auto &v : idx) {
             f.dispatch(v);
@@ -96,6 +114,12 @@ struct tensor_usage_analysis_result_t {
     }
 };
 
+struct var_state_analysis_result_t {
+    utils::weakptr_hashset_t<expr_base> depending_on_;
+    int assignments_ = 0;
+    bool is_complex_ = false;
+};
+
 // the visitor to find all tensor written in all stmts. Also finds if the tensor
 // is read in "broadcast" intrinsic.
 class index2var_analysis_t : public ir_viewer_t {
@@ -123,10 +147,36 @@ public:
         return expr();
     }
 
+    var_state_analysis_result_t *get_or_create_var_state(const expr &v) {
+        if (auto ret
+                = v->temp_data().get_or_null<var_state_analysis_result_t>()) {
+            return ret;
+        }
+        v->temp_data() = var_state_analysis_result_t {};
+        return v->temp_data().get_or_null<var_state_analysis_result_t>();
+    }
+
+    void view(define_c v) override {
+        if (v->var_.isa<var>() && v->init_.defined()) {
+            auto var_state = get_or_create_var_state(v->var_);
+            var_state->assignments_++;
+            var_state->is_complex_ = !var_dependency_finder_t::find(
+                    var_state->depending_on_, {v->init_});
+        }
+    }
     void view(assign_c v) override {
         ir_viewer_t::view(v);
         auto tsr = get_tensor_from_indexing(v->var_);
-        if (tsr.defined()) { written_.insert(tsr); }
+        if (tsr.defined()) {
+            written_.insert(tsr);
+        } else {
+            auto var_state = get_or_create_var_state(v->var_);
+            var_state->assignments_++;
+            if (var_state->assignments_ == 1) {
+                var_state->is_complex_ = !var_dependency_finder_t::find(
+                        var_state->depending_on_, {v->value_});
+            }
+        }
     }
 
     void view(tensor_c v) override {
@@ -196,6 +246,7 @@ public:
 };
 
 class indexing2var_impl_t : public ir_visitor_t {
+    struct scope_info_t;
     // the "cache" for an element of a tensor
     // currently, one tensor has only one "cache"
     struct tensor_cache_t {
@@ -209,6 +260,9 @@ class indexing2var_impl_t : public ir_visitor_t {
         // the vector size
         unsigned lanes_;
         expr_c mask_;
+        // the tensor cache var definition may be lifted to a parent for-loop
+        scope_info_t *may_lift_to_ = nullptr;
+        utils::weakptr_hashset_t<expr_base> dependencies_;
         tensor_cache_t(tensor_c tsr, std::vector<expr_c> &&idx, var_c var,
                 int lanes, expr_c mask = expr())
             : tsr_(std::move(tsr))
@@ -238,9 +292,15 @@ class indexing2var_impl_t : public ir_visitor_t {
     using tensor_cache_ptr = std::shared_ptr<tensor_cache_t>;
 
     struct scope_info_t {
+        const for_loop_node_t *loop_;
+        std::vector<stmt_c> *insert_point_;
         const std::unordered_set<expr_c> &written_tensors_;
         std::unordered_set<tensor_cache_ptr> outstanding_cache_;
-
+        // the number of times we flush cached of an tensor
+        std::unordered_map<expr_c, int> num_flushes_;
+        // the statements to be inserted after current call of visit() of a
+        // sub-node in stmts node
+        std::vector<stmt> insert_after_;
         bool is_cache_defined_here(const tensor_cache_ptr &v) {
             return outstanding_cache_.find(v) != outstanding_cache_.end();
         }
@@ -269,20 +329,26 @@ class indexing2var_impl_t : public ir_visitor_t {
     int for_depth_ = 0;
     std::unordered_map<alias_info::tensor_alias_identity_t *, expr_c>
             &alias_map_;
+    std::unordered_set<expr_c> loop_vars_;
+    const for_loop_node_t *cur_for_loop_ = nullptr;
 
     // flushes the cache
-    void invalidate(tensor_cache_ptr c) { // NOLINT
+    void invalidate(tensor_cache_ptr c, // NOLINT
+            std::vector<stmt> *writeback_point = nullptr) { // NOLINT
         if (c->is_valid()) {
             // if the cache is dirty, write back after the last write
             if (c->last_write_.defined()) {
-                c->last_write_->seq_.emplace_back(
-                        builder::make_assign_unattached(
-                                builder::make_indexing(
-                                        c->tsr_, c->idx_, c->lanes_, c->mask_),
-                                c->var_));
+                if (!writeback_point) {
+                    writeback_point = &c->last_write_->seq_;
+                }
+                writeback_point->emplace_back(builder::make_assign_unattached(
+                        builder::make_indexing(
+                                c->tsr_, c->idx_, c->lanes_, c->mask_),
+                        c->var_));
             }
             // mark the cache invalid
             cached_index_.erase(c->tsr_);
+            scope_info_.back().num_flushes_[c->tsr_]++;
             c->tsr_ = tensor_c();
         }
     }
@@ -298,6 +364,52 @@ class indexing2var_impl_t : public ir_visitor_t {
         return false;
     }
 
+    bool is_var_dependent_only_on_loop_var(const expr_c &itr, int recur_count) {
+        if (recur_count > 7) {
+            // the dependency is too complex, or there is a loop in dependency
+            return false;
+        }
+        if (loop_vars_.count(itr) == 0) {
+            // if it depends on a non-loop var
+            if (auto var_state
+                    = itr->get_temp_data()
+                              .get_or_null<var_state_analysis_result_t>()) {
+                if (var_state->assignments_ == 1 && !var_state->is_complex_) {
+                    for (auto v : var_state->depending_on_) {
+                        auto ptr = v.lock();
+                        if (ptr.get() == itr.get()) {
+                            // self dependent
+                            return false;
+                        }
+                        if (!is_var_dependent_only_on_loop_var(
+                                    expr_c(ptr), recur_count + 1)) {
+                            return false;
+                        }
+                    }
+                }
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void collect_var_dependency(const std::shared_ptr<expr_base> &itr,
+            utils::weakptr_hashset_t<expr_base> &out) {
+        if (out.has(itr)) { return; }
+        out.insert(itr);
+        if (auto var_state
+                = itr->get_temp_data()
+                          .get_or_null<var_state_analysis_result_t>()) {
+            if (var_state->assignments_ == 1 && !var_state->is_complex_) {
+                for (auto v : var_state->depending_on_) {
+                    auto ptr = v.lock();
+                    collect_var_dependency(ptr, out);
+                }
+            }
+        }
+    }
+
     // inserts an indexing to cache
     // if `is_read`, sets the cached var to the indexing value
     // if the indexing node is not cache-able, returns `v` and leaves
@@ -305,7 +417,7 @@ class indexing2var_impl_t : public ir_visitor_t {
     expr_c make_cache(indexing_c v, bool is_read, tensor_cache_ptr &out_cache) {
         SC_MODULE_INFO << "Make cache: " << v;
         // the vars that the indices of `v` depends on
-        std::unordered_set<expr_c> vars;
+        utils::weakptr_hashset_t<expr_base> vars;
         // if we can trace the changes of the indices
         bool is_valid = var_dependency_finder_t::find(vars, v->idx_);
         if (!is_valid) {
@@ -328,24 +440,70 @@ class indexing2var_impl_t : public ir_visitor_t {
                              .static_as<var>();
         assert(insertion_point_);
         // declare a var, insert before the current stmt
-        insertion_point_->emplace_back(
-                builder::make_var_tensor_def_unattached(vcache));
-        if (is_read) {
-            // if read, set the var cache to the value in memory
-            insertion_point_->emplace_back(
-                    builder::make_assign_unattached(vcache, v));
-        }
+        // if read, set the var cache to the value in memory
+        insertion_point_->emplace_back(builder::make_var_tensor_def_unattached(
+                vcache, linkage::local, is_read ? v.remove_const() : expr()));
         out_cache = std::make_shared<tensor_cache_t>(tsr,
                 std::vector<expr_c>(v->idx_.begin(), v->idx_.end()), vcache,
                 v->dtype_.lanes_, v->mask_);
         scope_info_.back().outstanding_cache_.insert(out_cache);
         // remember the dependency
-        for (auto &itr : vars) {
-            dependency_map_.insert(std::make_pair(itr, out_cache));
+        // and check if the index only depends on loop vars
+        bool only_loop_dependent = true;
+        for (auto itr : vars) {
+            auto ptr = itr.lock();
+            dependency_map_.insert(std::make_pair(expr(ptr), out_cache));
+            only_loop_dependent = only_loop_dependent
+                    && is_var_dependent_only_on_loop_var(expr_c(ptr), 0);
+        }
+        if (only_loop_dependent) {
+            utils::weakptr_hashset_t<expr_base> dep_vars;
+            for (auto dvar : vars) {
+                collect_var_dependency(dvar.lock(), dep_vars);
+            }
+            // traverse the parent for-loops to find if it is possible to move
+            // the definition up in a later moment
+            scope_info_t *lifted_scope = nullptr;
+            for (auto itr = scope_info_.rbegin(); itr != scope_info_.rend();
+                    ++itr) {
+                auto &sinfo = *itr;
+                if (!sinfo.loop_) { break; }
+                for_loop_node_t *nested_loop
+                        = sinfo.loop_->body_.cast<stmts>()
+                                  .filter([](const stmts &v) {
+                                      return v->seq_.size() == 1UL;
+                                  })
+                                  .map([](const stmts &v) {
+                                      return v->seq_[0].as<for_loop>().get();
+                                  })
+                                  .get_or_else(nullptr);
+
+                lifted_scope = &sinfo;
+                if (sinfo.loop_->kind_ != for_type::NORMAL) { break; }
+                if (dep_vars.has(sinfo.loop_->var_.impl) != 0) {
+                    // if the index depends on the current loop, break
+                    break;
+                }
+                if (itr != scope_info_.rbegin() && !nested_loop) { break; }
+            }
+            if (lifted_scope && lifted_scope != &scope_info_.back()) {
+                out_cache->may_lift_to_ = lifted_scope;
+                out_cache->dependencies_ = std::move(dep_vars);
+            }
         }
         // put into the cache
         cached_index_.insert(std::make_pair(tsr, out_cache));
         return std::move(vcache);
+    }
+
+    expr_c visit(cast_c v) override {
+        if (v->in_.isa<tensor>()) {
+            if (invalidate_alias_group(v->in_, true)) {
+                SC_MODULE_INFO << "Evict due to cast: " << v;
+            }
+            scope_info_.back().num_flushes_[v->in_]++;
+        }
+        return ir_visitor_t::visit(std::move(v));
     }
 
     expr_c visit(call_c v) override {
@@ -355,6 +513,7 @@ class indexing2var_impl_t : public ir_visitor_t {
                 if (invalidate_alias_group(arg, true)) {
                     SC_MODULE_INFO << "Evict due to function call: " << ret;
                 }
+                scope_info_.back().num_flushes_[arg]++;
             }
         }
         return ret;
@@ -370,6 +529,7 @@ class indexing2var_impl_t : public ir_visitor_t {
         if (invalidate_alias_group(tsr, true)) {
             SC_MODULE_INFO << "Evict due to tensorptr: " << v;
         }
+        scope_info_.back().num_flushes_[tsr]++;
         if (ret_base.ptr_same(v->base_)) {
             return std::move(v);
         } else {
@@ -471,25 +631,104 @@ class indexing2var_impl_t : public ir_visitor_t {
         std::vector<stmt_c> seq;
         seq.reserve(v->seq_.size());
         insertion_point_ = &seq;
-        scope_info_.emplace_back(
-                scope_info_t {v->get_temp_data()
-                                      .get<written_tensor_analysis_result_t>()
-                                      .written_,
-                        {}});
+        const for_loop_node_t *parent_loop = cur_for_loop_;
+        cur_for_loop_ = nullptr;
+        scope_info_.emplace_back(scope_info_t {parent_loop, insertion_point_,
+                v->get_temp_data()
+                        .get<written_tensor_analysis_result_t>()
+                        .written_,
+                {}, {}, {}});
 
         bool changed = false;
         for (auto &s : v->seq_) {
             auto newstmt = dispatch(s);
             changed |= !newstmt.ptr_same(s);
             seq.emplace_back(std::move(newstmt));
+            auto &insert_after = scope_info_.back().insert_after_;
+            if (!insert_after.empty()) {
+                changed = true;
+                seq.insert(seq.end(), insert_after.begin(), insert_after.end());
+                insert_after.clear();
+            }
         }
         changed |= v->seq_.size() != seq.size();
 
         // evict all cache items that will die at the end of this stmts
         for (auto &v : scope_info_.back().outstanding_cache_) {
+            // where to writeback the cache: the parent scope? or after the last
+            // write?
             if (v->is_valid()) {
                 SC_MODULE_INFO << "Evict at the end of scope: " << v->tsr_;
-                invalidate(v);
+                auto check_is_tensor_defined_in_current_scope = [&v, &seq]() {
+                    for (auto &s : seq) {
+                        if (s.cast<define>()
+                                        .filter([&v](const define &def) {
+                                            return def->var_.get()
+                                                    == v->tsr_.get();
+                                        })
+                                        .has_value()) {
+                            return true;
+                        }
+                    }
+                    return false;
+                };
+                std::vector<stmt> *writeback_point = nullptr;
+                // check if tensor cache can be lifted: a) check may_lift_to_ b)
+                // check if the cache has been flushed before c) if the tensor
+                // is defined in current scope, we cannot lift it
+                if (v->may_lift_to_
+                        && scope_info_.back().num_flushes_[v->tsr_] == 0
+                        && !check_is_tensor_defined_in_current_scope()) {
+                    utils::weakptr_hashset_t<expr_base> &dep_vars
+                            = v->dependencies_;
+                    // if the tensor cache var can be lifted, move the
+                    // definition
+                    for (auto itr = seq.begin(); itr != seq.end();) {
+                        // if the assign node assigns to dependency var
+                        bool assign_dep
+                                = (*itr).cast<assign>()
+                                          .map([](const assign &def) {
+                                              return def->var_.as<var>().get();
+                                          })
+                                          .filter([&dep_vars](var_node *var) {
+                                              return dep_vars.has(
+                                                      var->shared_from_this());
+                                          })
+                                          .get_or_else(nullptr);
+                        // if the var definition is for the cache var or
+                        // dependency var
+                        // clang-format off
+                        bool def_var = (*itr).cast<define>()
+                                .map([](const define &def) {
+                                    return def->var_.as<var>().get();
+                                })
+                                .filter([&v, &dep_vars](
+                                                var_node *var) {
+                                    return var == v->var_.get()
+                                            || dep_vars.has(
+                                                    var->shared_from_this());
+                                })
+                                .get_or_else(nullptr);
+                        // clang-format on
+                        if (assign_dep || def_var) {
+                            v->may_lift_to_->insert_point_->emplace_back(
+                                    std::move(*itr));
+                            itr = seq.erase(itr);
+                            continue;
+                        }
+
+                        ++itr;
+                    }
+                    writeback_point = &v->may_lift_to_->insert_after_;
+                }
+                invalidate(v, writeback_point);
+            }
+        }
+        if (scope_info_.size() > 1) {
+            auto itrprev = scope_info_.rbegin();
+            auto &prev = *++itrprev;
+            for (auto &kv : scope_info_.back().num_flushes_) {
+                prev.num_flushes_[kv.first] += kv.second;
             }
         }
         scope_info_.pop_back();
@@ -500,7 +739,10 @@ class indexing2var_impl_t : public ir_visitor_t {
     }
     stmt_c visit(for_loop_c v) override {
         for_depth_++;
-        auto ret = ir_visitor_t::visit(std::move(v));
+        cur_for_loop_ = v.get();
+        loop_vars_.insert(v->var_);
+        auto ret = ir_visitor_t::visit(v);
+        loop_vars_.erase(v->var_);
         for_depth_--;
         return ret;
     }
