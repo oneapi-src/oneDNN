@@ -1839,9 +1839,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
         for (int ld = 0; ld < ld_block2; ++ld) {
             const auto addr = ptr[reg_aux_B + B_offset(ld, rd)];
             const bool is_tail = is_ld_tail && ld + 1 == ld_block2;
-            auto vmm_store = load();
             if (IMPLICATION(is_tail, is_superset(brg.isa_impl, avx512_core))) {
-                vmm_store = vmm_mask(vmm_store, is_tail, false, ld_tail_mask);
+                auto vmm_store = vmm_mask(load(), is_tail, false, ld_tail_mask);
                 uni_vmovups(vmm_store, addr);
             } else {
                 load_bytes(load(), addr,
@@ -1849,12 +1848,11 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
             }
 
             if (brg.req_cal_comp_pads) {
-                compensation_padding(vmm_store, bcst(), ld, bd_b, bd_e);
+                compensation_padding(load(), bcst(), ld, bd_b, bd_e);
             } else if (vpad != 0) {
-                if (bd_b > 0)
-                    compensation_padding(vmm_store, bcst(), ld, 0, bd_b);
+                if (bd_b > 0) compensation_padding(load(), bcst(), ld, 0, bd_b);
                 if (bd_e < bd_block)
-                    compensation_padding(vmm_store, bcst(), ld, bd_e, bd_block);
+                    compensation_padding(load(), bcst(), ld, bd_e, bd_block);
             }
         }
     }
