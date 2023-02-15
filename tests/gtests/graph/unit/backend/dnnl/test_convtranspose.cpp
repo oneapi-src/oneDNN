@@ -1862,7 +1862,9 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
     graph::stream_t *strm = get_stream();
 
     std::vector<size_t> nds = {1, 2, 3};
-    std::vector<int64_t> groups = {1};
+    std::vector<int64_t> groups = {1, 4};
+    std::vector<float> scales = {1.f, 1 / 127.f};
+    std::vector<int64_t> zps = {0, 78};
     std::vector<bool> with_biases = {true};
     // swap add's two inputs
     std::vector<bool> swaps = {true, false};
@@ -1874,6 +1876,8 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
     static auto isa = dnnl_get_effective_cpu_isa();
 
     for_(const auto &nd : nds)
+    for_(const auto &scale : scales)
+    for_(const auto &zp : zps)
     for_(const auto &g : groups)
     for_(const auto with_bias : with_biases)
     for_(const auto swap : swaps)
@@ -1942,26 +1946,27 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
         // mb1_ic8oc8_ih12oh14kh3sh1dh0ph0_iw12ow14kw3sw1dw0pw0"
         float scale_src = engine->kind() == graph::engine_kind::gpu
                 ? 1.f
-                : 1 / 255.f; // map to 0~255
-        float scale_other = 1 / 127.f;
-        float scale_out = 1;
+                : scale; // map to 0~255
+        float scale_other = scale;
+        float scale_out = scale;
         int64_t zp_src = src_qtype == "symmetric"
                         || engine->kind() == graph::engine_kind::gpu
                 ? 0
-                : -4;
+                : zp;
         int64_t zp_other = other_qtype == "symmetric"
                         || engine->kind() == graph::engine_kind::gpu
                 ? 0
-                : -4;
+                : (std::abs(scale_other - 1.f) <= 0.000001f && zp != 0 ? 0
+                                                                       : zp);
         // The following cmd will be skiped by benchdnn, since oneDNN didn't
         // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
         // --engine=gpu --mode=C --sdt=f32 --ddt=s8
         // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
-        int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
+        int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : zp;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : (out_channel / g);
         std::vector<float> scale_wei(scale_size,
-                engine->kind() == graph::engine_kind::gpu ? 1.f : 1 / 127.f);
+                engine->kind() == graph::engine_kind::gpu ? 1.f : scale);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
         graph::op_t dqdata_node(0, graph::op_kind::Dequantize, "dqdata_node");
