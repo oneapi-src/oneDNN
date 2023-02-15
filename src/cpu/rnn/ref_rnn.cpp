@@ -1323,7 +1323,7 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute(
             nested_scratchpad_t ns(
                     ctx, key_nested_multiple + 0, bf32_wei_layer_reorder_);
             reorder_ctx.set_scratchpad_grantor(ns.grantor());
-            bf32_wei_layer_reorder_->execute(reorder_ctx);
+            CHECK(bf32_wei_layer_reorder_->execute(reorder_ctx));
             w_layer = scratchpad.template get<weights_t>(
                     key_rnn_bf32_wei_layer_trans);
             weights_layer_md = &wei_layer_desc;
@@ -1339,7 +1339,7 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute(
             nested_scratchpad_t ns(
                     ctx, key_nested_multiple + 1, bf32_wei_iter_reorder_);
             reorder_ctx.set_scratchpad_grantor(ns.grantor());
-            bf32_wei_iter_reorder_->execute(reorder_ctx);
+            CHECK(bf32_wei_iter_reorder_->execute(reorder_ctx));
             w_iter = scratchpad.template get<weights_t>(
                     key_rnn_bf32_wei_iter_trans);
             weights_iter_md = &wei_iter_desc;

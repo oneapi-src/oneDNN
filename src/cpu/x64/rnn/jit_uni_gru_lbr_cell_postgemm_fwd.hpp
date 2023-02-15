@@ -39,7 +39,7 @@ struct jit_uni_gru_lbr_cell_postgemm_fwd : public jit_uni_rnn_postgemm {
         : jit_uni_rnn_postgemm(rnn, pd, jit_name()) {}
 
     status_t init(data_type_t sdt) override {
-        jit_uni_rnn_postgemm::init(src_data_t);
+        CHECK(jit_uni_rnn_postgemm::init(src_data_t));
         // we use rax for both constant tables and load correspondent label
         // into it when calling correspondent injector.
         sigmoid_injector_ = utils::make_unique<injector_t>(

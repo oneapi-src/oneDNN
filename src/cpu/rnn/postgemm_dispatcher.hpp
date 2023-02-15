@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -116,11 +116,14 @@ struct rnn_postgemm_dispatcher {
                 break;
             default: assert(!"Unsupported algorithm kind"); break;
         }
-
-        DNNL_X64_ONLY(initialize_jit(rnn));
     }
 
     ~rnn_postgemm_dispatcher() = default;
+
+    status_t init(const rnn_utils::rnn_conf_t &rnn) {
+        DNNL_X64_ONLY(CHECK(initialize_jit(rnn)));
+        return status::success;
+    }
 
     rnn_postgemm_sig(unpoison) {
         // XXX (rsdubtso): This is a big hammer that unpoisons everything
@@ -249,10 +252,10 @@ private:
     std::unique_ptr<x64::jit_uni_rnn_postgemm> rnn_postgemm_;
     std::unique_ptr<x64::jit_uni_rnn_postgemm> rnn_postgemm_part2_;
 
-    void initialize_jit(const rnn_utils::rnn_conf_t &rnn) {
+    status_t initialize_jit(const rnn_utils::rnn_conf_t &rnn) {
         using namespace dnnl::impl::cpu::x64;
 
-        if (pd_->attr()->rnn_tparams_.test_mode_) return;
+        if (pd_->attr()->rnn_tparams_.test_mode_) return status::success;
 
         const bool jit_fwd = pd_->is_fwd()
                 && utils::one_of(src_type, data_type::f32, data_type::u8,
@@ -291,8 +294,9 @@ private:
 #undef CREATE
 #undef CREATE_WITH_DIR
 
-        if (rnn_postgemm_) rnn_postgemm_->init(src_type);
-        if (rnn_postgemm_part2_) rnn_postgemm_part2_->init(src_type);
+        if (rnn_postgemm_) CHECK(rnn_postgemm_->init(src_type));
+        if (rnn_postgemm_part2_) CHECK(rnn_postgemm_part2_->init(src_type));
+        return status::success;
     }
 #endif
 };

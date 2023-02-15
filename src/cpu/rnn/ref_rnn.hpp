@@ -446,15 +446,16 @@ struct _ref_rnn_common_t : public primitive_t {
                 const auto bf16_tag = rnn_.n_block == 64
                         ? format_tag::ldgOI64o2i
                         : format_tag::ldgOI32o2i;
-                memory_desc_init_by_tag(weights_layer_md,
+                CHECK(memory_desc_init_by_tag(weights_layer_md,
                         weights_layer_d.ndims(), weights_layer_d.dims(),
-                        data_type::bf16, bf16_tag);
+                        data_type::bf16, bf16_tag));
                 CHECK(reorder_primitive_desc_create(bf32_wei_layer_reorder_pd_,
                         engine, weights_layer_d.md_, &weights_layer_md,
                         nullptr));
 
-                memory_desc_init_by_tag(weights_iter_md, weights_iter_d.ndims(),
-                        weights_iter_d.dims(), data_type::bf16, bf16_tag);
+                CHECK(memory_desc_init_by_tag(weights_iter_md,
+                        weights_iter_d.ndims(), weights_iter_d.dims(),
+                        data_type::bf16, bf16_tag));
                 CHECK(reorder_primitive_desc_create(bf32_wei_iter_reorder_pd_,
                         engine, weights_iter_d.md_, &weights_iter_md, nullptr));
             }
@@ -479,8 +480,8 @@ struct _ref_rnn_common_t : public primitive_t {
                 // initialize the workspace if needed
                 if (rnn_.is_training) {
                     dims_t ws_dims = {(dim_t)ws_sz};
-                    memory_desc_init_by_tag(this->ws_md_, 1, ws_dims,
-                            data_type::u8, format_tag::x);
+                    CHECK(memory_desc_init_by_tag(this->ws_md_, 1, ws_dims,
+                            data_type::u8, format_tag::x));
                 }
             }
             return st;
@@ -584,6 +585,7 @@ struct _ref_rnn_common_t : public primitive_t {
         rnn_postgemm_ = new rnn_postgemm_dispatcher<aprop, src_type,
                 scratch_type, acc_type>(pd()->rnn_, pd());
         assert(rnn_postgemm_ != nullptr);
+        CHECK(rnn_postgemm_->init(pd()->rnn_));
         switch (pd()->cell_kind()) {
             case alg_kind::vanilla_rnn:
             case alg_kind::vanilla_lstm:
@@ -626,11 +628,11 @@ struct _ref_rnn_common_t : public primitive_t {
         if (rnn.is_brgemm) {
             if (rnn.is_bf32()) {
 
-                pd()->bf32_wei_layer_reorder_pd_->create_primitive(
-                        bf32_wei_layer_reorder_, engine);
+                CHECK(pd()->bf32_wei_layer_reorder_pd_->create_primitive(
+                        bf32_wei_layer_reorder_, engine));
 
-                pd()->bf32_wei_iter_reorder_pd_->create_primitive(
-                        bf32_wei_iter_reorder_, engine);
+                CHECK(pd()->bf32_wei_iter_reorder_pd_->create_primitive(
+                        bf32_wei_iter_reorder_, engine));
             }
             return rnn_brgemm_.init_kernels(rnn, src_type, weights_type);
         }

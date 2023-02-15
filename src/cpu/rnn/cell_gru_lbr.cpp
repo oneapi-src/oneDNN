@@ -158,13 +158,13 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr) {
                 rnn.ws_gates_ld, B, ldb, beta, C, rnn.diff_weights_iter_ld);
     };
 
-    common_bwd_cell_exec_template(gemm_layer, gemm_iter, gemm_weights_layer,
-            gemm_weights_iter, rnn_postgemm_, rnn, cell_position, dst_layer_,
-            diff_src_layer_, diff_augru_attention_, diff_src_iter_, w_layer_,
-            w_iter_, bias_, src_layer_, augru_attention_, src_iter_,
-            diff_dst_layer_, diff_dst_iter_, diff_w_layer_, diff_w_iter_,
-            diff_bias_, ws_gates_, ws_grid_, scratch_gates_, scratch_cell_,
-            dst_iter_);
+    CHECK(common_bwd_cell_exec_template(gemm_layer, gemm_iter,
+            gemm_weights_layer, gemm_weights_iter, rnn_postgemm_, rnn,
+            cell_position, dst_layer_, diff_src_layer_, diff_augru_attention_,
+            diff_src_iter_, w_layer_, w_iter_, bias_, src_layer_,
+            augru_attention_, src_iter_, diff_dst_layer_, diff_dst_iter_,
+            diff_w_layer_, diff_w_iter_, diff_bias_, ws_gates_, ws_grid_,
+            scratch_gates_, scratch_cell_, dst_iter_));
 
     return dnnl_success;
 }
@@ -197,13 +197,13 @@ rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru_lbr) {
                 rnn.ws_gates_ld, B, ldb, beta, C, rnn.diff_weights_iter_ld);
     };
 
-    common_bwd_cell_exec_template(gemm_layer, gemm_iter, gemm_weights_layer,
-            gemm_weights_iter, rnn_postgemm_, rnn, cell_position, dst_layer_,
-            diff_src_layer_, diff_augru_attention_, diff_src_iter_, w_layer_,
-            w_iter_, bias_, src_layer_, augru_attention_, src_iter_,
-            diff_dst_layer_, diff_dst_iter_, diff_w_layer_, diff_w_iter_,
-            diff_bias_, ws_gates_, ws_grid_, scratch_gates_, scratch_cell_,
-            dst_iter_);
+    CHECK(common_bwd_cell_exec_template(gemm_layer, gemm_iter,
+            gemm_weights_layer, gemm_weights_iter, rnn_postgemm_, rnn,
+            cell_position, dst_layer_, diff_src_layer_, diff_augru_attention_,
+            diff_src_iter_, w_layer_, w_iter_, bias_, src_layer_,
+            augru_attention_, src_iter_, diff_dst_layer_, diff_dst_iter_,
+            diff_w_layer_, diff_w_iter_, diff_bias_, ws_gates_, ws_grid_,
+            scratch_gates_, scratch_cell_, dst_iter_));
     return dnnl_success;
 }
 

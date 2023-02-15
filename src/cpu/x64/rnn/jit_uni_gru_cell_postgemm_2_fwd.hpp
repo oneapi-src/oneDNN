@@ -38,7 +38,7 @@ struct jit_uni_gru_cell_postgemm_part2_fwd : public jit_uni_rnn_postgemm {
         : jit_uni_rnn_postgemm(rnn, pd, jit_name()) {}
 
     status_t init(data_type_t sdt) override {
-        jit_uni_rnn_postgemm::init(src_data_t);
+        CHECK(jit_uni_rnn_postgemm::init(src_data_t));
         // no need to save state of registers
         // (unless emulating bf16 support or using pre-avx2 isa)
         const bool save_state = (isa == sse41 || isa == avx)
