@@ -15,9 +15,8 @@
 *******************************************************************************/
 
 #include "utils/dims.hpp"
-#include <algorithm>
 
-int64_t dims_nelems(const dims_t &dims, int ndims, int mask) {
+static int64_t dims_nelems(const dims_t &dims, int ndims, int mask) {
     int64_t nelems = 1;
     for (int d = 0; d < ndims; d++) {
         nelems *= (mask & (1 << d)) ? dims[d] : 1;
@@ -27,25 +26,6 @@ int64_t dims_nelems(const dims_t &dims, int ndims, int mask) {
 
 int64_t prb_dims_t::nelems(int mask) const {
     return dims_nelems(dims, ndims, mask);
-}
-
-prb_vdims_t::prb_vdims_t(const vdims_t &avdims, const std::string &name)
-    : vdims(avdims), ndims(static_cast<int>(avdims[0].size())), name(name) {
-    // First tensor in `vdims` provided defined `ndims`.
-    // If second and consecutive inputs are provided with less dimensions, e.g.
-    // (ndims0 > ndims1), then fill these tensors with ones to match `ndims`,
-    // e.g., 8x3x5:8 -> 8x3x5:8x1x1
-    for (int i = 1; i < n_inputs(); i++)
-        if (ndims > static_cast<int>(vdims[i].size()))
-            vdims[i].resize(ndims, 1);
-
-    dst_dims = vdims[0];
-    for (int i = 1; i < n_inputs(); i++) {
-        for (int d = 0; d < ndims; ++d) {
-            bool has_zero_dim = dst_dims[d] == 0 || vdims[i][d] == 0;
-            dst_dims[d] = has_zero_dim ? 0 : std::max(dst_dims[d], vdims[i][d]);
-        }
-    }
 }
 
 int64_t prb_vdims_t::nelems(int i_input, int mask) const {

@@ -17,8 +17,6 @@
 #ifndef DNNL_MEMORY_HPP
 #define DNNL_MEMORY_HPP
 
-#include <unordered_map>
-
 #include "oneapi/dnnl/dnnl.h"
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
@@ -67,13 +65,13 @@ struct dnn_mem_t {
         md_ = rhs.md_;
         m_ = rhs.m_;
         m_padded_ = rhs.m_padded_;
-        data_ = std::move(rhs.data_);
+        data_ = rhs.data_;
         is_data_owner_ = rhs.is_data_owner_;
         active_ = rhs.active_;
         engine_kind_ = rhs.engine_kind_;
         engine_ = rhs.engine_;
         is_mapped_ = (bool)rhs.is_mapped_;
-        mapped_ptrs_ = std::move(rhs.mapped_ptrs_);
+        mapped_ptr_ = rhs.mapped_ptr_;
 
         rhs.active_ = false;
         return *this;
@@ -101,7 +99,7 @@ struct dnn_mem_t {
     int ndims() const;
     const dnnl_dims_t &dims() const;
     const dnnl_dims_t &padded_dims() const;
-    dnnl_data_type_t dt(int buffer_index = 0) const;
+    dnnl_data_type_t dt() const;
     const dnnl_dims_t &padded_offsets() const;
     dnnl_dim_t offset0() const;
     dnnl_format_kind_t format_kind() const;
@@ -117,20 +115,13 @@ struct dnn_mem_t {
     template <typename T>
     explicit operator T *() const {
         assert(is_mapped_);
-        // Always return 0th ptr.
-        return static_cast<T *>(get_mapped_pointer<T>(0));
-    }
-
-    template <typename T>
-    T *get_mapped_pointer(int index = 0) const {
-        assert(is_mapped_);
-        return static_cast<T *>(mapped_ptrs_[index]);
+        return static_cast<T *>(mapped_ptr_);
     }
 
     explicit operator bool() const { return active_; }
 
-    float get_elem(int64_t idx, int buffer_index = 0) const;
-    void set_elem(int64_t idx, float value, int buffer_index = 0) const;
+    float get_elem(int64_t idx) const;
+    void set_elem(int64_t idx, float value) const;
 
     int64_t get_scale_idx(
             int64_t data_idx, int scale_mask, const int ndims) const {
@@ -183,12 +174,6 @@ struct dnn_mem_t {
     static benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> init_md(int ndims,
             const dnnl_dims_t dims, dnnl_data_type_t data_type,
             const std::string &tag, const dims_t &strides_ = {});
-#ifdef DNNL_EXPERIMENTAL_SPARSE
-    // Initializes memory descriptor for CSR encoding.
-    static benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> init_csr_md(int ndims,
-            const dnnl_dims_t dims, dnnl_data_type_t data_type, dnnl_dim_t nnz,
-            dnnl_data_type_t indices_dt, dnnl_data_type_t pointers_dt);
-#endif
 
     /* fields */
     dnnl_memory_desc_t md_ {};
@@ -200,7 +185,7 @@ struct dnn_mem_t {
     bool is_canary_protected_ = false;
 
 private:
-    std::vector<void *> data_;
+    void *data_ = NULL;
     bool is_data_owner_ = false;
     bool active_ = false;
 
@@ -208,7 +193,7 @@ private:
     dnnl_engine_t engine_ = NULL;
 
     mutable bool is_mapped_ = false;
-    mutable std::vector<void *> mapped_ptrs_;
+    mutable void *mapped_ptr_ = NULL;
 
     int initialize_memory_create_sycl(const handle_info_t &handle_info);
     int initialize_memory_create_opencl(const handle_info_t &handle_info);
@@ -219,8 +204,6 @@ private:
 
     int cleanup();
 };
-
-using dnn_mem_map_t = std::unordered_map<int, dnn_mem_t>;
 
 dnnl_memory_desc_t clone_md(const_dnnl_memory_desc_t md);
 

@@ -49,22 +49,6 @@ dnnl_data_type_t str2dt(const char *str) {
     return dnnl_data_type_undef;
 }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
-dnnl_sparse_encoding_t str2sparse_encoding(const char *str) {
-#define CASE(_case) do { \
-    if (!strcmp(STRINGIFY(_case), str) \
-            || !strcmp("dnnl_" STRINGIFY(_case), str)) \
-        return CONCAT2(dnnl_, _case); \
-} while (0)
-    CASE(csr);
-#undef CASE
-    if (!strcmp("undef", str) || !strcmp("dnnl_sparse_encoding_undef", str))
-        return dnnl_sparse_encoding_undef;
-    assert(!"unknown sparse_encoding");
-    return dnnl_sparse_encoding_undef;
-}
-
-#endif
 dnnl_format_tag_t str2fmt_tag(const char *str) {
 #define CASE(_case) do { \
     if (!strcmp(STRINGIFY(_case), str) \
@@ -729,15 +713,6 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(aCdeb64c);
     CASE(aCdeB64c2b);
     CASE(aCdeB64c4b);
-    CASE(Acb24a);
-    CASE(Acdb24a);
-    CASE(Acdeb24a);
-    CASE(aBdc24b);
-    CASE(aBdec24b);
-    CASE(aBdefc24b);
-    CASE(abDc16d);
-    CASE(abdEc16e);
-    CASE(abdCe16c);
     CASE(x);
     CASE(nc);
     CASE(cn);
@@ -788,17 +763,14 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(ldio);
     CASE(ldoi);
     CASE(ldgo);
-    CASE(ldOi16o);
     CASE(ldOi32o);
     CASE(ldOI32o4i);
     CASE(ldIo32i);
-    CASE(ldgOi16o);
     CASE(ldgOi32o);
     CASE(ldgOI32o2i);
     CASE(ldgOI32o4i);
     CASE(ldgOI64o2i);
     CASE(ldgOI64o4i);
-    CASE(ldgIo16i);
     CASE(ldgIo32i);
     CASE(ldgIO32i2o);
     CASE(nCdhw32c);
@@ -874,7 +846,6 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(Ihwo16i);
     CASE(IhwO16i2o);
     CASE(IhwO16i4o);
-    CASE(Ohwi24o);
     CASE(Ohwi32o);
     CASE(Ohwi4o);
     CASE(Ohwi8o);
@@ -983,7 +954,6 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(gIhwO16i2o);
     CASE(gIhwO16i4o);
     CASE(gOhwi32o);
-    CASE(gOhwi24o);
     CASE(gOhwi4o);
     CASE(gOhwi8o);
     CASE(Goihw16g);
@@ -1063,7 +1033,6 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(gOIdhw4o8i2o);
     CASE(goIdhw4i);
     CASE(goIdhw32i);
-    CASE(Owi24o);
     CASE(Owi32o);
     CASE(OwI32o2i);
     CASE(OwI32o4i);
@@ -1084,7 +1053,6 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(IwO64i4o);
     CASE(wIo2i);
     CASE(wIo4i);
-    CASE(gOwi24o);
     CASE(gOwi32o);
     CASE(gOwI32o2i);
     CASE(gOwI32o4i);
@@ -1106,7 +1074,6 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(gwio);
     CASE(gwIo2i);
     CASE(gwIo4i);
-    CASE(OhwI24o);
     CASE(OhwI32o);
     CASE(OhwI32o2i);
     CASE(OhwI32o4i);
@@ -1127,7 +1094,6 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(IhwO64i4o);
     CASE(hwIo2i);
     CASE(hwIo4i);
-    CASE(gOhwI24o);
     CASE(gOhwI32o);
     CASE(gOhwI32o2i);
     CASE(gOhwI32o4i);
@@ -1149,7 +1115,6 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(ghwio);
     CASE(ghwIo2i);
     CASE(ghwIo4i);
-    CASE(Odhwi24o);
     CASE(Odhwi32o);
     CASE(OdhwI32o2i);
     CASE(OdhwI32o4i);
@@ -1170,7 +1135,6 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(IdhwO64i4o);
     CASE(dhwIo2i);
     CASE(dhwIo4i);
-    CASE(gOdhwi24o);
     CASE(gOdhwi32o);
     CASE(gOdhwI32o2i);
     CASE(gOdhwI32o4i);
@@ -1378,12 +1342,6 @@ const char *dt2str(dnnl_data_type_t dt) {
 const char *fmt_tag2str(dnnl_format_tag_t tag) {
     return dnnl_fmt_tag2str(tag);
 }
-
-#ifdef DNNL_EXPERIMENTAL_SPARSE
-const char *sparse_encoding2str(dnnl_sparse_encoding_t encoding) {
-    return dnnl_sparse_encoding2str(encoding);
-}
-#endif
 
 const char *engine_kind2str(dnnl_engine_kind_t kind) {
     return dnnl_engine_kind2str(kind);

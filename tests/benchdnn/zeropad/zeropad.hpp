@@ -46,19 +46,9 @@ struct settings_t : public base_settings_t {
     }
 
     void reset() { *this = settings_t(perf_template); }
-
-    bool has_single_setup() const override {
-        return dt.size() == 1 && tag.size() == 1
-                && base_settings_t::has_single_setup();
-    }
 };
 
 struct prb_t : public prb_dims_t {
-    // A ctor with common interface across all drivers.
-    prb_t(const settings_t &s) : prb_t(s.prb_dims, s.dt[0], s.tag[0]) {
-        SAFE_V(s.has_single_setup() ? OK : FAIL);
-    }
-
     prb_t(const prb_dims_t &prb_dims, dnnl_data_type_t dt,
             const std::string &tag)
         : prb_dims_t(prb_dims), dt(dt), tag(tag) {}
@@ -66,13 +56,6 @@ struct prb_t : public prb_dims_t {
 
     dnnl_data_type_t dt;
     std::string tag;
-
-    // Used to construct memory desc when dimensions are runtime since such mds
-    // can't be used directly from query and memory objects can't be constructed.
-    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const {
-        assert(!"No runtime dimensions support for this driver!");
-        return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
-    }
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 

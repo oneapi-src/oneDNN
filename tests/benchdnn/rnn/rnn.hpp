@@ -94,13 +94,6 @@ enum rnn_data_kind_t {
 };
 const char *rnn_data_kind2str(rnn_data_kind_t kind);
 
-using flags_t = unsigned;
-// XXX: UNDEF is used in activation_t
-const flags_t NONE = dnnl_rnn_flags_undef;
-const flags_t DIFF_WEIGHTS_OVERWRITE = dnnl_rnn_flags_diff_weights_overwrite;
-flags_t str2flags(const char *str);
-std::string flags2str(flags_t flags);
-
 // Gates indices
 enum {
     LSTM_I = 0,
@@ -248,7 +241,7 @@ struct settings_t : public base_settings_t {
     std::vector<int64_t> n_layer {0}, n_iter {0};
     std::vector<policy_t> scale_policy {policy_t::COMMON};
     std::vector<policy_t> scale_proj_policy {policy_t::COMMON};
-    std::vector<flags_t> flags {NONE};
+    unsigned int flags = 0x0;
     float alpha = 0.9f, beta = 0.0f;
 
     const char *perf_template_csv() const {
@@ -258,40 +251,9 @@ struct settings_t : public base_settings_t {
     }
 
     void reset() { *this = settings_t(perf_template); }
-
-    bool has_single_setup() const override {
-        return prop.size() == 1 && cfg.size() == 1 && alg.size() == 1
-                && direction.size() == 1 && activation.size() == 1
-                && skip_nonlinear.size() == 1 && trivial_strides.size() == 1
-                && with_peephole.size() == 1 && with_projection.size() == 1
-                && n_layer.size() == 1 && n_iter.size() == 1
-                && scale_policy.size() == 1 && scale_proj_policy.size() == 1
-                && base_settings_t::has_single_setup();
-    }
 };
 
 struct prb_t : public desc_t {
-    // A ctor with common interface across all drivers.
-    prb_t(const settings_t &s)
-        : prb_t(s.desc,
-                dt_conf_t::create(s.cfg[0],
-                        settings_t::get_attr(s.scales[0], s.zero_points[0],
-                                s.post_ops[0], s.scratchpad_mode[0],
-                                s.fpmath_mode[0])),
-                s.prop[0], s.alg[0], s.with_peephole[0], s.with_projection[0],
-                s.direction[0], s.scale_policy[0], s.scale_proj_policy[0],
-                s.flags[0], s.activation[0],
-                settings_t::get_attr(s.scales[0], s.zero_points[0],
-                        s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]),
-                s.ctx_init[0], s.ctx_exe[0], s.alpha, s.beta,
-                s.skip_nonlinear[0], s.trivial_strides[0], s.n_layer[0],
-                s.n_iter[0], s.mb[0]) {
-        SAFE_V(s.has_single_setup() ? OK : FAIL);
-        // Just for better styling, no real reason to keep it separate.
-        this->attr = settings_t::get_attr(s.scales[0], s.zero_points[0],
-                s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]);
-    }
-
     prb_t(const desc_t &desc, const dt_conf_t &cfg, dir_t prop, alg_t alg,
             bool with_peephole, bool with_projection,
             dnnl_rnn_direction_t direction, policy_t scale_policy,
@@ -429,13 +391,6 @@ struct prb_t : public desc_t {
     bool is_lstm_projection() const { return with_projection; }
     bool is_augru() const { return alg == VANILLA_AUGRU || alg == LBR_AUGRU; }
 
-    // Used to construct memory desc when dimensions are runtime since such mds
-    // can't be used directly from query and memory objects can't be constructed.
-    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const {
-        assert(!"No runtime dimensions support for this driver!");
-        return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
-    }
-
     const dt_conf_t &cfg;
     dnnl_prop_kind_t prop;
     dir_t dir; // Same as `prop`, for compatibility. TODO: remove me;
@@ -522,14 +477,6 @@ void rnn_linear_fwd(const prb_t &prb, const args_t &args,
         const AOC<float> &ws_src_layer, const AOC<float> &ws_src_iter,
         const AOC<float> &ws_src_iter_c, const AOC<float> &ws_gates,
         const AOC<float> &ws_ht);
-
-dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
-void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
-        const args_t &ref_args);
-std::vector<int> supported_exec_args(dir_t dir);
-int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
-        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
-        dnnl_primitive_t prim_ref = nullptr);
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 void skip_invalid_prb(const prb_t *prb, res_t *res);

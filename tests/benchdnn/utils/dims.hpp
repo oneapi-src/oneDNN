@@ -37,9 +37,6 @@ struct prb_dims_t {
 // Two different types allow to separate features and members availability which
 // don't make much sense for dims_t.
 struct prb_vdims_t {
-    prb_vdims_t() = default;
-    prb_vdims_t(const vdims_t &avdims, const std::string &name = {});
-
     vdims_t vdims;
     // Destination dimensions with all broadcasts incorporated. Drivers inherit
     // this member and may modify it due to driver specifics.
@@ -60,7 +57,6 @@ enum {
     STRIDES_SIZE = 3,
 };
 
-int64_t dims_nelems(const dims_t &dims, int ndims, int mask);
 dims_t off2dims_idx(const dims_t &dims, int64_t off);
 std::string dims2str(const dims_t &dims);
 std::string vdims2str(const vdims_t &vdims);

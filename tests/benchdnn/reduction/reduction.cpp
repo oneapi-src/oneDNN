@@ -29,61 +29,12 @@
 
 namespace reduction {
 
-// first: nonneutral elements
-// second: maximum range
-using problem_bounds = std::pair<const int, const int>;
-
-// acc | acc | elems | value_range | worst case
-// s32 | mul |  10   |       3     |     3^10=2^16, out of 2^30 (max integer)
-// f16 | mul |  10   |       1     | (2^1)^10=2^10, out of 2^16 (max exponent)
-// f32 | mul |  30   |       3     | (2^3)^30=2^90, out of 2^128 (max exponent)
-// s32 | sum | 10000 |      50     | 10000*50=2^19, out of 2^30 (max integer)
-// f16 | sum | 1000  |       8     | 1000*8=2^13, out of 2^10 (max mantissa/integer)
-// f32 | sum | 10000 |      16     | 10000*16=2^18, out of 2^23 (max mantissa/integer)
-//  min/max  |  all  |    1000     | no limits on accumulation chain
-
-// In f16 cases, the worst case exceeds the data type bounds, however it's rare
-// to reach these extreme cases as long as they're close (can't just use f32 bounds)
-const problem_bounds MUL_INT = problem_bounds(10, 3);
-const problem_bounds MUL_F16 = problem_bounds(10, 1);
-const problem_bounds MUL_F32 = problem_bounds(30, 3);
-const problem_bounds SUM_INT = problem_bounds(10000, 50);
-const problem_bounds SUM_F16 = problem_bounds(1000, 8);
-const problem_bounds SUM_F32 = problem_bounds(10000, 16);
-const problem_bounds MINMAX_INT = problem_bounds(-1, 1000);
-const problem_bounds MINMAX_FP = problem_bounds(-1, 1000);
-
-problem_bounds get_problem_bounds(alg_t alg, dnnl_data_type_t dt) {
-    const bool is_int = is_integral_dt(dt);
-
-    // Integer cases
-    if (is_int) {
-        switch (alg) {
-            case alg_t::max:
-            case alg_t::min: return MINMAX_INT;
-            case alg_t::mul: return MUL_INT;
-            // All remaining cases accumulate via sum
-            default: return SUM_INT;
-        }
-    }
-
-    // Floating-point cases
-    const bool is_f16 = (dt == dnnl_f16);
-    switch (alg) {
-        case alg_t::max:
-        case alg_t::min: return MINMAX_FP;
-        case alg_t::mul: return is_f16 ? MUL_F16 : MUL_F32;
-        // All remaining cases accumulate via sum
-        default: return is_f16 ? SUM_F16 : SUM_F32;
-    }
-}
-
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
-    auto src_d = dnn_mem_t::init_md(
+    auto src_desc = dnn_mem_t::init_md(
             prb->ndims, prb->vdims[0].data(), prb->sdt, prb->stag);
-    auto dst_d = dnn_mem_t::init_md(
+    auto dst_desc = dnn_mem_t::init_md(
             prb->ndims, prb->vdims[1].data(), prb->ddt, prb->dtag);
 
     attr_args_t attr_args;
@@ -92,9 +43,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             create_dnnl_attr(prb->attr, attr_args));
 
     DNN_SAFE_STATUS(dnnl_reduction_primitive_desc_create(&init_pd_args.pd,
-            init_pd_args.engine, alg2alg_kind(prb->alg),
-            init_pd_args.src_md ? init_pd_args.src_md : src_d, dst_d, prb->p,
-            prb->eps, dnnl_attr));
+            init_pd_args.engine, alg2alg_kind(prb->alg), src_desc, dst_desc,
+            prb->p, prb->eps, dnnl_attr));
 
     return dnnl_success;
 }
@@ -106,31 +56,17 @@ bool is_norm_alg(const alg_t alg) {
 }
 
 int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
-        float non_neutral_prob, bool expanded_range,
+        float non_neutral_prob, bool use_reduced_range,
         bool only_positive_values) {
     const auto sdt = mem_dt.dt();
-    const auto ddt = prb->ddt;
     const auto nelems = mem_fp.nelems();
     const float neutral_value = prb->alg == alg_t::mul ? 1.0f : 0.0f;
-    // include ddt in is_signed to avoid mistrusted rounding negative -> 0
-    const bool is_signed = sdt != dnnl_u8 && ddt != dnnl_u8;
-    float shift = 0.0f;
-    if (prb->alg == alg_t::mean || (prb->alg == alg_t::min && !is_signed))
-        shift = 1.0f;
+    const float mean_shift = prb->alg == alg_t::mean ? 1.0f : 0.0f;
+    const bool is_signed = sdt != dnnl_u8;
     const bool is_int = is_integral_dt(sdt);
 
-    // Follow table in comments of fill_src
-    int value_range = get_problem_bounds(prb->alg, sdt).second;
-
-    const bool is_mul_fp = prb->alg == alg_t::mul && !is_int;
-    const int min_range = is_mul_fp ? -value_range : 1;
-
-    bool fill_with_powers_of_two = is_mul_fp;
-    if (expanded_range) {
-        // when using the expanded range, never fill with powers of 2
-        fill_with_powers_of_two = false;
-        value_range = 1000;
-    }
+    int value_range = use_reduced_range ? 16 : 1000;
+    if (is_int) value_range = use_reduced_range ? 3 : max_dt(dnnl_s8);
 
     const int64_t n_chunks = 16;
     const int64_t chunk_size = div_up(nelems, n_chunks);
@@ -141,19 +77,17 @@ int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
 
         std::minstd_rand msr(idx_start + 1);
         msr.discard(1);
-        std::uniform_int_distribution<> igen(min_range, value_range);
-        std::uniform_int_distribution<> fifty_fifty(0, 1);
+        std::uniform_int_distribution<> igen(1, value_range);
 
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             float value = neutral_value;
             if (flip_coin(idx, non_neutral_prob)) {
                 const int gen = igen(msr);
-                value = fill_with_powers_of_two ? std::pow(2, gen) : gen;
-
-                if (!only_positive_values && is_signed && fifty_fifty(msr) == 1)
+                value = is_int ? gen : gen / 8.f;
+                if (!only_positive_values && is_signed && flip_coin(gen, 0.5f))
                     value = -value;
             }
-            value += shift;
+            value += mean_shift;
             mem_fp.set_elem(idx, round_to_nearest_representable(sdt, value));
         }
     });
@@ -163,7 +97,7 @@ int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
 
 int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
-    const auto sdt = prb->sdt;
+    const auto ddt = prb->ddt;
     if (!nelems) return OK;
 
     int nelems_to_reduce = 1;
@@ -172,20 +106,27 @@ int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
             nelems_to_reduce *= prb->vdims[0][dim];
         }
     }
-
-    // Determine number of non-neutral elements to have in the reduction chain
-    int safe_to_reduce_elems = get_problem_bounds(prb->alg, sdt).first;
-    if (safe_to_reduce_elems == -1) safe_to_reduce_elems = nelems_to_reduce;
-
+    // There is no accumulation error in case of min or max algorithm
+    const bool is_min_or_max = prb->alg == alg_t::min || prb->alg == alg_t::max;
+    // Number of elements that should not exceed datatype limit after reduction
+    int safe_to_reduce_elems = nelems_to_reduce;
+    if (!is_min_or_max) { // Other algs do computations, reduce final values
+        safe_to_reduce_elems = prb->alg == alg_t::mul ? 10 : 1000;
+        // Integral values easily reach border values,
+        // shrink their final values more
+        if (is_integral_dt(ddt))
+            safe_to_reduce_elems = prb->alg == alg_t::mul ? 3 : 10;
+    }
     const float non_neutral_prob
             = 1.f * safe_to_reduce_elems / nelems_to_reduce;
 
-    return fill_mem(prb, mem_dt, mem_fp, non_neutral_prob, false, false);
+    return fill_mem(
+            prb, mem_dt, mem_fp, non_neutral_prob, !is_min_or_max, false);
 }
 
 int fill_dst(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const bool only_positive_values = is_norm_alg(prb->alg);
-    return fill_mem(prb, mem_dt, mem_fp, 1.0f, true, only_positive_values);
+    return fill_mem(prb, mem_dt, mem_fp, 1.0f, false, only_positive_values);
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
@@ -207,12 +148,10 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
-    // accounts for inaccurate rootn/pow functions in norm algs.
-    float scale = is_norm_alg(prb->alg) ? 5.0f : 1.0f;
-    cmp.set_threshold(scale * epsilon_dt(prb->ddt));
-    // work around for benchdnn ext.
-    cmp.set_op_output_has_nans(true);
-
+    // `5` is a temporary magic const for GPU to pass norm algs.
+    // TODO: consider change the filling with power-of-two values for better
+    // answer precision.
+    cmp.set_threshold(5 * epsilon_dt(prb->ddt));
     if (is_amd_gpu()) {
         // MIOpen implementation is less accurate for f16 data type therefore
         // adjust the threshold.
@@ -221,77 +160,52 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     }
 }
 
-std::vector<int> supported_exec_args(dir_t dir) {
-    static const std::vector<int> exec_args = {
-            DNNL_ARG_SRC,
-            DNNL_ARG_DST,
-    };
-    return exec_args;
-};
-
-int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
-        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
-        dnnl_primitive_t prim_ref) {
-    const auto &ref_engine = get_cpu_engine();
-
-    for (auto &entry : mem_map) {
-        const int exec_arg = entry.first;
-        auto &mem = entry.second; // `mem` is modified by filler (reorder).
-
-        ref_mem_map.emplace(
-                exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
-        auto &ref_mem = ref_mem_map[exec_arg];
-
-        switch (exec_arg) {
-            case DNNL_ARG_SRC: SAFE(fill_src(prb, mem, ref_mem), WARN); break;
-            case DNNL_ARG_DST:
-                if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM)
-                        >= 0)
-                    SAFE(fill_dst(prb, mem, ref_mem), WARN);
-                break;
-            case DNNL_ARG_SCRATCHPAD: break;
-            default: { // Process all attributes here
-                int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
-                        - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
-                bool is_post_ops_arg = (exec_arg & post_ops_range);
-                if (is_post_ops_arg) {
-                    if (exec_arg & DNNL_ARG_SRC_1) {
-                        const bool is_signed
-                                = prb->sdt != dnnl_u8 && prb->ddt != dnnl_u8;
-                        const bool use_positive
-                                = is_norm_alg(prb->alg) || !is_signed;
-                        SAFE(binary::fill_mem(
-                                     exec_arg, mem, ref_mem, use_positive),
-                                WARN);
-                    }
-                }
-            } break;
-        }
-        // Don't keep reference memory if it is not used further.
-        if (!is_bench_mode(CORR)) ref_mem_map.clear();
-    }
-
-    return OK;
-}
-
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-    if (is_bench_mode(INIT)) return OK;
 
-    dnn_mem_map_t mem_map, ref_mem_map;
-    init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
-    SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res, prb->dir),
+    auto const_pd = query_pd(prim);
+
+    const auto fp_dt = dnnl_f32;
+    const auto abx_tag = tag::abx;
+
+    const auto &test_engine = get_test_engine();
+    const auto &ref_engine = get_cpu_engine();
+
+    const auto &src_md = query_md(const_pd, DNNL_ARG_SRC);
+    dnn_mem_t src_fp(src_md, fp_dt, abx_tag, ref_engine);
+    dnn_mem_t src_dt(src_md, test_engine);
+    SAFE(fill_src(prb, src_dt, src_fp), WARN);
+
+    const auto &dst_md = query_md(const_pd, DNNL_ARG_DST);
+    dnn_mem_t dst_fp(dst_md, fp_dt, abx_tag, ref_engine);
+    dnn_mem_t dst_dt(dst_md, test_engine);
+    if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0)
+        SAFE(fill_dst(prb, dst_dt, dst_fp), WARN);
+
+    const bool binary_po_only_positive_vals = is_norm_alg(prb->alg);
+    std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    std::vector<int> binary_po_args;
+    SAFE(binary::setup_binary_po(const_pd, binary_po_args, binary_po_dt,
+                 binary_po_fp, binary_po_only_positive_vals),
             WARN);
 
-    args_t args(mem_map), ref_args(ref_mem_map);
+    args_t args, ref_args;
+
+    args.set(DNNL_ARG_SRC, src_dt);
+    args.set(DNNL_ARG_DST, dst_dt);
+    args.set(binary_po_args, binary_po_dt);
 
     SAFE(execute_and_wait(prim, args, res), WARN);
 
     if (is_bench_mode(CORR)) {
+        ref_args.set(DNNL_ARG_SRC, src_fp);
+        ref_args.set(DNNL_ARG_DST, dst_fp);
+        ref_args.set(binary_po_args, binary_po_fp);
+
         check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
     }
 

@@ -123,6 +123,35 @@ int prb_t::get_compensation_mask(flag_bit_t flag) const {
     return mask;
 }
 
+float *prb_t::generate_scales(int arg) const {
+    const auto &scales = attr.scales;
+    if (scales.is_def()) return nullptr;
+
+    const auto &e = scales.get(arg);
+    const int mask = attr_t::get_default_mask(e.policy);
+    int64_t uniq_scales = nelems(mask);
+
+    float *values = (float *)zmalloc(sizeof(float) * uniq_scales, 64);
+    SAFE_V(values != nullptr ? OK : FAIL);
+    for (int d = 0; d < uniq_scales; ++d)
+        values[d] = e.scale;
+    if (uniq_scales > 1) values[uniq_scales - 1] /= 2.f;
+    return values;
+}
+
+int32_t *prb_t::generate_zero_points(int arg) const {
+    const attr_t::zero_points_t &zero_points = this->attr.zero_points;
+    if (zero_points.is_def(arg)) return nullptr;
+
+    const auto &e = zero_points.get(arg);
+    assert(e.policy == policy_t::COMMON);
+
+    int32_t *zp = (int32_t *)zmalloc(sizeof(int32_t), 4);
+    SAFE_V(zp != nullptr ? OK : FAIL);
+    zp[0] = e.value;
+    return zp;
+}
+
 dt_conf_t prb_t::get_conf(data_kind_t kind) const {
     switch (kind) {
         case SRC: return dt2cfg(sdt);
@@ -130,25 +159,6 @@ dt_conf_t prb_t::get_conf(data_kind_t kind) const {
         default: assert(!"unexpected data kind!"); SAFE_V(FAIL);
     }
     return dt2cfg(dnnl_f32);
-}
-
-benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> prb_t::get_md(int arg) const {
-    if (runtime_dim_mask <= 0) {
-        BENCHDNN_PRINT(0, "%s\n",
-                "ERROR: prb_t::get_md(int arg) interface requires runtime "
-                "dimensions to be specified.");
-        SAFE_V(FAIL);
-    }
-
-    switch (arg) {
-        case DNNL_ARG_SRC:
-            return dnn_mem_t::init_md(ndims, dims.data(), sdt, stag);
-        case DNNL_ARG_DST:
-            return dnn_mem_t::init_md(ndims, dims.data(), ddt, dtag);
-        default:
-            assert(!"unsupported arg");
-            return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
-    }
 }
 
 std::ostream &operator<<(std::ostream &s, const prb_t &prb) {

@@ -88,9 +88,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
         DNN_SAFE_STATUS(dnnl_lrn_forward_primitive_desc_create(&init_pd_args.pd,
-                init_pd_args.engine, prop, alg,
-                init_pd_args.src_md ? init_pd_args.src_md : src_d, dst_d,
-                prb->ls, prb->alpha, prb->beta, prb->k, dnnl_attr));
+                init_pd_args.engine, prop, alg, src_d, dst_d, prb->ls,
+                prb->alpha, prb->beta, prb->k, dnnl_attr));
     } else {
         auto diff_src_d
                 = dnn_mem_t::init_md(prb->ndims, data_dims, prb->dt, tag::any);
@@ -118,48 +117,6 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     cmp.set_threshold(compute_n_summands(prb) * 3 * epsilon_dt(prb->dt));
 }
 
-std::vector<int> supported_exec_args(dir_t dir) {
-    static const std::vector<int> exec_fwd_args = {
-            DNNL_ARG_SRC,
-            DNNL_ARG_DST,
-            DNNL_ARG_WORKSPACE,
-    };
-    static const std::vector<int> exec_bwd_args = {
-            DNNL_ARG_SRC,
-            DNNL_ARG_DIFF_DST,
-            DNNL_ARG_DIFF_SRC,
-            DNNL_ARG_WORKSPACE,
-    };
-    return (dir & FLAG_FWD) ? exec_fwd_args : exec_bwd_args;
-};
-
-int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
-        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
-        dnnl_primitive_t prim_ref) {
-    const auto &ref_engine = get_cpu_engine();
-
-    for (auto &entry : mem_map) {
-        const int exec_arg = entry.first;
-        auto &mem = entry.second; // `mem` is modified by filler (reorder).
-
-        ref_mem_map.emplace(
-                exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
-        auto &ref_mem = ref_mem_map[exec_arg];
-
-        switch (exec_arg) {
-            case DNNL_ARG_SRC: SAFE(fill_src(prb, mem, ref_mem), WARN); break;
-            case DNNL_ARG_DIFF_DST:
-                SAFE(fill_dst(prb, mem, ref_mem), WARN);
-                break;
-            default: break;
-        }
-        // Don't keep reference memory if it is not used further.
-        if (!is_bench_mode(CORR)) ref_mem_map.clear();
-    }
-
-    return OK;
-}
-
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -169,45 +126,87 @@ int doit(const prb_t *prb, res_t *res) {
                  is_service_prim),
             WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-    if (!is_service_prim && is_bench_mode(INIT)) return OK;
 
-    dnn_mem_map_t mem_map, ref_mem_map;
-    init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(FLAG_FWD));
-    SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res, FLAG_FWD),
-            WARN);
+    auto const_fpd = query_pd(prim);
 
-    args_t args(mem_map), ref_args(ref_mem_map);
+    const auto &data_md = query_md(const_fpd, DNNL_ARG_SRC);
+    const auto &ws_md = query_md(const_fpd, DNNL_ARG_WORKSPACE);
+    const auto &scratchpad_md = query_md(const_fpd, DNNL_ARG_SCRATCHPAD);
 
-    if (!is_bench_mode(INIT)) SAFE(execute_and_wait(prim, args, res), WARN);
+    const auto fp = dnnl_f32;
+    const auto tag = tag::abx;
+
+    const auto &test_engine = get_test_engine();
+    const auto &ref_engine = get_cpu_engine();
+
+    dnn_mem_t src_fp(data_md, fp, tag, ref_engine);
+    dnn_mem_t src_dt(data_md, test_engine);
+
+    dnn_mem_t dst_fp(data_md, fp, tag, ref_engine);
+    dnn_mem_t dst_dt(data_md, test_engine);
+
+    dnn_mem_t ws_fp(ws_md, ref_engine);
+    dnn_mem_t ws_dt(ws_md, test_engine);
+    if (prb->dir & FLAG_INF) SAFE(ws_dt.ndims() == 0 ? OK : FAIL, WARN);
+    dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
+
+    dnn_mem_t d_dst_dt, d_src_dt;
+
+    SAFE(fill_src(prb, src_dt, src_fp), WARN);
+
+    args_t args, ref_args;
+
+    args.set(DNNL_ARG_SRC, src_dt);
+    args.set(DNNL_ARG_DST, dst_dt);
+    args.set(DNNL_ARG_WORKSPACE, ws_dt);
+    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+
+    SAFE(execute_and_wait(prim, args, res), WARN);
 
     if (prb->dir & FLAG_FWD) {
         if (is_bench_mode(CORR)) {
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+
             check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
         }
     }
 
     if (prb->dir & FLAG_BWD) {
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> tmp_prim;
-        SAFE(init_prim(prb->ctx_init, tmp_prim, init_pd, prb, res, FLAG_BWD,
-                     query_pd(prim)),
-                WARN);
+        SAFE(init_prim(tmp_prim, init_pd, prb, res, FLAG_BWD, const_fpd), WARN);
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-        if (is_bench_mode(INIT)) return OK;
         prim.reset(tmp_prim.release());
 
-        // Pass same memory map as we need data from forward on backward.
-        init_memory_args<prb_t>(
-                mem_map, prb, prim, supported_exec_args(FLAG_BWD));
-        SAFE(init_ref_memory_args(
-                     ref_mem_map, mem_map, prim, prb, res, FLAG_BWD),
-                WARN);
+        auto const_bpd = query_pd(prim);
 
-        args = args_t(mem_map);
-        ref_args = args_t(ref_mem_map);
+        const auto &d_data_md = query_md(const_bpd, DNNL_ARG_DIFF_DST);
+        const auto &d_scratchpad_md = query_md(const_bpd, DNNL_ARG_SCRATCHPAD);
+
+        dnn_mem_t d_dst_fp(d_data_md, fp, tag, ref_engine);
+        d_dst_dt = dnn_mem_t(d_data_md, test_engine);
+
+        dnn_mem_t d_src_fp(d_data_md, fp, tag, ref_engine);
+        d_src_dt = dnn_mem_t(d_data_md, test_engine);
+
+        scratchpad_dt = dnn_mem_t(d_scratchpad_md, test_engine);
+
+        SAFE(fill_dst(prb, d_dst_dt, d_dst_fp), WARN);
+
+        args.clear();
+        args.set(DNNL_ARG_SRC, src_dt);
+        args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
+        args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
+        args.set(DNNL_ARG_WORKSPACE, ws_dt);
+        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
         SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
+
             check_correctness(prb, {SRC}, args, ref_args, setup_cmp, res);
         }
     }

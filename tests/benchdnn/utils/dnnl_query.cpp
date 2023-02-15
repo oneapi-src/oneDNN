@@ -101,33 +101,6 @@ dnnl_engine_kind_t query_engine_kind(const dnnl_engine_t &engine) {
     return engine_kind;
 }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
-dnnl_sparse_encoding_t query_md_sparse_encoding(const_dnnl_memory_desc_t md) {
-    dnnl_sparse_encoding_t encoding = dnnl_sparse_encoding_undef;
-    if (!md) return encoding;
-    dnnl_memory_desc_query(md, dnnl_query_sparse_encoding, &encoding);
-    return encoding;
-}
-
-dnnl_dim_t query_md_nnz(const_dnnl_memory_desc_t md) {
-    dnnl_dim_t nnz = 0;
-    if (!md) return nnz;
-    dnnl_memory_desc_query(md, dnnl_query_nnz_s64, &nnz);
-    return nnz;
-}
-#endif
-
-int query_md_num_handles(const_dnnl_memory_desc_t md) {
-#ifdef DNNL_EXPERIMENTAL_SPARSE
-    int nhandles = 0;
-    if (!md) return nhandles;
-    dnnl_memory_desc_query_v2(md, dnnl_query_num_handles_s32, 0, &nhandles);
-    return nhandles;
-#else
-    return 1;
-#endif
-}
-
 int query_md_ndims(const_dnnl_memory_desc_t md) {
     int ndims = 0;
     if (!md) return ndims;
@@ -150,15 +123,10 @@ dnnl_dim_t query_md_submemory_offset(const_dnnl_memory_desc_t md) {
     return submemory_offset;
 }
 
-dnnl_data_type_t query_md_data_type(
-        const_dnnl_memory_desc_t md, int buffer_index) {
+dnnl_data_type_t query_md_data_type(const_dnnl_memory_desc_t md) {
     dnnl_data_type_t dt = dnnl_data_type_undef;
     if (!md) return dt;
-#ifdef DNNL_EXPERIMENTAL_SPARSE
-    dnnl_memory_desc_query_v2(md, dnnl_query_data_type, buffer_index, &dt);
-#else
     dnnl_memory_desc_query(md, dnnl_query_data_type, &dt);
-#endif
     return dt;
 }
 

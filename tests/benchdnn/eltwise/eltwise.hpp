@@ -53,25 +53,9 @@ struct settings_t : public base_settings_t {
     }
 
     void reset() { *this = settings_t(perf_template); }
-
-    bool has_single_setup() const override {
-        return dir.size() == 1 && dt.size() == 1 && tag.size() == 1
-                && alg.size() == 1 && alpha.size() == 1 && beta.size() == 1
-                && base_settings_t::has_single_setup();
-    }
 };
 
 struct prb_t : public prb_dims_t {
-    // A ctor with common interface across all drivers.
-    prb_t(const settings_t &s)
-        : prb_t(s.prb_dims, s.dir[0], s.dt[0], s.tag[0], s.alg[0], s.alpha[0],
-                s.beta[0], s.inplace[0],
-                settings_t::get_attr(s.scales[0], s.zero_points[0],
-                        s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]),
-                s.ctx_init[0], s.ctx_exe[0], s.mb[0]) {
-        SAFE_V(s.has_single_setup() ? OK : FAIL);
-    }
-
     prb_t(const prb_dims_t &prb_dims, dir_t dir, dnnl_data_type_t dt,
             const std::string &tag, alg_t alg, float alpha, float beta,
             bool inplace, const attr_t &attr, const thr_ctx_t &ctx_init,
@@ -107,13 +91,6 @@ struct prb_t : public prb_dims_t {
                 || alg == alg_t::ELU_DST || alg == alg_t::SQRT_DST
                 || alg == alg_t::LOGISTIC_DST || alg == alg_t::EXP_DST
                 || alg == alg_t::CLIP_V2_DST;
-    }
-
-    // Used to construct memory desc when dimensions are runtime since such mds
-    // can't be used directly from query and memory objects can't be constructed.
-    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const {
-        assert(!"No runtime dimensions support for this driver!");
-        return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
     }
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
@@ -151,20 +128,16 @@ int fill_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
 bool check_abs_err(const prb_t *prb, const float &s, const float &trh);
 float get_eltwise_zero_trust_percent(const prb_t *prb);
 float get_eltwise_threshold(dnnl_data_type_t dt, alg_t alg, bool is_fwd = true);
-bool eltwise_alg_returns_nan_or_inf(const attr_t &attr);
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
-void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
-        const args_t &ref_args);
-std::vector<int> supported_exec_args(dir_t dir);
-int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
-        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
-        dnnl_primitive_t prim_ref = nullptr);
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 void skip_invalid_prb(const prb_t *prb, res_t *res);
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
+
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);

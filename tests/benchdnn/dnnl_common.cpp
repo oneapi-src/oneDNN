@@ -54,17 +54,7 @@ extern "C" dnnl_status_t dnnl_impl_gpu_get_profile_info(
 #endif
 
 int check_pd_cache(const_dnnl_primitive_desc_t pd) {
-    // Disable this check for stack checker since:
-    // * Stack validation is performed with threadpool environment only.
-    // * Threadpool is always defined in validation infrastructure, but stack
-    //   checker uses own threading model and executes primitives creation in a
-    //   separate environment that doesn't have threadpool enabled, thus, using
-    //   a specified number of threads in testing environment that is different
-    //   from number of cores per socket (internal logic) will cause this check
-    //   to fail since number of threads used in a primitive cache key will be
-    //   different.
-#if !defined(DNNL_DISABLE_PRIMITIVE_CACHE) \
-        && !defined(DNNL_ENABLE_STACK_CHECKER)
+#ifndef DNNL_DISABLE_PRIMITIVE_CACHE
     int capacity = 0;
     DNN_SAFE(dnnl_get_primitive_cache_capacity(&capacity), CRIT);
     if (capacity && !dnnl::impl::is_pd_in_cache(pd)) {
@@ -78,9 +68,7 @@ int check_pd_cache(const_dnnl_primitive_desc_t pd) {
 }
 
 int check_primitive_cache(dnnl_primitive_t p) {
-    // See the comment in `check_pd_cache`.
-#if !defined(DNNL_DISABLE_PRIMITIVE_CACHE) \
-        && !defined(DNNL_ENABLE_STACK_CHECKER)
+#ifndef DNNL_DISABLE_PRIMITIVE_CACHE
     int capacity = 0;
     DNN_SAFE(dnnl_get_primitive_cache_capacity(&capacity), CRIT);
     if (capacity && !dnnl::impl::is_primitive_in_cache(p)) {
@@ -265,44 +253,6 @@ void init_isa_settings() {
     }
 }
 
-// This ctor is responsible to provide proper pointers to memory objects for
-// correspondent arguments. It is important for in-place cases when a single
-// object should be used as SRC and DST.
-// `mem_map` object is an owner of memory objects and can't use the same object
-// for SRC and DST while `args` is a proxy with pointers to memories and may
-// easily change what to pick for a specific arg.
-args_t::args_t(const dnn_mem_map_t &mem_map) {
-    for (const auto &map_entry : mem_map) {
-        const dnn_mem_t *mem_ptr = &map_entry.second;
-        for (int inplace_arg : {DNNL_ARG_DST, DNNL_ARG_DIFF_SRC}) {
-            if (map_entry.first != inplace_arg || map_entry.second) continue;
-
-            auto it = mem_map.begin();
-            switch (inplace_arg) {
-                case DNNL_ARG_DST:
-                    it = mem_map.find(DNNL_ARG_SRC);
-                    // May happen that source argument is different.
-                    if (it == mem_map.end())
-                        it = mem_map.find(DNNL_ARG_MULTIPLE_SRC);
-                    break;
-                case DNNL_ARG_DIFF_SRC:
-                    it = mem_map.find(DNNL_ARG_DIFF_DST);
-                    break;
-                default: assert(!"unsupported arg"); break;
-            }
-            if (it == mem_map.end()) {
-                BENCHDNN_PRINT(0, "%s\n", "Inplace substitution failed.");
-                SAFE_V(FAIL);
-            }
-
-            mem_ptr = &((*it).second); // Update reference with in-place memory.
-            break;
-        }
-
-        args_.emplace_back(map_entry.first, mem_ptr);
-    }
-}
-
 args_t &args_t::set(int arg, const dnn_mem_t &mem) {
     args_.emplace_back(arg, &mem);
     return *this;
@@ -322,15 +272,6 @@ const dnn_mem_t &args_t::find(int arg) const {
         if (e.first == arg) return *(e.second);
     }
     return empty_stub;
-}
-
-void args_t::replace(int arg, const dnn_mem_t *mem) {
-    for (auto &e : args_) {
-        if (e.first == arg) {
-            e.second = mem;
-            break;
-        }
-    }
 }
 
 // Unmap before passing the memory to execute
@@ -358,12 +299,11 @@ int execute_and_wait(perf_function_t &exec_func, const dnnl_engine_t &engine,
 
     execute_unmap_args(args, dnnl_args);
 
-    auto status = exec_func(stream, dnnl_args);
+    DNN_SAFE(exec_func(stream, dnnl_args), CRIT);
     DNN_SAFE(dnnl_stream_wait(stream), CRIT);
     if (res) res->state = EXECUTED;
 
     execute_map_args(args);
-    if (status != dnnl_success) return res->state = FAILED, FAIL;
 
     return OK;
 }
@@ -414,11 +354,6 @@ void get_gpu_profiling_info(uint64_t &nsec, double &freq, int mode) {
     if (!is_bench_mode(PROF)) return;
     DNN_SAFE_V(dnnl_impl_gpu_get_profile_info(nsec, freq, mode));
 #endif
-}
-
-void finalize() {
-    reset_gpu_profiling();
-    finalize_tbb();
 }
 
 bool should_stop(const timer::timer_t &t) {
@@ -518,8 +453,7 @@ int measure_perf(const thr_ctx_t &ctx, res_t *res, perf_function_t &perf_func,
             ret = execute_in_thr_ctx(ctx, measure_perf_aggregate, t, stream,
                     perf_func, dnnl_args);
 
-        if (ret != OK) res->state = FAILED;
-        execute_map_args(args);
+        if (ret == OK) execute_map_args(args);
     }
     return ret;
 }
@@ -530,6 +464,53 @@ int measure_perf(
             std::placeholders::_1, std::placeholders::_2);
 
     return measure_perf(ctx, res, perf_func, args);
+}
+
+void maybe_prepare_runtime_scales(dnn_mem_t &scales_m,
+        const attr_t::scale_t &scale, int64_t scale_cnt, const float *scales) {
+    if (!scale.runtime) return;
+
+    const int64_t count = scale.policy == policy_t::COMMON ? 1 : scale_cnt;
+
+    scales_m = dnn_mem_t(1, &count, dnnl_f32, tag::x, get_test_engine());
+    for (int64_t c = 0; c < count; ++c)
+        ((float *)scales_m)[c] = scales[c];
+}
+
+void maybe_prepare_runtime_scales_v2(dnn_mem_t &scales_dt, dnn_mem_t &scales_fp,
+        const attr_t::scale_t &scale, int64_t scale_cnt, const float *scales) {
+    if (!scale.runtime) return;
+    maybe_prepare_runtime_scales(scales_dt, scale, scale_cnt, scales);
+    const int64_t count = scale.policy == policy_t::COMMON ? 1 : scale_cnt;
+    scales_fp = dnn_mem_t(1, &count, dnnl_f32, tag::x, get_cpu_engine());
+    for (int64_t c = 0; c < count; ++c)
+        ((float *)scales_fp)[c] = ((float *)scales_dt)[c];
+}
+
+void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
+        const attr_t &attr, int arg, int64_t count,
+        const int32_t *zero_points) {
+    if (!attr.zero_points.runtime(arg)) return;
+
+    const auto e = attr.zero_points.get(arg);
+    const int64_t cnt = e.policy == policy_t::COMMON ? 1 : count;
+
+    zero_points_m = dnn_mem_t(1, &cnt, dnnl_s32, tag::x, get_test_engine());
+    for (int64_t c = 0; c < cnt; ++c)
+        ((int32_t *)zero_points_m)[c] = zero_points[c];
+}
+
+void maybe_prepare_runtime_zero_points_v2(dnn_mem_t &zero_points_dt,
+        dnn_mem_t &zero_points_fp, const attr_t &attr, int arg, int64_t count,
+        const int32_t *zero_points) {
+    if (!attr.zero_points.runtime(arg)) return;
+    maybe_prepare_runtime_zero_points(
+            zero_points_dt, attr, arg, count, zero_points);
+    const auto e = attr.zero_points.get(arg);
+    const int64_t cnt = e.policy == policy_t::COMMON ? 1 : count;
+    zero_points_fp = dnn_mem_t(1, &cnt, dnnl_s32, tag::x, get_cpu_engine());
+    for (int64_t c = 0; c < cnt; ++c)
+        ((int32_t *)zero_points_fp)[c] = ((int32_t *)zero_points_dt)[c];
 }
 
 std::vector<float> prepare_po_vals(const dnn_mem_t &dst_m, const args_t &args,
@@ -567,14 +548,10 @@ void skip_unimplemented_data_type(
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     using namespace dnnl::impl::cpu::platform;
     // bf16 is supported on AVX512-CORE+
-    const bool has_bf16_support = is_gpu()
-            || (is_cpu() && has_data_type_support(dnnl_bf16)
-                    && IMPLICATION(!(dir & FLAG_INF),
-                            has_training_support(dnnl_bf16)));
+    const bool has_bf16_support
+            = is_gpu() || (is_cpu() && has_data_type_support(dnnl_bf16));
     const bool has_f16_support = (is_gpu() && (dir & FLAG_FWD))
-            || (is_cpu() && has_data_type_support(dnnl_f16)
-                    && IMPLICATION(
-                            !(dir & FLAG_INF), has_training_support(dnnl_f16)));
+            || (is_cpu() && has_data_type_support(dnnl_f16));
 
 #else
     const bool has_bf16_support = is_gpu();
@@ -721,7 +698,7 @@ bool is_amd_gpu(const dnnl_engine_t &engine) {
 
 bool is_f64_supported(const dnnl_engine_t &engine) {
     if (!is_gpu(engine)) return false;
-    if (is_nvidia_gpu(engine) || is_amd_gpu(engine)) return false;
+    if (is_nvidia_gpu(engine) || is_amd_gpu()) return false;
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
     if (is_sycl_engine(engine)) {
         auto eng = dnnl::engine(engine, true);
@@ -789,7 +766,7 @@ static size_t get_cpu_ram_size() {
 }
 #endif
 
-static int get_gpu_ram_sizes(size_t &ram_size, size_t &max_alloc_size) {
+static size_t get_gpu_ram_size() {
     // XXX: create a tmp engine to query what we need.
     // It will be removed in the future as part of switching back
     // to the global engine.
@@ -803,31 +780,15 @@ static int get_gpu_ram_sizes(size_t &ram_size, size_t &max_alloc_size) {
     engine_t engine_tgt(engine_tgt_kind);
     cl_device_id ocl_device = dnnl::ocl_interop::get_device(eng);
 
-    cl_ulong ram_sz = 0;
+    cl_ulong ram_size = 0;
     status = clGetDeviceInfo(ocl_device, CL_DEVICE_GLOBAL_MEM_SIZE,
-            sizeof(cl_ulong), &ram_sz, nullptr);
-    if (status != CL_SUCCESS) return FAIL;
-
-    cl_ulong max_alloc_sz = 0;
-    status = clGetDeviceInfo(ocl_device, CL_DEVICE_MAX_MEM_ALLOC_SIZE,
-            sizeof(cl_ulong), &max_alloc_sz, nullptr);
-    if (status != CL_SUCCESS) return FAIL;
-
-    ram_size = (size_t)ram_sz;
-    max_alloc_size = (size_t)max_alloc_sz;
-    return OK;
+            sizeof(cl_ulong), &ram_size, nullptr);
+    if (status == CL_SUCCESS) return (size_t)ram_size;
 #elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
     auto sycl_dev = dnnl::sycl_interop::get_device(eng);
-    ram_size = (size_t)sycl_dev
-                       .get_info<::sycl::info::device::global_mem_size>();
-    max_alloc_size
-            = (size_t)sycl_dev
-                      .get_info<::sycl::info::device::max_mem_alloc_size>();
-    return OK;
+    return (size_t)sycl_dev.get_info<::sycl::info::device::global_mem_size>();
 #endif
-    ram_size = 0;
-    max_alloc_size = 0;
-    return OK;
+    return 0;
 }
 
 struct check_mem_size_args_t {
@@ -848,7 +809,6 @@ struct check_mem_size_args_t {
     bool is_scratchpad;
 
     // Output args.
-    std::vector<size_t> sizes;
     size_t total_size_device;
     size_t total_size_cpu;
     size_t scratchpad_size;
@@ -856,14 +816,12 @@ struct check_mem_size_args_t {
 
 static int check_total_size(
         const check_mem_size_args_t &check_mem_size_args, res_t *res) {
-    static size_t cpu_device_capacity = get_cpu_ram_size();
-    size_t gpu_device_capacity = 0;
-    size_t gpu_max_alloc_capacity = 0;
-    SAFE(get_gpu_ram_sizes(gpu_device_capacity, gpu_max_alloc_capacity), WARN);
+    static uint64_t cpu_device_capacity = get_cpu_ram_size();
+    static uint64_t gpu_device_capacity = get_gpu_ram_size();
 
-    const size_t device_max_capacity
+    const uint64_t device_max_capacity
             = is_cpu() ? cpu_device_capacity : gpu_device_capacity;
-    const size_t cpu_max_capacity = cpu_device_capacity;
+    const uint64_t cpu_max_capacity = cpu_device_capacity;
 
     // 0.75f is taken randomly and is subject to change in future.
     const double capacity_factor = 0.75;
@@ -873,11 +831,6 @@ static int check_total_size(
 
     const bool fits_device_ram = is_gpu()
             ? (check_mem_size_args.total_size_device <= benchdnn_device_limit)
-                    && std::all_of(check_mem_size_args.sizes.cbegin(),
-                            check_mem_size_args.sizes.cend(),
-                            [&](size_t s) {
-                                return s < gpu_max_alloc_capacity;
-                            })
             : true;
     if (!fits_device_ram) {
         BENCHDNN_PRINT(
@@ -941,7 +894,6 @@ static void add_md_size(const_dnnl_memory_desc_t md,
     if (mem_size == 0 || mem_size == DNNL_RUNTIME_SIZE_VAL) return;
 
     check_mem_size_args.total_size_device += mem_size; // Original memory size.
-    check_mem_size_args.sizes.push_back(mem_size);
     if (!check_mem_size_args.add_ref_size) return;
 
     // Reference memories are always tag::abx fp32, hence need re-creating
@@ -1176,7 +1128,7 @@ float reorder_rescale_factor() {
     return factor;
 }
 
-dims_t md2dims(const_dnnl_memory_desc_t md) {
+dims_t md2dims(const dnnl_memory_desc_t &md) {
     auto ndims = query_md_ndims(md);
     dims_t dims(ndims, 0);
     for (int d = 0; d < ndims; ++d)

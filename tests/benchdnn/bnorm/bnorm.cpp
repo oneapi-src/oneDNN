@@ -34,9 +34,9 @@
 
 namespace bnorm {
 
-static int prepare_fwd_with_stats(const prb_t *prb, const dnn_mem_t &src,
-        const dnn_mem_t &src_add, const dnn_mem_t &mean, const dnn_mem_t &var,
-        const dnn_mem_t &sc, const dnn_mem_t &sh, res_t *res) {
+static int prepare_fwd_with_stats(const prb_t *prb, dnn_mem_t &src,
+        dnn_mem_t &src_add, dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &sc,
+        dnn_mem_t &sh) {
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
     const bool fill_src_add = prb->fuse_add_relu();
@@ -47,8 +47,8 @@ static int prepare_fwd_with_stats(const prb_t *prb, const dnn_mem_t &src,
 
         const float sc_value = 1 << (c % 7);
         const float sh_value = ((c % 3) - 1) * sc_value;
-        if (use_sc) sc.set_elem(c, sc_value);
-        if (use_sh) sh.set_elem(c, sh_value);
+        sc.set_elem(c, use_sc ? sc_value : 1.0f);
+        sh.set_elem(c, use_sh ? sh_value : 0.0f);
     });
 
     benchdnn_parallel_nd(prb->ic, prb->mb, prb->id, prb->ih, prb->iw,
@@ -71,9 +71,9 @@ static int prepare_fwd_with_stats(const prb_t *prb, const dnn_mem_t &src,
     return OK;
 }
 
-static int prepare_fwd_no_stats(const prb_t *prb, const dnn_mem_t &src,
-        const dnn_mem_t &src_add, const dnn_mem_t &mean, const dnn_mem_t &var,
-        const dnn_mem_t &sc, const dnn_mem_t &sh, res_t *res) {
+static int prepare_fwd_no_stats(const prb_t *prb, dnn_mem_t &src,
+        dnn_mem_t &src_add, dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &sc,
+        dnn_mem_t &sh) {
     /** Idea: choose src[] values so that both mean and variance are computed
      * exactly (independently of the order of the computations).
      *
@@ -107,10 +107,7 @@ static int prepare_fwd_no_stats(const prb_t *prb, const dnn_mem_t &src,
             : MIN2(prb->dt == dnnl_bf16 ? 7 : exact_bits,
                     (exact_bits - logL) / 2 - 1);
 
-    if (flex_bits < min_flex_bits) {
-        res->state = UNTESTED;
-        return FAIL;
-    }
+    if (flex_bits < min_flex_bits) return FAIL;
 
     const int64_t flex_mask = (1 << flex_bits) - 1;
 
@@ -147,7 +144,6 @@ static int prepare_fwd_no_stats(const prb_t *prb, const dnn_mem_t &src,
 
                 if (alg == ALG_0 && !flip_coin(l / 2 * 257ULL, density)) {
                     s[sp] = 0;
-                    if (fill_src_add) src_add.set_elem(off + sp, 1.f);
                     continue;
                 }
 
@@ -180,73 +176,19 @@ static int prepare_fwd_no_stats(const prb_t *prb, const dnn_mem_t &src,
 
         const float sc_value = 1.f / 8 * (1 << (c % 7));
         const float sh_value = ((c % 3) - 1) * sc_value / 64;
-        if (use_sc) sc.set_elem(c, sc_value);
-        if (use_sh) sh.set_elem(c, sh_value);
+        ((float *)sc)[c] = use_sc ? sc_value : 1.0f;
+        ((float *)sh)[c] = use_sh ? sh_value : 0.0f;
     });
 
     return OK;
 }
 
-int prepare_fwd(const prb_t *prb, dnn_mem_t &src_dt, dnn_mem_t &src_add_dt,
-        dnn_mem_t &mean_dt, dnn_mem_t &var_dt, dnn_mem_t &sc_dt,
-        dnn_mem_t &sh_dt, const dnn_mem_t &src, const dnn_mem_t &src_add,
-        const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &sc,
-        const dnn_mem_t &sh, res_t *res) {
+int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &src_add,
+        dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &sc, dnn_mem_t &sh) {
     if (prb->flags & GLOB_STATS)
-        SAFE(prepare_fwd_with_stats(prb, src, src_add, mean, var, sc, sh, res),
-                WARN);
+        return prepare_fwd_with_stats(prb, src, src_add, mean, var, sc, sh);
     else
-        SAFE(prepare_fwd_no_stats(prb, src, src_add, mean, var, sc, sh, res),
-                WARN);
-
-    SAFE(src_dt.reorder(src), WARN);
-    if (prb->fuse_add_relu()) SAFE(src_add_dt.reorder(src_add), WARN);
-    if (prb->flags & GLOB_STATS) {
-        SAFE(mean_dt.reorder(mean), WARN);
-        SAFE(var_dt.reorder(var), WARN);
-    }
-    if (prb->use_sc()) { SAFE(sc_dt.reorder(sc), WARN); }
-    if (prb->use_sh()) { SAFE(sh_dt.reorder(sh), WARN); }
-    return OK;
-}
-
-int prepare_fwd(const prb_t *prb, dnn_mem_map_t &mem_map,
-        dnn_mem_map_t &ref_mem_map, res_t *res) {
-    const auto &ref_src = ref_mem_map[DNNL_ARG_SRC];
-    const auto &ref_src_add = ref_mem_map[DNNL_ARG_SRC_1];
-    const auto &ref_mean = ref_mem_map[DNNL_ARG_MEAN];
-    const auto &ref_var = ref_mem_map[DNNL_ARG_VARIANCE];
-    const auto &ref_sc = ref_mem_map[DNNL_ARG_SCALE];
-    const auto &ref_sh = ref_mem_map[DNNL_ARG_SHIFT];
-
-    if (prb->flags & GLOB_STATS)
-        SAFE(prepare_fwd_with_stats(prb, ref_src, ref_src_add, ref_mean,
-                     ref_var, ref_sc, ref_sh, res),
-                WARN);
-    else
-        SAFE(prepare_fwd_no_stats(prb, ref_src, ref_src_add, ref_mean, ref_var,
-                     ref_sc, ref_sh, res),
-                WARN);
-
-    auto &src = mem_map[DNNL_ARG_SRC];
-    SAFE(src.reorder(ref_src), WARN);
-
-    auto &src_add = mem_map[DNNL_ARG_SRC_1];
-    if (src_add) SAFE(src_add.reorder(ref_src_add), WARN);
-
-    auto &mean = mem_map[DNNL_ARG_MEAN];
-    if (mean) SAFE(mean.reorder(ref_mean), WARN);
-
-    auto &var = mem_map[DNNL_ARG_VARIANCE];
-    if (var) SAFE(var.reorder(ref_var), WARN);
-
-    auto &sc = mem_map[DNNL_ARG_SCALE];
-    if (sc) SAFE(sc.reorder(ref_sc), WARN);
-
-    auto &sh = mem_map[DNNL_ARG_SHIFT];
-    if (sh) SAFE(sh.reorder(ref_sh), WARN);
-
-    return OK;
+        return prepare_fwd_no_stats(prb, src, src_add, mean, var, sc, sh);
 }
 
 int prepare_bwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
@@ -291,56 +233,7 @@ int prepare_bwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     return OK;
 }
 
-int prepare_bwd(
-        const prb_t *prb, dnn_mem_map_t &mem_map, dnn_mem_map_t &ref_mem_map) {
-    const auto &mem_fp = ref_mem_map[DNNL_ARG_DIFF_DST];
-    auto &mem_dt = mem_map[DNNL_ARG_DIFF_DST];
-
-    const auto nelems = mem_fp.nelems();
-    if (nelems == 0) return OK;
-
-    // Idea behind filling: integer diff_dst values decrease norms unlike fp32
-    // values in [-1.f, 1.f] range. To decrease norms more, make data pretty
-    // sparse as answers sum all diff_dst values.
-
-    /* Do fixed partitioning to have same filling for any number of threads */
-    const int64_t n_chunks = 16;
-    const int64_t chunk_size = div_up(nelems, n_chunks);
-
-    benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
-        int64_t idx_start = idx_chunk * chunk_size;
-        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
-
-        // Note: we use a different seed for each chunk to avoid
-        // repeating patterns. We could use discard(idx_start) too but
-        // it has a complexity in O(idx_start). We also add 1 to avoid
-        // seeding with 0.
-        std::minstd_rand msr(idx_start + 1);
-        msr.discard(1);
-
-        std::uniform_int_distribution<> igen_val(-2, 2);
-        std::uniform_int_distribution<> igen_coin(0, 256 * 1024);
-
-        // at least 20 non-zero elems
-        float sparsity = MAX2(0.05f, MIN2(1.f, 20.f / nelems));
-
-        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
-            float value = flip_coin(igen_coin(msr), sparsity)
-                    ? round_to_nearest_representable(prb->dt, igen_val(msr))
-                    : 0;
-            mem_fp.set_elem(idx, value);
-        }
-    });
-
-    SAFE(mem_dt.reorder(mem_fp), WARN);
-
-    return OK;
-}
-
-int check_fwd_ws(dnn_mem_map_t &mem_map, res_t *res) {
-    const auto &dst_dt = mem_map[DNNL_ARG_DST];
-    const auto &ws_dt = mem_map[DNNL_ARG_WORKSPACE];
-
+int check_fwd_ws(const dnn_mem_t &dst_dt, const dnn_mem_t &ws_dt, res_t *res) {
     if (ws_dt.ndims() == 0) return OK;
 
     /* so far we know ws is just bit-mask of whether value was negative or
@@ -401,8 +294,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
         DNN_SAFE_STATUS(dnnl_batch_normalization_forward_primitive_desc_create(
-                &init_pd_args.pd, init_pd_args.engine, prop,
-                init_pd_args.src_md ? init_pd_args.src_md : src_d, dst_d,
+                &init_pd_args.pd, init_pd_args.engine, prop, src_d, dst_d,
                 prb->eps, flags, dnnl_attr));
     } else {
         auto diff_src_d = dnn_mem_t::init_md(
@@ -423,13 +315,14 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_data_type({prb->dt}, prb->dir, res);
     skip_unimplemented_sum_po(prb->attr, res);
 
-    // Non-zero alpha is not supported for training in general.
+    // Non-zero alpha is not supported on GPU and for training in general.
     const auto &po = prb->attr.post_ops;
     const auto relu_idx = po.find(attr_t::post_ops_t::kind_t::RELU);
     if (relu_idx >= 0) {
         const auto &e = po.entry[relu_idx];
         float alpha = e.eltwise.alpha;
-        bool alpha_ok = IMPLICATION(alpha != 0.f, (prb->dir & FLAG_INF));
+        bool alpha_ok
+                = IMPLICATION(alpha != 0.f, (prb->dir & FLAG_INF) && is_cpu());
         if (!alpha_ok) {
             res->state = SKIPPED;
             res->reason = CASE_NOT_SUPPORTED;
@@ -437,14 +330,6 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     }
     // BN+Add+ReLU fusion is not supported on CPU
     if (is_cpu() && prb->fuse_add_relu()) {
-        res->state = SKIPPED;
-        res->reason = CASE_NOT_SUPPORTED;
-    }
-    // int8 only supports forward s8 w/ global stats
-    const bool u8_not_ok = prb->dt == dnnl_u8;
-    const bool s8_not_ok = prb->dt == dnnl_s8
-            && ((prb->dir & FLAG_BWD) || (prb->flags & GLOB_STATS) == 0);
-    if (s8_not_ok || u8_not_ok) {
         res->state = SKIPPED;
         res->reason = CASE_NOT_SUPPORTED;
     }
@@ -534,107 +419,6 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     cmp.set_driver_check_function(bnorm_add_check);
 }
 
-std::vector<int> supported_exec_args(dir_t dir) {
-    static const std::vector<int> exec_fwd_args = {
-            DNNL_ARG_SRC,
-            DNNL_ARG_SRC_1,
-            DNNL_ARG_MEAN,
-            DNNL_ARG_VARIANCE,
-            DNNL_ARG_SCALE,
-            DNNL_ARG_SHIFT,
-            DNNL_ARG_DST,
-            DNNL_ARG_WORKSPACE,
-    };
-    static const std::vector<int> exec_bwd_args = {
-            DNNL_ARG_SRC,
-            DNNL_ARG_SRC_1,
-            DNNL_ARG_MEAN,
-            DNNL_ARG_VARIANCE,
-            DNNL_ARG_SCALE,
-            DNNL_ARG_WORKSPACE,
-            DNNL_ARG_DIFF_DST,
-            DNNL_ARG_DIFF_SCALE,
-            DNNL_ARG_DIFF_SHIFT,
-            DNNL_ARG_DIFF_SRC,
-            DNNL_ARG_DIFF_SRC_1,
-    };
-    return (dir & FLAG_FWD) ? exec_fwd_args : exec_bwd_args;
-};
-
-int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
-        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
-        dnnl_primitive_t prim_ref) {
-    // TODO: this function still allocates the full memory print needed to fill
-    // the data and each argument can't be destroyed right away since filling
-    // requires all of them at a time.
-    const auto &ref_engine = get_cpu_engine();
-
-    for (auto &entry : mem_map) {
-        const int exec_arg = entry.first;
-        auto &mem = entry.second;
-
-        ref_mem_map.emplace(
-                exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
-
-        switch (exec_arg) {
-            case DNNL_ARG_DST:
-                // Stash for backward which is used in reference code:
-                //     src_hat[i] = (src[i] - mean) / sqrt(var + prb->eps)
-                ref_mem_map.emplace(DNNL_ARG_DST_1,
-                        dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
-                break;
-            case DNNL_ARG_DIFF_SRC: break; // Skip on backward.
-            case DNNL_ARG_DST_1: break; // Skip on backward.
-            case DNNL_ARG_MEAN:
-            case DNNL_ARG_VARIANCE:
-                if (prb->dir & FLAG_INF) {
-                    const dnnl_dims_t dims1d = {prb->ic};
-                    ref_mem_map[exec_arg] = dnn_mem_t(
-                            1, dims1d, dnnl_f32, tag::abx, ref_engine);
-                }
-                break;
-            default: break;
-        }
-    }
-
-    if (dir & FLAG_FWD) {
-        SAFE(prepare_fwd(prb, mem_map, ref_mem_map, res), WARN);
-    } else {
-        SAFE(prepare_bwd(prb, mem_map, ref_mem_map), WARN);
-    }
-
-    // Drop destination memory for in-place case. `args` will take care of rest.
-    const bool inplace_fwd = prb->inplace && (prb->dir & FLAG_FWD);
-    const bool inplace_bwd = prb->inplace && (dir & FLAG_BWD);
-    if (inplace_fwd) {
-        mem_map[DNNL_ARG_DST] = dnn_mem_t();
-    } else if (inplace_bwd) {
-        mem_map[DNNL_ARG_DIFF_SRC] = dnn_mem_t();
-    }
-
-    // Don't keep reference memory if it is not used further.
-    if (!is_bench_mode(CORR)) {
-        ref_mem_map.clear();
-        return OK;
-    }
-
-    // Reference code uses different kind of workspace. Adjust to ref needs.
-    if (ref_mem_map.count(DNNL_ARG_WORKSPACE)) {
-        const auto &src_md = ref_mem_map[DNNL_ARG_SRC].md_;
-        ref_mem_map[DNNL_ARG_WORKSPACE]
-                = dnn_mem_t(src_md, dnnl_u8, tag::abx, ref_engine);
-    }
-
-    // Use inplace reference computation every time.
-    if (dir & FLAG_FWD) {
-        ref_mem_map.emplace(DNNL_ARG_DST, dnn_mem_t());
-    } else {
-        ref_mem_map.emplace(DNNL_ARG_DIFF_SRC, dnn_mem_t());
-    }
-
-    return OK;
-}
-
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -643,22 +427,110 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res, FLAG_FWD, nullptr,
                  is_service_prim),
             WARN);
+
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-    if (!is_service_prim && is_bench_mode(INIT)) return OK;
 
-    dnn_mem_map_t mem_map, ref_mem_map;
-    init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(FLAG_FWD));
-    SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res, FLAG_FWD),
-            WARN);
+    auto const_fpd = query_pd(prim);
 
-    args_t args(mem_map), ref_args(ref_mem_map);
+    const bool use_sc = prb->use_sc();
+    const bool use_sh = prb->use_sh();
+    const bool fuse_add_relu = prb->fuse_add_relu();
 
-    if (!is_bench_mode(INIT)) SAFE(execute_and_wait(prim, args, res), WARN);
+    const auto &data_md = query_md(const_fpd, DNNL_ARG_SRC);
+    const auto &src_add_md = query_md(const_fpd, DNNL_ARG_SRC_1);
+    const auto &mean_md = query_md(const_fpd, DNNL_ARG_MEAN);
+    const auto &var_md = query_md(const_fpd, DNNL_ARG_VARIANCE);
+    const auto &sc_md = query_md(const_fpd, DNNL_ARG_SCALE);
+    const auto &sh_md = query_md(const_fpd, DNNL_ARG_SHIFT);
+    const auto &ws_md = query_md(const_fpd, DNNL_ARG_WORKSPACE);
+    const auto &scratchpad_md = query_md(const_fpd, DNNL_ARG_SCRATCHPAD);
+
+    const auto fp = dnnl_f32;
+    const auto tag = tag::abx;
+
+    const auto &test_engine = get_test_engine();
+    const auto &ref_engine = get_cpu_engine();
+
+    dnn_mem_t src_fp(data_md, fp, tag, ref_engine);
+    dnn_mem_t src_dt(data_md, test_engine);
+    dnn_mem_t src_add_fp(src_add_md, fp, tag, ref_engine);
+    dnn_mem_t src_add_dt(src_add_md, test_engine);
+    // stash for bwd: src_hat[i] = (src[i] - mean) / sqrt(var + prb->eps)
+    dnn_mem_t src_hat_fp(data_md, fp, tag, ref_engine);
+
+    dnn_mem_t &dst_fp = src_fp; // in-place in ref code
+    dnn_mem_t placeholder_dst_dt;
+    const bool inplace_fwd = prb->inplace && (prb->dir & FLAG_FWD);
+    if (!inplace_fwd) { placeholder_dst_dt = dnn_mem_t(data_md, test_engine); }
+    dnn_mem_t &dst_dt = inplace_fwd ? src_dt : placeholder_dst_dt;
+
+    // On inference w/o global stats the batch norm doesn't require stat
+    // memories. Hence, we need to prepare the mean_fp and var_fp ourselves.
+    const dnnl_dims_t dims1d = {prb->ic};
+    dnn_mem_t mean_fp(1, dims1d, fp, tag::abx, ref_engine);
+    dnn_mem_t mean_dt(mean_md, test_engine);
+    dnn_mem_t var_fp(1, dims1d, fp, tag::abx, ref_engine);
+    dnn_mem_t var_dt(var_md, test_engine);
+
+    dnn_mem_t sc_fp(1, dims1d, fp, tag::abx, ref_engine);
+    dnn_mem_t sc_dt(sc_md, test_engine);
+    dnn_mem_t d_sc_fp(1, dims1d, fp, tag::abx, ref_engine);
+    dnn_mem_t d_sc_dt(sc_md, test_engine);
+
+    dnn_mem_t sh_fp(1, dims1d, fp, tag::abx, ref_engine);
+    dnn_mem_t sh_dt(sh_md, test_engine);
+    dnn_mem_t d_sh_fp(1, dims1d, fp, tag::abx, ref_engine);
+    dnn_mem_t d_sh_dt(sh_md, test_engine);
+
+    dnn_mem_t ws_fp(data_md, dnnl_u8, tag, ref_engine);
+    dnn_mem_t ws_dt(ws_md, test_engine);
+    if (prb->need_ws()) SAFE(ws_dt.ndims() != 0 ? OK : FAIL, WARN);
+    dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
+
+    dnn_mem_t d_dst_dt, placeholder_d_src_dt;
+
+    if (prepare_fwd(prb, src_fp, src_add_fp, mean_fp, var_fp, sc_fp, sh_fp)
+            != OK) {
+        return res->state = MISTRUSTED, OK;
+    }
+
+    SAFE(src_dt.reorder(src_fp), WARN);
+    if (fuse_add_relu) SAFE(src_add_dt.reorder(src_add_fp), WARN);
+    if (prb->flags & GLOB_STATS) {
+        SAFE(mean_dt.reorder(mean_fp), WARN);
+        SAFE(var_dt.reorder(var_fp), WARN);
+    }
+    if (use_sc) { SAFE(sc_dt.reorder(sc_fp), WARN); }
+    if (use_sh) { SAFE(sh_dt.reorder(sh_fp), WARN); }
+
+    args_t args, ref_args;
+
+    args.set(DNNL_ARG_SRC, src_dt);
+    args.set(DNNL_ARG_SRC_1, src_add_dt);
+    args.set(DNNL_ARG_MEAN, mean_dt);
+    args.set(DNNL_ARG_VARIANCE, var_dt);
+    args.set(DNNL_ARG_SCALE, sc_dt);
+    args.set(DNNL_ARG_SHIFT, sh_dt);
+    args.set(DNNL_ARG_WORKSPACE, ws_dt);
+    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+    args.set(DNNL_ARG_DST, dst_dt);
+
+    SAFE(execute_and_wait(prim, args, res), WARN);
 
     // Running ref to collect src_hat (used instead of src + mean) and ws, if
     // fuse_relu flag is requested.
     if (is_bench_mode(CORR)) {
         if (prb->dir & FLAG_FWD) {
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_SRC_1, src_add_fp);
+            ref_args.set(DNNL_ARG_MEAN, mean_fp);
+            ref_args.set(DNNL_ARG_VARIANCE, var_fp);
+            ref_args.set(DNNL_ARG_SCALE, sc_fp);
+            ref_args.set(DNNL_ARG_SHIFT, sh_fp);
+            ref_args.set(DNNL_ARG_WORKSPACE, ws_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+            ref_args.set(DNNL_ARG_DST_1, src_hat_fp); // Reference aux arg.
+
             std::vector<data_kind_t> kinds {DST};
             if (!(prb->flags & GLOB_STATS) && !(prb->dir & FLAG_INF)) {
                 kinds.push_back(MEAN);
@@ -667,35 +539,75 @@ int doit(const prb_t *prb, res_t *res) {
 
             check_correctness(prb, kinds, args, ref_args, setup_cmp, res);
 
-            if (prb->debug_check_ws) check_fwd_ws(mem_map, res);
+            if (prb->debug_check_ws) check_fwd_ws(dst_dt, ws_dt, res);
         }
     }
 
     if (prb->dir & FLAG_BWD) {
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> tmp_prim;
-        SAFE(init_prim(prb->ctx_init, tmp_prim, init_pd, prb, res, FLAG_BWD,
-                     query_pd(prim)),
-                WARN);
+        SAFE(init_prim(tmp_prim, init_pd, prb, res, FLAG_BWD, const_fpd), WARN);
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-        if (is_bench_mode(INIT)) return OK;
         prim.reset(tmp_prim.release());
 
-        // Pass same memory map as we need data from forward on backward.
-        init_memory_args<prb_t>(
-                mem_map, prb, prim, supported_exec_args(FLAG_BWD));
-        SAFE(init_ref_memory_args(
-                     ref_mem_map, mem_map, prim, prb, res, FLAG_BWD),
-                WARN);
+        auto const_bpd = query_pd(prim);
 
-        args = args_t(mem_map);
-        ref_args = args_t(ref_mem_map);
+        const auto &d_data_md = query_md(const_bpd, DNNL_ARG_DIFF_DST);
+        const auto &d_src_add_md = query_md(const_bpd, DNNL_ARG_DIFF_SRC_1);
+        const auto &d_scratchpad_md = query_md(const_bpd, DNNL_ARG_SCRATCHPAD);
+
+        dnn_mem_t d_dst_fp(d_data_md, fp, tag, ref_engine);
+        d_dst_dt = dnn_mem_t(d_data_md, test_engine);
+
+        dnn_mem_t &d_src_fp = d_dst_fp; // in-place in ref code
+        dnn_mem_t d_src_add_fp(d_src_add_md, fp, tag, ref_engine);
+        if (!prb->inplace) {
+            placeholder_d_src_dt = dnn_mem_t(d_data_md, test_engine);
+        }
+        dnn_mem_t &d_src_dt = prb->inplace ? d_dst_dt : placeholder_d_src_dt;
+        dnn_mem_t d_src_add_dt = dnn_mem_t(d_src_add_md, test_engine);
+
+        scratchpad_dt = dnn_mem_t(d_scratchpad_md, test_engine);
+
+        SAFE(prepare_bwd(prb, d_dst_dt, d_dst_fp), WARN);
+
+        args.clear();
+        args.set(DNNL_ARG_SRC, src_dt);
+        args.set(DNNL_ARG_SRC_1, src_add_dt);
+        args.set(DNNL_ARG_MEAN, mean_dt);
+        args.set(DNNL_ARG_VARIANCE, var_dt);
+        args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
+        args.set(DNNL_ARG_SCALE, sc_dt);
+        args.set(DNNL_ARG_WORKSPACE, ws_dt);
+        args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
+        args.set(DNNL_ARG_DIFF_SCALE, d_sc_dt);
+        args.set(DNNL_ARG_DIFF_SHIFT, d_sh_dt);
+        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+        // Since DIFF_SRC_1 is the second output it can be in blocked format
+        // and unconditional including leads zero-paddiing failures
+        if (fuse_add_relu) args.set(DNNL_ARG_DIFF_SRC_1, d_src_add_dt);
 
         SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_SRC_1, src_add_fp);
+            ref_args.set(DNNL_ARG_MEAN, mean_fp);
+            ref_args.set(DNNL_ARG_VARIANCE, var_fp);
+            ref_args.set(DNNL_ARG_SCALE, sc_fp);
+            ref_args.set(DNNL_ARG_SHIFT, sh_fp);
+            ref_args.set(DNNL_ARG_WORKSPACE, ws_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+            ref_args.set(DNNL_ARG_DST_1, src_hat_fp); // Reference aux arg.
+            ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC_1, d_src_add_fp);
+            ref_args.set(DNNL_ARG_DIFF_SCALE, d_sc_fp);
+            ref_args.set(DNNL_ARG_DIFF_SHIFT, d_sh_fp);
+
             std::vector<data_kind_t> kinds {SRC};
-            if (prb->use_sc() && (prb->dir & FLAG_WEI)) kinds.push_back(SC);
-            if (prb->use_sh() && (prb->dir & FLAG_WEI)) kinds.push_back(SH);
+            if (use_sc && (prb->dir & FLAG_WEI)) kinds.push_back(SC);
+            if (use_sh && (prb->dir & FLAG_WEI)) kinds.push_back(SH);
+            if (fuse_add_relu) kinds.push_back(SRC_1);
 
             check_correctness(prb, kinds, args, ref_args, setup_cmp, res);
         }

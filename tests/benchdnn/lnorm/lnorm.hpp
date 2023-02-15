@@ -67,25 +67,9 @@ struct settings_t : public base_settings_t {
     }
 
     void reset() { *this = settings_t(perf_template); }
-
-    bool has_single_setup() const override {
-        return dir.size() == 1 && dt.size() == 1 && tag.size() == 1
-                && stat_tag.size() == 1 && flags.size() == 1
-                && base_settings_t::has_single_setup();
-    }
 };
 
 struct prb_t : public prb_dims_t {
-    // A ctor with common interface across all drivers.
-    prb_t(const settings_t &s)
-        : prb_t(s.prb_dims, s.tag[0], s.stat_tag[0], s.dir[0], s.dt[0],
-                s.flags[0],
-                settings_t::get_attr(s.scales[0], s.zero_points[0],
-                        s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]),
-                s.ctx_init[0], s.ctx_exe[0], s.inplace[0], s.check_alg) {
-        SAFE_V(s.has_single_setup() ? OK : FAIL);
-    }
-
     prb_t(const prb_dims_t &prb_dims, const std::vector<std::string> &tag,
             const std::string &stat_tag, dir_t dir,
             const std::vector<dnnl_data_type_t> &dt, flags_t flags,
@@ -130,13 +114,6 @@ struct prb_t : public prb_dims_t {
 
     bool use_sc() const { return flags & USE_SCALE; }
     bool use_sh() const { return flags & USE_SHIFT; }
-
-    // Used to construct memory desc when dimensions are runtime since such mds
-    // can't be used directly from query and memory objects can't be constructed.
-    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const {
-        assert(!"No runtime dimensions support for this driver!");
-        return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
-    }
 };
 
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
@@ -177,27 +154,19 @@ private:
     std::string stat_tag_;
 };
 
-int prepare_fwd(const prb_t *prb, dnn_mem_t &src_dt, dnn_mem_t &mean_dt,
-        dnn_mem_t &var_dt, dnn_mem_t &sc_dt, dnn_mem_t &sh_dt,
-        const dnn_mem_t &src, const dnn_mem_t &mean, const dnn_mem_t &var,
-        const dnn_mem_t &sc, const dnn_mem_t &sh, res_t *res);
-int prepare_bwd(const prb_t *prb, dnn_mem_t &src_dt, dnn_mem_t &d_dst_dt,
-        dnn_mem_t &mean_dt, dnn_mem_t &var_dt, dnn_mem_t &sc_dt,
-        const dnn_mem_t &src, const dnn_mem_t &d_dst, const dnn_mem_t &mean,
-        const dnn_mem_t &var, const dnn_mem_t &sc, res_t *res);
-
+int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
+        dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &sh);
+int prepare_bwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &d_dst,
+        dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss);
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
-void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
-        const args_t &ref_args);
-std::vector<int> supported_exec_args(dir_t dir);
-int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
-        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
-        dnnl_primitive_t prim_ref = nullptr);
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 void skip_invalid_prb(const prb_t *prb, res_t *res);
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
+
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);

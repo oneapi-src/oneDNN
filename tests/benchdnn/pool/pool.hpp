@@ -130,23 +130,9 @@ struct settings_t : public base_settings_t {
     }
 
     void reset() { *this = settings_t(perf_template); }
-
-    bool has_single_setup() const override {
-        return dir.size() == 1 && cfg.size() == 1 && tag.size() == 1
-                && alg.size() == 1 && base_settings_t::has_single_setup();
-    }
 };
 
 struct prb_t : public desc_t {
-    // A ctor with common interface across all drivers.
-    prb_t(const settings_t &s)
-        : prb_t(s.desc, s.dir[0], s.cfg[0], s.tag[0], s.alg[0],
-                settings_t::get_attr(s.scales[0], s.zero_points[0],
-                        s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]),
-                s.ctx_init[0], s.ctx_exe[0], s.mb[0]) {
-        SAFE_V(s.has_single_setup() ? OK : FAIL);
-    }
-
     prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg,
             const std::string &tag, alg_t alg, const attr_t &attr,
             const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe, int64_t mb = 0)
@@ -172,19 +158,8 @@ struct prb_t : public desc_t {
     int64_t user_mb;
 
     int64_t kernel_size() const { return kd * kh * kw; }
-    bool has_ker_in_pad() const {
-        bool ker_in_pad_d = pd >= kd || pd_r >= kd;
-        bool ker_in_pad_h = ph >= kh || ph_r >= kh;
-        bool ker_in_pad_w = pw >= kw || pw_r >= kw;
-        return ker_in_pad_d || ker_in_pad_h || ker_in_pad_w;
-    }
 
-    // Used to construct memory desc when dimensions are runtime since such mds
-    // can't be used directly from query and memory objects can't be constructed.
-    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const {
-        assert(!"No runtime dimensions support for this driver!");
-        return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
-    }
+    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
@@ -276,24 +251,28 @@ inline int64_t get_num_summands(
                     * (KW - iw_start_excluded - iw_end_excluded);
 }
 
-dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
-void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
-        const args_t &ref_args);
-std::vector<int> supported_exec_args(dir_t dir);
-int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
-        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
-        dnnl_primitive_t prim_ref = nullptr);
-
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 void skip_invalid_prb(const prb_t *prb, res_t *res);
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
 
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args);
+
+int compare_src(
+        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
+int compare_dst(
+        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
+int fill_src(
+        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
+int fill_dst(
+        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
+int fill_ws(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
+
+dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
+
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
-
-int fill_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp);
 
 } // namespace pool
 

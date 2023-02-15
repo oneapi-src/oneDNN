@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -156,7 +156,7 @@ int main(int argc, char **argv) {
         printf("total compute_ref: sum(s):%.2f\n", compute_ref_time_s);
     }
 
-    finalize();
+    reset_gpu_profiling();
 
     return !!benchdnn_stat.failed;
 }

@@ -14,10 +14,6 @@
 --reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_D --alg=avg_p --tag=ABcd32a16b mb256ic2048_ih7oh1kh7sh1dh0ph0_iw7ow1kw7sw1dw0pw0n"resnet-50.tr.bf16.pt.mb256_pvc*1"
 --reset --allow-enum-tags-only=0 --cfg=bf16 --dir=BWD_D --alg=avg_p --tag=abcd mb256ic2048_ih7oh1kh7sh1dh0ph0_iw7ow1kw7sw1dw0pw0n"resnet-50.tr.bf16.pt.mb256_pvc*1"
 --reset --allow-enum-tags-only=0 --cfg=bf16 --dir=BWD_D --alg=max --tag=ABcd32a16b mb256ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"resnet-50.tr.bf16.pt.mb256_pvc*1"
-#resnet-50.tr.bf16.tf.mb256_pvc_nhwc
---reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_I --alg=max --tag=acdb mb256ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"resnet-50.tr.bf16.tf.mb256_pvc_nhwc*1"
---reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_D --alg=max --tag=acdb mb256ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"resnet-50.tr.bf16.tf.mb256_pvc_nhwc*1"
---reset --allow-enum-tags-only=0 --cfg=bf16 --dir=BWD_D --alg=max --tag=acdb mb256ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"resnet-50.tr.bf16.tf.mb256_pvc_nhwc*1"
 #resnet-50.tr.fp32.pt.mb128_pvc
 --reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_D --alg=max --tag=ABcd16a16b mb128ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"resnet-50.tr.fp32.pt.mb128_pvc*1"
 --reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_D --alg=avg_p --tag=ABcd32a16b mb128ic2048_ih7oh1kh7sh1dh0ph0_iw7ow1kw7sw1dw0pw0n"resnet-50.tr.fp32.pt.mb128_pvc*1"
@@ -65,37 +61,35 @@
 --reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_D --alg=max --tag=dacb mb16ic1024_ih1oh1kh1sh1dh0ph0_iw15000ow1kw15000sw15000dw0pw0n"pointnet.tr.fp32.pt.mb16*3"
 #mma.tr.bf16.tf.mb32
 --reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_D --alg=max --tag=ABcd32a16b mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
---reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_D --alg=max --tag=acdb mb32ic128_ih2014oh503kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*2"
---reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_D --alg=max --tag=acdb mb32ic256_ih473oh118kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*2"
---reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_D --alg=max --tag=acdb mb32ic256_ih118oh29kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_D --alg=max --tag=acdb mb32ic128_ih2014oh503kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_D --alg=max --tag=acdb mb32ic256_ih473oh118kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_D --alg=max --tag=acdb mb32ic256_ih118oh29kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
 --reset --allow-enum-tags-only=0 --cfg=bf16 --dir=BWD_D --alg=max --tag=acdb mb32ic256_ih118oh29kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
 --reset --allow-enum-tags-only=0 --cfg=bf16 --dir=BWD_D --alg=max --tag=acdb mb32ic256_ih473oh118kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
 --reset --allow-enum-tags-only=0 --cfg=bf16 --dir=BWD_D --alg=max --tag=acdb mb32ic128_ih2014oh503kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
---reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_D --alg=max --tag=acdb mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
---reset --allow-enum-tags-only=0 --cfg=bf16 --dir=BWD_D --alg=max --tag=acdb mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=bf16 --dir=BWD_D --alg=max --tag=ABcd32a16b mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
 #mma.tr.fp32.tf.mb32
 --reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_D --alg=max --tag=ABcd16a16b mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.fp32.tf.mb32*1"
---reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_D --alg=max --tag=acdb mb32ic128_ih2014oh503kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.fp32.tf.mb32*2"
---reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_D --alg=max --tag=acdb mb32ic256_ih473oh118kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.fp32.tf.mb32*2"
---reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_D --alg=max --tag=acdb mb32ic256_ih118oh29kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.fp32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_D --alg=max --tag=acdb mb32ic128_ih2014oh503kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.fp32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_D --alg=max --tag=acdb mb32ic256_ih473oh118kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.fp32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_D --alg=max --tag=acdb mb32ic256_ih118oh29kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.fp32.tf.mb32*1"
 --reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_D --alg=max --tag=acdb mb32ic256_ih118oh29kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.fp32.tf.mb32*1"
 --reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_D --alg=max --tag=acdb mb32ic256_ih473oh118kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.fp32.tf.mb32*1"
 --reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_D --alg=max --tag=acdb mb32ic128_ih2014oh503kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.fp32.tf.mb32*1"
---reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_D --alg=max --tag=acdb mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.fp32.tf.mb32*1"
---reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_D --alg=max --tag=acdb mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.fp32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_D --alg=max --tag=ABcd16a16b mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.fp32.tf.mb32*1"
 #mma.tr.bf16.tf.mb32
---reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_I --alg=max --tag=acdb mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*10"
---reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_I --alg=max --tag=acdb mb32ic128_ih2014oh503kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*10"
---reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_I --alg=max --tag=acdb mb32ic256_ih473oh118kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*10"
---reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_I --alg=max --tag=acdb mb32ic256_ih118oh29kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*10"
---reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_D --alg=max --tag=acdb mb32ic256_ih118oh29kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*10"
---reset --allow-enum-tags-only=0 --cfg=bf16 --dir=BWD_D --alg=max --tag=acdb mb32ic256_ih118oh29kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*10"
---reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_D --alg=max --tag=acdb mb32ic256_ih473oh118kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*10"
---reset --allow-enum-tags-only=0 --cfg=bf16 --dir=BWD_D --alg=max --tag=acdb mb32ic256_ih473oh118kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*10"
---reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_D --alg=max --tag=acdb mb32ic128_ih2014oh503kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*10"
---reset --allow-enum-tags-only=0 --cfg=bf16 --dir=BWD_D --alg=max --tag=acdb mb32ic128_ih2014oh503kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*10"
---reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_D --alg=max --tag=acdb mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*10"
---reset --allow-enum-tags-only=0 --cfg=bf16 --dir=BWD_D --alg=max --tag=acdb mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*10"
+--reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_I --alg=max --tag=acdb mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_I --alg=max --tag=acdb mb32ic128_ih2014oh503kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_I --alg=max --tag=acdb mb32ic256_ih473oh118kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_I --alg=max --tag=acdb mb32ic256_ih118oh29kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_D --alg=max --tag=acdb mb32ic256_ih118oh29kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=bf16 --dir=BWD_D --alg=max --tag=acdb mb32ic256_ih118oh29kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_D --alg=max --tag=acdb mb32ic256_ih473oh118kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=bf16 --dir=BWD_D --alg=max --tag=acdb mb32ic256_ih473oh118kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_D --alg=max --tag=acdb mb32ic128_ih2014oh503kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=bf16 --dir=BWD_D --alg=max --tag=acdb mb32ic128_ih2014oh503kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=bf16 --dir=FWD_D --alg=max --tag=acdb mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=bf16 --dir=BWD_D --alg=max --tag=acdb mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.bf16.tf.mb32*1"
 #mma.tr.fp32.tf.mb32
 --reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_I --alg=max --tag=acdb mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.fp32.tf.mb32*1"
 --reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_I --alg=max --tag=acdb mb32ic128_ih2014oh503kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.fp32.tf.mb32*1"
@@ -120,17 +114,44 @@
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic768_ih17oh8kh3sh2dh0ph0_iw17ow8kw3sw2dw0pw0n"inception.inf.fp16.ov.mb1*1"
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic1280_ih8oh8kh3sh1dh0ph1_iw8ow8kw3sw1dw0pw1n"inception.inf.fp16.ov.mb1*1"
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic2048_ih8oh8kh3sh1dh0ph1_iw8ow8kw3sw1dw0pw1n"inception.inf.fp16.ov.mb1*1"
-#img-preprocessing-dirtylens.inf.fp16.pt.mb1
---reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=abcd mb1ic2_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic16_ih7oh1kh7sh2dh0ph0_iw7ow1kw7sw2dw0pw0n"img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
+#kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb6ic64_ih448oh224kh3sh2dh0ph1_iw336ow168kw3sw2dw0pw1n"kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6*1"
+#kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=acdb mb6ic64_ih448oh224kh3sh2dh0ph1_iw336ow168kw3sw2dw0pw1n"kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6*1"
+#kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih253oh126kh3sh2dh0ph0_iw253ow126kw3sw2dw0pw0n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic192_ih124oh61kh3sh2dh0ph0_iw124ow61kw3sw2dw0pw0n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=aBcd16b mb1ic192_ih61oh61kh3sh1dh0ph1_iw61ow61kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic256_ih61oh61kh3sh1dh0ph1_iw61ow61kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic288_ih61oh61kh3sh1dh0ph1_iw61ow61kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=abcd mb1ic288_ih61oh30kh3sh2dh0ph0_iw61ow30kw3sw2dw0pw0n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic768_ih30oh30kh3sh1dh0ph1_iw30ow30kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*4"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=abcd mb1ic768_ih30oh14kh3sh2dh0ph0_iw30ow14kw3sw2dw0pw0n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic1280_ih14oh14kh3sh1dh0ph1_iw14ow14kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic2048_ih14oh14kh3sh1dh0ph1_iw14ow14kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+#kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=abcd mb1ic64_ih253oh126kh3sh2dh0ph0_iw253ow126kw3sw2dw0pw0n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=abcd mb1ic192_ih124oh61kh3sh2dh0ph0_iw124ow61kw3sw2dw0pw0n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic192_ih61oh61kh3sh1dh0ph1_iw61ow61kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic256_ih61oh61kh3sh1dh0ph1_iw61ow61kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic288_ih61oh61kh3sh1dh0ph1_iw61ow61kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=abcd mb1ic288_ih61oh30kh3sh2dh0ph0_iw61ow30kw3sw2dw0pw0n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic768_ih30oh30kh3sh1dh0ph1_iw30ow30kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*4"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=abcd mb1ic768_ih30oh14kh3sh2dh0ph0_iw30ow14kw3sw2dw0pw0n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic1280_ih14oh14kh3sh1dh0ph1_iw14ow14kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic2048_ih14oh14kh3sh1dh0ph1_iw14ow14kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+#kuaishou-img-preprocessing-dirtylens.inf.fp16.pt.mb1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=abcd mb1ic2_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"kuaishou-img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic16_ih7oh1kh7sh2dh0ph0_iw7ow1kw7sw2dw0pw0n"kuaishou-img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
+#kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb5ic64_ih224oh112kh3sh2dh0ph1_iw224ow112kw3sw2dw0pw1n"kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb5ic512_ih14oh1kh14sh14dh0ph0_iw14ow1kw14sw14dw0pw0n"kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5*1"
+#kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=acdb mb5ic64_ih224oh112kh3sh2dh0ph1_iw224ow112kw3sw2dw0pw1n"kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=acdb mb5ic512_ih14oh1kh14sh14dh0ph0_iw14ow1kw14sw14dw0pw0n"kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5*1"
 #resnet-18.inf.fp16.ov.mb1
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"resnet-18.inf.fp16.ov.mb1*1"
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic512_ih7oh1kh7sh1dh0ph0_iw7ow1kw7sw1dw0pw0n"resnet-18.inf.fp16.ov.mb1*1"
-#resnet-50.inf.fp16.ov.mb1
---reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"resnet-50.inf.fp16.ov.mb1*1"
---reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic256_ih56oh28kh1sh2dh0ph0_iw56ow28kw1sw2dw0pw0n"resnet-50.inf.fp16.ov.mb1*1"
---reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic512_ih28oh14kh1sh2dh0ph0_iw28ow14kw1sw2dw0pw0n"resnet-50.inf.fp16.ov.mb1*1"
---reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic1024_ih14oh7kh1sh2dh0ph0_iw14ow7kw1sw2dw0pw0n"resnet-50.inf.fp16.ov.mb1*1"
 #resnet-50.inf.int8.ov.mb1
 --reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"resnet-50.inf.int8.ov.mb1*1"
 #resnet-50.inf.int8.ov.mb64
@@ -146,19 +167,9 @@
 #se-resnext50.inf.fp16.pt.mb1
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=acdb mb1ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"se-resnext50.inf.fp16.pt.mb1*1"
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=acdb mb1ic2048_ih7oh1kh7sh1dh0ph0_iw7ow1kw7sw1dw0pw0n"se-resnext50.inf.fp16.pt.mb1*1"
-#swin-transformer.inf.fp16.pt.mb8
---reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=acdb mb8ic1024_ih1oh1kh1sh1dh0ph0_iw49ow1kw49sw49dw0pw0n"swin-transformer.inf.fp16.pt.mb8*20"
 #topaz-denoise.inf.int8.ov.mb1
---reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:2:1 mb1ic32_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"topaz-denoise.inf.int8.ov.mb1*1"
---reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:2:1 mb1ic304_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"topaz-denoise.inf.int8.ov.mb1*1"
-#yolo.inf.fp16.pt.mb32
---reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic512_ih13oh13kh5sh1dh0ph2_iw13ow13kw5sw1dw0pw2n"yolo.inf.fp16.pt.mb32*1"
---reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic512_ih13oh13kh9sh1dh0ph4_iw13ow13kw9sw1dw0pw4n"yolo.inf.fp16.pt.mb32*1"
---reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic512_ih13oh13kh13sh1dh0ph6_iw13ow13kw13sw1dw0pw6n"yolo.inf.fp16.pt.mb32*1"
-#yolo.inf.int8.pt.mb32
---reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic512_ih13oh13kh5sh1dh0ph2_iw13ow13kw5sw1dw0pw2n"yolo.inf.int8.pt.mb32*1"
---reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic512_ih13oh13kh9sh1dh0ph4_iw13ow13kw9sw1dw0pw4n"yolo.inf.int8.pt.mb32*1"
---reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic512_ih13oh13kh13sh1dh0ph6_iw13ow13kw13sw1dw0pw6n"yolo.inf.int8.pt.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:3.31835:-108.422 mb1ic32_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"topaz-denoise.inf.int8.ov.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:4.75262:-487.589 mb1ic304_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"topaz-denoise.inf.int8.ov.mb1*1"
 #yolo.inf.fp16.ov.mb1
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic512_ih13oh13kh13sh1dh0ph6_iw13ow13kw13sw1dw0pw6n"yolo.inf.fp16.ov.mb1*1"
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic512_ih13oh13kh9sh1dh0ph4_iw13ow13kw9sw1dw0pw4n"yolo.inf.fp16.ov.mb1*1"
@@ -179,16 +190,8 @@
 --reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb64ic512_ih13oh13kh5sh1dh0ph2_iw13ow13kw5sw1dw0pw2n"yolo.inf.int8.pt.mb64*1"
 --reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb64ic512_ih13oh13kh9sh1dh0ph4_iw13ow13kw9sw1dw0pw4n"yolo.inf.int8.pt.mb64*1"
 --reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb64ic512_ih13oh13kh13sh1dh0ph6_iw13ow13kw13sw1dw0pw6n"yolo.inf.int8.pt.mb64*1"
-#yolo.inf.fp16.ov.mb1
---reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic384_ih20oh20kh13sh1dh0ph6_iw20ow20kw13sw1dw0pw6n"yolo.inf.fp16.ov.mb1*1"
---reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic384_ih20oh20kh9sh1dh0ph4_iw20ow20kw9sw1dw0pw4n"yolo.inf.fp16.ov.mb1*1"
---reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic384_ih20oh20kh5sh1dh0ph2_iw20ow20kw5sw1dw0pw2n"yolo.inf.fp16.ov.mb1*1"
 #maskrcnn.inf.fp16.ov.mb1
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=acdb mb1ic64_ih416oh208kh3sh2dh0ph0_iw672ow336kw3sw2dw0pw0n"maskrcnn.inf.fp16.ov.mb1*1"
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=acdb mb1ic256_ih26oh13kh1sh2dh0ph0_iw42ow21kw1sw2dw0pw0n"maskrcnn.inf.fp16.ov.mb1*1"
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=acdb mb1000ic256_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"maskrcnn.inf.fp16.ov.mb1*1"
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=acdb mb100ic256_ih28oh14kh2sh2dh0ph0_iw28ow14kw2sw2dw0pw0n"maskrcnn.inf.fp16.ov.mb1*1"
-#yolo.inf.fp16.pt.mb32
---reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic384_ih20oh20kh5sh1dh0ph2_iw20ow20kw5sw1dw0pw2n"yolo.inf.fp16.pt.mb32*3"
-#unet++.inf.fp16.pt.mb8
---reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb8ic64_ih256oh128kh3sh2dh0ph1_iw256ow128kw3sw2dw0pw1n"unet++.inf.fp16.pt.mb8*1"

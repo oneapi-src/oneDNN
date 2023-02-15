@@ -86,8 +86,7 @@ struct prb_t : public prb_vdims_t {
         , attr(attr)
         , ctx_init(ctx_init)
         , ctx_exe(ctx_exe)
-        , scales(NULL)
-        , dst_scales(NULL) {
+        , scales(NULL) {
 
         // Broadcast data types if needed
         if (dt.size() == 1) {
@@ -108,13 +107,11 @@ struct prb_t : public prb_vdims_t {
         ops = 2. * nelems * k;
 
         generate_oscales();
-        generate_dst_scales();
         src_zp = generate_zero_points(DNNL_ARG_SRC, attr.zero_points, k);
         dst_zp = generate_zero_points(DNNL_ARG_DST, attr.zero_points, n);
     }
     ~prb_t() {
         if (scales) zfree(scales);
-        if (dst_scales) zfree(dst_scales);
         if (src_zp) zfree(src_zp);
         if (dst_zp) zfree(dst_zp);
     }
@@ -133,7 +130,7 @@ struct prb_t : public prb_vdims_t {
     thr_ctx_t ctx_init, ctx_exe;
 
     double ops;
-    float *scales, *dst_scales;
+    float *scales;
     int32_t *src_zp, *dst_zp;
 
     const dims_t &src_dims() const { return vdims[0]; }
@@ -160,10 +157,7 @@ struct prb_t : public prb_vdims_t {
             assert(ld[1] >= n);
             return ld[1];
         }
-        // weights are blocked by at least 16b, so this is needed to avoid
-        // explicitly setting ldb for tail n in input files and command line
-        const int64_t min_n = 16;
-        return MAX2(min_n, n);
+        return n;
     }
     int64_t get_ldc(bool use_dst_as_acc) const {
         if (use_dst_as_acc) return get_ldd();
@@ -178,16 +172,8 @@ struct prb_t : public prb_vdims_t {
     }
 
     void generate_oscales();
-    void generate_dst_scales();
     int32_t *generate_zero_points(
             int arg, const attr_t::zero_points_t &zero_points, int N);
-
-    // Used to construct memory desc when dimensions are runtime since such mds
-    // can't be used directly from query and memory objects can't be constructed.
-    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const {
-        assert(!"No runtime dimensions support for this driver!");
-        return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
-    }
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 };
@@ -227,9 +213,17 @@ private:
 };
 
 struct cfg_t : public base_cfg_t {
-    cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds);
+    cfg_t(const prb_t *prb, std::vector<data_kind_t> kinds) {
+        for (const auto kind : kinds) {
+            auto orig_data_type = prb->get_dt(kind);
+            auto data_type
+                    = deduce_cfg_data_type(orig_data_type, prb->attr, kind);
+            cfg_entry_.push_back(cfg_entry_t(
+                    kind, orig_data_type, data_type, get_cfg_map(kind)));
+        }
+    }
 
-    cfg_entry_t::cfg_map_t get_cfg_map(data_kind_t kind) const override;
+    const cfg_entry_t::cfg_map_t &get_cfg_map(data_kind_t kind) const;
 
     float get_density(const density_args_t &density_args) const override;
 };

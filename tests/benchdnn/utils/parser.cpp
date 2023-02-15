@@ -122,33 +122,6 @@ bool parse_tag(std::vector<std::string> &tag,
     return true;
 }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
-bool parse_encoding(std::vector<dnnl_sparse_encoding_t> &encoding,
-        const std::vector<dnnl_sparse_encoding_t> &def_encoding,
-        const char *str, const std::string &option_name /* = "encoding"*/) {
-    static const std::string help
-            = "ENCODING    (Default: `undef`)\n Specifies memory sparse "
-              "encoding `ENCODING` for source, weights, or destination.\n    "
-              "Valid `ENCODING` values can be found at "
-            + doc_url + "knobs_encoding.md\n";
-
-    return parse_vector_option(encoding, def_encoding, str2sparse_encoding, str,
-            option_name, help);
-}
-
-bool parse_sparsity(std::vector<float> &sparsity,
-        const std::vector<float> &def_sparsity, const char *str,
-        const std::string &option_name /* = "sparsity"*/) {
-    static const std::string help
-            = "SPARSITY    (Default: `0.9`)\n    Specifies sparsity of a "
-              "sparse tensor. Sparsity equal to one means all values are "
-              "zeros, sparsity of 0 means all values are non-zeros.\n";
-
-    return parse_vector_option(
-            sparsity, def_sparsity, atof, str, option_name, help);
-}
-#endif
-
 bool parse_multi_tag(std::vector<std::vector<std::string>> &tag,
         const std::vector<std::vector<std::string>> &def_tag, const char *str,
         const std::string &option_name /* = "stag"*/) {
@@ -169,6 +142,16 @@ bool parse_mb(std::vector<int64_t> &mb, const std::vector<int64_t> &def_mb,
               "specified in a problem descriptor with `UINT` value.\n    When "
               "set to `0`, takes no effect.\n";
     return parse_vector_option(mb, def_mb, atoi, str, option_name, help);
+}
+
+bool parse_attr_oscale(std::vector<attr_t::scale_t> &oscale, const char *str,
+        const std::string &option_name /* = "attr-oscale"*/) {
+    static const std::string help
+            = "POLICY[:SCALE[*]]\n    Specifies output scale attribute.\n    "
+              "More details at "
+              "https://github.com/oneapi-src/oneDNN/blob/master/tests/benchdnn/"
+              "doc/knobs_attr.md\n";
+    return parse_subattr(oscale, str, option_name, help);
 }
 
 bool parse_attr_post_ops(std::vector<attr_t::post_ops_t> &po, const char *str,
@@ -391,15 +374,34 @@ void parse_prb_vdims(
         exit(1);
     }
 
-    std::string name;
-    if (start_pos != eol) name = str.substr(start_pos);
+    parse_multivector_str(
+            prb_vdims.vdims, {dims_t()}, atoi, vdims_str, ':', 'x');
 
-    vdims_t vdims;
-    parse_multivector_str(vdims, {dims_t()}, atoi, vdims_str, ':', 'x');
     // Expect at least two inputs provided
-    SAFE_V(vdims.size() >= min_inputs ? OK : FAIL);
+    SAFE_V(prb_vdims.vdims.size() >= min_inputs ? OK : FAIL);
 
-    prb_vdims = prb_vdims_t(vdims, name);
+    prb_vdims.ndims = static_cast<int>(prb_vdims.vdims[0].size());
+    // If second and consecutive inputs are provided with less dimensions
+    // (ndims0 > ndims1), then fill these tensors with ones to match ndims,
+    // e.g., 8x3x5:8 -> 8x3x5:8x1x1
+    // We put this implicit broadcast feature on parser since `ndims` would be
+    // set next and can't be updated by driver, but `ndims` mismatch triggers
+    // the library `invalid_arguments` error.
+    for (int i = 1; i < prb_vdims.n_inputs(); i++)
+        if (prb_vdims.ndims > static_cast<int>(prb_vdims.vdims[i].size()))
+            prb_vdims.vdims[i].resize(prb_vdims.ndims, 1);
+
+    prb_vdims.dst_dims = prb_vdims.vdims[0];
+    for_(int i = 1; i < prb_vdims.n_inputs(); i++)
+    for (int d = 0; d < prb_vdims.ndims; ++d) {
+        bool has_zero_dim
+                = prb_vdims.dst_dims[d] == 0 || prb_vdims.vdims[i][d] == 0;
+        prb_vdims.dst_dims[d] = has_zero_dim
+                ? 0
+                : std::max(prb_vdims.dst_dims[d], prb_vdims.vdims[i][d]);
+    }
+
+    if (start_pos != eol) prb_vdims.name = str.substr(start_pos);
 }
 
 void parse_prb_dims(prb_dims_t &prb_dims, const std::string &str) {
@@ -534,18 +536,15 @@ bool parse_ctx(std::vector<thr_ctx_t> &ctx,
         const std::string &option_name) {
     const std::string name_in_help
             = (option_name == "ctx-init") ? "initialization." : "execution.";
-    const std::string help
-            = std::string(
-                      "MAX_CONCURENCY[:CORE_TYPE[:THREADS_PER_CORE]] "
-                      "(Default:`auto:auto:auto`)\n    Specifies the threading "
-                      "context used during primitive ")
-            + name_in_help
-            + std::string(
-                    "\n    MAX_CONCURRENCY is the maximum number of threads.\n "
-                    "   CORE_TYPE enables to select big (value 0) or small "
-                    "cores (value 1) for hybrid CPUs (TBB runtime only).\n    "
-                    "THREADS_PER_CORE allows to enable/disable hyper-threading "
-                    "(TBB runtime only).\n");
+    const std::string help = 
+            "MAX_CONCURENCY[:CORE_TYPE[:THREADS_PER_CORE]] (Default:"
+            "`auto:auto:auto`)\n Specifies the threading context "
+            "used during primitive " + name_in_help +
+            "\nMAX_CONCURRENCY is the maximum number of threads."
+            "\nCORE_TYPE enables to select big (value 0) or small cores "
+            "(value 1) for hybrid CPUs (TBB runtime only)."
+            "\nTHREADS_PER_CORE allows to enable/disable hyper-threading "
+            "(TBB runtime only).";
 
     auto str2ctx = [&option_name](const char *str) {
         thr_ctx_t result = default_thr_ctx;
@@ -643,16 +642,12 @@ static bool parse_memory_kind(
 static bool parse_mode(
         const char *str, const std::string &option_name = "mode") {
     static const std::string help
-            = "MODE    (Default: `C`)\n"
-              "    Specifies a `MODE` for benchmarking.\n"
-              "    `MODE` values are:\n"
-              "    * `C` for correctness testing.\n"
-              "    * `P` for performance testing.\n"
-              "    * `CP` for both correctness and performance testing.\n"
-              "    * `R` for run mode or no correctness validation.\n"
-              "    * `I` for initialization mode.\n"
-              "    * `L` for listing mode.\n"
-              "    More details at "
+            = "MODE    (Default: `C`)\n    Specifies a `MODE` for "
+              "benchmarking.\n    `MODE` values are:\n    * `C` for "
+              "correctness testing.\n    * `P` for performance testing.\n    * "
+              "`CP` for both correctness and performance testing.\n    * `R` "
+              "for run mode or no correctness validation.\n    * `L` for "
+              "listing mode.\n    More details at "
             + doc_url + "benchdnn_general_info.md\n";
 
     const auto str2bench_mode = [](const std::string &_str) {
@@ -669,8 +664,6 @@ static bool parse_mode(
                 case 'L': mode |= LIST; break;
                 case 'o':
                 case 'O': mode |= PROF; break;
-                case 'i':
-                case 'I': mode |= INIT; break;
                 default: {
                     fprintf(stderr,
                             "ERROR: Unsupported character for `--mode` "
@@ -684,12 +677,6 @@ static bool parse_mode(
             fprintf(stderr,
                     "ERROR: LIST mode is incompatible with any other modes. "
                     "Please use just `--mode=L` instead.\n");
-            exit(2);
-        }
-        if (!(mode & INIT).none() && mode.count() > 1) {
-            fprintf(stderr,
-                    "ERROR: INIT mode is incompatible with any other modes. "
-                    "Please use just `--mode=I` instead.\n");
             exit(2);
         }
         if (mode.none()) {

@@ -44,8 +44,7 @@
 --attr-post-ops=relu+dw_k3s2p1:u8:per_oc:2.5*+relu:0.5+add:s8, \
                 add:f32:per_oc+dw_k3s2p1:s8:common:1.5*+linear:0.5:1.5, \
                 relu+dw_k3s2p1:s32+add:s32:per_oc+abs, \
-                relu+add:f32+dw_k3s2p1:f32+add:f32:per_oc+pow:0.5:0.33, \
-                dw_k3s2p1:s8:per_oc:2.5*:common:2*
+                relu+add:f32+dw_k3s2p1:f32+add:f32:per_oc+pow:0.5:0.33
 --batch=shapes_fused_mobilenet_stride_2
 
 --cfg=u8s8s8,s8s8s8

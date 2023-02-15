@@ -142,16 +142,26 @@ std::string prepare_wei_format_string(
     // `dt` affects the choice of last inner block (for VNNI-friendliness).
     // `n` affects the choice of B block.
     std::string wtag("BA16a");
-    if (n <= 16)
-        wtag += "16b";
-    else
-        wtag += std::to_string(n) + "b";
+    switch (n) {
+        case 64: wtag += "64b"; break;
+        case 48: wtag += "48b"; break;
+        case 32: wtag += "32b"; break;
+        default:
+            if (n <= 16)
+                wtag += "16b";
+            else {
+                if (n % 16 != 0) {
+                    wtag += std::to_string(n) + "b";
+                } else
+                    wtag += std::to_string(16 * div_up(n, 16)) + "b";
+            }
+            break;
+    }
     if (is_vnni_layout) {
         switch (dt) {
             case dnnl_f32: break;
             case dnnl_f16:
             case dnnl_bf16: wtag += "2a"; break;
-            case dnnl_u8:
             case dnnl_s8: wtag += "4a"; break;
             default: assert(!"unsupported data type");
         }
@@ -218,14 +228,6 @@ int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
-    auto is_xf16 = [](dnnl_data_type_t dt) {
-        return dt == dnnl_bf16 || dt == dnnl_f16;
-    };
-    if (!IMPLICATION(is_xf16(prb->bia_dt) || is_xf16(prb->dst_dt()),
-                is_xf16(prb->wei_dt()))) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
     skip_unimplemented_data_type(
             {prb->src_dt(), prb->wei_dt(), prb->bia_dt, prb->dst_dt()},
             prb->dir, res);
@@ -233,13 +235,25 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
+    const bool is_src_zp = !prb->attr.zero_points.is_def(DNNL_ARG_SRC);
+    const bool is_dst_zp = !prb->attr.zero_points.is_def(DNNL_ARG_DST);
+
+    // Only runtime zero points are supported by this driver
+    const bool is_runtime_src_zp = prb->attr.zero_points.runtime(DNNL_ARG_SRC);
+    const bool is_runtime_dst_zp = prb->attr.zero_points.runtime(DNNL_ARG_DST);
+    const bool is_static_zp = (is_src_zp && !is_runtime_src_zp)
+            || (is_dst_zp && !is_runtime_dst_zp);
+    if (is_static_zp) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+
     // AMX kernel only supports SRC zero points in unrolled kernel,
     // and only for values of 0 or 1.
     // Note: this check must be done here due to the fact that zero point value
     // in brgemm API is a runtime argument.
     // TODO: remove once AMX kernel fully supports zero points.
     const bool is_amx = dnnl::mayiuse(dnnl_cpu_isa_avx512_core_amx);
-    const bool is_src_zp = !prb->attr.zero_points.is_def(DNNL_ARG_SRC);
     const int src_zp_value = prb->attr.zero_points.get(DNNL_ARG_SRC).value;
     if (is_amx && is_src_zp && src_zp_value != 0 && src_zp_value != 1) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
@@ -324,10 +338,6 @@ int doit(const prb_t *prb, res_t *res) {
         return res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED, OK;
 
     attr_args_t attr_args;
-    auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
-    if (wei_scale.policy == policy_t::PER_OC) {
-        attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, 2);
-    }
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
@@ -415,8 +425,6 @@ int doit(const prb_t *prb, res_t *res) {
                 prb->ndims, bia_dims, prb->bia_dt, tag::abx);
     }
 
-    if (is_bench_mode(INIT)) return res->state = INITIALIZED, OK;
-
     const auto &test_engine = get_test_engine();
     const auto &ref_engine = get_cpu_engine();
 
@@ -425,11 +433,8 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t acc_dt(acc_md, test_engine);
     dnn_mem_t dst_dt(dst_md, test_engine);
     dnn_mem_t bia_dt;
-    const char *bia_dt_ptr = nullptr;
-    if (prb->bia_dt != dnnl_data_type_undef) {
+    if (prb->bia_dt != dnnl_data_type_undef)
         bia_dt = dnn_mem_t(bia_md, test_engine);
-        bia_dt_ptr = (const char *)bia_dt;
-    }
 
     dnn_mem_t src_fp(src_md, dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t wei_fp(wei_md, dnnl_f32, tag::abx, ref_engine);
@@ -454,6 +459,16 @@ int doit(const prb_t *prb, res_t *res) {
     if (prb->bia_dt != dnnl_data_type_undef)
         SAFE(fill_data(BIA, prb, bia_dt, bia_fp, res), WARN);
 
+    dnn_mem_t src_zero_points_m, wei_zero_points_m, dst_zero_points_m;
+    const auto &wei_zero_point_val
+            = prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).value;
+    maybe_prepare_runtime_zero_points(
+            src_zero_points_m, prb->attr, DNNL_ARG_SRC, prb->k, prb->src_zp);
+    maybe_prepare_runtime_zero_points(wei_zero_points_m, prb->attr,
+            DNNL_ARG_WEIGHTS, 1, &(wei_zero_point_val));
+    maybe_prepare_runtime_zero_points(
+            dst_zero_points_m, prb->attr, DNNL_ARG_DST, prb->n, prb->dst_zp);
+
     // "Library" args are needed to get dst for comparison.
     // "Reference" are used as usual.
     args_t args, ref_args;
@@ -475,7 +490,6 @@ int doit(const prb_t *prb, res_t *res) {
         case dnnl_f32: block_size = 16; break;
         case dnnl_f16: block_size = 16; break;
         case dnnl_bf16: block_size = 32; break;
-        case dnnl_u8:
         case dnnl_s8: block_size = 64; break;
         default: break;
     }
@@ -498,14 +512,11 @@ int doit(const prb_t *prb, res_t *res) {
     // Brgemm takes single pointer oscale, but relies on a combination of arg
     // scales attributes. This helps to reuse attributes from primitives, but
     // requires them to pre-compute oscale = src_scale * wei_scale[:]
+    dnn_mem_t scales;
     auto src_scale = prb->attr.scales.get(DNNL_ARG_SRC);
-    auto attr_scale = !wei_scale.is_def() ? wei_scale : src_scale;
-
-    const int64_t count = attr_scale.policy == policy_t::COMMON ? 1 : prb->n;
-    dnn_mem_t scales(1, &count, dnnl_f32, tag::x, get_test_engine());
-    for (int64_t c = 0; c < count; ++c)
-        scales.set_elem(c, prb->scales[c]);
-
+    auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
+    auto attr_scale = wei_scale.runtime ? wei_scale : src_scale;
+    maybe_prepare_runtime_scales(scales, attr_scale, prb->n, prb->scales);
     // Handle output scale common policy separately since the implementation
     // always expects them to be of vector length in case of `common` policy.
     std::vector<float> v16_scales(16, prb->scales[0]);
@@ -513,25 +524,13 @@ int doit(const prb_t *prb, res_t *res) {
             ? v16_scales.data()
             : (const float *)scales;
 
-    assert(prb->attr.scales.get(DNNL_ARG_DST).policy == policy_t::COMMON);
-    const int64_t dst_scales_count = 1;
-    dnn_mem_t dst_scales(
-            1, &dst_scales_count, dnnl_f32, tag::x, get_test_engine());
-    for (int64_t c = 0; c < dst_scales_count; ++c)
-        // precompute inverted dst scales as expected in brgemm implementation
-        dst_scales.set_elem(c, 1.f / prb->dst_scales[c]);
-
-    // Handle output scale common policy separately since the implementation
-    // always expects them to be of vector length in case of `common` policy.
-    std::vector<float> v16_dst_scales(16, 1.f / prb->dst_scales[0]);
-    const float *dst_scales_ptr = v16_dst_scales.data();
-
     char *acc_ptr = (char *)acc_dt;
 
-    const int32_t *dst_zp_ptr = (const int32_t *)prb->dst_zp;
+    const int32_t *dst_zp_ptr = (const int32_t *)dst_zero_points_m;
     char *src_comp_ptr = (char *)wei_dt + wei_offset_zp;
-    int32_t zp_a_val
-            = !prb->attr.zero_points.is_def(DNNL_ARG_SRC) ? prb->src_zp[0] : 0;
+    int32_t zp_a_val = !prb->attr.zero_points.is_def(DNNL_ARG_SRC)
+            ? src_zero_points_m.get_elem(0)
+            : 0;
 
     if (!prb->attr.zero_points.is_def(DNNL_ARG_WEIGHTS)) {
         // TODO: weights zero point is not supported yet.
@@ -547,7 +546,7 @@ int doit(const prb_t *prb, res_t *res) {
     }
 
     brgemm_post_ops_data_t post_ops_data(
-            /* bias */ bia_dt_ptr,
+            /* bias */ (const char *)bia_dt,
             /* scales */ scales_ptr, /* binary_post_ops_rhs */ nullptr,
             /* oc_logical_off */ 0, /* dst_row_logical_off */ 0,
             /* data_C_ptr_ */ acc_ptr, /* first_mb_matrix_addr_off */ 0,
@@ -557,8 +556,7 @@ int doit(const prb_t *prb, res_t *res) {
             /* skip_accumulation */ brgemm_attr.generate_skip_accumulation,
             /* zp_a_val */ zp_a_val,
             /* do_only_comp */ false,
-            /* do_only_zp_a_val */ false,
-            /* dst_scales */ dst_scales_ptr);
+            /* do_only_zp_a_val */ false);
 
     auto scratchpad_size = brgemm_desc.get_wsp_buffer_size();
     std::vector<char> scratchpad(scratchpad_size);

@@ -52,40 +52,44 @@ static int check_attr2str() {
     SELF_CHECK_PRINT_EQ(attr, "");
 
     attr = attr_t();
-    attr.zero_points.set(DNNL_ARG_SRC, policy_t::COMMON, 1);
-    SELF_CHECK_PRINT_EQ(attr, "--attr-zero-points=src:common:1* ");
+    attr.zero_points.set(DNNL_ARG_SRC, policy_t::COMMON, 1, false);
+    SELF_CHECK_PRINT_EQ(attr, "--attr-zero-points=src:common:1 ");
 
-    attr.zero_points.set(DNNL_ARG_SRC, policy_t::PER_DIM_0, 3);
-    attr.zero_points.set(DNNL_ARG_WEIGHTS, {policy_t::PER_DIM_1, 2});
+    attr.zero_points.set(DNNL_ARG_SRC, policy_t::PER_DIM_0, 3, false);
+    attr.zero_points.set(DNNL_ARG_WEIGHTS, {policy_t::PER_DIM_1, 2, true});
     SELF_CHECK_PRINT_EQ2(attr,
-            "--attr-zero-points=src:per_dim_0:3*+wei:per_dim_1:2* ",
-            "--attr-zero-points=wei:per_dim_1:2*+src:per_dim_0:3* ");
+            "--attr-zero-points=src:per_dim_0:3+wei:per_dim_1:2* ",
+            "--attr-zero-points=wei:per_dim_1:2*+src:per_dim_0:3 ");
 
     attr = attr_t();
-    attr.scales.set(DNNL_ARG_SRC_0,
-            attr_t::arg_scales_t::entry_t(policy_t::COMMON, 2.3));
+    attr.scales.set(DNNL_ARG_SRC_0, attr_t::scale_t(policy_t::COMMON, 2.3));
+    SELF_CHECK_PRINT_EQ(attr, "--attr-scales=src:common:2.3 ");
+
+    attr = attr_t();
+    attr.scales.set(
+            DNNL_ARG_SRC_0, attr_t::scale_t(policy_t::COMMON, 2.3, true));
     SELF_CHECK_PRINT_EQ(attr, "--attr-scales=src:common:2.3* ");
 
-    attr.scales.set(DNNL_ARG_SRC_0,
-            attr_t::arg_scales_t::entry_t(policy_t::COMMON, 2.2));
-    attr.scales.set(
-            DNNL_ARG_SRC_1, attr_t::arg_scales_t::entry_t(policy_t::COMMON, 3));
-    SELF_CHECK_PRINT_EQ(attr, "--attr-scales=src:common:2.2*+src1:common:3* ");
+    attr.scales.set(DNNL_ARG_SRC_0, attr_t::scale_t(policy_t::COMMON, 2.2));
+    attr.scales.set(DNNL_ARG_SRC_1, attr_t::scale_t(policy_t::COMMON, 3));
+    SELF_CHECK_PRINT_EQ(attr, "--attr-scales=src:common:2.2+src1:common:3 ");
 
     return OK;
 }
 
 static int check_attr() {
-#define SELF_CHECK_OSCALE(os, os_policy, os_scale) \
+#define SELF_CHECK_OSCALE(os, os_policy, os_scale, os_runtime) \
     do { \
         SELF_CHECK_EQ((os).policy, policy_t::os_policy); \
         SELF_CHECK_EQ((os).scale, os_scale); \
+        SELF_CHECK_EQ((os).runtime, os_runtime); \
     } while (0)
 
-#define SELF_CHECK_ATTR_ZP(zp, arg, zero_points_value) \
+#define SELF_CHECK_ATTR_ZP(zp, arg, zero_points_value, zero_points_runtime) \
     do { \
         const auto &entry = (zp).get(arg); \
         SELF_CHECK_EQ(entry.value, zero_points_value); \
+        SELF_CHECK_EQ(entry.runtime, zero_points_runtime); \
     } while (0)
 
     {
@@ -94,9 +98,9 @@ static int check_attr() {
                               "--attr-zero-points=src:common:0+dst:common:-2*"),
                 true);
         SELF_CHECK_EQ(zp.size(), 1);
-        SELF_CHECK_ATTR_ZP(zp[0], DNNL_ARG_SRC, 0);
-        SELF_CHECK_ATTR_ZP(zp[0], DNNL_ARG_WEIGHTS, 0);
-        SELF_CHECK_ATTR_ZP(zp[0], DNNL_ARG_DST, -2);
+        SELF_CHECK_ATTR_ZP(zp[0], DNNL_ARG_SRC, 0, false);
+        SELF_CHECK_ATTR_ZP(zp[0], DNNL_ARG_WEIGHTS, 0, false);
+        SELF_CHECK_ATTR_ZP(zp[0], DNNL_ARG_DST, -2, true);
     }
 
     {
@@ -131,8 +135,8 @@ static int check_attr() {
         const auto &ce = e.convolution;
         SELF_CHECK_EQ(ce.stride, 1);
         SELF_CHECK_EQ(ce.dst_dt, dnnl_f32);
-        SELF_CHECK_OSCALE(ce.wei_scale, COMMON, 1.f);
-        SELF_CHECK_OSCALE(ce.dst_scale, COMMON, 1.f);
+        SELF_CHECK_OSCALE(ce.wei_scale, COMMON, 1.f, false);
+        SELF_CHECK_OSCALE(ce.dst_scale, COMMON, 1.f, false);
     }
 
     {
@@ -153,8 +157,8 @@ static int check_attr() {
         const auto &ce = e.convolution;
         SELF_CHECK_EQ(ce.stride, 2);
         SELF_CHECK_EQ(ce.dst_dt, dnnl_s8);
-        SELF_CHECK_OSCALE(ce.wei_scale, PER_OC, 2.f);
-        SELF_CHECK_OSCALE(ce.dst_scale, COMMON, 1.f);
+        SELF_CHECK_OSCALE(ce.wei_scale, PER_OC, 2.f, true);
+        SELF_CHECK_OSCALE(ce.dst_scale, COMMON, 1.f, false);
 
         e = po[0].entry[2];
         SELF_CHECK_EQ(e.kind, pk_t::LINEAR);
@@ -175,8 +179,8 @@ static int check_attr() {
         const auto &ce = e.convolution;
         SELF_CHECK_EQ(ce.stride, 1);
         SELF_CHECK_EQ(ce.dst_dt, dnnl_s8);
-        SELF_CHECK_OSCALE(ce.wei_scale, PER_OC, 2.f);
-        SELF_CHECK_OSCALE(ce.dst_scale, COMMON, 4.f);
+        SELF_CHECK_OSCALE(ce.wei_scale, PER_OC, 2.f, true);
+        SELF_CHECK_OSCALE(ce.dst_scale, COMMON, 4.f, true);
     }
 
 #undef SELF_CHECK_OSCALE
@@ -201,7 +205,7 @@ void append_convolution(attr_t::post_ops_t &po, pk_t akind,
     attr_t::post_ops_t::entry_t e(akind);
     e.convolution.stride = e.kind == pk_t::DW_K3S1P1 ? 1 : 2;
     e.convolution.dst_dt = adst_dt;
-    e.convolution.wei_scale = attr_t::arg_scales_t::entry_t(apolicy, ascale);
+    e.convolution.wei_scale = attr_t::scale_t(apolicy, ascale);
     po.entry.push_back(e);
 }
 
@@ -243,7 +247,7 @@ static int check_post_ops2str() {
     SELF_CHECK_EQ(po.len(), 6);
     SELF_CHECK_PRINT_EQ(po,
             "sum+relu+sum:2:1:s8+linear:5:10+dw_k3s1p1+dw_k3s2p1:s32:per_oc:"
-            "2*");
+            "2");
 
     return OK;
 }

@@ -38,14 +38,6 @@
 --attr-post-ops=
 --batch=set_all
 
-# Test cases with intermediate upsampling
---reset
---dir=BWD_D
---tag=acb
---alg=linear
-ic3iw5ow35
-ic3iw5ow30
-
 # Test layers of some key GPU DL Frameworks
 --reset
 --batch=option_set_fwks_key_gpu

@@ -110,25 +110,6 @@ const char *direction2str(dnnl_rnn_direction_t direction) {
     return "unknown direction";
 }
 
-flags_t str2flags(const char *str) {
-    flags_t flags = NONE;
-    while (str && *str) {
-        if (*str == 'O')
-            flags |= DIFF_WEIGHTS_OVERWRITE;
-        else {
-            BENCHDNN_PRINT(0, "%s\n", "Error: unsupported flags value.");
-        }
-        str++;
-    }
-    return flags;
-}
-
-std::string flags2str(flags_t flags) {
-    std::string str;
-    if (flags & DIFF_WEIGHTS_OVERWRITE) str += "O";
-    return str;
-}
-
 const char *rnn_data_kind2str(rnn_data_kind_t kind) {
 #define CASE(KIND) \
     if (kind == (KIND)) return STRINGIFY(KIND)
@@ -261,8 +242,6 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
         s << "--activation=" << activation2str(prb.activation) << " ";
     if (canonical || prb.skip_nonlinear != def.skip_nonlinear[0])
         s << "--skip-nonlinear=" << bool2str(prb.skip_nonlinear) << " ";
-    if (canonical || prb.flags != def.flags[0])
-        s << "--flags=" << flags2str(prb.flags) << " ";
     if (canonical || prb.with_peephole != def.with_peephole[0])
         s << "--with-peephole=" << bool2str(prb.with_peephole) << " ";
     if (canonical || prb.with_projection != def.with_projection[0])

@@ -25,40 +25,6 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
     const dnn_mem_t &wei_m = args.find(DNNL_ARG_WEIGHTS);
     const dnn_mem_t &bia_m = args.find(DNNL_ARG_BIAS);
     const dnn_mem_t &dst_m = args.find(DNNL_ARG_DST);
-    const dnn_mem_t &src_scales
-            = args.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
-    const dnn_mem_t &wei_scales
-            = args.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
-    const dnn_mem_t &dst_scales
-            = args.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
-    const dnn_mem_t &src_zps
-            = args.find(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC);
-    const dnn_mem_t &wei_zps
-            = args.find(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS);
-    const dnn_mem_t &dst_zps
-            = args.find(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST);
-
-    const bool has_src_scale = !prb->attr.scales.get(DNNL_ARG_SRC).is_def();
-    const bool has_wei_scale = !prb->attr.scales.get(DNNL_ARG_WEIGHTS).is_def();
-    const bool has_dst_scale = !prb->attr.scales.get(DNNL_ARG_DST).is_def();
-    assert(IMPLICATION(has_src_scale, src_scales.nelems() == 1));
-    assert(IMPLICATION(has_dst_scale, dst_scales.nelems() == 1));
-    float src_scale = has_src_scale ? src_scales.get_elem(0) : 1.f;
-    float dst_scale = has_dst_scale ? 1.f / dst_scales.get_elem(0) : 1.f;
-    const int wei_scale_mask
-            = prb->attr.scales.get_mask(DNNL_ARG_WEIGHTS, dnnl_matmul);
-
-    const bool has_src_zp = !prb->attr.zero_points.get(DNNL_ARG_SRC).is_def();
-    const bool has_wei_zp
-            = !prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).is_def();
-    const bool has_dst_zp = !prb->attr.zero_points.get(DNNL_ARG_DST).is_def();
-    assert(IMPLICATION(has_wei_zp, wei_zps.nelems() == 1));
-    const int wei_zp = has_wei_zp ? wei_zps.get_elem(0) : 0;
-    const int src_zp_mask = attr_t::get_default_mask(
-            prb->attr.zero_points.get(DNNL_ARG_SRC).policy);
-    const int dst_zp_mask = attr_t::get_default_mask(
-            prb->attr.zero_points.get(DNNL_ARG_DST).policy);
-
     const int64_t M = prb->m;
     const int64_t N = prb->n;
     const int64_t K = prb->k;
@@ -70,6 +36,8 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
     for (int d = 0; d < dst_m.ndims(); d++) {
         if (prb->src_dims()[d] == 0 || prb->weights_dims()[d] == 0) return;
     }
+
+    const int wei_zero_point = prb->attr.zero_points[DNNL_ARG_WEIGHTS];
 
     dnn_mem_t dst_tmp(dst_m, dnnl_f32, tag::abx, dst_m.engine());
 
@@ -86,11 +54,9 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
         const int64_t wei_mb
                 = dst_m.get_scale_idx(mb, wei_broadcast_mask, batch_ndims);
         for (int64_t k = 0; k < K; ++k) {
-            int src_zp = has_src_zp ? src_zps.get_elem(src_zp_mask > 0 ? k : 0)
-                                    : 0;
-            auto s = src[src_off_f(prb, src_mb, m, k)] - src_zp;
-            auto w = wei[wei_off_f(prb, wei_mb, k, n)] - wei_zp;
-            dst += s * w;
+            auto s = src[src_off_f(prb, src_mb, m, k)];
+            maybe_zero_point(prb->attr, s, prb->src_zp, k, DNNL_ARG_SRC);
+            dst += s * (wei[wei_off_f(prb, wei_mb, k, n)] - wei_zero_point);
         }
         ((float *)dst_tmp)[dst_off_f(prb, mb, m, n)] = dst;
     });
@@ -101,10 +67,9 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
         size_t dst_off = dst_off_f(prb, mb, m, n);
         float &dst = ((float *)dst_m)[dst_off];
 
-        float wei_scale = 1.f;
-        if (has_wei_scale)
-            wei_scale = wei_scales.get_elem(wei_scale_mask > 0 ? n : 0);
-        float tmp = ((float *)dst_tmp)[dst_off] * src_scale * wei_scale;
+        float tmp = ((float *)dst_tmp)[dst_off];
+        maybe_scale(prb->attr, tmp, prb->src_scales, 0, DNNL_ARG_SRC);
+        maybe_scale(prb->attr, tmp, prb->wei_scales, n, DNNL_ARG_WEIGHTS);
 
         if (prb->bia_dt != dnnl_data_type_undef) {
             int64_t bia_off = dst_m.get_scale_idx(dst_off, bias_broadcast_mask);
@@ -117,8 +82,9 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
 
         maybe_post_ops(prb->attr, tmp, dst, v_po_vals);
 
-        int dst_zp = has_dst_zp ? dst_zps.get_elem(dst_zp_mask > 0 ? n : 0) : 0;
-        dst = tmp * dst_scale + dst_zp;
+        maybe_scale(prb->attr, tmp, prb->dst_scales, n, DNNL_ARG_DST, true);
+        maybe_zero_point(prb->attr, tmp, prb->dst_zp, n, DNNL_ARG_DST, true);
+        dst = tmp;
     });
 }
 

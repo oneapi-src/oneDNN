@@ -18,27 +18,6 @@
 
 namespace brgemm {
 
-cfg_t::cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds) {
-    for (const auto kind : kinds) {
-        auto orig_data_type = prb->get_dt(kind);
-        auto data_type = deduce_cfg_data_type(orig_data_type, prb->attr, kind);
-        cfg_entry_.emplace_back(
-                kind, orig_data_type, data_type, get_cfg_map(kind));
-    }
-
-    const bool is_u8u8
-            = this->get_dt(SRC) == dnnl_u8 && this->get_dt(WEI) == dnnl_u8;
-    // u8u8 case requires SRC entry to be adjusted.
-    if (is_u8u8) {
-        this->set_range_max(SRC, 1);
-        // Non-s32 or non-f32 destination won't help to catch errors.
-        // Leave basic enabling in this case.
-        const bool dst_ok = this->get_dt(DST) == dnnl_f32
-                || this->get_dt(DST) == dnnl_s32;
-        if (!dst_ok) this->set_range_max(WEI, 8);
-    }
-}
-
 // Adjust density based on accumulation chain.
 float cfg_t::get_density(const cfg_t::density_args_t &density_args) const {
     float density = 1.f;
@@ -66,7 +45,8 @@ float cfg_t::get_density(const cfg_t::density_args_t &density_args) const {
 }
 
 // Using pow2 values allows to avoid catastrophic cancellation.
-cfg_t::cfg_entry_t::cfg_map_t cfg_t::get_cfg_map(data_kind_t kind) const {
+const cfg_t::cfg_entry_t::cfg_map_t &cfg_t::get_cfg_map(
+        data_kind_t kind) const {
     static const cfg_t::cfg_entry_t::cfg_map_t src_cfg_map = {
             {{dnnl_f32}, {-64, 64}},
             {{dnnl_bf16}, {-4, 4}},
@@ -80,8 +60,6 @@ cfg_t::cfg_entry_t::cfg_map_t cfg_t::get_cfg_map(data_kind_t kind) const {
             {{dnnl_bf16}, {-8, 8}},
             {{dnnl_f16}, {-2, 2}},
             {{dnnl_s8}, {-4, 4}},
-            // upper bound must exceed 127 to distinguish from s8
-            {{dnnl_u8}, {0, 138}},
     };
 
     static const cfg_t::cfg_entry_t::cfg_map_t bia_cfg_map = {

@@ -83,6 +83,10 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
     const dnn_mem_t &d_sc = args.find(DNNL_ARG_DIFF_SCALE);
     const dnn_mem_t &d_sh = args.find(DNNL_ARG_DIFF_SHIFT);
 
+    float *d_src_ptr = (float *)d_src;
+    float *d_sc_ptr = (float *)d_sc;
+    float *d_sh_ptr = (float *)d_sh;
+
     const int64_t MB = prb->mb;
     const int64_t C = prb->ic;
     const int64_t D = prb->id;
@@ -114,8 +118,8 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
             d_beta += dd;
         }
 
-        if (use_sc && (prb->dir & FLAG_WEI)) d_sc.set_elem(c, d_gamma);
-        if (use_sh && (prb->dir & FLAG_WEI)) d_sh.set_elem(c, d_beta);
+        if (use_sc && (prb->dir & FLAG_WEI)) d_sc_ptr[c] = d_gamma;
+        if (use_sh && (prb->dir & FLAG_WEI)) d_sh_ptr[c] = d_beta;
 
         for_(int64_t mb = 0; mb < MB; ++mb)
         for_(int64_t d = 0; d < D; ++d)
@@ -130,7 +134,7 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
             if (!glob_stats)
                 ds -= (d_beta + src_hat.get_elem(off) * d_gamma) / MB_SP;
 
-            d_src.set_elem(off, rcp_denom * ds * gamma);
+            d_src_ptr[off] = rcp_denom * ds * gamma;
         }
     });
 }

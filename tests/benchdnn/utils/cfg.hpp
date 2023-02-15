@@ -26,9 +26,18 @@
 #include "common.hpp"
 
 // `base_cfg_t` class is a base class to define configurations across drivers.
-// Parent `cfg_t` object specifies a constructor to initialize `cfg_entry_`
-// member. This is needed since only `prb` object has necessary information.
-// See below for public interfaces to use and modify the `cfg` object.
+// Driver-level `cfg_t` object defines a constructor which takes prb_t object
+// and a list of kinds. It fills internal `cfg_entry_` vector of entries and
+// should provide:
+// * Data kind it was created for (this is used only for accessing correspondent
+//   cfg_entry_t elements).
+// * Original data type, as final data type may be altered by fpmath-mode value,
+//   or different from dst_dt sum_dt value.
+// * Data type adjusted for fpmath mode or sum_dt.
+// * A `cfg_map_t` map of ranges for each data type;
+//
+// Based on these inputs, a `cfg_t` public interface may provide all necessary
+// information, like a range for a given kind or density adjustment.
 struct base_cfg_t {
     struct cfg_entry_t {
         // Supplies min and max ranges for filling for a given data type.
@@ -39,15 +48,6 @@ struct base_cfg_t {
 
         using cfg_map_t = std::map<dnnl_data_type_t, cfg_range_t>;
 
-        // Constructor takes:
-        // * Data kind it was created for (this is used only for accessing
-        //   correspondent cfg_entry_t elements).
-        // * Original data type, as final data type may be altered by
-        //   fpmath-mode value or different from dst_dt sum_dt value.
-        // * Final data type to set cfg for.
-        // * Initial `cfg_map` map of ranges for each data type. It is copied
-        //   to provide an ability to adjust final values required in certain
-        //   scenarios.
         cfg_entry_t(data_kind_t dk, dnnl_data_type_t orig_dt,
                 dnnl_data_type_t dt, const cfg_map_t &cfg_map)
             : data_kind_(dk)
@@ -61,17 +61,6 @@ struct base_cfg_t {
             return std::max(abs(get_range_min()), abs(get_range_max()));
         }
 
-        void set_range_min(int new_value) {
-            auto it = cfg_map_.find(data_type_);
-            if (it == cfg_map_.end()) { assert(!"entry was not found!"); }
-            (*it).second.range_min = new_value;
-        }
-        void set_range_max(int new_value) {
-            auto it = cfg_map_.find(data_type_);
-            if (it == cfg_map_.end()) { assert(!"entry was not found!"); }
-            (*it).second.range_max = new_value;
-        }
-
         dnnl_data_type_t get_orig_dt() const { return orig_data_type_; }
         dnnl_data_type_t get_dt() const { return data_type_; }
         data_kind_t get_dk() const { return data_kind_; }
@@ -80,7 +69,7 @@ struct base_cfg_t {
         data_kind_t data_kind_; // For searching elements in base_cfg_t.
         dnnl_data_type_t orig_data_type_;
         dnnl_data_type_t data_type_;
-        cfg_map_t cfg_map_;
+        const cfg_map_t &cfg_map_;
 
         const cfg_range_t &get_cfg_range() const {
             const auto it = cfg_map_.find(data_type_);
@@ -114,10 +103,6 @@ struct base_cfg_t {
         int64_t n_acc;
     };
 
-    // Base config has to know a map of ranges to have its interfaces working.
-    virtual cfg_entry_t::cfg_map_t get_cfg_map(data_kind_t kind) const = 0;
-
-    // Density definition may be modified by each parent as necessary.
     virtual float get_density(const density_args_t &density_args) const {
         return 1.f;
     }
@@ -125,15 +110,6 @@ struct base_cfg_t {
 protected:
     std::vector<cfg_entry_t> cfg_entry_;
 
-    // Modification of ranges has to happen at construction stage.
-    void set_range_min(data_kind_t dk, int new_value) {
-        cfg_entry_[dk].set_range_min(new_value);
-    }
-    void set_range_max(data_kind_t dk, int new_value) {
-        cfg_entry_[dk].set_range_max(new_value);
-    }
-
-private:
     const cfg_entry_t &operator[](data_kind_t kind) const {
         for (const auto &e : cfg_entry_) {
             if (e.get_dk() == kind) return e;

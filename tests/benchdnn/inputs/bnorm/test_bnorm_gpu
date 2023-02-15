@@ -92,11 +92,3 @@
 # Test layers of some key GPU DL Frameworks
 --reset
 --batch=option_set_fwks_key_gpu
-
-
-# Test relu non-zero alpha
---reset
---mb=2
---dt=f32,bf16
---tag=acdb
---dir=FWD_I        --flags=CH        --attr-post-ops=relu:0.05  --batch=shapes_topologies_small

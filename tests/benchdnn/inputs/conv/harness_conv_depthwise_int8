@@ -11,9 +11,9 @@
 --mb=2
 --skip-impl=ref,x64:gemm      # ! test jit version only
 --dir=FWD_B
---attr-scales=src:common:0.25*+wei:per_oc:0.5*+dst:common:2* --attr-post-ops=sum:1.5:2+relu
+--attr-scales=src:common:0.25*+wei:per_oc:0.5*+dst:common:2.25* --attr-post-ops=sum:1.5:2+relu
 --cfg=s8s8f32,u8s8u8 --batch=shapes_mobilenet_dw
 --dir=FWD_D
---attr-scales=src:common:0.25*+wei:common:0.5*+dst:common:2* --attr-post-ops=sum:1.5:2
+--attr-scales=src:common:0.25*+wei:common:0.5*+dst:common:2.25* --attr-post-ops=sum:1.5:2
 --cfg=s8s8s32,u8s8s8 --batch=shapes_mobilenet_dw
 --cfg=s8s8u8,u8s8s8 g8mb1ic8ih112iw112oc8oh112ow112kh3kw3sh1sw1ph1pw1n"depthwise:conv1"

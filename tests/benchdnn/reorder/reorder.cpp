@@ -24,7 +24,6 @@
 // TODO: refactor the driver to avoid using extra flags of a memory descriptor.
 #include "common/memory_desc.hpp"
 
-#include "utils/fill.hpp"
 #include "utils/parallel.hpp"
 
 #include "dnn_types.hpp"
@@ -35,50 +34,74 @@
 
 namespace reorder {
 
-int fill_mem(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
+// Filling for integers is different due to problematic int -> float conversion.
+// And it doesn't require many different points to be tested.
+int fill_memory_int(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
-    const auto nelems = mem_fp.nelems();
-    if (nelems == 0) return OK;
-
     const auto conf = prb->get_conf(kind);
 
-    const float gen[] = {
-            conf->max, // saturate to max
-            conf->min, // saturate to min
-            0.f,
-            0.25f,
-            0.5f,
-            1.f,
-            1.5f,
-            2.f,
-            16.f,
-            64.f,
-    };
-    const auto table_size = sizeof(gen) / sizeof(gen[0]);
+    for (int64_t idx = 0; idx < mem_fp.nelems(); ++idx) {
+        const float gen[4] = {
+                conf->max, // saturate to max of output data type
+                conf->min, // saturate to min of output data type
+                0,
+                16,
+        };
 
-    benchdnn_parallel_nd(nelems, [&](int64_t i) {
-        const int64_t table_idx = kind == SRC
-                ? (i % table_size)
-                : ((i * (table_size + 1) / table_size) % table_size);
+        const int64_t rng = kind == SRC ? (idx % 4) : ((idx * 5 / 4) % 4);
         mem_fp.set_elem(
-                i, round_to_nearest_representable(conf->dt, gen[table_idx]));
-    });
+                idx, round_to_nearest_representable(conf->dt, gen[rng]));
+    }
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
-
     return OK;
 }
 
-dnn_mem_t setup_compensation_memory(const prb_t *prb, flag_bit_t flag) {
-    dnn_mem_t m;
-    if (prb->is_reorder_with_compensation(flag)) {
-        dims_t dims = prb->get_compensation_dims(flag);
-        int ndims = static_cast<int>(dims.size());
-        auto md = dnn_mem_t::init_md(ndims, dims.data(), dnnl_s32, tag::abx);
-        m = dnn_mem_t(md, get_cpu_engine());
+int fill_memory_fp(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp) {
+    const auto conf = prb->get_conf(kind);
+    const auto &src_scales = prb->attr.scales.get(DNNL_ARG_FROM);
+    const auto &dst_scales = prb->attr.scales.get(DNNL_ARG_TO);
+    const int src_scale_mask = attr_t::get_default_mask(src_scales.policy);
+    const int dst_scale_mask = attr_t::get_default_mask(dst_scales.policy);
+
+    for (int64_t idx = 0; idx < mem_fp.nelems(); ++idx) {
+        float src_scale = 1.f, dst_scale = 1.f;
+        if (!src_scales.is_def()) {
+            int64_t src_mask_idx = mem_fp.get_scale_idx(idx, src_scale_mask);
+            src_scale = prb->src_scales[src_mask_idx];
+        }
+        if (!dst_scales.is_def()) {
+            int64_t dst_mask_idx = mem_fp.get_scale_idx(idx, dst_scale_mask);
+            dst_scale = prb->dst_scales[dst_mask_idx];
+        }
+        const float scale = src_scale / dst_scale;
+
+        const float gen[7] = {
+                conf->max, // saturate to max of output data type
+                conf->min, // saturate to min of output data type
+                1.6f, // rounding check
+                0.2f, // saturate to 0
+                1.f / scale, // exact multiplication check
+                2.f,
+                scale,
+        };
+
+        const int64_t rng = kind == SRC ? (idx % 7) : ((idx * 8 / 7) % 7);
+        mem_fp.set_elem(
+                idx, round_to_nearest_representable(conf->dt, gen[rng]));
     }
-    return m;
-};
+
+    SAFE(mem_dt.reorder(mem_fp), WARN);
+    return OK;
+}
+
+int fill_memory(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp) {
+    const auto dt = kind == SRC ? prb->sdt : prb->ddt;
+    if (is_integral_dt(dt)) return fill_memory_int(prb, kind, mem_dt, mem_fp);
+    return fill_memory_fp(prb, kind, mem_dt, mem_fp);
+}
 
 int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
         dnn_mem_t &mem_zp_comp_ref, dnn_mem_t &mem_got, res_t *res) {
@@ -86,55 +109,6 @@ int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
     // assumptions may not hold for GPU. In addition, it's prohibit to work
     // with raw pointers directly for buffer type of memory.
     if (!is_cpu(get_test_engine())) return FAIL;
-
-    const auto padded_nelems = mem_got.nelems(true);
-    // Note: internally offset is aligned on 4, otherwise it's UB.
-    size_t first_comp_offset = div_up(padded_nelems, 4) * 4;
-    int *comp_handle
-            = reinterpret_cast<int *>((char *)mem_got + first_comp_offset);
-
-    const auto cmp_compensation = [&](const dnn_mem_t &mem_ref, int comp_mask) {
-        // Idea behind this check:
-        // Using knowledge from the library where `comp_handle` starts, and that
-        // memory utilizes blocking over OC and G, if present, we wrap that
-        // piece of memory which is described by shortened tag coming from prb
-        // into a separate memory and reorder it to plain so that it is a
-        // straight comparison of values in native plain layout.
-        auto comp_md = dnn_mem_t::init_md(mem_ref.ndims(), mem_ref.dims(),
-                mem_ref.dt(), trim_tag_by_mask(prb->dtag, comp_mask));
-        dnn_mem_t comp_m(comp_md, mem_ref.engine(), {false, comp_handle});
-
-        compare::compare_t cmp;
-        cmp.set_zero_trust_percent(100.f); // No sense in zero trust test.
-        int status = cmp.compare(mem_ref, comp_m, attr_t(), res);
-
-        // Shift original compensation pointer for next compensation
-        comp_handle += comp_m.nelems(true);
-        return status;
-    };
-
-    if (mem_s8_comp_ref.ndims())
-        SAFE(cmp_compensation(mem_s8_comp_ref,
-                     prb->get_compensation_mask(FLAG_S8S8_COMP)),
-                WARN);
-    if (mem_zp_comp_ref.ndims())
-        SAFE(cmp_compensation(
-                     mem_zp_comp_ref, prb->get_compensation_mask(FLAG_ZP_COMP)),
-                WARN);
-
-    return res->state == FAILED ? FAIL : OK;
-}
-
-int compare_compensation(const prb_t *prb, dnn_mem_map_t &mem_map,
-        dnn_mem_map_t &ref_mem_map, res_t *res) {
-    // Note: following check relies on certain assumptions on CPU. These
-    // assumptions may not hold for GPU. In addition, it's prohibit to work
-    // with raw pointers directly for buffer type of memory.
-    if (!is_cpu(get_test_engine())) return FAIL;
-
-    const auto &mem_got = mem_map[DNNL_ARG_DST];
-    const auto &mem_s8_comp_ref = ref_mem_map[DNNL_ARG_SRC_1];
-    const auto &mem_zp_comp_ref = ref_mem_map[DNNL_ARG_SRC_2];
 
     const auto padded_nelems = mem_got.nelems(true);
     // Note: internally offset is aligned on 4, otherwise it's UB.
@@ -225,9 +199,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             create_dnnl_attr(prb->attr, attr_args_t()));
 
     init_pd_args.is_iterator_supported = false;
-    return dnnl_reorder_primitive_desc_create(&init_pd_args.pd,
-            init_pd_args.src_md ? init_pd_args.src_md : src_d, src_engine,
-            dst_d, dst_engine, dnnl_attr);
+    return dnnl_reorder_primitive_desc_create(
+            &init_pd_args.pd, src_d, src_engine, dst_d, dst_engine, dnnl_attr);
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
@@ -372,11 +345,14 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
-    // This value can be exact without scales. Scales may affect the value.
-    // Avoid any scales logic involved until needed.
-    cmp.set_zero_trust_percent(80.f);
-    // work around for benchdnn ext
-    cmp.set_op_output_has_nans(true);
+    const bool has_s32 = prb->sdt == dnnl_s32 || prb->ddt == dnnl_s32;
+    const bool has_s8 = prb->sdt == dnnl_s8 || prb->ddt == dnnl_s8;
+    const bool has_u8 = prb->sdt == dnnl_u8 || prb->ddt == dnnl_u8;
+    // For u8 4/7 inputs becomes 0, for s32/s8 3/7 inputs becomes 0;
+    const float zero_trust_percent = has_u8 ? 58.f
+            : (has_s32 || has_s8)           ? 43.f
+                                            : 30.f;
+    cmp.set_zero_trust_percent(zero_trust_percent);
 
     // Additional check to avoid false-positive result from f32->s32 conversion
     // in case of sum post-op on GPU happening when two max_dt values
@@ -393,88 +369,101 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     cmp.set_driver_check_function(reorder_add_check);
 }
 
-std::vector<int> supported_exec_args(dir_t dir) {
-    static const std::vector<int> exec_args = {
-            DNNL_ARG_FROM,
-            DNNL_ARG_TO,
-    };
-    return exec_args;
-};
-
-int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
-        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
-        dnnl_primitive_t prim_ref) {
-    const auto &ref_engine = get_cpu_engine();
-
-    for (auto &entry : mem_map) {
-        const int exec_arg = entry.first;
-        auto &mem = entry.second; // `mem` is modified by filler (reorder).
-
-        ref_mem_map.emplace(
-                exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
-        auto &ref_mem = ref_mem_map[exec_arg];
-
-        switch (exec_arg) {
-            case DNNL_ARG_FROM: {
-                SAFE(fill_mem(prb, SRC, mem, ref_mem), WARN);
-                // Additional inputs to compare compensation buffers.
-                ref_mem_map.emplace(DNNL_ARG_SRC_1,
-                        setup_compensation_memory(prb, FLAG_S8S8_COMP));
-                ref_mem_map.emplace(DNNL_ARG_SRC_2,
-                        setup_compensation_memory(prb, FLAG_ZP_COMP));
-            } break;
-            case DNNL_ARG_TO: {
-                const auto &po = prb->attr.post_ops;
-                const int sum_idx = po.find(attr_t::post_ops_t::SUM);
-                if (sum_idx >= 0) {
-                    SAFE(fill_mem(prb, DST, mem, ref_mem), WARN);
-                }
-            } break;
-            case DNNL_ARG_SCRATCHPAD: break;
-            default: { // Process all attributes here
-                bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
-                bool is_zero_point_arg = (exec_arg & DNNL_ARG_ATTR_ZERO_POINTS);
-
-                if (is_scales_arg) {
-                    int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
-                    SAFE(fill_scales(prb->attr, local_exec_arg, mem, ref_mem),
-                            WARN);
-                } else if (is_zero_point_arg) {
-                    int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_ZERO_POINTS;
-                    SAFE(fill_zero_points(
-                                 prb->attr, local_exec_arg, mem, ref_mem),
-                            WARN);
-                }
-            } break;
-        }
-        // Don't keep reference memory if it is not used further.
-        if (!is_bench_mode(CORR)) ref_mem_map.clear();
-    }
-
-    return OK;
-}
-
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-    if (is_bench_mode(INIT)) return OK;
 
-    dnn_mem_map_t mem_map, ref_mem_map;
-    init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
-    SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res, prb->dir),
-            WARN);
+    auto const_pd = query_pd(prim);
 
-    args_t args(mem_map), ref_args(ref_mem_map);
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> src_md {}, dst_md {};
+    if (prb->runtime_dim_mask != 0) {
+        // re-create memory descriptors with defined dims
+        src_md = dnn_mem_t::init_md(
+                prb->ndims, prb->dims.data(), prb->sdt, prb->stag);
+        dst_md = dnn_mem_t::init_md(
+                prb->ndims, prb->dims.data(), prb->ddt, prb->dtag);
+    } else {
+        src_md = clone_md(query_md(const_pd, DNNL_ARG_SRC));
+        dst_md = clone_md(query_md(const_pd, DNNL_ARG_DST));
+    }
+    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
+
+    dnnl_engine_t src_engine
+            = query_engine(const_pd, dnnl_query_reorder_src_engine);
+    dnnl_engine_t dst_engine
+            = query_engine(const_pd, dnnl_query_reorder_dst_engine);
+    const auto &ref_engine = get_cpu_engine();
+
+    dnn_mem_t src_fp(src_md, dnnl_f32, tag::abx, ref_engine);
+    dnn_mem_t src_dt(src_md, src_engine);
+
+    dnn_mem_t scratchpad_dt(scratchpad_md, src_engine);
+
+    dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, ref_engine);
+    dnn_mem_t dst_dt(dst_md, dst_engine);
+
+    SAFE(fill_memory(prb, SRC, src_dt, src_fp), WARN);
+
+    const bool has_sum
+            = prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0;
+    if (has_sum) { SAFE(fill_memory(prb, DST, dst_dt, dst_fp), WARN); }
+
+    const int src_mask = attr_t::get_default_mask(
+            prb->attr.scales.get(DNNL_ARG_SRC).policy);
+    const int dst_mask = attr_t::get_default_mask(
+            prb->attr.scales.get(DNNL_ARG_DST).policy);
+    dnn_mem_t src_scales, dst_scales;
+    dnn_mem_t src_zero_points_m, dst_zero_points_m;
+
+    maybe_prepare_runtime_scales(src_scales, prb->attr.scales.get(DNNL_ARG_SRC),
+            prb->nelems(src_mask), prb->src_scales);
+    maybe_prepare_runtime_scales(dst_scales, prb->attr.scales.get(DNNL_ARG_DST),
+            prb->nelems(dst_mask), prb->dst_scales);
+    maybe_prepare_runtime_zero_points(
+            src_zero_points_m, prb->attr, DNNL_ARG_SRC, 1, prb->src_zp);
+    maybe_prepare_runtime_zero_points(
+            dst_zero_points_m, prb->attr, DNNL_ARG_DST, 1, prb->dst_zp);
+
+    args_t args, ref_args;
+
+    args.set(DNNL_ARG_FROM, src_dt);
+    args.set(DNNL_ARG_TO, dst_dt);
+    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+    args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales);
+    args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales);
+    args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
+    args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
 
     SAFE(execute_and_wait(prim, args, res), WARN);
 
     if (is_bench_mode(CORR)) {
+        const auto assign_comp_mem = [&](dnn_mem_t &m, flag_bit_t flag) {
+            if (prb->is_reorder_with_compensation(flag)) {
+                dims_t dims = prb->get_compensation_dims(flag);
+                int ndims = static_cast<int>(dims.size());
+                auto md = dnn_mem_t::init_md(
+                        ndims, dims.data(), dnnl_s32, tag::abx);
+                m = dnn_mem_t(md, ref_engine);
+            }
+            return OK;
+        };
+
+        dnn_mem_t dst_s8_comp_ref, dst_zp_comp_ref;
+        assign_comp_mem(dst_s8_comp_ref, FLAG_S8S8_COMP);
+        assign_comp_mem(dst_zp_comp_ref, FLAG_ZP_COMP);
+
+        ref_args.set(DNNL_ARG_FROM, src_fp);
+        ref_args.set(DNNL_ARG_TO, dst_fp);
+        ref_args.set(DNNL_ARG_SRC_1, dst_s8_comp_ref); // Additional input
+        ref_args.set(DNNL_ARG_SRC_2, dst_zp_comp_ref); // Additional input
+        ref_args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales);
+        ref_args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales);
+
         // Remove extra desc so that reorders with compensation could have
         // proper reorder from blocked layout to plain for comparison.
-        auto &dst_dt = mem_map[DNNL_ARG_DST];
         dnnl::impl::memory_extra_desc_t empty_extra {};
         const auto orig_dst_extra = dst_dt.md_->extra;
         dst_dt.md_->extra = empty_extra;
@@ -487,7 +476,8 @@ int doit(const prb_t *prb, res_t *res) {
 
         // Validate compensated reorder part.
         if (prb->is_reorder_with_compensation(FLAG_ANY)) {
-            compare_compensation(prb, mem_map, ref_mem_map, res);
+            compare_compensation(
+                    prb, dst_s8_comp_ref, dst_zp_comp_ref, dst_dt, res);
         }
     }
 

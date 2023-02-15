@@ -36,10 +36,6 @@
                    src:common:-1*+wei:common:1*, \
                    src:per_dim_1:-1*+wei:common:1*+dst:common:2*
 --batch=shapes_2d_ci
---attr-zero-points=
-
---attr-zero-points=src:common:1*+wei:common:-1*+dst:common:2*, \
-                   src:common:-1*+wei:common:1*
 --batch=shapes_3d
 --attr-zero-points=
 
@@ -65,7 +61,6 @@
 77x133:133x117
 15x24x16:15x16x32
 7x16x24x8:7x16x8x24
---skip-impl=
 
 # test all the supported data type configurations + bias data types
 --reset

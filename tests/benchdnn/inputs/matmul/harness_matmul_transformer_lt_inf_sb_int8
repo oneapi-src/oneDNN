@@ -67,13 +67,13 @@
 4x1024:1024x1024n"Transformer_lt:Decoder_MM_2*240"
 
 --cfg=u8s8bf16 --bia_dt=undef
---attr-zero-points=src:common:7*+wei:common:-2*+dst:common:3*
+--attr-zero-points=src:common:7+wei:common:-2*+dst:common:3*
 --stag=abcd --wtag=abdc --dtag=abcd
 # 1 per each encoder and sequence length, 240 in total for seq_len = 40
 1x16x4x64:1x16x64x40n"Transformer_lt:Decoder_MM_4*240"
 
 --cfg=u8s8u8 --bia_dt=undef
---attr-zero-points=src:common:7*+wei:common:-2*+dst:common:3*
+--attr-zero-points=src:common:7+wei:common:-2*+dst:common:3*
 --stag=abcd --wtag=abcd --dtag=abcd
 # 1 per each encoder and sequence length, 240 in total for seq_len = 40
 1x16x4x40:1x16x40x64n"Transformer_lt:Decoder_MM_5*240"

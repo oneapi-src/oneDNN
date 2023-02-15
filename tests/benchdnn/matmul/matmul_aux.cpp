@@ -38,25 +38,63 @@ dnnl_data_type_t prb_t::get_dt(data_kind_t data_kind) const {
     }
 }
 
-benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> prb_t::get_md(int arg) const {
-    switch (arg) {
-        case DNNL_ARG_SRC:
-            assert(src_runtime_dim_mask().any());
-            return dnn_mem_t::init_md(ndims, src_dims().data(), src_dt(), stag);
-        case DNNL_ARG_WEIGHTS:
-            assert(weights_runtime_dim_mask().any());
-            return dnn_mem_t::init_md(
-                    ndims, weights_dims().data(), wei_dt(), wtag);
-        case DNNL_ARG_BIAS:
-            return dnn_mem_t::init_md(
-                    ndims, bia_dims().data(), bia_dt, tag::abx);
-        case DNNL_ARG_DST:
-            assert(dst_runtime_dim_mask().any());
-            return dnn_mem_t::init_md(ndims, dst_dims.data(), dst_dt(), dtag);
-        default:
-            assert(!"unsupported arg");
-            return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
+float *prb_t::generate_scales(int arg) const {
+    const auto &scales = attr.scales;
+    if (scales.is_def()) return nullptr;
+
+    const auto &e = scales.get(arg);
+    if (e.policy == policy_t::COMMON) {
+        float *s = (float *)zmalloc(sizeof(float), 4);
+        SAFE_V(s != nullptr ? OK : FAIL);
+        s[0] = e.scale;
+        return s;
     }
+
+    assert(arg == DNNL_ARG_WEIGHTS);
+    assert(e.policy == policy_t::PER_OC);
+
+    float *s = (float *)zmalloc(sizeof(float) * n, 64);
+    SAFE_V(s != nullptr ? OK : FAIL);
+
+    const float K = 32;
+    /* scale in [1/K .. K], with starting point at e.scale */
+    float s_val[2] = {e.scale, e.scale / 2};
+    for (int64_t i = 0; i < n; ++i) {
+        int64_t si = i % 2; // 0 -> left, 1 -> right
+        s[i] = s_val[si];
+        if (si == 0) {
+            s_val[si] /= 2.;
+            // turn around to become ~K
+            if (s_val[si] < 1. / K) s_val[si] *= K * K;
+        } else {
+            s_val[si] *= 2.;
+            // turn around to become ~K
+            if (s_val[si] > K) s_val[si] /= K * K;
+        }
+    }
+    return s;
+}
+
+int32_t *prb_t::generate_zero_points(
+        int arg, const attr_t::zero_points_t &zero_points, int N) const {
+    if (zero_points.is_def(arg)) return nullptr;
+
+    const auto &e = zero_points.get(arg);
+    if (e.policy == policy_t::COMMON) {
+        int32_t *zp = (int32_t *)zmalloc(sizeof(int32_t), 4);
+        SAFE_V(zp != nullptr ? OK : FAIL);
+        zp[0] = e.value;
+        return zp;
+    }
+
+    assert(e.policy == policy_t::PER_DIM_1);
+
+    int32_t *zp = (int32_t *)zmalloc(sizeof(int32_t) * N, 64);
+    SAFE_V(zp != nullptr ? OK : FAIL);
+
+    for (int i = 0; i < N; ++i)
+        zp[i] = e.value + i % 3;
+    return zp;
 }
 
 std::ostream &operator<<(std::ostream &s, const prb_t &prb) {

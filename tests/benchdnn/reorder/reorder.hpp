@@ -77,26 +77,9 @@ struct settings_t : public base_settings_t {
     }
 
     void reset() { *this = settings_t(perf_template); }
-
-    bool has_single_setup() const override {
-        return sdt.size() == 1 && ddt.size() == 1 && stag.size() == 1
-                && dtag.size() == 1 && oflag.size() == 1
-                && runtime_dim_mask.size() == 1 && cross_engine.size() == 1
-                && base_settings_t::has_single_setup();
-    }
 };
 
 struct prb_t : public prb_dims_t {
-    // A ctor with common interface across all drivers.
-    prb_t(const settings_t &s)
-        : prb_t(s.prb_dims, s.sdt[0], s.ddt[0], s.stag[0], s.dtag[0],
-                settings_t::get_attr(s.scales[0], s.zero_points[0],
-                        s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]),
-                s.ctx_init[0], s.ctx_exe[0], s.oflag[0], s.cross_engine[0],
-                s.runtime_dim_mask[0]) {
-        SAFE_V(s.has_single_setup() ? OK : FAIL);
-    }
-
     prb_t(const prb_dims_t &prb_dims, dnnl_data_type_t sdt,
             dnnl_data_type_t ddt, const std::string &stag,
             const std::string &dtag, const attr_t &attr,
@@ -113,7 +96,18 @@ struct prb_t : public prb_dims_t {
         , ctx_exe(ctx_exe)
         , oflag(oflag)
         , cross_engine(cross_engine)
-        , runtime_dim_mask(runtime_dim_mask) {}
+        , runtime_dim_mask(runtime_dim_mask) {
+        src_zp = generate_zero_points(DNNL_ARG_SRC);
+        dst_zp = generate_zero_points(DNNL_ARG_DST);
+        src_scales = generate_scales(DNNL_ARG_SRC);
+        dst_scales = generate_scales(DNNL_ARG_DST);
+    }
+    ~prb_t() {
+        if (src_zp) zfree(src_zp);
+        if (dst_zp) zfree(dst_zp);
+        if (src_scales) zfree(src_scales);
+        if (dst_scales) zfree(dst_scales);
+    }
 
     dir_t dir = FLAG_FWD; // Lack of prop_kind, always considered as forward.
     dnnl_data_type_t sdt, ddt;
@@ -124,15 +118,14 @@ struct prb_t : public prb_dims_t {
     cross_engine_t cross_engine;
     unsigned runtime_dim_mask;
     int32_t *src_zp, *dst_zp;
+    float *src_scales, *dst_scales;
 
     bool is_reorder_with_compensation(flag_bit_t flag) const;
     dims_t get_compensation_dims(flag_bit_t flag) const;
     int get_compensation_mask(flag_bit_t flag) const;
+    int32_t *generate_zero_points(int arg) const;
+    float *generate_scales(int arg) const;
     dt_conf_t get_conf(data_kind_t kind) const;
-
-    // Used to construct memory desc when dimensions are runtime since such mds
-    // can't be used directly from query and memory objects can't be constructed.
-    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const;
 
 private:
     void get_compensation_parameters(
@@ -182,27 +175,23 @@ private:
     std::string dtag_;
 };
 
-dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
-void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
-        const args_t &ref_args);
-std::vector<int> supported_exec_args(dir_t dir);
-int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
-        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
-        dnnl_primitive_t prim_ref = nullptr);
-
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 void skip_invalid_prb(const prb_t *prb, res_t *res);
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
 
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args);
+
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
-int fill_mem(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
+int fill_memory(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp);
 int ref_reorder(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
         dnn_mem_t &s8_comp, dnn_mem_t &zp_comp);
 int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
         dnn_mem_t &mem_zp_comp_ref, dnn_mem_t &mem_got, res_t *res);
+dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
 
 } // namespace reorder
 

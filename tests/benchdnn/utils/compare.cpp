@@ -30,7 +30,7 @@
 
 namespace compare {
 
-static void dump_point_values(const_dnnl_memory_desc_t md, data_kind_t kind,
+static void dump_point_values(const dnnl_memory_desc_t &md, data_kind_t kind,
         int64_t l_offset, float exp_f32, float exp, float got, float diff,
         float rel_diff) {
     std::stringstream ss;
@@ -166,11 +166,7 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
 
     dnn_mem_t got_f32(got_mem, dnnl_f32, tag::abx, get_cpu_engine());
     const auto dt = got_mem.dt();
-    const bool has_eltwise
-            = attr.post_ops.eltwise_index() != -1 || has_eltwise_post_op_;
-    const bool output_has_nans = op_output_has_nans_
-            || eltwise::eltwise_alg_returns_nan_or_inf(attr)
-            || got_mem.dt() == dnnl_f16;
+    const bool has_eltwise = attr.post_ops.eltwise_index() != -1;
     const bool has_exp_eltwise
             = attr.post_ops.find(attr_t::post_ops_t::kind_t::EXP) >= 0;
     const bool has_dst_scale = !attr.scales.get(DNNL_ARG_DST).is_def();
@@ -195,10 +191,8 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         if (!ok) {
             // Standard check for relative diff is under set threshold...
             ok = (fabsf(args.exp) > 1e-5f ? args.rel_diff : args.diff) <= trh_;
-            // If not, when NaNs or infinity are allowed for the driver, check
-            // that both exp and got are NaNs or infinity with same sign...
-            if (!ok && output_has_nans)
-                ok = compare::compare_extreme_values(args.exp, args.got);
+            // If not, check that both are NaNs or infinity with same sign...
+            if (!ok) ok = compare::compare_extreme_values(args.exp, args.got);
             // If not, use hack to check not fully correct s32 saturation on
             // cpu...
             if (!ok && is_cpu() && dt == dnnl_s32
@@ -239,7 +233,7 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             // different results for different backends when NaN is one of
             // inputs. Depending on its position and implementation, either
             // first or second operand may be returned.
-            if (!ok && has_binary_comparison_po(attr) && output_has_nans)
+            if (!ok && has_binary_comparison_po(attr) && op_output_has_nans_)
                 ok = true;
             // Some drivers (like pooling or resampling) on integer data types
             // may result in sporadic order of operations. This may cause a

@@ -59,10 +59,11 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             dnnl_attr);
 }
 
-int fill_src(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+int fill_src(
+        const prb_t *prb, int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 
-    const auto nelems = mem_dt.nelems();
-    const auto dt = mem_dt.dt();
+    const auto nelems = mem_fp.nelems();
+    const auto dt = prb->sdt[input_idx];
     const int range = 16;
     const int f_min = dt == dnnl_u8 ? 0 : -range / 2;
 
@@ -100,64 +101,50 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     cmp.set_threshold(epsilon_dt(prb->ddt) * prb->n_inputs());
 }
 
-std::vector<int> supported_exec_args(dir_t dir) {
-    static const std::vector<int> exec_args = {
-            DNNL_ARG_MULTIPLE_SRC,
-            DNNL_ARG_DST,
-    };
-    return exec_args;
-};
-
-int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
-        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
-        dnnl_primitive_t prim_ref) {
-    const auto &ref_engine = get_cpu_engine();
-
-    for (auto &entry : mem_map) {
-        const int exec_arg = entry.first;
-        auto &mem = entry.second; // `mem` is modified by filler (reorder).
-
-        ref_mem_map.emplace(
-                exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
-        auto &ref_mem = ref_mem_map[exec_arg];
-
-        switch (exec_arg) {
-            case DNNL_ARG_SCRATCHPAD: break;
-            default:
-                bool is_src_arg = (exec_arg & DNNL_ARG_MULTIPLE_SRC);
-                if (is_src_arg) {
-                    SAFE(fill_src(exec_arg, mem, ref_mem), WARN);
-                }
-                break;
-        }
-        // Don't keep reference memory if it is not used further.
-        if (!is_bench_mode(CORR)) ref_mem_map.clear();
-    }
-
-    // Drop destination memory for in-place case. `args` will take care of rest.
-    if (prb->inplace) { mem_map[DNNL_ARG_DST] = dnn_mem_t(); }
-
-    return OK;
-}
-
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-    if (is_bench_mode(INIT)) return OK;
 
-    dnn_mem_map_t mem_map, ref_mem_map;
-    init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
-    SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res, prb->dir),
-            WARN);
+    auto const_pd = query_pd(prim);
 
-    args_t args(mem_map), ref_args(ref_mem_map);
+    const auto &test_engine = get_test_engine();
+    const auto &ref_engine = get_cpu_engine();
+    const auto &dst_md = query_md(const_pd, DNNL_ARG_DST);
+    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
+
+    std::vector<dnn_mem_t> src_fp, src_dt;
+    src_fp.reserve(prb->n_inputs());
+    src_dt.reserve(prb->n_inputs());
+
+    args_t args, ref_args;
+    for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
+        const auto &src_md
+                = query_md(const_pd, DNNL_ARG_MULTIPLE_SRC + i_input);
+        src_fp.emplace_back(src_md, dnnl_f32, tag::abx, ref_engine);
+        src_dt.emplace_back(src_md, test_engine);
+        SAFE(fill_src(prb, i_input, src_dt[i_input], src_fp[i_input]), WARN);
+        args.set(DNNL_ARG_MULTIPLE_SRC + i_input, src_dt[i_input]);
+        if (is_bench_mode(CORR))
+            ref_args.set(DNNL_ARG_MULTIPLE_SRC + i_input, src_fp[i_input]);
+    }
+    dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, ref_engine);
+    dnn_mem_t placeholder_dst_dt;
+
+    if (!prb->inplace) { placeholder_dst_dt = dnn_mem_t(dst_md, test_engine); }
+    dnn_mem_t &dst_dt = prb->inplace ? src_dt[0] : placeholder_dst_dt;
+    dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
+
+    args.set(DNNL_ARG_DST, dst_dt);
+    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
     SAFE(execute_and_wait(prim, args, res), WARN);
 
     if (is_bench_mode(CORR)) {
+        ref_args.set(DNNL_ARG_DST, dst_fp);
+
         check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
     }
 
