@@ -343,12 +343,16 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
                     case 2:
                         wei_tag = with_groups ? gOdhwI24o2i : OdhwI24o2i;
                         break;
+                    case 4:
+                        wei_tag = with_groups ? gOdhwI24o4i : OdhwI24o4i;
+                        break;
                     default: return status::unimplemented;
                 }
             } else if (is_1d) {
                 switch (vnni_granularity) {
                     case 1: wei_tag = with_groups ? gOwi24o : Owi24o; break;
                     case 2: wei_tag = with_groups ? gOwI24o2i : OwI24o2i; break;
+                    case 4: wei_tag = with_groups ? gOwI24o4i : OwI24o4i; break;
                     default: return status::unimplemented;
                 }
             } else {
@@ -358,6 +362,9 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
                     case 1: wei_tag = with_groups ? gOhwi24o : Ohwi24o; break;
                     case 2:
                         wei_tag = with_groups ? gOhwI24o2i : OhwI24o2i;
+                        break;
+                    case 4:
+                        wei_tag = with_groups ? gOhwI24o4i : OhwI24o4i;
                         break;
                     default: return status::unimplemented;
                 }
@@ -429,12 +436,16 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
                     case 2:
                         wei_tag = with_groups ? gOdhwI8o2i : OdhwI8o2i;
                         break;
+                    case 4:
+                        wei_tag = with_groups ? gOdhwI8o4i : OdhwI8o4i;
+                        break;
                     default: return status::unimplemented;
                 }
             } else if (is_1d) {
                 switch (vnni_granularity) {
                     case 1: wei_tag = with_groups ? gOwi8o : Owi8o; break;
                     case 2: wei_tag = with_groups ? gOwI8o2i : OwI8o2i; break;
+                    case 4: wei_tag = with_groups ? gOwI8o4i : OwI8o4i; break;
                     default: return status::unimplemented;
                 }
             } else {
@@ -443,6 +454,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
                 switch (vnni_granularity) {
                     case 1: wei_tag = with_groups ? gOhwi8o : Ohwi8o; break;
                     case 2: wei_tag = with_groups ? gOhwI8o2i : OhwI8o2i; break;
+                    case 4: wei_tag = with_groups ? gOhwI8o4i : OhwI8o4i; break;
                     default: return status::unimplemented;
                 }
             }
