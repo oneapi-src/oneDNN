@@ -395,6 +395,59 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     pgraph->append_optional(last_layer,
                             {in_edge(0, repetition, 0)}, "optional_last_layer");
                 });
+
+/*
+mlp residual graph, having an extra edge from LayerNorm to Add.
+
+[IN0](fp32)   [IN1](fp32)
+       \      /
+        MatMul
+          |
+         Add
+          |
+       LayerNorm_______________      [IN2](fp32)
+          |                     \     /
+          |                      MatMul
+          |                        |
+          |                      GELU   [IN3](fp32)
+          |                        \     /
+          |                        MatMul
+          | _________________________|
+         Add
+          |
+      LayerNorm
+          |
+        [OUT0](fp32)
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        compiler, fp32_bart_mlp_residual_pattern)
+        .set_priority(5.5f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto matmul_layer1 = pgraph->append_op(
+                            impl::op_kind::MatMul, "matmul_layer1");
+                    matmul_layer1->append_decision_function(
+                            check_input_dtype<impl::data_type::f32>);
+                    auto add_layer1 = pgraph->append_op(impl::op_kind::Add,
+                            {in_edge(0, matmul_layer1, 0)}, "add_layer1");
+                    auto layernorm_layer1 = pgraph->append_op(
+                            impl::op_kind::LayerNorm,
+                            {in_edge(0, add_layer1, 0)}, "layernorm_layer1");
+                    auto matmul_layer2 = pgraph->append_op(
+                            impl::op_kind::MatMul,
+                            {in_edge(0, layernorm_layer1, 0)}, "matmul_layer2");
+                    auto gelu_layer2 = pgraph->append_op(impl::op_kind::GELU,
+                            {in_edge(0, matmul_layer2, 0)}, "gelu_layer2");
+                    auto matmul_layer3 = pgraph->append_op(
+                            impl::op_kind::MatMul, {in_edge(0, gelu_layer2, 0)},
+                            "matmul_layer3");
+                    auto add_layer3 = pgraph->append_op(impl::op_kind::Add,
+                            {in_edge(0, layernorm_layer1, 0),
+                                    in_edge(1, matmul_layer3, 0)},
+                            "add_layer3");
+                    pgraph->append_op(impl::op_kind::LayerNorm,
+                            {in_edge(0, add_layer3, 0)}, "layernorm_layer3");
+                });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
 COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(int8_mlp_pattern)
@@ -486,6 +539,279 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     single_layer_mlp(pgraph, true, true);
+                });
+
+/*
+mlp residual graph, having an extra edge from LayerNorm to Add.
+
+  [IN0](int8)     [IN1](int8)
+    |               |
+Dequantize      Dequantize
+       \      /
+        MatMul
+          |
+         Add
+          |
+       LayerNorm_______________
+          |                    |
+          |                 Quantize    [IN2](int8)
+          |                    |          |
+          |              Dequantize   Dequantize
+          |                     \     /
+          |                      MatMul
+          |                        |
+          |                      GELU
+          |                        |
+          |                     Quantize        [IN3](int8)
+          |                        |              |
+          |                   Dequantize      Dequantize
+          |                            \      /
+          |                             MatMul
+          |                                |
+         Add_______________________________|
+          |
+      LayerNorm
+          |
+      Quantize (optional)
+          |
+        [OUT0](int8/f32)
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        compiler, int8_bart_mlp_residual_pattern)
+        .set_priority(6.5f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto dequantize_input_layer1
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    "dequantize_input_layer1");
+                    auto dequantize_weight_layer1
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    "dequantize_weight_layer1");
+                    auto matmul_layer1 = pgraph->append_op(
+                            impl::op_kind::MatMul,
+                            {in_edge(0, dequantize_input_layer1, 0),
+                                    in_edge(1, dequantize_weight_layer1, 0)},
+                            "matmul_layer1");
+                    auto add_layer1 = pgraph->append_op(impl::op_kind::Add,
+                            {in_edge(0, matmul_layer1, 0)}, "add_layer1");
+                    auto layernorm_layer1 = pgraph->append_op(
+                            impl::op_kind::LayerNorm,
+                            {in_edge(0, add_layer1, 0)}, "layernorm_layer1");
+                    // quantize is the second use of layernorm output
+                    auto quantize_output_layer1
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    {in_edge(0, layernorm_layer1, 0)},
+                                    "quantize_output_layer1");
+                    auto dequantize_input_layer2
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    {in_edge(0, quantize_output_layer1, 0)},
+                                    "dequantize_input_layer2");
+                    auto dequantize_weight_layer2
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    "dequantize_weight_layer2");
+                    auto matmul_layer2 = pgraph->append_op(
+                            impl::op_kind::MatMul,
+                            {in_edge(0, dequantize_input_layer2, 0),
+                                    in_edge(1, dequantize_weight_layer2, 0)},
+                            "matmul_layer2");
+                    auto gelu_layer2 = pgraph->append_op(impl::op_kind::GELU,
+                            {in_edge(0, matmul_layer2, 0)}, "gelu_layer2");
+
+                    auto quantize_output_layer2
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    {in_edge(0, gelu_layer2, 0)},
+                                    "quantize_output_layer2");
+
+                    auto dequantize_input_layer3
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    {in_edge(0, quantize_output_layer2, 0)},
+                                    "dequantize_input_layer3");
+                    auto dequantize_weight_layer3
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    "dequantize_weight_layer3");
+                    auto matmul_layer3 = pgraph->append_op(
+                            impl::op_kind::MatMul,
+                            {in_edge(0, dequantize_input_layer3, 0),
+                                    in_edge(1, dequantize_weight_layer3, 0)},
+                            "matmul_layer3");
+                    auto add_layer3 = pgraph->append_op(impl::op_kind::Add,
+                            {in_edge(0, layernorm_layer1, 0),
+                                    in_edge(1, matmul_layer3, 0)},
+                            "add_layer3");
+                    auto layernorm_layer3 = pgraph->append_op(
+                            impl::op_kind::LayerNorm,
+                            {in_edge(0, add_layer3, 0)}, "layernorm_layer3");
+                    layernorm_layer3->allow_external_outputs();
+                    auto last_layer
+                            = std::make_shared<pb_graph_t>("last_layer");
+                    auto quantize_output_layer3 = last_layer->append_op(
+                            impl::op_kind::Quantize, "quantize_output_layer3");
+                    last_layer->create_input_port(0, quantize_output_layer3, 0);
+                    last_layer->create_output_port(
+                            0, quantize_output_layer3, 0);
+                    pgraph->append_optional(last_layer,
+                            {in_edge(0, layernorm_layer3, 0)},
+                            "optional_last_layer");
+                });
+
+/*
+mlp residual graph, having an extra edge from LayerNorm to Add.
+
+[IN0](int8)     [IN1](int8)
+    |             |
+Dequantize    Dequantize
+    |             |
+ TypeCast      TypeCast
+       \      /
+        MatMul
+          |
+         Add
+          |
+       LayerNorm_______________
+          |                    |
+          |                 TypeCast
+          |                    |
+          |                 Quantize    [IN2](int8)
+          |                    |          |
+          |               Dequantize   Dequantize
+          |                    |          |
+          |                TypeCast     TypeCast
+          |                       \     /
+          |                        MatMul
+          |                          |
+          |                        GELU
+          |                          |
+          |                      TypeCast
+          |                          |
+          |                      Quantize        [IN3](int8)
+          |                          |              |
+          |                     Dequantize      Dequantize
+          |                          |              |
+          |                       TypeCast       TypeCast
+          |                              \      /
+          |                               MatMul
+          |                                |
+         Add_______________________________|
+          |
+      LayerNorm
+          |
+      TypeCast (optional)
+          |
+      Quantize (optional)
+          |
+        [OUT0](int8/f32)
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        compiler, int8_bf16_bart_mlp_residual_pattern)
+        .set_priority(6.5f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto dequantize_input_layer1
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    "dequantize_input_layer1");
+                    auto typecast_input_layer1
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    {in_edge(0, dequantize_input_layer1, 0)},
+                                    "typecast_input_layer1");
+                    auto dequantize_weight_layer1
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    "dequantize_weight_layer1");
+                    auto typecast_weight_layer1
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    {in_edge(0, dequantize_weight_layer1, 0)},
+                                    "typecast_weight_layer1");
+                    auto matmul_layer1 = pgraph->append_op(
+                            impl::op_kind::MatMul,
+                            {in_edge(0, typecast_input_layer1, 0),
+                                    in_edge(1, typecast_weight_layer1, 0)},
+                            "matmul_layer1");
+                    auto add_layer1 = pgraph->append_op(impl::op_kind::Add,
+                            {in_edge(0, matmul_layer1, 0)}, "add_layer1");
+                    auto layernorm_layer1 = pgraph->append_op(
+                            impl::op_kind::LayerNorm,
+                            {in_edge(0, add_layer1, 0)}, "layernorm_layer1");
+                    auto typecast_output_layer1
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    {in_edge(0, layernorm_layer1, 0)},
+                                    "typecast_output_layer1");
+                    auto quantize_output_layer1
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    {in_edge(0, typecast_output_layer1, 0)},
+                                    "quantize_output_layer1");
+
+                    auto dequantize_input_layer2
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    {in_edge(0, quantize_output_layer1, 0)},
+                                    "dequantize_input_layer2");
+                    auto typecast_input_layer2
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    {in_edge(0, dequantize_input_layer2, 0)},
+                                    "typecast_input_layer2");
+                    auto dequantize_weight_layer2
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    "dequantize_weight_layer2");
+                    auto typecast_weight_layer2
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    {in_edge(0, dequantize_weight_layer2, 0)},
+                                    "typecast_weight_layer2");
+                    auto matmul_layer2 = pgraph->append_op(
+                            impl::op_kind::MatMul,
+                            {in_edge(0, typecast_input_layer2, 0),
+                                    in_edge(1, typecast_weight_layer2, 0)},
+                            "matmul_layer2");
+                    auto gelu_layer2 = pgraph->append_op(impl::op_kind::GELU,
+                            {in_edge(0, matmul_layer2, 0)}, "gelu_layer2");
+                    auto typecast_output_layer2
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    {in_edge(0, gelu_layer2, 0)},
+                                    "typecast_output_layer2");
+                    auto quantize_output_layer2
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    {in_edge(0, typecast_output_layer2, 0)},
+                                    "quantize_output_layer2");
+
+                    auto dequantize_input_layer3
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    {in_edge(0, quantize_output_layer2, 0)},
+                                    "dequantize_input_layer3");
+                    auto typecast_input_layer3
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    {in_edge(0, dequantize_input_layer3, 0)},
+                                    "typecast_input_layer3");
+                    auto dequantize_weight_layer3
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    "dequantize_weight_layer3");
+                    auto typecast_weight_layer3
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    {in_edge(0, dequantize_weight_layer3, 0)},
+                                    "typecast_weight_layer3");
+                    auto matmul_layer3 = pgraph->append_op(
+                            impl::op_kind::MatMul,
+                            {in_edge(0, typecast_input_layer3, 0),
+                                    in_edge(1, typecast_weight_layer3, 0)},
+                            "matmul_layer3");
+                    auto add_layer3 = pgraph->append_op(impl::op_kind::Add,
+                            {in_edge(0, layernorm_layer1, 0),
+                                    in_edge(1, matmul_layer3, 0)},
+                            "add_layer3");
+                    auto layernorm_layer3 = pgraph->append_op(
+                            impl::op_kind::LayerNorm,
+                            {in_edge(0, add_layer3, 0)}, "layernorm_layer3");
+                    layernorm_layer3->allow_external_outputs();
+                    auto last_layer
+                            = std::make_shared<pb_graph_t>("last_layer");
+                    auto typecast_output_layer3 = last_layer->append_op(
+                            impl::op_kind::TypeCast, "typecast_output_layer3");
+                    auto quantize_output_layer3
+                            = last_layer->append_op(impl::op_kind::Quantize,
+                                    {in_edge(0, typecast_output_layer3, 0)},
+                                    "quantize_output_layer3");
+                    last_layer->create_input_port(0, typecast_output_layer3, 0);
+                    last_layer->create_output_port(
+                            0, quantize_output_layer3, 0);
+                    pgraph->append_optional(last_layer,
+                            {in_edge(0, layernorm_layer3, 0)},
+                            "optional_last_layer");
                 });
 
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
@@ -756,6 +1082,58 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             {in_edge(0, repetition, 0)}, "optional_last_layer");
                 });
 
+/*
+mlp residual graph, having an extra edge from LayerNorm to Add.
+
+[IN0](bf16)   [IN1](bf16)
+       \      /
+        MatMul
+          |
+         Add
+          |
+       LayerNorm_______________      [IN2](bf16)
+          |                     \     /
+          |                      MatMul
+          |                        |
+          |                      GELU   [IN3](bf16)
+          |                        \     /
+          |                        MatMul
+          | _________________________|
+         Add
+          |
+      LayerNorm
+          |
+        [OUT0](bf16)
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        compiler, bf16_bart_mlp_residual_pattern)
+        .set_priority(5.5f)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto matmul_layer1 = pgraph->append_op(
+                            impl::op_kind::MatMul, "matmul_layer1");
+                    matmul_layer1->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    auto add_layer1 = pgraph->append_op(impl::op_kind::Add,
+                            {in_edge(0, matmul_layer1, 0)}, "add_layer1");
+                    auto layernorm_layer1 = pgraph->append_op(
+                            impl::op_kind::LayerNorm,
+                            {in_edge(0, add_layer1, 0)}, "layernorm_layer1");
+                    auto matmul_layer2 = pgraph->append_op(
+                            impl::op_kind::MatMul,
+                            {in_edge(0, layernorm_layer1, 0)}, "matmul_layer2");
+                    auto gelu_layer2 = pgraph->append_op(impl::op_kind::GELU,
+                            {in_edge(0, matmul_layer2, 0)}, "gelu_layer2");
+                    auto matmul_layer3 = pgraph->append_op(
+                            impl::op_kind::MatMul, {in_edge(0, gelu_layer2, 0)},
+                            "matmul_layer3");
+                    auto add_layer3 = pgraph->append_op(impl::op_kind::Add,
+                            {in_edge(0, layernorm_layer1, 0),
+                                    in_edge(1, matmul_layer3, 0)},
+                            "add_layer3");
+                    pgraph->append_op(impl::op_kind::LayerNorm,
+                            {in_edge(0, add_layer3, 0)}, "layernorm_layer3");
+                });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
 } // namespace pass
