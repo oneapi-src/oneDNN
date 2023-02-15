@@ -43,7 +43,9 @@ struct jit_brgemm_kernel_t : public jit_generator {
     jit_brgemm_kernel_t(const brgemm_t &abrg)
         : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, abrg.isa_impl)
         , brg(abrg)
-        , postops_injector_(nullptr) {
+        , postops_injector_(nullptr)
+        , max_effective_vregs(
+                  max_vregs - ((brg.is_int8 && !brg.has_vnni) ? 2 : 0)) {
 
         // The implementation uses is_superset(), is_subset() utilities.
         // So avoid isa_all, isa_undef in these comparisions.
@@ -236,11 +238,10 @@ private:
     bool with_binary_per_w_bcast_ = false;
     bool with_binary_no_bcast_ = false;
     constexpr static int max_vregs = cpu_isa_traits<po_isa_t>::n_vregs;
+    const int max_effective_vregs;
 
     Xbyak::Opmask ld_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask ld_tail_mask = Xbyak::Opmask(3);
-
-    int max_effective_vregs = max_vregs;
 
     Vmm accm(int ld_block, int bd, int ld) {
         return Vmm(max_effective_vregs - 1 - (bd * ld_block + ld));
@@ -2410,7 +2411,6 @@ void jit_brgemm_kernel_t<isa, Wmm>::generate() {
     }
 
     if (brg.is_int8 && !brg.has_vnni) {
-        max_effective_vregs = max_vregs - 2;
         mov(reg_tmp_gpr.cvt16(), 0x1);
         vpbroadcastw(int8_ones_words(), reg_tmp_gpr.cvt16());
     }
