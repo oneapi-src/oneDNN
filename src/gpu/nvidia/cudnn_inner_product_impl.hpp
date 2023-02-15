@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -122,7 +122,6 @@ struct cudnn_inner_product_impl_base_t {
     size_t workspace_size_ = 0;
     float alpha_ = 1, beta_ = 0;
     bool with_bias_;
-    bool scale_bias_ = false;
     bool with_relu_ = false, with_eltwise_ = false, with_sum_ = false;
     bool filter_using_spatial_format_ = false;
 
@@ -131,7 +130,6 @@ struct cudnn_inner_product_impl_base_t {
     }
 
     virtual bool ip_using_scratchpad() const { return (workspace_size_ > 0); }
-    bool conv_using_scale_scratchpad() const { return scale_bias_; }
 
     void set_bias_dims(cudnnTensorFormat_t format, int ndims, int bias_dim) {
         // Set the dimensions and strides for the bias.
@@ -158,8 +156,6 @@ struct cudnn_inner_product_impl_base_t {
 };
 
 struct cudnn_inner_product_fwd_base_t : public cudnn_inner_product_impl_base_t {
-    float output_scales_; // alpha in gemm
-    bool do_scaling_ {false}, runtime_scaling_ {false};
     float sum_scale_; // beta in gemm
     float eltwise_alpha(const inner_product_pd_t *pd) const {
         const int eltwise_idx

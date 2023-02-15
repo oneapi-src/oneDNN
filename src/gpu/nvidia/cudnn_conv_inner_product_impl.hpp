@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -122,11 +122,7 @@ struct cudnn_conv_inner_product_fwd_impl_t
         with_relu_ = with_relu;
         with_eltwise_ = with_eltwise;
         use_fused_path_for_blocking_ = use_fuse_path_for_blocking;
-        do_scaling_ = !pd->attr()->output_scales_.has_default_values();
-        runtime_scaling_ = !pd->attr()->output_scales_.defined();
-        output_scales_ = 1.0f;
         with_sum_ = with_sum;
-        scale_bias_ = (do_scaling_) && with_bias_;
         // scaling factor to add the previous destination value to the current
         // computation
         sum_scale_ = sum_scale(pd);
@@ -196,13 +192,6 @@ struct cudnn_conv_inner_product_fwd_impl_t
         } else {
             CHECK(get_format(pd->weights_md(0), weights_format,
                     pd->weights_md(0)->ndims == 2));
-        }
-
-        if (scale_bias_) {
-
-            pd->scratchpad_registry().registrar().book(
-                    memory_tracking::names::key_conv_adjusted_scales,
-                    memory_desc_wrapper(pd->weights_md(1)).size(), size_t(1));
         }
 
         // Copy over the strides.
@@ -332,8 +321,9 @@ struct cudnn_conv_inner_product_fwd_impl_t
     void execute(cudnnHandle_t handle, cublasHandle_t,
             const std::vector<void *> &args) const override {
         auto x = args[0], w = args[1], b = args[2], y = args[3],
-             workspace = args[4], rt_oscale = args[7];
-        assert(args.size() == 8);
+             workspace = args[4], src_scale = args[7], wei_scale = args[8],
+             dst_scale = args[9];
+        assert(args.size() == 10);
         auto w_arg = w;
         if (filter_using_spatial_format_) {
             void *transformed_w = args[5];
@@ -341,24 +331,30 @@ struct cudnn_conv_inner_product_fwd_impl_t
             w_arg = transformed_w;
         }
 
-        const void *s = runtime_scaling_ ? rt_oscale : &output_scales_;
-        if (with_bias_) {
-            auto scaled_bias = b;
-            if (scale_bias_) {
-                void *output_scale_workspace = args[6];
-                CUDNN_EXECUTE_FUNC(cudnnAddTensor, handle, s,
-                        tensor_descs_[io::bia], b, &beta_,
-                        tensor_descs_[io::bia], output_scale_workspace);
-                scaled_bias = output_scale_workspace;
+        float s = 1.0f;
+        if (src_scale || wei_scale) {
+            if (src_scale) {
+                float host_src_scale = 1.0f;
+                CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_src_scale,
+                        (CUdeviceptr)src_scale, sizeof(float));
+                s *= host_src_scale;
             }
+            if (wei_scale) {
+                float host_wei_scale = 1.0f;
+                CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_wei_scale,
+                        (CUdeviceptr)wei_scale, sizeof(float));
+                s *= host_wei_scale;
+            }
+        }
 
-            CUDNN_EXECUTE_FUNC(cudnnConvolutionBiasActivationForward, handle, s,
-                    tensor_descs_[io::src], x, filter_desc_, w_arg, conv_desc_,
-                    algo_, workspace, workspace_size_, &sum_scale_,
-                    tensor_descs_[io::dst], y, tensor_descs_[io::bia],
-                    scaled_bias, act_desc_fuse_relu, tensor_descs_[io::dst], y);
+        if (with_bias_) {
+            CUDNN_EXECUTE_FUNC(cudnnConvolutionBiasActivationForward, handle,
+                    &s, tensor_descs_[io::src], x, filter_desc_, w_arg,
+                    conv_desc_, algo_, workspace, workspace_size_, &sum_scale_,
+                    tensor_descs_[io::dst], y, tensor_descs_[io::bia], b,
+                    act_desc_fuse_relu, tensor_descs_[io::dst], y);
         } else {
-            CUDNN_EXECUTE_FUNC(cudnnConvolutionForward, handle, s,
+            CUDNN_EXECUTE_FUNC(cudnnConvolutionForward, handle, &s,
                     tensor_descs_[io::src], x, filter_desc_, w_arg, conv_desc_,
                     algo_, workspace, workspace_size_, &sum_scale_,
                     tensor_descs_[io::dst], y);
@@ -367,6 +363,14 @@ struct cudnn_conv_inner_product_fwd_impl_t
             CUDNN_EXECUTE_FUNC(cudnnActivationForward, handle,
                     act_desc_no_relu_, &alpha_, tensor_descs_[io::dst], y,
                     &beta_, tensor_descs_[io::dst], y);
+        }
+        if (dst_scale) {
+            float host_dst_scale = 1.0f;
+            CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_dst_scale,
+                    (CUdeviceptr)dst_scale, sizeof(float));
+            float inv_scale = 1.0f / host_dst_scale;
+            CUDNN_EXECUTE_FUNC(cudnnScaleTensor, handle, tensor_descs_[io::dst],
+                    y, &inv_scale);
         }
     }
 

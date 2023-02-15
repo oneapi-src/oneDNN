@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -64,7 +64,7 @@ struct cudnn_conv_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
             using namespace data_type;
             using namespace prop_kind;
             using sm_t = primitive_attr_t::skip_mask_t;
-            const auto attr_skip_mask = sm_t::oscale_runtime | sm_t::post_ops;
+            const auto attr_skip_mask = sm_t::scales_runtime | sm_t::post_ops;
             // Flag for checking if the fused routine can be used for the
             // blocked format case. If set to true, that implies ReLU and
             // blocking are used.
@@ -80,9 +80,9 @@ struct cudnn_conv_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
                     && IMPLICATION(with_bias(), memory_format_ok(weights_md(1)))
                     && attr()->has_default_values(attr_skip_mask)
                     && attr_post_ops_ok(attr())
-                    && IMPLICATION(!attr()->output_scales_.has_default_values(),
+                    && IMPLICATION(!attr()->scales_.has_default_values(),
                             utils::one_of(src_md_.data_type, s8)
-                                    && attr()->output_scales_.mask_ == 0);
+                                    && attr_scales_ok());
             if (!ok) return status::unimplemented;
             if (has_zero_dim_memory()) return status::success;
 

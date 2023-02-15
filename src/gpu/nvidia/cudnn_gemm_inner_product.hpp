@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -181,7 +181,7 @@ struct cudnn_gemm_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
                     reorder_check(src_md(), weights_md(), dst_md()));
 
             using sm_t = primitive_attr_t::skip_mask_t;
-            const auto attr_skip_mask = sm_t::oscale_runtime | sm_t::post_ops;
+            const auto attr_skip_mask = sm_t::scales_runtime | sm_t::post_ops;
 
             bool with_eltwise
                     = attr()->post_ops_.find(primitive_kind::eltwise) != -1;
@@ -196,9 +196,9 @@ struct cudnn_gemm_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
                     && memory_format_ok(src_md())
                     && memory_format_ok(weights_md(0))
                     && memory_format_ok(dst_md())
-                    && IMPLICATION(!attr()->output_scales_.has_default_values(),
+                    && IMPLICATION(!attr()->scales_.has_default_values(),
                             utils::one_of(src_md_.data_type, s8)
-                                    && attr()->output_scales_.mask_ == 0)
+                                    && attr_scales_ok())
                     && attr()->has_default_values(attr_skip_mask)
                     && attr_post_ops_ok(attr())
                     && dense_check(src_md(), weights_md(), dst_md())

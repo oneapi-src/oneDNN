@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020-2022 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,13 +39,16 @@ status_t cudnn_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
         auto arg_wei = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
         auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
         auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
-        auto arg_oscale = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_OUTPUT_SCALES);
+        auto arg_src_scale
+                = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+        auto arg_wei_scale
+                = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+        auto arg_dst_scale
+                = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
         auto arg_ip_scratch = CTX_SCRATCH_SYCL_MEMORY(
                 memory_tracking::names::key_iprod_int_dat_in_acc_dt);
         auto arg_spacial_scratch
                 = CTX_SCRATCH_SYCL_MEMORY(memory_tracking::names::key_none);
-        auto arg_scaled_bias_scratch = CTX_SCRATCH_SYCL_MEMORY(
-                memory_tracking::names::key_conv_adjusted_scales);
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
@@ -66,8 +69,9 @@ status_t cudnn_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
             args.push_back(arg_dst.get_native_pointer(ih));
             args.push_back(arg_ip_scratch.get_native_pointer(ih));
             args.push_back(arg_spacial_scratch.get_native_pointer(ih));
-            args.push_back(arg_scaled_bias_scratch.get_native_pointer(ih));
-            args.push_back(arg_oscale.get_native_pointer(ih));
+            args.push_back(arg_src_scale.get_native_pointer(ih));
+            args.push_back(arg_wei_scale.get_native_pointer(ih));
+            args.push_back(arg_dst_scale.get_native_pointer(ih));
 
             pd()->inner_product_impl_->execute(
                     cudnn_handle, cublas_handle, args);

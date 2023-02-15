@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -123,10 +123,6 @@ struct cudnn_gemm_inner_product_fwd_impl_t
                 || (with_bias_
                         && pd->weights_md(1)->data_type
                                 != pd->dst_md()->data_type));
-        // this must be applied on bias if exists.
-        do_scaling_ = !pd->attr()->output_scales_.has_default_values();
-        runtime_scaling_ = !pd->attr()->output_scales_.defined();
-        output_scales_ = 1.0f; // alpha
         with_sum_ = with_sum;
         // scaling factor to add the previous destination value to the current
         // computation. This is equivalent of
@@ -182,9 +178,10 @@ struct cudnn_gemm_inner_product_fwd_impl_t
 
     void execute(cudnnHandle_t cudnn_handle, cublasHandle_t cublas_handle,
             const std::vector<void *> &args) const override {
-        assert(args.size() == 8);
+        assert(args.size() == 9);
         auto x = args[0], w = args[1], b = args[2], y = args[3],
-             workspace = args[4], rt_oscale = args[7];
+             workspace = args[4], src_scale = args[6], wei_scale = args[7],
+             dst_scale = args[8];
         auto w_arg = w;
         if (need_reorder_) {
             void *transformed_w = args[5];
@@ -194,37 +191,55 @@ struct cudnn_gemm_inner_product_fwd_impl_t
         auto y_dst = use_acc_dst_ ? workspace : y;
         auto sum_scale = use_acc_dst_ ? 0.0f : sum_scale_;
 
-        if (runtime_scaling_) {
-            cudaStream_t cuda_stream;
-            CUBLAS_EXECUTE_FUNC(cublasGetStream, cublas_handle, &cuda_stream);
-
-            uint8_t *out_scale_ptr = static_cast<uint8_t *>(rt_oscale);
-            const uint8_t *out_scale_dst_ptr
-                    = reinterpret_cast<const uint8_t *>(&output_scales_);
-
-            // output_scale only supports single value floats
-            size_t out_scale_size = sizeof(float);
-            CUDA_EXECUTE_FUNC(cuMemcpyAsync, (CUdeviceptr)out_scale_dst_ptr,
-                    (CUdeviceptr)out_scale_ptr, out_scale_size, cuda_stream);
+        float scale = 1.0f;
+        if (src_scale || wei_scale) {
+            if (src_scale) {
+                float host_src_scale = 1.0f;
+                CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_src_scale,
+                        (CUdeviceptr)src_scale, sizeof(float));
+                scale *= host_src_scale;
+            }
+            if (wei_scale) {
+                float host_wei_scale = 1.0f;
+                CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_wei_scale,
+                        (CUdeviceptr)wei_scale, sizeof(float));
+                scale *= host_wei_scale;
+            }
         }
 
         // do gemm
         CUBLAS_EXECUTE_FUNC(cublasGemmEx, cublas_handle, trans_a_, trans_b_, m_,
-                n_, k_, &output_scales_, w_arg, a_type_, lda_, x, b_type_, ldb_,
+                n_, k_, &scale, w_arg, a_type_, lda_, x, b_type_, ldb_,
                 &sum_scale, y_dst, c_type_, ldc_, compute_type_, algo_);
 
         if (with_bias_) {
-            CUDNN_EXECUTE_FUNC(cudnnAddTensor, cudnn_handle, &output_scales_,
-                    tensor_descs_[io::bia], b, &alpha_, y_acc_desc_, y_dst);
+            float alpha = 1.0f;
+            CUDNN_EXECUTE_FUNC(cudnnAddTensor, cudnn_handle, &alpha,
+                    tensor_descs_[io::bia], b, &alpha, y_acc_desc_, y_dst);
         }
-        if (use_acc_dst_) {
-            CUDNN_EXECUTE_FUNC(cudnnTransformTensor, cudnn_handle, &alpha_,
-                    y_acc_desc_, y_dst, &sum_scale_, tensor_descs_[io::dst], y);
+        if (with_sum_ && use_acc_dst_) {
+            float alpha = 1.0f;
+            CUDNN_EXECUTE_FUNC(cudnnAddTensor, cudnn_handle, &sum_scale_,
+                    tensor_descs_[io::dst], y, &alpha, y_acc_desc_, y_dst);
         }
         if (with_eltwise_) {
             CUDNN_EXECUTE_FUNC(cudnnActivationForward, cudnn_handle, act_desc_,
-                    &alpha_, tensor_descs_[io::dst], y, &beta_,
-                    tensor_descs_[io::dst], y);
+                    &alpha_, y_acc_desc_, y_dst, &beta_, y_acc_desc_, y_dst);
+        }
+
+        if (dst_scale) {
+            float host_dst_scale = 1.0f;
+            CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_dst_scale,
+                    (CUdeviceptr)dst_scale, sizeof(float));
+            float inv_scale = 1.0f / host_dst_scale;
+            CUDNN_EXECUTE_FUNC(cudnnScaleTensor, cudnn_handle, y_acc_desc_,
+                    y_dst, &inv_scale);
+        }
+        if (use_acc_dst_) {
+            float alpha = 1.0f;
+            float zero = 0.0f;
+            CUDNN_EXECUTE_FUNC(cudnnTransformTensor, cudnn_handle, &alpha,
+                    y_acc_desc_, y_dst, &zero, tensor_descs_[io::dst], y);
         }
     }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,6 +38,17 @@ public:
 
     struct pd_t : public inner_product_fwd_pd_t {
         using inner_product_fwd_pd_t::inner_product_fwd_pd_t;
+
+        bool attr_scales_ok() const {
+            const auto &scales = attr()->scales_;
+            const auto &supported_args
+                    = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
+            if (!scales.has_default_values(supported_args)) return false;
+            // cuDNN does not support scaling per dimension.
+            for (auto arg : supported_args)
+                if (scales.get(arg).mask_ != 0) return false;
+            return true;
+        }
 
         std::shared_ptr<cudnn_inner_product_impl_base_t> inner_product_impl_;
     };
