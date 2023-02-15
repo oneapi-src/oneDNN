@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -182,7 +182,7 @@ struct jit_avx512_core_add_cvt_ps_to_bf16_t : public jit_generator {
         bf16_emu_ = new bf16_emulation_t(
                 this, one, even, selector, scratch, fp32_tmp, fp32_tmp);
 
-        create_kernel();
+        UNUSED_STATUS(create_kernel());
     }
 
     ~jit_avx512_core_add_cvt_ps_to_bf16_t() { delete bf16_emu_; }
