@@ -72,8 +72,7 @@ public:
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
 
         if (enable_constant_cache_) {
-            constant_cache_t constant_cache;
-            constant_cache.remove_if_exist(constant_key_);
+            get_global_constant_cache().remove_if_exist(constant_key_);
         }
     }
 
@@ -120,9 +119,8 @@ public:
 
         if (enable_constant_cache_) {
             std::promise<constant_cache_t::cached_t> c_promise;
-            constant_cache_t global_constant_cache;
             constant_cache_t::value_t cached_value
-                    = global_constant_cache.get_or_add(
+                    = get_global_constant_cache().get_or_add(
                             constant_key_, c_promise.get_future());
             bool is_from_cache = cached_value.valid();
             if (is_from_cache) {
@@ -194,9 +192,8 @@ public:
 
         if (enable_constant_cache_) {
             std::promise<constant_cache_t::cached_t> c_promise;
-            constant_cache_t global_constant_cache;
             constant_cache_t::value_t cached_value
-                    = global_constant_cache.get_or_add(
+                    = get_global_constant_cache().get_or_add(
                             constant_key_, c_promise.get_future());
             bool is_from_cache = cached_value.valid();
             if (is_from_cache) {

@@ -29,10 +29,6 @@ namespace dnnl_impl {
 using key_t = constant_cache_t::key_t;
 using value_t = constant_cache_t::value_t;
 
-std::unordered_map<key_t, constant_cache_t::timed_entry_t>
-        constant_cache_t::constant_map_;
-impl::utils::rw_mutex_t constant_cache_t::rw_mutex_;
-
 static size_t get_timestamp() {
     return std::chrono::steady_clock::now().time_since_epoch().count();
 }
@@ -49,7 +45,7 @@ status_t constant_cache_t::set_capacity(size_t capacity) {
     return status::success;
 }
 
-size_t constant_cache_t::get_capacity() const {
+size_t constant_cache_t::get_capacity() {
     impl::utils::lock_read_t lock_r(rw_mutex_);
     return capacity_;
 }
@@ -96,10 +92,10 @@ value_t constant_cache_t::get_or_add(const key_t &key, const value_t &value) {
 
 void constant_cache_t::remove_if_exist(const key_t &key) {
     lock_write();
-    if (constant_map_.count(key) == 0) {
+    if (constant_map().count(key) == 0) {
         unlock_write();
     } else {
-        constant_map_.erase(key);
+        constant_map().erase(key);
         unlock_write();
     }
 }
@@ -107,7 +103,7 @@ void constant_cache_t::remove_if_exist(const key_t &key) {
 // Get the total size of all cached buffers
 size_t constant_cache_t::get_size() const {
     size_t total_size = 0;
-    for (const auto &pair : constant_map_) {
+    for (const auto &pair : constant_map()) {
         total_size += pair.second.value_.get()->size();
     }
     return total_size;
@@ -124,7 +120,7 @@ void constant_cache_t::add(const key_t &key, const value_t &constant) {
 
     size_t timestamp = get_timestamp();
 
-    auto res = constant_map_.emplace(std::piecewise_construct,
+    auto res = constant_map().emplace(std::piecewise_construct,
             std::forward_as_tuple(key),
             std::forward_as_tuple(constant, timestamp));
     UNUSED(res);
@@ -132,8 +128,8 @@ void constant_cache_t::add(const key_t &key, const value_t &constant) {
 }
 
 value_t constant_cache_t::get(const key_t &key) {
-    auto it = constant_map_.find(key);
-    if (it == constant_map_.end()) return value_t();
+    auto it = constant_map().find(key);
+    if (it == constant_map().end()) return value_t();
 
     size_t timestamp = get_timestamp();
     it->second.timestamp_.store(timestamp);
@@ -142,18 +138,18 @@ value_t constant_cache_t::get(const key_t &key) {
 }
 
 // Evict n size of cached buffers
-void constant_cache_t::evict(size_t n) const {
+void constant_cache_t::evict(size_t n) {
+    using v_t = std::unordered_map<key_t, timed_entry_t>::value_type;
     if (n == get_size()) {
-        constant_map_.clear();
+        constant_map().clear();
         return;
     }
 
     size_t evicted_size = 0;
     while (evicted_size < n) {
         // Find the smallest timestamp
-        auto it = std::min_element(constant_map_.begin(), constant_map_.end(),
-                [&](const decltype(constant_map_)::value_type &left,
-                        const decltype(constant_map_)::value_type &right) {
+        auto it = std::min_element(constant_map().begin(), constant_map().end(),
+                [&](const v_t &left, const v_t &right) {
                     // By default, load() and operator T use sequentially
                     // consistent memory ordering, which enforces writing the
                     // timestamps into registers in the same exact order they
@@ -167,10 +163,16 @@ void constant_cache_t::evict(size_t n) const {
                                     std::memory_order::memory_order_relaxed);
                 });
         evicted_size += it->second.value_.get()->size();
-        auto res = constant_map_.erase(it->first);
+        auto res = constant_map().erase(it->first);
         UNUSED(res);
         assert(res);
     }
+}
+
+static constant_cache_t global_cache;
+
+constant_cache_t &get_global_constant_cache() {
+    return global_cache;
 }
 
 } // namespace dnnl_impl

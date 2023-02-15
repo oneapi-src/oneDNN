@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,10 +26,15 @@
 #include <unordered_map>
 
 #include "common/rw_mutex.hpp"
+#include "common/utils.hpp"
 
 #include "graph/backend/dnnl/common.hpp"
 
 #include "oneapi/dnnl/dnnl.hpp"
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -73,15 +78,84 @@ struct constant_cache_t {
     using cached_t = std::shared_ptr<constant_buffer_t>;
     using value_t = std::shared_future<cached_t>;
 
-    constant_cache_t() = default;
+    constant_cache_t() {
+        constant_map_ = impl::utils::make_unique<
+                std::unordered_map<key_t, timed_entry_t>>();
+    }
+
+    ~constant_cache_t() {
+        if (constant_map().empty()) return;
+
+#if defined(_WIN32) && defined(DNNL_WITH_SYCL)
+        // The library unloading issue affects only DPCPP runtimes on Windows when
+        // DNNL_GRAPH_ENABLE_COMPILED_PARTITION_CACHE is ON. The ntdll.dll library
+        // is located in system32 therefore setting additional environment is not
+        // required.
+        HMODULE handle = LoadLibraryExA(
+                "ntdll.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+        if (!handle) {
+            constant_map_.release();
+            return;
+        }
+
+        // RtlDllShutdownInProgress returns TRUE if the whole process terminates and
+        // FALSE if DLL is being unloaded dynamically or if it’s called from an
+        // executable.
+        auto f = reinterpret_cast<BOOLEAN (*)(void)>(
+                GetProcAddress(handle, "RtlDllShutdownInProgress"));
+        if (!f) {
+            auto ret = FreeLibrary(handle);
+            assert(ret);
+            MAYBE_UNUSED(ret);
+            constant_map_.release();
+            return;
+        }
+
+        bool is_process_termination_in_progress = f();
+
+        auto ret = FreeLibrary(handle);
+        assert(ret);
+        MAYBE_UNUSED(ret);
+
+        if (is_process_termination_in_progress) {
+            // The whole process is being terminated hence destroying content of the
+            // primitive cache cannot be done safely. Theoretically, we can check
+            // all entries and remove those that are not affected e.g. native CPU.
+            // We can do this after switching to use dnnl engine.
+            for (auto it = constant_map().begin();
+                    it != constant_map().end();) {
+#ifdef DNNL_WITH_SYCL
+                ++it;
+#else
+                it = constant_map().erase(it);
+#endif
+            }
+            constant_map_.release();
+        } else {
+            // Three scenarios possible:
+            // 1. oneDNN Graph is being dynamically unloaded
+            // 2. Another dynamic library that contains statically linked oneDNN
+            //    Graph is dynamically unloaded
+            // 3. oneDNN Graph is statically linked in an executable which is done
+            //    and now the process terminates In all these scenarios content of
+            //    the primitive cache can be safely destroyed.
+            constant_map_.reset();
+        }
+#else
+        // Always destroy the content of the primitive cache for non-Windows OSes,
+        // and non-sycl and non-ocl runtimes because there is no a problem with
+        // library unloading order in such cases.
+        constant_map_.reset();
+#endif
+    }
 
     status_t set_capacity(size_t capacity);
-    size_t get_capacity() const;
+    size_t get_capacity();
     value_t get_or_add(const key_t &key, const value_t &value);
     void remove_if_exist(const key_t &key);
 
 private:
-    void evict(size_t n) const;
+    void evict(size_t n);
     value_t get(const key_t &key);
     void add(const key_t &key, const value_t &constant);
     size_t get_size() const;
@@ -91,7 +165,6 @@ private:
     void unlock_read() { rw_mutex_.unlock_read(); }
     void unlock_write() { rw_mutex_.unlock_write(); }
 
-    constant_cache_t(const constant_cache_t &other) = delete;
     constant_cache_t &operator=(const constant_cache_t &other) = delete;
 
     struct timed_entry_t {
@@ -101,14 +174,24 @@ private:
             : value_(value), timestamp_(timestamp) {}
     };
 
+    std::unordered_map<key_t, timed_entry_t> &constant_map() {
+        return *constant_map_;
+    }
+
+    const std::unordered_map<key_t, timed_entry_t> &constant_map() const {
+        return *constant_map_;
+    }
+
     // Each entry in the cache has a corresponding key and timestamp.
     // NOTE: pairs that contain atomics cannot be stored in an unordered_map *as
     // an element*, since it invokes the copy constructor of std::atomic, which
     // is deleted.
-    static std::unordered_map<key_t, timed_entry_t> constant_map_;
-    static impl::utils::rw_mutex_t rw_mutex_;
+    std::unique_ptr<std::unordered_map<key_t, timed_entry_t>> constant_map_;
+    impl::utils::rw_mutex_t rw_mutex_;
     size_t capacity_ = std::numeric_limits<size_t>::max();
 };
+
+constant_cache_t &get_global_constant_cache();
 
 } // namespace dnnl_impl
 } // namespace graph
