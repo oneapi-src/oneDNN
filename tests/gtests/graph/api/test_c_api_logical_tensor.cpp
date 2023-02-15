@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,6 +58,16 @@ TEST(CAPI, LogicalTensorInit) {
             dnnl_success);
     ASSERT_EQ(lt.id, id);
     ASSERT_EQ(lt.data_type, dnnl_f32);
+    ASSERT_EQ(lt.ndims, 4);
+    ASSERT_EQ(lt.layout_type, dnnl_graph_layout_type_any);
+    ASSERT_EQ(lt.property, dnnl_graph_tensor_property_undef);
+
+    ASSERT_EQ(dnnl_graph_logical_tensor_init(&lt, id, dnnl_boolean, 4,
+                      dnnl_graph_layout_type_any,
+                      dnnl_graph_tensor_property_undef),
+            dnnl_success);
+    ASSERT_EQ(lt.id, id);
+    ASSERT_EQ(lt.data_type, dnnl_boolean);
     ASSERT_EQ(lt.ndims, 4);
     ASSERT_EQ(lt.layout_type, dnnl_graph_layout_type_any);
     ASSERT_EQ(lt.property, dnnl_graph_tensor_property_undef);

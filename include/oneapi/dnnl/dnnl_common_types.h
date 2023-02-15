@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -87,6 +87,8 @@ typedef enum {
     dnnl_u8 = 6,
     /// 64-bit/double-precision floating point.
     dnnl_f64 = 7,
+    /// Boolean data type. Size is C++ implementation defined.
+    dnnl_boolean = 8,
 
     /// Parameter to allow internal only data_types without undefined behavior.
     /// This parameter is chosen to be valid for so long as sizeof(int) >= 2.

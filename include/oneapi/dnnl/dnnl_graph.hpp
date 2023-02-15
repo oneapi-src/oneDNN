@@ -255,6 +255,8 @@ public:
         s8 = dnnl_s8,
         /// 8-bit unsigned integer.
         u8 = dnnl_u8,
+        /// Boolean data type. Size is C++ implementation defined.
+        boolean = dnnl_boolean,
     };
 
     /// Layout type
