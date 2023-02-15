@@ -1112,6 +1112,7 @@ layout_t get_fma_friendly_layout(const fma_config_t &fma_cfg, abc_kind_t abc,
     bool is_mad = (fma == fma_kind_t::mad);
     bool is_dpas = utils::one_of(fma, fma_kind_t::dpas, fma_kind_t::dpasw);
     bool is_a = (abc == abc_kind_t::a);
+    bool is_b = !is_a;
     auto type = (is_a ? fma_cfg.a_type : fma_cfg.b_type);
     int type_size = type.size();
 
@@ -1183,16 +1184,18 @@ layout_t get_fma_friendly_layout(const fma_config_t &fma_cfg, abc_kind_t abc,
         // mad with s8/u8 is not supported, promote to strided s16.
         if (type.is_x8()) return layout.retype(type_t::s16()).make_strided(2);
 
-        // bf16 mixed mode mad requires src2 to be f32.
-        if (abc == abc_kind_t::b && fma_cfg.a_type.is_bf16()) {
-            return layout.retype(type_t::f32()).make_dense();
-        }
+        // mad with f16 requires aligned regioning for src1/src2.
+        if (fma_cfg.a_type.is_f16()) return layout.make_dense();
 
-        // bf16 mixed mode mad requires src1 to be packed, when src1 is
-        // broadcasted it needs to be converted to f32.
-        if (abc == abc_kind_t::a && fma_cfg.a_type.is_bf16()
-                && fma_cfg.is_src1_broadcast) {
-            return layout.retype(type_t::f32()).make_dense();
+        if (fma_cfg.a_type.is_bf16()) {
+            // bf16 mixed mode requires src1 to be converted to f32 when it's
+            // broadcasted.
+            if (is_a && fma_cfg.is_src1_broadcast)
+                return layout.retype(type_t::f32()).make_dense();
+            // bf16 mixed mode mad requires src1 to be packed
+            if (is_a) return layout.make_dense();
+            // bf16 mixed mode mad requires src2 to be f32.
+            if (is_b) return layout.retype(type_t::f32()).make_dense();
         }
 
         return layout;
