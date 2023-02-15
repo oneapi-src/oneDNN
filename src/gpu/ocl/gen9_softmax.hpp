@@ -82,27 +82,46 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
                 int axis_padded = utils::rnd_up(axis_size(), subgroup_size);
                 group_size = subgroup_size
                         * utils::div_up(axis_size(), buffer_size);
+
                 // max lws size on Xe-HP* series is 1024 x 1024 x 1024
                 // max lws size on Xe-LP is 512 x 512 x 512
+
                 int max_lws = 256; // for Gen9, Gen11
                 if (arch >= compute::gpu_arch_t::xe_hp) {
                     max_lws = 1024;
                 } else if (arch == compute::gpu_arch_t::xe_lp) {
                     max_lws = 512;
                 }
-                if (group_size > max_lws) {
+
+                if (group_size > (size_t)max_lws) {
                     int old_group_size = group_size;
-                    int max_lws_ratio = old_group_size / max_lws;
-                    // need to balance between number of threads
-                    // and reads and writes per thread
-                    group_size
-                            = (max_lws_ratio >= 2 && max_lws_ratio <= 4)
-                            ? max_lws / max_lws_ratio
-                            : max_lws;
-                    thread_reads
-                            = thread_buffer * (old_group_size / group_size);
-                    buffer_size *= (old_group_size / group_size);
-                    thread_buffer = thread_reads;
+                    group_size = max_lws;
+
+                    int lws_ratio = old_group_size / group_size;
+                    int rem_threads = old_group_size % max_lws;
+                    int rem_reads = rem_threads * thread_buffer;
+
+                    // initial calculation of repeating subgroups with the
+                    // assumption that group size is divisible by 128
+                    // and thread buffer is 8
+                    subgroups_repeated = rem_threads / subgroup_size;
+                    thread_reads = thread_buffer * lws_ratio;
+                    buffer_size *= lws_ratio;
+
+                    repeated_subgrp_buffer = thread_buffer = thread_reads;
+
+                    // re-calculate repeated subgroups number with
+                    // new buffer size (256, 512 ...) if conditions met
+                    if (lws_ratio >= 2 && subgroups_repeated > 0) {
+                        subgroups_repeated = rem_reads / buffer_size;
+                        // The new buffer size may be too large for last subgroup
+                        // as it will be handling 128-byte buffer size
+                        if (rem_reads % buffer_size != 0) {
+                            int tail_reads = rem_reads / subgroup_size;
+                            repeated_subgrp_buffer = tail_reads % thread_buffer;
+                            subgroups_repeated++;
+                        }
+                    }
                 }
             } else if (is_blocked) {
                 group_size = subgroup_size
@@ -134,6 +153,8 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
         const int byte_alignment = 16;
         int thread_reads = 0;
         int thread_buffer = 8;
+        int subgroups_repeated = 0;
+        int repeated_subgrp_buffer = 8;
         // 8x16 load and store commands (Vector_Size x Sub_Group_Size)
         int buffer_size = 128;
     };
@@ -149,6 +170,9 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
         kernel_ctx.define_int("GROUP_SIZE", pd()->group_size);
         kernel_ctx.define_int("SUB_GROUP_SIZE", pd()->subgroup_size);
         kernel_ctx.define_int("THREAD_BUF_SIZE", pd()->thread_buffer);
+        kernel_ctx.define_int("SUBGROUPS_REPEATED", pd()->subgroups_repeated);
+        kernel_ctx.define_int(
+                "REPEAT_SUBGRP_BUF_SIZE", pd()->repeated_subgrp_buffer);
         kernel_ctx.define_int(
                 "CHANNELS_PADDED", pd()->src_md()->padded_dims[1]);
         kernel_ctx.define_int("CHANNELS",

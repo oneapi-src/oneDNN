@@ -30,8 +30,27 @@
 #define SV (SUB_GROUP_SIZE * VECT_SIZE)
 #define HAS_TAIL (SOFTMAX_AXIS_SIZE % SV != 0)
 #define NUM_BUF ((SOFTMAX_AXIS_SIZE + SV - 1) / SV)
+#define SMALL_BUFFER (REPEAT_SUBGRP_BUF_SIZE < THREAD_BUF_SIZE)
 
 #if IS_FWD
+
+int find_axis_offset(int index, int local_id, int subgroup) {
+    const int group_axis_block = GROUP_SIZE * THREAD_BUF_SIZE * CHANNELS;
+    int offset = CHANNELS * THREAD_BUF_SIZE * local_id;
+    if (index > 0) { offset += group_axis_block; }
+    if (index > 0 && subgroup == (SUBGROUPS_REPEATED - 1) && SMALL_BUFFER) {
+        offset = group_axis_block
+                + (CHANNELS * REPEAT_SUBGRP_BUF_SIZE * local_id);
+    }
+    return offset;
+}
+
+int get_buffer_size(int index, int subgroup) {
+    if (index > 0 && subgroup == (SUBGROUPS_REPEATED - 1) && SMALL_BUFFER)
+        return REPEAT_SUBGRP_BUF_SIZE;
+    else
+        return THREAD_BUF_SIZE;
+}
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
@@ -51,13 +70,89 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     const int channel_id = group % CHANNELS_PADDED;
 
     const int local_id = get_local_id(0);
-    const int buf_chunk = (local_id / SUB_GROUP_SIZE) * SOFTMAX_BUF;
+    const int subgroup_local_id = get_sub_group_local_id();
+    const int subgroup_id = get_sub_group_id();
 
-    const int subgroup_id = get_sub_group_local_id();
+    int buf_chunk = (local_id / SUB_GROUP_SIZE) * SOFTMAX_BUF;
 
-    // since channel is the inner dim,
-    // in order to read the next elem in axis we have to skip by this offset
-    const int channel_offset = CHANNELS * VECT_SIZE * subgroup_id;
+    float max_ = -FLT_MAX;
+    float denom_ = 0.f;
+
+#if SUBGROUPS_REPEATED // only for NHWC kernel
+    // total reads should be num_buf x THREAD_BUF_SIZE
+    float d[2][THREAD_BUF_SIZE];
+    int num_buf = (subgroup_id < SUBGROUPS_REPEATED) ? 2 : 1;
+
+    for (int i = 0; i < num_buf; i++) {
+
+        __global SRC_DATA_T *src_copy = src;
+        int axis_offset = find_axis_offset(i, subgroup_local_id, subgroup_id);
+        int data_off = mb * CHANNELS_PADDED * SOFTMAX_AXIS_SIZE + axis_offset
+                + channel_id;
+        int buf_reads = get_buffer_size(i, subgroup_id);
+
+        src_copy += data_off;
+        for (int k = 0, axis_channel_id = CHANNELS * buf_chunk; k < buf_reads;
+                ++k, axis_channel_id += CHANNELS) {
+            d[i][k] = DATA_TO_FLOAT(SRC, src_copy[axis_channel_id]);
+            max_ = max(d[i][k], max_);
+        }
+    }
+
+#if GROUP_SIZE == SUB_GROUP_SIZE
+    max_ = sub_group_reduce_max(max_);
+#else
+    max_ = work_group_reduce_max(max_);
+#endif
+
+    for (int i = 0; i < num_buf; i++) {
+        int buf_reads = get_buffer_size(i, subgroup_id);
+        for (int k = 0; k < buf_reads; ++k) {
+#if LOGSOFTMAX
+            denom_ += exp(d[i][k] - max_);
+#else
+            d[i][k] = exp(d[i][k] - max_);
+            denom_ += d[i][k];
+#endif
+        }
+    }
+
+#if GROUP_SIZE == SUB_GROUP_SIZE
+    denom_ = sub_group_reduce_add(denom_);
+#else
+    denom_ = work_group_reduce_add(denom_);
+#endif
+
+#if LOGSOFTMAX
+    denom_ = log(denom_);
+#else
+    denom_ = 1.0 / denom_;
+#endif
+
+    for (int i = 0; i < num_buf; i++) {
+
+        __global DST_DATA_T *dst_copy = dst;
+        int axis_offset = find_axis_offset(i, subgroup_local_id, subgroup_id);
+        int data_off = mb * CHANNELS_PADDED * SOFTMAX_AXIS_SIZE + axis_offset
+                + channel_id;
+        int buf_reads = get_buffer_size(i, subgroup_id);
+
+        dst_copy += data_off;
+        for (int k = 0, axis_channel_id = CHANNELS * buf_chunk; k < buf_reads;
+                ++k, axis_channel_id += CHANNELS) {
+#if LOGSOFTMAX
+            d[i][k] = d[i][k] - max_ - denom_;
+#else
+            d[i][k] = d[i][k] * denom_;
+#endif
+            dst_copy[axis_channel_id] = FLOAT_TO_DATA(DST, d[i][k] * scale);
+        }
+    }
+
+#else
+    // NHWC kernel for lws size < max_lws or multiples of max_lws
+    // Blocked layout kernel for 128-byte reads and writes
+    const int channel_offset = CHANNELS * THREAD_BUF_SIZE * subgroup_local_id;
 
 #if IS_BLOCKED
     const int channel_block = channel_id / CHANNELS;
@@ -71,8 +166,6 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 #endif
 
     float d[THREAD_BUF_SIZE];
-    float max_ = -FLT_MAX;
-    float denom_ = 0.f;
 
     src += data_off;
     for (int k = 0, axis_channel_id = CHANNELS * buf_chunk; k < THREAD_BUF_SIZE;
@@ -119,8 +212,9 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 #endif
         dst[axis_channel_id] = FLOAT_TO_DATA(DST, d[k] * scale);
     }
+#endif
 
-#else
+#else // NCHW kernel starts here
     const int data_off = (get_global_id(0) / GROUP_SIZE) * SOFTMAX_AXIS_SIZE;
 
     float8 d[NUM_BUF];
