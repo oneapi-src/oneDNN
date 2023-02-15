@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -135,17 +135,11 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             rd.cell_kind, alg_kind::vanilla_gru, alg_kind::lbr_gru);
 
     // Decide if to merge gemm across iterations or layers
-    auto src_layer_ld = src_layer_d.blocking_desc().strides[1];
     auto dst_layer_ld = dst_layer_d.blocking_desc().strides[1];
-    auto src_layer_is_trivial_stride
-            = src_layer_d.blocking_desc().strides[0] == (src_layer_ld * rnn.mb);
     auto dst_layer_is_trivial_stride
             = dst_layer_d.blocking_desc().strides[0] == (dst_layer_ld * rnn.mb);
 
-    rnn.merge_gemm_layer = ((rnn.is_fwd && src_layer_is_trivial_stride)
-                                   || ((rd.prop_kind == prop_kind::backward)
-                                           && dst_layer_is_trivial_stride))
-            && (((rnn.is_fwd && rnn.mb < 128) || !rnn.is_fwd) || rnn.is_int8);
+    rnn.merge_gemm_layer = true;
     rnn.merge_gemm_iter
             = dst_layer_is_trivial_stride && !(rnn.is_fwd || is_gru);
 
