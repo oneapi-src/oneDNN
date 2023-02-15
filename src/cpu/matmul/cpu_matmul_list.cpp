@@ -26,6 +26,7 @@
 
 #if DNNL_X64
 #include "cpu/x64/matmul/brgemm_matmul.hpp"
+#include "cpu/x64/matmul/jit_uni_sparse_matmul.hpp"
 using namespace dnnl::impl::cpu::x64::matmul;
 using namespace dnnl::impl::cpu::x64;
 #elif DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
@@ -48,8 +49,18 @@ using namespace dnnl::impl::cpu::matmul;
 #ifdef DNNL_EXPERIMENTAL_SPARSE
 constexpr auto ref_sparse_matmul_impl = impl_list_item_t(
         impl_list_item_t::type_deduction_helper_t<ref_sparse_matmul_t::pd_t>());
+
+#if DNNL_X64
+constexpr auto jit_uni_sparse_matmul
+        = impl_list_item_t(impl_list_item_t::type_deduction_helper_t<
+                jit_uni_sparse_matmul_t::pd_t>());
+#else
+constexpr auto jit_uni_sparse_matmul = nullptr;
+#endif
+
 #else
 constexpr auto ref_sparse_matmul_impl = nullptr;
+constexpr auto jit_uni_sparse_matmul = nullptr;
 #endif
 
 // clang-format off
@@ -69,6 +80,9 @@ constexpr impl_list_item_t impl_list[] = REG_MATMUL_P({
         CPU_INSTANCE_AVX512(brgemm_matmul_t<avx512_core_fp16>)
         CPU_INSTANCE(ref_matmul_t)
         CPU_INSTANCE(ref_matmul_int8_t)
+        // These implementations are enabled only when DNNL_EXPERIMENTAL_SPARSE
+        // macro is defined.
+        jit_uni_sparse_matmul,
         ref_sparse_matmul_impl,
         /* eol */
         nullptr,
