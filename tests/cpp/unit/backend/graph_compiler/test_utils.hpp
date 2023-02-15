@@ -65,6 +65,18 @@ namespace utils {
         return; \
     }
 
+#define DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(name) \
+    name.set_attr(impl::op_attr::scales, std::vector<float>({0.12f})); \
+    name.set_attr(impl::op_attr::zps, std::vector<int64_t>({2})); \
+    name.set_attr(impl::op_attr::qtype, std::string("per_tensor")); \
+    name.set_attr(impl::op_attr::axis, (int64_t)0);
+
+#define DEFINE_DEFAULT_PER_CHANNEL_QUANT_ATTR(name, shape, ax) \
+    name.set_attr(impl::op_attr::scales, std::vector<float>(shape, 0.12f)); \
+    name.set_attr(impl::op_attr::zps, std::vector<int64_t>(shape, 0)); \
+    name.set_attr(impl::op_attr::qtype, std::string("per_channel")); \
+    name.set_attr(impl::op_attr::axis, (int64_t)ax);
+
 namespace impl = dnnl::graph::impl;
 namespace utils = dnnl::graph::tests::unit::utils;
 
@@ -204,24 +216,13 @@ inline void add_MHA_subgraph(impl::graph_t *agraph, bool use_bf16 = false,
 
     impl::op_t dequantize_query {
             op_idx++, impl::op_kind::Dequantize, "dequantize_query"};
-    dequantize_query.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_query.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_query.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_query.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_query);
     impl::op_t dequantize_key {
             op_idx++, impl::op_kind::Dequantize, "dequantize_key"};
-    dequantize_key.set_attr(impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_key.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_key.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_key.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_key);
     impl::op_t dequantize_value {
             op_idx++, impl::op_kind::Dequantize, "dequantize_value"};
-    dequantize_value.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_value.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_value.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_value.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_value);
     impl::op_t typecast_query {
             op_idx++, impl::op_kind::TypeCast, "typecast_query"};
     impl::op_t typecast_key {op_idx++, impl::op_kind::TypeCast, "typecast_key"};
@@ -267,17 +268,8 @@ inline void add_MHA_subgraph(impl::graph_t *agraph, bool use_bf16 = false,
             op_idx++, impl::op_kind::Quantize, "quantize_softmax"};
     impl::op_t dequantize_softmax {
             op_idx++, impl::op_kind::Dequantize, "dequantize_softmax"};
-    quantize_softmax.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    quantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    quantize_softmax.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    quantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
-    dequantize_softmax.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_softmax.set_attr(
-            impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_softmax);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_softmax);
 
     impl::op_t dequantize_softmax_cast {
             op_idx++, impl::op_kind::TypeCast, "dequantize_softmax_cast"};
@@ -307,11 +299,7 @@ inline void add_MHA_subgraph(impl::graph_t *agraph, bool use_bf16 = false,
             op_idx++, impl::op_kind::TypeCast, "typecast_output"};
     impl::op_t quantize_output {
             op_idx++, impl::op_kind::Quantize, "quantize_output"};
-    quantize_output.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    quantize_output.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    quantize_output.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    quantize_output.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_output);
 
     if (use_int8) {
         dequantize_query.add_input(query_dequantize_input);
@@ -562,24 +550,13 @@ inline void add_MHA_subgraph_alternative(impl::graph_t *agraph,
 
     impl::op_t dequantize_query {
             op_idx++, impl::op_kind::Dequantize, "dequantize_query"};
-    dequantize_query.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_query.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_query.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_query.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_query);
     impl::op_t dequantize_key {
             op_idx++, impl::op_kind::Dequantize, "dequantize_key"};
-    dequantize_key.set_attr(impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_key.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_key.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_key.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_key);
     impl::op_t dequantize_value {
             op_idx++, impl::op_kind::Dequantize, "dequantize_value"};
-    dequantize_value.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_value.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_value.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_value.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_value);
     impl::op_t typecast_query {
             op_idx++, impl::op_kind::TypeCast, "typecast_query"};
     impl::op_t typecast_key {op_idx++, impl::op_kind::TypeCast, "typecast_key"};
@@ -598,19 +575,10 @@ inline void add_MHA_subgraph_alternative(impl::graph_t *agraph,
     impl::op_t softmax_cast {op_idx++, impl::op_kind::TypeCast, "softmax_cast"};
     impl::op_t quantize_softmax {
             op_idx++, impl::op_kind::Quantize, "quantize_softmax"};
-    quantize_softmax.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    quantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    quantize_softmax.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    quantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_softmax);
     impl::op_t dequantize_softmax {
             op_idx++, impl::op_kind::Dequantize, "dequantize_softmax"};
-    dequantize_softmax.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_softmax.set_attr(
-            impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_softmax);
 
     impl::op_t dequantize_softmax_cast {
             op_idx++, impl::op_kind::TypeCast, "dequantize_softmax_cast"};
@@ -635,11 +603,7 @@ inline void add_MHA_subgraph_alternative(impl::graph_t *agraph,
             op_idx++, impl::op_kind::TypeCast, "typecast_output"};
     impl::op_t quantize_output {
             op_idx++, impl::op_kind::Quantize, "quantize_output"};
-    quantize_output.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    quantize_output.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    quantize_output.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    quantize_output.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_output);
 
     if (use_int8) {
         dequantize_query.add_input(query_dequantize_input);
@@ -1078,50 +1042,19 @@ inline void get_int8_MHA_subgraph_varients(impl::graph_t *agraph,
             op_idx++, impl::op_kind::Quantize, "quantize_key_gemm"};
     impl::op_t quantize_value_gemm {
             op_idx++, impl::op_kind::Quantize, "quantize_value_gemm"};
-    quantize_query_gemm.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    quantize_query_gemm.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    quantize_query_gemm.set_attr(
-            impl::op_attr::qtype, std::string("per_tensor"));
-    quantize_query_gemm.set_attr(impl::op_attr::axis, (int64_t)0);
-    quantize_key_gemm.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    quantize_key_gemm.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    quantize_key_gemm.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    quantize_key_gemm.set_attr(impl::op_attr::axis, (int64_t)0);
-    quantize_value_gemm.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    quantize_value_gemm.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    quantize_value_gemm.set_attr(
-            impl::op_attr::qtype, std::string("per_tensor"));
-    quantize_value_gemm.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_query_gemm);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_key_gemm);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_value_gemm);
 
     impl::op_t dequantize_query_gemm {
             op_idx++, impl::op_kind::Dequantize, "dequantize_query_gemm"};
-    dequantize_query_gemm.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_query_gemm.set_attr(
-            impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_query_gemm.set_attr(
-            impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_query_gemm.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_query_gemm);
     impl::op_t dequantize_key_gemm {
             op_idx++, impl::op_kind::Dequantize, "dequantize_key_gemm"};
-    dequantize_key_gemm.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_key_gemm.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_key_gemm.set_attr(
-            impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_key_gemm.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_key_gemm);
     impl::op_t dequantize_value_gemm {
             op_idx++, impl::op_kind::Dequantize, "dequantize_value_gemm"};
-    dequantize_value_gemm.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_value_gemm.set_attr(
-            impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_value_gemm.set_attr(
-            impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_value_gemm.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_value_gemm);
 
     // reshape + transpose for query + key
     impl::op_t query_reshape {
@@ -1162,17 +1095,8 @@ inline void get_int8_MHA_subgraph_varients(impl::graph_t *agraph,
             op_idx++, impl::op_kind::Quantize, "quantize_softmax"};
     impl::op_t dequantize_softmax {
             op_idx++, impl::op_kind::Dequantize, "dequantize_softmax"};
-    quantize_softmax.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    quantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    quantize_softmax.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    quantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
-    dequantize_softmax.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_softmax.set_attr(
-            impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_softmax);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_softmax);
 
     // reshape + transpose for value
     impl::op_t value_reshape {
@@ -1199,18 +1123,10 @@ inline void get_int8_MHA_subgraph_varients(impl::graph_t *agraph,
     // quantize dequantize output
     impl::op_t quantize_output {
             op_idx++, impl::op_kind::Quantize, "quantize_output"};
-    quantize_output.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    quantize_output.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    quantize_output.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    quantize_output.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_output);
     impl::op_t dequantize_output {
             op_idx++, impl::op_kind::Dequantize, "dequantize_output"};
-    dequantize_output.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_output.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_output.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_output.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_output);
 
     // query part: quantize's input; reshape's input;
     quantize_query_gemm.add_output(query_gemm_out_q);
@@ -1733,24 +1649,13 @@ inline void add_distill_bert_MHA(impl::graph_t *agraph, bool use_bf16 = false,
 
     impl::op_t dequantize_query {
             op_idx++, impl::op_kind::Dequantize, "dequantize_query"};
-    dequantize_query.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_query.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_query.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_query.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_query);
     impl::op_t dequantize_key {
             op_idx++, impl::op_kind::Dequantize, "dequantize_key"};
-    dequantize_key.set_attr(impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_key.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_key.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_key.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_key);
     impl::op_t dequantize_value {
             op_idx++, impl::op_kind::Dequantize, "dequantize_value"};
-    dequantize_value.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_value.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_value.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_value.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_value);
     impl::op_t typecast_query {
             op_idx++, impl::op_kind::TypeCast, "typecast_query"};
     impl::op_t typecast_key {op_idx++, impl::op_kind::TypeCast, "typecast_key"};
@@ -1767,19 +1672,10 @@ inline void add_distill_bert_MHA(impl::graph_t *agraph, bool use_bf16 = false,
     impl::op_t softmax_cast {op_idx++, impl::op_kind::TypeCast, "softmax_cast"};
     impl::op_t quantize_softmax {
             op_idx++, impl::op_kind::Quantize, "quantize_softmax"};
-    quantize_softmax.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    quantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    quantize_softmax.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    quantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_softmax);
     impl::op_t dequantize_softmax {
             op_idx++, impl::op_kind::Dequantize, "dequantize_softmax"};
-    dequantize_softmax.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_softmax.set_attr(
-            impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_softmax);
 
     impl::op_t dequantize_softmax_cast {
             op_idx++, impl::op_kind::TypeCast, "dequantize_softmax_cast"};
@@ -1804,11 +1700,7 @@ inline void add_distill_bert_MHA(impl::graph_t *agraph, bool use_bf16 = false,
             op_idx++, impl::op_kind::TypeCast, "typecast_output"};
     impl::op_t quantize_output {
             op_idx++, impl::op_kind::Quantize, "quantize_output"};
-    quantize_output.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    quantize_output.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    quantize_output.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    quantize_output.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_output);
 
     if (use_int8) {
         dequantize_query.add_input(query_dequantize_input);
@@ -2034,29 +1926,16 @@ inline void add_int8_mlp_subgraph(impl::graph_t *agraph,
                 "typecast_input_f32" + layer_suffix};
         impl::op_t quant_input {op_idx++, impl::op_kind::Quantize,
                 "quantize_input" + layer_suffix};
-        quant_input.set_attr(
-                impl::op_attr::scales, std::vector<float>({0.12f}));
-        quant_input.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-        quant_input.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-        quant_input.set_attr(impl::op_attr::axis, (int64_t)0);
+        DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quant_input);
         impl::op_t dequant_input {op_idx++, impl::op_kind::Dequantize,
                 "dequantize_input" + layer_suffix};
-        dequant_input.set_attr(
-                impl::op_attr::scales, std::vector<float>({0.12f}));
-        dequant_input.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-        dequant_input.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-        dequant_input.set_attr(impl::op_attr::axis, (int64_t)0);
+        DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequant_input);
         impl::op_t typecast_input_bf16 {op_idx++, impl::op_kind::TypeCast,
                 "typecast_input_bf16" + layer_suffix};
         impl::op_t dequant_weight {op_idx++, impl::op_kind::Dequantize,
                 "dequantize_weight" + layer_suffix};
-        dequant_weight.set_attr(impl::op_attr::scales,
-                std::vector<float>(hidden_size[i + 1], 0.12f));
-        dequant_weight.set_attr(impl::op_attr::zps,
-                std::vector<int64_t>(hidden_size[i + 1], 0));
-        dequant_weight.set_attr(
-                impl::op_attr::qtype, std::string("per_channel"));
-        dequant_weight.set_attr(impl::op_attr::axis, (int64_t)1);
+        DEFINE_DEFAULT_PER_CHANNEL_QUANT_ATTR(
+                dequant_weight, hidden_size[i + 1], 1);
         impl::op_t typecast_weight_bf16 {op_idx++, impl::op_kind::TypeCast,
                 "typecast_input_bf16" + layer_suffix};
         impl::op_t matmul {
@@ -2126,16 +2005,10 @@ inline void add_int8_mlp_subgraph(impl::graph_t *agraph,
             op_idx++, impl::op_kind::TypeCast, "typecast_output_f32"};
     impl::op_t quant_output {
             op_idx++, impl::op_kind::Quantize, "quantize_output"};
-    quant_output.set_attr(impl::op_attr::scales, std::vector<float>({0.12f}));
-    quant_output.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    quant_output.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    quant_output.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quant_output);
     impl::op_t dequant_output {
             op_idx++, impl::op_kind::Dequantize, "dequantize_output"};
-    dequant_output.set_attr(impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequant_output.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequant_output.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    dequant_output.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequant_output);
     impl::op_t typecast_output_bf16 {
             op_idx++, impl::op_kind::TypeCast, "typecast_output_bf16"};
     // defining connection between output ops
@@ -2473,17 +2346,10 @@ static inline void add_MHA_subgraph_alternative2(impl::graph_t *agraph,
 
     impl::op_t fake_quantize {
             op_idx++, impl::op_kind::Quantize, "fake_quantize"};
-    fake_quantize.set_attr(impl::op_attr::scales, std::vector<float>({0.12f}));
-    fake_quantize.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    fake_quantize.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    fake_quantize.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(fake_quantize);
     impl::op_t fake_dequantize {
             op_idx++, impl::op_kind::Dequantize, "fake_dequantize"};
-    fake_dequantize.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    fake_dequantize.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    fake_dequantize.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    fake_dequantize.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(fake_dequantize);
 
     impl::op_t add {op_idx++, impl::op_kind::Add, "add"};
     add.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
@@ -2675,24 +2541,13 @@ static inline void add_MHA_subgraph_alternative4(impl::graph_t *agraph,
 
     impl::op_t dequantize_query {
             op_idx++, impl::op_kind::Dequantize, "dequantize_query"};
-    dequantize_query.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_query.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_query.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_query.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_query);
     impl::op_t dequantize_key {
             op_idx++, impl::op_kind::Dequantize, "dequantize_key"};
-    dequantize_key.set_attr(impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_key.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_key.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_key.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_key);
     impl::op_t dequantize_value {
             op_idx++, impl::op_kind::Dequantize, "dequantize_value"};
-    dequantize_value.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_value.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_value.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_value.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_value);
 
     impl::op_t matmul_qk {op_idx++, impl::op_kind::MatMul, "matmul_qk"};
 
@@ -2713,29 +2568,16 @@ static inline void add_MHA_subgraph_alternative4(impl::graph_t *agraph,
 
     impl::op_t quantize_softmax {
             op_idx++, impl::op_kind::Quantize, "quantize_softmax"};
-    quantize_softmax.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    quantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    quantize_softmax.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    quantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_softmax);
     impl::op_t dequantize_softmax {
             op_idx++, impl::op_kind::Dequantize, "dequantize_softmax"};
-    dequantize_softmax.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_softmax.set_attr(
-            impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_softmax);
 
     impl::op_t matmul_v {op_idx++, impl::op_kind::MatMul, "matmul_v"};
 
     impl::op_t quantize_output {
             op_idx++, impl::op_kind::Quantize, "quantize_output"};
-    quantize_output.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    quantize_output.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    quantize_output.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    quantize_output.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_output);
 
     if (use_int8) {
         dequantize_query.add_input(query_dequantize_input);
@@ -3596,24 +3438,13 @@ inline void add_bart_MHA(impl::graph_t *agraph, bool use_bf16 = false,
 
     impl::op_t dequantize_query {
             op_idx++, impl::op_kind::Dequantize, "dequantize_query"};
-    dequantize_query.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_query.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_query.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_query.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_query);
     impl::op_t dequantize_key {
             op_idx++, impl::op_kind::Dequantize, "dequantize_key"};
-    dequantize_key.set_attr(impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_key.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_key.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_key.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_key);
     impl::op_t dequantize_value {
             op_idx++, impl::op_kind::Dequantize, "dequantize_value"};
-    dequantize_value.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_value.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_value.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_value.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_value);
     impl::op_t typecast_query {
             op_idx++, impl::op_kind::TypeCast, "typecast_query"};
     impl::op_t typecast_key {op_idx++, impl::op_kind::TypeCast, "typecast_key"};
@@ -3627,19 +3458,10 @@ inline void add_bart_MHA(impl::graph_t *agraph, bool use_bf16 = false,
     impl::op_t softmax_cast {op_idx++, impl::op_kind::TypeCast, "softmax_cast"};
     impl::op_t quantize_softmax {
             op_idx++, impl::op_kind::Quantize, "quantize_softmax"};
-    quantize_softmax.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    quantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    quantize_softmax.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    quantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_softmax);
     impl::op_t dequantize_softmax {
             op_idx++, impl::op_kind::Dequantize, "dequantize_softmax"};
-    dequantize_softmax.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    dequantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    dequantize_softmax.set_attr(
-            impl::op_attr::qtype, std::string("per_tensor"));
-    dequantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_softmax);
 
     impl::op_t dequantize_softmax_cast {
             op_idx++, impl::op_kind::TypeCast, "dequantize_softmax_cast"};
@@ -3649,11 +3471,7 @@ inline void add_bart_MHA(impl::graph_t *agraph, bool use_bf16 = false,
             op_idx++, impl::op_kind::TypeCast, "typecast_output"};
     impl::op_t quantize_output {
             op_idx++, impl::op_kind::Quantize, "quantize_output"};
-    quantize_output.set_attr(
-            impl::op_attr::scales, std::vector<float>({0.12f}));
-    quantize_output.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
-    quantize_output.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
-    quantize_output.set_attr(impl::op_attr::axis, (int64_t)0);
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_output);
 
     if (use_int8) {
         dequantize_query.add_input(query_dequantize_input);
@@ -3736,6 +3554,304 @@ inline void add_bart_MHA(impl::graph_t *agraph, bool use_bf16 = false,
         agraph->add_op(&quantize_output);
         if (use_bf16) { agraph->add_op(&typecast_output); }
     }
+}
+
+inline void add_bart_mlp_residual_subgraph(impl::graph_t *agraph,
+        bool use_bf16 = false, bool use_int8 = false, int batch_size = 1,
+        int seq_len = 17) {
+    size_t lt_idx = 0;
+    size_t op_idx = 0;
+    const int head_dim = 768;
+    auto dtype = use_bf16 ? impl::data_type::bf16 : impl::data_type::f32;
+    std::vector<impl::dim_t> input_size_1 {batch_size, seq_len, head_dim};
+    std::vector<impl::dim_t> input_size_2 {batch_size, seq_len, head_dim};
+    std::vector<impl::dim_t> input_size_3 {batch_size, seq_len, head_dim * 4};
+    std::vector<impl::dim_t> output_size {batch_size, seq_len, head_dim};
+    std::vector<impl::dim_t> weight_size_1 {head_dim, head_dim};
+    std::vector<impl::dim_t> weight_size_2 {head_dim * 4, head_dim};
+    std::vector<impl::dim_t> weight_size_3 {head_dim, head_dim * 4};
+    std::vector<impl::dim_t> bias_size_1 {head_dim};
+    std::vector<impl::dim_t> bias_size_2 {head_dim * 4};
+    std::vector<impl::dim_t> bias_size_3 {head_dim};
+
+    // layer1
+    impl::logical_tensor_t input_desc_1 = utils::logical_tensor_init(
+            lt_idx++, input_size_1, impl::data_type::u8);
+    impl::logical_tensor_t dequant_input_desc_1 = utils::logical_tensor_init(
+            lt_idx++, input_size_1, impl::data_type::f32);
+    impl::logical_tensor_t typecast_input_desc_1
+            = utils::logical_tensor_init(lt_idx++, input_size_1, dtype);
+
+    impl::logical_tensor_t weight_desc_1 = utils::logical_tensor_init(
+            lt_idx++, weight_size_1, impl::data_type::s8);
+    weight_desc_1.property = impl::property_type::constant;
+    impl::logical_tensor_t dequant_weight_desc_1 = utils::logical_tensor_init(
+            lt_idx++, weight_size_1, impl::data_type::f32);
+    impl::logical_tensor_t typecast_weight_desc_1
+            = utils::logical_tensor_init(lt_idx++, weight_size_1, dtype);
+    impl::logical_tensor_t bias_desc_1
+            = utils::logical_tensor_init(lt_idx++, bias_size_1, dtype);
+    bias_desc_1.property = impl::property_type::constant;
+
+    impl::logical_tensor_t matmul_desc_1
+            = utils::logical_tensor_init(lt_idx++, input_size_1, dtype);
+    impl::logical_tensor_t add_other_input_desc
+            = utils::logical_tensor_init(lt_idx++, input_size_1, dtype);
+    impl::logical_tensor_t add_desc_1
+            = utils::logical_tensor_init(lt_idx++, input_size_1, dtype);
+    impl::logical_tensor_t layernorm_alpha_desc_1 = utils::logical_tensor_init(
+            lt_idx++, bias_size_1, impl::data_type::f32);
+    impl::logical_tensor_t layernorm_beta_desc_1 = utils::logical_tensor_init(
+            lt_idx++, bias_size_1, impl::data_type::f32);
+    impl::logical_tensor_t layernorm_desc_1
+            = utils::logical_tensor_init(lt_idx++, input_size_1, dtype);
+    impl::logical_tensor_t typecast_output_1 = utils::logical_tensor_init(
+            lt_idx++, input_size_1, impl::data_type::f32);
+
+    // layer2
+    impl::logical_tensor_t quant_input_desc_2 = utils::logical_tensor_init(
+            lt_idx++, input_size_2, impl::data_type::u8);
+    impl::logical_tensor_t dequant_input_desc_2 = utils::logical_tensor_init(
+            lt_idx++, input_size_2, impl::data_type::f32);
+    impl::logical_tensor_t typecast_input_desc_2
+            = utils::logical_tensor_init(lt_idx++, input_size_2, dtype);
+
+    impl::logical_tensor_t weight_desc_2 = utils::logical_tensor_init(
+            lt_idx++, weight_size_2, impl::data_type::s8);
+    weight_desc_2.property = impl::property_type::constant;
+    impl::logical_tensor_t dequant_weight_desc_2 = utils::logical_tensor_init(
+            lt_idx++, weight_size_2, impl::data_type::f32);
+    impl::logical_tensor_t typecast_weight_desc_2
+            = utils::logical_tensor_init(lt_idx++, weight_size_2, dtype);
+    impl::logical_tensor_t bias_desc_2
+            = utils::logical_tensor_init(lt_idx++, bias_size_2, dtype);
+    bias_desc_2.property = impl::property_type::constant;
+
+    impl::logical_tensor_t matmul_desc_2
+            = utils::logical_tensor_init(lt_idx++, input_size_3, dtype);
+    impl::logical_tensor_t gelu_desc
+            = utils::logical_tensor_init(lt_idx++, input_size_3, dtype);
+    impl::logical_tensor_t typecast_output_2 = utils::logical_tensor_init(
+            lt_idx++, input_size_3, impl::data_type::f32);
+
+    // layer 3
+    impl::logical_tensor_t quant_input_desc_3 = utils::logical_tensor_init(
+            lt_idx++, input_size_3, impl::data_type::u8);
+    impl::logical_tensor_t dequant_input_desc_3 = utils::logical_tensor_init(
+            lt_idx++, input_size_3, impl::data_type::f32);
+    impl::logical_tensor_t typecast_input_desc_3
+            = utils::logical_tensor_init(lt_idx++, input_size_3, dtype);
+
+    impl::logical_tensor_t weight_desc_3 = utils::logical_tensor_init(
+            lt_idx++, weight_size_3, impl::data_type::s8);
+    weight_desc_3.property = impl::property_type::constant;
+    impl::logical_tensor_t dequant_weight_desc_3 = utils::logical_tensor_init(
+            lt_idx++, weight_size_3, impl::data_type::f32);
+    impl::logical_tensor_t typecast_weight_desc_3
+            = utils::logical_tensor_init(lt_idx++, weight_size_3, dtype);
+    impl::logical_tensor_t bias_desc_3
+            = utils::logical_tensor_init(lt_idx++, bias_size_3, dtype);
+    bias_desc_3.property = impl::property_type::constant;
+
+    impl::logical_tensor_t matmul_desc_3
+            = utils::logical_tensor_init(lt_idx++, output_size, dtype);
+    impl::logical_tensor_t add_desc_2
+            = utils::logical_tensor_init(lt_idx++, output_size, dtype);
+    impl::logical_tensor_t layernorm_alpha_desc_2 = utils::logical_tensor_init(
+            lt_idx++, bias_size_3, impl::data_type::f32);
+    impl::logical_tensor_t layernorm_beta_desc_2 = utils::logical_tensor_init(
+            lt_idx++, bias_size_3, impl::data_type::f32);
+    impl::logical_tensor_t layernorm_desc_2
+            = utils::logical_tensor_init(lt_idx++, output_size, dtype);
+
+    // construct op
+    impl::op_t dequant_input_1 {
+            op_idx++, impl::op_kind::Dequantize, "dequantize_input_1"};
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequant_input_1);
+    impl::op_t typecast_input_1 {
+            op_idx++, impl::op_kind::TypeCast, "typecast_input_1"};
+
+    impl::op_t dequant_weight_1 {
+            op_idx++, impl::op_kind::Dequantize, "dequantize_weight_1"};
+    DEFINE_DEFAULT_PER_CHANNEL_QUANT_ATTR(dequant_weight_1, bias_size_1[0], 0);
+    impl::op_t typecast_weight_1 {
+            op_idx++, impl::op_kind::TypeCast, "typecast_weight_1"};
+
+    impl::op_t matmul_1 {op_idx++, impl::op_kind::MatMul, "matmul_1"};
+    matmul_1.set_attr(impl::op_attr::transpose_b, true);
+    impl::op_t add_1 {op_idx++, impl::op_kind::Add, "add_1"};
+    impl::op_t layernorm_1 {op_idx++, impl::op_kind::LayerNorm, "layernorm_1"};
+    layernorm_1.set_attr(impl::op_attr::keep_stats, false);
+    impl::op_t cast_output_1 {
+            op_idx++, impl::op_kind::TypeCast, "cast_output_1"};
+    impl::op_t quant_input_2 {
+            op_idx++, impl::op_kind::Quantize, "quantize_input_2"};
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quant_input_2);
+
+    impl::op_t dequant_input_2 {
+            op_idx++, impl::op_kind::Dequantize, "dequantize_input_2"};
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequant_input_2);
+    impl::op_t typecast_input_2 {
+            op_idx++, impl::op_kind::TypeCast, "typecast_input_2"};
+
+    impl::op_t dequant_weight_2 {
+            op_idx++, impl::op_kind::Dequantize, "dequantize_weight_2"};
+    DEFINE_DEFAULT_PER_CHANNEL_QUANT_ATTR(dequant_weight_2, bias_size_2[0], 0);
+    impl::op_t typecast_weight_2 {
+            op_idx++, impl::op_kind::TypeCast, "typecast_weight_2"};
+
+    impl::op_t matmul_2 {op_idx++, impl::op_kind::MatMul, "matmul_2"};
+    matmul_2.set_attr(impl::op_attr::transpose_b, true);
+    impl::op_t gelu_1 {op_idx++, impl::op_kind::GELU, "gelu_1"};
+    impl::op_t cast_output_2 {
+            op_idx++, impl::op_kind::TypeCast, "cast_output_2"};
+    impl::op_t quant_input_3 {
+            op_idx++, impl::op_kind::Quantize, "quantize_input_3"};
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quant_input_3);
+
+    impl::op_t dequant_input_3 {
+            op_idx++, impl::op_kind::Dequantize, "dequantize_input_3"};
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequant_input_3);
+    impl::op_t typecast_input_3 {
+            op_idx++, impl::op_kind::TypeCast, "typecast_input_3"};
+
+    impl::op_t dequant_weight_3 {
+            op_idx++, impl::op_kind::Dequantize, "dequantize_weight_3"};
+    DEFINE_DEFAULT_PER_CHANNEL_QUANT_ATTR(dequant_weight_3, bias_size_3[0], 0);
+    impl::op_t typecast_weight_3 {
+            op_idx++, impl::op_kind::TypeCast, "typecast_weight_3"};
+
+    impl::op_t matmul_3 {op_idx++, impl::op_kind::MatMul, "matmul_3"};
+    matmul_3.set_attr(impl::op_attr::transpose_b, true);
+    impl::op_t add_2 {op_idx++, impl::op_kind::Add, "add_2"};
+    impl::op_t layernorm_2 {op_idx++, impl::op_kind::LayerNorm, "layernorm_2"};
+    layernorm_2.set_attr(impl::op_attr::keep_stats, false);
+
+    if (use_int8) {
+        dequant_input_1.add_input(input_desc_1);
+        dequant_input_1.add_output(dequant_input_desc_1);
+        dequant_weight_1.add_input(weight_desc_1);
+        dequant_weight_1.add_output(dequant_weight_desc_1);
+        if (!use_bf16) {
+            matmul_1.add_input(dequant_input_desc_1);
+            matmul_1.add_input(dequant_weight_desc_1);
+        } else {
+            typecast_input_1.add_input(dequant_input_desc_1);
+            typecast_input_1.add_output(typecast_input_desc_1);
+            typecast_weight_1.add_input(dequant_weight_desc_1);
+            typecast_weight_1.add_output(typecast_weight_desc_1);
+            matmul_1.add_input(typecast_input_desc_1);
+            matmul_1.add_input(typecast_weight_desc_1);
+        }
+    } else {
+        matmul_1.add_input(typecast_input_desc_1);
+        matmul_1.add_input(typecast_weight_desc_1);
+    }
+    matmul_1.add_input(bias_desc_1);
+    matmul_1.add_output(matmul_desc_1);
+    add_1.add_input(add_other_input_desc);
+    add_1.add_input(matmul_desc_1);
+    add_1.add_output(add_desc_1);
+    layernorm_1.add_input(add_desc_1);
+    layernorm_1.add_input(layernorm_alpha_desc_1);
+    layernorm_1.add_input(layernorm_beta_desc_1);
+    layernorm_1.add_output(layernorm_desc_1);
+    if (use_int8) {
+        quant_input_2.add_output(quant_input_desc_2);
+        dequant_input_2.add_input(quant_input_desc_2);
+        dequant_input_2.add_output(dequant_input_desc_2);
+        dequant_weight_2.add_input(weight_desc_2);
+        dequant_weight_2.add_output(dequant_weight_desc_2);
+        if (!use_bf16) {
+            quant_input_2.add_input(layernorm_desc_1);
+            matmul_2.add_input(dequant_input_desc_2);
+            matmul_2.add_input(dequant_weight_desc_2);
+        } else {
+            cast_output_1.add_input(layernorm_desc_1);
+            cast_output_1.add_output(typecast_output_1);
+            quant_input_2.add_input(typecast_output_1);
+            typecast_input_2.add_input(dequant_input_desc_2);
+            typecast_input_2.add_output(typecast_input_desc_2);
+            typecast_weight_2.add_input(dequant_weight_desc_2);
+            typecast_weight_2.add_output(typecast_weight_desc_2);
+            matmul_2.add_input(typecast_input_desc_2);
+            matmul_2.add_input(typecast_weight_desc_2);
+        }
+    } else {
+        matmul_2.add_input(layernorm_desc_1);
+        matmul_2.add_input(typecast_weight_desc_2);
+    }
+
+    matmul_2.add_input(bias_desc_2);
+    matmul_2.add_output(matmul_desc_2);
+    gelu_1.add_input(matmul_desc_2);
+    gelu_1.add_output(gelu_desc);
+
+    if (use_int8) {
+        quant_input_3.add_output(quant_input_desc_3);
+        dequant_input_3.add_input(quant_input_desc_3);
+        dequant_input_3.add_output(dequant_input_desc_3);
+        dequant_weight_3.add_input(weight_desc_3);
+        dequant_weight_3.add_output(dequant_weight_desc_3);
+        if (!use_bf16) {
+            quant_input_3.add_input(gelu_desc);
+            matmul_3.add_input(dequant_input_desc_3);
+            matmul_3.add_input(dequant_weight_desc_3);
+        } else {
+            cast_output_2.add_input(gelu_desc);
+            cast_output_2.add_output(typecast_output_2);
+            quant_input_3.add_input(typecast_output_2);
+            typecast_input_3.add_input(dequant_input_desc_3);
+            typecast_input_3.add_output(typecast_input_desc_3);
+            typecast_weight_3.add_input(dequant_weight_desc_3);
+            typecast_weight_3.add_output(typecast_weight_desc_3);
+            matmul_3.add_input(typecast_input_desc_3);
+            matmul_3.add_input(typecast_weight_desc_3);
+        }
+    } else {
+        matmul_3.add_input(gelu_desc);
+        matmul_3.add_input(typecast_weight_desc_3);
+    }
+
+    matmul_3.add_input(bias_desc_3);
+    matmul_3.add_output(matmul_desc_3);
+    add_2.add_input(layernorm_desc_1);
+    add_2.add_input(matmul_desc_3);
+    add_2.add_output(add_desc_2);
+    layernorm_2.add_input(add_desc_2);
+    layernorm_2.add_input(layernorm_alpha_desc_2);
+    layernorm_2.add_input(layernorm_beta_desc_2);
+    layernorm_2.add_output(layernorm_desc_2);
+
+    if (use_int8) {
+        agraph->add_op(&dequant_input_1);
+        agraph->add_op(&dequant_weight_1);
+        agraph->add_op(&quant_input_2);
+        agraph->add_op(&dequant_input_2);
+        agraph->add_op(&dequant_weight_2);
+        agraph->add_op(&quant_input_3);
+        agraph->add_op(&dequant_input_3);
+        agraph->add_op(&dequant_weight_3);
+        if (use_bf16) {
+            agraph->add_op(&typecast_input_1);
+            agraph->add_op(&typecast_weight_1);
+            agraph->add_op(&typecast_input_2);
+            agraph->add_op(&typecast_weight_2);
+            agraph->add_op(&typecast_input_3);
+            agraph->add_op(&typecast_weight_3);
+            agraph->add_op(&cast_output_1);
+            agraph->add_op(&cast_output_2);
+        }
+    }
+
+    agraph->add_op(&matmul_1);
+    agraph->add_op(&add_1);
+    agraph->add_op(&layernorm_1);
+    agraph->add_op(&matmul_2);
+    agraph->add_op(&gelu_1);
+    agraph->add_op(&matmul_3);
+    agraph->add_op(&add_2);
+    agraph->add_op(&layernorm_2);
 }
 
 } // namespace utils

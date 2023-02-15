@@ -861,6 +861,43 @@ TEST(GCGraphTest, BF16MLPTrainingGraphCompileExecution) {
     compile_execution_pipeline(agraph, 2);
 }
 
+TEST(GCGraphTest, FP32BartMLPResidualCompileExecution) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    compiler_utils::add_bart_mlp_residual_subgraph(
+            &agraph, false, false, 1, 17);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, BF16BartMLPResidualCompileExecution) {
+    REQUIRE_BF16_AMXBF16();
+    impl::graph_t agraph;
+    compiler_utils::add_bart_mlp_residual_subgraph(&agraph, true, false, 1, 17);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8BartMLPResidualCompileExecution) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_bart_mlp_residual_subgraph(&agraph, false, true, 1, 17);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8BF16BartMLPResidualCompileExecution) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_bart_mlp_residual_subgraph(&agraph, true, true, 1, 17);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
 TEST(GCGraphTest, FP32MHATrainingGraphCompileExecution) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
