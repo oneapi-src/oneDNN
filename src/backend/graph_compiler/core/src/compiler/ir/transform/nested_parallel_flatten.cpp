@@ -243,6 +243,7 @@ void work() {
 
         auto &old_body = v->body_.checked_as<stmts>()->seq_;
         stmts single_thread_body;
+        bool local_need_pre_barrier = false;
         // convert old body of v to new_body
         for (size_t i = 0; i < old_body.size(); i++) {
             if (old_body[i].isa<for_loop>()
@@ -251,7 +252,7 @@ void work() {
                 cannot_parallel_ = false;
                 // if there are single-threaded sections in the for-body, we
                 // need sync the threads
-                need_pre_barrier_ = single_thread_body.defined();
+                need_pre_barrier_ = local_need_pre_barrier;
                 need_post_barrier_ = false;
                 // check if we need to insert post barrier. If the current
                 // parallel-for is the last statement in parent parallel-for, we
@@ -276,6 +277,7 @@ void work() {
                 new_body->seq_.insert(new_body->seq_.end(), body->seq_.begin(),
                         body->seq_.end());
                 single_thread_body = stmts();
+                local_need_pre_barrier = false;
             } else if (old_body[i]
                                .cast<define>()
                                .filter([](const define &v) {
@@ -310,6 +312,7 @@ void work() {
                         // if it is a hoisted tensor..., don't need to add to
                         // the body
                     } else {
+                        local_need_pre_barrier = true;
                         if (!single_thread_body.defined()) {
                             single_thread_body = make_stmt<stmts_node_t>(
                                     std::vector<stmt> {});
