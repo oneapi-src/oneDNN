@@ -26,6 +26,7 @@ const std::unordered_set<std::string> &get_special_backward_op_kind_set() {
             "ClampBackward",
             "EluBackward",
             "GELUBackward",
+            "HardSigmoidBackward",
             "HardSwishBackward",
             "MishBackward",
             "ReLUBackward",
