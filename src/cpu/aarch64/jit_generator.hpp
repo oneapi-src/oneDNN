@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
-* Copyright 2020-2022 FUJITSU LIMITED
+* Copyright 2016-2023 Intel Corporation
+* Copyright 2020-2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -536,8 +536,23 @@ public:
       the floating point register
      */
     template <typename Vmm>
+    void init_vmm(Vmm vmm, Xbyak_aarch64::XReg reg_tmp, float value) {
+        using namespace data_type;
+        bool isSVE = get_sve_length() ? true : false;
+        Xbyak_aarch64::ZRegS z_tmp(vmm.getIdx());
+        Xbyak_aarch64::VReg4S v_tmp(vmm.getIdx());
+        Xbyak_aarch64::WReg w_tmp(reg_tmp.getIdx());
+        mov_imm(w_tmp, float2int(value));
+        if (isSVE) /* SVE is available. */
+            dup(z_tmp, w_tmp);
+        else
+            dup(v_tmp, w_tmp);
+    }
+
+    template <typename Vmm>
     void init_saturate_f32(Vmm vmm_lbound, Vmm vmm_ubound,
-            Xbyak_aarch64::XReg reg_tmp, data_type_t idt, data_type_t odt) {
+            Xbyak_aarch64::XReg reg_tmp, data_type_t idt, data_type_t odt,
+            bool force_lbound = false) {
         using namespace data_type;
         bool isSVE = get_sve_length() ? true : false;
 
@@ -548,7 +563,8 @@ public:
                 idt == u8, vmm_lbound.getIdx() != vmm_ubound.getIdx()));
         // No need to saturate on lower bound for signed integer types, as
         // the conversion to int would return INT_MIN, and then proper
-        // saturation will happen in store_data
+        // saturation will happen in store_data. The param force_lbound, will
+        // force saturate values unconditionally to lbound.
         if (odt == u8) {
             if (isSVE) /* SVE is available. */
                 dup(Xbyak_aarch64::ZRegS(vmm_lbound.getIdx()), 0);
@@ -556,23 +572,20 @@ public:
                 movi(Xbyak_aarch64::VReg4S(vmm_lbound.getIdx()), 0);
             else
                 assert(!"unreachable");
+        } else if (force_lbound) {
+            const float saturation_lbound
+                    = odt == data_type::s8 ? INT8_MIN : INT32_MIN;
+            init_vmm(vmm_lbound, reg_tmp, saturation_lbound);
         }
 
-        Xbyak_aarch64::ZRegS z_tmp(vmm_ubound.getIdx());
-        Xbyak_aarch64::VReg4S v_tmp(vmm_ubound.getIdx());
-        Xbyak_aarch64::WReg w_tmp(reg_tmp.getIdx());
         float saturation_ubound = types::max_value<float>(odt);
-        mov_imm(w_tmp, float2int(saturation_ubound));
-        if (isSVE) /* SVE is available. */
-            dup(z_tmp, w_tmp);
-        else
-            dup(v_tmp, w_tmp);
+        init_vmm(vmm_ubound, reg_tmp, saturation_ubound);
     }
 
     template <typename Vmm>
     void saturate_f32(const Vmm &vmm, const Vmm &vmm_lbound,
             const Vmm &vmm_ubound, data_type_t odt,
-            const Xbyak_aarch64::PReg &p_true) {
+            const Xbyak_aarch64::PReg &p_true, bool force_lbound = false) {
         // This function is used to saturate to odt in f32 before converting
         // to s32 in order to avoid bad saturation due to cvtps2dq
         // behavior (it returns INT_MIN if the f32 is out of the
@@ -591,8 +604,9 @@ public:
 
         // no need to apply lower saturation bound when odt is
         // signed, as cvtps2dq will return MIN_INT if the value
-        // does not fit
-        if (odt == u8) {
+        // does not fit. The param force_lbound, will force saturate values
+        // unconditionally to lbound.
+        if (odt == u8 || force_lbound) {
             if (isSVE) /* SVE is available. */
                 fmax(z_tmp, p_true / Xbyak_aarch64::T_m, z_lbound);
             else if (mayiuse(asimd))
