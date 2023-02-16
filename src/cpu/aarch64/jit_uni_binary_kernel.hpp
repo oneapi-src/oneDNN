@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
-* Copyright 2022 FUJITSU LIMITED
+* Copyright 2021-2023 Intel Corporation
+* Copyright 2022-2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -109,7 +109,6 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     const Vmm vmm_gathered_src_ = Vmm(31);
 
     const size_t unroll_regs_ = 8;
-
     const size_t offt_src0_;
     const size_t offt_src1_;
 
@@ -134,6 +133,8 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     void prepare_isa_kernel();
     void compute_bcast(bool tail);
     void load_src1(const Vmm &vreg_src1, const int offt, bool tail);
+    void store(int unroll, bool tail);
+    void compute_dst_body(int unroll, bool tail);
     void compute_dst(int unroll, bool tail);
     void forward();
     void forward_over_outer_dims();
@@ -151,7 +152,6 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
             bool tail_kernel = false);
     ~jit_uni_binary_kernel_t() override = default;
 
-    jit_generator *host_;
     std::map<data_type_t, io::io_saturation_conf_t>
     create_saturation_vmm_map() const;
 };
