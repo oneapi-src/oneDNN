@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -107,17 +107,26 @@ std::vector<op_inplace_pair_t> get_op_inplace_pairs(
         }
 
         if (post_sum_input) {
+            bool can_inplace = false;
             auto post_sum_input_lt = post_sum_input->get_logical_tensor();
             auto output_lt = op.get_output_value(0)->get_logical_tensor();
+            auto post_sum_input_desc = make_dnnl_memory_desc(post_sum_input_lt);
+            auto output_desc = make_dnnl_memory_desc(output_lt);
             // allow inplace for conv(u8)+sum(s8)
             if (op.get_kind() == op_kind::dnnl_convolution
                     && post_sum_input_lt.data_type == data_type::s8
                     && output_lt.data_type == data_type::u8) {
-                output_lt.data_type = post_sum_input_lt.data_type;
+                auto format_tag = get_format_tag_str(post_sum_input_desc);
+                const auto &dims = post_sum_input_desc.get_dims();
+                dnnl_memory_desc_t temp_md;
+                dnnl_memory_desc_create_with_string_tag(&temp_md,
+                        static_cast<int>(dims.size()), dims.data(),
+                        static_cast<dnnl_data_type_t>(output_lt.data_type),
+                        format_tag.data());
+                can_inplace = output_desc == temp_md;
+            } else {
+                can_inplace = output_desc == post_sum_input_desc;
             }
-            auto post_sum_input_desc = make_dnnl_memory_desc(post_sum_input_lt);
-            auto output_desc = make_dnnl_memory_desc(output_lt);
-            const bool can_inplace = output_desc == post_sum_input_desc;
             if (can_inplace) { pairs.emplace_back(index, 0); }
         }
     } else if (ops.count(op.get_kind())) {
