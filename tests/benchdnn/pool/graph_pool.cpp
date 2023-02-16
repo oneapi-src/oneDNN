@@ -268,7 +268,7 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
                                       : ins[0],
             prb->tag);
 
-    SAFE(fill_dat(prb, SRC, src_dt, src_fp), WARN);
+    SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
 
     std::vector<dnnl::graph::tensor> tensors_in, tensors_out;
 
@@ -325,7 +325,7 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
         auto d_src_fp = make_dnn_mem(outs[0], dt::f32, tag::abx);
         d_dst_dt = make_dnn_mem(is_max_pool ? ins[1] : ins[0], prb->tag);
         d_src_dt = make_dnn_mem(outs[0], prb->tag);
-        SAFE(fill_dat(prb, DST, d_dst_dt, d_dst_fp), WARN);
+        SAFE(fill_dst(prb, d_dst_dt, d_dst_fp, res), WARN);
         tensors_out.emplace_back(outs[0], eng, static_cast<void *>(d_src_dt));
 
         args.set(DNNL_ARG_DIFF_SRC, d_src_dt);

@@ -65,28 +65,14 @@ static int check_known_skipped_case_graph(
     return OK;
 }
 
-static quant_data_t get_qdata_for(dnn_mem_map_t &mem_map,
-        dnn_mem_map_t &ref_mem_map, int arg, const ::matmul::prb_t *prb) {
+static quant_data_t get_qdata_for(int arg, const ::matmul::prb_t *prb) {
     if (arg == SRC) {
-        std::vector<float> scales_src;
-        if (prb->attr.scales.is_def(DNNL_ARG_SRC)) {
-            scales_src = {1.f};
-        } else {
-            graph_fill_scales(mem_map, ref_mem_map, prb, prb->n, DNNL_ARG_SRC);
-            const auto &mem_scale
-                    = ref_mem_map[DNNL_ARG_ATTR_SCALES ^ DNNL_ARG_SRC];
-            scales_src.resize(mem_scale.nelems());
-            for (auto idx = 0; idx < mem_scale.nelems(); idx++) {
-                scales_src[idx] = mem_scale.get_elem(idx);
-            }
-        }
+        const auto scales_src = get_scales(
+                prb->attr.scales.get(DNNL_ARG_SRC), prb->src_scales, prb->n);
         const auto q_dt = convert_dt(prb->src_dt());
-        graph_fill_zps(mem_map, ref_mem_map, prb, prb->n, DNNL_ARG_SRC);
-        const auto &mem_zp
-                = ref_mem_map[DNNL_ARG_ATTR_ZERO_POINTS ^ DNNL_ARG_SRC];
         const int64_t zp_val = prb->attr.zero_points.is_def(DNNL_ARG_SRC)
                 ? 0L
-                : mem_zp.get_elem(0);
+                : prb->src_zp[0];
         const std::string q_type
                 = prb->attr.scales.get(DNNL_ARG_SRC).policy == policy_t::COMMON
                 ? "per_tensor"
@@ -97,19 +83,9 @@ static quant_data_t get_qdata_for(dnn_mem_map_t &mem_map,
                 q_dt, scales_src, {zp_val}, q_type, axis, prb->stag);
     } else if (arg == WEI) {
         const auto q_dt = convert_dt(prb->wei_dt());
-        std::vector<float> scales_wei;
-        if (prb->attr.scales.is_def(DNNL_ARG_WEIGHTS)) {
-            scales_wei = {1.f};
-        } else {
-            graph_fill_scales(
-                    mem_map, ref_mem_map, prb, prb->n, DNNL_ARG_WEIGHTS);
-            const auto &mem_scale
-                    = ref_mem_map[DNNL_ARG_ATTR_SCALES ^ DNNL_ARG_WEIGHTS];
-            scales_wei.resize(mem_scale.nelems());
-            for (auto idx = 0; idx < mem_scale.nelems(); idx++) {
-                scales_wei[idx] = mem_scale.get_elem(idx);
-            }
-        }
+        const auto scales_wei
+                = get_scales(prb->attr.scales.get(DNNL_ARG_WEIGHTS),
+                        prb->wei_scales, prb->n);
         std::vector<int64_t> zps(scales_wei.size(), 0L);
 
         // if zp is not default, copy values and pass it to oneDNN Graph
@@ -126,25 +102,12 @@ static quant_data_t get_qdata_for(dnn_mem_map_t &mem_map,
         int64_t axis = q_type == "per_channel" ? prb->ndims - 1 : 0;
         return quant_data_t(q_dt, scales_wei, zps, q_type, axis, prb->wtag);
     } else if (arg == DST) {
-        std::vector<float> scales_dst;
-        if (prb->attr.scales.is_def(DNNL_ARG_DST)) {
-            scales_dst = {1.f};
-        } else {
-            graph_fill_scales(mem_map, ref_mem_map, prb, prb->n, DNNL_ARG_DST);
-            const auto &mem_scale
-                    = ref_mem_map[DNNL_ARG_ATTR_SCALES ^ DNNL_ARG_DST];
-            scales_dst.resize(mem_scale.nelems());
-            for (auto idx = 0; idx < mem_scale.nelems(); idx++) {
-                scales_dst[idx] = mem_scale.get_elem(idx);
-            }
-        }
+        const auto scales_dst = get_scales(
+                prb->attr.scales.get(DNNL_ARG_DST), prb->dst_scales, prb->n);
         const auto q_dt = convert_dt(prb->dst_dt());
-        graph_fill_zps(mem_map, ref_mem_map, prb, prb->n, DNNL_ARG_DST);
-        const auto &mem_zp
-                = ref_mem_map[DNNL_ARG_ATTR_ZERO_POINTS ^ DNNL_ARG_DST];
         const int64_t zp_val = prb->attr.zero_points.is_def(DNNL_ARG_DST)
                 ? 0L
-                : mem_zp.get_elem(0);
+                : prb->dst_zp[0];
         const std::string q_type
                 = prb->attr.scales.get(DNNL_ARG_DST).policy == policy_t::COMMON
                 ? "per_tensor"
@@ -193,8 +156,7 @@ static dims_t get_runtime_dims(
     return runtime_dims;
 }
 
-fill_status_t append_graph_with_block(dnn_mem_map_t &mem_map,
-        dnn_mem_map_t &ref_mem_map, const ::matmul::prb_t *prb) {
+fill_status_t append_graph_with_block(const ::matmul::prb_t *prb) {
     graph_t &graph = graph_t::get();
 
     const auto orig_dts = collect_data_types(prb);
@@ -262,11 +224,9 @@ fill_status_t append_graph_with_block(dnn_mem_map_t &mem_map,
 
     // if required - apply dequantize to block inputs
     if (with_dq) {
-        status = insert_dequant_before(
-                src_id, get_qdata_for(mem_map, ref_mem_map, SRC, prb));
+        status = insert_dequant_before(src_id, get_qdata_for(SRC, prb));
         BENCHDNNEXT_VERIFY(status);
-        status = insert_dequant_before(
-                wei_id, get_qdata_for(mem_map, ref_mem_map, WEI, prb), true);
+        status = insert_dequant_before(wei_id, get_qdata_for(WEI, prb), true);
         BENCHDNNEXT_VERIFY(status);
     }
 
@@ -303,8 +263,8 @@ fill_status_t append_graph_with_block(dnn_mem_map_t &mem_map,
 
     // if required - add quantize op
     if (is_low_precision({orig_dts[2]})) {
-        status = insert_quant_after(graph.get_cur_block_out_id(),
-                get_qdata_for(mem_map, ref_mem_map, DST, prb));
+        status = insert_quant_after(
+                graph.get_cur_block_out_id(), get_qdata_for(DST, prb));
         BENCHDNNEXT_VERIFY(status);
     }
 
@@ -322,8 +282,7 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
     check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    dnn_mem_map_t mem_map, ref_mem_map;
-    const auto status = append_graph_with_block(mem_map, ref_mem_map, prb);
+    const auto status = append_graph_with_block(prb);
     if (status != fill_status::DONE
             && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
         cleanup();
@@ -423,7 +382,7 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
     dnn_mem_t bia_fp_scaled;
-    args_t args(mem_map), ref_args(ref_mem_map);
+    args_t args, ref_args;
 
     if (is_bench_mode(CORR)) {
         args.set(DNNL_ARG_DST, dst_dt);

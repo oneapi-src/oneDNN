@@ -57,9 +57,7 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
             = ::conv_dw_fusion::get_first_conv_prb(prb);
     if (!p0) SAFE(FAIL, CRIT);
 
-    dnn_mem_map_t mem_map, ref_mem_map;
-    auto status = benchdnnext::conv::append_graph_with_block(
-            mem_map, ref_mem_map, p0.get());
+    auto status = benchdnnext::conv::append_graph_with_block(p0.get());
     if (status != fill_status::DONE
             && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
         cleanup();
@@ -107,8 +105,7 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
             = ::conv_dw_fusion::get_fused_conv_prb(prb);
     if (!p1) SAFE(FAIL, CRIT);
 
-    status = benchdnnext::conv::append_graph_with_block(
-            mem_map, ref_mem_map, p1.get());
+    status = benchdnnext::conv::append_graph_with_block(p1.get());
     if (status != fill_status::DONE
             && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
         cleanup();
@@ -149,8 +146,7 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
     SAFE(::conv::fill_dst(p1.get(), dst_dt1, dst_fp1, res), WARN);
 
     // Original problem with fusion attributes
-    status = benchdnnext::conv::append_graph_with_block(
-            mem_map, ref_mem_map, prb);
+    status = benchdnnext::conv::append_graph_with_block(prb);
     if (status != fill_status::DONE
             && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
         cleanup();
@@ -260,7 +256,7 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(cp, input_ts, output_ts, res), WARN);
 
     if (is_bench_mode(CORR)) {
-        args_t ref_args(ref_mem_map);
+        args_t ref_args;
         compare::compare_t cmp;
         cmp.set_data_kind(DST);
         const auto fp = dnnl_f32;

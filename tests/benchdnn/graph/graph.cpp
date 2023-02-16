@@ -296,8 +296,6 @@ int doit(const prb_t *prb, res_t *res) {
         }
     }
 
-    if (is_bench_mode(INIT)) return res->state = INITIALIZED, OK;
-
     if (is_bench_mode(PERF)) {
         SAFE(measure_perf(res->timer_map.perf_timer(), c_partitions, tensors_in,
                      tensors_out, res),

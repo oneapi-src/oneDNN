@@ -32,7 +32,7 @@
 
 #if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
 #include "oneapi/dnnl/dnnl_graph_threadpool.hpp"
-#include "tests/test_thread.hpp"
+#include "test_thread.hpp"
 #endif
 
 #if DNNL_GRAPH_WITH_SYCL
@@ -43,7 +43,6 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 #include "test_allocator.hpp"
-#include "utils/fill.hpp"
 
 namespace benchdnnext {
 
@@ -73,6 +72,8 @@ void check_graph_eltwise_params(res_t *res,
         const attr_t::post_ops_t::kind_t alg, const float alpha,
         const float beta);
 bool check_has_sum_po(const std::vector<attr_t::post_ops_t::entry_t> &post_ops);
+std::vector<float> get_scales(const attr_t::scale_t &scales_info,
+        const float *raw_scales, int64_t channel_size);
 dnnl::graph::logical_tensor::data_type convert_dt(
         const dnnl_data_type_t dt) noexcept;
 dnnl_data_type_t convert_dt(
@@ -176,21 +177,17 @@ typedef std::function<void(dnnl::graph::stream &,
 const dnnl::graph::engine &get_test_engine();
 const dnnl::graph::stream &get_test_stream();
 
-struct scratchpad_mm_mgr {
 #if DNNL_GRAPH_WITH_SYCL
+struct scratchpad_mm_mgr {
     void *sycl_alloc_mm(
             size_t size, size_t alignment, const void *dev, const void *ctx);
     void sycl_free_mm(
             void *ptr, const void *device, const void *context, void *event);
-#endif // DNNL_GRAPH_WITH_SYCL
-    void *cpu_alloc_mm(size_t size, size_t alignment);
-    void cpu_free_mm(void *ptr);
 
 private:
     std::unordered_multimap<size_t, std::shared_ptr<void>> map_size_ptr_;
     std::unordered_set<void *> free_ptr_;
 };
-#if DNNL_GRAPH_WITH_SYCL
 bool is_sycl_engine();
 dnnl::graph::engine &get_engine();
 #endif // DNNL_GRAPH_WITH_SYCL
@@ -259,8 +256,6 @@ dnnl::graph::compiled_partition compile_partition(const func_t &init_pd_func,
                 res->timer_map.par_compl_timer(), par, inputs, outputs, engine);
 
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> user_prim;
-        measure_prim_create(res->timer_map.prim_create_timer(), user_prim,
-                init_pd_func, prb, res);
     }
 
     return cp;
@@ -574,43 +569,6 @@ private:
 
 inline void cleanup() {
     graph_t::get().clear();
-}
-
-template <typename prb_t>
-void graph_fill_scales(dnn_mem_map_t &mem_map, dnn_mem_map_t &ref_mem_map,
-        const prb_t *prb, const int64_t channel_size, const int exec_arg) {
-    const auto &ref_engine = ::get_cpu_engine();
-    const auto q_vals
-            = prb->attr.scales.get(exec_arg).policy == policy_t::COMMON
-            ? 1
-            : channel_size;
-    auto scales_md = dnn_mem_t::init_md(1, &q_vals, dnnl_f32, tag::abx);
-    auto local_exec_arg = exec_arg | DNNL_ARG_ATTR_SCALES;
-    mem_map.emplace(local_exec_arg, dnn_mem_t(scales_md, ref_engine));
-    auto &mem = mem_map[local_exec_arg];
-    ref_mem_map.emplace(
-            local_exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
-    auto &ref_mem = ref_mem_map[local_exec_arg];
-    fill_scales(prb->attr, local_exec_arg ^ DNNL_ARG_ATTR_SCALES, mem, ref_mem);
-}
-
-template <typename prb_t>
-void graph_fill_zps(dnn_mem_map_t &mem_map, dnn_mem_map_t &ref_mem_map,
-        const prb_t *prb, const int64_t channel_size, const int exec_arg) {
-    const auto &ref_engine = ::get_cpu_engine();
-    const auto q_vals
-            = prb->attr.zero_points.get(exec_arg).policy == policy_t::COMMON
-            ? 1
-            : channel_size;
-    auto zps_md = dnn_mem_t::init_md(1, &q_vals, dnnl_f32, tag::abx);
-    auto local_exec_arg = exec_arg | DNNL_ARG_ATTR_ZERO_POINTS;
-    mem_map.emplace(local_exec_arg, dnn_mem_t(zps_md, ref_engine));
-    auto &mem = mem_map[local_exec_arg];
-    ref_mem_map.emplace(
-            local_exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
-    auto &ref_mem = ref_mem_map[local_exec_arg];
-    fill_zero_points(prb->attr, local_exec_arg ^ DNNL_ARG_ATTR_ZERO_POINTS, mem,
-            ref_mem);
 }
 
 } // namespace benchdnnext

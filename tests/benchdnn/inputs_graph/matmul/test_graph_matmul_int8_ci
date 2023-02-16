@@ -1,6 +1,8 @@
 # int8
 --reset
---cfg=s8s8s8 --attr-scales=src:common:0.25*+wei:per_oc:0.5*+dst:common:2.25*,src:common:1*+wei:per_oc:1*+dst:common:1* --attr-zero-points=,dst:common:0*+src:common:0* 16x512:512x256:16x256
+--cfg=s8s8s8 --attr-scales=src:common:0.25*+wei:per_oc:0.5*+dst:common:2.25* 16x512:512x256:16x256
+
+
 
 # int8 asym matmul
 --reset

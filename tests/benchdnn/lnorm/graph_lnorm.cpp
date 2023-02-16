@@ -284,8 +284,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
     std::vector<dnnl::graph::tensor> tensors_out;
 
     if (prb->dir & FLAG_FWD) {
-        if (::lnorm::prepare_fwd(prb, src_dt, mean_dt, var_dt, sc_dt, sh_dt,
-                    src_fp, mean_fp, var_fp, sc_fp, sh_fp, res)
+        if (::lnorm::prepare_fwd(prb, src_fp, mean_fp, var_fp, sc_fp, sh_fp)
                 != OK) {
             cleanup();
             return res->state = MISTRUSTED, OK;
@@ -377,9 +376,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
         }
         dnn_mem_t &d_src_dt = prb->inplace ? d_dst_dt : placeholder_d_src_dt;
 
-        if (prepare_bwd(prb, src_dt, d_dst_dt, mean_dt, var_dt, sc_dt, src_fp,
-                    d_dst_fp, mean_fp, var_fp, sc_fp, res)
-                != OK) {
+        if (prepare_bwd(prb, src_fp, d_dst_fp, mean_fp, var_fp, sc_fp) != OK) {
             cleanup();
             return res->state = MISTRUSTED, OK;
         }

@@ -26,8 +26,7 @@
 namespace benchdnnext {
 namespace conv {
 
-fill_status_t append_graph_with_block(dnn_mem_map_t &mem_map,
-        dnn_mem_map_t &ref_mem_map, const ::conv::prb_t *prb);
+fill_status_t append_graph_with_block(const ::conv::prb_t *prb);
 int doit(const ::conv::prb_t *prb, res_t *res);
 
 } // namespace conv
