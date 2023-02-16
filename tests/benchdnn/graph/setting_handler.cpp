@@ -440,6 +440,9 @@ bool get_conv_desc(const deserialized_op &base_op_ref, ::conv::desc_t &d) {
         src_ncx_shape = base_op_ref.get_NCX_shape(0, true);
         wei_dims = base_op_ref.out_lts_[0].shape_;
         dst_ncx_shape = base_op_ref.get_NCX_shape(1, true);
+    } else {
+        assert(!"unexpected op_kind");
+        return false;
     }
 
     d.ndims = static_cast<int>(src_ncx_shape.size());
@@ -529,6 +532,9 @@ bool get_conv_cfg(const deserialized_op &base_op_ref,
         src_dt = in_lt0_dt;
         wei_dt = out_lt_dt;
         dst_dt = in_lt1_dt;
+    } else {
+        assert(!"unexpected op_kind");
+        return false;
     }
 
     if (src_dt == wei_dt) {
@@ -658,6 +664,9 @@ bool get_deconv_desc(const deserialized_op &base_op_ref, ::deconv::desc_t &d) {
         src_ncx_shape = base_op_ref.get_NCX_shape(0, true);
         wei_dims = base_op_ref.out_lts_[0].shape_;
         dst_ncx_shape = base_op_ref.get_NCX_shape(1, true);
+    } else {
+        assert(!"unexpected op_kind");
+        return false;
     }
 
     d.ndims = static_cast<int>(src_ncx_shape.size());
@@ -707,6 +716,9 @@ bool get_deconv_dir(const deserialized_op &base_op_ref, dir_t &dir) {
     } else if (op_kind == "ConvTransposeBackwardWeights") {
         dir = dir_t::BWD_W;
         ret = true;
+    } else {
+        assert(!"unexpected op_kind");
+        return false;
     }
     return ret;
 }
@@ -744,7 +756,11 @@ bool get_deconv_cfg(const deserialized_op &base_op_ref,
         src_dt = in_lt0_dt;
         wei_dt = out_lt_dt;
         dst_dt = in_lt1_dt;
+    } else {
+        assert(!"unexpected op_kind");
+        return false;
     }
+
     if (src_dt == wei_dt) {
         if (wei_dt == dst_dt) {
             if (src_dt == "f32" || src_dt == "f16") {
@@ -1285,7 +1301,7 @@ bool get_pool_desc(const deserialized_op &base_op_ref, ::pool::desc_t &d) {
     bool has_h = d.ndims > 3;
     bool has_d = d.ndims > 4;
 
-    if (op_kind == "MaxPool") {
+    if (op_kind == "MaxPool" || op_kind == "MaxPoolBackward") {
         assign_dilation_val(has_h, has_d, d.dw, d.dh, d.dd, dilations, 0);
     }
 
