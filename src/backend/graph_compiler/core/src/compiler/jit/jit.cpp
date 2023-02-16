@@ -33,7 +33,10 @@
 #include <util/math_utils.hpp>
 #include <util/scoped_timer.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 std::shared_ptr<jit_function_t> jit_engine_t::get_entry_func(
         const ir_module_ptr &ir_mod, bool generic) {
@@ -284,4 +287,7 @@ std::shared_ptr<jit_function_t> general_jit_function_t::make(
     }
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

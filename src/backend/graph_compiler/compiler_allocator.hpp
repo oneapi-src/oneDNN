@@ -31,18 +31,22 @@ namespace graph {
 namespace impl {
 namespace compiler_impl {
 
-struct compiler_graph_engine_t : public sc::runtime::engine_t {
+struct compiler_graph_engine_t
+    : public dnnl::impl::graph::gc::runtime::engine_t {
     impl::allocator_t *allocator_;
     compiler_graph_engine_t(
-            sc::runtime::engine_vtable_t *vtable, impl::allocator_t *allocator)
-        : sc::runtime::engine_t {vtable}, allocator_ {allocator} {}
+            dnnl::impl::graph::gc::runtime::engine_vtable_t *vtable,
+            impl::allocator_t *allocator)
+        : dnnl::impl::graph::gc::runtime::engine_t {vtable}
+        , allocator_ {allocator} {}
 };
 
-struct compiler_graph_stream_t : public sc::runtime::stream_t {
+struct compiler_graph_stream_t
+    : public dnnl::impl::graph::gc::runtime::stream_t {
     compiler_graph_stream_t(compiler_graph_engine_t *eng);
 };
 
-extern sc::runtime::engine_vtable_t graph_engine_vtable;
+extern dnnl::impl::graph::gc::runtime::engine_vtable_t graph_engine_vtable;
 } // namespace compiler_impl
 } // namespace impl
 } // namespace graph

@@ -23,7 +23,10 @@
 #include <unordered_map>
 #include <util/compiler_macros.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 template <typename T>
 struct content_hash_t {};
 
@@ -85,6 +88,9 @@ struct content_equals_t<std::vector<T>> {
 template <typename T, typename V>
 using content_hash_map
         = std::unordered_map<T, V, content_hash_t<T>, content_equals_t<T>>;
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

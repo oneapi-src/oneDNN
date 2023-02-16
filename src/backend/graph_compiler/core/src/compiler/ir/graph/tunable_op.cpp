@@ -22,7 +22,10 @@
 #include <compiler/ir/transform/func_inline.hpp>
 #include <unordered_map>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 tunable_op_t::tunable_op_t(const std::string &op_name,
         const std::vector<graph_tensor_ptr> &ins,
@@ -213,4 +216,7 @@ config_ptr tunable_op_t::get_default_config(context_ptr ctx) {
     return gen->get_default_config(ctx);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

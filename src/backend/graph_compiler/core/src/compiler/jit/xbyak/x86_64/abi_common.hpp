@@ -21,7 +21,10 @@
 #include <vector>
 #include <compiler/jit/xbyak/x86_64/registers.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 namespace x86_64 {
 
@@ -50,6 +53,9 @@ std::ostream &operator<<(std::ostream &, abi_value_kind v);
 
 } // namespace x86_64
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -28,7 +28,10 @@
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 class fusion_manager;
 
 class graph_op_t : public sc_op {
@@ -82,7 +85,7 @@ public:
             context_ptr ctx) override;
 
 protected:
-    sc::graph_config config_data_;
+    graph_config config_data_;
 };
 
 /**
@@ -117,6 +120,9 @@ protected:
     sc_graph_t graph_;
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

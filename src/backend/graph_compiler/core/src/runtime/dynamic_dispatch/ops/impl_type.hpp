@@ -18,7 +18,10 @@
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_OPS_IMPL_TYPE_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_OPS_IMPL_TYPE_HPP
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 // Predefine all ops' impl algorithm type here.
 // impl algorithm type, include normal(padding)/no padding select.
 enum impl_kind_t : int {
@@ -26,6 +29,9 @@ enum impl_kind_t : int {
     no_padding = 1, // generate without padding
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

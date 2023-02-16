@@ -19,7 +19,10 @@
 #include <vector>
 #include "viewer.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 // The base class of all visitors for SSA IR. Developers who extend this visitor
 // may override visit() as usual. The returned values of visit() for expr are
@@ -91,5 +94,8 @@ public:
     void view(stmts_c v) override;
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

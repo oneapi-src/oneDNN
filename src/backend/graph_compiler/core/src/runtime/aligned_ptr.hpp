@@ -24,7 +24,10 @@
 #include <util/os.hpp>
 #include <util/simple_math.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 /**
  * Allocator and RAII memory manager for aligned memory
  * @param sz the memory size, in bytes
@@ -157,6 +160,9 @@ private:
     aligned_ptr_t(Base &&other) : Base(std::move(other)) {}
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

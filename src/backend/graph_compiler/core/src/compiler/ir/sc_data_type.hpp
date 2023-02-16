@@ -25,7 +25,10 @@
 #include <util/def.hpp>
 #include <util/string_utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace etypes {
 
 inline constexpr bool is_pointer(sc_data_etype type_code) {
@@ -195,7 +198,7 @@ SC_INTERNAL_API std::ostream &operator<<(
 
 namespace utils {
 template <>
-std::string print_vector(const std::vector<sc::sc_data_type_t> &vec);
+std::string print_vector(const std::vector<sc_data_type_t> &vec);
 } // namespace utils
 
 /**
@@ -253,13 +256,17 @@ struct sc_data_traits_t<uint8_t> {
     static constexpr sc_data_type_t type() { return datatypes::u8; }
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 // definition of hash function of sc_data_type_t
 namespace std {
 template <>
-struct hash<sc::sc_data_type_t> {
-    std::size_t operator()(const sc::sc_data_type_t &k) const;
+struct hash<dnnl::impl::graph::gc::sc_data_type_t> {
+    std::size_t operator()(
+            const dnnl::impl::graph::gc::sc_data_type_t &k) const;
 };
 } // namespace std
 

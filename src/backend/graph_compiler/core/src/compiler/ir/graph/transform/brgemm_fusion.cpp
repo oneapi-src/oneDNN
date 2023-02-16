@@ -27,7 +27,10 @@
 #include <util/math_utils.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 static const constexpr char *forbidden_brgemm_fusion
         = "forbidden_brgemm_fusion";
 
@@ -550,4 +553,7 @@ void brgemm_fusion_transform(sc_graph_t &graph, const context_ptr &ctx) {
     }
     graph.reset_op_ids();
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

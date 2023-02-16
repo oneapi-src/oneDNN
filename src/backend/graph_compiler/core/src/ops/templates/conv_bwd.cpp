@@ -27,8 +27,11 @@
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 
-using namespace sc::builder;
-namespace sc {
+using namespace dnnl::impl::graph::gc::builder;
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 using ops::conv_bwd_data_config_t;
 // clang-format off
@@ -203,7 +206,7 @@ bool gen_conv_bwd_t::generate(context_ptr ctx,
         _named_for_(ln, n, 0, N, 1, for_type::PARALLEL) {
           _named_for_(lc, c_o, 0, C_num_block) {
             _named_for_(lp, p_o, 0, P / tile_p) {
-              sc::builtin::brgemm_init_update(
+              builtin::brgemm_init_update(
                 tensor_ptr(output, {n, 0, p_o * tile_p, 0, 0}),
                 tensor_ptr(tr_weight, {c_o, 0, 0, 0, 0, 0}),
                 tensor_ptr(del_input, {n, c_o, (p_o * tile_p), 0, 0}),
@@ -218,7 +221,7 @@ bool gen_conv_bwd_t::generate(context_ptr ctx,
             _named_for_(lp, p_o, 0, P / tile_p) {
               _for_(q_o, 0, Q / tile_q) {
                 _for_(p_i, 0, tile_p) {
-                  sc::builtin::brgemm_init_update(
+                  builtin::brgemm_init_update(
                     tensor_ptr(
                       output, {n, 0, p_o * tile_p + p_i, q_o * tile_q, 0}),
                     tensor_ptr(tr_weight, {c_o, 0, 0, 0, 0, 0}),
@@ -238,7 +241,7 @@ bool gen_conv_bwd_t::generate(context_ptr ctx,
       _named_for_(ln, n, 0, N, 1, for_type::PARALLEL) {
         _named_for_(lc, c_o, 0, C_num_block) {
           _named_for_(lp, p_o, 0, P / tile_p) {
-            sc::builtin::brgemm_init(
+            builtin::brgemm_init(
               tensor_ptr(del_input, {n, c_o, p_o * tile_p * stride_h, 0, 0}),
               (tile_p * stride_w + R - 1) * (Q * stride_w + S - 1), C_block,
               C_block, dtype, expr(0));
@@ -252,7 +255,7 @@ bool gen_conv_bwd_t::generate(context_ptr ctx,
               _for_(p_i, 0, tile_p) {
                 _for_(r, 0, R) {
                   _for_(s, 0, S) {
-                    sc::builtin::brgemm_update(
+                    builtin::brgemm_update(
                       tensor_ptr(
                         output, {n, 0, p_o * tile_p + p_i, q_o * tile_q, 0}),
                       tensor_ptr(tr_weight, {c_o, 0, r, s, 0, 0}),
@@ -277,4 +280,7 @@ bool gen_conv_bwd_t::generate(context_ptr ctx,
 }
 
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -18,7 +18,10 @@
 #include <utility>
 #include <compiler/config/context.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace builder {
 for_range_simulator_t range(const std::string &name, for_loop &out, expr min,
         expr extent, expr step, for_type type, int num_threads) {
@@ -125,4 +128,7 @@ func_t _decl_func(const std::string &name, sc_data_type_t dtype,
 }
 
 } // namespace builder
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -19,7 +19,10 @@
 
 #include "../module_pass.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace attr_keys {
 constexpr const char *module_global_offset = "module_global_offset";
@@ -34,6 +37,9 @@ public:
     const_ir_module_ptr operator()(const_ir_module_ptr m) override;
     SC_DECL_PASS_INFO_FUNC();
 };
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

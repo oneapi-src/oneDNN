@@ -50,7 +50,10 @@
 #include <unordered_set>
 #include <util/scoped_timer.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_MODULE(graph.lowering)
 
@@ -1288,7 +1291,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                 graph.attrs_.get_or_else("folded_input", false));
         init_body->seq_.emplace_back(
                 builder::make_assign_unattached(is_init_var, true));
-        sc::func_t init_func = builder::make_func(
+        func_t init_func = builder::make_func(
                 "__init_const_globals", params, init_body, datatypes::void_t);
         init_func->attr()[function_attrs::private_] = true;
         ret_mod->add_func({init_func});
@@ -1328,4 +1331,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     }
     return ret_mod;
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

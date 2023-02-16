@@ -25,7 +25,10 @@
 #include <compiler/dimensions.hpp>
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
 #include <util/def.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 class sc_op;
 class sc_graph_t;
 struct graph_tensor;
@@ -104,5 +107,8 @@ struct dynamic_tensor_t;
 SC_API runtime::dynamic_tensor_t convert_graph_tensor_to_dynamic_tensor(
         const std::shared_ptr<graph_tensor> &in, void *data_ptr = nullptr,
         sc_dim *shape_ptr = nullptr);
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

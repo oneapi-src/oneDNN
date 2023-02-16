@@ -24,7 +24,10 @@
 
 #include "dispatch_table.hpp"
 #include "hash_dispatch_table.hpp"
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace runtime {
 struct op_dispatch_tables_t {
     // format table, fmt0, unknown, unknown => fmt0, fmt1, fmt2. Currently we
@@ -55,5 +58,8 @@ using dispatch_table_map_t
         = std::unordered_map<std::string, op_dispatch_tables_ptr>;
 
 } // namespace runtime
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

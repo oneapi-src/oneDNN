@@ -20,7 +20,10 @@
 #include <vector>
 #include "../function_pass.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * Merge one nested stmts_node_t scope into parent scope:
@@ -44,6 +47,9 @@ namespace sc {
 void scope_flatten(std::vector<stmt> &seq, int stmt_index);
 void scope_flatten(const stmt &seq, int stmt_index);
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

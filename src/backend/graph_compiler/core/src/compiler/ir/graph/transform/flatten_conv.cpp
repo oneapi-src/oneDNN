@@ -29,7 +29,10 @@
 #include <ops/fusible/unary_elemwise.hpp>
 #include <runtime/config.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 sc_dims get_conv1d_flatten_shape(const sc_data_format_t &format,
         const sc_dims &origin_shape, int merge_bs = 1) {
@@ -197,4 +200,7 @@ void flatten_conv(sc_graph_t &graph, const context_ptr &ctx) {
     if (graph.attrs_.get_or_else("no_conv1d", false)) { return; }
     conv1d_flatten(graph, ctx);
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

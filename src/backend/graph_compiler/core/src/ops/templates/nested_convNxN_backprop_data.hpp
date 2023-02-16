@@ -23,7 +23,10 @@
 #include "conv_bwd.hpp"
 #include <ops/body_generator.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 class gen_nested_convNxN_backprop_data_t
   : public body_generator_t<nested_conv_bwd_data_config_t> {
@@ -91,6 +94,9 @@ public:
     std::vector<for_loop> &fors) const override;
 };
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

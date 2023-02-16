@@ -19,7 +19,10 @@
 
 #include "../function_pass.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * Flatten nested parallel-for into a single parallel-for with thread groups and
@@ -31,6 +34,9 @@ public:
     SC_DECL_PASS_INFO_FUNC();
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

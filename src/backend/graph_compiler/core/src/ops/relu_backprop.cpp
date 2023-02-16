@@ -16,7 +16,10 @@
 #include "relu_backprop.hpp"
 #include <compiler/ir/graph/fusible_op.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 relu_backprop_op::relu_backprop_op(const std::vector<graph_tensor_ptr> &ins,
@@ -67,4 +70,7 @@ void relu_backprop_op::query_format(context_ptr ctx,
 } // namespace ops
 
 OP_REGISTER(ops::relu_backprop_op, relu_backprop)
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

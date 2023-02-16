@@ -19,11 +19,17 @@
 
 #include "../graph.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 // check whether open quantized optimzation passes.
 void analysis_quantized(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

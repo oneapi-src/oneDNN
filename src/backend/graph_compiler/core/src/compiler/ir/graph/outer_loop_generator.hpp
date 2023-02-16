@@ -23,7 +23,10 @@
 #include "graph.hpp"
 #include <ops/body_generator.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 struct fuse_anchor_map_t;
 
@@ -106,6 +109,9 @@ ir_module_ptr try_lower_fusion_manager(const context_ptr &ctx,
 // if the reorder is tensor view in dynamic, does not need fusion manager,
 // but do inplace itself.
 ir_module_ptr inplaced_reorder_get_func(sc_op *op, const context_ptr &ctx);
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

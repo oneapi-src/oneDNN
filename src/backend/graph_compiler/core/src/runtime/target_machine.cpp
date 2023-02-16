@@ -41,7 +41,10 @@ static size_t extractBit(size_t val, size_t base, size_t end) {
 }
 
 SC_MODULE(target)
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 using namespace env_key;
 namespace runtime {
 target_machine_t::target_machine_t(
@@ -185,7 +188,7 @@ target_machine_t get_native_target_machine() {
     tm.cpu_flags_.model = model;
     tm.cpu_flags_.step = step;
     for (int i = 0; tm.cpu_flags_.dataCacheLevels_
-            < sc::runtime::cpu_flags_t::maxNumberCacheLevels;
+            < runtime::cpu_flags_t::maxNumberCacheLevels;
             i++) {
         cpuid(info, 0x00000004, i);
         tm.cpu_flags_.dataCacheSize_[tm.cpu_flags_.dataCacheLevels_]
@@ -198,4 +201,7 @@ target_machine_t get_native_target_machine() {
     return tm;
 }
 } // namespace runtime
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -24,7 +24,10 @@
 
 SC_MODULE(pass.mem_plan)
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace memory_optim {
 
 // how the buffer was created
@@ -655,4 +658,7 @@ size_t schedule_memory_allocations(
     return planner.current_alloc_size_;
 }
 } // namespace memory_optim
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

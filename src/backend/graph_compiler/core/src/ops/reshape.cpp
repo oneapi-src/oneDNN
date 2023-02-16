@@ -17,7 +17,10 @@
 #include <memory>
 #include <compiler/ir/graph/fusible_op.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 static void get_output_shape(sc_dims &outshape, const sc_dims &input_dims,
         const int32_t *shape, int dim, bool special_zero) {
@@ -189,4 +192,7 @@ sc_op_ptr static_reshape_op::constant_optimize(sc_graph_t &graph) {
 } // namespace ops
 OP_REGISTER(ops::dynamic_reshape_op, dynamic_reshape);
 OP_REGISTER(ops::static_reshape_op, static_reshape);
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

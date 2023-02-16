@@ -19,7 +19,10 @@
 #include <ops/fusible/reduce.hpp>
 #include <runtime/config.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 void partial_reduce_replace(sc_graph_t &graph, const context_ptr &ctx) {
     auto num_threads = runtime_config_t::get().get_num_threads();
@@ -43,4 +46,7 @@ void partial_reduce_replace(sc_graph_t &graph, const context_ptr &ctx) {
     graph.reset_op_ids();
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

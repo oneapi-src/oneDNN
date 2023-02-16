@@ -24,7 +24,10 @@
 #include <unordered_map>
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace op_traits {
 
 // replace all var/tensors in the tensor with remade ones, because we are
@@ -152,4 +155,7 @@ func_t may_prefetch_t::generate_prefetcher_and_set_idle(const context_ptr &ctx,
     return retfunc;
 }
 } // namespace op_traits
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -25,7 +25,10 @@
 #include <map>
 #include <string>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 /**
  * @class sc_xbyak_jit_generator
@@ -65,6 +68,9 @@ private:
 };
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

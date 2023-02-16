@@ -21,7 +21,10 @@
 #include <vector>
 #include <compiler/ir/graph/fusible_op.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * Transpose the input tensor
@@ -180,5 +183,8 @@ public:
 private:
     sc_dims plain_dims_;
 };
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

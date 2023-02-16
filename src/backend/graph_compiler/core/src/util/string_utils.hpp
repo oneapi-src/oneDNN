@@ -22,7 +22,10 @@
 #include <utility>
 #include <vector>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace utils {
 
 // Split the string into an array of substrings by the delimiter. The delimiters
@@ -182,6 +185,9 @@ std::string print_nested_vector(const std::vector<std::vector<T>> &nested_vec) {
 }
 
 } // namespace utils
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

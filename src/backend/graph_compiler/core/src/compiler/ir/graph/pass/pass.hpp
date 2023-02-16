@@ -21,7 +21,10 @@
 #include <string>
 #include "../graph.hpp"
 #include <unordered_map>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 // Used in `graph_constant_input_folding`, stores as an attribute
 // "constant" in nodes which describe current node's outputs status.
 namespace const_kind {
@@ -100,6 +103,9 @@ SC_API void dynamic_infer_shape_by_graph(sc_graph_t &graph,
         runtime::dynamic_tensor_t **ins, runtime::dynamic_tensor_t **outs,
         size_t num_ins, size_t num_outs);
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

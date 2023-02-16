@@ -34,7 +34,10 @@
 #include <unordered_map>
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(target_specific_lowering_cpu,
         SC_PASS_DEPENDS_ON(bf16_legalizer, bf16_eliminator, func_inliner,
@@ -693,4 +696,7 @@ const_ir_module_ptr target_specific_lowering_cpu_t::operator()(
     return ret;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

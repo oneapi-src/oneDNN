@@ -26,7 +26,10 @@
 #include <runtime/dynamic_dispatch/ops/impl_type.hpp>
 #include <runtime/logging.hpp>
 #include <util/assert.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 #define DISPATCH_KEY_MAX_THRESHOLD UINT64_C(64)
 SC_MODULE(graph.dynamic_dispatch_key)
 
@@ -287,4 +290,7 @@ std::vector<int> get_default_impl_dispatch_candidates() {
     return default_impl_candidates;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

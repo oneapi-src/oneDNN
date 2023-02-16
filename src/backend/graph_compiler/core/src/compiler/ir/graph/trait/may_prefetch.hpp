@@ -21,7 +21,10 @@
 #include <compiler/ir/graph/tensor_slice.hpp>
 #include <compiler/ir/graph/traits.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace op_traits {
 struct may_prefetch_t : public virtual op_base_trait_t {
     /**
@@ -99,6 +102,9 @@ struct may_prefetch_t : public virtual op_base_trait_t {
 };
 
 } // namespace op_traits
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -32,7 +32,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 struct mixed_parti_t;
 
@@ -465,5 +468,8 @@ size_t get_buffer_usage(const context_ptr &ctx,
 
 void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph);
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

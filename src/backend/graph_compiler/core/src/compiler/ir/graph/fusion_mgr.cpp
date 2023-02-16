@@ -44,7 +44,10 @@
 
 SC_MODULE(graph.fusion);
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 fusion_mgr_ptr fusion_manager::copy() const {
     fusion_mgr_ptr new_fmgr = std::make_shared<fusion_manager>();
     auto &graph = get_graph();
@@ -225,9 +228,9 @@ tensor fusion_data_t::get_real_tensor() const {
 };
 
 bool fusion_manager::is_allocated_tensor(const tensor &tsr) {
-    std::vector<sc::tensor>::iterator tensor_iter
+    std::vector<tensor>::iterator tensor_iter
             = std::find_if(allocated_tensors_.begin(), allocated_tensors_.end(),
-                    [&tsr](sc::tensor &t) { return t.ptr_same(tsr); });
+                    [&tsr](tensor &t) { return t.ptr_same(tsr); });
     return tensor_iter != allocated_tensors_.end();
 }
 
@@ -256,29 +259,29 @@ expr fusion_manager::allocate_tensor(
     fusible_op_t *fop = output->producer_owner_->dyn_cast<fusible_op_t>();
     tensor tsr;
     bool is_dynamic = graph_.is_dynamic();
-    auto allocate_ =
-            [&](const std::string &name, const logical_tensor_t &lt,
-                    sc::address_space addrspace = sc::address_space::automatic,
-                    const std::shared_ptr<static_data_t> &init_value = nullptr,
-                    bool global = false) {
-                auto shapes = lt.get_blocking_dims_expr(graph_);
-                auto strides = dims_to_dense_stride(shapes);
-                tsr = builder::make_stensor(
-                        name + std::to_string(alloc_tensor_count_++), shapes,
-                        strides, output->details_.dtype_, addrspace, init_value)
-                              .checked_as<tensor>();
-                if (global) {
-                    auto def = builder::make_var_tensor_def_unattached(
-                            tsr, linkage::private_global)
-                                       .static_as<define>();
-                    global_defines_.emplace_back(def);
-                } else {
-                    allocated_tensors_.emplace_back(tsr);
-                }
+    auto allocate_ = [&](const std::string &name, const logical_tensor_t &lt,
+                             address_space addrspace = address_space::automatic,
+                             const std::shared_ptr<static_data_t> &init_value
+                             = nullptr,
+                             bool global = false) {
+        auto shapes = lt.get_blocking_dims_expr(graph_);
+        auto strides = dims_to_dense_stride(shapes);
+        tsr = builder::make_stensor(
+                name + std::to_string(alloc_tensor_count_++), shapes, strides,
+                output->details_.dtype_, addrspace, init_value)
+                      .checked_as<tensor>();
+        if (global) {
+            auto def = builder::make_var_tensor_def_unattached(
+                    tsr, linkage::private_global)
+                               .static_as<define>();
+            global_defines_.emplace_back(def);
+        } else {
+            allocated_tensors_.emplace_back(tsr);
+        }
 
-                fdetail.set_buffer(is_dynamic, tsr);
-                return tsr;
-            };
+        fdetail.set_buffer(is_dynamic, tsr);
+        return tsr;
+    };
     // TODO(xxx): remove this reorder judgement
     if (auto const_op = fop->dyn_cast<constant_op_t>()) {
         auto const_value = const_op->get_constant_values();
@@ -559,12 +562,12 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
             "sorted ops are expected to be ready, please initilize it first");
     bool is_dynamic = graph_.is_dynamic();
     std::function<void(const sc_op_ptr &cur_node,
-            const std::vector<sc::tensor_slice> &src,
-            const std::vector<sc::tensor_slice> &dst, int64_t &hint_tick)>
+            const std::vector<tensor_slice> &src,
+            const std::vector<tensor_slice> &dst, int64_t &hint_tick)>
             alloc_func;
     alloc_func = [&](const sc_op_ptr &cur_node,
-                         const std::vector<sc::tensor_slice> &src,
-                         const std::vector<sc::tensor_slice> &dst,
+                         const std::vector<tensor_slice> &src,
+                         const std::vector<tensor_slice> &dst,
                          int64_t &hint_tick) {
         auto cur = cur_node->dyn_cast<fusible_op_t>();
         if (auto input_cur = cur->dyn_cast<input_op>()) {
@@ -982,7 +985,7 @@ void fusion_manager::do_compute_block(
      * address single slice. (@note: reorder can produce multi slice outputs,
      * but not inputs)
      * */
-    auto compute_wrapper_ = [&](const sc::context_ptr &ctx, fusible_op_t *cur,
+    auto compute_wrapper_ = [&](const context_ptr &ctx, fusible_op_t *cur,
                                     fdata_map &fdmap, fslice_map &fsmap) {
         auto dst = get_output_tsr_slices_list(cur, fdmap, fsmap);
         auto inputs = get_input_tsr_slices_list(cur, fdmap, fsmap);
@@ -1399,7 +1402,7 @@ void fusion_manager::clear_anchor() {
         stmt parent = get_parent_node(anchor);
         auto &ss_parent = parent.checked_as<stmts>()->seq_;
         // find anchor iter
-        std::vector<sc::stmt>::iterator anchor_iter
+        std::vector<stmt>::iterator anchor_iter
                 = std::find_if(ss_parent.begin(), ss_parent.end(),
                         [anchor](stmt &s) { return s.ptr_same(anchor); });
         COMPILE_ASSERT(anchor_iter != ss_parent.end(),
@@ -1664,13 +1667,16 @@ void fusion_manager::reset_brgemm_register_infos() {
     brg_fusion_reg_.reset();
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 namespace std {
-std::size_t hash<sc::buffer_reuse_identity>::operator()(
-        const sc::buffer_reuse_identity &in) const {
+std::size_t hash<dnnl::impl::graph::gc::buffer_reuse_identity>::operator()(
+        const dnnl::impl::graph::gc::buffer_reuse_identity &in) const {
     size_t seed = 0;
-    sc::hash_combine(seed, in.dtype_);
-    sc::hash_combine(seed, in.shapes_);
+    dnnl::impl::graph::gc::hash_combine(seed, in.dtype_);
+    dnnl::impl::graph::gc::hash_combine(seed, in.shapes_);
     return seed;
 }
 } // namespace std

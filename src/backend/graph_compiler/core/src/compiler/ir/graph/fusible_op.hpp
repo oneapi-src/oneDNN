@@ -24,7 +24,10 @@
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/trait/may_inplace.hpp>
 #include <compiler/ir/graph/traits.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 using slice_range = std::vector<std::pair<expr, expr>>;
 using slice_range_list = std::vector<slice_range>;
@@ -219,7 +222,7 @@ public:
     std::shared_ptr<static_data_t> get_constant_values() {
         return const_values_;
     }
-    sc::sc_data_type_t get_constant_dtype() {
+    sc_data_type_t get_constant_dtype() {
         return info_.outputs_[0]->details_.dtype_;
     }
     const sc_dims &get_constant_plain_dims() {
@@ -272,5 +275,8 @@ class unary_elementwise_op_t : public fusible_op_t,
 // used for classification
 class movement_op_t : public fusible_op_t, public op_traits::may_quantize_t {};
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

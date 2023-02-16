@@ -22,7 +22,10 @@
 #include <unordered_set>
 #include <util/weakptr_utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace attr_keys {
 constexpr const char *pointer_alias = "pointer_alias";
@@ -68,6 +71,9 @@ tensor_alias_identity_t *get_alias_info(const expr_base &v);
 
 } // namespace alias_info
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

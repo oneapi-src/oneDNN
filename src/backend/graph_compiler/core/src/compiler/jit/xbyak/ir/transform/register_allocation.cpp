@@ -36,10 +36,12 @@
 #include "call_transform.hpp"
 #include "register_allocation.hpp"
 
-using namespace sc::sc_xbyak::x86_64;
-
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
+using namespace sc_xbyak::x86_64;
 
 SC_MODULE(xbyakjit.register_allocation)
 
@@ -820,4 +822,7 @@ register_allocation_t::register_allocation_t(
     : profile_(profile) {}
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

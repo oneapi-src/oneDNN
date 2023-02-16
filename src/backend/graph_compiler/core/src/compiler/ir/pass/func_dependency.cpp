@@ -18,7 +18,10 @@
 #include "../viewer.hpp"
 #include <unordered_set>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 class func_dependency_impl_t : public ir_viewer_t {
 public:
     using ir_viewer_t::dispatch;
@@ -79,4 +82,7 @@ stmt_c func_dependency_finder_t::operator()(
     return f;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

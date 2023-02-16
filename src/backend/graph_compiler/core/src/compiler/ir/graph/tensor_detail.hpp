@@ -27,7 +27,10 @@
 #include <compiler/ir/sc_expr.hpp>
 #include <unordered_set>
 #include <util/assert.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace reflection {
 template <typename T, typename Dummy>
@@ -115,7 +118,7 @@ public:
 private:
     template <typename T, typename Dummy>
     friend struct reflection::type_registry;
-    friend struct std::hash<sc::logical_tensor_t>;
+    friend struct std::hash<dnnl::impl::graph::gc::logical_tensor_t>;
     // definite format for internal sync.
     sc_data_format_t format_;
     // The real dims, which may be blocking.
@@ -131,12 +134,16 @@ private:
     // update is_dynamic_ by latest plain_dims_
     void dynamic_update();
 };
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 namespace std {
 template <>
-struct hash<sc::logical_tensor_t> {
-    std::size_t operator()(const sc::logical_tensor_t &k) const;
+struct hash<dnnl::impl::graph::gc::logical_tensor_t> {
+    std::size_t operator()(
+            const dnnl::impl::graph::gc::logical_tensor_t &k) const;
 };
 } // namespace std
 #endif

@@ -19,7 +19,10 @@
 
 #include "../../function_pass.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * Insert allocation/deallocation calls for local tensor. The alloc/dealloc
@@ -44,6 +47,9 @@ func_t get_cpu_temp_malloc_func(bool is_thread_local);
 
 func_t get_cpu_temp_free_func(bool is_thread_local);
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

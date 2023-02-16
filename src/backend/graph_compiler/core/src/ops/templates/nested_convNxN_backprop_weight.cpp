@@ -32,8 +32,11 @@
 #include <util/math_utils.hpp>
 #include <util/reflection.hpp>
 
-using namespace sc::builder;
-namespace sc {
+using namespace dnnl::impl::graph::gc::builder;
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 config_ptr gen_nested_convNXN_bwd_weight_t::get_default_config(
@@ -312,7 +315,7 @@ void gen_nested_convNXN_bwd_weight_t::inner_loop_call(const context_ptr &ctx,
                 _if_(o_bs == 0 && o_od == 0 && o_oh == 0 && o_ow == 0
                   && i_bs == 0 && i_od == 0 && i_oh == 0) {
                   // ic x bs matmul bs x oc
-                  sc::builtin::brgemm_init_update(
+                  builtin::brgemm_init_update(
                     tensor_ptr(temp_forward_input,
                       {temp_forward_idx_non_block[0] + i_bs,
                         temp_forward_idx_non_block[1] + i_ic,
@@ -328,7 +331,7 @@ void gen_nested_convNXN_bwd_weight_t::inner_loop_call(const context_ptr &ctx,
                     dtype, dtype);
                 }
                 _else_ {
-                  sc::builtin::brgemm_update(
+                  builtin::brgemm_update(
                     tensor_ptr(temp_forward_input,
                       {temp_forward_idx_non_block[0] + i_bs,
                         temp_forward_idx_non_block[1] + i_ic,
@@ -558,4 +561,7 @@ bool gen_nested_convNXN_bwd_weight_t::generate(context_ptr ctx,
   return true;
 }
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

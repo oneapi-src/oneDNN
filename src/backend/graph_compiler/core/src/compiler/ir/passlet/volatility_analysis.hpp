@@ -20,7 +20,10 @@
 #include <vector>
 #include "passlet.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace passlet {
 struct volatility_result_t {
     enum state_t {
@@ -104,5 +107,8 @@ struct volatility_analysis_t : public typed_passlet<volatility_result_t> {
     void view(const func_c &v, pass_phase phase);
 };
 } // namespace passlet
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

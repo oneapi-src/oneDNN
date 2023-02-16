@@ -20,7 +20,10 @@
 #include <string>
 #include <compiler/ir/sc_function.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 // the tracer to track the current TIR location. Useful for pretty-printing the
 // TIR error with detailed context.
@@ -63,6 +66,9 @@ struct tir_pos_trace {
 #define COMPILE_ASSERT_POS(cond, ...) \
     COMPILE_ASSERT(cond, this->pass_error_tracer_.to_string() << __VA_ARGS__)
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

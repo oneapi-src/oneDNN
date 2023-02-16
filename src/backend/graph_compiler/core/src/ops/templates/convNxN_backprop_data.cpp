@@ -27,8 +27,11 @@
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 
-using namespace sc::builder;
-namespace sc {
+using namespace dnnl::impl::graph::gc::builder;
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 config_ptr gen_convNxN_backprop_data::get_default_config(
@@ -387,4 +390,7 @@ bool gen_convNxN_backprop_data::generate(context_ptr ctx,
   return true;
 }
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

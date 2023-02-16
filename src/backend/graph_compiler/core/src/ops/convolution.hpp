@@ -22,7 +22,10 @@
 #include <compiler/ir/graph/traits.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 class SC_INTERNAL_API conv_fwd_core_op_t
     : public tunable_op_t,
@@ -111,5 +114,8 @@ private:
 };
 
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

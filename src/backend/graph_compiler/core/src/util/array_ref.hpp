@@ -23,7 +23,10 @@
 #include "compiler_macros.hpp"
 #include <initializer_list>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 // ArrayRef implementation taken from LLVM
 //===- ArrayRef.h - Array Reference Wrapper -----------------*- C++ -*-===//
@@ -125,6 +128,9 @@ public:
         return std::vector<T>(ptr_, ptr_ + sz_);
     }
 };
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -22,7 +22,10 @@
 #include <unordered_map>
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(loop_merger, SC_PASS_DEPENDS_ON(constant_folder),
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
@@ -173,4 +176,7 @@ stmt_c loop_merger_t::operator()(stmt_c f) {
     return impl.dispatch(std::move(f));
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

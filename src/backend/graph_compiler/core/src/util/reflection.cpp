@@ -19,7 +19,10 @@
 #include <util/compiler_macros.hpp>
 #include <util/string_utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 // clang-format off
 SC_CLASS(sc_data_type_t)
@@ -523,4 +526,7 @@ size_t general_ref_t::hash() const {
 }
 
 } // namespace reflection
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

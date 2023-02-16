@@ -26,7 +26,10 @@
 #include <runtime/config.hpp>
 #include <runtime/trace.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 SC_DECL_PASS_INFO(trace_inserter, SC_PASS_DEPENDS_ON(validator),
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
         SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
@@ -110,4 +113,7 @@ const_ir_module_ptr trace_inserter_t::operator()(const_ir_module_ptr m) {
     return ret;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -18,7 +18,10 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/pass/ir_copy.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 static void do_scope_flatten(
         const std::vector<stmt> &seq, std::vector<stmt> &ret, int stmt_index) {
@@ -58,4 +61,7 @@ void scope_flatten(const stmt &seq, int stmt_index) {
     }
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

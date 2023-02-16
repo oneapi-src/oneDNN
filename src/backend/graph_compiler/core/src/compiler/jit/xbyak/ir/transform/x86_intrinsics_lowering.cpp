@@ -29,7 +29,10 @@
 
 #include "x86_intrinsics_lowering.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 class x86_intrinsics_lowering_impl_t : public xbyak_visitor_t {
@@ -38,7 +41,7 @@ public:
     using xbyak_visitor_t::visit;
 
     x86_intrinsics_lowering_impl_t(
-            const sc::runtime::target_machine_t &target_machine)
+            const runtime::target_machine_t &target_machine)
         : target_machine_(target_machine) {
         // TODO(XXX): support AVX and SSE
         COMPILE_ASSERT(target_machine_.cpu_flags_.fAVX, "Support AVX");
@@ -815,7 +818,7 @@ public:
     };
 
 private:
-    const sc::runtime::target_machine_t &target_machine_;
+    const runtime::target_machine_t &target_machine_;
 };
 
 func_c x86_intrinsics_lowering_t::operator()(func_c v) {
@@ -824,4 +827,7 @@ func_c x86_intrinsics_lowering_t::operator()(func_c v) {
 }
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

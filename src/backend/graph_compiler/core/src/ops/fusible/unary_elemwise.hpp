@@ -24,7 +24,10 @@
 
 #define DECLARE_COMPUTE_ELEMENT() expr compute_element(expr in) override;
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 class unary_elementwise_op_impl_t : public unary_elementwise_op_t {
 public:
@@ -254,5 +257,8 @@ private:
     bool approximate_;
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

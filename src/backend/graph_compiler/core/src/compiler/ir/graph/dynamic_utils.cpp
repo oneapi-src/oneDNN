@@ -30,7 +30,10 @@
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <runtime/dynamic_dispatch/hash_dispatch_table.hpp>
 #include <util/utils.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 void initialize_format_table_with_op(
         const sc_op_ptr &op, op_dispatch_tables_ptr &tb) {
     uint32_t inp_size = op->get_inputs().size();
@@ -396,4 +399,7 @@ int count_dynamic_dims(const sc_dims &in) {
 expr divide_and_ceil(const expr &v, const expr &d) {
     return do_cast_and_fold((v + d - 1) / d);
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

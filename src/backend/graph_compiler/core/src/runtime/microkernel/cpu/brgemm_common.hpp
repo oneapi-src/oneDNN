@@ -25,7 +25,10 @@
 #include <runtime/context.hpp>
 #include <runtime/data_type.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace brgemm {
 
 enum attr_key {
@@ -221,9 +224,13 @@ using sc_brgemm_attrs_t = std::map<brgemm::attr_key, int64_t>;
 using sc_brgemm_bd_mask_t = std::vector<char>;
 using sc_brgemm_postops_setting_t = std::vector<brgemm::postop_setting_t>;
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
-void *do_get_amx_tile_buf(const char *palette, sc::runtime::stream_t *stream,
-        bool &amx_exclusive, bool &need_config_amx);
+void *do_get_amx_tile_buf(const char *palette,
+        dnnl::impl::graph::gc::runtime::stream_t *stream, bool &amx_exclusive,
+        bool &need_config_amx);
 
 #endif

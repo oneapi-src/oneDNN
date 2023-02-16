@@ -37,7 +37,10 @@
 
 SC_MODULE(pass.buffer_schedule);
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(buffer_scheduler,
         SC_PASS_DEPENDS_ON(tensor_shrinker, tensor_inplace, tensor2var,
@@ -1391,4 +1394,7 @@ stmt_c buffer_scheduler_t::operator()(stmt_c f) const {
     return run(ctx_, std::move(f), eliminate_dead_writes_, do_inplace_opt_);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

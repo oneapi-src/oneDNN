@@ -19,10 +19,13 @@
 #include <functional>
 #include <vector>
 #include "fusion_mgr.hpp"
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 // generates element-wise op in loops
 void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
-        const tensor_slice &dst, sc::sc_op_info_t &info,
+        const tensor_slice &dst, sc_op_info_t &info,
         const vectorized_info_t &vx_info,
         std::function<stmt(
                 const std::vector<expr> &, std::vector<expr::lvalue_proxy_t> &)>
@@ -31,6 +34,9 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
                 const std::vector<expr> &, std::vector<expr::lvalue_proxy_t> &)>
                 compute_scalar);
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -23,7 +23,10 @@
 #include <compiler/ir/graph/dynamic_utils.hpp>
 #include <ops/fusible/memory_movement.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 // Helper function to create a block-compressed format for tensor_view transform
 // check. The new format tries to convert the axis `with num_of_tiles == 1` to
 // previous different axis's block.
@@ -254,4 +257,7 @@ void convert_to_tensor_view(sc_graph_t &graph, const context_ptr &ctx) {
 void tensor_view_transform(sc_graph_t &graph, const context_ptr &ctx) {
     convert_to_tensor_view(graph, ctx);
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

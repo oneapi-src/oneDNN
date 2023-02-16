@@ -20,7 +20,10 @@
 #include "../module_pass.hpp"
 #include "../sc_function.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * Transforms multi-dimemsion tensors into 1-D tensors.
@@ -35,6 +38,9 @@ public:
     SC_DECL_PASS_INFO_FUNC();
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

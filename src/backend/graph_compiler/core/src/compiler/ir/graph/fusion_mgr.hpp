@@ -26,7 +26,10 @@
 #include <runtime/microkernel/cpu/brgemm_common.hpp>
 #include <unordered_map>
 #include <util/utils.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 class fusible_op_t;
 struct fuse_state_t;
 
@@ -224,6 +227,9 @@ std::shared_ptr<output_op> fusion_manager::make<output_op>(
         const graph_tensor_ptr &arg);
 
 using fusion_mgr_ptr = std::shared_ptr<fusion_manager>;
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

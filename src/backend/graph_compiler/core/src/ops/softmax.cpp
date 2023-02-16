@@ -16,7 +16,10 @@
 #include "softmax.hpp"
 #include <compiler/ir/graph/fusible_op.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 softmax_op::softmax_op(const std::vector<graph_tensor_ptr> &ins,
@@ -61,4 +64,7 @@ void softmax_op::query_format(context_ptr ctx,
 } // namespace ops
 
 OP_REGISTER(ops::softmax_op, softmax)
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

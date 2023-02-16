@@ -20,7 +20,10 @@
 
 #include "ir_data_initializer.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 class ir_data_initializer_impl_t : public xbyak_visitor_t {
@@ -114,4 +117,7 @@ func_c ir_data_initializer_t::operator()(func_c v) {
 }
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

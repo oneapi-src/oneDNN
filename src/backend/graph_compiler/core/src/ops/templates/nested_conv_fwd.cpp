@@ -37,8 +37,11 @@
 
 #include <thread>
 
-using namespace sc::builder;
-namespace sc {
+using namespace dnnl::impl::graph::gc::builder;
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 using ops::nested_conv_fwd_config_t;
 // clang-format off
@@ -557,8 +560,8 @@ void gen_nested_conv_fwd_t::compute_1x1_pack_input_nested(CONV_ARG_LIST) const {
 
                                     if (ic_num_block_pt > 1) {
                                       _if_(o_ic == 0) {
-                                        sc::builtin::brgemm_init_list_update(
-                                          A_list, B_list,
+                                        builtin::brgemm_init_list_update(A_list,
+                                          B_list,
                                           tensor_ptr(output_tmp, output_pos), 1,
                                           im_h_block * im_w_block, im_oc_block,
                                           im_ic_block, LDA, im_oc_block, LDC,
@@ -571,7 +574,7 @@ void gen_nested_conv_fwd_t::compute_1x1_pack_input_nested(CONV_ARG_LIST) const {
                                           brg_attrs);
                                       }
                                       _else_ {
-                                        sc::builtin::brgemm_list_update(A_list,
+                                        builtin::brgemm_list_update(A_list,
                                           B_list,
                                           tensor_ptr(output_tmp, output_pos), 1,
                                           im_h_block * im_w_block, im_oc_block,
@@ -585,8 +588,8 @@ void gen_nested_conv_fwd_t::compute_1x1_pack_input_nested(CONV_ARG_LIST) const {
                                           brg_attrs);
                                       }
                                     } else {
-                                      sc::builtin::brgemm_init_list_update(
-                                        A_list, B_list,
+                                      builtin::brgemm_init_list_update(A_list,
+                                        B_list,
                                         tensor_ptr(output_tmp, output_pos), 1,
                                         im_h_block * im_w_block, im_oc_block,
                                         im_ic_block, LDA, im_oc_block, LDC,
@@ -934,7 +937,7 @@ void gen_nested_conv_fwd_t::compute_1x1_no_pack_input_nested(
 
                                       if (ic_num_block_pt > 1) {
                                         _if_(o_ic == 0) {
-                                          sc::builtin::brgemm_init_list_update(
+                                          builtin::brgemm_init_list_update(
                                             A_list, B_list,
                                             tensor_ptr(output_tmp, output_pos),
                                             1, im_w_block, im_oc_block,
@@ -948,8 +951,8 @@ void gen_nested_conv_fwd_t::compute_1x1_no_pack_input_nested(
                                             get_weight_dtype(), brg_attrs);
                                         }
                                         _else_ {
-                                          sc::builtin::brgemm_list_update(
-                                            A_list, B_list,
+                                          builtin::brgemm_list_update(A_list,
+                                            B_list,
                                             tensor_ptr(output_tmp, output_pos),
                                             1, im_w_block, im_oc_block,
                                             im_ic_block, LDA, im_oc_block, LDC,
@@ -962,8 +965,8 @@ void gen_nested_conv_fwd_t::compute_1x1_no_pack_input_nested(
                                             get_weight_dtype(), brg_attrs);
                                         }
                                       } else {
-                                        sc::builtin::brgemm_init_list_update(
-                                          A_list, B_list,
+                                        builtin::brgemm_init_list_update(A_list,
+                                          B_list,
                                           tensor_ptr(output_tmp, output_pos), 1,
                                           im_w_block, im_oc_block, im_ic_block,
                                           LDA, im_oc_block, LDC, 1 /*useless*/
@@ -1345,7 +1348,7 @@ void gen_nested_conv_fwd_t::compute_conv_no_padding_os_blocking_nested(
                               {brgemm::attr_key::use_uker, true},
                               {brgemm::attr_key::bd_mask_level, 2}};
 
-                            sc::builtin::brgemm_init_list_update(A_list, B_list,
+                            builtin::brgemm_init_list_update(A_list, B_list,
                               out_tsr, 1, im_s_block, im_oc_block, im_ic_block,
                               LDA, im_oc_block, LDC, 1 /*useless*/,
                               1 /*useless*/, kh_ * kw_ * ic_block / im_ic_block,
@@ -1649,24 +1652,7 @@ void gen_nested_conv_fwd_t::compute_conv_no_padding_nested(
 
                                         if (ic_num_block_pt > 1) {
                                           _if_(o_ic == 0) {
-                                            sc::builtin::
-                                              brgemm_init_list_update(A_list,
-                                                B_list,
-                                                tensor_ptr(
-                                                  output_tmp, output_pos),
-                                                1, im_w_block, im_oc_block,
-                                                im_ic_block, LDA, im_oc_block,
-                                                LDC, 1 /*useless*/
-                                                ,
-                                                1 /*useless*/
-                                                ,
-                                                kh_ * kw_ * ic_block
-                                                  / im_ic_block,
-                                                get_input_dtype(),
-                                                get_weight_dtype(), brg_attrs);
-                                          }
-                                          _else_ {
-                                            sc::builtin::brgemm_list_update(
+                                            builtin::brgemm_init_list_update(
                                               A_list, B_list,
                                               tensor_ptr(
                                                 output_tmp, output_pos),
@@ -1681,8 +1667,24 @@ void gen_nested_conv_fwd_t::compute_conv_no_padding_nested(
                                               get_input_dtype(),
                                               get_weight_dtype(), brg_attrs);
                                           }
+                                          _else_ {
+                                            builtin::brgemm_list_update(A_list,
+                                              B_list,
+                                              tensor_ptr(
+                                                output_tmp, output_pos),
+                                              1, im_w_block, im_oc_block,
+                                              im_ic_block, LDA, im_oc_block,
+                                              LDC, 1 /*useless*/
+                                              ,
+                                              1 /*useless*/
+                                              ,
+                                              kh_ * kw_ * ic_block
+                                                / im_ic_block,
+                                              get_input_dtype(),
+                                              get_weight_dtype(), brg_attrs);
+                                          }
                                         } else {
-                                          sc::builtin::brgemm_init_list_update(
+                                          builtin::brgemm_init_list_update(
                                             A_list, B_list,
                                             tensor_ptr(output_tmp, output_pos),
                                             1, im_w_block, im_oc_block,
@@ -2052,4 +2054,7 @@ bool gen_nested_conv_fwd_t::generate(context_ptr ctx,
 #undef CONV_ARG_LIST
 
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

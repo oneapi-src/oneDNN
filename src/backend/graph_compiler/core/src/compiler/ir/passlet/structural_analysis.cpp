@@ -18,7 +18,10 @@
 #include <functional>
 #include <utility>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace passlet {
 
 void structural_analysis_t::view(const stmt_c &v, pass_phase phase) {
@@ -77,4 +80,7 @@ const stmt_base_t *structural_result_t::find_shared_parent(
 }
 
 } // namespace passlet
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

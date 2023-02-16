@@ -27,7 +27,10 @@
 #include <compiler/jit/xbyak/x86_64/native_types.hpp>
 #include <compiler/jit/xbyak/x86_64/target_profile.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 namespace x86_64 {
 /// For a particular combination of (ABI, function signature), this indicates
@@ -84,6 +87,9 @@ struct abi_function_interface {
 
 } // namespace x86_64
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -22,7 +22,10 @@
 #include <compiler/ir/graph/graph.hpp>
 #include <util/math_utils.hpp>
 #include <util/utils.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace quantize {
 
 static void common_query_function(sc_op *node,
@@ -351,4 +354,7 @@ OP_REGISTER(quantize::quantize_op_t, quantize)
 OP_REGISTER(quantize::dequantize_op_t, dequantize)
 OP_REGISTER(quantize::dynamic_quantize_op_t, dynamic_quantize)
 OP_REGISTER(quantize::dynamic_dequantize_op_t, dynamic_dequantize)
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

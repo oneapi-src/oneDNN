@@ -17,7 +17,10 @@
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_PARALLEL_WORKLOAD_ATTR_HPP
 #include <stddef.h>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace parallel_workload {
 static const size_t read_weight = 1UL;
@@ -25,6 +28,9 @@ static const size_t write_weight = 1UL;
 static constexpr const char *attr_workload_number = "workload_number";
 } // namespace parallel_workload
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

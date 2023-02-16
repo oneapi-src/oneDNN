@@ -27,7 +27,10 @@
 #include <runtime/microkernel/cpu/brgemm_alg_kind.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 unary_elementwise_op_impl_t::unary_elementwise_op_impl_t(
         graph_tensor_ptr v, const std::string &op_name)
@@ -461,4 +464,7 @@ OP_REGISTER(cast_op_t, cast)
 OP_REGISTER(clamp_op_t, clamp)
 OP_REGISTER(reciprocal_op_t, reciprocal)
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

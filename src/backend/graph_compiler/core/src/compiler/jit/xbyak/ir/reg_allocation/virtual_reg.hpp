@@ -24,7 +24,10 @@
 
 #include "live_range.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 using virt_reg_index_t = int32_t;
@@ -207,6 +210,9 @@ inline virt_reg_type get_virt_reg_type(const sc_data_type_t &t) {
 }
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

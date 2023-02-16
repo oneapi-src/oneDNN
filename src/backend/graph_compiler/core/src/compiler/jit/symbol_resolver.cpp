@@ -31,7 +31,10 @@
 #include <runtime/thread_locals.hpp>
 #include <unordered_map>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 const std::unordered_map<std::string, void *> &get_runtime_function_map() {
     static std::unordered_map<std::string, void *> table = {
@@ -103,4 +106,7 @@ void *default_external_symbol_resolve(const std::string &name) {
     return itr->second;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

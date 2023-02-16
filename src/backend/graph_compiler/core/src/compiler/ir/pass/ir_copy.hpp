@@ -22,7 +22,10 @@
 #include "../viewer.hpp"
 #include <unordered_map>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * Deeply copies the IR. Will NOT copy the function referenced by call_nodes
@@ -48,6 +51,9 @@ public:
     func_c operator()(func_c v) override;
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

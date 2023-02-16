@@ -28,7 +28,10 @@
 #include <unordered_set>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 SC_MODULE(pass.local_tensor_lower);
 
 SC_DECL_PASS_INFO(local_tensor_lowering_cpu,
@@ -359,7 +362,7 @@ mark_alias_for_scheduled_tensors(
     }
     // output to INFO log
     if (auto sc_stream_temp
-            = ::sc::runtime::get_info_logging_stream(__sc_module_name)) {
+            = runtime::get_info_logging_stream(__sc_module_name)) {
         for (auto &kv : scheduled_tensor_position) {
             (*sc_stream_temp.stream_) << kv.first << ':';
             if (auto aid = alias_info::get_alias_info(*kv.first)) {
@@ -396,4 +399,7 @@ func_c local_tensor_lowering_cpu_t::operator()(func_c m) {
     return ret;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -24,7 +24,10 @@
 #include <ops/fusible/reduce.hpp>
 #include <unordered_set>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_MODULE(graph.fuse_op);
 
@@ -605,7 +608,7 @@ SC_INTERNAL_API void fuse_ops(sc_graph_t &g, const context_ptr &ctx) {
         }
         g.add(fused_op);
         // remove the original op mapping tag
-        auto fused_op_ptr = fused_op->dyn_cast<::sc::fused_op_t>();
+        auto fused_op_ptr = fused_op->dyn_cast<fused_op_t>();
         for (auto &op : fused_op_ptr->mgr_->get_graph().ops_) {
             if (op->attrs_.has_key(attr_key_orig_op)) {
                 op->attrs_.remove(attr_key_orig_op);
@@ -621,4 +624,7 @@ SC_INTERNAL_API void fuse_ops(sc_graph_t &g, const context_ptr &ctx) {
     g.reset_op_ids();
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -21,7 +21,10 @@
 
 SC_MODULE(jit.llvm_resolver)
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 sc_llvm_jit_resolver::sc_llvm_jit_resolver() = default;
 sc_llvm_jit_resolver::~sc_llvm_jit_resolver() = default;
@@ -47,4 +50,7 @@ uint8_t *sc_llvm_jit_resolver::allocateDataSection(uintptr_t Size,
     return SectionMemoryManager::allocateDataSection(
             Size, Alignment, SectionID, SectionName, isReadOnly);
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

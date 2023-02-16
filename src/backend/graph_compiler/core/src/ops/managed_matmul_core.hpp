@@ -22,7 +22,10 @@
 #include <compiler/ir/graph/traits.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 class SC_INTERNAL_API managed_matmul_core_op_t
@@ -71,5 +74,8 @@ public:
     void pre_binding_axis(bound_axis_map &bdax_map) override;
 };
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

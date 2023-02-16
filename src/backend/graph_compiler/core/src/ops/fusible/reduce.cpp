@@ -32,7 +32,10 @@
 #include <util/utils.hpp>
 #include <util/variant.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 static inline any_map_t add_key(const any_map_t &attrs, int rd_op_) {
     auto ret = attrs;
@@ -1242,4 +1245,7 @@ OP_REGISTER(reduce_sum_op_t, reduce_sum)
 OP_REGISTER(reduce_prod_op_t, reduce_prod)
 OP_REGISTER(reduce_max_op_t, reduce_max)
 OP_REGISTER(reduce_min_op_t, reduce_min)
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -26,7 +26,10 @@
 #include <runtime/config.hpp>
 #include <unordered_map>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(parallel_workload_dispatcher,
         SC_PASS_DEPENDS_ON(tensor_init, constant_folder),
@@ -213,4 +216,7 @@ stmt_c parallel_workload_dispatcher_t::operator()(stmt_c f) {
     workload_accumulator_t vis(record_workload_, stmt_workload_map_);
     return vis.dispatch(std::move(f));
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

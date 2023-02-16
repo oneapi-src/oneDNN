@@ -77,7 +77,10 @@ SC_MODULE(codegen.llvm);
 #endif
 
 using namespace llvm;
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 #define WHEN_ARCH_NAME(...) __VA_ARGS__
 #define ARCH_GraniteRapids \
@@ -1957,4 +1960,7 @@ const_ir_module_ptr llvm_generator_pass::operator()(const_ir_module_ptr f) {
     return mod;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

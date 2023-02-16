@@ -29,7 +29,10 @@
 #include "sc_function.hpp"
 #include "sc_stmt.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 /**
  * The IR builder. It contains utility functions that helps
  * to build the IR. For easier IR building, you can use easy_build,
@@ -1016,5 +1019,8 @@ stmt get_parent_node(stmt node);
 tensor get_real_tensor(const expr &buffer);
 void add_parent_node(const stmt &s, const stmt &ret);
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

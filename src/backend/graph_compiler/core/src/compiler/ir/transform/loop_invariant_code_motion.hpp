@@ -18,7 +18,10 @@
 
 #include <compiler/ir/function_pass.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * Do loop invariant code motion(LICM) in SSA  (Single-Static-Assignment)
@@ -37,6 +40,9 @@ public:
     SC_DECL_PASS_INFO_FUNC();
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

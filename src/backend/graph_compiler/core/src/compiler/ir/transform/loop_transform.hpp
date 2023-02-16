@@ -18,7 +18,10 @@
 #include <vector>
 #include <compiler/ir/sc_stmt.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 /**
  * Removes redundant loops with parallel attribute. Will reserve the outmost
  * one loop with parallel.
@@ -62,6 +65,9 @@ for_loop get_inner_for_loop(const for_loop_node_t *f);
 // get last for_loop in body
 for_loop get_last_loop_in_body(const stmt &body);
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

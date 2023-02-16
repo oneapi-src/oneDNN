@@ -19,7 +19,10 @@
 #include <compiler/dimensions.hpp>
 #include <compiler/ir/sc_expr.hpp>
 #include <unordered_map>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 struct dynamic_lower_info_t {
     static constexpr sc_dim init_placeholder = dimensions::dynamic_any - 1;
     // decreasing placeholder to represent dynamic dim in graph.
@@ -47,6 +50,9 @@ struct dynamic_lower_info_t {
     }
 };
 using dyn_lower_info_ptr = std::shared_ptr<dynamic_lower_info_t>;
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -18,7 +18,10 @@
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_THREAD_POOL_FLAGS_HPP
 #include <stdint.h>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace runtime {
 
@@ -29,6 +32,9 @@ constexpr int THREAD_POOL_DISABLE_ROLLING = 1 << 1;
 } // namespace thread_pool_flags
 
 } // namespace runtime
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

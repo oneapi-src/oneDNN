@@ -22,7 +22,10 @@
 #include <vector>
 #include <compiler/ir/sc_data_format.hpp>
 #include <runtime/dynamic_dispatch/ops/impl_type.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace runtime {
 union dispatch_key;
 }
@@ -141,6 +144,9 @@ struct combined_dispatch_key_set_t : public dispatch_key_set_base_t {
 };
 
 std::vector<int> get_default_impl_dispatch_candidates();
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

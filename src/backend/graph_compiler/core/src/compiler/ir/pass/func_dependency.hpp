@@ -22,7 +22,10 @@
 #include "../sc_function.hpp"
 #include <unordered_set>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * Walks through the function's body and find the functions that the function
@@ -54,6 +57,9 @@ public:
     func_dependency_finder_t(std::vector<func_t> &dep) : dep_(dep) {}
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

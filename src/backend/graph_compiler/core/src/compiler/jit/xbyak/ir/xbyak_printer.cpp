@@ -28,7 +28,10 @@
 #include "xbyak_expr.hpp"
 #include "xbyak_printer.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 ostream &xbyak_printer_t::print_expr_info(ostream &os, const expr &arg) {
@@ -211,4 +214,7 @@ std::stringstream &xbyak_printer_t::get_stream() {
 }
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

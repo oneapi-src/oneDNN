@@ -34,8 +34,11 @@
 #include <util/math_utils.hpp>
 #include <util/reflection.hpp>
 
-using namespace sc::builder;
-namespace sc {
+using namespace dnnl::impl::graph::gc::builder;
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 using ops::matmul_core_config_t;
 // clang-format off
@@ -139,9 +142,9 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
   cfg.K_block = 64;
   if (get_in_dtypes(0) == datatypes::f32) {
     int K = static_cast<int>(A_plain_dims[1]);
-    int ceil64_K = static_cast<int>(sc::utils::rnd_up(K, 64));
-    int ceil48_K = static_cast<int>(sc::utils::rnd_up(K, 48));
-    int ceil32_K = static_cast<int>(sc::utils::rnd_up(K, 32));
+    int ceil64_K = static_cast<int>(utils::rnd_up(K, 64));
+    int ceil48_K = static_cast<int>(utils::rnd_up(K, 48));
+    int ceil32_K = static_cast<int>(utils::rnd_up(K, 32));
     int pad64_K = ceil64_K - K;
     int pad48_K = ceil48_K - K;
     int pad32_K = ceil32_K - K;
@@ -234,9 +237,9 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
           cfg.M_block = possible_blks.front();
         } else {
           if (M > 64) {
-            int ceil64_M = static_cast<int>(sc::utils::rnd_up(M, 64));
-            int ceil48_M = static_cast<int>(sc::utils::rnd_up(M, 48));
-            int ceil32_M = static_cast<int>(sc::utils::rnd_up(M, 32));
+            int ceil64_M = static_cast<int>(utils::rnd_up(M, 64));
+            int ceil48_M = static_cast<int>(utils::rnd_up(M, 48));
+            int ceil32_M = static_cast<int>(utils::rnd_up(M, 32));
             int pad64_M = ceil64_M - M;
             int pad48_M = ceil48_M - M;
             int pad32_M = ceil32_M - M;
@@ -267,9 +270,9 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
     } else {
       // bmm default config
       assert(cfg.M_block > 0);
-      int ceil64_N = static_cast<int>(sc::utils::rnd_up(N, 64));
-      int ceil48_N = static_cast<int>(sc::utils::rnd_up(N, 48));
-      int ceil32_N = static_cast<int>(sc::utils::rnd_up(N, 32));
+      int ceil64_N = static_cast<int>(utils::rnd_up(N, 64));
+      int ceil48_N = static_cast<int>(utils::rnd_up(N, 48));
+      int ceil32_N = static_cast<int>(utils::rnd_up(N, 32));
       int pad64_N = ceil64_N - N;
       int pad48_N = ceil48_N - N;
       int pad32_N = ceil32_N - N;
@@ -677,7 +680,7 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
   batch_loops.resize(batch_dims_size);
   ranges.reserve(batch_dims_size);
   for (size_t i = 0; i < batch_dims_size; i++) {
-    ranges.emplace_back(sc::builder::range(
+    ranges.emplace_back(builder::range(
       batch_loops[i], expr(0), batch_dims[i], expr(1), for_type::PARALLEL));
   }
   if (!batch_dims.empty()) {
@@ -743,7 +746,7 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
             fidx2, fidx3);
 
           // todo: this is for s8s8 vnni compensation
-          sc::builtin::brgemm_init_update_allow_fusion(tensor_ptr(A, aidx),
+          builtin::brgemm_init_update_allow_fusion(tensor_ptr(A, aidx),
             tensor_ptr(B, bidx), tensor_ptr(C, cidx), K_num_blocks, M_block,
             N_block, K_block, LDA, LDB, LDC, stride_a, stride_b, A_dtype,
             B_dtype);
@@ -789,7 +792,7 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
         if (!out_tensors_[0].get_format().is_blocking()) {
           LDC = graph.dim_to_expr(in_tensors_[1].get_plain_dims().back());
         }
-        sc::builtin::brgemm_init_update_allow_fusion(
+        builtin::brgemm_init_update_allow_fusion(
           tensor_ptr(A,
             !in_tensors_[0].get_format().is_blocking()
               ? std::vector<expr> {m_o * M_block, 0}
@@ -844,4 +847,7 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
   return true;
 }
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

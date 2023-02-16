@@ -17,7 +17,10 @@
 #include "op_dispatch_tables.hpp"
 #include <assert.h>
 #include <string.h>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace runtime {
 
 void op_dispatch_tables_t::set_format_table_keys(uint64_t *keys,
@@ -37,4 +40,7 @@ op_dispatch_tables_t::~op_dispatch_tables_t() {
     kernel_dispatch_func_ = nullptr;
 }
 } // namespace runtime
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

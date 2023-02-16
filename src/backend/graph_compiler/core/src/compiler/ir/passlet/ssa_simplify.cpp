@@ -19,7 +19,10 @@
 #include <compiler/ir/ssa_data.hpp>
 #include <util/hash_utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace passlet {
 
 expr_c ssa_simplify_t::visit(const var_c &v) {
@@ -45,4 +48,7 @@ expr_c ssa_simplify_t::visit(const ssa_phi_c &v) {
 }
 
 } // namespace passlet
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

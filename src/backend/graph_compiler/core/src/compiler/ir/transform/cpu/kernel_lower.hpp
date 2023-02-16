@@ -19,7 +19,10 @@
 
 #include "../../module_pass.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * Lower the micro-kernel calls. Try to replace them with optimal versions of
@@ -33,6 +36,9 @@ public:
     SC_DECL_PASS_INFO_FUNC();
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -19,13 +19,19 @@
 #include <stddef.h>
 #include <util/def.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace runtime {
 /**
  * Gets the size of OS memory page
  * */
 SC_INTERNAL_API size_t get_os_page_size();
 } // namespace runtime
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

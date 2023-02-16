@@ -37,11 +37,17 @@ SC_API void sc_initialize_dyn_tsr(
         void *dyn_tsr, void *tsr, void *shapes, uint8_t dyn_mask, int ndims);
 };
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace runtime {
 struct engine_t;
 }
 SC_API void release_runtime_memory(runtime::engine_t *engine);
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

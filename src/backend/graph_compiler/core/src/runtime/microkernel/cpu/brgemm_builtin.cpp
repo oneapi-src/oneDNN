@@ -19,13 +19,13 @@
 #include <runtime/microkernel/cpu/microkernel.hpp>
 #include <util/assert.hpp>
 
-using namespace sc;
-typedef sc::sc_data_etype sc_dtype;
+using namespace dnnl::impl::graph::gc;
+typedef sc_data_etype sc_dtype;
 
 extern "C" {
 
-SC_API void *sc_brgemm_get_amx_scratch(const char *palette,
-        bool *need_config_amx, sc::runtime::stream_t *stream) {
+SC_API void *sc_brgemm_get_amx_scratch(
+        const char *palette, bool *need_config_amx, runtime::stream_t *stream) {
     bool amx_exclusive = false;
     *need_config_amx = false;
     return do_get_amx_tile_buf(

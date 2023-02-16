@@ -26,7 +26,10 @@
 #include <unordered_set>
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 static std::atomic<int> rename_cnt = {0};
 // this pass will
@@ -290,4 +293,7 @@ ostream &operator<<(ostream &os, const ir_module_ptr &m) {
     return (os << const_ir_module_ptr(m));
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

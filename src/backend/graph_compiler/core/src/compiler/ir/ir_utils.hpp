@@ -21,7 +21,10 @@
 #include "sc_expr.hpp"
 #include <util/array_ref.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 // finds the direct dependency of an SSA expr. Will return the exprs to the
 // callback.
@@ -32,6 +35,9 @@ void get_direct_dependency_of_expr(
  * @param v the input dims of tensor.
  */
 std::vector<expr> dims_to_dense_stride(const std::vector<expr> &v);
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

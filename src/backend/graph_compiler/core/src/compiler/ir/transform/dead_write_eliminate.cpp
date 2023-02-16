@@ -26,7 +26,10 @@
 
 SC_MODULE(pass.dead_write_elim)
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(dead_write_eliminator,
         SC_PASS_DEPENDS_ON(validator, index2var), // need to remove redundant
@@ -89,4 +92,7 @@ func_c dead_write_eliminator_t::operator()(func_c f) {
     dwe_impl_t v;
     return v.dispatch(f);
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

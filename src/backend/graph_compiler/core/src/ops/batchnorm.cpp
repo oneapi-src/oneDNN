@@ -19,7 +19,10 @@
 #include <utility>
 #include <compiler/ir/graph/fusible_op.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 batchnorm_inference_op::batchnorm_inference_op(
@@ -467,4 +470,7 @@ void batchnorm_training_backprop_op_t::query_format(context_ptr ctx,
 OP_REGISTER(ops::batchnorm_inference_op, batchnorm_inference)
 OP_REGISTER(ops::batchnorm_forward_training_op, batchnorm_forward_training)
 OP_REGISTER(ops::batchnorm_training_backprop_op_t, batchnorm_training_backprop)
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -32,7 +32,10 @@
 #include <runtime/dynamic_dispatch/op_func_decl.hpp>
 #include <unordered_map>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 using namespace ops;
 SC_MODULE(graph.pass.dynamic_infer_shape)
 static void print_shapes(
@@ -155,4 +158,7 @@ SC_API void dynamic_infer_shape_by_graph(sc_graph_t &graph,
                 }
             });
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

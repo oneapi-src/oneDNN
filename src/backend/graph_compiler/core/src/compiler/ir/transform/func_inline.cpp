@@ -23,7 +23,10 @@
 #include <unordered_map>
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(func_inliner, SC_PASS_DEPENDS_ON(validator, trace_inserter),
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
@@ -276,4 +279,7 @@ func_c func_inliner_t::operator()(func_c f) {
     return impl.dispatch(f);
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -26,7 +26,10 @@
 #include <unordered_map>
 #include <util/assert.hpp>
 #include <util/def.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 void op_visitor_t::visit_graph(const sc_graph_t &mgr, const visitor_func &f) {
     for (auto &v : mgr.ops_) {
@@ -635,4 +638,7 @@ std::vector<sc_op_ptr> search_tuneop_bypass(const context_ptr &ctx,
     if (found) { return bypass_ops; }
     return {};
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

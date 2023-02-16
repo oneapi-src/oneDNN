@@ -20,7 +20,10 @@
 #include "utils.hpp"
 #include <util/simple_math.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 extern "C" int get_matmul_dyn_cfg_single(int in, bool is_batch) {
     assert(in > 0);
     const int blk_step = 16;
@@ -36,7 +39,7 @@ extern "C" int get_matmul_dyn_cfg_single(int in, bool is_batch) {
     for (int i = 1; i <= 4; i++) {
         int cur_blk = blk_step * i;
         if (cur_blk == 48) { continue; }
-        int cur_num_blk = ::sc::utils::divide_and_ceil(in, cur_blk);
+        int cur_num_blk = utils::divide_and_ceil(in, cur_blk);
         int cur_padded_in = cur_num_blk * cur_blk;
         if (in % cur_padded_in == 0) {
             has_no_tail = true;
@@ -98,4 +101,7 @@ uint64_t calculate_blocking_dims(void *placeholder, uint64_t *format) {
     return size;
 }
 } // namespace runtime
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

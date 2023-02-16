@@ -19,7 +19,10 @@
 #include <memory>
 #include <unordered_map>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace utils {
 
 template <typename T>
@@ -105,5 +108,8 @@ struct weakptr_hashset_t {
 };
 
 } // namespace utils
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

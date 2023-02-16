@@ -24,7 +24,10 @@
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/utils.hpp>
 #include <runtime/dynamic_dispatch/utils.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 shape_of_tensor_op_t::shape_of_tensor_op_t(
         const std::vector<graph_tensor_ptr> &ins,
@@ -152,4 +155,7 @@ void shape_of_tensor_op_t::compute_block(context_ptr ctx,
 
 OP_REGISTER(shape_of_tensor_op_t, shape_of_tensor);
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

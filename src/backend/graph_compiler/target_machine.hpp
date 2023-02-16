@@ -20,17 +20,20 @@
 #include "runtime/config.hpp"
 
 #define REQUIRE_AVX512_BEGIN \
-    if (::sc::get_default_context()->machine_.cpu_flags_.fAVX512F) {
+    if (::dnnl::impl::graph::gc::get_default_context() \
+                    ->machine_.cpu_flags_.fAVX512F) {
 #define REQUIRE_VNNI_AMXINT8_BEGIN \
-    if (::sc::get_default_context()->machine_.cpu_flags_.fAVX512VNNI \
-            || ::sc::get_default_context() \
+    if (::dnnl::impl::graph::gc::get_default_context() \
+                    ->machine_.cpu_flags_.fAVX512VNNI \
+            || ::dnnl::impl::graph::gc::get_default_context() \
                        ->machine_.cpu_flags_.fAVX512AMXINT8) {
 #define REQUIRE_BF16_AMXBF16_BEGIN \
-    if (::sc::get_default_context()->machine_.cpu_flags_.fAVX512BF16 \
-            || ::sc::get_default_context() \
+    if (::dnnl::impl::graph::gc::get_default_context() \
+                    ->machine_.cpu_flags_.fAVX512BF16 \
+            || ::dnnl::impl::graph::gc::get_default_context() \
                        ->machine_.cpu_flags_.fAVX512AMXBF16) {
 #define REQUIRE_SINGLE_THREAD_BEGIN \
-    if (sc::runtime_config_t::get().get_num_threads() == 1) {
+    if (dnnl::impl::graph::gc::runtime_config_t::get().get_num_threads() == 1) {
 #define REQUIRE_AVX512_END }
 #define REQUIRE_VNNI_AMXINT8_END }
 #define REQUIRE_BF16_AMXBF16_END }

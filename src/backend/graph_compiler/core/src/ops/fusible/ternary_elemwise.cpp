@@ -28,7 +28,10 @@
 #include <unordered_map>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 // Now we only support unidirectional broadcast. We assume one of the three
 // tensors(cond,then,else) is the largest, the remaining two tensors are
@@ -757,4 +760,7 @@ void select_op_t::prepare_fusion_data(fdata_map &fdmap) {}
 
 OP_REGISTER(select_op_t, select)
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

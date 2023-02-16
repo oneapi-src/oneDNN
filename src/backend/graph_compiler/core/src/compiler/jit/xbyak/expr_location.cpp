@@ -20,7 +20,10 @@
 
 #include "expr_location.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 //============================================================================
@@ -153,4 +156,7 @@ std::ostream &operator<<(std::ostream &os, const expr_location &v) {
 }
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

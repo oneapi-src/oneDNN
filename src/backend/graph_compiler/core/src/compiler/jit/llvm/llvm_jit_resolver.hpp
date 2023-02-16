@@ -20,7 +20,10 @@
 #include <string>
 #include <llvm/ExecutionEngine/SectionMemoryManager.h>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 class sc_llvm_jit_resolver : public llvm::SectionMemoryManager {
     sc_llvm_jit_resolver(const sc_llvm_jit_resolver &) = delete;
@@ -37,6 +40,9 @@ public:
             unsigned SectionID, llvm::StringRef SectionName,
             bool isReadOnly) override;
 };
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

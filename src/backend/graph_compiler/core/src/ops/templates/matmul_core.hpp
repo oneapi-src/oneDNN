@@ -22,7 +22,10 @@
 #include <vector>
 #include <ops/body_generator.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 struct matmul_core_config_t {
   int M_block;
@@ -113,6 +116,9 @@ private:
   blocking_axis_t blocking_axis_;
 };
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

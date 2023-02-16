@@ -23,7 +23,10 @@
 #include <compiler/ir/graph/traits.hpp>
 #include <compiler/ir/ir_module.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 // the padding shape type decides the runtime block selector function usage.
 // E.g. matmul and conv may have different block select.
 // Currently we only support mamtul block select.
@@ -65,6 +68,9 @@ private:
     // related tunable op.
     padding_shape_etype_t shape_type_;
 };
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

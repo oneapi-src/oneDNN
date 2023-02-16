@@ -20,7 +20,10 @@
 #include <vector>
 #include "graph.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace graph {
 std::string get_tensor_name(graph_tensor *t, sc_op *linked_output);
@@ -53,6 +56,9 @@ enum info_etype_t { real_tensor, placeholder, format, out_size };
  * */
 SC_API ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
         const std::vector<sc_op_ptr> &args, bool mark_as_main = true);
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

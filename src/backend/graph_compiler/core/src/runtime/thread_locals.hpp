@@ -24,7 +24,10 @@
 #include "memorypool.hpp"
 #include "trace.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace runtime {
 
 // the thread-local AMX-related data
@@ -45,7 +48,7 @@ struct amx_buffer_t {
 
 struct thread_local_registry_t;
 // a container for thread local resources. Users can call
-// sc::release_runtime_memory to manually release all thread local memory
+// release_runtime_memory to manually release all thread local memory
 // managed by this struct
 struct thread_local_buffer_t {
     // the additional thread local data. Referenced via a pointer in
@@ -102,9 +105,12 @@ inline thread_local_buffer_t &get_tls(runtime::stream_t *stream) {
 }
 
 } // namespace runtime
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 extern "C" SC_API void *sc_get_tls_amx_buffer(
-        sc::runtime::stream_t *stream) noexcept;
+        dnnl::impl::graph::gc::runtime::stream_t *stream) noexcept;
 
 #endif

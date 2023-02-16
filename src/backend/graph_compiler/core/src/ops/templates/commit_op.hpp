@@ -23,7 +23,10 @@
 #include <compiler/ir/graph/tensor_slice.hpp>
 #include <util/array_ref.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 /**
  * @brief Commit the code of an Op into the current IR builder. Use op_inputs,
@@ -50,6 +53,9 @@ void commit_op(const context_ptr &ctx, const std::string &opname,
   const std::vector<graph_tensor_ptr> &op_outputs = {},
   const any_map_t &attr = {});
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -30,7 +30,10 @@
 #include <type_traits>
 #include <unordered_map>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace json {
 class json_writer;
@@ -519,12 +522,16 @@ struct class_builder_t {
 };
 
 } // namespace reflection
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #define SC_CLASS_WITH_NAME(IDENTIFIER, ...) \
     struct __namespace_checker_##IDENTIFIER; \
     static_assert(std::is_same<__namespace_checker_##IDENTIFIER, \
-                          ::sc::__namespace_checker_##IDENTIFIER>::value, \
+                          ::dnnl::impl::graph::gc:: \
+                                  __namespace_checker_##IDENTIFIER>::value, \
             "SC_CLASS macro should be used in sc namespace!"); \
     namespace reflection { \
     template <> \
@@ -546,7 +553,10 @@ struct class_builder_t {
  * };
  *
  * Use SC_CLASS in namespace sc:
- * namespace sc {
+ * namespace dnnl{
+namespace impl{
+namespace graph{
+namespace gc{
  *  SC_CLASS(A)
  *      SC_FIELD(a)
  *      SC_FIELD(b)
@@ -554,7 +564,10 @@ struct class_builder_t {
  * }
  *
  * Or
- * namespace sc {
+ * namespace dnnl{
+namespace impl{
+namespace graph{
+namespace gc{
  *  SC_CLASS_WITH_NAME(AClassName, ::A)
  *      SC_FIELD(a)
  *      SC_FIELD(b)

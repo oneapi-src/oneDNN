@@ -18,7 +18,10 @@
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_ENV_VARS_HPP
 #include <util/def.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace env_key {
 enum key {
@@ -35,5 +38,8 @@ enum key {
 } // namespace env_key
 
 extern const char *env_names[env_key::NUM_KEYS];
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

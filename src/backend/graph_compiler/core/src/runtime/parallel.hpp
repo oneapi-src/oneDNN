@@ -22,12 +22,19 @@
 
 // the default implementation of SC's thread pool
 extern "C" SC_API void sc_parallel_call_cpu_with_env_impl(
-        void (*pfunc)(void *, void *, int64_t, sc::generic_val *),
+        void (*pfunc)(
+                void *, void *, int64_t, dnnl::impl::graph::gc::generic_val *),
         uint64_t flags, void *rtl_ctx, void *module_env, int64_t begin,
-        int64_t end, int64_t step, sc::generic_val *args);
+        int64_t end, int64_t step, dnnl::impl::graph::gc::generic_val *args);
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 extern thread_pool_table sc_pool_table;
 }
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

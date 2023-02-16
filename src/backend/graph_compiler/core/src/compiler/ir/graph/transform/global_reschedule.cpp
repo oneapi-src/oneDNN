@@ -25,7 +25,10 @@
 #include <ops/fusible/reduce.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 // collect_bypass will check master and bypass branch
 static void collect_bypass(sc_graph_t &graph, const context_ptr &ctx,
@@ -415,4 +418,7 @@ void global_reschedule(sc_graph_t &graph, const context_ptr &ctx) {
     graph.reset_op_ids();
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

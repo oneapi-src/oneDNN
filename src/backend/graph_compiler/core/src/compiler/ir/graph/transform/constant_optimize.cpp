@@ -20,7 +20,10 @@
 #include "transform.hpp"
 #include <compiler/ir/graph/traits.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 void constant_optimization(sc_graph_t &graph, const context_ptr &ctx) {
     auto vis = op_visitor_t::dfs_topology_sort(graph.ops_.size());
@@ -34,4 +37,7 @@ void constant_optimization(sc_graph_t &graph, const context_ptr &ctx) {
     graph.reset_op_ids();
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

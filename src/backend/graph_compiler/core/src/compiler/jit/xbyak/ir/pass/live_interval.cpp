@@ -24,7 +24,10 @@
 
 #include "live_interval.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 class live_interval_impl_t : public xbyak_visitor_t {
@@ -223,4 +226,7 @@ func_c live_interval_t::operator()(func_c v) {
 }
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

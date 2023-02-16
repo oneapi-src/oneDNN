@@ -38,7 +38,10 @@
 #include <util/array_ref.hpp>
 #include <util/string_utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 /**
@@ -281,6 +284,9 @@ protected:
 };
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -19,7 +19,10 @@
 
 #include <compiler/ir/sc_expr.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace passlet {
 
 // the passlet for SSA copy propagation and constant propagation
@@ -42,5 +45,8 @@ struct ssa_simplify_t {
 };
 
 } // namespace passlet
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

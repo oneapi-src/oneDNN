@@ -21,7 +21,10 @@
 #include <tuple>
 #include <vector>
 #include <ops/body_generator.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace ops {
 
@@ -111,6 +114,9 @@ public:
 };
 } // namespace ops
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

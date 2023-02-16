@@ -16,7 +16,10 @@
 
 #include "quantize_info.hpp"
 #include <compiler/ir/sc_expr.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 static std::vector<union_val> get_padded_union_val_vector(
         const std::vector<int> &input, unsigned padded) {
@@ -32,4 +35,7 @@ static std::vector<union_val> get_padded_union_val_vector(
     return results;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

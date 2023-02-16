@@ -22,7 +22,10 @@
 #include "function_pass.hpp"
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 class sequential_function_pass_t : public function_pass_t {
 public:
     std::vector<function_pass_ptr> passes_;
@@ -35,6 +38,9 @@ public:
     }
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

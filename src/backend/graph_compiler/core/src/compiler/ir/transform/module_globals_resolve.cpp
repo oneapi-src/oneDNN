@@ -29,7 +29,10 @@
 #include <util/any_map.hpp>
 
 SC_MODULE(pass.module_globals_resolve);
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(module_globals_resolver,
         SC_PASS_DEPENDS_ON(closurizer_cpu, kernel_lowering_cpu),
@@ -316,4 +319,7 @@ const_ir_module_ptr module_globals_resolver_t::operator()(
     return ret;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -20,7 +20,10 @@
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/traits.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 // the dynamic reshape op. The first input is the tensor to reshape. The second
 // is the target shape. We currently only support the case when the second input
@@ -56,6 +59,9 @@ public:
     sc_op_ptr constant_optimize(sc_graph_t &graph) override;
 };
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

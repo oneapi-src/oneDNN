@@ -34,7 +34,10 @@
 #include <runtime/config.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 // incrementor for loop
 static std::atomic<int> idx = {0};
 // incrementor for temp var
@@ -914,4 +917,7 @@ expr cast_to_s32(const expr &in) {
     return builder::make_cast(datatypes::s32, in);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

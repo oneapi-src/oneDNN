@@ -24,7 +24,10 @@
 #include <stdio.h>
 #endif
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace runtime {
 
@@ -107,10 +110,13 @@ SC_API void release_runtime_memory(runtime::engine_t *engine) {
     registry.release(engine);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 extern "C" SC_API void *sc_get_tls_amx_buffer(
-        sc::runtime::stream_t *stream) noexcept {
-    auto &tls = sc::runtime::get_tls(stream);
+        dnnl::impl::graph::gc::runtime::stream_t *stream) noexcept {
+    auto &tls = dnnl::impl::graph::gc::runtime::get_tls(stream);
     return &tls.amx_buffer_;
 }

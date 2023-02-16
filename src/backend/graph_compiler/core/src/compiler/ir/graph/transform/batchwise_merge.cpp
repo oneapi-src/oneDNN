@@ -26,7 +26,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_MODULE(graph.batchwise_merge);
 
@@ -64,7 +67,7 @@ static void init_batchwise_merge(
             node->attrs_.set(op_attr_key::no_fuse, true);
         bw_map[node] = extract_batchwise_dims(node);
     });
-} // namespace sc
+}
 
 sc_dims bw_merger(
         const sc_dims &common_dims, const sc_op_ptr &op, bw_merge_map &bw_map) {
@@ -446,7 +449,7 @@ static void do_batchwise_merge(
         }
         graph.add(fused_op);
         // remove the original op mapping tag
-        auto fused_op_ptr = fused_op->dyn_cast<::sc::batchwise_fused_op_t>();
+        auto fused_op_ptr = fused_op->dyn_cast<batchwise_fused_op_t>();
         for (auto &op : fused_op_ptr->bw_graph_.ops_) {
             if (op->attrs_.has_key(bw_attr_key_orig_op)) {
                 op->attrs_.remove(bw_attr_key_orig_op);
@@ -472,4 +475,7 @@ void batchwise_merge(sc_graph_t &graph, const context_ptr &ctx) {
     do_batchwise_merge(ctx, graph, bw_map);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

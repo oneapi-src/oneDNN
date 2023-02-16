@@ -19,7 +19,10 @@
 #include <stdint.h>
 #include "../data_type.hpp"
 #include <compiler/dimensions.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace runtime {
 /** This tensor is prepared for dynamic shape. If tensor node has uncertain
  * shapes during compile-time, then tensor node will be transformed to `void *`
@@ -50,5 +53,8 @@ struct dynamic_tensor_t {
     uint8_t dyn_mask_;
 };
 } // namespace runtime
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

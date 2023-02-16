@@ -20,7 +20,10 @@
 #include "visitor.hpp"
 #include <compiler/ir/graph/pass/pass.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 std::vector<graph_tensor_ptr> graph_op_t::remake_logical_tensors(
         const std::vector<graph_tensor_ptr> &flts) {
@@ -65,7 +68,7 @@ void configurable_graph_op_t::set_config(const config_ptr &config) {
 config_ptr configurable_graph_op_t::get_default_config(context_ptr ctx) {
     auto op_graph = this->get_graph();
     return reflection::general_object_t::make(
-            sc::graph::get_graph_default_config(ctx, *op_graph));
+            graph::get_graph_default_config(ctx, *op_graph));
 }
 
 nested_graph_op_t::nested_graph_op_t(const std::string &op_name,
@@ -133,4 +136,7 @@ sc_op_ptr nested_graph_op_t::copy( // NOLINT
             this->op_name_, ins, outs, attrs_, copy_graph(graph_));
     return ret;
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

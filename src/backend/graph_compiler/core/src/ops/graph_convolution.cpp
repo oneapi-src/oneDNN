@@ -25,7 +25,10 @@
 #include <ops/templates/utils.hpp>
 #include <util/math_utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 static void permute_shape_NXC2NCX(sc_dims &shape) {
@@ -345,7 +348,7 @@ void conv_bwd_data_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
         filter = permute_weight->get_outputs()[0];
     }
 
-    auto ctx = sc::get_default_context();
+    auto ctx = get_default_context();
     if (!is_3D && is_use_amx(ctx) && is_3x3 && stride_all_1 && valid_padding) {
         // use conv fwd core instead
         // make KCRS --> CKRS, since
@@ -476,7 +479,10 @@ void conv_bwd_weight_op_t::query_format(context_ptr ctx,
 
 } // namespace ops
 
-OP_REGISTER(::sc::ops::conv_fwd_op_t, conv_fwd)
-OP_REGISTER(::sc::ops::conv_bwd_data_op_t, conv_bwd_data)
-OP_REGISTER(::sc::ops::conv_bwd_weight_op_t, conv_bwd_weight)
-} // namespace sc
+OP_REGISTER(ops::conv_fwd_op_t, conv_fwd)
+OP_REGISTER(ops::conv_bwd_data_op_t, conv_bwd_data)
+OP_REGISTER(ops::conv_bwd_weight_op_t, conv_bwd_weight)
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

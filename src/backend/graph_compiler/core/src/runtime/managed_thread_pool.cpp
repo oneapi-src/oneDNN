@@ -38,10 +38,13 @@
 // clang-format on
 #endif
 
-using namespace sc;
-using sc::runtime::thread_manager;
+using namespace dnnl::impl::graph::gc;
+using runtime::thread_manager;
 static void do_dispatch(thread_manager *s, int tid);
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace runtime {
 #ifdef SC_KERNEL_PROFILE
 static void make_trace(int in_or_out, int count) {
@@ -179,7 +182,10 @@ void thread_manager::run_main_function(main_func_t f, runtime::stream_t *stream,
 
 alignas(64) thread_local thread_manager thread_manager::cur_mgr;
 } // namespace runtime
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 // using balance211 to dispatch the workloads
 static void do_dispatch(thread_manager *s, int tid) {
@@ -203,7 +209,7 @@ static void do_dispatch(thread_manager *s, int tid) {
             : the_tid * my_jobs + (tid - the_tid) * my_jobs_2;
     my_begin = my_begin * step + begin;
     bool disable_rolling = s->state.execution_flags
-            & sc::runtime::thread_pool_flags::THREAD_POOL_DISABLE_ROLLING;
+            & runtime::thread_pool_flags::THREAD_POOL_DISABLE_ROLLING;
     for (size_t jid = 0; jid < cur_jobs; jid++) {
         // Rolling i with tid
         size_t real_jid = disable_rolling ? jid : ((jid + tid) % cur_jobs);
@@ -214,10 +220,10 @@ static void do_dispatch(thread_manager *s, int tid) {
 }
 
 void sc_parallel_call_managed(
-        void (*pfunc)(void *, void *, int64_t, sc::generic_val *),
+        void (*pfunc)(void *, void *, int64_t, generic_val *),
         uint64_t execution_flags, void *rtl_ctx, void *module_env,
-        int64_t begin, int64_t end, int64_t step, sc::generic_val *args) {
-    sc::runtime::thread_local_buffer_t::tls_buffer_.additional_->is_main_thread_
+        int64_t begin, int64_t end, int64_t step, generic_val *args) {
+    runtime::thread_local_buffer_t::tls_buffer_.additional_->is_main_thread_
             = true;
     thread_manager *stream = &thread_manager::cur_mgr;
     stream->state.execution_flags = execution_flags;
@@ -230,11 +236,11 @@ void sc_parallel_call_managed(
     stream->state.wait_all();
 
     if (execution_flags
-            & sc::runtime::thread_pool_flags::THREAD_POOL_RUN_IDLE_FUNC) {
+            & runtime::thread_pool_flags::THREAD_POOL_RUN_IDLE_FUNC) {
         stream->state.idle_func = nullptr;
     }
     stream->state.execution_flags
-            = sc::runtime::thread_pool_flags::THREAD_POOL_DEFAULT;
+            = runtime::thread_pool_flags::THREAD_POOL_DEFAULT;
 }
 
 void sc_set_idle_func_managed(thread_manager::idle_func_t func, void *args) {

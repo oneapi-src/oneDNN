@@ -20,7 +20,10 @@
 #include <string>
 #include <runtime/target_machine.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace runtime {
 struct engine_t;
 }
@@ -60,7 +63,7 @@ struct scflags_t {
 };
 
 struct context_t {
-    sc::runtime::engine_t *engine_;
+    runtime::engine_t *engine_;
     scflags_t flags_;
     runtime::target_machine_t machine_;
     context_t(const scflags_t &flags, runtime::target_machine_t &&machine,
@@ -71,5 +74,8 @@ struct context_t {
 using context_ptr = std::shared_ptr<context_t>;
 
 SC_API context_ptr get_default_context();
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

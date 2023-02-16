@@ -23,7 +23,10 @@
 #include <compiler/ir/graph/traits.hpp>
 #include <compiler/ir/transform/tensor_inplace_info.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace op_traits {
 struct may_inplace_t : public virtual op_base_trait_t {
     /**
@@ -40,6 +43,9 @@ struct may_inplace_t : public virtual op_base_trait_t {
 };
 
 } // namespace op_traits
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

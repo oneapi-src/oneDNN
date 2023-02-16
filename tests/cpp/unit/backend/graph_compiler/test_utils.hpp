@@ -36,15 +36,17 @@ namespace compiler {
 namespace utils {
 
 #define REQUIRE_AVX512() \
-    if (!::sc::get_default_context()->machine_.cpu_flags_.fAVX512F) { \
+    if (!::dnnl::impl::graph::gc::get_default_context() \
+                    ->machine_.cpu_flags_.fAVX512F) { \
         GTEST_SKIP(); \
         return; \
     }
 
 #define REQUIRE_VNNI_AMXINT8() \
     REQUIRE_AVX512() \
-    if (!::sc::get_default_context()->machine_.cpu_flags_.fAVX512VNNI \
-            && !::sc::get_default_context() \
+    if (!::dnnl::impl::graph::gc::get_default_context() \
+                    ->machine_.cpu_flags_.fAVX512VNNI \
+            && !::dnnl::impl::graph::gc::get_default_context() \
                         ->machine_.cpu_flags_.fAVX512AMXINT8) { \
         GTEST_SKIP(); \
         return; \
@@ -52,15 +54,17 @@ namespace utils {
 
 #define REQUIRE_BF16_AMXBF16() \
     REQUIRE_AVX512() \
-    if (!::sc::get_default_context()->machine_.cpu_flags_.fAVX512BF16 \
-            && !::sc::get_default_context() \
+    if (!::dnnl::impl::graph::gc::get_default_context() \
+                    ->machine_.cpu_flags_.fAVX512BF16 \
+            && !::dnnl::impl::graph::gc::get_default_context() \
                         ->machine_.cpu_flags_.fAVX512AMXBF16) { \
         GTEST_SKIP(); \
         return; \
     }
 
 #define REQUIRE_SINGLE_THREAD() \
-    if (::sc::runtime_config_t::get().get_num_threads() != 1) { \
+    if (::dnnl::impl::graph::gc::runtime_config_t::get().get_num_threads() \
+            != 1) { \
         GTEST_SKIP(); \
         return; \
     }

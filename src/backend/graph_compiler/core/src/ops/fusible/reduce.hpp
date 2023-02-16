@@ -22,7 +22,10 @@
 #include <vector>
 #include <compiler/ir/graph/fusible_op.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace op_traits {
 struct maybe_split_optimized_t : public virtual op_base_trait_t {
@@ -233,5 +236,8 @@ public:
             const std::vector<graph_tensor_ptr> &outs,
             sc_graph_t &mgr) override;
 };
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

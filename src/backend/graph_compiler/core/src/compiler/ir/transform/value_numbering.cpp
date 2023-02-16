@@ -28,7 +28,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(value_numbering, SC_PASS_DEPENDS_ON(ssa_transform),
         SC_PASS_REQUIRE_STATE(SSA_STAGE), SC_PASS_REQUIRE_NOT_STATE(),
@@ -336,4 +339,7 @@ func_c value_numbering_t::operator()(func_c f) {
     return value_numbering_mutator_t().top_level_dispatch(f);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -20,7 +20,10 @@
 #include <vector>
 #include <compiler/ir/graph/graph_op.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 /**
  * The softmax operator: exp(x)/sum(exp(x))
@@ -42,6 +45,9 @@ public:
             override;
 };
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

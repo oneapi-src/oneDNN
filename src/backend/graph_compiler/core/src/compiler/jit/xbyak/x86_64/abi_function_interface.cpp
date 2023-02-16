@@ -22,7 +22,10 @@
 #include <compiler/jit/xbyak/x86_64/type_mapping.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 namespace x86_64 {
 
@@ -350,4 +353,7 @@ abi_function_interface::ptr abi_function_interface::make_interface(
 
 } // namespace x86_64
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

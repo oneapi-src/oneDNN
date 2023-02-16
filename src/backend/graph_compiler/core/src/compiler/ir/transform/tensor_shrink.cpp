@@ -26,7 +26,10 @@
 #include <unordered_map>
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(tensor_shrinker, SC_PASS_DEPENDS_ON(interface_generalizer),
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
@@ -407,4 +410,7 @@ stmt_c tensor_shrinker_t::operator()(stmt_c f) {
     return impl.dispatch(std::move(f));
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

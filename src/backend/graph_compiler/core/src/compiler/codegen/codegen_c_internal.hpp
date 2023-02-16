@@ -25,7 +25,10 @@
  * To use standard C++ codegen, please include codegen_c.hpp instead
  * */
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 class codegen_c_vis : public ir_viewer_t {
 protected:
     ostream *os;
@@ -99,6 +102,9 @@ extern void write_cpp_prototype(
         std::ostream *source_, const func_c &f, bool is_offline = false);
 extern void write_cpp_generic_wrapper(
         std::ostream *source_, const func_c &f, bool is_parallel);
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

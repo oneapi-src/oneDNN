@@ -20,7 +20,10 @@
 #include <utility>
 #include "../module_pass.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace constant_folding {
 std::pair<expr_c, expr_c> get_operand_from_binary(const expr_c &a);
@@ -62,6 +65,9 @@ public:
 // do auto cast and constant fold for input expr.
 expr do_cast_and_fold(const expr &in);
 expr_c do_cast_and_fold(const expr_c &in);
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

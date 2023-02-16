@@ -31,7 +31,10 @@
 
 SC_MODULE(pass.index2var)
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(index2var,
         SC_PASS_DEPENDS_ON(constant_folder, ir_simplifier, validator,
@@ -810,4 +813,7 @@ stmt_c index2var_t::operator()(const stmts_c &f) {
     return impl.dispatch(f);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

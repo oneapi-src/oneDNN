@@ -23,7 +23,10 @@
 #include "sc_expr.hpp"
 #include <runtime/microkernel/cpu/brgemm_common.hpp>
 #include <util/any_map.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 class ir_visitor_t;
 struct intrinsic_handler_t {
     std::string name_;
@@ -135,6 +138,9 @@ extern sc_data_type_t list_arg_types[NUM_FULL_ARGS_LIST];
 
 intrinsic_handler_t &get_intrinsic_handler(intrin_type intrin);
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -19,7 +19,10 @@
 
 #include "../function_pass.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace attr_key {
 constexpr const char *const_attr = "pass.const";
 }
@@ -33,6 +36,9 @@ public:
     stmt_c operator()(stmt_c s);
     SC_DECL_PASS_INFO_FUNC();
 };
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

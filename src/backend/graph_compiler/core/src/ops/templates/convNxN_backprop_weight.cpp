@@ -30,8 +30,11 @@
 #include <algorithm>
 #include <string>
 
-using namespace sc::builder;
-namespace sc {
+using namespace dnnl::impl::graph::gc::builder;
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 static int calculate_q_reduce(int Q, bool is_bf_16) {
   int Q_padded = Q % 2 == 0 ? Q : Q + 1;
@@ -524,4 +527,7 @@ bool gen_convNxN_backprop_weight::generate_reduce_W(const context_ptr &ctx,
 }
 
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

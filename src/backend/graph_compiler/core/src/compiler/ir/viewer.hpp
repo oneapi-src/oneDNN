@@ -20,7 +20,10 @@
 #include <vector>
 #include "visitor.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 /**
  * The base class of read-only passes.
  * Override the overloaded view() function that you are
@@ -60,6 +63,9 @@ private:
     SC_VISITOR_METHODS(final)
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -18,7 +18,10 @@
 #include "normalize.hpp"
 #include <compiler/ir/graph/fusible_op.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 // compute the output data format after reduction given the plain reduction axis
@@ -229,4 +232,7 @@ void normalize_common_t::query_format(context_ptr ctx,
 
 OP_REGISTER(ops::layernorm_op_t, layernorm)
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

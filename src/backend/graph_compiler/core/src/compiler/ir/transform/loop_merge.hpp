@@ -20,7 +20,10 @@
 #include "../function_pass.hpp"
 #include "../sc_function.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * Merge consecutive loops with attr[stmt_attr_key::merge_loop] defined
@@ -33,6 +36,9 @@ public:
     SC_DECL_PASS_INFO_FUNC();
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

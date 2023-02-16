@@ -16,7 +16,10 @@
 #include "viewer.hpp"
 #include <utility>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 expr_c ir_viewer_t::visit(binary_c v) {
     view(v);
@@ -108,4 +111,7 @@ DECL_VIEWER_PROXY_STMT(evaluate)
 DECL_VIEWER_PROXY_STMT(returns)
 DECL_VIEWER_PROXY_STMT(define)
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

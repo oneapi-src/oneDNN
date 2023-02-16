@@ -40,7 +40,10 @@
 #define getprocessid getpid
 #endif
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace utils {
 
 static std::atomic<int32_t> cnt {0};
@@ -121,7 +124,7 @@ const std::string &compiler_configs_t::get_temp_dir_path() {
 
 template <typename T>
 static void parse_value(const char *name, T &v) {
-    auto strv = sc::utils::getenv_string(name);
+    auto strv = utils::getenv_string(name);
     if (!strv.empty()) { v = T(std::stoi(strv)); };
 }
 
@@ -179,4 +182,7 @@ void open_temp_file_for_read(std::ifstream &ret, const std::string &filename) {
 
 } // namespace utils
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

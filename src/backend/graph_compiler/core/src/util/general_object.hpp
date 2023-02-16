@@ -27,7 +27,10 @@
 #include <unordered_map>
 #include <util/def.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 struct any_t;
 namespace reflection {
 struct class_metadata;
@@ -231,6 +234,9 @@ struct SC_INTERNAL_API general_ref_t {
 };
 
 } // namespace reflection
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

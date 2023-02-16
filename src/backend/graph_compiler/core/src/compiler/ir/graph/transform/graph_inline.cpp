@@ -23,7 +23,10 @@
 #include "transform.hpp"
 #include <unordered_map>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 static void do_inline_graph(
         sc_graph_t &full_graph, sc_op_ptr &cur_node, sc_graph_t &sub_graph) {
@@ -142,4 +145,7 @@ void quantize_inline(sc_graph_t &graph, const context_ptr &ctx) {
 }
 } // namespace quantize
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

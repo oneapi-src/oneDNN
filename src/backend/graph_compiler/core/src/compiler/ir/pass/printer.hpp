@@ -20,7 +20,10 @@
 #include <ios>
 #include <compiler/ir/viewer.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 class ir_module_t;
 class ir_printer_t : public ir_viewer_t {
@@ -68,6 +71,9 @@ void print_ir_and_annotate_source_pos(const func_c &v, std::ostream &os);
 void print_ir_and_annotate_position_in_source(
         const func_c &scope, const node_base *v, std::ostream &os);
 void print_func_comments(const func_c &f, std::ostream &os);
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -19,7 +19,10 @@
 
 #include "operand.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 //===========================================================================
@@ -393,6 +396,9 @@ namespace sc_xbyak {
     }
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

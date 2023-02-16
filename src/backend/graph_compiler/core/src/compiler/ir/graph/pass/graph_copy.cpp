@@ -19,7 +19,10 @@
 #include "../traits.hpp"
 #include "../visitor.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 using namespace op_traits;
 SC_INTERNAL_API sc_graph_t copy_graph(const sc_graph_t &graph) {
     for (auto &op : graph.ops_) {
@@ -72,4 +75,7 @@ SC_INTERNAL_API sc_graph_t copy_graph(const sc_graph_t &graph) {
     copied_graph.resort_op_ids(op_id_map);
     return copied_graph;
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -16,7 +16,10 @@
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_UTIL_SIMPLE_MATH_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_UTIL_SIMPLE_MATH_HPP
 #include <stddef.h>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace utils {
 static constexpr size_t divide_and_ceil(size_t x, size_t y) {
     return (x + y - 1) / y;
@@ -30,5 +33,8 @@ static constexpr size_t rnd_dn(const size_t a, const size_t b) {
     return (a / b) * b;
 }
 } // namespace utils
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

@@ -19,7 +19,10 @@
 #include <string>
 #include <util/def.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace utils {
 // Reads an environment variable 'name' and stores its string value in the
 // 'buffer' of 'buffer_size' bytes (including the terminating zero) on
@@ -59,6 +62,9 @@ SC_INTERNAL_API int getenv_int(const char *name, int default_value = 0);
 // This function's behavior is undefined if 'name' is null or the empty-string.
 SC_INTERNAL_API std::string getenv_string(const char *name);
 } // namespace utils
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -25,7 +25,10 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 #define DEF_ENV(x) "ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_" #x
 #define DEF_ENV_TRACE() "ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_KERNEL_TRACE"
 const char *env_names[] = {
@@ -92,17 +95,22 @@ std::string getenv_string(const char *name) {
     assert(name);
     assert(strlen(name) != 0);
 
-    const int value_strlen = ::sc::utils::getenv(name, nullptr, 0) * -1;
+    const int value_strlen
+            = ::dnnl::impl::graph::gc::utils::getenv(name, nullptr, 0) * -1;
     assert(value_strlen >= 0);
 
     if (value_strlen == 0) {
         return std::string();
     } else {
         std::vector<char> buffer(value_strlen + 1);
-        const int rc = ::sc::utils::getenv(name, &buffer[0], buffer.size());
+        const int rc = ::dnnl::impl::graph::gc::utils::getenv(
+                name, &buffer[0], buffer.size());
         assert(rc == value_strlen);
         return std::string(&buffer[0]);
     }
 }
 } // namespace utils
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

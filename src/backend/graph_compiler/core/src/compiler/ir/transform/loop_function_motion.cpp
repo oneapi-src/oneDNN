@@ -25,7 +25,10 @@
 #include <compiler/ir/pass_dep_util.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(simple_loop_function_motion,
         SC_PASS_DEPENDS_ON(loop_merger, parallel_workload_dispatcher,
@@ -76,4 +79,7 @@ func_c simple_loop_function_motion_t::operator()(func_c v) {
     return pure_func_hoister.dispatch(std::move(v));
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

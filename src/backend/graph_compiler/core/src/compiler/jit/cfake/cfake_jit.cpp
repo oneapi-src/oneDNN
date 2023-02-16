@@ -42,7 +42,10 @@
 #endif
 
 SC_MODULE(cfakejit)
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 using namespace runtime;
 
 #ifdef _WIN32
@@ -412,4 +415,7 @@ void cfake_jit::set_target_machine(target_machine_t &tm) {
     tm.cpu_flags_.fAVX512AMXINT8 = amx_int8_enabled;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

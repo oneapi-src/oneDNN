@@ -19,7 +19,10 @@
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
 #include <util/null_check.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 extern "C" void *sc_global_aligned_alloc(size_t sz, size_t align);
 extern "C" void sc_global_aligned_free(void *ptr, size_t align);
 extern "C" void query_combined_fused_op(void *table, uint64_t **combined_keys,
@@ -78,4 +81,7 @@ extern "C" void query_combined_fused_op(void *table, uint64_t **combined_keys,
     }
     sc_global_aligned_free(final_query_keys, 64);
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

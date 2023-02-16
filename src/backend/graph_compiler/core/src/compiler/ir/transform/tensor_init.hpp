@@ -20,7 +20,10 @@
 #include <compiler/config/context.hpp>
 #include <compiler/ir/function_pass.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * Add initialization code for local tensors with initial values
@@ -33,6 +36,9 @@ public:
     SC_DECL_PASS_INFO_FUNC();
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

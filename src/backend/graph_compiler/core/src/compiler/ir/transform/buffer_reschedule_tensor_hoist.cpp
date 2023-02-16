@@ -33,7 +33,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_MODULE(pass.buffer_reschedule_tensor_hoist);
 
@@ -248,4 +251,7 @@ func_c buffer_rescheduling_tensor_hoisting_t::operator()(func_c f) {
     return f;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

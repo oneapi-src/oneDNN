@@ -20,7 +20,10 @@
 #include <vector>
 #include "sc_function.hpp"
 #include <unordered_map>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 // this macro declares visit_impl() on all IR node classes
 // The POSTFIX can be "=0", "final", etc.
@@ -200,6 +203,9 @@ public:
     expr_c dispatch(expr_c e) override;
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

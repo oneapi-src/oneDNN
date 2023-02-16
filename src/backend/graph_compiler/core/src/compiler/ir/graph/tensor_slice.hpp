@@ -21,7 +21,10 @@
 #include <vector>
 #include <compiler/ir/sc_expr.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 using slice_range = std::vector<std::pair<expr, expr>>;
 /**
  * A slice of the tensor.
@@ -70,6 +73,9 @@ struct tensor_slice {
     bool is_full() const;
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

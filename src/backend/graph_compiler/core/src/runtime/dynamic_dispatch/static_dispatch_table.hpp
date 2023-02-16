@@ -22,7 +22,10 @@
 #include "dispatch_table.hpp"
 #include <runtime/dispatch_key.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace runtime {
 
 template <uint64_t... values>
@@ -79,6 +82,9 @@ struct static_dispatch_table_t : public dispatch_table_t {
 };
 } // namespace runtime
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

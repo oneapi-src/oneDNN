@@ -22,7 +22,10 @@
 #include "../sc_function.hpp"
 #include <compiler/ir/pass_dep_util.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * Inlines function calls with attr["inline_level"] = 2
@@ -45,6 +48,9 @@ public:
     SC_DECL_PASS_INFO_FUNC();
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -26,7 +26,10 @@
 #include "../visitor.hpp"
 #include <compiler/ir/graph/dynamic_lower_info.hpp>
 #include <ops/fusible/memory_movement.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_MODULE(graph.shape_relationship_binding);
 struct dyn_plhd_union_t {
@@ -202,4 +205,7 @@ SC_INTERNAL_API void shape_relationship_binding(
     }
     graph.reset_op_ids();
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -32,7 +32,10 @@
 #include <runtime/logging.hpp>
 #include <util/simple_math.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace utils {
 // get position index from vector
 template <typename T>
@@ -224,6 +227,9 @@ private:
 };
 
 } // namespace utils
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

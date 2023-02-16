@@ -21,7 +21,10 @@
 #include "ir_module.hpp"
 #include "pass_info_macros.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 struct tir_pass_dependency_t;
 
 /**
@@ -43,6 +46,9 @@ public:
 };
 
 using module_pass_ptr = std::unique_ptr<module_pass_t>;
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

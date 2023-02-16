@@ -18,7 +18,10 @@
 
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 namespace x86_64 {
 
@@ -64,4 +67,7 @@ int abi_value_location::get_rsp_offset() const {
 
 } // namespace x86_64
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -122,12 +122,15 @@ public:
     compiler_compiled_partition_impl_t(const impl::engine_t &engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs,
-            const std::shared_ptr<sc::jit_function_t> &jit_func,
+            const std::shared_ptr<dnnl::impl::graph::gc::jit_function_t>
+                    &jit_func,
             const std::shared_ptr<impl::compiler_impl::compiler_graph_engine_t>
                     &graph_engine,
-            std::vector<sc::runtime::dynamic_tensor_t> &&dyn_inputs,
-            std::vector<sc::runtime::dynamic_tensor_t> &&dyn_outputs,
-            sc::sc_graph_t &&sc_graph);
+            std::vector<dnnl::impl::graph::gc::runtime::dynamic_tensor_t>
+                    &&dyn_inputs,
+            std::vector<dnnl::impl::graph::gc::runtime::dynamic_tensor_t>
+                    &&dyn_outputs,
+            dnnl::impl::graph::gc::sc_graph_t &&sc_graph);
     virtual ~compiler_compiled_partition_impl_t();
     impl::status_t execute(const impl::stream_t *astream,
             const std::vector<impl::tensor_t> &inputs,
@@ -138,10 +141,11 @@ public:
             const impl::context_t *acontext) const override;
 
 private:
-    std::shared_ptr<sc::jit_function_t> jit_func_;
+    std::shared_ptr<dnnl::impl::graph::gc::jit_function_t> jit_func_;
     std::shared_ptr<impl::compiler_impl::compiler_graph_engine_t> graph_engine_;
-    std::vector<sc::runtime::dynamic_tensor_t> dyn_inputs_, dyn_outputs_;
-    mutable sc::sc_graph_t sc_graph_;
+    std::vector<dnnl::impl::graph::gc::runtime::dynamic_tensor_t> dyn_inputs_,
+            dyn_outputs_;
+    mutable dnnl::impl::graph::gc::sc_graph_t sc_graph_;
 };
 
 } // namespace compiler_impl

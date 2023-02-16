@@ -21,7 +21,10 @@
 #include "../function_pass.hpp"
 #include <compiler/config/context.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace attr_keys {
 // the buffer scheduler type: 0 - no buffer schedule, 1 - whole buffer reuse, 2
@@ -117,6 +120,9 @@ public:
 // split "candidate" tensor into two and reuse the remaining of it for other
 // tensors
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -24,7 +24,10 @@
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 sc_data_format_kind_t::sc_data_format_kind_t(
         const std::vector<int> &storage_args) {
@@ -536,17 +539,21 @@ SC_CLASS_END()
 template struct reflection::type_registry<
         std::vector<std::vector<sc_data_format_t>>>;
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 namespace std {
-std::size_t hash<sc::sc_data_format_t>::operator()(
-        const sc::sc_data_format_t &k) const {
+std::size_t hash<dnnl::impl::graph::gc::sc_data_format_t>::operator()(
+        const dnnl::impl::graph::gc::sc_data_format_t &k) const {
+    namespace gc = dnnl::impl::graph::gc;
     size_t hash_ = 0;
-    sc::hash_combine(hash_, (uint64_t)k.format_code_);
-    sc::hash_combine(hash_, get<0>(k.blocks_));
-    sc::hash_combine(hash_, get<1>(k.blocks_));
-    sc::hash_combine(hash_, get<2>(k.blocks_));
-    sc::hash_combine(hash_, get<3>(k.blocks_));
+    gc::hash_combine(hash_, (uint64_t)k.format_code_);
+    gc::hash_combine(hash_, get<0>(k.blocks_));
+    gc::hash_combine(hash_, get<1>(k.blocks_));
+    gc::hash_combine(hash_, get<2>(k.blocks_));
+    gc::hash_combine(hash_, get<3>(k.blocks_));
     return hash_;
 }
 } // namespace std

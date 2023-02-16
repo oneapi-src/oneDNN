@@ -32,7 +32,10 @@
 extern char **environ;
 #endif
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace utils {
 
 #ifdef _WIN32
@@ -276,4 +279,7 @@ bool create_process(const std::string &program,
 #endif
 
 } // namespace utils
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

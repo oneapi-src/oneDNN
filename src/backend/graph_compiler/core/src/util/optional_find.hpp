@@ -18,7 +18,10 @@
 #include "optional.hpp"
 #include <type_traits>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace utils {
 
 namespace impl {
@@ -56,6 +59,9 @@ optional<typename impl::extract_map_types<MapT>::ptr_pair_t> find_map_pair(
 }
 
 } // namespace utils
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

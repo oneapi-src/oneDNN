@@ -30,7 +30,10 @@
 #include <util/utils.hpp>
 #include <util/variant.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 SC_DECL_PASS_INFO(constant_folder, SC_PASS_DEPENDS_ON(validator, auto_caster),
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
         SC_PASS_SET_STATE(CONST_FOLDED), SC_PASS_UNSET_STATE());
@@ -1449,4 +1452,7 @@ expr_c do_cast_and_fold(const expr_c &in) {
     return do_cast_and_fold(in.remove_const());
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -34,8 +34,11 @@
 #include <util/math_utils.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
-using namespace sc::builder;
-namespace sc {
+using namespace dnnl::impl::graph::gc::builder;
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 using ops::conv_fwd_config_t;
 // clang-format off
@@ -57,8 +60,7 @@ SC_CLASS_END();
 
 namespace ops {
 static int get_im_s_block(const context_ptr &ctx, const int &os,
-  const int &default_block, const int &im_oc_block,
-  const sc::any_map_t &attrs) {
+  const int &default_block, const int &im_oc_block, const any_map_t &attrs) {
   auto ret = default_block;
   auto origin_ow = dim2unsigned(attrs.get_or_else("origin_ow", sc_dim(os)));
   auto origin_oh = dim2unsigned(attrs.get_or_else("origin_oh", sc_dim(1)));
@@ -666,15 +668,15 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
                               pic * mb_ + n, s, oc * im_oc_block};
                             if (ic_num_block_pt > 1) {
                               _if_(o_ic == 0) {
-                                sc::builtin::brgemm_init_list_update(A_list,
-                                  B_list, tensor_ptr(output_tmp, output_pos), 1,
+                                builtin::brgemm_init_list_update(A_list, B_list,
+                                  tensor_ptr(output_tmp, output_pos), 1,
                                   im_s_block, im_oc_block, im_ic_block, LDA,
                                   LDB, LDC, stride_a, stride_b, stride_c,
                                   get_input_dtype(), get_weight_dtype(),
                                   brg_attrs);
                               }
                               _else_ {
-                                sc::builtin::brgemm_list_update(A_list, B_list,
+                                builtin::brgemm_list_update(A_list, B_list,
                                   tensor_ptr(output_tmp, output_pos), 1,
                                   im_s_block, im_oc_block, im_ic_block, LDA,
                                   LDB, LDC, stride_a, stride_b, stride_c,
@@ -682,8 +684,8 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
                                   brg_attrs);
                               }
                             } else {
-                              sc::builtin::brgemm_init_list_update(A_list,
-                                B_list, tensor_ptr(output_tmp, output_pos), 1,
+                              builtin::brgemm_init_list_update(A_list, B_list,
+                                tensor_ptr(output_tmp, output_pos), 1,
                                 im_s_block, im_oc_block, im_ic_block, LDA, LDB,
                                 LDC, stride_a, stride_b, stride_c,
                                 get_input_dtype(), get_weight_dtype(),
@@ -837,7 +839,7 @@ void gen_conv_fwd_t::compute_1x1_no_pack_input(CONV_ARG_LIST) const {
                     : std::vector<expr> {n, d_o * config.tile_d + d_i,
                       p_o * config.tile_p + p_i, q_o * config.tile_q,
                       k * config.K_block};
-                  sc::builtin::brgemm_init_list_update(A_list, B_list,
+                  builtin::brgemm_init_list_update(A_list, B_list,
                     tensor_ptr(output, output_pos), 1, config.tile_q,
                     config.K_block, config.C_block, LDA, config.K_block, LDC,
                     1 /*useless*/, 1 /*useless*/, C_num_block,
@@ -874,7 +876,7 @@ void gen_conv_fwd_t::compute_1x1_no_pack_input(CONV_ARG_LIST) const {
                       q_o * config.tile_q, 0}
                     : std::vector<expr> {n, p_o * config.tile_p + p_i,
                       q_o * config.tile_q, k * config.K_block};
-                  sc::builtin::brgemm_init_list_update(A_list, B_list,
+                  builtin::brgemm_init_list_update(A_list, B_list,
                     tensor_ptr(output, output_pos), 1, config.tile_q,
                     config.K_block, config.C_block, LDA, config.K_block, LDC,
                     1 /*useless*/, 1 /*useless*/, C_num_block,
@@ -1022,7 +1024,7 @@ void gen_conv_fwd_t::compute_1x1_pack_input(CONV_ARG_LIST) const {
         std::vector<expr> output_pos = blocking_output_
           ? std::vector<expr> {n, k, p_o * config.tile_p, 0, 0}
           : std::vector<expr> {n, p_o * config.tile_p, 0, k * config.K_block};
-        sc::builtin::brgemm_init_list_update(A_list, B_list,
+        builtin::brgemm_init_list_update(A_list, B_list,
           tensor_ptr(output, output_pos), 1, config.tile_p * ow_,
           config.K_block, config.C_block, LDA, config.K_block, LDC,
           1 /*useless*/, 1 /*useless*/, C_num_block, get_input_dtype(),
@@ -1124,7 +1126,7 @@ void gen_conv_fwd_t::compute_conv3d_no_padding(CONV_ARG_LIST) const {
                   {brgemm::attr_key::use_uker, true},
                   {brgemm::attr_key::bd_mask_level, 0}};
 
-                sc::builtin::brgemm_init_list_update(A_list, B_list,
+                builtin::brgemm_init_list_update(A_list, B_list,
                   tensor_ptr(output, output_pos), 1, config.tile_q,
                   config.K_block, config.C_block, LDA, config.K_block, LDC,
                   1 /*useless*/, 1 /*useless*/, kd_ * kh_ * kw_ * C_num_block,
@@ -1257,7 +1259,7 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
               {brgemm::attr_key::use_uker, true},
               {brgemm::attr_key::bd_mask_level, pack_rows ? 2 : 0}};
 
-            sc::builtin::brgemm_init_list_update(A_list, B_list, out_tsr, 1,
+            builtin::brgemm_init_list_update(A_list, B_list, out_tsr, 1,
               config.tile_os, config.K_block, config.C_block, LDA,
               config.K_block, LDC, 1 /*useless*/, 1 /*useless*/,
               kh_ * kw_ * C_num_block, get_input_dtype(), get_weight_dtype(),
@@ -1341,7 +1343,7 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
                   {brgemm::attr_key::use_uker, true},
                   {brgemm::attr_key::bd_mask_level, 0}};
 
-                sc::builtin::brgemm_init_list_update(A_list, B_list,
+                builtin::brgemm_init_list_update(A_list, B_list,
                   tensor_ptr(output, output_pos), 1, config.tile_q,
                   config.K_block, config.C_block, LDA, config.K_block, LDC,
                   1 /*useless*/, 1 /*useless*/, kh_ * kw_ * C_num_block,
@@ -1485,7 +1487,7 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
         _tensor_(B_list, datatypes::pointer, {kh_});
         _for_(q_o, 0, ow_ / config.tile_q) {
           _for_(p_i, 0, config.tile_p) {
-            sc::builtin::mem_zero(
+            builtin::mem_zero(
               tensor_ptr(output,
                 {n, k_o, p_o * config.tile_p + p_i, q_o * config.tile_q, 0}),
               config.tile_q * config.K_block, get_output_dtype());
@@ -1561,7 +1563,7 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                       }
                       _if_(tmp > 0) {
                         if (Q1.size() == 1) {
-                          sc::builtin::brgemm_list_update(A_list, B_list,
+                          builtin::brgemm_list_update(A_list, B_list,
                             tensor_ptr(output,
                               {n, k_o, p_o * config.tile_p + p_i,
                                 q_o * config.tile_q + interval, 0}),
@@ -1571,7 +1573,7 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                             config.C_block * config.K_block, tmp,
                             get_input_dtype(), get_weight_dtype());
                         } else {
-                          sc::builtin::brgemm_list_update(A_list, B_list,
+                          builtin::brgemm_list_update(A_list, B_list,
                             tensor_ptr(output,
                               {n, k_o, p_o * config.tile_p + p_i,
                                 q_o * config.tile_q + interval, 0}),
@@ -1618,7 +1620,7 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                         }
                         _if_(tmp > 0) {
                           if (Q2.size() == 1) {
-                            sc::builtin::brgemm_list_update(A_list, B_list,
+                            builtin::brgemm_list_update(A_list, B_list,
                               tensor_ptr(output,
                                 {n, k_o, p_o * config.tile_p + p_i,
                                   q_o * config.tile_q, 0}),
@@ -1628,7 +1630,7 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                               config.C_block * config.K_block, tmp,
                               get_input_dtype(), get_weight_dtype());
                           } else {
-                            sc::builtin::brgemm_list_update(A_list, B_list,
+                            builtin::brgemm_list_update(A_list, B_list,
                               tensor_ptr(output,
                                 {n, k_o, p_o * config.tile_p + p_i,
                                   q_o * config.tile_q, 0}),
@@ -1678,7 +1680,7 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                         }
                         _if_(tmp > 0) {
                           if (Q3.size() == 1) {
-                            sc::builtin::brgemm_list_update(A_list, B_list,
+                            builtin::brgemm_list_update(A_list, B_list,
                               tensor_ptr(output,
                                 {n, k_o, p_o * config.tile_p + p_i,
                                   q_o * config.tile_q + interval, 0}),
@@ -1688,7 +1690,7 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                               config.C_block * config.K_block, tmp,
                               get_input_dtype(), get_weight_dtype());
                           } else {
-                            sc::builtin::brgemm_list_update(A_list, B_list,
+                            builtin::brgemm_list_update(A_list, B_list,
                               tensor_ptr(output,
                                 {n, k_o, p_o * config.tile_p + p_i,
                                   q_o * config.tile_q + interval, 0}),
@@ -1722,7 +1724,7 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                   }
                 }
                 _if_(tmp > 0) {
-                  sc::builtin::brgemm_list_update(A_list, B_list,
+                  builtin::brgemm_list_update(A_list, B_list,
                     tensor_ptr(output,
                       {n, k_o, p_o * config.tile_p + p_i, q_o * config.tile_q,
                         0}),
@@ -1800,7 +1802,7 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
 
   // create a global shared zero-buffer referenced by padding
   _tensor_(pbuffer, dtypeInput, {src_row_tile_size, LDA});
-  sc::builtin::mem_zero(pbuffer, src_row_tile_size * LDA, dtypeInput);
+  builtin::mem_zero(pbuffer, src_row_tile_size * LDA, dtypeInput);
 
   uint32_t lanes = get_lanes(ctx, config.C_block, dtypeInput);
   auto input_expr_dims = input.checked_as<tensor>()->dims_;
@@ -1830,8 +1832,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
               : std::vector<expr> {n, p_o * config.tile_p + p_i,
                 q_o * config.tile_q, k_o * config.K_block};
 
-            sc::builtin::brgemm_init(tensor_ptr(output, output_pos),
-              config.tile_q, config.K_block, LDC, dtypeOutput, 0);
+            builtin::brgemm_init(tensor_ptr(output, output_pos), config.tile_q,
+              config.K_block, LDC, dtypeOutput, 0);
             _for_(c_o, 0, C_num_block) {
               // 1) top or bottom region with padding inputs
               // 1.1) calculate the number of padding rows
@@ -1888,7 +1890,7 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
 
                     // copy sub-tensor
                     _for_(i, unpad_begin_index, unpad_end_index) {
-                      sc::builtin::brgemm_init(
+                      builtin::brgemm_init(
                         tensor_ptr(sub_tensor, {i - unpad_begin_index, 0, 0}),
                         builder::make_cast(datatypes::s32, real_pad_left),
                         config.C_block, LDA, dtypeInput, 0);
@@ -1940,7 +1942,7 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                     // copy sub-tensor
                     _for_(i, unpad_begin_index, unpad_end_index) {
                       // memzero left part
-                      sc::builtin::brgemm_init(
+                      builtin::brgemm_init(
                         tensor_ptr(sub_tensor, {i - unpad_begin_index, 0, 0}),
                         builder::make_cast(datatypes::s32, real_pad_left),
                         config.C_block, LDA, dtypeInput, 0);
@@ -1965,10 +1967,9 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                         }
                       }
 
-                      sc::builtin::brgemm_init(
-                        tensor_ptr(sub_tensor,
-                          {i - unpad_begin_index, copy_width + real_pad_left,
-                            0}),
+                      builtin::brgemm_init(tensor_ptr(sub_tensor,
+                                             {i - unpad_begin_index,
+                                               copy_width + real_pad_left, 0}),
                         builder::make_cast(datatypes::s32, real_pad_right),
                         config.C_block, LDA, dtypeInput, 0);
                     }
@@ -2031,7 +2032,7 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                                   lanes)];
                         }
                       }
-                      sc::builtin::brgemm_init(
+                      builtin::brgemm_init(
                         tensor_ptr(
                           sub_tensor, {i - unpad_begin_index, copy_width, 0}),
                         builder::make_cast(datatypes::s32, real_pad_right),
@@ -2079,7 +2080,7 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                 {brgemm::attr_key::use_interleave_stores, true},
                 {brgemm::attr_key::use_uker, true}};
 
-              sc::builtin::brgemm_list_update(A_list, B_list,
+              builtin::brgemm_list_update(A_list, B_list,
                 tensor_ptr(output, output_pos), 1, config.tile_q,
                 config.K_block, config.C_block, sw_ * LDA, config.K_block, LDC,
                 1, 1, kh_ * kw_, dtypeInput, dtypeWeight, brg_attrs);
@@ -2343,4 +2344,7 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
 #undef CONV_ARG_LIST
 
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

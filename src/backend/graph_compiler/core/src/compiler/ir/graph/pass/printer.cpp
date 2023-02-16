@@ -22,7 +22,10 @@
 #include <compiler/ir/graph/lowering.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_INTERNAL_API void print_graph(const sc_graph_t &mgr, std::ostream &os,
         bool print_shape, bool print_attr, bool print_name, bool print_stride) {
@@ -129,4 +132,7 @@ SC_INTERNAL_API void print_graph(const sc_graph_t &mgr, std::ostream &os,
     os << '}' << '\n';
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

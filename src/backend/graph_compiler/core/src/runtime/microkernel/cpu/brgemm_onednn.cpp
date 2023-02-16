@@ -41,8 +41,9 @@
 #include <util/os.hpp>
 
 using namespace dnnl::impl::cpu::x64;
-using namespace sc::brgemm;
-typedef sc::sc_data_etype sc_dtype;
+namespace gc = dnnl::impl::graph::gc;
+using namespace gc::brgemm;
+typedef gc::sc_data_etype sc_dtype;
 
 static dnnl_data_type_t convert_dnnl_dtype(int dtype) {
     switch (sc_dtype(dtype)) {
@@ -294,7 +295,7 @@ struct alignas(64) brg_arg_t {
         if (has_bd_mask) {
             // todo: optimize bd mask hash against byte-by-byte.
             for (int i = 0; i < M; i++) {
-                sc::hash_combine(bd_ret, bd_mask[i]);
+                gc::hash_combine(bd_ret, bd_mask[i]);
             }
         }
         ret = ret ^ bd_ret;
@@ -345,7 +346,7 @@ struct palette_ptr_t {
             size_t ret = 0;
             for (int i = 0; i < int(PALETTE_SIZE / sizeof(ret)); i++) {
                 uint64_t val = ((uint64_t *)(p.ptr_))[i];
-                sc::hash_combine(ret, val);
+                gc::hash_combine(ret, val);
             }
             return ret;
         }
@@ -551,10 +552,13 @@ static brg_desc_safe_t g_brg_desc_s;
 thread_local brg_desc_safe_t::thread_local_cache
         brg_desc_safe_t::brg_desc_vec_local_;
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace runtime {
 
-void amx_buffer_t::reset(sc::runtime::stream_t *stream) {
+void amx_buffer_t::reset(gc::runtime::stream_t *stream) {
     // Based on jit_brgemm_conv_utils.cpp:2121
     const size_t amx_buf_size = 2 * runtime::get_os_page_size();
     ptr_ = stream->engine_->vtable_->persistent_alloc(
@@ -568,12 +572,15 @@ void amx_buffer_t::release(engine_t *engine) {
     }
 }
 } // namespace runtime
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
-void *do_get_amx_tile_buf(const char *palette, sc::runtime::stream_t *stream,
+void *do_get_amx_tile_buf(const char *palette, gc::runtime::stream_t *stream,
         bool &amx_exclusive, bool &need_config_amx) {
     void *tmp_amx_tile_buf = nullptr;
-    auto &tls = sc::runtime::get_tls(stream);
+    auto &tls = gc::runtime::get_tls(stream);
     amx_exclusive = false;
     if (!amx_exclusive || tls.amx_buffer_.cur_palette != palette) {
         if (need_config_amx) {
@@ -591,7 +598,7 @@ void *do_get_amx_tile_buf(const char *palette, sc::runtime::stream_t *stream,
 }
 
 static void *get_amx_tile_buf(brgemm_kernel_info *brg_desc,
-        sc::runtime::stream_t *stream, bool &amx_exclusive) {
+        gc::runtime::stream_t *stream, bool &amx_exclusive) {
     if (!brg_desc->is_amx_) { return nullptr; }
 
     bool need_config_amx = true;
@@ -611,7 +618,7 @@ SC_API void *dnnl_brgemm_func(int M, int N, int K, int LDA, int LDB, int LDC,
 }
 
 SC_API void dnnl_brgemm_call(brgemm_kernel_info *brg_desc, const void *A,
-        const void *B, void *C, int num, sc::runtime::stream_t *stream) {
+        const void *B, void *C, int num, gc::runtime::stream_t *stream) {
     bool amx_exclusive = false;
     sc_make_timer(brg_desc, num);
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
@@ -622,7 +629,7 @@ SC_API void dnnl_brgemm_call(brgemm_kernel_info *brg_desc, const void *A,
 
 SC_API void dnnl_brgemm_call_postops(brgemm_kernel_info *brg_desc,
         const void *A, const void *B, void *C, int num,
-        const void *postops_data, void *c_buf, sc::runtime::stream_t *stream) {
+        const void *postops_data, void *c_buf, gc::runtime::stream_t *stream) {
     bool amx_exclusive = false;
     sc_make_timer(brg_desc, num);
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
@@ -645,7 +652,7 @@ SC_API void *dnnl_brgemm_list_func(int M, int N, int K, int LDA, int LDB,
 SC_API void dnnl_brgemm_list_call(brgemm_kernel_info *brg_desc,
         const void **A_list, const void **B_list, void *C, int num,
         int stride_a, int stride_b, int len, int dtypeA, int dtypeB,
-        sc::runtime::stream_t *stream) {
+        gc::runtime::stream_t *stream) {
     const int batch_num = num * len;
 #ifdef _MSC_VER
     brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
@@ -684,7 +691,7 @@ SC_API void dnnl_brgemm_list_call(brgemm_kernel_info *brg_desc,
 SC_API void dnnl_brgemm_list_call_postops(brgemm_kernel_info *brg_desc,
         const void **A_list, const void **B_list, void *C, int num,
         int stride_a, int stride_b, int len, int dtypeA, int dtypeB,
-        const void *postops_data, void *c_buf, sc::runtime::stream_t *stream) {
+        const void *postops_data, void *c_buf, gc::runtime::stream_t *stream) {
     const int batch_num = num * len;
 #ifdef _MSC_VER
     brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
@@ -747,7 +754,7 @@ SC_API int dnnl_brgemm_init_update(const void *A, const void *B, void *C,
         int num, int M, int N, int K, int LDA, int LDB, int LDC, int stride_a,
         int stride_b, int dtypeA, int dtypeB, const void *brg_attrs,
         char *bd_mask, const void *postops_setting, const void *postops_data,
-        void *c_buf, sc::runtime::stream_t *stream) {
+        void *c_buf, gc::runtime::stream_t *stream) {
     float alpha = 1.0, beta = 0.0;
     auto brg_desc = g_brg_desc_s.getInstance(alpha, beta, LDA, LDB, LDC, M, N,
             K, static_cast<int>(stride_a * get_dtype_sizeof(dtypeA)),
@@ -773,7 +780,7 @@ SC_API int dnnl_brgemm_update(const void *A, const void *B, void *C, int num,
         int M, int N, int K, int LDA, int LDB, int LDC, int stride_a,
         int stride_b, int dtypeA, int dtypeB, const void *brg_attrs,
         char *bd_mask, const void *postops_setting, const void *postops_data,
-        void *c_buf, sc::runtime::stream_t *stream) {
+        void *c_buf, gc::runtime::stream_t *stream) {
     float alpha = 1.0, beta = 1.0;
     auto brg_desc = g_brg_desc_s.getInstance(alpha, beta, LDA, LDB, LDC, M, N,
             K, static_cast<int>(stride_a * get_dtype_sizeof(dtypeA)),
@@ -800,7 +807,7 @@ static int dnnl_brgemm_list_update_func(const void **A_list,
         int LDB, int LDC, int stride_a, int stride_b, int len, int dtypeA,
         int dtypeB, float beta, const void *brg_attrs, char *bd_mask,
         const void *postops_setting, const void *postops_data, void *c_buf,
-        sc::runtime::stream_t *stream) {
+        gc::runtime::stream_t *stream) {
     float alpha = 1.0;
     const int batch_num = num * len;
 #ifdef _MSC_VER
@@ -852,7 +859,7 @@ SC_API int dnnl_brgemm_init_list_update(const void **A_list,
         int LDB, int LDC, int stride_a, int stride_b, int len, int dtypeA,
         int dtypeB, const void *brg_attrs, char *bd_mask,
         const void *postops_setting, const void *postops_data, void *c_buf,
-        sc::runtime::stream_t *stream) {
+        gc::runtime::stream_t *stream) {
     float beta = 0.f;
     int ret = dnnl_brgemm_list_update_func(A_list, B_list, C, num, M, N, K, LDA,
             LDB, LDC, stride_a, stride_b, len, dtypeA, dtypeB, beta, brg_attrs,
@@ -864,7 +871,7 @@ SC_API int dnnl_brgemm_list_update(const void **A_list, const void **B_list,
         void *C, int num, int M, int N, int K, int LDA, int LDB, int LDC,
         int stride_a, int stride_b, int len, int dtypeA, int dtypeB,
         const void *brg_attrs, char *bd_mask, const void *postops_setting,
-        const void *postops_data, void *c_buf, sc::runtime::stream_t *stream) {
+        const void *postops_data, void *c_buf, gc::runtime::stream_t *stream) {
     float beta = 1.f;
     int ret = dnnl_brgemm_list_update_func(A_list, B_list, C, num, M, N, K, LDA,
             LDB, LDC, stride_a, stride_b, len, dtypeA, dtypeB, beta, brg_attrs,

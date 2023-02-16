@@ -19,7 +19,10 @@
 #include <runtime/generic_val.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 namespace x86_64 {
 
@@ -143,4 +146,7 @@ void get_stack_allocated_tensor_buffer_lowering_info(
 
 } // namespace x86_64
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

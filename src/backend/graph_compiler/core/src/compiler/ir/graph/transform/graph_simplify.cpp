@@ -29,7 +29,10 @@
 
 SC_MODULE(graph.simplify)
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 struct hash_sc_op_t {
     std::size_t operator()(const sc_op_ptr &v) const {
         size_t hash_ = 0;
@@ -586,4 +589,7 @@ void graph_simplify(sc_graph_t &graph, const context_ptr &ctx) {
     graph_constant_folding(graph, ctx);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

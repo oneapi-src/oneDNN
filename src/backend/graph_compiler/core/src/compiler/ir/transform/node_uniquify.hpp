@@ -19,7 +19,10 @@
 
 #include "../function_pass.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * A simple pass to walk through the IR DAG, and convert it into a "tree". If a
@@ -35,6 +38,9 @@ public:
     stmt_c operator()(stmt_c f);
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -15,7 +15,10 @@
  *******************************************************************************/
 
 #include "content_hash.hpp"
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 std::size_t content_hash_t<constant_c>::operator()(const constant_c &k) const {
     std::size_t ret = static_cast<uint64_t>(k->dtype_);
@@ -71,4 +74,7 @@ bool content_equals_t<expr_c>::operator()(
 #endif
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

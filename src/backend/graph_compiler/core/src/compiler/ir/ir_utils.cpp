@@ -23,7 +23,10 @@
 #include <util/array_ref.hpp>
 #include <util/weakptr_utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 void get_direct_dependency_of_expr(
         const expr &v, const std::function<void(array_ref<expr>)> &callback) {
     switch (v->node_type_) {
@@ -116,4 +119,7 @@ std::vector<expr> dims_to_dense_stride(const std::vector<expr> &v) {
     }
     return stride;
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

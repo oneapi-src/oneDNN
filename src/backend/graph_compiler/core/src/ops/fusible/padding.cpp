@@ -23,7 +23,10 @@
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 padding_op_t::padding_op_t(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
@@ -279,10 +282,10 @@ stmt padding_op_t::get_zero_out_stmt(
                                        : builder::tensor_ptr(
                                                out_tptr, {pad_n, pad_k, 0, 0}))
                     : builder::tensor_ptr(out_tptr, {pad_n, pad_k, 0, 0, 0});
-            sc::builtin::mem_zero(ptr, ph1_ * w * c, out_dtype);
+            builtin::mem_zero(ptr, ph1_ * w * c, out_dtype);
 
             _for_(p1, 0, oh_) {
-                sc::builtin::mem_zero(
+                builtin::mem_zero(
                         is_4d_out ? (is_channel_last
                                         ? builder::tensor_ptr(out_tptr,
                                                 {pad_n, p1 + ph1_, 0, 0})
@@ -293,7 +296,7 @@ stmt padding_op_t::get_zero_out_stmt(
 
                         pw1_ * c, out_dtype);
 
-                sc::builtin::mem_zero(
+                builtin::mem_zero(
                         is_4d_out ? (
                                 is_channel_last ? builder::tensor_ptr(out_tptr,
                                         {pad_n, p1 + ph1_, ow_ + pw1_, 0})
@@ -311,7 +314,7 @@ stmt padding_op_t::get_zero_out_stmt(
                         pw2_ * c, out_dtype);
             }
 
-            sc::builtin::mem_zero(
+            builtin::mem_zero(
                     is_4d_out ? (is_channel_last
                                     ? builder::tensor_ptr(
                                             out_tptr, {pad_n, ph1_ + oh_, 0, 0})
@@ -346,4 +349,7 @@ std::vector<expr> padding_op_t::get_padding_offsets_exprs() {
 }
 
 OP_REGISTER(padding_op_t, padding)
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

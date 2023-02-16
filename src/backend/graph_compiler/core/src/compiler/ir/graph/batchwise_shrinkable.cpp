@@ -19,7 +19,10 @@
 #include "fusion_data.hpp"
 #include "tunable_op.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace op_traits {
 
 // could be publicly used
@@ -253,4 +256,7 @@ void op_traits::batchwise_shrinkable_t::collect_shrinked_axis_map(
 }
 
 } // namespace op_traits
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

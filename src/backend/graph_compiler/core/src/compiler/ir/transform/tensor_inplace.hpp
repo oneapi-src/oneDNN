@@ -22,7 +22,10 @@
 #include <compiler/config/context.hpp>
 #include <compiler/ir/module_pass.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * Buffer inplace optimization in main entry function based on "inplace_hint"
@@ -37,6 +40,9 @@ public:
     SC_DECL_PASS_INFO_FUNC();
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

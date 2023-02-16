@@ -18,7 +18,10 @@
 #include "../graph.hpp"
 #include "../visitor.hpp"
 #include <ops/fusible/memory_movement.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 void tensor_view_to_copy(sc_graph_t &graph) {
     std::vector<size_t> idxes = {};
     for (size_t i = 0; i < graph.ops_.size(); i++) {
@@ -43,4 +46,7 @@ void tensor_view_to_copy(sc_graph_t &graph) {
 void inplace_transform(sc_graph_t &graph, const context_ptr &ctx) {
     tensor_view_to_copy(graph);
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

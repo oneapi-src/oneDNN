@@ -35,7 +35,10 @@
 #include <util/math_utils.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 ir_module_ptr reshape_op_t::get_func(context_ptr ctx) {
     top_level_anchor_generator_t gen;
     attrs_.set(op_attr_key::no_fuse, true);
@@ -1072,4 +1075,7 @@ OP_REGISTER(transpose_op_t, transpose)
 OP_REGISTER(tensor_view_op_t, tensor_view)
 OP_REGISTER(reshape_op_t, reshape)
 OP_REGISTER(reorder_op_t, reorder)
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

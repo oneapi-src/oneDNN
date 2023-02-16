@@ -21,7 +21,10 @@
 #include <runtime/generic_val.hpp>
 #include <util/def.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 struct thread_pool_table {
     // submits job in thread pool
@@ -61,5 +64,8 @@ private:
     runtime_config_t();
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

@@ -19,7 +19,10 @@
 
 #include "../module_pass.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * Adds cast_nodes to the IR to legalize it. It promotes the type if is
@@ -55,6 +58,9 @@ int get_casting_priority(sc_data_type_t dty);
  * @return true if the expr is changed for casting
  * */
 bool cast_to(expr_c &v, sc_data_type_t ty, expr_c containing);
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

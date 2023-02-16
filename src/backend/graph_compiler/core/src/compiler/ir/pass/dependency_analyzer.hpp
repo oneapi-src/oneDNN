@@ -20,7 +20,10 @@
 #include "../function_pass.hpp"
 #include <util/weakptr_utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace dependency_analysis {
 constexpr const char *attr_key = "ir_analysis.dependency";
@@ -46,6 +49,9 @@ public:
     func_c operator()(func_c f) override;
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

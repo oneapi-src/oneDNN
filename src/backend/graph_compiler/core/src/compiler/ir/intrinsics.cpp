@@ -21,7 +21,10 @@
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 intrinsic_handler_t::intrinsic_handler_t(const std::string &name)
     : name_(name) {}
 
@@ -486,4 +489,7 @@ const size_t dyn_tsr_struct_t::offsets[5]
                 OFFSET(runtime::dynamic_tensor_t, dtype_),
                 OFFSET(runtime::dynamic_tensor_t, dyn_mask_)};
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

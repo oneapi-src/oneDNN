@@ -25,7 +25,10 @@
 #include <compiler/ir/builder.hpp>
 #include <util/array_ref.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 expr ssa_data_t::get_value_of_var() const {
     assert(!utils::is_uninitialized_weakptr(owner_));
@@ -263,4 +266,7 @@ void ssa_viewer_t::view(stmts_c v) {
     }
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

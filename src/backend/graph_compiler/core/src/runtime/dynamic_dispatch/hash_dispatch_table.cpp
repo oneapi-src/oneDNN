@@ -20,7 +20,10 @@
 #include <string.h>
 #include <vector>
 #include "hash_dispatch_table.hpp"
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace runtime {
 hash_dispatch_table_t::hash_dispatch_table_t(uint32_t num_args, size_t capacity)
     : num_args_(num_args)
@@ -112,4 +115,7 @@ hash_dispatch_table_t::get_dispatch_func() {
 }
 
 } // namespace runtime
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

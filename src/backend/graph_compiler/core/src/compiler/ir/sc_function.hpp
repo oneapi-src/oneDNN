@@ -28,7 +28,10 @@
 #include "sc_expr.hpp"
 #include "sc_stmt.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace function_attrs {
 // bool, if this function represents low-level semantic, which will disable some
@@ -123,19 +126,23 @@ SC_INTERNAL_API extern ostream &operator<<(ostream &os, const func_c &e);
 // Operator << overload for std::ostream on func_base*
 SC_INTERNAL_API extern ostream &operator<<(ostream &os, const func_base *e);
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 namespace std {
 template <>
-struct hash<sc::func_t> {
-    std::size_t operator()(const sc::func_t &k) const {
-        return hash<std::shared_ptr<sc::func_base>>()(k);
+struct hash<dnnl::impl::graph::gc::func_t> {
+    std::size_t operator()(const dnnl::impl::graph::gc::func_t &k) const {
+        return hash<std::shared_ptr<dnnl::impl::graph::gc::func_base>>()(k);
     }
 };
 
 template <>
-struct equal_to<sc::func_t> {
-    bool operator()(const sc::func_t &k, const sc::func_t &k2) const {
+struct equal_to<dnnl::impl::graph::gc::func_t> {
+    bool operator()(const dnnl::impl::graph::gc::func_t &k,
+            const dnnl::impl::graph::gc::func_t &k2) const {
         return k.ptr_same(k2);
     }
 };

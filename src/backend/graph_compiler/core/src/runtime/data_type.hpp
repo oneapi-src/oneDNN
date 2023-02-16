@@ -19,7 +19,10 @@
 
 #include <stdint.h> // uint64_t, uint32_t
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 // The basic data types for scalars and pointers. The lower 8-bits represent
 // the "base type". And the basic type is a pointer if the 9-th bit is 1.
@@ -46,7 +49,7 @@ enum class sc_data_etype : uint32_t {
     U8 = 8,
     /// data type used for indexing.
     INDEX = 9,
-    /// sc::generic_val type, a union type for all supported scalar types
+    /// generic_val type, a union type for all supported scalar types
     GENERIC = 10,
     /// boolean
     BOOLEAN = 11,
@@ -61,5 +64,8 @@ enum class sc_data_etype : uint32_t {
     POINTER = 0x100,
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

@@ -20,7 +20,10 @@
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 void commit_op(const context_ptr &ctx, const std::string &opname,
   array_ref<tensor_slice> in_slice, array_ref<tensor_slice> out_slice,
@@ -45,4 +48,7 @@ void commit_op(const context_ptr &ctx, const std::string &opname,
   op->compute_block(ctx, out, in);
 }
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

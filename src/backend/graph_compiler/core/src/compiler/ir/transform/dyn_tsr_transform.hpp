@@ -17,7 +17,10 @@
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_DYN_TSR_TRANSFORM_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_DYN_TSR_TRANSFORM_HPP
 #include "../module_pass.hpp"
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace attr_keys {
 constexpr const char *plain_dims = "pass.plain_dims";
 constexpr const char *always_trans = "pass.always_trans";
@@ -33,6 +36,9 @@ public:
     const_ir_module_ptr operator()(const_ir_module_ptr f) override;
     SC_DECL_PASS_INFO_FUNC();
 };
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

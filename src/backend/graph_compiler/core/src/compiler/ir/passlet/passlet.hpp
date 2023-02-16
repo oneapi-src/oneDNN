@@ -20,7 +20,10 @@
 #include <compiler/ir/sc_function.hpp>
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace passlet {
 enum pass_phase { PRE_VISIT, POST_VISIT };
@@ -167,6 +170,9 @@ struct map_addresser {
 };
 } // namespace passlet
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

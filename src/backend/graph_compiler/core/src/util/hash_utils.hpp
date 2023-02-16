@@ -19,7 +19,10 @@
 #include <functional>
 #include <vector>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 // The following code is derived from Boost C++ library
 // Copyright 2005-2014 Daniel James.
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
@@ -29,7 +32,10 @@ template <typename T>
 inline void hash_combine(std::size_t &seed, T const &v) {
     seed ^= std::hash<T>()(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 namespace std {
 template <typename T>
@@ -37,7 +43,7 @@ struct hash<std::vector<T>> {
     std::size_t operator()(const std::vector<T> &v) const {
         size_t seed = 0;
         for (size_t i = 0; i < v.size(); i++) {
-            sc::hash_combine(seed, v[i]);
+            dnnl::impl::graph::gc::hash_combine(seed, v[i]);
         }
         return seed;
     }

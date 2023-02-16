@@ -30,7 +30,10 @@
 #include <unordered_map>
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 class SC_INTERNAL_API ir_module_t {
     // Items to appear in the module.
     // Might be useful at some point to be able to include data,
@@ -172,5 +175,8 @@ extern ostream &operator<<(ostream &os, const const_ir_module_ptr &);
 SC_API extern ostream &operator<<(ostream &os, const ir_module_ptr &);
 SC_API extern ostream &operator<<(ostream &os, const ir_module_t &);
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

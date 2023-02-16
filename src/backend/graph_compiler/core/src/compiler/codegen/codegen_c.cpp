@@ -37,7 +37,10 @@
 #include <util/scoped_timer.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 static constexpr const char *wrapper_postfix = "_0wrapper";
 
 static std::string get_closure_wrapper_name(const std::string &name) {
@@ -1083,7 +1086,7 @@ const_ir_module_ptr preprocess_module_and_make_decl(
         *(optout->offline_source_) << '\n' << '\n';
     }
     return mod_cpy;
-} // namespace sc
+}
 
 static void generate_dumped_source(const const_ir_module_ptr &mod,
         c_generator_optional_out_t *optional_out, bool gen_wrapper) {
@@ -1118,7 +1121,7 @@ static void generate_dumped_source(const const_ir_module_ptr &mod,
 
     header_src << R"(#include <stdint.h>
 #include <runtime/generic_val.hpp>
-using generic_val = sc::generic_val;
+using generic_val = gc::generic_val;
 
 extern uint8_t )"
                << module_name << "_data[" << mod_data->data_.size_ << "];\n\n";
@@ -1141,9 +1144,9 @@ extern uint8_t )"
         offline_src
                 << "extern \"C\" void " << module_name
                 << R"(_0wrapper(void* __stream, int8_t* __restrict__ __module_data, generic_val* __restrict__ args) noexcept{
-  sc::runtime::thread_manager::cur_mgr.run_main_function((sc::runtime::thread_manager::main_func_t))"
+  gc::runtime::thread_manager::cur_mgr.run_main_function((gc::runtime::thread_manager::main_func_t))"
                 << module_name
-                << R"(_0wrapper_impl, (sc::runtime::stream_t *)__stream, __module_data, args);
+                << R"(_0wrapper_impl, (gc::runtime::stream_t *)__stream, __module_data, args);
 })";
     }
 
@@ -1183,4 +1186,7 @@ c_generator_pass_t create_c_generator(std::ostream &os, const context_ptr &ctx,
     return c_generator_pass_t(os, ctx, gen_wrapper, optional_out);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -24,7 +24,10 @@
 #include <compiler/ir/transform/tensor_shrink.hpp>
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 expr ir_copier_impl_t::copy(const expr_c &v) {
     dispatch(v);
@@ -294,4 +297,7 @@ func_c ir_copier_t::operator()(func_c s) {
     return vis.copy(s);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

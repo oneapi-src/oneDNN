@@ -19,7 +19,10 @@
 #include "../function_pass.hpp"
 #include <unordered_map>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 // measured by a f32 FMA:
 // for(i, 0, 2^16, 1) {
 //    c[i] = c[i] + a[i] * b[i];
@@ -41,6 +44,9 @@ public:
     stmt_c operator()(stmt_c f);
     SC_DECL_PASS_INFO_FUNC();
 };
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -25,7 +25,10 @@
 #include <util/def.hpp>
 #include <util/hash_utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 /// Memory format kind
 enum class sc_format_category {
     // any means: support block and plain
@@ -413,12 +416,16 @@ SC_INTERNAL_API std::ostream &operator<<(
 
 // if has block on dynamic plain shapes
 bool is_dynamic_blocking(const sc_dims &shapes, const sc_data_format_t &format);
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 namespace std {
 template <>
-struct hash<sc::sc_data_format_t> {
-    std::size_t operator()(const sc::sc_data_format_t &k) const;
+struct hash<dnnl::impl::graph::gc::sc_data_format_t> {
+    std::size_t operator()(
+            const dnnl::impl::graph::gc::sc_data_format_t &k) const;
 };
 } // namespace std
 

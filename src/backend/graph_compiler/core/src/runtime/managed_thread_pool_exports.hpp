@@ -20,9 +20,11 @@
 #include <runtime/context.hpp>
 
 extern "C" SC_API void sc_parallel_call_managed(
-        void (*pfunc)(void *, void *, int64_t, sc::generic_val *),
+        void (*pfunc)(
+                void *, void *, int64_t, dnnl::impl::graph::gc::generic_val *),
         uint64_t execution_flags, void *rtl_ctx, void *module_env,
-        int64_t begin, int64_t end, int64_t step, sc::generic_val *args);
+        int64_t begin, int64_t end, int64_t step,
+        dnnl::impl::graph::gc::generic_val *args);
 
 extern "C" SC_API void sc_set_idle_func_managed(
         uint64_t (*func)(std::atomic<int> *remaining, int expected_remain,

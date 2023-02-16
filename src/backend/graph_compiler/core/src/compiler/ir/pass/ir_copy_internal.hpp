@@ -22,7 +22,10 @@
 #include "../viewer.hpp"
 #include <unordered_map>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * This header exposes the implementation of ir_copier_t for code reuse.
@@ -136,6 +139,9 @@ public:
     void view(for_loop_c v) override;
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

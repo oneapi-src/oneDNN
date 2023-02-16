@@ -19,7 +19,10 @@
 #include <runtime/config.hpp>
 #include <util/parallel.hpp>
 #include <util/simple_math.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 using utils::divide_and_ceil;
 using utils::parallel;
@@ -53,4 +56,7 @@ void generic_ptr_base_t::flush_cache() const {
             0, size_, cache_line_size, numthreads);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

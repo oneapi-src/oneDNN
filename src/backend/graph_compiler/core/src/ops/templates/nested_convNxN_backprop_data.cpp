@@ -32,8 +32,11 @@
 #include <util/math_utils.hpp>
 #include <util/reflection.hpp>
 
-using namespace sc::builder;
-namespace sc {
+using namespace dnnl::impl::graph::gc::builder;
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 static std::vector<int> get_iota(int range) {
@@ -410,4 +413,7 @@ bool gen_nested_convNxN_backprop_data_t::generate(context_ptr ctx,
   return true;
 }
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

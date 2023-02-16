@@ -25,7 +25,10 @@
 #include <unordered_map>
 #include <util/reflection.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 // clang-format off
 SC_CLASS(graph_config)
@@ -57,4 +60,7 @@ graph_config get_graph_default_config(context_ptr ctx, const sc_graph_t &g) {
 }
 } // namespace graph
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

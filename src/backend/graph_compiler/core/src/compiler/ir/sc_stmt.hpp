@@ -31,7 +31,10 @@
 
 #include "sc_expr.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * The IDs for each statememt node
@@ -610,33 +613,38 @@ node_ptr<T, stmt_base_t> make_stmt(Args &&...args) {
     std::shared_ptr<T> ptr = std::make_shared<T>(std::forward<Args>(args)...);
     return node_ptr<T, stmt_base_t>(std::move(ptr));
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 namespace std {
 template <>
-struct hash<sc::stmt> {
-    std::size_t operator()(const sc::stmt &k) const {
-        return hash<sc::stmt::impl_ptr>()(k.impl);
+struct hash<dnnl::impl::graph::gc::stmt> {
+    std::size_t operator()(const dnnl::impl::graph::gc::stmt &k) const {
+        return hash<dnnl::impl::graph::gc::stmt::impl_ptr>()(k.impl);
     }
 };
 
 template <>
-struct equal_to<sc::stmt> {
-    bool operator()(const sc::stmt &k, const sc::stmt &k2) const {
+struct equal_to<dnnl::impl::graph::gc::stmt> {
+    bool operator()(const dnnl::impl::graph::gc::stmt &k,
+            const dnnl::impl::graph::gc::stmt &k2) const {
         return k.ptr_same(k2);
     }
 };
 
 template <>
-struct hash<sc::stmt_c> {
-    std::size_t operator()(const sc::stmt_c &k) const {
-        return hash<sc::stmt_c::impl_ptr>()(k.impl);
+struct hash<dnnl::impl::graph::gc::stmt_c> {
+    std::size_t operator()(const dnnl::impl::graph::gc::stmt_c &k) const {
+        return hash<dnnl::impl::graph::gc::stmt_c::impl_ptr>()(k.impl);
     }
 };
 
 template <>
-struct equal_to<sc::stmt_c> {
-    bool operator()(const sc::stmt_c &k, const sc::stmt_c &k2) const {
+struct equal_to<dnnl::impl::graph::gc::stmt_c> {
+    bool operator()(const dnnl::impl::graph::gc::stmt_c &k,
+            const dnnl::impl::graph::gc::stmt_c &k2) const {
         return k.ptr_same(k2);
     }
 };

@@ -23,7 +23,10 @@
 #include "../ir/ir_module.hpp"
 #include "../ir/util_module_passes.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 struct c_generator_optional_out_t {
     std::ostream *offline_source_;
@@ -67,6 +70,9 @@ public:
 SC_INTERNAL_API c_generator_pass_t create_c_generator(std::ostream &os,
         const context_ptr &ctx, bool gen_wrapper = false,
         c_generator_optional_out_t *optional_out = nullptr);
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -18,7 +18,10 @@
 #include <stdio.h>
 #include <vector>
 #include "dyn_dispatch_table.hpp"
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace runtime {
 size_t dyn_dispatch_table_t::compute_linear_index(
         uint64_t *keys, uint64_t num_keys) const {
@@ -142,4 +145,7 @@ dyn_dispatch_table_t::get_dispatch_func() {
 };
 
 } // namespace runtime
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -21,7 +21,10 @@
 #include <unordered_set>
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 class node_uniquifier_impl_t : public ir_visitor_t {
     // the map used in ir_copier_impl_t
@@ -71,4 +74,7 @@ stmt_c node_uniquifier_t::operator()(stmt_c f) {
     return impl.dispatch(std::move(f));
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

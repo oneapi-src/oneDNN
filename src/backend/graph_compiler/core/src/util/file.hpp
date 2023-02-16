@@ -20,7 +20,10 @@
 #include <string>
 #include <util/def.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace utils {
 /**
  * Generates a unique name for file name
@@ -56,6 +59,9 @@ SC_INTERNAL_API void open_temp_file_for_read(
 
 } // namespace utils
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

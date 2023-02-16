@@ -24,7 +24,10 @@
 #include <compiler/ir/ssa_visitor.hpp>
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(ssa_transform,
         SC_PASS_DEPENDS_ON(module_globals_resolver, local_tensor_lowering_cpu,
@@ -556,4 +559,7 @@ stmt_c ssa_transform_t::operator()(stmt_c f) {
     return impl.top_level_dispatch(std::move(f));
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

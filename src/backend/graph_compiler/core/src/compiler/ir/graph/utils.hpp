@@ -22,7 +22,10 @@
 #include <vector>
 #include <compiler/ir/graph/graph.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 // do divide and ceil on expr.
 expr divide_and_ceil(const expr &, const expr &);
 namespace graph {
@@ -85,6 +88,9 @@ func_t create_query_func_decl_for_op(sc_op *op, std::vector<expr> &ins,
 ltensors extract_detail_from_tensors(
         const std::vector<std::shared_ptr<graph_tensor>> &);
 } // namespace graph
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

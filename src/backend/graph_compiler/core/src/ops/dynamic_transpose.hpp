@@ -20,7 +20,10 @@
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/traits.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 // not truly dynamic, just used to align with current llga's transpose's schema
@@ -41,6 +44,9 @@ private:
     std::vector<int> order_;
 };
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

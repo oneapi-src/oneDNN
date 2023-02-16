@@ -39,8 +39,10 @@
 #endif
 
 #if SC_MEMORY_LEAK_CHECK > 0
-#define SC_EXTENDS_LEAK_CHECK(T) , public ::sc::utils::leak_detect_base<T>
-#define SC_LEAK_CHECK(T) , public ::sc::utils::leak_detect_base<T>
+#define SC_EXTENDS_LEAK_CHECK(T) \
+    , public ::dnnl::impl::graph::gc::utils::leak_detect_base<T>
+#define SC_LEAK_CHECK(T) \
+    , public ::dnnl::impl::graph::gc::utils::leak_detect_base<T>
 #else
 #define SC_EXTENDS_LEAK_CHECK(T)
 #define SC_LEAK_CHECK(T)

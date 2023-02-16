@@ -19,7 +19,10 @@
 
 #include "../function_pass.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 /**
  * Simple non-SSA LICM for pure function version, hoist pure function call
  * inside loop. If the function has args related to loop vars, do not hoist.
@@ -29,6 +32,9 @@ public:
     func_c operator()(func_c f) override;
     SC_DECL_PASS_INFO_FUNC();
 };
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

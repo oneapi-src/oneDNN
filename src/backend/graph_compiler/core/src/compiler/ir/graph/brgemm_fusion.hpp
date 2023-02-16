@@ -19,7 +19,10 @@
 #include "graph.hpp"
 #include <compiler/ir/builtin.hpp>
 #include <runtime/microkernel/cpu/brgemm_common.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 // When fusion manager executing `do_compute_blocks` pass, check if it can be
 // registered to brgemm inside fusion, otherwise do trival computation.
 struct brgemm_fusion_register {
@@ -39,5 +42,8 @@ struct brgemm_fusion_register {
     sc_brgemm_postops_setting_t setting_;
     std::vector<expr> data_ = builtin::create_initialed_postops_data();
 };
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

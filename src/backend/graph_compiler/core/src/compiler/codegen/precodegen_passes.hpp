@@ -19,7 +19,10 @@
 
 #include <compiler/ir/util_module_passes.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 sequential_module_pass_t get_default_precodegen_passes(
         const context_ptr &ctx, bool gen_wrapper);
@@ -27,6 +30,9 @@ sequential_module_pass_t get_default_precodegen_passes(
 const_ir_module_ptr run_precodegen_passes(
         module_pass_t &pass, const_ir_module_ptr f);
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -23,7 +23,10 @@
 #include <compiler/ir/graph/tensor_detail.hpp>
 #include <compiler/ir/sc_stmt.hpp>
 #include <util/general_object.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 using config_ptr = reflection::shared_general_object_t;
 class fusion_manager;
@@ -152,6 +155,9 @@ struct body_generator_t : public body_generator_base_t {
         : body_generator_base_t {owner, std::move(ins), std::move(outs)} {}
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

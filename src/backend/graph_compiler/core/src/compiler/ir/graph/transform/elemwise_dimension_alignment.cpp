@@ -21,7 +21,10 @@
 #include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/ternary_elemwise.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 static void infer_aligned_shape(const logical_tensor_t &a,
         const logical_tensor_t &b, const std::vector<int> &plain_bc_axis,
@@ -176,4 +179,7 @@ void elemwise_dimension_alignment(sc_graph_t &graph, const context_ptr &ctx) {
     });
     graph.reset_op_ids();
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -21,7 +21,10 @@
 #include <utility>
 #include "data_type.hpp"
 #include <util/def.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace runtime {
 struct machine_flags_t {
     unsigned int max_simd_bits;
@@ -123,5 +126,8 @@ SC_INTERNAL_API target_machine_t get_native_target_machine();
 SC_API target_machine_t &get_runtime_target_machine();
 SC_API void set_runtime_target_machine(const target_machine_t &);
 } // namespace runtime
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

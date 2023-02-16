@@ -22,7 +22,10 @@
 #include "function_pass.hpp"
 #include "module_pass.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 // The pass to wrap function pass to module pass. It will run the function pass
 // on each of the function in the input module
@@ -61,6 +64,9 @@ class ir_visitor_t;
 const_ir_module_ptr dispatch_module_on_visitor(
         ir_visitor_t *vis, const const_ir_module_ptr &f);
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

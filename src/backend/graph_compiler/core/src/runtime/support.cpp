@@ -37,7 +37,7 @@
 
 SC_MODULE(runtime.support)
 
-using namespace sc;
+using namespace dnnl::impl::graph::gc;
 extern "C" void print_float(float f) {
     printf("%f\n", f);
 }
@@ -62,7 +62,10 @@ extern "C" void sc_global_aligned_free(void *ptr, size_t align) {
     aligned_free(ptr);
 }
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace runtime {
 size_t get_os_page_size() {
@@ -87,8 +90,7 @@ runtime_config_t::runtime_config_t() {
     if (managed_thread_pool_) {
         thread_pool_table_->parallel_call_managed = &sc_parallel_call_managed;
     }
-    trace_initial_cap_
-            = sc::utils::getenv_int(env_names[SC_TRACE_INIT_CAP], 4096);
+    trace_initial_cap_ = utils::getenv_int(env_names[SC_TRACE_INIT_CAP], 4096);
     trace_out_path_ = utils::getenv_string(env_names[SC_TRACE]);
     char mode = 0;
 
@@ -126,4 +128,7 @@ runtime_config_t::runtime_config_t() {
     }
     verbose_level_ = tmp_get_verbose_level;
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

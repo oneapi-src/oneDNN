@@ -23,7 +23,10 @@
 #include "pass_manager.hpp"
 #include "util_module_passes.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 const char *get_pass_name(module_pass_t *pass) {
     if (auto ret = pass->get_name()) { return ret; }
@@ -119,4 +122,7 @@ void validate_pass_order(const context_ptr &ctx,
 
 #endif
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

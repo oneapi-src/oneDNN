@@ -19,7 +19,10 @@
 #include "../visitor.hpp"
 #include <ops/fusible/binary_elemwise.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /*
 [v0] [v1] <--broadcast tensor
@@ -69,4 +72,7 @@ void div_bcast_transform(sc_graph_t &graph, const context_ptr &ctx) {
     graph.reset_op_ids();
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

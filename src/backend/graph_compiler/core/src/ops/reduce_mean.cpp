@@ -17,7 +17,10 @@
 #include <utility>
 #include <compiler/ir/graph/fusible_op.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 reduce_mean_op_t::reduce_mean_op_t(
         graph_tensor_ptr v, const std::vector<int> &rd_axis, bool keep_dims)
@@ -88,4 +91,7 @@ void reduce_mean_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<format_stride_pair>> &supported_outs) {}
 
 OP_REGISTER(reduce_mean_op_t, reduce_mean)
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

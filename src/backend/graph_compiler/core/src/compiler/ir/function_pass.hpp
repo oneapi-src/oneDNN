@@ -23,7 +23,10 @@
 #include "sc_function.hpp"
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 struct tir_pass_dependency_t;
 
 /**
@@ -40,6 +43,9 @@ public:
 };
 
 using function_pass_ptr = std::unique_ptr<function_pass_t>;
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

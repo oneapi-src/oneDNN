@@ -21,7 +21,10 @@
 
 #include "ir_indexer.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 class ir_indexer_impl_t : public xbyak_visitor_t {
@@ -65,4 +68,7 @@ func_c ir_indexer_t::operator()(func_c v) {
 }
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

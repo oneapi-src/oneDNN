@@ -36,7 +36,10 @@
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 ir_module_ptr fusible_op_t::get_func(context_ptr ctx) {
     int base_idx = 0;
@@ -486,4 +489,7 @@ void constant_op_t::prepare_fusion_data(fdata_map &fdmap) {
 
 OP_REGISTER(constant_op_t, constant)
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -25,7 +25,10 @@
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/transform/parallel_workload_attr.hpp>
 #include <runtime/microkernel/cpu/brgemm_alg_kind.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 class fusion_manager;
 struct brgemm_fusion_register;
@@ -241,6 +244,9 @@ struct constant_compensation_t : public virtual op_base_trait_t {};
 
 } // namespace op_traits
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

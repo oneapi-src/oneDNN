@@ -21,7 +21,10 @@
 #include <string>
 #include <vector>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace runtime {
 
 struct thread_local_buffer_t;
@@ -39,6 +42,9 @@ void write_traces(const std::list<thread_local_buffer_t *> &tls_buffers);
 
 } // namespace runtime
 int register_traced_func(const std::string &name);
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

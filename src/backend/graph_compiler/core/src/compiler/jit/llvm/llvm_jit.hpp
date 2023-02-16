@@ -30,7 +30,10 @@ class ExecutionEngine;
 class LLVMContext;
 } // namespace llvm
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 class llvm_jit;
 struct llvm_jit_listeners;
@@ -72,6 +75,9 @@ public:
             const_ir_module_ptr module, bool generate_wrapper) override;
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

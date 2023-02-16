@@ -25,7 +25,10 @@
 #include <ops/fusible/unary_elemwise.hpp>
 #include <unordered_set>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace quantize {
 
 static std::unordered_set<std::string> data_wei_op_set
@@ -383,4 +386,7 @@ SC_INTERNAL_API void quantize_info_propagation(
     });
 }
 } // namespace quantize
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

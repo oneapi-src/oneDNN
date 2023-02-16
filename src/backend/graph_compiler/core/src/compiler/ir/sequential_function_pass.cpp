@@ -17,7 +17,10 @@
 #include "sequential_function_pass.hpp"
 #include <memory>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 sequential_function_pass_t::sequential_function_pass_t(
         std::vector<std::unique_ptr<function_pass_t>> &&passes)
     : passes_(std::move(passes)) {}
@@ -33,4 +36,7 @@ func_c sequential_function_pass_t::operator()(func_c f) {
     return f;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

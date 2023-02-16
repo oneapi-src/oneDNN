@@ -25,7 +25,10 @@
 #include <unordered_set>
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(ir_simplifier, SC_PASS_DEPENDS_ON(validator, constant_folder),
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
@@ -409,4 +412,7 @@ stmt_c ir_simplifier_t::operator()(stmt_c f) const {
     return simpl.dispatch(ilimpl.dispatch(simpl.dispatch(std::move(f))));
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

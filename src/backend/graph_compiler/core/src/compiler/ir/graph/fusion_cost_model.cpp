@@ -22,7 +22,10 @@
 
 SC_MODULE(graph.fusion_cost_model);
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 static int op_num(mixed_parti_t *parti) {
     int num = parti->ops.size();
@@ -288,4 +291,7 @@ bool dynamic_fusion_cost_model_t::make_decision_for_op(
     return true;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

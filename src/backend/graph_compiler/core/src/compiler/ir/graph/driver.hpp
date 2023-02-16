@@ -25,7 +25,10 @@
 #include "transform/transform.hpp"
 #include <unordered_map>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 enum class pass_type { analysis, pre_tune, post_tune };
 
@@ -126,6 +129,9 @@ std::unordered_map<sc_op_ptr, std::vector<sc_op_ptr>> create_op_map(
 void run_graph_passes(sc_graph_t &graph, const context_ptr &ctx,
         const std::vector<basic_graph_pass_ptr> &passes);
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

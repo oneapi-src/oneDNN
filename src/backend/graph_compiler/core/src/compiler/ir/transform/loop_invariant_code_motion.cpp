@@ -28,7 +28,10 @@
 #include <util/any_map.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(loop_invariant_code_motion, SC_PASS_DEPENDS_ON(ssa_transform),
         SC_PASS_REQUIRE_STATE(SSA_STAGE), SC_PASS_REQUIRE_NOT_STATE(),
@@ -471,4 +474,7 @@ func_c loop_invariant_code_motion_t::operator()(func_c f) {
     return hoister.top_level_dispatch(f);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

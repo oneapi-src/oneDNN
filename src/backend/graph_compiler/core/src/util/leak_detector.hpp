@@ -29,7 +29,10 @@
 #include <unordered_set>
 #endif
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace utils {
 struct instance_counter {
     const char *base_name;
@@ -132,6 +135,9 @@ struct SC_INTERNAL_API leak_detect_base {
 };
 
 } // namespace utils
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

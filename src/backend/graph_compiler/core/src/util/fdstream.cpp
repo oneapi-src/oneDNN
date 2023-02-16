@@ -23,7 +23,10 @@
 #include <unistd.h>
 #endif
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 void fdoutbuf_t::close() {
     if (fd_ != -1) {
@@ -66,4 +69,7 @@ int fdinbuf_t::underflow() {
     return *gptr();
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

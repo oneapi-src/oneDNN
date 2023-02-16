@@ -26,7 +26,10 @@
 #include <compiler/ir/pass_dep_util.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(simple_loop_invariant_code_motion,
         SC_PASS_DEPENDS_ON(loop_merger, parallel_workload_dispatcher),
@@ -107,4 +110,7 @@ stmt_c simple_loop_invariant_code_motion_t::operator()(stmt_c f) {
     tensor_def_hoister_t pass;
     return pass.dispatch(std::move(f));
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

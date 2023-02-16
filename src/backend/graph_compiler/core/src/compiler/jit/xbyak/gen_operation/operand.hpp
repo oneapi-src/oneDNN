@@ -24,7 +24,10 @@
 #include <compiler/jit/xbyak/x86_64/native_types.hpp>
 #include <util/variant.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 /**
@@ -134,6 +137,9 @@ private:
 std::ostream &operator<<(std::ostream &os, const operand &op);
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

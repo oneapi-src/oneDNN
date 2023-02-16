@@ -22,7 +22,10 @@
 
 #include "xbyak_visitor.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 //-----------------
@@ -78,4 +81,7 @@ expr_c xbyak_visitor_t::visit(xbyak_intrin_c v) {
 }
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

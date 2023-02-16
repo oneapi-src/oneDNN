@@ -19,7 +19,10 @@
 
 #include <unordered_map>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 // the map based on graph_tensor key
 template <typename valT>
 struct gt_map_t {
@@ -32,5 +35,8 @@ struct gt_map_t {
     bool empty() const { return datamap_.empty(); }
     gt_map_t &operator=(const gt_map_t &other) = delete;
 };
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

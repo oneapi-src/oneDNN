@@ -19,7 +19,10 @@
 
 #include "passlet.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace passlet {
 
 /**
@@ -40,5 +43,8 @@ struct ssa_value_hash_t : public typed_passlet<size_t> {
     void view(const define_c &v, pass_phase phase) override;
 };
 } // namespace passlet
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

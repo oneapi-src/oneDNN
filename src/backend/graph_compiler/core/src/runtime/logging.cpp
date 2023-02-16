@@ -21,7 +21,10 @@
 #include <runtime/env_vars.hpp>
 #include <runtime/logging.hpp>
 #include <util/string_utils.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace runtime {
 
 #define should_pass_filter(x) true
@@ -61,4 +64,7 @@ logging_stream_t get_fatal_logging_stream(const char *module_name) {
 }
 
 } // namespace runtime
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

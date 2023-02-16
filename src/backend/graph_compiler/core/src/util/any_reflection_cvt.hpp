@@ -19,12 +19,18 @@
 #include "any_map.hpp"
 #include "general_object.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace utils {
 // converts an any_t to general ref. The RTTI of the any_t must be registered in
 // reflection's type registery. Otherwise, this function will throw an exception
 reflection::general_ref_t any_to_general_ref(const any_t &);
 } // namespace utils
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

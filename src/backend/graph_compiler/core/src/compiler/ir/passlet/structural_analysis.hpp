@@ -20,7 +20,10 @@
 #include <vector>
 #include "passlet.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace passlet {
 struct structural_result_t {
     using typed_addresser_t
@@ -50,5 +53,8 @@ struct structural_analysis_t : public typed_passlet<structural_result_t> {
     void view(const stmt_c &v, pass_phase phase);
 };
 } // namespace passlet
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

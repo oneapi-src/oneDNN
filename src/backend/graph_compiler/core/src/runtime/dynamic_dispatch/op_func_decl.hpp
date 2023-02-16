@@ -18,7 +18,10 @@
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_OP_FUNC_DECL_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_OP_FUNC_DECL_HPP
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 extern "C" {
 SC_API void infer_shape_matmul_op(void *out, void *data, void *weight);
@@ -54,6 +57,9 @@ SC_API void query_combined_fused_op(void *table, uint64_t **combined_keys,
         int *combined_algs, int *each_op_num_key, int op_num, void *kernel);
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

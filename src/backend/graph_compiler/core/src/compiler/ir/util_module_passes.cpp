@@ -25,7 +25,10 @@
 #include <util/scoped_timer.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 sequential_module_pass_t::sequential_module_pass_t(
         std::vector<module_pass_ptr> &&passes)
     : passes_(std::move(passes)) {}
@@ -90,4 +93,7 @@ const_ir_module_ptr dispatch_module_on_visitor(
     return ret;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

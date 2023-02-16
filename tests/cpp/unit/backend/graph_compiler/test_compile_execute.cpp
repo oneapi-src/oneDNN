@@ -358,14 +358,20 @@ TEST(GCGraphTest, FP32MHACompileExecutionMultiThreading) {
     }
 }
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 void release_runtime_memory(runtime::engine_t *engine);
 }
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 // test allocator release before compiled partition destruction
 TEST(GCGraphTest, AllocatorEarlyRelease) {
     REQUIRE_AVX512();
-    sc::release_runtime_memory(nullptr);
+    dnnl::impl::graph::gc::release_runtime_memory(nullptr);
     impl::graph_t agraph;
     compiler_utils::add_MHA_subgraph(&agraph, false);
     agraph.build_graph();

@@ -26,7 +26,10 @@
 #include <runtime/microkernel/cpu/brgemm_common.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 SC_INTERNAL_API expr get_ir_null();
 SC_INTERNAL_API expr get_ir_zero_index();
 SC_INTERNAL_API bool is_pure_func_call(const expr_c &v);
@@ -408,10 +411,10 @@ func_t get_thread_id_func();
 // gets the IR func for is_in_parallel. @see thread_pool_table::is_in_parallel
 func_t get_is_in_parallel_func();
 
-// gets the IR func for sc::runtime::enter_barrier
+// gets the IR func for gc::runtime::enter_barrier
 func_t get_barrier_arrive_func();
 
-// gets the IR func for sc::runtime::init_barrier
+// gets the IR func for gc::runtime::init_barrier
 func_t get_init_barrier_func();
 
 // gets the IR func for sc_set_idle_func_managed
@@ -458,6 +461,9 @@ uint64_t generate_balance211(int num_threads, const expr &start,
         std::vector<stmt> *out_seq = nullptr);
 
 } // namespace builtin
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

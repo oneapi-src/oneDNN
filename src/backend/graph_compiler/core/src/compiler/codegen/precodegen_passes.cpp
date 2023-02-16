@@ -54,7 +54,10 @@
 #include <compiler/ir/transform/value_numbering.hpp>
 #include <compiler/ir/util_module_passes.hpp>
 #include <runtime/config.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 sequential_module_pass_t get_default_precodegen_passes(
         const context_ptr &ctx, bool gen_wrapper) {
@@ -150,4 +153,7 @@ const_ir_module_ptr run_precodegen_passes(
     return mod_cpy;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

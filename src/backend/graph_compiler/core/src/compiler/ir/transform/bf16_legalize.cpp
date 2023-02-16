@@ -19,7 +19,10 @@
 #include <compiler/ir/pass_dep_util.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(bf16_legalizer, SC_PASS_DEPENDS_ON(auto_caster),
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
@@ -397,4 +400,7 @@ expr_c bf16_eliminator_t::operator()(expr_c f) {
     f = pass.dispatch(f);
     return f;
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

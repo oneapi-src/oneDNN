@@ -26,7 +26,10 @@
 #include "sc_stmt.hpp"
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 static void merge_attrs(std::unique_ptr<any_map_t> &mergeto,
         const std::unique_ptr<any_map_t> &mergefrom) {
     if (mergeto) {
@@ -726,4 +729,7 @@ stmt builder_impl_t::list_brgemm(const expr_c &x, const expr_c &w,
             args, any_map_t {{intrin_attr::brgemm_extras, extras}}));
 }
 } // namespace builder
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

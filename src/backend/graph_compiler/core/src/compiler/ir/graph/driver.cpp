@@ -34,7 +34,10 @@
 #define getprocessid getpid
 #endif
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_MODULE(graph.driver)
 
@@ -205,8 +208,8 @@ std::unordered_map<sc_op_ptr, std::vector<sc_op_ptr>> create_op_map(
 sc_graph_t dynamic_shape_infer_preprocess(
         const sc_graph_t &graph, const context_ptr &ctx) {
     sc_graph_t copy = copy_graph(graph);
-    sc::graph_inline(copy, ctx);
-    sc::constant_optimization(copy, ctx);
+    graph_inline(copy, ctx);
+    constant_optimization(copy, ctx);
     return copy;
 }
 
@@ -250,4 +253,7 @@ void graph_driver(
             ptun_creator);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

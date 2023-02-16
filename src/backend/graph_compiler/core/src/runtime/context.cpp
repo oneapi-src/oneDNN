@@ -20,7 +20,10 @@
 #include "parallel.hpp"
 #include "runtime.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace runtime {
 static void *global_alloc(runtime::engine_t *eng, size_t sz) {
@@ -32,7 +35,7 @@ static void global_free(runtime::engine_t *eng, void *p) {
 }
 
 static engine_vtable_t vtable {global_alloc, global_free,
-        sc::memory_pool::alloc_by_mmap, sc::memory_pool::dealloc_by_mmap};
+        memory_pool::alloc_by_mmap, memory_pool::dealloc_by_mmap};
 
 static engine_t default_engine {&vtable};
 stream_t default_stream {{sc_parallel_call_cpu_with_env_impl}, &default_engine};
@@ -42,4 +45,7 @@ static_assert(sizeof(stream_vtable_t) == sizeof(void *),
         "stream_t::vtable_ to pointer now");
 
 } // namespace runtime
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

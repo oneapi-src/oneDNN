@@ -25,7 +25,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 /**
  * Base class for closurizer. Different targets should extend the
  * class to make target-specific parallel functions and parallel calls. Replaces
@@ -77,6 +80,9 @@ protected:
     stmt_c visit(for_loop_c v) override;
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

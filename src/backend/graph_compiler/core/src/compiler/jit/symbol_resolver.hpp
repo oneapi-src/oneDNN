@@ -19,10 +19,16 @@
 #include <string>
 #include <unordered_map>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 // finds the address of a symbol by name in the current process. Returns nullptr
 // if the name is not found
 void *default_external_symbol_resolve(const std::string &name);
 const std::unordered_map<std::string, void *> &get_runtime_function_map();
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

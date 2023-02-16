@@ -19,7 +19,10 @@
 
 #include <compiler/ir/function_pass.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * Converts the IR from SSA (Single-Static-Assignment) form to normal IR for
@@ -44,6 +47,9 @@ public:
     SC_DECL_PASS_INFO_FUNC();
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

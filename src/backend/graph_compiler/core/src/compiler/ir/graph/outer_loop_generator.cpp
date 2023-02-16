@@ -31,7 +31,10 @@
 #include <ops/fusible/reduce.hpp>
 #include <runtime/config.hpp>
 #include <util/utils.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_MODULE(graph.outer_loop_gen);
 
@@ -657,4 +660,7 @@ ir_module_ptr inplaced_reorder_get_func(sc_op *op, const context_ptr &ctx) {
     return modu;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

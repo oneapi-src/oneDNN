@@ -31,8 +31,11 @@
 
 SC_MODULE(microkernel.builtin)
 
-using namespace sc::builder;
-namespace sc {
+using namespace dnnl::impl::graph::gc::builder;
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 expr get_ir_null() {
     return make_expr<constant_node>(UINT64_C(0), datatypes::pointer);
 }
@@ -800,4 +803,7 @@ uint64_t generate_balance211(int num_threads, const expr &start_e,
 }
 
 } // namespace builtin
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

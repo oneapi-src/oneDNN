@@ -25,7 +25,10 @@
 #include "fusion_data.hpp"
 #include <unordered_map>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 enum class cmp_res : int {
     unknown = -1,
@@ -149,6 +152,9 @@ expr cast_to_s32(const expr &in);
 // compare expr in slice equal or not, constant slice may have different
 // datatypes but same value as we use `int` for static.
 bool slice_expr_equals(const expr &in1, const expr &in2);
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

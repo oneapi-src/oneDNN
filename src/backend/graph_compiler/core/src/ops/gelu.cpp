@@ -16,7 +16,10 @@
 #include "gelu.hpp"
 #include <compiler/ir/graph/fusible_op.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 gelu_op::gelu_op(const std::vector<graph_tensor_ptr> &ins,
@@ -212,4 +215,7 @@ void gelu_backprop_op::query_format(context_ptr ctx,
 
 OP_REGISTER(ops::gelu_op, gelu)
 OP_REGISTER(ops::gelu_backprop_op, gelu_backprop)
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

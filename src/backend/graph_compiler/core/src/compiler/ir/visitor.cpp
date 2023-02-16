@@ -19,7 +19,10 @@
 #include "sc_expr.hpp"
 #include "visitable.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 expr ir_visitor_base_t::dispatch_impl(expr e) { // NOLINT
     return e->visited_by(this);
 }
@@ -612,4 +615,7 @@ expr_c ir_consistent_visitor_t::dispatch(expr_c e) {
     return newe;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -32,7 +32,10 @@ using std::ostringstream;
 using std::string;
 using std::vector;
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 using utils::make_unique;
@@ -508,4 +511,7 @@ bool stack_frame_model::try_get_named_object_rbp_offset(
 }
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

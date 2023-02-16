@@ -26,7 +26,10 @@
 #include <compiler/config/context.hpp>
 #include <unordered_map>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 class bf16_promote_impl_t : public ir_visitor_t {
 public:
@@ -116,6 +119,9 @@ private:
     context_ptr ctx_;
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

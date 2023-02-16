@@ -37,7 +37,10 @@
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace memory_pool {
 using utils::divide_and_ceil;
 static constexpr size_t default_alignment = 64;
@@ -180,25 +183,29 @@ filo_memory_pool_t::~filo_memory_pool_t() {
 }
 
 } // namespace memory_pool
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
-using stream_t = sc::runtime::stream_t;
+using stream_t = dnnl::impl::graph::gc::runtime::stream_t;
+namespace runtime = dnnl::impl::graph::gc::runtime;
 extern "C" SC_API void *sc_aligned_malloc(
         stream_t *pstream, size_t sz) noexcept {
     if (sz == 0) { return nullptr; }
-    return sc::runtime::get_tls(pstream).main_memory_pool_.alloc(pstream, sz);
+    return runtime::get_tls(pstream).main_memory_pool_.alloc(pstream, sz);
 }
 
 extern "C" SC_API void sc_aligned_free(stream_t *pstream, void *p) noexcept {
-    sc::runtime::get_tls(pstream).main_memory_pool_.dealloc(p);
+    runtime::get_tls(pstream).main_memory_pool_.dealloc(p);
 }
 
 extern "C" SC_API void *sc_thread_aligned_malloc(
         stream_t *pstream, size_t sz) noexcept {
-    return sc::runtime::get_tls(pstream).thread_memory_pool_.alloc(pstream, sz);
+    return runtime::get_tls(pstream).thread_memory_pool_.alloc(pstream, sz);
 }
 
 extern "C" SC_API void sc_thread_aligned_free(
         stream_t *pstream, void *p) noexcept {
-    sc::runtime::get_tls(pstream).thread_memory_pool_.dealloc(p);
+    runtime::get_tls(pstream).thread_memory_pool_.dealloc(p);
 }

@@ -20,7 +20,10 @@
 #include <compiler/ir/sc_data_format.hpp>
 #include <compiler/ir/sc_data_type.hpp>
 #include <util/any_map.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace attr_keys {
 // static quantize attribute keys, values are concrete numbers.
 constexpr const char *scales = "scales";
@@ -88,5 +91,8 @@ struct quantize_infos_t {
 quantize_infos_t get_quantize_info_from_attrs(const any_map_t &attrs);
 
 } // namespace quantize
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

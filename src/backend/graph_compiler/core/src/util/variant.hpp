@@ -19,7 +19,10 @@
 #include <stdint.h>
 #include <utility>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace variant_impl {
 using std::size_t;
@@ -373,6 +376,9 @@ public:
     }
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

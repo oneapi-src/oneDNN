@@ -30,7 +30,10 @@
 #include <compiler/ir/visitor.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(dyn_tensor_transformer, SC_PASS_DEPENDS_ON(),
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
@@ -429,4 +432,7 @@ const_ir_module_ptr dyn_tensor_transformer_t::operator()(
     f = dispatch_module_on_visitor(&replace_pass, f);
     return f;
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

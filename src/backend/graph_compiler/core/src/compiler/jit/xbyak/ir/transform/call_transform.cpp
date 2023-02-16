@@ -25,10 +25,12 @@
 
 #include "call_transform.hpp"
 
-using namespace sc::sc_xbyak::x86_64;
-
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
+using namespace sc_xbyak::x86_64;
 
 // Cached ABI infomation inside func node
 abi_function_interface::ptr cached_func_abi_interface(const func_t &v) {
@@ -234,4 +236,7 @@ call_transform_t::call_transform_t(const x86_64::target_profile_t &profile)
     : profile_(profile) {}
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

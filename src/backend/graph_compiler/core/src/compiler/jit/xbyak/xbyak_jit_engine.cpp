@@ -45,7 +45,10 @@
 #include <compiler/jit/xbyak/ir/transform/x86_intrinsics_lowering.hpp>
 #include <compiler/jit/xbyak/ir/xbyak_printer.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 sequential_module_pass_t get_xbyak_precodegen_passes(
@@ -156,4 +159,7 @@ std::shared_ptr<jit_module> xbyak_jit_engine::make_jit_module(
 }
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

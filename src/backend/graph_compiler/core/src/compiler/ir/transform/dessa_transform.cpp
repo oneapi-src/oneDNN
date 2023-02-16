@@ -23,7 +23,10 @@
 #include <compiler/ir/ssa_visitor.hpp>
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(dessa_transform, SC_PASS_DEPENDS_ON(ssa_transform),
         SC_PASS_REQUIRE_STATE(SSA_STAGE), SC_PASS_REQUIRE_NOT_STATE(),
@@ -362,4 +365,7 @@ func_c dessa_transform_t::operator()(func_c f) {
     return mutator.dispatch(f);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

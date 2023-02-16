@@ -25,7 +25,10 @@
 #include <compiler/jit/xbyak/ir/xbyak_expr.hpp>
 #include <compiler/jit/xbyak/x86_64/native_types.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 class expr_location {
@@ -84,6 +87,9 @@ private:
 std::ostream &operator<<(std::ostream &os, const expr_location &v);
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

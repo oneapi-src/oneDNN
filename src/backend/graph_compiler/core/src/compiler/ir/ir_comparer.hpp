@@ -25,7 +25,10 @@
 #include <unordered_map>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 struct ir_comparer_diff_t {
     std::pair<func_c, func_c> first_diff_func_;
@@ -114,6 +117,9 @@ public:
 
 std::ostream &operator<<(std::ostream &, ir_comparer &);
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

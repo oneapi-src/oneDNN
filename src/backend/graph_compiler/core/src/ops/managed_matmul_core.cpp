@@ -30,7 +30,10 @@
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 template <typename T>
@@ -643,5 +646,8 @@ void managed_matmul_core_op_t::pre_binding_axis(bound_axis_map &bdax_map) {
 }
 
 } // namespace ops
-OP_REGISTER(::sc::ops::managed_matmul_core_op_t, managed_matmul_core)
-} // namespace sc
+OP_REGISTER(ops::managed_matmul_core_op_t, managed_matmul_core)
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

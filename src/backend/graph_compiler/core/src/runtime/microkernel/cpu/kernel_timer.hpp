@@ -21,17 +21,19 @@
 #include <runtime/thread_locals.hpp>
 
 inline bool sc_is_trace_enabled() {
-    auto mode = sc::runtime_config_t::get().trace_mode_;
-    return (mode == sc::runtime_config_t::trace_mode_t::KERNEL
-                   && sc::runtime::thread_local_buffer_t::tls_buffer_
+    namespace gc = dnnl::impl::graph::gc;
+    auto mode = gc::runtime_config_t::get().trace_mode_;
+    return (mode == gc::runtime_config_t::trace_mode_t::KERNEL
+                   && gc::runtime::thread_local_buffer_t::tls_buffer_
                                    .additional_->linear_thread_id_
                            == 0)
-            || mode == sc::runtime_config_t::trace_mode_t::MULTI_THREAD;
+            || mode == gc::runtime_config_t::trace_mode_t::MULTI_THREAD;
 }
 
 inline void sc_make_timer_id(int flops, int num) {
+    namespace gc = dnnl::impl::graph::gc;
     if (sc_is_trace_enabled()) {
-        auto &log = sc::runtime::thread_local_buffer_t::tls_buffer_.additional_
+        auto &log = gc::runtime::thread_local_buffer_t::tls_buffer_.additional_
                             ->trace_.trace_logs_.back();
         log.arg_ = flops;
     }

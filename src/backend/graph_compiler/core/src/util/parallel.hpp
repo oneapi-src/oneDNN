@@ -23,7 +23,10 @@
 #include <tbb/parallel_for.h>
 #endif
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace utils {
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
 template <typename F>
@@ -61,6 +64,9 @@ void parallel_for(int64_t begin, int64_t end, int64_t step, F &&f) {
 #endif
 
 } // namespace utils
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

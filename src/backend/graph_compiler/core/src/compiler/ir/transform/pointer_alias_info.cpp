@@ -20,7 +20,10 @@
 #include <unordered_set>
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace alias_info {
 
@@ -72,4 +75,7 @@ std::shared_ptr<alias_set_t> alias_set_t::copy() const {
 
 } // namespace alias_info
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

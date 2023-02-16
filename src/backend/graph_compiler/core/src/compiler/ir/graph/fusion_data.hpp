@@ -30,7 +30,10 @@
 #include <unordered_set>
 #include <util/variant.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 using slice_range_list = std::vector<slice_range>;
 using slice_range_map = std::unordered_map<int, slice_range_list>;
@@ -552,12 +555,16 @@ struct fuse_iter_anchor_map_t : fuse_anchor_map_t {
     void commit_stmts(stmts &ss) override { commit_(ss); }
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 namespace std {
 template <>
-struct hash<sc::buffer_reuse_identity> {
-    std::size_t operator()(const sc::buffer_reuse_identity &in) const;
+struct hash<dnnl::impl::graph::gc::buffer_reuse_identity> {
+    std::size_t operator()(
+            const dnnl::impl::graph::gc::buffer_reuse_identity &in) const;
 };
 } // namespace std
 #endif

@@ -68,21 +68,29 @@
 
 #include <runtime/generic_val.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace runtime {
 struct stream_t;
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
+
+namespace gc = dnnl::impl::graph::gc;
 
 #ifndef SC_JIT_SOURCE // if it is compiled by SC-gtests
 extern "C" void *sc_aligned_malloc(
-        sc::runtime::stream_t *stream, size_t sz) noexcept;
+        gc::runtime::stream_t *stream, size_t sz) noexcept;
 extern "C" void sc_aligned_free(
-        sc::runtime::stream_t *stream, void *p) noexcept;
+        gc::runtime::stream_t *stream, void *p) noexcept;
 extern "C" void *sc_thread_aligned_malloc(
-        sc::runtime::stream_t *stream, size_t sz) noexcept;
+        gc::runtime::stream_t *stream, size_t sz) noexcept;
 extern "C" void sc_thread_aligned_free(
-        sc::runtime::stream_t *stream, void *p) noexcept;
+        gc::runtime::stream_t *stream, void *p) noexcept;
 extern "C" void *sc_global_aligned_alloc(size_t sz, size_t align) noexcept;
 extern "C" void sc_global_aligned_free(void *ptr, size_t align) noexcept;
 #endif
@@ -119,7 +127,7 @@ DEF_SQRT(float)
 DEF_RSQRT(float)
 DEF_FMADD(float)
 
-using generic_val = sc::generic_val;
+using generic_val = gc::generic_val;
 
 template <typename T, typename T2>
 T sc_reinterpret(T2 v) {

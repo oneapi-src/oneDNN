@@ -62,7 +62,10 @@
 #include <vector>
 #include <compiler/jit/xbyak/x86_64/abi_common.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 namespace x86_64 {
 
@@ -199,6 +202,9 @@ size_t get_size_in_bytes(cpu_data_type t);
 
 } // namespace x86_64
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

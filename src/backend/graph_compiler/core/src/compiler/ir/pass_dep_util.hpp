@@ -19,7 +19,10 @@
 
 #include "pass_id.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 template <typename T, typename... Args>
 inline constexpr T make_bit_mask_impl(T oldv, int n_th, Args... args) {
@@ -35,7 +38,10 @@ inline constexpr T make_bit_mask(Args... args) {
     return make_bit_mask_impl<T>(T(0), args...);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #ifndef NDEBUG
 #define SC_DECL_PASS_DEPDENCYINFO_IMPL(passname, passclass, ...) \

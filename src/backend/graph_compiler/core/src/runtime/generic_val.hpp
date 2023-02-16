@@ -19,7 +19,10 @@
 
 #include <stdint.h>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 union generic_val {
     uint16_t v_uint16_t;
@@ -39,6 +42,9 @@ union generic_val {
     generic_val(void *v) : v_ptr(v) {}
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

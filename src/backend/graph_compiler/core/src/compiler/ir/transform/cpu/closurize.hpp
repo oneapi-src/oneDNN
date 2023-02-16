@@ -19,7 +19,10 @@
 
 #include <compiler/ir/module_pass.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 /**
  * Base class for closurizer. Different targets should extend the
  * class to make target-specific parallel functions and parallel calls. Replaces
@@ -61,6 +64,9 @@ public:
 };
 
 func_t get_parallel_call_with_env_func(bool managed);
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

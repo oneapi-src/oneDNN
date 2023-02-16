@@ -26,7 +26,10 @@
 #include <unordered_set>
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(tensor_inplace,
         SC_PASS_DEPENDS_ON(
@@ -109,4 +112,7 @@ const_ir_module_ptr tensor_inplace_t::operator()(const_ir_module_ptr f) {
     return ret;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -18,7 +18,10 @@
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_DISPATCH_TABLE_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_DISPATCH_TABLE_HPP
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace runtime {
 
 struct dispatch_table_t {
@@ -32,6 +35,9 @@ struct dispatch_table_t {
 
 } // namespace runtime
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

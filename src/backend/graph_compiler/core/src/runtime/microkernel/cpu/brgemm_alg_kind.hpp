@@ -17,7 +17,10 @@
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_MICROKERNEL_CPU_BRGEMM_ALG_KIND_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_MICROKERNEL_CPU_BRGEMM_ALG_KIND_HPP
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace brgemm {
 
 // inherit from onednn
@@ -124,6 +127,9 @@ enum alg_kind_t {
     out_dtype,
 };
 } // namespace brgemm
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -19,7 +19,10 @@
 
 #include "../module_pass.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 /**
  * Inserts calls to sc_make_trace when entering and exit from functions.
  * This pass will register the function id => function name mapping when a
@@ -30,6 +33,9 @@ public:
     const_ir_module_ptr operator()(const_ir_module_ptr m) override;
     SC_DECL_PASS_INFO_FUNC();
 };
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

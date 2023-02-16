@@ -21,7 +21,10 @@
 #include <vector>
 #include <compiler/ir/graph/fusible_op.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 class select_op_t : public fusible_op_t, public op_traits::auto_copyable_t {
 public:
@@ -59,5 +62,8 @@ private:
     vectorized_info_t vx_info_;
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

@@ -20,7 +20,10 @@
 #include <stdint.h>
 #include <vector>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace tir_pass {
 
@@ -110,6 +113,9 @@ struct tir_pass_dependency_t {
 };
 #endif
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

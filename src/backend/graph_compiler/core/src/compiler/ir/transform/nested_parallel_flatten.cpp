@@ -30,7 +30,10 @@
 #include <unordered_map>
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(nested_parallel_flattener,
         SC_PASS_DEPENDS_ON(validator, buffer_rescheduling_tensor_hoisting),
@@ -444,4 +447,7 @@ func_c nested_parallel_flattener_t::operator()(func_c f) {
     return f;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

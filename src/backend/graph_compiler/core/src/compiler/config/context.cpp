@@ -32,7 +32,10 @@ extern char **environ;
 #endif
 
 SC_MODULE(target)
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 using namespace env_key;
 
 static void check_within(
@@ -47,8 +50,8 @@ static void check_within(
 // flags will take the intersection of compiler/target machine/onednn env
 // variable/os.
 static void reset_cpu_flags_by_dnnl_envs(runtime::target_machine_t &tm) {
-    std::string dnnl_isa = sc::utils::getenv_string("DNNL_MAX_CPU_ISA");
-    std::string onednn_isa = sc::utils::getenv_string("ONEDNN_MAX_CPU_ISA");
+    std::string dnnl_isa = utils::getenv_string("DNNL_MAX_CPU_ISA");
+    std::string onednn_isa = utils::getenv_string("ONEDNN_MAX_CPU_ISA");
     // DNNL_MAX_CPU_ISA and ONEDNN_MAX_CPU_ISA can not be set at same time.
     assert(dnnl_isa.empty() || onednn_isa.empty());
     std::string &max_isa = onednn_isa.empty() ? dnnl_isa : onednn_isa;
@@ -108,7 +111,7 @@ static void reset_cpu_flags_by_dnnl_envs(runtime::target_machine_t &tm) {
 
 template <typename T>
 static void parse_value(const char *name, T &v) {
-    auto strv = sc::utils::getenv_string(name);
+    auto strv = utils::getenv_string(name);
     if (!strv.empty()) { v = T(std::stoi(strv)); };
 }
 
@@ -126,7 +129,7 @@ context_ptr get_default_context() {
         {
             const char *jit_env_var_name = env_names[SC_CPU_JIT];
             const char *cfakejit_switch_name = "c";
-            auto buf = sc::utils::getenv_string(jit_env_var_name);
+            auto buf = utils::getenv_string(jit_env_var_name);
             if (!buf.empty()) {
 #if SC_CFAKE_JIT_ENABLED
                 if (buf == cfakejit_switch_name) {
@@ -164,13 +167,13 @@ context_ptr get_default_context() {
         flags.jit_kind_ = jit;
         jit_engine_t::set_target_machine(jit, flags, tm);
         set_runtime_target_machine(tm);
-        std::string tracep = sc::utils::getenv_string(env_names[SC_TRACE]);
+        std::string tracep = utils::getenv_string(env_names[SC_TRACE]);
         if (!tracep.empty() && tracep != "0") {
             flags.trace_ = true;
             SC_MODULE_WARN << "Trace is ON";
         }
 
-        int opt_level = sc::utils::getenv_int(env_names[SC_OPT_LEVEL], 3);
+        int opt_level = utils::getenv_int(env_names[SC_OPT_LEVEL], 3);
         check_within(
                 opt_level, 0, 3, 3, "Bad optimization level in SC_OPT_LEVEL: ");
         flags.backend_opt_level = opt_level;
@@ -203,4 +206,7 @@ context_t::context_t(const scflags_t &flags,
     , flags_(flags)
     , machine_(std::move(machine)) {}
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

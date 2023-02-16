@@ -40,11 +40,14 @@ using std::ostringstream;
 using std::string;
 using std::vector;
 
-using namespace sc::utils;
-using namespace sc::sc_xbyak::x86_64;
-
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
+
+using namespace utils;
+using namespace sc_xbyak::x86_64;
 
 static const bool log_module_info_enabled
         = bool(runtime::get_info_logging_stream(__sc_module_name));
@@ -2264,4 +2267,7 @@ void xbyak_lowering_viewer::view(for_loop_c v) {
 }
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

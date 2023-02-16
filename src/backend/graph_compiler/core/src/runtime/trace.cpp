@@ -35,7 +35,10 @@
 #include <runtime/thread_locals.hpp>
 #include <util/string_utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_MODULE(runtime.trace);
 
@@ -56,8 +59,8 @@ static void write_json_traces(FILE *outf,
             outf);
     size_t i = 0;
     for (auto *tlb : tls_buffers) {
-        if (sc::runtime_config_t::get().trace_mode_
-                < sc::runtime_config_t::trace_mode_t::MULTI_THREAD) {
+        if (runtime_config_t::get().trace_mode_
+                < runtime_config_t::trace_mode_t::MULTI_THREAD) {
             if (!tlb->additional_->is_main_thread_ && main_thread_found) {
                 tlb->additional_->trace_.trace_logs_.clear();
                 continue;
@@ -103,8 +106,8 @@ static void write_compact_traces(FILE *outf,
 }
 
 void write_traces(const std::list<thread_local_buffer_t *> &tls_buffers) {
-    std::string &tracep = sc::runtime_config_t::get().trace_out_path_;
-    size_t trace_cap = sc::runtime_config_t::get().trace_initial_cap_;
+    std::string &tracep = runtime_config_t::get().trace_out_path_;
+    size_t trace_cap = runtime_config_t::get().trace_initial_cap_;
     if (tracep.empty()) { return; }
     size_t trace_size = 0;
     int64_t min_val = std::numeric_limits<uint64_t>::max();
@@ -151,7 +154,7 @@ void write_traces(const std::list<thread_local_buffer_t *> &tls_buffers) {
 } // namespace runtime
 
 SC_INTERNAL_API void generate_trace_file() {
-    sc::release_runtime_memory(nullptr);
+    dnnl::impl::graph::gc::release_runtime_memory(nullptr);
 }
 
 int register_traced_func(const std::string &name) {
@@ -165,9 +168,12 @@ int get_last_trace_func_id() {
     return env.names_.size() - 1;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
-using namespace sc;
+using namespace dnnl::impl::graph::gc;
 extern "C" void sc_make_trace(int id, int in_or_out, int arg) {
     auto &trace_mgr
             = runtime::thread_local_buffer_t::tls_buffer_.additional_->trace_;

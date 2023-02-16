@@ -20,7 +20,10 @@
 #include <vector>
 #include "compiler/ir/graph/graph_op.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 enum class normalize_kind {
@@ -102,6 +105,9 @@ private:
 };
 
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

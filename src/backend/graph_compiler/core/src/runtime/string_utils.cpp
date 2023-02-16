@@ -22,7 +22,10 @@
 using std::ostringstream;
 using std::string;
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace utils {
 
 std::vector<std::string> string_split(
@@ -143,4 +146,7 @@ std::ostream &operator<<(std::ostream &os, as_hex_t a) {
 }
 
 } // namespace utils
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

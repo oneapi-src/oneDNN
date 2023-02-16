@@ -20,7 +20,10 @@
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/statics_table.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 dynamic_transpose_op::dynamic_transpose_op(
         const std::vector<graph_tensor_ptr> &ins,
@@ -74,5 +77,8 @@ sc_op_ptr dynamic_transpose_op::constant_optimize(sc_graph_t &graph) {
 }
 } // namespace ops
 
-OP_REGISTER(::sc::ops::dynamic_transpose_op, dynamic_transpose);
-} // namespace sc
+OP_REGISTER(ops::dynamic_transpose_op, dynamic_transpose);
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

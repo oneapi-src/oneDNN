@@ -27,7 +27,10 @@
 #include <ops/fusible/unary_elemwise.hpp>
 #include <ops/reshape.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /// Push tensor_view/transpose op back to quantize/dequantize ops for better
 /// fusion in dynamic cases.
@@ -88,4 +91,7 @@ void dynamic_graph_transform(sc_graph_t &graph, const context_ptr &ctx) {
     tensor_view_push_back(graph, ctx);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

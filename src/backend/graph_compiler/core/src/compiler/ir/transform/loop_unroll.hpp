@@ -20,7 +20,10 @@
 #include "../function_pass.hpp"
 #include "../sc_function.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * Unroll loops with attr[stmt_attr_key::unroll_loop]=true
@@ -32,6 +35,9 @@ public:
     SC_DECL_PASS_INFO_FUNC();
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

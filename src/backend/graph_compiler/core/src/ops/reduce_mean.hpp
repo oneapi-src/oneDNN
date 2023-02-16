@@ -21,7 +21,10 @@
 #include "fusible/reduce.hpp"
 #include <compiler/ir/graph/graph_op.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 class reduce_mean_op_t : public graph_op_t, public op_traits::auto_copyable_t {
 public:
@@ -36,6 +39,9 @@ public:
             override;
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

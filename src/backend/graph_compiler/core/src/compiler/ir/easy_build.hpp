@@ -24,7 +24,10 @@
 #include "builder.hpp"
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 struct context_t;
 
@@ -162,7 +165,8 @@ SC_INTERNAL_API for_range_simulator_t range(expr min, expr extent,
  * _for_(i, 0, 100) {...}
  * */
 #define _for_(IDX, ...) \
-    for (auto IDX : ::sc::builder::range_nobind(#IDX, __VA_ARGS__))
+    for (auto IDX : \
+            ::dnnl::impl::graph::gc::builder::range_nobind(#IDX, __VA_ARGS__))
 
 /**
  * Builds a for-loop and returns the for-loop node to an output variable.
@@ -179,7 +183,8 @@ SC_INTERNAL_API for_range_simulator_t range(expr min, expr extent,
  * _named_for_(li, i, 0, 100) {...}
  * */
 #define _named_for_(OUT, IDX, ...) \
-    for (auto IDX : ::sc::builder::range(#IDX, OUT, __VA_ARGS__))
+    for (auto IDX : \
+            ::dnnl::impl::graph::gc::builder::range(#IDX, OUT, __VA_ARGS__))
 
 struct SC_INTERNAL_API nested_for_ranges_t {
     std::vector<for_range_simulator_t> loops_;
@@ -221,7 +226,9 @@ struct SC_INTERNAL_API nested_for_ranges_t {
  * for_range_simulator_t by range()/range_nobind() functions
  * */
 #define _nested_for_(...) \
-    for (auto _0_nested_for = ::sc::builder::nested_for_ranges_t(__VA_ARGS__); \
+    for (auto _0_nested_for \
+            = ::dnnl::impl::graph::gc::builder::nested_for_ranges_t( \
+                    __VA_ARGS__); \
             !_0_nested_for.consumed_; _0_nested_for.step())
 
 /**
@@ -322,8 +329,10 @@ struct SC_INTERNAL_API if_simulator_t {
  * as an expr
  * */
 #define _if_(...) \
-    for (auto &&__if_scope__ : ::sc::builder::if_simulator_t( \
-                 ::sc::builder::get_current_builder(), (__VA_ARGS__))) \
+    for (auto &&__if_scope__ : \
+            ::dnnl::impl::graph::gc::builder::if_simulator_t( \
+                    ::dnnl::impl::graph::gc::builder::get_current_builder(), \
+                    (__VA_ARGS__))) \
         if (__if_scope__.second == 0)
 #define _else_ else
 
@@ -391,9 +400,12 @@ SC_INTERNAL_API func_t _decl_func(const std::string &name, sc_data_type_t dtype,
  * }
  * */
 #define _function_(DTYPE, NAME, ...) \
-    ::sc::func_t NAME; \
-    if (auto _0_func__ = ::sc::builder::_make_func_simulator(#NAME, &NAME, \
-                DTYPE, std::vector<std::vector<::sc::expr>> {__VA_ARGS__}))
+    ::dnnl::impl::graph::gc::func_t NAME; \
+    if (auto _0_func__ \
+            = ::dnnl::impl::graph::gc::builder::_make_func_simulator(#NAME, \
+                    &NAME, DTYPE, \
+                    std::vector<std::vector<::dnnl::impl::graph::gc::expr>> { \
+                            __VA_ARGS__}))
 /**
  * Declares a function node named "NAME" and create a C++ variable of func with
  * the same name. This macro will not define a function. It declares an extern
@@ -404,7 +416,9 @@ SC_INTERNAL_API func_t _decl_func(const std::string &name, sc_data_type_t dtype,
  *  the argument definitions: see _arg_ below
  * */
 #define _decl_func_(DTYPE, NAME, ...) \
-    ::sc::func_t NAME = ::sc::builder::_decl_func(#NAME, DTYPE, {__VA_ARGS__})
+    ::dnnl::impl::graph::gc::func_t NAME \
+            = ::dnnl::impl::graph::gc::builder::_decl_func( \
+                    #NAME, DTYPE, {__VA_ARGS__})
 
 /**
  * Declares an argument of function node.
@@ -417,7 +431,7 @@ SC_INTERNAL_API func_t _decl_func(const std::string &name, sc_data_type_t dtype,
  *  _arg_("len", datatypes::s32) // a scalar arg of s32
  *  _arg_("buffer", datatypes::f32, {100,200}) // a tensor arg of f32
  * */
-#define _arg_(...) ::sc::builder::_make_arg(__VA_ARGS__)
+#define _arg_(...) ::dnnl::impl::graph::gc::builder::_make_arg(__VA_ARGS__)
 
 /**
  *  An std::vector of arguments to the function node.
@@ -432,8 +446,9 @@ SC_INTERNAL_API func_t _decl_func(const std::string &name, sc_data_type_t dtype,
  * e.g. _bind_(a,b,c);
  * */
 #define _bind_(...) \
-    ::sc::expr::lvalue_proxy_t __VA_ARGS__; \
-    ::sc::utils::bind_vector_to_args<0>(_0_func__.vargs_, __VA_ARGS__);
+    ::dnnl::impl::graph::gc::expr::lvalue_proxy_t __VA_ARGS__; \
+    ::dnnl::impl::graph::gc::utils::bind_vector_to_args<0>( \
+            _0_func__.vargs_, __VA_ARGS__);
 
 /**
  * Defines a variable within the current scope
@@ -442,10 +457,10 @@ SC_INTERNAL_API func_t _decl_func(const std::string &name, sc_data_type_t dtype,
  *  DTYPE: sc_data_type_t of the variable
  * */
 #define _var_(NAME, DTYPE) \
-    ::sc::expr::lvalue_proxy_t NAME( \
-            ::sc::builder::make_var(DTYPE, #NAME), false); \
-    ::sc::builder::get_current_builder()->push_var_tensor_def( \
-            NAME, linkage::local);
+    ::dnnl::impl::graph::gc::expr::lvalue_proxy_t NAME( \
+            ::dnnl::impl::graph::gc::builder::make_var(DTYPE, #NAME), false); \
+    ::dnnl::impl::graph::gc::builder::get_current_builder() \
+            ->push_var_tensor_def(NAME, linkage::local);
 
 /**
  * Defines a variable within the current scope
@@ -456,10 +471,10 @@ SC_INTERNAL_API func_t _decl_func(const std::string &name, sc_data_type_t dtype,
  *  INIT: the initial value
  * */
 #define _var_ex_(NAME, DTYPE, ...) \
-    ::sc::expr::lvalue_proxy_t NAME( \
-            ::sc::builder::make_var(DTYPE, #NAME), false); \
-    ::sc::builder::get_current_builder()->push_var_tensor_def( \
-            NAME, __VA_ARGS__);
+    ::dnnl::impl::graph::gc::expr::lvalue_proxy_t NAME( \
+            ::dnnl::impl::graph::gc::builder::make_var(DTYPE, #NAME), false); \
+    ::dnnl::impl::graph::gc::builder::get_current_builder() \
+            ->push_var_tensor_def(NAME, __VA_ARGS__);
 
 /**
  * Defines a variable within the current scope with init value
@@ -469,7 +484,7 @@ SC_INTERNAL_API func_t _decl_func(const std::string &name, sc_data_type_t dtype,
  *  INIT: the initial value
  * */
 #define _var_init_(NAME, DTYPE, INIT) \
-    _var_ex_(NAME, DTYPE, ::sc::linkage::local, INIT)
+    _var_ex_(NAME, DTYPE, ::dnnl::impl::graph::gc::linkage::local, INIT)
 
 #define _var_init_copy_(NAME, DTYPE, INIT) \
     _var_init_(NAME, DTYPE, INIT); \
@@ -484,8 +499,9 @@ SC_INTERNAL_API func_t _decl_func(const std::string &name, sc_data_type_t dtype,
  *  INIT: the initial value
  * */
 #define _module_var_(MODULE, NAME, DTYPE, INIT) \
-    ::sc::expr::lvalue_proxy_t NAME((MODULE)->make_global_var(DTYPE, #NAME, \
-                                            linkage::private_global, INIT), \
+    ::dnnl::impl::graph::gc::expr::lvalue_proxy_t NAME( \
+            (MODULE)->make_global_var( \
+                    DTYPE, #NAME, linkage::private_global, INIT), \
             false);
 
 /**
@@ -497,8 +513,9 @@ SC_INTERNAL_API func_t _decl_func(const std::string &name, sc_data_type_t dtype,
  *  INIT: the initial value
  * */
 #define _global_var_(MODULE, NAME, DTYPE, INIT) \
-    ::sc::expr::lvalue_proxy_t NAME((MODULE)->make_global_var(DTYPE, #NAME, \
-                                            linkage::public_global, INIT), \
+    ::dnnl::impl::graph::gc::expr::lvalue_proxy_t NAME( \
+            (MODULE)->make_global_var( \
+                    DTYPE, #NAME, linkage::public_global, INIT), \
             false);
 
 /**
@@ -510,7 +527,7 @@ SC_INTERNAL_API func_t _decl_func(const std::string &name, sc_data_type_t dtype,
  *  INIT: the initial value
  * */
 #define _module_tensor_(MODULE, NAME, DTYPE, ...) \
-    ::sc::expr::lvalue_proxy_t NAME( \
+    ::dnnl::impl::graph::gc::expr::lvalue_proxy_t NAME( \
             MODULE->make_global_tensor( \
                     DTYPE, #NAME, {__VA_ARGS__}, linkage::private_global), \
             false);
@@ -524,7 +541,7 @@ SC_INTERNAL_API func_t _decl_func(const std::string &name, sc_data_type_t dtype,
  *  INIT: the initial value
  * */
 #define _global_tensor_(MODULE, NAME, DTYPE, ...) \
-    ::sc::expr::lvalue_proxy_t NAME( \
+    ::dnnl::impl::graph::gc::expr::lvalue_proxy_t NAME( \
             MODULE->make_global_tensor( \
                     DTYPE, #NAME, {__VA_ARGS__}, linkage::public_global), \
             false);
@@ -538,28 +555,33 @@ SC_INTERNAL_API func_t _decl_func(const std::string &name, sc_data_type_t dtype,
  * e.g. _tensor_(buffer, datatypes::f32, 100, 200)
  * */
 #define _tensor_(NAME, DTYPE, ...) \
-    ::sc::expr::lvalue_proxy_t NAME( \
-            ::sc::builder::make_tensor( \
+    ::dnnl::impl::graph::gc::expr::lvalue_proxy_t NAME( \
+            ::dnnl::impl::graph::gc::builder::make_tensor( \
                     #NAME, std::vector<expr> {__VA_ARGS__}, DTYPE), \
             false); \
-    ::sc::builder::get_current_builder()->push_var_tensor_def( \
-            NAME, linkage::local);
+    ::dnnl::impl::graph::gc::builder::get_current_builder() \
+            ->push_var_tensor_def(NAME, linkage::local);
 
 /**
  * Creates and reserve a function call
  * */
 #define _evaluate_call_(NAME, ...) \
-    ::sc::builder::get_current_builder()->push_evaluate( \
-            ::sc::builder::make_call( \
-                    NAME, std::vector<::sc::expr> {__VA_ARGS__}));
+    ::dnnl::impl::graph::gc::builder::get_current_builder()->push_evaluate( \
+            ::dnnl::impl::graph::gc::builder::make_call(NAME, \
+                    std::vector<::dnnl::impl::graph::gc::expr> { \
+                            __VA_ARGS__}));
 
 /**
  * Creates a returns statement
  * */
 #define _return_(...) \
-    ::sc::builder::get_current_builder()->push_returns(__VA_ARGS__)
+    ::dnnl::impl::graph::gc::builder::get_current_builder()->push_returns( \
+            __VA_ARGS__)
 
 } // namespace builder
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

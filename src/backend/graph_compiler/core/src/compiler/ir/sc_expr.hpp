@@ -35,7 +35,10 @@
 #include <util/optional.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 struct any_map_t;
 struct ssa_data_t;
@@ -1519,33 +1522,38 @@ extern int64_t get_expr_as_int(const expr_c &e);
  * return that name; otherwise raise an exception.
  */
 const std::string &get_node_name(const expr &e);
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 namespace std {
 template <>
-struct hash<sc::expr> {
-    std::size_t operator()(const sc::expr &k) const {
-        return hash<sc::expr::impl_ptr>()(k.impl);
+struct hash<dnnl::impl::graph::gc::expr> {
+    std::size_t operator()(const dnnl::impl::graph::gc::expr &k) const {
+        return hash<dnnl::impl::graph::gc::expr::impl_ptr>()(k.impl);
     }
 };
 
 template <>
-struct equal_to<sc::expr> {
-    bool operator()(const sc::expr &k, const sc::expr &k2) const {
+struct equal_to<dnnl::impl::graph::gc::expr> {
+    bool operator()(const dnnl::impl::graph::gc::expr &k,
+            const dnnl::impl::graph::gc::expr &k2) const {
         return k.ptr_same(k2);
     }
 };
 
 template <>
-struct hash<sc::expr_c> {
-    std::size_t operator()(const sc::expr_c &k) const {
-        return hash<sc::expr::impl_ptr>()(k.impl);
+struct hash<dnnl::impl::graph::gc::expr_c> {
+    std::size_t operator()(const dnnl::impl::graph::gc::expr_c &k) const {
+        return hash<dnnl::impl::graph::gc::expr::impl_ptr>()(k.impl);
     }
 };
 
 template <>
-struct equal_to<sc::expr_c> {
-    bool operator()(const sc::expr_c &k, const sc::expr_c &k2) const {
+struct equal_to<dnnl::impl::graph::gc::expr_c> {
+    bool operator()(const dnnl::impl::graph::gc::expr_c &k,
+            const dnnl::impl::graph::gc::expr_c &k2) const {
         return k.ptr_same(k2);
     }
 };

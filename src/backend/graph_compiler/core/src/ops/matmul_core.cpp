@@ -39,7 +39,10 @@
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 blocking_axis_t get_mm_blocking_axis(const logical_tensor_t &inp,
         const logical_tensor_t &wei, const logical_tensor_t &out) {
@@ -1282,5 +1285,8 @@ void matmul_core_op_t::pre_binding_axis(bound_axis_map &bdax_map) {
 }
 
 } // namespace ops
-OP_REGISTER(::sc::ops::matmul_core_op_t, matmul_core)
-} // namespace sc
+OP_REGISTER(ops::matmul_core_op_t, matmul_core)
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -20,7 +20,10 @@
 #include <stdint.h>
 #include <util/def.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace runtime {
 
 struct barrier_t {
@@ -35,10 +38,16 @@ typedef uint64_t (*barrier_idle_func)(
         std::atomic<uint64_t> *remaining, uint64_t expected_remain, void *args);
 
 } // namespace runtime
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
-extern "C" SC_API void sc_arrive_at_barrier(sc::runtime::barrier_t *b,
-        sc::runtime::barrier_idle_func idle_func, void *idle_args);
+extern "C" SC_API void sc_arrive_at_barrier(
+        dnnl::impl::graph::gc::runtime::barrier_t *b,
+        dnnl::impl::graph::gc::runtime::barrier_idle_func idle_func,
+        void *idle_args);
 extern "C" SC_API void sc_init_barrier(
-        sc::runtime::barrier_t *b, int num_barriers, uint64_t thread_count);
+        dnnl::impl::graph::gc::runtime::barrier_t *b, int num_barriers,
+        uint64_t thread_count);
 #endif

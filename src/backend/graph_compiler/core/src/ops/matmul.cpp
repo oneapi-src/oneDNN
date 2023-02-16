@@ -24,7 +24,10 @@
 #include <compiler/ir/graph/quantization/quantize_info.hpp>
 #include <util/math_utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 matmul_op::matmul_op(const std::vector<graph_tensor_ptr> &ins,
@@ -257,5 +260,8 @@ void matmul_op::query_format(context_ptr ctx,
 } // namespace ops
 
 // matmul op is graph op, matmul_core_op_t is tunable op
-OP_REGISTER(::sc::ops::matmul_op, matmul)
-} // namespace sc
+OP_REGISTER(ops::matmul_op, matmul)
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

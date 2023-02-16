@@ -22,7 +22,10 @@
 #include <stdint.h>
 #include <util/def.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace runtime {
 struct stream_t;
 struct engine_t;
@@ -91,15 +94,18 @@ struct filo_memory_pool_t {
 void dealloc_by_mmap(runtime::engine_t *eng, void *b);
 void *alloc_by_mmap(runtime::engine_t *eng, size_t sz);
 } // namespace memory_pool
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 extern "C" SC_API void *sc_aligned_malloc(
-        sc::runtime::stream_t *stream, size_t sz) noexcept;
+        dnnl::impl::graph::gc::runtime::stream_t *stream, size_t sz) noexcept;
 extern "C" SC_API void sc_aligned_free(
-        sc::runtime::stream_t *stream, void *p) noexcept;
+        dnnl::impl::graph::gc::runtime::stream_t *stream, void *p) noexcept;
 extern "C" SC_API void *sc_thread_aligned_malloc(
-        sc::runtime::stream_t *stream, size_t sz) noexcept;
+        dnnl::impl::graph::gc::runtime::stream_t *stream, size_t sz) noexcept;
 extern "C" SC_API void sc_thread_aligned_free(
-        sc::runtime::stream_t *stream, void *p) noexcept;
+        dnnl::impl::graph::gc::runtime::stream_t *stream, void *p) noexcept;
 
 #endif

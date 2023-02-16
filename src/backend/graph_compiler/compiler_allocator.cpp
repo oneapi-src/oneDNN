@@ -22,11 +22,11 @@ namespace graph {
 namespace impl {
 namespace compiler_impl {
 
-using namespace sc::runtime;
+using namespace dnnl::impl::graph::gc::runtime;
 
 #define ALLOCATOR_ALIGNMENT 64
 
-using sc_engine_t = ::sc::runtime::engine_t;
+using sc_engine_t = ::dnnl::impl::graph::gc::runtime::engine_t;
 
 static void *compiler_graph_global_alloc(sc_engine_t *eng, size_t sz) {
     return static_cast<compiler_graph_engine_t *>(eng)->allocator_->allocate(sz,
@@ -53,7 +53,8 @@ engine_vtable_t graph_engine_vtable {compiler_graph_global_alloc,
         compiler_graph_global_free};
 
 compiler_graph_stream_t::compiler_graph_stream_t(compiler_graph_engine_t *eng)
-    : sc::runtime::stream_t {{sc_parallel_call_cpu_with_env_impl}, eng} {}
+    : dnnl::impl::graph::gc::runtime::stream_t {
+            {sc_parallel_call_cpu_with_env_impl}, eng} {}
 
 } // namespace compiler_impl
 } // namespace impl

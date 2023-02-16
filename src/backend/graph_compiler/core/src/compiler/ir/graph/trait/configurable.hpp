@@ -21,7 +21,10 @@
 #include <compiler/ir/graph/traits.hpp>
 #include <util/general_object.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace op_traits {
 struct configurable_t : public virtual op_base_trait_t {
     virtual reflection::shared_general_object_t get_config() = 0;
@@ -34,6 +37,9 @@ struct configurable_t : public virtual op_base_trait_t {
 };
 
 } // namespace op_traits
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

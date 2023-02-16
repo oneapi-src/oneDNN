@@ -19,7 +19,10 @@
 #include <vector>
 #include "parallel.hpp"
 #include <runtime/config.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace math_utils {
 
 template <class T>
@@ -104,5 +107,8 @@ inline int64_t get_gcd(int64_t a, int64_t b) {
 }
 
 } // namespace math_utils
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

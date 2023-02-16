@@ -16,7 +16,10 @@
 
 #include <compiler/ir/sc_data_type.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 type_category get_type_category(sc_data_type_t dtype) {
     switch (dtype) {
         case datatypes::bf16:
@@ -125,7 +128,7 @@ namespace utils {
 // automatically invoke `sc_data_type_t::operator uint_64t()`, resulting in
 // the printed output being a list of numbers.
 template <>
-std::string print_vector(const std::vector<sc::sc_data_type_t> &vec) {
+std::string print_vector(const std::vector<sc_data_type_t> &vec) {
     std::stringstream os;
     int cnt = 0;
     os << '[';
@@ -139,11 +142,14 @@ std::string print_vector(const std::vector<sc::sc_data_type_t> &vec) {
 }
 } // namespace utils
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 namespace std {
-std::size_t hash<sc::sc_data_type_t>::operator()(
-        const sc::sc_data_type_t &k) const {
+std::size_t hash<dnnl::impl::graph::gc::sc_data_type_t>::operator()(
+        const dnnl::impl::graph::gc::sc_data_type_t &k) const {
     return hash<unsigned>()((uint64_t)k);
 }
 } // namespace std

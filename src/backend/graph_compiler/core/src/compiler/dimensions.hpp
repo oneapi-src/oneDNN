@@ -19,7 +19,10 @@
 #include <stdint.h>
 #include <vector>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 using sc_dim = int64_t;
 using sc_dims = std::vector<sc_dim>;
 namespace dimensions {
@@ -35,6 +38,9 @@ inline bool is_dynamic_dim(sc_dim v) {
     return v < 0;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

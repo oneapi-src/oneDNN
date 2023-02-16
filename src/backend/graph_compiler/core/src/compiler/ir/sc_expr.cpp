@@ -29,7 +29,10 @@
 #include <compiler/dimensions.hpp>
 #include <compiler/ir/pass/printer.hpp>
 #include <util/any_map.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 any_t &node_base::temp_data() const {
     if (!temp_data_) {
@@ -53,7 +56,7 @@ any_map_t &node_base::attr() {
 ostream &operator<<(ostream &os, sc_expr_type val) {
     switch (val) {
 #define HANDLE_CASE(X) \
-    case sc::sc_expr_type::X: os << "sc_expr_type::" #X; break;
+    case sc_expr_type::X: os << "sc_expr_type::" #X; break;
 
         HANDLE_CASE(undef)
         HANDLE_CASE(constant)
@@ -90,7 +93,7 @@ ostream &operator<<(ostream &os, sc_expr_type val) {
 ostream &operator<<(ostream &os, intrin_type val) {
     switch (val) {
 #define HANDLE_CASE(X) \
-    case sc::intrin_type::X: os << "intrin_type::" #X; break;
+    case intrin_type::X: os << "intrin_type::" #X; break;
 
         HANDLE_CASE(min)
         HANDLE_CASE(max)
@@ -132,7 +135,7 @@ ostream &operator<<(ostream &os, intrin_type val) {
 ostream &operator<<(ostream &os, x86_intrin_type::x86_intrin_type_t val) {
     switch (val) {
 #define HANDLE_CASE(X) \
-    case sc::x86_intrin_type::X: os << "x86_intrin_type::" #X; break;
+    case x86_intrin_type::X: os << "x86_intrin_type::" #X; break;
         HANDLE_CASE(NUM_INTRINSICS)
 #undef HANDLE_CASE
         default: os << "(unrecognized x86_intrin_type value)"; break;
@@ -142,12 +145,10 @@ ostream &operator<<(ostream &os, x86_intrin_type::x86_intrin_type_t val) {
 
 std::ostream &operator<<(std::ostream &os, linkage val) {
     switch (val) {
-        case sc::linkage::public_global: os << "linkage::public_global"; break;
-        case sc::linkage::private_global:
-            os << "linkage::private_global";
-            break;
-        case sc::linkage::static_local: os << "linkage::static_local"; break;
-        case sc::linkage::local: os << "linkage::local"; break;
+        case linkage::public_global: os << "linkage::public_global"; break;
+        case linkage::private_global: os << "linkage::private_global"; break;
+        case linkage::static_local: os << "linkage::static_local"; break;
+        case linkage::local: os << "linkage::local"; break;
     }
     return os;
 }
@@ -725,4 +726,7 @@ const std::string &get_node_name(const expr &e) {
             false, "Not an expr_base subclass that has a 'name_' member.");
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

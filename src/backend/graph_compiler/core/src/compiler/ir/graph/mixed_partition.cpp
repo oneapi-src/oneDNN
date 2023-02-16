@@ -50,7 +50,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_MODULE(graph.mixed_partition);
 
@@ -363,7 +366,7 @@ void mxp_buffer_allocator::replace_buffer(graph_tensor *gt, expr &new_buffer) {
     bool new_tsr_already_in_trace = false;
     std::for_each(mem_trace_.begin(), mem_trace_.end(),
             [&old_tsr, &new_tsr, &new_tsr_already_in_trace](
-                    sc::memory_optim::memory_alloc_trace_t &t) {
+                    memory_optim::memory_alloc_trace_t &t) {
                 if (t.buffer_id_ == (uintptr_t)old_tsr.get()) {
                     t.buffer_id_ = (uintptr_t)new_tsr.get();
                 } else if (t.buffer_id_ == (uintptr_t)new_tsr.get()) {
@@ -576,7 +579,7 @@ static void collect_inplace_info(graph_tensor *cur_gt, graph_tensor *ref_gt,
             && (cur_gt->details_.get_format() == ref_gt->details_.get_format())
             && std::all_of(cur_gt->uses_.begin(), cur_gt->uses_.end(),
                     [&alloc, &ref_gt](
-                            const std::pair<int, sc::sc_op_weak_ptr_t> &user) {
+                            const std::pair<int, sc_op_weak_ptr_t> &user) {
                         return alloc->binded_mxp_->dep_m_->lookup(
                                        user.second.get(),
                                        ref_gt->producer_owner_)
@@ -2391,7 +2394,7 @@ void mixed_parti_t::clear_fanchor(fuse_anchor_map_ptr &fanchor) {
         anchor = if_node;
     }
     // find anchor iter
-    std::vector<sc::stmt>::iterator anchor_iter
+    std::vector<stmt>::iterator anchor_iter
             = std::find_if(ss_parent->seq_.begin(), ss_parent->seq_.end(),
                     [anchor](stmt &s) { return s.ptr_same(anchor); });
     COMPILE_ASSERT(anchor_iter != ss_parent->seq_.end(),
@@ -2641,7 +2644,7 @@ bool mixed_parti_t::is_parti_inp(const graph_tensor *gt) const {
     if (merged_to) { return get_root()->is_parti_inp(gt); }
     auto ths = this;
     return std::any_of(gt->uses_.begin(), gt->uses_.end(),
-                   [&ths](const std::pair<int, sc::sc_op_weak_ptr_t> &user) {
+                   [&ths](const std::pair<int, sc_op_weak_ptr_t> &user) {
                        return ths->contains(user.second.get());
                    })
             && !contains(gt->producer_owner_);
@@ -2656,7 +2659,7 @@ bool mixed_parti_t::is_parti_out(const graph_tensor *gt) const {
     auto ths = this;
     return contains(gt->producer_owner_)
             && std::any_of(gt->uses_.begin(), gt->uses_.end(),
-                    [&ths](const std::pair<int, sc::sc_op_weak_ptr_t> &user) {
+                    [&ths](const std::pair<int, sc_op_weak_ptr_t> &user) {
                         return !ths->contains(user.second.get());
                     });
 }
@@ -3572,4 +3575,7 @@ void mixed_partition(sc_graph_t &graph, const context_ptr &ctx) {
     do_mixed_partition(ctx, graph);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

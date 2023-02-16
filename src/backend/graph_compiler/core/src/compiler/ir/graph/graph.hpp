@@ -32,7 +32,10 @@
 #include <util/leak_detector.hpp>
 #endif
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace reflection {
 template <typename T, typename Dummy>
@@ -278,7 +281,7 @@ public:
     bool share_gt_with_op(const graph_tensor_ptr &gt) {
         auto ths = this;
         return std::any_of(gt->uses_.begin(), gt->uses_.end(),
-                [&ths](const std::pair<int, sc::sc_op_weak_ptr_t> &user) {
+                [&ths](const std::pair<int, sc_op_weak_ptr_t> &user) {
                     return user.second->isa<opT>()
                             && (user.second.get() != ths);
                 });
@@ -513,8 +516,12 @@ struct register_helper_t {
         return false;
     }
 };
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #define OP_REGISTER(IDENTIFIER, NAME) \
     volatile bool __help_dummy_##NAME \
-            = sc::register_helper_t<IDENTIFIER>::op_call(#NAME);
+            = dnnl::impl::graph::gc::register_helper_t<IDENTIFIER>::op_call( \
+                    #NAME);
 #endif

@@ -27,7 +27,10 @@
 #include <compiler/jit/xbyak/configured_xbyak.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 /**
@@ -52,6 +55,9 @@ SC_INTERNAL_API inline bool const_exceed_32bit(const expr_c &v) {
 }
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -21,7 +21,10 @@
 #include <vector>
 #include <compiler/ir/graph/graph_op.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 class padding_op_t : public movement_op_t, public op_traits::auto_copyable_t {
 public:
@@ -51,6 +54,9 @@ public:
             const tensor &out, const slice_range_list &range_list);
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -56,7 +56,10 @@
 
 SC_MODULE(graph.fused_op)
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 fusion_partition_t *fusion_partition_t::get_root() const {
     if (merged_to) {
@@ -2228,4 +2231,7 @@ void batchwise_fused_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     throw std::runtime_error("batchwise_fused_op_t::get_graph Not implemented");
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

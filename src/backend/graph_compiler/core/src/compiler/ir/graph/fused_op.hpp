@@ -29,7 +29,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace horizontal_merge_type {
 constexpr int no_merge = 0;
 }
@@ -195,6 +198,9 @@ public:
 };
 
 void schedule_loop_body(const stmt &body, node_ptr_map *node_remap = nullptr);
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

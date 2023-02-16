@@ -23,7 +23,10 @@
 #include <vector>
 #include <compiler/ir/graph/graph.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * The util for traversing the OP graph. It contains key functions: selector and
@@ -279,6 +282,9 @@ sc_op_ptr search_tuneop_linearly(const sc_op_ptr &start_node, int max_step = 5);
 std::vector<sc_op_ptr> search_tuneop_bypass(const context_ptr &ctx,
         const sc_op_ptr &tuneop, const sc_op_ptr &start_node,
         const op_dep_matrix_t &dep, int max_step = 10);
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

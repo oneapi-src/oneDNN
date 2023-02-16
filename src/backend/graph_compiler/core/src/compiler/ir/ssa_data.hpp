@@ -23,7 +23,10 @@
 #include "sc_stmt.hpp"
 #include <util/weakptr_utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 // the additional data for SSA exprs
 struct ssa_data_t {
@@ -60,6 +63,9 @@ struct ssa_data_t {
     }
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

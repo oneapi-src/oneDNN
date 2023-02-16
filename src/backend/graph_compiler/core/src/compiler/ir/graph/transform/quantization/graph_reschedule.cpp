@@ -27,7 +27,10 @@
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
 #include <util/math_utils.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace quantize {
 void dequantize_elimination(sc_graph_t &mgr, const context_ptr &ctx) {
     op_visitor_t vis = op_visitor_t::bfs();
@@ -144,7 +147,7 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                                     ->dyn_cast<op_traits::may_quantize_t>()
                             // reserve dynamic version here for debug.
                             //     &&
-                            //     !cur_child.second->isa<::sc::movement_op_t>())
+                            //     !cur_child.second->isa<movement_op_t>())
                             //     {
                             && cur_child.second->get_outputs().size() == 1) {
                         cur_child.second->replace_input(
@@ -323,4 +326,7 @@ void graph_reschedule(sc_graph_t &mgr, const context_ptr &ctx) {
     insert_back_dequantize(mgr, ctx);
 }
 } // namespace quantize
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

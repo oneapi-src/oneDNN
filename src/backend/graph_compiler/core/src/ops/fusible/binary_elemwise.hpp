@@ -22,7 +22,10 @@
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <runtime/microkernel/cpu/brgemm_alg_kind.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 enum class elt_operator {
     ADD,
@@ -200,5 +203,8 @@ public:
     }
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

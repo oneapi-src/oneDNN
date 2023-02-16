@@ -27,8 +27,11 @@
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 
-using namespace sc::builder;
-namespace sc {
+using namespace dnnl::impl::graph::gc::builder;
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 config_ptr gen_conv1x1_backprop_data_t::get_default_config(
@@ -278,7 +281,7 @@ bool gen_conv1x1_backprop_data_t::generate(context_ptr ctx,
                       q_o * tile_q * stride_w + C_shift_w, c_o * C_block};
                 }
                 LDC->attr().set("stride_w", stride_w);
-                sc::builtin::brgemm_init_update(tensor_ptr(output, a_idx),
+                builtin::brgemm_init_update(tensor_ptr(output, a_idx),
                   tensor_ptr(weight, b_idx), tensor_ptr(del_input, c_idx),
                   K_num_block, tile_p * tile_q, C_block, K_block, LDA, C_block,
                   LDC, stride_a,
@@ -357,7 +360,7 @@ bool gen_conv1x1_backprop_data_t::generate(context_ptr ctx,
                       _if_(d_o * tile_d * stride_d + s_d < expr(D)) {
                         _if_(q_o == expr(Q_num_block - 1)) {
                           _if_(p_o < expr(P_num_block - 1)) {
-                            sc::builtin::dnnl_brgemm_init(
+                            builtin::dnnl_brgemm_init(
                               tensor_ptr(del_input, del_input_index),
                               tile_p * stride_h,
                               C_block
@@ -367,7 +370,7 @@ bool gen_conv1x1_backprop_data_t::generate(context_ptr ctx,
                               datatypes::f32, 0);
                           }
                           _else_ {
-                            sc::builtin::dnnl_brgemm_init(
+                            builtin::dnnl_brgemm_init(
                               tensor_ptr(del_input, del_input_index),
                               H - (P_num_block - 1) * tile_p * stride_h,
                               C_block
@@ -379,13 +382,13 @@ bool gen_conv1x1_backprop_data_t::generate(context_ptr ctx,
                         }
                         _else_ {
                           _if_(p_o < expr(P_num_block - 1)) {
-                            sc::builtin::dnnl_brgemm_init(
+                            builtin::dnnl_brgemm_init(
                               tensor_ptr(del_input, del_input_index),
                               tile_p * stride_h, C_block * tile_q * stride_w,
                               C_block * tile_q * stride_w, datatypes::f32, 0);
                           }
                           _else_ {
-                            sc::builtin::dnnl_brgemm_init(
+                            builtin::dnnl_brgemm_init(
                               tensor_ptr(del_input, del_input_index),
                               H - (P_num_block - 1) * tile_p * stride_h,
                               C_block * tile_q * stride_w,
@@ -408,13 +411,13 @@ bool gen_conv1x1_backprop_data_t::generate(context_ptr ctx,
                         expr LDC = C;
                         LDC->attr().set("plain_init", true);
                         _if_(p_o < expr(P_num_block - 1)) {
-                          sc::builtin::dnnl_brgemm_init(
+                          builtin::dnnl_brgemm_init(
                             tensor_ptr(del_input, del_input_index),
                             tile_p * stride_h * W, C_block, LDC, datatypes::f32,
                             0);
                         }
                         _else_ {
-                          sc::builtin::dnnl_brgemm_init(
+                          builtin::dnnl_brgemm_init(
                             tensor_ptr(del_input, del_input_index),
                             (H - (P_num_block - 1) * tile_p * stride_h) * W,
                             C_block, LDC, datatypes::f32, 0);
@@ -447,7 +450,7 @@ bool gen_conv1x1_backprop_data_t::generate(context_ptr ctx,
                         q_o * tile_q * stride_w, c_o * C_block};
                   }
                   LDC->attr().set("stride_w", stride_w);
-                  sc::builtin::brgemm_init_update(tensor_ptr(output, a_idx),
+                  builtin::brgemm_init_update(tensor_ptr(output, a_idx),
                     tensor_ptr(weight,
                       dtype_block > 1
                         ? std::vector<expr> {c_o, 0, 0, 0, 0, 0, 0, 0}
@@ -489,7 +492,7 @@ bool gen_conv1x1_backprop_data_t::generate(context_ptr ctx,
                       p_o * tile_p * stride_h, q_o * tile_q * stride_w, 0};
                     _if_(q_o == expr(Q_num_block - 1)) {
                       _if_(p_o < expr(P_num_block - 1)) {
-                        sc::builtin::dnnl_brgemm_init(
+                        builtin::dnnl_brgemm_init(
                           tensor_ptr(del_input, del_input_index),
                           tile_p * stride_h,
                           C_block * (W - (Q_num_block - 1) * tile_q * stride_w),
@@ -497,7 +500,7 @@ bool gen_conv1x1_backprop_data_t::generate(context_ptr ctx,
                           datatypes::f32, 0);
                       }
                       _else_ {
-                        sc::builtin::dnnl_brgemm_init(
+                        builtin::dnnl_brgemm_init(
                           tensor_ptr(del_input, del_input_index),
                           H - (P_num_block - 1) * tile_p * stride_h,
                           C_block * (W - (Q_num_block - 1) * tile_q * stride_w),
@@ -507,13 +510,13 @@ bool gen_conv1x1_backprop_data_t::generate(context_ptr ctx,
                     }
                     _else_ {
                       _if_(p_o < expr(P_num_block - 1)) {
-                        sc::builtin::dnnl_brgemm_init(
+                        builtin::dnnl_brgemm_init(
                           tensor_ptr(del_input, del_input_index),
                           tile_p * stride_h, C_block * tile_q * stride_w,
                           C_block * tile_q * stride_w, datatypes::f32, 0);
                       }
                       _else_ {
-                        sc::builtin::dnnl_brgemm_init(
+                        builtin::dnnl_brgemm_init(
                           tensor_ptr(del_input, del_input_index),
                           H - (P_num_block - 1) * tile_p * stride_h,
                           C_block * tile_q * stride_w,
@@ -532,12 +535,12 @@ bool gen_conv1x1_backprop_data_t::generate(context_ptr ctx,
                     expr LDC = C;
                     LDC->attr().set("plain_init", true);
                     _if_(p_o < expr(P_num_block - 1)) {
-                      sc::builtin::dnnl_brgemm_init(
+                      builtin::dnnl_brgemm_init(
                         tensor_ptr(del_input, del_input_index),
                         tile_p * stride_h * W, C_block, LDC, datatypes::f32, 0);
                     }
                     _else_ {
-                      sc::builtin::dnnl_brgemm_init(
+                      builtin::dnnl_brgemm_init(
                         tensor_ptr(del_input, del_input_index),
                         (H - (P_num_block - 1) * tile_p * stride_h) * W,
                         C_block, LDC, datatypes::f32, 0);
@@ -569,7 +572,7 @@ bool gen_conv1x1_backprop_data_t::generate(context_ptr ctx,
                   }
                   LDC->attr().set("stride_w", stride_w);
 
-                  sc::builtin::brgemm_init_update(tensor_ptr(output, a_idx),
+                  builtin::brgemm_init_update(tensor_ptr(output, a_idx),
                     tensor_ptr(weight,
                       dtype_block > 1
                         ? std::vector<expr> {c_o, 0, 0, 0, 0, 0, 0}
@@ -678,4 +681,7 @@ bool gen_conv1x1_backprop_data_t::generate(context_ptr ctx,
 }
 
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

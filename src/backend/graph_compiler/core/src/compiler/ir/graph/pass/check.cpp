@@ -20,7 +20,10 @@
 #include "../visitor.hpp"
 #include "pass.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 // using pre-order and post-order visit graph, if any throw error and
 // connection error, this function return false
@@ -54,4 +57,7 @@ bool check_graph_config(sc_graph_t &graph, const context_ptr &ctx) {
     }
     return true;
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

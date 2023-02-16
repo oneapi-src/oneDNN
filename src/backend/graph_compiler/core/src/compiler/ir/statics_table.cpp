@@ -21,7 +21,10 @@
 #include <runtime/runtime.hpp>
 #include <util/assert.hpp>
 #include <util/reflection.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 static_data_t::static_data_t(const void *indata, size_t size)
     : aligned_buffer_t(size, runtime::get_default_stream()->engine_) {
@@ -152,4 +155,7 @@ statics_table_t statics_table_t::copy() const {
     ret.initialized_size_ = initialized_size_;
     return ret;
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

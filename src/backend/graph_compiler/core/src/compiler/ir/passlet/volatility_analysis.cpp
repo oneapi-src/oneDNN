@@ -22,7 +22,10 @@
 #include <compiler/ir/ir_utils.hpp>
 #include <compiler/ir/ssa_data.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace passlet {
 static volatility_result_t::state_t merge_state(
         volatility_result_t::state_t a, volatility_result_t::state_t b) {
@@ -124,4 +127,7 @@ volatility_analysis_t::volatility_analysis_t(
     , check_loop_invarient_(check_loop_invarient) {}
 
 } // namespace passlet
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

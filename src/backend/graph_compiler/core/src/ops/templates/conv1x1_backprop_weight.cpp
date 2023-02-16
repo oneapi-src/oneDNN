@@ -31,8 +31,11 @@
 #include <util/any_map.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
-using namespace sc::builder;
-namespace sc {
+using namespace dnnl::impl::graph::gc::builder;
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 config_ptr gen_conv1x1_backprop_weight_t::get_default_config(
@@ -877,4 +880,7 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_ALL2(const context_ptr &ctx,
   return true;
 }
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

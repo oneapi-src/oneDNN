@@ -22,7 +22,10 @@
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <runtime/microkernel/cpu/brgemm_alg_kind.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 void fusion_manager::break_brgemm_fusion() {
     brg_fusion_reg_.can_register_next_ = false;
 }
@@ -346,4 +349,7 @@ stmt brgemm_fusion_register::remake_brgemm_intrinsic_by_fusion(
             rmap, last_out_.static_as<tensorptr>()->base_->ptr_);
     return replacer(body);
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

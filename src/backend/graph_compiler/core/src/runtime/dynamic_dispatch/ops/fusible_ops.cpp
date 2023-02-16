@@ -19,7 +19,10 @@
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
 #include <runtime/dynamic_dispatch/utils.hpp>
 #include <runtime/target_machine.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 static bool is_block_produce_padding(
         runtime::dynamic_tensor_t *in, runtime::dispatch_key *in_fmt_st) {
     if (!in_fmt_st->is_plain()) {
@@ -385,4 +388,7 @@ extern "C" void infer_shape_select_op(
     }
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

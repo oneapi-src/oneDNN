@@ -18,7 +18,10 @@
 #include <util/any_reflection_cvt.hpp>
 #include <util/reflection.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 static_assert(sizeof(any_t) == 64, "Expecting sizeof(any_t)==64");
 
 namespace utils {
@@ -202,4 +205,7 @@ size_t any_map_t::hash() const {
     return result;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

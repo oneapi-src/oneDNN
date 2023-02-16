@@ -20,7 +20,10 @@
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DISPATCH_KEY_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DISPATCH_KEY_HPP
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace runtime {
 // the compressed 64-bit dispatch_key
@@ -180,11 +183,15 @@ union dispatch_key {
 };
 
 } // namespace runtime
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 namespace std {
 template <>
-struct hash<::sc::runtime::dispatch_key> {
-    std::size_t operator()(const ::sc::runtime::dispatch_key &in) const {
+struct hash<::dnnl::impl::graph::gc::runtime::dispatch_key> {
+    std::size_t operator()(
+            const ::dnnl::impl::graph::gc::runtime::dispatch_key &in) const {
         return std::hash<uint64_t>()(uint64_t(in));
     }
 };

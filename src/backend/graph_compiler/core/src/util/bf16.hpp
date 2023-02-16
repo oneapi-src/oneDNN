@@ -19,7 +19,10 @@
 #include <cmath>
 #include <stdint.h>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 // The BFloat16 datatype implementation, can be cast from/to float
 struct bf16_t {
@@ -56,5 +59,8 @@ struct bf16_t {
         return ret;
     }
 };
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

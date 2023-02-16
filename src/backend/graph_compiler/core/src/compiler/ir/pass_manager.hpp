@@ -22,7 +22,10 @@
 #include <vector>
 #include <compiler/config/context.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 class module_pass_t;
 #ifndef NDEBUG
 void validate_pass_order(const context_ptr &ctx,
@@ -32,6 +35,9 @@ void validate_pass_order(const context_ptr &ctx,
 #define validate_pass_order(ctx, passes, gen_wrapper)
 #endif
 const char *get_pass_name(module_pass_t *pass);
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

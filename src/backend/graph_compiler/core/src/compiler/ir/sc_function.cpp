@@ -21,7 +21,10 @@
 #include <compiler/ir/pass/printer.hpp>
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 ostream &operator<<(ostream &os, const func_c &e) {
     return os << e.get();
@@ -74,4 +77,7 @@ bool func_base::equals(const func_c &f, ir_comparer &ctx) const {
             && ctx.check_equals_may_null(body_, f->body_);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

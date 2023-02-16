@@ -34,7 +34,10 @@
 #include <util/math_utils.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_MODULE(ops.reorder)
 
@@ -2891,4 +2894,7 @@ std::vector<int> reorder_op_t::get_impl_dispatch_candidates() const {
     return get_default_impl_dispatch_candidates();
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

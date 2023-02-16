@@ -21,7 +21,10 @@
 #include <compiler/ir/pass/printer.hpp>
 #include <util/any_map.hpp>
 #include <util/math_utils.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 stmt_base_t::~stmt_base_t() = default;
 stmt_base_t::stmt_base_t(sc_stmt_type type) : node_type_(type) {}
@@ -38,7 +41,7 @@ ostream &operator<<(ostream &os, const stmt_base_t *s) {
 std::ostream &operator<<(std::ostream &os, for_type val) {
     switch (val) {
 #define HANDLE_CASE(X) \
-    case sc::for_type::X: os << "for_type::" #X; break;
+    case for_type::X: os << "for_type::" #X; break;
         HANDLE_CASE(NORMAL)
         HANDLE_CASE(PARALLEL)
 #undef HANDLE_CASE
@@ -50,7 +53,7 @@ std::ostream &operator<<(std::ostream &os, for_type val) {
 std::ostream &operator<<(std::ostream &os, sc_stmt_type val) {
     switch (val) {
 #define HANDLE_CASE(X) \
-    case sc::sc_stmt_type::X: os << "sc_stmt_type::" #X; break;
+    case sc_stmt_type::X: os << "sc_stmt_type::" #X; break;
 
         HANDLE_CASE(undef)
         HANDLE_CASE(assign)
@@ -204,4 +207,7 @@ uint64_t for_loop_node_t::get_balance211_split_factor() const {
     return 0;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

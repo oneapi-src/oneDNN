@@ -23,7 +23,10 @@
 #include "compiler/ir/graph/graph_op.hpp"
 #include "compiler/ir/graph/traits.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 class matmul_op : public configurable_graph_op_t,
@@ -39,6 +42,9 @@ public:
 };
 
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -24,7 +24,10 @@
 #include <util/any_map.hpp>
 
 SC_MODULE(pass.tensor2var)
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 // index2var will bypass must_tensor2var. So let index2var run before tensor2var
 SC_DECL_PASS_INFO(tensor2var,
@@ -279,4 +282,7 @@ func_c tensor2var_t::operator()(func_c f) {
     return impl.dispatch(f);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

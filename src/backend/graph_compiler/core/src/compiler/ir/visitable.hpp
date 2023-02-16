@@ -19,7 +19,10 @@
 
 #include "visitor.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 template <typename T, typename Base>
 node_ptr<Base, Base> visitable_t<T, Base>::visited_by(ir_visitor_base_t *vis) {
     using ptr_ty = node_ptr<T, Base>;
@@ -28,6 +31,9 @@ node_ptr<Base, Base> visitable_t<T, Base>::visited_by(ir_visitor_base_t *vis) {
                                    .template static_as<ptr_ty>());
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

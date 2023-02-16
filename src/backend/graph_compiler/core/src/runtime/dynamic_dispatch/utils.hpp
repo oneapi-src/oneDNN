@@ -18,7 +18,10 @@
 
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <util/def.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 /**
  * @brief Get the dynamic config single block from the plain dynamic dimension
  * for matmul
@@ -37,6 +40,9 @@ void deep_copy_dynamic_tensor(
 uint64_t calculate_blocking_dims(void *placeholder, uint64_t *format);
 
 } // namespace runtime
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

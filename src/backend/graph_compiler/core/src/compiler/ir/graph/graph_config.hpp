@@ -23,7 +23,10 @@
 #include "graph.hpp"
 #include "util/general_object.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 // todo(zhichen): replaced by any map
 struct graph_config {
     std::vector<reflection::shared_general_object_t> op_cfgs_;
@@ -39,6 +42,9 @@ SC_INTERNAL_API graph_config get_graph_default_config(
 SC_INTERNAL_API void set_graph_config(
         sc_graph_t &g, const graph_config &config);
 } // namespace graph
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

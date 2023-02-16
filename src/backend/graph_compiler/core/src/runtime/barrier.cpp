@@ -45,8 +45,10 @@ static uint64_t calc_backoff(uint64_t old, int cnt, int max_int) {
     return old / 2;
 }
 
-extern "C" SC_API void sc_arrive_at_barrier(sc::runtime::barrier_t *b,
-        sc::runtime::barrier_idle_func idle_func, void *idle_args) {
+namespace gc = dnnl::impl::graph::gc;
+
+extern "C" SC_API void sc_arrive_at_barrier(gc::runtime::barrier_t *b,
+        gc::runtime::barrier_idle_func idle_func, void *idle_args) {
     make_trace(0, 0);
     auto cur_round = b->rounds_.load(std::memory_order_acquire);
     auto cnt = --b->pending_;
@@ -72,7 +74,7 @@ extern "C" SC_API void sc_arrive_at_barrier(sc::runtime::barrier_t *b,
 }
 
 extern "C" SC_API void sc_init_barrier(
-        sc::runtime::barrier_t *b, int num_barriers, uint64_t thread_count) {
+        gc::runtime::barrier_t *b, int num_barriers, uint64_t thread_count) {
     for (int i = 0; i < num_barriers; i++) {
         b[i].total_ = thread_count;
         b[i].pending_.store(thread_count);

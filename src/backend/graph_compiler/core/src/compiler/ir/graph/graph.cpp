@@ -33,7 +33,10 @@
 #include <compiler/ir/transform/simple_licm.hpp>
 #include <util/hash_utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_MODULE(sc_graph);
 
@@ -573,7 +576,7 @@ expr sc_graph_t::dim_to_expr(const sc_dim &v) {
 }
 
 std::vector<expr> sc_graph_t::dims_to_expr(const sc_dims &dim) {
-    std::vector<sc::expr> dim_expr;
+    std::vector<expr> dim_expr;
     dim_expr.reserve(dim.size());
     for (auto d : dim) {
         dim_expr.emplace_back(dim_to_expr(d));
@@ -582,7 +585,7 @@ std::vector<expr> sc_graph_t::dims_to_expr(const sc_dims &dim) {
 }
 
 std::vector<expr_c> sc_graph_t::dims_to_expr_c(const sc_dims &dim) {
-    std::vector<sc::expr_c> dim_expr;
+    std::vector<expr_c> dim_expr;
     dim_expr.reserve(dim.size());
     for (auto d : dim) {
         dim_expr.emplace_back(dim_to_expr(d));
@@ -857,16 +860,19 @@ sc_graph_t make_single_op_graph(const std::string &opname,
 }
 
 } // namespace graph
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 namespace std {
-std::size_t hash<sc::logical_tensor_t>::operator()(
-        const sc::logical_tensor_t &k) const {
+std::size_t hash<dnnl::impl::graph::gc::logical_tensor_t>::operator()(
+        const dnnl::impl::graph::gc::logical_tensor_t &k) const {
     size_t seed = 0;
-    sc::hash_combine(seed, k.dtype_);
-    sc::hash_combine(seed, k.format_);
+    dnnl::impl::graph::gc::hash_combine(seed, k.dtype_);
+    dnnl::impl::graph::gc::hash_combine(seed, k.format_);
     for (size_t i = 0; i < k.plain_dims_.size(); i++) {
-        sc::hash_combine(seed, k.plain_dims_[i]);
+        dnnl::impl::graph::gc::hash_combine(seed, k.plain_dims_[i]);
     }
     return seed;
 }

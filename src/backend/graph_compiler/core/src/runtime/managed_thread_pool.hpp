@@ -19,7 +19,10 @@
 #include <atomic>
 #include <runtime/context.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace runtime {
 struct thread_manager {
@@ -27,13 +30,13 @@ struct thread_manager {
             int expected_remain, int tid, void *args);
     struct thread_pool_state {
         struct task_type {
-            void (*pfunc)(void *, void *, int64_t, sc::generic_val *);
+            void (*pfunc)(void *, void *, int64_t, generic_val *);
             void *stream;
             void *module_env;
             int64_t begin;
             int64_t end;
             int64_t step;
-            sc::generic_val *args;
+            generic_val *args;
         } task;
         int num_threads;
 
@@ -57,6 +60,9 @@ struct thread_manager {
     static thread_local thread_manager cur_mgr;
 };
 } // namespace runtime
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -24,7 +24,10 @@
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/pass_dep_util.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(interface_generalizer,
         SC_PASS_DEPENDS_ON(dyn_tensor_transformer), SC_PASS_REQUIRE_STATE(),
@@ -91,4 +94,7 @@ const_ir_module_ptr interface_generalizer_t::operator()(
     return ret;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

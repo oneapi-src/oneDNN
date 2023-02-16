@@ -17,7 +17,10 @@
 #include "../traits.hpp"
 #include "analysis.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 void analysis_quantized(sc_graph_t &graph, const context_ptr &ctx) {
     for (auto &op : graph.ops_) {
         if (op->op_name_.find("quantize") != std::string::npos) {
@@ -26,4 +29,7 @@ void analysis_quantized(sc_graph_t &graph, const context_ptr &ctx) {
         }
     }
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

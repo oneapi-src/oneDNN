@@ -17,7 +17,10 @@
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_TENSOR_INPLACE_INFO_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_TENSOR_INPLACE_INFO_HPP
 #include <memory>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace alias_info {
 struct tensor_alias_identity_t;
 }
@@ -37,6 +40,9 @@ struct temp_tensor_inplace_info_t {
     inplace_kind kind_;
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -37,7 +37,10 @@ template <class T>
 class shared_ptr;
 } // namespace std
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 template <typename T>
 struct optional;
@@ -317,6 +320,9 @@ optional<typename std::decay<T>::type> some_opt(T &&v) {
     return optional<typename std::decay<T>::type> {std::forward<T>(v)};
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

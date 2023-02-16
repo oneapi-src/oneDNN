@@ -25,7 +25,10 @@
 #include "../visitor.hpp"
 #include "transform.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_MODULE(graph.pre_padding);
 
@@ -113,4 +116,7 @@ void pre_padding(sc_graph_t &graph, const context_ptr &ctx) {
             });
     graph.reset_op_ids();
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

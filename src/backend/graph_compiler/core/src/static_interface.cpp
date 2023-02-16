@@ -57,7 +57,10 @@
 
 #define RUN_ON_REFLECTION_CLASS(F) F(shared_ptr_static_data)
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 RUN_ON_PRODUCTION(DECL_INIT)
 
 #define DECL_REFLECTION_INIT(NAME) extern void *__reflection_init_##NAME;
@@ -73,4 +76,7 @@ void __dummy_init() {
     RUN_ON_REFLECTION_CLASS(REF_REFLECTION_INIT)
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

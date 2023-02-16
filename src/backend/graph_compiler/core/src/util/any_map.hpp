@@ -27,7 +27,10 @@
 #include <type_traits>
 #include <unordered_map>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace reflection {
 struct type;
@@ -524,6 +527,9 @@ public:
     size_t hash() const;
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

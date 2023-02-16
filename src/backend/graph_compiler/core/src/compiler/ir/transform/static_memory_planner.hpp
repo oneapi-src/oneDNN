@@ -23,7 +23,10 @@
 #include "tensor_inplace_info.hpp"
 #include <unordered_map>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace memory_optim {
 struct memory_alloc_trace_t {
     // unique id of a buffer
@@ -63,6 +66,9 @@ std::size_t schedule_memory_allocations(
         std::unordered_map<uintptr_t, std::vector<uintptr_t>>
                 &out_inplace_selection);
 } // namespace memory_optim
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

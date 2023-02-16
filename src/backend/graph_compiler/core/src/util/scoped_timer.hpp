@@ -18,7 +18,10 @@
 #include <chrono>
 #include <utility>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace utils {
 
 using time_point = std::chrono::high_resolution_clock::time_point;
@@ -55,9 +58,10 @@ inline scoped_timer<T> create_scoped_timer(bool enabled, T &&func) {
 }
 
 #define SC_SCOPED_TIMER_INFO(name, postfix) \
-    ::sc::utils::create_scoped_timer( \
-            ::sc::utils::compiler_configs_t::get().print_pass_time_, \
-            [](::sc::utils::time_duration dur) { \
+    ::dnnl::impl::graph::gc::utils::create_scoped_timer( \
+            ::dnnl::impl::graph::gc::utils::compiler_configs_t::get() \
+                    .print_pass_time_, \
+            [](::dnnl::impl::graph::gc::utils::time_duration dur) { \
                 SC_MODULE_INFO2(name) \
                         << "took " \
                         << std::chrono::duration_cast< \
@@ -67,6 +71,9 @@ inline scoped_timer<T> create_scoped_timer(bool enabled, T &&func) {
             });
 
 } // namespace utils
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

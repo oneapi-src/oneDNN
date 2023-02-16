@@ -20,7 +20,10 @@
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <util/hash_utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace passlet {
 
 static size_t hash_const(expr_base *v) {
@@ -123,4 +126,7 @@ void ssa_value_hash_t::view(const define_c &v, pass_phase phase) {
 }
 
 } // namespace passlet
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -29,7 +29,10 @@
 #include <util/utils.hpp>
 
 SC_MODULE(ir.loop_transform)
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 int64_t get_const_as_int(const constant_c &c) {
     assert(!c.get()->is_vector());
@@ -732,4 +735,7 @@ std::vector<for_loop> collect_nested_loops(stmt body) {
     return ret;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

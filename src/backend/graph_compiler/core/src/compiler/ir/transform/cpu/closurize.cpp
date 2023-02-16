@@ -31,7 +31,10 @@
 #include <util/utils.hpp>
 
 SC_MODULE(pass.closurize)
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(closurizer_cpu,
         SC_PASS_DEPENDS_ON(nested_parallel_flattener,
@@ -254,4 +257,7 @@ const_ir_module_ptr closurizer_cpu_t::operator()(const_ir_module_ptr inmod) {
     return ret;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

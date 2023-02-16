@@ -22,7 +22,10 @@
 #include <streambuf>
 #include <utility>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * fd output buffer
@@ -124,6 +127,9 @@ public:
     //     return *this;
     // }
 };
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

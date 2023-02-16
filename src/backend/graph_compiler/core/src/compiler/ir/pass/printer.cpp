@@ -23,7 +23,10 @@
 #include <compiler/jit/xbyak/ir/xbyak_expr.hpp>
 #include <util/bf16.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 void ir_printer_t::view(constant_c v) {
     if (v->is_vector()) { os_ << '('; }
@@ -473,4 +476,7 @@ void print_ir_and_annotate_position_in_source(
     }
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

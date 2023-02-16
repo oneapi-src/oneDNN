@@ -19,7 +19,10 @@
 #include <iomanip>
 #include <iostream>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 sc_xbyak_jit_generator::sc_xbyak_jit_generator()
@@ -36,4 +39,7 @@ void *sc_xbyak_jit_generator::get_func_address(
 }
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

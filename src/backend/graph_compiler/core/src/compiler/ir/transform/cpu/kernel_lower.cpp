@@ -34,29 +34,34 @@
 SC_MODULE(pass.kernel_lowering_cpu)
 namespace std {
 template <>
-struct hash<sc::brgemm::postop_setting_t> {
-    std::size_t operator()(const sc::brgemm::postop_setting_t &k) const {
+struct hash<dnnl::impl::graph::gc::brgemm::postop_setting_t> {
+    std::size_t operator()(
+            const dnnl::impl::graph::gc::brgemm::postop_setting_t &k) const {
         size_t ret = 0;
-        sc::hash_combine(ret, k.pack_info_[0]);
-        sc::hash_combine(ret, k.pack_info_[1]);
+        dnnl::impl::graph::gc::hash_combine(ret, k.pack_info_[0]);
+        dnnl::impl::graph::gc::hash_combine(ret, k.pack_info_[1]);
         return ret;
     }
 };
 
 template <>
-struct hash<std::pair<sc::sc_brgemm_bd_mask_t, int>> {
+struct hash<std::pair<dnnl::impl::graph::gc::sc_brgemm_bd_mask_t, int>> {
     std::size_t operator()(
-            const std::pair<sc::sc_brgemm_bd_mask_t, int> &bdmask_pair) const {
+            const std::pair<dnnl::impl::graph::gc::sc_brgemm_bd_mask_t, int>
+                    &bdmask_pair) const {
         size_t ret = 0;
         for (auto &m : bdmask_pair.first) {
-            sc::hash_combine(ret, m);
+            dnnl::impl::graph::gc::hash_combine(ret, m);
         }
-        sc::hash_combine(ret, bdmask_pair.second);
+        dnnl::impl::graph::gc::hash_combine(ret, bdmask_pair.second);
         return ret;
     }
 };
 } // namespace std
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(kernel_lowering_cpu,
         SC_PASS_DEPENDS_ON(constant_folder, buffer_scheduler),
@@ -740,4 +745,7 @@ const_ir_module_ptr kernel_lowering_cpu_t::operator()(const_ir_module_ptr m) {
     return ret;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

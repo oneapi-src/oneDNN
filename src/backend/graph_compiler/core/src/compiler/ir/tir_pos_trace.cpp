@@ -18,7 +18,10 @@
 #include <compiler/ir/pass/printer.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 std::string tir_pos_tracer::to_string() const {
     if (cur_func_ && cur_node_ && utils::compiler_configs_t::get().diagnose_) {
@@ -32,4 +35,7 @@ std::string tir_pos_tracer::to_string() const {
     return std::string();
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

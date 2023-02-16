@@ -23,7 +23,10 @@
 #include <compiler/ir/graph/fused_op.hpp>
 #include <unordered_set>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 static std::map<int, std::vector<sc_op_ptr>> get_merge_map(sc_graph_t &graph) {
     auto vis = op_visitor_t::bfs();
@@ -93,4 +96,7 @@ void horizontal_merge(sc_graph_t &graph, const context_ptr &ctx) {
     graph.reset_op_ids();
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

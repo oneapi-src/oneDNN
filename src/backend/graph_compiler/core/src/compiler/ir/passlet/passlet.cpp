@@ -15,7 +15,10 @@
  *******************************************************************************/
 #include "passlet.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace passlet {
 
 #define SC_PASSLET_IMPL_METHODS_IMPL(node_type, ...) \
@@ -29,4 +32,7 @@ SC_PASSLET_IMPL_METHODS_IMPL(expr)
 SC_PASSLET_IMPL_METHODS_IMPL(stmt)
 
 } // namespace passlet
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

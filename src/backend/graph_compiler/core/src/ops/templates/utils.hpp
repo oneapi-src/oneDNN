@@ -32,7 +32,10 @@
 #include <unordered_set>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 template <typename T>
 /**
@@ -179,8 +182,8 @@ inline expr get_balance211_length(
 }
 
 inline std::vector<int> get_os_blocks(const int ow, const int adj_os) {
-  std::vector<int> factors = sc::utils::get_factors(ow);
-  std::vector<int> os_factors = sc::utils::get_blocks(adj_os, 16);
+  std::vector<int> factors = utils::get_factors(ow);
+  std::vector<int> os_factors = utils::get_blocks(adj_os, 16);
   factors.insert(factors.end(), os_factors.begin(), os_factors.end());
   std::unordered_set<int> unique_factors(factors.begin(), factors.end());
   factors.assign(unique_factors.begin(), unique_factors.end());
@@ -190,10 +193,10 @@ inline std::vector<int> get_os_blocks(const int ow, const int adj_os) {
 
 inline int block_split(
   const int &total_size, const int &num, int &block, int &tail_block) {
-  block = sc::utils::divide_and_ceil(total_size, num);
+  block = utils::divide_and_ceil(total_size, num);
   tail_block = total_size % block;
   if (tail_block == 0) { tail_block = block; }
-  int used_threads = sc::utils::divide_and_ceil(total_size, block);
+  int used_threads = utils::divide_and_ceil(total_size, block);
   return used_threads;
 }
 
@@ -223,6 +226,9 @@ inline int get_lanes(
 }
 
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

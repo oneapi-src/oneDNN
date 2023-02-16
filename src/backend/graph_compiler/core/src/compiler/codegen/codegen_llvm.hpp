@@ -24,7 +24,10 @@
 #include <compiler/ir/module_pass.hpp>
 #include <llvm/IR/Module.h>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 class SC_INTERNAL_API llvm_generator_pass : public module_pass_t {
 public:
     llvm::LLVMContext &llvm_ctx_;
@@ -38,6 +41,9 @@ public:
         , out_module_(out_module)
         , gen_wrapper_(gen_wrapper) {}
 };
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

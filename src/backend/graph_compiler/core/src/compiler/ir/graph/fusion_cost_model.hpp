@@ -22,7 +22,10 @@
 #include <vector>
 #include <compiler/ir/sc_expr.hpp>
 #include <unordered_set>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 class sc_op;
 struct mixed_parti_t;
@@ -104,5 +107,8 @@ public:
 
 using fusion_cost_model_ptr = std::shared_ptr<fusion_cost_model_base_t>;
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

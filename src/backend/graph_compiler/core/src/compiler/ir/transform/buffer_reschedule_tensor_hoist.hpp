@@ -21,7 +21,10 @@
 #include "../function_pass.hpp"
 #include <compiler/config/context.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * buffer rescheduling and tensor hoisting recursively
@@ -45,6 +48,9 @@ public:
     SC_DECL_PASS_INFO_FUNC();
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

@@ -48,7 +48,10 @@
 
 SC_MODULE(jit.llvm)
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 static std::string dump_module_to_string(llvm::Module *m) {
     std::string ret;
@@ -240,4 +243,7 @@ std::shared_ptr<jit_function_t> llvm_jit_module::get_function(
     }
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

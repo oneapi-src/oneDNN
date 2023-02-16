@@ -20,7 +20,10 @@
 #include <vector>
 #include <compiler/ir/graph/graph_op.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 class gelu_op : public graph_op_t, public op_traits::auto_copyable_t {
@@ -45,6 +48,9 @@ public:
             override;
 };
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

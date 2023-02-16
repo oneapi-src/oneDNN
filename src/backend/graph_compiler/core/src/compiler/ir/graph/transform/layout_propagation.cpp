@@ -27,7 +27,10 @@
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/ternary_elemwise.hpp>
 #include <ops/reshape.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_MODULE(graph.layout_propagation);
 
@@ -147,7 +150,7 @@ static void update_output_formats(std::vector<graph_tensor_ptr> &outs,
     }
 }
 
-static void check_input_format(const std::vector<sc::graph_tensor_ptr> &ins) {
+static void check_input_format(const std::vector<graph_tensor_ptr> &ins) {
     for (auto &in : ins) {
         COMPILE_ASSERT(!in->details_.get_format().is_any(),
                 "input format don't allow any format");
@@ -667,4 +670,7 @@ SC_INTERNAL_API void layout_propagation(
     if (is_graph_dynamic) { combine_layout_and_impl_dispatch(graph); }
     graph.reset_op_ids();
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -21,7 +21,10 @@
 #include <compiler/ir/graph/traits.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 struct blocking_axis_t;
@@ -78,5 +81,8 @@ void infer_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map);
 void pre_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map);
 
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

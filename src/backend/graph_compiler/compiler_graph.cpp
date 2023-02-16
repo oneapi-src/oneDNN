@@ -71,10 +71,10 @@ static std::string attr_to_gc_attr_name(op_attr_t attr) {
     }
 }
 
-sc::any_map_t compiler_graph_impl_t::convert_op_attrs(
+any_map_t compiler_graph_impl_t::convert_op_attrs(
         const std::unordered_map<impl::op_attr_t,
                 impl::utils::attribute_value_t> &attrs) {
-    sc::any_map_t backend_attrs;
+    any_map_t backend_attrs;
     for (const auto &attr : attrs) {
         auto kind = attr.second.get_kind();
         auto name = attr_to_gc_attr_name(attr.first);
@@ -121,11 +121,11 @@ static int convert_axis(int64_t axis, int64_t dim) {
     return axis < 0 ? dim + axis : axis;
 }
 
-sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
-        const std::vector<sc::graph_tensor_ptr> &producer_lt,
-        const std::vector<sc::graph_tensor_ptr> &consumer_lt) {
+sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
+        const std::vector<graph_tensor_ptr> &producer_lt,
+        const std::vector<graph_tensor_ptr> &consumer_lt) {
     if (!is_supported_op(aop->get_kind())) { return nullptr; }
-    sc::any_map_t backend_attrs;
+    any_map_t backend_attrs;
     std::unordered_map<impl::op_attr_t, impl::utils::attribute_value_t> attrs
             = aop->get_attributes();
     auto input_dim = producer_lt[0]->details_.get_plain_dims().size();
@@ -209,7 +209,7 @@ sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
     } else if (aop->get_kind() == op_kind::Reorder) {
         // layout specified by framework would be overwritten by
         // better layout chosen by the backend, so it's safe to set any here
-        backend_attrs.set("out_format", sc::sc_data_format_t());
+        backend_attrs.set("out_format", sc_data_format_t());
     } else {
         backend_attrs = convert_op_attrs(aop->get_attributes());
     }
@@ -217,17 +217,19 @@ sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
             consumer_lt, backend_attrs);
 }
 
-sc::graph_tensor_ptr compiler_graph_impl_t::convert_logical_tensor(
+graph_tensor_ptr compiler_graph_impl_t::convert_logical_tensor(
         const dnnl::graph::impl::logical_tensor_t &lt) {
-    sc::sc_data_format_t lt_format;
+    sc_data_format_t lt_format;
     if (lt.ndims == 0) {
-        return std::make_shared<sc::graph_tensor>(nullptr, lt_format,
+        return std::make_shared<graph_tensor>(nullptr, lt_format,
                 std::vector<int64_t> {1}, convert_data_type(lt.data_type));
     }
     // converting dims to GC dynamic dim
     std::vector<int64_t> dims {lt.dims, lt.dims + lt.ndims};
     std::transform(dims.begin(), dims.end(), dims.begin(), [](int64_t d) {
-        if (d == DNNL_GRAPH_DYNAMIC_DIM) { return sc::dimensions::dynamic_any; }
+        if (d == DNNL_GRAPH_DYNAMIC_DIM) {
+            return dnnl::impl::graph::gc::dimensions::dynamic_any;
+        }
         return d;
     });
     std::vector<bool> visited(lt.ndims);
@@ -248,33 +250,28 @@ sc::graph_tensor_ptr compiler_graph_impl_t::convert_logical_tensor(
                 }
             }
         }
-        lt_format = sc::sc_data_format_t(storage_args);
-        return std::make_shared<sc::graph_tensor>(nullptr, lt_format, dims,
+        lt_format = sc_data_format_t(storage_args);
+        return std::make_shared<graph_tensor>(nullptr, lt_format, dims,
                 convert_data_type(lt.data_type), ordered_strides);
     }
-    return std::make_shared<sc::graph_tensor>(
+    return std::make_shared<graph_tensor>(
             nullptr, lt_format, dims, convert_data_type(lt.data_type));
 }
 
-inline sc::sc_data_type_t compiler_graph_impl_t::convert_data_type(
+inline sc_data_type_t compiler_graph_impl_t::convert_data_type(
         data_type_t dtype) {
-    if (dtype == data_type::f16)
-        return sc::sc_data_type_t(sc::sc_data_etype::F16, 1);
-    if (dtype == data_type::bf16)
-        return sc::sc_data_type_t(sc::sc_data_etype::BF16, 1);
-    if (dtype == data_type::f32)
-        return sc::sc_data_type_t(sc::sc_data_etype::F32, 1);
-    if (dtype == data_type::s32)
-        return sc::sc_data_type_t(sc::sc_data_etype::S32, 1);
-    if (dtype == data_type::s8)
-        return sc::sc_data_type_t(sc::sc_data_etype::S8, 1);
+    if (dtype == data_type::f16) return sc_data_type_t(sc_data_etype::F16, 1);
+    if (dtype == data_type::bf16) return sc_data_type_t(sc_data_etype::BF16, 1);
+    if (dtype == data_type::f32) return sc_data_type_t(sc_data_etype::F32, 1);
+    if (dtype == data_type::s32) return sc_data_type_t(sc_data_etype::S32, 1);
+    if (dtype == data_type::s8) return sc_data_type_t(sc_data_etype::S8, 1);
     if (dtype == data_type::u8 || dtype == data_type::boolean)
-        return sc::sc_data_type_t(sc::sc_data_etype::U8, 1);
+        return sc_data_type_t(sc_data_etype::U8, 1);
     assert(0 && "undefined or unknown data_type");
-    return sc::sc_data_type_t();
+    return sc_data_type_t();
 }
 
-sc::sc_op_ptr compiler_graph_impl_t::make_compiler_backend_input(
+sc_op_ptr compiler_graph_impl_t::make_compiler_backend_input(
         const dnnl::graph::impl::logical_tensor_t &in_lt) {
     auto lrt = compiler_graph_impl_t::convert_logical_tensor(in_lt);
     auto in_ret = this->make_input({lrt});

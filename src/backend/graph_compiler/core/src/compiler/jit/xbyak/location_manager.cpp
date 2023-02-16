@@ -29,10 +29,13 @@
 
 SC_MODULE(xbyakjit.location_manager)
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
-using namespace sc::sc_xbyak::x86_64;
+using namespace sc_xbyak::x86_64;
 
 //==============================================================================
 // LOCATION MANAGER
@@ -1329,4 +1332,7 @@ expr_location location_manager::convert_virtual_reg(const expr_c &v) {
 }
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

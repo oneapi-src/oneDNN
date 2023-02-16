@@ -21,7 +21,10 @@
 #include <compiler/ir/graph/transform/transform.hpp>
 #include <compiler/ir/graph/visitor.hpp>
 #include <util/math_utils.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace quantize {
 void calculate_op_compensation(sc_graph_t &mgr, const context_ptr &ctx) {
     if (!mgr.attrs_.get_or_else(sc_graph_t::attr_key_t::quantize, false))
@@ -86,4 +89,7 @@ void calculate_op_compensation(sc_graph_t &mgr, const context_ptr &ctx) {
     mgr.reset_op_ids();
 }
 } // namespace quantize
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

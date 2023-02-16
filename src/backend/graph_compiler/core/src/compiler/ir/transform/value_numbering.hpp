@@ -18,7 +18,10 @@
 
 #include <compiler/ir/function_pass.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 /**
  * Value numbering for SSA form IR. It will fold SSA values into one if the
@@ -32,6 +35,9 @@ public:
     SC_DECL_PASS_INFO_FUNC();
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

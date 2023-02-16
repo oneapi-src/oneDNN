@@ -21,7 +21,10 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <util/def.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 union generic_val;
 
 namespace runtime {
@@ -72,6 +75,9 @@ inline stream_t *get_default_stream() {
 
 } // namespace runtime
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

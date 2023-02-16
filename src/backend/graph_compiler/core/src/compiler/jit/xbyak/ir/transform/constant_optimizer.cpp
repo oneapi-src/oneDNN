@@ -35,7 +35,10 @@
 #define HAS_KEY_LOAD(EXPR) \
     ((EXPR)->attr_ && (EXPR)->attr_->has_key(attr_keys::load_simd_value))
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 class constant_optimizer_impl_t : public ir_visitor_t {
@@ -258,4 +261,7 @@ func_c constant_optimizer_t::operator()(func_c v) {
 }
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

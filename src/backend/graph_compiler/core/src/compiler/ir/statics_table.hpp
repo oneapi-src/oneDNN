@@ -22,7 +22,10 @@
 #include <vector>
 #include <unordered_map>
 #include <util/def.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace runtime {
 struct engine_t;
@@ -96,5 +99,8 @@ struct statics_table_t {
     statics_table_t copy() const;
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

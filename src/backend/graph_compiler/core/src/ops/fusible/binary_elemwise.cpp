@@ -31,7 +31,10 @@
 #include <unordered_map>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>
 binary_elementwise_op_impl_t::get_inplace_map() {
@@ -1039,4 +1042,7 @@ OP_REGISTER(min_op_t, min)
 OP_REGISTER(max_op_t, max)
 OP_REGISTER(squared_diff_op_t, squared_diff)
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

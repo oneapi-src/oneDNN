@@ -22,7 +22,10 @@
 #include <vector>
 #include <ops/body_generator.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 struct managed_matmul_core_config_t {
   int M_split_num;
@@ -119,6 +122,9 @@ public:
     std::vector<for_loop> &fors) const override;
 };
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

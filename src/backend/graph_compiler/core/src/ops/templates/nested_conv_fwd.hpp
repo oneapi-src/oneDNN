@@ -23,7 +23,10 @@
 #include <ops/body_generator.hpp>
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 struct nested_conv_fwd_config_t {
@@ -143,10 +146,13 @@ public:
   bool use_nested_2d_ = false;
   bool blocking_input_ = false;
   bool blocking_output_ = false;
-  sc::any_map_t attrs_;
+  any_map_t attrs_;
 };
 
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

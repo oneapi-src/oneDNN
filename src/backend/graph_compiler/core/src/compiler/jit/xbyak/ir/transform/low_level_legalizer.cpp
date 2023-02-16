@@ -21,7 +21,10 @@
 
 #include "low_level_legalizer.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 class low_level_legalizer_impl_t : public ir_visitor_t {
@@ -119,4 +122,7 @@ func_c low_level_legalizer_t::operator()(func_c v) {
 }
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -18,7 +18,10 @@
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_TRANSFORM_TRANSFORM_HPP
 
 #include "../graph.hpp"
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_INTERNAL_API void elemwise_bcast_swap(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
@@ -100,6 +103,9 @@ SC_INTERNAL_API void quantize_inline(
         sc_graph_t &mgr, const context_ptr &ctx = get_default_context());
 } // namespace quantize
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

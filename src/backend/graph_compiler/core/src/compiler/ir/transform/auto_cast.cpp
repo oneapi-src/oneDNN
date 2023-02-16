@@ -25,7 +25,10 @@
 #include <compiler/ir/pass_dep_util.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(auto_caster, SC_PASS_DEPENDS_ON(index_flattener),
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
@@ -373,4 +376,7 @@ const_ir_module_ptr auto_caster_t::operator()(const_ir_module_ptr f) {
     return dispatch_module_on_visitor(&pass, f);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

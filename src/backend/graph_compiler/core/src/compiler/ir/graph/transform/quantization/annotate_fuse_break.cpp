@@ -20,7 +20,10 @@
 #include "ops/graph_convolution.hpp"
 #include <compiler/ir/graph/transform/transform.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace quantize {
 /*
 Add break_post_fuse after quantize with the following pattern
@@ -110,4 +113,7 @@ void annotate_fusion_break(sc_graph_t &mgr, const context_ptr &ctx) {
     }
 }
 } // namespace quantize
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

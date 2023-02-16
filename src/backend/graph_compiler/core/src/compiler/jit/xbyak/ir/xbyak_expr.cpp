@@ -25,7 +25,10 @@
 
 #include "xbyak_expr.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 //=========================================================================
@@ -290,4 +293,7 @@ expr make_physical_reg(sc_data_type_t dtype, const Xbyak::Reg &reg) {
 }
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

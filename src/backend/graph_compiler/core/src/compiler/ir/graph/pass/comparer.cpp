@@ -20,7 +20,10 @@
 #include "../visitor.hpp"
 #include "pass.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 bool compare_graph(sc_op_ptr &first_diff_lhs, sc_op_ptr &first_diff_rhs,
         const sc_graph_t &lhs, const sc_graph_t &rhs,
@@ -144,4 +147,7 @@ bool compare_graph(const sc_graph_t &lhs, const sc_graph_t &rhs,
             first_diff_lhs, first_diff_rhs, lhs, rhs, lhs_rhs_input_mapping);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

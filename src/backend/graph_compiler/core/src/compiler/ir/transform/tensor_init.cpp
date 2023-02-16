@@ -28,7 +28,10 @@
 #include <runtime/config.hpp>
 #include <util/any_map.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(tensor_init,
         SC_PASS_DEPENDS_ON(tensor_shrinker, constant_folder),
@@ -175,4 +178,7 @@ func_c tensor_init_t::operator()(func_c f) {
     return simpl.dispatch(f);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -22,7 +22,10 @@
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/graph_op.hpp>
 #include <compiler/ir/graph/traits.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace quantize {
 /**
  * A temporary quantize and requantize op before calculation for conversion from
@@ -90,5 +93,8 @@ public:
             override;
 };
 } // namespace quantize
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 #endif

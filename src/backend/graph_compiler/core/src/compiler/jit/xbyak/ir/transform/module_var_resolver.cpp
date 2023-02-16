@@ -25,7 +25,10 @@
 
 #include "module_var_resolver.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 class module_var_resolver_t_impl_t : public ir_visitor_t {
@@ -94,4 +97,7 @@ func_c module_var_resolver_t::operator()(func_c v) {
 }
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

@@ -37,8 +37,11 @@
 #include <util/reflection.hpp>
 
 SC_MODULE(ops.managed_matmul_core)
-using namespace sc::builder;
-namespace sc {
+using namespace dnnl::impl::graph::gc::builder;
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 using ops::managed_matmul_core_config_t;
 // clang-format off
@@ -775,13 +778,13 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
               : iim_block_ * iik_block_;
             auto stride_b = iik_block_ * iin_block_;
             _if_(k_b == 0) {
-              sc::builtin::brgemm_init_update(tensor_ptr(A, aidx),
+              builtin::brgemm_init_update(tensor_ptr(A, aidx),
                 tensor_ptr(B_vnni_tensor, bidx), tensor_ptr(C, cidx), bs,
                 iim_block_, iin_block_, iik_block_, LDA, LDB, LDC, stride_a,
                 stride_b, ta.dtype_, tb.dtype_);
             }
             _else_ {
-              sc::builtin::brgemm_update(tensor_ptr(A, aidx),
+              builtin::brgemm_update(tensor_ptr(A, aidx),
                 tensor_ptr(B_vnni_tensor, bidx), tensor_ptr(C, cidx), bs,
                 iim_block_, iin_block_, iik_block_, LDA, LDB, LDC, stride_a,
                 stride_b, ta.dtype_, tb.dtype_);
@@ -1032,16 +1035,15 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
               ? iik_block_ * ori_N
               : iik_block_ * iin_block_;
             _if_(k_b == 0) {
-              sc::builtin::brgemm_init_update(tensor_ptr(A, aidx),
+              builtin::brgemm_init_update(tensor_ptr(A, aidx),
                 tensor_ptr(B, bidx), tensor_ptr(C, cidx), bs, iim_block_,
                 iin_block_, iik_block_, LDA, LDB, LDC, stride_a, stride_b,
                 ta.dtype_, tb.dtype_);
             }
             _else_ {
-              sc::builtin::brgemm_update(tensor_ptr(A, aidx),
-                tensor_ptr(B, bidx), tensor_ptr(C, cidx), bs, iim_block_,
-                iin_block_, iik_block_, LDA, LDB, LDC, stride_a, stride_b,
-                ta.dtype_, tb.dtype_);
+              builtin::brgemm_update(tensor_ptr(A, aidx), tensor_ptr(B, bidx),
+                tensor_ptr(C, cidx), bs, iim_block_, iin_block_, iik_block_,
+                LDA, LDB, LDC, stride_a, stride_b, ta.dtype_, tb.dtype_);
             }
             if (fusion && !is_partial) {
               _if_(k_b == K_sub_block - 1) {
@@ -1927,4 +1929,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   return true;
 }
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

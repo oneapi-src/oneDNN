@@ -43,7 +43,10 @@
 #include <util/simple_math.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 sc_data_type_t conv_fwd_core_op_t::infer_out_dtype(
@@ -1059,8 +1062,11 @@ void conv_bwd_weight_core_op_t::query_format(context_ptr ctx,
 }
 
 } // namespace ops
-OP_REGISTER(::sc::ops::conv_fwd_core_op_t, conv_fwd_core)
-OP_REGISTER(::sc::ops::conv_bwd_data_core_op_t, conv_bwd_data_core)
-OP_REGISTER(::sc::ops::conv_bwd_weight_core_op_t, conv_bwd_weight_core)
+OP_REGISTER(ops::conv_fwd_core_op_t, conv_fwd_core)
+OP_REGISTER(ops::conv_bwd_data_core_op_t, conv_bwd_data_core)
+OP_REGISTER(ops::conv_bwd_weight_core_op_t, conv_bwd_weight_core)
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

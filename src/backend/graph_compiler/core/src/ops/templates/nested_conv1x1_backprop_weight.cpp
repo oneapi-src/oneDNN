@@ -32,8 +32,11 @@
 #include <util/math_utils.hpp>
 #include <util/reflection.hpp>
 
-using namespace sc::builder;
-namespace sc {
+using namespace dnnl::impl::graph::gc::builder;
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 config_ptr gen_nested_conv1x1_backprop_weight_t::get_default_config(
@@ -355,7 +358,7 @@ void gen_nested_conv1x1_backprop_weight_t::inner_loop_call(context_ptr &ctx,
             _if_(o_bs == 0 && o_od == 0 && o_oh == 0 && o_ow == 0 && i_bs == 0
               && i_od == 0 && i_oh == 0) {
               // ic x bs matmul bs x oc
-              sc::builtin::brgemm_init_update(
+              builtin::brgemm_init_update(
                 tensor_ptr(temp_forward_input,
                   {temp_forward_idx_non_block[0] + i_bs,
                     temp_forward_idx_non_block[1] + i_ic,
@@ -370,14 +373,13 @@ void gen_nested_conv1x1_backprop_weight_t::inner_loop_call(context_ptr &ctx,
                 im_oc_block_ * im_bs_block_, dtype, dtype);
             }
             _else_ {
-              sc::builtin::brgemm_update(
-                tensor_ptr(temp_forward_input,
-                  {temp_forward_idx_non_block[0] + i_bs,
-                    temp_forward_idx_non_block[1] + i_ic,
-                    temp_forward_idx_non_block[2] + i_oh,
-                    temp_forward_idx_non_block[3],
-                    temp_forward_idx_non_block[4],
-                    temp_forward_idx_non_block[5]}),
+              builtin::brgemm_update(tensor_ptr(temp_forward_input,
+                                       {temp_forward_idx_non_block[0] + i_bs,
+                                         temp_forward_idx_non_block[1] + i_ic,
+                                         temp_forward_idx_non_block[2] + i_oh,
+                                         temp_forward_idx_non_block[3],
+                                         temp_forward_idx_non_block[4],
+                                         temp_forward_idx_non_block[5]}),
                 tensor_ptr(temp_output_delta, temp_output_delta_brgemm_index),
                 tensor_ptr(real_delta_weight_buf, real_weight_idx), ow_block,
                 im_ic_block_, im_oc_block_, im_bs_block_, im_bs_block_,
@@ -590,4 +592,7 @@ bool gen_nested_conv1x1_backprop_weight_t::generate(context_ptr ctx,
   return true;
 }
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

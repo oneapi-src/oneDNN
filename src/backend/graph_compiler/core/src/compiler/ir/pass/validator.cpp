@@ -26,7 +26,10 @@
 #include <util/any_map.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_DECL_PASS_INFO(validator,
         SC_PASS_DEPENDS_ON(dyn_tensor_transformer, interface_generalizer,
@@ -726,4 +729,7 @@ const_ir_module_ptr validator_t::operator()(const_ir_module_ptr f) {
     return f;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

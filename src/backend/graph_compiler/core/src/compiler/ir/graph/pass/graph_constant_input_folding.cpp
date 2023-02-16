@@ -20,7 +20,10 @@
 #include "pass.hpp"
 #include <ops/fusible/memory_movement.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 SC_INTERNAL_API void graph_constant_input_folding(
         sc_graph_t &mgr, const context_ptr &ctx) {
@@ -78,4 +81,7 @@ SC_INTERNAL_API void graph_constant_input_folding(
         }
     });
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

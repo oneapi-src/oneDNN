@@ -20,7 +20,10 @@
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
 #include <runtime/dynamic_dispatch/utils.hpp>
 #include <runtime/target_machine.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 static int check_and_set_matmul_impl(runtime::dynamic_tensor_t *data_dyn_tsr,
         runtime::dynamic_tensor_t *weight_dyn_tsr,
         runtime::dispatch_key *data_fmt_st,
@@ -194,4 +197,7 @@ extern "C" void query_format_matmul_core_op(void *table, void *out, void *data,
     // query inplace
     *out_size = calculate_blocking_dims(out_dyn_tsr, out_fmt);
 }
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

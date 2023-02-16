@@ -32,8 +32,11 @@
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 
-using namespace sc::builder;
-namespace sc {
+using namespace dnnl::impl::graph::gc::builder;
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace ops {
 
 static void get_blocks_and_ib_blocks(const int X, const int X_split_num,
@@ -365,7 +368,7 @@ void gen_nested_conv1x1_backprop_data_t::
                   LDC->attr().set("plain_init", true);
                   _if_(o_oc == 0) {
                     // when strides > 1, im_ow_block_ = OW
-                    sc::builtin::dnnl_brgemm_init(tensor_ptr(C, cidx),
+                    builtin::dnnl_brgemm_init(tensor_ptr(C, cidx),
                       stride_h * stride_w * im_ow_block_, im_ic_block_, LDC,
                       datatypes::f32, 0);
                   }
@@ -385,13 +388,13 @@ void gen_nested_conv1x1_backprop_data_t::
                   ? im_oc_block_ * ori_IC
                   : im_oc_block_ * im_ic_block_;
                 _if_(o_oc == 0) {
-                  sc::builtin::brgemm_init_update(tensor_ptr(A, aidx),
+                  builtin::brgemm_init_update(tensor_ptr(A, aidx),
                     tensor_ptr(B, bidx), tensor_ptr(C, cidx), num, im_ow_block_,
                     im_ic_block_, im_oc_block_, LDA, LDB, LDC, stride_a,
                     stride_b, ta.dtype_, tb.dtype_);
                 }
                 _else_ {
-                  sc::builtin::brgemm_update(tensor_ptr(A, aidx),
+                  builtin::brgemm_update(tensor_ptr(A, aidx),
                     tensor_ptr(B, bidx), tensor_ptr(C, cidx), num, im_ow_block_,
                     im_ic_block_, im_oc_block_, LDA, LDB, LDC, stride_a,
                     stride_b, ta.dtype_, tb.dtype_);
@@ -678,4 +681,7 @@ bool gen_nested_conv1x1_backprop_data_t::generate(context_ptr ctx,
   return true;
 }
 } // namespace ops
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

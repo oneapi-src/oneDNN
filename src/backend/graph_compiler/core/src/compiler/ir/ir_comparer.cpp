@@ -20,7 +20,10 @@
 
 #include <utility>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 void ir_comparer::reset() {
     same_ = true;
     if (diff) diff = utils::make_unique<ir_comparer_diff_t>();
@@ -138,4 +141,7 @@ std::ostream &operator<<(std::ostream &os, ir_comparer &cmper) {
     return os;
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

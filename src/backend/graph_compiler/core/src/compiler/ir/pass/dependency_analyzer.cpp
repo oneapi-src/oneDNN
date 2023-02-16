@@ -30,7 +30,10 @@
 // fixme: if-else merge issue (see merge() below)
 // todo: add IR hash so that we don't need to compare the IR one by one
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 using namespace dependency_analysis;
 namespace dependency_analysis {
@@ -324,4 +327,7 @@ func_c dependency_analyzer_t::operator()(func_c f) {
     return v.dispatch(f);
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

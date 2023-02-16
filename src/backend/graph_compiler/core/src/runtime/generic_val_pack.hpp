@@ -19,7 +19,10 @@
 
 #include <util/def.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 union generic_val;
 
@@ -29,6 +32,9 @@ struct generic_val_pack {
     virtual SC_INTERNAL_API ~generic_val_pack() = default;
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

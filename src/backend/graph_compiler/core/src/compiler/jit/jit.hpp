@@ -26,7 +26,10 @@
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
 #include <runtime/generic_val.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 class jit_module;
 
@@ -93,7 +96,7 @@ public:
         return reinterpret_cast<functype_old>(get_function_pointer())(args...);
     }
 
-    using generic_wrapper_t = void (*)(sc::generic_val *);
+    using generic_wrapper_t = void (*)(generic_val *);
 };
 
 // The result of compiling an ir_module_t
@@ -189,6 +192,9 @@ public:
     static void set_target_machine(
             jit_kind kind, scflags_t &sc_flags, runtime::target_machine_t &tm);
 };
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

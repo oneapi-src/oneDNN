@@ -20,7 +20,10 @@
 #include "../tunable_op.hpp"
 #include "../visitor.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 static bool check_have_any(const sc_graph_t &graph) {
     bool have_any = false;
@@ -87,4 +90,7 @@ void permute_propagation(sc_graph_t &graph, const context_ptr &ctx) {
             "any format");
 }
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

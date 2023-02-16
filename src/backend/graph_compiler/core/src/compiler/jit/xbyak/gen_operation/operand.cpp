@@ -16,7 +16,10 @@
 
 #include "operand.hpp"
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 namespace sc_xbyak {
 
 using K = Xbyak::Operand::Kind;
@@ -258,4 +261,7 @@ std::ostream &operator<<(std::ostream &os, const operand &op) {
 }
 
 } // namespace sc_xbyak
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

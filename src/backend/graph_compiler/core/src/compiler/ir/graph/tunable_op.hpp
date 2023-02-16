@@ -28,7 +28,10 @@
 #include <ops/body_generator.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 struct op_dispatch_key_t;
 class SC_INTERNAL_API tunable_op_t
     : public sc_op,
@@ -89,6 +92,9 @@ protected:
     config_ptr config_data_;
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

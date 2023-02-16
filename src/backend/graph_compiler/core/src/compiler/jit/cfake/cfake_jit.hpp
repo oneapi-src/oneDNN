@@ -26,7 +26,10 @@
 #include <runtime/generic_val.hpp>
 #include <runtime/target_machine.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 class cfake_jit;
 class SC_INTERNAL_API cfake_jit_module_t
@@ -85,6 +88,9 @@ public:
     static void set_target_machine(runtime::target_machine_t &tm);
 };
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif

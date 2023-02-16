@@ -20,7 +20,10 @@
 #include <util/any_map.hpp>
 #include <util/utils.hpp>
 
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 for_loop get_inner_for_loop(const for_loop_node_t *f);
 
 closurize_impl_t::closurize_impl_t(
@@ -122,6 +125,9 @@ stmt_c closurize_impl_t::visit(for_loop_c v) {
     }
     if (in_parallel_for) { defined_set_.insert(v->var_); }
     return ir_visitor_t::visit(std::move(v));
-} // namespace sc
+}
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl

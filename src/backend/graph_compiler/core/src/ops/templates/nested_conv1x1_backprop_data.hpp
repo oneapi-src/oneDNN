@@ -22,7 +22,10 @@
 #include <vector>
 #include "conv_bwd.hpp"
 #include <ops/body_generator.hpp>
-namespace sc {
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
 
 namespace ops {
 class gen_nested_conv1x1_backprop_data_t
@@ -96,6 +99,9 @@ private:
 };
 } // namespace ops
 
-} // namespace sc
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
 
 #endif
