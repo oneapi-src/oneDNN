@@ -355,7 +355,10 @@ int execute_and_wait(perf_function_t &exec_func, const dnnl_engine_t &engine,
     if (res) res->state = EXECUTED;
 
     execute_map_args(args);
-    if (status != dnnl_success) return res->state = FAILED, FAIL;
+    if (status != dnnl_success) {
+        if (res) res->state = FAILED;
+        return FAIL;
+    }
 
     return OK;
 }
