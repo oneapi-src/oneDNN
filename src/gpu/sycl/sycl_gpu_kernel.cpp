@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,36 +14,31 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_SYCL_SYCL_GPU_KERNEL_HPP
-#define GPU_SYCL_SYCL_GPU_KERNEL_HPP
-
-#include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
-#include "sycl/sycl_utils.hpp"
+#include "gpu/sycl/sycl_gpu_kernel.hpp"
+#include "sycl/sycl_stream.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace sycl {
 
-struct sycl_gpu_kernel_t : public compute::kernel_impl_t {
-    using kernel_bundle_e_t
-            = ::sycl::kernel_bundle<::sycl::bundle_state::executable>;
+status_t sycl_gpu_kernel_t::parallel_for(
+        stream_t &stream, const std::function<void(void *)> &cgf) {
+    auto *sycl_stream = utils::downcast<impl::sycl::sycl_stream_t *>(&stream);
+    auto &queue = sycl_stream->queue();
+    auto &deps = sycl_stream->sycl_ctx().get_sycl_deps().events;
 
-    sycl_gpu_kernel_t(const kernel_bundle_e_t &kernel_bundle)
-        : kernel_bundle_(utils::make_unique<kernel_bundle_e_t>(kernel_bundle)) {
-    }
+    auto event = queue.submit([&](::sycl::handler &cgh) {
+        cgh.depends_on(deps);
+        cgh.use_kernel_bundle(*kernel_bundle_);
+        cgf(reinterpret_cast<void *>(&cgh));
+    });
 
-    status_t parallel_for(
-            stream_t &stream, const std::function<void(void *)> &cgf) override;
-
-private:
-    std::unique_ptr<kernel_bundle_e_t> kernel_bundle_;
-};
+    deps = {event};
+    return status::success;
+}
 
 } // namespace sycl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
-
-#endif
