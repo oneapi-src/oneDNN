@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -183,7 +183,7 @@ inline GfxCoreFamily encodeGfxCoreFamily(HW hw)
     switch (hw) {
         case HW::Gen9:    return GfxCoreFamily::Gen9;
         case HW::Gen10:   return GfxCoreFamily::Gen10;
-        case HW::Gen11:   return GfxCoreFamily::Gen11;
+        case HW::Gen11:   return GfxCoreFamily::Gen11LP;
         case HW::Gen12LP: return GfxCoreFamily::Gen12LP;
         case HW::XeHP:    return GfxCoreFamily::XeHP;
         case HW::XeHPG:   return GfxCoreFamily::XeHPG;
@@ -192,32 +192,27 @@ inline GfxCoreFamily encodeGfxCoreFamily(HW hw)
     }
 }
 
-inline HW decodeProductFamily(ProductFamily family)
+inline ngen::ProductFamily decodeProductFamily(ProductFamily family)
 {
-    if (family >= ProductFamily::SKL && family < ProductFamily::CNL) return HW::Gen9;
-    if (family >= ProductFamily::CNL && family < ProductFamily::ICL) return HW::Gen10;
-    if (family >= ProductFamily::ICL && family < ProductFamily::TGLLP) return HW::Gen11;
-    if (family >= ProductFamily::TGLLP && family <= ProductFamily::DG1) return HW::Gen12LP;
-    if (family == ProductFamily::XE_HP_SDV) return HW::XeHP;
-    if (family == ProductFamily::DG2) return HW::XeHPG;
-    if (family == ProductFamily::PVC) return HW::XeHPC;
-    return HW::Unknown;
+    if (family >= ProductFamily::SKL && family < ProductFamily::CNL) return ngen::ProductFamily::GenericGen9;
+    if (family >= ProductFamily::CNL && family < ProductFamily::ICL) return ngen::ProductFamily::GenericGen10;
+    if (family >= ProductFamily::ICL && family < ProductFamily::TGLLP) return ngen::ProductFamily::GenericGen11;
+    if (family >= ProductFamily::TGLLP && family <= ProductFamily::DG1) return ngen::ProductFamily::GenericGen12LP;
+    if (family == ProductFamily::XE_HP_SDV) return ngen::ProductFamily::GenericXeHP;
+    if (family == ProductFamily::DG2) return ngen::ProductFamily::DG2;
+    if (family == ProductFamily::MTL) return ngen::ProductFamily::MTL;
+    if (family == ProductFamily::PVC) return ngen::ProductFamily::PVC;
+    return ngen::ProductFamily::Unknown;
 }
 
-inline void getBinaryHWInfo(const std::vector<uint8_t> &binary, HW &outHW, int &outStepping)
+inline void getBinaryHWInfo(const std::vector<uint8_t> &binary, HW &outHW, Product &outProduct)
 {
     const SProgramBinaryHeader *pheader = nullptr;
 
-    try {
-        findDeviceBinary(binary, nullptr, &pheader, nullptr);
-    } catch (...) {
-        outHW = HW::Unknown;
-        outStepping = 0;
-        return;
-    }
-
+    findDeviceBinary(binary, nullptr, &pheader, nullptr);
     outHW = decodeGfxCoreFamily(pheader->Device);
-    outStepping = pheader->SteppingId;
+    outProduct.family = ngen::ProductFamily::Unknown;
+    outProduct.stepping = pheader->SteppingId;
 
     // XeHPG identifies with older runtimes as XeHP. Check whether EOT goes to TS (XeHP) or gateway (XeHPG).
     using b14 = std::array<uint8_t, 14>;

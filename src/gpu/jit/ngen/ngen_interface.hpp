@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -498,17 +498,10 @@ int InterfaceHandler::defaultInlineGRFs(HW hw)
 template <typename CodeGenerator>
 void InterfaceHandler::generatePrologue(CodeGenerator &generator, const GRF &temp) const
 {
-#ifdef NGEN_INTERFACE_OLD_PROLOGUE
     if (needLocalID)
-        generator.loadlid(getCrossthreadBytes(), needLocalID, simd, temp, 8*16);
-    if (getCrossthreadGRFs() > 1)
-        generator.loadargs(getCrossthreadBase(), getCrossthreadGRFs(), temp);
-#else
-    if (needLocalID)
-        generator.loadlid(getCrossthreadBytes(), needLocalID, simd, temp, 12*16);
+        generator.loadlid(getCrossthreadBytes(), needLocalID, simd, temp, -1);
     if (getCrossthreadGRFs() > inlineGRFs)
         generator.loadargs(getArgLoadBase(), getCrossthreadGRFs() - inlineGRFs, temp);
-#endif
 }
 
 std::string InterfaceHandler::generateZeInfo() const
@@ -542,7 +535,7 @@ std::string InterfaceHandler::generateZeInfo() const
     if (offsetSkipPerThread > 0)
         md << "      offset_to_skip_per_thread_data_load: " << offsetSkipPerThread << '\n';
     if (barrierCount > 0)
-        md << "      barrier_count: " << barrierCount << '\n';
+        md << "      barrier_count: " << utils::roundup_pow2(barrierCount) << '\n';
     if (allow64BitBuffers)
         md << "      has_4gb_buffers: true\n";
     if (needDPAS)

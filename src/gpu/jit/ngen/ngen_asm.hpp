@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -139,7 +139,7 @@ inline void Label::outputText(std::ostream &str, PrintDetail detail, LabelManage
 
 struct NoOperand {
     static const bool emptyOp = true;
-    void fixup(HW hw, int esize, DataType defaultType, bool isDest, int arity) const {}
+    void fixup(HW hw, int esize, DataType defaultType, int srcN, int arity) const {}
     constexpr bool isScalar() const { return false; }
 
     void outputText(std::ostream &str, PrintDetail detail, LabelManager &man) const {}
@@ -359,7 +359,7 @@ bool AsmInstruction::getOperandRegion(autoswsb::DependencyRegion &region, int op
 
         switch (opNum) {
             case -1:
-            case 0: len = (rcount * operand.reg.getBytes() + 3) >> 2; break;
+            case 0: len = GRF::bytesToGRFs(hw, rcount * operand.reg.getBytes() * mod.getExecSize()); break;
             case 1: len = sdepth; break;
             case 2:
                 if (op == Opcode::dpasw) rcount = (rcount + 1) >> 1;
@@ -383,11 +383,15 @@ class AsmCodeGenerator {
 private:
 #include "ngen_compiler_fix.hpp"
 public:
-    explicit AsmCodeGenerator(HW hardware_, int stepping_ = 0) : hardware(hardware_), stepping(stepping_), isGen12(hardware_ >= HW::Gen12LP),
+    explicit AsmCodeGenerator(Product product_) : hardware(getCore(product_.family)), product(product_),
             defaultOutput{nullptr}, sync{this}, load{this}, store{this}, atomic{this} {
+        isGen12 = (hardware >= HW::Gen12LP);
         _workaround_();
         streamStack.push_back(new InstructionStream());
     }
+
+    explicit AsmCodeGenerator(HW hardware_, int stepping_ = 0) : AsmCodeGenerator({genericProductFamily(hardware_), 0}) {}
+
     AsmCodeGenerator(HW hardware_, std::ostream &defaultOutput_, int stepping_ = 0) : AsmCodeGenerator(hardware_, stepping_) {
         defaultOutput = &defaultOutput_;
     }
@@ -400,8 +404,13 @@ public:
     inline void getCode(std::ostream &out);
     void enableLineNumbers(bool enable = true) { lineNumbers = enable; }
 
-    int getStepping() const { return stepping; }
-    void setStepping(int stepping_) { stepping = stepping_; }
+    Product getProduct() const { return product; }
+    ProductFamily getProductFamily() const { return product.family; }
+    int getStepping() const { return product.stepping; }
+
+    void setProduct(Product product_) { product = product_; }
+    void setProductFamily(ProductFamily family_) { product.family = family_; }
+    void setStepping(int stepping_) { product.stepping = stepping_; }
 
 protected:
     struct InstructionStream {
@@ -434,7 +443,7 @@ protected:
     };
 
     HW hardware;
-    int stepping;
+    Product product;
     bool isGen12;
     std::ostream *defaultOutput;
     bool lineNumbers = false;
@@ -1688,10 +1697,10 @@ void AsmCodeGenerator::opX(Opcode op, DataType defaultType, const InstructionMod
         throw invalid_execution_size_exception();
 #endif
 
-    dst.fixup(hardware, esize, defaultType, true, arity);
-    src0.fixup(hardware, esize, defaultType, false, arity);
-    src1.fixup(hardware, esize, defaultType, false, arity);
-    src2.fixup(hardware, esize, defaultType, false, arity);
+    dst.fixup(hardware, esize, defaultType, -1, arity);
+    src0.fixup(hardware, esize, defaultType, 0, arity);
+    src1.fixup(hardware, esize, defaultType, 1, arity);
+    src2.fixup(hardware, esize, defaultType, 2, arity);
 
     streamStack.back()->append(op, ext, emod, dst, src0, src1, src2, NoOperand{}, &labelManager);
 }

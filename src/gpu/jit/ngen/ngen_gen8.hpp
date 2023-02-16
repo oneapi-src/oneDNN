@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -408,7 +408,7 @@ static inline constexpr14 TernaryOperand8 encodeTernarySrcOperand8(const RegData
 
     result.direct1.hs = (rd.getHS() == 0) ? 0 : (1 + utils::log2(rd.getHS()));
     if (!src2)
-        result.direct1.vs = (rd.getVS() == 0) ? 0 : utils::log2(rd.getVS());
+        result.direct1.vs = (rd.getVS() == 0) ? 0 : utils::log2(std::min(8, rd.getVS()));
     result.direct1.regNum = rd.getBase();
     result.direct1.subRegNum = rd.getByteOffset();
     result.direct1.type = getTypecode11(rd.getType());

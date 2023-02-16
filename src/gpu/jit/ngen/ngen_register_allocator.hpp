@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,7 +35,12 @@ struct Bundle {
     Bundle(int8_t bank_id_, int8_t bundle_id_) : bundle_id(bundle_id_), bank_id(bank_id_) {}
 
     // Number of bundles in each bank (per thread).
-    static constexpr int bundle_count(HW hw)    { return (hw >= HW::XeHP) ? 16 : (hw == HW::Gen12LP) ? 8 : 2; }
+    static constexpr int bundle_count(HW hw) {
+        if (hw >= HW::XeHP) return 16;
+        if (hw == HW::Gen12LP) return 8;
+        return 2;
+    }
+
     // Number of banks.
     static constexpr int bank_count(HW hw)      { return 2; }
 

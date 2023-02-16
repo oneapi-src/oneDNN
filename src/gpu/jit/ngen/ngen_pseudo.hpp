@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -391,7 +391,7 @@ void barriersignal(const GRF &temp, uint32_t threadCount, const GRF &r0_info = r
 void barriersignal(const InstructionModifier &mod, uint32_t barrierID, const GRF &temp, const GRF &r0_info = r0)
 {
 #ifdef NGEN_SAFE
-    if (hardware != HW::XeHPC)
+    if (hardware < HW::XeHPC)
         throw unsupported_message();
 #endif
     mov(1 | NoMask, temp.uw(4), uint8_t(barrierID));
@@ -402,7 +402,7 @@ void barriersignal(const InstructionModifier &mod, uint32_t barrierID, const GRF
 void barriersignal(const InstructionModifier &mod, uint32_t barrierID, const GRF &temp, BarrierType barrierType, uint32_t producers, uint32_t consumers)
 {
 #ifdef NGEN_SAFE
-    if (hardware != HW::XeHPC)
+    if (hardware < HW::XeHPC)
         throw unsupported_message();
 #endif
     mov(1 | NoMask, temp.ud(2), (barrierID & 0xFF) | (static_cast<uint32_t>(barrierType) << 14) | ((producers & 0xFF) << 16) | ((consumers & 0xFF) << 24));
@@ -455,10 +455,13 @@ void slmfence(const RegData &dst, const RegData &header = GRF(0)) { slmfence(Ins
 void loadlid(int argBytes, int dims = 3, int simd = 8, const GRF &temp = GRF(127), int paddedSize = 0)
 {
     if (hardware >= HW::XeHP) {
+        if (paddedSize < 0)
+            paddedSize = (hardware >= HW::XeHPC) ? 8*16 : 12*16;
         const int grfSize = GRF::bytes(hardware);
         const int grfOW = grfSize / 16;
         int simdGRFs = (simd > 16 && grfSize < 64) ? 2 : 1;
         int insns = 0;
+        bool lsc = (hardware >= HW::XeHPG);
 
         if (dims > 0) {
             auto dmSave = defaultModifier;
@@ -470,14 +473,17 @@ void loadlid(int argBytes, int dims = 3, int simd = 8, const GRF &temp = GRF(127
             add<uint32_t>(1, temp[2], temp[2], uint16_t(argBytes));
             if (simd == 1) {
                 mad<uint32_t>(1, temp[2], temp[2], temp.uw(0), uint16_t(grfSize));
-                load(8, r1, aligned_block_oword(1), A32NC, temp);
+                lsc ? load(1, r1, D32T(4) | L1C_L3C,      A32,   temp)
+                    : load(8, r1, aligned_block_oword(1), A32NC, temp);
             } else {
                 mad<uint32_t>(1, temp[2], temp[2], temp.uw(0), uint16_t(3 * simdGRFs * grfSize));
-                load(8, r1, aligned_block_oword(simdGRFs * ((dims == 1) ? 1 : 2) * grfOW), A32NC, temp);
+                lsc ? load(1, r1, D32T(simdGRFs * ((dims == 1) ? 1 : 2) * grfOW * 4) | L1C_L3C,  A32,   temp)
+                    : load(8, r1, aligned_block_oword(simdGRFs * ((dims == 1) ? 1 : 2) * grfOW), A32NC, temp);
                 insns += 6;
                 if (dims == 3) {
                     add<uint32_t>(1, temp[2], temp[2], uint16_t(2 * simdGRFs * grfSize));
-                    load(8, GRF(1 + 2 * simdGRFs), aligned_block_oword(grfOW * simdGRFs), A32NC, temp);
+                    lsc ? load(1, GRF(1 + 2 * simdGRFs), D32T(grfOW * 4 * simdGRFs) | L1C_L3C,  A32,   temp)
+                        : load(8, GRF(1 + 2 * simdGRFs), aligned_block_oword(grfOW * simdGRFs), A32NC, temp);
                     insns += 2;
                 }
             }
@@ -504,19 +510,24 @@ void loadargs(const GRF &base, int argGRFs, const GRF &temp = GRF(127))
 {
     if (hardware >= HW::XeHP) {
         if (argGRFs > 0) {
+            bool lsc = (hardware >= HW::XeHPG);
+            auto tempAddr = temp[lsc ? 0 : 2];
             auto dst = base;
             auto dmSave = defaultModifier;
             defaultModifier |= NoMask | AutoSWSB;
 
-            mov<uint32_t>(8, temp, uint16_t(0));
-            and_<uint32_t>(1, temp[2], r0[0], uint32_t(~0x1F));
+            if (!lsc)
+                mov<uint32_t>(8, temp, uint16_t(0));
+            and_<uint32_t>(1, tempAddr, r0[0], uint32_t(~0x1F));
             while (argGRFs > 0) {
-                int nload = std::min(utils::rounddown_pow2(argGRFs), 4);
-                load(8, dst, aligned_block_oword(GRF::bytes(hardware) * nload / 16), A32NC, temp);
+                int nload = std::min(utils::rounddown_pow2(argGRFs), lsc ? 8 : 4);
+                int loadBytes = nload * GRF::bytes(hardware);
+                lsc ? load(1, dst, D64T(loadBytes >> 3) | L1C_L3C,      A32,   temp)
+                    : load(8, dst, aligned_block_oword(loadBytes >> 4), A32NC, temp);
                 argGRFs -= nload;
                 dst += nload;
                 if (argGRFs > 0)
-                    add<uint32_t>(1, temp[2], temp[2], uint32_t(GRF::bytes(hardware) * nload));
+                    add<uint32_t>(1, tempAddr, tempAddr, uint32_t(loadBytes));
             }
 
             defaultModifier = dmSave;

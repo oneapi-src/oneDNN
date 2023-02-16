@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -820,14 +820,18 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
             TernaryOperand12 o;
 
             switch (opNum) {
-                case -1:
-                    len = (rcount * decodeDPASTypecodeBytes12(ternary.dstType) + 3) >> 2;
+                case -1: {
+                    int typebytes = decodeDPASTypecodeBytes12(ternary.dstType);
+                    len = (rcount * typebytes + 3) >> 2;
                     o.bits = ternary.dst;
                     break;
-                case 0:
-                    len = (rcount * decodeDPASTypecodeBytes12(ternary.src0Type) + 3) >> 2;
+                }
+                case 0: {
+                    int typebytes = decodeDPASTypecodeBytes12(ternary.src0Type);
+                    len = (rcount * typebytes + 3) >> 2;
                     o.bits = ternary.src0;
                     break;
+                }
                 case 1:  len = sdepth; o.bits = ternary.src1; break;
                 case 2: {
                     if (op == Opcode::dpasw) rcount = (rcount + 1) >> 1;
@@ -975,7 +979,7 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
     }
 
     auto esize = 1 << ((hw >= HW::XeHPC) ? commonXeHPC.execSize : common.execSize);
-    rd.fixup(hw, esize, DataType::invalid, opNum < 0, 2);
+    rd.fixup(hw, esize, DataType::invalid, opNum, 2);
     region = DependencyRegion(hw, esize, rd);
     return true;
 }

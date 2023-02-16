@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,6 +55,7 @@ enum class ProductFamily : uint32_t {
     XE_HP_SDV = 1250,
     DG2 = 1270,
     PVC = 1271,
+    MTL = 1272,
 };
 
 typedef struct

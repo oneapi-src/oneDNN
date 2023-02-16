@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -322,7 +322,7 @@ inline GeneralizedPipe getPipe(HW hw, const Instruction &insn, bool checkOOO = t
     // Exception: if there are any long operands, it's a long pipe instruction.
     if (hw >= HW::XeHP) {
         auto dt = insn.dstTypecode();
-        unsigned lmask = (hw == HW::XeHPC) ? 0b1011 : 0b0011;   // Note: assumes PVC-XT
+        unsigned lmask = (hw >= HW::XeHPC) ? 0b1011 : 0b0011;   // Note: assumes PVC-XT
         if ((dt & lmask) == lmask)
             mask |= PipeMaskL;
         else if (dt & 8)

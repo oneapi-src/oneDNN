@@ -49,11 +49,15 @@ template <HW hw>
 class OpenCLCodeGenerator : public ELFCodeGenerator<hw>
 {
 public:
+    explicit OpenCLCodeGenerator(Product product_)  : ELFCodeGenerator<hw>(product_) {}
     explicit OpenCLCodeGenerator(int stepping_ = 0) : ELFCodeGenerator<hw>(stepping_) {}
 
     inline std::vector<uint8_t> getBinary(cl_context context, cl_device_id device, const std::string &options = "-cl-std=CL2.0");
     inline cl_kernel getKernel(cl_context context, cl_device_id device, const std::string &options = "-cl-std=CL2.0");
     static inline HW detectHW(cl_context context, cl_device_id device);
+    static inline void detectHWInfo(cl_context context, cl_device_id device, HW &outHW, Product &outProduct);
+
+    /* Deprecated. Use the Product-based API instead. */
     static inline void detectHWInfo(cl_context context, cl_device_id device, HW &outHW, int &outStepping);
 
 private:
@@ -220,9 +224,9 @@ template <HW hw>
 HW OpenCLCodeGenerator<hw>::detectHW(cl_context context, cl_device_id device)
 {
     HW outHW;
-    int outStepping;
+    Product outProduct;
 
-    detectHWInfo(context, device, outHW, outStepping);
+    detectHWInfo(context, device, outHW, outProduct);
 
     return outHW;
 }
@@ -230,12 +234,20 @@ HW OpenCLCodeGenerator<hw>::detectHW(cl_context context, cl_device_id device)
 template <HW hw>
 void OpenCLCodeGenerator<hw>::detectHWInfo(cl_context context, cl_device_id device, HW &outHW, int &outStepping)
 {
+    Product outProduct;
+    detectHWInfo(context, device, outHW, outProduct);
+    outStepping = outProduct.stepping;
+}
+
+template <HW hw>
+void OpenCLCodeGenerator<hw>::detectHWInfo(cl_context context, cl_device_id device, HW &outHW, Product &outProduct)
+{
     const char *dummyCL = "kernel void _ngen_hw_detect(){}";
     const char *dummyOptions = "";
 
     auto binary = detail::getOpenCLCProgramBinary(context, device, dummyCL, dummyOptions);
 
-    ELFCodeGenerator<hw>::getBinaryHWInfo(binary, outHW, outStepping);
+    ELFCodeGenerator<hw>::getBinaryHWInfo(binary, outHW, outProduct);
 }
 
 } /* namespace ngen */

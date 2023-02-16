@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 
 #include <cstdint>
+#include <cstring>
 #include <vector>
 #include <algorithm>
 #include <type_traits>
@@ -201,8 +202,8 @@ public:
 };
 #endif
 
-// Gen hardware generations.
-enum class HW {
+// Graphics core generations.
+enum class Core {
     Unknown,
     Gen9,
     Gen10,
@@ -210,9 +211,70 @@ enum class HW {
     XeLP,
     Gen12LP = XeLP,
     XeHP,
+    Gen12HP = XeHP,     /* Deprecated -- will be removed in the future */
     XeHPG,
+    Gen12p7 = XeHPG,    /* Deprecated -- will be removed in the future */
     XeHPC,
+    Gen12p8 = XeHPC,    /* Deprecated -- will be removed in the future */
 };
+
+typedef Core HW;
+
+// Product and product families. Only product families with major EU differences are listed specifically.
+// nGEN itself does not use this information currently, but users may query it
+//   from the OpenCLCodeGenerator/LevelZeroCodeGenerator classes.
+enum class ProductFamily : int {
+    Unknown,
+    GenericGen9,
+    GenericGen10,
+    GenericGen11,
+    GenericXeLP,
+    GenericGen12LP = GenericXeLP,
+    GenericXeHP,
+    GenericXeHPG,
+    DG2,
+    MTL,
+    GenericXeHPC,
+    PVC,
+};
+
+struct Product {
+    ProductFamily family;
+    int stepping;
+};
+
+static inline bool operator==(const Product &p1, const Product &p2) { return p1.family == p2.family && p1.stepping == p2.stepping; }
+static inline bool operator!=(const Product &p1, const Product &p2) { return !(p1 == p2); }
+static inline bool operator<(const Product &p1, const Product &p2) { return (p1.family < p2.family) || (p1.family == p2.family && p1.stepping < p2.stepping); }
+static inline bool operator>(const Product &p1, const Product &p2) { return p2 < p1; }
+static inline bool operator>=(const Product &p1, const Product &p2) { return !(p1 < p2); }
+static inline bool operator<=(const Product &p1, const Product &p2) { return !(p2 < p1); }
+
+static inline constexpr14 ProductFamily genericProductFamily(HW hw)
+{
+    switch (hw) {
+        case HW::Gen9:  return ProductFamily::GenericGen9;
+        case HW::Gen10: return ProductFamily::GenericGen10;
+        case HW::Gen11: return ProductFamily::GenericGen11;
+        case HW::XeLP:  return ProductFamily::GenericXeLP;
+        case HW::XeHP:  return ProductFamily::GenericXeHP;
+        case HW::XeHPG: return ProductFamily::GenericXeHPG;
+        case HW::XeHPC: return ProductFamily::GenericXeHPC;
+        default:        return ProductFamily::Unknown;
+    }
+}
+
+static inline constexpr14 Core getCore(ProductFamily family)
+{
+    if (family >= ProductFamily::GenericXeHPC) return Core::XeHPC;
+    if (family >= ProductFamily::GenericXeHPG) return Core::XeHPG;
+    if (family >= ProductFamily::GenericXeHP)  return Core::XeHP;
+    if (family >= ProductFamily::GenericXeLP)  return Core::XeLP;
+    if (family >= ProductFamily::GenericGen11) return Core::Gen11;
+    if (family >= ProductFamily::GenericGen10) return Core::Gen10;
+    if (family >= ProductFamily::GenericGen9)  return Core::Gen9;
+    return Core::Unknown;
+}
 
 // Stepping IDs.
 enum {
@@ -246,8 +308,8 @@ enum class DataType : uint8_t {
 #ifdef NGEN_ASM
 static inline std::ostream &operator<<(std::ostream &str, DataType type)
 {
-    static const char *names[32] = {"ud",   "d", "uw", "w", "ub", "b", "df", "f", "uq", "q", "hf", "bf", "bf8", "uv", "v", "vf",
-                                    "tf32", "",  "",   "",  "",   "",  "",   "",  "",   "",  "",   "",   "",    "",   "",  ""};
+    static const char *names[32] = {"ud",   "d",   "uw", "w", "ub", "b", "df", "f", "uq", "q", "hf", "bf", "bf8", "uv", "v", "vf",
+                                    "tf32", "",    "",   "",  "",   "",  "",   "",  "",   "",  "",   "",   "",    "",   "",  ""};
     str << names[static_cast<uint8_t>(type) & 0x1F];
     return str;
 }
@@ -321,6 +383,7 @@ static inline std::ostream &operator<<(std::ostream &str, MathFunction func)
 #endif
 
 static inline bool hasIEEEMacro(HW hw) {
+    if (hw == HW::Gen11) return false;
     if (hw == HW::Gen12LP) return false;
     if (hw == HW::XeHPG) return false;
     return true;
@@ -486,7 +549,7 @@ public:
     }
 
     /* for compatibility with RegData */
-    void fixup(HW hw, int execSize, DataType defaultType, bool isDest, int arity) {}
+    void fixup(HW hw, int execSize, DataType defaultType, int srcN, int arity) {}
     constexpr14 bool isScalar() const { return false; }
 
 #ifdef NGEN_ASM
@@ -560,7 +623,7 @@ public:
     void invalidate()                     { invalid = true; }
     RegData &operator=(const Invalid &i)  { this->invalidate(); return *this; }
 
-    inline void fixup(HW hw, int execSize, DataType defaultType, bool isDest, int arity);                    // Adjust automatically-computed strides given ESize.
+    inline void fixup(HW hw, int execSize, DataType defaultType, int srcN, int arity);                    // Adjust automatically-computed strides given ESize.
 
     constexpr RegData operator+() const { return *this; }
     constexpr14 RegData operator-() const {
@@ -584,7 +647,7 @@ public:
 static_assert(sizeof(RegData) == 8, "RegData structure is not laid out correctly in memory.");
 
 static inline bool operator==(const RegData &r1, const RegData &r2) {
-    return *((uint64_t *) &r1) == *((uint64_t *) &r2);
+    return !std::memcmp(&r1, &r2, sizeof(RegData));
 }
 
 static inline bool operator!=(const RegData &r1, const RegData &r2) {
@@ -597,7 +660,7 @@ inline RegData abs(const RegData &r)
     return result.setMods(1);
 }
 
-inline void RegData::fixup(HW hw, int execSize, DataType defaultType, bool isDest, int arity)
+inline void RegData::fixup(HW hw, int execSize, DataType defaultType, int srcN, int arity)
 {
 #ifdef NGEN_SAFE
     if (isInvalid()) throw invalid_object_exception();
@@ -618,7 +681,7 @@ inline void RegData::fixup(HW hw, int execSize, DataType defaultType, bool isDes
             int maxWidth = 32 / getBytes();
             width = (hs == 0) ? 1 : std::min<int>({int(maxWidth / hs), execSize, 16});
             vs = width * hs;
-            if (arity == 3 && hw >= HW::Gen12LP && vs == 2) {
+            if (arity == 3 && hw >= HW::Gen12LP && vs == 2 && srcN < 2) {
 #ifdef NGEN_SAFE
                 if (hs != 1) throw invalid_region_exception();
 #endif
@@ -626,6 +689,7 @@ inline void RegData::fixup(HW hw, int execSize, DataType defaultType, bool isDes
                 hs = 0;
             }
         }
+        bool isDest = srcN < 0;
         if (isDest && hs == 0)
             hs = 1;
     }
@@ -674,8 +738,8 @@ public:
     bool isValid()                        const { return !rd.isInvalid(); }
     constexpr bool isScalar()             const { return rd.isScalar(); }
 
-    void fixup(HW hw, int execSize, DataType defaultType, bool isDest, int arity) {
-        rd.fixup(hw, execSize, defaultType, isDest, arity);
+    void fixup(HW hw, int execSize, DataType defaultType, int srcN, int arity) {
+        rd.fixup(hw, execSize, defaultType, srcN, arity);
     }
 
 #ifdef NGEN_ASM
@@ -757,20 +821,20 @@ public:
 
     inline Subregister offset(int off) const { return reinterpret(off, getType()); }
 
-    Subregister uq(int offset = 0) const { return reinterpret(offset, DataType::uq); }
-    Subregister  q(int offset = 0) const { return reinterpret(offset, DataType::q);  }
-    Subregister ud(int offset = 0) const { return reinterpret(offset, DataType::ud); }
-    Subregister  d(int offset = 0) const { return reinterpret(offset, DataType::d);  }
-    Subregister uw(int offset = 0) const { return reinterpret(offset, DataType::uw); }
-    Subregister  w(int offset = 0) const { return reinterpret(offset, DataType::w);  }
-    Subregister ub(int offset = 0) const { return reinterpret(offset, DataType::ub); }
-    Subregister  b(int offset = 0) const { return reinterpret(offset, DataType::b);  }
-    Subregister df(int offset = 0) const { return reinterpret(offset, DataType::df); }
-    Subregister  f(int offset = 0) const { return reinterpret(offset, DataType::f);  }
-    Subregister hf(int offset = 0) const { return reinterpret(offset, DataType::hf); }
-    Subregister bf(int offset = 0) const { return reinterpret(offset, DataType::bf); }
+    Subregister   uq(int offset = 0) const { return reinterpret(offset, DataType::uq); }
+    Subregister    q(int offset = 0) const { return reinterpret(offset, DataType::q);  }
+    Subregister   ud(int offset = 0) const { return reinterpret(offset, DataType::ud); }
+    Subregister    d(int offset = 0) const { return reinterpret(offset, DataType::d);  }
+    Subregister   uw(int offset = 0) const { return reinterpret(offset, DataType::uw); }
+    Subregister    w(int offset = 0) const { return reinterpret(offset, DataType::w);  }
+    Subregister   ub(int offset = 0) const { return reinterpret(offset, DataType::ub); }
+    Subregister    b(int offset = 0) const { return reinterpret(offset, DataType::b);  }
+    Subregister   df(int offset = 0) const { return reinterpret(offset, DataType::df); }
+    Subregister    f(int offset = 0) const { return reinterpret(offset, DataType::f);  }
+    Subregister   hf(int offset = 0) const { return reinterpret(offset, DataType::hf); }
+    Subregister   bf(int offset = 0) const { return reinterpret(offset, DataType::bf); }
     Subregister tf32(int offset = 0) const { return reinterpret(offset, DataType::tf32); }
-    Subregister bf8(int offset = 0)  const { return reinterpret(offset, DataType::bf8); }
+    Subregister  bf8(int offset = 0) const { return reinterpret(offset, DataType::bf8); }
 };
 
 // Single register.
@@ -795,35 +859,35 @@ public:
     constexpr14 Register retype(DataType type_)         const { auto clone = *this; clone.setType(type_); return clone; }
     template <typename T> constexpr14 Register retype() const { return retype(getDataType<T>()); }
 
-    constexpr14 Subregister uq(int offset) const { return sub(offset, DataType::uq); }
-    constexpr14 Subregister  q(int offset) const { return sub(offset, DataType::q);  }
-    constexpr14 Subregister ud(int offset) const { return sub(offset, DataType::ud); }
-    constexpr14 Subregister  d(int offset) const { return sub(offset, DataType::d);  }
-    constexpr14 Subregister uw(int offset) const { return sub(offset, DataType::uw); }
-    constexpr14 Subregister  w(int offset) const { return sub(offset, DataType::w);  }
-    constexpr14 Subregister ub(int offset) const { return sub(offset, DataType::ub); }
-    constexpr14 Subregister  b(int offset) const { return sub(offset, DataType::b);  }
-    constexpr14 Subregister df(int offset) const { return sub(offset, DataType::df); }
-    constexpr14 Subregister  f(int offset) const { return sub(offset, DataType::f);  }
-    constexpr14 Subregister hf(int offset) const { return sub(offset, DataType::hf); }
-    constexpr14 Subregister bf(int offset) const { return sub(offset, DataType::bf); }
+    constexpr14 Subregister   uq(int offset) const { return sub(offset, DataType::uq); }
+    constexpr14 Subregister    q(int offset) const { return sub(offset, DataType::q);  }
+    constexpr14 Subregister   ud(int offset) const { return sub(offset, DataType::ud); }
+    constexpr14 Subregister    d(int offset) const { return sub(offset, DataType::d);  }
+    constexpr14 Subregister   uw(int offset) const { return sub(offset, DataType::uw); }
+    constexpr14 Subregister    w(int offset) const { return sub(offset, DataType::w);  }
+    constexpr14 Subregister   ub(int offset) const { return sub(offset, DataType::ub); }
+    constexpr14 Subregister    b(int offset) const { return sub(offset, DataType::b);  }
+    constexpr14 Subregister   df(int offset) const { return sub(offset, DataType::df); }
+    constexpr14 Subregister    f(int offset) const { return sub(offset, DataType::f);  }
+    constexpr14 Subregister   hf(int offset) const { return sub(offset, DataType::hf); }
+    constexpr14 Subregister   bf(int offset) const { return sub(offset, DataType::bf); }
     constexpr14 Subregister tf32(int offset) const { return sub(offset, DataType::tf32); }
-    constexpr14 Subregister bf8(int offset)  const { return sub(offset, DataType::bf8); }
+    constexpr14 Subregister  bf8(int offset) const { return sub(offset, DataType::bf8); }
 
-    constexpr14 Register uq() const { return retype(DataType::uq); }
-    constexpr14 Register  q() const { return retype(DataType::q);  }
-    constexpr14 Register ud() const { return retype(DataType::ud); }
-    constexpr14 Register  d() const { return retype(DataType::d);  }
-    constexpr14 Register uw() const { return retype(DataType::uw); }
-    constexpr14 Register  w() const { return retype(DataType::w);  }
-    constexpr14 Register ub() const { return retype(DataType::ub); }
-    constexpr14 Register  b() const { return retype(DataType::b);  }
-    constexpr14 Register df() const { return retype(DataType::df); }
-    constexpr14 Register  f() const { return retype(DataType::f);  }
-    constexpr14 Register hf() const { return retype(DataType::hf); }
-    constexpr14 Register bf() const { return retype(DataType::bf); }
+    constexpr14 Register   uq() const { return retype(DataType::uq); }
+    constexpr14 Register    q() const { return retype(DataType::q);  }
+    constexpr14 Register   ud() const { return retype(DataType::ud); }
+    constexpr14 Register    d() const { return retype(DataType::d);  }
+    constexpr14 Register   uw() const { return retype(DataType::uw); }
+    constexpr14 Register    w() const { return retype(DataType::w);  }
+    constexpr14 Register   ub() const { return retype(DataType::ub); }
+    constexpr14 Register    b() const { return retype(DataType::b);  }
+    constexpr14 Register   df() const { return retype(DataType::df); }
+    constexpr14 Register    f() const { return retype(DataType::f);  }
+    constexpr14 Register   hf() const { return retype(DataType::hf); }
+    constexpr14 Register   bf() const { return retype(DataType::bf); }
     constexpr14 Register tf32() const { return retype(DataType::tf32); }
-    constexpr14 Register bf8()  const { return retype(DataType::bf8); }
+    constexpr14 Register  bf8() const { return retype(DataType::bf8); }
 
     constexpr14 Subregister operator[](int offset) const { return sub(offset, getType()); }
 
@@ -847,35 +911,35 @@ public:
     constexpr14 GRF retype(DataType type_)              const { auto clone = *this; clone.setType(type_); return clone; }
     template <typename T> constexpr14 Register retype() const { return retype(getDataType<T>()); }
 
-    constexpr14 Subregister uq(int offset) const { return sub(offset, DataType::uq); }
-    constexpr14 Subregister  q(int offset) const { return sub(offset, DataType::q);  }
-    constexpr14 Subregister ud(int offset) const { return sub(offset, DataType::ud); }
-    constexpr14 Subregister  d(int offset) const { return sub(offset, DataType::d);  }
-    constexpr14 Subregister uw(int offset) const { return sub(offset, DataType::uw); }
-    constexpr14 Subregister  w(int offset) const { return sub(offset, DataType::w);  }
-    constexpr14 Subregister ub(int offset) const { return sub(offset, DataType::ub); }
-    constexpr14 Subregister  b(int offset) const { return sub(offset, DataType::b);  }
-    constexpr14 Subregister df(int offset) const { return sub(offset, DataType::df); }
-    constexpr14 Subregister  f(int offset) const { return sub(offset, DataType::f);  }
-    constexpr14 Subregister hf(int offset) const { return sub(offset, DataType::hf); }
-    constexpr14 Subregister bf(int offset) const { return sub(offset, DataType::bf); }
-    constexpr14 Subregister bf8(int offset)  const { return sub(offset, DataType::bf8); }
+    constexpr14 Subregister   uq(int offset) const { return sub(offset, DataType::uq); }
+    constexpr14 Subregister    q(int offset) const { return sub(offset, DataType::q);  }
+    constexpr14 Subregister   ud(int offset) const { return sub(offset, DataType::ud); }
+    constexpr14 Subregister    d(int offset) const { return sub(offset, DataType::d);  }
+    constexpr14 Subregister   uw(int offset) const { return sub(offset, DataType::uw); }
+    constexpr14 Subregister    w(int offset) const { return sub(offset, DataType::w);  }
+    constexpr14 Subregister   ub(int offset) const { return sub(offset, DataType::ub); }
+    constexpr14 Subregister    b(int offset) const { return sub(offset, DataType::b);  }
+    constexpr14 Subregister   df(int offset) const { return sub(offset, DataType::df); }
+    constexpr14 Subregister    f(int offset) const { return sub(offset, DataType::f);  }
+    constexpr14 Subregister   hf(int offset) const { return sub(offset, DataType::hf); }
+    constexpr14 Subregister   bf(int offset) const { return sub(offset, DataType::bf); }
     constexpr14 Subregister tf32(int offset) const { return sub(offset, DataType::tf32); }
+    constexpr14 Subregister  bf8(int offset) const { return sub(offset, DataType::bf8); }
 
-    constexpr14 GRF uq() const { return retype(DataType::uq); }
-    constexpr14 GRF  q() const { return retype(DataType::q);  }
-    constexpr14 GRF ud() const { return retype(DataType::ud); }
-    constexpr14 GRF  d() const { return retype(DataType::d);  }
-    constexpr14 GRF uw() const { return retype(DataType::uw); }
-    constexpr14 GRF  w() const { return retype(DataType::w);  }
-    constexpr14 GRF ub() const { return retype(DataType::ub); }
-    constexpr14 GRF  b() const { return retype(DataType::b);  }
-    constexpr14 GRF df() const { return retype(DataType::df); }
-    constexpr14 GRF  f() const { return retype(DataType::f);  }
-    constexpr14 GRF hf() const { return retype(DataType::hf); }
-    constexpr14 GRF bf() const { return retype(DataType::bf); }
-    constexpr14 GRF bf8()  const { return retype(DataType::bf8); }
+    constexpr14 GRF   uq() const { return retype(DataType::uq); }
+    constexpr14 GRF    q() const { return retype(DataType::q);  }
+    constexpr14 GRF   ud() const { return retype(DataType::ud); }
+    constexpr14 GRF    d() const { return retype(DataType::d);  }
+    constexpr14 GRF   uw() const { return retype(DataType::uw); }
+    constexpr14 GRF    w() const { return retype(DataType::w);  }
+    constexpr14 GRF   ub() const { return retype(DataType::ub); }
+    constexpr14 GRF    b() const { return retype(DataType::b);  }
+    constexpr14 GRF   df() const { return retype(DataType::df); }
+    constexpr14 GRF    f() const { return retype(DataType::f);  }
+    constexpr14 GRF   hf() const { return retype(DataType::hf); }
+    constexpr14 GRF   bf() const { return retype(DataType::bf); }
     constexpr14 GRF tf32() const { return retype(DataType::tf32); }
+    constexpr14 GRF  bf8() const { return retype(DataType::bf8); }
 
     Align16Operand swizzle(int s0, int s1, int s2, int s3)    const { return Align16Operand(*this, s0, s1, s2, s3); }
     Align16Operand enable(bool c0, bool c1, bool c2, bool c3) const { return Align16Operand(*this, (int(c3) << 3) | (int(c2) << 2) | (int(c1) << 1) | int(c0)); }
@@ -909,7 +973,7 @@ public:
     inline GRFDisp operator+(int offset) const;
     inline GRFDisp operator-(int offset) const;
 
-    static constexpr int log2Bytes(HW hw)                  { return (hw == HW::XeHPC) ? 6 : 5;  }
+    static constexpr int log2Bytes(HW hw)                  { return (hw >= HW::XeHPC) ? 6 : 5;  }
     static constexpr int bytes(HW hw)                      { return (1 << log2Bytes(hw)); }
     static constexpr int bytesToGRFs(HW hw, unsigned x)    { return (x + bytes(hw) - 1) >> log2Bytes(hw); }
 };
@@ -998,8 +1062,8 @@ public:
     constexpr ExtendedReg(RegData base_, uint8_t mmeNum_) : base(base_), mmeNum(mmeNum_) {}
     constexpr ExtendedReg(RegData base_, SpecialAccumulatorRegister acc) : base(base_), mmeNum(acc.getMME()) {}
 
-    void fixup(HW hw, int execSize, DataType defaultType, bool isDest, int arity) {
-        base.fixup(hw, execSize, defaultType, isDest, arity);
+    void fixup(HW hw, int execSize, DataType defaultType, int srcN, int arity) {
+        base.fixup(hw, execSize, defaultType, srcN, arity);
     }
 
     constexpr int getMods()         const { return base.getMods(); }
@@ -1050,7 +1114,7 @@ public:
     int index() const { return (getARFBase() << 1) + getOffset(); }
 
     static inline constexpr int count(HW hw) {
-        return (hw == HW::XeHPC) ? 4 : 2;
+        return (hw >= HW::XeHPC) ? 4 : 2;
     }
     static inline constexpr int subcount(HW hw) { return count(hw) * 2; }
 };
@@ -1216,7 +1280,7 @@ public:
 
     inline Subregister sub(HW hw, int offset, DataType type) const;
 
-    void fixup(HW hw, int execSize, DataType defaultType, bool isDest, int arity) {}
+    void fixup(HW hw, int execSize, DataType defaultType, int srcN, int arity) {}
 };
 
 static inline GRFRange operator-(const GRF &reg1, const GRF &reg2)
@@ -1936,7 +2000,7 @@ public:
         return Immediate(payload, DataType::vf);
     }
 
-    void fixup(HW hw, int execSize, DataType defaultType, bool isDest, int arity) const {
+    void fixup(HW hw, int execSize, DataType defaultType, int srcN, int arity) const {
 #ifdef NGEN_SAFE
         if (getBytes(type) > (16 >> arity))
             throw invalid_immediate_exception();
@@ -2237,8 +2301,13 @@ public:
     }
 };
 
+class hdc_base {
+protected:
+    void hwCheck(HW hw) const {
+    }
+};
 
-class block_hword {
+class block_hword : public hdc_base {
 protected:
     uint8_t count;
 
@@ -2247,6 +2316,8 @@ public:
 
     template <Access access> void getDescriptors(HW hw, const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc, const RegData &addr) const
     {
+        hwCheck(hw);
+
         int dataGRFCount = count;
         if (GRF::bytes(hw) == 64) dataGRFCount = (dataGRFCount + 1) >> 1;
 
@@ -2270,7 +2341,7 @@ public:
     }
 };
 
-class block_oword {
+class block_oword : public hdc_base {
 protected:
     uint8_t count;
     uint8_t highHalf;
@@ -2283,6 +2354,8 @@ public:
 
     template <Access access> void getDescriptors(HW hw, const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc, const RegData &addr) const
     {
+        hwCheck(hw);
+
         int dataGRFCount = (GRF::bytes(hw) == 64) ? (count + 3) >> 2 : (count + 1) >> 1;
 
         base.checkModel(ModelA32 | ModelA64 | ModelBTS | ModelCC | ModelSLM);
@@ -2304,7 +2377,7 @@ public:
     }
 };
 
-class aligned_block_oword {
+class aligned_block_oword : public hdc_base {
 protected:
     uint8_t count;
     uint8_t highHalf;
@@ -2317,6 +2390,8 @@ public:
 
     template <Access access> void getDescriptors(HW hw, const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc, const RegData &addr) const
     {
+        hwCheck(hw);
+
         int dataGRFCount = (GRF::bytes(hw) == 64) ? (count + 3) >> 2 : (count + 1) >> 1;
 
         base.checkModel(ModelA32 | ModelA64 | ModelBTS | ModelCC | ModelSLM | ModelSC);
@@ -2341,7 +2416,7 @@ public:
     }
 };
 
-class scattered_byte {
+class scattered_byte : public hdc_base {
 protected:
     uint8_t count;
 
@@ -2350,6 +2425,8 @@ public:
 
     template <Access access> void getDescriptors(HW hw, const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc, const RegData &addr) const
     {
+        hwCheck(hw);
+
         bool a64 = (base.getModel() == ModelA64);
         int simd16 = mod.getExecSize() >> 4;
         int dataGRFCount = 1 + simd16;
@@ -2385,7 +2462,7 @@ public:
     }
 };
 
-class scattered_atomic {
+class scattered_atomic : public hdc_base {
 public:
     void applyAtomicOp(AtomicOp op, const RegData &dst, MessageDescriptor &desc) const
     {
@@ -2398,6 +2475,8 @@ class scattered_word : public scattered_atomic {
 public:
     template <Access access> void getDescriptors(HW hw, const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc, const RegData &addr) const
     {
+        hwCheck(hw);
+
         bool a64 = (base.getModel() == ModelA64);
         int simd16 = mod.getExecSize() >> 4;
         int addrGRFCount = (1 + simd16) << int(a64);
@@ -2438,6 +2517,8 @@ public:
 
     template <Access access> void getDescriptors(HW hw, const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc, const RegData &addr) const
     {
+        hwCheck(hw);
+
         bool a64 = (base.getModel() == ModelA64);
         int simd16 = mod.getExecSize() >> 4;
         int addrGRFCount = (1 + simd16) << int(a64);
@@ -2488,6 +2569,8 @@ public:
 
     template <Access access> void getDescriptors(HW hw, const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc, const RegData &addr) const
     {
+        hwCheck(hw);
+
         bool a64 = (base.getModel() == ModelA64);
         int simd16 = mod.getExecSize() >> 4;
         int addrGRFCount = (1 + simd16) << int(a64);
@@ -2532,7 +2615,7 @@ public:
     }
 };
 
-class surface_dword {
+class surface_dword : public hdc_base {
 protected:
     ChannelMask cmask;
     bool structured;
@@ -2542,6 +2625,8 @@ public:
 
     template <Access access> void getDescriptors(HW hw, const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc, const RegData &addr) const
     {
+        hwCheck(hw);
+
         int simd16 = mod.getExecSize() >> 4;
         if (GRF::bytes(hw) == 64) simd16 = 1;
         int nChannels = utils::popcnt(0xF ^ static_cast<int8_t>(cmask));
@@ -2568,7 +2653,7 @@ public:
     }
 };
 
-class media_block {
+class media_block : public hdc_base {
 protected:
     bool vls_override;
     uint8_t vls_offset;
@@ -2584,6 +2669,8 @@ public:
 
     template <Access access> void getDescriptors(HW hw, const InstructionModifier &mod, AddressBase base, MessageDescriptor &desc, ExtendedMessageDescriptor &exdesc, const RegData &addr) const
     {
+        hwCheck(hw);
+
         exdesc = SharedFunction::dc1;
         desc.all = 0;
         desc.bti.index = base.getIndex();
