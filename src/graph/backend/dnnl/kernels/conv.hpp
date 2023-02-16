@@ -280,6 +280,7 @@ public:
             BACKEND_DNNL_ADD_PASS(
                     pipeline, fuse_post_typecast_to_matmul_or_conv);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_mul_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, convert_bias_to_f32);
             BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
         }
         BACKEND_DNNL_ADD_PASS(pipeline, check_with_bias);
@@ -289,7 +290,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, binary_broadcast_swap);
 
         if (quantized) {
-            BACKEND_DNNL_ADD_PASS(pipeline, convert_bias_to_f32);
             BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_zero_points);

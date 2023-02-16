@@ -91,6 +91,9 @@ public:
         pass_pipeline_t pipeline(vis);
 
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_bias_add);
+        // check if bias exists
+        BACKEND_DNNL_ADD_PASS(pipeline, check_with_bias);
 
         if (quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, lift_up_typecast);
@@ -100,11 +103,9 @@ public:
             BACKEND_DNNL_ADD_PASS(
                     pipeline, fuse_post_typecast_to_matmul_or_conv);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_mul_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, convert_bias_to_f32);
         }
 
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_bias_add);
-        // check if bias exists
-        BACKEND_DNNL_ADD_PASS(pipeline, check_with_bias);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_sigmoid_to_swish);
 
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
@@ -112,7 +113,6 @@ public:
 
         if (quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
-            BACKEND_DNNL_ADD_PASS(pipeline, convert_bias_to_f32);
             BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_zero_points);
