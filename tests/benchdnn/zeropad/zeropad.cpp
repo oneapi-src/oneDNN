@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,19 +85,17 @@ static int compare(const dnn_mem_t &test_mem, res_t *res) {
                         || (verbose >= 99);
                 if (dump) {
                     BENCHDNN_PRINT(0,
-                            "[%4ld][arg:%d]"
-                            "[" IFMT "," IFMT "," IFMT "," IFMT "," IFMT
+                            "[%4ld][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT
                             "," IFMT "] dt:% 9.6g \n",
-                            (long)idx, test_mem.dt(), pos[0], pos[1], pos[2],
-                            pos[3], pos[4], pos[5], test_mem.get_elem(idx));
+                            (long)idx, pos[0], pos[1], pos[2], pos[3], pos[4],
+                            pos[5], test_mem.get_elem(idx));
                     break;
                 }
             }
             increment(pos, idx, done, 0);
         }
 
-        BENCHDNN_PRINT(0, "@@@ [arg:%d] check_non_zeroed_elements failed\n",
-                test_mem.dt());
+        BENCHDNN_PRINT(0, "%s\n", "@@@ check_non_zeroed_elements failed");
         res->errors += errors;
     }
 
