@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
-* Copyright 2022 FUJITSU LIMITED
+* Copyright 2019-2023 Intel Corporation
+* Copyright 2022-2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,8 +20,9 @@
 
 #include "common/primitive.hpp"
 
-#include "cpu/aarch64/jit_uni_binary_kernel.hpp"
 #include "cpu/cpu_eltwise_pd.hpp"
+
+#include "cpu/aarch64/jit_uni_binary_kernel.hpp"
 
 namespace dnnl {
 namespace impl {
