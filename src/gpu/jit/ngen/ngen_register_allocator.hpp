@@ -35,7 +35,7 @@ struct Bundle {
     Bundle(int8_t bank_id_, int8_t bundle_id_) : bundle_id(bundle_id_), bank_id(bank_id_) {}
 
     // Number of bundles in each bank (per thread).
-    static constexpr int bundle_count(HW hw) {
+    static constexpr14 int bundle_count(HW hw) {
         if (hw >= HW::XeHP) return 16;
         if (hw == HW::Gen12LP) return 8;
         return 2;

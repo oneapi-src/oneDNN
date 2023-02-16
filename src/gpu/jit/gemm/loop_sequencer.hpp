@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -59,7 +59,9 @@ public:
         int period = 0; // # of loops between repetitions of the action.
         int phase = 0; // Action triggers when (loop #) mod period = phase.
         int duration
-                = 0; // Action only triggered if at least _duration_ loops remain (including current loop)
+                = 0; // Action only triggered if at least _duration_ loops remain (including current loop).
+        int rduration
+                = 0; // In reverse mode, action triggers at most _rduration_ loops after the trigger loop (inclusive).
         int lookahead
                 = 0; // Action will run _lookahead_ loops before trigger condition.
         int variants = 0; // # of variants of the action.
@@ -72,6 +74,7 @@ public:
             result.period |= req2.period;
             result.phase |= req2.phase;
             result.duration |= req2.duration;
+            result.rduration |= req2.rduration;
             result.lookahead |= req2.lookahead;
             result.variants |= req2.variants;
             result.checkType |= req2.checkType;
@@ -136,6 +139,7 @@ public:
         PhaseCooldown, // Cooldown after main loop.
         PhaseMainPathEnd, // End of main path.
         PhaseShortLoop, // Short loop, if not enough iterations for main loop.
+        PhaseShortLoopEnd, // End of short loop.
         PhaseRemainder, // Unified remainder loop.
         PhaseFullyUnrolled, // Fully unrolled loop sequence.
     };
@@ -154,11 +158,14 @@ public:
     void schedule_if(
             Requirements reqs, ActionFunc action, ActionCheckFunc check);
     void schedule_if(std::vector<CheckedItem> list);
+    void swapLast2();
     void analyze();
-    void materialize(int maxLoops = -1);
+    void materialize(int minLoops = 0, int maxLoops = -1);
 
     void setCallback(CallbackType type, Callback cb);
     void setRemainderHandling(RemainderHandling handling);
+    void setReverse(bool reverse_ = true) { reverse = reverse_; }
+    void counterIsMultipleOf(int align) { counterAlign = align; }
 
     int getUnroll() const;
     int getWarmup() const;
@@ -183,12 +190,15 @@ protected:
     int maxLookahead = 0;
     int minCooldown = 0;
     int warmup = 0;
+    int counterAlign = 1;
 
+    bool reverse = false;
     bool analyzed = false;
 
     void validate(std::vector<CheckedItem> &list);
     void callback(CallbackType type, int arg1, int arg2 = 0);
-    void run(int l, int guaranteedMin, int guaranteedMax = -1);
+    void run(int l, int guaranteedMin, int guaranteedMax = -1,
+            int alignOffset = 0);
     void closeChecks();
     bool precheck(int thresh);
     void resetActions();
@@ -218,6 +228,12 @@ static inline LoopSequencer::Requirements phase(int ph) {
 static inline LoopSequencer::Requirements duration(int dur) {
     LoopSequencer::Requirements result;
     result.duration = dur;
+    return result;
+}
+
+static inline LoopSequencer::Requirements rduration(int rdur) {
+    LoopSequencer::Requirements result;
+    result.rduration = rdur;
     return result;
 }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -59,6 +59,11 @@ void LoopSequencer::schedule_if(std::vector<CheckedItem> list) {
     }
 }
 
+void LoopSequencer::swapLast2() {
+    auto nActions = actions.size();
+    if (nActions >= 2) std::swap(actions[nActions - 2], actions[nActions - 1]);
+}
+
 void LoopSequencer::setCallback(CallbackType type, Callback cb) {
     callbacks[static_cast<size_t>(type)] = cb;
 }
@@ -96,7 +101,9 @@ void LoopSequencer::validate(std::vector<CheckedItem> &list) {
                     "Backup action's period must evenly divide main action's "
                     "period.");
         if (req.variants > 0) variants = lcm(variants, req.variants);
+        if (req.rduration == 0) req.rduration = req.period - req.phase;
         req.duration = std::max(req.duration, 1);
+        req.rduration = std::max(req.rduration, 1);
     }
 
     for (auto &action : list)
@@ -147,13 +154,14 @@ void LoopSequencer::analyze() {
                 headReq.lookahead - headReq.period + mphase + headReq.duration);
     }
 
-    minCooldown = ((minCooldown + unroll - 1) / unroll) * unroll;
+    minCooldown = align_up(minCooldown, unroll);
     warmup = maxLookahead;
+    counterAlign = gcd(counterAlign, unroll);
     analyzed = true;
 }
 
 // Sequence the loop.
-void LoopSequencer::materialize(int maxLoops) {
+void LoopSequencer::materialize(int minLoops, int maxLoops) {
     typedef CallbackType CT;
 
     analyze();
@@ -171,11 +179,16 @@ void LoopSequencer::materialize(int maxLoops) {
     if (maxLoops > 0) {
         // Special path: completely unroll loop, handling up to maxLoop iterations.
         callback(CT::NotifyPhase, PhaseFullyUnrolled);
-        int lMax = ((maxLoops + unroll - 1) / unroll) * unroll;
+        int lMax = align_up(maxLoops, unroll);
         for (int l = -warmup; l < lMax; l++)
-            run(l, 0, maxLoops);
+            run(l, minLoops, maxLoops);
         closeChecks();
     } else {
+        if (reverse)
+            throw std::runtime_error(
+                    "Maximum # of iterations must be specified for reverse "
+                    "loops.");
+
         // Main path check: main path requires >= minCooldown iterations.
         if (minCooldown > 0)
             callback(CT::JumpIfLT, minCooldown, labelShort = nextLabel++);
@@ -211,7 +224,7 @@ void LoopSequencer::materialize(int maxLoops) {
         callback(CT::NotifyPhase, PhaseCooldown);
         for (int l = 0;
                 l < (unifyRemainder ? minCooldown : minCooldown + unroll); l++)
-            run(l, minCooldown, minCooldown + unroll - 1);
+            run(l, minCooldown, minCooldown + unroll - 1, minCooldown);
         closeChecks();
 
         if (minCooldown > 1 && unifyRemainder)
@@ -256,6 +269,7 @@ void LoopSequencer::materialize(int maxLoops) {
             }
 
             closeChecks();
+            callback(CT::NotifyPhase, PhaseShortLoopEnd);
             callback(CT::JumpTarget, labelUnite);
         }
 
@@ -274,49 +288,73 @@ void LoopSequencer::materialize(int maxLoops) {
     nextLabel = 0;
 }
 
-void LoopSequencer::run(int l, int guaranteedMin, int guaranteedMax) {
+void LoopSequencer::run(
+        int l, int guaranteedMin, int guaranteedMax, int alignOffset) {
     typedef CallbackType CT;
+
+    auto alignCounter = [=](int i) {
+        return align_up(i - alignOffset, counterAlign) + alignOffset;
+    };
 
     for (auto &action : actions) {
         const auto &list = action.list;
 
         // Find the first item in the list that matches trigger criteria (if any) and run it.
-        for (size_t i = 0; i < list.size(); i++) {
+        bool lastToCheck = false;
+        for (size_t i = 0; i < list.size() && !lastToCheck; i++) {
             const auto &item = list[i];
             const auto &req = item.req;
             const auto &execute = item.action;
             const auto &check = item.check;
             int lTrigger = l + req.lookahead;
             int minLoops = lTrigger + req.duration;
-            bool lastResort = (i + 1 == list.size());
+            lastToCheck = (i + 1 == list.size());
 
             if (lTrigger < 0) break;
 
+            // Check if this action guaranteed to fire due to the alignment
+            //  of the counter.
+            bool assured
+                    = (counterAlign > 1) && (counterAlign % req.period == 0);
+            lastToCheck |= assured;
+
             if ((lTrigger + req.period) % req.period == req.phase) {
                 // Skip if this action can never be triggered.
-                if (guaranteedMax >= 0 && minLoops > guaranteedMax) continue;
+                if (guaranteedMax >= 0
+                        && alignCounter(minLoops) > guaranteedMax)
+                    continue;
 
                 // Skip if this action may not be triggered, and there's a backup plan.
-                if (minLoops > guaranteedMin && !lastResort) continue;
+                if (minLoops > guaranteedMin && !lastToCheck) continue;
 
                 // Skip if this action's trigger falls within an already-covered section of iteration space.
                 if (lTrigger < action.nextTrigger) continue;
 
                 // Check if this action has work to do.
-                Iteration iteration(lTrigger,
-                        std::max(0, guaranteedMin - lTrigger),
-                        currentBias - lTrigger);
+                int remaining = alignCounter(std::max(guaranteedMin,
+                                        assured ? minLoops : lTrigger))
+                        - lTrigger;
+                Iteration iteration(
+                        lTrigger, remaining, currentBias - lTrigger);
                 if (!check || check(iteration)) {
                     bool unconditional = (req.checkType == Unconditional);
                     bool optionalCheck = (req.checkType == OptionalCheck);
 
                     if (!optionalCheck) {
-                        // If no loop count check desired for this action, pretend it doesn't need any loops.
-                        if (unconditional) minLoops = 0;
+                        // Handle reverse loops.
+                        if (reverse)
+                            minLoops = std::max(guaranteedMax - lTrigger
+                                                       - req.rduration,
+                                               0)
+                                    + 1;
 
                         // Finish all active checks > minLoops.
                         // If minLoops not currently being checked, then add check.
-                        int thresh = minLoops;
+                        int thresh = alignCounter(minLoops);
+
+                        // If no loop count check desired for this action, pretend it doesn't need any loops.
+                        if (unconditional) minLoops = thresh = 0;
+
                         bool needCheck = precheck(thresh) & !unconditional;
 
                         if (guaranteedMin < minLoops && needCheck) {

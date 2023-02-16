@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -105,6 +105,16 @@ void getCaching(std::stringstream &s, MatrixAddressingStrategy &astrategy) {
     }
 }
 
+static void getTiling(std::stringstream &s, bool doR, bool doC,
+        MatrixAddressingStrategy &astrategy) {
+    if (s.peek() == '#') {
+        char eat;
+        int in;
+        if (doR) s >> eat >> in, astrategy.tileR = in;
+        if (doC) s >> eat >> in, astrategy.tileC = in;
+    }
+}
+
 void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
         GEMMStrategy &strategy) {
     std::stringstream s(str);
@@ -119,6 +129,7 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
     if (s.peek() == '/') s >> eat >> accessAUnaligned;
     s >> strategy.ka_load;
     if (s.peek() == '/') s >> eat >> strategy.ka_load_masked;
+    getTiling(s, true, false, strategy.A);
     if (s.peek() == 'x') s >> eat >> strategy.A_copies;
     getCaching(s, strategy.A);
     if (s.peek() == '+') {
@@ -136,6 +147,7 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
     if (s.peek() == '/') s >> eat >> accessBUnaligned;
     s >> strategy.kb_load;
     if (s.peek() == '/') s >> eat >> strategy.kb_load_masked;
+    getTiling(s, false, true, strategy.B);
     if (s.peek() == 'x') s >> eat >> strategy.B_copies;
     getCaching(s, strategy.B);
     if (s.peek() == '+') {
@@ -150,6 +162,7 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
         getCaching(s, strategy.B_prefetch);
     }
     s >> std::ws >> asC >> accessC;
+    getTiling(s, true, true, strategy.C);
     getCaching(s, strategy.C);
     if (s.peek() == '+') {
         strategy.prefetchC = 1;
@@ -233,12 +246,20 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             gotSR = true;
         } else if (mod == "br")
             strategy.block2DCRemainder = true;
+        else if (mod == "bf")
+            strategy.block2DCFull = strategy.block2DCRemainder = true;
         else if (mod == "ac")
             strategy.cAccumulators = true;
         else if (mod == "el")
             strategy.cLoadAhead = true;
         else if (mod == "di")
             strategy.delayABInc = true;
+        else if (mod == "bf")
+            strategy.loadBFirst = true;
+        else if (mod == "dm")
+            strategy.doubleMasking = true;
+        else if (mod == "kd")
+            strategy.kDescRem = true;
         else if (mod == "sc")
             strategy.splitCopy = true;
         else if (mod == "sm")
@@ -299,8 +320,6 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.reverse[LoopM] = true;
         else if (mod == "rn")
             strategy.reverse[LoopN] = true;
-        else if (mod == "ql")
-            strategy.skewLocalIDs = true;
         else if (mod == "kb") {
             strategy.kParallel = true;
             strategy.C.atomic = true;
@@ -311,8 +330,6 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.kParallelLocal = true;
         else if (mod == "au")
             strategy.C.atomic = true;
-        else if (mod == "xp")
-            strategy.xParallel = true;
         else if (mod == "ff")
             strategy.forceWGUpdate = WGFixed;
         else if (mod == "wg") {
@@ -337,6 +354,11 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.A_prefetch.prefetch = false;
             strategy.B_prefetch.prefetch = false;
             strategy.C_prefetch.prefetch = false;
+        } else if (mod == "nq") {
+            strategy.A.noExtraPad = strategy.A_prefetch.noExtraPad = true;
+            strategy.B.noExtraPad = strategy.B_prefetch.noExtraPad = true;
+            strategy.C.noExtraPad = strategy.C_prefetch.noExtraPad = true;
+            strategy.CO.noExtraPad = true;
         } else if (mod.length() >= 2) {
             if (mod.substr(0, 2) == "ms")
                 strategy.mSplitThresh = stoi(mod.substr(2));
@@ -353,6 +375,8 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             } else if (mod.substr(0, 2) == "sb") {
                 strategy.barrierFreq = stoi(mod.substr(2));
                 strategy.splitBarrier = true;
+            } else if (mod.substr(0, 2) == "ql") {
+                strategy.skewLocalIDs = true;
             } else
                 switch (mod[0]) {
                     case 'b':
@@ -482,6 +506,12 @@ void adjustStrategy(HW hw, const GEMMProblem &problem, GEMMStrategy &strategy) {
         if (isPacked(problem.B.layout))
             strategy.remHandling[LoopN] = RemainderHandling::Split;
     }
+
+    // Finally, no remainder handling needed for GEMV-type kernels.
+    if (strategy.unroll[LoopM] * strategy.wg[LoopM] == 1)
+        strategy.remHandling[LoopM] = RemainderHandling::Ignore;
+    if (strategy.unroll[LoopN] * strategy.wg[LoopN] == 1)
+        strategy.remHandling[LoopN] = RemainderHandling::Ignore;
 }
 
 } // namespace jit
