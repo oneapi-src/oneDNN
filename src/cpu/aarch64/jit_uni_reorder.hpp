@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
-* Copyright 2020-2022 FUJITSU LIMITED
+* Copyright 2018-2023 Intel Corporation
+* Copyright 2020-2023 FUJITSU LIMITED
 * Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -112,7 +112,8 @@ struct prb_t {
     node_t nodes[max_ndims];
     ptrdiff_t ioff;
     ptrdiff_t ooff;
-    scale_type_t scale_type;
+    scale_type_t src_scale_type;
+    scale_type_t dst_scale_type;
     float beta;
     int full_ndims;
     bool is_tail_present = false;
@@ -154,7 +155,8 @@ void prb_dump(const prb_t &p);
 struct call_param_t {
     const void *in = nullptr;
     void *out = nullptr;
-    const float *scale = nullptr;
+    const float *src_scales = nullptr;
+    const float *dst_scales = nullptr;
     int32_t src_zp = 0;
     int32_t dst_zp = 0;
     int32_t *compensation_scratch = nullptr;
@@ -221,12 +223,13 @@ struct jit_uni_reorder_t : public primitive_t {
         tr::kernel_t::desc_t ker_desc_;
         int nthr_;
         bool with_groups_ = false;
+        dim_t D_mask_ = 0;
 
         status_t init(
                 engine_t *engine, engine_t *src_engine, engine_t *dst_engine);
 
     private:
-        void init_scratchpad();
+        status_t init_scratchpad();
         static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
                 const primitive_attr_t *attr, engine_t *src_engine,
                 const memory_desc_t *src_md, engine_t *dst_engine,
@@ -241,23 +244,25 @@ struct jit_uni_reorder_t : public primitive_t {
     enum { ndims_driver_max = 4 };
 
 private:
-    void omp_driver_0d(int off, const char *in, char *out, const float *scale,
-            int src_zp, int dst_zp, int32_t *compensation_scratch) const;
+    void omp_driver_0d(int off, const char *in, char *out,
+            const float *src_scales, const float *dst_scales, int src_zp,
+            int dst_zp, int32_t *compensation_scratch) const;
     void omp_driver_1d(int ithr, int nthr, int off, const char *in, char *out,
-            const float *scale, int src_zp, int dst_zp,
-            int32_t *compensation_scratch) const;
+            const float *src_scales, const float *dst_scales, int src_zp,
+            int dst_zp, int32_t *compensation_scratch) const;
     void omp_driver_2d(int ithr, int nthr, int off, const char *in, char *out,
-            const float *scale, int src_zp, int dst_zp,
-            int32_t *compensation_scratch) const;
+            const float *src_scales, const float *dst_scales, int src_zp,
+            int dst_zp, int32_t *compensation_scratch) const;
     void omp_driver_3d(int ithr, int nthr, int off, const char *in, char *out,
-            const float *scale, int src_zp, int dst_zp,
-            int32_t *compensation_scratch) const;
+            const float *src_scales, const float *dst_scales, int src_zp,
+            int dst_zp, int32_t *compensation_scratch) const;
     void omp_driver_4d(int ithr, int nthr, int off, const char *in, char *out,
-            const float *scale, int src_zp, int dst_zp,
-            int32_t *compensation_scratch) const;
+            const float *src_scales, const float *dst_scales, int src_zp,
+            int dst_zp, int32_t *compensation_scratch) const;
 
-    void omp_driver(const char *in, char *out, const float *scale, int src_zp,
-            int dst_zp, const memory_tracking::grantor_t &scratchpad) const;
+    void omp_driver(const char *in, char *out, const float *src_scales,
+            const float *dst_scales, int src_zp, int dst_zp,
+            const memory_tracking::grantor_t &scratchpad) const;
 
     void fill_curr_data_chunks(const tr::prb_t &prb, const int off,
             const ptrdiff_t *omp_data_chunks, const int omp_ndims,

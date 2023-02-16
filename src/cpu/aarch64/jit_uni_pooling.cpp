@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
-* Copyright 2020-2022 FUJITSU LIMITED
+* Copyright 2017-2023 Intel Corporation
+* Copyright 2020-2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,7 +55,8 @@ struct trans_wrapper_t {
             prb.ndims = 2;
             prb.ioff = 0;
             prb.ooff = 0;
-            prb.scale_type = scale_type_t::NONE;
+            prb.src_scale_type = scale_type_t::NONE;
+            prb.dst_scale_type = scale_type_t::NONE;
             prb.beta = 0;
             prb.nodes[0].ss = prb.nodes[1].ss = 1;
 
@@ -101,7 +102,8 @@ struct trans_wrapper_t {
         auto call_ker = [&](tr::kernel_t &ker, dim_t inp_y, dim_t inp_x,
                                 dim_t out_y, dim_t out_x) {
             tr::call_param_t cp;
-            cp.scale = nullptr;
+            cp.src_scales = nullptr;
+            cp.dst_scales = nullptr;
 
             dim_t inp_off = (inp_y * inp_str_ + inp_x) * inp_dt_size_;
             dim_t out_off = (out_y * out_str_ + out_x) * out_dt_size_;
@@ -597,9 +599,9 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
                 const memory_desc_wrapper tmp_d
                         = memory_desc_wrapper(jpp.tmp_md);
                 // offset needs to be f32
-                const auto blk_off = d_type == data_type::bf16
-                        ? tmp_d.blk_off(n, c_off, oh) * 2
-                        : tmp_d.blk_off(n, c_off, oh);
+                const int dt_scale
+                        = sizeof(float) / types::data_type_size(d_type);
+                const auto blk_off = tmp_d.blk_off(n, c_off, oh) * dt_scale;
                 arg.dst_po_helper = static_cast<const void *>(&dst[blk_off]);
             }
         } else {
@@ -725,9 +727,9 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward_3d(const data_t *src,
                 const memory_desc_wrapper tmp_d
                         = memory_desc_wrapper(jpp.tmp_md);
                 // offset needs to be f32
-                const auto blk_off = d_type == data_type::bf16
-                        ? tmp_d.blk_off(n, c_off, od, oh) * 2
-                        : tmp_d.blk_off(n, c_off, od, oh);
+                const int dt_scale
+                        = sizeof(float) / types::data_type_size(d_type);
+                const auto blk_off = tmp_d.blk_off(n, c_off, od, oh) * dt_scale;
                 arg.dst_po_helper = static_cast<const void *>(&dst[blk_off]);
             }
         } else {
