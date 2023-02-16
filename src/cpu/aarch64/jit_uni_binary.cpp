@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
-* Copyright 2022 FUJITSU LIMITED
+* Copyright 2019-2023 Intel Corporation
+* Copyright 2022-2023 FUJITSU LIMITED
 * Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,8 +18,10 @@
 
 #include <functional>
 
-#include "cpu/aarch64/jit_uni_binary.hpp"
+#include "common/dnnl_thread.hpp"
 #include "cpu/cpu_primitive.hpp"
+
+#include "cpu/aarch64/jit_uni_binary.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -187,7 +189,7 @@ op_t jit_uni_binary_t::pd_t::get_op_type(const memory_desc_wrapper &src0_d) {
     const auto &strides = src0_d.blocking_desc().strides;
     const auto ndims = src0_d.ndims();
 
-    if (!src0_d.is_plain())
+    if (!src0_d.is_plain() && src0_d.blocking_desc().inner_idxs[0] == 1)
         return op_t::c_blocked;
     else if (strides[1] == 1)
         return op_t::n_spatial_c;
@@ -433,21 +435,19 @@ bool jit_uni_binary_t::post_ops_ok(const primitive_attr_t *attr,
         return false;
     };
     const auto is_binary = [&](int idx) { return p.entry_[idx].is_binary(); };
-    const auto is_binary_bf16 = [&](int idx) {
+    const auto is_binary_xf16 = [&](int idx) {
         return is_binary(idx)
-                && p.entry_[idx].binary.src1_desc.data_type == data_type::bf16;
+                && (p.entry_[idx].binary.src1_desc.data_type == data_type::bf16
+                        || p.entry_[idx].binary.src1_desc.data_type
+                                == data_type::f16);
     };
-    const bool is_sve = mayiuse(sve_128);
-    if (!is_sve) return false;
 
     const auto supported_strategies = get_supported_postops_bcast_strategies();
     for (int i = 0; i < p.len(); i++) {
-        if (is_binary_bf16(i)) return false;
+        if (is_binary_xf16(i)) return false;
         if (p.contain(primitive_kind::sum, i)) {
             if (p.entry_[i].sum.zero_point != 0) return false;
             if (src0_d.data_type() != dst_d.data_type()) return false;
-        } else if (!(is_eltwise(i) || is_binary(i))) {
-            return false;
         } else if (is_binary(i)) {
             const auto &post_ops_mem = p.entry_[i].binary.src1_desc;
             if (get_rhs_arg_broadcasting_strategy(
@@ -456,6 +456,8 @@ bool jit_uni_binary_t::post_ops_ok(const primitive_attr_t *attr,
                 const memory_desc_wrapper post_op_mem_d(post_ops_mem);
                 if (!post_op_mem_d.similar_to(dst_d, true, false)) return false;
             }
+        } else if (!is_eltwise(i)) {
+            return false;
         }
     }
 
@@ -520,7 +522,7 @@ binary_kernel_t *create_binary_kernel(
     } else {
         assert(!"unreachable");
     }
-
+    assert(!"Could not create binary kernel");
     return nullptr;
 }
 

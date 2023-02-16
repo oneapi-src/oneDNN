@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
-* Copyright 2022 FUJITSU LIMITED
+* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -179,9 +179,8 @@ void jit_uni_binary_kernel_t<isa>::apply_postops(int unroll, bool tail) {
         }
         postops_injector_->compute_vector_range(
                 1, unroll + vmm_start_idx_, rhs_arg_params);
-    } else {
+    } else
         postops_injector_->compute_vector_range(1, unroll + vmm_start_idx_);
-    }
 }
 
 template <cpu_isa_t isa>
@@ -199,11 +198,8 @@ void jit_uni_binary_kernel_t<isa>::load_kernel_params() {
 
     ldr(reg_src0_, ptr(reg_param_, PARAM_OFF(src0)));
     ldr(reg_src1_, ptr(reg_param_, PARAM_OFF(src1)));
-    mov(reg_offt_src0_, reg_src0_);
-    mov(reg_offt_src1_, reg_src1_);
     ldr(reg_dst_, ptr(reg_param_, PARAM_OFF(dst)));
     mov(reg_offt_dst_, reg_dst_);
-
     if (conf_.is_src_different_layouts) {
         ldr(X_DEFAULT_ADDR, Xbyak_aarch64::ptr(reg_param_, PARAM_OFF(indices)));
         ld1w(vmm_indices_.s, P_ALL_ONE / Xbyak_aarch64::T_z,
@@ -220,23 +216,23 @@ void jit_uni_binary_kernel_t<isa>::load_kernel_params() {
 
 template <cpu_isa_t isa>
 XReg jit_uni_binary_kernel_t<isa>::src0_ptr(size_t offt) {
-    add_imm(X_DEFAULT_ADDR, reg_offt_src0_, offt, X_TMP_0);
-    add(X_DEFAULT_ADDR, reg_src0_, X_DEFAULT_ADDR);
+    add(X_DEFAULT_ADDR, reg_src0_, reg_offt_src0_);
+    if (offt) add_imm(X_DEFAULT_ADDR, X_DEFAULT_ADDR, offt, X_TMP_0);
     return X_DEFAULT_ADDR;
 }
 
 template <cpu_isa_t isa>
 XReg jit_uni_binary_kernel_t<isa>::src1_ptr(size_t offt) {
-    add_imm(X_DEFAULT_ADDR, reg_offt_src1_, offt, X_TMP_0);
-    add(X_DEFAULT_ADDR, reg_src1_, X_DEFAULT_ADDR);
+    add(X_DEFAULT_ADDR, reg_src1_, reg_offt_src1_);
+    if (offt) add_imm(X_DEFAULT_ADDR, X_DEFAULT_ADDR, offt, X_TMP_0);
     return X_DEFAULT_ADDR;
 }
 
 template <cpu_isa_t isa>
 XReg jit_uni_binary_kernel_t<isa>::dst_ptr(size_t offt) {
     const XReg &reg_offt_dst = conf_.is_i8 ? reg_offt_dst_ : reg_offt_src0_;
-    add_imm(X_DEFAULT_ADDR, reg_offt_dst, offt, X_TMP_0);
-    add(X_DEFAULT_ADDR, reg_dst_, X_DEFAULT_ADDR);
+    add(X_DEFAULT_ADDR, reg_dst_, reg_offt_dst);
+    if (offt) add_imm(X_DEFAULT_ADDR, X_DEFAULT_ADDR, offt, X_TMP_0);
     return X_DEFAULT_ADDR;
 }
 
@@ -397,10 +393,9 @@ void jit_uni_binary_kernel_t<isa>::perform_op(
         uni_fmax(v0.s, v0.s, v1.s);
     else if (alg == binary_min)
         uni_fmin(v0.s, v0.s, v1.s);
-    else if (alg == binary_div) {
-        const Vmm v_dummy(DUMMY_IDX);
-        uni_fdiv(v0.s, v0.s, v1.s, v_dummy.s, P_ALL_ONE);
-    } else if (alg == binary_sub)
+    else if (alg == binary_div)
+        uni_fdiv(v0.s, v0.s, v1.s, ZRegS(DUMMY_IDX), P_ALL_ONE);
+    else if (alg == binary_sub)
         uni_fsub(v0.s, v0.s, v1.s);
     else if (cmp_op) {
         const unsigned int predicate = cmp_predicate(alg);
@@ -428,11 +423,9 @@ template <cpu_isa_t isa>
 void jit_uni_binary_kernel_t<isa>::compute_bcast(bool tail) {
     if (conf_.broadcast_src1_value) {
         if (conf_.is_i8) uni_clear(xreg_bcast_src1_);
-        int offt = 0;
-        io_.at(conf_.src1_type)->broadcast(src1_ptr(), offt, vreg_bcast_src1_);
+        io_.at(conf_.src1_type)->broadcast(src1_ptr(), 0, vreg_bcast_src1_);
     } else if (!conf_.is_i8 && offt_src1_ == 0) {
-        int offt = 0;
-        io_.at(conf_.src1_type)->load(src1_ptr(), offt, vreg_bcast_src1_, tail);
+        io_.at(conf_.src1_type)->load(src1_ptr(), 0, vreg_bcast_src1_, tail);
     }
 }
 
@@ -484,15 +477,72 @@ void jit_uni_binary_kernel_t<isa>::load_src1(
             mov(reg_reverse_src1_stride_range_, reg_src1_stride_range_);
         }
         L(src1_stride_range_not_exceed);
-    } else {
+    } else
         io_.at(conf_.src1_type)
                 ->load(src1_ptr(offt * types::data_type_size(conf_.src1_type)),
                         offt, vreg_src1, tail);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_binary_kernel_t<isa>::store(int unroll, bool tail) {
+    for (int i = 0; i < unroll; i++) {
+        const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
+        const int offt = simd_w_ * i;
+        const auto dt_size = types::data_type_size(conf_.dst_type);
+
+        if (is_tail_kernel_ && padding_tail_size_) {
+            // apply zero-padding
+            auto off_base = 0;
+            auto zero_pad_left = padding_tail_size_;
+
+            if (zero_pad_left >= simd_w_ - tail_size_) {
+                uni_clear(vreg_zero_);
+                movprfx(vreg_zero_.s, tail_opmask_ / T_m, vreg_tmp_src0.s);
+                io_.at(conf_.dst_type)
+                        ->store(vreg_zero_, dst_ptr(offt * dt_size), 0, false);
+                off_base = simd_w_ * dt_size;
+                zero_pad_left -= simd_w_ - tail_size_;
+            } else {
+                io_.at(conf_.dst_type)
+                        ->store(vreg_tmp_src0, dst_ptr(offt * dt_size), 0,
+                                true);
+                off_base = tail_size_ * dt_size;
+            }
+
+            if (zero_pad_left) {
+                const auto off_start = off_base;
+                const auto off_num
+                        = off_start + zero_pad_left * dt_size - off_start;
+                eor(X_TMP_4, X_TMP_4, X_TMP_4);
+                const auto &reg_ptr = dst_ptr(offt * dt_size + off_start);
+                int done = 0;
+                int residual = off_num;
+                while (residual > 0) {
+                    assert(done < 256);
+                    if (residual >= 8) {
+                        str(X_TMP_4, ptr(reg_ptr, done));
+                        done += 8;
+                    } else if (residual >= 4) {
+                        str(W_TMP_4, ptr(reg_ptr, done));
+                        done += 4;
+                    } else if (residual >= 2) {
+                        strh(W_TMP_4, ptr(reg_ptr, done));
+                        done += 2;
+                    } else if (off_num > 0) {
+                        strb(W_TMP_4, ptr(reg_ptr, done));
+                        done += 1;
+                    }
+                    residual = off_num - done;
+                }
+            }
+        } else
+            io_.at(conf_.dst_type)
+                    ->store(vreg_tmp_src0, dst_ptr(offt * dt_size), 0, tail);
     }
 }
 
 template <cpu_isa_t isa>
-void jit_uni_binary_kernel_t<isa>::compute_dst(int unroll, bool tail) {
+void jit_uni_binary_kernel_t<isa>::compute_dst_body(int unroll, bool tail) {
     for (int i = 0; i < unroll; i++) {
         const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
         const Vmm vreg_tmp = conf_.is_src_different_layouts
@@ -502,85 +552,22 @@ void jit_uni_binary_kernel_t<isa>::compute_dst(int unroll, bool tail) {
         const int offt = simd_w_ * i;
         io_.at(conf_.src0_type)
                 ->load(src0_ptr(offt * types::data_type_size(conf_.src0_type)),
-                        offt, vreg_tmp_src0, tail);
+                        0, vreg_tmp_src0, tail);
         if (offt_src1_) load_src1(vreg_tmp_src1, offt, tail);
 
         // avoid multiple multiplication on input scale for broadcasted vreg
         // not needed for different layouts
-        if (!conf_.is_src_different_layouts) {
-            uint8_t dstIdx = vreg_tmp.getIdx();
-            uint8_t srcIdx = vreg_tmp_src1.getIdx();
-            mov(ZRegD(dstIdx), ZRegD(srcIdx));
-        }
+        if (!conf_.is_src_different_layouts) mov(vreg_tmp.d, vreg_tmp_src1.d);
         perform_op(
                 vreg_tmp_src0, vreg_tmp, vreg_scales_src0_, vreg_scales_src1_);
     }
+}
+
+template <cpu_isa_t isa>
+void jit_uni_binary_kernel_t<isa>::compute_dst(int unroll, bool tail) {
+    compute_dst_body(unroll, tail);
     if (postops_injector_) apply_postops(unroll, tail);
-
-    for (int i = 0; i < unroll; i++) {
-        const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
-        const int offt = simd_w_ * i;
-        const auto dt_size = types::data_type_size(conf_.dst_type);
-
-        if (is_tail_kernel_ && padding_tail_size_) {
-            // apply zero-padding
-            Label end;
-            auto off_base = 0;
-            auto zero_pad_left = padding_tail_size_;
-
-            // inplace data is assumed to be zero-padded
-            cmp(reg_src0_, reg_dst_);
-            b(EQ, end);
-
-            if (zero_pad_left >= simd_w_ - tail_size_) {
-                uni_clear(vreg_zero_);
-                movprfx(vreg_zero_.s, tail_opmask_ / Xbyak_aarch64::T_m,
-                        vreg_tmp_src0.s);
-                io_.at(conf_.dst_type)
-                        ->store(vreg_zero_, dst_ptr(offt * dt_size), offt,
-                                false);
-                off_base = simd_w_ * dt_size;
-                zero_pad_left -= simd_w_ - tail_size_;
-            } else {
-                io_.at(conf_.dst_type)
-                        ->store(vreg_tmp_src0, dst_ptr(offt * dt_size), offt,
-                                true);
-                off_base = tail_size_ * dt_size;
-            }
-
-            if (zero_pad_left) {
-                const auto off_start = off_base;
-                const auto off_end = off_start + zero_pad_left * dt_size;
-                const int off_ = offt * dt_size + off_start;
-                int count_end = off_end - off_start;
-
-                for (int count = 0; count < count_end;) {
-                    const int off = off_ + count;
-                    if (count >= 8 && off % 8 == 0) {
-                        assert(off < (1 << 11));
-                        str(X_TMP_1, ptr(reg_offt_dst_, off));
-                        count += 8;
-                    } else if (count >= 4 && off % 4 == 0) {
-                        assert(off < (1 << 11));
-                        str(W_TMP_1, ptr(reg_offt_dst_, off));
-                        count += 4;
-                    } else if (count >= 2 && off % 2 == 0) {
-                        assert(off < (1 << 11));
-                        strh(W_TMP_1, ptr(reg_offt_dst_, off));
-                        count += 2;
-                    } else {
-                        assert(off < (1 << 11));
-                        strb(W_TMP_1, ptr(reg_offt_dst_, off));
-                        count += 1;
-                    }
-                }
-            }
-            L(end);
-        } else {
-            io_.at(conf_.dst_type)
-                    ->store(vreg_tmp_src0, dst_ptr(offt * dt_size), offt, tail);
-        }
-    }
+    store(unroll, tail);
 }
 
 template <cpu_isa_t isa>
@@ -596,9 +583,7 @@ void jit_uni_binary_kernel_t<isa>::forward() {
     // if outer dims tail, do it outside outer dims loop
     if (!is_src1_outer_dims_tail_) {
         if (conf_.is_i8) {
-
-            uint8_t idx = vreg_zero_.getIdx();
-            eor(ZRegD(idx), ZRegD(idx), ZRegD(idx));
+            uni_clear(ZReg(vreg_zero_.getIdx()));
             io_.init_saturate_f32({conf_.dst_type});
             eor(reg_offt_dst_, reg_offt_dst_,
                     reg_offt_dst_); // offt_dst to get addr of dst
@@ -620,15 +605,13 @@ void jit_uni_binary_kernel_t<isa>::forward() {
     const bool treat_each_compute_step_as_tail
             = !conf_.is_i8 && is_tail_kernel_ && tail_size_;
 
-    if (conf_.do_scale_src0) {
-        uni_broadcast(vreg_scales_src0_, reg_scales_src0_);
-    }
+    if (conf_.do_scale_src0)
+        ld1rw(vreg_scales_src0_.s, P_ALL_ONE / T_z, ptr(reg_scales_src0_));
     if (conf_.do_scale_src1) {
-        uni_broadcast(vreg_scales_src1_, reg_scales_src1_);
-        if (conf_.broadcast_src1_value || offt_src1_ == 0) {
+        ld1rw(vreg_scales_src1_.s, P_ALL_ONE / T_z, ptr(reg_scales_src1_));
+        if (conf_.broadcast_src1_value || offt_src1_ == 0)
             uni_fmul(vreg_bcast_src1_.s, vreg_bcast_src1_.s,
                     vreg_scales_src1_.s);
-        }
     }
 
     L(unroll_loop);
@@ -688,7 +671,7 @@ void jit_uni_binary_kernel_t<isa>::forward() {
 
     L(nelems_tail);
     {
-        cmp_imm(reg_reverse_spat_offt_, 1, X_TMP_0);
+        cmp(reg_reverse_spat_offt_, 1);
         b(LT, end);
 
         compute_dst(1, true);
@@ -716,8 +699,7 @@ void jit_uni_binary_kernel_t<isa>::forward_over_outer_dims() {
             = conf_.outer_dims * types::data_type_size(conf_.dst_type);
 
     if (conf_.is_i8) {
-        uint8_t idx = vreg_zero_.getIdx();
-        eor(ZRegD(idx), ZRegD(idx), ZRegD(idx));
+        uni_clear(ZReg(vreg_zero_.getIdx()));
         io_.init_saturate_f32({conf_.dst_type});
         eor(reg_offt_dst_, reg_offt_dst_,
                 reg_offt_dst_); // offt_dst to get addr of dst
