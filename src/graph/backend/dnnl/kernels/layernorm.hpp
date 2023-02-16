@@ -216,6 +216,7 @@ public:
         }
 
         for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
+            if (subgraph_->is_constant_[i]) continue;
             subgraph_->execs_[i]->execute(p_stream, res->get_exec_args()[i]);
         }
 
@@ -289,6 +290,7 @@ public:
         }
 
         for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
+            if (subgraph_->is_constant_[i]) continue;
             returned_event = subgraph_->execs_[i]->execute_sycl(
                     p_stream, res->get_exec_args()[i], deps);
             deps = {returned_event};
