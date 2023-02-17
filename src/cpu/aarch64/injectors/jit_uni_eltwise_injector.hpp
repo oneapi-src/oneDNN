@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
-* Copyright 2021-2022 FUJITSU LIMITED
+* Copyright 2019-2023 Intel Corporation
+* Copyright 2021-2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,14 +41,12 @@ struct static_params_t {
             Xbyak_aarch64::XReg x_table = Xbyak_aarch64::XReg(0),
             Xbyak_aarch64::PReg p_mask = Xbyak_aarch64::PReg(1),
             Xbyak_aarch64::PReg p_tmp0 = Xbyak_aarch64::PReg(4),
-            Xbyak_aarch64::PReg p_all = Xbyak_aarch64::PReg(7),
             bool is_fwd = true, bool use_dst = false, bool preserve_vmm = true,
             bool preserve_p_table = true)
         : save_state(save_state)
         , x_table(x_table)
         , p_mask(p_mask)
         , p_tmp0(p_tmp0)
-        , p_all(p_all)
         , is_fwd(is_fwd)
         , use_dst(use_dst)
         , preserve_vmm(preserve_vmm)
@@ -58,7 +56,6 @@ struct static_params_t {
     Xbyak_aarch64::XReg x_table;
     Xbyak_aarch64::PReg p_mask;
     Xbyak_aarch64::PReg p_tmp0;
-    Xbyak_aarch64::PReg p_all;
     bool is_fwd;
     bool use_dst;
     bool preserve_vmm;
@@ -104,7 +101,6 @@ struct jit_uni_eltwise_injector_f32 {
             Xbyak_aarch64::XReg x_table = Xbyak_aarch64::XReg(0),
             Xbyak_aarch64::PReg p_mask = Xbyak_aarch64::PReg(1),
             Xbyak_aarch64::PReg p_tmp0 = Xbyak_aarch64::PReg(4),
-            Xbyak_aarch64::PReg p_all = Xbyak_aarch64::PReg(7),
             bool is_fwd = true, bool use_dst = false, bool preserve_vmm = true,
             bool preserve_p_table = true)
         : alg_(alg)
@@ -116,7 +112,6 @@ struct jit_uni_eltwise_injector_f32 {
         , x_table(x_table)
         , p_mask(p_mask)
         , p_tmp0(p_tmp0)
-        , p_all(p_all)
         , is_fwd_(is_fwd)
         , use_dst_(use_dst)
         , preserve_vmm_(preserve_vmm)
@@ -132,13 +127,11 @@ struct jit_uni_eltwise_injector_f32 {
             Xbyak_aarch64::XReg x_table = Xbyak_aarch64::XReg(0),
             Xbyak_aarch64::PReg p_mask = Xbyak_aarch64::PReg(1),
             Xbyak_aarch64::PReg p_tmp0 = Xbyak_aarch64::PReg(4),
-            Xbyak_aarch64::PReg p_all = Xbyak_aarch64::PReg(7),
             bool is_fwd = true, bool use_dst = false, bool preserve_vmm = true,
             bool preserve_p_table = true)
         : jit_uni_eltwise_injector_f32(host, eltwise.alg, eltwise.alpha,
                 eltwise.beta, eltwise.scale, save_state, x_table, p_mask,
-                p_tmp0, p_all, is_fwd, use_dst, preserve_vmm,
-                preserve_p_table) {}
+                p_tmp0, is_fwd, use_dst, preserve_vmm, preserve_p_table) {}
 
     void compute_vector_range(size_t start_idx, size_t end_idx);
     void compute_vector_range(const injector_utils::vmm_index_set_t &vmm_idxs);
@@ -156,9 +149,10 @@ private:
 
     const bool save_state_;
     const Xbyak_aarch64::XReg x_table;
+    // 99 is dummy and must be replaced meaningfull value at runtime.
+    Xbyak_aarch64::PReg p_all = Xbyak_aarch64::PReg(99);
     const Xbyak_aarch64::PReg p_mask;
     const Xbyak_aarch64::PReg p_tmp0;
-    const Xbyak_aarch64::PReg p_all;
     const bool is_fwd_;
     const bool use_dst_;
     const bool preserve_vmm_;

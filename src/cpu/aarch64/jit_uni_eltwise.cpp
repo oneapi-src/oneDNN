@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2017-2022 Intel Corporation
-* Copyright 2021-2022 FUJITSU LIMITED
+* Copyright 2021-2023 FUJITSU LIMITED
 * Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -73,8 +73,8 @@ struct jit_uni_kernel_t : public jit_uni_eltwise_kernel {
         const bool save_state = is_fwd ? false : true;
         eltwise_injector_.reset(new jit_uni_eltwise_injector_f32<isa>(this,
                 desc.alg_kind, desc.alpha, desc.beta, 1.f, save_state,
-                reg_injector_table, injector_mask, injector_p_tmp0,
-                injector_p_all, is_fwd, pd_->use_dst()));
+                reg_injector_table, injector_mask, injector_p_tmp0, is_fwd,
+                pd_->use_dst()));
     }
 
     void generate() override {

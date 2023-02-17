@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
-* Copyright 2021-2022 FUJITSU LIMITED
+* Copyright 2019-2023 Intel Corporation
+* Copyright 2021-2023 FUJITSU LIMITED
 * Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -63,6 +63,7 @@ void jit_uni_eltwise_injector_f32<isa>::injector_preamble(
         const injector_utils::vmm_index_set_t &vmm_idxs) {
     using namespace alg_kind;
     using namespace Xbyak_aarch64::util;
+    p_all = h->P_ALL_ONE;
     preserved_vecs_count = 0;
     vecs_to_preserve = aux_vecs_count();
     const auto start_idx = *(vmm_idxs.begin());
@@ -93,8 +94,6 @@ void jit_uni_eltwise_injector_f32<isa>::injector_preamble(
             preserved_gpr_idxs[preserved_gprs_count++] = _idx;
     }
     assert(preserved_gprs_count == aux_gprs_count());
-
-    h->ptrue(p_all.b);
 
     if (save_state_) {
         const int reg_size = h->x0.getBit() / 8;
@@ -262,7 +261,6 @@ void jit_uni_eltwise_injector_f32<isa>::set_coef_to_regs() {
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::compute_cmp_mask(
         const TRegS &vmm_src, const TRegS &compare_operand, int cmp_predicate) {
-
     enum {
         EQ_OQ = 0,
         LT_OS = 1,
@@ -298,7 +296,7 @@ void jit_uni_eltwise_injector_f32<isa>::compute_cmp_mask(
         TRUE_US = 31,
     };
 
-    h->mov(PRegB(IDX(p_tmp0)), h->P_ALL_ONE / T_z, h->P_ALL_ONE.b);
+    h->mov(PRegB(IDX(p_tmp0)), p_all / T_z, p_all.b);
     switch (cmp_predicate) {
         case EQ_OQ:
             h->fcmeq(
