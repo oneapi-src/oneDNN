@@ -1896,7 +1896,11 @@ void init_slm(conv_config_t &cfg) {
         } else {
             // Double/triple SLM buffering is not supported when only one
             // matrix is SLM-buffered.
-            bufs = (enable_a == enable_b ? pref_bufs : 1);
+            // Limit the SLM buffer count to 1 in the presence of ZP, since
+            // for now the masks are otherwise computed for next iterations.
+            const bool use_pref_bufs = (enable_a == enable_b)
+                    && (!prb.zp_cfg.do_src_compensation);
+            bufs = (use_pref_bufs ? pref_bufs : 1);
             gmem_bufs = 1;
         }
     }
