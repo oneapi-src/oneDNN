@@ -1464,7 +1464,7 @@ private:
             scope.safeRelease(dummy);
 
             reorder_2d_impl_t r(hw_, src_tile_layout, dst_tile_layout);
-            if (r.tile().elems() < 16) break;
+            if (r.tile().elems() < 4) break;
 
             src_layout_.for_each_tile(
                     tile, [&](const std::vector<dim_t> &start) {
