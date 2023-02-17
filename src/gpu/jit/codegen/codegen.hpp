@@ -1155,9 +1155,11 @@ private:
             case op_kind_t::_prelu: {
                 int grf_size = ngen::GRF::bytes(hw);
                 int esize = mod.getExecSize();
-                int regs = utils::div_up(esize * int(sizeof(float)), grf_size);
+                int off = src0.reg_data().getByteOffset();
+                int regs = utils::div_up(
+                        esize * int(sizeof(float)) + off, grf_size);
                 auto temp = scope_.alloc_reg_buf_data(regs).format(
-                        0, ngen::DataType::f, esize);
+                        off, ngen::DataType::f, esize);
                 host_->emul(mod, temp, dst, src1);
                 host_->csel(mod | host_->le, dst.reg_data(), temp,
                         dst.reg_data(), dst.reg_data());
