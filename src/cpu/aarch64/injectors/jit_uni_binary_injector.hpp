@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
-* Copyright 2022 FUJITSU LIMITED
+* Copyright 2020-2023 Intel Corporation
+* Copyright 2022-2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -80,6 +80,8 @@ bool all_binary_postop_rhs_per_oc_broadcast(const post_ops_t &post_ops,
  * stored inside rhs_addr_reg.
  * @param rhs_helper_reg - gpr register used as helper for calculations during data
  * loading phase.
+ * @param rhs_addr_cache_reg - gpr register used for caching part of calculated
+ * offset, this register is always preserved.
  * @param preserve_gpr_helpers - determines whether gpr registers specified above
  * should be preserved (pushed to stack and poped back afterwords) between
  * compute_vector_range calls.
@@ -105,6 +107,7 @@ struct rhs_arg_static_params_t {
     rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
             const Xbyak_aarch64::XReg &rhs_addr_reg,
             const Xbyak_aarch64::XReg &rhs_helper_reg,
+            const Xbyak_aarch64::XReg &rhs_addr_cache_reg,
             bool preserve_gpr_helpers, bool preserve_vmm_helper,
             std::size_t abi_param_offset, const memory_desc_wrapper &dst_d,
             std::size_t tail_size = 0u,
@@ -112,6 +115,7 @@ struct rhs_arg_static_params_t {
     rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
             const Xbyak_aarch64::XReg &rhs_addr_reg,
             const Xbyak_aarch64::XReg &rhs_helper_reg,
+            const Xbyak_aarch64::XReg &rhs_addr_cache_reg,
             bool preserve_gpr_helpers, bool preserve_vmm_helper,
             std::size_t abi_param_offset, std::size_t dst_orig_offset,
             const memory_desc_wrapper &dst_d, std::size_t tail_size = 0u,
@@ -119,6 +123,7 @@ struct rhs_arg_static_params_t {
     rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
             const Xbyak_aarch64::XReg &rhs_addr_reg,
             const Xbyak_aarch64::XReg &rhs_helper_reg,
+            const Xbyak_aarch64::XReg &rhs_addr_cache_reg,
             bool preserve_gpr_helpers, bool preserve_vmm_helper,
             std::size_t abi_param_offset, const memory_desc_wrapper &dst_d,
             std::size_t tail_size, const Xbyak_aarch64::PReg &tail_opmask,
@@ -126,6 +131,7 @@ struct rhs_arg_static_params_t {
     rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
             const Xbyak_aarch64::XReg &rhs_addr_reg,
             const Xbyak_aarch64::XReg &rhs_helper_reg,
+            const Xbyak_aarch64::XReg &rhs_addr_cache_reg,
             bool preserve_gpr_helpers, bool preserve_vmm_helper,
             std::size_t abi_param_offset, std::size_t dst_orig_offset,
             const memory_desc_wrapper &dst_d, std::size_t tail_size,
@@ -134,6 +140,7 @@ struct rhs_arg_static_params_t {
     rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
             const Xbyak_aarch64::XReg &rhs_addr_reg,
             const Xbyak_aarch64::XReg &rhs_helper_reg,
+            const Xbyak_aarch64::XReg &rhs_addr_cache_reg,
             bool preserve_gpr_helpers, bool preserve_vmm_helper,
             std::size_t abi_param_offset, const memory_desc_wrapper &dst_d,
             std::size_t tail_size, const Xbyak_aarch64::PReg &tail_opmask,
@@ -142,6 +149,7 @@ struct rhs_arg_static_params_t {
     rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
             const Xbyak_aarch64::XReg &rhs_addr_reg,
             const Xbyak_aarch64::XReg &rhs_helper_reg,
+            const Xbyak_aarch64::XReg &rhs_addr_cache_reg,
             bool preserve_gpr_helpers, bool preserve_vmm_helper,
             std::size_t abi_param_offset, std::size_t dst_orig_offset,
             const memory_desc_wrapper &dst_d, std::size_t tail_size,
@@ -155,6 +163,7 @@ struct rhs_arg_static_params_t {
     mutable std::size_t rhs_dt_helper_vmm_idx;
     Xbyak_aarch64::XReg rhs_addr_reg;
     Xbyak_aarch64::XReg rhs_helper_reg;
+    Xbyak_aarch64::XReg rhs_addr_cache_reg;
     bool preserve_gpr_helpers;
     bool preserve_vmm_helper;
     std::size_t abi_param_offset;
@@ -170,6 +179,7 @@ private:
     rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
             const Xbyak_aarch64::XReg &rhs_addr_reg,
             const Xbyak_aarch64::XReg &rhs_helper_reg,
+            const Xbyak_aarch64::XReg &rhs_addr_cache_reg,
             bool preserve_gpr_helpers, bool preserve_vmm_helper,
             std::size_t abi_param_offset, std::size_t dst_orig_offset,
             const memory_desc_wrapper &dst_d, std::size_t tail_size,
