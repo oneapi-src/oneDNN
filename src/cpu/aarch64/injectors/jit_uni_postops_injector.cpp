@@ -60,10 +60,11 @@ jit_uni_postops_injector_t<isa>::jit_uni_postops_injector_t(jit_generator *host,
     bool is_binary = false;
     bool is_eltwise = false;
 
-    for (const auto &post_op : post_ops.entry_) {
+    for (int i = 0; i < post_ops.len(); i++) {
+        const auto &post_op = post_ops.entry_[i];
         if (post_op.is_eltwise()) {
             is_eltwise = true;
-            alg_to_eltwise_injector_.emplace(post_op.eltwise.alg,
+            alg_to_eltwise_injector_.emplace(i,
                     jit_uni_eltwise_injector_f32<isa>(host_, post_op.eltwise,
                             esp.save_state, esp.x_table, esp.p_mask, esp.p_tmp0,
                             esp.is_fwd, esp.use_dst));
@@ -133,10 +134,10 @@ void jit_uni_postops_injector_t<isa>::compute_vector_range(
         const binary_injector::rhs_arg_dynamic_params_t &rhs_arg_params) {
 
     std::size_t rhs_arg_idx = 0;
-    for (const auto &post_op : post_ops_.entry_) {
+    for (int i = 0; i < post_ops_.len(); i++) {
+        const auto &post_op = post_ops_.entry_[i];
         if (post_op.is_eltwise()) {
-            alg_to_eltwise_injector_.at(post_op.eltwise.alg)
-                    .compute_vector_range(vmm_idxs);
+            alg_to_eltwise_injector_.at(i).compute_vector_range(vmm_idxs);
         } else if (post_op.is_binary()) {
             binary_injector_->compute_vector_range(
                     vmm_idxs, rhs_arg_idx, post_op, rhs_arg_params);
