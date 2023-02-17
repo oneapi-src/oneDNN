@@ -263,9 +263,10 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                     + get_blk_off(src_d, jbgp.src_dt, n,
                             ic + ic_block * jbgp.ic_block);
             const int ic_curr = ic + jbgp.K * gemm_batch;
+            const dims_t aux_wei_dims = {oc, ic_curr, 0, 0, 0};
             addr_batch[0].ptr.B = weights
                     + types::data_type_size(jbgp.wei_dt)
-                            * weights_d.off(oc, ic_curr);
+                            * weights_d.off_v(aux_wei_dims);
 
             auto brg_kernel_ic_tail = brg_kernels_[brg_ker_ic_tail_idx].get();
             auto ptr_D = dst + dst_off;
