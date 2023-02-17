@@ -17,6 +17,7 @@
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_PASS_DEPENDENCY_ANALYZER_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_PASS_DEPENDENCY_ANALYZER_HPP
 
+#include <memory>
 #include "../function_pass.hpp"
 #include <util/weakptr_utils.hpp>
 
@@ -26,7 +27,6 @@ namespace graph {
 namespace gc {
 
 namespace dependency_analysis {
-constexpr const char *attr_key = "ir_analysis.dependency";
 // if a tensor is directly accessed (take pointer of a tensor)
 constexpr const char *attr_directly_accessed = "ir_analysis.directly_accessed";
 // std::weak_ptr cannot be hashed. Use a trick to bypass it
@@ -34,15 +34,16 @@ using stmt_weak_set = utils::weakptr_hashset_t<stmt_base_t>;
 struct dependency_t {
     stmt_weak_set depends_on_;
     stmt_weak_set depended_by_;
+    std::weak_ptr<stmt_base_t> indexing_owner_;
     dependency_t() = default;
 };
 
-dependency_t &get_dep_info(const stmt_base_t *s);
+dependency_t &get_dep_info(const node_base *s);
 } // namespace dependency_analysis
 
 /**
  * Mark the dependency graph. Will attach a dependency_analyzer_t::dependency_t
- * on the attr of each stmt with key = dependency_analyzer_t::attr_key
+ * on the temp_data
  * */
 class dependency_analyzer_t : public function_pass_t {
 public:

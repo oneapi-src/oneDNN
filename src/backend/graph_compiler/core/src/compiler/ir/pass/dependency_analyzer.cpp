@@ -37,16 +37,13 @@ namespace gc {
 
 using namespace dependency_analysis;
 namespace dependency_analysis {
-dependency_t &get_dep_info(const stmt_base_t *s) {
-    return s->attr_->get<dependency_t>(attr_key);
+dependency_t &get_dep_info(const node_base *s) {
+    return s->temp_data().get<dependency_t>();
 }
 } // namespace dependency_analysis
 
-constexpr const char *attr_owner_stmt = "ir_analysis.dep.stmtowner";
-
 static stmt_base_t *get_indexing_owner(const expr_c &access) {
-    auto ret = access->attr_->get<std::weak_ptr<stmt_base_t>>(attr_owner_stmt)
-                       .lock();
+    auto ret = get_dep_info(access.get()).indexing_owner_.lock();
     assert(ret);
     return ret.get();
 }
@@ -82,6 +79,7 @@ public:
     std::unordered_map<expr_c, std::unordered_set<expr_c>> tsr_accesses_in_loop;
     // tensor => the set of indexing on the tensor outside of any loops
     std::unordered_map<expr_c, std::unordered_set<expr_c>> tsr_accesses;
+    for_loop_c cur_loop_;
     int loop_depth = 0;
     int if_depth = 0;
 
@@ -118,8 +116,8 @@ public:
         for (unsigned i = 0; i < v1->idx_.size(); i++) {
             if (!cmper.compare(v1->idx_[i], v2->idx_[i])) { return false; }
         }
-        return v1->attr_->get<dependency_t>(attr_key).depends_on_
-                == v2->attr_->get<dependency_t>(attr_key).depends_on_;
+        return get_dep_info(v1.get()).depends_on_
+                == get_dep_info(v2.get()).depends_on_;
     }
 
     // returns true when two indices can be proven not the same
@@ -178,7 +176,7 @@ public:
                         add_to_dependency(
                                 cur_stmt.remove_const().get(), other_owner);
                         auto def_loop_depth = tsr_defined_loop_depth[tsr];
-                        /* if the tensor is defined in an outer loop, lile
+                        /* if the tensor is defined in an outer loop, like
                         tensor A[100]
                         for(i,...) {
                             for(j,...) {
@@ -188,8 +186,20 @@ public:
                         }
 
                         We cannot remove the write to A[i]
+
+                        Another case is that the indexing does not depend on the
+                        loop:
+                        tensor A[100]
+                        for(j,...) {
+                            t=A[0]
+                            A[0]=t+1
+                        }
                         */
-                        if (loop_depth > 0 && def_loop_depth < loop_depth - 1) {
+                        if (loop_depth > 0
+                                && (def_loop_depth < loop_depth - 1
+                                        || !get_dep_info(v.get())
+                                                    .depends_on_.has(
+                                                            cur_loop_.impl))) {
                             add_to_dependency(
                                     other_owner, cur_stmt.remove_const().get());
                         }
@@ -233,11 +243,10 @@ public:
 
     void view(indexing_c v) override {
         auto old_cur_dep = cur_dep;
-        any_t &dep_val = v.remove_const()->attr()[attr_key];
+        any_t &dep_val = v->temp_data();
         dep_val = dependency_t();
         cur_dep = &dep_val.get<dependency_t>();
-        std::weak_ptr<stmt_base_t> owner = cur_stmt.impl;
-        v->attr_->set(attr_owner_stmt, owner);
+        cur_dep->indexing_owner_ = cur_stmt.impl;
 
         // ir_viewer_t::view(v);
         // dispatch sub nodes without dispatching on the base tensor
@@ -296,7 +305,12 @@ public:
     }
     void view(for_loop_c v) override {
         loop_depth++;
+        for_loop_c old_loop = std::move(cur_loop_);
+        cur_loop_ = v;
+        update_var(v->var_, v);
         ir_viewer_t::view(v);
+        state_stack.back().var_last_update.erase(v->var_);
+        cur_loop_ = std::move(old_loop);
         loop_depth--;
         if (loop_depth == 0) { tsr_accesses_in_loop.clear(); }
     }
@@ -305,7 +319,7 @@ public:
         auto old_cur_stmt = cur_stmt;
         auto old_cur_dep = cur_dep;
         cur_stmt = v;
-        any_t &dep_val = v.remove_const()->attr()[attr_key];
+        any_t &dep_val = v->temp_data();
         dep_val = dependency_t();
         cur_dep = &dep_val.get<dependency_t>();
 
