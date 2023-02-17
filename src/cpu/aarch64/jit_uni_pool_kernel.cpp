@@ -1,7 +1,7 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 * Copyright 2018 YANDEX LLC
-* Copyright 2020-2022 FUJITSU LIMITED
+* Copyright 2020-2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ jit_uni_pool_kernel<isa>::jit_uni_pool_kernel(
 
         const binary_injector::rhs_arg_static_params_t rhs_sp {
                 static_cast<std::size_t>(this->v4.getIdx()), this->x14,
-                this->x15, preserve_gpr, preserve_vmm,
+                this->x15, this->x13, preserve_gpr, preserve_vmm,
                 GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
                 memory_desc_wrapper(jpp.tag_kind == jit_memory_tag_kind_t::ncsp
                                 ? jpp.tmp_md
