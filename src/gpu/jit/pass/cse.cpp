@@ -335,7 +335,7 @@ public:
 
     void add_usage(
             const expr_t &e, const ir_path_t &path, bool do_increment = true) {
-        return find_cse_expr(e).add_usage(path, do_increment);
+        find_cse_expr(e).add_usage(path, do_increment);
     }
 
     void update_expr(const expr_t &old_expr, const expr_t &new_expr) {
