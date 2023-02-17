@@ -317,19 +317,13 @@ protected:
         assert(hint_fwd ? hint_fwd->kind() == pd_t::base_pkind : true);
         auto hint
                 = reinterpret_cast<const typename pd_t::hint_class *>(hint_fwd);
-        auto _pd = new pd_t((const pd_op_desc_t *)adesc, attr, hint);
+        auto _pd = std::unique_ptr<pd_t>(
+                new pd_t((const pd_op_desc_t *)adesc, attr, hint));
         if (_pd == nullptr) return out_of_memory;
-        if (!_pd->is_initialized()) {
-            delete _pd;
-            return out_of_memory;
-        }
-        if (_pd->init(engine) != success) {
-            delete _pd;
-            return unimplemented;
-        }
-
+        if (!_pd->is_initialized()) { return out_of_memory; }
+        CHECK(_pd->init(engine));
         CHECK(_pd->init_scratchpad_md());
-        *pd = _pd;
+        *pd = _pd.release();
         return success;
     }
 

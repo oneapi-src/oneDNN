@@ -134,16 +134,12 @@ status_t brgemm_matmul_matrix_B_reorder_t::pd_t::create(
         const memory_desc_t *dst_md) {
     using namespace status;
 
-    auto _pd = new pd_t(
-            attr, src_engine->kind(), src_md, dst_engine->kind(), dst_md);
+    auto _pd = std::unique_ptr<pd_t>(new pd_t(
+            attr, src_engine->kind(), src_md, dst_engine->kind(), dst_md));
     if (_pd == nullptr) return out_of_memory;
-    if (_pd->init(engine, src_engine, dst_engine) != success) {
-        delete _pd;
-        return unimplemented;
-    }
-
+    CHECK(_pd->init(engine, src_engine, dst_engine));
     CHECK(_pd->init_scratchpad_md());
-    return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
+    return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd.release());
 }
 
 status_t brgemm_matmul_matrix_B_reorder_t::execute_body(
