@@ -34,7 +34,7 @@
 #define OFF2(i0, d0, i1, d1) ((i0) * (d1) + (i1))
 
 #define elemwise_sig(f) \
-    void f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
+    status_t f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
             int batch, const memory_storage_t &workspace, \
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_diff_states, \
@@ -42,7 +42,7 @@
             const memory_storage_t *tm_scales) const
 
 #define elemwise_sig_gru_lbr(f) \
-    void f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
+    status_t f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
             int batch, const memory_storage_t &workspace, \
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_cell, \
@@ -51,7 +51,7 @@
             const
 
 #define elemwise_sig_gru(f) \
-    void f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
+    status_t f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
             int batch, const memory_storage_t &workspace, \
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_cell, \
@@ -61,7 +61,7 @@
             int part) const
 
 #define cell_execution_sig(f) \
-    void f(engine_t *engine, const exec_ctx_t &ctx, int dir, int lay, \
+    status_t f(engine_t *engine, const exec_ctx_t &ctx, int dir, int lay, \
             int iter, size_t *wei_layer_offset, size_t *wei_iter_offset, \
             const memory_storage_t &bias, const memory_storage_t &workspace, \
             const memory_storage_t &scratch_gates, \
@@ -90,8 +90,9 @@
             const memory_storage_t *tm_scales) const
 
 #define gemm_sig(f) \
-    void f(engine_t *engine, const exec_ctx_t &ctx, const memory_storage_t &a, \
-            size_t off_a, const memory_storage_t &b, size_t off_b, \
+    status_t f(engine_t *engine, const exec_ctx_t &ctx, \
+            const memory_storage_t &a, size_t off_a, \
+            const memory_storage_t &b, size_t off_b, \
             const memory_storage_t &c, size_t off_c, gemm_kind_t gemm_kind) \
             const
 

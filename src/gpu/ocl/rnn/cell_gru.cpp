@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -48,29 +48,29 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
     if (aprop == prop_kind::forward) {
         // 1. gemm Wx[0-2],x
         if (!rnn.merge_gemm_layer)
-            gemm_primitive(engine, ctx, wei_layer, wei_layer_offset[0],
+            CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset[0],
                     workspace, cell_ws_lay_offset, scratch_gates,
-                    cell_scratch_offset, gemm_layer_fwd);
+                    cell_scratch_offset, gemm_layer_fwd));
 
         // 2. gemm Wh[0-1],h
-        gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset, workspace,
-                cell_ws_iter_offset, scratch_gates, cell_scratch_offset,
-                gemm_iter_fwd);
+        CHECK(gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
+                workspace, cell_ws_iter_offset, scratch_gates,
+                cell_scratch_offset, gemm_iter_fwd));
 
         // 3. activation zt and rt + elemwise multiplication rt,ht-1
-        (this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
-                scratch_gates, scratch_cell, scratch_diff_states, scratch_dhG1,
-                bias, tm_scales, PART_ONE);
+        CHECK((this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
+                workspace, scratch_gates, scratch_cell, scratch_diff_states,
+                scratch_dhG1, bias, tm_scales, PART_ONE));
 
         // 4. gemm Wh[2],h~t
-        gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset2, workspace,
-                cell_ws_iter_offset2, scratch_gates, cell_scratch_offset2,
-                gemm_iter_fwd_2);
+        CHECK(gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset2,
+                workspace, cell_ws_iter_offset2, scratch_gates,
+                cell_scratch_offset2, gemm_iter_fwd_2));
 
         // 5. activation h~t + calculate ht
-        (this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
-                scratch_gates, scratch_cell, scratch_diff_states, scratch_dhG1,
-                bias, tm_scales, PART_TWO);
+        CHECK((this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
+                workspace, scratch_gates, scratch_cell, scratch_diff_states,
+                scratch_dhG1, bias, tm_scales, PART_TWO));
 
     } else {
         cl_ulong cell_diff_wei_iter_off, cell_diff_wei_lay_off,
@@ -82,54 +82,56 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
                 cell_scr_diff_iter_off, cell_diff_wei_iter_off2);
 
         // 1. calculate dG2, dG1, and part of dht-1
-        (this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
-                scratch_gates, scratch_cell, scratch_diff_states, scratch_dhG1,
-                bias, tm_scales, PART_ONE);
+        CHECK((this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
+                workspace, scratch_gates, scratch_cell, scratch_diff_states,
+                scratch_dhG1, bias, tm_scales, PART_ONE));
 
         // 2. calculate intermediate d(hG1)
         // d(hG1) = dG2 * W2h^t
-        gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset2,
+        CHECK(gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset2,
                 scratch_gates, cell_scratch_offset2, scratch_dhG1, 0,
-                gemm_iter_bwd_2);
+                gemm_iter_bwd_2));
 
         // 3. calculate dG1^ and part of dht-1
         // hg1 needs to be bf16 as it is used as gemm output
-        (this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
-                scratch_gates, scratch_cell, scratch_diff_states, scratch_dhG1,
-                bias, tm_scales, PART_TWO);
+        CHECK((this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
+                workspace, scratch_gates, scratch_cell, scratch_diff_states,
+                scratch_dhG1, bias, tm_scales, PART_TWO));
 
         // 4. calculate diff weights
         // dWh1 += dG1 * h, dWh2 += dG2 * h, dWh3 += dG3 * (G1(*)h)
-        gemm_primitive(engine, ctx, scratch_gates, cell_scratch_offset,
+        CHECK(gemm_primitive(engine, ctx, scratch_gates, cell_scratch_offset,
                 workspace, cell_ws_iter_offset, diff_weights_iter,
-                cell_diff_wei_iter_off, gemm_diff_wei_iter);
+                cell_diff_wei_iter_off, gemm_diff_wei_iter));
 
-        gemm_primitive(engine, ctx, scratch_gates, cell_scratch_offset2,
+        CHECK(gemm_primitive(engine, ctx, scratch_gates, cell_scratch_offset2,
                 scratch_cell, 0, diff_weights_iter, cell_diff_wei_iter_off2,
-                gemm_diff_wei_iter_2);
+                gemm_diff_wei_iter_2));
 
         // 5. calculate diff states
         // dht-1 += dG1 * W1h + dG0 * W0h
-        gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
+        CHECK(gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
                 scratch_gates, cell_scratch_offset, scratch_diff_states,
-                cell_scr_diff_iter_off, gemm_iter_bwd);
+                cell_scr_diff_iter_off, gemm_iter_bwd));
 
         if (!rnn.merge_gemm_layer) {
             // dWx += [dG0 dG1 dG2] * [x]
-            gemm_primitive(engine, ctx, scratch_gates, cell_scratch_offset,
-                    workspace, cell_ws_lay_offset, diff_weights_layer,
-                    cell_diff_wei_lay_off, gemm_diff_wei_layer);
+            CHECK(gemm_primitive(engine, ctx, scratch_gates,
+                    cell_scratch_offset, workspace, cell_ws_lay_offset,
+                    diff_weights_layer, cell_diff_wei_lay_off,
+                    gemm_diff_wei_layer));
 
             // dx = dG2 * W2x + dG1 * W1x + dG0 * W0x
-            gemm_primitive(engine, ctx, wei_layer, wei_layer_offset[0],
+            CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset[0],
                     scratch_gates, cell_scratch_offset, scratch_diff_states,
-                    cell_scr_diff_lay_off, gemm_layer_bwd);
+                    cell_scr_diff_lay_off, gemm_layer_bwd));
         }
 
         // 6. calculate diff bias
-        gates_reduction(ctx, dir, lay, iter, rnn.n_gates, rnn.dhc, rnn.mb,
-                scratch_gates, scratch_cell, diff_bias);
+        CHECK(gates_reduction(ctx, dir, lay, iter, rnn.n_gates, rnn.dhc, rnn.mb,
+                scratch_gates, scratch_cell, diff_bias));
     }
+    return status::success;
 }
 template cell_execution_sig(ref_rnn_fwd_t::cell_execution_gru);
 template cell_execution_sig(ref_rnn_bwd_t::cell_execution_gru);

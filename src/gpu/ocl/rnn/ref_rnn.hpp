@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -223,19 +223,19 @@ private:
     weights_assign_sig(assign_weights);
 
     float (*activation_func)(float dd, float s, float alpha, float cliping);
-    void bias_prepare(const exec_ctx_t &ctx,
+    status_t bias_prepare(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
             int n_bias, int n_gates, int dhc, const memory_storage_t &ws,
             const memory_storage_t &scales, const memory_storage_t &wei_layer,
             const memory_storage_t &wei_iter,
             const memory_storage_t &bias) const;
-    void copy_init_layer(const exec_ctx_t &ctx,
+    status_t copy_init_layer(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream, bool lr, bool rl,
             int n_iter, int batch, int slc, const memory_storage_t &ws,
             const memory_storage_t &scratch_diff_states,
             const memory_storage_t &input,
             const memory_storage_t &diff_dst_layer) const;
-    void copy_init_iter(const exec_ctx_t &ctx,
+    status_t copy_init_iter(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
             int batch, int sic, int dhc, const memory_storage_t &ws,
             const memory_storage_t &scratch_diff_states,
@@ -244,14 +244,14 @@ private:
             const memory_storage_t &diff_dst_iter,
             const memory_storage_t &diff_dst_iter_c, const float shift,
             const float scale, const bool quantize) const;
-    void copy_res_layer(const exec_ctx_t &ctx,
+    status_t copy_res_layer(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream, bool lr, bool rl,
             int n_iter, int batch, int slc, int dlc,
             const memory_storage_t &scratch_diff_states,
             const memory_storage_t &dst_last_layer,
             const memory_storage_t &diff_src_layer, const memory_storage_t &ws,
             const float shift, const float scale, const bool dequantize) const;
-    void copy_res_iter(const exec_ctx_t &ctx,
+    status_t copy_res_iter(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
             int batch, int sic, int dhc,
             const memory_storage_t &scratch_diff_states,
@@ -260,16 +260,16 @@ private:
             const memory_storage_t &diff_src_iter,
             const memory_storage_t &diff_src_iter_c, const memory_storage_t &ws,
             const float shift, const float scale, const bool dequantize) const;
-    void gates_reduction(const exec_ctx_t &ctx, int dir, int lay, int iter,
+    status_t gates_reduction(const exec_ctx_t &ctx, int dir, int lay, int iter,
             int n_gates, int dhc, int batch, const memory_storage_t &gates,
             const memory_storage_t &cell,
             const memory_storage_t &diff_bias) const;
-    void ws_set(const exec_ctx_t &ctx,
+    status_t ws_set(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream,
             const memory_storage_t &workspace, const cl_ulong ws_offset,
             const int ws_part, const float val, const size_t size) const;
 #if DEBUGPRINT
-    void ws_print(const exec_ctx_t &ctx, compute::compute_stream_t *s,
+    status_t ws_print(const exec_ctx_t &ctx, compute::compute_stream_t *s,
             const memory_storage_t &workspace) const;
     compute::kernel_t ws_print_kernel_;
 #endif

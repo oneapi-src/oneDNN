@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,18 +40,18 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
 
     if (aprop == prop_kind::forward) {
         if (!rnn.merge_gemm_layer) {
-            gemm_primitive(engine, ctx, wei_layer, wei_layer_offset[0],
+            CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset[0],
                     workspace, cell_ws_lay_offset, scratch_gates,
-                    cell_scratch_offset, gemm_layer_fwd);
+                    cell_scratch_offset, gemm_layer_fwd));
         }
 
-        gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset, workspace,
-                cell_ws_iter_offset, scratch_gates, cell_scratch_offset,
-                gemm_iter_fwd);
+        CHECK(gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
+                workspace, cell_ws_iter_offset, scratch_gates,
+                cell_scratch_offset, gemm_iter_fwd));
 
-        (this->*elemwise_common)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
+        CHECK((this->*elemwise_common)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
                 workspace, scratch_gates, scratch_diff_states, scales, bias,
-                tm_scales);
+                tm_scales));
 
     } else { // backward
         cl_ulong cell_diff_wei_iter_off, cell_diff_wei_lay_off,
@@ -61,33 +61,36 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
                 cell_diff_wei_lay_off, cell_scr_diff_lay_off,
                 cell_scr_diff_iter_off);
 
-        (this->*elemwise_common)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
+        CHECK((this->*elemwise_common)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
                 workspace, scratch_gates, scratch_diff_states, scales, bias,
-                tm_scales);
+                tm_scales));
 
-        gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
+        CHECK(gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
                 scratch_gates, cell_scratch_offset, scratch_diff_states,
-                cell_scr_diff_iter_off, gemm_iter_bwd);
+                cell_scr_diff_iter_off, gemm_iter_bwd));
 
         if (!rnn.merge_gemm_layer) {
-            gemm_primitive(engine, ctx, wei_layer, wei_layer_offset[0],
+            CHECK(gemm_primitive(engine, ctx, wei_layer, wei_layer_offset[0],
                     scratch_gates, cell_scratch_offset, scratch_diff_states,
-                    cell_scr_diff_lay_off, gemm_layer_bwd);
+                    cell_scr_diff_lay_off, gemm_layer_bwd));
 
-            gemm_primitive(engine, ctx, scratch_gates, cell_scratch_offset,
-                    workspace, cell_ws_lay_offset, diff_weights_layer,
-                    cell_diff_wei_lay_off, gemm_diff_wei_layer);
+            CHECK(gemm_primitive(engine, ctx, scratch_gates,
+                    cell_scratch_offset, workspace, cell_ws_lay_offset,
+                    diff_weights_layer, cell_diff_wei_lay_off,
+                    gemm_diff_wei_layer));
         }
 
         if (!rnn.merge_gemm_iter) {
-            gemm_primitive(engine, ctx, scratch_gates, cell_scratch_offset,
-                    workspace, cell_ws_iter_offset, diff_weights_iter,
-                    cell_diff_wei_iter_off, gemm_diff_wei_iter);
+            CHECK(gemm_primitive(engine, ctx, scratch_gates,
+                    cell_scratch_offset, workspace, cell_ws_iter_offset,
+                    diff_weights_iter, cell_diff_wei_iter_off,
+                    gemm_diff_wei_iter));
         }
 
-        gates_reduction(ctx, dir, lay, iter, rnn.n_gates, rnn.dhc, rnn.mb,
-                scratch_gates, scratch_cell, diff_bias);
+        CHECK(gates_reduction(ctx, dir, lay, iter, rnn.n_gates, rnn.dhc, rnn.mb,
+                scratch_gates, scratch_cell, diff_bias));
     }
+    return status::success;
 }
 template cell_execution_sig(ref_rnn_fwd_t::cell_execution);
 template cell_execution_sig(ref_rnn_bwd_t::cell_execution);

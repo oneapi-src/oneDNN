@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
     arg_list.set(7, tm_scales ? *tm_scales : memory_storage_t::empty_storage());
     arg_list.set(8, pd()->rnn_conf.tm_cscale);
     if (aprop != dnnl_forward) { arg_list.set(9, scratch_diff_states); }
-    parallel_for(ctx, nd_range, kernel, arg_list);
+    return parallel_for(ctx, nd_range, kernel, arg_list);
 }
 template elemwise_sig(ref_rnn_fwd_t::rnn_elemwise);
 template elemwise_sig(ref_rnn_bwd_t::rnn_elemwise);
@@ -66,7 +66,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
     arg_list.set(7, tm_scales ? *tm_scales : memory_storage_t::empty_storage());
     arg_list.set(8, pd()->rnn_conf.tm_cscale);
     if (aprop != dnnl_forward) { arg_list.set(9, scratch_diff_states); }
-    parallel_for(ctx, nd_range, kernel, arg_list);
+    return parallel_for(ctx, nd_range, kernel, arg_list);
 }
 template elemwise_sig(ref_rnn_fwd_t::lstm_elemwise);
 template elemwise_sig(ref_rnn_bwd_t::lstm_elemwise);
@@ -93,7 +93,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise_u8s8)) {
     arg_list.set(
             10, tm_scales ? *tm_scales : memory_storage_t::empty_storage());
     arg_list.set(11, pd()->rnn_conf.tm_cscale);
-    parallel_for(ctx, nd_range, elemwise_fwd_kernel_, arg_list);
+    return parallel_for(ctx, nd_range, elemwise_fwd_kernel_, arg_list);
 }
 template elemwise_sig(ref_rnn_fwd_t::lstm_elemwise_u8s8);
 template elemwise_sig(ref_rnn_bwd_t::lstm_elemwise_u8s8);
@@ -118,7 +118,7 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
     arg_list.set(7, tm_scales ? *tm_scales : memory_storage_t::empty_storage());
     arg_list.set(8, scratch_cell);
     if (aprop != dnnl_forward) { arg_list.set(9, scratch_diff_states); }
-    parallel_for(ctx, nd_range, kernel, arg_list);
+    return parallel_for(ctx, nd_range, kernel, arg_list);
 }
 template elemwise_sig_gru_lbr(ref_rnn_fwd_t::gru_lbr_elemwise);
 template elemwise_sig_gru_lbr(ref_rnn_bwd_t::gru_lbr_elemwise);
@@ -146,7 +146,7 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
         arg_list.set(10, scratch_dhG1);
         arg_list.set(11, scratch_diff_states);
     }
-    parallel_for(ctx, nd_range, kernel, arg_list);
+    return parallel_for(ctx, nd_range, kernel, arg_list);
 }
 template elemwise_sig_gru(ref_rnn_fwd_t::gru_elemwise);
 template elemwise_sig_gru(ref_rnn_bwd_t::gru_elemwise);
