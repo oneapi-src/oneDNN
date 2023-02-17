@@ -199,6 +199,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         bool is_xe_hpc = false;
         int subgroup_size = 0;
         int max_eus_per_wg = 0;
+        primitive_attr_t ocl_attr;
 
         std::shared_ptr<primitive_desc_t> gemm_iter_fwd_pd_;
         std::shared_ptr<primitive_desc_t> gemm_iter_fwd_2_pd_;
