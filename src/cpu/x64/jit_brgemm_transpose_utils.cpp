@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1829,7 +1829,9 @@ struct jit_brgemm_trans_wei_f32_t : public jit_brgemm_trans_wei_t,
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_trans_wei_f32_t)
 
     jit_brgemm_trans_wei_f32_t(const jit_brgemm_primitive_conf_t *conf)
-        : jit_brgemm_trans_wei_t(conf), jit_generator(jit_name()) {}
+        : jit_brgemm_trans_wei_t(conf)
+        , jit_generator(jit_name())
+        , transpose_size(conf->simd_w) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -1839,7 +1841,8 @@ private:
     using reg32_t = const Xbyak::Reg32;
     using opmask_t = const Xbyak::Opmask;
 
-    enum { typesize = sizeof(float), transpose_size = 16 };
+    enum { typesize = sizeof(float) };
+    const int transpose_size;
     dim_t src_stride = 0, tr_src_stride = 0;
 
     opmask_t k3333 = k1;
@@ -1861,13 +1864,21 @@ private:
     reg64_t reg_tr_src_tmp = r13;
     reg32_t regw_tmp = r14d;
 
-    void transpose_16x16(int nrows, int ncolumns = transpose_size);
+    void kmovw(Opmask k, unsigned w) {
+        mov(regw_tmp, w);
+        jit_generator::kmovw(k, regw_tmp);
+    }
+    void transpose_16x16(int nrows, int ncolumns);
+    void transpose_8x8();
+    void transpose(int nrows, int ncolumns);
+    int get_oc_block();
+    void init_masks();
     void generate() override;
 };
 
 void jit_brgemm_trans_wei_f32_t::transpose_16x16(int nrows, int ncolumns) {
     assert(nrows >= 0 && nrows <= transpose_size);
-    static_assert(transpose_size == 16, "Unsupported transpose size");
+    assert(transpose_size == 16 && "Unsupported transpose size");
     if (!nrows) return;
 
     auto src_zmm = [=](int i) {
@@ -1878,11 +1889,6 @@ void jit_brgemm_trans_wei_f32_t::transpose_16x16(int nrows, int ncolumns) {
     auto tmp_zmm = [=](int i) {
         assert(i >= 0 && i < 16);
         return Zmm(16 + i);
-    };
-
-    auto kmovw = [=](Opmask k, unsigned w) {
-        mov(regw_tmp, w);
-        jit_generator::kmovw(k, regw_tmp);
     };
 
     auto load = [=](int i) {
@@ -2001,44 +2007,113 @@ void jit_brgemm_trans_wei_f32_t::transpose_16x16(int nrows, int ncolumns) {
     fixup16x16();
 }
 
-void jit_brgemm_trans_wei_f32_t::generate() {
-    preamble();
-    assert(conf_->oc_block % transpose_size == 0);
-    int fwd_ic_block = conf_->simd_w;
-    int fwd_oc_block = 0;
+void jit_brgemm_trans_wei_f32_t::transpose_8x8() {
+    mov(reg_tr_src_tmp, reg_tr_src);
+
+    // Intel(R) Software Optimization manual
+    // Example 15-20. 8x8 Matrix Transpose Using VINSERTPS
+    vmovups(xmm0, ptr[reg_src]);
+    vinsertf128(ymm0, ymm0, ptr[reg_src + 4 * src_stride], 1);
+    vmovups(xmm1, ptr[reg_src + 1 * src_stride]);
+    vinsertf128(ymm1, ymm1, ptr[reg_src + 5 * src_stride], 1);
+
+    vunpcklpd(ymm8, ymm0, ymm1);
+    vunpckhpd(ymm9, ymm0, ymm1);
+    vmovups(xmm2, ptr[reg_src + 2 * src_stride]);
+    vinsertf128(ymm2, ymm2, ptr[reg_src + 6 * src_stride], 1);
+    vmovups(xmm3, ptr[reg_src + 3 * src_stride]);
+    vinsertf128(ymm3, ymm3, ptr[reg_src + 7 * src_stride], 1);
+    vunpcklpd(ymm10, ymm2, ymm3);
+    vunpckhpd(ymm11, ymm2, ymm3);
+    vshufps(ymm4, ymm8, ymm10, 0x88);
+    vmovups(ptr[reg_tr_src_tmp], ymm4);
+    vshufps(ymm5, ymm8, ymm10, 0xDD);
+    vmovups(ptr[reg_tr_src_tmp + tr_src_stride], ymm5);
+    vshufps(ymm6, ymm9, ymm11, 0x88);
+    vmovups(ptr[reg_tr_src_tmp + 2 * tr_src_stride], ymm6);
+    vshufps(ymm7, ymm9, ymm11, 0xDD);
+    vmovups(ptr[reg_tr_src_tmp + 3 * tr_src_stride], ymm7);
+    vmovups(xmm0, ptr[reg_src + 16]);
+    vinsertf128(ymm0, ymm0, ptr[reg_src + 4 * src_stride + 16], 1);
+    vmovups(xmm1, ptr[reg_src + src_stride + 16]);
+    vinsertf128(ymm1, ymm1, ptr[reg_src + 5 * src_stride + 16], 1);
+    vunpcklpd(ymm8, ymm0, ymm1);
+    vunpckhpd(ymm9, ymm0, ymm1);
+    vmovups(xmm2, ptr[reg_src + 2 * src_stride + 16]);
+    vinsertf128(ymm2, ymm2, ptr[reg_src + 6 * src_stride + 16], 1);
+    vmovups(xmm3, ptr[reg_src + 3 * src_stride + 16]);
+    vinsertf128(ymm3, ymm3, ptr[reg_src + 7 * src_stride + 16], 1);
+    vunpcklpd(ymm10, ymm2, ymm3);
+    vunpckhpd(ymm11, ymm2, ymm3);
+    vshufps(ymm4, ymm8, ymm10, 0x88);
+    vmovups(ptr[reg_tr_src_tmp + 4 * tr_src_stride], ymm4);
+    vshufps(ymm5, ymm8, ymm10, 0xDD);
+    vmovups(ptr[reg_tr_src_tmp + 5 * tr_src_stride], ymm5);
+    vshufps(ymm6, ymm9, ymm11, 0x88);
+    vmovups(ptr[reg_tr_src_tmp + 6 * tr_src_stride], ymm6);
+    vshufps(ymm7, ymm9, ymm11, 0xDD);
+    vmovups(ptr[reg_tr_src_tmp + 7 * tr_src_stride], ymm7);
+}
+
+void jit_brgemm_trans_wei_f32_t::init_masks() {
+
+    if (is_superset(conf_->isa, avx512_core)) {
+        kmovw(k3333, 0x3333); // 0011001100110011
+        kmovw(k5555, 0x5555); // 0101010101010101
+        kmovw(kAAAA, 0xaaaa); // 1010101010101010
+        kmovw(kCCCC, 0xcccc); // 1100110011001100
+        kmovw(k0F0F, 0x0f0f); // 0000111100001111
+        kmovw(kF0F0, 0xf0f0); // 1111000011110000
+    }
+}
+
+void jit_brgemm_trans_wei_f32_t::transpose(int nrows, int ncolumns) {
+    if (is_superset(conf_->isa, avx512_core)) {
+        transpose_16x16(nrows, ncolumns);
+    } else {
+        transpose_8x8();
+    }
+}
+
+int jit_brgemm_trans_wei_f32_t::get_oc_block() {
     switch (conf_->wei_tag) {
         case OI16i64o:
         case OIw16i64o:
         case OIhw16i64o:
-        case OIdhw16i64o:
-        case OI8i64o2i:
-        case OIw8i64o2i:
-        case OIhw8i64o2i:
-        case OIdhw8i64o2i:
-        case OI16i64o2i:
-        case OIw16i64o2i:
-        case OIhw16i64o2i:
-        case OIdhw16i64o2i: fwd_oc_block = 4 * conf_->simd_w; break;
+        case OIdhw16i64o: return 64;
         case OI16i32o:
         case OIw16i32o:
         case OIhw16i32o:
-        case OIdhw16i32o:
-        case OI8i32o2i:
-        case OIw8i32o2i:
-        case OIhw8i32o2i:
-        case OIdhw8i32o2i:
-        case OI16i32o2i:
-        case OIw16i32o2i:
-        case OIhw16i32o2i:
-        case OIdhw16i32o2i: fwd_oc_block = 2 * conf_->simd_w; break;
-        default: fwd_oc_block = conf_->simd_w;
+        case OIdhw16i32o: return 32;
+        case OI8i24o:
+        case OIw8i24o:
+        case OIhw8i24o:
+        case OIdhw8i24o: return 24;
+        case OI8i16o:
+        case OIw8i16o:
+        case OIhw8i16o:
+        case OIdhw8i16o: return 16;
+        default: return conf_->simd_w;
     };
+}
+
+void jit_brgemm_trans_wei_f32_t::generate() {
+    preamble();
+
+    // S = simd_w, F = fwd_oc_block, B = bwd_ic_block B >= S, B % S == 0
+    // SicFoc -> SocBic
+    // row axis = input ic axis
+    // column axis = input oc axis
+
+    assert(conf_->oc_block % transpose_size == 0);
+    const int fwd_ic_block = conf_->simd_w;
+    const int fwd_oc_block = get_oc_block();
 
     int oc_tail = conf_->K_tail % transpose_size;
     int ic_block = conf_->ic_block;
     int ic_tail = conf_->N_tail % transpose_size;
-    src_stride = fwd_oc_block * typesize;
-    tr_src_stride = ic_block * typesize;
+    src_stride = fwd_oc_block * typesize; // src_row_stride
+    tr_src_stride = ic_block * typesize; // tr_src_row_stride
     dim_t N_src_shift = conf_->kd * conf_->kh * conf_->kw * fwd_ic_block
             * fwd_oc_block * typesize;
     dim_t N_tr_src_shift = conf_->simd_w * typesize;
@@ -2050,17 +2125,7 @@ void jit_brgemm_trans_wei_f32_t::generate() {
     mov(reg_loop_batch, ptr[param1 + GET_OFF(current_gemm_batch)]);
     mov(reg_loop_K, ptr[param1 + GET_OFF(current_K)]);
 
-    auto kmovw = [=](Opmask k, unsigned w) {
-        mov(regw_tmp, w);
-        jit_generator::kmovw(k, regw_tmp);
-    };
-
-    kmovw(k3333, 0x3333); // 0011001100110011
-    kmovw(k5555, 0x5555); // 0101010101010101
-    kmovw(kAAAA, 0xaaaa); // 1010101010101010
-    kmovw(kCCCC, 0xcccc); // 1100110011001100
-    kmovw(k0F0F, 0x0f0f); // 0000111100001111
-    kmovw(kF0F0, 0xf0f0); // 1111000011110000
+    init_masks();
 
     auto compute_N = [=](bool is_oc_tail) {
         mov(reg_loop_N, ptr[param1 + GET_OFF(current_N)]);
@@ -2073,7 +2138,7 @@ void jit_brgemm_trans_wei_f32_t::generate() {
 
         L(N_loop);
 
-        transpose_16x16(transpose_size, is_oc_tail ? oc_tail : transpose_size);
+        transpose(transpose_size, is_oc_tail ? oc_tail : transpose_size);
         add(reg_src, N_src_shift);
         add(reg_tr_src, N_tr_src_shift);
 
@@ -2086,7 +2151,7 @@ void jit_brgemm_trans_wei_f32_t::generate() {
             Label N_loop_done;
             cmp(reg_loop_N, 0);
             jle(N_loop_done, T_NEAR);
-            transpose_16x16(ic_tail, is_oc_tail ? oc_tail : transpose_size);
+            transpose(ic_tail, is_oc_tail ? oc_tail : transpose_size);
             L(N_loop_done);
         }
     };

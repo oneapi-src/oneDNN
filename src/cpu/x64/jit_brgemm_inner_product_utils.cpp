@@ -56,6 +56,7 @@ int get_os_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust,
     const bool is_xf16 = one_of(jbgp.wei_dt, bf16, f16) || jbgp.is_bf32;
     const bool is_amx_xf16 = jbgp.is_amx && is_xf16;
     const bool is_avx512_bf16 = jbgp.isa == avx512_core_bf16;
+    const bool is_avx512 = jbgp.isa == avx512_core;
     const bool is_f32_compute = !jbgp.is_bf32
             && everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
 
@@ -104,7 +105,11 @@ int get_os_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust,
             plat_max_os_block = 64;
         }
         max_os_block = nstl::min(plat_max_os_block, jbgp.os);
-        min_os_block = is_amx_xf16 ? 16 : 6;
+        min_os_block = is_amx_xf16 ? 16 : is_avx512 ? 6 : 4;
+        if (jbgp.isa == avx2 && jbgp.prop_kind == backward_data
+                && jbgp.os * jbgp.oc > 512 * 1024)
+            return jbgp.os;
+
     } else if (jbgp.prop_kind == backward_weights) {
         constexpr int amx_xf16_row = 64;
         constexpr int amx_xf16_half_row = amx_xf16_row / 2;
@@ -601,10 +606,16 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
     const bool avoid_max_ic_block = is_f32_compute && jbgp.os <= 128
             && nstl::max(jbgp.ic, jbgp.oc) <= 2048
             && nstl::min(jbgp.ic, jbgp.oc) <= 1000;
-    jbgp.ic_block
-            = !avoid_max_ic_block && jbgp.ic >= (is_f32_compute ? 512 : 64) ? 64
-            : jbgp.ic >= 32                                                 ? 32
-                            : 16;
+    const int max_ch_block_mult = is_superset(jbgp.isa, avx512_core) ? 4 : 3;
+    const int max_ch_block = max_ch_block_mult * jbgp.simd_w;
+    if (!avoid_max_ic_block
+            && jbgp.ic >= (is_f32_compute ? 512 : max_ch_block)) {
+        jbgp.ic_block = max_ch_block;
+    } else if (jbgp.ic >= 2 * jbgp.simd_w) {
+        jbgp.ic_block = 2 * jbgp.simd_w;
+    } else {
+        jbgp.ic_block = jbgp.simd_w;
+    }
 
     jbgp.nb_ic = div_up(jbgp.ic, jbgp.ic_block);
     jbgp.nb_ic_blocking = 1;
@@ -629,8 +640,20 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
     }
 
     jbgp.nb_oc_blocking = 1;
-    const int oc_chunk_max_size = 64;
+    const int oc_chunk_max_size = max_ch_block;
     jbgp.nb_oc_blocking = max_div(jbgp.nb_oc, oc_chunk_max_size);
+
+    if (jbgp.isa == avx2) {
+        const auto L2_size = platform::get_per_core_cache_size(2) * jbgp.nthr;
+        for (int bl = jbgp.nb_oc; bl >= 1; bl--) {
+            jbgp.nb_oc_blocking = bl;
+            if (L2_size >= types::data_type_size(jbgp.src_dt) * jbgp.os_block
+                                    * jbgp.nb_os_blocking
+                            + types::data_type_size(jbgp.wei_dt) * jbgp.oc
+                                    * jbgp.nb_oc_blocking)
+                break;
+        }
+    }
 
     jbgp.nthr_oc_b = 1;
     const int ic_chunks = div_up(jbgp.nb_ic, jbgp.nb_ic_blocking);
@@ -641,7 +664,8 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
     //   * small work amount available to each thread
     if ((num_work_to_parallel < 2 * jbgp.nthr
                 || jbgp.oc > (is_bf16 || jbgp.is_bf32 ? 4096 : 1024))) {
-        const int min_chunck_sz = (is_avx512_bf16) ? 32 : 16;
+        const int min_chunck_sz
+                = (is_avx512_bf16) ? 2 * jbgp.simd_w : jbgp.simd_w;
         const int num_min_chunk_sz = div_up(jbgp.nb_oc, min_chunck_sz);
         int reduce_work = int(0.5f * num_min_chunk_sz * jbgp.nb_os
                 + (float)num_min_chunk_sz / jbgp.nb_ic + 0.5f);

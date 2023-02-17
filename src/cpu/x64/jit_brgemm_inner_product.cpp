@@ -696,7 +696,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
             case OI16i64o2i:
             case OIw16i64o2i:
             case OIhw16i64o2i:
-            case OIdhw16i64o2i: fwd_oc_block = 4 * jbgp.simd_w; break;
+            case OIdhw16i64o2i: fwd_oc_block = 64; break;
             case OI16i32o:
             case OIw16i32o:
             case OIhw16i32o:
@@ -708,7 +708,15 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
             case OI16i32o2i:
             case OIw16i32o2i:
             case OIhw16i32o2i:
-            case OIdhw16i32o2i: fwd_oc_block = 2 * jbgp.simd_w; break;
+            case OIdhw16i32o2i: fwd_oc_block = 32; break;
+            case OI8i24o:
+            case OIw8i24o:
+            case OIhw8i24o:
+            case OIdhw8i24o: fwd_oc_block = 24; break;
+            case OI8i16o:
+            case OIw8i16o:
+            case OIhw8i16o:
+            case OIdhw8i16o: fwd_oc_block = 16; break;
             default: fwd_oc_block = jbgp.simd_w;
         };
         int fwd_icb = icb * jbgp.ic_block / fwd_ic_block;
@@ -1021,6 +1029,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
     }
 }
 
+template struct brgemm_inner_product_bwd_data_t<avx2>;
 template struct brgemm_inner_product_bwd_data_t<avx512_core>;
 template struct brgemm_inner_product_bwd_data_t<avx512_core_amx>;
 template struct brgemm_inner_product_bwd_data_t<avx512_core_bf16>;
