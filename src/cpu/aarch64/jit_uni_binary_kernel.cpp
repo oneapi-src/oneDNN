@@ -127,9 +127,10 @@ void jit_uni_binary_kernel_t<isa>::init_post_ops_injector() {
             reg_elt_inj_table_, elt_inj_opmask_, elt_inj_p_tmp0_,
             true /*is_fwd*/, false /*use_dst*/);
     const binary_injector::rhs_arg_static_params_t rhs_arg_bsp {10, reg_tmp_,
-            reg_elt_inj_table_, true /*preserve gpr*/, true /*preserve vmm*/,
-            PARAM_OFF(post_ops_binary_rhs_arg_vec), PARAM_OFF(dst_orig), dst_d,
-            tail_size_, tail_opmask_, false /*use_exact_tail_scalar_bcast*/};
+            reg_elt_inj_table_, x13, true /*preserve gpr*/,
+            true /*preserve vmm*/, PARAM_OFF(post_ops_binary_rhs_arg_vec),
+            PARAM_OFF(dst_orig), dst_d, tail_size_, tail_opmask_,
+            false /*use_exact_tail_scalar_bcast*/};
     const binary_injector::static_params_t bsp(this->param1,
             get_supported_postops_bcast_strategies(), rhs_arg_bsp);
 
