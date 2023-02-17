@@ -18,6 +18,7 @@
 #include "common/compiler_workarounds.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/nstl.hpp"
+#include "common/primitive_desc_iterator.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
@@ -113,6 +114,13 @@ status_t bwd_conv_desc_create(const deconvolution_desc_t *fwd_deconv_d,
 }
 } // namespace
 
+template <typename implementation_pd>
+status_t check_embedded_impl_init(primitive_desc_iterator_t &it) {
+    const auto pd = dynamic_cast<implementation_pd *>((*it).get());
+    if (pd != nullptr) return status::success; // implementation found
+    return status::unimplemented;
+}
+
 template <cpu_isa_t isa>
 status_t brgemm_deconvolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     using namespace data_type;
@@ -148,39 +156,46 @@ status_t brgemm_deconvolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
         }
     }
 
-    primitive_desc_t *pd;
-
     if (has_strides_) {
         CHECK(bwd_conv_desc_create(fwd_deconv_d, &conv_d));
-        // try creating bwd conv prim desc
-        constexpr bool is_deconv
-                = true; // flag used to enable post-ops and properly disable zero-points
-        using bwd_conv_str_pd_t =
-                typename brgemm_convolution_bwd_strided_t<isa, is_deconv>::pd_t;
-        CHECK(primitive_desc_t::create<bwd_conv_str_pd_t>(&pd,
-                reinterpret_cast<const op_desc_t *>(&conv_d), attr(), engine,
-                nullptr));
+        primitive_desc_iterator_t it(engine,
+                reinterpret_cast<const op_desc_t *>(&conv_d), attr(), nullptr);
+        if (!it.is_initialized()) return status::out_of_memory;
+
+        while (++it != it.end()) {
+            conv_pd_ = *it;
+            // flag used to enable post-ops and properly disable zero-points
+            constexpr bool is_deconv = true;
+            if (check_embedded_impl_init<
+                        typename brgemm_convolution_bwd_strided_t<isa,
+                                is_deconv>::pd_t>(it)
+                    == status::success)
+                break;
+        }
+        if (it == it.end()) return status::unimplemented;
     } else {
         CHECK(fwd_conv_desc_create(fwd_deconv_d, &conv_d));
-        do {
-            // try creating fwd 1x1 conv prim desc
-            using fwd_1x1_conv_pd_t =
-                    typename brgemm_1x1_convolution_fwd_t<isa>::pd_t;
-            status_t s = primitive_desc_t::create<fwd_1x1_conv_pd_t>(&pd,
-                    reinterpret_cast<const op_desc_t *>(&conv_d), attr(),
-                    engine, nullptr);
-            if (s == status::success) break;
-            // try creating fwd conv prim desc
-            constexpr bool use_inversion
-                    = true; // invert weights' spatial indices
-            using fwd_conv_pd_t =
-                    typename brgemm_convolution_fwd_t<isa, use_inversion>::pd_t;
-            CHECK(primitive_desc_t::create<fwd_conv_pd_t>(&pd,
-                    reinterpret_cast<const op_desc_t *>(&conv_d), attr(),
-                    engine, nullptr));
-        } while (false);
+
+        primitive_desc_iterator_t it(engine,
+                reinterpret_cast<const op_desc_t *>(&conv_d), attr(), nullptr);
+        if (!it.is_initialized()) return status::out_of_memory;
+
+        while (++it != it.end()) {
+            conv_pd_ = *it;
+            // try 1x1 fwd convolution
+            if (check_embedded_impl_init<
+                        typename brgemm_1x1_convolution_fwd_t<isa>::pd_t>(it)
+                    == status::success)
+                break;
+            // try non-1x1 fwd convolution with invert weights' spatial indices
+            constexpr bool use_inversion = true;
+            if (check_embedded_impl_init<typename brgemm_convolution_fwd_t<isa,
+                            use_inversion>::pd_t>(it)
+                    == status::success)
+                break;
+        }
+        if (it == it.end()) return status::unimplemented;
     }
-    conv_pd_.reset(pd);
 
     if (weights_md_.format_kind == format_kind::any) {
         if (has_strides_)
