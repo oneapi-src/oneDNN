@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
-* Copyright 2020-2022 FUJITSU LIMITED
+* Copyright 2019-2023 Intel Corporation
+* Copyright 2020-2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -342,13 +342,11 @@ struct jit_softmax_base_t : public jit_generator {
         if (pd_->is_fwd() || is_logsoftmax_)
             exp_injector_.reset(new jit_uni_eltwise_injector_f32<isa>(this,
                     alg_kind::eltwise_exp, 0.0f, 0.0f, 1.0f, true,
-                    reg_exp_injector_table, injector_mask, injector_tmp,
-                    P_ALL_ONE));
+                    reg_exp_injector_table, injector_mask, injector_tmp));
         if (pd_->is_fwd() && is_logsoftmax_) {
             log_injector_.reset(new jit_uni_eltwise_injector_f32<isa>(this,
                     alg_kind::eltwise_log, 0.0f, 0.0f, 1.0f, true,
-                    reg_log_injector_table, injector_mask, injector_tmp,
-                    P_ALL_ONE));
+                    reg_log_injector_table, injector_mask, injector_tmp));
         }
 
         compute_predefined_variables();
