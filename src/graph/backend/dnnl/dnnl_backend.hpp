@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "graph/interface/backend.hpp"
 #include "graph/interface/c_types_map.hpp"
@@ -278,6 +279,20 @@ public:
 
     bool compare_logical_tensor(const logical_tensor_t &lhs,
             const logical_tensor_t &rhs) const override;
+
+    bool support_engine_kind(engine_kind_t kind) const override {
+        static const std::unordered_set<engine_kind_t, enum_hash_t>
+                supported_kind = {
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+                    engine_kind::cpu,
+#endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+                    engine_kind::gpu,
+#endif
+                };
+        return supported_kind.count(kind);
+    }
 
     status_t get_partitions(
             graph_t &agraph, partition_policy_t policy) override {

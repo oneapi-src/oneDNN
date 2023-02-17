@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -106,6 +106,9 @@ public:
 
     /// Register the pointer of created backend instance to oneDNN Graph
     static backend *register_backend(const backend *abackend);
+
+    /// Check if a backend supports a specific engine kind
+    virtual bool support_engine_kind(engine_kind_t kind) const = 0;
 
 private:
     static size_t get_counter() {

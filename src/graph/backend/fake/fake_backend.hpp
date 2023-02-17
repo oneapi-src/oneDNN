@@ -56,6 +56,11 @@ public:
         return status::success;
     }
 
+    bool support_engine_kind(engine_kind_t kind) const override {
+        UNUSED(kind);
+        return true;
+    }
+
 private:
     fake_backend_t(const std::string &name, float priority);
     bool register_passes();

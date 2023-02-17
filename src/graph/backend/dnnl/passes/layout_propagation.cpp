@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -143,8 +143,7 @@ status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
     // need insert a reorder to convert to public acdb layout. Currently,
     // deconvolution primitive still chooses blocked layout for best
     // performance.
-    if (sg->p_engine_->get_kind() == dnnl::engine::kind::cpu)
-        force_partition_output_plain_layout(sg);
+    if (!mgr.get_use_blocked_layout()) force_partition_output_plain_layout(sg);
 
     // fill layout information for subgraph's inputs
     for (size_t i = 0; i < sg->ins_.size(); i++) {

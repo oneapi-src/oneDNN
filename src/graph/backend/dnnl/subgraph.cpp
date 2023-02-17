@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,16 +48,11 @@ using value_ptr = std::shared_ptr<value_t>;
 using ltw = logical_tensor_wrapper_t;
 
 subgraph_t::subgraph_t(const std::vector<op_ptr> &ops, const dnnl::engine &eng,
+        impl::fpmath_mode_t fpm_mode, bool can_use_blocked_layout,
         bool reset_layout)
-    : graph_t(ops), p_engine_(&eng) {
-    if (reset_layout) { set_all_layout_to_any(get_mutable_ops()); }
-}
-
-subgraph_t::subgraph_t(const std::vector<op_ptr> &ops, const dnnl::engine &eng,
-        fpmath_mode_t fpm_mode, bool reset_layout)
     : graph_t(ops, static_cast<engine_kind_t>(eng.get_kind()), fpm_mode)
     , p_engine_(&eng)
-    , fusion_info_mgr_(fpm_mode) {
+    , fusion_info_mgr_(fpm_mode, can_use_blocked_layout) {
     if (reset_layout) { set_all_layout_to_any(get_mutable_ops()); }
 }
 

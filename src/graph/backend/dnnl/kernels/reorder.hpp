@@ -76,7 +76,8 @@ public:
         g_alloc_ = reinterpret_cast<graph::allocator_t *>(
                 g_engine->get_allocator());
 
-        subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_);
+        subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_,
+                part->get_fpmath_mode(), part->get_use_blocked_layout(), true);
         BACKEND_DNNL_CHECK(
                 set_given_inputs_outputs(subgraph_, inputs, outputs));
 

@@ -47,7 +47,7 @@ TEST(LayoutPropagator, LayoutPropagatorForPermute) {
     dnnl_impl::pd_cache_t pd_cache;
     auto sg = std::make_shared<dnnl_impl::subgraph_t>(
             std::vector<std::shared_ptr<graph::op_t>> {op}, p_engine,
-            graph::fpmath_mode::any, false);
+            graph::fpmath_mode::any, false, false);
     dnnl_impl::subgraph_rewriter_t rewriter {sg};
     ASSERT_EQ(dnnl_impl::layout_propagator_for_permute(
                       op, p_engine, mgr, pd_cache, rewriter),
@@ -71,7 +71,7 @@ TEST(LayoutPropagator, LayoutPropagatorForReorder) {
     dnnl_impl::pd_cache_t pd_cache;
     auto sg = std::make_shared<dnnl_impl::subgraph_t>(
             std::vector<std::shared_ptr<graph::op_t>> {op}, p_engine,
-            graph::fpmath_mode::any, false);
+            graph::fpmath_mode::any, false, false);
     dnnl_impl::subgraph_rewriter_t rewriter {sg};
     ASSERT_EQ(layout_propagator_for_reorder(
                       op, p_engine, mgr, pd_cache, rewriter),
@@ -95,7 +95,7 @@ TEST(LayoutPropagator, LayoutPropagatorForSum) {
         op->add_output(lt_out);
         auto sg = std::make_shared<dnnl_impl::subgraph_t>(
                 std::vector<std::shared_ptr<graph::op_t>> {op}, p_engine,
-                graph::fpmath_mode::any, false);
+                graph::fpmath_mode::any, false, false);
         dnnl_impl::subgraph_rewriter_t rewriter {sg};
         ASSERT_EQ(layout_propagator_for_sum(
                           op, p_engine, mgr, pd_cache, rewriter),
@@ -114,7 +114,7 @@ TEST(LayoutPropagator, LayoutPropagatorForSum) {
         op->add_output(lt_out);
         auto sg = std::make_shared<dnnl_impl::subgraph_t>(
                 std::vector<std::shared_ptr<graph::op_t>> {op}, p_engine,
-                graph::fpmath_mode::any, false);
+                graph::fpmath_mode::any, false, false);
         dnnl_impl::subgraph_rewriter_t rewriter {sg};
 #ifndef NDEBUG
         ASSERT_DEATH(layout_propagator_for_sum(
@@ -132,7 +132,7 @@ TEST(LayoutPropagator, LayoutPropagatorForSubZps) {
     auto op = std::make_shared<graph::op_t>(0, graph::op_kind::Wildcard, "op");
     auto sg = std::make_shared<dnnl_impl::subgraph_t>(
             std::vector<std::shared_ptr<graph::op_t>> {op}, p_engine,
-            graph::fpmath_mode::any, false);
+            graph::fpmath_mode::any, false, false);
     dnnl_impl::subgraph_rewriter_t rewriter {sg};
 #ifndef NDEBUG
     EXPECT_DEATH(dnnl_impl::layout_propagator_for_sub_zps(
@@ -153,7 +153,7 @@ TEST(LayoutPropagator, LayoutPropagatorForAddZps) {
     auto op = std::make_shared<graph::op_t>(0, graph::op_kind::Wildcard, "op");
     auto sg = std::make_shared<dnnl_impl::subgraph_t>(
             std::vector<std::shared_ptr<graph::op_t>> {op}, p_engine,
-            graph::fpmath_mode::any, false);
+            graph::fpmath_mode::any, false, false);
     dnnl_impl::subgraph_rewriter_t rewriter {sg};
 #ifndef NDEBUG
     EXPECT_DEATH(dnnl_impl::layout_propagator_for_add_zps(

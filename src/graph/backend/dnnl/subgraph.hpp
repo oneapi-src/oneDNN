@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -65,10 +65,8 @@ private:
 
 public:
     subgraph_t(const std::vector<op_ptr> &ops, const dnnl::engine &eng,
-            bool reset_layout = true);
-
-    subgraph_t(const std::vector<op_ptr> &ops, const dnnl::engine &eng,
-            fpmath_mode_t fpm_mode, bool reset_layout);
+            impl::fpmath_mode_t fpm_mode, bool can_use_blocked_layout,
+            bool reset_layout);
 
     subgraph_t(const std::vector<op_ptr> &ops, bool reset_layout = true);
 

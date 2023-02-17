@@ -64,13 +64,17 @@ class partition_impl_t : public std::enable_shared_from_this<partition_impl_t> {
 public:
     explicit partition_impl_t(engine_kind_t engine_kind,
             fpmath_mode_t fpmath_mode, partition_kind_t pkind)
-        : engine_kind_(engine_kind), fpmath_mode_(fpmath_mode), pkind_(pkind) {}
+        : engine_kind_(engine_kind)
+        , fpmath_mode_(fpmath_mode)
+        , pkind_(pkind)
+        , can_use_blocked_layout_(false) {}
 
     explicit partition_impl_t(engine_kind_t engine_kind,
             fpmath_mode_t fpmath_mode = fpmath_mode::strict)
         : engine_kind_(engine_kind)
         , fpmath_mode_(fpmath_mode)
-        , pkind_(partition_kind_t::undef) {}
+        , pkind_(partition_kind_t::undef)
+        , can_use_blocked_layout_(false) {}
 
     virtual ~partition_impl_t() = default;
 
@@ -170,6 +174,16 @@ public:
     /// set partition_impl id
     void set_id(const size_t id) { id_ = id; }
 
+    /// Used to set the partition can use blocked layout
+    virtual void set_use_blocked_layout(bool flag) {
+        can_use_blocked_layout_ = flag;
+    }
+
+    /// Used to check if a partition can use blocked layout
+    virtual bool get_use_blocked_layout() const {
+        return can_use_blocked_layout_;
+    }
+
 protected:
     // Engine kind
     engine_kind_t engine_kind_;
@@ -227,6 +241,8 @@ protected:
 
     /// Partition_impl id
     size_t id_ = std::numeric_limits<size_t>::max();
+
+    bool can_use_blocked_layout_;
 
 private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(partition_impl_t);

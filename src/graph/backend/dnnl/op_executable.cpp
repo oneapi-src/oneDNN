@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,13 +69,11 @@ conv_fwd_executable_t::desc_t conv_fwd_executable_t::create_desc(
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
     prm_attr.set_fpmath_mode(
             static_cast<dnnl::fpmath_mode>(mgr.get_fpmath_mode()));
+    const bool can_use_blocked_layout = mgr.get_use_blocked_layout();
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
-    if (p_engine.get_kind() == dnnl::engine::kind::cpu)
-        src = to_nxc_format(src);
-    else
-        src = to_format_any(src);
+
     // assume constant weight is for inference scenario
     const auto &wei_lt = op->get_input_value(1)->get_logical_tensor();
     auto pkind = (logical_tensor_wrapper_t(wei_lt).property_type()
@@ -96,25 +94,42 @@ conv_fwd_executable_t::desc_t conv_fwd_executable_t::create_desc(
                 = dw_conv->get_op()->get_input_value(0)->get_logical_tensor();
     }
     auto dst = make_dnnl_memory_desc(base_conv_dst_lt);
-    if (p_engine.get_kind() == dnnl::engine::kind::cpu)
+    auto create_pd = [&](const dnnl::memory::desc &src_md,
+                             const dnnl::memory::desc &dst_md) {
+        if (op->has_attr(op_attr::with_bias)
+                && op->get_attr<bool>(op_attr::with_bias)) {
+            auto bias = make_dnnl_memory_desc(
+                    op->get_input_value(2)->get_logical_tensor());
+            bias = to_format_any(bias);
+            return dnnl::convolution_forward::primitive_desc(p_engine, pkind,
+                    algorithm::convolution_direct, src_md, weight, bias, dst_md,
+                    strides, dilates, pads_begin, pads_end, prm_attr);
+        } else {
+            return dnnl::convolution_forward::primitive_desc(p_engine, pkind,
+                    algorithm::convolution_direct, src_md, weight, dst_md,
+                    strides, dilates, pads_begin, pads_end, prm_attr);
+        }
+    };
+
+    if (!can_use_blocked_layout) {
+        src = to_nxc_format(src);
         dst = to_nxc_format(dst);
-    else
+    } else if (!is_format(dst, "nxc")) {
+        src = to_format_any(src);
         dst = to_format_any(dst);
 
-    dnnl::convolution_forward::primitive_desc pd;
-    if (op->has_attr(op_attr::with_bias)
-            && op->get_attr<bool>(op_attr::with_bias)) {
-        auto bias = make_dnnl_memory_desc(
-                op->get_input_value(2)->get_logical_tensor());
-        bias = to_format_any(bias);
-        pd = dnnl::convolution_forward::primitive_desc(p_engine, pkind,
-                algorithm::convolution_direct, src, weight, bias, dst, strides,
-                dilates, pads_begin, pads_end, prm_attr);
     } else {
-        pd = dnnl::convolution_forward::primitive_desc(p_engine, pkind,
-                algorithm::convolution_direct, src, weight, dst, strides,
-                dilates, pads_begin, pads_end, prm_attr);
+        // If the dst has been explicitly set to nxc layout by users, we prefer
+        // to directly use optimal blocked src and plain dst to create conv pd.
+        // In the following, we will first query out the optimal src.
+        auto tmp_src = to_format_any(src);
+        auto tmp_dst = to_format_any(dst);
+        dnnl::convolution_forward::primitive_desc tmp_pd
+                = create_pd(tmp_src, tmp_dst);
+        src = tmp_pd.src_desc();
     }
+
+    dnnl::convolution_forward::primitive_desc pd = create_pd(src, dst);
 
     pd_cache.insert({op.get(), pd});
 
@@ -528,7 +543,8 @@ pool_bwd_executable_t::desc_t pool_bwd_executable_t::create_desc(
                 : algorithm::pooling_avg_include_padding;
     } else {
         BACKEND_DNNL_ENFORCE(0,
-                "Currently only MaxPoolBackward/AvgPoolBackward is supported.");
+                "Currently only MaxPoolBackprop/AvgPoolBackprop is "
+                "supported.");
     }
 
     if (op->get_attr<std::string>(op_attr::kind) == "maxpool") {
@@ -781,16 +797,23 @@ conv_bwd_data_executable_t::desc_t conv_bwd_data_executable_t::create_desc(
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
     prm_attr.set_fpmath_mode(
             static_cast<dnnl::fpmath_mode>(mgr.get_fpmath_mode()));
+    const bool can_use_blocked_layout = mgr.get_use_blocked_layout();
 
     auto diff_dst = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
-    diff_dst = to_nxc_format(diff_dst);
+    if (!can_use_blocked_layout)
+        diff_dst = to_nxc_format(diff_dst);
+    else
+        diff_dst = to_format_any(diff_dst);
     auto weight = make_dnnl_memory_desc(
             op->get_input_value(1)->get_logical_tensor());
     weight = to_format_any(weight);
     auto diff_src = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
-    diff_src = to_nxc_format(diff_src);
+    if (!can_use_blocked_layout)
+        diff_src = to_nxc_format(diff_src);
+    else
+        diff_src = to_format_any(diff_src);
 
     auto fwd_hints = dnnl::convolution_forward::primitive_desc(p_engine,
             dnnl::prop_kind::forward_training,
@@ -833,13 +856,20 @@ conv_bwd_weights_executable_t::create_desc(std::shared_ptr<op_t> &op,
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
     prm_attr.set_fpmath_mode(
             static_cast<dnnl::fpmath_mode>(mgr.get_fpmath_mode()));
+    const bool can_use_blocked_layout = mgr.get_use_blocked_layout();
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
-    src = to_nxc_format(src);
+    if (!can_use_blocked_layout)
+        src = to_nxc_format(src);
+    else
+        src = to_format_any(src);
     auto diff_dst = make_dnnl_memory_desc(
             op->get_input_value(1)->get_logical_tensor());
-    diff_dst = to_nxc_format(diff_dst);
+    if (!can_use_blocked_layout)
+        diff_dst = to_nxc_format(diff_dst);
+    else
+        diff_dst = to_format_any(diff_dst);
     auto diff_weight = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
     diff_weight = to_format_any(diff_weight);

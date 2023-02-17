@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -163,6 +163,7 @@ public:
         ret->outputs_ = outputs_;
         ret->kernel_creator_ = kernel_creator_;
         ret->id_ = id_;
+        ret->can_use_blocked_layout_ = can_use_blocked_layout_;
         return ret;
     }
 
