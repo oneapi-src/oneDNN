@@ -216,11 +216,9 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                                 + get_blk_off(src_d, jbgp.src_dt, n,
                                         ic + b * jbgp.K));
                 addr_batch[b].ptr.A = A_ptr;
-                const int ic_curr
-                        = ic + b * ic_blocks_per_batch * jbgp.ic_block;
                 addr_batch[b].ptr.B = weights
-                        + types::data_type_size(jbgp.wei_dt)
-                                * weights_d.off(oc, ic_curr);
+                        + get_blk_off(weights_d, jbgp.wei_dt, ocb,
+                                icb + b * ic_blocks_per_batch);
             }
 
             auto ptr_D = dst + dst_off;
