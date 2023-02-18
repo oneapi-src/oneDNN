@@ -116,7 +116,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> bia_d {};
     if (prb->bia_dt != dnnl_data_type_undef) {
         auto bia_dims = get_runtime_dims(
-                prb->bia_dims(), prb->dst_runtime_dim_mask());
+                prb->bia_dims(), prb->bias_runtime_dim_mask());
         bia_d = dnn_mem_t::init_md(prb->ndims, bia_dims.data(), prb->bia_dt,
                 prb->dst_runtime_dim_mask() != 0 ? tag::abx : tag::any);
     }

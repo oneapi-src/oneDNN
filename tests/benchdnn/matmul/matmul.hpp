@@ -127,6 +127,7 @@ struct prb_t : public prb_vdims_t {
         dst_dims[ndims - 1] = n;
 
         init_dst_rt_dims_mask();
+        init_bias_rt_dims_mask();
         mb = std::accumulate(dst_dims.begin(), dst_dims.end() - 2,
                 (dnnl_dim_t)1, std::multiplies<dnnl_dim_t>());
         const auto nelems = std::accumulate(dst_dims.begin(), dst_dims.end(),
@@ -167,6 +168,9 @@ struct prb_t : public prb_vdims_t {
         return rt_dims_masks[1];
     }
     const dims_mask_t &dst_runtime_dim_mask() const { return rt_dims_masks[2]; }
+    const dims_mask_t &bias_runtime_dim_mask() const {
+        return rt_dims_masks[3];
+    }
 
     int src_broadcast_mask() const {
         return prb_vdims_t::get_broadcast_mask(0);
@@ -208,6 +212,18 @@ private:
         dst_rt_dim_mask[ndims - 1] = wei_rt_dim_mask[ndims - 1];
 
         rt_dims_masks.push_back(dst_rt_dim_mask);
+    }
+
+    void init_bias_rt_dims_mask() {
+        if (rt_dims_masks.size() != 3) return;
+
+        const auto &dst_rt_dim_mask = dst_runtime_dim_mask();
+        dims_mask_t bias_rt_dim_mask;
+
+        for (int d = 0; d < ndims; ++d)
+            bias_rt_dim_mask[d] = (bia_mask & (1 << d)) && dst_rt_dim_mask[d];
+
+        rt_dims_masks.push_back(bias_rt_dim_mask);
     }
 };
 
