@@ -664,9 +664,9 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
     //   * small work amount available to each thread
     if ((num_work_to_parallel < 2 * jbgp.nthr
                 || jbgp.oc > (is_bf16 || jbgp.is_bf32 ? 4096 : 1024))) {
-        const int min_chunck_sz
+        const int min_chunk_sz
                 = (is_avx512_bf16) ? 2 * jbgp.simd_w : jbgp.simd_w;
-        const int num_min_chunk_sz = div_up(jbgp.nb_oc, min_chunck_sz);
+        const int num_min_chunk_sz = div_up(jbgp.nb_oc, min_chunk_sz);
         int reduce_work = int(0.5f * num_min_chunk_sz * jbgp.nb_os
                 + (float)num_min_chunk_sz / jbgp.nb_ic + 0.5f);
 
