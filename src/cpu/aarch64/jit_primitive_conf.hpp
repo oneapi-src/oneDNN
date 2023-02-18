@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
-* Copyright 2020-2022 FUJITSU LIMITED
+* Copyright 2016-2023 Intel Corporation
+* Copyright 2020-2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -110,6 +110,8 @@ struct jit_conv_conf_t {
     bool with_eltwise;
     bool with_binary;
 
+    data_type_t sum_dt;
+
     bool is_fused_conv;
     int dw_conv_buffer_oc;
 
@@ -188,6 +190,8 @@ struct jit_conv_conf_t {
     bool dst_zero_point;
     bool zp_src_is_common; // common, otherwise (TODO) per-channel
 
+    bool dst_scale;
+
     bool uses_permw_transposition;
     bool transpose_src;
     bool transpose_dst;
@@ -234,6 +238,7 @@ struct jit_conv_call_s {
     const int32_t *dst_zero_point;
     const void *tile_cfg;
     const void *tile_cfg_tail;
+    const void *dst_scale;
 
     // ptr to table of void * elements that are pointers to
     // post_op binary src1 tensors

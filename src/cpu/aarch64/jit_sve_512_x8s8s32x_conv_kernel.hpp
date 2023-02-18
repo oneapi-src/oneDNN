@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
-* Copyright 2021 FUJITSU LIMITED
+* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
+#include "cpu/aarch64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/aarch64/jit_generator.hpp"
 #include "cpu/aarch64/jit_primitive_conf.hpp"
 
@@ -36,19 +37,8 @@ struct jit_sve_512_x8s8s32x_fwd_kernel : public jit_generator {
 
     enum { STATE_FIRST_DST_LOAD = 0x1U };
 
-    jit_sve_512_x8s8s32x_fwd_kernel(
-            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr) {
-        if (jcp.with_eltwise) assert(!"not supported");
-
-        int ch_block = jcp.is_depthwise ? jcp.ch_block : jcp.ic_block;
-        switch (ch_block) {
-            case 16: sve_len_ = 64; break;
-            case 8: sve_len_ = 32; break;
-            case 4: sve_len_ = 16; break;
-            default: assert(!"unreachable"); break;
-        }
-    }
+    jit_sve_512_x8s8s32x_fwd_kernel(const jit_conv_conf_t &ajcp,
+            const primitive_attr_t &attr, const memory_desc_t &dst_md);
 
     ~jit_sve_512_x8s8s32x_fwd_kernel() {}
 
@@ -58,12 +48,17 @@ struct jit_sve_512_x8s8s32x_fwd_kernel : public jit_generator {
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, memory_desc_t &src_pd,
             memory_desc_t &weights_pd, memory_desc_t &dst_pd,
-            memory_desc_t &bias_pd, const primitive_attr_t &attr, int nthreads);
+            memory_desc_t &bias_pd, primitive_attr_t &attr, int nthreads);
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
 private:
     size_t sve_len_;
+    constexpr static int isa_simd_width_
+            = cpu_isa_traits<sve_512>::vlen / sizeof(float);
+    const int ic_sub_step = 4;
+    std::unique_ptr<injector::jit_uni_postops_injector_t<sve_512>>
+            postops_injector_;
 
     enum {
         typesize = sizeof(float),
@@ -85,6 +80,7 @@ private:
     const XReg reg_out = x10;
     const XReg aux_reg_inp = x11;
     const XReg reg_ptr_sum_scale = x11;
+    const XReg reg_ptr_sum_zp = x1;
     const XReg aux_reg_ker = x12;
     const XReg reg_compensation = x14;
     const XReg aux_reg_inp_d = x13;
@@ -92,9 +88,15 @@ private:
     // Using 3d regs as depthwise_3d is not yet supported
     const XReg reg_inp_buffer_ptr = aux_reg_inp_d;
     const XReg aux_reg_inp_buffer_ptr = aux_reg_ker_d;
+    // zero-point computation
+    const XReg reg_zp_compensation = aux_reg_inp;
+    const XReg reg_src_zero_point = aux_reg_ker_d;
+    const XReg reg_dst_zero_point = reg_src_zero_point;
+
+    // dst scale
+    const XReg reg_dst_scale = reg_src_zero_point;
 
     /* counter regs */
-    const XReg reg_bias_alpha = x1;
     const XReg reg_param1 = x0;
     const XReg reg_oi = x3;
     const XReg reg_bias = x2;
@@ -113,7 +115,7 @@ private:
     XReg reg_tmp0_imm = x18; // tmp for add_imm
     XReg reg_tmp1_imm = x19; // tmp for add_imm
     XReg reg_tmp2_imm = x20; // tmp for add_imm
-    XReg reg_tmp3_imm = x21; // tmp for add_imm
+    XReg reg_tmp3_imm = x4; // tmp for add_imm
     XReg reg_tmp0_adr = x23; // tmp for address value
     XReg reg_tmp1_adr = x24; // tmp for address value
     XReg reg_tmp2_adr = x25; // tmp for address value
@@ -121,9 +123,10 @@ private:
 
     const PReg ktail_mask = p2;
     const PReg kblend_mask = p8;
+    const PReg postops_mask = p7;
 
     const PReg mask_tmp = p3;
-    const PReg mask_tmp2 = p9;
+    const PReg mask_tmp2 = p5;
     const PReg mask_all_one = p4;
 
     const ZReg vmm_wei = ZReg(31);
@@ -135,6 +138,7 @@ private:
     const ZReg vmm_prev_dst = ZReg(31);
     /* used during write-out section of store_output */
     const ZReg vmm_saturation = ZReg(30);
+    const ZReg vmm_sum_zp = ZReg(30);
     const ZReg vmm_zero = ZReg(31);
 
     /* used in compute_ker (but set during prepare_output) */
@@ -142,6 +146,12 @@ private:
     const ZReg vmm_tmp = ZReg(28); // not used for depthwise
     const ZReg vmm_one
             = ZReg(29); // set at start of kernel, not used for depthwise.
+    /* zero-point */
+    const ZReg vmm_zp = ZReg(25);
+    const ZReg vmm_zp_one = ZReg(26);
+    const ZReg vmm_zp_tmp = vmm_zp;
+
+    const ZReg vmm_dst_scale = ZReg(26);
 
     /* registers use only for depthwise
        groups are always blocked by 16(padded if needed),
@@ -154,6 +164,15 @@ private:
 
     bool mask_gflag;
 
+    int vmm_out_idx(int i_ur, int i_oc) {
+        const int nb_x_blocking
+                = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
+        const int idx = i_ur * nb_x_blocking + i_oc;
+        assert(idx < (jcp.is_depthwise              ? ker_dw_reg_base_idx
+                               : jcp.src_zero_point ? ker_zp_reg_base_idx
+                                                    : ker_reg_base_idx));
+        return idx;
+    }
     ZReg vmm_out(int i_ur, int i_oc) {
         int nb_x_blocking
                 = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
@@ -181,16 +200,6 @@ private:
 
         return ZReg(idx);
     }
-    ZReg vmm_bias_alpha() {
-        int nb_c_block
-                = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
-        return ZReg(nb_c_block * jcp.ur_w);
-    }
-    ZReg xmm_bias_alpha() {
-        int nb_c_block
-                = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
-        return ZReg(nb_c_block * jcp.ur_w);
-    }
     int get_ow_start(int ki, int pad_l) {
         return nstl::max(0,
                 utils::div_up(pad_l - ki * (jcp.dilate_w + 1), jcp.stride_w));
@@ -204,6 +213,12 @@ private:
     }
 
     void prepare_output(int ur_w);
+    void apply_sum(int ur_w, bool last_oc_block_flag, const int nb_oc_block,
+            const int oc_block, const float *p_sum_scale,
+            const int32_t *p_sum_zp);
+    void apply_postops(int ur_w, bool last_oc_block_flag, const int nb_oc_block,
+            const int oc_block, const float *p_sum_scale,
+            const int32_t *p_sum_zp);
     void store_output(int ur_w, bool last_oc_block_flag);
     void compute_ker_dw(int ur_w, int pad_l, int pad_r,
             ic_block_t last_ic_block_flag, bool h_padded);
@@ -216,6 +231,7 @@ private:
             const int offset, bool mask_flag);
     void vmm_mask_all_one();
     void vmm_load_src(ZReg src, XReg reg_addr, bool mask_flag);
+    void vmm_load_zero_point(ZReg src, XReg reg_addr, PReg mask, bool bcast);
 
     int get_offset(int raw_offt) {
         auto offt = raw_offt;
@@ -247,8 +263,6 @@ private:
 
         return reg_tmp_adr;
     }
-
-    static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 };
 
 } // namespace aarch64
