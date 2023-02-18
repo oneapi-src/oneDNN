@@ -176,6 +176,9 @@ struct brgemm_matmul_conf_t {
     int required_k_granularity;
     bool is_bf32 = false;
     bool req_wei_vnni_downconvert = false;
+    bool is_runtime_M = false;
+    bool is_runtime_N = false;
+    bool is_runtime_K = false;
 };
 
 struct brgemm_matmul_conf_utils_t {

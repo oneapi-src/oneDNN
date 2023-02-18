@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -60,6 +60,11 @@ struct matmul_helper_t {
     dim_t lda() const {
         const auto &strides = &src_md_.blocking_desc().strides[ndims() - 2];
         return strides[transA() == 'N' ? 0 : 1];
+    }
+
+    dim_t get_a_stride(int dim) const {
+        if (dim >= ndims() || dim < 0) return 0;
+        return src_md_.blocking_desc().strides[dim];
     }
 
     dim_t ldb() const {

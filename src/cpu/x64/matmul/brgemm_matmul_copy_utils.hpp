@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,6 +60,7 @@ struct jit_brgemm_matmul_copy_a_t {
         dim_t current_K_start;
         dim_t current_K_blk;
         dim_t current_M_blk;
+        dim_t dynamic_src_ld;
     };
 
     virtual void operator()(ctx_t *ctx) = 0;

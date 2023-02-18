@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -164,6 +164,7 @@ enum {
     key_brgemm_primitive_buffer_a,
     key_brgemm_primitive_buffer_b,
     key_brgemm_primitive_buffer_comp,
+    key_brgemm_primitive_buffer_d,
     key_brgemm_primitive_zp_comp_a,
     key_brgemm_primitive_zp_comp_b,
     key_concat_iptrs,
