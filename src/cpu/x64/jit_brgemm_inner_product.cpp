@@ -98,6 +98,7 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
             src_scales, wei_scales, pd()->OC(), pd()->attr());
 
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
+    const bool is_f32_compute = is_f32 && !jbgp.is_bf32;
 
     const size_t src_dt_size = types::data_type_size(jbgp.src_dt);
     const size_t bia_dt_size
@@ -342,7 +343,6 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
         enum loop_order order = osc_occ_osb_ocb_icc;
 
         // Optimize loop order for f32, if buffer is not required.
-        const bool is_f32_compute = is_f32 && !jbgp.is_bf32;
         const bool ocb_inner_most = is_f32_compute && !jbgp.use_buffer;
         if (ocb_inner_most) {
             order = osc_occ_icc_osb_ocb;
