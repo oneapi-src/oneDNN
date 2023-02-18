@@ -751,12 +751,14 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
     M = brgM = sp >= sp_block ? sp_block : 0;
     M_tail = brgM_tail = sp % sp_block;
     if (is_os_blocking) {
-        if (!is_1x1) M_tail = brgM_tail = (oh * ow) % sp_block;
+        if (!is_1x1) M_tail = (oh * ow) % sp_block;
         oskip = ((ext_kw - 1) / stride_w) * stride_h + (stride_h - 1) * ow;
 
-        brgM = sp_block + oskip * (div_up(M, ow) - 1);
+        brgM = M + oskip * (div_up(M, ow) - 1);
+        brgM_tail = M_tail + oskip * div_up(M_tail, ow);
 
-        // round up brgM to help brgemm kernel use max amx_h as brgemm bd_block
+        // round up brgM and brgM_tail to help brgemm kernels use max amx_h as
+        // bd_block and to avoid bd blocks with all zeros in the mask
         if (use_M_mask == 2) {
             int ibrgM = 0;
             const auto adj_ow = ow_block + oskip;
@@ -767,10 +769,19 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
                     ibrgM++;
             }
             brgM = ibrgM;
-        } else
+            const auto start_M_tail_in_ow = rnd_dn(oh * ow, sp_block) % ow;
+            ibrgM = 0;
+            while (ibrgM < brgM_tail) {
+                if ((ibrgM + start_M_tail_in_ow) % adj_ow < ow_block)
+                    ibrgM += amx_h;
+                else
+                    ibrgM++;
+            }
+            brgM_tail = ibrgM;
+        } else {
             brgM = rnd_up(brgM, amx_h);
-
-        brgM_tail = brgM;
+            brgM_tail = rnd_up(brgM_tail, amx_h);
+        }
     }
 
     N = oc >= oc_block ? oc_block : 0;
