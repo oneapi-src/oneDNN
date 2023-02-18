@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
-* Copyright 2021-2022 FUJITSU LIMITED
+* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,14 +21,10 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
+#include "cpu/aarch64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/aarch64/jit_generator.hpp"
 #include "cpu/aarch64/jit_op_imm_check.hpp"
 #include "cpu/aarch64/jit_primitive_conf.hpp"
-
-#define DISABLE_ELTWISE
-#ifndef DISABLE_ELTWISE
-#include "cpu/aarch64/jit_uni_eltwise_injector.hpp"
-#endif
 
 using namespace Xbyak_aarch64;
 
@@ -41,32 +37,10 @@ namespace aarch64 {
 #define VL64_OFS(ofs) ((ofs) >> 6)
 
 struct jit_sve_512_1x1_conv_kernel : public jit_generator {
-    jit_sve_512_1x1_conv_kernel(
-            const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp)
-        , attr_(attr)
-#ifndef DISABLE_ELTWISE
-        , eltwise_injector_(nullptr)
-#endif
-    {
-        if (jcp.with_eltwise) {
-#ifndef DISABLE_ELTWISE
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<sve_512>(
-                    this, jcp.eltwise);
-#endif
-        }
-    }
-
-    ~jit_sve_512_1x1_conv_kernel() {
-#ifndef DISABLE_ELTWISE
-        delete eltwise_injector_;
-#endif
-    }
+    jit_sve_512_1x1_conv_kernel(const jit_1x1_conv_conf_t &ajcp,
+            const primitive_attr_t &attr, const memory_desc_t &dst_md);
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sve_512_1x1_conv_kernel)
-
-    static bool post_ops_ok(
-            jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr);
 
     static status_t init_conf(jit_1x1_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
@@ -112,6 +86,41 @@ private:
     /* Temporay registers */
     reg64_t reg_tmp_imm = x18; // tmp for add_imm
     reg64_t reg_tmp_ofs = x19; // tmp reg to calc bwd wei offset in out_load
+
+    reg64_t reg_load_dim_tail_mask = aux_reg_load_data;
+
+    std::unique_ptr<injector::jit_uni_postops_injector_t<sve_512>>
+            postops_injector_;
+
+    constexpr static int isa_simd_width_
+            = cpu_isa_traits<sve_512>::vlen / sizeof(float);
+
+    ZReg vreg_bcast = ZReg(31);
+    PReg k_load_dim_mask = p2;
+    PReg k_load_dim_tail_mask = p3;
+    ZReg zreg_tmp = ZReg(31);
+    ZReg zreg_tmp1 = ZReg(30);
+
+    constexpr static int reg64_size_ = sizeof(int64_t);
+    constexpr static int reg_bcast_loop_work_offt = 0;
+    constexpr static int reg_binary_post_op_acc_off = 1 * reg64_size_;
+    constexpr static int reg_abi_param1_backup = 2 * reg64_size_;
+    constexpr static int stack_space_needed = 3 * reg64_size_;
+
+    template <typename T>
+    Xbyak_aarch64::XReg EVEX_compress_addr(const Xbyak_aarch64::XReg &addr,
+            const Xbyak_aarch64::XReg &x_tmp, Xbyak_aarch64::XReg base,
+            T raw_offt, bool bcast = false) {
+
+        assert(raw_offt <= INT_MAX);
+        auto offt = static_cast<int>(raw_offt);
+
+        add_imm(addr, base, offt, x_tmp);
+        if (bcast) {
+            // addr is the same as addr when bcast is false.
+        }
+        return addr;
+    }
 
     void prefetch(
             const std::string prfop, int level, reg64_t in, long long int ofs) {
@@ -165,14 +174,27 @@ private:
         }
     }
 
-#ifndef DISABLE_ELTWISE
     jit_uni_eltwise_injector_f32<sve_512> *eltwise_injector_;
-#endif
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
 
     void generate() override;
     static void balance(jit_1x1_conv_conf_t &jcp);
+
+    inline size_t get_output_offset(
+            const bool is_out_layout_nxc, const int i_load, const int i_ur) {
+        const size_t i_load_shift = is_out_layout_nxc
+                ? jcp.load_block
+                : (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim) * jcp.load_block;
+        const size_t i_ur_shift
+                = is_out_layout_nxc ? jcp.load_dim : jcp.load_block;
+        return jcp.typesize_out * (i_load * i_load_shift + i_ur * i_ur_shift);
+    }
+
+    Xbyak_aarch64::XReg output_ptr(const bool out_layout_nxc, const int i_load,
+            const int i_ur, Xbyak_aarch64::XReg addr);
+    void apply_postops(const bool is_out_layout_nxc, const int load_loop_blk,
+            const int ur);
 };
 
 } // namespace aarch64
