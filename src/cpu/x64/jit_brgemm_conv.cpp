@@ -523,8 +523,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
             : 0;
     int i_init_end = 2;
 
-    for (int i = M_begin; i < M_end; i++) {
-        auto vM = i + 1;
+    for (int vM = M_end; vM > M_begin; vM--) {
         // init only needed brgemm descriptors
         if ((one_of(jcp_.exec_type, exec_trans, exec_vpad)
                     || (jcp_.exec_type == exec_base && jcp_.l_pad == 0
