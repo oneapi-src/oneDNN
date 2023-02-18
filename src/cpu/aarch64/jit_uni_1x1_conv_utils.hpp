@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
-* Copyright 2021 FUJITSU LIMITED
+* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -74,7 +74,7 @@ inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
 
     const bool is_nspc
             = utils::one_of(dat_tag, format_tag::nwc, format_tag::nhwc);
-    if (is_nspc && !mayiuse(sve_256)) return;
+    if (is_nspc && !mayiuse(sve_128)) return;
 
     // rtus is applicable, configure it.
     self->rtus_.reduce_src_ = true;
@@ -151,11 +151,6 @@ struct rtus_driver_t : public jit_generator {
     Xbyak_aarch64::XReg reg_tail_mask = x14;
     Xbyak_aarch64::XReg reg_icb_remainder = x15;
     Xbyak_aarch64::XReg reg_ws_copy = x16;
-    Xbyak_aarch64::XReg reg_tmp_imm = x17;
-    Xbyak_aarch64::XReg reg_tmp = x18;
-
-    Xbyak_aarch64::ZReg reg_zero = Xbyak_aarch64::ZReg(0);
-    Xbyak_aarch64::ZReg reg_v = Xbyak_aarch64::ZReg(1);
 
     int iw_, stride_w_;
     int src_step_h_, src_step_icb_, ws_step_icb_, vlen_, vlen_shift_;
@@ -163,6 +158,9 @@ struct rtus_driver_t : public jit_generator {
     size_t typesize_;
     int ic_, ic_tail_;
     bool is_nspc_;
+
+    Xbyak_aarch64::ZReg reg_zero = Xbyak_aarch64::ZReg(0);
+    Xbyak_aarch64::ZReg reg_v = Xbyak_aarch64::ZReg(1);
 
     rtus_driver_t(int iw, int stride_w, int src_step_h, int src_step_icb,
             int ws_step_icb, bool src_to_ws, size_t typesize, int ic,
@@ -234,38 +232,37 @@ struct rtus_driver_t : public jit_generator {
             ldr(reg_v, ptr(reg_ws));
             str(reg_v, ptr(reg_cur_src));
             for (int w = 1; w < stride_w_; ++w) {
-                add_imm(reg_tmp, reg_cur_src, w * vlen_, reg_tmp_imm);
-                str(reg_zero, ptr(reg_tmp));
+                add_imm(X_TMP_3, reg_cur_src, w * vlen_, X_TMP_4);
+                str(reg_zero, ptr(X_TMP_3));
             }
         }
 
-        add_imm(reg_ws, reg_ws, vlen_, reg_tmp_imm);
-        add_imm(reg_cur_src, reg_cur_src, stride_w_ * vlen_, reg_tmp_imm);
+        add_imm(reg_ws, reg_ws, vlen_, X_TMP_4);
+        add_imm(reg_cur_src, reg_cur_src, stride_w_ * vlen_, X_TMP_4);
 
         // for 1d or stride_h=1 convolutions the loop over h should be skipped
         if (!(src_step_icb_ == iw_ || src_step_h_ == iw_)) {
             Label skip_h_step;
-            add_imm(reg_cur_iw, reg_cur_iw, stride_w_, reg_tmp_imm);
+            add_imm(reg_cur_iw, reg_cur_iw, stride_w_, X_TMP_4);
             cmp(reg_cur_iw, iw_);
             b(LT, skip_h_step);
 
             if (src_to_ws_) {
                 add_imm(reg_cur_src, reg_cur_src, (src_step_h_ - iw_) * vlen_,
-                        reg_tmp_imm);
+                        X_TMP_4);
             } else {
                 mov(reg_cur_src_fin, reg_cur_src);
                 add_imm(reg_cur_src_fin, reg_cur_src_fin,
-                        (src_step_h_ - iw_) * vlen_, reg_tmp_imm);
+                        (src_step_h_ - iw_) * vlen_, X_TMP_4);
                 Label ih_loop;
                 L(ih_loop);
 
                 for (int w = 0; w < stride_w_; ++w) {
-                    add_imm(reg_tmp, reg_cur_src, w * vlen_, reg_tmp_imm);
-                    str(reg_zero, ptr(reg_tmp));
+                    add_imm(X_TMP_3, reg_cur_src, w * vlen_, X_TMP_4);
+                    str(reg_zero, ptr(X_TMP_3));
                 }
 
-                add_imm(reg_cur_src, reg_cur_src, stride_w_ * vlen_,
-                        reg_tmp_imm);
+                add_imm(reg_cur_src, reg_cur_src, stride_w_ * vlen_, X_TMP_4);
                 cmp(reg_cur_src, reg_cur_src_fin);
                 b(LT, ih_loop);
             }
@@ -273,14 +270,200 @@ struct rtus_driver_t : public jit_generator {
             L(skip_h_step);
         }
 
-        subs_imm(reg_cur_os, reg_cur_os, vlen_, reg_tmp_imm);
+        subs_imm(reg_cur_os, reg_cur_os, vlen_, X_TMP_4);
         b(NE, is_loop);
 
         /* restore dst */
         sub(reg_ws, reg_ws, reg_os);
     }
 
-    void loop_is_nspc() {}
+    void loop_is_nspc() {
+        using namespace Xbyak_aarch64;
+
+        assert(is_nspc_);
+
+        mov(reg_cur_src, reg_src);
+        mov(reg_cur_iw, reg_iw_start);
+
+        if (isa == sve_512) {
+            and_(reg_icb_remainder, reg_icb, (vlen_ / typesize_) - 1);
+            mov_imm(X_TMP_0, 0);
+            whilelt(tail_mask.s, X_TMP_0, reg_icb_remainder);
+        }
+
+        auto load_reg = [=](const ZReg &vreg, const XReg &reg,
+                                const int64_t offset, bool tail = false) {
+            if (is_superset(isa, sve_128)) {
+                add_imm(X_DEFAULT_ADDR, reg, offset, X_TMP_0);
+                switch (typesize_) {
+                    case 4:
+                        if (tail)
+                            ld1w(vreg.s, tail_mask / T_z, ptr(X_DEFAULT_ADDR));
+                        else
+                            ld1w(vreg.s, P_ALL_ONE / T_z, ptr(X_DEFAULT_ADDR));
+                        break;
+                    case 2:
+                        if (tail)
+                            ld1h(vreg.h, tail_mask / T_z, ptr(X_DEFAULT_ADDR));
+                        else
+                            ld1h(vreg.h, P_ALL_ONE / T_z, ptr(X_DEFAULT_ADDR));
+                        break;
+                    case 1:
+                        if (tail)
+                            ld1b(vreg.b, tail_mask / T_z, ptr(X_DEFAULT_ADDR));
+                        else
+                            ld1b(vreg.b, P_ALL_ONE / T_z, ptr(X_DEFAULT_ADDR));
+                        break;
+                    default: assert(!"Unsupported typesize");
+                }
+            } else {
+                assert("!Unsupported isa");
+            }
+        };
+
+        auto store_reg = [=](const XReg &reg, const ZReg &vreg,
+                                 const int64_t offset, bool tail = false) {
+            if (is_superset(isa, sve_128)) {
+                add_imm(X_DEFAULT_ADDR, reg, offset, X_TMP_0);
+                switch (typesize_) {
+                    case 4:
+                        if (tail)
+                            st1w(vreg.s, tail_mask / T_z, ptr(X_DEFAULT_ADDR));
+                        else
+                            st1w(vreg.s, P_ALL_ONE / T_z, ptr(X_DEFAULT_ADDR));
+                        break;
+                    case 2:
+                        if (tail)
+                            st1h(vreg.h, tail_mask / T_z, ptr(X_DEFAULT_ADDR));
+                        else
+                            st1h(vreg.h, P_ALL_ONE / T_z, ptr(X_DEFAULT_ADDR));
+                        break;
+                    case 1:
+                        if (tail)
+                            st1b(vreg.b, tail_mask / T_z, ptr(X_DEFAULT_ADDR));
+                        else
+                            st1b(vreg.b, P_ALL_ONE / T_z, ptr(X_DEFAULT_ADDR));
+                        break;
+                    default: assert(!"Unsupported typesize");
+                }
+            } else {
+                assert("!Unsupported isa");
+            }
+        };
+
+        mov(reg_ws_copy, reg_ws);
+        lsl(reg_icb, reg_icb, vlen_shift_);
+
+        const size_t w_step_factor = ic_ * typesize_;
+        const size_t max_load_store_bytes = typesize_ == 4 ? 32 : 16;
+        const size_t load_store_size
+                = isa == sve_512 ? vlen_ : max_load_store_bytes;
+
+        Label is_loop, ic_loop, ic_loop_tail, ic_loop_finish;
+        L(is_loop);
+        {
+            mov(reg_cur_src, reg_src);
+            mov(reg_ws, reg_ws_copy);
+            mov(reg_cur_icb, reg_icb);
+
+            L(ic_loop);
+            {
+                cmp(reg_cur_icb, load_store_size);
+                b(LT, ic_loop_tail);
+
+                if (src_to_ws_) {
+                    load_reg(reg_v, reg_cur_src, 0);
+                    store_reg(reg_ws, reg_v, 0);
+                } else {
+                    load_reg(reg_v, reg_ws, 0);
+                    store_reg(reg_cur_src, reg_v, 0);
+                    for (int w = 1; w < stride_w_; ++w)
+                        store_reg(reg_cur_src, reg_zero, w * w_step_factor);
+                }
+                add_imm(reg_ws, reg_ws, load_store_size, X_TMP_0);
+                add_imm(reg_cur_src, reg_cur_src, load_store_size, X_TMP_0);
+
+                sub_imm(reg_cur_icb, reg_cur_icb, load_store_size, X_TMP_0);
+                b(ic_loop);
+            }
+
+            L(ic_loop_tail);
+            {
+                cmp(reg_cur_icb, 0);
+                b(EQ, ic_loop_finish);
+
+                if (src_to_ws_) {
+                    load_reg(reg_v, reg_cur_src, 0, true);
+                    store_reg(reg_ws, reg_v, 0, true);
+                } else {
+                    load_reg(reg_v, reg_ws, 0, true);
+                    store_reg(reg_cur_src, reg_v, 0, true);
+                    for (int w = 1; w < stride_w_; ++w)
+                        store_reg(
+                                reg_cur_src, reg_zero, w * w_step_factor, true);
+                }
+            }
+            L(ic_loop_finish);
+
+            add_imm(reg_ws_copy, reg_ws_copy, w_step_factor, X_TMP_0);
+            add_imm(reg_src, reg_src, stride_w_ * w_step_factor, X_TMP_0);
+
+            // for 1d or stride_h=1 convolutions the loop over h should be skipped
+            const bool skip_oh_step = src_step_h_ == iw_;
+            if (!skip_oh_step) {
+                mov(reg_cur_src, reg_src);
+                Label skip_h_step;
+                add_imm(reg_cur_iw, reg_cur_iw, stride_w_, X_TMP_0);
+                cmp(reg_cur_iw, iw_);
+                b(LT, skip_h_step);
+
+                if (src_to_ws_) {
+                    add_imm(reg_src, reg_src,
+                            (src_step_h_ - iw_) * w_step_factor, X_TMP_0);
+                } else {
+                    mov(reg_cur_src_fin, reg_cur_src);
+                    add_imm(reg_cur_src_fin, reg_cur_src_fin,
+                            (src_step_h_ - iw_) * w_step_factor, X_TMP_0);
+                    Label ih_loop_nhwc, ic_ih_loop_nhwc, ic_tail_ih_loop_nhwc,
+                            ic_finish_ih_loop_nhwc;
+                    L(ih_loop_nhwc);
+                    mov(reg_cur_src, reg_src);
+                    mov(reg_cur_icb, reg_icb);
+                    L(ic_ih_loop_nhwc);
+                    cmp(reg_cur_icb, load_store_size);
+                    b(LT, ic_tail_ih_loop_nhwc);
+
+                    for (int w = 0; w < stride_w_; ++w)
+                        store_reg(reg_cur_src, reg_zero, w * w_step_factor);
+
+                    add_imm(reg_cur_src, reg_cur_src, load_store_size, X_TMP_0);
+                    subs_imm(
+                            reg_cur_icb, reg_cur_icb, load_store_size, X_TMP_0);
+                    b(NE, ic_ih_loop_nhwc);
+
+                    L(ic_tail_ih_loop_nhwc);
+                    cmp(reg_cur_icb, 0);
+                    b(LE, ic_finish_ih_loop_nhwc);
+
+                    for (int w = 0; w < stride_w_; ++w)
+                        store_reg(
+                                reg_cur_src, reg_zero, w * w_step_factor, true);
+
+                    L(ic_finish_ih_loop_nhwc);
+
+                    add_imm(reg_src, reg_src, stride_w_ * w_step_factor,
+                            X_TMP_0);
+                    cmp(reg_src, reg_cur_src_fin);
+                    b(LT, ih_loop_nhwc);
+                }
+                eor(reg_cur_iw, reg_cur_iw, reg_cur_iw);
+                L(skip_h_step);
+            }
+
+            subs(reg_os, reg_os, 1);
+            b(NE, is_loop);
+        }
+    }
 
     void generate() override {
         using namespace Xbyak_aarch64;
@@ -309,7 +492,7 @@ struct rtus_driver_t : public jit_generator {
             }
         }
         if (is_nspc_) {
-            assert(!"loop_is_nspc error");
+            loop_is_nspc();
         } else {
             lsl(reg_os, reg_os, vlen_shift_);
 
@@ -318,10 +501,10 @@ struct rtus_driver_t : public jit_generator {
 
             loop_is();
 
-            add_imm(reg_ws, reg_ws, ws_step_icb_ * vlen_, reg_tmp_imm);
-            add_imm(reg_src, reg_src, src_step_icb_ * vlen_, reg_tmp_imm);
+            add_imm(reg_ws, reg_ws, ws_step_icb_ * vlen_, X_TMP_4);
+            add_imm(reg_src, reg_src, src_step_icb_ * vlen_, X_TMP_4);
 
-            subs_imm(reg_icb, reg_icb, vlen_ / typesize_, reg_tmp_imm);
+            subs_imm(reg_icb, reg_icb, vlen_ / typesize_, X_TMP_4);
             b(NE, icb_loop);
         }
 
@@ -359,6 +542,7 @@ inline status_t init_rtus_driver(conv_t *self) {
     CHECK(safe_ptr_assign(self->rtus_driver_,
             new rtus_driver_t<isa>(iw, stride_w, src_step_h, src_step_icb,
                     ws_step_icb, src_to_ws, typesize, ic, is_nspc)));
+
     return self->rtus_driver_->create_kernel();
 }
 
