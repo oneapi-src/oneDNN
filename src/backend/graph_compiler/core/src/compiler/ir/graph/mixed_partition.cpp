@@ -689,6 +689,8 @@ void mxp_buffer_allocator::query_buffer_inplace() {
                 continue;
             // set inplace hint
             set_buffer_inplace_hint(target_buf, inplace_buf);
+            // in avoid of repeat try
+            replaced_buffer.insert(inplace_buf);
         }
     }
 }
@@ -2164,11 +2166,6 @@ static bool try_merge_brgemm_and_preop_parti(mixed_parti_t *A, mixed_parti_t *B,
     // call base merge
     brgemm_parti->fusion_partition_t::merge(
             static_cast<fusion_partition_t *>(preop_parti)->shared_from_this());
-
-    // Merge commited ops
-    brgemm_parti->committed_ops_.insert(brgemm_parti->committed_ops_.end(),
-            preop_parti->committed_ops_.begin(),
-            preop_parti->committed_ops_.end());
 
     SC_MODULE_INFO << "pre-op merging result:";
     SC_MODULE_INFO << brgemm_parti->func_;
