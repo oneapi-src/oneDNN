@@ -76,6 +76,7 @@ protected:
     static ngen::HW convert_dnnl_arch_to_hw(compute::gpu_arch_t arch) {
         switch (arch) {
             case compute::gpu_arch_t::gen9: return ngen::HW::Gen9;
+            case compute::gpu_arch_t::gen11: return ngen::HW::Gen11;
             case compute::gpu_arch_t::xe_lp: return ngen::HW::XeLP;
             case compute::gpu_arch_t::xe_hp: return ngen::HW::XeHP;
             case compute::gpu_arch_t::xe_hpg: return ngen::HW::XeHPG;

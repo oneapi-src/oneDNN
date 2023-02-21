@@ -103,6 +103,7 @@ void gen_gemm_kernel_desc_t::update_driver_info() {
 
     switch (hw_) {
         REG_GEN9_ISA(ARCH_DISPATCH(Gen9))
+        REG_GEN11_ISA(ARCH_DISPATCH(Gen11))
         REG_XELP_ISA(ARCH_DISPATCH(XeLP))
         REG_XEHP_ISA(ARCH_DISPATCH(XeHP))
         REG_XEHPG_ISA(ARCH_DISPATCH(XeHPG))
@@ -561,6 +562,7 @@ cl_kernel gen_gemm_kernel_t::get_kernel(
 
     switch (desc()->hw_) {
         REG_GEN9_ISA(ARCH_DISPATCH(Gen9))
+        REG_GEN11_ISA(ARCH_DISPATCH(Gen11))
         REG_XELP_ISA(ARCH_DISPATCH(XeLP))
         REG_XEHP_ISA(ARCH_DISPATCH(XeHP))
         REG_XEHPG_ISA(ARCH_DISPATCH(XeHPG))
