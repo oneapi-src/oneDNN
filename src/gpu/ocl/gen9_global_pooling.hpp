@@ -52,7 +52,8 @@ struct gen9_global_pooling_fwd_t : public gpu_primitive_t {
                             forward_inference)
                     && utils::one_of(desc()->alg_kind, pooling_max,
                             pooling_avg_include_padding,
-                            pooling_avg_exclude_padding);
+                            pooling_avg_exclude_padding)
+                    && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             bool is_training = desc_.prop_kind == forward_training;
