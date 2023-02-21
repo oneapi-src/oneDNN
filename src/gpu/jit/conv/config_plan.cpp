@@ -1259,10 +1259,10 @@ layout_t pad_slm_layout(
     auto tg_dim1 = grid.dim(1);
     int type_size = layout.type().size();
 
-    ir_assert(layout.elems() % tg_dim0 == 0) << layout;
+    if (layout.elems() % tg_dim0) return layout_t();
     dim_t inner_block = layout.elems() / tg_dim0;
 
-    ir_assert((inner_block * type_size) % tg_dim1 == 0) << layout;
+    if ((inner_block * type_size) % tg_dim1 != 0) return layout_t();
     dim_t per_thr_bytes = (inner_block * type_size) / tg_dim1;
 
     std::vector<dim_t> multi_blocks = {inner_block, tg_dim0};
@@ -1822,6 +1822,7 @@ private:
         auto &tg = cfg_.thread_group_grid();
         slm_layout = get_slm_layout(
                 cfg_, abc, gemm_schedule_.bmnk_mapper(), tg_view, tg);
+        if (slm_layout == layout_t()) return plan_status_t::invalid_layout;
         auto thr_tile = slm_layout.split(tg, &grid);
         auto abs_thr_tile = tg_view.vtile().create_sub_tensor(thr_tile);
         auto slm_thr_layout = slm_layout.map(thr_tile);
