@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,10 +21,7 @@
 #include "gpu/jit/gemm/gen_gemm.hpp"
 #include "gpu/jit/gemm/xe_hp_systolic_gemm.hpp"
 #include "gpu/ocl/gemm/gemm_with_post_ops.hpp"
-#include "gpu/ocl/gemm/gen9_gemm.hpp"
-#include "gpu/ocl/gemm/gen9_gemm_x8x8s32.hpp"
 #include "gpu/ocl/gemm/ref_gemm.hpp"
-#include "gpu/ocl/gemm/xe_lp_gemm.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -37,9 +34,6 @@ constexpr impl_list_item_t impl_list[] = {
         INSTANCE(jit::xe_hp_systolic_gemm_t)
         INSTANCE(ocl::gemm_with_post_ops_t)
         INSTANCE(jit::gen_gemm_t)
-        INSTANCE(ocl::xe_lp_gemm_t)
-        INSTANCE(ocl::gen9_gemm_x8x8s32_t)
-        INSTANCE(ocl::gen9_gemm_t)
         INSTANCE(ocl::ref_gemm_t)
         nullptr,
 };
