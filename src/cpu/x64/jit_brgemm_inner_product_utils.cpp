@@ -432,7 +432,8 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
     const bool trivial_shape
             = everyone_is(1, jbgp.kw, jbgp.kh, jbgp.kd) && !jbgp.use_buffer_a;
     const bool small_ic = jbgp.ic <= max_nb_ic_blocking * jbgp.ic_block;
-    if (trivial_shape && (is_int8 || small_ic)) {
+    const bool avx2_small_os = jbgp.isa == avx2 && jbgp.nb_os == 1;
+    if (trivial_shape && (is_int8 || small_ic || avx2_small_os)) {
         // Optimization: data & weights layouts allow to generate
         // brgemm kernel with K = ic & batch = 1
         // (K = rnd_dn(ic, ic_block), K_tail = ic % ic_block & batch = 1)
