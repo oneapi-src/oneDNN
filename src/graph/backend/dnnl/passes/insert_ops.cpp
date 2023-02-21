@@ -417,7 +417,23 @@ status_t insert_reshape_for_ndx2d_matmul(std::shared_ptr<subgraph_t> &sg) {
                 = cur_op->get_input_value(0)->get_logical_tensor().ndims;
         int32_t wei_ndims
                 = cur_op->get_input_value(1)->get_logical_tensor().ndims;
-        if (wei_ndims != 2 || src_ndims <= 2) continue;
+
+        // the pass has to be applied after unsqueeze
+        bool ok = src_ndims == wei_ndims;
+        // the pass aims to flatten src to 2d
+        ok = ok && src_ndims > 2;
+        // skip this pass since oneDNN has optimized 3dx3d matmul on CPU
+        ok = ok
+                && !(src_ndims == 3
+                        && sg->get_engine_kind() == graph ::engine_kind::cpu);
+        // check if weight can be squeezed to 2d
+        ok = ok
+                && impl::utils::array_product(cur_op->get_input_value(1)
+                                                      ->get_logical_tensor()
+                                                      .dims,
+                           wei_ndims - 2)
+                        == 1;
+        if (!ok) continue;
 
         auto src_dims = logical_tensor_wrapper_t(
                 cur_op->get_input_value(0)->get_logical_tensor())
@@ -429,6 +445,26 @@ status_t insert_reshape_for_ndx2d_matmul(std::shared_ptr<subgraph_t> &sg) {
                 op_attr::shape, expected_dims);
 
         rewriter.insert_op_before(reshape_op, cur_op, 0);
+
+        dims squeeze_axes(wei_ndims - 2);
+        std::iota(squeeze_axes.begin(), squeeze_axes.end(), 0);
+        auto squeeze_op = std::make_shared<op_t>(op_kind::dnnl_squeeze);
+        squeeze_op->set_attr<std::vector<int64_t>>(op_attr::axes, squeeze_axes);
+        rewriter.insert_op_before(squeeze_op, cur_op, 1);
+
+        bool with_bias = cur_op->has_attr(op_attr::with_bias)
+                && cur_op->get_attr<bool>(op_attr::with_bias);
+        if (with_bias) {
+            int32_t bias_ndims
+                    = cur_op->get_input_value(2)->get_logical_tensor().ndims;
+            dims bias_squeeze_axes(bias_ndims - 2);
+            std::iota(bias_squeeze_axes.begin(), bias_squeeze_axes.end(), 0);
+            auto bias_squeeze_op
+                    = std::make_shared<op_t>(op_kind::dnnl_squeeze);
+            bias_squeeze_op->set_attr<std::vector<int64_t>>(
+                    op_attr::axes, bias_squeeze_axes);
+            rewriter.insert_op_before(bias_squeeze_op, cur_op, 2);
+        }
 
         dims expected_dims2(src_dims);
         expected_dims2[expected_dims2.size() - 1] = 0;

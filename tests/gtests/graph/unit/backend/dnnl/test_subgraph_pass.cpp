@@ -896,6 +896,10 @@ TEST_P(matmul_with_diff_inputs_t, MatmulPasses) {
         ASSERT_FALSE(logical_tensor_wrapper_t(lt).is_shape_unknown());
     }
 
+    
+    auto vis = dnnl_impl::subgraph_visualizer_t(1000);
+    vis.run(subgraph, "ok", true, false);
+
     ASSERT_EQ(subgraph->infer_shape(), graph::status::success);
 
     if (params.constant_weight) {
@@ -907,6 +911,11 @@ TEST_P(matmul_with_diff_inputs_t, MatmulPasses) {
     auto final_subgraph_size = params.final_subgraph_size;
     if (params.transpose_a && p_eng.get_kind() == dnnl::engine::kind::gpu) {
         final_subgraph_size -= 1;
+    }
+    if (!params.transpose_a && p_eng.get_kind() == dnnl::engine::kind::gpu
+            && params.src_shape.size() == 3
+            && params.weight_shape.size() == 2) {
+        final_subgraph_size += 1;
     }
     ASSERT_EQ(subgraph->get_ops().size(), final_subgraph_size);
 }
@@ -1760,8 +1769,16 @@ TEST(SubgraphPass, FuseTypecastBeforeFusePostops) {
     dnnl_impl::pass_pipeline_t pipeline(vis, true, true);
     dnnl_impl::larger_partition_kernel_t::setup_pipeline_stage1(pipeline);
     ASSERT_EQ(pipeline.run(subgraph), graph::status::success);
+<<<<<<< Updated upstream
     // 1 bias unsqueezing, 1 bias reorder, 1 fused matmul, 2 reshape, 4 const
     ASSERT_EQ(subgraph->num_ops(), 9U);
+=======
+    // 1 bias unsqueezing, 1 bias reorder, 1 fused matmul, 1 reshape, 4 const
+    size_t final_ops_num = 8;
+    // for 3dx2d matmul, src will be reshaped from 3d to 2d on gpu
+    if (p_eng.get_kind() == dnnl::engine::kind::gpu) { final_ops_num += 1; }
+    ASSERT_EQ(subgraph->num_ops(), final_ops_num);
+>>>>>>> Stashed changes
 }
 
 TEST(SubgraphPass, CheckUndefinedOpAttribute) {
