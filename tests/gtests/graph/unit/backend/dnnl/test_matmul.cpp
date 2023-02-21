@@ -30,7 +30,7 @@ namespace utils = dnnl::graph::tests::unit::utils;
 
 TEST(Execute, MatmulFp32) {
     graph::op_t matmul_op(graph::op_kind::MatMul);
-    matmul_op.set_attr<bool>(graph::op_attr::transpose_b, true);
+    matmul_op.set_attr<bool>(graph::op_attr::transpose_b, false);
     graph::engine_t *eng = get_engine();
 
     test::vector<float> src_data {-2.0, -1.5};
@@ -4713,7 +4713,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiMixBf16MatmulTransposeReorder) {
 
 TEST(Execute, MatmulScalarOutput) {
     graph::op_t matmul_op(graph::op_kind::MatMul);
-    matmul_op.set_attr<bool>(graph::op_attr::transpose_b, true);
+    matmul_op.set_attr<bool>(graph::op_attr::transpose_b, false);
     graph::engine_t *eng = get_engine();
 
     test::vector<float> src_data {-2.0, -1.5, 1.0};
@@ -7734,7 +7734,7 @@ TEST(Execute, MatmulBiasTransposeReshape) {
 
 TEST(Execute, MatmulStridedScalarOutput) {
     graph::op_t matmul_op(graph::op_kind::MatMul);
-    matmul_op.set_attr<bool>(graph::op_attr::transpose_b, true);
+    matmul_op.set_attr<bool>(graph::op_attr::transpose_b, false);
     graph::engine_t *eng = get_engine();
 
     test::vector<float> src_data {-2.0, -1.5, 1.0};
