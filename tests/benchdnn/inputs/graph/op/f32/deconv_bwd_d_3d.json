@@ -1,0 +1,126 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 0,
+      "name": "DECONV_0",
+      "kind": "ConvTransposeBackwardData",
+      "attrs": {
+        "weights_format": {
+          "type": "string",
+          "value": "IOX"
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        },
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1,
+            1,
+            1
+          ]
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            1,
+            1,
+            1
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            1,
+            1,
+            1
+          ]
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "groups": {
+          "type": "s64",
+          "value": 16
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            1,
+            1,
+            1
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            2,
+            16,
+            5,
+            5,
+            5
+          ],
+          "stride": [
+            2000,
+            125,
+            25,
+            5,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            16,
+            1,
+            3,
+            3,
+            3
+          ],
+          "stride": [
+            27,
+            27,
+            9,
+            3,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 2,
+          "dtype": "f32",
+          "shape": [
+            2,
+            16,
+            5,
+            5,
+            5
+          ],
+          "stride": [
+            2000,
+            125,
+            25,
+            5,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

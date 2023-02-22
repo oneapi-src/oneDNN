@@ -4,16 +4,10 @@
   "fpmath_mode": "strict",
   "graph": [
     {
-      "id": 0,
+      "id": 2065,
       "name": "DEQUANTIZE_1",
       "kind": "Dequantize",
       "attrs": {
-        "zps": {
-          "type": "s64[]",
-          "value": [
-            0
-          ]
-        },
         "axis": {
           "type": "s64",
           "value": 0
@@ -21,6 +15,12 @@
         "qtype": {
           "type": "string",
           "value": "per_tensor"
+        },
+        "zps": {
+          "type": "s64[]",
+          "value": [
+            0
+          ]
         },
         "scales": {
           "type": "f32[]",
@@ -32,13 +32,13 @@
       "inputs": [
         {
           "id": 0,
-          "dtype": "u8",
+          "dtype": "s8",
           "shape": [
             16,
-            1024
+            256
           ],
           "stride": [
-            1024,
+            256,
             1
           ],
           "layout_type": "strided",
@@ -47,14 +47,14 @@
       ],
       "outputs": [
         {
-          "id": 1,
+          "id": 40,
           "dtype": "f32",
           "shape": [
             16,
-            1024
+            256
           ],
           "stride": [
-            1024,
+            256,
             1
           ],
           "layout_type": "strided",
@@ -63,54 +63,10 @@
       ]
     },
     {
-      "id": 1,
-      "name": "TYPECAST_0",
-      "kind": "TypeCast",
-      "attrs": {},
-      "inputs": [
-        {
-          "id": 1,
-          "dtype": "f32",
-          "shape": [
-            16,
-            1024
-          ],
-          "stride": [
-            1024,
-            1
-          ],
-          "layout_type": "strided",
-          "property_type": "undef"
-        }
-      ],
-      "outputs": [
-        {
-          "id": 2,
-          "dtype": "bf16",
-          "shape": [
-            16,
-            1024
-          ],
-          "stride": [
-            1024,
-            1
-          ],
-          "layout_type": "strided",
-          "property_type": "undef"
-        }
-      ]
-    },
-    {
-      "id": 2,
+      "id": 4113,
       "name": "DEQUANTIZE_2",
       "kind": "Dequantize",
       "attrs": {
-        "zps": {
-          "type": "s64[]",
-          "value": [
-            0
-          ]
-        },
         "axis": {
           "type": "s64",
           "value": 0
@@ -119,23 +75,29 @@
           "type": "string",
           "value": "per_tensor"
         },
+        "zps": {
+          "type": "s64[]",
+          "value": [
+            0
+          ]
+        },
         "scales": {
           "type": "f32[]",
           "value": [
-            1
+            2.25
           ]
         }
       },
       "inputs": [
         {
-          "id": 3,
+          "id": 1,
           "dtype": "s8",
           "shape": [
-            1024,
-            1024
+            256,
+            1
           ],
           "stride": [
-            1024,
+            1,
             1
           ],
           "layout_type": "strided",
@@ -144,14 +106,14 @@
       ],
       "outputs": [
         {
-          "id": 4,
+          "id": 104,
           "dtype": "f32",
           "shape": [
-            1024,
-            1024
+            256,
+            1
           ],
           "stride": [
-            1024,
+            1,
             1
           ],
           "layout_type": "strided",
@@ -160,45 +122,7 @@
       ]
     },
     {
-      "id": 3,
-      "name": "TYPECAST_0",
-      "kind": "TypeCast",
-      "attrs": {},
-      "inputs": [
-        {
-          "id": 4,
-          "dtype": "f32",
-          "shape": [
-            1024,
-            1024
-          ],
-          "stride": [
-            1024,
-            1
-          ],
-          "layout_type": "strided",
-          "property_type": "constant"
-        }
-      ],
-      "outputs": [
-        {
-          "id": 5,
-          "dtype": "bf16",
-          "shape": [
-            1024,
-            1024
-          ],
-          "stride": [
-            1024,
-            1
-          ],
-          "layout_type": "strided",
-          "property_type": "constant"
-        }
-      ]
-    },
-    {
-      "id": 4,
+      "id": 8,
       "name": "MATMUL_0",
       "kind": "MatMul",
       "attrs": {
@@ -213,28 +137,42 @@
       },
       "inputs": [
         {
-          "id": 2,
-          "dtype": "bf16",
+          "id": 40,
+          "dtype": "f32",
           "shape": [
             16,
-            1024
+            256
           ],
           "stride": [
-            1024,
+            256,
             1
           ],
           "layout_type": "strided",
           "property_type": "undef"
         },
         {
-          "id": 5,
-          "dtype": "bf16",
+          "id": 104,
+          "dtype": "f32",
           "shape": [
-            1024,
-            1024
+            256,
+            1
           ],
           "stride": [
-            1024,
+            1,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        },
+        {
+          "id": 2,
+          "dtype": "f32",
+          "shape": [
+            1,
+            1
+          ],
+          "stride": [
+            1,
             1
           ],
           "layout_type": "strided",
@@ -243,14 +181,14 @@
       ],
       "outputs": [
         {
-          "id": 6,
-          "dtype": "bf16",
+          "id": 168,
+          "dtype": "f32",
           "shape": [
             16,
-            1024
+            1
           ],
           "stride": [
-            1024,
+            1,
             1
           ],
           "layout_type": "strided",
@@ -259,35 +197,16 @@
       ]
     },
     {
-      "id": 5,
-      "name": "BINARY_3",
-      "kind": "Divide",
-      "attrs": {
-        "auto_broadcast": {
-          "type": "string",
-          "value": "numpy"
-        }
-      },
+      "id": 6150,
+      "name": "ELTWISE_3",
+      "kind": "Sigmoid",
+      "attrs": {},
       "inputs": [
         {
-          "id": 6,
-          "dtype": "bf16",
+          "id": 168,
+          "dtype": "f32",
           "shape": [
             16,
-            1024
-          ],
-          "stride": [
-            1024,
-            1
-          ],
-          "layout_type": "strided",
-          "property_type": "undef"
-        },
-        {
-          "id": 7,
-          "dtype": "bf16",
-          "shape": [
-            1,
             1
           ],
           "stride": [
@@ -300,14 +219,14 @@
       ],
       "outputs": [
         {
-          "id": 8,
-          "dtype": "bf16",
+          "id": 6310,
+          "dtype": "f32",
           "shape": [
             16,
-            1024
+            1
           ],
           "stride": [
-            1024,
+            1,
             1
           ],
           "layout_type": "strided",
@@ -316,35 +235,37 @@
       ]
     },
     {
-      "id": 6,
-      "name": "BINARY_4",
-      "kind": "Add",
+      "id": 8208,
+      "name": "QUANTIZE_4",
+      "kind": "Quantize",
       "attrs": {
-        "auto_broadcast": {
+        "axis": {
+          "type": "s64",
+          "value": 0
+        },
+        "qtype": {
           "type": "string",
-          "value": "numpy"
+          "value": "per_tensor"
+        },
+        "zps": {
+          "type": "s64[]",
+          "value": [
+            0
+          ]
+        },
+        "scales": {
+          "type": "f32[]",
+          "value": [
+            1
+          ]
         }
       },
       "inputs": [
         {
-          "id": 8,
-          "dtype": "bf16",
+          "id": 6310,
+          "dtype": "f32",
           "shape": [
             16,
-            1024
-          ],
-          "stride": [
-            1024,
-            1
-          ],
-          "layout_type": "strided",
-          "property_type": "undef"
-        },
-        {
-          "id": 9,
-          "dtype": "bf16",
-          "shape": [
-            1,
             1
           ],
           "stride": [
@@ -357,14 +278,14 @@
       ],
       "outputs": [
         {
-          "id": 10,
-          "dtype": "bf16",
+          "id": 8368,
+          "dtype": "s8",
           "shape": [
             16,
-            1024
+            1
           ],
           "stride": [
-            1024,
+            1,
             1
           ],
           "layout_type": "strided",

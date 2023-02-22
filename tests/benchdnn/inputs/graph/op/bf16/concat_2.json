@@ -4,7 +4,7 @@
   "fpmath_mode": "strict",
   "graph": [
     {
-      "id": 3,
+      "id": 0,
       "name": "CONCAT_0",
       "kind": "Concat",
       "attrs": {
@@ -53,7 +53,7 @@
       ],
       "outputs": [
         {
-          "id": 163,
+          "id": 2,
           "dtype": "bf16",
           "shape": [
             2,

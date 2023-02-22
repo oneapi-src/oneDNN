@@ -5,23 +5,9 @@
   "graph": [
     {
       "id": 0,
-      "name": "Convolution",
-      "kind": "Convolution",
+      "name": "CONV_0",
+      "kind": "ConvolutionBackwardWeights",
       "attrs": {
-        "strides": {
-          "type": "s64[]",
-          "value": [
-            2,
-            2
-          ]
-        },
-        "dilations": {
-          "type": "s64[]",
-          "value": [
-            1,
-            1
-          ]
-        },
         "weights_format": {
           "type": "string",
           "value": "OIX"
@@ -30,11 +16,39 @@
           "type": "string",
           "value": "None"
         },
-        "pads_begin": {
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1
+          ]
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            1
+          ]
+        },
+        "weights_shape": {
           "type": "s64[]",
           "value": [
             0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
             0
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            1
           ]
         },
         "data_format": {
@@ -43,13 +57,12 @@
         },
         "groups": {
           "type": "s64",
-          "value": 1
+          "value": 4
         },
-        "pads_end": {
+        "strides": {
           "type": "s64[]",
           "value": [
-            -1,
-            -1
+            1
           ]
         }
       },
@@ -59,15 +72,13 @@
           "dtype": "f32",
           "shape": [
             2,
-            32,
-            28,
-            28
+            16,
+            5
           ],
           "stride": [
-            25088,
-            1,
-            896,
-            32
+            80,
+            5,
+            1
           ],
           "layout_type": "strided",
           "property_type": "undef"
@@ -76,19 +87,17 @@
           "id": 1,
           "dtype": "f32",
           "shape": [
-            128,
-            32,
-            1,
-            1
+            2,
+            16,
+            5
           ],
           "stride": [
-            32,
-            1,
-            1,
+            80,
+            5,
             1
           ],
           "layout_type": "strided",
-          "property_type": "constant"
+          "property_type": "undef"
         }
       ],
       "outputs": [
@@ -96,16 +105,14 @@
           "id": 2,
           "dtype": "f32",
           "shape": [
-            2,
-            128,
-            14,
-            14
+            16,
+            4,
+            3
           ],
           "stride": [
-            25088,
-            1,
-            1792,
-            128
+            12,
+            3,
+            1
           ],
           "layout_type": "strided",
           "property_type": "undef"

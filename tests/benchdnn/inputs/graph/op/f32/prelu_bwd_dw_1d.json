@@ -4,7 +4,7 @@
   "fpmath_mode": "strict",
   "graph": [
     {
-      "id": 10,
+      "id": 0,
       "name": "PRELU_0",
       "kind": "PReLUBackward",
       "attrs": {
@@ -18,18 +18,10 @@
           "id": 0,
           "dtype": "f32",
           "shape": [
-            2,
-            7,
-            5,
-            3,
-            2
+            3
           ],
           "stride": [
-            210,
-            1,
-            42,
-            14,
-            7
+            1
           ],
           "layout_type": "strided",
           "property_type": "undef"
@@ -38,17 +30,9 @@
           "id": 1,
           "dtype": "f32",
           "shape": [
-            1,
-            1,
-            1,
-            1,
             1
           ],
           "stride": [
-            1,
-            1,
-            1,
-            1,
             1
           ],
           "layout_type": "strided",
@@ -58,18 +42,10 @@
           "id": 2,
           "dtype": "f32",
           "shape": [
-            2,
-            7,
-            5,
-            3,
-            2
+            3
           ],
           "stride": [
-            210,
-            1,
-            42,
-            14,
-            7
+            1
           ],
           "layout_type": "strided",
           "property_type": "undef"
@@ -77,40 +53,24 @@
       ],
       "outputs": [
         {
-          "id": 458,
+          "id": 3,
           "dtype": "f32",
           "shape": [
-            2,
-            7,
-            5,
-            3,
-            2
+            3
           ],
           "stride": [
-            210,
-            1,
-            42,
-            14,
-            7
+            1
           ],
           "layout_type": "strided",
           "property_type": "undef"
         },
         {
-          "id": 490,
+          "id": 4,
           "dtype": "f32",
           "shape": [
-            1,
-            1,
-            1,
-            1,
             1
           ],
           "stride": [
-            1,
-            1,
-            1,
-            1,
             1
           ],
           "layout_type": "strided",

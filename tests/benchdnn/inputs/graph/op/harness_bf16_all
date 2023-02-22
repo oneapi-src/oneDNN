@@ -25,19 +25,19 @@
 --reset --in-shapes=0:2x28x28x32 --op-attrs=0:data_format:NXC --case=op/bf16/conv_2d.json
 --reset --in-shapes=1:1x1x32x128 --op-attrs=0:weights_format:XIO --case=op/bf16/conv_2d.json
 --reset --in-shapes=0:2x28x28x32+1:1x1x32x128 --op-attrs=0:data_format:NXC*weights_format:XIO --case=op/bf16/conv_2d.json
---reset --case=op/bf16/conv_2d_bwd_d.json
---reset --op-attrs=0:auto_pad:SAME_UPPER --case=op/bf16/conv_2d_bwd_d.json
---reset --op-attrs=0:auto_pad:SAME_LOWER --case=op/bf16/conv_2d_bwd_d.json
---reset --op-attrs=0:auto_pad:VALID --case=op/bf16/conv_2d_bwd_d.json
---reset --op-attrs=0:output_padding:2x2 --case=op/bf16/conv_2d_bwd_d.json
---reset --in-shapes=0:1x14x14x128 --op-attrs=0:data_format:NXC*dst_shape:1x28x28x32 --case=op/bf16/conv_2d_bwd_d.json
---reset --in-shapes=1:1x1x32x128 --op-attrs=0:weights_format:XIO --case=op/bf16/conv_2d_bwd_d.json
---reset --case=op/bf16/conv_2d_bwd_w.json
---reset --op-attrs=0:auto_pad:SAME_UPPER --case=op/bf16/conv_2d_bwd_w.json
---reset --op-attrs=0:auto_pad:SAME_LOWER --case=op/bf16/conv_2d_bwd_w.json
---reset --op-attrs=0:auto_pad:VALID --case=op/bf16/conv_2d_bwd_w.json
---reset --op-attrs=0:weights_format:XIO*weights_shape:1x1x32x128 --case=op/bf16/conv_2d_bwd_w.json
---reset --in-shapes=0:1x28x28x32+1:1x14x14x128 --op-attrs=0:data_format:NXC --case=op/bf16/conv_2d_bwd_w.json
+--reset --case=op/bf16/conv_bwd_d_2d.json
+--reset --op-attrs=0:auto_pad:SAME_UPPER --case=op/bf16/conv_bwd_d_2d.json
+--reset --op-attrs=0:auto_pad:SAME_LOWER --case=op/bf16/conv_bwd_d_2d.json
+--reset --op-attrs=0:auto_pad:VALID --case=op/bf16/conv_bwd_d_2d.json
+--reset --op-attrs=0:output_padding:2x2 --case=op/bf16/conv_bwd_d_2d.json
+--reset --in-shapes=0:1x14x14x128 --op-attrs=0:data_format:NXC*dst_shape:1x28x28x32 --case=op/bf16/conv_bwd_d_2d.json
+--reset --in-shapes=1:1x1x32x128 --op-attrs=0:weights_format:XIO --case=op/bf16/conv_bwd_d_2d.json
+--reset --case=op/bf16/conv_bwd_w_2d.json
+--reset --op-attrs=0:auto_pad:SAME_UPPER --case=op/bf16/conv_bwd_w_2d.json
+--reset --op-attrs=0:auto_pad:SAME_LOWER --case=op/bf16/conv_bwd_w_2d.json
+--reset --op-attrs=0:auto_pad:VALID --case=op/bf16/conv_bwd_w_2d.json
+--reset --op-attrs=0:weights_format:XIO*weights_shape:1x1x32x128 --case=op/bf16/conv_bwd_w_2d.json
+--reset --in-shapes=0:1x28x28x32+1:1x14x14x128 --op-attrs=0:data_format:NXC --case=op/bf16/conv_bwd_w_2d.json
 --reset --case=op/bf16/deconv.json
 --reset --op-attrs=0:auto_pad:SAME_UPPER --case=op/bf16/deconv.json
 --reset --op-attrs=0:auto_pad:SAME_LOWER --case=op/bf16/deconv.json
@@ -136,9 +136,11 @@
 --reset --case=op/bf16/tanh.json
 --reset --case=op/bf16/tanh_bwd.json
 --reset --case=op/bf16/typecast.json
+--reset --case=op/bf16/sqrt.json
+--reset --case=op/bf16/sqrt_bwd.json
 # concat
 --reset  --in-shapes=0:1x4096x14x14+1:1x4096x14x14  --case=op/bf16/concat_2.json
---reset  --in-shapes=0:64x128x28x28+1:64x128x28x28 --op-attrs=3:axis:1 --case=op/bf16/concat_2.json
+--reset  --in-shapes=0:64x128x28x28+1:64x128x28x28 --op-attrs=0:axis:1 --case=op/bf16/concat_2.json
 --reset  --in-shapes=0:8x16x384x64+1:8x16x384x384+2:8x16x384x384  --case=op/bf16/concat_3.json
 # softmax
 --reset  --in-shapes=0:64x128x28x28 --case=op/bf16/logsoftmax.json
@@ -161,14 +163,14 @@
 --reset  --in-shapes=0:64x512x7x7 --op-attrs=0:axis:0 --case=op/bf16/logsoftmax.json
 --reset  --in-shapes=0:64x64x112x112 --op-attrs=0:axis:0 --case=op/bf16/logsoftmax.json
 --reset  --in-shapes=0:8x16x384x384 --op-attrs=0:axis:0 --case=op/bf16/logsoftmax.json
---reset  --in-shapes=0:8x384x1024 --op-attrs=14:axis:1 --case=op/bf16/logsoftmax_3d.json
---reset  --in-shapes=0:8x384x1024 --op-attrs=14:axis:0 --case=op/bf16/logsoftmax_3d.json
---reset  --in-shapes=0:8x384x1024 --op-attrs=14:axis:1 --case=op/bf16/logsoftmax_3d_2.json
---reset  --in-shapes=0:8x384x1024 --op-attrs=14:axis:0 --case=op/bf16/logsoftmax_3d_2.json
---reset  --in-shapes=0:8x384x1024 --op-attrs=14:axis:2 --case=op/bf16/logsoftmax_3d_2.json
---reset  --in-shapes=0:8x384x1024+1:8x384x1024 --op-attrs=14:axis:1 --case=op/bf16/softmax_bwd_d_3d.json
---reset  --in-shapes=0:8x384x1024+1:8x384x1024 --op-attrs=14:axis:0 --case=op/bf16/softmax_bwd_d_3d.json
---reset  --in-shapes=0:8x384x1024+1:8x384x1024 --op-attrs=14:axis:2 --case=op/bf16/softmax_bwd_d_3d.json
+--reset  --in-shapes=0:8x384x1024 --op-attrs=0:axis:1 --case=op/bf16/logsoftmax_3d.json
+--reset  --in-shapes=0:8x384x1024 --op-attrs=0:axis:0 --case=op/bf16/logsoftmax_3d.json
+--reset  --in-shapes=0:8x384x1024 --op-attrs=0:axis:1 --case=op/bf16/logsoftmax_3d_2.json
+--reset  --in-shapes=0:8x384x1024 --op-attrs=0:axis:0 --case=op/bf16/logsoftmax_3d_2.json
+--reset  --in-shapes=0:8x384x1024 --op-attrs=0:axis:2 --case=op/bf16/logsoftmax_3d_2.json
+--reset  --in-shapes=0:8x384x1024+1:8x384x1024 --op-attrs=0:axis:1 --case=op/bf16/softmax_bwd_d_3d.json
+--reset  --in-shapes=0:8x384x1024+1:8x384x1024 --op-attrs=0:axis:0 --case=op/bf16/softmax_bwd_d_3d.json
+--reset  --in-shapes=0:8x384x1024+1:8x384x1024 --op-attrs=0:axis:2 --case=op/bf16/softmax_bwd_d_3d.json
 --reset  --in-shapes=0:64x128x28x28 --case=op/bf16/softmax.json
 --reset  --in-shapes=0:64x3x224x224 --case=op/bf16/softmax.json
 --reset  --in-shapes=0:64x512x7x7 --case=op/bf16/softmax.json
@@ -190,5 +192,24 @@
 --reset  --in-shapes=0:64x64x112x112 --op-attrs=0:axis:3 --case=op/bf16/softmax.json
 --reset  --in-shapes=0:8x16x384x384 --op-attrs=0:axis:3 --case=op/bf16/softmax.json
 --reset  --in-shapes=0:8x384x1024 --case=op/bf16/softmax_3d.json
---reset  --in-shapes=0:8x384x1024 --op-attrs=14:axis:2 --case=op/bf16/softmax_3d.json
---reset  --in-shapes=0:8x384x1024 --op-attrs=14:axis:1 --case=op/bf16/softmax_3d.json
+--reset  --in-shapes=0:8x384x1024 --op-attrs=0:axis:2 --case=op/bf16/softmax_3d.json
+--reset  --in-shapes=0:8x384x1024 --op-attrs=0:axis:1 --case=op/bf16/softmax_3d.json
+# resampling
+--reset --in-shapes=0:2x16x3x11+1:2x16x5x11 --op-attrs=0:sizes:1.666667x1  --case=op/bf16/interpolate_bwd.json 
+--reset --in-shapes=0:2x16x5x11+1:2x16x3x11 --op-attrs=0:sizes:0.6x1  --case=op/bf16/interpolate_bwd.json
+--reset --in-shapes=0:2x17x6x12+1:2x17x7x14 --op-attrs=0:sizes:1.166667x1.166667  --case=op/bf16/interpolate_bwd.json
+--reset --in-shapes=0:2x17x7x14+1:2x17x6x12 --op-attrs=0:sizes:0.857143x0.857143  --case=op/bf16/interpolate_bwd.json
+--reset  --in-shapes=0:2x16x3x11+1:2x16x5x11 --op-attrs=0:scales:1.666667x1  --case=op/bf16/interpolate_bwd_2d.json
+--reset  --in-shapes=0:2x16x5x11+1:2x16x3x11 --op-attrs=0:scales:0.6x1  --case=op/bf16/interpolate_bwd_2d.json
+--reset  --in-shapes=0:2x17x6x12+1:2x17x7x14 --op-attrs=0:scales:1.166667x1.166667  --case=op/bf16/interpolate_bwd_2d.json
+--reset  --in-shapes=0:2x17x7x14+1:2x17x6x12 --op-attrs=0:scales:0.857143x0.857143  --case=op/bf16/interpolate_bwd_2d.json
+--reset  --in-shapes=0:2x17x17+1:2x17x21 --op-attrs=0:scales:1.235294  --case=op/bf16/interpolate_bwd_1d.json
+--reset  --in-shapes=0:2x17x21+1:2x17x17 --op-attrs=0:scales:0.809524  --case=op/bf16/interpolate_bwd_1d.json
+--reset  --in-shapes=0:2x64x32+1:2x64x64 --op-attrs=0:scales:2  --case=op/bf16/interpolate_bwd_1d.json
+--reset  --in-shapes=0:2x64x64+1:2x64x32 --op-attrs=0:scales:0.5  --case=op/bf16/interpolate_bwd_1d.json
+--reset  --in-shapes=0:2x16x3x11 --op-attrs=0:sizes:5x11 --case=op/bf16/interpolate_2.json
+--reset  --in-shapes=0:2x16x5x11 --op-attrs=0:sizes:3x11 --case=op/bf16/interpolate_2.json
+--reset  --in-shapes=0:2x17x6x12 --op-attrs=0:sizes:7x14 --case=op/bf16/interpolate_2.json
+--reset  --in-shapes=0:2x17x7x14 --op-attrs=0:sizes:6x12 --case=op/bf16/interpolate_2.json
+# pool
+--reset  --in-shapes=0:1x64x600x600 --op-attrs=0:strides:2x2*pads_begin:1x1*pads_end:0x0*kernel:3x3*dilations:1x1 --case=op/bf16/maxpool.json

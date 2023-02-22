@@ -10,7 +10,7 @@
       "attrs": {
         "beta": {
           "type": "f32",
-          "value": 0
+          "value": 3
         },
         "alpha": {
           "type": "f32",

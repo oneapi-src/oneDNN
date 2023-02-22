@@ -4,7 +4,7 @@
   "fpmath_mode": "strict",
   "graph": [
     {
-      "id": 14,
+      "id": 0,
       "name": "SOFTMAX_0",
       "kind": "SoftMaxBackward",
       "attrs": {
@@ -49,7 +49,7 @@
       ],
       "outputs": [
         {
-          "id": 462,
+          "id": 2,
           "dtype": "bf16",
           "shape": [
             8,
