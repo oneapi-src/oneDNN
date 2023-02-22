@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,22 +22,33 @@
 #include "gtest/gtest.h"
 
 namespace impl = dnnl::graph::impl;
-namespace utils = dnnl::graph::tests::unit::utils;
 
 TEST(Stream, DnnlGraphStreamCreate) {
-    impl::stream_t *stream;
+    impl::stream_t *stream = nullptr;
     impl::engine_t &engine = get_engine();
+    impl::status_t ret = impl::status::success;
+
     if (engine.kind() == impl::engine_kind::gpu) {
-        ASSERT_EQ(dnnl_graph_stream_create(&stream, &engine),
-                impl::status::invalid_arguments);
+        ret = dnnl_graph_stream_create(&stream, &engine);
+        if (ret != impl::status::invalid_arguments) {
+            dnnl_graph_stream_destroy(stream);
+            FAIL();
+        }
     } else {
 #ifdef DNNL_GRAPH_CPU_SYCL
-        ASSERT_EQ(dnnl_graph_stream_create(&stream, &engine),
-                impl::status::invalid_arguments);
+        ret = dnnl_graph_stream_create(&stream, &engine);
+        if (ret != impl::status::invalid_arguments) {
+            dnnl_graph_stream_destroy(stream);
+            FAIL();
+        }
 #else
-        ASSERT_EQ(dnnl_graph_stream_create(&stream, &engine),
-                impl::status::success);
-        ASSERT_EQ(dnnl_graph_stream_destroy(stream), impl::status::success);
+        ret = dnnl_graph_stream_create(&stream, &engine);
+        if (ret != impl::status::success) {
+            dnnl_graph_stream_destroy(stream);
+            FAIL();
+        }
 #endif
     }
+
+    if (stream != nullptr) { dnnl_graph_stream_destroy(stream); }
 }
