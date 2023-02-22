@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -136,9 +136,7 @@ __kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
     const int id = GWS_GET_ID();
     const int ih = GWS_GET_IH();
     const int iw = GWS_GET_IW();
-
-    ACC_DATA_T d = WITH_BIAS ? BIA_TO_REF(bias[g * IC + ic]) : 0.0;
-
+    ACC_DATA_T d = 0.0;
     for_(int oc = 0; oc < OC; ++oc)
     for_(int kd = 0; kd < KD; ++kd)
     for_(int kh = 0; kh < KH; ++kh)
@@ -183,6 +181,10 @@ __kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
 #else
     accumulator *= wei_scales[g * IC + ic];
 #endif
+#endif
+
+#if WITH_BIAS
+    accumulator += BIA_TO_REF(bias[g * IC + ic]);
 #endif
 
 #if NDIMS == 3
