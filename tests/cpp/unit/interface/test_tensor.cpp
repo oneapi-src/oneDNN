@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,18 +43,34 @@ TEST(Tensor, GetEngine) {
 }
 
 TEST(Tensor, DnnlGraphTensorCreate) {
-    impl::tensor_t *tensor;
+    impl::tensor_t *tensor = nullptr;
     impl::logical_tensor_t lt = utils::logical_tensor_init(
             0, {1, 2}, impl::data_type::f32, impl::layout_type::strided);
     impl::engine_t &engine = get_engine();
     void *handle = nullptr;
+    impl::status_t ret = impl::status::success;
 
-    ASSERT_EQ(dnnl_graph_tensor_create(&tensor, &lt, &engine, handle),
-            impl::status::success);
-    ASSERT_EQ(dnnl_graph_tensor_destroy(tensor), impl::status::success);
+    ret = dnnl_graph_tensor_create(&tensor, &lt, &engine, handle);
+    if (ret != impl::status::success) {
+        dnnl_graph_tensor_destroy(tensor);
+        ASSERT_EQ(ret, impl::status::success);
+    }
 
-    ASSERT_EQ(dnnl_graph_tensor_create(&tensor, nullptr, &engine, handle),
-            impl::status::invalid_arguments);
+    if (tensor != nullptr) {
+        dnnl_graph_tensor_destroy(tensor);
+        tensor = nullptr;
+    }
+
+    ret = dnnl_graph_tensor_create(&tensor, nullptr, &engine, handle);
+    if (ret != impl::status::invalid_arguments) {
+        dnnl_graph_tensor_destroy(tensor);
+        ASSERT_EQ(ret, impl::status::success);
+    }
+
+    if (tensor != nullptr) {
+        dnnl_graph_tensor_destroy(tensor);
+        tensor = nullptr;
+    }
 }
 
 TEST(Tensor, DnnlGraphTensorSetDataHandle) {
@@ -69,18 +85,37 @@ TEST(Tensor, DnnlGraphTensorSetDataHandle) {
 }
 
 TEST(Tensor, DnnlGraphTensorGetEngine) {
-    impl::tensor_t *tensor;
+    impl::tensor_t *tensor = nullptr;
     impl::logical_tensor_t lt = utils::logical_tensor_init(
             0, {1, 2}, impl::data_type::f32, impl::layout_type::strided);
     impl::engine_t &engine = get_engine();
     void *handle = nullptr;
-    ASSERT_EQ(dnnl_graph_tensor_create(&tensor, &lt, &engine, handle),
-            impl::status::success);
+
+    impl::status_t ret = impl::status::success;
+
+    ret = dnnl_graph_tensor_create(&tensor, &lt, &engine, handle);
+    if (ret != impl::status::success) {
+        dnnl_graph_tensor_destroy(tensor);
+        FAIL();
+    }
+
     impl::engine_t *ref_engine = nullptr;
-    ASSERT_EQ(dnnl_graph_tensor_get_engine(tensor, nullptr),
-            impl::status::invalid_arguments);
-    ASSERT_EQ(dnnl_graph_tensor_get_engine(tensor, &ref_engine),
-            impl::status::success);
-    ASSERT_EQ(ref_engine, &engine);
+    ret = dnnl_graph_tensor_get_engine(tensor, nullptr);
+    if (ret != impl::status::invalid_arguments) {
+        dnnl_graph_tensor_destroy(tensor);
+        FAIL();
+    }
+
+    ret = dnnl_graph_tensor_get_engine(tensor, &ref_engine);
+    if (ret != impl::status::success) {
+        dnnl_graph_tensor_destroy(tensor);
+        FAIL();
+    }
+
+    if (ref_engine != &engine) {
+        dnnl_graph_tensor_destroy(tensor);
+        FAIL();
+    }
+
     ASSERT_EQ(dnnl_graph_tensor_destroy(tensor), impl::status::success);
 }
