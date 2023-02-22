@@ -172,7 +172,11 @@ __kernel void gen9_concat(__global DST_DATA_T *dst, long dst_offset0,
         SRC_DATA_T src_val = AS_DATA_T(
                 BLOCK_READ((const __global BLOCK_DATA_T *)&src[src_off]));
 #endif // DT_BF16 == 1
+#if SCALES_MASK > 0
+        BLOCK_WRITE_DST(&dst[dst_off], TO_DST((float)src_val * tmp_src_scale));
+#else
         BLOCK_WRITE_DST(&dst[dst_off], TO_DST(src_val));
+#endif
 #else // SUB_GROUP_SIZE > 1
 #if DT_BF16 == 1
         float src_val = DATA_TO_REF(src[src_off]);
