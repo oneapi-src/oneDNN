@@ -126,15 +126,11 @@ The following data types combinations are supported:
 
 The following sparse encodings are supported:
 
-| Sparse encoding |
-| :---            |
-| CSR             |
+* CSR
 
 The following format tags are supported for dense input/output tensors:
 
-| Format tag |
-| :---       |
-| ab         |
+* ab
 
 Benchdnn can be used to test the sparse matmul as follows:
 `./benchdnn --matmul --encoding=csr+0.99:: --wtag=ab --dtag=ab 4x1000000:1000000x128`
