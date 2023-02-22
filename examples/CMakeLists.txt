@@ -164,7 +164,8 @@ if (DNNL_INSTALL_MODE STREQUAL "BUNDLE")
             tutorials
             DESTINATION examples)
     endif()
-    if(CMAKE_GENERATOR MATCHES "Visual Studio")
+
+    if(WIN32)
         install(FILES
             ${PROJECT_SOURCE_DIR}/cmake/template.vcxproj.user
             DESTINATION examples)
