@@ -190,7 +190,9 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     if (is_dynamic() || trans0->details_.get_plain_dims().size() > 2
             || trans1->details_.get_plain_dims().size() > 2) {
         matmul = graph->make("matmul_core", {trans0, trans1}, {},
-                {{attr_keys::output_channel_axis, output_channel_axis}});
+                {{attr_keys::output_channel_axis, output_channel_axis},
+                        {"transposed_a", transposed_a},
+                        {"transposed_b", transposed_b}});
     } else {
         if (use_mmm) {
             matmul = graph->make("managed_matmul_core", {trans0, trans1}, {},
@@ -200,7 +202,9 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                                     output_channel_axis}});
         } else {
             matmul = graph->make("matmul_core", {trans0, trans1}, {},
-                    {{attr_keys::output_channel_axis, output_channel_axis}});
+                    {{attr_keys::output_channel_axis, output_channel_axis},
+                            {"transposed_a", transposed_a},
+                            {"transposed_b", transposed_b}});
         }
     }
 
