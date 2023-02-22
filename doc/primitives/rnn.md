@@ -473,7 +473,6 @@ details on how to use and set these quantization parameters.
    - No support for Peephole LSTM and Projection LSTM.
    - Int8 support is provided for LSTM only.
    - Bias and cell state of bf16 data type is not supported.
-   - No support for diff weights overwrite.
 
 ## Example
 
