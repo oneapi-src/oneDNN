@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -201,9 +201,8 @@ public:
             case arg_kind_t::scratchpad:
                 return ctx.get_scratchpad_grantor().get_memory_storage(key);
             case arg_kind_t::user: {
-                if (is_input)
-                    return ctx.input(args_[idx].key)->memory_storage();
-                return ctx.output(args_[idx].key)->memory_storage();
+                if (is_input) return CTX_IN_STORAGE(args_[idx].key);
+                return CTX_OUT_STORAGE(args_[idx].key);
             }
             // No storage for internal arguments.
             case arg_kind_t::internal: return memory_storage_wrapper_t();
