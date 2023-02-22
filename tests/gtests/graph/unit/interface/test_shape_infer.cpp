@@ -161,7 +161,7 @@ TEST(ShapeInfer, InvalidShapeForPool) {
             graph::status::unimplemented);
 }
 
-TEST(ShapeInfer, CanonicalizeError) {
+TEST(ShapeInferDeathTest, CanonicalizeError) {
 #ifndef NDEBUG
     ASSERT_DEATH(graph::canonicalize({1, 2, 3, 4}, "XXXX"), "invalid format");
 #endif

@@ -32,7 +32,7 @@ namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 namespace dnnl_impl = graph::dnnl_impl;
 
-TEST(OpExecutable, DummyArgIndicesGetter) {
+TEST(OpExecutableDeathTest, DummyArgIndicesGetter) {
     graph::op_t op {0, graph::op_kind::Wildcard, "op"};
     dnnl_impl::fusion_info_mgr_t mgr;
 #ifndef NDEBUG
@@ -41,7 +41,7 @@ TEST(OpExecutable, DummyArgIndicesGetter) {
 #endif
 }
 
-TEST(OpExecutable, DummyExecutableCreator) {
+TEST(OpExecutableDeathTest, DummyExecutableCreator) {
     graph::engine_t &eng = *get_engine();
     dnnl::engine p_engine = dnnl_impl::make_dnnl_engine(eng);
     dnnl_impl::fusion_info_mgr_t mgr;

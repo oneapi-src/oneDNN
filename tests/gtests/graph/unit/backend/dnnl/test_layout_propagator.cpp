@@ -78,7 +78,7 @@ TEST(LayoutPropagator, LayoutPropagatorForReorder) {
             graph::status::success);
 }
 
-TEST(LayoutPropagator, LayoutPropagatorForSum) {
+TEST(LayoutPropagatorDeathTest, LayoutPropagatorForSum) {
     graph::engine_t &eng = *get_engine();
     dnnl::engine p_engine = dnnl_impl::make_dnnl_engine(eng);
     dnnl_impl::fusion_info_mgr_t mgr;
@@ -124,7 +124,7 @@ TEST(LayoutPropagator, LayoutPropagatorForSum) {
     }
 }
 
-TEST(LayoutPropagator, LayoutPropagatorForSubZps) {
+TEST(LayoutPropagatorDeathTest, LayoutPropagatorForSubZps) {
     graph::engine_t &eng = *get_engine();
     dnnl::engine p_engine = dnnl_impl::make_dnnl_engine(eng);
     dnnl_impl::fusion_info_mgr_t mgr;
@@ -145,7 +145,7 @@ TEST(LayoutPropagator, LayoutPropagatorForSubZps) {
 #endif
 }
 
-TEST(LayoutPropagator, LayoutPropagatorForAddZps) {
+TEST(LayoutPropagatorDeathTest, LayoutPropagatorForAddZps) {
     graph::engine_t &eng = *get_engine();
     dnnl::engine p_engine = dnnl_impl::make_dnnl_engine(eng);
     dnnl_impl::fusion_info_mgr_t mgr;

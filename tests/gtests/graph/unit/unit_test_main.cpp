@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,7 +17,8 @@
 #include <iostream>
 #include <string>
 
-#include <gtest/gtest.h>
+#include "gtest/gtest.h"
+#include "gtest/internal/gtest-internal.h"
 
 #include "unit_test_common.hpp"
 
@@ -57,7 +58,7 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 #endif
-
+    (void)(::testing::GTEST_FLAG(death_test_style) = "threadsafe");
     ::testing::InitGoogleTest(&argc, argv);
     result = RUN_ALL_TESTS();
 

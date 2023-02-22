@@ -78,7 +78,7 @@ TEST(Common, Is4cBlocked) {
     }
 }
 
-TEST(Common, FillLayoutInfo) {
+TEST(CommonDeathTest, FillLayoutInfo) {
     {
         graph::logical_tensor_t lt = utils::logical_tensor_init(
                 0, {1, 2}, graph::data_type::f32, graph::layout_type::any);
