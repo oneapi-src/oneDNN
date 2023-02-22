@@ -154,6 +154,9 @@ def convert_aux(entry):
             act = acts.get(ir_act)
             if act is not None:
                 str += f" --activation={act}"
+            flags = entry['aux']['flags']
+            if flags is not None:
+                str += f" --flags={flags}"
             return str
         elif pk == 'shuffle':
             axis = entry['aux']['axis']
