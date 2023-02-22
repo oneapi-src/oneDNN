@@ -60,7 +60,7 @@ When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
 | Primitive input/output | Execution argument index |
-| ---                    | ---                      |
+|------------------------|--------------------------|
 | \src                   | DNNL_ARG_SRC             |
 | \dst                   | DNNL_ARG_DST             |
 | \diffsrc               | DNNL_ARG_DIFF_SRC        |
@@ -70,10 +70,10 @@ argument index as specified by the following table.
 
 The shuffle primitive supports the following combinations of data types:
 
-| Propagation        | Source / Destination
-| :--                | :--
-| forward / backward | f32, bf16, f16
-| forward            | s32, s8, u8
+| Propagation        | Source / Destination |
+|:-------------------|:---------------------|
+| forward / backward | f32, bf16, f16       |
+| forward            | s32, s8, u8          |
 
 @warning
     There might be hardware and/or implementation specific restrictions.
@@ -90,7 +90,7 @@ Shuffle operation typically appear in CNN topologies. Hence, in the library the
 shuffle primitive is optimized for the corresponding memory formats:
 
 | Spatial | Logical tensor | Shuffle Axis | Implementations optimized for memory formats                       |
-| :--     | :--            | :--          | :--                                                                |
+|:--------|:---------------|:-------------|:-------------------------------------------------------------------|
 | 2D      | NCHW           | 1 (C)        | #dnnl_nchw (#dnnl_abcd), #dnnl_nhwc (#dnnl_acdb), *optimized^*     |
 | 3D      | NCDHW          | 1 (C)        | #dnnl_ncdhw (#dnnl_abcde), #dnnl_ndhwc (#dnnl_acdeb), *optimized^* |
 

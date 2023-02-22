@@ -9,10 +9,10 @@ into a file for inspection.
 This behavior can be enabled with the `ONEDNN_JIT_DUMP` environment variable
 or @ref dnnl_set_jit_dump function.
 
-| Value           | Behavior
-| :----           | :----
-| **0**           | JIT dump is disabled (default)
-| any other value | JIT dump is enabled
+| Value           | Behavior                       |
+|:----------------|:-------------------------------|
+| **0**           | JIT dump is disabled (default) |
+| any other value | JIT dump is enabled            |
 
 The function setting takes precedence over the environment variable.
 

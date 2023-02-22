@@ -62,7 +62,7 @@ When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
 | Primitive input/output      | Execution argument index                                                  |
-| ---                         | ---                                                                       |
+|-----------------------------|---------------------------------------------------------------------------|
 | \src                        | DNNL_ARG_SRC                                                              |
 | \dst                        | DNNL_ARG_DST                                                              |
 | workspace                   | DNNL_ARG_WORKSPACE                                                        |
@@ -92,24 +92,24 @@ argument index as specified by the following table.
 
 The pooling primitive supports the following combinations of data types:
 
-| Propagation        | Source | Destination | Accumulation data type (used for average pooling only)
-| :--                | :--    | :--         | :--
-| forward / backward | f32    | f32         | f32
-| forward / backward | bf16   | bf16        | bf16
-| forward / backward | f16    | f16         | f32
-| forward            | s8     | s8          | s32
-| forward            | u8     | u8          | s32
-| forward            | s32    | s32         | s32
-| forward inference  | s8     | u8          | s32
-| forward inference  | u8     | s8          | s32
-| forward inference  | s8     | f16         | f32
-| forward inference  | u8     | f16         | f32
-| forward inference  | f16    | s8          | f32
-| forward inference  | f16    | u8          | f32
-| forward inference  | s8     | f32         | f32
-| forward inference  | u8     | f32         | f32
-| forward inference  | f32    | s8          | f32
-| forward inference  | f32    | u8          | f32
+| Propagation        | Source | Destination | Accumulation data type (used for average pooling only) |
+|:-------------------|:-------|:------------|:-------------------------------------------------------|
+| forward / backward | f32    | f32         | f32                                                    |
+| forward / backward | bf16   | bf16        | bf16                                                   |
+| forward / backward | f16    | f16         | f32                                                    |
+| forward            | s8     | s8          | s32                                                    |
+| forward            | u8     | u8          | s32                                                    |
+| forward            | s32    | s32         | s32                                                    |
+| forward inference  | s8     | u8          | s32                                                    |
+| forward inference  | u8     | s8          | s32                                                    |
+| forward inference  | s8     | f16         | f32                                                    |
+| forward inference  | u8     | f16         | f32                                                    |
+| forward inference  | f16    | s8          | f32                                                    |
+| forward inference  | f16    | u8          | f32                                                    |
+| forward inference  | s8     | f32         | f32                                                    |
+| forward inference  | u8     | f32         | f32                                                    |
+| forward inference  | f32    | s8          | f32                                                    |
+| forward inference  | f32    | u8          | f32                                                    |
 
 @warning
     There might be hardware and/or implementation specific restrictions.
@@ -127,7 +127,7 @@ an \f$N \times C \times D \times H \times W\f$ tensor for the 3D spatial case.
 The pooling primitive is optimized for the following memory formats:
 
 | Spatial | Logical tensor | Data type   | Implementations optimized for memory formats                       |
-| :--     | :--            | :--         | :--                                                                |
+|:--------|:---------------|:------------|:-------------------------------------------------------------------|
 | 1D      | NCW            | f32         | #dnnl_ncw (#dnnl_abc), #dnnl_nwc (#dnnl_acb), *optimized^*         |
 | 1D      | NCW            | s32, s8, u8 | #dnnl_nwc (#dnnl_acb), *optimized^*                                |
 | 2D      | NCHW           | f32         | #dnnl_nchw (#dnnl_abcd), #dnnl_nhwc (#dnnl_acdb), *optimized^*     |
@@ -142,7 +142,7 @@ of any preceding compute-intensive primitive.
 ### Post-Ops and Attributes
 
 | Propagation | Type    | Operation                                    | Description                                            | Restrictions                        |
-| :--         | :--     | :--                                          | :--                                                    | :--                                 |
+|:------------|:--------|:---------------------------------------------|:-------------------------------------------------------|:------------------------------------|
 | Forward     | Post-op | [Binary](@ref dnnl::post_ops::append_binary) | Applies a @ref dnnl_api_binary operation to the result | General binary post-op restrictions |
 
 @anchor dg_pool_impl_limits

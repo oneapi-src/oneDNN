@@ -20,13 +20,13 @@ Both kinds of experimental features can be enabled simultaneously.
 
 ## Experimental features
 
-| Environment variable                     | Description
-| :---                                     | :---
-| ONEDNN_EXPERIMENTAL_BNORM_STATS_ONE_PASS | Calculate mean and variance in batch normalization(BN) in single pass ([RFC](https://github.com/oneapi-src/oneDNN/tree/rfcs/rfcs/20210519-single-pass-bnorm)).
+| Environment variable                     | Description                                                                                                                                                    |
+|:-----------------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ONEDNN_EXPERIMENTAL_BNORM_STATS_ONE_PASS | Calculate mean and variance in batch normalization(BN) in single pass ([RFC](https://github.com/oneapi-src/oneDNN/tree/rfcs/rfcs/20210519-single-pass-bnorm)). |
 
-| Build time option                        | Description
-| :---                                     | :---
-| ONEDNN_EXPERIMENTAL_SPARSE               | Enable experimental API and functionality for sparse domain.
+| Build time option          | Description                                                  |
+|:---------------------------|:-------------------------------------------------------------|
+| ONEDNN_EXPERIMENTAL_SPARSE | Enable experimental API and functionality for sparse domain. |
 
 ## Features details
 
@@ -50,7 +50,7 @@ exception is the API for creating a memory object. In that case, the API takes a
 of buffers. The order of the buffers in the vector matters and should correspond to
 the buffers' indices.
 
-oneDNN also introduces a new format kind #dnnl::memory::format_kind::sparse, 
+oneDNN also introduces a new format kind #dnnl::memory::format_kind::sparse,
 sparse encoding. Sparse encoding (a.k.a. sparse format) is an
 enumeration type that specifies how data is encoded. Currently, oneDNN only
 supports CSR (Compressed sparse row) sparse encoding
@@ -61,9 +61,9 @@ descriptors for different sparse encodings.
 
 Each encoding defines the number and meaning of the buffers.
 
-| Sparse encoding | Buffers
-| :---            | :---
-| CSR             | 0 - values, 1 - indices, 2 - pointers
+| Sparse encoding | Buffers                               |
+|:----------------|:--------------------------------------|
+| CSR             | 0 - values, 1 - indices, 2 - pointers |
 
 Pseudo-code with creating a memory object for CSR sparse encoding.
 
@@ -120,9 +120,9 @@ always dense.
 
 The following data types combinations are supported:
 
-| Values | Indices | Pointers
-| :----- | :-----  | :-----
-| f32    | s32     | s32
+| Values | Indices | Pointers |
+|:-------|:--------|:---------|
+| f32    | s32     | s32      |
 
 The following sparse encodings are supported:
 

@@ -31,7 +31,7 @@ When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
 | Primitive input/output | Execution argument index              |
-| ---                    | ---                                   |
+|------------------------|---------------------------------------|
 | \src                   | DNNL_ARG_FROM                         |
 | \dst                   | DNNL_ARG_TO                           |
 | \f$src scale\f$        | DNNL_ARG_ATTR_SCALES \| DNNL_ARG_FROM |
@@ -87,11 +87,11 @@ meaning associated with any logical dimensions.
 
 The reorder primitive support the following attributes and post-ops:
 
-| Attributes / Post-ops                                       | Meaning
-| :--                                                         | :--
-| [Scales](@ref dnnl::primitive_attr::set_scales_mask)        | Scales the corresponding tensor by the given scale factor(s)
-| [Zero points](@ref dnnl::primitive_attr::set_zero_points_mask)   | Sets zero point(s) for the corresponding tensors
-| [Sum post-op](@ref dnnl::post_ops::append_sum)              | Instead of copy the data accumulate it to the previous data
+| Attributes / Post-ops                                          | Meaning                                                      |
+|:---------------------------------------------------------------|:-------------------------------------------------------------|
+| [Scales](@ref dnnl::primitive_attr::set_scales_mask)           | Scales the corresponding tensor by the given scale factor(s) |
+| [Zero points](@ref dnnl::primitive_attr::set_zero_points_mask) | Sets zero point(s) for the corresponding tensors             |
+| [Sum post-op](@ref dnnl::post_ops::append_sum)                 | Instead of copy the data accumulate it to the previous data  |
 
 For instance, the following pseudo-code
 

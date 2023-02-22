@@ -75,7 +75,7 @@ Depending on the [flags](@ref dnnl_normalization_flags_t) and
 requires different inputs and outputs. For clarity, a summary is shown below.
 
 | Flags                                                        | #dnnl_forward_inference                                                                       | #dnnl_forward_training                                                                        | #dnnl_backward                                                                                                                     | #dnnl_backward_data        |
-| :--                                                          | :--                                                                                           | :--                                                                                           | :--                                                                                                                                | :--                        |
+|:-------------------------------------------------------------|:----------------------------------------------------------------------------------------------|:----------------------------------------------------------------------------------------------|:-----------------------------------------------------------------------------------------------------------------------------------|:---------------------------|
 | #dnnl_normalization_flags_none                               | *Inputs*: \src <br><br> *Outputs*: \dst                                                       | *Inputs*: \src <br><br> *Outputs*: \dst, \f$\mu\f$, \f$\sigma^2\f$                            | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \diffsrc                                                   | Same as for #dnnl_backward |
 | #dnnl_use_global_stats                                       | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \dst                            | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \dst                            | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \diffsrc                                                   | Same as for #dnnl_backward |
 | #dnnl_use_scale                                              | *Inputs*: \src, \f$\gamma\f$ <br><br> *Outputs*: \dst                                         | *Inputs*: \src, \f$\gamma\f$ <br><br> *Outputs*: \dst, \f$\mu\f$, \f$\sigma^2\f$              | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$ <br><br> *Outputs*: \diffsrc, \diffgamma                         | Not supported              |
@@ -86,7 +86,7 @@ When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
 | Primitive input/output  | Execution argument index             |
-| ---                     | ---                                  |
+|-------------------------|--------------------------------------|
 | \src                    | DNNL_ARG_SRC                         |
 | \f$\gamma\f$            | DNNL_ARG_SCALE                       |
 | \f$\beta\f$             | DNNL_ARG_SHIFT                       |
@@ -132,15 +132,15 @@ primitive. The following attributes are supported by the layer normalization
 primitive:
 
 | Propagation | Type      | Operation                                            | Description                                                   | Restrictions                                                                       |
-| :--         | :--       | :--                                                  | :--                                                           | :--                                                                                |
+|:------------|:----------|:-----------------------------------------------------|:--------------------------------------------------------------|:-----------------------------------------------------------------------------------|
 | forward     | attribute | [Scales](@ref dnnl::primitive_attr::set_scales_mask) | Scales the corresponding tensor by the given scale factor(s). | Supported only for int8 layer normalization and one scale per tensor is supported. |
 
 ### Data Type Support
 
 The operation supports the following combinations of data types:
 
-| Propagation | Source                 | Destination            |
-| :--         | :--                    | :--                    |
+| Propagation | Source                      | Destination                 |
+|:------------|:----------------------------|:----------------------------|
 | forward     | f32, bf16, f16, u8, s8, f64 | f32, bf16, f16, u8, s8, f64 |
 | backward    | f32, bf16, f16, f64         | f32, bf16, f16, f64         |
 
@@ -181,11 +181,11 @@ Layer normalization performs normalization over the last logical dimension
 
 The layer normalization primitive is optimized for the following memory formats:
 
-| Logical tensor | Implementations optimized for memory formats
-| :--            | :--
-| NC             | #dnnl_nc (#dnnl_ab)
-| TNC            | #dnnl_tnc (#dnnl_abc), #dnnl_ntc (#dnnl_bac)
-| LDNC           | #dnnl_ldnc (#dnnl_abcd)
+| Logical tensor | Implementations optimized for memory formats |
+|:---------------|:---------------------------------------------|
+| NC             | #dnnl_nc (#dnnl_ab)                          |
+| TNC            | #dnnl_tnc (#dnnl_abc), #dnnl_ntc (#dnnl_bac) |
+| LDNC           | #dnnl_ldnc (#dnnl_abcd)                      |
 
 ## Implementation Limitations
 

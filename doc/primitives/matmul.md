@@ -45,7 +45,7 @@ When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
 | Primitive input/output      | Execution argument index                                                  |
-| ---                         | ---                                                                       |
+|-----------------------------|---------------------------------------------------------------------------|
 | \src                        | DNNL_ARG_SRC                                                              |
 | \weights                    | DNNL_ARG_WEIGHTS                                                          |
 | \bias                       | DNNL_ARG_BIAS                                                             |
@@ -90,7 +90,7 @@ The MatMul primitive supports the following combinations of data
 types for source, destination, weights, and bias tensors:
 
 | Source | Weights | Destination                 | Bias                        |
-| :--    | :--     | :--                         | :--                         |
+|:-------|:--------|:----------------------------|:----------------------------|
 | f32    | f32     | f32                         | f32                         |
 | f16    | f16     | f16, u8, s8                 | f16, f32                    |
 | bf16   | bf16    | f32, bf16                   | bf16, f32                   |
@@ -101,10 +101,10 @@ types for source, destination, weights, and bias tensors:
 
 The MatMul primitive expects the following tensors:
 
-| Dims | Source                                                        | Weights                                         | Destination           | Bias                                                     |
-| :--  | :--                                                           | :--                                             | :--                   | :--                                                      |
-| 2D   | M \f$\times\f$ K                                              | K \f$\times\f$ N                                | M \f$\times\f$ N      | None or \f$(M \text{ or } 1) \times (N  \text{ or } 1)\f$|
-| ND   | S \f$\times\f$ M \f$\times\f$ K | W \f$\times\f$ K \f$\times\f$ N | D \f$\times\f$ M \f$\times\f$ N | None or B |
+| Dims | Source                          | Weights                         | Destination                     | Bias                                                      |
+|:-----|:--------------------------------|:--------------------------------|:--------------------------------|:----------------------------------------------------------|
+| 2D   | M \f$\times\f$ K                | K \f$\times\f$ N                | M \f$\times\f$ N                | None or \f$(M \text{ or } 1) \times (N  \text{ or } 1)\f$ |
+| ND   | S \f$\times\f$ M \f$\times\f$ K | W \f$\times\f$ K \f$\times\f$ N | D \f$\times\f$ M \f$\times\f$ N | None or B                                                 |
 
 where for the sake of notational convenience, we have
 
@@ -130,13 +130,13 @@ contiguous. For example, #dnnl::memory::format_tag::ab for the 2D case and
 Attributes and post-ops enable modifying the behavior of the MatMul primitive.
 The following attributes and post-ops are supported:
 
-| Type      | Operation                                                     | Description                                                                   | Restrictions                        |
-| :--       | :--                                                           | :--                                                                           | :--                                 |
-| Attribute | [Scales](@ref dnnl::primitive_attr::set_scales_mask) | Scales the result by given scale factor(s)                                    |                                     |
-| Attribute | [Zero-points](@ref dnnl::primitive_attr::set_zero_points_mask)     | Sets zero point(s) for the corresponding tensors                              | Int8 computations only              |
-| Post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)                | Applies an @ref dnnl_api_eltwise operation to the result                      |                                     |
-| Post-op   | [Sum](@ref dnnl::post_ops::append_sum)                        | Adds the operation result to the destination tensor instead of overwriting it |                                     |
-| Post-op   | [Binary](@ref dnnl::post_ops::append_binary)                  | Applies a @ref dnnl_api_binary operation to the result                        | General binary post-op restrictions |
+| Type      | Operation                                                      | Description                                                                   | Restrictions                        |
+|:----------|:---------------------------------------------------------------|:------------------------------------------------------------------------------|:------------------------------------|
+| Attribute | [Scales](@ref dnnl::primitive_attr::set_scales_mask)           | Scales the result by given scale factor(s)                                    |                                     |
+| Attribute | [Zero-points](@ref dnnl::primitive_attr::set_zero_points_mask) | Sets zero point(s) for the corresponding tensors                              | Int8 computations only              |
+| Post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)                 | Applies an @ref dnnl_api_eltwise operation to the result                      |                                     |
+| Post-op   | [Sum](@ref dnnl::post_ops::append_sum)                         | Adds the operation result to the destination tensor instead of overwriting it |                                     |
+| Post-op   | [Binary](@ref dnnl::post_ops::append_binary)                   | Applies a @ref dnnl_api_binary operation to the result                        | General binary post-op restrictions |
 
 The following masks are supported by the primitive:
 - 0, which applies one scale / zero point value to an entire tensor, and
@@ -187,7 +187,7 @@ source tensor zero points memory argument would be passed with index
 
 ## Examples
 
-The following examples are available: 
+The following examples are available:
 
 ### Matrix Multiplication Primitive Examples
 

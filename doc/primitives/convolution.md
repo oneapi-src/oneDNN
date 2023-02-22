@@ -131,7 +131,7 @@ When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
 | Primitive input/output      | Execution argument index                                                  |
-| ---                         | ---                                                                       |
+|-----------------------------|---------------------------------------------------------------------------|
 | \src                        | DNNL_ARG_SRC                                                              |
 | \weights                    | DNNL_ARG_WEIGHTS                                                          |
 | \bias                       | DNNL_ARG_BIAS                                                             |
@@ -154,19 +154,19 @@ N/A.
 Convolution primitive supports the following combination of data types for
 source, destination, and weights memory objects:
 
-| Propagation        | Source    | Weights   | Destination                  | Bias                        |
-| :--                | :--       | :--       | :--                          | :--                         |
-| forward            | f32       | f32       | f32, u8, s8                  | f32                         |
-| forward            | f16       | f16       | f16, f32, u8, s8             | f16, f32                    |
-| forward            | u8, s8    | s8        | u8, s8, s32, f32, f16, bf16  | u8, s8, s32, f32, f16, bf16 |
-| forward            | bf16      | bf16      | f32, bf16                    | f32, bf16                   |
-| forward            | f64       | f64       | f64                          | f64                         |
-| backward           | f32, bf16 | bf16      | bf16                         |                             |
-| backward           | f32, f16  | f16       | f16                          |                             |
-| backward           | f32       | f32       | f32                          | f32                         |
-| backward           | f64       | f64       | f64                          | f64                         |
-| weights update     | bf16      | f32, bf16 | bf16, s8, u8                 | f32, bf16                   |
-| weights update     | f16       | f32, f16  | f16                          | f32, f16                    |
+| Propagation    | Source    | Weights   | Destination                 | Bias                        |
+|:---------------|:----------|:----------|:----------------------------|:----------------------------|
+| forward        | f32       | f32       | f32, u8, s8                 | f32                         |
+| forward        | f16       | f16       | f16, f32, u8, s8            | f16, f32                    |
+| forward        | u8, s8    | s8        | u8, s8, s32, f32, f16, bf16 | u8, s8, s32, f32, f16, bf16 |
+| forward        | bf16      | bf16      | f32, bf16                   | f32, bf16                   |
+| forward        | f64       | f64       | f64                         | f64                         |
+| backward       | f32, bf16 | bf16      | bf16                        |                             |
+| backward       | f32, f16  | f16       | f16                         |                             |
+| backward       | f32       | f32       | f32                         | f32                         |
+| backward       | f64       | f64       | f64                         | f64                         |
+| weights update | bf16      | f32, bf16 | bf16, s8, u8                | f32, bf16                   |
+| weights update | f16       | f32, f16  | f16                         | f32, f16                    |
 
 @warning
     There might be hardware and/or implementation specific restrictions.
@@ -177,11 +177,11 @@ source, destination, and weights memory objects:
 Like other CNN primitives, the convolution primitive expects the following
 tensors:
 
-| Spatial | Source / Destination                        | Weights
-| :--     | :--                                         | :--
-| 1D      | \f$N \times C \times W\f$                   | \f$[G \times ] OC \times IC \times KW\f$
-| 2D      | \f$N \times C \times H \times W\f$          | \f$[G \times ] OC \times IC \times KH \times KW\f$
-| 3D      | \f$N \times C \times D \times H \times W\f$ | \f$[G \times ] OC \times IC \times KD \times KH \times KW\f$
+| Spatial | Source / Destination                        | Weights                                                      |
+|:--------|:--------------------------------------------|:-------------------------------------------------------------|
+| 1D      | \f$N \times C \times W\f$                   | \f$[G \times ] OC \times IC \times KW\f$                     |
+| 2D      | \f$N \times C \times H \times W\f$          | \f$[G \times ] OC \times IC \times KH \times KW\f$           |
+| 3D      | \f$N \times C \times D \times H \times W\f$ | \f$[G \times ] OC \times IC \times KD \times KH \times KW\f$ |
 
 Physical format of data and weights memory objects is critical for convolution
 primitive performance. In the oneDNN programming model, convolution is
@@ -196,12 +196,12 @@ While convolution primitives can be created with memory formats specified
 explicitly, the performance may be suboptimal. The table below shows
 the combinations of memory formats the convolution primitive is optimized for.
 
-| Source / Destination               | Weights                            | Limitations
-| :--                                | :--                                | :--
-| `any`                              | `any`                              | N/A
-| #dnnl_nwc, #dnnl_nhwc, #dnnl_ndhwc | `any`                              | N/A
-| #dnnl_nwc, #dnnl_nhwc, #dnnl_ndhwc | #dnnl_wio, #dnnl_hwio, #dnnl_dhwio | Only on GPUs with Xe-HPC architecture only
-| #dnnl_ncw, #dnnl_nchw, #dnnl_ncdhw | `any`                              | Only on CPU
+| Source / Destination               | Weights                            | Limitations                                |
+|:-----------------------------------|:-----------------------------------|:-------------------------------------------|
+| `any`                              | `any`                              | N/A                                        |
+| #dnnl_nwc, #dnnl_nhwc, #dnnl_ndhwc | `any`                              | N/A                                        |
+| #dnnl_nwc, #dnnl_nhwc, #dnnl_ndhwc | #dnnl_wio, #dnnl_hwio, #dnnl_dhwio | Only on GPUs with Xe-HPC architecture only |
+| #dnnl_ncw, #dnnl_nchw, #dnnl_ncdhw | `any`                              | Only on CPU                                |
 
 ### Post-ops and Attributes
 
@@ -210,14 +210,14 @@ primitive by applying the output scale to the result of the primitive and by
 chaining certain operations after the primitive. The following attributes and
 post-ops are supported:
 
-| Propagation | Type      | Operation                                                    | Description                                                                   | Restrictions                                                           |
-| :--         | :--       | :--                                                          | :--                                                                           | :--                                                                    |
-| forward     | attribute | [Scale](@ref dnnl::primitive_attr::set_scales_mask) | Scales the result of convolution by given scale factor(s)                     | int8 convolutions only                                                 |
-| forward     | attribute | [Zero points](@ref dnnl::primitive_attr::set_zero_points_mask)    | Sets zero point(s) for the corresponding tensors                              | int8 convolutions only                                                 |
-| forward     | post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)               | Applies an @ref dnnl_api_eltwise operation to the result                      |                                                                        |
-| forward     | post-op   | [Sum](@ref dnnl::post_ops::append_sum)                       | Adds the operation result to the destination tensor instead of overwriting it |                                                                        |
-| forward     | post-op   | [Binary](@ref dnnl::post_ops::append_binary)                 | Applies a @ref dnnl_api_binary operation to the result                        | General binary post-op restrictions                                    |
-| forward     | post-op   | [Depthwise](@ref dnnl::post_ops::append_dw)                  | Applies a @ref dnnl_api_convolution operation to the result                   | See [a separate section](@ref dev_guide_attributes_post_ops_depthwise) |
+| Propagation | Type      | Operation                                                      | Description                                                                   | Restrictions                                                           |
+|:------------|:----------|:---------------------------------------------------------------|:------------------------------------------------------------------------------|:-----------------------------------------------------------------------|
+| forward     | attribute | [Scale](@ref dnnl::primitive_attr::set_scales_mask)            | Scales the result of convolution by given scale factor(s)                     | int8 convolutions only                                                 |
+| forward     | attribute | [Zero points](@ref dnnl::primitive_attr::set_zero_points_mask) | Sets zero point(s) for the corresponding tensors                              | int8 convolutions only                                                 |
+| forward     | post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)                 | Applies an @ref dnnl_api_eltwise operation to the result                      |                                                                        |
+| forward     | post-op   | [Sum](@ref dnnl::post_ops::append_sum)                         | Adds the operation result to the destination tensor instead of overwriting it |                                                                        |
+| forward     | post-op   | [Binary](@ref dnnl::post_ops::append_binary)                   | Applies a @ref dnnl_api_binary operation to the result                        | General binary post-op restrictions                                    |
+| forward     | post-op   | [Depthwise](@ref dnnl::post_ops::append_dw)                    | Applies a @ref dnnl_api_convolution operation to the result                   | See [a separate section](@ref dev_guide_attributes_post_ops_depthwise) |
 
 The following masks are supported by the primitive:
 - 0, which applies one zero point value to an entire tensor, and
@@ -243,10 +243,10 @@ and eltwise primitives for training.
 The library supports any number and order of post operations, but only the
 following sequences deploy optimized code:
 
-| Type of convolutions           | Post-ops sequence supported
-| :--                            | :--
-| f32, bf16 and f16 convolution  | eltwise, sum, sum -> eltwise
-| int8 convolution               | eltwise, sum, sum -> eltwise, eltwise -> sum
+| Type of convolutions          | Post-ops sequence supported                  |
+|:------------------------------|:---------------------------------------------|
+| f32, bf16 and f16 convolution | eltwise, sum, sum -> eltwise                 |
+| int8 convolution              | eltwise, sum, sum -> eltwise, eltwise -> sum |
 
 The operations during attributes and post-ops applying are done in single
 precision floating point data type. The conversion to the actual destination

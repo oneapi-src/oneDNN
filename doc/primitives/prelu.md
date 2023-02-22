@@ -14,12 +14,12 @@ weights dimensions.
 
 Example broadcasts:
 
-| broadcast type  | src dimensions       | weights dimensions   |
-| ---             | ---                  | ---                  |
-| Channel-shared  | \f$\{n, c, h ,w\}\f$ | \f$\{1, 1, 1 ,1\}\f$ |
-| Channel-wise    | \f$\{n, c, h ,w\}\f$ | \f$\{1, c, 1 ,1\}\f$ |
-| Whole-tensor    | \f$\{n, c, h ,w\}\f$ | \f$\{n, c, h ,w\}\f$ |
-| Shared-axes     | \f$\{n, c, h ,w\}\f$ | \f$\{n, 1, h ,1\}\f$ |
+| broadcast type | src dimensions       | weights dimensions   |
+|----------------|----------------------|----------------------|
+| Channel-shared | \f$\{n, c, h ,w\}\f$ | \f$\{1, 1, 1 ,1\}\f$ |
+| Channel-wise   | \f$\{n, c, h ,w\}\f$ | \f$\{1, c, 1 ,1\}\f$ |
+| Whole-tensor   | \f$\{n, c, h ,w\}\f$ | \f$\{n, c, h ,w\}\f$ |
+| Shared-axes    | \f$\{n, c, h ,w\}\f$ | \f$\{n, 1, h ,1\}\f$ |
 
 @note
    Shared-axes indicates broadcast with any combination of shared
@@ -79,14 +79,14 @@ dimensions, since \f$\diffweights\f$ tensor must match \f$\weights\f$ tensor.
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
-| Primitive input/output | Execution argument index  |
-| ---                    | ---                       |
-| \f$\src\f$             | DNNL_ARG_SRC              |
-| \f$\dst\f$             | DNNL_ARG_DST              |
-| \f$\weights\f$         | DNNL_ARG_WEIGHTS          |
-| \f$\diffsrc\f$         | DNNL_ARG_DIFF_SRC         |
-| \f$\diffdst\f$         | DNNL_ARG_DIFF_DST         |
-| \f$\diffweights\f$     | DNNL_ARG_DIFF_WEIGHTS     |
+| Primitive input/output | Execution argument index |
+|------------------------|--------------------------|
+| \f$\src\f$             | DNNL_ARG_SRC             |
+| \f$\dst\f$             | DNNL_ARG_DST             |
+| \f$\weights\f$         | DNNL_ARG_WEIGHTS         |
+| \f$\diffsrc\f$         | DNNL_ARG_DIFF_SRC        |
+| \f$\diffdst\f$         | DNNL_ARG_DIFF_DST        |
+| \f$\diffweights\f$     | DNNL_ARG_DIFF_WEIGHTS    |
 
 
 ## Implementation Details
@@ -111,7 +111,7 @@ argument index as specified by the following table.
 The PReLU primitive supports the following combinations of data types:
 
 | Propagation        | Source / Destination        |
-| :--                | :--                         |
+|:-------------------|:----------------------------|
 | forward / backward | f32, s32, bf16, f16, s8, u8 |
 
 ### Data Representation

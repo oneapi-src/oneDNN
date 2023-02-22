@@ -94,7 +94,7 @@ using namespace dnnl;
     cl_device_id device = ...;
     cl_context context = ...;
 
-    std::vector<uint8_t> key = get_engine_cache_blob_id(device);    
+    std::vector<uint8_t> key = get_engine_cache_blob_id(device);
     std::vector<uint8_t> value = load_cache_blob_from_disk(key);
     engine ocl_engine = ocl_interop::make_engine(device, context, value);
 }

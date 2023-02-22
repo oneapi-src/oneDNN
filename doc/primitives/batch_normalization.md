@@ -99,7 +99,7 @@ Depending on the [flags](@ref dnnl_normalization_flags_t) and
 requires different inputs and outputs.  For clarity, a summary is shown below.
 
 | Flags                                                        | #dnnl_forward_inference                                                                                            | #dnnl_forward_training                                                                                                                                                                   | #dnnl_backward                                                                                                                                                                                | #dnnl_backward_data                                                                                              |
-| :--                                                          | :--                                                                                                                | :--                                                                                                                                                                                      | :--                                                                                                                                                                                           | :--                                                                                                              |
+|:-------------------------------------------------------------|:-------------------------------------------------------------------------------------------------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:-----------------------------------------------------------------------------------------------------------------|
 | #dnnl_normalization_flags_none                               | *Inputs*: \src <br><br> *Outputs*: \dst                                                                            | *Inputs*: \src <br><br> *Outputs*: \dst, \f$\mu\f$, \f$\sigma^2\f$                                                                                                                       | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \diffsrc                                                                                                              | Same as for #dnnl_backward                                                                                       |
 | #dnnl_use_global_stats                                       | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \dst                                                 | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \dst                                                                                                                       | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \diffsrc                                                                                                              | Same as for #dnnl_backward                                                                                       |
 | #dnnl_use_scale                                              | *Inputs*: \src, \f$\gamma\f$  <br><br> *Outputs*: \dst                                                             | *Inputs*: \src, \f$\gamma\f$ <br><br> *Outputs*: \dst, \f$\mu\f$, \f$\sigma^2\f$                                                                                                         | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$ <br><br> *Outputs*: \diffsrc, \f$\diffgamma\f$                                                                              | Not supported                                                                                                    |
@@ -111,21 +111,21 @@ requires different inputs and outputs.  For clarity, a summary is shown below.
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
-| Primitive Input/Output      | Execution Argument Index  |
-| ---                         | ---                       |
-| \src                        | DNNL_ARG_SRC              |
-| \f$\src_1\f$                | DNNL_ARG_SRC_1            |
-| \f$\gamma\f$                | DNNL_ARG_SCALE            |
-| \f$\beta\f$                 | DNNL_ARG_SHIFT            |
-| mean (\f$\mu\f$)            | DNNL_ARG_MEAN             |
-| variance (\f$\sigma^2\f$)   | DNNL_ARG_VARIANCE         |
-| \dst                        | DNNL_ARG_DST              |
-| workspace                   | DNNL_ARG_WORKSPACE        |
-| \diffdst                    | DNNL_ARG_DIFF_DST         |
-| \diffsrc                    | DNNL_ARG_DIFF_SRC         |
-| \f$\diff_src_1\f$           | DNNL_ARG_DIFF_SRC_1       |
-| \f$\diffgamma\f$            | DNNL_ARG_DIFF_SCALE       |
-| \f$\diffbeta\f$             | DNNL_ARG_DIFF_SHIFT       |
+| Primitive Input/Output    | Execution Argument Index |
+|---------------------------|--------------------------|
+| \src                      | DNNL_ARG_SRC             |
+| \f$\src_1\f$              | DNNL_ARG_SRC_1           |
+| \f$\gamma\f$              | DNNL_ARG_SCALE           |
+| \f$\beta\f$               | DNNL_ARG_SHIFT           |
+| mean (\f$\mu\f$)          | DNNL_ARG_MEAN            |
+| variance (\f$\sigma^2\f$) | DNNL_ARG_VARIANCE        |
+| \dst                      | DNNL_ARG_DST             |
+| workspace                 | DNNL_ARG_WORKSPACE       |
+| \diffdst                  | DNNL_ARG_DIFF_DST        |
+| \diffsrc                  | DNNL_ARG_DIFF_SRC        |
+| \f$\diff_src_1\f$         | DNNL_ARG_DIFF_SRC_1      |
+| \f$\diffgamma\f$          | DNNL_ARG_DIFF_SCALE      |
+| \f$\diffbeta\f$           | DNNL_ARG_DIFF_SHIFT      |
 
 ## Implementation Details
 
@@ -169,10 +169,10 @@ argument index as specified by the following table.
 
 The operation supports the following combinations of data types:
 
-| Propagation        | Source / Destination | Mean / Variance / ScaleShift
-| :--                | :--                  | :--
-| forward / backward | f32, bf16, f16       | f32
-| forward            | s8                   | f32
+| Propagation        | Source / Destination | Mean / Variance / ScaleShift |
+|:-------------------|:---------------------|:-----------------------------|
+| forward / backward | f32, bf16, f16       | f32                          |
+| forward            | s8                   | f32                          |
 
 @warning
     There might be hardware- or implementation-specific restrictions. Check the
@@ -202,12 +202,12 @@ to be \f$N \times C \times SP_n \times \cdots \times SP_0\f$ tensor.
 
 The batch normalization primitive is optimized for the following memory formats:
 
-| Spatial | Logical tensor | Implementations optimized for memory formats
-| :--     | :--            | :--
-| 0D      | NC             | #dnnl_nc (#dnnl_ab)
-| 1D      | NCW            | #dnnl_ncw (#dnnl_abc), #dnnl_nwc (#dnnl_acb), *optimized^*
-| 2D      | NCHW           | #dnnl_nchw (#dnnl_abcd), #dnnl_nhwc (#dnnl_acdb), *optimized^*
-| 3D      | NCDHW          | #dnnl_ncdhw (#dnnl_abcde), #dnnl_ndhwc (#dnnl_acdeb), *optimized^*
+| Spatial | Logical tensor | Implementations optimized for memory formats                       |
+|:--------|:---------------|:-------------------------------------------------------------------|
+| 0D      | NC             | #dnnl_nc (#dnnl_ab)                                                |
+| 1D      | NCW            | #dnnl_ncw (#dnnl_abc), #dnnl_nwc (#dnnl_acb), *optimized^*         |
+| 2D      | NCHW           | #dnnl_nchw (#dnnl_abcd), #dnnl_nhwc (#dnnl_acdb), *optimized^*     |
+| 3D      | NCDHW          | #dnnl_ncdhw (#dnnl_abcde), #dnnl_ndhwc (#dnnl_acdeb), *optimized^* |
 
 Here *optimized^* means the format that
 [comes out](@ref memory_format_propagation_cpp)
@@ -220,9 +220,9 @@ normalization primitive by chaining certain operations after the batch
 normalization operation. The following post-ops are supported by batch
 normalization primitives:
 
-| Propagation | Type    | Operation | Description
-| :--         | :--     | :--       | :--
-| forward     | post-op | eltwise   | Applies an @ref dnnl_api_eltwise operation to the result (currently only #dnnl_eltwise_relu algorithm is supported)
+| Propagation | Type    | Operation | Description                                                                                                         |
+|:------------|:--------|:----------|:--------------------------------------------------------------------------------------------------------------------|
+| forward     | post-op | eltwise   | Applies an @ref dnnl_api_eltwise operation to the result (currently only #dnnl_eltwise_relu algorithm is supported) |
 
 @note As mentioned in @ref dev_guide_attributes, the post-ops should be used
 for inference only. For instance, using ReLU as a post-op would not produce the
