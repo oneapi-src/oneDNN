@@ -693,6 +693,26 @@ void mxp_buffer_allocator::query_buffer_inplace() {
             replaced_buffer.insert(inplace_buf);
         }
     }
+    // validate inplace hint for shrink info
+    for (auto iter = inplace_map_.begin(); iter != inplace_map_.end();) {
+        auto &hint = (*iter);
+        auto buf1 = ((expr_base *)hint.first)->node_ptr_from_this();
+        COMPILE_ASSERT(hint.second.size() == 1,
+                "Unexpected inplace info size during partition")
+        auto buf2 = ((expr_base *)hint.second[0].first)->node_ptr_from_this();
+        // if attached anchor is not equal
+        if (get_real_anchor_for_buffer(buf1)
+                != get_real_anchor_for_buffer(buf2)) {
+            SC_MODULE_INFO << "removing tensor inplace hint: " << buf1
+                           << " ==> " << buf2 << " for safety";
+            // remove inplace hint to ensure correctness
+            buf1->attr().remove(attr_keys::tensor_inplace_hint);
+            // remove inplace map
+            iter = inplace_map_.erase(iter);
+        } else {
+            ++iter;
+        }
+    }
 }
 
 int mxp_buffer_allocator::use_count(const expr &buffer) const {

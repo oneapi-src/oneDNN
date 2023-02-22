@@ -1316,6 +1316,58 @@ TEST(GCCore_graph_mixed_partition_cpp, TestGraphMarkInplaceHint2) {
     }));
 }
 
+TEST(GCCore_graph_mixed_partition_cpp, TestGraphMarkInplaceHint4) {
+    sc_graph_t graph;
+
+    int run_threads = 28;
+    thread_num_reset reseter;
+    // set threads envoriment
+    runtime_config_t::get().set_num_threads(run_threads);
+
+    int BS = run_threads, M = 384, K = 1024, N = 1024;
+
+    auto input0 = graph.make_input({graph_tensor::make(
+            {BS, M, K}, sc_data_format_t(format_kinds::ABC))});
+    auto weight0 = graph.make_input({graph_tensor::make(
+            {BS, K, N}, sc_data_format_t(format_kinds::ABC))});
+
+    auto cast0 = graph.make("cast", {input0->get_outputs()[0]}, {},
+            {{"dtype", datatypes::s32}});
+    auto relu0 = graph.make("relu", {cast0->get_outputs()[0]}, {}, {});
+    // matmul0 will use relu0_out in larger anchor, as the result, it should not
+    // be set inplace hint
+    auto matmul0 = graph.make("matmul_core",
+            {relu0->get_outputs()[0], weight0->get_outputs()[0]}, {}, {});
+
+    auto output0 = graph.make_output(matmul0->get_outputs());
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    gtest_graph_driver_before_fusion(graph, ctx);
+    mixed_partition(graph, ctx);
+
+    mixed_fuse_op_t *fused_op = get_mixed_op_from_graph(graph);
+    COMPILE_ASSERT(fused_op, "No mixed fused op is found, please check")
+
+    auto body = fused_op->parti_list_[0]
+                        ->get_outer_loops()
+                        .back()
+                        ->body_.checked_as<stmts>()
+                        ->seq_;
+
+    // search relu tensor define node.
+    EXPECT_TRUE(std::any_of(body.begin(), body.end(), [](const stmt &s) {
+        return s.cast<define>()
+                .map([](const define &d) { return d->var_.as<tensor>(); })
+                .filter([](const tensor &t) {
+                    // check relu_3_outs_0 inplace attr
+                    return t->name_ == "relu_3_outs_0"
+                            && !t->attr().has_key(
+                                    attr_keys::tensor_inplace_hint);
+                })
+                .has_value();
+    }));
+}
+
 TEST(GCCore_graph_mixed_partition_cpp, TestUserDefinedShrintTensor) {
     sc_graph_t graph;
     auto ctx = get_test_ctx();
