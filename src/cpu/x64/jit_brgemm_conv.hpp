@@ -205,6 +205,10 @@ private:
         return res;
     }
 
+    inline int maybe_invert_range(int k, int k_inv, int K) const {
+        return use_inversion ? K - k_inv : k;
+    };
+
     void get_kw_range(
             int ow, int &kw_s, int &kw_full_s, int &kw_full_e, int &kw_e) const;
     void get_ow_range(int ow, int kw, int &ow_s, int &ow_e) const;

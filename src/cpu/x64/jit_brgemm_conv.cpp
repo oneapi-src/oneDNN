@@ -1342,9 +1342,16 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::cal_compensation(
         balance211(work_amount, nthr, ithr, start, end);
         nd_iterator_init(start, g, jcp.ngroups, ocb, jcp.nb_oc, k, ker_vpad_sz);
         for (auto work = start; work < end; work++) {
-            const dim_t kd_b {kd_bs[k]}, kd_e {kd_es[k]}, kh_b {kh_bs[k]},
-                    kh_e {kh_es[k]}, kw_b {kw_bs[k]}, kw_e {kw_es[k]};
-            assert(kd_e > kd_b && kh_e > kh_b && kw_e > kw_b);
+            const dim_t kd_bb {kd_bs[k]}, kd_ee {kd_es[k]}, kh_bb {kh_bs[k]},
+                    kh_ee {kh_es[k]}, kw_bb {kw_bs[k]}, kw_ee {kw_es[k]};
+            assert(kd_ee > kd_bb && kh_ee > kh_bb && kw_ee > kw_bb);
+
+            const auto kd_b = maybe_invert_range(kd_bb, kd_ee, KD);
+            const auto kd_e = maybe_invert_range(kd_ee, kd_bb, KD);
+            const auto kh_b = maybe_invert_range(kh_bb, kh_ee, KH);
+            const auto kh_e = maybe_invert_range(kh_ee, kh_bb, KH);
+            const auto kw_b = maybe_invert_range(kw_bb, kw_ee, KW);
+            const auto kw_e = maybe_invert_range(kw_ee, kw_bb, KW);
 
             const auto buffer_offs
                     = g * comp_ocb_sz + ocb * comp_ker_sz + k * comp_kw_sz;
