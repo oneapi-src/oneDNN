@@ -132,15 +132,16 @@ status_t cudnn_inner_product_bwd_weights_t::execute(
                         : 0);
 
         if (wei_sz != 0) {
-            auto status = cuda_stream->fill(
-                    CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS), 0, wei_sz,
-                    cuda_stream->ctx.get_deps(), cuda_stream->ctx.get_deps());
+            auto status
+                    = cuda_stream->fill(CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS),
+                            0, wei_sz, cuda_stream->ctx().get_deps(),
+                            cuda_stream->ctx().get_deps());
             if (status != status::success) return status;
         }
         if (bias_sz != 0) {
             auto status = cuda_stream->fill(CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS),
-                    0, bias_sz, cuda_stream->ctx.get_deps(),
-                    cuda_stream->ctx.get_deps());
+                    0, bias_sz, cuda_stream->ctx().get_deps(),
+                    cuda_stream->ctx().get_deps());
             if (status != status::success) return status;
         }
         return status::success;

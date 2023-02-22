@@ -60,7 +60,7 @@ protected:
 
         compute::compute_stream_t *compute_stream
                 = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-        CHECK(compute_stream->parallel_for(kernel, cvt_void2handler));
+        CHECK(kernel.parallel_for(*compute_stream, cvt_void2handler));
         return status::success;
     }
 };
