@@ -28,7 +28,7 @@ When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
 | Primitive input/output | Execution argument index |
-| ---                    | ---                      |
+|------------------------|--------------------------|
 | \src                   | DNNL_ARG_MULTIPLE_SRC    |
 | \dst                   | DNNL_ARG_DST             |
 
@@ -95,5 +95,5 @@ meaning associated with any logical dimensions.
 ## Example
 
 [Concat Primitive Example](@ref concat_example_cpp)
- 
+
 @copydetails concat_example_cpp_short

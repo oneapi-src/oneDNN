@@ -7,39 +7,39 @@ on how oneDNN was built.
 
 ## Header Files
 
-| File                                      | Description
-| :---                                      | :---
-| ``include/oneapi/dnnl/dnnl.h``            | C header
-| ``include/oneapi/dnnl/dnnl.hpp``          | C++ header
-| ``include/oneapi/dnnl/dnnl_types.h``      | Auxiliary C header
-| ``include/oneapi/dnnl/dnnl_config.h``     | Auxiliary C header
-| ``include/oneapi/dnnl/dnnl_version.h``    | C header with version information
-| ``include/oneapi/dnnl/dnnl_graph.h``      | C header for graph API
-| ``include/oneapi/dnnl/dnnl_graph.hpp``    | C++ header for graph API
-| ``include/oneapi/dnnl/dnnl_graph_types.h``| Auxiliary C header for graph API
+| File                                       | Description                       |
+|:-------------------------------------------|:----------------------------------|
+| ``include/oneapi/dnnl/dnnl.h``             | C header                          |
+| ``include/oneapi/dnnl/dnnl.hpp``           | C++ header                        |
+| ``include/oneapi/dnnl/dnnl_types.h``       | Auxiliary C header                |
+| ``include/oneapi/dnnl/dnnl_config.h``      | Auxiliary C header                |
+| ``include/oneapi/dnnl/dnnl_version.h``     | C header with version information |
+| ``include/oneapi/dnnl/dnnl_graph.h``       | C header for graph API            |
+| ``include/oneapi/dnnl/dnnl_graph.hpp``     | C++ header for graph API          |
+| ``include/oneapi/dnnl/dnnl_graph_types.h`` | Auxiliary C header for graph API  |
 
 ## Libraries
 
 ### Linux
 
-| File                | Description
-| :---                | :---
-| lib/libdnnl.so      | oneDNN dynamic library
-| lib/libdnnl.a       | oneDNN static library (if built with `DNNL_LIBRARY_TYPE=STATIC`)
+| File           | Description                                                      |
+|:---------------|:-----------------------------------------------------------------|
+| lib/libdnnl.so | oneDNN dynamic library                                           |
+| lib/libdnnl.a  | oneDNN static library (if built with `DNNL_LIBRARY_TYPE=STATIC`) |
 
 ### macOS
 
-| File                   | Description
-| :---                   | :---
-| lib/libdnnl.dylib      | oneDNN dynamic library
-| lib/libdnnl.a          | oneDNN static library (if built with `DNNL_LIBRARY_TYPE=STATIC`)
+| File              | Description                                                      |
+|:------------------|:-----------------------------------------------------------------|
+| lib/libdnnl.dylib | oneDNN dynamic library                                           |
+| lib/libdnnl.a     | oneDNN static library (if built with `DNNL_LIBRARY_TYPE=STATIC`) |
 
 ### Windows
 
-| File         | Description
-| :---         | :---
-| bin\dnnl.dll | oneDNN dynamic library
-| lib\dnnl.lib | oneDNN import or full static library (the latter if built with `DNNL_LIBRARY_TYPE=STATIC`)
+| File         | Description                                                                                |
+|:-------------|:-------------------------------------------------------------------------------------------|
+| bin\dnnl.dll | oneDNN dynamic library                                                                     |
+| lib\dnnl.lib | oneDNN import or full static library (the latter if built with `DNNL_LIBRARY_TYPE=STATIC`) |
 
 ## Linking to oneDNN
 

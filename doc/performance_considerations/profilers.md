@@ -13,7 +13,7 @@ At build-time, support for this feature is controlled by the CMake option
 `ONEDNN_ENABLE_JIT_PROFILING`.
 
 | CMake Option                | Supported Values      | Description                               |
-| :---                        | :---                  | :---                                      |
+|:----------------------------|:----------------------|:------------------------------------------|
 | ONEDNN_ENABLE_JIT_PROFILING | **ON** (default), OFF | Enables performance profilers integration |
 
 ## Run-Time Controls
@@ -21,12 +21,12 @@ At build-time, support for this feature is controlled by the CMake option
 When the feature is enabled at build-time, the `ONEDNN_JIT_PROFILE` environment
 variable can be used to manage integration with performance profilers.
 
-| Environment Variable | Value            | Description                                                            | x64             | AArch64
-| :---                 | :---             | :---                                                                   | :---            | :---
-| ONEDNN_JIT_PROFILE   | 1                | Enables VTune Amplifier integration                                    | **x** (default) | N/A
-| ^                    | 2                | Enables basic Linux perf integration                                   | x               | **x** (default)
-| ^                    | 6                | Enables Linux perf integration with JIT dump output                    | x               | x
-| ^                    | 14               | Enables Linux perf integration with JIT dump output and TSC timestamps | x               | N/A
+| Environment Variable | Value | Description                                                            | x64             | AArch64         |
+|:---------------------|:------|:-----------------------------------------------------------------------|:----------------|:----------------|
+| ONEDNN_JIT_PROFILE   | 1     | Enables VTune Amplifier integration                                    | **x** (default) | N/A             |
+| ^                    | 2     | Enables basic Linux perf integration                                   | x               | **x** (default) |
+| ^                    | 6     | Enables Linux perf integration with JIT dump output                    | x               | x               |
+| ^                    | 14    | Enables Linux perf integration with JIT dump output and TSC timestamps | x               | N/A             |
 
 Other valid values for `ONEDNN_JIT_PROFILE` include integer values representing
 a combination of flags accepted by the @ref dnnl_set_jit_profiling_flags
@@ -50,7 +50,7 @@ oneDNN supports ITT tagging at primitive execution in order to provide
 performance information on the level of a oneDNN primitive. This feature is
 supported on both CPU and GPU.
 
-ITT tagging in oneDNN during primitive execution provides more information 
+ITT tagging in oneDNN during primitive execution provides more information
 from VTune Amplifier for the items below.
 1. Get the primitives timeline chart from VTune Amplifier, and identify
 potential performance issues.
@@ -63,20 +63,20 @@ potential performance issues.
 At build-time, support for this feature is controlled by the CMake option
 `ONEDNN_ENABLE_ITT_TASKS`.
 
-| CMake Option                | Supported Values      | Description
-| :---                        | :---                  | :---
-| ONEDNN_ENABLE_ITT_TASKS     | **ON** (default), OFF | Enables ITT tagging for primitive execution
+| CMake Option            | Supported Values      | Description                                 |
+|:------------------------|:----------------------|:--------------------------------------------|
+| ONEDNN_ENABLE_ITT_TASKS | **ON** (default), OFF | Enables ITT tagging for primitive execution |
 
 ##### Run-Time Controls
 
 When the feature is enabled at build-time, the `ONEDNN_ITT_TASK_LEVEL` environment
 variable can be used to enable different level of ITT tagging.
 
-| Environment Variable  | Value        | Description
-| :---                  | :---         | :---
-| ONEDNN_ITT_TASK_LEVEL | 0            | no ITT event will be triggered
-| ^                     | 1            | ITT events are only triggered in master thread
-| ^                     | **2** (default) | **ITT events are triggered in all OMP/TBB threads**
+| Environment Variable  | Value           | Description                                         |
+|:----------------------|:----------------|:----------------------------------------------------|
+| ONEDNN_ITT_TASK_LEVEL | 0               | no ITT event will be triggered                      |
+| ^                     | 1               | ITT events are only triggered in master thread      |
+| ^                     | **2** (default) | **ITT events are triggered in all OMP/TBB threads** |
 
 ## Example: Profiling with VTune Amplifier
 
@@ -89,7 +89,7 @@ Collect profiling data:
 
 ~~~sh
 $ amplxe-cl -collect hotspots -q -no-summary -knob sampling-mode=hw -r dnnl-vtune ./benchdnn --mode=P --conv --batch=inputs/conv/shapes_alexnet
-amplxe: Warning: To enable hardware event-base sampling, VTune Amplifier has disabled the NMI watchdog timer.  
+amplxe: Warning: To enable hardware event-base sampling, VTune Amplifier has disabled the NMI watchdog timer.
 The watchdog timer will be re-enabled after collection completes.
 Output template: perf,%engine%,%impl%,%name%,%prb%,%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%
 perf,cpu,jit:avx512_common,"alexnet:conv1",--conv g1mb256ic3ih227oc96oh55kh11sh4ph0n"alexnet:conv1",53.9726,0,17.4285,3096.81,22.5851,2389.74
@@ -134,7 +134,7 @@ Column filter is ON.
 Task Type           CPU Time
 convolution         1451.459338
 [Outside any task]  280.489764
-reorder             10.434821 
+reorder             10.434821
        10.763433
 ~~~
 
@@ -143,7 +143,7 @@ reorder             10.434821
 Collect profiling data:
 
 ~~~sh
-$ amplxe-cl -collect uarch-exploration -knob sampling-interval=1 -data-limit=2000  -q -no-summary -r dnnl-vtune-ue ./benchdnn --mode=P --conv --batch=inputs/conv/shapes_alexnet 
+$ amplxe-cl -collect uarch-exploration -knob sampling-interval=1 -data-limit=2000  -q -no-summary -r dnnl-vtune-ue ./benchdnn --mode=P --conv --batch=inputs/conv/shapes_alexnet
 amplxe: Warning: To enable hardware event-base sampling, VTune Amplifier has disabled the NMI watchdog timer. The watchdog timer will be re-enabled after collection completes.
 Output template: perf,%engine%,%impl%,%name%,%prb%,%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%
 perf,cpu,jit:avx512_common,"alexnet:conv1",--conv g1mb256ic3ih227oc96oh55kh11sh4ph0n"alexnet:conv1",53.9726,0,17.2344,3131.68,24.1246,2237.24
@@ -165,7 +165,7 @@ Column filter is ON.
 Task Type           Back-End Bound:Memory Bound:L1 Bound(%)  Back-End Bound:Memory Bound:L1 Bound:DTLB Overhead(%)  Back-End Bound:Memory Bound:L1 Bound:Loads Blocked by Store Forwarding(%)  Back-End Bound:Memory Bound:L1 Bound:Lock Latency(%)  Back-End Bound:Memory Bound:L1 Bound:Split Loads(%)  Back-End Bound:Memory Bound:L1 Bound:4K Aliasing(%)  Back-End Bound:Memory Bound:L1 Bound:FB Full(%)
 convolution         8.2                                      0.0                                                    0.0                                                                        0.0                                                   0.0                                                  0.2                                                  26.6
 [Outside any task]  4.4                                      0.0                                                    0.0                                                                        0.0                                                   0.0                                                  0.0                                                  2.6
-reorder             16.0                                     0.0                                                    0.0                                                                        0.0                                                   0.0                                                  0.1 
+reorder             16.0                                     0.0                                                    0.0                                                                        0.0                                                   0.0                                                  0.1
 
 ~~~
 

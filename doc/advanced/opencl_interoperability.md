@@ -17,22 +17,22 @@ The interoperability API is provided for two scenarios:
 The mapping between oneDNN and OpenCL objects is provided in the following
 table:
 
-| oneDNN object        | OpenCL object(s)                    |
-| :------------------- | :---------------------------------- |
-| Engine               | `cl_device_id` and `cl_context`     |
-| Stream               | `cl_command_queue`                  |
-| Memory (Buffer-based)| `cl_mem`                            |
-| Memory (USM-based)   | Unified Shared Memory (USM) pointer |
+| oneDNN object         | OpenCL object(s)                    |
+|:----------------------|:------------------------------------|
+| Engine                | `cl_device_id` and `cl_context`     |
+| Stream                | `cl_command_queue`                  |
+| Memory (Buffer-based) | `cl_mem`                            |
+| Memory (USM-based)    | Unified Shared Memory (USM) pointer |
 
 The table below summarizes how to construct oneDNN objects based on OpenCL
 objects and how to query underlying OpenCL objects for existing oneDNN objects.
 
-| oneDNN object        | API to construct oneDNN object                                                                          | API to access OpenCL object(s)                                                                    |
-| :------------------- | :------------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------ |
-| Engine               | dnnl::ocl_interop::make_engine(cl_device_id, cl_context)                                                | dnnl::ocl_interop::get_device(const engine &) <br> dnnl::ocl_interop::get_context(const engine &) |
-| Stream               | dnnl::ocl_interop::make_stream(const engine &, cl_command_queue)                                        | dnnl::ocl_interop::get_command_queue(const stream &)                                              |
-| Memory (Buffer-based)| dnnl::memory(const memory::desc &, const engine &, cl_mem)                                              | dnnl::ocl_interop::get_mem_object(const memory &)                                                 |
-| Memory (USM-based)   | dnnl::ocl_interop::make_memory(const memory::desc &, const engine &, ocl_interop::memory_kind, void \*) | dnnl::memory::get_data_handle()                                                                   |
+| oneDNN object         | API to construct oneDNN object                                                                          | API to access OpenCL object(s)                                                                    |
+|:----------------------|:--------------------------------------------------------------------------------------------------------|:--------------------------------------------------------------------------------------------------|
+| Engine                | dnnl::ocl_interop::make_engine(cl_device_id, cl_context)                                                | dnnl::ocl_interop::get_device(const engine &) <br> dnnl::ocl_interop::get_context(const engine &) |
+| Stream                | dnnl::ocl_interop::make_stream(const engine &, cl_command_queue)                                        | dnnl::ocl_interop::get_command_queue(const stream &)                                              |
+| Memory (Buffer-based) | dnnl::memory(const memory::desc &, const engine &, cl_mem)                                              | dnnl::ocl_interop::get_mem_object(const memory &)                                                 |
+| Memory (USM-based)    | dnnl::ocl_interop::make_memory(const memory::desc &, const engine &, ocl_interop::memory_kind, void \*) | dnnl::memory::get_data_handle()                                                                   |
 
 ## OpenCL Buffers and USM Interfaces for Memory Objects
 

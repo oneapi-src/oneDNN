@@ -26,22 +26,22 @@ use such names in initialization or other functions to simplify the coding.
 To summarize, oneDNN uses the following commonly used notations for
 tensors:
 
-| Name                  | Meaning
-| :-                    | :-
-| `src`                 | Source tensor
-| `dst`                 | Destination tensor
-| `weights`             | Weights tensor
-| `bias`                | Bias tensor (used in @ref dev_guide_convolution, @ref dev_guide_inner_product and other primitives)
-| `scale_shift`         | Scale and shift tensors (used in @ref dev_guide_batch_normalization and @ref dev_guide_layer_normalization)
-| `workspace`           | Workspace tensor that carries additional information from the forward propagation to the backward propagation
-| `scratchpad`          | Temporary tensor that is required to store the intermediate results
-| `diff_src`            | Gradient tensor with respect to the source
-| `diff_dst`            | Gradient tensor with respect to the destination
-| `diff_weights`        | Gradient tensor with respect to the weights
-| `diff_bias`           | Gradient tensor with respect to the bias
-| `diff_scale_shift`    | Gradient tensor with respect to the scale and shift
-| `*_layer`             | RNN layer data or weights tensors
-| `*_iter`              | RNN recurrent data or weights tensors
+| Name               | Meaning                                                                                                       |
+|:-------------------|:--------------------------------------------------------------------------------------------------------------|
+| `src`              | Source tensor                                                                                                 |
+| `dst`              | Destination tensor                                                                                            |
+| `weights`          | Weights tensor                                                                                                |
+| `bias`             | Bias tensor (used in @ref dev_guide_convolution, @ref dev_guide_inner_product and other primitives)           |
+| `scale_shift`      | Scale and shift tensors (used in @ref dev_guide_batch_normalization and @ref dev_guide_layer_normalization)   |
+| `workspace`        | Workspace tensor that carries additional information from the forward propagation to the backward propagation |
+| `scratchpad`       | Temporary tensor that is required to store the intermediate results                                           |
+| `diff_src`         | Gradient tensor with respect to the source                                                                    |
+| `diff_dst`         | Gradient tensor with respect to the destination                                                               |
+| `diff_weights`     | Gradient tensor with respect to the weights                                                                   |
+| `diff_bias`        | Gradient tensor with respect to the bias                                                                      |
+| `diff_scale_shift` | Gradient tensor with respect to the scale and shift                                                           |
+| `*_layer`          | RNN layer data or weights tensors                                                                             |
+| `*_iter`           | RNN recurrent data or weights tensors                                                                         |
 
 
 ## Formulas and Verbose Output
@@ -51,42 +51,42 @@ output. Here, lower-case letters are used to denote indices in a particular
 spatial dimension, the sizes of which are denoted by corresponding upper-case
 letters.
 
-| Name                                     | Semantics
-| :--------------------------------------- | :----------------------------------------
-| `n` (or `mb`)                            | batch
-| `g`                                      | groups
-| `oc`, `od`, `oh`, `ow`                   | output channels, depth, height, and width
-| `ic`, `id`, `ih`, `iw`                   | input channels, depth, height, and width
-| `kd`, `kh`, `kw`                         | kernel (filter) depth, height, and width
-| `sd`, `sh`, `sw`                         | stride by depth, height, and width
-| `dd`, `dh`, `dw`                         | dilation by depth, height, and width
-| `pd`, `ph`, `pw`                         | padding by depth, height, and width
+| Name                   | Semantics                                 |
+|:-----------------------|:------------------------------------------|
+| `n` (or `mb`)          | batch                                     |
+| `g`                    | groups                                    |
+| `oc`, `od`, `oh`, `ow` | output channels, depth, height, and width |
+| `ic`, `id`, `ih`, `iw` | input channels, depth, height, and width  |
+| `kd`, `kh`, `kw`       | kernel (filter) depth, height, and width  |
+| `sd`, `sh`, `sw`       | stride by depth, height, and width        |
+| `dd`, `dh`, `dw`       | dilation by depth, height, and width      |
+| `pd`, `ph`, `pw`       | padding by depth, height, and width       |
 
 ## RNN-Specific Notation
 
 The following notations are used when describing RNN primitives.
 
-| Name            | Semantics
-| :-------------- | :----------------------------------
-| \f$\cdot\f$     | matrix multiply operator
-| \f$ * \f$       | element-wise multiplication operator
-| W               | input weights
-| U               | recurrent weights
-| \f$^T\f$        | transposition
-| B               | bias
-| h               | hidden state
-| a               | intermediate value
-| x               | input
-| \f$ _t {}_{}\f$ | timestamp
-| \f$ l \f$       | layer index
-| activation      | tanh, relu, logistic
-| c               | cell state
-| \f$\tilde{c}\f$ | candidate state
-| i               | input gate
-| f               | forget gate
-| o               | output gate
-| u               | update gate
-| r               | reset gate
+| Name            | Semantics                            |
+|:----------------|:-------------------------------------|
+| \f$\cdot\f$     | matrix multiply operator             |
+| \f$ * \f$       | element-wise multiplication operator |
+| W               | input weights                        |
+| U               | recurrent weights                    |
+| \f$^T\f$        | transposition                        |
+| B               | bias                                 |
+| h               | hidden state                         |
+| a               | intermediate value                   |
+| x               | input                                |
+| \f$ _t {}_{}\f$ | timestamp                            |
+| \f$ l \f$       | layer index                          |
+| activation      | tanh, relu, logistic                 |
+| c               | cell state                           |
+| \f$\tilde{c}\f$ | candidate state                      |
+| i               | input gate                           |
+| f               | forget gate                          |
+| o               | output gate                          |
+| u               | update gate                          |
+| r               | reset gate                           |
 
 
 ## Memory Formats Tags
@@ -123,21 +123,21 @@ format tags in which dimensions have specifically assigned meaning like 'image
 width', 'image height', etc. The following table summarizes notations used in
 such memory format tags.
 
-| Letter  | Dimension                               |
-| ------- | --------------------------------------- |
-| n       | batch                                   |
-| g       | groups                                  |
-| c       | channels                                |
-| o       | output channels                         |
-| i       | input channels                          |
-| h       | height                                  |
-| w       | width                                   |
-| d       | depth                                   |
-| t       | timestamp                               |
-| l       | layer                                   |
-| d       | direction                               |
-| g       | gate                                    |
-| s       | state                                   |
+| Letter | Dimension       |
+|--------|-----------------|
+| n      | batch           |
+| g      | groups          |
+| c      | channels        |
+| o      | output channels |
+| i      | input channels  |
+| h      | height          |
+| w      | width           |
+| d      | depth           |
+| t      | timestamp       |
+| l      | layer           |
+| d      | direction       |
+| g      | gate            |
+| s      | state           |
 
 The canonical sequence of dimensions for four-dimensional data tensors in CNNs
 is (batch, channels, spatial dimensions). Spatial dimensions are ordered for

@@ -9,22 +9,22 @@ support is to improve performance of compute intensive operations, such as
 convolutions, inner product, and recurrent neural network cells
 in comparison to fp32.
 
-| Data type | Description
-| :---      | :---
-| f32       | [IEEE single precision floating-point](https://en.wikipedia.org/wiki/Single-precision_floating-point_format#IEEE_754_single-precision_binary_floating-point_format:_binary32)
-| bf16      | [non-IEEE 16-bit floating-point](https://software.intel.com/content/www/us/en/develop/download/bfloat16-hardware-numerics-definition.html)
-| f16       | [IEEE half precision floating-point](https://en.wikipedia.org/wiki/Half-precision_floating-point_format#IEEE_754_half-precision_binary_floating-point_format:_binary16)
-| s8/u8     | signed/unsigned 8-bit integer
-| f64       | [IEEE double precision floating-point](https://en.wikipedia.org/wiki/Double-precision_floating-point_format#IEEE_754_double-precision_binary_floating-point_format:_binary64)
+| Data type | Description                                                                                                                                                                   |
+|:----------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| f32       | [IEEE single precision floating-point](https://en.wikipedia.org/wiki/Single-precision_floating-point_format#IEEE_754_single-precision_binary_floating-point_format:_binary32) |
+| bf16      | [non-IEEE 16-bit floating-point](https://software.intel.com/content/www/us/en/develop/download/bfloat16-hardware-numerics-definition.html)                                    |
+| f16       | [IEEE half precision floating-point](https://en.wikipedia.org/wiki/Half-precision_floating-point_format#IEEE_754_half-precision_binary_floating-point_format:_binary16)       |
+| s8/u8     | signed/unsigned 8-bit integer                                                                                                                                                 |
+| f64       | [IEEE double precision floating-point](https://en.wikipedia.org/wiki/Double-precision_floating-point_format#IEEE_754_double-precision_binary_floating-point_format:_binary64) |
 
 ## Inference and Training
 
 oneDNN supports training and inference with the following data types:
 
-| Usage mode | CPU                     | GPU                          |
-| :---       | :---                    | :---                         |
-| Inference  | f32, bf16, f16, s8/u8   | f32, bf16, f16, s8/u8, f64   |
-| Training   | f32, bf16, f16          | f32, bf16, f64               |
+| Usage mode | CPU                   | GPU                        |
+|:-----------|:----------------------|:---------------------------|
+| Inference  | f32, bf16, f16, s8/u8 | f32, bf16, f16, s8/u8, f64 |
+| Training   | f32, bf16, f16        | f32, bf16, f64             |
 
 @note
     Using lower precision arithmetic may require changes in the deep learning
@@ -48,7 +48,7 @@ During a primitive computation, oneDNN can use different datatypes
 than those of the inputs/outputs. In particular, oneDNN uses wider
 accumulator datatypes (s32 for integral computations, and f32 for
 floating-point computations), and converts intermediate results to f32
-before applying post-ops (f64 configuration does not support post-ops). 
+before applying post-ops (f64 configuration does not support post-ops).
 The following formula governs the datatypes
 dynamic during a primitive computation:
 
@@ -112,12 +112,12 @@ The following ISA have specialized optimizations in the library:
 
 The following table indicates the minimal supported ISA for each of the data
 types that oneDNN recognizes.
-| Data type | Minimal supported ISA
-| :---      | :---
-| f32       | Intel SSE4.1
-| s8, u8    | Intel AVX2
-| bf16      | Intel DL Boost with bfloat16 support
-| f16       | Intel AVX512-FP16
+| Data type | Minimal supported ISA                |
+|:----------|:-------------------------------------|
+| f32       | Intel SSE4.1                         |
+| s8, u8    | Intel AVX2                           |
+| bf16      | Intel DL Boost with bfloat16 support |
+| f16       | Intel AVX512-FP16                    |
 
 @note
   See @ref dev_guide_int8_computations in the Developer Guide for additional
@@ -130,12 +130,12 @@ types that oneDNN recognizes.
   hardware acceleration for bfloat16 is 3-4x lower in comparison to
   the same operations on the fp32 data type.
 
-@note 
+@note
   The Intel AMX instructions ignore the floating-point environment
   flag and always round to nearest tie-even and flush denormals to
   zero.
 
-@note 
+@note
   f64 configuration is not available for the CPU engine.
 
 @note
@@ -154,14 +154,14 @@ The following uArchs have specialized optimizations in the library:
 
 The following table indicates the minimal supported uArch for each of the data
 types that oneDNN recognizes.
-| Data type | Minimal supported uArch
-| :---      | :---
-| f32       | GEN9
-| s8, u8    | Xe-LP
-| bf16      | Xe-HP
-| f16       | GEN9
+| Data type | Minimal supported uArch |
+|:----------|:------------------------|
+| f32       | GEN9                    |
+| s8, u8    | Xe-LP                   |
+| bf16      | Xe-HP                   |
+| f16       | GEN9                    |
 
-@note 
+@note
   - f64 configurations are only supported on the GPU engines with HW capability
   for double-precision floating-point.
 

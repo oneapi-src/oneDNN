@@ -11,9 +11,9 @@ debugging purposes or for performance exploration.
 At build-time, support for this feature is controlled via cmake option
 `ONEDNN_ENABLE_MAX_CPU_ISA`.
 
-| CMake Option                | Supported values (defaults in bold) | Description
-| :---                        | :---                                | :---
-| ONEDNN_ENABLE_MAX_CPU_ISA   | **ON**, OFF                         | Enables [CPU dispatcher controls](@ref dev_guide_cpu_dispatcher_control)
+| CMake Option              | Supported values (defaults in bold) | Description                                                              |
+|:--------------------------|:------------------------------------|:-------------------------------------------------------------------------|
+| ONEDNN_ENABLE_MAX_CPU_ISA | **ON**, OFF                         | Enables [CPU dispatcher controls](@ref dev_guide_cpu_dispatcher_control) |
 
 ## Runtime Controls
 
@@ -23,20 +23,20 @@ certain Instruction Set Architecture (ISA) and older instruction sets. It can
 also be used to enable ISAs with initial support in the library that are
 otherwise disabled by default.
 
-| Environment variable | Value                | Description
-| :---                 | :---                 | :---
-| ONEDNN_MAX_CPU_ISA   | SSE41                | Intel Streaming SIMD Extensions 4.1 (Intel SSE4.1)
-| \                    | AVX                  | Intel Advanced Vector Extensions (Intel AVX)
-| \                    | AVX2                 | Intel Advanced Vector Extensions 2 (Intel AVX2)
-| \                    | AVX2_VNNI            | Intel AVX2 with Intel Deep Learning Boost (Intel DL Boost)
-| \                    | AVX512_CORE          | Intel AVX-512 with AVX512BW, AVX512VL, and AVX512DQ extensions
-| \                    | AVX512_CORE_VNNI     | Intel AVX-512 with Intel DL Boost
-| \                    | AVX512_CORE_BF16     | Intel AVX-512 with Intel DL Boost and bfloat16 support
-| \                    | AVX512_CORE_FP16     | Intel AVX-512 with float16 and Intel DL Boost and bfloat16
-| \                    | AVX512_CORE_AMX      | Intel AVX-512 with float16, Intel DL Boost and bfloat16 support and Intel Advanced Matrix Extensions (Intel AMX) with 8-bit integer and bfloat16 support
-| \                    | **DEFAULT**          | **No restrictions on the above ISAs, but excludes the below ISAs with preview support in the library (default)**
-| \                    | AVX2_VNNI_2          | Intel AVX2 with Intel Deep Learning Boost (Intel DL Boost) with 8-bit integer, float16 and bfloat16 support (preview support)
-| \                    | AVX512_CORE_AMX_FP16 | Intel AVX-512 with float16, Intel DL Boost and bfloat16 support and Intel Advanced Matrix Extensions (Intel AMX) with 8-bit integer, bfloat16 and float16 support (preview support)
+| Environment variable | Value                | Description                                                                                                                                                                         |
+|:---------------------|:---------------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ONEDNN_MAX_CPU_ISA   | SSE41                | Intel Streaming SIMD Extensions 4.1 (Intel SSE4.1)                                                                                                                                  |
+| \                    | AVX                  | Intel Advanced Vector Extensions (Intel AVX)                                                                                                                                        |
+| \                    | AVX2                 | Intel Advanced Vector Extensions 2 (Intel AVX2)                                                                                                                                     |
+| \                    | AVX2_VNNI            | Intel AVX2 with Intel Deep Learning Boost (Intel DL Boost)                                                                                                                          |
+| \                    | AVX512_CORE          | Intel AVX-512 with AVX512BW, AVX512VL, and AVX512DQ extensions                                                                                                                      |
+| \                    | AVX512_CORE_VNNI     | Intel AVX-512 with Intel DL Boost                                                                                                                                                   |
+| \                    | AVX512_CORE_BF16     | Intel AVX-512 with Intel DL Boost and bfloat16 support                                                                                                                              |
+| \                    | AVX512_CORE_FP16     | Intel AVX-512 with float16 and Intel DL Boost and bfloat16                                                                                                                          |
+| \                    | AVX512_CORE_AMX      | Intel AVX-512 with float16, Intel DL Boost and bfloat16 support and Intel Advanced Matrix Extensions (Intel AMX) with 8-bit integer and bfloat16 support                            |
+| \                    | **DEFAULT**          | **No restrictions on the above ISAs, but excludes the below ISAs with preview support in the library (default)**                                                                    |
+| \                    | AVX2_VNNI_2          | Intel AVX2 with Intel Deep Learning Boost (Intel DL Boost) with 8-bit integer, float16 and bfloat16 support (preview support)                                                       |
+| \                    | AVX512_CORE_AMX_FP16 | Intel AVX-512 with float16, Intel DL Boost and bfloat16 support and Intel Advanced Matrix Extensions (Intel AMX) with 8-bit integer, bfloat16 and float16 support (preview support) |
 
 @note The ISAs are partially ordered:
 * SSE41 < AVX < AVX2 < AVX2_VNNI < AVX2_VNNI_2,

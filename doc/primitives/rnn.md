@@ -368,7 +368,7 @@ When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
 | Primitive input/output | Execution argument index          |
-| ---                    | ---                               |
+|------------------------|-----------------------------------|
 | \srclayer              | DNNL_ARG_SRC_LAYER                |
 | \srclayerattention     | DNNL_ARG_SRC_LAYER_ATTENTION      |
 | \srciter               | DNNL_ARG_SRC_ITER                 |
@@ -402,13 +402,13 @@ argument index as specified by the following table.
 The following table lists the combination of data types supported by the RNN
 primitive for each input and output memory object.
 
- Propagation                | Cell Function                | Input data | Recurrent data (1) | Weights | Bias | Output Data
---------------------------- | ---------------------------- | ---------- | ------------------ | ------- | ---- | ------------
- Forward / Backward         |  All                         | f32        | f32                | f32     | f32  | f32
- Forward / Backward (2)     |  All (3)                     | bf16       | bf16               | bf16    | f32  | bf16
- Forward                    |  All (3)                     | f16        | f16                | f16     | f16  | f16
- Forward inference          |  Vanilla LSTM, LSTMP and GRU | u8         | u8                 | s8      | f32  | u8, f32
- Forward inference          |  Vanilla LSTM, LSTMP         | s8         | s8                 | s8      | f32  | s8, f32
+Propagation            | Cell Function               | Input data | Recurrent data (1) | Weights | Bias | Output Data
+-----------------------|-----------------------------|------------|--------------------|---------|------|------------
+Forward / Backward     | All                         | f32        | f32                | f32     | f32  | f32
+Forward / Backward (2) | All (3)                     | bf16       | bf16               | bf16    | f32  | bf16
+Forward                | All (3)                     | f16        | f16                | f16     | f16  | f16
+Forward inference      | Vanilla LSTM, LSTMP and GRU | u8         | u8                 | s8      | f32  | u8, f32
+Forward inference      | Vanilla LSTM, LSTMP         | s8         | s8                 | s8      | f32  | s8, f32
 
 (1) With LSTM and Peephole LSTM cells, the cell state datatype is f32,
 except for the f16 configuration.
@@ -431,14 +431,14 @@ primitive parameters.
 The following table summarizes the data layouts supported by the RNN
 primitive.
 
- Propagation        | Input/Output Data    | Recurrent Data       | Layer and Iteration Weights | Peephole Weights and Bias | Projection LSTM Weights
-------------------- |--------------------- | -------------------- | --------------------------- | ------------------------- | -----------------------
- Forward / Backward | #dnnl_format_tag_any | #dnnl_format_tag_any | #dnnl_format_tag_any        | #dnnl_ldgo                | #dnnl_format_tag_any
- Forward            | #dnnl_ntc, #dnnl_tnc | #dnnl_ldnc           | #dnnl_ldigo                 | #dnnl_ldgo                | #dnnl_ldio
- Backward           | #dnnl_ntc, #dnnl_tnc | #dnnl_ldnc           | #dnnl_ldgoi                 | #dnnl_ldgo                | #dnnl_ldoi
+Propagation        | Input/Output Data    | Recurrent Data       | Layer and Iteration Weights | Peephole Weights and Bias | Projection LSTM Weights
+-------------------|----------------------|----------------------|-----------------------------|---------------------------|------------------------
+Forward / Backward | #dnnl_format_tag_any | #dnnl_format_tag_any | #dnnl_format_tag_any        | #dnnl_ldgo                | #dnnl_format_tag_any
+Forward            | #dnnl_ntc, #dnnl_tnc | #dnnl_ldnc           | #dnnl_ldigo                 | #dnnl_ldgo                | #dnnl_ldio
+Backward           | #dnnl_ntc, #dnnl_tnc | #dnnl_ldnc           | #dnnl_ldgoi                 | #dnnl_ldgo                | #dnnl_ldoi
 
 While an RNN primitive can be created with memory formats specified
-explicitly, the performance is likely to be sub-optimal.  When using `any` it
+explicitly, the performance is likely to be sub-optimal.  When using `any`, it
 is necessary to first create an RNN primitive descriptor and then query it for
 the actual data and weight memory objects formats.
 

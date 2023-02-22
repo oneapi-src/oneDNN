@@ -53,7 +53,7 @@ When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
 | Primitive input/output | Execution argument index |
-| ---                    | ---                      |
+|------------------------|--------------------------|
 | \src                   | DNNL_ARG_SRC             |
 | \dst                   | DNNL_ARG_DST             |
 | workspace              | DNNL_ARG_WORKSPACE       |
@@ -78,7 +78,7 @@ argument index as specified by the following table.
 The LRN primitive supports the following combinations of data types:
 
 | Propagation        | Source / Destination |
-| :--                | :--                  |
+|:-------------------|:---------------------|
 | forward / backward | f32, bf16, f16       |
 
 @warning
@@ -92,20 +92,20 @@ The LRN primitive supports the following combinations of data types:
 Like most other primitives, the LRN primitive expects the following
 tensors:
 
-| Spatial | Source / Destination
-| :--     | :--
-| 0D      | \f$N \times C\f$
-| 1D      | \f$N \times C \times W\f$
-| 2D      | \f$N \times C \times H \times W\f$
-| 3D      | \f$N \times C \times D \times H \times W\f$
+| Spatial | Source / Destination                        |
+|:--------|:--------------------------------------------|
+| 0D      | \f$N \times C\f$                            |
+| 1D      | \f$N \times C \times W\f$                   |
+| 2D      | \f$N \times C \times H \times W\f$          |
+| 3D      | \f$N \times C \times D \times H \times W\f$ |
 
 The LRN primitive is optimized for the following memory formats:
 
-| Spatial | Logical tensor | Implementations optimized for memory formats
-| :--     | :--            | :--
-| 2D      | NCHW           | #dnnl_nchw (#dnnl_abcd), #dnnl_nhwc (#dnnl_acdb), *optimized^*
+| Spatial | Logical tensor | Implementations optimized for memory formats                   |
+|:--------|:---------------|:---------------------------------------------------------------|
+| 2D      | NCHW           | #dnnl_nchw (#dnnl_abcd), #dnnl_nhwc (#dnnl_acdb), *optimized^* |
 
-Here *optimized^* means the format that
+Here, *optimized^* means the format that
 [comes out](@ref memory_format_propagation_cpp)
 of any preceding compute-intensive primitive.
 

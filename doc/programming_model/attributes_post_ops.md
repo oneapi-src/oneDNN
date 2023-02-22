@@ -195,12 +195,12 @@ where `oh_conv_1x1`, `ow_conv_1x1` are height and width of conv_1x1 destination.
 
 Supported data types
 
-| conv 1x1 output data type        | depthwise post-op output data type | depthwise post-op weights data type | depthwise post-op bias data type
-| :--                              | :--                                | :--                                 | :--
-| u8, s8                           | u8, s8, s32, f32                   | s8                                  | f32, s32
-| f32                              | f32                                | f32                                 | f32
-| bf16                             | bf16, f32                          | bf16                                | f32, bf16
-| f16                              | f16, f32                           | f16                                 | f32, f16
+| conv 1x1 output data type | depthwise post-op output data type | depthwise post-op weights data type | depthwise post-op bias data type |
+|:--------------------------|:-----------------------------------|:------------------------------------|:---------------------------------|
+| u8, s8                    | u8, s8, s32, f32                   | s8                                  | f32, s32                         |
+| f32                       | f32                                | f32                                 | f32                              |
+| bf16                      | bf16, f32                          | bf16                                | f32, bf16                        |
+| f16                       | f16, f32                           | f16                                 | f32, f16                         |
 
 @note
   * Though it is called a post-operation type, it does not follow the

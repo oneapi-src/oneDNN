@@ -64,7 +64,7 @@ The changes to the build options are similar to the ones in the source code.
 All the options and namespaces with `MKLDNN` are replaced with `DNNL`:
 
 | Intel MKL-DNN                 | DNNL                        |
-| :--                           | :--                         |
+|:------------------------------|:----------------------------|
 | MKLDNN (namespace)            | DNNL (namespace)            |
 | MKLDNN_ARCH_OPT_FLAGS         | DNNL_ARCH_OPT_FLAGS         |
 | MKLDNN_BUILD_EXAMPLES         | DNNL_BUILD_EXAMPLES         |

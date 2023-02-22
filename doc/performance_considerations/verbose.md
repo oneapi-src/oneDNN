@@ -13,22 +13,22 @@ When verbose mode is enabled oneDNN will print out information to `stdout`.
 At build-time, support for this feature is controlled via cmake option
 `ONEDNN_VERBOSE`.
 
-| CMake Option                | Supported values (defaults in bold) | Description
-| :---                        | :---                                | :---
-| ONEDNN_VERBOSE              | **ON**, OFF                         | Enables [verbose mode](@ref dev_guide_verbose)
+| CMake Option   | Supported values (defaults in bold) | Description                                    |
+|:---------------|:------------------------------------|:-----------------------------------------------|
+| ONEDNN_VERBOSE | **ON**, OFF                         | Enables [verbose mode](@ref dev_guide_verbose) |
 
 ## Run-Time Controls
 
 When the feature is enabled at build-time, the `ONEDNN_VERBOSE` environment
 variable can be used to turn verbose mode on and control the level of verbosity.
 
-| Environment variable     | Value | Description
-| :---                     | :---  | :---
-| ONEDNN_VERBOSE           | **0** | **no verbose output (default)**
-|                          | 1     | primitive information at execution
-|                          | 2     | primitive information at creation and execution
-| ONEDNN_VERBOSE_TIMESTAMP | **0** | **display timestamps disabled (default)**
-|                          | 1     | display timestamps enabled
+| Environment variable     | Value | Description                                     |
+|:-------------------------|:------|:------------------------------------------------|
+| ONEDNN_VERBOSE           | **0** | **no verbose output (default)**                 |
+|                          | 1     | primitive information at execution              |
+|                          | 2     | primitive information at creation and execution |
+| ONEDNN_VERBOSE_TIMESTAMP | **0** | **display timestamps disabled (default)**       |
+|                          | 1     | display timestamps enabled                      |
 
 This feature can also be managed at run-time with the following functions:
 * @ref dnnl_set_verbose

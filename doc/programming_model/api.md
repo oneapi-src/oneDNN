@@ -8,15 +8,15 @@ in their projects if they desire. Most of the users choose **C++ API** though.
 
 The differences are shown in the table below.
 
-| Features                 | **C API**                                        | **C++ API**
-| :-                       | :-                                               | :-
-| Minimal standard version | C99                                              | C++11
-| Functional coverage      | Full                                             | May require use of the **C API**
-| Error handling           | Functions return [status](@ref dnnl_status_t)    | Functions throw [exceptions](@ref dnnl::error)
-| Verbosity                | High                                             | Medium
-| Implementation           | Completely inside the library                    | Header-based thin wrapper around the **C API**
-| Purpose                  | Provide simple API and stable ABI to the library | Improve usability
-| Target audience          | Experienced users, FFI                           | Most of the users and framework developers
+| Features                 | **C API**                                        | **C++ API**                                    |
+|:-------------------------|:-------------------------------------------------|:-----------------------------------------------|
+| Minimal standard version | C99                                              | C++11                                          |
+| Functional coverage      | Full                                             | May require use of the **C API**               |
+| Error handling           | Functions return [status](@ref dnnl_status_t)    | Functions throw [exceptions](@ref dnnl::error) |
+| Verbosity                | High                                             | Medium                                         |
+| Implementation           | Completely inside the library                    | Header-based thin wrapper around the **C API** |
+| Purpose                  | Provide simple API and stable ABI to the library | Improve usability                              |
+| Target audience          | Experienced users, FFI                           | Most of the users and framework developers     |
 
 ## Input validation notes
 

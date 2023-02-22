@@ -75,7 +75,7 @@ When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
 | Primitive input/output | Execution argument index             |
-| ---                    | ---                                  |
+|------------------------|--------------------------------------|
 | \src                   | DNNL_ARG_SRC                         |
 | \dst                   | DNNL_ARG_DST                         |
 | \diffsrc               | DNNL_ARG_DIFF_SRC                    |
@@ -100,7 +100,7 @@ Attributes enable you to modify the behavior of the softmax primitive.
 The following attributes are supported by the softmax primitive:
 
 | Propagation | Type      | Operation                                            | Description                                                   | Restrictions                                                           |
-| :--         | :--       | :--                                                  | :--                                                           | :--                                                                    |
+|:------------|:----------|:-----------------------------------------------------|:--------------------------------------------------------------|:-----------------------------------------------------------------------|
 | forward     | attribute | [Scales](@ref dnnl::primitive_attr::set_scales_mask) | Scales the corresponding tensor by the given scale factor(s). | Supported only for int8 softmax and one scale per tensor is supported. |
 
 
@@ -108,10 +108,10 @@ The following attributes are supported by the softmax primitive:
 
 The softmax primitive supports the following combinations of data types:
 
-| Propagation        | Source                 | Destination            |
-| :--                | :--                    | :--                    |
-| forward            | f32, bf16, f16, u8, s8 | f32, bf16, f16, u8, s8 |
-| backward           | f32, bf16, f16         | f32, bf16, f16         |
+| Propagation | Source                 | Destination            |
+|:------------|:-----------------------|:-----------------------|
+| forward     | f32, bf16, f16, u8, s8 | f32, bf16, f16, u8, s8 |
+| backward    | f32, bf16, f16         | f32, bf16, f16         |
 
 ### Data Representation
 

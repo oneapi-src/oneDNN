@@ -31,18 +31,18 @@ level 2 (@ref dev_guide_verbose).
 At build-time, support for this feature is controlled via cmake option
 `ONEDNN_ENABLE_PRIMITIVE_CACHE`.
 
-| CMake Option                  | Supported values (defaults in bold) | Description
-| :---                          | :---                                | :---
-| ONEDNN_ENABLE_PRIMITIVE_CACHE | **ON**, OFF                         | Enables [primitive cache](@ref dev_guide_primitive_cache)
+| CMake Option                  | Supported values (defaults in bold) | Description                                               |
+|:------------------------------|:------------------------------------|:----------------------------------------------------------|
+| ONEDNN_ENABLE_PRIMITIVE_CACHE | **ON**, OFF                         | Enables [primitive cache](@ref dev_guide_primitive_cache) |
 
 ## Run-time Controls
 When the feature is enabled at build-time, the `ONEDNN_PRIMITIVE_CACHE_CAPACITY`
 environment variable can be used to change cache capacity or disable the cache.
 
-| Environment variable            | Value            | Description
-| :---                            | :---             | :---
-| ONEDNN_PRIMITIVE_CACHE_CAPACITY | \<number\>       | Set cache capacity to \<number\> (default **1024**)
-|                                 | 0                | Disable primitive cache
+| Environment variable            | Value      | Description                                         |
+|:--------------------------------|:-----------|:----------------------------------------------------|
+| ONEDNN_PRIMITIVE_CACHE_CAPACITY | \<number\> | Set cache capacity to \<number\> (default **1024**) |
+|                                 | 0          | Disable primitive cache                             |
 
 This feature can also be managed at run-time with the following functions:
 * @ref dnnl_set_primitive_cache_capacity

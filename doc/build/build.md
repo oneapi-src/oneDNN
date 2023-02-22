@@ -218,4 +218,4 @@ cmake --build . --target install
 The install directory is specified by the [CMAKE_INSTALL_PREFIX](https://cmake.org/cmake/help/latest/variable/CMAKE_INSTALL_PREFIX.html)
 cmake variable. When installing in the default directory, the above command
 needs to be run with administrative privileges using `sudo` on Linux/Mac or a
-command prompt run as administrator on Windows. 
+command prompt run as administrator on Windows.

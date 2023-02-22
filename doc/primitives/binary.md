@@ -16,8 +16,8 @@ between tensors source 0 and source 1 (the variable names follow the standard
         \src_0(\overline{x}) \mathbin{op} \src_1(\overline{x}),
 \f]
 
-where \f$op\f$ is one of addition, subtraction, multiplication, division, 
-greater than or equal to, greater than, less than or equal to, less than, 
+where \f$op\f$ is one of addition, subtraction, multiplication, division,
+greater than or equal to, greater than, less than or equal to, less than,
 equal to, not equal to, get maximum value, and get minimum value.
 
 The binary primitive does not have a notion of forward or backward propagations.
@@ -28,7 +28,7 @@ When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
 | Primitive input/output      | Execution argument index                                                  |
-| ---                         | ---                                                                       |
+|-----------------------------|---------------------------------------------------------------------------|
 | \f$\src_0\f$                | DNNL_ARG_SRC_0                                                            |
 | \f$\src_1\f$                | DNNL_ARG_SRC_1                                                            |
 | \dst                        | DNNL_ARG_DST                                                              |
@@ -43,10 +43,10 @@ argument index as specified by the following table.
  * The binary primitive requires all source and destination tensors to have the
    same number of dimensions.
 
- * The binary primitive supports implicit broadcast semantics for source 0 and 
-   source 1. This means that if a dimension size is one, that single value 
-   will be broadcast (used to compute an operation with each point of the other 
-   source) for that dimension. It is recommended to use broadcast for source 1 
+ * The binary primitive supports implicit broadcast semantics for source 0 and
+   source 1. This means that if a dimension size is one, that single value
+   will be broadcast (used to compute an operation with each point of the other
+   source) for that dimension. It is recommended to use broadcast for source 1
    to get better performance. Generally it should match the syntax below:
    `{N,1}x{C,1}x{D,1}x{H,1}x{W,1}:{N,1}x{C,1}x{D,1}x{H,1}x{W,1} -> NxCxDxHxW`.
    It is consistent with [PyTorch broadcast semantic]
@@ -82,9 +82,9 @@ The source and destination tensors may have `f32`, `bf16`, `f16` or `s8/u8`
 data types.
 The binary primitive supports the following combinations of data types:
 
-| Source 0 / 1           | Destination
-| :--                    | :--
-| f32, bf16, f16, u8, s8 | f32, bf16, f16, u8, s8
+| Source 0 / 1           | Destination            |
+|:-----------------------|:-----------------------|
+| f32, bf16, f16, u8, s8 | f32, bf16, f16, u8, s8 |
 
 @warning
     There might be hardware and/or implementation specific restrictions.
@@ -115,9 +115,9 @@ meaning associated with any of tensors dimensions.
 ## Examples
 
 [Binary Primitive Example](@ref binary_example_cpp)
- 
+
 @copydetails binary_example_cpp_short
 
-[Bnorm u8 by Binary Post-Ops Example](@ref bnorm_u8_via_binary_postops_cpp) 
+[Bnorm u8 by Binary Post-Ops Example](@ref bnorm_u8_via_binary_postops_cpp)
 
 @copydetails bnorm_u8_via_binary_postops_cpp_short

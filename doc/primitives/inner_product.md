@@ -50,7 +50,7 @@ When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
 | Primitive input/output      | Execution argument index                                                  |
-| ---                         | ---                                                                       |
+|-----------------------------|---------------------------------------------------------------------------|
 | \src                        | DNNL_ARG_SRC                                                              |
 | \weights                    | DNNL_ARG_WEIGHTS                                                          |
 | \bias                       | DNNL_ARG_BIAS                                                             |
@@ -74,7 +74,7 @@ Inner product primitive supports the following combination of data types for
 source, destination, weights, and bias:
 
 | Propagation        | Source    | Weights   | Destination            | Bias                   |
-| :--                | :--       | :--       | :--                    | :--                    |
+|:-------------------|:----------|:----------|:-----------------------|:-----------------------|
 | forward / backward | f32       | f32       | f32                    | f32                    |
 | forward            | f16       | f16       | f32, f16, u8, s8       | f16, f32               |
 | forward            | u8, s8    | s8        | u8, s8, s32, bf16, f32 | u8, s8, s32, bf16, f32 |
@@ -89,11 +89,11 @@ source, destination, weights, and bias:
 Like other CNN primitives, the inner product primitive expects the following
 tensors:
 
-| Spatial | Source                                      | Destination      | Weights
-| :--     | :--                                         | :--              | :--
-| 1D      | \f$N \times C \times W\f$                   | \f$N \times C\f$ | \f$OC \times IC \times KW\f$
-| 2D      | \f$N \times C \times H \times W\f$          | \f$N \times C\f$ | \f$OC \times IC \times KH \times KW\f$
-| 3D      | \f$N \times C \times D \times H \times W\f$ | \f$N \times C\f$ | \f$OC \times IC \times KD \times KH \times KW\f$
+| Spatial | Source                                      | Destination      | Weights                                          |
+|:--------|:--------------------------------------------|:-----------------|:-------------------------------------------------|
+| 1D      | \f$N \times C \times W\f$                   | \f$N \times C\f$ | \f$OC \times IC \times KW\f$                     |
+| 2D      | \f$N \times C \times H \times W\f$          | \f$N \times C\f$ | \f$OC \times IC \times KH \times KW\f$           |
+| 3D      | \f$N \times C \times D \times H \times W\f$ | \f$N \times C\f$ | \f$OC \times IC \times KD \times KH \times KW\f$ |
 
 Memory format of data and weights memory objects is critical for inner
 product primitive performance. In the oneDNN programming model, inner
@@ -109,13 +109,13 @@ inner product primitive is optimized for. For the destination tensor (which is
 always \f$N \times C\f$) the memory format is always
 #dnnl::memory::format_tag::nc (#dnnl::memory::format_tag::ab).
 
-| Source / Destination                         | Weights                                      | Limitations
-| :--                                          | :--                                          | :--
-| `any`                                        | `any`                                        | N/A
-| #dnnl_nc, #dnnl_nwc, #dnnl_nhwc, #dnnl_ndhwc | `any`                                        | N/A
-| #dnnl_nc, #dnnl_ncw, #dnnl_nchw, #dnnl_ncdhw | `any`                                        | N/A
-| #dnnl_nc, #dnnl_nwc, #dnnl_nhwc, #dnnl_ndhwc | #dnnl_io, #dnnl_wio, #dnnl_hwio, #dnnl_dhwio | N/A
-| #dnnl_nc, #dnnl_ncw, #dnnl_nchw, #dnnl_ncdhw | #dnnl_oi, #dnnl_oiw, #dnnl_oihw, #dnnl_oidhw | N/A
+| Source / Destination                         | Weights                                      | Limitations |
+|:---------------------------------------------|:---------------------------------------------|:------------|
+| `any`                                        | `any`                                        | N/A         |
+| #dnnl_nc, #dnnl_nwc, #dnnl_nhwc, #dnnl_ndhwc | `any`                                        | N/A         |
+| #dnnl_nc, #dnnl_ncw, #dnnl_nchw, #dnnl_ncdhw | `any`                                        | N/A         |
+| #dnnl_nc, #dnnl_nwc, #dnnl_nhwc, #dnnl_ndhwc | #dnnl_io, #dnnl_wio, #dnnl_hwio, #dnnl_dhwio | N/A         |
+| #dnnl_nc, #dnnl_ncw, #dnnl_nchw, #dnnl_ncdhw | #dnnl_oi, #dnnl_oiw, #dnnl_oihw, #dnnl_oidhw | N/A         |
 
 ### Post-Ops and Attributes
 
@@ -123,12 +123,12 @@ Post-ops and attributes enable you to modify the behavior of the inner product
 primitive by chaining certain operations after the inner product operation.
 The following post-ops are supported by inner product primitives:
 
-| Propagation | Type      | Operation                                                    | Description                                                                   | Restrictions                        |
-| :--         | :--       | :--                                                          | :--                                                                           | :--                                 |
+| Propagation | Type      | Operation                                            | Description                                                                   | Restrictions                        |
+|:------------|:----------|:-----------------------------------------------------|:------------------------------------------------------------------------------|:------------------------------------|
 | forward     | attribute | [Scales](@ref dnnl::primitive_attr::set_scales_mask) | Scales the result of inner product by given scale factor(s)                   | int8 inner products only            |
-| forward     | post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)               | Applies an @ref dnnl_api_eltwise operation to the result                      |                                     |
-| forward     | post-op   | [Sum](@ref dnnl::post_ops::append_sum)                       | Adds the operation result to the destination tensor instead of overwriting it |                                     |
-| forward     | post-op   | [Binary](@ref dnnl::post_ops::append_binary)                 | Applies a @ref dnnl_api_binary operation to the result                        | General binary post-op restrictions |
+| forward     | post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)       | Applies an @ref dnnl_api_eltwise operation to the result                      |                                     |
+| forward     | post-op   | [Sum](@ref dnnl::post_ops::append_sum)               | Adds the operation result to the destination tensor instead of overwriting it |                                     |
+| forward     | post-op   | [Binary](@ref dnnl::post_ops::append_binary)         | Applies a @ref dnnl_api_binary operation to the result                        | General binary post-op restrictions |
 
 The following masks are supported by the primitive:
 - 0, which applies one scale value to an entire tensor, and
@@ -145,7 +145,7 @@ stage.
 
 1. Check @ref dev_guide_data_types.
 
-2. The CPU engine does not support `u8` or `s8` data type for `dst` with `f16` `src` and `weights`. 
+2. The CPU engine does not support `u8` or `s8` data type for `dst` with `f16` `src` and `weights`.
 
 ## Performance Tips
 
@@ -155,6 +155,6 @@ stage.
 
 ## Example
 
-[Inner Product Primitive Example](@ref inner_product_example_cpp) 
+[Inner Product Primitive Example](@ref inner_product_example_cpp)
 
 @copydetails inner_product_example_cpp_short
