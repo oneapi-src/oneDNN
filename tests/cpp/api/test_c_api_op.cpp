@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -98,12 +98,14 @@ TEST(CAPI, DnnlGraphOpGetKind) {
     ASSERT_EQ_SAFE(dnnl_graph_op_create(&op, 1, op_kind, "conv2d"),
             dnnl_graph_success, CREATE_OP_DESTROY);
 
-    ASSERT_EQ(dnnl_graph_op_get_kind(NULL, &op_kind),
-            dnnl_graph_invalid_arguments);
-    ASSERT_EQ(dnnl_graph_op_get_kind(op, NULL), dnnl_graph_invalid_arguments);
+    ASSERT_EQ_SAFE(dnnl_graph_op_get_kind(NULL, &op_kind),
+            dnnl_graph_invalid_arguments, CREATE_OP_DESTROY);
+    ASSERT_EQ_SAFE(dnnl_graph_op_get_kind(op, NULL),
+            dnnl_graph_invalid_arguments, CREATE_OP_DESTROY);
 
-    ASSERT_EQ(dnnl_graph_op_get_kind(op, &op_kind), dnnl_graph_success);
-    ASSERT_EQ(op_kind, dnnl_graph_op_wildcard);
+    ASSERT_EQ_SAFE(dnnl_graph_op_get_kind(op, &op_kind), dnnl_graph_success,
+            CREATE_OP_DESTROY);
+    ASSERT_EQ_SAFE(op_kind, dnnl_graph_op_wildcard, CREATE_OP_DESTROY);
     CREATE_OP_DESTROY;
 #undef CREATE_OP_DESTROY
 }
