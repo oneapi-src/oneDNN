@@ -10,11 +10,11 @@
       "attrs": {
         "beta": {
           "type": "f32",
-          "value": 0
+          "value": 0.128
         },
         "alpha": {
           "type": "f32",
-          "value": 0
+          "value": 1.28
         }
       },
       "inputs": [

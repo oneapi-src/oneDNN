@@ -4,25 +4,13 @@
   "fpmath_mode": "strict",
   "graph": [
     {
-      "id": 7,
-      "name": "LNORM_0",
-      "kind": "LayerNorm",
+      "id": 0,
+      "name": "SOFTMAX_0",
+      "kind": "LogSoftmaxBackward",
       "attrs": {
-        "epsilon": {
-          "type": "f32",
-          "value": 0.0625
-        },
-        "keep_stats": {
-          "type": "bool",
-          "value": 0
-        },
-        "use_affine": {
-          "type": "bool",
-          "value": 1
-        },
-        "begin_norm_axis": {
+        "axis": {
           "type": "s64",
-          "value": -1
+          "value": 1
         }
       },
       "inputs": [
@@ -46,21 +34,13 @@
           "id": 1,
           "dtype": "f32",
           "shape": [
+            8,
+            384,
             1024
           ],
           "stride": [
-            1
-          ],
-          "layout_type": "strided",
-          "property_type": "undef"
-        },
-        {
-          "id": 2,
-          "dtype": "f32",
-          "shape": [
-            1024
-          ],
-          "stride": [
+            393216,
+            1024,
             1
           ],
           "layout_type": "strided",
@@ -69,7 +49,7 @@
       ],
       "outputs": [
         {
-          "id": 167,
+          "id": 2,
           "dtype": "f32",
           "shape": [
             8,

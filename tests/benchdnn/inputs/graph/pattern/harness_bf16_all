@@ -10,3 +10,19 @@
 --reset --case=pattern/bf16/matmul_bias_post_ops_chain_fusion.json
 --reset --case=pattern/bf16/matmul_post_ops_chain_fusion.json
 --reset --case=pattern/bf16/reciprocal_multiply_fusion.json
+# resampling
+--reset  --in-shapes=0:2x17x21+1:2x17x17+2:2x17x17+3:1x1x1 --op-attrs=13:sizes:17 --case=pattern/bf16/interpolate_post_ops_chain_fusion.json
+--reset  --in-shapes=0:2x17x21+1:1x17x1 --op-attrs=13:sizes:17 --case=pattern/bf16/interpolate_post_ops_chain_fusion_2.json
+# matmul
+--reset  --in-shapes=0:384x4096+1:4096x1024  --case=pattern/bf16/matmul_post_ops_clip_fusion.json
+--reset  --in-shapes=0:16x1024+1:1024x1024+2:1x1+3:1x1  --case=pattern/bf16/matmul_post_ops_relu_add_fusion.json
+--reset  --in-shapes=0:384x4096+1:4096x1024+2:384x1024  --case=pattern/bf16/matmul_post_ops_sum_logistic_fusion.json
+--reset  --in-shapes=0:384x4096+1:4096x1024+2:1x1024  --case=pattern/bf16/matmul_bias_post_ops_clip_fusion.json
+--reset  --in-shapes=0:384x4096+1:4096x1024+2:1x1024  --case=pattern/bf16/matmul_bias_post_ops_elu_fusion.json
+# reduction
+--reset  --in-shapes=0:16x1024+1:1x1024 --op-attrs=11:axes:0  --case=pattern/bf16/reduction_post_ops_l1_chain_fusion.json
+--reset  --in-shapes=0:1x128x150x150+1:1x1x150x150 --op-attrs=11:axes:1  --case=pattern/bf16/reduction_post_ops_mean_fusion.json
+--reset  --in-shapes=0:1x256x7x7+1:1x256x1x1 --op-attrs=11:axes:2x3  --case=pattern/bf16/reduction_post_ops_mean_fusion.json
+--reset  --in-shapes=0:1x256x9x9+1:1x1x9x9 --op-attrs=11:axes:1  --case=pattern/bf16/reduction_post_ops_mean_fusion.json
+--reset  --in-shapes=0:64x20x7x7+1:64x20x1x1+2:64x20x1x1+3:1x1x1x1 --op-attrs=11:axes:2x3  --case=pattern/bf16/reduction_post_ops_min_chain_fusion.json
+--reset  --in-shapes=0:64x20x7x7+1:1x20x1x1 --op-attrs=11:axes:2x3  --case=pattern/bf16/reduction_post_ops_sum_chain_fusion.json

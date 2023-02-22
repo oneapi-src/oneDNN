@@ -4,7 +4,7 @@
   "fpmath_mode": "strict",
   "graph": [
     {
-      "id": 7,
+      "id": 0,
       "name": "LNORM_0",
       "kind": "LayerNormBackward",
       "attrs": {
@@ -109,7 +109,7 @@
       ],
       "outputs": [
         {
-          "id": 455,
+          "id": 6,
           "dtype": "f32",
           "shape": [
             8,
@@ -125,7 +125,7 @@
           "property_type": "undef"
         },
         {
-          "id": 551,
+          "id": 7,
           "dtype": "f32",
           "shape": [
             1024
@@ -137,7 +137,7 @@
           "property_type": "undef"
         },
         {
-          "id": 583,
+          "id": 8,
           "dtype": "f32",
           "shape": [
             1024

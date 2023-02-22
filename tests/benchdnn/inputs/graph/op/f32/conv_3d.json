@@ -4,7 +4,7 @@
   "fpmath_mode": "strict",
   "graph": [
     {
-      "id": 4,
+      "id": 0,
       "name": "CONV_0",
       "kind": "Convolution",
       "attrs": {
@@ -113,7 +113,7 @@
       ],
       "outputs": [
         {
-          "id": 164,
+          "id": 3,
           "dtype": "f32",
           "shape": [
             1,

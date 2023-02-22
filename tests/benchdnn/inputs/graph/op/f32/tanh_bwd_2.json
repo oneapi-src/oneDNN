@@ -4,13 +4,13 @@
   "fpmath_mode": "strict",
   "graph": [
     {
-      "id": 10,
-      "name": "PRELU_0",
-      "kind": "PReLUBackward",
+      "id": 0,
+      "name": "ELTWISE_0",
+      "kind": "TanhBackward",
       "attrs": {
-        "data_format": {
-          "type": "string",
-          "value": "NCX"
+        "use_dst": {
+          "type": "bool",
+          "value": 0
         }
       },
       "inputs": [
@@ -18,10 +18,16 @@
           "id": 0,
           "dtype": "f32",
           "shape": [
-            3
+            64,
+            16,
+            28,
+            28
           ],
           "stride": [
-            1
+            12544,
+            1,
+            448,
+            16
           ],
           "layout_type": "strided",
           "property_type": "undef"
@@ -30,22 +36,16 @@
           "id": 1,
           "dtype": "f32",
           "shape": [
-            1
+            64,
+            16,
+            28,
+            28
           ],
           "stride": [
-            1
-          ],
-          "layout_type": "strided",
-          "property_type": "undef"
-        },
-        {
-          "id": 2,
-          "dtype": "f32",
-          "shape": [
-            3
-          ],
-          "stride": [
-            1
+            12544,
+            1,
+            448,
+            16
           ],
           "layout_type": "strided",
           "property_type": "undef"
@@ -53,25 +53,19 @@
       ],
       "outputs": [
         {
-          "id": 458,
+          "id": 2,
           "dtype": "f32",
           "shape": [
-            3
+            64,
+            16,
+            28,
+            28
           ],
           "stride": [
-            1
-          ],
-          "layout_type": "strided",
-          "property_type": "undef"
-        },
-        {
-          "id": 490,
-          "dtype": "f32",
-          "shape": [
-            1
-          ],
-          "stride": [
-            1
+            12544,
+            1,
+            448,
+            16
           ],
           "layout_type": "strided",
           "property_type": "undef"

@@ -39,3 +39,33 @@
 --reset  --in-shapes=0:50x128x28x28+1:128x128x3x3+2:128 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:1 --case=pattern/f32/conv_bias_swish_fusion.json
 --reset  --in-shapes=0:50x64x56x56+1:64x64x1x1+2:50x64x56x56 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_sum_fusion.json
 --reset  --in-shapes=0:50x64x56x56+1:64x64x1x1+2:50x64x56x56 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_sum_fusion_2.json
+# resampling
+--reset  --in-shapes=0:2x17x21+1:2x17x17+2:1x1x1 --op-attrs=13:scales:0.809524  --case=pattern/f32/interpolate_post_ops_chain_fusion.json
+--reset  --in-shapes=0:2x17x21+1:2x17x17+2:1x17x1 --op-attrs=13:scales:0.809524  --case=pattern/f32/interpolate_post_ops_chain_fusion_2.json
+# matmul
+--reset  --in-shapes=0:384x4096+1:4096x1024+2:384x1024  --case=pattern/f32/matmul_post_ops_sum_relu_fusion.json
+--reset  --in-shapes=0:384x512+1:512x1024+2:384x1024  --case=pattern/f32/matmul_post_ops_sum_relu_fusion.json
+--reset  --in-shapes=0:384x4096+1:4096x1024+2:384x1  --case=pattern/f32/matmul_post_ops_swish_fusion.json
+# pool
+--reset  --in-shapes=0:2x9x22x62x42+1:1x9x1x1x1+2:1x1x1x1x1+3:1x1x1x1x1 --op-attrs=9:strides:2x2x2*pads_begin:1x1x1*pads_end:-1x1x0*kernel:2x4x3*exclude_pad:1 --case=pattern/f32/avgpool_3d_chain_fusion.json
+--reset  --in-shapes=0:2x128x4x4+1:1x128x1x1+2:1x128x1x1+3:1x1x1x1 --op-attrs=9:strides:1x1*pads_begin:0x0*pads_end:0x0*kernel:3x3*dilations:1x1 --case=pattern/f32/maxpool_chain_fusion.json
+# eltwise
+--reset  --in-shapes=0:64x512x28x28+1:1x1x1x1 --case=pattern/f32/unary_post_ops_hardswish_fusion.json
+--reset  --in-shapes=0:64x512x28x28+1:1x1x1x1 --case=pattern/f32/unary_post_ops_log_fusion.json
+--reset  --in-shapes=0:64x512x28x28+1:1x1x1x1 --case=pattern/f32/unary_post_ops_round_fusion.json
+--reset  --in-shapes=0:64x512x28x28+1:1x1x1x1 --case=pattern/f32/unary_post_ops_square_fusion.json
+--reset  --in-shapes=0:64x512x28x28+1:1x1x1x1 --case=pattern/f32/unary_post_ops_elu_fusion.json
+--reset  --in-shapes=0:64x512x28x28+1:1x1x1x1 --case=pattern/f32/unary_post_ops_gelu_fusion.json
+--reset  --in-shapes=0:64x512x28x28+1:1x1x1x1 --case=pattern/f32/unary_post_ops_hardswish_fusion_2.json
+--reset  --in-shapes=0:64x512x28x28+1:1x1x1x1 --case=pattern/f32/unary_post_ops_sqrt_fusion.json
+--reset  --in-shapes=0:64x512x28x28+1:1x1x1x1 --case=pattern/f32/unary_post_ops_tanh_fusion.json
+# reduction
+--reset  --in-shapes=0:64x20x7x7+1:1x20x1x1+2:1x20x1x1+3:1x20x1x1 --op-attrs=11:axes:2x3  --case=pattern/f32/reduction_post_ops_max_chain_fusion.json
+--reset  --in-shapes=0:16x1024+1:1x1024+2:1x1024+3:1x1024 --op-attrs=11:axes:0  --case=pattern/f32/reduction_post_ops_prod_chain_fusion.json
+--reset --in-shapes=0:1x1024x14x14+1:1x1x1x1 --op-attrs=11:axes:2x3  --case=pattern/f32/reduction_post_ops_l2_fusion.json
+--reset --in-shapes=0:1x256x56x56+1:1x1x1x1 --op-attrs=11:axes:1  --case=pattern/f32/reduction_post_ops_l2_fusion.json
+--reset --in-shapes=0:1x512x56x56+1:1x1x1x1 --op-attrs=11:axes:1x2x3  --case=pattern/f32/reduction_post_ops_l2_fusion.json
+--reset --in-shapes=0:64x1024x14x14+1:1x1x1x1 --op-attrs=11:axes:1  --case=pattern/f32/reduction_post_ops_l2_fusion.json
+--reset --in-shapes=0:64x2048x7x7+1:1x1x1x1 --op-attrs=11:axes:2x3  --case=pattern/f32/reduction_post_ops_l2_fusion.json
+--reset --in-shapes=0:64x20x7x7+1:1x1x1x1 --op-attrs=11:axes:2x3  --case=pattern/f32/reduction_post_ops_l2_fusion.json
+--reset --in-shapes=0:64x512x28x28+1:1x1x1x1 --op-attrs=11:axes:0x1  --case=pattern/f32/reduction_post_ops_l2_fusion.json

@@ -4,7 +4,7 @@
   "fpmath_mode": "strict",
   "graph": [
     {
-      "id": 14,
+      "id": 0,
       "name": "SOFTMAX_0",
       "kind": "LogSoftmax",
       "attrs": {
@@ -33,7 +33,7 @@
       ],
       "outputs": [
         {
-          "id": 174,
+          "id": 1,
           "dtype": "f32",
           "shape": [
             8,

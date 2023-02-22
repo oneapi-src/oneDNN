@@ -4,10 +4,25 @@
   "fpmath_mode": "strict",
   "graph": [
     {
-      "id": 10,
-      "name": "PRELU_0",
-      "kind": "PReLUBackward",
+      "id": 0,
+      "name": "RESAMPLING_0",
+      "kind": "InterpolateBackward",
       "attrs": {
+        "coordinate_transformation_mode": {
+          "type": "string",
+          "value": "half_pixel"
+        },
+        "mode": {
+          "type": "string",
+          "value": "linear"
+        },
+        "scales": {
+          "type": "f32[]",
+          "value": [
+            1.66667,
+            1
+          ]
+        },
         "data_format": {
           "type": "string",
           "value": "NCX"
@@ -16,13 +31,17 @@
       "inputs": [
         {
           "id": 0,
-          "dtype": "f32",
+          "dtype": "bf16",
           "shape": [
+            2,
+            16,
             3,
-            64
+            11
           ],
           "stride": [
-            64,
+            528,
+            33,
+            11,
             1
           ],
           "layout_type": "strided",
@@ -30,27 +49,17 @@
         },
         {
           "id": 1,
-          "dtype": "f32",
+          "dtype": "bf16",
           "shape": [
-            1,
-            1
+            2,
+            16,
+            5,
+            11
           ],
           "stride": [
-            1,
-            1
-          ],
-          "layout_type": "strided",
-          "property_type": "undef"
-        },
-        {
-          "id": 2,
-          "dtype": "f32",
-          "shape": [
-            3,
-            64
-          ],
-          "stride": [
-            64,
+            880,
+            55,
+            11,
             1
           ],
           "layout_type": "strided",
@@ -59,28 +68,18 @@
       ],
       "outputs": [
         {
-          "id": 458,
-          "dtype": "f32",
+          "id": 2,
+          "dtype": "bf16",
           "shape": [
+            2,
+            16,
             3,
-            64
+            11
           ],
           "stride": [
-            64,
-            1
-          ],
-          "layout_type": "strided",
-          "property_type": "undef"
-        },
-        {
-          "id": 490,
-          "dtype": "f32",
-          "shape": [
-            1,
-            1
-          ],
-          "stride": [
-            1,
+            528,
+            33,
+            11,
             1
           ],
           "layout_type": "strided",

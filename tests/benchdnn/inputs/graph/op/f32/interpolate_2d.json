@@ -1,0 +1,73 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 0,
+      "name": "RESAMPLING_0",
+      "kind": "Interpolate",
+      "attrs": {
+        "coordinate_transformation_mode": {
+          "type": "string",
+          "value": "half_pixel"
+        },
+        "sizes": {
+          "type": "s64[]",
+          "value": [
+            5,
+            11
+          ]
+        },
+        "mode": {
+          "type": "string",
+          "value": "nearest"
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            2,
+            16,
+            3,
+            11
+          ],
+          "stride": [
+            528,
+            1,
+            176,
+            16
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            2,
+            16,
+            5,
+            11
+          ],
+          "stride": [
+            880,
+            1,
+            176,
+            16
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

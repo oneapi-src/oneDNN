@@ -1,11 +1,10 @@
---reset --case=pattern/int8/int8_bf16_matmul_div_add_fusion.json
+--reset --case=pattern/int8/int8_bf16_matmul_mul_add_fusion.json
 --reset --case=pattern/int8/int8_bf16_matmul_post_ops_fusion.json
 --reset --case=pattern/int8/int8_concat_fusion.json
 --reset --case=pattern/int8/int8_conv_bias_fusion.json
 --reset --case=pattern/int8/int8_conv_post_ops_fusion.json
 --reset --case=pattern/int8/int8_conv_post_ops_int8_add_fusion.json
 --reset --case=pattern/int8/int8_convtranspose_post_ops_fusion.json
---reset --case=pattern/int8/int8_matmul_div_add_fusion.json
 --reset --case=pattern/int8/int8_matmul_post_ops_fusion.json
 # conv
 --reset  --in-shapes=0:50x64x56x56+1:64x64x1x1+2:64 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_conv_bias_relu_fusion.json
@@ -23,3 +22,36 @@
 --reset  --in-shapes=0:486x256x3x3+1:486x256x3x3  --case=pattern/int8/int8_concat_fusion_2.json
 --reset  --in-shapes=0:1x1024x28x28+1:1x1024x28x28 --op-attrs=3:axis:2 --case=pattern/int8/int8_concat_fusion_2.json
 --reset  --in-shapes=0:1x64x300x300+1:1x64x300x300+2:1x64x300x300  --case=pattern/int8/int8_concat_fusion_3.json
+# reorder
+--reset  --in-shapes=0:2x64x3x3  --case=pattern/int8/int8_reorder_fusion.json
+--reset  --in-shapes=0:2x64x3x3  --case=pattern/int8/int8_reorder_fusion_2.json
+--reset  --in-shapes=0:2x64x3x3  --case=pattern/int8/int8_reorder_fusion_3.json
+# matmul
+--reset  --in-shapes=0:16x256+1:256x1+2:1x1+3:1x1  --case=pattern/int8/int8_matmul_add_mul_fusion.json
+--reset  --in-shapes=0:16x256+1:256x1+2:1x1+3:1x1+4:1x1  --case=pattern/int8/int8_matmul_mul_add_mul_fusion.json
+--reset  --in-shapes=0:16x256+1:256x1+2:1x1  --case=pattern/int8/int8_matmul_logistic_fusion.json
+--reset  --in-shapes=0:16x1024+1:1024x1024+2:1x1024  --case=pattern/int8/int8_matmul_bia_relu_fusion.json
+--reset  --in-shapes=0:16x1024+1:1024x512+2:1x512  --case=pattern/int8/int8_matmul_bia_relu_fusion.json
+--reset  --in-shapes=0:16x13+1:13x512+2:1x512  --case=pattern/int8/int8_matmul_bia_relu_fusion.json
+--reset  --in-shapes=0:16x256+1:256x128+2:1x128  --case=pattern/int8/int8_matmul_bia_relu_fusion.json
+--reset  --in-shapes=0:16x479+1:479x1024+2:1x1024  --case=pattern/int8/int8_matmul_bia_relu_fusion.json
+--reset  --in-shapes=0:16x512+1:512x256+2:1x256  --case=pattern/int8/int8_matmul_bia_relu_fusion.json
+--reset  --in-shapes=0:16x13+1:13x512+2:1x1+3:1x1  --case=pattern/int8/int8_bf16_matmul_mul_add_fusion_2.json
+--reset  --in-shapes=0:16x512+1:512x256+2:1x1+3:1x1  --case=pattern/int8/int8_f32_matmul_mul_add_fusion.json
+# pool
+--reset  --in-shapes=0:1x64x600x600+1:1x64x1x1 --op-attrs=9:strides:2x2*pads_begin:1x1*pads_end:0x0*kernel:3x3*dilations:1x1 --case=pattern/int8/int8_maxpool_fusion.json
+# deconv
+--reset  --in-shapes=0:2x16x5x5+1:16x4x3x3 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:4 --case=pattern/int8/int8_convtranspose_post_ops_square_fusion.json
+--reset  --in-shapes=0:50x64x56x56+1:64x64x1x1+2:1x1x1x1+3:1x64x1x1 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_chain_fusion.json
+--reset  --in-shapes=0:2x17x8x8+1:17x16x3x3+2:2x16x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:3x3*pads_end:2x2*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
+--reset  --in-shapes=0:2x16x5x5+1:16x16x1x1+2:2x16x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
+--reset  --in-shapes=0:2x16x5x5+1:16x16x3x3+2:2x16x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
+--reset  --in-shapes=0:2x16x5x5+1:16x17x1x1+2:2x17x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
+--reset  --in-shapes=0:2x16x5x5+1:16x17x3x3+2:2x17x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
+--reset  --in-shapes=0:2x16x5x5+1:16x3x3x3+2:2x3x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
+--reset  --in-shapes=0:2x16x8x8+1:16x16x3x3+2:2x16x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:3x3*pads_end:2x2*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
+--reset  --in-shapes=0:2x16x8x8+1:16x17x3x3+2:2x17x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:3x3*pads_end:2x2*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
+--reset  --in-shapes=0:2x17x5x5+1:17x16x1x1+2:2x16x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
+--reset  --in-shapes=0:2x17x5x5+1:17x16x3x3+2:2x16x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
+--reset  --in-shapes=0:2x17x5x5+1:17x3x3x3+2:2x3x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
+--reset --in-shapes=0:2x20x5x5+1:20x4x3x3+2:16+3:1x1x1x1 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:4 --case=pattern/int8/int8_convtranspose_post_ops_add_fusion.json

@@ -1,0 +1,187 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 17,
+      "name": "DEQUANTIZE_0",
+      "kind": "Dequantize",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 1
+        },
+        "scales": {
+          "type": "f32[]",
+          "value": [
+            1
+          ]
+        },
+        "zps": {
+          "type": "s64[]",
+          "value": [
+            0
+          ]
+        },
+        "qtype": {
+          "type": "string",
+          "value": "per_tensor"
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "u8",
+          "shape": [
+            2,
+            64,
+            3,
+            3
+          ],
+          "stride": [
+            576,
+            1,
+            192,
+            64
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 177,
+          "dtype": "f32",
+          "shape": [
+            2,
+            64,
+            3,
+            3
+          ],
+          "stride": [
+            576,
+            1,
+            192,
+            64
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 2060,
+      "name": "REORDER_1",
+      "kind": "Reorder",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 177,
+          "dtype": "f32",
+          "shape": [
+            2,
+            64,
+            3,
+            3
+          ],
+          "stride": [
+            576,
+            1,
+            192,
+            64
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 2220,
+          "dtype": "f32",
+          "shape": [
+            2,
+            64,
+            3,
+            3
+          ],
+          "stride": [
+            576,
+            1,
+            192,
+            64
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 4112,
+      "name": "QUANTIZE_2",
+      "kind": "Quantize",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 1
+        },
+        "scales": {
+          "type": "f32[]",
+          "value": [
+            2
+          ]
+        },
+        "zps": {
+          "type": "s64[]",
+          "value": [
+            0
+          ]
+        },
+        "qtype": {
+          "type": "string",
+          "value": "per_tensor"
+        }
+      },
+      "inputs": [
+        {
+          "id": 2220,
+          "dtype": "f32",
+          "shape": [
+            2,
+            64,
+            3,
+            3
+          ],
+          "stride": [
+            576,
+            1,
+            192,
+            64
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 4272,
+          "dtype": "u8",
+          "shape": [
+            2,
+            64,
+            3,
+            3
+          ],
+          "stride": [
+            576,
+            1,
+            192,
+            64
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

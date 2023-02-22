@@ -4,44 +4,48 @@
   "fpmath_mode": "strict",
   "graph": [
     {
-      "id": 14,
-      "name": "SOFTMAX_0",
-      "kind": "LogSoftmaxBackward",
+      "id": 6,
+      "name": "ELTWISE_0",
+      "kind": "SqrtBackward",
       "attrs": {
-        "axis": {
-          "type": "s64",
-          "value": 1
+        "use_dst": {
+          "type": "bool",
+          "value": 0
         }
       },
       "inputs": [
         {
           "id": 0,
-          "dtype": "f32",
+          "dtype": "f16",
           "shape": [
-            8,
-            384,
-            1024
+            64,
+            16,
+            28,
+            28
           ],
           "stride": [
-            393216,
-            1024,
-            1
+            12544,
+            1,
+            448,
+            16
           ],
           "layout_type": "strided",
           "property_type": "undef"
         },
         {
           "id": 1,
-          "dtype": "f32",
+          "dtype": "f16",
           "shape": [
-            8,
-            384,
-            1024
+            64,
+            16,
+            28,
+            28
           ],
           "stride": [
-            393216,
-            1024,
-            1
+            12544,
+            1,
+            448,
+            16
           ],
           "layout_type": "strided",
           "property_type": "undef"
@@ -49,17 +53,19 @@
       ],
       "outputs": [
         {
-          "id": 462,
-          "dtype": "f32",
+          "id": 518,
+          "dtype": "f16",
           "shape": [
-            8,
-            384,
-            1024
+            64,
+            16,
+            28,
+            28
           ],
           "stride": [
-            393216,
-            1024,
-            1
+            12544,
+            1,
+            448,
+            16
           ],
           "layout_type": "strided",
           "property_type": "undef"
