@@ -1365,6 +1365,7 @@ private:
     const conv_config_t &cfg_;
 };
 
+const memory_desc_t *output_md(const convolution_pd_t *pd);
 status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
         const engine_t *engine, convolution_pd_t *pd, primitive_attr_t *attr);
 status_t init_cfg(conv_config_t &cfg, const convolution_pd_t *pd);

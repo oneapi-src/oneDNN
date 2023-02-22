@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -258,7 +258,7 @@ private:
             return true;
         if (prb_->zp_cfg.do_dst_compensation
                 && prb_->zp_cfg.is_common_dst_zero_point
-                && pd->dst_md()->dims[1] != pd->dst_md()->padded_dims[1])
+                && output_md(pd)->dims[1] != output_md(pd)->padded_dims[1])
             return true;
         return false;
     }
