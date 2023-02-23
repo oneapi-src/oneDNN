@@ -45,11 +45,36 @@ int find_axis_offset(int index, int local_id, int subgroup) {
     return offset;
 }
 
-int get_buffer_size(int index, int subgroup) {
-    if (index > 0 && subgroup == (SUBGROUPS_REPEATED - 1) && SMALL_BUFFER)
-        return REPEAT_SUBGRP_BUF_SIZE;
-    else
+int get_local_off(int subgroup, int subgroup_local_id) {
+    if (subgroup == (SUBGROUPS_REPEATED - 1)) {
+        if (SMALL_BUFFER) {
+            return ((GROUP_SIZE + SUB_GROUP_SIZE * subgroup) * THREAD_BUF_SIZE
+                    + subgroup_local_id * REPEAT_SUBGRP_BUF_SIZE);
+        } else { // THREAD_BUF_SIZE == REPEAT_SUBGRP_BUF_SIZE i.e. 8 == 8
+            return ((GROUP_SIZE + SUB_GROUP_SIZE * subgroup + subgroup_local_id)
+                    * THREAD_BUF_SIZE);
+        }
+    } else {
+        return 1; // subgroup thread within normal range
+    }
+}
+
+int get_buffer_size(int index, int subgroup, int local_off) {
+    if (index > 0 && subgroup == (SUBGROUPS_REPEATED - 1)) {
+        if (SMALL_BUFFER) {
+            int tail = SOFTMAX_AXIS_SIZE
+                    - ((GROUP_SIZE + subgroup) * THREAD_BUF_SIZE);
+            return ((local_off + REPEAT_SUBGRP_BUF_SIZE) <= SOFTMAX_AXIS_SIZE)
+                    ? REPEAT_SUBGRP_BUF_SIZE
+                    : tail % REPEAT_SUBGRP_BUF_SIZE;
+        } else {
+            return ((local_off + THREAD_BUF_SIZE) <= SOFTMAX_AXIS_SIZE)
+                    ? THREAD_BUF_SIZE
+                    : SOFTMAX_AXIS_SIZE % THREAD_BUF_SIZE;
+        }
+    } else {
         return THREAD_BUF_SIZE;
+    }
 }
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
@@ -83,13 +108,16 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     float d[2][THREAD_BUF_SIZE];
     int num_buf = (subgroup_id < SUBGROUPS_REPEATED) ? 2 : 1;
 
+    int local_off = get_local_off(subgroup_id, subgroup_local_id);
+
     for (int i = 0; i < num_buf; i++) {
+        if (i > 0 && local_off >= SOFTMAX_AXIS_SIZE) break;
 
         __global SRC_DATA_T *src_copy = src;
         int axis_offset = find_axis_offset(i, subgroup_local_id, subgroup_id);
         int data_off = mb * CHANNELS_PADDED * SOFTMAX_AXIS_SIZE + axis_offset
                 + channel_id;
-        int buf_reads = get_buffer_size(i, subgroup_id);
+        int buf_reads = get_buffer_size(i, subgroup_id, local_off);
 
         src_copy += data_off;
         for (int k = 0, axis_channel_id = CHANNELS * buf_chunk; k < buf_reads;
@@ -106,7 +134,9 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 #endif
 
     for (int i = 0; i < num_buf; i++) {
-        int buf_reads = get_buffer_size(i, subgroup_id);
+        if (i > 0 && local_off >= SOFTMAX_AXIS_SIZE) break;
+
+        int buf_reads = get_buffer_size(i, subgroup_id, local_off);
         for (int k = 0; k < buf_reads; ++k) {
 #if LOGSOFTMAX
             denom_ += exp(d[i][k] - max_);
@@ -130,12 +160,13 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 #endif
 
     for (int i = 0; i < num_buf; i++) {
+        if (i > 0 && local_off >= SOFTMAX_AXIS_SIZE) break;
 
         __global DST_DATA_T *dst_copy = dst;
         int axis_offset = find_axis_offset(i, subgroup_local_id, subgroup_id);
         int data_off = mb * CHANNELS_PADDED * SOFTMAX_AXIS_SIZE + axis_offset
                 + channel_id;
-        int buf_reads = get_buffer_size(i, subgroup_id);
+        int buf_reads = get_buffer_size(i, subgroup_id, local_off);
 
         dst_copy += data_off;
         for (int k = 0, axis_channel_id = CHANNELS * buf_chunk; k < buf_reads;
