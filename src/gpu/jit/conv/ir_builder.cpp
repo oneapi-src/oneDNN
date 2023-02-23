@@ -639,24 +639,14 @@ stmt_t inject_compute_loop_label(const stmt_t &s) {
 void conv_ir_builder_t::build() {
     auto &prb = cfg_.prb();
 
-    constraint_set_t init_cset;
-
     trace_reset();
 
     std::vector<stmt_t> init_stmts;
-    gemm_schedule_t gemm_schedule;
-    if (cfg_.with_plan()) {
-        auto &plan = cfg_.plan();
-        gemm_schedule = plan.gemm_schedule;
-        init_cset = plan.init_cset;
-        init_kernel_grid(cfg_.kernel_grid(), cfg_.thread_group_grid(),
-                cfg_.simd(), init_cset, init_stmts);
-    } else {
-        init_kernel_grid(cfg_.kernel_grid(), cfg_.thread_group_grid(),
-                cfg_.simd(), init_cset, init_stmts);
-        gemm_schedule = gemm_schedule_t(
-                init_cset, cfg_.kernel_grid(), cfg_.thread_group_grid());
-    }
+    auto &plan = cfg_.plan();
+    auto gemm_schedule = plan.gemm_schedule;
+    auto init_cset = plan.init_cset;
+    init_kernel_grid(cfg_.kernel_grid(), cfg_.thread_group_grid(), cfg_.simd(),
+            init_cset, init_stmts);
 
     // Initialize memory buffers.
     std::vector<stmt_t> inner_lets;
@@ -673,24 +663,6 @@ void conv_ir_builder_t::build() {
     expr_t b_reduced_mem_buf
             = kernel_info_.find_arg("bia", /*allow_empty=*/true);
     expr_t b_reduction_condition;
-
-    if (!cfg_.with_plan()) {
-        if (cfg_.prb().is_fwd) {
-            init_fwd(gemm_schedule, a_view, b_view, c_view, ap_buf, bp_buf,
-                    cp_buf);
-        } else if (cfg_.prb().is_bwd_d) {
-            init_bwd_d(gemm_schedule, a_view, b_view, c_view, ap_buf, bp_buf,
-                    cp_buf);
-        } else if (cfg_.prb().is_bwd_w) {
-            init_bwd_w(gemm_schedule, a_view, b_view, c_view, bp_reduced_view,
-                    ap_buf, bp_buf, cp_buf, b_reduced_mem_buf,
-                    b_reduction_condition);
-        } else {
-            ir_error_not_expected();
-        }
-
-        gemm_schedule.finalize();
-    }
 
     trace_stamp("GEMM Schedule");
 

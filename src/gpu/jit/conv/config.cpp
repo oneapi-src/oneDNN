@@ -1843,38 +1843,6 @@ bool can_split_across_thread_group(int tg_size, int elems, int type_size) {
     return true;
 }
 
-void get_slm_enable(const conv_config_t &cfg, bool &enable_a, bool &enable_b) {
-    if (cfg.with_plan()) {
-        enable_a = cfg.plan().slm.has_a();
-        enable_b = cfg.plan().slm.has_b();
-        return;
-    }
-
-    enable_a = false;
-    enable_b = false;
-    if (cfg.hw() >= ngen::HW::XeHPC) return;
-
-    const auto &prb = cfg.prb();
-    auto &tg = cfg.thread_group_grid();
-    int tg_size = tg.elems();
-    bmnk_dim_helper_t h(cfg);
-    int m_tg_blk = h.thread_group_dim('m') * h.iter_dim('m');
-    int n_tg_blk = h.thread_group_dim('n') * h.iter_dim('n');
-    int k_iter_blk = h.iter_dim('k');
-    if (!cfg.ow_kw_grf_cache()) {
-        // Check that SLM can be stored with oword messages.
-        int tg_size = tg.elems();
-        int bytes_per_tg = (m_tg_blk * k_iter_blk * prb.a_data_type_size);
-        int align = prb.is_bwd_w ? 32 : 16;
-        bool can_split_a = bytes_per_tg % align == 0
-                && bytes_per_tg / tg_size >= k_iter_blk && k_iter_blk % 2 == 0;
-        enable_a = (tg.dim(0) > 1) && can_split_a;
-    }
-    bool can_split_b = can_split_across_thread_group(
-            tg_size, n_tg_blk * k_iter_blk, prb.b_data_type_size);
-    enable_b = (tg.dim(1) > 1) && can_split_b;
-}
-
 void init_slm(conv_config_t &cfg) {
     if (cfg.slm().is_overridden()) return;
 
@@ -1882,9 +1850,8 @@ void init_slm(conv_config_t &cfg) {
 
     int bufs = 0;
     int gmem_bufs = 0;
-    bool enable_a = false;
-    bool enable_b = false;
-    get_slm_enable(cfg, enable_a, enable_b);
+    bool enable_a = cfg.plan().slm.has_a();
+    bool enable_b = cfg.plan().slm.has_b();
     auto &tg = cfg.thread_group_grid();
     if (enable_a || enable_b) {
         bool is_small_tg = (tg.dim(0) * tg.dim(1) <= 8);
@@ -1904,49 +1871,15 @@ void init_slm(conv_config_t &cfg) {
             gmem_bufs = 1;
         }
     }
-    if (cfg.with_plan())
-        gmem_bufs = std::min(cfg.plan().max_gmem_bufs, gmem_bufs);
+    gmem_bufs = std::min(cfg.plan().max_gmem_bufs, gmem_bufs);
     cfg.slm().set(bufs, gmem_bufs, enable_a, enable_b);
-}
-
-void get_prefetch_enable(
-        const conv_config_t &cfg, bool &enable_a, bool &enable_b) {
-    if (cfg.with_plan()) {
-        enable_a = cfg.plan().prefetch.has_a();
-        enable_b = cfg.plan().prefetch.has_b();
-        return;
-    }
-
-    enable_a = false;
-    enable_b = false;
-    if (cfg.hw() < ngen::HW::XeHPC) return;
-
-    const auto &prb = cfg.prb();
-    auto &tg = cfg.thread_group_grid();
-    int tg_size = tg.elems();
-    bmnk_dim_helper_t h(cfg);
-    int m_tg_blk = h.thread_group_dim('m') * h.iter_dim('m');
-    int n_tg_blk = h.thread_group_dim('n') * h.iter_dim('n');
-    int k_iter_blk = h.iter_dim('k');
-    bool can_split_a = (tg.dim(0) == 1)
-            || can_split_across_thread_group(
-                    tg_size, m_tg_blk * k_iter_blk, prb.a_data_type_size);
-    bool can_split_b = (tg.dim(1) == 1)
-            || can_split_across_thread_group(
-                    tg_size, n_tg_blk * k_iter_blk, prb.b_data_type_size);
-
-    enable_a = can_split_a;
-    enable_b = can_split_b;
-
-    if (!prb.is_bwd_d && is_small_ic(prb) && cfg.is_dp_fma()) enable_a = false;
 }
 
 void init_prefetch(conv_config_t &cfg) {
     if (cfg.prefetch().is_overridden()) return;
 
-    bool enable_a = false;
-    bool enable_b = false;
-    get_prefetch_enable(cfg, enable_a, enable_b);
+    bool enable_a = cfg.plan().prefetch.has_a();
+    bool enable_b = cfg.plan().prefetch.has_b();
 
     if (!enable_a && !enable_b) return;
 
@@ -1957,117 +1890,7 @@ void init_prefetch(conv_config_t &cfg) {
     cfg.prefetch().set(bufs);
 }
 
-void init_allow_a_grf_reorder(conv_config_t &cfg) {
-    if (cfg.allow_a_grf_reorder_param().is_overridden()) return;
-    const auto &prb = cfg.prb();
-    bool use_a_2d_send = can_use_a_2d_send(cfg);
-    bool is_a_grf_blocked
-            = (cfg.a_layout().compute().innermost_block_layout().size()
-                            % cfg.grf_size()
-                    == 0);
-    bool is_mad = !cfg.is_dp_fma();
-    cfg.set_allow_a_grf_reorder(!prb.matches_user_types());
-    if (is_mad && prb.is_s32_accumulator()) {
-        cfg.set_allow_a_grf_reorder(true);
-        return;
-    }
-    if (is_mad && prb.b_data_type == data_type::bf16) { return; }
-    if ((prb.is_fwd || prb.is_bwd_d) && !use_a_2d_send && !is_a_grf_blocked) {
-        const char *dim_name = (prb.is_fwd ? "ic" : "oc");
-        int dim = (prb.is_fwd ? prb.ic : prb.oc);
-        int blk = cfg.iter_dim(dim_name);
-        if (blk * prb.a_data_type_size % cfg.grf_size() != 0
-                || dim != cfg.padded_dim(dim_name)) {
-            cfg.set_allow_a_grf_reorder(true);
-        }
-    }
-    if (cfg.send_2d_nhwc() && (!prb.is_fwd)) cfg.set_allow_a_grf_reorder(true);
-
-    bool a_is_small_c = (prb.is_fwd || prb.is_bwd_w) ? is_small_ic(prb)
-                                                     : is_small_oc(prb);
-    if (cfg.is_dp_fma() && !prb.is_dw && a_is_small_c) {
-        cfg.set_allow_a_grf_reorder(true);
-    }
-    if (prb.is_bwd_w && cfg.is_dp_fma()) { cfg.set_allow_a_grf_reorder(true); }
-}
-
-void init_allow_b_grf_reorder(conv_config_t &cfg) {
-    if (cfg.allow_b_grf_reorder_param().is_overridden()) return;
-    const auto &prb = cfg.prb();
-    bool use_b_2d_send = can_use_b_2d_send(cfg);
-    bool is_mad = !cfg.is_dp_fma();
-    cfg.set_allow_b_grf_reorder(!prb.matches_user_types());
-    if (is_mad && prb.is_s32_accumulator()) {
-        cfg.set_allow_b_grf_reorder(true);
-        return;
-    }
-    if (is_mad && prb.b_data_type == data_type::bf16) {
-        cfg.set_allow_b_grf_reorder(true);
-        return;
-    }
-    if (prb.is_bwd_w && cfg.is_dp_fma() && !use_b_2d_send) {
-        cfg.set_allow_b_grf_reorder(true);
-    }
-}
-
-void init_allow_slm_tg_slicing(conv_config_t &cfg) {
-    const auto &prb = cfg.prb();
-    if (!prb.is_bwd_w) return;
-    if (!utils::everyone_is(prb.a_data_type, prb.b_data_type, data_type::bf16))
-        return;
-    if (!cfg.is_dp_fma()) return;
-
-    // Enable only for layouts with batch blocking.
-    int src_mb_blk = cfg.src_layout().compute().inner_block(0);
-    int src_ic_blk = cfg.src_layout().compute().inner_block(2);
-    int dst_mb_blk = cfg.dst_layout().compute().inner_block(0);
-    int dst_oc_blk = cfg.dst_layout().compute().inner_block(2);
-    if (src_mb_blk < 16 || dst_mb_blk < 16) return;
-
-    bmnk_dim_helper_t h(cfg);
-    int k_iter_blk = h.iter_dim('k');
-    int m_iter_blk = h.iter_dim('m');
-    int n_iter_blk = h.iter_dim('n');
-    int m_tg_dim = h.thread_group_dim('m');
-    int n_tg_dim = h.thread_group_dim('n');
-    int tg_size = m_tg_dim * n_tg_dim;
-
-    // Backward by weights with dpas layouts requires GRF reorders for A/B
-    // (e.g. 2c*16n16c -> 32c16n). When SLM is used, such reorders are
-    // generated after load from GMEM and before store to SLM. For optimal
-    // performance we need load/store layouts to have large dense blocks. This
-    // means that in some cases we have to use only a sub-grid of thread group
-    // (i.e. rely on TG slicing) to perform load-store operation, otherwise we
-    // may end up with reorders like 8n16c -> 16c*8n which result in scattered
-    // loads/stores).
-    // At the same time using sub-grids results in higher GRF consumption so we
-    // only enable TG slicing when the resulting sub-grid consists of at least
-    // half of the total threads.
-    int src_reorder_elems = k_iter_blk * src_ic_blk;
-    int src_tg_elems = m_iter_blk * m_tg_dim * k_iter_blk;
-    if (src_tg_elems % tg_size != 0) return;
-    int src_elems_per_thr = src_tg_elems / tg_size;
-    int src_slices = utils::div_up(src_reorder_elems, src_elems_per_thr);
-    if (src_slices > 2) return;
-
-    int dst_reorder_elems = k_iter_blk * dst_oc_blk;
-    int dst_tg_elems = n_iter_blk * n_tg_dim * k_iter_blk;
-    if (dst_tg_elems % tg_size != 0) return;
-    int dst_elems_per_thr = dst_tg_elems / tg_size;
-    int dst_slices = utils::div_up(dst_reorder_elems, dst_elems_per_thr);
-    if (dst_slices > 2) return;
-
-    cfg.set_allow_slm_tg_slicing(true);
-}
-
-void init_assign_sbids(conv_config_t &cfg) {
-    if (cfg.is_dp_fma()) cfg.set_assign_sbids(true);
-}
-
 void init_subtiles(conv_config_t &cfg) {
-    if (cfg.subtiles().is_overridden()) return;
-    if (!cfg.with_plan()) return;
-
     int a = 1;
     int b = 1;
     auto &p = cfg.plan();
@@ -2087,9 +1910,7 @@ status_t fixup_config(conv_config_t &cfg) {
         if (cfg.thread_group_grid().dim(0) % 2 != 0)
             cfg.set_fma_kind(fma_kind_t::dpas);
         // dpasw can't be generated in case of direct load from GMEM and reorder.
-        if (prb.is_bwd_w
-                && (cfg.allow_a_grf_reorder() || cfg.allow_b_grf_reorder())
-                && (!cfg.slm().a() || !cfg.slm().b()))
+        if (prb.is_bwd_w && (!cfg.slm().a() || !cfg.slm().b()))
             cfg.set_fma_kind(fma_kind_t::dpas);
     }
 
@@ -2164,7 +1985,7 @@ status_t check_config(conv_config_t &cfg) {
             ir_assert(in_grid_dims(get_kernel_grid_conv_dims, prb, name))
                     << name;
     }
-    if (cfg.with_plan()) CHECK(check_plan(cfg));
+    CHECK(check_plan(cfg));
     return status::success;
 }
 
@@ -2184,10 +2005,6 @@ status_t try_init_cfg(conv_config_t &cfg) {
     init_unroll(cfg);
     init_slm(cfg);
     init_prefetch(cfg);
-    init_allow_a_grf_reorder(cfg);
-    init_allow_b_grf_reorder(cfg);
-    init_allow_slm_tg_slicing(cfg);
-    init_assign_sbids(cfg);
     init_subtiles(cfg);
 
     CHECK(fixup_config(cfg));
@@ -2268,10 +2085,6 @@ status_t init_cfg(conv_config_t &cfg, const convolution_pd_t *pd) {
     }
 
     return ok ? status::success : status::runtime_error;
-}
-
-bool use_conv_plan(const conv_config_t &cfg) {
-    return true;
 }
 
 conv_config_t::conv_config_t() = default;
@@ -2368,12 +2181,9 @@ std::string conv_config_t::str() const {
     oss << "  GRF buffers for GMEM load:  " << slm().gmem_bufs() << std::endl;
     oss << "  Prefetch:                   " << to_string(prefetch()) << ", buffers: " << prefetch().bufs() << std::endl;
     oss << "  Do pipeline unroll:         " << to_string(pipeline().do_unroll()) << std::endl;
-    oss << "  Assign SBIDs:               " << to_string(assign_sbids()) << std::endl;
     oss << "  Reuse headers:              " << to_string(pipeline().reuse_headers()) << std::endl;
-    oss << "  Allow GRF reorder:          " << "A: " << to_string(allow_a_grf_reorder()) << ", B: " << to_string(allow_b_grf_reorder()) << std::endl;
     oss << "  Subtiles:                   " << "A: " << subtiles().a() << ", B: " << subtiles().b() << std::endl;
     oss << "  Estimated GRF usage:        " << estimated_peak_regs << std::endl;
-    oss << "  Use plan:                   " << to_string(with_plan()) << std::endl;
     // clang-format on
     return oss.str();
 }
@@ -2412,16 +2222,10 @@ std::string conv_config_t::blocking_brief_str() const {
 }
 
 void conv_config_t::set_plan(const std::shared_ptr<conv_plan_t> &plan) {
-    if (!use_conv_plan(*this)) return;
     plan_ = plan;
 }
 
-bool conv_config_t::with_plan() const {
-    return (bool)plan_;
-}
-
 const conv_plan_t &conv_config_t::plan() const {
-    ir_assert(with_plan());
     return *plan_;
 }
 
@@ -2528,8 +2332,7 @@ tensor_config_t get_tensor_config(const conv_config_t &cfg) {
 }
 
 int estimate_register_count(const conv_config_t &cfg) {
-    if (cfg.with_plan()) return cfg.plan().grf_usage().total();
-    return estimate_grf_usage(cfg).total();
+    return cfg.plan().grf_usage().total();
 }
 
 bool can_use_a_2d_send(const conv_config_t &cfg) {

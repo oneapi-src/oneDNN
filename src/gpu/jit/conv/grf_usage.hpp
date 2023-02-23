@@ -165,7 +165,6 @@ private:
     grf_buf_usage_t buf_usage_;
 };
 
-grf_usage_t estimate_grf_usage(const conv_config_t &cfg);
 grf_usage_t get_grf_usage(const stmt_t &body, int grf_size);
 
 void verify_grf_usage(

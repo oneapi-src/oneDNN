@@ -559,48 +559,6 @@ private:
 
 // Parameters for kernel generation.
 
-// TODO: Remove, GRF reorder is to be emitted/accounted for depending on
-// layouts, FMA kind and other parameters.
-class allow_a_grf_reorder_param_t : public bool_param_t {
-public:
-    allow_a_grf_reorder_param_t() : bool_param_t(false) {}
-    std::string name() const override { return "allow-a-grf-reorder"; }
-    std::string desc() const override {
-        return "Whether to allow GRF reorders to FMA-friendly layouts for A.";
-    }
-};
-
-// TODO: Remove, GRF reorder is to be emitted/accounted for depending on
-// layouts, FMA kind and other parameters.
-class allow_b_grf_reorder_param_t : public bool_param_t {
-public:
-    allow_b_grf_reorder_param_t() : bool_param_t(false) {}
-    std::string name() const override { return "allow-b-grf-reorder"; }
-    std::string desc() const override {
-        return "Whether to allow GRF reorders to FMA-friendly layouts for B.";
-    }
-};
-
-// TODO: Remove, use internal logic to determine if SLM thread group slicing is
-// needed.
-class allow_slm_tg_slicing_param_t : public bool_param_t {
-public:
-    allow_slm_tg_slicing_param_t() : bool_param_t(false) {}
-    std::string name() const override { return "allow-slm-tg-slicing"; }
-    std::string desc() const override {
-        return "Whether to allow thread group split for SLM load/store.";
-    }
-};
-
-class assign_sbids_param_t : public bool_param_t {
-public:
-    assign_sbids_param_t() : bool_param_t(false) {}
-    std::string name() const override { return "assign-sbids"; }
-    std::string desc() const override {
-        return "Whether to manually assign SBIDs tokens to dpas/send.";
-    }
-};
-
 class bia_layout_param_t : public layout_param_t {
     std::string name() const override { return "bia"; }
     std::string desc() const override { return "Bias layout."; }
@@ -1054,8 +1012,6 @@ static const int reserved_regs = 16;
 
 struct conv_plan_t;
 
-bool use_conv_plan();
-
 class conv_config_t {
 public:
     conv_config_t();
@@ -1079,10 +1035,6 @@ public:
     } \
     name##_param_t &name() { return name##_; }
 
-    DECL_PARAM(allow_a_grf_reorder)
-    DECL_PARAM(allow_b_grf_reorder)
-    DECL_PARAM(allow_slm_tg_slicing)
-    DECL_PARAM(assign_sbids)
     DECL_PARAM(bwd_d_optimize_strided)
     DECL_PARAM(bwd_d_optimize_strided_iw)
     DECL_PARAM(check_slm_size)
@@ -1256,7 +1208,6 @@ public:
     }
 
     void set_plan(const std::shared_ptr<conv_plan_t> &plan);
-    bool with_plan() const;
     const conv_plan_t &plan() const;
 
     bool can_skip_wei_zero_out() const;
@@ -1280,10 +1231,6 @@ private:
     param_init_t name##_init_ \
             = register_param(&conv_config_t::name##_, get_params_);
 
-    INIT_PARAM(allow_a_grf_reorder)
-    INIT_PARAM(allow_b_grf_reorder)
-    INIT_PARAM(allow_slm_tg_slicing)
-    INIT_PARAM(assign_sbids)
     INIT_PARAM(bia_layout)
     INIT_PARAM(bwd_d_optimize_strided)
     INIT_PARAM(bwd_d_optimize_strided_iw)

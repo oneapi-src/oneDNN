@@ -88,10 +88,6 @@ std::string grf_usage_t::str() const {
     return oss.str();
 }
 
-grf_usage_t estimate_grf_usage(const conv_config_t &cfg) {
-    return cfg.plan().grf_usage();
-}
-
 class ir_usage_analyzer_t : public ir_visitor_t {
 public:
     ir_usage_analyzer_t(int grf_size)
@@ -365,7 +361,7 @@ void verify_grf_usage(
     analyzer.analyze(body);
 
     auto ir_info = analyzer.get_grf_usage(external_usage);
-    auto est_info = estimate_grf_usage(cfg);
+    auto est_info = cfg.plan().grf_usage();
     compare(est_info, ir_info, analyzer);
 }
 

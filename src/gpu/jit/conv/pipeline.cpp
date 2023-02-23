@@ -1293,6 +1293,10 @@ private:
     version_t ver_;
 };
 
+static bool assign_sbids(const conv_config_t &cfg) {
+    return cfg.is_dpas_or_dpasw_fma();
+}
+
 class simple_slm_buffering_injector_t {
 public:
     simple_slm_buffering_injector_t(const stmt_t &root, ir_context_t &ir_ctx,
@@ -1435,7 +1439,7 @@ public:
             loop = loop.append(slm_idx_update);
         }
 
-        if (cfg_.assign_sbids())
+        if (assign_sbids(cfg_))
             loop = sbid_assigner_t(ir_ctx_.hw_cfg().hw()).assign(loop);
 
         const auto grf_size = ir_ctx_.hw_cfg().grf_size();
@@ -1779,7 +1783,7 @@ private:
 
         iter_stmt = slm_sync_mgr_.after_S(iter_stmt, it.is_last_mul(), it.iter);
 
-        if (cfg_.assign_sbids())
+        if (assign_sbids(cfg_))
             iter_stmt = sbid_assigner_t(sbid_mgr).assign(iter_stmt);
 
         iter_stmt = inject_local_let(iter_stmt, lets, it.linear_id);
