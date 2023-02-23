@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1269,20 +1269,26 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::relu_compute_vector_bwd(
 template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::elu_compute_vector_bwd(
         const Vmm &vmm_src) {
-    if (!use_dst_) {
-        // R = exp(s)
-        exp_compute_vector_fwd(vmm_src);
-        // after exponentiation, get mask by comparing with exp(0)=1.f, not 0.f
-        compute_cmp_mask(vmm_src, table_val(one), _cmp_gt_os);
-        // R * alpha, then blend with 1.f
-        h->uni_vmulps(vmm_src, vmm_src, table_val(alpha));
-    } else {
+    if (use_dst_) {
         // get mask of `d` > 0
         compute_cmp_mask(vmm_src, table_val(zero), _cmp_gt_os);
         // R = `d` + alpha, then blend with 1.f
         h->uni_vaddps(vmm_src, vmm_src, table_val(alpha));
+        blend_with_mask(vmm_src, table_val(one));
+    } else {
+        // Note: use vmm_aux3 for copy as exp_compute doesn't use it.
+        h->uni_vmovups(vmm_aux3, vmm_src);
+        // R = exp(s)
+        exp_compute_vector_fwd(vmm_src);
+        // R *= alpha
+        h->uni_vmulps(vmm_src, vmm_src, table_val(alpha));
+        // Get mask of src copy, not of exponent, because comparing with
+        // exp(0)=1.f after exponentiation may lead to incorrect results due to
+        // small values like `9.61717e-09f` are converted into 1.f by exp, which
+        // get multiplied by `alpha` but they should not.
+        compute_cmp_mask(vmm_aux3, table_val(zero), _cmp_gt_os);
+        blend_with_mask(vmm_src, table_val(one));
     }
-    blend_with_mask(vmm_src, table_val(one));
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -1687,7 +1693,7 @@ size_t jit_uni_eltwise_injector_f32<isa, Wmm>::aux_vecs_count() {
             case eltwise_relu_use_dst_for_bwd:
             case eltwise_relu: return 1;
             case eltwise_elu_use_dst_for_bwd: return 1;
-            case eltwise_elu: return 3;
+            case eltwise_elu: return 4;
             case eltwise_tanh_use_dst_for_bwd: return 1;
             case eltwise_tanh: return 5;
             case eltwise_square: return 0;
