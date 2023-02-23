@@ -481,7 +481,7 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
 
     void trans_src_nxc(src_data_t *tr_src, const src_data_t *src_base,
             int spatial_start, dim_t spatial_start_offset, int icb_start,
-            dim_t chb_stride, int row_count) const {
+            dim_t chb_stride, int row_count, int ih_s) const {
         const int src_stride = jcp.iw * jcp.ngroups * jcp.ic;
         const int tr_src_stride = jcp.tr_iw * jcp.ic_block;
 
@@ -495,7 +495,8 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
             for (int iwork = 0; iwork < sp_work; iwork++) {
                 // For 1x1 convolutions with strides we transpose only
                 // needed lines
-                if (IMPLICATION(jcp.kh == 1, iwork % jcp.stride_h == 0)) {
+                if (IMPLICATION(
+                            jcp.kh == 1, (ih_s + iwork) % jcp.stride_h == 0)) {
                     auto ctx = jit_trans_src_t::ctx_t();
                     ctx.src = src;
                     ctx.tr_src = tr_src;
@@ -604,7 +605,8 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
 
                 src_data_t *p_tr_src = &tr_src[tr_src_off(
                         g_, ic_b_, jd_s - id_s, jh_s - ih_s)];
-                trans_src_nxc(p_tr_src, p_src, 0, 0, ic_b_, 0, jh_e - jh_s);
+                trans_src_nxc(
+                        p_tr_src, p_src, 0, 0, ic_b_, 0, jh_e - jh_s, jh_s);
 
                 nd_iterator_jump(tr_start, tr_end, g, g_work, ic_b, icb_work,
                         jd, idb_e - idb_s, jh, ihb_e - ihb_s);
@@ -706,7 +708,7 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
             } else
                 assert(!"Invalid harness type");
             trans_src_nxc(tr_src_local, p_raw_src, 0, 0, (ic_b + icb), 0,
-                    (ihb_e - ihb_s));
+                    (ihb_e - ihb_s), ihb_s);
         }
 
         p_src = &tr_src[tr_src_off(0, 0, 0, 0)]; // p_tr_src;
