@@ -852,8 +852,8 @@ float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops,
         cond = dyn_loops < run_threads;
         return stc_loops >= run_threads;
     }
-    if (stc_loops == 1) { return 0.0f; }
     cond = !((dyn_loops % run_threads == 0) || (dyn_loops > run_threads * 8));
+    if (stc_loops == 1) { return 0.0f; }
     bool parallelism = (stc_loops / run_threads > 8)
             || (stc_loops % run_threads == 0 && stc_loops >= run_threads);
     return parallelism ? 1.0f
@@ -915,6 +915,22 @@ bool slice_expr_equals(const expr &in1, const expr &in2) {
 
 expr cast_to_s32(const expr &in) {
     return builder::make_cast(datatypes::s32, in);
+}
+
+std::vector<graph_tensor_ptr> get_sorted_inputs_by_layout_input(
+        const sc_op_ptr &op) {
+    int layout_input_index
+            = op->attrs_.get_or_else(op_attr_key::layout_input_index, 0);
+    if (layout_input_index == 0) { return op->get_inputs(); }
+    std::vector<graph_tensor_ptr> ret;
+    auto inps = op->get_inputs();
+    ret.reserve(inps.size());
+    ret.push_back(inps[layout_input_index]);
+    for (int i = 0; i < static_cast<int>(inps.size()); i++) {
+        if (i == layout_input_index) { continue; }
+        ret.push_back(inps[i]);
+    }
+    return ret;
 }
 
 } // namespace gc

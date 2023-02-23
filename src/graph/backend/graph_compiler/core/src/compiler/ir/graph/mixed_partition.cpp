@@ -2943,7 +2943,8 @@ static bool do_partition(const context_ptr &ctx, sc_graph_t &g,
         if (!op->attrs_.get_or_else(op_attr_key::break_pre_fuse, false)) {
             std::vector<mixed_parti_t::ptr> avaliable_input_parti;
             // collect avaliable input partition
-            for (auto &in : op->get_inputs()) {
+            auto sorted_inputs = get_sorted_inputs_by_layout_input(op);
+            for (auto &in : sorted_inputs) {
                 // if an input is fusible and is not "break_post_fuse"
                 if (!in->producer_owner_->attrs_.get_or_else(
                             op_attr_key::break_post_fuse, false)
