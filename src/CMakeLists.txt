@@ -124,19 +124,27 @@ endif()
 if(ONEDNN_BUILD_GRAPH)
     message(STATUS "Graph component is enabled")
     if (DNNL_GPU_RUNTIME STREQUAL "OCL")
-        message(FATAL_ERROR "Graph component doesn't support OCL GPU runtime")
+        message(FATAL_ERROR "Graph API does not support OCL GPU runtime. "
+            "Either disable Graph API with ONEDNN_BUILD_GRAPH=OFF or change GPU "
+            "runtime to SYCL with ONEDNN_GPU_RUNTIME=SYCL.")
     endif()
 
     if (NOT DNNL_GPU_VENDOR STREQUAL "INTEL")
-        message(FATAL_ERROR "Graph component doesn't support ${DNNL_GPU_VENDOR} GPU")
+        message(FATAL_ERROR "Graph API does not support ${DNNL_GPU_VENDOR} GPU. "
+            "Either disable Graph API with ONEDNN_BUILD_GRAPH=OFF or change GPU "
+            "vendor to INTEL with ONEDNN_GPU_VENDOR=INTEL.")
     endif()
 
     if (NOT DNNL_ENABLE_PRIMITIVE STREQUAL "ALL")
-        message(FATAL_ERROR "Graph component doesn't support selecting primitives")
+        message(FATAL_ERROR "Graph API does not support selecting primitives. "
+            "Either disable Graph API with ONEDNN_BUILD_GRAPH=OFF or change "
+            "primitive selection with ONEDNN_ENABLE_PRIMITIVE=ALL.")
     endif()
 
     if (NOT DNNL_ENABLE_WORKLOAD STREQUAL "TRAINING")
-        message(FATAL_ERROR "Graph component doesn't support selecting workloads")
+        message(FATAL_ERROR "Graph API does not support selecting workloads. "
+            "Either disable Graph API with ONEDNN_BUILD_GRAPH=OFF or change "
+            "workload selection with ONEDNN_ENABLE_WORKLOAD=TRAINING.")
     endif()
 
     add_definitions_with_host_compiler(-DBUILD_GRAPH)
