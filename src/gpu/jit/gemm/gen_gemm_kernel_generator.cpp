@@ -9878,8 +9878,10 @@ bool gemm_kernel_generator_t<hw>::gemmBinaryOpC(BinaryOp op, bool row,
 
     auto cor = row ? strategy.unroll[LoopM] : 1;
     auto coc = column ? strategy.unroll[LoopN] : 1;
-    auto remR = row && !CO_strategy.padded;
-    auto remC = column && !CO_strategy.padded;
+    auto remR = row && !CO_strategy.padded
+            && strategy.remHandling[LoopM] != RemainderHandling::Ignore;
+    auto remC = column && !CO_strategy.padded
+            && strategy.remHandling[LoopN] != RemainderHandling::Ignore;
 
     if (!getRegLayout(Tco, CO_layout, cor, coc, remR, remC, false,
                 AvoidFragment, 0, 0, CO, CO_strategy))
@@ -9901,13 +9903,15 @@ bool gemm_kernel_generator_t<hw>::gemmBinaryOpC(BinaryOp op, bool row,
         auto unrollY = strategy.unroll[LoopY];
         auto remY = state.remainders[LoopY];
         Label lDone;
+        bool checkRemY = !CO_strategy.padded
+                && strategy.remHandling[LoopY] != RemainderHandling::Ignore;
         bool simtCF = strategy.fused && (strategy.fusedLoop == LoopY);
         int simt = simtCF ? 16 : 1;
 
-        if (!CO_strategy.padded) cmp(simt | gt | state.flagAP, remY, 0);
+        if (checkRemY) cmp(simt | gt | state.flagAP, remY, 0);
 
         for (int y = 0; y < unrollY; y++) {
-            if (!CO_strategy.padded) {
+            if (checkRemY) {
                 simtCF ? goto12(16 | ~state.flagAP, lDone)
                        : jmpi(1 | ~state.flagAP, lDone);
             }
@@ -9916,7 +9920,7 @@ bool gemm_kernel_generator_t<hw>::gemmBinaryOpC(BinaryOp op, bool row,
             if (recip)
                 map(hw, Tco, CO_regs, CO_regs, strategy,
                         [&](int simd, GRF r, GRF) { inv(simd, r, r); });
-            if (!CO_strategy.padded && (y + 1 < unrollY))
+            if (checkRemY && (y + 1 < unrollY))
                 cmp(simt | gt | state.flagAP, remY, y + 1);
             if (coColMajor == globalCM)
                 incAddr(CO_addrs, ld, int(row), int(column), CO_layout, CO,
