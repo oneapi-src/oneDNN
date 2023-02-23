@@ -226,7 +226,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
     }
   }
   if (get_input_dtype() == datatypes::f32) { cfg.tile_p = 1; }
-  if (try_os_blocking_) {
+  if (try_os_blocking_ && is_use_amx(ctx)) {
     // if use os blocking override tile p and tile q above
     cfg.tile_os = cfg.tile_q;
     auto os_choices = get_os_blocks(ow_, adj_os_);
