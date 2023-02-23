@@ -342,8 +342,12 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
         };
         enum loop_order order = osc_occ_osb_ocb_icc;
 
+        // icc-loop can only be interchanged if we don't need additional memory
+        // for accumulation.
+        const bool icc_loop_swapable = !jbgp.use_buffer;
+
         // Optimize loop order for f32, if buffer is not required.
-        const bool ocb_inner_most = is_f32_compute && !jbgp.use_buffer;
+        const bool ocb_inner_most = is_f32_compute && icc_loop_swapable;
         if (ocb_inner_most) {
             order = osc_occ_icc_osb_ocb;
 
@@ -382,7 +386,8 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
         // Enable occ_osc_... for f32 and with small os-blocks.
         // TODO: Expand to other precisions and other blocks sizes.
         const bool is_avx512 = is_superset(isa, avx512_core);
-        if ((jbgp.os_block < 32 || do_occ_osc) && is_f32_compute && is_avx512)
+        if ((jbgp.os_block < 32 || do_occ_osc) && is_f32_compute
+                && icc_loop_swapable && is_avx512)
             order = icc_occ_osc_ocb_osb;
 
         int prev_ker_idx = -1;
