@@ -1,5 +1,5 @@
 ################################################################################
-# Copyright 2020-2022 Intel Corporation
+# Copyright 2020-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -109,9 +109,8 @@ class LogParser:
                 def convert_structure_to_ir_seq(ir, value):
                     params = value.split(':')
                     fields = list(ir.keys())
-                    ir.update(
-                        (fields[i], params[i])
-                        for i in range(0, min(len(params), len(fields))))
+                    ir.update((fields[i], params[i])
+                              for i in range(0, min(len(params), len(fields))))
                     return ir
 
                 def convert_post_ops(value):
@@ -190,9 +189,10 @@ class LogParser:
                     scales = value.split('+')
                     for s in scales:
                         arg = s[:s.find(':')]
-                        s_wo_arg = s[s.find(':')+1:]
+                        s_wo_arg = s[s.find(':') + 1:]
                         scale_dict = {'mask': '0'}
-                        res[arg] = convert_structure_to_ir_seq(scale_dict, s_wo_arg)
+                        res[arg] = convert_structure_to_ir_seq(
+                            scale_dict, s_wo_arg)
                     return res
 
                 def convert_zero_points(value):
@@ -200,9 +200,10 @@ class LogParser:
                     zp_value = value.split('+')
                     for zp in zp_value:
                         arg = zp[:zp.find(':')]
-                        zp_value_wo_arg = zp[zp.find(':')+1:]
+                        zp_value_wo_arg = zp[zp.find(':') + 1:]
                         zp_dict = {'mask': '0'}
-                        res[arg] = convert_structure_to_ir_seq(zp_dict, zp_value_wo_arg)
+                        res[arg] = convert_structure_to_ir_seq(
+                            zp_dict, zp_value_wo_arg)
                     return res
 
                 def convert_scratchpad_mode(value):
@@ -248,8 +249,10 @@ class LogParser:
                 'timestamp': 'timestamp'
             }
 
-            ir_req = [ 'engine', 'prim_kind', 'impl', 'prop_kind', 'mds',
-                    'exts', 'aux', 'shapes']
+            ir_req = [
+                'engine', 'prim_kind', 'impl', 'prop_kind', 'mds', 'exts',
+                'aux', 'shapes'
+            ]
 
             entry = {}
 
@@ -293,9 +296,11 @@ class LogParser:
                 if event == "info":
                     opt = l_raw[2]
                     if opt == "prim_template":
-                        verbose_template = "onednn_verbose," + line.split(':')[1]
+                        verbose_template = "onednn_verbose," + line.split(
+                            ':')[1]
                 if event in ["exec", "create"]:
-                    l_converted = convert_primitive(l_raw, verbose_template + ',exec_time')
+                    l_converted = convert_primitive(
+                        l_raw, verbose_template + ',exec_time')
                     if l_converted:
                         self.__data[i] = l_converted
                         i = i + 1
