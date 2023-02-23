@@ -1107,7 +1107,6 @@ void init_pipeline(conv_config_t &cfg) {
 
     const auto &prb = cfg.prb();
     bool do_unroll = true;
-    bool reuse_headers = false;
     if (prb.is_fwd) {
         const int max_unroll = cfg.hw() <= ngen::HW::XeLP ? 4 : 9;
         if (prb.ksp > max_unroll) do_unroll = false;
@@ -1131,8 +1130,7 @@ void init_pipeline(conv_config_t &cfg) {
     if (utils::one_of(cfg.fma_kind(), fma_kind_t::mad, fma_kind_t::dp4a)
             && (cfg.hw() >= ngen::HW::XeHPG || prb.mb != 1))
         do_unroll = false;
-    if (reuse_headers) do_unroll = false;
-    cfg.pipeline().set(do_unroll, reuse_headers);
+    cfg.pipeline().set(do_unroll, /*reuse_headers=*/false);
 }
 
 void init_send_2d_nhwc(conv_config_t &cfg) {
