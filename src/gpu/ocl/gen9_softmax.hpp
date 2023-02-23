@@ -81,8 +81,7 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
             if (is_nhwc) {
                 int axis_padded = utils::rnd_up(axis_size(), subgroup_size);
                 group_size = subgroup_size
-                        * utils::div_up(axis_size(), buffer_size);
-
+                        * utils::div_up(axis_padded, buffer_size);
                 // max lws size on Xe-HP* series is 1024 x 1024 x 1024
                 // max lws size on Xe-LP is 512 x 512 x 512
 

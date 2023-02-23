@@ -160,15 +160,21 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 
     int data_off = mb * CHANNELS * SOFTMAX_AXIS_SIZE + channel_offset
             + channel_in_block;
+    const int buf_reads = THREAD_BUF_SIZE;
 #else
     int data_off = mb * CHANNELS_PADDED * SOFTMAX_AXIS_SIZE + channel_offset
             + channel_id;
+
+    const int local_off = local_id * THREAD_BUF_SIZE;
+    if (local_off >= SOFTMAX_AXIS_SIZE) return;
+    const int buf_reads = ((local_off + THREAD_BUF_SIZE) <= SOFTMAX_AXIS_SIZE)
+            ? THREAD_BUF_SIZE
+            : (SOFTMAX_AXIS_SIZE % THREAD_BUF_SIZE);
 #endif
 
     float d[THREAD_BUF_SIZE];
-
     src += data_off;
-    for (int k = 0, axis_channel_id = CHANNELS * buf_chunk; k < THREAD_BUF_SIZE;
+    for (int k = 0, axis_channel_id = CHANNELS * buf_chunk; k < buf_reads;
             ++k, axis_channel_id += CHANNELS) {
         d[k] = DATA_TO_FLOAT(SRC, src[axis_channel_id]);
         max_ = max(d[k], max_);
@@ -179,8 +185,7 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 #else
     max_ = work_group_reduce_max(max_);
 #endif
-
-    for (int k = 0; k < THREAD_BUF_SIZE; ++k) {
+    for (int k = 0; k < buf_reads; ++k) {
 #if LOGSOFTMAX
         denom_ += exp(d[k] - max_);
 #else
@@ -194,7 +199,6 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 #else
     denom_ = work_group_reduce_add(denom_);
 #endif
-
 #if LOGSOFTMAX
     denom_ = log(denom_);
 #else
@@ -203,7 +207,7 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 
     dst += data_off;
 
-    for (int k = 0, axis_channel_id = CHANNELS * buf_chunk; k < THREAD_BUF_SIZE;
+    for (int k = 0, axis_channel_id = CHANNELS * buf_chunk; k < buf_reads;
             ++k, axis_channel_id += CHANNELS) {
 #if LOGSOFTMAX
         d[k] = d[k] - max_ - denom_;
