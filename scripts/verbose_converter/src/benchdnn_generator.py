@@ -209,7 +209,10 @@ def convert_dts(mds, prim_kind):
 
     def convert_dts_cfg_rnn(mds):
         cfg = "--cfg="
-        args = ['src_iter', 'src_iter_c', 'src_layer', 'dst_iter', 'dst_layer', 'bias']
+        args = [
+            'src_iter', 'src_iter_c', 'src_layer', 'dst_iter', 'dst_layer',
+            'bias'
+        ]
         mds_strip = [md for md in mds if md['arg'] in args]
         # ws is not part of cfg
         mds_strip = [md for md in mds_strip if 'ws' not in md['arg']]
@@ -622,6 +625,7 @@ def convert_zero_points(zero_points):
 
 def convert_scratchpad_mode(scratchpad_mode):
     return scratchpad_mode
+
 
 def convert_fpmath_mode(fpmath_mode):
     return fpmath_mode

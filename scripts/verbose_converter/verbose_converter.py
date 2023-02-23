@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 ################################################################################
-# Copyright 2020-2022 Intel Corporation
+# Copyright 2020-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +23,9 @@ from argparse import RawTextHelpFormatter
 from src import utils
 from src import writer
 
-def convert(verbose_level, parser, input, action, generator, split_output, agg_keys):
+
+def convert(verbose_level, parser, input, action, generator, split_output,
+            agg_keys):
     status = utils.check_version()
     if status != utils.status.get('SUCCESS'):
         return status
@@ -61,11 +63,13 @@ def convert(verbose_level, parser, input, action, generator, split_output, agg_k
 
     return utils.status.get('SUCCESS'), output
 
+
 def validate_option(value, supported_values, str):
     if not value in supported_values:
         print(f"ERROR: {str}")
         return utils.status.get('FAILED')
     return utils.status.get('SUCCESS')
+
 
 def main():
     status = utils.check_version()
@@ -76,7 +80,10 @@ def main():
     generator_opts = ["benchdnn", "breakdown"]
     parser_opts = ["oneDNN"]
     verbose_opts = ["0", "1"]
-    aggregate_opts = ['engine', 'prim_kind', 'impl', 'prop_kind', 'mds', 'exts', 'aux', 'shapes']
+    aggregate_opts = [
+        'engine', 'prim_kind', 'impl', 'prop_kind', 'mds', 'exts', 'aux',
+        'shapes'
+    ]
     args_parser = argparse.ArgumentParser(description='oneDNN log converter',
                                           formatter_class=RawTextHelpFormatter)
     args_parser.add_argument('-i',
@@ -104,7 +111,9 @@ def main():
         '--aggregate',
         nargs='+',
         default=aggregate_opts,
-        help=f'aggregates statistics on the specified keys (default: all keys but time).\nValues: {aggregate_opts}')
+        help=
+        f'aggregates statistics on the specified keys (default: all keys but time).\nValues: {aggregate_opts}'
+    )
     args_parser.add_argument(
         '-v',
         '--verbose_level',
@@ -118,20 +127,23 @@ def main():
         '-g',
         '--generator',
         default='benchdnn',
-        help=f'target generator (default: benchdnn). Values: {generator_opts}.')
+        help=f'target generator (default: benchdnn). Values: {generator_opts}.'
+    )
     args = args_parser.parse_args()
 
     # validate options
     status = validate_option(args.action, action_opts, "Unknown action value")
     if status != utils.status.get('SUCCESS'):
         return status
-    status = validate_option(args.verbose_level, verbose_opts, "Unknown verbose_level value")
+    status = validate_option(args.verbose_level, verbose_opts,
+                             "Unknown verbose_level value")
     if status != utils.status.get('SUCCESS'):
         return status
     status = validate_option(args.parser, parser_opts, "Unknown parser value")
     if status != utils.status.get('SUCCESS'):
         return status
-    status = validate_option(args.generator, generator_opts, "Unknown generator value")
+    status = validate_option(args.generator, generator_opts,
+                             "Unknown generator value")
     if status != utils.status.get('SUCCESS'):
         return status
 
