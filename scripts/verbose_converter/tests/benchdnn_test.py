@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 ################################################################################
-# Copyright 2021-2022 Intel Corporation
+# Copyright 2021-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -42,13 +42,63 @@ def convert_dir_benchdnn2verbose(dir):
     }.get(dir)
 
 
+def filter_verbose(benchdnn_verbose, driver):
+    v = ''
+    benchdnn_prop_kind = None
+    benchdnn_with_rt_dims = False
+
+    for test_case in benchdnn_verbose.split('INITIALIZED'):
+        for l in test_case.split('\n'):
+            # Parse header
+            if l.find("run: ") != -1:
+                # detect prop kind in benchdnn log
+                dir = '--prop=' if driver == 'rnn' else '--dir='
+                dir_start = l.find(dir)
+                if dir_start != -1:
+                    dir_end = l.find(' ', dir_start)
+                    benchdnn_prop_kind = convert_dir_benchdnn2verbose(
+                        l[dir_start + len(dir):dir_end])
+                else:
+                    benchdnn_prop_kind = None
+                # detect runtime dims
+                rt_mask = '--runtime_dims_masks='
+                rt_mask_start = l.find(rt_mask)
+                if rt_mask_start != -1:
+                    rt_mask_end = l.find(' ', rt_mask_start)
+                    benchdnn_rt_dims = l[rt_mask_start +
+                                         len(rt_mask):rt_mask_end]
+                    if benchdnn_rt_dims != '0:0':
+                        benchdnn_with_rt_dims = True
+                else:
+                    benchdnn_with_rt_dims = False
+            else:
+                # detect driver
+                l_s = l.split(',')
+                d = benchdnn_gen.convert_driver(l_s[3]) if len(l_s) > 3 else ''
+                if len(l_s) > 3 and l_s[0] == 'onednn_verbose' and d == driver:
+                    # filter out additional forward calls
+                    verbose_prop_kind = l_s[5]
+                    if benchdnn_prop_kind != None and verbose_prop_kind != benchdnn_prop_kind:
+                        continue
+                    # filter out cases with runtime dims
+                    if benchdnn_with_rt_dims:
+                        continue
+                    # found primitive creation for the test case
+                    # remove time
+                    l_wo_time = "".join(f + ','
+                                        for f in l.split(',')[0:-1])[0:-1]
+                    v += l_wo_time + '\n'
+                    break
+    return [status.get('SUCCESS'), ''], v
+
+
 def generate_verbose(path_to_benchdnn, driver, batch):
     benchdnn_exe = path_to_benchdnn + '/benchdnn'
     sub_env = os.environ.copy()
-    sub_env['ONEDNN_VERBOSE'] = '1'
+    sub_env['ONEDNN_VERBOSE'] = '2'
     sub_env['ONEDNN_PRIMITIVE_CACHE_CAPACITY'] = '0'
     sub_args = [
-        benchdnn_exe, f"--{driver}", f"--mode=R", f"-v1", f"--batch={batch}"
+        benchdnn_exe, f"--{driver}", f"--mode=I", f"-v1", f"--batch={batch}"
     ]
     try:
         sub = subprocess.run(sub_args,
@@ -70,59 +120,16 @@ def generate_verbose(path_to_benchdnn, driver, batch):
         return [status.get('FAILED'), \
                 f"subprocess.run() returned {sub.returncode},\n" + \
                 f"args: {sub_args}\nstderr: {sub.stderr}"], ""
-    v = ''
-    # strip benchdnn and primitive execution time from verbose
-    v_str = sub.stdout.splitlines()
-    benchdnn_prop_kind = None
-    benchdnn_with_rt_dims = False
-    for l in v_str:
-        if l.find("run: ") != -1:
-            # detect prop kind in benchdnn log
-            dir = '--prop=' if driver == 'rnn' else '--dir='
-            dir_start = l.find(dir)
-            if dir_start != -1:
-                dir_end = l.find(' ', dir_start)
-                benchdnn_prop_kind = convert_dir_benchdnn2verbose(
-                    l[dir_start + len(dir):dir_end])
-            else:
-                benchdnn_prop_kind = None
-            # detect runtime dims
-            rt_mask = '--runtime_dims_masks='
-            rt_mask_start = l.find(rt_mask)
-            if rt_mask_start != -1:
-                rt_mask_end = l.find(' ', rt_mask_start)
-                benchdnn_rt_dims = l[rt_mask_start + len(rt_mask):rt_mask_end]
-                if benchdnn_rt_dims != '0:0':
-                    benchdnn_with_rt_dims = True
-            else:
-                benchdnn_with_rt_dims = False
 
-        # detect driver
-        l_s = l.split(',')
-        d = benchdnn_gen.convert_driver(l_s[3]) if len(l_s) > 3 else ''
-        if len(l_s) > 3 and l_s[0] == 'onednn_verbose' and d == driver:
-            # filter out creation calls
-            verbose_operation = l_s[1]
-            if verbose_operation != 'exec': continue
-            # filter out additional forward calls
-            verbose_prop_kind = l_s[5]
-            if benchdnn_prop_kind != None and verbose_prop_kind != benchdnn_prop_kind:
-                continue
-            # filter out cases with runtime dims
-            if benchdnn_with_rt_dims:
-                continue
-
-            # remove time
-            l_wo_time = "".join(f + ',' for f in l.split(',')[0:-1])[0:-1]
-
-            v += l_wo_time + '\n'
-
-    return [status.get('SUCCESS'), ''], v
+    return filter_verbose(sub.stdout, driver=driver)
 
 
 def generate_batch(verbose, driver):
     verbose = verbose.splitlines()
-    aggregate_opts = ['engine', 'prim_kind', 'impl', 'prop_kind', 'mds', 'exts', 'alg_kind', 'shapes']
+    aggregate_opts = [
+        'engine', 'prim_kind', 'impl', 'prop_kind', 'mds', 'exts', 'alg_kind',
+        'shapes'
+    ]
     s, data = verbose_converter.convert(verbose_level=0,
                                         parser='oneDNN',
                                         input=verbose,
