@@ -117,11 +117,10 @@ int get_os_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust,
     } else
         assert(!"unsupported case");
 
-    if (is_adjustment) max_os_block /= 2;
-    int os_block = 1;
-    if (min_os_block > 0 && max_os_block > 0)
-        os_block = nstl::max(max_div(jbgp.os, max_os_block), min_os_block);
-    if (os_block == 1) os_block = nstl::min(jbgp.os, max_os_block);
+    if (is_adjustment) max_os_block = nstl::max(max_os_block / 2, 1);
+    assert(min_os_block > 0 && max_os_block > 0);
+    int os_block = max_div(jbgp.os, max_os_block);
+    if (os_block < min_os_block) os_block = nstl::min(jbgp.os, max_os_block);
 
     // Use large os-block to reduce bandwidth requirement.
     if (jbgp.use_small_os_kernels) os_block = jbgp.os;
