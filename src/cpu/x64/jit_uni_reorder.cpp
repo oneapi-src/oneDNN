@@ -480,48 +480,20 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
         // TODO: support tail_processing for direct copy
 
-        const bool do_src_zp = prb_.req_src_zp;
-        const bool do_dst_zp = prb_.req_dst_zp;
-        const bool zp_applicable = IMPLICATION(
-                (do_src_zp || do_dst_zp), utils::one_of(prb_.itype, s32, f32));
-
         const bool can_do = mayiuse(isa) && !compensation_needed_
                 && utils::everyone_is(desirable_stride, prb_.os(0), prb_.is(0))
-                && ((prb_.itype == prb_.otype ? zp_applicable : false)
+                && ((prb_.itype == prb_.otype)
                         || (prb_.itype == s32 && prb_.otype == f32)
                         || (prb_.itype == f32 && prb_.otype == s32))
                 && len_unroll % simd_w == 0 && prb_.n(0) % len_unroll == 0
                 && !prb_.is_tail_present
                 && prb_.src_scale_type == scale_type_t::NONE
-                && prb_.dst_scale_type == scale_type_t::NONE
-                && prb_.beta == 0.f;
+                && prb_.dst_scale_type == scale_type_t::NONE && !prb_.req_src_zp
+                && !prb_.req_dst_zp && prb_.beta == 0.f;
         if (!can_do) return false;
 
-        static constexpr int vmm_zp_last_idx = 15;
-        const auto vmm_src_zp
-                = Vmm(do_dst_zp ? vmm_zp_last_idx - 1 : vmm_zp_last_idx);
-        if (do_src_zp) {
-            uni_vpbroadcastd(vmm_src_zp, PARAM(src_zp));
-            uni_vcvtdq2ps(vmm_src_zp, vmm_src_zp);
-        }
-        const auto vmm_dst_zp = Vmm(vmm_zp_last_idx);
-        if (do_dst_zp) {
-            uni_vpbroadcastd(vmm_dst_zp, PARAM(dst_zp));
-            uni_vcvtdq2ps(vmm_dst_zp, vmm_dst_zp);
-        }
-
-        const auto apply_zp_ps = [&](const Vmm vmm) {
-            if (do_src_zp) uni_vsubps(vmm, vmm, vmm_src_zp);
-            if (do_dst_zp) uni_vaddps(vmm, vmm, vmm_dst_zp);
-        };
-
         for (int off = 0; off < len_unroll;) {
-            // TODO: we need extra reg for proper saturation if otype == s32
-            int unroll = nstl::min(
-                    16 - (prb_.otype == s32), (len_unroll - off) / simd_w);
-            unroll = (do_src_zp || do_dst_zp)
-                    ? nstl::min(unroll, 16 - do_src_zp - do_dst_zp)
-                    : unroll;
+            int unroll = nstl::min(16, (len_unroll - off) / simd_w);
 
             for (int ur = 0; ur < unroll; ++ur) {
                 const auto vmm = Vmm(ur);
@@ -533,23 +505,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     const auto vmm = Vmm(ur);
                     if (prb_.itype == s32 && prb_.otype == f32) {
                         uni_vcvtdq2ps(vmm, vmm);
-                        apply_zp_ps(vmm);
                     } else if (prb_.itype == f32 && prb_.otype == s32) {
-                        apply_zp_ps(vmm);
                         uni_vcvtps2dq(vmm, vmm);
                     } else
                         assert(!"unreachable");
-                }
-            } else if (do_src_zp || do_dst_zp) {
-                for (int ur = 0; ur < unroll; ++ur) {
-                    const auto vmm = Vmm(ur);
-                    if (prb_.otype == f32) {
-                        apply_zp_ps(vmm);
-                    } else if (prb_.otype == s32) {
-                        uni_vcvtdq2ps(vmm, vmm);
-                        apply_zp_ps(vmm);
-                        uni_vcvtps2dq(vmm, vmm);
-                    }
                 }
             }
 
