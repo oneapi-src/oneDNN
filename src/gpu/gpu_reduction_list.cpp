@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 #include "gpu/gpu_impl_list.hpp"
 
 #include "gpu/ocl/combined_reduction.hpp"
-#include "gpu/ocl/gen9_reduction.hpp"
 #include "gpu/ocl/ref_reduction.hpp"
 
 namespace dnnl {
@@ -29,7 +28,6 @@ namespace {
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_REDUCTION_P({
         INSTANCE(ocl::combined_reduction_t)
-        INSTANCE(ocl::gen9_reduction_t)
         INSTANCE(ocl::ref_reduction_t)
         nullptr,
 });
