@@ -767,4 +767,6 @@ dnnl_data_type_t deduce_cfg_data_type(
         dnnl_data_type_t in_dt, const attr_t &attr, data_kind_t dk);
 
 void get_gpu_profiling_info(uint64_t &nsec, double &freq, int mode);
+void finalize();
+
 #endif

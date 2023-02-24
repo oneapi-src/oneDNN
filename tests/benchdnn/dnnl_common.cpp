@@ -356,6 +356,11 @@ void get_gpu_profiling_info(uint64_t &nsec, double &freq, int mode) {
 #endif
 }
 
+void finalize() {
+    reset_gpu_profiling();
+    finalize_tbb();
+}
+
 bool should_stop(const timer::timer_t &t) {
     const bool stop = false
             || (fix_times_per_prb && t.times() >= fix_times_per_prb)

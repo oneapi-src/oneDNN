@@ -86,7 +86,8 @@ struct prb_t : public prb_vdims_t {
         , attr(attr)
         , ctx_init(ctx_init)
         , ctx_exe(ctx_exe)
-        , scales(NULL) {
+        , scales(NULL)
+        , dst_scales(NULL) {
 
         // Broadcast data types if needed
         if (dt.size() == 1) {
@@ -107,11 +108,13 @@ struct prb_t : public prb_vdims_t {
         ops = 2. * nelems * k;
 
         generate_oscales();
+        generate_dst_scales();
         src_zp = generate_zero_points(DNNL_ARG_SRC, attr.zero_points, k);
         dst_zp = generate_zero_points(DNNL_ARG_DST, attr.zero_points, n);
     }
     ~prb_t() {
         if (scales) zfree(scales);
+        if (dst_scales) zfree(dst_scales);
         if (src_zp) zfree(src_zp);
         if (dst_zp) zfree(dst_zp);
     }
@@ -130,7 +133,7 @@ struct prb_t : public prb_vdims_t {
     thr_ctx_t ctx_init, ctx_exe;
 
     double ops;
-    float *scales;
+    float *scales, *dst_scales;
     int32_t *src_zp, *dst_zp;
 
     const dims_t &src_dims() const { return vdims[0]; }
@@ -172,6 +175,7 @@ struct prb_t : public prb_vdims_t {
     }
 
     void generate_oscales();
+    void generate_dst_scales();
     int32_t *generate_zero_points(
             int arg, const attr_t::zero_points_t &zero_points, int N);
 

@@ -228,6 +228,14 @@ int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
+    auto is_xf16 = [](dnnl_data_type_t dt) {
+        return dt == dnnl_bf16 || dt == dnnl_f16;
+    };
+    if (!IMPLICATION(is_xf16(prb->bia_dt) || is_xf16(prb->dst_dt()),
+                is_xf16(prb->wei_dt()))) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
     skip_unimplemented_data_type(
             {prb->src_dt(), prb->wei_dt(), prb->bia_dt, prb->dst_dt()},
             prb->dir, res);
@@ -524,6 +532,19 @@ int doit(const prb_t *prb, res_t *res) {
             ? v16_scales.data()
             : (const float *)scales;
 
+    assert(prb->attr.scales.get(DNNL_ARG_DST).policy == policy_t::COMMON);
+    const int64_t dst_scales_count = 1;
+    dnn_mem_t dst_scales(
+            1, &dst_scales_count, dnnl_f32, tag::x, get_test_engine());
+    for (int64_t c = 0; c < dst_scales_count; ++c)
+        // precompute inverted dst scales as expected in brgemm implementation
+        dst_scales.set_elem(c, 1.f / prb->dst_scales[c]);
+
+    // Handle output scale common policy separately since the implementation
+    // always expects them to be of vector length in case of `common` policy.
+    std::vector<float> v16_dst_scales(16, 1.f / prb->dst_scales[0]);
+    const float *dst_scales_ptr = v16_dst_scales.data();
+
     char *acc_ptr = (char *)acc_dt;
 
     const int32_t *dst_zp_ptr = (const int32_t *)dst_zero_points_m;
@@ -556,7 +577,8 @@ int doit(const prb_t *prb, res_t *res) {
             /* skip_accumulation */ brgemm_attr.generate_skip_accumulation,
             /* zp_a_val */ zp_a_val,
             /* do_only_comp */ false,
-            /* do_only_zp_a_val */ false);
+            /* do_only_zp_a_val */ false,
+            /* dst_scales */ dst_scales_ptr);
 
     auto scratchpad_size = brgemm_desc.get_wsp_buffer_size();
     std::vector<char> scratchpad(scratchpad_size);

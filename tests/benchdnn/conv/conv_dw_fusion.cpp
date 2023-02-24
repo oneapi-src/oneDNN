@@ -51,7 +51,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
     auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
     if (wei_scale.policy == policy_t::PER_OC) {
-        auto wei_mask = prb->has_groups ? 2 : 1;
+        auto wei_mask = prb->has_groups ? 3 : 1;
         attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, prb->wei_scales,
                 prb->oc, wei_mask);
     }
@@ -394,7 +394,8 @@ int doit(const prb_t *prb, res_t *res) {
 
     int dw_wei_mask = attr_t::get_default_mask(
             p1->attr.scales.get(DNNL_ARG_WEIGHTS).policy, DNNL_ARG_WEIGHTS);
-    if (p1->has_groups) dw_wei_mask = (1 << dw_wei_mask) + 1;
+    if (p1->has_groups && dw_wei_mask != 0)
+        dw_wei_mask = (1 << dw_wei_mask) + 1;
     const int dw_dst_mask = attr_t::get_default_mask(
             p1->attr.scales.get(DNNL_ARG_DST).policy);
     maybe_prepare_runtime_scales_v2(wei_scales_dt1, wei_scales_fp1,

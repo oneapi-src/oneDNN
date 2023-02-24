@@ -83,6 +83,15 @@ void prb_t::generate_oscales() {
     }
 }
 
+void prb_t::generate_dst_scales() {
+    const auto &dst_sc = attr.scales.get(DNNL_ARG_DST);
+
+    assert(dst_sc.policy == policy_t::COMMON);
+    dst_scales = (float *)zmalloc(sizeof(float), 4);
+    SAFE_V(dst_scales != nullptr ? OK : FAIL);
+    dst_scales[0] = dst_sc.scale;
+}
+
 int32_t *prb_t::generate_zero_points(
         int arg, const attr_t::zero_points_t &zero_points, int N) {
     if (zero_points.is_def(arg)) return nullptr;
