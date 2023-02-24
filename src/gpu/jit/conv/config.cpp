@@ -1229,20 +1229,19 @@ void init_hoist_masks_from_compute_loop(conv_config_t &cfg) {
     cfg.set_hoist_masks_from_compute_loop(true);
 }
 
-void init_ow_kw_grf_cache(conv_config_t &cfg) {
+bool can_use_ow_kw_cache(const conv_config_t &cfg) {
     const auto &prb = cfg.prb();
     if (!prb.is_fwd || !is_small_ic(prb) || prb.kw < 3 || is_dw_large_mb(prb))
-        return;
-    if (cfg.is_dp_fma()) return;
-    if (cfg.fuse_spatial()) return;
+        return false;
+    if (cfg.is_dp_fma()) return false;
+    if (cfg.fuse_spatial()) return false;
 
     const int iw_blk_limit = 40;
     const int max_ow_blk = 16;
     int max_iw_blk
             = (prb.sw * (max_ow_blk - 1) + (prb.kw - 1) * (1 + prb.dw) + 1);
-    if (max_iw_blk > iw_blk_limit) return;
-
-    cfg.set_ow_kw_grf_cache(true);
+    if (max_iw_blk > iw_blk_limit) return false;
+    return true;
 }
 
 void init_common_blocking(conv_config_t &cfg, block_helper_t &bh) {
@@ -1422,7 +1421,7 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
 
     if (prb.oc == 1 && prb.ic == 1) { bh.set_expand_m_block_hint(); }
 
-    if (cfg.ow_kw_grf_cache()) {
+    if (can_use_ow_kw_cache(cfg)) {
         bh.set_base_iter_block("mb", 1);
         bh.dim("mb").set_iter_dim(1);
         bh.set_max_iter_dim("mb", 1);
@@ -1480,7 +1479,7 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
         use_sp_blocking = true;
     } else if (prb.is_dw && !is_dw_large_mb(prb)) {
         use_sp_blocking = true;
-    } else if (cfg.is_g_mad() || cfg.ow_kw_grf_cache()) {
+    } else if (cfg.is_g_mad() || can_use_ow_kw_cache(cfg)) {
         use_sp_blocking = true;
     }
 
@@ -2001,7 +2000,6 @@ status_t try_init_cfg(conv_config_t &cfg) {
     init_send_2d_nhwc(cfg);
     init_fuse_spatial(cfg);
     init_hoist_masks_from_compute_loop(cfg);
-    init_ow_kw_grf_cache(cfg);
     init_blocking(cfg);
     init_bwd_d_optimize_strided(cfg);
     init_pipeline(cfg);

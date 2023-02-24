@@ -561,16 +561,6 @@ public:
     static const bool default_value;
 };
 
-class ow_kw_grf_cache_param_t : public bool_param_t {
-public:
-    ow_kw_grf_cache_param_t() : bool_param_t(false) {}
-    std::string name() const override { return "ow-kw-grf-cache"; }
-    std::string desc() const override {
-        return "Whether to use GRF cache to reuse source for ow/kw pairs";
-    }
-    bool is_overridable() const override { return false; }
-};
-
 class pad_slm_param_t : public bool_param_t {
 public:
     pad_slm_param_t() : bool_param_t(default_value) {}
@@ -944,7 +934,6 @@ public:
     DECL_PARAM(hint)
     DECL_PARAM(hoist_masks_from_compute_loop)
     DECL_PARAM(kernel_grid)
-    DECL_PARAM(ow_kw_grf_cache)
     DECL_PARAM(pad_slm)
     DECL_PARAM(prb)
     DECL_PARAM(send_2d_nhwc)
@@ -1138,7 +1127,6 @@ private:
     INIT_PARAM(iter_dims)
     INIT_PARAM(kernel_grid)
     INIT_PARAM(loop_dims)
-    INIT_PARAM(ow_kw_grf_cache)
     INIT_PARAM(pad_slm)
     INIT_PARAM(padded_dims)
     INIT_PARAM(pipeline)

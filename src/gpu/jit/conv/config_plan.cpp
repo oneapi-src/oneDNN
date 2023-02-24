@@ -1670,7 +1670,6 @@ private:
         bool do_unroll = cfg_.pipeline().do_unroll();
         if (plan_.reuse_headers) do_unroll = false;
         cfg_.pipeline().set(do_unroll, plan_.reuse_headers);
-        cfg_.set_ow_kw_grf_cache((bool)a_direct_view_);
     }
 
     plan_status_t try_init_plan() {
