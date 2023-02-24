@@ -93,10 +93,11 @@ status_t sycl_hip_stream_t::init() {
 status_t sycl_hip_stream_t::interop_task(
         std::function<void(::sycl::handler &)> sycl_hip_interop_) {
     try {
-        this->set_deps({queue().submit([&](::sycl::handler &cgh) {
+        auto event = queue().submit([&](::sycl::handler &cgh) {
             cgh.depends_on(sycl_ctx().get_sycl_deps().events);
             sycl_hip_interop_(cgh);
-        })});
+        });
+        this->sycl_ctx().get_sycl_deps().events = {event};
         return status::success;
     } catch (std::runtime_error &e) {
         error::wrap_c_api(status::runtime_error, e.what());
