@@ -85,6 +85,37 @@ output = verbose_converter.convert(verbose_level, parser, input, action,
 | benchdnn  | benchdnn test cases               |
 | breakdown | breakdown of execution statistics |
 
+#### Benchdnn generator
+The benchdnn generator outputs test cases for benchdnn
+
+```
+> echo "onednn_verbose,exec,cpu,convolution,jit:avx2,forward_training,src_f32::blocked:acb:f0 wei_f32::blocked:aBdc8b:f0 bia_f32::blocked:a:f0 dst_f32::blocked:acb:f0,,alg:convolution_direct,g1mb2_ic3oc16_iw5ow5kw3sw1dw0pw1" | ./scripts/verbose_converter/verbose_converter.py
+--conv --reset --allow-enum-tags-only=0 --engine=cpu --dir=FWD_B --alg=direct --cfg=f32  --stag=acb --wtag=aBdc8b --dtag=acb   g1mb2_ic3oc16_iw5ow5kw3sw1dw0pw1
+```
+
+As an example, if we collect the verbose output of the `primitives-convolution-cpp` example
+```
+> ONEDNN_VERBOSE=1 primitives-convolution-cpp > input.log
+```
+
+If we want to validate multiple primitives they should be split by driver type
+prior to benchdnn:
+
+```
+> ./scripts/verbose_converter/verbose_converter.py -i input.log -s True
+--reorder
+ --reset --allow-enum-tags-only=0 --engine=cpu    --sdt=f32 --ddt=f32  --stag=abcd --dtag=aBcd8b   3x32x13x13
+ --reset --allow-enum-tags-only=0 --engine=cpu    --sdt=f32 --ddt=f32  --stag=abcd --dtag=ABcd8b8a   64x32x3x3
+ --reset --allow-enum-tags-only=0 --engine=cpu    --sdt=f32 --ddt=f32  --stag=aBcd8b --dtag=abcd   3x64x4x4
+ --reset --allow-enum-tags-only=0 --engine=cpu    --sdt=f32 --ddt=f32  --stag=abcd --dtag=aBcd8b   3x32x13x13
+ --reset --allow-enum-tags-only=0 --engine=cpu    --sdt=f32 --ddt=f32  --stag=abcde --dtag=Abcde8a   32x1x1x3x3
+ --reset --allow-enum-tags-only=0 --engine=cpu    --sdt=f32 --ddt=f32  --stag=aBcd8b --dtag=abcd   3x32x4x4
+
+--conv
+ --reset --allow-enum-tags-only=0 --engine=cpu --dir=FWD_B --alg=direct --cfg=f32  --stag=aBcd8b --wtag=ABcd8b8a --dtag=aBcd8b  --attr-post-ops=eltwise_relu mb3_ic32oc64_ih13oh4kh3sh4dh0ph1_iw13ow4kw3sw4dw0pw1
+ --reset --allow-enum-tags-only=0 --engine=cpu --dir=FWD_B --alg=direct --cfg=f32  --stag=aBcd8b --wtag=Abcde8a --dtag=aBcd8b  --attr-post-ops=eltwise_relu g32mb3_ic32oc32_ih13oh4kh3sh4dh0ph1_iw13ow4kw3sw4dw0pw1
+```
+
 #### Breakdown generator
 The breakdown generator outputs a csv table, where statistics (number
 of occurences and timings) are aggregated according to the
