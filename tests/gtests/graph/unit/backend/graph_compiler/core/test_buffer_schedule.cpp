@@ -396,11 +396,11 @@ TEST(GCCore_buffer_schedule_cpp, TestThreadLocal) {
             b[0] = 1;
             _tensor_(c, datatypes::f32, {20UL});
             bld.get_current_scope().body.back().checked_as<define>()->init_
-                    = builder::tensor_ptr(resch.get(), {256UL});
+                    = builder::tensor_ptr(resch.get(), {512UL});
             c[10] = b[0];
             _tensor_(f, datatypes::f32, {50UL});
             bld.get_current_scope().body.back().checked_as<define>()->init_
-                    = builder::tensor_ptr(resch.get(), {384UL});
+                    = builder::tensor_ptr(resch.get(), {256UL});
             _for_(j, 0, 100, 1, for_type::PARALLEL) {
                 // parallel scope 1
                 _tensor_(resch_in_parallel_0, datatypes::s8, {384UL});
@@ -490,7 +490,7 @@ TEST(GCCore_buffer_schedule_cpp, TestArgBuff) {
 
     _function_(datatypes::void_t, aaa, _arg_("a", datatypes::f32, {100})) {
         _bind_(a);
-        a->attr()["out_buffer"] = true;
+        a->attr()["write_buffer"] = true;
         _tensor_(b, datatypes::f32, {50});
         b[10] = 123.f;
         _tensor_(c, datatypes::f32, {1000});
@@ -514,7 +514,7 @@ TEST(GCCore_buffer_schedule_cpp, TestArgBuff) {
 
     _function_(datatypes::void_t, aaa2, _arg_("a", datatypes::f32, {100})) {
         _bind_(a);
-        a->attr()["out_buffer"] = true;
+        a->attr()["write_buffer"] = true;
         _tensor_(b, datatypes::f32, {50});
         a[0] = 1.f;
         // cannot reuse a for b, because b may write to the final result of a
@@ -529,7 +529,7 @@ TEST(GCCore_buffer_schedule_cpp, TestDeadWriteEliminate) {
             _arg_("b", datatypes::f32, {100})) {
         _bind_(a, b);
         b[10] = 123;
-        a->attr()["out_buffer"] = true;
+        a->attr()["write_buffer"] = true;
         _tensor_(c, datatypes::f32, {50});
         c[10] = 123.f;
         _tensor_(d, datatypes::f32, {1000});
@@ -546,7 +546,7 @@ TEST(GCCore_buffer_schedule_cpp, TestDeadWriteEliminate) {
             _arg_("b", datatypes::f32, {100})) {
         _bind_(a, b);
         b[10] = 123;
-        a->attr()["out_buffer"] = true;
+        a->attr()["write_buffer"] = true;
         bld.push_scope();
         bld.emit(bld.pop_scope());
         a[10] = 123.f;
@@ -906,4 +906,62 @@ TEST(GCCore_buffer_schedule_cpp, TestAlreadyScheduled) {
 
     ir_comparer cmper {true};
     EXPECT_TRUE(cmper.compare(pass(main_entry), expected, false));
+}
+
+TEST(GCCore_buffer_schedule_cpp, TestInplaceOutputArg) {
+    ir_builder_t bld;
+    _function_(datatypes::void_t, main_entry,
+            _arg_("out", datatypes::f32, {100})) {
+        _bind_(out);
+        out->attr()["write_buffer"] = true;
+        _tensor_(A, datatypes::f32, 100);
+        A[0] = 1;
+        _tensor_(B, datatypes::f32, 100);
+        auto id_B = alias_info::get_or_create_alias_info(*B.get());
+        B[0] = 1;
+        _tensor_(C, datatypes::f32, 50);
+        auto id_C = alias_info::get_or_create_alias_info(*C.get());
+        C->attr()[attr_keys::tensor_inplace_hint]
+                = std::vector<temp_tensor_inplace_info_t> {
+                        {id_B, inplace_kind::ZERO_OFFSET}};
+        C[0] = 1;
+        B[0] = 1;
+        out->attr()[attr_keys::tensor_inplace_hint]
+                = std::vector<temp_tensor_inplace_info_t> {
+                        {id_C, inplace_kind::ZERO_OFFSET}};
+    }
+    _function_(
+            datatypes::void_t, expected, _arg_("out", datatypes::f32, {100})) {
+        _bind_(out);
+        out->attr()["write_buffer"] = true;
+        _tensor_(sched, datatypes::s8, UINT64_C(448));
+        _tensor_(A, datatypes::f32, 100);
+        bld.get_current_scope().body.back().checked_as<define>()->init_
+                = builder::tensor_ptr(sched, {UINT64_C(0)});
+        A[0] = 1;
+        _tensor_(B, datatypes::f32, 100);
+        bld.get_current_scope().body.back().checked_as<define>()->init_
+                = builder::tensor_ptr(out, {UINT64_C(0)});
+        auto id_B = alias_info::get_or_create_alias_info(*B.get());
+        B[0] = 1;
+        _tensor_(C, datatypes::f32, 50);
+        bld.get_current_scope().body.back().checked_as<define>()->init_
+                = builder::tensor_ptr(out, {UINT64_C(0)});
+        auto id_C = alias_info::get_or_create_alias_info(*C.get());
+        C->attr()[attr_keys::tensor_inplace_hint]
+                = std::vector<temp_tensor_inplace_info_t> {
+                        {id_B, inplace_kind::ZERO_OFFSET}};
+        C[0] = 1;
+        B[0] = 1;
+        out->attr()[attr_keys::tensor_inplace_hint]
+                = std::vector<temp_tensor_inplace_info_t> {
+                        {id_C, inplace_kind::ZERO_OFFSET}};
+    }
+
+    auto ctx = make_ctx();
+    ctx->flags_.buffer_schedule_ = 2;
+    buffer_scheduler_t pass {ctx, false, true};
+    auto out = pass(main_entry);
+    ir_comparer cmper {true};
+    EXPECT_TRUE(cmper.compare(out, expected, false));
 }

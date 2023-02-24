@@ -109,11 +109,11 @@ TEST(GCCore_tensor_inplace_cpp, TestSimpleSchedule) {
 
         _tensor_(E, datatypes::f32, 100);
         bld.get_current_scope().body.back().checked_as<define>()->init_
-                = builder::tensor_ptr(sched, {UINT64_C(0)});
+                = builder::tensor_ptr(sched, {UINT64_C(896)});
         E[0] = 1;
         _tensor_(temp2, datatypes::f32, 100);
         bld.get_current_scope().body.back().checked_as<define>()->init_
-                = builder::tensor_ptr(sched, {UINT64_C(0)});
+                = builder::tensor_ptr(sched, {UINT64_C(896)});
         // we can reuse E for temp1
         _evaluate_call_(bbb->decl_, E, B, temp2);
         C[1] = temp2[1];

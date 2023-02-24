@@ -124,6 +124,10 @@ void tensor_detail_to_ir_tensor(sc_graph_t &graph,
 
 void mxp_buffer_allocator::set_buffer_inplace_hint(
         const expr &target_buf, const expr &inplace_buf) {
+    COMPILE_ASSERT(target_buf.defined() && inplace_buf.defined(),
+            "Both buffer should be defined")
+    // skip same buffer
+    if (inplace_buf.ptr_same(target_buf)) return;
     auto target_id = alias_info::get_or_create_alias_info(*target_buf.get());
     SC_MODULE_INFO << "Mark inplace hint for buffer: " << inplace_buf << " ==> "
                    << target_buf;
@@ -615,6 +619,16 @@ static void collect_inplace_info(graph_tensor *cur_gt, graph_tensor *ref_gt,
     }
 }
 
+expr mxp_buffer_allocator::get_inplaced_buffer(const expr &buf) const {
+    auto iter = inplace_map_.find((uintptr_t)buf.get());
+    if (iter != inplace_map_.end()) {
+        COMPILE_ASSERT(iter->second.size() == 1,
+                "Unexpected inplace info size during partition")
+        return ((expr_base *)iter->second[0].first)->node_ptr_from_this();
+    }
+    return expr();
+}
+
 void mxp_buffer_allocator::query_buffer_inplace() {
     SC_MODULE_INFO << "Query buffer inplace hint...";
     // step 0: get outer loop
@@ -693,6 +707,22 @@ void mxp_buffer_allocator::query_buffer_inplace() {
             replaced_buffer.insert(inplace_buf);
         }
     }
+}
+
+void mxp_buffer_allocator::validate_buffer() {
+    // collect cut buffer
+    std::unordered_set<expr> cut_buffer_set;
+    for (auto &hint : inplace_map_) {
+        auto buf = ((expr_base *)hint.first)->node_ptr_from_this();
+        if (!buf->attr().has_key(mixed_partition_hint::cut_buffer)) continue;
+        // remove tensor shrink attr for those shared with cut buffer
+        while (buf.defined()) {
+            cut_buffer_set.insert(buf);
+            buf->attr().remove(tensor_shrinker_attrs::should_shrink);
+            buf = get_inplaced_buffer(buf);
+        }
+    }
+
     // validate inplace hint for shrink info
     for (auto iter = inplace_map_.begin(); iter != inplace_map_.end();) {
         auto &hint = (*iter);
@@ -700,17 +730,24 @@ void mxp_buffer_allocator::query_buffer_inplace() {
         COMPILE_ASSERT(hint.second.size() == 1,
                 "Unexpected inplace info size during partition")
         auto buf2 = ((expr_base *)hint.second[0].first)->node_ptr_from_this();
-        // if attached anchor is not equal
-        if (get_real_anchor_for_buffer(buf1)
-                != get_real_anchor_for_buffer(buf2)) {
-            SC_MODULE_INFO << "removing tensor inplace hint: " << buf1
-                           << " ==> " << buf2 << " for safety";
-            // remove inplace hint to ensure correctness
-            buf1->attr().remove(attr_keys::tensor_inplace_hint);
-            // remove inplace map
-            iter = inplace_map_.erase(iter);
-        } else {
+        // auto skip cut buffer
+        if (cut_buffer_set.find(buf1) != cut_buffer_set.end()) {
+            COMPILE_ASSERT(cut_buffer_set.find(buf2) != cut_buffer_set.end(),
+                    "inplaced buffer should also be set cut buffer")
             ++iter;
+        } else {
+            // if attached anchor is not equal
+            if (get_real_anchor_for_buffer(buf1)
+                    != get_real_anchor_for_buffer(buf2)) {
+                SC_MODULE_INFO << "removing tensor inplace hint: " << buf1
+                               << " ==> " << buf2 << " for safety";
+                // remove inplace hint to ensure correctness
+                buf1->attr().remove(attr_keys::tensor_inplace_hint);
+                // remove inplace map
+                iter = inplace_map_.erase(iter);
+            } else {
+                ++iter;
+            }
         }
     }
 }
@@ -2655,6 +2692,7 @@ void mixed_parti_t::buffer_schedule() {
     buf_alloc_.declare_tensor();
     buf_alloc_.set_shrink_info();
     buf_alloc_.query_buffer_inplace();
+    buf_alloc_.validate_buffer();
 }
 
 bool mixed_parti_t::is_parti_inp(const graph_tensor *gt) const {
