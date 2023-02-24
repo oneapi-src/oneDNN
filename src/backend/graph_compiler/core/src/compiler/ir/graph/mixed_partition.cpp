@@ -712,14 +712,39 @@ void mxp_buffer_allocator::query_buffer_inplace() {
 void mxp_buffer_allocator::validate_buffer() {
     // collect cut buffer
     std::unordered_set<expr> cut_buffer_set;
-    for (auto &hint : inplace_map_) {
-        auto buf = ((expr_base *)hint.first)->node_ptr_from_this();
-        if (!buf->attr().has_key(mixed_partition_hint::cut_buffer)) continue;
-        // remove tensor shrink attr for those shared with cut buffer
+    for (auto iter = inplace_map_.begin(); iter != inplace_map_.end();) {
+        auto &hint = (*iter);
+        auto out_buf = ((expr_base *)hint.first)->node_ptr_from_this();
+        if (!out_buf->attr().has_key(mixed_partition_hint::cut_buffer)) {
+            ++iter;
+            continue;
+        }
+        // temp buffer set
+        std::unordered_set<expr> temp_set;
+        // record whether tensorptr would be inplaced by cut buffer
+        bool inplace_tptr = false;
+        auto buf = out_buf;
         while (buf.defined()) {
-            cut_buffer_set.insert(buf);
-            buf->attr().remove(tensor_shrinker_attrs::should_shrink);
+            // if tensorptr found
+            if (buf.isa<tensorptr>()) {
+                inplace_tptr = true;
+                break;
+            }
+            temp_set.insert(buf);
             buf = get_inplaced_buffer(buf);
+        }
+        if (!inplace_tptr) {
+            // remove tensor shrink attr for those shared with cut buffer
+            for (auto &tb : temp_set) {
+                tb->attr().remove(tensor_shrinker_attrs::should_shrink);
+            }
+            cut_buffer_set.insert(temp_set.begin(), temp_set.end());
+            ++iter;
+        } else {
+            // cut off inplace hint for the output buffer
+            out_buf->attr().remove(attr_keys::tensor_inplace_hint);
+            // remove inplace map
+            iter = inplace_map_.erase(iter);
         }
     }
 
