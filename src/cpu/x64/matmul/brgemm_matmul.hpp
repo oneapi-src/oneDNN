@@ -105,7 +105,7 @@ private:
     status_t execute_body(const exec_ctx_t &ctx) const;
     void compute_kernel(const brg_matmul_exec_ctx_t &brgmm_ctx, int ithr,
             int b_idx, int m_blk_idx, int n_blk_idx, int k_blk_idx,
-            bool do_init) const;
+            bool do_init, int &prev_ker_idx) const;
     void copy_a_chunk_in_buffer(const brg_matmul_exec_ctx_t &brgmm_ctx,
             int ithr, int b_idx, int m_blk_idx, int k_blk_idx) const;
     void copy_b_chunk_in_buffer(const brg_matmul_exec_ctx_t &brgmm_ctx,
@@ -116,7 +116,7 @@ private:
             char *result_ptr, const char *reduce_ptr, size_t size) const;
 
     std::unique_ptr<brgemm_kernel_t> brg_kernels_[max_num_brg_kernels_matmul];
-    char brg_kernel_palettes_[max_num_brg_kernels_matmul][64];
+    alignas(64) char brg_kernel_palettes_[max_num_brg_kernels_matmul][64];
     std::unique_ptr<jit_brgemm_matmul_copy_b_t> copy_B_kernel_;
     std::unique_ptr<jit_brgemm_matmul_copy_a_t> copy_A_kernel_;
     std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_f32_;
