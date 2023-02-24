@@ -648,9 +648,9 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
     for (int i_M = M_begin; i_M < M_end; i_M++) {
         // init "init" and "po" kernels for cases then we never call brgemm kernels
         // e.g. for d/h padded areas
-        // TODO: do this only if d/h padding > kd/kh
         if (IMPLICATION(jcp.exec_type == exec_trans,
-                    jcp.od > jcp.id || jcp.oh > jcp.ih)) {
+                    jcp.f_pad > EXT_KD || jcp.back_pad > EXT_KD
+                            || jcp.t_pad > EXT_KH || jcp.b_pad > EXT_KH)) {
             auto M = (i_M) ? jcp.M_tail : jcp.M;
             add_po_kernels(i_N, M, M);
         }
