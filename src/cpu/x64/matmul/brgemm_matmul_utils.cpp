@@ -130,9 +130,10 @@ status_t check_isa_with_datatype(
                     one_of(isa, avx512_core_amx, avx512_core_vnni, avx2_vnni_2,
                             avx2_vnni))
             && IMPLICATION(bm_conf_utils.is_bf16(),
-                    one_of(isa, avx512_core_amx, avx512_core_bf16))
+                    one_of(isa, avx512_core_amx, avx512_core_bf16, avx2_vnni_2))
             && IMPLICATION(bm_conf_utils.is_f16(),
-                    one_of(isa, avx512_core_amx_fp16, avx512_core_fp16))
+                    one_of(isa, avx512_core_amx_fp16, avx512_core_fp16,
+                            avx2_vnni_2))
             && IMPLICATION(bm_conf_utils.is_int8_with_bf16_dst(),
                     is_superset(isa, avx512_core_vnni) || isa == avx2_vnni_2);
     return ok ? status::success : status::unimplemented;
@@ -306,8 +307,7 @@ format_tag_t brgemm_matmul_conf_utils_t::pick_blocked_B_layout(
             default: return format_tag::undef;
         }
 
-    if (this->is_bf16()
-            || (this->is_f16() && bgmmc.isa == avx512_core_amx_fp16))
+    if (this->is_bf16() || (this->is_f16() && bgmmc.isa != avx512_core_fp16))
         switch (n_blk) {
             case 64: return bgmmc.ndims == 3 ? aCB16b64c2b : BA16a64b2a;
             case 48: return bgmmc.ndims == 3 ? aCB16b48c2b : BA16a48b2a;
@@ -1070,6 +1070,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     const bool lda_is_big_2pow
             = (bm_conf_utils.is_bf16()
                       || (bgmmc.is_amx && bm_conf_utils.is_f16()))
+            && (bgmmc.isa != avx2_vnni_2) // no perf study yet.
             && !bgmmc.transposed_A && math::is_pow2(bgmmc.K) && bgmmc.K >= 4096
             && bgmmc.M >= 1024;
     const bool is_copy_a_required

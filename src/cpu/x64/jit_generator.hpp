@@ -305,6 +305,18 @@ public:
             return zword[re];
     }
 
+    template <typename T>
+    Xbyak::Address maybe_EVEX_compress_addr(
+            Xbyak::Reg64 base, T raw_offt, bool bcast = false) {
+        if (is_valid_isa(avx512_core))
+            return EVEX_compress_addr(base, raw_offt, bcast);
+        else {
+            assert(!bcast);
+            assert(raw_offt <= INT_MAX);
+            return ptr[base + raw_offt];
+        }
+    }
+
     Xbyak::Address make_safe_addr(const Xbyak::Reg64 &reg_out, size_t offt,
             const Xbyak::Reg64 &tmp_reg, bool bcast = false) {
         if (offt > INT_MAX) {
