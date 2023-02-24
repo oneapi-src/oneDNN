@@ -269,7 +269,8 @@ void check_conv_correctness_and_tuning_bwd_d(int N, int K, int C, int H, int W,
 }
 
 void check_conv_correctness_and_tuning_bwd_w(int N, int K, int C, int H, int W,
-        int R, int S, int stride, int padding) {
+        int R, int S, int stride, int padding,
+        sc_data_type_t dtype = datatypes::f32) {
     sc_graph_t mgr;
     std::vector<sc_op_ptr> fuse_arg_ops;
     sc_dims stride_arr = {stride, stride};
@@ -278,8 +279,18 @@ void check_conv_correctness_and_tuning_bwd_w(int N, int K, int C, int H, int W,
     int Q = (W + 2 * padding - S) / stride + 1;
     auto in_data = mgr.make_input({graph_tensor::make({N, C, H, W})});
     auto in_diff_dst = mgr.make_input({graph_tensor::make({N, K, P, Q})});
+    auto conv_in_data = in_data, conv_in_diff_dst = in_diff_dst;
+    if (dtype == datatypes::bf16) {
+        auto cast_data = mgr.make("cast", in_data->get_outputs(), {},
+                {{"dtype", datatypes::bf16}});
+        auto cast_diff_dst = mgr.make("cast", in_diff_dst->get_outputs(), {},
+                {{"dtype", datatypes::bf16}});
+        conv_in_data = cast_data;
+        conv_in_diff_dst = cast_diff_dst;
+    }
     auto conv_out = mgr.make("conv_bwd_weight_core",
-            {in_data->get_outputs()[0], in_diff_dst->get_outputs()[0]},
+            {conv_in_data->get_outputs()[0],
+                    conv_in_diff_dst->get_outputs()[0]},
             {graph_tensor::make({K, C, R, S})},
             {{"strides", stride_arr}, {"paddings", padding_arr},
                     {"weights_shape", sc_dims {K, C, R, S}}});
@@ -311,7 +322,12 @@ void check_conv_correctness_and_tuning_bwd_w(int N, int K, int C, int H, int W,
     compute_ref_bwd_weights(N, 1, K, C, H, W, P, Q, R, S, stride, stride,
             padding, padding, &mkldnn_data[0], &mkldnn_grad_weight[0],
             &mkldnn_grad[0]);
-    test_utils::compare_data(grad_weight, mkldnn_grad_weight, 1e-3, 5e-3);
+
+    if (dtype == datatypes::bf16) {
+        test_utils::compare_data(grad_weight, mkldnn_grad_weight, 1e-1, 5e-1);
+    } else {
+        test_utils::compare_data(grad_weight, mkldnn_grad_weight, 1e-3, 5e-3);
+    }
 }
 
 #define conv_padding_support_NXC 0
@@ -1081,6 +1097,16 @@ TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_1x1_3) {
 TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_1x1_4) {
     check_conv_correctness_and_tuning_bwd_w(28, 64, 64, 56, 56, 1, 1, 1, 2);
 }
+TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_1x1_5) {
+    REQUIRE_BF16();
+    check_conv_correctness_and_tuning_bwd_w(
+            1, 64, 64, 56, 56, 1, 1, 1, 0, datatypes::bf16);
+}
+TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_1x1_6) {
+    REQUIRE_BF16();
+    check_conv_correctness_and_tuning_bwd_w(
+            1, 64, 64, 56, 56, 1, 1, 2, 0, datatypes::bf16);
+}
 
 TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_3x3_1) {
     check_conv_correctness_and_tuning_bwd_w(28, 256, 128, 28, 28, 3, 3, 1, 0);
@@ -1103,4 +1129,14 @@ TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_3x3_6) {
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(28);
     check_conv_correctness_and_tuning_bwd_w(32, 32, 32, 56, 56, 3, 3, 2, 1);
+}
+TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_3x3_7) {
+    REQUIRE_BF16();
+    check_conv_correctness_and_tuning_bwd_w(
+            1, 64, 64, 56, 56, 3, 3, 1, 1, datatypes::bf16);
+}
+TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_3x3_8) {
+    REQUIRE_BF16();
+    check_conv_correctness_and_tuning_bwd_w(
+            1, 64, 64, 56, 56, 3, 3, 2, 1, datatypes::bf16);
 }
