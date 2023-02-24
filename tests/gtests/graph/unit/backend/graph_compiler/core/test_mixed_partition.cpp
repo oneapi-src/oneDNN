@@ -1368,6 +1368,39 @@ TEST(GCCore_graph_mixed_partition_cpp, TestGraphMarkInplaceHint4) {
     }));
 }
 
+TEST(GCCore_graph_mixed_partition_cpp, TestGraphMarkInplaceHint5) {
+    sc_graph_t graph;
+
+    int run_threads = 28;
+    thread_num_reset reseter;
+    // set threads envoriment
+    runtime_config_t::get().set_num_threads(run_threads);
+
+    auto input0 = graph.make_input({graph_tensor::make({28, 100, 200})});
+    auto input1 = graph.make_input({graph_tensor::make({28, 200, 100})});
+
+    auto relu0 = graph.make("relu", {input0->get_outputs()[0]}, {}, {});
+    // tensorptr
+    auto tv0 = graph.make("tensor_view", {relu0->get_outputs()[0]}, {},
+            {{"shape", sc_dims {28, 200, 100}}});
+    // add0 out will try to inplace tensorptr buffer
+    auto add0 = graph.make(
+            "add", {tv0->get_outputs()[0], input1->get_outputs()[0]}, {}, {});
+    // add0 is also output of the graph
+    auto output0 = graph.make_output(add0->get_outputs());
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    mixed_partition(graph, ctx);
+
+    mixed_fuse_op_t *fused_op = get_mixed_op_from_graph(graph);
+    COMPILE_ASSERT(fused_op, "No mixed fused op is found, please check")
+
+    // get output buffer named `add_4_outs_0`
+    auto output_buf = fused_op->parti_list_[0]->func_->params_[0];
+    // the output buffer should not do inplace due to tensorptr found
+    EXPECT_TRUE(!output_buf->attr().has_key(attr_keys::tensor_inplace_hint));
+}
+
 TEST(GCCore_graph_mixed_partition_cpp, TestUserDefinedShrintTensor) {
     sc_graph_t graph;
     auto ctx = get_test_ctx();
