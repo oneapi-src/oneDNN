@@ -100,8 +100,6 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     VCHECK_MATMUL(is_dense_data(), VERBOSE_NONTRIVIAL_STRIDE);
     VCHECK_MATMUL(mayiuse(isa), VERBOSE_UNSUPPORTED_ISA);
     VCHECK_MATMUL(problem_dt_correct, VERBOSE_UNSUPPORTED_DT);
-    VCHECK_MATMUL(IMPLICATION(is_f16, isa == avx512_core_fp16),
-            VERBOSE_ISA_DT_MISMATCH);
     VCHECK_MATMUL(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
     VCHECK_MATMUL(
             no_dynamic_strides_for_B_and_C, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
