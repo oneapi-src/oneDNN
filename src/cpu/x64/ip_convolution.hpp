@@ -261,7 +261,8 @@ struct ip_convolution_bwd_data_t : public primitive_t {
 
         pd_t(const pd_t &other)
             : cpu_convolution_bwd_data_pd_t(other)
-            , ip_pd_(other.ip_pd_->clone()) {}
+            , ip_pd_(other.ip_pd_->clone())
+            , name_(other.name_) {}
 
         ~pd_t() = default;
 
@@ -357,7 +358,8 @@ struct ip_convolution_bwd_weights_t : public primitive_t {
 
         pd_t(const pd_t &other)
             : cpu_convolution_bwd_weights_pd_t(other)
-            , ip_pd_(other.ip_pd_->clone()) {}
+            , ip_pd_(other.ip_pd_->clone())
+            , name_(other.name_) {}
 
         ~pd_t() = default;
 
