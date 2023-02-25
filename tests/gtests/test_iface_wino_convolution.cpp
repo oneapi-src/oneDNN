@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,12 +52,10 @@ protected:
 #if DNNL_X64
         const bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
         const bool is_gpu = get_test_engine_kind() == engine::kind::gpu;
-        static const auto isa = get_effective_cpu_isa();
-        static const bool has_avx512_core
-                = dnnl::is_superset(isa, cpu_isa::avx512_core);
-        input_f32.wino_supported = is_gpu || (is_cpu && has_avx512_core);
-        input_f16.wino_supported = is_gpu;
-        input_f32.backward_supported = is_cpu && impl::dnnl_thr_syncable();
+        input_f32.wino_supported = is_gpu || is_cpu;
+        input_f16.wino_supported = is_gpu || is_cpu;
+        input_int8.wino_supported = is_cpu;
+        input_f32.backward_supported = is_cpu;
 #elif DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
         const bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
         input_f32.wino_supported = is_cpu;
@@ -88,12 +86,7 @@ TEST_F(wino_conv_test_t, TestSmallPadding) {
                     fwd_hint = convolution_forward::primitive_desc(eng,
                             prop_kind::forward, algorithm::convolution_winograd,
                             src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1}));
-#if DNNL_X64
-            if (input.wei_dt == data_type::s8) {
-                EXPECT_EQ(fwd_hint.weights_desc().get_format_kind(),
-                        memory::format_kind::opaque);
-            }
-#endif
+
             if (input.backward_supported) {
                 EXPECT_NO_THROW(convolution_backward_data::primitive_desc(eng,
                         algorithm::convolution_winograd, src_md, wei_md, dst_md,
@@ -127,11 +120,14 @@ TEST_F(wino_conv_test_t, TestLargePadding) {
             EXPECT_NO_THROW(convolution_forward::primitive_desc(eng,
                     prop_kind::forward, algorithm::convolution_winograd, src_md,
                     wei_md, dst_md, {1, 1}, {2, 2}, {2, 2}));
-        } else {
+        }
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE || !defined(DNNL_X64)
+        else {
             EXPECT_ANY_THROW(convolution_forward::primitive_desc(eng,
                     prop_kind::forward, algorithm::convolution_winograd, src_md,
                     wei_md, dst_md, {1, 1}, {2, 2}, {2, 2}));
         }
+#endif
     }
 }
 
@@ -144,10 +140,11 @@ TEST_F(wino_conv_test_t, TestUnsupportedKernel) {
         memory::desc src_md {{1, 16, 5, 5}, input.dat_dt, tag::any};
         memory::desc wei_md {{32, 16, 2, 2}, input.wei_dt, tag::any};
         memory::desc dst_md {{1, 32, 6, 6}, input.dat_dt, tag::any};
-
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE || !defined(DNNL_X64)
         EXPECT_ANY_THROW(convolution_forward::primitive_desc(eng,
                 prop_kind::forward, algorithm::convolution_winograd, src_md,
                 wei_md, dst_md, {1, 1}, {1, 1}, {1, 1}));
+#endif
     }
 }
 
