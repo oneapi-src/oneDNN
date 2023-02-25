@@ -1633,7 +1633,8 @@ public:
         , prb_(cfg.prb())
         , plan_ptr_(get_plan())
         , plan_(*plan_ptr_)
-        , gemm_schedule_(plan_.gemm_schedule) {}
+        , gemm_schedule_(plan_.gemm_schedule)
+        , allow_slm_(cfg.hw() >= ngen::HW::XeLP) {}
 
     status_t init_plan() {
         plan_status_t status;
