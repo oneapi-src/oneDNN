@@ -205,6 +205,8 @@ bool try_emit_batched_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             auto s = src.subregister(ii, esize, src_type_size);
             auto t = tmp.subregister(dst_off + (ii - i_beg) * 4, small_type)(4);
             ngen::InstructionModifier mod = esize;
+            if (src_type == ngen::DataType::f && hw == ngen::HW::Gen9)
+                host->rnde(esize, s(1), s(1));
             if (dst_type == small_type) mod |= host->sat;
             plan(mov, mod, t, s(1));
             ii += esize;
@@ -557,6 +559,8 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             auto d = dst.subregister(i, esize, dst_stride_bytes);
             if (src_d || src_f) {
                 // d -> b.
+                if (src_f && hw == ngen::HW::Gen9)
+                    host->rnde(esize, s(src_stride), s(src_stride));
                 if (esize == 1) {
                     // relaxed F-pipe alignment requirements for f32 broadcast
                     auto t = tmp1.subregister(0, dst_type);
@@ -648,6 +652,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     esize, dst_stride);
             auto d_old = d;
 
+            if (src_f && hw == ngen::HW::Gen9) host->rnde(esize, s, s);
             bool do_d0_align = false;
             if (esize > 1 && dst_bf) {
                 bool d_0_aligned = (d.byte_offset() == 0);
