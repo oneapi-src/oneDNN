@@ -63,7 +63,9 @@ struct hw_context_t {
                 // Ensure bank/bundle pattern is repeated.
                 int j = (i % 64);
                 ir_assert((bank_masks[bank] & (1ull << j)) != 0);
-                ir_assert((bundle_masks[bundle] & (1ull << j)) != 0);
+                //XeLP and Gen9 only have two bundles
+                if (hw > ngen::HW::XeLP)
+                    ir_assert((bundle_masks[bundle] & (1ull << j)) != 0);
             }
         }
     }
@@ -760,7 +762,7 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
     for (bool check_bundles : {true, false}) {
         // dpas doesn't need bundle check.
         if (is_dpas && check_bundles) continue;
-
+        if (hw_ctx.hw <= ngen::HW::XeLP && check_bundles) continue;
         ctx.reset_steps();
         ctx.set_check_bundles(check_bundles);
 
