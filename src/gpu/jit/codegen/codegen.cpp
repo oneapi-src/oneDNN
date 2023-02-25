@@ -470,10 +470,21 @@ private:
             auto _src1 = src1;
             auto _src2 = src2;
             align_src_dst_offset(host_, scope, mod, dst, _src1, _src2);
-            // Workaround for sporadic f64 mad errors with broadcast src1 on XeHPC.
-            if (mad_func.dst_type == type_t::f64()
+            if (hw < ngen::HW::XeLP
+                    && (ngen_is_dw(to_ngen(mad_func.dst_type))
+                            || mad_func.dst_type == type_t::f64())) {
+                // On Gen9 int is not supported; f64 supports broadcast only with exec size 2.
+                // Use mul/add sequence instead.
+                auto tmp = scope.alloc_range(
+                        (mad_func.exec_size * mad_func.dst_type.size())
+                        / ngen::GRF::bytes(hw));
+                auto reg = tmp[0].setType(to_ngen(mad_func.dst_type));
+                host_->mul(mod, reg, _src1, _src2);
+                host_->add(mod, dst, reg, src0);
+            } else if (mad_func.dst_type == type_t::f64()
                     && _src1.reg_data().getHS() == 0
                     && _src1.reg_data().getVS() == 0) {
+                // Workaround for sporadic f64 mad errors with broadcast src1 on XeHPC.
                 host_->mad(mod, dst, src0, _src2, _src1);
             } else {
                 host_->mad(mod, dst, src0, _src1, _src2);
