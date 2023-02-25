@@ -100,11 +100,12 @@ struct ref_deconvolution_fwd_t : public primitive_t {
             : cpu_deconvolution_fwd_pd_t(other)
             , conv_pd_(other.conv_pd_->clone())
             , conv_supports_bias_(other.conv_supports_bias_)
-            , dst_tag_(other.dst_tag_) {}
+            , dst_tag_(other.dst_tag_)
+            , name_(other.name_) {}
 
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T(conv_pd_->name(), ref_deconvolution_fwd_t);
+        DECLARE_COMMON_PD_T(name_.c_str(), ref_deconvolution_fwd_t);
 
         status_t init_convolution(engine_t *engine) {
             using namespace format_tag;
@@ -198,6 +199,7 @@ struct ref_deconvolution_fwd_t : public primitive_t {
                     utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c),
                     utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c));
 
+            init_name();
             init_scratchpad();
             return attr_.set_default_formats(dst_md(0));
         }
@@ -207,6 +209,10 @@ struct ref_deconvolution_fwd_t : public primitive_t {
         format_tag_t dst_tag_;
 
     private:
+        std::string name_ = "conv:any+"; // convolution-based deconvolution
+
+        void init_name() { name_.append(conv_pd_->name()); }
+
         void init_scratchpad() {
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
@@ -301,11 +307,12 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
 
         pd_t(const pd_t &other)
             : cpu_deconvolution_bwd_data_pd_t(other)
-            , conv_pd_(other.conv_pd_->clone()) {}
+            , conv_pd_(other.conv_pd_->clone())
+            , name_(other.name_) {}
 
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T(conv_pd_->name(), ref_deconvolution_bwd_data_t);
+        DECLARE_COMMON_PD_T(name_.c_str(), ref_deconvolution_bwd_data_t);
 
         status_t init_convolution(engine_t *engine) {
             using namespace types;
@@ -351,6 +358,8 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
                     diff_src_md_ = *conv_pd_->dst_md();
                 if (diff_dst_md_.format_kind == format_kind::any)
                     diff_dst_md_ = *conv_pd_->src_md();
+
+                init_name();
                 init_scratchpad();
                 return status::success;
             }
@@ -361,6 +370,10 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
         std::shared_ptr<primitive_desc_t> conv_pd_;
 
     private:
+        std::string name_ = "conv:any+"; // convolution-based deconvolution
+
+        void init_name() { name_.append(conv_pd_->name()); }
+
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_nested,
@@ -400,11 +413,12 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
         pd_t(const pd_t &other)
             : cpu_deconvolution_bwd_weights_pd_t(other)
             , conv_pd_(other.conv_pd_->clone())
-            , dst_tag_(other.dst_tag_) {}
+            , dst_tag_(other.dst_tag_)
+            , name_(other.name_) {}
 
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T(conv_pd_->name(), ref_deconvolution_bwd_weights_t);
+        DECLARE_COMMON_PD_T(name_.c_str(), ref_deconvolution_bwd_weights_t);
 
         status_t init_convolution(engine_t *engine) {
             using namespace types;
@@ -469,6 +483,8 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
                         utils::pick(ndims() - 3, nwc, nhwc, ndhwc),
                         utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c),
                         utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c));
+
+                init_name();
                 init_scratchpad();
                 return status::success;
             }
@@ -480,6 +496,10 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
         format_tag_t dst_tag_;
 
     private:
+        std::string name_ = "conv:any+"; // convolution-based deconvolution
+
+        void init_name() { name_.append(conv_pd_->name()); }
+
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_nested,

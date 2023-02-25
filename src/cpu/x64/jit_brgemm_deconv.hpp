@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,9 +42,14 @@ struct brgemm_deconvolution_fwd_t : public primitive_t {
                 const typename pd_t::hint_class *hint_fwd_pd)
             : cpu_deconvolution_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
+        pd_t(const pd_t &other)
+            : cpu_deconvolution_fwd_pd_t(other)
+            , conv_pd_(other.conv_pd_->clone())
+            , name_(other.name_) {}
+
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T(conv_pd_->name(), brgemm_deconvolution_fwd_t);
+        DECLARE_COMMON_PD_T(name_.c_str(), brgemm_deconvolution_fwd_t);
 
         status_t init(engine_t *engine);
 
@@ -67,6 +72,12 @@ struct brgemm_deconvolution_fwd_t : public primitive_t {
 
         std::shared_ptr<primitive_desc_t> conv_pd_;
         bool has_strides_ = false;
+
+    private:
+        std::string name_
+                = JIT_IMPL_NAME_HELPER("brg_conv:", isa, "") + std::string("+");
+
+        void init_name() { name_.append(conv_pd_->name()); }
     };
 
     brgemm_deconvolution_fwd_t(const pd_t *apd) : primitive_t(apd) {};

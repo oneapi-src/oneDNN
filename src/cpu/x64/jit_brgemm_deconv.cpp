@@ -232,6 +232,7 @@ status_t brgemm_deconvolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     if (bias_md_.format_kind == format_kind::any)
         CHECK(memory_desc_init_by_tag(bias_md_, x));
 
+    init_name();
     auto scratchpad = scratchpad_registry().registrar();
     scratchpad.book(memory_tracking::names::key_nested,
             conv_pd_->scratchpad_registry());
