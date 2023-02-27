@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2018-2023 Intel Corporation
+* Copyright 2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -144,6 +145,9 @@ uint32_t get_verbose(int verbosity_flag_hint = verbose_t::none) {
                 return k |= verbose_t::create_profile | verbose_t::exec_profile;
             if (s == "profile_create") return k |= verbose_t::create_profile;
             if (s == "profile_exec") return k |= verbose_t::exec_profile;
+            // Enable profiling to external libraries
+            if (s == "profile_externals")
+                return k |= verbose_t::profile_externals;
             // we extract debug info debug_info=XX. ignore if debuginfo is invalid.
             if (s.rfind("debuginfo=", 0) == 0)
                 return k |= verbose_t::make_debuginfo(
@@ -186,6 +190,9 @@ bool verbose_has_exec_check() {
 };
 bool verbose_has_exec_profile() {
     return get_verbose(verbose_t::exec_profile) & verbose_t::exec_profile;
+};
+bool verbose_has_profile_externals() {
+    return get_verbose() & verbose_t::profile_externals;
 };
 int verbose_debuginfo() {
     return get_verbose() >> 24;

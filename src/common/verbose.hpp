@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2018-2023 Intel Corporation
+* Copyright 2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -130,6 +131,7 @@ struct verbose_t {
         create_profile = 1 << 5,
         exec_check = 1 << 6,
         exec_profile = 1 << 7,
+        profile_externals = 1 << 8,
         // the upper 8 bits are reserved for devinfo levels
         debuginfo = 1 << 24,
         //
@@ -145,6 +147,7 @@ bool verbose_has_create_dispatch();
 bool verbose_has_create_profile();
 bool verbose_has_exec_check();
 bool verbose_has_exec_profile();
+bool verbose_has_profile_externals();
 
 int verbose_debuginfo();
 
