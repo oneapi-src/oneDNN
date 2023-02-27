@@ -1228,10 +1228,14 @@ TEST(GCCore_jit_engine_equivalence, TestConstantBF16) {
         return make_expr<constant_node>(val, type);
     };
 
+    const float v1[num_elems] = DATASET_F2;
+    const float v2[num_elems] = DATASET_F1;
+
     _function_(datatypes::void_t, foo,
             _arg_("tensor_in", datatypes::f32, {num_elems}),
-            _arg_("tensor_out", datatypes::f32, {num_elems}), ) {
-        _bind_(tensor_in, tensor_out);
+            _arg_("tensor_out", datatypes::f32, {num_elems}),
+            _arg_("single_out", datatypes::f32, {num_elems}), ) {
+        _bind_(tensor_in, tensor_out, single_out);
 
         _var_(local_temp, sc_data_type_t::bf16(simd_lanes));
         local_temp = make_constf(DATASET_F2, sc_data_type_t::bf16(simd_lanes));
@@ -1242,6 +1246,15 @@ TEST(GCCore_jit_engine_equivalence, TestConstantBF16) {
                 + make_constf(DATASET_F1, sc_data_type_t::bf16(simd_lanes));
         tensor_out[span_t({0}, simd_lanes)]
                 = make_cast(sc_data_type_t::f32(simd_lanes), local_temp);
+
+        _var_(single_tmp, datatypes::bf16);
+        for (int i = 0; i < simd_lanes; i++) {
+            single_tmp = make_expr<constant_node>(v1[i], datatypes::bf16);
+            single_tmp = single_tmp + make_cast(datatypes::bf16, tensor_in[i]);
+            single_tmp = single_tmp
+                    + make_expr<constant_node>(v2[i], datatypes::bf16);
+            single_out[i] = make_cast(datatypes::f32, single_tmp);
+        }
     }
 
     ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
@@ -1268,6 +1281,8 @@ TEST(GCCore_jit_engine_equivalence, TestConstantBF16) {
         float host_tensor_in[num_elems] = DATASET_F3;
         float host_tensor_out[num_elems] = {
                 -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+        float host_tensor_out_single[num_elems] = {
+                -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
         const float expected_result[num_elems] = {-46.815, -15.5625, 1.2525,
                 8.705, 13.32, 15.035, 16.387, 19.3125, 19.175, 19.294, 20.325,
                 22.025, 26.225, 33.7406, 50.1562, 81.4562};
@@ -1275,12 +1290,15 @@ TEST(GCCore_jit_engine_equivalence, TestConstantBF16) {
         generic_val generic_args[] = {
                 &host_tensor_in,
                 &host_tensor_out,
+                &host_tensor_out_single,
         };
 
         j_foo->call_generic_default(generic_args);
 
         for (int i = 0; i < num_elems; ++i) {
             EXPECT_NEAR(host_tensor_out[i], expected_result[i],
+                    std::abs(1e-2 * expected_result[i]));
+            EXPECT_NEAR(host_tensor_out_single[i], expected_result[i],
                     std::abs(1e-2 * expected_result[i]));
         }
     }
