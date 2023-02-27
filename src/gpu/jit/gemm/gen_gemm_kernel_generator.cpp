@@ -22077,6 +22077,23 @@ bool gemm_kernel_generator_t<hw>::copyBodyInternal(
 
     remainderY &= !checkYRem1;
 
+    // Find and load any needed mask registers.
+    auto assignAllMasks = [&]() -> bool {
+        bool ok = assignMasks(
+                          state.S_layout, LoopM, LoopN, masks, strategy, state)
+                && assignMasks(
+                        state.D_layout, LoopM, LoopN, masks, strategy, state);
+        if (ok && D_paddingRem) {
+            ok &= state.vflagsEnabled();
+            state.D0_layout = state.D_layout;
+            for (auto &block : state.D0_layout)
+                block.flag[byColumn].clear();
+            ok &= assignMasks(state.D0_layout, byColumn ? LoopNone : LoopM,
+                    byColumn ? LoopN : LoopNone, D0_yMasks, strategy, state);
+        }
+        return ok;
+    };
+
     // Get register layouts for S and D.
     int nms, nmd, nns, nnd;
     auto setup = [&](int s_load, int d_load, Subregister S_addr0,
@@ -22146,24 +22163,6 @@ bool gemm_kernel_generator_t<hw>::copyBodyInternal(
             success &= !(state.raVFlag.isVirtual(flagYRem1)
                     && !state.vflagsEnabled());
         }
-
-        // Find and load any needed mask registers.
-        auto assignAllMasks = [&]() -> bool {
-            bool ok = assignMasks(state.S_layout, LoopM, LoopN, masks, strategy,
-                              state)
-                    && assignMasks(state.D_layout, LoopM, LoopN, masks,
-                            strategy, state);
-            if (ok && D_paddingRem) {
-                ok &= state.vflagsEnabled();
-                state.D0_layout = state.D_layout;
-                for (auto &block : state.D0_layout)
-                    block.flag[byColumn].clear();
-                ok &= assignMasks(state.D0_layout, byColumn ? LoopNone : LoopM,
-                        byColumn ? LoopN : LoopNone, D0_yMasks, strategy,
-                        state);
-            }
-            return ok;
-        };
 
         success = success && assignAllMasks();
         if (!success && !state.vflagsEnabled()) {
