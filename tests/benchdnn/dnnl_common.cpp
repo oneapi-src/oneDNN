@@ -54,17 +54,15 @@ extern "C" dnnl_status_t dnnl_impl_gpu_get_profile_info(
 #endif
 
 int check_pd_cache(const_dnnl_primitive_desc_t pd, res_t *res) {
-    // Disable this check for stack checker since:
-    // * Stack validation is performed with threadpool environment only.
-    // * Threadpool is always defined in validation infrastructure, but stack
-    //   checker uses own threading model and executes primitives creation in a
-    //   separate environment that doesn't have threadpool enabled, thus, using
-    //   a specified number of threads in testing environment that is different
-    //   from number of cores per socket (internal logic) will cause this check
-    //   to fail since number of threads used in a primitive cache key will be
-    //   different.
+    // Disable this check for threadpool. A threadpool is always defined in
+    // validation infrastructure but creates primitives in a separate
+    // environment that doesn't have threadpool enabled. Thus, it utilizes a
+    // specified number of threads in a testing environment that is different
+    // from the number of cores per socket (internal logic for primitive
+    // creation). This will cause this check to fail as the number of threads
+    // is used in the primitive cache key.
 #if !defined(DNNL_DISABLE_PRIMITIVE_CACHE) \
-        && !defined(DNNL_ENABLE_STACK_CHECKER)
+        && DNNL_CPU_THREADING_RUNTIME != DNNL_RUNTIME_THREADPOOL
     int capacity = 0;
     DNN_SAFE(dnnl_get_primitive_cache_capacity(&capacity), FAIL);
     if (capacity && !dnnl::impl::is_pd_in_cache(pd)) {
@@ -81,7 +79,7 @@ int check_pd_cache(const_dnnl_primitive_desc_t pd, res_t *res) {
 int check_primitive_cache(dnnl_primitive_t p, res_t *res) {
     // See the comment in `check_pd_cache`.
 #if !defined(DNNL_DISABLE_PRIMITIVE_CACHE) \
-        && !defined(DNNL_ENABLE_STACK_CHECKER)
+        && DNNL_CPU_THREADING_RUNTIME != DNNL_RUNTIME_THREADPOOL
     int capacity = 0;
     DNN_SAFE(dnnl_get_primitive_cache_capacity(&capacity), WARN);
     if (capacity && !dnnl::impl::is_primitive_in_cache(p)) {
