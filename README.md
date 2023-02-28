@@ -328,6 +328,7 @@ terms.
 
 Apache License Version 2.0:
 * [Xbyak_aarch64](https://github.com/fujitsu/xbyak_aarch64)
+* [LLVM](https://llvm.org)
 
 Boost Software License, Version 1.0:
 * [Boost C++ Libraries](https://www.boost.org/)

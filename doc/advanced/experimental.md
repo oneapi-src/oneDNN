@@ -24,9 +24,10 @@ Both kinds of experimental features can be enabled simultaneously.
 |:-----------------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ONEDNN_EXPERIMENTAL_BNORM_STATS_ONE_PASS | Calculate mean and variance in batch normalization(BN) in single pass ([RFC](https://github.com/oneapi-src/oneDNN/tree/rfcs/rfcs/20210519-single-pass-bnorm)). |
 
-| Build time option          | Description                                                  |
-|:---------------------------|:-------------------------------------------------------------|
-| ONEDNN_EXPERIMENTAL_SPARSE | Enable experimental API and functionality for sparse domain. |
+| Build time option                          | Description                                                        |
+|:-------------------------------------------|:-------------------------------------------------------------------|
+| ONEDNN_EXPERIMENTAL_SPARSE                 | Enable experimental API and functionality for sparse domain.       |
+| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_BACKEND | Enable experimental graph compiler backend of the graph component. |
 
 ## Features details
 
@@ -141,3 +142,8 @@ calculated as max(4 * 1000000 * (1 - 0.99)), 1).
 @warning
 - Enabling experimental features does not guarantee that the library will utilize them
 - Enabling experimental features might change the accuracy of oneDNN primitives
+
+### ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_BACKEND
+This option extends the coverage scope of the graph API to cover larger fusion
+patterns apart from primitive patterns. Refer to
+[Graph Compiler](@ref dev_guide_graph_compiler) for more details.

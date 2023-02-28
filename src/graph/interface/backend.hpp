@@ -40,6 +40,10 @@ namespace graph {
 // forward declaration
 void register_dnnl_backend();
 void register_fake_backend();
+#ifdef DNNL_ENABLE_COMPILER_BACKEND
+// register graph compiler backend
+void register_compiler_backend();
+#endif
 
 class backend {
 public:
@@ -200,6 +204,9 @@ private:
         std::call_once(register_flag_, []() {
             register_dnnl_backend();
             register_fake_backend();
+#ifdef DNNL_ENABLE_COMPILER_BACKEND
+            register_compiler_backend();
+#endif
         });
     }
 

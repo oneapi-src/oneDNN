@@ -50,10 +50,15 @@ if(DNNL_ENABLE_JIT_PROFILING OR DNNL_ENABLE_ITT_TASKS)
     endif()
 endif()
 
+get_property(STATIC_LIB_DEPS GLOBAL PROPERTY DNNL_SUBDIR_EXTRA_STATIC_LIBS)
+get_property(SHARED_LIB_DEPS GLOBAL PROPERTY DNNL_SUBDIR_EXTRA_SHARED_LIBS)
+
 target_link_libraries(test_graph_unit
     dnnl_gtest
     ${EXTRA_SHARED_LIBS}
     ${EXTRA_STATIC_LIBS}
+    ${STATIC_LIB_DEPS}
+    ${SHARED_LIB_DEPS}
     )
 
 set(sycl_rt_pattern "(SYCL|DPCPP)")

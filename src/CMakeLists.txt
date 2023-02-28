@@ -140,13 +140,22 @@ if(ONEDNN_BUILD_GRAPH)
     endif()
 
     add_definitions_with_host_compiler(-DBUILD_GRAPH)
-
+    if(ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_BACKEND)
+        add_definitions_with_host_compiler(-DDNNL_ENABLE_COMPILER_BACKEND)
+    endif()
     if(ONEDNN_ENABLE_GRAPH_DUMP)
         message(STATUS "Graph artifacts dump is enabled")
         add_definitions_with_host_compiler(-DDNNL_ENABLE_GRAPH_DUMP)
     endif()
 
     add_subdirectory(graph)
+    if(ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_BACKEND AND TARGET dnnl_graphcompiler_llvm_lib_exclude_string)
+        get_property(GC_EXCLUDE_LIBS TARGET dnnl_graphcompiler_llvm_lib_exclude_string PROPERTY INTERFACE_LINK_LIBRARIES)
+        if(DEFINED GC_EXCLUDE_LIBS AND NOT MSVC AND NOT APPLE)
+            # set the LLVM symbols as hidden, or all LLVM symbols will be exported
+            append(CMAKE_SHARED_LINKER_FLAGS "-Wl,--exclude-libs=${GC_EXCLUDE_LIBS}")
+        endif()
+    endif()
 else()
     # If graph component is not built, remove the headers from build and installation.
     list(REMOVE_ITEM HEADERS_SUBDIR
@@ -158,10 +167,12 @@ else()
 endif()
 
 get_property(LIB_DEPS GLOBAL PROPERTY DNNL_LIB_DEPS)
+get_property(STATIC_LIB_DEPS GLOBAL PROPERTY DNNL_SUBDIR_EXTRA_STATIC_LIBS)
+get_property(SHARED_LIB_DEPS GLOBAL PROPERTY DNNL_SUBDIR_EXTRA_SHARED_LIBS)
 add_library(${DNNL_LIBRARY_NAME} ${DNNL_LIBRARY_TYPE}
     ${VERSION_RESOURCE_FILE} ${HEADERS_ROOT} ${HEADERS_SUBDIR} ${LIB_DEPS})
 # LINK_PRIVATE for cmake 2.8.11 compatibility
-target_link_libraries(${DNNL_LIBRARY_NAME} LINK_PRIVATE ${${DNNL_LIBRARY_NAME}_INTERFACE})
+target_link_libraries(${DNNL_LIBRARY_NAME} LINK_PRIVATE ${${DNNL_LIBRARY_NAME}_INTERFACE} ${STATIC_LIB_DEPS} ${SHARED_LIB_DEPS})
 
 set_property(TARGET ${DNNL_LIBRARY_NAME} PROPERTY VERSION "${DNNL_VERSION_MAJOR}.${DNNL_VERSION_MINOR}")
 set_property(TARGET ${DNNL_LIBRARY_NAME} PROPERTY SOVERSION "${DNNL_VERSION_MAJOR}")
