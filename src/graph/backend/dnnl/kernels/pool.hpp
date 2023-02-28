@@ -47,7 +47,6 @@ namespace dnnl_impl {
 template <bool quantized>
 struct pooling_fwd_t : public kernel_base_t {
 private:
-    dnnl::engine p_engine_;
     allocator_t *g_alloc_;
 
     std::shared_ptr<subgraph_t> subgraph_;
@@ -58,14 +57,12 @@ private:
     constant_cache_t::key_t constant_key_
             = reinterpret_cast<constant_cache_t::key_t>(this);
 
-    bool enable_constant_cache_ = is_constant_cache_enabled();
-
 public:
     ~pooling_fwd_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
 
-        if (enable_constant_cache_) {
+        if (enabled_constant_cache()) {
             get_global_constant_cache().remove_if_exist(constant_key_);
         }
     }
@@ -123,13 +120,13 @@ public:
         pipeline.reset_visualize_arg(true, false);
         // do constant propagation here so that we can
         // prepare constant info for other optimizations.
-        if (enable_constant_cache_) {
+        if (enabled_constant_cache()) {
             BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation);
         }
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
         // do constant propagation again since layout propagation may
         // insert/delete operators
-        if (enable_constant_cache_) {
+        if (enabled_constant_cache()) {
             BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation);
         }
 
@@ -205,7 +202,7 @@ public:
                 "no enough scratchpad memory");
         prepare_args_set(res, inputs, outputs, scratchpad);
 
-        if (enable_constant_cache_) {
+        if (enabled_constant_cache()) {
             std::promise<constant_cache_t::cached_t> c_promise;
             constant_cache_t::value_t cached_value
                     = get_global_constant_cache().get_or_add(
@@ -278,7 +275,7 @@ public:
                 "no enough scratchpad memory");
         prepare_args_set(res, inputs, outputs, scratchpad);
 
-        if (enable_constant_cache_) {
+        if (enabled_constant_cache()) {
             std::promise<constant_cache_t::cached_t> c_promise;
             constant_cache_t::value_t cached_value
                     = get_global_constant_cache().get_or_add(

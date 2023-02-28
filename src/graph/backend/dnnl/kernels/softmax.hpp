@@ -44,7 +44,6 @@ namespace dnnl_impl {
 
 struct softmax_fwd_t : public kernel_base_t {
 private:
-    dnnl::engine p_engine_;
     allocator_t *g_alloc_;
     std::shared_ptr<subgraph_t> subgraph_;
     memory_planner_t memory_planner_;
@@ -54,14 +53,12 @@ private:
     constant_cache_t::key_t constant_key_
             = reinterpret_cast<constant_cache_t::key_t>(this);
 
-    bool enable_constant_cache_ = is_constant_cache_enabled();
-
 public:
     ~softmax_fwd_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
 
-        if (enable_constant_cache_) {
+        if (enabled_constant_cache()) {
             get_global_constant_cache().remove_if_exist(constant_key_);
         }
     }
@@ -97,13 +94,13 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_scales);
         pipeline.reset_visualize_arg(true, false);
 
-        if (enable_constant_cache_) {
+        if (enabled_constant_cache()) {
             BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation);
         }
 
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
 
-        if (enable_constant_cache_) {
+        if (enabled_constant_cache()) {
             BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation);
         }
 
@@ -171,7 +168,7 @@ public:
                 "no enough scratchpad memory");
         prepare_args_set(res, inputs, outputs, scratchpad);
 
-        if (enable_constant_cache_) {
+        if (enabled_constant_cache()) {
             std::promise<constant_cache_t::cached_t> c_promise;
             constant_cache_t::value_t cached_value
                     = get_global_constant_cache().get_or_add(
@@ -244,7 +241,7 @@ public:
                 "no enough scratchpad memory");
         prepare_args_set(res, inputs, outputs, scratchpad);
 
-        if (enable_constant_cache_) {
+        if (enabled_constant_cache()) {
             std::promise<constant_cache_t::cached_t> c_promise;
             constant_cache_t::value_t cached_value
                     = get_global_constant_cache().get_or_add(
