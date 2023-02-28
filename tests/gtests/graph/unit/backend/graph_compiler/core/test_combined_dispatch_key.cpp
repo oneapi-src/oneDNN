@@ -18,6 +18,7 @@
 #include <compiler/ir/graph/graph.hpp>
 
 #include <iostream>
+#include "exception_util.hpp"
 #include "gtest/gtest.h"
 
 using namespace dnnl::impl::graph::gc;
@@ -284,4 +285,45 @@ TEST(GCCore_combined_dispatch_key_cpp, TestCombinedKeyGraphLinked2) {
     std::vector<sc_op_ptr> input_ops = {matmul1, reorder1, last_reorder};
     combined_dispatch_key_set_t combined_set(input_ops);
     EXPECT_EQ(combined_set.size(), UINT64_C(3));
+}
+
+TEST(GCCore_combined_dispatch_key_cpp, TestCombinedKeyGraphCheck) {
+    auto in_set1 = std::make_shared<dispatch_key_set_t>(); // reorder 1
+    auto in_set2 = std::make_shared<dispatch_key_set_t>(); // reorder 2
+
+    in_set1->set_ = dispatch_key_set_t::inner_set_t {
+            op_dispatch_key_t(std::vector<sc_data_format_t> {
+                    sc_data_format_t::MK(), sc_data_format_t::NKkn(32, 64),
+                    sc_data_format_t::MKmk(4, 64)}),
+            op_dispatch_key_t(std::vector<sc_data_format_t> {
+                    sc_data_format_t::MKmk(16, 32),
+                    sc_data_format_t::NKkn(32, 32),
+                    sc_data_format_t::MKmk(16, 32)}),
+            op_dispatch_key_t(std::vector<sc_data_format_t> {
+                    sc_data_format_t::MKmk(32, 32),
+                    sc_data_format_t::NKkn(32, 64),
+                    sc_data_format_t::MKmk(32, 64)})};
+    in_set2->set_ = dispatch_key_set_t::inner_set_t {
+            op_dispatch_key_t(
+                    std::vector<sc_data_format_t> {
+                            sc_data_format_t::MKmk(4, 64),
+                            sc_data_format_t::MK()},
+                    impl_kind_t::no_padding),
+            op_dispatch_key_t(std::vector<sc_data_format_t> {
+                    sc_data_format_t::MKmk(16, 32), sc_data_format_t::MK()}),
+            op_dispatch_key_t(std::vector<sc_data_format_t> {
+                    sc_data_format_t::MKmk(32, 64), sc_data_format_t::MK()})};
+    sc_graph_t graph;
+    auto input1 = graph.make_input({graph_tensor::make({-1, 32})}); // data
+    auto reorder1 = graph.make("reorder", input1->get_outputs(),
+            {graph_tensor::make({-1, 32})}, {});
+    reorder1->get_dispatch_key_set() = in_set1;
+    auto reorder2 = graph.make("reorder", reorder1->get_outputs(),
+            {graph_tensor::make({-1, 32})}, {});
+    reorder2->get_dispatch_key_set() = in_set2;
+    auto out = graph.make_output(reorder2->get_outputs());
+    std::vector<sc_op_ptr> input_ops = {reorder1, reorder2};
+    EXPECT_SC_ERROR(combined_dispatch_key_set_t combined_set((input_ops)),
+            "Wrong dispatch key sets, could not construct combined "
+            "dispatch key.");
 }

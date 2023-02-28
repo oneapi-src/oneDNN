@@ -1350,6 +1350,50 @@ TEST(GCCore_jit_engine_equivalence, TestConstDivModMul) {
     }
 }
 
+TEST(GCCore_jit_engine_equivalence, TestConstExceed32bit) {
+    ir_builder_t builder;
+
+    _function_(datatypes::void_t, foo, _arg_("result", datatypes::index, {1})) {
+        _bind_(result);
+        result[0] = UINT64_C(0x1FFFFFFFFF);
+        _var_init_(x, datatypes::index, UINT64_C(0xFFFFFFFFF));
+        result[0] = x;
+    }
+
+    ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
+            get_default_context(), vector<func_t> {foo}, 0);
+
+    uint64_t expected_result = 0xFFFFFFFFF;
+    uint64_t result;
+
+    generic_val generic_args[] = {&result};
+
+    for (auto &kv : test_jit_engines) {
+        const string &je_name = kv.first;
+
+        ostringstream err_context;
+        err_context << "jit_engine_t class '" << je_name << "'";
+        SCOPED_TRACE(err_context.str());
+
+        shared_ptr<jit_engine_t> je = kv.second;
+        EXPECT_NE(je, nullptr);
+        if (!je) { continue; }
+
+        shared_ptr<jit_module> jm = je->make_jit_module(ir_mod, true);
+        EXPECT_NE(jm, nullptr);
+
+        shared_ptr<jit_function_t> jf = jm->get_function("foo");
+
+        EXPECT_NE(jf, nullptr);
+        if (!jf) { continue; }
+
+        result = 0;
+        jf->call_generic_default(generic_args);
+
+        ASSERT_EQ(result, expected_result);
+    }
+}
+
 /// ===================================
 /// Test Group 2: oprations & data type
 /// ===================================
