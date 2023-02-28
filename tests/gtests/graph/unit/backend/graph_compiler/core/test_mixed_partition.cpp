@@ -1436,14 +1436,14 @@ TEST(GCCore_graph_mixed_partition_cpp, TestInputFusionAnchor) {
     sc_graph_t graph;
     auto ctx = get_test_ctx();
     auto input = graph.make_input(
-            {graph_tensor::make({128, 128}, sc_data_format_t::MK())});
+            {graph_tensor::make({128, 32}, sc_data_format_t::MK())});
     auto weight = graph.make_input(
-            {graph_tensor::make({128, 128}, sc_data_format_t::KN())});
+            {graph_tensor::make({32, 128}, sc_data_format_t::KN())});
 
     auto reo0 = graph.make("reorder", {input->get_outputs()[0]}, {},
-            {{"out_format", sc_data_format_t::MKmk(64, 64)}});
+            {{"out_format", sc_data_format_t::MKmk(16, 16)}});
     auto reo1 = graph.make("reorder", {weight->get_outputs()[0]}, {},
-            {{"out_format", sc_data_format_t::NKkn(64, 32)}});
+            {{"out_format", sc_data_format_t::NKkn(16, 16)}});
 
     auto gemm = graph.make("managed_matmul_core",
             {reo0->get_outputs()[0], reo1->get_outputs()[0]}, {}, {});
@@ -1461,7 +1461,7 @@ TEST(GCCore_graph_mixed_partition_cpp, TestInputFusionAnchor) {
     std::stringstream ss;
     print_graph(graph, ss, true);
     std::string expected_str
-            = R"(graph(v0: f32[128, 128], v1: f32[128, 128]) -> [v2: f32[128, 128]] {
+            = R"(graph(v0: f32[128, 32], v1: f32[32, 128]) -> [v2: f32[128, 128]] {
   [v2: f32[128, 128]] = outerloop_32X1X1_partition_reorder_reorder_managed_matmul_core(v1, v0)
 }
 )";
