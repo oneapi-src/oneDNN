@@ -245,7 +245,22 @@ struct kernel_base_t {
 
     virtual status_t prepare_inplace_pairs_impl() { return status::success; };
 
+    // WA: Do not cache constant weight for SYCL CPU to workaround a segment
+    // fault issue when releasing the cached buffer with sycl::free at the
+    // program exits. Need to remove this check once the runtime issue is fixed.
+    bool enabled_constant_cache() const {
+        bool enabled = is_constant_cache_enabled();
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
+        if (p_engine_) {
+            enabled = enabled
+                    && (p_engine_.get_kind() != dnnl::engine::kind::cpu);
+        }
+#endif
+        return enabled;
+    }
+
     std::vector<inplace_pair_t> inplace_pairs_;
+    dnnl::engine p_engine_;
 };
 
 using kernel_ptr = std::shared_ptr<kernel_base_t>;
