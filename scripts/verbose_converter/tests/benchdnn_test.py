@@ -50,7 +50,7 @@ def filter_verbose(benchdnn_verbose, driver):
     for test_case in benchdnn_verbose.split('INITIALIZED'):
         for l in test_case.split('\n'):
             # Parse header
-            if l.find("run: ") != -1:
+            if l.find("create: ") != -1:
                 # detect prop kind in benchdnn log
                 dir = '--prop=' if driver == 'rnn' else '--dir='
                 dir_start = l.find(dir)
