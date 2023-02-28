@@ -408,8 +408,9 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
   // Note: os blocking is only valid for non_1x1, no pad and non 3D conv with
   // amx-int8 only so far.
   bool has_pad = (pd_ > 0) || (ph_ > 0) || (pw_ > 0);
-  try_os_blocking_
-    = (!is_1x1_conv_) && (!has_pad) && (!is_3d_) && is_int8 && ow_ <= 28;
+  // TODO(zhicong): check whether to use os_blocking when sh > 1
+  try_os_blocking_ = (!is_1x1_conv_) && (!has_pad) && (!is_3d_) && is_int8
+    && ow_ <= 28 && sh_ == 1;
   if (is_1d_) {
     use_conv1d = true;
     COMPILE_ASSERT((kw_ == 1 && pw_ == 0),
