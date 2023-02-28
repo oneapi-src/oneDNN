@@ -243,6 +243,15 @@ TEST(GCCore_jit_cpp, TestJITCastToBF16) {
     }
     for (int lanes : lanes_v) {
         for (auto &engine : engines) {
+#if SC_CFAKE_JIT_ENABLED
+            if (auto c_jit_ptr = dynamic_cast<cfake_jit *>(engine.get())) {
+                auto compiler_flags = c_jit_ptr->get_compiler_flags();
+                if (!compiler_flags.fAVX512BF16
+                        || !compiler_flags.fAVX512AMXBF16) {
+                    GTEST_SKIP();
+                }
+            }
+#endif
             SCOPED_TRACE(std::string("Testing ") + get_engine_name(engine)
                     + " lanes=" + std::to_string(lanes));
             auto fptr = engine->get_entry_func(make_module(lanes));

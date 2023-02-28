@@ -274,7 +274,7 @@ TEST(GCCore_microkernel_cpu_cpp, TestBrgemmOnednnAttrs) {
     // bd_mask_level>0
     // use list_addr brgemm
     REQUIRE_AMX();
-    const int M = 61;
+    const int M = 63;
     const int N = 64;
     const int K = 64;
     const int blocks = 9;

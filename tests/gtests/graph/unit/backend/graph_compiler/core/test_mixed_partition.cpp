@@ -834,7 +834,13 @@ TEST(GCCore_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy0) {
   [v4: f32[512, 256], v3: f32[1024, 256]] = outerloop_8X2_partition_managed_matmul_core_relu_managed_matmul_core_relu(v2, v1, v0)
 }
 )";
-    EXPECT_EQ(ss.str(), expected_str);
+    bool is_special_fm = ctx->machine_.cpu_flags_.family == 6
+            && ctx->machine_.cpu_flags_.model == 143;
+    if (!is_special_fm) {
+        // managed matmul core will have different config under such machine
+        // Only compare result in this case
+        EXPECT_EQ(ss.str(), expected_str);
+    }
 
     std::vector<float> input0_data(M0 * K);
     test_utils::fill_data(&input0_data[0], M0 * K);
@@ -992,7 +998,13 @@ TEST(GCCore_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy2) {
   [v3: f32[256, 512], v4: f32[256, 1024]] = outerloop_2_partition_managed_matmul_core_relu_managed_matmul_core_relu(v0, v1, v2)
 }
 )";
-    EXPECT_EQ(ss.str(), expected_str);
+    bool is_special_fm = ctx->machine_.cpu_flags_.family == 6
+            && ctx->machine_.cpu_flags_.model == 143;
+    if (!is_special_fm) {
+        // managed matmul core will have different config under such machine
+        // Only compare result in this case
+        EXPECT_EQ(ss.str(), expected_str);
+    }
     auto fptr2 = jit_engine_t::make(ctx)->get_entry_func(f2);
     fptr2->call_default(&input0_data[0], &weight0_data[0], &weight1_data[0],
             &pass_output0_data[0], &pass_output1_data[0]);
