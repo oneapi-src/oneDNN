@@ -125,7 +125,6 @@ private:
     std::unordered_set<void *> free_ptr_;
 };
 bool is_sycl_engine();
-dnnl::engine &get_engine();
 sycl::queue &get_queue();
 #endif // DNNL_WITH_SYCL
 
