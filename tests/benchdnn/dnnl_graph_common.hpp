@@ -32,7 +32,7 @@
 
 #if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
 #include "oneapi/dnnl/dnnl_graph_threadpool.hpp"
-#include "test_thread.hpp"
+#include "tests/test_thread.hpp"
 #endif
 
 #if DNNL_GRAPH_WITH_SYCL
