@@ -62,7 +62,7 @@ void sparse_matmul() {
                                        5.5f, 3.5f, 1.5f};
     // clang-format on
 
-    const int nnz = src_csr_values.size();
+    const int nnz = static_cast<int>(src_csr_values.size());
 
     // Create a memory descriptor for CSR format by providing information
     // about number of non-zero entries and data types of metadata.
