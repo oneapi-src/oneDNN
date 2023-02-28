@@ -462,10 +462,10 @@ void matmul_core_op_t::query_format(context_ptr ctx,
                             if (dynamic) { break; }
                         }
                         // break is B padding loop if it is static
-                        if (!dynamic) { break; }
+                        if (!is_dynamic_dim(K) && !is_dynamic_dim(N)) { break; }
                     }
                     // break is A padding loop if it is static
-                    if (!dynamic) { break; }
+                    if (!is_dynamic_dim(M) && !is_dynamic_dim(K)) { break; }
                 }
                 // break the k loop if it is static
                 if (!dynamic) { break; }
