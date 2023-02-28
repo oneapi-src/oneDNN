@@ -28,9 +28,11 @@
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <compiler/ir/graph/transform/transform.hpp>
 #include <compiler/ir/transform/buffer_schedule.hpp>
+#include <compiler/ir/transform/simplify.hpp>
 #include <compiler/jit/jit.hpp>
 #include <ops/managed_matmul_core.hpp>
 #include <ops/matmul_core.hpp>
+#include <ops/templates/conv_fwd.hpp>
 #include <ops/templates/managed_matmul_core.hpp>
 #include <ops/templates/matmul_core.hpp>
 #include <reference/act_ref.hpp>
@@ -74,10 +76,6 @@ static mixed_fuse_op_t *get_mixed_op_from_graph(sc_graph_t &graph) {
         if (auto mx_op = op->dyn_cast<mixed_fuse_op_t>()) {
             COMPILE_ASSERT(!mixed_op, "Only one fused op is expected")
             mixed_op = mx_op;
-        } else {
-            COMPILE_ASSERT(op->isa<input_op>() || op->isa<output_op>()
-                            || op->isa<constant_op_t>(),
-                    "Unexpected op type found " << op->op_name_)
         }
     }
     return mixed_op;

@@ -761,9 +761,13 @@ void mxp_buffer_allocator::validate_buffer() {
                     "inplaced buffer should also be set cut buffer")
             ++iter;
         } else {
-            // if attached anchor is not equal
-            if (get_real_anchor_for_buffer(buf1)
-                    != get_real_anchor_for_buffer(buf2)) {
+            auto shrink_info1 = get_shrinked_info(buf1);
+            auto shrink_info2 = get_shrinked_info(buf2);
+            // if shrink info is not equal, remove inplace hint
+            if ((shrink_info1.empty() ^ shrink_info2.empty())
+                    || (!shrink_info1.empty() && !shrink_info2.empty()
+                            && cmp_slice_range({shrink_info1}, {shrink_info2})
+                                    != cmp_res::equal)) {
                 SC_MODULE_INFO << "removing tensor inplace hint: " << buf1
                                << " ==> " << buf2 << " for safety";
                 // remove inplace hint to ensure correctness
