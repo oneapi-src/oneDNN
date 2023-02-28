@@ -196,9 +196,7 @@ int init_prim_ref(
 // sizes.
 int fill_csr_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *res) {
-    if (query_md_num_handles(mem_dt.md_) != 3
-            || query_md_num_handles(mem_dt.md_) != 3)
-        return FAIL;
+    if (query_md_num_handles(mem_dt.md_) != 3) return FAIL;
 
     if (kind != SRC && kind != WEI) return FAIL;
 
