@@ -1783,6 +1783,7 @@ private:
             return is_a ? cfg_.prefetch().a() : cfg_.prefetch().b();
         }
         if (cfg_.hw() < ngen::HW::XeHPC) return false;
+        if (!cfg_.is_dpas_or_dpasw_fma()) return false;
         if (is_a && !prb.is_bwd_d && is_small_ic(prb) && cfg_.is_dp_fma())
             return false;
         auto &tg = cfg_.thread_group_grid();
