@@ -1100,9 +1100,18 @@ struct send_group_t {
 };
 
 void init_scattered_params(const hw_config_t &hw_cfg,
-        const send_params_t &send_params, int inner_bytes, int *slot_size,
-        int *slot_stride, int *max_slots = nullptr) {
-    *slot_size = ir_utils::max_divisor(inner_bytes, {1, 2, 4, 8});
+        const send_params_t &send_params, int inner_bytes, int total_bytes,
+        int *slot_size, int *slot_stride, int *max_slots = nullptr) {
+    bool is_slm = (send_params.send_address == send_address_t::slm);
+
+    //SLM qword not supported; issue with qword store if slots < 8
+    if (hw_cfg.hw() <= ngen::HW::XeLP
+            && (is_slm
+                    || (send_params.send_op == send_op_t::store
+                            && inner_bytes >= 8 && total_bytes % 64 != 0)))
+        *slot_size = ir_utils::max_divisor(inner_bytes, {1, 2, 4});
+    else
+        *slot_size = ir_utils::max_divisor(inner_bytes, {1, 2, 4, 8});
     // XXX: Do not allow type promotion with sub-dword slots as the resulting
     // GRF layout will be strided in the middle and may trigger unsupported
     // reorders. Once reorder is robust enough, this check should be removed.
@@ -1433,8 +1442,9 @@ private:
         int slot_size;
         int max_slots;
         int slot_stride;
-        init_scattered_params(hw_cfg_, send_params_, inner_bytes, &slot_size,
-                &slot_stride, &max_slots);
+        int total_bytes = vlayout_.elems() * type_size;
+        init_scattered_params(hw_cfg_, send_params_, inner_bytes, total_bytes,
+                &slot_size, &slot_stride, &max_slots);
         reg_bytes_per_elem = (slot_stride / slot_size) * type_size;
 
         int inner_slots = ir_utils::safe_divide(inner_bytes, slot_size);
@@ -1442,7 +1452,6 @@ private:
         int best_idx = layout.nblocks() - 1;
         dim_t best_factor = blocks.empty() ? 1 : blocks.back().block;
         double best_score = 0;
-        int total_bytes = vlayout_.elems() * type_size;
         for (int i = inner_idx_; i < nblocks; i++) {
             auto &b = blocks[i];
             for (dim_t j = b.block; j > 1; j--) {
@@ -2433,13 +2442,13 @@ send_group_t init_scattered(const view_info_t &info,
         layout_t &reg_layout) {
     int slot_size;
     int slot_stride;
-    init_scattered_params(info.hw_cfg(), send_params, it.inner_bytes(),
-            &slot_size, &slot_stride);
-    int inner_slots = ir_utils::safe_divide(it.inner_bytes(), slot_size);
-
     auto &vlayout = info.vlayout();
     auto &blocks = vlayout.blocks();
     int type_size = vlayout.type().size();
+    init_scattered_params(info.hw_cfg(), send_params, it.inner_bytes(),
+            vlayout.elems() * type_size, &slot_size, &slot_stride);
+    int inner_slots = ir_utils::safe_divide(it.inner_bytes(), slot_size);
+
     ir_assert(slot_size % type_size == 0);
 
     send_group_t ret;
