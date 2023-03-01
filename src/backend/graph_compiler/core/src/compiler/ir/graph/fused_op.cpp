@@ -737,13 +737,10 @@ tsr_info_t get_or_create_tsr_and_fmt(
             {in->details_.get_plain_dims().size()}, datatypes::index);
     shape_tsr->attr().set(attr_keys::no_dead_write, true);
     shape_tsr->attr().set(attr_keys::no_tensor2var, true);
-    std::vector<uint64_t> init_format
-            = {uint64_t(in->details_.get_format().to_runtime())};
     bool fmt_init = in->details_.get_format_candidates().size() <= 1;
     auto out_fmt = builder::make_tensor(
             "format_" + std::to_string(gp.inner_tsr_count), {1UL},
-            datatypes::index, address_space::automatic,
-            fmt_init ? std::make_shared<static_data_t>(init_format) : nullptr);
+            datatypes::index);
     bld.push_var_tensor_def(rtsr);
     bld.push_var_tensor_def(shape_tsr);
     bld.push_evaluate(builder::make_write_struct(rtsr, shape_tsr,
@@ -769,14 +766,13 @@ tsr_info_t get_or_create_tsr_and_fmt(
     bld.push_evaluate(builder::make_write_struct(rtsr,
             builder::make_constant({dyn_mask_int}, datatypes::u8),
             dyn_tsr_struct_t::name, dyn_tsr_struct_t::fields::dyn_mask));
+    uint64_t init_format = 0;
     if (fmt_init) {
-        gp.modu->add_global_var(builder::make_var_tensor_def_unattached(
-                out_fmt, linkage::private_global)
-                                        .checked_as<define>());
-    } else {
-        bld.push_var_tensor_def(out_fmt);
-        bld.push_assign(builder::make_indexing(out_fmt, {0}), UINT64_C(0));
+        init_format = uint64_t(in->details_.get_format().to_runtime());
     }
+    bld.push_var_tensor_def(out_fmt);
+    bld.push_assign(builder::make_indexing(out_fmt, {0}), init_format);
+
     gp.inner_tsr_count++;
     auto ret = tsr_info_t(rtsr, expr(), out_fmt, gp.exprs.dummy_size);
     gp.ltsr_rtsr[in] = ret;

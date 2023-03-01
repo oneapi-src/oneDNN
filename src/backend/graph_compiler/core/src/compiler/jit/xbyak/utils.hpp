@@ -41,8 +41,8 @@ SC_INTERNAL_API inline bool is_x86_simd(const sc_data_type_t &t) {
  * If constant node scalar intger value exceeds 32bit
  * */
 SC_INTERNAL_API inline bool const_exceed_32bit(const expr_c &v) {
-    if (utils::is_one_of(v->dtype_, datatypes::index, datatypes::generic,
-                datatypes::pointer)
+    if ((utils::is_one_of(v->dtype_, datatypes::index, datatypes::generic)
+                || v->dtype_.is_pointer())
             && v.isa<constant>()) {
         const auto c = v.static_as<constant_c>();
         const uint64_t x = c->value_[0].u64;

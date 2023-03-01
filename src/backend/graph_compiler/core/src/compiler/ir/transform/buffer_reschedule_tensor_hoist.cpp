@@ -127,6 +127,12 @@ public:
         , eliminate_dead_writes_(eliminate_dead_writes)
         , do_inplace_opt_(do_inplace_opt) {}
 
+    using ir_visitor_t::dispatch;
+    func_c dispatch(func_c v) override {
+        buffer_sche_.top_level_ = v;
+        return ir_visitor_t::dispatch(std::move(v));
+    }
+
     stmt_c visit(for_loop_c v) override {
         if (v->attr_ && v->attr_->get_or_else(processed_by_brth, false)) {
             return ir_visitor_t::visit(v);

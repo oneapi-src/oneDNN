@@ -34,6 +34,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <util/any_map.hpp>
+#include <util/optional_find.hpp>
 
 SC_MODULE(pass.buffer_schedule);
 
@@ -121,6 +122,9 @@ struct call_site_info_t {
 // the tensor is not thread local
 static constexpr uint64_t NOT_THREAD_LOCAL = 0;
 struct tensor_tick_info_t {
+    // first read/write tick, will not be reset by complex scopes, useful for
+    // sorting the tensors
+    int64_t real_first_access_ = TICK_NOT_EXIST;
     int64_t first_access_ = TICK_NOT_EXIST; // first read/write tick
     int64_t last_read_ = TICK_NOT_EXIST; // last read tick
     std::set<int64_t> writes_; // all write ticks
@@ -298,6 +302,7 @@ public:
             if (itr->second.last_read_ == TICK_NOT_EXIST
                     && itr->second.writes_.empty()) {
                 itr->second.first_access_ = tick;
+                itr->second.real_first_access_ = tick;
             }
             // if the tensor has complicated use, don't optimize it
             if (itr->second.last_read_ == COMPLICATED_ACCESS) { return; }
@@ -329,6 +334,7 @@ public:
             if (itr->second.last_read_ == TICK_NOT_EXIST
                     && itr->second.writes_.empty()) {
                 itr->second.first_access_ = tick;
+                itr->second.real_first_access_ = tick;
             }
             if (itr->second.last_read_ == COMPLICATED_ACCESS) { return; }
             // record ticks in current scope; if the tensor is defined in parent
@@ -364,6 +370,7 @@ public:
             if (itr->second.last_read_ == TICK_NOT_EXIST
                     && itr->second.writes_.empty()) {
                 itr->second.first_access_ = tick;
+                itr->second.real_first_access_ = tick;
             }
 
             if (itr->second.last_read_ == COMPLICATED_ACCESS) { return; }
@@ -719,10 +726,10 @@ public:
         return v;
     }
 
-    func_c dispatch(func_c v) override {
-        for (auto &p : v->params_) {
+    void parse_func_params(const std::vector<expr> &params) {
+        for (auto &p : params) {
             if (p.isa<tensor>() && p->attr_
-                    && p->attr_->has_key("out_buffer")) {
+                    && p->attr_->has_key("write_buffer")) {
                 auto &info = (out_[p] = {});
                 info.create_ = 0;
                 info.delete_ = std::numeric_limits<int64_t>::max();
@@ -730,6 +737,10 @@ public:
                 info.already_scheduled_base_ = p;
             }
         }
+    }
+
+    func_c dispatch(func_c v) override {
+        parse_func_params(v->params_);
         dispatch(v->body_);
         return v;
     }
@@ -1039,6 +1050,37 @@ static void schedule_tensors(
     }
 }
 
+// if tsr has in-place hint and the hint contains only one target and the target
+// has the same size & dtype of tsr
+static const tensor_node *get_inplace_target_if_single_inplace(
+        const std::unordered_map<alias_info::tensor_alias_identity_t *, expr_c>
+                &identity_to_tensor,
+        const tensor_node *tsr, const tensor_node *base) {
+    return some_opt(tsr->attr_.get())
+            .map([](any_map_t *v) {
+                return v->get_or_null<std::vector<temp_tensor_inplace_info_t>>(
+                        attr_keys::tensor_inplace_hint);
+            })
+            .filter([](std::vector<temp_tensor_inplace_info_t> *v) {
+                return v->size() == 1UL
+                        && (*v)[0].kind_ == inplace_kind::ZERO_OFFSET;
+            })
+            .flat_map([&identity_to_tensor](
+                              std::vector<temp_tensor_inplace_info_t> *v) {
+                return utils::find_map_value(
+                        identity_to_tensor, (*v)[0].to_reuse_.get());
+            })
+            .map([](const expr_c *v) { return v->as<tensor_c>().get(); })
+            .filter([base](const tensor_node *v) {
+                return base->elem_dtype_ == v->elem_dtype_
+                        && get_const_as_int(
+                                   base->dims_.at(0).static_as<constant>())
+                        >= get_const_as_int(
+                                v->dims_.at(0).static_as<constant>());
+            })
+            .get_or_else(nullptr);
+}
+
 static std::vector<size_t> schedule_tensor_memory_planner(
         std::unordered_map<expr_c, tensor_tick_info_t> &ticks,
         const std::unordered_map<alias_info::tensor_alias_identity_t *, expr_c>
@@ -1046,7 +1088,8 @@ static std::vector<size_t> schedule_tensor_memory_planner(
         std::vector<expr_c> &defined_tensors,
         // the old_tensor -> (scope id, start offset)
         std::unordered_map<expr_c, std::pair<uint64_t, size_t>> &replace_map,
-        bool hot_first, uint64_t scopes, bool inplace) {
+        std::unordered_map<expr_c, expr> &replace_map_in_output, bool hot_first,
+        uint64_t scopes, bool inplace) {
     std::vector<size_t> total_list(scopes, 0);
     // tick->trace map, outer map for different parallel scope.
     std::vector<std::multimap<int64_t, memory_optim::memory_alloc_trace_t>>
@@ -1062,9 +1105,48 @@ static std::vector<size_t> schedule_tensor_memory_planner(
     std::sort(sorted_ticks.begin(), sorted_ticks.end(),
             [](const std::pair<const expr_c, tensor_tick_info_t> *x,
                     const std::pair<const expr_c, tensor_tick_info_t> *y) {
+                if (x->second.real_first_access_
+                        != y->second.real_first_access_) {
+                    return x->second.real_first_access_
+                            < y->second.real_first_access_;
+                }
                 return x->first.checked_as<tensor>()->name_
                         < y->first.checked_as<tensor>()->name_;
             });
+    for (auto &itr_ptr : sorted_ticks) {
+        auto &itr = *itr_ptr;
+        auto tsr = itr.first.checked_as<tensor>();
+        if (itr.second.is_arg_) {
+            auto inplace_parent = get_inplace_target_if_single_inplace(
+                    identity_to_tensor, tsr.get(), tsr.get());
+            while (inplace_parent) {
+                if (auto pinfo = utils::find_map_value(
+                            ticks, inplace_parent->node_ptr_from_this())
+                                         .get_or_else(nullptr)) {
+                    bool need_remove = false;
+                    int64_t lastread = itr.second.last_read_;
+                    if (!check_if_tensor_valid(itr, need_remove)) {
+                        if (need_remove) {
+                            replace_map[itr.first]
+                                    = std::make_pair(itr.second.scope_,
+                                            std::numeric_limits<size_t>::max());
+                        }
+                    } else {
+                        SC_MODULE_INFO << "In-place reusing output buffer"
+                                       << inplace_parent << " -> " << tsr;
+                        pinfo->is_arg_ = true;
+                        replace_map_in_output[inplace_parent
+                                                      ->node_ptr_from_this()]
+                                = builder::tensor_ptr(tsr, {UINT64_C(0)});
+                    }
+                    inplace_parent = get_inplace_target_if_single_inplace(
+                            identity_to_tensor, inplace_parent, tsr.get());
+                } else {
+                    inplace_parent = nullptr;
+                }
+            }
+        }
+    }
     for (auto &itr_ptr : sorted_ticks) {
         auto &itr = *itr_ptr;
         auto tsr = itr.first.checked_as<tensor>();
@@ -1255,6 +1337,7 @@ public:
     using ir_visitor_t::dispatch;
     // tsr -> (scope id, start offset)
     std::unordered_map<expr_c, std::pair<uint64_t, size_t>> &replace_map_;
+    std::unordered_map<expr_c, expr> &replace_map_in_output_;
     // top-level stmts -> scope id
     std::unordered_map<stmt_c, uint64_t> &stmts_to_scope_id_;
     std::vector<size_t> total_list_;
@@ -1262,9 +1345,11 @@ public:
     buffer_replacer_memory_planner_t(
             std::unordered_map<expr_c, std::pair<uint64_t, size_t>>
                     &replace_map,
+            std::unordered_map<expr_c, expr> &replace_map_in_output,
             std::unordered_map<stmt_c, uint64_t> &stmts_to_scope_id,
             const std::vector<size_t> &total_list)
         : replace_map_(replace_map)
+        , replace_map_in_output_(replace_map_in_output)
         , stmts_to_scope_id_(stmts_to_scope_id)
         , total_list_(total_list)
         , base_list_(std::vector<expr>(total_list.size())) {}
@@ -1284,6 +1369,12 @@ public:
                                 v->linkage_,
                                 builder::tensor_ptr(base_list_[cur_scope],
                                         {itr->second.second})));
+            }
+            auto itr2 = replace_map_in_output_.find(v->var_);
+            if (itr2 != replace_map_in_output_.end()) {
+                return copy_attr(*v,
+                        builder::make_var_tensor_def_unattached(
+                                v->var_, v->linkage_, itr2->second));
             }
             return std::move(v);
         } else {
@@ -1330,7 +1421,8 @@ public:
 };
 
 template <typename T1>
-static T1 run(const context_ptr &ctx, T1 f, bool remove_dead, bool inplace) {
+static T1 run(const context_ptr &ctx, T1 f, const func_c &toplevel,
+        bool remove_dead, bool inplace) {
     int type = ctx->flags_.buffer_schedule_;
     if (f->attr_) {
         if (f->attr_->has_key(attr_keys::buf_sched_type)) {
@@ -1352,6 +1444,7 @@ static T1 run(const context_ptr &ctx, T1 f, bool remove_dead, bool inplace) {
     std::unordered_map<expr_c, tensor_tick_info_t> tick_out;
     std::vector<expr_c> defined;
     reference_tick_finder_t finder(tick_out, defined);
+    if (toplevel) { finder.parse_func_params(toplevel->params_); }
     finder.dispatch(f);
     // if no local tensor defined, shortcut
     if (defined.empty()) { return f; }
@@ -1362,13 +1455,16 @@ static T1 run(const context_ptr &ctx, T1 f, bool remove_dead, bool inplace) {
     }
     if (aggresive) {
         std::unordered_map<expr_c, std::pair<uint64_t, size_t>> replacer_list;
+        std::unordered_map<expr_c, expr> replacer_list_output;
         auto total_list = schedule_tensor_memory_planner(tick_out,
                 finder.identity_to_tensor_, defined, replacer_list,
-                type == attr_keys::BUF_SCHED_HOT, finder.scope_id_ + 1,
-                inplace);
-        if (replacer_list.size() <= 1) { return f; }
-        buffer_replacer_memory_planner_t rep {
-                replacer_list, finder.stmts_to_scope_id_, total_list};
+                replacer_list_output, type == attr_keys::BUF_SCHED_HOT,
+                finder.scope_id_ + 1, inplace);
+        if (replacer_list.size() <= 1UL && replacer_list_output.empty()) {
+            return f;
+        }
+        buffer_replacer_memory_planner_t rep {replacer_list,
+                replacer_list_output, finder.stmts_to_scope_id_, total_list};
         return rep.dispatch(f);
     } else {
         std::unordered_map<expr_c, expr_c> replacer, extender;
@@ -1384,11 +1480,12 @@ func_c buffer_scheduler_t::operator()(func_c f) {
     if (f->attr_ && f->attr_->get_or_else(function_attrs::low_level, false)) {
         return f;
     }
-    return run(ctx_, f, eliminate_dead_writes_, do_inplace_opt_);
+    return run(ctx_, f, nullptr, eliminate_dead_writes_, do_inplace_opt_);
 }
 
 stmt_c buffer_scheduler_t::operator()(stmt_c f) const {
-    return run(ctx_, std::move(f), eliminate_dead_writes_, do_inplace_opt_);
+    return run(ctx_, std::move(f), top_level_, eliminate_dead_writes_,
+            do_inplace_opt_);
 }
 
 } // namespace sc

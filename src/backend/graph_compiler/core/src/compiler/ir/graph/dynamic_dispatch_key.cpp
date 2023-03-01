@@ -199,6 +199,42 @@ void recursive_construct(combined_dispatch_key_set_t::inner_set_t &set,
     }
 }
 
+static bool validate_dispatch_key_sets(
+        const std::vector<dispatch_set_ptr> &dispatch_sets,
+        const std::vector<sc_op_ptr> &inputs) {
+    // todo: add tunable dispatch check
+    // reorder impl kind check.
+    int cur_impl_num = -1;
+    for (size_t i = 0; i < inputs.size(); i++) {
+        if (inputs[i]->isa<reorder_op_t>()) {
+            if (dispatch_sets[i]->size() == 1) { continue; }
+            auto get_impl_kind_num = [](const dispatch_set_ptr &dispatch_set) {
+                auto &set = dispatch_set->get_inner_set();
+                bool has_normal = false, has_padding = false;
+                for (auto &it : set) {
+                    if (it.impl_ == impl_kind_t::normal) {
+                        has_normal = true;
+                    } else if (it.impl_ == impl_kind_t::no_padding) {
+                        has_padding = true;
+                    } else {
+                        throw std::runtime_error(
+                                "Wrong impl kind for reorder.");
+                    }
+                    if (has_normal && has_padding) { return 2; }
+                }
+                if (has_normal || has_padding) { return 1; }
+                return 0;
+            };
+            if (cur_impl_num == -1) {
+                cur_impl_num = get_impl_kind_num(dispatch_sets[i]);
+            } else if (cur_impl_num != get_impl_kind_num(dispatch_sets[i])) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 void combined_dispatch_key_set_t::internal_construct(
         const std::vector<dispatch_set_ptr> &dispatch_sets,
         const std::vector<sc_op_ptr> &inputs, const sc_op_ptr &modified_inp) {
@@ -214,7 +250,9 @@ void combined_dispatch_key_set_t::internal_construct(
         op_link_relations = get_op_layout_link_relationships(
                 inputs, dispatch_sets, modified_inp);
     }
-
+    COMPILE_ASSERT(validate_dispatch_key_sets(dispatch_sets, inputs),
+            "Wrong dispatch key sets, could not construct combined "
+            "dispatch key.");
     combined_op_dispatch_key_t cur_combined_key;
     cur_combined_key.reserve(len_key);
     auto reorder_impl_candidates = get_default_impl_dispatch_candidates();

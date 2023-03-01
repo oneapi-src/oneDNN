@@ -199,7 +199,7 @@ public:
         module_->setDataLayout(tm->createDataLayout());
         FastMathFlags fmflag;
         fmflag.setFast(true);
-        fmflag.setAllowContract(false);
+        fmflag.setAllowContract(true);
         builder_.setFastMathFlags(fmflag);
         if (ctx->flags_.debug_info_) {
             dbg_cu_ = dbuilder_->createCompileUnit(dwarf::DW_LANG_C,

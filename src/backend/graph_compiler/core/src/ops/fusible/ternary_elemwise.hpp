@@ -51,6 +51,9 @@ public:
     const std::vector<int> &get_plain_bc_axis() const { return plain_bc_axis_; }
     shape_rl_vec get_dynamic_shape_relations() const override;
 
+    void infer_binding_axis(bound_axis_map &bdax_map) override;
+    void pre_binding_axis(bound_axis_map &bdax_map) override;
+
 protected:
     std::vector<int> plain_bc_axis_;
 

@@ -27,6 +27,7 @@
 #include <compiler/ir/sc_data_format.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/ternary_elemwise.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <runtime/dynamic_dispatch/hash_dispatch_table.hpp>
 #include <util/utils.hpp>
@@ -112,11 +113,12 @@ sc_op_ptr find_output_linked_tunable_op(const graph_tensor_ptr &in) {
                 || op->isa<output_op>()) {
             continue;
         }
-        if (op->isa<binary_elementwise_op_t>()) {
-            auto parent_node = find_parent_dispatch_node(op->get_inputs()[0]);
-            if (parent_node->isa<tunable_op_t>()) { return parent_node; }
-            parent_node = find_parent_dispatch_node(op->get_inputs()[1]);
-            if (parent_node->isa<tunable_op_t>()) { return parent_node; }
+        if (op->isa<binary_elementwise_op_t>() || op->isa<select_op_t>()) {
+            for (size_t i = 0; i < op->get_inputs().size(); i++) {
+                auto parent_node
+                        = find_parent_dispatch_node(op->get_inputs()[i]);
+                if (parent_node->isa<tunable_op_t>()) { return parent_node; }
+            }
         }
         auto ret = find_output_linked_tunable_op(op->get_outputs()[0]);
         if (ret) { return ret; }

@@ -102,6 +102,9 @@ static constexpr int64_t HINT_IN_LOOP = -3;
 class buffer_scheduler_t : public function_pass_t {
 public:
     context_ptr ctx_;
+    // if only transforming the func body, this field should be set to correctly
+    // handle the func args
+    func_c top_level_ = nullptr;
     bool eliminate_dead_writes_;
     bool do_inplace_opt_;
     buffer_scheduler_t(context_ptr ctx, bool eliminate_dead_writes,

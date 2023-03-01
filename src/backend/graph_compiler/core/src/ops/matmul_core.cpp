@@ -177,6 +177,8 @@ void matmul_core_op_t::query_format(context_ptr ctx,
     bool constant_A = false, constant_B = false;
     bool block_A = attrs_.get_or_else("block_A", false);
     bool block_B = attrs_.get_or_else("block_B", false);
+    bool transposed_a = attrs_.get_or_else("transposed_a", false);
+    bool transposed_b = attrs_.get_or_else("transposed_b", false);
     if (info_.inputs_[0]->producer_owner_->isa<constant_op_t>()
             || info_.inputs_[0]->producer_owner_->attrs_.get_or_else(
                     "constant", const_kind::not_const)) {
@@ -274,8 +276,20 @@ void matmul_core_op_t::query_format(context_ptr ctx,
                                     // regular ND*ND matmul (non-batch
                                     // format) whether constant and no
                                     // transA
-                                    if (A_format.blocks_[0] != A_m_blk
-                                            || A_format.blocks_[1] != A_k_blk) {
+                                    auto A_formt_m_blk = transposed_a
+                                            ? A_format.blocks_[1]
+                                            : A_format.blocks_[0];
+                                    auto A_formt_k_blk = transposed_a
+                                            ? A_format.blocks_[0]
+                                            : A_format.blocks_[1];
+                                    if (A_formt_m_blk != A_m_blk
+                                            || A_formt_k_blk != A_k_blk
+                                            || A_format.format_code_.get(
+                                                       A_blocking_dims.size()
+                                                       - 1)
+                                                    == static_cast<int>(
+                                                            A_dims.size()
+                                                            - 2)) {
                                         ret_A_format = sc_data_format_t(
                                                 sc_data_format_kind_t::
                                                         get_2dblocking_by_dims(
@@ -301,10 +315,14 @@ void matmul_core_op_t::query_format(context_ptr ctx,
                                 ret_A_format = A_format;
                                 // follow last layer's config
                                 if (A_format.blocks_[0]) {
-                                    A_m_blk = C_m_blk = A_format.blocks_[0];
+                                    A_m_blk = C_m_blk = transposed_a
+                                            ? A_format.blocks_[1]
+                                            : A_format.blocks_[0];
                                 }
                                 if (A_format.blocks_[1]) {
-                                    A_k_blk = B_k_blk = A_format.blocks_[1];
+                                    A_k_blk = B_k_blk = transposed_a
+                                            ? A_format.blocks_[0]
+                                            : A_format.blocks_[1];
                                 }
                             }
                             // process B
@@ -352,9 +370,19 @@ void matmul_core_op_t::query_format(context_ptr ctx,
                                         // regular ND*ND matmul (non-batch
                                         // format) whether constant and no
                                         // transA
-                                        if (B_format.blocks_[0] != B_k_blk
-                                                || B_format.blocks_[1]
-                                                        != B_n_blk) {
+                                        auto B_formt_k_blk = transposed_b
+                                                ? B_format.blocks_[1]
+                                                : B_format.blocks_[0];
+                                        auto B_formt_n_blk = transposed_b
+                                                ? B_format.blocks_[0]
+                                                : B_format.blocks_[1];
+                                        if (B_formt_k_blk != B_k_blk
+                                                || B_formt_n_blk != B_n_blk
+                                                || B_format.format_code_.get(
+                                                           B_dims.size() - 1)
+                                                        == static_cast<int>(
+                                                                B_dims.size()
+                                                                - 2)) {
                                             ret_B_format = sc_data_format_t(
                                                     B_format_kind,
                                                     {B_k_blk, B_n_blk});
@@ -431,10 +459,10 @@ void matmul_core_op_t::query_format(context_ptr ctx,
                             if (dynamic) { break; }
                         }
                         // break is B padding loop if it is static
-                        if (!dynamic) { break; }
+                        if (!is_dynamic_dim(K) && !is_dynamic_dim(N)) { break; }
                     }
                     // break is A padding loop if it is static
-                    if (!dynamic) { break; }
+                    if (!is_dynamic_dim(M) && !is_dynamic_dim(K)) { break; }
                 }
                 // break the k loop if it is static
                 if (!dynamic) { break; }

@@ -224,12 +224,12 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
     }
   }
   if (get_input_dtype() == datatypes::f32) { cfg.tile_p = 1; }
-  if (try_os_blocking_) {
+  if (try_os_blocking_ && is_use_amx(ctx)) {
     // if use os blocking override tile p and tile q above
     cfg.tile_os = cfg.tile_q;
     auto os_choices = get_os_blocks(ow_, adj_os_);
     std::sort(os_choices.begin(), os_choices.end());
-    if (ow_ < 28 && ow_ % 16 != 0) {
+    if (ow_ <= 28 && ow_ % 16 != 0) {
       for (int i = os_choices.size() - 1; i >= 0; i--) {
         if (nthreads <= adj_os_ / os_choices[i] * mb_) {
           cfg.tile_os = os_choices[i];
@@ -406,8 +406,9 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
   // Note: os blocking is only valid for non_1x1, no pad and non 3D conv with
   // amx-int8 only so far.
   bool has_pad = (pd_ > 0) || (ph_ > 0) || (pw_ > 0);
-  try_os_blocking_
-    = (!is_1x1_conv_) && (!has_pad) && (!is_3d_) && is_int8 && ow_ < 28;
+  // TODO(zhicong): check whether to use os_blocking when sh > 1
+  try_os_blocking_ = (!is_1x1_conv_) && (!has_pad) && (!is_3d_) && is_int8
+    && ow_ <= 28 && sh_ == 1;
   if (is_1d_) {
     use_conv1d = true;
     COMPILE_ASSERT((kw_ == 1 && pw_ == 0),

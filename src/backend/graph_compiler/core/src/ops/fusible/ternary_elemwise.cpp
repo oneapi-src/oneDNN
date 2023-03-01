@@ -154,6 +154,41 @@ static slice_range_list infer_broadcast_arg_slice(
     return bc_arg_range_list;
 }
 
+static bound_axis infer_broadcast_axis_binding(
+        bound_axis known_axis_list, const std::vector<int> &bc_axis) {
+    bound_axis bc_axis_list(known_axis_list.size());
+    for (size_t i = 0; i < bc_axis_list.size(); i++) {
+        auto &known_ax = known_axis_list[i];
+        for (size_t j = 0; j < known_ax.size(); j++) {
+            auto &ax = known_ax[i];
+            if (ax == -1) {
+                bc_axis_list[i].emplace_back(ax);
+                continue;
+            }
+            bc_axis_list[i].emplace_back(bc_axis[ax]);
+        }
+    }
+    return bc_axis_list;
+}
+
+static bound_axis infer_broadcast_arg_axis_binding(
+        bound_axis known_axis_list, const std::vector<int> &bc_axis) {
+    bound_axis bc_arg_axis_list(known_axis_list.size());
+    for (size_t i = 0; i < bc_arg_axis_list.size(); i++) {
+        auto &known_ax = known_axis_list[i];
+        for (size_t j = 0; j < known_ax.size(); j++) {
+            auto iter = std::find(bc_axis.begin(), bc_axis.end(), known_ax[j]);
+            if (iter != bc_axis.end()) {
+                auto offset = std::distance(bc_axis.begin(), iter);
+                bc_arg_axis_list[i].emplace_back(offset);
+            } else {
+                bc_arg_axis_list[i].emplace_back(-1);
+            }
+        }
+    }
+    return bc_arg_axis_list;
+}
+
 select_op_t::select_op_t(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
     op_name_ = "select";
@@ -291,7 +326,8 @@ void select_op_t::query_format(context_ptr ctx,
             "shape constraint ({1}).");
 
     int bc_input_idx = get_broadcast_input(0, 2);
-
+    // todo: not only layout input index 2 is linked with tunable op.
+    attrs_.set<int>(op_attr_key::layout_input_index, 2);
     if (info_.inputs_[0]->details_.get_plain_dims().size()
             != info_.inputs_[2]->details_.get_plain_dims().size()) {
         COMPILE_ASSERT(in0_format == sc_data_format_t(format_kinds::A)
@@ -413,6 +449,86 @@ void select_op_t::infer_slice_ranges(
                     ? maxtensor_idx
                     : (inplace_ >= 1 ? inplace_ : 1)];
 }
+
+void select_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
+    COMPILE_ASSERT(get_inputs().size() == 3, "select op is expected 3 inputs");
+    // search known axis from any input of cur fusbile op
+    auto known_axis_map = search_known_bound_axis(this, bdax_map);
+    if (!bdax_map.get(get_outputs()[0]).empty()) return;
+
+    // if unkown slice ranges exist.
+    if (known_axis_map.size() < get_inputs().size()) {
+        std::vector<int> known_idx(3, 0);
+        known_idx[0] = known_axis_map.find(0) != known_axis_map.end() ? 1 : 0;
+        known_idx[1] = known_axis_map.find(1) != known_axis_map.end() ? 1 : 0;
+        known_idx[2] = known_axis_map.find(2) != known_axis_map.end() ? 1 : 0;
+        // check broadcast
+        int maxtensor_idx = get_max_input();
+        if (maxtensor_idx >= 0) {
+            if (known_idx[maxtensor_idx] == 1) {
+                for (int i = 0; i < 3; i++) {
+                    if (known_idx[i] == 0) {
+                        bool keep_dims = get_inputs()[i]
+                                                 ->details_.get_blocking_dims()
+                                                 .size()
+                                == get_inputs()[maxtensor_idx]
+                                           ->details_.get_blocking_dims()
+                                           .size();
+                        if (keep_dims) {
+                            known_axis_map[i] = known_axis_map[maxtensor_idx];
+                        } else {
+                            auto bc_axis = get_bc_axis(maxtensor_idx, i);
+                            auto bc_arg_axis_list
+                                    = infer_broadcast_arg_axis_binding(
+                                            known_axis_map[maxtensor_idx],
+                                            bc_axis);
+                            known_axis_map[i] = bc_arg_axis_list;
+                        }
+                    }
+                }
+            } else {
+                COMPILE_ASSERT(known_idx[0] || known_idx[2],
+                        "input0 and input2 can't both be unknown");
+                COMPILE_ASSERT(maxtensor_idx != 1,
+                        "maxtensor_idx shouldn't be input1");
+                // call get_bc_axis for input[0] && input[2]
+                auto bc_axis = get_bc_axis(maxtensor_idx, 2 - maxtensor_idx);
+                auto bc_axis_list = infer_broadcast_axis_binding(
+                        known_axis_map[2 - maxtensor_idx], bc_axis);
+                known_axis_map[maxtensor_idx] = bc_axis_list;
+                // deal with input[1]
+                bc_axis = get_bc_axis(2 - maxtensor_idx, 1);
+                bc_axis_list = infer_broadcast_axis_binding(
+                        known_axis_map[2 - maxtensor_idx], bc_axis);
+                known_axis_map[1] = bc_axis_list;
+            }
+        } else {
+            int known_tensor = -1;
+            for (int i = 0; i < 3; i++) {
+                if (known_idx[i] == 1) {
+                    known_tensor = i;
+                    break;
+                }
+            }
+            COMPILE_ASSERT(
+                    known_tensor >= 0, "At least one slice shall be known.");
+            for (int i = 0; i < 3; i++) {
+                if (i != known_tensor) {
+                    known_axis_map[i] = known_axis_map[known_tensor];
+                }
+            }
+        }
+    }
+    // set outputs axis binding
+    int maxtensor_idx = get_max_input();
+    bdax_map.get(get_outputs()[0]) = known_axis_map[maxtensor_idx > -1
+                    ? maxtensor_idx
+                    : (inplace_ >= 1 ? inplace_ : 1)];
+    // set the other unknown axis binding by achieved known_axis_map
+    set_unknown_axis_binding(this, known_axis_map, bdax_map);
+}
+
+void select_op_t::pre_binding_axis(bound_axis_map &bdax_map) {}
 
 // l is always the larger side when passing parameters.
 std::vector<int> select_op_t::get_bc_axis(const int l, const int r) const {

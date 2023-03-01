@@ -360,6 +360,9 @@ public:
                             = insert_load(std::move(ret->value_), cur_index_);
                     return ret;
                 }
+            } else if (const_exceed_32bit(ret->value_)) {
+                ret->value_ = insert_load(std::move(ret->value_), cur_index_);
+                return ret;
             }
         }
         return ret;
@@ -430,9 +433,14 @@ protected:
         auto vv = xbyak_visitor_t::visit(std::move(v))
                           .remove_const()
                           .static_as<define>();
-        if (vv->var_.isa<tensor>() && vv->init_.defined()
-                && vv->init_.isa<tensorptr>() && is_spilled(vv->var_)) {
-            vv->init_ = insert_load(std::move(vv->init_), cur_index_);
+        if (is_spilled(vv->var_) && vv->init_.defined()) {
+            if (vv->var_.isa<tensor>() && vv->init_.isa<tensorptr>()) {
+                // load tensor_ptr using lea needs dst be reg
+                vv->init_ = insert_load(std::move(vv->init_), cur_index_);
+            } else if (const_exceed_32bit(vv->init_)) {
+                // load constant to mem location cannot exceed 32bit
+                vv->init_ = insert_load(std::move(vv->init_), cur_index_);
+            }
         }
         return vv;
     }

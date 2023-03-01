@@ -149,6 +149,10 @@ expr cast_to_s32(const expr &in);
 // compare expr in slice equal or not, constant slice may have different
 // datatypes but same value as we use `int` for static.
 bool slice_expr_equals(const expr &in1, const expr &in2);
+// sort op inputs by layout input index, the order is [layout input index,
+// others...]
+std::vector<graph_tensor_ptr> get_sorted_inputs_by_layout_input(
+        const sc_op_ptr &op);
 } // namespace sc
 
 #endif

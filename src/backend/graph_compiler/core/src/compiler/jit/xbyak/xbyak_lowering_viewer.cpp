@@ -1015,6 +1015,8 @@ void xbyak_lowering_viewer::handle_cast(const expr_c &lhs, const cast_c &v) {
     } else if (out_dtype == sc_data_type_t::boolean(64)
             && scalar_bit(in_dtype) >= 64) {
         XBYAK_GEN(kmovq, AVX_KMR64_KMR64, op_out, op_in);
+    } else if (out_dtype == in_dtype) {
+        handle_assign(lhs, v->in_);
     } else {
         COMPILE_ASSERT(false,
                 FUNC_INFO << "Invalid type: " << out_dtype << " <- " << in_dtype

@@ -128,7 +128,18 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
   }
   cfg.M_split_num = num_threads / split_n;
   cfg.N_split_num = split_n;
-  if (M == iim_block && num_threads <= 4) {
+  if (is_int8 && N <= 512 && K <= 512) {
+    // for int8 datatype and small N/Ks, we prefer to give splits only on M
+    // when M is small, num_threadsx1x1 split is the same as 1x1x1 split, which
+    // runs on single core
+    cfg.M_split_num = num_threads;
+    cfg.N_split_num = 1;
+  } else if (N <= 192 && K <= 192) {
+    // for other datatypes, we prefer to give splits only on M with much smaller
+    // N/Ks
+    cfg.M_split_num = num_threads;
+    cfg.N_split_num = 1;
+  } else if (M == iim_block && num_threads <= 4) {
     cfg.M_split_num = 1;
     // magic number = 4096, needs to be further discussed for pretty big K
     if (K < 4096) {
@@ -143,15 +154,6 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
         }
       }
     }
-  } else if (is_int8 && N <= 512 && K <= 512) {
-    // for int8 datatype and small N/Ks, we prefer to give splits only on M
-    cfg.M_split_num = num_threads;
-    cfg.N_split_num = 1;
-  } else if (N <= 192 && K <= 192) {
-    // for other datatypes, we prefer to give splits only on M with much smaller
-    // N/Ks
-    cfg.M_split_num = num_threads;
-    cfg.N_split_num = 1;
   } else if (K >= 8192) {
     // for really big K, we need to give splits on K
     if (M < N) {
@@ -984,8 +986,8 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
             // create input anchor for B if necessary
             if (fusion && in_tensors_[1].get_format().is_blocking()
               && K.isa<constant>()
-              && ((get_expr_as_int(K) / iik_block_ % config.K_sub_block)
-                == 0)) {
+              && ((get_expr_as_int(K) / iik_block_ % config.K_sub_block) == 0)
+              && ori_M <= 512) {
               slice_range B_slice = {{n_start_idx / iin_block_, 1},
                 {k_start_idx / iik_block_, K / iik_block_ / K_sub_block},
                 {0, iik_block_ / dtype_block}, {0, iin_block_}};
@@ -1309,7 +1311,8 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
                                                    : for_type::PARALLEL,
           M_split_num * N_split_num == num_threads ? 0 : K_split_num) {
           // create input anchor for A if necessary
-          if (fusion && in_tensors_[0].get_format().is_blocking()) {
+          if (fusion && in_tensors_[0].get_format().is_blocking()
+            && M * K <= 1024 * 1024) {
             fusion->create_input_fusion_anchor({tensor_slice(A,
               {{m_idx / iim_block_,
                  utils::divide_and_ceil(M_block_size, iim_block_)},
@@ -1564,7 +1567,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           }
           // create input anchor for A if necessary
           if (fusion && in_tensors_[0].get_format().is_blocking()
-            && (K_block_size == K_ib_block_size)) {
+            && (K_block_size == K_ib_block_size) && M * K <= 1024 * 1024) {
             fusion->create_input_fusion_anchor({tensor_slice(A,
               {{m_idx / iim_block_,
                  utils::divide_and_ceil(M_block_size, iim_block_)},

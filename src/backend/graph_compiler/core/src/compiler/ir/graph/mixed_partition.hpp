@@ -142,6 +142,8 @@ struct mxp_buffer_allocator {
     // set inplace hint
     void set_buffer_inplace_hint(
             const expr &target_buf, const expr &inplace_buf);
+    // get inplaced buffer
+    expr get_inplaced_buffer(const expr &buf) const;
     // get allocated buffer
     std::tuple<std::vector<expr>, std::vector<expr>> get_buffer(sc_op *op);
     // update input buffer info
@@ -181,6 +183,8 @@ struct mxp_buffer_allocator {
     slice_range get_shrinked_info(const expr &buffer) const;
     // query buffer inplace and set hint for IR pass
     void query_buffer_inplace();
+    // validate buffer information about inplace and shrink
+    void validate_buffer();
     // count of buffer usage
     int use_count(const expr &buffer) const;
 };

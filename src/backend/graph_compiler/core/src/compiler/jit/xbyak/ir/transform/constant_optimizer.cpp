@@ -234,7 +234,8 @@ public:
     expr power_of_2_exponent(const constant_c &v) {
         // Calculate integer log2(2^n)
         uint64_t val = v->value_[0].u64;
-        return builder::make_constant(__builtin_ctzl(val));
+        return builder::make_constant(
+                {uint64_t(__builtin_ctzl(val))}, v->dtype_);
     }
 
     expr power_of_2_minus_1(const constant_c &v) {

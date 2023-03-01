@@ -1090,7 +1090,13 @@ expr_location location_manager::get_location(const constant_c &v) {
         return loc_iter->second;
     } else {
         // Get immediate value
-        return expr_location::make_imm(v->value_[0].s64, data_type);
+        if (v->dtype_ == datatypes::bf16) {
+            // bf16x1 treated as uint_16, thus imm needs conversion
+            return expr_location::make_imm(
+                    bf16_t(v->value_[0].f32).storage_, data_type);
+        } else {
+            return expr_location::make_imm(v->value_[0].s64, data_type);
+        }
     }
 }
 

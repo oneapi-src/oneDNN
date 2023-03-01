@@ -533,7 +533,29 @@ std::vector<union_val> execute_logic_binary(sc_expr_type op,
 }
 
 template <typename T>
-T execute_mod(T a, T b) {
+static T execute_shr(T a, T b) {
+    return a >> b;
+}
+
+template <typename T>
+static T execute_shl(T a, T b) {
+    return a << b;
+}
+
+template <>
+float execute_shr(float a, float b) {
+    COMPILE_ASSERT(0, ">> cannot be applied on float type");
+    return 0;
+}
+
+template <>
+float execute_shl(float a, float b) {
+    COMPILE_ASSERT(0, "<< cannot be applied on float type");
+    return 0;
+}
+
+template <typename T>
+static T execute_mod(T a, T b) {
     return a % b;
 }
 
@@ -544,12 +566,12 @@ float execute_mod(float a, float b) {
 }
 
 template <typename T>
-T execute_and(T a, T b) {
+static T execute_and(T a, T b) {
     return a & b;
 }
 
 template <typename T>
-T execute_or(T a, T b) {
+static T execute_or(T a, T b) {
     return a | b;
 }
 
@@ -579,6 +601,10 @@ std::vector<union_val> execute_binary(sc_expr_type op, intrin_type intrin_op,
         case sc_expr_type::mod: return execute_on_values(&execute_mod<T>, x, y);
         case sc_expr_type::intrin_call: {
             switch (intrin_op) {
+                case intrin_type::shl:
+                    return execute_on_values(&execute_shl<T>, x, y);
+                case intrin_type::shr:
+                    return execute_on_values(&execute_shr<T>, x, y);
                 case intrin_type::min: return DEF_COMPUTE(a < b ? a : b);
                 case intrin_type::max: return DEF_COMPUTE(a > b ? a : b);
                 case intrin_type::int_and:
@@ -1221,6 +1247,8 @@ public:
         if (ret.isa<intrin_call>()) {
             auto node = ret.static_as<intrin_call_c>();
             switch (node->type_) {
+                case intrin_type::shl:
+                case intrin_type::shr:
                 case intrin_type::max:
                 case intrin_type::min:
                 case intrin_type::int_and:

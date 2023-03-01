@@ -121,6 +121,10 @@ void tensor_detail_to_ir_tensor(sc_graph_t &graph,
 
 void mxp_buffer_allocator::set_buffer_inplace_hint(
         const expr &target_buf, const expr &inplace_buf) {
+    COMPILE_ASSERT(target_buf.defined() && inplace_buf.defined(),
+            "Both buffer should be defined")
+    // skip same buffer
+    if (inplace_buf.ptr_same(target_buf)) return;
     auto target_id = alias_info::get_or_create_alias_info(*target_buf.get());
     SC_MODULE_INFO << "Mark inplace hint for buffer: " << inplace_buf << " ==> "
                    << target_buf;
@@ -612,6 +616,16 @@ static void collect_inplace_info(graph_tensor *cur_gt, graph_tensor *ref_gt,
     }
 }
 
+expr mxp_buffer_allocator::get_inplaced_buffer(const expr &buf) const {
+    auto iter = inplace_map_.find((uintptr_t)buf.get());
+    if (iter != inplace_map_.end()) {
+        COMPILE_ASSERT(iter->second.size() == 1,
+                "Unexpected inplace info size during partition")
+        return ((expr_base *)iter->second[0].first)->node_ptr_from_this();
+    }
+    return expr();
+}
+
 void mxp_buffer_allocator::query_buffer_inplace() {
     SC_MODULE_INFO << "Query buffer inplace hint...";
     // step 0: get outer loop
@@ -686,6 +700,80 @@ void mxp_buffer_allocator::query_buffer_inplace() {
                 continue;
             // set inplace hint
             set_buffer_inplace_hint(target_buf, inplace_buf);
+            // in avoid of repeat try
+            replaced_buffer.insert(inplace_buf);
+        }
+    }
+}
+
+void mxp_buffer_allocator::validate_buffer() {
+    // collect cut buffer
+    std::unordered_set<expr> cut_buffer_set;
+    for (auto iter = inplace_map_.begin(); iter != inplace_map_.end();) {
+        auto &hint = (*iter);
+        auto out_buf = ((expr_base *)hint.first)->node_ptr_from_this();
+        if (!out_buf->attr().has_key(mixed_partition_hint::cut_buffer)) {
+            ++iter;
+            continue;
+        }
+        // temp buffer set
+        std::unordered_set<expr> temp_set;
+        // record whether tensorptr would be inplaced by cut buffer
+        bool inplace_tptr = false;
+        auto buf = out_buf;
+        while (buf.defined()) {
+            // if tensorptr found
+            if (buf.isa<tensorptr>()) {
+                inplace_tptr = true;
+                break;
+            }
+            temp_set.insert(buf);
+            buf = get_inplaced_buffer(buf);
+        }
+        if (!inplace_tptr) {
+            // remove tensor shrink attr for those shared with cut buffer
+            for (auto &tb : temp_set) {
+                tb->attr().remove(tensor_shrinker_attrs::should_shrink);
+            }
+            cut_buffer_set.insert(temp_set.begin(), temp_set.end());
+            ++iter;
+        } else {
+            // cut off inplace hint for the output buffer
+            out_buf->attr().remove(attr_keys::tensor_inplace_hint);
+            // remove inplace map
+            iter = inplace_map_.erase(iter);
+        }
+    }
+
+    // validate inplace hint for shrink info
+    for (auto iter = inplace_map_.begin(); iter != inplace_map_.end();) {
+        auto &hint = (*iter);
+        auto buf1 = ((expr_base *)hint.first)->node_ptr_from_this();
+        COMPILE_ASSERT(hint.second.size() == 1,
+                "Unexpected inplace info size during partition")
+        auto buf2 = ((expr_base *)hint.second[0].first)->node_ptr_from_this();
+        // auto skip cut buffer
+        if (cut_buffer_set.find(buf1) != cut_buffer_set.end()) {
+            COMPILE_ASSERT(cut_buffer_set.find(buf2) != cut_buffer_set.end(),
+                    "inplaced buffer should also be set cut buffer")
+            ++iter;
+        } else {
+            auto shrink_info1 = get_shrinked_info(buf1);
+            auto shrink_info2 = get_shrinked_info(buf2);
+            // if shrink info is not equal, remove inplace hint
+            if ((shrink_info1.empty() ^ shrink_info2.empty())
+                    || (!shrink_info1.empty() && !shrink_info2.empty()
+                            && cmp_slice_range({shrink_info1}, {shrink_info2})
+                                    != cmp_res::equal)) {
+                SC_MODULE_INFO << "removing tensor inplace hint: " << buf1
+                               << " ==> " << buf2 << " for safety";
+                // remove inplace hint to ensure correctness
+                buf1->attr().remove(attr_keys::tensor_inplace_hint);
+                // remove inplace map
+                iter = inplace_map_.erase(iter);
+            } else {
+                ++iter;
+            }
         }
     }
 }
@@ -2162,11 +2250,6 @@ static bool try_merge_brgemm_and_preop_parti(mixed_parti_t *A, mixed_parti_t *B,
     brgemm_parti->fusion_partition_t::merge(
             static_cast<fusion_partition_t *>(preop_parti)->shared_from_this());
 
-    // Merge commited ops
-    brgemm_parti->committed_ops_.insert(brgemm_parti->committed_ops_.end(),
-            preop_parti->committed_ops_.begin(),
-            preop_parti->committed_ops_.end());
-
     SC_MODULE_INFO << "pre-op merging result:";
     SC_MODULE_INFO << brgemm_parti->func_;
 
@@ -2635,6 +2718,7 @@ void mixed_parti_t::buffer_schedule() {
     buf_alloc_.declare_tensor();
     buf_alloc_.set_shrink_info();
     buf_alloc_.query_buffer_inplace();
+    buf_alloc_.validate_buffer();
 }
 
 bool mixed_parti_t::is_parti_inp(const graph_tensor *gt) const {
@@ -2923,7 +3007,8 @@ static bool do_partition(const context_ptr &ctx, sc_graph_t &g,
         if (!op->attrs_.get_or_else(op_attr_key::break_pre_fuse, false)) {
             std::vector<mixed_parti_t::ptr> avaliable_input_parti;
             // collect avaliable input partition
-            for (auto &in : op->get_inputs()) {
+            auto sorted_inputs = get_sorted_inputs_by_layout_input(op);
+            for (auto &in : sorted_inputs) {
                 // if an input is fusible and is not "break_post_fuse"
                 if (!in->producer_owner_->attrs_.get_or_else(
                             op_attr_key::break_post_fuse, false)

@@ -113,7 +113,7 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
 
     if (try_os_blocking_) {
       cfg.im_w_block = get_os_blocks(ow_, adj_os_).back();
-      if (ow_ >= 28) {
+      if (ow_ > 28 && is_use_amx(ctx)) {
         cfg.im_w_block = utils::get_blocks(ow_, 1, 256).back();
       } else {
         auto os_blocks = get_os_blocks(ow_, adj_os_);

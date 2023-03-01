@@ -26,6 +26,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <util/any_map.hpp>
+#include <util/array_ref.hpp>
 #include <util/utils.hpp>
 #include <util/weakptr_utils.hpp>
 
@@ -77,8 +78,8 @@ class var_dependency_finder_t : public ir_viewer_t {
     void view(var_c v) override { vars_->insert(v.impl); }
 
 public:
-    static bool find(utils::weakptr_hashset_t<expr_base> &vars,
-            const std::vector<expr> &idx) {
+    static bool find(
+            utils::weakptr_hashset_t<expr_base> &vars, array_ref<expr> idx) {
         var_dependency_finder_t f(&vars);
         for (auto &v : idx) {
             f.dispatch(v);
@@ -420,6 +421,10 @@ class indexing2var_impl_t : public ir_visitor_t {
         utils::weakptr_hashset_t<expr_base> vars;
         // if we can trace the changes of the indices
         bool is_valid = var_dependency_finder_t::find(vars, v->idx_);
+        if (v->mask_.defined()) {
+            is_valid = is_valid
+                    && var_dependency_finder_t::find(vars, &(v->mask_));
+        }
         if (!is_valid) {
             out_cache = nullptr;
             return std::move(v);

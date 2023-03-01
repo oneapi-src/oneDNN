@@ -388,6 +388,9 @@ void cfake_jit::set_target_machine(target_machine_t &tm) {
     auto f = get_compiler_flags();
     f.dataCacheLevels_ = tm.cpu_flags_.dataCacheLevels_;
     f.dataCacheSize_ = tm.cpu_flags_.dataCacheSize_;
+    f.family = tm.cpu_flags_.family;
+    f.model = tm.cpu_flags_.model;
+    f.step = tm.cpu_flags_.step;
     for (auto &itr : flg_map) {
         if (get_flag_field(tm.cpu_flags_, itr.second)
                 != get_flag_field(f, itr.second)) {

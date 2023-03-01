@@ -497,16 +497,8 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
         }
     } else if (type == info_etype_t::format) {
         tensor_name += "_format";
-        if (t->details_.get_format_candidates().size() <= 1) {
-            std::vector<uint64_t> init_format
-                    = {uint64_t(t->details_.get_format().to_runtime())};
-            tsr = builder::make_tensor(tensor_name, {UINT64_C(1)},
-                    datatypes::index, address_space::automatic,
-                    std::make_shared<static_data_t>(init_format));
-        } else {
-            tsr = builder::make_tensor(
-                    tensor_name, {UINT64_C(1)}, datatypes::index);
-        }
+        tsr = builder::make_tensor(
+                tensor_name, {UINT64_C(1)}, datatypes::index);
         itr->second.format_ = tsr;
     } else {
         assert(type == info_etype_t::out_size);
@@ -612,16 +604,14 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
         }
     } else if (type == info_etype_t::format) {
         // placeholder can be replaced by tensor while format can't
-        if (tsr.checked_as<tensor>()->init_value_) {
-            gp.ret_mod->add_global_var(builder::make_var_tensor_def_unattached(
-                    tsr, linkage::private_global)
-                                               .checked_as<define>());
-        } else {
-            gp.func_body->seq_.emplace_back(
-                    builder::make_var_tensor_def_unattached(tsr));
-            gp.func_body->seq_.emplace_back(builder::make_assign_unattached(
-                    builder::make_indexing(tsr, {0}), UINT64_C(0)));
+        gp.func_body->seq_.emplace_back(
+                builder::make_var_tensor_def_unattached(tsr));
+        uint64_t init_format = 0;
+        if (t->details_.get_format_candidates().size() <= 1) {
+            init_format = uint64_t(t->details_.get_format().to_runtime());
         }
+        gp.func_body->seq_.emplace_back(builder::make_assign_unattached(
+                builder::make_indexing(tsr, {0}), init_format));
     } else if (type == info_etype_t::out_size) {
         if (const_type == const_kind::not_const) {
             gp.func_body->seq_.emplace_back(

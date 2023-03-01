@@ -294,7 +294,11 @@ bool gen_convNxN_backprop_weight::generate_reduce_N(const context_ptr &ctx,
                             {n_o * K_num_block + k_o, c_o, r, s, 0, 0}),
                           Q_batch_size, K_block, C_block, tile_n, tile_n,
                           C_block, C_block, K_block * tile_n,
-                          stride_w * C_block * tile_n, dtype, dtype);
+                          stride_w * C_block
+                            * static_cast<int>(
+                              utils::divide_and_ceil(tile_n, dtype_block))
+                            * dtype_block,
+                          dtype, dtype);
                       }
                       _else_ {
                         builtin::brgemm_update(
@@ -312,7 +316,11 @@ bool gen_convNxN_backprop_weight::generate_reduce_N(const context_ptr &ctx,
                             {n_o * K_num_block + k_o, c_o, r, s, 0, 0}),
                           Q_batch_size, K_block, C_block, tile_n, tile_n,
                           C_block, C_block, K_block * tile_n,
-                          stride_w * C_block * tile_n, dtype, dtype);
+                          stride_w * C_block
+                            * static_cast<int>(
+                              utils::divide_and_ceil(tile_n, dtype_block))
+                            * dtype_block,
+                          dtype, dtype);
                       }
                     }
                   }
