@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,6 +54,7 @@ const dt_conf_t conf_entry_bf16
 
 // Configurations with same SRC and DST datatypes
 const _dt_conf_t conf_f32 = {conf_entry_f32, {}, {}, conf_entry_f32};
+const _dt_conf_t conf_f64 = {conf_entry_f32, {}, {}, conf_entry_f32};
 const _dt_conf_t conf_s32 = {conf_entry_s32, {}, {}, conf_entry_s32};
 const _dt_conf_t conf_f16 = {conf_entry_f16, {}, {}, conf_entry_f16};
 const _dt_conf_t conf_bf16 = {conf_entry_bf16, {}, {}, conf_entry_bf16};
@@ -76,6 +77,7 @@ const dt_conf_t *str2cfg(const char *str) {
 #define CASE(cfg) \
     if (!strcasecmp(STRINGIFY(cfg), str)) return CONCAT2(conf_, cfg)
     CASE(f32);
+    CASE(f64);
     CASE(s32);
     CASE(f16);
     CASE(bf16);
@@ -104,6 +106,7 @@ std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg) {
 #define CASE(_cfg) \
     if (cfg == CONCAT2(conf_, _cfg)) return s << STRINGIFY(_cfg)
     CASE(f32);
+    CASE(f64);
     CASE(s32);
     CASE(f16);
     CASE(bf16);

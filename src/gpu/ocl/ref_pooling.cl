@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,6 +20,11 @@
 // these are all supported combinations of different src/dst datatypes
 #if DST_DT_F32
 #define DST_DATA_MIN -FLT_MAX
+#elif DST_DT_F64
+// limitation caused by Benchdnn reference written for float, for correct
+// -DBL_MAX value displays -inf value instead. To be corrected after Benchdnn
+// starts supporting f64 in core.
+#define DST_DATA_MIN -FLT_MAX
 #elif DST_DT_S8
 #define DST_DATA_MIN CHAR_MIN
 #elif DST_DT_U8
@@ -28,6 +33,12 @@
 #define DST_DATA_MIN -HALF_MAX
 #else
 #define DST_DATA_MIN DATA_MIN
+#endif
+
+#if DT_F64 || DST_DT_F64
+#define ACC_DATA_T double
+#else
+#define ACC_DATA_T float
 #endif
 
 #if IS_FWD
@@ -54,13 +65,16 @@ __kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
     ws[dst_off] = -1;
 #endif
 #if ALG_AVG_P || ALG_AVG_NP
-    float d = 0;
+    ACC_DATA_T d = 0;
 #endif
-#if ALG_MAX && DT_BF16
+#if ALG_MAX
+#if DT_BF16
     DEF_ACC_DATA_T d = TO_DEF_ACC_DATA_T(DST_DATA_MIN);
-#elif ALG_MAX // DT_BF16
-    float d = DST_DATA_MIN;
-#endif
+#else
+    ACC_DATA_T d = DST_DATA_MIN;
+#endif // DT_BF16
+#endif // ALG_MAX
+
     for (int kd = 0; kd < KD; ++kd) {
         const int id = od * SD - PD + kd * (DD + 1);
         if (id < 0 || id >= ID) continue;
@@ -78,18 +92,24 @@ __kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
 #endif
 #if DT_BF16
                 DEF_ACC_DATA_T s = DATA_TO_REF(src[src_off]);
-#else // DT_BF16 == 0
-                float s = DATA_TO_REF(src[src_off]);
-#endif
+#elif DT_F64
+                ACC_DATA_T s = src[src_off];
+#else
+                ACC_DATA_T s = DATA_TO_REF(src[src_off]);
+#endif // DT_BF16
                 if (s > d) {
                     d = s;
 #if IS_TRAINING
                     ws[dst_off] = kd * KH * KW + kh * KW + kw;
 #endif
                 }
+#else // ALG_MAX == 0
+#if DT_F64
+                d += src[src_off];
 #else
                 d += DATA_TO_REF(src[src_off]);
-#endif
+#endif // DT_F64
+#endif // ALG_MAX
             }
         }
     }
@@ -129,14 +149,14 @@ __kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
 #endif
 
         // post op service
-#if DT_BF16
+#if DT_BF16 || DT_F64
     POST_OP_DATA_T tmp = d;
-#else // DT_BF16 == 0
-    POST_OP_DATA_T tmp = DATA_TO_REF(d);
-#endif
+#else
+    POST_OP_DATA_T tmp = (POST_OP_DATA_T)DATA_TO_REF(d);
+#endif // DT_BF16
     POST_OP_DATA_T sum_src;
 #if WITH_SUM
-    sum_src = DATA_TO_REF(dst[dst_off]);
+    sum_src = (POST_OP_DATA_T)DATA_TO_REF(dst[dst_off]);
 #endif
 #if NDIMS == 3
     const unsigned po_d2 = ow;
@@ -159,7 +179,11 @@ __kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
             oc, 1, po_d2, 1, po_d3, 1, po_d4, 1, 0, 1);
 
     // store result
+#if DT_F64
+    dst[dst_off] = tmp;
+#else
     dst[dst_off] = TO_DST(tmp);
+#endif
 }
 #endif
 
@@ -173,7 +197,7 @@ __kernel void ref_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
     const int ih = GWS_GET_IH();
     const int iw = GWS_GET_IW();
 
-    float s = 0;
+    ACC_DATA_T s = 0;
     for (int kd = 0; kd < KD; ++kd) {
         int _od = id + PD - kd * (DD + 1);
         if (_od % SD != 0) continue;
@@ -233,7 +257,11 @@ __kernel void ref_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
                         * (KH - ih_start_excluded - ih_end_excluded)
                         * (KW - iw_start_excluded - iw_end_excluded);
 #endif
+#if DT_F64
+                s += diff_dst[dst_off] / denom;
+#else
                 s += DATA_TO_REF(diff_dst[dst_off]) / denom;
+#endif
             }
         }
     }

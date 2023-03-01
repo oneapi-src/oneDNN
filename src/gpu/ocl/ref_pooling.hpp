@@ -126,6 +126,9 @@ struct ref_pooling_bwd_t : public gpu_primitive_t {
             using namespace prop_kind;
             using namespace alg_kind;
 
+            const auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine);
+
             bool ok = set_default_params() == status::success
                     && utils::one_of(desc()->prop_kind, backward_data)
                     && utils::one_of(desc()->alg_kind, pooling_max,
@@ -136,7 +139,13 @@ struct ref_pooling_bwd_t : public gpu_primitive_t {
                                 diff_src_md()->data_type)
                             || utils::everyone_is(data_type::bf16,
                                     diff_dst_md()->data_type,
-                                    diff_src_md()->data_type))
+                                    diff_src_md()->data_type)
+                            || (utils::everyone_is(data_type::f64,
+                                        diff_dst_md()->data_type,
+                                        diff_src_md()->data_type)
+                                    && compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp64)
+                                    && attr()->post_ops_.has_default_values()))
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 

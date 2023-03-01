@@ -95,6 +95,7 @@ The pooling primitive supports the following combinations of data types:
 | Propagation        | Source | Destination | Accumulation data type (used for average pooling only) |
 |:-------------------|:-------|:------------|:-------------------------------------------------------|
 | forward / backward | f32    | f32         | f32                                                    |
+| forward / backward | f64    | f64         | f64                                                    |
 | forward / backward | bf16   | bf16        | bf16                                                   |
 | forward / backward | f16    | f16         | f32                                                    |
 | forward            | s8     | s8          | s32                                                    |
@@ -154,6 +155,11 @@ of any preceding compute-intensive primitive.
 2. **CPU**
     - Different data types of source and destination in forward inference
       are not supported.
+
+3. **GPU**
+    - #dnnl_pooling_max for f64 data type will return `-FLT_MAX` as an output
+      value instead of `-DBL_MAX` in scenarios when pooling kernel is applied
+      to a completely padded area.
 
 ## Performance Tips
 
