@@ -380,6 +380,12 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_sum_po(prb->attr, res, prb->dst_dt());
 
     if (is_gpu()) {
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        if (!prb->sparse_options.is_def()) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+#endif
         // GPU supports only single zero-point per tensor.
         if (prb->attr.zero_points.get(DNNL_ARG_SRC).policy != policy_t::COMMON
                 || prb->attr.zero_points.get(DNNL_ARG_DST).policy
