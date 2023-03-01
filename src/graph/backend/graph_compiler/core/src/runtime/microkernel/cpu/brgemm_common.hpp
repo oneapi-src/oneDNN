@@ -92,7 +92,7 @@ struct attrs_setting_t {
     static const int max_attrs_num = attr_key::nkeys; // without bd_mask
     typedef std::pair<attr_key, int64_t> attrs_map_t;
     int num_ = 0;
-    attrs_map_t map_[];
+    attrs_map_t map_[0];
 };
 
 // Todo: currently we don't support sum post op(inplace add)

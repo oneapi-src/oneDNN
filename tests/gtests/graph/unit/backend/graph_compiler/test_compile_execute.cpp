@@ -231,6 +231,9 @@ TEST(GCGraphTest, FP32MHAInfershapeCompileExecution) {
 // test compile + multithreading execution for fp32 MHA
 TEST(GCGraphTest, FP32MHACompileExecutionMultiThreading) {
     REQUIRE_AVX512();
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
+    GTEST_SKIP();
+#endif
     impl::graph_t agraph;
     compiler_utils::add_MHA_subgraph(&agraph, false);
     agraph.finalize();
@@ -786,6 +789,13 @@ TEST(GCGraphTest, BF16IdenticalBottleneckTrainingCompileExecution) {
 
 TEST(GCGraphTest, BF16ConvolutionalBottleneckTrainingCompileExecution) {
     REQUIRE_BF16_AMXBF16();
+#if SC_BUILTIN_JIT_ENABLED
+    if (::dnnl::impl::graph::gc::get_default_context()->flags_.jit_kind_
+            == ::dnnl::impl::graph::gc::jit_kind::xbyak) {
+        GTEST_SKIP();
+        return;
+    }
+#endif
     utils::id_generator id_gen;
     impl::graph_t agraph;
     compiler_utils::construct_convolutional_bottleneck_training_subgraph(

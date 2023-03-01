@@ -65,6 +65,7 @@ void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int K,
         bool fuse_bias = false, bool fuse_bn_relu = false,
         bool fuse_eleadd = false, bool default_cfg = false,
         bool force_blocking = false, bool force_channel_last = false) {
+    BUILTIN_REQUIRE_AVX512();
     int stride_h = stride[0], stride_w = stride[0];
     if (stride.size() > 1) { stride_w = stride[1]; }
     int padding_h = padding[0], padding_w = padding[0];
@@ -222,6 +223,7 @@ void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int K,
 
 void check_conv_correctness_and_tuning_bwd_d(int N, int K, int C, int H, int W,
         int R, int S, int stride, int padding) {
+    BUILTIN_REQUIRE_AVX512();
     sc_graph_t mgr;
     std::vector<sc_op_ptr> fuse_arg_ops;
     sc_dims stride_arr = {stride, stride};
@@ -271,6 +273,7 @@ void check_conv_correctness_and_tuning_bwd_d(int N, int K, int C, int H, int W,
 void check_conv_correctness_and_tuning_bwd_w(int N, int K, int C, int H, int W,
         int R, int S, int stride, int padding,
         sc_data_type_t dtype = datatypes::f32) {
+    BUILTIN_REQUIRE_AVX512();
     sc_graph_t mgr;
     std::vector<sc_op_ptr> fuse_arg_ops;
     sc_dims stride_arr = {stride, stride};

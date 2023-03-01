@@ -185,7 +185,7 @@ option(ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_BACKEND
     "builds oneDNN Graph API graph-compiler backend" OFF)
 set(ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_CPU_LLVM_CONFIG "AUTO" CACHE STRING
     "graph-compiler's llvm-config path")
-set(ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_CPU_JIT "llvm;builtin" CACHE STRING
+set(ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_CPU_JIT "builtin" CACHE STRING
     "the optional JIT backends for graph-compiler: llvm;c;builtin")
 
 # ======================

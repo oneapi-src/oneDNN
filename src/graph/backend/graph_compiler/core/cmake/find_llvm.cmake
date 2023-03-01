@@ -98,7 +98,7 @@ macro(find_llvm)
                 # try link with shared library
                 execute_process(COMMAND ${SC_LLVM_CONFIG} "--libfiles" "--link-shared"
                     RESULT_VARIABLE _sc_exit_code
-                    OUTPUT_VARIABLE _sc_cmd_out)
+                    OUTPUT_VARIABLE _sc_cmd_out ERROR_QUIET)
                 if(${_sc_exit_code} STREQUAL 0)
                     set(__sc_llvm_link "--link-shared")
                     set(SC_LLVM_CONFIG_RETURN_STATIC OFF)
@@ -106,7 +106,7 @@ macro(find_llvm)
             else()
                 execute_process(COMMAND ${SC_LLVM_CONFIG} "--libfiles" "--link-static"
                     RESULT_VARIABLE _sc_exit_code
-                    OUTPUT_VARIABLE _sc_cmd_out)
+                    OUTPUT_VARIABLE _sc_cmd_out ERROR_QUIET)
                 if(NOT ${_sc_exit_code} STREQUAL 0)
                     set(__sc_llvm_link "--link-shared")
                     set(SC_LLVM_CONFIG_RETURN_STATIC OFF)

@@ -65,6 +65,16 @@
         GTEST_SKIP(); \
     }
 
+#if SC_BUILTIN_JIT_ENABLED
+#define BUILTIN_REQUIRE_AVX512() \
+    if (::dnnl::impl::graph::gc::get_default_context()->flags_.jit_kind_ \
+            == ::dnnl::impl::graph::gc::jit_kind::xbyak) { \
+        REQUIRE_AVX512(); \
+    }
+#else
+#define BUILTIN_REQUIRE_AVX512()
+#endif
+
 #define REQUIRE_AVX512VBMI() \
     if (!::dnnl::impl::graph::gc::get_default_context() \
                     ->machine_.cpu_flags_.fAVX512VBMI) { \
@@ -215,15 +225,13 @@ std::vector<float> convert_int8_to_f32(const std::vector<T> &ref_int8) {
 
 template <class T>
 std::vector<T> convert_f32_to_int8(const std::vector<float> &ref_f32) {
-    int clip_max = 0, clip_min = 0;
+    int clip_min = 0;
     std::vector<T> ref_int8;
     ref_int8.reserve(ref_f32.size());
     std::for_each(ref_f32.begin(), ref_f32.end(), [&](float x) {
         if (std::is_same<T, uint8_t>()) {
-            clip_max = 255;
             clip_min = 0;
         } else if (std::is_same<T, int8_t>()) {
-            clip_max = 127;
             clip_min = -128;
         }
         ref_int8.push_back(static_cast<T>(std::max(

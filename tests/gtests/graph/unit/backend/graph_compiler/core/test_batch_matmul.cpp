@@ -162,6 +162,7 @@ void run_bmm_test(const std::shared_ptr<jit_function_t> &fptr, int M, int N,
 
 static void check_batch_matmul(
         const batch_gemm_params_t &param, const matmul_core_config_t &cfg) {
+    BUILTIN_REQUIRE_AVX512();
     const sc_dims input_dims = param.input_dims_;
     const sc_dims weight_dims = param.weight_dims_;
     const sc_dims out_dims = param.out_dims_;

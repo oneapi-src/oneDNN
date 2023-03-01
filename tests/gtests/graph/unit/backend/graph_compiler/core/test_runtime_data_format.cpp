@@ -117,6 +117,7 @@ TEST(GCCore_runtime_data_format, Benchmark) {
 
         int64_t count = 0;
         uint64_t sum = 0;
+        SC_UNUSED(sum);
         auto start = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < 10000000; i++) {
             auto next_rnd = fast_rand(rnd);

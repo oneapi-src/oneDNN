@@ -25,6 +25,7 @@
 #if SC_BUILTIN_JIT_ENABLED
 #include <compiler/jit/xbyak/xbyak_jit_engine.hpp>
 #endif
+#include "test_utils.hpp"
 #include <runtime/config.hpp>
 
 #include "gtest/gtest.h"
@@ -57,6 +58,7 @@ static map<string, shared_ptr<jit_engine_t>> test_jit_engines {
 };
 
 TEST(GCCore_test_execution_verbose, TestTimer) {
+    BUILTIN_REQUIRE_AVX512();
     sc_graph_t g;
     auto ins = g.make_input(
             {graph_tensor::make({2, 2}), graph_tensor::make({2, 2})});

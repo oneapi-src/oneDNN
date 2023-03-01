@@ -144,7 +144,7 @@ if(SC_LLVM_ENABLED)
     message(STATUS "LLVM backend is ON. version ${SC_LLVM_VERSION}")
     add_definitions("-DSC_LLVM_BACKEND=${SC_LLVM_VERSION}")
     set_property(GLOBAL APPEND PROPERTY GRAPH_COMPILER_DEFINITIONS -DSC_LLVM_BACKEND=${SC_LLVM_VERSION})
-    include_directories(${SC_LLVM_INCLUDE_PATH}) # include LLVM headers
+    include_directories(BEFORE ${SC_LLVM_INCLUDE_PATH}) # include LLVM headers
 endif()
 ####################
 # Compiling objlib
@@ -200,7 +200,11 @@ endif()
 ##########################
 
 if(NOT MSVC)
-    set_property(TARGET ${SC_LIB_NAME} PROPERTY CXX_STANDARD ${SC_CPP_VER})
+    if(${CMAKE_VERSION} VERSION_LESS "3.1.0") 
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++${SC_CPP_VER}")
+    else()
+        set_property(TARGET ${SC_LIB_NAME} PROPERTY CXX_STANDARD ${SC_CPP_VER})
+    endif()
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-variable -Wno-unused-function -std=c99 -DSC_HOME=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-variable -Wno-unused-function -DSC_HOME=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
     if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Intel")

@@ -59,6 +59,7 @@ static void check_broadcast_correctness(const sc_dims &lhs_plain_dims,
         const sc_dims &rhs_plain_dims,
         sc_data_format_t lhs_format = sc_data_format_t(),
         sc_data_format_t rhs_format = sc_data_format_t()) {
+    BUILTIN_REQUIRE_AVX512();
     sc_graph_t graph;
     auto input = graph.make_input({std::make_shared<graph_tensor>(nullptr,
                                            lhs_format.to_plain(),
