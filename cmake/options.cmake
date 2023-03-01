@@ -188,10 +188,6 @@ set(ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_CPU_LLVM_CONFIG "AUTO" CACHE STRING
 set(ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_CPU_JIT "llvm;builtin" CACHE STRING
     "the optional JIT backends for graph-compiler: llvm;c;builtin")
 
-if(DNNL_EXPERIMENTAL)
-    set(ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_BACKEND ON FORCE)
-endif()
-
 # ======================
 # Profiling capabilities
 # ======================
