@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,6 +26,8 @@
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
 #include "utils.hpp"
+
+#define DYNAMIC_INDICATOR -2
 
 namespace graph {
 
@@ -117,6 +119,22 @@ public:
                 // logical tensor queried from compiled partition
                 dnnl::graph::logical_tensor new_lt
                         = c_partition.query_logical_tensor(id);
+                // For dynamic-shape path, if new_lt has '-2' dim value, replace it with
+                // the concrete value in 'lt' at the same position
+                std::vector<dnnl_dim_t> dim_check = new_lt.get_dims();
+                bool is_dynamic = false;
+                for (size_t i = 0; i < dim_check.size(); ++i) {
+                    if (dim_check[i] == DYNAMIC_INDICATOR) {
+                        is_dynamic = true;
+                        dim_check[i] = lt.get_dims()[i];
+                    }
+                }
+                if (is_dynamic) {
+                    logical_tensor concrete_lt {id, lt.get_data_type(),
+                            dim_check, lt.get_layout_type(),
+                            lt.get_property_type()};
+                    new_lt = concrete_lt;
+                }
 
                 if (pos != inplace_ports.end()) {
                     auto in_buffer = data_[pos->first].get_data_handle();
