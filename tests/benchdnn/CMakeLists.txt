@@ -146,6 +146,7 @@ foreach(driver ${all_drivers})
 
     if(NOT DNNL_EXPERIMENTAL_SPARSE)
         list(REMOVE_ITEM test_files_cpu "test_matmul_sparse")
+        list(REMOVE_ITEM test_files_ci "test_matmul_sparse_ci")
     endif()
 
     # Register ci input files for ci only
