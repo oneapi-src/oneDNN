@@ -1920,7 +1920,7 @@ void jit_brgemm_amx_uker_base_t::fill_imap() {
     imap_.rdis.reserve(brg.rdb);
     imap_.bsis.reserve(brg.brgattr.max_bs);
 
-    size_t bdi_pos = skipped_bd_mask(0);
+    auto bdi_pos = skipped_bd_mask(0);
     dim_iteration_t bdi;
     bdi.blocks.reserve(brg.bd_block2);
     for (int bdb = 0; bdb < brg.bdb; bdb += brg.bd_block2) {
@@ -1935,6 +1935,7 @@ void jit_brgemm_amx_uker_base_t::fill_imap() {
                 bdi.blocks.emplace_back(
                         iteration_block_t(bdi_pos, brg.bd_block, false));
             bdi_pos += brg.bd_block;
+            if (bdi_pos >= brg.bcast_dim) break;
             bdi_pos = skipped_bd_mask(bdi_pos);
         }
         bdi.idx = imap_.bdis.size();

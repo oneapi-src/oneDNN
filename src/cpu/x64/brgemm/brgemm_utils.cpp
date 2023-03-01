@@ -263,6 +263,7 @@ status_t brgemm_blocking(brgemm_t *brg) {
                     i += bd_block;
                     if (i > brg->bcast_dim) {
                         bdb_tail = brg->bcast_dim - i + bd_block;
+                        if (brg->brgattr.use_uker) bdb++;
                     } else
                         bdb++;
                 }
