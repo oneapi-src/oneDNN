@@ -120,11 +120,12 @@ context_ptr get_default_context() {
         runtime::target_machine_t tm = runtime::get_native_target_machine();
         scflags_t flags;
 
-        // todo: set the flags in target machine from the environment vars
 #if defined(SC_LLVM_BACKEND)
         jit_kind jit = jit_kind::llvm;
-#else
+#elif SC_CFAKE_JIT_ENABLED
         jit_kind jit = jit_kind::cfake;
+#else
+        jit_kind jit = jit_kind::xbyak;
 #endif
         {
             const char *jit_env_var_name = env_names[SC_CPU_JIT];
