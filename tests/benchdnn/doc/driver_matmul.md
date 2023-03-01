@@ -11,8 +11,6 @@ where *matmul-knobs* are:
             types. Interface supports broadcasting, when a single input is
             provided, e.g., `--dt=f32`, and the value will be applied for all
             tensors. Refer to [data types](knobs_dt.md) for details.
- - `--cfg={f32 [default], ...}` -- deprecated setting.
-            Refer to ``Configurations`` in driver_conv.md.
  - `--stag={ab [default], any, ...}` -- memory format of the source memory.
             Refer to [tags](knobs_tag.md) for details.
  - `--wtag={ab [default], any, ...}` -- memory format of the weights memory.
