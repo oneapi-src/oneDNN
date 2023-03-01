@@ -63,8 +63,8 @@ endif()
 if(SC_LLVM_ENABLED)
     find_llvm()
 
-    if(${SC_LLVM_VERSION} STREQUAL OFF OR ${SC_LLVM_VERSION} LESS 8)
-        message(FATAL_ERROR "Expecting LLVM version >= 8, got ${SC_LLVM_VERSION}. "
+    if(${SC_LLVM_VERSION} STREQUAL OFF OR ${SC_LLVM_VERSION} LESS 10)
+        message(FATAL_ERROR "Expecting LLVM version >= 10, got ${SC_LLVM_VERSION}. "
         "Consider turning off graph compiler backend, or use a higher LLVM version.")
     else()
         if("${SC_LLVM_INCLUDE_PATH}" STREQUAL OFF)
