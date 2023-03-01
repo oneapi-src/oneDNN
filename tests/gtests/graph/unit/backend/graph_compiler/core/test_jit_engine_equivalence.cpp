@@ -1485,6 +1485,10 @@ TEST(GCCore_test_jit_engine_equivalence, TestOpCast) {
     TEST_OP(UNARY, EXACT, int32_t, float, datatypes::s32, datatypes::f32,
             DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_CAST_TO_F32,
             MAKE_CAST(datatypes::f32), DATASET_I3);
+    // data_type: float_32
+    TEST_OP(UNARY, EXACT, float, float, datatypes::f32, datatypes::f32,
+            DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_CAST_TO_F32,
+            MAKE_CAST(datatypes::f32), DATASET_F3);
 #undef REF_CAST_TO_F32
     //-----------------------------
     // Cast to datatypes::generic
