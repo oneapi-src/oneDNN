@@ -1291,8 +1291,8 @@ dim_t find_min_stride_without_conflicts(
 
 layout_t pad_slm_layout(
         ngen::HW hw, const layout_t &layout, const grid_info_t &grid) {
-    // EUs are not fused in XeHPC+ so no need to pad SLM.
-    if (hw >= ngen::HW::XeHPC) return layout;
+    // EUs are fused only in XeHP and XeHPG; otherwise no need to pad SLM.
+    if (hw >= ngen::HW::XeHPC || hw <= ngen::HW::XeLP) return layout;
     auto tg_dim0 = grid.dim(0);
     auto tg_dim1 = grid.dim(1);
     int type_size = layout.type().size();
