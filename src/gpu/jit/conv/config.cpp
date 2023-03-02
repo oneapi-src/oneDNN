@@ -1016,7 +1016,7 @@ const memory_desc_t *output_md(const convolution_pd_t *pd) {
 
 void maybe_override_from_lookup_table(conv_config_t &cfg) {
 #ifdef GEN_CONV_DEBUG
-    if (ir_utils::getenv_bool("lookup", true)) return;
+    if (!ir_utils::getenv_bool("lookup", true)) return;
 #endif
     static conv_config_lookup_table_t table;
     auto *s_params = table.find(cfg);
