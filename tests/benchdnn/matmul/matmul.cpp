@@ -434,6 +434,15 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
+// oneDNN doesn't provide SYCL interoperability API for creating a sparse
+// memory therefore all SYCL cases must be skipped.
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    if (is_sycl_engine(get_test_engine()) && !prb->sparse_options.is_def()) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+#endif
+
     // Zero-points for non-integral data type does not make sense
     if (!prb->attr.zero_points.is_def() && prb->wei_dt() != dnnl_s8) {
         res->state = SKIPPED, res->reason = INVALID_CASE;
