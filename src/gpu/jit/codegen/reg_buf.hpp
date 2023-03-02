@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -181,14 +181,21 @@ public:
         return !operator==(other);
     }
 
+    // Retype register region while preserving data.
     reg_buf_data_t reinterpret(ngen::DataType new_type) const {
-        if (ngen::getBytes(new_type) == ngen::getBytes(type())) {
+        int new_size = ngen::getBytes(new_type);
+        int old_size = ngen::getBytes(type());
+        if (new_size == old_size) {
             auto ret = *this;
             ret.rd_.setType(new_type);
             return ret;
+        } else if (new_size < old_size) {
+            ir_assert(rd_.getHS() <= 1) << "Can't reinterpret strided data to "
+                                           "differently sized data type.";
+            return format(0, new_type, rd_.getWidth() * old_size / new_size, 1);
+        } else {
+            ir_error_not_expected() << "Can't reinterpret to larger data type.";
         }
-        if (rd_.getHS() == 0) return format(0, new_type, 1, 0);
-        ir_error_not_expected() << "Can't reinterpret.";
         return reg_buf_data_t();
     }
 
@@ -212,6 +219,7 @@ public:
         return ngen::Subregister(rd, rd.getOffset(), rd.getType());
     }
 
+    // Format register region to parameters regardless of data.
     reg_buf_data_t format(int off_bytes,
             ngen::DataType type = ngen::DataType::invalid, int width = 1,
             int hstride = 1) const {
