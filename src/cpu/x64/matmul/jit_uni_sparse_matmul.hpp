@@ -56,7 +56,7 @@ struct jit_uni_sparse_matmul_t : public primitive_t {
                     && utils::everyone_is(
                             s32, src_d.metadata_type(0), src_d.metadata_type(1))
                     && !with_bias() && attr()->has_default_values()
-                    && set_default_formats() && formats_ok();
+                    && mayiuse(avx2) && set_default_formats() && formats_ok();
             return ok ? status::success : status::unimplemented;
         }
 
