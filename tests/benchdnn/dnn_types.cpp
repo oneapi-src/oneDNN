@@ -1342,10 +1342,9 @@ void maybe_scale(const attr_t &attr, float &d, const float *scales, int64_t c,
     const auto &e = attr.scales.get(arg);
     if (!e.is_def()) {
         int64_t idx = e.policy == policy_t::COMMON ? 0 : c;
-        if (opposite_scale)
-            d /= scales[idx];
-        else
-            d *= scales[idx];
+        float s = scales[idx];
+        if (opposite_scale) s = 1.f / s;
+        d *= s;
     }
 }
 
