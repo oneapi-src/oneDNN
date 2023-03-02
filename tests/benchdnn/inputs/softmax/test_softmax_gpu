@@ -33,6 +33,12 @@
 --attr-scales=,src:common:128*,dst:common:0.125*,src:common:64*+dst:common:0.5*
 --batch=shapes_2d
 
+--reset
+--sdt=f32,f16
+--dir=FWD_D
+--stag=acb
+--axis=2
+--batch=shapes_large_axis
 
 # Test layers of some key GPU DL Frameworks
 --reset
