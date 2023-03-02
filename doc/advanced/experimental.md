@@ -138,6 +138,13 @@ Benchdnn can be used to test the sparse matmul as follows:
 For the case above, the number of non-zero elements for the source tensor is
 calculated as max(4 * 1000000 * (1 - 0.99)), 1).
 
+#### Limitations
+* This functionality is not supported for SYCL and OpenCL runtimes
+* The interoperability API for sparse memory is not provided
+* Sparse memory and memory descriptor can only be used with the Matrix
+Multiplication primitive
+* Sparse memory can be created only for a CPU engine
+
 @warning
 - Enabling experimental features does not guarantee that the library will utilize them
 - Enabling experimental features might change the accuracy of oneDNN primitives
