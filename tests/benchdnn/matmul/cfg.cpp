@@ -18,34 +18,41 @@
 
 namespace matmul {
 
+cfg_t::cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds) {
+    for (const auto kind : kinds) {
+        auto orig_data_type = prb->get_dt(kind);
+        auto data_type = deduce_cfg_data_type(orig_data_type, prb->attr, kind);
+        cfg_entry_.emplace_back(
+                kind, orig_data_type, data_type, get_cfg_map(kind));
+    }
+
+    BENCHDNN_PRINT(6, "%s SRC_%s=[%d;%d] : WEI_%s=[%d;%d]\n", "[FILL_CFG]",
+            dt2str(this->get_dt(SRC)), cfg_entry_[SRC].get_range_min(),
+            cfg_entry_[SRC].get_range_max(), dt2str(this->get_dt(WEI)),
+            cfg_entry_[WEI].get_range_min(), cfg_entry_[WEI].get_range_max());
+}
+
 // Adjust density based on accumulation chain.
 float cfg_t::get_density(const cfg_t::density_args_t &density_args) const {
     float density = 1.f;
     if (!has_bench_mode_bit(mode_bit_t::corr) || density_args.data_kind != SRC)
         return density;
 
-    // Find the number of accumulators safe to use with the following equations:
-    // Integer value can be expressed exactly with floating-point is
-    // `PREC = (1 << std::numeric_limit::digits(dst_dt))`.
-    // SUM_1_N(VALUES) <= PREC.   This should hold to get precise answer.
-    // SUM_1_N(VALUES) <= N_ACC * MAX_VALUE <= PREC.  It's a top estimate, where
-    // MAX_VALUE = MAX_VAL_SRC * MAX_VAL_WEI.
-    // SAFE_N_ACC <= PREC / MAX_VALUE.
-
-    const auto &cfg_e_src = cfg_entry_[SRC];
-    const auto &cfg_e_wei = cfg_entry_[WEI];
-    const auto &cfg_e_dst = cfg_entry_[DST];
-
-    const int64_t max_value
-            = cfg_e_src.get_range_abs_max() * cfg_e_wei.get_range_abs_max();
-    const int64_t safe_n_acc
-            = (1LL << digits_dt(cfg_e_dst.get_dt())) / max_value;
+    const int64_t safe_n_acc = get_safe_n_acc();
     assert(safe_n_acc > 0);
-    density /= div_up(density_args.n_acc, safe_n_acc);
+
+    // Bump density for some empiric value for int8 validation to hit saturation
+    // bound.
+    float safe_density = (float)safe_n_acc / density_args.n_acc;
+    if (is_int8()) safe_density *= 3.f;
+    density = MIN2(density, safe_density);
+
+    BENCHDNN_PRINT(6, "%s safe_n_acc=%d density=%f\n", "[FILL_CFG]",
+            (int)safe_n_acc, density);
+
     return density;
 }
 
-// Using pow2 values allows to avoid catastrophic cancellation.
 cfg_t::cfg_entry_t::cfg_map_t cfg_t::get_cfg_map(data_kind_t kind) const {
     static const cfg_t::cfg_entry_t::cfg_map_t src_cfg_map = {
             {{dnnl_f32}, {-64, 64}},

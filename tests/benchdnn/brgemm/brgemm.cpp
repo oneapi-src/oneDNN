@@ -157,15 +157,14 @@ std::string prepare_wei_format_string(
     return wtag;
 }
 
-int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *res) {
+int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
+        dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
 
     const auto nelems = mem_dt.nelems();
     if (nelems == 0) return OK;
 
     assert(mem_dt.nelems() == mem_fp.nelems());
 
-    cfg_t cfg(prb, {SRC, WEI, BIA, DST});
     cfg_t::density_args_t density_args;
     density_args.data_kind = kind;
     density_args.n_acc = prb->k;
@@ -448,20 +447,22 @@ int doit(const prb_t *prb, res_t *res) {
     if (prb->bia_dt != dnnl_data_type_undef)
         bia_fp = dnn_mem_t(bia_md, dnnl_f32, tag::abx, ref_engine);
 
-    SAFE(fill_data(SRC, prb, src_dt, src_fp, res), WARN);
-    SAFE(fill_data(WEI, prb, wei_dt, wei_fp, res), WARN);
+    // Move cfg out of filling since its creation is not free.
+    cfg_t cfg(prb, {SRC, WEI, BIA, DST});
+    SAFE(fill_data(SRC, prb, cfg, src_dt, src_fp, res), WARN);
+    SAFE(fill_data(WEI, prb, cfg, wei_dt, wei_fp, res), WARN);
     const int sum_idx = prb->attr.post_ops.find(attr_t::post_ops_t::SUM);
     if ((prb->beta != 0) || brgemm_attr.generate_skip_accumulation) {
-        SAFE(fill_data(DST, prb, acc_dt, acc_fp, res), WARN);
+        SAFE(fill_data(DST, prb, cfg, acc_dt, acc_fp, res), WARN);
         // Beta requires same values for reference and the kernel.
         if (use_dst_as_acc) {
             dst_fp.reorder(acc_fp);
             dst_dt.reorder(dst_fp);
         }
     }
-    if (sum_idx >= 0) SAFE(fill_data(DST, prb, dst_dt, dst_fp, res), WARN);
+    if (sum_idx >= 0) SAFE(fill_data(DST, prb, cfg, dst_dt, dst_fp, res), WARN);
     if (prb->bia_dt != dnnl_data_type_undef)
-        SAFE(fill_data(BIA, prb, bia_dt, bia_fp, res), WARN);
+        SAFE(fill_data(BIA, prb, cfg, bia_dt, bia_fp, res), WARN);
 
     // "Library" args are needed to get dst for comparison.
     // "Reference" are used as usual.

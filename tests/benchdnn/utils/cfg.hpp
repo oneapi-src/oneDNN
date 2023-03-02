@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -124,6 +124,35 @@ struct base_cfg_t {
 
 protected:
     std::vector<cfg_entry_t> cfg_entry_;
+    data_kind_t output_data_kind_ = DST; // Assume FWD by default.
+
+    int64_t get_safe_digits() const {
+        return MIN2(digits_dt(cfg_entry_[output_data_kind_].get_dt()),
+                digits_dt(dnnl_f32));
+    }
+
+    bool is_int8() const {
+        return dnnl_data_type_size(cfg_entry_[WEI].get_dt()) == 1;
+    }
+
+    // Find the number of accumulators safe to use with the following equations:
+    // Integer value can be expressed exactly with floating-point is
+    // MAX_DIGITS = MIN2(std::numeric_limit::digits(dst_dt),
+    //                   std::numeric_limit::digits(f32));
+    // PREC = (1 << MAX_DIGITS);
+    // SUM_1_N(VALUES) <= PREC;   This should hold to get precise answer.
+    // SUM_1_N(VALUES) <= N_ACC * MAX_VALUE <= PREC;  It's a top estimate
+    // MAX_VALUE = MAX_VAL_SRC * MAX_VAL_WEI;
+    // SAFE_N_ACC <= PREC / MAX_VALUE;
+    int64_t get_safe_n_acc() const {
+        const auto &cfg_e_src = cfg_entry_[SRC];
+        const auto &cfg_e_wei = cfg_entry_[WEI];
+        const int64_t max_value
+                = cfg_e_src.get_range_abs_max() * cfg_e_wei.get_range_abs_max();
+        const int64_t safe_digits = get_safe_digits();
+        const int64_t safe_n_acc = (1LL << safe_digits) / max_value;
+        return safe_n_acc;
+    }
 
     // Modification of ranges has to happen at construction stage.
     void set_range_min(data_kind_t dk, int new_value) {

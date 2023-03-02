@@ -21,6 +21,7 @@ following information is printed for certain verbosity levels:
     * The library implementation name picked to compute the given problem.
 * Level 6.
     * The problem memory footprint and RAM capacity on devices.
+    * Fill configuration stats.
 * Level 50.
     * Full path of batch file used.
 * Level 99.
