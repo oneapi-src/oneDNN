@@ -143,6 +143,13 @@ calculated as max(4 * 1000000 * (1 - 0.99)), 1).
 - Enabling experimental features does not guarantee that the library will utilize them
 - Enabling experimental features might change the accuracy of oneDNN primitives
 
+#### Limitations
+* This functionality is not supported for SYCL and OpenCL runtimes
+* The interoperability API for sparse memory is not provided
+* Sparse memory and memory descriptor can only be used with the Matrix
+Multiplication primitive
+* Sparse memory can be created only for a CPU engine
+
 ### ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_BACKEND
 This option extends the coverage scope of the graph API to cover larger fusion
 patterns apart from primitive patterns. Refer to
