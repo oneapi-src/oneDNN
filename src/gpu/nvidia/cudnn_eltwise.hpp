@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,16 +36,23 @@ struct cudnn_eltwise_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_eltwise_fwd_t);
 
-        status_t init(engine_t *) {
+        status_t init(engine_t *engine) {
             using namespace alg_kind;
+
+            auto sycl_dev
+                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine)
+                              ->device();
+
             bool ok = is_fwd()
                     // Supported algorithms
                     && utils::one_of(desc()->alg_kind, eltwise_relu,
                             eltwise_tanh, eltwise_elu, eltwise_logistic)
                     // Supported data types
                     && utils::one_of(src_md()->data_type, data_type::f32,
-                            data_type::f16, data_type::s8)
+                            data_type::bf16, data_type::f16, data_type::s8)
                     && src_md()->data_type == dst_md()->data_type
+                    && IMPLICATION(src_md()->data_type == data_type::bf16,
+                            has_bf16_support(sycl_dev))
                     && IMPLICATION(desc()->alg_kind == eltwise_relu,
                             desc()->alpha == 0)
                     && attr()->has_default_values()
@@ -82,8 +89,13 @@ struct cudnn_eltwise_bwd_t : public primitive_t {
                     // Supported algorithms
                     && utils::one_of(desc()->alg_kind, eltwise_relu)
                     // Supported data types
-                    && utils::everyone_is(data_type::f32, data_md()->data_type,
-                            diff_src_md()->data_type, diff_dst_md()->data_type)
+                    && (utils::everyone_is(data_type::f32, data_md()->data_type,
+                                diff_src_md()->data_type,
+                                diff_dst_md()->data_type)
+                            || utils::everyone_is(data_type::bf16,
+                                    data_md()->data_type,
+                                    diff_src_md()->data_type,
+                                    diff_dst_md()->data_type))
                     && IMPLICATION(desc()->alg_kind == eltwise_relu,
                             desc()->alpha == 0)
                     && attr()->has_default_values()
