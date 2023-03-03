@@ -38,3 +38,7 @@
 /tests/benchdnn/graph/ @intel-innersource/dnn-graph
 /tests/benchdnn/inputs/graph/ @intel-innersource/dnn-graph
 /tests/gtests/graph/ @intel-innersource/dnn-graph
+
+# Graph compiler
+/src/graph/backend/graph_compiler/ @intel-innersource/dnn-compiler
+/tests/gtests/graph/unit/backend/graph_compiler/ @intel-innersource/dnn-compiler
