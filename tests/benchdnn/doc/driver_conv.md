@@ -62,6 +62,7 @@ documentation.
 | src  | wei  | dst  | acc  | cfg             |
 |:---  |:---  |:---  |:---  |:---             |
 | f32  | f32  | f32  | f32  | f32             |
+| f64  | f64  | f64  | f64  | f64             |
 | f32  | f32  | s8   | f32  | f32f32s8        |
 | u8   | s8   | f32  | s32  | u8s8f32         |
 | u8   | s8   | s32  | s32  | u8s8s32         |

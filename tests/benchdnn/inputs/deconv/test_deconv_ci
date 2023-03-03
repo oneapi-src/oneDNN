@@ -7,9 +7,13 @@
 --dir=FWD_B,FWD_D
 ### Direct
 --alg=direct
---cfg=f32,bf16bf16bf16,f16
 --stag=any,axb
 --dtag=any,axb
+### f64 doesn't support post ops
+--cfg=f64
+--batch=shapes_ci
+
+--cfg=f32,bf16bf16bf16,f16
 --attr-post-ops=, \
                 sum:0.5, \
                 linear:2:1, \

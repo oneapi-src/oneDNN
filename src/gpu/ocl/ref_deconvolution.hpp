@@ -97,7 +97,6 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
         ~pd_t() = default;
 
         DECLARE_COMMON_PD_T(conv_pd_->name(), ref_deconvolution_fwd_t);
-
         status_t init_convolution(engine_t *engine) {
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
@@ -107,6 +106,17 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             if (!it.is_initialized()) return status::out_of_memory;
             conv_pd_ = *(++it);
+
+            /*
+              TODO:
+              Skip jit kernel to avoid regression, bug in : --cfg=f64
+            */
+            if (dnnl::impl::utils::one_of(dnnl::impl::data_type::f64,
+                        cd.diff_src_desc.data_type, cd.diff_dst_desc.data_type,
+                        cd.diff_weights_desc.data_type)
+                    && strstr(conv_pd_->name(), "jit:") != nullptr) {
+                conv_pd_ = *(++it);
+            }
             return (conv_pd_) ? status::success : status::unimplemented;
         }
 
@@ -126,6 +136,10 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
                                 desc()->src_desc.data_type,
                                 desc()->weights_desc.data_type,
                                 desc()->dst_desc.data_type)
+                            || (utils::everyone_is(data_type::f64,
+                                    desc()->src_desc.data_type,
+                                    desc()->weights_desc.data_type,
+                                    desc()->dst_desc.data_type))
                             || ((utils::everyone_is(data_type::f16,
                                          desc()->src_desc.data_type,
                                          desc()->weights_desc.data_type)
@@ -259,11 +273,15 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
                                 desc()->diff_src_desc.data_type,
                                 desc()->weights_desc.data_type,
                                 desc()->diff_dst_desc.data_type)
+                            || (utils::everyone_is(data_type::f64,
+                                    desc()->diff_src_desc.data_type,
+                                    desc()->weights_desc.data_type,
+                                    desc()->diff_dst_desc.data_type))
                             || utils::everyone_is(data_type::bf16,
                                     desc()->weights_desc.data_type,
                                     desc()->diff_dst_desc.data_type))
                     && utils::one_of(desc()->diff_src_desc.data_type,
-                            data_type::bf16, data_type::f32)
+                            data_type::bf16, data_type::f32, data_type::f64)
                     && desc()->alg_kind == alg_kind::deconvolution_direct
                     && attr()->has_default_values();
 
@@ -352,6 +370,10 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
                                 desc()->src_desc.data_type,
                                 desc()->diff_weights_desc.data_type,
                                 desc()->diff_dst_desc.data_type)
+                            || utils::everyone_is(data_type::f64,
+                                    desc()->src_desc.data_type,
+                                    desc()->diff_weights_desc.data_type,
+                                    desc()->diff_dst_desc.data_type)
                             || utils::everyone_is(data_type::bf16,
                                     desc()->diff_dst_desc.data_type,
                                     desc()->src_desc.data_type))
@@ -359,7 +381,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
                             desc()->alg_kind, alg_kind::deconvolution_direct)
                     && attr()->has_default_values()
                     && utils::one_of(desc()->diff_weights_desc.data_type,
-                            data_type::bf16, data_type::f32);
+                            data_type::bf16, data_type::f32, data_type::f64);
             if (ok) {
                 CHECK(init_convolution(engine));
                 if (diff_weights_md_.format_kind == format_kind::any)
