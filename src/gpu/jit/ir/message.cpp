@@ -206,16 +206,7 @@ ngen::CacheSettingsLSC get_cache_settings(const send_t &send) {
             }
             break;
         case send_cache_hint_t::load_once:
-            switch (send.hw) {
-                case ngen::HW::XeHPG:
-                    ret = ngen::CacheSettingsLSC::L1C_L3UC;
-                    break;
-                case ngen::HW::XeHPC:
-                    ret = ngen::CacheSettingsLSC::L1C_L3C;
-                    break;
-                default: break;
-            }
-            break;
+            ret = ngen::CacheSettingsLSC::L1C_L3C;
     }
     return ret;
 }
