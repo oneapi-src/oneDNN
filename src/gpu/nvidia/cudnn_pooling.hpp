@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -81,6 +81,8 @@ struct cudnn_pooling_fwd_t : public primitive_t {
 
             assert(engine->kind() == engine_kind::gpu);
             auto src_dt = src_md()->data_type;
+            auto *sycl_engine
+                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
 
             bool ok = true && is_fwd()
                     && utils::one_of(desc()->prop_kind, forward_training,
@@ -88,13 +90,17 @@ struct cudnn_pooling_fwd_t : public primitive_t {
                     && utils::one_of(desc()->alg_kind, pooling_max,
                             pooling_avg_include_padding,
                             pooling_avg_exclude_padding)
-                    && utils::one_of(src_dt, s8, f16, f32)
+                    && utils::one_of(src_dt, s8, f16, f32, bf16)
                     && src_dt == dst_md()->data_type
                     && IMPLICATION(utils::one_of(src_dt, f16),
                             desc()->prop_kind == forward_inference)
                     && IMPLICATION(src_dt == s8, desc()->accum_data_type == s32)
                     && !is_dilated() && attr()->has_default_values()
-                    && set_default_params() == status::success && blocking_ok();
+                    && set_default_params() == status::success && blocking_ok()
+                    && IMPLICATION(
+                            utils::one_of(data_type::bf16, src_md()->data_type,
+                                    dst_md()->data_type),
+                            has_bf16_support(sycl_engine->device()));
             if (!ok) return status::unimplemented;
 
             bool is_training = desc_.prop_kind == forward_training;
@@ -143,6 +149,8 @@ struct cudnn_pooling_bwd_t : public primitive_t {
             using namespace alg_kind;
             using namespace format_tag;
             assert(engine->kind() == engine_kind::gpu);
+            auto *sycl_engine
+                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
 
             bool ok = true && !is_fwd()
                     && set_default_params() == status::success
@@ -155,9 +163,16 @@ struct cudnn_pooling_bwd_t : public primitive_t {
                                 diff_src_md()->data_type)
                             || utils::everyone_is(data_type::f16,
                                     diff_dst_md()->data_type,
+                                    diff_src_md()->data_type)
+                            || utils::everyone_is(data_type::bf16,
+                                    diff_dst_md()->data_type,
                                     diff_src_md()->data_type))
                     && !is_dilated() && attr()->has_default_values()
-                    && no_blocking();
+                    && no_blocking()
+                    && IMPLICATION(utils::one_of(data_type::bf16,
+                                           diff_dst_md()->data_type,
+                                           diff_src_md()->data_type),
+                            has_bf16_support(sycl_engine->device()));
             if (!ok) return status::unimplemented;
 
             init_mem_by_tag(get_tag(diff_dst_md_), diff_src_md_);

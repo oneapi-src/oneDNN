@@ -38,6 +38,7 @@ The following table documents the supported data types.
 | f32       | Training, Inference         |
 | f16       | Inference                   |
 | s8        | Inference (when applicable) |
+| bf16      | Training, Inference         |
 
 ## Supported Primitives and Implementation Limitations
 
