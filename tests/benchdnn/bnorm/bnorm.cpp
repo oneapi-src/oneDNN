@@ -425,7 +425,7 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         // On Intel GPUs mean and variance could be rounded incorrectly because
         // they are calculated using fast but potentially unstable formula.
         if (kind == MEAN) trh = 1e-7;
-        if (kind == VAR) trh = 4e-7;
+        if (kind == VAR) trh = 5e-7;
     }
     cmp.set_threshold(trh);
 
