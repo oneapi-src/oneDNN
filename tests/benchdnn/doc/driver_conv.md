@@ -10,7 +10,12 @@ where *conv-knobs* are:
 
  - `--dir={FWD_B [default], FWD_D, FWD_I, BWD_D, BWD_W, BWD_WB}`
             -- dnnl_prop_kind_t. Refer to [direction](knobs_dir.md) for details.
- - `--cfg={f32 [default], ...}` -- Refer to ``Configurations`` below.
+ - `--dt={f32:f32:f32 [default], ...}` -- source, weights and destination data
+            types. Interface supports broadcasting, when a single input is
+            provided, e.g., `--dt=f32`, and the value will be applied for all
+            tensors. Refer to [data types](knobs_dt.md) for details.
+ - `--cfg={f32 [default], ...}` -- Deprecated setting.
+            Refer to ``Configurations`` below.
  - `--stag={any [default], ...}` -- physical src memory layout.
             Refer to [tags](knobs_tag.md) for details.
  - `--wtag={any [default], ...}` -- physical wei memory layout.
@@ -80,73 +85,54 @@ documentation.
 
 ## Essence of Testing
 
-oneDNN supports different data types, such as single-precision floating
-point (`dnnl_f32`) and signed/unsigned integer of different lengths
-(`dnnl_{s,u}{8,16,32}`). We need to cover all those cases with tests. It is
-essential to test real convolution sizes, because oneDNN provides
-different optimizations depending on the convolution parameters. There is no
-single unified approach inside, so it would not be enough to test only a few
-convolutions (also known as unit tests).
-
-But even for a given convolution, the correctness convolution test is not as
-simple as it might seem at first sight. One of the biggest problems we
-encountered was numerical instability. For every output point, a lot of
-operations may occur. For instance, on backward propagation with respect to
-filter, each filter point requires `mb * oh * ow` operations. That large amount
-of compute operations may lead to either integer overflow or accuracy loss if
-initial data was chosen inadequately.
-
-These two main issues complicate testing. **benchdnn** tries to address these
-by using integers for initialization with uniform distribution in a range
-`[cfg->f_min .. cfg->f_max]`, with the step `cfg->f_step` (see
-`struct dt_conf_t` in conv/conv.hpp). `f_min` and `f_max` are chosen so that
-most of the results would belong in the `[cfg->min .. cfg->max]` range. Also,
-for floating point all integers in both ranges have exact representation (that
-is, the absolute numbers are less than `2^size_of_mantissa`). Uniform
-distribution leads to results that are uniformly distributed and quite small.
-`f_min/f_max` keep the result within a reasonable range. Yet another trick: not
-all the points are initialized with non-zero values: see
-`fill_{src,wei,bia,dst}` in conv/conv.cpp.
+Since convolution problems require a significant number of accumulators for a
+single output point, hitting an overflow or loss of precision issues is easy.
+To deal with that, the convolution driver applies two techniques to mitigate the
+above-mentioned issues: 1) uses integer values for activations and weights so
+that integers can be compared to integers without dealing with floating-point
+precision loss; 2) utilizes data density to control the output range of values
+so that final values remain in the range of float data type representation and
+no saturation happens for a lower precision integer output.
 
 ## Examples
 
 Run the set of f32 forward convolutions from inputs/conv/set_conv_all file w/ bias and
 default minibatch:
 ``` sh
-    ./benchdnn --conv --cfg=f32 --dir=FWD_B --batch=inputs/conv/set_conv_all
+    ./benchdnn --conv --dt=f32 --dir=FWD_B --batch=inputs/conv/set_conv_all
 ```
 
 Run the same but with post_ops ReLU:
 ``` sh
-    ./benchdnn --conv --cfg=f32 --dir=FWD_B \
+    ./benchdnn --conv --dt=f32 --dir=FWD_B \
                --attr-post-ops=relu --batch=inputs/conv/set_conv_all
 ```
 
 Run the same as previous but measures performance, not correctness check:
 ``` sh
-    ./benchdnn --conv --mode=p --cfg=f32 --dir=FWD_B \
+    ./benchdnn --conv --mode=p --dt=f32 --dir=FWD_B \
                --attr-post-ops=relu --batch=inputs/conv/set_conv_all
 ```
 
 Run a set of f32 backward convolutions wrt weights with kh=3 and
 verbose level set to 2:
 ``` sh
-    ./benchdnn --conv -v2 --cfg=f32 --dir=BWD_W \
+    ./benchdnn --conv -v2 --dt=f32 --dir=BWD_W \
                --match='.*kh3[^0-9].*' --batch=inputs/conv/set_conv_all
 ```
 
 Run a set of u8s8u8 backward convolutions wrt data but skip all
 the convolutions that will use reference or gemm-based implementation:
 ``` sh
-    ./benchdnn --conv --cfg=u8s8u8 --dir=BWD_D \
+    ./benchdnn --conv --dt=u8:s8:u8 --dir=BWD_D \
                --skip-impl=ref,x64:gemm --batch=inputs/conv/set_conv_all
 ```
 
 Run explicitly specified first forward convolution (including bias) from Alexnet
 with the minibatch set to 4 and the verbose level set to 1 for two given
-configurations (`u8s8u8` and `f32`):
+configurations (`u8:s8:u8` and `f32`):
 ``` sh
-    ./benchdnn --conv -v1 --mb=4 --dir=FWD_B --cfg=f32,u8s8u8 \
+    ./benchdnn --conv -v1 --mb=4 --dir=FWD_B --dt=f32,u8:s8:u8 \
                ic3ih227iw227_oc96oh55ow55_kh11kw11_sh4sw4ph0pw0_n"alexnet:conv1"
 ```
 
@@ -161,7 +147,7 @@ Winograd:
 Run a set of u8s8u8 forward convolutions without bias, skipping
 reference implementations with one common output scale set to 0.5:
 ``` sh
-    ./benchdnn --conv --cfg=u8s8u8 --dir=FWD_D --skip-impl=ref \
+    ./benchdnn --conv --dt=u8:s8:u8 --dir=FWD_D --skip-impl=ref \
                --batch=inputs/conv/set_conv_all
 ```
 

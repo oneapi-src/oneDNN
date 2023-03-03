@@ -161,6 +161,25 @@ protected:
     void set_range_max(data_kind_t dk, int new_value) {
         cfg_entry_[dk].set_range_max(new_value);
     }
+    // Configuration like f32:f32:s8 may trigger an assert `safe_n_acc <= 0`.
+    // It can be solved only at construction stage by adjusting min and max
+    // range values. It's not expected to be triggered for regular configs since
+    // output data type most of time is of same or larger width.
+    // The idea behind reduction is to reduce ranges of SRC and WEI step by step
+    // by a factor of two until at least a single result of multiplication fits
+    // the output data type range.
+    void adjust_ranges_for_safe_n_acc() {
+        int64_t safe_n_acc = get_safe_n_acc();
+        data_kind_t cur_kind = SRC;
+        while (safe_n_acc < 1) {
+            set_range_min(cur_kind, get_range_min(cur_kind) / 2);
+            set_range_max(cur_kind, get_range_max(cur_kind) / 2);
+            int64_t max_value = cfg_entry_[SRC].get_range_abs_max()
+                    * cfg_entry_[WEI].get_range_abs_max();
+            safe_n_acc = (1LL << get_safe_digits()) / max_value;
+            cur_kind = cur_kind == SRC ? WEI : SRC;
+        }
+    }
 
 private:
     const cfg_entry_t &operator[](data_kind_t kind) const {

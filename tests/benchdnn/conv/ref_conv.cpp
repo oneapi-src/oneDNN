@@ -408,7 +408,7 @@ void compute_ref_fwd(
         return;
     }
 
-    if (prb->alg == WINO && prb->cfg[SRC].dt == dnnl_f32) {
+    if (prb->alg == WINO && prb->get_dt(SRC) == dnnl_f32) {
         compute_wino_ref_fwd(prb, args);
     } else {
         compute_ref_direct_fwd(prb, args);
@@ -422,7 +422,7 @@ void compute_ref_bwd_d(
         return;
     }
 
-    if (prb->alg == WINO && prb->cfg[SRC].dt == dnnl_f32) {
+    if (prb->alg == WINO && prb->get_dt(SRC) == dnnl_f32) {
         compute_wino_ref_bwd_d(prb, args);
     } else {
         compute_ref_direct_bwd_d(prb, args);
@@ -436,7 +436,7 @@ void compute_ref_bwd_w(
         return;
     }
 
-    if (prb->alg == WINO && prb->cfg[SRC].dt == dnnl_f32) {
+    if (prb->alg == WINO && prb->get_dt(SRC) == dnnl_f32) {
         compute_wino_ref_bwd_w(prb, args);
     } else {
         compute_ref_direct_bwd_w(prb, args);

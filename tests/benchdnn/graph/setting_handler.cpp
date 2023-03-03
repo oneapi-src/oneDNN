@@ -499,26 +499,23 @@ bool get_conv_dir(const deserialized_op &base_op_ref, dir_t &dir) {
     return true;
 }
 
-bool get_conv_cfg(const deserialized_op &base_op_ref,
-        const ::conv::dt_conf_t **cfg,
+bool get_conv_dt(const deserialized_op &base_op_ref,
+        std::vector<dnnl_data_type_t> &dt,
         const std::unordered_set<size_t> &rewrite_lt_ids) {
-    bool ret = false;
-    std::string cfg_str {"f32"};
     std::string src_dt {}, wei_dt {}, dst_dt {};
-    const auto &op_kind = base_op_ref.kind_;
+    auto in_lt0_dt = base_op_ref.in_lts_[0].data_type_;
+    auto in_lt1_dt = base_op_ref.in_lts_[1].data_type_;
+    auto out_lt_dt = base_op_ref.out_lts_[0].data_type_;
 
-    std::string in_lt0_dt = rewrite_lt_ids.find(base_op_ref.in_lts_[0].id_)
-                    != rewrite_lt_ids.end()
-            ? "f32"
-            : base_op_ref.in_lts_[0].data_type_;
-    std::string in_lt1_dt = rewrite_lt_ids.find(base_op_ref.in_lts_[1].id_)
-                    != rewrite_lt_ids.end()
-            ? "f32"
-            : base_op_ref.in_lts_[1].data_type_;
-    std::string out_lt_dt = rewrite_lt_ids.find(base_op_ref.out_lts_[0].id_)
-                    != rewrite_lt_ids.end()
-            ? "f32"
-            : base_op_ref.out_lts_[0].data_type_;
+    if (rewrite_lt_ids.find(base_op_ref.in_lts_[0].id_) != rewrite_lt_ids.end())
+        in_lt0_dt = "f32";
+    if (rewrite_lt_ids.find(base_op_ref.in_lts_[1].id_) != rewrite_lt_ids.end())
+        in_lt1_dt = "f32";
+    if (rewrite_lt_ids.find(base_op_ref.out_lts_[0].id_)
+            != rewrite_lt_ids.end())
+        out_lt_dt = "f32";
+
+    const auto &op_kind = base_op_ref.kind_;
 
     if (op_kind == "Convolution") {
         src_dt = in_lt0_dt;
@@ -537,26 +534,10 @@ bool get_conv_cfg(const deserialized_op &base_op_ref,
         return false;
     }
 
-    if (src_dt == wei_dt) {
-        if (wei_dt == dst_dt) {
-            if (src_dt == "f32" || src_dt == "f16") {
-                cfg_str = src_dt;
-                *cfg = ::conv::str2cfg(cfg_str.c_str());
-                ret = true;
-            } else if (src_dt == "bf16") {
-                cfg_str = src_dt + wei_dt + dst_dt;
-                *cfg = ::conv::str2cfg(cfg_str.c_str());
-                ret = true;
-            }
-        } else {
-            if (src_dt == "bf16" || dst_dt == "f32") {
-                cfg_str = "bf16bf16f32";
-                *cfg = ::conv::str2cfg(cfg_str.c_str());
-                ret = true;
-            }
-        }
-    }
-    return ret;
+    dt = {convert_dt(get_data_type(src_dt)), convert_dt(get_data_type(wei_dt)),
+            convert_dt(get_data_type(dst_dt))};
+
+    return true;
 }
 
 bool get_conv_wtag(const deserialized_op &base_op_ref, std::string &tag) {
@@ -603,8 +584,8 @@ bool get_conv_wtag(const deserialized_op &base_op_ref, std::string &tag) {
             conv::get_conv_desc(base_op_ref, op_setting.desc), res);
     DNN_GRAPH_CHECK_SETTINGS(
             conv::get_conv_dir(base_op_ref, op_setting.dir.front()), res);
-    DNN_GRAPH_CHECK_SETTINGS(conv::get_conv_cfg(base_op_ref,
-                                     &op_setting.cfg.front(), rewrite_lt_ids),
+    DNN_GRAPH_CHECK_SETTINGS(conv::get_conv_dt(base_op_ref,
+                                     op_setting.dt.front(), rewrite_lt_ids),
             res);
     DNN_GRAPH_CHECK_SETTINGS(
             get_driver_stag_and_dtag(base_op_ref, op_setting.stag.front(),
@@ -620,13 +601,11 @@ bool get_conv_wtag(const deserialized_op &base_op_ref, std::string &tag) {
 void set_s8u8_for_prb(::conv::prb_t *prb,
         const std::unordered_map<size_t, const std::string> &map_off_to_dt,
         res_t *res) {
-    std::string cfg_str;
     for (size_t offset = 0; offset < map_off_to_dt.size(); offset++) {
-        cfg_str += map_off_to_dt.at(offset);
+        prb->dt[offset] = convert_dt(get_data_type(map_off_to_dt.at(offset)));
     }
     // add output datatype
-    cfg_str += "f32";
-    prb->cfg = ::conv::str2cfg(cfg_str.c_str());
+    prb->dt[2] = dnnl_f32;
 }
 
 } // namespace conv

@@ -32,7 +32,7 @@ namespace conv_dw_fusion {
 using desc_t = conv::desc_t;
 using prb_t = conv::prb_t;
 using alg_t = conv::alg_t;
-using dt_conf_t = conv::dt_conf_t;
+using cfg_t = conv::cfg_t;
 
 int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         const prb_t *prb, res_t *res);

@@ -47,7 +47,7 @@ std::unique_ptr<prb_t> get_first_conv_prb(const prb_t *prb) {
         attr.post_ops.entry.push_back(prb->attr.post_ops.entry[i]);
     }
 
-    return std::unique_ptr<prb_t>(new prb_t((desc_t)*prb, prb->dir, prb->cfg,
+    return std::unique_ptr<prb_t>(new prb_t((desc_t)*prb, prb->dir, prb->dt,
             prb->stag, prb->wtag, tag::any, prb->alg, attr, prb->ctx_init,
             prb->ctx_exe, prb->mb));
 }
@@ -88,15 +88,8 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *prb) {
         fusion_attr.post_ops.entry.push_back(prb->attr.post_ops.entry[i]);
     }
 
-    const auto f32 = dnnl_f32;
-    std::stringstream dw_cfg_ss;
-    if (prb->cfg[DST].dt == f32 && prb->cfg[WEI].dt == f32
-            && fused_conv_po.dst_dt == f32)
-        dw_cfg_ss << prb->cfg[DST].dt; // f32 is a single name
-    else // else have all three dt in cfg name
-        dw_cfg_ss << prb->cfg[DST].dt << prb->cfg[WEI].dt
-                  << fused_conv_po.dst_dt;
-    auto p_dw_cfg = conv::str2cfg(dw_cfg_ss.str().c_str());
+    std::vector<dnnl_data_type_t> dw_dt {
+            prb->get_dt(DST), prb->get_dt(WEI), fused_conv_po.dst_dt};
 
     const auto kernel = fused_conv_po.kernel;
     const auto stride = fused_conv_po.stride;
@@ -133,7 +126,7 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *prb) {
     cd.ndims = prb->ndims;
     cd.init_pad_r();
 
-    return std::unique_ptr<prb_t>(new prb_t(cd, prb->dir, p_dw_cfg, tag::any,
+    return std::unique_ptr<prb_t>(new prb_t(cd, prb->dir, dw_dt, tag::any,
             tag::any, prb->dtag, alg_t::DIRECT, fusion_attr, prb->ctx_init,
             prb->ctx_exe, prb->mb));
 }
@@ -144,9 +137,11 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
     const auto &ref_engine = get_cpu_engine();
 
     const int dw_idx = prb->attr.post_ops.convolution_index();
-    // Memory filling is the first one who uses updated problem alg and cfg.
+    // Memory filling is the first one who uses updated problem alg.
     if (prb0->alg == conv::AUTO) prb0->alg = conv::DIRECT;
-    prb0->cfg = auto_cfg(prb0->alg, prb0->cfg);
+
+    // Move cfg out of filling since its creation is not free.
+    cfg_t cfg(prb, {SRC, WEI, BIA, DST});
 
     for (auto &entry : mem_map) {
         const int exec_arg = entry.first;
@@ -156,27 +151,27 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
 
         switch (exec_arg) {
             case DNNL_ARG_SRC:
-                SAFE(fill_src(prb0, mem, ref_mem, res), WARN);
+                SAFE(fill_data(SRC, prb0, cfg, mem, ref_mem, res), WARN);
                 if (has_bench_mode_bit(mode_bit_t::corr))
                     SAFE(mem_map0.at(exec_arg).reorder(ref_mem), WARN);
                 break;
             case DNNL_ARG_WEIGHTS:
-                SAFE(fill_wei(prb0, mem, ref_mem, res), WARN);
+                SAFE(fill_data(WEI, prb0, cfg, mem, ref_mem, res), WARN);
                 if (has_bench_mode_bit(mode_bit_t::corr))
                     SAFE(mem_map0.at(exec_arg).reorder(ref_mem), WARN);
                 break;
             case DNNL_ARG_BIAS:
-                SAFE(fill_bia(prb0, mem, ref_mem, res), WARN);
+                SAFE(fill_data(BIA, prb0, cfg, mem, ref_mem, res), WARN);
                 if (ref_mem.ndims() > 0 && has_bench_mode_bit(mode_bit_t::corr))
                     SAFE(mem_map0.at(exec_arg).reorder(ref_mem), WARN);
                 break;
             case (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS):
-                SAFE(fill_wei(prb1, mem, ref_mem, res), WARN);
+                SAFE(fill_data(WEI, prb1, cfg, mem, ref_mem, res), WARN);
                 if (has_bench_mode_bit(mode_bit_t::corr))
                     SAFE(mem_map1.at(DNNL_ARG_WEIGHTS).reorder(ref_mem), WARN);
                 break;
             case (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS):
-                SAFE(fill_bia(prb1, mem, ref_mem, res), WARN);
+                SAFE(fill_data(BIA, prb1, cfg, mem, ref_mem, res), WARN);
                 if (ref_mem.ndims() > 0 && has_bench_mode_bit(mode_bit_t::corr))
                     SAFE(mem_map1.at(DNNL_ARG_BIAS).reorder(ref_mem), WARN);
                 break;
@@ -350,7 +345,7 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
             compare::compare_t cmp;
             cmp.set_data_kind(DST);
             // Used prb1 to avoid writing separate compare function. Compare
-            // uses prb->cfg which can be u8s8u8 while after fusion it may be
+            // uses prb->dt which can be u8s8u8 while after fusion it may be
             // u8s8s8, thus, compare() will saturate values which is not correct
             conv::setup_cmp(cmp, prb1.get(), DST, args1);
 
