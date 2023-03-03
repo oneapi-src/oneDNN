@@ -349,3 +349,7 @@ mb1ic2ih10iw7oc2oh6ow4kh1kw1sh2sw2ph1pw0dh1dw1_n"brgemm_post-op-jit_sum-with-zp:
 ic256ih56oc64oh56kh1ph0n"primitive-cache_dispatch_shape-1"
 --dir=bwd_d
 ic64ih56oc256oh56kh1ph0n"primitive-cache_dispatch_shape-2"
+
+# test fpad immediately followed by bpad.
+--reset
+--dir=bwd_w --cfg=bf16bf16bf16 --stag=axb --dtag=axb mb1_ic2oc1_id3od2kd3sd2dd0pd1_n"fpad_followed_by_bpad"
