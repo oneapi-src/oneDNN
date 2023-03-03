@@ -16,12 +16,8 @@
 
 #include <algorithm>
 #include <cstring>
+#include <random>
 #include <utility>
-
-#include <float.h>
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
 
 #include "utils/fill.hpp"
 #include "utils/parallel.hpp"
@@ -77,7 +73,7 @@ double get_non_zero_trust_percent(const prb_t *prb, data_kind_t kind) {
                     });
         }
         // Check for u8 dst
-        count += prb->cfg[DST].dt == dnnl_u8;
+        count += prb->get_dt(DST) == dnnl_u8;
         // Check for physically padded area in the output
         count += prb->od > prb->id || prb->oh > prb->ih || prb->ow > prb->iw;
 
@@ -93,9 +89,7 @@ double get_non_zero_trust_percent(const prb_t *prb, data_kind_t kind) {
                             prb->id * prb->ih * prb->iw,
                             prb->od * prb->oh * prb->ow);
             break;
-        case BIA:
-            trust = 0.8 * prb->cfg[DST].f_sparsity; /* why? */
-            break;
+        case BIA: trust = 0.8; break;
         case DST: trust /= (1.f + negative_to_zero()); break;
         default: assert(!"unsupported data kind");
     }
@@ -103,54 +97,12 @@ double get_non_zero_trust_percent(const prb_t *prb, data_kind_t kind) {
     return trust;
 }
 
-int fill_src(
+int check_reorder_presence(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const size_t nelems = mem_fp.nelems();
-    if (nelems == 0) return OK;
-
-    // Use dense filling for small problems.
-    int src_nelems_mask = powf(2.f, prb->ndims) - 1;
-    src_nelems_mask -= 1; // remove minibatch as independent dimension
-    auto src_nelems = prb->desc_nelems(DNNL_ARG_SRC, src_nelems_mask);
-    if (prb->has_groups) src_nelems /= prb->g; // groups are also independent
-
-    const auto &c = prb->cfg[SRC];
-    const int range = c.f_max - c.f_min + 1;
-    const float sparsity
-            = (!has_bench_mode_bit(mode_bit_t::corr) || src_nelems < 100)
-            ? 1.f
-            : c.f_sparsity;
-
-    const auto &e_zp_src = prb->attr.zero_points.get(DNNL_ARG_SRC);
-    const bool has_src_zp = !e_zp_src.is_def();
-    const int src_zp_mask = attr_t::get_default_mask(e_zp_src.policy);
-    int src_zp = has_src_zp && src_zp_mask == 0 ? e_zp_src.value : 0;
-
-    benchdnn_parallel_nd(prb->mb, prb->ic, prb->id, prb->ih, prb->iw,
-            [&](int64_t mb, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
-                const int64_t gen
-                        = 101 * id + 103 * ih + 107 * iw + 109 * mb + 113 * ic;
-                const bool non_base = flip_coin(gen, sparsity);
-                float value = non_base ? c.f_min + gen * c.f_step % range
-                                       : c.f_base;
-                value += src_zp; // Add zp so that it will be subtracted.
-
-                ((float *)mem_fp)[src_off_f(prb, mb, 0, ic, id, ih, iw)]
-                        = round_to_nearest_representable(mem_dt.dt(), value);
-            });
-
-    SAFE(mem_dt.reorder(mem_fp), WARN);
-
-    return OK;
-}
-
-int fill_wei(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const size_t nelems = mem_fp.nelems();
-    if (nelems == 0) return OK;
+    if (!is_cpu()) return OK;
 
     dnnl_data_type_t dt_check = dnnl_s8;
-#if DNNL_AARCH64
+#if defined(DNNL_AARCH64) && (DNNL_AARCH64 == 1)
     /* Note for x64:
     Both data types of src and weight are s8, oneDNN addds 128 to one of the s8
     input to make it of type u8 instead, as explained in
@@ -167,30 +119,10 @@ int fill_wei(
     if (res->impl_name.find("jit", 0) == 0) dt_check = dnnl_u8;
 #endif
 
-    const auto &c = prb->cfg[WEI];
-    const int range = c.f_max - c.f_min + 1;
-    const float sparsity
-            = !has_bench_mode_bit(mode_bit_t::corr) ? 1.f : c.f_sparsity;
-
-    benchdnn_parallel_nd(prb->g, prb->oc / prb->g, prb->ic / prb->g, prb->kd,
-            prb->kh, prb->kw,
-            [&](int64_t g, int64_t oc, int64_t ic, int64_t kd, int64_t kh,
-                    int64_t kw) {
-                const int64_t gen = 113 * g + 127 * kd + 131 * kh + 137 * kw
-                        + 139 * oc + 149 * ic + 151;
-                const bool non_base = flip_coin(gen, sparsity);
-                const float value = non_base ? c.f_min + gen * c.f_step % range
-                                             : c.f_base;
-                ((float *)mem_fp)[wei_off_f(prb, g, oc, ic, kd, kh, kw)]
-                        = round_to_nearest_representable(mem_dt.dt(), value);
-            });
-
-    SAFE(mem_dt.reorder(mem_fp), WARN);
-
     const bool wei_x8x8
-            = prb->cfg[WEI].dt == dnnl_s8 && prb->cfg[SRC].dt == dt_check;
+            = prb->get_dt(WEI) == dnnl_s8 && prb->get_dt(SRC) == dt_check;
     const bool is_def_zp = prb->attr.zero_points.is_def(DNNL_ARG_SRC);
-    if ((wei_x8x8 || !is_def_zp) && is_cpu()) {
+    if (wei_x8x8 || !is_def_zp) {
         // Check that s8 -> s8_comp exists in the library since users may have
         // already quantized data.
         dnn_mem_t mem_fp_s8(mem_fp.md_, dnnl_s8, tag::abx, get_cpu_engine());
@@ -205,79 +137,79 @@ int fill_wei(
     return OK;
 }
 
-int fill_bia(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const size_t nelems = mem_fp.nelems();
+int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
+        dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
+    const auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
 
-    const auto &c = prb->cfg[BIA];
-    const int range = c.f_max - c.f_min + 1;
+    cfg_t::density_args_t density_args;
+    density_args.data_kind = kind;
+    density_args.n_acc = prb->count_n_acc();
+    const auto density = cfg.get_density(density_args);
 
-    for (size_t i = 0; i < nelems; ++i) {
-        const int gen = (int)(151 * i);
-        const bool non_base = flip_coin(gen, c.f_sparsity);
-        const float value
-                = non_base ? c.f_min + gen * c.f_step % range : c.f_base;
+    // Apply the adjustments for weights only, they need to be even.
+    // See `cfg.cpp` for more comments.
+    const bool is_s8s8 = kind == WEI && cfg.get_dt(SRC) == dnnl_s8
+            && cfg.get_dt(WEI) == dnnl_s8;
 
-        ((float *)mem_fp)[i]
-                = round_to_nearest_representable(mem_dt.dt(), value);
-    }
+    const auto &e_zp_src = prb->attr.zero_points.get(DNNL_ARG_SRC);
+    const bool has_src_zp = !e_zp_src.is_def();
+    const int src_zp_mask = attr_t::get_default_mask(e_zp_src.policy);
+    // Apply src_zp for source tensor only.
+    int src_zp = kind == SRC && has_src_zp && src_zp_mask == 0 ? e_zp_src.value
+                                                               : 0;
 
+    /* Do fixed partitioning to have same filling for any number of threads */
+    const int64_t n_chunks = 16;
+    const int64_t chunk_size = div_up(nelems, n_chunks);
+
+    benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
+        int64_t idx_start = idx_chunk * chunk_size;
+        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
+        // Note: we use a different seed for each chunk to avoid
+        // repeating patterns. We could use discard(idx_start) too but
+        // it has a complexity in O(idx_start). We also add 1 to avoid
+        // seeding with 0.
+        std::minstd_rand int_seed(kind * nelems + idx_start + 1);
+        int_seed.discard(1);
+        std::minstd_rand b_seed(kind * nelems + idx_start + 1);
+        b_seed.discard(10);
+
+        std::uniform_int_distribution<> gen(
+                cfg.get_range_min(kind), cfg.get_range_max(kind));
+        std::bernoulli_distribution b_dist(density);
+
+        // make sure the first element is positive
+        if (idx_start == 0) {
+            float gen_val = 0;
+            while (gen_val <= 0)
+                gen_val = gen(int_seed);
+            float val = gen_val * (1.f + is_s8s8);
+            val += src_zp; // Add zp so that it will be subtracted.
+            mem_fp.set_elem(
+                    0, round_to_nearest_representable(cfg.get_dt(kind), val));
+            idx_start += 1;
+        }
+
+        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
+            bool is_one = density == 1.f ? true : b_dist(b_seed);
+            float gen_val = gen(int_seed) * (1.f + is_s8s8);
+            float val = is_one * gen_val;
+            val += src_zp; // Add zp so that it will be subtracted.
+            mem_fp.set_elem(
+                    idx, round_to_nearest_representable(cfg.get_dt(kind), val));
+        }
+    });
+
+    const bool swap_dt
+            = kind == DST && cfg.get_orig_dt(kind) != cfg.get_dt(kind);
+    if (swap_dt) mem_dt.set_dt(cfg.get_dt(kind));
     SAFE(mem_dt.reorder(mem_fp), WARN);
+    if (swap_dt) mem_dt.set_dt(cfg.get_orig_dt(kind));
 
-    return OK;
-}
+    if (kind == WEI)
+        SAFE(check_reorder_presence(prb, mem_dt, mem_fp, res), WARN);
 
-int fill_dst_with_params(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
-        dnnl_data_type_t dt, double sparsity, int min, int max, int base,
-        int step, res_t *res) {
-    const size_t nelems = mem_fp.nelems();
-    if (nelems == 0) return OK;
-
-    const int range = max - min + 1;
-
-    benchdnn_parallel_nd(prb->mb, prb->oc, prb->od, prb->oh, prb->ow,
-            [&](int64_t mb, int64_t oc, int64_t od, int64_t oh, int64_t ow) {
-                const int64_t gen
-                        = 157 * od + 163 * oh + 167 * ow + 173 * mb + 179 * oc;
-                const bool non_base = flip_coin(gen, sparsity);
-                const float value = non_base ? min + gen * step % range : base;
-
-                ((float *)mem_fp)[dst_off_f(prb, mb, 0, oc, od, oh, ow)]
-                        = round_to_nearest_representable(mem_dt.dt(), value);
-            });
-
-    SAFE(mem_dt.reorder(mem_fp), WARN);
-
-    return OK;
-}
-
-int fill_dst(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    auto dst_dt = mem_dt.dt();
-    int sum_ind = prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM);
-    auto sum_dt = (sum_ind != -1) ? prb->attr.post_ops.entry[sum_ind].sum.dt
-                                  : dnnl_data_type_undef;
-    bool diff_sum_dst_types
-            = sum_dt != dnnl_data_type_undef && sum_dt != dst_dt;
-    bool sum_dt_is_int8 = sum_dt == dnnl_s8 || sum_dt == dnnl_u8;
-
-    const auto &c = prb->cfg[DST];
-    float f_min = c.f_min;
-    float f_max = c.f_max;
-    if (diff_sum_dst_types && sum_dt_is_int8) {
-        f_min = lowest_dt(sum_dt);
-        f_max = max_dt(sum_dt);
-    }
-
-    // Change mem dt to sum dt, so we can save sum data properly.
-    if (diff_sum_dst_types) { mem_dt.set_dt(sum_dt); }
-
-    fill_dst_with_params(prb, mem_dt, mem_fp, sum_dt, c.f_sparsity, f_min,
-            f_max, c.f_base, c.f_step, res);
-
-    // Return dst data type back.
-    if (diff_sum_dst_types) { mem_dt.set_dt(dst_dt); }
     return OK;
 }
 
@@ -285,13 +217,13 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
     auto src_d = dnn_mem_t::init_md(
-            prb->ndims, prb->src_dims().data(), prb->cfg[SRC].dt, prb->stag);
+            prb->ndims, prb->src_dims().data(), prb->get_dt(SRC), prb->stag);
     auto wei_d = dnn_mem_t::init_md(prb->ndims + prb->has_groups,
-            prb->wei_dims().data(), prb->cfg[WEI].dt, prb->wtag);
+            prb->wei_dims().data(), prb->get_dt(WEI), prb->wtag);
     auto bia_d = dnn_mem_t::init_md(
-            1, prb->bia_dims().data(), prb->cfg[BIA].dt, tag::any);
+            1, prb->bia_dims().data(), prb->get_dt(BIA), tag::any);
     auto dst_d = dnn_mem_t::init_md(
-            prb->ndims, prb->dst_dims().data(), prb->cfg[DST].dt, prb->dtag);
+            prb->ndims, prb->dst_dims().data(), prb->get_dt(DST), prb->dtag);
 
     dnnl_alg_kind_t alg = dnnl_deconvolution_direct;
     if (prb->alg == WINO) alg = dnnl_deconvolution_winograd;
@@ -347,7 +279,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     }
 
     // TODO: enabled back when query is added to pd??
-    //DNN_SAFE_STATUS(cd.accum_data_type == prb->cfg[ACC].dt
+    //DNN_SAFE_STATUS(cd.accum_data_type == prb->get_dt(ACC)
     //                ? dnnl_success
     //                : dnnl_unimplemented);
 
@@ -365,7 +297,7 @@ int init_prim_ref(
     // reference implementation.
     auto cpu_attr = prb->attr;
     update_cpu_ref_attrs(cpu_attr);
-    prb_t prb_cpu {*prb, prb->dir, conf_f32, tag::abx, tag::abx, tag::abx,
+    prb_t prb_cpu {*prb, prb->dir, {dnnl_f32}, tag::abx, tag::abx, tag::abx,
             DIRECT, cpu_attr, prb->ctx_init, prb->ctx_exe, prb->mb};
 
     init_pd_args_t<prb_t> init_pd_args(
@@ -390,14 +322,14 @@ int init_prim_ref(
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_data_type(
-            {prb->cfg[SRC].dt, prb->cfg[WEI].dt, prb->cfg[DST].dt}, prb->dir,
+            {prb->get_dt(SRC), prb->get_dt(WEI), prb->get_dt(DST)}, prb->dir,
             res);
     skip_unimplemented_sum_po(prb->attr, res);
 
     // GPU supports only post ops and all but x8s8bf16 cfg
     if (is_gpu()) {
         const bool is_x8s8bf16_cfg
-                = prb->cfg[WEI].dt == dnnl_s8 && prb->cfg[DST].dt == dnnl_bf16;
+                = prb->get_dt(WEI) == dnnl_s8 && prb->get_dt(DST) == dnnl_bf16;
         const bool fwd_ok = !is_x8s8bf16_cfg;
         if (!fwd_ok) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
@@ -413,12 +345,15 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     const bool compare_with_norm = (prb->alg & WINO);
     cmp.set_norm_validation_mode(compare_with_norm);
 
-    float trh = prb->cfg[kind].eps;
-    if ((prb->alg & WINO) && (prb->dir & FLAG_WEI)) {
-        // This is an empirical equation derived by observing growth error with
-        // increasing 'k' dimension in gemm of winograd
-        const float log_const = log10(0.125 * prb->mb * prb->oh * prb->ow);
-        trh = prb->cfg[kind].eps * (MAX2(1, pow(10, 0.4 * log_const)));
+    float trh = 0.f;
+    if (prb->alg & WINO) {
+        trh = 2e-5f;
+        if (prb->dir & FLAG_WEI) {
+            // This is an empirical equation derived by observing growth error
+            // with increasing 'k' dimension in gemm of winograd
+            const float log_const = log10(0.125 * prb->mb * prb->oh * prb->ow);
+            trh *= (MAX2(1, pow(10, 0.4 * log_const)));
+        }
     }
     cmp.set_threshold(trh);
 
@@ -457,6 +392,9 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
     const auto &ref_engine = get_cpu_engine();
 
+    // Move cfg out of filling since its creation is not free.
+    cfg_t cfg(prb, {SRC, WEI, BIA, DST});
+
     for (auto &entry : mem_map) {
         const int exec_arg = entry.first;
         auto &mem = entry.second; // `mem` is modified by filler (reorder).
@@ -467,10 +405,10 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
         switch (exec_arg) {
             case DNNL_ARG_SRC:
-                SAFE(fill_src(prb, mem, ref_mem, res), WARN);
+                SAFE(fill_data(SRC, prb, cfg, mem, ref_mem, res), WARN);
                 break;
             case DNNL_ARG_WEIGHTS: {
-                SAFE(fill_wei(prb, mem, ref_mem, res), WARN);
+                SAFE(fill_data(WEI, prb, cfg, mem, ref_mem, res), WARN);
                 // To re-use conv implementation, we need additional weights
                 // with transposed input/output channels.
                 dnnl_dims_t wei_tr_dims {};
@@ -489,15 +427,15 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                         WARN);
             } break;
             case DNNL_ARG_BIAS:
-                SAFE(fill_bia(prb, mem, ref_mem, res), WARN);
+                SAFE(fill_data(BIA, prb, cfg, mem, ref_mem, res), WARN);
                 break;
             case DNNL_ARG_DST:
                 if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM)
                         >= 0)
-                    SAFE(fill_dst(prb, mem, ref_mem, res), WARN);
+                    SAFE(fill_data(DST, prb, cfg, mem, ref_mem, res), WARN);
                 break;
             case DNNL_ARG_DIFF_DST:
-                SAFE(fill_dst(prb, mem, ref_mem, res), WARN);
+                SAFE(fill_data(DST, prb, cfg, mem, ref_mem, res), WARN);
                 break;
             case DNNL_ARG_DIFF_WEIGHTS: {
                 // To re-use conv implementation, we need additional weights

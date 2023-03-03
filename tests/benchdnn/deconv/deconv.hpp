@@ -18,6 +18,7 @@
 #define DECONV_HPP
 
 #include <iostream>
+#include <map>
 
 #include <assert.h>
 #include <stdint.h>
@@ -27,6 +28,7 @@
 #include "common.hpp"
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
+#include "utils/cfg.hpp"
 #include "utils/compare.hpp"
 #include "utils/perf_report.hpp"
 #include "utils/settings.hpp"
@@ -89,38 +91,7 @@ private:
 int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
 
-/** configuration structure, that controls initial data filling + error check
- *
- * dt defines deconvolution precision
- *
- * for each type (SRC, WEI, BIA, and DST) the values are filled as follows:
- * if (rand() > f_sparsity) then:
- *     v <-- f_base // it is guaranteed each kernel window
- *                  // has at least one non-zero element
- * else:
- *     v <-- f_min + rand() * f_step % (f_max - f_min)
- *
- *
- * on final check the resulting values should be in [min .. max] range, the
- * relative difference should not exceed eps
- */
-typedef struct dt_conf_t {
-    dnnl_data_type_t dt;
-    double min, max; /* representative */
-    int f_min, f_max; /* fill range */
-    int f_base; /* fill base, use 0 */
-    int f_step; /* fill step, use 1 */
-    double f_sparsity; /* amount of non-zeros, default 0.25 */
-    double eps; /* acceptable error */
-} _dt_conf_t[DAT_TOTAL];
-
-extern const _dt_conf_t conf_f32;
-extern const _dt_conf_t conf_f32_with_bf16_fpmath;
-extern const _dt_conf_t conf_f32_with_tf32_fpmath;
-
-const dt_conf_t *str2cfg(const char *str);
-std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg);
-const dt_conf_t *auto_cfg(const alg_t alg, const dt_conf_t *cfg);
+std::string str2cfg(const char *str);
 
 struct settings_t : public base_settings_t {
     settings_t() = default;
@@ -133,13 +104,14 @@ struct settings_t : public base_settings_t {
     desc_t desc {};
 
     std::vector<dir_t> dir {FWD_B};
-    std::vector<const dt_conf_t *> cfg {conf_f32};
+    std::vector<std::string> cfg {std::string()};
+    std::vector<std::vector<dnnl_data_type_t>> dt {{dnnl_f32}};
     std::vector<std::string> stag {tag::any}, wtag {tag::any}, dtag {tag::any};
     std::vector<alg_t> alg {DIRECT};
 
     const char *perf_template_csv() const {
         static const std::string args
-                = "%dir%,%cfg%,%stag%,%wtag%,%dtag%,%alg%";
+                = "%dir%,%sdt%,%stag%,%wtag%,%dtag%,%alg%";
         return perf_template_csv_base(args);
     }
 
@@ -155,7 +127,7 @@ struct settings_t : public base_settings_t {
 struct prb_t : public desc_t {
     // A ctor with common interface across all drivers.
     prb_t(const settings_t &s)
-        : prb_t(s.desc, s.dir[0], s.cfg[0], s.stag[0], s.wtag[0], s.dtag[0],
+        : prb_t(s.desc, s.dir[0], s.dt[0], s.stag[0], s.wtag[0], s.dtag[0],
                 s.alg[0],
                 settings_t::get_attr(s.scales[0], s.zero_points[0],
                         s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]),
@@ -163,13 +135,14 @@ struct prb_t : public desc_t {
         SAFE_V(s.has_single_setup() ? OK : FAIL);
     }
 
-    prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg,
-            const std::string &stag, const std::string &wtag,
-            const std::string &dtag, alg_t alg, const attr_t &attr,
-            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe, int64_t mb = 0)
+    prb_t(const desc_t &desc, dir_t dir,
+            const std::vector<dnnl_data_type_t> &dt, const std::string &stag,
+            const std::string &wtag, const std::string &dtag, alg_t alg,
+            const attr_t &attr, const thr_ctx_t &ctx_init,
+            const thr_ctx_t &ctx_exe, int64_t mb = 0)
         : desc_t(desc)
         , dir(dir)
-        , cfg(cfg)
+        , dt(dt)
         , stag(stag)
         , wtag(wtag)
         , dtag(dtag)
@@ -180,12 +153,19 @@ struct prb_t : public desc_t {
         , user_mb(mb)
         , ops(0) {
         if (mb) this->mb = mb;
+
+        // Broadcast data types if needed
+        if (dt.size() == 1) {
+            const auto val = dt[0]; // Need a copy here.
+            this->dt.assign(3, val);
+        }
+
         count_ops();
         repro = set_repro_line(); // must be last in ctor to collect right info
     }
 
     dir_t dir;
-    const dt_conf_t *cfg;
+    std::vector<dnnl_data_type_t> dt;
     std::string stag, wtag, dtag;
     alg_t alg;
     attr_t attr;
@@ -195,19 +175,15 @@ struct prb_t : public desc_t {
     double ops;
 
     void count_ops();
+    int64_t count_n_acc() const { return kd * kh * kw * oc / g; }
 
-    const dt_conf_t &get_dt_conf(data_kind_t dk) const {
-        if (cfg == conf_f32) {
-            switch (attr.fpmath_mode) {
-                case dnnl_fpmath_mode_bf16:
-                    return conf_f32_with_bf16_fpmath[dk];
-                case dnnl_fpmath_mode_tf32:
-                    return conf_f32_with_tf32_fpmath[dk];
-                default: return cfg[dk];
-            }
-        }
-        return cfg[dk];
-    }
+    dnnl_data_type_t src_dt() const { return dt[0]; }
+    dnnl_data_type_t wei_dt() const { return dt[1]; }
+    dnnl_data_type_t bia_dt() const {
+        return is_integral_dt(wei_dt()) ? dnnl_f32 : wei_dt();
+    } // TODO: customize
+    dnnl_data_type_t dst_dt() const { return dt[2]; }
+    dnnl_data_type_t get_dt(data_kind_t data_kind) const;
 
     // Used to construct memory desc when dimensions are runtime since such mds
     // can't be used directly from query and memory objects can't be constructed.
@@ -234,8 +210,6 @@ struct perf_report_t : public base_perf_report_t {
 
     void dump_alg(std::ostream &s) const override { s << alg2str(p_->alg); }
 
-    void dump_cfg(std::ostream &s) const override { s << p_->cfg; }
-
     void dump_desc(std::ostream &s) const override {
         s << static_cast<const desc_t &>(*p_);
     }
@@ -257,6 +231,9 @@ struct perf_report_t : public base_perf_report_t {
     }
 
     double ops() const override { return p_->ops; }
+    const std::vector<dnnl_data_type_t> *sdt() const override {
+        return &p_->dt;
+    }
     const attr_t *attr() const override { return &p_->attr; }
     const thr_ctx_t *ctx_init() const override { return &p_->ctx_init; }
     const thr_ctx_t *ctx_exe() const override { return &p_->ctx_exe; }
@@ -272,6 +249,17 @@ private:
     std::vector<std::string> stag_;
     std::string wtag_, dtag_;
 };
+
+struct cfg_t : public base_cfg_t {
+    cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds);
+
+    cfg_entry_t::cfg_map_t get_cfg_map(data_kind_t kind) const override;
+
+    float get_density(const density_args_t &density_args) const override;
+};
+
+int handle_legacy_cfg(
+        std::vector<dnnl_data_type_t> &dt, const std::string &cfg);
 
 int transpose_data_wei(
         const prb_t *prb, const dnn_mem_t &wei, const dnn_mem_t &wei_tr);

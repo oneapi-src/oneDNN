@@ -411,7 +411,7 @@ void compute_ref_fwd(
             ref_conv_args.set(args.arg(i), args.dnn_mem(i));
     }
 
-    if (prb->alg == WINO && prb->cfg[SRC].dt == dnnl_f32) {
+    if (prb->alg == WINO && prb->get_dt(SRC) == dnnl_f32) {
         compute_wino_ref_bwd_d(prb, ref_conv_args);
     } else {
         compute_ref_direct_bwd_d(prb, ref_conv_args);
@@ -438,7 +438,7 @@ void compute_ref_bwd_d(
             ref_conv_args.set(args.arg(i), args.dnn_mem(i));
     }
 
-    if (prb->alg == WINO && prb->cfg[SRC].dt == dnnl_f32) {
+    if (prb->alg == WINO && prb->get_dt(SRC) == dnnl_f32) {
         compute_wino_ref_fwd(prb, ref_conv_args);
     } else {
         compute_ref_direct_fwd(prb, ref_conv_args);
@@ -466,7 +466,7 @@ void compute_ref_bwd_w(
             ref_conv_args.set(args.arg(i), args.dnn_mem(i));
     }
 
-    if (prb->alg == WINO && prb->cfg[SRC].dt == dnnl_f32) {
+    if (prb->alg == WINO && prb->get_dt(SRC) == dnnl_f32) {
         compute_wino_ref_bwd_w(prb, ref_conv_args);
     } else {
         compute_ref_bwd_weights(prb, ref_conv_args);
@@ -512,7 +512,7 @@ void compute_ref_bwd_w(
 void compute_ref(
         const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
     // Update prb descriptor to re-use convolution reference.
-    prb_t prb_tr((desc_t)*prb, prb->dir, prb->cfg, prb->stag, prb->wtag,
+    prb_t prb_tr((desc_t)*prb, prb->dir, prb->dt, prb->stag, prb->wtag,
             prb->dtag, prb->alg, prb->attr, prb->ctx_init, prb->ctx_exe,
             prb->mb);
     std::swap(prb_tr.ic, prb_tr.oc);
