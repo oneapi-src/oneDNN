@@ -107,16 +107,6 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
             if (!it.is_initialized()) return status::out_of_memory;
             conv_pd_ = *(++it);
 
-            /*
-              TODO:
-              Skip jit kernel to avoid regression, bug in : --cfg=f64
-            */
-            if (dnnl::impl::utils::one_of(dnnl::impl::data_type::f64,
-                        cd.diff_src_desc.data_type, cd.diff_dst_desc.data_type,
-                        cd.diff_weights_desc.data_type)
-                    && strstr(conv_pd_->name(), "jit:") != nullptr) {
-                conv_pd_ = *(++it);
-            }
             return (conv_pd_) ? status::success : status::unimplemented;
         }
 
