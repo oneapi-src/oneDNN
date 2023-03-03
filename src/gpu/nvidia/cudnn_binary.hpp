@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,11 +40,11 @@ struct cudnn_binary_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_binary_t);
 
-        status_t init(engine_t *) {
+        status_t init(engine_t *engine) {
             using namespace data_type;
 
             bool ok = (set_default_params() == status::success)
-                    && check_data_types() && check_no_blocking()
+                    && check_data_types(engine) && check_no_blocking()
                     && check_broadcast()
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::scales_runtime)
@@ -93,17 +93,28 @@ struct cudnn_binary_t : public primitive_t {
             return true;
         }
 
-        bool check_data_types() const {
+        bool check_data_types(engine_t *engine) const {
             using namespace data_type;
             bool inputs_same = src_md(0)->data_type == src_md(1)->data_type;
             dnnl_data_type_t input_type = src_md(0)->data_type;
             dnnl_data_type_t output_type = dst_md()->data_type;
 
+            auto sycl_dev
+                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine)
+                              ->device();
+
+            if (!IMPLICATION(utils::one_of(bf16, input_type, output_type),
+                        has_bf16_support(sycl_dev)))
+                return false;
+
             switch (output_type) {
                 case f32:
                     return inputs_same
                             && (input_type == f32 || input_type == s8
-                                    || input_type == f16);
+                                    || input_type == f16 || input_type == bf16);
+                case bf16:
+                    return inputs_same
+                            && (input_type == f32 || input_type == bf16);
                 case f16:
                     return inputs_same
                             && (input_type == f32 || input_type == f16);
