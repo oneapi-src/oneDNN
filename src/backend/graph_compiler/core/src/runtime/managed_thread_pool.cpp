@@ -33,7 +33,6 @@
 
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
 // clang-format off
-#define TBB_PREVIEW_GLOBAL_CONTROL 1
 #include <tbb/parallel_for_each.h>
 // clang-format on
 #endif
@@ -144,7 +143,9 @@ void thread_manager::run_main_function(main_func_t f, runtime::stream_t *stream,
 #pragma omp parallel for
         for (int i = 0; i < threads; i++) {
 #elif SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
-        tbb::parallel_for(0, threads, 1, [&](int64_t i) {
+        oneapi::tbb::task_arena arena(threads);
+        arena.execute([&] {
+            tbb::parallel_for(0, threads, 1, [&](int64_t i) {
 #endif
             auto &tls = thread_local_buffer_t::tls_buffer_;
             tls.in_managed_thread_pool_ = true;
@@ -162,6 +163,7 @@ void thread_manager::run_main_function(main_func_t f, runtime::stream_t *stream,
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
         }
 #elif SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
+            });
         });
 #endif
 

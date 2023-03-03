@@ -86,7 +86,7 @@ void jit_engine_t::set_target_machine(
 
 #if defined(SC_LLVM_BACKEND)
         case jit_kind::llvm:
-#if SC_LLVM_BACKEND <= 8
+#if SC_LLVM_BACKEND <= 10
             tm.cpu_flags_.fAVX512BF16 = false;
 #endif
 #if SC_LLVM_BACKEND >= 12

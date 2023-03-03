@@ -102,6 +102,8 @@ xbyak_jit_engine::~xbyak_jit_engine() = default;
 
 std::shared_ptr<jit_module> xbyak_jit_engine::make_jit_module(
         const_ir_module_ptr ir_mod, bool generate_wrapper) {
+    COMPILE_ASSERT(ir_mod->ctx_->machine_.cpu_flags_.fAVX512F,
+            "Builtin codegen currently only support AVX512");
     assert(ir_mod);
     COMPILE_ASSERT(ir_mod->ctx_->flags_.ssa_passes_ == false,
             "SC_SSA_PASSES is redundant for xbyak backend.");

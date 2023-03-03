@@ -157,6 +157,7 @@ SC_INTERNAL_API void shape_relationship_binding(
         }
     }
     assert(plhd_count == 0);
+    SC_UNUSED(plhd_count);
     // stage 4: replace old placeholders in graph with map.
     std::unordered_map<graph_tensor_ptr, bool> visited;
     op_visitor_t vis2 = op_visitor_t::dfs_topology_sort(graph.ops_.size());

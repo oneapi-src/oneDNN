@@ -21,13 +21,9 @@
 #include <runtime/parallel.hpp>
 #include <util/simple_math.hpp>
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
-// clang-format off
-#define TBB_PREVIEW_GLOBAL_CONTROL 1
+#include <tbb/global_control.h>
 #include <tbb/parallel_for_each.h>
 #include <tbb/task_arena.h>
-#include <tbb/task_scheduler_init.h>
-#include <tbb/global_control.h>
-// clang-format on
 #endif
 
 #include <runtime/thread_locals.hpp>
@@ -44,29 +40,36 @@ using namespace dnnl::impl::graph::gc;
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
 #error "unimplemented"
 #elif SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
-static tbb::task_scheduler_init init;
+
+static int &get_default_threads() {
+    static int num_threads = oneapi::tbb::info::default_concurrency();
+    return num_threads;
+}
 extern "C" void sc_parallel_call_cpu_with_env_impl(
         void (*pfunc)(void *, void *, int64_t, generic_val *), uint64_t flags,
         void *rtl_ctx, void *module_env, int64_t begin, int64_t end,
         int64_t step, generic_val *args) {
-    thread_local_buffer_t::tls_buffer_.additional_->is_main_thread_ = true;
-    tbb::parallel_for(begin, end, step,
-            [&](int64_t i) { pfunc(rtl_ctx, module_env, i, args); });
+    runtime::thread_local_buffer_t::tls_buffer_.additional_->is_main_thread_
+            = true;
+    oneapi::tbb::task_arena arena(get_default_threads());
+    arena.execute([&] {
+        tbb::parallel_for(
+                begin, end, step,
+                [&](int64_t i) { pfunc(rtl_ctx, module_env, i, args); },
+                tbb::simple_partitioner());
+    });
 }
 
 static int get_num_threads() {
-    return tbb::global_control::active_value(
-            tbb::global_control::max_allowed_parallelism);
+    return get_default_threads();
 }
 
-static std::unique_ptr<tbb::global_control> gctrl;
 static void set_num_threads(int num) {
-    gctrl = std::unique_ptr<tbb::global_control>(new tbb::global_control(
-            tbb::global_control::max_allowed_parallelism, num));
+    get_default_threads() = num;
 }
 
 static int get_thread_num() {
-    return tbb::task_arena::current_thread_index();
+    return tbb::this_task_arena::current_thread_index();
 }
 static int get_in_parallel() {
     return 0;

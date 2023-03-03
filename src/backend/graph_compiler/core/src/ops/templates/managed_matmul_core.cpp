@@ -16,6 +16,7 @@
 
 #include "managed_matmul_core.hpp"
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <string>
 #include "../fusible/memory_movement.hpp"
