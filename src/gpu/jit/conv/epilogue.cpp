@@ -293,6 +293,30 @@ public:
         return ret;
     }
 
+    stmt_t build_post_load_op_stmt() {
+        switch (info_.post_load_op()) {
+            case post_load_op_kind_t::inv: {
+                int elems = reg_layout_.elems();
+                auto &type = reg_layout_.type();
+                stmt_t ret;
+                int max_step = 2 * ir_ctx_->grf_size() / type.size();
+                for (int i = 0; i < elems;) {
+                    int step = std::min(max_step, elems - i);
+                    int off = i * type.size();
+                    auto l = load_t::make(type.with_elems(step), reg_buf_, off);
+                    auto s = store_t::make(reg_buf_, off,
+                            shuffle_t::make_broadcast(1.0f, step) / l);
+                    ret = ret.append(s);
+                    i += step;
+                }
+                return ret;
+            }
+            case post_load_op_kind_t::none: return stmt_t();
+            default: ir_error_not_expected();
+        }
+        return stmt_t();
+    }
+
     stmt_t build_zero_out_stmt() const {
         ir_assert(needs_store());
         return create_zero_out_stmt(*ir_ctx_, reg_buf_, reg_layout_.size());
@@ -748,6 +772,11 @@ private:
             if (!t.do_preload()) continue;
             if (!t.needs_f32_convert()) continue;
             stmt_ = stmt_.append(t.build_convert_stmt());
+        }
+
+        // Generate post-load statements.
+        for (auto &t : post_op_tensors_) {
+            stmt_ = stmt_.append(t.build_post_load_op_stmt());
         }
 
         // Initialize buffers for output post-op tensors.

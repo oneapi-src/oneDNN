@@ -78,7 +78,10 @@ public:
                     ir_assert(mask == 0);
                 }
                 auto view = create_view(type_t::f32(), normalize_mask(mask));
-                scales[i] = add_input_tensor(view, buf);
+                // Invert destination scales right after load.
+                scales[i] = add_input_tensor(view, buf,
+                        i == 2 ? post_load_op_kind_t::inv
+                               : post_load_op_kind_t::none);
             }
         }
 
@@ -141,7 +144,7 @@ public:
 
         // Handle dst scale.
         if (!is_one(dst_scales)) {
-            auto c_scaled = c / dst_scales;
+            auto c_scaled = c * dst_scales;
             post_ops_.emplace_back(c, c_scaled);
         }
 
@@ -330,8 +333,10 @@ private:
         return cp_view_.is_masked_vdim(idx);
     }
 
-    const expr_t &add_input_tensor(const view_t &view, const expr_t &buf) {
-        return add_tensor(/*is_input=*/true, /*is_output=*/false, view, buf);
+    const expr_t &add_input_tensor(const view_t &view, const expr_t &buf,
+            post_load_op_kind_t post_load_op = post_load_op_kind_t::none) {
+        return add_tensor(/*is_input=*/true, /*is_output=*/false, view, buf,
+                expr_t(), /*scale=*/1.0f, post_load_op);
     }
 
     const expr_t &add_output_tensor(
@@ -341,13 +346,13 @@ private:
     }
 
     const expr_t &add_tensor(bool is_input, bool is_output, const view_t &view,
-            const expr_t &buf, const expr_t &op_var = expr_t(),
-            float scale = 1.0f) {
+            const expr_t &buf, const expr_t &op_var, float scale = 1.0f,
+            post_load_op_kind_t post_load_op = post_load_op_kind_t::none) {
         ir_assert(view.nvdims() == cp_view_.nvdims());
         uint32_t mask
                 = (buf.is_empty() ? ~(1u << cp_ndims()) : compute_mask(view));
-        tensor_infos_.emplace_back(
-                is_input, is_output, view, buf, mask, op_var, scale);
+        tensor_infos_.emplace_back(is_input, is_output, view, buf, mask, op_var,
+                scale, post_load_op);
         return tensor_infos_.back().op_var();
     }
 

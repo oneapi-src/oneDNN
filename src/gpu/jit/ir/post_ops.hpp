@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,19 +29,26 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
+enum class post_load_op_kind_t {
+    none,
+    inv,
+};
+
 class post_op_tensor_info_t {
 public:
     post_op_tensor_info_t() = default;
 
     post_op_tensor_info_t(bool is_input, bool is_output, const view_t &view,
-            const expr_t &buf, uint32_t mask, const expr_t &op_var, float scale)
+            const expr_t &buf, uint32_t mask, const expr_t &op_var, float scale,
+            post_load_op_kind_t post_load_op)
         : is_input_(is_input)
         , is_output_(is_output)
         , view_(view)
         , buf_(buf)
         , mask_(mask)
         , op_var_(op_var)
-        , scale_(scale) {
+        , scale_(scale)
+        , post_load_op_(post_load_op) {
         if (op_var_.is_empty())
             op_var_ = var_t::make(type_t::f32(), make_op_var_name(buf));
         if (scale != 1)
@@ -64,6 +71,8 @@ public:
     const expr_t &op_var() const { return op_var_; }
 
     float scale() const { return scale_; }
+
+    post_load_op_kind_t post_load_op() const { return post_load_op_; }
 
     post_op_tensor_info_t create_sub_tensor(const tensor_t &tile) const {
         auto ret = *this;
@@ -97,6 +106,7 @@ private:
     uint32_t mask_;
     expr_t op_var_;
     float scale_;
+    post_load_op_kind_t post_load_op_ = post_load_op_kind_t::none;
 };
 
 // There are two types of post-ops:
