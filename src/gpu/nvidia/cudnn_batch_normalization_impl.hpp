@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -106,9 +106,11 @@ protected:
         is_bwd_data_ = pd->desc()->prop_kind == prop_kind::backward_data;
         dt_size_ = types::data_type_size(wrap.data_type());
         nchannels_ = pd->C();
-        mean_var_size_bytes_ = nchannels_ * dt_size_;
+        // Mean and variance are always f32.
+        mean_var_size_bytes_
+                = nchannels_ * types::data_type_size(data_type::f32);
         eps_ = pd->desc()->batch_norm_epsilon;
-        y_prime_size_ = wrap.nelems() * dt_size_;
+        y_prime_size_ = wrap.nelems() * types::data_type_size(data_type::f32);
         with_relu_postop_ = pd->with_relu_post_op();
 
         auto n = static_cast<float>(pd->MB() * pd->D() * pd->H() * pd->W());
@@ -276,10 +278,10 @@ struct cudnn_batch_normalization_bwd_impl_t
                 pd->diff_dst_md(), &diff_data_types_[diff_dst]));
 
         CHECK(create_and_set_tensor_descriptor(&diff_tensor_descs_[diff_src],
-                data_types_[diff_src], ndims_, diff_dims_[diff_src],
+                diff_data_types_[diff_src], ndims_, diff_dims_[diff_src],
                 strides_[diff_src]));
         CHECK(create_and_set_tensor_descriptor(&diff_tensor_descs_[diff_dst],
-                data_types_[diff_dst], ndims_, diff_dims_[diff_dst],
+                diff_data_types_[diff_dst], ndims_, diff_dims_[diff_dst],
                 strides_[diff_dst]));
 
         return status::success;

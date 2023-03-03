@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -47,13 +47,16 @@ struct cudnn_batch_normalization_common_t {
     template <typename pd_t>
     static void init_ws(const pd_t *pd, memory_desc_t &ws_md) {
         const auto wrap = memory_desc_wrapper(pd->src_md());
-        const auto y_size = wrap.nelems();
-        const size_t mean_invvar_size = 2 * pd->C();
+        const auto y_size
+                = wrap.nelems() * types::data_type_size(data_type::f32);
+        // Mean and variance are always f32.
+        const size_t mean_invvar_size
+                = 2 * pd->C() * types::data_type_size(data_type::f32);
         const dims_t ws_size
                 = {(dim_t)(y_size * pd->fuse_norm_relu() + mean_invvar_size)};
 
         memory_desc_init_by_tag(
-                ws_md, 1, ws_size, wrap.data_type(), format_tag::x);
+                ws_md, 1, ws_size, data_type::u8, format_tag::x);
     }
 };
 
@@ -64,7 +67,7 @@ struct cudnn_batch_normalization_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_batch_normalization_fwd_t);
 
-        status_t init(engine_t *) {
+        status_t init(engine_t *engine) {
             using namespace data_type;
             using namespace types;
 
@@ -77,12 +80,18 @@ struct cudnn_batch_normalization_fwd_t : public primitive_t {
                 return status::unimplemented;
 
             const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
+            auto *sycl_engine
+                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
 
             bool ok = is_fwd()
-                    && utils::one_of(src_md()->data_type, f16, f32, s8)
+                    && utils::one_of(src_md()->data_type, f16, f32, s8, bf16)
                     && src_md()->data_type == dst_md()->data_type
                     && check_scale_shift_data_type()
                     && attr()->has_default_values(attr_skip_mask)
+                    && IMPLICATION(
+                            utils::one_of(data_type::bf16, src_md()->data_type,
+                                    dst_md()->data_type),
+                            has_bf16_support(sycl_engine->device()))
                     && IMPLICATION(!attr()->has_default_values(),
                             attr()->post_ops_.len() == 1 && with_relu_post_op())
                     && IMPLICATION(utils::one_of(src_md()->data_type, s8, f16),
@@ -130,7 +139,7 @@ struct cudnn_batch_normalization_bwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_batch_normalization_bwd_t);
 
-        status_t init(engine_t *) {
+        status_t init(engine_t *engine) {
             using namespace data_type;
             using namespace types;
 
@@ -140,10 +149,21 @@ struct cudnn_batch_normalization_bwd_t : public primitive_t {
                     | normalization_flags::use_shift;
             if ((~norm_flags_supported & desc()->flags) != 0)
                 return status::unimplemented;
+            auto *sycl_engine
+                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
 
             bool ok = !is_fwd()
-                    && utils::everyone_is(f32, src_md()->data_type,
-                            diff_src_md()->data_type, diff_dst_md()->data_type)
+                    && (utils::everyone_is(f32, src_md()->data_type,
+                                diff_src_md()->data_type,
+                                diff_dst_md()->data_type)
+                            || utils::everyone_is(bf16, src_md()->data_type,
+                                    diff_src_md()->data_type,
+                                    diff_dst_md()->data_type))
+                    && IMPLICATION(
+                            utils::one_of(data_type::bf16, src_md()->data_type,
+                                    diff_src_md()->data_type,
+                                    diff_dst_md()->data_type),
+                            has_bf16_support(sycl_engine->device()))
                     && check_scale_shift_data_type()
                     && attr()->has_default_values()
                     && set_default_formats_common()
