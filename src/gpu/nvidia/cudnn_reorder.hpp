@@ -39,11 +39,26 @@ struct cudnn_reorder_t : public primitive_t {
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_reorder_t);
 
         // Function to verify data and memory format
-        bool valid_data_n_mem_format() const {
+        bool valid_data_n_mem_format(engine_t *engine) const {
+            auto sycl_dev
+                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine)
+                              ->device();
+
             bool ok = utils::one_of(src_md()->data_type, data_type::s8,
-                              data_type::f16, data_type::f32)
+                              data_type::bf16, data_type::f16, data_type::f32)
                     && utils::one_of(dst_md()->data_type, data_type::s8,
-                            data_type::f16, data_type::f32);
+                            data_type::bf16, data_type::f16, data_type::f32)
+                    // f16<->bf16 cases are not supported.
+                    && IMPLICATION(src_md()->data_type == data_type::bf16,
+                            dst_md()->data_type != data_type::f16)
+                    && IMPLICATION(src_md()->data_type == data_type::f16,
+                            dst_md()->data_type != data_type::bf16)
+                    && IMPLICATION(
+                            utils::one_of(data_type::bf16, src_md()->data_type,
+                                    dst_md()->data_type),
+                            has_bf16_support(sycl_dev));
+
+            if (!ok) return false;
 
             // Nvidia only supports blocking for Int8
             if (!utils::one_of(src_md()->data_type, data_type::s8)
@@ -92,7 +107,7 @@ struct cudnn_reorder_t : public primitive_t {
                     | primitive_attr_t::skip_mask_t::post_ops;
             bool ok = engine == dst_engine
                     && src_engine->kind() == engine_kind::gpu
-                    && valid_data_n_mem_format()
+                    && valid_data_n_mem_format(engine)
                     && attr()->has_default_values(attr_skip_mask) && scales_ok()
                     && post_ops_ok();
             if (!ok) return status::unimplemented;

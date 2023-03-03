@@ -58,6 +58,7 @@ namespace nvidia {
             .get_access<::sycl::access::mode::read_write>(cgh)
 
 bool compare_cuda_devices(const ::sycl::device &lhs, const ::sycl::device &rhs);
+bool has_bf16_support(const ::sycl::device &dev);
 
 // Check if the device type matches the passed engine kind
 inline status_t check_device(dnnl::impl::engine_kind_t eng_kind) {
@@ -162,6 +163,9 @@ static status_t convert_data_type(const memory_desc_t *mem_desc,
     switch (mem_desc->data_type) {
         case dnnl_data_type_t::dnnl_f16:
             *cudnn_data_type = cudnnDataType_t::CUDNN_DATA_HALF;
+            break;
+        case dnnl_data_type_t::dnnl_bf16:
+            *cudnn_data_type = cudnnDataType_t::CUDNN_DATA_BFLOAT16;
             break;
         case dnnl_data_type_t::dnnl_f32:
             *cudnn_data_type = cudnnDataType_t::CUDNN_DATA_FLOAT;

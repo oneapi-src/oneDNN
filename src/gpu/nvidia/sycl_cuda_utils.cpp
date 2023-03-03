@@ -58,6 +58,15 @@ bool attr_post_ops_ok(const primitive_attr_t *attr) {
     }
 }
 
+bool has_bf16_support(const ::sycl::device &dev) {
+    // This function checks compute capabilities of the given device.
+    // BF16 is supported starting with compute capabilities 8.0.
+    auto cuda_dev = compat::get_native<CUdevice>(dev);
+    cudaDeviceProp prop {};
+    cudaGetDeviceProperties(&prop, cuda_dev);
+    return prop.major >= 8;
+}
+
 } // namespace nvidia
 } // namespace gpu
 } // namespace impl
