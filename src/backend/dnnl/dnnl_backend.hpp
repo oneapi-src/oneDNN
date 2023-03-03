@@ -160,7 +160,7 @@ public:
         if (md.get_format_kind() == format_kind::blocked) {
             size_t format_tag = static_cast<size_t>(get_format_tag(md));
             for (size_t tag = 0; tag < dnnl_format_tag_last; ++tag) {
-                if (static_cast<dnnl_format_tag_t>(tag) == format_tag) {
+                if (tag == format_tag) {
                     layout_id = tag;
                     break;
                 }
