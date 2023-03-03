@@ -168,6 +168,10 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
                       return args.exp == lowest_dt(args.dt)
                               && std::isinf(args.got) && std::signbit(args.got);
                   }
+                  if (is_nvidia_gpu() && args.dt == dnnl_bf16) {
+                      return args.exp == lowest_dt(args.dt)
+                              && std::isinf(args.got) && std::signbit(args.got);
+                  }
                   return false;
               };
     cmp.set_driver_check_function(pooling_add_check);
@@ -213,7 +217,8 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
             case DNNL_ARG_WORKSPACE:
                 ref_mem_map[exec_arg]
                         = dnn_mem_t(mem.md_, dnnl_s32, tag::abx, ref_engine);
-                if (prb->dir & FLAG_FWD) SAFE(fill_ws(prb, mem, ref_mem), WARN);
+                if (prb->dir & FLAG_FWD && !is_nvidia_gpu())
+                    SAFE(fill_ws(prb, mem, ref_mem), WARN);
                 break;
             case DNNL_ARG_DST:
                 SAFE(!check_md_consistency_with_tag(mem.md_, prb->tag), WARN);

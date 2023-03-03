@@ -70,6 +70,11 @@ status_t cudnn_pooling_fwd_t::execute(const exec_ctx_t &ctx) const {
                             reinterpret_cast<unsigned char &>(val),
                             dst_wrap.nelems(),
                             cuda_stream->get_underlying_stream());
+                } else if (dst_wrap.data_type() == data_type_t::dnnl_bf16) {
+                    auto val = nstl::numeric_limits<float>::lowest();
+                    cuMemsetD32Async(reinterpret_cast<CUdeviceptr>(dst),
+                            reinterpret_cast<int &>(val), dst_wrap.nelems(),
+                            cuda_stream->get_underlying_stream());
                 }
             });
         });
