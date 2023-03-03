@@ -243,8 +243,11 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_tags(memory_desc_t &A_md,
                 VERBOSE_UNSUPPORTED_TAG);
         bgmmc.src_tag = desired_A_tag;
     } else {
+        const bool xf16_avx2_vnni_2 = (this->is_bf16() || this->is_f16())
+                && bgmmc.isa == avx2_vnni_2;
         bgmmc.src_tag = (this->is_bf16() || this->is_f32() || this->is_bf32()
                                 || this->is_f16())
+                        && !xf16_avx2_vnni_2
                 ? memory_desc_matches_one_of_tag(A_md, plain_tensor_layout_tag,
                         transposed_tensor_layout_tag, acbd, adbc)
                 : memory_desc_matches_one_of_tag(
