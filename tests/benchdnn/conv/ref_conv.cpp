@@ -215,25 +215,24 @@ void compute_ref_direct_bwd_d(const prb_t *prb, const args_t &args) {
 
         for_(int64_t d = 0; d < num_d; ++d)
         for_(int64_t h = 0; h < num_h; ++h)
-        for (int64_t w = 0; w < num_w; ++w) {
-            for (int64_t oc = 0; oc < OCG; ++oc) {
-                const int64_t diff_dst_off
-                        = ((oc * OD + od[d]) * OH + oh[h]) * OW + ow[w];
-                const int64_t wei_off
-                        = ((oc * ICG * KD + kd[d]) * KH + kh[h]) * KW + kw[w];
-                int src_zp = has_src_zp
-                        ? src_zps.get_elem(src_zp_mask > 0 ? g * OCG + oc : 0)
-                        : 0;
-                float diff_dst_val
-                        = (diff_dst_loc[diff_dst_off] - src_zp) * src_scale;
+        for_(int64_t w = 0; w < num_w; ++w)
+        for (int64_t oc = 0; oc < OCG; ++oc) {
+            const int64_t diff_dst_off
+                    = ((oc * OD + od[d]) * OH + oh[h]) * OW + ow[w];
+            const int64_t wei_off
+                    = ((oc * ICG * KD + kd[d]) * KH + kh[h]) * KW + kw[w];
+            int src_zp = has_src_zp
+                    ? src_zps.get_elem(src_zp_mask > 0 ? g * OCG + oc : 0)
+                    : 0;
+            float diff_dst_val
+                    = (diff_dst_loc[diff_dst_off] - src_zp) * src_scale;
 
-                float wei_scale = 1.f;
-                if (has_wei_scale)
-                    wei_scale = wei_scales.get_elem(
-                            wei_scale_mask > 0 ? g * ICG + ic : 0);
-                float wei_val = wei_loc[wei_off] * wei_scale;
-                ds += diff_dst_val * wei_val;
-            }
+            float wei_scale = 1.f;
+            if (has_wei_scale)
+                wei_scale = wei_scales.get_elem(
+                        wei_scale_mask > 0 ? g * ICG + ic : 0);
+            float wei_val = wei_loc[wei_off] * wei_scale;
+            ds += diff_dst_val * wei_val;
         }
     };
 

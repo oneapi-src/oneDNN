@@ -1146,16 +1146,17 @@ bool get_matmul_prb_vdims(
 
 bool get_matmul_dt(const deserialized_op &base_op_ref,
         std::vector<dnnl_data_type_t> &dt,
-        const std::unordered_set<size_t> &rewrite_lt_id) {
+        const std::unordered_set<size_t> &rewrite_lt_ids) {
     auto src_dt = base_op_ref.in_lts_[0].data_type_;
     auto wei_dt = base_op_ref.in_lts_[1].data_type_;
     auto dst_dt = base_op_ref.out_lts_[0].data_type_;
 
-    if (rewrite_lt_id.find(base_op_ref.in_lts_[0].id_) != rewrite_lt_id.end())
+    if (rewrite_lt_ids.find(base_op_ref.in_lts_[0].id_) != rewrite_lt_ids.end())
         src_dt = "f32";
-    if (rewrite_lt_id.find(base_op_ref.in_lts_[1].id_) != rewrite_lt_id.end())
+    if (rewrite_lt_ids.find(base_op_ref.in_lts_[1].id_) != rewrite_lt_ids.end())
         wei_dt = "f32";
-    if (rewrite_lt_id.find(base_op_ref.out_lts_[0].id_) != rewrite_lt_id.end())
+    if (rewrite_lt_ids.find(base_op_ref.out_lts_[0].id_)
+            != rewrite_lt_ids.end())
         dst_dt = "f32";
 
     dt = {convert_dt(get_data_type(src_dt)), convert_dt(get_data_type(wei_dt)),
