@@ -857,23 +857,22 @@ static void do_test_bf16(
     runtime_config_t::get().set_num_threads(reseter.old_);
 
     auto in_a = alloc_array<bf16_t>(shape * shape);
-    out = alloc_array<bf16_t>(shape * shape, INIT_NOOP);
-    auto ref_outf32 = alloc_array<float>(shape * shape, INIT_ZERO);
-    refout = alloc_array<bf16_t>(shape * shape, INIT_NOOP);
+    out = alloc_array<bf16_t>(shape, INIT_NOOP);
+    auto ref_outf32 = alloc_array<float>(shape, INIT_ZERO);
+    refout = alloc_array<bf16_t>(shape, INIT_NOOP);
 
     utils::parallel_for(0, shape, 1, [&](int64_t j) {
         for (int i = 0; i < shape; i++) {
             ref_outf32[j] += in_a[i * shape + j];
         }
     });
-    utils::parallel_for(0, shape * shape, 1,
-            [&](int64_t j) { refout[j] = bf16_t(ref_outf32[j]); });
+    utils::parallel_for(
+            0, shape, 1, [&](int64_t j) { refout[j] = bf16_t(ref_outf32[j]); });
     runtime_config_t::get().set_num_threads(16);
     fptr->call_default(out.data(), in_a.data());
 }
 
 TEST(GCCore_reduce_op_cpp, TestPartialBf16) {
-    GTEST_SKIP();
     REQUIRE_BF16();
     test_buffer<bf16_t> out;
     test_buffer<bf16_t> refout;
