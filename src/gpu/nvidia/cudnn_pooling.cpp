@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020-2022 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -68,6 +68,12 @@ status_t cudnn_pooling_fwd_t::execute(const exec_ctx_t &ctx) const {
                     auto val = nstl::numeric_limits<int8_t>::lowest();
                     cuMemsetD8Async(reinterpret_cast<CUdeviceptr>(dst),
                             reinterpret_cast<unsigned char &>(val),
+                            dst_wrap.nelems(),
+                            cuda_stream->get_underlying_stream());
+                } else if (dst_wrap.data_type() == data_type_t::dnnl_bf16) {
+                    bfloat16_t val = nstl::numeric_limits<bfloat16_t>::lowest();
+                    cuMemsetD32Async(reinterpret_cast<CUdeviceptr>(dst),
+                            reinterpret_cast<unsigned short &>(val),
                             dst_wrap.nelems(),
                             cuda_stream->get_underlying_stream());
                 }
