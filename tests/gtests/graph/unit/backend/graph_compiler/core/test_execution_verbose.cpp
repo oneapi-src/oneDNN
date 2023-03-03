@@ -25,8 +25,8 @@
 #if SC_BUILTIN_JIT_ENABLED
 #include <compiler/jit/xbyak/xbyak_jit_engine.hpp>
 #endif
-#include "test_utils.hpp"
 #include <runtime/config.hpp>
+#include <test_utils.hpp>
 
 #include "gtest/gtest.h"
 
@@ -80,6 +80,10 @@ TEST(GCCore_test_execution_verbose, TestTimer) {
     runtime_config_t::get().execution_verbose_ = true;
     auto mod = lower_graph(ctx, g, {ins, out});
     for (auto &kv : test_jit_engines) {
+        if (kv.first == "xbyak_jit_engine"
+                && !get_default_context()->machine_.cpu_flags_.fAVX512F) {
+            continue;
+        }
         testing::internal::CaptureStdout();
         shared_ptr<jit_engine_t> je = kv.second;
         auto jitf = je->get_entry_func(mod, true);

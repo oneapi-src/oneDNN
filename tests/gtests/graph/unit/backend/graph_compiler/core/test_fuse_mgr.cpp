@@ -1699,16 +1699,20 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerMultiAnchor) {
 
 TEST(GCCore_fuse_mgr_cpp, TestFusionManagerMultiAnchorShrink) {
     sc_graph_t mgr;
+    thread_num_reset reseter;
+    // set single threads envoriment
+    runtime_config_t::get().set_num_threads(56);
+
     // gemm + exp + reduce fusion pattern
     auto x = graph_tensor::make({8192, 256});
     auto w = graph_tensor::make({256, 128});
     auto input = mgr.make_input({x, w});
     input->attrs_.set("constant", const_kind::local_const);
 
+    const ops::matmul_core_config_t gemm_cfg = {32, 32, 32};
     auto gemm = mgr.make("matmul_core", input->get_outputs(), {}, {});
-    auto gemm_cfg = gemm->stc_cast<ops::matmul_core_op_t>()
-                            ->get_default_config(get_test_ctx())
-                            .get_as<ops::matmul_core_config_t>();
+    gemm->stc_cast<tunable_op_t>()->set_config(
+            reflection::general_object_t::make(gemm_cfg));
     auto exp = mgr.make("exp", {gemm->get_outputs()[0]}, {}, {});
     auto reduce = mgr.make("reduce", {exp->get_outputs()[0]}, {},
             {{"rd_axis", std::vector<int> {1}}, {"rd_op", 0}});
@@ -1736,9 +1740,9 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerMultiAnchorShrink) {
     bool name_eq = (tsr->name_.find("__origouts_") != std::string::npos
             && tsr->name_.find("shr") != std::string::npos);
     EXPECT_TRUE(name_eq);
-    int N_num_block = 128 / gemm_cfg->N_block;
+    int N_num_block = 128 / gemm_cfg.N_block;
     bool dim_eq = (get_expr_to_dims(tsr->dims_)
-            == sc_dims {1, N_num_block, gemm_cfg->M_block, gemm_cfg->N_block});
+            == sc_dims {1, N_num_block, gemm_cfg.M_block, gemm_cfg.N_block});
     EXPECT_TRUE(dim_eq);
 }
 
