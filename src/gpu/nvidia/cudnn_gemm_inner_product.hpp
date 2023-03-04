@@ -183,11 +183,26 @@ struct cudnn_gemm_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
             using sm_t = primitive_attr_t::skip_mask_t;
             const auto attr_skip_mask = sm_t::scales_runtime | sm_t::post_ops;
 
+            dnnl_data_type_t src_type = src_md()->data_type;
+            dnnl_data_type_t weights_type = weights_md(0)->data_type;
+            dnnl_data_type_t bias_type = weights_md(1)->data_type;
+            dnnl_data_type_t dst_type = dst_md()->data_type;
+            dnnl_data_type_t acc_type = desc()->accum_data_type;
+
+            auto *sycl_engine
+                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+
             bool with_eltwise
                     = attr()->post_ops_.find(primitive_kind::eltwise) != -1;
             bool with_sum = attr()->post_ops_.find(primitive_kind::sum) != -1;
             ok = ok
                     && utils::one_of(true,
+                            (expect_data_types(bf16, bf16, bf16, bf16, f32)
+                                    && with_bias())
+                                    && (expect_data_types(
+                                                s8, s8, f32, bf16, s32)
+                                            && with_bias()),
+                            expect_data_types(bf16, bf16, f32, f32, f32),
                             expect_data_types(f16, f16, f16, f16, f32),
                             expect_data_types(f16, f16, f32, f16, f32),
                             expect_data_types(s8, s8, f32, s8, s32),
@@ -202,6 +217,9 @@ struct cudnn_gemm_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
                     && attr()->has_default_values(attr_skip_mask)
                     && attr_post_ops_ok(attr())
                     && dense_check(src_md(), weights_md(), dst_md())
+                    && IMPLICATION(utils::one_of(bf16, src_type, weights_type,
+                                           bias_type, dst_type, acc_type),
+                            has_bf16_support(sycl_engine->device()))
                     && (gemm_compatible || need_reorder);
             if (!ok) return status::unimplemented;
 
@@ -247,9 +265,25 @@ struct cudnn_gemm_inner_product_bwd_data_t
                     ? false
                     : reorder_check(diff_src_md(), weights_md(), diff_dst_md());
 
-            ok = ok && expect_data_types(f32, f32, data_type::undef, f32, f32)
+            auto *sycl_engine
+                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+
+            auto diff_src_dt = diff_src_md()->data_type;
+            auto weights_dt = weights_md(0)->data_type;
+            auto diff_dst_dt = diff_dst_md()->data_type;
+            auto acc_dt = desc()->accum_data_type;
+
+            ok = ok
+                    && utils::one_of(true,
+                            expect_data_types(
+                                    f32, f32, data_type::undef, f32, f32),
+                            expect_data_types(bf16, bf16, bf16, bf16, f32),
+                            expect_data_types(f32, bf16, bf16, bf16, f32))
                     && attr()->has_default_values()
                     && dense_check(diff_src_md(), weights_md(), diff_dst_md())
+                    && IMPLICATION(utils::one_of(data_type::bf16, diff_src_dt,
+                                           weights_dt, diff_dst_dt, acc_dt),
+                            has_bf16_support(sycl_engine->device()))
                     && (gemm_compatible || need_reorder);
             if (!ok) return status::unimplemented;
 
@@ -296,9 +330,19 @@ struct cudnn_gemm_inner_product_bwd_weights_t
                     ? false
                     : reorder_check(src_md(), diff_weights_md(), diff_dst_md());
 
+            auto *sycl_engine
+                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+
             ok = ok && expect_data_types(f32, f32, f32, f32, f32)
                     && attr()->has_default_values()
                     && dense_check(src_md(), diff_weights_md(), diff_dst_md())
+                    && IMPLICATION(utils::one_of(data_type::bf16,
+                                           diff_weights_md(1)->data_type,
+                                           src_md()->data_type,
+                                           diff_weights_md(0)->data_type,
+                                           diff_dst_md()->data_type,
+                                           desc()->accum_data_type),
+                            has_bf16_support(sycl_engine->device()))
                     && (gemm_compatible || need_reorder);
             if (!ok) return status::unimplemented;
             inner_product_impl_.reset(
