@@ -39,7 +39,7 @@ struct cudnn_matmul_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_matmul_t);
 
-        status_t init(engine_t *) {
+        status_t init(engine_t *engine) {
             using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
 
@@ -51,19 +51,27 @@ struct cudnn_matmul_t : public primitive_t {
 
             bool f32_case = utils::everyone_is(f32, src_dt, wei_dt, dst_dt);
             bool f16_case = utils::everyone_is(f16, src_dt, wei_dt, dst_dt);
+            bool bf16_case = utils::everyone_is(bf16, src_dt, wei_dt, dst_dt);
             bool s8_case = utils::everyone_is(s8, src_dt, wei_dt)
                     && utils::one_of(dst_dt, s8, f32);
+
+            auto *sycl_engine
+                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
 
             bool ok = is_dense_data() && blocking_ok()
                     && attr()->has_default_values(
                             smask_t::scales_runtime | smask_t::post_ops)
                     && attr_scales_ok() && attr_post_ops_ok(attr())
+                    && IMPLICATION(
+                            bf16_case, has_bf16_support(sycl_engine->device()))
                     && set_default_formats()
-                    && (f32_case || f16_case || s8_case)
+                    && (f32_case || f16_case || bf16_case || s8_case)
                     && IMPLICATION(with_bias(),
                             (IMPLICATION(f32_case, utils::one_of(bia_dt, f32))
                                     && IMPLICATION(f16_case,
                                             utils::one_of(bia_dt, f16, f32))
+                                    && IMPLICATION(bf16_case,
+                                            utils::one_of(bia_dt, bf16, f32))
                                     && IMPLICATION(s8_case,
                                             utils::one_of(bia_dt, s8, f32))))
                     && !(with_bias() && s8_case);

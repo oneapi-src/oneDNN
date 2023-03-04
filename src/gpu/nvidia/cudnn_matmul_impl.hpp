@@ -431,6 +431,9 @@ private:
             case dnnl_data_type_t::dnnl_f16:
                 blas_dt = CUDA_R_16F;
                 return status::success;
+            case dnnl_data_type_t::dnnl_bf16:
+                blas_dt = CUDA_R_16BF;
+                return status::success;
             case dnnl_data_type_t::dnnl_s8:
                 blas_dt = CUDA_R_8I;
                 return status::success;
