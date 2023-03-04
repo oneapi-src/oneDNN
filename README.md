@@ -1,13 +1,6 @@
 oneAPI Deep Neural Network Library (oneDNN)
 ===========================================
 
-> **WARNING**
->
-> This branch includes backward incompatible changes towards oneDNN v3.0 release:
-> * [Memory and primitive descriptors refactoring](https://github.com/oneapi-src/oneDNN/tree/rfcs/rfcs/20220608-make-opdesc-and-md-opaque)
-> * [Quantization scheme update](https://github.com/oneapi-src/oneDNN/tree/rfcs/rfcs/20220201-quantization-scaling)
-> * [API cleanup](https://github.com/oneapi-src/oneDNN/tree/rfcs/rfcs/20220815-v3.0-API-cleanup)
-
 <img align="left" src="https://spec.oneapi.io/oneapi-logo-white-scaled.jpg" alt="oneAPI logo">
 
 oneAPI Deep Neural Network Library (oneDNN) is an open-source cross-platform
