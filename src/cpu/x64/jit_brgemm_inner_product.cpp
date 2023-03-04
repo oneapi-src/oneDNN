@@ -138,6 +138,9 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
     int base_brg_ker_idx = brgemm_inner_product_utils::
             get_brg_kernel_index( // TODO: Can be calculated on initialization stage
                     jbgp, false, false, is_os_tail, is_oc_tail, false);
+    const dims_t ic_dims = {0, jbgp.ic_block, 0, 0, 0};
+    const auto wei_ic_stride
+            = types::data_type_size(jbgp.wei_dt) * weights_d.off_v(ic_dims);
 
     const auto ker = [&](int ithr_oc_mb, int nthr_oc_mb, int ithr_ic, int n,
                              int ocb, int icc, bool do_init, int buffer_a_osb,
@@ -199,6 +202,8 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
         int brg_ker_idx = brgemm_inner_product_utils::get_brg_kernel_index(
                 jbgp, is_bs_tail, kernel_init, is_os_tail, is_oc_tail, false);
         auto brg_kernel = brg_kernels_[brg_ker_idx].get();
+        const int ic_blocks_per_batch = jbgp.K / jbgp.ic_block;
+        const dim_t wei_cur_ocb = get_blk_off(weights_d, jbgp.wei_dt, ocb, 0);
 
         if (copy_buffer_a) {
             assert(!jbgp.is_bf32);
@@ -209,7 +214,6 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
         if (gemm_batch > 0 && brg_kernel != nullptr) {
             maybe_tile_configure(
                     is_amx, brg_kernel_palettes_, brg_ker_idx, prev_ker_idx);
-            const int ic_blocks_per_batch = jbgp.K / jbgp.ic_block;
             for (int b = 0; b < gemm_batch; b++) {
                 auto A_ptr = jbgp.use_buffer_a
                         ? (a_buffer + src_dt_size * b * jbgp.K)
@@ -217,9 +221,9 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                                 + get_blk_off(src_d, jbgp.src_dt, n,
                                         ic + b * jbgp.K));
                 addr_batch[b].ptr.A = A_ptr;
-                addr_batch[b].ptr.B = weights
-                        + get_blk_off(weights_d, jbgp.wei_dt, ocb,
-                                icb + b * ic_blocks_per_batch);
+                const dim_t wei_offset = wei_cur_ocb
+                        + wei_ic_stride * (icb + b * ic_blocks_per_batch);
+                addr_batch[b].ptr.B = weights + wei_offset;
             }
 
             auto ptr_D = dst + dst_off;
@@ -259,15 +263,13 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
             maybe_tile_configure(is_amx, brg_kernel_palettes_,
                     brg_ker_ic_tail_idx, prev_ker_idx);
 
-            int ic_block = gemm_batch * jbgp.K / jbgp.ic_block;
+            int ic_block = gemm_batch * ic_blocks_per_batch;
             addr_batch[0].ptr.A = src
                     + get_blk_off(src_d, jbgp.src_dt, n,
                             ic + ic_block * jbgp.ic_block);
-            const int ic_curr = ic + jbgp.K * gemm_batch;
-            const dims_t aux_wei_dims = {oc, ic_curr, 0, 0, 0};
-            addr_batch[0].ptr.B = weights
-                    + types::data_type_size(jbgp.wei_dt)
-                            * weights_d.off_v(aux_wei_dims);
+            const dim_t wei_offset
+                    = wei_cur_ocb + wei_ic_stride * (icb + ic_block);
+            addr_batch[0].ptr.B = weights + wei_offset;
 
             auto brg_kernel_ic_tail = brg_kernels_[brg_ker_ic_tail_idx].get();
             auto ptr_D = dst + dst_off;
