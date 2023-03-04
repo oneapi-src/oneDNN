@@ -78,9 +78,17 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
     }
     bool use_output_mode = false;
     if (auto reo_op = this->dyn_cast<reorder_op_t>()) {
-        use_output_mode = reo_op->support_output_loop();
-        if (use_output_mode) {
-            reo_op->attrs_.set(op_attr_key::break_pre_fuse, true);
+        // for padding reorder, it maybe prefer to select input loop
+        if (reo_op->check_padding()) {
+            use_output_mode = reo_op->use_output_loop();
+        } else {
+            // for most reorder w/o padding, if it supports output loop, try to
+            // force it to use output loop for post-op fusion
+            use_output_mode = reo_op->support_output_loop();
+            if (use_output_mode) {
+                // set attr to force reorder use output mode
+                reo_op->attrs_.set(op_attr_key::break_pre_fuse, true);
+            }
         }
     }
     outer_loop_generator_t gen(base_idx, use_output_mode);
