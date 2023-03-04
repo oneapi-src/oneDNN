@@ -55,6 +55,9 @@ protected:
         switch (cudnn_dt) {
             case CUDNN_DATA_FLOAT: blas_dt = CUDA_R_32F; return status::success;
             case CUDNN_DATA_HALF: blas_dt = CUDA_R_16F; return status::success;
+            case CUDNN_DATA_BFLOAT16:
+                blas_dt = CUDA_R_16BF;
+                return status::success;
             case CUDNN_DATA_INT8: blas_dt = CUDA_R_8I; return status::success;
             case CUDNN_DATA_INT8x4: blas_dt = CUDA_R_8I; return status::success;
             default: return status::unimplemented;

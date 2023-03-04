@@ -64,6 +64,7 @@ struct cudnn_conv_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
             using namespace data_type;
             using namespace prop_kind;
             using sm_t = primitive_attr_t::skip_mask_t;
+
             const auto attr_skip_mask = sm_t::scales_runtime | sm_t::post_ops;
             // Flag for checking if the fused routine can be used for the
             // blocked format case. If set to true, that implies ReLU and
@@ -73,7 +74,7 @@ struct cudnn_conv_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
             ok = ok
                     && utils::one_of(desc()->prop_kind, forward_training,
                             forward_inference)
-                    && data_types_ok() && memory_format_ok(src_md())
+                    && data_types_ok(engine) && memory_format_ok(src_md())
                     && memory_format_ok(weights_md(0))
                     && memory_format_ok(dst_md())
                     && blocking_ok(with_eltwise(), use_fused_path_for_blocking)
@@ -168,13 +169,22 @@ struct cudnn_conv_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
                     && memory_desc_matches_nchw_vect_c(weights_md(0));
         }
 
-        bool data_types_ok() const {
+        bool data_types_ok(engine_t *engine) const {
             using namespace data_type;
             dnnl_data_type_t src_type = src_md()->data_type;
             dnnl_data_type_t weights_type = weights_md(0)->data_type;
             dnnl_data_type_t bias_type = weights_md(1)->data_type;
             dnnl_data_type_t dst_type = dst_md()->data_type;
             dnnl_data_type_t acc_type = desc()->accum_data_type;
+
+            auto *sycl_engine
+                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+
+            if (!IMPLICATION(utils::one_of(bf16, src_type, weights_type,
+                                     bias_type, dst_type, acc_type),
+                        has_bf16_support(sycl_engine->device()))) {
+                return false;
+            }
 
             bool src_wei_match = src_type == weights_type;
 
@@ -192,9 +202,13 @@ struct cudnn_conv_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
             switch (dst_type) {
                 case f32:
                     return src_wei_match && bias_match && acc_match
-                            && src_type == f32;
+                            && (src_type == f32 || src_type == bf16);
                 case f16:
                     return bias_match && acc_match && bias_may_use_type == f16;
+                case bf16:
+                    return bias_match && acc_match
+                            && (bias_may_use_type == bf16
+                                    || bias_may_use_type == f32);
                 case s8:
                     return src_wei_match && acc_match && weights_type == s8;
                 default: return false;
@@ -223,8 +237,9 @@ struct cudnn_conv_inner_product_bwd_data_t
             using namespace prop_kind;
 
             bool ok = true && set_default_params() == status::success;
-            ok = ok && desc()->prop_kind == backward_data && data_types_ok()
-                    && no_blocking() && attr()->has_default_values()
+            ok = ok && desc()->prop_kind == backward_data
+                    && data_types_ok(engine) && no_blocking()
+                    && attr()->has_default_values()
                     && memory_format_ok(diff_src_md())
                     && memory_format_ok(weights_md(0))
                     && memory_format_ok(diff_dst_md());
@@ -274,10 +289,23 @@ struct cudnn_conv_inner_product_bwd_data_t
                     == 0;
         }
 
-        bool data_types_ok() const {
-            return utils::everyone_is(data_type::f32, diff_src_md()->data_type,
-                    weights_md(0)->data_type, diff_dst_md()->data_type,
-                    desc()->accum_data_type);
+        bool data_types_ok(engine_t *engine) const {
+            auto *sycl_engine
+                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+
+            auto diff_src_dt = diff_src_md()->data_type;
+            auto weights_dt = weights_md(0)->data_type;
+            auto diff_dst_dt = diff_dst_md()->data_type;
+            auto acc_dt = desc()->accum_data_type;
+
+            if (!IMPLICATION(utils::one_of(data_type::bf16, diff_src_dt,
+                                     weights_dt, diff_dst_dt, acc_dt),
+                        has_bf16_support(sycl_engine->device()))) {
+                return false;
+            }
+
+            return utils::everyone_is(data_type::f32, diff_src_dt, weights_dt,
+                    diff_dst_dt, acc_dt);
         }
     };
 
@@ -300,7 +328,7 @@ struct cudnn_conv_inner_product_bwd_weights_t
             using namespace prop_kind;
             bool ok = true && (set_default_params() == status::success);
             ok = ok && (desc()->prop_kind == backward_weights)
-                    && data_types_ok() && no_blocking()
+                    && data_types_ok(engine) && no_blocking()
                     && attr()->has_default_values()
                     && memory_format_ok(src_md())
                     && memory_format_ok(diff_weights_md(0))
@@ -356,7 +384,19 @@ struct cudnn_conv_inner_product_bwd_weights_t
                     == 0;
         }
 
-        bool data_types_ok() const {
+        bool data_types_ok(engine_t *engine) const {
+            auto *sycl_engine
+                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+
+            if (!IMPLICATION(utils::one_of(data_type::bf16,
+                                     diff_weights_md(1)->data_type,
+                                     src_md()->data_type,
+                                     diff_weights_md(0)->data_type,
+                                     diff_dst_md()->data_type,
+                                     desc()->accum_data_type),
+                        has_bf16_support(sycl_engine->device()))) {
+                return false;
+            }
             return IMPLICATION(with_bias(),
                            diff_weights_md(1)->data_type == data_type::f32)
                     && utils::everyone_is(data_type::f32, src_md()->data_type,
