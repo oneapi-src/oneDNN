@@ -64,7 +64,7 @@
 // GCC 10 & 11 && 12 (at least versiona 10.1, 10.3 & 11.1, 12.2) report false positives
 // in xbyak when -Warray-bounds build setting is on
 #if (!defined(__INTEL_COMPILER) && !defined(__clang__major__)) \
-        && (defined(__GNUC__) && (__GNUC__ => 10))
+        && (defined(__GNUC__) && (__GNUC__ >= 10))
 #pragma GCC diagnostic ignored "-Warray-bounds"
 #endif
 
