@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,9 +36,25 @@ namespace amd {
 class hip_gpu_engine_impl_list_t {
 public:
     static const impl_list_item_t *get_reorder_implementation_list(
-            const memory_desc_t *src_md, const memory_desc_t *dst_md);
-    static const dnnl::impl::impl_list_item_t *get_concat_implementation_list();
-    static const dnnl::impl::impl_list_item_t *get_sum_implementation_list();
+            const memory_desc_t *src_md, const memory_desc_t *dst_md) {
+        static impl_list_item_t hip_reorder_impl_list[] = {
+                nullptr,
+        };
+        return hip_reorder_impl_list;
+    }
+    static const dnnl::impl::impl_list_item_t *
+    get_concat_implementation_list() {
+        static impl_list_item_t hip_concat_impl_list[] = {
+                nullptr,
+        };
+        return hip_concat_impl_list;
+    }
+    static const dnnl::impl::impl_list_item_t *get_sum_implementation_list() {
+        static impl_list_item_t hip_sum_impl_list[] = {
+                nullptr,
+        };
+        return hip_sum_impl_list;
+    }
 };
 
 class sycl_hip_engine_t : public dnnl::impl::sycl::sycl_engine_base_t {
@@ -56,29 +72,18 @@ public:
     const dnnl::impl::impl_list_item_t *get_reorder_implementation_list(
             const memory_desc_t *src_md,
             const memory_desc_t *dst_md) const override {
-        static impl_list_item_t hip_reorder_impl_list[] = {
-
-                nullptr,
-        };
-        return hip_reorder_impl_list;
+        return hip_gpu_engine_impl_list_t::get_reorder_implementation_list(
+                src_md, dst_md);
     }
 
     const dnnl::impl::impl_list_item_t *
     get_concat_implementation_list() const override {
-        static impl_list_item_t hip_concat_impl_list[] = {
-
-                nullptr,
-        };
-        return hip_concat_impl_list;
+        return hip_gpu_engine_impl_list_t::get_concat_implementation_list();
     }
 
     const dnnl::impl::impl_list_item_t *
     get_sum_implementation_list() const override {
-        static impl_list_item_t hip_sum_impl_list[] = {
-
-                nullptr,
-        };
-        return hip_sum_impl_list;
+        return hip_gpu_engine_impl_list_t::get_sum_implementation_list();
     }
 
     void activate_stream_miopen(HIPstream hip_stream);
