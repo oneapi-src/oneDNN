@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,6 +24,7 @@
 
 #include "gpu/amd/miopen_binary.hpp"
 #include "gpu/amd/miopen_eltwise.hpp"
+#include "gpu/amd/miopen_gemm_inner_product.hpp"
 #include "gpu/amd/miopen_lrn.hpp"
 #include "gpu/amd/miopen_matmul.hpp"
 #include "gpu/amd/miopen_pooling.hpp"
@@ -181,6 +182,10 @@ constexpr dnnl::impl::impl_list_item_t sycl_hip_impl_list[] = {
         INSTANCE(miopen_reduction_t)
         // MatMul
         INSTANCE(miopen_matmul_t)
+        // Inner Product
+        INSTANCE(miopen_gemm_inner_product_fwd_t)
+        INSTANCE(miopen_gemm_inner_product_bwd_data_t)
+        INSTANCE(miopen_gemm_inner_product_bwd_weights_t)
         nullptr,
 };
 // clang-format on

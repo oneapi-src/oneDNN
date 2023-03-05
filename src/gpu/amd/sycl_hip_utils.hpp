@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,6 +26,7 @@
 #include "dnnl_sycl.hpp"
 
 #include "common/engine.hpp"
+#include "common/utils.hpp"
 #include "common/z_magic.hpp"
 
 #include "sycl/sycl_utils.hpp"
@@ -83,6 +84,9 @@ inline status_t convert_data_type(const memory_desc_t *mem_desc,
         case data_type_t::dnnl_s32:
             *miopen_data_type = miopenDataType_t::miopenInt32;
             break;
+        case data_type_t::dnnl_bf16:
+            *miopen_data_type = miopenDataType_t::miopenBFloat16;
+            break;
         case data_type_t::dnnl_s8:
             *miopen_data_type
                     = ((vectorized
@@ -92,6 +96,45 @@ inline status_t convert_data_type(const memory_desc_t *mem_desc,
                                     : miopenDataType_t::miopenInt8);
             break;
         default: return status::unimplemented;
+    }
+    return status::success;
+}
+
+static bool memory_desc_matches_nchw_vect_c(const memory_desc_t *mem_desc) {
+    // Only one block is supported for second (C) dimension and the block size
+    // must be 4 and the dimension has to be a multiple of block size.
+    auto is_int_8 = utils::one_of(mem_desc->data_type, data_type::s8);
+    auto &strides = mem_desc->format_desc.blocking.strides;
+    if (is_int_8 && mem_desc->format_desc.blocking.inner_nblks == 1
+            && mem_desc->format_desc.blocking.inner_idxs[0] == 1
+            && mem_desc->format_desc.blocking.inner_blks[0] == 4
+            && mem_desc->dims[1] % 4 == 0) {
+        for (int d = 0; d < mem_desc->ndims - 1; ++d)
+            if (strides[d] < strides[d + 1]) return false;
+        return true;
+    }
+    return false;
+}
+
+inline bool memory_format_ok(const memory_desc_t *mem_desc) {
+    return (memory_desc_matches_nchw_vect_c(mem_desc)
+            || mem_desc->format_desc.blocking.inner_nblks == 0);
+}
+
+inline status_t get_format(const memory_desc_t *md,
+        miopenTensorLayout_t &format, bool consider_ab_as_nhwc = false) {
+    const memory_desc_wrapper mem_wrapper(md);
+    if (mem_wrapper.matches_one_of_tag(format_tag::ab, format_tag::abc,
+                format_tag::abcd, format_tag::abcde, format_tag::abcdef)) {
+        format = miopenTensorLayout_t::miopenTensorNCHW;
+    } else if (mem_wrapper.matches_one_of_tag(
+                       format_tag::acb, format_tag::acdb, format_tag::acdeb)) {
+        format = miopenTensorLayout_t::miopenTensorNHWC;
+    } else {
+        return status::unimplemented;
+    }
+    if (consider_ab_as_nhwc && mem_wrapper.matches_one_of_tag(format_tag::ab)) {
+        format = miopenTensorLayout_t::miopenTensorNHWC;
     }
     return status::success;
 }
@@ -347,6 +390,40 @@ public:
 
     virtual int get_error_number() const throw() { return error_number_; }
 };
+
+inline bool attr_post_ops_ok(
+        const primitive_attr_t *attr, bool s8_case = false) {
+    using namespace primitive_kind;
+    const auto &po = attr->post_ops_;
+    const int eltwise_idx = po.find(eltwise);
+    if (eltwise_idx != -1) {
+        const auto &e = po.entry_[eltwise_idx].eltwise;
+
+        using namespace alg_kind;
+        const bool ok = utils::one_of(e.alg, eltwise_relu, eltwise_tanh,
+                eltwise_elu, eltwise_logistic);
+        if (!ok) return false;
+
+        // No alpha or beta extension is supported.
+        if (e.alpha != 0) return false;
+
+        // Only a single eltwise post-op is supported.
+        if (po.find(eltwise, eltwise_idx + 1) != -1) return false;
+    }
+
+    const int sum_idx = po.find(sum);
+    if ((sum_idx != -1) && s8_case) {
+        float sum_scale = po.entry_[sum_idx].sum.scale;
+        if (sum_scale != (int)sum_scale) return false;
+    }
+
+    switch (po.len()) {
+        case 0: return true;
+        case 1: return po.contain(sum, 0) || po.contain(eltwise, 0);
+        case 2: return po.contain(sum, 0) && po.contain(eltwise, 1);
+        default: return false;
+    }
+}
 
 } // namespace amd
 } // namespace gpu
