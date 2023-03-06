@@ -43,11 +43,21 @@ const char *check_alg2str(check_alg_t alg) {
 flags_t str2flags(const char *str) {
     flags_t flags = NONE;
     while (str && *str) {
-        if (*str == 'G') flags |= GLOB_STATS;
-        if (*str == 'C') flags |= USE_SCALE;
-        if (*str == 'H') flags |= USE_SHIFT;
-        if (*str == 'R') flags |= FUSE_NORM_RELU;
-        if (*str == 'A') flags |= FUSE_NORM_ADD_RELU;
+        if (*str == 'G') {
+            flags |= GLOB_STATS;
+        } else if (*str == 'C') {
+            flags |= USE_SCALE;
+        } else if (*str == 'H') {
+            flags |= USE_SHIFT;
+        } else if (*str == 'R') {
+            flags |= FUSE_NORM_RELU;
+        } else if (*str == 'A') {
+            flags |= FUSE_NORM_ADD_RELU;
+        } else {
+            BENCHDNN_PRINT(0, "%s \'%c\'\n",
+                    "Error: --flags option doesn't support value", *str);
+            SAFE_V(FAIL);
+        }
         str++;
     }
     return flags;

@@ -23,8 +23,21 @@
 namespace lnorm {
 
 flags_t str2flags(const char *str) {
-    flags_t flags = bnorm::str2flags(str);
-    assert(flags <= (GLOB_STATS | USE_SCALE | USE_SHIFT));
+    flags_t flags = NONE;
+    while (str && *str) {
+        if (*str == 'G') {
+            flags |= GLOB_STATS;
+        } else if (*str == 'C') {
+            flags |= USE_SCALE;
+        } else if (*str == 'H') {
+            flags |= USE_SHIFT;
+        } else {
+            BENCHDNN_PRINT(0, "%s \'%c\'\n",
+                    "Error: --flags option doesn't support value", *str);
+            SAFE_V(FAIL);
+        }
+        str++;
+    }
     return flags;
 }
 
