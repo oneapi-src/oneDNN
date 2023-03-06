@@ -390,6 +390,7 @@ TEST(GCCore_graph_mixed_partition_cpp,
 }
 
 TEST(GCCore_graph_mixed_partition_cpp, TestGraphSpecialReorder) {
+    REQUIRE_AVX2();
     sc_graph_t graph;
 
     auto input0 = graph.make_input(

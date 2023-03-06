@@ -65,6 +65,12 @@
         GTEST_SKIP(); \
     }
 
+#define REQUIRE_AVX2() \
+    if (!::dnnl::impl::graph::gc::get_default_context() \
+                    ->machine_.cpu_flags_.fAVX2) { \
+        GTEST_SKIP(); \
+    }
+
 #if SC_BUILTIN_JIT_ENABLED
 #define BUILTIN_REQUIRE_AVX512() \
     if (::dnnl::impl::graph::gc::get_default_context()->flags_.jit_kind_ \

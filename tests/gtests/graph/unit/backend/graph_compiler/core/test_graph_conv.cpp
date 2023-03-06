@@ -31,6 +31,7 @@
 using namespace dnnl::impl::graph::gc;
 
 TEST(GCCore_graph_conv_test, TestGraphConvolutionWithBias) {
+    REQUIRE_AVX2();
     int N = 64, IC = 16, OC = 64, H = 32, W = 32, R = 1, S = 1;
     sc_dims input_dims {N, IC, H, W};
     sc_dims filter_dims {OC, IC, R, S};
