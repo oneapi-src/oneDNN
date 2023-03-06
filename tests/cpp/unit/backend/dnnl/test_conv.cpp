@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -6155,6 +6155,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumS8Relu) {
                 out_channel, in_channel / g, kernel_size, kernel_size};
         std::vector<int64_t> bias_shape {out_channel};
         std::vector<int64_t> dst_shape {1, out_channel, 110, 110};
+        std::vector<int64_t> nxc_stride {
+                out_channel * 110 * 110, 1, out_channel * 110, out_channel};
 
         test::vector<uint8_t> src_u8_data(product(src_shape));
         test::vector<float> weight_f32_data(product(weight_shape));
@@ -6285,9 +6287,10 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumS8Relu) {
                 3, weight_shape, impl::data_type::f32);
         // set weight to be constant
         weight_f32.property = impl::property_type::constant;
-        dst_u8 = utils::logical_tensor_init(9, dst_shape, impl::data_type::u8);
+        dst_u8 = utils::logical_tensor_init(
+                9, dst_shape, nxc_stride, impl::data_type::u8);
         other_s8 = utils::logical_tensor_init(
-                11, dst_shape, impl::data_type::s8);
+                11, dst_shape, nxc_stride, impl::data_type::s8);
         if (with_bias) {
             bias_f32 = utils::logical_tensor_init(
                     6, bias_shape, impl::data_type::f32);
@@ -6337,6 +6340,12 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumS8Relu) {
 
         impl::status_t ret = p.compile(&cp, lt_ins, lt_outs, &engine);
         ASSERT_EQ(ret, impl::status::success);
+
+        std::vector<impl::inplace_pair_t> inplace_pairs
+                = cp.get_inplace_pairs();
+        ASSERT_EQ(inplace_pairs.size(), 1U);
+        ASSERT_EQ(inplace_pairs[0].input_id, other_s8.id);
+        ASSERT_EQ(inplace_pairs[0].output_id, dst_u8.id);
 
         // single thread
         for (size_t iter = 0; iter < 5; iter++) {
