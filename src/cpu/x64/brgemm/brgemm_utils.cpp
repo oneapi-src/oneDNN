@@ -197,14 +197,14 @@ status_t brgemm_blocking(brgemm_t *brg) {
 
         const int max_isa_regs
                 = is_superset(brg->isa_impl, avx512_core) ? 32 : 16;
-        const auto max_regs = max_isa_regs - (adj_ld_block2 + max_bcst_regs);
-
         // note: the 'adj_ld_block2' already removes the necessary registers
         // for 'embd_bcst'
-        auto max_block
-                = max_regs - beta_regs - req_compensation - req_zp_a_comp_pads;
+        auto max_block = max_isa_regs - adj_ld_block2 - max_bcst_regs
+                - beta_regs - req_compensation - req_zp_a_comp_pads;
 
-        if (req_zp_a_comp_pads) max_block = nstl::min(max_block, max_regs - 5);
+        if (req_zp_a_comp_pads)
+            max_block = nstl::min(max_block,
+                    max_isa_regs - adj_ld_block2 - max_bcst_regs - 5);
         if (brg->is_bf16_emu) {
             assert(is_superset(brg->isa_impl, avx512_core));
             max_block = nstl::min(max_block, 28);
