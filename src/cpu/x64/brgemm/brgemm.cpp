@@ -384,12 +384,6 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
         if (brgattr.max_top_vpad > brgemm_t::MAX_VPAD
                 || brgattr.max_bottom_vpad > brgemm_t::MAX_VPAD)
             return status::unimplemented;
-
-        // virtual padding is restricted by bd_block size due to
-        // brgemm_kernel implementation. TODO: remove this restriction
-        if (brgattr.max_top_vpad > brg->bd_block
-                || brgattr.max_bottom_vpad > brg->bd_block)
-            return status::unimplemented;
     }
 
     // virtual padding is supported for "brgemm_row_major" layout
@@ -414,6 +408,16 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
             CHECK(brdgmm_blocking(brg));
         else
             CHECK(brgemm_blocking(brg));
+    }
+
+    const int max_vpad = nstl::max(brgattr.max_top_vpad,
+            brgattr.max_bottom_vpad); // these should be equal
+    if (!brg->is_dgmm) {
+        // virtual padding is restricted by bd_block size due to
+        // brgemm_kernel implementation. TODO: remove this restriction
+        const int min_bd_block
+                = brg->bdb_tail > 0 ? brg->bdb_tail : brg->bd_block;
+        if ((max_vpad > min_bd_block)) return status::unimplemented;
     }
 
     brg->LDA2 = (brgattr.LDA2 != 0) ? brgattr.LDA2 : brg->LDA;
