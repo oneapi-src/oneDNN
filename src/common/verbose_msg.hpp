@@ -17,13 +17,17 @@
 #ifndef COMMON_VERBOSE_MSG_HPP
 #define COMMON_VERBOSE_MSG_HPP
 
+// log type strings
 #define VERBOSE_error "error"
 #define VERBOSE_create "create"
 #define VERBOSE_exec "exec"
+
+// log sybtypes strings
 #define VERBOSE_check ":check"
 #define VERBOSE_dispatch ":dispatch"
 #define VERBOSE_profile ""
 
+// verbose messages
 #define VERBOSE_NULL_ARG "one of the mandatory arguments is nullptr"
 #define VERBOSE_BAD_ENGINE_KIND "bad engine kind"
 #define VERBOSE_BAD_ALGORITHM "bad algorithm"

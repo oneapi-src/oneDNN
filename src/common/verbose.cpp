@@ -92,7 +92,9 @@ uint32_t get_verbose() {
                         | verbose_t::create_profile;
             if (s == "all" || s == "-1") return verbose_t::all;
             if (s == "error") return verbose_t::flag_kind::error;
-            if (s == "check") return verbose_t::flag_kind::create_check;
+            if (s == "check")
+                return verbose_t::flag_kind::create_check
+                        | verbose_t::flag_kind::exec_check;
             if (s == "dispatch") return verbose_t::flag_kind::create_dispatch;
             if (s == "profile")
                 return verbose_t::flag_kind::create_profile
@@ -171,6 +173,9 @@ bool verbose_has_create_check() {
 };
 bool verbose_has_create_profile() {
     return get_verbose() & verbose_t::create_profile;
+};
+bool verbose_has_exec_check() {
+    return get_verbose() & verbose_t::exec_check;
 };
 bool verbose_has_exec_profile() {
     return get_verbose() & verbose_t::exec_profile;

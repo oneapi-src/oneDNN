@@ -75,15 +75,21 @@ struct const_expr_value {
                 stamp_.c_str(), logsubtype, ##__VA_ARGS__); \
     } while (0)
 
+// Logging info
+#define VINFO(logtype, logsubtype, component, msg, ...) \
+    do { \
+        if (verbose_has_##logtype##_##logsubtype()) \
+            VFORMAT(get_msec(), logtype, VERBOSE_##logsubtype, \
+                    #component "," msg ",%s:%d", ##__VA_ARGS__, __FILENAME__, \
+                    __LINE__); \
+    } while (0)
+
 // Macro for boolean checks
 #define VCONDCHECK( \
         logtype, logsubtype, component, condition, status, msg, ...) \
     do { \
         if (!(condition)) { \
-            if (verbose_has_##logtype##_##logsubtype()) \
-                VFORMAT(get_msec(), logtype, VERBOSE_##logsubtype, \
-                        #component "," msg ",%s:%d", ##__VA_ARGS__, \
-                        __FILENAME__, __LINE__); \
+            VINFO(logtype, logsubtype, component, msg, ##__VA_ARGS__); \
             return status; \
         } \
     } while (0)
@@ -122,7 +128,8 @@ struct verbose_t {
         create_check = 1 << 3,
         create_dispatch = 1 << 4,
         create_profile = 1 << 5,
-        exec_profile = 1 << 6,
+        exec_check = 1 << 6,
+        exec_profile = 1 << 7,
         // the upper 8 bits are reserved for devinfo levels
         debuginfo = 1 << 24,
         //
@@ -136,7 +143,9 @@ bool verbose_has_error();
 bool verbose_has_create_check();
 bool verbose_has_create_dispatch();
 bool verbose_has_create_profile();
+bool verbose_has_exec_check();
 bool verbose_has_exec_profile();
+
 int verbose_debuginfo();
 
 bool get_verbose_timestamp();

@@ -41,9 +41,12 @@ status_t cvt_primitive_args(const primitive_desc_t *pd, int nargs,
         // allows dummy arguments
         if (mem == nullptr) continue;
 
+        VCONDCHECK(exec, check, primitive, args.count(arg) == 0,
+                invalid_arguments,
+                "The same argument kind %d is passed multiple times", arg);
+
         switch (pd->arg_usage(arg)) {
             case primitive_desc_t::arg_usage_t::input:
-                if (args.count(arg) != 0) return invalid_arguments;
                 args[arg] = {mem, true};
                 n_inputs++;
                 extra_inputs += (arg == DNNL_ARG_ATTR_OUTPUT_SCALES)
@@ -62,17 +65,25 @@ status_t cvt_primitive_args(const primitive_desc_t *pd, int nargs,
                                         | DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST));
                 break;
             case primitive_desc_t::arg_usage_t::output:
-                if (args.count(arg) != 0) return invalid_arguments;
                 args[arg] = {mem, false};
                 n_outputs++;
                 extra_outputs += (arg == DNNL_ARG_SCRATCHPAD);
                 break;
-            case primitive_desc_t::arg_usage_t::unused: break;
+            case primitive_desc_t::arg_usage_t::unused:
+                VINFO(exec, check, primitive,
+                        "unsused primitive execution argument (%d)", arg);
+                break;
         }
     }
 
-    if (n_inputs != pd->n_inputs() + extra_inputs) return invalid_arguments;
-    if (n_outputs != pd->n_outputs() + extra_outputs) return invalid_arguments;
+    VCONDCHECK(exec, check, primitive,
+            (n_inputs == pd->n_inputs() + extra_inputs), invalid_arguments,
+            "bad number of inputs (expected %d got %d)",
+            pd->n_inputs() + extra_inputs, n_inputs);
+    VCONDCHECK(exec, check, primitive,
+            (n_outputs == pd->n_outputs() + extra_outputs), invalid_arguments,
+            "bad number of outputs (expected %d got %d)",
+            pd->n_outputs() + extra_outputs, n_outputs);
 
     return success;
 }
