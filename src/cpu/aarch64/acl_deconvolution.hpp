@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Arm Ltd. and affiliates
+* Copyright 2022-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ struct acl_deconv_conf_t {
     // If this is true, the result of the convolution goes into a temporarily
     // allocated ACL tensor to be accumulated into the oneDNN dst during postops
     bool use_dst_acc;
+    bool fast_math;
     arm_compute::TensorInfo src_info;
     arm_compute::TensorInfo wei_info;
     arm_compute::TensorInfo bia_info;
@@ -64,7 +65,7 @@ struct acl_deconv_resource_t : public resource_t {
             &acl_obj_->wei_tensor,
             adp.with_bias ? &acl_obj_->bia_tensor : nullptr,
             &acl_obj_->dst_tensor,
-            adp.deconv_info);
+            adp.deconv_info, adp.fast_math);
         // clang-format on
 
         return status::success;
@@ -212,15 +213,14 @@ struct acl_deconvolution_fwd_t : public primitive_t {
                             : arm_compute::TensorShape(),
                     1, acl_bia_data_t, acl_layout);
 
-            // Fast math mode is not available for deconvolution
+            acl_pd_conf.fast_math = utils::one_of(
+                    attr()->fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any);
+
             ACL_CHECK_VALID(arm_compute::NEDeconvolutionLayer::validate(
                     &acl_pd_conf.src_info, &acl_pd_conf.wei_info,
                     acl_pd_conf.with_bias ? &acl_pd_conf.bia_info : nullptr,
-                    &acl_pd_conf.dst_info, acl_pd_conf.deconv_info));
-
-            // Describe deconvolution as convolution of upsampling input with stride = 1 and pad = 0
-            const arm_compute::PadStrideInfo conv_info(
-                    1, 1, 0, 0, 0, 0, arm_compute::DimensionRoundingType::CEIL);
+                    &acl_pd_conf.dst_info, acl_pd_conf.deconv_info,
+                    acl_pd_conf.fast_math));
 
             // Calculate scaled output tensor info for determining the convolution method
             auto out_dims = arm_compute::deconvolution_output_dimensions(
@@ -231,15 +231,51 @@ struct acl_deconvolution_fwd_t : public primitive_t {
                     compute_deconvolution_upsampled_shape(acl_pd_conf.src_info,
                             acl_pd_conf.wei_info, sw, sh, out_dims,
                             deconv_pad_x, deconv_pad_y);
-            arm_compute::TensorInfo scale_out_info(
-                    acl_pd_conf.src_info.clone()
-                            ->set_is_resizable(true)
-                            .reset_padding()
-                            .set_tensor_shape(scale_out_shape));
-            auto conv_method
+
+            // If strides are unit in all dimensions, upsampling of input is skipped and a correct
+            // padding is set for convolution. Otherwise, describe deconvolution as convolution of
+            // upsampling input with stride = 1 and pad = 0.
+            arm_compute::ConvolutionMethod conv_method;
+            arm_compute::TensorInfo *conv_src_info;
+            unsigned int pad_left = 0;
+            unsigned int pad_right = 0;
+            unsigned int pad_top = 0;
+            unsigned int pad_bottom = 0;
+            if (sh != 1 || sw != 1) {
+                arm_compute::TensorInfo scale_out_info(
+                        acl_pd_conf.src_info.clone()
+                                ->set_is_resizable(true)
+                                .reset_padding()
+                                .set_tensor_shape(scale_out_shape));
+                conv_src_info = &scale_out_info;
+            } else {
+                // compute correct padding here
+                pad_left = pr > pl ? pr - pl : 0;
+                pad_right = pl > pr ? pl - pr : 0;
+                pad_top = pb > pt ? pb - pt : 0;
+                pad_bottom = pt > pb ? pt - pb : 0;
+
+                deconv_pad_x -= pad_left + pad_right;
+                deconv_pad_y -= pad_top + pad_bottom;
+
+                pad_left += deconv_pad_x / 2;
+                pad_right += deconv_pad_x / 2;
+                pad_top += deconv_pad_y / 2;
+                pad_bottom += deconv_pad_y / 2;
+
+                conv_src_info = &acl_pd_conf.src_info;
+            }
+            const arm_compute::PadStrideInfo conv_info(1, 1, pad_left,
+                    pad_right, pad_top, pad_bottom,
+                    arm_compute::DimensionRoundingType::CEIL);
+            conv_method
                     = arm_compute::NEConvolutionLayer::get_convolution_method(
-                            &scale_out_info, &acl_pd_conf.wei_info,
-                            &acl_pd_conf.dst_info, conv_info);
+                            conv_src_info, &acl_pd_conf.wei_info,
+                            &acl_pd_conf.dst_info, conv_info,
+                            arm_compute::WeightsInfo(),
+                            arm_compute::Size2D(1U, 1U),
+                            arm_compute::ActivationLayerInfo(),
+                            acl_pd_conf.fast_math);
 
             // Disable use of winograd based convolution algorithm when performing
             // direct deconvolution because it introduces accuracy loss.
