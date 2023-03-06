@@ -10522,7 +10522,7 @@ struct lbr_gru_backward : public primitive {
                 const memory::desc &diff_bias_desc,
                 const memory::desc &diff_dst_layer_desc,
                 const memory::desc &diff_dst_iter_desc,
-                const gru_forward::primitive_desc &hint_fwd_pd,
+                const lbr_gru_forward::primitive_desc &hint_fwd_pd,
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::lbr_gru, aprop_kind,
@@ -10866,7 +10866,7 @@ struct augru_backward : public primitive {
                 const memory::desc &diff_bias_desc,
                 const memory::desc &diff_dst_layer_desc,
                 const memory::desc &diff_dst_iter_desc,
-                const gru_forward::primitive_desc &hint_fwd_pd,
+                const augru_forward::primitive_desc &hint_fwd_pd,
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::vanilla_augru,
@@ -11222,7 +11222,7 @@ struct lbr_augru_backward : public primitive {
                 const memory::desc &diff_bias_desc,
                 const memory::desc &diff_dst_layer_desc,
                 const memory::desc &diff_dst_iter_desc,
-                const gru_forward::primitive_desc &hint_fwd_pd,
+                const lbr_augru_forward::primitive_desc &hint_fwd_pd,
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::lbr_augru, aprop_kind,
