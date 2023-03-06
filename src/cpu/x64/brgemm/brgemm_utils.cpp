@@ -196,19 +196,22 @@ status_t brgemm_blocking(brgemm_t *brg) {
                           || brg->brgattr.max_bottom_vpad > 0)
                 && brg->zp_type_a != brgemm_broadcast_t::none;
         const auto max_regs = max_isa_regs - (adj_ld_block2 + max_bcst_regs);
-        auto max_block
-                = (brg->embd_bcst ? max_isa_regs - 4
-                                  : ((brg->beta == 1.f || brg->beta == 0.f)
-                                                  ? max_regs
-                                                  : max_regs - 1));
-        max_block -= req_compensation;
-        max_block -= req_zp_a_comp_pads;
+        const int beta_regs = !one_of(brg->beta, 1.f, 0.f);
+
+        // note: the 'adj_ld_block2' already removes the necessary registers
+        // for 'embd_bcst'
+        auto max_block = max_regs - beta_regs;
+        max_block = max_block - req_compensation - req_zp_a_comp_pads;
+
         if (req_zp_a_comp_pads) max_block = nstl::min(max_block, max_regs - 5);
-        if (brg->is_bf16_emu)
-            max_block
-                    = nstl::min(max_block, 28); // bf16_emu only for avx512_core
+        if (brg->is_bf16_emu) {
+            assert(is_superset(brg->isa_impl, avx512_core));
+            max_block = nstl::min(max_block, 28);
+        }
+
         // non-VNNI INT8 dot product required 2 temp vectors
         if (brg->is_int8 && !brg->has_vnni) max_block -= 2;
+
         max_block /= adj_ld_block2;
         const int min_block = 1;
         float best_bd_block_eff = 0.f;
