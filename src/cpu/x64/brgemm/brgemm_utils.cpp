@@ -199,22 +199,23 @@ status_t brgemm_blocking(brgemm_t *brg) {
                 = is_superset(brg->isa_impl, avx512_core) ? 32 : 16;
         // note: the 'adj_ld_block2' already removes the necessary registers
         // for 'embd_bcst'
-        auto max_block = max_isa_regs - max_bcst_regs - beta_regs
+        auto max_reg_count = max_isa_regs - max_bcst_regs - beta_regs
                 - req_compensation - req_zp_a_comp_pads;
 
         if (req_zp_a_comp_pads)
-            max_block = nstl::min(max_block, max_isa_regs - max_bcst_regs - 5);
-        max_block -= adj_ld_block2;
+            max_reg_count = nstl::min(
+                    max_reg_count, max_isa_regs - max_bcst_regs - 5);
+        max_reg_count -= adj_ld_block2;
 
         if (brg->is_bf16_emu) {
             assert(is_superset(brg->isa_impl, avx512_core));
-            max_block = nstl::min(max_block, 28);
+            max_reg_count = nstl::min(max_reg_count, 28);
         }
 
         // non-VNNI INT8 dot product required 2 temp vectors
-        if (brg->is_int8 && !brg->has_vnni) max_block -= 2;
+        if (brg->is_int8 && !brg->has_vnni) max_reg_count -= 2;
 
-        max_block /= adj_ld_block2;
+        const int max_block = max_reg_count / adj_ld_block2;
         const int min_block = 1;
         float best_bd_block_eff = 0.f;
         brg->bd_block = 1;
