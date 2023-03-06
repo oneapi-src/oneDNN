@@ -106,11 +106,23 @@ status_t bwd_conv_desc_create(const deconvolution_desc_t *fwd_deconv_d,
     CHECK(weights_axes_permutation(
             &conv_weights_d, deconv_weights_d, with_groups));
 
-    return conv_desc_init(bwd_conv_d, prop_kind::backward_data,
+    CHECK(conv_desc_init(bwd_conv_d, prop_kind::backward_data,
             alg_kind::convolution_direct, src_md, &conv_weights_d,
             &fwd_deconv_d->bias_desc, dst_md, fwd_deconv_d->strides,
             fwd_deconv_d->dilates, fwd_deconv_d->padding[0],
-            fwd_deconv_d->padding[1]);
+            fwd_deconv_d->padding[1]));
+
+    // HACK: Set src_desc and dst_desc as a signal to the primitive
+    //       descriptor cache that we are using the deconv version of bwd conv
+    //       and thus need a separate cache entry (this will also disallow calling
+    //       bwd_d conv with postops). This assumes that external users only use
+    //       the API to create conv descs, and relies on common/convolution.cpp
+    //       only setting the expected mem descs.
+    // TODO: Pass this information via attributes or integrate this method
+    //       directly into bwd conv implementations.
+    bwd_conv_d->src_desc = bwd_conv_d->diff_src_desc;
+    bwd_conv_d->dst_desc = bwd_conv_d->diff_dst_desc;
+    return status::success;
 }
 } // namespace
 

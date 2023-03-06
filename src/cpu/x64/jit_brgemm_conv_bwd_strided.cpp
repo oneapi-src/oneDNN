@@ -64,6 +64,16 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::pd_t::init(
     const auto diff_dst_type = diff_dst_md(0)->data_type;
     const bool is_int8 = one_of(diff_dst_type, u8, s8);
 
+    // The following check will detect if this implementation is being
+    // executed through a deconvolution call and prevent the primitive from
+    // executing 'is_deconv == true' as BWD_D. This can only work if the
+    // src_desc and dst_desc are defined in the aforementioned.
+    const convolution_desc_t &cd = *desc();
+    if (is_deconv
+            && one_of(true, types::is_zero_md(&cd.src_desc),
+                    types::is_zero_md(&cd.dst_desc)))
+        return status::unimplemented;
+
     using skip_mask_t = primitive_attr_t::skip_mask_t;
     auto skip_mask = is_deconv ? (skip_mask_t::post_ops | skip_mask_t::sum_dt)
                                : skip_mask_t::none;
