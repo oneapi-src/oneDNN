@@ -34,13 +34,8 @@ struct acl_post_ops_t {
     status_t init(engine_t *engine, post_ops_t &post_ops,
             const memory_desc_t &dst_md) {
 
-        // Disable ACL post ops when in f16 mode. This is because the oneDNN reference runs
-        // the post op in f32 and then casts down to f16 while ACL runs the post op in f16
-        // leading to a loss of accuracy compared to ref.
-        ACL_CHECK_SUPPORT(
-                post_ops.len() >= 1 && dst_md.data_type == data_type::f16,
-                "post ops cannot be executed in fp16");
         CHECK(post_ops.set_default_formats(&dst_md));
+        dst_data_type = dst_md.data_type;
 
         // Reset properties derived from post_ops
         sum_index = -1;
@@ -105,8 +100,15 @@ struct acl_post_ops_t {
                 eltwise_desc.alg_kind = po.eltwise.alg;
                 eltwise_desc.alpha = po.eltwise.alpha;
                 eltwise_desc.beta = po.eltwise.beta;
-                eltwise_desc.src_desc = dst_md;
-                eltwise_desc.dst_desc = dst_md;
+                memory_desc_t temp_dst = dst_md;
+                // pass eltwise a desc with f32 datatype to perform the operation in fp32 rather than fp16
+                // since oneDNN requires all post-ops to run in fp32.
+                // we don't need to do that to the other post-ops as executing them in fp16 yields the same result.
+                if (dst_data_type == data_type::f16) {
+                    temp_dst.data_type = data_type::f32;
+                }
+                eltwise_desc.src_desc = temp_dst;
+                eltwise_desc.dst_desc = temp_dst;
                 eltwise_desc.prop_kind = prop_kind_t::dnnl_forward;
                 auto empty_attr = dnnl_primitive_attr();
                 typename acl_eltwise_fwd_t::pd_t acl_eltwise_pd(
@@ -135,16 +137,12 @@ struct acl_post_ops_t {
             const memory_desc_t &dst_md,
             arm_compute::ActivationLayerInfo &act_info_to_fuse) {
 
-        // Disable ACL post ops when in f16 mode. This is because the oneDNN reference runs
-        // the post op in f32 and then casts down to f16 while ACL runs the post op in f16
-        // leading to a loss of accuracy compared to ref.
-        ACL_CHECK_SUPPORT(
-                base_post_ops.len() >= 1 && dst_md.data_type == data_type::f16,
-                "post ops cannot be executed in fp16");
         CHECK(base_post_ops.set_default_formats(&dst_md));
-
-        // If the first entry is eltwise, we fuse it
-        if (base_post_ops.len() >= 1 && base_post_ops.entry_[0].is_eltwise()) {
+        dst_data_type = dst_md.data_type;
+        // If the first entry is eltwise, we fuse it, except when the datatype
+        // is fp16 because in this case we want to execute the eltwise in fp32.
+        if (base_post_ops.len() >= 1 && base_post_ops.entry_[0].is_eltwise()
+                && dst_data_type != data_type::f16) {
 
             const auto &first_po = base_post_ops.entry_[0].eltwise;
             ACL_CHECK_SUPPORT(first_po.scale != 1.0f,
@@ -181,7 +179,7 @@ struct acl_post_ops_t {
 private:
     // Index of the sum post op if there is one, < 0 means no sum
     int sum_index = -1;
-
+    data_type_t dst_data_type;
     // Vector of primitives used to execute the post ops. They are constructed
     // in init to be either acl_binary_t (for sum, add, sub, div, mul, min and
     // max) or acl_eltwise_fwd_t (for relu, elu, tanh, square, abs etc)

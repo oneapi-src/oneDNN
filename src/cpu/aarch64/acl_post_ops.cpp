@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Arm Ltd. and affiliates
+* Copyright 2022-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "common/float16.hpp"
 #include "cpu/aarch64/acl_gemm_convolution.hpp"
 
 namespace dnnl {
@@ -59,7 +60,35 @@ status_t acl_post_ops_t::execute(const exec_ctx_t &ctx, void *src_orig) const {
                     = dynamic_cast<acl_eltwise_fwd_t *>(post_op.get());
             if (eltwise_post_op == nullptr) return status::runtime_error;
 
-            CHECK(eltwise_post_op->execute_forward(ctx, src, src));
+            if (dst_data_type == data_type::f16) {
+                // in this case we want to cast the src tensor up to fp32
+                arm_compute::TensorInfo src_info
+                        = eltwise_post_op->pd()->aep.data_info;
+                // new src tensor with fp32 datatype
+                arm_compute::Tensor src_tensor;
+                src_tensor.allocator()->init(src_info);
+                src_tensor.allocator()->allocate();
+                float *src_f32 = (float *)src_tensor.buffer();
+                // total_size gives the size in bytes, we divide by 4 because the src_tensor is fp32
+                size_t num_elements = src_tensor.info()->total_size() / 4;
+                // cast src up to fp32 and store the result in src_f32
+                cvt_float16_to_float(
+                        src_f32, (dnnl::impl::float16_t *)src, num_elements);
+                // perform the operation in fp32
+                status_t eltwise_status = eltwise_post_op->execute_forward(
+                        ctx, src_f32, src_f32);
+                if (eltwise_status == status::success) {
+                    // cast src_f32 down and store final result in src
+                    cvt_float_to_float16((dnnl::impl::float16_t *)src, src_f32,
+                            num_elements);
+                }
+                src_tensor.allocator()->free();
+                CHECK(eltwise_status);
+
+            } else {
+                CHECK(eltwise_post_op->execute_forward(ctx, src, src));
+            }
+
         } else {
             return status::runtime_error;
         }
