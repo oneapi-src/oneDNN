@@ -4,24 +4,24 @@
 --skip-impl=ref
 --dir=FWD_B
 --attr-scales=src:common:0.25*+wei:per_oc:0.5*+dst:common:2* --attr-post-ops=sum:1.5:2+relu:0:0:2.6
---cfg=u8s8u8  --batch=shapes_vgg_19
---cfg=u8s8f32 --batch=shapes_googlenet_v2
---cfg=s8s8u8  --batch=shapes_vgg_19
---cfg=s8s8f32 --batch=shapes_googlenet_v2
---cfg=u8s8s32 --batch=shapes_3d
+--dt=u8:s8:u8  --batch=shapes_vgg_19
+--dt=u8:s8:f32 --batch=shapes_googlenet_v2
+--dt=s8:s8:u8  --batch=shapes_vgg_19
+--dt=s8:s8:f32 --batch=shapes_googlenet_v2
+--dt=u8:s8:s32 --batch=shapes_3d
 --dir=FWD_D
 --attr-scales=src:common:0.25*+wei:common:0.5*+dst:common:2* --attr-post-ops=sum:1.5:2
---cfg=u8s8s8  --batch=shapes_googlenet_v3
---cfg=u8s8s32 --batch=shapes_alexnet
---cfg=s8s8s8  --batch=shapes_googlenet_v3
---cfg=s8s8s32 --batch=shapes_alexnet
---cfg=s8s8s32 --batch=shapes_3d
+--dt=u8:s8:s8  --batch=shapes_googlenet_v3
+--dt=u8:s8:s32 --batch=shapes_alexnet
+--dt=s8:s8:s8  --batch=shapes_googlenet_v3
+--dt=s8:s8:s32 --batch=shapes_alexnet
+--dt=s8:s8:s32 --batch=shapes_3d
 --dir=FWD_I
 --attr-post-ops=sum:0.25:1+add:f32:per_oc+relu:0.5:0:0.75
---cfg=u8s8s32 --batch=shapes_tails
---cfg=u8s8f32 --batch=shapes_basic
---cfg=u8s8bf16 --batch=shapes_basic
---cfg=s8s8bf16 --batch=shapes_tails
+--dt=u8:s8:s32 --batch=shapes_tails
+--dt=u8:s8:f32 --batch=shapes_basic
+--dt=u8:s8:bf16 --batch=shapes_basic
+--dt=s8:s8:bf16 --batch=shapes_tails
 
 --reset
 --mb=2
@@ -29,27 +29,27 @@
 --dir=FWD_B
 --attr-scales=src:common:0.25*+wei:per_oc:0.5*,src:common:0.25*+wei:per_oc:0.5*+dst:common:2*
 --attr-post-ops=sum:1.5:2+relu
---cfg=s8s8f32,s8s8u8,u8s8f32,u8s8u8  --batch=shapes_tails
---cfg=s8s8u8,u8s8u8  --batch=shapes_basic
+--dt=s8:s8:f32,s8:s8:u8,u8:s8:f32,u8:s8:u8  --batch=shapes_tails
+--dt=s8:s8:u8,u8:s8:u8  --batch=shapes_basic
 
 # i8 conv + f32 leaky relu
 --reset --dir=FWD_B --mb=2
 --skip-impl=ref,x64:gemm      # ! test jit version only
 --attr-post-ops=relu:0.5,relu:0.5+sum,sum+relu:0.5
---cfg=s8s8f32,u8s8f32 --batch=shapes_yolov2
+--dt=s8:s8:f32,u8:s8:f32 --batch=shapes_yolov2
 --attr-post-ops=sum:0.5:1
---cfg=s8s8f32 --batch=shapes_3d
+--dt=s8:s8:f32 --batch=shapes_3d
 
 # binary post operation
 --reset --dir=FWD_B --mb=2
 --skip-impl=  # ! test everything until jit injector is available
---cfg=s8s8s32
+--dt=s8:s8:s32
 --attr-post-ops=sum:0.5:1+add:f32:common+abs+max:u8:per_oc
 --batch=shapes_tails
 --attr-post-ops=sum:0.5:1+add:f32:common+abs+max:u8:per_tensor
 --batch=shapes_tails
 
---cfg=u8s8s8
+--dt=u8:s8:s8
 --attr-post-ops=sum:0.5:1+add:f32:common+abs+max:u8:common
 --batch=shapes_tails
 
@@ -64,6 +64,6 @@
 --dir=FWD_I
 --mb=2
 --attr-post-ops=prelu:common,prelu:per_oc
---cfg=u8s8s8  --batch=shapes_googlenet_v3
---cfg=u8s8s32 --batch=shapes_alexnet
---cfg=u8s8s32 --batch=shapes_tails
+--dt=u8:s8:s8  --batch=shapes_googlenet_v3
+--dt=u8:s8:s32 --batch=shapes_alexnet
+--dt=u8:s8:s32 --batch=shapes_tails

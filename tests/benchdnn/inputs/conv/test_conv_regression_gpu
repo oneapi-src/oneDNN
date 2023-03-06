@@ -1,5 +1,5 @@
 --reset
---cfg=f32,f16
+--dt=f32,f16
 --dir=FWD_B,BWD_D,BWD_WB
 --dtag=axb
 g1ic16iw5oc16ow5kw1pw0
@@ -7,23 +7,23 @@ mb3g1ic33iw5oc33ow17kw1pw0
 mb16ic16ih224oc64oh112kh7sh2ph3n
 
 --reset
---cfg=bf16bf16bf16
+--dt=bf16
 --stag=axb
 --dtag=axb
 mb32ic256ih14oc256oh14kh3ph1
 
 --reset
---cfg=bf16bf16bf16
+--dt=bf16
 --dir=BWD_WB
 mb32ic128ih1oc129oh1kh1ph0
 mb32ic32ih1oc129oh1kh1ph0
 
---reset --dir=FWD_I --cfg=u8s8u8 mb32ic3ih60oc64oh30kh3sh2ph0
---reset --dir=FWD_I --cfg=u8s8u8 g32mb1ic64ih1oc192oh1kh3ph1
+--reset --dir=FWD_I --dt=u8:s8:u8 mb32ic3ih60oc64oh30kh3sh2ph0
+--reset --dir=FWD_I --dt=u8:s8:u8 g32mb1ic64ih1oc192oh1kh3ph1
 
 #regression - person detection
 --reset
---cfg=u8s8u8
+--dt=u8:s8:u8
 --stag=axb
 --wtag=any
 --dtag=axb

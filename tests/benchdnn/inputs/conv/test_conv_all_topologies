@@ -1,5 +1,5 @@
 # Test All Topologies with F32 Configuration
---reset --cfg=f32
+--reset --dt=f32
 --skip-impl=ref
 --mb=2
 --dir=FWD_B,BWD_D,BWD_WB

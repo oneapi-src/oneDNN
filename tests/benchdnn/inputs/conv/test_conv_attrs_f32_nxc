@@ -1,5 +1,5 @@
 # f32
---reset --cfg=f32
+--reset --dt=f32
 --mb=2
 --stag=axb --dtag=axb
 --dir=FWD_B

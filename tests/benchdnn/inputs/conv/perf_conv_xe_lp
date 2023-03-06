@@ -3,7 +3,7 @@
 --reset
 
 # Forward, int8
---cfg=u8s8s8
+--dt=u8:s8:s8
 --dir=FWD_B
 
 --mb=16,64

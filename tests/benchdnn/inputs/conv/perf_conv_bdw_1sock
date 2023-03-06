@@ -1,6 +1,6 @@
 --reset
 
---cfg=f32
+--dt=f32
 --dir=FWD_D,BWD_D,BWD_W
 --alg=direct
 
@@ -12,7 +12,7 @@
 
 --reset
 ## int8
---cfg=u8s8u8
+--dt=u8:s8:u8
 --dir=FWD_D
 --alg=direct
 

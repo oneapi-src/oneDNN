@@ -2,28 +2,28 @@
 --reset
 --mb=2
 --dir=FWD_B
---cfg=bf16bf16f32  --batch=shapes_resnet_50
---cfg=bf16bf16bf16 --batch=set_conv_all
+--dt=bf16:bf16:f32  --batch=shapes_resnet_50
+--dt=bf16 --batch=set_conv_all
 
 --dir=FWD_D
---cfg=bf16bf16bf16 --batch=shapes_resnet_50 --batch=shapes_regression_1x1
+--dt=bf16 --batch=shapes_resnet_50 --batch=shapes_regression_1x1
 
 --dir=BWD_D
---cfg=f32bf16bf16  --batch=shapes_resnet_50 --batch=shapes_regression_1x1
---cfg=bf16bf16bf16 --batch=set_conv_all
+--dt=f32:bf16:bf16  --batch=shapes_resnet_50 --batch=shapes_regression_1x1
+--dt=bf16 --batch=set_conv_all
 
 --dir=BWD_WB
---cfg=bf16f32bf16
+--dt=bf16:f32:bf16
 --batch=set_conv_all --batch=set_dilated-conv --batch=shapes_regression_1x1
---cfg=bf16bf16bf16 --batch=shapes_resnet_50 --batch=set_dilated-conv
+--dt=bf16 --batch=shapes_resnet_50 --batch=set_dilated-conv
 
 --reset
 --mb=2
 --skip-impl=ref,x64:gemm
---dir=FWD_D --cfg=bf16bf16bf16
+--dir=FWD_D --dt=bf16
 --batch=shapes_3d_2d_strided_padding --batch=shapes_dilated_3d_strided_padding
---dir=BWD_D --cfg=f32bf16bf16 --batch=shapes_3d_2d_strided_padding
---dir=BWD_WB --cfg=bf16f32bf16
+--dir=BWD_D --dt=f32:bf16:bf16 --batch=shapes_3d_2d_strided_padding
+--dir=BWD_WB --dt=bf16:f32:bf16
 --batch=set_conv_3d --batch=shapes_dilated_3d_unit-stride_no-padding
 
 # Attributes
@@ -31,7 +31,7 @@
 --mb=2
 --skip-impl=ref,x64:gemm
 --dir=FWD_B
---cfg=bf16bf16bf16
+--dt=bf16
 
 ## Depthwise fusion stride 1
 --attr-post-ops=dw_k3s1p1:bf16+relu
@@ -50,12 +50,12 @@
 # Test src-transpose padding handling in bf16 bwd-w convolution
 --reset --mb=2
 --skip-impl=ref,x64:gemm
---cfg=bf16bf16bf16 --dir=BWD_W
+--dt=bf16 --dir=BWD_W
 --batch=shapes_src-transpose_padding
 
 # Test BF32
 --reset
 --dir=FWD_D,BWD_D
 --skip-impl=ref,x64:gemm
---cfg=f32 --attr-fpmath=bf16
+--dt=f32 --attr-fpmath=bf16
 --batch=shapes_resnet_50

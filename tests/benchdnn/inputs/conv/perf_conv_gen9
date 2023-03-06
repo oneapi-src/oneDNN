@@ -4,17 +4,17 @@
 
 # f32
 --dir=FWD_B
---cfg=f32
+--dt=f32
 --mb=16,64
 --batch=set_perf_gpu_large_mb
 
 --dir=FWD_B
---cfg=f32
+--dt=f32
 --mb=1
 --batch=set_perf_gpu_all_mb
 
 # f16
---cfg=f16
+--dt=f16
 --dir=FWD_B
 
 --mb=16,64
@@ -26,7 +26,7 @@
 # Backward
 
 # f32
---cfg=f32
+--dt=f32
 --dir=BWD_D,BWD_W
 --mb=64
 --batch=set_perf_gpu_large_mb
