@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -219,6 +219,7 @@ public:
         }
 
         for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
+            if (subgraph_->is_constant_[i]) continue;
             subgraph_->execs_[i]->execute(p_stream, res->get_exec_args()[i]);
         }
 
@@ -292,6 +293,7 @@ public:
         }
 
         for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
+            if (subgraph_->is_constant_[i]) continue;
             returned_event = subgraph_->execs_[i]->execute_sycl(
                     p_stream, res->get_exec_args()[i], deps);
             deps = {returned_event};
