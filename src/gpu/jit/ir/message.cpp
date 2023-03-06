@@ -1028,20 +1028,8 @@ send_2d_hint_t get_send_2d_hint(send_op_t send_op, const type_t &_type,
         bool vnni, bool transpose, int w_tile, int h_tile, int w_blk = 0,
         int h_blk = 0) {
     auto type = _type;
-    bool orig_vnni = vnni;
-    bool orig_transpose = transpose;
 
-    if (vnni && transpose) {
-        // This combination is not supported but try to replace by upconvert
-        // and transpose.
-        if (type.size() == 2) {
-            type = type_t::u32();
-            w_tile = ir_utils::safe_divide(w_tile, 2);
-            w_blk = ir_utils::safe_divide(w_blk, 2);
-            vnni = false;
-            orig_vnni = false;
-        }
-    }
+    ir_assert(!(vnni && transpose)) << "VNNI with transpose is not supported.";
 
     // XXX: Convert transpose to VNNI when transpose is not
     // supported. This will require additional reorder but
@@ -1090,8 +1078,8 @@ send_2d_hint_t get_send_2d_hint(send_op_t send_op, const type_t &_type,
     if (h_blk == 0) h_blk = find_block(h_tile, h_min, h_max);
     if (w_blk == 0 || h_blk == 0) return send_2d_hint_t();
 
-    if (orig_vnni && h_blk > 0) h_blk = find_block(h_tile, h_blk, h_max);
-    if (orig_transpose && w_blk > 0) w_blk = find_block(w_tile, w_blk, w_max);
+    if (vnni && h_blk > 0) h_blk = find_block(h_tile, h_blk, h_max);
+    if (transpose && w_blk > 0) w_blk = find_block(w_tile, w_blk, w_max);
 
     send_2d_hint_t hint;
     hint.type = type;
