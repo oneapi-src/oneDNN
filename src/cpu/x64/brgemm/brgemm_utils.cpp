@@ -155,6 +155,22 @@ void set_brg_vmm(brgemm_t *brg) {
             = !brg->is_zmm && mayiuse(avx2) && is_superset(brg->isa_impl, avx2);
 }
 
+int calculate_ldb_params(brgemm_t *brg, const int try_ld_block2) {
+    brg->ld_block2 = try_ld_block2;
+    brg->ldb2 = brg->ldb / brg->ld_block2;
+    brg->ldb2_tail = brg->ldb % brg->ld_block2;
+
+    if (brg->ldb2 == 0) brg->ld_block2 = nstl::max(1, brg->ldb2_tail);
+    brg->embd_bcst = brg->is_f32
+            && (brg->ldb2_tail <= 1 && brg->ldb2 == 0)
+            /*only avx512 or more can bcast*/
+            && is_superset(brg->isa_impl, avx512_core);
+
+    const int adj_ld_block2
+            = (brg->ldb2 != 0) ? brg->ld_block2 : brg->ldb2_tail;
+    return nstl::max(1, adj_ld_block2);
+}
+
 status_t brgemm_blocking(brgemm_t *brg) {
 
     set_isa_impl(brg);
@@ -168,20 +184,7 @@ status_t brgemm_blocking(brgemm_t *brg) {
         brg->ld_block = simd_w;
         brg->ldb = brg->load_dim / brg->ld_block;
         brg->ldb_tail = brg->load_dim % brg->ld_block;
-
-        brg->ld_block2 = 4; // (M < 9) ? 2 : 4 | TODO - fix this for INT8
-        brg->ldb2 = brg->ldb / brg->ld_block2;
-        brg->ldb2_tail = brg->ldb % brg->ld_block2;
-
-        if (brg->ldb2 == 0) brg->ld_block2 = nstl::max(1, brg->ldb2_tail);
-        brg->embd_bcst = brg->is_f32
-                && (brg->ldb2_tail <= 1 && brg->ldb2 == 0)
-                /*only avx512 or more can bcast*/
-                && is_superset(brg->isa_impl, avx512_core);
-
-        const auto ld_block2
-                = (brg->ldb2 != 0) ? brg->ld_block2 : brg->ldb2_tail;
-        const auto adj_ld_block2 = nstl::max(1, ld_block2);
+        const auto adj_ld_block2 = calculate_ldb_params(brg, 4);
 
         const int max_isa_regs
                 = is_superset(brg->isa_impl, avx512_core) ? 32 : 16;
