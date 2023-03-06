@@ -186,8 +186,6 @@ status_t brgemm_blocking(brgemm_t *brg) {
         brg->ldb_tail = brg->load_dim % brg->ld_block;
         const auto adj_ld_block2 = calculate_ldb_params(brg, 4);
 
-        const int max_isa_regs
-                = is_superset(brg->isa_impl, avx512_core) ? 32 : 16;
         const int max_bcst_regs = 1;
         const bool req_compensation = brg->req_s8s8_compensation
                 || brg->zp_type_a != brgemm_broadcast_t::none;
@@ -195,13 +193,16 @@ status_t brgemm_blocking(brgemm_t *brg) {
                 = (brg->req_cal_comp_pads || brg->brgattr.max_top_vpad > 0
                           || brg->brgattr.max_bottom_vpad > 0)
                 && brg->zp_type_a != brgemm_broadcast_t::none;
-        const auto max_regs = max_isa_regs - (adj_ld_block2 + max_bcst_regs);
         const int beta_regs = !one_of(brg->beta, 1.f, 0.f);
+
+        const int max_isa_regs
+                = is_superset(brg->isa_impl, avx512_core) ? 32 : 16;
+        const auto max_regs = max_isa_regs - (adj_ld_block2 + max_bcst_regs);
 
         // note: the 'adj_ld_block2' already removes the necessary registers
         // for 'embd_bcst'
-        auto max_block = max_regs - beta_regs;
-        max_block = max_block - req_compensation - req_zp_a_comp_pads;
+        auto max_block
+                = max_regs - beta_regs - req_compensation - req_zp_a_comp_pads;
 
         if (req_zp_a_comp_pads) max_block = nstl::min(max_block, max_regs - 5);
         if (brg->is_bf16_emu) {
