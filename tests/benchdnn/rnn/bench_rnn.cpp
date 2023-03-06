@@ -24,21 +24,24 @@
 
 #include "dnnl_common.hpp"
 #include "utils/parser.hpp"
-#include "utils/task_executor.hpp"
 
 #include "rnn/rnn.hpp"
+
+// TODO: replace with common abstractions when RNN gets rid of static scales
+#include "rnn/rnn_task.hpp"
+#include "rnn/rnn_task_executor.hpp"
 
 namespace rnn {
 
 using create_func_t = std::function<int(
-        std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &, const prb_t *,
+        std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &, const prb_t &,
         res_t *)>;
 using check_cache_func_t = std::function<int(
         std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &, res_t *)>;
 using do_func_t = std::function<int(
         const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &,
-        const prb_t *, res_t *)>;
-using driver_task_executor_t = task_executor_t<prb_t, perf_report_t,
+        const prb_t &, res_t *)>;
+using driver_task_executor_t = rnn_task_executor_t<prb_t, perf_report_t,
         create_func_t, check_cache_func_t, do_func_t>;
 
 void check_correctness(
@@ -64,22 +67,15 @@ void check_correctness(
     for (const auto &i_fpmath_mode : s.fpmath_mode) {
         auto attr = settings_t::get_attr(i_scratchpad_mode, i_fpmath_mode);
 
-        const prb_t prb(s.desc, dt_conf_t::create(i_cfg, attr), i_prop, i_alg,
-                i_with_peephole, i_with_projection, i_direction, i_scale_policy,
+        auto prb = std::unique_ptr<prb_t>(new prb_t(s.desc,
+                dt_conf_t::create(i_cfg, attr), i_prop, i_alg, i_with_peephole,
+                i_with_projection, i_direction, i_scale_policy,
                 i_scale_proj_policy, i_flags, i_activation, attr, i_ctx_init,
                 i_ctx_exe, s.alpha, s.beta, i_skip_nonlinear, i_trivial_strides,
-                i_n_layer, i_n_iter, i_mb);
-        BENCHDNN_PRINT(1, "run: %s\n", prb.str());
+                i_n_layer, i_n_iter, i_mb));
 
-        res_t res {};
-        doit(prb, &res);
-
-        parse_result(res, prb.str());
-
-        if (has_bench_mode_bit(mode_bit_t::perf)) {
-            perf_report_t pr(&prb, s.perf_template);
-            pr.report(&res, prb.str());
-        }
+        task_executor.submit(
+                std::move(prb), s.perf_template, createit, check_cacheit, doit);
     }
 }
 
@@ -190,6 +186,8 @@ int bench(int argc, char **argv) {
             check_correctness(s, task_executor);
         }
     }
+
+    task_executor.flush();
 
     return parse_last_argument();
 }
