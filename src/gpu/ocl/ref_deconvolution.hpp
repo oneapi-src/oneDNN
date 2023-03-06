@@ -254,7 +254,7 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             if (!it.is_initialized()) return status::out_of_memory;
             conv_pd_ = *(++it);
-            return status::success;
+            return (conv_pd_) ? status::success : status::unimplemented;
         }
 
         status_t init(engine_t *engine) {
@@ -350,7 +350,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             if (!it.is_initialized()) return status::out_of_memory;
             conv_pd_ = *(++it);
-            return status::success;
+            return (conv_pd_) ? status::success : status::unimplemented;
         }
 
         status_t init(engine_t *engine) {
