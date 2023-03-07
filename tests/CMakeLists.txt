@@ -87,6 +87,7 @@ if(NOT "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" AND (UNIX OR MINGW))
 endif()
 
 add_definitions_with_host_compiler(-DNOMINMAX) # to allow std::max on Windows with parentheses
+add_definitions_with_host_compiler(-DWIN32_LEAN_AND_MEAN) # to speedup up Windows compilation
 
 if(NOT DNNL_ENABLE_PRIMITIVE_CACHE)
     add_definitions_with_host_compiler(-DDNNL_DISABLE_PRIMITIVE_CACHE)

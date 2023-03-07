@@ -92,6 +92,7 @@ endif()
 if(WIN32)
     add_definitions_with_host_compiler(-D_WIN)
     add_definitions_with_host_compiler(-DNOMINMAX)
+    add_definitions_with_host_compiler(-DWIN32_LEAN_AND_MEAN)
 endif()
 
 # Windows does not support weak/strong symbols and no guarrantees by the linker
