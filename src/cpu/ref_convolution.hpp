@@ -45,7 +45,9 @@ struct ref_convolution_fwd_t : public primitive_t {
             const auto bia_type = weights_md(1)->data_type;
             const auto dst_type = dst_md(0)->data_type;
 
-            bool ok = is_fwd() && platform::has_data_type_support(src_type)
+            bool ok = is_fwd()
+                    && set_default_alg_kind(alg_kind::convolution_direct)
+                    && platform::has_data_type_support(src_type)
                     && platform::has_data_type_support(bia_type)
                     && platform::has_data_type_support(dst_type)
                     && utils::one_of(src_type, f32, bf16, f16)
@@ -108,6 +110,7 @@ struct ref_convolution_bwd_data_t : public primitive_t {
             const auto diff_dst_type = diff_dst_md(0)->data_type;
 
             bool ok = desc()->prop_kind == prop_kind::backward_data
+                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && platform::has_data_type_support(diff_src_type)
                     && platform::has_data_type_support(diff_dst_type)
                     && utils::one_of(diff_dst_type, f32, bf16, f16)
@@ -155,6 +158,7 @@ struct ref_convolution_bwd_weights_t : public primitive_t {
             const auto diff_dst_type = diff_dst_md(0)->data_type;
 
             bool ok = desc()->prop_kind == prop_kind::backward_weights
+                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && platform::has_data_type_support(src_type)
                     && platform::has_data_type_support(diff_wei_type)
                     && utils::one_of(src_type, f32, bf16, f16)

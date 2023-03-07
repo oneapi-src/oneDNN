@@ -66,6 +66,7 @@ struct jit_avx512_core_amx_deconvolution_fwd_t : public primitive_t {
                     && attr_scales_ok();
 
             bool ok = is_fwd()
+                    && (desc()->alg_kind & alg_kind::deconvolution_direct)
                     && (is_bf16_deconvolution || is_int8_deconvolution)
                     && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;

@@ -48,6 +48,7 @@ struct jit_uni_x8s8s32x_convolution_fwd_t : public primitive_t {
             using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
             const bool args_ok = is_fwd()
+                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && utils::one_of(src_md(0)->data_type, s8, u8)
                     && weights_md(0)->data_type == s8
                     && IMPLICATION(with_bias(),

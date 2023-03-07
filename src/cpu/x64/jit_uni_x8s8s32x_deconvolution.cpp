@@ -1373,6 +1373,7 @@ status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::pd_t::init(
     using namespace data_type;
     using skip_mask_t = primitive_attr_t::skip_mask_t;
     const bool ok = true && is_fwd()
+            && (desc()->alg_kind & alg_kind::deconvolution_direct)
             && utils::one_of(src_md(0)->data_type, s8, u8)
             && weights_md(0)->data_type == s8
             && IMPLICATION(with_bias(),

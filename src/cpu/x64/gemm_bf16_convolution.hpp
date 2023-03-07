@@ -46,6 +46,7 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             bool ok = true && is_fwd() && mayiuse(avx512_core)
+                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(data_type::bf16, data_type::bf16,
                             data_type::undef, dst_data_type, data_type::f32)
                     && IMPLICATION(with_bias(),
@@ -250,6 +251,7 @@ struct gemm_bf16_convolution_bwd_data_t : public primitive_t {
         status_t init(engine_t *engine) {
             bool ok = true && mayiuse(avx512_core)
                     && desc()->prop_kind == prop_kind::backward_data
+                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(diff_src_data_type, data_type::bf16,
                             data_type::undef, data_type::bf16, data_type::f32)
                     && !has_zero_dim_memory() && attr()->has_default_values();
@@ -302,6 +304,7 @@ struct gemm_bf16_convolution_bwd_weights_t : public primitive_t {
         status_t init(engine_t *engine) {
             bool ok = true && mayiuse(avx512_core)
                     && desc()->prop_kind == prop_kind::backward_weights
+                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(data_type::bf16, diff_wei_data_type,
                             data_type::undef, data_type::bf16, data_type::f32)
                     && IMPLICATION(with_bias(),

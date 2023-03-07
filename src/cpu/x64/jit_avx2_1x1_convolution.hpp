@@ -58,6 +58,7 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             bool ok = true && is_fwd()
+                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(data_type::f32, data_type::f32,
                             data_type::f32, data_type::f32, data_type::f32)
                     && attr()->has_default_values(
@@ -352,6 +353,7 @@ struct jit_avx2_1x1_convolution_bwd_data_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
+                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(data_type::f32, data_type::f32,
                             data_type::undef, data_type::f32, data_type::f32)
                     && attr()->has_default_values() && !has_zero_dim_memory()
@@ -449,6 +451,7 @@ struct jit_avx2_1x1_convolution_bwd_weights_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
+                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(data_type::f32, data_type::f32,
                             data_type::f32, data_type::f32, data_type::f32)
                     && attr()->has_default_values() && !has_zero_dim_memory()

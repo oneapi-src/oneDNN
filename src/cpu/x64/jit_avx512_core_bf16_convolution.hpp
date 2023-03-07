@@ -47,6 +47,7 @@ struct jit_avx512_core_bf16_convolution_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
             bool ok = mayiuse(avx512_core) && is_fwd()
+                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && (expect_data_types(bf16, bf16, data_type::undef, bf16,
                                 data_type::undef)
                             || expect_data_types(bf16, bf16, data_type::undef,
@@ -122,6 +123,7 @@ struct jit_avx512_core_bf16_convolution_bwd_data_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace prop_kind;
             bool ok = true && mayiuse(avx512_core) && is_bwd_d()
+                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && (expect_data_types(data_type::f32, data_type::bf16,
                                 data_type::undef, data_type::bf16,
                                 data_type::undef)
@@ -182,6 +184,7 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             bool ok = true && mayiuse(avx512_core) && is_bwd_w()
+                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && (expect_data_types(data_type::bf16, data_type::bf16,
                                 data_type::undef, data_type::bf16,
                                 data_type::undef)

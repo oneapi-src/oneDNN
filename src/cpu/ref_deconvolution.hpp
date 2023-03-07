@@ -51,7 +51,9 @@ static status_t conv_descr_create(const deconvolution_desc_t *dd,
         convolution_desc_t *cd, const memory_desc_t *bias_md = nullptr,
         data_type_t src_dt = data_type::undef) {
     using namespace prop_kind;
-    alg_kind_t alg_kind = alg_kind::convolution_direct;
+    alg_kind_t alg_kind = dd->alg_kind == alg_kind::deconvolution_direct
+            ? alg_kind::convolution_direct
+            : alg_kind::convolution_winograd;
 
     const memory_desc_t *src_md, *dst_md, *d_weights_d;
     memory_desc_t src_md_patched;
