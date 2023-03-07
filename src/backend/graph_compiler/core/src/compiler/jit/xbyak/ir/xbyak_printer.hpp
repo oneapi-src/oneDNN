@@ -29,7 +29,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 class xbyak_printer_t : public ir_viewer_t {
 public:
@@ -66,7 +66,7 @@ private:
     std::stringstream ss_;
 };
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

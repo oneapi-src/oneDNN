@@ -29,7 +29,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 //=========================================================================
 // xbyak intrinsic handlers
@@ -292,7 +292,7 @@ expr make_physical_reg(sc_data_type_t dtype, const Xbyak::Reg &reg) {
     return node;
 }
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

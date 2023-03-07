@@ -29,15 +29,13 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
-#define GET_STMT_DATA(STMT) \
-    (STMT)->temp_data().get<sc_xbyak::xbyak_stmt_data_t>()
+#define GET_STMT_DATA(STMT) (STMT)->temp_data().get<xbyak::xbyak_stmt_data_t>()
 #define GET_STMT_INDEX(STMT) GET_STMT_DATA(STMT).index_
 #define GET_STMT_INIT_INDEX(STMT) GET_STMT_DATA(STMT).init_index_
 
-#define GET_EXPR_DATA(EXPR) \
-    (EXPR)->temp_data().get<sc_xbyak::xbyak_expr_data_t>()
+#define GET_EXPR_DATA(EXPR) (EXPR)->temp_data().get<xbyak::xbyak_expr_data_t>()
 #define GET_PHYSICAL_REG(EXPR) GET_EXPR_DATA(EXPR).physical_reg_
 #define GET_VIRTUAL_REG(EXPR) GET_EXPR_DATA(EXPR).virtual_reg_
 #define GET_LIVE_RANGE(EXPR) GET_EXPR_DATA(EXPR).virtual_reg_.live_range_
@@ -212,7 +210,7 @@ expr make_xbyak_intrin(sc_data_type_t dtype, const std::vector<expr> &values,
  * */
 expr make_physical_reg(sc_data_type_t dtype, const Xbyak::Reg &reg);
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

@@ -21,8 +21,8 @@
 
 #include <compiler/ir/builder.hpp>
 #include <compiler/jit/xbyak/ir/transform/constant_optimizer.hpp>
+#include <compiler/jit/xbyak/ir/utils.hpp>
 #include <compiler/jit/xbyak/ir/xbyak_visitor.hpp>
-#include <compiler/jit/xbyak/utils.hpp>
 #include <compiler/jit/xbyak/x86_64/registers.hpp>
 #include <util/any_map.hpp>
 #include <util/array_ref.hpp>
@@ -33,7 +33,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 class x86_intrinsics_lowering_impl_t : public xbyak_visitor_t {
 public:
@@ -826,7 +826,7 @@ func_c x86_intrinsics_lowering_t::operator()(func_c v) {
     return x86_intrinsics_lowering.dispatch(std::move(v));
 }
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

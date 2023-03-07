@@ -23,7 +23,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 namespace x86_64 {
 
 cpu_data_type get_cpu_data_type(sc_data_type_t t) {
@@ -145,7 +145,7 @@ void get_stack_allocated_tensor_buffer_lowering_info(
 }
 
 } // namespace x86_64
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

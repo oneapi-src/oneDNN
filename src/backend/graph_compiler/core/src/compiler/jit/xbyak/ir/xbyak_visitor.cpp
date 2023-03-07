@@ -26,7 +26,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 //-----------------
 // xbyak_visitor_t
@@ -80,7 +80,7 @@ expr_c xbyak_visitor_t::visit(xbyak_intrin_c v) {
     }
 }
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

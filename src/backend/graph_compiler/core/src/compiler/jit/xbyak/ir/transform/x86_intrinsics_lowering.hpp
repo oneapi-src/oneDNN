@@ -24,7 +24,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 /* *
  * A prototype of x86 intric lowering, converting high level ir to proper low
@@ -40,7 +40,7 @@ private:
     const runtime::target_machine_t &target_machine_;
 };
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

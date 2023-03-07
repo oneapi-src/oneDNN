@@ -194,7 +194,7 @@ void ir_printer_t::view(ssa_phi_c v) {
 void ir_printer_t::view(low_level_intrin_c v) {
     switch (v->kind_) {
         case low_level_intrin_kind::x86_xbyak: {
-            v.checked_as<sc_xbyak::xbyak_intrin_c>()->to_string(os_);
+            v.checked_as<xbyak::xbyak_intrin_c>()->to_string(os_);
             return;
         } break;
         default: {

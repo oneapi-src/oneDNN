@@ -28,7 +28,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 class live_interval_impl_t : public xbyak_visitor_t {
 public:
@@ -225,7 +225,7 @@ func_c live_interval_t::operator()(func_c v) {
     return live_interval.dispatch(std::move(v));
 }
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

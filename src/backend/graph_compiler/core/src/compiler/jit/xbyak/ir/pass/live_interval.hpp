@@ -23,7 +23,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 /* *
  * Calculate the liveness of each ir expr, the live range is determined by fist
@@ -37,7 +37,7 @@ public:
 private:
 };
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

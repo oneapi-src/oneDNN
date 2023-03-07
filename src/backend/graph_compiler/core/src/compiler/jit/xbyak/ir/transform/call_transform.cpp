@@ -29,8 +29,8 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
-using namespace sc_xbyak::x86_64;
+namespace xbyak {
+using namespace xbyak::x86_64;
 
 // Cached ABI infomation inside func node
 abi_function_interface::ptr cached_func_abi_interface(const func_t &v) {
@@ -235,7 +235,7 @@ func_c call_transform_t::operator()(func_c v) {
 call_transform_t::call_transform_t(const x86_64::target_profile_t &profile)
     : profile_(profile) {}
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

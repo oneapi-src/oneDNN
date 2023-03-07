@@ -28,7 +28,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 /* *
  * Non-overlapping balanced interval tree implemetation based on std::set.
@@ -139,7 +139,7 @@ private:
     }
 };
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

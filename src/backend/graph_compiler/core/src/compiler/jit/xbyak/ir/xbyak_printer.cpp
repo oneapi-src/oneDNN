@@ -32,7 +32,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 ostream &xbyak_printer_t::print_expr_info(ostream &os, const expr &arg) {
     os << "{";
@@ -213,7 +213,7 @@ std::stringstream &xbyak_printer_t::get_stream() {
     return ss_;
 }
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

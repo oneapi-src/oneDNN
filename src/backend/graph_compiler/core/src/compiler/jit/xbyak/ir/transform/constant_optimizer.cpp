@@ -19,7 +19,7 @@
 
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/visitor.hpp>
-#include <compiler/jit/xbyak/utils.hpp>
+#include <compiler/jit/xbyak/ir/utils.hpp>
 #include <util/any_map.hpp>
 #include <util/utils.hpp>
 
@@ -39,7 +39,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 class constant_optimizer_impl_t : public ir_visitor_t {
 public:
@@ -261,7 +261,7 @@ func_c constant_optimizer_t::operator()(func_c v) {
     return constant_optimizer.dispatch(std::move(v));
 }
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

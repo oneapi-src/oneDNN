@@ -25,7 +25,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 class xbyak_visitor_t : public ir_visitor_t {
 public:
@@ -50,7 +50,7 @@ private:
     const stmt_base_t *current_scope_ = nullptr;
 };
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

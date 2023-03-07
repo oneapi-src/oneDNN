@@ -26,7 +26,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 namespace x86_64 {
 
 /// See psABI 1.0 section 3.2.3
@@ -352,7 +352,7 @@ abi_function_interface::ptr abi_function_interface::make_interface(
 }
 
 } // namespace x86_64
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

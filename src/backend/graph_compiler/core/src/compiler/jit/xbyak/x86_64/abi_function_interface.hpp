@@ -31,7 +31,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 namespace x86_64 {
 /// For a particular combination of (ABI, function signature), this indicates
 /// where various values related to a function call are to be placed.
@@ -86,7 +86,7 @@ struct abi_function_interface {
 };
 
 } // namespace x86_64
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

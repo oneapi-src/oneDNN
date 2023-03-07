@@ -27,7 +27,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 namespace x86_64 {
 
 enum class call_convention {
@@ -65,7 +65,7 @@ target_profile_t get_target_profile(
         const runtime::target_machine_t &target_machine);
 
 } // namespace x86_64
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

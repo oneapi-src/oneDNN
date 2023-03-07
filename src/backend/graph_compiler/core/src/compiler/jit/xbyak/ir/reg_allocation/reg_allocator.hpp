@@ -30,7 +30,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 /* *
  * vrtual_reg dequeue priority:
@@ -278,7 +278,7 @@ private:
     std::shared_ptr<virtual_slots_array_t> virtual_slots_array_;
 };
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

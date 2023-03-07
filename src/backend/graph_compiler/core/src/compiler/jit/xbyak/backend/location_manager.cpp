@@ -33,9 +33,9 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
-using namespace sc_xbyak::x86_64;
+using namespace xbyak::x86_64;
 
 //==============================================================================
 // LOCATION MANAGER
@@ -1337,7 +1337,7 @@ expr_location location_manager::convert_virtual_reg(const expr_c &v) {
     return expr_location();
 }
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

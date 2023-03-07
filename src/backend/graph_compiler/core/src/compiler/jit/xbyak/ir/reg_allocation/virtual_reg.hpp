@@ -19,7 +19,7 @@
 
 #include <compiler/ir/sc_data_type.hpp>
 #include <compiler/jit/xbyak/configured_xbyak.hpp>
-#include <compiler/jit/xbyak/utils.hpp>
+#include <compiler/jit/xbyak/ir/utils.hpp>
 #include <util/utils.hpp>
 
 #include "live_range.hpp"
@@ -28,7 +28,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 using virt_reg_index_t = int32_t;
 using spill_weight_t = int32_t;
@@ -209,7 +209,7 @@ inline virt_reg_type get_virt_reg_type(const sc_data_type_t &t) {
     return virt_reg_type::gp_reg;
 }
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

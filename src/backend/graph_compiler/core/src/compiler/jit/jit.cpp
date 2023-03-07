@@ -25,7 +25,7 @@
 #include <chrono>
 #include <stdio.h>
 #if SC_BUILTIN_JIT_ENABLED
-#include "xbyak/xbyak_jit_engine.hpp"
+#include "xbyak/xbyak_jit.hpp"
 #endif
 #include <compiler/ir/pass/ir_copy.hpp>
 #include <runtime/config.hpp>
@@ -55,8 +55,7 @@ std::unique_ptr<jit_engine_t> jit_engine_t::make(const context_ptr &ctx) {
         case jit_kind::llvm: return utils::make_unique<llvm_jit>(ctx);
 #endif
 #if SC_BUILTIN_JIT_ENABLED
-        case jit_kind::xbyak:
-            return utils::make_unique<sc_xbyak::xbyak_jit_engine>(ctx);
+        case jit_kind::xbyak: return utils::make_unique<xbyak_jit>(ctx);
 #endif
         default:
             assert(0 && "Bad JIT type");
@@ -100,7 +99,7 @@ void jit_engine_t::set_target_machine(
 #if SC_BUILTIN_JIT_ENABLED
         case jit_kind::xbyak:
             sc_flags.jit_support_amx_intrinsics_ = true;
-            return sc_xbyak::xbyak_jit_engine::set_target_machine(tm);
+            return xbyak_jit::set_target_machine(tm);
 #endif
         default: assert(0 && "Bad JIT type"); break;
     }

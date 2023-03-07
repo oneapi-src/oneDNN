@@ -14,21 +14,21 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include <compiler/jit/xbyak/sc_xbyak_jit_generator.hpp>
-
 #include <iomanip>
 #include <iostream>
+
+#include "xbyak_jit_generator.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
-sc_xbyak_jit_generator::sc_xbyak_jit_generator()
+xbyak_jit_generator::xbyak_jit_generator()
     : Xbyak::CodeGenerator(Xbyak::DEFAULT_MAX_CODE_SIZE, Xbyak::AutoGrow) {}
 
-void *sc_xbyak_jit_generator::get_func_address(
+void *xbyak_jit_generator::get_func_address(
         const std::string &func_name) const {
     auto iter = func_name_to_address_.find(func_name);
     if (iter == func_name_to_address_.end()) {
@@ -38,7 +38,7 @@ void *sc_xbyak_jit_generator::get_func_address(
     }
 }
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl
