@@ -156,6 +156,10 @@ static inline bool isLargeCrosspack(Type T, int crosspack) {
     return isLargeCrosspack(T.size(), crosspack);
 }
 
+static inline MatrixLayout transposeLayout(MatrixLayout l) {
+    return static_cast<MatrixLayout>(static_cast<uint8_t>(l) ^ 0x1);
+}
+
 enum class AccessType : uint8_t {
     Scattered, // Use scattered accesses
     ChannelScattered, // Use untyped surface reads
@@ -684,7 +688,7 @@ protected:
 
 class TokenAllocator {
 public:
-    TokenAllocator(ngen::HW hw);
+    TokenAllocator(ngen::HW hw, int grfCount = 128);
 
     int8_t tryAlloc();
     void release(int8_t token) { free |= (1u << token); }
@@ -789,6 +793,9 @@ struct CommonStrategy {
     int pauseCycles
             = 0x0200; // Number of cycles to pause when waiting in a spin-loop.
     bool simulation = false; // For use in simulator?
+    bool systolicAvailable = false; // True if systolic array present.
+    ngen::HW raHW = ngen::HW::
+            Unknown; // Pretend to be a different GPU for register allocation purposes.
 
     EmulationStrategy emulate;
 
@@ -1189,11 +1196,14 @@ struct GEMMState : public CommonState {
     ngen::Subregister effAs, effBs;
     std::vector<ngen::GRFRange> A_addrs, B_addrs, C_addrs[2];
     std::vector<ngen::GRFRange> A_addrsRem, B_addrsRem;
+    std::vector<ngen::GRFRange> A_addrsAlt, B_addrsAlt;
+    std::vector<ngen::GRFRange> A_addrsAltRem, B_addrsAltRem;
     std::vector<ngen::GRFRange> Ai_addrs, Bi_addrs;
     std::vector<std::vector<ngen::GRFRange>> Ai_addrsK, Bi_addrsK;
     std::vector<ngen::GRFRange> Ai_addrsRem, Bi_addrsRem;
     std::vector<ngen::GRFRange> Ao_addrs, Bo_addrs;
     std::vector<ngen::GRFRange> Ap_addrs, Bp_addrs, Cp_addrs;
+    std::vector<ngen::GRFRange> Ap_addrsAlt, Bp_addrsAlt;
     std::vector<GRFMultirange> A_regs, B_regs, C_regs;
     GRFMultirange Ar_regs, Br_regs; // Repacked A/B registers.
     std::vector<GRFMultirange> Ai_regs,
@@ -1212,7 +1222,7 @@ struct GEMMState : public CommonState {
     ngen::Subregister remaindersWG[2]; // d (todo: w)
     ngen::Subregister remaindersSLM[3]; // d
     ngen::Subregister remFusedStorage; // d
-    ngen::Subregister diagC; // d
+    ngen::Subregister diagA, diagB, diagC; // d
     SubregisterPair lda, ldb;
     SubregisterPair lda_ka, ldb_kb; // Cached lda * ka, ldb * kb
     SubregisterPair lda_ka_prefetch,
@@ -1220,6 +1230,7 @@ struct GEMMState : public CommonState {
     LDMultiples ldaMultiples, ldbMultiples, ldcMultiples[2];
     int ka_cached = 0, kb_cached = 0; // Multipliers for lda_ka/ldb_kb.
     ngen::Subregister k, K; // d
+    ngen::Subregister kNoBarrierStart, kNoBarrierEnd; // d
     ngen::FlagRegister flagAP;
     ngen::Subregister beta1; // d
     ngen::Subregister add64; // uw
@@ -1233,6 +1244,7 @@ struct GEMMState : public CommonState {
     ngen::GRF sysSumAll1s; // Ta/Tb
     bool systolicSumA = false, systolicSumB = false;
     bool lateKLoopCheck = false;
+    bool splitBarrierAlways = false;
     int ka_loadRem, kb_loadRem;
     bool A_lateKRem, B_lateKRem;
     bool A_descRem, B_descRem;
@@ -1248,6 +1260,8 @@ struct GEMMState : public CommonState {
     bool kSLMCountUp = false;
     std::vector<RegisterBlock> A_layout, B_layout, C_layout;
     std::vector<RegisterBlock> A_layoutRem, B_layoutRem;
+    std::vector<RegisterBlock> A_layoutAlt, B_layoutAlt;
+    std::vector<RegisterBlock> A_layoutAltRem, B_layoutAltRem;
     std::vector<RegisterBlock> Ar_layout, Br_layout;
     std::vector<RegisterBlock> Ai_layout, Bi_layout;
     std::vector<std::vector<RegisterBlock>> Ai_layoutK, Bi_layoutK;
@@ -1255,6 +1269,7 @@ struct GEMMState : public CommonState {
     std::vector<RegisterBlock> Ao_layout, Bo_layout;
     std::vector<RegisterBlock> As_layout, Bs_layout;
     std::vector<RegisterBlock> Ap_layout, Bp_layout, Cp_layout;
+    std::vector<RegisterBlock> Ap_layoutAlt, Bp_layoutAlt;
     std::vector<RegisterBlock> C_layoutExt, C_layoutExtUnmasked;
     Address2DParams A_params, B_params;
     Address2DParams Ai_params, Bi_params;
@@ -2232,7 +2247,7 @@ protected:
             const std::vector<ngen::GRFRange> &addrs, const MatrixAddressing &A,
             const MatrixAddressingStrategy &A_strategy, I ka_inc,
             const GEMMProblem &problem, const GEMMStrategy &strategy,
-            GEMMState &state, int ha = 0);
+            GEMMState &state, int ha = 0, int h = 0);
     void gemmALoad(const GRFMultirange &regs,
             const std::vector<RegisterBlock> &layout,
             const std::vector<ngen::GRFRange> &addrs, const MatrixAddressing &A,
@@ -2269,7 +2284,7 @@ protected:
             const std::vector<ngen::GRFRange> &addrs, const MatrixAddressing &B,
             const MatrixAddressingStrategy &B_strategy, I kb_inc,
             const GEMMProblem &problem, const GEMMStrategy &strategy,
-            GEMMState &state, int hb = 0);
+            GEMMState &state, int hb = 0, int h = 0);
     void gemmBLoad(const GRFMultirange &regs,
             const std::vector<RegisterBlock> &layout,
             const std::vector<ngen::GRFRange> &addrs, const MatrixAddressing &B,
@@ -2350,6 +2365,11 @@ protected:
             GEMMState &state, int kOffset = 0);
     bool gemmKLoop(
             GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
+    void gemmAllocateTokens(const GEMMProblem &problem,
+            const GEMMStrategy &strategy, GEMMState &state);
+    void gemmABPrefetchAddrSetup(const GEMMProblem &problem,
+            const GEMMStrategy &strategy, GEMMState &state, bool doA = true,
+            bool doB = true);
     bool gemmAccumulateC(
             GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
     bool gemmAccumulateCSetup(
@@ -2418,7 +2438,8 @@ protected:
     void gemmSetupABC(const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state);
     void gemmCacheLDABMultiples(const GEMMProblem &problem,
-            const GEMMStrategy &strategy, GEMMState &state);
+            const GEMMStrategy &strategy, GEMMState &state, bool doA = true,
+            bool doB = true);
     void gemmCacheLDCMultiples(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state,
             bool prefetch = false);

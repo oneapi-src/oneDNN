@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -77,6 +77,8 @@ enum RestrictionTags : char {
     ReqNoSumA = 'q',
     ReqSumB = 'P',
     ReqNoSumB = 'p',
+    ReqSystolic = 'I',
+    ReqNoSystolic = 'i',
     ReqCustom1 = 'D',
     ReqNoCustom1 = 'd',
 };
