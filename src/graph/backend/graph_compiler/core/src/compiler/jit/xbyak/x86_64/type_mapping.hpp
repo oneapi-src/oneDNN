@@ -24,7 +24,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 namespace x86_64 {
 
 /**
@@ -98,7 +98,7 @@ void get_stack_allocated_tensor_buffer_lowering_info(
         sc_data_type_t element_type, size_t num_elements, size_t &buffer_size);
 
 } // namespace x86_64
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

@@ -14,38 +14,32 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_XBYAK_JIT_ENGINE_HPP
-#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_XBYAK_JIT_ENGINE_HPP
+#include <iomanip>
+#include <iostream>
 
-#include <memory>
-#include <string>
-#include <compiler/jit/jit.hpp>
+#include "xbyak_jit_generator.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
-class xbyak_jit_module;
+xbyak_jit_generator::xbyak_jit_generator()
+    : Xbyak::CodeGenerator(Xbyak::DEFAULT_MAX_CODE_SIZE, Xbyak::AutoGrow) {}
 
-class SC_INTERNAL_API xbyak_jit_engine : public jit_engine_t {
-public:
-    std::function<void *(const std::string &)> external_symbol_resolver_;
-    xbyak_jit_engine(context_ptr context = get_default_context());
-    virtual ~xbyak_jit_engine();
-
-    std::shared_ptr<jit_module> make_jit_module(
-            const_ir_module_ptr ir_mod, bool generate_wrapper);
-    static void set_target_machine(runtime::target_machine_t &tm) {
-        // TODO(XXX): add checks in tm
+void *xbyak_jit_generator::get_func_address(
+        const std::string &func_name) const {
+    auto iter = func_name_to_address_.find(func_name);
+    if (iter == func_name_to_address_.end()) {
+        return nullptr;
+    } else {
+        return iter->second;
     }
-};
+}
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl
 } // namespace dnnl
-
-#endif

@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_LOCATION_MANAGER_HPP
-#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_LOCATION_MANAGER_HPP
+#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_BACKEND_LOCATION_MANAGER_HPP
+#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_BACKEND_LOCATION_MANAGER_HPP
 
 #include <memory>
 #include <ostream>
@@ -26,22 +26,23 @@
 
 #include <compiler/ir/content_hash.hpp>
 #include <compiler/ir/ir_module.hpp>
+#include <util/string_utils.hpp>
+
+#include <compiler/jit/xbyak/backend/expr_location.hpp>
+#include <compiler/jit/xbyak/backend/operand.hpp>
+#include <compiler/jit/xbyak/backend/stack_frame_model.hpp>
 #include <compiler/jit/xbyak/configured_xbyak.hpp>
-#include <compiler/jit/xbyak/expr_location.hpp>
-#include <compiler/jit/xbyak/gen_operation/operand.hpp>
 #include <compiler/jit/xbyak/ir/reg_allocation/virtual_slot.hpp>
 #include <compiler/jit/xbyak/ir/xbyak_expr.hpp>
-#include <compiler/jit/xbyak/stack_frame_model.hpp>
 #include <compiler/jit/xbyak/x86_64/abi_function_interface.hpp>
 #include <compiler/jit/xbyak/x86_64/native_types.hpp>
 #include <compiler/jit/xbyak/x86_64/target_profile.hpp>
-#include <util/string_utils.hpp>
 
 namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 class location_manager {
 public:
@@ -210,7 +211,7 @@ private:
     content_hash_map<expr_c, Xbyak::Label> simd_constant_map_;
 };
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

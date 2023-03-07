@@ -14,16 +14,23 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include <algorithm>
+#include <cassert>
+#include <cstdlib>
 #include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <memory>
 #include <utility>
 #include <vector>
 #include <unordered_map>
-#include <util/utils.hpp>
 
 #include <compiler/jit/symbol_resolver.hpp>
-#include <compiler/jit/xbyak/xbyak_jit_engine.hpp>
-#include <compiler/jit/xbyak/xbyak_jit_module.hpp>
-#include <compiler/jit/xbyak/xbyak_lowering_viewer.hpp>
+#include <compiler/jit/xbyak/backend/xbyak_jit_generator.hpp>
+#include <compiler/jit/xbyak/backend/xbyak_lowering_viewer.hpp>
+#include <compiler/jit/xbyak/ir/xbyak_printer.hpp>
+#include <runtime/config.hpp>
+#include <util/utils.hpp>
 
 #include <compiler/codegen/precodegen_passes.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
@@ -43,13 +50,16 @@
 #include <compiler/jit/xbyak/ir/transform/module_var_resolver.hpp>
 #include <compiler/jit/xbyak/ir/transform/register_allocation.hpp>
 #include <compiler/jit/xbyak/ir/transform/x86_intrinsics_lowering.hpp>
-#include <compiler/jit/xbyak/ir/xbyak_printer.hpp>
+
+#include "xbyak_jit.hpp"
+
+SC_MODULE(xbyakjit.xbyak_jit)
 
 namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 sequential_module_pass_t get_xbyak_precodegen_passes(
         const context_ptr &ctx, const x86_64::target_profile_t &profile) {
@@ -94,13 +104,20 @@ void *xbyak_external_symbol_resolve(const std::string &name) {
     return default_external_symbol_resolve(name);
 }
 
-xbyak_jit_engine::xbyak_jit_engine(context_ptr context)
+} // namespace xbyak
+
+// ================== //
+//     xbyak_jit      //
+// ================== //
+using namespace gc::xbyak;
+
+xbyak_jit::xbyak_jit(context_ptr context)
     : jit_engine_t(std::move(context))
     , external_symbol_resolver_(xbyak_external_symbol_resolve) {}
 
-xbyak_jit_engine::~xbyak_jit_engine() = default;
+xbyak_jit::~xbyak_jit() = default;
 
-std::shared_ptr<jit_module> xbyak_jit_engine::make_jit_module(
+std::shared_ptr<jit_module> xbyak_jit::make_jit_module(
         const_ir_module_ptr ir_mod, bool generate_wrapper) {
     COMPILE_ASSERT(ir_mod->ctx_->machine_.cpu_flags_.fAVX512F,
             "Builtin codegen currently only support AVX512");
@@ -160,7 +177,39 @@ std::shared_ptr<jit_module> xbyak_jit_engine::make_jit_module(
     return ret;
 }
 
-} // namespace sc_xbyak
+// ================== //
+//  xbyak_jit_module  //
+// ================== //
+
+xbyak_jit_module::xbyak_jit_module(
+        std::shared_ptr<xbyak_jit_generator> jit_output,
+        statics_table_t &&globals, bool managed_thread_pool)
+    : jit_module(std::move(globals), managed_thread_pool)
+    , jit_output_(std::move(jit_output)) {}
+
+void *xbyak_jit_module::get_address_of_symbol(const std::string &name) {
+    void *global_var = globals_.get_or_null(name);
+    if (global_var) { return global_var; }
+    return jit_output_->get_func_address(name);
+}
+
+std::shared_ptr<jit_function_t> xbyak_jit_module::get_function(
+        const std::string &name) {
+    void *fun = jit_output_->get_func_address(name);
+    void *wrapper = jit_output_->get_func_address(name + "_0wrapper");
+    if (fun || wrapper) {
+        if (runtime_config_t::get().execution_verbose_) {
+            return general_jit_function_t::make(shared_from_this(), fun,
+                    wrapper, name, managed_thread_pool_);
+        } else {
+            return general_jit_function_t::make(shared_from_this(), fun,
+                    wrapper, std::string(), managed_thread_pool_);
+        }
+    } else {
+        return nullptr;
+    }
+}
+
 } // namespace gc
 } // namespace graph
 } // namespace impl

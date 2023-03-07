@@ -22,7 +22,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 namespace x86_64 {
 
 abi_value_location::abi_value_location() {
@@ -66,7 +66,7 @@ int abi_value_location::get_rsp_offset() const {
 }
 
 } // namespace x86_64
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

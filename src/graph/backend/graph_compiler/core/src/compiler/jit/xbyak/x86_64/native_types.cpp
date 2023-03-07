@@ -22,7 +22,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 namespace x86_64 {
 
 const cpu_data_type_table &get_cpu_data_types() {
@@ -77,8 +77,8 @@ const cpu_data_type_table &get_cpu_data_types() {
 std::ostream &operator<<(std::ostream &os, const cpu_data_type t) {
     switch (t) {
 #define HANDLE_CASE(X) \
-    case sc_xbyak::x86_64::cpu_data_type::X: \
-        os << "sc_xbyak::x86_64::cpu_data_type::" #X; \
+    case xbyak::x86_64::cpu_data_type::X: \
+        os << "xbyak::x86_64::cpu_data_type::" #X; \
         break;
 
         HANDLE_CASE(uint_8)
@@ -154,7 +154,7 @@ size_t get_size_in_bytes(cpu_data_type t) {
 }
 
 } // namespace x86_64
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

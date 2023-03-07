@@ -14,26 +14,25 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <map>
 #include <set>
+#include <utility>
 
 #include <compiler/ir/transform/auto_cast.hpp>
-#include <compiler/jit/xbyak/gen_operation/operations.hpp>
+#include <compiler/jit/xbyak/backend/operations.hpp>
 #include <compiler/jit/xbyak/ir/transform/call_transform.hpp>
 #include <compiler/jit/xbyak/ir/transform/register_allocation.hpp>
-#include <compiler/jit/xbyak/utils.hpp>
+#include <compiler/jit/xbyak/ir/utils.hpp>
 #include <compiler/jit/xbyak/x86_64/type_mapping.hpp>
-#include <compiler/jit/xbyak/xbyak_jit_engine.hpp>
+#include <compiler/jit/xbyak/xbyak_jit.hpp>
 #include <util/utils.hpp>
 
 #include "xbyak_lowering_viewer.hpp"
 
 SC_MODULE(xbyakjit.xbyak_lowering_viewer)
-
-#include <fstream>
-#include <iomanip>
-#include <iostream>
-#include <map>
-#include <utility>
 
 using std::endl;
 using std::ostringstream;
@@ -44,10 +43,10 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 using namespace utils;
-using namespace sc_xbyak::x86_64;
+using namespace xbyak::x86_64;
 
 static const bool log_module_info_enabled
         = bool(runtime::get_info_logging_stream(__sc_module_name));
@@ -210,7 +209,7 @@ std::string c2s(const expr_c &e) {
 // SPECIAL MEMBER FUNCTION SECTION
 //==============================================================================
 
-xbyak_lowering_viewer::xbyak_lowering_viewer(const xbyak_jit_engine &xje,
+xbyak_lowering_viewer::xbyak_lowering_viewer(const xbyak_jit &xje,
         const ir_module_t &ir_mod, const x86_64::target_profile_t &profile)
     : xje_(xje)
     , p_ir_mod_(&ir_mod)
@@ -219,7 +218,7 @@ xbyak_lowering_viewer::xbyak_lowering_viewer(const xbyak_jit_engine &xje,
               utils::compiler_configs_t::get().xbyak_jit_log_stack_frame_model_)
     , logging_ind_(4)
     , asm_listing_ind_(4) {
-    gen_.reset(new sc_xbyak_jit_generator);
+    gen_.reset(new xbyak_jit_generator);
     location_manager_.reset(new location_manager(sf_model_, *gen_, profile_));
 
     // Prepopulate the function-name symbol table, to let us lower a caller
@@ -230,6 +229,8 @@ xbyak_lowering_viewer::xbyak_lowering_viewer(const xbyak_jit_engine &xje,
     }
     // default jmp type tp T_NEAR
     gen_->setDefaultJmpNEAR(true);
+    // TODO(longsheng): if not support avx512, set to VexEncoding
+    gen_->setDefaultEncoding(Xbyak::EvexEncoding);
 
     // ir_mod.get_module_vars() have been resolved in __module_data
 
@@ -286,7 +287,7 @@ xbyak_lowering_viewer::~xbyak_lowering_viewer() = default;
 // MEMBER FUNCTION SECTION
 //==============================================================================
 
-std::shared_ptr<sc_xbyak_jit_generator>
+std::shared_ptr<xbyak_jit_generator>
 xbyak_lowering_viewer::get_jit_output() const {
     return gen_;
 }
@@ -2268,7 +2269,7 @@ void xbyak_lowering_viewer::view(for_loop_c v) {
     }
 }
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

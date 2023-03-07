@@ -23,7 +23,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 /* *
  * Create linear incremental index for each stmt after de-ssa pass, will be
@@ -37,7 +37,7 @@ public:
 private:
 };
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

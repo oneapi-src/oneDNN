@@ -20,7 +20,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 namespace x86_64 {
 
 std::ostream &operator<<(std::ostream &os, abi_value_kind v) {
@@ -39,7 +39,7 @@ std::ostream &operator<<(std::ostream &os, abi_value_kind v) {
 }
 
 } // namespace x86_64
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

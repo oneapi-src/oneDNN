@@ -23,7 +23,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 /* *
  * Low level legalizer for xbyak backend, make sure data type and data order is
@@ -37,7 +37,7 @@ public:
 private:
 };
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

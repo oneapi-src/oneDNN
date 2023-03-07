@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_XBYAK_LOWERING_VIEWER_HPP
-#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_XBYAK_LOWERING_VIEWER_HPP
+#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_BACKEND_XBYAK_LOWERING_VIEWER_HPP
+#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_BACKEND_XBYAK_LOWERING_VIEWER_HPP
 
 #include <map>
 #include <memory>
@@ -27,14 +27,14 @@
 #include <compiler/jit/xbyak/configured_xbyak.hpp>
 
 #include <compiler/ir/viewer.hpp>
+#include <compiler/jit/xbyak/backend/location_manager.hpp>
+#include <compiler/jit/xbyak/backend/stack_frame_model.hpp>
+#include <compiler/jit/xbyak/backend/xbyak_jit_generator.hpp>
 #include <compiler/jit/xbyak/ir/xbyak_expr.hpp>
-#include <compiler/jit/xbyak/location_manager.hpp>
-#include <compiler/jit/xbyak/sc_xbyak_jit_generator.hpp>
-#include <compiler/jit/xbyak/stack_frame_model.hpp>
 #include <compiler/jit/xbyak/x86_64/abi_function_interface.hpp>
 #include <compiler/jit/xbyak/x86_64/abi_value_location.hpp>
 #include <compiler/jit/xbyak/x86_64/native_types.hpp>
-#include <compiler/jit/xbyak/xbyak_jit_engine.hpp>
+#include <compiler/jit/xbyak/xbyak_jit.hpp>
 #include <util/array_ref.hpp>
 #include <util/string_utils.hpp>
 
@@ -42,7 +42,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 /**
  * Provides most of the logic for translating Graphcompiler IR modules
@@ -58,8 +58,8 @@ public:
     ///
     /// \param ir_mod The Graphcompiler IR module to be JIT'ed. The
     /// reference only needs to be valid during this c'tor's execution.
-    xbyak_lowering_viewer(const xbyak_jit_engine &xje,
-            const ir_module_t &ir_mod, const x86_64::target_profile_t &profile);
+    xbyak_lowering_viewer(const xbyak_jit &xje, const ir_module_t &ir_mod,
+            const x86_64::target_profile_t &profile);
 
     virtual ~xbyak_lowering_viewer();
 
@@ -69,7 +69,7 @@ public:
     /// always return the same object.
     /// The returned object remains valid even after this
     /// @c xbyak_lowering_viewer is destiroyed.
-    std::shared_ptr<sc_xbyak_jit_generator> get_jit_output() const;
+    std::shared_ptr<xbyak_jit_generator> get_jit_output() const;
 
 private:
     //--------------------------------------------------------------------------
@@ -92,7 +92,7 @@ private:
     //--------------------------------------------------------------------------
     // Member variables
     //--------------------------------------------------------------------------
-    const xbyak_jit_engine &xje_;
+    const xbyak_jit &xje_;
 
     /// A pointer to the module that's being lowered.
     /// Only non-null during the execution of this object's c'tor.
@@ -100,7 +100,7 @@ private:
 
     const x86_64::target_profile_t &profile_;
 
-    std::shared_ptr<sc_xbyak_jit_generator> gen_;
+    std::shared_ptr<xbyak_jit_generator> gen_;
     std::unique_ptr<location_manager> location_manager_;
 
     // the map only covers IR-defined functions, not external ones.
@@ -283,7 +283,7 @@ protected:
     void view(for_loop_c v) override;
 };
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

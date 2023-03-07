@@ -25,7 +25,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 class low_level_legalizer_impl_t : public ir_visitor_t {
 public:
@@ -121,7 +121,7 @@ func_c low_level_legalizer_t::operator()(func_c v) {
     return low_level_legalizer.dispatch(std::move(v));
 }
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

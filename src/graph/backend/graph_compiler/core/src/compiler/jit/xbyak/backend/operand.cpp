@@ -20,7 +20,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 using K = Xbyak::Operand::Kind;
 #define KIND_REG (K::REG)
@@ -260,7 +260,7 @@ std::ostream &operator<<(std::ostream &os, const operand &op) {
     return os;
 }
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

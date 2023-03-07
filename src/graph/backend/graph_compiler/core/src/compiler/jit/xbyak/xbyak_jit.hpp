@@ -14,12 +14,12 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_XBYAK_JIT_MODULE_HPP
-#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_XBYAK_JIT_MODULE_HPP
+#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_XBYAK_JIT_HPP
+#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_XBYAK_JIT_HPP
 
 #include <compiler/jit/jit.hpp>
+#include <compiler/jit/xbyak/backend/xbyak_jit_generator.hpp>
 #include <compiler/jit/xbyak/configured_xbyak.hpp>
-#include <compiler/jit/xbyak/sc_xbyak_jit_generator.hpp>
 #include <compiler/jit/xbyak/x86_64/native_types.hpp>
 
 #include <memory>
@@ -29,8 +29,8 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
 
+class xbyak_jit;
 /**
  * @class xbyak_jit_module
  *
@@ -59,18 +59,18 @@ private:
     xbyak_jit_module(xbyak_jit_module &&other) = delete;
     xbyak_jit_module(const xbyak_jit_module &other) = delete;
 
-    // xbyak_jit_engine is this object's factory class.
-    friend class xbyak_jit_engine;
+    // xbyak_jit is this object's factory class.
+    friend class xbyak_jit;
 
     /**
      * @param jit_output - Describes the xbyak jit result.
      * @param globals - Describes the static table base jit_module needs.
      * @param managed_thread_pool - Whether to use managed thread pool
      */
-    xbyak_jit_module(std::shared_ptr<sc_xbyak_jit_generator> jit_output,
+    xbyak_jit_module(std::shared_ptr<xbyak::xbyak_jit_generator> jit_output,
             statics_table_t &&globals, bool managed_thread_pool);
 
-    std::shared_ptr<sc_xbyak_jit_generator> jit_output_;
+    std::shared_ptr<xbyak::xbyak_jit_generator> jit_output_;
 
 public:
     void *get_address_of_symbol(const std::string &name) override;
@@ -79,7 +79,19 @@ public:
             const std::string &name) override;
 };
 
-} // namespace sc_xbyak
+class SC_INTERNAL_API xbyak_jit : public jit_engine_t {
+public:
+    std::function<void *(const std::string &)> external_symbol_resolver_;
+    xbyak_jit(context_ptr context = get_default_context());
+    virtual ~xbyak_jit();
+
+    std::shared_ptr<jit_module> make_jit_module(
+            const_ir_module_ptr ir_mod, bool generate_wrapper);
+    static void set_target_machine(runtime::target_machine_t &tm) {
+        // TODO(XXX): add checks in tm
+    }
+};
+
 } // namespace gc
 } // namespace graph
 } // namespace impl

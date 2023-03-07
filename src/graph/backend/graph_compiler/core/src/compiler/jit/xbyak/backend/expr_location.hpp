@@ -14,14 +14,14 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_EXPR_LOCATION_HPP
-#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_EXPR_LOCATION_HPP
+#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_BACKEND_EXPR_LOCATION_HPP
+#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_BACKEND_EXPR_LOCATION_HPP
 
 #include <sstream>
 #include <utility>
 #include <compiler/ir/sc_expr.hpp>
+#include <compiler/jit/xbyak/backend/operand.hpp>
 #include <compiler/jit/xbyak/configured_xbyak.hpp>
-#include <compiler/jit/xbyak/gen_operation/operand.hpp>
 #include <compiler/jit/xbyak/ir/xbyak_expr.hpp>
 #include <compiler/jit/xbyak/x86_64/native_types.hpp>
 
@@ -29,7 +29,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 class expr_location {
 public:
@@ -86,7 +86,7 @@ private:
 
 std::ostream &operator<<(std::ostream &os, const expr_location &v);
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

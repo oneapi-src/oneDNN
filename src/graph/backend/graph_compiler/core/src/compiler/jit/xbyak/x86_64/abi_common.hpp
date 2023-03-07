@@ -25,7 +25,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 namespace x86_64 {
 
 /// See psABI 1.0 section 3.2.3.
@@ -52,7 +52,7 @@ enum class abi_value_kind {
 std::ostream &operator<<(std::ostream &, abi_value_kind v);
 
 } // namespace x86_64
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

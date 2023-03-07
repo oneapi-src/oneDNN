@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_SC_XBYAK_JIT_GENERATOR_HPP
-#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_SC_XBYAK_JIT_GENERATOR_HPP
+#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_BACKEND_XBYAK_JIT_GENERATOR_HPP
+#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_BACKEND_XBYAK_JIT_GENERATOR_HPP
 
 // We need these headers to be included in the specified order...
 // clang-format off
@@ -29,9 +29,9 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 /**
- * @class sc_xbyak_jit_generator
+ * @class xbyak_jit_generator
  *
  * \brief Provides JIT translation services during translation, and owns
  * the memory containing the resulting code and data.
@@ -51,23 +51,22 @@ namespace sc_xbyak {
  * that this class inherets from its ancestor classes are no longer relevant.
  */
 
-class sc_xbyak_jit_generator : public ::Xbyak::CodeGenerator {
+class xbyak_jit_generator : public ::Xbyak::CodeGenerator {
 public:
-    sc_xbyak_jit_generator();
-    virtual ~sc_xbyak_jit_generator() = default;
+    xbyak_jit_generator();
+    virtual ~xbyak_jit_generator() = default;
 
     // The entry-point address of the specified JIT'ed function, or null if
     // none has that name.
     void *get_func_address(const std::string &func_name) const;
 
 private:
-    friend class location_manager;
     friend class xbyak_lowering_viewer;
 
     std::map<std::string, void *> func_name_to_address_;
 };
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

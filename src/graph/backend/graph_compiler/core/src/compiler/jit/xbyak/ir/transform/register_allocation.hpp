@@ -24,7 +24,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 namespace attr_keys {
 // attr for func, contains all global spilled exprs inside func
@@ -72,7 +72,7 @@ private:
     const x86_64::target_profile_t &profile_;
 };
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

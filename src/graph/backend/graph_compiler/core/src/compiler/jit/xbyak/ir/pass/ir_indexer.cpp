@@ -25,7 +25,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 class ir_indexer_impl_t : public xbyak_visitor_t {
 public:
@@ -67,7 +67,7 @@ func_c ir_indexer_t::operator()(func_c v) {
     return ir_indexer.dispatch(std::move(v));
 }
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

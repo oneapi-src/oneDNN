@@ -14,8 +14,6 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include <compiler/jit/xbyak/stack_frame_model.hpp>
-
 #include <algorithm>
 #include <cassert>
 #include <iomanip>
@@ -25,6 +23,8 @@
 #include <vector>
 #include <util/string_utils.hpp>
 #include <util/utils.hpp>
+
+#include "stack_frame_model.hpp"
 
 using std::cout;
 using std::endl;
@@ -36,7 +36,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 using utils::make_unique;
 using utils::replace_newlines;
@@ -510,7 +510,7 @@ bool stack_frame_model::try_get_named_object_rbp_offset(
     return false;
 }
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

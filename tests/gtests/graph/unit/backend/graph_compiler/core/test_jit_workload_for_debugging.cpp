@@ -27,7 +27,7 @@
 #include "gtest/gtest.h"
 #include <compiler/ir/builtin.hpp>
 #if SC_BUILTIN_JIT_ENABLED
-#include <compiler/jit/xbyak/xbyak_jit_engine.hpp>
+#include <compiler/jit/xbyak/xbyak_jit.hpp>
 #endif
 #include <compiler/jit/jit.hpp>
 #include <runtime/generic_val.hpp>
@@ -51,7 +51,7 @@ static map<string, shared_ptr<jit_engine_t>> get_engines() {
 #endif
 #if SC_BUILTIN_JIT_ENABLED
     if (get_default_context()->machine_.cpu_flags_.fAVX512F)
-        ret["xbyak_jit_engine"] = make_shared<sc_xbyak::xbyak_jit_engine>();
+        ret["xbyak_jit"] = make_shared<xbyak_jit>();
 #endif
     return ret;
 }

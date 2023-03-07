@@ -29,7 +29,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 class module_var_resolver_t_impl_t : public ir_visitor_t {
 public:
@@ -96,7 +96,7 @@ func_c module_var_resolver_t::operator()(func_c v) {
     return module_var_resolver.dispatch(std::move(v));
 }
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

@@ -66,7 +66,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 namespace x86_64 {
 
 /// Terminology notes:
@@ -201,7 +201,7 @@ size_t get_local_value_stack_slot_size(cpu_data_type t);
 size_t get_size_in_bytes(cpu_data_type t);
 
 } // namespace x86_64
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

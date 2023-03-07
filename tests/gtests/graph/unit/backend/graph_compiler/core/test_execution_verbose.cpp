@@ -23,7 +23,7 @@
 #endif
 #include <compiler/jit/llvm/llvm_jit.hpp>
 #if SC_BUILTIN_JIT_ENABLED
-#include <compiler/jit/xbyak/xbyak_jit_engine.hpp>
+#include <compiler/jit/xbyak/xbyak_jit.hpp>
 #endif
 #include <runtime/config.hpp>
 #include <test_utils.hpp>
@@ -53,7 +53,7 @@ static map<string, shared_ptr<jit_engine_t>> test_jit_engines {
             {"llvm_jit", make_shared<llvm_jit>()},
 #endif
 #if SC_BUILTIN_JIT_ENABLED
-            {"xbyak_jit_engine", make_shared<sc_xbyak::xbyak_jit_engine>()},
+            {"xbyak_jit", make_shared<xbyak_jit>()},
 #endif
 };
 
@@ -80,7 +80,7 @@ TEST(GCCore_test_execution_verbose, TestTimer) {
     runtime_config_t::get().execution_verbose_ = true;
     auto mod = lower_graph(ctx, g, {ins, out});
     for (auto &kv : test_jit_engines) {
-        if (kv.first == "xbyak_jit_engine"
+        if (kv.first == "xbyak_jit"
                 && !get_default_context()->machine_.cpu_flags_.fAVX512F) {
             continue;
         }

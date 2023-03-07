@@ -24,7 +24,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 namespace x86_64 {
 
 /// Shortened names for some of the x86-64 registers, defined here
@@ -158,7 +158,7 @@ inline Xbyak::Tmm to_tmm(const Xbyak::Reg &r) {
 }
 
 } // namespace x86_64
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

@@ -32,7 +32,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 /* *
  * Represent each physical rigister and store live ranges using non-overlapping
@@ -290,7 +290,7 @@ private:
     virt_reg_index_t slots_sum_;
 };
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

@@ -25,8 +25,7 @@
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
 #include <compiler/ir/graph/graph.hpp>
 #if SC_BUILTIN_JIT_ENABLED
-#include <compiler/jit/xbyak/xbyak_jit_engine.hpp>
-#include <compiler/jit/xbyak/xbyak_jit_module.hpp>
+#include <compiler/jit/xbyak/xbyak_jit.hpp>
 #endif
 #if SC_CFAKE_JIT_ENABLED
 #include <compiler/jit/cfake/cfake_jit.hpp>
@@ -63,7 +62,7 @@ static std::vector<std::unique_ptr<jit_engine_t>> get_engines() {
 #endif
 #if SC_BUILTIN_JIT_ENABLED
     if (get_default_context()->machine_.cpu_flags_.fAVX512F) {
-        ret.emplace_back(utils::make_unique<sc_xbyak::xbyak_jit_engine>());
+        ret.emplace_back(utils::make_unique<xbyak_jit>());
     }
 #endif
     return ret;
@@ -872,8 +871,7 @@ TEST(GCCore_jit_cpp, TestJITGlobalTensor) {
         auto jitmod = engine->make_jit_module(m, false);
         statics_table_t *pglobals = nullptr;
 #if SC_BUILTIN_JIT_ENABLED
-        if (auto jmod
-                = dynamic_cast<sc_xbyak::xbyak_jit_module *>(jitmod.get())) {
+        if (auto jmod = dynamic_cast<xbyak_jit_module *>(jitmod.get())) {
             pglobals = &jmod->globals_;
         }
 #else

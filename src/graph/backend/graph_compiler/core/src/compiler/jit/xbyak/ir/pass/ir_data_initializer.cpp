@@ -24,7 +24,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 class ir_data_initializer_impl_t : public xbyak_visitor_t {
 public:
@@ -116,7 +116,7 @@ func_c ir_data_initializer_t::operator()(func_c v) {
     return ir_data_initializer.dispatch(std::move(v));
 }
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

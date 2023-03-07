@@ -15,7 +15,8 @@
  *******************************************************************************/
 
 #include <utility>
-#include <compiler/jit/xbyak/gen_operation/operand.hpp>
+
+#include <compiler/jit/xbyak/backend/operand.hpp>
 #include <util/utils.hpp>
 
 #include "expr_location.hpp"
@@ -24,7 +25,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 //============================================================================
 //  get member
@@ -155,7 +156,7 @@ std::ostream &operator<<(std::ostream &os, const expr_location &v) {
     return os;
 }
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

@@ -29,8 +29,8 @@
 #include <compiler/ir/ir_module.hpp>
 #include <compiler/jit/xbyak/ir/reg_allocation/reg_allocator.hpp>
 #include <compiler/jit/xbyak/ir/transform/constant_optimizer.hpp>
+#include <compiler/jit/xbyak/ir/utils.hpp>
 #include <compiler/jit/xbyak/ir/xbyak_visitor.hpp>
-#include <compiler/jit/xbyak/utils.hpp>
 #include <compiler/jit/xbyak/x86_64/abi_function_interface.hpp>
 
 #include "call_transform.hpp"
@@ -40,8 +40,8 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
-using namespace sc_xbyak::x86_64;
+namespace xbyak {
+using namespace xbyak::x86_64;
 
 SC_MODULE(xbyakjit.register_allocation)
 
@@ -829,7 +829,7 @@ register_allocation_t::register_allocation_t(
         const x86_64::target_profile_t &profile)
     : profile_(profile) {}
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl

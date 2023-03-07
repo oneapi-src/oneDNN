@@ -25,7 +25,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace sc_xbyak {
+namespace xbyak {
 
 using stmt_index_t = int64_t;
 
@@ -75,7 +75,7 @@ struct live_range_t {
     }
 };
 
-} // namespace sc_xbyak
+} // namespace xbyak
 } // namespace gc
 } // namespace graph
 } // namespace impl
