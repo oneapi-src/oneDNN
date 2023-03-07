@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,7 +45,11 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
             config_t {impl::op_kind::MaxPool, false}};
     const std::vector<std::string> qtypes {"symmetric", "asymmetric"};
     const std::vector<bool> swap_add_ins {true, false};
+    std::vector<float> scales = {1.f, 1 / 127.f};
+    std::vector<int64_t> zps = {0, -2};
 
+    for_(const auto &scale : scales)
+    for_(const auto &zp : zps)
     for_(const auto swap_add_in : swap_add_ins)
     for_(const auto &qtype : qtypes)
     for (const auto &conf : confs) {
@@ -77,12 +81,12 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
             return static_cast<uint8_t>(s8_distribution(generator));
         });
 
-        const float scale_src = 5 / 127.f;
-        const float scale_out = 10 / 127.f;
+        const float scale_src = scale * 5;
+        const float scale_out = scale * 10;
         const float scale_other = 2 / 127.f;
-        const int64_t zp_src = (qtype == "symmetric") ? 0 : -2;
-        const int64_t zp_out = (qtype == "symmetric") ? 0 : -2;
-        const int64_t zp_other = (qtype == "symmetric") ? 0 : 4;
+        const int64_t zp_src = (qtype == "symmetric") ? 0 : zp;
+        const int64_t zp_out = (qtype == "symmetric") ? 0 : zp;
+        const int64_t zp_other = (qtype == "symmetric") ? 0 : zp;
 
         impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");

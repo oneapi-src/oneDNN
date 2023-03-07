@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -4213,6 +4213,10 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
     std::vector<std::vector<int64_t>> weight_shapes {{4, 2}};
     std::vector<std::vector<int64_t>> dst_shapes {
             {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {2}};
+    std::vector<float> scales = {1.f, 1 / 127.f};
+    std::vector<int64_t> zps = {0, 110};
+    for_(const auto &scale : scales)
+    for_(const auto &zp : zps)
     for_(const auto &qtype : qtypes)
     for_(const auto &wei_qtype : weight_qtypes)
     for_(size_t i = 0; i < src_shapes.size(); ++i)
@@ -4244,17 +4248,17 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
         std::generate(other_data.begin(), other_data.end(), [&]() {
             return static_cast<int8_t>(s8_distribution(generator));
         });
-        float scale_src = 1 / 255.f; // map to 0~255
-        float scale_other = 1 / 127.f;
-        float scale_out = 1;
+        float scale_src = scale; // map to 0~255
+        float scale_other = scale;
+        float scale_out = scale;
         // reorder with zps is not supported on GPU
-        int64_t zp_src = engine.kind() == impl::engine_kind::gpu ? 0 : 90;
-        int64_t zp_other = 0;
+        int64_t zp_src = engine.kind() == impl::engine_kind::gpu ? 0 : zp;
+        int64_t zp_other = zp;
         // The following cmd will be skiped by benchdnn, since oneDNN didn't
         // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
         // --engine=gpu --mode=C --sdt=f32 --ddt=s8
         // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
-        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : zp;
 
         auto generate_zps = [&]() {
             // backend integration doesn't support per_channel asym quant now.
@@ -4262,11 +4266,11 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
                     || engine.kind() == impl::engine_kind::gpu)
                 return 0;
             else
-                return 78;
+                return (int)zp;
         };
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
-        std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
+        std::vector<float> scale_wei(scales_wei_sizes, scale);
         std::vector<int64_t> zp_wei(scales_wei_sizes, generate_zps());
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
