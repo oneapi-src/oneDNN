@@ -1493,7 +1493,7 @@ enum class Opcode {
     wrdep = 0x7F,   /* not a valid opcode; used internally by nGEN */
 };
 
-static inline bool isVariableLatency(HW hw, Opcode op)
+static inline bool trackedByToken(HW hw, Opcode op, unsigned dstTypecode)
 {
     switch (op) {
         case Opcode::math:
@@ -1504,6 +1504,7 @@ static inline bool isVariableLatency(HW hw, Opcode op)
         case Opcode::dpasw:
             return true;
         default:
+            if (hw == HW::XeHPG && dstTypecode == 0b1011 /* :df */) return true;
             return false;
     }
 }
@@ -1608,7 +1609,7 @@ public:
 };
 
 // Token count.
-constexpr inline int tokenCount(HW hw)
+constexpr inline int tokenCount(HW hw, int grfCount = 128)
 {
     return (hw >= HW::XeHPC) ? 32 :
          (hw >= HW::Gen12LP) ? 16

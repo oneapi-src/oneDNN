@@ -183,6 +183,7 @@ protected:
 
     static constexpr bool isGen12 = (hw >= HW::Gen12LP);
     Product product;
+    int declaredGRFs = 128;
 
     Label _labelLocalIDsLoaded;
     Label _labelArgsLoaded;
@@ -335,6 +336,8 @@ protected:
 
     template <typename String>
     void comment(String)                            {}
+
+    void requireGRF(int grfs)                       { declaredGRFs = grfs; }
 
     // Registers.
 #ifndef NGEN_GLOBAL_REGS
@@ -1437,6 +1440,10 @@ public:
 };
 
 #define NGEN_FORWARD(hw) \
+NGEN_FORWARD_NO_REQGRF(hw) \
+void requireGRF(int grfs) { ngen::BinaryCodeGenerator<hw>::requireGRF(grfs); }
+
+#define NGEN_FORWARD_NO_REQGRF(hw) \
 using InstructionStream = typename ngen::BinaryCodeGenerator<hw>::InstructionStream; \
 using ngen::BinaryCodeGenerator<hw>::isGen12; \
 template <typename DT = void, typename... Targs> void add(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template add<DT>(std::forward<Targs>(args)...); } \
@@ -1777,7 +1784,7 @@ std::vector<uint8_t> BinaryCodeGenerator<hw>::getCode()
     rootStream.fixLabels(labelManager);
 
     Program program(rootStream);
-    autoswsb::BasicBlockList analysis = autoswsb::autoSWSB(hw, program);
+    autoswsb::BasicBlockList analysis = autoswsb::autoSWSB(hw, declaredGRFs, program);
     std::vector<uint8_t> result;
 
     if (analysis.empty()) {

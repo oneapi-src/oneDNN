@@ -75,9 +75,9 @@ public:
             all = 0;
     }
 
-    SWSBInfo decode(Opcode op) const {
+    SWSBInfo decode(Opcode op, unsigned dstTypecode) const {
         if (combined.combined) {
-            bool vl = isVariableLatency(HW::Gen12LP, op);
+            bool vl = trackedByToken(HW::Gen12LP, op, dstTypecode);
             auto pipe = (op == Opcode::send || op == Opcode::sendc) ? Pipe::A : Pipe::Default;
             return SWSBInfo(combined.sbid, vl, true) | SWSBInfo(pipe, combined.dist);
         } else if (isPipeline()) {
@@ -420,7 +420,7 @@ struct Instruction12 {
 
     // Decoding routines for auto-SWSB.
     bool autoSWSB() const         { return (common.opcode & 0x80); }
-    SWSBInfo swsb() const         { return SWSBInfo12::createFromRaw(common.swsb).decode(opcode()); }
+    SWSBInfo swsb() const         { return SWSBInfo12::createFromRaw(common.swsb).decode(opcode(), dstTypecode()); }
     void setSWSB(SWSBInfo swsb)   { common.swsb = SWSBInfo12(swsb, opcode()).raw(); }
     void clearAutoSWSB()          { common.opcode &= 0x7F; }
     Opcode opcode() const         { return static_cast<Opcode>(common.opcode & 0x7F); }

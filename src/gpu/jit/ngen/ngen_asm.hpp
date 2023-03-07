@@ -445,6 +445,7 @@ protected:
     HW hardware;
     Product product;
     bool isGen12;
+    int declaredGRFs = 128;
     std::ostream *defaultOutput;
     bool lineNumbers = false;
 
@@ -553,6 +554,8 @@ protected:
     void discardStream()                            { delete popStream(); }
 
     void comment(const std::string &str)            { streamStack.back()->appendComment(str); }
+
+    void requireGRF(int grfs)                       { declaredGRFs = grfs; }
 
     // Instructions.
     template <typename DT = void>
@@ -1655,7 +1658,7 @@ void AsmCodeGenerator::getCode(std::ostream &out)
 {
     finalize();
 
-    autoswsb::BasicBlockList analysis = autoswsb::autoSWSB(hardware, streamStack.back()->buffer);
+    autoswsb::BasicBlockList analysis = autoswsb::autoSWSB(hardware, declaredGRFs, streamStack.back()->buffer);
     std::multimap<int32_t, autoswsb::SyncInsertion*> syncs;      // Syncs inserted by auto-SWSB.
 
     for (auto &bb : analysis)

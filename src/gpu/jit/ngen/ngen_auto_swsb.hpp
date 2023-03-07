@@ -45,15 +45,17 @@ enum {
     PipeMaskI = 4,
     PipeMaskL = 8,
     PipeMaskM = 0x10,
-    PipeMaskO = 0x20,   // All out-of-order pipes. Not a valid GeneralizedPipe.
+    PipeMaskC = 0x20,   // All instructions (in-order/out-of-order).
+    PipeMaskO = 0x40,   // All out-of-order pipes. Not a valid GeneralizedPipe.
     PipeBitA = 0,
     PipeBitF = 1,
     PipeBitI = 2,
     PipeBitL = 3,
     PipeBitM = 4,
-    PipeBitO = 5,
+    PipeBitC = 5,
+    PipeBitO = 6,
 };
-static constexpr int NPipes = 5;
+static constexpr int NPipes = 6;
 
 static inline PipeMask toMask(Pipe pipe)   { return (1 << (static_cast<unsigned>(pipe) - 1)); }
 static inline Pipe fromMask(PipeMask mask) { return mask ? static_cast<Pipe>(1 + utils::log2(mask)) : Pipe::Default; }
@@ -295,7 +297,7 @@ inline GeneralizedPipe getPipe(HW hw, const Instruction &insn, bool checkOOO = t
         return GeneralizedPipe();
 
     // Check OOO instructions.
-    if (isVariableLatency(hw, op)) {
+    if (trackedByToken(hw, op, insn.dstTypecode())) {
         if (!checkOOO)
             return GeneralizedPipe();
         switch (op) {
@@ -303,12 +305,11 @@ inline GeneralizedPipe getPipe(HW hw, const Instruction &insn, bool checkOOO = t
             case Opcode::dpasw:
                 return GeneralizedPipe::Systolic();
             case Opcode::math:
+            default:
                 return GeneralizedPipe::Math();
             case Opcode::send:
             case Opcode::sendc:
                 return GeneralizedPipe(insn.sfid());
-            default:
-                break;
         }
     }
 
@@ -347,7 +348,7 @@ inline PipeMask getPipeMask(HW hw, const Instruction &insn)
     PipeMask pipe = getPipe(hw, insn, false).inOrderPipe();
     if (pipe != PipeMaskNone)
         pipe |= PipeMaskA;
-    return pipe;
+    return pipe | PipeMaskC;
 }
 
 PipeMask GeneralizedPipe::syncPipes(HW hw) const
@@ -538,6 +539,7 @@ template <typename Instruction>
 inline int estimateLatency(HW hw, const Instruction &insn)
 {
     switch (insn.opcode()) {
+        default:
         case Opcode::math: return (hw == HW::Gen12LP) ? 20 : 17;
         case Opcode::dpas:
         case Opcode::dpasw: return 20;   // need correct value
@@ -556,7 +558,6 @@ inline int estimateLatency(HW hw, const Instruction &insn)
                 default: return 50;
             }
         }
-        default: return 0;
     }
 }
 
@@ -1341,18 +1342,19 @@ inline bool arfNeedsSync(ARFType type)
 }
 
 // Get preferred SBID for a given GRF.
-inline uint8_t preferredSBID(HW hw, uint8_t base)
+inline uint8_t preferredSBID(int tokens, uint8_t base)
 {
-    if (hw >= HW::XeHPC)
+    if (tokens >= 32)
         return (base >> 2) & 0x1F;
-    return (base >> 3) & 0xF;
+    else
+        return (base >> 3) & 0xF;
 }
 
 // Choose SBID for an OOO instruction, based on preceding OOO instructions.
 template <typename Program>
-inline uint8_t chooseSBID(HW hw, Program &program, const BasicBlock &bb, int32_t inum, int32_t counterA, const DependencyTable<false> &incoming, const DependencyTable<false> &producers, uint32_t maskDst)
+inline uint8_t chooseSBID(HW hw, int tokens, Program &program, const BasicBlock &bb, int32_t inum, int32_t counterC, const DependencyTable<false> &incoming, const DependencyTable<false> &producers, uint32_t maskDst)
 {
-    uint32_t unclaimed = (uint64_t(1) << tokenCount(hw)) - 1;
+    uint32_t unclaimed = (uint64_t(1) << tokens) - 1;
     std::array<int32_t, 32> pastExpiration;
     constexpr int32_t infinite = std::numeric_limits<int32_t>::max();
 
@@ -1372,7 +1374,7 @@ inline uint8_t chooseSBID(HW hw, Program &program, const BasicBlock &bb, int32_t
         auto token = depSWSB.parts.token;
         unclaimed &= ~(1 << token);
 
-        int32_t pe = counterA - (dep.counters[PipeBitA] + dep.tokenTime);
+        int32_t pe = counterC - (dep.counters[PipeBitC] + dep.tokenTime);
         pastExpiration[token] = std::min<int32_t>(pastExpiration[token], pe);
     };
 
@@ -1381,7 +1383,7 @@ inline uint8_t chooseSBID(HW hw, Program &program, const BasicBlock &bb, int32_t
 
     int32_t bestPE = std::numeric_limits<int32_t>::min();
     uint8_t bestPESBID = 0;
-    for (int token = 0; token < tokenCount(hw); token++) {
+    for (int token = 0; token < tokens; token++) {
         if (pastExpiration[token] > bestPE) {
             bestPE = pastExpiration[token];
             bestPESBID = token;
@@ -1393,7 +1395,7 @@ inline uint8_t chooseSBID(HW hw, Program &program, const BasicBlock &bb, int32_t
     for (int opNum : {-1, 1, 0}) {
         auto &region = bb.getOperandRegion(inum, opNum);
         if (region.size > 0) {
-            auto sbid = preferredSBID(hw, region.base);
+            auto sbid = preferredSBID(tokens, region.base);
             if (pastExpiration[sbid] >= 0)
                 return sbid;
         }
@@ -1425,7 +1427,7 @@ inline uint8_t chooseSBID(HW hw, Program &program, const BasicBlock &bb, int32_t
 //   Input: complete list of live dependencies.
 //   All unscoreboarded instructions are reanalyzed and scoreboarded now.
 template <typename Program>
-inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
+inline void analyze(HW hw, int tokens, Program &program, BasicBlock &bb, int phase)
 {
     const bool final = (phase == 2);
     const bool computeSWSB = (phase > 0);
@@ -1501,7 +1503,7 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
             bb.producers.removeByTokenMask(1 << tokenInfo.token, true);
             preconsumeTokenSrc |= (1 << tokenInfo.token);
             preconsumeTokenDst |= (1 << tokenInfo.token);
-        } else if (isVariableLatency(hw, insn.opcode())) {
+        } else if (trackedByToken(hw, insn.opcode(), insn.dstTypecode())) {
             generated.token = tokenInfo.token = tokenInfo.tokenTBD;
             tokenInfo.tokenSrc = tokenInfo.tokenDst = true;
         }
@@ -1555,7 +1557,7 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
             if (inum == (bb.iend - 1)) {
                 int jip, uip;
                 if (insn.destinations(jip, uip) & DestUnknown) {
-                    tokenMaskDst = preconsumeTokenDst = (uint64_t(1) << tokenCount(hw)) - 1;
+                    tokenMaskDst = preconsumeTokenDst = (uint64_t(1) << tokens) - 1;
                     for (auto &p : preconsumeIO[PipeBitA])
                         p = 0;
                     bb.producers.clear();
@@ -1565,7 +1567,7 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
             }
 
             // Check if we need to assign an SBID to this instruction.
-            bool assignSBID = (phase == 1) && isVariableLatency(hw, insn.opcode()) && (tokenInfo.token == tokenInfo.tokenTBD) && !insn.atomic();
+            bool assignSBID = (phase == 1) && trackedByToken(hw, insn.opcode(), insn.dstTypecode()) && (tokenInfo.token == tokenInfo.tokenTBD) && !insn.atomic();
 
             // Analyze operands.
             for (int srcN = 2; srcN >= -1; srcN--) {
@@ -1664,7 +1666,7 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
 
             // If token missing on OOO instruction, assign one during phase 1.
             if (assignSBID) {
-                auto newToken = chooseSBID(hw, program, bb, inum, counters[PipeBitA], bb.incoming, bb.producers, tokenMaskDstX);
+                auto newToken = chooseSBID(hw, tokens, program, bb, inum, counters[PipeBitC], bb.incoming, bb.producers, tokenMaskDstX);
                 generated.token = tokenInfo.token = newToken;
                 generated.tokenSrc = generated.tokenDst = true;
                 insn.setSWSB(SBID(generated.token).set);
@@ -1915,7 +1917,7 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
         }
         // Out of order preconsumes.
         auto preconsumeToken = preconsumeTokenSrc | preconsumeTokenDst;
-        for (int token = 0; token < tokenCount(hw); token++) {
+        for (int token = 0; token < tokens; token++) {
             if (preconsumeToken & (1 << token)) {
                 Dependency<true> preconsume;
                 preconsume.swsb = true;
@@ -1981,11 +1983,14 @@ inline void propagate(std::vector<BasicBlock> &BBs)
                     dep.dump();
 #endif
 
-                    // Adjust counters. Exception: OOO tokenless dependencies: counter[0] stores instruction #.
+                    // Adjust counters.
+                    // Exception for OOO tokenless dependencies: counter[0] stores instruction #; only adjust counter C.
                     auto newDep = dep;
                     if (newDep.tokenTime == 0)
                         for (int p = 0; p < NPipes; p++)
                             newDep.counters[p] -= pred->lengths[p];
+                    else
+                        newDep.counters[PipeBitC] -= pred->lengths[PipeBitC];
 
                     // If an in-order dependency, check for timeout, and skip it if so.
                     if (newDep.pipe.inOrder()) {
@@ -2043,6 +2048,8 @@ inline void propagate(std::vector<BasicBlock> &BBs)
                 if (newDep.tokenTime == 0)
                     for (int p = 0; p < NPipes; p++)
                         newDep.counters[p] -= pred->lengths[p];
+                else
+                    newDep.counters[PipeBitC] -= pred->lengths[PipeBitC];
 
                 // If an in-order dependency, check for timeout, and skip it if so.
                 if (newDep.pipe.inOrder()) {
@@ -2084,10 +2091,12 @@ inline void adjustTargets(Program &program, BasicBlockList &list)
 // Entrypoint for automatic software scoreboarding.
 // Returns the list of basic blocks, containing information on sync instructions to insert.
 template <typename Program>
-inline BasicBlockList autoSWSB(HW hw, Program &program)
+inline BasicBlockList autoSWSB(HW hw, int grfCount, Program &program)
 {
     if (!hasAutoSWSB(hw, program))
         return BasicBlockList();
+
+    int tokens = tokenCount(hw, grfCount);
 
     // Find basic blocks.
     BasicBlockList bbList = getBasicBlocks(hw, program);
@@ -2114,7 +2123,7 @@ inline BasicBlockList autoSWSB(HW hw, Program &program)
 
     // Analysis round 0: gather OOO instruction usage.
     for (auto &bb : bbList)
-        analyze(hw, program, bb, 0);
+        analyze(hw, tokens, program, bb, 0);
 
 #ifdef NGEN_DEBUG
     std::cerr << "ANALYZE PHASE 0\n";
@@ -2146,7 +2155,7 @@ inline BasicBlockList autoSWSB(HW hw, Program &program)
 
     // Analysis round 1: assign SBIDs and perform intra-BB analysis.
     for (auto &bb : bbList) {
-        analyze(hw, program, bb, 1);
+        analyze(hw, tokens, program, bb, 1);
         bb.incoming.clear();
     }
 
@@ -2185,7 +2194,7 @@ inline BasicBlockList autoSWSB(HW hw, Program &program)
 
     // Analysis round 2: final SWSB assignment.
     for (auto &bb : bbList)
-        analyze(hw, program, bb, 2);
+        analyze(hw, tokens, program, bb, 2);
 
 #ifdef NGEN_DEBUG
     std::cerr << "ANALYZE PHASE 2\n";

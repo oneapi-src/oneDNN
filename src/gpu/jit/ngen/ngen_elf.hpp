@@ -51,7 +51,7 @@ protected:
     void requireBarriers(int nbarriers)                                  { interface_.requireBarriers(nbarriers); }
     void requireDPAS()                                                   { interface_.requireDPAS(); }
     void requireGlobalAtomics()                                          { interface_.requireGlobalAtomics(); }
-    void requireGRF(int grfs)                                            { interface_.requireGRF(grfs); }
+    void requireGRF(int grfs)                                            { BinaryCodeGenerator<hw>::requireGRF(grfs); interface_.requireGRF(grfs); }
     void requireLocalID(int dimensions)                                  { interface_.requireLocalID(dimensions); }
     void requireLocalSize()                                              { interface_.requireLocalSize(); }
     void requireNonuniformWGs()                                          { interface_.requireNonuniformWGs(); }
@@ -271,7 +271,7 @@ private:
     };
 };
 
-#define NGEN_FORWARD_ELF(hw) NGEN_FORWARD(hw) \
+#define NGEN_FORWARD_ELF(hw) NGEN_FORWARD_NO_REQGRF(hw) \
 template <typename... Targs> void externalName(Targs&&... args) { ngen::ELFCodeGenerator<hw>::externalName(std::forward<Targs>(args)...); } \
 const std::string &getExternalName() const { return ngen::ELFCodeGenerator<hw>::getExternalName(); } \
 int getSIMD() const { return ngen::ELFCodeGenerator<hw>::getSIMD(); } \
