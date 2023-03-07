@@ -252,14 +252,30 @@ private:
             : pos(pos_), is_first(is_first_), is_last(is_last_) {}
     };
 
-    struct iteration_map_t {
-        std::vector<dim_iteration_t> ldis;
-        std::vector<bd_iteration_t> bdis;
-        std::vector<bs_iteration_t> bsis;
-        std::vector<dim_iteration_t> rdis;
-        bool is_last_rdi(const dim_iteration_t *rdi) const {
-            return (rdi->idx == rdis.size() - 1);
+    class iteration_map_t {
+    public:
+        struct top_loop_t {
+            std::vector<dim_iteration_t> ldis;
+            std::vector<bd_iteration_t> bdis;
+            std::vector<bs_iteration_t> bsis;
+            std::vector<dim_iteration_t> rdis;
+            int duplicated {0};
+            bool is_last_rdi(const dim_iteration_t *rdi) const {
+                return (rdi->idx == rdis.size() - 1);
+            }
+        };
+
+        iteration_map_t() : tloops(2) {}
+
+        inline top_loop_t &operator[](bool bidx) {
+            return tloops[static_cast<int>(bidx)];
         }
+        inline const top_loop_t &operator[](bool bidx) const {
+            return tloops[static_cast<int>(bidx)];
+        }
+
+    private:
+        std::vector<top_loop_t> tloops;
     };
 
     struct brgemm_iteration_t {
@@ -428,7 +444,7 @@ private:
                 || need_to_apply_post_ops || brg.brgattr.bd_mask_level;
         return store_by_vectors;
     }
-    bool actual_ils(bool apply_post_ops) {
+    bool actual_ils(bool apply_post_ops) const {
         return (use_ils_ && get_store_by_vectors(apply_post_ops));
     }
 
@@ -464,24 +480,27 @@ bool jit_brgemm_amx_uker_base_t::bi_shift_output(
     res_bi = bi;
     if (shift == 0) return true;
 
+    const auto &tloop = imap_[bi.apply_postops];
+    const auto nldis = tloop.ldis.size();
+    const auto nbdis = tloop.bdis.size();
     size_t lidx = 0;
     size_t bd_idx = 0;
     size_t ld_idx = 0;
     if (brg.innermost_loop == brgemm_ld_loop_innermost) {
-        lidx = bi.bdi->idx * imap_.ldis.size() + bi.ldi->idx;
+        lidx = bi.bdi->idx * nldis + bi.ldi->idx;
         lidx += shift;
-        bd_idx = lidx / imap_.ldis.size();
-        ld_idx = lidx % imap_.ldis.size();
+        bd_idx = lidx / nldis;
+        ld_idx = lidx % nldis;
     } else if (brg.innermost_loop == brgemm_bd_loop_innermost) {
-        lidx = bi.ldi->idx * imap_.bdis.size() + bi.bdi->idx;
+        lidx = bi.ldi->idx * nbdis + bi.bdi->idx;
         lidx += shift;
-        ld_idx = lidx / imap_.bdis.size();
-        bd_idx = lidx % imap_.bdis.size();
+        ld_idx = lidx / nbdis;
+        bd_idx = lidx % nbdis;
     } else
         assert(!"Unknown loop order!");
-    if (lidx >= imap_.ldis.size() * imap_.bdis.size()) return false;
-    res_bi.bdi = &(imap_.bdis[bd_idx]);
-    res_bi.ldi = &(imap_.ldis[ld_idx]);
+    if (lidx >= nldis * nbdis) return false;
+    res_bi.bdi = &(tloop.bdis[bd_idx]);
+    res_bi.ldi = &(tloop.ldis[ld_idx]);
 
     return true;
 }
@@ -489,15 +508,19 @@ bool jit_brgemm_amx_uker_base_t::bi_shift_output(
 bool jit_brgemm_amx_uker_base_t::bi_shift_A(
         brgemm_iteration_t &bi, int shift, brgemm_iteration_t &res_bi) {
     res_bi = bi;
-    auto lidx = bi.bdi->idx * imap_.rdis.size() + bi.rdi->idx;
+    const auto &tloop = imap_[bi.apply_postops];
+    const auto nbdis = tloop.bdis.size();
+    const auto nrdis = tloop.rdis.size();
+
+    auto lidx = bi.bdi->idx * nrdis + bi.rdi->idx;
     lidx += shift;
-    if (lidx >= imap_.rdis.size() * imap_.bdis.size()) return false;
+    if (lidx >= nrdis * nbdis) return false;
 
-    const auto bd_idx = lidx / imap_.rdis.size();
-    const auto rd_idx = lidx % imap_.rdis.size();
+    const auto bd_idx = lidx / nrdis;
+    const auto rd_idx = lidx % nrdis;
 
-    res_bi.bdi = &(imap_.bdis[bd_idx]);
-    res_bi.rdi = &(imap_.rdis[rd_idx]);
+    res_bi.bdi = &(tloop.bdis[bd_idx]);
+    res_bi.rdi = &(tloop.rdis[rd_idx]);
 
     return true;
 }
@@ -505,15 +528,19 @@ bool jit_brgemm_amx_uker_base_t::bi_shift_A(
 bool jit_brgemm_amx_uker_base_t::bi_shift_B(
         brgemm_iteration_t &bi, int shift, brgemm_iteration_t &res_bi) {
     res_bi = bi;
-    auto lidx = bi.ldi->idx * imap_.rdis.size() + bi.rdi->idx;
+    const auto &tloop = imap_[bi.apply_postops];
+    const auto nldis = tloop.ldis.size();
+    const auto nrdis = tloop.rdis.size();
+
+    auto lidx = bi.ldi->idx * nrdis + bi.rdi->idx;
     lidx += shift;
-    if (lidx >= imap_.rdis.size() * imap_.ldis.size()) return false;
+    if (lidx >= nrdis * nldis) return false;
 
-    const auto ld_idx = lidx / imap_.rdis.size();
-    const auto rd_idx = lidx % imap_.rdis.size();
+    const auto ld_idx = lidx / nrdis;
+    const auto rd_idx = lidx % nrdis;
 
-    res_bi.ldi = &(imap_.ldis[ld_idx]);
-    res_bi.rdi = &(imap_.rdis[rd_idx]);
+    res_bi.ldi = &(tloop.ldis[ld_idx]);
+    res_bi.rdi = &(tloop.rdis[rd_idx]);
 
     return true;
 }
@@ -931,7 +958,8 @@ void jit_brgemm_amx_uker_base_t::prefetch_CD_range(brgemm_iteration_t &bi,
 
 int jit_brgemm_amx_uker_base_t::calc_ops_CD(
         brgemm_iteration_t &bi) const noexcept {
-    return imap_.rdis.size() * bi.ldi->block2() * bi.bdi->block2()
+    const auto &tloop = imap_[bi.apply_postops];
+    return tloop.rdis.size() * bi.ldi->block2() * bi.bdi->block2()
             * (brg.brgattr.var_bs ? 1 : brg.brgattr.max_bs);
 }
 
@@ -1639,12 +1667,13 @@ void jit_brgemm_amx_uker_base_t::maybe_pre_process_data(brgemm_iteration_t &bi,
         const Tmm &t1, reg64_t reg_base, size_t offset, reg64_t reg_stride,
         matrix_kind_t mk) {
 
+    const auto &tloop = imap_[bi.apply_postops];
     auto should_save_transform = [&](matrix_kind_t mk) {
         // save if there is a reuse
         if (mk == matrix_A) {
-            return imap_.ldis.size() > 1;
+            return tloop.ldis.size() > 1;
         } else {
-            return imap_.bdis.size() > 1;
+            return tloop.bdis.size() > 1;
         }
     };
 
@@ -1653,8 +1682,8 @@ void jit_brgemm_amx_uker_base_t::maybe_pre_process_data(brgemm_iteration_t &bi,
 
     const auto transform_offset
             = use_ils_ ? brg.get_num_C_tiles() * tile_size : 0;
-    const auto max_bdb2 = imap_.bdis[0].block2();
-    const auto max_rdb = imap_.rdis.size();
+    const auto max_bdb2 = tloop.bdis[0].block2();
+    const auto max_rdb = tloop.rdis.size();
     const auto matrix_a_offset = transform_offset;
     const auto matrix_b_offset = transform_offset
             + tile_size
@@ -1710,7 +1739,7 @@ void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(brgemm_iteration_t &bi) {
     const auto store_by_vectors = get_store_by_vectors(bi.apply_postops);
 
     bool do_post_tilestore = (brg.interleave_tilestores_ && bi.last_bsi
-            && imap_.is_last_rdi(bi.rdi));
+            && imap_[bi.apply_postops].is_last_rdi(bi.rdi));
 
     bool do_pre_tilestore = (brg.interleave_tilestores_ && bi.first_bsi
             && bi.rdi->pos(0) == 0 && was_prev_bi_);
@@ -1740,8 +1769,9 @@ void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(brgemm_iteration_t &bi) {
 }
 
 void jit_brgemm_amx_uker_base_t::rdb_loop(brgemm_iteration_t &bi) {
-    for (size_t irdi = 0; irdi < imap_.rdis.size(); irdi++) {
-        bi.rdi = &(imap_.rdis[irdi]);
+    const auto &tloop = imap_[bi.apply_postops];
+    for (size_t irdi = 0; irdi < tloop.rdis.size(); irdi++) {
+        bi.rdi = &(tloop.rdis[irdi]);
         gemm_microkernel_amx(bi);
     }
 }
@@ -1759,6 +1789,7 @@ void jit_brgemm_amx_uker_base_t::bs_loop_body(brgemm_iteration_t &bi) {
 }
 
 void jit_brgemm_amx_uker_base_t::bs_loop(brgemm_iteration_t &bi) {
+    const auto &tloop = imap_[bi.apply_postops];
 
     load_accumulators(bi);
 
@@ -1776,7 +1807,7 @@ void jit_brgemm_amx_uker_base_t::bs_loop(brgemm_iteration_t &bi) {
             cmp(reg_BS_loop, 1);
             jg(first_BS_loop_label, T_NEAR);
 
-            bi.bsi = &(imap_.bsis[0]);
+            bi.bsi = &(tloop.bsis[0]);
             // only one BS iteration: first and last
             bi.first_bsi = true;
             bi.last_bsi = true;
@@ -1815,7 +1846,7 @@ void jit_brgemm_amx_uker_base_t::bs_loop(brgemm_iteration_t &bi) {
     } else {
         if (brg.alpha != 0.f) {
             for (int bs = 0; bs < brg.brgattr.max_bs; bs++) {
-                bi.bsi = &(imap_.bsis[bs]);
+                bi.bsi = &(tloop.bsis[bs]);
                 bi.first_bsi = bi.bsi->is_first;
                 bi.last_bsi = bi.bsi->is_last;
                 bs_loop_body(bi);
@@ -1837,9 +1868,10 @@ void jit_brgemm_amx_uker_base_t::ldb_loop_body(brgemm_iteration_t &bi) {
 void jit_brgemm_amx_uker_base_t::ldb_loop(brgemm_iteration_t &bi) {
     // clear the transform cache for A, as the existing data is invalid as
     // we move to next bdb2 block.
+    const auto &tloop = imap_[bi.apply_postops];
     transform_buf_map_A_.clear();
-    for (size_t ildi = 0; ildi < imap_.ldis.size(); ildi++) {
-        bi.ldi = &(imap_.ldis[ildi]);
+    for (size_t ildi = 0; ildi < tloop.ldis.size(); ildi++) {
+        bi.ldi = &(tloop.ldis[ildi]);
         ldb_loop_body(bi);
     }
 }
@@ -1854,13 +1886,16 @@ void jit_brgemm_amx_uker_base_t::bdb_loop_body(brgemm_iteration_t &bi) {
 };
 
 void jit_brgemm_amx_uker_base_t::bdb_loop(brgemm_iteration_t &bi) {
-    for (size_t ibdi = 0; ibdi < imap_.bdis.size(); ibdi++) {
-        bi.bdi = &(imap_.bdis[ibdi]);
+    const auto &tloop = imap_[bi.apply_postops];
+    for (size_t ibdi = 0; ibdi < tloop.bdis.size(); ibdi++) {
+        bi.bdi = &(tloop.bdis[ibdi]);
         bdb_loop_body(bi);
     }
 }
 
 void jit_brgemm_amx_uker_base_t::top_loop(brgemm_iteration_t &bi) {
+    mov(reg_C, ptr[param1 + GET_OFF(ptr_C)]);
+    mov(reg_D, ptr[param1 + GET_OFF(ptr_D)]);
     init(bi);
     if (brg.innermost_loop == brgemm_ld_loop_innermost)
         bdb_loop(bi);
@@ -1883,93 +1918,87 @@ void jit_brgemm_amx_uker_base_t::top_loop(brgemm_iteration_t &bi) {
 }
 
 void jit_brgemm_amx_uker_base_t::fill_imap() {
-    imap_.bdis.clear();
-    imap_.ldis.clear();
-    imap_.rdis.clear();
-    imap_.bsis.clear();
-    imap_.bdis.reserve(brg.bdb2);
-    imap_.ldis.reserve(brg.ldb2);
-    imap_.rdis.reserve(brg.rdb);
-    imap_.bsis.reserve(brg.brgattr.max_bs);
+    for (bool apply_postops : {false, true}) {
+        auto &tloop = imap_[apply_postops];
 
-    auto bdi_pos = skipped_bd_mask(0);
-    bd_iteration_t bdi;
-    bdi.blocks.reserve(brg.bd_block2);
-    for (int bdb = 0; bdb < brg.bdb; bdb += brg.bd_block2) {
-        bdi.blocks.clear();
-        for (int ibdb = 0; ibdb < brg.bd_block2; ibdb++) {
-            auto abdb = bdb + ibdb;
-            if (abdb >= brg.bdb) break;
-            if (brg.bdb_tail && abdb == brg.bdb - 1)
-                bdi.blocks.emplace_back(
-                        iteration_block_t(bdi_pos, brg.bdb_tail, true));
-            else
-                bdi.blocks.emplace_back(
-                        iteration_block_t(bdi_pos, brg.bd_block, false));
-            bdi_pos += brg.bd_block;
-            if (bdi_pos >= brg.bcast_dim) break;
-            bdi_pos = skipped_bd_mask(bdi_pos);
-        }
-        bdi.idx = imap_.bdis.size();
+        tloop.bdis.clear();
+        tloop.ldis.clear();
+        tloop.rdis.clear();
+        tloop.bsis.clear();
+        tloop.bdis.reserve(brg.bdb2);
+        tloop.ldis.reserve(brg.ldb2);
+        tloop.rdis.reserve(brg.rdb);
+        tloop.bsis.reserve(brg.brgattr.max_bs);
 
-        if (brg.brgattr.bd_mask_level > 0) {
-            const auto lidx = bdi.blocks.size() - 1;
-            const auto bdm_sz = bdi.pos(lidx) + bdi.blocks[lidx].block;
-            bdi.bd_mask.resize(bdm_sz);
-            bdi.adj_bd_mask.resize(bdm_sz);
-            for (size_t i = 0; i < bdm_sz; i++) {
-                bdi.bd_mask[i] = bd_mask_buffer_ptr_[bdi.pos(0) + i];
-                bdi.adj_bd_mask[i] = adj_bd_mask_buffer_[bdi.pos(0) + i];
+        auto bdi_pos = skipped_bd_mask(0);
+        bd_iteration_t bdi;
+        bdi.blocks.reserve(brg.bd_block2);
+        for (int bdb = 0; bdb < brg.bdb; bdb += brg.bd_block2) {
+            bdi.blocks.clear();
+            for (int ibdb = 0; ibdb < brg.bd_block2; ibdb++) {
+                auto abdb = bdb + ibdb;
+                if (abdb >= brg.bdb) break;
+                if (brg.bdb_tail && abdb == brg.bdb - 1)
+                    bdi.blocks.emplace_back(
+                            iteration_block_t(bdi_pos, brg.bdb_tail, true));
+                else
+                    bdi.blocks.emplace_back(
+                            iteration_block_t(bdi_pos, brg.bd_block, false));
+                bdi_pos += brg.bd_block;
+                if (bdi_pos >= brg.bcast_dim) break;
+                bdi_pos = skipped_bd_mask(bdi_pos);
             }
+            bdi.idx = tloop.bdis.size();
+
+            tloop.bdis.push_back(bdi);
         }
 
-        imap_.bdis.push_back(bdi);
-    }
-
-    size_t ldi_pos = 0;
-    dim_iteration_t ldi;
-    ldi.blocks.reserve(brg.ld_block2);
-    for (int ldb = 0; ldb < brg.ldb; ldb += brg.ld_block2) {
-        ldi.blocks.clear();
-        for (int ildb = 0; ildb < brg.ld_block2; ildb++) {
-            auto aldb = ldb + ildb;
-            if (aldb >= brg.ldb) break;
-            if (brg.ldb_tail && aldb == brg.ldb - 1)
-                ldi.blocks.emplace_back(
-                        iteration_block_t(ldi_pos, brg.ldb_tail, true));
-            else
-                ldi.blocks.emplace_back(
-                        iteration_block_t(ldi_pos, brg.ld_block, false));
-            ldi_pos++;
+        size_t ldi_pos = 0;
+        dim_iteration_t ldi;
+        ldi.blocks.reserve(brg.ld_block2);
+        for (int ldb = 0; ldb < brg.ldb; ldb += brg.ld_block2) {
+            ldi.blocks.clear();
+            for (int ildb = 0; ildb < brg.ld_block2; ildb++) {
+                auto aldb = ldb + ildb;
+                if (aldb >= brg.ldb) break;
+                if (brg.ldb_tail && aldb == brg.ldb - 1)
+                    ldi.blocks.emplace_back(
+                            iteration_block_t(ldi_pos, brg.ldb_tail, true));
+                else
+                    ldi.blocks.emplace_back(
+                            iteration_block_t(ldi_pos, brg.ld_block, false));
+                ldi_pos++;
+            }
+            ldi.idx = tloop.ldis.size();
+            tloop.ldis.push_back(ldi);
         }
-        ldi.idx = imap_.ldis.size();
-        imap_.ldis.push_back(ldi);
-    }
 
-    size_t rdi_pos = 0;
-    dim_iteration_t rdi;
-    rdi.blocks.reserve(1);
-    for (int rdb = 0; rdb < brg.rdb; rdb++) {
-        rdi.blocks.clear();
-        rdi.blocks.emplace_back(iteration_block_t(rdi_pos, brg.rd_block));
-        rdi.idx = imap_.rdis.size();
-        imap_.rdis.push_back(rdi);
-        rdi_pos++;
-    }
-    if (brg.rdb_tail > 0) {
-        rdi.blocks.clear();
-        rdi.blocks.emplace_back(iteration_block_t(rdi_pos, brg.rdb_tail, true));
-        rdi.idx = imap_.rdis.size();
-        imap_.rdis.push_back(rdi);
-    }
+        size_t rdi_pos = 0;
+        dim_iteration_t rdi;
+        rdi.blocks.reserve(1);
+        for (int rdb = 0; rdb < brg.rdb; rdb++) {
+            rdi.blocks.clear();
+            rdi.blocks.emplace_back(iteration_block_t(rdi_pos, brg.rd_block));
+            rdi.idx = tloop.rdis.size();
+            tloop.rdis.push_back(rdi);
+            rdi_pos++;
+        }
+        if (brg.rdb_tail > 0) {
+            rdi.blocks.clear();
+            rdi.blocks.emplace_back(
+                    iteration_block_t(rdi_pos, brg.rdb_tail, true));
+            rdi.idx = tloop.rdis.size();
+            tloop.rdis.push_back(rdi);
+        }
 
-    bs_iteration_t bsi;
-    for (int bs = 0; bs < brg.brgattr.max_bs; bs++) {
-        bsi.pos = bs;
-        bsi.is_first = (bs == 0);
-        bsi.is_last = (bs == brg.brgattr.max_bs - 1);
-        bsi.idx = imap_.bsis.size();
-        imap_.bsis.push_back(bsi);
+        bs_iteration_t bsi;
+        for (int bs = 0; bs < brg.brgattr.max_bs; bs++) {
+            bsi.pos = bs;
+            bsi.is_first = (bs == 0);
+            bsi.is_last = (bs == brg.brgattr.max_bs - 1);
+            bsi.idx = tloop.bsis.size();
+            tloop.bsis.push_back(bsi);
+        }
     }
 }
 
@@ -2022,18 +2051,18 @@ void jit_brgemm_amx_uker_base_t::init(brgemm_iteration_t &bi) {
     } else if (brg.ldb2 == 1) {
         if (brg.ldb2_tail == 0 && brg.ldb_tail == 0) {
             prepare_post_ops_registers_once_ = true;
-            bi.ldi = &(imap_.ldis[0]);
+            bi.ldi = &(imap_[true].ldis[0]);
             prepare_post_ops_registers(bi);
         }
     } else if (brg.ldb2_tail > 0) {
         if (brg.ldb_tail == 0) {
             prepare_post_ops_registers_once_ = true;
-            bi.ldi = &(imap_.ldis[0]);
+            bi.ldi = &(imap_[true].ldis[0]);
             prepare_post_ops_registers(bi);
         }
     } else {
         prepare_post_ops_registers_once_ = true;
-        bi.ldi = &(imap_.ldis[0]);
+        bi.ldi = &(imap_[true].ldis[0]);
         prepare_post_ops_registers(bi);
     }
     if (bi.apply_postops)
