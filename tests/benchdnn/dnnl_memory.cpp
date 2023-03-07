@@ -144,7 +144,9 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     }
     auto r_pd = make_benchdnn_dnnl_wrapper(r_pd_);
     const auto &scratchpad_md = query_md(r_pd, DNNL_ARG_SCRATCHPAD);
-    dnn_mem_t scratchpad(scratchpad_md, src.engine());
+    const auto &scratchpad_engine
+            = dst.engine_kind() == dnnl_gpu ? dst.engine() : src.engine();
+    dnn_mem_t scratchpad(scratchpad_md, scratchpad_engine);
 
     DNN_SAFE(dnnl_primitive_create(&prim_, r_pd), CRIT);
     auto prim = make_benchdnn_dnnl_wrapper(prim_);

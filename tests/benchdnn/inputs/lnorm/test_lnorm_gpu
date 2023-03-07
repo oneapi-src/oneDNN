@@ -1,6 +1,6 @@
 --reset
 
---dt=f32,bf16
+--dt=f32,bf16,f64
 --dir=FWD_D,BWD_D
 --inplace=true,false
 --flags=
@@ -20,7 +20,7 @@
 # blocked cases
 --reset
 
---dt=f32,bf16
+--dt=f32,bf16,f64
 --dir=FWD_D,BWD_DW
 --inplace=true
 --flags=,GCH,CH,C,H

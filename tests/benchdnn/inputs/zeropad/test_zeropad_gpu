@@ -1,7 +1,7 @@
 
 ###################################
 #  test block optimized zero pad  #
---dt=s8,f16,f32
+--dt=s8,f16,f32,f64
 
 ####
 # 2d

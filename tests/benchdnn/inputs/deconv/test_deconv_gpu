@@ -5,7 +5,14 @@
 --attr-post-ops=sum:0.5+add:f32+add:u8:per_dim_01+linear:0.5:1.5:2.0+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_dim_01+relu:0.5
 --batch=set_all
 
+# fp64
+--cfg=f64
+--attr-post-ops=
+--batch=set_all
+
+
 #run backward without post ops
+--cfg=f32,f64
 --dir=BWD_D,BWD_WB
 --attr-post-ops=
 --batch=set_all

@@ -125,9 +125,11 @@ api_mode_t str2api_mode(const char *str);
 extern api_mode_t api_mode;
 
 /* perf */
-extern double max_ms_per_prb; /** maximum time spends per prb in ms */
-extern int min_times_per_prb; /** minimal amount of runs per prb */
-extern int fix_times_per_prb; /** if non-zero run prb that many times */
+extern double max_ms_per_prb; // max time spend per prb in ms
+extern double default_max_ms_per_prb; // default max time spend per prb in ms
+extern int min_times_per_prb; // min number of runs per prb
+extern int fix_times_per_prb; // if non-zero run prb that many times
+extern int default_fix_times_per_prb; // 0, rely on time criterion
 extern int ctimes_per_prb; /** amount of ctime measurements per prb */
 
 extern bool fast_ref_gpu;
@@ -211,6 +213,7 @@ int batch(const char *fname, bench_f bench);
 int flip_coin(ptrdiff_t seed, float probability);
 
 int64_t div_up(const int64_t a, const int64_t b);
+int64_t rnd_up(const int64_t a, const int64_t b);
 int64_t next_pow2(int64_t a);
 int mxcsr_cvt(float f);
 

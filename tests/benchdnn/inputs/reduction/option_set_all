@@ -63,3 +63,11 @@
                             3x15x5x1:1x15x5x1
 
 --stag=abc --dtag=bac       4x6x7:4x6x1
+
+# some shapes from PReLu tests
+--stag=ABx16a16b --dtag=aBx8b 2x7x5x3x2:1x7x1x3x1
+                              3x7x3x2:1x7x1x1
+                              2x32x3x2:1x32x1x1
+                              16x128x7x7x7:1x1x1x1x1
+                              32x5x2x3:1x5x1x1
+                              32x128x53x53:1x1x1x1

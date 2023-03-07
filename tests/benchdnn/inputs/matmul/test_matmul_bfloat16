@@ -1,7 +1,7 @@
 # bf16
 --reset
 
---cfg=bf16bf16f32,bf16bf16bf16
+--dt=bf16:bf16:f32,bf16
 --stag=ab,ba --wtag=ab,ba --dtag=ab
 --runtime_dims_masks=0,2:1,1:0,3:1
 --bia_dt=undef,f32 --bia_mask=2
@@ -28,13 +28,13 @@
 
 # test any
 --reset
---cfg=bf16bf16f32,bf16bf16bf16
+--dt=bf16:bf16:f32,bf16
 --stag=ab,ba,any --wtag=ab,ba,any --dtag=ab,any
 --batch=shapes_2d
 
 # 3d
 --reset
---cfg=bf16bf16f32,bf16bf16bf16
+--dt=bf16:bf16:f32,bf16
 --stag=abc,acb --wtag=abc,acb --dtag=abc
 --bia_dt=undef,f32 --bia_mask=4,6
 
@@ -51,7 +51,7 @@
 --reset
 --skip-impl=ref
 
---cfg=bf16bf16f32,bf16bf16bf16
+--dt=bf16:bf16:f32,bf16
 --stag=ab,ba --wtag=ab,ba --dtag=ab
 --runtime_dims_masks=0,2:1,0:2,2:3
 --bia_dt=undef,f32
@@ -65,7 +65,7 @@
 --reset
 --skip-impl=ref
 --allow-enum-tags-only=0
---cfg=bf16bf16bf16
+--dt=bf16
 --stag=acbde,bacde,cabde,abced,abdce
 --dtag=acbde,bacde,cabde,abced,abdce
 --wtag=abcde,acbde
@@ -74,14 +74,14 @@
 # batch size smaller than num_threads
 --reset
 --stag=abc --wtag=abc --dtag=abc
---cfg=bf16bf16bf16 --bia_dt=f32 --bia_mask=4
+--dt=bf16 --bia_dt=f32 --bia_mask=4
 2x20x30:2x30x4
 2x20x30:1x30x4
 
 # num_threads smaller than nthr_k
 --reset
 --stag=ab,ba --wtag=ab,ba --dtag=ab
---cfg=bf16bf16bf16
+--dt=bf16
 --attr-post-ops=,sum:2+relu+mul:f32:per_oc
 8x2664:2664x256:8x256
 3x4128:4128x128:3x128

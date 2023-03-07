@@ -28,4 +28,4 @@ g8ic8oc32_id5od3kd3sd1dd4pd4_n"big_padding_and_dilation_w.r.t._kernel_size-2"
 mb5_g5ic10oc20_id15od7kd2sd3pd5_n"big_padding_w.r.t._kernel_size"
 
 # shapes with large spatial using blocked-os
-mb1_ic64oc64_ih1000kh3sh1dh127ph128
+mb1_g1ic64oc64_ih1000kh3sh1dh127ph128

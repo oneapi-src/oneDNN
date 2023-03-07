@@ -98,6 +98,7 @@ g2ic2ih1iw2oc4oh1ow2kh1kw1ph0pw0
 --reset
 --skip-impl=ref
 --stag=axb
+--wtag=xba
 --cfg=u8s8s8,f16
 --dir=FWD_B --mb=2,32 --batch=set_gpu
 

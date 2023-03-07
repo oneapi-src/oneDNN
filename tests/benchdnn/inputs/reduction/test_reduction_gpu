@@ -13,10 +13,9 @@
 --p=1 --eps=0
 --alg=sum
 
---stag=aBx16b --dtag=aBx16b --batch=shapes_gpu_all
---stag=aBx32b --dtag=aBx32b --batch=shapes_gpu_all
---stag=ABx16a16b --dtag=ABx16a16b --batch=shapes_gpu_all
---stag=ABx32a32b --dtag=ABx32a32b --batch=shapes_gpu_all
+--stag=aBx16b,aBx32b,ABx16a16b,ABx32a32b
+--dtag=aBx16b,aBx32b,ABx16a16b,ABx32a32b
+--batch=shapes_gpu_all
 
 # test algorithms with different datatypes
 --stag=aBx16b

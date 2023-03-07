@@ -86,3 +86,24 @@
 32x136x192x192:32x240x192x192
 --stag=aBcd32b:aBcd32b --dtag=aBcd32b
 1x136x192x192:1x240x192x192
+
+# validate scales gen9
+--reset
+--sdt=s32,s8,u8,bf16,f16
+--ddt=s32,s8,u8,bf16,f16
+--attr-scales=msrc0:common:3*+msrc1:common:2*+msrc2:common:6*
+--stag=ab:ab:ab
+--dtag=aB2b
+--allow-enum-tags-only=false
+2x2:2x2:2x2
+100x100:100x100:100x100
+
+--reset
+--attr-scales=msrc0:common:3*+msrc1:common:2*+msrc2:common:6*+msrc3:common:5*
+--stag=ab:ab:ab:ab
+100x100:100x100:100x100:100x100
+
+--reset
+--attr-scales=msrc0:common:3*+msrc1:common:2*+msrc2:common:6*+msrc3:common:5*+msrc4:common:13*
+--stag=ab:ab:ab:ab:ab
+100x100:100x100:100x100:100x100:100x100
