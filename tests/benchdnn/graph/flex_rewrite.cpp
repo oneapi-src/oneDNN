@@ -802,10 +802,11 @@ void flex_rewrite::quantized_graph_rewrite(deserialized_graph &dgraph) {
         const dnnl_dims_t scales_dims {scales_zp_dim};
         const auto scales_md
                 = dnn_mem_t::init_md(1, scales_dims, dnnl_f32, tag::abx);
-        dnn_mem_t scales_dt(
-                scales_md, get_test_engine().get(), {false, scales.data()});
         dnn_mem_t scales_fp(scales_md, get_test_engine().get());
-        fill_scales(e, scales_dt, scales_fp);
+        dnn_mem_t dummy;
+        fill_scales(e, dummy, scales_fp);
+        for (int i = 0; i < scales_fp.nelems(); i++)
+            scales[i] = scales_fp.get_elem(i);
 
         std::vector<int64_t> zps;
         for (int64_t i = 0; i < scales_zp_dim; i++) {
