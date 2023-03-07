@@ -138,6 +138,12 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             if (!ok) return status::unimplemented;
 
+            bool has_systolic
+                    = compute_engine->mayiuse(compute::device_ext_t::
+                                      intel_subgroup_matrix_multiply_accumulate)
+                    || compute_engine->mayiuse(compute::device_ext_t::
+                                    intel_subgroup_split_matrix_multiply_accumulate);
+
             // size checks for fused reduction kernels
             if (with_sum_ab()) {
                 auto mnk = d->m() * d->n() * d->k();
@@ -155,8 +161,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             auto acc_type = utils::one_of(eff_a_type(), s8, u8) ? s32 : f32;
 
-            if (d->c_type() == f16 && arch_ < compute::gpu_arch_t::xe_hpg)
-                acc_type = data_type::f16;
+            if (d->c_type() == f16 && !has_systolic) acc_type = data_type::f16;
 
             if (types::data_type_size(acc_type) < 4) {
                 // Limited post-op support for low-precision accumulation.
@@ -174,8 +179,8 @@ struct gen_gemm_t : public gpu_gemm_t {
                         mode | kernel_desc_t::mode_bf16x1);
 
             status = kernel_desc_.select_kernel(arch_, stepping,
-                    dev_info_->eu_count(), mode, batch_dims(), eff_transa(),
-                    eff_transb(), eff_trans_bias(), swap_ab(),
+                    dev_info_->eu_count(), has_systolic, mode, batch_dims(),
+                    eff_transa(), eff_transb(), eff_trans_bias(), swap_ab(),
                     with_a_zero_points(), with_b_zero_points(),
                     with_c_zero_points(), with_bias(), sum_ab(), alpha(),
                     beta(), post_ops_, eff_a_type(), eff_b_type(),

@@ -87,6 +87,7 @@ status_t gen_gemm_kernel_desc_t::finalize() {
         }
     }
 
+    strategy_.systolicAvailable &= !disable_systolic_;
     strategy_.preflight(hw_, problem_);
 
     update_driver_info();
@@ -179,13 +180,14 @@ status_t gen_gemm_kernel_desc_t::transfer_post_ops(
 }
 
 status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
-        int stepping, int eu_count, compute_mode mode, int batch_dims,
-        bool trans_a, bool trans_b, bool trans_co, bool swap_ab, bool a_offset,
-        bool b_offset, bool c_offset, bool bias, sum_ab_t reduce_ab,
-        float alpha, float beta, const post_ops_t &post_ops, data_type_t a_type,
-        data_type_t b_type, data_type_t c_type, data_type_t co_type,
-        data_type_t acc_type, int align_a, int align_b, int align_c, dim_t m,
-        dim_t n, dim_t k, dim_t lda, dim_t ldb, dim_t ldc, dim_t batch) {
+        int stepping, int eu_count, bool has_systolic, compute_mode mode,
+        int batch_dims, bool trans_a, bool trans_b, bool trans_co, bool swap_ab,
+        bool a_offset, bool b_offset, bool c_offset, bool bias,
+        sum_ab_t reduce_ab, float alpha, float beta, const post_ops_t &post_ops,
+        data_type_t a_type, data_type_t b_type, data_type_t c_type,
+        data_type_t co_type, data_type_t acc_type, int align_a, int align_b,
+        int align_c, dim_t m, dim_t n, dim_t k, dim_t lda, dim_t ldb, dim_t ldc,
+        dim_t batch) {
     using namespace ngen;
     using namespace kcatalog;
 
@@ -198,6 +200,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     eu_count_ = eu_count;
     a_offset_ = a_offset;
     b_offset_ = b_offset;
+    disable_systolic_ = !has_systolic;
 
     align_a = nstl::max(align_a, int(types::data_type_size(a_type)));
     align_b = nstl::max(align_b, int(types::data_type_size(b_type)));
@@ -262,6 +265,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     if (lda * problem_.Ta >= 64) *tags++ = kcatalog::ReqBlock2DA;
     if (ldb * problem_.Tb >= 64) *tags++ = kcatalog::ReqBlock2DB;
     if (ldc * problem_.Tc >= 64) *tags++ = kcatalog::ReqBlock2DC;
+    if (has_systolic) *tags++ = kcatalog::ReqSystolic;
 
     if ((mode & mode_tf32)
             && utils::everyone_is(Type::f32, problem_.Ta, problem_.Tb)) {
@@ -395,8 +399,12 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     match_params.unroll[LoopM] = unroll_m;
     match_params.unroll[LoopN] = unroll_n;
 
-    const char alt_tag[2] = {kcatalog::ReqCustom1, '\0'};
-    if (alt) match_params.lateTags = match_params.tags = &alt_tag[0];
+    auto tags = const_cast<char *>(match_params.tags);
+    while (*tags)
+        tags++;
+
+    *tags++ = kcatalog::ReqSystolic;
+    if (alt) *tags++ = kcatalog::ReqCustom1;
 
     EvaluateParams eval_params;
 
