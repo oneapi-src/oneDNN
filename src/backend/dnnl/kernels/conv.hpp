@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -313,6 +313,7 @@ public:
             // fuse neighboring mul_scales and zdd_zps op to quantize/dequantize
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_mul_scales_add_zps);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_sub_zps_mul_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, convert_dynamic_quantize_ops);
         }
         BACKEND_DNNL_ADD_PASS(pipeline, insert_permute_for_conv_or_deconv);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_to_group_for_conv_or_deconv);

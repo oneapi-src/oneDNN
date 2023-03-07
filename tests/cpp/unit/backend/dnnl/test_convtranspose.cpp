@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1816,8 +1816,7 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
         int64_t zp_other = other_qtype == "symmetric"
                         || engine.kind() == impl::engine_kind::gpu
                 ? 0
-                : (std::abs(scale_other - 1.f) <= 0.000001f && zp != 0 ? 0
-                                                                       : zp);
+                : zp;
         // The following cmd will be skiped by benchdnn, since oneDNN didn't
         // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
         // --engine=gpu --mode=C --sdt=f32 --ddt=s8
