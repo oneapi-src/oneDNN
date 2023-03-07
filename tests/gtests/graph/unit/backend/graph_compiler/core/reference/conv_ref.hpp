@@ -351,6 +351,38 @@ T NHWC2NCHW(T &input, int N, int H, int W, int C) {
 }
 
 template <typename T>
+T NHWC2NCHWcn(T &input, int N, int C, int H, int W, int c, int n,
+        int origin_n = 0, int origin_c = 0) {
+    size_t dim1 = n, dim2 = c * dim1, dim3 = W * dim2, dim4 = H * dim3,
+           dim5 = C * dim4;
+    if (!origin_n) { origin_n = N * n; }
+    if (!origin_c) { origin_c = C * c; }
+    T output(N * dim5);
+    sc::utils::parallel_for(0, N * C * H, 1, [&](int64_t fuse) {
+        auto out_n = fuse / (C * H), out_c = fuse / H % C, h = fuse % H;
+        for (auto w = 0; w < W; ++w) {
+            for (auto in_c = 0; in_c < c; in_c++) {
+                for (auto in_n = 0; in_n < n; in_n++) {
+                    if (out_n * n + in_n < origin_n
+                            && out_c * c + in_c < origin_c) {
+                        output[out_n * dim5 + out_c * dim4 + h * dim3 + w * dim2
+                                + in_c * dim1 + in_n]
+                                = input[(out_n * n + in_n) * origin_c * H * W
+                                        + h * W * origin_c + w * origin_c
+                                        + out_c * c + in_c];
+                    } else {
+                        output[out_n * dim5 + out_c * dim4 + h * dim3 + w * dim2
+                                + in_c * dim1 + in_n]
+                                = 0;
+                    }
+                }
+            }
+        }
+    });
+    return output;
+}
+
+template <typename T>
 T any2NCHW(sc::sc_data_format_t input_format, T &input, int N, int C, int H,
         int W, int c) {
     if (input_format == sc::sc_data_format_t::NCHWc(c)) {

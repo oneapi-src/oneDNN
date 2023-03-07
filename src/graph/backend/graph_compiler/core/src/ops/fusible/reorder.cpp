@@ -1721,22 +1721,22 @@ static bool can_be_fast_transpose(const context_ptr &ctx,
         int trans_lanes1
                 = dtype == datatypes::bf16 ? trans_lanes_bf16 : trans_lanes;
         int trans_lanes2 = trans_lanes;
-        return plain_dims[inp_b_idx] % trans_lanes1 == 0
-                && plain_dims[out_a_idx] % trans_lanes2 == 0
+        return plain_dims[inp_b_idx] % trans_lanes2 == 0
+                && plain_dims[out_a_idx] % trans_lanes1 == 0
                 && get_expr_as_int(
                            src.shape_[inp_a_axis[inp_a_axis.size() - 1]])
-                        % trans_lanes2
+                        % trans_lanes1
                 == 0
                 && get_expr_as_int(
                            dst.shape_[out_b_axis[out_b_axis.size() - 1]])
-                        % trans_lanes1
+                        % trans_lanes2
                 == 0
                 && get_expr_as_int(src.shape_[input_blocking_shapes.size() - 1])
-                        % trans_lanes1
+                        % trans_lanes2
                 == 0
                 && get_expr_as_int(
                            dst.shape_[output_blocking_shapes.size() - 1])
-                        % trans_lanes2
+                        % trans_lanes1
                 == 0;
     };
     // currently does not support tensor slice with padding.
@@ -1840,8 +1840,8 @@ static void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
     if ((!is_dynamic
                 && (input_blocking_dims[inp_a_axis.back()] % inp_a_step
                         || input_blocking_dims[inp_b_axis.back()] % inp_b_step
-                        || output_blocking_dims[out_a_axis.back()] % inp_b_step
-                        || output_blocking_dims[out_b_axis.back()] % inp_a_step
+                        || output_blocking_dims[out_a_axis.back()] % inp_a_step
+                        || output_blocking_dims[out_b_axis.back()] % inp_b_step
                         || math_utils::get_dims_product(input_blocking_dims)
                                 != math_utils::get_dims_product(
                                         output_blocking_dims)))
