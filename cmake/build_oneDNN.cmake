@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2022 Intel Corporation
+# Copyright 2020-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ if(build_onednn_cmake_included)
 endif()
 set(build_onednn_cmake_included true)
 
+set(ONEDNN_BUILD_GRAPH OFF CACHE INTERNAL "" FORCE)
 set(DNNL_GPU_RUNTIME ${DNNL_GRAPH_GPU_RUNTIME} CACHE INTERNAL "" FORCE)
 set(DNNL_CPU_RUNTIME ${DNNL_GRAPH_CPU_RUNTIME} CACHE INTERNAL "" FORCE)
 set(DNNL_BUILD_TESTS OFF CACHE INTERNAL "" FORCE)
