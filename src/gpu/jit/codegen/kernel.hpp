@@ -503,7 +503,16 @@ public:
     void ediv(const ngen::InstructionModifier &mod, const ngen_operand_t &dst,
             const ngen_operand_t &src0, const ngen_operand_t &src1) {
         if (!src1.is_immediate()) {
-            efdiv(mod, dst, src0, src1);
+            // Immediate src0 is not supported with fdiv_ieee.
+            if (src0.is_immediate() && hw >= ngen::HW::XeHPC) {
+                auto tmp_src0 = ra_.alloc_sub(src0.type());
+                mov(1, tmp_src0, src0.immediate());
+                efdiv(mod, dst, ngen_operand_t(reg_buf_data_t(hw, tmp_src0)),
+                        src1);
+                ra_.safeRelease(tmp_src0);
+            } else {
+                efdiv(mod, dst, src0, src1);
+            }
         } else {
             auto &src1_imm = src1.immediate();
             int32_t src1_value = to_cpp<int32_t>(src1_imm);
