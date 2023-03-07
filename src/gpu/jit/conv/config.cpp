@@ -800,9 +800,14 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
     }
 
     // Allow internal reorder for plain weights.
-    for (auto *t : {"abx", "axb", "xba"}) {
-        if (matches_tag(wei_md, t)) {
-            user_wei_tag = t;
+    std::vector<const char *> plain_non_group_wei_tags = {"abx", "axb", "xba"};
+    std::vector<const char *> plain_group_wei_tags = {"abcx", "abxc", "axcb"};
+    auto &plain_wei_tags = (prb.with_groups ? plain_group_wei_tags
+                                            : plain_non_group_wei_tags);
+    ir_assert(plain_non_group_wei_tags.size() == plain_group_wei_tags.size());
+    for (size_t i = 0; i < plain_wei_tags.size(); i++) {
+        if (matches_tag(wei_md, plain_wei_tags[i])) {
+            user_wei_tag = plain_non_group_wei_tags[i];
             break;
         }
     }
