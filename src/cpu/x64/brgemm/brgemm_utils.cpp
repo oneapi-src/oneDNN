@@ -184,7 +184,6 @@ status_t brgemm_blocking(brgemm_t *brg) {
         brg->ld_block = simd_w;
         brg->ldb = brg->load_dim / brg->ld_block;
         brg->ldb_tail = brg->load_dim % brg->ld_block;
-        const auto adj_ld_block2 = calculate_ldb_params(brg, 4);
 
         const int max_bcst_regs = 1;
         const bool req_compensation = brg->req_s8s8_compensation
@@ -205,6 +204,8 @@ status_t brgemm_blocking(brgemm_t *brg) {
         if (req_zp_a_comp_pads)
             max_reg_count = nstl::min(
                     max_reg_count, max_isa_regs - max_bcst_regs - 5);
+
+        const auto adj_ld_block2 = calculate_ldb_params(brg, 4);
         max_reg_count -= adj_ld_block2;
 
         if (brg->is_bf16_emu) {
