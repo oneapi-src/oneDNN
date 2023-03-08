@@ -40,10 +40,11 @@ namespace gpu {
 namespace ocl {
 
 struct profile_event_t {
-    profile_event_t(cl_event event, const ocl_stream_t *stream, uint64_t stamp)
+    profile_event_t(ocl_wrapper_t<cl_event> &event, const ocl_stream_t *stream,
+            uint64_t stamp)
         : event(event), stream(stream), stamp(stamp) {}
 
-    cl_event event;
+    ocl_wrapper_t<cl_event> event;
     const ocl_stream_t *stream;
     uint64_t stamp;
 };
@@ -55,7 +56,8 @@ void notify_before_exec() {
     stamp++;
 }
 
-void register_profile_event(cl_event event, const ocl_stream_t *ocl_stream) {
+void register_profile_event(
+        ocl_wrapper_t<cl_event> &event, const ocl_stream_t *ocl_stream) {
     static std::mutex mutex;
     std::lock_guard<std::mutex> lock(mutex);
     events.emplace_back(event, ocl_stream, stamp);
@@ -73,10 +75,10 @@ status_t get_profile_info(int *num_entries, uint64_t *nsecs, uint64_t *cycles) {
     std::unordered_map<uint64_t, profile_entry_t> stamp2entry;
     for (auto &ev : events) {
         cl_ulong beg, end;
-        OCL_CHECK(clGetEventProfilingInfo(ev.event, CL_PROFILING_COMMAND_START,
-                sizeof(beg), &beg, nullptr));
-        OCL_CHECK(clGetEventProfilingInfo(ev.event, CL_PROFILING_COMMAND_END,
-                sizeof(end), &end, nullptr));
+        OCL_CHECK(clGetEventProfilingInfo(ev.event.get(),
+                CL_PROFILING_COMMAND_START, sizeof(beg), &beg, nullptr));
+        OCL_CHECK(clGetEventProfilingInfo(ev.event.get(),
+                CL_PROFILING_COMMAND_END, sizeof(end), &end, nullptr));
         auto &entry = stamp2entry[ev.stamp];
         entry.nsec += (end - beg);
         entry.freq += ev.stream->mdapi_helper().get_freq(ev.event);
@@ -86,8 +88,6 @@ status_t get_profile_info(int *num_entries, uint64_t *nsecs, uint64_t *cycles) {
 }
 
 status_t reset_profiling() {
-    for (auto &ev : events)
-        clReleaseEvent(ev.event);
     events.clear();
     return status::success;
 }

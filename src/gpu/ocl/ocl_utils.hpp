@@ -222,6 +222,8 @@ struct ocl_wrapper_t {
 
     operator T() const { return t_; }
     T get() const { return t_; }
+    T &unwrap() { return t_; }
+    const T &unwrap() const { return t_; }
 
     T release() {
         T t = t_;

@@ -137,10 +137,10 @@ status_t ocl_stream_t::copy(const memory_storage_t &src,
     cl_uint num_events = (cl_uint)events.size();
     const cl_event *events_ptr = events.data();
 
-    cl_event out_event;
+    ocl_wrapper_t<cl_event> out_event;
     bool need_out_event
             = is_profiling_enabled() || flags() & stream_flags::out_of_order;
-    cl_event *out_event_ptr = need_out_event ? &out_event : nullptr;
+    cl_event *out_event_ptr = need_out_event ? &out_event.unwrap() : nullptr;
 
     if (dst.engine()->kind() == engine_kind::gpu
             && src.engine() == dst.engine()) {
@@ -275,10 +275,10 @@ status_t ocl_stream_t::fill(const memory_storage_t &dst, uint8_t pattern,
     cl_uint num_events = (cl_uint)events.size();
     const cl_event *events_ptr = events.data();
 
-    cl_event out_event;
+    ocl_wrapper_t<cl_event> out_event;
     bool need_out_event
             = is_profiling_enabled() || flags() & stream_flags::out_of_order;
-    cl_event *out_event_ptr = need_out_event ? &out_event : nullptr;
+    cl_event *out_event_ptr = need_out_event ? &out_event.unwrap() : nullptr;
 
     if (ocl_dst->memory_kind() == memory_kind::usm) {
         const auto *ocl_usm_dst

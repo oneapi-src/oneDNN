@@ -205,7 +205,7 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
     cl_uint ndims = static_cast<cl_uint>(range.ndims());
     if (range.is_zero()) { return status::success; }
 
-    cl_event event;
+    ocl_wrapper_t<cl_event> event;
     if (ocl_stream->flags() & stream_flags::out_of_order) {
         const auto &event_wrappers = ocl_event_t::from(deps).events;
         std::vector<cl_event> events(
@@ -215,14 +215,13 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
         const cl_event *events_data = num_events ? events.data() : nullptr;
         cl_int err = clEnqueueNDRangeKernel(queue, *kernel, ndims, nullptr,
                 range.global_range(), range.local_range(), num_events,
-                events_data, &event);
+                events_data, &event.unwrap());
         OCL_CHECK(err);
-        ocl_event_t::from(out_dep).events
-                = {ocl_wrapper_t<cl_event>(event, true)};
+        ocl_event_t::from(out_dep).events = {event};
     } else {
         cl_int err = clEnqueueNDRangeKernel(queue, *kernel, ndims, nullptr,
                 range.global_range(), range.local_range(), 0, nullptr,
-                is_profiling_enabled() ? &event : nullptr);
+                is_profiling_enabled() ? &event.unwrap() : nullptr);
         OCL_CHECK(err);
     }
 
