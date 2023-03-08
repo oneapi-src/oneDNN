@@ -133,6 +133,11 @@ public:
             if (!mayiuse_sub_group(size)) return false;
         return true;
     }
+    bool mayiuse_block_reads_writes_with_sub_group(int size) const {
+        return size <= 16
+                ? true
+                : device_info_->gpu_arch() >= compute::gpu_arch_t::xe_hpc;
+    }
     bool mayiuse_large_grf_mode() const {
         // XXX: XeHPG 128EU A0 causes hangs with large GRF mode.
         if (is_xe_hpg() && device_info()->eu_count() == 128
