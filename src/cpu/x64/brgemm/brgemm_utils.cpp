@@ -197,7 +197,7 @@ status_t brgemm_blocking(brgemm_t *brg) {
                 && brg->zp_type_a != brgemm_broadcast_t::none;
         const auto max_regs = max_isa_regs - (adj_ld_block2 + max_bcst_regs);
         auto max_block
-                = (brg->embd_bcst ? max_regs - 4
+                = (brg->embd_bcst ? max_isa_regs - 4
                                   : ((brg->beta == 1.f || brg->beta == 0.f)
                                                   ? max_regs
                                                   : max_regs - 1));
