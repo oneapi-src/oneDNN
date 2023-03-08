@@ -29,6 +29,8 @@ namespace gc {
 namespace runtime {
 union dispatch_key;
 }
+class tunable_op_t;
+struct context_t;
 class sc_op;
 // the common base class of op_dispatch_key_t and combind_op_dispatch_key_t.
 struct op_dispatch_key_base_t {
@@ -144,6 +146,8 @@ struct combined_dispatch_key_set_t : public dispatch_key_set_base_t {
 };
 
 std::vector<int> get_default_impl_dispatch_candidates();
+std::vector<int> get_dynamic_impl_dispatch_candidates(
+        tunable_op_t *op, const std::shared_ptr<context_t> &ctx);
 } // namespace gc
 } // namespace graph
 } // namespace impl

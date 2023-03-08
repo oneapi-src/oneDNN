@@ -22,6 +22,7 @@
 #include <compiler/config/context.hpp>
 #include <compiler/ir/graph/tensor_detail.hpp>
 #include <compiler/ir/sc_stmt.hpp>
+#include <unordered_map>
 #include <util/general_object.hpp>
 namespace dnnl {
 namespace impl {
@@ -95,6 +96,18 @@ struct body_generator_base_t {
      * the returned object to get the pointer, which can be used in `generate`
      * */
     virtual config_ptr get_default_config(context_ptr ctx) const = 0;
+
+    using config_ptr_vec = std::vector<config_ptr>;
+    using impl_kind_map = std::unordered_map<std::vector<int64_t>, int>;
+    virtual config_ptr_vec get_dynamic_config_candidates(
+            const context_ptr &ctx) const {
+        return config_ptr_vec();
+    }
+
+    virtual std::vector<uint64_t> convert_config_to_keys(
+            const config_ptr &config) const {
+        throw std::runtime_error("Unimplement");
+    }
 
     virtual void schedule_loops(context_ptr ctx, const void *config, stmt body,
             std::vector<for_loop> &fors) const = 0;

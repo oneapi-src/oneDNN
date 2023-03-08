@@ -951,6 +951,7 @@ void create_query_function_by_graph(general_fused_params_t &gp,
                     op_outs[0].size_, dummy_kernel,
                     builder::tensor_ptr(combined_algs, {cur_combined_op_idx})));
             initialize_format_table_with_op(op, table_ptr);
+            initialize_impl_kind_table_with_op(gp.modu->ctx_, op, table_ptr);
             // set combined tensor
             bld.push_assign(builder::make_indexing(
                                     combined_keys, {cur_combined_key_idx++}),
@@ -1147,6 +1148,7 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
                     in_fmt1, ori_in_fmt0, ori_in_fmt1, out_size, dummy_kernel,
                     builder::tensor_ptr(combined_algs, {cur_combined_op_idx})));
             initialize_format_table_with_op(op, table_ptr);
+            initialize_impl_kind_table_with_op(gp.modu->ctx_, op, table_ptr);
             // set combined tensor
             bld.push_assign(builder::make_indexing(
                                     combined_keys, {cur_combined_key_idx++}),

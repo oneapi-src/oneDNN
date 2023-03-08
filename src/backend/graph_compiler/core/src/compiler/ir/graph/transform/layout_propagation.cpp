@@ -240,11 +240,12 @@ static void insert_reorder_for_output_op(reorder_map_t &reorder_map,
     }
 }
 
-static void combine_layout_and_impl_dispatch(sc_graph_t &graph) {
+static void combine_layout_and_impl_dispatch(
+        const context_ptr &ctx, sc_graph_t &graph) {
     auto &ops = graph.ops_;
     for (auto &op : ops) {
         if (!op->is_dynamic()) { continue; }
-        auto impl_candidates = op->get_impl_dispatch_candidates();
+        auto impl_candidates = op->get_impl_dispatch_candidates(ctx);
         if (impl_candidates.empty() || !op->is_dynamic()) { continue; }
         auto &key_set = op->get_dispatch_key_set()->get_inner_set();
         dispatch_key_set_t::inner_set_t new_set(key_set);
@@ -667,7 +668,7 @@ SC_INTERNAL_API void layout_propagation(
             const_op->reset_const_values();
         }
     });
-    if (is_graph_dynamic) { combine_layout_and_impl_dispatch(graph); }
+    if (is_graph_dynamic) { combine_layout_and_impl_dispatch(ctx, graph); }
     graph.reset_op_ids();
 }
 } // namespace gc

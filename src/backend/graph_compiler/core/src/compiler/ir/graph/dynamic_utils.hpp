@@ -36,6 +36,7 @@ struct op_dispatch_key_base_t;
 struct combined_op_dispatch_key_t;
 struct dispatch_key_set_base_t;
 struct sc_data_format_t;
+struct context_t;
 // op tables used in ir_module
 struct op_dispatch_tables_t {
     // format table:
@@ -46,6 +47,8 @@ struct op_dispatch_tables_t {
     std::unordered_map<std::vector<runtime::dispatch_key>,
             std::vector<runtime::dispatch_key>>
             format_table_;
+    // config table: configs of tunable_op => impl kind
+    std::unordered_map<std::vector<uint64_t>, int> impl_kind_table_;
     // kernel table: in/out format keys => function symbol
     std::unordered_map<std::vector<runtime::dispatch_key>, std::string>
             kernel_table_;
@@ -56,6 +59,8 @@ using dispatch_table_map_t
         = std::unordered_map<std::string, op_dispatch_tables_ptr>;
 
 void initialize_format_table_with_op(
+        const std::shared_ptr<sc_op> &op, op_dispatch_tables_ptr &tb);
+void initialize_impl_kind_table_with_op(const std::shared_ptr<context_t> &ctx,
         const std::shared_ptr<sc_op> &op, op_dispatch_tables_ptr &tb);
 void add_dispatch_symbol_to_kernel_table(op_dispatch_tables_ptr &tb,
         const op_dispatch_key_base_t *keys, const std::string &func_name);

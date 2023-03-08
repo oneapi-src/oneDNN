@@ -36,8 +36,23 @@ void op_dispatch_tables_t::set_format_table_keys(uint64_t *keys,
     }
 }
 
+void op_dispatch_tables_t::set_impl_kind_table_keys(
+        uint64_t *keys, uint64_t num_keys, int value) {
+    assert(impl_kind_table_);
+    if (void *v = impl_kind_table_->get(keys, num_keys)) {
+        memcpy(v, &value, sizeof(int));
+    } else {
+        impl_kind_values_.emplace_back(new int);
+        *impl_kind_values_.back() = value;
+        impl_kind_table_->set(keys, num_keys, impl_kind_values_.back());
+    }
+}
+
 op_dispatch_tables_t::~op_dispatch_tables_t() {
     kernel_dispatch_func_ = nullptr;
+    for (auto &addr : impl_kind_values_) {
+        delete addr;
+    }
 }
 } // namespace runtime
 } // namespace gc

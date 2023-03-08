@@ -498,7 +498,8 @@ void matmul_core_op_t::set_config_by_key(const op_dispatch_key_t &key) {
     tcfg.K_block = std::min(key.var_block_[0][1], key.var_block_[1][0]);
 }
 
-std::vector<int> matmul_core_op_t::get_impl_dispatch_candidates() const {
+std::vector<int> matmul_core_op_t::get_impl_dispatch_candidates(
+        const context_ptr &ctx) {
     return {};
 }
 
