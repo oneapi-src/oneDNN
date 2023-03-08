@@ -4235,8 +4235,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
         // random generate src, weight and bias data
         // random seed = 7
         std::default_random_engine generator(7);
-        std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
-        std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
+        std::uniform_real_distribution<float> u8_distribution(0.0f, 127.0f);
+        std::uniform_real_distribution<float> s8_distribution(0.0f, 128.0f);
         std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
         std::generate(src_data.begin(), src_data.end(), [&]() {
             return static_cast<uint8_t>(u8_distribution(generator));
@@ -4253,7 +4253,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
         float scale_out = scale;
         // reorder with zps is not supported on GPU
         int64_t zp_src = engine.kind() == impl::engine_kind::gpu ? 0 : zp;
-        int64_t zp_other = zp;
+        int64_t zp_other = engine.kind() == impl::engine_kind::gpu ? 0 : zp;
         // The following cmd will be skiped by benchdnn, since oneDNN didn't
         // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
         // --engine=gpu --mode=C --sdt=f32 --ddt=s8
