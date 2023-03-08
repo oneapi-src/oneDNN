@@ -25,12 +25,14 @@ where *reorder-knobs* are:
  - `--attr-post-ops=STRING` -- post operation primitive attribute. No post
             operations are set by default. Refer to [attributes](knobs_attr.md)
             for details.
- - `--def-scales=FLOAT` -- set of scales used to improve testing coverage.
-            Enabled when `--attr-oscale` value is specified to be `0.f`,
-            otherwise disabled. The default set is `0.125,0.25,0.5,1,2,4,8`.
-            Example: `--def-scales=-3,3` replaces default set from seven entries
-            to two, but to enable it user still require to pass `0.f` in
-            `--attr-oscale`, e.g. `--attr-oscale=per_dim_1:0.`
+- `--def-scales=FLOAT[,FLOAT...]` -- set of scales used to improve testing
+            coverage. Enabled only when combined with `attr-scales` which is
+            given a policy of `common` and a `SCALE` of 0. e.g.:
+            `--attr-scales=src:common:0*`. The default set of scales is
+            `0.125,0.25,0.5,1,2,4,8`.
+            Example: `--def-scales=-3,3` replaces the default set from seven entries
+            to two, but to enable it the user is required to pass
+            `--attr-scales=ARG:common:0*` in addition.
  - `--oflag=FLAG:MASK[+...]` -- memory descriptor extra field specifier. By
             default `FLAG` is empty and `MASK` is `0`. Possible `FLAG` values
             are:
