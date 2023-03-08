@@ -2164,13 +2164,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
     CHECK(attr.set_default_formats(&dst_md));
 
-    const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
-    const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
-    jcp.with_scales = !src_scales.has_default_values()
-            || !wei_scales.has_default_values()
-            || jcp.scale_adjust_factor != 1.0f;
-    jcp.is_oc_scale = wei_scales.mask_ != 0;
-
     jcp.buffer_size = jcp.LDC * jcp.M;
 
     jcp.nb_od = div_up(jcp.od, jcp.od_block);
@@ -2218,6 +2211,13 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                 |= memory_extra_flags::compensation_conv_asymmetric_src;
         weights_md.extra.asymm_compensation_mask = with_groups ? 0x3 : 0x1;
     }
+
+    const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
+    const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
+    jcp.with_scales = !src_scales.has_default_values()
+            || !wei_scales.has_default_values()
+            || jcp.scale_adjust_factor != 1.0f;
+    jcp.is_oc_scale = wei_scales.mask_ != 0;
 
     // disables the shape with small ic but large spatial
     // or specific large spatial shapes for int8 conv
@@ -2404,13 +2404,6 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
 
-    const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
-    const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
-    jcp.with_scales = !src_scales.has_default_values()
-            || !wei_scales.has_default_values()
-            || jcp.scale_adjust_factor != 1.0f;
-    jcp.is_oc_scale = wei_scales.mask_ != 0;
-
     // no inp buffer or brgemm_vpad for 1x1
     constexpr int align_size = platform::get_cache_line_size();
     jcp.exec_type = jcp.is_rtus ? exec_trans : exec_base;
@@ -2441,6 +2434,13 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.req_cal_comp_pad = false;
     jcp.s8s8_comp_buffer_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block;
     jcp.comp_a_buffer_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block;
+
+    const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
+    const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
+    jcp.with_scales = !src_scales.has_default_values()
+            || !wei_scales.has_default_values()
+            || jcp.scale_adjust_factor != 1.0f;
+    jcp.is_oc_scale = wei_scales.mask_ != 0;
 
     return status::success;
 }

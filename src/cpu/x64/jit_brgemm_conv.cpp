@@ -293,6 +293,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
 
     auto LDD = jcp_.oc_without_padding;
     brg.with_sum = with_sum;
+    brg.with_weights_scale_adjust = jcp_.scale_adjust_factor != 1.0f;
     CHECK(brgemm_desc_set_postops(&brg, attr(), &dst_md_, LDD, jcp_.bia_dt));
     jcp_.amx_buf_size_per_thread = nstl::max(
             brg.get_wsp_buffer_size(), jcp_.amx_buf_size_per_thread);
