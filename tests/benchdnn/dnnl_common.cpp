@@ -558,14 +558,6 @@ bool check_md_consistency_with_tag(
     return dnnl_memory_desc_equal(md_new_tag, md);
 }
 
-void skip_start(res_t *res) {
-    if (benchdnn_stat.tests < test_start) {
-        res->state = SKIPPED;
-        res->reason = SKIP_START;
-        return;
-    }
-}
-
 void skip_unimplemented_data_type(
         const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *res) {
     const bool has_f64_support = is_f64_supported();

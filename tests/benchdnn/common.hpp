@@ -182,6 +182,7 @@ const char *bool2str(bool value);
 /* TODO: why two functions??? */
 bool match_regex(const char *str, const char *pattern);
 bool maybe_skip(const std::string &impl_str);
+bool skip_start(res_t *res, int idx = benchdnn_stat.tests);
 
 typedef int (*bench_f)(int argc, char **argv);
 std::string locate_file(const std::string &fname);

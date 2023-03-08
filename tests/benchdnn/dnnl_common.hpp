@@ -347,7 +347,6 @@ inline bool should_stop(const timer::timer_t &t) {
     return stop;
 }
 
-void skip_start(res_t *res);
 void skip_unimplemented_data_type(
         const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *res);
 void skip_unimplemented_sum_po(const attr_t &attr, res_t *res,
@@ -503,8 +502,6 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
         bool is_service_prim = false) {
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> primw;
 
-    skip_start(res);
-    if (res->state == SKIPPED) return OK;
     skip_invalid_prb(prb, res);
     if (res->state == SKIPPED) return OK;
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE

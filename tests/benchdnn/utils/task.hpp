@@ -21,21 +21,25 @@
 #include <string>
 #include <vector>
 
+#include "common.hpp"
+
 template <typename prb_t, typename perf_report_t, typename create_func_t,
         typename check_cache_func_t, typename do_func_t>
 struct task_t {
     task_t(const prb_t &prb, const std::string &perf_template,
             const create_func_t &create_func,
             const check_cache_func_t &check_cache_func,
-            const do_func_t &do_func)
+            const do_func_t &do_func, int idx)
         : prb_(std::move(prb))
         , create_func_(create_func)
         , check_cache_func_(check_cache_func)
         , do_func_(do_func)
-        , perf_template_(perf_template) {}
+        , perf_template_(perf_template)
+        , idx_(idx) {}
 
     int create() {
         BENCHDNN_PRINT(1, "create: %s\n", prb_.str());
+        if (skip_start(&res_, idx_)) return OK;
         if (bench_mode == bench_mode_t::list) return res_.state = LISTED, OK;
 
         v_prim_ = std::make_shared<
@@ -50,6 +54,7 @@ struct task_t {
     // for being in the cache.
     int check_cache() {
         if (!has_bench_mode_bit(mode_bit_t::corr)) return OK;
+        if (res_.state != INITIALIZED) return OK;
 
         return check_cache_func_(*v_prim_, &res_);
     }
@@ -71,6 +76,7 @@ private:
     do_func_t do_func_;
     std::string perf_template_;
     res_t res_ {};
+    int idx_;
     // Use vector to handle any number of primitives needed for a driver.
     // It's a driver responsibility to initialize vector at `create()` stage
     // and it utilizes the knowledge of primitive order inside the vector.

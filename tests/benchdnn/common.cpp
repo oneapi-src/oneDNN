@@ -304,6 +304,15 @@ bool maybe_skip(const std::string &impl_str) {
     return false;
 }
 
+bool skip_start(res_t *res, int idx) {
+    if (idx < test_start) {
+        res->state = SKIPPED;
+        res->reason = SKIP_START;
+        return true;
+    }
+    return false;
+}
+
 #if defined(_WIN32) && !defined(__GNUC__)
 #include <windows.h>
 #define PATH_MAX MAX_PATH

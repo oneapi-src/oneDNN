@@ -29,8 +29,8 @@ struct task_executor_t {
             const create_func_t &create_func,
             const check_cache_func_t &check_cache_func,
             const do_func_t &do_func) {
-        tasks_.emplace_back(
-                prb, perf_template, create_func, check_cache_func, do_func);
+        tasks_.emplace_back(prb, perf_template, create_func, check_cache_func,
+                do_func, idx++);
         if (has_bench_mode_modifier(mode_modifier_t::par_create)
                 && static_cast<int>(tasks_.size()) < dnnl_get_max_threads())
             return;
@@ -57,6 +57,8 @@ struct task_executor_t {
     std::vector<task_t<prb_t, perf_report_t, create_func_t, check_cache_func_t,
             do_func_t>>
             tasks_;
+
+    int idx = 0;
 };
 
 #endif
