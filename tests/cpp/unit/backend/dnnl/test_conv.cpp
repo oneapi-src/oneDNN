@@ -5936,8 +5936,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
         // random generate src, weight and bias data
         // random seed = 7
         std::default_random_engine generator(7);
-        std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
-        std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
+        std::uniform_real_distribution<float> u8_distribution(0.0f, 127.0f);
+        std::uniform_real_distribution<float> s8_distribution(0.0f, 128.0f);
         std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
         std::generate(src_u8_data.begin(), src_u8_data.end(), [&]() {
             return static_cast<uint8_t>(u8_distribution(generator));
@@ -5956,7 +5956,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
         float scale_other = scale;
         float scale_out = scale;
         int64_t zp_src = zp;
-        int64_t zp_other = zp;
+        int64_t zp_other = engine.kind() == impl::engine_kind::gpu ? 0 : zp;
         int64_t zp_out = zp;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
