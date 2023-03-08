@@ -506,7 +506,7 @@ public:
             // Immediate src0 is not supported with fdiv_ieee.
             if (src0.is_immediate() && hw >= ngen::HW::XeHPC) {
                 auto tmp_src0 = ra_.alloc_sub(src0.type());
-                mov(1, tmp_src0, src0.immediate());
+                mov(mod, tmp_src0, src0.immediate());
                 efdiv(mod, dst, ngen_operand_t(reg_buf_data_t(hw, tmp_src0)),
                         src1);
                 ra_.safeRelease(tmp_src0);
@@ -805,7 +805,8 @@ protected:
             int hs = rd.getHS();
             int vs = rd.getVS();
             int grf_size = ngen::GRF::bytes(hw);
-            int regs = utils::div_up(esize * hs * rd.getBytes(), grf_size);
+            int regs = utils::div_up(
+                    std::max(esize * hs, 1) * rd.getBytes(), grf_size);
             tmp_range_ = host_->ra_.alloc_range(regs);
             auto tmp = tmp_range_[0].retype(rd_.getType());
             tmp_ = ngen::RegisterRegion(tmp, vs, w, hs);
@@ -869,8 +870,8 @@ protected:
         int grf_size = ngen::GRF::bytes(hw);
         int a_beg = a.getBase() * grf_size + a.getByteOffset();
         int b_beg = b.getBase() * grf_size + b.getByteOffset();
-        int a_end = a_beg + esize * a.getHS() * a.getBytes() - 1;
-        int b_end = b_beg + esize * b.getHS() * b.getBytes() - 1;
+        int a_end = a_beg + std::max(esize * a.getHS(), 1) * a.getBytes() - 1;
+        int b_end = b_beg + std::max(esize * b.getHS(), 1) * b.getBytes() - 1;
         a_beg /= grf_size;
         b_beg /= grf_size;
         a_end /= grf_size;
