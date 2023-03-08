@@ -501,6 +501,9 @@ int measure_perf(const thr_ctx_t &ctx, res_t *res, perf_function_t &perf_func,
         args_t &args) {
     if (!has_bench_mode_bit(mode_bit_t::perf)) return OK;
 
+    // GPU profiling need enabled before stream constructions, as the command
+    // queue needs profiling enabled.
+    if (is_gpu()) enable_gpu_profiling();
     const auto &engine = get_test_engine();
     stream_t stream(engine, ctx.get_interop_obj());
     std::vector<dnnl_exec_arg_t> dnnl_args;
@@ -519,6 +522,7 @@ int measure_perf(const thr_ctx_t &ctx, res_t *res, perf_function_t &perf_func,
                 ctx, measure_perf_aggregate, t, stream, perf_func, dnnl_args);
     }
 
+    if (is_gpu()) disable_gpu_profiling();
     if (ret != OK) res->state = FAILED;
     execute_map_args(args);
 
@@ -1114,7 +1118,6 @@ static void maybe_print_cpu_engine_error_message() {
 }
 
 engine_t::engine_t(dnnl_engine_kind_t engine_kind) : is_owner_(true) {
-    enable_gpu_profiling();
     size_t idx = engine_kind == dnnl_cpu ? 0 : engine_index;
     dnnl_status_t status = dnnl_engine_create(&engine_, engine_kind, idx);
     if (engine_kind == dnnl_cpu && status != dnnl_success)
