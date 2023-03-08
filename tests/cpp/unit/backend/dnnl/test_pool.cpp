@@ -81,9 +81,9 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
             return static_cast<uint8_t>(s8_distribution(generator));
         });
 
-        const float scale_src = scale * 5;
-        const float scale_out = scale * 10;
-        const float scale_other = 2 / 127.f;
+        const float scale_src = scale;
+        const float scale_out = scale;
+        const float scale_other = scale;
         const int64_t zp_src = (qtype == "symmetric") ? 0 : zp;
         const int64_t zp_out = (qtype == "symmetric") ? 0 : zp;
         const int64_t zp_other = (qtype == "symmetric") ? 0 : zp;
