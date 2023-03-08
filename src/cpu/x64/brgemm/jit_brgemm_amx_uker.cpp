@@ -766,12 +766,20 @@ void jit_brgemm_amx_uker_base_t::read_params() {
 }
 
 void jit_brgemm_amx_uker_base_t::load_accumulators(brgemm_iteration_t &bi) {
-    if (may_load_accumulators_) mov(reg_stride_ld_block, LDC_size_);
+    size_t ils_shift = 0;
+    if (may_load_accumulators_) {
+        mov(reg_stride_ld_block, LDC_size_);
+        const auto need_ils_shift = (actual_ils(bi.apply_postops)
+                && ununroll_bd_loop && bi.ldi->idx == 0);
+        // if need_ils_shift then we have to add shift to C because reg_C points
+        // to previous iteration in this case
+        ils_shift = need_ils_shift ? bi.bdi->C_shift : 0;
+    }
 
     for_(int bdb = 0; bdb < bi.bdi->block2(); bdb++)
     for (int ldb = 0; ldb < bi.ldi->block2(); ldb++) {
         if (may_load_accumulators_) {
-            const auto c_offset = C_offset(bi, bdb, 0, bi.ldi->pos(ldb));
+            auto c_offset = C_offset(bi, bdb, 0, bi.ldi->pos(ldb)) + ils_shift;
             tileloadd(Tmm(get_C_tensor(bi, bdb, ldb)),
                     ptr[reg_C + c_offset + reg_stride_ld_block]);
         } else {
