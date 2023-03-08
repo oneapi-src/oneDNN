@@ -3339,9 +3339,6 @@ impl::status_t remove_quant_data_with_no_effect(
                         "dequantize op should have successor op");
                 rewriter.fuse_op_to_successor(quant_data_op);
             } else {
-                // quant_data_in_val->get_producer().connect_output(
-                //         quant_data_in_val->get_offset(), quant_data_out_val);
-                // rewriter.to_remove(quant_data_op);
                 if (quant_data_in_val->has_producer()) {
                     quant_data_in_val->get_producer().connect_output(
                             quant_data_in_val->get_offset(),
