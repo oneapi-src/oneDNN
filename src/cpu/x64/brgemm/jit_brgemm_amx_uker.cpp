@@ -2157,7 +2157,13 @@ void jit_brgemm_amx_uker_base_t::fill_imap() {
 
 void jit_brgemm_amx_uker_base_t::init(brgemm_iteration_t &bi) {
     was_prev_bi_ = false;
-    ununroll_bd_loop = brg.brgattr.hint_ununroll_bd_loop;
+    const auto bdb2_to_unroll
+            = nstl::max(0, brg.bdb2 - (actual_ils(bi.apply_postops) ? 1 : 0));
+    ununroll_bd_loop = brg.brgattr.hint_ununroll_bd_loop
+            && (brg.brgattr.max_bs == 1 || brg.type == brgemm_static_offs)
+            && !brg.brgattr.var_bs && bdb2_to_unroll > 1
+            && (brg.innermost_loop == brgemm_ld_loop_innermost || brg.ldb2 == 1)
+            && get_store_by_vectors(bi.apply_postops);
     if (brg.type == brgemm_static_offs) {
         if (brg.layout == brgemm_row_major) {
             mov(reg_A, ptr[param1 + GET_OFF(ptr_A)]);

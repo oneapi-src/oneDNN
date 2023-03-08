@@ -2277,6 +2277,11 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             = jcp.ngroups * jcp.nb_oc * jcp.ker_ranges_size * jcp.oc_block;
     jcp.s8s8_comp_buffer_size = jcp.comp_a_buffer_size;
 
+    // enable ununroll_bd_loop for big shapes to reduce kernel sizes
+    jcp.ununroll_bd_loop
+            = static_cast<dim_t>(jcp.M) * jcp.N * (jcp.is_bf32 ? 1 : 2)
+            > 8 * 1024;
+
     if (!IMPLICATION(jcp.is_bf32, jcp.use_uker)) return status::unimplemented;
 
     return status::success;
@@ -2453,6 +2458,11 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             || !wei_scales.has_default_values()
             || jcp.scale_adjust_factor != 1.0f;
     jcp.is_oc_scale = wei_scales.mask_ != 0;
+
+    // enable ununroll_bd_loop for big shapes to reduce kernel sizes
+    jcp.ununroll_bd_loop
+            = static_cast<dim_t>(jcp.M) * jcp.N * (jcp.is_bf32 ? 1 : 2)
+            > 8 * 1024;
 
     return status::success;
 }
