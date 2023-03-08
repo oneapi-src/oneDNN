@@ -1864,6 +1864,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerInnerAnchorElemOp1) {
 // This test shows that Elementwise op will create larger inner anchor when tail
 // computation occurs.
 TEST(GCCore_fuse_mgr_cpp, TestFusionManagerInnerAnchorElemOp2) {
+    REQUIRE_AVX();
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput

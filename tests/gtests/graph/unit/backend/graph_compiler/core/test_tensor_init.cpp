@@ -25,6 +25,7 @@
 
 using namespace dnnl::impl::graph::gc;
 TEST(GCCore_tensor_init_cpp, TestTensorInit) {
+    REQUIRE_AVX();
     builder::ir_builder_t builder;
 
     _function_(datatypes::s32, bbb, _arg_("a", datatypes::f32, {128})) {

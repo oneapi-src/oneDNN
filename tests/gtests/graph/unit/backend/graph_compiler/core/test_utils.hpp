@@ -53,6 +53,12 @@
         GTEST_SKIP(); \
     }
 
+#define REQUIRE_AVX() \
+    if (!::dnnl::impl::graph::gc::get_default_context() \
+                    ->machine_.cpu_flags_.fAVX) { \
+        GTEST_SKIP(); \
+    }
+
 #define REQUIRE_VNNI() \
     if (!::dnnl::impl::graph::gc::get_default_context() \
                     ->machine_.cpu_flags_.fAVX512VNNI) { \

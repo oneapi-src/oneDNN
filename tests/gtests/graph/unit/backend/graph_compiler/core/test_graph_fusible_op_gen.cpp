@@ -78,6 +78,7 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorAdd) {
 }
 
 TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorAdd2) {
+    REQUIRE_AVX();
     sc_graph_t mgr;
     auto ins = mgr.make_input(
             {graph_tensor::make({1030}), graph_tensor::make({1030})});
@@ -512,6 +513,7 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorLoopConflict) {
 }
 
 TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorExpMask) {
+    REQUIRE_AVX();
     sc_graph_t mgr;
     auto ins = mgr.make_input(
             {graph_tensor::make({32, 35}, sc_data_format_t::MKmk(32, 32))});

@@ -127,6 +127,7 @@ TEST(GCCore_bf16legalize_cpp, TestBF16Promote) {
 }
 
 TEST(GCCore_bf16legalize_cpp, TestBF16CastElimination) {
+    REQUIRE_AVX();
     builder::ir_builder_t builder;
     ir_comparer cmper(true);
     _function_(datatypes::s32, aaa, _arg_("a", DBF16), _arg_("b", DBF16),
