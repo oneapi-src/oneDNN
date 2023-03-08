@@ -29,7 +29,7 @@
 # post binary-add
 --reset
 --cfg=bf16bf16bf16
---attr-post-ops=add:bf16:common,add:bf16:per_oc
+--attr-post-ops=add:bf16:common
 384x4096:4096x1024:384x1024
 
 # post sum (with and without eltwise)
