@@ -23,6 +23,7 @@
 --batch=shapes_ci
 ## Backward
 --dir=BWD_D,BWD_W,BWD_WB
+--cfg=f64,f32
 --attr-post-ops=
 --batch=shapes_ci
 
