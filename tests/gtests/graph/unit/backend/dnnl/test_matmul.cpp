@@ -927,7 +927,7 @@ TEST(ExecuteSubgraphInt8, MatmulU8U8) {
         // random generate src, weight and bias data random seed = 7
         std::default_random_engine generator(7);
         std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
-        std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
+        std::uniform_real_distribution<float> u8_distribution(0.0f, 127.0f);
         std::generate(src_data.begin(), src_data.end(), [&]() {
             return static_cast<uint8_t>(u8_distribution(generator));
         });
@@ -936,7 +936,7 @@ TEST(ExecuteSubgraphInt8, MatmulU8U8) {
         });
         std::generate(bias_data.begin(), bias_data.end(),
                 [&]() { return f32_distribution(generator); });
-        float scale_src = 1 / 255.f; // map to 0~255
+        float scale_src = 1 / 127.f; // map to 0~127
         int64_t zp_src = 0;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
