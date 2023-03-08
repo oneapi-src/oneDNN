@@ -328,6 +328,17 @@ std::vector<int> get_default_impl_dispatch_candidates() {
     return default_impl_candidates;
 }
 
+std::vector<int> get_dynamic_impl_dispatch_candidates(
+        tunable_op_t *op, const context_ptr &ctx) {
+    auto configs = op->get_dynamic_config_candidates(ctx);
+    std::vector<int> ret;
+    ret.reserve(configs.size());
+    for (int i = 0; i < static_cast<int>(configs.size()); i++) {
+        ret.push_back(i);
+    }
+    return ret;
+}
+
 } // namespace gc
 } // namespace graph
 } // namespace impl

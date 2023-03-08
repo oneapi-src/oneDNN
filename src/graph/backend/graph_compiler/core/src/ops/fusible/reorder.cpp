@@ -2890,7 +2890,8 @@ void reorder_op_t::compute_block(context_ptr ctx,
             is_innermost_dim_strided, is_dynamic(), info_.cur_impl_);
 }
 
-std::vector<int> reorder_op_t::get_impl_dispatch_candidates() const {
+std::vector<int> reorder_op_t::get_impl_dispatch_candidates(
+        const context_ptr &ctx) {
     return get_default_impl_dispatch_candidates();
 }
 

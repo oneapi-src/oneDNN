@@ -24,12 +24,23 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-static int check_and_set_matmul_impl(runtime::dynamic_tensor_t *data_dyn_tsr,
-        runtime::dynamic_tensor_t *weight_dyn_tsr,
+static int check_and_set_matmul_impl(runtime::op_dispatch_tables_t *op_table,
         runtime::dispatch_key *data_fmt_st,
-        runtime::dispatch_key *weight_fmt_st,
-        runtime::dispatch_key *out_fmt_st) {
-    // todo: add managed matmul impl alg here.
+        runtime::dispatch_key *weight_fmt_st, runtime::dispatch_key *out_fmt_st,
+        int M_blk, int N_blk, int K_blk) {
+    // query impl kind here. default return normal impl kind.
+    auto &impl_kind_table = op_table->impl_kind_table_;
+    if (impl_kind_table) {
+        uint64_t keys[3] = {static_cast<uint64_t>(M_blk),
+                static_cast<uint64_t>(N_blk), static_cast<uint64_t>(K_blk)};
+        void *value = impl_kind_table->get(keys, 3);
+        assert(value);
+        int impl = *reinterpret_cast<int *>(value);
+        data_fmt_st->set_impl_alg(impl);
+        weight_fmt_st->set_impl_alg(impl);
+        out_fmt_st->set_impl_alg(impl);
+    }
+
     return impl_kind_t::normal;
 }
 
@@ -176,8 +187,8 @@ extern "C" void query_format_matmul_core_op(void *table, void *out, void *data,
     auto *out_fmt_st = reinterpret_cast<runtime::dispatch_key *>(&cp_out_fmt);
     auto &kernel_table = op_table->kernel_table_;
     if (kernel_table) {
-        check_and_set_matmul_impl(data_dyn_tsr, weight_dyn_tsr, data_fmt_st,
-                weight_fmt_st, out_fmt_st);
+        check_and_set_matmul_impl(op_table, data_fmt_st, weight_fmt_st,
+                out_fmt_st, M_blk, N_blk, K_blk);
         uint64_t keys[3] = {cp_data_fmt, cp_weight_fmt, cp_out_fmt};
         void *func
                 = op_table->kernel_dispatch_func_(kernel_table.get(), keys, 3);
@@ -187,8 +198,8 @@ extern "C" void query_format_matmul_core_op(void *table, void *out, void *data,
         *reinterpret_cast<void **>(kernel) = func;
     } else {
         assert(impl_alg);
-        *impl_alg = check_and_set_matmul_impl(data_dyn_tsr, weight_dyn_tsr,
-                out_fmt_st, out_fmt_st, out_fmt_st);
+        *impl_alg = check_and_set_matmul_impl(op_table, data_fmt_st,
+                weight_fmt_st, out_fmt_st, M_blk, N_blk, K_blk);
     }
     // avoid internal status change in multi thread case.
     *data_fmt = cp_data_fmt;

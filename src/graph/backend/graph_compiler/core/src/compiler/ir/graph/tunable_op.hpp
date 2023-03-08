@@ -75,6 +75,11 @@ public:
 
     void commit_into_anchor(mixed_parti_t *parti) override;
 
+    config_ptr_vec get_dynamic_config_candidates(
+            const context_ptr &ctx) override;
+    impl_kind_map convert_config_candidates_to_impl_map(
+            const config_ptr_vec &configs) override;
+
     virtual body_generator_ptr create_generator() = 0;
 
     void create_mixed_partition(mixed_parti_t *parti) override;
@@ -90,6 +95,7 @@ public:
 
 protected:
     config_ptr config_data_;
+    std::vector<config_ptr> dyn_config_candidates_;
 };
 
 } // namespace gc

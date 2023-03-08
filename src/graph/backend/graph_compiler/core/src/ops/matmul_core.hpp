@@ -68,7 +68,8 @@ public:
     void pre_binding_axis(bound_axis_map &bdax_map) override;
 
     void set_config_by_key(const op_dispatch_key_t &key) override;
-    std::vector<int> get_impl_dispatch_candidates() const override;
+    std::vector<int> get_impl_dispatch_candidates(
+            const context_ptr &ctx) override;
     shape_rl_vec get_dynamic_shape_relations() const override;
     static shape_rl_vec get_shape_relations_impl(const sc_dims &data_plain_dims,
             const sc_dims &weight_plain_dims, const sc_dims &out_plain_dims);

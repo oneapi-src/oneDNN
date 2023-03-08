@@ -68,6 +68,8 @@ using shape_rl_vec = std::vector<std::pair<sc_dim, sc_dim>>;
 
 struct dispatch_key_set_base_t;
 using dispatch_set_ptr = std::shared_ptr<dispatch_key_set_base_t>;
+class impl_kind_converter_base_t;
+using impl_kind_converter_ptr = std::shared_ptr<impl_kind_converter_base_t>;
 /** VConst struct record possible varible in constant value, e.g.
  *
  *   const int a = k * b;
@@ -170,6 +172,7 @@ struct sc_op_info_t {
     // prepared for dynamic dispatch during lowering and is created during
     // layout propagation.
     dispatch_set_ptr dispatch_key_set_;
+    impl_kind_converter_ptr impl_converter_;
     // current used impl type
     int cur_impl_ = 0;
 };
@@ -382,7 +385,8 @@ public:
     // Get op impl type candidates for dynamic dispatch. Default candidates are
     // padding/no_padding. Return the impl alg candidates vector, element is
     // int(not enum) because different ops have different impl algs.
-    virtual std::vector<int> get_impl_dispatch_candidates() const;
+    virtual std::vector<int> get_impl_dispatch_candidates(
+            const context_ptr &ctx);
 };
 
 inline sc_op_weak_ptr_t &sc_op_weak_ptr_t::operator=(sc_op *other) {

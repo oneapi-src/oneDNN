@@ -30,6 +30,7 @@
 #include <ops/fusible/ternary_elemwise.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <runtime/dynamic_dispatch/hash_dispatch_table.hpp>
+#include <util/reflection.hpp>
 #include <util/utils.hpp>
 namespace dnnl {
 namespace impl {
@@ -73,6 +74,15 @@ void initialize_format_table_with_op(
                   };
         dispatch_keys->for_each_key_process(set_format_by_key);
     }
+}
+
+void initialize_impl_kind_table_with_op(const context_ptr &ctx,
+        const sc_op_ptr &op, op_dispatch_tables_ptr &tb) {
+    COMPILE_ASSERT(op->isa<tunable_op_t>(),
+            "impl_kind table currently is only used for tunable op.");
+    auto tun_op = op->dyn_cast<tunable_op_t>();
+    tb->impl_kind_table_ = tun_op->convert_config_candidates_to_impl_map(
+            tun_op->get_dynamic_config_candidates(ctx));
 }
 
 void add_dispatch_symbol_to_kernel_table(op_dispatch_tables_ptr &tb,

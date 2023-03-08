@@ -58,6 +58,52 @@ SC_CLASS_END();
 
 namespace ops {
 
+config_ptr_vec gen_managed_matmul_core_t::get_dynamic_config_candidates(
+  const context_ptr &ctx) const {
+  config_ptr_vec ret;
+  int num_threads = runtime_config_t::get().get_num_threads();
+  auto M_split_candidates = get_splits(num_threads);
+  auto N_split_candidates = get_splits(num_threads);
+  std::vector<int> MNK_sub_candidates = {1, 2, 8};
+  for (auto &M_split_num : M_split_candidates) {
+    for (auto &N_split_num : N_split_candidates) {
+      if (num_threads % (M_split_num * N_split_num) == 0) {
+        for (auto &M_sub_block : MNK_sub_candidates) {
+          for (auto &N_sub_block : MNK_sub_candidates) {
+            for (auto &K_sub_block : MNK_sub_candidates) {
+              auto gcfg = reflection::general_object_t::make<
+                managed_matmul_core_config_t>();
+              managed_matmul_core_config_t &cfg
+                = *gcfg.unchecked_get_as<managed_matmul_core_config_t>();
+              cfg.M_split_num = M_split_num;
+              cfg.N_split_num = N_split_num;
+              cfg.M_sub_block = M_sub_block;
+              cfg.N_sub_block = N_sub_block;
+              cfg.K_sub_block = K_sub_block;
+              cfg.im_loop_order = 1;
+              ret.emplace_back(std::move(gcfg));
+            }
+          }
+        }
+      }
+    }
+  }
+  return ret;
+}
+
+std::vector<uint64_t> gen_managed_matmul_core_t::convert_config_to_keys(
+  const config_ptr &config) const {
+  managed_matmul_core_config_t &cfg
+    = *config.unchecked_get_as<managed_matmul_core_config_t>();
+  std::vector<uint64_t> keys = {static_cast<uint64_t>(cfg.M_split_num),
+    static_cast<uint64_t>(cfg.N_split_num),
+    static_cast<uint64_t>(cfg.M_sub_block),
+    static_cast<uint64_t>(cfg.N_sub_block),
+    static_cast<uint64_t>(cfg.K_sub_block),
+    static_cast<uint64_t>(cfg.im_loop_order)};
+  return keys;
+}
+
 config_ptr gen_managed_matmul_core_t::get_default_config(
   context_ptr ctx) const {
   auto ret = reflection::general_object_t::make<managed_matmul_core_config_t>();

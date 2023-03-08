@@ -84,6 +84,15 @@ public:
     reflection::shared_general_object_t get_default_config(
             context_ptr ctx) override;
 
+    config_ptr_vec get_dynamic_config_candidates(
+            const context_ptr &ctx) override {
+        throw std::runtime_error("Unimplement.");
+    }
+    impl_kind_map convert_config_candidates_to_impl_map(
+            const config_ptr_vec &configs) override {
+        throw std::runtime_error("Unimplement.");
+    }
+
 protected:
     graph_config config_data_;
 };

@@ -123,6 +123,7 @@ void jit_module::update_runtime_op_tables(const const_ir_module_ptr &ir_mod) {
     for (auto &kv : compiler_tables) {
         const std::string &symbol = kv.first;
         auto &compiler_format_table = kv.second->format_table_;
+        auto &compiler_impl_kind_table = kv.second->impl_kind_table_;
         auto &compiler_kernel_table = kv.second->kernel_table_;
         runtime::op_dispatch_tables_ptr runtime_table
                 = utils::make_unique<runtime::op_dispatch_tables_t>();
@@ -135,6 +136,16 @@ void jit_module::update_runtime_op_tables(const const_ir_module_ptr &ir_mod) {
             runtime_table->format_table_
                     = utils::make_unique<runtime::hash_dispatch_table_t>(
                             format_num_keys, format_capacity);
+        }
+        if (!compiler_impl_kind_table.empty()) {
+            uint32_t impl_num_keys
+                    = compiler_impl_kind_table.begin()->first.size();
+            size_t impl_capacity = math_utils::nearest_power_of_2(
+                                           compiler_impl_kind_table.size())
+                    * capacity_coefficient;
+            runtime_table->impl_kind_table_
+                    = utils::make_unique<runtime::hash_dispatch_table_t>(
+                            impl_num_keys, impl_capacity);
         }
         if (!compiler_kernel_table.empty()) {
             uint32_t kernel_num_keys
@@ -161,6 +172,12 @@ void jit_module::update_runtime_op_tables(const const_ir_module_ptr &ir_mod) {
                             const_cast<runtime::dispatch_key *>(
                                     format_kv.second.data())),
                     format_kv.second.size());
+        }
+        // initialize impl kind table
+        for (auto &impl_kv : compiler_impl_kind_table) {
+            runtime_table->set_impl_kind_table_keys(
+                    const_cast<uint64_t *>(impl_kv.first.data()),
+                    impl_kv.first.size(), impl_kv.second);
         }
         // initialize kernel table
         for (auto &kernel_kv : compiler_kernel_table) {

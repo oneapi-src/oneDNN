@@ -38,6 +38,7 @@ sc_op_ptr tunable_op_t::copy(const std::vector<graph_tensor_ptr> &ins,
     auto tune_ret = ret->stc_cast<tunable_op_t>();
     tune_ret->op_name_ = op_name_;
     tune_ret->config_data_ = config_data_;
+    tune_ret->dyn_config_candidates_ = dyn_config_candidates_;
     tune_ret->is_quantized_ = is_quantized_;
     tune_ret->need_compensation_ = need_compensation_;
     tune_ret->should_quantized_ = should_quantized_;
@@ -214,6 +215,28 @@ void tunable_op_t::set_config_if_empty(
 config_ptr tunable_op_t::get_default_config(context_ptr ctx) {
     auto gen = this->create_generator();
     return gen->get_default_config(ctx);
+}
+
+config_ptr_vec tunable_op_t::get_dynamic_config_candidates(
+        const context_ptr &ctx) {
+    if (dyn_config_candidates_.empty()) {
+        dyn_config_candidates_
+                = create_generator()->get_dynamic_config_candidates(ctx);
+    }
+    return dyn_config_candidates_;
+}
+
+impl_kind_map tunable_op_t::convert_config_candidates_to_impl_map(
+        const config_ptr_vec &configs) {
+    if (configs.empty()) { return impl_kind_map(); }
+    auto gen = create_generator();
+    impl_kind_map ret;
+    ret.reserve(configs.size());
+    for (int i = 0; i < static_cast<int>(configs.size()); i++) {
+        auto &cfg = configs[i];
+        ret.insert(std::make_pair(gen->convert_config_to_keys(cfg), i));
+    }
+    return ret;
 }
 
 } // namespace gc

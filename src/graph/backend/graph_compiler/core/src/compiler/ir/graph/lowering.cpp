@@ -773,6 +773,9 @@ expr create_op_query_func(const context_ptr &ctx, general_lower_params_t &gp,
             auto table_ptr = std::make_shared<op_dispatch_tables_t>();
             gp.ret_mod->add_op_table(std::make_pair(table_name, table_ptr));
             initialize_format_table_with_op(node, table_ptr);
+            if (node->isa<tunable_op_t>()) {
+                initialize_impl_kind_table_with_op(ctx, node, table_ptr);
+            }
             query_call = call_op_dynamic_query_function(node, query_func_args);
         }
         stmts_node_t *target_body = gp.func_body.get();

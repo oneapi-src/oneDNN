@@ -778,7 +778,7 @@ float sc_op::get_gflop() {
     return 0.0f;
 }
 
-std::vector<int> sc_op::get_impl_dispatch_candidates() const {
+std::vector<int> sc_op::get_impl_dispatch_candidates(const context_ptr &ctx) {
     return {};
 }
 

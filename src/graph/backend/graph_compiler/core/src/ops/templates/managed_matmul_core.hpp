@@ -114,6 +114,10 @@ public:
   bool is_okay_to_prefetch(
     const managed_matmul_core_config_t &config, bool is_global);
 
+  config_ptr_vec get_dynamic_config_candidates(
+    const context_ptr &ctx) const override;
+  std::vector<uint64_t> convert_config_to_keys(
+    const config_ptr &configs) const override;
   config_ptr get_default_config(context_ptr ctx) const override;
   config_ptr get_default_transposed_a_config(const context_ptr &ctx) const;
 
