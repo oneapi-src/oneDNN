@@ -103,7 +103,7 @@ void set_runtime_target_machine(const target_machine_t &in) {
 
 target_machine_t get_native_target_machine() {
     target_machine_t tm(target_machine_t::type::cpu, nullptr);
-    int xcr0 = get_xcr0();
+    int xcr0 = 0;
     int info[4];
     cpuid(info, 0, 0);
     int nIds = info[0];
@@ -124,6 +124,8 @@ target_machine_t get_native_target_machine() {
         tm.cpu_flags_.fSSE42 = (info[2] & ((int)1 << 20)) != 0;
         tm.cpu_flags_.fAES = (info[2] & ((int)1 << 25)) != 0;
 
+        bool hasXSAVE = (info[2] & ((int)1 << 27)) != 0;
+        if (hasXSAVE) { xcr0 = get_xcr0(); }
         tm.cpu_flags_.fAVX
                 = ((xcr0 & 0x6) == 0x6) && (info[2] & ((int)1 << 28)) != 0;
         tm.cpu_flags_.fFMA3 = (info[2] & ((int)1 << 12)) != 0;
