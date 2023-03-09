@@ -57,8 +57,8 @@ include_directories_with_host_compiler(
 
 # Add CPU test if CPU runtime is enabled
 if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
-    add_test("test_graph_api" "test_graph_api" "--engine=cpu")
-    maybe_configure_windows_test("test_graph_api" TEST)
+    add_test("test_graph_api_cpu" "test_graph_api" "--engine=cpu")
+    maybe_configure_windows_test("test_graph_api_cpu" TEST)
 endif()
 
 # Add GPU test if GPU runtime is enabled
