@@ -18,6 +18,7 @@
 #include <mutex>
 
 #include "common/utils.hpp"
+#include "common/verbose.hpp"
 
 #include "cpu/platform.hpp"
 
