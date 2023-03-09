@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -426,8 +426,8 @@ TEST(ExecuteSubgraphInt8, SoftmaxTypecastQuant) {
 
     ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine), graph::status::success);
 
-    test::vector<float> dst_data(product(softmax_shape));
-    test::vector<float> ref_data(product(softmax_shape));
+    test::vector<uint8_t> dst_data(product(softmax_shape));
+    test::vector<uint8_t> ref_data(product(softmax_shape));
     graph::tensor_t src_ts(src, engine, src_data.data());
     graph::tensor_t dst_ts(quant_dst, engine, dst_data.data());
     graph::tensor_t ref_ts(quant_dst, engine, ref_data.data());
@@ -437,7 +437,7 @@ TEST(ExecuteSubgraphInt8, SoftmaxTypecastQuant) {
     ASSERT_EQ(cp.execute(strm, {src_ts}, {dst_ts}), graph::status::success);
     strm->wait();
     for (size_t i = 0; i < ref_data.size(); ++i) {
-        ASSERT_FLOAT_EQ(ref_data[i], dst_data[i]);
+        ASSERT_EQ(ref_data[i], dst_data[i]);
     }
 }
 
