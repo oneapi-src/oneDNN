@@ -20,6 +20,8 @@
 #include "utils/parallel.hpp"
 #include "utils/task.hpp"
 
+extern int repeats_per_prb;
+
 template <typename prb_t, typename perf_report_t, typename create_func_t,
         typename check_cache_func_t, typename do_func_t>
 struct task_executor_t {
@@ -29,12 +31,15 @@ struct task_executor_t {
             const create_func_t &create_func,
             const check_cache_func_t &check_cache_func,
             const do_func_t &do_func) {
-        tasks_.emplace_back(prb, perf_template, create_func, check_cache_func,
-                do_func, get_idx());
-        if (has_bench_mode_modifier(mode_modifier_t::par_create)
-                && static_cast<int>(tasks_.size()) < benchdnn_get_max_threads())
-            return;
-        flush();
+        for (int r = 0; r < repeats_per_prb; r++) {
+            tasks_.emplace_back(prb, perf_template, create_func,
+                    check_cache_func, do_func, get_idx());
+            if (has_bench_mode_modifier(mode_modifier_t::par_create)
+                    && static_cast<int>(tasks_.size())
+                            < benchdnn_get_max_threads())
+                continue;
+            flush();
+        }
     }
 
     void flush() {

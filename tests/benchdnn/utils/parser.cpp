@@ -604,6 +604,17 @@ static bool parse_max_ms_per_prb(
     return parsed;
 }
 
+static bool parse_repeats_per_prb(
+        const char *str, const std::string &option_name = "repeats-per-prb") {
+    static const std::string help
+            = "N    (Default: `1`)\n    Specifies the number of times to "
+              "repeat testing of the problem.\n";
+    bool parsed = parse_single_value_option(repeats_per_prb,
+            default_repeats_per_prb, atoi, str, option_name, help);
+    if (parsed) repeats_per_prb = MAX2(1, repeats_per_prb);
+    return parsed;
+}
+
 static bool parse_mem_check(
         const char *str, const std::string &option_name = "mem-check") {
     static const std::string help
@@ -816,8 +827,8 @@ bool parse_bench_settings(const char *str) {
             || parse_attr_same_pd_check(str) || parse_canonical(str)
             || parse_cpu_isa_hints(str) || parse_engine(str)
             || parse_fast_ref_gpu(str) || parse_fix_times_per_prb(str)
-            || parse_max_ms_per_prb(str) || parse_mem_check(str)
-            || parse_memory_kind(str) || parse_mode(str)
+            || parse_max_ms_per_prb(str) || parse_repeats_per_prb(str)
+            || parse_mem_check(str) || parse_memory_kind(str) || parse_mode(str)
             || parse_mode_modifier(str) || parse_skip_impl(str)
             || parse_start(str) || parse_verbose(str);
 

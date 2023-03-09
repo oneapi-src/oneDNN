@@ -66,6 +66,8 @@ double default_max_ms_per_prb {3e3};
 int min_times_per_prb {5};
 int fix_times_per_prb {default_fix_times_per_prb};
 int default_fix_times_per_prb {0};
+int repeats_per_prb {default_repeats_per_prb};
+int default_repeats_per_prb {1};
 
 bool fast_ref_gpu {DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE};
 
