@@ -1812,7 +1812,7 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
         int64_t zp_src = src_qtype == "symmetric"
                         || engine.kind() == impl::engine_kind::gpu
                 ? 0
-                : -4;
+                : zp;
         int64_t zp_other = other_qtype == "symmetric"
                         || engine.kind() == impl::engine_kind::gpu
                 ? 0
