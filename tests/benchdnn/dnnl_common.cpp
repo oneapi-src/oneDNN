@@ -453,6 +453,8 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
     t.reset();
     reset_gpu_profiling();
 
+    // Nvidia/AMD don't support profiling.
+    bool use_profiling = !is_nvidia_gpu() && !is_amd_gpu();
     bool is_first_loop = true;
     while (true) {
         for (int i = 0; i < cur_batch_times; i++) {
@@ -460,16 +462,20 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
         }
         DNN_SAFE(dnnl_stream_wait(stream), WARN);
 
-        std::vector<uint64_t> nsecs;
-        std::vector<uint64_t> cycles;
-        get_gpu_profiling_info(nsecs, cycles);
-        reset_gpu_profiling();
+        if (use_profiling) {
+            std::vector<uint64_t> nsecs;
+            std::vector<uint64_t> cycles;
+            get_gpu_profiling_info(nsecs, cycles);
+            reset_gpu_profiling();
 
-        // Profiling should have information to stop the cycle.
-        if (nsecs.empty()) SAFE(FAIL, WARN);
+            // Profiling should have information to stop the cycle.
+            if (nsecs.empty()) SAFE(FAIL, WARN);
 
-        for (size_t i = 0; i < nsecs.size(); i++) {
-            t.stop(1, (int64_t)cycles[i], nsecs[i] / 1e6);
+            for (size_t i = 0; i < nsecs.size(); i++) {
+                t.stop(1, (int64_t)cycles[i], nsecs[i] / 1e6);
+            }
+        } else {
+            t.stamp(cur_batch_times);
         }
 
         if (should_stop(t)) break;
