@@ -89,7 +89,7 @@ integration. Compute Library is an open-source library for machine learning appl
 and provides AArch64 optimized implementations of core functions. This functionality currently
 requires that Compute Library is downloaded and built separately, see
 [Build from Source](https://oneapi-src.github.io/oneDNN/dev_guide_build.html).
-oneDNN only supports Compute Library versions 22.08 or later.
+oneDNN only supports Compute Library versions 23.02 or later.
 
 > **WARNING**
 >
