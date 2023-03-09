@@ -2821,7 +2821,6 @@ impl::status_t convert_dynamic_quantize_ops(std::shared_ptr<subgraph_t> &sg) {
 
     subgraph_rewriter_t rewriter(sg);
     for (auto &cur_op : convert_ops) {
-
         const int64_t axis = cur_op->get_attr<int64_t>(op_attr::axis);
         const std::string &qtype
                 = cur_op->get_attr<std::string>(op_attr::qtype);
