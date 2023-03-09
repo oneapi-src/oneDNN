@@ -81,15 +81,14 @@ static status_t init_conf_common(lnorm_conf_t &conf,
             int size = desired_sg_size;
             while (size > 1) {
                 const bool fit_to_shape = (conf.norm_axis % size == 0)
-                        && (c_block == 1 || (c_block % size == 0 && ndims == 2)
-                                || src_mdw.is_dense());
+                        && (c_block == 1
+                                || (c_block % size == 0 && ndims == 2));
                 if (mayiuse_sg(size) && fit_to_shape) return size;
                 size -= 16;
             }
             return size;
         }();
-
-        if (c_is_last_physical && ndims < 4
+        if (src_mdw.is_dense() && c_is_last_physical && ndims < 4
                 && sg_size > 1
                 // f64 for ref impl only
                 && (conf.data_type != data_type::f64)) {
@@ -124,14 +123,14 @@ static status_t init_conf_common(lnorm_conf_t &conf,
             while (size > 1) {
                 const bool fit_to_shape = conf.norm_axis % size == 0
                         && (src_mdw.matches_one_of_tag(ab, abc, abcd, abcde)
-                                || (ndims == 2 && c_block % size == 0
-                                        && c_is_last_physical));
+                                || (ndims == 2 && c_block % size == 0));
                 if (mayiuse_sg(size) && fit_to_shape) return size;
                 size -= 16;
             }
             return size;
         }();
-        if (sg_size > 1
+        if (src_mdw.is_dense() && c_is_last_physical
+                && sg_size > 1
                 // f64 for ref impl only
                 && (conf.data_type != data_type::f64)) {
             conf.vectorize_bwd = true;
