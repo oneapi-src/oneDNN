@@ -93,10 +93,10 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
                 }
 
                 if (group_size > (size_t)max_lws) {
-                    int old_group_size = group_size;
+                    int old_group_size = (int)group_size;
                     group_size = max_lws;
 
-                    int lws_ratio = old_group_size / group_size;
+                    int lws_ratio = old_group_size / (int)group_size;
                     int rem_threads = old_group_size % max_lws;
                     int rem_reads = rem_threads * thread_buffer;
 
