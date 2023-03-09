@@ -68,13 +68,33 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     conf.dispatch = compute_engine->create_dispatch(
             pd->is_fwd() ? dst_mdw.md_ : src_mdw.md_);
     const auto &dims = pd->is_fwd() ? src_mdw.padded_dims() : dst_mdw.dims();
+
+    const int desired_sg_size = 32;
+    auto mayiuse_sg = [=](const int sg_size) {
+        return compute_engine->mayiuse_sub_group(sg_size)
+                && compute_engine->mayiuse_block_reads_writes_with_sub_group(
+                        sg_size);
+    };
+
     if (pd->is_fwd()) {
-        if ((conf.norm_axis % 16 == 0) && ndims < 4 && c_is_last_physical
-                && (c_block == 1 || (c_block % 16 == 0 && ndims == 2)
-                        || src_mdw.is_dense())
-                && (conf.data_type != data_type::f64)) { //f64 for ref impl only
+        const int sg_size = [&]() {
+            int size = desired_sg_size;
+            while (size > 1) {
+                const bool fit_to_shape = (conf.norm_axis % size == 0)
+                        && (c_block == 1 || (c_block % size == 0 && ndims == 2)
+                                || src_mdw.is_dense());
+                if (mayiuse_sg(size) && fit_to_shape) return size;
+                size -= 16;
+            }
+            return size;
+        }();
+
+        if (c_is_last_physical && ndims < 4
+                && sg_size > 1
+                // f64 for ref impl only
+                && (conf.data_type != data_type::f64)) {
             conf.vectorize_calc_stats = true;
-            conf.sub_group_size = 16;
+            conf.sub_group_size = sg_size;
             int vector_size = 8;
             while (conf.norm_axis % (conf.sub_group_size * vector_size) != 0) {
                 vector_size /= 2;
@@ -88,7 +108,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
             int md_hint_idx = nstl::min(i, ndims - 1);
             int dim = (i < ndims - 1) ? dims[i] : 1;
             if (conf.vectorize_calc_stats && (i == ndims - 1)) {
-                dim = 16;
+                dim = sg_size;
                 conf.dispatch.define_dim(
                         utils::format("X%d", i), md_hint_idx, dim);
                 CHECK(conf.dispatch.vectorize_dim(
@@ -99,14 +119,23 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         }
     } else {
         conf.vectorize_bwd = false;
-        const int desired_sg_size = 16;
-        if (conf.norm_axis % desired_sg_size == 0
-                && (src_mdw.matches_one_of_tag(ab, abc, abcd, abcde)
-                        || (ndims == 2 && c_block % desired_sg_size == 0
-                                && c_is_last_physical))
-                && (conf.data_type != data_type::f64)) { //f64 for ref impl only
+        const int sg_size = [&]() {
+            int size = desired_sg_size;
+            while (size > 1) {
+                const bool fit_to_shape = conf.norm_axis % size == 0
+                        && (src_mdw.matches_one_of_tag(ab, abc, abcd, abcde)
+                                || (ndims == 2 && c_block % size == 0
+                                        && c_is_last_physical));
+                if (mayiuse_sg(size) && fit_to_shape) return size;
+                size -= 16;
+            }
+            return size;
+        }();
+        if (sg_size > 1
+                // f64 for ref impl only
+                && (conf.data_type != data_type::f64)) {
             conf.vectorize_bwd = true;
-            conf.sub_group_size = desired_sg_size;
+            conf.sub_group_size = sg_size;
             conf.vect_dt_n = 8;
             while (conf.norm_axis % (conf.sub_group_size * conf.vect_dt_n)
                     != 0) {
@@ -144,14 +173,13 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         conf.vectorize_bwd_scaleshift = conf.vectorize_bwd
                 && stat_mdw.matches_one_of_tag(a, ab)
                 && ((ndims == 2
-                            && (c_block == desired_sg_size
-                                    || src_mdw.matches_tag(ab)))
+                            && (c_block == sg_size || src_mdw.matches_tag(ab)))
                         || (ndims == 3 && src_mdw.matches_tag(abc)
                                 && dims[0] == 1))
                 && (conf.data_type != data_type::f64); //f64 for ref impl only
         if (conf.vectorize_bwd_scaleshift) {
             // Use partial reduction in order to increase number of used threads
-            conf.vector_size_scaleshift = c_block == desired_sg_size ? 8 : 1;
+            conf.vector_size_scaleshift = c_block == sg_size ? 8 : 1;
             const int first_dim = ndims == 2 ? dims[0] : dims[1];
             while (n_block % conf.vector_size_scaleshift != 0
                     || first_dim % conf.vector_size_scaleshift != 0) {
