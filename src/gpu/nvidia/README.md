@@ -86,7 +86,7 @@ normalization.
   normalization, which is used as an input to the activation function, is saved
   in the workspace as well. This is required to compute the backward pass for
   `dnnl_fuse_norm_relu` flag.
-* Forward pass supports f32, f16 and s8 data types. Although blocking is not
+* Forward pass supports f32, f16, bf16 and s8 data types. Although blocking is not
   supported for s8.
 
 #### Backward direction
@@ -109,6 +109,7 @@ normalization.
   intermediate result of the batch normalization saved in the forward pass. This
   is used to compute the backward direction of the activation function used for
   `RELU`.
+* Backward pass supports `f32` and `bf16` data types.
 
 ### Binary
 
@@ -117,6 +118,7 @@ The `cudnnOpTensor` is equivalent of oneDNN binary primitives.
 * Only scales attribute is supported. Post-op attribute is not supported.
 * Blocking is only supported for `int8` and only in the C dimension with either
   4 or 32 block size (same as other cuDNN primitives).
+* Supported data types are f32, f16, bf16 and s8.
 
 ### Concat
 
@@ -180,9 +182,9 @@ limitations when using Nvidia backend for eltwise primitive:
 * cuDNN expects `x`, `y` and `dy` as inputs to the backward pass, hence, only
   `RELU` operation supports backward proragation kind.
   TODO: add `ELU_DST`, `TANH_DST` and `LOGISTIC_DST` support which require `dy`.
-* Forward pass supports `f32`, `f16` and `s8` data types. Although blocking is
+* Forward pass supports `f32`, `f16`, `bf16` and `s8` data types. Although blocking is
   not supported for `s8`.
-* Backward pass supports `f32` and `f16` data types.
+* Backward pass supports `f32` and `bf16` data types.
 
 ### Inner product
 
@@ -200,6 +202,8 @@ falls back to the convolution backend. `cudnnActivationForward` operation is
 used for eltwise operation and `cudnnAddTensor` is used for bias operation. The
 `beta` parameter in gemm is used for the sum scale and `alpha` parameter is used
 for the output scale.
+* Forward pass supports `f32`, `f16`, `bf16` and `s8` data types.
+* Backward pass supports `f32`and `bf16` data types.
 
 #### Using convolution
 
@@ -223,6 +227,8 @@ product has the following restrictions and performance implications:
   convolution restriction.
 * For `int8` cuDNN requires both input and output feature maps to be a multiple
   of 4.
+* Forward pass supports `f32`, `f16`, `bf16` and `s8` data types.
+* Backward pass supports `f32` and `bf16` data types.
 
 ### LRN
 
@@ -244,6 +250,7 @@ The matrix multiplication primitive in the Nvidia backend is implemented with
 * Zero points support is not provided by cuBLAS and, hence, not supported by the
   Nvidia backend.
 * Post-ops and output scale limitations are same as for Inner Product.
+* Supported data types are `f32`, `f16`, `bf16` and `s8`.
 
 ### Pooling
 
@@ -267,6 +274,8 @@ backward propagation respectively.
   workspace is always required when the Nvidia backend is used (except for the
   forward inference).
 
+* Supported data type are `f32`, `f16`, `bf16` and `s8`.
+
 ### Reorder
 
 The `cudnnTransform` function is the equivalent of oneDNN reorder function.
@@ -279,6 +288,8 @@ GPU:
   currently supports block size of 4.
 * Blocking is only supported when channel dimension is a multiple of the block
   size and the datatype is `int8`.
+* Forward pass supports `f32`, `f16`, `bf16` and `s8` data types.
+* Backward pass supports `f32` and `bf16` data types.
 
 ### Resampling
 
@@ -317,6 +328,8 @@ changed to `CUDNN_SOFTMAX_LOG`.
 * There is a bug in cuDNN softmax for 5D tensor with format `NHWC`. When the
   channel size is greater than 1, it only applies softmax for a single channel
   and leave the others untouched.
+* Forward pass supports `f32`, `f16`, `bf16` and `s8` data types.
+* Backward pass supports `f32` and `bf16` data types.
 
 ### Sum
 
