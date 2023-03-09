@@ -124,6 +124,8 @@ enum { OCL_BUFFER_ALIGNMENT = 128 };
         } \
     } while (0)
 
+#define UNUSED_OCL_RESULT(x) assert(x == CL_SUCCESS)
+
 // Check for three conditions:
 // 1. Device and context are compatible, i.e. the device belongs to
 //    the context devices.
@@ -151,50 +153,62 @@ struct ocl_ref_traits;
 
 template <>
 struct ocl_ref_traits<cl_context> {
-    static void retain(cl_context t) { clRetainContext(t); }
-    static void release(cl_context t) { clReleaseContext(t); }
+    static void retain(cl_context t) { UNUSED_OCL_RESULT(clRetainContext(t)); }
+    static void release(cl_context t) {
+        UNUSED_OCL_RESULT(clReleaseContext(t));
+    }
 };
 
 template <>
 struct ocl_ref_traits<cl_command_queue> {
-    static void retain(cl_command_queue t) { clRetainCommandQueue(t); }
-    static void release(cl_command_queue t) { clReleaseCommandQueue(t); }
+    static void retain(cl_command_queue t) {
+        UNUSED_OCL_RESULT(clRetainCommandQueue(t));
+    }
+    static void release(cl_command_queue t) {
+        UNUSED_OCL_RESULT(clReleaseCommandQueue(t));
+    }
 };
 
 template <>
 struct ocl_ref_traits<cl_program> {
-    static void retain(cl_program t) { clRetainProgram(t); }
-    static void release(cl_program t) { clReleaseProgram(t); }
+    static void retain(cl_program t) { UNUSED_OCL_RESULT(clRetainProgram(t)); }
+    static void release(cl_program t) {
+        UNUSED_OCL_RESULT(clReleaseProgram(t));
+    }
 };
 
 template <>
 struct ocl_ref_traits<cl_kernel> {
-    static void retain(cl_kernel t) { clRetainKernel(t); }
-    static void release(cl_kernel t) { clReleaseKernel(t); }
+    static void retain(cl_kernel t) { UNUSED_OCL_RESULT(clRetainKernel(t)); }
+    static void release(cl_kernel t) { UNUSED_OCL_RESULT(clReleaseKernel(t)); }
 };
 
 template <>
 struct ocl_ref_traits<cl_mem> {
-    static void retain(cl_mem t) { clRetainMemObject(t); }
-    static void release(cl_mem t) { clReleaseMemObject(t); }
+    static void retain(cl_mem t) { UNUSED_OCL_RESULT(clRetainMemObject(t)); }
+    static void release(cl_mem t) { UNUSED_OCL_RESULT(clReleaseMemObject(t)); }
 };
 
 template <>
 struct ocl_ref_traits<cl_sampler> {
-    static void retain(cl_sampler t) { clRetainSampler(t); }
-    static void release(cl_sampler t) { clReleaseSampler(t); }
+    static void retain(cl_sampler t) { UNUSED_OCL_RESULT(clRetainSampler(t)); }
+    static void release(cl_sampler t) {
+        UNUSED_OCL_RESULT(clReleaseSampler(t));
+    }
 };
 
 template <>
 struct ocl_ref_traits<cl_event> {
-    static void retain(cl_event t) { clRetainEvent(t); }
-    static void release(cl_event t) { clReleaseEvent(t); }
+    static void retain(cl_event t) { UNUSED_OCL_RESULT(clRetainEvent(t)); }
+    static void release(cl_event t) { UNUSED_OCL_RESULT(clReleaseEvent(t)); }
 };
 
 template <>
 struct ocl_ref_traits<cl_device_id> {
-    static void retain(cl_device_id t) { clRetainDevice(t); }
-    static void release(cl_device_id t) { clReleaseDevice(t); }
+    static void retain(cl_device_id t) { UNUSED_OCL_RESULT(clRetainDevice(t)); }
+    static void release(cl_device_id t) {
+        UNUSED_OCL_RESULT(clReleaseDevice(t));
+    }
 };
 
 } // namespace details
