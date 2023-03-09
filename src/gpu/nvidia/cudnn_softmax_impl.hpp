@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,8 +33,6 @@ struct cudnn_softmax_impl_base_t {
     cudnnSoftmaxAlgorithm_t alg_kind;
     // cuDNN only supports softmax on channel dimension
     cudnnSoftmaxMode_t mode = cudnnSoftmaxMode_t::CUDNN_SOFTMAX_MODE_CHANNEL;
-    // oneDNN softmax primitive doesn't support any post-ops or attributes,
-    // hence we can set alpha = 1 and beta = 0 for all cases
     float alpha = 1.0f;
     float beta = 0.0f;
 
@@ -183,9 +181,9 @@ struct cudnn_softmax_fwd_impl_t : public cudnn_softmax_impl_base_t {
     }
 
     void execute(cudnnHandle_t handle, void **x, int size) const override {
-        // Confirm that 2 arguments were passed, src and dst
-        assert(size == 2);
-        CUDNN_EXECUTE_FUNC(cudnnSoftmaxForward, handle, alg_kind, mode, &alpha,
+        // Confirm that 3 arguments were passed, src, dst and scale
+        assert(size == 3);
+        CUDNN_EXECUTE_FUNC(cudnnSoftmaxForward, handle, alg_kind, mode, x[2],
                 tensor_desc, x[0], &beta, tensor_desc, x[1]);
     }
 
