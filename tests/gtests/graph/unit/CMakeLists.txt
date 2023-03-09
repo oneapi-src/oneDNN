@@ -65,8 +65,8 @@ set(sycl_rt_pattern "(SYCL|DPCPP)")
 
 # Add CPU test if CPU runtime is enabled
 if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
-    add_test("test_graph_unit" "test_graph_unit" "--engine=cpu")
-    maybe_configure_windows_test("test_graph_unit" TEST)
+    add_test("test_graph_unit_cpu" "test_graph_unit" "--engine=cpu")
+    maybe_configure_windows_test("test_graph_unit_cpu" TEST)
 endif()
 
 # Add GPU test if GPU runtime is enabled
