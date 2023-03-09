@@ -208,7 +208,9 @@ struct ocl_wrapper_t {
 
     ocl_wrapper_t(const ocl_wrapper_t &other) : t_(other.t_) { do_retain(); }
 
-    ocl_wrapper_t(ocl_wrapper_t &&other) noexcept : t_(std::move(other.t_)) {}
+    ocl_wrapper_t(ocl_wrapper_t &&other) noexcept : t_(std::move(other.t_)) {
+        other.t_ = nullptr;
+    }
 
     ocl_wrapper_t &operator=(ocl_wrapper_t other) {
         using std::swap;
