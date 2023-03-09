@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -430,35 +430,34 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
 
     DEBUG({
         printf("init : ");
-        prb_dump(prb);
+        prb_dump(p);
     });
-    // Sort the prb array in increasing sizes of the output stride
+
     prb_normalize(p);
     DEBUG({
         printf("norm : ");
-        prb_dump(prb);
+        prb_dump(p);
     });
 
     // compensation strides require prb_normalized
     prb_set_compensation_strides(p);
 
-    /* Combine the variables, which appear together on both
-             * sides of the reorder */
     prb_simplify(p);
     DEBUG({
         printf("smpl : ");
-        prb_dump(prb);
+        prb_dump(p);
     });
 
     return success;
 }
 
+// Sorts the prb array in increasing sizes of the output stride.
 void prb_normalize(prb_t &p) {
     for (int d = 0; d < p.ndims; ++d) {
         int min_pos = d;
         for (int j = d + 1; j < p.ndims; ++j) {
-            bool new_min = false || p.nodes[j].os < p.nodes[min_pos].os
-                    || (true && p.nodes[j].os == p.nodes[min_pos].os
+            bool new_min = p.nodes[j].os < p.nodes[min_pos].os
+                    || (p.nodes[j].os == p.nodes[min_pos].os
                             && p.nodes[j].n < p.nodes[min_pos].n);
             if (new_min) min_pos = j;
         }
@@ -481,6 +480,7 @@ void prb_node_dependency(prb_t &prb) {
     }
 }
 
+// Combines variables which appear together on both sides of the reorder.
 void prb_simplify(prb_t &p) {
 #if defined(__GNUC__) && __GNUC__ >= 4
 /* GCC produces bogus array subscript is above array bounds warning for
@@ -502,24 +502,18 @@ void prb_simplify(prb_t &p) {
         auto &next_node = p.nodes[d + 1];
         const bool skip_dims_combining
                 = skip_dim_combining(d) || skip_dim_combining(d + 1);
-        const bool fold = false
-                || (next_node.n == static_cast<size_t>(1)
-                        && !skip_dims_combining) // trivial case, just drop next node
-                || (true // or real folding if possible
-                        && !skip_dims_combining
-                        && next_node.is
-                                == static_cast<ptrdiff_t>(
-                                        this_node.n * this_node.is)
-                        && next_node.os
-                                == static_cast<ptrdiff_t>(
-                                        this_node.n * this_node.os)
-                        && next_node.ss
-                                == static_cast<ptrdiff_t>(
-                                        this_node.n * this_node.ss)
-                        && next_node.cs
-                                == static_cast<ptrdiff_t>(
-                                        this_node.n * this_node.cs));
-        if (fold) {
+        if (skip_dims_combining) continue;
+
+        const bool trivial_fold = next_node.n == static_cast<size_t>(1);
+        const bool real_fold = next_node.is
+                        == static_cast<ptrdiff_t>(this_node.n * this_node.is)
+                && next_node.os
+                        == static_cast<ptrdiff_t>(this_node.n * this_node.os)
+                && next_node.ss
+                        == static_cast<ptrdiff_t>(this_node.n * this_node.ss)
+                && next_node.cs
+                        == static_cast<ptrdiff_t>(this_node.n * this_node.cs);
+        if (trivial_fold || real_fold) {
             this_node.n *= next_node.n;
             this_node.dim_id = node_t::empty_field;
             this_node.is_zero_pad_needed = false;
@@ -606,12 +600,14 @@ void prb_node_move(prb_t &p, int d0, int d1) {
 void prb_dump(const prb_t &p) {
     printf("@@@ type:%s:%s ndims:%d ", dnnl_dt2str(p.itype),
             dnnl_dt2str(p.otype), p.ndims);
-    for (int d = 0; d < p.ndims; ++d)
+    for (int d = 0; d < p.ndims; ++d) {
+        if (d != 0) printf("x");
         printf("[%zu:%zu:%d:%d:%s:%td:%td:%td:%td]", p.nodes[d].n,
                 p.nodes[d].tail_size, p.nodes[d].dim_id,
                 p.nodes[d].parent_node_id,
                 p.nodes[d].is_zero_pad_needed ? "true" : "false", p.nodes[d].is,
                 p.nodes[d].os, p.nodes[d].ss, p.nodes[d].cs);
+    }
     printf(" off:%zu:%zu\n", p.ioff, p.ooff);
 }
 

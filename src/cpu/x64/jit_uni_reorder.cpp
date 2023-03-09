@@ -123,12 +123,12 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         int tail_len_unroll = 0;
         int len_unroll = 1;
 
-        // It is responsible for finding as many values
-        // as kernel can unroll. If tail is present then
-        // kernel will unroll only last node (possible improvement).
-        // If there is no tail kernel can unroll a few nodes without any loops etc.
-        // ndims_full_unroll - how many nodes will be unrolled
-        // len_last_dim_unroll - what piece of last unrolled node will be unrolled
+        // It is responsible for finding as many values as kernel can unroll.
+        // If tail is present, then kernel will unroll only last node.
+        // If there is no tail, kernel can unroll few nodes without any loops.
+        // `ndims_full_unroll` - how many nodes will be unrolled
+        // `len_last_dim_unroll` - which piece of the last unrolled node will
+        // be unrolled.
         if (prb.is_tail_present) {
             ndims_full_unroll = 1;
             len_unroll = prb.nodes[0].n;
@@ -471,7 +471,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     }
 
     template <cpu_isa_t isa>
-    bool process_direct_copy(const int ndims, const int len) {
+    bool process_direct_copy(const int ndims, const int len_unroll) {
         using namespace data_type;
 
         static constexpr int desirable_stride = 1;
@@ -484,13 +484,13 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         const bool do_dst_zp = prb_.req_dst_zp;
         const bool zp_applicable = IMPLICATION(
                 (do_src_zp || do_dst_zp), utils::one_of(prb_.itype, s32, f32));
-        const bool can_do = true && mayiuse(isa)
-                && compensation_needed_ == false
+
+        const bool can_do = mayiuse(isa) && !compensation_needed_
                 && utils::everyone_is(desirable_stride, prb_.os(0), prb_.is(0))
-                && (false || (prb_.itype == prb_.otype ? zp_applicable : false)
+                && ((prb_.itype == prb_.otype ? zp_applicable : false)
                         || (prb_.itype == s32 && prb_.otype == f32)
                         || (prb_.itype == f32 && prb_.otype == s32))
-                && len % simd_w == 0 && prb_.n(0) % len == 0
+                && len_unroll % simd_w == 0 && prb_.n(0) % len_unroll == 0
                 && !prb_.is_tail_present
                 && prb_.src_scale_type == scale_type_t::NONE
                 && prb_.dst_scale_type == scale_type_t::NONE
@@ -515,10 +515,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             if (do_dst_zp) uni_vaddps(vmm, vmm, vmm_dst_zp);
         };
 
-        for (int off = 0; off < len;) {
+        for (int off = 0; off < len_unroll;) {
             // TODO: we need extra reg for proper saturation if otype == s32
-            int unroll
-                    = nstl::min(16 - (prb_.otype == s32), (len - off) / simd_w);
+            int unroll = nstl::min(
+                    16 - (prb_.otype == s32), (len_unroll - off) / simd_w);
             unroll = (do_src_zp || do_dst_zp)
                     ? nstl::min(unroll, 16 - do_src_zp - do_dst_zp)
                     : unroll;
@@ -1169,8 +1169,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
     void compute_ker(
             const int ndims, const int len_unroll, const bool tail_processing) {
-        bool optimized = false;
-        optimized = optimized || process_direct_copy<avx>(ndims, len_unroll)
+        bool optimized = process_direct_copy<avx>(ndims, len_unroll)
                 || process_direct_copy<sse41>(ndims, len_unroll)
                 || process_unroll_tr8x8(ndims, len_unroll);
         if (!optimized)
@@ -2047,10 +2046,10 @@ static void prb_thread_kernel_balance(
     for (int d = 0; d < prb.ndims; ++d)
         size_total *= prb.nodes[d].n;
 
-    /* The general expression for size_drv_thr can be written as
-     * size_drv_min = C0 + FC * (nthr > 1 ? 1 : 0) + VC * (nthr - 1)
-     * where FC and VC are fixed and variable costs respectively.
-     * Though for now, the below heuristic seems to be good enough */
+    // The general expression for size_drv_thr can be written as
+    // size_drv_min = C0 + FC * (nthr > 1 ? 1 : 0) + VC * (nthr - 1)
+    // where FC and VC are fixed and variable costs respectively.
+    // Though for now, the below heuristic seems to be good enough
     const size_t size_drv_thr = (nthr > 1) ? 16 * nthr : 1;
 
     /* size_drv_min is the minimal size for the parallel
@@ -2417,11 +2416,11 @@ void jit_uni_reorder_t::omp_driver(const char *in, char *out,
     out += pd()->prb_.ooff * data_type_size(pd()->prb_.otype);
 
     DEBUG({
-        printf("prb : ");
+        printf("prb  : ");
         tr::prb_dump(pd()->prb_);
     });
     DEBUG({
-        printf("ker : ");
+        printf("ker  : ");
         tr::prb_dump(pd()->ker_desc_.prb);
     });
 
