@@ -259,7 +259,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
                 } else
                     return status::unimplemented;
             }
-        } else {
+        } else if (jcp.ic_block == 16) {
             if (is_3d) {
                 if (no_vnni_format)
                     wei_tag = with_groups ? gIdhwo16i : Idhwo16i;
@@ -309,7 +309,28 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
                 } else
                     return status::unimplemented;
             }
-        }
+        } else if (jcp.ic_block == 8) {
+            if (is_3d) {
+                if (no_vnni_format)
+                    wei_tag = with_groups ? gIdhwo8i : Idhwo8i;
+                else
+                    return status::unimplemented;
+            } else if (is_1d) {
+                if (no_vnni_format)
+                    wei_tag = with_groups ? gIwo8i : Iwo8i;
+                else
+                    return status::unimplemented;
+            } else {
+                assert(is_2d);
+                UNUSED(is_2d);
+
+                if (no_vnni_format)
+                    wei_tag = with_groups ? gIhwo8i : Ihwo8i;
+                else
+                    return status::unimplemented;
+            }
+        } else
+            return status::unimplemented;
     }
 
     src_tag = dst_tag;
@@ -365,10 +386,14 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
         sp_block = 0;
         nb_sp = 0;
         eff = 0;
+        max_regs = isa_num_vregs(isa);
+        bcast_simd = acc_simd_w;
     }
 
     int ur, ur_block, ur_block_tail;
     int nb_kd, nb_kh, nb_kw;
+    int max_regs;
+    int bcast_simd;
     float eff;
     static unsigned L1;
     static unsigned L2;
@@ -384,8 +409,6 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
     // memory.
     static constexpr float mem_k = 15.f;
     static constexpr int bench_iterations = 1;
-    static constexpr int max_regs = 32;
-    static constexpr int bcast_simd = 16;
 
     int sp, sp_block, nb_sp;
     static int last_oc_block_size;
@@ -490,7 +513,7 @@ float brg_blocking_t::io_k(const loop_t loop, const array_in_loop_t arr,
 }
 
 void brg_blocking_t::select_oc_block() {
-    const auto padded_oc = last_oc_block_size * (is_oc_padded ? 16 : 1);
+    const auto padded_oc = last_oc_block_size * (is_oc_padded ? acc_simd_w : 1);
     oc_block = (exec_type == exec_trans ? rnd_up(oc, padded_oc) : oc);
     nb_oc = utils::div_up(oc, oc_block);
 }
@@ -504,7 +527,7 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
 
     // Configure matrix sizes
     // for amx if oc_block != oc then we use exec_trans so K is oc_block
-    const auto padded_oc = last_oc_block_size * (is_oc_padded ? 16 : 1);
+    const auto padded_oc = last_oc_block_size * (is_oc_padded ? acc_simd_w : 1);
 
     ocp = rnd_up(oc, padded_oc);
 
@@ -634,7 +657,7 @@ bool brg_blocking_t::fast_check_ic_block() const {
     // This function is for reducing the number of blocking variants
     // TODO: eliminate heuristic in this function
     if (is_1x1) return fast_check_ic_block_1x1();
-    const auto rnd_ic = rnd_up(ic, 16);
+    const auto rnd_ic = rnd_up(ic, acc_simd_w);
     auto res = false;
     if (ic_block == 64) {
         res = (rnd_ic % ic_block == 0 && rnd_ic * wei_dsz < 192 * 4);
@@ -652,7 +675,7 @@ bool brg_blocking_t::fast_check_ic_block() const {
 
 float brg_blocking_t::est_eff() {
     if (is_1x1) return est_eff_1x1();
-    const auto icblock = ic_block / 16;
+    const auto icblock = ic_block / acc_simd_w;
 
     const auto brgemm_microkernel_eff
             = (static_cast<float>(icblock) * ur) / ((ur + icblock) * max_regs);
@@ -1045,7 +1068,7 @@ bool brg_blocking_t::fast_check_ic_block_1x1() const {
     // This function checks for reducing the number of blocking variants
     // TODO: eliminate heuristic in this function
     if (is_1x1 && is_amx(isa)) return true;
-    const auto rnd_ic = rnd_up(ic, 16);
+    const auto rnd_ic = rnd_up(ic, acc_simd_w);
     auto res = false;
     if (ic_block == 64) {
         const auto big_spatial
@@ -1061,7 +1084,7 @@ bool brg_blocking_t::fast_check_ic_block_1x1() const {
 }
 
 float brg_blocking_t::est_eff_1x1() {
-    const auto icblock = ic_block / 16;
+    const auto icblock = ic_block / acc_simd_w;
 
     auto calc_ave_blk = [&](int dim, int block, bool use_ave) -> float {
         const int nb = dim / block;
@@ -1073,7 +1096,7 @@ float brg_blocking_t::est_eff_1x1() {
         return (float(nb2) * block2 + nb2_tail) / div_up(nb, block2);
     };
     const bool use_ocb_ave = true;
-    const auto icb_ave = calc_ave_blk(ic_block, 16, use_ocb_ave);
+    const auto icb_ave = calc_ave_blk(ic_block, acc_simd_w, use_ocb_ave);
     const bool use_spb_ave = false;
     const auto spb_ave = calc_ave_blk(sp_block, ur_block, use_spb_ave);
     const auto M_n_sp_blks = ur_block > 0 ? nstl::max(M, M_tail) / ur_block : 0;
@@ -1318,8 +1341,6 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     brg_blocking_t::L2 = platform::get_per_core_cache_size(2);
     brg_blocking_t::L3 = platform::get_per_core_cache_size(2);
 
-    if (!mayiuse(avx512_core)) return status::unimplemented;
-
     const memory_desc_wrapper diff_dst_d(&diff_dst_md);
     const memory_desc_wrapper weights_d(&weights_md);
     const memory_desc_wrapper diff_src_d(&diff_src_md);
@@ -1392,6 +1413,16 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.wei_dt = weights_md.data_type;
     jcp.bia_dt = jcp.with_bias ? bias_md.data_type : data_type::undef;
 
+    jcp.acc_dt = types::is_integral_dt(jcp.src_dt) ? s32 : f32;
+
+    jcp.src_dsz = types::data_type_size(jcp.src_dt);
+    jcp.wei_dsz = types::data_type_size(jcp.wei_dt);
+    jcp.dst_dsz = types::data_type_size(jcp.dst_dt);
+    jcp.acc_dsz = types::data_type_size(jcp.acc_dt);
+    jcp.bia_dsz = jcp.with_bias ? types::data_type_size(jcp.bia_dt) : 0;
+
+    jcp.simd_w = isa_max_vlen(isa) / jcp.src_dsz;
+    jcp.acc_simd_w = isa_max_vlen(isa) / jcp.acc_dsz;
     jcp.is_bf32 = everyone_is(f32, jcp.src_dt, jcp.wei_dt)
             && attr.fpmath_mode_ == fpmath_mode::bf16 && isa == avx512_core_amx;
 
@@ -1405,7 +1436,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     // TODO: optimize grouped convolutions with small oc
     const bool is_grouped_small_oc
             = jcp.prop_kind != prop_kind::backward_weights && with_groups
-            && jcp.ngroups > 1 && jcp.oc <= 16
+            && jcp.ngroups > 1 && jcp.oc <= jcp.acc_simd_w
             && IMPLICATION(is_amx(jcp.isa),
                     jcp.oc < 16
                             && jcp.ic < 16
@@ -1439,18 +1470,14 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (!IMPLICATION(jcp.wei_dt == f16, mayiuse(avx512_core_fp16)))
         return status::unimplemented;
 
-    jcp.acc_dt = types::is_integral_dt(jcp.src_dt) ? s32 : f32;
-
-    jcp.src_dsz = types::data_type_size(jcp.src_dt);
-    jcp.wei_dsz = types::data_type_size(jcp.wei_dt);
-    jcp.dst_dsz = types::data_type_size(jcp.dst_dt);
-    jcp.acc_dsz = types::data_type_size(jcp.acc_dt);
-    jcp.bia_dsz = jcp.with_bias ? types::data_type_size(jcp.bia_dt) : 0;
+    const bool is_f32
+            = utils::everyone_is(f32, jcp.src_dt, jcp.wei_dt, jcp.dst_dt);
+    if (!IMPLICATION(is_f32, one_of(isa, avx512_core, avx2)))
+        return status::unimplemented;
 
     if (!post_ops_ok(jcp, attr, diff_src_d, is_deconv))
         return status::unimplemented;
 
-    jcp.simd_w = cpu_isa_traits<avx512_core>::vlen / jcp.src_dsz;
     jcp.amx_h = 16;
     jcp.amx_w = 64 / jcp.src_dsz;
 
@@ -1772,7 +1799,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     using namespace data_type;
     // ======================= blocking =================================
 
-    const int min_ic_block = 16;
+    const int min_ic_block = jcp.acc_simd_w;
     int selected_ur = 0;
 
     //-----------------------------------------------------------------------
@@ -1798,7 +1825,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     jcp.copy_block_only = true;
 
-    const auto oc_padded_block = 16 * brg_blocking_t::last_oc_block_size;
+    const auto oc_padded_block
+            = jcp.acc_simd_w * brg_blocking_t::last_oc_block_size;
     jcp.is_oc_padded = one_of(jcp.wei_dt, bf16, f16, s8)
             && jcp.oc * jcp.kw_sets > oc_padded_block && is_amx(isa);
 
@@ -1824,11 +1852,11 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         best_brgb.ic_block = min_ic_block;
         brg_blocking_t cur_brgb = zero<decltype(best_brgb)>();
         cur_brgb.get_from_jcp(jcp);
-        const auto start_icb = nstl::min(div_up(jcp.ic, 16), 4);
+        const auto start_icb = nstl::min(div_up(jcp.ic, jcp.acc_simd_w), 4);
 
         auto finish_icb = 1;
         for (auto icb = start_icb; icb >= finish_icb; icb--) {
-            cur_brgb.ic_block = icb * 16;
+            cur_brgb.ic_block = icb * jcp.acc_simd_w;
             cur_brgb.nb_ic = utils::div_up(jcp.ic, cur_brgb.ic_block);
             if (!cur_brgb.fast_check_ic_block()) continue;
 

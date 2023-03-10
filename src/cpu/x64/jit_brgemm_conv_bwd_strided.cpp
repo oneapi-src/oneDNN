@@ -1488,6 +1488,7 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::ker_trans(
     }
 }
 
+template struct brgemm_convolution_bwd_strided_t<avx2>;
 template struct brgemm_convolution_bwd_strided_t<avx512_core_amx>;
 template struct brgemm_convolution_bwd_strided_t<avx512_core_amx, true>;
 template struct brgemm_convolution_bwd_strided_t<avx512_core_amx_fp16>;
