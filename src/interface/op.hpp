@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -285,9 +285,9 @@ public:
     }
 
     static std::string attr2str(op_attr_t attr) {
-        using namespace dnnl::graph::impl::op_attr;
+        using namespace dnnl::graph::impl;
 #define CASE(a) \
-    case (a): return #a
+    case (op_attr::a): return #a
 
         switch (attr) {
             CASE(alpha);
