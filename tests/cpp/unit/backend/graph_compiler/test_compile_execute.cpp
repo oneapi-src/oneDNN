@@ -718,6 +718,7 @@ TEST(GCGraphTest, INT8BF16DistillBertMHADynamicGraphCompileExecution) {
 
 TEST(GCGraphTest, FP32MLPCompileExecution) {
     REQUIRE_AVX512();
+    REQUIRE_AMX();
     impl::graph_t agraph;
     compiler_utils::add_mlp_subgraph(&agraph, false, 1, 5,
             {479, 1024, 1024, 512, 256, 1},
@@ -754,6 +755,7 @@ TEST(GCGraphTest, BF16MLPCompileExecution) {
 
 TEST(GCGraphTest, FP32MLPDynamicGraphCompileExecution) {
     REQUIRE_AVX512();
+    REQUIRE_AMX();
     impl::graph_t agraph;
     compiler_utils::add_mlp_subgraph(&agraph, false, -2, 5,
             {479, 1024, 1024, 512, 256, 1},
@@ -816,6 +818,7 @@ TEST(GCGraphTest, BF16MLPDynamicGraphCompileExecution) {
 
 TEST(GCGraphTest, FP32MLPTrainingGraphCompileExecution) {
     REQUIRE_AVX512();
+    REQUIRE_AMX();
     impl::graph_t agraph;
     compiler_utils::add_mlp_training_graph(&agraph, 128, 5,
             {479, 1024, 1024, 512, 256, 1},
@@ -831,6 +834,7 @@ TEST(GCGraphTest, FP32MLPTrainingGraphCompileExecution) {
 
 TEST(GCGraphTest, FP32MLPTrainingGraphCompileExecution2) {
     REQUIRE_AVX512();
+    REQUIRE_AMX();
     impl::graph_t agraph;
     compiler_utils::add_mlp_training_graph(&agraph, 128, 5,
             {479, 1024, 1024, 512, 256, 1},
@@ -863,6 +867,7 @@ TEST(GCGraphTest, BF16MLPTrainingGraphCompileExecution) {
 
 TEST(GCGraphTest, FP32BartMLPResidualCompileExecution) {
     REQUIRE_AVX512();
+    REQUIRE_AMX();
     impl::graph_t agraph;
     compiler_utils::add_bart_mlp_residual_subgraph(
             &agraph, false, false, 1, 17);

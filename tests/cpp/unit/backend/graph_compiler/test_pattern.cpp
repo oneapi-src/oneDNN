@@ -466,6 +466,7 @@ TEST(GCPatternTests, INT8MHAPatternVariation3) {
 
 TEST(GCPatternTests, FP32DLRMBottom) {
     REQUIRE_AVX512();
+    REQUIRE_AMX();
     impl::graph_t agraph;
     compiler_utils::add_mlp_subgraph(&agraph, false, 1, 3, {13, 512, 256, 128},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU});
@@ -494,6 +495,7 @@ TEST(GCPatternTests, FP32DLRMBottom) {
 
 TEST(GCPatternTests, FP32DLRMTop) {
     REQUIRE_AVX512();
+    REQUIRE_AMX();
     impl::graph_t agraph;
     compiler_utils::add_mlp_subgraph(&agraph, false, 1, 5,
             {479, 1024, 1024, 512, 256, 1},
@@ -582,6 +584,7 @@ TEST(GCPatternTests, INT8DLRMTop) {
 
 TEST(GCPatternTests, FP32MLPSeparateAdd) {
     REQUIRE_AVX512();
+    REQUIRE_AMX();
     impl::graph_t agraph;
     compiler_utils::add_mlp_subgraph(&agraph, false, 1, 5,
             {479, 1024, 1024, 512, 256, 1},
@@ -613,6 +616,7 @@ TEST(GCPatternTests, FP32MLPSeparateAdd) {
 
 TEST(GCPatternTests, FP32MLPNoActivation) {
     REQUIRE_AVX512();
+    REQUIRE_AMX();
     impl::graph_t agraph;
     compiler_utils::add_mlp_subgraph(&agraph, false, 1, 5,
             {479, 1024, 1024, 512, 256, 1},
@@ -644,6 +648,7 @@ TEST(GCPatternTests, FP32MLPNoActivation) {
 
 TEST(GCPatternTests, FP32MLPSeparateAddNoActivation) {
     REQUIRE_AVX512();
+    REQUIRE_AMX();
     impl::graph_t agraph;
     compiler_utils::add_mlp_subgraph(&agraph, false, 1, 5,
             {479, 1024, 1024, 512, 256, 1},
@@ -707,6 +712,7 @@ TEST(GCPatternTests, INT8MLPNoActivation) {
 
 TEST(GCPatternTests, FP32MLPTraining) {
     REQUIRE_AVX512();
+    REQUIRE_AMX();
     impl::graph_t agraph;
     compiler_utils::add_mlp_training_graph(&agraph, 1, 3, {13, 512, 256, 128},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU},
@@ -1089,6 +1095,7 @@ TEST(GCPatternTests, StaticOnlyPartitions) {
 
 TEST(GCPatternTests, DynamicOnlyPartitions) {
     REQUIRE_AVX512();
+    REQUIRE_AMX();
     {
         impl::graph_t agraph;
         compiler_utils::add_mlp_subgraph(

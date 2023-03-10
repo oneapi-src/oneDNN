@@ -42,7 +42,9 @@ size_t compiler_backend_t::get_mem_size(const logical_tensor_t &lt) const {
 bool compiler_backend_t::register_passes() {
     REQUIRE_AVX512_BEGIN
     COMPILER_BACKEND_REGISTER_PASSES_CALL(fp32_mha_pattern, pass_registry_);
+    REQUIRE_AMX_BEGIN
     COMPILER_BACKEND_REGISTER_PASSES_CALL(fp32_mlp_pattern, pass_registry_);
+    REQUIRE_AMX_END
     COMPILER_BACKEND_REGISTER_PASSES_CALL(fp32_norm_pattern, pass_registry_);
     COMPILER_BACKEND_REGISTER_PASSES_CALL(bf16_norm_pattern, pass_registry_);
     COMPILER_BACKEND_REGISTER_PASSES_CALL(
