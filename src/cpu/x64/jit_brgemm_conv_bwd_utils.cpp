@@ -259,6 +259,32 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
                 } else
                     return status::unimplemented;
             }
+        } else if (jcp.ic_block == 24) {
+            if (is_3d) {
+                if (no_vnni_format)
+                    wei_tag = with_groups ? gIdhwo24i : Idhwo24i;
+                else if (one_of(jcp.wei_dt, bf16, f16))
+                    wei_tag = with_groups ? gIdhwO24i2o : IdhwO24i2o;
+                else
+                    return status::unimplemented;
+            } else if (is_1d) {
+                if (no_vnni_format)
+                    wei_tag = with_groups ? gIwo24i : Iwo24i;
+                else if (one_of(jcp.wei_dt, bf16, f16))
+                    wei_tag = with_groups ? gIwO24i2o : IwO24i2o;
+                else
+                    return status::unimplemented;
+            } else {
+                assert(is_2d);
+                UNUSED(is_2d);
+
+                if (no_vnni_format)
+                    wei_tag = with_groups ? gIhwo24i : Ihwo24i;
+                else if (one_of(jcp.wei_dt, bf16, f16))
+                    wei_tag = with_groups ? gIhwO24i2o : IhwO24i2o;
+                else
+                    return status::unimplemented;
+            }
         } else if (jcp.ic_block == 16) {
             if (is_3d) {
                 if (no_vnni_format)
@@ -313,11 +339,15 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
             if (is_3d) {
                 if (no_vnni_format)
                     wei_tag = with_groups ? gIdhwo8i : Idhwo8i;
+                else if (one_of(jcp.wei_dt, bf16, f16))
+                    wei_tag = with_groups ? gIdhwO8i2o : IdhwO8i2o;
                 else
                     return status::unimplemented;
             } else if (is_1d) {
                 if (no_vnni_format)
                     wei_tag = with_groups ? gIwo8i : Iwo8i;
+                else if (one_of(jcp.wei_dt, bf16, f16))
+                    wei_tag = with_groups ? gIwO8i2o : IwO8i2o;
                 else
                     return status::unimplemented;
             } else {
@@ -326,6 +356,8 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
 
                 if (no_vnni_format)
                     wei_tag = with_groups ? gIhwo8i : Ihwo8i;
+                else if (one_of(jcp.wei_dt, bf16, f16))
+                    wei_tag = with_groups ? gIhwO8i2o : IhwO8i2o;
                 else
                     return status::unimplemented;
             }
@@ -1464,10 +1496,12 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (!IMPLICATION(jcp.wei_dt == s8, mayiuse(avx512_core_vnni)))
         return status::unimplemented;
 
-    if (!IMPLICATION(jcp.wei_dt == bf16, mayiuse(avx512_core_bf16)))
+    if (!IMPLICATION(jcp.wei_dt == bf16,
+                mayiuse(avx512_core_bf16) || mayiuse(avx2_vnni_2)))
         return status::unimplemented;
 
-    if (!IMPLICATION(jcp.wei_dt == f16, mayiuse(avx512_core_fp16)))
+    if (!IMPLICATION(jcp.wei_dt == f16,
+                mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2)))
         return status::unimplemented;
 
     const bool is_f32

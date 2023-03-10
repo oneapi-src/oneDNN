@@ -45,8 +45,12 @@ using namespace jit_uni_brgemm_conv_comp_pad_kernel;
 
 static bool impl_supports_datatype(data_type_t data_type) {
     switch (data_type) {
-        case data_type::bf16: return x64::mayiuse(x64::avx512_core);
-        case data_type::f16: return x64::mayiuse(x64::avx512_core_fp16);
+        case data_type::bf16:
+            return x64::mayiuse(x64::avx512_core)
+                    || x64::mayiuse(x64::avx2_vnni_2);
+        case data_type::f16:
+            return x64::mayiuse(x64::avx512_core_fp16)
+                    || x64::mayiuse(x64::avx2_vnni_2);
         case data_type::f32:
         case data_type::s32:
         case data_type::s8:
@@ -1489,6 +1493,7 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::ker_trans(
 }
 
 template struct brgemm_convolution_bwd_strided_t<avx2>;
+template struct brgemm_convolution_bwd_strided_t<avx2_vnni_2>;
 template struct brgemm_convolution_bwd_strided_t<avx512_core_amx>;
 template struct brgemm_convolution_bwd_strided_t<avx512_core_amx, true>;
 template struct brgemm_convolution_bwd_strided_t<avx512_core_amx_fp16>;
