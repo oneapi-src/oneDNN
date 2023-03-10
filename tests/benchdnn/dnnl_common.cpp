@@ -45,6 +45,9 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
+extern "C" dnnl_status_t dnnl_impl_notify_profiling_complete(
+        dnnl_stream_t stream);
+
 int check_pd_cache(const_dnnl_primitive_desc_t pd, res_t *res) {
     // Disable this check for threadpool. A threadpool is always defined in
     // validation infrastructure but creates primitives in a separate
@@ -412,6 +415,13 @@ void get_gpu_profiling_info(dnnl_stream_t stream, std::vector<uint64_t> &nsecs,
 #endif
 }
 
+void notify_gpu_profiling_complete(dnnl_stream_t stream) {
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
+        || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+    DNN_SAFE_V(dnnl_impl_notify_profiling_complete(stream));
+#endif
+}
+
 void finalize() {
     finalize_tbb();
 }
@@ -491,6 +501,8 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
             is_first_loop = false;
         }
     }
+
+    notify_gpu_profiling_complete(stream);
 
     return OK;
 }

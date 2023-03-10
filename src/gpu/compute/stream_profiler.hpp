@@ -17,6 +17,7 @@
 #ifndef GPU_COMPUTE_STREAM_PROFILER_HPP
 #define GPU_COMPUTE_STREAM_PROFILER_HPP
 
+#include <limits>
 #include <unordered_map>
 
 #include "common/c_types_map.hpp"
@@ -53,6 +54,8 @@ struct stream_profiler_t {
     virtual status_t get_info(profiling_data_kind_t data_kind, int *num_entries,
             uint64_t *data) const = 0;
 
+    uint64_t stamp() const { return stamp_; }
+
     void register_event(std::unique_ptr<event_t> &&event) {
         events_.emplace_back(std::move(event), stamp_);
     }
@@ -70,10 +73,19 @@ struct stream_profiler_t {
     }
     void stop_profiling() { m_.unlock(); }
 
+    void set_callback(void (*callback)(uint64_t, uint64_t)) {
+        callback_ = callback;
+    }
+
+    status_t notify_profiling_complete() const {
+        if (callback_) callback_(0, std::numeric_limits<uint64_t>::max());
+        return status::success;
+    }
+
 protected:
-    static status_t get_info_impl(
+    status_t get_info_impl(
             const std::unordered_map<uint64_t, entry_t> &stamp2entry,
-            profiling_data_kind_t data_kind, uint64_t *data) {
+            profiling_data_kind_t data_kind, uint64_t *data) const {
         int idx = 0;
         for (auto &kv : stamp2entry) {
             auto &e = kv.second;
@@ -82,6 +94,7 @@ protected:
                 case profiling_data_kind::cycles: {
                     double freq = e.freq / e.kernel_count;
                     data[idx] = freq * e.get_nsec() / 1e9;
+                    if (callback_) callback_(kv.first, e.get_nsec());
                     break;
                 }
                 default: assert(!"unexpected data kind");
@@ -95,6 +108,7 @@ protected:
     std::vector<registered_event_t> events_;
     uint64_t stamp_;
     const stream_t *stream_;
+    void (*callback_)(uint64_t, uint64_t) = nullptr;
 };
 
 } // namespace compute

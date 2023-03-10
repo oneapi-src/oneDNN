@@ -51,3 +51,13 @@ dnnl_query_profiling_data(stream_t *stream, profiling_data_kind_t data_kind,
     }
     return stream->get_profiling_data(data_kind, num_entries, data);
 }
+
+extern "C" status_t DNNL_API dnnl_impl_notify_profiling_complete(
+        stream_t *stream) {
+    const auto eng_kind = stream->engine()->kind();
+    if (eng_kind != engine_kind::gpu) {
+        VERROR(common, "CPU engine does not support profiling");
+        return status::unimplemented;
+    }
+    return stream->notify_profiling_complete();
+}

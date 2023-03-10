@@ -18,6 +18,7 @@
 
 #include "gpu/compute/compute_engine.hpp"
 #include "gpu/compute/compute_stream.hpp"
+#include "gpu/compute/stream_profiler.hpp"
 #include "gpu/gpu_primitive.hpp"
 
 namespace dnnl {
@@ -86,6 +87,10 @@ status_t compute_stream_t::zero_pad(
         return zero_pad_primitive->execute(zero_pad_ctx);
     }
 };
+
+status_t compute_stream_t::notify_profiling_complete() const {
+    return profiler().notify_profiling_complete();
+}
 } // namespace compute
 } // namespace gpu
 } // namespace impl

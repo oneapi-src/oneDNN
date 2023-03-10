@@ -119,7 +119,10 @@ struct ocl_stream_t : public compute::compute_stream_t {
         return deps[0];
     }
 
-    compute::stream_profiler_t &profiler() { return *profiler_; }
+    const compute::stream_profiler_t &profiler() const override {
+        return *profiler_;
+    }
+    compute::stream_profiler_t &profiler() override { return *profiler_; }
 
 private:
     ocl_stream_t(engine_t *engine, unsigned flags)

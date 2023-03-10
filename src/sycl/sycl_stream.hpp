@@ -95,7 +95,11 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         return profiler_->get_info(data_kind, num_entries, data);
     }
 
-    gpu::compute::stream_profiler_t &profiler() { return *profiler_; }
+    const gpu::compute::stream_profiler_t &profiler() const override {
+        return *profiler_;
+    }
+
+    gpu::compute::stream_profiler_t &profiler() override { return *profiler_; }
 
     ::sycl::queue &queue() { return *queue_; }
 

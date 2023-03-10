@@ -60,6 +60,10 @@ struct dnnl_stream : public dnnl::impl::c_compatible {
         return dnnl::impl::status::unimplemented;
     }
 
+    virtual dnnl::impl::status_t notify_profiling_complete() const {
+        return dnnl::impl::status::unimplemented;
+    }
+
     bool is_profiling_enabled() const {
         return (flags() & dnnl::impl::stream_flags::profiling);
     }
