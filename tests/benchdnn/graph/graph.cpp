@@ -244,17 +244,7 @@ int doit(const prb_t *prb, res_t *res) {
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const auto &eng = get_test_engine();
-    dnnl::stream strm;
-    if (eng.get_kind() == dnnl::engine::kind::cpu) {
-#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-        strm = dnnl::threadpool_interop::make_stream(
-                eng, dnnl::testing::get_threadpool());
-#else
-        strm = dnnl::stream(eng);
-#endif
-    } else {
-        strm = dnnl::stream(eng);
-    }
+    cpp_stream_t strm {eng};
 
     // mark the output logical tensors of partition as ANY layout enabled
     std::unordered_set<size_t> id_to_set_any_layout;

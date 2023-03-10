@@ -53,7 +53,7 @@ int execute_and_wait(const std::vector<dnnl::graph::compiled_partition> &cp_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &inputs_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v,
         res_t *res) {
-    dnnl::stream stream = get_test_stream();
+    cpp_stream_t stream {get_test_engine()};
     for (size_t i = 0; i < cp_v.size(); i++) {
         perf_function_t perf_func = std::bind(&compiled_partition_executor,
                 cp_v[i], std::placeholders::_1, std::placeholders::_2,
@@ -65,12 +65,12 @@ int execute_and_wait(const std::vector<dnnl::graph::compiled_partition> &cp_v,
     return OK;
 }
 
-inline int measure_perf_aggregate(timer::timer_t &t, dnnl::stream &stream,
+inline int measure_perf_aggregate(timer::timer_t &t,
         std::vector<perf_function_t> &perf_func_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &inputs_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v) {
     const int max_batch_times = 10000;
-
+    cpp_stream_t stream {get_test_engine()};
     // Warm-up run, this is not measured due to possibility the associated
     // kernel has not been built and skews the results.
     auto sz = perf_func_v.size();
@@ -124,10 +124,11 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl::stream &stream,
     return OK;
 }
 
-inline int measure_perf_individual(timer::timer_t &t, dnnl::stream &stream,
+inline int measure_perf_individual(timer::timer_t &t,
         std::vector<perf_function_t> &perf_func_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &inputs_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v) {
+    cpp_stream_t stream {get_test_engine()};
     t.reset();
     while (true) {
         auto sz = perf_func_v.size();
@@ -145,13 +146,10 @@ int measure_perf(timer::timer_t &t, std::vector<perf_function_t> &perf_func_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &inputs_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v) {
     if (has_bench_mode_bit(mode_bit_t::perf)) {
-        dnnl::stream stream = get_test_stream();
         if (is_cpu() && !is_sycl_engine()) {
-            return measure_perf_individual(
-                    t, stream, perf_func_v, inputs_v, outputs_v);
+            return measure_perf_individual(t, perf_func_v, inputs_v, outputs_v);
         } else {
-            return measure_perf_aggregate(
-                    t, stream, perf_func_v, inputs_v, outputs_v);
+            return measure_perf_aggregate(t, perf_func_v, inputs_v, outputs_v);
         }
     } else {
         return OK;
@@ -272,12 +270,6 @@ const dnnl::engine &get_graph_engine() {
                     dev, ctx, sycl_allocator);
     return eng;
 }
-
-dnnl::stream &get_graph_stream() {
-    static dnnl::stream strm {
-            dnnl::sycl_interop::make_stream(get_graph_engine(), get_queue())};
-    return strm;
-}
 #endif // DNNL_WITH_SYCL
 
 bool is_sycl_engine() {
@@ -312,26 +304,6 @@ const dnnl::engine &get_test_engine() {
                 dnnl::engine::kind::gpu, static_cast<size_t>(engine_index)};
 #endif
         return eng;
-    }
-}
-
-const dnnl::stream &get_test_stream() {
-    using stream = dnnl::stream;
-    if (is_cpu()) {
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
-        static const stream strm(get_graph_stream());
-#else
-        static const stream strm(get_test_engine());
-#endif
-        return strm;
-    } else {
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-        static const stream strm(get_graph_stream());
-#else
-        assert(!"GPU only support DPCPP runtime now");
-        static const stream strm(get_test_engine());
-#endif
-        return strm;
     }
 }
 
@@ -1389,6 +1361,19 @@ int get_prim_arg_name_from_graph_op_input_offset(
             return DNNL_ARG_SRC;
         } break;
     }
+}
+
+cpp_stream_t::cpp_stream_t(const dnnl::engine &eng, void *interop_obj) {
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    if (eng.get_kind() == dnnl::engine::kind::cpu) {
+        auto tp = static_cast<dnnl::threadpool_interop::threadpool_iface *>(
+                interop_obj);
+        if (tp == nullptr) tp = dnnl::testing::get_threadpool();
+        stream_ = dnnl::threadpool_interop::make_stream(eng, tp);
+        return;
+    }
+#endif
+    stream_ = dnnl::stream {eng};
 }
 
 } // namespace graph

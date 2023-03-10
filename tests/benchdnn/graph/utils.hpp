@@ -99,7 +99,6 @@ typedef std::function<void(dnnl::stream &,
         perf_function_t;
 
 const dnnl::engine &get_test_engine();
-const dnnl::stream &get_test_stream();
 
 struct cpu_deletor {
     cpu_deletor() = default;
@@ -265,6 +264,16 @@ void change_format_to_ncx(First &first, Rest &...rest) {
     change_format_to_ncx(first);
     change_format_to_ncx(rest...);
 }
+
+struct cpp_stream_t {
+    cpp_stream_t(const dnnl::engine &eng, void *interop_obj = nullptr);
+    void wait() { stream_.wait(); }
+    operator dnnl::stream &() { return stream_; }
+
+private:
+    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(cpp_stream_t);
+    dnnl::stream stream_;
+};
 
 } // namespace graph
 #endif
