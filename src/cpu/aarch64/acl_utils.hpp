@@ -77,7 +77,7 @@ int reorder_dimensions_by_stride(std::vector<memory_desc_t *> permuted_mds,
 // Logs a custom 'info' line describing an unsupported case
 #define LOG_ACL_UNSUPPORTED(msg) \
     do { \
-        if (verbose_has_dispatch()) \
+        if (verbose_has_create_dispatch()) \
             printf("onednn_verbose,cpu,acl,unsupported: %s\n", (msg)); \
     } while (0)
 
