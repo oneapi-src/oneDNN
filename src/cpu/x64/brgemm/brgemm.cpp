@@ -396,6 +396,8 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
 
     if (brgattr.fpmath_mode != fpmath_mode::strict) maybe_try_bf32(brg);
 
+    const int max_vpad = nstl::max(brgattr.max_top_vpad,
+            brgattr.max_bottom_vpad); // these should be equal
     bool hint_blocking_set
             = (brgattr.hint_bd_block != 0 || brgattr.hint_bd_block2 != 0
                     || brgattr.hint_ld_block != 0 || brgattr.hint_ld_block2 != 0
@@ -403,15 +405,13 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
                     || brgattr.hint_load_nt_B != brgemm_hint_nt_undef);
     if (brgattr.use_uker || brg->is_bf16_tmm || hint_blocking_set
             || brgattr.bd_mask_level
-            || brgattr.fpmath_mode != fpmath_mode::strict) {
+            || brgattr.fpmath_mode != fpmath_mode::strict || max_vpad > 0) {
         if (brg->is_dgmm)
             CHECK(brdgmm_blocking(brg));
         else
             CHECK(brgemm_blocking(brg));
     }
 
-    const int max_vpad = nstl::max(brgattr.max_top_vpad,
-            brgattr.max_bottom_vpad); // these should be equal
     if (!brg->is_dgmm) {
         // virtual padding is restricted by bd_block size due to
         // brgemm_kernel implementation. TODO: remove this restriction
