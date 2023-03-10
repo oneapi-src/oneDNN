@@ -248,7 +248,7 @@ public:
         CUDNN_EXECUTE_FUNC_V(cudnnSetConvolutionNdDescriptor, conv_desc,
                 ndims[x] - 2, padding, filter_strides, dilation,
                 cudnnConvolutionMode_t::CUDNN_CROSS_CORRELATION,
-                computation_data_type);
+                CUDNN_DATA_FLOAT);
         // Check for groups and set group count if necessary
         if (with_groups) {
             group_count = pd->G();
@@ -676,7 +676,7 @@ public:
                     continue;
                 fwd_alg_kind = perf[i].algo;
                 CHECK(CUDNN_EXECUTE_FUNC_S(cudnnSetConvolutionMathType,
-                        conv_desc, perf[i].mathType));
+                        conv_desc, CUDNN_DEFAULT_MATH));
                 break;
             }
         }
