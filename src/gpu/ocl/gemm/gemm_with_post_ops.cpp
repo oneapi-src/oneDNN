@@ -210,7 +210,11 @@ status_t gemm_with_post_ops_t::execute(const gemm_exec_ctx_t &ctx) const {
 
     exec_status = gpu_gemm(gemm_prim_)->execute(gemm_ex_ctx);
     CHECK(exec_status);
-
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(
+            ctx.stream()->engine());
+    auto arch = compute_engine->device_info()->gpu_arch();
+    // Workaround correctness issue on Gen9
+    if (arch == compute::gpu_arch_t::gen9) ctx.stream()->wait();
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, GEMM_CTX_ARG_STORAGE(c));
     arg_list.set(1, GEMM_CTX_ARG_STORAGE(bias));
