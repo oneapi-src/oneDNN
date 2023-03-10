@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,8 +34,16 @@
                        ->machine_.cpu_flags_.fAVX512AMXBF16) {
 #define REQUIRE_SINGLE_THREAD_BEGIN \
     if (dnnl::impl::graph::gc::runtime_config_t::get().get_num_threads() == 1) {
+#define REQUIRE_AMX_BEGIN \
+    if (dnnl::impl::graph::gc::get_default_context() \
+                    ->machine_.cpu_flags_.fAVX512AMXTILE) {
+#define REQUIRE_AMXBF16_BEGIN \
+    if (dnnl::impl::graph::gc::get_default_context() \
+                    ->machine_.cpu_flags_.fAVX512AMXBF16) {
 #define REQUIRE_AVX512_END }
 #define REQUIRE_VNNI_AMXINT8_END }
 #define REQUIRE_BF16_AMXBF16_END }
 #define REQUIRE_SINGLE_THREAD_END }
+#define REQUIRE_AMX_END }
+#define REQUIRE_AMXBF16_END }
 #endif
