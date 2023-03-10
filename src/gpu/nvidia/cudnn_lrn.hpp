@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,8 +42,14 @@ struct cudnn_lrn_fwd_t : public primitive_t {
 
         status_t init(engine_t *) {
             using namespace data_type;
+            using namespace format_tag;
 
-            bool ok = is_fwd()
+            const memory_desc_wrapper src_d(src_md());
+
+            //Only for 5D tensors NCDHW is supported
+            bool is_valid_5d = (ndims() == 5) && !src_d.matches_tag(abcde);
+
+            bool ok = is_fwd() && !is_valid_5d
                     && desc()->alg_kind == alg_kind::lrn_across_channels
                     && utils::one_of(src_md()->data_type, f32, f16)
                     && src_md()->data_type == dst_md()->data_type

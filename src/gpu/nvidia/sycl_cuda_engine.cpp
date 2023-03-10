@@ -39,6 +39,7 @@
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
 
 #include "gpu/sycl/ref_binary.hpp"
+#include "gpu/sycl/ref_lrn.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -222,6 +223,14 @@ constexpr dnnl::impl::impl_list_item_t sycl_cuda_impl_list[] = {
         // LRN
         INSTANCE(cudnn_lrn_fwd_t)
         INSTANCE(cudnn_lrn_bwd_t)
+
+        INSTANCE(sycl::ref_sycl_lrn_fwd_t<data_type::f32>)
+        INSTANCE(sycl::ref_sycl_lrn_fwd_t<data_type::bf16>)
+        INSTANCE(sycl::ref_sycl_lrn_fwd_t<data_type::f16>)
+
+        INSTANCE(sycl::ref_sycl_lrn_bwd_t<data_type::f32>)
+        INSTANCE(sycl::ref_sycl_lrn_bwd_t<data_type::bf16>)
+        INSTANCE(sycl::ref_sycl_lrn_bwd_t<data_type::f16>)
 
         // Inner Product
         INSTANCE(cudnn_gemm_inner_product_fwd_t)

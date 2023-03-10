@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -181,6 +181,13 @@ struct sycl_md_t {
             }
         }
         return off_v(pos, is_pos_padded);
+    }
+
+    template <typename... Args>
+    dim_t off(Args... args) const {
+        assert(sizeof...(args) == ndims());
+        dims_t pos = {args...};
+        return off_v(pos, false);
     }
 
 private:
