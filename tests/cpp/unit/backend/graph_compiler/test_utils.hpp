@@ -65,6 +65,18 @@ namespace utils {
         return; \
     }
 
+#define REQUIRE_AMX() \
+    if (!::sc::get_default_context()->machine_.cpu_flags_.fAVX512AMXTILE) { \
+        GTEST_SKIP(); \
+        return; \
+    }
+
+#define REQUIRE_AMXBF16() \
+    if (!::sc::get_default_context()->machine_.cpu_flags_.fAVX512AMXBF16) { \
+        GTEST_SKIP(); \
+        return; \
+    }
+
 #define DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(name) \
     name.set_attr(impl::op_attr::scales, std::vector<float>({0.12f})); \
     name.set_attr(impl::op_attr::zps, std::vector<int64_t>({2})); \
