@@ -794,15 +794,24 @@ status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
         if (bgmmc.is_runtime_M) {
             bgmmc.M_blk = 64; // use fixed block size for runtime M case
         } else {
-            const dim_t max_M = 64, min_M = 32;
-            bgmmc.M_blk = 1;
-            for (dim_t m_ = max_M; m_ >= min_M; m_--) {
-                if (bgmmc.M % m_ == 0) {
-                    bgmmc.M_blk = m_;
-                    break;
+            auto get_block_candidate = [&]() -> dim_t {
+                // for AMX prefer block sizes which utilize at least 13 tile
+                // rows
+                const int tile_rows_min = 13;
+                const int tile_rows_max = 16;
+                const int scale_rows_min = 2;
+                const int scale_rows_max = 4;
+
+                for_(int r = tile_rows_max; r >= tile_rows_min; r--)
+                for (int s = scale_rows_max; s >= scale_rows_min; s--) {
+                    const dim_t m_blk = s * r;
+                    if (bgmmc.M % m_blk == 0) return m_blk;
                 }
-            }
-            if (bgmmc.M_blk == 1) bgmmc.M_blk = nstl::min(bgmmc.M, max_M);
+
+                const dim_t max_M = scale_rows_max * tile_rows_max;
+                return nstl::min(bgmmc.M, max_M);
+            };
+            bgmmc.M_blk = get_block_candidate();
         }
 
         // AMX BRGEMM kernel requires (K_brgemm % 64 == 0 || K_brgemm < 64)
