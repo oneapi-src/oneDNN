@@ -50,6 +50,8 @@ struct cudnn_convolution_fwd_t : public primitive_t {
 
             using sm_t = primitive_attr_t::skip_mask_t;
             const auto attr_skip_mask = sm_t::scales_runtime | sm_t::post_ops;
+            auto *sycl_engine
+                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
 
             bool ok = utils::one_of(desc()->prop_kind,
                     prop_kind::forward_training, prop_kind::forward_inference);
@@ -60,10 +62,17 @@ struct cudnn_convolution_fwd_t : public primitive_t {
                                 weights_md_.data_type, dst_md_.data_type)
                             || utils::everyone_is(f16, src_md_.data_type,
                                     weights_md_.data_type, dst_md_.data_type)
+                            || utils::everyone_is(bf16, src_md_.data_type,
+                                    weights_md_.data_type, dst_md_.data_type)
                             || (utils::everyone_is(s8, src_md_.data_type,
                                         weights_md_.data_type)
                                     && utils::one_of(
-                                            dst_md_.data_type, f32, s8)));
+                                            dst_md_.data_type, f32, s8)))
+                    && IMPLICATION(
+                            utils::one_of(data_type::bf16, src_md_.data_type,
+                                    weights_md_.data_type, dst_md_.data_type),
+                            has_bf16_support(sycl_engine->device()));
+
             ok = ok && this->set_default_formats();
             ok = ok
                     && IMPLICATION(
@@ -202,14 +211,25 @@ struct cudnn_convolution_bwd_data_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
+
             bool ok = desc()->prop_kind == prop_kind::backward_data;
+            auto *sycl_engine
+                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
             ok = ok && this->set_default_formats();
             ok = ok
                     && (utils::everyone_is(f32, diff_src_md_.data_type,
                                 weights_md_.data_type, diff_dst_md_.data_type)
                             || utils::everyone_is(f16, diff_src_md_.data_type,
                                     weights_md_.data_type,
-                                    diff_dst_md_.data_type));
+                                    diff_dst_md_.data_type)
+                            || utils::everyone_is(bf16, diff_src_md_.data_type,
+                                    weights_md_.data_type,
+                                    diff_dst_md_.data_type))
+                    && IMPLICATION(utils::one_of(data_type::bf16,
+                                           diff_src_md_.data_type,
+                                           weights_md_.data_type,
+                                           diff_dst_md_.data_type),
+                            has_bf16_support(sycl_engine->device()));
 
             ok = ok
                     && IMPLICATION(
@@ -269,6 +289,8 @@ struct cudnn_convolution_bwd_weights_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
             bool ok = desc()->prop_kind == prop_kind::backward_weights;
+            auto *sycl_engine
+                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
             ok = ok && this->set_default_formats();
             ok = ok
                     && (utils::everyone_is(f32, src_md_.data_type,
@@ -276,7 +298,16 @@ struct cudnn_convolution_bwd_weights_t : public primitive_t {
                                 diff_dst_md_.data_type)
                             || utils::everyone_is(f16, src_md_.data_type,
                                     diff_weights_md_.data_type,
-                                    diff_dst_md_.data_type));
+                                    diff_dst_md_.data_type)
+                            || utils::everyone_is(bf16, src_md_.data_type,
+                                    diff_weights_md_.data_type,
+                                    diff_dst_md_.data_type))
+
+                    && IMPLICATION(
+                            utils::one_of(data_type::bf16, src_md_.data_type,
+                                    diff_weights_md_.data_type,
+                                    diff_dst_md_.data_type),
+                            has_bf16_support(sycl_engine->device()));
 
             ok = ok
                     && IMPLICATION(

@@ -330,10 +330,14 @@ public:
     }
 
     void set_compute_format() {
-        if (data_types[x] == CUDNN_DATA_INT8) {
-            computation_data_type = CUDNN_DATA_INT32;
-        } else {
-            computation_data_type = data_types[y];
+        switch (data_types[x]) {
+            case CUDNN_DATA_INT8:
+                computation_data_type = CUDNN_DATA_INT32;
+                break;
+            case CUDNN_DATA_BFLOAT16:
+                computation_data_type = CUDNN_DATA_FLOAT;
+                break;
+            default: computation_data_type = data_types[y];
         }
     }
 
