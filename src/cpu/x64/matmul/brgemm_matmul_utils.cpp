@@ -1074,8 +1074,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             = (bm_conf_utils.is_bf16()
                       || (bgmmc.is_amx && bm_conf_utils.is_f16()))
             && (bgmmc.isa != avx2_vnni_2) // no perf study yet.
-            && !bgmmc.transposed_A && math::is_pow2(bgmmc.K) && bgmmc.K >= 4096
-            && bgmmc.M >= 1024;
+            && bgmmc.lda_big_pow2() && bgmmc.M >= 1024;
     const bool is_copy_a_required
             = (bgmmc.is_amx
                       && ((bgmmc.K % bgmmc.required_k_granularity != 0)
@@ -1330,18 +1329,30 @@ void matmul_amx_blocking_params_t::set_blocking_parameters(
         k_chunk_size_ = 1;
     } else {
         dim_t k_per_thr = div_up(K, nthr_k_);
-        k_blk_ = nstl::min(
-                is_amx ? rnd_up(k_per_thr, required_k_granularity) : k_per_thr,
+        k_blk_ = nstl::min(rnd_up(k_per_thr, required_k_granularity),
                 static_cast<dim_t>(wei_k_blk));
-        k_chunk_size_ = nstl::min(nstl::max(static_cast<dim_t>(1), K / k_blk_),
-                div_up(k_per_thr, k_blk_));
+        const dim_t num_k_blk = div_up(K, k_blk_);
+        const dim_t num_k_blk_per_thread = div_up(num_k_blk, nthr_k_);
+        k_chunk_size_ = num_k_blk_per_thread;
 
-        update_k_blocking_dependent_params();
         auto chunk_sz = calculate_chunk_memory_size();
-        float k_div = (float)chunk_sz / L2_threshold();
-        if (k_div > 1.0f)
-            k_chunk_size_ = static_cast<int>(
-                    static_cast<float>(k_chunk_size_) / k_div + 0.6f);
+        const dim_t div_min = chunk_sz / L2_threshold();
+        const dim_t div_max = div_up(chunk_sz, L2_threshold());
+        // for big pow2 lda prefer to increase area of linear memory access
+        const dim_t adjust_k_divisor_threshold = lda_big_pow2() ? 2 : 0;
+        // adjust k blocking values to fit into L2 cache
+        if (div_min > adjust_k_divisor_threshold && k_chunk_size_ > 1) {
+            const auto kc1
+                    = nstl::max(k_chunk_size_ / div_min, static_cast<dim_t>(1));
+            const auto kc2 = div_up(k_chunk_size_, div_max);
+            const auto tail1 = num_k_blk_per_thread % kc1;
+            const auto tail2 = num_k_blk_per_thread % kc2;
+            // prefer adjusted chunk size with more equal work distribution
+            // across iterations
+            k_chunk_size_ = IMPLICATION(tail1 == 0 || tail2 < tail1, tail2 == 0)
+                    ? kc2
+                    : kc1;
+        }
 
         const dim_t current_k_tail = K % k_blk_;
         if (current_k_tail == 0 && K % (k_blk_ * k_chunk_size_) == 0) {
@@ -1353,8 +1364,6 @@ void matmul_amx_blocking_params_t::set_blocking_parameters(
             k_chunk_size_ = 2;
         }
     }
-
-    update_k_blocking_dependent_params();
 
     blocking_chunk_mem_size_ = calculate_chunk_memory_size();
 
@@ -1464,6 +1473,8 @@ bool matmul_amx_blocking_params_t::is_buffer_c_required() {
 }
 
 size_t matmul_amx_blocking_params_t::calculate_chunk_memory_size() {
+    update_k_blocking_dependent_params();
+
     size_t A_chunk_sz = a_dt_sz * k_chunk_elems_ * m_chunk_elems_;
     size_t A_buf_sz = use_buffer_a
             ? tr_a_dt_sz * current_lda_ * k_chunk_size_ * m_chunk_elems_

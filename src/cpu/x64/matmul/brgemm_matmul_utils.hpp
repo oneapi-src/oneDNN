@@ -180,6 +180,10 @@ struct brgemm_matmul_conf_t {
     bool is_runtime_M = false;
     bool is_runtime_N = false;
     bool is_runtime_K = false;
+    inline bool lda_big_pow2() const {
+        const dim_t big_K_threshold = 4096;
+        return !transposed_A && math::is_pow2(K) && K >= big_K_threshold;
+    }
 };
 
 struct brgemm_matmul_conf_utils_t {
