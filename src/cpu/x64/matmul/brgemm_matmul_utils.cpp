@@ -1378,6 +1378,9 @@ void matmul_amx_blocking_params_t::set_blocking_parameters(
 // for parallel work over threads distribution score. Maximum scores - when
 // all threads have the same work amount w/o tails
 float matmul_amx_blocking_params_t::get_thread_balance_scores() {
+    // Ignore M sizes in thread balance computation as actual M size is unknown
+    if (is_runtime_M) return (float)N / rnd_up(N, n_chunk_elems_);
+
     dim_t num_M_chunks = div_up(M, m_chunk_elems_);
     dim_t num_N_chunks = div_up(N, n_chunk_elems_);
     float mnb_parallel_score = batch * ((float)M / m_chunk_elems_)
@@ -1433,8 +1436,12 @@ float matmul_amx_blocking_params_t::calculate_blocking_scores() {
 
     const float nthr_coeff = nstl::min(nthr, 100);
     const float reusage_factor = 1.0f;
-    const float balance_factor = (nthr_coeff - 1.0f) / nthr_coeff;
-    const float cache_utilization_factor = 1.0f / nthr_coeff;
+    // for runtume M the actual size is unknown, use independent on num_threads
+    // balance factors
+    const float balance_factor
+            = is_runtime_M ? 1.0f : (nthr_coeff - 1.0f) / nthr_coeff;
+    const float cache_utilization_factor
+            = is_runtime_M ? 1.0f : 1.0f / nthr_coeff;
 
     float scores = cache_utilization_factor * get_L2_utilization_scores()
             + reusage_factor * get_copied_data_reusage_scores();
