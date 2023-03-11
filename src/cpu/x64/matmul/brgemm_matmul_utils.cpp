@@ -578,13 +578,13 @@ void compute_blocking_heuristic_amx(const brgemm_matmul_conf_t &bgmmc,
             ? nstl::min(saturate(1, 7, bgmmc.nthr / 8), max_k_parallel_work)
             : 1;
     int iter = 0;
+    const int runtime_M_chunk = bgmmc.lda_big_pow2() ? 2 : 4;
     for (int nthr_k = 1; nthr_k <= max_nthr_k; nthr_k++) {
         int num_M_blk = bgmmc.is_runtime_M ? 1 : div_up(bgmmc.M, bgmmc.M_blk);
         int num_N_blk = div_up(bgmmc.N, bgmmc.N_blk);
         int k_parallel_work = nstl::min(max_k_parallel_work, nthr_k);
         int num_parallel_work
                 = bgmmc.batch * num_M_blk * num_N_blk * k_parallel_work;
-        const bool a_lot_of_parallel_work = num_parallel_work > 8 * bgmmc.nthr;
         const bool a_lot_of_parallel_work_lvl2
                 = num_parallel_work > 16 * bgmmc.nthr;
         const bool low_parallelism
@@ -602,15 +602,10 @@ void compute_blocking_heuristic_amx(const brgemm_matmul_conf_t &bgmmc,
                 ? 32
                 : bgmmc.N_blk;
         const int desired_M_chunk = bgmmc.is_runtime_M
-                ? 4
-                : nstl::min(
-                        (bgmmc.use_buffer_b || a_lot_of_parallel_work ? 4 : 1),
-                        num_M_blk);
-        const int desired_N_chunk = nstl::min(a_lot_of_parallel_work_lvl2
-                        ? 6
-                        : (bgmmc.use_buffer_a || a_lot_of_parallel_work ? 4
-                                                                        : 1),
-                num_N_blk);
+                ? runtime_M_chunk
+                : nstl::min(4, num_M_blk);
+        const int desired_N_chunk
+                = nstl::min(a_lot_of_parallel_work_lvl2 ? 6 : 4, num_N_blk);
 
         std::unordered_set<int> mblk_candidates;
         for (int m_blk = bgmmc.M_blk; m_blk >= min_M_blk;
@@ -1404,16 +1399,17 @@ float matmul_amx_blocking_params_t::get_thread_balance_scores() {
 // returns score for current blocking parameters' values in range [0, 1]
 // for copied data reusage
 float matmul_amx_blocking_params_t::get_copied_data_reusage_scores() {
-    const int desired_M_chunk = use_buffer_b
-            ? nstl::min(4, rnd_up(static_cast<int>(M), m_blk_))
-            : 1;
-    const int desired_N_chunk = use_buffer_a
-            ? nstl::min(4, rnd_up(static_cast<int>(N), n_blk_))
-            : 1;
-
-    return 0.5f
-            * (nstl::min((float)m_chunk_size_ / desired_M_chunk, 1.0f)
-                    + nstl::min((float)n_chunk_size_ / desired_N_chunk, 1.0f));
+    const dim_t effective_m_chunk_sz = 64 * 4;
+    const dim_t desired_M_chunk_size = is_runtime_M
+            ? effective_m_chunk_sz
+            : nstl::min(M, effective_m_chunk_sz);
+    const dim_t effective_n_chunk_sz = 64 * (use_buffer_a ? 4 : 1);
+    const dim_t desired_N_chunk_size = nstl::min(N, effective_n_chunk_sz);
+    const float coef_M = nstl::min(
+            static_cast<float>(m_chunk_elems_) / desired_M_chunk_size, 1.0f);
+    const float coef_N = nstl::min(
+            static_cast<float>(n_chunk_elems_) / desired_N_chunk_size, 1.0f);
+    return 0.5f * (coef_M + coef_N);
 }
 
 // returns score for current blocking parameters' values in range [0, 1]
