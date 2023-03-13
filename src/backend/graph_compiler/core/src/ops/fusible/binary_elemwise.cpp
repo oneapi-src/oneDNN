@@ -330,15 +330,20 @@ void binary_elementwise_op_impl_t::query_format(context_ptr ctx,
         if (is_dynamic()) {
             bc_input_idx
                     = info_.inputs_[0]->details_.get_format_candidates().size()
-                            > info_.inputs_[1]
-                                      ->details_.get_format_candidates()
-                                      .size()
+                            >= info_.inputs_[1]
+                                       ->details_.get_format_candidates()
+                                       .size()
                     ? 1
                     : 0;
         } else {
-            bc_input_idx = info_.inputs_[0]->details_.get_format().is_blocking()
-                    ? 1
-                    : 0;
+            // Four situations: `both blocking`, `a blocking b not`, `b blocking
+            // a not`, `both not blocking`. Only `b blocking a not` need to set
+            // bc_input_index to 0.
+            bc_input_idx = 1;
+            if (!info_.inputs_[0]->details_.get_format().is_blocking()
+                    && info_.inputs_[1]->details_.get_format().is_blocking()) {
+                bc_input_idx = 0;
+            }
         }
     }
     attrs_.set<int>(op_attr_key::layout_input_index, 1 - bc_input_idx);
