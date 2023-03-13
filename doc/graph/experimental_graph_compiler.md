@@ -14,22 +14,29 @@ involve API or programming model changes.
 The following build time options only work when
 `ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_BACKEND` is ON.
 
-| CMake Option                                       | Supported values (defaults in bold)        | Description
-| :---                                               | :---                                       | :---
-| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_CPU_JIT         | **llvm;c;builtin**, *codegen approaches*   | Selects the CPU codegen and JIT to be built by graph compiler backend
-| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_CPU_LLVM_CONFIG | **AUTO**, *path to llvm-config binary*     | Defines the method for detecting and configuring LLVM
+| CMake Option                                       | Supported values (defaults in bold)        | Description                                                  |
+| :---                                               | :---                                       | :---                                                         |
+| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_CPU_JIT         | llvm, c, **builtin**                       | Selects the CPU codegen and JIT to be built by graph compiler backend. Multiple codegen approaches can be used simultaneously. See the [example](@ref jit_options) for setting multiple codegen methods.  |
+| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_CPU_LLVM_CONFIG | **AUTO**, *path to llvm-config binary*     | Defines the method for detecting and configuring LLVM.   |
 
+@anchor jit_options
 ### Codegen and JIT Options
 Graph compiler backend supports several different codegen and JIT options
-including C, LLVM, and builtin (xbyak). All three codegen and JIT methods will
-be built by default. Users can choose to build a subset of them by setting the
-`ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_CPU_JIT` option.
+including C, LLVM, and builtin (xbyak). Users can choose to build a subset of
+available options by setting the `ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_CPU_JIT`
+option.
 
 ~~~bash
 cmake .. -DONEDNN_BUILD_GRAPH=ON -DONEDNN_EXPERIMENTAL_GRAPH_COMPILER_BACKEND=ON -DONEDNN_EXPERIMENTAL_GRAPH_COMPILER_CPU_JIT="c;builtin"
 ~~~
 
 This will only build `c` and `builtin` codegen options.
+
+~~~bash
+cmake .. -DONEDNN_BUILD_GRAPH=ON -DONEDNN_EXPERIMENTAL_GRAPH_COMPILER_BACKEND=ON -DONEDNN_EXPERIMENTAL_GRAPH_COMPILER_CPU_JIT="llvm;c;builtin"
+~~~
+
+This will build all three codegen options.
 
 #### C
 C codegen generates temporary cpp files and adopts `g++` to compile them into
