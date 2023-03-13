@@ -122,11 +122,12 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
                         }
                     }
                 }
-            } else if (is_blocked) {
+            } else {
                 group_size = subgroup_size
                         * utils::div_up(axis_size(), buffer_size);
-            } else {
-                group_size = subgroup_size;
+                if (!is_blocked && axis_size() % 16 != 0) {
+                    group_size = subgroup_size;
+                }
             }
 
             lws[0] = group_size;

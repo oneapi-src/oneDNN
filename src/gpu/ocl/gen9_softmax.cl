@@ -27,7 +27,7 @@
             DATA_TO_BLOCK8(prefix, FLOAT_TO_DATA8(prefix, val)))
 
 #define VECT_SIZE 8
-#define SV (SUB_GROUP_SIZE * VECT_SIZE)
+#define SV (GROUP_SIZE * VECT_SIZE)
 #define HAS_TAIL (SOFTMAX_AXIS_SIZE % SV != 0)
 #define NUM_BUF ((SOFTMAX_AXIS_SIZE + SV - 1) / SV)
 #define SMALL_BUFFER (REPEAT_SUBGRP_BUF_SIZE < THREAD_BUF_SIZE)
@@ -253,14 +253,17 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     const int data_off = (get_global_id(0) / GROUP_SIZE) * SOFTMAX_AXIS_SIZE;
 
     float8 d[NUM_BUF];
+
     float max_ = -FLT_MAX;
     float denom_ = 0.f;
     int last_buf = HAS_TAIL ? (NUM_BUF - 1) : NUM_BUF;
 
     src += data_off;
+    int sid = get_sub_group_id();
 
     for (int k = 0; k < last_buf; ++k) {
-        d[k] = LOAD_FLOAT8(SRC, &src[k * VECT_SIZE * SUB_GROUP_SIZE]);
+        int idx = HAS_TAIL ? k * SUB_GROUP_SIZE : sid * SUB_GROUP_SIZE;
+        d[k] = LOAD_FLOAT8(SRC, &src[idx * VECT_SIZE]);
         for (int i = 0; i < VECT_SIZE; ++i) {
             max_ = max(d[k][i], max_);
         }
@@ -279,7 +282,11 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     }
 #endif
 
+#if GROUP_SIZE == SUB_GROUP_SIZE
     max_ = sub_group_reduce_max(max_);
+#else
+    max_ = work_group_reduce_max(max_);
+#endif
 
     for (int k = 0; k < last_buf; ++k) {
 #if LOGSOFTMAX
@@ -312,7 +319,11 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     }
 #endif
 
+#if GROUP_SIZE == SUB_GROUP_SIZE
     denom_ = sub_group_reduce_add(denom_);
+#else
+    denom_ = work_group_reduce_add(denom_);
+#endif
 
 #if LOGSOFTMAX
     denom_ = log(denom_);
@@ -323,13 +334,14 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     dst += data_off;
 #if IS_ALIGNED
     for (int k = 0; k < last_buf; ++k) {
+        int idx = HAS_TAIL ? k * SUB_GROUP_SIZE : sid * SUB_GROUP_SIZE;
 #if LOGSOFTMAX
         d[k] = d[k] - max_ - denom_;
 #else
         d[k] = d[k] * denom_;
 #endif
 
-        STORE_FLOAT8(DST, &dst[k * SV], scale * d[k]);
+        STORE_FLOAT8(DST, &dst[idx * VECT_SIZE], scale * d[k]);
     }
 #if HAS_TAIL // for tail cases with 16-byte aligned tensor shapes
     {
