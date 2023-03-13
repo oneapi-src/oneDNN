@@ -48,24 +48,14 @@ protected:
         input_int8.dat_dt = data_type::u8;
         input_int8.wei_dt = data_type::s8;
 
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-#if DNNL_X64
-        const bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
+#if DNNL_X64 || DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
         const bool is_gpu = get_test_engine_kind() == engine::kind::gpu;
-        input_f32.wino_supported = is_gpu || is_cpu;
-        input_f16.wino_supported = is_gpu || is_cpu;
-        input_int8.wino_supported = is_cpu;
-        input_f32.backward_supported = is_cpu;
+        input_f32.wino_supported = is_gpu;
+        input_f16.wino_supported = is_gpu;
 #elif DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
         const bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
         input_f32.wino_supported = is_cpu;
         input_f16.wino_supported = is_cpu;
-#endif
-
-#else
-        const bool is_gpu = get_test_engine_kind() == engine::kind::gpu;
-        input_f32.wino_supported = is_gpu;
-        input_f16.wino_supported = is_gpu;
 #endif
     }
 };
@@ -120,14 +110,11 @@ TEST_F(wino_conv_test_t, TestLargePadding) {
             EXPECT_NO_THROW(convolution_forward::primitive_desc(eng,
                     prop_kind::forward, algorithm::convolution_winograd, src_md,
                     wei_md, dst_md, {1, 1}, {2, 2}, {2, 2}));
-        }
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE || !defined(DNNL_X64)
-        else {
+        } else {
             EXPECT_ANY_THROW(convolution_forward::primitive_desc(eng,
                     prop_kind::forward, algorithm::convolution_winograd, src_md,
                     wei_md, dst_md, {1, 1}, {2, 2}, {2, 2}));
         }
-#endif
     }
 }
 
@@ -140,11 +127,10 @@ TEST_F(wino_conv_test_t, TestUnsupportedKernel) {
         memory::desc src_md {{1, 16, 5, 5}, input.dat_dt, tag::any};
         memory::desc wei_md {{32, 16, 2, 2}, input.wei_dt, tag::any};
         memory::desc dst_md {{1, 32, 6, 6}, input.dat_dt, tag::any};
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE || !defined(DNNL_X64)
+
         EXPECT_ANY_THROW(convolution_forward::primitive_desc(eng,
                 prop_kind::forward, algorithm::convolution_winograd, src_md,
                 wei_md, dst_md, {1, 1}, {1, 1}, {1, 1}));
-#endif
     }
 }
 
