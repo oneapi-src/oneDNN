@@ -159,6 +159,7 @@ public:
 };
 
 TEST(GCCore_dynamic_impl_kind_cpp, TestImplKindMatmulCoreExec) {
+    BUILTIN_REQUIRE_AVX512();
     sc_graph_t g;
     auto ctx = get_test_ctx();
     auto in_a = g.make_input(

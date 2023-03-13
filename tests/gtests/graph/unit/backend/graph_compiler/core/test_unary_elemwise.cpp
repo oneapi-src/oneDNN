@@ -24,6 +24,7 @@
 
 using namespace dnnl::impl::graph::gc;
 TEST(GCCore_unary_elemwise, TestStridedRelu) {
+    BUILTIN_REQUIRE_AVX512();
     sc_dims input_dims = {128, 64, 56, 56};
     sc_graph_t g;
     auto ins = g.make_input({graph_tensor::make(input_dims)});
