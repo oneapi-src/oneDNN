@@ -340,6 +340,7 @@ TEST(GCPatternTests, INT8MHAPatternVariation3) {
 
 TEST(GCPatternTests, FP32DLRMBottom) {
     REQUIRE_AVX512();
+    REQUIRE_AMX();
     graph::graph_t agraph;
     compiler_utils::add_mlp_subgraph(&agraph, false, 1, 3, {13, 512, 256, 128},
             {graph::op_kind::ReLU, graph::op_kind::ReLU, graph::op_kind::ReLU});
@@ -368,6 +369,7 @@ TEST(GCPatternTests, FP32DLRMBottom) {
 
 TEST(GCPatternTests, FP32DLRMTop) {
     REQUIRE_AVX512();
+    REQUIRE_AMX();
     graph::graph_t agraph;
     compiler_utils::add_mlp_subgraph(&agraph, false, 1, 5,
             {479, 1024, 1024, 512, 256, 1},
@@ -456,6 +458,7 @@ TEST(GCPatternTests, INT8DLRMTop) {
 
 TEST(GCPatternTests, FP32MLPSeparateAdd) {
     REQUIRE_AVX512();
+    REQUIRE_AMX();
     graph::graph_t agraph;
     compiler_utils::add_mlp_subgraph(&agraph, false, 1, 5,
             {479, 1024, 1024, 512, 256, 1},
@@ -487,6 +490,7 @@ TEST(GCPatternTests, FP32MLPSeparateAdd) {
 
 TEST(GCPatternTests, FP32MLPNoActivation) {
     REQUIRE_AVX512();
+    REQUIRE_AMX();
     graph::graph_t agraph;
     compiler_utils::add_mlp_subgraph(&agraph, false, 1, 5,
             {479, 1024, 1024, 512, 256, 1},
@@ -518,6 +522,7 @@ TEST(GCPatternTests, FP32MLPNoActivation) {
 
 TEST(GCPatternTests, FP32MLPSeparateAddNoActivation) {
     REQUIRE_AVX512();
+    REQUIRE_AMX();
     graph::graph_t agraph;
     compiler_utils::add_mlp_subgraph(&agraph, false, 1, 5,
             {479, 1024, 1024, 512, 256, 1},
@@ -581,6 +586,7 @@ TEST(GCPatternTests, INT8MLPNoActivation) {
 
 TEST(GCPatternTests, FP32MLPTraining) {
     REQUIRE_AVX512();
+    REQUIRE_AMX();
     graph::graph_t agraph;
     compiler_utils::add_mlp_training_graph(&agraph, 1, 3, {13, 512, 256, 128},
             {graph::op_kind::ReLU, graph::op_kind::ReLU, graph::op_kind::ReLU},
@@ -709,6 +715,7 @@ TEST(GCPatternTests, BF16MHATrainingPattern2) {
 TEST(GCPatternTests, FP32IdenticalBottleneckPattern1) {
     REQUIRE_AVX512();
     REQUIRE_SINGLE_THREAD();
+    REQUIRE_AMX();
     utils::id_generator id_gen;
     graph::graph_t agraph;
     compiler_utils::construct_identical_bottleneck_resblock(&agraph, id_gen,
@@ -732,6 +739,7 @@ TEST(GCPatternTests, FP32IdenticalBottleneckPattern1) {
 TEST(GCPatternTests, FP32IdenticalBottleneckPattern2) {
     REQUIRE_AVX512();
     REQUIRE_SINGLE_THREAD();
+    REQUIRE_AMX();
     utils::id_generator id_gen;
     graph::graph_t agraph;
     compiler_utils::construct_identical_bottleneck_resblock(&agraph, id_gen,
@@ -757,6 +765,7 @@ TEST(GCPatternTests, FP32IdenticalBottleneckPattern2) {
 TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern1) {
     REQUIRE_AVX512();
     REQUIRE_SINGLE_THREAD();
+    REQUIRE_AMX();
     utils::id_generator id_gen;
     graph::graph_t agraph;
     compiler_utils::construct_convolutional_bottleneck_resblock(&agraph, id_gen,
@@ -780,6 +789,7 @@ TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern1) {
 TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern2) {
     REQUIRE_AVX512();
     REQUIRE_SINGLE_THREAD();
+    REQUIRE_AMX();
     utils::id_generator id_gen;
     graph::graph_t agraph;
     compiler_utils::construct_convolutional_bottleneck_resblock(&agraph, id_gen,
@@ -804,7 +814,7 @@ TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern2) {
 }
 
 TEST(GCPatternTests, BF16IdenticalBottleneckPattern) {
-    REQUIRE_BF16_AMXBF16();
+    REQUIRE_AMXBF16();
     REQUIRE_SINGLE_THREAD();
     utils::id_generator id_gen;
     graph::graph_t agraph;
@@ -829,6 +839,7 @@ TEST(GCPatternTests, BF16IdenticalBottleneckPattern) {
 TEST(GCPatternTests, INT8ConvolutionalBottleneckPattern) {
     REQUIRE_VNNI_AMXINT8();
     REQUIRE_SINGLE_THREAD();
+    REQUIRE_AMX();
     utils::id_generator id_gen;
     graph::graph_t agraph;
     compiler_utils::construct_int8_convolutional_bottleneck_resblock(&agraph,
@@ -853,7 +864,7 @@ TEST(GCPatternTests, INT8ConvolutionalBottleneckPattern) {
 }
 
 TEST(GCPatternTests, BF16ConvolutionalBottleneckPattern) {
-    REQUIRE_BF16_AMXBF16();
+    REQUIRE_AMXBF16();
     REQUIRE_SINGLE_THREAD();
     utils::id_generator id_gen;
     graph::graph_t agraph;
