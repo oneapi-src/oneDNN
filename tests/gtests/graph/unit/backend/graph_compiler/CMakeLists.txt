@@ -43,7 +43,7 @@ target_include_directories(${OBJ_LIB}
     ${PROJECT_SOURCE_DIR}/src/graph/backend/graph_compiler/core/src # for context
     ${CMAKE_CURRENT_SOURCE_DIR}/core
     ${CMAKE_CURRENT_SOURCE_DIR}/core/reference
-    ${CMAKE_SOURCE_DIR}/src/cpu/x64
+    ${PROJECT_SOURCE_DIR}/src/cpu/x64
     )
 
 set_property(GLOBAL APPEND PROPERTY GRAPH_UNIT_TEST_DEPS

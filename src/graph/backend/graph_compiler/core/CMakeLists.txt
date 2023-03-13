@@ -63,7 +63,7 @@ set(DNNL_PATH "${CMAKE_SOURCE_DIR}/src")
 
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/src/cpu/x64
+    ${PROJECT_SOURCE_DIR}/src/cpu/x64
 )
 
 file(GLOB_RECURSE SC_SOURCES
