@@ -512,18 +512,22 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     if (res->state == SKIPPED) return OK;
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
 
-    // The idea is to create the requested primitive twice using different
-    // engines but the same device and context in the case of OpenCL and DPCPP.
-    // Rationale: make sure that the primitive cache is robust in the case
-    // where CPU and GPU engines are re-created because this is a commonly
-    // used scenario in the frameworks.
-    engine_t engine(get_test_engine());
+    int capacity = 0;
+    DNN_SAFE(dnnl_get_primitive_cache_capacity(&capacity), FAIL);
+    if (capacity > 0) {
+        // The idea is to create the requested primitive twice using different
+        // engines but the same device and context in the case of OpenCL and DPCPP.
+        // Rationale: make sure that the primitive cache is robust in the case
+        // where CPU and GPU engines are re-created because this is a commonly
+        // used scenario in the frameworks.
+        engine_t engine(get_test_engine());
 
-    // The first primitive creation using a temporary engine.
-    SAFE(create_primitive(primw, engine, init_pd_func, prb, res, dir, hint,
-                 is_service_prim, /* src_md = */ nullptr),
-            WARN);
-    if (res->state == SKIPPED) return OK;
+        // The first primitive creation using a temporary engine.
+        SAFE(create_primitive(primw, engine, init_pd_func, prb, res, dir, hint,
+                     is_service_prim, /* src_md = */ nullptr),
+                WARN);
+        if (res->state == SKIPPED) return OK;
+    }
 
 #endif
     // The second (if the cache is enabled) primitive creation using the global
