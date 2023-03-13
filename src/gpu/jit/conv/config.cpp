@@ -1818,6 +1818,7 @@ void init_allow_grf_reorder(conv_config_t &cfg) {
     }
 
     if (is_mad && prb.b_data_type == data_type::bf16) {
+        cfg.set_allow_a_grf_reorder(true);
         cfg.set_allow_b_grf_reorder(true);
         return;
     }

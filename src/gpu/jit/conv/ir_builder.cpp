@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -624,24 +624,28 @@ private:
             return layout.retype(type_t::s16()).make_strided(2);
         }
 
-        // bf16 mixed mode mad requires src2 to be f32.
-        if (abc_kind == abc_kind_t::b && a_type_.is_bf16()) {
-            if (changed) *changed = true;
-            return layout.retype(type_t::f32()).make_dense();
-        }
-
-        // bf16 mixed mode mad requires src1 to be packed, when src1 is
-        // broadcasted it needs to be converted to f32.
-        if (abc_kind == abc_kind_t::a && a_type_.is_bf16()
-                && is_src1_broadcast_) {
-            if (changed) *changed = true;
-            return layout.retype(type_t::f32()).make_dense();
-        }
-
-        // Ensure the layout is dense to align regioning.
-        if (!layout.is_dense()) {
+        if (a_type_.is_f16()) {
             if (changed) *changed = true;
             return layout.make_dense();
+        }
+
+        if (a_type_.is_bf16()) {
+            // bf16 mixed mode requires src1 to be converted to f32 when it's
+            // broadcasted.
+            if (abc_kind == abc_kind_t::a && is_src1_broadcast_) {
+                if (changed) *changed = true;
+                return layout.retype(type_t::f32()).make_dense();
+            }
+            // bf16 mixed mode mad requires src1 to be packed
+            if (abc_kind == abc_kind_t::a) {
+                if (changed) *changed = true;
+                return layout.make_dense();
+            }
+            // bf16 mixed mode mad requires src2 to be f32.
+            if (abc_kind == abc_kind_t::b) {
+                if (changed) *changed = true;
+                return layout.retype(type_t::f32()).make_dense();
+            }
         }
 
         return layout;
