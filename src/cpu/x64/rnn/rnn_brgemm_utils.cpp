@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1311,6 +1311,7 @@ static status_t init_kernels_diff_wei(rnn_diff_wei_brgemm_t &diff_wei,
     // TODO: provide unification of jit-based copy routines with implementation
     // independent interface
     matmul::brgemm_matmul_conf_t tmp_matmul_conf_for_reorder;
+    tmp_matmul_conf_for_reorder.isa = rnn.brgemm_isa;
     tmp_matmul_conf_for_reorder.wei_tag = format_tag::ab;
     tmp_matmul_conf_for_reorder.N = rnn.scratch_gates_ld;
     tmp_matmul_conf_for_reorder.K = rnn.mb;
