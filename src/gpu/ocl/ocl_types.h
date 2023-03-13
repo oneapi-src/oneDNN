@@ -42,6 +42,12 @@
 
 #define dim_t long // 64 bit per the OpenCL specification
 
+#if DT_F64 == 1
+#define AS_POST_OP_DATA_T(v) v
+#else
+#define AS_POST_OP_DATA_T(v) (float)(v)
+#endif
+
 #if DT_F32 == 1
 #define DATA_T float
 #define DATA2_T float2
@@ -132,6 +138,24 @@
 #define CONVERT_FLOAT2_T convert_float2
 #define CONVERT_FLOAT4_T convert_float4
 #define CONVERT_FLOAT8_T convert_float8
+
+#define BLOCK_DATA_T ulong
+#define BLOCK_DATA2_T ulong2
+#define BLOCK_DATA4_T ulong4
+#define BLOCK_DATA8_T ulong8
+#define AS_BLOCK_DATA_T as_ulong
+#define AS_BLOCK_DATA2_T as_ulong2
+#define AS_BLOCK_DATA4_T as_ulong4
+#define AS_BLOCK_DATA8_T as_ulong8
+
+#define BLOCK_READ intel_sub_group_block_read_ul
+#define BLOCK_WRITE intel_sub_group_block_write_ul
+#define BLOCK_READ2 intel_sub_group_block_read_ul2
+#define BLOCK_READ4 intel_sub_group_block_read_ul4
+#define BLOCK_READ8 intel_sub_group_block_read_ul8
+#define BLOCK_WRITE2 intel_sub_group_block_write_ul2
+#define BLOCK_WRITE4 intel_sub_group_block_write_ul4
+#define BLOCK_WRITE8 intel_sub_group_block_write_ul8
 
 #define AS_DATA_T as_double
 #define AS_DATA2_T as_double2
@@ -423,7 +447,6 @@
 #define DEF_ACC_DATA2_T int2
 #define DEF_ACC_DATA4_T int4
 #define DEF_ACC_DATA8_T int8
-#define TO_DATA_T(v) convert_int_sat_rte(v)
 #define TO_DEF_ACC_DATA_T convert_int_sat_rte
 #define TO_DEF_ACC_DATA2_T convert_int2_sat_rte
 #define TO_DEF_ACC_DATA4_T convert_int4_sat_rte
@@ -432,7 +455,6 @@
 #define DATA_MIN INT_MIN
 #define DATA_MAX INT_MAX
 #define DATA_ZERO 0
-#define ROUND
 
 #define BLOCK_READ intel_sub_group_block_read
 #define BLOCK_WRITE intel_sub_group_block_write

@@ -48,7 +48,8 @@ static status_t init_conf_common(
     conf.with_zero_padding = data_d.nelems(false) != data_d.nelems(true);
 
     // Set simd size
-    conf.sub_group_size = compute_engine->device_info()->max_subgroup_size();
+    conf.sub_group_size = compute_engine->device_info()->max_subgroup_size(
+            data_d.data_type());
 
     // VECT_DATA_T only supports vector sizes up to 8
     conf.vector_size = std::min(load_size / (dt_size * conf.sub_group_size), 8);

@@ -23,6 +23,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/serialization_stream.hpp"
+#include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "common/z_magic.hpp"
 
@@ -220,7 +221,11 @@ public:
     int stepping_id() const { return stepping_id_; }
     int max_eus_per_wg() const { return max_eus_per_wg_; }
     static int max_eus_per_wg(gpu_arch_t gpu_arch);
-    int max_subgroup_size() const { return max_subgroup_size_; }
+
+    static int max_exec_size(gpu_arch_t gpu_arch);
+
+    int max_exec_size() const { return max_exec_size(gpu_arch()); }
+    int max_subgroup_size(data_type_t type = data_type::undef) const;
     static int max_subgroup_size(gpu_arch_t gpu_arch);
     size_t max_wg_size() const { return max_wg_size_; }
     int eu_count() const { return eu_count_; }
@@ -289,6 +294,7 @@ protected:
     int32_t eu_count_ = 0;
     int32_t max_eus_per_wg_ = 0;
     int32_t max_subgroup_size_ = 0;
+    int max_exec_size_ = 0;
     size_t max_wg_size_ = 0;
     size_t llc_cache_size_ = 0;
 

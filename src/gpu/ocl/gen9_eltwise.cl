@@ -16,7 +16,6 @@
 
 #include "gpu/ocl/ocl_eltwise.h"
 #include "gpu/ocl/ocl_post_ops.h"
-#include "gpu/ocl/ocl_types.h"
 
 #define SIMD GWS_SGS_DEFAULT
 

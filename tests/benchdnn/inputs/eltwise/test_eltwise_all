@@ -5,7 +5,7 @@
 
 # f32
 --dir=FWD_D,BWD_D
---dt=f32
+--dt=f32,f64
 --tag=abx,axb,aBx8b,aBx16b,ABx16a16b
 --batch=option_set_all_algs
 

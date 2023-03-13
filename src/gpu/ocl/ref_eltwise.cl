@@ -16,7 +16,6 @@
 
 #include "gpu/ocl/ocl_eltwise.h"
 #include "gpu/ocl/ocl_post_ops.h"
-#include "gpu/ocl/ocl_types.h"
 
 #define DATA_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(DATA, x0, x1, x2, x3, x4, x5)
 

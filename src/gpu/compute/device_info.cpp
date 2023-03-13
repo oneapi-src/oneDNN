@@ -92,6 +92,23 @@ int device_info_t::max_subgroup_size(gpu_arch_t gpu_arch) {
     return 16;
 }
 
+int device_info_t::max_exec_size(gpu_arch_t gpu_arch) {
+
+    switch (gpu_arch) {
+        case gpu::compute::gpu_arch_t::xe_hpc: return 128;
+        default: return 64;
+    }
+    return 64;
+}
+
+int device_info_t::max_subgroup_size(data_type_t type) const {
+
+    if (type == data_type::undef) { return max_subgroup_size_; }
+
+    return static_cast<int>(std::min((size_t)max_subgroup_size_,
+            ((size_t)max_exec_size()) / types::data_type_size(type)));
+}
+
 int device_info_t::threads_per_eu(gpu_arch_t gpu_arch, bool large_grf_mode) {
     switch (gpu_arch) {
         case gpu::compute::gpu_arch_t::gen9:
@@ -180,7 +197,7 @@ status_t device_info_t::init_attributes_common(engine_t *engine) {
 
     max_eus_per_wg_ = max_eus_per_wg(gpu_arch_);
     max_subgroup_size_ = max_subgroup_size(gpu_arch_);
-
+    max_exec_size_ = max_exec_size(gpu_arch_);
     mayiuse_non_uniform_work_groups_ = ocl_backend;
 
     return status::success;
@@ -202,6 +219,7 @@ status_t device_info_t::init_serialized_device_info(
     serialized_device_info_.write(&eu_count_);
     serialized_device_info_.write(&max_eus_per_wg_);
     serialized_device_info_.write(&max_subgroup_size_);
+    serialized_device_info_.write(&max_exec_size_);
     serialized_device_info_.write(&max_wg_size_);
     serialized_device_info_.write(&llc_cache_size_);
     serialized_device_info_.write(&extensions_);
@@ -238,6 +256,7 @@ status_t device_info_t::init_from_cache_blob(
     DESERIALIZE(eu_count_, int32_t);
     DESERIALIZE(max_eus_per_wg_, int32_t);
     DESERIALIZE(max_subgroup_size_, int32_t);
+    DESERIALIZE(max_exec_size_, int);
     DESERIALIZE(max_wg_size_, size_t);
     DESERIALIZE(llc_cache_size_, size_t);
     DESERIALIZE(extensions_, uint64_t);
