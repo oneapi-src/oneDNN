@@ -332,7 +332,7 @@ void deserialized_graph::load(const std::string &pass_config_json) {
 
 dnnl::graph::graph deserialized_graph::to_graph(
         dnnl::fpmath_mode fpmath_mode) const {
-    const auto &engine = get_test_engine();
+    const auto &engine = get_graph_engine();
     dnnl::graph::graph g(engine.get_kind(), fpmath_mode);
     for (const auto &aop : ops_) {
         try {

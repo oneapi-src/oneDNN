@@ -815,7 +815,7 @@ void flex_rewrite::quantized_graph_rewrite(deserialized_graph &dgraph) {
         const dnnl_dims_t scales_dims {scales_zp_dim};
         const auto scales_md
                 = dnn_mem_t::init_md(1, scales_dims, dnnl_f32, tag::abx);
-        dnn_mem_t scales_fp(scales_md, get_test_engine().get());
+        dnn_mem_t scales_fp(scales_md, ::get_test_engine());
         dnn_mem_t dummy;
         fill_scales(e, dummy, scales_fp);
         for (int i = 0; i < scales_fp.nelems(); i++)

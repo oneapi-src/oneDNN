@@ -98,7 +98,9 @@ typedef std::function<void(dnnl::stream &,
         const std::vector<dnnl::graph::tensor> &outputs)>
         perf_function_t;
 
-const dnnl::engine &get_test_engine();
+// engine used for graph lib, graph lib engine needs allocator to allocate
+// memory for constant cache, scratchpad.
+const dnnl::engine get_graph_engine();
 
 struct cpu_deletor {
     cpu_deletor() = default;

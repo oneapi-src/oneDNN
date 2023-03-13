@@ -243,7 +243,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    const auto &eng = get_test_engine();
+    const auto &eng = get_graph_engine();
     cpp_stream_t strm {eng};
 
     // mark the output logical tensors of partition as ANY layout enabled

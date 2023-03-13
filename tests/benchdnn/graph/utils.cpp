@@ -53,7 +53,7 @@ int execute_and_wait(const std::vector<dnnl::graph::compiled_partition> &cp_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &inputs_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v,
         res_t *res) {
-    cpp_stream_t stream {get_test_engine()};
+    cpp_stream_t stream {get_graph_engine()};
     for (size_t i = 0; i < cp_v.size(); i++) {
         perf_function_t perf_func = std::bind(&compiled_partition_executor,
                 cp_v[i], std::placeholders::_1, std::placeholders::_2,
@@ -70,7 +70,7 @@ inline int measure_perf_aggregate(timer::timer_t &t,
         const std::vector<std::vector<dnnl::graph::tensor>> &inputs_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v) {
     const int max_batch_times = 10000;
-    cpp_stream_t stream {get_test_engine()};
+    cpp_stream_t stream {get_graph_engine()};
     // Warm-up run, this is not measured due to possibility the associated
     // kernel has not been built and skews the results.
     auto sz = perf_func_v.size();
@@ -134,7 +134,7 @@ inline int measure_perf_individual(timer::timer_t &t,
         std::vector<perf_function_t> &perf_func_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &inputs_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v) {
-    cpp_stream_t stream {get_test_engine()};
+    cpp_stream_t stream {get_graph_engine()};
     t.reset();
     while (true) {
         auto sz = perf_func_v.size();
@@ -267,19 +267,6 @@ sycl::queue &get_queue() {
     static sycl::queue q {ctx, dev, sycl::property::queue::in_order {}};
     return q;
 }
-
-const dnnl::engine &get_graph_engine() {
-    static dnnl::graph::allocator sycl_allocator {
-            dnnl::graph::sycl_interop::make_allocator(
-                    sycl_malloc_wrapper, sycl_free_wrapper)};
-    static dnnl::engine test_eng {::get_test_engine()};
-    static sycl::device dev {dnnl::sycl_interop::get_device(test_eng)};
-    static sycl::context ctx {dnnl::sycl_interop::get_context(test_eng)};
-    static dnnl::engine eng
-            = dnnl::graph::sycl_interop::make_engine_with_allocator(
-                    dev, ctx, sycl_allocator);
-    return eng;
-}
 #endif // DNNL_WITH_SYCL
 
 bool is_sycl_engine() {
@@ -293,11 +280,21 @@ bool is_sycl_engine() {
     return false;
 }
 
-// Engine used to run oneDNN fusion patterns for testing.
-const dnnl::engine &get_test_engine() {
+// engine used for graph lib, graph lib engine needs allocator to allocate
+// memory for constant cache, scratchpad.
+const dnnl::engine get_graph_engine() {
     if (is_cpu()) {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
-        static dnnl::engine eng(get_graph_engine());
+        static dnnl::graph::allocator sycl_allocator {
+                dnnl::graph::sycl_interop::make_allocator(
+                        sycl_malloc_wrapper, sycl_free_wrapper)};
+        static dnnl::engine eng
+                = dnnl::graph::sycl_interop::make_engine_with_allocator(
+                        {dnnl::sycl_interop::get_device(
+                                dnnl::engine {::get_test_engine(), true})},
+                        {dnnl::sycl_interop::get_context(
+                                dnnl::engine {::get_test_engine(), true})},
+                        sycl_allocator);
 #else
         static dnnl::graph::allocator alloc {};
         static dnnl::engine eng
@@ -307,10 +304,19 @@ const dnnl::engine &get_test_engine() {
         return eng;
     } else {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-        static dnnl::engine eng(get_graph_engine());
+        static dnnl::graph::allocator sycl_allocator {
+                dnnl::graph::sycl_interop::make_allocator(
+                        sycl_malloc_wrapper, sycl_free_wrapper)};
+        static dnnl::engine eng
+                = dnnl::graph::sycl_interop::make_engine_with_allocator(
+                        {dnnl::sycl_interop::get_device(
+                                dnnl::engine {::get_test_engine(), true})},
+                        {dnnl::sycl_interop::get_context(
+                                dnnl::engine {::get_test_engine(), true})},
+                        sycl_allocator);
 #else
         assert(!"GPU only support DPCPP runtime now");
-        static dnnl::engine eng {
+        dnnl::engine eng {
                 dnnl::engine::kind::gpu, static_cast<size_t>(engine_index)};
 #endif
         return eng;
