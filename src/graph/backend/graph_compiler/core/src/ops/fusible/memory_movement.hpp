@@ -26,6 +26,25 @@ namespace impl {
 namespace graph {
 namespace gc {
 
+class concat_op_t : public movement_op_t, public op_traits::auto_copyable_t {
+public:
+    DECLARE_QUERY_AND_COMPUTE();
+
+    void query_format(context_ptr ctx,
+            std::vector<std::vector<format_stride_pair>> &supported_ins,
+            std::vector<std::vector<format_stride_pair>> &supported_outs)
+            override;
+
+    concat_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
+    concat_op_t(const std::vector<graph_tensor_ptr> &candidates, int axis);
+
+    int64_t get_axis() { return axis_; }
+
+protected:
+    int64_t axis_;
+};
+
 /**
  * Transpose the input tensor
  * Inputs:

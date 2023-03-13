@@ -46,6 +46,295 @@ ir_module_ptr reshape_op_t::get_func(context_ptr ctx) {
     return ret;
 }
 
+static void check_concat_validity(
+        const std::vector<graph_tensor_ptr> &candidates, unsigned concat_axis) {
+    COMPILE_ASSERT(candidates.size() > 1,
+            "Number of candidates for concat op must be larger than 1!\n");
+    auto firstShape = candidates[0]->details_.get_blocking_dims();
+    COMPILE_ASSERT(firstShape.size(),
+            "First candidate of concat op has empty dimensions!\n");
+
+    for (unsigned i = 1; i < candidates.size(); i++) {
+        auto curShape = candidates[i]->details_.get_blocking_dims();
+        if (curShape.size() != firstShape.size()) {
+            COMPILE_ASSERT(
+                    0, "Input shapes are not matched in concat fusion op!\n");
+        }
+        for (unsigned dim = 0; dim < firstShape.size(); dim++) {
+            if (concat_axis == dim && curShape[dim]) { continue; }
+            COMPILE_ASSERT(curShape[dim] == firstShape[dim],
+                    "Input shapes: "
+                            << utils::print_vector(curShape) << " and "
+                            << utils::print_vector(firstShape)
+                            << " are not matched in concat fusion op!\n");
+        }
+    }
+}
+
+static void compute_block_concat(const std::vector<const tensor_slice *> &src,
+        const tensor_slice &dst, int64_t axis, size_t wkld = 0UL) {
+    // outer nested loop vars
+    std::vector<expr> outer_iter(axis);
+    // inner nested loop vars
+    std::vector<std::vector<expr>> inner_iter(dst.nslice_dims() - axis);
+    // the indices for multiple inputs. First dim: the input, Second dim:
+    // the dimemsions in the tensor
+    std::vector<std::vector<expr>> src_idx(src.size());
+    // the indices for the output tensor. Cause concat is a assign op, we
+    // need number of src indexes.
+    std::vector<std::vector<expr>> dst_idx(src.size());
+    for (unsigned i = 0; i < dst.nslice_dims(); i++) {
+        if (i < static_cast<unsigned>(axis)) { // outer loop
+            // make the loop var for the for-loop
+            outer_iter[i] = builder::make_var(datatypes::index,
+                    std::string("_fuseiter") + fusion_create_idx());
+            for (unsigned j = 0; j < src.size(); j++) {
+                src_idx[j].emplace_back(outer_iter[i]);
+                dst_idx[j].emplace_back(outer_iter[i]);
+            }
+        } else { // inner loop
+            expr cur = 0;
+            for (unsigned j = 0; j < src.size(); j++) {
+                inner_iter[i - axis].emplace_back(builder::make_var(
+                        datatypes::index,
+                        std::string("_fuseiter") + fusion_create_idx()));
+                src_idx[j].emplace_back(inner_iter[i - axis][j]);
+                if (static_cast<int64_t>(i) == axis) {
+                    if (j > 0) { cur = cur + src[j - 1]->get_shape()[i]; }
+                    dst_idx[j].emplace_back(inner_iter[i - axis][j] + cur);
+                } else {
+                    dst_idx[j].emplace_back(inner_iter[i - axis][j]);
+                }
+            }
+        }
+    }
+    expr indexed_target;
+    expr indexed_input;
+    auto bld = builder::get_current_builder();
+    COMPILE_ASSERT(bld, "No active builder is set");
+    std::vector<stmt> tcur;
+    for (unsigned j = 0; j < src.size(); j++) {
+        indexed_target = builder::make_indexing(dst.tptr_, dst_idx[j]);
+        indexed_input = builder::make_indexing(src[j]->tptr_, src_idx[j]);
+        stmt cur = make_stmt<assign_node_t>(indexed_target, indexed_input);
+        cur->attr()[op_traits::workload_computable_t::workload_number] = wkld;
+        for (int64_t i = static_cast<int64_t>(dst.nslice_dims()) - 1; i >= axis;
+                i--) {
+            auto body = make_stmt<stmts_node_t>(
+                    std::vector<stmt> {std::move(cur)});
+            cur = make_stmt<for_loop_node_t>(inner_iter[i - axis][j], expr(0),
+                    src[j]->get_shape()[i], expr(1), std::move(body), true,
+                    for_type::NORMAL);
+        }
+        tcur.emplace_back(std::move(cur));
+    }
+    if (axis) {
+        stmt cur = make_stmt<stmts_node_t>(std::move(tcur));
+        for (int i = axis - 1; i >= 0; i--) {
+            stmt body;
+            if (cur.isa<for_loop>()) {
+                body = make_stmt<stmts_node_t>(
+                        std::vector<stmt> {std::move(cur)});
+            } else {
+                body = cur;
+            }
+            cur = make_stmt<for_loop_node_t>(outer_iter[i], expr(0),
+                    src[0]->get_shape()[i], expr(1), std::move(body), true,
+                    for_type::NORMAL);
+        }
+        bld->emit(cur);
+    } else {
+        for (auto &cur : tcur) {
+            bld->emit(cur);
+        }
+    }
+}
+
+static bool check_slice_on_non_concat_axis_equal(
+        const slice_range_map &known_ranges_map, int64_t concat_axis) {
+    std::vector<slice_range_list> slices;
+    for (auto &id_sr_pair : known_ranges_map) {
+        slices.push_back(id_sr_pair.second);
+    }
+    COMPILE_ASSERT(slices.size() > 1,
+            "Only check if slices of multiple inputs are given");
+    for (size_t i = 1; i < slices.size(); ++i) { // number of known slices
+        COMPILE_ASSERT(slices[0].size() == slices[i].size(),
+                "The multi-slice number should be equal");
+        for (size_t j = 0; j < slices[0].size(); ++j) { // number of multi-slice
+            // input tensor rank
+            COMPILE_ASSERT(slices[0][j].size() == slices[i][j].size(),
+                    "The rank of inout tensors should be equal");
+            for (size_t k = 0; k < slices[0][j].size(); ++k) {
+                // if pair offset and range is not equal on non-concat axis
+                if (int64_t(k) != concat_axis
+                        && slices[0][j][k].first.isa<constant_c>()
+                        && slices[i][j][k].first.isa<constant_c>()
+                        && slices[0][j][k].second.isa<constant_c>()
+                        && slices[i][j][k].second.isa<constant_c>()) {
+                    auto input0_offset = get_const_as_int(
+                            slices[0][j][k].first.checked_as<constant_c>());
+                    auto inputi_offset = get_const_as_int(
+                            slices[i][j][k].first.checked_as<constant_c>());
+                    auto input0_range = get_const_as_int(
+                            slices[0][j][k].second.checked_as<constant_c>());
+                    auto inputi_range = get_const_as_int(
+                            slices[i][j][k].second.checked_as<constant_c>());
+                    if (input0_offset != inputi_offset
+                            || input0_range != inputi_range) {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
+concat_op_t::concat_op_t(const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
+    op_name_ = "concat";
+    COMPILE_ASSERT(!ins.empty(), "Inputs to concat should be non-empty");
+    COMPILE_ASSERT(
+            attrs.has_key("concat_axis"), "Concat axis should be provided.");
+    axis_ = attrs.get<int>("concat_axis");
+    // We accept negative axis_, but keep it non-negative internally
+    int64_t rank = ins[0]->details_.get_plain_dims().size();
+    COMPILE_ASSERT(axis_ >= -rank && axis_ <= rank - 1,
+            "Concat axis should be in range [" << -rank << ", " << rank - 1
+                                               << "], but get: " << axis_);
+    if (axis_ < 0) { axis_ += rank; }
+    attrs_ = attrs;
+    for (auto &in : ins) {
+        info_.inputs_.emplace_back(in);
+    }
+    if (outs.empty()) {
+        info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this));
+        info_.outputs_[0]->details_.dtype_ = info_.inputs_[0]->details_.dtype_;
+        auto shape = info_.inputs_[0]->details_.get_plain_dims();
+        COMPILE_ASSERT(axis_ < int64_t(shape.size()),
+                "Wrong concat axis: " << axis_
+                                      << " exceeds input #0 shape rank: "
+                                      << shape.size());
+        for (unsigned i = 1; i < info_.inputs_.size(); i++) {
+            auto tmp_shape = info_.inputs_[i]->details_.get_plain_dims();
+            COMPILE_ASSERT(axis_ < int64_t(tmp_shape.size()),
+                    "Wrong concat axis: " << axis_ << " exceeds input #" << i
+                                          << " shape rank: "
+                                          << tmp_shape.size());
+            shape[axis_] += tmp_shape[axis_];
+        }
+        info_.outputs_[0]->details_.set_plain_dims(shape);
+        info_.outputs_[0]->details_.set_format(
+                info_.inputs_[0]->details_.get_format());
+    } else {
+        COMPILE_ASSERT(
+                outs.size() == 1, "Only one output is supported for concat op");
+        info_.outputs_.emplace_back(outs.front());
+    }
+}
+
+concat_op_t::concat_op_t(
+        const std::vector<graph_tensor_ptr> &candidates, int axis)
+    : concat_op_t(candidates, {}, any_map_t({{"concat_axis", axis}})) {}
+
+void concat_op_t::query_format(context_ptr ctx,
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {
+    std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
+    // before concat tensors, they should be in plain format
+    for (size_t i = 0; i < info_.inputs_.size(); ++i) {
+        in_formats.push_back({sc_data_format_t::get_plain_by_dims(
+                (int)info_.inputs_[i]->details_.get_plain_dims().size())});
+    }
+    out_formats.push_back({sc_data_format_t::get_plain_by_dims(
+            (int)info_.outputs_[0]->details_.get_plain_dims().size())});
+    format_to_dense_format_stride_pair(
+            in_formats, out_formats, supported_ins, supported_outs);
+}
+
+void concat_op_t::prepare_fusion_data(fdata_map &fdmap) {
+    COMPILE_ASSERT(info_.outputs_.size() == 1, "Wrong op output size.\n");
+    auto &in_detail0 = fdmap.get(info_.inputs_[0]);
+    in_detail0.use_count_++;
+    check_concat_validity(info_.inputs_, axis_);
+}
+
+// the slice range must be strictly full at axis, which means it starts from 0
+// and covers the full range
+static bool slice_range_full(
+        const slice_range &sr, const sc_dims &dims, int axis) {
+    auto offset = do_cast_and_fold(sr[axis].first);
+    auto range = do_cast_and_fold(sr[axis].second);
+    return offset.isa<constant>()
+            && get_const_as_int(offset.static_as<constant>()) == 0
+            && range.isa<constant>()
+            && get_const_as_int(range.static_as<constant>()) == dims[axis];
+}
+
+void concat_op_t::infer_slice_ranges(
+        fslice_map &fsmap, infer_status_map_t &stat_map) {
+    // search known ranges from any input of cur fusbile op
+    slice_range_map known_ranges_map
+            = search_known_slice_ranges(this, fsmap, stat_map);
+    if (known_ranges_map.empty()) return;
+    if (known_ranges_map.size() > 1) {
+        // slice of multiple inputs are given
+        if (!check_slice_on_non_concat_axis_equal(known_ranges_map, axis_)) {
+            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+            return;
+        }
+    }
+    auto known_id = known_ranges_map.begin()->first; // input id
+    slice_range_list sr = known_ranges_map[known_id];
+
+    size_t slice_size = sr.size(); // multi-slice
+    for (size_t i = 0; i < get_inputs().size(); ++i) {
+        if (known_ranges_map.find(i) == known_ranges_map.end()) {
+            fsmap.get(get_inputs()[i]).clear();
+            fsmap.get(get_inputs()[i]).resize(slice_size);
+        }
+    }
+    fsmap.get(get_outputs()[0]).clear();
+    fsmap.get(get_outputs()[0]).resize(slice_size);
+
+    std::vector<int> required_axis = {int(axis_)};
+    for (size_t n = 0; n < slice_size; n++) { // multi-slice index
+        // slice at concat dim should be full
+        if (!slice_range_full(sr[n],
+                    info_.inputs_[known_id]->details_.get_plain_dims(),
+                    axis_)) {
+            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+            return;
+        }
+
+        // slice_ranges of inputs and output only differ at concat dim
+        for (size_t i = 0; i < get_inputs().size(); ++i) {
+            if (known_ranges_map.find(i) == known_ranges_map.end()) {
+                slice_range sr_i = sr[n];
+                sr_i[axis_].second = dim2unsigned(
+                        info_.inputs_[i]->details_.get_plain_dims()[axis_]);
+                fsmap.get(get_inputs()[i]).at(n) = sr_i;
+            }
+        }
+        slice_range sr_o = sr[n];
+        sr_o[axis_].second = dim2unsigned(
+                info_.outputs_[0]->details_.get_plain_dims()[axis_]);
+        fsmap.get(get_outputs()[0]).at(n) = sr_o;
+    }
+}
+
+void concat_op_t::pre_slice_ranges(
+        fslice_map &fsmap, infer_status_map_t &stat_map) {}
+
+void concat_op_t::compute_block(context_ptr ctx,
+        const std::vector<tensor_slice *> &dst,
+        const std::vector<const tensor_slice *> &inputs) {
+    size_t wkld = compute_fusible_workload(ctx, dst, inputs);
+    compute_block_concat(inputs, *dst[0], axis_, wkld);
+}
+
 transpose_op_t::transpose_op_t(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
     : order_(attrs.get<std::vector<int>>("order")) {
@@ -1071,6 +1360,7 @@ void split_op_t::compute_block(context_ptr ctx,
     compute_block_split(inputs, dst, dim_, shapes_, wkld);
 }
 
+OP_REGISTER(concat_op_t, concat)
 OP_REGISTER(transpose_op_t, transpose)
 OP_REGISTER(tensor_view_op_t, tensor_view)
 OP_REGISTER(reshape_op_t, reshape)

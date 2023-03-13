@@ -349,6 +349,80 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerMultiInput) {
     do_commit(fusion3, {aaa->params_[2], aaa->params_[3]}, {});
 }
 
+TEST(GCCore_fuse_mgr_cpp, TestConcatOP) {
+    builder::ir_builder_t builder;
+    fusion_manager fusion;
+    auto finput0 = fusion.make<input_op>(make_tsr({100, 200, 10}));
+    auto finput1 = fusion.make<input_op>(make_tsr({100, 300, 10}));
+    auto finput2 = fusion.make<input_op>(make_tsr({100, 400, 10}));
+    auto fconcat = fusion.make<concat_op_t>(
+            {finput0->get_outputs()[0], finput1->get_outputs()[0],
+                    finput2->get_outputs()[0]},
+            1);
+    auto fout = fusion.make<output_op>(fconcat->get_outputs()[0]);
+    _function_(datatypes::s32, aaa,
+            _arg_("inp0", datatypes::s32, {100, 200, 10}),
+            _arg_("inp1", datatypes::s32, {100, 300, 10}),
+            _arg_("inp2", datatypes::s32, {100, 400, 10}),
+            _arg_("out0", datatypes::s32, {100, 900, 10})) {
+        _bind_(inp0, inp1, inp2, out0);
+        fusion.create_output_fusion_anchor(
+                {tensor_slice(inp0,
+                         {/*dim1*/ {0, 10}, /*dim2*/ {0, 200},
+                                 /*dim3*/ {0, 6}}),
+                        tensor_slice(inp1,
+                                {/*dim1*/ {0, 10}, /*dim2*/ {0, 300},
+                                        /*dim3*/ {0, 6}}),
+                        tensor_slice(inp2,
+                                {/*dim1*/ {0, 10}, /*dim2*/ {0, 400},
+                                        /*dim3*/ {0, 6}})},
+                {tensor_slice(out0,
+                        {/*dim1*/ {0, 10}, /*dim2*/ {0, 900},
+                                /*dim3*/ {0, 6}})});
+        _return_(123);
+    }
+
+    do_commit(fusion, {aaa->params_[3]}, {});
+
+    ///// Expected func:
+    _function_(datatypes::s32, bbb,
+            _arg_("inp0", datatypes::s32, {100, 200, 10}),
+            _arg_("inp1", datatypes::s32, {100, 300, 10}),
+            _arg_("inp2", datatypes::s32, {100, 400, 10}),
+            _arg_("out0", datatypes::s32, {100, 900, 10})) {
+        _bind_(inp0, inp1, inp2, out0);
+        auto out0_ptr = builder::tensor_ptr(out0, {0, 0, 0}, {}, true);
+        auto inp0_ptr = builder::tensor_ptr(inp0, {0, 0, 0}, {}, true);
+        auto inp1_ptr = builder::tensor_ptr(inp1, {0, 0, 0}, {}, true);
+        auto inp2_ptr = builder::tensor_ptr(inp2, {0, 0, 0}, {}, true);
+        _for_(ii, 0, 10) {
+            _for_(jj, 0, 200) {
+                _for_(hh, 0, 6) {
+                    out0_ptr[{ii, jj + expr(0), hh}] = inp0_ptr[{ii, jj, hh}];
+                }
+            }
+            _for_(jj, 0, 300) {
+                _for_(hh, 0, 6) {
+                    out0_ptr[{ii, jj + (expr(0) + expr(200)), hh}]
+                            = inp1_ptr[{ii, jj, hh}];
+                }
+            }
+            _for_(jj, 0, 400) {
+                _for_(hh, 0, 6) {
+                    out0_ptr[{ii, jj + (expr(0) + expr(200) + expr(300)), hh}]
+                            = inp2_ptr[{ii, jj, hh}];
+                }
+            }
+        }
+        _return_(123);
+    }
+    auto aaa1 = ir_module_t::from_entry_func(get_default_context(), aaa);
+    auto fptr = jit_engine_t::make(get_test_ctx())->get_entry_func(aaa1, false);
+
+    ir_comparer cmper(true);
+    EXPECT_TRUE(cmper.compare(aaa, bbb, false));
+}
+
 TEST(GCCore_fuse_mgr_cpp, TestSplitOP) {
     builder::ir_builder_t builder;
     fusion_manager fusion;

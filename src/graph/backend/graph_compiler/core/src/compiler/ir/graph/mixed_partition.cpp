@@ -1627,8 +1627,24 @@ static void merge_parti_impl(mixed_parti_t *pa_to_merge,
         }
     }
 
+    // append inner loop anchor
+    for (auto &be_merged_anchor_map : parti_be_merged->fanchors_) {
+        // skip outer anchor
+        if (std::any_of(outer_loops_be_merged.begin(),
+                    outer_loops_be_merged.begin() + merged_loop_size,
+                    [&be_merged_anchor_map, &parti_be_merged](
+                            const for_loop &loop) {
+                        return parti_be_merged->get_anchor_inside_loop(loop)
+                                == be_merged_anchor_map;
+                    })) {
+            continue;
+        }
+        be_merged_anchor_map->attach_parent_anchor(
+                max_to_merge_anchor_map, max_be_merged_anchor_map);
+        pa_to_merge->append_fusion_anchor(be_merged_anchor_map);
+    }
+
     // merge outer loop anchor
-    std::unordered_set<fuse_anchor_map_ptr> be_merged_anchor_masks;
     for (size_t i = 0; i < merged_loop_size; i++) {
         node_remap[outer_loops_be_merged[i]->var_.impl]
                 = outer_loops_to_merge[i]->var_.impl;
@@ -1638,31 +1654,17 @@ static void merge_parti_impl(mixed_parti_t *pa_to_merge,
                      outer_loops_be_merged[i]),
              to_merge_anchor_map
                 = pa_to_merge->get_anchor_inside_loop(outer_loops_to_merge[i]);
-        if (be_merged_anchor_map) {
-            be_merged_anchor_masks.insert(be_merged_anchor_map);
-            if (to_merge_anchor_map) {
-                to_merge_anchor_map->merge(be_merged_anchor_map);
-                // reset op anchor map if neccesary
-                if (i == merged_loop_size - 1) {
-                    for (auto &op_anchor_pair :
-                            parti_be_merged->op_anchor_map_) {
-                        if (op_anchor_pair.second == be_merged_anchor_map) {
-                            op_anchor_pair.second = to_merge_anchor_map;
-                        }
+        if (be_merged_anchor_map && to_merge_anchor_map) {
+            to_merge_anchor_map->merge(be_merged_anchor_map);
+            // reset op anchor map if neccesary
+            if (i == merged_loop_size - 1) {
+                for (auto &op_anchor_pair : parti_be_merged->op_anchor_map_) {
+                    if (op_anchor_pair.second == be_merged_anchor_map) {
+                        op_anchor_pair.second = to_merge_anchor_map;
                     }
                 }
             }
         }
-    }
-
-    // append inner loop anchor
-    for (auto &be_merged_anchor_map : parti_be_merged->fanchors_) {
-        if (be_merged_anchor_masks.find(be_merged_anchor_map)
-                != be_merged_anchor_masks.end())
-            continue;
-        be_merged_anchor_map->attach_parent_anchor(
-                max_to_merge_anchor_map, max_be_merged_anchor_map);
-        pa_to_merge->append_fusion_anchor(be_merged_anchor_map);
     }
 
     /* * * * * * * * * * * * * * * * *
