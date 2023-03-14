@@ -156,10 +156,6 @@ private:
     // Objects below are modified during run()
     // reference primitives for a single partition
     std::unordered_map<int, graph_link_t> ref_prims_;
-    // check wether has eltwise op to use relaxed comparison
-    bool has_eltwise_ {false};
-    // check whether allow nan/inf of output
-    bool output_has_nans_ {false};
 
     // partition output tensors wrapped in args_t
     // used for later correctness check

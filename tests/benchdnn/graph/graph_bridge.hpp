@@ -256,12 +256,6 @@ void check_correctness(std::unordered_map<int, graph_link_t> &ref_prims,
             return;
         }
 
-        // TODO: these two conditions are now part of ref_partition abstraction.
-        // The proposal is to create cmp objects at init_prim stage for each op
-        // and update correspondent values there. Traverse through all of them
-        // here and prepare a final cmp object based on flags from all of them.
-        // This allows to extend checks scalable and reduce the state of
-        // ref_partition by extending graph_link.
         if (has_eltwise) { cmp.set_has_eltwise_post_op(true); }
         if (output_has_nans) { cmp.set_op_output_has_nans(true); }
 

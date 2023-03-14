@@ -51,8 +51,8 @@ public:
                 last_op_ref, bf16_to_f32_rewrite_lt_id_, res); \
         ::driver::prb_t prb_(op_setting), *prb = &prb_; \
         check_correctness<::driver::prb_t>(ref_prims_, op_id, \
-                partition_output_args_, ref_args, prb, has_eltwise_, \
-                output_has_nans_, res); \
+                partition_output_args_, ref_args, prb, has_eltwise, \
+                output_has_nans, res); \
     } break
 
 // ops support bf16 in f32 out.
@@ -211,24 +211,6 @@ void ref_partition_t::run(std::vector<dnnl::graph::tensor> &input_ts,
         const auto op_driver
                 = opkind2driver(opstr2kind(par_op_ref.get().kind_));
         const auto &ref_eng = get_ref_engine();
-
-        // if there is eltwise post-ops or binary div post-ops (GPU test), need
-        // to relax compare critria.
-        // Currently, both cases use set_has_eltwise_post_op flag in benchdnn
-        // compare function.
-        // The flag name is not very accurate, add this note to avoid confusion
-        if (op_driver == dnnl_driver_t::eltwise
-                || (opstr2kind(par_op_ref.get().kind_)
-                                == dnnl::graph::op::kind::Divide
-                        && engine_tgt_kind == dnnl_gpu))
-            has_eltwise_ = true;
-
-        const auto &map_kind_to_alg = eltwise::get_eltwise_kind_map();
-        if (map_kind_to_alg.find(par_op_ref.get().kind_)
-                != map_kind_to_alg.end()) {
-            output_has_nans_ = ::eltwise::eltwise_alg_returns_nan_or_inf(
-                    map_kind_to_alg.at(par_op_ref.get().kind_));
-        }
 
         switch (op_driver) {
             CASE_HANDLE_OP(binary);
@@ -434,6 +416,32 @@ void ref_partition_t::check_partition_correctness(res_t *res) {
     // map the partition output mem to host
     for (int i = 0; i < partition_output_args_.size(); ++i) {
         partition_output_args_.dnn_mem(i).map();
+    }
+
+    // traverse partition ops to check flags used in compare
+    bool has_eltwise = false;
+    bool output_has_nans = false;
+    for (const auto &par_op_ref : partition_ops_ref_) {
+        const auto op_driver
+                = opkind2driver(opstr2kind(par_op_ref.get().kind_));
+
+        // if there is eltwise post-ops or binary div post-ops (GPU test), need
+        // to relax compare critria.
+        // Currently, both cases use set_has_eltwise_post_op flag in benchdnn
+        // compare function.
+        // The flag name is not very accurate, add this note to avoid confusion
+        if (op_driver == dnnl_driver_t::eltwise
+                || (opstr2kind(par_op_ref.get().kind_)
+                                == dnnl::graph::op::kind::Divide
+                        && engine_tgt_kind == dnnl_gpu))
+            has_eltwise = true;
+
+        const auto &map_kind_to_alg = eltwise::get_eltwise_kind_map();
+        if (map_kind_to_alg.find(par_op_ref.get().kind_)
+                != map_kind_to_alg.end()) {
+            output_has_nans = ::eltwise::eltwise_alg_returns_nan_or_inf(
+                    map_kind_to_alg.at(par_op_ref.get().kind_));
+        }
     }
 
     const auto op_driver = opkind2driver(opstr2kind(last_op_ref.get().kind_));
