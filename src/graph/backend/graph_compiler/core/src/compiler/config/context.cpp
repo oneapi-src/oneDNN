@@ -201,6 +201,13 @@ uint16_t context_t::get_max_vector_lanes(sc_data_etype etype) const {
     return machine_.get_device_flags().get_max_vector_lanes(etype);
 }
 
+bool context_t::use_amx() const {
+    return machine_.cpu_flags_.fAVX512AMXTILE
+            && (machine_.cpu_flags_.fAVX512AMXBF16
+                    || machine_.cpu_flags_.fAVX512AMXINT8)
+            && flags_.brgemm_use_amx_;
+}
+
 context_t::context_t(const scflags_t &flags,
         runtime::target_machine_t &&machine, runtime::engine_t *engine)
     : engine_(engine ? engine : runtime::get_default_stream()->engine_)

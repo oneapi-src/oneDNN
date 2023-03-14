@@ -130,7 +130,7 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
     }
     return std::move(ret);
   }
-  const bool is_amx = is_use_amx(ctx);
+  const bool is_amx = ctx->use_amx();
   const bool is_int8
     = utils::is_one_of(get_in_dtypes(0), datatypes::u8, datatypes::s8);
   const bool is_bf16 = get_in_dtypes(0) == datatypes::bf16;

@@ -349,7 +349,7 @@ void conv_bwd_data_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     }
 
     auto ctx = get_default_context();
-    if (!is_3D && is_use_amx(ctx) && is_3x3 && stride_all_1 && valid_padding) {
+    if (!is_3D && ctx->use_amx() && is_3x3 && stride_all_1 && valid_padding) {
         // use conv fwd core instead
         // make KCRS --> CKRS, since
         // conv_fwd_core is NCHW (x) KCRS

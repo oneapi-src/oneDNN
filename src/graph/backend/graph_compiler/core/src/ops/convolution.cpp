@@ -453,8 +453,8 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
                                               << " inputs.");
     ndims_ = info_.inputs_[0]->details_.get_plain_dims().size();
 
-    // nested os blocking conv 3x3 works when is_use_amx is true
-    if (!is_use_amx(ctx)) { attrs_.set("use_nested", false); }
+    // nested os blocking conv 3x3 works when use_amx is true
+    if (!ctx->use_amx()) { attrs_.set("use_nested", false); }
     if (!config_data_) {
         config_data_ = create_generator()->get_default_config(ctx);
     }
@@ -503,7 +503,7 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
         auto pw = pads_begin[0];
         auto kw = weight_plain_dims[ndims_ - 1];
         channel_last_support = (kh == 1 || kw == 1)
-                || (is_use_amx(ctx) && ph <= kh && pw <= kw);
+                || (ctx->use_amx() && ph <= kh && pw <= kw);
     }
     std::string test_format;
     if (attrs_.has_key("temp.test_format")) {

@@ -70,6 +70,7 @@ struct context_t {
             runtime::engine_t *engine = nullptr);
     context_t(const context_t &) = default;
     uint16_t get_max_vector_lanes(sc_data_etype etype) const;
+    bool use_amx() const;
 };
 using context_ptr = std::shared_ptr<context_t>;
 

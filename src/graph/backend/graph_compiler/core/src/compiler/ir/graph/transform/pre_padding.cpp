@@ -16,6 +16,7 @@
 
 #include <compiler/ir/graph/fused_op.hpp>
 #include <ops/convolution.hpp>
+#include <ops/templates/utils.hpp>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -50,12 +51,15 @@ void pre_padding(sc_graph_t &graph, const context_ptr &ctx) {
                 // insert a padding op before current node
 
                 if (node->isa<ops::conv_fwd_core_op_t>()) {
+                    auto input_dims = node->get_inputs()[0]
+                                              ->details_.get_plain_dims()
+                                              .size();
+                    bool is_amx_dtype = ops::is_amx_dtype(
+                            ctx, node->get_inputs()[0]->details_.dtype_);
+
                     // TODO(xurui)
                     // Only support extract padding op from 2d conv for now.
-                    if (node->get_inputs()[0]->details_.get_plain_dims().size()
-                            != 4) {
-                        return;
-                    }
+                    if ((input_dims != 4) || !is_amx_dtype) { return; }
                     // Only apply to inference
                     bool is_weight_constant
                             = node->get_inputs()[1]

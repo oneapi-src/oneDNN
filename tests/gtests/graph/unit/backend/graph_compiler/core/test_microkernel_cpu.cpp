@@ -100,10 +100,7 @@ TEST(GCCore_microkernel_cpu_cpp, TestBrgemmOnednnS8S8) {
     std::vector<float> refA(qA.begin(), qA.end());
     std::vector<float> refB(tmpB.begin(), tmpB.end());
     auto ctx = get_default_context();
-    bool is_amx = (ctx->machine_.cpu_flags_.fAVX512AMXBF16
-                          || ctx->machine_.cpu_flags_.fAVX512AMXINT8)
-            && ctx->flags_.brgemm_use_amx_;
-    if (!is_amx) {
+    if (!ctx->use_amx()) {
         for (auto &it : refA) {
             it += 128;
         }

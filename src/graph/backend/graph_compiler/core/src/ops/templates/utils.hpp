@@ -69,10 +69,17 @@ static std::vector<T> concat_candidate_vec(std::vector<T> v1,
   return v1;
 }
 
-inline bool is_use_amx(const context_ptr &ctx) {
-  return (ctx->machine_.cpu_flags_.fAVX512AMXBF16
-           || ctx->machine_.cpu_flags_.fAVX512AMXINT8)
-    && ctx->flags_.brgemm_use_amx_;
+inline bool is_amx_dtype(const context_ptr &ctx, const sc_data_type_t &dtype) {
+  if (ctx->use_amx()) {
+    if (ctx->machine_.cpu_flags_.fAVX512AMXBF16) {
+      return dtype == datatypes::bf16;
+    }
+    if (ctx->machine_.cpu_flags_.fAVX512AMXINT8) {
+      return utils::is_one_of(dtype, datatypes::u8, datatypes::s8);
+    }
+  }
+
+  return false;
 }
 
 inline std::vector<expr> dims_to_expr(const sc_dims &dim) {

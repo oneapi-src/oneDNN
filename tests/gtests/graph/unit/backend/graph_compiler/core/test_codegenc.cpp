@@ -289,7 +289,7 @@ static void ddd_0wrapper(void* __stream, int8_t* __restrict__ __module_data, gen
 
     const char *expected_header = R"(#include <stdint.h>
 #include <runtime/generic_val.hpp>
-using generic_val = gc::generic_val;
+using generic_val = dnnl::impl::graph::gc::generic_val;
 
 extern uint8_t aaa_data[40512];
 

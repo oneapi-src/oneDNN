@@ -92,11 +92,12 @@ void compute_ref_direct_fwd(const int64_t MB, const int64_t G, const int64_t OC,
 
         for (int64_t kd = 0; kd < KD; ++kd) {
             const int64_t id = od * SD - PD + kd * DD;
+            if (id < 0 || id >= ID) continue;
             for (int64_t kh = 0; kh < KH; ++kh) {
-                const int64_t ih = oh * SH - PH + kh;
+                const int64_t ih = oh * SH - PH + kh * DH;
                 if (ih < 0 || ih >= IH) continue;
                 for (int64_t kw = 0; kw < KW; ++kw) {
-                    const int64_t iw = ow * SW - PW + kw;
+                    const int64_t iw = ow * SW - PW + kw * DW;
                     if (iw < 0 || iw >= IW) continue;
                     for (int64_t ic = 0; ic < ICG; ++ic) {
                         int64_t src_off = ((ic * ID + id) * IH + ih) * IW + iw;

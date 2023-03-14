@@ -85,7 +85,7 @@ static int get_im_s_block(const context_ptr &ctx, const int &os,
 void gen_conv_fwd_t::validate_conv_fwd_default_config(
   const context_ptr &ctx, conv_fwd_config_t &cfg) const {
   bool dtype_f32 = get_input_dtype() == datatypes::f32;
-  bool use_os_blocking = try_os_blocking_ && is_use_amx(ctx);
+  bool use_os_blocking = try_os_blocking_ && ctx->use_amx();
   auto K_block_list = utils::get_blocks(oc_, 16);
   auto C_block_list = utils::get_blocks(ic_, 16);
   auto tile_d_list = utils::get_factors(od_);
@@ -188,7 +188,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   // large spatial
   bool large_spatial = oh_ * ow_ >= 128 * 128;
   if (large_spatial) {
-    if (is_use_amx(ctx) && get_weight_dtype() != datatypes::f32) {
+    if (ctx->use_amx() && get_weight_dtype() != datatypes::f32) {
       cfg.loop_sched = 2;
     } else {
       cfg.loop_sched = 0;
@@ -226,7 +226,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
     }
   }
   if (get_input_dtype() == datatypes::f32) { cfg.tile_p = 1; }
-  if (try_os_blocking_ && is_use_amx(ctx)) {
+  if (try_os_blocking_ && ctx->use_amx()) {
     // if use os blocking override tile p and tile q above
     cfg.tile_os = cfg.tile_q;
     auto os_choices = get_os_blocks(ow_, adj_os_);
@@ -2207,7 +2207,7 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
   int loop_sched = config.loop_sched;
   int K_num_block = oc_ / K_block;
   int C_num_block = ic_ / C_block;
-  const bool use_os_blocking = try_os_blocking_ && is_use_amx(ctx);
+  const bool use_os_blocking = try_os_blocking_ && ctx->use_amx();
   const bool pack_rows = use_os_blocking && (tile_os > 0 && ow_ % tile_os != 0);
   int os = actual_os_;
 
@@ -2326,7 +2326,7 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
           pack_rows, os_acc_size, os_mask);
       }
     } else {
-      if (is_use_amx(ctx) && (ph_ <= kh_ && pw_ <= kw_)) {
+      if (ctx->use_amx() && (ph_ <= kh_ && pw_ <= kw_)) {
         if (inverse_filter_) {
           SC_INFO << "inverse_filter_ used in conv padding v2.";
         }

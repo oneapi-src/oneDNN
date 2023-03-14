@@ -75,45 +75,51 @@ TEST(GCCore_pre_padding_test, TestPre_Padding_Standalone) {
 }
 
 TEST(GCCore_pre_padding_test, TestPre_Padding_Graph) {
+    REQUIRE_AMX();
     BUILTIN_REQUIRE_AVX512();
     auto ctx = std::make_shared<context_t>(*get_default_context());
     ctx->flags_.mixed_fusion_ = true;
     sc_graph_t g;
     auto input = g.make_input({graph_tensor::make(
-            {9, 256, 56, 56}, sc_data_format_t::NCHW(), datatypes::f32)});
+            {9, 256, 56, 56}, sc_data_format_t::NCHW(), datatypes::bf16)});
 
     auto conv_1 = g.make("conv_fwd_core",
             {input->get_outputs()[0],
-                    g.make_input(
-                             {graph_tensor::make({64, 256, 1, 1},
-                                     sc_data_format_t::KCRS(), datatypes::f32)},
+                    g.make_input({graph_tensor::make({64, 256, 1, 1},
+                                         sc_data_format_t::KCRS(),
+                                         datatypes::bf16)},
                              {{"constant", const_kind::local_const}})
                             ->get_outputs()[0]},
             {},
             {{"strides", sc_dims {1, 1}}, {"pads_begin", sc_dims {0, 0}},
                     {"pads_end", sc_dims {0, 0}}});
 
+    conv_1 = g.make("cast", {conv_1->get_outputs()[0]}, {},
+            {{"dtype", datatypes::bf16}});
+
     auto conv_2 = g.make("conv_fwd_core",
             {conv_1->get_outputs()[0],
-                    g.make_input(
-                             {graph_tensor::make({64, 64, 3, 3},
-                                     sc_data_format_t::KCRS(), datatypes::f32)},
+                    g.make_input({graph_tensor::make({64, 64, 3, 3},
+                                         sc_data_format_t::KCRS(),
+                                         datatypes::bf16)},
                              {{"constant", const_kind::local_const}})
                             ->get_outputs()[0]},
             {},
             {{"strides", sc_dims {1, 1}}, {"pads_begin", sc_dims {1, 1}},
                     {"pads_end", sc_dims {1, 1}}});
 
+    conv_2 = g.make("cast", {conv_2->get_outputs()[0]}, {},
+            {{"dtype", datatypes::bf16}});
     auto conv_3 = g.make("conv_fwd_core",
             {conv_2->get_outputs()[0],
-                    g.make_input(
-                             {graph_tensor::make({64, 64, 1, 1},
-                                     sc_data_format_t::KCRS(), datatypes::f32)},
+                    g.make_input({graph_tensor::make({64, 64, 1, 1},
+                                         sc_data_format_t::KCRS(),
+                                         datatypes::bf16)},
                              {{"constant", const_kind::local_const}})
                             ->get_outputs()[0]},
             {},
-            {{"strides", sc_dims {1, 1}}, {"pads_begin", sc_dims {1, 1}},
-                    {"pads_end", sc_dims {1, 1}}});
+            {{"strides", sc_dims {1, 1}}, {"pads_begin", sc_dims {0, 0}},
+                    {"pads_end", sc_dims {0, 0}}});
 
     auto add = g.make("add",
             {conv_3->get_outputs()[0], conv_3->get_outputs()[0]}, {}, {});
@@ -190,7 +196,6 @@ TEST(GCCore_pre_padding_test, TestPre_Padding_Conv_Padding_Reorder) {
             strides[0], strides[0], 0, 0, &input_data[0], &weight_1_data[0],
             static_cast<float *>(nullptr), &conv1_output[0], FWD_I);
 
-    std::cout << utils::print_vector(padding_output_shape) << std::endl;
     ref_padding_2d(&padding_output[0], &conv1_output[0], padding_output_shape,
             pads_begin, pads_end);
     ref_output = NCHW2NCHWc(padding_output, 1, 4, 16, 16, 16);

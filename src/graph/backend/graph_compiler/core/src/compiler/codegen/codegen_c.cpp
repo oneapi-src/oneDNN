@@ -1121,7 +1121,7 @@ static void generate_dumped_source(const const_ir_module_ptr &mod,
 
     header_src << R"(#include <stdint.h>
 #include <runtime/generic_val.hpp>
-using generic_val = gc::generic_val;
+using generic_val = dnnl::impl::graph::gc::generic_val;
 
 extern uint8_t )"
                << module_name << "_data[" << mod_data->data_.size_ << "];\n\n";

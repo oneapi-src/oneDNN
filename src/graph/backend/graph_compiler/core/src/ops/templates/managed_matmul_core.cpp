@@ -150,8 +150,8 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
     // the shape weight on small shape.
     float new_cost;
     float sew = 1024 + M * i / num_threads + N / i;
-    if (((K >= 1024 && is_int8 && !is_use_amx(ctx))
-          || (K >= 512 && is_f32 && !is_special_fm))) {
+    if ((K >= 1024 && is_int8 && !ctx->use_amx())
+      || (K >= 512 && is_f32 && !is_special_fm)) {
       // Cost += empty_cores, making M_split_num * N_split_num closer to
       // num_threads
       float empty_cores = num_threads - i * (num_threads / i);
@@ -243,7 +243,7 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
     }
   } else if (M / iim_block < 2 && (N >= 16 * M || K >= 16 * M)) {
     // int8 special case
-    if (is_int8 && !is_use_amx(ctx)) {
+    if (is_int8 && !ctx->use_amx()) {
       cfg.M_split_num = 1;
       int K_split_num = 1;
       if (K >= 16 * M) {
@@ -530,7 +530,7 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
   } else {
     assert(utils::is_one_of(get_A_dtype(), datatypes::u8, datatypes::s8));
     M_block_default
-      = (plain_M >= 1024 && !is_use_amx(get_default_context())) ? 64 : 32;
+      = (plain_M >= 1024 && !get_default_context()->use_amx()) ? 64 : 32;
     N_block_default = 64;
     K_block_default = 64;
   }

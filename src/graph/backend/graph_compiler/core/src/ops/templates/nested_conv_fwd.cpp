@@ -116,7 +116,7 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
 
     if (try_os_blocking_) {
       cfg.im_w_block = get_os_blocks(ow_, adj_os_).back();
-      if (ow_ > 28 && is_use_amx(ctx)) {
+      if (ow_ > 28 && ctx->use_amx()) {
         cfg.im_w_block = utils::get_blocks(ow_, 1, 256).back();
       } else {
         auto os_blocks = get_os_blocks(ow_, adj_os_);
@@ -1930,7 +1930,7 @@ bool gen_nested_conv_fwd_t::generate(context_ptr ctx,
   int im_s_block = config.im_w_block;
 
   int pack_input = config.pack_input;
-  const bool use_os_blocking = try_os_blocking_ && is_use_amx(ctx);
+  const bool use_os_blocking = try_os_blocking_ && ctx->use_amx();
   const bool pack_rows
     = use_os_blocking && (im_s_block > 0 && ow_ % im_s_block != 0);
   int os = actual_os_;
