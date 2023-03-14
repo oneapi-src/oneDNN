@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,31 +53,9 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
 
 static const int max_num_brg_kernels_ip = 2 * 2 * 2 * 2 * 2;
 
-int get_brg_kernel_index(const jit_brgemm_primitive_conf_t &jbgp,
-        bool is_bs_tail, bool do_initialization, bool is_M_tail, bool is_N_tail,
-        bool is_K_tail);
+int get_brg_kernel_index(bool is_bs_tail, bool do_initialization,
+        bool is_M_tail, bool is_N_tail, bool is_K_tail);
 
-int get_os_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust,
-        bool is_adjustment);
-int get_oc_block(
-        const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust = false);
-
-int ip_fwd_get_oc_block(const jit_brgemm_primitive_conf_t &jbgp);
-int ip_fwd_get_nb_oc_blocking(
-        const jit_brgemm_primitive_conf_t &jbgp, bool is_adjustment = false);
-bool ip_fwd_adjust_thread_balance(const jit_brgemm_primitive_conf_t &jbgp);
-int ip_fwd_get_adjusted_oc_block(const jit_brgemm_primitive_conf_t &jbgp);
-
-format_tag_t get_brgemm_ip_weights_tag(
-        cpu_isa_t isa, const jit_brgemm_primitive_conf_t &jbgp);
-bool post_ops_ok(jit_brgemm_primitive_conf_t &jbgp,
-        const primitive_attr_t &attr, const memory_desc_wrapper &dst_d);
-void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
-        int &nthr_, int &nthr_mb_, int &nthr_oc_b_, int &nthr_ic_b_);
-status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
-        const primitive_attr_t &attr, const memory_desc_wrapper &dst_d);
-status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp);
-status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp);
 size_t buf_dt_size(data_type_t dt, cpu_isa_t isa);
 
 } // namespace brgemm_inner_product_utils

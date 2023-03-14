@@ -157,9 +157,8 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             if (vM == 0 || vN == 0 || vK == 0 || bs == 0 || jbgp_.LDA < vK
                     || jbgp_.LDB < vN || jbgp_.LDC < vN)
                 return -1;
-            return brgemm_inner_product_utils::get_brg_kernel_index(jbgp_,
-                    is_bs_tail, do_initialization, is_M_tail, is_N_tail,
-                    is_K_tail);
+            return brgemm_inner_product_utils::get_brg_kernel_index(is_bs_tail,
+                    do_initialization, is_M_tail, is_N_tail, is_K_tail);
         }
 
         int get_brg_batchsize(bool is_bs_tail, bool is_K_tail) const {
@@ -315,9 +314,8 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
             if (vM == 0 || vN == 0 || vK == 0 || bs == 0 || jbgp_.LDA < vK
                     || jbgp_.LDB < vN || jbgp_.LDC < vN)
                 return -1;
-            return brgemm_inner_product_utils::get_brg_kernel_index(jbgp_,
-                    is_bs_tail, do_initialization, is_M_tail, is_N_tail,
-                    is_K_tail);
+            return brgemm_inner_product_utils::get_brg_kernel_index(is_bs_tail,
+                    do_initialization, is_M_tail, is_N_tail, is_K_tail);
         }
 
         int get_brg_batchsize(bool is_bs_tail, bool is_K_tail) const {
@@ -480,9 +478,8 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
             if (vM == 0 || vN == 0 || vK == 0 || bs == 0 || jbgp_.LDA < vK
                     || jbgp_.LDB < vN || jbgp_.LDC < vN)
                 return -1;
-            return brgemm_inner_product_utils::get_brg_kernel_index(jbgp_,
-                    is_bs_tail, do_initialization, is_M_tail, is_N_tail,
-                    is_K_tail);
+            return brgemm_inner_product_utils::get_brg_kernel_index(is_bs_tail,
+                    do_initialization, is_M_tail, is_N_tail, is_K_tail);
         }
 
         int get_brg_batchsize(bool is_bs_tail, bool is_K_tail) const {
