@@ -595,6 +595,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     status_t status = init_conf<aprop>(conf, rnn_conf, this, this->off);
     if (status != status::success) { return status; }
 
+    auto fpmath_mode = this->attr()->fpmath_mode_;
     use_subgroup_reduction = conf.batch >= subgroup_size;
 
     // The inputs of create_gemm_pd describe a gemm in column major.
@@ -616,6 +617,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
 
         primitive_attr_t attr;
         attr.post_ops_.append_sum(beta);
+        CHECK(attr.set_fpmath_mode(fpmath_mode));
         primitive_desc_iterator_t it(
                 engine, (op_desc_t *)&gemm_desc, &attr, nullptr);
         if (!it.is_initialized()) return status::out_of_memory;
