@@ -259,10 +259,10 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.ws_c_states_size = is_lstm ? (size_t)(rnn.n_layer + 1) * rnn.n_dir
                     * (rnn.n_iter + 1) * rnn.mb * rnn.states_ws_ld * aux_elsz
                                    : (size_t)0;
-    rnn.scratch_diff_states_size = rnn.is_training ? (size_t)(rnn.n_layer + 1)
+    rnn.scratch_diff_states_size = !rnn.is_fwd ? (size_t)(rnn.n_layer + 1)
                     * rnn.n_dir * (rnn.n_states + 1) * (rnn.n_iter + 1) * rnn.mb
                     * rnn.scratch_diff_states_ld * aux_elsz
-                                                   : (size_t)0;
+                                               : (size_t)0;
     rnn.ws_gates_size = (size_t)rnn.n_layer * rnn.n_dir * rnn.n_iter * rnn.mb
             * rnn.gates_ws_ld * aux_elsz;
     rnn.n_iter_scratch_gates
@@ -270,7 +270,7 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.scratch_gates_size = (size_t)rnn.n_iter_scratch_gates * rnn.gates_nld
             * rnn.scratch_gates_ld * rnn.scratch_gates_elsz;
     rnn.scratch_dhG1_size
-            = (rd.cell_kind == alg_kind::vanilla_gru && rnn.is_training)
+            = (rd.cell_kind == alg_kind::vanilla_gru && !rnn.is_fwd)
             ? (size_t)rnn.gates_nld * rnn.scratch_diff_states_ld * sizeof(float)
             : 0;
     rnn.ws_bias_size
@@ -280,7 +280,7 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.scratch_cell_size = rnn.is_lbr
             ? (size_t)rnn.gates_nld * rnn.scratch_gates_ld
                     * rnn.scratch_gates_elsz
-            : (rd.cell_kind == alg_kind::vanilla_gru && rnn.is_training
+            : (rd.cell_kind == alg_kind::vanilla_gru && !rnn.is_fwd
                             ? (size_t)rnn.states_nld * rnn.states_ws_ld
                                     * rnn.ws_states_elsz
                             : 0);
