@@ -350,6 +350,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerMultiInput) {
 }
 
 TEST(GCCore_fuse_mgr_cpp, TestConcatOP) {
+    BUILTIN_REQUIRE_AVX512();
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput0 = fusion.make<input_op>(make_tsr({100, 200, 10}));
