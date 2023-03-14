@@ -66,12 +66,18 @@ public:
                             attr_keys::module_global_offset)) {
                 // TODO(XXX): module_var to indexing, maybe define just before
                 // use?
-                auto offset = thevar->attr_->get<size_t>(
+                auto &offset = thevar->attr_->get_any(
                         attr_keys::module_global_offset);
-                // Get var_ptr = &module_data[offset]
-                auto index = builder::make_constant(offset);
-                auto module_idx_ptr
-                        = builder::tensor_ptr(module_data_, {index});
+                expr module_idx_ptr;
+                if (auto absptr = offset.get_or_null<void *>()) {
+                    module_idx_ptr = make_expr<constant_node>(
+                            reinterpret_cast<uint64_t>(*absptr),
+                            datatypes::s8.get_pointerof());
+                } else {
+                    // Get var_ptr = &module_data[offset]
+                    auto index = builder::make_constant(offset.get<size_t>());
+                    module_idx_ptr = builder::tensor_ptr(module_data_, {index});
+                }
                 // var_ptr->elem_dtype_ is not module_data_->elem_dtype_
                 // var_ptr->elem_dtype_ should be var->dtype_
                 auto var_ptr = builder::make_tensor(

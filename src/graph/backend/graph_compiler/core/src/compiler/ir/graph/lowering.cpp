@@ -28,6 +28,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
+#include <compiler/ir/graph/dynamic_lower_info.hpp>
 #include <compiler/ir/graph/dynamic_utils.hpp>
 #include <compiler/ir/graph/fused_op.hpp>
 #include <compiler/ir/graph/trait/may_prefetch.hpp>
@@ -883,21 +884,26 @@ static void create_dispatch_funcs_by_keys(const context_ptr &ctx,
         ir_module_ptr &ret_mod, const std::string &table_name,
         const sc_op_ptr &node, const op_dispatch_key_base_t *key,
         std::vector<expr> &op_dispatch_kernel, int &dyn_idx) {
-    key->set_op_dispatch_key(node);
-    auto mod = node->get_func(ctx);
-    auto func = mod->get_entry_func();
-    func->attr().set(attr_keys::always_trans, true);
-    func->name_ += "_" + std::to_string(dyn_idx);
-    func->decl_->name_ = func->name_;
-    ret_mod->merge(*mod);
-    if (!dyn_idx) {
-        // mark the first function as prototype.
-        op_dispatch_kernel[node->logical_op_id_]->attr().set(
-                "prototype", mod->get_entry_func());
-    }
     auto cur_table = ret_mod->get_op_table_map()[table_name];
     assert(cur_table);
-    add_dispatch_symbol_to_kernel_table(cur_table, key, func->name_);
+    bool should_compile_later = false;
+    if (!should_compile_later) {
+        // we compile the first format specialization in main module
+        key->set_op_dispatch_key(node, ctx);
+        auto mod = node->get_func(ctx);
+        auto func = mod->get_entry_func();
+        func->attr().set(attr_keys::always_trans, true);
+        func->name_ += "_" + std::to_string(dyn_idx);
+        func->decl_->name_ = func->name_;
+        if (!dyn_idx) {
+            // mark the first function as prototype.
+            op_dispatch_kernel[node->logical_op_id_]->attr().set(
+                    "prototype", func);
+        }
+        ret_mod->merge(*mod);
+        add_dispatch_symbol_to_kernel_table(cur_table, key,
+                op_dispatch_tables_t::op_func_info {func->name_});
+    }
     dyn_idx++;
 }
 
@@ -1315,7 +1321,8 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     // managed/native thread pool
     auto &rtl_cfg = runtime_config_t::get();
     bool use_managed_thread_pool = rtl_cfg.managed_thread_pool_
-            && (num_ops > 2 || rtl_cfg.get_num_threads() == 1
+            && (graph.is_dynamic() || num_ops > 2
+                    || rtl_cfg.get_num_threads() == 1
                     || gflop / rtl_cfg.get_num_threads() > 0.0666f);
     ret_mod->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL]
             = use_managed_thread_pool;

@@ -38,6 +38,7 @@
 #include "test_utils.hpp"
 #include "gtest/gtest.h"
 #include <compiler/ir/builtin.hpp>
+#include <compiler/ir/graph/dynamic_utils.hpp>
 #include <runtime/config.hpp>
 
 using namespace dnnl::impl::graph::gc;
@@ -929,19 +930,20 @@ TEST(GCCore_jit_cpp, TestJITDispatchTable) {
     auto bbb_table = std::make_shared<op_dispatch_tables_t>();
     auto dispatch_key = op_dispatch_key_t();
     dispatch_key.in_out_formats_ = {sc_data_format_t::MK()};
-    add_dispatch_symbol_to_kernel_table(bbb_table, &dispatch_key, "bbb_0");
+    using inf = op_dispatch_tables_t::op_func_info;
+    add_dispatch_symbol_to_kernel_table(bbb_table, &dispatch_key, inf("bbb_0"));
     dispatch_key.in_out_formats_ = {sc_data_format_t::NK()};
-    add_dispatch_symbol_to_kernel_table(bbb_table, &dispatch_key, "bbb_1");
+    add_dispatch_symbol_to_kernel_table(bbb_table, &dispatch_key, inf("bbb_1"));
     dispatch_key.in_out_formats_ = {sc_data_format_t::NCHW()};
-    add_dispatch_symbol_to_kernel_table(bbb_table, &dispatch_key, "bbb_2");
+    add_dispatch_symbol_to_kernel_table(bbb_table, &dispatch_key, inf("bbb_2"));
     m->add_op_table(std::make_pair("bbb_table", bbb_table));
     m->make_global_var(
             datatypes::pointer, "bbb_table", linkage::private_global);
     auto ccc_table = std::make_shared<op_dispatch_tables_t>();
     dispatch_key.in_out_formats_ = {sc_data_format_t::MK()};
-    add_dispatch_symbol_to_kernel_table(ccc_table, &dispatch_key, "ccc_0");
+    add_dispatch_symbol_to_kernel_table(ccc_table, &dispatch_key, inf("ccc_0"));
     dispatch_key.in_out_formats_ = {sc_data_format_t::NK()};
-    add_dispatch_symbol_to_kernel_table(ccc_table, &dispatch_key, "ccc_1");
+    add_dispatch_symbol_to_kernel_table(ccc_table, &dispatch_key, inf("ccc_1"));
     m->add_op_table(std::make_pair("ccc_table", ccc_table));
     m->make_global_var(
             datatypes::pointer, "ccc_table", linkage::private_global);

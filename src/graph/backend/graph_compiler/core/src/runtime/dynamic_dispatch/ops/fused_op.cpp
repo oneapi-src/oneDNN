@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "impl_type.hpp"
+#include "util.hpp"
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
 #include <util/null_check.hpp>
 
@@ -71,9 +72,9 @@ extern "C" void query_combined_fused_op(void *table, uint64_t **combined_keys,
     runtime::op_dispatch_tables_t *op_table
             = reinterpret_cast<runtime::op_dispatch_tables_t *>(table);
     auto &kernel_table = op_table->kernel_table_;
-    void *func = op_table->kernel_dispatch_func_(kernel_table.get(),
-            reinterpret_cast<uint64_t *>(final_query_keys), total_key_num);
-    assert(func);
+    void *func = runtime::run_query_and_wait(op_table->kernel_dispatch_func_,
+            kernel_table.get(), reinterpret_cast<uint64_t *>(final_query_keys),
+            total_key_num);
     *reinterpret_cast<void **>(kernel) = func;
     // reset blocks and impl
     for (int i = 0; i < total_key_num; i++) {

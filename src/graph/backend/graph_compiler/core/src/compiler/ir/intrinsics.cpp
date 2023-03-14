@@ -296,7 +296,7 @@ struct write_struct_handler_t : public binary_intrinsic_handler_t {
     void on_initialize(intrin_call_node &node) override {
         assert(node.intrin_attrs_->has_key(intrin_attr::struct_name)
                 && node.intrin_attrs_->has_key(intrin_attr::struct_field));
-        binary_intrinsic_handler_t::on_initialize(node);
+        node.dtype_ = datatypes::void_t;
     }
     write_struct_handler_t() : binary_intrinsic_handler_t("write_struct") {}
 };

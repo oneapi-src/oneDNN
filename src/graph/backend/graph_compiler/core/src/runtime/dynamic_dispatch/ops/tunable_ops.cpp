@@ -15,11 +15,13 @@
  *******************************************************************************/
 #include <stdint.h>
 #include "impl_type.hpp"
+#include "util.hpp"
 #include <runtime/data_type.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
 #include <runtime/dynamic_dispatch/utils.hpp>
 #include <runtime/target_machine.hpp>
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -190,8 +192,8 @@ extern "C" void query_format_matmul_core_op(void *table, void *out, void *data,
         check_and_set_matmul_impl(op_table, data_fmt_st, weight_fmt_st,
                 out_fmt_st, M_blk, N_blk, K_blk);
         uint64_t keys[3] = {cp_data_fmt, cp_weight_fmt, cp_out_fmt};
-        void *func
-                = op_table->kernel_dispatch_func_(kernel_table.get(), keys, 3);
+        void *func = runtime::run_query_and_wait(
+                op_table->kernel_dispatch_func_, kernel_table.get(), keys, 3);
         assert(func);
         data_fmt_st->reset_blocks_and_impl();
         weight_fmt_st->reset_blocks_and_impl();

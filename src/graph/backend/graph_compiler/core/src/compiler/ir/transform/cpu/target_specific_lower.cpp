@@ -281,6 +281,9 @@ static func_t create_read_struct_func(const intrin_call_c &node) {
         expr ret = builder::make_indexing(util_tsr, 0);
         _return_(ret);
     }
+    auto func_name = get_read_struct_func_name(node);
+    read_struct->name_ = func_name;
+    read_struct->decl_->name_ = func_name;
     return read_struct;
 }
 
@@ -289,7 +292,7 @@ static func_t create_write_struct_func(const intrin_call_c &node) {
     auto name = node->intrin_attrs_->get<std::string>(intrin_attr::struct_name);
     auto field = node->intrin_attrs_->get<int>(intrin_attr::struct_field);
     auto dtype = node->args_[1]->dtype_;
-
+    if (dtype.is_pointer()) { dtype = datatypes::pointer; }
     _function_(datatypes::void_t, write_struct, {node->args_[0]},
             {builder::make_var(dtype, "_intrin_v")}) {
         assert(node->args_.size() == 2);
@@ -307,57 +310,10 @@ static func_t create_write_struct_func(const intrin_call_c &node) {
         builder::get_current_builder()->push_assign(
                 builder::make_indexing(util_tsr, 0), inval);
     }
+    auto func_name = get_write_struct_func_name(node);
+    write_struct->name_ = func_name;
+    write_struct->decl_->name_ = func_name;
     return write_struct;
-}
-
-static func_t create_read_struct_func_wrapper(const intrin_call_c &node) {
-    auto name = node->intrin_attrs_->get<std::string>(intrin_attr::struct_name);
-    auto field = node->intrin_attrs_->get<int>(intrin_attr::struct_field);
-    if (name == dyn_tsr_struct_t::name) {
-        if (field == dyn_tsr_struct_t::fields::data_ptr) {
-            static func_t base_func = create_read_struct_func(node);
-            return base_func;
-        } else if (field == dyn_tsr_struct_t::fields::dim_ptr) {
-            static func_t shape_func = create_read_struct_func(node);
-            return shape_func;
-        } else if (field == dyn_tsr_struct_t::fields::ndims) {
-            static func_t ndims_func = create_read_struct_func(node);
-            return ndims_func;
-        } else if (field == dyn_tsr_struct_t::fields::dtype) {
-            static func_t dtype_func = create_read_struct_func(node);
-            return dtype_func;
-        } else if (field == dyn_tsr_struct_t::fields::dyn_mask) {
-            static func_t mask_func = create_read_struct_func(node);
-            return mask_func;
-        }
-    }
-    COMPILE_ASSERT(false, "struct " << name << " has not supported!");
-    return func_t();
-}
-
-static func_t create_write_struct_func_wrapper(const intrin_call_c &node) {
-    auto name = node->intrin_attrs_->get<std::string>(intrin_attr::struct_name);
-    auto field = node->intrin_attrs_->get<int>(intrin_attr::struct_field);
-    if (name == dyn_tsr_struct_t::name) {
-        if (field == dyn_tsr_struct_t::fields::data_ptr) {
-            static func_t base_func = create_write_struct_func(node);
-            return base_func;
-        } else if (field == dyn_tsr_struct_t::fields::dim_ptr) {
-            static func_t shape_func = create_write_struct_func(node);
-            return shape_func;
-        } else if (field == dyn_tsr_struct_t::fields::ndims) {
-            static func_t ndims_func = create_write_struct_func(node);
-            return ndims_func;
-        } else if (field == dyn_tsr_struct_t::fields::dtype) {
-            static func_t dtype_func = create_write_struct_func(node);
-            return dtype_func;
-        } else if (field == dyn_tsr_struct_t::fields::dyn_mask) {
-            static func_t mask_func = create_write_struct_func(node);
-            return mask_func;
-        }
-    }
-    COMPILE_ASSERT(false, "struct " << name << " has not supported!");
-    return func_t();
 }
 
 using intrin_func_creator = func_t (*)(const intrin_call_c &node);
@@ -575,7 +531,7 @@ public:
                                 == datatypes::u8,
                         "User defined struct tensor should be a u8 tensor in "
                         "IR.");
-                lower_func = &create_read_struct_func_wrapper;
+                lower_func = &create_read_struct_func;
                 namer_func = &get_read_struct_func_name;
                 break;
             case intrin_type::write_struct:
@@ -583,7 +539,7 @@ public:
                                 == datatypes::u8,
                         "User defined struct tensor should be a u8 tensor in "
                         "IR.");
-                lower_func = &create_write_struct_func_wrapper;
+                lower_func = &create_write_struct_func;
                 namer_func = &get_write_struct_func_name;
                 break;
 
@@ -602,7 +558,11 @@ public:
                                 && f->params_.size() == v->args_.size(),
                         prompt << f);
                 for (size_t i = 0; i < f->params_.size(); i++) {
-                    COMPILE_ASSERT(f->params_[i]->dtype_ == v->args_[i]->dtype_,
+                    COMPILE_ASSERT(f->params_[i]->dtype_ == v->args_[i]->dtype_
+                                    || (f->params_[i]->dtype_
+                                                    == datatypes::pointer
+                                            && v->args_[i]
+                                                       ->dtype_.is_pointer()),
                             prompt << f);
                 }
             } else {

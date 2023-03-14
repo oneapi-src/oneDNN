@@ -36,6 +36,7 @@ struct op_dispatch_key_base_t;
 struct combined_op_dispatch_key_t;
 struct dispatch_key_set_base_t;
 struct sc_data_format_t;
+class ir_module_t;
 struct context_t;
 // op tables used in ir_module
 struct op_dispatch_tables_t {
@@ -47,10 +48,49 @@ struct op_dispatch_tables_t {
     std::unordered_map<std::vector<runtime::dispatch_key>,
             std::vector<runtime::dispatch_key>>
             format_table_;
+    /**
+     * the struct to hold info of a partial specialization instance of a dynamic
+     * shaped op.
+     * If graph_ is null, the field `name_or_postfix_` is the only
+     * valide field of `op_func_info`. `name_or_postfix_` indicates the name of
+     * TIR function in the IR module for the partial specialization.
+     * If graph_ is not null, the partial specialization has not been compiled
+     * when `lower_graph()` is called. The field `op_` contains the dynamic
+     * shaped op, whose container is stored in `graph_`. The `name_or_postfix_`
+     * is the postfix for the TIR function name of the partial specialization
+     */
+    struct op_func_info {
+        std::shared_ptr<sc_graph_t> graph_;
+        std::shared_ptr<sc_op> op_;
+        std::string name_or_postfix_;
+        std::shared_ptr<context_t> ctx_;
+        // only valid when `!already_compiled()`. Lower the partial
+        // specialization to TIR
+        std::shared_ptr<ir_module_t> lower();
+        /**
+         * op_func_info which indicates that the partial specialization is not
+         * compiled or lowered yet
+         */
+        op_func_info(const std::shared_ptr<sc_graph_t> &graph,
+                const std::shared_ptr<sc_op> &op,
+                const std::string &name_or_postfix,
+                const std::shared_ptr<context_t> &ctx)
+            : graph_(graph)
+            , op_(op)
+            , name_or_postfix_(name_or_postfix)
+            , ctx_(ctx) {}
+        /**
+         * op_func_info which indicates that the partial specialization is
+         * already lowered to TIR in the current IR module
+         */
+        op_func_info(const std::string &name_or_postfix)
+            : name_or_postfix_(name_or_postfix) {}
+        bool already_compiled() { return graph_ == nullptr; }
+    };
     // config table: configs of tunable_op => impl kind
     std::unordered_map<std::vector<uint64_t>, int> impl_kind_table_;
     // kernel table: in/out format keys => function symbol
-    std::unordered_map<std::vector<runtime::dispatch_key>, std::string>
+    std::unordered_map<std::vector<runtime::dispatch_key>, op_func_info>
             kernel_table_;
 };
 
@@ -63,7 +103,8 @@ void initialize_format_table_with_op(
 void initialize_impl_kind_table_with_op(const std::shared_ptr<context_t> &ctx,
         const std::shared_ptr<sc_op> &op, op_dispatch_tables_ptr &tb);
 void add_dispatch_symbol_to_kernel_table(op_dispatch_tables_ptr &tb,
-        const op_dispatch_key_base_t *keys, const std::string &func_name);
+        const op_dispatch_key_base_t *keys,
+        op_dispatch_tables_t::op_func_info &&func_module);
 bool can_op_be_dispatched(const std::shared_ptr<sc_op> &op);
 std::vector<std::shared_ptr<dispatch_key_set_base_t>>
 get_dispatch_set_vec_from_ops(const std::vector<std::shared_ptr<sc_op>> &ops);
@@ -100,8 +141,9 @@ bool is_linked_layout(
         const sc_data_format_t &layout1, const sc_data_format_t &layout2);
 std::vector<std::shared_ptr<sc_op>> get_graph_inner_dispatch_ops(
         sc_graph_t &graph, int *total_num_key);
-void update_graph_format_by_key(const std::shared_ptr<sc_op> &fused_op,
-        sc_graph_t &graph, const combined_op_dispatch_key_t &key, int &key_idx,
+void update_graph_format_by_key(const std::shared_ptr<context_t> &ctx,
+        const std::shared_ptr<sc_op> &fused_op, sc_graph_t &graph,
+        const combined_op_dispatch_key_t &key, int &key_idx,
         size_t node_input_offset, size_t graph_input_offset,
         const std::shared_ptr<sc_op> &modified_inp = nullptr);
 int count_dynamic_dims(const sc_dims &in);

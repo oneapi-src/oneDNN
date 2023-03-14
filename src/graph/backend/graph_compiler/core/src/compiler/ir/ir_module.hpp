@@ -24,7 +24,6 @@
 
 #include <compiler/config/context.hpp>
 #include <compiler/ir/function_pass.hpp>
-#include <compiler/ir/graph/dynamic_utils.hpp>
 #include <compiler/ir/sc_expr.hpp>
 #include <compiler/ir/sc_function.hpp>
 #include <unordered_map>
@@ -34,6 +33,12 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
+
+struct op_dispatch_tables_t;
+using op_dispatch_tables_ptr = std::shared_ptr<op_dispatch_tables_t>;
+using dispatch_table_map_t
+        = std::unordered_map<std::string, op_dispatch_tables_ptr>;
+
 class SC_INTERNAL_API ir_module_t {
     // Items to appear in the module.
     // Might be useful at some point to be able to include data,
@@ -63,6 +68,9 @@ public:
                 = "MANAGED_THREAD_POOL";
         // string, the name of the module
         static constexpr const char *NAME = "name";
+        // bool, default=false. whether the addresses of global tensors and
+        // variables will be hardcoded in the JIT'd code
+        static constexpr const char *STATIC_GLOBALS = "static_globals";
     };
 
     context_ptr ctx_;

@@ -15,10 +15,12 @@
  *******************************************************************************/
 #include <stdint.h>
 #include "impl_type.hpp"
+#include "util.hpp"
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
 #include <runtime/dynamic_dispatch/utils.hpp>
 #include <runtime/target_machine.hpp>
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -108,9 +110,8 @@ extern "C" void query_format_unary_fusible_op(void *table, void *out, void *in,
     auto &kernel_table = op_table->kernel_table_;
     if (kernel_table) {
         uint64_t keys[2] = {*in_fmt, *out_fmt};
-        void *func
-                = op_table->kernel_dispatch_func_(kernel_table.get(), keys, 2);
-        assert(func);
+        void *func = runtime::run_query_and_wait(
+                op_table->kernel_dispatch_func_, kernel_table.get(), keys, 2);
         *reinterpret_cast<void **>(kernel) = func;
     }
     // query inplace
@@ -169,8 +170,8 @@ extern "C" void query_format_binary_fusible_op(void *table, void *out,
     auto &kernel_table = op_table->kernel_table_;
     if (kernel_table) {
         uint64_t keys[3] = {*in0_fmt, *in1_fmt, *out_fmt};
-        void *func
-                = op_table->kernel_dispatch_func_(kernel_table.get(), keys, 3);
+        void *func = runtime::run_query_and_wait(
+                op_table->kernel_dispatch_func_, kernel_table.get(), keys, 3);
         assert(func);
         *reinterpret_cast<void **>(kernel) = func;
     }
@@ -204,8 +205,8 @@ extern "C" void query_format_reorder_op(void *table, void *out, void *in,
     if (impl_alg) { *impl_alg = tmp_impl_alg; }
     if (kernel_table) {
         uint64_t keys[2] = {*in_fmt_st, *out_fmt_st};
-        void *func
-                = op_table->kernel_dispatch_func_(kernel_table.get(), keys, 2);
+        void *func = runtime::run_query_and_wait(
+                op_table->kernel_dispatch_func_, kernel_table.get(), keys, 2);
         assert(func);
         *reinterpret_cast<void **>(kernel) = func;
     }
@@ -260,8 +261,8 @@ extern "C" void query_format_reduce_op(void *table, void *out, void *in,
     //     if (tmp_fmt.is_plain()) { tmp_fmt.reset_blocks(); }
     if (kernel_table) {
         uint64_t keys[2] = {*in_fmt, tmp_fmt};
-        void *func
-                = op_table->kernel_dispatch_func_(kernel_table.get(), keys, 2);
+        void *func = runtime::run_query_and_wait(
+                op_table->kernel_dispatch_func_, kernel_table.get(), keys, 2);
         assert(func);
         *reinterpret_cast<void **>(kernel) = func;
     }
@@ -313,8 +314,8 @@ extern "C" void query_format_select_op(void *table, void *out, void *in0,
     auto &kernel_table = op_table->kernel_table_;
     if (kernel_table) {
         uint64_t keys[4] = {*in0_fmt, *in1_fmt, *in2_fmt, *out_fmt};
-        void *func
-                = op_table->kernel_dispatch_func_(kernel_table.get(), keys, 4);
+        void *func = runtime::run_query_and_wait(
+                op_table->kernel_dispatch_func_, kernel_table.get(), keys, 4);
         assert(func);
         *reinterpret_cast<void **>(kernel) = func;
     }

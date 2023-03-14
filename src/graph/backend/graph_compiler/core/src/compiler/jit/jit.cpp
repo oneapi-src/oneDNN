@@ -27,6 +27,7 @@
 #if SC_BUILTIN_JIT_ENABLED
 #include "xbyak/xbyak_jit.hpp"
 #endif
+#include <compiler/ir/graph/dynamic_utils.hpp>
 #include <compiler/ir/pass/ir_copy.hpp>
 #include <runtime/config.hpp>
 #include <runtime/managed_thread_pool.hpp>
@@ -181,13 +182,14 @@ void jit_module::update_runtime_op_tables(const const_ir_module_ptr &ir_mod) {
         }
         // initialize kernel table
         for (auto &kernel_kv : compiler_kernel_table) {
-            void *func_addr = get_address_of_symbol(kernel_kv.second);
-            assert(func_addr);
+            void *kernel_addr = kernel_kv.second.already_compiled()
+                    ? get_address_of_symbol(kernel_kv.second.name_or_postfix_)
+                    : nullptr;
             runtime_table->kernel_table_->set(
                     reinterpret_cast<uint64_t *>(
                             const_cast<runtime::dispatch_key *>(
                                     kernel_kv.first.data())),
-                    kernel_kv.first.size(), func_addr);
+                    kernel_kv.first.size(), kernel_addr);
         }
         // update global table vars' pointer
         auto var_name = kv.first;

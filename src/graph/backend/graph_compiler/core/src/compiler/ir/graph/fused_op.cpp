@@ -370,7 +370,10 @@ sc_op_ptr fused_op_t::copy(const std::vector<graph_tensor_ptr> &ins, // NOLINT
                 copy_logical_tsr(base_op->get_outputs()), new_main_op);
         assert(new_main_op.ops_.size() == 2);
     }
-    if (mgr_) new_fmgr = mgr_->copy();
+    if (mgr_) {
+        new_fmgr = mgr_->copy();
+        new_fmgr->get_graph().sync_dynamic_info_with_graph(graph);
+    }
     auto new_fused_op = std::make_shared<fused_op_t>(op_name_,
             std::move(new_main_op), new_fmgr,
             /*ins*/ ins,
@@ -1178,7 +1181,7 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
 }
 
 void fused_op_t::update_internal_graph_format(
-        const combined_op_dispatch_key_t &key) {
+        const combined_op_dispatch_key_t &key, const context_ptr &ctx) {
     int key_idx = 0;
     auto &node_inputs = get_inputs();
     sc_op_ptr modified_inp;
@@ -1194,7 +1197,7 @@ void fused_op_t::update_internal_graph_format(
         }
         auto top = main_op_.ops_[1]->dyn_cast<tunable_op_t>();
         assert(top);
-        top->set_config_by_key(cur_key);
+        top->set_config_by_key(cur_key, ctx);
         top->info_.cur_impl_ = cur_key.impl_;
         // tunable op output
         auto &out_format = cur_key.in_out_formats_[inputs.size()];
@@ -1205,7 +1208,7 @@ void fused_op_t::update_internal_graph_format(
         // update impl alg
         main_op_.ops_[1]->info_.cur_impl_ = cur_key.impl_;
     }
-    update_graph_format_by_key(shared_from_this(), mgr_->get_graph(), key,
+    update_graph_format_by_key(ctx, shared_from_this(), mgr_->get_graph(), key,
             key_idx, main_op_.empty() ? 0 : 2, main_op_.empty() ? 0 : 1,
             modified_inp);
     assert(key_idx == static_cast<int>(key.size()));
@@ -1811,10 +1814,10 @@ std::vector<sc_op_ptr> mixed_fuse_op_t::get_inner_dispatch_ops(
 }
 
 void mixed_fuse_op_t::update_internal_graph_format(
-        const combined_op_dispatch_key_t &key) {
+        const combined_op_dispatch_key_t &key, const context_ptr &ctx) {
     int key_idx = 0;
     update_graph_format_by_key(
-            shared_from_this(), sub_graph_, key, key_idx, 0, 0);
+            ctx, shared_from_this(), sub_graph_, key, key_idx, 0, 0);
     assert(key_idx == static_cast<int>(key.size()));
 }
 
@@ -1973,6 +1976,15 @@ struct inplace_recursion_context_t {
 
 float mixed_fuse_op_t::get_gflop() {
     return sub_graph_.get_gflop();
+}
+
+sc_op_ptr mixed_fuse_op_t::copy( // NOLINT
+        const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, sc_graph_t &graph) {
+    auto ret = graph.make<mixed_fuse_op_t>(op_name_, parti_list_, nullptr,
+            copy_graph(sub_graph_), ins, outs, attrs_);
+    ret->sub_graph_.sync_dynamic_info_with_graph(graph);
+    return ret;
 }
 
 std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>

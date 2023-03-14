@@ -820,11 +820,15 @@ void codegen_c_vis::view(define_c v) {
             // if it is a global variable that is lowered to local
             print_type(thevar->dtype_);
             *os << '&' << ' ' << thevar->name_;
-            size_t offset = v->var_->attr_->get<size_t>(
-                    attr_keys::module_global_offset);
+            auto &offset
+                    = v->var_->attr_->get_any(attr_keys::module_global_offset);
             *os << " = *(";
             print_type(thevar->dtype_);
-            *os << "*)(__module_data + " << offset << ')';
+            if (auto ptr = offset.get_or_null<void *>()) {
+                *os << "*)(" << *ptr << ')';
+            } else {
+                *os << "*)(__module_data + " << offset.get<size_t>() << ')';
+            }
         } else {
             print_cpp_var_def(thevar);
             if (v->init_.defined()) {

@@ -42,9 +42,10 @@ bool op_dispatch_key_t::operator!=(const op_dispatch_key_t &other) const {
     return !(*this == other);
 }
 
-void op_dispatch_key_t::set_op_dispatch_key(const sc_op_ptr &node) const {
+void op_dispatch_key_t::set_op_dispatch_key(
+        const sc_op_ptr &node, const context_ptr &ctx) const {
     if (auto tunable_node = node->dyn_cast<tunable_op_t>()) {
-        tunable_node->set_config_by_key(*this);
+        tunable_node->set_config_by_key(*this, ctx);
     }
     auto &inputs = node->get_inputs();
     auto &outputs = node->get_outputs();
@@ -101,12 +102,13 @@ bool combined_op_dispatch_key_t::operator!=(
 }
 
 void combined_op_dispatch_key_t::set_op_dispatch_key(
-        const sc_op_ptr &node) const {
+        const sc_op_ptr &node, const context_ptr &ctx) const {
     assert(node->isa<fused_op_t>() || node->isa<mixed_fuse_op_t>());
     if (node->isa<fused_op_t>()) {
-        node->stc_cast<fused_op_t>()->update_internal_graph_format(*this);
+        node->stc_cast<fused_op_t>()->update_internal_graph_format(*this, ctx);
     } else {
-        node->stc_cast<mixed_fuse_op_t>()->update_internal_graph_format(*this);
+        node->stc_cast<mixed_fuse_op_t>()->update_internal_graph_format(
+                *this, ctx);
     }
 }
 

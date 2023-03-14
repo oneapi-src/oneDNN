@@ -21,14 +21,17 @@ namespace impl {
 namespace graph {
 namespace gc {
 namespace runtime {
-struct logging_stream_t {
+struct SC_INTERNAL_API logging_stream_t {
     std::ostream *stream_;
     const char *append_;
-    logging_stream_t(std::ostream *stream, const char *append)
-        : stream_(stream), append_(append) {}
-    ~logging_stream_t() {
-        if (stream_) *stream_ << append_;
+    logging_stream_t() : stream_(nullptr), append_(nullptr) {}
+    logging_stream_t(const char *append);
+    logging_stream_t(logging_stream_t &&other) {
+        stream_ = other.stream_;
+        other.stream_ = nullptr;
+        append_ = other.append_;
     }
+    ~logging_stream_t();
     operator bool() const { return stream_; };
 };
 

@@ -490,8 +490,10 @@ void matmul_core_op_t::query_format(context_ptr ctx,
             in_formats, out_formats, supported_ins, supported_outs);
 }
 
-void matmul_core_op_t::set_config_by_key(const op_dispatch_key_t &key) {
+void matmul_core_op_t::set_config_by_key(
+        const op_dispatch_key_t &key, const context_ptr &ctx) {
     assert(key.var_block_.size() == 3);
+    config_data_ = create_generator()->get_default_config(ctx);
     matmul_core_config_t &tcfg = *config_data_.get_as<matmul_core_config_t>();
     tcfg.M_block = key.var_block_[2][0];
     tcfg.N_block = key.var_block_[2][1];

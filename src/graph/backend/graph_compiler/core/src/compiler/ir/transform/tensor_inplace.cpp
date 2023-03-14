@@ -55,12 +55,21 @@ const_ir_module_ptr tensor_inplace_t::operator()(const_ir_module_ptr f) {
     for (auto &entry_f : ret->get_contents()) {
         // skip functions that 1) are not main_entry function and 2) are not top
         // level functions
-        if (entry_f != main_entry
-                && (!entry_f->attr_
-                        || !entry_f->attr_->get_or_else(
-                                function_attrs::top_level, false))) {
-            continue;
+        bool *top_level = nullptr;
+        if (entry_f->attr_) {
+            top_level = entry_f->attr_->get_or_null<bool>(
+                    function_attrs::top_level);
         }
+        bool should_run = true;
+        // if the func is explicitly marked top-level/not-top-level, follow that
+        // instruction
+        if (top_level) {
+            should_run = *top_level;
+        } else {
+            // else, if the func is main entry
+            should_run = (entry_f == main_entry);
+        }
+        if (!should_run) { continue; }
         // find all calls to func decl, and sync the inplace_hint with decl and
         // definition
         func_finder_t finder;

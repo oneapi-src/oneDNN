@@ -36,8 +36,8 @@ class sc_op;
 struct op_dispatch_key_base_t {
     virtual ~op_dispatch_key_base_t() {}
     // set dispatch key for op.
-    virtual void set_op_dispatch_key(
-            const std::shared_ptr<sc_op> &node) const = 0;
+    virtual void set_op_dispatch_key(const std::shared_ptr<sc_op> &node,
+            const std::shared_ptr<context_t> &ctx) const = 0;
     virtual std::vector<runtime::dispatch_key>
     convert_to_runtime_format_vec() const = 0;
 };
@@ -63,7 +63,8 @@ struct op_dispatch_key_t : public op_dispatch_key_base_t {
         : var_block_(var_block), in_out_formats_(formats), impl_(impl) {}
     bool operator==(const op_dispatch_key_t &other) const;
     bool operator!=(const op_dispatch_key_t &other) const;
-    void set_op_dispatch_key(const std::shared_ptr<sc_op> &node) const override;
+    void set_op_dispatch_key(const std::shared_ptr<sc_op> &node,
+            const std::shared_ptr<context_t> &ctx) const override;
     std::vector<runtime::dispatch_key>
     convert_to_runtime_format_vec() const override;
 };
@@ -77,7 +78,8 @@ struct combined_op_dispatch_key_t : public std::vector<op_dispatch_key_t>,
         : std::vector<op_dispatch_key_t>(std::move(keys)) {}
     bool operator==(const combined_op_dispatch_key_t &other) const;
     bool operator!=(const combined_op_dispatch_key_t &other) const;
-    void set_op_dispatch_key(const std::shared_ptr<sc_op> &node) const override;
+    void set_op_dispatch_key(const std::shared_ptr<sc_op> &node,
+            const std::shared_ptr<context_t> &ctx) const override;
     std::vector<runtime::dispatch_key>
     convert_to_runtime_format_vec() const override;
 };

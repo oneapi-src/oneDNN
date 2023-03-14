@@ -699,8 +699,9 @@ public:
     }
     void view(var_c v) override {
         auto ret = get_defined_var_ptr(v);
-        bool is_special_params
-                = (v->name_ == "__stream" || v->name_ == "__module_data");
+        bool is_global_base
+                = utils::string_startswith(v->name_, "__module_data");
+        bool is_special_params = (is_global_base || v->name_ == "__stream");
         if (is_lvalue_mode_) {
             assert(!is_special_params);
             is_lvalue_mode_ = false;
@@ -1806,15 +1807,25 @@ public:
                     && thevar->attr_->has_key(
                             attr_keys::module_global_offset)) {
                 // if it is a global variable that is lowered to local
-                size_t offset = thevar->attr_->get<size_t>(
+                auto &offset = thevar->attr_->get_any(
                         attr_keys::module_global_offset);
-                Argument *module_ptr = current_func_->arg_begin() + 1;
-                assert(module_ptr->getName() == "__module_data_arg");
-                auto ptr = builder_.CreateGEP(builder_.getInt8Ty(), module_ptr,
-                        builder_.getInt64(offset));
-                ptr = builder_.CreatePointerCast(ptr,
-                        get_type(thevar->dtype_)->getPointerTo(),
-                        thevar->name_);
+                Value *ptr;
+                if (auto absptr = offset.get_or_null<void *>()) {
+                    ptr = builder_.CreateIntToPtr(
+                            builder_.getInt64(
+                                    reinterpret_cast<uint64_t>(*absptr)),
+                            get_type(thevar->dtype_)->getPointerTo(),
+                            thevar->name_);
+                } else {
+                    auto module_ptr = current_func_->arg_begin() + 1;
+                    assert(module_ptr->getName() == "__module_data_arg");
+
+                    ptr = builder_.CreateGEP(builder_.getInt8Ty(), module_ptr,
+                            builder_.getInt64(offset.get<size_t>()));
+                    ptr = builder_.CreatePointerCast(ptr,
+                            get_type(thevar->dtype_)->getPointerTo(),
+                            thevar->name_);
+                }
                 var_ptr_in_func_.insert(std::make_pair(thevar, ptr));
                 set_dbg_info_for_local_var(v.get(), thevar->name_, ptr, false);
             } else {

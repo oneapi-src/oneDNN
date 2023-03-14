@@ -26,12 +26,14 @@
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/sc_data_format.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
+#include <compiler/ir/transform/dyn_tsr_transform.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/ternary_elemwise.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <runtime/dynamic_dispatch/hash_dispatch_table.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -76,6 +78,19 @@ void initialize_format_table_with_op(
     }
 }
 
+std::shared_ptr<ir_module_t> op_dispatch_tables_t::op_func_info::lower() {
+    auto mod = op_->get_func(ctx_);
+    auto func = mod->get_entry_func();
+    func->attr()[attr_keys::always_trans] = true;
+    func->attr()[function_attrs::top_level] = false;
+    func->name_ += name_or_postfix_;
+    func->decl_->name_ = func->name_;
+
+    mod->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL] = true;
+    mod->attr_[ir_module_t::attr_key_t::STATIC_GLOBALS] = true;
+    return mod;
+}
+
 void initialize_impl_kind_table_with_op(const context_ptr &ctx,
         const sc_op_ptr &op, op_dispatch_tables_ptr &tb) {
     COMPILE_ASSERT(op->isa<tunable_op_t>(),
@@ -86,10 +101,11 @@ void initialize_impl_kind_table_with_op(const context_ptr &ctx,
 }
 
 void add_dispatch_symbol_to_kernel_table(op_dispatch_tables_ptr &tb,
-        const op_dispatch_key_base_t *key, const std::string &value) {
+        const op_dispatch_key_base_t *key,
+        op_dispatch_tables_t::op_func_info &&value) {
     std::vector<runtime::dispatch_key> runtime_keys
             = key->convert_to_runtime_format_vec();
-    tb->kernel_table_.insert(std::make_pair(runtime_keys, value));
+    tb->kernel_table_.insert(std::make_pair(runtime_keys, std::move(value)));
 }
 
 bool can_op_be_dispatched(const sc_op_ptr &op) {
@@ -337,7 +353,8 @@ std::vector<sc_op_ptr> get_graph_inner_dispatch_ops(
     return ret;
 }
 
-void update_graph_format_by_key(const sc_op_ptr &fused_op, sc_graph_t &graph,
+void update_graph_format_by_key(const context_ptr &ctx,
+        const sc_op_ptr &fused_op, sc_graph_t &graph,
         const combined_op_dispatch_key_t &key, int &key_idx,
         size_t node_input_offset, size_t graph_input_offset,
         const sc_op_ptr &modified_inp) {
@@ -356,7 +373,7 @@ void update_graph_format_by_key(const sc_op_ptr &fused_op, sc_graph_t &graph,
                         cur_key.in_out_formats_[i]);
             }
             if (node->isa<tunable_op_t>()) {
-                node->stc_cast<tunable_op_t>()->set_config_by_key(cur_key);
+                node->stc_cast<tunable_op_t>()->set_config_by_key(cur_key, ctx);
             }
             if (node->isa<reorder_op_t>()
                     && cur_key.in_out_formats_[0].is_blocking()) {

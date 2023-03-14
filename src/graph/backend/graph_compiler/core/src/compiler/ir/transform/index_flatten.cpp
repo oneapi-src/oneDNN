@@ -20,6 +20,7 @@
 #include "../util_module_passes.hpp"
 #include "../visitor.hpp"
 #include "./constant_fold.hpp"
+#include <compiler/dimensions.hpp>
 #include <compiler/ir/pass_dep_util.hpp>
 #include <unordered_map>
 

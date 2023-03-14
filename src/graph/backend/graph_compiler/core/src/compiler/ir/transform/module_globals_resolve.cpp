@@ -53,6 +53,7 @@ public:
     expr current_base;
     expr current_rtl_ctx;
     bool is_top_level = true;
+    uintptr_t absolute_base_ = 0;
     // change the global symbol to a local variable
     std::vector<expr> global_symbol_local_def_;
     std::unordered_map<expr_c, expr> global_symbol_replace_map_;
@@ -117,6 +118,14 @@ public:
         auto itr = global_symbol_replace_map_.find(old);
         if (itr != global_symbol_replace_map_.end()) { return itr->second; }
         auto ret = old->remake();
+        // if using absolute base, the module_global_offset is the pointer of
+        // the global var
+        if (absolute_base_ && ret.isa<var>()) {
+            auto &attr = ret->attr_->get_any(attr_keys::module_global_offset);
+            void *ptr = reinterpret_cast<void *>(
+                    attr.get<size_t>() + absolute_base_);
+            attr = ptr;
+        }
         global_symbol_local_def_.emplace_back(ret);
         global_symbol_replace_map_.insert(std::make_pair(old, ret));
         return ret;
@@ -148,9 +157,15 @@ public:
             for (auto &v : global_symbol_local_def_) {
                 expr init;
                 if (v.isa<tensor>()) {
-                    init = builder::tensor_ptr(current_base,
-                            {v->attr().get<size_t>(
-                                    attr_keys::module_global_offset)});
+                    auto offset = v->attr().get<size_t>(
+                            attr_keys::module_global_offset);
+                    if (absolute_base_) {
+                        init = make_expr<constant_node>(
+                                (uint64_t)(absolute_base_ + offset),
+                                datatypes::s8.get_pointerof());
+                    } else {
+                        init = builder::tensor_ptr(current_base, {offset});
+                    }
                 }
                 seq.emplace_back(builder::make_var_tensor_def_unattached(
                         v, linkage::local, init));
@@ -256,6 +271,9 @@ const_ir_module_ptr module_globals_resolver_t::operator()(
             }
         }
     }
+    uintptr_t baseptr = (uintptr_t)sym_table->data_.data_;
+    bool is_static_global = m->attr_.get_or_else(
+            ir_module_t::attr_key_t::STATIC_GLOBALS, false);
     ret->attr_[ir_module_t::attr_key_t::MODULE_DATA_BUFFERS]
             = std::move(sym_table);
     auto &funcs = ret->get_contents();
@@ -299,7 +317,6 @@ const_ir_module_ptr module_globals_resolver_t::operator()(
         replace_map[f->name_] = copy_attr(*f, std::move(retf));
         funcp->decl_ = copy_attr(*f, std::move(funcp->decl_));
     }
-
     for (unsigned i = 0; i < funcs.size(); i++) {
         if (!funcs[i]->body_.defined()) { continue; }
         if (funcs[i]->attr_
@@ -308,6 +325,7 @@ const_ir_module_ptr module_globals_resolver_t::operator()(
             continue;
         }
         module_globals_resolver_impl_t impl;
+        impl.absolute_base_ = is_static_global ? baseptr : 0;
         impl.map = &replace_map;
         auto funcp = replace_map[funcs[i]->name_];
         assert(funcp);

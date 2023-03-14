@@ -82,7 +82,7 @@ void *hash_dispatch_table_t::get(uint64_t *keys, uint64_t num_keys) {
 void hash_dispatch_table_t::set(
         uint64_t *keys, uint64_t num_keys, void *value) {
     assert(num_keys == num_args_);
-    if (num_elems_ + 1 > capacity_ / 2) {
+    if (num_elems_ > capacity_ / 2) {
         // todo: rehash
         throw std::runtime_error("Rehash not implemented");
     }

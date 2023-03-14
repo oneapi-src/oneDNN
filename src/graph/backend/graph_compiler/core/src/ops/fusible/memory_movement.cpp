@@ -26,6 +26,7 @@
 #include "memory_movement.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
+#include <compiler/ir/graph/dynamic_utils.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/fusion_mgr.hpp>
 #include <compiler/ir/graph/outer_loop_generator.hpp>

@@ -126,7 +126,8 @@ public:
     // input/output dispatch key inside(optional). The return value is mainly
     // used for combined dispatch key construction.
     virtual std::vector<sc_op_ptr> get_inner_dispatch_ops(int *total_key_num);
-    void update_internal_graph_format(const combined_op_dispatch_key_t &key);
+    void update_internal_graph_format(
+            const combined_op_dispatch_key_t &key, const context_ptr &ctx);
     ir_module_ptr get_dynamic_query_func(const context_ptr &ctx);
 };
 
@@ -160,7 +161,8 @@ public:
 
 class mixed_fuse_op_t : public graph_op_t,
                         public op_traits::may_prefetch_t,
-                        public op_traits::may_inplace_t {
+                        public op_traits::may_inplace_t,
+                        public op_traits::copyable_t {
 public:
     mixed_fuse_op_t(const std::string &name,
             const std::vector<std::shared_ptr<mixed_parti_t>> &parti_list,
@@ -183,7 +185,8 @@ public:
     // dispatch key inside(option). The return value is mainly used for combined
     // dispatch key construction.
     virtual std::vector<sc_op_ptr> get_inner_dispatch_ops(int *total_key_num);
-    void update_internal_graph_format(const combined_op_dispatch_key_t &key);
+    void update_internal_graph_format(
+            const combined_op_dispatch_key_t &key, const context_ptr &ctx);
     ir_module_ptr get_dynamic_query_func(const context_ptr &ctx);
 
     std::vector<int> query_prefetch(const context_ptr &ctx, bool is_global,
@@ -195,6 +198,9 @@ public:
     std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>
     get_inplace_map() override;
     float get_gflop() override;
+    sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins, // NOLINT
+            const std::vector<graph_tensor_ptr> &outs,
+            sc_graph_t &mgr) override;
 };
 
 void schedule_loop_body(const stmt &body, node_ptr_map *node_remap = nullptr);

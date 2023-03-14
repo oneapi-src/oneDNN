@@ -28,6 +28,8 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
+class jit_module;
+
 namespace runtime {
 struct op_dispatch_tables_t {
     // format table, fmt0, unknown, unknown => fmt0, fmt1, fmt2. Currently we
@@ -39,6 +41,7 @@ struct op_dispatch_tables_t {
     std::unique_ptr<dispatch_table_t> kernel_table_;
     // pointer to kernel dispatch function.
     dispatch_table_t::dispatch_func_t kernel_dispatch_func_ = nullptr;
+    std::vector<std::shared_ptr<jit_module>> compiled_modules_;
     op_dispatch_tables_t() = default;
     virtual ~op_dispatch_tables_t();
     void set_format_table_keys(uint64_t *keys, uint64_t num_keys,

@@ -30,6 +30,16 @@ namespace runtime {
 #define should_pass_filter(x) true
 static std::ostream *stream_target = &std::cerr;
 
+logging_stream_t::logging_stream_t(const char *append)
+    : stream_(new std::stringstream {}), append_(append) {}
+logging_stream_t::~logging_stream_t() {
+    if (stream_) {
+        *stream_ << append_;
+        (*stream_target) << static_cast<std::stringstream *>(stream_)->str();
+        delete stream_;
+    }
+}
+
 void set_logging_stream(std::ostream *s) {
     stream_target = s;
 }
@@ -41,14 +51,15 @@ std::ostream *get_logging_stream() {
 static logging_stream_t get_stream(verbose_level level, const char *module_name,
         const char *appender, const char *prefix) {
     if (runtime_config_t::get().verbose_level_ < level) {
-        return logging_stream_t(nullptr, nullptr);
+        return logging_stream_t();
     }
     if (!module_name || should_pass_filter(module_name)) {
-        *stream_target << prefix;
-        if (module_name) { *stream_target << '[' << module_name << ']' << ' '; }
-        return logging_stream_t(stream_target, appender);
+        logging_stream_t ret {appender};
+        *(ret.stream_) << prefix;
+        if (module_name) { *(ret.stream_) << '[' << module_name << ']' << ' '; }
+        return ret;
     }
-    return logging_stream_t(nullptr, nullptr);
+    return logging_stream_t();
 }
 
 logging_stream_t get_info_logging_stream(const char *module_name) {

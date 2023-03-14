@@ -20,6 +20,7 @@
 #include "builder.hpp"
 #include "pass/func_dependency.hpp"
 #include "visitor.hpp"
+#include <compiler/ir/graph/dynamic_utils.hpp>
 #include <compiler/ir/pass/ir_copy.hpp>
 #include <compiler/ir/pass/printer.hpp>
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>

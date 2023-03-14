@@ -161,7 +161,7 @@ public:
 TEST(GCCore_dynamic_impl_kind_cpp, TestImplKindMatmulCoreExec) {
     BUILTIN_REQUIRE_AVX512();
     sc_graph_t g;
-    auto ctx = get_test_ctx();
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
     auto in_a = g.make_input(
             {graph_tensor::make({-1, 64}, sc_data_format_t::MK())});
     auto in_b = g.make_input(
