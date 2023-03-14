@@ -370,7 +370,8 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
             = (jcp.src_zero_point && icc == pd()->ic_chunks - 1)
             ? &src_zp_comp[comp_offset]
             : nullptr;
-    int32_t *s8s8_comp_ptr = (jcp.s8s8_avx512 && icc == pd()->ic_chunks - 1)
+    int32_t *s8s8_comp_ptr
+            = (jcp.s8s8_compensation_required && icc == pd()->ic_chunks - 1)
             ? &s8s8_compensation[comp_offset]
             : nullptr;
 
@@ -459,12 +460,14 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
     const auto extra_data_offset
             = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<char *>(brgemm_ctx.weights);
-    int32_t *s8s8_compensation = (jcp.s8s8_avx512)
+    int32_t *s8s8_compensation = (jcp.s8s8_compensation_required)
             ? reinterpret_cast<int32_t *>(w + extra_data_offset)
             : nullptr;
     int32_t *zp_compensation = (jcp.src_zero_point)
             ? reinterpret_cast<int32_t *>(&w[extra_data_offset])
-                    + (jcp.s8s8_avx512 ? jcp.s8s8_comp_buffer_size : 0)
+                    + (jcp.s8s8_compensation_required
+                                    ? jcp.s8s8_comp_buffer_size
+                                    : 0)
             : nullptr;
     int32_t *dst_zp_vals = jcp.dst_zero_point ? &dst_zero_point : nullptr;
 

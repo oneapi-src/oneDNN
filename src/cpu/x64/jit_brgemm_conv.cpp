@@ -247,7 +247,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
     brg_strides.stride_a = jcp_.brg_stride_a;
     brg_strides.stride_b = jcp_.brg_stride_b;
     brg.req_cal_comp_pads = jcp_.req_brg_comp_pad
-            && (jcp_.src_zero_point || jcp_.s8s8_avx512);
+            && (jcp_.src_zero_point || jcp_.s8s8_compensation_required);
     const auto strides_ptr
             = (jcp_.brg_type == brgemm_strd) ? &brg_strides : nullptr;
     CHECK(brgemm_desc_init(&brg, isa, jcp_.brg_type, src_type, wei_type, false,
@@ -724,7 +724,7 @@ inline int brgemm_convolution_fwd_t<isa, use_inversion>::get_comp_offset(
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
 
-    if (!jcp.src_zero_point && !jcp.s8s8_avx512) return 0;
+    if (!jcp.src_zero_point && !jcp.s8s8_compensation_required) return 0;
 
     const auto comp_idx = get_comp_ker_idx(kd_b, kd_e, kh_b, kh_e, kw_b, kw_e);
     assert(IMPLICATION(jcp.req_cal_comp_pad, comp_idx >= 0));
@@ -795,8 +795,8 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
     comp_ker_sz = jcp.ker_ranges_size * comp_kw_sz;
     comp_ocb_sz = jcp.nb_oc * comp_ker_sz;
 
-    need_compensation
-            = (jcp.src_zero_point || jcp.s8s8_avx512) && !jcp.req_brg_comp_pad;
+    need_compensation = (jcp.src_zero_point || jcp.s8s8_compensation_required)
+            && !jcp.req_brg_comp_pad;
 
     // ---- Initialize arrays ---------------------
     brgemm_kernels_.resize(_pd->brgs_sz_);
@@ -1134,12 +1134,12 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::execute(
     const auto s8s8_comp_offset = jcp.req_cal_comp_pad
             ? jcp.ngroups * jcp.nb_oc * jcp.kd * jcp.kh * jcp.kw * jcp.oc_block
             : jcp.ngroups * jcp.nb_oc * jcp.oc_block;
-    int32_t *s8s8_compensation = jcp.s8s8_avx512
+    int32_t *s8s8_compensation = jcp.s8s8_compensation_required
             ? reinterpret_cast<int32_t *>(w + extra_data_offset)
             : nullptr;
     int32_t *zp_compensation = jcp.src_zero_point
             ? reinterpret_cast<int32_t *>(&w[extra_data_offset])
-                    + (jcp.s8s8_avx512 ? s8s8_comp_offset : 0)
+                    + (jcp.s8s8_compensation_required ? s8s8_comp_offset : 0)
             : nullptr;
 
     const memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
@@ -1163,7 +1163,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::execute(
                        key_brgemm_primitive_zp_comp_a)
                                     : zp_compensation)
             : nullptr;
-    int32_t *s8s8_comp_base = jcp.s8s8_avx512
+    int32_t *s8s8_comp_base = jcp.s8s8_compensation_required
             ? (jcp.req_cal_comp_pad ? scratchpad.template get<int32_t>(
                        key_brgemm_primitive_buffer_comp)
                                     : s8s8_compensation)
@@ -1244,7 +1244,8 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::execute(
             btc.dst_zp_vals = jcp.dst_zero_point ? dst_zp_vals : nullptr;
             btc.src_zp_comp_ptr
                     = jcp.src_zero_point ? src_zp_comp_base : nullptr;
-            btc.s8s8_comp_ptr = jcp.s8s8_avx512 ? s8s8_comp_base : nullptr;
+            btc.s8s8_comp_ptr
+                    = jcp.s8s8_compensation_required ? s8s8_comp_base : nullptr;
             btc.dst_scales = dst_scales;
 
             if (jcp.exec_type == exec_trans && (last_n != n || last_g != g)) {
@@ -1314,7 +1315,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::cal_compensation(
 
     if (jcp.src_zero_point)
         std::memset(src_zp_buffer, 0, sizeof(int32_t) * jcp.comp_a_buffer_size);
-    if (jcp.s8s8_avx512)
+    if (jcp.s8s8_compensation_required)
         std::memset(s8s8_comp_buffer, 0,
                 sizeof(int32_t) * jcp.s8s8_comp_buffer_size);
 
@@ -1351,8 +1352,9 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::cal_compensation(
             p.ptr_in = &weights[wei_offs];
             p.ptr_zp_out = jcp.src_zero_point ? &src_zp_buffer[buffer_offs]
                                               : nullptr;
-            p.ptr_cp_out = jcp.s8s8_avx512 ? &s8s8_comp_buffer[buffer_offs]
-                                           : nullptr;
+            p.ptr_cp_out = jcp.s8s8_compensation_required
+                    ? &s8s8_comp_buffer[buffer_offs]
+                    : nullptr;
             (*comp_vpad_pbuffer_)(&p);
 
             nd_iterator_step(g, jcp.ngroups, ocb, jcp.nb_oc, k, ker_vpad_sz);
@@ -1408,7 +1410,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::perform_outwork(
             p.a_zp_compensation = has_postcomp && jcp.src_zero_point
                     ? &src_zp_ptr[ow_pw_s * jcp.LDB]
                     : src_zp_ptr;
-            p.s8s8_compensation = has_postcomp && jcp.s8s8_avx512
+            p.s8s8_compensation = has_postcomp && jcp.s8s8_compensation_required
                     ? &s8s8_compensation[ow_pw_s * jcp.LDB]
                     : s8s8_compensation;
 
@@ -1760,8 +1762,9 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
                 call_brgemm(brg_idx, 0, nb_ic_b,
                         jcp.src_zero_point ? &btc.src_zp_comp_ptr[comp_ker_offs]
                                            : nullptr,
-                        jcp.s8s8_avx512 ? &btc.s8s8_comp_ptr[comp_ker_offs]
-                                        : nullptr,
+                        jcp.s8s8_compensation_required
+                                ? &btc.s8s8_comp_ptr[comp_ker_offs]
+                                : nullptr,
                         do_postwork && !is_ic_tail, do_only_comp);
             }
 
@@ -1771,8 +1774,9 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
                 call_brgemm(brg_ic_tail_idx, nb_ic_b, 1,
                         jcp.src_zero_point ? &btc.src_zp_comp_ptr[comp_ker_offs]
                                            : nullptr,
-                        jcp.s8s8_avx512 ? &btc.s8s8_comp_ptr[comp_ker_offs]
-                                        : nullptr,
+                        jcp.s8s8_compensation_required
+                                ? &btc.s8s8_comp_ptr[comp_ker_offs]
+                                : nullptr,
                         do_postwork, do_only_comp);
             }
         }
@@ -2051,7 +2055,9 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
             call_brgemm(brg_idx, 0, nb_ic_b,
                     jcp.src_zero_point ? &btc.src_zp_comp_ptr[comp_offs]
                                        : nullptr,
-                    jcp.s8s8_avx512 ? &btc.s8s8_comp_ptr[comp_offs] : nullptr,
+                    jcp.s8s8_compensation_required
+                            ? &btc.s8s8_comp_ptr[comp_offs]
+                            : nullptr,
                     do_postwork && !is_ic_tail);
         }
 
@@ -2061,7 +2067,9 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
             call_brgemm(brg_ic_tail_idx, nb_ic_b, 1,
                     jcp.src_zero_point ? &btc.src_zp_comp_ptr[comp_offs]
                                        : nullptr,
-                    jcp.s8s8_avx512 ? &btc.s8s8_comp_ptr[comp_offs] : nullptr,
+                    jcp.s8s8_compensation_required
+                            ? &btc.s8s8_comp_ptr[comp_offs]
+                            : nullptr,
                     do_postwork);
         }
     };

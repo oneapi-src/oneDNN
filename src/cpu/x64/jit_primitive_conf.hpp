@@ -775,7 +775,7 @@ struct jit_brgemm_conv_conf_t {
     bool use_interleave_stores;
     brgemm_kernel_prefetching_t hint_prefetching;
     bool is_1x1;
-    bool s8s8_avx512;
+    bool s8s8_compensation_required;
     bool src_zero_point;
     bool dst_zero_point;
     bool req_brg_comp_pad;

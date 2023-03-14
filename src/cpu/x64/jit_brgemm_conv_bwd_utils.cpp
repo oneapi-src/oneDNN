@@ -1372,7 +1372,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             && jcp.iw >= 128;
     if (is_small_shape || is_3d_small_oc) return status::unimplemented;
 
-    jcp.s8s8_avx512 = jcp.src_dt == s8 && !is_amx(jcp.isa);
+    const bool is_signed_input = jcp.src_dt == s8;
+    jcp.s8s8_compensation_required = is_signed_input && !isa_has_s8s8(jcp.isa);
 
     if (!IMPLICATION(jcp.wei_dt == s8, mayiuse(avx512_core_vnni)))
         return status::unimplemented;
@@ -1419,7 +1420,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             != brgemm_broadcast_t::none;
 
     const bool has_zero_points = jcp.src_zero_point || jcp.dst_zero_point;
-    if (has_zero_points || jcp.s8s8_avx512) return status::unimplemented;
+    if (has_zero_points || jcp.s8s8_compensation_required)
+        return status::unimplemented;
 
     if (is_deconv) {
         const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
@@ -1586,7 +1588,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     const bool with_pad = jcp.f_pad > 0 || jcp.back_pad > 0 || jcp.t_pad > 0
             || jcp.b_pad > 0 || jcp.l_pad > 0 || jcp.r_pad > 0;
 
-    if (jcp.s8s8_avx512) {
+    if (jcp.s8s8_compensation_required) {
         weights_md.extra.flags = 0 | memory_extra_flags::compensation_conv_s8s8;
         weights_md.extra.compensation_mask = with_groups ? 0x3 : 0x1;
     }
@@ -1601,7 +1603,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     // Or we calculate the comp using brgemm_coomp_pad kernel
     const auto output_sz = static_cast<dim_t>(jcp.mb) * jcp.ngroups * jcp.ic
             * jcp.id * jcp.ih * jcp.iw;
-    const auto comp_with_pads = (jcp.src_zero_point || jcp.s8s8_avx512)
+    const auto comp_with_pads
+            = (jcp.src_zero_point || jcp.s8s8_compensation_required)
             && IMPLICATION(jcp.exec_type == exec_vpad, with_pad);
     jcp.req_brg_comp_pad = comp_with_pads && output_sz <= 8192 && jcp.ic < 512;
     jcp.req_cal_comp_pad = comp_with_pads && !jcp.req_brg_comp_pad;
@@ -1645,7 +1648,7 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         scratchpad.book(key_conv_amx_tile_buffer, jcp.nthr * 2 * P4K,
                 sizeof(char), 0, P4K);
     }
-    if (jcp.s8s8_avx512 && jcp.req_cal_comp_pad) {
+    if (jcp.s8s8_compensation_required && jcp.req_cal_comp_pad) {
         scratchpad.book(key_brgemm_primitive_buffer_comp,
                 jcp.s8s8_comp_buffer_size, sizeof(int32_t), 0, P4K);
     }

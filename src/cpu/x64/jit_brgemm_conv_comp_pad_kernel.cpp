@@ -73,7 +73,7 @@ void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::store_accumulators(
         }
     }
 
-    if (jcp_.s8s8_avx512) {
+    if (jcp_.s8s8_compensation_required) {
         for_(int m = 0; m < m_block; m++)
         for (int n = 0; n < n_block; n++) {
             auto zmm = accum(n_block, m, n);
@@ -232,7 +232,9 @@ void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::generate() {
         vpbroadcastw(zmm_one_words, reg_tmp.cvt16());
     }
 
-    const int max_regs = is_int8_avx512_core ? 26 : jcp_.s8s8_avx512 ? 28 : 29;
+    const int max_regs = is_int8_avx512_core
+            ? 26
+            : (jcp_.s8s8_compensation_required ? 28 : 29);
     const int nb = div_up(nstl::min(jcp_.oc, jcp_.oc_block), m_block2_);
     const int nb2 = nb / n_max_regs_;
     const int nb2_tail = nb % n_block2_;
