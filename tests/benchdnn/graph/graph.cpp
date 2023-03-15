@@ -159,7 +159,7 @@ int dynamic_branch(const std::vector<logical_tensor> &inputs,
             true_inputs.emplace_back(exec_in);
         }
         input_ts = tm.construct_and_initialize_tensors(
-                true_inputs, c_partitions.back(), eng, 1);
+                true_inputs, c_partitions.back(), eng, 128);
         tensors_in.emplace_back(input_ts);
 
         // NOTE: limitation#2: how about the dynamic info for output,
