@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,6 +20,16 @@
 #include "oneapi/dnnl/dnnl.hpp"
 #include "src/common/primitive_cache.hpp"
 
+namespace {
+void custom_unsetenv(const char *name) {
+#ifdef _WIN32
+    _putenv((std::string(name) + "=").c_str());
+#else
+    ::unsetenv(name);
+#endif
+}
+} // namespace
+
 namespace dnnl {
 
 void fill_primitive_cache(int n) {
@@ -38,6 +48,8 @@ void fill_primitive_cache(int n) {
 }
 
 TEST(primitive_cache_test, TestDefaultCapacity) {
+    custom_unsetenv("ONEDNN_PRIMITIVE_CACHE_CAPACITY");
+    custom_unsetenv("DNNL_PRIMITIVE_CACHE_CAPACITY");
     auto default_capacity = get_primitive_cache_capacity();
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
     ASSERT_EQ(default_capacity, 1024);
