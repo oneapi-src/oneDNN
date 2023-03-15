@@ -2052,8 +2052,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     auto try_exec_type = [&]() {
         brg_blocking_t best_brgb = zero<decltype(best_brgb)>();
         best_brgb.oc_block = min_oc_block;
-        brg_blocking_t cur_brgb = zero<decltype(best_brgb)>();
-        cur_brgb.get_from_jcp(jcp);
         const int est_amx_job = div_up(jcp.mb * div_up(jcp.os, 4 * 16)
                         * jcp.ngroups * div_up(jcp.oc, 4 * 16),
                 nthreads);
@@ -2064,6 +2062,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
         auto finish_ocb = 1;
         for (auto ocb = start_ocb; ocb >= finish_ocb; ocb--) {
+            brg_blocking_t cur_brgb = zero<decltype(best_brgb)>();
+            cur_brgb.get_from_jcp(jcp);
             cur_brgb.oc_block = ocb * jcp.acc_simd_w;
             cur_brgb.nb_oc = utils::div_up(jcp.oc, cur_brgb.oc_block);
             if (!cur_brgb.fast_check_oc_block()) continue;
@@ -2364,13 +2364,13 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     brg_blocking_t best_brgb = zero<decltype(best_brgb)>();
     best_brgb.oc_block = min_oc_block;
-    brg_blocking_t cur_brgb = zero<decltype(cur_brgb)>();
-    cur_brgb.get_from_jcp(jcp);
     auto start_ocb = 4;
     start_ocb = nstl::min(div_up(jcp.oc, jcp.acc_simd_w), start_ocb);
 
     auto finish_ocb = 1;
     for (auto ocb = start_ocb; ocb >= finish_ocb; ocb--) {
+        brg_blocking_t cur_brgb = zero<decltype(cur_brgb)>();
+        cur_brgb.get_from_jcp(jcp);
         cur_brgb.oc_block = ocb * min_oc_block;
         cur_brgb.nb_oc = utils::div_up(jcp.oc, cur_brgb.oc_block);
 
