@@ -7,10 +7,10 @@ statistics breakdown at this time). The tool can be extended to
 produce other types of output by adding generators.
 
 ## Requirements
- - Python 3.7
+ - Python 3.6
 
 ## Compatibility
-The script is compatible with particular oneDNN version it is distributed with.
+The script is compatible with the specific oneDNN version with which it is distributed.
 Compatibility with other oneDNN versions is not guaranteed.
 To get an appropriate version of the script:
  - Identify `DNNL_VERSION_HASH` located in `include/oneapi/dnnl/dnnl_config.h`.
