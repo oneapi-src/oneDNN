@@ -29,6 +29,7 @@ using namespace rnn_utils;
 template <prop_kind_t aprop>
 cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
     const conf_t &rnn = this->pd()->rnn_conf;
+    const rnn_conf_t &conf = this->pd()->conf;
     data_type_t src_t = this->pd()->src_type;
 
     cl_ulong cell_scratch_offset, cell_ws_iter_offset, cell_ws_lay_offset,
@@ -58,9 +59,9 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
                 cell_scratch_offset, gemm_iter_fwd));
 
         // 3. activation zt and rt + elemwise multiplication rt,ht-1
-        CHECK((this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
+        CHECK((this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, 1,
                 workspace, scratch_gates, scratch_cell, scratch_diff_states,
-                scratch_dhG1, bias, tm_scales, PART_ONE));
+                scratch_dhG1, bias, tm_scales, diff_bias, PART_ONE));
 
         // 4. gemm Wh[2],h~t
         CHECK(gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset2,
@@ -68,9 +69,9 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
                 cell_scratch_offset2, gemm_iter_fwd_2));
 
         // 5. activation h~t + calculate ht
-        CHECK((this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
+        CHECK((this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, 1,
                 workspace, scratch_gates, scratch_cell, scratch_diff_states,
-                scratch_dhG1, bias, tm_scales, PART_TWO));
+                scratch_dhG1, bias, tm_scales, diff_bias, PART_TWO));
 
     } else {
         cl_ulong cell_diff_wei_iter_off, cell_diff_wei_lay_off,
@@ -83,8 +84,9 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
 
         // 1. calculate dG2, dG1, and part of dht-1
         CHECK((this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
-                workspace, scratch_gates, scratch_cell, scratch_diff_states,
-                scratch_dhG1, bias, tm_scales, PART_ONE));
+                conf.elemwise_bwd_batch_block, workspace, scratch_gates,
+                scratch_cell, scratch_diff_states, scratch_dhG1, bias,
+                tm_scales, diff_bias, PART_ONE));
 
         // 2. calculate intermediate d(hG1)
         // d(hG1) = dG2 * W2h^t
@@ -95,8 +97,9 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
         // 3. calculate dG1^ and part of dht-1
         // hg1 needs to be bf16 as it is used as gemm output
         CHECK((this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
-                workspace, scratch_gates, scratch_cell, scratch_diff_states,
-                scratch_dhG1, bias, tm_scales, PART_TWO));
+                conf.elemwise_bwd_batch_block, workspace, scratch_gates,
+                scratch_cell, scratch_diff_states, scratch_dhG1, bias,
+                tm_scales, diff_bias, PART_TWO));
 
         // 4. calculate diff weights
         // dWh1 += dG1 * h, dWh2 += dG2 * h, dWh3 += dG3 * (G1(*)h)
@@ -126,10 +129,6 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
                     scratch_gates, cell_scratch_offset, scratch_diff_states,
                     cell_scr_diff_lay_off, gemm_layer_bwd));
         }
-
-        // 6. calculate diff bias
-        CHECK(gates_reduction(ctx, dir, lay, iter, rnn.n_gates, rnn.dhc, rnn.mb,
-                scratch_gates, scratch_cell, diff_bias));
     }
     return status::success;
 }

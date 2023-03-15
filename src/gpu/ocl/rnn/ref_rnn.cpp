@@ -34,6 +34,7 @@
 #include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
+#include "gpu/getenv_utils.hpp"
 
 static inline bool is_ws_print_enabled() {
     return get_verbose_dev_mode(dnnl::impl::verbose_t::debuginfo) >= 5;
@@ -196,8 +197,9 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
 }
 
 static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
-        const rnn_conf_t &conf, const rnn_offsets_t &off, int subgroup_size,
-        bool use_subgroup_reduction) {
+        const rnn_conf_t &conf, const rnn_offsets_t &off, int subgroup_size) {
+
+    kernel_ctx.add_option("-cl-std=CL2.0");
 
     kernel_ctx.define_int("IS_FWD", conf.is_fwd);
     kernel_ctx.define_int("IS_TRAINING", conf.is_training);
@@ -208,6 +210,10 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("WITH_DST_ITER_C", conf.with_dst_iter_c);
     kernel_ctx.define_int("IS_LBR", conf.is_lbr);
 
+    kernel_ctx.define_int(
+            "ELEMWISE_BWD_BATCH_BLOCK", conf.elemwise_bwd_batch_block);
+    kernel_ctx.define_int("NEED_BIAS_ATOMIC_REDUCE",
+            !conf.is_fwd && conf.elemwise_bwd_batch_block < conf.batch);
     kernel_ctx.define_int("VANILLA_RNN", alg_kind::vanilla_rnn);
     kernel_ctx.define_int("VANILLA_LSTM", alg_kind::vanilla_lstm);
     kernel_ctx.define_int("VANILLA_GRU", alg_kind::vanilla_gru);
@@ -234,7 +240,6 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("N_PARTS_WEI_I", conf.n_parts_weights_layer);
 
     kernel_ctx.define_int("SUBGROUP_SIZE", subgroup_size);
-    kernel_ctx.define_int("USE_SUBGROUP_REDUCTION", use_subgroup_reduction);
 
     def_offsets(off.src_layer_off, kernel_ctx, "SRC_L", conf.src_layer_ndims);
     def_offsets(off.src_iter_off, kernel_ctx, "SRC_I", conf.src_iter_ndims);
@@ -251,6 +256,7 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
         def_offsets(off.dst_iter_c_off, kernel_ctx, "DST_I_C",
                 conf.dst_iter_c_ndims);
     def_offsets(off.bias_off, kernel_ctx, "BIAS", conf.bias_ndims);
+    kernel_ctx.define_int("N_BIAS", conf.n_bias);
 
     if (!conf.is_fwd) {
         def_offsets(off.diff_src_layer_off, kernel_ctx, "DIFF_SRC_L",
@@ -437,6 +443,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     is_xe_hpc = compute_engine->is_xe_hpc();
     subgroup_size = compute_engine->device_info()->max_subgroup_size();
     max_eus_per_wg = compute_engine->device_info()->max_eus_per_wg();
+    auto eu_count = compute_engine->device_info()->eu_count();
 
     const alg_kind_t cell_kind = this->desc()->cell_kind;
 
@@ -567,8 +574,22 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     status_t status = init_conf<aprop>(conf, rnn_conf, this, this->off);
     if (status != status::success) { return status; }
 
+    int batch = rnn_conf.mb;
+    int n_gates = rnn_conf.n_gates;
+    int slc = rnn_conf.slc;
+    int sic = rnn_conf.sic;
+    int dhc = rnn_conf.dhc;
+
     auto fpmath_mode = this->attr()->fpmath_mode_;
-    use_subgroup_reduction = conf.batch >= subgroup_size;
+
+    auto max_elemwise_threads = utils::div_up(batch * dhc, subgroup_size);
+    auto max_elemwise_threads_per_eu
+            = utils::div_up(max_elemwise_threads, eu_count);
+    auto preferred_threads_per_eu = 4;
+    conf.elemwise_bwd_batch_block = dev_getenv("bwd_batch_block",
+            std::min(8,
+                    utils::rnd_up_pow2(max_elemwise_threads_per_eu
+                            / preferred_threads_per_eu)));
 
     // The inputs of create_gemm_pd describe a gemm in column major.
     // Below, we have to transpose the a and b descriptor to describe
@@ -590,12 +611,6 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
         return dnnl::impl::create_gemm_pd(gemm_pd, engine, &a_md, &b_md, &c_md,
                 &glob_zero_md, c_dt, &attr);
     };
-
-    int batch = rnn_conf.mb;
-    int n_gates = rnn_conf.n_gates;
-    int slc = rnn_conf.slc;
-    int sic = rnn_conf.sic;
-    int dhc = rnn_conf.dhc;
 
     int layer_merged_size
             = rnn_conf.merge_gemm_layer ? batch * rnn_conf.n_iter : batch;
@@ -728,15 +743,14 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
             = (size_t *)malloc(sizeof(size_t) * wei_offsets_iter_sz, 64);
 
     compute::kernel_ctx_t kernel_ctx;
-    status_t status = init_kernel_ctx(kernel_ctx, pd()->conf, pd()->off,
-            pd()->subgroup_size, pd()->use_subgroup_reduction);
+    status_t status = init_kernel_ctx(
+            kernel_ctx, pd()->conf, pd()->off, pd()->subgroup_size);
     CHECK(status);
 
     std::vector<const char *> kernel_names = {"ref_rnn_bias_prepare",
             "ref_rnn_copy_init_layer", "ref_rnn_copy_init_iter",
             "ref_rnn_copy_res_layer", "ref_rnn_copy_res_iter", "ref_rnn_ws_set",
-            "ref_rnn_elemwise_fwd", "ref_rnn_elemwise_bwd",
-            "ref_rnn_gates_reduction"};
+            "ref_rnn_elemwise_fwd", "ref_rnn_elemwise_bwd"};
     if (is_ws_print_enabled()) {
         kernel_names.emplace_back("ref_rnn_ws_print");
     }
@@ -753,7 +767,6 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
     ws_set_kernel_ = kernels[5];
     elemwise_fwd_kernel_ = kernels[6];
     elemwise_bwd_kernel_ = kernels[7];
-    gates_reduction_kernel_ = kernels[8];
     if (is_ws_print_enabled()) ws_print_kernel_ = kernels[9];
 
     bool gemm_ok = true;
@@ -1010,33 +1023,6 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
         default: assert(!"unknown gemm_kind"); return status::runtime_error;
     }
     return status::success;
-}
-
-template <prop_kind_t aprop>
-status_t _ref_rnn_common_t<aprop>::gates_reduction(const exec_ctx_t &ctx,
-        int dir, int lay, int iter, int n_bias, int dhc, int batch,
-        const memory_storage_t &scratch_gates,
-        const memory_storage_t &scratch_cell,
-        const memory_storage_t &diff_bias) const {
-
-    compute::kernel_arg_list_t arg_list;
-    arg_list.append(dir);
-    arg_list.append(lay);
-    arg_list.append(iter);
-    arg_list.append(diff_bias);
-    arg_list.append(scratch_gates);
-    arg_list.append(scratch_cell);
-    arg_list.append(pd()->rnn_conf.scratch_gates_ld);
-    arg_list.append(batch);
-    arg_list.append(dhc);
-    arg_list.append(pd()->rnn_conf.n_gates);
-    arg_list.append(pd()->rnn_conf.n_iter_scratch_gates);
-
-    auto nd_range = pd()->use_subgroup_reduction
-            ? get_nd_range({pd()->subgroup_size, dhc, n_bias})
-            : get_nd_range({dhc, n_bias});
-
-    return parallel_for(ctx, nd_range, gates_reduction_kernel_, arg_list);
 }
 
 //*************** Grid computations strategy: linear ***************//

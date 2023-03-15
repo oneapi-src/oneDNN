@@ -34,6 +34,7 @@ template cell_execution_sig(ref_rnn_bwd_t::cell_execution_gru_lbr);
 template <prop_kind_t aprop>
 cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
     const conf_t &rnn = this->pd()->rnn_conf;
+    const rnn_conf_t &conf = this->pd()->conf;
     data_type_t src_t = this->pd()->src_type;
 
     cl_ulong cell_scratch_offset, cell_ws_iter_offset, cell_ws_lay_offset,
@@ -54,9 +55,9 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
                 workspace.ws(), cell_ws_iter_offset, scratch_cell, 0,
                 gemm_iter_fwd));
 
-        CHECK((this->*elemwise_gru_lbr)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
+        CHECK((this->*elemwise_gru_lbr)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, 1,
                 workspace, scratch_gates, scratch_cell, scratch_diff_states,
-                bias, tm_scales));
+                bias, tm_scales, diff_bias));
 
     } else {
         cl_ulong cell_diff_wei_iter_off, cell_diff_wei_lay_off,
@@ -67,8 +68,8 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
                 cell_scr_diff_iter_off);
 
         CHECK((this->*elemwise_gru_lbr)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
-                workspace, scratch_gates, scratch_cell, scratch_diff_states,
-                bias, tm_scales));
+                conf.elemwise_bwd_batch_block, workspace, scratch_gates,
+                scratch_cell, scratch_diff_states, bias, tm_scales, diff_bias));
 
         if (!rnn.merge_gemm_layer) {
             CHECK(gemm_primitive(engine, ctx, scratch_gates,
@@ -88,8 +89,6 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
         CHECK(gemm_primitive(engine, ctx, scratch_cell, 0, workspace.ws(),
                 cell_ws_iter_offset, diff_weights_iter, cell_diff_wei_iter_off,
                 gemm_diff_wei_iter));
-        CHECK(gates_reduction(ctx, dir, lay, iter, rnn.n_gates + 1, rnn.dhc,
-                rnn.mb, scratch_gates, scratch_cell, diff_bias));
     }
     return status::success;
 }

@@ -29,6 +29,7 @@ using namespace rnn_utils;
 template <prop_kind_t aprop>
 cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
     const conf_t &rnn = this->pd()->rnn_conf;
+    const rnn_conf_t &conf = this->pd()->conf;
     data_type_t src_t = this->pd()->src_type;
 
     cl_ulong cell_scratch_offset, cell_ws_iter_offset, cell_ws_lay_offset,
@@ -49,9 +50,9 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
                 workspace.ws(), cell_ws_iter_offset, scratch_gates,
                 cell_scratch_offset, gemm_iter_fwd));
 
-        CHECK((this->*elemwise_common)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
+        CHECK((this->*elemwise_common)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, 1,
                 workspace, scratch_gates, scratch_diff_states, scales, bias,
-                tm_scales));
+                tm_scales, diff_bias));
 
     } else { // backward
         cl_ulong cell_diff_wei_iter_off, cell_diff_wei_lay_off,
@@ -62,8 +63,8 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
                 cell_scr_diff_iter_off);
 
         CHECK((this->*elemwise_common)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
-                workspace, scratch_gates, scratch_diff_states, scales, bias,
-                tm_scales));
+                conf.elemwise_bwd_batch_block, workspace, scratch_gates,
+                scratch_diff_states, scales, bias, tm_scales, diff_bias));
 
         CHECK(gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
                 scratch_gates, cell_scratch_offset, scratch_diff_states,
@@ -86,9 +87,6 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
                     diff_weights_iter, cell_diff_wei_iter_off,
                     gemm_diff_wei_iter));
         }
-
-        CHECK(gates_reduction(ctx, dir, lay, iter, rnn.n_gates, rnn.dhc, rnn.mb,
-                scratch_gates, scratch_cell, diff_bias));
     }
     return status::success;
 }

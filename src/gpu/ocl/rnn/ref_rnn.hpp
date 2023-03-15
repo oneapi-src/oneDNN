@@ -199,7 +199,6 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         bool is_xe_hpc = false;
         int subgroup_size = 0;
         int max_eus_per_wg = 0;
-        bool use_subgroup_reduction = false;
 
         std::shared_ptr<primitive_desc_t> gemm_iter_fwd_pd_;
         std::shared_ptr<primitive_desc_t> gemm_iter_fwd_2_pd_;
@@ -357,10 +356,6 @@ private:
             const memory_storage_t &diff_src_iter,
             const memory_storage_t &diff_src_iter_c, const workspace_t &ws,
             const float shift, const float scale, const bool dequantize) const;
-    status_t gates_reduction(const exec_ctx_t &ctx, int dir, int lay, int iter,
-            int n_gates, int dhc, int batch, const memory_storage_t &gates,
-            const memory_storage_t &cell,
-            const memory_storage_t &diff_bias) const;
     status_t ws_set(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream,
             const memory_storage_t &workspace, const cl_ulong ws_offset,
@@ -379,7 +374,6 @@ private:
     compute::kernel_t ws_set_kernel_;
     compute::kernel_t elemwise_fwd_kernel_;
     compute::kernel_t elemwise_bwd_kernel_;
-    compute::kernel_t gates_reduction_kernel_;
 
     // ptrs to GEMM primitives
     std::shared_ptr<primitive_t> gemm_layer_fwd_;

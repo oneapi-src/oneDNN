@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/ocl/ocl_math_utils.h"
 #include "gpu/ocl/rnn/rnn_types.h"
 
 float one_m_square(float a) {
@@ -869,6 +870,14 @@ ref_rnn_elemwise_fwd(int dir, int lay, int iter, __global char *scr_gates,
 }
 #endif
 
+#if NEED_BIAS_ATOMIC_REDUCE
+#define MAYBE_ATOMIC volatile __global
+#define DIFF_BIAS_DATA_T CONCAT2(atomic_, DIFF_DATA_T)
+#else
+#define MAYBE_ATOMIC __global
+#define DIFF_BIAS_DATA_T DIFF_DATA_T
+#endif
+
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
 ref_rnn_elemwise_bwd(int dir, int lay, int iter, __global char *scr_gates,
         __global AUX_DATA_T *bias_base, float alpha, __global float *tm_scales,
@@ -885,245 +894,276 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter, __global char *scr_gates,
 #elif CELL_KIND == VANILLA_GRU
         int n_part, __global char *scr_cell, __global char *scratch_dhG1,
 #endif
-        __global char *diff_states) {
-    const int i = get_global_id(1); // batch
+        __global char *diff_states,
+        MAYBE_ATOMIC DIFF_BIAS_DATA_T *diff_bias_base) {
+#if !IS_FWD
+    const int i_ = get_global_id(1) * ELEMWISE_BWD_BATCH_BLOCK; // batch
     const int j = get_global_id(0); // dhc
 
-    if (j >= dhc || i >= batch) return;
+    MAYBE_ATOMIC DIFF_BIAS_DATA_T *diff_bias
+            = diff_bias_base + DIFF_BIAS_OFF(lay, dir, 0, 0);
+
+    DIFF_DATA_T diff_bias_acc[N_BIAS] = {0};
+    for (int batch_id = 0; batch_id < ELEMWISE_BWD_BATCH_BLOCK; batch_id++) {
+        int i = i_ + batch_id;
+        if (j >= dhc || i >= batch) break;
 
 #if CELL_KIND == VANILLA_LSTM
 
-    __global SRC_DATA_T *scratch_gates = (__global SRC_DATA_T *)(scr_gates)
-            + off_scratch_mem_iter(
-                    n_iter_scratch_gates, batch, scratch_gates_ld, dhc, iter);
+        __global SRC_DATA_T *scratch_gates = (__global SRC_DATA_T *)(scr_gates)
+                + off_scratch_mem_iter(n_iter_scratch_gates, batch,
+                        scratch_gates_ld, dhc, iter);
 
-    __global DIFF_DATA_T *diff_states_t_l = (__global DIFF_DATA_T *)diff_states
-            + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
-                    scratch_diff_states_ld, lay, dir, 0, iter, 0, 0);
-    __global DIFF_DATA_T *diff_states_tp1_l
-            = (__global DIFF_DATA_T *)diff_states
-            + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
-                    scratch_diff_states_ld, lay, dir, 0, iter + 1, 0, 0);
-    __global DIFF_DATA_T *diff_states_t_lp1
-            = (__global DIFF_DATA_T *)diff_states
-            + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
-                    scratch_diff_states_ld, lay + 1, dir, 0, iter, 0, 0);
+        __global DIFF_DATA_T *diff_states_t_l
+                = (__global DIFF_DATA_T *)diff_states
+                + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter,
+                        batch, scratch_diff_states_ld, lay, dir, 0, iter, 0, 0);
+        __global DIFF_DATA_T *diff_states_tp1_l
+                = (__global DIFF_DATA_T *)diff_states
+                + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter,
+                        batch, scratch_diff_states_ld, lay, dir, 0, iter + 1, 0,
+                        0);
+        __global DIFF_DATA_T *diff_states_t_lp1
+                = (__global DIFF_DATA_T *)diff_states
+                + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter,
+                        batch, scratch_diff_states_ld, lay + 1, dir, 0, iter, 0,
+                        0);
 
-    float Ct = c_states_t_l[cell_ws_state(states_ws_ld, i, j)];
-    /// @todo save it in the workspace in fwd pass or recompute it to
-    /// save bw
-    float tanhCt = tanh_fwd_tm(Ct, tm_cscale);
-    // we have 2 incoming diffs on Ht
-    float dHt = (float)diff_states_tp1_l[cell_scratch_diff_states(
-                        n_iter, batch, scratch_diff_states_ld, 0, i, j)]
-            + diff_states_t_lp1[cell_scratch_diff_states(
-                    n_iter, batch, scratch_diff_states_ld, n_states, i, j)];
+        float Ct = c_states_t_l[cell_ws_state(states_ws_ld, i, j)];
+        /// @todo save it in the workspace in fwd pass or recompute it to
+        /// save bw
+        float tanhCt = tanh_fwd_tm(Ct, tm_cscale);
+        // we have 2 incoming diffs on Ht
+        float dHt = (float)diff_states_tp1_l[cell_scratch_diff_states(
+                            n_iter, batch, scratch_diff_states_ld, 0, i, j)]
+                + diff_states_t_lp1[cell_scratch_diff_states(
+                        n_iter, batch, scratch_diff_states_ld, n_states, i, j)];
 
-    float dCt = (float)diff_states_tp1_l[cell_scratch_diff_states(
-                        n_iter, batch, scratch_diff_states_ld, 1, i, j)]
-            + one_m_square(tanhCt)
-                    * ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 3, j)] * dHt;
+        float dCt = (float)diff_states_tp1_l[cell_scratch_diff_states(
+                            n_iter, batch, scratch_diff_states_ld, 1, i, j)]
+                + one_m_square(tanhCt)
+                        * ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 3, j)]
+                        * dHt;
 
-    float dG1 = (float)c_states_tm1_l[cell_ws_state(states_ws_ld, i, j)] * dCt
-            * x_m_square(ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 1, j)]);
-    float dG0 = ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 2, j)] * dCt
-            * x_m_square(ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 0, j)]);
-    float dG3 = tanhCt * dHt
-            * x_m_square(ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 3, j)]);
-    float dG2 = ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 0, j)] * dCt
-            * one_m_square(ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 2, j)]);
+        float dG1 = (float)c_states_tm1_l[cell_ws_state(states_ws_ld, i, j)]
+                * dCt
+                * x_m_square(
+                        ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 1, j)]);
+        float dG0 = ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 2, j)] * dCt
+                * x_m_square(
+                        ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 0, j)]);
+        float dG3 = tanhCt * dHt
+                * x_m_square(
+                        ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 3, j)]);
+        float dG2 = ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 0, j)] * dCt
+                * one_m_square(
+                        ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 2, j)]);
 
-    diff_states_t_l[cell_scratch_diff_states(
-            n_iter, batch, scratch_diff_states_ld, 1, i, j)]
-            = dCt * ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 1, j)];
+        diff_states_t_l[cell_scratch_diff_states(
+                n_iter, batch, scratch_diff_states_ld, 1, i, j)]
+                = dCt * ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 1, j)];
 
-    scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 0, j)]
-            = TO_INPUT(dG0);
-    scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 1, j)]
-            = TO_INPUT(dG1);
-    scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 2, j)]
-            = TO_INPUT(dG2);
-    scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 3, j)]
-            = TO_INPUT(dG3);
+        scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 0, j)]
+                = TO_INPUT(dG0);
+        diff_bias_acc[0] += dG0;
+        scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 1, j)]
+                = TO_INPUT(dG1);
+        diff_bias_acc[1] += dG1;
+        scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 2, j)]
+                = TO_INPUT(dG2);
+        diff_bias_acc[2] += dG2;
+        scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 3, j)]
+                = TO_INPUT(dG3);
+        diff_bias_acc[3] += dG3;
+
+#if N_BIAS != 4
+#error "Unexpected N_BIAS for VANILLA_LSTM"
+#endif
 
 #elif CELL_KIND == LBR_GRU
-    __global SRC_DATA_T *scratch_gates = (__global SRC_DATA_T *)(scr_gates)
-            + off_scratch_mem_iter(
-                    n_iter_scratch_gates, batch, scratch_gates_ld, dhc, iter);
-    __global SRC_DATA_T *scratch_gate_r = (__global SRC_DATA_T *)(scr_gate_r);
+        __global SRC_DATA_T *scratch_gates = (__global SRC_DATA_T *)(scr_gates)
+                + off_scratch_mem_iter(n_iter_scratch_gates, batch,
+                        scratch_gates_ld, dhc, iter);
+        __global SRC_DATA_T *scratch_gate_r
+                = (__global SRC_DATA_T *)(scr_gate_r);
 
-    __global DIFF_DATA_T *diff_src_iter = (__global DIFF_DATA_T *)diff_states
-            + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
-                    scratch_diff_states_ld, lay, dir, 0, iter, 0, 0);
-    __global DIFF_DATA_T *diff_dst_iter = (__global DIFF_DATA_T *)diff_states
-            + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
-                    scratch_diff_states_ld, lay, dir, 0, iter + 1, 0, 0);
-    __global DIFF_DATA_T *diff_dst_layer = (__global DIFF_DATA_T *)diff_states
-            + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
-                    scratch_diff_states_ld, lay + 1, dir, 0, iter, 0, 0);
-    __global WS_STATE_DATA_T *src_iter //h_states_tm1_l
-            = states_tm1_l;
+        __global DIFF_DATA_T *diff_src_iter
+                = (__global DIFF_DATA_T *)diff_states
+                + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter,
+                        batch, scratch_diff_states_ld, lay, dir, 0, iter, 0, 0);
+        __global DIFF_DATA_T *diff_dst_iter
+                = (__global DIFF_DATA_T *)diff_states
+                + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter,
+                        batch, scratch_diff_states_ld, lay, dir, 0, iter + 1, 0,
+                        0);
+        __global DIFF_DATA_T *diff_dst_layer
+                = (__global DIFF_DATA_T *)diff_states
+                + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter,
+                        batch, scratch_diff_states_ld, lay + 1, dir, 0, iter, 0,
+                        0);
+        __global WS_STATE_DATA_T *src_iter //h_states_tm1_l
+                = states_tm1_l;
 
-    float h = TO_REF(src_iter[cell_ws_state(states_ws_ld, i, j)]);
-    float Wh_b = ws_grid[cell_ws_grid_comp(dhc, i, j)];
-    float dHt = diff_dst_iter[cell_scratch_diff_states(
-                        n_iter, batch, scratch_diff_states_ld, 0, i, j)]
-            + diff_dst_layer[cell_scratch_diff_states(
-                    n_iter, batch, scratch_diff_states_ld, n_states, i, j)];
-
-    float dG0 = (h - ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 2, j)]) * dHt
-            * x_m_square(ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 0, j)]);
-    float dG2 = (1.0f - ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 0, j)])
-            * one_m_square(ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 2, j)])
-            * dHt;
-    float dG1 = Wh_b * dG2
-            * x_m_square(ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 1, j)]);
-
-    diff_src_iter[cell_scratch_diff_states(
-            n_iter, batch, scratch_diff_states_ld, 0, i, j)]
-            = dHt * ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 0, j)];
-
-    scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 0, j)]
-            = TO_INPUT(dG0);
-    scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 1, j)]
-            = TO_INPUT(dG1);
-    scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 2, j)]
-            = TO_INPUT(dG2);
-
-    scratch_gate_r[cell_scratch_mem(scratch_gates_ld, dhc, i, 0, j)]
-            = TO_INPUT(dG0);
-    scratch_gate_r[cell_scratch_mem(scratch_gates_ld, dhc, i, 1, j)]
-            = TO_INPUT(dG1);
-    scratch_gate_r[cell_scratch_mem(scratch_gates_ld, dhc, i, 2, j)] = TO_INPUT(
-            dG2 * ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 1, j)]);
-
-#elif CELL_KIND == VANILLA_RNN
-
-    __global AUX_DATA_T *ws_gates_run
-            = ws_gates + cell_ws_gates(gates_ws_ld, dhc, i, 0, j);
-    __global SRC_DATA_T *scratch_gates = (__global SRC_DATA_T *)(scr_gates)
-            + off_scratch_mem(n_iter_scratch_gates, batch, scratch_gates_ld,
-                    dhc, iter, i, 0, j);
-
-    __global DIFF_DATA_T *diff_states_t_lp1
-            = (__global DIFF_DATA_T *)diff_states
-            + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
-                    scratch_diff_states_ld, lay + 1, dir, n_states, iter, i, j);
-    __global DIFF_DATA_T *diff_states_tp1_l
-            = (__global DIFF_DATA_T *)diff_states
-            + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
-                    scratch_diff_states_ld, lay, dir, 0, iter + 1, i, j);
-    const float dH = (float)diff_states_t_lp1[0] + diff_states_tp1_l[0];
-
-    float g = ws_gates_run[0];
-#if IS_TESTMODE
-    scratch_gates[0] = TO_INPUT(dH * activation_bwd(g, tm_scales[0], 0.));
-#else
-    scratch_gates[0] = TO_INPUT(dH * activation_bwd(g, alpha, 0.));
-#endif
-#elif CELL_KIND == VANILLA_GRU
-    __global SRC_DATA_T *scratch_gates = (__global SRC_DATA_T *)(scr_gates)
-            + off_scratch_mem_iter(
-                    n_iter_scratch_gates, batch, scratch_gates_ld, dhc, iter);
-    __global DIFF_DATA_T *diff_src_iter = (__global DIFF_DATA_T *)diff_states
-            + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
-                    scratch_diff_states_ld, lay, dir, 0, iter, 0, 0);
-    __global DIFF_DATA_T *diff_dst_iter = (__global DIFF_DATA_T *)diff_states
-            + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
-                    scratch_diff_states_ld, lay, dir, 0, iter + 1, 0, 0);
-    __global DIFF_DATA_T *diff_dst_layer = (__global DIFF_DATA_T *)diff_states
-            + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
-                    scratch_diff_states_ld, lay + 1, dir, 0, iter, 0, 0);
-    __global WS_STATE_DATA_T *src_iter //h_states_tm1_l
-            = states_tm1_l;
-
-    float h = TO_REF(src_iter[cell_ws_state(states_ws_ld, i, j)]);
-    if (n_part == 1) {
+        float h = TO_REF(src_iter[cell_ws_state(states_ws_ld, i, j)]);
+        float Wh_b = ws_grid[cell_ws_grid_comp(dhc, i, j)];
         float dHt = diff_dst_iter[cell_scratch_diff_states(
                             n_iter, batch, scratch_diff_states_ld, 0, i, j)]
                 + diff_dst_layer[cell_scratch_diff_states(
                         n_iter, batch, scratch_diff_states_ld, n_states, i, j)];
-        float dG2 = (1.0f - ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 0, j)])
-                * dHt
-                * one_m_square(
-                        ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 2, j)]);
+
         float dG0 = (h - ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 2, j)])
                 * dHt
                 * x_m_square(
                         ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 0, j)]);
+        float dG2 = (1.0f - ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 0, j)])
+                * one_m_square(
+                        ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 2, j)])
+                * dHt;
+        float dG1 = Wh_b * dG2
+                * x_m_square(
+                        ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 1, j)]);
+
         diff_src_iter[cell_scratch_diff_states(
                 n_iter, batch, scratch_diff_states_ld, 0, i, j)]
                 = dHt * ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 0, j)];
 
         scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 0, j)]
                 = TO_INPUT(dG0);
+        diff_bias_acc[0] += dG0;
+        scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 1, j)]
+                = TO_INPUT(dG1);
+        diff_bias_acc[1] += dG1;
         scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 2, j)]
                 = TO_INPUT(dG2);
-    } else if (n_part == 2) {
-        __global SRC_DATA_T *scratch_cell = (__global SRC_DATA_T *)(scr_cell);
-        __global DIFF_DATA_T *dhG1 = (__global DIFF_DATA_T *)scratch_dhG1;
+        diff_bias_acc[2] += dG2;
 
-        float dG1 = ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 1, j)];
-        diff_src_iter[cell_scratch_diff_states(
-                n_iter, batch, scratch_diff_states_ld, 0, i, j)]
-                += dhG1[off_scratch_dhg1(batch, scratch_diff_states_ld, i, j)]
-                * dG1;
+        scratch_gate_r[cell_scratch_mem(scratch_gates_ld, dhc, i, 0, j)]
+                = TO_INPUT(dG0);
+        scratch_gate_r[cell_scratch_mem(scratch_gates_ld, dhc, i, 1, j)]
+                = TO_INPUT(dG1);
+        float tmp = dG2 * ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 1, j)];
+        scratch_gate_r[cell_scratch_mem(scratch_gates_ld, dhc, i, 2, j)]
+                = TO_INPUT(tmp);
+        diff_bias_acc[3] += tmp;
+#if N_BIAS != 4
+#error "Unexpected N_BIAS for LBR_GRU"
+#endif
 
-        scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 1, j)]
-                = TO_INPUT(dhG1[off_scratch_dhg1(
-                                   batch, scratch_diff_states_ld, i, j)]
-                        * h * x_m_square(dG1));
-        scratch_cell[off_scratch_cell(batch, states_ws_ld, i, j)]
-                = TO_INPUT(dG1 * h);
-    }
+#elif CELL_KIND == VANILLA_RNN
+
+        __global AUX_DATA_T *ws_gates_run
+                = ws_gates + cell_ws_gates(gates_ws_ld, dhc, i, 0, j);
+        __global SRC_DATA_T *scratch_gates = (__global SRC_DATA_T *)(scr_gates)
+                + off_scratch_mem(n_iter_scratch_gates, batch, scratch_gates_ld,
+                        dhc, iter, i, 0, j);
+
+        __global DIFF_DATA_T *diff_states_t_lp1
+                = (__global DIFF_DATA_T *)diff_states
+                + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter,
+                        batch, scratch_diff_states_ld, lay + 1, dir, n_states,
+                        iter, i, j);
+        __global DIFF_DATA_T *diff_states_tp1_l
+                = (__global DIFF_DATA_T *)diff_states
+                + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter,
+                        batch, scratch_diff_states_ld, lay, dir, 0, iter + 1, i,
+                        j);
+        const float dH = (float)diff_states_t_lp1[0] + diff_states_tp1_l[0];
+
+        float g = ws_gates_run[0];
+#if IS_TESTMODE
+        float tmp = = dH * activation_bwd(g, tm_scales[0], 0.);
+        scratch_gates[0] = TO_INPUT(tmp);
+        diff_bias_acc[0] += tmp;
+#else
+        float tmp = dH * activation_bwd(g, alpha, 0.);
+        scratch_gates[0] = TO_INPUT(tmp);
+        diff_bias_acc[0] += tmp;
+#endif
+#if N_BIAS != 1
+#error "Unexpected N_BIAS for VANILLA_RNN"
+#endif
+#elif CELL_KIND == VANILLA_GRU
+        __global SRC_DATA_T *scratch_gates = (__global SRC_DATA_T *)(scr_gates)
+                + off_scratch_mem_iter(n_iter_scratch_gates, batch,
+                        scratch_gates_ld, dhc, iter);
+        __global DIFF_DATA_T *diff_src_iter
+                = (__global DIFF_DATA_T *)diff_states
+                + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter,
+                        batch, scratch_diff_states_ld, lay, dir, 0, iter, 0, 0);
+        __global DIFF_DATA_T *diff_dst_iter
+                = (__global DIFF_DATA_T *)diff_states
+                + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter,
+                        batch, scratch_diff_states_ld, lay, dir, 0, iter + 1, 0,
+                        0);
+        __global DIFF_DATA_T *diff_dst_layer
+                = (__global DIFF_DATA_T *)diff_states
+                + off_scratch_diff_states(n_layer, n_dir, n_states, n_iter,
+                        batch, scratch_diff_states_ld, lay + 1, dir, 0, iter, 0,
+                        0);
+        __global WS_STATE_DATA_T *src_iter //h_states_tm1_l
+                = states_tm1_l;
+
+        float h = TO_REF(src_iter[cell_ws_state(states_ws_ld, i, j)]);
+        if (n_part == 1) {
+            float dHt = diff_dst_iter[cell_scratch_diff_states(
+                                n_iter, batch, scratch_diff_states_ld, 0, i, j)]
+                    + diff_dst_layer[cell_scratch_diff_states(n_iter, batch,
+                            scratch_diff_states_ld, n_states, i, j)];
+            float dG2 = (1.0f
+                                - ws_gates[cell_ws_gates(
+                                        gates_ws_ld, dhc, i, 0, j)])
+                    * dHt
+                    * one_m_square(
+                            ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 2, j)]);
+            float dG0 = (h - ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 2, j)])
+                    * dHt
+                    * x_m_square(
+                            ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 0, j)]);
+            diff_src_iter[cell_scratch_diff_states(
+                    n_iter, batch, scratch_diff_states_ld, 0, i, j)]
+                    = dHt * ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 0, j)];
+
+            scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 0, j)]
+                    = TO_INPUT(dG0);
+            diff_bias_acc[0] += dG0;
+            scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 2, j)]
+                    = TO_INPUT(dG2);
+            diff_bias_acc[2] += dG2;
+        } else if (n_part == 2) {
+            __global SRC_DATA_T *scratch_cell
+                    = (__global SRC_DATA_T *)(scr_cell);
+            __global DIFF_DATA_T *dhG1 = (__global DIFF_DATA_T *)scratch_dhG1;
+
+            float dG1 = ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 1, j)];
+            diff_src_iter[cell_scratch_diff_states(
+                    n_iter, batch, scratch_diff_states_ld, 0, i, j)]
+                    += dhG1[off_scratch_dhg1(
+                               batch, scratch_diff_states_ld, i, j)]
+                    * dG1;
+
+            float tmp = dhG1[off_scratch_dhg1(
+                                batch, scratch_diff_states_ld, i, j)]
+                    * h * x_m_square(dG1);
+            scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 1, j)]
+                    = TO_INPUT(tmp);
+            diff_bias_acc[1] += tmp;
+            scratch_cell[off_scratch_cell(batch, states_ws_ld, i, j)]
+                    = TO_INPUT(dG1 * h);
+        }
+#if N_BIAS != 3
+#error "Unexpected N_BIAS for VANILLA_GRU"
+#endif
+
 #else
 #error "Wrong Cell Kind"
 #endif
-}
-
-__attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
-ref_rnn_gates_reduction(int dir, int lay, int iter,
-        __global DIFF_DATA_T *diff_bias_base, __global char *scratch_gates,
-        __global char *scratch_cell, int scratch_gates_ld, int batch, int dhc,
-        int n_gates, int n_iter_scratch_gates) {
-#if !IS_FWD
-#if USE_SUBGROUP_REDUCTION
-    const int k = get_global_id(1); // dhc
-    const int i = get_global_id(2); // n_bias
-#else
-    const int k = get_global_id(0); // dhc
-    const int i = get_global_id(1); // n_bias
-#endif // USE_SUBGROUP_REDUCTION
-
-    const int n_bias_max = (CELL_KIND == LBR_GRU) ? 4 : n_gates;
-    if (k >= dhc || i >= n_bias_max) return;
-
-    __global DIFF_DATA_T *diff_bias
-            = diff_bias_base + DIFF_BIAS_OFF(lay, dir, 0, 0);
-    __global SRC_DATA_T *gates;
-    int i_ = i;
-    if (CELL_KIND == LBR_GRU && i == 3) {
-        gates = (__global SRC_DATA_T *)(scratch_cell);
-        i_ = 2;
-    } else
-        gates = (__global SRC_DATA_T *)(scratch_gates)
-                + off_scratch_mem_iter(n_iter_scratch_gates, batch,
-                        scratch_gates_ld, dhc, iter);
-
-#if USE_SUBGROUP_REDUCTION
-    DIFF_DATA_T result = 0;
-    for (int j = get_local_id(0); j < batch; j += SUBGROUP_SIZE) {
-        result += SRC_TO_REF(
-                gates[cell_scratch_mem(scratch_gates_ld, dhc, j, i_, k)]);
     }
-
-    diff_bias[i * dhc + k] += sub_group_reduce_add(result);
+    unroll_for(int k = 0; k < N_BIAS; k++) {
+#ifdef NEED_BIAS_ATOMIC_REDUCE
+        atomic_add_global(&diff_bias[k * dhc + j], diff_bias_acc[k]);
 #else
-    for (int j = 0; j < batch; j++) {
-        diff_bias[i * dhc + k] += SRC_TO_REF(
-                gates[cell_scratch_mem(scratch_gates_ld, dhc, j, i_, k)]);
+        diff_bias[k * dhc + j] += diff_bias_acc[k];
+#endif
     }
-#endif // USE_SUBGROUP_REDUCTION
-
 #endif // !IS_FWD
 }

@@ -39,30 +39,31 @@
 
 #define elemwise_sig(f) \
     status_t f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
-            int batch, const workspace_t &workspace, \
+            int batch, int bwd_batch_block, const workspace_t &workspace, \
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_diff_states, \
             const memory_storage_t *scales, const memory_storage_t &bias, \
-            const memory_storage_t *tm_scales) const
+            const memory_storage_t *tm_scales, \
+            const memory_storage_t &diff_bias) const
 
 #define elemwise_sig_gru_lbr(f) \
     status_t f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
-            int batch, const workspace_t &workspace, \
+            int batch, int bwd_batch_block, const workspace_t &workspace, \
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_cell, \
             const memory_storage_t &scratch_diff_states, \
-            const memory_storage_t &bias, const memory_storage_t *tm_scales) \
-            const
+            const memory_storage_t &bias, const memory_storage_t *tm_scales, \
+            const memory_storage_t &diff_bias) const
 
 #define elemwise_sig_gru(f) \
     status_t f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
-            int batch, const workspace_t &workspace, \
+            int batch, int bwd_batch_block, const workspace_t &workspace, \
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_cell, \
             const memory_storage_t &scratch_diff_states, \
             const memory_storage_t &scratch_dhG1, \
             const memory_storage_t &bias, const memory_storage_t *tm_scales, \
-            int part) const
+            const memory_storage_t &diff_bias, int part) const
 
 #define cell_execution_sig(f) \
     status_t f(engine_t *engine, const exec_ctx_t &ctx, int dir, int lay, \

@@ -484,6 +484,8 @@ struct rnn_conf_t {
 
     int wei_qparam_mask;
 
+    int elemwise_bwd_batch_block;
+
     size_t ws_gates_offset;
     size_t ws_states_offset;
     size_t ws_grid_comp_offset;

@@ -23,7 +23,9 @@ namespace ocl {
 
 template <prop_kind_t aprop>
 elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
-    auto nd_range = get_nd_range({dhc, batch});
+    auto nd_range = get_nd_range({dhc,
+            utils::div_up(
+                    batch, aprop == prop_kind::forward ? 1 : bwd_batch_block)});
 
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
             ? elemwise_fwd_kernel_
@@ -70,7 +72,10 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
     }
 
     arg_list.append(pd()->rnn_conf.tm_cscale);
-    if (aprop != dnnl_forward) { arg_list.append(scratch_diff_states); }
+    if (aprop != dnnl_forward) {
+        arg_list.append(scratch_diff_states);
+        arg_list.append(diff_bias);
+    }
     return parallel_for(ctx, nd_range, kernel, arg_list);
 }
 template elemwise_sig(ref_rnn_fwd_t::rnn_elemwise);
@@ -78,7 +83,9 @@ template elemwise_sig(ref_rnn_bwd_t::rnn_elemwise);
 
 template <prop_kind_t aprop>
 elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
-    auto nd_range = get_nd_range({dhc, batch});
+    auto nd_range = get_nd_range({dhc,
+            utils::div_up(
+                    batch, aprop == prop_kind::forward ? 1 : bwd_batch_block)});
 
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
             ? elemwise_fwd_kernel_
@@ -124,7 +131,10 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
     }
 
     arg_list.append(pd()->rnn_conf.tm_cscale);
-    if (aprop != dnnl_forward) { arg_list.append(scratch_diff_states); }
+    if (aprop != dnnl_forward) {
+        arg_list.append(scratch_diff_states);
+        arg_list.append(diff_bias);
+    }
     return parallel_for(ctx, nd_range, kernel, arg_list);
 }
 template elemwise_sig(ref_rnn_fwd_t::lstm_elemwise);
@@ -132,7 +142,9 @@ template elemwise_sig(ref_rnn_bwd_t::lstm_elemwise);
 
 template <prop_kind_t aprop>
 elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise_u8s8)) {
-    auto nd_range = get_nd_range({dhc, batch});
+    auto nd_range = get_nd_range({dhc,
+            utils::div_up(
+                    batch, aprop == prop_kind::forward ? 1 : bwd_batch_block)});
 
     float data_shift = pd()->attr()->rnn_data_qparams_.shift_;
     float data_scale = pd()->attr()->rnn_data_qparams_.scale_;
@@ -179,7 +191,9 @@ template elemwise_sig(ref_rnn_bwd_t::lstm_elemwise_u8s8);
 
 template <prop_kind_t aprop>
 elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
-    auto nd_range = get_nd_range({dhc, batch});
+    auto nd_range = get_nd_range({dhc,
+            utils::div_up(
+                    batch, aprop == prop_kind::forward ? 1 : bwd_batch_block)});
 
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
             ? elemwise_fwd_kernel_
@@ -230,7 +244,10 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
         arg_list.append(rnn_utils::get_storage(states_tm1_l));
     }
     arg_list.append(scratch_cell);
-    if (aprop != dnnl_forward) { arg_list.append(scratch_diff_states); }
+    if (aprop != dnnl_forward) {
+        arg_list.append(scratch_diff_states);
+        arg_list.append(diff_bias);
+    }
     return parallel_for(ctx, nd_range, kernel, arg_list);
 }
 template elemwise_sig_gru_lbr(ref_rnn_fwd_t::gru_lbr_elemwise);
@@ -238,7 +255,9 @@ template elemwise_sig_gru_lbr(ref_rnn_bwd_t::gru_lbr_elemwise);
 
 template <prop_kind_t aprop>
 elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
-    auto nd_range = get_nd_range({dhc, batch});
+    auto nd_range = get_nd_range({dhc,
+            utils::div_up(
+                    batch, aprop == prop_kind::forward ? 1 : bwd_batch_block)});
 
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
             ? elemwise_fwd_kernel_
@@ -292,6 +311,7 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
         arg_list.append(scratch_cell);
         arg_list.append(scratch_dhG1);
         arg_list.append(scratch_diff_states);
+        arg_list.append(diff_bias);
     }
     return parallel_for(ctx, nd_range, kernel, arg_list);
 }
