@@ -213,6 +213,7 @@ static const std::string &get_func_name(const func_c &v) {
 }
 
 func_c codegen_c_vis::dispatch(func_c v) {
+    if (utils::string_startswith(v->name_, "_should_inline_")) { return v; }
     if (prototype_only) { print_func_comments(v, *os); }
     bool is_symbol_in_runtime
             = !is_offline_ && default_external_symbol_resolve(v->name_);
