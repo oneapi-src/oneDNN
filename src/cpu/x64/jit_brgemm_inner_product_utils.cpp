@@ -1066,7 +1066,7 @@ size_t buf_dt_size(data_type_t dt, cpu_isa_t isa) {
     return types::data_type_size(buf_dt);
 }
 
-status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
+status_t jit_brgemm_ip_conf_t::init_conf(cpu_isa_t isa,
         const inner_product_desc_t &ipd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
@@ -1080,6 +1080,7 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
     if (weights_d.ndims() != ndims || dst_d.ndims() != 2)
         return status::unimplemented;
 
+    auto &jbgp = *this;
     jbgp = zero<decltype(jbgp)>();
     jbgp.ndims = ndims;
     jbgp.isa = isa;
@@ -1261,9 +1262,10 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
     return status::success;
 }
 
-void init_scratchpad(memory_tracking::registrar_t &scratchpad,
-        const jit_brgemm_primitive_conf_t &jbgp) {
+void jit_brgemm_ip_conf_t::init_scratchpad(
+        memory_tracking::registrar_t &scratchpad) {
 
+    auto &jbgp = *this;
     size_t sc_size = sizeof(brgemm_batch_element_t);
     size_t n_elems = (size_t)jbgp.nthr * jbgp.adjusted_batch_size;
 

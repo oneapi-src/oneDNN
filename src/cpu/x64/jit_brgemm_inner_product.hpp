@@ -75,9 +75,8 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                     && !has_zero_dim_memory() && arg_scales_ok();
             if (!ok) return status::unimplemented;
 
-            CHECK(brgemm_inner_product_utils::init_ip_conf(isa, jbgp_, *desc(),
-                    src_md_, weights_md_, dst_md_, bias_md_, attr_,
-                    dnnl_get_max_threads()));
+            CHECK(jbgp_.init_conf(isa, *desc(), src_md_, weights_md_, dst_md_,
+                    bias_md_, attr_, dnnl_get_max_threads()));
 
             bool are_post_ops_applicable = one_of(true, jbgp_.with_sum,
                     jbgp_.with_bias, jbgp_.with_scales, jbgp_.with_eltwise,
@@ -135,7 +134,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             }
 
             auto scratchpad = scratchpad_registry().registrar();
-            brgemm_inner_product_utils::init_scratchpad(scratchpad, jbgp_);
+            jbgp_.init_scratchpad(scratchpad);
             if (jbgp_.with_scales)
                 book_precomputed_scales(scratchpad, attr()->scales_, OC());
 
@@ -173,7 +172,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
         }
 
         brgemm_t brg_descs_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
-        jit_brgemm_primitive_conf_t jbgp_;
+        brgemm_inner_product_utils::jit_brgemm_ip_conf_t jbgp_;
     };
 
     brgemm_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {}
@@ -247,9 +246,9 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
             if (!ok) return status::unimplemented;
 
             memory_desc_t dummy_bias_md;
-            CHECK(brgemm_inner_product_utils::init_ip_conf(isa, jbgp_, *desc(),
-                    diff_src_md_, weights_md_, diff_dst_md_, dummy_bias_md,
-                    attr_, dnnl_get_max_threads()));
+            CHECK(jbgp_.init_conf(isa, *desc(), diff_src_md_, weights_md_,
+                    diff_dst_md_, dummy_bias_md, attr_,
+                    dnnl_get_max_threads()));
 
             const float alpha = 1.0;
             const float beta = 1.0;
@@ -300,7 +299,7 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
             }
 
             auto scratchpad = scratchpad_registry().registrar();
-            brgemm_inner_product_utils::init_scratchpad(scratchpad, jbgp_);
+            jbgp_.init_scratchpad(scratchpad);
 
             return status::success;
         }
@@ -331,7 +330,7 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
         }
 
         brgemm_t brg_descs_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
-        jit_brgemm_primitive_conf_t jbgp_;
+        brgemm_inner_product_utils::jit_brgemm_ip_conf_t jbgp_;
     };
 
     brgemm_inner_product_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
@@ -413,9 +412,9 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                             primitive_attr_t::skip_mask_t::post_ops);
             if (!ok) return status::unimplemented;
 
-            CHECK(brgemm_inner_product_utils::init_ip_conf(isa, jbgp_, *desc(),
-                    src_md_, diff_weights_md_, diff_dst_md_, diff_bias_md_,
-                    attr_, dnnl_get_max_threads()));
+            CHECK(jbgp_.init_conf(isa, *desc(), src_md_, diff_weights_md_,
+                    diff_dst_md_, diff_bias_md_, attr_,
+                    dnnl_get_max_threads()));
 
             const float alpha = 1.0;
             const float beta = 1.0;
@@ -464,7 +463,7 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
             }
 
             auto scratchpad = scratchpad_registry().registrar();
-            brgemm_inner_product_utils::init_scratchpad(scratchpad, jbgp_);
+            jbgp_.init_scratchpad(scratchpad);
 
             return status::success;
         }
@@ -491,7 +490,7 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
         }
 
         brgemm_t brg_descs_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
-        jit_brgemm_primitive_conf_t jbgp_;
+        brgemm_inner_product_utils::jit_brgemm_ip_conf_t jbgp_;
     };
 
     brgemm_inner_product_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
