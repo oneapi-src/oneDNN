@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,6 +37,14 @@ void custom_setenv(const char *name, const char *value, int overwrite) {
 #else
     auto status = ::setenv(name, value, overwrite);
     EXPECT_EQ(status, 0);
+#endif
+}
+
+void custom_unsetenv(const char *name) {
+#ifdef _WIN32
+    _putenv((std::string(name) + "=").c_str());
+#else
+    ::unsetenv(name);
 #endif
 }
 
@@ -86,6 +94,10 @@ TEST(dnnl_cpu_isa_hints_var_test, TestEnvVars) {
 #endif // DNNL_X64
 
 TEST(dnnl_primitive_cache_capacity_env_var_test, TestEnvVars) {
+    // Since variables with "ONEDNN_" prefix have higher precedence
+    // we have to unset "ONEDNN_PRIMITIVE_CACHE_CAPACITY" that could
+    // be potentially set.
+    custom_unsetenv("ONEDNN_PRIMITIVE_CACHE_CAPACITY");
     custom_setenv("DNNL_PRIMITIVE_CACHE_CAPACITY", "10", 1);
     auto got = get_primitive_cache_capacity();
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
