@@ -357,8 +357,17 @@ static bool post_ops_ok(
                     broadcasting_strategy_t::no_broadcast}));
 }
 
-static status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
-        const primitive_attr_t &attr, const memory_desc_wrapper &dst_d) {
+status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
+        const inner_product_desc_t &ipd, memory_desc_t &src_md,
+        memory_desc_t &weights_md, memory_desc_t &dst_md,
+        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
+    assert(one_of(prop_kind, forward_training, forward_inference));
+
+    CHECK(init_conf_base(
+            isa, ipd, src_md, weights_md, dst_md, bias_md, attr, nthreads));
+
+    auto &jbgp = *this;
+
     const bool is_amx_int8 = jbgp.is_amx && one_of(jbgp.wei_dt, s8, u8);
     const bool is_amx_xf16
             = jbgp.is_amx && one_of(jbgp.wei_dt, bf16, f16) && !jbgp.is_bf32;
@@ -372,6 +381,7 @@ static status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
     const int binary_ind = p.find(primitive_kind::binary);
     const int prelu_ind = p.find(primitive_kind::prelu);
     jbgp.with_binary = !everyone_is(-1, binary_ind, prelu_ind);
+    const memory_desc_wrapper dst_d(&dst_md);
     if (!post_ops_ok(attr, dst_d)) return status::unimplemented;
     if (jbgp.with_scales) {
         const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
@@ -603,7 +613,17 @@ static status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
     return status::success;
 }
 
-static status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
+status_t jit_brgemm_ip_bwd_d_conf_t::init_conf(cpu_isa_t isa,
+        const inner_product_desc_t &ipd, memory_desc_t &src_md,
+        memory_desc_t &weights_md, memory_desc_t &dst_md,
+        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
+    assert(prop_kind == backward_data);
+
+    CHECK(init_conf_base(
+            isa, ipd, src_md, weights_md, dst_md, bias_md, attr, nthreads));
+
+    auto &jbgp = *this;
+
     const bool is_amx_xf16 = jbgp.is_amx && !jbgp.is_bf32;
     const bool is_avx512_bf16 = jbgp.isa == avx512_core_bf16;
     const bool is_f32_compute = !jbgp.is_bf32
@@ -954,7 +974,17 @@ static void thread_balance(const jit_brgemm_primitive_conf_t &j,
     nthr_ = nthr_mb_ * nthr_oc_b_ * nthr_ic_b_;
 }
 
-static status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
+status_t jit_brgemm_ip_bwd_w_conf_t::init_conf(cpu_isa_t isa,
+        const inner_product_desc_t &ipd, memory_desc_t &src_md,
+        memory_desc_t &weights_md, memory_desc_t &dst_md,
+        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
+    assert(prop_kind == backward_weights);
+
+    CHECK(init_conf_base(
+            isa, ipd, src_md, weights_md, dst_md, bias_md, attr, nthreads));
+
+    auto &jbgp = *this;
+
     const bool is_amx_xf16 = jbgp.is_amx && !jbgp.is_bf32;
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
     const bool has_weights_buffer = jbgp.wei_dt != jbgp.acc_dt;
@@ -1066,7 +1096,7 @@ size_t buf_dt_size(data_type_t dt, cpu_isa_t isa) {
     return types::data_type_size(buf_dt);
 }
 
-status_t jit_brgemm_ip_conf_t::init_conf(cpu_isa_t isa,
+status_t jit_brgemm_ip_conf_t::init_conf_base(cpu_isa_t isa,
         const inner_product_desc_t &ipd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
@@ -1248,16 +1278,6 @@ status_t jit_brgemm_ip_conf_t::init_conf(cpu_isa_t isa,
         jbgp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf1;
     CHECK(set_or_check_tags());
     CHECK(attr.set_default_formats(&dst_md));
-
-    switch (jbgp.prop_kind) {
-        case forward_training:
-        case forward_inference:
-            CHECK(init_ip_conf_fwd(jbgp, attr, dst_d));
-            break;
-        case backward_data: CHECK(init_ip_conf_bwd_d(jbgp)); break;
-        case backward_weights: CHECK(init_ip_conf_bwd_w(jbgp)); break;
-        default: assert(!"invalid prop_kind"); return invalid_arguments;
-    }
 
     return status::success;
 }

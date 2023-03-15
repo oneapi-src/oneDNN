@@ -172,7 +172,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
         }
 
         brgemm_t brg_descs_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
-        brgemm_inner_product_utils::jit_brgemm_ip_conf_t jbgp_;
+        brgemm_inner_product_utils::jit_brgemm_ip_fwd_conf_t jbgp_;
     };
 
     brgemm_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {}
@@ -330,7 +330,7 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
         }
 
         brgemm_t brg_descs_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
-        brgemm_inner_product_utils::jit_brgemm_ip_conf_t jbgp_;
+        brgemm_inner_product_utils::jit_brgemm_ip_bwd_d_conf_t jbgp_;
     };
 
     brgemm_inner_product_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
@@ -490,7 +490,7 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
         }
 
         brgemm_t brg_descs_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
-        brgemm_inner_product_utils::jit_brgemm_ip_conf_t jbgp_;
+        brgemm_inner_product_utils::jit_brgemm_ip_bwd_w_conf_t jbgp_;
     };
 
     brgemm_inner_product_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
