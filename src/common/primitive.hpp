@@ -90,57 +90,28 @@ protected:
         auto &global_primitive_cache = primitive_cache();
         primitive_hashing::key_t key(pd, engine);
 
-        std::promise<primitive_cache_t::cache_value_t> p_promise;
-        // Try to get the shared future from the cache, if it's missing then
-        // a shared future with no shared state is returned and the passed
-        // shared future is added, otherwise a valid shared future is returned
-        // and no insertion is performed.
-        auto p_future = global_primitive_cache.get_or_add(
-                key, p_promise.get_future());
+        struct create_context_t {
+            engine_t *engine;
+            const pd_t *pd;
+            const cache_blob_t &cache_blob;
+            bool use_global_scratchpad;
+            bool is_create_called;
+        };
+        create_context_t context {
+                engine, pd, cache_blob, use_global_scratchpad, false};
 
-        bool is_from_cache = p_future.valid();
-
-        auto status = status::success;
-        std::shared_ptr<primitive_t> p;
-
-        if (is_from_cache) {
-            // The requested primitive is present in the cache or is being
-            // created by another thread.
-            p = p_future.get().primitive;
-            if (!p) return p_future.get().status;
-        } else {
-            // The requested primitive is NOT present in the cache therefore
-            // we have to create it and notify the waiting threads
-            // once the creation is done.
-            p = std::make_shared<impl_type>(pd);
-            status = p->init(engine, use_global_scratchpad, cache_blob);
-            if (status != status::success) {
-                // Communicate an error.
-                p_promise.set_value({nullptr, status});
-                // Remove the shared future from the cache because it's
-                // invalidated. An invalidated shared future is the one that
-                // stores a nullptr.
-                global_primitive_cache.remove_if_invalidated(key);
-                return status;
-            } else {
-                // Store the created primitive in the shared future and notify
-                // the waiting threads.
-                p_promise.set_value({p, status});
-
-                // The key_t contains pointers to op_desc and attr objects that
-                // reside in pd. When primitive_t is created it copies the pd
-                // and hence contains a copy.
-                // Since the created primitive_t is stored in the cache with
-                // the corresponding key, the key must contain pointers to
-                // op_desc and attr that reside in the coppied pd
-                // in the primitive_t.
-                // Therefore the pointers in the key, which has already been put
-                // into the cache, must be updated.
-                global_primitive_cache.update_entry(key, p->pd().get());
-            }
-        }
-        primitive = std::make_pair(p, is_from_cache);
-        return status;
+        auto create = [](void *context) {
+            auto &c = *static_cast<create_context_t *>(context);
+            std::shared_ptr<primitive_t> p = std::make_shared<impl_type>(c.pd);
+            status_t status
+                    = p->init(c.engine, c.use_global_scratchpad, c.cache_blob);
+            c.is_create_called = true;
+            return primitive_cache_t::result_t {std::move(p), status};
+        };
+        auto result
+                = global_primitive_cache.get_or_create(key, *create, &context);
+        primitive = {std::move(result.value), !context.is_create_called};
+        return result.status;
     }
 
     std::shared_ptr<primitive_desc_t> pd_;
