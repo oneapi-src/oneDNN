@@ -1366,14 +1366,14 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_compensation(
             int comp_offset = compensations_offset(ld);
             const bool is_tail = is_ld_tail && ld + 1 == ld_block2;
             if (IMPLICATION(is_tail, is_superset(brg.isa_impl, avx512_core))) {
-                auto comp_addr
-                        = EVEX_compress_addr(reg_aux_compensation, comp_offset);
+                auto comp_addr = maybe_EVEX_compress_addr(
+                        reg_aux_compensation, comp_offset);
                 vmm_comp = vmm_mask(vmm_comp, is_tail, false, k_mask);
                 uni_vmovups(vmm_comp, comp_addr);
-            } else {
+            } else
                 vmaskmovps(vmm_comp, vmm_tail_mask(),
                         ptr[reg_aux_compensation + comp_offset]);
-            }
+
             for (int bd = 0; bd < bd_block; bd++) {
                 auto vmm = accm(ld_block2, bd, ld);
                 uni_vpaddd(vmm, vmm, vmm_comp);
