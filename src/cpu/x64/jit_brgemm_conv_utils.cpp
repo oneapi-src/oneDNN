@@ -710,8 +710,11 @@ void brg_blocking_t::select_ic_block() {
                     static_cast<int>(L1 / (inp_per_ic * simd_w)));
         }
         // try to fit all batch for ur into L2
+        const bool adjust = wei_plain && math::is_pow2(oc)
+                && utils::everyone_is(1, kd_block, kh_block, kw_block);
+        const int adj_oc_block = adjust ? oc : oc_block; // due to aliasing
         const auto wei_per_ic = static_cast<unsigned int>(kd_block) * kh_block
-                * kw_block * oc_block * wei_dsz;
+                * kw_block * adj_oc_block * wei_dsz;
         const auto inp_per_ic = static_cast<unsigned int>(kd_block) * kh_block
                 * inp_ur * src_dsz;
         const auto out_size
@@ -2368,6 +2371,14 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     start_ocb = nstl::min(div_up(jcp.oc, jcp.acc_simd_w), start_ocb);
 
     auto finish_ocb = 1;
+
+    const bool is_os_blocking_ok
+            = utils::everyone_is(1, jcp.stride_d, jcp.stride_h)
+            && jcp.iw % jcp.stride_w == 0;
+    if (jcp.wei_plain && is_os_blocking_ok) {
+        start_ocb = div_up(jcp.oc, jcp.acc_simd_w);
+    }
+
     for (auto ocb = start_ocb; ocb >= finish_ocb; ocb--) {
         brg_blocking_t cur_brgb = zero<decltype(cur_brgb)>();
         cur_brgb.get_from_jcp(jcp);
