@@ -364,10 +364,9 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
         const inner_product_desc_t &ipd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
-    assert(one_of(prop_kind, forward_training, forward_inference));
-
     CHECK(init_conf_base(
             isa, ipd, src_md, weights_md, dst_md, bias_md, attr, nthreads));
+    assert(one_of(prop_kind, forward_training, forward_inference));
 
     auto &jbgp = *this;
 
@@ -620,10 +619,9 @@ status_t jit_brgemm_ip_bwd_d_conf_t::init_conf(cpu_isa_t isa,
         const inner_product_desc_t &ipd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
-    assert(prop_kind == backward_data);
-
     CHECK(init_conf_base(
             isa, ipd, src_md, weights_md, dst_md, bias_md, attr, nthreads));
+    assert(prop_kind == backward_data);
 
     auto &jbgp = *this;
 
@@ -636,7 +634,7 @@ status_t jit_brgemm_ip_bwd_d_conf_t::init_conf(cpu_isa_t isa,
     constexpr int amx_xf16_granularity = 2;
     jbgp.use_buffer_a = is_amx_xf16 && jbgp.oc % amx_xf16_granularity != 0;
     jbgp.use_buffer_b = true;
-    jbgp.ip_bwd_d_global_b_transpose = false;
+    jbgp.global_b_transpose = false;
 
     jbgp.oc_block = get_adjusted_oc_block();
 
@@ -931,11 +929,11 @@ void jit_brgemm_ip_bwd_w_conf_t::thread_balance(int &nb_os_blocking_,
               };
 
     const int max_nb_oc_blocking_pow
-            = j.ip_bwd_w_local_buffers_for_input_tensors ? 4 : j.nb_oc_blocking;
+            = j.local_buffers_for_input_tensors ? 4 : j.nb_oc_blocking;
     auto nb_oc_blocking_values
             = get_blk_values(max_nb_oc_blocking_pow, j.nb_oc_blocking, j.nb_oc);
     const int max_nb_ic_blocking_pow
-            = j.ip_bwd_w_local_buffers_for_input_tensors ? 4 : j.nb_ic_blocking;
+            = j.local_buffers_for_input_tensors ? 4 : j.nb_ic_blocking;
     auto nb_ic_blocking_values
             = get_blk_values(max_nb_ic_blocking_pow, j.nb_ic_blocking, j.nb_ic);
 
@@ -983,10 +981,9 @@ status_t jit_brgemm_ip_bwd_w_conf_t::init_conf(cpu_isa_t isa,
         const inner_product_desc_t &ipd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
-    assert(prop_kind == backward_weights);
-
     CHECK(init_conf_base(
             isa, ipd, src_md, weights_md, dst_md, bias_md, attr, nthreads));
+    assert(prop_kind == backward_weights);
 
     auto &jbgp = *this;
 
@@ -1046,7 +1043,7 @@ status_t jit_brgemm_ip_bwd_w_conf_t::init_conf(cpu_isa_t isa,
     jbgp.use_buffer_b = jbgp.dst_dt != f32 || is_oc_big_2_pow || is_huge_oc;
     const bool os_dim_dominating = jbgp.os >= 5 * (jbgp.ic + jbgp.oc);
     const int big_nb_os_threshold = is_amx_xf16 ? 64 : 256;
-    jbgp.ip_bwd_w_local_buffers_for_input_tensors
+    jbgp.local_buffers_for_input_tensors
             = is_amx_xf16 && jbgp.nb_os >= big_nb_os_threshold;
     jbgp.harness = os_dim_dominating && jbgp.nb_os >= big_nb_os_threshold
             ? harness_mb_reduction
@@ -1287,20 +1284,100 @@ status_t jit_brgemm_ip_conf_t::init_conf_base(cpu_isa_t isa,
     return status::success;
 }
 
-void jit_brgemm_ip_conf_t::init_scratchpad(
-        memory_tracking::registrar_t &scratchpad) {
+void jit_brgemm_ip_conf_t::init_scratchpad_base(
+        memory_tracking::registrar_t &scratchpad) const {
 
     auto &jbgp = *this;
-    size_t sc_size = sizeof(brgemm_batch_element_t);
-    size_t n_elems = (size_t)jbgp.nthr * jbgp.adjusted_batch_size;
 
     if (jbgp.brg_type == brgemm_addr) {
+        size_t sc_size = sizeof(brgemm_batch_element_t);
+        size_t n_elems = (size_t)jbgp.nthr * jbgp.adjusted_batch_size;
         scratchpad.book(key_brgemm_primitive_batch, n_elems, sc_size, 64);
     }
+
+    if (jbgp.is_amx)
+        scratchpad.book(key_conv_amx_tile_buffer,
+                (size_t)jbgp.nthr * jbgp.amx_buf_size_per_thread, sizeof(char));
+}
+
+void jit_brgemm_ip_fwd_conf_t::init_scratchpad(
+        memory_tracking::registrar_t &scratchpad) const {
+    assert(one_of(prop_kind, forward_training, forward_inference));
+
+    init_scratchpad_base(scratchpad);
+
+    const auto &jbgp = *this;
+
     if (jbgp.use_buffer) {
         size_t nelements = (size_t)jbgp.nthr * jbgp.LDC * jbgp.M;
-        if (jbgp.prop_kind == dnnl_backward_weights
-                && (jbgp.nthr_mb > 1 || jbgp.harness == harness_mb_reduction)) {
+        if (jbgp.nthr_ic_b > 1) {
+            const bool need_extra_buffer
+                    = (jbgp.dst_dt == f32 && jbgp.with_sum);
+            int n_reduction_buffers = jbgp.nthr_ic_b - !need_extra_buffer;
+            nelements = (size_t)n_reduction_buffers * jbgp.oc * jbgp.os;
+        }
+        scratchpad.book(key_brgemm_primitive_buffer, nelements,
+                types::data_type_size(jbgp.acc_dt));
+    }
+
+    if (jbgp.use_buffer_a) {
+        scratchpad.book(key_brgemm_primitive_buffer_a,
+                (size_t)jbgp.nthr * jbgp.LDA * jbgp.os_block
+                        * jbgp.nb_os_blocking,
+                buf_dt_size(jbgp.src_dt, jbgp.isa));
+    }
+}
+
+void jit_brgemm_ip_bwd_d_conf_t::init_scratchpad(
+        memory_tracking::registrar_t &scratchpad) const {
+    assert(prop_kind == backward_data);
+
+    init_scratchpad_base(scratchpad);
+
+    const auto &jbgp = *this;
+
+    if (jbgp.use_buffer) {
+        size_t nelements = (size_t)jbgp.nthr * jbgp.LDC * jbgp.M;
+        if (jbgp.nthr_oc_b > 1) {
+            const int adj_buffers = (jbgp.src_dt == f32) ? 1 : 0;
+            int n_reduction_buffers = jbgp.nthr_oc_b - adj_buffers;
+            nelements = (size_t)n_reduction_buffers * jbgp.LDC * jbgp.os;
+        }
+        scratchpad.book(key_brgemm_primitive_buffer, nelements,
+                types::data_type_size(jbgp.acc_dt));
+    }
+
+    if (jbgp.use_buffer_a) {
+        scratchpad.book(key_brgemm_primitive_buffer_a,
+                (size_t)jbgp.nthr * jbgp.os_block * jbgp.LDA,
+                buf_dt_size(jbgp.dst_dt, jbgp.isa));
+    }
+
+    if (jbgp.use_buffer_b) {
+        auto size_B = (size_t)jbgp.LDB * rnd_up(jbgp.K, 2);
+
+        if (!jbgp.global_b_transpose)
+            scratchpad.book(key_brgemm_primitive_buffer_b,
+                    (dim_t)jbgp.nthr * jbgp.gemm_batch_size * size_B,
+                    buf_dt_size(jbgp.wei_dt, jbgp.isa));
+        else
+            scratchpad.book(key_brgemm_primitive_buffer_b,
+                    (dim_t)jbgp.nb_oc * jbgp.nb_ic * size_B,
+                    buf_dt_size(jbgp.wei_dt, jbgp.isa));
+    }
+}
+
+void jit_brgemm_ip_bwd_w_conf_t::init_scratchpad(
+        memory_tracking::registrar_t &scratchpad) const {
+    assert(prop_kind == backward_weights);
+
+    init_scratchpad_base(scratchpad);
+
+    const auto &jbgp = *this;
+
+    if (jbgp.use_buffer) {
+        size_t nelements = (size_t)jbgp.nthr * jbgp.LDC * jbgp.M;
+        if (jbgp.nthr_mb > 1 || jbgp.harness == harness_mb_reduction) {
             const size_t n_reduction_buffers = jbgp.nthr_mb > 1
                     ? jbgp.nthr_mb - (jbgp.wei_dt == f32)
                     : 1;
@@ -1311,32 +1388,22 @@ void jit_brgemm_ip_conf_t::init_scratchpad(
             nelements = (size_t)n_reduction_buffers * num_ic_chunks
                     * num_oc_chunks * jbgp.nb_ic_blocking * jbgp.nb_oc_blocking
                     * jbgp.ic_block * jbgp.oc_block;
-        } else if (jbgp.prop_kind == dnnl_backward_weights
-                && jbgp.nthr_mb == 1) {
+        } else if (jbgp.nthr_mb == 1) {
             nelements = (size_t)jbgp.nthr * jbgp.nb_ic_blocking * jbgp.ic_block
                     * jbgp.nb_oc_blocking * jbgp.oc_block;
-        } else if (jbgp.prop_kind == dnnl_backward_data && jbgp.nthr_oc_b > 1) {
-            const int adj_buffers = (jbgp.src_dt == f32) ? 1 : 0;
-            int n_reduction_buffers = jbgp.nthr_oc_b - adj_buffers;
-            nelements = (size_t)n_reduction_buffers * jbgp.LDC * jbgp.os;
-        } else if (one_of(jbgp.prop_kind, forward_training, forward_inference)
-                && jbgp.nthr_ic_b > 1) {
-            const bool need_extra_buffer
-                    = (jbgp.dst_dt == f32 && jbgp.with_sum);
-            int n_reduction_buffers = jbgp.nthr_ic_b - !need_extra_buffer;
-            nelements = (size_t)n_reduction_buffers * jbgp.oc * jbgp.os;
         }
         scratchpad.book(key_brgemm_primitive_buffer, nelements,
                 types::data_type_size(jbgp.acc_dt));
     }
-    if (jbgp.use_buffer_a && jbgp.prop_kind == dnnl_backward_weights) {
+
+    if (jbgp.use_buffer_a) {
         const dim_t num_ic_chunks_per_thread
-                = jbgp.ip_bwd_w_local_buffers_for_input_tensors
+                = jbgp.local_buffers_for_input_tensors
                 ? 1
                 : div_up(div_up(jbgp.nb_ic, jbgp.nb_ic_blocking),
                         jbgp.nthr_ic_b);
         const dim_t num_os_chunks_per_thread
-                = jbgp.ip_bwd_w_local_buffers_for_input_tensors
+                = jbgp.local_buffers_for_input_tensors
                 ? 1
                 : div_up(div_up(jbgp.nb_os, jbgp.nb_os_blocking), jbgp.nthr_mb);
         const dim_t num_elems_per_thread = num_ic_chunks_per_thread
@@ -1345,20 +1412,10 @@ void jit_brgemm_ip_conf_t::init_scratchpad(
         scratchpad.book(key_brgemm_primitive_buffer_a,
                 jbgp.nthr * num_elems_per_thread,
                 buf_dt_size(jbgp.src_dt, jbgp.isa));
-    } else if (jbgp.use_buffer_a && jbgp.prop_kind == dnnl_backward_data) {
-        scratchpad.book(key_brgemm_primitive_buffer_a,
-                (size_t)jbgp.nthr * jbgp.os_block * jbgp.LDA,
-                buf_dt_size(jbgp.dst_dt, jbgp.isa));
-    } else if (jbgp.use_buffer_a) { // FWD
-        scratchpad.book(key_brgemm_primitive_buffer_a,
-                (size_t)jbgp.nthr * jbgp.LDA * jbgp.os_block
-                        * jbgp.nb_os_blocking,
-                buf_dt_size(jbgp.src_dt, jbgp.isa));
     }
 
-    if (jbgp.use_buffer_b && jbgp.prop_kind == dnnl_backward_weights) {
-        int num_os_chunks_per_thread
-                = jbgp.ip_bwd_w_local_buffers_for_input_tensors
+    if (jbgp.use_buffer_b) {
+        int num_os_chunks_per_thread = jbgp.local_buffers_for_input_tensors
                 ? 1
                 : div_up(div_up(jbgp.nb_os, jbgp.nb_os_blocking), jbgp.nthr_mb);
         const dim_t num_elems_per_thread = num_os_chunks_per_thread
@@ -1368,33 +1425,15 @@ void jit_brgemm_ip_conf_t::init_scratchpad(
                 buf_dt_size(jbgp.dst_dt, jbgp.isa));
     }
 
-    if (jbgp.use_buffer_b && jbgp.prop_kind == dnnl_backward_data) {
-        auto size_B = (size_t)jbgp.LDB * rnd_up(jbgp.K, 2);
-
-        if (!jbgp.ip_bwd_d_global_b_transpose)
-            scratchpad.book(key_brgemm_primitive_buffer_b,
-                    (dim_t)jbgp.nthr * jbgp.gemm_batch_size * size_B,
-                    buf_dt_size(jbgp.wei_dt, jbgp.isa));
-        else
-            scratchpad.book(key_brgemm_primitive_buffer_b,
-                    (dim_t)jbgp.nb_oc * jbgp.nb_ic * size_B,
-                    buf_dt_size(jbgp.wei_dt, jbgp.isa));
-    }
-
-    if (jbgp.prop_kind == dnnl_backward_weights && jbgp.with_bias
-            && (jbgp.bia_dt != f32 || jbgp.nthr_mb > 1)) {
+    if (jbgp.with_bias && (jbgp.bia_dt != f32 || jbgp.nthr_mb > 1)) {
         int nbuffers = jbgp.nthr_mb - (jbgp.bia_dt == f32);
         scratchpad.book(key_iprod_bias_bf16_convert_wsp,
                 (size_t)nbuffers * jbgp.oc, types::data_type_size(jbgp.acc_dt));
     }
 
-    if (dnnl_thr_syncable() && jbgp.prop_kind == dnnl_backward_weights)
+    if (dnnl_thr_syncable())
         scratchpad.book<simple_barrier::ctx_t>(
                 key_conv_wei_bia_reduction_bctx, 1);
-
-    if (jbgp.is_amx)
-        scratchpad.book(key_conv_amx_tile_buffer,
-                (size_t)jbgp.nthr * jbgp.amx_buf_size_per_thread, sizeof(char));
 }
 
 } // namespace brgemm_inner_product_utils

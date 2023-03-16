@@ -45,14 +45,16 @@ namespace brgemm_inner_product_utils {
 
 // Common for fwd/bwd_d/bwd_w.
 struct jit_brgemm_ip_conf_t : jit_brgemm_primitive_conf_t {
-
-    void init_scratchpad(memory_tracking::registrar_t &scratchpad);
+    // Use kernels and blocking for small os that consume less bandwidth.
+    bool use_small_os_kernels = false;
 
 protected:
     status_t init_conf_base(cpu_isa_t isa, const inner_product_desc_t &ipd,
             memory_desc_t &src_md, memory_desc_t &weights_md,
             memory_desc_t &dst_md, memory_desc_t &bias_md,
             primitive_attr_t &attr, int nthreads);
+
+    void init_scratchpad_base(memory_tracking::registrar_t &scratchpad) const;
 
     int get_os_block(bool try_to_adjust, bool is_adjustment) const;
     int get_oc_block(bool try_to_adjust = false) const;
@@ -72,22 +74,32 @@ struct jit_brgemm_ip_fwd_conf_t : jit_brgemm_ip_conf_t {
             memory_desc_t &src_md, memory_desc_t &weights_md,
             memory_desc_t &dst_md, memory_desc_t &bias_md,
             primitive_attr_t &attr, int nthreads);
+
+    void init_scratchpad(memory_tracking::registrar_t &scratchpad) const;
 };
 
 // Specific for backward by data.
 struct jit_brgemm_ip_bwd_d_conf_t : jit_brgemm_ip_conf_t {
+    bool global_b_transpose;
+
     status_t init_conf(cpu_isa_t isa, const inner_product_desc_t &ipd,
             memory_desc_t &src_md, memory_desc_t &weights_md,
             memory_desc_t &dst_md, memory_desc_t &bias_md,
             primitive_attr_t &attr, int nthreads);
+
+    void init_scratchpad(memory_tracking::registrar_t &scratchpad) const;
 };
 
 // Specific for backward by weights.
 struct jit_brgemm_ip_bwd_w_conf_t : jit_brgemm_ip_conf_t {
+    bool local_buffers_for_input_tensors;
+
     status_t init_conf(cpu_isa_t isa, const inner_product_desc_t &ipd,
             memory_desc_t &src_md, memory_desc_t &weights_md,
             memory_desc_t &dst_md, memory_desc_t &bias_md,
             primitive_attr_t &attr, int nthreads);
+
+    void init_scratchpad(memory_tracking::registrar_t &scratchpad) const;
 
 private:
     void thread_balance(int &nb_os_blocking_, int &nb_oc_blocking_,

@@ -805,7 +805,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
 
         const int size_B = jbgp.LDB * rnd_up(jbgp.K, 2);
 
-        const size_t b_buf_shift = jbgp.ip_bwd_d_global_b_transpose
+        const size_t b_buf_shift = jbgp.global_b_transpose
                 ? icb * jbgp.nb_oc + ocb
                 : ithr * jbgp.gemm_batch_size;
         const size_t b_buf_off = buf_dt_size * b_buf_shift * size_B;
@@ -831,7 +831,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
                                         oc + oc_block * jbgp.oc_block);
                 addr_batch[oc_block].ptr.B
                         = b_buffer + buf_dt_size * (oc_block * size_B);
-                if (!jbgp.ip_bwd_d_global_b_transpose && do_b_transpose)
+                if (!jbgp.global_b_transpose && do_b_transpose)
                     transform_b_chunk((char *)addr_batch[oc_block].ptr.B,
                             get_weights_ptr(icb, ocb + oc_block), 1,
                             is_ic_tail ? jbgp.ic % jbgp.ic_block
@@ -867,7 +867,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
                     + get_blk_off(diff_dst_d, jbgp.dst_dt, n,
                             oc + oc_block * jbgp.oc_block);
             addr_batch[0].ptr.B = b_buffer + buf_dt_size * (oc_block * size_B);
-            if (!jbgp.ip_bwd_d_global_b_transpose && do_b_transpose) {
+            if (!jbgp.global_b_transpose && do_b_transpose) {
                 transform_b_chunk((char *)addr_batch[0].ptr.B,
                         get_weights_ptr(icb, ocb + oc_block), 1,
                         is_ic_tail ? jbgp.ic % jbgp.ic_block : jbgp.ic_block,
@@ -891,9 +891,8 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
         }
     };
 
-    if (jbgp.ip_bwd_d_global_b_transpose && jbgp.use_buffer_b) {
-        assert(IMPLICATION(
-                jbgp.ip_bwd_d_global_b_transpose, jbgp.nthr_oc_b == 1));
+    if (jbgp.global_b_transpose && jbgp.use_buffer_b) {
+        assert(IMPLICATION(jbgp.global_b_transpose, jbgp.nthr_oc_b == 1));
         parallel(num_threads, [&](const int ithr, const int nthr) {
             int start {0}, end {0};
             int max_ch_block = nstl::max(jbgp.ic_block, jbgp.oc_block);
@@ -1087,8 +1086,7 @@ struct brgemm_inner_product_bwd_weights_t<isa>::thread_info_t {
                 ? scratchpad.template get<char>(key_brgemm_primitive_buffer_b)
                 : nullptr;
 
-        thread_local_input_buffers_
-                = jbgp.ip_bwd_w_local_buffers_for_input_tensors;
+        thread_local_input_buffers_ = jbgp.local_buffers_for_input_tensors;
         int ic_chunks = utils::div_up(jbgp.nb_ic, jbgp.nb_ic_blocking);
         int os_chunks = utils::div_up(jbgp.nb_os, jbgp.nb_os_blocking);
         nb_ic_blocking_ = jbgp.nb_ic_blocking;
@@ -1434,7 +1432,7 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
         const bool transform_weights = jbgp.wei_dt != jbgp.acc_dt
                 && (jbgp.nthr_mb == 1 || os_chunks == 1)
                 && osc == (os_chunks - 1);
-        const bool transform_b = jbgp.ip_bwd_w_local_buffers_for_input_tensors
+        const bool transform_b = jbgp.local_buffers_for_input_tensors
                 ? jbgp.use_buffer_b && icb % jbgp.nb_ic_blocking == 0
                         && ocb % jbgp.nb_oc_blocking == 0
                         && IMPLICATION(osc_prev == osc,
@@ -1442,7 +1440,7 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
                 : jbgp.use_buffer_b
                         && icb == ti->ic_c_start * jbgp.nb_ic_blocking
                         && ocb % jbgp.nb_oc_blocking == 0;
-        const bool transform_a = jbgp.ip_bwd_w_local_buffers_for_input_tensors
+        const bool transform_a = jbgp.local_buffers_for_input_tensors
                 ? jbgp.use_buffer_a && ocb % jbgp.nb_oc_blocking == 0
                         && IMPLICATION(osc_prev == osc,
                                 icc_prev != icb / jbgp.nb_ic_blocking)
@@ -1592,7 +1590,7 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
     const auto loop_end = occ_work * icc_work * osc_work;
 
     int occ_idx = 0, icc_idx = 0, osc_idx = 0;
-    loop_order_t loop_order = jbgp.ip_bwd_w_local_buffers_for_input_tensors
+    loop_order_t loop_order = jbgp.local_buffers_for_input_tensors
             ? loop_order_t::osc_icc_occ
             : jbgp.harness == harness_mb_reduction ? loop_order_t::osc_occ_icc
                                                    : loop_order_t::occ_icc_osc;
