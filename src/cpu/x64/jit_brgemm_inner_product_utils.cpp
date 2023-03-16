@@ -50,8 +50,10 @@ int get_brg_kernel_index(bool is_bs_tail, bool do_initialization,
     return idx;
 }
 
-static int get_os_block(const jit_brgemm_primitive_conf_t &jbgp,
-        bool try_to_adjust, bool is_adjustment) {
+int jit_brgemm_ip_conf_t::get_os_block(
+        bool try_to_adjust, bool is_adjustment) const {
+    const auto &jbgp = *this;
+
     const bool is_amx_int8 = jbgp.is_amx && one_of(jbgp.wei_dt, s8, u8);
     const bool is_xf16 = one_of(jbgp.wei_dt, bf16, f16) || jbgp.is_bf32;
     const bool is_amx_xf16 = jbgp.is_amx && is_xf16;
@@ -133,8 +135,10 @@ static int get_os_block(const jit_brgemm_primitive_conf_t &jbgp,
     return os_block;
 }
 
-static std::unordered_map<int, format_tag_t> get_desired_weights_tag(
-        const jit_brgemm_primitive_conf_t &jbgp) {
+std::unordered_map<int, format_tag_t>
+jit_brgemm_ip_conf_t::get_desired_weights_tag() const {
+    const auto &jbgp = *this;
+
     using namespace format_tag;
     const int n_sp_dims = jbgp.ndims - 2;
     const bool is_xf16 = utils::one_of(jbgp.wei_dt, bf16, f16);
@@ -223,15 +227,16 @@ static std::unordered_map<int, format_tag_t> get_desired_weights_tag(
     }
 }
 
-static int get_oc_block(
-        const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust = false) {
+int jit_brgemm_ip_conf_t::get_oc_block(bool try_to_adjust) const {
+    const auto &jbgp = *this;
+
     const bool amx_xf16_bwd_d_noadjust = !try_to_adjust
             && jbgp.prop_kind == backward_data && jbgp.is_amx && !jbgp.is_bf32;
     if (amx_xf16_bwd_d_noadjust) {
         constexpr int amx_xf16_row = 64;
         return amx_xf16_row;
     } else if (!jbgp.is_wei_layout_any) {
-        const auto weights_tags = get_desired_weights_tag(jbgp);
+        const auto weights_tags = get_desired_weights_tag();
         for (const auto &k : weights_tags)
             if (jbgp.wei_tag == k.second) return k.first;
         assert(!"invalid_tag");
@@ -256,12 +261,9 @@ static int get_oc_block(
     }
 }
 
-// Required forward declaration to break circular dependency.
-static int ip_fwd_get_adjusted_oc_block(
-        const jit_brgemm_primitive_conf_t &jbgp);
+int jit_brgemm_ip_conf_t::get_nb_oc_blocking(bool is_adjustment) const {
+    const auto &jbgp = *this;
 
-static int ip_fwd_get_nb_oc_blocking(
-        const jit_brgemm_primitive_conf_t &jbgp, bool is_adjustment = false) {
     const int small_oc_threshold
             = is_superset(jbgp.isa, avx512_core) ? 256 : 128;
     const int small_os_threshold = 8;
@@ -269,8 +271,7 @@ static int ip_fwd_get_nb_oc_blocking(
         // For small problems compute all oc blocks as a single chunk to avoid
         // parallel section
         return div_up(jbgp.oc,
-                (is_adjustment) ? ip_fwd_get_adjusted_oc_block(jbgp)
-                                : get_oc_block(jbgp));
+                is_adjustment ? get_adjusted_oc_block() : get_oc_block());
     } else
         return 1;
 }
@@ -287,14 +288,15 @@ static bool is_balanced(int work, int min_work, int nthrs, int goal_nthrs = 0) {
     return !imbalanced;
 }
 
-static bool ip_fwd_adjust_thread_balance(
-        const jit_brgemm_primitive_conf_t &jbgp) {
+bool jit_brgemm_ip_conf_t::adjust_thread_balance() const {
+    const auto &jbgp = *this;
+
     if (IMPLICATION(jbgp.is_wei_layout_any, !jbgp.is_amx)) return false;
 
-    int os_chunks = div_up(jbgp.os, get_os_block(jbgp, true, false));
+    int os_chunks = div_up(jbgp.os, get_os_block(true, false));
 
-    int nb_oc = div_up(jbgp.oc, get_oc_block(jbgp, true));
-    int nb_oc_blocking = ip_fwd_get_nb_oc_blocking(jbgp);
+    int nb_oc = div_up(jbgp.oc, get_oc_block(true));
+    int nb_oc_blocking = get_nb_oc_blocking();
     int oc_chunks = div_up(nb_oc, nb_oc_blocking);
 
     int work_amount = oc_chunks * os_chunks;
@@ -303,8 +305,8 @@ static bool ip_fwd_adjust_thread_balance(
     return !is_balanced(work_amount, min_work, jbgp.nthr, jbgp.nthr / 2);
 }
 
-static int ip_fwd_get_adjusted_oc_block(
-        const jit_brgemm_primitive_conf_t &jbgp) {
+int jit_brgemm_ip_conf_t::get_adjusted_oc_block() const {
+    const auto &jbgp = *this;
     const bool is_amx_xf16 = jbgp.is_amx && !jbgp.is_bf32;
 
     // we can't change block size on forward and weights update (external)
@@ -314,10 +316,10 @@ static int ip_fwd_get_adjusted_oc_block(
             = !jbgp.is_wei_layout_any && jbgp.prop_kind != backward_data;
 
     if (IMPLICATION(is_amx_xf16 || jbgp.is_bf32, not_adjustable_oc_block_size))
-        return get_oc_block(jbgp);
+        return get_oc_block();
 
-    int oc_block = get_oc_block(jbgp, true);
-    if (ip_fwd_adjust_thread_balance(jbgp)) {
+    int oc_block = get_oc_block(true);
+    if (adjust_thread_balance()) {
         oc_block = (oc_block > 16) ? oc_block / 2 : oc_block;
     }
 
@@ -328,17 +330,18 @@ static int ip_fwd_get_adjusted_oc_block(
     return oc_block;
 }
 
-static format_tag_t get_brgemm_ip_weights_tag(
-        const jit_brgemm_primitive_conf_t &jbgp,
-        const memory_desc_t &weights_md) {
-    auto weights_tags = get_desired_weights_tag(jbgp);
+format_tag_t jit_brgemm_ip_conf_t::get_brgemm_ip_weights_tag(
+        const memory_desc_t &weights_md) const {
+    const auto &jbgp = *this;
+
+    auto weights_tags = get_desired_weights_tag();
     if (!jbgp.is_wei_layout_any) {
         for (const auto &k : weights_tags) {
             if (memory_desc_matches_tag(weights_md, k.second)) return k.second;
         }
         return format_tag::undef;
     } else {
-        const int oc_block = ip_fwd_get_adjusted_oc_block(jbgp);
+        const int oc_block = get_adjusted_oc_block();
         return weights_tags[oc_block];
     }
 }
@@ -402,11 +405,11 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
     // gemm-based inner product performs better when oc = 1
     if (is_f32_compute && jbgp.oc == 1) return status::unimplemented;
 
-    jbgp.oc_block = ip_fwd_get_adjusted_oc_block(jbgp);
+    jbgp.oc_block = get_adjusted_oc_block();
     jbgp.nb_oc = div_up(jbgp.oc, jbgp.oc_block);
-    jbgp.nb_oc_blocking = ip_fwd_get_nb_oc_blocking(jbgp);
+    jbgp.nb_oc_blocking = get_nb_oc_blocking();
 
-    jbgp.os_block = get_os_block(jbgp, false, false);
+    jbgp.os_block = get_os_block(false, false);
     jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
 
     jbgp.nb_os_blocking = 1;
@@ -566,17 +569,17 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
             = div_up(rnd_up(jbgp.gemm_batch_size * sc_size, 4096), sc_size);
 
     if (is_amx_xf16 || jbgp.is_bf32) {
-        if (ip_fwd_adjust_thread_balance(jbgp)) {
+        if (adjust_thread_balance()) {
             // Adjust oc_block to improve thread balancing
-            jbgp.oc_block = ip_fwd_get_adjusted_oc_block(jbgp);
+            jbgp.oc_block = get_adjusted_oc_block();
             jbgp.nb_oc = div_up(jbgp.oc, jbgp.oc_block);
-            jbgp.nb_oc_blocking = ip_fwd_get_nb_oc_blocking(jbgp, true);
+            jbgp.nb_oc_blocking = get_nb_oc_blocking(true);
 
             // Adjust os_block to improve thread balancing
             if (jbgp.oc <= 16
                     || types::data_type_size(jbgp.src_dt) * jbgp.mb * jbgp.ic
                             <= (size_t)platform::get_per_core_cache_size(2)) {
-                jbgp.os_block = get_os_block(jbgp, false, true);
+                jbgp.os_block = get_os_block(false, true);
                 jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
             }
         }
@@ -635,7 +638,7 @@ status_t jit_brgemm_ip_bwd_d_conf_t::init_conf(cpu_isa_t isa,
     jbgp.use_buffer_b = true;
     jbgp.ip_bwd_d_global_b_transpose = false;
 
-    jbgp.oc_block = ip_fwd_get_adjusted_oc_block(jbgp);
+    jbgp.oc_block = get_adjusted_oc_block();
 
     // Optimization: for small shape we avoid large ic_block
     // Thinking of os, ic, and oc as three dimensions, the boundary for small
@@ -661,7 +664,7 @@ status_t jit_brgemm_ip_bwd_d_conf_t::init_conf(cpu_isa_t isa,
     jbgp.nb_ic_blocking = 1;
     jbgp.nb_oc = div_up(jbgp.oc, jbgp.oc_block);
 
-    jbgp.os_block = get_os_block(jbgp, false, false);
+    jbgp.os_block = get_os_block(false, false);
 
     jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
     jbgp.nb_os_blocking = 1;
@@ -788,9 +791,11 @@ status_t jit_brgemm_ip_bwd_d_conf_t::init_conf(cpu_isa_t isa,
     return status::success;
 }
 
-static void thread_balance(const jit_brgemm_primitive_conf_t &j,
-        int &nb_os_blocking_, int &nb_oc_blocking_, int &nb_ic_blocking_,
-        int &nthr_, int &nthr_mb_, int &nthr_oc_b_, int &nthr_ic_b_) {
+void jit_brgemm_ip_bwd_w_conf_t::thread_balance(int &nb_os_blocking_,
+        int &nb_oc_blocking_, int &nb_ic_blocking_, int &nthr_, int &nthr_mb_,
+        int &nthr_oc_b_, int &nthr_ic_b_) const {
+    const auto &j = *this;
+
     nthr_ = nthr_mb_ = nthr_oc_b_ = nthr_ic_b_ = 1;
     nb_os_blocking_ = j.nb_os_blocking;
     nb_oc_blocking_ = j.nb_oc_blocking;
@@ -999,11 +1004,11 @@ status_t jit_brgemm_ip_bwd_w_conf_t::init_conf(cpu_isa_t isa,
             = is_amx_xf16 || (jbgp.wei_dt == dnnl::impl::data_type::bf16) ? 32
                                                                           : 16;
 
-    jbgp.oc_block = has_weights_buffer ? get_oc_block(jbgp)
-                                       : ip_fwd_get_adjusted_oc_block(jbgp);
-    jbgp.oc_block_ext = ip_fwd_get_adjusted_oc_block(jbgp);
+    jbgp.oc_block
+            = has_weights_buffer ? get_oc_block() : get_adjusted_oc_block();
+    jbgp.oc_block_ext = get_adjusted_oc_block();
 
-    jbgp.os_block = get_os_block(jbgp, false, false);
+    jbgp.os_block = get_os_block(false, false);
     jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
 
     jbgp.nb_ic = div_up(jbgp.ic, jbgp.ic_block);
@@ -1051,7 +1056,7 @@ status_t jit_brgemm_ip_bwd_w_conf_t::init_conf(cpu_isa_t isa,
             nthr_ic;
     // Caution: thread_balance requires `use_buffer_a` and `use_buffer_b`
     // fields of jbgp to be properly set
-    thread_balance(jbgp, nb_os_blocking, nb_oc_blocking, nb_ic_blocking, nthr,
+    thread_balance(nb_os_blocking, nb_oc_blocking, nb_ic_blocking, nthr,
             nthr_mb, nthr_oc, nthr_ic);
 
     jbgp.nb_os_blocking = nb_os_blocking;
@@ -1243,7 +1248,7 @@ status_t jit_brgemm_ip_conf_t::init_conf_base(cpu_isa_t isa,
         jbgp.is_wei_layout_any = weights_d.format_kind() == format_kind::any;
 
         memory_desc_t want_wei_md = weights_md;
-        jbgp.wei_tag = get_brgemm_ip_weights_tag(jbgp, weights_md);
+        jbgp.wei_tag = get_brgemm_ip_weights_tag(weights_md);
         if (jbgp.wei_tag == format_tag::undef) return status::unimplemented;
         CHECK(memory_desc_init_by_tag(want_wei_md, jbgp.wei_tag));
 

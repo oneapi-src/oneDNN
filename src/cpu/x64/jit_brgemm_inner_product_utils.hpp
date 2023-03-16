@@ -53,6 +53,17 @@ protected:
             memory_desc_t &src_md, memory_desc_t &weights_md,
             memory_desc_t &dst_md, memory_desc_t &bias_md,
             primitive_attr_t &attr, int nthreads);
+
+    int get_os_block(bool try_to_adjust, bool is_adjustment) const;
+    int get_oc_block(bool try_to_adjust = false) const;
+    std::unordered_map<int, format_tag_t> get_desired_weights_tag() const;
+
+    int get_adjusted_oc_block() const;
+    int get_nb_oc_blocking(bool is_adjustment = false) const;
+    bool adjust_thread_balance() const;
+
+    format_tag_t get_brgemm_ip_weights_tag(
+            const memory_desc_t &weights_md) const;
 };
 
 // Specific for forward.
@@ -77,6 +88,11 @@ struct jit_brgemm_ip_bwd_w_conf_t : jit_brgemm_ip_conf_t {
             memory_desc_t &src_md, memory_desc_t &weights_md,
             memory_desc_t &dst_md, memory_desc_t &bias_md,
             primitive_attr_t &attr, int nthreads);
+
+private:
+    void thread_balance(int &nb_os_blocking_, int &nb_oc_blocking_,
+            int &nb_ic_blocking_, int &nthr_, int &nthr_mb_, int &nthr_oc_b_,
+            int &nthr_ic_b_) const;
 };
 
 static const int max_num_brg_kernels_ip = 2 * 2 * 2 * 2 * 2;
