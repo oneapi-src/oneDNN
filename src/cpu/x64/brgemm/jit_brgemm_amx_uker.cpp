@@ -1251,6 +1251,7 @@ void jit_brgemm_amx_uker_base_t::interleave_store(
         brgemm_iteration_t &bi, bool store_all) {
 
     if (!use_ils_) return;
+    if (store_all) { prev_bi_ = bi; }
     if (!was_prev_bi_) return;
     if (!get_store_by_vectors(prev_bi_.apply_postops)) return;
 
@@ -1436,6 +1437,7 @@ void jit_brgemm_amx_uker_base_t::set_A_B_matrices() {
     if (one_of(brg.type, brgemm_static_offs)) return;
     assert(one_of(brg.type, brgemm_addr, brgemm_offs));
     assert(brg.brgattr.var_bs);
+    if (brg.brgattr.max_bs == 1) return;
 
     if (brg.type == brgemm_addr) {
         if (brg.layout == brgemm_row_major) {
@@ -1900,6 +1902,7 @@ void jit_brgemm_amx_uker_base_t::top_loop(brgemm_iteration_t &bi) {
     else
         assert(!"Unknown loop order!");
 
+    // bi is last iteration now
     if (brg.interleave_tilestores_) {
         for_(int bdb = 0; bdb < bi.bdi.block2(); bdb++)
         for (int ldb = 0; ldb < bi.ldi.block2(); ldb++) {
