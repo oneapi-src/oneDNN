@@ -101,7 +101,9 @@ jit_io_helper_t<Vmm>::jit_io_helper_t(jit_generator *host, const cpu_isa_t &isa,
     , saturation_conf_(saturation_conf)
     , gather_conf_(gather_conf) {
 
-    if (data_type_ == data_type::bf16 && isa == avx512_core) {
+    if (data_type_ == data_type::bf16
+            && !(is_superset(isa_, avx512_core_bf16)
+                    || is_superset(isa_, avx2_vnni_2))) {
         assert(bf16_conf.has_value()
                 && "Config for bf16 emulation is not set.");
         bf16_emu_ = utils::make_unique<bf16_emulation_t>(host_,
