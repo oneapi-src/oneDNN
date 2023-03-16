@@ -1815,7 +1815,7 @@ Xbyak::Address jit_uni_binary_injector_t<isa, Vmm>::remove_bcast_bit(
 
 template <cpu_isa_t isa, typename Vmm>
 void jit_uni_binary_injector_t<isa, Vmm>::cvt_to_f32(const Vmm &tmp_vmm) const {
-    host_->vcvtdq2ps(tmp_vmm, tmp_vmm);
+    host_->uni_vcvtdq2ps(tmp_vmm, tmp_vmm);
 }
 
 template <>
