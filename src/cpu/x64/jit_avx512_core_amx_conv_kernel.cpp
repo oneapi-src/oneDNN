@@ -232,9 +232,8 @@ void jit_avx512_core_amx_compute_zp_pbuff_t::kd_loop(int ur_w, int pad_l,
         L(no_overflow_label);
     };
 
-    const bool zp_d_padding
-            = jcp.ndims == 5 && (jcp.f_pad > 0 || jcp.back_pad > 0);
-    if (zp_d_padding) {
+    const bool is_3d = jcp.ndims == 5;
+    if (is_3d) {
         mov(aux_reg_filt_d, reg_filt);
         compute_kd_loop(GET_OFF(f_overflow));
 
@@ -253,7 +252,7 @@ void jit_avx512_core_amx_compute_zp_pbuff_t::kd_loop(int ur_w, int pad_l,
 
     kh_loop(ur_w, pad_l, pad_r, last_ic_block_flag, handle_h_pad);
 
-    if (zp_d_padding) {
+    if (is_3d) {
         add(aux_reg_filt_d, shift_wei_h_step * jcp.kh);
         dec(reg_ki);
         jne(kd_label, T_NEAR);
