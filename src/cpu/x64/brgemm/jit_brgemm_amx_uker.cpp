@@ -207,11 +207,18 @@ private:
         bool is_tail = false;
         iteration_block_t(size_t pos_, int block_, bool is_tail_ = false)
             : block(block_), pos(pos_), is_tail(is_tail_) {}
+        bool operator==(const iteration_block_t &rhs) const {
+            return block == rhs.block && is_tail == rhs.is_tail;
+        }
     };
 
     struct dim_iteration_t {
         size_t idx = 0;
         std ::vector<iteration_block_t> blocks;
+        virtual bool operator==(const dim_iteration_t &rhs) const {
+            return blocks == rhs.blocks;
+        }
+
         size_t pos(size_t b) const {
             assert(b < blocks.size());
             return blocks[b].pos;
@@ -242,6 +249,7 @@ private:
         }
 
         dim_iteration_t() = default;
+        virtual ~dim_iteration_t() = default;
     };
 
     struct bd_iteration_t : public dim_iteration_t {
@@ -250,7 +258,15 @@ private:
         size_t D_shift {0};
         std::vector<char> bd_mask;
         std::vector<size_t> adj_bd_mask;
+        bd_iteration_t *similar {nullptr};
         Label lstart;
+
+        virtual bool operator==(const bd_iteration_t &rhs) const {
+            bool res = dim_iteration_t::operator==(rhs)
+                    && A_shift == rhs.A_shift && C_shift == rhs.C_shift
+                    && D_shift == rhs.D_shift && bd_mask == rhs.bd_mask;
+            return res;
+        }
     };
 
     struct bs_iteration_t {
@@ -485,6 +501,7 @@ private:
             bool do_pre_tilestore, bool do_post_tilestore);
     int get_C_tensor(brgemm_iteration_t &bi, int m, int n) const noexcept;
     void top_loop(brgemm_iteration_t &bi);
+    bd_iteration_t *find_similar(const bd_iteration_t *bdi, bool apply_postops);
 
     void fill_imap();
 };
@@ -1806,6 +1823,14 @@ void jit_brgemm_amx_uker_base_t::bs_loop_body(brgemm_iteration_t &bi) {
 }
 
 void jit_brgemm_amx_uker_base_t::bs_loop(brgemm_iteration_t &bi) {
+    if (ununroll_bd_loop && bi.bdi->similar != nullptr) {
+        // there is code for this iteration already, so we need to store
+        // prev_bi_ only
+        prev_bi_ = bi;
+        was_prev_bi_ = true;
+        return;
+    }
+
     const auto &tloop = imap_[bi.apply_postops];
     if (ununroll_bd_loop && was_prev_bi_) {
         if (bi.bdi->idx != prev_bi_.bdi->idx) add(reg_A, bi.bdi->A_shift);
@@ -1908,15 +1933,37 @@ void jit_brgemm_amx_uker_base_t::ldb_loop(brgemm_iteration_t &bi) {
     }
 }
 
+jit_brgemm_amx_uker_base_t::bd_iteration_t *
+jit_brgemm_amx_uker_base_t::find_similar(
+        const bd_iteration_t *bdi, bool apply_postops) {
+    auto &tloop = imap_[apply_postops];
+    const auto cidx = bdi->idx;
+    for (size_t i = (actual_ils(apply_postops) ? 1 : 0); i < cidx; i++) {
+        if (*bdi == tloop.bdis[i]
+                && IMPLICATION(actual_ils(apply_postops),
+                        tloop.bdis[cidx - 1] == tloop.bdis[i - 1])) {
+            tloop.duplicated++;
+            return &(tloop.bdis[i]);
+        }
+    }
+
+    return nullptr;
+}
+
 void jit_brgemm_amx_uker_base_t::bdb_loop_body(brgemm_iteration_t &bi) {
     auto &tloop = imap_[bi.apply_postops];
     if (ununroll_bd_loop) {
-        align(64);
-        L(tloop.bdis[bi.bdi->idx].lstart);
-        mov(reg_iter_labels_list, ptr[rsp + reg_iter_labels_list_offs_]);
-        mov(reg_iter_label, ptr[reg_iter_labels_list]);
-        add(reg_iter_labels_list, 8);
-        mov(ptr[rsp + reg_iter_labels_list_offs_], reg_iter_labels_list);
+        const auto cidx = bi.bdi->idx;
+        if (bi.bdi->similar) {
+            tloop.bdis[cidx].lstart = bi.bdi->similar->lstart;
+        } else {
+            align(64);
+            L(tloop.bdis[cidx].lstart);
+            mov(reg_iter_labels_list, ptr[rsp + reg_iter_labels_list_offs_]);
+            mov(reg_iter_label, ptr[reg_iter_labels_list]);
+            add(reg_iter_labels_list, 8);
+            mov(ptr[rsp + reg_iter_labels_list_offs_], reg_iter_labels_list);
+        }
     }
 
     if (brg.innermost_loop == brgemm_ld_loop_innermost)
@@ -2089,6 +2136,13 @@ void jit_brgemm_amx_uker_base_t::fill_imap() {
             bsi.is_last = (bs == brg.brgattr.max_bs - 1);
             bsi.idx = tloop.bsis.size();
             tloop.bsis.push_back(bsi);
+        }
+
+        if (ununroll_bd_loop) {
+            for (size_t ibdi = 0; ibdi < tloop.bdis.size(); ibdi++) {
+                tloop.bdis[ibdi].similar
+                        = find_similar(&(tloop.bdis[ibdi]), apply_postops);
+            }
         }
     }
 }
