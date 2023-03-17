@@ -84,9 +84,6 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
     const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
             src_scales, wei_scales, pd()->OC(), pd()->attr());
 
-    const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
-    const bool is_f32_compute = is_f32 && !jbgp.is_bf32;
-
     const size_t src_dt_size = types::data_type_size(jbgp.src_dt);
     const size_t bia_dt_size
             = jbgp.with_bias ? types::data_type_size(jbgp.bia_dt) : 0;
@@ -323,61 +320,7 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
 
         const int icc_work = icc_end - icc_start;
 
-        enum loop_order {
-            osc_occ_icc_osb_ocb,
-            osc_occ_osb_ocb_icc,
-            icc_osc_occ_osb_ocb,
-            icc_occ_osc_ocb_osb,
-        };
-        enum loop_order order = osc_occ_osb_ocb_icc;
-
-        // icc-loop can only be interchanged if we don't need additional memory
-        // for accumulation.
-        const bool icc_loop_swapable = !jbgp.use_buffer;
-
-        // Optimize loop order for f32, if buffer is not required.
-        const bool ocb_inner_most = is_f32_compute && icc_loop_swapable;
-        if (ocb_inner_most) {
-            order = osc_occ_icc_osb_ocb;
-
-            // Use icc loop as outer-most to save bandwidth when os is small.
-            if (jbgp.use_small_os_kernels) order = icc_osc_occ_osb_ocb;
-        }
-
-        const int os_chunk_sz = jbgp.os_block * jbgp.nb_os_blocking;
-        const int oc_chunk_sz = jbgp.oc_block * jbgp.nb_oc_blocking;
-        const int ic_chunk_sz = jbgp.ic_block * jbgp.nb_ic_blocking;
-        const int n_blocks = div_up(work_amount, nthr_oc_mb);
-        const int n_ic_blocks = div_up(icc_work, nthr_ic);
-
-        int oc_span_osc_occ = nstl::min(n_blocks, oc_chunks) * oc_chunk_sz;
-        int os_span_osc_occ = div_up(n_blocks, oc_chunks) * os_chunk_sz;
-        oc_span_osc_occ = nstl::min(oc_span_osc_occ, jbgp.oc);
-        os_span_osc_occ = nstl::min(os_span_osc_occ, jbgp.os);
-
-        int os_span_occ_osc = nstl::min(n_blocks, os_chunks) * os_chunk_sz;
-        int oc_span_occ_osc = div_up(n_blocks, os_chunks) * oc_chunk_sz;
-        os_span_occ_osc = nstl::min(os_span_occ_osc, jbgp.os);
-        oc_span_occ_osc = nstl::min(oc_span_occ_osc, jbgp.oc);
-
-        int k_span = nstl::min(n_ic_blocks * ic_chunk_sz, jbgp.ic);
-
-        auto eff = [](dim_t m, dim_t n, dim_t k) {
-            return 2 * m * n * k / float(m * k + n * k + 2 * m * n);
-        };
-
-        // Prefer to use occ_osc_... instead of osc_occ_... if compute
-        // intensity increases more than a threshold.
-        float eff_osc_occ = eff(os_span_osc_occ, oc_span_osc_occ, k_span);
-        float eff_occ_osc = eff(os_span_occ_osc, oc_span_occ_osc, k_span);
-        bool do_occ_osc = eff_occ_osc > 1.2 * eff_osc_occ;
-
-        // Enable occ_osc_... for f32 and with small os-blocks.
-        // TODO: Expand to other precisions and other blocks sizes.
-        const bool is_avx512 = is_superset(isa, avx512_core);
-        if ((jbgp.os_block < 32 || do_occ_osc) && is_f32_compute
-                && icc_loop_swapable && is_avx512)
-            order = icc_occ_osc_ocb_osb;
+        const auto order = jbgp.loop_order;
 
         int prev_ker_idx = -1;
         brgemm_palettes_.maybe_tile_configure(
@@ -385,13 +328,15 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
 
         int icc {0}, occ {0}, osc {0};
         int start {start_init};
+        using loop_order_t = jit_brgemm_ip_fwd_conf_t::loop_order_t;
+
         switch (order) {
-            case osc_occ_icc_osb_ocb:
-            case osc_occ_osb_ocb_icc:
-            case icc_osc_occ_osb_ocb:
+            case loop_order_t::osc_occ_icc_osb_ocb:
+            case loop_order_t::osc_occ_osb_ocb_icc:
+            case loop_order_t::icc_osc_occ_osb_ocb:
                 nd_iterator_init(start, osc, os_chunks, occ, oc_chunks);
                 break;
-            case icc_occ_osc_ocb_osb:
+            case loop_order_t::icc_occ_osc_ocb_osb:
                 nd_iterator_init(start, occ, oc_chunks, osc, os_chunks);
                 break;
         }
@@ -407,28 +352,30 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
             // Each thread runs the below loops:
             int loop_start = 0, loop_end = 0;
             switch (order) {
-                case osc_occ_icc_osb_ocb:
-                case osc_occ_osb_ocb_icc:
+                case loop_order_t::osc_occ_icc_osb_ocb:
+                case loop_order_t::osc_occ_osb_ocb_icc:
                     loop_end = icc_work * osb_work * ocb_work;
                     break;
-                case icc_occ_osc_ocb_osb:
-                case icc_osc_occ_osb_ocb: loop_end = osb_work * ocb_work; break;
+                case loop_order_t::icc_occ_osc_ocb_osb:
+                case loop_order_t::icc_osc_occ_osb_ocb:
+                    loop_end = osb_work * ocb_work;
+                    break;
             }
 
             int osb = 0, ocb = 0;
             switch (order) {
-                case osc_occ_icc_osb_ocb:
+                case loop_order_t::osc_occ_icc_osb_ocb:
                     nd_iterator_init(
                             0, icc, icc_work, osb, osb_work, ocb, ocb_work);
                     break;
-                case osc_occ_osb_ocb_icc:
+                case loop_order_t::osc_occ_osb_ocb_icc:
                     nd_iterator_init(
                             0, osb, osb_work, ocb, ocb_work, icc, icc_work);
                     break;
-                case icc_osc_occ_osb_ocb:
+                case loop_order_t::icc_osc_occ_osb_ocb:
                     nd_iterator_init(0, osb, osb_work, ocb, ocb_work);
                     break;
-                case icc_occ_osc_ocb_osb:
+                case loop_order_t::icc_occ_osc_ocb_osb:
                     nd_iterator_init(0, ocb, ocb_work, osb, osb_work);
                     break;
             }
@@ -436,6 +383,9 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
             while (loop_start < loop_end) {
                 const int n = (osb + osb_s) * jbgp.os_block;
                 const int cur_icc = icc + icc_start;
+                const bool ocb_inner_most
+                        = order == loop_order_t::osc_occ_icc_osb_ocb;
+
                 const bool copy_buffer_a = jbgp.use_buffer_a
                         && IMPLICATION(ocb_inner_most, ocb == 0);
                 ker(ithr_oc_mb, nthr_oc_mb, ithr_ic, n, ocb + ocb_s, cur_icc,
@@ -443,18 +393,18 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
 
                 ++loop_start;
                 switch (order) {
-                    case osc_occ_icc_osb_ocb:
+                    case loop_order_t::osc_occ_icc_osb_ocb:
                         nd_iterator_step(
                                 icc, icc_work, osb, osb_work, ocb, ocb_work);
                         break;
-                    case osc_occ_osb_ocb_icc:
+                    case loop_order_t::osc_occ_osb_ocb_icc:
                         nd_iterator_step(
                                 osb, osb_work, ocb, ocb_work, icc, icc_work);
                         break;
-                    case icc_osc_occ_osb_ocb:
+                    case loop_order_t::icc_osc_occ_osb_ocb:
                         nd_iterator_step(osb, osb_work, ocb, ocb_work);
                         break;
-                    case icc_occ_osc_ocb_osb:
+                    case loop_order_t::icc_occ_osc_ocb_osb:
                         nd_iterator_step(ocb, ocb_work, osb, osb_work);
                         break;
                 }
@@ -462,11 +412,11 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
 
             ++start;
             switch (order) {
-                case osc_occ_icc_osb_ocb:
-                case osc_occ_osb_ocb_icc:
+                case loop_order_t::osc_occ_icc_osb_ocb:
+                case loop_order_t::osc_occ_osb_ocb_icc:
                     nd_iterator_step(osc, os_chunks, occ, oc_chunks);
                     break;
-                case icc_osc_occ_osb_ocb:
+                case loop_order_t::icc_osc_occ_osb_ocb:
                     nd_iterator_step(osc, os_chunks, occ, oc_chunks);
                     if (start == end) {
                         icc++;
@@ -477,7 +427,7 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                         }
                     }
                     break;
-                case icc_occ_osc_ocb_osb:
+                case loop_order_t::icc_occ_osc_ocb_osb:
                     nd_iterator_step(occ, oc_chunks, osc, os_chunks);
                     if (start == end) {
                         icc++;
@@ -494,6 +444,10 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
     });
 
     if (jbgp.nthr_ic_b > 1) {
+        const bool is_f32
+                = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
+        const bool is_f32_compute = is_f32 && !jbgp.is_bf32;
+        MAYBE_UNUSED(is_f32_compute);
         assert(jbgp.use_buffer && is_f32_compute);
 
         const auto get_dst_reduced_off = [&](int ithr_ic, int osb, int ocb) {
@@ -1590,12 +1544,9 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
     const auto loop_end = occ_work * icc_work * osc_work;
 
     int occ_idx = 0, icc_idx = 0, osc_idx = 0;
-    loop_order_t loop_order = jbgp.local_buffers_for_input_tensors
-            ? loop_order_t::osc_icc_occ
-            : jbgp.harness == harness_mb_reduction ? loop_order_t::osc_occ_icc
-                                                   : loop_order_t::occ_icc_osc;
 
-    switch (loop_order) {
+    using loop_order_t = jit_brgemm_ip_bwd_w_conf_t::loop_order_t;
+    switch (jbgp.loop_order) {
         case loop_order_t::osc_icc_occ:
             nd_iterator_init(loop_idx, osc_idx, osc_work, icc_idx, icc_work,
                     occ_idx, occ_work);
@@ -1633,7 +1584,7 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
 
         ++loop_idx;
 
-        switch (loop_order) {
+        switch (jbgp.loop_order) {
             case loop_order_t::osc_icc_occ:
                 nd_iterator_step(osc_idx, osc_work, icc_idx, icc_work, occ_idx,
                         occ_work);

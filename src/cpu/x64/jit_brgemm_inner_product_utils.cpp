@@ -612,6 +612,7 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
             return status::unimplemented;
     }
 
+    choose_loop_order();
     return status::success;
 }
 
@@ -1088,6 +1089,8 @@ status_t jit_brgemm_ip_bwd_w_conf_t::init_conf(cpu_isa_t isa,
             return status::unimplemented;
     }
 
+    choose_loop_order();
+
     return status::success;
 }
 
@@ -1434,6 +1437,73 @@ void jit_brgemm_ip_bwd_w_conf_t::init_scratchpad(
     if (dnnl_thr_syncable())
         scratchpad.book<simple_barrier::ctx_t>(
                 key_conv_wei_bia_reduction_bctx, 1);
+}
+
+void jit_brgemm_ip_fwd_conf_t::choose_loop_order() {
+    const bool is_f32 = everyone_is(f32, src_dt, wei_dt, dst_dt);
+    const bool is_f32_compute = is_f32 && !is_bf32;
+
+    // icc-loop can only be interchanged if we don't need additional memory
+    // for accumulation.
+    const bool icc_loop_swapable = !use_buffer;
+
+    // Optimize loop order for f32, if buffer is not required.
+    const bool ocb_inner_most = is_f32_compute && icc_loop_swapable;
+    if (ocb_inner_most) {
+        loop_order = osc_occ_icc_osb_ocb;
+
+        // Use icc loop as outer-most to save bandwidth when os is small.
+        if (use_small_os_kernels) loop_order = icc_osc_occ_osb_ocb;
+    }
+
+    const int nthr_ic = nthr_ic_b <= nthr ? nthr_ic_b : 1;
+    const int nthr_oc_mb = nthr / nthr_ic;
+
+    const int os_chunks = div_up(nb_os, nb_os_blocking);
+    const int oc_chunks = div_up(nb_oc, nb_oc_blocking);
+    const int ic_chunks = div_up(nb_ic, nb_ic_blocking);
+    const int work_amount = oc_chunks * os_chunks;
+
+    const int os_chunk_sz = os_block * nb_os_blocking;
+    const int oc_chunk_sz = oc_block * nb_oc_blocking;
+    const int ic_chunk_sz = ic_block * nb_ic_blocking;
+    const int n_blocks = div_up(work_amount, nthr_oc_mb);
+    const int n_ic_chunks = div_up(ic_chunks, nthr_ic);
+
+    int oc_span_osc_occ = nstl::min(n_blocks, oc_chunks) * oc_chunk_sz;
+    int os_span_osc_occ = div_up(n_blocks, oc_chunks) * os_chunk_sz;
+    oc_span_osc_occ = nstl::min(oc_span_osc_occ, oc);
+    os_span_osc_occ = nstl::min(os_span_osc_occ, os);
+
+    int os_span_occ_osc = nstl::min(n_blocks, os_chunks) * os_chunk_sz;
+    int oc_span_occ_osc = div_up(n_blocks, os_chunks) * oc_chunk_sz;
+    os_span_occ_osc = nstl::min(os_span_occ_osc, os);
+    oc_span_occ_osc = nstl::min(oc_span_occ_osc, oc);
+
+    int ic_span = nstl::min(n_ic_chunks * ic_chunk_sz, ic);
+
+    auto eff = [](dim_t m, dim_t n, dim_t k) {
+        return 2 * m * n * k / float(m * k + n * k + 2 * m * n);
+    };
+
+    // Prefer to use occ_osc_... instead of osc_occ_... if compute
+    // intensity increases more than a threshold.
+    float eff_osc_occ = eff(os_span_osc_occ, oc_span_osc_occ, ic_span);
+    float eff_occ_osc = eff(os_span_occ_osc, oc_span_occ_osc, ic_span);
+    bool do_occ_osc = eff_occ_osc > 1.2 * eff_osc_occ;
+
+    // Enable occ_osc_... for f32 and with small os-blocks.
+    // TODO: Expand to other precisions and other blocks sizes.
+    const bool is_avx512 = is_superset(isa, avx512_core);
+    if ((os_block < 32 || do_occ_osc) && is_f32_compute && icc_loop_swapable
+            && is_avx512)
+        loop_order = icc_occ_osc_ocb_osb;
+}
+
+void jit_brgemm_ip_bwd_w_conf_t::choose_loop_order() {
+    loop_order = local_buffers_for_input_tensors ? osc_icc_occ
+            : harness == harness_mb_reduction    ? osc_occ_icc
+                                                 : occ_icc_osc;
 }
 
 } // namespace brgemm_inner_product_utils

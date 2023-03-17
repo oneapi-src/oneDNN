@@ -70,12 +70,23 @@ protected:
 
 // Specific for forward.
 struct jit_brgemm_ip_fwd_conf_t : jit_brgemm_ip_conf_t {
+    enum loop_order_t {
+        osc_occ_icc_osb_ocb,
+        osc_occ_osb_ocb_icc,
+        icc_osc_occ_osb_ocb,
+        icc_occ_osc_ocb_osb,
+    } loop_order
+            = osc_occ_osb_ocb_icc;
+
     status_t init_conf(cpu_isa_t isa, const inner_product_desc_t &ipd,
             memory_desc_t &src_md, memory_desc_t &weights_md,
             memory_desc_t &dst_md, memory_desc_t &bias_md,
             primitive_attr_t &attr, int nthreads);
 
     void init_scratchpad(memory_tracking::registrar_t &scratchpad) const;
+
+private:
+    void choose_loop_order();
 };
 
 // Specific for backward by data.
@@ -92,6 +103,13 @@ struct jit_brgemm_ip_bwd_d_conf_t : jit_brgemm_ip_conf_t {
 
 // Specific for backward by weights.
 struct jit_brgemm_ip_bwd_w_conf_t : jit_brgemm_ip_conf_t {
+    enum loop_order_t {
+        osc_icc_occ,
+        osc_occ_icc,
+        occ_icc_osc,
+    } loop_order
+            = occ_icc_osc;
+
     bool local_buffers_for_input_tensors;
 
     status_t init_conf(cpu_isa_t isa, const inner_product_desc_t &ipd,
@@ -105,6 +123,8 @@ private:
     void thread_balance(int &nb_os_blocking_, int &nb_oc_blocking_,
             int &nb_ic_blocking_, int &nthr_, int &nthr_mb_, int &nthr_oc_b_,
             int &nthr_ic_b_) const;
+
+    void choose_loop_order();
 };
 
 static const int max_num_brg_kernels_ip = 2 * 2 * 2 * 2 * 2;
