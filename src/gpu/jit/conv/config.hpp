@@ -1373,6 +1373,7 @@ tensor_config_t get_tensor_config(const conv_config_t &cfg);
 int estimate_register_count(const conv_config_t &cfg);
 bool can_use_a_2d_send(const conv_config_t &cfg);
 bool can_use_b_2d_send(const conv_config_t &cfg);
+bool matches_tag(const memory_desc_t &md, const std::string &tag);
 const char **get_kernel_grid_conv_dims(const conv_problem_t &prb, int idx);
 const char **get_thread_group_grid_conv_dims(
         const conv_problem_t &prb, int idx);

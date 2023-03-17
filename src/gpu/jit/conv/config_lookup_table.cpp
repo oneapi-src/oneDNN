@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,6 +56,7 @@ int_filter_t::int_filter_t(const std::string &s) {
 }
 
 bool int_filter_t::matches(int value) const {
+    if (value_ == 0) return true;
     switch (cmp_op_) {
         case op_kind_t::_eq: return value == value_;
         case op_kind_t::_le: return value <= value_;
@@ -127,12 +128,15 @@ std::vector<std::string> &type_filter_t::all_patterns() {
 conv_problem_filter_t::conv_problem_filter_t(const std::string &s) {
     auto parts = ir_utils::split(s, " ");
     for (auto &part : parts) {
+        if (part.empty()) continue;
         auto sub_parts = ir_utils::split(part, "=");
         ir_assert(sub_parts.size() == 2) << part;
         auto &name = sub_parts[0];
         auto &value = sub_parts[1];
         if (name == "hw") {
             hw_ = to_hw(value);
+        } else if (name == "eus") {
+            eus_ = int_filter_t(value);
         } else if (name == "cfg") {
             type_filter_ = type_filter_t(value);
         } else if (name == "dir") {
@@ -143,6 +147,12 @@ conv_problem_filter_t::conv_problem_filter_t(const std::string &s) {
             mb_filter_ = int_filter_t(value);
         } else if (name == "post_ops") {
             post_ops_ = value;
+        } else if (name == "stag") {
+            stag_ = value;
+        } else if (name == "wtag") {
+            wtag_ = value;
+        } else if (name == "dtag") {
+            dtag_ = value;
         } else {
             ir_error_not_expected() << part;
         }
@@ -152,6 +162,7 @@ conv_problem_filter_t::conv_problem_filter_t(const std::string &s) {
 bool conv_problem_filter_t::matches(
         const conv_problem_t &prb, const hw_config_t &hw_cfg) const {
     if (hw_cfg.hw() != hw_) return false;
+    if (!eus_.matches(hw_cfg.eu_count())) return false;
     if (!matches_dir(prb)) return false;
     if (!type_filter_.matches(
                 {prb.src_data_type, prb.wei_data_type, prb.dst_data_type}))
@@ -160,6 +171,7 @@ bool conv_problem_filter_t::matches(
     if (!mb_filter_.matches(prb.mb)) return false;
     if (!matches_desc(prb)) return false;
     if (!matches_post_ops(prb)) return false;
+    if (!matches_tags(prb)) return false;
     return true;
 }
 
@@ -181,6 +193,16 @@ bool conv_problem_filter_t::matches_desc(const conv_problem_t &prb) const {
     return prb.desc_str(/*print_mb=*/false) == desc_;
 }
 
+bool conv_problem_filter_t::matches_tags(const conv_problem_t &prb) const {
+    if (!stag_.empty() && !matches_tag(*prb.conv_pd->invariant_src_md(), stag_))
+        return false;
+    if (!wtag_.empty() && !matches_tag(*prb.conv_pd->invariant_wei_md(), wtag_))
+        return false;
+    if (!dtag_.empty() && !matches_tag(*prb.conv_pd->invariant_dst_md(), dtag_))
+        return false;
+    return true;
+}
+
 bool conv_problem_filter_t::matches_post_ops(const conv_problem_t &prb) const {
     if (post_ops_ == "*") return true;
     if (post_ops_ == "sum") return prb.with_sum;
@@ -190,6 +212,38 @@ bool conv_problem_filter_t::matches_post_ops(const conv_problem_t &prb) const {
 
 conv_config_lookup_table_t::conv_config_lookup_table_t() {
     // clang-format off
+    // mma plain
+    add("hw=xehpc eus=448 dir=fwd cfg=f32f32f32 mb=32+ stag=acdb dtag=acdb desc=ic64iw1022oc128ow1007kw16pw0", "simd=16 vec=16 fsp=0 l=ic4kw16 T=oc8 i=ic16oc16ow19");
+    add("hw=xehpc eus=448 dir=fwd cfg=f32f32f32 mb=32+ stag=acdb dtag=acdb desc=ic128iw252oc256ow237kw16pw0", "fsp=0 l=ic4kw16 T=oc2ow8 i=ic32oc32ow6");
+    add("hw=xehpc eus=448 dir=fwd cfg=f32f32f32 mb=32+ stag=acdb dtag=acdb desc=ic256iw90oc256ow59kw32pw0", "simd=16 vec=16 fsp=0 l=ic8kw32 T=ow2 i=ic32oc16ow10");
+    add("hw=xehpc eus=448 dir=fwd cfg=f32f32f32 mb=32+ stag=acdb dtag=acdb desc=ic128iw18oc128ow15kw4pw0", "simd=16 vec=16 fsp=0 l=ic4kw4 T=oc2 i=ic32oc16ow15");
+    add("hw=xehpc eus=448 dir=fwd cfg=f32f32f32 mb=32+ stag=acdb dtag=acdb desc=ic128iw16oc64ow15kw2pw0","simd=16 vec=16 fsp=0 l=ic2kw2 T=oc2ow2 i=ic64oc16ow8");
+    add("hw=xehpc eus=448 dir=bwd_d cfg=f32f32f32 mb=32+ stag=acdb dtag=acdb desc=ic256iw90oc256ow59kw32pw0", "simd=16 vec=16 fsp=0 l=kw32oc8 T=ic2iw2 i=ic32iw9oc32");
+    add("hw=xehpc eus=448 dir=bwd_w cfg=f32f32f32 mb=32+ stag=acdb dtag=acdb desc=ic128iw18oc128ow15kw4pw0", "simd=16 vec=16 fsp=0 l=ow5 T=ic8oc4 i=ic16mb16oc16");
+    add("hw=xehpc eus=448 dir=bwd_d cfg=f32f32f32 mb=32+ stag=acdb dtag=acdb desc=ic128iw18oc128ow15kw4pw0", "simd=16 vec=16 fsp=0 l=kw4oc2 T=oc4 i=ic32iw6oc16");
+    add("hw=xehpc eus=448 dir=bwd_w cfg=f32f32f32 mb=32+ stag=acdb dtag=acdb desc=ic256iw17oc128ow15kw4pw0", "fsp=0 l=ow5 T=ic4oc2 i=ic8mb16oc32");
+    add("hw=xehpc eus=448 dir=bwd_d cfg=f32f32f32 mb=32+ stag=acdb dtag=acdb desc=ic256iw17oc128ow15kw4pw0", "simd=16 vec=16 fsp=0 l=kw4 T=oc4 i=ic32iw6oc32");
+    add("hw=xehpc eus=448 dir=bwd_d cfg=f32f32f32 mb=32+ stag=acdb dtag=acdb desc=ic64iw1022oc128ow1007kw16pw0", "simd=16 vec=16 fsp=0 l=kw16oc8 T=ic2iw8 i=ic16iw16oc16");
+    add("hw=xehpc eus=448 dir=bwd_d cfg=f32f32f32 mb=32+ stag=acdb dtag=acdb desc=ic128iw252oc256ow237kw16pw0", "fsp=0 l=kw16oc8 T=iw4 i=ic32iw9oc32");
+    add("hw=xehpc eus=448 dir=bwd_w cfg=f32f32f32 mb=32+ stag=acdb dtag=acdb desc=ic1iw8192oc64ow8177kw16pw0", "simd=16 vec=16 fsp=0 l=ow13 T=oc4 i=kw8mb32oc16");
+    add("hw=xehpc eus=448 dir=bwd_d cfg=f32f32f32 mb=32+ stag=acdb dtag=acdb desc=ic128iw16oc64ow15kw2pw0","simd=16 vec=16 fsp=0 l=kw2 T=oc4 i=ic16iw8oc16");
+    // mma block
+    add("hw=xehpc eus=448 dir=fwd cfg=f32f32f32 mb=32+ desc=ic64iw1022oc128ow1007kw16pw0", "simd=16 vec=16 fsp=0 l=ic4kw16 T=oc8 i=ic16oc16ow19");
+    add("hw=xehpc eus=448 dir=bwd_w cfg=f32f32f32 mb=32+ desc=ic64iw1022oc128ow1007kw16pw0", "simd=16 vec=16 fsp=0 l=ow19 T=ic2oc4 i=ic32mb8oc32");
+    add("hw=xehpc eus=448 dir=bwd_d cfg=f32f32f32 mb=32+ desc=ic64iw1022oc128ow1007kw16pw0", "simd=16 vec=16 T=iw4ic2 l=kw16oc8");
+    add("hw=xehpc eus=448 dir=fwd cfg=f32f32f32 mb=32+ desc=ic128iw252oc256ow237kw16pw0", "simd=16 vec=16 fsp=0 l=ic8kw16 T=oc2ow4 i=ic16oc32ow10");
+    add("hw=xehpc eus=448 dir=bwd_d cfg=f32f32f32 mb=32+ desc=ic128iw252oc256ow237kw16pw0", "simd=16 vec=16 T=ic4oc4 l=kw16oc4");
+    add("hw=xehpc eus=448 dir=fwd cfg=f32f32f32 mb=32+ desc=ic256iw90oc256ow59kw32pw0", "simd=16 vec=16 fsp=0 l=ic8kw32 T=ow2 i=ic32oc16ow10");
+    add("hw=xehpc eus=448 dir=bwd_w cfg=f32f32f32 mb=32+ desc=ic128iw18oc128ow15kw4pw0", "simd=16 vec=16 fsp=0 l=ow5 T=ic8oc4 i=ic16mb16oc16");
+    add("hw=xehpc eus=448 dir=bwd_w cfg=f32f32f32 mb=32+ desc=ic128iw18oc128ow15kw4pw0", "simd=16 vec=16 fsp=0 l=kw4oc2 T=oc4 i=ic32iw6oc16");
+    add("hw=xehpc eus=448 dir=bwd_w cfg=f32f32f32 mb=32+ desc=ic1iw8192oc64ow8177kw16pw0", "simd=16 vec=16 fsp=0 l=ow13 T=oc4 i=kw8mb32oc16");
+    add("hw=xehpc eus=448 dir=bwd_d cfg=f32f32f32 mb=32+ desc=ic128iw16oc64ow15kw2pw0","simd=16 vec=16 fsp=0 l=kw2 T=oc4 i=ic16iw8oc16");
+    add("hw=xehpc eus=448 dir=bwd_w cfg=f32f32f32 mb=32+ desc=ic128iw16oc64ow15kw2pw0","simd=16 vec=16 fsp=0 l=ow3 T=ic8oc4 i=ic8mb16oc16");
+    add("hw=xehpc eus=448 dir=fwd cfg=f32f32f32 mb=32+ desc=ic128iw16oc64ow15kw2pw0","simd=16 vec=16 fsp=0 l=ic2kw2 T=oc2ow2 i=ic64oc16ow8");
+    add("hw=xehpc eus=448 dir=bwd_w cfg=f32f32f32 mb=32+ desc=ic256iw17oc128ow15kw4pw0", "simd=16 vec=16 fsp=0 l=ow5 T=ic4oc2 i=ic64mb8oc16");
+    add("hw=xehpc eus=448 dir=bwd_d cfg=f32f32f32 mb=32+ desc=ic256iw17oc128ow15kw4pw0", "simd=16 vec=16 fsp=0 l=kw4 T=oc4 i=ic32iw6oc32");
+    add("hw=xehpc eus=448 dir=bwd_d cfg=f32f32f32 mb=32+ desc=ic256iw90oc256ow59kw32pw0", "l=kw32oc2 T=oc8");
+    add("hw=xehpc eus=512 dir=bwd_d cfg=f32f32f32 mb=32+ desc=ic256iw90oc256ow59kw32pw0", "l=kw32oc4 T=oc4");
     // wdsr
     add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic128ih240iw135oc32oh240ow135kh3kw3ph1pw1", "fsp=1");
     add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic32ih240iw135oc128oh240ow135kh3kw3ph1pw1", "fsp=1");

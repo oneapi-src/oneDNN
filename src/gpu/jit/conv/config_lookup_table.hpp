@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ public:
     bool matches(int value) const;
 
 private:
-    int value_;
+    int value_ = 0;
     op_kind_t cmp_op_;
 };
 
@@ -71,6 +71,7 @@ private:
 };
 
 class conv_problem_t;
+class conv_config_t;
 
 class conv_problem_filter_t {
 public:
@@ -87,18 +88,22 @@ private:
 
     bool matches_desc(const conv_problem_t &prb) const;
 
+    bool matches_tags(const conv_problem_t &prb) const;
+
     bool matches_post_ops(const conv_problem_t &prb) const;
 
     std::string dir_;
     type_filter_t type_filter_;
     fpmath_filter_t fpmath_filter_;
     int_filter_t mb_filter_;
+    int_filter_t eus_;
+    std::string stag_;
+    std::string wtag_;
+    std::string dtag_;
     std::string desc_;
     std::string post_ops_;
     ngen::HW hw_;
 };
-
-class conv_config_t;
 
 class conv_config_lookup_table_t {
 public:

@@ -2108,6 +2108,7 @@ void conv_config_t::override_set(const std::string &s, bool is_env) {
         params.push_back(gp(this));
     auto parts = ir_utils::split(s);
     for (auto &p : parts) {
+        if (p.empty()) continue;
         auto sub_parts = ir_utils::split(p, "=");
         ir_assert(sub_parts.size() == 2);
         auto &key = sub_parts[0];
