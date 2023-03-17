@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -131,6 +131,12 @@ struct sycl_md_t {
             CHECK_AND_ASSIGN(inner_idxs_[d], blk.inner_idxs[d]);
         }
 #undef CHECK_AND_ASSIGN
+    }
+
+    template <typename... Args>
+    dim_t off(Args... args) const {
+        dims_t pos = {args...};
+        return off_v(pos, false);
     }
 
     dim_t off_v(const dims_t pos, bool is_pos_padded = false) const {
