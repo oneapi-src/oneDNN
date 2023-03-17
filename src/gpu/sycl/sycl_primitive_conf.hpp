@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #ifndef GPU_SYCL_SYCL_PRIMITIVE_CONF_HPP
 #define GPU_SYCL_SYCL_PRIMITIVE_CONF_HPP
 
+#include "common/broadcast_strategy.hpp"
 #include "gpu/sycl/sycl_post_ops.hpp"
 #include "gpu/sycl/sycl_types.hpp"
 
@@ -43,6 +44,30 @@ struct sycl_binary_conf_t {
     sycl_post_ops_t post_ops;
 };
 
+struct sycl_prelu_conf_t {
+    prop_kind_t prop_kind;
+    sycl_md_t data_md;
+    sycl_md_t dst_md;
+    sycl_md_t weights_md;
+    sycl_md_t diff_data_md;
+    sycl_md_t diff_dst_md;
+    sycl_md_t diff_weights_md;
+    dim_t work_amount;
+    dim_t work_amount_wei;
+    dim_t work_amount_src;
+    dim_t work_load;
+    bool reduce_diff_weights = 0;
+    int mask;
+    float sum;
+    broadcasting_strategy_t bcast_type;
+    int ndims;
+    int block_size;
+    int wg_size;
+    size_t n_thr;
+    size_t i_thr;
+};
+
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_prelu_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_binary_conf_t);
 
 } // namespace sycl

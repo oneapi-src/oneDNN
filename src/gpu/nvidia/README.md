@@ -276,6 +276,11 @@ backward propagation respectively.
 
 * Supported data type are `f32`, `f16`, `bf16` and `s8`.
 
+### PReLU
+The PReLU primitive (Leaky ReLU with a trainable alpha parameter) is implemented
+using SYCL kernels. The primitive supports both forward and backward
+propagations for the data types f32, s32, bf16, f16, s8 and u8.
+
 ### Reorder
 
 The `cudnnTransform` function is the equivalent of oneDNN reorder function.
