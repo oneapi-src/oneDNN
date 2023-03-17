@@ -72,7 +72,11 @@ if(DNNL_SYCL_HIP)
         ${CMAKE_CURRENT_SOURCE_DIR}/primitives/reduction.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/primitives/matmul.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/matmul_perf.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/inner_product.cpp)
+        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/inner_product.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/cnn_inference_f32.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/cnn_inference_int8.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/cnn_training_bf16.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/getting_started.cpp)
 endif()
 
 # Skip SYCL, GPU and cross-engine examples
