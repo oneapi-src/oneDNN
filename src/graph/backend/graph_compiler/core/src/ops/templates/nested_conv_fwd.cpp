@@ -341,6 +341,14 @@ void gen_nested_conv_fwd_t::compute_1x1_pack_input_nested(CONV_ARG_LIST) const {
   COMPILE_ASSERT(!is_3d_, "1x1 pack input doens't support 3D conv yet!");
   tensor input1;
   int lanes = get_lanes(ctx, config.im_ic_block, get_input_dtype());
+  auto toutput = out_tensors_[0];
+  auto out_fmt = toutput.get_format();
+  auto oh_expr_ = oh_;
+  if (!out_fmt.is_any()) {
+    auto out_p2b_map = out_fmt.format_code_.collect_p2b_mapping();
+    oh_expr_ = static_cast<int>(get_expr_as_int(
+      output.checked_as<tensor>()->dims_[out_p2b_map[is_3d_ ? 3 : 2][0]]));
+  }
   if (config.pack_input == 1 && (sd_ > 1 || sh_ > 1 || sw_ > 1)) {
     for_loop ln, lk, ld, lp;
     auto mb_expr = input.checked_as<tensor>()->dims_[0];
@@ -348,10 +356,10 @@ void gen_nested_conv_fwd_t::compute_1x1_pack_input_nested(CONV_ARG_LIST) const {
       // NCHWc
       auto im_c_num_block = ic_ / config.im_ic_block;
       _tensor_(input_tmp, get_input_dtype(),
-        {mb_expr, im_c_num_block, oh_, ow_, config.im_ic_block});
+        {mb_expr, im_c_num_block, oh_expr_, ow_, config.im_ic_block});
       _named_for_(ln, n, 0, mb_expr, 1, for_type::PARALLEL) {
         _named_for_(lk, c_o, 0, im_c_num_block) {
-          _named_for_(lp, p, 0, oh_) {
+          _named_for_(lp, p, 0, oh_expr_) {
             _for_(q, 0, ow_) {
               _for_(c_i, 0, config.im_ic_block, (int)lanes) {
                 input_tmp[span_t({n, c_o, p, q, c_i}, lanes)]
@@ -368,9 +376,9 @@ void gen_nested_conv_fwd_t::compute_1x1_pack_input_nested(CONV_ARG_LIST) const {
       }
       input1 = input_tmp.static_as<tensor>();
     } else {
-      _tensor_(input_tmp, get_input_dtype(), {mb_expr, oh_, ow_, ic_});
+      _tensor_(input_tmp, get_input_dtype(), {mb_expr, oh_expr_, ow_, ic_});
       _named_for_(ln, n, 0, mb_expr, 1, for_type::PARALLEL) {
-        _named_for_(lp, p, 0, oh_) {
+        _named_for_(lp, p, 0, oh_expr_) {
           _for_(q, 0, ow_) {
             _for_(c_i, 0, ic_, (int)lanes) {
               input_tmp[span_t({n, p, q, c_i}, lanes)]
@@ -424,7 +432,6 @@ void gen_nested_conv_fwd_t::compute_1x1_pack_input_nested(CONV_ARG_LIST) const {
   expr output_tmp = output;
   auto tinput = in_tensors_[0];
   auto tweight = in_tensors_[1];
-  auto toutput = out_tensors_[0];
   const auto &input_blocking_dims = tinput.get_blocking_dims();
   const auto &weight_blocking_dims = tweight.get_blocking_dims();
   const auto &output_blocking_dims = toutput.get_blocking_dims();
@@ -490,7 +497,7 @@ void gen_nested_conv_fwd_t::compute_1x1_pack_input_nested(CONV_ARG_LIST) const {
                           expr h = (ph * h_num_block_pt * h_block / im_h_block
                                      + o_h * h_block / im_h_block + i_h)
                             * im_h_block;
-                          _if_(h < oh_) {
+                          _if_(h < oh_expr_) {
                             _named_for_(liw, i_w, 0, w_block / im_w_block) {
                               expr w
                                 = (pw * w_num_block_pt * w_block / im_w_block
@@ -712,46 +719,47 @@ void gen_nested_conv_fwd_t::compute_1x1_pack_input_nested(CONV_ARG_LIST) const {
               && ic_threads == 1) {
               fusion->create_output_fusion_anchor({blocking_output_
                   ? tensor_slice(output,
-                    {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_}, {0, ow_},
-                      {0, im_oc_block}})
+                    {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_},
+                      {0, ow_}, {0, im_oc_block}})
                   : tensor_slice(
-                    output, {{pbs, 1UL}, {0, oh_}, {0, ow_}, {0, oc_}})});
+                    output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
             }
           }
           if (fusion && oc_threads == 1 && h_threads == 1 && w_threads == 1) {
-            fusion->create_output_fusion_anchor(
-              {blocking_output_ ? tensor_slice(output,
-                 {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_}, {0, ow_},
-                   {0, im_oc_block}})
-                                : tensor_slice(output,
-                                  {{pbs, 1UL}, {0, oh_}, {0, ow_}, {0, oc_}})});
+            fusion->create_output_fusion_anchor({blocking_output_
+                ? tensor_slice(output,
+                  {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_}, {0, ow_},
+                    {0, im_oc_block}})
+                : tensor_slice(
+                  output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
           }
         }
         if (fusion && h_threads == 1 && w_threads == 1) {
-          fusion->create_output_fusion_anchor(
-            {blocking_output_ ? tensor_slice(output,
-               {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_}, {0, ow_},
-                 {0, im_oc_block}})
-                              : tensor_slice(output,
-                                {{pbs, 1UL}, {0, oh_}, {0, ow_}, {0, oc_}})});
+          fusion->create_output_fusion_anchor({blocking_output_
+              ? tensor_slice(output,
+                {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_}, {0, ow_},
+                  {0, im_oc_block}})
+              : tensor_slice(
+                output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
         }
       }
 
       if (fusion && h_threads == 1) {
-        fusion->create_output_fusion_anchor(
-          {blocking_output_ ? tensor_slice(output,
-             {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_}, {0, ow_},
-               {0, im_oc_block}})
-                            : tensor_slice(output,
-                              {{pbs, 1UL}, {0, oh_}, {0, ow_}, {0, oc_}})});
+        fusion->create_output_fusion_anchor({blocking_output_
+            ? tensor_slice(output,
+              {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_}, {0, ow_},
+                {0, im_oc_block}})
+            : tensor_slice(
+              output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
       }
     }
     if (fusion && mb_ > 1) {
-      fusion->create_output_fusion_anchor({blocking_output_
-          ? tensor_slice(output,
-            {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_}, {0, ow_},
-              {0, im_oc_block}})
-          : tensor_slice(output, {{pbs, 1UL}, {0, oh_}, {0, ow_}, {0, oc_}})});
+      fusion->create_output_fusion_anchor(
+        {blocking_output_ ? tensor_slice(output,
+           {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_}, {0, ow_},
+             {0, im_oc_block}})
+                          : tensor_slice(output,
+                            {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
     }
   }
   loops = {lpbs, lph, lpw, lpoc, lpic};
@@ -797,6 +805,13 @@ void gen_nested_conv_fwd_t::compute_1x1_no_pack_input_nested(
   const auto &input_blocking_dims = tinput.get_blocking_dims();
   const auto &weight_blocking_dims = tweight.get_blocking_dims();
   const auto &output_blocking_dims = toutput.get_blocking_dims();
+  auto out_fmt = toutput.get_format();
+  auto oh_expr_ = oh_;
+  if (!out_fmt.is_any()) {
+    auto out_p2b_map = out_fmt.format_code_.collect_p2b_mapping();
+    oh_expr_ = static_cast<int>(get_expr_as_int(
+      output.checked_as<tensor>()->dims_[out_p2b_map[is_3d_ ? 3 : 2][0]]));
+  }
 
   for_loop lpbs, lph, lpw, lpoc, lpic, loh, low, looc, loic, lioc, lih, liw;
 
@@ -873,7 +888,7 @@ void gen_nested_conv_fwd_t::compute_1x1_no_pack_input_nested(
                                   + o_oc * oc_block / im_oc_block + i_oc;
                                 _if_(oc * im_oc_block < oc_) {
                                   _for_(im_h_i, 0, im_h_block) {
-                                    _if_(h + im_h_i < oh_) {
+                                    _if_(h + im_h_i < oh_expr_) {
                                       _tensor_(A_list, datatypes::pointer,
                                         {ic_block / im_ic_block});
                                       _tensor_(B_list, datatypes::pointer,
@@ -1104,47 +1119,48 @@ void gen_nested_conv_fwd_t::compute_1x1_no_pack_input_nested(
               && w_threads == 1) {
               fusion->create_output_fusion_anchor({blocking_output_
                   ? tensor_slice(output,
-                    {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_}, {0, ow_},
-                      {0, im_oc_block}})
+                    {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_},
+                      {0, ow_}, {0, im_oc_block}})
                   : tensor_slice(
-                    output, {{pbs, 1UL}, {0, oh_}, {0, ow_}, {0, oc_}})});
+                    output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
             }
           }
           if (fusion && oc_threads == 1 && h_threads == 1 && w_threads == 1) {
-            fusion->create_output_fusion_anchor(
-              {blocking_output_ ? tensor_slice(output,
-                 {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_}, {0, ow_},
-                   {0, im_oc_block}})
-                                : tensor_slice(output,
-                                  {{pbs, 1UL}, {0, oh_}, {0, ow_}, {0, oc_}})});
+            fusion->create_output_fusion_anchor({blocking_output_
+                ? tensor_slice(output,
+                  {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_}, {0, ow_},
+                    {0, im_oc_block}})
+                : tensor_slice(
+                  output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
           }
         }
 
         if (fusion && h_threads == 1 && w_threads == 1) {
-          fusion->create_output_fusion_anchor(
-            {blocking_output_ ? tensor_slice(output,
-               {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_}, {0, ow_},
-                 {0, im_oc_block}})
-                              : tensor_slice(output,
-                                {{pbs, 1UL}, {0, oh_}, {0, ow_}, {0, oc_}})});
+          fusion->create_output_fusion_anchor({blocking_output_
+              ? tensor_slice(output,
+                {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_}, {0, ow_},
+                  {0, im_oc_block}})
+              : tensor_slice(
+                output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
         }
       }
 
       if (fusion && h_threads == 1) {
-        fusion->create_output_fusion_anchor(
-          {blocking_output_ ? tensor_slice(output,
-             {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_}, {0, ow_},
-               {0, im_oc_block}})
-                            : tensor_slice(output,
-                              {{pbs, 1UL}, {0, oh_}, {0, ow_}, {0, oc_}})});
+        fusion->create_output_fusion_anchor({blocking_output_
+            ? tensor_slice(output,
+              {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_}, {0, ow_},
+                {0, im_oc_block}})
+            : tensor_slice(
+              output, {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
       }
     }
     if (fusion && mb_ > 1) {
-      fusion->create_output_fusion_anchor({blocking_output_
-          ? tensor_slice(output,
-            {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_}, {0, ow_},
-              {0, im_oc_block}})
-          : tensor_slice(output, {{pbs, 1UL}, {0, oh_}, {0, ow_}, {0, oc_}})});
+      fusion->create_output_fusion_anchor(
+        {blocking_output_ ? tensor_slice(output,
+           {{pbs, 1UL}, {0, oc_ / im_oc_block}, {0, oh_expr_}, {0, ow_},
+             {0, im_oc_block}})
+                          : tensor_slice(output,
+                            {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
     }
   }
   loops = {lpbs, lph, lpw, lpoc, lpic};

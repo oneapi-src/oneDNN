@@ -122,6 +122,17 @@ void tensor_detail_to_ir_tensor(sc_graph_t &graph,
 }
 } // namespace graph
 
+mixed_fuse_op_t *get_mixed_op_from_graph(sc_graph_t &graph) {
+    mixed_fuse_op_t *mixed_op = nullptr;
+    for (auto &op : graph.ops_) {
+        if (auto mx_op = op->dyn_cast<mixed_fuse_op_t>()) {
+            COMPILE_ASSERT(!mixed_op, "Only one fused op is expected")
+            mixed_op = mx_op;
+        }
+    }
+    return mixed_op;
+}
+
 void mxp_buffer_allocator::set_buffer_inplace_hint(
         const expr &target_buf, const expr &inplace_buf) {
     COMPILE_ASSERT(target_buf.defined() && inplace_buf.defined(),
@@ -466,6 +477,13 @@ void mxp_buffer_allocator::update_input_buffer_info(sc_op *op) {
                 } else {
                     // dont overwrite
                     return;
+                }
+                if (real_anchor_map != commited_anchor_map) b2g_map_[buf] = inp;
+            } else {
+                // r_less_l
+                if (tsr2anch_map_[tsr]->is_cousin_for(real_anchor_map)) {
+                    tsr2anch_map_[tsr]
+                            = real_anchor_map->get_root()->shared_from_this();
                 }
                 if (real_anchor_map != commited_anchor_map) b2g_map_[buf] = inp;
             }

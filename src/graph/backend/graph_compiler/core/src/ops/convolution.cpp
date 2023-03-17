@@ -18,7 +18,6 @@
 #include <memory>
 #include <string>
 #include <utility>
-#include "convolution.hpp"
 #include "templates/conv1x1_backprop_data.hpp"
 #include "templates/conv1x1_backprop_weight.hpp"
 #include "templates/convNxN_backprop_data.hpp"
@@ -39,6 +38,7 @@
 #include <ops/templates/utils.hpp>
 #include <runtime/config.hpp>
 #include <unordered_map>
+#include <util/math_utils.hpp>
 #include <util/reflection.hpp>
 #include <util/simple_math.hpp>
 #include <util/utils.hpp>
@@ -72,6 +72,21 @@ void conv_fwd_core_op_t::infer_slice_ranges(
         stat_map.append_ops_by_status(this, infer_status_code::FAIL);
         return;
     }
+    int C_block = 1;
+    int K_block = 1;
+    int tile_p = 1;
+
+    if (config_data_) {
+        if (use_nested_conv_fwd_generator()) {
+            const nested_conv_fwd_config_t &tcfg
+                    = *config_data_.get_as<nested_conv_fwd_config_t>();
+            tile_p = tcfg.im_h_block;
+        } else {
+            const conv_fwd_config_t &tcfg
+                    = *config_data_.get_as<conv_fwd_config_t>();
+            tile_p = tcfg.tile_p;
+        }
+    }
     slice_range_map known_ranges_map
             = search_known_slice_ranges(this, fsmap, stat_map);
     // assume input is known
@@ -81,63 +96,179 @@ void conv_fwd_core_op_t::infer_slice_ranges(
     }
     auto inp_plain_size = get_inputs()[0]->details_.get_plain_dims().size(),
          wei_plain_size = get_inputs()[1]->details_.get_plain_dims().size();
+    auto wei_plain_dim = get_inputs()[1]->details_.get_plain_dims();
     auto inp_dims = get_inputs()[0]->details_.get_blocking_dims(),
          wei_dims = get_inputs()[1]->details_.get_blocking_dims(),
          out_dims = get_outputs()[0]->details_.get_blocking_dims();
     const int num_threads = runtime_config_t::get().get_num_threads();
 
-    // Do bs fusion only when bs > 1  and bs % num_threads == 0
-    if (get_inputs()[0]->details_.get_plain_dims()[0] == 1
-            || (inp_dims[0] % num_threads != 0
-                    && inp_dims[0] / num_threads < 8)) {
-        stat_map.append_ops_by_status(this, infer_status_code::FAIL);
-        return;
-    }
-    slice_range inp_slice, wei_slice, out_slice;
-    if (!known_ranges_map[0].empty()) {
-        slice_range inp_tmp;
-        inp_tmp = known_ranges_map[0][0];
-        std::vector<int> required_axis;
-        for (unsigned i = 1; i < inp_dims.size(); i++) {
-            required_axis.emplace_back(i);
+    auto &data_dtype = info_.inputs_[0]->details_.dtype_;
+    auto &weight_dtype = info_.inputs_[1]->details_.dtype_;
+    auto is_int8 = utils::is_one_of(data_dtype, datatypes::u8, datatypes::s8);
+    auto L2_cache_size
+            = get_default_context()->machine_.cpu_flags_.getDCacheSize(2);
+
+    auto get_slice_size = [](const slice_range &ranges,
+                                  const int dtype_size = 1) {
+        auto total_size = dtype_size;
+        for (auto &range : ranges) {
+            auto second = do_cast_and_fold(range.second);
+            if (second.isa<constant>()) {
+                total_size *= get_const_as_int(second.checked_as<constant>());
+            } else {
+                return -1;
+            }
         }
-        if (!slice_full_on_axis(inp_dims, inp_tmp, required_axis)) {
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-            return;
+        return total_size;
+    };
+    auto input_slice_size = known_ranges_map[0].empty()
+            ? -1
+            : get_slice_size(
+                    known_ranges_map[0][0], utils::get_sizeof_type(data_dtype));
+    auto weight_size = math_utils::get_dims_product(wei_dims)
+            * utils::get_sizeof_type(weight_dtype);
+    auto can_fit_in_L2_cache = input_slice_size > 0
+            && (input_slice_size + weight_size < L2_cache_size);
+    if (config_data_ && inp_dims[0] % num_threads == 0
+            && wei_plain_dim.size() == 4 && wei_plain_dim[2] == 1
+            && wei_plain_dim[3] == 1
+            && can_fit_in_L2_cache) { // 1x1 NH-wise fusion
+        auto in_p2b_map = get_inputs()[0]
+                                  ->details_.get_format()
+                                  .format_code_.collect_p2b_mapping();
+        auto out_p2b_map = get_outputs()[0]
+                                   ->details_.get_format()
+                                   .format_code_.collect_p2b_mapping();
+        slice_range inp_slice, wei_slice, out_slice;
+        inp_slice.resize(inp_dims.size());
+        wei_slice.resize(wei_dims.size());
+        out_slice.resize(out_dims.size());
+        if (!known_ranges_map[0].empty()) {
+            slice_range inp_tmp;
+            inp_tmp = known_ranges_map[0][0];
+            if (!slice_full_on_axis(inp_dims, inp_tmp,
+                        in_p2b_map[1])) { // full on C
+                stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+                return;
+            }
+            if (!slice_full_on_axis(inp_dims, inp_tmp,
+                        in_p2b_map[3])) { // full on W
+                stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+                return;
+            }
+            if (!slice_divisible_by_factor(
+                        inp_tmp, {in_p2b_map[2].back()}, tile_p)
+                    || !slice_larger_than_bound_on_axis(inp_tmp, in_p2b_map[2],
+                            tile_p,
+                            data_dtype == datatypes::f32
+                                    ? 1
+                                    : 2)) { // dividable on H
+                stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+                return;
+            }
+
+            for (auto i = 0UL; i < in_p2b_map.size(); i++) {
+                if (i != 1 && i != 3) {
+                    auto blocking_axis = in_p2b_map[i];
+                    for (auto &ax : blocking_axis) {
+                        inp_slice[ax] = known_ranges_map[0][0][ax];
+                        out_slice[ax] = known_ranges_map[0][0][ax];
+                    }
+                }
+            }
+        } else {
+            std::vector<int> plain_axis_required = {0, 2}; // N,H
+            for (auto plain_ax : plain_axis_required) {
+                for (unsigned i = 0; i < in_p2b_map[plain_ax].size(); i++) {
+                    auto ax = in_p2b_map[plain_ax][i];
+                    inp_slice[ax] = std::make_pair(
+                            expr(0), dim2unsigned(inp_dims[ax]));
+                }
+                for (unsigned i = 0; i < out_p2b_map[plain_ax].size(); i++) {
+                    auto ax = out_p2b_map[plain_ax][i];
+                    out_slice[ax] = std::make_pair(
+                            expr(0), dim2unsigned(out_dims[ax]));
+                }
+            }
         }
-        inp_slice.emplace_back(known_ranges_map[0][0][0]);
-        out_slice.emplace_back(known_ranges_map[0][0][0]);
-    } else {
-        inp_slice.emplace_back(
-                std::make_pair(expr(0), dim2unsigned(inp_dims[0])));
-    }
-    if (!known_ranges_map[1].empty()) {
-        auto wei_slice = known_ranges_map[1][0];
-        std::vector<int> required_axis;
+        if (!known_ranges_map[1].empty()) {
+            auto wei_slice = known_ranges_map[1][0];
+            std::vector<int> required_axis;
+            for (unsigned i = 0; i < wei_dims.size(); i++) {
+                required_axis.emplace_back(i);
+            }
+            if (!slice_full_on_axis(wei_dims, wei_slice, required_axis)) {
+                stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+                return;
+            }
+        }
         for (unsigned i = 0; i < wei_dims.size(); i++) {
-            required_axis.emplace_back(i);
+            wei_slice[i] = std::make_pair(expr(0), dim2unsigned(wei_dims[i]));
         }
-        if (!slice_full_on_axis(wei_dims, wei_slice, required_axis)) {
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-            return;
+        std::vector<int> plain_axis_required = {1, 3}; // C, W
+        for (auto plain_ax : plain_axis_required) {
+            for (unsigned i = 0; i < in_p2b_map[plain_ax].size(); i++) {
+                auto ax = in_p2b_map[plain_ax][i];
+                inp_slice[ax]
+                        = std::make_pair(expr(0), dim2unsigned(inp_dims[ax]));
+            }
+            for (unsigned i = 0; i < out_p2b_map[plain_ax].size(); i++) {
+                auto ax = out_p2b_map[plain_ax][i];
+                out_slice[ax]
+                        = std::make_pair(expr(0), dim2unsigned(out_dims[ax]));
+            }
         }
+        fsmap.get(get_inputs()[0]) = slice_range_list {inp_slice};
+        fsmap.get(get_inputs()[1]) = slice_range_list {wei_slice};
+        fsmap.get(get_outputs()[0]) = slice_range_list {out_slice};
+    } else {
+        slice_range inp_slice, wei_slice, out_slice;
+        if (!known_ranges_map[0].empty()) {
+            slice_range inp_tmp;
+            inp_tmp = known_ranges_map[0][0];
+            std::vector<int> required_axis;
+            for (unsigned i = 1; i < inp_dims.size(); i++) {
+                required_axis.emplace_back(i);
+            }
+            if (!slice_full_on_axis(inp_dims, inp_tmp, required_axis)) {
+                stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+                return;
+            }
+            inp_slice.emplace_back(known_ranges_map[0][0][0]);
+            out_slice.emplace_back(known_ranges_map[0][0][0]);
+        } else {
+            inp_slice.emplace_back(
+                    std::make_pair(expr(0), dim2unsigned(inp_dims[0])));
+        }
+        if (!known_ranges_map[1].empty()) {
+            auto wei_slice = known_ranges_map[1][0];
+            std::vector<int> required_axis;
+            for (unsigned i = 0; i < wei_dims.size(); i++) {
+                required_axis.emplace_back(i);
+            }
+            if (!slice_full_on_axis(wei_dims, wei_slice, required_axis)) {
+                stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+                return;
+            }
+        }
+        for (unsigned i = 1; i < inp_dims.size(); i++) {
+            inp_slice.emplace_back(
+                    std::make_pair(expr(0), dim2unsigned(inp_dims[i])));
+        }
+        for (unsigned i = 0; i < wei_dims.size(); i++) {
+            wei_slice.emplace_back(
+                    std::make_pair(expr(0), dim2unsigned(wei_dims[i])));
+        }
+        for (unsigned i = 1; i < out_dims.size(); i++) {
+            out_slice.emplace_back(
+                    std::make_pair(expr(0), dim2unsigned(out_dims[i])));
+        }
+        fsmap.get(get_inputs()[0]) = slice_range_list {inp_slice};
+        fsmap.get(get_inputs()[1]) = slice_range_list {wei_slice};
+        fsmap.get(get_outputs()[0]) = slice_range_list {out_slice};
     }
-    for (unsigned i = 1; i < inp_dims.size(); i++) {
-        inp_slice.emplace_back(
-                std::make_pair(expr(0), dim2unsigned(inp_dims[i])));
-    }
-    for (unsigned i = 0; i < wei_dims.size(); i++) {
-        wei_slice.emplace_back(
-                std::make_pair(expr(0), dim2unsigned(wei_dims[i])));
-    }
-    for (unsigned i = 1; i < out_dims.size(); i++) {
-        out_slice.emplace_back(
-                std::make_pair(expr(0), dim2unsigned(out_dims[i])));
-    }
-    fsmap.get(get_inputs()[0]) = slice_range_list {inp_slice};
-    fsmap.get(get_inputs()[1]) = slice_range_list {wei_slice};
-    fsmap.get(get_outputs()[0]) = slice_range_list {out_slice};
 }
+
 void conv_fwd_core_op_t::infer_out_tensor_details() {
     auto &cur_plain_dims = info_.outputs_[0]->details_.get_plain_dims();
     auto &indims = info_.inputs_[0]->details_.get_plain_dims();
@@ -357,6 +488,7 @@ conv_fwd_core_op_t::conv_fwd_core_op_t(const std::vector<graph_tensor_ptr> &ins,
                 data_dtype, weight_dtype, info_.outputs_[0]->details_.dtype_);
     }
 }
+
 bool conv_fwd_core_op_t::use_nested_conv_fwd_generator() {
     bool use_nested = attrs_.get_or_else("use_nested", true);
     if (!use_nested) { return false; }
@@ -381,24 +513,31 @@ bool conv_fwd_core_op_t::use_nested_conv_fwd_generator() {
 }
 
 bool conv_fwd_core_op_t::use_conv1d() {
+    // should be 2d case
     const sc_dims &weight_shape = info_.inputs_[1]->details_.get_plain_dims();
     const sc_dims &data_shape = info_.inputs_[0]->details_.get_plain_dims();
+    if (weight_shape.size() != 4UL) { return false; }
+
+    // not support 1x1 with padding case
     const sc_dims &paddings = attrs_.has_key("pads_begin")
             ? attrs_.get<sc_dims>("pads_begin")
             : attrs_.get<sc_dims>("paddings");
-    const auto &format = get_inputs()[0]->details_.get_format();
-    if (weight_shape.size() != 4UL) { // should be 2d case
-        return false;
-    }
-    sc_dim kh = weight_shape[2], kw = weight_shape[3];
     for (auto &p : paddings) {
         if (p != 0) { return false; }
     }
+
+    // only support 1x1 conv
+    sc_dim kh = weight_shape[2], kw = weight_shape[3];
     if (kh != 1 || kw != 1) { return false; }
+
+    // flatten pass cannot handle other format
+    const auto &format = get_inputs()[0]->details_.get_format();
     if (format != sc_data_format_t::NCHW()
             && format != sc_data_format_t::NHWC()) {
         return false;
     }
+
+    // training case disable
     bool is_weight_constant
             = get_inputs()[1]->producer_owner_->isa<constant_op_t>()
             || get_inputs()[1]->producer_owner_->attrs_.get_or_else(
@@ -407,6 +546,22 @@ bool conv_fwd_core_op_t::use_conv1d() {
                     "constant", const_kind::not_const);
     if (!is_weight_constant) {
         // TODO(zhicong): improve f32/bf16 training fwd config
+        return false;
+    }
+
+    // big data and small weight
+    auto &stride = attrs_.get<sc_dims>("strides");
+    auto weight_size = math_utils::get_dims_product(weight_shape)
+            * utils::get_sizeof_type(info_.inputs_[1]->details_.dtype_);
+    auto image_size = math_utils::get_dims_product(data_shape) / data_shape[0]
+            * utils::get_sizeof_type(info_.inputs_[0]->details_.dtype_);
+    int num_threads = runtime_config_t::get().get_num_threads();
+    auto boundry = 5UL;
+    if (image_size / weight_size > boundry
+            && std::all_of(
+                    stride.begin(), stride.end(), [](int x) { return x == 1; })
+            && data_shape[0] % num_threads == 0) {
+        // disable conv1d to use NH fusion
         return false;
     }
     return true;

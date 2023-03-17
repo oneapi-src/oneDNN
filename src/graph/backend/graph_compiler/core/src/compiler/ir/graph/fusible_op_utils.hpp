@@ -66,6 +66,14 @@ bool slice_full_on_axis(
 bool slice_divisible_on_axis(
         const sc_dims &dim, slice_range ranges, const std::vector<int> &axis);
 
+bool slice_divisible_by_factor(
+        slice_range ranges, const std::vector<int> &axis, const int factor);
+
+bool slice_larger_than_bound_on_axis(slice_range ranges,
+        const std::vector<int> &axis, const int factor, const int lower_bound);
+
+int get_slice_size(const slice_range &ranges, const int dtype_size = 1);
+
 inline uint16_t vectorize_step(const context_ptr &ctx, sc_data_etype detype) {
     return std::min(uint16_t(16), ctx->get_max_vector_lanes(detype));
 }

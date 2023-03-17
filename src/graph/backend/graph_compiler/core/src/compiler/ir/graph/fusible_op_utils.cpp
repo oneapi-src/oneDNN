@@ -908,6 +908,50 @@ bool slice_divisible_on_axis(
     return true;
 }
 
+bool slice_divisible_by_factor(
+        slice_range ranges, const std::vector<int> &axis, const int factor) {
+    for (auto &ax : axis) {
+        auto second = do_cast_and_fold(ranges[ax].second);
+        // slice range length should be divisible by dims
+        if (second.isa<constant>()) {
+            if (get_const_as_int(second.checked_as<constant>()) % factor != 0) {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool slice_larger_than_bound_on_axis(slice_range ranges,
+        const std::vector<int> &axis, const int factor, const int lower_bound) {
+    auto total_len = 1;
+    for (auto &ax : axis) {
+        auto second = do_cast_and_fold(ranges[ax].second);
+        if (second.isa<constant>()) {
+            total_len *= get_const_as_int(second.checked_as<constant>());
+        } else {
+            return false;
+        }
+    }
+    if (total_len / factor < lower_bound) { return false; }
+    return true;
+}
+
+int get_slice_size(const slice_range &ranges, const int dtype_size) {
+    auto total_size = dtype_size;
+    for (auto &range : ranges) {
+        auto second = do_cast_and_fold(range.second);
+        if (second.isa<constant>()) {
+            total_size *= get_const_as_int(second.checked_as<constant>());
+        } else {
+            return -1;
+        }
+    }
+    return total_size;
+}
+
 bool slice_expr_equals(const expr &in1, const expr &in2) {
     auto fin1 = do_cast_and_fold(in1);
     auto fin2 = do_cast_and_fold(in2);

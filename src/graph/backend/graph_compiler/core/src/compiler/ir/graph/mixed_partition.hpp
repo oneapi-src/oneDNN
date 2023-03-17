@@ -470,6 +470,8 @@ size_t get_buffer_usage(const context_ptr &ctx,
         const std::vector<memory_optim::memory_alloc_trace_t> &mem_trace,
         const memory_optim::inplace_info_map &inplace_map);
 
+mixed_fuse_op_t *get_mixed_op_from_graph(sc_graph_t &graph);
+
 void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph);
 
 } // namespace gc

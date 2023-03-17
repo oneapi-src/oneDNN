@@ -70,17 +70,6 @@ static void gtest_graph_driver_before_fusion(
     graph_constant_input_folding(graph, ctx);
 }
 
-static mixed_fuse_op_t *get_mixed_op_from_graph(sc_graph_t &graph) {
-    mixed_fuse_op_t *mixed_op = nullptr;
-    for (auto &op : graph.ops_) {
-        if (auto mx_op = op->dyn_cast<mixed_fuse_op_t>()) {
-            COMPILE_ASSERT(!mixed_op, "Only one fused op is expected")
-            mixed_op = mx_op;
-        }
-    }
-    return mixed_op;
-}
-
 TEST(GCCore_graph_mixed_partition_cpp, TestGraphFuseOpPass) {
     sc_graph_t graph;
 

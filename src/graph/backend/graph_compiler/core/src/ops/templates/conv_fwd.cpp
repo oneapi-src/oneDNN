@@ -89,9 +89,8 @@ void gen_conv_fwd_t::validate_conv_fwd_default_config(
   auto K_block_list = utils::get_blocks(oc_, 16);
   auto C_block_list = utils::get_blocks(ic_, 16);
   auto tile_d_list = utils::get_factors(od_);
-  auto tile_p_list = use_os_blocking
-    ? std::vector<int> {-1}
-    : (dtype_f32 ? std::vector<int> {1} : utils::get_factors(oh_));
+  auto tile_p_list
+    = use_os_blocking ? std::vector<int> {-1} : utils::get_factors(oh_);
   auto tile_q_list
     = use_os_blocking ? std::vector<int> {-1} : utils::get_factors(ow_);
   auto tile_os_list
@@ -188,7 +187,8 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   // large spatial
   bool large_spatial = oh_ * ow_ >= 128 * 128;
   if (large_spatial) {
-    if (ctx->use_amx() && get_weight_dtype() != datatypes::f32) {
+    if ((ctx->use_amx() && get_weight_dtype() != datatypes::f32)
+      || nthreads > mb_) {
       cfg.loop_sched = 2;
     } else {
       cfg.loop_sched = 0;
@@ -197,17 +197,36 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
 
   bool parallel_space_is_enough
     = (mb_ % nthreads == 0 || utils::divide_and_ceil(mb_, nthreads) > 8);
+  auto L2_cache_size = ctx->machine_.cpu_flags_.getDCacheSize(2);
   if (is_1x1_conv_ && (oc_ / ic_ >= 4 && oc_ >= 1024)) { max_oc_block = 128; }
-  // tile_p and tile_q
+  // tile_p
   if (!is_1x1_conv_) {
-    cfg.tile_p = 1;
+    if (mb_ % nthreads == 0) {
+      for (auto p_candidate : tile_p_list) {
+        if (p_candidate
+          >= 8 / static_cast<int>(utils::get_sizeof_type(get_weight_dtype()))) {
+          cfg.tile_p = p_candidate;
+          break;
+        }
+      }
+    } else {
+      // set tile_p == 1 to increase parallel space
+      cfg.tile_p = 1;
+    }
   } else {
-    if (ic_ * oc_ <= 64 * 256 || !parallel_space_is_enough) {
+    if (ow_ >= 32 || !parallel_space_is_enough) {
       cfg.tile_p = 1;
     } else {
       cfg.tile_p = tile_p_list.back();
+      for (auto p_candidate : tile_p_list) {
+        if (p_candidate >= 64 / ow_) {
+          cfg.tile_p = p_candidate;
+          break;
+        }
+      }
     }
   }
+  // tile q
   if (!is_1x1_conv_) {
     cfg.tile_q = tile_q_list.back();
     if (large_spatial) { cfg.tile_q = utils::get_blocks(ow_, 1, 32).back(); }
@@ -218,14 +237,8 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
     } else {
       cfg.tile_q = tile_q_list.back();
     }
-    if (iw_ > 28 && oc_ * ic_ >= 128 * 256) {
-      if (iw_ % 2 == 0) cfg.tile_q = iw_ / 2;
-    }
-    if (ih_ > 28 && oc_ * ic_ >= 128 * 256 && parallel_space_is_enough) {
-      if (ih_ % 2 == 0) cfg.tile_p = ih_ / 2;
-    }
   }
-  if (get_input_dtype() == datatypes::f32) { cfg.tile_p = 1; }
+  if (get_input_dtype() == datatypes::f32 && is_1x1_conv_) { cfg.tile_p = 1; }
   if (try_os_blocking_ && ctx->use_amx()) {
     // if use os blocking override tile p and tile q above
     cfg.tile_os = cfg.tile_q;
@@ -792,9 +805,17 @@ void gen_conv_fwd_t::compute_1x1_no_pack_input(CONV_ARG_LIST) const {
            &lp = loops.at(3);
   auto input_expr_dims = input.checked_as<tensor>()->dims_;
   auto mb_expr_ = input_expr_dims[0];
+  auto toutput = out_tensors_[0];
+  auto out_fmt = toutput.get_format();
+  auto oh_expr_ = oh_;
+  if (!out_fmt.is_any()) {
+    auto out_p2b_map = out_fmt.format_code_.collect_p2b_mapping();
+    oh_expr_ = static_cast<int>(get_expr_as_int(
+      output.checked_as<tensor>()->dims_[out_p2b_map[is_3d_ ? 3 : 2][0]]));
+  }
   _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
     _named_for_(lk, k, 0, K_num_block) {
-      _named_for_(lp, p_o, 0, oh_ / config.tile_p) {
+      _named_for_(lp, p_o, 0, oh_expr_ / config.tile_p) {
         _named_for_(ld, d_o, 0, od_ / config.tile_d) {
           _for_(q_o, 0, ow_ / config.tile_q) {
             _for_(d_i, 0, config.tile_d) {
@@ -939,9 +960,9 @@ void gen_conv_fwd_t::compute_1x1_no_pack_input(CONV_ARG_LIST) const {
     if (fusion) {
       fusion->create_output_fusion_anchor({tensor_slice(output,
         blocking_output_
-          ? slice_range {{n, 1}, {0, K_num_block}, {0, oh_}, {0, ow_},
+          ? slice_range {{n, 1}, {0, K_num_block}, {0, oh_expr_}, {0, ow_},
             {0, config.K_block}}
-          : slice_range {{n, 1}, {0, oh_}, {0, ow_}, {0, oc_}})});
+          : slice_range {{n, 1}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
     }
   }
 }
@@ -954,14 +975,22 @@ void gen_conv_fwd_t::compute_1x1_pack_input(CONV_ARG_LIST) const {
   tensor input1;
   auto input_expr_dims = input.checked_as<tensor>()->dims_;
   auto mb_expr_ = input_expr_dims[0];
+  auto toutput = out_tensors_[0];
+  auto out_fmt = toutput.get_format();
+  auto oh_expr_ = oh_;
+  if (!out_fmt.is_any()) {
+    auto out_p2b_map = out_fmt.format_code_.collect_p2b_mapping();
+    oh_expr_ = static_cast<int>(get_expr_as_int(
+      output.checked_as<tensor>()->dims_[out_p2b_map[is_3d_ ? 3 : 2][0]]));
+  }
   int lanes = get_lanes(ctx, config.C_block, get_input_dtype());
   if (config.pack_input == 1 && (sd_ > 1 || sh_ > 1 || sw_ > 1)) {
     if (blocking_input_) {
       _tensor_(input_tmp, get_input_dtype(),
-        {mb_expr_, C_num_block, oh_, ow_, config.C_block});
+        {mb_expr_, C_num_block, oh_expr_, ow_, config.C_block});
       _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
         _named_for_(lk, c_o, 0, C_num_block) {
-          _named_for_(lp, p, 0, oh_) {
+          _named_for_(lp, p, 0, oh_expr_) {
             _for_(q, 0, ow_) {
               _for_(c_i, 0, config.C_block, (int)lanes) {
                 input_tmp[span_t({n, c_o, p, q, c_i}, lanes)]
@@ -977,9 +1006,9 @@ void gen_conv_fwd_t::compute_1x1_pack_input(CONV_ARG_LIST) const {
       }
       input1 = input_tmp.static_as<tensor>();
     } else {
-      _tensor_(input_tmp, get_input_dtype(), {mb_expr_, oh_, ow_, ic_});
+      _tensor_(input_tmp, get_input_dtype(), {mb_expr_, oh_expr_, ow_, ic_});
       _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
-        _named_for_(lp, p, 0, oh_) {
+        _named_for_(lp, p, 0, oh_expr_) {
           _for_(q, 0, ow_) {
             _for_(c_i, 0, ic_, (int)lanes) {
               input_tmp[span_t({n, p, q, c_i}, lanes)]
@@ -996,7 +1025,7 @@ void gen_conv_fwd_t::compute_1x1_pack_input(CONV_ARG_LIST) const {
   }
   _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
     _named_for_(lk, k, 0, K_num_block) {
-      _named_for_(lp, p_o, 0, oh_ / config.tile_p) {
+      _named_for_(lp, p_o, 0, oh_expr_ / config.tile_p) {
         auto LDA = blocking_input_ ? config.C_block : ic_;
         auto LDC = blocking_output_ ? config.K_block : oc_;
         _tensor_(A_list, datatypes::pointer, {C_num_block});
@@ -1042,10 +1071,10 @@ void gen_conv_fwd_t::compute_1x1_pack_input(CONV_ARG_LIST) const {
       }
       if (fusion) {
         fusion->create_output_fusion_anchor(
-          {blocking_output_ ? tensor_slice(
-             output, {{n, 1}, {k, 1}, {0, oh_}, {0, ow_}, {0, config.K_block}})
+          {blocking_output_ ? tensor_slice(output,
+             {{n, 1}, {k, 1}, {0, oh_expr_}, {0, ow_}, {0, config.K_block}})
                             : tensor_slice(output,
-                              {{n, 1}, {0, oh_}, {0, ow_},
+                              {{n, 1}, {0, oh_expr_}, {0, ow_},
                                 {k * config.K_block, config.K_block}})});
       }
     }
