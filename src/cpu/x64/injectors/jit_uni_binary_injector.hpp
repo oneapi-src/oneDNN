@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,27 +41,16 @@ namespace x64 {
 namespace binary_injector {
 using dnnl::impl::cpu::binary_injector_utils::prepare_binary_args;
 
-bool binary_args_matches_tag(format_tag_t tag, const post_ops_t &post_ops);
-
 bool binary_args_broadcast_supported(const post_ops_t &post_ops,
         const memory_desc_wrapper &dst_d,
         const bcast_set_t &supported_strategy_set);
 
-bool binary_args_tail_supported(const post_ops_t &post_ops,
-        const memory_desc_wrapper &dst_d, int vlen,
-        const bcast_set_t &supported_strategy_set);
-
 bool any_binary_postop_rhs_non_scalar_broadcast(
-        const post_ops_t &post_ops, const memory_desc_wrapper &dst_d);
-bool any_binary_postop_rhs_per_oc_broadcast(
         const post_ops_t &post_ops, const memory_desc_wrapper &dst_d);
 bool any_binary_postop_rhs_per_oc_broadcast(const post_ops_t &post_ops,
         const memory_desc_wrapper &dst_d,
         const bcast_set_t &supported_strategy_set);
 
-bool all_binary_postop_rhs_per_oc_broadcast(const post_ops_t &post_ops,
-        const memory_desc_wrapper &dst_d,
-        const std::function<bool(const memory_desc_wrapper &)> &predicate);
 bool all_binary_postop_rhs_per_oc_broadcast(const post_ops_t &post_ops,
         const memory_desc_wrapper &dst_d,
         const bcast_set_t &supported_strategy_set,
