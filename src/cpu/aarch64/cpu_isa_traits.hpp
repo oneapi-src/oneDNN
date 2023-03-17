@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2018-2023 Intel Corporation
 * Copyright 2020-2023 FUJITSU LIMITED
+* Copyright 2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,6 +66,7 @@ enum cpu_isa_bit_t : unsigned {
     sve_256_bit = 1u << 2,
     sve_384_bit = 1u << 3,
     sve_512_bit = 1u << 4,
+    bf16_bit = 1u << 5
 };
 
 enum cpu_isa_t : unsigned {
@@ -74,6 +76,7 @@ enum cpu_isa_t : unsigned {
     sve_256 = sve_256_bit | sve_128,
     sve_384 = sve_384_bit | sve_256,
     sve_512 = sve_512_bit | sve_384,
+    feat_bf16 = ebf16_bit,
     isa_all = ~0u,
 };
 
@@ -196,6 +199,7 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
         case sve_512:
             return cpu().has(XBYAK_AARCH64_HWCAP_SVE)
                     && cpu().getSveLen() >= SVE_512;
+        case feat_bf16: return getauxval(AT_HWCAP2) & (1UL << 14);
         case isa_undef: return true;
         case isa_all: return false;
     }
