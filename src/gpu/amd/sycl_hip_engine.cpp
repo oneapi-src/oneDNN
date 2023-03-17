@@ -23,6 +23,7 @@
 #include "sycl/sycl_utils.hpp"
 
 #include "gpu/amd/miopen_binary.hpp"
+#include "gpu/amd/miopen_convolution.hpp"
 #include "gpu/amd/miopen_eltwise.hpp"
 #include "gpu/amd/miopen_gemm_inner_product.hpp"
 #include "gpu/amd/miopen_lrn.hpp"
@@ -186,6 +187,10 @@ constexpr dnnl::impl::impl_list_item_t sycl_hip_impl_list[] = {
         INSTANCE(miopen_gemm_inner_product_fwd_t)
         INSTANCE(miopen_gemm_inner_product_bwd_data_t)
         INSTANCE(miopen_gemm_inner_product_bwd_weights_t)
+        // Convolution
+        INSTANCE(miopen_convolution_fwd_t)
+        INSTANCE(miopen_convolution_bwd_data_t)
+        INSTANCE(miopen_convolution_bwd_weights_t)
         nullptr,
 };
 // clang-format on

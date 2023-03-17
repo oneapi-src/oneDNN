@@ -211,6 +211,8 @@ enum {
     key_conv_wei_bia_reduction_bctx,
     key_conv_zero_point_flag,
     key_conv_zero_point_pad,
+    key_conv_miopen_algo,
+    key_conv_miopen_filter,
     key_deconv_bias,
     key_deconv_sum,
     key_deconv_zp,
