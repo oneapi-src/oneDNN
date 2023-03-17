@@ -138,10 +138,7 @@ struct lru_cache_t final : public cache_t<K, O, C, key_merge> {
     using object_t = typename lru_base_t::object_t;
     using cache_object_t = typename lru_base_t::cache_object_t;
     using value_t = typename lru_base_t::value_t;
-    lru_cache_t(int capacity) : capacity_(capacity) {
-        cache_mapper_ = utils::make_unique<
-                std::unordered_map<key_t, timed_entry_t>>();
-    }
+    lru_cache_t(int capacity) : capacity_(capacity) {}
 
     ~lru_cache_t() override {
         if (cache_mapper().empty()) return;
@@ -153,7 +150,7 @@ struct lru_cache_t final : public cache_t<K, O, C, key_merge> {
         HMODULE handle = LoadLibraryExA(
                 "ntdll.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
         if (!handle) {
-            cache_mapper_.release();
+            release_cache();
             return;
         }
 
@@ -166,7 +163,7 @@ struct lru_cache_t final : public cache_t<K, O, C, key_merge> {
             auto ret = FreeLibrary(handle);
             assert(ret);
             MAYBE_UNUSED(ret);
-            cache_mapper_.release();
+            release_cache();
             return;
         }
 
@@ -190,7 +187,7 @@ struct lru_cache_t final : public cache_t<K, O, C, key_merge> {
                     ++it;
                 }
             }
-            cache_mapper_.release();
+            release_cache();
         } else {
             // Three scenarios possible:
             //    1. oneDNN is being dynamically unloaded
@@ -199,13 +196,11 @@ struct lru_cache_t final : public cache_t<K, O, C, key_merge> {
             //    3. oneDNN is statically linked in an executable which is done
             //       and now the process terminates In all these scenarios
             //       content of the cache can be safely destroyed.
-            cache_mapper_.reset();
         }
 #else
-        // Always destroy the content of the cache for non-Windows OSes, and
-        // non-sycl and non-ocl runtimes because there is no a problem with
-        // library unloading order in such cases.
-        cache_mapper_.reset();
+            // Always destroy the content of the cache for non-Windows OSes, and
+            // non-sycl and non-ocl runtimes because there is no a problem with
+            // library unloading order in such cases.
 #endif
     }
 
@@ -402,18 +397,25 @@ private:
     };
 
     std::unordered_map<key_t, timed_entry_t> &cache_mapper() {
-        return *cache_mapper_;
+        return cache_mapper_;
     }
 
     const std::unordered_map<key_t, timed_entry_t> &cache_mapper() const {
-        return *cache_mapper_;
+        return cache_mapper_;
     }
 
+    // Leaks cached resources. Used to avoid issues with calling destructors
+    // allocated by an already unloaded dynamic library.
+    void release_cache() {
+        auto t = utils::make_unique<std::unordered_map<key_t, timed_entry_t>>();
+        std::swap(*t, cache_mapper_);
+        t.release();
+    }
     // Each entry in the cache has a corresponding key and timestamp. NOTE:
     // pairs that contain atomics cannot be stored in an unordered_map *as an
     // element*, since it invokes the copy constructor of std::atomic, which is
     // deleted.
-    std::unique_ptr<std::unordered_map<key_t, timed_entry_t>> cache_mapper_;
+    std::unordered_map<key_t, timed_entry_t> cache_mapper_;
 };
 
 } // namespace utils
