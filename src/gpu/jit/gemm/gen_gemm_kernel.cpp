@@ -63,6 +63,16 @@ status_t gen_gemm_kernel_desc_t::finalize() {
         strategy_.panelCheck |= (hw_ >= ngen::HW::XeHPC);
     adjustStrategy(hw_, problem_, strategy_);
 
+    // Disable global k parallelization if it wouldn't be used.
+    if (strategy_.kParallel && k_ >= 0) {
+        auto k_min = aux_params_.k0;
+        if (strategy_.kParallelLocal) k_min *= strategy_.wg[LoopK];
+        if (k_ <= k_min) {
+            strategy_.kParallel = false;
+            strategy_.C.atomic = false;
+        }
+    }
+
     // Always use variable beta for global k-parallel kernels.
     if (strategy_.kParallel) problem_.beta_real = Scalar<double>();
 
