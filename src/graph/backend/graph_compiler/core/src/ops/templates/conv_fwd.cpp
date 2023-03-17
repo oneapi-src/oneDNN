@@ -2239,16 +2239,24 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
   const bool use_os_blocking = try_os_blocking_ && ctx->use_amx();
   const bool pack_rows = use_os_blocking && (tile_os > 0 && ow_ % tile_os != 0);
   int os = actual_os_;
-
-  COMPILE_ASSERT(K_block && (oc_ % K_block == 0),
-    "oc should be dividable by K_block, but got oc=" << oc_ << " K_block="
-                                                     << K_block << ".");
-  COMPILE_ASSERT(C_block && (ic_ % C_block == 0),
-    "ic should be dividable by C_block, but got ic=" << ic_ << " C_block="
-                                                     << C_block << ".");
-  COMPILE_ASSERT(tile_d && (od_ % tile_d == 0),
-    "od should be dividable by tile_d, but got od=" << od_ << " tile_d="
-                                                    << tile_d << ".");
+  if (use_conv1d) {
+    COMPILE_ASSERT(im_oc_block_ && (oc_ % im_oc_block_ == 0),
+      "oc should be dividable by K_block, but got oc=" << oc_ << " K_block="
+                                                       << im_oc_block_ << ".");
+    COMPILE_ASSERT(im_ic_block_ && (ic_ % im_ic_block_ == 0),
+      "ic should be dividable by C_block, but got ic=" << ic_ << " C_block="
+                                                       << im_ic_block_ << ".");
+  } else {
+    COMPILE_ASSERT(K_block && (oc_ % K_block == 0),
+      "oc should be dividable by K_block, but got oc=" << oc_ << " K_block="
+                                                       << K_block << ".");
+    COMPILE_ASSERT(C_block && (ic_ % C_block == 0),
+      "ic should be dividable by C_block, but got ic=" << ic_ << " C_block="
+                                                       << C_block << ".");
+    COMPILE_ASSERT(tile_d && (od_ % tile_d == 0),
+      "od should be dividable by tile_d, but got od=" << od_ << " tile_d="
+                                                      << tile_d << ".");
+  }
 
   // kpack is used to determine the vnni block format
   //  +----+--------------+
