@@ -14,7 +14,10 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include <atomic>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/visitor.hpp>
@@ -92,6 +95,11 @@ public:
                 if (!dst_dtype.is_etype(sc_data_etype::F32)) {
                     return transform_reduce(
                             vv->args_[0], dst_dtype, &builder::make_reduce_mul);
+                }
+            } break;
+            case intrin_type::gather: {
+                if (vv->dtype_.lanes_ == 1) {
+                    return builder::make_indexing(vv->args_[0], {vv->args_[1]});
                 }
             } break;
             default: break;

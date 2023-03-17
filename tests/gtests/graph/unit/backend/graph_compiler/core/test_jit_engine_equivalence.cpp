@@ -100,6 +100,11 @@ static map<string, shared_ptr<jit_engine_t>> test_jit_engines = get_engines();
         -64.1, -32.9, -16.2, -8.8, -4.3, -2.7, -1.4, 0.6, 0.5, 1.5, 2.6, 4.4, \
                 8.7, 16.3, 32.8, 64.2 \
     }
+#define DATASET_F4 \
+    { \
+        -64.1, -32.9, -16.2, -8.8, -4.3, -2.7, -1.4, 0.6, 1.16, 2.15, 3.14, \
+                4.13, 5.12, 6.11, 7.10, 8.9 \
+    }
 #define DATASET_BF1 \
     { \
         0x3f94, 0x400a, 0x4049, 0x4084, 0x40a4, 0x40c4, 0x40e3, 0x410e, \
@@ -1030,6 +1035,64 @@ TEST(GCCore_jit_engine_equivalence, TestIntrinsicBroadcast) {
     }
 }
 
+TEST(GCCore_jit_engine_equivalence, TestIntrinsicGather) {
+    REQUIRE_AVX512();
+    ir_builder_t builder;
+
+    // We'll use over-sized tensors to help us notice errors in the indexing
+    // calculations.
+    const int simd_lanes = 16;
+    const int num_elems = simd_lanes;
+
+    _function_(datatypes::void_t, foo,
+            _arg_("tensor_out", datatypes::f32, {num_elems}),
+            _arg_("tensor_in", datatypes::f32, {num_elems}),
+            _arg_("tensor_idx", datatypes::s32, {num_elems})) {
+        _bind_(tensor_out, tensor_in, tensor_idx);
+        tensor_out[span_t({0}, simd_lanes)]
+                = make_gather(tensor_in, tensor_idx[span_t({0}, simd_lanes)]);
+    }
+
+    ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
+            get_default_context(), vector<func_t> {foo}, 0);
+
+    for (auto &kv : test_jit_engines) {
+        ostringstream err_context;
+        const string &je_name = kv.first;
+        err_context << "jit_engine_t class '" << je_name << "'";
+        SCOPED_TRACE(err_context.str());
+
+        shared_ptr<jit_engine_t> je = kv.second;
+        EXPECT_NE(je, nullptr);
+        if (!je) { continue; }
+
+        shared_ptr<jit_module> jm = je->make_jit_module(ir_mod, true);
+        EXPECT_NE(jm, nullptr);
+
+        shared_ptr<jit_function_t> j_foo = jm->get_function("foo");
+
+        EXPECT_NE(j_foo, nullptr);
+        if (!j_foo) { continue; }
+
+        float host_tensor_out[num_elems] = {
+                -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+        float host_tensor_in[num_elems] = DATASET_I1;
+        int host_tensor_idx[num_elems] = DATASET_I2;
+        host_tensor_idx[0] = 0;
+        const float expected_result[num_elems]
+                = {1, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2};
+
+        generic_val generic_args[]
+                = {&host_tensor_out, &host_tensor_in, &host_tensor_idx};
+
+        j_foo->call_generic_default(generic_args);
+
+        for (int i = 0; i < num_elems; ++i) {
+            EXPECT_EQ(host_tensor_out[i], expected_result[i]);
+        }
+    }
+}
+
 TEST(GCCore_jit_engine_equivalence, TestModuleVar) {
     ir_builder_t builder;
 
@@ -1578,6 +1641,47 @@ TEST(GCCore_test_jit_engine_equivalence, TestOpMod) {
 #undef REF_MOD
 }
 
+TEST(GCCore_test_jit_engine_equivalence, TestOpCmp) {
+    REQUIRE_AVX512();
+    const int num_lanes = 16;
+#define REF_EQ(IN, LANES, I) (IN[0][I] == IN[1][I])
+    // data_type: float32
+    TEST_OP(BINARY, EXACT, float, bool, datatypes::f32, datatypes::boolean,
+            DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_EQ,
+            MAKE_BINARY_OP(make_cmp_eq), DATASET_F3, DATASET_F4);
+#undef REF_EQ
+#define REF_NE(IN, LANES, I) (IN[0][I] != IN[1][I])
+    // data_type: float32
+    TEST_OP(BINARY, EXACT, float, bool, datatypes::f32, datatypes::boolean,
+            DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_NE,
+            MAKE_BINARY_OP(make_cmp_ne), DATASET_F3, DATASET_F4);
+#undef REF_NE
+#define REF_LT(IN, LANES, I) (IN[0][I] < IN[1][I])
+    // data_type: float32
+    TEST_OP(BINARY, EXACT, float, bool, datatypes::f32, datatypes::boolean,
+            DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_LT,
+            MAKE_BINARY_OP(make_cmp_lt), DATASET_F3, DATASET_F4);
+#undef REF_LT
+#define REF_LE(IN, LANES, I) (IN[0][I] <= IN[1][I])
+    // data_type: float32
+    TEST_OP(BINARY, EXACT, float, bool, datatypes::f32, datatypes::boolean,
+            DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_LE,
+            MAKE_BINARY_OP(make_cmp_le), DATASET_F3, DATASET_F4);
+#undef REF_LE
+#define REF_GT(IN, LANES, I) (IN[0][I] > IN[1][I])
+    // data_type: float32
+    TEST_OP(BINARY, EXACT, float, bool, datatypes::f32, datatypes::boolean,
+            DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_GT,
+            MAKE_BINARY_OP(make_cmp_gt), DATASET_F3, DATASET_F4);
+#undef REF_GT
+#define REF_GE(IN, LANES, I) (IN[0][I] >= IN[1][I])
+    // data_type: float32
+    TEST_OP(BINARY, EXACT, float, bool, datatypes::f32, datatypes::boolean,
+            DATA_LEN_16, num_lanes, TEST_SCALAR, SKIP_SIMD, REF_GE,
+            MAKE_BINARY_OP(make_cmp_ge), DATASET_F3, DATASET_F4);
+#undef REF_GE
+}
+
 TEST(GCCore_test_jit_engine_equivalence, TestIntrinMin) {
     REQUIRE_AVX512();
     const int num_lanes = 16;
@@ -1631,6 +1735,17 @@ TEST(GCCore_test_jit_engine_equivalence, TestIntrinExp) {
             DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_EXP,
             MAKE_UNARY_OP(make_exp), DATASET_F3);
 #undef REF_EXP
+}
+
+TEST(GCCore_test_jit_engine_equivalence, TestIntrinLog) {
+    REQUIRE_AVX512();
+    const int num_lanes = 16;
+#define REF_LOG(IN, LANES, I) (logf(IN[0][I]))
+    // data_type: float_32
+    TEST_OP(UNARY, APPROX, float, float, datatypes::f32, datatypes::f32,
+            DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_LOG,
+            MAKE_UNARY_OP(make_log), DATASET_F1);
+#undef REF_LOG
 }
 
 TEST(GCCore_test_jit_engine_equivalence, TestIntrinFmadd) {

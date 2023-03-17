@@ -51,7 +51,17 @@
     F(managed_matmul_core); \
     F(select); \
     F(layernorm); \
-    F(gelu);
+    F(gelu); \
+    F(abs); \
+    F(elu); \
+    F(hardswish); \
+    F(log); \
+    F(mish); \
+    F(pow); \
+    F(soft_plus); \
+    F(square); \
+    F(swish); \
+    F(prelu);
 
 #define DECL_INIT(NAME) extern volatile bool __help_dummy_##NAME;
 

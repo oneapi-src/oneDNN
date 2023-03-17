@@ -35,6 +35,7 @@ enum class elt_operator {
     MIN,
     MAX,
     SQD_DIFF,
+    PRELU,
 };
 
 class binary_elementwise_op_impl_t : public binary_elementwise_op_t {
@@ -200,6 +201,21 @@ public:
         : binary_elementwise_op_impl_t(ins, outs, attrs) {
         set_elt_operator(elt_operator::SQD_DIFF);
         op_name_ = "squared_diff";
+    }
+};
+
+// parameter version of leaky_relu.
+class prelu_op_t : public binary_elementwise_op_impl_t {
+public:
+    prelu_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
+            bool vectorized = false, int inplace = 0)
+        : binary_elementwise_op_impl_t(
+                std::move(lhs), std::move(rhs), elt_operator::PRELU, inplace) {}
+    prelu_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
+        : binary_elementwise_op_impl_t(ins, outs, attrs) {
+        set_elt_operator(elt_operator::PRELU);
+        op_name_ = "prelu";
     }
 };
 

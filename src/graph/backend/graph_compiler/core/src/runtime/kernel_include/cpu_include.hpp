@@ -211,6 +211,14 @@ inline int32_t sc_round_and_cast(const float &v) {
     return std::roundf(v);
 }
 
+inline float sc_gather(float const *a, int const &b) {
+    return a[b];
+}
+
+inline float sc_pow(float const &a, float const &b) {
+    return powf(a, b);
+}
+
 #ifdef __AVX512F__
 INLINE vec_f32x16 sc_permutex2var(
         vec_f32x16 const &a, vec_u32x16 const &idx, vec_f32x16 const &b) {
@@ -222,7 +230,7 @@ INLINE vec_f32x4 sc_permutex2var(
 }
 #endif
 
-#include "x86simd/vector_cast.hpp"
 #include "x86simd/vector_maskloadstore.hpp"
+#include "x86simd/vector_utils.hpp"
 
 #endif

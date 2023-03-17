@@ -20,6 +20,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/pass/ir_copy_internal.hpp>
 #include <compiler/ir/transform/func_inline.hpp>
+#include <compiler/ir/util_module_passes.hpp>
 #include <unordered_map>
 #include <util/any_map.hpp>
 
@@ -115,14 +116,21 @@ public:
     int recursions = 0;
     // the current insertion point within a stmts_node_t
     insertion_point_t *ins_point = nullptr;
-
+    const std::vector<define> *module_vars_ = nullptr;
+    func_inliner_impl_t(const std::vector<define> *module_vars = nullptr)
+        : module_vars_(module_vars) {}
     expr_c visit(call_c v) override {
         bool is_parallel_call = bool(!v->para_attr_.empty());
         auto ret = ir_visitor_t::visit(std::move(v));
         if (!is_parallel_call && ret->attr_
                 && ret->attr_->has_key("inline_level")
-                && ret->attr_->get<int>("inline_level") == 2)
-            return inline_at(ret.checked_as<call>());
+                && ret->attr_->get<int>("inline_level") == 2) {
+            if (module_vars_) {
+                return inline_at(ret.checked_as<call>(), *module_vars_);
+            } else {
+                return inline_at(ret.checked_as<call>());
+            }
+        }
         return ret;
     }
 
@@ -274,9 +282,14 @@ expr_c func_inliner_t::inline_at(call_c c, std::vector<stmt> &seq,
     return impl.inline_at(std::move(c), module_vars);
 }
 
+const_ir_module_ptr func_inliner_t::operator()(const_ir_module_ptr f) {
+    func_inliner_impl_t impl(&f->get_module_vars());
+    return dispatch_module_on_visitor(&impl, f);
+}
+
 func_c func_inliner_t::operator()(func_c f) {
     func_inliner_impl_t impl;
-    return impl.dispatch(f);
+    return impl.dispatch(std::move(f));
 };
 
 } // namespace gc

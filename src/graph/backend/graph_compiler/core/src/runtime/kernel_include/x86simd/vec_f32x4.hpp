@@ -136,4 +136,12 @@ INLINE vec_f32x4 sc_rsqrt(vec_f32x4 const &a) {
     return _mm_rsqrt_ps(a.v);
 }
 
+INLINE vec_f32x4 sc_pow(vec_f32x4 const &a, vec_f32x4 const &b) {
+    vec_f32x4 c;
+    for (int i = 0; i < 4; i++) {
+        c.raw[i] = powf(a.raw[i], b.raw[i]);
+    }
+    return c;
+}
+
 #endif

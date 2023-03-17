@@ -385,6 +385,13 @@ expr make_ceil(const expr_c &v);
 expr make_exp(const expr_c &v);
 
 /**
+ * Makes a log node
+ * @param v the input value
+ * @return the created node
+ * */
+expr make_log(const expr_c &v);
+
+/**
  * Makes an sqrt node
  * @param v the input value
  * @return the created node
@@ -549,6 +556,16 @@ expr make_shuffle(const expr_c &v_a, const expr_c &v_b, const int &v_c);
  * @return the created node
  * */
 expr make_permute(const expr_c &v_a, const expr_c &v_b, const int &v_c);
+
+/**
+ * Makes an gather node
+ * Gather elements from memory.
+ * dst = __mm512{*(addr + indices[0]), *(addr + indices[1]), ...}
+ * @param addr the base addr value, usually has pointer dtype.
+ * @param indices the index list, usually use a simd var.
+ * @return the created node
+ * */
+expr make_gather(const expr_c &addr, const expr_c &indices);
 
 /**
  * Makes a cmp_eq (==) node

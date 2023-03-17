@@ -18,7 +18,7 @@
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_FUNC_INLINE_HPP
 
 #include <vector>
-#include "../function_pass.hpp"
+#include "../module_pass.hpp"
 #include "../sc_function.hpp"
 #include <compiler/ir/pass_dep_util.hpp>
 
@@ -31,9 +31,10 @@ namespace gc {
  * Inlines function calls with attr["inline_level"] = 2
  * Or manually inline a call_node
  * */
-class func_inliner_t : public function_pass_t {
+class func_inliner_t : public module_pass_t {
 public:
-    func_c operator()(func_c f) override;
+    const_ir_module_ptr operator()(const_ir_module_ptr f) override;
+    func_c operator()(func_c f);
     /**
      * Inlines the function call and inserts the body to an existing stmt array
      *

@@ -137,6 +137,13 @@ namespace xbyak {
         (GEN).INS(OP_1.get_operand(), OP_2.get_xmm(), OP_3.get_imm()); \
     }
 
+#define AVX_X_M(GEN, INS, OP_1, OP_2) \
+    { \
+        COMPILE_ASSERT(OP_1.is_xyz() && OP_2.is_addr(), \
+                "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2); \
+        (GEN).INS(OP_1.get_xmm(), OP_2.get_addr()); \
+    }
+
 #define AVX_X_XM(GEN, INS, OP_1, OP_2) \
     { \
         COMPILE_ASSERT(OP_1.is_xyz() && OP_2.is_x_m(), \

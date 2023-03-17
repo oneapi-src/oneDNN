@@ -40,8 +40,18 @@ void ir_printer_t::view(constant_c v) {
                         == 0) {
                     os_ << v->value_[i].f32 << ".f";
                 } else {
-                    os_.precision(std::numeric_limits<float>::max_digits10);
-                    os_ << v->value_[i].f32;
+                    if (std::isnan(v->value_[i].f32)) {
+                        os_ << "NAN";
+                    } else if (std::isinf(v->value_[i].f32)) {
+                        if (v->value_[i].s64 & 0x80000000) {
+                            os_ << "-INFINITY";
+                        } else {
+                            os_ << "INFINITY";
+                        }
+                    } else {
+                        os_.precision(std::numeric_limits<float>::max_digits10);
+                        os_ << v->value_[i].f32;
+                    }
                 }
                 break;
             }

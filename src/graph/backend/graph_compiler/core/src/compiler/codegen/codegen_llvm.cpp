@@ -1286,6 +1286,10 @@ public:
                 current_val_ = call_unary_llvm_intrin(
                         v, cate, Intrinsic::floor, true);
             } break;
+            case intrin_type::log: {
+                current_val_
+                        = call_unary_llvm_intrin(v, cate, Intrinsic::log, true);
+            } break;
             case intrin_type::max: {
                 if (cate == CATE_FLOAT) {
                     current_val_ = call_binary_llvm_intrin(
@@ -1639,6 +1643,57 @@ public:
                                 /*locality*/
                                 builder_.getInt32(3 - locality),
                                 /*type:i/d*/ builder_.getInt32(1)});
+            } break;
+            case intrin_type::gather: {
+                assert(v->args_.size() == 2);
+                COMPILE_ASSERT(v->dtype_.is_etype(sc_data_etype::F32),
+                        "Expecting f32 for gather: " << v);
+                auto inval1 = builder_.CreatePointerCast(
+                        generate_expr(v->args_[0]), builder_.getInt8PtrTy());
+                auto inval2 = generate_expr(v->args_[1]);
+                auto full_mask = generate_expr(make_expr<constant_node>(
+                        std::vector<union_val>(
+                                v->dtype_.lanes_, UINT64_C(0xffffffff)),
+                        v->dtype_));
+                auto dummy_vec = generate_expr(make_expr<constant_node>(
+                        std::vector<union_val>(v->dtype_.lanes_, UINT64_C(0)),
+                        v->dtype_));
+                switch (v->dtype_.lanes_) {
+                    case 1: {
+                        auto indexing = make_expr<indexing_node>(v->args_[0],
+                                std::vector<expr> {v->args_[1]}, expr());
+                        current_val_ = generate_expr(indexing);
+                        break;
+                    }
+                    case 4:
+                        current_val_ = builder_.CreateIntrinsic(
+                                Intrinsic::x86_avx2_gather_d_ps, {},
+                                {dummy_vec, inval1, inval2, full_mask,
+                                        builder_.getInt8(4)});
+                        break;
+                    case 8:
+                        current_val_ = builder_.CreateIntrinsic(
+                                Intrinsic::x86_avx2_gather_d_ps_256, {},
+                                {dummy_vec, inval1, inval2, full_mask,
+                                        builder_.getInt8(4)});
+                        break;
+                    case 16: {
+                        COMPILE_ASSERT(ctx_->machine_.cpu_flags_.fAVX512F,
+                                "gather of 16 floats needs AVX512");
+                        current_val_ = builder_.CreateIntrinsic(
+                                Intrinsic::x86_avx512_gather_dps_512, {},
+                                {dummy_vec, inval1, inval2,
+                                        builder_.getInt16(0xffff),
+                                        builder_.getInt32(4)});
+                        break;
+                    }
+                    default:
+                        COMPILE_ASSERT(false,
+                                "LLVM backend has not yet support "
+                                "gather with lanes = "
+                                        << v->dtype_.lanes_);
+                        break;
+                }
             } break;
             default: {
                 std::stringstream ss;

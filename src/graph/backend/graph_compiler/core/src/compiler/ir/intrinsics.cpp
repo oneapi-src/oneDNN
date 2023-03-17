@@ -112,6 +112,14 @@ struct exp_handler_t : public intrinsic_handler_t {
     exp_handler_t() : intrinsic_handler_t("exp") {}
 };
 
+struct log_handler_t : public intrinsic_handler_t {
+    void on_initialize(intrin_call_node &node) override {
+        assert(node.args_.size() == 1);
+        node.dtype_ = node.args_[0]->dtype_;
+    }
+    log_handler_t() : intrinsic_handler_t("log") {}
+};
+
 struct sqrt_handler_t : public intrinsic_handler_t {
     void on_initialize(intrin_call_node &node) override {
         assert(node.args_.size() == 1);
@@ -209,6 +217,15 @@ struct reinterpret_handler_t : public intrinsic_handler_t {
 
 struct permutex2var_handler_t : public trinary_intrinsic_handler_t {
     permutex2var_handler_t() : trinary_intrinsic_handler_t("permutex2var") {}
+};
+
+struct gather_handler_t : public binary_intrinsic_handler_t {
+    gather_handler_t() : binary_intrinsic_handler_t("gather") {}
+    void on_initialize(intrin_call_node &node) override {
+        assert(node.args_[1]->dtype_.is_etype(sc_data_etype::S32));
+        node.dtype_ = node.args_[0]->dtype_.get_pointer_element();
+        node.dtype_.lanes_ = node.args_[1]->dtype_.lanes_;
+    }
 };
 
 struct round_and_cast_handler_t : public intrinsic_handler_t {
@@ -434,6 +451,7 @@ static std::unique_ptr<intrinsic_handler_t> handlers[] = {
         utils::make_unique<floor_handler_t>(),
         utils::make_unique<ceil_handler_t>(),
         utils::make_unique<exp_handler_t>(),
+        utils::make_unique<log_handler_t>(),
         utils::make_unique<sqrt_handler_t>(),
         utils::make_unique<rsqrt_handler_t>(),
         utils::make_unique<reduce_add_handler_t>(),
@@ -456,6 +474,7 @@ static std::unique_ptr<intrinsic_handler_t> handlers[] = {
         utils::make_unique<shl_handler_t>(),
         utils::make_unique<shr_handler_t>(),
         utils::make_unique<permutex2var_handler_t>(),
+        utils::make_unique<gather_handler_t>(),
         utils::make_unique<read_struct_handler_t>(),
         utils::make_unique<write_struct_handler_t>(),
         utils::make_unique<set_thread_idle_func_handler_t>(),

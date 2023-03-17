@@ -133,6 +133,7 @@ static handler_table register_handlers() {
     REGISTER_INTRIN("AVX_MASK_MOV", avx, mask_mov, undefined, _2A_);
 
     REGISTER_INTRIN("AVX_CMOV", avx, cmov, directed_dst_mem, _2A_);
+    REGISTER_INTRIN("AVX_MOVD", avx, movd, directed_dst_mem, _2A_);
 
     REGISTER_INTRIN("AVX_ADD", avx, add, directed_end_mem, _3A_);
     REGISTER_INTRIN("AVX_SUB", avx, sub, directed_end_mem, _3A_);
@@ -165,6 +166,7 @@ static handler_table register_handlers() {
 
     REGISTER_INTRIN("AVX_SHUFFLE", avx, shuffle, directed_end_mem, _4A_);
     REGISTER_INTRIN("AVX_PERMUTE", avx, permute, directed_end_mem, _4A_);
+    REGISTER_INTRIN("AVX_GATHER", avx, gather, directed_all_reg, _3A_);
 
     REGISTER_INTRIN("AVX_BROADCAST", avx, broadcast, directed_end_mem, _2A_);
 

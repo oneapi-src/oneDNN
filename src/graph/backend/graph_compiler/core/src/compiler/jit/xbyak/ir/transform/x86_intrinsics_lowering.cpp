@@ -307,6 +307,11 @@ public:
                         transform_disabled("permute"),
                         transform_intrin(xbyak_intrin_type::permute));
             } break;
+            case intrin_type::gather: {
+                transform(dst, {intrin->args_[0], intrin->args_[1]},
+                        dst->dtype_, //
+                        transform_disabled("gather"), transform_gather());
+            } break;
             case intrin_type::int_and: {
                 transform(dst, {intrin->args_[0], intrin->args_[1]},
                         dst->dtype_, //
@@ -464,12 +469,33 @@ public:
 
     void transform_cmp_set(const expr &dst, const cmp &src, sc_expr_type t) {
         const sc_data_type_t cmp_dtype = src->l_->dtype_;
+        auto code = get_xbyak_condition(t);
         auto isa = convert_x86_operation(cmp_dtype) ? xbyak_intrin_isa::x86
                                                     : xbyak_intrin_isa::avx;
-        add_assignment(dst,
-                make_xbyak_intrin(dst->dtype_, {src->l_, src->r_},
-                        xbyak_intrin_type::cmp_set, isa,
-                        xbyak_intrin_modifier(get_xbyak_condition(t))));
+        if (cmp_dtype == datatypes::f32) {
+            // vcmpss  xmm0, xmm1, xmm2
+            // vmovd   eax, xmm0
+            // and     eax, 1
+            auto xmm0 = make_physical_reg(datatypes::f32, x86_64::regs::xmm0);
+            add_defination(xmm0, linkage::local);
+            add_assignment(xmm0,
+                    make_xbyak_intrin(datatypes::f32, {src->l_, src->r_},
+                            xbyak_intrin_type::cmp_set, xbyak_intrin_isa::avx,
+                            xbyak_intrin_modifier(code)));
+            add_assignment(dst,
+                    make_xbyak_intrin(dst->dtype_, {xmm0},
+                            xbyak_intrin_type::movd, xbyak_intrin_isa::avx));
+            add_assignment(dst,
+                    make_xbyak_intrin(dst->dtype_,
+                            {builder::make_constant(
+                                    {UINT64_C(1)}, datatypes::u8)},
+                            xbyak_intrin_type::bit_and, xbyak_intrin_isa::x86));
+        } else {
+            add_assignment(dst,
+                    make_xbyak_intrin(dst->dtype_, {src->l_, src->r_},
+                            xbyak_intrin_type::cmp_set, isa,
+                            xbyak_intrin_modifier(code)));
+        }
     }
 
     // --------------------------------
@@ -499,6 +525,13 @@ public:
         return [this](const expr &dst, array_ref<expr> src,
                        sc_data_type_t dtype,
                        xbyak_intrin_isa isa) { add_assignment(dst, src[0]); };
+    }
+
+    transform_func transform_gather() {
+        return [this](const expr &dst, array_ref<expr> src,
+                       sc_data_type_t dtype, xbyak_intrin_isa isa) {
+            transform_gather(dst, src[0], src[1]);
+        };
     }
 
     transform_func transform_intrin(xbyak_intrin_type intrin) {
@@ -753,6 +786,27 @@ public:
             }
         }
         add_assignment(dst, src);
+    }
+
+    void transform_gather(const expr &dst, const expr &src, const expr &idx) {
+        assert(dst->dtype_.lanes_ > 1);
+        // make sure dst and idx use different xmm reg
+        auto xmm0 = make_physical_reg(dst->dtype_, x86_64::regs::xmm0);
+        auto xmm1 = make_physical_reg(idx->dtype_, x86_64::regs::xmm1);
+        add_defination(xmm0, linkage::local);
+        add_defination(xmm1, linkage::local);
+        // get mask with all bits is 1
+        uint64_t imm = (1 << (dst->dtype_.lanes_)) - 1;
+        auto mask = builder::make_constant({imm}, datatypes::u32);
+        // get avx512 mask
+        auto cond = cast_when_mask(std::move(mask), dst->dtype_);
+        // transform gather intrin
+        add_assignment(xmm1, idx);
+        add_assignment(xmm0,
+                make_xbyak_intrin(dst->dtype_, {src, xmm1},
+                        xbyak_intrin_type::gather, xbyak_intrin_isa::avx,
+                        xbyak_intrin_modifier(cond, false)));
+        add_assignment(dst, xmm0);
     }
 
     // --------------

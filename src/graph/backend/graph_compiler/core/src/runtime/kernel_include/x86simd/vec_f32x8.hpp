@@ -199,4 +199,20 @@ INLINE vec_f32x8 sc_exp(vec_f32x8 const &a) {
     }
     return vec_f32x8::load(out);
 }
+
+INLINE vec_f32x8 sc_log(vec_f32x8 const &a) {
+    vec_f32x8 b;
+    for (int i = 0; i < 8; i++) {
+        b.raw[i] = logf(a.raw[i]);
+    }
+    return b;
+}
+
+INLINE vec_f32x8 sc_pow(vec_f32x8 const &a, vec_f32x8 const &b) {
+    vec_f32x8 c;
+    for (int i = 0; i < 8; i++) {
+        c.raw[i] = powf(a.raw[i], b.raw[i]);
+    }
+    return c;
+}
 #endif

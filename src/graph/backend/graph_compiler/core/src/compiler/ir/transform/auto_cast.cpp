@@ -277,6 +277,8 @@ public:
             case intrin_type::floor:
             case intrin_type::ceil:
             case intrin_type::exp:
+            case intrin_type::log:
+            case intrin_type::gather:
             case intrin_type::sqrt:
             case intrin_type::rsqrt:
             case intrin_type::reduce_add:

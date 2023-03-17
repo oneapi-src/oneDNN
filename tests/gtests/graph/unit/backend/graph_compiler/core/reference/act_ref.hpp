@@ -39,6 +39,13 @@ static void ref_leaky_relu(T *out, const T *in, size_t size, float alpha) {
 }
 
 template <typename T>
+static void ref_prelu(T *out, const T *in, const T *alpha, size_t size) {
+    test_utils::parallel_nd(static_cast<int>(size), [&](int64_t i) {
+        out[i] = (in[i] > 0) ? in[i] : T(alpha[i] * in[i]);
+    });
+}
+
+template <typename T>
 static void ref_round(T *out, const T *in, size_t size) {
     auto old_round = std::fegetround();
     std::fesetround(FE_TONEAREST);
@@ -97,6 +104,78 @@ template <typename T>
 static void ref_reciprocal(T *out, const T *in, size_t size) {
     test_utils::parallel_nd(
             static_cast<int>(size), [&](int64_t i) { out[i] = 1.0f / in[i]; });
+}
+
+template <typename T>
+static void ref_abs(T *out, const T *in, size_t size) {
+    test_utils::parallel_nd(
+            static_cast<int>(size), [&](int64_t i) { out[i] = fabs(in[i]); });
+}
+
+template <typename T>
+static void ref_elu(T *out, const T *in, size_t size, T alpha) {
+    test_utils::parallel_nd(static_cast<int>(size), [&](int64_t i) {
+        out[i] = (float)in[i] >= 0.f ? in[i] : (T)(alpha * (expf(in[i]) - 1));
+    });
+}
+
+template <typename T>
+static void ref_hardsigmoid(T *out, const T *in, size_t size, T alpha, T beta) {
+    test_utils::parallel_nd(static_cast<int>(size), [&](int64_t i) {
+        out[i] = std::max(0.f, std::min(1.f, alpha * in[i] + beta));
+    });
+}
+
+template <typename T>
+static void ref_hardswish(T *out, const T *in, size_t size, T alpha, T beta) {
+    test_utils::parallel_nd(static_cast<int>(size), [&](int64_t i) {
+        out[i] = in[i] * std::max(0.f, std::min(1.f, alpha * in[i] + beta));
+    });
+}
+
+template <typename T>
+static void ref_linear_elementwise(
+        T *out, const T *in, size_t size, T alpha, T beta) {
+    test_utils::parallel_nd(static_cast<int>(size),
+            [&](int64_t i) { out[i] = in[i] * alpha + beta; });
+}
+
+template <typename T>
+static void ref_log(T *out, const T *in, size_t size) {
+    test_utils::parallel_nd(
+            static_cast<int>(size), [&](int64_t i) { out[i] = logf(in[i]); });
+}
+
+template <typename T>
+static void ref_mish(T *out, const T *in, size_t size) {
+    test_utils::parallel_nd(static_cast<int>(size),
+            [&](int64_t i) { out[i] = in[i] * tanhf(logf(1 + expf(in[i]))); });
+}
+
+template <typename T>
+static void ref_pow(T *out, const T *in, const T *ex, size_t size) {
+    test_utils::parallel_nd(static_cast<int>(size),
+            [&](int64_t i) { out[i] = powf(in[i], ex[i]); });
+}
+
+template <typename T>
+static void ref_soft_plus(T *out, const T *in, size_t size, T alpha) {
+    test_utils::parallel_nd(static_cast<int>(size), [&](int64_t i) {
+        out[i] = (T)1.f / alpha * logf((T)1.f + expf(in[i] * alpha));
+    });
+}
+
+template <typename T>
+static void ref_square(T *out, const T *in, size_t size) {
+    test_utils::parallel_nd(
+            static_cast<int>(size), [&](int64_t i) { out[i] = in[i] * in[i]; });
+}
+
+template <typename T>
+static void ref_swish(T *out, const T *in, size_t size, T alpha) {
+    test_utils::parallel_nd(static_cast<int>(size), [&](int64_t i) {
+        out[i] = in[i] / ((T)1.f + expf(-alpha * in[i]));
+    });
 }
 
 /** a relu bwd reference implementation.

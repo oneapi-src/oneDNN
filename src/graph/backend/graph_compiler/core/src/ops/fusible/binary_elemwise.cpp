@@ -258,6 +258,7 @@ binary_elementwise_op_impl_t::binary_elementwise_op_impl_t(graph_tensor_ptr lhs,
         case elt_operator::MIN: op_name_ = "min"; break;
         case elt_operator::MAX: op_name_ = "max"; break;
         case elt_operator::SQD_DIFF: op_name_ = "squared_diff"; break;
+        case elt_operator::PRELU: op_name_ = "prelu"; break;
         default: break;
     }
 }
@@ -986,6 +987,12 @@ void binary_elementwise_op_impl_t::compute_block(context_ptr ctx,
                 case elt_operator::SQD_DIFF:
                     return builder::make_assign_unattached(
                             outs[0], (in_0 - in_1) * (in_0 - in_1));
+                case elt_operator::PRELU:
+                    return builder::make_assign_unattached(outs[0],
+                            builder::make_select(
+                                    in_0 >= make_expr<constant_node>(
+                                            (int64_t)0, in_0->dtype_),
+                                    in_0, in_0 * in_1));
                 default:
                     COMPILE_ASSERT(false, "Unsupport elementwise op found.\n");
                     return stmt();
@@ -1025,6 +1032,12 @@ void binary_elementwise_op_impl_t::compute_block(context_ptr ctx,
                 case elt_operator::SQD_DIFF:
                     return builder::make_assign_unattached(
                             out[0], (in0 - in1) * (in0 - in1));
+                case elt_operator::PRELU:
+                    return builder::make_assign_unattached(out[0],
+                            builder::make_select(
+                                    in0 >= make_expr<constant_node>(
+                                            (int64_t)0, in0->dtype_),
+                                    in0, in0 * in1));
                 default:
                     COMPILE_ASSERT(false,
                             "Unsupport elementwise op "
@@ -1046,6 +1059,7 @@ OP_REGISTER(div_op_t, div)
 OP_REGISTER(min_op_t, min)
 OP_REGISTER(max_op_t, max)
 OP_REGISTER(squared_diff_op_t, squared_diff)
+OP_REGISTER(prelu_op_t, prelu)
 
 } // namespace gc
 } // namespace graph

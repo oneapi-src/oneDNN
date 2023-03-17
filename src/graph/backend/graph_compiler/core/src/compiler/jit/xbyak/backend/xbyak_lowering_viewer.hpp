@@ -236,6 +236,9 @@ private:
     void handle_avx_permute(const operand &op_dst, const operand &op_lhs,
             const operand &op_rhs, const operand &op_imm,
             const x86_64::cpu_data_type &cpu_dtype);
+    void handle_avx_gather(const operand &op_dst, const operand &op_ptr,
+            const operand &op_idx, const operand &op_msk,
+            const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_permutex2var(const operand &op_dst, const operand &op_idx,
             const operand &op_src, const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_unpack_low(const operand &op_dst, const operand &op_lhs,

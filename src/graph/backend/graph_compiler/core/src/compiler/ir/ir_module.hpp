@@ -130,6 +130,12 @@ public:
     func_t get_entry_func() const {
         return entry_func_idx_ >= 0 ? contents_[entry_func_idx_] : func_t();
     }
+    // get var define node from input symbol, if could not find, return nullptr.
+    define get_var_def_from_symbol(const std::string &symbol) const {
+        auto it = var_symbols_.find(symbol);
+        if (it != var_symbols_.end()) { return it->second; }
+        return define();
+    }
 
     // adds a list of functions to the module, resolves dependencies and handles
     // name duplications

@@ -343,6 +343,7 @@ void validate_impl_t::view(intrin_call_c v) {
         case intrin_type::floor:
         case intrin_type::ceil:
         case intrin_type::exp:
+        case intrin_type::log:
         case intrin_type::sqrt:
         case intrin_type::rsqrt:
             validate_type(v);
@@ -402,6 +403,19 @@ void validate_impl_t::view(intrin_call_c v) {
                             << v->args_[0]->dtype_ << " v.s. "
                             << v->args_[1]->dtype_);
 
+            break;
+        case intrin_type::gather:
+            validate_type(v);
+            COMPILE_ASSERT_POS(v->args_.size() == 2,
+                    "Gather intrinsics take two parameters. Got " << v);
+            COMPILE_ASSERT_POS(v->args_[0]->dtype_.is_pointer()
+                            && v->args_[0]
+                                       ->dtype_.get_pointer_element()
+                                       .is_etype(sc_data_etype::F32),
+                    "The first type of gather should be a pointer to f32. Got "
+                            << v);
+            COMPILE_ASSERT_POS(v->args_[1]->dtype_.is_etype(sc_data_etype::S32),
+                    "The second type of gather should be s32. Got " << v);
             break;
         case intrin_type::broadcast:
             validate_type(v);

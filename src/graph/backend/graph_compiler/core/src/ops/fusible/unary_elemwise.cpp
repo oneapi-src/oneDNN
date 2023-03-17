@@ -219,7 +219,7 @@ expr round_op_t::compute_element(expr in) {
     return builder::make_round(in);
 }
 
-expr sigmoid_op_t::compute_element(expr in) {
+static expr compute_sigmoid(expr in) {
     auto bld = builder::get_current_builder();
     // constants
     auto lanes = in->dtype_.lanes_;
@@ -258,6 +258,10 @@ expr sigmoid_op_t::compute_element(expr in) {
     } else {
         return builder::make_div(f_one, f_one + f_exp_neg_x);
     }
+}
+
+expr sigmoid_op_t::compute_element(expr in) {
+    return compute_sigmoid(in);
 }
 
 expr exp_op_t::compute_element(expr in) {
@@ -387,6 +391,10 @@ expr erf_op_t::compute_element(expr in) {
             sc_data_type_t::f32(lanes));
 }
 
+expr square_op_t::compute_element(expr in) {
+    return in * in;
+}
+
 expr squared_root_op_t::compute_element(expr in) {
     if (reciprocal_) { return builder::make_rsqrt(in); }
     return builder::make_sqrt(in);
@@ -441,14 +449,78 @@ expr clamp_op_t::compute_element(expr in) {
             make_expr<constant_node>(clamp_min, dtype));
 }
 
+#define DEFINE_AND_ASSERT_DTYPE(op) \
+    auto dtype = in->dtype_; \
+    COMPILE_ASSERT(dtype.type_code_ == sc_data_etype::F32 \
+                    || dtype.type_code_ == sc_data_etype::BF16, \
+            (op) << "_op_t currently only supports fp32/bf16");
+
+#define DEFINE_ALPHA_BASED_ON_DTYPE(op) \
+    DEFINE_AND_ASSERT_DTYPE(op) \
+    auto f_alpha = make_expr<constant_node>(alpha_, dtype);
+
+#define DEFINE_ALPHA_AND_BETA_BASED_ON_DTYPE(op) \
+    DEFINE_ALPHA_BASED_ON_DTYPE(op) \
+    auto f_beta = make_expr<constant_node>(beta_, dtype);
+
 expr reciprocal_op_t::compute_element(expr in) {
     // TODO(xxx): return approximate reciprocal when fast math enabled
-    auto dtype = in->dtype_;
-    COMPILE_ASSERT(dtype.type_code_ == sc_data_etype::F32
-                    || dtype.type_code_ == sc_data_etype::BF16,
-            "reciprocal_op_t currently only supports fp32/bf16");
+    DEFINE_AND_ASSERT_DTYPE("reciprocal");
     auto f_one = make_expr<constant_node>((float)1.f, dtype);
     return builder::make_div(f_one, in);
+}
+
+expr abs_op_t::compute_element(expr in) {
+    return builder::make_abs(in);
+}
+
+expr elu_op_t::compute_element(expr in) {
+    DEFINE_ALPHA_BASED_ON_DTYPE("elu");
+    auto f_one = make_expr<constant_node>(1.f, dtype);
+    auto f_zero = make_expr<constant_node>(0.f, dtype);
+    auto f_tail = (builder::make_exp(in) - f_one) * f_alpha;
+    return builder::make_select(in > f_zero, in, f_tail);
+}
+
+expr hardswish_op_t::compute_element(expr in) {
+    DEFINE_ALPHA_AND_BETA_BASED_ON_DTYPE("hardswish");
+    auto f_one = make_expr<constant_node>(1.f, dtype);
+    auto f_zero = make_expr<constant_node>(0.f, dtype);
+    return in
+            * builder::make_max(f_zero,
+                    builder::make_min(
+                            f_one, builder::make_fmadd(in, f_alpha, f_beta)));
+}
+
+// todo: find approximately faster algorithm(onednn impl).
+expr log_op_t::compute_element(expr in) {
+    return builder::make_log(in);
+}
+
+// mish(x) = x * ((e^x + 1)^2 - 1)/((e^x + 1)^2 + 1).
+expr mish_op_t::compute_element(expr in) {
+    DEFINE_AND_ASSERT_DTYPE("mish");
+    auto f_one = make_expr<constant_node>(1.f, dtype);
+    auto f_temp = builder::make_exp(in) + f_one;
+    f_temp = f_temp * f_temp;
+    return in * ((f_temp - f_one) / (f_temp + f_one));
+}
+
+expr soft_plus_op_t::compute_element(expr in) {
+    DEFINE_AND_ASSERT_DTYPE("soft_plus");
+    auto f_one = make_expr<constant_node>(1.f, dtype);
+    auto f_beta_r = make_expr<constant_node>(beta_, dtype);
+    return f_one / f_beta_r
+            * builder::make_log(builder::make_exp(f_beta_r * in) + f_one);
+}
+
+expr swish_op_t::compute_element(expr in) {
+    DEFINE_ALPHA_BASED_ON_DTYPE("swish");
+    auto bld = builder::get_current_builder();
+    auto f_sigmoid_in = builder::make_var(
+            dtype, "f_sigmoid_in" + fusion_create_var_idx());
+    bld->push_var_tensor_def(f_sigmoid_in, linkage::local, f_alpha * in);
+    return in * compute_sigmoid(f_sigmoid_in);
 }
 
 OP_REGISTER(sigmoid_op_t, sigmoid)
@@ -463,6 +535,14 @@ OP_REGISTER(squared_root_op_t, squared_root)
 OP_REGISTER(cast_op_t, cast)
 OP_REGISTER(clamp_op_t, clamp)
 OP_REGISTER(reciprocal_op_t, reciprocal)
+OP_REGISTER(abs_op_t, abs)
+OP_REGISTER(elu_op_t, elu)
+OP_REGISTER(hardswish_op_t, hardswish)
+OP_REGISTER(log_op_t, log)
+OP_REGISTER(mish_op_t, mish)
+OP_REGISTER(soft_plus_op_t, soft_plus)
+OP_REGISTER(square_op_t, square)
+OP_REGISTER(swish_op_t, swish)
 
 } // namespace gc
 } // namespace graph

@@ -14,6 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include <limits>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -47,6 +49,10 @@ SC_DECL_PASS_INFO(target_specific_lowering_cpu,
 
 static expr gen_vec_const(uint32_t lanes, float f) {
     return make_expr<constant_node>(f, sc_data_type_t::f32(lanes));
+}
+
+static expr gen_vec_const_int(uint32_t lanes, int64_t f) {
+    return make_expr<constant_node>(f, sc_data_type_t::s32(lanes));
 }
 
 static std::vector<expr> make_args_by_intrinsic(const intrin_call_c &node) {
@@ -161,7 +167,14 @@ static std::string get_isnan_func_name(const intrin_call_c &node) {
     return ss.str();
 }
 
-static func_t create_isnan_func(const intrin_call_c &node) {
+static std::string get_log_func_name(const intrin_call_c &node) {
+    std::stringstream ss;
+    ss << "_should_inline_log_" << node->dtype_;
+    return ss.str();
+}
+
+static func_t create_isnan_func(
+        const ir_module_ptr &mod, const intrin_call_c &node) {
     auto type = node->dtype_;
     uint32_t elements = type.lanes_;
     auto ZERO = make_expr<constant_node>(
@@ -187,7 +200,8 @@ static func_t create_isnan_func(const intrin_call_c &node) {
     return the_sc_isnan_func;
 }
 
-static func_t create_exp_func(const intrin_call_c &node) {
+static func_t create_exp_func(
+        const ir_module_ptr &mod, const intrin_call_c &node) {
     auto type = node->dtype_;
     uint32_t elements = type.lanes_;
 
@@ -255,6 +269,123 @@ static func_t create_exp_func(const intrin_call_c &node) {
     return the_exp_func;
 }
 
+static func_t create_log_func(
+        const ir_module_ptr &mod, const intrin_call_c &node) {
+    auto type = node->dtype_;
+    uint32_t elements = type.lanes_;
+
+    auto ZERO = gen_vec_const(elements, 0.0f);
+    auto ln2 = gen_vec_const(elements, 0.693147181f);
+    auto ONE_f = gen_vec_const(elements, 1.0f);
+    auto ONE_i = gen_vec_const_int(elements, 1);
+    auto ty_epi_32 = sc_data_type_t::s32(elements);
+    auto neg_inf_f
+            = gen_vec_const(elements, -std::numeric_limits<float>::infinity());
+    auto inf_f
+            = gen_vec_const(elements, std::numeric_limits<float>::infinity());
+    auto qnan_f
+            = gen_vec_const(elements, std::numeric_limits<float>::quiet_NaN());
+
+    builder::ir_builder_t builder;
+    std::string log_const_table_name_1 = "log_const_table_1",
+                log_const_table_name_2 = "log_const_table_2";
+    auto global_log_consts_1
+            = mod->get_var_def_from_symbol(log_const_table_name_1);
+    expr log_table_tsr_1, log_table_tsr_2;
+    if (!global_log_consts_1.defined()) {
+        uint32_t log_const_int_vals_1[32] = {0x3f800000, 0x3f780000, 0x3f700000,
+                0x3f680000, 0x3f600000, 0x3f580000, 0x3f580000, 0x3f500000,
+                0x3f480000, 0x3f480000, 0x3f400000, 0x3f400000, 0x3f380000,
+                0x3f380000, 0x3f300000, 0x3f300000, 0x3fa80000, 0x3fa80000,
+                0x3fa00000, 0x3fa00000, 0x3fa00000, 0x3f980000, 0x3f980000,
+                0x3f900000, 0x3f900000, 0x3f900000, 0x3f900000, 0x3f880000,
+                0x3f880000, 0x3f880000, 0x3f800000, 0x3f800000};
+        uint32_t log_const_int_vals_2[32] = {0xc2b00f34, 0xc2affef2, 0xc2afee29,
+                0xc2afdccd, 0xc2afcad6, 0xc2afb837, 0xc2afb837, 0xc2afa4e4,
+                0xc2af90cf, 0xc2af90cf, 0xc2af7be9, 0xc2af7be9, 0xc2af661e,
+                0xc2af661e, 0xc2af4f5c, 0xc2af4f5c, 0xc2b09a6f, 0xc2b09a6f,
+                0xc2b08174, 0xc2b08174, 0xc2b08174, 0xc2b06731, 0xc2b06731,
+                0xc2b04b82, 0xc2b04b82, 0xc2b04b82, 0xc2b04b82, 0xc2b02e3e,
+                0xc2b02e3e, 0xc2b02e3e, 0xc2b00f34, 0xc2b00f34};
+        float *log_const_float_ptr_1
+                = reinterpret_cast<float *>(log_const_int_vals_1);
+        std::vector<float> log_const_vec_1(
+                log_const_float_ptr_1, log_const_float_ptr_1 + 32);
+        float *log_const_float_ptr_2
+                = reinterpret_cast<float *>(log_const_int_vals_2);
+        std::vector<float> log_const_vec_2(
+                log_const_float_ptr_2, log_const_float_ptr_2 + 32);
+        log_table_tsr_1 = builder::make_tensor(log_const_table_name_1, {32},
+                datatypes::f32, address_space::automatic,
+                std::make_shared<static_data_t>(log_const_vec_1));
+        log_table_tsr_2 = builder::make_tensor(log_const_table_name_2, {32},
+                datatypes::f32, address_space::automatic,
+                std::make_shared<static_data_t>(log_const_vec_2));
+        mod->add_global_var(builder::make_var_tensor_def_unattached(
+                log_table_tsr_1, linkage::public_global)
+                                    .checked_as<define>());
+        mod->add_global_var(builder::make_var_tensor_def_unattached(
+                log_table_tsr_2, linkage::public_global)
+                                    .checked_as<define>());
+    } else {
+        log_table_tsr_1 = global_log_consts_1->var_;
+        log_table_tsr_2
+                = mod->get_var_def_from_symbol(log_const_table_name_2)->var_;
+    }
+    const int approx_bits = 5;
+    const int mantissa_bits = 23;
+    _function_(type, the_log_func, make_args_by_intrinsic(node)) {
+        assert(node->args_.size() == 1);
+        // to avoid underflow
+        _bind_(inval);
+        _var_init_(inval_int, ty_epi_32,
+                builder::make_reinterpret(inval, ty_epi_32));
+        _var_(aux1_int, ty_epi_32);
+        aux1_int = ((inval_int >> gen_vec_const_int(
+                             elements, mantissa_bits - approx_bits))
+                & gen_vec_const_int(elements, 0x0000001f));
+        _var_init_(aux2_int, ty_epi_32,
+                aux1_int >> gen_vec_const_int(elements, approx_bits - 1));
+        _var_init_(aux3_int, ty_epi_32,
+                (inval_int >> gen_vec_const_int(elements, mantissa_bits))
+                        + aux2_int);
+        _var_init_(aux3_f, type, builder::make_cast(type, aux3_int));
+        aux2_int = builder::make_int_xor(
+                           aux2_int, gen_vec_const_int(elements, 0x0000007f))
+                << gen_vec_const_int(elements, 23);
+        inval_int = (inval_int & gen_vec_const_int(elements, 0x007fffff))
+                | aux2_int;
+        _var_init_(
+                aux2_f, type, builder::make_gather(log_table_tsr_1, aux1_int));
+        aux2_f = aux2_f * builder::make_reinterpret(inval_int, type) - ONE_f;
+        _var_init_(poly_f, type, gen_vec_const(elements, 0.199984118f));
+        poly_f = builder::make_fmadd(
+                poly_f, aux2_f, gen_vec_const(elements, -0.250035613f));
+        poly_f = builder::make_fmadd(
+                poly_f, aux2_f, gen_vec_const(elements, 0.333333343f));
+        poly_f = builder::make_fmadd(
+                poly_f, aux2_f, gen_vec_const(elements, -0.5f));
+        poly_f = builder::make_fmadd(poly_f, aux2_f, ONE_f) * aux2_f;
+        aux2_f = builder::make_gather(log_table_tsr_2, aux1_int);
+        aux2_f = builder::make_fmadd(aux3_f, ln2, aux2_f);
+        // two sum algorithm
+        _var_init_(res_hi, type, poly_f + aux2_f);
+        _var_init_(res_lo, type, res_hi - aux2_f);
+        res_lo = res_lo - poly_f;
+        res_hi = res_hi + res_lo;
+        res_hi = builder::make_select(inval == ZERO, neg_inf_f, res_hi);
+        res_hi = builder::make_select(inval < ZERO, qnan_f, res_hi);
+        res_hi = builder::make_select(inval == inf_f, inf_f, res_hi);
+        res_hi = builder::make_select(inval == qnan_f, qnan_f, res_hi);
+        res_hi = builder::make_select(inval == ONE_f, ZERO, res_hi);
+        _return_(res_hi);
+    }
+    std::string fixed_name = get_log_func_name(node);
+    the_log_func->name_ = fixed_name;
+    the_log_func->decl_->name_ = fixed_name;
+    return the_log_func;
+}
+
 static size_t get_field_offset(const std::string &in, int field) {
     if (in == dyn_tsr_struct_t::name) {
         return dyn_tsr_struct_t::offsets[field];
@@ -264,7 +395,8 @@ static size_t get_field_offset(const std::string &in, int field) {
     return 0;
 }
 
-static func_t create_read_struct_func(const intrin_call_c &node) {
+static func_t create_read_struct_func(
+        const ir_module_ptr &mod, const intrin_call_c &node) {
     builder::ir_builder_t builder;
     auto name = node->intrin_attrs_->get<std::string>(intrin_attr::struct_name);
     auto field = node->intrin_attrs_->get<int>(intrin_attr::struct_field);
@@ -287,7 +419,8 @@ static func_t create_read_struct_func(const intrin_call_c &node) {
     return read_struct;
 }
 
-static func_t create_write_struct_func(const intrin_call_c &node) {
+static func_t create_write_struct_func(
+        const ir_module_ptr &mod, const intrin_call_c &node) {
     builder::ir_builder_t builder;
     auto name = node->intrin_attrs_->get<std::string>(intrin_attr::struct_name);
     auto field = node->intrin_attrs_->get<int>(intrin_attr::struct_field);
@@ -316,9 +449,9 @@ static func_t create_write_struct_func(const intrin_call_c &node) {
     return write_struct;
 }
 
-using intrin_func_creator = func_t (*)(const intrin_call_c &node);
+using intrin_func_creator
+        = func_t (*)(const ir_module_ptr &mod, const intrin_call_c &node);
 using intrin_func_namer = std::string (*)(const intrin_call_c &node);
-using cast_func_creator = func_t (*)(context_ptr ctx, const cast_c &node);
 
 class target_specific_lower_cpu_impl_t : public ir_visitor_t {
 public:
@@ -523,6 +656,12 @@ public:
                 lower_func = &create_isnan_func;
                 namer_func = &get_isnan_func_name;
                 break;
+            case intrin_type::log:
+                COMPILE_ASSERT(v->args_[0]->dtype_.is_etype(sc_data_etype::F32),
+                        "Currently sc_log only supports f32");
+                lower_func = &create_log_func;
+                namer_func = &get_log_func_name;
+                break;
             case intrin_type::saturated_cast:
                 return do_lower_saturated_cast(ret.checked_as<intrin_call_c>());
                 break;
@@ -566,7 +705,7 @@ public:
                             prompt << f);
                 }
             } else {
-                f = lower_func(ret.checked_as<intrin_call>());
+                f = lower_func(mod_, ret.checked_as<intrin_call>());
                 // private function, so that hopefully it can be removed
                 // after inlined
                 f->attr()[function_attrs::private_] = true;

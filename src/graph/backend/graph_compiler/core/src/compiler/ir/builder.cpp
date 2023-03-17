@@ -354,6 +354,11 @@ expr make_exp(const expr_c &v) {
             std::vector<expr> {v.remove_const()}, any_map_t());
 }
 
+expr make_log(const expr_c &v) {
+    return make_expr<intrin_call_node>(intrin_type::log,
+            std::vector<expr> {v.remove_const()}, any_map_t());
+}
+
 expr make_sqrt(const expr_c &v) {
     return make_expr<intrin_call_node>(intrin_type::sqrt,
             std::vector<expr> {v.remove_const()}, any_map_t());
@@ -418,6 +423,12 @@ expr make_permute(const expr_c &v_a, const expr_c &v_b, const int &v_c) {
     return make_expr<intrin_call_node>(intrin_type::permute,
             std::vector<expr> {v_a.remove_const(), v_b.remove_const()},
             any_map_t {{"permute_imm", v_c}});
+}
+
+expr make_gather(const expr_c &addr, const expr_c &indices) {
+    return make_expr<intrin_call_node>(intrin_type::gather,
+            std::vector<expr> {addr.remove_const(), indices.remove_const()},
+            any_map_t());
 }
 
 expr make_permutex2var(

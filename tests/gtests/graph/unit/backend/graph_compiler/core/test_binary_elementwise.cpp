@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "context.hpp"
+#include "reference/act_ref.hpp"
 #include "test_utils.hpp"
 #include "gtest/gtest.h"
 #include <compiler/ir/graph/driver.hpp>
@@ -233,4 +234,71 @@ TEST(GCCore_binary_elementwise_test, TestCorrectnessBlocking) {
     check_broadcast_correctness({1, 128, 16, 64}, {16, 64},
             sc_data_format_t(sc_data_format_kind_t(0, 1, 2, 3, 1, 3), {4, 16}),
             sc_data_format_t(format_kinds::ABab, {4, 16}));
+}
+
+template <typename T,
+        typename dummy = typename std::enable_if<
+                std::is_same<typename std::decay<T>::type, float>::value
+                || std::is_same<typename std::decay<T>::type, bf16_t>::value>>
+static void check_binary_elementwise(const std::string &op_name,
+        const sc_dims &input_dims,
+        void (*ref_func)(T *, const T *, const T *, size_t)) {
+    sc_graph_t g;
+    sc_op_ptr ins;
+    bool is_bf16 = std::is_same<typename std::decay<T>::type, bf16_t>::value;
+    if (is_bf16
+            && !::dnnl::impl::graph::gc::get_default_context()
+                        ->machine_.cpu_flags_.fAVX512F) {
+        return;
+    }
+    auto dtype = is_bf16 ? datatypes::bf16 : datatypes::f32;
+    ins = g.make_input(
+            {graph_tensor::make(input_dims, sc_data_format_t(), dtype),
+                    graph_tensor::make(input_dims, sc_data_format_t(), dtype)});
+
+    auto op = g.make(op_name, ins->get_outputs(), {}, {});
+    g.make_output(op->get_outputs());
+    graph_driver(g, get_test_ctx());
+
+    auto f = lower_graph(get_test_ctx(), g, {});
+    const auto input_size = test_utils::product(input_dims);
+    std::vector<T> input_data1(input_size), input_data2(input_size);
+    if (utils::is_one_of(op_name, std::string("pow"))) {
+        test_utils::fill_data(&input_data1[0], input_size, (T)1e-4, (T)1.f);
+    } else {
+        test_utils::fill_data(&input_data1[0], input_size);
+    }
+    test_utils::fill_data(&input_data2[0], input_size);
+    std::vector<T> ref_output(input_size);
+    ref_func(ref_output.data(), input_data1.data(), input_data2.data(),
+            input_size);
+    std::vector<T> sc_output(input_size);
+    auto fptr = jit_engine_t::make(get_test_ctx())->get_entry_func(f);
+    fptr->call_default(&input_data1[0], &input_data2[0], &sc_output[0]);
+    if (!is_bf16) {
+        test_utils::compare_data(sc_output, ref_output, 1e-4, 1e-5);
+    } else {
+        float sum = 0.f;
+        std::for_each(sc_output.begin(), sc_output.end(),
+                [&sum](const T &n) { sum += std::abs(float(n)); });
+        EXPECT_TRUE(test_utils::cal_rmse(sc_output, ref_output) / sum < 1e-4);
+    }
+}
+
+static std::vector<sc_dims> test_shapes
+        = {{16, 63}, {2, 8, 4}, {4, 16, 256, 1024}};
+TEST(GCCore_binary_elementwise_test, TestPowOp) {
+    BUILTIN_REQUIRE_AVX512();
+    for (auto &shape : test_shapes) {
+        check_binary_elementwise<float>("pow", shape, ref_pow);
+        check_binary_elementwise<bf16_t>("pow", shape, ref_pow);
+    }
+}
+
+TEST(GCCore_binary_elementwise_test, TestPReluOp) {
+    BUILTIN_REQUIRE_AVX512();
+    for (auto &shape : test_shapes) {
+        check_binary_elementwise<float>("prelu", shape, ref_prelu);
+        check_binary_elementwise<bf16_t>("prelu", shape, ref_prelu);
+    }
 }

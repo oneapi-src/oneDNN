@@ -20,6 +20,7 @@
 #ifdef SC_ENABLE_L0_BACKEND
 #include <runtime/l0_runtime.hpp>
 #endif
+#include <math.h>
 #include <runtime/barrier.hpp>
 #include <runtime/config.hpp>
 #include <runtime/dynamic_dispatch/op_func_decl.hpp>

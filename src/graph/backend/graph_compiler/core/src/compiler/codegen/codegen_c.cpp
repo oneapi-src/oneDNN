@@ -497,6 +497,13 @@ void codegen_c_vis::view(intrin_call_c v) {
             *os << ", " << prefetch_names[locality] << ')';
             break;
         }
+        case intrin_type::gather:
+            *os << "sc_gather(";
+            dispatch(v->args_[0]);
+            *os << ", ";
+            dispatch(v->args_[1]);
+            *os << ")";
+            break;
         case intrin_type::broadcast:
             print_type(v->dtype_);
             *os << "(";

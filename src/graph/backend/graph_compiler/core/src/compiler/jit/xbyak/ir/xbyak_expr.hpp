@@ -74,6 +74,7 @@ enum class xbyak_intrin_type {
     mask_mov, // special intrin to represent avx512 zero masked move
     test, // special intrin to represent x86 bool logical compare
     cmov, // conditional move
+    movd, // reinterpret dword f32 <-> int32
     add,
     sub,
     mul,
@@ -99,6 +100,7 @@ enum class xbyak_intrin_type {
     blend,
     shuffle,
     permute,
+    gather,
     broadcast,
     reinterpret,
     unpack_low,

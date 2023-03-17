@@ -271,8 +271,11 @@ inline size_t product(const std::vector<int64_t> &dims) {
  * @param b float array 2
  * @return the rmse of two arrays
  * */
-inline float cal_rmse(
-        const std::vector<float> &a, const std::vector<float> &b) {
+template <typename T>
+inline float cal_rmse(const std::vector<T> &a, const std::vector<T> &b) {
+    static_assert(
+            std::is_same<T, float>::value || std::is_same<T, bf16_t>::value,
+            "Need f32/bf16 data type.");
     COMPILE_ASSERT(a.size() && a.size() == b.size(),
             "Two vector should have same size and can not be empty.");
     float sum = 0.f;

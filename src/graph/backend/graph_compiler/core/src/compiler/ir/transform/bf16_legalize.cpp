@@ -118,6 +118,7 @@ expr_c bf16_promote_impl_t::visit(intrin_call_c v) {
         case intrin_type::floor:
         case intrin_type::ceil:
         case intrin_type::exp:
+        case intrin_type::log:
         case intrin_type::sqrt:
         case intrin_type::rsqrt:
         case intrin_type::reduce_add:
@@ -162,6 +163,7 @@ expr_c bf16_promote_impl_t::visit(intrin_call_c v) {
                 args.emplace_back(in.remove_const());
             }
             break;
+        case intrin_type::gather:
         case intrin_type::unpack_low:
         case intrin_type::unpack_high:
         case intrin_type::shuffle:

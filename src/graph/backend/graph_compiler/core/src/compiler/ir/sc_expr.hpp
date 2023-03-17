@@ -1325,6 +1325,7 @@ enum class intrin_type {
     floor,
     ceil,
     exp,
+    log,
     sqrt,
     rsqrt,
     reduce_add,
@@ -1356,6 +1357,7 @@ enum class intrin_type {
     shl, // shift left
     shr, // shift right
     permutex2var,
+    gather, // gather elements from memory.
     read_struct, // read field from a struct
     write_struct, // write a field to a struct
     // tell the thread pool that the next barrier should run a function when the

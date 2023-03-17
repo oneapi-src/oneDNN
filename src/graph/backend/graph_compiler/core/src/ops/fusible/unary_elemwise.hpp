@@ -129,6 +129,7 @@ public:
     };
 };
 
+class swish_op_t;
 class sigmoid_op_t : public unary_elementwise_op_impl_t {
 public:
     DECLARE_COMPUTE_ELEMENT();
@@ -184,6 +185,21 @@ public:
         : unary_elementwise_op_impl_t(std::move(v), "erf") {
         alg_kind_ = brgemm::eltwise_gelu_erf;
     };
+};
+
+class square_op_t : public unary_elementwise_op_impl_t {
+public:
+    DECLARE_COMPUTE_ELEMENT();
+
+    square_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
+        : unary_elementwise_op_impl_t("square", ins, outs, attrs) {
+        alg_kind_ = brgemm::eltwise_square;
+    };
+    square_op_t(graph_tensor_ptr v, bool reciprocal = false)
+        : unary_elementwise_op_impl_t(std::move(v), "square") {
+        alg_kind_ = brgemm::eltwise_square;
+    }
 };
 
 // squared_root: sqrt(x)
@@ -255,6 +271,123 @@ public:
 private:
     // This flag decides return exact one-div or approximate reciprocal.
     bool approximate_;
+};
+
+class abs_op_t : public unary_elementwise_op_impl_t {
+public:
+    DECLARE_COMPUTE_ELEMENT();
+
+    abs_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
+        : unary_elementwise_op_impl_t("abs", ins, outs, attrs) {
+        alg_kind_ = brgemm::eltwise_abs;
+    }
+    abs_op_t(graph_tensor_ptr v)
+        : unary_elementwise_op_impl_t(std::move(v), "abs") {
+        alg_kind_ = brgemm::eltwise_abs;
+    };
+};
+
+class elu_op_t : public unary_elementwise_op_impl_t {
+public:
+    DECLARE_COMPUTE_ELEMENT();
+
+    elu_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
+        : unary_elementwise_op_impl_t("elu", ins, outs, attrs) {
+        alg_kind_ = brgemm::eltwise_elu;
+        alpha_ = attrs.get_or_else("alpha", 1.f);
+    }
+    elu_op_t(graph_tensor_ptr v, float alpha = 1.f)
+        : unary_elementwise_op_impl_t(std::move(v), "elu"), alpha_(alpha) {
+        alg_kind_ = brgemm::eltwise_elu;
+    };
+    float alpha_;
+};
+
+class hardswish_op_t : public unary_elementwise_op_impl_t {
+public:
+    DECLARE_COMPUTE_ELEMENT();
+
+    hardswish_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
+        : unary_elementwise_op_impl_t("hardswish", ins, outs, attrs) {
+        alg_kind_ = brgemm::eltwise_hardswish;
+        alpha_ = attrs.get<float>("alpha");
+        beta_ = attrs.get<float>("beta");
+    }
+    hardswish_op_t(graph_tensor_ptr v, float alpha = 1.f, float beta = 0.f)
+        : unary_elementwise_op_impl_t(std::move(v), "hardswish")
+        , alpha_(alpha)
+        , beta_(beta) {
+        alg_kind_ = brgemm::eltwise_hardswish;
+    };
+    float alpha_;
+    float beta_;
+};
+
+class mish_op_t : public unary_elementwise_op_impl_t {
+public:
+    DECLARE_COMPUTE_ELEMENT();
+
+    mish_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
+        : unary_elementwise_op_impl_t("mish", ins, outs, attrs) {
+        alg_kind_ = brgemm::eltwise_mish;
+    }
+    mish_op_t(graph_tensor_ptr v)
+        : unary_elementwise_op_impl_t(std::move(v), "mish") {
+        alg_kind_ = brgemm::eltwise_mish;
+    };
+};
+
+class log_op_t : public unary_elementwise_op_impl_t {
+public:
+    DECLARE_COMPUTE_ELEMENT();
+
+    log_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
+        : unary_elementwise_op_impl_t("log", ins, outs, attrs) {
+        alg_kind_ = brgemm::eltwise_log;
+    }
+    log_op_t(graph_tensor_ptr v)
+        : unary_elementwise_op_impl_t(std::move(v), "log") {
+        alg_kind_ = brgemm::eltwise_log;
+    };
+};
+
+class soft_plus_op_t : public unary_elementwise_op_impl_t {
+public:
+    DECLARE_COMPUTE_ELEMENT();
+
+    soft_plus_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
+        : unary_elementwise_op_impl_t("soft_plus", ins, outs, attrs) {
+        alg_kind_ = brgemm::eltwise_soft_relu;
+        beta_ = attrs.get<float>("beta");
+    }
+    soft_plus_op_t(graph_tensor_ptr v, float beta = 1.f)
+        : unary_elementwise_op_impl_t(std::move(v), "soft_plus"), beta_(beta) {
+        alg_kind_ = brgemm::eltwise_soft_relu;
+    };
+    float beta_;
+};
+
+class swish_op_t : public unary_elementwise_op_impl_t {
+public:
+    DECLARE_COMPUTE_ELEMENT();
+
+    swish_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
+        : unary_elementwise_op_impl_t("swish", ins, outs, attrs) {
+        alg_kind_ = brgemm::eltwise_swish;
+        alpha_ = attrs.get<float>("alpha");
+    }
+    swish_op_t(graph_tensor_ptr v, float alpha = 1.f)
+        : unary_elementwise_op_impl_t(std::move(v), "swish"), alpha_(alpha) {
+        alg_kind_ = brgemm::eltwise_swish;
+    };
+    float alpha_;
 };
 
 } // namespace gc

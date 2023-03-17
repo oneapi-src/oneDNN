@@ -155,5 +155,21 @@ INLINE vec_f32x16 sc_abs(vec_f32x16 const &a) {
     return _mm512_abs_ps(a.v);
 }
 
+INLINE vec_f32x16 sc_log(vec_f32x16 const &a) {
+    vec_f32x16 b;
+    for (int i = 0; i < 16; i++) {
+        b.raw[i] = logf(a.raw[i]);
+    }
+    return b;
+}
+
+INLINE vec_f32x16 sc_pow(vec_f32x16 const &a, vec_f32x16 const &b) {
+    vec_f32x16 c;
+    for (int i = 0; i < 16; i++) {
+        c.raw[i] = powf(a.raw[i], b.raw[i]);
+    }
+    return c;
+}
+
 #endif
 #endif
