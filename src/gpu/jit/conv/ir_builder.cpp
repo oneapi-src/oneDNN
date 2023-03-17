@@ -1237,7 +1237,9 @@ private:
 
             // 2. Collect the masks, transforming the dimensions as needed
             int channels_blk = std::min(channels,
-                    (int)a_thr_view.tlayout().normalize().blocks()[0].block);
+                    (int)utils::rnd_up(
+                            a_thr_view.tlayout().normalize().blocks()[0].block,
+                            a_thr_view.vdims()[ic_dim]));
             if (channels_blk > 32) channels_blk = 32;
             const auto c_blk = std::min(channels_blk, m_blk);
             auto a_tdims = a_view.tlayout().dims();
