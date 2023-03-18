@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
         DECLARE_COMMON_PD_T("jit:xe_hp:gemm:any", xe_hp_systolic_gemm_t);
 
         status_t init(engine_t *engine);
+        void init_scratchpad();
 
         bool use_nocopy();
         bool set_default_formats(data_type_t dt);
@@ -84,17 +85,41 @@ struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
         bool packed_b() const { return packed_b_; }
         bool packed_c() const { return packed_c_; }
 
-        dim_t lda_packed() const {
+        static int64_t nice_ld(int64_t ld, int sz, bool get_max = false) {
+            const auto align = 32;
+            const auto no_align = 64;
+
+            auto new_ld = (ld * sz + align - 1) & ~(align - 1);
+            if (get_max || (new_ld & (no_align - 1)) == 0) new_ld += align;
+
+            return new_ld / sz;
+        }
+
+        int64_t get_ld_packed(int64_t k, bool get_max = false) const {
+            auto a_sz = types::data_type_size(desc()->a_type());
+
+            int unroll_k = int(32 / a_sz);
+            auto ld = utils::rnd_up(k, unroll_k);
+            if (with_ab_zero_points()) ld += unroll_k;
+
+            return nice_ld(ld, int(a_sz), get_max);
+        }
+
+        int64_t max_ld_packed(int64_t k) const {
+            return get_ld_packed(k, true);
+        }
+
+        dim_t lda_packed(int64_t k) const {
             return packed_a() ? desc()->b_desc.format_desc.blocking
                                         .strides[with_batch() ? 2 : 1]
                             / unroll_m()
-                              : 0;
+                              : get_ld_packed(k);
         }
-        dim_t ldb_packed() const {
+        dim_t ldb_packed(int64_t k) const {
             return packed_b() ? desc()->a_desc.format_desc.blocking
                                         .strides[with_batch() ? 1 : 0]
                             / unroll_n()
-                              : 0;
+                              : get_ld_packed(k);
         }
         dim_t ldc_packed() const {
             return packed_c() ? desc()->c_desc.format_desc.blocking
@@ -146,8 +171,6 @@ struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
     };
 
     status_t init(engine_t *engine) override;
-    status_t init_res_storage(
-            engine_t *engine, gpu_resource_t *r) const override;
 
 public:
     xe_hp_systolic_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
@@ -177,29 +200,6 @@ private:
             int32_t *offset_po_src, bool first_k_block, bool last_k_block,
             int32_t batch, int32_t stride_a, int32_t stride_b,
             int32_t stride_c) const;
-
-    static int64_t nice_ld(int64_t ld, int sz, bool get_max = false) {
-        const auto align = 32;
-        const auto no_align = 64;
-
-        auto new_ld = (ld * sz + align - 1) & ~(align - 1);
-        if (get_max || (new_ld & (no_align - 1)) == 0) new_ld += align;
-
-        return new_ld / sz;
-    }
-
-    int64_t get_ld_packed(int64_t k, bool get_max = false) const {
-        auto a_type = pd()->desc()->a_type();
-        auto a_sz = types::data_type_size(a_type);
-
-        int unroll_k = int(32 / a_sz);
-        auto ld = utils::rnd_up(k, unroll_k);
-        if (pd()->with_ab_zero_points()) ld += unroll_k;
-
-        return nice_ld(ld, int(a_sz), get_max);
-    }
-
-    int64_t max_ld_packed(int64_t k) const { return get_ld_packed(k, true); }
 
     static const int A_PACKED_ = 0;
     static const int B_PACKED_ = 1;

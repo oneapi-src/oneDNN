@@ -116,6 +116,8 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
 
     if (!ok) return status::unimplemented;
 
+    init_scratchpad();
+
     return status::success;
 }
 
@@ -364,6 +366,39 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
     return gpu_gemm_pd_t::set_default_formats();
 }
 
+void xe_hp_systolic_gemm_t::pd_t::init_scratchpad() {
+    if (packed_a() && packed_b()) return;
+
+    auto a_type = desc()->a_type();
+    auto b_type = desc()->b_type();
+
+    auto m = desc()->m();
+    auto n = desc()->n();
+    auto k = desc()->k();
+
+    int64_t align_m = unroll_m_ * 8; // TODO: this should not be hardcoded
+    int64_t align_n = unroll_n_ * 8; // instead read from DriverInfo
+
+    auto m_aligned = utils::rnd_up(m, align_m);
+    auto n_aligned = utils::rnd_up(n, align_n);
+
+    auto max_ldab_packed = max_ld_packed(k);
+
+    auto scratchpad = scratchpad_registry().registrar();
+
+    if (!packed_a()) {
+        scratchpad.book(memory_tracking::names::key_gemm_blocked_a,
+                m_aligned * max_ldab_packed * types::data_type_size(a_type), 64,
+                65536);
+    }
+
+    if (!packed_b()) {
+        scratchpad.book(memory_tracking::names::key_gemm_blocked_b,
+                n_aligned * max_ldab_packed * types::data_type_size(b_type), 64,
+                65536);
+    }
+}
+
 status_t xe_hp_systolic_gemm_t::init(engine_t *engine) {
     arch_ = pd()->dev_info_->gpu_arch();
     eu_count_ = pd()->dev_info_->eu_count();
@@ -510,46 +545,6 @@ status_t xe_hp_systolic_gemm_t::init_compute(engine_t *engine) {
                     return status::runtime_error;
             }
         }
-    }
-
-    return status::success;
-}
-
-status_t xe_hp_systolic_gemm_t::init_res_storage(
-        engine_t *engine, gpu_resource_t *r) const {
-    auto a_type = pd()->desc()->a_type();
-    auto b_type = pd()->desc()->b_type();
-
-    auto m = pd()->desc()->m();
-    auto n = pd()->desc()->n();
-    auto k = pd()->desc()->k();
-
-    int64_t align_m = compute_info_.wgTile(LoopM);
-    int64_t align_n = compute_info_.wgTile(LoopN);
-
-    auto m_aligned = utils::rnd_up(m, align_m);
-    auto n_aligned = utils::rnd_up(n, align_n);
-
-    auto max_ldab_packed = max_ld_packed(k);
-
-    if (!pd()->packed_a()) {
-        memory_storage_t *a_packed_ptr;
-        engine->create_memory_storage(&a_packed_ptr,
-                m_aligned * max_ldab_packed * types::data_type_size(a_type));
-        if (!a_packed_ptr) return status::runtime_error;
-
-        std::unique_ptr<memory_storage_t> a_packed(a_packed_ptr);
-        r->add_memory_storage(A_PACKED_, std::move(a_packed));
-    }
-
-    if (!pd()->packed_b()) {
-        memory_storage_t *b_packed_ptr;
-        engine->create_memory_storage(&b_packed_ptr,
-                n_aligned * max_ldab_packed * types::data_type_size(b_type));
-        if (!b_packed_ptr) return status::runtime_error;
-
-        std::unique_ptr<memory_storage_t> b_packed(b_packed_ptr);
-        r->add_memory_storage(B_PACKED_, std::move(b_packed));
     }
 
     return status::success;
@@ -847,8 +842,17 @@ status_t xe_hp_systolic_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto *co = &c_zp;
     memory_storage_t *ao = nullptr, *bo = nullptr;
 
-    auto &a_packed = packed_a ? a : CTX_GPU_RES_STORAGE(A_PACKED_);
-    auto &b_packed = packed_b ? b : CTX_GPU_RES_STORAGE(B_PACKED_);
+    std::unique_ptr<memory_storage_t> a_packed_temp, b_packed_temp;
+
+    if (!packed_a)
+        a_packed_temp = ctx.get_scratchpad_grantor().get_memory_storage(
+                memory_tracking::names::key_gemm_blocked_a);
+    if (!packed_b)
+        b_packed_temp = ctx.get_scratchpad_grantor().get_memory_storage(
+                memory_tracking::names::key_gemm_blocked_b);
+
+    auto &a_packed = packed_a ? a : *a_packed_temp;
+    auto &b_packed = packed_b ? b : *b_packed_temp;
 
     const memory_storage_t *po_srcs[GEMM_MAX_PO];
 
@@ -914,9 +918,8 @@ status_t xe_hp_systolic_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     int64_t block_m = 0, block_n = 0, block_k = 0;
     std::tie(block_m, block_n, block_k) = get_blocking();
 
-    auto ld_packed = get_ld_packed(k);
-    auto lda_packed = packed_a ? pd()->lda_packed() : ld_packed;
-    auto ldb_packed = packed_b ? pd()->ldb_packed() : ld_packed;
+    auto lda_packed = pd()->lda_packed(k);
+    auto ldb_packed = pd()->ldb_packed(k);
 
     status_t status;
 
