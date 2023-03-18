@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,7 +60,14 @@ struct gemm_with_post_ops_t : public gpu_gemm_t {
         auto ret_status
                 = create_nested_primitive(gemm_prim_, pd()->gemm_pd_, engine);
         CHECK(ret_status);
-        compute::kernel_ctx_t kernel_ctx;
+        primitive_attr_t attr;
+        int threads_per_eu = 0;
+        if (status::success
+                == pd()->gemm_pd_->query(query::preferred_gpu_threads_per_eu, 0,
+                        &threads_per_eu)) {
+            attr.set_gpu_attr(gpu_primitive_attr_t(threads_per_eu));
+        }
+        compute::kernel_ctx_t kernel_ctx(&attr);
         ret_status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(ret_status);
         ret_status = create_kernel(
