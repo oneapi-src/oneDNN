@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -220,6 +220,8 @@ enum {
     key_gemm_int_c_in_acc_dt,
     key_gemm_tmp_buffer,
     key_gemm_flag,
+    key_gemm_blocked_a,
+    key_gemm_blocked_b,
     key_iprod_bias_bf16_convert_wsp,
     key_iprod_dst_bf16_convert_wsp,
     key_iprod_dst_reorder,
