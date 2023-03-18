@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -134,7 +134,7 @@ private:
     lambda_jit_injectors_t lambda_jit_injectors_;
 };
 
-enum post_op_type { sum = 0, eltwise, binary };
+enum post_op_type { sum = 0, eltwise, binary, prelu };
 
 struct post_ops_ok_args_t {
     post_ops_ok_args_t(const cpu_isa_t isa,

@@ -39,6 +39,7 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 namespace binary_injector {
+using dnnl::impl::cpu::binary_injector_utils::get_src1_desc;
 using dnnl::impl::cpu::binary_injector_utils::prepare_binary_args;
 
 bool binary_args_broadcast_supported(const post_ops_t &post_ops,
@@ -446,6 +447,8 @@ private:
     template <typename T>
     void execute_binary(alg_kind_t binary_alg, const Vmm &dst, const Vmm &lhs,
             const T &rhs) const;
+    void execute_prelu(const Vmm &dst, const Xbyak::Operand &rhs) const;
+
     /*
      * Used in scalar broadcast strategy, broadcasting single value of given
      * data type over entire vector Vmm register.
@@ -492,6 +495,13 @@ private:
      * with ptr.
      */
     Xbyak::Address remove_bcast_bit(const Xbyak::Address &rhs_addr) const;
+
+    /*
+    * Returns an Opmask register, that can be used from temporary use.
+    * The returned register will be different from tail_opmask.
+    * Note: The Opmask register returned may need to be preserved.
+    */
+    Xbyak::Opmask get_aux_kmask() const;
 
     jit_generator *host_;
     const rhs_arg_static_params_t rhs_arg_static_params_;

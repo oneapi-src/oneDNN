@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -48,6 +48,9 @@ bool bcast_strategy_present(
 std::vector<broadcasting_strategy_t> extract_bcast_strategies(
         const std::vector<dnnl_post_ops::entry_t> &post_ops,
         const memory_desc_wrapper &dst_md);
+
+memory_desc_t get_src1_desc(
+        const post_ops_t::entry_t &post_op, const memory_desc_wrapper &dst_d);
 
 /*
  * Returns a tuple of bools, which size is equal to number of bcast

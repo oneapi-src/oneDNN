@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,8 +34,9 @@ bool is_supported(const post_ops_ok_args_t &post_ops_ok_args) {
             const auto res
                     = eltwise_injector::is_supported(isa, post_op.eltwise.alg);
             if (!res) return false;
-        } else if (post_op.is_binary()) {
-            const auto &src1_desc = post_op.binary.src1_desc;
+        } else if (post_op.is_like_binary()) {
+            const auto src1_desc
+                    = binary_injector::get_src1_desc(post_op, *dst_d);
             const auto res = binary_injector::is_supported(
                     isa, src1_desc, *dst_d, enabled_bcast_strategy);
             if (!res) return false;
@@ -56,7 +57,7 @@ jit_uni_postops_injector_t<isa, Vmm>::jit_uni_postops_injector_t(
     , lambda_jit_injectors_(lambda_jit_injectors) {
 
     const auto &esp = eltwise_static_params;
-    bool is_binary = false;
+    bool is_like_binary = false;
     bool is_eltwise = false;
 
     for (int i = 0; i < post_ops.len(); i++) {
@@ -68,20 +69,20 @@ jit_uni_postops_injector_t<isa, Vmm>::jit_uni_postops_injector_t(
                             post_op.eltwise, esp.save_state, esp.p_table,
                             esp.k_mask, esp.is_fwd, esp.use_dst,
                             esp.preserve_vmm, esp.preserve_p_table));
-        } else if (post_op.is_binary()) {
-            is_binary = true;
+        } else if (post_op.is_like_binary()) {
+            is_like_binary = true;
         }
     }
 
-    if (is_superset(isa, avx512_core) && is_eltwise && is_binary
+    if (is_superset(isa, avx512_core) && is_eltwise && is_like_binary
             && binary_static_params.rhs_arg_static_params.tail_size)
         assert(eltwise_static_params.k_mask
                 != binary_static_params.rhs_arg_static_params.tail_opmask &&
-                "Binary tail opmask should be different than eltwise injector \
-                opmask. Otherwise eltwise injector will overwrite binary tail \
-                opmask.");
+                "Binary and prelu tail opmask should be different than eltwise \
+                injector opmask. Otherwise eltwise injector will overwrite \
+                binary tail opmask.");
 
-    if (is_binary)
+    if (is_like_binary)
         binary_injector_ = utils::make_unique<
                 binary_injector::jit_uni_binary_injector_t<isa, Vmm>>(
                 host, binary_static_params);
@@ -138,7 +139,7 @@ void jit_uni_postops_injector_t<isa, Vmm>::compute_vector_range(
         const auto &post_op = post_ops_.entry_[i];
         if (post_op.is_eltwise()) {
             alg_to_eltwise_injector_.at(i).compute_vector_range(vmm_idxs);
-        } else if (post_op.is_binary()) {
+        } else if (post_op.is_like_binary()) {
             binary_injector_->compute_vector_range(
                     vmm_idxs, rhs_arg_idx, post_op, rhs_arg_params);
             ++rhs_arg_idx;
@@ -224,11 +225,12 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
                     }
                     break;
                 case binary:
-                    if (entry.is_binary()) {
+                case prelu:
+                    if (entry.is_like_binary()) {
                         assert(dst_d != nullptr && "dst_d is null");
                         return binary_injector::is_supported(isa,
-                                entry.binary.src1_desc, *dst_d,
-                                enabled_bcast_strategy);
+                                binary_injector::get_src1_desc(entry, *dst_d),
+                                *dst_d, enabled_bcast_strategy);
                     }
                     break;
                 default: assert(false && "Unhandled post_op type");

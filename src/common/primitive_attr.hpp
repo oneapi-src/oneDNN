@@ -463,6 +463,8 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             return kind == dnnl::impl::primitive_kind::prelu;
         }
 
+        bool is_like_binary() const { return is_binary() || is_prelu(); }
+
         dnnl::impl::status_t set_depthwise_scales(const float *scales);
 
         bool operator==(const entry_t &rhs) const {
