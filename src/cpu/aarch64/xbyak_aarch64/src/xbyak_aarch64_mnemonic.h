@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2019-2022 FUJITSU LIMITED
+ * Copyright 2019-2023 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1815,6 +1815,8 @@ void CodeGenerator::sqxtn(const VReg2S &vd, const VReg2D &vn) { AdvSimd2RegMisc(
 void CodeGenerator::sqxtn2(const VReg16B &vd, const VReg8H &vn) { AdvSimd2RegMisc(0, 20, vd, vn); }
 void CodeGenerator::sqxtn2(const VReg8H &vd, const VReg4S &vn) { AdvSimd2RegMisc(0, 20, vd, vn); }
 void CodeGenerator::sqxtn2(const VReg4S &vd, const VReg2D &vn) { AdvSimd2RegMisc(0, 20, vd, vn); }
+void CodeGenerator::bfcvtn(const VReg4H &vd, const VReg4S &vn) { AdvSimd2RegMisc(0, 0, 22, vd, vn); }
+void CodeGenerator::bfcvtn2(const VReg8H &vd, const VReg4S &vn) { AdvSimd2RegMisc(1, 0, 22, vd, vn); }
 void CodeGenerator::rev32(const VReg8B &vd, const VReg8B &vn) { AdvSimd2RegMisc(1, 0, vd, vn); }
 void CodeGenerator::rev32(const VReg4H &vd, const VReg4H &vn) { AdvSimd2RegMisc(1, 0, vd, vn); }
 void CodeGenerator::rev32(const VReg16B &vd, const VReg16B &vn) { AdvSimd2RegMisc(1, 0, vd, vn); }
@@ -3051,6 +3053,7 @@ void CodeGenerator::fmov(const DReg &vd, const DReg &vn) { FpDataProc1Reg(0, 0, 
 void CodeGenerator::fabs(const DReg &vd, const DReg &vn) { FpDataProc1Reg(0, 0, 1, 1, vd, vn); }
 void CodeGenerator::fneg(const DReg &vd, const DReg &vn) { FpDataProc1Reg(0, 0, 1, 2, vd, vn); }
 void CodeGenerator::fsqrt(const DReg &vd, const DReg &vn) { FpDataProc1Reg(0, 0, 1, 3, vd, vn); }
+void CodeGenerator::bfcvt(const HReg &vd, const SReg &vn) { FpDataProc1Reg(0, 0, 1, 6, vd, vn); }
 void CodeGenerator::frintn(const DReg &vd, const DReg &vn) { FpDataProc1Reg(0, 0, 1, 8, vd, vn); }
 void CodeGenerator::frintp(const DReg &vd, const DReg &vn) { FpDataProc1Reg(0, 0, 1, 9, vd, vn); }
 void CodeGenerator::frintm(const DReg &vd, const DReg &vn) { FpDataProc1Reg(0, 0, 1, 10, vd, vn); }

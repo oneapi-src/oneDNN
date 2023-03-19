@@ -62,6 +62,7 @@ enum hwCap_t {
   XBYAK_AARCH64_HWCAP_FP = 1 << 2,
   XBYAK_AARCH64_HWCAP_SVE = 1 << 3,
   XBYAK_AARCH64_HWCAP_ATOMIC = 1 << 4,
+  XBYAK_AARCH64_HWCAP_BF16 = 1 << 5,
 };
 
 struct implementer_t {
@@ -108,6 +109,7 @@ public:
   uint64_t getSveLen() const;
   bool has(Type type) const;
   bool isAtomicSupported() const;
+  bool isBf16Supported() const;
 };
 
 } // namespace util

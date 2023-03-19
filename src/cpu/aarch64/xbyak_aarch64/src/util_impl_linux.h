@@ -385,16 +385,18 @@ private:
 
   void setHwCap() {
     unsigned long hwcap = getauxval(AT_HWCAP);
-    if (hwcap & HWCAP_ATOMICS) {
+    if (hwcap & HWCAP_ATOMICS)
       type_ |= (Type)XBYAK_AARCH64_HWCAP_ATOMIC;
-    }
 
-    if (hwcap & HWCAP_FP) {
+    if (hwcap & HWCAP_FP)
       type_ |= (Type)XBYAK_AARCH64_HWCAP_FP;
-    }
-    if (hwcap & HWCAP_ASIMD) {
+    if (hwcap & HWCAP_ASIMD)
       type_ |= (Type)XBYAK_AARCH64_HWCAP_ADVSIMD;
-    }
+#ifdef HWCAP2_BF16
+    if (hwcap & HWCAP2_BF16)
+      type_ |= (Type)XBYAK_AARCH64_HWCAP_BF16;
+#endif
+
 #ifdef HWCAP_SVE
     /* Some old <sys/auxv.h> may not define HWCAP_SVE.
        In that case, SVE is treated as if it were not supported. */
