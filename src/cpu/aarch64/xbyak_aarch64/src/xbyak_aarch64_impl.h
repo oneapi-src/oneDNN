@@ -1916,6 +1916,14 @@ void CodeGenerator::AdvSimd2RegMisc(uint32_t U, uint32_t opcode, const VRegVec &
 }
 
 // Advanced SIMD two-register miscellaneous
+void CodeGenerator::AdvSimd2RegMisc(uint32_t Q, uint32_t U, uint32_t opcode, const VRegVec &vd, const VRegVec &vn) {
+  uint32_t size = genSize(vn);
+
+  uint32_t code = concat({F(Q, 30), F(U, 29), F(0xe, 24), F(size, 22), F(1, 21), F(opcode, 12), F(2, 10), F(vn.getIdx(), 5), F(vd.getIdx(), 0)});
+  dd(code);
+}
+
+// Advanced SIMD two-register miscellaneous
 void CodeGenerator::AdvSimd2RegMiscZero(uint32_t U, uint32_t opcode, const VRegVec &vd, const VRegVec &vn, uint32_t zero) {
   verifyIncList(zero, {0}, ERR_ILLEGAL_CONST_VALUE);
   AdvSimd2RegMisc(U, opcode, vd, vn);

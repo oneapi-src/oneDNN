@@ -196,6 +196,7 @@ uint64_t Cpu::getSveLen() const { return info->getSveLen(); }
 Type Cpu::getType() const { return info->getType(); }
 bool Cpu::has(Type type) const { return (type & info->getType()) != 0; }
 bool Cpu::isAtomicSupported() const { return info->getType() & (Type)XBYAK_AARCH64_HWCAP_ATOMIC; }
+bool Cpu::isBf16Supported() const { return info->getType() & (Type)XBYAK_AARCH64_HWCAP_BF16; }
 
 } // namespace util
 } // namespace Xbyak_aarch64

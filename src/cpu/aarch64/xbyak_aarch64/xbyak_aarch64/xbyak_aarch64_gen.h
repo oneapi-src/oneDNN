@@ -398,6 +398,7 @@ class CodeGenerator : public CodeArray {
   void AdvSimd3SameExtraRotate(uint32_t U, uint32_t op32, const VRegVec &vd, const VRegVec &vn, const VRegVec &vm, uint32_t rotate);
   void AdvSimd2RegMisc(uint32_t U, uint32_t opcode, const VRegVec &vd, const VRegVec &vn);
   void AdvSimd2RegMisc(uint32_t U, uint32_t opcode, const VRegVec &vd, const VRegVec &vn, uint32_t sh);
+  void AdvSimd2RegMisc(uint32_t Q, uint32_t U, uint32_t opcode, const VRegVec &vd, const VRegVec &vn);
   void AdvSimd2RegMiscZero(uint32_t U, uint32_t opcode, const VRegVec &vd, const VRegVec &vn, uint32_t zero);
   void AdvSimd2RegMiscSz(uint32_t U, uint32_t size, uint32_t opcode, const VRegVec &vd, const VRegVec &vn);
   void AdvSimd2RegMiscSz0x(uint32_t U, uint32_t opcode, const VRegVec &vd, const VRegVec &vn);

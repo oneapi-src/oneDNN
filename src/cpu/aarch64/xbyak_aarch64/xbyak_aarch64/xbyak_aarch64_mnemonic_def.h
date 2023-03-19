@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2019-2022 FUJITSU LIMITED
+ * Copyright 2019-2023 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1815,6 +1815,8 @@ void sqxtn(const VReg2S &vd, const VReg2D &vn);
 void sqxtn2(const VReg16B &vd, const VReg8H &vn);
 void sqxtn2(const VReg8H &vd, const VReg4S &vn);
 void sqxtn2(const VReg4S &vd, const VReg2D &vn);
+void bfcvtn(const VReg4H &vd, const VReg4S &vn);
+void bfcvtn2(const VReg8H &vd, const VReg4S &vn);
 void rev32(const VReg8B &vd, const VReg8B &vn);
 void rev32(const VReg4H &vd, const VReg4H &vn);
 void rev32(const VReg16B &vd, const VReg16B &vn);
@@ -3051,6 +3053,7 @@ void fmov(const DReg &vd, const DReg &vn);
 void fabs(const DReg &vd, const DReg &vn);
 void fneg(const DReg &vd, const DReg &vn);
 void fsqrt(const DReg &vd, const DReg &vn);
+void bfcvt(const HReg &vd, const SReg &vn);
 void frintn(const DReg &vd, const DReg &vn);
 void frintp(const DReg &vd, const DReg &vn);
 void frintm(const DReg &vd, const DReg &vn);
