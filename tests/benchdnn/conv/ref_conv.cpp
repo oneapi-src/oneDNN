@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,6 +25,16 @@ void compute_ref_direct_fwd(const prb_t *prb, const args_t &args) {
     const dnn_mem_t &wei_m = args.find(DNNL_ARG_WEIGHTS);
     const dnn_mem_t &bia_m = args.find(DNNL_ARG_BIAS);
     const dnn_mem_t &dst_m = args.find(DNNL_ARG_DST);
+    const dnn_mem_t &src_scales
+            = args.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+    const dnn_mem_t &wei_scales
+            = args.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+    const bool has_src_scale = !prb->attr.scales.get(DNNL_ARG_SRC).is_def();
+    const bool has_wei_scale = !prb->attr.scales.get(DNNL_ARG_WEIGHTS).is_def();
+    const float src_scale = has_src_scale ? src_scales.get_elem(0) : 1.f;
+    const auto &e = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
+    const bool wei_scale_is_common = e.policy == policy_t::COMMON;
+
     /* help compiler optimize the code */
     const int64_t MB = prb->mb, G = prb->g, OC = prb->oc, IC = prb->ic;
     const int64_t OCG = OC / G, ICG = IC / G;
@@ -57,14 +67,11 @@ void compute_ref_direct_fwd(const prb_t *prb, const args_t &args) {
                     for (int64_t ic = 0; ic < ICG; ++ic) {
                         int64_t src_off = ((ic * ID + id) * IH + ih) * IW + iw;
                         int64_t wei_off = ((ic * KD + kd) * KH + kh) * KW + kw;
+
                         float s = src_loc[src_off];
                         maybe_zero_point(prb->attr, s, prb->src_zp,
                                 g * ICG + ic, DNNL_ARG_SRC);
-                        maybe_scale(prb->attr, s, prb->src_scales, g * ICG + ic,
-                                DNNL_ARG_SRC);
-                        float w = wei_loc[wei_off];
-                        maybe_scale(prb->attr, w, prb->wei_scales, g * OCG + oc,
-                                DNNL_ARG_WEIGHTS);
+                        const float w = wei_loc[wei_off];
                         d += s * w;
                     }
                 }
@@ -81,6 +88,15 @@ void compute_ref_direct_fwd(const prb_t *prb, const args_t &args) {
 
                 float conv_res = 0;
                 ker(conv_res, g, mb, oc, od, oh, ow);
+
+                // apply scale as:
+                //    dst = src_scale * wei_scale * conv(src - zp_src, wei)
+                float wei_scale = 1.f;
+                if (has_wei_scale)
+                    wei_scale = wei_scales.get_elem(
+                            wei_scale_is_common ? 0 : g * OCG + oc);
+                const float scale = src_scale * wei_scale;
+                conv_res *= scale;
 
                 if (prb->dir & FLAG_BIA) {
                     const size_t bia_off = bia_off_f(prb, g, oc);
