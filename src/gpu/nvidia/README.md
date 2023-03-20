@@ -279,7 +279,9 @@ backward propagation respectively.
 ### PReLU
 The PReLU primitive (Leaky ReLU with a trainable alpha parameter) is implemented
 using SYCL kernels. The primitive supports both forward and backward
-propagations for the data types f32, s32, bf16, f16, s8 and u8.
+propagations.
+* Forward pass supports `f32`, `f16`, `bf16`, `s8` and `u8`
+* Backward pass supports `f32`, `bf16`
 
 ### Reorder
 
@@ -340,6 +342,13 @@ changed to `CUDNN_SOFTMAX_LOG`.
 
 The sum operation uses the reorder primitive to sum tensors, so the same
 limitation as reorder applies here.
+
+### Shuffle
+
+The shuffle primitive is implemented using SYCL kernels.
+This primitive supports both forward and backward propagations.
+* Forward pass supports `f32`, `f16`, `bf16` and `s8`
+* Backward pass supports `f32`, `bf16`
 
 ### Other primitives
 
