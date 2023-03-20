@@ -841,11 +841,10 @@ void align_src_dst_offset(GeneratorT *host, ngen_register_scope_t &scope,
 // allocated. For example: A -> T -> B or A -> B -> T -> B
 class reorder_2d_impl_t {
 public:
-    reorder_2d_impl_t(
-            ngen::HW hw, const layout_t &src_layout, const layout_t &dst_layout)
-        : hw_(hw), src_(src_layout), dst_(dst_layout) {
+    reorder_2d_impl_t(ngen::HW hw, tensor_t tile, const layout_t &src_layout,
+            const layout_t &dst_layout)
+        : hw_(hw), src_(src_layout), dst_(dst_layout), tile_(std::move(tile)) {
         ir_assert(src_.type() == dst_.type());
-        tile_ = find_2d_tile(src_, dst_);
     }
 
     const tensor_t &tile() const { return tile_; }
@@ -911,62 +910,6 @@ public:
             prev_layout = next_layout;
             prev_rd = next_rd;
         }
-    }
-
-    // Returns the biggest common 2D tile that is innermost for both layouts.
-    // The returned tile contains at most max_elems elements. If match_outer is
-    // true, then outer parts of both layouts are required to be equal.
-    // Returns an empty tensor if the requested tile is not found.
-    static tensor_t find_2d_tile(const layout_t &a, const layout_t &b,
-            int max_elems = std::numeric_limits<int>::max(),
-            bool match_outer = false) {
-        std::vector<dim_t> tile_dims(a.ndims(), 1);
-        if (a.blocks().empty() || b.blocks().empty())
-            return tensor_t(tile_dims);
-
-        auto non_one_ndims = [](const tensor_t &t) {
-            int ret = 0;
-            for (dim_t d : t.dims())
-                ret += (d != 1 ? 1 : 0);
-            return ret;
-        };
-
-        layout_iterator_t a_it(a);
-        layout_iterator_t b_it(b);
-
-        tensor_t max_tile;
-        for (;;) {
-            auto a_tile = a_it.tile();
-            auto b_tile = b_it.tile();
-            if (non_one_ndims(a_tile) > 2 || non_one_ndims(b_tile) > 2) break;
-            if (!a.map(a_tile).is_dense() || !b.map(b_tile).is_dense()) break;
-            dim_t a_elems = a_tile.elems();
-            dim_t b_elems = b_tile.elems();
-
-            bool tile_ok = true;
-            if (!a_tile.is_equal(b_tile)) tile_ok = false;
-            if (match_outer) {
-                auto a_outer = a_it.outer_layout();
-                auto b_outer = b_it.outer_layout();
-                if (!a_outer.is_equal(b_outer)) tile_ok = false;
-            }
-            if (tile_ok) {
-                if (a_it.nblocks() > max_tile_blocks) break;
-                if (b_it.nblocks() > max_tile_blocks) break;
-                if (a_tile.elems() > max_elems) break;
-                max_tile = a_tile;
-                if (!a_it.has_next() || !b_it.has_next()) break;
-                ++a_it;
-                ++b_it;
-            } else if (a_elems <= b_elems) {
-                if (!a_it.has_next()) break;
-                ++a_it;
-            } else {
-                if (!b_it.has_next()) break;
-                ++b_it;
-            }
-        }
-        return max_tile;
     }
 
     static const int max_tile_blocks = 4;
@@ -1389,18 +1332,22 @@ private:
     static std::vector<tensor_t> find_2d_dense_tiles(
             const layout_t &a, const layout_t &b) {
         using tile_pair_t = std::array<tensor_t, 2>;
+        static constexpr int max_tile_blocks
+                = reorder_2d_impl_t::max_tile_blocks;
         auto dense_2d_blocks = []() {
             dim_t stride = 1;
             int non_one_dims = 0;
+            int count = 0;
             std::unordered_set<int> seen;
             return [=](const block_t &b) mutable {
                 if ((dim_t)b.stride != stride) return false;
                 if (b.block != 1) {
+                    count++;
                     stride *= b.block;
                     auto ret = seen.insert(b.dim_idx);
                     if (ret.second) non_one_dims++;
                 }
-                return non_one_dims <= 2;
+                return non_one_dims <= 2 && count <= max_tile_blocks;
             };
         };
 
@@ -1445,6 +1392,7 @@ private:
         const auto type = to_ngen(src_layout_.type());
         for (const auto &tile : find_2d_dense_tiles(src_layout_, dst_layout_)) {
             if (tile.is_empty()) continue;
+            if (tile.elems() < 4) break;
             auto src_tile_layout = src_layout_.map(tile);
             auto dst_tile_layout = dst_layout_.map(tile);
             if (!dst_tile_layout.is_dense()) continue;
@@ -1463,9 +1411,7 @@ private:
             // Allocation succeeded, can proceed further.
             scope.safeRelease(dummy);
 
-            reorder_2d_impl_t r(hw_, src_tile_layout, dst_tile_layout);
-            if (r.tile().elems() < 4) break;
-
+            reorder_2d_impl_t r(hw_, tile, src_tile_layout, dst_tile_layout);
             src_layout_.for_each_tile(
                     tile, [&](const std::vector<dim_t> &start) {
                         auto src_off
