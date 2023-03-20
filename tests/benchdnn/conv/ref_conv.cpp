@@ -88,13 +88,10 @@ void compute_ref_direct_fwd(const prb_t *prb, const args_t &args) {
                         int src_zp = has_src_zp ? src_zps.get_elem(
                                              src_zp_mask > 0 ? g * ICG + ic : 0)
                                                 : 0;
-                        float s = (src_loc[src_off] - src_zp) * src_scale;
-                        float wei_scale = 1.f;
-                        if (has_wei_scale)
-                            wei_scale = wei_scales.get_elem(
-                                    wei_scale_mask > 0 ? g * OCG + oc : 0);
-                        float w = wei_loc[wei_off] * wei_scale;
-                        d += s * w;
+                        const float s = src_loc[src_off];
+                        const float w = wei_loc[wei_off];
+                        const float d_tmp = (s - src_zp) * w;
+                        d += d_tmp;
                     }
                 }
             }
@@ -110,6 +107,15 @@ void compute_ref_direct_fwd(const prb_t *prb, const args_t &args) {
 
                 float conv_res = 0;
                 ker(conv_res, g, mb, oc, od, oh, ow);
+
+                // apply scale as:
+                //    dst = src_scale * wei_scale * conv(src - zp_src, wei)
+                float wei_scale = 1.f;
+                if (has_wei_scale)
+                    wei_scale = wei_scales.get_elem(
+                            wei_scale_mask > 0 ? g * OCG + oc : 0);
+                const float scale = src_scale * wei_scale;
+                conv_res *= scale;
 
                 if (prb->dir & FLAG_BIA) {
                     const size_t bia_off = bia_off_f(prb, g, oc);
