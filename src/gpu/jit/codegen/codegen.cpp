@@ -909,8 +909,9 @@ public:
                         // mul(q, d, d) instruction on XeHP. For some reason
                         // the result is incorrect when dst and src0 are
                         // accessed from the same register.
-                        host_->sync(ngen::SyncFunction::nop,
-                                ngen::SWSB<uint64_t>(1));
+                        if (hw > ngen::HW::XeLP)
+                            host_->sync(ngen::SyncFunction::nop,
+                                    ngen::SWSB<uint64_t>(1));
                     } else {
                         ir_error_not_expected();
                     }
