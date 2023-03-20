@@ -37,8 +37,10 @@
 #include "gpu/nvidia/sycl_cuda_engine.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
+
 #include "gpu/sycl/ref_binary.hpp"
 #include "gpu/sycl/ref_prelu.hpp"
+#include "gpu/sycl/ref_shuffle.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -252,6 +254,9 @@ constexpr dnnl::impl::impl_list_item_t sycl_cuda_impl_list[] = {
 
         // Reduction
         INSTANCE(cudnn_reduction_t)
+
+        // Shuffle
+        INSTANCE(sycl::ref_shuffle_t)
         nullptr,
 };
 // clang-format on
