@@ -67,8 +67,42 @@ struct sycl_prelu_conf_t {
     size_t i_thr;
 };
 
-CHECK_SYCL_KERNEL_ARG_TYPE(sycl_prelu_conf_t);
+struct sycl_shuffle_conf_t {
+    sycl_md_t src_md;
+    sycl_md_t dst_md;
+    sycl_md_t stat_md;
+    sycl_md_t axis_md;
+    dim_t transpose_col;
+    dim_t transpose_row;
+    dim_t group_size;
+
+    dim_t outer_size;
+    dim_t inner_size;
+    dim_t stride_m;
+    dim_t blksize;
+    format_tag_t tag;
+    int axis;
+    int axis_size;
+    dim_t MB;
+    dim_t C;
+    dim_t H;
+    dim_t W;
+    dim_t D;
+    dim_t HW;
+    dim_t SP;
+
+    int ndims;
+    int ndims_d;
+    dim_t dims;
+    size_t nthr;
+    int block_size;
+    int wg_size;
+    dim_t work_amount;
+};
+
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_binary_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_prelu_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_shuffle_conf_t);
 
 } // namespace sycl
 } // namespace gpu
