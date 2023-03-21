@@ -301,7 +301,13 @@ expr tanh_op_t::compute_element(expr in) {
     DECL_VEC_VAR(f_exp_2a, f32);
     DECL_VEC_VAR(f_tmp, f32);
     DECL_VEC_VAR(f_out, f32);
+    DECL_VEC_VAR(f_fin, f32);
 
+    bool is_bf16 = in->dtype_.is_etype(sc_data_etype::BF16);
+    if (is_bf16) {
+        sc_data_type_t fp32ty = sc_data_type_t::f32(lanes);
+        in = builder::make_cast(fp32ty, in);
+    }
     bld->push_assign(abs_a,
             builder::make_int_and(
                     builder::make_reinterpret(in, sc_data_type_t::u32(lanes)),
@@ -318,11 +324,19 @@ expr tanh_op_t::compute_element(expr in) {
             f_tmp, builder::make_div(f_exp_2a - f_one, f_exp_2a + f_one));
     bld->push_assign(f_out,
             builder::make_select(abs_a > uint_saturate_ubound, f_one, f_tmp));
-    return builder::make_reinterpret(
-            builder::make_int_xor(builder::make_reinterpret(
-                                          f_out, sc_data_type_t::u32(lanes)),
-                    sign),
-            sc_data_type_t::f32(lanes));
+    bld->push_assign(f_fin,
+            builder::make_reinterpret(
+                    builder::make_int_xor(builder::make_reinterpret(f_out,
+                                                  sc_data_type_t::u32(lanes)),
+                            sign),
+                    sc_data_type_t::f32(lanes)));
+
+    if (is_bf16) {
+        sc_data_type_t bf16ty = sc_data_type_t::bf16(lanes);
+        return builder::make_cast(bf16ty, f_fin);
+    } else {
+        return f_fin;
+    }
 
 #undef DECL_VEC_CONSTANT
 #undef DECL_VEC_VAR

@@ -186,3 +186,11 @@ TEST(GCCore_unary_elementwise_test, TestSwishOp) {
         check_unary_elementwise<bf16_t>("swish", shape, ref_swish_func);
     }
 }
+
+TEST(GCCore_unary_elementwise_test, TestTanhOp) {
+    BUILTIN_REQUIRE_AVX512();
+    for (auto &shape : test_shapes) {
+        check_unary_elementwise<float>("tanh", shape, ref_tanh);
+        check_unary_elementwise<bf16_t>("tanh", shape, ref_tanh);
+    }
+}
