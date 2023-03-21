@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,6 +53,16 @@ relu_fwd(T s, A alpha) {
 template <typename T, typename A, typename U = rem_ref<T>>
 inline U linear_fwd(T s, A alpha, A beta) {
     return impl::math::linear_fwd(s, alpha, beta);
+}
+
+template <typename T, typename A, typename U = rem_ref<T>>
+inline U clip_fwd(T s, A alpha, A beta) {
+    return impl::math::clip_fwd(s, alpha, beta);
+}
+
+template <typename T, typename A, typename U = rem_ref<T>>
+inline U clip_v2_fwd(T s, A alpha, A beta) {
+    return impl::math::clip_v2_fwd(s, alpha, beta);
 }
 
 // Math functions that work with `sycl::vec`.
