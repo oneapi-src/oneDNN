@@ -528,11 +528,9 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     // - s8/u8 must be DW-strided: use temporary
     bool d_or_f_to_b = (src_d || src_f) && dst_b;
     bool b_to_d_or_f = (dst_d || dst_f) && src_b;
-    bool hf_to_b = src_hf && dst_b;
-    if (d_or_f_to_b || b_to_d_or_f || hf_to_b) {
+    if (d_or_f_to_b || b_to_d_or_f) {
         if (dst_d || dst_f) ir_assert(dst_stride_bytes == 4);
         if (src_d || src_f) ir_assert(src_stride_bytes == 4);
-        if (src_hf) ir_assert(utils::one_of(src_stride_bytes, 2, 4));
         if (dst_b) ir_assert(utils::one_of(dst_stride_bytes, 1, 4));
         if (src_b) ir_assert(utils::one_of(src_stride_bytes, 1, 4));
         int step = get_step();
@@ -547,13 +545,18 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
 
             auto s = src.subregister(i, esize, src_stride_bytes);
             auto d = dst.subregister(i, esize, dst_stride_bytes);
-            if (src_d || src_f || src_hf) {
+            if (src_d || src_f) {
                 // d -> b.
-                if (dst_stride_bytes == 1 || esize == 1) {
+                if (esize == 1) {
+                    // relaxed F-pipe alignment requirements for f32 broadcast
+                    auto t = tmp1.subregister(0, dst_type);
+                    plan(mov, 2 | host->sat, t(4), s);
+                    plan(mov, 1, d, t);
+                } else if (dst_stride_bytes == 1) {
                     auto offset_bytes = src_f ? s.getByteOffset()
                                               : 4 * (d.getByteOffset() % 16);
                     auto t = tmp1.subregister(offset_bytes, dst_type)(4);
-                    plan(mov, std::max(2, esize) | host->sat, t, s(src_stride));
+                    plan(mov, esize | host->sat, t, s(src_stride));
                     if (offset_bytes != 4 * (d.getByteOffset() % 16)) {
                         auto t2 = tmp2.subregister(
                                 4 * (d.getByteOffset() % 16), dst_type)(4);
