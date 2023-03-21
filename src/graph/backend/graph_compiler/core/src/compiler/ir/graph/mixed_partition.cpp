@@ -576,6 +576,17 @@ inline bool is_elementwise_producer(const graph_tensor *gt) {
             || gt->producer_owner_->isa<binary_elementwise_op_t>();
 }
 
+// If last gt depends on all users of cur gt, return true
+inline bool check_last_use_for_gt(const graph_tensor *cur_gt,
+        const graph_tensor *last_gt, const mxp_buffer_allocator *alloc) {
+    return std::all_of(cur_gt->uses_.begin(), cur_gt->uses_.end(),
+            [&alloc, &last_gt](const std::pair<int, sc_op_weak_ptr_t> &user) {
+                return alloc->binded_mxp_->dep_m_->lookup(
+                               user.second.get(), last_gt->producer_owner_)
+                        == 1;
+            });
+}
+
 // max step to explore preview ops
 static constexpr int EXPLORE_INPLACE_MAX_STEP = 8;
 
@@ -599,14 +610,7 @@ static void collect_inplace_info(graph_tensor *cur_gt, graph_tensor *ref_gt,
                     == ref_gt->details_.get_blocking_dims())
             && (cur_gt->details_.dtype_ == ref_gt->details_.dtype_)
             && (cur_gt->details_.get_format() == ref_gt->details_.get_format())
-            && std::all_of(cur_gt->uses_.begin(), cur_gt->uses_.end(),
-                    [&alloc, &ref_gt](
-                            const std::pair<int, sc_op_weak_ptr_t> &user) {
-                        return alloc->binded_mxp_->dep_m_->lookup(
-                                       user.second.get(),
-                                       ref_gt->producer_owner_)
-                                == 1;
-                    })) {
+            && check_last_use_for_gt(cur_gt, ref_gt, alloc)) {
         inplace_set.insert(cur_gt);
         // reset step
         step = 0;
@@ -614,18 +618,21 @@ static void collect_inplace_info(graph_tensor *cur_gt, graph_tensor *ref_gt,
         ref_gt = cur_gt;
     }
 
-    // recursively mark visited
-    auto &inplace_map = alloc->inplace_map_;
-    while (true) {
-        visited_set.insert(cur_buf);
-        auto iter = inplace_map.find((uintptr_t)cur_buf.get());
-        if (iter != inplace_map.end()) {
-            COMPILE_ASSERT(iter->second.size() == 1,
-                    "Unexpected inplace info size during partition")
-            cur_buf = ((expr_base *)iter->second[0].first)
-                              ->node_ptr_from_this();
-        } else {
-            break;
+    // if not mark visited
+    if (visited_set.find(cur_buf) == visited_set.end()) {
+        // recursively mark visited
+        auto &inplace_map = alloc->inplace_map_;
+        while (true) {
+            visited_set.insert(cur_buf);
+            auto iter = inplace_map.find((uintptr_t)cur_buf.get());
+            if (iter != inplace_map.end()) {
+                COMPILE_ASSERT(iter->second.size() == 1,
+                        "Unexpected inplace info size during partition")
+                cur_buf = ((expr_base *)iter->second[0].first)
+                                  ->node_ptr_from_this();
+            } else {
+                break;
+            }
         }
     }
     // get cur op
@@ -707,7 +714,24 @@ void mxp_buffer_allocator::query_buffer_inplace() {
                 }
             }
         }
-        // step 4: mark inplace attr for each buffer in list with the previous
+        // step 4: validate inplace chain to ensure all of gt satisfy last use
+        graph_tensor *next_gt = nullptr;
+        for (auto iter = inplace_gt_list.rbegin();
+                iter != inplace_gt_list.rend();) {
+            if (!next_gt)
+                next_gt = (*iter);
+            else {
+                if (check_last_use_for_gt(*iter, next_gt, this)) {
+                    next_gt = (*iter);
+                } else {
+                    iter = std::vector<graph_tensor *>::reverse_iterator(
+                            inplace_gt_list.erase((++iter).base()));
+                    continue;
+                }
+            }
+            ++iter;
+        }
+        // step 5: mark inplace attr for each buffer in list with the previous
         // one
         for (size_t i = 1; i < inplace_gt_list.size(); i++) {
             // get target gt

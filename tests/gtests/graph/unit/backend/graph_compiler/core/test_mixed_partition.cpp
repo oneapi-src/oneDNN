@@ -1405,6 +1405,57 @@ TEST(GCCore_graph_mixed_partition_cpp, TestGraphMarkInplaceHint5) {
     EXPECT_TRUE(!output_buf->attr().has_key(attr_keys::tensor_inplace_hint));
 }
 
+TEST(GCCore_graph_mixed_partition_cpp, TestGraphMarkInplaceHint7) {
+    sc_graph_t graph;
+    int batch_size = 56;
+    thread_num_reset reseter;
+    runtime_config_t::get().set_num_threads(batch_size);
+    auto input0 = graph.make_input({graph_tensor::make(
+            {batch_size, 64, 32, 32}, sc_data_format_t::NCHW())});
+    auto input1 = graph.make_input({graph_tensor::make(
+            {batch_size, 64, 32, 32}, sc_data_format_t::NCHW())});
+    auto input2 = graph.make_input({graph_tensor::make(
+            {batch_size, 64, 32, 32}, sc_data_format_t::NCHW())});
+
+    auto mul0 = graph.make("mul",
+            {input0->get_outputs()[0], input1->get_outputs()[0]}, {}, {});
+    // add0 could not do inplace on mul0, due to it is not last user
+    auto add0 = graph.make(
+            "add", {mul0->get_outputs()[0], input2->get_outputs()[0]}, {}, {});
+    auto sub0 = graph.make(
+            "sub", {add0->get_outputs()[0], add0->get_outputs()[0]}, {}, {});
+    auto div0 = graph.make(
+            "div", {mul0->get_outputs()[0], input1->get_outputs()[0]}, {}, {});
+    auto add1 = graph.make(
+            "add", {div0->get_outputs()[0], sub0->get_outputs()[0]}, {}, {});
+    auto relu0 = graph.make("relu", {add1->get_outputs()[0]}, {}, {});
+    graph.make_output(relu0->get_outputs());
+
+    auto ctx = get_test_ctx();
+    mixed_partition(graph, ctx);
+
+    mixed_fuse_op_t *fused_op = get_mixed_op_from_graph(graph);
+    COMPILE_ASSERT(fused_op, "No mixed fused op is found, please check")
+
+    auto body = fused_op->parti_list_[0]
+                        ->get_outer_loops()
+                        .back()
+                        ->body_.checked_as<stmts>()
+                        ->seq_;
+
+    // add_4_outs_0 could not inplace mul_3_outs_0
+    EXPECT_TRUE(std::any_of(body.begin(), body.end(), [](const stmt &s) {
+        return s.cast<define>()
+                .map([](const define &d) { return d->var_.as<tensor>(); })
+                .filter([](const tensor &t) {
+                    return t->name_ == "add_4_outs_0"
+                            && !t->attr().has_key(
+                                    attr_keys::tensor_inplace_hint);
+                })
+                .has_value();
+    }));
+}
+
 TEST(GCCore_graph_mixed_partition_cpp, TestUserDefinedShrintTensor) {
     BUILTIN_REQUIRE_AVX512();
     sc_graph_t graph;
