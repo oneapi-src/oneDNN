@@ -112,7 +112,7 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     if (is_nvidia_gpu()) {
         // cuDNN precision is different from ref one due to different
         // computation algorithm used for resampling.
-        trh = prb->ddt == dnnl_f16 ? 4e-2 : 2e-5;
+        trh = (prb->ddt == dnnl_f16 || prb->sdt == dnnl_bf16) ? 4e-2 : 2e-5;
     }
     cmp.set_threshold(trh);
 

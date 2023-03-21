@@ -41,6 +41,7 @@
 #include "gpu/sycl/ref_binary.hpp"
 #include "gpu/sycl/ref_prelu.hpp"
 #include "gpu/sycl/ref_shuffle.hpp"
+#include "gpu/sycl/ref_resampling.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -251,6 +252,8 @@ constexpr dnnl::impl::impl_list_item_t sycl_cuda_impl_list[] = {
         // Resampling
         INSTANCE(cudnn_resampling_fwd_t)
         INSTANCE(cudnn_resampling_bwd_t)
+        INSTANCE(sycl::ref_resampling_fwd_t)
+        INSTANCE(sycl::ref_resampling_bwd_t)
 
         // Reduction
         INSTANCE(cudnn_reduction_t)
