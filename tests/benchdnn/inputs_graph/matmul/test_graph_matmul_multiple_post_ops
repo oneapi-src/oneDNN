@@ -6,5 +6,5 @@
 # post mul+relu+add
 --reset
 --cfg=bf16bf16bf16
---attr-post-ops=mul:bf16:common+relu+add:bf16:common,mul:bf16:per_oc+relu
+--attr-post-ops=mul:bf16:common+relu+add:bf16:common,mul:bf16:per_oc+relu+add:bf16:per_oc
 16x1024:1024x1024:16x1024
