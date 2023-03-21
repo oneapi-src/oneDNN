@@ -91,8 +91,8 @@ private:
 
 struct ref_binary_op_t {
     ref_binary_op_t() = default;
-    ref_binary_op_t(alg_kind_t alg, memory_desc_t src1) : alg_(alg) {
-        src1_desc = &src1;
+    ref_binary_op_t(alg_kind_t alg, const memory_desc_t &src1)
+        : alg_(alg), src1_desc_(src1) {
         using namespace alg_kind;
         assert(utils::one_of(alg_, binary_add, binary_div, binary_max,
                 binary_min, binary_mul, binary_sub, binary_ge, binary_gt,
@@ -127,11 +127,11 @@ struct ref_binary_op_t {
         return d;
     }
 
-    inline memory_desc_t *Get_src1_desc() const { return src1_desc; }
+    inline const memory_desc_t *get_src1_desc() const { return &src1_desc_; }
 
 private:
     alg_kind_t alg_;
-    memory_desc_t *src1_desc;
+    memory_desc_t src1_desc_;
 };
 
 struct sycl_post_ops_t {
