@@ -20,8 +20,6 @@ where *conv-knobs* are:
  - `--alg={DIRECT [default], WINO, AUTO}` -- convolution algorithm. `WINO` is
             Winograd-based convolution. `AUTO` will pick one of `DIRECT` or
             `WINO` automatically, library-based decision.
- - `--attr-oscale=STRING` -- output scale primitive attribute. No oscale is
-            set by default. Refer to [attributes](knobs_attr.md) for details.
  - `--attr-zero-points=STRING` -- zero points primitive attribute. No zero
             points are set by default. Refer to [attributes](knobs_attr.md)
             for details.
@@ -62,6 +60,7 @@ documentation.
 | src  | wei  | dst  | acc  | cfg             |
 |:---  |:---  |:---  |:---  |:---             |
 | f32  | f32  | f32  | f32  | f32             |
+| f64  | f64  | f64  | f64  | f64             |
 | f32  | f32  | s8   | f32  | f32f32s8        |
 | u8   | s8   | f32  | s32  | u8s8f32         |
 | u8   | s8   | s32  | s32  | u8s8s32         |
@@ -163,7 +162,7 @@ Run a set of u8s8u8 forward convolutions without bias, skipping
 reference implementations with one common output scale set to 0.5:
 ``` sh
     ./benchdnn --conv --cfg=u8s8u8 --dir=FWD_D --skip-impl=ref \
-               --attr-oscale=common:0.5 --batch=inputs/conv/set_conv_all
+               --batch=inputs/conv/set_conv_all
 ```
 
 More examples with different driver options can be found at inputs/conv/test_\*

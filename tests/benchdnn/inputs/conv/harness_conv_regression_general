@@ -353,3 +353,9 @@ ic64ih56oc256oh56kh1ph0n"primitive-cache_dispatch_shape-2"
 # test fpad immediately followed by bpad.
 --reset
 --dir=bwd_w --cfg=bf16bf16bf16 --stag=axb --dtag=axb mb1_ic2oc1_id3od2kd3sd2dd0pd1_n"fpad_followed_by_bpad"
+
+# test correct wei scale calculation
+--reset
+--skip-impl=ref,x64:gemm
+--cfg=u8s8f32 --attr-scales=wei:common:0.025*
+mb2_ic512_oc64_ih7_oh7_kh1_ph0_n"test_wei-scale_computation"

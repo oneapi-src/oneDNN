@@ -11,8 +11,6 @@ where *matmul-knobs* are:
             types. Interface supports broadcasting, when a single input is
             provided, e.g., `--dt=f32`, and the value will be applied for all
             tensors. Refer to [data types](knobs_dt.md) for details.
- - `--cfg={f32 [default], ...}` -- deprecated setting.
-            Refer to ``Configurations`` in driver_conv.md.
  - `--stag={ab [default], any, ...}` -- memory format of the source memory.
             Refer to [tags](knobs_tag.md) for details.
  - `--wtag={ab [default], any, ...}` -- memory format of the weights memory.
@@ -30,8 +28,6 @@ where *matmul-knobs* are:
             default format of the skipped tensor will be used. As long as
             `--strides` and `--*tag` options refer to different tensors, they
             can be specified together.
- - `--attr-oscale=STRING` -- output scale primitive attribute. No oscale is
-            set by default. Refer to [attributes](knobs_attr.md) for details.
  - `--attr-zero-points=STRING` -- zero points primitive attribute. No zero
             points are set by default. Refer to [attributes](knobs_attr.md)
             for details.
@@ -50,7 +46,10 @@ where *matmul-knobs* are:
             `DNNL_RUNTIME_DIM_VAL` (indicated as 1-bit in the corresponding
             dimension position). The default is `0` for all dimensions, meaning
             all tensor dimensions are fully defined at primitive creation.
-
+- `--encoding=STRING` - sparse encodings and sparsity. No encodings are set by
+            default. Refer to [encodings](knobs_encoding.md) for details. This
+            is an experimental feature that must be enabled via a build time
+            CMake option `DNNL_EXPERIMENTAL_SPARSE`.
 
 and *matmul-desc* is a problem descriptor. The canonical form is:
 ```

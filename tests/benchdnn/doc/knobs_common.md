@@ -55,12 +55,27 @@ The following common options are supported:
   `MODE` values can be:
     - `C` or `c` for correctness testing (the default),
     - `P` or `p` for performance testing,
-    - `PO` or `po` for profiling-based performance testing (GPU only),
+    - `F` or `f` for fast performance testing, an alias for
+                 `--mode=P --mode-modifier=PM --max-ms-per-prb=10`,
     - `CP` or `cp` for both correctness and performance testing,
     - `R` or `r` for run mode.
     - `I` or `i` for initialization mode.
     - `L` or `l` for listing mode.
   Refer to [modes](benchdnn_general_info.md) for details.
+
+* `--mode-modifier=MODIFIER` -- Specifies a mode modifier to update the mode
+  used for benchmarking. `MODIFIER` values can be:
+    - empty for no modifiers (the default).
+    - `P` or `p` for parallel backend object creation.
+    - `M` or `m` for disabling usage of host memory (GPU only).
+  Refer to [mode modifiers](benchdnn_general_info.md) for details.
+  Note: The `P` modifier flips the default value of scratchpad mode passed to
+  the library. In order to have the functionality working properly, it is
+  recommended to pass this option **before** the driver name so that the
+  modifier is processed before the execution flow starts and can propagate a new
+  scratchpad value. The flow is affected when users pass descriptors directly.
+  When using batch files, no difference will be observed because batch file
+  starts a new cycle underneath, and a scratchpad value will be propagated.
 
 * `--reset` -- Instructs the driver to reset DRIVER-OPTIONS (not
   COMMON-OPTIONS!) to their default values. The only exception is
@@ -116,7 +131,7 @@ The following common options are applicable only for a performance mode:
 
 * `--max-ms-per-prb=N` -- Specifies the limit in milliseconds for performance
   benchmarking set per problem. `N` is an integer positive number in a range
-  [1e2, 6e4]. If a value is out of the range, it will be saturated to range
+  [1e1, 6e4]. If a value is out of the range, it will be saturated to range
   board values. The default is `3e3`. This option helps to stabilize the
   performance numbers reported for small problems.
 
