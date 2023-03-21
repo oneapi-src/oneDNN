@@ -40,8 +40,8 @@
 
 #include "gpu/sycl/ref_binary.hpp"
 #include "gpu/sycl/ref_prelu.hpp"
-#include "gpu/sycl/ref_shuffle.hpp"
 #include "gpu/sycl/ref_resampling.hpp"
+#include "gpu/sycl/ref_shuffle.hpp"
 
 namespace dnnl {
 namespace impl {
