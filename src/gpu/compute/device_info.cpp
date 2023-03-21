@@ -102,8 +102,7 @@ int device_info_t::threads_per_eu(gpu_arch_t gpu_arch, bool large_grf_mode) {
     return 7;
 }
 
-int device_info_t::max_slm_size_per_tg(
-        gpu_arch_t gpu_arch, bool large_grf_mode) {
+int device_info_t::max_slm_size(gpu_arch_t gpu_arch) {
     int slm_size = 0; // SLM size per SS or DSS.
     switch (gpu_arch) {
         case gpu::compute::gpu_arch_t::gen9:
@@ -114,7 +113,12 @@ int device_info_t::max_slm_size_per_tg(
         case gpu::compute::gpu_arch_t::xe_hpg: slm_size = (1 << 17); break;
         case gpu::compute::gpu_arch_t::unknown: assert(!"not expected");
     }
-    return slm_size / threads_per_eu(gpu_arch, large_grf_mode);
+    return slm_size;
+}
+
+int device_info_t::max_slm_size_per_tg(
+        gpu_arch_t gpu_arch, bool large_grf_mode) {
+    return max_slm_size(gpu_arch) / threads_per_eu(gpu_arch, large_grf_mode);
 }
 
 int device_info_t::slm_memory_bank_count(gpu_arch_t gpu_arch) {

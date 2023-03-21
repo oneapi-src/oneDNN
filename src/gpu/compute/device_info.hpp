@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -228,6 +228,7 @@ public:
         return hw_threads_[large_grf_mode ? 1 : 0];
     }
     static int threads_per_eu(gpu_arch_t gpu_arch, bool large_grf_mode = false);
+    static int max_slm_size(gpu_arch_t gpu_arch);
     static int max_slm_size_per_tg(
             gpu_arch_t gpu_arch, bool large_grf_mode = false);
     static int slm_memory_bank_count(gpu_arch_t gpu_arch);
