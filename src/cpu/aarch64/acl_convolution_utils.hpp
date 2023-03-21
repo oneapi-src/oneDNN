@@ -71,6 +71,11 @@ status_t init_conf_depthwise(acl_conv_conf_t &acp, memory_desc_t &src_md,
         memory_desc_t &bias_md, const convolution_desc_t &cd,
         const primitive_attr_t &attr);
 
+status_t init_conf_dw(acl_conv_conf_t &acp, memory_desc_t &src_md,
+        memory_desc_t &weights_md, memory_desc_t &dst_md,
+        memory_desc_t &bias_md, const convolution_desc_t &cd,
+        const primitive_attr_t &attr);
+
 } // namespace acl_convolution_utils
 
 template <typename conv_obj_t, typename conv_pd_t, typename src_data_t,
