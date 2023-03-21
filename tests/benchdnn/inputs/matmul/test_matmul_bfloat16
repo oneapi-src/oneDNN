@@ -11,7 +11,7 @@
 --batch=shapes_2d
 
 --attr-scales=src:common:0.25*+wei:common:0.5*+dst:common:2.25*
---attr-post-ops=sum
+--attr-post-ops=sum,prelu:per_oc
 --batch=shapes_2d
 
 --attr-scales=src:common:0.25*+wei:per_oc:0.5*+dst:common:2.25*
