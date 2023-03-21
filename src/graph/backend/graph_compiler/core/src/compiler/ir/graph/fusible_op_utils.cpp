@@ -27,6 +27,7 @@
 #include "outer_loop_generator.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
+#include <compiler/ir/graph/mixed_partition.hpp>
 #include <compiler/ir/ir_utils.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/cpu/local_tensor_lower.hpp>
@@ -107,6 +108,48 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, outer_loop_generator_t &gen,
     fmgr.put_input_first(
             fmgr.get_graph().get_input_ops()[base_idx]->dyn_cast<input_op>());
     return lower_fusion_manager(ctx, &gen, op, &fmgr, check_parallel);
+}
+
+ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx) {
+    sc_graph_t g;
+    g.sync_dynamic_info_with_graph(op->get_owner_graph());
+    std::vector<graph_tensor_ptr> ins;
+    std::vector<graph_tensor_ptr> outs;
+    for (auto &in : op->get_inputs()) {
+        ins.emplace_back(std::make_shared<graph_tensor>(nullptr, in->details_));
+    }
+    for (auto &out : op->get_outputs()) {
+        outs.emplace_back(
+                std::make_shared<graph_tensor>(nullptr, out->details_));
+    }
+    g.make_input(ins);
+    auto copyable = op->dyn_cast<op_traits::copyable_t>();
+    COMPILE_ASSERT(
+            copyable, "The fusible op should be copyable: " << op->op_name_);
+    auto copied = copyable->copy(ins, outs, g);
+    copied->info_.cur_impl_ = op->info_.cur_impl_;
+    COMPILE_ASSERT(copied->get_outputs().size() == 1,
+            "Currently only support 1 output only");
+    g.make_output(outs);
+    auto parti = std::make_shared<mixed_parti_t>(ctx,
+            std::const_pointer_cast<sc_op>(copied->shared_from_this()),
+            std::make_shared<op_dep_matrix_t>(g));
+    // try optimize partition
+    if (try_optimize_parti(parti.get(), g)) {
+        // redo partition
+        std::vector<mixed_parti_t::ptr> op2parti(g.ops_.size());
+        do_partition(ctx, g, op_dep_matrix_t(g), op2parti);
+        // collect legal partition
+        auto res = collect_parti_set(op2parti, false);
+        // Expect only one partition found
+        COMPILE_ASSERT(res.size() == 1,
+                "Only sinlge partition is expected, but got " << res.size());
+        // reset new partition
+        parti = res[0];
+    }
+    auto mx_op = transform_pa_to_mixed_op(ctx, g, parti);
+    mx_op->set_owner_graph(&g);
+    return mx_op->get_func(ctx);
 }
 
 sc_dims get_expr_to_dims(const std::vector<expr> &dim) {
@@ -866,8 +909,8 @@ float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops,
     return parallelism ? 1.0f : cal_parallelism;
 }
 
-bool slice_full_on_axis(
-        const sc_dims &dim, slice_range ranges, const std::vector<int> &axis) {
+bool slice_full_on_axis(const sc_dims &dim, const slice_range &ranges,
+        const std::vector<int> &axis) {
     for (auto &ax : axis) {
         auto first = do_cast_and_fold(ranges[ax].first);
         auto second = do_cast_and_fold(ranges[ax].second);
@@ -894,8 +937,8 @@ bool slice_full_on_axis(
     return true;
 }
 
-bool slice_divisible_on_axis(
-        const sc_dims &dim, slice_range ranges, const std::vector<int> &axis) {
+bool slice_divisible_on_axis(const sc_dims &dim, const slice_range &ranges,
+        const std::vector<int> &axis) {
     for (auto &ax : axis) {
         auto second = do_cast_and_fold(ranges[ax].second);
         // slice range length should be divisible by dims
@@ -908,8 +951,8 @@ bool slice_divisible_on_axis(
     return true;
 }
 
-bool slice_divisible_by_factor(
-        slice_range ranges, const std::vector<int> &axis, const int factor) {
+bool slice_divisible_by_factor(const slice_range &ranges,
+        const std::vector<int> &axis, const int factor) {
     for (auto &ax : axis) {
         auto second = do_cast_and_fold(ranges[ax].second);
         // slice range length should be divisible by dims
@@ -924,7 +967,7 @@ bool slice_divisible_by_factor(
     return true;
 }
 
-bool slice_larger_than_bound_on_axis(slice_range ranges,
+bool slice_larger_than_bound_on_axis(const slice_range &ranges,
         const std::vector<int> &axis, const int factor, const int lower_bound) {
     auto total_len = 1;
     for (auto &ax : axis) {

@@ -41,10 +41,9 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorAdd) {
             graph_tensor::make({32, 16, 64})});
     auto addop = mgr.make("add", ins->get_outputs(), {}, {});
     mgr.make_output(addop->get_outputs());
-    auto addf = lower_graph(get_default_context(), mgr, {})->get_func("add__1");
+    auto addf = lower_graph(get_test_ctx(), mgr, {})->get_func("add__1");
     ASSERT_TRUE(addf);
-    int simd_len
-            = get_default_context()->get_max_vector_lanes(sc_data_etype::F32);
+    int simd_len = get_test_ctx()->get_max_vector_lanes(sc_data_etype::F32);
     builder::ir_builder_t builder;
     for_loop l0, l1;
     _function_(datatypes::boolean, bbb,
@@ -84,10 +83,9 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorAdd2) {
             {graph_tensor::make({1030}), graph_tensor::make({1030})});
     auto addop = mgr.make("add", ins->get_outputs(), {}, {});
     mgr.make_output(addop->get_outputs());
-    auto addf = lower_graph(get_default_context(), mgr, {})->get_func("add__1");
+    auto addf = lower_graph(get_test_ctx(), mgr, {})->get_func("add__1");
     ASSERT_TRUE(addf);
-    int simd_len
-            = get_default_context()->get_max_vector_lanes(sc_data_etype::F32);
+    int simd_len = get_test_ctx()->get_max_vector_lanes(sc_data_etype::F32);
     builder::ir_builder_t builder;
     _function_(datatypes::boolean, bbb, _arg_("out", datatypes::f32, {1030UL}),
             _arg_("in0", datatypes::f32, {1030UL}),
@@ -124,8 +122,8 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorReorder) {
     auto reorderop = mgr.make("reorder", ins->get_outputs(),
             {graph_tensor::make({32, 64}, sc_data_format_t::MKmk(16, 16))}, {});
     mgr.make_output(reorderop->get_outputs());
-    auto reorderf = lower_graph(get_default_context(), mgr, {})
-                            ->get_func("reorder__1");
+    auto reorderf
+            = lower_graph(get_test_ctx(), mgr, {})->get_func("reorder__1");
     ASSERT_TRUE(reorderf);
     builder::ir_builder_t builder;
     for_loop l0, l1, l2;
@@ -170,8 +168,8 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorReorder2) {
                     sc_data_format_t(format_kinds::ABCDdc, {16, 16, 0, 0}))},
             {});
     mgr.make_output(reorderop->get_outputs());
-    auto reorderf = lower_graph(get_default_context(), mgr, {})
-                            ->get_func("reorder__1");
+    auto reorderf
+            = lower_graph(get_test_ctx(), mgr, {})->get_func("reorder__1");
     ASSERT_TRUE(reorderf);
     constant_folder_t pass;
     auto_caster_t pass2;
@@ -277,11 +275,9 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorReduce) {
     auto addop = mgr.make("reduce", ins->get_outputs(), {},
             {{"rd_axis", std::vector<int> {1}}, {"rd_op", 0}});
     mgr.make_output(addop->get_outputs());
-    auto reducef = lower_graph(get_default_context(), mgr, {})
-                           ->get_func("reduce__1");
+    auto reducef = lower_graph(get_test_ctx(), mgr, {})->get_func("reduce__1");
     ASSERT_TRUE(reducef);
-    int simd_len
-            = get_default_context()->get_max_vector_lanes(sc_data_etype::F32);
+    int simd_len = get_test_ctx()->get_max_vector_lanes(sc_data_etype::F32);
     builder::ir_builder_t builder;
     _function_(datatypes::boolean, bbb,
             _arg_("out", datatypes::f32, {32UL, 1UL, 64UL, 64UL}),
@@ -390,12 +386,11 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorFuse) {
     mgr.make_output(reduceop->get_outputs());
     fuse_ops(mgr);
     mgr.reset_op_ids();
-    auto fusedf = lower_graph(get_default_context(), mgr, {})
+    auto fusedf = lower_graph(get_test_ctx(), mgr, {})
                           ->get_func("add_add_relu_reduce__2");
     ASSERT_TRUE(fusedf);
     builder::ir_builder_t builder;
-    int simd_len
-            = get_default_context()->get_max_vector_lanes(sc_data_etype::F32);
+    int simd_len = get_test_ctx()->get_max_vector_lanes(sc_data_etype::F32);
     _function_(datatypes::boolean, bbb,
             _arg_("out", datatypes::f32, {1UL, 16UL}),
             _arg_("in0", datatypes::f32, {32UL, 16UL}),
@@ -457,7 +452,7 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorNoAxisOptim) {
 
     mgr.make_output(rdop->get_outputs());
     fuse_ops(mgr);
-    auto a = lower_graph(get_default_context(), mgr, {});
+    auto a = lower_graph(get_test_ctx(), mgr, {});
     auto reducef = a->get_func("add_tensor_view_reduce__2");
     ASSERT_TRUE(reducef);
     EXPECT_EQ(get_expr_as_int(reducef->body_.checked_as<stmts>()
@@ -481,7 +476,7 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorForcedAxisOptim) {
 
     mgr.make_output(reo->get_outputs());
     fuse_ops(mgr);
-    auto a = lower_graph(get_default_context(), mgr, {});
+    auto a = lower_graph(get_test_ctx(), mgr, {});
     auto add_reducef = a->get_func("add_reduce__3");
     ASSERT_TRUE(add_reducef);
     auto reorderf = a->get_func("reorder__1");
@@ -520,13 +515,12 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorExpMask) {
     auto expop = mgr.make("exp", ins->get_outputs(), {}, {});
     mgr.make_output(expop->get_outputs());
     fuse_ops(mgr);
-    auto a = lower_graph(get_default_context(), mgr, {});
+    auto a = lower_graph(get_test_ctx(), mgr, {});
     auto expf = a->get_func("exp__1");
     ASSERT_TRUE(expf);
     auto expf2 = constant_folder_t()(expf);
     builder::ir_builder_t builder;
-    int simd_len
-            = get_default_context()->get_max_vector_lanes(sc_data_etype::F32);
+    int simd_len = get_test_ctx()->get_max_vector_lanes(sc_data_etype::F32);
     // 8 for windows ci
     auto mask_dtype = simd_len == 16 ? datatypes::u16 : datatypes::u8;
     auto full_mask = simd_len == 16

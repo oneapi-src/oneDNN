@@ -49,7 +49,7 @@ using namespace dnnl::impl::graph::gc;
 using namespace dnnl::impl::graph::gc::builder;
 using namespace std::chrono;
 
-static auto ctx = get_default_context();
+static auto ctx = get_test_ctx();
 
 static void do_commit(fusion_manager &mgr, const std::vector<expr> &fuse_outs,
         const std::vector<expr> &additional_ins = {}) {

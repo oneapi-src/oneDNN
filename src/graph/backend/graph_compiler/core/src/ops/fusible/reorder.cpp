@@ -61,12 +61,13 @@ static bool is_dynamic_reorder_inplace(sc_op *op, const context_ptr &ctx) {
 }
 
 ir_module_ptr reorder_op_t::get_func(context_ptr ctx) {
-    top_level_anchor_generator_t gen;
     attrs_.set(op_attr_key::no_fuse, true);
     // if the reorder is tensor view in dynamic, do inplacement.
     if (is_dynamic_reorder_inplace(this, ctx)) {
         return inplaced_reorder_get_func(this, ctx);
     }
+    if (ctx->flags_.mixed_fusion_) return fusible_op_get_func(this, ctx);
+    top_level_anchor_generator_t gen;
     auto ret = fusible_op_get_func(this, gen, ctx, false);
     auto func = ret->get_entry_func();
     auto body = func->body_.as<stmts>();
@@ -741,6 +742,18 @@ void infer_reorder_slice(slice_range_list &input_slice_list,
     }
 }
 
+bool check_required_slice(const graph_tensor_ptr &gt,
+        const slice_range_list &range_list, int required_axis_from_end) {
+    auto gt_dims = gt->details_.get_blocking_dims();
+    std::vector<int> required_axis;
+    for (size_t i = gt_dims.size() - required_axis_from_end; i < gt_dims.size();
+            i++) {
+        required_axis.emplace_back(i);
+    }
+    return range_list.size() == 1
+            && slice_full_on_axis(gt_dims, range_list[0], required_axis);
+}
+
 // infer reorder slice according input_slice
 void reorder_op_t::infer_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
@@ -774,34 +787,17 @@ void reorder_op_t::infer_slice_ranges(
     if (known_ranges_map.empty()) return;
     auto input_slice_list = known_ranges_map[0];
 
-    bool optmized_slice_check = !stat_map.is_recursive_mode()
-            && support_optmized_kernel(stat_map.get_context());
+    bool optimized_slice_check = !stat_map.is_recursive_mode()
+            && support_optimized_kernel(stat_map.get_context());
 
-    auto ths = this;
-    auto check_required_slice = [&stat_map, &ths](const graph_tensor_ptr &gt,
-                                        const slice_range_list &range_list,
-                                        int required_axis_from_end) {
-        auto gt_dims = gt->details_.get_blocking_dims();
-        std::vector<int> required_axis;
-        for (size_t i = gt_dims.size() - required_axis_from_end;
-                i < gt_dims.size(); i++) {
-            required_axis.emplace_back(i);
-        }
-        if (range_list.size() == 1
-                && !slice_full_on_axis(gt_dims, range_list[0], required_axis)) {
-            stat_map.append_ops_by_status(ths, infer_status_code::RETRY);
-            return false;
-        }
-        return true;
-    };
-
-    if (optmized_slice_check
+    if (optimized_slice_check
             && !check_required_slice(get_inputs()[0], input_slice_list,
-                    get_input_format().is_vnni_format() ? 3 : 2))
+                    get_input_format().is_vnni_format() ? 3 : 2)) {
+        stat_map.append_ops_by_status(this, infer_status_code::RETRY);
         return;
+    }
 
     slice_range_list reorder_ranges_list;
-
     // infer reorder slice only makes sense for non-padding cases in new fusion
     // mgr
     if (is_dynamic() || !check_padding()) {
@@ -823,10 +819,12 @@ void reorder_op_t::infer_slice_ranges(
             }
         }
     } else {
-        if (optmized_slice_check
+        if (optimized_slice_check
                 && !check_required_slice(get_outputs()[0], reorder_ranges_list,
-                        get_output_format().is_vnni_format() ? 3 : 2))
+                        get_output_format().is_vnni_format() ? 3 : 2)) {
+            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
+        }
     }
     fsmap.get(get_outputs()[0]) = reorder_ranges_list;
 }
@@ -834,6 +832,22 @@ void reorder_op_t::infer_slice_ranges(
 // pre-infer reorder slice according output_slice
 void reorder_op_t::pre_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
+    slice_range_list known_ranges_list = fsmap.get(get_outputs()[0]);
+    // deal with begining reorder op, which use output loop
+    if (!stat_map.is_recursive_mode() && fsmap.datamap_.size() == 1) {
+        if (support_optimized_kernel(stat_map.get_context())
+                && !check_required_slice(get_outputs()[0], known_ranges_list,
+                        get_output_format().is_vnni_format() ? 3 : 2)) {
+            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+        } else {
+            // set input slice for anchor check
+            fsmap.get(get_inputs()[0])
+                    = slice_range_list {gen_slice_by_dims_expr(
+                            get_inputs()[0]->details_.get_blocking_dims_expr(
+                                    get_owner_graph()))};
+        }
+        return;
+    }
     if (is_dynamic()) {
         stat_map.append_ops_by_status(this, infer_status_code::RETRY);
         return;
@@ -845,7 +859,6 @@ void reorder_op_t::pre_slice_ranges(
             }
             return;
         }
-        slice_range_list known_ranges_list = fsmap.get(get_outputs()[0]);
         slice_range_list input_slice_list;
         infer_reorder_slice(known_ranges_list, get_output_format(),
                 get_input_format(), input_slice_list);
@@ -862,11 +875,11 @@ void reorder_op_t::pre_slice_ranges(
 }
 
 void reorder_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
-    identical_infer_binding_axis(this, bdax_map);
+    infer_identical_binding_axis(this, bdax_map);
 }
 
 void reorder_op_t::pre_binding_axis(bound_axis_map &bdax_map) {
-    identical_pre_binding_axis(this, bdax_map);
+    pre_identical_binding_axis(this, bdax_map);
 }
 
 static std::vector<expr> get_reorder_stride2stride_indexes(
@@ -2843,7 +2856,7 @@ bool reorder_op_t::support_output_loop() const {
     return get_output_format().is_blocking();
 }
 
-bool reorder_op_t::support_optmized_kernel(const context_ptr &ctx) const {
+bool reorder_op_t::support_optimized_kernel(const context_ptr &ctx) const {
     bool is_innermost_dim_strided
             = info_.inputs_[0]->details_.get_strides().back() != 1
             || info_.outputs_[0]->details_.get_strides().back() != 1;

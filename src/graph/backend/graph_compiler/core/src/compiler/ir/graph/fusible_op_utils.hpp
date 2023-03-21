@@ -52,24 +52,24 @@ void set_unknown_axis_binding(sc_op *cur,
         const std::unordered_map<int, bound_axis> &known_axis_map,
         bound_axis_map &bdax_map);
 
-void identical_infer_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map);
-void identical_pre_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map);
+void infer_identical_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map);
+void pre_identical_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map);
 
 sc_dims get_expr_to_dims(const std::vector<expr> &dims);
 size_t get_dims_product(const sc_dims &dims);
 // the dim can be squeezed is 1
 int get_number_of_squeeze_dims(const sc_dims &dims);
 
-bool slice_full_on_axis(
-        const sc_dims &dim, slice_range ranges, const std::vector<int> &axis);
+bool slice_full_on_axis(const sc_dims &dim, const slice_range &ranges,
+        const std::vector<int> &axis);
 
-bool slice_divisible_on_axis(
-        const sc_dims &dim, slice_range ranges, const std::vector<int> &axis);
+bool slice_divisible_on_axis(const sc_dims &dim, const slice_range &ranges,
+        const std::vector<int> &axis);
 
-bool slice_divisible_by_factor(
-        slice_range ranges, const std::vector<int> &axis, const int factor);
+bool slice_divisible_by_factor(const slice_range &ranges,
+        const std::vector<int> &axis, const int factor);
 
-bool slice_larger_than_bound_on_axis(slice_range ranges,
+bool slice_larger_than_bound_on_axis(const slice_range &ranges,
         const std::vector<int> &axis, const int factor, const int lower_bound);
 
 int get_slice_size(const slice_range &ranges, const int dtype_size = 1);
@@ -80,8 +80,11 @@ inline uint16_t vectorize_step(const context_ptr &ctx, sc_data_etype detype) {
 bool loop_can_be_fused(const for_loop &loop);
 
 class outer_loop_generator_t;
+// depracated api, use old fusion mgr to lowering single fusible op
 ir_module_ptr fusible_op_get_func(fusible_op_t *op, outer_loop_generator_t &gen,
         const context_ptr &ctx, bool check_parallel);
+// use new fusion mgr to lowering single fusible op
+ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx);
 
 struct mask_compute_func_t {
     mask_compute_func_t(const std::function<stmt(const std::vector<expr> &,

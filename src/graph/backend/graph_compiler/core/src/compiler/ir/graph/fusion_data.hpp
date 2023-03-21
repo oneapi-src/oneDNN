@@ -240,21 +240,25 @@ private:
     // control whether the fusion anchor is output anchor or input, default is
     // output anchor.
     bool is_input_anchor_;
+    mixed_parti_t *binded_mxp_;
 
 public:
+    friend struct mixed_parti_t;
     stmts anchor_position_;
     fslice_map fsmap_;
 
-    mixed_parti_t *binded_mxp_;
-
     // parent anchor
     std::shared_ptr<fuse_anchor_map_t> parent_;
+
+    /* Updated when inferring */
     // blocked graph tensor set, the reason why not use empty gt for judgement
     // is to distinguish non-visited gt and visited-but-failed gt
     std::unordered_set<graph_tensor_ptr> blocked_gt_set_;
-    // borrowed fanchor map
+    // borrowed fanchor map, must be the parent for current anchor
     std::unordered_map<graph_tensor_ptr, std::shared_ptr<fuse_anchor_map_t>>
             borrowed_fanchor_map_;
+
+    /* Updated when committing */
     // content-to-number mapping under current fusion anchor scope, includes
     // either op and anchor
     std::unordered_map<anchor_content_t, size_t, op_or_fuse_anchor_map_hasher,
@@ -480,8 +484,11 @@ public:
     bool check_input_for_op(
             const sc_op *op, std::unordered_set<graph_tensor_ptr> &known_gt);
 
-    void forbid_op(
-            const sc_op *op, std::unordered_set<graph_tensor_ptr> &known_gt);
+    bool validate_input_for_op(const sc_op *op,
+            const std::unordered_set<graph_tensor_ptr> &known_gt);
+
+    void forbid_op(const sc_op *op,
+            const std::unordered_set<graph_tensor_ptr> &known_gt);
 
     bool check_dep_for_op(const sc_op *op);
 };
@@ -494,6 +501,7 @@ using fuse_anchor_map_ptr = std::shared_ptr<fuse_anchor_map_t>;
  * @param cached_iter_anchor_: real multi anchor used to commit code
  * */
 struct fuse_iter_anchor_map_t : fuse_anchor_map_t {
+private:
     // iterated var
     expr iter_;
     size_t iter_size_;
@@ -501,6 +509,7 @@ struct fuse_iter_anchor_map_t : fuse_anchor_map_t {
     stmt dispatch_helper_;
     size_t iter_cnt_;
 
+public:
     fuse_iter_anchor_map_t(expr iter_var, stmts pos, const fslice_map &fsmap,
             size_t iter_size, stmt dispatch_helper = stmt(),
             const fuse_anchor_map_ptr &parent = nullptr,
@@ -553,6 +562,8 @@ struct fuse_iter_anchor_map_t : fuse_anchor_map_t {
 
     // override commit `stmts` to anchor
     void commit_stmts(stmts &ss) override { commit_(ss); }
+
+    const size_t get_iter_size() const { return iter_size_; }
 };
 
 } // namespace gc

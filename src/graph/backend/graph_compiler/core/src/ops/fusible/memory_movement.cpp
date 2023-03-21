@@ -41,6 +41,7 @@ namespace impl {
 namespace graph {
 namespace gc {
 ir_module_ptr reshape_op_t::get_func(context_ptr ctx) {
+    if (ctx->flags_.mixed_fusion_) return fusible_op_get_func(this, ctx);
     top_level_anchor_generator_t gen;
     attrs_.set(op_attr_key::no_fuse, true);
     auto ret = fusible_op_get_func(this, gen, ctx, true);

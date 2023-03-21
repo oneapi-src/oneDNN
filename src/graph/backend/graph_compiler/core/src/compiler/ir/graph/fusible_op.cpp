@@ -42,6 +42,7 @@ namespace graph {
 namespace gc {
 
 ir_module_ptr fusible_op_t::get_func(context_ptr ctx) {
+    if (ctx->flags_.mixed_fusion_) return fusible_op_get_func(this, ctx);
     int base_idx = 0;
     if (auto binary_node = this->dyn_cast<binary_elementwise_op_t>()) {
         // if bc side (smaller side) is the lhs, we need to set base_idx to 1
@@ -108,30 +109,38 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
             use_output_mode ? outs : ins,
             use_output_mode ? get_outputs() : get_inputs());
     append_mixed_partition(parti);
-    // if last fanchor used, mark break post fusion, otherwise remove the last
-    // fanchor
-    if (parti->lookup_anchor_map(this) == parti->fanchors_.back()) {
+
+    auto used_anchor = parti->lookup_anchor_map(this);
+    // Due to anchor is sorted by ascending order, clear invalid IR including
+    // for_loop and anchor
+    if (used_anchor != parti->fanchors_.back()) {
+        // remove all fanchor less then used anchor
         for (auto iter = parti->fanchors_.begin();
-                iter < parti->fanchors_.end(); iter++) {
-            if (iter == (parti->fanchors_.end() - 1)) continue;
+                iter < parti->fanchors_.end();) {
+            if ((*iter) == used_anchor) break;
             parti->clear_fanchor(*iter);
+            iter = parti->fanchors_.erase(iter);
         }
-        auto last_anchor = parti->fanchors_.back();
-        // clear invalid IR
-        auto parent_scope = last_anchor->get_parent_scope();
-        for (auto iter = parent_scope->seq_.begin();
-                iter < parent_scope->seq_.end(); iter++) {
-            if ((*iter).ptr_same(last_anchor->anchor_position_)) continue;
-            parent_scope->seq_.erase(iter);
+        // check whether need to keep last anchor
+        if (!attrs_.get_or_else("temp.keep_last_anchor", false)) {
+            // remove last anchor
+            parti->clear_fanchor(parti->fanchors_.back());
+            parti->fanchors_.pop_back();
         }
+    } else {
+        // if last fanchor is used
+        loops.clear();
         // clear all fanchor in void of post op fusion
         parti->fanchors_.clear();
         // remove all field related to anchor
         parti->op_anchor_map_.erase(this);
         parti->buf_alloc_.tsr2anch_map_.clear();
-    } else {
-        parti->clear_fanchor(parti->fanchors_.back());
-        parti->fanchors_.pop_back();
+    }
+    auto parent_scope = used_anchor->get_parent_scope();
+    for (auto iter = parent_scope->seq_.begin();
+            iter < parent_scope->seq_.end(); iter++) {
+        if ((*iter).ptr_same(used_anchor->anchor_position_)) continue;
+        parent_scope->seq_.erase(iter);
     }
 
     // bind outer loops with axis hint

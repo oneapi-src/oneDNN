@@ -133,7 +133,7 @@ void unary_elementwise_op_impl_t::pre_slice_ranges(
     pre_unary_slice_ranges(this, fsmap, stat_map);
 }
 
-void identical_infer_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map) {
+void infer_identical_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map) {
     auto known_axis_map = search_known_bound_axis(cur, bdax_map);
     if (!bdax_map.get(cur->get_outputs()[0]).empty()) return;
     bdax_map.get(cur->get_outputs()[0]) = known_axis_map[0];
@@ -141,10 +141,10 @@ void identical_infer_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map) {
 }
 
 void unary_elementwise_op_impl_t::infer_binding_axis(bound_axis_map &bdax_map) {
-    identical_infer_binding_axis(this, bdax_map);
+    infer_identical_binding_axis(this, bdax_map);
 }
 
-void identical_pre_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map) {
+void pre_identical_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map) {
     auto &outaxis = bdax_map.get(cur->get_outputs()[0]);
     COMPILE_ASSERT(!outaxis.empty(),
             "Unknown output axis found, could not pre bind axis")
@@ -161,7 +161,7 @@ void identical_pre_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map) {
 }
 
 void unary_elementwise_op_impl_t::pre_binding_axis(bound_axis_map &bdax_map) {
-    identical_pre_binding_axis(this, bdax_map);
+    pre_identical_binding_axis(this, bdax_map);
 }
 
 shape_rl_vec unary_elementwise_op_impl_t::get_dynamic_shape_relations() const {
