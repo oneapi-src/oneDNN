@@ -68,6 +68,18 @@ bool use_fused_atomics_reduction(bnorm_conf_t &conf, engine_t *engine) {
             && sp / conf.ic > 40;
 }
 
+int get_slm_buff_size(bnorm_conf_t &conf, size_t *lws) {
+    // Returns size of SLM buffer of nhwc stat calculation kernels.
+    const int base_size
+            = utils::div_up(conf.ic_block, 16) * lws[0] * lws[1] * lws[2];
+    if (conf.use_stats_one_pass) {
+        return 2 * base_size * 2 * sizeof(float);
+    } else {
+        return conf.is_forward ? base_size * sizeof(float)
+                               : 2 * base_size * sizeof(float);
+    }
+}
+
 inline float get_ss_utilization(int max_ss, const size_t *gws, size_t *lws) {
     const size_t gws_size = gws[0] * gws[1] * gws[2];
     const size_t lws_size = lws[0] * lws[1] * lws[2];
@@ -88,38 +100,44 @@ void adjust_lws_calc_kernel(bnorm_conf_t &conf, engine_t *engine) {
     auto eus_per_ss = compute_engine->device_info()->max_eus_per_wg();
     const int max_ss = utils::div_up(eu_count, eus_per_ss);
 
+    auto gpu_arch = compute_engine->device_info()->gpu_arch();
+    const int max_slm_size
+            = compute_engine->device_info()->max_slm_size(gpu_arch);
     auto generated_nd = conf.dispatch_calc_stat.nd_range();
     const size_t *base_gws = generated_nd.global_range();
     const size_t *base_lws = generated_nd.local_range();
 
-    size_t tuned_lws[3];
-    tuned_lws[0] = 16; // Assuming IC is dim 0
-    tuned_lws[1] = base_lws[1];
-    tuned_lws[2] = base_lws[2];
+    size_t tuned_lws[3], curr_lws[3];
+    curr_lws[0] = tuned_lws[0] = 16; // Assuming IC is dim 0
+    curr_lws[1] = tuned_lws[1] = base_lws[1];
+    curr_lws[2] = tuned_lws[2] = base_lws[2];
 
     // The search is based on subslice utilization which calculated as the ratio
     // used_subslices / max_available_subslices.
 
-    size_t best_lws1 = 1, curr_lws1 = 1;
+    size_t best_val = 1;
+    curr_lws[1] = 1;
     float best_ss_utilization = 0.0f, curr_ss_utilization;
     const int ss_util_limit = 2; // experimentally selected
 
-    while (tuned_lws[0] * curr_lws1 * tuned_lws[2] <= (size_t)max_lws
-            && curr_lws1 <= base_gws[1]) {
-        if (base_gws[1] % curr_lws1) {
-            curr_lws1++;
+    while (curr_lws[0] * curr_lws[1] * curr_lws[2] <= (size_t)max_lws
+            && curr_lws[1] <= base_gws[1]
+            && get_slm_buff_size(conf, curr_lws) <= max_slm_size) {
+        if (base_gws[1] % curr_lws[1]) {
+            curr_lws[1]++;
             continue;
         }
-        tuned_lws[1] = curr_lws1;
+        tuned_lws[1] = curr_lws[1];
         curr_ss_utilization = get_ss_utilization(max_ss, base_gws, tuned_lws);
+
         if (curr_ss_utilization > best_ss_utilization
                 && curr_ss_utilization < (float)ss_util_limit) {
             best_ss_utilization = curr_ss_utilization;
-            best_lws1 = curr_lws1;
+            best_val = curr_lws[1];
         }
-        curr_lws1++;
+        curr_lws[1]++;
     }
-    tuned_lws[1] = best_lws1;
+    tuned_lws[1] = best_val;
 
     conf.dispatch_calc_stat.set_lws(tuned_lws);
 }
