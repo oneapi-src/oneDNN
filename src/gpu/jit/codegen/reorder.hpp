@@ -386,12 +386,19 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             auto t1 = tmp1.subregister(t1_offset, dst_type);
             auto t2 = tmp2.subregister(t2_offset, dst_type);
 
-            if (dst_stride_bytes >= tmp_stride_bytes && esize > 1) {
+            if (esize == 1) {
+                plan(mov, 2 | host->sat, t1(tmp_stride), s);
+                plan(mov, 1, d, t1);
+                continue;
+            }
+
+            // Operands are already dword aligned as required by F-pipe
+            if (dst_stride_bytes >= tmp_stride_bytes) {
                 plan(mov, esize | host->sat, d(dst_stride), s(src_stride));
                 continue;
             }
-            auto wa_esize = std::max(2, esize);
-            plan(mov, wa_esize | host->sat, t1(tmp_stride), s(src_stride));
+
+            plan(mov, esize | host->sat, t1(tmp_stride), s(src_stride));
             if (t1_offset != t2_offset)
                 plan(mov, esize, t2(tmp_stride), t1(tmp_stride));
             else
