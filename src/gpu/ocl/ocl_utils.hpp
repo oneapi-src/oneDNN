@@ -124,7 +124,12 @@ enum { OCL_BUFFER_ALIGNMENT = 128 };
         } \
     } while (0)
 
-#define UNUSED_OCL_RESULT(x) assert(x == CL_SUCCESS)
+#define UNUSED_OCL_RESULT(x) \
+    do { \
+        cl_int s = x; \
+        assert(s == CL_SUCCESS); \
+        MAYBE_UNUSED(s); \
+    } while (false)
 
 // Check for three conditions:
 // 1. Device and context are compatible, i.e. the device belongs to
