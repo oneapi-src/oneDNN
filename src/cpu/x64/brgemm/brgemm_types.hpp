@@ -93,6 +93,7 @@ struct brgemm_batch_element_t {
     brgemm_batch_element_t() {
         ptr.A = ptr.B = nullptr;
         vvpad.top = vvpad.bottom = 0;
+        has_s8s8_comp_batch_pad = 0;
     }
     union {
         struct {
@@ -104,16 +105,15 @@ struct brgemm_batch_element_t {
             dim_t B;
         } offset;
     };
-    union {
-        struct {
-            dim_t top;
-            dim_t bottom;
-        } vvpad;
-        struct {
-            dim_t left;
-            dim_t right;
-        } hvpad;
-    };
+    struct {
+        dim_t top;
+        dim_t bottom;
+    } vvpad; // w.r.t. M dimension
+
+    // Used to calculate compensation when batch padding is present.
+    // Note: batch_pad represent the overlap between weights and the height
+    // dimension w.r.t. convolution dimensions.
+    dim_t has_s8s8_comp_batch_pad;
 };
 
 struct DNNL_API brgemm_attr_t {
@@ -123,6 +123,7 @@ struct DNNL_API brgemm_attr_t {
     // else "max_bs" is the maximum batch size that can be used
     int max_bs;
     int max_top_vpad, max_bottom_vpad;
+    int max_top_bpad, max_bottom_bpad;
     dim_t hint_expected_A_size, hint_expected_B_size, hint_expected_C_size;
     brgemm_kernel_innermost_loop_t hint_innermost_loop
             = brgemm_ld_loop_innermost;

@@ -100,9 +100,8 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     const auto bia_type = cd.bias_desc.data_type;
     const auto dst_type = cd.dst_desc.data_type;
 
-    // TODO: support s8s8 conv
     const bool is_f32 = everyone_is(f32, src_type, wei_type, dst_type);
-    const bool is_int8 = one_of(src_type, u8) && wei_type == s8
+    const bool is_int8 = one_of(src_type, u8, s8) && wei_type == s8
             && one_of(dst_type, s32, f32, u8, s8, bf16);
     const bool is_bf16 = everyone_is(bf16, src_type, wei_type)
             && one_of(dst_type, bf16, f32);
@@ -111,7 +110,9 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     const cpu_isa_t isa = get_supported_isa(is_f32, is_int8, is_bf16, is_f16);
 
     auto skip_mask = skip_mask_t::post_ops;
-    if (is_int8) skip_mask |= skip_mask_t::scales_runtime;
+    if (is_int8)
+        skip_mask |= (skip_mask_t::scales_runtime
+                | skip_mask_t::zero_points_runtime);
 
     bool ok = is_fwd() && set_default_alg_kind(alg_kind::convolution_direct)
             && one_of(true, is_f32, is_int8, is_bf16, is_f16)
@@ -188,6 +189,8 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
             = jcp.with_bias ? types::data_type_size(cd.bias_desc.data_type) : 0;
     jcp.dst_dsz = types::data_type_size(jcp.dst_dt);
 
+    jcp.s8s8_compensation_required = jcp.src_dt == s8 && !isa_has_s8s8(jcp.isa);
+
     const auto &src_scales = attr_.scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr_.scales_.get(DNNL_ARG_WEIGHTS);
     jcp.with_scale = !src_scales.has_default_values()
@@ -238,6 +241,8 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init_brdgmm_conf() {
         brg_attr.max_bs = jcp.kw * jcp.kh;
         brg_attr.max_top_vpad = nstl::max(0, jcp.l_pad);
         brg_attr.max_bottom_vpad = nstl::max(0, jcp.r_pad);
+        brg_attr.max_top_bpad = nstl::max(0, jcp.t_pad);
+        brg_attr.max_bottom_bpad = nstl::max(0, jcp.b_pad);
 
         // only needed for strd batch_kind
         const brgemm_strides_t strides
@@ -270,6 +275,32 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init_brdgmm_conf() {
             = jcp.ch_block == 16 ? format_tag::hwioG16g : format_tag::hwioG8g;
     const memory_desc_wrapper weights_d(&weights_md_);
     CHECK(init_tag(weights_md_, weights_d, wei_tag, true));
+
+    if (jcp.s8s8_compensation_required) {
+        weights_md_.extra.flags
+                = 0 | memory_extra_flags::compensation_conv_s8s8;
+        weights_md_.extra.compensation_mask = 0x1;
+    }
+
+    const auto zp_attr = attr()->zero_points_;
+    jcp.src_zero_point = !zp_attr.has_default_values(DNNL_ARG_SRC);
+    jcp.dst_zero_point = !zp_attr.has_default_values(DNNL_ARG_DST);
+
+    // Only common zero points for the whole output tensor is supported now
+    const bool has_zero_points = jcp.src_zero_point || jcp.dst_zero_point;
+    const bool params_ok
+            = IMPLICATION(has_zero_points, utils::one_of(jcp.src_dt, u8, s8))
+            && IMPLICATION(jcp.src_zero_point,
+                    attr()->zero_points_.common(DNNL_ARG_SRC))
+            && IMPLICATION(jcp.dst_zero_point,
+                    attr()->zero_points_.common(DNNL_ARG_DST));
+    if (!params_ok) return status::unimplemented;
+
+    if (jcp.src_zero_point) {
+        weights_md_.extra.flags
+                |= memory_extra_flags::compensation_conv_asymmetric_src;
+        weights_md_.extra.asymm_compensation_mask = 0x1;
+    }
 
     if ((jcp.mb * jcp.oh) % jcp.nthr != 0) {
         // determine ow_block
@@ -390,13 +421,34 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
+    DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
+    DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
+
     const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
             src_scales, wei_scales, pd()->OC(), pd()->attr());
+
+    const memory_desc_wrapper weights_d(pd()->weights_md(0));
+    const size_t wei_size = weights_d.size();
+    const auto extra_data_offset
+            = wei_size - weights_d.additional_buffer_size();
+    const size_t s8_offset = jcp.s8s8_compensation_required
+            ? rnd_up(jcp.ngroups, jcp.ch_block) * sizeof(int32_t)
+            : 0;
+    int32_t *s8s8_comp_ptr = jcp.s8s8_compensation_required
+            ? reinterpret_cast<int32_t *>(
+                    const_cast<char *>(weights) + extra_data_offset)
+            : nullptr;
+    int32_t *zp_compensation = jcp.src_zero_point
+            ? reinterpret_cast<int32_t *>(
+                    const_cast<char *>(weights) + extra_data_offset + s8_offset)
+            : nullptr;
 
     const int chb_step = jcp.nb_ch_blocking;
     const int chb_work = div_up(jcp.ngroups, chb_step);
     const int ow_step = jcp.ow_block;
     const int work_amount = jcp.mb * jcp.oh * jcp.nb_ow * chb_work;
+    const bool requires_batch_pad
+            = jcp.s8s8_compensation_required || jcp.src_zero_point;
 
     const size_t src_ch_stride = jcp.src_dsz;
     const size_t src_w_stride = jcp.ngroups * jcp.src_dsz;
@@ -469,18 +521,23 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
             auto *ptr_B = weights;
             int bs = 0;
             for (int kh = 0; kh < jcp.kh; ++kh) {
+
+                const int ih = oh * jcp.stride_h - jcp.t_pad + kh;
+                if (!requires_batch_pad && (ih < 0 || ih >= jcp.ih)) continue;
+
                 for (int kw = 0; kw < jcp.kw; ++kw) {
-                    const int ih = (oh * jcp.stride_h - jcp.t_pad) + kh;
-                    if (ih < 0 || ih >= jcp.ih) continue;
                     const int iw_s = ow * jcp.stride_w - jcp.l_pad + kw;
                     const int ow_e
                             = nstl::min(jcp.ow, ow + cur_n_owb * jcp.ow_block)
                             - 1;
                     const int iw_e = ow_e * jcp.stride_w - jcp.l_pad + kw;
+
                     auto &batch = brg_batch[bs];
+                    batch.has_s8s8_comp_batch_pad = ih < 0 || ih >= jcp.ih;
                     batch.vvpad.top = nstl::max(0, div_up(-iw_s, jcp.stride_w));
                     batch.vvpad.bottom = nstl::max<dim_t>(
                             0, div_up(iw_e - (jcp.iw - 1), jcp.stride_w));
+
                     const dim_t offs_A = n * src_mb_stride + ih * src_h_stride
                             + iw_s * src_w_stride + ch * src_ch_stride;
                     const dim_t offs_B = kh * wei_h_stride + kw * wei_w_stride
@@ -518,9 +575,18 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
                 post_ops_data.scales = &oscales[jcp.is_oc_scale * ch];
                 post_ops_data.oc_logical_off = ch;
                 post_ops_data.dst_scales = dst_scales;
+                post_ops_data.zp_a_val
+                        = jcp.src_zero_point ? src_zero_point : 1;
+                post_ops_data.c_zp_values
+                        = jcp.dst_zero_point ? dst_zero_point : nullptr;
+                post_ops_data.a_zp_compensations
+                        = jcp.src_zero_point ? zp_compensation + ch : nullptr;
+
+                void *scratch = jcp.s8s8_compensation_required
+                        ? static_cast<void *>(s8s8_comp_ptr + ch)
+                        : nullptr;
                 brgemm_kernel_execute_postops(kernel, bs, ptr_A, ptr_B,
-                        brg_batch, ptr_C, ptr_C, post_ops_data,
-                        nullptr /*scratch*/);
+                        brg_batch, ptr_C, ptr_C, post_ops_data, scratch);
                 ++chb;
                 if (jcp.chb_tail != 0 && chb + 1 == chb_work)
                     kernel = kernel_chb_tail;

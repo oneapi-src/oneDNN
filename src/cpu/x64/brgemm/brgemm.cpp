@@ -371,9 +371,11 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
     init_zp_type(brg->zp_type_b, DNNL_ARG_WEIGHTS);
     init_zp_type(brg->zp_type_c, DNNL_ARG_DST);
 
-    // src zero points require additional register in brgemm kernel
-    if (brg->zp_type_a != brgemm_broadcast_t::none
-            || (brg->is_bf16_emu && !brg->is_dgmm))
+    // src zero points require additional register in brgemm & brdgmm kernel
+    const bool is_zp_src = brg->zp_type_a != brgemm_broadcast_t::none;
+    if (brg->is_dgmm) {
+        if (is_zp_src) CHECK(brdgmm_blocking(brg));
+    } else if (is_zp_src || brg->is_bf16_emu)
         CHECK(brgemm_blocking(brg));
 
     return status::success;
@@ -679,6 +681,8 @@ int brgemm_cmp(const brgemm_t &lhs, const brgemm_t &rhs) {
     CMP_BRGEMM_FIELD(brgattr.max_bs);
     CMP_BRGEMM_FIELD(brgattr.max_top_vpad);
     CMP_BRGEMM_FIELD(brgattr.max_bottom_vpad);
+    CMP_BRGEMM_FIELD(brgattr.max_top_bpad);
+    CMP_BRGEMM_FIELD(brgattr.max_bottom_bpad);
     CMP_BRGEMM_FIELD(brgattr.hint_expected_A_size);
     CMP_BRGEMM_FIELD(brgattr.hint_expected_B_size);
     CMP_BRGEMM_FIELD(brgattr.hint_expected_C_size);

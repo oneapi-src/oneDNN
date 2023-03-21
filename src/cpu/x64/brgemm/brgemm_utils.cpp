@@ -212,6 +212,8 @@ status_t brgemm_blocking(brgemm_t *brg) {
 
     set_isa_impl(brg);
     if (brg->isa_impl == isa_undef) return status::unimplemented;
+    assert(!brg->is_dgmm); // should not be called from brdgmm
+    if (brg->is_dgmm) return status::unimplemented;
     set_brg_vmm(brg);
     if (!(brg->is_tmm || brg->is_zmm || brg->is_ymm))
         return status::unimplemented;
@@ -713,13 +715,14 @@ status_t brdgmm_blocking(brgemm_t *brg) {
 
     if (brg->isa_impl == isa_undef) return status::unimplemented;
 
-    const int requires_permute_dst_vmm = brg->isa_impl == avx512_core_vnni
-            && jit_brdgmm_kernel_base_t<avx512_core_vnni,
-                    Xbyak::Zmm>::is_fast_vnni_int8(*brg);
     const int max_vregs = isa_num_vregs(brg->isa_impl);
-    const int aux_vregs
-            = nstl::max(brg->is_bf16_emu * 4, 2) + requires_permute_dst_vmm;
-    const int max_acc_vmms = max_vregs - aux_vregs;
+    const int aux_vregs = jit_brdgmm_kernel_base_t<avx512_core_vnni,
+            Xbyak::Zmm>::get_aux_vmm_count(*brg);
+    const int bf16_emu_vregs = brg->is_bf16_emu * 4;
+    const int compute_vregs = 2; // b_vmm + a_vmm
+    const int max_acc_vmms
+            = max_vregs - aux_vregs - nstl::max(compute_vregs, bf16_emu_vregs);
+
     const int simd_w = isa_max_vlen(brg->isa_impl) / brg->typesize_C;
     const bool is_avx2_vnni_2_xf16
             = brg->is_xf16() && brg->isa_impl == avx2_vnni_2;
@@ -875,6 +878,9 @@ void init_brdgmm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
         brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(avx512_core_vnni),
                 avx512_core_vnni, is_isa_ok(avx2_vnni), avx2_vnni);
     }
+
+    brg->req_s8s8_compensation = brg->is_int8 && brg->dt_a == data_type::s8
+            && !isa_has_s8s8(brg->isa_impl);
 
     brg->is_bf16_tmm = brg->is_bf16 && mayiuse(avx512_core_amx);
     brg->is_dgmm = true;

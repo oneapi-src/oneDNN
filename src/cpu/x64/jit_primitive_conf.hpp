@@ -649,6 +649,10 @@ struct jit_brdgmm_conv_conf_t {
     size_t bia_dsz;
     size_t dst_dsz;
 
+    bool s8s8_compensation_required;
+    bool src_zero_point;
+    bool dst_zero_point;
+
     cpu_isa_t isa;
 };
 
