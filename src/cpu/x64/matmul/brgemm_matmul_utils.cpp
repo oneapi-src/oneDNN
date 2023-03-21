@@ -1010,8 +1010,11 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             || bgmmc.is_runtime_K)
         return status::unimplemented;
 
-    // runtime value for M dimension is supported for 2d amx problems only
-    if (!IMPLICATION(bgmmc.is_runtime_M, bgmmc.is_amx && bgmmc.ndims == 2))
+    // Runtime value for M dimension is supported for 2d AMX int8/bfloat16
+    // problems only.
+    const bool runtime_M_supported = bgmmc.is_amx && bgmmc.ndims == 2
+            && one_of(true, bm_conf_utils.is_int8(), bm_conf_utils.is_bf16());
+    if (bgmmc.is_runtime_M && !runtime_M_supported)
         return status::unimplemented;
 
     bgmmc.batch_without_first_dim
