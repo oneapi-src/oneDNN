@@ -61,16 +61,15 @@ status_t ref_reduction_t::pd_t::init_conf(engine_t *engine) {
         conf.dst_dims[d] = dst_mdw.md_->padded_dims[d];
     }
 
-    conf.dispatch.define_dim("D0", 0, conf.dst_dims[0]);
-    conf.dispatch.define_dim("D1", 0, ndims >= 2 ? conf.dst_dims[1] : 1);
-    conf.dispatch.define_dim(
-            "D2", 0, ndims >= 6 ? conf.dst_dims[ndims - 4] : 1);
-    conf.dispatch.define_dim(
-            "D3", 0, ndims >= 5 ? conf.dst_dims[ndims - 3] : 1);
-    conf.dispatch.define_dim(
-            "D4", 0, ndims >= 4 ? conf.dst_dims[ndims - 2] : 1);
-    conf.dispatch.define_dim(
-            "D5", 0, ndims >= 3 ? conf.dst_dims[ndims - 1] : 1);
+    int max_ndims = 6;
+    for (int i = 0; i < max_ndims; ++i) {
+        if (i < ndims) {
+            conf.dispatch.define_dim(
+                    utils::format("D%d", i), i, conf.dst_dims[i]);
+        } else {
+            conf.dispatch.define_dim(utils::format("D%d", i), 1);
+        }
+    }
     conf.dispatch.generate(false);
 
     conf.attr_info = attr_info_t::create(pd->attr());
@@ -86,28 +85,17 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
     kernel_ctx.set_data_type(conf.src_type);
 
-    kernel_ctx.define_int("D0", conf.dst_dims[0]);
-    kernel_ctx.define_int("D1", conf.ndims >= 2 ? conf.dst_dims[1] : 1);
-    kernel_ctx.define_int(
-            "D2", conf.ndims >= 6 ? conf.dst_dims[conf.ndims - 4] : 1);
-    kernel_ctx.define_int(
-            "D3", conf.ndims >= 5 ? conf.dst_dims[conf.ndims - 3] : 1);
-    kernel_ctx.define_int(
-            "D4", conf.ndims >= 4 ? conf.dst_dims[conf.ndims - 2] : 1);
-    kernel_ctx.define_int(
-            "D5", conf.ndims >= 3 ? conf.dst_dims[conf.ndims - 1] : 1);
-
-    kernel_ctx.define_int("REDUCTION_D0", conf.reduce_dims[0]);
-    kernel_ctx.define_int(
-            "REDUCTION_D1", conf.ndims >= 2 ? conf.reduce_dims[1] : 1);
-    kernel_ctx.define_int("REDUCTION_D2",
-            conf.ndims >= 6 ? conf.reduce_dims[conf.ndims - 4] : 1);
-    kernel_ctx.define_int("REDUCTION_D3",
-            conf.ndims >= 5 ? conf.reduce_dims[conf.ndims - 3] : 1);
-    kernel_ctx.define_int("REDUCTION_D4",
-            conf.ndims >= 4 ? conf.reduce_dims[conf.ndims - 2] : 1);
-    kernel_ctx.define_int("REDUCTION_D5",
-            conf.ndims >= 3 ? conf.reduce_dims[conf.ndims - 1] : 1);
+    int max_ndims = 6;
+    for (int i = 0; i < max_ndims; ++i) {
+        if (i < conf.ndims) {
+            kernel_ctx.define_int(utils::format("D%d", i), conf.dst_dims[i]);
+            kernel_ctx.define_int(
+                    utils::format("REDUCTION_D%d", i), conf.reduce_dims[i]);
+        } else {
+            kernel_ctx.define_int(utils::format("D%d", i), 1);
+            kernel_ctx.define_int(utils::format("REDUCTION_D%d", i), 1);
+        }
+    }
 
     switch (conf.alg) {
         case reduction_max: kernel_ctx.define_int("IS_MAX", 1); break;
@@ -129,9 +117,6 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
             break;
         default: return status::invalid_arguments;
     }
-
-    def_offsets(conf.off.src_off, kernel_ctx, "SRC", conf.ndims);
-    def_offsets(conf.off.dst_off, kernel_ctx, "DST", conf.ndims);
 
     kernel_ctx.define_int("DIV", conf.div);
     kernel_ctx.define_int("NDIMS", conf.ndims);
