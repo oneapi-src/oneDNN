@@ -40,8 +40,42 @@ namespace graph {
 // 3. This will force to have a separate abstraction that will sort out
 //    functionality of reorders from dnn_mem_t with its handle to tensor and
 //    back.
+
+// prb_wrapper_base_t & prb_wrapper_t are defined to wrap prb objection because
+// C++ 11 does not support template member variable and there is no common base type
+// for all prb_t types, thus we cannot put shared ptr of prb or its base object
+// directly into ref_prims_ member of ref_partition_t object. now shared pointer of
+// wrapper base object will be put into ref_prims_.
+// These wrappers could be removed after moving to C++ 14
+class prb_wrapper_base_t {
+public:
+    virtual ~prb_wrapper_base_t() = default;
+    template <typename prb_t>
+    const prb_t *get() const;
+};
+
+// A template class to wrap shared pointer of prb obj
+template <typename prb_t>
+class prb_wrapper_t : public prb_wrapper_base_t {
+public:
+    prb_wrapper_t(const std::shared_ptr<prb_t> prb) { prb_ = prb; }
+    // get raw pointer of prb object
+    const prb_t *get() const { return prb_.get(); }
+
+private:
+    std::shared_ptr<prb_t> prb_;
+};
+
+// A template function in base wrapper, which dynamic cast from base object to
+// derived object and return raw pointer of prb obj
+template <typename prb_t>
+inline const prb_t *prb_wrapper_base_t::get() const {
+    return dynamic_cast<const prb_wrapper_t<prb_t> &>(*this).get();
+}
+
 using graph_link_t = std::tuple<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>,
-        dnn_mem_map_t, dnn_mem_map_t, args_t, args_t>;
+        dnn_mem_map_t, dnn_mem_map_t, args_t, args_t,
+        std::shared_ptr<prb_wrapper_base_t>>;
 
 #define DECLARE_SET_PRB_CFG(driver) \
     template <typename prb_t, \
@@ -147,12 +181,14 @@ template <typename prb_t, typename init_pd_func_t,
 int init_prim(std::unordered_map<int, graph_link_t> &ref_prims,
         const deserialized_op &base_op_ref, const init_pd_func_t &init_pd,
         const supported_exec_args_func_t &supported_exec_args,
-        const setup_cmp_func_t &setup_cmp, const prb_t *prb,
+        const setup_cmp_func_t &setup_cmp, const std::shared_ptr<prb_t> pprb,
         const engine_t &ref_eng, res_t *res) {
     int op_id = static_cast<int>(base_op_ref.id_);
-    ref_prims[op_id]
-            = std::make_tuple(benchdnn_dnnl_wrapper_t<dnnl_primitive_t>(),
-                    dnn_mem_map_t(), dnn_mem_map_t(), args_t(), args_t());
+    const prb_t *prb = pprb.get();
+    auto prb_wrp = std::make_shared<prb_wrapper_t<prb_t>>(pprb);
+    ref_prims[op_id] = std::make_tuple(
+            benchdnn_dnnl_wrapper_t<dnnl_primitive_t>(), dnn_mem_map_t(),
+            dnn_mem_map_t(), args_t(), args_t(), prb_wrp);
 
     // Initialize a primitive
     auto &prim = std::get<0>(ref_prims[op_id]);

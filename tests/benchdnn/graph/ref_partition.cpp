@@ -42,14 +42,10 @@ public:
                 ::driver::setup_cmp, input_ts, output_ts, ref_eng, res); \
     } break
 
-// TODO: re-creating prb object shouldn't happen since somehow it may change,
-// and it's additional overhead. It seems reasonable to stash prb as a part
-// of `graph_link` object and re-use it here.
 #define CASE_CORRECTNESS_CHECK(driver) \
     case dnnl_driver_t::driver: { \
-        ::driver::settings_t op_setting = get_setting<::driver::settings_t>( \
-                last_op_ref, bf16_to_f32_rewrite_lt_id_, res); \
-        ::driver::prb_t prb_(op_setting), *prb = &prb_; \
+        const ::driver::prb_t *prb \
+                = std::get<5>(ref_prims_[op_id])->get<::driver::prb_t>(); \
         check_correctness<::driver::prb_t>(ref_prims_, op_id, \
                 partition_output_args_, ref_args, prb, has_eltwise, \
                 output_has_nans, res); \

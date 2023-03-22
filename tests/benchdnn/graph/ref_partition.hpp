@@ -68,11 +68,12 @@ protected:
                 cur_op, bf16_to_f32_rewrite_lt_id_, res);
         if (res->state == INVALID_ARGUMENTS) return;
 
-        prb_t prb_(op_setting), *prb = &prb_;
+        auto pprb = std::make_shared<prb_t>(op_setting);
+        prb_t *prb = pprb.get();
 
         set_prb_cfg<prb_t>(prb, map_off_to_dt, res);
         init_prim<prb_t>(ref_prims_, cur_op, init_pd, supported_exec_args,
-                setup_cmp, prb, ref_eng, res);
+                setup_cmp, pprb, ref_eng, res);
     }
 
     template <typename setting_t, typename prb_t, typename init_pd_func_t,
@@ -87,10 +88,11 @@ protected:
                 cur_op, bf16_to_f32_rewrite_lt_id_, res);
         if (res->state == INVALID_ARGUMENTS) return;
 
-        prb_t prb_(op_setting), *prb = &prb_;
+        auto pprb = std::make_shared<prb_t>(op_setting);
+        prb_t *prb = pprb.get();
 
         init_prim<prb_t>(ref_prims_, cur_op, init_pd, supported_exec_args,
-                setup_cmp, prb, ref_eng, res);
+                setup_cmp, pprb, ref_eng, res);
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return;
 
         if (cur_op.kind_ == "Dequantize" && is_quantized_) {
