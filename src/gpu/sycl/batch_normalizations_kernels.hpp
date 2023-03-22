@@ -91,7 +91,7 @@ private:
             case 3: return mdw.off(n, c, w);
             case 4: return mdw.off(n, c, h, w);
             case 5: return mdw.off(n, c, d, h, w);
-            default: assert(!"Invalid tensor dimension in Batch");
+            default: return 0;
         }
         return 0;
     }
@@ -239,7 +239,7 @@ private:
             case 3: return mdw.off(n, c, w);
             case 4: return mdw.off(n, c, h, w);
             case 5: return mdw.off(n, c, d, h, w);
-            default: assert(!"Invalid tensor dimension in Batch");
+            default: return 0;
         }
         return 0;
     }
@@ -447,7 +447,7 @@ private:
             case 3: return mdw.off(n, c, w);
             case 4: return mdw.off(n, c, h, w);
             case 5: return mdw.off(n, c, d, h, w);
-            default: assert(!"Invalid tensor dimension in Batch");
+            default: return 0;
         }
         return 0;
     }

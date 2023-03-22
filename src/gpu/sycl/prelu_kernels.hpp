@@ -129,7 +129,7 @@ private:
             case 3: return mem.off(dims[0], dims[1], dims[2]);
             case 4: return mem.off(dims[0], dims[1], dims[2], dims[3]);
             case 5: return mem.off(dims[0], dims[1], dims[2], dims[3], dims[4]);
-            default: assert(!"Unsupported ndims count");
+            default: return -1;
         }
         return -1;
     }
@@ -186,7 +186,7 @@ struct prelu_bwd_kernel_vec_t {
                         diff_weights_ptr(), diff_dst_ptr(), diff_data_ptr(),
                         ithr, item);
                 break;
-            default: assert(!"unsupported broadcast type");
+            default: return;
         }
     }
 
@@ -264,7 +264,7 @@ private:
             case 3: return mem.off(dims[0], dims[1], dims[2]);
             case 4: return mem.off(dims[0], dims[1], dims[2], dims[3]);
             case 5: return mem.off(dims[0], dims[1], dims[2], dims[3], dims[4]);
-            default: assert(!"Unsupported ndims count");
+            default: return -1;
         }
         return -1;
     }
