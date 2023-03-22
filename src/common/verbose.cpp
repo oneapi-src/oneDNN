@@ -77,43 +77,42 @@ static setting_t<uint32_t> verbose {0};
 
 uint32_t get_verbose() {
 #if defined(DISABLE_VERBOSE)
-    return 0;
+    return verbose_t::none;
 #else
     if (!verbose.initialized()) {
         // Assumes that all threads see the same environment
         static std::string user_opt = getenv_string_user("VERBOSE");
 
-        auto tok2kind = [&](const std::string &s) -> int {
+        auto update_kind = [&](const std::string &s, int &k) -> int {
             // Legacy: we accept values 0,1,2
-            if (s == "0" || s == "none") return verbose_t::none;
-            if (s == "1") return verbose_t::error | verbose_t::exec_profile;
+            // 0 and none erase previously set flags, including error
+            if (s == "0" || s == "none") return k = verbose_t::none;
+            if (s == "1") return k | verbose_t::exec_profile;
             if (s == "2")
-                return verbose_t::error | verbose_t::exec_profile
-                        | verbose_t::create_profile;
-            if (s == "all" || s == "-1") return verbose_t::all;
-            if (s == "error") return verbose_t::flag_kind::error;
+                return k |= verbose_t::exec_profile | verbose_t::create_profile;
+            if (s == "all" || s == "-1") return k |= verbose_t::all;
+            if (s == "error") return k |= verbose_t::error;
             if (s == "check")
-                return verbose_t::flag_kind::create_check
-                        | verbose_t::flag_kind::exec_check;
-            if (s == "dispatch") return verbose_t::flag_kind::create_dispatch;
+                return k |= verbose_t::create_check | verbose_t::exec_check;
+            if (s == "dispatch") return k |= verbose_t::create_dispatch;
             if (s == "profile")
-                return verbose_t::flag_kind::create_profile
-                        | verbose_t::flag_kind::exec_profile;
-            if (s == "create_profile")
-                return verbose_t::flag_kind::create_profile;
-            if (s == "exec_profile") return verbose_t::flag_kind::exec_profile;
-            // we extract debug info debug_info=XX
+                return k |= verbose_t::create_profile | verbose_t::exec_profile;
+            if (s == "create_profile") return k |= verbose_t::create_profile;
+            if (s == "exec_profile") return k |= verbose_t::exec_profile;
+            // we extract debug info debug_info=XX. ignore if debuginfo is invalid.
             if (s.rfind("debuginfo=", 0) == 0)
-                return verbose_t::make_debuginfo(std::stoi(s.substr(10)));
+                return k |= verbose_t::make_debuginfo(
+                               std::strtol(s.c_str() + 10, nullptr, 10));
 
             // Unknown option is ignored
             // TODO: exit on unsupported or print a message?
-            return verbose_t::none;
+            return k;
         };
 
-        int val = verbose_t::flag_kind::none;
+        // we always enable error by default
+        int val = verbose_t::error;
         for (auto &tok : utils::str_split(user_opt, ','))
-            val |= tok2kind(tok);
+            update_kind(tok, val);
 
         // We parse for explicit flags
         verbose.set(val);
@@ -1106,7 +1105,7 @@ dnnl_status_t dnnl_set_verbose(int level) {
     using namespace dnnl::impl;
     if (level < 0 || level > 2) return invalid_arguments;
 
-    uint32_t verbose_level = 0;
+    uint32_t verbose_level = verbose_t::none;
     if (level == 1) verbose_level = verbose_t::error | verbose_t::exec_profile;
     if (level == 2)
         verbose_level = verbose_t::error | verbose_t::exec_profile
