@@ -341,6 +341,17 @@ void logical_tensor_t::to_string(std::ostream &os) {
        << " @ " << format_ << ']';
 }
 
+size_t logical_tensor_t::hash() const {
+    size_t seed = 0;
+    hash_combine(seed, static_cast<uint64_t>(dtype_));
+    hash_combine(seed, static_cast<uint64_t>(is_dynamic_));
+    hash_combine(seed, plain_dims_);
+    hash_combine(seed, dims_);
+    hash_combine(seed, strides_);
+    hash_combine(seed, format_);
+    return seed;
+}
+
 void graph_tensor::attach_use(sc_op_ptr op, int index) {
     uses_.emplace_back(std::make_pair(index, std::move(op)));
 }
@@ -744,6 +755,12 @@ bool sc_op::compare_contents(const sc_op *other) const {
 
 size_t sc_op::hash_contents() const {
     size_t seed = 0;
+    for (auto &in : info_.inputs_) {
+        hash_combine(seed, in->details_.hash());
+    }
+    for (auto &out : info_.outputs_) {
+        hash_combine(seed, out->details_.hash());
+    }
     hash_combine(seed, this->op_name_);
     for (auto &kv : attrs_.as_map()) {
         if (utils::string_startswith(kv.first, "temp.")) { continue; }

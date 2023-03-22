@@ -280,6 +280,10 @@ void codegen_c_vis::view(constant_c v) {
     if (v->is_vector()) {
         print_type(v->dtype_);
         v->to_string(*os);
+    } else if (v->dtype_ != datatypes::pointer && v->dtype_.is_pointer()) {
+        (*os) << '(' << '(';
+        print_type(v->dtype_);
+        (*os) << ')' << v->value_.at(0).u64 << ')';
     } else {
         v->to_string(*os);
     }

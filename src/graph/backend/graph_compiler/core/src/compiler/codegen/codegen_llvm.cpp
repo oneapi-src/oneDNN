@@ -675,7 +675,7 @@ public:
                 }
             } break;
             default:
-                COMPILE_ASSERT(v->dtype_ == datatypes::pointer,
+                COMPILE_ASSERT(v->dtype_.is_pointer(),
                         "Unexpected type for LLVM. Expecting pointer.");
                 for (auto &val : v->value_) {
                     vals.push_back(ConstantExpr::getIntToPtr(

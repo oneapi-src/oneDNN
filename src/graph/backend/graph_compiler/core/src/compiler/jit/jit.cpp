@@ -115,6 +115,21 @@ jit_module::jit_module(statics_table_t &&globals, bool managed_thread_pool)
     , module_id_(module_id++)
     , managed_thread_pool_(managed_thread_pool) {}
 
+void jit_module::postprocess(const const_ir_module_ptr &ir_mod) {
+    update_runtime_op_tables(ir_mod);
+    using cache_t = std::shared_ptr<cached_const_graph_tensor>;
+    for (auto &v : ir_mod->get_module_vars()) {
+        auto pcache
+                = v->var_.cast<tensor>()
+                          .map([](const tensor &v) { return v->attr_.get(); })
+                          .map([](any_map_t *v) {
+                              return v->get_or_null<cache_t>("shared_const");
+                          })
+                          .get_or_else(nullptr);
+        if (pcache) { shared_globals_.emplace_back(*pcache); }
+    }
+}
+
 void jit_module::update_runtime_op_tables(const const_ir_module_ptr &ir_mod) {
     constexpr size_t capacity_coefficient = 2;
     auto compiler_tables = ir_mod->get_op_table_map();

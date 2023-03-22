@@ -253,7 +253,7 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
 
     auto ret = make_jit_module(inpath, outpath, std::move(attr_table),
             generate_wrapper, managed_thread_pool);
-    ret->update_runtime_op_tables(module);
+    ret->postprocess(module);
     return ret;
 }
 

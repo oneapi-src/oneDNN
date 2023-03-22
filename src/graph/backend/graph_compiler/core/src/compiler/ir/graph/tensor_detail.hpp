@@ -114,6 +114,7 @@ public:
     static sc_dims compute_dense_stride(const sc_dims &dims);
     static std::vector<expr> compute_dense_stride_expr(
             sc_graph_t &graph, const std::vector<expr> &dims);
+    size_t hash() const;
 
 private:
     template <typename T, typename Dummy>

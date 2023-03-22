@@ -252,6 +252,7 @@ gc::sc_op_ptr compiler_graph_impl_t::make_compiler_backend_input(
         const graph::logical_tensor_t &in_lt) {
     auto lrt = compiler_graph_impl_t::convert_logical_tensor(in_lt);
     auto in_ret = this->make_input({lrt});
+    in_ret->attrs_["temp.tensor_id"] = in_lt.id;
     if (in_lt.property == property_type::constant) {
         in_ret->attrs_.set("constant", 1); // set as local_const
     }

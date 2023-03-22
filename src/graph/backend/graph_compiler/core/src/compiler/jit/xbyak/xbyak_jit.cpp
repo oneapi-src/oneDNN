@@ -173,7 +173,7 @@ std::shared_ptr<jit_module> xbyak_jit::make_jit_module(
             ir_module_t::attr_key_t::MANAGED_THREAD_POOL);
     auto ret = std::shared_ptr<xbyak_jit_module>(new xbyak_jit_module(
             std::move(jit_output_), std::move(attr_table), use_managed_tp));
-    ret->update_runtime_op_tables(ir_mod);
+    ret->postprocess(ir_mod);
     return ret;
 }
 

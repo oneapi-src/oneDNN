@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/graph/pass/graph_constant_cache.hpp>
 #include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/transform/cpu/closurize.hpp>
 #include <compiler/ir/visitor.hpp>
@@ -157,14 +158,21 @@ public:
             for (auto &v : global_symbol_local_def_) {
                 expr init;
                 if (v.isa<tensor>()) {
-                    auto offset = v->attr().get<size_t>(
+                    auto anyoffset = v->attr().get_any(
                             attr_keys::module_global_offset);
-                    if (absolute_base_) {
-                        init = make_expr<constant_node>(
-                                (uint64_t)(absolute_base_ + offset),
-                                datatypes::s8.get_pointerof());
+                    if (auto poffset = anyoffset.get_or_null<size_t>()) {
+                        auto offset = *poffset;
+                        if (absolute_base_) {
+                            init = make_expr<constant_node>(
+                                    (uint64_t)(absolute_base_ + offset),
+                                    datatypes::s8.get_pointerof());
+                        } else {
+                            init = builder::tensor_ptr(current_base, {offset});
+                        }
                     } else {
-                        init = builder::tensor_ptr(current_base, {offset});
+                        init = make_expr<constant_node>(
+                                (uint64_t)(anyoffset.get<void *>()),
+                                datatypes::s8.get_pointerof());
                     }
                 }
                 seq.emplace_back(builder::make_var_tensor_def_unattached(
@@ -194,6 +202,14 @@ static size_t get_tensor_size(const tensor &tsr, const define &def) {
 
 static size_t update_allocated_size(
         const tensor &tsr, size_t size, size_t allocated_size) {
+    if (tsr->attr_) {
+        if (auto data = tsr->attr_->get_or_null<
+                        std::shared_ptr<cached_const_graph_tensor>>(
+                    "shared_const")) {
+            tsr->attr()[attr_keys::module_global_offset] = data->get()->buf_;
+            return allocated_size;
+        }
+    }
     if (size >= 64) { allocated_size = align_to_64(allocated_size); }
     tsr->attr()[attr_keys::module_global_offset] = allocated_size;
     allocated_size += size;
@@ -257,17 +273,20 @@ const_ir_module_ptr module_globals_resolver_t::operator()(
                     aligned_buffer_t(allocated_size, m->ctx_->engine_));
     sym_table->initialized_size_ = init_size;
     for (auto &def : ret->get_module_vars()) {
-        auto offset = def->var_->attr().get<size_t>(
-                attr_keys::module_global_offset);
+        auto &anyoffset
+                = def->var_->attr().get_any(attr_keys::module_global_offset);
         if (def->var_.isa<var>()) {
-            sym_table->add(def->var_.static_as<var>()->name_, offset);
+            sym_table->add(
+                    def->var_.static_as<var>()->name_, anyoffset.get<size_t>());
         } else {
             auto tsr = def->var_.checked_as<tensor>();
-            sym_table->add(tsr->name_, offset);
-            if (tsr->init_value_) {
-                memcpy(reinterpret_cast<char *>(sym_table->data_.data_)
-                                + offset,
-                        tsr->init_value_->data_, tsr->init_value_->size_);
+            if (auto offset = anyoffset.get_or_null<size_t>()) {
+                sym_table->add(tsr->name_, *offset);
+                if (tsr->init_value_) {
+                    memcpy(reinterpret_cast<char *>(sym_table->data_.data_)
+                                    + *offset,
+                            tsr->init_value_->data_, tsr->init_value_->size_);
+                }
             }
         }
     }

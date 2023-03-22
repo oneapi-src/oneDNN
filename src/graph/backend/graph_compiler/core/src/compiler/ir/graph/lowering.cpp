@@ -31,6 +31,7 @@
 #include <compiler/ir/graph/dynamic_lower_info.hpp>
 #include <compiler/ir/graph/dynamic_utils.hpp>
 #include <compiler/ir/graph/fused_op.hpp>
+#include <compiler/ir/graph/pass/graph_constant_cache.hpp>
 #include <compiler/ir/graph/trait/may_prefetch.hpp>
 #include <compiler/ir/ir_utils.hpp>
 #include <compiler/ir/pass/ir_copy_internal.hpp>
@@ -516,8 +517,25 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
         if (!is_arg) {
             if (const_type != const_kind::not_const) {
                 if (const_type == const_kind::global_const) {
-                    auto folded_name = "folded_const_"
-                            + std::to_string(gp.global_tensor_counter++);
+                    std::string folded_name;
+                    auto ownerop = t->producer_owner_;
+                    std::shared_ptr<cached_const_graph_tensor> cached;
+                    if (auto cache
+                            = ownerop->attrs_
+                                      .get_or_null<std::vector<std::shared_ptr<
+                                              cached_const_graph_tensor>>>(
+                                              op_attr_key::const_input_cache)) {
+                        auto idx = std::find(ownerop->get_outputs().begin(),
+                                           ownerop->get_outputs().end(), t)
+                                - ownerop->get_outputs().begin();
+                        cached = cache->at(idx);
+                        std::stringstream ss;
+                        ss << "shared_const_" << gp.global_tensor_counter++;
+                        folded_name = ss.str();
+                    } else {
+                        folded_name = "folded_const_"
+                                + std::to_string(gp.global_tensor_counter++);
+                    }
                     tsr = copy_attr(*tsr,
                             gp.ret_mod->make_global_stensor(
                                     tsr.checked_as<tensor>()->elem_dtype_,
@@ -525,7 +543,8 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
                                     tsr.checked_as<tensor>()->dims_,
                                     tsr.checked_as<tensor>()->strides_,
                                     linkage::private_global, &def_node));
-                    // global tensor does not need cache.
+                    if (cached) { tsr->attr()["shared_const"] = cached; }
+                    // global tensor does not need cached dynamic var
                     tsr->attr_->set("temp.dyn_placeholder", expr());
                     if (auto const_node
                             = t->producer_owner_->dyn_cast<constant_op_t>()) {

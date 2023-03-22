@@ -99,6 +99,8 @@ public:
     using generic_wrapper_t = void (*)(generic_val *);
 };
 
+struct cached_const_graph_tensor;
+
 // The result of compiling an ir_module_t
 class SC_INTERNAL_API jit_module {
 public:
@@ -109,6 +111,7 @@ public:
     size_t module_id_;
     // whether to use managed thread pool
     bool managed_thread_pool_;
+    std::vector<std::shared_ptr<cached_const_graph_tensor>> shared_globals_;
     jit_module(bool managed_thread_pool);
     jit_module(statics_table_t &&globals, bool managed_thread_pool);
     virtual void *get_address_of_symbol(const std::string &name) = 0;
@@ -120,11 +123,13 @@ public:
         return std::vector<std::string>();
     }
 
+    virtual ~jit_module() = default;
+    void postprocess(const const_ir_module_ptr &ir_mod);
+
+protected:
     // upate kerenl values of op_tables_ with address of specific function.
     // call the self-update function after jit module is created.
     virtual void update_runtime_op_tables(const const_ir_module_ptr &ir_mod);
-
-    virtual ~jit_module() = default;
 };
 
 class SC_INTERNAL_API general_jit_function_t : public jit_function_t {
