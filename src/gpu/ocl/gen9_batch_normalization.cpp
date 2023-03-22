@@ -101,8 +101,7 @@ void adjust_lws_calc_kernel(bnorm_conf_t &conf, engine_t *engine) {
     const int max_ss = utils::div_up(eu_count, eus_per_ss);
 
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
-    const int max_slm_size
-            = compute_engine->device_info()->max_slm_size(gpu_arch);
+    const int max_slm_size = compute::device_info_t::max_slm_size(gpu_arch);
     auto generated_nd = conf.dispatch_calc_stat.nd_range();
     const size_t *base_gws = generated_nd.global_range();
     const size_t *base_lws = generated_nd.local_range();
