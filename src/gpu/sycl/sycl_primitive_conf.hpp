@@ -177,11 +177,32 @@ struct sycl_batch_normalization_conf_t {
     bool with_relu;
 };
 
+struct sycl_softmax_conf_t {
+    prop_kind_t prop_kind;
+    sycl_md_t src_md;
+    sycl_md_t dst_md;
+
+    sycl_md_t diff_md;
+    sycl_md_t diff_src_md;
+    sycl_md_t diff_dst_md;
+    alg_kind_t alg_kind;
+    dim_t block_size;
+    dim_t wg_size;
+    dim_t wk_size;
+
+    dim_t axis;
+    dim_t axis_size;
+    dim_t inner_size;
+    dim_t outer_size;
+    dim_t channels;
+};
+
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_binary_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_prelu_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_shuffle_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_resampling_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_batch_normalization_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_softmax_conf_t);
 
 } // namespace sycl
 } // namespace gpu
