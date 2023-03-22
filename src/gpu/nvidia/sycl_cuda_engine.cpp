@@ -43,6 +43,7 @@
 #include "gpu/sycl/ref_prelu.hpp"
 #include "gpu/sycl/ref_resampling.hpp"
 #include "gpu/sycl/ref_shuffle.hpp"
+#include "gpu/sycl/ref_softmax.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -244,6 +245,8 @@ constexpr dnnl::impl::impl_list_item_t sycl_cuda_impl_list[] = {
         // Softmax
         INSTANCE(cudnn_softmax_fwd_t)
         INSTANCE(cudnn_softmax_bwd_t)
+        INSTANCE(sycl::ref_sycl_softmax_fwd_t)
+        INSTANCE(sycl::ref_sycl_softmax_bwd_t)
 
         // Binary
         INSTANCE(cudnn_binary_t)
