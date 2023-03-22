@@ -949,7 +949,6 @@ status_t generic_reorder_t::pd_t::init_kernel_ctx(
         d_size_so_far *= d.blk_size;
     }
 
-    kernel_ctx.print_options();
     return status::success;
 }
 

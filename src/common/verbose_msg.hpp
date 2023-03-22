@@ -22,9 +22,10 @@
 #define VERBOSE_create "create"
 #define VERBOSE_exec "exec"
 
-// log sybtypes strings
+// log subtypes strings
 #define VERBOSE_check ":check"
 #define VERBOSE_dispatch ":dispatch"
+#define VERBOSE_debug ":debug"
 #define VERBOSE_profile ""
 
 // verbose messages

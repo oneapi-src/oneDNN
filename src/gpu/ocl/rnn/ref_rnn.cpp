@@ -320,10 +320,6 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("IS_TESTMODE", conf.is_testmode);
 
     kernel_ctx.define_int("DEBUGPRINT", DEBUGPRINT);
-
-#if DEBUGPRINT
-    kernel_ctx.print_options();
-#endif
     return status::success;
 }
 

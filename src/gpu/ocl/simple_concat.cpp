@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -210,7 +210,6 @@ static status_t init_kernel_ctx_common(
     kernel_ctx.define_int("N_INPUTS", conf.n);
     kernel_ctx.define_int("SIMD", conf.simd);
     kernel_ctx.define_int("DATA_TYPE_SIZE", conf.data_type_size);
-    kernel_ctx.print_options();
     return status::success;
 }
 

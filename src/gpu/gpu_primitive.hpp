@@ -19,6 +19,12 @@
 
 #include <cassert>
 
+#ifndef DISABLE_VERBOSE
+#include <iostream>
+#include <sstream>
+#include "common/verbose.hpp"
+#endif
+
 #include "common/cache_blob.hpp"
 #include "common/primitive.hpp"
 #include "common/utils.hpp"
@@ -138,6 +144,18 @@ struct gpu_primitive_t : public primitive_t {
             const compute::kernel_ctx_t &kernel_ctx) {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
+
+#ifndef DISABLE_VERBOSE
+        // Print out kernel options if the correct verbosity is set
+        if (verbose_debuginfo() >= 5) {
+            std::ostringstream oss;
+            for (const char *name : kernel_names)
+                oss << name << " ";
+
+            VFORMAT(get_msec(), exec, VERBOSE_debug, "kernel options,%s,%s",
+                    oss.str().c_str(), kernel_ctx.options().c_str());
+        }
+#endif
         CHECK(compute_engine->create_kernels(
                 kernels, kernel_names, kernel_ctx, cache_blob()));
         register_kernels(*kernels);

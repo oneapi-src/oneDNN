@@ -71,7 +71,7 @@ status_t cvt_primitive_args(const primitive_desc_t *pd, int nargs,
                 break;
             case primitive_desc_t::arg_usage_t::unused:
                 VINFO(exec, check, primitive,
-                        "unsused primitive execution argument (%d)", arg);
+                        "unused primitive execution argument (%d)", arg);
                 break;
         }
     }

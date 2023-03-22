@@ -372,7 +372,6 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_kernel_ctx(
     CHECK(def_attr_info(
             kernel_ctx, conf.attr_info, attr()->post_ops_, &dst_dims));
 
-    kernel_ctx.print_options();
     return status::success;
 }
 

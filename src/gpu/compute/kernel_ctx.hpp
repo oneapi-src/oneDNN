@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,9 +18,6 @@
 #define GPU_COMPUTE_KERNEL_CTX_HPP
 
 #include <cassert>
-#ifdef DEBUG_PRINT
-#include <iostream>
-#endif
 #include <map>
 #include <set>
 #include <sstream>
@@ -29,6 +26,7 @@
 
 #include "common/bit_cast.hpp"
 #include "common/primitive_attr.hpp"
+#include "common/verbose.hpp"
 #include "gpu/gpu_primitive_attr.hpp"
 
 namespace dnnl {
@@ -96,12 +94,6 @@ public:
             case data_type::s32: define_int("DT_S32", 1); break;
             default: assert(!"unknown data type"); break;
         }
-    }
-
-    void print_options() const {
-#ifdef DEBUG_PRINT
-        std::cout << "OPT:\n" << options() << std::endl;
-#endif
     }
 
     template <typename T>
