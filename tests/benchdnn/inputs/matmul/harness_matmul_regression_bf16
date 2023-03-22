@@ -1,0 +1,7 @@
+# runtime M dimension and binary post-ops with per_oc broadcast
+--reset
+--dt=bf16,bf16:bf16:f32
+--stag=ab --wtag=ab --dtag=ab
+--runtime_dims_masks=1:0
+--attr-post-ops=add:bf16:per_oc,add:f32:per_oc
+10x1:1x20_n"runtime_m_and_binary_po"

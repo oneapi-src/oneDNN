@@ -380,17 +380,22 @@ void brgemm_matmul_t<isa>::compute_kernel(
                     : static_cast<void *>(brgmm_ctx.get_s8s8_comp_ptr(
                             ithr, b_idx, n_blk_idx));
 
-            const size_t dst_row_logical_off = m;
+            const size_t dst_row_logical_off
+                    = brgmm_ctx.get_M_idx(m_blk_idx, true);
             const size_t batch_first_dim_idx = bgmmc.batch_ndims > 1
                     ? b_idx / bgmmc.batch_without_first_dim
                     : 0;
             const size_t first_mb_matrix_addr_off
-                    = batch_first_dim_idx * (M * bgmmc.N) + (m * bgmmc.N + n);
+                    = batch_first_dim_idx * (M * bgmmc.N)
+                    + (dst_row_logical_off * bgmmc.N + n);
+            const char *dst_anchor_point
+                    = brgmm_ctx.get_dst_anchor_point_for_binary_post_ops(
+                            b_idx, m_blk_idx, n_blk_idx);
             const brgemm_post_ops_data_t post_ops_data {
                     static_cast<const void *>(ptr_bias),
                     brgmm_ctx.get_oscales_ptr(n),
                     post_ops_binary_rhs_arg_vec.data(), static_cast<size_t>(n),
-                    dst_row_logical_off, brgmm_ctx.get_data_C_ptr(0, 0, 0),
+                    dst_row_logical_off, dst_anchor_point,
                     first_mb_matrix_addr_off,
                     static_cast<const void *>(zp_comp_a),
                     static_cast<const void *>(zp_comp_b),
@@ -421,17 +426,22 @@ void brgemm_matmul_t<isa>::compute_kernel(
                     : static_cast<void *>(brgmm_ctx.get_s8s8_comp_ptr(
                             ithr, b_idx, n_blk_idx));
 
-            const size_t dst_row_logical_off = m;
+            const size_t dst_row_logical_off
+                    = brgmm_ctx.get_M_idx(m_blk_idx, true);
             const size_t batch_first_dim_idx = bgmmc.batch_ndims > 1
                     ? b_idx / bgmmc.batch_without_first_dim
                     : 0;
             const size_t first_mb_matrix_addr_off
-                    = batch_first_dim_idx * (M * bgmmc.N) + (m * bgmmc.N + n);
+                    = batch_first_dim_idx * (M * bgmmc.N)
+                    + (dst_row_logical_off * bgmmc.N + n);
+            const char *dst_anchor_point
+                    = brgmm_ctx.get_dst_anchor_point_for_binary_post_ops(
+                            b_idx, m_blk_idx, n_blk_idx);
             const brgemm_post_ops_data_t post_ops_data {
                     static_cast<const void *>(ptr_bias),
                     brgmm_ctx.get_oscales_ptr(n),
                     post_ops_binary_rhs_arg_vec.data(), static_cast<size_t>(n),
-                    dst_row_logical_off, brgmm_ctx.get_data_C_ptr(0, 0, 0),
+                    dst_row_logical_off, dst_anchor_point,
                     first_mb_matrix_addr_off,
                     static_cast<const void *>(zp_comp_a),
                     static_cast<const void *>(zp_comp_b),
@@ -523,7 +533,7 @@ void brgemm_matmul_t<isa>::maybe_reduce_partial_results_and_apply_postops(
                         brgemm_palettes_.maybe_tile_configure(
                                 is_amx, prev_ker_idx, brg_ker_idx);
                         const auto brg_kernel = brg_kernels_[brg_ker_idx].get();
-                        const int m = mb * bgmmc.M_blk;
+                        const int m = brgmm_ctx.get_M_idx(mb);
                         const int n = nb * bgmmc.N_blk;
                         const auto ptr_bias = brgmm_ctx.get_bias_ptr(n);
                         auto ptr_D = brgmm_ctx.get_data_C_ptr(b, m, n);
@@ -542,7 +552,8 @@ void brgemm_matmul_t<isa>::maybe_reduce_partial_results_and_apply_postops(
                         const auto &post_ops_binary_rhs_arg_vec
                                 = brgmm_ctx.get_post_ops_binary_rhs_arg_vec();
 
-                        const size_t dst_row_logical_off = mb * bgmmc.M_blk;
+                        const size_t dst_row_logical_off
+                                = brgmm_ctx.get_M_idx(mb, true);
                         const size_t batch_first_dim_idx = bgmmc.batch_ndims > 1
                                 ? b / bgmmc.batch_without_first_dim
                                 : 0;
@@ -551,13 +562,16 @@ void brgemm_matmul_t<isa>::maybe_reduce_partial_results_and_apply_postops(
                                 + (m * bgmmc.N + n);
                         // apply post-ops and convert to dst data type only
                         constexpr bool skip_accumulation = true;
+                        const char *dst_anchor_point
+                                = brgmm_ctx
+                                          .get_dst_anchor_point_for_binary_post_ops(
+                                                  b, mb, nb);
                         const brgemm_post_ops_data_t post_ops_data {
                                 static_cast<const void *>(ptr_bias),
                                 brgmm_ctx.get_oscales_ptr(n),
                                 post_ops_binary_rhs_arg_vec.data(),
                                 static_cast<size_t>(n), dst_row_logical_off,
-                                brgmm_ctx.get_data_C_ptr(0, 0, 0),
-                                first_mb_matrix_addr_off,
+                                dst_anchor_point, first_mb_matrix_addr_off,
                                 static_cast<const void *>(zp_comp_a),
                                 static_cast<const void *>(zp_comp_b),
                                 static_cast<const void *>(zp_c_val_ptr),
@@ -937,6 +951,28 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         return data_C_ptr_ + get_data_C_off(b, m, n);
     }
 
+    // Binary post-ops injector requires dst anchor point for offset calculation
+    // for different types of broadcast strategy based on the current value of
+    // ptr_D.
+    char *get_dst_anchor_point_for_binary_post_ops(
+            int b, int m_blk_idx, int n_blk_idx) const {
+        // General case - no copy buffer for destination tensor is used, so we
+        // need to provide C_ptr base pointer as anchor
+        if (!copy_d_required(m_blk_idx)) return get_data_C_ptr(0, 0, 0);
+
+        // We calculate matmul with all the post-ops and data conversion to
+        // temporal buffer. In this case we need to provide anchor pointer based
+        // on buffer pointer used to allow binary injector to calculate required
+        // offsets correctly. Need to double check this approach for batched
+        // case before enabling runtime dimensions support.
+        assert(bgmmc_.batch == 1);
+        const int n = n_blk_idx * bgmmc_.N_blk;
+        const dim_t m = get_M_idx(m_blk_idx, true);
+        ptrdiff_t offset_for_real_dst
+                = get_data_C_off(b, m, n) - get_data_C_off(0, 0, 0);
+        return get_buf_D_ptr(m_blk_idx, n_blk_idx) - offset_for_real_dst;
+    }
+
     brgemm_batch_element_t *get_batch_elem_ptr(int ithr) const {
         return batch_element_ptr_
                 + ithr * bgmmc_.brgemm_batch_element_per_thr_sz;
@@ -1295,10 +1331,11 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
                 .kernel_size;
     }
 
-    dim_t get_M_idx(int m_block_idx, bool maybe_adjust_for_A = false) const {
+    dim_t get_M_idx(
+            int m_block_idx, bool adjust_for_kernel_overlap = false) const {
         if (is_runtime_M_tail_chunk(m_block_idx)) {
             const int tail_idx = get_M_tail_block_idx(m_block_idx);
-            const int shift = maybe_adjust_for_A
+            const int shift = adjust_for_kernel_overlap
                     ? m_tail_processing_[tail_idx].shift
                     : 0;
             return m_tail_processing_[tail_idx].idx - shift;
