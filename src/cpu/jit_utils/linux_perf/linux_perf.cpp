@@ -97,8 +97,10 @@ private:
     }
 
     bool fail() {
-        finalize();
-        failed_ = true;
+        if (!failed_) {
+            finalize();
+            failed_ = true;
+        }
         return false;
     }
 
