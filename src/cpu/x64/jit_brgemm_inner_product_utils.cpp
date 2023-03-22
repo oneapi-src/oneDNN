@@ -198,9 +198,15 @@ std::unordered_map<int, format_tag_t> get_desired_weights_tag(
                     {32,
                             pick(n_sp_dims, OI4i32o4i, OIw4i32o4i, OIhw4i32o4i,
                                     OIdhw4i32o4i)},
+                    {24,
+                            pick(n_sp_dims, OI4i24o4i, OIw4i24o4i, OIhw4i24o4i,
+                                    OIdhw4i24o4i)},
                     {16,
                             pick(n_sp_dims, OI4i16o4i, OIw4i16o4i, OIhw4i16o4i,
-                                    OIdhw4i16o4i)}};
+                                    OIdhw4i16o4i)},
+                    {8,
+                            pick(n_sp_dims, OI4i8o4i, OIw4i8o4i, OIhw4i8o4i,
+                                    OIdhw4i8o4i)}};
         }
     } else {
         return {{0, format_tag::undef}};
