@@ -387,7 +387,7 @@ struct brgemm_kernel_params_t {
     size_t first_mb_matrix_addr_off;
     size_t dst_row_logical_off;
 
-    char *data_C_ptr_;
+    const char *data_C_ptr_;
 
     const void *a_zp_compensations = nullptr;
     const void *b_zp_compensations = nullptr;
@@ -490,7 +490,8 @@ struct brgemm_post_ops_data_t {
     brgemm_post_ops_data_t() = default;
     brgemm_post_ops_data_t(const void *bias, const float *scales,
             const void *binary_post_ops_rhs, size_t oc_logical_off,
-            const size_t dst_row_logical_off = 0, char *data_C_ptr_ = nullptr,
+            const size_t dst_row_logical_off = 0,
+            const char *data_C_ptr_ = nullptr,
             const size_t first_mb_matrix_addr_off = 0,
             const void *a_zp_compensations = nullptr,
             const void *b_zp_compensations = nullptr,
@@ -518,7 +519,7 @@ struct brgemm_post_ops_data_t {
     const void *binary_post_ops_rhs = nullptr;
     size_t oc_logical_off = 0;
     size_t dst_row_logical_off = 0;
-    char *data_C_ptr_ = nullptr;
+    const char *data_C_ptr_ = nullptr;
     size_t first_mb_matrix_addr_off = 0;
     const void *a_zp_compensations = nullptr;
     const void *b_zp_compensations = nullptr;
