@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -222,9 +222,14 @@ inline bool allclose(const test::vector<T> &a, const test::vector<T> &b,
     if (a.size() != b.size()) return false;
     bool flag = true;
     for (size_t i = 0; i < a.size(); i++) {
-        if (std::abs(static_cast<float>(a[i]) - static_cast<float>(b[i]))
-                > (atol + rtol * std::abs(static_cast<float>(b[i])))) {
+        float diff
+                = std::abs(static_cast<float>(a[i]) - static_cast<float>(b[i]));
+        if (diff > (atol + rtol * std::abs(static_cast<float>(b[i])))) {
             flag = false;
+            std::cout << "index = " << i << ", a = " << static_cast<float>(a[i])
+                      << ", b = " << static_cast<float>(b[i])
+                      << ", diff = " << diff << ", atol = " << atol
+                      << ", rtol = " << rtol << ". Failed.\n";
             break;
         }
     }
