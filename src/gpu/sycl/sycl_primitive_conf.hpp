@@ -137,6 +137,48 @@ struct sycl_resampling_conf_t {
     sycl_post_ops_t post_ops;
 };
 
+struct sycl_layer_normalization_conf_t {
+    prop_kind_t prop_kind;
+    sycl_md_t data_md;
+    sycl_md_t diff_data_md;
+    sycl_md_t data_scaleshift_md;
+    sycl_md_t diff_data_scaleshift_md;
+    sycl_md_t scale;
+    sycl_md_t shift;
+    sycl_md_t stat_md;
+    sycl_md_t stat_d;
+    sycl_md_t var_md;
+    sycl_md_t dst_md;
+    sycl_md_t diff_dst_md;
+    dim_t wk_size;
+    bool is_fwd;
+    bool src_def;
+    bool dst_def;
+    size_t n_thr;
+    size_t n_thr2;
+    size_t diff_shift_off;
+    bool rt_scaling = false;
+    int scale_count;
+    float oscale = 1.0f;
+    dim_t N;
+    dim_t C;
+    bool use_ss;
+    bool use_scale;
+    bool use_shift;
+    dim_t wei_shift_off;
+    bool calculate_stats;
+    bool calculate_diff_stats;
+    bool save_stats;
+    int shift_off;
+    bool zero_dims;
+    int ss_off;
+    float layer_norm_epsilon;
+    unsigned flags;
+    int ndims;
+    int block_size;
+    int wg_size;
+};
+
 struct sycl_batch_normalization_conf_t {
     prop_kind_t prop_kind;
     int ndims;
@@ -203,6 +245,7 @@ CHECK_SYCL_KERNEL_ARG_TYPE(sycl_shuffle_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_resampling_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_batch_normalization_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_softmax_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_layer_normalization_conf_t);
 
 } // namespace sycl
 } // namespace gpu
