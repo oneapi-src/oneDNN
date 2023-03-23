@@ -61,7 +61,7 @@ struct ref_sycl_softmax_fwd_t : public sycl_gpu_primitive_t {
 
         bool check_data_types(data_type_t src) {
             return utils::one_of(src, data_type::f32, data_type::bf16,
-                        data_type::f16, data_type::s8, data_type::u8);
+                    data_type::f16, data_type::s8, data_type::u8);
         }
     };
 
