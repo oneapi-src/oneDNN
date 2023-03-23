@@ -68,9 +68,9 @@ bool use_fused_atomics_reduction(bnorm_conf_t &conf, engine_t *engine) {
             && sp / conf.ic > 40;
 }
 
-int get_slm_buff_size(bnorm_conf_t &conf, size_t *lws) {
+size_t get_slm_buff_size(bnorm_conf_t &conf, size_t *lws) {
     // Returns size of SLM buffer of nhwc stat calculation kernels.
-    const int base_size
+    const size_t base_size
             = utils::div_up(conf.ic_block, 16) * lws[0] * lws[1] * lws[2];
     if (conf.use_stats_one_pass) {
         return 2 * base_size * 2 * sizeof(float);
@@ -121,7 +121,7 @@ void adjust_lws_calc_kernel(bnorm_conf_t &conf, engine_t *engine) {
 
     while (curr_lws[0] * curr_lws[1] * curr_lws[2] <= (size_t)max_lws
             && curr_lws[1] <= base_gws[1]
-            && get_slm_buff_size(conf, curr_lws) <= max_slm_size) {
+            && get_slm_buff_size(conf, curr_lws) <= (size_t)max_slm_size) {
         if (base_gws[1] % curr_lws[1]) {
             curr_lws[1]++;
             continue;
