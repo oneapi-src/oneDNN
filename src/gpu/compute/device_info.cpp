@@ -37,13 +37,13 @@ uint64_t get_future_extensions(compute::gpu_arch_t gpu_arch) {
         case gpu_arch_t::gen9:
         case gpu_arch_t::gen11: break;
         case gpu_arch_t::xe_hp:
+        case gpu_arch_t::xe_hpg:
+        case gpu_arch_t::xe_hpc:
+            extensions |= (uint64_t)device_ext_t::intel_global_float_atomics;
             extensions |= (uint64_t)
                     device_ext_t::intel_subgroup_matrix_multiply_accumulate;
             extensions |= (uint64_t)device_ext_t::
                     intel_subgroup_split_matrix_multiply_accumulate;
-        case gpu_arch_t::xe_hpg:
-        case gpu_arch_t::xe_hpc:
-            extensions |= (uint64_t)device_ext_t::intel_global_float_atomics;
             extensions
                     |= (uint64_t)device_ext_t::intel_variable_eu_thread_count;
             extensions |= (uint64_t)device_ext_t::future_bf16_cvt;
