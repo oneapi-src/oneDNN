@@ -24,6 +24,13 @@
 #include "graph/backend/dnnl/kernels/kernels.hpp"
 #include "graph/backend/dnnl/patterns/fusions.hpp"
 
+#ifdef DNNL_GRAPH_LAYOUT_DEBUG
+#include "oneapi/dnnl/dnnl_debug.h"
+
+static const size_t LAST_TAG
+        = static_cast<size_t>(dnnl::memory::format_tag::format_tag_last);
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -103,6 +110,86 @@ kernel_ptr large_partition_kernel_creator() {
     return std::make_shared<larger_partition_kernel_t>();
 }
 
+graph::utils::optional_t<graph::utils::any_t>
+dnnl_layout_id_manager_t::get_mem_desc(size_t layout_id) const {
+    std::lock_guard<std::mutex> lock(mem_descs_.m_);
+#ifdef DNNL_GRAPH_LAYOUT_DEBUG
+    layout_id -= LAST_TAG;
+    if (layout_id >= mem_descs_.data_.size()) return graph::utils::nullopt;
+    return mem_descs_.data_[layout_id];
+#else
+    if (layout_id >= mem_descs_.data_.size()) return graph::utils::nullopt;
+    return mem_descs_.data_[layout_id];
+#endif
+}
+
+graph::utils::optional_t<size_t> dnnl_layout_id_manager_t::set_mem_desc(
+        const graph::utils::any_t &mem_desc) {
+    std::lock_guard<std::mutex> lock(mem_descs_.m_);
+    size_t layout_id = 0;
+    auto pos = std::find_if(mem_descs_.data_.begin(), mem_descs_.data_.end(),
+            [&](const graph::utils::any_t &m) -> bool {
+                return is_mem_desc_equal(m, mem_desc);
+            });
+
+#ifdef DNNL_GRAPH_LAYOUT_DEBUG
+    auto &md = graph::utils::any_cast<const memory::desc &>(mem_desc);
+
+    if (pos != mem_descs_.data_.end()) {
+        // ????
+        layout_id = static_cast<size_t>(
+                            std::distance(mem_descs_.data_.begin(), pos))
+                + LAST_TAG;
+    } else if (md.get_format_kind() != format_kind::blocked) {
+        mem_descs_.data_.emplace_back(mem_desc);
+        layout_id = mem_descs_.data_.size() - 1 + LAST_TAG;
+    }
+
+    if (md.get_format_kind() == format_kind::blocked) {
+        size_t format_tag = static_cast<size_t>(get_format_tag(md));
+        for (size_t tag = 0; tag < dnnl_format_tag_last; ++tag) {
+            if (tag == format_tag) {
+                layout_id = tag;
+                break;
+            }
+        }
+
+        if (!(format_tag > 0 && format_tag < dnnl_format_tag_last)) {
+            mem_descs_.data_.emplace_back(mem_desc);
+            layout_id = static_cast<size_t>(mem_descs_.data_.size() - 1);
+            return layout_id + LAST_TAG;
+        }
+
+        // Check if md has extra flags. Note that since onednn didn't
+        // provide api to check extra flags, here we construct a temp md
+        // without extra flag, and then compare it with the origin md. If
+        // they are not equal, the origin md may has extra flags. Only using
+        // shape, data type and format tag can't describe the md anymore, so
+        // we must cache it to layout id manager.
+        const auto &dims = md.get_dims();
+        const auto &dtype = md.get_data_type();
+        memory::desc temp_md(
+                dims, dtype, static_cast<memory::format_tag>(format_tag));
+        if (md != temp_md) {
+            mem_descs_.data_.emplace_back(mem_desc);
+            layout_id = static_cast<size_t>(mem_descs_.data_.size() - 1);
+            return layout_id + LAST_TAG;
+        }
+    }
+
+    return layout_id;
+#else
+    if (pos != mem_descs_.data_.end()) {
+        layout_id = static_cast<size_t>(
+                std::distance(mem_descs_.data_.begin(), pos));
+    } else {
+        mem_descs_.data_.emplace_back(mem_desc);
+        layout_id = static_cast<size_t>(mem_descs_.data_.size() - 1);
+    }
+
+    return layout_id;
+#endif
+}
 } // namespace dnnl_impl
 
 // This function should be called by backend_registry_t

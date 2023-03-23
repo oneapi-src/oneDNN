@@ -37,10 +37,6 @@
 #include "graph/backend/dnnl/internal_ops.hpp"
 #include "graph/backend/dnnl/utils.hpp"
 
-#ifdef DNNL_GRAPH_LAYOUT_DEBUG
-#include "oneapi/dnnl/dnnl_debug.h"
-#endif
-
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -62,26 +58,8 @@ public:
     * convert a md to layout id
     */
     virtual graph::utils::optional_t<size_t> set_mem_desc(
-            const graph::utils::any_t &mem_desc) {
-        std::lock_guard<std::mutex> lock(mem_descs_.m_);
-
-        auto pos
-                = std::find_if(mem_descs_.data_.begin(), mem_descs_.data_.end(),
-                        [&](const graph::utils::any_t &m) -> bool {
-                            return is_mem_desc_equal(m, mem_desc);
-                        });
-
-        size_t layout_id;
-        if (pos != mem_descs_.data_.end()) {
-            layout_id = static_cast<size_t>(
-                    std::distance(mem_descs_.data_.begin(), pos));
-        } else {
-            mem_descs_.data_.emplace_back(mem_desc);
-            layout_id = static_cast<size_t>(mem_descs_.data_.size() - 1);
-        }
-
-        return layout_id;
-    }
+            const graph::utils::any_t &mem_desc)
+            = 0;
 
     /*! \brief Get a backend memory descriptor from manager by using a
     * layout id
@@ -92,11 +70,7 @@ public:
     * be a utils::nullopt
     */
     virtual graph::utils::optional_t<graph::utils::any_t> get_mem_desc(
-            size_t layout_id) const {
-        std::lock_guard<std::mutex> lock(mem_descs_.m_);
-        if (layout_id >= mem_descs_.data_.size()) return graph::utils::nullopt;
-        return mem_descs_.data_[layout_id];
-    }
+            size_t layout_id) const = 0;
 
 protected:
     mutable struct {
@@ -123,70 +97,12 @@ class dnnl_layout_id_manager_t : public layout_id_manager_t {
     bool is_mem_desc_equal(const graph::utils::any_t &mem_desc1,
             const graph::utils::any_t &mem_desc2) const override;
 
-#ifdef DNNL_GRAPH_LAYOUT_DEBUG
-    static const size_t LAST_TAG
-            = static_cast<size_t>(dnnl::memory::format_tag::format_tag_last);
-
 public:
-    graph::utils::optional<graph::utils::any_t> get_mem_desc(
-            size_t layout_id) const override {
-        std::lock_guard<std::mutex> lock(mem_descs_.m_);
-        layout_id -= LAST_TAG;
-        if (layout_id >= mem_descs_.data_.size()) return graph::utils::nullopt;
-        return mem_descs_.data_[layout_id];
-    }
+    graph::utils::optional_t<graph::utils::any_t> get_mem_desc(
+            size_t layout_id) const override;
 
-    graph::utils::optional<size_t> set_mem_desc(
-            const graph::utils::any_t &mem_desc) override {
-        auto &md = graph::utils::any_cast<const memory::desc &>(mem_desc);
-        size_t layout_id = 0;
-        {
-            std::lock_guard<std::mutex> lock(mem_descs_.m_);
-
-            auto pos = std::find_if(mem_descs_.data_.begin(),
-                    mem_descs_.data_.end(),
-                    [&](const graph::utils::any_t &m) -> bool {
-                        return is_mem_desc_equal(m, mem_desc);
-                    });
-            if (pos != mem_descs_.data_.end()) {
-                layout_id = static_cast<size_t>(std::distance(
-                                    mem_descs_.data_.begin(), pos))
-                        + LAST_TAG;
-            } else if (md.get_format_kind() != format_kind::blocked) {
-                mem_descs_.data_.emplace_back(mem_desc);
-                layout_id = mem_descs_.data_.size() - 1 + LAST_TAG;
-            }
-        }
-
-        if (md.get_format_kind() == format_kind::blocked) {
-            size_t format_tag = static_cast<size_t>(get_format_tag(md));
-
-            if (!(format_tag > 0 && format_tag < dnnl_format_tag_last)) {
-                size_t layout_id
-                        = layout_id_manager_t::set_mem_desc(mem_desc).value();
-                return layout_id + LAST_TAG;
-            }
-
-            // Check if md has extra flags. Note that since onednn didn't
-            // provide api to check extra flags, here we construct a temp md
-            // without extra flag, and then compare it with the origin md. If
-            // they are not equal, the origin md may has extra flags. Only using
-            // shape, data type and format tag can't describe the md anymore, so
-            // we must cache it to layout id manager.
-            const auto &dims = md.get_dims();
-            const auto &dtype = md.get_data_type();
-            memory::desc temp_md(
-                    dims, dtype, static_cast<memory::format_tag>(layout_id));
-            if (md != temp_md) {
-                size_t layout_id
-                        = layout_id_manager_t::set_mem_desc(mem_desc).value();
-                return layout_id + LAST_TAG;
-            }
-        }
-
-        return layout_id;
-    }
-#endif // DNNL_GRAPH_LAYOUT_DEBUG
+    graph::utils::optional_t<size_t> set_mem_desc(
+            const graph::utils::any_t &mem_desc) override;
 };
 
 // gcc4.8.5 can 't support enum class as key
