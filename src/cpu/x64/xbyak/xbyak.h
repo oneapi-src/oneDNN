@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -200,7 +200,7 @@ namespace Xbyak {
 
 enum {
 	DEFAULT_MAX_CODE_SIZE = 4096,
-	VERSION = 0x6630 /* 0xABCD = A.BC(.D) */
+	VERSION = 0x6691 /* 0xABCD = A.BC(.D) */
 };
 
 #ifndef MIE_INTEGER_TYPE_DEFINED
@@ -423,7 +423,7 @@ inline bool IsInInt32(uint64_t x) { return ~uint64_t(0x7fffffffu) <= x || x <= 0
 
 inline uint32_t VerifyInInt32(uint64_t x)
 {
-#ifdef XBYAK64
+#if defined(XBYAK64) && !defined(__ILP32__)
 	if (!IsInInt32(x)) XBYAK_THROW_RET(ERR_OFFSET_IS_TOO_BIG, 0)
 #endif
 	return static_cast<uint32_t>(x);
@@ -1871,7 +1871,7 @@ private:
 	void setSIB(const RegExp& e, int reg, int disp8N = 0)
 	{
 		uint64_t disp64 = e.getDisp();
-#ifdef XBYAK64
+#if defined(XBYAK64) && !defined(__ILP32__)
 #ifdef XBYAK_OLD_DISP_CHECK
 		// treat 0xffffffff as 0xffffffffffffffff
 		uint64_t high = disp64 >> 32;
@@ -2844,11 +2844,11 @@ public:
 		, isDefaultJmpNEAR_(false)
 		, defaultEncoding_(EvexEncoding)
 	{
-                ClearError();
 		labelMgr_.set(this);
 	}
 	void reset()
 	{
+		ClearError();
 		resetSize();
 		labelMgr_.reset();
 		labelMgr_.set(this);
