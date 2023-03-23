@@ -40,6 +40,7 @@
 
 #include "gpu/sycl/ref_batch_normalization.hpp"
 #include "gpu/sycl/ref_binary.hpp"
+#include "gpu/sycl/ref_layer_normalizations.hpp"
 #include "gpu/sycl/ref_prelu.hpp"
 #include "gpu/sycl/ref_resampling.hpp"
 #include "gpu/sycl/ref_shuffle.hpp"
@@ -221,6 +222,10 @@ constexpr dnnl::impl::impl_list_item_t sycl_cuda_impl_list[] = {
         INSTANCE(cudnn_batch_normalization_bwd_t)
         INSTANCE(sycl::ref_batch_normalization_fwd_t)
         INSTANCE(sycl::ref_batch_normalization_bwd_t)
+
+        // Layer Normalization
+        INSTANCE(sycl::ref_layer_normalization_fwd_t)
+        INSTANCE(sycl::ref_layer_normalization_bwd_t)
 
         // PReLU
         INSTANCE(sycl::ref_prelu_fwd_t)
