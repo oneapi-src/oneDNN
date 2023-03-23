@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -444,10 +444,8 @@ void jit_pp_ker_t::generate() {
         }
 
         if (jcp_.with_binary) {
-            if (offset) {
-                advance_binary_postops_off(vlen);
-                dst_l_offset_ += offset;
-            }
+            if (offset) advance_binary_postops_off(vlen);
+            dst_l_offset_ = offset;
             kmovq(opmask_binary, mask_reg);
         }
         const auto vreg_dst_masked = get_masked_vreg_dst(idx, apply_mask);
