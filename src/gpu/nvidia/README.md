@@ -50,12 +50,14 @@ cuDNN primitive are explained as follow.
 
 ### Batch normalization
 
+#### Using cuDNN
+
 The closest equivalent to oneDNN batch normalization can be
 `cudnnBatchNormalizationForward` and `cudnnBatchNormalizationBackward`
 operations. However, there are some difference between cuDNN and oneDNN batch
 normalization.
 
-#### Forward direction
+##### Forward direction
 
 * When `global_stats` flag is set for batch normalization, the mean and variance
   are input only parameters. However, cuDNN does not have the option to accept
@@ -89,7 +91,7 @@ normalization.
 * Forward pass supports f32, f16, bf16 and s8 data types. Although blocking is not
   supported for s8.
 
-#### Backward direction
+##### Backward direction
 
 * cuDNN uses `alpha` and `beta` parameters to blend the `dy`, `shift` and
   `scale`. Since oneDNN does not have this feature, the `alpha` and `beta`
@@ -110,6 +112,24 @@ normalization.
   is used to compute the backward direction of the activation function used for
   `RELU`.
 * Backward pass supports `f32` and `bf16` data types.
+
+
+#### Using SYCL Kernels
+
+The implementation supports both forward and backward directions.
+
+* Supported formats: `NCDHW`, `NDHWC`, `NCHW`, `NHWC`, `NCW`, `NWC`, `NC`
+
+##### Forward direction
+* Supported data types for source and destination: `f32`, `bf16`, `f16`, `s8`
+* Supported data types for mean and variance: `f32`
+* Supported post-ops: `eltwise_relu`
+* Supported flags: `dnnl_global_stats`, `dnnl_use_scale`, `dnnl_use_shift`, `dnnl_fuse_norm_relu`, `dnnl_fuse_norm_add_relu`
+
+##### Backward direction
+* Supported data types for source and destination: `f32`, `bf16`, `f16`
+* Supported data types for mean and variance: `f32`
+* Supported flags: `dnnl_global_stats`, `dnnl_use_scale`, `dnnl_use_shift`, `dnnl_fuse_norm_relu`, `dnnl_fuse_norm_add_relu`
 
 ### Binary
 
@@ -172,6 +192,8 @@ input abd output channels.
 
 ### Eltwise
 
+#### Using cuDNN
+
 The `cudnnActivationForward` and `cudnnActivationBackward` is the equivalent of
 eltwise forward and eltwise backward in oneDNN respectively. There are some
 limitations when using Nvidia backend for eltwise primitive:
@@ -185,6 +207,22 @@ limitations when using Nvidia backend for eltwise primitive:
 * Forward pass supports `f32`, `f16`, `bf16` and `s8` data types. Although blocking is
   not supported for `s8`.
 * Backward pass supports `f32` and `bf16` data types.
+
+#### Using SYCL Kernels
+
+The implementation supports both forward and backward directions.
+
+* Supported algorithms: `abs`, `clip`, `clip_v2`, `elu`, `exp`, `gelu_erf`,
+`gelu_tanh`, `hardsigmoid`, `hardswish`, `linear`, `log`, `logistic`, `mish`,
+`pow`, `relu`, `round`, `soft_relu`, `sqrt`, `square`,`swish` and `tanh`
+* Supported formats: `NCDHW`, `NDHWC`, `NCHW`, `NHWC`, `NCW`, `NWC`, `NC`, `N`
+
+##### Forward Direction
+* Supported data types: `f32`, `bf16`, `f16`, `s32`, `s8` and `u8`
+* Supported post-ops: `binary`
+
+##### Backward Direction
+* Supported data types: `f32`, `bf16`
 
 ### Inner product
 
@@ -232,6 +270,8 @@ product has the following restrictions and performance implications:
 
 ### LRN
 
+#### Using cuDNN
+
 The local response normalization primitive in the Nvidia backend is implemented
 with the `cudnnLRNForward` and `cudnnLRNBackward` functions for forward and
 backward propagation respectively.
@@ -241,6 +281,20 @@ backward propagation respectively.
   causes a mismatch when the local size is even.
 * cuDNN supports NCHW tensor formats for all valid dimensions. However, it does
   not support the NHWC tensor format for above 5 dimensions.
+
+#### Using SYCL Kernels
+
+The implementation supports both forward and backward directions.
+
+* Supported formats: `NCDHW`, `NDHWC`, `NCHW`, `NHWC`, `NCW`, `NWC`, `NC`
+
+##### Forward Direction
+* Supported data types: `f32`, `bf16`, `f16`
+* Supported algorithms: `ACROSS`, `WITHIN`
+
+##### Backward Direction
+* Supported data types: `f32`, `bf16`
+* Supported algorithms: `ACROSS`, `WITHIN`
 
 ### Matrix Multiplication
 
@@ -277,11 +331,15 @@ backward propagation respectively.
 * Supported data type are `f32`, `f16`, `bf16` and `s8`.
 
 ### PReLU
+
 The PReLU primitive (Leaky ReLU with a trainable alpha parameter) is implemented
 using SYCL kernels. The primitive supports both forward and backward
 propagations.
-* Forward pass supports `f32`, `f16`, `bf16`, `s8` and `u8`
-* Backward pass supports `f32`, `bf16`
+
+* Supported formats: `NCDHW`, `NDHWC`, `NCHW`, `NHWC`, `NCW`, `NWC`, `NC`
+
+* Forward pass supports `f32`, `f16`, `bf16`, `s8` and `u8` data types
+* Backward pass supports `f32` and `bf16` data types
 
 ### Reorder
 
@@ -299,6 +357,8 @@ GPU:
 * Backward pass supports `f32` and `bf16` data types.
 
 ### Resampling
+
+#### Using cuDNN
 
 The `cudnnSpatialTfSamplerForward` and `cudnnSpatialTfSamplerBackward` are used
 to implement the resampling primitive.
@@ -324,7 +384,24 @@ where all the data locations are normalized between `-1 <= (xi, yi) <= 1`.
   oneDNN, a dummy memory for `d_grid` is created and is deleted when the
   destructor of the primitive is called.
 
+#### Using SYCL Kernels
+
+The implementation supports both forward and backward directions.
+
+* Supported formats: `NCDHW`, `NDHWC`, `NCHW`, `NHWC`, `NCW`, `NWC`
+
+##### Forward Direction
+* Supported data types: `f32`, `bf16`, `f16`, `s8`, `u8` and `s32`
+* Supported post-ops: `sum`, `eltwise`, `binary`
+* Supported algorithms: nearest neighbor, bilinear
+
+##### Backward Direction
+* Supported data types: `f32`, `bf16`
+* Supported algorithms: nearest neighbor, bilinear
+
 ### Softmax/LogSoftmax
+
+#### Using cuDNN
 
 The `cudnnSoftmaxForward` and `cudnnSoftmaxBackward` are used to implement the
 softmax primitive. For logsoftmax primitive the same functions will be used and
@@ -338,6 +415,19 @@ changed to `CUDNN_SOFTMAX_LOG`.
 * Forward pass supports `f32`, `f16`, `bf16` and `s8` data types.
 * Backward pass supports `f32` and `bf16` data types.
 
+#### Using SYCL Kernels
+
+The implementation supports both forward and backward directions.
+
+* Supported formats: `NCDHW`, `NDHWC`, `NCHW`, `NHWC`, `NCW`, `NWC`, `NC`
+
+##### Forward Direction
+* Supported data types: `f32`, `bf16`, `f16`, `u8` and `s8`
+* Supported scales: common scales for `s8` and `u8` data types
+
+##### Backward Direction
+* Supported data types: `f32`, `bf16` and `f16`
+
 ### Sum
 
 The sum operation uses the reorder primitive to sum tensors, so the same
@@ -347,8 +437,11 @@ limitation as reorder applies here.
 
 The shuffle primitive is implemented using SYCL kernels.
 This primitive supports both forward and backward propagations.
-* Forward pass supports `f32`, `f16`, `bf16` and `s8`
-* Backward pass supports `f32`, `bf16`
+
+* Supported formats: `NCDHW`, `NDHWC`, `NCHW`, `NHWC`, `NCW`, `NWC`, `NC`
+
+* Forward pass supports `f32`, `f16`, `bf16` and `s8` data types.
+* Backward pass supports `f32` and `bf16` data types.
 
 ### Other primitives
 
