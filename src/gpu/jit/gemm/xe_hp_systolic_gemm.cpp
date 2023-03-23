@@ -388,13 +388,13 @@ void xe_hp_systolic_gemm_t::pd_t::init_scratchpad() {
 
     if (!packed_a()) {
         scratchpad.book(memory_tracking::names::key_gemm_blocked_a,
-                m_aligned * max_ldab_packed * types::data_type_size(a_type), 64,
+                m_aligned * max_ldab_packed, types::data_type_size(a_type), 64,
                 65536);
     }
 
     if (!packed_b()) {
         scratchpad.book(memory_tracking::names::key_gemm_blocked_b,
-                n_aligned * max_ldab_packed * types::data_type_size(b_type), 64,
+                n_aligned * max_ldab_packed, types::data_type_size(b_type), 64,
                 65536);
     }
 }
