@@ -187,7 +187,8 @@ static status_t init_conf_common(
             return status::unimplemented;
     } else {
         conf.simd = (conf.inner_axis % 16 == 0) ? 16 : 8;
-        conf.block = conf.simd * utils::max_div(conf.inner_axis / conf.simd, 8);
+        auto total_blocks = conf.inner_axis / conf.simd;
+        conf.block = conf.simd * utils::max_div(total_blocks, 32);
         if (!compute_engine->mayiuse_sub_group(conf.simd))
             return status::unimplemented;
         set_gws_d();

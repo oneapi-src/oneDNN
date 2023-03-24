@@ -70,10 +70,6 @@ __attribute__((intel_reqd_sub_group_size(SIMD)))
 #endif
 __kernel void
 simple_concat(__global DATA_T *dst, long dst_offset0, SRC_PTRS) {
-    DATA8_T A0, A1, A2, A3;
-    DATA_T B;
-    DATA2_T C;
-    DATA4_T D;
     const size_t x = (get_global_id(0) / SIMD) * BLOCK
             + get_global_id(2) * INNER_OFFSET;
     __global const DATA_T *src;
@@ -81,64 +77,32 @@ simple_concat(__global DATA_T *dst, long dst_offset0, SRC_PTRS) {
     SET_SRC;
 
 #if BLOCK == 1
-    B = src[0];
-#elif BLOCK == SIMD
-    B = BLOCK_READ(src);
-#elif BLOCK == 2 * SIMD
-    C = BLOCK_READ2(src);
-#elif BLOCK == 3 * SIMD
-    C = BLOCK_READ2(src);
-    B = BLOCK_READ(&src[2 * SIMD]);
-#elif BLOCK == 4 * SIMD
-    D = BLOCK_READ4(src);
-#elif BLOCK == 5 * SIMD
-    D = BLOCK_READ4(src);
-    B = BLOCK_READ(&src[4 * SIMD]);
-#elif BLOCK == 6 * SIMD
-    D = BLOCK_READ4(src);
-    C = BLOCK_READ2(&src[4 * SIMD]);
-#elif BLOCK == 7 * SIMD
-    B = BLOCK_READ(src);
-    C = BLOCK_READ2(&src[SIMD]);
-    D = BLOCK_READ4(&src[3 * SIMD]);
-#elif BLOCK >= 8 * SIMD
-    A0 = BLOCK_READ8(src);
-#elif BLOCK >= 16 * SIMD
-    A1 = BLOCK_READ8(&src[8 * SIMD]);
-#elif BLOCK >= 24 * SIMD
-    A2 = BLOCK_READ8(&src[16 * SIMD]);
-#elif BLOCK >= 32 * SIMD
-    A3 = BLOCK_READ8(&src[24 * SIMD]);
-#endif
     dst += dst_offset0 + get_global_id(1) * DST_EXT_OFFSET + x;
-#if BLOCK == 1
-    dst[0] = B;
-#elif BLOCK == SIMD
-    BLOCK_WRITE(dst, B);
-#elif BLOCK == 2 * SIMD
-    BLOCK_WRITE2(dst, C);
-#elif BLOCK == 3 * SIMD
-    BLOCK_WRITE2(dst, C);
-    BLOCK_WRITE(&dst[2 * SIMD], B);
-#elif BLOCK == 4 * SIMD
-    BLOCK_WRITE4(dst, D);
-#elif BLOCK == 5 * SIMD
-    BLOCK_WRITE4(dst, D);
-    BLOCK_WRITE(&dst[4 * SIMD], B);
-#elif BLOCK == 6 * SIMD
-    BLOCK_WRITE4(dst, D);
-    BLOCK_WRITE2(&dst[4 * SIMD], C);
-#elif BLOCK == 7 * SIMD
-    BLOCK_WRITE(dst, B);
-    BLOCK_WRITE2(&dst[SIMD], C);
-    BLOCK_WRITE4(&dst[3 * SIMD], D);
-#elif BLOCK >= 8 * SIMD
-    BLOCK_WRITE8(dst, A0);
-#elif BLOCK >= 16 * SIMD
-    BLOCK_WRITE8(&dst[8 * SIMD], A1);
-#elif BLOCK >= 24 * SIMD
-    BLOCK_WRITE8(&dst[16 * SIMD], A2);
-#elif BLOCK >= 32 * SIMD
-    BLOCK_WRITE8(&dst[24 * SIMD], A3);
+    dst[0] = src[0];
+#else
+    DATA8_T A[4];
+    DATA_T B;
+    DATA2_T C;
+    DATA4_T D;
+
+    const int repeats = BLOCK / SIMD;
+    const int vec8s = repeats / 8;
+    const int d_offset = 8 * vec8s * SIMD;
+    const int c_offset = d_offset + (repeats & 4) * SIMD;
+    const int b_offset = c_offset + (repeats & 2) * SIMD;
+
+    for (int i = 0; i < vec8s; ++i)
+        A[i] = BLOCK_READ8(&src[8 * i * SIMD]);
+    if (repeats & 4) D = BLOCK_READ4(&src[d_offset]);
+    if (repeats & 2) C = BLOCK_READ2(&src[c_offset]);
+    if (repeats & 1) B = BLOCK_READ(&src[b_offset]);
+
+    dst += dst_offset0 + get_global_id(1) * DST_EXT_OFFSET + x;
+
+    for (int i = 0; i < vec8s; ++i)
+        BLOCK_WRITE8(&dst[8 * i * SIMD], A[i]);
+    if (repeats & 4) BLOCK_WRITE4(&dst[d_offset], D);
+    if (repeats & 2) BLOCK_WRITE2(&dst[c_offset], C);
+    if (repeats & 1) BLOCK_WRITE(&dst[b_offset], B);
 #endif
 }
