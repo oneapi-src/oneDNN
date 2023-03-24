@@ -39,6 +39,11 @@ template <typename T>
 using rem_ref = typename utils::remove_reference<T>::type;
 
 template <typename T, typename U = rem_ref<T>>
+inline U div_up(const T a, const U b) {
+    return (a + b - 1) / b;
+}
+
+template <typename T, typename U = rem_ref<T>>
 inline U exp_fwd(T s) {
     return (U)::sycl::exp(s);
 }

@@ -289,6 +289,45 @@ struct sycl_lrn_conf_t {
     int wk_size;
 };
 
+struct sycl_pooling_conf_t {
+    sycl_md_t src_md;
+    sycl_md_t src1_md[8];
+    sycl_md_t dst_md;
+    sycl_md_t ws_md;
+    sycl_md_t diff_src_md;
+    sycl_md_t diff_dst_md;
+    int ndims;
+    int po_len;
+    bool zero_dims;
+    int block_size;
+    int wg_size;
+    size_t n_thr;
+    alg_kind_t alg;
+    dim_t MB;
+    dim_t OC;
+    dim_t OD;
+    dim_t OH;
+    dim_t OW;
+    dim_t ID;
+    dim_t IH;
+    dim_t IW;
+    dim_t KD;
+    dim_t KH;
+    dim_t KW;
+    dim_t SD;
+    dim_t SH;
+    dim_t SW;
+    dim_t padF;
+    dim_t padT;
+    dim_t padL;
+    dim_t DD;
+    dim_t DH;
+    dim_t DW;
+    dims_t dst_dims;
+    int dst_ndims;
+    sycl_post_ops_t post_ops;
+};
+
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_binary_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_prelu_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_shuffle_conf_t);
@@ -298,6 +337,7 @@ CHECK_SYCL_KERNEL_ARG_TYPE(sycl_softmax_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_layer_normalization_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_eltwise_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_lrn_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_pooling_conf_t);
 
 } // namespace sycl
 } // namespace gpu
