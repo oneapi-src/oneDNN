@@ -244,9 +244,12 @@ struct sycl_post_ops_t {
         if (n_post_ops_ == 0) return acc;
 
         int binary_idx = 0;
-
+        int eltwise_idx = 0;
         for (auto i = 0; i < n_post_ops_; ++i) {
             switch (post_op_kinds_[i]) {
+                case eltwise:
+                    acc = eltwise_post_ops_[eltwise_idx++].compute(acc);
+                    break;
                 case binary:
                     acc = binary_post_ops_[binary_idx++].compute(acc, dst[i]);
                     break;

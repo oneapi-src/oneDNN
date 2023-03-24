@@ -43,6 +43,7 @@
 #include "gpu/sycl/ref_eltwise.hpp"
 #include "gpu/sycl/ref_layer_normalizations.hpp"
 #include "gpu/sycl/ref_lrn.hpp"
+#include "gpu/sycl/ref_pooling.hpp"
 #include "gpu/sycl/ref_prelu.hpp"
 #include "gpu/sycl/ref_resampling.hpp"
 #include "gpu/sycl/ref_shuffle.hpp"
@@ -238,6 +239,8 @@ constexpr dnnl::impl::impl_list_item_t sycl_cuda_impl_list[] = {
         // Pooling
         INSTANCE(cudnn_pooling_fwd_t)
         INSTANCE(cudnn_pooling_bwd_t)
+        INSTANCE(sycl::ref_pooling_fwd_t)
+        INSTANCE(sycl::ref_pooling_bwd_t)
 
         // LRN
         INSTANCE(cudnn_lrn_fwd_t)
