@@ -330,6 +330,21 @@ backward propagation respectively.
 
 * Supported data type are `f32`, `f16`, `bf16` and `s8`.
 
+#### Using SYCL Kernels
+
+The implementation supports both forward and backward directions.
+
+* Supported formats: `NCDHW`, `NDHWC`, `NCHW`, `NHWC`, `NCW`, `NWC`
+
+##### Forward Direction
+* Supported data types: `f32`, `bf16`, `f16`, `s8`, `u8` and `s32`
+* Supported post-ops: `binary`, `eltwise_linear`
+* Supported algorithms: `max`, `avg_p`, `avg_np`
+
+##### Backward Direction
+* Supported data types: `f32`, `bf16`, `f16`
+* Supported algorithms: `max`, `avg_p`, `avg_np`
+
 ### PReLU
 
 The PReLU primitive (Leaky ReLU with a trainable alpha parameter) is implemented
@@ -340,6 +355,22 @@ propagations.
 
 * Forward pass supports `f32`, `f16`, `bf16`, `s8` and `u8` data types
 * Backward pass supports `f32` and `bf16` data types
+
+### Layer Normalization
+
+The Primitive layer normalization is implemented through SYCL kernels.The implementation supports both forward and backward directions.
+
+* Supported formats: `NCDHW`, `NDHWC`, `NCHW`, `NHWC`, `NCW`, `NWC`, `NC`
+
+##### Forward direction
+* Supported data types for source and destination: `f32`, `bf16`, `f16`, `s8`, `u8`
+* Supported attributes: `Scales`
+* Supported flags: `dnnl_global_stats`, `dnnl_use_scale`, `dnnl_use_shift`
+
+##### Backward direction
+* Supported data types for source and destination: `f32`, `bf16`, `f16`
+* Supported data types for mean and variance: `f32`
+* Supported flags: `dnnl_global_stats`, `dnnl_use_scale`, `dnnl_use_shift`
 
 ### Reorder
 
