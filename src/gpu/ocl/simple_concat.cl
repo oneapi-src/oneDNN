@@ -64,45 +64,99 @@
         src = src##n + get_global_id(1) * SRC##n##_EXT_OFFSET + x \
                 - OFFSET##n * INNER_OFFSET;
 #define SET_SRC REDUCE(N_INPUTS, JOIN_ELSE, CHECK_AND_GET)
+#define HAS_TAIL (BLOCK % SIMD > 0)
 
-#if BLOCK != 1
-__attribute__((intel_reqd_sub_group_size(SIMD)))
-#endif
-__kernel void
-simple_concat(__global DATA_T *dst, long dst_offset0, SRC_PTRS) {
+__attribute__((intel_reqd_sub_group_size(SIMD))) __kernel void simple_concat(
+        __global DATA_T *dst, long dst_offset0, SRC_PTRS) {
     const size_t x = (get_global_id(0) / SIMD) * BLOCK
             + get_global_id(2) * INNER_OFFSET;
     __global const DATA_T *src;
 
     SET_SRC;
 
-#if BLOCK == 1
-    dst += dst_offset0 + get_global_id(1) * DST_EXT_OFFSET + x;
-    dst[0] = src[0];
-#else
     DATA8_T A[4];
     DATA_T B;
     DATA2_T C;
     DATA4_T D;
+#if HAS_TAIL
+    DATA_T tail;
+#endif
 
     const int repeats = BLOCK / SIMD;
     const int vec8s = repeats / 8;
     const int d_offset = 8 * vec8s * SIMD;
     const int c_offset = d_offset + (repeats & 4) * SIMD;
     const int b_offset = c_offset + (repeats & 2) * SIMD;
+#if HAS_TAIL
+    const int lane = get_sub_group_local_id();
+    int tail_offset = repeats * SIMD + lane;
+#endif
 
+#if HAS_TAIL && (BLOCK * DATA_TYPE_SIZE % 4 != 0)
+    for (int i = 0; i < vec8s; ++i) {
+        A[i].s0 = src[(8 * i + 0) * SIMD + lane];
+        A[i].s1 = src[(8 * i + 1) * SIMD + lane];
+        A[i].s2 = src[(8 * i + 2) * SIMD + lane];
+        A[i].s3 = src[(8 * i + 3) * SIMD + lane];
+        A[i].s4 = src[(8 * i + 4) * SIMD + lane];
+        A[i].s5 = src[(8 * i + 5) * SIMD + lane];
+        A[i].s6 = src[(8 * i + 6) * SIMD + lane];
+        A[i].s7 = src[(8 * i + 7) * SIMD + lane];
+    }
+    if (repeats & 4) {
+        D.s0 = src[d_offset + 0 * SIMD + lane];
+        D.s1 = src[d_offset + 1 * SIMD + lane];
+        D.s2 = src[d_offset + 2 * SIMD + lane];
+        D.s3 = src[d_offset + 3 * SIMD + lane];
+    }
+    if (repeats & 2) {
+        C.s0 = src[c_offset + 0 * SIMD + lane];
+        C.s1 = src[c_offset + 1 * SIMD + lane];
+    }
+    if (repeats & 1) B = src[b_offset + lane];
+#else
     for (int i = 0; i < vec8s; ++i)
         A[i] = BLOCK_READ8(&src[8 * i * SIMD]);
     if (repeats & 4) D = BLOCK_READ4(&src[d_offset]);
     if (repeats & 2) C = BLOCK_READ2(&src[c_offset]);
     if (repeats & 1) B = BLOCK_READ(&src[b_offset]);
+#endif
+#if HAS_TAIL
+    if (lane < BLOCK % SIMD) tail = src[tail_offset];
+#endif
 
     dst += dst_offset0 + get_global_id(1) * DST_EXT_OFFSET + x;
 
+#if HAS_TAIL && (BLOCK * DATA_TYPE_SIZE % 16 != 0)
+    for (int i = 0; i < vec8s; ++i) {
+        dst[(8 * i + 0) * SIMD + lane] = A[i].s0;
+        dst[(8 * i + 1) * SIMD + lane] = A[i].s1;
+        dst[(8 * i + 2) * SIMD + lane] = A[i].s2;
+        dst[(8 * i + 3) * SIMD + lane] = A[i].s3;
+        dst[(8 * i + 4) * SIMD + lane] = A[i].s4;
+        dst[(8 * i + 5) * SIMD + lane] = A[i].s5;
+        dst[(8 * i + 6) * SIMD + lane] = A[i].s6;
+        dst[(8 * i + 7) * SIMD + lane] = A[i].s7;
+    }
+    if (repeats & 4) {
+        dst[d_offset + 0 * SIMD + lane] = D.s0;
+        dst[d_offset + 1 * SIMD + lane] = D.s1;
+        dst[d_offset + 2 * SIMD + lane] = D.s2;
+        dst[d_offset + 3 * SIMD + lane] = D.s3;
+    }
+    if (repeats & 2) {
+        dst[c_offset + 0 * SIMD + lane] = C.s0;
+        dst[c_offset + 1 * SIMD + lane] = C.s1;
+    }
+    if (repeats & 1) dst[b_offset + lane] = B;
+#else
     for (int i = 0; i < vec8s; ++i)
         BLOCK_WRITE8(&dst[8 * i * SIMD], A[i]);
     if (repeats & 4) BLOCK_WRITE4(&dst[d_offset], D);
     if (repeats & 2) BLOCK_WRITE2(&dst[c_offset], C);
     if (repeats & 1) BLOCK_WRITE(&dst[b_offset], B);
+#endif
+#if HAS_TAIL
+    if (lane < BLOCK % SIMD) dst[tail_offset] = tail;
 #endif
 }

@@ -75,6 +75,61 @@ bool is_striding_ok(const std::vector<int> &idxs,
     return true;
 }
 
+struct prb_info_t {
+    static constexpr dim_t max_block_size = 1024;
+    static constexpr int scattered_message_penalty = 4;
+
+    int simd;
+    int type_size;
+    int block;
+    int messages;
+
+    prb_info_t(int simd, int hw_threads, int type_size, dim_t inner_size,
+            dim_t outer_elems)
+        : simd(simd), type_size(type_size) {
+        int best_block = 1;
+        int best_messages = subgroup_messages(simd, best_block);
+        dim_t inner_elems = inner_size / type_size;
+        for (int i = 1; i < simd * 32; ++i) {
+            dim_t block_size = i * type_size;
+            if (block_size > max_block_size) break;
+            if (block_size > inner_size) break;
+            if (inner_elems % i) continue;
+            // From empirical observations on ATSM-512, reduce max block size if
+            // we are already occupying all threads.
+            dim_t reqd_threads = outer_elems * (inner_elems / i);
+            if (reqd_threads > (dim_t)hw_threads
+                    && 2 * block_size > max_block_size)
+                continue;
+            int messages = subgroup_messages(simd, i);
+            if (i * best_messages < best_block * messages) continue;
+            if (i * best_messages == best_block * messages && i < best_block)
+                continue;
+            best_block = i;
+            best_messages = messages;
+        }
+        block = best_block;
+        messages = best_messages;
+    }
+
+    static int subgroup_messages(int simd, int block) {
+        const int set_bits[] = {0, 1, 1, 2, 1, 2, 2, 3};
+        int thread_block_elems = block / simd;
+        int block_messages
+                = (thread_block_elems / 8) + set_bits[thread_block_elems & 0x7];
+        int scattered_messages = block % simd ? 1 : 0;
+        return block_messages + scattered_messages * scattered_message_penalty;
+    }
+
+    bool operator<(const prb_info_t &other) const {
+        auto average_bytes = type_size * block * other.messages;
+        auto other_average_bytes = other.type_size * other.block * messages;
+        if (average_bytes != other_average_bytes)
+            return average_bytes > other_average_bytes;
+        return type_size * block > other.type_size * other.block;
+    }
+};
+
 static status_t init_conf_common(
         engine_t *engine, concat_conf_t &conf, const concat_pd_t *pd) {
     using namespace utils;
@@ -152,50 +207,55 @@ static status_t init_conf_common(
     conf.dst_extern_dim_size = (extern_dim == -1)
             ? blk.strides[concat_dim] * concat_dim_size
             : blk.strides[extern_dim];
-    conf.inner_axis = blk.strides[concat_dim] * data_type_size;
+    conf.inner_axis = blk.strides[concat_dim];
     conf.n = nonempty_inputs;
+
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    auto *device_info = compute_engine->device_info();
 
     for (int i = 0; i < conf.n; ++i)
         conf.offset[i] /= common_factor;
     concat_dim_size /= common_factor;
     conf.inner_axis *= common_factor;
+    dim_t inner_size = conf.inner_axis * data_type_size;
+    dim_t outer_elems = concat_dim_size * extern_axis;
 
-    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
-    conf.data_type_size = (conf.inner_axis % 32 == 0) ? 4 : 2;
-    conf.inner_axis /= conf.data_type_size;
+    if (inner_size < 32) return status::unimplemented;
 
-    conf.dst_extern_dim_size
-            = conf.dst_extern_dim_size * data_type_size / conf.data_type_size;
-    conf.dst_offset0 = dst_mdw.offset0() * data_type_size / conf.data_type_size;
-
-    auto set_gws_d = [&conf, extern_axis, concat_dim_size]() {
-        conf.gws_d[0] = conf.inner_axis / conf.block * conf.simd;
-        conf.gws_d[1] = extern_axis;
-        conf.gws_d[2] = concat_dim_size;
-    };
-
-    if (conf.inner_axis % 16 || conf.inner_axis < 32) {
-        // TODO: fix implementation so this check isn't necessary
-        if (data_type_size > 1) {
-            conf.simd = 1;
-            conf.block = 1;
-            set_gws_d();
-            for (int i = 0; i < 3; ++i) {
-                if (conf.gws_d[i] > 1024) return status::unimplemented;
-            }
-        } else
-            return status::unimplemented;
-    } else {
-        conf.simd = (conf.inner_axis % 16 == 0) ? 16 : 8;
-        auto total_blocks = conf.inner_axis / conf.simd;
-        conf.block = conf.simd * utils::max_div(total_blocks, 32);
-        if (!compute_engine->mayiuse_sub_group(conf.simd))
-            return status::unimplemented;
-        set_gws_d();
+    // TODO: add proper scales support
+    const bool has_scales = false;
+    const int hw_threads = device_info->hw_threads();
+    std::vector<prb_info_t> infos;
+    for (int simd : {16, 8}) {
+        if (!compute_engine->mayiuse_sub_group(simd)) continue;
+        if (has_scales) {
+            infos.emplace_back(simd, hw_threads, (int)data_type_size,
+                    inner_size, outer_elems);
+            continue;
+        }
+        for (int bytes : {4, 2, 1}) {
+            if (inner_size % bytes) continue;
+            infos.emplace_back(
+                    simd, hw_threads, bytes, inner_size, outer_elems);
+        }
     }
+    if (infos.empty()) return status::unimplemented;
+    std::sort(infos.begin(), infos.end());
+    const auto &info = infos[0];
 
-    compute::get_optimal_lws(conf.gws_d, conf.lws_d, 3, 0,
-            compute_engine->device_info()->gpu_arch());
+    conf.simd = info.simd;
+    conf.inner_axis = inner_size / info.type_size;
+    conf.data_type_size = info.type_size;
+    conf.dst_offset0 = dst_mdw.offset0() * data_type_size / info.type_size;
+    conf.dst_extern_dim_size
+            = conf.dst_extern_dim_size * data_type_size / info.type_size;
+    conf.block = info.block;
+    conf.gws_d[0] = conf.inner_axis / conf.block * conf.simd;
+    conf.gws_d[1] = extern_axis;
+    conf.gws_d[2] = concat_dim_size;
+
+    compute::get_optimal_lws(
+            conf.gws_d, conf.lws_d, 3, 0, device_info->gpu_arch());
     return status::success;
 }
 
