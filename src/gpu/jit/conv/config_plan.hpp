@@ -221,6 +221,7 @@ struct conv_plan_t : public base_plan_t {
     int split_factor = 1;
     bool reuse_headers = false;
     int max_gmem_bufs = 0;
+    int reserved_regs = -1;
 
     conv_plan_t(ngen::HW hw)
         : base_plan_t(hw), slm(hw), prefetch(hw), x2r(hw), fma(hw), zp(hw) {}

@@ -1007,7 +1007,7 @@ static const int max_slm_bufs = 3;
 
 // GRF usage for kernel arguments, local work IDs/sizes, signal header,
 // temporary expressions, etc.
-static const int reserved_regs = 16;
+static const int reserved_regs_default = 16;
 } // namespace constants
 
 struct conv_plan_t;
@@ -1125,7 +1125,7 @@ public:
 
     int unroll(const std::string &name) const { return unroll()(name); }
 
-    int reserved_regs() const { return constants::reserved_regs; }
+    int reserved_regs() const;
 
     const hw_config_t &hw_cfg() const { return exec_cfg().hw_cfg(); }
 
