@@ -7,7 +7,8 @@ to be the golden standard in deep learning applications and is supported
 in all the library functions. The purpose of low precision data types
 support is to improve performance of compute intensive operations, such as
 convolutions, inner product, and recurrent neural network cells
-in comparison to fp32.
+in comparison to fp32. Boolean data type is used for Graph Compiler to optimize 
+operations which take bool as inputs and/or outputs data type.
 
 | Data type | Description                                                                                                                                                                   |
 |:----------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -16,15 +17,19 @@ in comparison to fp32.
 | f16       | [IEEE half precision floating-point](https://en.wikipedia.org/wiki/Half-precision_floating-point_format#IEEE_754_half-precision_binary_floating-point_format:_binary16)       |
 | s8/u8     | signed/unsigned 8-bit integer                                                                                                                                                 |
 | f64       | [IEEE double precision floating-point](https://en.wikipedia.org/wiki/Double-precision_floating-point_format#IEEE_754_double-precision_binary_floating-point_format:_binary64) |
+| boolean   | bool (size is C++ implementation defined)                                                                                                                                     |
 
+@note
+    boolean is only supported in Graph Compiler in CPU engine. No primitives
+    support boolean during primitive computation.
 ## Inference and Training
 
 oneDNN supports training and inference with the following data types:
 
-| Usage mode | CPU                   | GPU                        |
-|:-----------|:----------------------|:---------------------------|
-| Inference  | f32, bf16, f16, s8/u8 | f32, bf16, f16, s8/u8, f64 |
-| Training   | f32, bf16, f16        | f32, bf16, f64             |
+| Usage mode | CPU                            | GPU                        |
+|:-----------|:-------------------------------|:---------------------------|
+| Inference  | f32, bf16, f16, s8/u8, boolean | f32, bf16, f16, s8/u8, f64 |
+| Training   | f32, bf16, f16                 | f32, bf16, f64             |
 
 @note
     Using lower precision arithmetic may require changes in the deep learning
@@ -33,6 +38,10 @@ oneDNN supports training and inference with the following data types:
 @note
     f64 is only supported for convolution, reorder, layer normalization and
     pooling primitives, on the GPU engine.
+
+@note
+    Boolean is only supported by the oneDNN graph API when the graph compiler backend is
+    enabled.
 
 See topics for the corresponding data types details:
  * @ref dev_guide_inference_int8
@@ -119,6 +128,7 @@ types that oneDNN recognizes.
 | s8, u8    | Intel AVX2                           |
 | bf16      | Intel DL Boost with bfloat16 support |
 | f16       | Intel AVX512-FP16                    |
+| boolean   | Intel AVX2                           |
 
 @note
   See @ref dev_guide_int8_computations in the Developer Guide for additional
@@ -168,3 +178,6 @@ types that oneDNN recognizes.
 
   - f16 operations may accumulate to f16 on the GPU architectures older than
   Xe-HPC. Newer architectures accumulate to f32.
+
+  - Boolean is only supported by the oneDNN graph API when the graph compiler backend is
+  enabled. The graph compiler backend supports CPU engine only.
