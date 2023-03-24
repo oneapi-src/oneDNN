@@ -45,25 +45,32 @@ std::vector<int> get_ordered_dim_idxs(const memory_desc_wrapper &mdw) {
     return idxs;
 }
 
-/** Returns true if two sets of data have the same order of axis. */
-bool is_same_axis_order(
-        const std::vector<int> &idxs, const memory_desc_wrapper &mdw) {
+// Returns true if two sets of data have the same order of axis (i.e. the
+// strides are ordered by the same permutation) and the layout is dense except
+// possibly exterior to the concat dimension.
+bool is_striding_ok(const std::vector<int> &idxs,
+        const memory_desc_wrapper &mdw, int concat_dim) {
     const auto ndims = mdw.ndims();
 
     // Compute the total size of blocks for each dim to help predict strides
     std::vector<dim_t> blocks(ndims, 1);
     const auto &blkg = mdw.blocking_desc();
-    for (int i = 0; i < blkg.inner_nblks; ++i)
+    dim_t exp_stride = 1;
+    for (int i = 0; i < blkg.inner_nblks; ++i) {
         blocks[blkg.inner_idxs[i]] *= blkg.inner_blks[i];
+        exp_stride *= blkg.inner_blks[i];
+    }
 
     // Check that the order specified by idxs matches the src tensor
-    dim_t min_stride = 1;
     const auto &padded_dims = mdw.padded_dims();
+    bool allow_larger_stride = false;
     for (auto idx : idxs) {
         auto stride = blkg.strides[idx];
-        if (stride < min_stride) return false;
+        if (stride < exp_stride) return false;
+        if (stride > exp_stride && !allow_larger_stride) return false;
         auto step = utils::div_up(padded_dims[idx], blocks[idx]);
-        min_stride = stride * step;
+        exp_stride = stride * step;
+        allow_larger_stride = idx == concat_dim;
     }
     return true;
 }
@@ -85,10 +92,11 @@ static status_t init_conf_common(
     // is_same_axis_order.
     dim_t extern_axis = 1;
     int extern_dim = -1;
-    bool equal_strides_ok = dst_mdw.padded_dims()[concat_dim] == 1;
     std::vector<dim_t> blocks(ndims, 1);
     for (int i = 0; i < blk.inner_nblks; ++i)
         blocks[blk.inner_idxs[i]] *= blk.inner_blks[i];
+    bool equal_strides_ok
+            = dst_mdw.padded_dims()[concat_dim] / blocks[concat_dim] == 1;
     for (int i = 0; i < ndims; ++i) {
         const auto &stride = blk.strides[i];
         if (stride > blk.strides[concat_dim]
@@ -100,19 +108,21 @@ static status_t init_conf_common(
     }
 
     int offset = 0;
-    bool has_padding = false;
     const auto dst_dim_order = get_ordered_dim_idxs(dst_mdw);
     const dim_t c_blks = blocks[concat_dim];
+    int nonempty_inputs = 0;
+    bool has_padding = false;
     for (int i = 0; i < pd->n_inputs(); ++i) {
         const memory_desc_wrapper src_mdw(pd->src_md(i));
 
-        // check concat dim padding
-        if (src_mdw.padded_dims()[concat_dim] != src_mdw.dims()[concat_dim]) {
-            if (has_padding)
-                return status::unimplemented;
-            else
-                has_padding = true;
-        }
+        if (src_mdw.padded_dims()[concat_dim] == 0) continue;
+
+        // check concat dim padding -- allow padding in the last nonempty input
+        if (has_padding)
+            return status::unimplemented;
+        else if (src_mdw.padded_dims()[concat_dim]
+                != src_mdw.dims()[concat_dim])
+            has_padding = true;
 
         if (src_mdw.data_type() != dst_mdw.data_type())
             return status::unimplemented;
@@ -120,18 +130,18 @@ static status_t init_conf_common(
         if (!types::blocking_desc_is_equal(*pd->dst_md(), *pd->src_md(i), true))
             return status::unimplemented;
 
-        if (!is_same_axis_order(dst_dim_order, src_mdw))
+        if (!is_striding_ok(dst_dim_order, src_mdw, concat_dim))
             return status::unimplemented;
-
-        if (!src_mdw.is_dense()) return status::unimplemented;
 
         const auto &src_blk = src_mdw.blocking_desc();
         const auto step = src_mdw.padded_dims()[concat_dim] / c_blks;
         auto src_extern_dim_size = (extern_dim == -1)
                 ? src_blk.strides[concat_dim] * step
                 : src_blk.strides[extern_dim];
-        conf.src_extern_dim_sizes[i] = src_extern_dim_size * data_type_size;
-        conf.offset[i] = offset;
+        conf.src_extern_dim_sizes[nonempty_inputs]
+                = src_extern_dim_size * data_type_size;
+        conf.offset[nonempty_inputs] = offset;
+        nonempty_inputs++;
         offset += step;
     }
 
@@ -140,7 +150,7 @@ static status_t init_conf_common(
             ? blk.strides[concat_dim] * concat_dim_size
             : blk.strides[extern_dim];
     conf.inner_axis = blk.strides[concat_dim] * data_type_size;
-    conf.n = pd->n_inputs();
+    conf.n = nonempty_inputs;
 
     auto shift_in = [&concat_dim_size, &conf](int k) {
         // partition concat_dim_size so that more data is read at once
@@ -229,9 +239,11 @@ status_t simple_concat_t::execute_concat(const exec_ctx_t &ctx) const {
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, dst);
     arg_list.set(1, conf.dst_offset0);
+    int next_arg = 2;
     for (int i = 0; i < pd()->n_inputs(); ++i) {
+        if (pd()->src_md(i)->dims[pd()->concat_dim()] == 0) continue;
         auto &src = CTX_IN_STORAGE(DNNL_ARG_MULTIPLE_SRC + i);
-        arg_list.set(i + 2, src);
+        arg_list.set(next_arg++, src);
     }
 
     auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
