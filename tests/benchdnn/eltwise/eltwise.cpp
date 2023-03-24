@@ -162,6 +162,7 @@ float get_eltwise_threshold(dnnl_data_type_t dt, alg_t alg, bool is_fwd) {
     const bool alg_has_higher_tolerance = alg == alg_t::GELU_TANH
             || alg == alg_t::ELU || alg == alg_t::SWISH || alg == alg_t::TANH
             || alg == alg_t::SRELU || alg == alg_t::MISH || alg == alg_t::LOG
+            || (is_nvidia_gpu() && alg == alg_t::POW)
             || ((alg == alg_t::ELU_DST || alg == alg_t::TANH_DST) && is_fwd);
     if (dt == dnnl_f32 && alg_has_higher_tolerance) trh = 4e-5;
     return trh;

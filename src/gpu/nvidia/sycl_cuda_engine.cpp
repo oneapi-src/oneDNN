@@ -40,6 +40,7 @@
 
 #include "gpu/sycl/ref_batch_normalization.hpp"
 #include "gpu/sycl/ref_binary.hpp"
+#include "gpu/sycl/ref_eltwise.hpp"
 #include "gpu/sycl/ref_layer_normalizations.hpp"
 #include "gpu/sycl/ref_prelu.hpp"
 #include "gpu/sycl/ref_resampling.hpp"
@@ -206,6 +207,8 @@ constexpr dnnl::impl::impl_list_item_t sycl_cuda_impl_list[] = {
         // Elementwise
         INSTANCE(cudnn_eltwise_fwd_t)
         INSTANCE(cudnn_eltwise_bwd_t)
+        INSTANCE(sycl::ref_sycl_eltwise_fwd_t)
+        INSTANCE(sycl::ref_sycl_eltwise_bwd_t)
 
         // Deconvolution
         INSTANCE(cudnn_deconvolution_fwd_t)

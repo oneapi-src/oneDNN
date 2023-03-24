@@ -44,6 +44,28 @@ struct sycl_binary_conf_t {
     sycl_post_ops_t post_ops;
 };
 
+struct sycl_eltwise_conf_t {
+    prop_kind_t prop_kind;
+    sycl_md_t src_md;
+    sycl_md_t dst_md;
+    sycl_md_t diff_src_md;
+    sycl_md_t diff_dst_md;
+    alg_kind_t alg_kind;
+    float alpha;
+    float beta;
+    dim_t mb;
+    dim_t c;
+    dim_t d;
+    dim_t h;
+    dim_t w;
+    dim_t block_size;
+    dim_t wg_size;
+    dim_t wk_size;
+    dim_t post_po_len;
+    sycl_md_t binary_src_arr[8];
+    sycl_post_ops_t post_ops;
+};
+
 struct sycl_prelu_conf_t {
     prop_kind_t prop_kind;
     sycl_md_t data_md;
@@ -246,6 +268,7 @@ CHECK_SYCL_KERNEL_ARG_TYPE(sycl_resampling_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_batch_normalization_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_softmax_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_layer_normalization_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_eltwise_conf_t);
 
 } // namespace sycl
 } // namespace gpu
