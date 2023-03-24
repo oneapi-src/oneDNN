@@ -237,6 +237,25 @@ struct sycl_post_ops_t {
         return acc;
     }
 
+    template <int width>
+    float apply(float acc, ::sycl::vec<float, width> dst) const {
+        using namespace primitive_kind;
+
+        if (n_post_ops_ == 0) return acc;
+
+        int binary_idx = 0;
+
+        for (auto i = 0; i < n_post_ops_; ++i) {
+            switch (post_op_kinds_[i]) {
+                case binary:
+                    acc = binary_post_ops_[binary_idx++].compute(acc, dst[i]);
+                    break;
+                default: acc = ::sycl::nan(0u);
+            }
+        }
+        return acc;
+    }
+
     inline int get_post_op() const { return n_post_ops_; }
 
     inline primitive_kind_t get_post_op_kind(int i) const {
