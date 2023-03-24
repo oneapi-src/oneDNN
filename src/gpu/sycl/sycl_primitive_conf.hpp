@@ -259,6 +259,8 @@ struct sycl_softmax_conf_t {
     dim_t inner_size;
     dim_t outer_size;
     dim_t channels;
+    bool do_scale_src;
+    bool do_scale_dst;
 };
 
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_binary_conf_t);

@@ -27,8 +27,13 @@ namespace sycl {
 
 struct softmax_fwd_kernel_vec_t {
     softmax_fwd_kernel_vec_t(const sycl_softmax_conf_t &conf,
-            sycl_in_memory_arg_t &src, sycl_out_memory_arg_t &dst, float scale)
-        : conf_(conf), src_(src), dst_(dst), scale_(scale) {}
+            sycl_in_memory_arg_t &src, sycl_in_memory_arg_t &scale_src,
+            sycl_in_memory_arg_t &scale_dst, sycl_out_memory_arg_t &dst)
+        : conf_(conf)
+        , src_(src)
+        , scale_src_(scale_src)
+        , scale_dst_(scale_dst)
+        , dst_(dst) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         auto sg = item.get_sub_group();
@@ -76,7 +81,16 @@ struct softmax_fwd_kernel_vec_t {
                 } else if (conf_.alg_kind == alg_kind::softmax_log) {
                     d -= sd;
                 }
-                d = (d * scale_);
+
+                float scale = 1.0f;
+                scale = conf_.do_scale_src
+                        ? load_float_value(data_type::f32, scale_src_ptr(), 0)
+                        : scale;
+                scale /= conf_.do_scale_dst
+                        ? load_float_value(data_type::f32, scale_dst_ptr(), 0)
+                        : 1.0f;
+
+                d = (d * scale);
                 size_t dst_off
                         = dst_md().off_l(ou_in_offset + c * conf_.inner_size);
                 store_float_value(dst_md().data_type(), d, dst_ptr(), dst_off);
@@ -100,11 +114,14 @@ private:
 
     void *src_ptr() const { return src_.get_pointer(); }
     void *dst_ptr() const { return dst_.get_pointer(); }
+    void *scale_src_ptr() const { return scale_src_.get_pointer(); }
+    void *scale_dst_ptr() const { return scale_dst_.get_pointer(); }
 
     sycl_softmax_conf_t conf_;
     sycl_in_memory_arg_t src_;
+    sycl_in_memory_arg_t scale_src_;
+    sycl_in_memory_arg_t scale_dst_;
     sycl_out_memory_arg_t dst_;
-    float scale_;
 };
 
 struct softmax_bwd_kernel_vec_t {
