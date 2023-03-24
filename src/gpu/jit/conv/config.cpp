@@ -2282,6 +2282,13 @@ bool use_conv_plan(const conv_config_t &cfg) {
 conv_config_t::conv_config_t() = default;
 conv_config_t::~conv_config_t() = default;
 
+int conv_config_t::reserved_regs() const {
+    int ret = constants::reserved_regs_default;
+    // XXX: Workaround for incorrect register estimation.
+    if (prb().is_bwd_w && prb().mb % 16 != 0) ret += 4;
+    return ret;
+}
+
 void conv_config_t::override_set(const std::string &s, bool is_env) {
     std::vector<param_t *> params;
     for (auto &gp : get_params_)

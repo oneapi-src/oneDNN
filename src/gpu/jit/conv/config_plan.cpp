@@ -937,6 +937,7 @@ void conv_plan_t::set_split(abc_kind_t abc, int factor) {
 }
 
 grf_usage_t conv_plan_t::grf_usage() const {
+    ir_assert(reserved_regs != -1);
     bool with_headers = !reuse_headers;
 
     int out_buf_regs = 0;
@@ -1023,7 +1024,7 @@ grf_usage_t conv_plan_t::grf_usage() const {
     info.add(grf_usage_label_t::slm_load, slm_load_regs);
     info.add(grf_usage_label_t::reorder, reorder_regs);
     info.add(grf_usage_label_t::reused_headers, reused_header_regs);
-    info.add(grf_usage_label_t::reserved, constants::reserved_regs);
+    info.add(grf_usage_label_t::reserved, reserved_regs);
     info.add(grf_usage_label_t::zero_points, zp_regs);
     return info;
 }
@@ -1683,6 +1684,7 @@ private:
 
     plan_status_t try_init_plan() {
         plan_.reset();
+        plan_.reserved_regs = cfg_.reserved_regs();
         PLAN_CHECK(init_x_g2r_direct_view(gemm_schedule_.a_tg_view(),
                 gemm_schedule_.a_thr_tile(), a_direct_view_));
         PLAN_CHECK(init_x_g2r_direct_view(gemm_schedule_.b_tg_view(),
