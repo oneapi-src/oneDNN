@@ -261,6 +261,32 @@ struct sycl_softmax_conf_t {
     dim_t channels;
 };
 
+struct sycl_lrn_conf_t {
+    sycl_md_t src_md;
+    sycl_md_t dst_md;
+    sycl_md_t diff_dst_md;
+    sycl_md_t diff_src_md;
+    alg_kind_t alg_kind;
+
+    dim_t mb;
+    dim_t c;
+    dim_t d;
+    dim_t h;
+    dim_t w;
+    dim_t stride_mb;
+    dim_t ndims;
+    dim_t tag_blk_sz;
+    dim_t size;
+    dim_t compute_n_summands;
+    float alpha;
+    float beta;
+    float k;
+
+    int block_size;
+    int wg_size;
+    int wk_size;
+};
+
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_binary_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_prelu_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_shuffle_conf_t);
@@ -269,6 +295,7 @@ CHECK_SYCL_KERNEL_ARG_TYPE(sycl_batch_normalization_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_softmax_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_layer_normalization_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_eltwise_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_lrn_conf_t);
 
 } // namespace sycl
 } // namespace gpu
