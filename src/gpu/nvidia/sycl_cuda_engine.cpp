@@ -42,6 +42,7 @@
 #include "gpu/sycl/ref_binary.hpp"
 #include "gpu/sycl/ref_eltwise.hpp"
 #include "gpu/sycl/ref_layer_normalizations.hpp"
+#include "gpu/sycl/ref_lrn.hpp"
 #include "gpu/sycl/ref_prelu.hpp"
 #include "gpu/sycl/ref_resampling.hpp"
 #include "gpu/sycl/ref_shuffle.hpp"
@@ -241,6 +242,8 @@ constexpr dnnl::impl::impl_list_item_t sycl_cuda_impl_list[] = {
         // LRN
         INSTANCE(cudnn_lrn_fwd_t)
         INSTANCE(cudnn_lrn_bwd_t)
+        INSTANCE(sycl::ref_sycl_lrn_fwd_t)
+        INSTANCE(sycl::ref_sycl_lrn_bwd_t)
 
         // Inner Product
         INSTANCE(cudnn_gemm_inner_product_fwd_t)
