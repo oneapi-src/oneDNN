@@ -750,11 +750,11 @@ protected:
                 x, scratchpad, ws_size, solutions[selected_sol].solution_id);
 
         if (with_bias) {
-            int alpha2 = 0;
+            float alpha2 = 0;
             miopenTensorOp_t tensorOp = miopenTensorOpAdd;
-            MIOPEN_EXECUTE_FUNC_V(miopenOpTensor, handle, tensorOp, &bias_alpha,
-                    descs[io::bias], bias, &alpha2, descs[io::y], y, &bias_beta,
-                    descs[io::x], x);
+            MIOPEN_EXECUTE_FUNC_V(miopenOpTensor, handle, tensorOp, &alpha2,
+                    descs[io::x], x, &bias_alpha, descs[io::bias], bias,
+                    &bias_beta, descs[io::x], x);
         }
     }
 
