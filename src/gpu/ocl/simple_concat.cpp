@@ -110,6 +110,8 @@ static status_t init_conf_common(
     int offset = 0;
     const auto dst_dim_order = get_ordered_dim_idxs(dst_mdw);
     const dim_t c_blks = blocks[concat_dim];
+    auto concat_dim_size = dst_mdw.padded_dims()[concat_dim] / c_blks;
+    auto common_factor = concat_dim_size;
     int nonempty_inputs = 0;
     bool has_padding = false;
     for (int i = 0; i < pd->n_inputs(); ++i) {
@@ -135,6 +137,8 @@ static status_t init_conf_common(
 
         const auto &src_blk = src_mdw.blocking_desc();
         const auto step = src_mdw.padded_dims()[concat_dim] / c_blks;
+        common_factor = math::gcd(common_factor, step);
+
         auto src_extern_dim_size = (extern_dim == -1)
                 ? src_blk.strides[concat_dim] * step
                 : src_blk.strides[extern_dim];
@@ -145,28 +149,16 @@ static status_t init_conf_common(
         offset += step;
     }
 
-    auto concat_dim_size = dst_mdw.padded_dims()[concat_dim] / c_blks;
     conf.dst_extern_dim_size = (extern_dim == -1)
             ? blk.strides[concat_dim] * concat_dim_size
             : blk.strides[extern_dim];
     conf.inner_axis = blk.strides[concat_dim] * data_type_size;
     conf.n = nonempty_inputs;
 
-    auto shift_in = [&concat_dim_size, &conf](int k) {
-        // partition concat_dim_size so that more data is read at once
-        if (concat_dim_size % k) return false;
-        for (int i = 0; i < conf.n; ++i)
-            if (conf.offset[i] % k) return false;
-        for (int i = 0; i < conf.n; ++i)
-            conf.offset[i] /= k;
-        concat_dim_size /= k;
-        conf.inner_axis *= k;
-        return true;
-    };
-    while (shift_in(2))
-        ;
-    for (auto k : {3, 5, 7})
-        shift_in(k);
+    for (int i = 0; i < conf.n; ++i)
+        conf.offset[i] /= common_factor;
+    concat_dim_size /= common_factor;
+    conf.inner_axis *= common_factor;
 
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.data_type_size = (conf.inner_axis % 32 == 0) ? 4 : 2;
