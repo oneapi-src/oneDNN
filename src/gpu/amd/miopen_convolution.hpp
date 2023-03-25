@@ -95,10 +95,11 @@ struct miopen_convolution_fwd_t : public primitive_t {
             ok = ok && memory_format_ok(&weights_md_);
             ok = ok && memory_format_ok(&dst_md_);
             if (with_bias()) ok = ok && memory_format_ok(&bias_md_);
-            ok = ok && check_format();
             if (!ok) return status::unimplemented;
 
             if (check_for_zero_dims()) return status::success;
+
+            if (!check_format()) return status::unimplemented;
 
             const bool use_temp_dst = attr()->post_ops_.len() > 0;
             if (use_temp_dst) {
@@ -311,10 +312,11 @@ struct miopen_convolution_bwd_data_t : public primitive_t {
                 ok = ok && memory_format_ok(&bias_md_);
                 ok = ok && bias_md_.data_type == diff_dst_md_.data_type;
             }
-            ok = ok && check_format();
             if (!ok) return status::unimplemented;
 
             if (check_for_zero_dims()) return status::success;
+
+            if (!check_format()) return status::unimplemented;
 
             impl_.reset(new miopen_convolution_impl_bwd_data_t());
             return impl_->init(engine, this);
@@ -424,8 +426,9 @@ struct miopen_convolution_bwd_weights_t : public primitive_t {
                 ok = ok && memory_format_ok(&diff_bias_md_);
                 ok = ok && diff_bias_md_.data_type == diff_dst_md_.data_type;
             }
-            ok = ok && check_format();
             if (!ok) return status::unimplemented;
+
+            if (!check_format()) return status::unimplemented;
 
             impl_.reset(new miopen_convolution_impl_bwd_weights_t());
             if (check_for_zero_dims()) { return impl_->init_zero_dims(this); };
