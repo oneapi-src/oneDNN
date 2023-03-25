@@ -150,6 +150,14 @@ protected:
                                 p.formats.weights_format, p.sizes.ng > 1)),
                 "Format is not supported.");
 
+        SKIP_IF_HIP(
+                !(hip_check_format_tags(p.formats.src_format)
+                        && hip_check_format_tags(p.formats.dst_format)
+                        && hip_check_src_wei_dst_format_tags(
+                                p.formats.src_format, p.formats.weights_format,
+                                p.formats.dst_format, p.sizes.ng > 1)),
+                "Format is not supported.");
+
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
@@ -165,6 +173,12 @@ protected:
                                 memory::format_tag::aBcde4b)));
     }
 
+    bool hip_check_format_tags(memory::format_tag tag) {
+        return impl::utils::one_of(tag, memory::format_tag::ab,
+                memory::format_tag::abc, memory::format_tag::abcd,
+                memory::format_tag::abcde, memory::format_tag::abcdef);
+    }
+
     bool cuda_check_src_wei_format_tags(
             memory::format_tag src, memory::format_tag wei, bool is_grouped) {
         if (src == memory::format_tag::abcd) return true;
@@ -172,6 +186,21 @@ protected:
             return wei
                     != (is_grouped ? memory::format_tag::abcde
                                    : memory::format_tag::abcd);
+        return false;
+    }
+
+    bool hip_check_src_wei_dst_format_tags(memory::format_tag src,
+            memory::format_tag wei, memory::format_tag dst, bool is_grouped) {
+        if (src == memory::format_tag::abcd) {
+            return (src == dst)
+                    && (is_grouped ? (wei == memory::format_tag::acbde)
+                                   : (wei == memory::format_tag::bacd));
+        }
+        if (src == memory::format_tag::acdb) {
+            return (src == dst)
+                    && (is_grouped ? (wei == memory::format_tag::acdeb)
+                                   : (wei == memory::format_tag::bcda));
+        }
         return false;
     }
 
@@ -231,6 +260,8 @@ protected:
         padR = {right_padding(dd.oh, dd.ih, dd.kh, dd.padh, dd.strh, dd.dilh),
                 right_padding(dd.ow, dd.iw, dd.kw, dd.padw, dd.strw, dd.dilw)};
         SKIP_IF_CUDA(p.sizes.padh < padR[0] || p.sizes.padw < padR[1],
+                "Padding not supported");
+        SKIP_IF_HIP(p.sizes.padh < padR[0] || p.sizes.padw < padR[1],
                 "Padding not supported");
         Forward();
         BackwardData();

@@ -25,6 +25,7 @@
 #include "gpu/amd/miopen_batch_normalization.hpp"
 #include "gpu/amd/miopen_binary.hpp"
 #include "gpu/amd/miopen_convolution.hpp"
+#include "gpu/amd/miopen_deconvolution.hpp"
 #include "gpu/amd/miopen_eltwise.hpp"
 #include "gpu/amd/miopen_gemm_inner_product.hpp"
 #include "gpu/amd/miopen_lrn.hpp"
@@ -195,6 +196,11 @@ constexpr dnnl::impl::impl_list_item_t sycl_hip_impl_list[] = {
         // Batch Normalization
         INSTANCE(miopen_batch_normalization_fwd_t)
         INSTANCE(miopen_batch_normalization_bwd_t)
+        // Deconvolution
+        INSTANCE(miopen_deconvolution_fwd_t)
+        INSTANCE(miopen_deconvolution_bwd_data_t)
+        INSTANCE(miopen_deconvolution_bwd_weights_t)
+
         nullptr,
 };
 // clang-format on
