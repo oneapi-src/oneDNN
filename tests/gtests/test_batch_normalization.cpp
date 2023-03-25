@@ -48,6 +48,17 @@ bool cuda_check_format_tag(tag first_tag, Rest... rest_tags) {
     return cuda_check_format_tag(rest_tags...);
 }
 
+bool hip_check_format_tag(tag atag) {
+    return impl::utils::one_of(atag, tag::nchw, tag::ncdhw);
+}
+
+template <typename... Rest>
+bool hip_check_format_tag(tag first_tag, Rest... rest_tags) {
+    const bool ok = hip_check_format_tag(first_tag);
+    if (!ok) return ok;
+    return hip_check_format_tag(rest_tags...);
+}
+
 class batch_normalization_test_t
     : public ::testing::TestWithParam<batch_normalization_test_params_t> {
 private:
@@ -64,6 +75,9 @@ protected:
                 "Engine does not support this data type.");
 
         SKIP_IF_CUDA(!cuda_check_format_tag(p.src_tag, p.dst_tag),
+                "Unsupported format tag");
+
+        SKIP_IF_HIP(!hip_check_format_tag(p.src_tag, p.dst_tag),
                 "Unsupported format tag");
 
         SKIP_IF_CUDA(p.src_dt != p.dst_dt && p.src_dt != dt::undef
@@ -91,7 +105,7 @@ protected:
         auto strm = make_stream(eng);
 
         auto aa = allows_attr_t {false};
-        aa.po_eltwise = !is_amd_gpu(eng);
+        aa.po_eltwise = is_amd_gpu(eng);
 
         auto src_md = memory::desc(p.dims, p.src_dt, p.src_tag);
         auto dst_md = memory::desc(p.dims, p.dst_dt, p.dst_tag);
@@ -338,6 +352,13 @@ protected:
                     "s8 doesn't support anything but use_global_stats flag");
             SKIP_FOR_LOOP_CUDA(p.src_dt == dt::f16 && !use_global_stats(flags),
                     "s8 doesn't support anything but use_global_stats flag");
+
+            SKIP_FOR_LOOP_HIP(p.src_dt == dt::f16 && !use_global_stats(flags),
+                    "f16 doesn't support anything but use_global_stats flag");
+
+            SKIP_FOR_LOOP_HIP(
+                    p.src_dt == dt::s8, "s8 doesn't support anything for HIP");
+
             Forward(prop_kind::forward_inference, flags);
         }
 
@@ -345,6 +366,9 @@ protected:
         if (p.src_dt == dt::s8) return;
         // No training for cuda dor f16.
         if (is_nvidia_gpu(get_test_engine()) && p.src_dt == dt::f16) return;
+
+        SKIP_IF_HIP(p.src_dt == dt::f16,
+                "f16 doen't support Forward training and backward training");
 
         // TODO: add fuse_norm_add_relu
         std::vector<normalization_flags> training_flags {nf::none,
@@ -361,6 +385,9 @@ protected:
                 SKIP_IF(unsupported_data_type(p.diff_src_dt),
                         "Engine does not support this data type.");
                 SKIP_IF_CUDA(!cuda_check_format_tag(p.diff_src_tag),
+                        "Unsupported format tag");
+
+                SKIP_IF_HIP(!hip_check_format_tag(p.diff_src_tag),
                         "Unsupported format tag");
 
                 SKIP_IF_CUDA(p.src_dt != p.diff_src_dt && p.src_dt != dt::undef
