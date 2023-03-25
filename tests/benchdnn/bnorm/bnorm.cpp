@@ -386,6 +386,12 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
+    // MIOpen cannot handle inplace cases correctly.
+    if (is_amd_gpu() && prb->inplace) {
+        res->state = SKIPPED;
+        return;
+    }
+
     // See `skip_invalid_inplace` for details.
     if (prb->inplace) {
         skip_invalid_inplace(res, prb->dt, prb->dt, prb->tag, prb->tag);
