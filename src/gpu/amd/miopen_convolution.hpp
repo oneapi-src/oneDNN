@@ -428,10 +428,10 @@ struct miopen_convolution_bwd_weights_t : public primitive_t {
             }
             if (!ok) return status::unimplemented;
 
-            if (!check_format()) return status::unimplemented;
-
             impl_.reset(new miopen_convolution_impl_bwd_weights_t());
             if (check_for_zero_dims()) { return impl_->init_zero_dims(this); };
+
+            if (!check_format()) return status::unimplemented;
 
             return impl_->init(engine, this);
         }
