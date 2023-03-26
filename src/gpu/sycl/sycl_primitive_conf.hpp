@@ -32,14 +32,17 @@ struct sycl_binary_conf_t {
     sycl_md_t dst_md;
 
     alg_kind_t alg_kind;
+
     bool do_scale_src0;
     bool do_scale_src1;
+
     int broadcast_dims[sycl_md_t::max_dims];
     int ndims;
     bool is_tensor_op;
 
     int block_size;
     int wg_size;
+    int wk_size;
 
     sycl_post_ops_t post_ops;
 };

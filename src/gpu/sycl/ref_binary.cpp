@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,12 +36,7 @@ status_t ref_binary_t::pd_t::init_conf() {
     conf_.block_size = 16;
     conf_.wg_size = 32;
 
-    // TODO: uniform work groups are not supported for CUDA backend.
-    // Need to find a way to circumvent it.
-    if ((memory_desc_wrapper(src_md(0)).nelems() / conf_.block_size)
-                    % conf_.wg_size
-            != 0)
-        return status::unimplemented;
+    conf_.wk_size = memory_desc_wrapper(src_md(0)).nelems();
 
     conf_.alg_kind = desc()->alg_kind;
     // Limitations:
@@ -76,15 +71,24 @@ status_t ref_binary_t::execute(const exec_ctx_t &ctx) const {
                 DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_1);
         auto dst_mem_arg = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST);
 
-        auto nelems_A = memory_desc_wrapper(pd()->src_md(0)).nelems();
+        auto scales_dt = (pd()->conf_.do_scale_src0)
+                ? ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0)
+                          .data_type()
+                : data_type_t::dnnl_f32;
 
         binary_kernel_vec_t binary_kernel(pd()->conf_, src0_mem_arg,
                 src1_mem_arg, dst_mem_arg, src0_scale_mem_arg,
-                src1_scale_mem_arg);
+                src1_scale_mem_arg, scales_dt);
+
         const int block_size = pd()->conf_.block_size;
         const int wg_size = pd()->conf_.wg_size;
-        cgh.parallel_for(::sycl::nd_range<1>(nelems_A / block_size, wg_size),
-                binary_kernel);
+
+        const int t_work = pd()->conf_.wk_size;
+        const int wg_work = wg_size * block_size;
+        const int wg_cnt = utils::div_up(t_work, wg_work);
+
+        cgh.parallel_for(
+                ::sycl::nd_range<1>(wg_cnt * wg_size, wg_size), binary_kernel);
     });
 
     return status::success;

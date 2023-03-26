@@ -164,7 +164,7 @@ inline void store_float_vec(data_type_t dt, ::sycl::vec<float, width> vec_f32,
     case dt: { \
         using type = typename impl::gpu::sycl::sycl_prec_traits<dt>::type; \
         global_ptr<type> gptr_dt(reinterpret_cast<type *>(ptr)); \
-        auto vec_dt = vec_f32.template convert<type>(); \
+        auto vec_dt = impl::sycl::saturate_and_round_vec<type>(vec_f32); \
         vec_dt.store(offset, gptr_dt); \
     } break;
 
