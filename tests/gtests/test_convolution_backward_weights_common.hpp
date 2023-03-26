@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -148,6 +148,28 @@ protected:
                                 p.formats.weights_format, p.aalgorithm)),
                 "format is not supported.");
 
+        SKIP_IF_HIP(!(hip_check_format_tags(p.formats.src_format)
+                            && hip_check_format_tags(p.formats.dst_format)
+                            && (hip_check_format_tags(p.formats.weights_format)
+                                    || (impl::utils::one_of(
+                                            p.formats.weights_format,
+                                            /* weights formats */
+                                            memory::format_tag::gowi,
+                                            memory::format_tag::gohwi,
+                                            memory::format_tag::godhwi,
+                                            memory::format_tag::owi,
+                                            memory::format_tag::ohwi,
+                                            memory::format_tag::odhwi)))
+                            && data_traits<data_t_src>::data_type
+                                    == memory::data_type::f32
+                            && data_traits<data_t_diff_dst>::data_type
+                                    == memory::data_type::f32
+                            && data_traits<data_t_diff_weights>::data_type
+                                    == memory::data_type::f32
+                            && check_hip_alg_format(p.formats.dst_format,
+                                    p.formats.weights_format, p.aalgorithm)),
+                "Format is not supported.");
+
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
@@ -160,7 +182,26 @@ protected:
                 memory::format_tag::acdeb);
     }
 
+    bool hip_check_format_tags(memory::format_tag tag) {
+        return impl::utils::one_of(tag, memory::format_tag::ab,
+                memory::format_tag::abc, memory::format_tag::abcd,
+                memory::format_tag::abcde, memory::format_tag::abcdef);
+    }
+
     bool check_cuda_alg_format(memory::format_tag dst_fmt,
+            memory::format_tag wei_fmt, algorithm alg) {
+        bool res = dst_fmt == wei_fmt;
+        if (alg == dnnl::algorithm::convolution_winograd) {
+            res = res
+                    && impl::utils::one_of(wei_fmt, memory::format_tag::ab,
+                            memory::format_tag::abc, memory::format_tag::abcd,
+                            memory::format_tag::abcde,
+                            memory::format_tag::abcdef);
+        }
+        return res;
+    }
+
+    bool check_hip_alg_format(memory::format_tag dst_fmt,
             memory::format_tag wei_fmt, algorithm alg) {
         bool res = dst_fmt == wei_fmt;
         if (alg == dnnl::algorithm::convolution_winograd) {
