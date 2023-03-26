@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -146,6 +146,22 @@ protected:
                                         memory::format_tag::odhwi))),
                 "Format is not supported.");
 
+        SKIP_IF_HIP(
+                !(hip_check_format_tags(p.formats.src_format, data_type_src)
+                        && hip_check_format_tags(
+                                p.formats.dst_format, data_type_dst)
+                        && (hip_check_format_tags(
+                                    p.formats.weights_format, data_type_wei)
+                                || impl::utils::one_of(p.formats.weights_format,
+                                        /* weights formats */
+                                        memory::format_tag::gowi,
+                                        memory::format_tag::gohwi,
+                                        memory::format_tag::godhwi,
+                                        memory::format_tag::owi,
+                                        memory::format_tag::ohwi,
+                                        memory::format_tag::odhwi))),
+                "Format is not supported.");
+
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
@@ -156,6 +172,15 @@ protected:
                         memory::format_tag::abcde, memory::format_tag::abcdef,
                         memory::format_tag::acb, memory::format_tag::acdb,
                         memory::format_tag::acdeb))
+                || (dt == memory::data_type::s8
+                        && impl::utils::one_of(tag, memory::format_tag::aBcd4b,
+                                memory::format_tag::aBcde4b)));
+    }
+
+    bool hip_check_format_tags(memory::format_tag tag, memory::data_type dt) {
+        return ((impl::utils::one_of(tag, memory::format_tag::ab,
+                        memory::format_tag::abc, memory::format_tag::abcd,
+                        memory::format_tag::abcde, memory::format_tag::abcdef))
                 || (dt == memory::data_type::s8
                         && impl::utils::one_of(tag, memory::format_tag::aBcd4b,
                                 memory::format_tag::aBcde4b)));
