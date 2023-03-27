@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1155,10 +1155,7 @@ struct jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     const memory_tracking::grantor_t scratchpad;
 
     src_data_t *tr_src;
-    simple_barrier::ctx_t *tr_src_bctx;
-
     diff_dst_data_t *tr_diff_dst;
-    simple_barrier::ctx_t *tr_diff_dst_bctx;
 
     diff_weights_data_t *wei_bia_reduction;
     simple_barrier::ctx_t *wei_bia_reduction_bctx;
@@ -1189,13 +1186,8 @@ struct jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
                 : CTX_OUT_MEM(diff_weights_data_t *, DNNL_ARG_DIFF_BIAS);
 
         tr_src = scratchpad.template get<src_data_t>(key_conv_tr_src);
-        tr_src_bctx = scratchpad.template get<simple_barrier::ctx_t>(
-                key_conv_tr_src_bctx);
-
         tr_diff_dst = scratchpad.template get<diff_dst_data_t>(
                 key_conv_tr_diff_dst);
-        tr_diff_dst_bctx = scratchpad.template get<simple_barrier::ctx_t>(
-                key_conv_tr_diff_dst_bctx);
 
         wei_bia_reduction = scratchpad.template get<diff_weights_data_t>(
                 key_conv_wei_bia_reduction);
