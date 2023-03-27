@@ -22,7 +22,7 @@
 --attr-post-ops=linear:2+dw_k3s1p1:u8:common:2.5*+relu, \
                 linear:0.5:1.5+dw_k3s1p1:s8:per_oc:2.5*+relu, \
                 dw_k3s1p1:s32+relu, \
-                dw_k3s1p1:f32+relu
+                add:f32:per_oc+dw_k3s1p1:f32+relu+add:f32:per_tensor
 --batch=shapes_fused_mobilenet_stride_1
 
 # dw_k3s2p1
@@ -31,7 +31,7 @@
 
 --cfg=f32
 --attr-scales=
---attr-post-ops=relu+dw_k3s2p1:f32+tanh
+--attr-post-ops=relu+dw_k3s2p1:f32+tanh,add:f32:per_oc+dw_k3s2p1+add:f32:per_tensor
 --batch=shapes_fused_mobilenet_stride_2
 
 --cfg=f32,bf16bf16bf16
@@ -52,7 +52,7 @@
 --attr-post-ops=relu:0.5+dw_k3s2p1:u8:common:2.5*+relu, \
                 relu:0.5+dw_k3s2p1:s8:per_oc:2.5*+relu, \
                 relu:0.5+dw_k3s2p1:s32+relu, \
-                relu:0.5+dw_k3s2p1:f32+relu
+                add:f32:per_oc+relu:0.5+dw_k3s2p1:f32+relu+add:f32:per_tensor
 --batch=shapes_fused_mobilenet_stride_2
 
 # target jit kernel with large shape to overcome L2-cache heuristic

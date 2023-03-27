@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,6 +35,9 @@ using alg_t = conv::alg_t;
 using dt_conf_t = conv::dt_conf_t;
 
 int doit(const prb_t *prb, res_t *res);
+void get_fused_conv_dst_dims(const int ndims,
+        const attr_t::post_ops_t::entry_t &po_entry, const dnnl_dims_t dims,
+        dnnl_dims_t fused_conv_dst_dims);
 
 } // namespace conv_dw_fusion
 

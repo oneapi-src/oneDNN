@@ -31,6 +31,7 @@
 #include "src/common/math_utils.hpp"
 
 #include "common.hpp"
+#include "conv/conv_dw_fusion.hpp"
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_debug.hpp"
@@ -914,8 +915,11 @@ post_ops_rhs_tensor_entry_t get_po_rhs_tensor_entry(
 } // namespace
 
 int attr_args_t::prepare_post_ops_mds(
-        const attr_t &attr, int ndims, const dnnl_dims_t dims) {
+        const attr_t &attr, int ndims, const dnnl_dims_t prb_dims) {
     const auto &po = attr.post_ops;
+    dnnl_dims_t dims;
+    for (int d = 0; d < ndims; ++d)
+        dims[d] = prb_dims[d];
     // iterate over all post ops and prepare md for each binary
     for (int idx = 0; idx < po.len(); ++idx) {
         const auto &e = po.entry[idx];
@@ -935,6 +939,9 @@ int attr_args_t::prepare_post_ops_mds(
             mds.emplace((DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
                                 | po_rhs_tensor_entry.arg_attr_mask),
                     std::move(rhs_tensor_desc));
+        } else if (e.is_convolution_kind()) {
+            // Update dims for post operations appended after conv_dw
+            conv_dw_fusion::get_fused_conv_dst_dims(ndims, e, dims, dims);
         }
     }
 
