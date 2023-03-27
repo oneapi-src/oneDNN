@@ -33,6 +33,11 @@
 --attr-scales=,src:common:128*,dst:common:0.125*,src:common:64*+dst:common:0.5*
 --batch=shapes_2d
 
+# regression
+--reset
+--dir=FWD_I
+--stag=abcd --dtag=abcd
+--alg=LOGSOFTMAX --axis=3 64x3x224x224
 
 # Test layers of some key GPU DL Frameworks
 --reset
