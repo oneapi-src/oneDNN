@@ -47,7 +47,8 @@ struct jit_pp_ker_t : pp_ker_t, public jit_generator {
             const single_gemm_conv_chunk_desc_t &) const override;
 
 private:
-    void apply_postops(const Xbyak::Reg64 &reg_dst, const int idx);
+    void apply_postops(
+            const Xbyak::Reg64 &reg_dst, const int idx, const size_t offset);
     void generate() override;
     void append_zp_src_comp(size_t offset, int idx, bool apply_mask);
     void load_as_f32(const Xbyak::Zmm &dst, const Xbyak::Opmask &mask,
@@ -61,10 +62,6 @@ private:
     Xbyak::Zmm get_masked_vreg_dst(int idx, bool apply_mask) const;
     Xbyak::Zmm reserve_zmm();
 
-    template <typename T>
-    void advance_binary_postops_off(const T &offset);
-    void zero_binary_postops_off();
-    void set_binary_postops_off(const Xbyak::Reg64 &reg);
     const Xbyak::Opmask &opmask_binary = k2;
 
     struct ker_args_t {
@@ -118,7 +115,6 @@ private:
 
     const Xbyak::Reg64 &reg_tmp_comp_
             = r12; // used to broadcast scalar values to vreg
-    const Xbyak::Reg64 &reg_g_oc_off_ = reg_tmp_comp_;
     const Xbyak::Reg64 &reg_zp_src_comp_ = r14;
 
     const Xbyak::Zmm vreg_zero_;
@@ -137,7 +133,6 @@ private:
     const size_t bias_step_factor_;
     const size_t sum_step_factor_;
     const size_t max_unroll_;
-    int dst_l_offset_ = 0;
 
     std::unique_ptr<jit_gemm_x8s8s32x_zp_pad_comp_helper> zp_pad_comp_helper_;
 };
@@ -265,26 +260,6 @@ void jit_pp_ker_t::operator()(void *void_dst, const acc_data_t *acc,
     jit_generator::operator()(&args);
 }
 
-template <typename T>
-void jit_pp_ker_t::advance_binary_postops_off(const T &offset) {
-    add(reg_g_oc_off_, offset);
-
-    Xbyak::Label end;
-    cmp(reg_g_oc_off_, jcp_.oc);
-    jl(end, T_NEAR);
-    xor_(reg_g_oc_off_, reg_g_oc_off_);
-
-    L(end);
-}
-void jit_pp_ker_t::zero_binary_postops_off() {
-    xor_(reg_g_oc_off_, reg_g_oc_off_);
-    dst_l_offset_ = 0;
-}
-void jit_pp_ker_t::set_binary_postops_off(const Xbyak::Reg64 &reg) {
-    mov(reg_g_oc_off_, reg);
-    dst_l_offset_ = 0;
-}
-
 Xbyak::Zmm jit_pp_ker_t::reserve_zmm() {
     return Xbyak::Zmm(number_of_reserved_zmm_regs_++);
 }
@@ -330,7 +305,8 @@ void jit_pp_ker_t::append_zp_src_comp(size_t offset, int idx, bool apply_mask) {
                 });
 }
 
-void jit_pp_ker_t::apply_postops(const Xbyak::Reg64 &reg_dst, const int idx) {
+void jit_pp_ker_t::apply_postops(
+        const Xbyak::Reg64 &reg_dst, const int idx, const size_t offset) {
 #define PARAM_OFF(x) offsetof(ker_args_t, x)
     if (jcp_.with_eltwise || jcp_.with_binary) {
         if (jcp_.with_binary) {
@@ -339,7 +315,7 @@ void jit_pp_ker_t::apply_postops(const Xbyak::Reg64 &reg_dst, const int idx) {
 
             rhs_arg_params.vmm_idx_to_out_reg.emplace(vmm_idx, reg_dst);
             rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(vmm_idx,
-                    dst_l_offset_ * types::data_type_size(jcp_.dst_data_type));
+                    offset * types::data_type_size(jcp_.dst_data_type));
             rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
 
             postops_injector_->compute_vector(
@@ -424,8 +400,6 @@ void jit_pp_ker_t::generate() {
         init_saturate_f32(vreg_zero_, vreg_saturation_ubound_, reg_tmp_comp_,
                 data_type::f32, jcp_.dst_data_type);
 
-    if (jcp_.with_binary) set_binary_postops_off(reg_oc_offset_);
-
     // Load accumulated value, convert to float, apply sum (if any),
     // bias (if any), scaling, and relu (if any);
     // then convert to destination type and store
@@ -443,11 +417,8 @@ void jit_pp_ker_t::generate() {
             vmovups(vreg_scale, scale_addr);
         }
 
-        if (jcp_.with_binary) {
-            if (offset) advance_binary_postops_off(vlen);
-            dst_l_offset_ = offset;
-            kmovq(opmask_binary, mask_reg);
-        }
+        if (jcp_.with_binary) kmovq(opmask_binary, mask_reg);
+
         const auto vreg_dst_masked = get_masked_vreg_dst(idx, apply_mask);
         const auto vreg_dst = get_vreg_dst(idx);
         if (jcp_.zp.src_exists) {
@@ -479,7 +450,7 @@ void jit_pp_ker_t::generate() {
             vfmadd231ps(vreg_dst_masked, vreg_prev_dst, vreg_sum_scale_);
         }
 
-        apply_postops(reg_dst_, idx);
+        apply_postops(reg_dst_, idx, offset);
 
         if (jcp_.with_dst_scale) {
             vmulps(vreg_dst_masked, vreg_dst, vreg_dst_scale_);
@@ -509,7 +480,6 @@ void jit_pp_ker_t::generate() {
                                           const size_t binary_offset) {
         add(reg_dst_, offset * dst_data_type_size_);
         add(reg_acc_, offset * sizeof(acc_data_t));
-        if (jcp_.with_binary) { advance_binary_postops_off(binary_offset); }
         if (jcp_.scale_idx_mult) {
             assert(jcp_.scale_idx_mult == 1);
             add(reg_scales_, offset * sizeof(float));
@@ -532,7 +502,6 @@ void jit_pp_ker_t::generate() {
                                           const Reg64 binary_offset) {
         lea(reg_dst_, ptr[reg_dst_ + offset * dst_data_type_size_]);
         lea(reg_acc_, ptr[reg_acc_ + offset * sizeof(acc_data_t)]);
-        if (jcp_.with_binary) { advance_binary_postops_off(binary_offset); }
         if (jcp_.scale_idx_mult) {
             assert(jcp_.scale_idx_mult == 1);
             lea(reg_scales_, ptr[reg_scales_ + offset * sizeof(float)]);
@@ -558,10 +527,6 @@ void jit_pp_ker_t::generate() {
     // (bias or per-oc scaling factors)
     const auto rewind_ptrs = [&]() {
         if (jcp_.with_bias) sub(reg_bias_, jcp_.oc * bias_data_type_size_);
-        if (jcp_.with_binary) {
-            zero_binary_postops_off();
-            dst_l_offset_ = 0;
-        }
         if (jcp_.zp.src_exists) {
             const auto offset = jcp_.oc * sizeof(int32_t);
             sub(reg_zp_src_comp_, offset);
