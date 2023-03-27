@@ -40,6 +40,12 @@
 --axis=2
 --batch=shapes_large_axis
 
+# regression
+--reset
+--dir=FWD_I
+--stag=abcd --dtag=abcd
+--alg=LOGSOFTMAX --axis=3 64x3x224x224
+
 # Test layers of some key GPU DL Frameworks
 --reset
 --batch=option_set_fwks_key_gpu
