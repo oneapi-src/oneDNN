@@ -1686,7 +1686,7 @@ void jit_uni_binary_injector_t<isa, Vmm>::inject_binary(
     const bool scalar_f32
             = rhs_addr.isBroadcast() && rhs_arg_data_type == data_type::f32;
     const bool with_tail_not_fusable_to_binary_op
-            = with_tail && !(scalar_f32 && is_avx512_);
+            = with_tail && !isa_has_masks(isa);
     const bool process_rhs_arg_using_tmp_vmm
             = rhs_arg_data_type != data_type::f32 || (scalar_f32 && !is_avx512_)
             || with_tail_not_fusable_to_binary_op
@@ -1709,9 +1709,8 @@ void jit_uni_binary_injector_t<isa, Vmm>::inject_binary(
         execute_binary(alg, dst, dst, tmp_vmm);
     } else {
         const auto lhs = dst;
-        const bool with_tail_fusable_to_binary_op
-                = with_tail && scalar_f32 && is_avx512_;
-        if (with_tail_fusable_to_binary_op) {
+        if (with_tail) {
+            assert(isa_has_masks(isa));
             assert(rhs_arg_static_params_.is_opmask_set()
                     && "Opmask is not set for tail loading avx512");
             const auto &tail_opmask = rhs_arg_static_params_.tail_opmask;
