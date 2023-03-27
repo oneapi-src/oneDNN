@@ -77,21 +77,20 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
             if (is_blocked && src_md()->dims[1] % subgroup_size != 0) {
                 return status::unimplemented;
             }
+            // max lws size on Xe-HP* series is 1024 x 1024 x 1024
+            // max lws size on Xe-LP is 512 x 512 x 512
+
+            int max_lws = 256; // for Gen9, Gen11
+            if (arch >= compute::gpu_arch_t::xe_hp) {
+                max_lws = 1024;
+            } else if (arch == compute::gpu_arch_t::xe_lp) {
+                max_lws = 512;
+            }
 
             if (is_nhwc) {
                 int axis_padded = utils::rnd_up(axis_size(), subgroup_size);
                 group_size = subgroup_size
                         * utils::div_up(axis_padded, buffer_size);
-                // max lws size on Xe-HP* series is 1024 x 1024 x 1024
-                // max lws size on Xe-LP is 512 x 512 x 512
-
-                int max_lws = 256; // for Gen9, Gen11
-                if (arch >= compute::gpu_arch_t::xe_hp) {
-                    max_lws = 1024;
-                } else if (arch == compute::gpu_arch_t::xe_lp) {
-                    max_lws = 512;
-                }
-
                 if (group_size > (size_t)max_lws) {
                     int old_group_size = (int)group_size;
                     group_size = max_lws;
@@ -128,6 +127,7 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
                 if (!is_blocked && axis_size() % buffer_size != 0) {
                     group_size = subgroup_size;
                 }
+                if (group_size > (size_t)max_lws) return status::unimplemented;
             }
 
             lws[0] = group_size;
