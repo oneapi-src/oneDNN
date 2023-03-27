@@ -125,7 +125,7 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
             } else {
                 group_size = subgroup_size
                         * utils::div_up(axis_size(), buffer_size);
-                if (!is_blocked && axis_size() % 16 != 0) {
+                if (!is_blocked && axis_size() % buffer_size != 0) {
                     group_size = subgroup_size;
                 }
             }
