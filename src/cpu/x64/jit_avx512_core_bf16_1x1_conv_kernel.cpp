@@ -23,6 +23,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
+#include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/injectors/injector_utils.hpp"
 #include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
 #include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
@@ -1776,6 +1777,10 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
         const size_t wei_bia_size
                 = wei_size * n_wei_buffers + bias_size * n_bias_buffers;
         scratchpad.book(key_conv_wei_reduction, wei_bia_size, jcp.typesize_acc);
+        if (dnnl_thr_syncable() && jcp.nthr_mb > 1) {
+            scratchpad.book<simple_barrier::ctx_t>(
+                    key_conv_wei_reduction_bctx, 1);
+        }
 
         if (!jcp.uses_permw_transposition) {
             const size_t dst_diff_tr_size_per_thr

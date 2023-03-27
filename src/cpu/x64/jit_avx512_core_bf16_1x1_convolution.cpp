@@ -707,8 +707,11 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
             = jcp.dst_dt == data_type::bf16 ? jcp.nthr_mb : jcp.nthr_mb - 1;
     auto bia_reduction = wei_reduction + n_wei_buffers * wei_size;
 
-    simple_barrier::ctx_t reduction_barrier;
-    if (dnnl_thr_syncable()) simple_barrier::ctx_init(&reduction_barrier);
+    simple_barrier::ctx_t *reduction_barrier
+            = scratchpad.template get<simple_barrier::ctx_t>(
+                    key_conv_wei_reduction_bctx);
+    if (dnnl_thr_syncable() && jcp.nthr_mb > 1)
+        simple_barrier::ctx_init(reduction_barrier);
 
     // TODO (Roma): remove this restriction
     assert(jcp.stride_w == 1 && jcp.stride_h == 1);
@@ -999,7 +1002,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
         /* diff_weights[:] += sum(ws_reduction_[thr_mb][:]) */
         if (jcp.nthr_mb > _start_nthr_mb) {
             if (dnnl_thr_syncable())
-                simple_barrier::barrier(&reduction_barrier, jcp.nthr);
+                simple_barrier::barrier(reduction_barrier, jcp.nthr);
             const int work = g_work * oc_b_work * ic_b_work;
             int start {0}, end {0};
             balance211(work, jcp.nthr_mb, ithr_mb, start, end);

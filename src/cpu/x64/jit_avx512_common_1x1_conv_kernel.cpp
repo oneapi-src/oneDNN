@@ -1165,6 +1165,10 @@ void jit_avx512_common_1x1_conv_kernel::init_scratchpad(
                 * rnd_up(jcp.oc, jcp.oc_block) * rnd_up(jcp.ic, jcp.ic_block);
         scratchpad.book(key_conv_wei_reduction, wei_size * (jcp.nthr_mb - 1),
                 jcp.typesize_out);
+        if (dnnl_thr_syncable() && jcp.nthr_mb > 1) {
+            scratchpad.book<simple_barrier::ctx_t>(
+                    key_conv_wei_reduction_bctx, 1);
+        }
     }
 }
 

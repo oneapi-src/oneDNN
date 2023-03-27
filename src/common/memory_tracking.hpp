@@ -207,6 +207,7 @@ enum {
     key_conv_tr_src,
     key_conv_tr_src_bctx,
     key_conv_wei_reduction,
+    key_conv_wei_reduction_bctx,
     key_conv_wei_bia_reduction,
     key_conv_wei_bia_reduction_bctx,
     key_conv_zero_point_flag,
