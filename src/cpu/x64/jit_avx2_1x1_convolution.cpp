@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -86,8 +86,9 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
         const void *post_ops_binary_rhs_arg_vec_dw) const {
 
     const memory_desc_wrapper src_d(pd()->src_md());
-    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const memory_desc_wrapper dst_d(pd()->dst_1x1_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
+    const memory_desc_wrapper dw_dst_d(pd()->dst_md());
     const memory_desc_wrapper dw_weights_d(
             pd()->arg_md(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS));
     const memory_desc_wrapper dw_bias_d(
@@ -178,10 +179,9 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
         const int oc_off_idx = is_dst_layout_nxc
                 ? g * jcp.oc + ocb * jcp.oc_block
                 : g * nb_oc + ocb;
-
-        p.output_data = jcp.with_dw_conv
-                ? pbuf + (oh % jcp_dw->kh) * row_offset
-                : &dst[data_blk_off(dst_d, n, oc_off_idx, od, oh, ow)];
+        const size_t dst_off = data_blk_off(dst_d, n, oc_off_idx, od, oh, ow);
+        p.output_data = jcp.with_dw_conv ? pbuf + (oh % jcp_dw->kh) * row_offset
+                                         : &dst[dst_off];
         p.bias_data
                 = &bias[oc_off_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block)];
 
@@ -216,7 +216,7 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
 
         p.oc_l_off = ocb * jcp.oc_block;
         p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
-        p.dst_orig = dst;
+        p.dst_orig = static_cast<const float *>(p.output_data) - dst_off;
 
         (*kernel_)(&p);
     };
@@ -277,9 +277,9 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
 
             const size_t ch_step = is_dst_layout_nxc
                     ? jcp_dw->ch_block
-                    : dst_d.blk_off(0, 1, 0, 0);
+                    : dw_dst_d.blk_off(0, 1, 0, 0);
             par_conv_dw.dst
-                    = &dst[dst_d.blk_off(n, 0, dw_oh, ow) + ch * ch_step];
+                    = &dst[dw_dst_d.blk_off(n, 0, dw_oh, ow) + ch * ch_step];
 
             par_conv_dw.filt
                     = &weights_dw[dw_weights_d.blk_off(ch, 0, 0, kh, kw)];

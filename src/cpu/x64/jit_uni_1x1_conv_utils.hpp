@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -676,11 +676,13 @@ inline size_t get_load_bwd_w_offset(const jcp_t &jcp, int i, int u0) {
     }
 }
 
-inline size_t get_output_i_offset(const jcp_t &jcp) {
+inline size_t get_output_i_offset(
+        const jcp_t &jcp, bool ignore_dw_conv = false) {
     if (is_out_layout_nxc(jcp)) {
         return jcp.load_block;
     } else {
-        return (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim) * jcp.load_block;
+        return (!ignore_dw_conv && jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim)
+                * jcp.load_block;
     }
 }
 
@@ -689,10 +691,10 @@ inline size_t get_output_j_offset(const jcp_t &jcp) {
 }
 
 inline size_t get_load_loop_output_fwd_offset(
-        const jcp_t &jcp, int load_loop_blk) {
+        const jcp_t &jcp, int load_loop_blk, bool ignore_dw_conv = false) {
     size_t offset = load_loop_blk * jcp.oc_block * sizeof(float);
     if (!is_out_layout_nxc(jcp)) {
-        offset *= jcp.with_dw_conv ? jcp.ow : jcp.os;
+        offset *= !ignore_dw_conv && jcp.with_dw_conv ? jcp.ow : jcp.os;
     }
     return offset;
 }

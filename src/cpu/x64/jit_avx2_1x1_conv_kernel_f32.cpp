@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 * Copyright 2018 YANDEX LLC
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -163,7 +163,7 @@ void jit_avx2_1x1_conv_kernel_f32::apply_postops(
             iterate(load_loop_blk, ur, load_dim_tail,
                     [&](const bool mask_flag, const int i, const int j) {
                         const size_t aux_output_offset
-                                = (i * get_output_i_offset(jcp)
+                                = (i * get_output_i_offset(jcp, true)
                                           + j * get_output_j_offset(jcp))
                                 * sizeof(float);
                         const auto vmm_idx
@@ -181,9 +181,14 @@ void jit_avx2_1x1_conv_kernel_f32::apply_postops(
             rhs_arg_params.vmm_tail_idx_.clear();
 
             const injector_utils::register_preserve_guard_t register_guard(
-                    this, {abi_param1});
+                    this, {abi_param1, aux_reg_output_data});
             const size_t reg_guard_stack_occupied
                     = register_guard.stack_space_occupied();
+            if (jcp.with_dw_conv) {
+                add(aux_reg_output_data,
+                        ptr[rsp + reg_dw_binary_output_off
+                                + reg_guard_stack_occupied]);
+            }
             mov(abi_param1,
                     ptr[rsp + reg_abi_param1_backup
                             + reg_guard_stack_occupied]);
@@ -569,6 +574,8 @@ void jit_avx2_1x1_conv_kernel_f32::generate() {
         xor_(zeroed_reg, zeroed_reg);
         mov(ptr[rsp + reg_binary_post_op_acc_off], zeroed_reg);
         mov(ptr[rsp + reg_abi_param1_backup], abi_param1);
+        if (jcp.with_dw_conv)
+            mov(ptr[rsp + reg_dw_binary_output_off], zeroed_reg);
     }
 
     mov(reg_bcast_data, ptr[param1 + GET_OFF(bcast_data)]);
@@ -593,20 +600,30 @@ void jit_avx2_1x1_conv_kernel_f32::generate() {
     auto generate_load_loop_body = [=](int load_loop_blk) {
         generate_bcast_loop(load_loop_blk);
         add(reg_load_data, load_loop_blk * jcp.load_loop_load_step);
+        const size_t offst_with_dw_conv
+                = get_load_loop_output_fwd_offset(jcp, load_loop_blk);
+        const size_t offst_wo_dw_conv
+                = get_load_loop_output_fwd_offset(jcp, load_loop_blk, true);
         switch (jcp.prop_kind) {
             case forward_training:
             case forward_inference:
                 add(reg_bias_data,
                         load_loop_blk * jcp.oc_block * sizeof(float));
-                safe_add(reg_output_data,
-                        get_load_loop_output_fwd_offset(jcp, load_loop_blk),
-                        reg_long_offt);
+                safe_add(reg_output_data, offst_with_dw_conv, reg_long_offt);
                 if (jcp.with_binary) {
                     mov(aux_reg_load_data,
                             ptr[rsp + reg_binary_post_op_acc_off]);
                     add(aux_reg_load_data, jcp.load_block * load_loop_blk);
                     mov(ptr[rsp + reg_binary_post_op_acc_off],
                             aux_reg_load_data);
+                    if (jcp.with_dw_conv) {
+                        mov(aux_reg_load_data,
+                                ptr[rsp + reg_dw_binary_output_off]);
+                        add(aux_reg_load_data,
+                                offst_wo_dw_conv - offst_with_dw_conv);
+                        mov(ptr[rsp + reg_dw_binary_output_off],
+                                aux_reg_load_data);
+                    }
                 }
                 break;
             case backward_data:

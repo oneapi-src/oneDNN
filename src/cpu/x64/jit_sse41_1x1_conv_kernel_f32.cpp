@@ -112,8 +112,9 @@ void jit_sse41_1x1_conv_kernel_f32::generate_bcast_loop(int load_loop_blk) {
 }
 
 size_t jit_sse41_1x1_conv_kernel_f32::get_fwd_output_ptr_l_off(
-        int i, int j, int n) const {
-    return i * get_output_i_offset(jcp) + j * get_output_j_offset(jcp) + n * 4;
+        int i, int j, int n, bool ignore_dw_conv = false) const {
+    return i * get_output_i_offset(jcp, ignore_dw_conv)
+            + j * get_output_j_offset(jcp) + n * 4;
 }
 
 static int reg_accum_idx(
@@ -136,7 +137,7 @@ void jit_sse41_1x1_conv_kernel_f32::apply_postops(
         iterate(load_loop_blk, ur, [&](const int i, const int j, const int n) {
             const bool mask_flag = (2 * i + n) == load_loop_blk - 1;
             const size_t aux_output_offset
-                    = get_fwd_output_ptr_l_off(i, j, n) * sizeof(float);
+                    = get_fwd_output_ptr_l_off(i, j, n, true) * sizeof(float);
             const auto vmm_idx = reg_accum_idx(load_loop_blk, i, j, n);
             vmm_idxs.emplace(vmm_idx);
 
@@ -147,9 +148,14 @@ void jit_sse41_1x1_conv_kernel_f32::apply_postops(
             if (mask_flag) rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
         });
         const injector_utils::register_preserve_guard_t register_guard(
-                this, {abi_param1});
+                this, {abi_param1, aux_reg_output_data});
         const size_t reg_guard_stack_occupied
                 = register_guard.stack_space_occupied();
+        if (jcp.with_dw_conv) {
+            add(aux_reg_output_data,
+                    ptr[rsp + reg_dw_binary_output_off
+                            + reg_guard_stack_occupied]);
+        }
         mov(abi_param1,
                 ptr[rsp + reg_abi_param1_backup + reg_guard_stack_occupied]);
 
@@ -434,6 +440,8 @@ void jit_sse41_1x1_conv_kernel_f32::generate() {
         const auto zeroed_reg = r15;
         xor_(zeroed_reg, zeroed_reg);
         mov(ptr[rsp + reg_binary_post_op_acc_off], zeroed_reg);
+        if (jcp.with_dw_conv)
+            mov(ptr[rsp + reg_dw_binary_output_off], zeroed_reg);
     }
 
     mov(reg_bcast_data, ptr[param1 + GET_OFF(bcast_data)]);
@@ -455,6 +463,10 @@ void jit_sse41_1x1_conv_kernel_f32::generate() {
         mov(reg_output_stride, ptr[param1 + GET_OFF(output_stride)]);
 
     auto generate_load_loop_body = [=](int load_loop_blk) {
+        const size_t offst_with_dw_conv
+                = get_load_loop_output_fwd_offset(jcp, load_loop_blk);
+        const size_t offst_wo_dw_conv
+                = get_load_loop_output_fwd_offset(jcp, load_loop_blk, true);
         generate_bcast_loop(load_loop_blk);
         add(reg_load_data, load_loop_blk * jcp.load_loop_load_step);
         switch (jcp.prop_kind) {
@@ -462,8 +474,7 @@ void jit_sse41_1x1_conv_kernel_f32::generate() {
             case forward_inference:
                 add(reg_bias_data,
                         load_loop_blk * jcp.oc_block * sizeof(float));
-                add(reg_output_data,
-                        get_load_loop_output_fwd_offset(jcp, load_loop_blk));
+                add(reg_output_data, offst_with_dw_conv);
                 if (jcp.with_binary) {
                     mov(aux_reg_load_data,
                             EVEX_compress_addr(
@@ -471,6 +482,14 @@ void jit_sse41_1x1_conv_kernel_f32::generate() {
                     add(aux_reg_load_data, jcp.load_block * load_loop_blk);
                     mov(EVEX_compress_addr(rsp, reg_binary_post_op_acc_off),
                             aux_reg_load_data);
+                    if (jcp.with_dw_conv) {
+                        mov(aux_reg_load_data,
+                                ptr[rsp + reg_dw_binary_output_off]);
+                        add(aux_reg_load_data,
+                                offst_wo_dw_conv - offst_with_dw_conv);
+                        mov(ptr[rsp + reg_dw_binary_output_off],
+                                aux_reg_load_data);
+                    }
                 }
                 break;
             case backward_data:

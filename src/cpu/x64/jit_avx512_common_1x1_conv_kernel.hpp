@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,16 +85,18 @@ private:
     constexpr static int reg_binary_post_op_acc_off = 1 * reg64_size_;
     constexpr static int reg_abi_param1_backup = 2 * reg64_size_;
     constexpr static int reg_bcast_data_off = 3 * reg64_size_;
-    constexpr static int stack_space_needed = 4 * reg64_size_;
+    constexpr static int reg_dw_binary_output_off = 4 * reg64_size_;
+    constexpr static int stack_space_needed = 5 * reg64_size_;
 
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
 
-    inline size_t get_output_offset(
-            const bool is_out_layout_nxc, const int i_load, const int i_ur) {
+    inline size_t get_output_offset(const bool is_out_layout_nxc,
+            const int i_load, const int i_ur, bool ignore_dw_conv = false) {
         const size_t i_load_shift = is_out_layout_nxc
                 ? jcp.load_block
-                : (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim) * jcp.load_block;
+                : (!ignore_dw_conv && jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim)
+                        * jcp.load_block;
         const size_t i_ur_shift
                 = is_out_layout_nxc ? jcp.load_dim : jcp.load_block;
         return jcp.typesize_out * (i_load * i_load_shift + i_ur * i_ur_shift);

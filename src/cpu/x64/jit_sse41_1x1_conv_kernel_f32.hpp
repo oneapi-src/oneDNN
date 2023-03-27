@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,7 +72,8 @@ private:
     constexpr static int reg_diff_bias_data_stack_offt = 0;
     constexpr static int reg_binary_post_op_acc_off = 1 * reg64_size_;
     constexpr static int reg_abi_param1_backup = 2 * reg64_size_;
-    constexpr static int stack_space_needed = 3 * reg64_size_;
+    constexpr static int reg_dw_binary_output_off = 3 * reg64_size_;
+    constexpr static int stack_space_needed = 4 * reg64_size_;
 
     xmm_t reg_bcast = xmm_t(15);
 
@@ -86,7 +87,8 @@ private:
     void generate() override;
 
     void apply_postops(const int load_loop_blk, const int ur);
-    size_t get_fwd_output_ptr_l_off(int i, int j, int n) const;
+    size_t get_fwd_output_ptr_l_off(
+            int i, int j, int n, bool ignore_dw_conv) const;
 };
 
 } // namespace x64

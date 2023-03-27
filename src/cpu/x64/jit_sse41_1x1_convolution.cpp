@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -69,8 +69,9 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
         const void *post_ops_binary_rhs_arg_vec_dw) const {
 
     const memory_desc_wrapper src_d(pd()->src_md());
-    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const memory_desc_wrapper dst_d(pd()->dst_1x1_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
+    const memory_desc_wrapper dw_dst_d(pd()->dst_md());
     const memory_desc_wrapper dw_weights_d(
             pd()->arg_md(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS));
     const memory_desc_wrapper dw_bias_d(
@@ -146,10 +147,10 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
         const size_t _icb = g * nb_ic + icb;
 
         const int oc_off_idx = (is_dst_layout_nxc ? jcp.oc_block : 1) * _ocb;
-
+        const size_t dst_off = data_blk_off(dst_d, n, oc_off_idx, oh, ow);
         par_conv.output_data = jcp.with_dw_conv
                 ? pbuf + (oh % pd()->dw_conv_pd_->jcp_.kh) * row_offset
-                : &dst[data_blk_off(dst_d, n, oc_off_idx, oh, ow)];
+                : &dst[dst_off];
 
         par_conv.bias_data = &bias[_ocb * jcp.oc_block];
 
@@ -170,7 +171,8 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
 
         par_conv.oc_l_off = _ocb * jcp.oc_block;
         par_conv.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
-        par_conv.dst_orig = jcp.with_dw_conv ? pbuf : dst;
+        par_conv.dst_orig
+                = static_cast<const float *>(par_conv.output_data) - dst_off;
 
         (*kernel_)(&par_conv);
     };
@@ -232,9 +234,9 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
 
             const size_t ch_step = is_dst_layout_nxc
                     ? jcp_dw.ch_block
-                    : dst_d.blk_off(0, 1, 0, 0);
+                    : dw_dst_d.blk_off(0, 1, 0, 0);
             par_conv_dw.dst
-                    = &dst[dst_d.blk_off(n, 0, dw_oh, ow) + ch * ch_step];
+                    = &dst[dw_dst_d.blk_off(n, 0, dw_oh, ow) + ch * ch_step];
             par_conv_dw.filt
                     = &weights_dw[dw_weights_d.blk_off(ch, 0, 0, kh, kw)];
             if (bias)

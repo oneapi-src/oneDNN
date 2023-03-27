@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -83,7 +83,8 @@ private:
     constexpr static int reg_binary_post_op_acc_off = 1 * reg64_size_;
     constexpr static int reg_abi_param1_backup = 2 * reg64_size_;
     constexpr static int reg_bcast_data_off = 3 * reg64_size_;
-    constexpr static int stack_space_needed = 4 * reg64_size_;
+    constexpr static int reg_dw_binary_output_off = 4 * reg64_size_;
+    constexpr static int stack_space_needed = 5 * reg64_size_;
 
     ymm_t vreg_bcast = ymm_t(15);
     ymm_t vtmp = ymm_t(14);

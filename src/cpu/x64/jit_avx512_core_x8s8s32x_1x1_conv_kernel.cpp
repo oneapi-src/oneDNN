@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -241,9 +241,8 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::apply_postops(
             iterate(load_loop_blk, ur, mask_tail, oc_blk_is_smaller_than_vmm,
                     [&](const bool mask_flag, const int i_load,
                             const int i_ur) {
-                        const int ur_stride = jcp.with_dw_conv
-                                ? jcp.nb_load_blocking * jcp.oc_block * i_ur
-                                : jcp.oc_without_padding * jcp.ngroups * i_ur;
+                        const int ur_stride
+                                = jcp.oc_without_padding * jcp.ngroups * i_ur;
                         const size_t aux_output_l_off = jcp.typesize_out
                                 * (ur_stride + i_load * jcp.load_block);
                         const auto vmm_idx
