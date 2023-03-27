@@ -31,6 +31,7 @@
 #include <ops/fusible/ternary_elemwise.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <runtime/dynamic_dispatch/hash_dispatch_table.hpp>
+#include <unordered_set>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 
@@ -42,6 +43,9 @@ void initialize_format_table_with_op(
         const sc_op_ptr &op, op_dispatch_tables_ptr &tb) {
     uint32_t inp_size = op->get_inputs().size();
     auto dispatch_keys = op->get_dispatch_key_set();
+    // allow empty format table query. It means format has been set with initial
+    // values during graph lowering.
+    if (dispatch_keys->size() <= 1) { return; }
     if (op->isa<tunable_op_t>()) {
         auto set_format_by_keys
                 = [&](const op_dispatch_key_base_t *dispatch_key) {
@@ -100,6 +104,20 @@ void initialize_impl_kind_table_with_op(const context_ptr &ctx,
             tun_op->get_dynamic_config_candidates(ctx));
 }
 
+void initialize_op_info_with_op(
+        const sc_op_ptr &op, op_dispatch_tables_ptr &tb) {
+    tb->op_info_ = op->get_dynamic_runtime_info();
+}
+
+void initialize_dispatch_table_with_op(const context_ptr &ctx,
+        const sc_op_ptr &op, op_dispatch_tables_ptr &tb) {
+    initialize_format_table_with_op(op, tb);
+    if (op->isa<tunable_op_t>()) {
+        initialize_impl_kind_table_with_op(ctx, op, tb);
+    }
+    initialize_op_info_with_op(op, tb);
+}
+
 void add_dispatch_symbol_to_kernel_table(op_dispatch_tables_ptr &tb,
         const op_dispatch_key_base_t *key,
         op_dispatch_tables_t::op_func_info &&value) {
@@ -108,10 +126,35 @@ void add_dispatch_symbol_to_kernel_table(op_dispatch_tables_ptr &tb,
     tb->kernel_table_.insert(std::make_pair(runtime_keys, std::move(value)));
 }
 
-bool can_op_be_dispatched(const sc_op_ptr &op) {
+bool is_internal_op(const sc_op_ptr &op) {
     return op->op_name_ != "input" && op->op_name_ != "output"
-            && op->op_name_ != "constant" && op->get_owner_graph().is_dynamic()
+            && op->op_name_ != "constant";
+}
+
+bool can_op_be_dispatched(const sc_op_ptr &op) {
+    return is_internal_op(op) && op->get_owner_graph().is_dynamic()
             && op->get_dispatch_key_set()->size() > 1;
+}
+
+bool can_op_query_output(const sc_op_ptr &op) {
+    if (!is_internal_op(op)) { return false; }
+    if (op->op_name_ == "dynamic_reshape") { return false; }
+    std::unordered_set<sc_dim> set;
+    for (auto &in : op->get_inputs()) {
+        for (auto &d : in->details_.get_plain_dims()) {
+            if (is_dynamic_dim(d)) { set.insert(d); }
+        }
+    }
+    for (auto &out : op->get_outputs()) {
+        for (auto &d : out->details_.get_plain_dims()) {
+            if (is_dynamic_dim(d) && set.find(d) == set.end()) { return true; }
+        }
+    }
+    return false;
+}
+
+bool can_op_be_queried(const sc_op_ptr &op) {
+    return can_op_be_dispatched(op) || can_op_query_output(op);
 }
 
 std::vector<dispatch_set_ptr> get_dispatch_set_vec_from_ops(

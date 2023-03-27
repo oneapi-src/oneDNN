@@ -50,6 +50,9 @@ SC_API void query_format_reduce_op(void *table, void *out, void *in,
         uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel);
 SC_API void query_format_tensor_view_op(void *table, void *out, void *in,
         uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel);
+SC_API void query_format_dynamic_reshape_op(void *table, void *out, void *in1,
+        void *in2, uint64_t *out_fmt, uint64_t *in_fmt1, uint64_t *in_fmt2,
+        uint64_t *out_size, void *kernel);
 SC_API void query_format_select_op(void *table, void *out, void *in0, void *in1,
         void *in2, uint64_t *out_fmt, uint64_t *in0_fmt, uint64_t *in1_fmt,
         uint64_t *in2_fmt, uint64_t *out_size, void *kernel);

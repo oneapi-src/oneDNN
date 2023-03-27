@@ -44,6 +44,7 @@
 #include <compiler/ir/transform/tensor_inplace_info.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/reduce.hpp>
+#include <ops/fusible/ternary_elemwise.hpp>
 #include <ops/matmul_core.hpp>
 #include <ops/reshape.hpp>
 #include <runtime/config.hpp>
@@ -325,10 +326,11 @@ std::string get_tensor_name(graph_tensor *t, sc_op *linked_output) {
 expr call_op_dynamic_query_function(
         const sc_op_ptr &op, const std::vector<expr> &args) {
     if (op->isa<ops::matmul_core_op_t>()) {
-        assert(args.size() == 13);
+        assert(args.size() == 13 || args.size() == 14);
         return builtin::call_matmul_core_query_format(args[0], args[1], args[2],
                 args[3], args[4], args[5], args[6], args[7], args[8], args[9],
-                args[10], args[11], args[12]);
+                args[10], args[11], args[12],
+                args.size() == 13 ? get_ir_null() : args[13]);
     } else if (op->isa<unary_elementwise_op_t>()) {
         assert(args.size() == 7);
         return builtin::call_unary_fusible_op_query_format(
@@ -338,9 +340,10 @@ expr call_op_dynamic_query_function(
         return builtin::call_binary_fusible_op_query_format(args[0], args[1],
                 args[2], args[3], args[4], args[5], args[6], args[7], args[8]);
     } else if (op->isa<reorder_op_t>()) {
-        assert(args.size() == 7);
-        return builtin::call_reorder_op_query_format(
-                args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+        assert(args.size() == 7 || args.size() == 8);
+        return builtin::call_reorder_op_query_format(args[0], args[1], args[2],
+                args[3], args[4], args[5], args[6],
+                args.size() == 7 ? get_ir_null() : args[7]);
     } else if (op->isa<reduce_op_t>()) {
         assert(args.size() == 7);
         return builtin::call_reduce_op_query_format(
@@ -349,6 +352,11 @@ expr call_op_dynamic_query_function(
         assert(args.size() == 7);
         return builtin::call_tensor_view_op_query_format(
                 args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+    } else if (op->isa<select_op_t>()) {
+        assert(args.size() == 11);
+        return builtin::call_select_op_query_format(args[0], args[1], args[2],
+                args[3], args[4], args[5], args[6], args[7], args[8], args[9],
+                args[10]);
     } else {
         COMPILE_ASSERT(
                 false, "unsupported op query function: " << op->op_name_);
@@ -396,6 +404,7 @@ struct general_lower_params_t {
     int &tensor_counter;
     int &global_tensor_counter;
     bool is_graph_dynamic;
+    std::unordered_set<sc_dim> external_dyn_vars;
 };
 
 expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
@@ -459,19 +468,21 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
                 = std::string("buffer_") + std::to_string(itr->second.count_);
     }
     if (type == info_etype_t::real_tensor) {
-        bool multi_candidates = gp.is_graph_dynamic
-                && t->details_.get_format_candidates().size() > 1;
+        bool is_size_dynamic = !is_arg && gp.is_graph_dynamic
+                && (t->details_.get_format_candidates().size() > 1
+                        || can_op_query_output(
+                                t->producer_owner_->shared_from_this()));
         expr dyn_tsr_size;
-        if (multi_candidates) {
+        if (is_size_dynamic) {
             assert(itr->second.size_.defined());
             dyn_tsr_size = builder::make_indexing(itr->second.size_, {0});
             dyn_tsr_size->attr().set(attr_keys::no_index2var, true);
         }
 
-        dims = multi_candidates ? std::vector<expr> {dyn_tsr_size}
-                                : t->details_.get_blocking_dims_expr(gp.graph);
-        strides = multi_candidates ? std::vector<expr> {UINT64_C(1)}
-                                   : t->details_.get_strides_expr(gp.graph);
+        dims = is_size_dynamic ? std::vector<expr> {dyn_tsr_size}
+                               : t->details_.get_blocking_dims_expr(gp.graph);
+        strides = is_size_dynamic ? std::vector<expr> {UINT64_C(1)}
+                                  : t->details_.get_strides_expr(gp.graph);
         tsr_dtype = t->details_.dtype_;
         tsr = builder::make_stensor(tensor_name, dims, strides, tsr_dtype);
         tsr->attr()[attr_keys::plain_dims]
@@ -609,13 +620,18 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
                             builder::make_constant({etype}, datatypes::u32),
                             dyn_tsr_struct_t::name,
                             dyn_tsr_struct_t::fields::dtype)));
-            auto plain_shapes
-                    = gp.graph.dims_to_expr(t->details_.get_plain_dims());
+            auto plain_shapes_int = t->details_.get_plain_dims();
+            auto plain_shapes = gp.graph.dims_to_expr(plain_shapes_int);
             uint64_t dyn_mask_int = 0;
             for (size_t i = 0; i < plain_shapes.size(); i++) {
-                gp.func_body->seq_.emplace_back(builder::make_assign_unattached(
-                        builder::make_indexing(shape_tsr, {i}),
-                        plain_shapes[i]));
+                if (!is_dynamic_dim(plain_shapes_int[i])
+                        || gp.external_dyn_vars.find(plain_shapes_int[i])
+                                != gp.external_dyn_vars.end()) {
+                    gp.func_body->seq_.emplace_back(
+                            builder::make_assign_unattached(
+                                    builder::make_indexing(shape_tsr, {i}),
+                                    plain_shapes[i]));
+                }
                 dyn_mask_int |= ((!plain_shapes[i].isa<constant>()) << i);
             }
             gp.func_body->seq_.emplace_back(builder::make_evaluate_unattached(
@@ -650,7 +666,7 @@ expr create_op_query_func(const context_ptr &ctx, general_lower_params_t &gp,
         std::vector<expr> &op_dispatch_kernel, const sc_op_ptr &node) {
     std::vector<expr> plhd_ins, fmt_ins;
     std::vector<expr> plhd_outs, fmt_outs, size_outs;
-    bool need_dispatch = can_op_be_dispatched(node);
+    bool need_dispatch = can_op_be_queried(node);
     // current input
     for (auto &ltensor : node->get_inputs()) {
         auto const_type = ltensor->producer_owner_->attrs_.get_or_else(
@@ -792,10 +808,7 @@ expr create_op_query_func(const context_ptr &ctx, general_lower_params_t &gp,
         } else {
             auto table_ptr = std::make_shared<op_dispatch_tables_t>();
             gp.ret_mod->add_op_table(std::make_pair(table_name, table_ptr));
-            initialize_format_table_with_op(node, table_ptr);
-            if (node->isa<tunable_op_t>()) {
-                initialize_impl_kind_table_with_op(ctx, node, table_ptr);
-            }
+            initialize_dispatch_table_with_op(ctx, node, table_ptr);
             query_call = call_op_dynamic_query_function(node, query_func_args);
         }
         stmts_node_t *target_body = gp.func_body.get();
@@ -1097,6 +1110,9 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     // tsr_info_t include dynamic placeholder(dynamic tensor with empty
     // datapointer) and runtime format.
     std::unordered_map<graph_tensor_ptr, tsr_info_t> ltsr_rtsr;
+    // external dyn vars set.
+    std::unordered_set<sc_dim> external_dyn_vars
+            = graph.get_external_dynamic_vars();
     // function pointer
     std::vector<expr> op_dispatch_kernel(graph.ops_.size());
     int tensor_counter = 0;
@@ -1110,7 +1126,8 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     bool is_graph_dynamic = graph.is_dynamic()
             && !graph.attrs_.get_or_else("temp.force_static", false);
     general_lower_params_t gp {ret_mod, ltsr_rtsr, graph, func_body, init_body,
-            tensor_counter, global_tensor_counter, is_graph_dynamic};
+            tensor_counter, global_tensor_counter, is_graph_dynamic,
+            external_dyn_vars};
     // the set of dynamic var defined in func body.(dynamic reshape)
     std::unordered_set<expr> dyn_var_set;
     // record the node, index is op id.
@@ -1141,7 +1158,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
 
         // if the node is reorder or has tail reorder in its internal graph,
         // query its uses op first.
-        if (is_graph_dynamic && can_op_be_dispatched(node)) {
+        if (is_graph_dynamic && can_op_be_queried(node)) {
             auto create_op_query_func_wrapper = std::bind(create_op_query_func,
                     ctx, std::ref(gp), std::ref(op_dispatch_kernel),
                     std::placeholders::_1);

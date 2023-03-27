@@ -47,8 +47,9 @@ extern "C" void query_combined_fused_op(void *table, uint64_t **combined_keys,
     for (int i = 0; !stop && i < op_num; i++) {
         for (int k = 0; k < each_op_num_key[i]; k++) {
             // currently use number == 2 to judge if it is a reorder.
-            if (each_op_num_key[i] == 2
-                    && combined_algs[i] == impl_kind_t::normal) {
+            if (!combined_algs
+                    || (each_op_num_key[i] == 2
+                            && combined_algs[i] == impl_kind_t::normal)) {
                 linked_reorder_impl = impl_kind_t::normal;
                 stop = true;
                 break;
@@ -72,10 +73,12 @@ extern "C" void query_combined_fused_op(void *table, uint64_t **combined_keys,
     runtime::op_dispatch_tables_t *op_table
             = reinterpret_cast<runtime::op_dispatch_tables_t *>(table);
     auto &kernel_table = op_table->kernel_table_;
-    void *func = runtime::run_query_and_wait(op_table->kernel_dispatch_func_,
-            kernel_table.get(), reinterpret_cast<uint64_t *>(final_query_keys),
-            total_key_num);
-    *reinterpret_cast<void **>(kernel) = func;
+    if (kernel_table) {
+        void *func = runtime::run_query_and_wait(
+                op_table->kernel_dispatch_func_, kernel_table.get(),
+                reinterpret_cast<uint64_t *>(final_query_keys), total_key_num);
+        *reinterpret_cast<void **>(kernel) = func;
+    }
     // reset blocks and impl
     for (int i = 0; i < total_key_num; i++) {
         combined_dispatch_keys[i]->reset_blocks_and_impl();

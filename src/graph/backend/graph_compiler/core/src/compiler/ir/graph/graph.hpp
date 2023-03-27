@@ -25,6 +25,7 @@
 #include <compiler/config/context.hpp>
 #include <compiler/ir/ir_module.hpp>
 #include <unordered_map>
+#include <unordered_set>
 #include <util/any_map.hpp>
 #include <util/utils.hpp>
 
@@ -40,7 +41,8 @@ namespace gc {
 namespace reflection {
 template <typename T, typename Dummy>
 struct type_registry;
-}
+struct shared_general_object_t;
+} // namespace reflection
 
 struct graph_tensor;
 class sc_op;
@@ -387,6 +389,7 @@ public:
     // int(not enum) because different ops have different impl algs.
     virtual std::vector<int> get_impl_dispatch_candidates(
             const context_ptr &ctx);
+    virtual reflection::shared_general_object_t get_dynamic_runtime_info();
 };
 
 inline sc_op_weak_ptr_t &sc_op_weak_ptr_t::operator=(sc_op *other) {
@@ -486,6 +489,8 @@ public:
     void sync_dynamic_info_with_graph(const sc_graph_t &other) {
         dyn_info_ = other.dyn_info_;
     }
+    // Get external dynamic vars existed in inputs/outputs.
+    std::unordered_set<sc_dim> get_external_dynamic_vars();
     // output op
     std::shared_ptr<sc_op> make_output(
             const std::vector<graph_tensor_ptr> &inputs,

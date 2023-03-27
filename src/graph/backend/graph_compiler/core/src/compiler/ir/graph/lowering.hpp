@@ -29,6 +29,9 @@ namespace graph {
 std::string get_tensor_name(graph_tensor *t, sc_op *linked_output);
 }
 
+expr call_op_dynamic_query_function(
+        const sc_op_ptr &op, const std::vector<expr> &args);
+
 struct tsr_info_t {
     expr tensor_;
     expr placeholder_;

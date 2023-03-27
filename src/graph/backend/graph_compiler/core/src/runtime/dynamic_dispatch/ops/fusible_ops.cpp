@@ -103,9 +103,11 @@ extern "C" void query_format_unary_fusible_op(void *table, void *out, void *in,
             = reinterpret_cast<runtime::op_dispatch_tables_t *>(table);
     // query format
     auto &format_table = op_table->format_table_;
-    void *value = format_table->get(in_fmt, 1);
-    assert(value);
-    *out_fmt = reinterpret_cast<uint64_t *>(value)[1];
+    if (format_table) {
+        void *value = format_table->get(in_fmt, 1);
+        assert(value);
+        *out_fmt = reinterpret_cast<uint64_t *>(value)[1];
+    }
     // query kernel
     auto &kernel_table = op_table->kernel_table_;
     if (kernel_table) {
@@ -159,13 +161,14 @@ extern "C" void query_format_binary_fusible_op(void *table, void *out,
             = reinterpret_cast<runtime::op_dispatch_tables_t *>(table);
     // query format
     auto &format_table = op_table->format_table_;
-    assert(format_table);
-    uint64_t fmt_keys[2] = {*in0_fmt, *in1_fmt};
-    void *value = format_table->get(fmt_keys, 2);
-    assert(value);
-    *in0_fmt = reinterpret_cast<uint64_t *>(value)[0];
-    *in1_fmt = reinterpret_cast<uint64_t *>(value)[1];
-    *out_fmt = reinterpret_cast<uint64_t *>(value)[2];
+    if (format_table) {
+        uint64_t fmt_keys[2] = {*in0_fmt, *in1_fmt};
+        void *value = format_table->get(fmt_keys, 2);
+        assert(value);
+        *in0_fmt = reinterpret_cast<uint64_t *>(value)[0];
+        *in1_fmt = reinterpret_cast<uint64_t *>(value)[1];
+        *out_fmt = reinterpret_cast<uint64_t *>(value)[2];
+    }
     // query kernel
     auto &kernel_table = op_table->kernel_table_;
     if (kernel_table) {
@@ -250,10 +253,11 @@ extern "C" void query_format_reduce_op(void *table, void *out, void *in,
             = reinterpret_cast<runtime::op_dispatch_tables_t *>(table);
     // query format
     auto &format_table = op_table->format_table_;
-    assert(format_table);
-    void *value = format_table->get(in_fmt, 1);
-    assert(value);
-    *out_fmt = reinterpret_cast<uint64_t *>(value)[1];
+    if (format_table) {
+        void *value = format_table->get(in_fmt, 1);
+        assert(value);
+        *out_fmt = reinterpret_cast<uint64_t *>(value)[1];
+    }
     // query kernel
     auto &kernel_table = op_table->kernel_table_;
     // reset blocks for plain format
@@ -270,17 +274,18 @@ extern "C" void query_format_reduce_op(void *table, void *out, void *in,
     *out_size = runtime::calculate_blocking_dims(out_dyn_tsr, out_fmt);
 }
 
-extern "C" void query_format_tensor_view_op(
-        void *table, void *out, void *in, uint64_t *out_fmt, uint64_t *in_fmt) {
+extern "C" void query_format_tensor_view_op(void *table, void *out, void *in,
+        uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel) {
     // only query format for tensor view
     runtime::op_dispatch_tables_t *op_table
             = reinterpret_cast<runtime::op_dispatch_tables_t *>(table);
     // query format
     auto &format_table = op_table->format_table_;
-    assert(format_table);
-    void *value = format_table->get(in_fmt, 1);
-    assert(value);
-    *out_fmt = reinterpret_cast<uint64_t *>(value)[1];
+    if (format_table) {
+        void *value = format_table->get(in_fmt, 1);
+        assert(value);
+        *out_fmt = reinterpret_cast<uint64_t *>(value)[1];
+    }
     // query kernel
     auto &kernel_table = op_table->kernel_table_;
     assert(!kernel_table);

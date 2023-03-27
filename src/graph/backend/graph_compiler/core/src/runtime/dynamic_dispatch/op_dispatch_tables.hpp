@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 #include <unordered_map>
+#include <util/reflection.hpp>
 
 #include "dispatch_table.hpp"
 #include "hash_dispatch_table.hpp"
@@ -41,6 +42,7 @@ struct op_dispatch_tables_t {
     std::unique_ptr<dispatch_table_t> kernel_table_;
     // pointer to kernel dispatch function.
     dispatch_table_t::dispatch_func_t kernel_dispatch_func_ = nullptr;
+    reflection::shared_general_object_t op_info_;
     std::vector<std::shared_ptr<jit_module>> compiled_modules_;
     op_dispatch_tables_t() = default;
     virtual ~op_dispatch_tables_t();

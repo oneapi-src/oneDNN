@@ -31,6 +31,7 @@
 #include <compiler/ir/ir_utils.hpp>
 #include <compiler/ir/transform/dyn_tsr_transform.hpp>
 #include <compiler/ir/transform/simple_licm.hpp>
+#include <util/general_object.hpp>
 #include <util/hash_utils.hpp>
 
 namespace dnnl {
@@ -733,6 +734,33 @@ std::vector<sc_op_ptr> sc_graph_t::get_input_or_const_ops() const {
     return input_ops;
 }
 
+std::unordered_set<sc_dim> sc_graph_t::get_external_dynamic_vars() {
+    std::unordered_set<sc_dim> ext_vars;
+    auto extract_vars = [&ext_vars](const std::vector<sc_op_ptr> &ops) {
+        for (auto &op : ops) {
+            for (auto &ins : op->get_inputs()) {
+                for (auto &d : ins->details_.get_plain_dims()) {
+                    if (is_dynamic_dim(d)) { ext_vars.insert(d); }
+                }
+            }
+            for (auto &outs : op->get_outputs()) {
+                for (auto &d : outs->details_.get_plain_dims()) {
+                    if (is_dynamic_dim(d)) { ext_vars.insert(d); }
+                }
+            }
+        }
+    };
+    extract_vars(get_input_ops());
+    extract_vars(get_output_ops());
+    // dynamic reshape is also traited as external var.
+    std::vector<sc_op_ptr> dyn_reshapes;
+    for (auto &op : ops_) {
+        if (op->op_name_ == "dynamic_reshape") { dyn_reshapes.push_back(op); }
+    }
+    extract_vars(dyn_reshapes);
+    return ext_vars;
+}
+
 bool sc_op::compare_contents(const sc_op *other) const {
     if (op_name_ != other->op_name_) { return false; }
     int numattrs = 0, othernumattrs = 0;
@@ -797,6 +825,10 @@ float sc_op::get_gflop() {
 
 std::vector<int> sc_op::get_impl_dispatch_candidates(const context_ptr &ctx) {
     return {};
+}
+
+reflection::shared_general_object_t sc_op::get_dynamic_runtime_info() {
+    return reflection::shared_general_object_t();
 }
 
 namespace graph {

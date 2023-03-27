@@ -141,6 +141,7 @@ void jit_module::update_runtime_op_tables(const const_ir_module_ptr &ir_mod) {
         auto &compiler_format_table = kv.second->format_table_;
         auto &compiler_impl_kind_table = kv.second->impl_kind_table_;
         auto &compiler_kernel_table = kv.second->kernel_table_;
+        auto &compiler_op_info = kv.second->op_info_;
         runtime::op_dispatch_tables_ptr runtime_table
                 = utils::make_unique<runtime::op_dispatch_tables_t>();
         if (!compiler_format_table.empty()) {
@@ -206,6 +207,8 @@ void jit_module::update_runtime_op_tables(const const_ir_module_ptr &ir_mod) {
                                     kernel_kv.first.data())),
                     kernel_kv.first.size(), kernel_addr);
         }
+        // update op info
+        runtime_table->op_info_ = compiler_op_info;
         // update global table vars' pointer
         auto var_name = kv.first;
         void **value = reinterpret_cast<void **>(globals_.get(var_name));

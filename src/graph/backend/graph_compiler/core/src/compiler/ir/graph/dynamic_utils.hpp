@@ -25,6 +25,7 @@
 #include <compiler/dimensions.hpp>
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
 #include <util/def.hpp>
+#include <util/reflection.hpp>
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -92,6 +93,7 @@ struct op_dispatch_tables_t {
     // kernel table: in/out format keys => function symbol
     std::unordered_map<std::vector<runtime::dispatch_key>, op_func_info>
             kernel_table_;
+    reflection::shared_general_object_t op_info_;
 };
 
 using op_dispatch_tables_ptr = std::shared_ptr<op_dispatch_tables_t>;
@@ -102,10 +104,15 @@ void initialize_format_table_with_op(
         const std::shared_ptr<sc_op> &op, op_dispatch_tables_ptr &tb);
 void initialize_impl_kind_table_with_op(const std::shared_ptr<context_t> &ctx,
         const std::shared_ptr<sc_op> &op, op_dispatch_tables_ptr &tb);
+void initialize_dispatch_table_with_op(const std::shared_ptr<context_t> &ctx,
+        const std::shared_ptr<sc_op> &op, op_dispatch_tables_ptr &tb);
 void add_dispatch_symbol_to_kernel_table(op_dispatch_tables_ptr &tb,
         const op_dispatch_key_base_t *keys,
         op_dispatch_tables_t::op_func_info &&func_module);
+bool is_internal_op(const std::shared_ptr<sc_op> &op);
 bool can_op_be_dispatched(const std::shared_ptr<sc_op> &op);
+bool can_op_query_output(const std::shared_ptr<sc_op> &op);
+bool can_op_be_queried(const std::shared_ptr<sc_op> &op);
 std::vector<std::shared_ptr<dispatch_key_set_base_t>>
 get_dispatch_set_vec_from_ops(const std::vector<std::shared_ptr<sc_op>> &ops);
 

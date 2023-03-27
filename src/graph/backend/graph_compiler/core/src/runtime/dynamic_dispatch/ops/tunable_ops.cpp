@@ -132,7 +132,6 @@ extern "C" void query_format_matmul_core_op(void *table, void *out, void *data,
     K_blk = get_matmul_dyn_cfg_single(K);
     N_blk = get_matmul_dyn_cfg_single(N);
 
-    auto &format_table = op_table->format_table_;
     if (data_fmt_st->is_plain() || data_fmt_st->ndims() == data_ndims) {
         data_fmt_st->set_block1(M_blk);
         data_fmt_st->set_block2(K_blk);
@@ -142,8 +141,8 @@ extern "C" void query_format_matmul_core_op(void *table, void *out, void *data,
                     data_fmt_st->set(i, i);
                 }
             }
-            data_fmt_st->set(
-                    data_ndims, data_fmt_st->get(data_ndims - 2)); // M block
+            data_fmt_st->set(data_ndims,
+                    data_fmt_st->get(data_ndims - 2)); // M block
             data_fmt_st->set(data_ndims + 1,
                     data_fmt_st->get(data_ndims - 1)); // K block
             data_fmt_st->is_plain_ = 0;
@@ -179,11 +178,13 @@ extern "C" void query_format_matmul_core_op(void *table, void *out, void *data,
                 || (is_vnni && weight_fmt_st->ndims() == weight_ndims + 3));
         // reuse last blocking.
     }
-
-    uint64_t fmt_keys[2] = {cp_data_fmt, cp_weight_fmt};
-    void *value = format_table->get(fmt_keys, 2);
-    assert(value);
-    *out_fmt = reinterpret_cast<uint64_t *>(value)[0];
+    auto &format_table = op_table->format_table_;
+    if (format_table) {
+        uint64_t fmt_keys[2] = {cp_data_fmt, cp_weight_fmt};
+        void *value = format_table->get(fmt_keys, 2);
+        assert(value);
+        *out_fmt = reinterpret_cast<uint64_t *>(value)[0];
+    }
     // query kernel, need determine the impl alg first.
     uint64_t cp_out_fmt = *out_fmt;
     auto *out_fmt_st = reinterpret_cast<runtime::dispatch_key *>(&cp_out_fmt);

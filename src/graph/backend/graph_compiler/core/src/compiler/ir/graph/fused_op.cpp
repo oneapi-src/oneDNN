@@ -48,6 +48,7 @@
 #include <ops/fusible/shape_of_tensor.hpp>
 #include <ops/fusible/ternary_elemwise.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
+#include <ops/managed_matmul_core.hpp>
 #include <ops/matmul_core.hpp>
 #include <runtime/config.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
@@ -867,14 +868,18 @@ void declare_dummy_and_combined_tsrs(
     gp.exprs.dummy_size
             = builder::make_tensor("dummy_size", {1}, datatypes::index);
     bld.push_var_tensor_def(gp.exprs.dummy_size, linkage::local);
-    expr combined_keys = builder::make_tensor(
-            "combined_keys", {total_key_num}, datatypes::pointer);
-    expr combined_algs = builder::make_tensor(
-            "combined_algs", {dispatch_op_num}, datatypes::s32);
-    gp.exprs.combined_keys = combined_keys;
-    gp.exprs.combined_algs = combined_algs;
-    bld.push_var_tensor_def(combined_keys);
-    bld.push_var_tensor_def(combined_algs);
+    if (total_key_num) {
+        expr combined_keys = builder::make_tensor(
+                "combined_keys", {total_key_num}, datatypes::pointer);
+        gp.exprs.combined_keys = combined_keys;
+        bld.push_var_tensor_def(combined_keys);
+    }
+    if (dispatch_op_num) {
+        expr combined_algs = builder::make_tensor(
+                "combined_algs", {dispatch_op_num}, datatypes::s32);
+        gp.exprs.combined_algs = combined_algs;
+        bld.push_var_tensor_def(combined_algs);
+    }
 }
 
 void set_original_tensor_and_format_for_tunables(general_fused_params_t &gp,
@@ -921,6 +926,7 @@ void create_query_function_by_graph(general_fused_params_t &gp,
         }
         expr dummy_kernel = gp.exprs.dummy_kernel;
         expr dummy_size = gp.exprs.dummy_size;
+        auto ctx = gp.modu->ctx_;
         int main_idx = 0;
         size_t in_size = op->get_inputs().size();
         size_t out_size = op->get_outputs().size();
@@ -936,7 +942,8 @@ void create_query_function_by_graph(general_fused_params_t &gp,
         for (size_t i = 0; i < in_size; i++) {
             op_ins[i] = get_or_create_tsr_and_fmt(gp, op->get_inputs()[i]);
         }
-        if (op->isa<ops::matmul_core_op_t>()) {
+        if (op->isa<ops::matmul_core_op_t>()
+                || op->isa<ops::managed_matmul_core_op_t>()) {
             auto table_ptr = std::make_shared<op_dispatch_tables_t>();
             // create origin tsr and dispatch key for tunable ops
             expr ori_in0, ori_in1, ori_in_fmt0, ori_in_fmt1;
@@ -947,14 +954,13 @@ void create_query_function_by_graph(general_fused_params_t &gp,
             set_original_tensor_and_format_for_tunables(gp, node_before_in1,
                     ori_ins, ori_in_fmts, ori_in1, ori_in_fmt1);
             add_global_table_var(gp, table_name, table_ptr, table_var);
-            bld.push_evaluate(builtin::call_matmul_core_query_format(table_var,
-                    op_outs[0].tensor_, op_ins[0].tensor_, op_ins[1].tensor_,
-                    ori_in0, ori_in1, op_outs[0].format_, op_ins[0].format_,
-                    op_ins[1].format_, ori_in_fmt0, ori_in_fmt1,
-                    op_outs[0].size_, dummy_kernel,
-                    builder::tensor_ptr(combined_algs, {cur_combined_op_idx})));
-            initialize_format_table_with_op(op, table_ptr);
-            initialize_impl_kind_table_with_op(gp.modu->ctx_, op, table_ptr);
+            std::vector<expr> args = {table_var, op_outs[0].tensor_,
+                    op_ins[0].tensor_, op_ins[1].tensor_, ori_in0, ori_in1,
+                    op_outs[0].format_, op_ins[0].format_, op_ins[1].format_,
+                    ori_in_fmt0, ori_in_fmt1, op_outs[0].size_, dummy_kernel,
+                    builder::tensor_ptr(combined_algs, {cur_combined_op_idx})};
+            bld.push_evaluate(call_op_dynamic_query_function(op, args));
+            initialize_dispatch_table_with_op(ctx, op, table_ptr);
             // set combined tensor
             bld.push_assign(builder::make_indexing(
                                     combined_keys, {cur_combined_key_idx++}),
@@ -970,11 +976,11 @@ void create_query_function_by_graph(general_fused_params_t &gp,
         } else if (op->isa<unary_elementwise_op_impl_t>()) {
             if (need_inner_query(gp, op, main_idx)) {
                 add_global_table_var(gp, table_name, table_ptr, table_var);
-                initialize_format_table_with_op(op, table_ptr);
-                bld.push_evaluate(builtin::call_unary_fusible_op_query_format(
-                        table_var, op_outs[0].tensor_, op_ins[0].tensor_,
-                        op_outs[0].format_, op_ins[0].format_, op_outs[0].size_,
-                        dummy_kernel));
+                initialize_dispatch_table_with_op(ctx, op, table_ptr);
+                std::vector<expr> args = {table_var, op_outs[0].tensor_,
+                        op_ins[0].tensor_, op_outs[0].format_,
+                        op_ins[0].format_, op_outs[0].size_, dummy_kernel};
+                bld.push_evaluate(call_op_dynamic_query_function(op, args));
             } else {
                 auto &out = op->get_outputs()[0];
                 gp.ltsr_rtsr[out] = op_ins[main_idx];
@@ -982,12 +988,12 @@ void create_query_function_by_graph(general_fused_params_t &gp,
         } else if (op->isa<binary_elementwise_op_impl_t>()) {
             if (need_inner_query(gp, op, main_idx)) {
                 add_global_table_var(gp, table_name, table_ptr, table_var);
-                initialize_format_table_with_op(op, table_ptr);
-                bld.push_evaluate(builtin::call_binary_fusible_op_query_format(
-                        table_var, op_outs[0].tensor_, op_ins[0].tensor_,
-                        op_ins[1].tensor_, op_outs[0].format_,
-                        op_ins[0].format_, op_ins[1].format_, op_outs[0].size_,
-                        dummy_kernel));
+                initialize_dispatch_table_with_op(ctx, op, table_ptr);
+                std::vector<expr> args = {table_var, op_outs[0].tensor_,
+                        op_ins[0].tensor_, op_ins[1].tensor_,
+                        op_outs[0].format_, op_ins[0].format_,
+                        op_ins[1].format_, op_outs[0].size_, dummy_kernel};
+                bld.push_evaluate(call_op_dynamic_query_function(op, args));
             } else {
                 auto &out = op->get_outputs()[0];
                 gp.ltsr_rtsr[out] = op_ins[main_idx];
@@ -996,10 +1002,11 @@ void create_query_function_by_graph(general_fused_params_t &gp,
             // Currently reorder is the last op of fusion pattern, so always
             // query.
             add_global_table_var(gp, table_name, table_ptr, table_var);
-            bld.push_evaluate(builtin::call_reorder_op_query_format(table_var,
-                    op_outs[0].tensor_, op_ins[0].tensor_, op_outs[0].format_,
-                    op_ins[0].format_, op_outs[0].size_, dummy_kernel,
-                    builder::tensor_ptr(combined_algs, {cur_combined_op_idx})));
+            std::vector<expr> args = {table_var, op_outs[0].tensor_,
+                    op_ins[0].tensor_, op_outs[0].format_, op_ins[0].format_,
+                    op_outs[0].size_, dummy_kernel,
+                    builder::tensor_ptr(combined_algs, {cur_combined_op_idx})};
+            bld.push_evaluate(call_op_dynamic_query_function(op, args));
             // set combined key tensor
             bld.push_assign(builder::make_indexing(
                                     combined_keys, {cur_combined_key_idx++}),
@@ -1012,26 +1019,27 @@ void create_query_function_by_graph(general_fused_params_t &gp,
         } else if (op->isa<reduce_op_t>()) {
             // always query
             add_global_table_var(gp, table_name, table_ptr, table_var);
-            initialize_format_table_with_op(op, table_ptr);
-            bld.push_evaluate(builtin::call_reduce_op_query_format(table_var,
-                    op_outs[0].tensor_, op_ins[0].tensor_, op_outs[0].format_,
-                    op_ins[0].format_, op_outs[0].size_, dummy_kernel));
+            initialize_dispatch_table_with_op(ctx, op, table_ptr);
+            std::vector<expr> args = {table_var, op_outs[0].tensor_,
+                    op_ins[0].tensor_, op_outs[0].format_, op_ins[0].format_,
+                    op_outs[0].size_, dummy_kernel};
+            bld.push_evaluate(call_op_dynamic_query_function(op, args));
         } else if (op->isa<tensor_view_op_t>()) {
             // always query
             add_global_table_var(gp, table_name, table_ptr, table_var);
-            initialize_format_table_with_op(op, table_ptr);
-            bld.push_evaluate(builtin::call_tensor_view_op_query_format(
-                    table_var, op_outs[0].tensor_, op_ins[0].tensor_,
-                    op_outs[0].format_, op_ins[0].format_, op_outs[0].size_,
-                    dummy_kernel));
+            initialize_dispatch_table_with_op(ctx, op, table_ptr);
+            std::vector<expr> args = {table_var, op_outs[0].tensor_,
+                    op_ins[0].tensor_, op_outs[0].format_, op_ins[0].format_,
+                    op_outs[0].size_, dummy_kernel};
+            bld.push_evaluate(call_op_dynamic_query_function(op, args));
         } else if (op->isa<select_op_t>()) {
             add_global_table_var(gp, table_name, table_ptr, table_var);
-            initialize_format_table_with_op(op, table_ptr);
-            bld.push_evaluate(builtin::call_select_op_query_format(table_var,
-                    op_outs[0].tensor_, op_ins[0].tensor_, op_ins[1].tensor_,
-                    op_ins[2].tensor_, op_outs[0].format_, op_ins[0].format_,
-                    op_ins[1].format_, op_ins[2].format_, op_outs[0].size_,
-                    dummy_kernel));
+            initialize_dispatch_table_with_op(ctx, op, table_ptr);
+            std::vector<expr> args = {table_var, op_outs[0].tensor_,
+                    op_ins[0].tensor_, op_ins[1].tensor_, op_ins[2].tensor_,
+                    op_outs[0].format_, op_ins[0].format_, op_ins[1].format_,
+                    op_ins[2].format_, op_outs[0].size_, dummy_kernel};
+            bld.push_evaluate(call_op_dynamic_query_function(op, args));
         } else if (op->isa<shape_of_tensor_op_t>()) {
             // do nothing
         } else {
@@ -1059,8 +1067,9 @@ void create_query_function_by_graph(general_fused_params_t &gp,
             each_op_num_keys_tsr, linkage::private_global)
                                     .static_as<define>());
     bld.push_evaluate(builtin::call_fused_op_query_combined(main_table_var,
-            combined_keys, combined_algs, each_op_num_keys_tsr, dispatch_op_num,
-            kernel));
+            combined_keys.defined() ? combined_keys : get_ir_null(),
+            combined_algs.defined() ? combined_algs : get_ir_null(),
+            each_op_num_keys_tsr, dispatch_op_num, kernel));
 }
 
 ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {

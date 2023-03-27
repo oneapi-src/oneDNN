@@ -39,86 +39,6 @@ SC_DECL_PASS_INFO(dyn_tensor_transformer, SC_PASS_DEPENDS_ON(),
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
         SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 
-static expr create_dyn_tsr_from_tensor(
-        const expr &in, std::vector<stmt> &def_stmts) {
-    COMPILE_ASSERT(in.isa<tensor>() || in.isa<tensorptr>(),
-            "input should be a tensor or tensor ptr node.")
-    auto placeholder = in->attr().get_or_else("temp.dyn_placeholder", expr());
-    std::string name;
-    expr tsr;
-    if (in.isa<tensor>()) {
-        name = in.checked_as<tensor>()->name_;
-        tsr = in;
-    } else {
-        tsr = in;
-        while (tsr.isa<tensorptr>()) {
-            tsr = tsr.checked_as<tensorptr>()->base_->ptr_;
-        }
-        name = tsr.checked_as<tensor>()->name_ + "_tptr";
-    }
-    auto dyn_tsr = builder::make_tensor(std::string("dyn_") + name,
-            {sizeof(runtime::dynamic_tensor_t)}, datatypes::u8);
-    def_stmts.push_back(builder::make_var_tensor_def_unattached(dyn_tsr));
-
-    expr shape_tsr, dtype, dyn_mask, ndims;
-    if (placeholder.defined()
-            && placeholder->attr().has_key("temp.dyn_shape_of_placeholder")) {
-        shape_tsr = placeholder->attr().get<expr>(
-                "temp.dyn_shape_of_placeholder");
-        ndims = builder::make_read_struct(placeholder, dyn_tsr_struct_t::name,
-                dyn_tsr_struct_t::fields::ndims);
-        dtype = builder::make_read_struct(placeholder, dyn_tsr_struct_t::name,
-                dyn_tsr_struct_t::fields::dtype);
-        dyn_mask = builder::make_read_struct(placeholder,
-                dyn_tsr_struct_t::name, dyn_tsr_struct_t::fields::dyn_mask);
-    } else {
-        // should be in (tptr/tsr)
-        auto plain_dims
-                = in->attr_->get<std::vector<expr>>(attr_keys::plain_dims);
-        ndims = builder::make_constant({plain_dims.size()}, datatypes::s32);
-        shape_tsr = builder::make_tensor(std::string("dyn_shape_") + name,
-                {plain_dims.size()}, datatypes::index);
-        shape_tsr->attr().set(attr_keys::no_tensor2var, true);
-        shape_tsr->attr().set(attr_keys::no_dead_write, true);
-        int64_t etype = tsr->dtype_.is_etype_pointer()
-                ? tsr->dtype_.get_pointer_element().as_etype_int()
-                : tsr->dtype_.as_etype_int();
-        dtype = builder::make_constant({etype}, datatypes::u32);
-        dyn_mask = builder::make_var(
-                datatypes::u8, std::string("dyn_mask_") + name);
-        uint64_t dyn_mask_int = 0;
-        def_stmts.push_back(builder::make_var_tensor_def_unattached(shape_tsr));
-        for (size_t i = 0; i < plain_dims.size(); i++) {
-            def_stmts.push_back(builder::make_assign_unattached(
-                    builder::make_indexing(shape_tsr, i), plain_dims[i]));
-            dyn_mask_int
-                    |= static_cast<uint64_t>(plain_dims[i].isa<var>() << i);
-        }
-        def_stmts.push_back(builder::make_var_tensor_def_unattached(dyn_mask,
-                linkage::local,
-                builder::make_constant({dyn_mask_int}, datatypes::u8)));
-    }
-    def_stmts.push_back(
-            builder::make_evaluate_unattached(builder::make_write_struct(
-                    dyn_tsr, in.remove_const(), dyn_tsr_struct_t::name,
-                    dyn_tsr_struct_t::fields::data_ptr)));
-    def_stmts.push_back(
-            builder::make_evaluate_unattached(builder::make_write_struct(
-                    dyn_tsr, shape_tsr, dyn_tsr_struct_t::name,
-                    dyn_tsr_struct_t::fields::dim_ptr)));
-    def_stmts.push_back(builder::make_evaluate_unattached(
-            builder::make_write_struct(dyn_tsr, ndims, dyn_tsr_struct_t::name,
-                    dyn_tsr_struct_t::fields::ndims)));
-    def_stmts.push_back(builder::make_evaluate_unattached(
-            builder::make_write_struct(dyn_tsr, dtype, dyn_tsr_struct_t::name,
-                    dyn_tsr_struct_t::fields::dtype)));
-    def_stmts.push_back(
-            builder::make_evaluate_unattached(builder::make_write_struct(
-                    dyn_tsr, dyn_mask, dyn_tsr_struct_t::name,
-                    dyn_tsr_struct_t::fields::dyn_mask)));
-    return dyn_tsr;
-}
-
 class tensor_transform_impl_t : public ir_visitor_t {
 public:
     using ir_visitor_t::dispatch;
@@ -133,6 +53,96 @@ public:
     std::unordered_map<std::string, func_t> func_decl_replace_map_;
     // def stmts to insert before call node
     std::vector<stmt> def_stmts_;
+    expr create_dyn_tsr_from_tensor(
+            const expr &in, std::vector<stmt> &def_stmts) {
+        COMPILE_ASSERT(in.isa<tensor>() || in.isa<tensorptr>(),
+                "input should be a tensor or tensor ptr node.")
+        auto placeholder
+                = in->attr().get_or_else("temp.dyn_placeholder", expr());
+        std::string name;
+        expr tsr;
+        if (in.isa<tensor>()) {
+            name = in.checked_as<tensor>()->name_;
+            tsr = in;
+        } else {
+            tsr = in;
+            while (tsr.isa<tensorptr>()) {
+                tsr = tsr.checked_as<tensorptr>()->base_->ptr_;
+            }
+            name = tsr.checked_as<tensor>()->name_ + "_tptr";
+        }
+        auto dyn_tsr = builder::make_tensor(std::string("dyn_") + name,
+                {sizeof(runtime::dynamic_tensor_t)}, datatypes::u8);
+        def_stmts.push_back(builder::make_var_tensor_def_unattached(dyn_tsr));
+
+        expr shape_tsr, dtype, dyn_mask, ndims;
+        if (placeholder.defined()
+                && placeholder->attr().has_key(
+                        "temp.dyn_shape_of_placeholder")) {
+            shape_tsr = placeholder->attr().get<expr>(
+                    "temp.dyn_shape_of_placeholder");
+            ndims = builder::make_read_struct(placeholder,
+                    dyn_tsr_struct_t::name, dyn_tsr_struct_t::fields::ndims);
+            dtype = builder::make_read_struct(placeholder,
+                    dyn_tsr_struct_t::name, dyn_tsr_struct_t::fields::dtype);
+            dyn_mask = builder::make_read_struct(placeholder,
+                    dyn_tsr_struct_t::name, dyn_tsr_struct_t::fields::dyn_mask);
+        } else {
+            // should be in (tptr/tsr)
+            auto plain_dims
+                    = in->attr_->get<std::vector<expr>>(attr_keys::plain_dims);
+            ndims = builder::make_constant({plain_dims.size()}, datatypes::s32);
+            shape_tsr = builder::make_tensor(std::string("dyn_shape_") + name,
+                    {plain_dims.size()}, datatypes::index);
+            shape_tsr->attr().set(attr_keys::no_tensor2var, true);
+            shape_tsr->attr().set(attr_keys::no_dead_write, true);
+            int64_t etype = tsr->dtype_.is_etype_pointer()
+                    ? tsr->dtype_.get_pointer_element().as_etype_int()
+                    : tsr->dtype_.as_etype_int();
+            dtype = builder::make_constant({etype}, datatypes::u32);
+            dyn_mask = builder::make_var(
+                    datatypes::u8, std::string("dyn_mask_") + name);
+            uint64_t dyn_mask_int = 0;
+            def_stmts.push_back(
+                    builder::make_var_tensor_def_unattached(shape_tsr));
+            for (size_t i = 0; i < plain_dims.size(); i++) {
+                if (plain_dims[i].isa<constant>()
+                        || var_defined_in_func_.find(plain_dims[i])
+                                != var_defined_in_func_.end()) {
+                    def_stmts.push_back(builder::make_assign_unattached(
+                            builder::make_indexing(shape_tsr, i),
+                            plain_dims[i]));
+                }
+                dyn_mask_int |= static_cast<uint64_t>(
+                        (!plain_dims[i].isa<constant>()) << i);
+            }
+            def_stmts.push_back(builder::make_var_tensor_def_unattached(
+                    dyn_mask, linkage::local,
+                    builder::make_constant({dyn_mask_int}, datatypes::u8)));
+        }
+        def_stmts.push_back(
+                builder::make_evaluate_unattached(builder::make_write_struct(
+                        dyn_tsr, in.remove_const(), dyn_tsr_struct_t::name,
+                        dyn_tsr_struct_t::fields::data_ptr)));
+        def_stmts.push_back(
+                builder::make_evaluate_unattached(builder::make_write_struct(
+                        dyn_tsr, shape_tsr, dyn_tsr_struct_t::name,
+                        dyn_tsr_struct_t::fields::dim_ptr)));
+        def_stmts.push_back(
+                builder::make_evaluate_unattached(builder::make_write_struct(
+                        dyn_tsr, ndims, dyn_tsr_struct_t::name,
+                        dyn_tsr_struct_t::fields::ndims)));
+        def_stmts.push_back(
+                builder::make_evaluate_unattached(builder::make_write_struct(
+                        dyn_tsr, dtype, dyn_tsr_struct_t::name,
+                        dyn_tsr_struct_t::fields::dtype)));
+        def_stmts.push_back(
+                builder::make_evaluate_unattached(builder::make_write_struct(
+                        dyn_tsr, dyn_mask, dyn_tsr_struct_t::name,
+                        dyn_tsr_struct_t::fields::dyn_mask)));
+        return dyn_tsr;
+    }
+
     expr_c visit(intrin_call_c v) override {
         switch (v->type_) {
             case intrin_type::read_struct:
