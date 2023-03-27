@@ -1158,6 +1158,61 @@ TEST(GCCore_graph_mixed_partition_cpp, SplitOuterMostLoopWithTensorShrink) {
     EXPECT_TRUE(mm0_out->attr().has_key(tensor_shrinker_attrs::should_shrink));
 }
 
+TEST(GCCore_graph_mixed_partition_cpp, ParitialReduceMatmulTensorViewShrink) {
+    BUILTIN_REQUIRE_AVX512();
+    thread_num_reset reseter;
+    runtime_config_t::get().set_num_threads(16);
+    int M = 256, K = 256, N = 320;
+
+    sc_graph_t graph;
+    auto input = graph.make_input(
+            {graph_tensor::make({M, K}, sc_data_format_t(format_kinds::MK))});
+    auto weight = graph.make_input(
+            {graph_tensor::make({K, N}, sc_data_format_t(format_kinds::KN))});
+
+    // mmm + tensor_view + post_op
+    auto mmm = graph.make("managed_matmul_core",
+            {input->get_outputs()[0], weight->get_outputs()[0]}, {}, {});
+    auto tv = graph.make("tensor_view", {mmm->get_outputs()[0]},
+            {graph_tensor::make(sc_dims {1, M, N}, sc_data_format_t(),
+                    mmm->get_outputs()[0]->details_.dtype_)},
+            {{"shape", sc_dims {1, M, N}}, {"format", sc_data_format_t()}});
+    auto relu = graph.make("relu", {tv->get_outputs()[0]}, {}, {});
+    auto out = graph.make_output(relu->get_outputs());
+
+    ops::managed_matmul_core_config_t cfg = {1, 16, 1, 1, 4, 0};
+    for (auto &op : graph.ops_) {
+        if (op->op_name_ == "managed_matmul_core") {
+            auto matmul_op = op->dyn_cast<ops::managed_matmul_core_op_t>();
+            matmul_op->set_config(reflection::general_object_t::make(cfg));
+        }
+    }
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+
+    auto f1 = lower_graph(ctx, graph, {input, weight, out});
+    auto fptr1 = jit_engine_t::make(ctx)->get_entry_func(f1);
+
+    graph_driver(graph, ctx);
+
+    auto f2 = lower_graph(ctx, graph, {input, weight, out});
+    auto fptr2 = jit_engine_t::make(ctx)->get_entry_func(f2);
+
+    std::vector<float> input_data(M * K);
+    test_utils::fill_data(&input_data[0], M * K);
+    std::vector<float> weight_data(K * N);
+    test_utils::fill_data(&weight_data[0], K * N);
+
+    std::vector<float> ori_output_data(M * N);
+    fptr1->call_default(&input_data[0], &weight_data[0], &ori_output_data[0]);
+
+    std::vector<float> pass_output_data(M * N);
+    fptr2->call_default(&input_data[0], &weight_data[0], &pass_output_data[0]);
+
+    test_utils::compare_data(ori_output_data, pass_output_data, 1e-4, 1e-5);
+}
+
 TEST(GCCore_graph_mixed_partition_cpp, TestGraphVerticalMergeForImageAffine) {
     sc_graph_t graph;
 
