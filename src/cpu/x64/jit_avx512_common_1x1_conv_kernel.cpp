@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -173,16 +173,21 @@ void jit_avx512_common_1x1_conv_kernel::apply_postops(
     if (jcp.with_binary) {
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
         const auto mask_tail = jcp.oc_without_padding % jcp.load_block;
+        if (jcp.with_dw_conv) {
+            add(aux_reg_output_data,
+                    EVEX_compress_addr(rsp, reg_dw_binary_output_off));
+        }
         iterate(load_loop_blk, ur, mask_tail,
                 [&](const bool mask_flag, const int i_load, const int i_ur) {
                     const auto vmm_idx
                             = vreg_accum_idx(load_loop_blk, i_load, i_ur);
                     vmm_idxs.emplace(vmm_idx);
-
+                    const dim_t oft = get_output_offset(
+                            is_out_layout_nxc, i_load, i_ur, true);
                     rhs_arg_params.vmm_idx_to_out_reg.emplace(
                             vmm_idx, aux_reg_output_data);
-                    rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(vmm_idx,
-                            get_output_offset(is_out_layout_nxc, i_load, i_ur));
+                    rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                            vmm_idx, oft);
                     if (mask_flag)
                         rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
                 });
@@ -190,6 +195,10 @@ void jit_avx512_common_1x1_conv_kernel::apply_postops(
         mov(abi_param1, ptr[rsp + reg_abi_param1_backup]);
 
         postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
+        if (jcp.with_dw_conv) {
+            sub(aux_reg_output_data,
+                    EVEX_compress_addr(rsp, reg_dw_binary_output_off));
+        }
     } else {
         iterate(load_loop_blk, ur,
                 [&](const bool, const int i_load, const int i_ur) {
@@ -405,6 +414,8 @@ void jit_avx512_common_1x1_conv_kernel::generate() {
         xor_(zeroed_reg, zeroed_reg);
         mov(EVEX_compress_addr(rsp, reg_binary_post_op_acc_off), zeroed_reg);
         mov(EVEX_compress_addr(rsp, reg_abi_param1_backup), param1);
+        if (jcp.with_dw_conv)
+            mov(EVEX_compress_addr(rsp, reg_dw_binary_output_off), zeroed_reg);
     }
 
     mov(reg_bcast_data, ptr[param1 + GET_OFF(bcast_data)]);
@@ -445,19 +456,21 @@ void jit_avx512_common_1x1_conv_kernel::generate() {
         }
         bcast_loop(load_loop_blk);
         add(reg_load_data, load_loop_blk * jcp.load_loop_load_step);
+        const size_t offst_with_dw_conv = load_loop_blk * jcp.load_block
+                * jcp.typesize_out
+                * (is_out_layout_nxc(jcp)
+                                ? 1
+                                : (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim));
+        const size_t offst_wo_dw_conv = load_loop_blk * jcp.load_block
+                * jcp.typesize_out
+                * (is_out_layout_nxc(jcp) ? 1 : jcp.bcast_dim);
         switch (jcp.prop_kind) {
             case forward_training:
             case forward_inference:
                 add(reg_bias_data,
                         load_loop_blk * jcp.load_block * jcp.typesize_out);
-                safe_add(reg_output_data,
-                        load_loop_blk * jcp.load_block * jcp.typesize_out
-                                * (is_out_layout_nxc(jcp)
-                                                ? 1
-                                                : (jcp.with_dw_conv
-                                                                ? jcp.ow
-                                                                : jcp.bcast_dim)),
-                        reg_long_offt);
+                safe_add(reg_output_data, offst_with_dw_conv, reg_long_offt);
+
                 if (jcp.with_binary) {
                     const auto oc_off_oprnd = aux_reg_load_data;
                     mov(oc_off_oprnd,
@@ -466,6 +479,15 @@ void jit_avx512_common_1x1_conv_kernel::generate() {
                     add(oc_off_oprnd, jcp.load_block * load_loop_blk);
                     mov(EVEX_compress_addr(rsp, reg_binary_post_op_acc_off),
                             oc_off_oprnd);
+                    if (jcp.with_dw_conv) {
+                        mov(oc_off_oprnd,
+                                EVEX_compress_addr(
+                                        rsp, reg_dw_binary_output_off));
+                        add(oc_off_oprnd,
+                                offst_wo_dw_conv - offst_with_dw_conv);
+                        mov(EVEX_compress_addr(rsp, reg_dw_binary_output_off),
+                                oc_off_oprnd);
+                    }
                 }
                 break;
             case backward_data:

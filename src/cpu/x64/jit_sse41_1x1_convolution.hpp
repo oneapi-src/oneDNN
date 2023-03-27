@@ -70,6 +70,10 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
             return status::success;
         }
 
+        const memory_desc_t *dst_1x1_md(int index = 0) const {
+            return cpu_convolution_fwd_pd_t::dst_md(index);
+        }
+
         const memory_desc_t *dst_md(int index = 0) const override {
             return jcp_.with_dw_conv ? dw_conv_pd_->dst_md(index) : &dst_md_;
         }
@@ -242,7 +246,7 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
                 new jit_sse41_1x1_conv_kernel_f32(
-                        pd()->jcp_, *pd()->attr(), *pd()->dst_md(0))));
+                        pd()->jcp_, *pd()->attr(), *pd()->dst_1x1_md(0))));
         CHECK(kernel_->create_kernel());
         if (pd()->jcp_.with_dw_conv) {
             CHECK(safe_ptr_assign(kernel_dw_,

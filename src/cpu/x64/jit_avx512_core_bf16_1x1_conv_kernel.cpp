@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -188,11 +188,15 @@ void jit_avx512_core_bf16_1x1_conv_kernel::apply_postops(
             binary_injector::rhs_arg_dynamic_params_t rhs_arg_params,
                     rhs_arg_params_tail;
             const auto mask_tail = jcp.oc_without_padding % isa_simd_width_;
+            if (jcp.with_dw_conv) {
+                add(aux_reg_output_data,
+                        EVEX_compress_addr(rsp, reg_dw_binary_output_off));
+            }
             iterate(load_loop_blk, ur, mask_tail,
                     [&](const bool mask_flag, const int i_load,
                             const int i_ur) {
                         const int aux_output_l_off
-                                = get_output_offset(i_load, i_ur);
+                                = get_output_offset(i_load, i_ur, true);
                         const auto vmm_idx
                                 = vreg_accum_idx(load_loop_blk, i_load, i_ur);
                         vmm_idxs.emplace(vmm_idx);
@@ -208,10 +212,15 @@ void jit_avx512_core_bf16_1x1_conv_kernel::apply_postops(
             rhs_arg_params.vmm_tail_idx_.clear();
 
             const injector_utils::register_preserve_guard_t register_guard(
-                    this, {reg_tmp});
+                    this, {reg_tmp, aux_reg_output_data});
             const size_t reg_guard_stack_occupied
                     = register_guard.stack_space_occupied();
-
+            if (jcp.with_dw_conv) {
+                add(aux_reg_output_data,
+                        EVEX_compress_addr(rsp,
+                                reg_dw_binary_output_off
+                                        + reg_guard_stack_occupied));
+            }
             mov(abi_param1,
                     EVEX_compress_addr(rsp,
                             reg_abi_param1_backup + reg_guard_stack_occupied));
@@ -986,6 +995,8 @@ void jit_avx512_core_bf16_1x1_conv_kernel::generate() {
         xor_(zeroed_reg, zeroed_reg);
         mov(EVEX_compress_addr(rsp, reg_binary_post_op_acc_off), zeroed_reg);
         mov(EVEX_compress_addr(rsp, reg_abi_param1_backup), abi_param1);
+        if (jcp.with_dw_conv)
+            mov(EVEX_compress_addr(rsp, reg_dw_binary_output_off), zeroed_reg);
     }
 
     mov(reg_bcast_data, ptr[param1 + GET_OFF(bcast_data)]);
@@ -1057,18 +1068,19 @@ void jit_avx512_core_bf16_1x1_conv_kernel::generate() {
         mov(reg_load_loop_work, ptr[rsp + reg_load_loop_work_off]);
 
         add(reg_load_data, load_loop_blk * jcp.load_loop_load_step);
+        const size_t off_with_dw_conv = load_loop_blk * jcp.load_block
+                * jcp.typesize_out
+                * (is_out_layout_nxc()
+                                ? 1
+                                : (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim));
+        const size_t offst_wo_dw_conv = load_loop_blk * jcp.load_block
+                * jcp.typesize_out * (is_out_layout_nxc() ? 1 : jcp.bcast_dim);
         switch (jcp.prop_kind) {
             case forward_training:
             case forward_inference:
                 add(reg_bias_data,
                         load_loop_blk * jcp.load_block * jcp.typesize_bia);
-                add(reg_output_data,
-                        load_loop_blk * jcp.load_block * jcp.typesize_out
-                                * (is_out_layout_nxc()
-                                                ? 1
-                                                : (jcp.with_dw_conv
-                                                                ? jcp.ow
-                                                                : jcp.bcast_dim)));
+                add(reg_output_data, off_with_dw_conv);
                 add(reg_store_buf,
                         load_loop_blk * jcp.load_block * jcp.typesize_acc
                                 * (is_out_layout_nxc() ? 1 : jcp.bcast_dim));
@@ -1080,6 +1092,14 @@ void jit_avx512_core_bf16_1x1_conv_kernel::generate() {
                     add(oc_off_oprnd, jcp.load_block * load_loop_blk);
                     mov(EVEX_compress_addr(rsp, reg_binary_post_op_acc_off),
                             oc_off_oprnd);
+                    if (jcp.with_dw_conv) {
+                        mov(oc_off_oprnd,
+                                EVEX_compress_addr(
+                                        rsp, reg_dw_binary_output_off));
+                        add(oc_off_oprnd, offst_wo_dw_conv - off_with_dw_conv);
+                        mov(EVEX_compress_addr(rsp, reg_dw_binary_output_off),
+                                oc_off_oprnd);
+                    }
                 }
                 break;
             case backward_data:

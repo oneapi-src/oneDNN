@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -88,8 +88,9 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
         const void *post_ops_binary_rhs_arg_vec,
         const void *post_ops_binary_rhs_arg_vec_dw) const {
     const memory_desc_wrapper src_d(pd()->src_md());
-    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const memory_desc_wrapper dst_d(pd()->dst_1x1_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
+    const memory_desc_wrapper dw_dst_d(pd()->dst_md());
     const memory_desc_wrapper dw_weights_d(
             pd()->arg_md(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS));
     const memory_desc_wrapper dw_bias_d(
@@ -220,7 +221,7 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
         p.dst_l_off = dst_off;
         p.oc_l_off = oc_off_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block);
         p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
-        p.dst_orig = dst;
+        p.dst_orig = static_cast<const float *>(p.output_data) - dst_off;
 
         (*kernel_)(&p);
     };
@@ -350,9 +351,9 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
 
             const size_t ch_step = is_dst_layout_nxc
                     ? jcp_dw.ch_block
-                    : dst_d.blk_off(0, 1, 0, 0);
+                    : dw_dst_d.blk_off(0, 1, 0, 0);
             par_conv_dw.dst
-                    = &dst[dst_d.blk_off(n, 0, dw_oh, ow) + ch * ch_step];
+                    = &dst[dw_dst_d.blk_off(n, 0, dw_oh, ow) + ch * ch_step];
 
             par_conv_dw.filt
                     = &weights_dw[dw_weights_d.blk_off(ch, 0, 0, kh, kw)];

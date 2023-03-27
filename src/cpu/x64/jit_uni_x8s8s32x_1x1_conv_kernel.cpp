@@ -201,9 +201,8 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::apply_postops(const int ur,
         vmm_index_set_t vmm_idxs;
         if (jcp.with_binary) {
             iterate(ur, load_loop_blk, [&](const int i_ur, const int i_load) {
-                const int ur_stride = jcp.with_dw_conv
-                        ? jcp.nb_load_blocking * jcp.oc_block * i_ur
-                        : jcp.oc_without_padding * jcp.ngroups * i_ur;
+                const int ur_stride
+                        = jcp.oc_without_padding * jcp.ngroups * i_ur;
                 const size_t aux_output_offset = jcp.typesize_out
                         * (ur_stride + i_load * jcp.load_block);
                 const auto vmm_idx
