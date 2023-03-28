@@ -40,7 +40,7 @@ if(_ONEDNN_GRAPH_LAYOUT_DEBUG)
 
     file(GLOB FILES_REQUIRED_LAYOUT_DEBUG
         ${CMAKE_CURRENT_SOURCE_DIR}/common.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/dnnl_backend.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layout_id_mgr.cpp
     )
 
     set_source_files_properties(${FILES_REQUIRED_LAYOUT_DEBUG}

@@ -35,6 +35,7 @@
 
 #include "graph/backend/dnnl/common.hpp"
 #include "graph/backend/dnnl/internal_ops.hpp"
+#include "graph/backend/dnnl/layout_id_mgr.hpp"
 #include "graph/backend/dnnl/utils.hpp"
 
 namespace dnnl {
@@ -43,67 +44,6 @@ namespace graph {
 namespace dnnl_impl {
 
 class dnnl_partition_impl_t;
-
-class layout_id_manager_t {
-public:
-    layout_id_manager_t() = default;
-    virtual ~layout_id_manager_t() = default;
-
-    /*! \brief Set a backend memory descriptor to manager and get a
-    * corresponding layout id
-    * \param mem_desc The backend's memory descriptor, it can
-    * be both plain or opaque
-    * \return a cache index, will be used as layout id
-    * \note This function should be invoked in every where we want to
-    * convert a md to layout id
-    */
-    virtual graph::utils::optional_t<size_t> set_mem_desc(
-            const graph::utils::any_t &mem_desc)
-            = 0;
-
-    /*! \brief Get a backend memory descriptor from manager by using a
-    * layout id
-    * \param layout_id The layout id, which is generated and managed
-    * by backends
-    * \return When the input is a valid cache index, the return value
-    * is a cached memory descriptor; otherwise, the return value will
-    * be a utils::nullopt
-    */
-    virtual graph::utils::optional_t<graph::utils::any_t> get_mem_desc(
-            size_t layout_id) const = 0;
-
-protected:
-    mutable struct {
-        std::vector<graph::utils::any_t> data_;
-        mutable std::mutex m_;
-    } mem_descs_;
-
-private:
-    /*! \brief compare two backend mem desc
-    * \param mem_desc1
-    * \param mem_desc2
-    * \return bool
-    */
-    virtual bool is_mem_desc_equal(const graph::utils::any_t &mem_desc1,
-            const graph::utils::any_t &mem_desc2) const = 0;
-};
-
-class dnnl_layout_id_manager_t : public layout_id_manager_t {
-    friend class dnnl_backend;
-
-    // private, only can be created in dnnl_backend
-    dnnl_layout_id_manager_t() = default;
-
-    bool is_mem_desc_equal(const graph::utils::any_t &mem_desc1,
-            const graph::utils::any_t &mem_desc2) const override;
-
-public:
-    graph::utils::optional_t<graph::utils::any_t> get_mem_desc(
-            size_t layout_id) const override;
-
-    graph::utils::optional_t<size_t> set_mem_desc(
-            const graph::utils::any_t &mem_desc) override;
-};
 
 // gcc4.8.5 can 't support enum class as key
 struct enum_hash_t {
@@ -194,10 +134,9 @@ public:
     }
 
     // Used by DNNL backend to cache memory descriptor and get layout id
-    graph::utils::optional_t<size_t> set_mem_desc(
-            const graph::utils::any_t &mem_desc);
+    graph::utils::optional_t<size_t> set_mem_desc(const memory::desc &md);
 
-    graph::utils::optional_t<graph::utils::any_t> get_mem_desc(
+    graph::utils::optional_t<memory::desc> get_mem_desc(
             const size_t &layout_id) const;
 
     graph::pass::pass_registry_t &get_pass_registry() { return pass_registry_; }
