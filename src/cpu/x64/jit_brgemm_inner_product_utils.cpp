@@ -357,7 +357,8 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
     const int eltwise_ind = p.find(primitive_kind::eltwise);
     jbgp.with_eltwise = eltwise_ind != -1;
     const int binary_ind = p.find(primitive_kind::binary);
-    jbgp.with_binary = binary_ind != -1;
+    const int prelu_ind = p.find(primitive_kind::prelu);
+    jbgp.with_binary = !everyone_is(-1, binary_ind, prelu_ind);
     if (!post_ops_ok(jbgp, attr, dst_d)) return status::unimplemented;
     if (jbgp.with_scales) {
         const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);

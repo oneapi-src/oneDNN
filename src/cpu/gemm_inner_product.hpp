@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -74,7 +74,9 @@ struct gemm_inner_product_fwd_t : public primitive_t {
                 = pd()->attr()->post_ops_.find(primitive_kind::eltwise) >= 0;
         const bool has_binary
                 = pd()->attr()->post_ops_.find(primitive_kind::binary) >= 0;
-        postops_in_ip_ = has_bias || has_eltwise || has_binary;
+        const bool has_prelu
+                = pd()->attr()->post_ops_.find(primitive_kind::prelu) >= 0;
+        postops_in_ip_ = has_bias || has_eltwise || has_binary || has_prelu;
 
         CHECK(safe_ptr_assign(pp_kernel_,
                 inner_product_utils::pp_kernel_t::create(pd(), true)));

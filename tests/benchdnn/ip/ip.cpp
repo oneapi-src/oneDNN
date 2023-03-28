@@ -31,6 +31,7 @@
 
 #include "binary/binary.hpp"
 #include "ip/ip.hpp"
+#include "prelu/prelu.hpp"
 
 namespace ip {
 
@@ -342,6 +343,8 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                 if (is_post_ops_arg) {
                     if (exec_arg & DNNL_ARG_SRC_1)
                         SAFE(binary::fill_mem(exec_arg, mem, ref_mem), WARN);
+                    else if (exec_arg & DNNL_ARG_WEIGHTS)
+                        SAFE(prelu::fill_data(WEI, mem, ref_mem), WARN);
                 } else if (is_scales_arg) {
                     int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
                     SAFE(fill_scales(prb->attr, local_exec_arg, mem, ref_mem),

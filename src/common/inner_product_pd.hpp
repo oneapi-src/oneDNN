@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -252,7 +252,7 @@ struct inner_product_fwd_pd_t : public inner_product_pd_t {
     }
 
     int n_inputs() const override {
-        return 2 + with_bias() + n_binary_po_inputs();
+        return 2 + with_bias() + n_binary_po_inputs() + n_prelu_po_inputs();
     }
     int n_outputs() const override { return 1; }
 

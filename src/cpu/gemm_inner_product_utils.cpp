@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ struct ref_pp_kernel_t : public pp_kernel_t {
         : pp_kernel_t(
                 OC, MB, dst_mb_stride, attr, bias_dt, acc_dt, dst_md, skip_sum)
         , ref_post_ops_(this->do_sum_ || this->do_eltwise_ || this->do_binary_
+                                  || this->do_prelu_
                           ? utils::make_unique<ref_post_ops_t>(
                                   this->post_ops_, skip_sum)
                           : nullptr) {}
@@ -73,8 +74,8 @@ void ref_pp_kernel_t::operator()(void *dst, const void *acc, const char *bias,
     ref_post_ops_t::args_t args;
     args.ctx = &ctx;
     args.dst_md = &dst_md;
-    const bool apply_postops
-            = this->do_sum_ || this->do_eltwise_ || this->do_binary_;
+    const bool apply_postops = this->do_sum_ || this->do_eltwise_
+            || this->do_binary_ || this->do_prelu_;
     auto calculate_dst_value_and_increment_oc =
             [&](const void *acc, void *dst, size_t off, size_t &oc_value,
                     const size_t dst_offset) {
@@ -166,6 +167,9 @@ pp_kernel_t::pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
     const int binary_ind = post_ops_.find(primitive_kind::binary);
     do_binary_ = binary_ind != -1;
 
+    const int prelu_ind = post_ops_.find(primitive_kind::prelu);
+    do_prelu_ = prelu_ind != -1;
+
     const int sum_ind = post_ops_.find(primitive_kind::sum);
     do_sum_ = sum_ind != -1 && !skip_sum;
     if (do_sum_) {
@@ -237,8 +241,8 @@ bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
         const auto &post_op = post_ops.entry_[i];
         const bool sum_postop_present = post_op.is_sum(false);
         if (sum_postop_present && i > 0) return false;
-        if (!(sum_postop_present || post_op.is_eltwise()
-                    || post_op.is_binary()))
+        if (!(sum_postop_present || post_op.is_eltwise() || post_op.is_binary()
+                    || post_op.is_prelu()))
             return false;
     }
     return true;

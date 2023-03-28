@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -308,7 +308,7 @@ jit_pp_kernel_t<isa>::jit_pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
     int max_unroll = (idx_compute_vreg_max_ - idx_compute_vreg_start_ + 1)
             / compute_vregs_per_iter_;
     max_OC_loop_unroll_ = nstl::min(max_OC_loop_unroll_, max_unroll);
-    if (this->do_eltwise_ || this->do_binary_) {
+    if (this->do_eltwise_ || this->do_binary_ || this->do_prelu_) {
 #define PARAM_OFF(field) offsetof(ker_args_t, field)
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = false;
@@ -449,8 +449,8 @@ void jit_pp_kernel_t<isa>::advance_binary_postops_off(
 template <cpu_isa_t isa>
 void jit_pp_kernel_t<isa>::apply_postops(const bool apply_mask,
         const int vmm_idx, const size_t offset, const bool runtime_tail_mask) {
-    if (this->do_eltwise_ || this->do_binary_) {
-        if (this->do_binary_) {
+    if (this->do_eltwise_ || this->do_binary_ || this->do_prelu_) {
+        if (this->do_binary_ || this->do_prelu_) {
             binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
             if (apply_mask) rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
             rhs_arg_params.tail_load_mode = runtime_tail_mask
@@ -750,7 +750,7 @@ void jit_pp_kernel_t<isa>::compute_oc_channel_blk() {
                     data_op_t::load, tail, is_needed_runtime_tail_process,
                     false);
 
-        if (this->do_binary_ && tail && is_avx512_)
+        if ((this->do_binary_ || this->do_prelu_) && tail && is_avx512_)
             kmovq(opmask_binary, kreg_rem_mask);
 
         const int dst_idx = vreg_dst_idx(idx);
@@ -801,7 +801,9 @@ void jit_pp_kernel_t<isa>::compute_oc_channel_blk() {
         if (this->do_scale_ && this->scale_idx_mult_ == 1)
             add(reg_scales, offset * sizeof(float));
         if (this->do_bias()) add(reg_bias, offset * this->bias_data_type_size_);
-        if (this->do_binary_) { advance_binary_postops_off(offset); }
+        if (this->do_binary_ || this->do_prelu_) {
+            advance_binary_postops_off(offset);
+        }
     };
 
     // Advance all pointers by a value stored in a register
@@ -812,7 +814,8 @@ void jit_pp_kernel_t<isa>::compute_oc_channel_blk() {
             lea(reg_scales, ptr[reg_scales + offset * sizeof(float)]);
         if (this->do_bias())
             lea(reg_bias, ptr[reg_bias + offset * this->bias_data_type_size_]);
-        if (this->do_binary_) advance_binary_postops_off(offset);
+        if (this->do_binary_ || this->do_prelu_)
+            advance_binary_postops_off(offset);
     };
 
     // incase of non-trivial dst_mb_strides, fixup the reg_dst and reg_acc
@@ -825,7 +828,8 @@ void jit_pp_kernel_t<isa>::compute_oc_channel_blk() {
                     ptr[reg_acc
                             + reg_acc_mb_stride * this->acc_data_type_size_]);
         }
-        if (this->do_binary_ && any_binary_postop_is_no_bcast_type_)
+        if ((this->do_binary_ || this->do_prelu_)
+                && any_binary_postop_is_no_bcast_type_)
             update_binary_postops_per_tensor_off();
     };
 
@@ -1094,7 +1098,7 @@ void jit_pp_kernel_t<isa>::generate() {
     // binary postops injector needs params held (in case of WIN32)
     // in rcx register that is also used as a temp reg, so the pointer to
     // params needs to be stored in extra reg
-    if (this->do_binary_) mov(reg_binary_inj_param_, param1);
+    if (this->do_binary_ || this->do_prelu_) mov(reg_binary_inj_param_, param1);
 #endif
 
 #define PARAM_OFF(x) offsetof(ker_args_t, x)
@@ -1121,7 +1125,7 @@ void jit_pp_kernel_t<isa>::generate() {
         mov(reg_oc, this->OC_);
     mov(reg_len, ptr[reg_param + PARAM_OFF(len)]);
     mov(reg_oc_offset, ptr[reg_param + PARAM_OFF(oc_offset)]);
-    if (this->do_binary_) {
+    if (this->do_binary_ || this->do_prelu_) {
         mov(reg_stack_frame_, rsp);
         sub(rsp, stack_space_needed_);
         if (any_binary_postop_is_per_oc_sp_bcast_type_
@@ -1179,8 +1183,8 @@ void jit_pp_kernel_t<isa>::generate() {
     bool dim_restrict = !this->runtime_oc() && !this->runtime_mb()
             && (this->OC_ <= vlen / 2) && (this->MB_ >= vlen);
     bool supported_postops = this->do_scale_ || this->do_eltwise_
-            || this->do_binary_ || this->do_sum_ || this->do_dst_zero_points_
-            || this->do_dst_scale_;
+            || this->do_binary_ || this->do_prelu_ || this->do_sum_
+            || this->do_dst_zero_points_ || this->do_dst_scale_;
     if (this->do_bias() && !supported_postops && dim_restrict
             && this->has_trivial_mb_stride()) {
         this->mb_blk_kernel_ = true;
@@ -1189,7 +1193,7 @@ void jit_pp_kernel_t<isa>::generate() {
         compute_oc_channel_blk();
     }
 
-    if (this->do_binary_) add(rsp, stack_space_needed_);
+    if (this->do_binary_ || this->do_prelu_) add(rsp, stack_space_needed_);
     postamble();
 
     if (this->do_eltwise_) postops_injector_->prepare_table();

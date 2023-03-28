@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -75,6 +75,7 @@ protected:
     size_t scale_idx_mult_ = 0;
     bool do_eltwise_ = false;
     bool do_binary_ = false;
+    bool do_prelu_ = false;
     bool do_sum_ = false;
     bool do_dst_scale_ = false;
     bool do_dst_zero_points_ = false;
