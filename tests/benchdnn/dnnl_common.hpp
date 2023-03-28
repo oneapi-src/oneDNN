@@ -811,7 +811,7 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
 
         int po_arg = DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_WEIGHTS;
         mem_map.emplace(po_arg,
-                dnn_mem_t(ndims, dims, dnnl_f32, tag::abx, test_engine));
+                dnn_mem_t(ndims, dims, dnnl_f32, tag::axb, test_engine));
     }
 
     // Scales.
