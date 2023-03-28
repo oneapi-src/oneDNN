@@ -114,19 +114,40 @@ conv_fwd_executable_t::desc_t conv_fwd_executable_t::create_desc(
     if (!can_use_blocked_layout) {
         src = to_nxc_format(src);
         dst = to_nxc_format(dst);
-    } else if (!is_format(dst, "nxc")) {
-        src = to_format_any(src);
-        dst = to_format_any(dst);
-
     } else {
-        // If the dst has been explicitly set to nxc layout by users, we prefer
-        // to directly use optimal blocked src and plain dst to create conv pd.
-        // In the following, we will first query out the optimal src.
-        auto tmp_src = to_format_any(src);
-        auto tmp_dst = to_format_any(dst);
-        dnnl::convolution_forward::primitive_desc tmp_pd
-                = create_pd(tmp_src, tmp_dst);
-        src = tmp_pd.src_desc();
+        // If the dst has been explicitly set to nxc layout or the data_format
+        // has been defined as NXC by users, we prefer to directly use optimal
+        // blocked src and plain dst to create conv pd. In the following, we
+        // will first query out the optimal src.
+        bool permute_nxc_dst = false;
+        if (op->get_output_value(0)->get_consumers().size() == 1) {
+            const auto &next_op
+                    = op->get_output_value(0)->get_consumers()[0].get_op();
+            if (next_op.get_kind() == op_kind::dnnl_permute) {
+                auto permute_dst_lt
+                        = next_op.get_output_value(0)->get_logical_tensor();
+                auto perm = get_permutation(permute_dst_lt.ndims, "NCX", "NXC");
+                if (next_op.get_attr<std::vector<int64_t>>(op_attr::permutation)
+                        == perm) {
+                    auto inverse_perm = get_permutation(
+                            permute_dst_lt.ndims, "NXC", "NCX");
+                    auto perm_dst = make_dnnl_memory_desc(permute_dst_lt);
+                    dst = perm_dst.permute_axes(
+                            dnnl_impl::utils::cast_to_int32(inverse_perm));
+                    permute_nxc_dst = true;
+                }
+            }
+        }
+        if (!is_format(dst, "nxc") && !permute_nxc_dst) {
+            src = to_format_any(src);
+            dst = to_format_any(dst);
+        } else {
+            auto tmp_src = to_format_any(src);
+            auto tmp_dst = to_format_any(dst);
+            dnnl::convolution_forward::primitive_desc tmp_pd
+                    = create_pd(tmp_src, tmp_dst);
+            src = tmp_pd.src_desc();
+        }
     }
 
     dnnl::convolution_forward::primitive_desc pd = create_pd(src, dst);
