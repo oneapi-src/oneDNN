@@ -285,7 +285,8 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
     const memory_desc_wrapper dst_d(dst_md);
 
     const auto binary_ind = post_ops.find(primitive_kind::binary);
-    brg->with_binary = binary_ind != -1;
+    const auto prelu_ind = post_ops.find(primitive_kind::prelu);
+    brg->with_binary = !everyone_is(-1, binary_ind, prelu_ind);
 
     // NOTE: Using brg->isa_impl here is a bit dangerous as it can change before
     //       kernel creation, so there is no gaurantee that the isa checked here
