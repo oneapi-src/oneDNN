@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -678,11 +678,14 @@ status_t jit_sse41_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         jcp.load_loop_load_step = jcp.ic * jcp.oc_block * sizeof(float);
         jcp.load_loop_iter_step = jcp.oc_block;
 
-        load_blocking = 120; // assumes the kernel is jcp.ur x 3
-        load_blocking_max = 144;
+        load_blocking = is_data_layout_nxc
+                ? jcp.load_dim
+                : 120; // assumes the kernel is jcp.ur x 3
+        load_blocking_max = is_data_layout_nxc ? jcp.load_dim : 144;
         bcast_blocking = 128; // affects load balancing across threads
         bcast_blocking_max = 192;
-        reduce_blocking = 128; // affects L1$ utilization
+        reduce_blocking = is_data_layout_nxc ? jcp.reduce_dim
+                                             : 128; // affects L1$ utilization
     } else if (jcp.prop_kind == backward_data) {
         jcp.reduce_dim = jcp.oc;
         jcp.reduce_block = jcp.oc_block;
