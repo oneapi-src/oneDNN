@@ -31,6 +31,7 @@
 
 #include "binary/binary.hpp"
 #include "matmul/matmul.hpp"
+#include "prelu/prelu.hpp"
 
 namespace matmul {
 
@@ -583,6 +584,8 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                                      /* only_positive = */ false,
                                      /* only_integer = */ true),
                                 WARN);
+                    else if (exec_arg & DNNL_ARG_WEIGHTS)
+                        SAFE(prelu::fill_data(WEI, mem, ref_mem), WARN);
                 } else if (is_scales_arg) {
                     int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
                     SAFE(fill_scales(prb->attr, local_exec_arg, mem, ref_mem),

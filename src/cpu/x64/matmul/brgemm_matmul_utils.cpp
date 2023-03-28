@@ -980,8 +980,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     const int eltwise_ind = p.find(primitive_kind::eltwise);
     bgmmc.with_eltwise = eltwise_ind != -1;
     const int binary_ind = p.find(primitive_kind::binary);
-    bgmmc.with_binary = binary_ind != -1;
-
+    const int prelu_ind = p.find(primitive_kind::prelu);
+    bgmmc.with_binary = !everyone_is(-1, binary_ind, prelu_ind);
     VCONDCHECK_BG(post_ops_ok(bgmmc, attr, dst_d), VERBOSE_UNSUPPORTED_POSTOP);
 
     bgmmc.src_zp_type = get_zp_type(attr, DNNL_ARG_SRC);

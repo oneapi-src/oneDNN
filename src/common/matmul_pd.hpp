@@ -75,7 +75,7 @@ struct matmul_pd_t : public primitive_desc_t {
     }
 
     int n_inputs() const override {
-        return 2 + with_bias() + n_binary_po_inputs();
+        return 2 + with_bias() + n_binary_po_inputs() + n_prelu_po_inputs();
     }
     int n_outputs() const override { return 1; }
 
