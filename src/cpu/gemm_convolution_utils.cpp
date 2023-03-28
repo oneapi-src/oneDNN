@@ -1156,7 +1156,8 @@ status_t init_conf(conv_gemm_conf_t &jcp,
     const int eltwise_ind = jcp.post_ops.find(primitive_kind::eltwise);
     jcp.with_eltwise = eltwise_ind != -1;
     const int binary_ind = jcp.post_ops.find(primitive_kind::binary);
-    jcp.with_binary = binary_ind != -1;
+    const int prelu_ind = jcp.post_ops.find(primitive_kind::prelu);
+    jcp.with_binary = !everyone_is(-1, binary_ind, prelu_ind);
     const int sum_ind = jcp.post_ops.find(primitive_kind::sum);
     jcp.with_sum = sum_ind != -1;
 

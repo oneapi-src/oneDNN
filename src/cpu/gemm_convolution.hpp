@@ -22,6 +22,7 @@
 #include "common/memory_tracking.hpp"
 #include "common/primitive.hpp"
 
+#include "cpu/binary_injector_utils.hpp"
 #include "cpu/cpu_convolution_pd.hpp"
 #include "cpu/gemm/gemm.hpp"
 #include "cpu/gemm_convolution_utils.hpp"
@@ -68,20 +69,24 @@ struct gemm_convolution_fwd_t : public primitive_t {
             auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(); };
             auto is_binary
                     = [&](int idx) { return po.entry_[idx].is_binary(); };
+            auto is_prelu = [&](int idx) { return po.entry_[idx].is_prelu(); };
+            auto is_binary_or_prelu_supported = [&](int idx) {
+                bool ok = dnnl::impl::get_rhs_arg_broadcasting_strategy(
+                                  binary_injector_utils::get_src1_desc(
+                                          po.entry_[idx], dst_md_),
+                                  dst_md_,
+                                  {broadcasting_strategy_t::scalar,
+                                          broadcasting_strategy_t::per_oc})
+                        != broadcasting_strategy_t::unsupported;
+                return ok;
+            };
 
             for (int idx = 0; idx < po.len(); idx++) {
                 bool ok = utils::one_of(true, is_sum(idx), is_binary(idx),
-                                  is_eltwise(idx))
+                                  is_eltwise(idx), is_prelu(idx))
                         && IMPLICATION(is_sum(idx), idx == 0)
-                        && IMPLICATION(is_binary(idx),
-                                dnnl::impl::get_rhs_arg_broadcasting_strategy(
-                                        po.entry_[idx].binary.src1_desc,
-                                        dst_md_,
-                                        {broadcasting_strategy_t::scalar,
-                                                broadcasting_strategy_t::
-                                                        per_oc})
-                                        != broadcasting_strategy_t::
-                                                unsupported);
+                        && IMPLICATION(is_binary(idx) || is_prelu(idx),
+                                is_binary_or_prelu_supported(idx));
                 if (!ok) return false;
             }
 

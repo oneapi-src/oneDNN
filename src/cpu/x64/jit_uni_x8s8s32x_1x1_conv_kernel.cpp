@@ -701,7 +701,8 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
 
     const int binary_ind
             = post_ops.find(primitive_kind::binary, 0, dw_conv_ind);
-    jcp.with_binary = binary_ind != -1;
+    const int prelu_ind = post_ops.find(primitive_kind::prelu, 0, dw_conv_ind);
+    jcp.with_binary = !everyone_is(-1, binary_ind, prelu_ind);
 
     const int sum_ind = post_ops.find(primitive_kind::sum, 0, dw_conv_ind);
     jcp.with_sum = sum_ind != -1;

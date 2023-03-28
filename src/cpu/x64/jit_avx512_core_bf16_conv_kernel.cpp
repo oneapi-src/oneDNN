@@ -999,7 +999,8 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         if (dst_d.data_type() == data_type::s32) return status::unimplemented;
     }
     const int binary_ind = post_ops.find(primitive_kind::binary);
-    jcp.with_binary = binary_ind != -1;
+    const int prelu_ind = post_ops.find(primitive_kind::prelu);
+    jcp.with_binary = !everyone_is(-1, binary_ind, prelu_ind);
 
     jcp.ic_tail = is_data_layout_nxc ? jcp.ic % jcp.simd_w : 0;
     if (is_data_layout_nxc)

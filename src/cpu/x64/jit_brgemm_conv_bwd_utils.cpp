@@ -1410,7 +1410,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.with_eltwise = eltwise_ind != -1;
 
     const int binary_ind = p.find(primitive_kind::binary);
-    jcp.with_binary = binary_ind != -1;
+    const int prelu_ind = p.find(primitive_kind::prelu);
+    jcp.with_binary = !everyone_is(-1, binary_ind, prelu_ind);
 
     jcp.src_zero_point
             = get_zp_type(attr, is_deconv ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST)

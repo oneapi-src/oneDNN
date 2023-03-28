@@ -1265,7 +1265,8 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
     }
     const int binary_ind
             = post_ops.find(primitive_kind::binary, 0, dw_conv_ind);
-    jcp.with_binary = binary_ind != -1;
+    const int prelu_ind = post_ops.find(primitive_kind::prelu, 0, dw_conv_ind);
+    jcp.with_binary = !everyone_is(-1, binary_ind, prelu_ind);
 
     if (dw_conv_ind >= 0) {
         // dw_conv and post_ops after it are handled externally, so skip them
