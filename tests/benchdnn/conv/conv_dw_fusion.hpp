@@ -41,6 +41,9 @@ int check_cacheit(
         res_t *res);
 int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         const prb_t *prb, res_t *res);
+void get_fused_conv_dst_dims(const int ndims,
+        const attr_t::post_ops_t::entry_t &po_entry, const dnnl_dims_t dims,
+        dnnl_dims_t fused_conv_dst_dims);
 
 } // namespace conv_dw_fusion
 

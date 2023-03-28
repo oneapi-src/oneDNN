@@ -523,7 +523,7 @@ struct attr_args_t {
     };
 
     int prepare_post_ops_mds(
-            const attr_t &attr, int ndims, const dnnl_dims_t dims);
+            const attr_t &attr, int ndims, const dnnl_dims_t prb_dims);
 
     void prepare_dw_post_op(const attr_t &attr, dnnl_data_type_t wei_dt,
             dnnl_data_type_t bia_dt);

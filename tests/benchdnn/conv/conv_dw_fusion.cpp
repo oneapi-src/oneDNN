@@ -52,6 +52,22 @@ std::unique_ptr<prb_t> get_first_conv_prb(const prb_t *prb) {
             prb->ctx_exe, prb->mb));
 }
 
+void get_fused_conv_dst_dims(const int ndims,
+        const attr_t::post_ops_t::entry_t &po_entry, const dnnl_dims_t dims,
+        dnnl_dims_t fused_conv_dst_dims) {
+    const auto &conv_po = po_entry.convolution;
+    const auto stride = conv_po.stride;
+
+    for (int d = 0; d < ndims; ++d) {
+        if (d < 2)
+            fused_conv_dst_dims[d] = dims[d];
+        else
+            // Not following standard convolution formula for output shapes since
+            // right/top padding might be greater than left/top one.
+            fused_conv_dst_dims[d] = div_up(dims[d], stride);
+    }
+}
+
 std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *prb) {
     const auto &po = prb->attr.post_ops;
     int fusion_index = po.convolution_index();
@@ -95,7 +111,6 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *prb) {
     cd.id = is_3d ? prb->od : 1;
     cd.ih = is_2d ? prb->oh : 1;
     cd.iw = prb->ow;
-    cd.oc = prb->oc;
     cd.kd = is_3d ? kernel : 1;
     cd.kh = is_2d ? kernel : 1;
     cd.kw = kernel;
@@ -105,11 +120,14 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *prb) {
     cd.pd = is_3d ? padding : 0;
     cd.ph = is_2d ? padding : 0;
     cd.pw = padding;
-    // Not following standard convolution formula for output shapes since
-    // right/top padding might be greated than left/top one.
-    cd.od = is_3d ? div_up(cd.id, stride) : 1;
-    cd.oh = is_2d ? div_up(cd.ih, stride) : 1;
-    cd.ow = div_up(cd.iw, stride);
+
+    dnnl_dims_t fused_conv_dst_dims;
+    get_fused_conv_dst_dims(prb->ndims, po.entry[fusion_index],
+            prb->dst_dims().data(), fused_conv_dst_dims);
+    cd.oc = prb->oc;
+    cd.od = is_3d ? fused_conv_dst_dims[prb->ndims - 3] : 1;
+    cd.oh = is_2d ? fused_conv_dst_dims[prb->ndims - 2] : 1;
+    cd.ow = fused_conv_dst_dims[prb->ndims - 1];
 
     cd.has_groups = true;
     cd.ndims = prb->ndims;
