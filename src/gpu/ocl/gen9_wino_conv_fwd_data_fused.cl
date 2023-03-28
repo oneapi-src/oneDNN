@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -615,7 +615,10 @@ gen9_wino_conv_fwd(__global DATA_T *dst, const __global DATA_T *src,
                             dst[dst_idx
                                     + dst_off(0, oc_off * COMP_OC_STRIDE, 0,
                                             h_off, w_off)]
-                                    = C[oc_off][h_off][w_off];
+                                    = (OC_WO_PADDING % OC_BLOCK == 0
+                                              || oc + oc_off < OC_WO_PADDING)
+                                    ? C[oc_off][h_off][w_off]
+                                    : DATA_ZERO;
                     }
                 }
             }
