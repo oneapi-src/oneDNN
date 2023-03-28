@@ -174,21 +174,18 @@ struct stack_checker_t {
         auto thread_args = utils::make_unique<thread_args_t<F, const Targs...>>(
                 func, std::forward<const Targs>(func_args)...);
 
-        // Stack grows downwards.
-        size_t protected_region
-                = get_stack_size() - get_page_size() * get_hard_stack_limit();
-
         pthread_t thread;
         pthread_attr_t attr;
         int res = pthread_attr_init(&attr);
         assert(res == 0);
 
-        // Use a reduce stack size to account for protected/guard region.
-        res = pthread_attr_setstacksize(
-                &attr, get_stack_size() - protected_region);
+        // Use full stack size with no guard area as there seems to be some
+        // variation in pthreads implementation of guard area. Instead, call
+        // mprotect later on to guard an area within the stack.
+        res = pthread_attr_setstacksize(&attr, get_stack_size());
         assert(res == 0);
 
-        res = pthread_attr_setguardsize(&attr, protected_region);
+        res = pthread_attr_setguardsize(&attr, 0);
         assert(res == 0);
 
         res = pthread_create(
@@ -243,7 +240,15 @@ private:
         res = pthread_attr_getstack(&attr, &stack_base, &stack_size);
         assert(res == 0);
 
-        write_pattern((int8_t *)stack_base, pattern_);
+        size_t protected_region
+                = get_stack_size() - get_page_size() * get_hard_stack_limit();
+
+        // Stack grows downwards, so protected region is at the bottom.
+        mprotect(stack_base, protected_region, PROT_NONE);
+
+        // Only write _above_ the protected region to avoid segfault.
+        write_pattern(
+                static_cast<int8_t *>(stack_base) + protected_region, pattern_);
 
         executor_t<n_args>::execute(thread_args);
 
@@ -251,8 +256,9 @@ private:
         assert(res == 0);
         MAYBE_UNUSED(res);
 
+        // Only check _above_ the protected region to avoid segfault.
         size_t stack_consumption = 0;
-        for (size_t i = 0; i < stack_size; i++) {
+        for (size_t i = protected_region; i < stack_size; i++) {
             if (((const int8_t *)stack_base)[i] != pattern_) {
                 stack_consumption = stack_size - i;
                 break;
