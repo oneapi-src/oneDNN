@@ -271,7 +271,7 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
     brg->typesize_D = types::data_type_size(brg->dt_d);
 
     if (!IMPLICATION(brg->is_int8 && brg->dt_d == bf16,
-                is_superset(brg->isa_impl, avx512_core_vnni)
+                is_superset(brg->isa_impl, avx512_core)
                         || brg->isa_impl == avx2_vnni_2))
         return status::unimplemented;
 

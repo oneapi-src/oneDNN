@@ -1114,7 +1114,8 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
                     data_type::undef, ipd.diff_bias_desc.data_type)
             : data_type::undef;
     jbgp.req_s8s8_compensation
-            = one_of(isa, avx512_core_vnni, avx2_vnni) && jbgp.src_dt == s8;
+            = one_of(isa, avx512_core, avx512_core_vnni, avx2_vnni)
+            && jbgp.src_dt == s8;
     const bool is_int8 = one_of(jbgp.src_dt, u8, s8) && jbgp.wei_dt == s8;
     const bool is_bf16
             = everyone_is(bf16, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt)
@@ -1138,8 +1139,8 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
             = is_f32 && attr.fpmath_mode_ == fpmath_mode::bf16 && jbgp.is_amx;
 
     if (!IMPLICATION(is_int8,
-                one_of(isa, avx2_vnni, avx2_vnni_2, avx512_core_vnni,
-                        avx512_core_amx)))
+                one_of(isa, avx2_vnni, avx2_vnni_2, avx512_core,
+                        avx512_core_vnni, avx512_core_amx)))
         return status::unimplemented;
     if (!IMPLICATION(is_bf16,
                 one_of(isa, avx2_vnni_2, avx512_core_bf16, avx512_core_amx)))
@@ -1209,12 +1210,9 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
         CHECK(memory_desc_init_by_tag(want_wei_md, jbgp.wei_tag));
 
         if (jbgp.req_s8s8_compensation) {
-            want_wei_md.extra.flags = 0
-                    | memory_extra_flags::compensation_conv_s8s8
-                    | memory_extra_flags::scale_adjust;
+            want_wei_md.extra.flags
+                    |= memory_extra_flags::compensation_conv_s8s8;
             want_wei_md.extra.compensation_mask = (1 << 0);
-            want_wei_md.extra.scale_adjust
-                    = platform::s8s8_weights_scale_factor();
             if (weights_md.format_kind != format_kind::any
                     && want_wei_md != weights_md)
                 return status::unimplemented;
