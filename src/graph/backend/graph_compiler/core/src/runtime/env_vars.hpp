@@ -33,6 +33,7 @@ enum key {
     SC_DUMP_GENCODE,
     SC_C_INCLUDE,
     SC_TRACE_INIT_CAP,
+    SC_MANAGED_THREAD_POOL,
     NUM_KEYS
 };
 } // namespace env_key

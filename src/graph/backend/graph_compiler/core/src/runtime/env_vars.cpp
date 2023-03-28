@@ -40,6 +40,7 @@ const char *env_names[] = {
         DEF_ENV(DUMP_GENCODE),
         DEF_ENV(C_INCLUDE),
         DEF_ENV(TRACE_INIT_CAP),
+        DEF_ENV(MANAGED_THREAD_POOL),
 };
 
 namespace utils {

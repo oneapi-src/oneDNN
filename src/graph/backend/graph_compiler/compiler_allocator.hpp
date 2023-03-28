@@ -39,7 +39,8 @@ struct compiler_graph_engine_t : public gc::runtime::engine_t {
 };
 
 struct compiler_graph_stream_t : public gc::runtime::stream_t {
-    compiler_graph_stream_t(compiler_graph_engine_t *eng);
+    compiler_graph_stream_t(
+            compiler_graph_engine_t *eng, const dnnl_stream *stream);
 };
 
 extern gc::runtime::engine_vtable_t graph_engine_vtable;

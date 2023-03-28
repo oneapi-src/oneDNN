@@ -34,6 +34,11 @@
 #include <util/math_utils.hpp>
 #include <util/scoped_timer.hpp>
 
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+#include <common/stream.hpp>
+#include <oneapi/dnnl/dnnl_threadpool_iface.hpp>
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -260,6 +265,21 @@ struct thread_pool_caller_t<true> {
     }
 };
 
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+#define before_kernel_run() \
+    bool already_in_tp = threadpool_utils::get_active_threadpool(); \
+    if (!already_in_tp) { \
+        dnnl::threadpool_interop::threadpool_iface *tp = nullptr; \
+        stream->vtable()->stream->get_threadpool(&tp); \
+        threadpool_utils::activate_threadpool(tp); \
+    }
+#define after_kernel_run() \
+    if (!already_in_tp) { threadpool_utils::deactivate_threadpool(); }
+#else
+#define before_kernel_run()
+#define after_kernel_run()
+#endif
+
 template <bool thread_pool_init, bool execution_verbose>
 class injected_general_jit_function_t : public general_jit_function_t {
     void call_generic(
@@ -274,8 +294,10 @@ class injected_general_jit_function_t : public general_jit_function_t {
         assert(wrapper_ && "Trying to call 'call_generic' \
             on a jit funciton with no wrapper.");
         functype f = reinterpret_cast<functype>(wrapper_);
+        before_kernel_run();
         thread_pool_caller_t<thread_pool_init>::call(
                 f, stream, module_data, args);
+        after_kernel_run()
     }
 
 public:
@@ -294,7 +316,10 @@ void general_jit_function_t::call_generic(
     assert(wrapper_ && "Trying to call 'call_generic' \
             on a jit funciton with no wrapper.");
     functype f = reinterpret_cast<functype>(wrapper_);
+
+    before_kernel_run();
     f(stream, module_data, args);
+    after_kernel_run();
 }
 
 std::shared_ptr<jit_function_t> general_jit_function_t::make(

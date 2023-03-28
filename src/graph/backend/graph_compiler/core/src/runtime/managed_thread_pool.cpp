@@ -31,6 +31,10 @@
 #include <runtime/microkernel/cpu/kernel_timer.hpp>
 #include <util/simple_math.hpp>
 
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+#include <common/dnnl_thread.hpp>
+#endif
+
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
 // clang-format off
 #include <tbb/parallel_for_each.h>
@@ -133,9 +137,20 @@ static void worker_func(thread_manager *ths, int tid) {
     }
 }
 
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+static thread_local thread_manager *current_active_thr_mgr = nullptr;
+#endif
+
 void thread_manager::run_main_function(main_func_t f, runtime::stream_t *stream,
         void *mod_data, generic_val *args) {
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+    int threads = dnnl::impl::threadpool_utils::get_active_threadpool()
+                          ->get_num_threads();
+    int runtime_threads = runtime_config_t::get().get_num_threads();
+    threads = (threads < runtime_threads) ? threads : runtime_threads;
+#else
     int threads = runtime_config_t::get().get_num_threads();
+#endif
     state.num_threads = threads;
     if (threads > 1) {
         state.trigger = 1;
@@ -146,6 +161,9 @@ void thread_manager::run_main_function(main_func_t f, runtime::stream_t *stream,
         oneapi::tbb::task_arena arena(threads);
         arena.execute([&] {
             tbb::parallel_for(0, threads, 1, [&](int64_t i) {
+#elif SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+        dnnl::impl::parallel(threads, [&](int64_t i, int64_t dummy) {
+            current_active_thr_mgr = this;
 #endif
             auto &tls = thread_local_buffer_t::tls_buffer_;
             tls.in_managed_thread_pool_ = true;
@@ -164,6 +182,9 @@ void thread_manager::run_main_function(main_func_t f, runtime::stream_t *stream,
         }
 #elif SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
             });
+        });
+#elif SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+            current_active_thr_mgr = nullptr;
         });
 #endif
 
@@ -188,6 +209,14 @@ alignas(64) thread_local thread_manager thread_manager::cur_mgr;
 } // namespace graph
 } // namespace impl
 } // namespace dnnl
+
+static thread_manager *get_current_active_thr_mgr() {
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+    return dnnl::impl::graph::gc::runtime::current_active_thr_mgr;
+#else
+    return &thread_manager::cur_mgr;
+#endif
+}
 
 // using balance211 to dispatch the workloads
 static void do_dispatch(thread_manager *s, int tid) {
@@ -227,7 +256,7 @@ void sc_parallel_call_managed(
         int64_t begin, int64_t end, int64_t step, generic_val *args) {
     runtime::thread_local_buffer_t::tls_buffer_.additional_->is_main_thread_
             = true;
-    thread_manager *stream = &thread_manager::cur_mgr;
+    thread_manager *stream = get_current_active_thr_mgr();
     stream->state.execution_flags = execution_flags;
     stream->state.reset_scoreboard();
     stream->state.task = thread_manager::thread_pool_state::task_type {
@@ -246,7 +275,7 @@ void sc_parallel_call_managed(
 }
 
 void sc_set_idle_func_managed(thread_manager::idle_func_t func, void *args) {
-    thread_manager *mgr = &thread_manager::cur_mgr;
+    thread_manager *mgr = get_current_active_thr_mgr();
     mgr->state.idle_func = func;
     mgr->state.idle_args = args;
 }

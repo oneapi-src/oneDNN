@@ -14,12 +14,18 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include <algorithm>
 #include <memory>
 #include "config.hpp"
 #include "context.hpp"
 #include <runtime/generic_val.hpp>
 #include <runtime/parallel.hpp>
 #include <util/simple_math.hpp>
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+#include <common/dnnl_thread.hpp>
+#include <oneapi/dnnl/dnnl_threadpool.h>
+#endif
+
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
 #include <tbb/global_control.h>
 #include <tbb/parallel_for_each.h>
@@ -38,7 +44,51 @@
 using namespace dnnl::impl::graph::gc;
 
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
-#error "unimplemented"
+
+static int get_num_threads() {
+    int ret = 0;
+    dnnl_threadpool_interop_get_max_concurrency(&ret);
+    return ret;
+}
+
+extern "C" void sc_parallel_call_cpu_with_env_impl(
+        void (*pfunc)(void *, void *, int64_t, generic_val *), uint64_t flags,
+        void *rtl_ctx, void *module_env, int64_t begin, int64_t end,
+        int64_t step, generic_val *args) {
+    runtime::thread_local_buffer_t::tls_buffer_.additional_->is_main_thread_
+            = true;
+    using namespace dnnl::impl;
+    auto num_jobs
+            = dnnl::impl::graph::gc::utils::divide_and_ceil(end - begin, step);
+    int nthr = adjust_num_threads(
+            std::min(get_num_threads(), dnnl_get_current_num_threads()),
+            num_jobs);
+    if (nthr)
+        dnnl::impl::parallel(nthr, [&](int ithr, int nthr) {
+            runtime::thread_local_buffer_t::tls_buffer_.additional_
+                    ->linear_thread_id_
+                    = ithr;
+            auto f = [&](int64_t i) {
+                pfunc(rtl_ctx, module_env, i * step + begin, args);
+            };
+            for_nd(ithr, nthr, num_jobs, f);
+        });
+}
+
+static void set_num_threads(int num) {
+    dnnl_threadpool_interop_set_max_concurrency(num);
+}
+
+static int get_thread_num() {
+    return runtime::thread_local_buffer_t::tls_buffer_.additional_
+            ->linear_thread_id_;
+}
+
+static int get_in_parallel() {
+    return dnnl::impl::threadpool_utils::get_active_threadpool()
+            ->get_in_parallel();
+}
+
 #elif SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
 
 static int &get_default_threads() {

@@ -32,6 +32,7 @@
 #include <compiler/ir/transform/dead_write_eliminate.hpp>
 #include <compiler/ir/transform/tensor2var.hpp>
 #include <compiler/ir/visitor.hpp>
+#include <runtime/config.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <unordered_map>
 #include <util/any_map.hpp>
@@ -638,6 +639,7 @@ public:
                 // in barrier call
                 return 0;
             }
+            if (!runtime_config_t::get().managed_thread_pool_) { return 0; }
             return builtin::get_set_idle_func_managed_func()(
                     v->args_[0], args_pack);
         }

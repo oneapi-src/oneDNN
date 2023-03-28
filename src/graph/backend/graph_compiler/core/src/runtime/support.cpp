@@ -87,6 +87,16 @@ runtime_config_t &runtime_config_t::get() {
 using namespace env_key;
 runtime_config_t::runtime_config_t() {
     thread_pool_table_ = &sc_pool_table;
+    constexpr int default_MTP =
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
+            1;
+#else
+            0;
+#endif
+    managed_thread_pool_
+            = (utils::getenv_int(env_names[SC_MANAGED_THREAD_POOL], default_MTP)
+                    != 0);
+
     if (managed_thread_pool_) {
         thread_pool_table_->parallel_call_managed = &sc_parallel_call_managed;
     }

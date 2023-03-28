@@ -373,7 +373,7 @@ graph::status_t compiler_compiled_partition_impl_t::execute(
         const std::vector<graph::tensor_t> &inputs,
         const std::vector<graph::tensor_t> &outputs) {
     // set backend runtime stream
-    compiler_graph_stream_t backend_stream {graph_engine_.get()};
+    compiler_graph_stream_t backend_stream {graph_engine_.get(), astream};
     std::vector<gc::generic_val> generic_args;
     if (dyn_inputs_.empty()) {
         generic_args.reserve(inputs.size() + outputs.size());

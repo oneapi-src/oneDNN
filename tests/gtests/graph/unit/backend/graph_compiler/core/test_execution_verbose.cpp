@@ -16,6 +16,9 @@
 
 #include <iostream>
 
+// clang-format off
+#include <test_utils.hpp>
+// clang-format on
 #include "test_utils_arr_fill.hpp"
 #include <compiler/ir/graph/lowering.hpp>
 #if SC_CFAKE_JIT_ENABLED
@@ -26,7 +29,6 @@
 #include <compiler/jit/xbyak/xbyak_jit.hpp>
 #endif
 #include <runtime/config.hpp>
-#include <test_utils.hpp>
 
 #include "gtest/gtest.h"
 

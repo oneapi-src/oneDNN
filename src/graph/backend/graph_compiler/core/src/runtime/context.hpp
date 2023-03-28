@@ -21,6 +21,9 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <util/def.hpp>
+
+struct dnnl_stream;
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -45,8 +48,17 @@ struct stream_vtable_t {
             void (*)(void *, void *, int64_t, generic_val *), uint64_t, void *,
             void *, int64_t, int64_t, int64_t, generic_val *);
     parallel_call_cpu_t parallel_call;
-    constexpr stream_vtable_t(parallel_call_cpu_t pcall)
-        : parallel_call(pcall) {}
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+    const dnnl_stream *stream;
+#endif
+    constexpr stream_vtable_t(
+            parallel_call_cpu_t pcall, const dnnl_stream *pstream)
+        : parallel_call(pcall)
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+        , stream(pstream)
+#endif
+    {
+    }
 };
 
 struct engine_t {
@@ -68,10 +80,13 @@ struct stream_t {
 };
 
 SC_API extern stream_t default_stream;
-
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+SC_INTERNAL_API extern stream_t *(*get_default_stream)();
+#else
 inline stream_t *get_default_stream() {
     return &default_stream;
 }
+#endif
 
 } // namespace runtime
 

@@ -22,6 +22,24 @@
 #include "test_utils.hpp"
 
 #include <gtest/gtest.h>
+#include <runtime/context.hpp>
+
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+struct gc_env_initializer {
+    gc_env_initializer() {
+        dnnl::impl::graph::gc::runtime::get_default_stream = []() {
+            static auto the_stream = []() {
+                dnnl::impl::graph::gc::runtime::stream_t ret
+                        = dnnl::impl::graph::gc::runtime::default_stream;
+                ret.vtable_.stream = ::get_stream();
+                return ret;
+            }();
+            return &the_stream;
+        };
+    }
+};
+static gc_env_initializer gc_test_init;
+#endif
 
 namespace impl = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;

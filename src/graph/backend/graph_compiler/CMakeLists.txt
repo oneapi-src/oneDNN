@@ -78,7 +78,7 @@ else()
     message(STATUS "LLVM JIT is OFF")
 endif()
 
-if(DNNL_CPU_RUNTIME MATCHES "(DPCPP|THREADPOOL)$")
+if(DNNL_CPU_RUNTIME MATCHES "(DPCPP)$")
     message(FATAL_ERROR "Graph compiler backend does not support the chosen CPU runtime. "
     "Consider changing DNNL_CPU_RUNTIME to OMP or turning off graph compiler backend.")
 endif()
@@ -90,6 +90,22 @@ endif()
 
 message(STATUS "Graph compiler backend is enabled.")
 set(SC_CPU_RUNTIME ${DNNL_CPU_RUNTIME})
+
+if(${SC_CPU_RUNTIME} STREQUAL "OMP")
+    add_definitions("-DSC_CPU_THREADPOOL=1")
+endif()
+
+if(${SC_CPU_RUNTIME} STREQUAL "TBB")
+    add_definitions("-DSC_CPU_THREADPOOL=2")
+endif()
+
+if(${SC_CPU_RUNTIME} STREQUAL "SEQ")
+    add_definitions("-DSC_CPU_THREADPOOL=0")
+endif()
+
+if(${SC_CPU_RUNTIME} STREQUAL "THREADPOOL")
+    add_definitions("-DSC_CPU_THREADPOOL=3")
+endif()
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
     append(CMAKE_CCXX_NOWARN_FLAGS "/wd4200")

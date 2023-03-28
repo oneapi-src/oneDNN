@@ -22,13 +22,40 @@
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
 #include <tbb/parallel_for.h>
 #endif
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+#include <common/dnnl_thread.hpp>
+#include <util/simple_math.hpp>
+#endif
 
 namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
 namespace utils {
-#if SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+template <typename F>
+void parallel(F &&f, int64_t begin, int64_t end, int64_t step = 1,
+        int num_threads = dnnl_get_current_num_threads()) {
+    auto num_jobs = utils::divide_and_ceil(end - begin, step);
+    int nthr = adjust_num_threads(num_threads, num_jobs);
+    if (nthr)
+        dnnl::impl::parallel(nthr, [&](int ithr, int nthr) {
+            auto execf = [&](int64_t i) { f(i * step + begin, end); };
+            for_nd(ithr, nthr, num_jobs, execf);
+        });
+}
+
+template <typename F>
+void parallel_for(int64_t begin, int64_t end, int64_t step, F &&f) {
+    auto num_jobs = utils::divide_and_ceil(end - begin, step);
+    int nthr = adjust_num_threads(dnnl_get_current_num_threads(), num_jobs);
+    if (nthr)
+        dnnl::impl::parallel(nthr, [&](int ithr, int nthr) {
+            auto execf = [&](int64_t i) { f(i * step + begin); };
+            for_nd(ithr, nthr, num_jobs, execf);
+        });
+}
+#elif SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
 template <typename F>
 void parallel(F &&f, int64_t begin, int64_t end, int64_t step = 1,
         int num_threads = runtime_config_t::get().get_num_threads()) {

@@ -38,12 +38,14 @@ static engine_vtable_t vtable {global_alloc, global_free,
         memory_pool::alloc_by_mmap, memory_pool::dealloc_by_mmap};
 
 static engine_t default_engine {&vtable};
-stream_t default_stream {{sc_parallel_call_cpu_with_env_impl}, &default_engine};
-
-static_assert(sizeof(stream_vtable_t) == sizeof(void *),
-        "stream_vtable_t has more than 1 field. Need to change "
-        "stream_t::vtable_ to pointer now");
-
+stream_t default_stream {
+        {sc_parallel_call_cpu_with_env_impl, nullptr}, &default_engine};
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+static stream_t *get_default_stream_impl() {
+    return &default_stream;
+}
+stream_t *(*get_default_stream)() = get_default_stream_impl;
+#endif
 } // namespace runtime
 } // namespace gc
 } // namespace graph

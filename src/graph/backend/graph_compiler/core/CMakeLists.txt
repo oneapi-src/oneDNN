@@ -20,7 +20,7 @@ set(SC_LIB_NAME dnnl_graph_backend_compiler_core)
 SET(SC_MEMORY_LEAK_CHECK 0 CACHE STRING "memory leak checking. 0 = off, 1 = check numbers of instances, 2 = dump leaked objects")
 set(SC_CPP_VER 11)
 
-if(NOT "${SC_CPU_RUNTIME}" MATCHES "^(OMP|TBB|SEQ)$")
+if(NOT "${SC_CPU_RUNTIME}" MATCHES "^(OMP|TBB|SEQ|THREADPOOL)$")
     message(FATAL_ERROR "Unsupported CPU runtime: ${SC_CPU_RUNTIME}")
 endif()
 
@@ -42,6 +42,11 @@ endif()
 if(${SC_CPU_RUNTIME} STREQUAL "SEQ")
     add_definitions("-DSC_CPU_THREADPOOL=0")
     set_property(GLOBAL APPEND PROPERTY GRAPH_COMPILER_DEFINITIONS "-DSC_CPU_THREADPOOL=0")
+endif()
+
+if(${SC_CPU_RUNTIME} STREQUAL "THREADPOOL")
+    add_definitions("-DSC_CPU_THREADPOOL=3")
+    set_property(GLOBAL APPEND PROPERTY GRAPH_COMPILER_DEFINITIONS "-DSC_CPU_THREADPOOL=3")
 endif()
 
 ##############################

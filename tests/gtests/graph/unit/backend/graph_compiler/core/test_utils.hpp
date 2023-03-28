@@ -25,6 +25,11 @@
 #include <utility>
 #include <vector>
 
+#include "util/def.hpp"
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+#include <test_thread.hpp>
+#endif
+
 #include "test_utils_arr_fill.hpp"
 #include "util/bf16.hpp"
 #include "gtest/gtest.h"
@@ -35,6 +40,8 @@
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
 #include <omp.h>
 #endif
+
+#include <common/dnnl_thread.hpp>
 
 #define SKIP_BF16(dtype) \
     if (dtype == datatypes::bf16 \
@@ -359,145 +366,17 @@ struct data_traits<float> {
     static const auto dtype = data_type::f32;
 };
 
-template <typename T>
-inline size_t div_up(const T a, const T b) {
-    assert(b);
-    return static_cast<size_t>((a + b - 1) / b);
-}
-
-/**
- * parallel threading section, from oneDNN
- */
-template <typename T>
-struct remove_reference {
-    typedef T type;
-};
-template <typename T>
-struct remove_reference<T &> {
-    typedef T type;
-};
-template <typename T>
-struct remove_reference<T &&> {
-    typedef T type;
-};
-
-template <typename T>
-inline T &&forward(typename remove_reference<T>::type &t) {
-    return static_cast<T &&>(t);
-}
-template <typename T>
-inline T &&forward(typename remove_reference<T>::type &&t) {
-    return static_cast<T &&>(t);
-}
-
-template <typename T>
-inline T nd_iterator_init(T start) {
-    return start;
-}
-template <typename T, typename U, typename W, typename... Args>
-inline T nd_iterator_init(T start, U &x, const W &X, Args &&...tuple) {
-    start = nd_iterator_init(start, forward<Args>(tuple)...);
-    x = start % X;
-    return start / X;
-}
-
-inline bool nd_iterator_step() {
-    return true;
-}
-template <typename U, typename W, typename... Args>
-inline bool nd_iterator_step(U &x, const W &X, Args &&...tuple) {
-    if (nd_iterator_step(forward<Args>(tuple)...)) {
-        x = (x + 1) % X;
-        return x == 0;
-    }
-    return false;
-}
-
-template <typename T, typename U>
-inline void balance211(T n, U team, U tid, T &n_start, T &n_end) {
-    T n_min = 1;
-    T &n_my = n_end;
-    if (team <= 1 || n == 0) {
-        n_start = 0;
-        n_my = n;
-    } else if (n_min == 1) {
-        // team = T1 + T2
-        // n = T1*n1 + T2*n2  (n1 - n2 = 1)
-        T n1 = div_up(n, (T)team);
-        T n2 = n1 - 1;
-        T T1 = n - n2 * (T)team;
-        n_my = (T)tid < T1 ? n1 : n2;
-        n_start = (T)tid <= T1 ? tid * n1 : T1 * n1 + ((T)tid - T1) * n2;
-    }
-
-    n_end += n_start;
-}
-
-template <typename T0, typename F>
-void for_nd(const int ithr, const int nthr, const T0 &D0, F f) {
-    T0 start {0}, end {0};
-    balance211(D0, nthr, ithr, start, end);
-    for (T0 d0 = start; d0 < end; ++d0)
-        f(d0);
-}
-
-template <typename T0, typename T1, typename F>
-void for_nd(const int ithr, const int nthr, const T0 &D0, const T1 &D1, F f) {
-    const size_t work_amount = (size_t)D0 * D1;
-    if (work_amount == 0) return;
-    size_t start {0}, end {0};
-    balance211(work_amount, nthr, ithr, start, end);
-
-    T0 d0 {0};
-    T1 d1 {0};
-    nd_iterator_init(start, d0, D0, d1, D1);
-    for (size_t iwork = start; iwork < end; ++iwork) {
-        f(d0, d1);
-        nd_iterator_step(d0, D0, d1, D1);
-    }
-}
-
-// Skip a lambda function in the parameter pack.
-template <typename T>
-constexpr size_t get_work_amount(const T &v) {
-    return 1;
-}
-template <typename T, typename... Args>
-constexpr size_t get_work_amount(const T &v, Args &&...args) {
-    return (size_t)v * get_work_amount(forward<Args>(args)...);
-}
-
 template <typename... Args>
 void parallel_nd(Args &&...args) {
-    const bool do_parallel = get_work_amount(forward<Args>(args)...) > 1;
-#if SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
-    auto the_nd_func = std::bind(for_nd<typename std::decay<Args>::type...>,
-            std::placeholders::_1, std::placeholders::_2,
-            forward<Args>(args)...);
-    auto func = [&](int64_t i) {
-        const int nthr
-                = !do_parallel ? 1 : runtime_config_t::get().get_num_threads();
-        const int ithr = !do_parallel ? 0 : i;
-        the_nd_func(ithr, nthr);
-    };
-    if (do_parallel) {
-        utils::parallel_for(
-                0, runtime_config_t::get().get_num_threads(), 1, func);
-    } else {
-        func(0);
-    }
-#elif SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
-#pragma omp parallel if (do_parallel)
-    {
-        const int nthr = !do_parallel ? 1 : omp_get_max_threads();
-        const int ithr = !do_parallel ? 0 : omp_get_thread_num();
-        for_nd(ithr, nthr, forward<Args>(args)...);
-    }
-#else
-    for_nd(0, 1, forward<Args>(args)...);
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+    dnnl::impl::threadpool_utils::activate_threadpool(
+            dnnl::testing::get_threadpool());
+#endif
+    dnnl::impl::parallel_nd(std::forward<Args>(args)...);
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+    dnnl::impl::threadpool_utils::deactivate_threadpool();
 #endif
 }
-/** end oneDNN */
 
 template <typename T>
 void rand_fill_stable(T *v, size_t sz, uint32_t &seed) {
