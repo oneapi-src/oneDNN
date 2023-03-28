@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -646,4 +646,337 @@ TEST(Compile, BatchNormBackwardFp32WithSingleOutput) {
     cp.execute(
             strm, {src_ts, diff_dst_ts, mean_ts, variance_ts}, {diff_src_ts});
     strm->wait();
+}
+
+TEST(Execute, BatchNormInt8) {
+    using dims = graph::dnnl_impl::dims;
+    graph::engine_t &engine = *get_engine();
+    graph::stream_t &strm = *get_stream();
+
+    // Tensor dimensions.
+    const graph::dim_t N = 3, // batch size
+            IC = 2, // channels
+            IH = 3, // tensor height
+            IW = 3; // tensor width
+    // Source (src) and destination (dst) tensors dimensions.
+    dims src_dims = {N, IH, IW, IC};
+    // Scale/shift tensor dimensions.
+    dims scale_dims = {IC};
+
+    dims shift_dims = {IC};
+    dims mean_dims = {IC};
+    dims variance_dims = {IC};
+
+    // Allocate buffers.
+    test::vector<int8_t> src_data(static_cast<size_t>(N * IC * IH * IW));
+    test::vector<float> scale_data(static_cast<size_t>(IC));
+    test::vector<float> shift_data(static_cast<size_t>(IC));
+    test::vector<float> mean_data(static_cast<size_t>(IC));
+    test::vector<float> variance_data(static_cast<size_t>(IC));
+    test::vector<int8_t> dst_data(src_data.size(), 0.0);
+    test::vector<int8_t> ref_dst_data(src_data.size(), 0.0);
+
+    // Initialize src.
+    std::generate(src_data.begin(), src_data.end(), []() {
+        static int i = 1;
+        return static_cast<int8_t>((i++) % 10);
+    });
+    // Initialize scale.
+    std::generate(scale_data.begin(), scale_data.end(), []() {
+        static int i = 1;
+        return std::abs(std::sin(static_cast<float>(i++) * 2.f));
+    });
+    // Initialize shift.
+    std::generate(shift_data.begin(), shift_data.end(), []() {
+        static int i = 1;
+        return std::abs(std::sin(static_cast<float>(i++) * 2.f));
+    });
+    // Initialize mean.
+    std::generate(mean_data.begin(), mean_data.end(), []() {
+        static int i = 1;
+        return std::sin(static_cast<float>(i++) * 2.f);
+    });
+    // Initialize variance.
+    std::generate(variance_data.begin(), variance_data.end(), []() {
+        static int i = 1;
+        return static_cast<float>(((i++) % 3) + 1) * 0.1;
+    });
+
+    graph::op_t bn_op(0, graph::op_kind::BatchNormInference, "batchnorm");
+    bn_op.set_attr<float>(graph::op_attr::epsilon, 0.000001f);
+    bn_op.set_attr<std::string>(graph::op_attr::data_format, "NXC");
+
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales_src = {0.2f};
+    std::vector<float> scales_out = {0.3f};
+
+    graph::op_t dequant {1, graph::op_kind::Dequantize, "dequant"};
+    dequant.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+    dequant.set_attr(graph::op_attr::scales, scales_src);
+    dequant.set_attr(graph::op_attr::zps, zps);
+
+    graph::op_t quant {2, graph::op_kind::Quantize, "quant"};
+    quant.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+    quant.set_attr(graph::op_attr::scales, scales_out);
+    quant.set_attr(graph::op_attr::zps, zps);
+
+    // prepare logical tensor
+    graph::logical_tensor_t src_int8
+            = utils::logical_tensor_init(0, src_dims, graph::data_type::s8);
+    graph::logical_tensor_t src_f32
+            = utils::logical_tensor_init(1, src_dims, graph::data_type::f32);
+    graph::logical_tensor_t scale
+            = utils::logical_tensor_init(2, scale_dims, graph::data_type::f32);
+    graph::logical_tensor_t shift
+            = utils::logical_tensor_init(3, shift_dims, graph::data_type::f32);
+    graph::logical_tensor_t mean
+            = utils::logical_tensor_init(4, mean_dims, graph::data_type::f32);
+    graph::logical_tensor_t variance = utils::logical_tensor_init(
+            5, variance_dims, graph::data_type::f32);
+    graph::logical_tensor_t dst
+            = utils::logical_tensor_init(6, src_dims, graph::data_type::f32);
+    graph::logical_tensor_t dst_int8_out
+            = utils::logical_tensor_init(7, src_dims, graph::data_type::s8);
+
+    scale.property = graph::property_type::constant;
+    shift.property = graph::property_type::constant;
+    mean.property = graph::property_type::constant;
+    variance.property = graph::property_type::constant;
+
+    dequant.add_input(src_int8);
+    dequant.add_output(src_f32);
+    bn_op.add_input(src_f32);
+    bn_op.add_input(scale);
+    bn_op.add_input(shift);
+    bn_op.add_input(mean);
+    bn_op.add_input(variance);
+    bn_op.add_output(dst);
+    quant.add_input(dst);
+    quant.add_output(dst_int8_out);
+
+    graph::graph_t g(engine.kind());
+    ASSERT_EQ(g.add_op(&dequant), graph::status::success);
+    ASSERT_EQ(g.add_op(&bn_op), graph::status::success);
+    ASSERT_EQ(g.add_op(&quant), graph::status::success);
+    g.finalize();
+
+    graph::tensor_t src_ts(src_int8, &engine, src_data.data());
+    graph::tensor_t scale_ts(scale, &engine, scale_data.data());
+    graph::tensor_t shift_ts(shift, &engine, shift_data.data());
+    graph::tensor_t mean_ts(mean, &engine, mean_data.data());
+    graph::tensor_t variance_ts(variance, &engine, variance_data.data());
+    graph::tensor_t dst_ts
+            = graph::tensor_t(dst_int8_out, &engine, dst_data.data());
+    graph::tensor_t ref_dst_ts
+            = graph::tensor_t(dst_int8_out, &engine, ref_dst_data.data());
+
+    ASSERT_EQ(run_graph(g, {src_ts, scale_ts, shift_ts, mean_ts, variance_ts},
+                      {ref_dst_ts}, engine, strm),
+            graph::status::success);
+
+    graph::pass::pass_base_ptr apass = get_pass("int8_bn_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    ASSERT_EQ((g.get_partitions()[0])->get_kind(),
+            graph::partition_kind_t::batch_norm_post_ops);
+    ASSERT_EQ(g.get_partitions()[0]->get_inputs().size(), 5U);
+    ASSERT_EQ(g.get_partitions()[0]->get_outputs().size(), 1U);
+
+    auto part = g.get_partitions()[0];
+
+    // compile
+    graph::partition_t p;
+    p.init(part);
+    graph::compiled_partition_t cp(p);
+
+    std::vector<const graph::logical_tensor_t *> inputs {
+            &src_int8, &scale, &shift, &mean, &variance};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst_int8_out};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine), graph::status::success);
+
+    cp.execute(&strm, {src_ts, scale_ts, shift_ts, mean_ts, variance_ts},
+            {dst_ts});
+    strm.wait();
+
+    static auto isa = dnnl_get_effective_cpu_isa();
+
+    if (engine.kind() == graph::engine_kind::cpu
+            && isa < dnnl_cpu_isa_avx512_core_vnni)
+        ASSERT_TRUE(allclose(ref_dst_data, dst_data, /*rtol*/ 0.1f,
+                /*atol*/ 1.f));
+    else
+        ASSERT_TRUE(allclose(ref_dst_data, dst_data, /*rtol*/ 0.01f,
+                /*atol*/ 1.f));
+}
+
+TEST(Execute, BatchNormReluInt8) {
+    using dims = graph::dnnl_impl::dims;
+
+    graph::op_t bn_op(0, graph::op_kind::BatchNormInference, "batchnorm");
+    bn_op.set_attr<float>(graph::op_attr::epsilon, 0.01f);
+    bn_op.set_attr<std::string>(graph::op_attr::data_format, "NXC");
+
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales_src = {2.1f};
+    std::vector<float> scales_out = {3.1f};
+
+    graph::op_t dequant {1, graph::op_kind::Dequantize, "dequant"};
+    dequant.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+    dequant.set_attr(graph::op_attr::scales, scales_src);
+    dequant.set_attr(graph::op_attr::zps, zps);
+
+    graph::op_t quant {2, graph::op_kind::Quantize, "quant"};
+    quant.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+    quant.set_attr(graph::op_attr::scales, scales_out);
+    quant.set_attr(graph::op_attr::zps, zps);
+
+    graph::op_t relu_op(3, graph::op_kind::ReLU, "relu");
+
+    graph::engine_t &engine = *get_engine();
+
+    // Tensor dimensions.
+    const graph::dim_t N = 1, // batch size
+            IC = 256, // channels
+            IH = 14, // tensor height
+            IW = 14; // tensor width
+    // Source (src) and destination (dst) tensors dimensions.
+    dims src_dims = {N, IH, IW, IC};
+    // Scale/shift tensor dimensions.
+    dims scale_dims = {IC};
+    dims shift_dims = {IC};
+    dims mean_dims = {IC};
+    dims variance_dims = {IC};
+
+    // prepare logical tensor
+    graph::logical_tensor_t src_int8
+            = utils::logical_tensor_init(0, src_dims, graph::data_type::s8);
+    graph::logical_tensor_t src_f32
+            = utils::logical_tensor_init(1, src_dims, graph::data_type::f32);
+    graph::logical_tensor_t scale
+            = utils::logical_tensor_init(2, scale_dims, graph::data_type::f32);
+    graph::logical_tensor_t shift
+            = utils::logical_tensor_init(3, shift_dims, graph::data_type::f32);
+    graph::logical_tensor_t mean
+            = utils::logical_tensor_init(4, mean_dims, graph::data_type::f32);
+    graph::logical_tensor_t variance = utils::logical_tensor_init(
+            5, variance_dims, graph::data_type::f32);
+    graph::logical_tensor_t dst
+            = utils::logical_tensor_init(6, src_dims, graph::data_type::f32);
+    graph::logical_tensor_t relu_dst
+            = utils::logical_tensor_init(7, src_dims, graph::data_type::f32);
+    graph::logical_tensor_t dst_int8_out
+            = utils::logical_tensor_init(8, src_dims, graph::data_type::s8);
+
+    scale.property = graph::property_type::constant;
+    shift.property = graph::property_type::constant;
+    mean.property = graph::property_type::constant;
+    variance.property = graph::property_type::constant;
+
+    dequant.add_input(src_int8);
+    dequant.add_output(src_f32);
+    bn_op.add_input(src_f32);
+    bn_op.add_input(scale);
+    bn_op.add_input(shift);
+    bn_op.add_input(mean);
+    bn_op.add_input(variance);
+    bn_op.add_output(dst);
+    relu_op.add_input(dst);
+    relu_op.add_output(relu_dst);
+    quant.add_input(relu_dst);
+    quant.add_output(dst_int8_out);
+
+    graph::graph_t g(engine.kind());
+    ASSERT_EQ(g.add_op(&dequant), graph::status::success);
+    ASSERT_EQ(g.add_op(&bn_op), graph::status::success);
+    ASSERT_EQ(g.add_op(&relu_op), graph::status::success);
+    ASSERT_EQ(g.add_op(&quant), graph::status::success);
+    g.finalize();
+
+    graph::pass::pass_base_ptr apass = get_pass("int8_bn_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    ASSERT_EQ((g.get_partitions()[0])->get_kind(),
+            graph::partition_kind_t::batch_norm_post_ops);
+    ASSERT_EQ(g.get_partitions()[0]->get_inputs().size(), 5U);
+    ASSERT_EQ(g.get_partitions()[0]->get_outputs().size(), 1U);
+
+    auto part = g.get_partitions()[0];
+
+    // compile
+    graph::partition_t p;
+    p.init(part);
+    graph::compiled_partition_t cp(p);
+
+    std::vector<const graph::logical_tensor_t *> inputs {
+            &src_int8, &scale, &shift, &mean, &variance};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst_int8_out};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine), graph::status::success);
+
+    // Allocate buffers.
+    test::vector<int8_t> src_data(static_cast<size_t>(N * IC * IH * IW));
+    test::vector<float> scale_data(static_cast<size_t>(IC));
+    test::vector<float> shift_data(static_cast<size_t>(IC));
+    test::vector<float> mean_data(static_cast<size_t>(IC));
+    test::vector<float> variance_data(static_cast<size_t>(IC));
+    test::vector<int8_t> dst_data(src_data.size(), 0.0);
+    test::vector<int8_t> ref_dst_data(src_data.size(), 0.0);
+
+    // Initialize src.
+    std::generate(src_data.begin(), src_data.end(), []() {
+        static int i = 0;
+        return std::cos(static_cast<int8_t>(i++) / 10.f);
+    });
+    // Initialize scale.
+    std::generate(scale_data.begin(), scale_data.end(), []() {
+        static int i = 0;
+        return std::sin(static_cast<float>(i++) * 2.f);
+    });
+    // Initialize shift.
+    std::generate(shift_data.begin(), shift_data.end(), []() {
+        static int i = 0;
+        return std::tan(i++);
+    });
+    // Initialize mean.
+    std::generate(mean_data.begin(), mean_data.end(), []() {
+        static int i = 0;
+        return std::sin(static_cast<float>(i++) * 2.f);
+    });
+    // Initialize variance.
+    std::generate(variance_data.begin(), variance_data.end(), []() {
+        static int i = 0;
+        return static_cast<float>(i++);
+    });
+
+    graph::tensor_t src_ts(src_int8, &engine, src_data.data());
+    graph::tensor_t scale_ts(scale, &engine, scale_data.data());
+    graph::tensor_t shift_ts(shift, &engine, shift_data.data());
+    graph::tensor_t mean_ts(mean, &engine, mean_data.data());
+    graph::tensor_t variance_ts(variance, &engine, variance_data.data());
+
+    graph::tensor_t dst_ts
+            = graph::tensor_t(dst_int8_out, &engine, dst_data.data());
+
+    graph::tensor_t ref_dst_ts
+            = graph::tensor_t(dst_int8_out, &engine, ref_dst_data.data());
+
+    graph::stream_t &strm = *get_stream();
+
+    ASSERT_EQ(run_graph(g, {src_ts, scale_ts, shift_ts, mean_ts, variance_ts},
+                      {ref_dst_ts}, engine, strm),
+            graph::status::success);
+
+    cp.execute(&strm, {src_ts, scale_ts, shift_ts, mean_ts, variance_ts},
+            {dst_ts});
+    strm.wait();
+
+    static auto isa = dnnl_get_effective_cpu_isa();
+    if (engine.kind() == graph::engine_kind::cpu
+            && isa < dnnl_cpu_isa_avx512_core_vnni)
+        ASSERT_TRUE(allclose(ref_dst_data, dst_data, /*rtol*/ 0.1f,
+                /*atol*/ 1.f));
+    else
+        ASSERT_TRUE(allclose(ref_dst_data, dst_data, /*rtol*/ 0.01f,
+                /*atol*/ 1.f));
 }

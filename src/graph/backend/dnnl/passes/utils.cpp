@@ -590,6 +590,32 @@ bool is_layout_reorder(const op_t *op) {
     return is_layout_reorder;
 }
 
+std::shared_ptr<op_t> clone_mul_scales(const std::shared_ptr<op_t> &scale_op) {
+    assertm(scale_op->num_inputs() <= 1,
+            "scale_op should have only one input value.");
+    assertm(!scale_op->has_attr(op_attr::with_runtime_scales),
+            "scale_op should be static");
+    auto new_op = std::make_shared<op_t>(op_kind::dnnl_mul_scales);
+    new_op->set_attr<std::vector<float>>(op_attr::scales,
+            scale_op->get_attr<std::vector<float>>(op_attr::scales));
+    new_op->set_attr<int64_t>(
+            op_attr::axis, scale_op->get_attr<int64_t>(op_attr::axis));
+    new_op->set_attr<std::string>(
+            op_attr::qtype, scale_op->get_attr<std::string>(op_attr::qtype));
+    return new_op;
+}
+
+bool inverse_mul_scales(std::shared_ptr<op_t> &scale_op) {
+    assertm(scale_op->num_inputs() <= 1,
+            "scale_op should have only one input value.");
+    assertm(!scale_op->has_attr(op_attr::with_runtime_scales),
+            "scale_op should be static");
+    auto scales = scale_op->get_attr<std::vector<float>>(op_attr::scales);
+    scales = dnnl_impl::utils::fmap(scales, [](float s) { return 1.f / s; });
+    scale_op->set_attr(op_attr::scales, scales);
+    return true;
+}
+
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl

@@ -212,6 +212,38 @@ status_t convert_bias_to_f32(std::shared_ptr<subgraph_t> &sg);
 
 status_t expand_convtranspose_scales(std::shared_ptr<subgraph_t> &sg);
 
+// swap relu and mul_scales so that mul_scales can be folded into previous
+// layers:
+///        bn                                  bn
+///         |                                   |
+///       relu                              mul_scales
+///         |                                   |
+///     mul_scales                             relu
+///         |                                   |
+impl::status_t swap_relu_mul_scales(std::shared_ptr<subgraph_t> &sg);
+
+/// This pass will move the effect of dequant to gamma and beta
+/// Formula:
+///  original: dst = (gamma * (src - mean) / sqrt(variance + epsilon)) + beta
+///  apply_pre_mul_scale:
+///      dst = (gamma * (src * scale - mean) / sqrt(variance + epsilon)) + beta
+///  ==> dst = (gamma * scale * (src - mean / scale) /
+///  sqrt(variance + epsilon)) + beta
+///  ==> dst = (new_gamma * (src - new_mean) / sqrt(variance + epsilon))
+///  + beta
+impl::status_t fold_pre_mul_scale_into_bn(std::shared_ptr<subgraph_t> &sg);
+
+/// This pass will move the effect of quant to gamma and beta
+/// Formula:
+///  original: dst = (gamma * (src - mean) / sqrt(variance + epsilon)) + beta
+///  apply_post_mul_scale:
+///      dst = ((gamma * (src - mean) / sqrt(variance + epsilon)) + beta) *
+///  scale
+///  ==> dst = (gamma * scale) * (src - mean) / sqrt(variance + epsilon) +
+///  (beta * scale)
+///  ==> dst = (new_gamma * (src - mean) / sqrt(variance + epsilon)) + new_beta
+impl::status_t fold_post_mul_scale_into_bn(std::shared_ptr<subgraph_t> &sg);
+
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl

@@ -341,6 +341,12 @@ bool with_runtime_zps(const std::shared_ptr<op_t> &op,
 // which is not for TypeCast or Quantization.
 bool is_layout_reorder(const op_t *op);
 
+// This function is used to clone a dnnl_mul_scales op
+std::shared_ptr<op_t> clone_mul_scales(const std::shared_ptr<op_t> &scale_op);
+
+// This function is used to inverse scales of a dnnl_mul_scales op
+bool inverse_mul_scales(std::shared_ptr<op_t> &scale_op);
+
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl

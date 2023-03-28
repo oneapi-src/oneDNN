@@ -52,6 +52,47 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_relu_fusion)
             return std::make_shared<batchnorm_fwd_t>();
         });
 
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_bn_fusion)
+        .set_priority(9.f)
+        .set_kind(partition_kind_t::batch_norm_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto pdequant_data = pgraph->append_op(
+                            graph::op_kind::Dequantize, "pdequant_data");
+                    pdequant_data->append_decision_function(
+                            check_qtype_equal_to_per_tensor);
+                    pdequant_data->append_decision_function(
+                            check_zps_values<0>);
+
+                    auto bn = pgraph->append_op(
+                            graph::op_kind::BatchNormInference,
+                            {in_edge(0, pdequant_data, 0)}, "batchnorm");
+                    bn->append_decision_function(
+                            check_input_dtype_from_offset<impl::data_type::f32,
+                                    1>);
+
+                    std::shared_ptr<pb_graph_t> relu_graph;
+                    {
+                        relu_graph = std::make_shared<pb_graph_t>("prelu");
+                        auto relu = relu_graph->append_op(
+                                graph::op_kind::ReLU, "relu");
+                        relu_graph->create_input_port(0, relu, 0);
+                        relu_graph->create_output_port(0, relu, 0);
+                    }
+                    auto bn_relu = pgraph->append_optional(
+                            relu_graph, {in_edge(0, bn, 0)}, "optional_relu");
+
+                    auto pquant_data
+                            = pgraph->append_op(graph::op_kind::Quantize,
+                                    {in_edge(0, bn_relu, 0)}, "quant_data");
+                    pquant_data->append_decision_function(
+                            check_qtype_equal_to_per_tensor);
+                    pquant_data->append_decision_function(check_zps_values<0>);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<batchnorm_fwd_t>();
+        });
+
 #define BATCHNORM_OUTPUT_NUM_CHECK(n1, n2) \
     append_decision_function([](op_t *graph_op) -> bool { \
         return check_output_num<n1>(graph_op) \

@@ -3449,6 +3449,118 @@ impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
+impl::status_t swap_relu_mul_scales(std::shared_ptr<subgraph_t> &sg) {
+    while (true) {
+        std::vector<std::pair<graph::op_t *, graph::op_t *>> to_be_swapped;
+        for (auto &op : sg->get_ops()) {
+            bool ok = op->get_kind() == op_kind::dnnl_mul_scales
+                    && op->get_input_value(0)->has_producer();
+            if (!ok) continue;
+            graph::op_t *producer = op->get_input_op(0);
+            ok = producer->get_kind() == op_kind::dnnl_eltwise;
+            if (!ok) continue;
+            const auto alg = static_cast<dnnl::algorithm>(
+                    producer->get_attr<int64_t>(op_attr::alg_kind));
+            ok = alg == dnnl::algorithm::eltwise_relu;
+            if (!ok) continue;
+
+            // only support batchnorminference+relu+mul_scale
+            ok = producer->get_input_value(0)->has_producer();
+            if (!ok) continue;
+            const graph::op_t &prv_op
+                    = producer->get_input_value(0)->get_producer();
+            if (prv_op.get_kind() == op_kind::dnnl_batchnorm
+                    && !prv_op.get_attr<bool>(op_attr::is_training)) {
+                to_be_swapped.emplace_back(
+                        std::pair<graph::op_t *, graph::op_t *> {
+                                producer, op.get()});
+            } else {
+                continue;
+            }
+        }
+        if (to_be_swapped.empty()) break;
+        subgraph_rewriter_t rewriter(sg);
+        for (auto &pair : to_be_swapped) {
+            graph::op_t *relu = pair.first;
+            graph::op_t *mul_scales = pair.second;
+            rewriter.swap_neighboring_si_ops(
+                    relu->shared_from_this(), mul_scales->shared_from_this());
+        }
+    }
+    return infer_shape(sg);
+}
+
+impl::status_t fold_pre_mul_scale_into_bn(std::shared_ptr<subgraph_t> &sg) {
+    const auto get_next_op = [](const op_ptr &op) -> op_ptr {
+        const value_ptr out_val = op->get_output_value(0);
+        if (!out_val->get_consumers().empty()) {
+            size_t offset = out_val->get_consumers()[0].get_offset();
+            auto &next_op = out_val->get_consumers()[0].get_op();
+            return offset == 0 && next_op.get_kind() == op_kind::dnnl_batchnorm
+                    ? next_op.shared_from_this()
+                    : nullptr;
+        }
+        return nullptr;
+    };
+
+    subgraph_rewriter_t rewriter(sg);
+    for (const auto &cur_op : sg->get_ops()) {
+        if (cur_op->get_kind() != op_kind::dnnl_mul_scales) continue;
+        auto next_op = get_next_op(cur_op);
+
+        if (next_op && !next_op->get_attr<bool>(op_attr::is_training)) {
+            auto gamma_quant_op = dnnl_impl::clone_mul_scales(cur_op);
+            auto mean_quant_op = dnnl_impl::clone_mul_scales(cur_op);
+            dnnl_impl::inverse_mul_scales(mean_quant_op);
+
+            rewriter.insert_op_before(gamma_quant_op, next_op, 1, 0, 0);
+            rewriter.insert_op_before(mean_quant_op, next_op, 3, 0, 0);
+
+            auto quant_data_out_val = cur_op->get_output_value(0);
+            auto quant_data_in_val = cur_op->get_input_value(0);
+            next_op->connect_input(0, quant_data_in_val);
+            quant_data_out_val->remove_consumer(*next_op.get(), 0);
+            if (quant_data_out_val->get_consumers().size() == 0) {
+                rewriter.to_remove(cur_op);
+            }
+        }
+    }
+
+    rewriter.run();
+    return infer_shape(sg);
+}
+
+impl::status_t fold_post_mul_scale_into_bn(std::shared_ptr<subgraph_t> &sg) {
+    const auto get_prev_op = [](const op_ptr &op) -> op_ptr {
+        const auto in_val = op->get_input_value(0);
+        if (in_val->has_producer()) {
+            auto &bn_op = in_val->get_producer();
+            return bn_op.get_kind() == op_kind::dnnl_batchnorm
+                    ? bn_op.shared_from_this()
+                    : nullptr;
+        }
+        return nullptr;
+    };
+
+    subgraph_rewriter_t rewriter(sg);
+    for (const auto &cur_op : sg->get_ops()) {
+        if (cur_op->get_kind() != op_kind::dnnl_mul_scales) continue;
+        auto bn_op = get_prev_op(cur_op);
+        if (bn_op && !bn_op->get_attr<bool>(op_attr::is_training)) {
+            auto gamma_quant_op = dnnl_impl::clone_mul_scales(cur_op);
+            auto beta_quant_op = dnnl_impl::clone_mul_scales(cur_op);
+            rewriter.insert_op_before(gamma_quant_op, bn_op, 1, 0, 0);
+            rewriter.insert_op_before(beta_quant_op, bn_op, 2, 0, 0);
+            value_ptr quant_data_out_val = cur_op->get_output_value(0);
+            bn_op->connect_output(0, quant_data_out_val);
+            rewriter.to_remove(cur_op);
+        }
+    }
+
+    rewriter.run();
+    return infer_shape(sg);
+}
+
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl
