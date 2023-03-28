@@ -143,6 +143,7 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, convert_runtime_zero_points);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_mul_scales_add_zps);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_sub_zps_mul_scales);
+        BACKEND_DNNL_ADD_PASS(pipeline, convert_dynamic_quantize_ops);
 
         BACKEND_DNNL_ADD_PASS(pipeline, insert_u8_to_s8_for_matmul);
         BACKEND_DNNL_ADD_PASS(

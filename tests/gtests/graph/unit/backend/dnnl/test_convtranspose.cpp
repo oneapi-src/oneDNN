@@ -1963,8 +1963,7 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
         int64_t zp_other = other_qtype == "symmetric"
                         || engine->kind() == graph::engine_kind::gpu
                 ? 0
-                : (std::abs(scale_other - 1.f) <= 0.000001f && zp != 0 ? 0
-                                                                       : zp);
+                : zp;
         // The following cmd will be skiped by benchdnn, since oneDNN didn't
         // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
         // --engine=gpu --mode=C --sdt=f32 --ddt=s8

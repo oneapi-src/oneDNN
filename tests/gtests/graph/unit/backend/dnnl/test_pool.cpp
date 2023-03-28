@@ -45,7 +45,11 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
             config_t {graph::op_kind::MaxPool, false}};
     const std::vector<std::string> qtypes {"symmetric", "asymmetric"};
     const std::vector<bool> swap_add_ins {true, false};
+    std::vector<float> scales = {1.f, 1 / 127.f};
+    std::vector<int64_t> zps = {0, -2};
 
+    for_(const auto &scale : scales)
+    for_(const auto &zp : zps)
     for_(const auto swap_add_in : swap_add_ins)
     for_(const auto &qtype : qtypes)
     for (const auto &conf : confs) {
@@ -77,12 +81,12 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
             return static_cast<int8_t>(s8_distribution(generator));
         });
 
-        const float scale_src = 5 / 127.f;
-        const float scale_out = 10 / 127.f;
-        const float scale_other = 2 / 127.f;
-        const int64_t zp_src = (qtype == "symmetric") ? 0 : -2;
-        const int64_t zp_out = (qtype == "symmetric") ? 0 : -2;
-        const int64_t zp_other = (qtype == "symmetric") ? 0 : 4;
+        const float scale_src = scale;
+        const float scale_out = scale;
+        const float scale_other = scale;
+        const int64_t zp_src = (qtype == "symmetric") ? 0 : zp;
+        const int64_t zp_out = (qtype == "symmetric") ? 0 : zp;
+        const int64_t zp_other = (qtype == "symmetric") ? 0 : zp;
 
         graph::op_t dqdata_op(0, graph::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");

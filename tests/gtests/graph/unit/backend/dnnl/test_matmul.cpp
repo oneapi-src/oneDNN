@@ -4786,6 +4786,10 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
     std::vector<std::vector<int64_t>> weight_shapes {{4, 2}};
     std::vector<std::vector<int64_t>> dst_shapes {
             {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {2}};
+    std::vector<float> scales = {1.f, 1 / 127.f};
+    std::vector<int64_t> zps = {0, 110};
+    for_(const auto &scale : scales)
+    for_(const auto &zp : zps)
     for_(const auto &qtype : qtypes)
     for_(const auto &wei_qtype : weight_qtypes)
     for_(size_t i = 0; i < src_shapes.size(); ++i)
@@ -4804,8 +4808,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
         // random generate src, weight and bias data
         // random seed = 7
         std::default_random_engine generator(7);
-        std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
-        std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
+        std::uniform_real_distribution<float> u8_distribution(0.0f, 127.0f);
+        std::uniform_real_distribution<float> s8_distribution(0.0f, 128.0f);
         std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
         std::generate(src_data.begin(), src_data.end(), [&]() {
             return static_cast<uint8_t>(u8_distribution(generator));
@@ -4817,17 +4821,17 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
         std::generate(other_data.begin(), other_data.end(), [&]() {
             return static_cast<int8_t>(s8_distribution(generator));
         });
-        float scale_src = 1 / 255.f; // map to 0~255
-        float scale_other = 1 / 127.f;
-        float scale_out = 1;
+        float scale_src = scale; // map to 0~255
+        float scale_other = scale;
+        float scale_out = scale;
         // reorder with zps is not supported on GPU
-        int64_t zp_src = engine->kind() == graph::engine_kind::gpu ? 0 : 90;
-        int64_t zp_other = 0;
+        int64_t zp_src = engine->kind() == graph::engine_kind::gpu ? 0 : zp;
+        int64_t zp_other = engine->kind() == graph::engine_kind::gpu ? 0 : zp;
         // The following cmd will be skiped by benchdnn, since oneDNN didn't
         // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
         // --engine=gpu --mode=C --sdt=f32 --ddt=s8
         // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
-        int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
+        int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : zp;
 
         auto generate_zps = [&]() {
             // backend integration doesn't support per_channel asym quant now.
@@ -4835,11 +4839,11 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
                     || engine->kind() == graph::engine_kind::gpu)
                 return 0;
             else
-                return 78;
+                return (int)zp;
         };
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
-        std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
+        std::vector<float> scale_wei(scales_wei_sizes, scale);
         std::vector<int64_t> zp_wei(scales_wei_sizes, generate_zps());
 
         graph::op_t dqdata_op(1, graph::op_kind::Dequantize, "dqdata_op");

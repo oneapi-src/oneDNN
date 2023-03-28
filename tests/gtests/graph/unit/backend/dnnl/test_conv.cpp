@@ -5964,7 +5964,11 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
     std::vector<int64_t> groups = {1, 4};
     std::vector<bool> with_biases = {true, false};
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
+    std::vector<float> scales = {1.f, 1 / 127.f};
+    std::vector<int64_t> zps = {0, 110};
 
+    for_(const auto &scale : scales)
+    for_(const auto &zp : zps)
     for_(const auto &g : groups)
     for_(const auto with_bias : with_biases)
     for (const auto &wei_qtype : weight_qtypes) {
@@ -5991,8 +5995,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
         // random generate src, weight and bias data
         // random seed = 7
         std::default_random_engine generator(7);
-        std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
-        std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
+        std::uniform_real_distribution<float> u8_distribution(0.0f, 127.0f);
+        std::uniform_real_distribution<float> s8_distribution(0.0f, 128.0f);
         std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
         std::generate(src_u8_data.begin(), src_u8_data.end(), [&]() {
             return static_cast<uint8_t>(u8_distribution(generator));
@@ -6007,16 +6011,16 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
                     [&]() { return f32_distribution(generator); });
         }
 
-        float scale_src = 1 / 255.f; // map to 0~255
-        float scale_other = 1 / 127.f;
-        float scale_out = 1;
-        int64_t zp_src = 0;
-        int64_t zp_other = 0;
-        int64_t zp_out = 78;
+        float scale_src = scale; // map to 0~255
+        float scale_other = scale;
+        float scale_out = scale;
+        int64_t zp_src = zp;
+        int64_t zp_other = engine->kind() == graph::engine_kind::gpu ? 0 : zp;
+        int64_t zp_out = zp;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
 
-        std::vector<float> scale_wei(scale_size, 1 / 127.f);
+        std::vector<float> scale_wei(scale_size, scale);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
         graph::op_t dqdata_node(1, graph::op_kind::Dequantize, "dqdata_node");
