@@ -18,7 +18,7 @@
 # *******************************************************************************
 
 # Compute Library build defaults
-ACL_VERSION="v23.02"
+ACL_VERSION="v23.02.1"
 ACL_DIR="${PWD}/ComputeLibrary"
 ACL_ARCH="armv8a"
 ACL_MULTI_ISA_SUPPORT=0

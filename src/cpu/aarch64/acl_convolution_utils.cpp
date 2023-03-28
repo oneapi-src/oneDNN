@@ -294,9 +294,6 @@ status_t init_conf_indirect_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
     int ic = src_md.dims[1];
     if (acp.fast_math && ic % block_by == 0) return status::unimplemented;
 
-    // TODO: remove this once NEGEMMConv2d::validate allows src and weights to mismatch
-    acp.wei_tensor_info.set_data_layout(arm_compute::DataLayout::NHWC);
-
     // clang-format off
     // NOTE: indirect convolution method supports only nhwc layout.
     ACL_CHECK_VALID(arm_compute::NEGEMMConv2d::validate(
