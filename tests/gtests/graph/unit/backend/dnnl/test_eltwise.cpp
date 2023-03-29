@@ -32,7 +32,7 @@ namespace utils = dnnl::graph::tests::unit::utils;
 template <typename attr_data_t = float>
 static inline void test_eltwise_common(test::vector<float> &src,
         test::vector<float> &ref_dst, dnnl::impl::graph::dims &dims,
-        const dnnl_graph_op_kind_t op_kind, const std::string &op_name,
+        const graph::op_kind_t op_kind, const std::string &op_name,
         const std::map<dnnl::impl::graph::op_attr_t, attr_data_t> &attrs_data
         = {}) {
     graph::engine_t *eng = get_engine();
@@ -143,13 +143,17 @@ static inline void test_eltwise_bwd_common(
         const std::pair<test::vector<float>, bool> &fwd_data_pair,
         const test::vector<float> &diff_dst_data,
         const test::vector<float> &ref_diff_src, dnnl::impl::graph::dims &dims,
-        const dnnl_graph_op_kind_t op_kind, const std::string &op_name,
+        const graph::op_kind_t op_kind, const std::string &op_name,
         const std::map<dnnl::impl::graph::op_attr_t, attr_data_t> &attrs_data
         = {}) {
-    static const std::set<dnnl_graph_op_kind_t> with_support_for_use_dst {
-            graph::op_kind::EluBackward, graph::op_kind::ClampBackward,
-            graph::op_kind::ReLUBackward, graph::op_kind::SigmoidBackward,
-            graph::op_kind::SqrtBackward, graph::op_kind::TanhBackward};
+    static const std::set<graph::op_kind_t> with_support_for_use_dst {
+            graph::op_kind::EluBackward,
+            graph::op_kind::ClampBackward,
+            graph::op_kind::ReLUBackward,
+            graph::op_kind::SigmoidBackward,
+            graph::op_kind::SqrtBackward,
+            graph::op_kind::TanhBackward,
+    };
     const test::vector<float> &fwd_data = fwd_data_pair.first;
     const bool is_fwd_data_src = fwd_data_pair.second;
 

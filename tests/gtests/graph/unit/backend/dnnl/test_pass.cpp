@@ -6253,8 +6253,13 @@ TEST(Pass, FuseToInt8ConvBinary) {
            quant
              | (u8/s8)
     */
-    const std::vector<dnnl_graph_op_kind_t> binary_kinds
-            = {Maximum, Minimum, Divide, Multiply, Subtract};
+    const std::vector<graph::op_kind_t> binary_kinds = {
+            Maximum,
+            Minimum,
+            Divide,
+            Multiply,
+            Subtract,
+    };
     std::vector<bool> with_biases {false, true};
 
     for (auto &binary_kind : binary_kinds) {
@@ -7919,8 +7924,13 @@ TEST(Pass, FuseToInt8MatMulBinary) {
            quant
              | (u8/s8)
     */
-    const std::vector<dnnl_graph_op_kind_t> binary_kinds
-            = {Maximum, Minimum, Divide, Multiply, Subtract};
+    const std::vector<graph::op_kind_t> binary_kinds = {
+            Maximum,
+            Minimum,
+            Divide,
+            Multiply,
+            Subtract,
+    };
     std::vector<bool> with_biases {false, true};
 
     for (auto &binary_kind : binary_kinds) {
@@ -8024,7 +8034,7 @@ TEST(Pass, FailToFuseToInt8MatMulDivOrSubtract) {
            quant
              | (u8/s8)
     */
-    const std::vector<dnnl_graph_op_kind_t> binary_kinds = {Divide, Subtract};
+    const std::vector<graph::op_kind_t> binary_kinds = {Divide, Subtract};
 
     for (auto &binary_kind : binary_kinds) {
         graph_t agraph;
@@ -14310,8 +14320,20 @@ TEST(Pass, FuseToInt8ConvtransposeEltwise) {
            quant
              | (u8/s8)
     */
-    const std::vector<dnnl_graph_op_kind_t> eltwise_kinds = {Abs, Clamp, Elu,
-            Exp, GELU, Log, ReLU, Round, Sigmoid, Sqrt, Square, Tanh};
+    const std::vector<graph::op_kind_t> eltwise_kinds = {
+            Abs,
+            Clamp,
+            Elu,
+            Exp,
+            GELU,
+            Log,
+            ReLU,
+            Round,
+            Sigmoid,
+            Sqrt,
+            Square,
+            Tanh,
+    };
     std::vector<bool> with_biases {false, true};
 
     for (auto &eltwise_kind : eltwise_kinds) {
@@ -14416,8 +14438,20 @@ TEST(PassSystem, FuseToInt8ConvtransposeEltwise) {
            quant
              | (u8/s8)
     */
-    const std::vector<dnnl_graph_op_kind_t> eltwise_kinds = {Abs, Clamp, Elu,
-            Exp, GELU, Log, ReLU, Round, Sigmoid, Sqrt, Square, Tanh};
+    const std::vector<graph::op_kind_t> eltwise_kinds = {
+            Abs,
+            Clamp,
+            Elu,
+            Exp,
+            GELU,
+            Log,
+            ReLU,
+            Round,
+            Sigmoid,
+            Sqrt,
+            Square,
+            Tanh,
+    };
     std::vector<bool> with_biases {false, true};
 
     for (auto &eltwise_kind : eltwise_kinds) {
@@ -14522,8 +14556,13 @@ TEST(Pass, FuseToInt8ConvtransposeBinary) {
            quant
              | (u8/s8)
     */
-    const std::vector<dnnl_graph_op_kind_t> binary_kinds
-            = {Maximum, Minimum, Divide, Multiply, Subtract};
+    const std::vector<graph::op_kind_t> binary_kinds = {
+            Maximum,
+            Minimum,
+            Divide,
+            Multiply,
+            Subtract,
+    };
     std::vector<bool> with_biases {false, true};
 
     for (auto &binary_kind : binary_kinds) {

@@ -1266,7 +1266,7 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dEltwise) {
     // some cases with Exp post-ops can't pass correctness check on GPU
     SKIP_IF(engine->kind() == graph::engine_kind::gpu, "skip on gpu");
 
-    const std::vector<dnnl_graph_op_kind_t> eltwise_kinds = {
+    const std::vector<graph::op_kind_t> eltwise_kinds = {
             graph::op_kind::Abs,
             graph::op_kind::Elu,
             graph::op_kind::Exp,
@@ -1503,12 +1503,19 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTranspose1d2d3dEltwise) {
     // some cases with Exp post-ops can't pass correctness check on GPU
     SKIP_IF(engine->kind() == graph::engine_kind::gpu, "skip on gpu");
 
-    const std::vector<dnnl_graph_op_kind_t> eltwise_kinds
-            = {graph::op_kind::Abs, graph::op_kind::Clamp, graph::op_kind::Elu,
-                    graph::op_kind::Exp, graph::op_kind::GELU,
-                    graph::op_kind::HardSwish, graph::op_kind::Log,
-                    graph::op_kind::ReLU, graph::op_kind::Round,
-                    graph::op_kind::Sigmoid, graph::op_kind::Tanh};
+    const std::vector<graph::op_kind_t> eltwise_kinds = {
+            graph::op_kind::Abs,
+            graph::op_kind::Clamp,
+            graph::op_kind::Elu,
+            graph::op_kind::Exp,
+            graph::op_kind::GELU,
+            graph::op_kind::HardSwish,
+            graph::op_kind::Log,
+            graph::op_kind::ReLU,
+            graph::op_kind::Round,
+            graph::op_kind::Sigmoid,
+            graph::op_kind::Tanh,
+    };
 
     std::vector<size_t> nds = {1, 2, 3};
     std::vector<int64_t> groups = {1};
