@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Arm Ltd. and affiliates
+* Copyright 2021-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,6 +73,28 @@ status_t insert_singleton_dimension(arm_compute::TensorInfo &ti, size_t dim_i);
 // that we managed to reorder to be dense.
 int reorder_dimensions_by_stride(std::vector<memory_desc_t *> permuted_mds,
         std::vector<const memory_desc_t *> mds);
+
+// Reorder a memory_desc_t and set the strides on a arm_compute::TensorInfo to
+// match an arm_compute::WeightFormat. You are required to specify how various
+// logical dimensions in oneDNN correspond to logical dimensions in arm_compute.
+// info  TensorInfo where the strides will be changed to match the reordering
+// md    memory descriptor where the stride and padded dimensions will be
+//       changed or reordering
+// wf    Describes the memory format/layout of the weights
+// I_dim The logical dimension of md corresponding to the input channel of
+//       a convolution or the K dimension in a matmul
+// O_dim The logical dimension of md corresponding to the output channel of a
+//       convolution or the N dimension in a matmul
+// spatial_dims The logical dimensions of md corresponding to the spatial
+//              dimensions of the weights (H, W, D for example). These will be
+//              the next densest after the inner blocks and the input channel.
+// batch_dims The logical dimensions of md related to the batch in a batched
+//            matmul, ordered from innermost to outermost. ACL calls these
+//            the multi_stride_b. These will become the outermost (least dense)
+//            dimensions and will be collapsed.
+void reorder_to_weight_format(arm_compute::TensorInfo &info, memory_desc_t &md,
+        arm_compute::WeightFormat wf, dim_t I_dim, dim_t O_dim,
+        std::vector<dim_t> spatial_dims, std::vector<dim_t> batch_dims = {});
 
 // Logs a custom 'info' line describing an unsupported case
 #define LOG_ACL_UNSUPPORTED(msg) \

@@ -38,17 +38,17 @@ struct acl_obj_t {
 
 struct acl_conv_conf_t {
     bool with_bias;
-    bool is_int8;
     bool fast_math;
     // If this is true, the result of the convolution goes into a temporarily
     // allocated ACL tensor to be accumulated into the oneDNN dst during postops
     bool use_dst_acc;
-    arm_compute::TensorInfo src_info;
-    arm_compute::TensorInfo wei_info;
-    arm_compute::TensorInfo bia_info;
-    arm_compute::TensorInfo dst_info;
+    arm_compute::TensorInfo src_tensor_info;
+    arm_compute::TensorInfo wei_tensor_info;
+    arm_compute::TensorInfo bia_tensor_info;
+    arm_compute::TensorInfo dst_tensor_info;
     arm_compute::PadStrideInfo padstride_info;
     arm_compute::Size2D dilation_info;
+    // Additional information about the weights not included in wei_tensor_info
     arm_compute::WeightsInfo weights_info;
     // Note: this will default to not enabled, and will do nothing
     arm_compute::ActivationLayerInfo act_info;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Arm Ltd. and affiliates
+* Copyright 2020-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,10 +36,10 @@ struct acl_resource_t : public resource_t {
         if (!acl_obj_) return status::out_of_memory;
 
         // Init Compute Library tensors based on info from descriptor
-        acl_obj_->src_tensor.allocator()->init(acp.src_info);
-        acl_obj_->wei_tensor.allocator()->init(acp.wei_info);
-        acl_obj_->dst_tensor.allocator()->init(acp.dst_info);
-        acl_obj_->bia_tensor.allocator()->init(acp.bia_info);
+        acl_obj_->src_tensor.allocator()->init(acp.src_tensor_info);
+        acl_obj_->wei_tensor.allocator()->init(acp.wei_tensor_info);
+        acl_obj_->dst_tensor.allocator()->init(acp.dst_tensor_info);
+        acl_obj_->bia_tensor.allocator()->init(acp.bia_tensor_info);
 
         acl_obj_->conv.configure(&acl_obj_->src_tensor, &acl_obj_->wei_tensor,
                 acp.with_bias ? &acl_obj_->bia_tensor : nullptr,
