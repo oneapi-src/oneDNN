@@ -315,7 +315,7 @@ struct conv_fwd_executable_t : public op_executable_t {
                             static_cast<dnnl_data_type_t>(dtype),
                             format_tag.data());
                     dnnl::memory::desc new_to_desc;
-                    new_to_desc.reset(new_to_desc_c, true);
+                    new_to_desc.reset(new_to_desc_c);
                     const memory to_mem
                             = dnnl::memory(new_to_desc, psrc_mem.get_engine());
                     to_mem.set_data_handle(dst_mem.get_data_handle());
@@ -359,7 +359,7 @@ struct conv_fwd_executable_t : public op_executable_t {
                             static_cast<dnnl_data_type_t>(dtype),
                             format_tag.data());
                     dnnl::memory::desc new_to_desc;
-                    new_to_desc.reset(new_to_desc_c, true);
+                    new_to_desc.reset(new_to_desc_c);
                     const memory to_mem
                             = dnnl::memory(new_to_desc, psrc_mem.get_engine());
                     to_mem.set_data_handle(dst_mem.get_data_handle());
