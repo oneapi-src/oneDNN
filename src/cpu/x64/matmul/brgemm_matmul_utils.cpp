@@ -127,15 +127,15 @@ status_t check_isa_with_datatype(
     const bool ok = IMPLICATION(bm_conf_utils.is_f32(),
                             isa == avx512_core || bm_conf_utils.is_bf32())
             && IMPLICATION(bm_conf_utils.is_int8(),
-                    one_of(isa, avx512_core_amx, avx512_core_vnni, avx2_vnni_2,
-                            avx2_vnni))
+                    one_of(isa, avx512_core_amx, avx512_core_vnni, avx512_core,
+                            avx2_vnni_2, avx2_vnni))
             && IMPLICATION(bm_conf_utils.is_bf16(),
                     one_of(isa, avx512_core_amx, avx512_core_bf16, avx2_vnni_2))
             && IMPLICATION(bm_conf_utils.is_f16(),
                     one_of(isa, avx512_core_amx_fp16, avx512_core_fp16,
                             avx2_vnni_2))
             && IMPLICATION(bm_conf_utils.is_int8_with_bf16_dst(),
-                    is_superset(isa, avx512_core_vnni) || isa == avx2_vnni_2);
+                    is_superset(isa, avx512_core) || isa == avx2_vnni_2);
     return ok ? status::success : status::unimplemented;
 }
 
@@ -917,8 +917,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
 
     bgmmc.with_bias = mmd.bias_desc.format_kind != format_kind::undef;
     bgmmc.bia_dt = bgmmc.with_bias ? mmd.bias_desc.data_type : data_type::undef;
-    bgmmc.s8s8_compensation_required
-            = bgmmc.src_dt == s8 && one_of(isa, avx512_core_vnni, avx2_vnni);
+    bgmmc.s8s8_compensation_required = bgmmc.src_dt == s8 && !isa_has_s8s8(isa);
     bgmmc.ndims = dst_d.ndims();
 
     brgemm_matmul_conf_utils_t bm_conf_utils(bgmmc, isa, attr,

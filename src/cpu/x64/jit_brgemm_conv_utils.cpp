@@ -1914,8 +1914,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     const bool is_signed_input = jcp.src_dt == s8;
     jcp.s8s8_compensation_required = is_signed_input && !isa_has_s8s8(jcp.isa);
-    jcp.has_vnni = is_superset(jcp.isa, avx512_core_vnni)
-            || is_superset(jcp.isa, avx2_vnni);
+    jcp.has_vnni = isa_has_vnni(jcp.isa);
     if (!IMPLICATION(jcp.wei_dt == s8,
                 mayiuse(avx512_core)
                         || one_of(jcp.isa, avx2_vnni, avx2_vnni_2)))

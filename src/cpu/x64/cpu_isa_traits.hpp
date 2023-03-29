@@ -382,6 +382,10 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
     return false;
 }
 
+static inline bool isa_has_vnni(cpu_isa_t isa) {
+    return is_superset(isa, avx512_core_vnni) || is_superset(isa, avx2_vnni);
+}
+
 static inline bool isa_has_s8s8(cpu_isa_t isa) {
     return is_superset(isa, amx_int8) || is_superset(isa, avx2_vnni_2);
 }

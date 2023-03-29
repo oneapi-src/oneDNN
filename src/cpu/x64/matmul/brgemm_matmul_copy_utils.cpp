@@ -51,7 +51,13 @@ struct jit_brgemm_matmul_copy_a_impl_t : public jit_brgemm_matmul_copy_a_t,
                                          ? static_cast<dim_t>(conf_->wei_k_blk)
                                          : conf_->LDA)
                   * tr_typesize_)
-        , do_compute_compensation_(conf_->has_zero_point_b) {}
+        , do_compute_compensation_(conf_->has_zero_point_b)
+        , avx512_core_dot_product_(
+                  do_compute_compensation_ && !isa_has_vnni(conf->isa))
+        , k_loop_unroll_(is_ymm_ ? 7 : 16)
+        , vmm_copy_idx_(is_ymm_                      ? 13
+                          : avx512_core_dot_product_ ? 27
+                                                     : 29) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -64,10 +70,7 @@ private:
     static constexpr int vlen_ = vreg_traits<Vmm>::vlen;
     static constexpr bool is_ymm_ = std::is_same<Vmm, Xbyak::Ymm>::value;
     static constexpr int num_comp_acc_ = is_ymm_ ? 7 : 8;
-    static constexpr int vmm_copy_idx_ = is_ymm_ ? 13 : 29;
 
-    const int k_loop_unroll_ = is_ymm_ ? 7 : 16; // XXX - compiler in DEBUG
-            // mode doesn't like this as 'static constexpr'
     const int typesize_;
     const int tr_typesize_;
     const int vnni_granularity_;
@@ -75,6 +78,10 @@ private:
     const dim_t src_stride_;
     const dim_t tr_src_stride_;
     const bool do_compute_compensation_;
+    const bool avx512_core_dot_product_;
+
+    const int k_loop_unroll_;
+    const int vmm_copy_idx_;
 
     opmask_t kTail_load = k7;
     opmask_t kTail_store = k6;
@@ -96,6 +103,10 @@ private:
     reg64_t imm_addr64 = r15;
     reg64_t reg_zp_ab_comp_ptr = imm_addr64;
     reg64_t reg_zp_b_neg_val_ptr = reg_K_blk;
+
+    // Required in every dot product for INT8 non-VNNI computation.
+    Vmm vmm_ones_words = Vmm(28);
+    Vmm vmm_dot_product_temp = Vmm(29);
 
     Vmm vmm_comp_mul = Vmm(is_ymm_ ? 14 : 30); // 1s
     Vmm vmm_comp_add = Vmm(is_ymm_ ? 15 : 31); // 128
@@ -122,6 +133,17 @@ private:
     void reduce_compensation_across_accumulators(int num_accumulators);
     void copy_K_loop(bool is_K_tail, bool is_first_K_iter, bool is_last_K_iter);
     void copy_M_loop(bool is_K_tail, bool is_first_K_iter, bool is_last_K_iter);
+    inline void dot_product(Vmm v1, Vmm v2, Vmm v3) {
+        if (!avx512_core_dot_product_)
+            vpdpbusd(v1, v2, v3,
+                    mayiuse(avx512_core) ? EvexEncoding : VexEncoding);
+        else {
+            vpmaddubsw(vmm_dot_product_temp, v2, v3);
+            vpmaddwd(
+                    vmm_dot_product_temp, vmm_dot_product_temp, vmm_ones_words);
+            vpaddd(v1, v1, vmm_dot_product_temp);
+        }
+    }
     void generate() override;
 };
 
@@ -248,14 +270,10 @@ void jit_brgemm_matmul_copy_a_impl_t<Vmm>::copy_K_loop(
     auto maybe_compute_compensation = [this, num_acc](int k_idx, Vmm vmm_copy) {
         if (do_compute_compensation_) {
             const auto vmm_comp_acc = get_vmm_comp_acc(k_idx % num_acc);
-            const bool use_evex = mayiuse(avx512_core_vnni);
-            assert(use_evex || mayiuse(avx2_vnni));
             if (conf_->src_dt == data_type::s8)
-                vpdpbusd(vmm_comp_acc, vmm_comp_mul, vmm_copy,
-                        use_evex ? EvexEncoding : VexEncoding);
+                dot_product(vmm_comp_acc, vmm_comp_mul, vmm_copy);
             else
-                vpdpbusd(vmm_comp_acc, vmm_copy, vmm_comp_mul,
-                        use_evex ? EvexEncoding : VexEncoding);
+                dot_product(vmm_comp_acc, vmm_copy, vmm_comp_mul);
         }
     };
 
@@ -425,6 +443,11 @@ void jit_brgemm_matmul_copy_a_impl_t<Vmm>::copy_M_loop(
 template <typename Vmm>
 void jit_brgemm_matmul_copy_a_impl_t<Vmm>::generate() {
     preamble();
+
+    if (avx512_core_dot_product_) {
+        mov(regq_tmp.cvt16(), 1);
+        vpbroadcastw(vmm_ones_words, regq_tmp.cvt16());
+    }
 
     mov(reg_src, ptr[param1 + GET_OFF(src)]);
     mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
@@ -1164,7 +1187,12 @@ struct jit_brgemm_matmul_copy_b_int8_t : public jit_brgemm_matmul_copy_b_t,
         , tr_src_stride_(conf->LDB * k_blk_step_ * sizeof(int8_t))
         , is_amx_(mayiuse(avx512_core_amx))
         , do_compute_compensation_(
-                  conf->s8s8_compensation_required || conf->has_zero_point_a) {}
+                  conf->s8s8_compensation_required || conf->has_zero_point_a)
+        , avx512_core_dot_product_(
+                  do_compute_compensation_ && !isa_has_vnni(conf->isa))
+        , comp_acc_idx_(is_ymm_                      ? 13
+                          : avx512_core_dot_product_ ? 23
+                                                     : 25) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -1177,13 +1205,15 @@ protected:
     static constexpr int k_blk_step_ = 4;
     static constexpr int n_blk_step_ = 64;
     static constexpr int blk_sz_ = 6;
-    static constexpr int comp_acc_idx_ = is_ymm_ ? 13 : 25;
     static constexpr int simd_w_ = vreg_traits<Vmm>::vlen;
 
     const dim_t src_stride_;
     const dim_t tr_src_stride_;
     const bool is_amx_;
     const bool do_compute_compensation_;
+    const bool avx512_core_dot_product_;
+
+    const int comp_acc_idx_;
 
     const Xbyak::Opmask kTail = k7;
 
@@ -1198,6 +1228,10 @@ protected:
     reg64_t reg_K_start = r10;
     reg64_t regq_tmp = r14;
     reg64_t imm_addr64 = r15;
+
+    // Required in every dot product for INT8 non-VNNI computation.
+    Vmm vmm_ones_words = Vmm(24);
+    Vmm vmm_dot_product_temp = Vmm(25);
 
     // ZMM stuff
     Vmm vreg_idx_lo_256 = Vmm(26);
@@ -1228,7 +1262,18 @@ protected:
     inline void load(int blk, int i, bool is_tail) {}
     inline void kmovq(Opmask k, size_t q) {}
     virtual void init_permute() {}
-    virtual void copy_4x64_vnni(int nrows, int ncolumns) {}
+    virtual void copy_4x64(int nrows, int ncolumns) {}
+    inline void dot_product(Vmm v1, Vmm v2, Vmm v3) {
+        if (!avx512_core_dot_product_)
+            vpdpbusd(v1, v2, v3,
+                    mayiuse(avx512_core) ? EvexEncoding : VexEncoding);
+        else {
+            vpmaddubsw(vmm_dot_product_temp, v2, v3);
+            vpmaddwd(
+                    vmm_dot_product_temp, vmm_dot_product_temp, vmm_ones_words);
+            vpaddd(v1, v1, vmm_dot_product_temp);
+        }
+    }
     void generate() override;
 };
 
@@ -1289,7 +1334,7 @@ private:
         vmovdqa64(vreg_idx_hi_128, (const void *)idx_hi_8);
     }
 
-    void copy_4x64_vnni(int nrows, int ncolumns) override {
+    void copy_4x64(int nrows, int ncolumns) override {
         const bool is_tail = ncolumns < n_blk_step_;
         const auto tail_mask = size_t(((size_t)1 << ncolumns) - 1);
 
@@ -1395,7 +1440,7 @@ private:
         vmovdqa64(vreg_idx_hi_128, (const void *)idx_hi_128);
     }
 
-    void copy_4x64_vnni(int nrows, int ncolumns) override {
+    void copy_4x64(int nrows, int ncolumns) override {
         const bool is_tail = ncolumns < n_blk_step_;
         if (is_tail) {
             const auto tail_mask = size_t(((size_t)1 << ncolumns) - 1);
@@ -1446,7 +1491,7 @@ private:
             vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base),
                     get_vmm(k, 3));
             if (do_compute_compensation_)
-                vpdpbusd(get_comp_acc(0), vmm_comp_mul, get_vmm(k, 3));
+                dot_product(get_comp_acc(0), vmm_comp_mul, get_vmm(k, 3));
 
             if (ncolumns > 16) {
                 vmovups(get_vmm(k, 5), vreg_idx_hi_128);
@@ -1454,7 +1499,7 @@ private:
                 vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base + 64),
                         get_vmm(k, 5));
                 if (do_compute_compensation_)
-                    vpdpbusd(get_comp_acc(1), vmm_comp_mul, get_vmm(k, 5));
+                    dot_product(get_comp_acc(1), vmm_comp_mul, get_vmm(k, 5));
             } else if (conf_->wei_n_blk > 16) {
                 vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base + 64),
                         vmm_zero);
@@ -1466,7 +1511,7 @@ private:
                 vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base + 128),
                         get_vmm(k, 0));
                 if (do_compute_compensation_)
-                    vpdpbusd(get_comp_acc(2), vmm_comp_mul, get_vmm(k, 0));
+                    dot_product(get_comp_acc(2), vmm_comp_mul, get_vmm(k, 0));
             } else if (conf_->wei_n_blk > 32) {
                 vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base + 128),
                         vmm_zero);
@@ -1478,7 +1523,7 @@ private:
                 vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base + 192),
                         get_vmm(k, 2));
                 if (do_compute_compensation_)
-                    vpdpbusd(get_comp_acc(3), vmm_comp_mul, get_vmm(k, 2));
+                    dot_product(get_comp_acc(3), vmm_comp_mul, get_vmm(k, 2));
             } else if (conf_->wei_n_blk > 48) {
                 vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base + 192),
                         vmm_zero);
@@ -1509,7 +1554,7 @@ private:
             uni_vmovups(vmm_src, ptr[reg_src + offset]);
     }
 
-    void copy_4x64_vnni(int nrows, int ncolumns) override {
+    void copy_4x64(int nrows, int ncolumns) override {
         const bool is_tail = ncolumns < n_blk_step_;
         const int k_end = div_up(nrows, k_blk_step_);
         for_(int k = 0; k < k_end; k++)
@@ -1593,6 +1638,11 @@ template <typename Vmm>
 void jit_brgemm_matmul_copy_b_int8_t<Vmm>::generate() {
     preamble();
 
+    if (avx512_core_dot_product_) {
+        mov(regq_tmp.cvt16(), 1);
+        vpbroadcastw(vmm_ones_words, regq_tmp.cvt16());
+    }
+
     uni_vpxor(vmm_zero, vmm_zero, vmm_zero);
     mov(reg_src, ptr[param1 + GET_OFF(src)]);
     mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
@@ -1618,7 +1668,7 @@ void jit_brgemm_matmul_copy_b_int8_t<Vmm>::generate() {
         jl(K_loop_single, T_NEAR);
 
         L(K_loop_unrolled);
-        copy_4x64_vnni(k_unroll * k_blk_step_, ncolumns);
+        copy_4x64(k_unroll * k_blk_step_, ncolumns);
         add(reg_src, k_unroll * k_blk_step_ * src_stride_);
         add(reg_tr_src, k_unroll * tr_src_stride_);
 
@@ -1630,7 +1680,7 @@ void jit_brgemm_matmul_copy_b_int8_t<Vmm>::generate() {
         cmp(reg_K_iters, k_blk_step_);
         jl(K_loop_tail_or_done, T_NEAR);
 
-        copy_4x64_vnni(k_blk_step_, ncolumns);
+        copy_4x64(k_blk_step_, ncolumns);
         add(reg_src, k_blk_step_ * src_stride_);
         add(reg_tr_src, tr_src_stride_);
 
@@ -1645,7 +1695,7 @@ void jit_brgemm_matmul_copy_b_int8_t<Vmm>::generate() {
             cmp(reg_K_iters, 0);
             jle(K_loop_done, T_NEAR);
 
-            copy_4x64_vnni(k_blk_tail, ncolumns);
+            copy_4x64(k_blk_tail, ncolumns);
             sub(reg_K_iters, k_blk_tail);
             L(K_loop_done);
         }
@@ -1848,14 +1898,13 @@ private:
             return vmm;
         }
     }
-    void copy_2x32_vnni(int nrows, int ncolumns);
+    void copy_2x32(int nrows, int ncolumns);
     void init_masks();
     void generate() override;
 };
 
 template <typename Vmm>
-void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_2x32_vnni(
-        int nrows, int ncolumns) {
+void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_2x32(int nrows, int ncolumns) {
 
     const int columns_tail = ncolumns % n_blk_step;
     const auto tail_mask = (1 << columns_tail) - 1;
@@ -1981,7 +2030,7 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::generate() {
         jl(K_loop_single, T_NEAR);
 
         L(K_loop_unrolled);
-        copy_2x32_vnni(k_unroll * k_blk_step, ncolumns);
+        copy_2x32(k_unroll * k_blk_step, ncolumns);
         add(reg_src, k_unroll * k_blk_step * src_stride);
         add(reg_tr_src, k_unroll * tr_src_stride);
 
@@ -1993,7 +2042,7 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::generate() {
         cmp(reg_K_iters, k_blk_step);
         jl(K_loop_tail_or_done, T_NEAR);
 
-        copy_2x32_vnni(k_blk_step, ncolumns);
+        copy_2x32(k_blk_step, ncolumns);
         add(reg_src, k_blk_step * src_stride);
         add(reg_tr_src, tr_src_stride);
 
@@ -2008,7 +2057,7 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::generate() {
             cmp(reg_K_iters, 0);
             jle(K_loop_done, T_NEAR);
 
-            copy_2x32_vnni(k_blk_tail, ncolumns);
+            copy_2x32(k_blk_tail, ncolumns);
             sub(reg_K_iters, k_blk_tail);
             L(K_loop_done);
         }
@@ -2201,6 +2250,12 @@ struct jit_brgemm_matmul_copy_b_transposed_t
         , is_bf32_(conf->is_bf32)
         , req_zp_comp_(conf_->has_zero_point_a)
         , req_s8s8_comp_(conf_->s8s8_compensation_required)
+        , avx512_core_dot_product_(
+                  do_compute_compensation_ && !isa_has_vnni(conf->isa))
+        , max_tmp_idx(16
+                  - (avx512_core_dot_product_
+                                  ? 8
+                                  : (do_compute_compensation_ ? 6 : 0)))
         , src_stride_(conf_->wei_tag == format_tag::adbc
                           ? conf_->copy_B_wei_stride
                           : conf_->K * typesize_)
@@ -2230,6 +2285,8 @@ private:
     const bool is_bf32_;
     const bool req_zp_comp_;
     const bool req_s8s8_comp_;
+    const bool avx512_core_dot_product_;
+    const int max_tmp_idx;
 
     const dim_t src_stride_, tr_src_stride_;
 
@@ -2266,6 +2323,10 @@ private:
     Vmm vmm_all_bits_1 = Vmm(max_vmm_regs_ - 5);
     Vmm vmm_one_s32 = Vmm(max_vmm_regs_ - 6);
 
+    // Required in every dot product for INT8 non-VNNI computation.
+    Vmm vmm_ones_words = Vmm(max_vmm_regs_ - 7);
+    Vmm vmm_dot_product_temp = Vmm(max_vmm_regs_ - 8);
+
     void kmovw(Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovw(k, regw_tmp);
@@ -2283,23 +2344,33 @@ private:
 
     Vmm tmp_vmm(int i) {
         // If compensation compute is required - last 6 zmms are reserved for it
-        assert(i >= 0
-                && IMPLICATION(!is_ymm_, i < 16 - do_compute_compensation_ * 6)
+        assert(i >= 0 && IMPLICATION(!is_ymm_, i < max_tmp_idx)
                 && IMPLICATION(is_ymm_, i < 2));
         return Vmm(n_blk_step_ + i);
     }
 
-    void copy_row_x_col_vnni(int nrows, int ncolumns);
+    void copy_row_x_col(int nrows, int ncolumns);
     void compute_K_loop(bool is_N_tail, int curr_K_tail, bool is_first_K_iter,
             bool is_last_K_iter);
     void compute_N_loop(
             int curr_K_tail, bool is_first_K_iter, bool is_last_K_iter);
 
+    inline void dot_product(Vmm v1, Vmm v2, Vmm v3) {
+        if (!avx512_core_dot_product_)
+            vpdpbusd(v1, v2, v3,
+                    mayiuse(avx512_core) ? EvexEncoding : VexEncoding);
+        else {
+            vpmaddubsw(vmm_dot_product_temp, v2, v3);
+            vpmaddwd(
+                    vmm_dot_product_temp, vmm_dot_product_temp, vmm_ones_words);
+            vpaddd(v1, v1, vmm_dot_product_temp);
+        }
+    }
     void generate() override;
 };
 
 template <typename Vmm>
-void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col_vnni(
+void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
         int nrows, int ncolumns) {
     assert(nrows >= 0 && nrows <= n_blk_step_ && ncolumns >= 0
             && ncolumns <= k_blk_step_);
@@ -2449,7 +2520,6 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col_vnni(
             vmovaps(src2 | k3333, tmp0);
             vmovaps(src0 | kCCCC, tmp1);
         }
-
         // swap 4
         for (int i = 0; i < 4; i++) {
             const int src_idx0 = base_idx + i;
@@ -2466,27 +2536,23 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col_vnni(
     };
 
     auto fixup16x16 = [&]() {
-        // swap 8
         for (int i = 0; i < 8; i++) {
             const auto tmp = tmp_vmm(i);
             const auto src0 = src_vmm(i);
             const auto src8 = src_vmm(8 + i);
             vshuff64x2(tmp, src0, src8, 0x44);
             if (do_compute_compensation_)
-                vpdpbusd(vmm_comp_acc, vmm_comp_mul, tmp);
+                dot_product(vmm_comp_acc, vmm_comp_mul, tmp);
             store(tmp, i);
         }
 
         for (int i = 0; i < 8; i++) {
-            // If compensation compute is required - last 4 zmms are reserved
-            const auto tmp = IMPLICATION(do_compute_compensation_, i < 2)
-                    ? tmp_vmm(8 + i)
-                    : src_vmm((i - 2) / 2 + (i % 2) * 8);
+            const auto tmp = tmp_vmm(i);
             const auto src0 = src_vmm(i);
             const auto src8 = src_vmm(8 + i);
             vshuff64x2(tmp, src0, src8, 0xee);
             if (do_compute_compensation_)
-                vpdpbusd(vmm_comp_acc, vmm_comp_mul, tmp);
+                dot_product(vmm_comp_acc, vmm_comp_mul, tmp);
             store(tmp, 8 + i);
         }
     };
@@ -2497,7 +2563,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col_vnni(
 }
 
 template <>
-void jit_brgemm_matmul_copy_b_transposed_t<Ymm>::copy_row_x_col_vnni(
+void jit_brgemm_matmul_copy_b_transposed_t<Ymm>::copy_row_x_col(
         int nrows, int ncolumns) {
     assert(nrows >= 0 && nrows <= n_blk_step_ && ncolumns >= 0
             && ncolumns <= k_blk_step_);
@@ -2587,7 +2653,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<Ymm>::copy_row_x_col_vnni(
     for (int i = 0; i < 8; i++) {
         const auto src0 = src_vmm(i);
         if (do_compute_compensation_)
-            vpdpbusd(vmm_comp_acc, vmm_comp_mul, src0, VexEncoding);
+            dot_product(vmm_comp_acc, vmm_comp_mul, src0);
         uni_vmovups(ptr[reg_tr_src + i * tr_src_stride_], src0);
     }
 }
@@ -2613,7 +2679,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::compute_K_loop(bool is_N_tail,
     }
 
     L(K_loop);
-    copy_row_x_col_vnni(nrows, k_blk_step_);
+    copy_row_x_col(nrows, k_blk_step_);
     add(reg_src, k_blk_step_ * typesize_);
     add(reg_tr_src, k_blk_step_ / vnni_granularity_ * tr_src_stride_);
 
@@ -2623,7 +2689,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::compute_K_loop(bool is_N_tail,
 
     L(K_loop_tail_or_done);
 
-    if (curr_K_tail > 0) copy_row_x_col_vnni(nrows, curr_K_tail);
+    if (curr_K_tail > 0) copy_row_x_col(nrows, curr_K_tail);
 
     if (req_s8s8_comp_) {
         const auto addr = ptr[reg_comp_ptr];
@@ -2688,6 +2754,11 @@ template <typename Vmm>
 void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::generate() {
 
     preamble();
+
+    if (avx512_core_dot_product_) {
+        mov(regq_tmp.cvt16(), 1);
+        vpbroadcastw(vmm_ones_words, regq_tmp.cvt16());
+    }
 
     mov(reg_src_base, ptr[param1 + GET_OFF(src)]);
     mov(reg_tr_src_base, ptr[param1 + GET_OFF(tr_src)]);
