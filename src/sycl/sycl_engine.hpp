@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -125,22 +125,9 @@ inline status_t get_sycl_device_index(
     auto backend = get_sycl_backend(dev);
     auto devices = get_sycl_devices(dev_type, backend);
 
-    auto is_subdevice = [&backend](const ::sycl::device &d) {
-        // TODO: remove this work around once Level-Zero is fixed
-        if (backend == backend_t::level0) return false;
-        return d.get_info<::sycl::info::device::partition_type_property>()
-                != ::sycl::info::partition_property::no_partition;
-    };
-
-    // Search the top level device
-    auto parent_device = dev;
-    while (is_subdevice(parent_device)) {
-        parent_device
-                = parent_device.get_info<::sycl::info::device::parent_device>();
-    }
-
     // Find the top level device in the list
-    auto it = std::find(devices.begin(), devices.end(), parent_device);
+    auto it = std::find(
+            devices.begin(), devices.end(), get_main_parent_device(dev));
     if (it != devices.end()) {
         *index = it - devices.begin();
         return status::success;
