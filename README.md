@@ -9,7 +9,7 @@ oneDNN is part of [oneAPI](https://oneapi.io).
 The library is optimized for Intel(R) Architecture Processors, Intel Graphics,
 and Arm\* 64-bit Architecture (AArch64)-based processors. oneDNN has
 experimental support for the following architectures: NVIDIA\* GPU,
-OpenPOWER\* Power ISA (PPC64), IBMz\* (s390x), and RISC-V.
+AMD\* GPU, OpenPOWER\* Power ISA (PPC64), IBMz\* (s390x), and RISC-V.
 
 oneDNN is intended for deep learning applications and framework
 developers interested in improving application performance
@@ -165,12 +165,21 @@ is enabled:
     * NVIDIA CUDA\* driver
     * cuBLAS 10.1 or later
     * cuDNN 7.6 or later
+* SYCL runtime with AMD GPU support requires
+    * [oneAPI DPC++/C++ Compiler](https://github.com/intel/llvm)
+    * [AMD ROCm](https://github.com/RadeonOpenCompute/ROCm), version 5.3 or later
+    * [MIOpen](https://github.com/ROCmSoftwarePlatform/MIOpen), version 2.18 or later (optional if AMD ROCm includes the required version of MIOpen)
+    * [rocBLAS](https://github.com/ROCmSoftwarePlatform/rocBLAS), version 2.45.0 or later (optional if AMD ROCm includes the required version of rocBLAS)
 
 > **WARNING**
 >
-> NVIDIA GPU support is experimental. General information, build instructions
-> and implementation limitations is available in
+> NVIDIA GPU support is experimental. General information, build instructions,
+> and implementation limitations are available in the
 > [NVIDIA backend readme](https://github.com/oneapi-src/oneDNN/blob/master/src/gpu/nvidia/README.md).
+>
+> AMD GPU support is experimental. General information, build instructions,
+> and implementation limitations are available in the
+> [AMD backend readme](https://github.com/oneapi-src/oneDNN/blob/master/src/gpu/amd/README.md).
 
 ### Runtime Dependencies
 
