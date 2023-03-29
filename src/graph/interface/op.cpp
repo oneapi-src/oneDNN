@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,8 +41,8 @@ dnnl_graph_op::dnnl_graph_op(
     if (name_.empty()) { name_ = kind2str(kind_) + "_" + std::to_string(id_); }
 }
 
-status_t DNNL_API dnnl_graph_op_create(
-        op_t **op, size_t id, op_kind_t kind, const char *verbose_name) {
+status_t DNNL_API dnnl_graph_op_create(op_t **op, size_t id,
+        dnnl_graph_op_kind_t kind, const char *verbose_name) {
     if (utils::any_null(op, verbose_name)) return status::invalid_arguments;
 
     *op = new op_t {id, kind, verbose_name};
@@ -127,9 +127,10 @@ status_t DNNL_API dnnl_graph_op_get_id(const op_t *op, size_t *id) {
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_op_get_kind(const op_t *op, op_kind_t *kind) {
+status_t DNNL_API dnnl_graph_op_get_kind(
+        const op_t *op, dnnl_graph_op_kind_t *kind) {
     if (utils::any_null(op, kind)) return status::invalid_arguments;
 
-    *kind = op->get_kind();
+    *kind = static_cast<dnnl_graph_op_kind_t>(op->get_kind());
     return status::success;
 }

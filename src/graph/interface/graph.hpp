@@ -139,7 +139,7 @@ public:
         return graph::status::success;
     }
 
-    op_t *create_op(dnnl_graph_op_kind_t kind, std::string name = "") {
+    op_t *create_op(graph::op_kind_t kind, std::string name = "") {
         ops_.push_back(std::make_shared<op_t>(kind, std::move(name)));
         return ops_.back().get();
     }

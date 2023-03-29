@@ -108,7 +108,7 @@ const fpmath_mode_t any = dnnl_fpmath_mode_any;
 const fpmath_mode_t tf32 = dnnl_fpmath_mode_tf32;
 }; // namespace fpmath_mode
 
-using op_kind_t = dnnl_graph_op_kind_t;
+using op_kind_t = typename std::underlying_type<dnnl_graph_op_kind_t>::type;
 namespace op_kind {
 const op_kind_t Abs = dnnl_graph_op_abs;
 const op_kind_t AbsBackward = dnnl_graph_op_abs_backward;
