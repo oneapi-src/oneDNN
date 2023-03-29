@@ -175,13 +175,15 @@ void ref_partition_t::get_leading_op_input_offset_to_dt_map(
         const auto it = out_lt_2_op_.find(in_lt_of_leading_op.id_);
         if (it != out_lt_2_op_.end()) {
             auto &input_op = it->second;
+            // Dequantize-->Leading Op
             if (input_op.get().kind_ == "Dequantize") {
                 // Dequantize has only one input
                 map_off_to_dt.insert(
                         {offset, input_op.get().in_lts_.front().data_type_});
             }
-            // TypeCast-->Dequantize
-            else if (input_op.get().kind_ == "TypeCast") {
+            // Dequantize-->TypeCast/StaticReshape-->Leading Op
+            else if (input_op.get().kind_ == "TypeCast"
+                    || input_op.get().kind_ == "StaticReshape") {
                 const auto &in_lc_of_tc = input_op.get().in_lts_.front();
                 const auto &in_op_of_tc
                         = out_lt_2_op_.find(in_lc_of_tc.id_)->second;
