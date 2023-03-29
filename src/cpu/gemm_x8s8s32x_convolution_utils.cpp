@@ -109,7 +109,7 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, acc_data_t *acc,
                 if (do_bias_)
                     d += math::get_bias(bias, g * jcp_.oc + oc, bias_data_type_);
 
-                d *= scales[(g * jcp_.oc + oc) * scale_idx_mult_];
+                d *= scales[(g * jcp_.oc + oc) * jcp_.scale_idx_mult];
 
                 // quantize data
                 if (jcp_.with_dst_scale) d *= dst_scale;
@@ -133,7 +133,7 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, acc_data_t *acc,
                     d += math::get_bias(bias, g * jcp_.oc + oc,
                                         bias_data_type_);
 
-                d *= scales[(g * jcp_.oc + oc) * scale_idx_mult_];
+                d *= scales[(g * jcp_.oc + oc) * jcp_.scale_idx_mult];
             } else {
                 d = acc_fp[acc_off];
             }
@@ -260,11 +260,8 @@ pp_ker_t::pp_ker_t(const convolution_pd_t *pd, const conv_gemm_conf_t &jcp)
 
     dst_os_stride_ = dst_md.blocking_desc().strides[pd->ndims() - 1];
     dst_data_type_ = dst_md.data_type();
-
-    do_scale_ = !pd->attr()->output_scales_.has_default_values();
-    if (do_scale_) {
-        scale_idx_mult_ = (pd->attr()->output_scales_.mask_ == (1 << 1));
-    }
+    // Use weight scale to do DQ.
+    do_scale_ = !pd->attr()->scales_.get(DNNL_ARG_WEIGHTS).has_default_values();
 
     do_bias_ = pd->with_bias();
     if (do_bias_) {

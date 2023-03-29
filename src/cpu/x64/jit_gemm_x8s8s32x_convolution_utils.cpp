@@ -176,7 +176,7 @@ struct jit_pp_ker_t : pp_ker_t, public jit_generator {
         args.zp_src_comp
             = zp.src_comp ? zp.src_comp + g_oc_offset_prologue : nullptr;
         args.zp_dst = zp.dst;
-        args.scales = scales + scale_idx_mult_ * (g * jcp_.oc + oc_offset);
+        args.scales = scales + jcp_.scale_idx_mult * (g * jcp_.oc + oc_offset);
         args.dst_scale = dst_scale;
         args.sum_scale = sum_scale_;
         args.signed_scale = signed_scale;
@@ -375,7 +375,7 @@ void jit_pp_ker_t<isa>::generate() {
         uni_vbroadcastss(vreg_sum_scale, ptr[reg_param + PARAM_OFF(sum_scale)]);
     if (do_signed_scaling_)
         uni_vbroadcastss(vreg_signed_scale, ptr[reg_param + PARAM_OFF(signed_scale)]);
-    if (do_scale_ && scale_idx_mult_ == 0)
+    if (do_scale_ && jcp_.scale_idx_mult == 0)
         uni_vbroadcastss(vreg_scale, dword[reg_scales]);
 #undef PARAM_OFF
 
@@ -523,13 +523,13 @@ void jit_pp_ker_t<isa>::generate() {
     };
 
     // Load accumulated value, convert to float,
-    // bias (if any), scaling, and simple operations (if any);
+    // multiply weight scale, bias (if any), and simple operations (if any);
     // then convert to destination type and store
     auto compute = [&](size_t offset, int idx, bool apply_mask) {
         auto acc_addr = ptr[reg_acc + offset * sizeof(acc_data_t)];
 
-        if (do_scale_ && scale_idx_mult_ > 0) {
-            assert(scale_idx_mult_ == 1);
+        if (do_scale_ && jcp_.scale_idx_mult > 0) {
+            assert(jcp_.scale_idx_mult == 1);
             auto scale_addr = ptr[reg_scales + offset * sizeof(float)];
             auto vreg_scale_ = vreg_scale;
             if (isa == avx512_core) {
@@ -575,6 +575,8 @@ void jit_pp_ker_t<isa>::generate() {
         if (do_signed_scaling_)
             uni_vmulps(vreg_dst(idx), vreg_dst(idx), vreg_signed_scale);
 
+        if (do_scale_)
+            uni_vmulps(vreg_dst(idx), vreg_dst(idx), vreg_scale);
         if (do_bias_) {
             auto bias_addr = ptr[reg_bias + offset * bias_data_type_size_];
             auto vreg_bias_ = vreg_bias(idx);
@@ -599,9 +601,6 @@ void jit_pp_ker_t<isa>::generate() {
                 uni_vcvtdq2ps(vreg_bias(idx), vreg_bias(idx));
             uni_vaddps(vreg_dst(idx), vreg_dst(idx), vreg_bias(idx));
         }
-
-        if (do_scale_)
-            uni_vmulps(vreg_dst(idx), vreg_dst(idx), vreg_scale);
 
         apply_post_ops(offset, idx, apply_mask);
 
@@ -693,8 +692,8 @@ void jit_pp_ker_t<isa>::generate() {
     auto advance_ptrs_imm = [&](size_t offset) {
         add(reg_dst, offset * dst_data_type_size_);
         add(reg_acc, offset * sizeof(acc_data_t));
-        if (scale_idx_mult_) {
-            assert(scale_idx_mult_ == 1);
+        if (jcp_.scale_idx_mult) {
+            assert(jcp_.scale_idx_mult == 1);
             add(reg_scales, offset * sizeof(float));
         }
         if (do_bias_)
@@ -705,8 +704,8 @@ void jit_pp_ker_t<isa>::generate() {
     auto advance_ptrs_reg = [&](Reg64 offset) {
         lea(reg_dst, ptr[reg_dst + offset * dst_data_type_size_]);
         lea(reg_acc, ptr[reg_acc + offset * sizeof(acc_data_t)]);
-        if (scale_idx_mult_) {
-            assert(scale_idx_mult_ == 1);
+        if (jcp_.scale_idx_mult) {
+            assert(jcp_.scale_idx_mult == 1);
             lea(reg_scales, ptr[reg_scales + offset * sizeof(float)]);
         }
         if (do_bias_)
@@ -718,8 +717,8 @@ void jit_pp_ker_t<isa>::generate() {
     auto rewind_ptrs = [&]() {
         if (do_bias_)
             sub(reg_bias, OC_ * bias_data_type_size_);
-        if (scale_idx_mult_) {
-            assert(scale_idx_mult_ == 1);
+        if (jcp_.scale_idx_mult) {
+            assert(jcp_.scale_idx_mult == 1);
             sub(reg_scales, OC_ * sizeof(float));
         }
         add(reg_dst, (dst_os_stride_ - OC_) * dst_data_type_size_);

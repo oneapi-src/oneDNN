@@ -57,7 +57,6 @@ protected:
 
     bool do_bias_ = false;
     bool do_scale_ = false;
-    size_t scale_idx_mult_ = 0;
 
     data_type_t bias_data_type_ = data_type::undef;
     data_type_t dst_data_type_ = data_type::undef;
