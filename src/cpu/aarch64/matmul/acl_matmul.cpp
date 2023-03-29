@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Arm Ltd. and affiliates
+* Copyright 2021-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,36 +31,19 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
     auto wei_base = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
 
     bool is_transA = pd()->amp_.is_transA;
-    bool is_transB = pd()->amp_.is_transB;
     bool use_dst_acc = pd()->amp_.use_dst_acc;
 
     std::lock_guard<std::mutex> _lock {this->mtx};
     auto *acl_resource = ctx.get_resource_mapper()->get<acl_resource_t>(this);
     acl_matmul_obj_t &acl_obj = acl_resource->get_acl_obj();
     // Run transpose kernel
-    if (is_transA && !is_transB) {
+    if (is_transA) {
         acl_obj.src_tensor.allocator()->allocate();
         acl_obj.src_acc_tensor.allocator()->import_memory(
                 const_cast<data_t *>(src_base));
         acl_obj.transA.run();
         acl_obj.wei_tensor.allocator()->import_memory(
                 const_cast<data_t *>(wei_base));
-    } else if (is_transB && !is_transA) {
-        acl_obj.wei_tensor.allocator()->allocate();
-        acl_obj.wei_acc_tensor.allocator()->import_memory(
-                const_cast<data_t *>(wei_base));
-        acl_obj.transB.run();
-        acl_obj.src_tensor.allocator()->import_memory(
-                const_cast<data_t *>(src_base));
-    } else if (is_transA && is_transB) {
-        acl_obj.src_tensor.allocator()->allocate();
-        acl_obj.src_acc_tensor.allocator()->import_memory(
-                const_cast<data_t *>(src_base));
-        acl_obj.wei_tensor.allocator()->allocate();
-        acl_obj.wei_acc_tensor.allocator()->import_memory(
-                const_cast<data_t *>(wei_base));
-        acl_obj.transA.run();
-        acl_obj.transB.run();
     } else {
         acl_obj.src_tensor.allocator()->import_memory(
                 const_cast<data_t *>(src_base));
@@ -69,7 +52,7 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
     }
 
     if (use_dst_acc) {
-        // Put the result in a new tensor, it will be accumalated to the dst
+        // Put the result in a new tensor, it will be accumulated to the dst
         // during the post ops
         acl_obj.dst_tensor.allocator()->allocate();
     } else {
@@ -82,7 +65,6 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
     acl_obj.src_tensor.allocator()->free();
     acl_obj.wei_tensor.allocator()->free();
     if (is_transA) acl_obj.src_acc_tensor.allocator()->free();
-    if (is_transB) acl_obj.wei_acc_tensor.allocator()->free();
 
     void *dst = acl_obj.dst_tensor.buffer();
     pd()->post_ops.execute(ctx, dst);

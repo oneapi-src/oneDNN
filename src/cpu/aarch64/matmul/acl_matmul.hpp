@@ -32,19 +32,14 @@ struct acl_resource_t : public resource_t {
 
     status_t configure(const acl_matmul_conf_t &amp) {
         if (!acl_obj_) return status::out_of_memory;
-        acl_obj_->src_tensor.allocator()->init(amp.src_info);
-        acl_obj_->wei_tensor.allocator()->init(amp.wei_info);
-        acl_obj_->dst_tensor.allocator()->init(amp.dst_info);
+        acl_obj_->src_tensor.allocator()->init(amp.src_tensor_info);
+        acl_obj_->wei_tensor.allocator()->init(amp.wei_tensor_info);
+        acl_obj_->dst_tensor.allocator()->init(amp.dst_tensor_info);
         // Configure transpose kernel for src, wei or both
         if (amp.is_transA) {
             acl_obj_->src_acc_tensor.allocator()->init(amp.src_acc_info);
             acl_obj_->transA.configure(
                     &acl_obj_->src_acc_tensor, &acl_obj_->src_tensor);
-        }
-        if (amp.is_transB) {
-            acl_obj_->wei_acc_tensor.allocator()->init(amp.wei_acc_info);
-            acl_obj_->transB.configure(
-                    &acl_obj_->wei_acc_tensor, &acl_obj_->wei_tensor);
         }
         // Configure GEMM
         acl_obj_->gemm.configure(&acl_obj_->src_tensor, &acl_obj_->wei_tensor,
@@ -83,7 +78,9 @@ struct acl_matmul_t : public primitive_t {
                     && platform::has_data_type_support(data_type::f16);
             bool ok = is_dense_data()
                     && utils::one_of(true, is_fp32_ok, is_fp16_ok)
-                    && !has_zero_dim_memory() && set_default_formats()
+                    && !has_zero_dim_memory()
+                    && weights_md_.format_kind == format_kind::any
+                    && set_default_formats()
                     && attr()->has_default_values(
                             smask_t::oscale | smask_t::post_ops)
                     && attr_oscale_ok() && !has_runtime_dims_or_strides();
@@ -98,9 +95,9 @@ struct acl_matmul_t : public primitive_t {
             amp_.use_dst_acc = post_ops.has_sum();
 
             // Validate ACL GEMM
-            ACL_CHECK_VALID(arm_compute::NEGEMM::validate(&amp_.src_info,
-                    &amp_.wei_info, nullptr, &amp_.dst_info, amp_.alpha, 0.0f,
-                    amp_.gemm_info));
+            ACL_CHECK_VALID(arm_compute::NEGEMM::validate(&amp_.src_tensor_info,
+                    &amp_.wei_tensor_info, nullptr, &amp_.dst_tensor_info,
+                    amp_.alpha, 0.0f, amp_.gemm_info));
 
             return status::success;
         }

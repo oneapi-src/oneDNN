@@ -55,6 +55,7 @@ git clone --branch $ACL_VERSION --depth 1 $ACL_REPO $ACL_DIR
 cd $ACL_DIR
 
 scons --silent $MAKE_NP Werror=0 debug=0 neon=1 opencl=0 embed_kernels=0 \
-    os=linux arch=$ACL_ARCH build=native multi_isa=$ACL_MULTI_ISA_SUPPORT
+    os=linux arch=$ACL_ARCH build=native multi_isa=$ACL_MULTI_ISA_SUPPORT \
+    experimental_fixed_format_kernels=1
 
 exit $?

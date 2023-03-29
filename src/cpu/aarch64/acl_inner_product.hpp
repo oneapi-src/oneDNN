@@ -40,11 +40,13 @@ struct acl_ip_conf_t {
     // If this is true, the result of the inner product goes into a temporarily
     // allocated ACL tensor to be accumulated into the oneDNN dst during postops
     bool use_dst_acc;
-    arm_compute::TensorInfo src_info;
-    arm_compute::TensorInfo wei_info;
-    arm_compute::TensorInfo bia_info;
-    arm_compute::TensorInfo dst_info;
+    arm_compute::TensorInfo src_tensor_info;
+    arm_compute::TensorInfo wei_tensor_info;
+    arm_compute::TensorInfo bia_tensor_info;
+    arm_compute::TensorInfo dst_tensor_info;
     arm_compute::FullyConnectedLayerInfo fc_info;
+    // Additional information about the weights not included in wei_tensor_info
+    arm_compute::WeightsInfo weights_info;
 };
 struct acl_ip_resource_t : public resource_t {
     acl_ip_resource_t() : acl_ip_obj_(utils::make_unique<acl_ip_obj_t>()) {}
@@ -53,10 +55,10 @@ struct acl_ip_resource_t : public resource_t {
         if (!acl_ip_obj_) return status::out_of_memory;
 
         // Init Compute Library tensors based on info from descriptor
-        acl_ip_obj_->src_tensor.allocator()->init(aip.src_info);
-        acl_ip_obj_->wei_tensor.allocator()->init(aip.wei_info);
-        acl_ip_obj_->dst_tensor.allocator()->init(aip.dst_info);
-        acl_ip_obj_->bia_tensor.allocator()->init(aip.bia_info);
+        acl_ip_obj_->src_tensor.allocator()->init(aip.src_tensor_info);
+        acl_ip_obj_->wei_tensor.allocator()->init(aip.wei_tensor_info);
+        acl_ip_obj_->dst_tensor.allocator()->init(aip.dst_tensor_info);
+        acl_ip_obj_->bia_tensor.allocator()->init(aip.bia_tensor_info);
 
         // clang-format off
         acl_ip_obj_->fc.configure(
@@ -64,7 +66,8 @@ struct acl_ip_resource_t : public resource_t {
             &acl_ip_obj_->wei_tensor,
             aip.with_bias ? &acl_ip_obj_->bia_tensor : nullptr,
             &acl_ip_obj_->dst_tensor,
-            aip.fc_info);
+            aip.fc_info,
+            aip.weights_info);
         // clang-format on
 
         return status::success;
@@ -98,6 +101,7 @@ struct acl_inner_product_fwd_t : public primitive_t {
                             primitive_attr_t::skip_mask_t::post_ops, f32);
             const bool ok = is_fwd() && !has_zero_dim_memory()
                     && utils::one_of(true, is_fp16_ok, is_fp32_ok)
+                    && weights_md_.format_kind == format_kind::any
                     && set_default_params() == status::success;
 
             if (!ok) return status::unimplemented;
@@ -124,95 +128,46 @@ struct acl_inner_product_fwd_t : public primitive_t {
             ACL_CHECK_SUPPORT(
                     !(is_2d || is_4d), "ACL supports only 2d or 4d cases");
 
-            // batch size
-            const int n = src_md()->dims[0];
-
-            // input and output channels
-            const int ic = src_md()->dims[1];
-            const int oc = dst_md()->dims[1];
-
-            // source spatial dimensions
-            const int ih = is_4d ? src_md()->dims[ndims - 2] : 0;
-            const int iw = is_4d ? src_md()->dims[ndims - 1] : 0;
-
-            // weights spatial dimensions
-            const int kh = is_4d ? weights_md()->dims[ndims - 2] : 0;
-            const int kw = is_4d ? weights_md()->dims[ndims - 1] : 0;
-
-            // Only NCHW or NHWC derivatives supported by ACL kernels
             using namespace format_tag;
             auto src_tag
                     = memory_desc_matches_one_of_tag(src_md_, nhwc, nchw, nc);
-            auto wei_tag = memory_desc_matches_one_of_tag(
-                    weights_md_, ohwi, oihw, oi, io);
             auto dst_tag = memory_desc_matches_one_of_tag(dst_md_, nc);
 
             ACL_CHECK_SUPPORT(
-                    utils::one_of(format_tag::undef, src_tag, wei_tag, dst_tag),
+                    utils::one_of(format_tag::undef, src_tag, dst_tag),
                     "unsupported memory layout");
 
             ACL_CHECK_SUPPORT(is_2d && src_tag != dst_tag,
                     "for src and dst layouts must match");
 
-            arm_compute::TensorShape src_shape, wei_shape;
-            if (is_2d) {
-                src_shape = arm_compute::TensorShape(ic, n);
+            const dim_t ic_total = IC_total();
+            const dim_t n = MB();
+            const dim_t oc = OC();
 
-                wei_shape = (wei_tag == io) ? arm_compute::TensorShape(oc, ic)
-                                            : arm_compute::TensorShape(ic, oc);
-            }
-            if (is_4d) {
-                src_shape = (src_tag == nhwc)
-                        ? arm_compute::TensorShape(ic, iw, ih, n)
-                        : arm_compute::TensorShape(iw, ih, ic, n);
+            aip.src_tensor_info = arm_compute::TensorInfo(
+                    arm_compute::TensorShape(ic_total, n), 1,
+                    acl_utils::get_acl_data_t(src_md()->data_type));
 
-                // ACL requires the weights to be in 2D flattened shape
-                const int flattened_ic = is_4d ? ic * kh * kw : ic;
-                wei_shape = arm_compute::TensorShape(flattened_ic, oc);
-            }
-
-            arm_compute::DataLayout src_layout = (src_tag == nhwc)
-                    ? arm_compute::DataLayout::NHWC
-                    : arm_compute::DataLayout::NCHW;
-
-            arm_compute::DataLayout wei_layout = (wei_tag == ohwi)
-                    ? arm_compute::DataLayout::NHWC
-                    : arm_compute::DataLayout::NCHW;
-
-            auto acl_src_data_t
-                    = acl_utils::get_acl_data_t(src_md()->data_type);
-            aip.src_info = arm_compute::TensorInfo(
-                    src_shape, 1, acl_src_data_t, src_layout);
-            auto acl_wei_data_t
-                    = acl_utils::get_acl_data_t(weights_md(0)->data_type);
-
-            aip.wei_info = arm_compute::TensorInfo(
-                    wei_shape, 1, acl_wei_data_t, wei_layout);
+            // ACL requires the weights to be in 2D flattened shape
+            aip.wei_tensor_info = arm_compute::TensorInfo(
+                    arm_compute::TensorShape(oc, ic_total), 1,
+                    acl_utils::get_acl_data_t(weights_md(0)->data_type));
 
             auto acl_dst_data_t
                     = acl_utils::get_acl_data_t(dst_md()->data_type);
-            aip.dst_info = arm_compute::TensorInfo(
+            aip.dst_tensor_info = arm_compute::TensorInfo(
                     arm_compute::TensorShape(oc, n), 1, acl_dst_data_t);
 
             aip.with_bias = desc()->bias_desc.format_kind != format_kind::undef;
             auto acl_bia_data_t = aip.with_bias
                     ? acl_utils::get_acl_data_t(weights_md(1)->data_type)
                     : acl_dst_data_t;
-            aip.bia_info = arm_compute::TensorInfo(aip.with_bias
+            aip.bia_tensor_info = arm_compute::TensorInfo(aip.with_bias
                             ? arm_compute::TensorShape(oc)
                             : arm_compute::TensorShape(),
                     1, acl_bia_data_t);
 
-            aip.fc_info.weights_trained_layout = wei_layout;
-            if (is_2d && wei_tag != src_tag) {
-                // weights are already transposed
-                aip.fc_info.transpose_weights = false;
-
-                if (desc()->prop_kind == dnnl_forward_training) {
-                    aip.wei_info.set_are_values_constant(false);
-                    aip.fc_info.are_weights_reshaped = true;
-                }
-            }
+            aip.fc_info.transpose_weights = false;
 
             aip.fc_info.enable_fast_math = utils::one_of(
                     attr()->fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any);
@@ -221,15 +176,103 @@ struct acl_inner_product_fwd_t : public primitive_t {
                     aip.fc_info.activation_info));
             aip.use_dst_acc = post_ops.has_sum();
 
+            // WeightFormat::ANY tells ACL we can handle any format
+            aip.weights_info = arm_compute::WeightsInfo(false, 1, 1, ic_total,
+                    false, arm_compute::WeightFormat::ANY);
+
+            // Get the format that the ACL kernel will expect the weights to be
+            // in (if a kernel exists) Note that these are referred to as fixed
+            // format kernels, because they require one specific weights format
+            arm_compute::WeightFormat expected_weight_format;
+            ACL_CHECK_VALID(arm_compute::NEFullyConnectedLayer::has_opt_impl(
+                    expected_weight_format, &aip.src_tensor_info,
+                    &aip.wei_tensor_info,
+                    aip.with_bias ? &aip.bia_tensor_info : nullptr,
+                    &aip.dst_tensor_info, aip.fc_info, aip.weights_info));
+
+            // Set weights info to the one returned by has_opt_impl
+            aip.weights_info.set_weight_format(expected_weight_format);
+
+            // has_opt_impl may return a non fast math kernel, even if requested
+            aip.fc_info.enable_fast_math
+                    = arm_compute::is_fixed_format_fast_math(
+                            expected_weight_format);
+
+            // Inner product is the same as the matmul n x (chw) * (ihw) x o
+            // (note that the src c and weights i both correspond to the input
+            // channel). ACL FullyConnectedLayer assumes the chw dimensions of
+            // src and ihw dimensions of weights are collapsed, so we need to
+            // make sure that they have the same layout. Given that weights are
+            // more often fixed, (so reorders can be hoisted) it makes sense to
+            // reorder the weights to fit the src.
+
+            // For 4D tensors we need to:
+            // - reorder the ihw of the weights to match the src chw
+            // - collapse ihw
+            // - pad the collapsed ihw
+            // But there is not yet a way to express this collapse+pad as a
+            // reorder. So we try to reorder the weights to match the src,
+            // implicitly collapse ihw in our definition of the weights
+            // TensorInfo and hope that the inner_dim has zero padding
+            // (weights_md_.dims[inner_dim] % block_by == 0). If it does, we
+            // fall back to a kernel without blocking (currently this is
+            // equivalent to non-fastmath).
+
+            // 2D just works because we just pad the only dimension.
+
+            // o_dim is always the first logical dimension (oihw, ohwi, oi)
+            dim_t o_dim = 0;
+            dim_t inner_dim;
+            // Rest of logical dimensions in order of innermost to outermost
+            std::vector<dim_t> remaining_dims = {};
+
+            if (src_tag == nchw) {
+                inner_dim = 3; // w
+                remaining_dims = {2, 1}; // h, i
+            } else if (src_tag == nhwc) {
+                inner_dim = 1; // i
+                remaining_dims = {3, 2}; // w, h
+            } else { // Only remaining case is 2D (nc)
+                inner_dim = 1; // i
+                remaining_dims = {}; // No other dimensions for 2D
+            }
+
+            // Fallback
+            int block_by = arm_compute::block_by(expected_weight_format);
+            if (is_4d && weights_md_.dims[inner_dim] % block_by != 0
+                    && aip.fc_info.enable_fast_math) {
+                aip.fc_info.enable_fast_math = false;
+                aip.weights_info.set_weight_format(
+                        arm_compute::WeightFormat::ANY);
+                ACL_CHECK_VALID(
+                        arm_compute::NEFullyConnectedLayer::has_opt_impl(
+                                expected_weight_format, &aip.src_tensor_info,
+                                &aip.wei_tensor_info,
+                                aip.with_bias ? &aip.bia_tensor_info : nullptr,
+                                &aip.dst_tensor_info, aip.fc_info,
+                                aip.weights_info));
+                aip.weights_info.set_weight_format(expected_weight_format);
+                block_by = arm_compute::block_by(expected_weight_format);
+                if (weights_md_.dims[inner_dim] % block_by != 0)
+                    return status::unimplemented;
+            }
+
+            acl_utils::reorder_to_weight_format(aip.wei_tensor_info,
+                    weights_md_, expected_weight_format, inner_dim, o_dim,
+                    remaining_dims, {});
+
             // clang-format off
+
             // Validate fully connected layer manually to check for return status
             ACL_CHECK_VALID(arm_compute::NEFullyConnectedLayer::validate(
-                &aip.src_info,
-                &aip.wei_info,
-                aip.with_bias ? &aip.bia_info : nullptr,
-                &aip.dst_info,
-                aip.fc_info));
+                &aip.src_tensor_info,
+                &aip.wei_tensor_info,
+                aip.with_bias ? &aip.bia_tensor_info : nullptr,
+                &aip.dst_tensor_info,
+                aip.fc_info,
+                aip.weights_info));
             // clang-format on
+
             return status::success;
         }
     }; // pd_t

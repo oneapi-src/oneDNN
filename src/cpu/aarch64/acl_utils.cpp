@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Arm Ltd. and affiliates
+* Copyright 2021-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -269,6 +269,75 @@ int reorder_dimensions_by_stride(std::vector<memory_desc_t *> permuted_mds,
     }
 
     return reordered_dims;
+}
+
+void reorder_to_weight_format(arm_compute::TensorInfo &info, memory_desc_t &md,
+        arm_compute::WeightFormat wf, dim_t I_dim, dim_t O_dim,
+        std::vector<dim_t> spatial_dims, std::vector<dim_t> batch_dims) {
+
+    md.format_kind = format_kind::blocked;
+    md.format_desc.blocking = blocking_desc_t {};
+    const int interleaved_by = arm_compute::interleave_by(wf);
+    const int block_by = arm_compute::block_by(wf);
+
+    // I dimension becomes densest (apart from blocking)
+    md.format_desc.blocking.strides[I_dim] = interleaved_by * block_by;
+    md.padded_dims[I_dim] = utils::rnd_up(md.dims[I_dim], block_by);
+
+    // Then any spatial dimensions (e.g. HW)
+    dim_t ldb = interleaved_by * md.padded_dims[I_dim];
+    for (dim_t sd : spatial_dims) {
+        md.format_desc.blocking.strides[sd] = ldb;
+        ldb *= md.padded_dims[sd];
+    }
+
+    // O dim (which was the innermost) becomes the outermost (apart from batching)
+    md.format_desc.blocking.strides[O_dim] = ldb;
+    md.padded_dims[O_dim] = utils::rnd_up(md.dims[O_dim], interleaved_by);
+
+    // Update the batch dimensions, starting with stride of the innermost batch
+    const dim_t innermost_batch_stride
+            = md.padded_dims[I_dim] * md.padded_dims[O_dim];
+    dim_t batch_stride = innermost_batch_stride;
+    for (dim_t bd : batch_dims) {
+        md.format_desc.blocking.strides[bd] = batch_stride;
+        batch_stride *= md.padded_dims[bd];
+    }
+
+    // Weights can only be blocked if they are also interleaved
+    if (interleaved_by > 1) {
+        md.format_desc.blocking.inner_nblks = 1 + (block_by > 1);
+
+        md.format_desc.blocking.inner_idxs[0] = O_dim;
+        md.format_desc.blocking.inner_blks[0] = interleaved_by;
+        if (block_by > 1) {
+            md.format_desc.blocking.inner_idxs[1] = I_dim;
+            md.format_desc.blocking.inner_blks[1] = block_by;
+        }
+    }
+
+    if (arm_compute::is_fixed_format_fast_math(wf)) {
+        md.data_type = dnnl_bf16;
+        info.set_data_type(arm_compute::DataType::BFLOAT16);
+    }
+
+    // The data layout is now determined by the manually set strides
+    info.set_data_layout(arm_compute::DataLayout::UNKNOWN);
+
+    // x is ignored in fixed format kernels
+    // y is the leading dimension of b (ldb) in the GEMM d = a*b + c
+    //   This is the stride of O_dim in the md
+    // z is the batch dimension (not strictly needed if there's only 1 batch)
+    //   i.e. how much do I need to stride to get to the next matmul (ignoring
+    //   the interleaving). Note that we use the innermost_batch_stride
+    //   because all the batched dimensions are collapsed (as required by ACL).
+    arm_compute::Strides new_strides_in_bytes = info.strides_in_bytes();
+    new_strides_in_bytes.set(1, ldb * info.element_size());
+    new_strides_in_bytes.set(2, innermost_batch_stride * info.element_size());
+
+    info.init(info.tensor_shape(), info.num_channels(), info.data_type(),
+            new_strides_in_bytes, info.offset_first_element_in_bytes(),
+            memory_desc_wrapper(md).size());
 }
 
 } // namespace acl_utils
