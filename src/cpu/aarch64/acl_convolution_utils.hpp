@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Arm Ltd. and affiliates
+* Copyright 2020-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -62,11 +62,6 @@ status_t init_conf_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
         const primitive_attr_t &attr);
 
 status_t init_conf_indirect_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
-        memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const convolution_desc_t &cd,
-        const primitive_attr_t &attr);
-
-status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, const convolution_desc_t &cd,
         const primitive_attr_t &attr);
