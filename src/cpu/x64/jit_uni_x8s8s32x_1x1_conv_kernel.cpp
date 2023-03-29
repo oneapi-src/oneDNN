@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,10 +54,13 @@ _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::_jit_uni_x8s8s32x_1x1_conv_kernel(
         using namespace binary_injector;
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = true;
+        const size_t tail_size = get_tail_size();
+        static constexpr bool use_exact_tail_scalar_bcast = false;
         rhs_arg_static_params_t rhs_arg_static_params {15, r13, r14, r15,
                 preserve_gpr, preserve_vmm,
                 GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
-                memory_desc_wrapper(dst_md)};
+                memory_desc_wrapper(dst_md), tail_size,
+                use_exact_tail_scalar_bcast};
         static_params_t static_params {this->param1, rhs_arg_static_params};
 
         postops_injector_
@@ -193,7 +196,8 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::apply_postops(const int ur,
             mov(ptr[rsp + reg_bcast_loop_iter_off], reg_ptr_sum_zp);
         apply_sum(ur, load_loop_blk, mask_flag_in, p_sum_scale, p_sum_zp);
 
-        binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+        binary_injector::rhs_arg_dynamic_params_t rhs_arg_params,
+                rhs_arg_params_tail;
         vmm_index_set_t vmm_idxs;
         if (jcp.with_binary) {
             iterate(ur, load_loop_blk, [&](const int i_ur, const int i_load) {
@@ -206,13 +210,27 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::apply_postops(const int ur,
                         = vreg_accum_idx(load_loop_blk, i_load, i_ur);
                 vmm_idxs.emplace(vmm_idx);
 
-                rhs_arg_params.vmm_idx_to_out_reg.emplace(
+                rhs_arg_params_tail.vmm_idx_to_out_reg.emplace(
                         vmm_idx, aux_reg_output_data);
-                rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                rhs_arg_params_tail.vmm_idx_to_out_elem_off_val.emplace(
                         vmm_idx, aux_output_offset);
+                if (mask_flag_in && (i_load + 1 == load_loop_blk))
+                    rhs_arg_params_tail.vmm_tail_idx_.emplace(vmm_idx);
             });
-
+            rhs_arg_params = rhs_arg_params_tail;
+            rhs_arg_params.vmm_tail_idx_.clear();
+            Label postops_done;
+            if (mask_flag_in) {
+                Label postops_no_tail;
+                test(reg_reduce_pos_flag, FLAG_OC_LAST);
+                je(postops_no_tail, T_NEAR);
+                postops_injector_->compute_vector_range(
+                        vmm_idxs, rhs_arg_params_tail);
+                jmp(postops_done, T_NEAR);
+                L(postops_no_tail);
+            }
             postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
+            L(postops_done);
         } else {
             iterate(ur, load_loop_blk, [&](const int i_ur, const int i_load) {
                 vmm_idxs.emplace(vreg_accum_idx(load_loop_blk, i_load, i_ur));
@@ -720,11 +738,6 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
     } else {
         jcp.post_ops = post_ops;
     }
-
-    for (auto &post_op : jcp.post_ops.entry_)
-        if (post_op.is_binary() && post_op.binary.src1_desc.dims[1] != 1) {
-            post_op.binary.src1_desc.dims[1] = jcp.oc;
-        }
 
     using namespace injector;
     const bool post_ops_ok_ = post_ops_ok({isa, {eltwise, binary, sum},
