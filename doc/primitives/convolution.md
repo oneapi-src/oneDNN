@@ -344,7 +344,7 @@ algorithms:
   Networks by A. Lavin and S. Gray](https://arxiv.org/abs/1509.09308). The
   Winograd algorithm often results in the best performance, but it is
   applicable only to particular shapes. Winograd supports
-  GPU (f16 and f32) and AArch64 CPU engines.
+  GPU (f16 and f32).
 
 - _Implicit GEMM_. The convolution operation is reinterpreted in terms of
   matrix-matrix multiplication by rearranging the source data into a
@@ -374,7 +374,7 @@ fall back to an explicit GEMM algorithm.
 @anchor dg_winograd_conv
 ### Winograd Convolution
 
-oneDNN supports the Winograd convolution algorithm on GPU and AArch64 CPU systems.
+oneDNN supports the Winograd convolution algorithm only on GPU engine.
 
 The following side effects should be weighed against the (potential)
 performance boost achieved from using the Winograd algorithm:
