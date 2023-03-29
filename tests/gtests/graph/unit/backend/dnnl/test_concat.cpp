@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -251,11 +251,11 @@ TEST(ExecuteSubgraphInt8, Concat) {
     std::default_random_engine generator(7);
     std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
     std::generate(src0_s8_data.begin(), src0_s8_data.end(),
-            [&]() { return static_cast<uint8_t>(s8_distribution(generator)); });
+            [&]() { return static_cast<int8_t>(s8_distribution(generator)); });
     std::generate(src1_s8_data.begin(), src1_s8_data.end(),
-            [&]() { return static_cast<uint8_t>(s8_distribution(generator)); });
+            [&]() { return static_cast<int8_t>(s8_distribution(generator)); });
     std::generate(src2_s8_data.begin(), src2_s8_data.end(),
-            [&]() { return static_cast<uint8_t>(s8_distribution(generator)); });
+            [&]() { return static_cast<int8_t>(s8_distribution(generator)); });
 
     graph::op_t dq0_op(0, graph::op_kind::Dequantize, "dq0_op");
     graph::op_t dq1_op(1, graph::op_kind::Dequantize, "dq1_op");
