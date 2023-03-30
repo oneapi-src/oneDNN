@@ -128,18 +128,40 @@ device_id_t sycl_device_id(const ::sycl::device &dev) {
     return device_id;
 }
 
+bool dev_ctx_consistency_check(
+        const ::sycl::device &dev, const ::sycl::context &ctx) {
+    auto ctx_devs = ctx.get_devices();
+
+    // Try to find the given device in the given context.
+    auto it = std::find_if(ctx_devs.begin(), ctx_devs.end(),
+            [&](const ::sycl::device &ctx_dev) {
+                return are_equal(ctx_dev, dev);
+            });
+    // If found.
+    if (it != ctx_devs.end()) return true;
+
+    // If not found and the given device is not a sub-device.
+    if (!is_subdevice(dev)) return false;
+
+    // Try to find a parent device of the given sub-device in the given
+    // context.
+    while (is_subdevice(dev)) {
+        auto parent_dev = get_parent_device(dev);
+        it = std::find_if(ctx_devs.begin(), ctx_devs.end(),
+                [&](const ::sycl::device &ctx_dev) {
+                    return are_equal(ctx_dev, parent_dev);
+                });
+        // If found.
+        if (it != ctx_devs.end()) return true;
+    }
+
+    return false;
+}
+
 status_t check_device(engine_kind_t eng_kind, const ::sycl::device &dev,
         const ::sycl::context &ctx) {
     // Check device and context consistency.
-    auto devs = ctx.get_devices();
-    bool found = false;
-    for (size_t i = 0; i < devs.size(); i++) {
-        if (are_equal(devs[i], dev)) {
-            found = true;
-            break;
-        }
-    }
-    if (!found) return status::invalid_arguments;
+    if (!dev_ctx_consistency_check(dev, ctx)) return status::invalid_arguments;
 
     // Check engine kind and device consistency.
     if (eng_kind == engine_kind::cpu && !dev.is_cpu() && !is_host(dev))
