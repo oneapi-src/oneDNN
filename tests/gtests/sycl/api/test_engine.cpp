@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -158,32 +158,43 @@ TEST_P(sycl_engine_test, SubDevice) {
             = dev.get_info<info::device::partition_max_sub_devices>();
     SKIP_IF(max_sub_devices < 2, "This GPU doesn't support sub-devices");
 
-    auto sub_dev = dev.create_sub_devices<
+    auto sub_devs = dev.create_sub_devices<
             info::partition_property::partition_by_affinity_domain>(
             info::partition_affinity_domain::next_partitionable);
-    context sub_ctx(sub_dev);
+    context sub_ctx(sub_devs);
+
+    const auto test_subdevice = [&](const engine &eng) {
+        memory::dims tz = {2, 3, 4, 5};
+        memory::desc mem_d(
+                tz, memory::data_type::f32, memory::format_tag::nchw);
+        auto mem = test::make_memory(mem_d, eng);
+
+        auto eltwise_pd
+                = eltwise_forward::primitive_desc(eng, prop_kind::forward,
+                        algorithm::eltwise_relu, mem_d, mem_d, 0.0f);
+        auto eltwise = eltwise_forward(eltwise_pd);
+
+        stream s(eng);
+        eltwise.execute(s, {{DNNL_ARG_SRC, mem}, {DNNL_ARG_DST, mem}});
+        s.wait();
+    };
 
     catch_expected_failures(
             [&]() {
-                for (const auto &sub_dev_i : sub_dev) {
+                for (const auto &sub_dev_i : sub_devs) {
                     engine eng;
+                    // Test case when each sub-device has its own context.
                     ASSERT_NO_THROW(eng
                             = sycl_interop::make_engine(sub_dev_i, sub_ctx));
+                    test_subdevice(eng);
 
-                    memory::dims tz = {2, 3, 4, 5};
-                    memory::desc mem_d(tz, memory::data_type::f32,
-                            memory::format_tag::nchw);
-                    auto mem = test::make_memory(mem_d, eng);
-
-                    auto eltwise_pd = eltwise_forward::primitive_desc(eng,
-                            prop_kind::forward, algorithm::eltwise_relu, mem_d,
-                            mem_d, 0.0f);
-                    auto eltwise = eltwise_forward(eltwise_pd);
-
-                    stream s(eng);
-                    eltwise.execute(
-                            s, {{DNNL_ARG_SRC, mem}, {DNNL_ARG_DST, mem}});
-                    s.wait();
+                    // Test case when a sub-device is used with the default
+                    // context.
+                    ASSERT_NO_THROW(
+                            eng = sycl_interop::make_engine(sub_dev_i,
+                                    sub_dev_i.get_platform()
+                                            .ext_oneapi_get_default_context()));
+                    test_subdevice(eng);
                 }
             },
             param.expected_status != dnnl_success, param.expected_status);
