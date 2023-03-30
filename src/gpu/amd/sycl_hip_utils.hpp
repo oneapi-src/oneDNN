@@ -64,6 +64,50 @@ inline void convert_dims(const dnnl_dim_t *dims, int *new_dims, int n_dims,
     }
 }
 
+inline bool memory_desc_matches_nchw_vect_c(const memory_desc_t *mem_desc) {
+    // Only one block is supported for second (C) dimension and the block size
+    // must be 4 and the dimension has to be a multiple of block size.
+    auto is_int_8 = utils::one_of(mem_desc->data_type, data_type::s8);
+    auto &strides = mem_desc->format_desc.blocking.strides;
+    if (is_int_8 && mem_desc->format_desc.blocking.inner_nblks == 1
+            && mem_desc->format_desc.blocking.inner_idxs[0] == 1
+            && mem_desc->format_desc.blocking.inner_blks[0] == 4
+            && mem_desc->dims[1] % 4 == 0) {
+        for (int d = 0; d < mem_desc->ndims - 1; ++d)
+            if (strides[d] < strides[d + 1]) return false;
+        return true;
+    }
+    return false;
+}
+
+inline bool has_different_block_size(
+        const memory_desc_t *src_md, const memory_desc_t *dst_md) {
+    return ((src_md->format_desc.blocking.inner_nblks > 0
+                    && dst_md->format_desc.blocking.inner_nblks == 0)
+            || (src_md->format_desc.blocking.inner_nblks == 0
+                    && dst_md->format_desc.blocking.inner_nblks > 0));
+}
+
+inline bool adjust_dim_for_dnn(
+        int *dims, int n_dims, const memory_desc_t *mem_desc) {
+    if (memory_desc_matches_nchw_vect_c(mem_desc)) {
+        dims[n_dims] = mem_desc->format_desc.blocking.inner_blks[0];
+        dims[mem_desc->format_desc.blocking.inner_idxs[0]]
+                /= mem_desc->format_desc.blocking.inner_blks[0];
+        return true;
+    }
+    return false;
+}
+
+inline bool adjust_stride_for_dnn(
+        int *stride, int n_dims, const memory_desc_t *mem_desc) {
+    if (memory_desc_matches_nchw_vect_c(mem_desc)) {
+        stride[n_dims] = mem_desc->format_desc.blocking.inner_nblks;
+        return true;
+    }
+    return false;
+}
+
 // Check if the dimensions contain any zeros, returns true if they do.
 inline bool has_zero_dims(const dnnl_dim_t *dims, int n_dims) {
     for (size_t i = 0; i < n_dims; i++) {
@@ -98,22 +142,6 @@ inline status_t convert_data_type(const memory_desc_t *mem_desc,
         default: return status::unimplemented;
     }
     return status::success;
-}
-
-static bool memory_desc_matches_nchw_vect_c(const memory_desc_t *mem_desc) {
-    // Only one block is supported for second (C) dimension and the block size
-    // must be 4 and the dimension has to be a multiple of block size.
-    auto is_int_8 = utils::one_of(mem_desc->data_type, data_type::s8);
-    auto &strides = mem_desc->format_desc.blocking.strides;
-    if (is_int_8 && mem_desc->format_desc.blocking.inner_nblks == 1
-            && mem_desc->format_desc.blocking.inner_idxs[0] == 1
-            && mem_desc->format_desc.blocking.inner_blks[0] == 4
-            && mem_desc->dims[1] % 4 == 0) {
-        for (int d = 0; d < mem_desc->ndims - 1; ++d)
-            if (strides[d] < strides[d + 1]) return false;
-        return true;
-    }
-    return false;
 }
 
 inline bool memory_format_ok(const memory_desc_t *mem_desc) {
