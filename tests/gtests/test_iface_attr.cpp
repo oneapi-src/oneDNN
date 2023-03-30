@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 * Copyright 2020-2021 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -333,6 +333,108 @@ TEST_F(attr_test_t, TestPostOpsCheckLimit) {
             ops_eltwise.append_eltwise(algorithm::eltwise_relu, 1.f, 0.f));
     EXPECT_ANY_THROW(ops_binary.append_binary(algorithm::binary_add,
             memory::desc({1}, data_type::s8, memory::format_tag::a)));
+}
+
+HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestSumPostOpQuantization) {
+    auto engine_kind = get_test_engine_kind();
+    engine e {engine_kind, 0};
+
+    std::vector<data_type> test_dts {data_type::f32, data_type::s8};
+
+    if (!unsupported_data_type(data_type::bf16))
+        test_dts.push_back(data_type::bf16);
+
+    auto create_pd = [&e](primitive::kind pk, data_type dt,
+                             primitive_attr &attr) {
+        switch (pk) {
+            case primitive::kind::convolution: {
+                memory::desc dat_md {
+                        {2, 64, 3, 3}, dt, memory::format_tag::any};
+                memory::desc wei_md {
+                        {64, 64, 3, 3}, dt, memory::format_tag::any};
+
+                auto pd = convolution_forward::primitive_desc(e,
+                        prop_kind::forward_inference,
+                        algorithm::convolution_direct, dat_md, wei_md, dat_md,
+                        {1, 1}, {1, 1}, {1, 1}, attr);
+                break;
+            }
+            case primitive::kind::deconvolution: {
+                memory::desc dat_md {
+                        {2, 64, 3, 3}, dt, memory::format_tag::any};
+                memory::desc wei_md {
+                        {64, 64, 3, 3}, dt, memory::format_tag::any};
+
+                auto pd = deconvolution_forward::primitive_desc(e,
+                        prop_kind::forward_inference,
+                        algorithm::deconvolution_direct, dat_md, wei_md, dat_md,
+                        {1, 1}, {1, 1}, {1, 1}, attr);
+                break;
+            }
+            case primitive::kind::inner_product: {
+                memory::desc dat_md {{2, 64}, dt, memory::format_tag::any};
+                memory::desc wei_md {{64, 64}, dt, memory::format_tag::any};
+
+                auto pd = inner_product_forward::primitive_desc(e,
+                        prop_kind::forward_inference, dat_md, wei_md, dat_md,
+                        attr);
+                break;
+            }
+            case primitive::kind::matmul: {
+                memory::desc dat_md {{2, 64}, dt, memory::format_tag::any};
+                memory::desc wei_md {{64, 64}, dt, memory::format_tag::any};
+
+                auto pd = matmul::primitive_desc(
+                        e, dat_md, wei_md, dat_md, attr);
+                break;
+            }
+            default: assert(!"not expected primitive kind");
+        }
+    };
+
+    for (auto pk :
+            {primitive::kind::convolution, primitive::kind::deconvolution,
+                    primitive::kind::inner_product, primitive::kind::matmul})
+        for (auto sum_dt :
+                {data_type::f32, data_type::s8, data_type::u8, data_type::s32})
+            for (float s : {1.0f, 0.5f})
+                for (int32_t zp : {0, 1}) {
+                    // GPU doesn't support zero point
+                    if (zp != 0 && e.get_kind() == engine::kind::gpu) continue;
+
+                    dnnl::primitive_attr attr;
+                    dnnl::post_ops ops;
+                    ops.append_sum(s, zp, sum_dt);
+                    attr.set_post_ops(ops);
+
+                    for (auto dt : test_dts) {
+                        if (memory::data_type_size(dt)
+                                == memory::data_type_size(sum_dt)) {
+                            if (zp != 0) {
+                                if (dt != data_type::s8) {
+                                    // unsupported scenario
+                                    EXPECT_ANY_THROW(create_pd(pk, dt, attr));
+                                } else {
+                                    if (impl::utils::one_of(sum_dt,
+                                                data_type::s8, data_type::u8,
+                                                data_type::s32))
+                                        EXPECT_NO_THROW(
+                                                create_pd(pk, dt, attr));
+                                    else
+                                        // unsupported scenario
+                                        EXPECT_ANY_THROW(
+                                                create_pd(pk, dt, attr));
+                                }
+                            } else {
+                                // gemm-style beta support
+                                EXPECT_NO_THROW(create_pd(pk, dt, attr));
+                            }
+                        } else {
+                            // unsupported scenario
+                            EXPECT_ANY_THROW(create_pd(pk, dt, attr));
+                        }
+                    }
+                }
 }
 
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusionPostop) {
