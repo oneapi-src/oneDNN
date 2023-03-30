@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -167,8 +167,16 @@ TEST_P(sycl_engine_test, SubDevice) {
             [&]() {
                 for (const auto &sub_dev_i : sub_dev) {
                     engine eng;
+                    // Test case when each sub-device has its own context.
                     ASSERT_NO_THROW(eng
                             = sycl_interop::make_engine(sub_dev_i, sub_ctx));
+
+                    // Test case when a sub-device is used with the default
+                    // context.
+                    ASSERT_NO_THROW(
+                            eng = sycl_interop::make_engine(sub_dev_i,
+                                    sub_dev_i.get_platform()
+                                            .ext_oneapi_get_default_context()));
 
                     memory::dims tz = {2, 3, 4, 5};
                     memory::desc mem_d(tz, memory::data_type::f32,
