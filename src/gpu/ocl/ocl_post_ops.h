@@ -219,8 +219,7 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
 #define REPLICATE_DATA( \
         dest_ptr, dest_size, x0_s, x1_s, x2_s, x3_s, x4_s, x5_s) \
     { \
-        const unsigned copy_size \
-                = x0_s * X_NELEMS(x1_s) * x2_s * x3_s * x4_s * x5_s; \
+        const unsigned copy_size = x0_s * x1_s * x2_s * x3_s * x4_s * x5_s; \
         unroll_for(unsigned fid = copy_size; fid < dest_size; ++fid) { \
             *(dest_ptr + fid) = *(dest_ptr + (fid % copy_size)); \
         } \
@@ -263,17 +262,20 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
         float *bin_arg_ptr = &bin_arg[0]; \
         const bool use_burst_read = IS_BURSTABLE(idx, x0, x0_s, x1, x1_s, x2, \
                 x2_s, x3, x3_s, x4, x4_s, x5, x5_s, is_burst); \
-        const unsigned x1_jump = is_burst ? SUB_GROUP_SIZE : 1; \
         if (use_burst_read) { \
             FILL_BIN_ARG_TRY_BLOCK(idx, bin_arg_ptr, bin_arg_size, x0, x0_s, \
                     x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
                     x5_s); \
+            REPLICATE_DATA(bin_arg_ptr, bin_arg_size, x0_s, X_NELEMS(x1_s), \
+                    x2_s, x3_s, x4_s, x5_s); \
         } else { \
+            const unsigned x1_jump = is_burst ? SUB_GROUP_SIZE : 1; \
+            const unsigned x1_size = x1_s / x1_jump; \
             FILL_BIN_ARG_SERIAL(idx, bin_arg_ptr, x0, x0_s, (x1 + x1_incr), \
                     x1_s, x1_jump, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s); \
+            REPLICATE_DATA(bin_arg_ptr, bin_arg_size, x0_s, x1_size, x2_s, \
+                    x3_s, x4_s, x5_s); \
         } \
-        REPLICATE_DATA(bin_arg_ptr, bin_arg_size, x0_s, x1_s, x2_s, x3_s, \
-                x4_s, x5_s); \
         FWD_XNARY_GENERIC_DT(PO_BINARY, CONCAT3(PO_, idx, _ALG), accumulator, \
                 acc_elem_dt, ((acc_elem_dt *)(&accumulator)), \
                 (sizeof(accumulator) / sizeof(acc_elem_dt)), bin_arg_ptr, \
