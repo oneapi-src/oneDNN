@@ -58,11 +58,15 @@ protected:
         for (auto &plat : platform::get_platforms()) {
             for (auto &dev : plat.get_devices()) {
                 if (dev.is_gpu()) {
-                    if (!gpu_dev) {
+                    if (!gpu_dev
+                            && dev.get_backend()
+                                    == sycl::backend::ext_oneapi_level_zero) {
                         gpu_dev.reset(new device(dev));
                         gpu_ctx.reset(new context(*gpu_dev));
                     }
-                    if (!gpu_only_dev && !dev.is_cpu()) {
+                    if (!gpu_only_dev && !dev.is_cpu()
+                            && dev.get_backend()
+                                    == sycl::backend::ext_oneapi_level_zero) {
                         gpu_only_dev.reset(new device(dev));
                         gpu_only_ctx.reset(new context(*gpu_only_dev));
                     }
