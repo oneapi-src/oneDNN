@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ struct gemm_f32_matmul_t : public primitive_t {
     struct pd_t : public cpu_matmul_pd_t {
         using cpu_matmul_pd_t::cpu_matmul_pd_t;
 
-        DECLARE_COMMON_PD_T("gemm:jit", gemm_f32_matmul_t);
+        DECLARE_COMMON_PD_T("gemm:jit:f32", gemm_f32_matmul_t);
 
         status_t init(engine_t *engine);
         const gemm_based::params_t &params() const { return params_; }
