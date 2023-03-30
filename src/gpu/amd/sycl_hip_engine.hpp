@@ -36,12 +36,7 @@ namespace amd {
 class hip_gpu_engine_impl_list_t {
 public:
     static const impl_list_item_t *get_reorder_implementation_list(
-            const memory_desc_t *src_md, const memory_desc_t *dst_md) {
-        static impl_list_item_t hip_reorder_impl_list[] = {
-                nullptr,
-        };
-        return hip_reorder_impl_list;
-    }
+            const memory_desc_t *src_md, const memory_desc_t *dst_md);
     static const dnnl::impl::impl_list_item_t *
     get_concat_implementation_list() {
         static impl_list_item_t hip_concat_impl_list[] = {

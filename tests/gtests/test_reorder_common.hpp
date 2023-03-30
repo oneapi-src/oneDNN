@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -82,6 +82,11 @@ protected:
                              && (supported_format(p.fmt_o)
                                      || supported_blocking(prec_o, p.fmt_o))),
                 "Unsupported cuda format tag/ data type");
+        SKIP_IF_HIP(!((supported_format(p.fmt_i)
+                              || supported_blocking(prec_i, p.fmt_i))
+                            && (supported_format(p.fmt_o)
+                                    || supported_blocking(prec_o, p.fmt_o))),
+                "Unsupported cuda format tag/ data type");
 
         catch_expected_failures(
                 [=]() {
@@ -120,6 +125,13 @@ protected:
                 = ::testing::TestWithParam<decltype(p)>::GetParam();
 
 #ifdef DNNL_SYCL_CUDA
+        SKIP_IF(!((supported_format(p.fmt_i)
+                          || supported_blocking(prec_i, p.fmt_i))
+                        && (supported_format(p.fmt_o)
+                                || supported_blocking(prec_o, p.fmt_o))),
+                "Unsupported cuda format tag/ data type");
+#endif
+#ifdef DNNL_SYCL_HIP
         SKIP_IF(!((supported_format(p.fmt_i)
                           || supported_blocking(prec_i, p.fmt_i))
                         && (supported_format(p.fmt_o)

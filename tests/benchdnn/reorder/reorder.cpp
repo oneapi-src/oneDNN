@@ -62,6 +62,8 @@ int fill_mem(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
                 : ((i * (table_size + 1) / table_size) % table_size);
         mem_fp.set_elem(
                 i, round_to_nearest_representable(conf->dt, gen[table_idx]));
+        // MIOpen doesn't work properly when tensors are filled with 0xFF.
+        if (is_amd_gpu()) mem_dt.set_elem(i, 0);
     });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
@@ -381,7 +383,8 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
             case DNNL_ARG_TO: {
                 const auto &po = prb->attr.post_ops;
                 const int sum_idx = po.find(attr_t::post_ops_t::SUM);
-                if (sum_idx >= 0) {
+                // MIOpen doesn't work properly when tensors are filled with 0xFF.
+                if (sum_idx >= 0 || is_amd_gpu()) {
                     SAFE(fill_mem(prb, DST, mem, ref_mem), WARN);
                 }
             } break;
