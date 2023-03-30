@@ -11,7 +11,7 @@ Similar to the existing oneDNN API, user can specify an in-order queue when crea
 a stream if needed.
 
 ## Pre-requisites
-* [oneAPI DPC++ toolchain with support for HIP AMD](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#build-dpc-toolchain-with-support-for-hip-amd), version [2022-12](https://github.com/intel/llvm/releases/tag/2022-12)
+* [oneAPI DPC++ Compiler with support for HIP AMD](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#build-dpc-toolchain-with-support-for-hip-amd), version [2022-12](https://github.com/intel/llvm/releases/tag/2022-12)
 * [AMD ROCm](https://github.com/RadeonOpenCompute/ROCm), version 5.3 or newer
 * [MIOpen](https://github.com/ROCmSoftwarePlatform/MIOpen), version 2.18 or newer (optional if AMD ROCm includes the required version of MIOpen)
 * [rocBLAS](https://github.com/ROCmSoftwarePlatform/rocBLAS), version 2.45.0 or newer (optional if AMD ROCm includes the required version of rocBLAS)
