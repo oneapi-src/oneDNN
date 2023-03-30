@@ -29,6 +29,13 @@ namespace gc {
 struct cached_const_graph_tensor;
 struct const_graph_tensor_cache;
 class sc_graph_t;
+
+// the value for the graph-cached_const_graph_tensor map. Holds an deletion_flag
+// indicating that the key is already removed or not
+struct flaged_cached_const_graph_tensor_t {
+    std::weak_ptr<cached_const_graph_tensor> v_;
+    std::shared_ptr<bool> deletion_flag_;
+};
 struct graph_weak_ptr_hasher {
     size_t operator()(const std::weak_ptr<sc_graph_t> &v) const;
 };
@@ -38,7 +45,7 @@ struct graph_weak_ptr_cmper {
 };
 
 using graph_weak_ptr_map = std::unordered_map<std::weak_ptr<sc_graph_t>,
-        std::weak_ptr<cached_const_graph_tensor>, graph_weak_ptr_hasher,
+        flaged_cached_const_graph_tensor_t, graph_weak_ptr_hasher,
         graph_weak_ptr_cmper>;
 
 using tensor_id_map = std::unordered_map<uint64_t,
@@ -55,12 +62,16 @@ struct cached_const_graph_tensor {
     graph_weak_ptr_map::iterator graph_iter_;
     tensor_id_map::iterator id_iter_;
     std::shared_ptr<const_graph_tensor_cache> cache_owner_;
+    const std::shared_ptr<bool> deletion_flag_;
     // the base pointer of buf_. buf_ may be cut from a larger buffer buf_base_.
     std::shared_ptr<void> buf_base_;
     cached_const_graph_tensor(const std::shared_ptr<sc_graph_t> &dep,
             size_t buf_size,
             const std::shared_ptr<const_graph_tensor_cache> &owner)
-        : dependency_ {dep}, size_ {buf_size}, cache_owner_ {owner} {}
+        : dependency_ {dep}
+        , size_ {buf_size}
+        , cache_owner_ {owner}
+        , deletion_flag_ {std::make_shared<bool>(false)} {}
     ~cached_const_graph_tensor();
 };
 

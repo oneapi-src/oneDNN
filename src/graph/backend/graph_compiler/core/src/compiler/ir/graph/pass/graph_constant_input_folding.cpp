@@ -104,14 +104,18 @@ struct const_graph_tensor_cache {
         std::lock_guard<std::mutex> guard {lock_};
         auto itr = from_dep_graph_.find(dep_graph);
         if (itr != from_dep_graph_.end()) {
-            auto ret = itr->second.lock();
+            auto ret = itr->second.v_.lock();
             if (ret) { return ret; }
+            // the weakptr expired. mark the key as deleted.
+            *itr->second.deletion_flag_ = true;
+            from_dep_graph_.erase(itr);
         }
         auto ret = std::make_shared<cached_const_graph_tensor>(
                 dep_graph, buf_size, get_cache());
         // insert into graph map
-        auto graph_iter
-                = from_dep_graph_.insert(std::make_pair(dep_graph, ret));
+        auto graph_iter = from_dep_graph_.insert(std::make_pair(dep_graph,
+                flaged_cached_const_graph_tensor_t {ret, ret->deletion_flag_}));
+        assert(graph_iter.second);
         // allocate a unique ID for the tensor
         auto hash = dep_graph->hash_contents();
         bool found = false;
@@ -132,8 +136,29 @@ struct const_graph_tensor_cache {
 
     void remove(cached_const_graph_tensor &v) {
         std::lock_guard<std::mutex> guard {lock_};
-        from_dep_graph_.erase(v.graph_iter_);
-        from_tensor_id_.erase(v.id_iter_);
+        /* need to check if the key in the map is already deleted. Consider the
+         * following case if we don't use the deletion_flag_.
+         * 1. Thread 1: The last reference to a cached_const_graph_tensor is
+         * destroyed, calling the destructor of cached_const_graph_tensor
+         * 2. Thread 2: Before thread 1 enters
+         * const_graph_tensor_cache::remove(), thread2 enters add_tensor. The
+         * graph_key is the same as but a different instance of the graph_key of
+         * thread1's. Thread2 will find that the graph is already in
+         * from_dep_graph_ as the key, but the value (weakptr to
+         * cached_const_graph_tensor) already expired. So thread2 cannot reuse
+         * the key-value already in from_dep_graph_. It removes the key from
+         * from_dep_graph_ and adds a new key to it.
+         * 3. Thread 1 enters const_graph_tensor_cache::remove() and calls
+         * from_dep_graph_.erase(v.graph_iter_) - however, the iterator is
+         * already invalidated because in step 2, thread2 removed it.
+         *
+         */
+        bool already_deleted = *v.deletion_flag_;
+        if (already_deleted) { return; }
+        if (v.graph_iter_ != graph_weak_ptr_map::iterator {})
+            from_dep_graph_.erase(v.graph_iter_);
+        if (v.id_iter_ != tensor_id_map::iterator {})
+            from_tensor_id_.erase(v.id_iter_);
     }
 };
 
