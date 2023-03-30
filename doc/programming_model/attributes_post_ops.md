@@ -116,10 +116,13 @@ The kind of this post-op is #dnnl::primitive::kind::sum.
 
 This feature might improve performance for cases like residual learning
 blocks, where the result of a convolution is accumulated to the previously
-computed activations. The scale parameter can be used in
-[INT8](@ref dev_guide_attributes_quantization) inference only when the result
-and previous activations have different magnitudes. For all other cases the
-scale must be `1.0`.
+computed activations. The scale and zero point parameters can be used in the
+following scenarios:
+- [INT8](@ref dev_guide_attributes_quantization) inference when the result
+and previous activations have different magnitudes. The data_type of the sum
+operand should be one of `s32`, `s8` or `u8`
+- Beta parameter using scale (for example, GEMM beta parameter). In this
+scenario zero point must be `0`.
 
 The sum post-op replaces
 \f[
