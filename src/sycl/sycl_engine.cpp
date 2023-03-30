@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,12 +60,7 @@ status_t sycl_engine_factory_t::engine_create(engine_t **engine,
         const ::sycl::device &dev, const ::sycl::context &ctx,
         size_t index) const {
     // Validate device and context.
-    auto ctx_devs = ctx.get_devices();
-    auto it = std::find_if(ctx_devs.begin(), ctx_devs.end(),
-            [&](const ::sycl::device &ctx_dev) {
-                return are_equal(ctx_dev, dev);
-            });
-    if (it == ctx_devs.end()) return status::invalid_arguments;
+    if (!dev_ctx_consistency_check(dev, ctx)) return status::invalid_arguments;
 
 #ifdef DNNL_SYCL_CUDA
     if (gpu::nvidia::is_nvidia_gpu(dev))

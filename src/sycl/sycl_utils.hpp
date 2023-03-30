@@ -119,6 +119,9 @@ device_id_t sycl_device_id(const ::sycl::device &dev);
 status_t check_device(engine_kind_t eng_kind, const ::sycl::device &dev,
         const ::sycl::context &ctx);
 
+bool dev_ctx_consistency_check(
+        const ::sycl::device &dev, const ::sycl::context &ctx);
+
 inline bool is_intel_device(const ::sycl::device &dev) {
     const int intel_vendor_id = 0x8086;
     auto vendor_id = dev.get_info<::sycl::info::device::vendor_id>();
