@@ -62,6 +62,8 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::init(engine_t *engine) {
             && attr()->has_default_values(
                     primitive_attr_t::skip_mask_t::scales_runtime
                     | primitive_attr_t::skip_mask_t::post_ops)
+            && attr()->post_ops_.check_sum_consistency(dst_type,
+                    /* is_int8 */ false)
             && set_default_formats()
             && attr_.set_default_formats(dst_md(0)) == status::success
             && gemm_based::check_gemm_compatible_formats(*this);

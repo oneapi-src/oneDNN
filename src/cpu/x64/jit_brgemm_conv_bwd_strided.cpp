@@ -110,7 +110,8 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::pd_t::init(
                     is_int8_supported)
             && attr()->has_default_values(skip_mask, diff_src_type)
             && IMPLICATION(is_deconv,
-                    attr()->post_ops_.check_sum_consistent_dt(diff_src_type))
+                    attr()->post_ops_.check_sum_consistency(
+                            diff_src_type, is_int8_supported))
             && !has_zero_dim_memory();
 
     if (!ok) return status::unimplemented;

@@ -242,7 +242,12 @@ struct ref_deconvolution_fwd_t : public primitive_t {
         }
 
         bool post_ops_ok() const {
-            return attr()->post_ops_.find(primitive_kind::convolution) == -1;
+            using namespace data_type;
+            const bool is_int8 = utils::one_of(src_md()->data_type, s8, u8);
+            return attr()->post_ops_.check_sum_consistency(
+                           dst_md()->data_type, is_int8)
+                    && attr()->post_ops_.find(primitive_kind::convolution)
+                    == -1;
         }
 
         bool zero_points_ok() const {

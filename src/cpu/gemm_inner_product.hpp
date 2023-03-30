@@ -52,8 +52,8 @@ struct gemm_inner_product_fwd_t : public primitive_t {
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops
                             | primitive_attr_t::skip_mask_t::sum_dt)
-                    && attr()->post_ops_.check_sum_consistent_dt(
-                            dst_md()->data_type)
+                    && attr()->post_ops_.check_sum_consistency(
+                            dst_md()->data_type, /* is_int8 */ false)
                     && set_default_params() == status::success
                     && dense_gemm_consitency_check(
                             src_md(), weights_md(), dst_md())

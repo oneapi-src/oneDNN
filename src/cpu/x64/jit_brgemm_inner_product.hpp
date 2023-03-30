@@ -71,7 +71,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                     && IMPLICATION(with_bias() && !is_int8,
                             one_of(bias_md_.data_type, f32, src_dt))
                     && attr()->has_default_values(skip_mask, dst_dt)
-                    && attr()->post_ops_.check_sum_consistent_dt(dst_dt)
+                    && attr()->post_ops_.check_sum_consistency(dst_dt, is_int8)
                     && !has_zero_dim_memory() && arg_scales_ok();
             if (!ok) return status::unimplemented;
 

@@ -142,15 +142,16 @@ status_t brgemm_deconvolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     const deconvolution_desc_t *fwd_deconv_d = desc();
     const auto src_type = fwd_deconv_d->src_desc.data_type;
     const auto dst_type = fwd_deconv_d->dst_desc.data_type;
+    const bool is_int8 = utils::one_of(src_type, s8, u8);
 
     auto skip_mask = smask_t::post_ops | smask_t::sum_dt;
-    if (utils::one_of(src_type, s8, u8))
+    if (is_int8)
         skip_mask |= smask_t::scales_runtime | smask_t::zero_points_runtime;
 
     const bool ok = is_fwd()
             && (desc()->alg_kind & alg_kind::deconvolution_direct)
             && attr()->has_default_values(skip_mask, dst_type)
-            && attr()->post_ops_.check_sum_consistent_dt(dst_type)
+            && attr()->post_ops_.check_sum_consistency(dst_type, is_int8)
             && attr_scales_ok() && post_ops_ok() && zero_points_ok()
             && !has_zero_dim_memory();
     if (!ok) return status::unimplemented;

@@ -553,8 +553,8 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
     }
 
     dnnl::impl::data_type_t get_sum_dt(
-            const dnnl::impl::data_type_t dst_dt) const {
-        const int sum_ind = find(dnnl::impl::primitive_kind::sum);
+            const dnnl::impl::data_type_t dst_dt, int sum_ind = -1) const {
+        if (sum_ind == -1) sum_ind = find(dnnl::impl::primitive_kind::sum);
         if (sum_ind == -1) return dst_dt;
         const auto sum_dt = entry_[sum_ind].sum.dt;
         if (sum_dt != dnnl::impl::data_type::undef) return sum_dt;
@@ -568,7 +568,8 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
     dnnl::impl::status_t set_default_formats(
             const dnnl::impl::memory_desc_t *dst_md);
 
-    bool check_sum_consistent_dt(const dnnl::impl::data_type_t dst_dt,
+    bool check_sum_consistency(const dnnl::impl::data_type_t dst_dt,
+            const bool is_int8,
             const bool diverse_sum_dt_allowed = false) const;
 
     bool sum_with_default_dt(
@@ -613,6 +614,12 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
 private:
     dnnl::impl::status_t validate_binary(dnnl::impl::alg_kind_t alg,
             const dnnl::impl::memory_desc_t *user_src1_desc) const;
+
+    bool check_sum_consistent_dt(const dnnl::impl::data_type_t dst_dt,
+            const bool diverse_sum_dt_allowed = false) const;
+
+    bool check_sum_consistent_quantization(
+            const dnnl::impl::data_type_t dst_dt, const bool is_int8) const;
 };
 
 struct dnnl_primitive_attr : public dnnl::impl::c_compatible {

@@ -64,14 +64,15 @@ struct jit_avx512_core_amx_1x1_convolution_fwd_t : public primitive_t {
                                     | smask_t::post_ops
                                     | smask_t::zero_points_runtime
                                     | smask_t::sum_dt,
-                            dst_md(0)->data_type)
-                    && attr()->post_ops_.check_sum_consistent_dt(
                             dst_md(0)->data_type);
 
             bool ok = is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && (is_bf16_convolution || is_int8_convolution)
                     && !has_zero_dim_memory() && attr_scales_ok()
+                    && attr()->post_ops_.check_sum_consistency(
+                            dst_md(0)->data_type,
+                            /* is_int8 */ is_int8_convolution)
                     && zero_points_ok();
             if (!ok) return status::unimplemented;
 

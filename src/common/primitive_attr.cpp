@@ -308,8 +308,8 @@ status_t post_ops_t::set_default_formats(const memory_desc_t *dst_md) {
     return status::success;
 }
 
-bool post_ops_t::check_sum_consistent_dt(
-        const data_type_t dst_dt, const bool diverse_sum_dt_allowed) const {
+bool post_ops_t::check_sum_consistent_dt(const data_type_t dst_dt,
+        const bool diverse_sum_dt_is_supported) const {
     int sum_ind = find(dnnl::impl::primitive_kind::sum);
     if (sum_ind == -1) return true;
     const auto sum_dt = entry_[sum_ind].sum.dt;
@@ -319,12 +319,35 @@ bool post_ops_t::check_sum_consistent_dt(
             !utils::one_of(dnnl_data_type_undef, sum_dt, dst_dt),
             types::data_type_size(dst_dt) == types::data_type_size(sum_dt));
     if (!compatible_dt_size) return false;
-    if (diverse_sum_dt_allowed) return true;
+    if (diverse_sum_dt_is_supported) return true;
 
     bool ok = true;
     while ((sum_ind = find(dnnl::impl::primitive_kind::sum, sum_ind + 1)) != -1)
         ok = ok && entry_[sum_ind].sum.dt == sum_dt;
     return ok;
+}
+
+bool post_ops_t::check_sum_consistent_quantization(
+        const data_type_t dst_dt, const bool is_int8) const {
+    using namespace data_type;
+    using namespace primitive_kind;
+    bool ok = true;
+    int sum_ind = -1;
+    while ((sum_ind = find(sum, sum_ind + 1)) != -1) {
+        const auto &sum_e = entry_[sum_ind].sum;
+        // validate interface requirements
+        ok = ok && IMPLICATION(!is_int8, sum_e.zero_point == 0)
+                && IMPLICATION(sum_e.zero_point != 0,
+                        one_of(get_sum_dt(dst_dt, sum_ind), s8, u8, s32));
+    }
+    return ok;
+}
+
+bool post_ops_t::check_sum_consistency(const data_type_t dst_dt,
+        const bool is_int8, const bool diverse_sum_dt_is_supported) const {
+
+    return check_sum_consistent_dt(dst_dt, diverse_sum_dt_is_supported)
+            && check_sum_consistent_quantization(dst_dt, is_int8);
 }
 
 status_t primitive_attr_t::set_fpmath_mode(fpmath_mode_t fpmath_mode) {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,8 +63,8 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
                             primitive_attr_t::skip_mask_t::scales_runtime
                                     | primitive_attr_t::skip_mask_t::post_ops,
                             dst_md()->data_type)
-                    && attr()->post_ops_.check_sum_consistent_dt(
-                            dst_md()->data_type)
+                    && attr()->post_ops_.check_sum_consistency(
+                            dst_md()->data_type, /* is_int */ true)
                     && attr_scales_ok()
                     && set_default_params() == status::success
                     && dense_gemm_consitency_check(

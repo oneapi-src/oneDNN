@@ -340,7 +340,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
             && IMPLICATION(!is_int8,
                     one_of(bias_md_.data_type, data_type::undef, f32, src_type))
             && attr()->has_default_values(skip_mask, dst_type)
-            && attr()->post_ops_.check_sum_consistent_dt(dst_type)
+            && attr()->post_ops_.check_sum_consistency(dst_type, is_int8)
             && !has_zero_dim_memory() && zero_points_ok() && arg_scales_ok();
     if (!ok) return status::unimplemented;
 

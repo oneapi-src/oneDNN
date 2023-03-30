@@ -108,7 +108,8 @@ status_t gemm_x8s8s32x_matmul_t::pd_t::init(engine_t *engine) {
                             | primitive_attr_t::skip_mask_t::post_ops
                             | primitive_attr_t::skip_mask_t::sum_dt,
                     dst_md()->data_type)
-            && attr_.post_ops_.check_sum_consistent_dt(dst_md()->data_type)
+            && attr_.post_ops_.check_sum_consistency(dst_md()->data_type,
+                    /* is_int8 */ true)
             // need to set up default formats first, so that latter checks can
             // be perfomed properly
             && set_default_formats() && check_attr_scales()

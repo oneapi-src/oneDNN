@@ -77,8 +77,8 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
                             {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST,
                                     DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS,
                                     DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST})
-                    && attr()->post_ops_.check_sum_consistent_dt(
-                            dst_md(0)->data_type)
+                    && attr()->post_ops_.check_sum_consistency(
+                            dst_md(0)->data_type, /* is_int8 */ true)
                     && !has_zero_dim_memory() && attr_scales_ok()
                     && zero_points_ok()
                     && set_default_formats_common(

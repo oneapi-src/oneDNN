@@ -68,7 +68,8 @@ struct gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
                                     | skip_mask_t::post_ops
                                     | skip_mask_t::sum_dt,
                             dst_type)
-                    && attr()->post_ops_.check_sum_consistent_dt(dst_type)
+                    && attr()->post_ops_.check_sum_consistency(dst_type,
+                            /* is_int8 */ true)
                     && attr_scales_ok() && zero_points_valid(attr());
             if (!ok) return status::unimplemented;
 
