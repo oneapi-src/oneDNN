@@ -66,14 +66,23 @@
 #define SET_SRC REDUCE(N_INPUTS, JOIN_ELSE, CHECK_AND_GET)
 #define HAS_TAIL (BLOCK % SIMD > 0)
 
-__attribute__((intel_reqd_sub_group_size(SIMD))) __kernel void simple_concat(
-        __global DATA_T *dst, long dst_offset0, SRC_PTRS) {
+#if SIMD != 1
+__attribute__((intel_reqd_sub_group_size(SIMD)))
+#endif
+__kernel void
+simple_concat(__global DATA_T *dst, long dst_offset0, SRC_PTRS) {
     const size_t x = (get_global_id(0) / SIMD) * BLOCK
             + get_global_id(2) * INNER_OFFSET;
     __global const DATA_T *src;
 
     SET_SRC;
 
+#if SIMD == 1
+    dst += dst_offset0 + get_global_id(1) * DST_EXT_OFFSET + x;
+
+    for (int i = 0; i < BLOCK; ++i)
+        dst[i] = src[i];
+#else
     DATA8_T A[4];
     DATA_T B;
     DATA2_T C;
@@ -158,5 +167,6 @@ __attribute__((intel_reqd_sub_group_size(SIMD))) __kernel void simple_concat(
 #endif
 #if HAS_TAIL
     if (lane < BLOCK % SIMD) dst[tail_offset] = tail;
+#endif
 #endif
 }

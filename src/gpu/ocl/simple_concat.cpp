@@ -220,14 +220,12 @@ static status_t init_conf_common(
     dim_t inner_size = conf.inner_axis * data_type_size;
     dim_t outer_elems = concat_dim_size * extern_axis;
 
-    if (inner_size < 32) return status::unimplemented;
-
     // TODO: add proper scales support
     const bool has_scales = false;
     const int hw_threads = device_info->hw_threads();
     std::vector<prb_info_t> infos;
     for (int simd : {16, 8}) {
-        if (!compute_engine->mayiuse_sub_group(simd)) continue;
+        if (simd > 1 && !compute_engine->mayiuse_sub_group(simd)) continue;
         if (has_scales) {
             infos.emplace_back(simd, hw_threads, (int)data_type_size,
                     inner_size, outer_elems);
@@ -253,6 +251,10 @@ static status_t init_conf_common(
     conf.gws_d[0] = conf.inner_axis / conf.block * conf.simd;
     conf.gws_d[1] = extern_axis;
     conf.gws_d[2] = concat_dim_size;
+
+    // Bound estimates based on limited empirical evidence
+    if (conf.simd == 1 && conf.gws_d[2] > 64) return status::unimplemented;
+    if (conf.simd > 1 && inner_size < 32) return status::unimplemented;
 
     compute::get_optimal_lws(
             conf.gws_d, conf.lws_d, 3, 0, device_info->gpu_arch());
