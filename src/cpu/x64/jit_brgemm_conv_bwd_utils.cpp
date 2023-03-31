@@ -110,9 +110,11 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
         return status::unimplemented;
     } else {
         jcp.LDB = jcp.ic_block;
+        const bool no_vnni_format = jcp.wei_dt == f32
+                || (jcp.wei_dt == f16 && jcp.isa == avx512_core_fp16);
         if (jcp.ic_block == 64) {
             if (is_3d) {
-                if (jcp.wei_dt == f32)
+                if (no_vnni_format)
                     wei_tag = with_groups ? gIdhwo64i : Idhwo64i;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_oc_padded)
@@ -127,7 +129,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
                 } else
                     return status::unimplemented;
             } else if (is_1d) {
-                if (jcp.wei_dt == f32)
+                if (no_vnni_format)
                     wei_tag = with_groups ? gIwo64i : Iwo64i;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_oc_padded)
@@ -144,7 +146,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
             } else {
                 assert(is_2d);
                 UNUSED(is_2d);
-                if (jcp.wei_dt == f32)
+                if (no_vnni_format)
                     wei_tag = with_groups ? gIhwo64i : Ihwo64i;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_oc_padded)
@@ -161,7 +163,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
             }
         } else if (jcp.ic_block == 48) {
             if (is_3d) {
-                if (jcp.wei_dt == f32)
+                if (no_vnni_format)
                     wei_tag = with_groups ? gIdhwo48i : Idhwo48i;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_oc_padded)
@@ -176,7 +178,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
                 } else
                     return status::unimplemented;
             } else if (is_1d) {
-                if (jcp.wei_dt == f32)
+                if (no_vnni_format)
                     wei_tag = with_groups ? gIwo48i : Iwo48i;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_oc_padded)
@@ -193,7 +195,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
             } else {
                 assert(is_2d);
                 UNUSED(is_2d);
-                if (jcp.wei_dt == f32)
+                if (no_vnni_format)
                     wei_tag = with_groups ? gIhwo48i : Ihwo48i;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_oc_padded)
@@ -210,7 +212,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
             }
         } else if (jcp.ic_block == 32) {
             if (is_3d) {
-                if (jcp.wei_dt == f32)
+                if (no_vnni_format)
                     wei_tag = with_groups ? gIdhwo32i : Idhwo32i;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_oc_padded)
@@ -225,7 +227,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
                 } else
                     return status::unimplemented;
             } else if (is_1d) {
-                if (jcp.wei_dt == f32)
+                if (no_vnni_format)
                     wei_tag = with_groups ? gIwo32i : Iwo32i;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_oc_padded)
@@ -242,7 +244,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
             } else {
                 assert(is_2d);
                 UNUSED(is_2d);
-                if (jcp.wei_dt == f32)
+                if (no_vnni_format)
                     wei_tag = with_groups ? gIhwo32i : Ihwo32i;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_oc_padded)
@@ -259,7 +261,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
             }
         } else {
             if (is_3d) {
-                if (jcp.wei_dt == f32)
+                if (no_vnni_format)
                     wei_tag = with_groups ? gIdhwo16i : Idhwo16i;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_oc_padded)
@@ -274,7 +276,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
                 } else
                     return status::unimplemented;
             } else if (is_1d) {
-                if (jcp.wei_dt == f32)
+                if (no_vnni_format)
                     wei_tag = with_groups ? gIwo16i : Iwo16i;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_oc_padded)
@@ -292,7 +294,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
                 assert(is_2d);
                 UNUSED(is_2d);
 
-                if (jcp.wei_dt == f32)
+                if (no_vnni_format)
                     wei_tag = with_groups ? gIhwo16i : Ihwo16i;
                 else if (jcp.wei_dt == s8) {
                     if (jcp.is_oc_padded)
@@ -489,14 +491,14 @@ float brg_blocking_t::io_k(const loop_t loop, const array_in_loop_t arr,
 
 void brg_blocking_t::select_oc_block() {
     const auto padded_oc = last_oc_block_size * (is_oc_padded ? 16 : 1);
-    oc_block = rnd_up(oc, padded_oc);
+    oc_block = (exec_type == exec_trans ? rnd_up(oc, padded_oc) : oc);
     nb_oc = utils::div_up(oc, oc_block);
 }
 
 status_t brg_blocking_t::estimate_brgemm_ur() {
     // Simple simulation of brgemm_desc init
     if (sp_block <= 0) return status::invalid_arguments;
-    LDA = oc_block;
+    LDA = exec_type == exec_trans ? oc_block : oc_without_padding * ngroups;
     LDB = ic_block;
     LDC = use_buffer ? ic_block : stride_w * ic_without_padding;
 
@@ -683,8 +685,12 @@ float brg_blocking_t::est_eff() {
             int start {0}, end {0};
             balance211(work_amount, nthr, ithr, start, end);
             int n {0}, g {0}, icb {0}, idp {0}, ihp {0}, spb {0};
-            nd_iterator_init(start, n, mb, idp, id, ihp, ih, spb, nb_sp, g,
-                    ngroups, icb, nb_ic);
+            if (loop_order == loop_ndhwgc)
+                nd_iterator_init(start, n, mb, idp, id, ihp, ih, spb, nb_sp, g,
+                        ngroups, icb, nb_ic);
+            else if (loop_order == loop_ngcdhw)
+                nd_iterator_init(start, n, mb, g, ngroups, icb, nb_ic, idp, id,
+                        ihp, ih, spb, nb_sp);
 
             for (auto work = start; work < end; work++) {
                 const int icp = icb * ic_block;
@@ -696,6 +702,12 @@ float brg_blocking_t::est_eff() {
 
                 nd_iterator_step(n, mb, idp, id, ihp, ih, spb, nb_sp, g,
                         ngroups, icb, nb_ic);
+                if (loop_order == loop_ndhwgc)
+                    nd_iterator_step(n, mb, idp, id, ihp, ih, spb, nb_sp, g,
+                            ngroups, icb, nb_ic);
+                else if (loop_order == loop_ngcdhw)
+                    nd_iterator_step(n, mb, g, ngroups, icb, nb_ic, idp, id,
+                            ihp, ih, spb, nb_sp);
             }
             thr_jobs[ithr] = thr_job;
         }
@@ -762,12 +774,12 @@ float brg_blocking_t::est_eff() {
     wei_is = kd * kh * kw * ic_blocking_size;
     loop[l].wei.set(wei_is, 1);
 
-    const auto dim_ic = 1;
+    const auto dim_ic = (loop_order == loop_ndhwgc) ? 1 : sp_amount;
     const auto nb_ic_thr = nstl::min(nb_ic, div_up(job, dim_ic));
     const auto ic_thr = nstl::min(ic, nb_ic_thr * ic_block);
     const auto nsimd_ic_thr = div_up(ic_thr, simd_w);
 
-    const auto dim_sp = ngroups * nb_ic;
+    const auto dim_sp = (loop_order == loop_ndhwgc) ? ngroups * nb_ic : 1;
     const auto nb_sp_thr = nstl::min(nb_sp, div_up(job, dim_sp));
     const auto sp_thr = nstl::min(sp, nb_sp_thr * sp_block);
 
@@ -783,18 +795,21 @@ float brg_blocking_t::est_eff() {
 
     auto wei_op = kd * kh * kw * icblock * oc;
 
-    // -- harness: loop by ic_block --
-    l++;
-    loop[l].src.set(src_is, nb_ic_thr);
-    loop[l].dst.set(sp_block * ic_block, 1);
-    wei_is = kd * kh * kw * ic_block * oc;
-    wei_op = kd * kh * kw * nsimd_ic_thr * oc;
-    loop[l].wei.set(wei_is, 1);
+    if (loop_order == loop_ndhwgc) {
+        // -- harness: loop by ic_block --
+        l++;
+        loop[l].src.set(src_is, nb_ic_thr);
+        loop[l].dst.set(sp_block * ic_block, 1);
+        wei_is = kd * kh * kw * ic_block * oc;
+        wei_op = kd * kh * kw * nsimd_ic_thr * oc;
+        loop[l].wei.set(wei_is, 1);
+    }
 
     // -- harness: loop by sp_blocks --
     l++;
     loop[l].src.set(src_is, 1);
-    const auto rnd_ic_for_sp = simd_w * nsimd_ic_thr;
+    const auto rnd_ic_for_sp
+            = simd_w * ((loop_order == loop_ndhwgc) ? nsimd_ic_thr : icblock);
     loop[l].dst.set(sp_block * rnd_ic_for_sp, 1);
     loop[l].wei.set(wei_op * simd_w, nb_sp_thr);
     // oh_block almost all is 1. TODO: manage oh_block != 1
@@ -810,6 +825,14 @@ float brg_blocking_t::est_eff() {
     loop[l].src.set(id_block * ih_thr * src_is, 1);
     loop[l].dst.set(ih_thr * sp_thr * rnd_ic_for_sp, 1);
     loop[l].wei.set(wei_op * simd_w, nb_id_thr);
+
+    if (loop_order != loop_ndhwgc) {
+        // -- harness: loop by ic_block --
+        l++;
+        loop[l].src.set(id_thr * ih_thr * src_is, nb_ic_thr);
+        loop[l].dst.set(ic_block * id_thr * ih_thr * sp_thr, 1);
+        loop[l].wei.set(kd * kh * kw * ic_block * oc, 1);
+    }
 
     // -- harness: loop by mb --
     l++;
@@ -839,9 +862,11 @@ float brg_blocking_t::est_eff() {
     float wei_rp = 1;
 
     for (auto il = l; il >= 0; il--) {
-        src_mem_k = io_k(loop[il], loop[il].src, src_mem_k, true, false);
+        src_mem_k = io_k(loop[il], loop[il].src, src_mem_k, true,
+                loop_order == loop_ndhwgc ? false : true);
         dst_mem_k = io_k(loop[il], loop[il].dst, dst_mem_k, false, false);
-        wei_mem_k = io_k(loop[il], loop[il].wei, wei_mem_k, false, true);
+        wei_mem_k = io_k(loop[il], loop[il].wei, wei_mem_k, false,
+                loop_order == loop_ndhwgc ? true : false);
         src_rp *= loop[il].src.repeatn;
         dst_rp *= loop[il].dst.repeatn;
         wei_rp *= loop[il].wei.repeatn;
@@ -1085,12 +1110,12 @@ float brg_blocking_t::est_eff_1x1() {
 
     const auto job = div_up(work_amount, nthr);
 
-    const auto dim_ic = 1;
+    const auto dim_ic = (loop_order == loop_ndhwgc) ? 1 : sp_amount;
     const auto nb_ic_thr = nstl::min(nb_ic, div_up(job, dim_ic));
     const auto ic_thr = nstl::min(ic, nb_ic_thr * ic_block);
     const auto nsimd_ic_thr = div_up(ic_thr, simd_w);
 
-    const auto dim_sp = ngroups * nb_ic;
+    const auto dim_sp = (loop_order == loop_ndhwgc) ? ngroups * nb_ic : 1;
     const auto nb_sp_thr = nstl::min(nb_sp, div_up(job, dim_sp));
     const auto sp_thr = nstl::min(sp, nb_sp_thr * sp_block);
 
@@ -1115,6 +1140,14 @@ float brg_blocking_t::est_eff_1x1() {
             nd_iterator_init(start, n, mb, idp, id, ihp, ih, spb, nb_sp, g,
                     ngroups, icb, nb_ic);
 
+            if (loop_order == loop_ndhwgc) {
+                nd_iterator_init(start, n, mb, idp, id, ihp, ih, spb, nb_sp, g,
+                        ngroups, icb, nb_ic);
+            } else if (loop_order == loop_ngcdhw) {
+                nd_iterator_init(start, n, mb, g, ngroups, icb, nb_ic, idp, id,
+                        ihp, ih, spb, nb_sp);
+            }
+
             for (auto work = start; work < end; work++) {
                 const int icp = icb * ic_block;
                 const auto ic_sz = nstl::min(ic - icp, ic_block);
@@ -1124,6 +1157,13 @@ float brg_blocking_t::est_eff_1x1() {
                 thr_job += sp_sz * ic_sz;
                 nd_iterator_step(n, mb, idp, id, ihp, ih, spb, nb_sp, g,
                         ngroups, icb, nb_ic);
+                if (loop_order == loop_ndhwgc) {
+                    nd_iterator_step(n, mb, idp, id, ihp, ih, spb, nb_sp, g,
+                            ngroups, icb, nb_ic);
+                } else if (loop_order == loop_ngcdhw) {
+                    nd_iterator_step(n, mb, g, ngroups, icb, nb_ic, idp, id,
+                            ihp, ih, spb, nb_sp);
+                }
             }
             thr_jobs[ithr] = thr_job;
         }
@@ -1170,15 +1210,18 @@ float brg_blocking_t::est_eff_1x1() {
     auto wei_op = icblock * oc;
     loop[l].wei.set(wei_is, 1);
 
-    // -- harness: loop by oc_block --
-    l++;
-    loop[l].src.set(sp_block * rnd_simd(ic), nb_ic_thr);
-    loop[l].dst.set(sp_block * ic_block, 1);
-    wei_is = ic_block * ic;
-    wei_op = nsimd_ic_thr * ic;
-    loop[l].wei.set(wei_is, 1);
+    if (loop_order == loop_ndhwgc) {
+        // -- harness: loop by oc_block --
+        l++;
+        loop[l].src.set(sp_block * rnd_simd(ic), nb_ic_thr);
+        loop[l].dst.set(sp_block * ic_block, 1);
+        wei_is = ic_block * ic;
+        wei_op = nsimd_ic_thr * ic;
+        loop[l].wei.set(wei_is, 1);
+    }
 
-    const auto rnd_ic_for_sp = simd_w * nsimd_ic_thr;
+    const auto rnd_ic_for_sp
+            = simd_w * ((loop_order == loop_ndhwgc) ? nsimd_ic_thr : icblock);
     // -- harness: loop by sp_blocks --
     l++;
     loop[l].src.set(sp_block * oc_blocking_size, 1);
@@ -1194,6 +1237,15 @@ float brg_blocking_t::est_eff_1x1() {
     loop[l].src.set(id_block * ih_thr * sp_thr * rnd_simd(oc_blocking_size), 1);
     loop[l].dst.set(id_block * ih_thr * sp_thr * rnd_ic_for_sp, 1);
     loop[l].wei.set(wei_op * simd_w, nb_id_thr);
+
+    if (loop_order != loop_ndhwgc) {
+        // -- harness: loop by oc_block --
+        l++;
+        loop[l].src.set(id_thr * ih_thr * rnd_simd(sp_thr * oc_blocking_size),
+                nb_ic_thr);
+        loop[l].dst.set(ic_block * id_thr * ih_thr * sp_thr, 1);
+        loop[l].wei.set(ic_block * oc, 1);
+    }
 
     // -- harness: loop by mb --
     l++;
@@ -1345,7 +1397,10 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     if (jcp.is_bf32) return status::unimplemented;
 
-    brg_blocking_t::last_oc_block_size = data_type_vnni_granularity(jcp.wei_dt);
+    brg_blocking_t::last_oc_block_size
+            = (jcp.wei_dt == f16 && isa == avx512_core_fp16)
+            ? 1
+            : data_type_vnni_granularity(jcp.wei_dt);
 
     // TODO: optimize grouped convolutions with small oc
     const bool is_grouped_small_oc
@@ -1420,6 +1475,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             = get_zp_type(attr, is_deconv ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC)
             != brgemm_broadcast_t::none;
 
+    // TODO: Extend zero points support to AMX
     const bool has_zero_points = jcp.src_zero_point || jcp.dst_zero_point;
     if (has_zero_points || jcp.s8s8_compensation_required)
         return status::unimplemented;
@@ -1451,6 +1507,116 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     CHECK(init_tag(jcp.src_tag, diff_dst_md, diff_dst_d, src_tag));
 
     return status::success;
+}
+
+void set_k_range(int P, int D, int S, dim_t i, dim_t O, int K, int &k_s,
+        int &k_f, bool is_w) {
+    int s(0), o_test(0);
+    while (true) {
+        o_test = i + P - s * D;
+        if (o_test % S == 0) break;
+        s++;
+    }
+
+    k_f = is_w ? K : nstl::min(K, static_cast<int>(div_up(i + P + 1, D)));
+    k_s = is_w ? 0
+               : nstl::max(0, static_cast<int>(div_up(i + P - O * S + 1, D)));
+
+    while (k_s % S != s)
+        k_s++;
+}
+
+void get_iw_range(const jit_brgemm_conv_conf_t &jcp, int iw, int iw_raw, int kw,
+        int &iw_s, int &M_without_overflow) {
+    // This function is needed for exec_base only
+    using namespace dnnl::impl::utils;
+    using namespace nstl;
+
+    const auto SW = jcp.stride_w;
+    const auto LP = jcp.l_pad;
+    const auto DW = jcp.dilate_w + 1;
+    const auto IW = jcp.iw;
+    const auto OW = jcp.ow;
+    const auto IW_BLOCK = jcp.iw_block;
+    const auto IW_TAIL = jcp.iw_block;
+    const bool is_iw_tail = (IW - iw_raw < IW_BLOCK);
+    const auto M = div_up(is_iw_tail ? IW_TAIL : IW_BLOCK, SW);
+
+    auto ow = (iw - kw * DW + LP) / SW;
+    auto ow_l_ovf = ow;
+    const auto ow_r_ovf = ow_l_ovf + (M - 1) - OW + 1;
+    iw_s = iw;
+
+    int ker_idx = 0;
+    if (ow_l_ovf < 0) {
+        ow_l_ovf = nstl::abs(ow_l_ovf);
+        ker_idx += ow_l_ovf;
+        iw_s += ker_idx;
+    }
+
+    if (ow_r_ovf > 0) ker_idx += ow_r_ovf;
+
+    int iw_f = iw_s + (M - ker_idx);
+
+    iw_s = nstl::min(iw_s, iw + M);
+    iw_f = nstl::min(nstl::max(iw_f, iw_s), iw + M);
+
+    M_without_overflow = iw_f - iw_s;
+    iw_s = iw;
+    ow = (iw_s - kw * DW + LP) / SW;
+    while (ow < 0 && iw_s + SW < IW) {
+        iw_s += SW;
+        ow = (iw_s - kw * DW + LP) / SW;
+    }
+}
+
+void get_kw_range(const jit_brgemm_conv_conf_t &jcp, int iw, int iw_raw,
+        int &kw_s, int &kw_full_s, int &kw_full_f, int &kw_f) {
+    // This function is needed for exec_base only
+    using namespace dnnl::impl::utils;
+
+    const auto SW = jcp.stride_w;
+    const auto KW = jcp.kw;
+    const auto LP = jcp.l_pad;
+    const auto DW = jcp.dilate_w + 1;
+    const auto IW = jcp.iw;
+    const auto IW_BLOCK = jcp.iw_block;
+    const auto IW_TAIL = jcp.iw_tail;
+    const bool is_iw_tail = (IW - iw_raw < IW_BLOCK);
+    const auto M = div_up(is_iw_tail ? IW_TAIL : IW_BLOCK, SW);
+    kw_s = kw_full_s = kw_full_f = kw_f = -1;
+    for (int kw = 0; kw < KW; kw++) {
+        int iw_s {0}, iw_f {0}, M_without_overflow {0};
+        get_iw_range(jcp, iw, iw_raw, kw, iw_s, M_without_overflow);
+        iw_f = iw_s + M_without_overflow;
+        if (iw_s < iw_f) {
+            if (kw_s == -1) kw_s = kw;
+            kw_f = kw + 1;
+            if (iw_f - iw_s == M) {
+                if (kw_full_s == -1) kw_full_s = kw;
+                kw_full_f = kw + 1;
+            }
+        }
+    }
+
+    if (kw_f == -1) {
+        kw_s = 0;
+        kw_f = 0;
+    }
+    if (kw_full_f == -1) kw_full_s = kw_full_f = kw_f;
+
+    int s(0), o_test(0);
+    while (true) {
+        o_test = iw + LP - s * DW;
+        if (o_test % SW == 0) break;
+        s++;
+    }
+    while (kw_s % SW != s)
+        kw_s++;
+    if (kw_full_s != -1) {
+        while (kw_full_s % SW != s)
+            kw_full_s++;
+    }
 }
 
 status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
@@ -1490,7 +1656,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     //-----------------------------------------------------------------------
 
-    jcp.exec_type = exec_trans;
+    jcp.exec_type = is_amx(isa) ? exec_trans : exec_base;
     jcp.brg_type = brgemm_addr; // TODO: Choose right type of BRGEMM
 
     // TODO: in future use (kd/kh/kw) and (kd/kh/kw)_pad blocks for more
@@ -1499,14 +1665,21 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     jcp.wei_plain = false;
 
-    // try loop_ndhwgc always for exec_trans
-    jcp.loop_order = loop_ndhwgc;
+    auto bcast_amount
+            = static_cast<size_t>(jcp.od) * jcp.oh * jcp.ow * jcp.src_dsz;
+    auto wei_amount = static_cast<size_t>(jcp.ic) * jcp.kd * jcp.kh * jcp.kw
+            * jcp.wei_dsz;
+
+    // use loop_ndhwgc always for exec_trans
+    jcp.loop_order = (bcast_amount < wei_amount && jcp.exec_type != exec_trans)
+            ? loop_ngcdhw
+            : loop_ndhwgc;
 
     jcp.copy_block_only = true;
 
     const auto oc_padded_block = 16 * brg_blocking_t::last_oc_block_size;
-    jcp.is_oc_padded = one_of(jcp.wei_dt, bf16, s8)
-            && jcp.oc * jcp.kw_sets > oc_padded_block;
+    jcp.is_oc_padded = one_of(jcp.wei_dt, bf16, f16, s8)
+            && jcp.oc * jcp.kw_sets > oc_padded_block && is_amx(isa);
 
     if (is_amx(isa) && (/* heuristic */ jcp.kw_sets == 1 && jcp.iw < 256)) {
         jcp.use_M_mask = 0;

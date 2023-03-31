@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,6 +38,15 @@ namespace brgemm_convolution_bwd_utils {
 constexpr size_t P4K = 4096;
 
 bool is_amx(cpu_isa_t isa);
+
+void set_k_range(int P, int D, int S, dim_t i, dim_t O, int K, int &k_s,
+        int &k_f, bool is_w = false);
+
+void get_iw_range(const jit_brgemm_conv_conf_t &jcp, int iw, int iw_raw, int kw,
+        int &iw_s, int &M_without_overflow);
+
+void get_kw_range(const jit_brgemm_conv_conf_t &jcp, int iw, int iw_raw,
+        int &kw_s, int &kw_full_s, int &kw_full_f, int &kw_f);
 
 status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const convolution_desc_t &cd, memory_desc_t &src_md,

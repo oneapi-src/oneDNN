@@ -122,7 +122,25 @@ private:
         const float *dst_scales {nullptr};
     };
 
+    static int get_ker_po_idx(int m, bool do_postwork, bool is_N_tail) {
+        return (m * 2 + static_cast<int>(do_postwork)) * 2
+                + static_cast<int>(is_N_tail);
+    }
+
+    void get_kw_range(int iw, int iw_raw, int &kw_s, int &kw_full_s,
+            int &kw_full_e, int &kw_e) const;
+    void get_iw_range(int iw, int iw_raw, int kw, int &ow_s, int &ow_e) const;
+
+    void ker_base(brgemm_bwd_thread_ctx_t &btc) const;
     void ker_trans(brgemm_bwd_thread_ctx_t &btc, char *inp_buffer) const;
+
+    void perform_outwork(char *dst_base, char *dst, char *c_buffer,
+            const char *bias_w, int od, int oh, int ow, int iw_raw, int g_oc,
+            bool is_oc_tail, int ker_ow_s, int ker_ow_f, int kd_l, int kh_l,
+            const void *post_ops_binary_rhs_arg_vec, const float *oscales,
+            int32_t src_zp_vals, int32_t *src_zp_ptr, int32_t *dst_zp_ptr,
+            int32_t *s8s8_compensation, bool maybe_do_init, bool do_postwork,
+            bool do_post_comp, const float *dst_scales) const;
 
     void call_brgemm_kernel(brgemm_bwd_thread_ctx_t &btc, int brg_idx,
             int batch_size, char *ptr_C, char *ptr_D, const char *bias_w,
@@ -137,7 +155,11 @@ private:
             int last_n, int last_icc, int last_odb, int last_ohb,
             int last_owb) const;
 
+    status_t add_po_kernel(brgemm_t *bcfg, int ker_idx, bool is_init);
+    void add_po_kernels(int i_N, int init_bcast_dim, int po_bcast_dim);
     status_t add_brg_kernel(int bs, int M, int i_N, int i_K, int i_init);
+    void create_kernels();
+
     const pd_t *pd() const {
         return static_cast<const pd_t *>(primitive_t::pd().get());
     }
@@ -145,6 +167,7 @@ private:
     brgemm_containers::brgemm_kernel_container_t brg_kernels_;
     brgemm_containers::brgemm_palette_container_t brgemm_palettes_;
 
+    std::vector<std::unique_ptr<jit_brgemm_kernel_post_ops<isa>>> kernels_po_;
     std::unique_ptr<jit_avx512_core_brgemm_conv_bwd_trans_kernel::
                     jit_avx512_core_brgemm_conv_bwd_trans_kernel_t>
             copy_to_pbuffer_;
