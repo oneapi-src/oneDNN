@@ -337,3 +337,11 @@ and `miopenBatchNormalizationBackward` operations.
 * Backward pass supports only `f32` data types.
 * Blocked formats are not supported.
 * Only `NCDHW`, `NCHW`, `NCW`, `NC` formats are supported.
+
+### Reorder
+
+The `miopenTransform` function is the equivalent of oneDNN reorder function.
+
+* Per dimension scaling is not supported (a single alpha and beta value is
+  accepted by the transform tensor function).
+* Supported data types: `f32`
