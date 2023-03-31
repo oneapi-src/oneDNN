@@ -22,7 +22,6 @@
 #include "trace.hpp"
 #include <runtime/microkernel/cpu/kernel_timer.hpp>
 #include <runtime/runtime.hpp>
-#include <runtime/thread_locals.hpp>
 
 #ifdef SC_KERNEL_PROFILE
 static void make_trace(int in_or_out, int count) {
@@ -35,15 +34,6 @@ static void make_trace_prefetch(int in_or_out, int count) {
 #define make_trace(v, count) SC_UNUSED(count)
 #define make_trace_prefetch(v, count) SC_UNUSED(count)
 #endif
-
-static thread_local int backoff = 0;
-
-static uint64_t calc_backoff(uint64_t old, int cnt, int max_int) {
-    if (cnt > max_int / 2 + max_int / 4) { return 2 * old + 128; }
-    if (cnt > max_int / 2) { return old + 16; }
-    if (cnt > max_int / 4) { return old > 32 ? old - 32 : 0; }
-    return old / 2;
-}
 
 namespace gc = dnnl::impl::graph::gc;
 

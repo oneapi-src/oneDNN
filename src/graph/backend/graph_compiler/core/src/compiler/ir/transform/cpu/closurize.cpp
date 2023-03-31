@@ -17,6 +17,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <compiler/ir/attr_keys.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/pass_dep_util.hpp>
@@ -67,10 +68,15 @@ func_t get_parallel_call_with_env_func(bool managed) {
     return managed ? f_managed : f;
 }
 
+namespace parallel_call_args {
+enum { ADDR = 0, FLAGS, STREAM, MODULE_DATA, BEGIN, END, STEP, ARGS };
+}
+
 class closurize_cpu_impl_t : public closurize_impl_t {
     int rename_counter_ = 0;
     bool use_managed_thread_pool_;
     std::vector<call> out_calls;
+    func_t the_last_op_;
     // makes the closure function and its generic wrapper
     func_t make_closure_func(const std::string &name,
             std::vector<expr_c> &&params, stmt_c body,
@@ -178,25 +184,73 @@ class closurize_cpu_impl_t : public closurize_impl_t {
 public:
     using closurize_impl_t::dispatch;
 
+    uint64_t &get_last_parallel_call_flag() {
+        return out_calls.back()
+                ->args_.at(parallel_call_args::FLAGS)
+                .checked_as<constant>()
+                ->value_.at(0)
+                .u64;
+    }
+
     func_c dispatch(func_c f) override {
         out_calls.clear();
         auto ret = closurize_impl_t::dispatch(f);
         if (!out_calls.empty() && f->attr_
                 && f->attr_->get_or_else(
                         function_attrs::has_idle_func, false)) {
-            auto &the_flag = out_calls.back()
-                                     ->args_.at(1)
-                                     .checked_as<constant>()
-                                     ->value_.at(0)
-                                     .u64;
+            auto &the_flag = get_last_parallel_call_flag();
             the_flag |= runtime::thread_pool_flags::THREAD_POOL_RUN_IDLE_FUNC;
             the_flag |= runtime::thread_pool_flags::THREAD_POOL_DISABLE_ROLLING;
         }
+        if (f == the_last_op_) {
+            auto &seq = f->body_.checked_as<stmts>()->seq_;
+            for (auto itr = seq.rbegin(); itr != seq.rend(); ++itr) {
+                auto &s = *itr;
+                // allow return const after the last parallel call
+                if (s.cast<returns>()
+                                .filter([](const returns &v) {
+                                    return v->value_.isa<constant>();
+                                })
+                                .has_value()) {
+                    continue;
+                }
+                // if the statement is a parallel-for
+                if (s.cast<for_loop>()
+                                .filter([](const for_loop &v) {
+                                    return v->kind_ == for_type::PARALLEL;
+                                })
+                                .has_value()) {
+                    auto &the_flag = get_last_parallel_call_flag();
+                    the_flag |= runtime::thread_pool_flags::THREAD_POOL_EXIT;
+                    // the closure args buffer must be allocated via runtime
+                    // allocator instead of the native heap. So that when the
+                    // main thread exits from the kernel and waiting for the
+                    // worker threads, the args are still valid.
+                    auto closure_arg
+                            = out_calls.back()
+                                      ->args_.at(parallel_call_args::ARGS)
+                                      .as<tensor>();
+                    COMPILE_ASSERT(closure_arg.defined(), "Bad closure arg");
+                    closure_arg->attr()[attr_keys::runtime_stack_alloc] = true;
+                    break;
+                }
+                // else, there are some complex statements after the last
+                // parallel-for, do not optimize
+                SC_MODULE_WARN
+                        << "Cannot optimize the last barrier in function "
+                        << f->name_
+                        << " because there are complex code after the last "
+                           "parallel-for.";
+                break;
+            }
+        }
         return ret;
     }
-    closurize_cpu_impl_t(const ir_module_ptr &m, bool use_managed_thread_pool)
+    closurize_cpu_impl_t(const ir_module_ptr &m, bool use_managed_thread_pool,
+            const func_t &the_last_op)
         : closurize_impl_t(m->get_module_vars(), m)
-        , use_managed_thread_pool_(use_managed_thread_pool) {}
+        , use_managed_thread_pool_(use_managed_thread_pool)
+        , the_last_op_ {the_last_op} {}
 };
 
 class single_core_remove_parallel_t : public ir_visitor_t {
@@ -235,9 +289,51 @@ const_ir_module_ptr closurizer_cpu_t::operator()(const_ir_module_ptr inmod) {
     SC_MODULE_INFO << "Use managed thread pool? " << use_managed_thread_pool
                    << ". Module gflops = " << gflop;
 
+    func_t the_last_op;
+    if (!single_core_) {
+        // find the last op in main entry
+        if (auto main_entry_func = inmod->get_entry_func()) {
+            auto &seq = main_entry_func->body_.checked_as<stmts>()->seq_;
+            for (auto itr = seq.rbegin(); itr != seq.rend(); ++itr) {
+                auto &s = *itr;
+                // allow return const after the last op call
+                if (s.cast<returns>()
+                                .filter([](const returns &v) {
+                                    return v->value_.isa<constant>();
+                                })
+                                .has_value()) {
+                    continue;
+                }
+                auto f = s.cast<evaluate>()
+                                 .map([](const evaluate &v) {
+                                     return v->value_.as<call>();
+                                 })
+                                 .map([](const call &v) {
+                                     return std::dynamic_pointer_cast<
+                                             func_base>(v->func_);
+                                 });
+                if (f.has_value()) {
+                    the_last_op = inmod->get_func(f.get()->name_);
+                    if (the_last_op) {
+                        assert(the_last_op->name_ == f.get()->name_);
+                    }
+                    break;
+                }
+                // else, there are some complex statements after the last
+                // parallel-for, do not optimize
+                SC_MODULE_WARN
+                        << "Cannot optimize the last barrier in main function "
+                        << main_entry_func->name_
+                        << " because there are complex code after the last "
+                           "parallel-for.";
+                break;
+            }
+        }
+    }
+
     auto ret = inmod->copy();
     ir_visitor_t *the_pass;
-    closurize_cpu_impl_t pass(ret, use_managed_thread_pool);
+    closurize_cpu_impl_t pass(ret, use_managed_thread_pool, the_last_op);
     single_core_remove_parallel_t singlepass {};
     if (single_core_) {
         the_pass = &singlepass;

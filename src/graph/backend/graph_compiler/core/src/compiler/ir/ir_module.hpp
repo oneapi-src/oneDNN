@@ -150,8 +150,6 @@ public:
 
     // gets a function from the module. If the name is not in the symbol table,
     // returns null
-    // fixme: the returned module in module passes has the map from name to old
-    // functions in old modules
     func_t get_func(const std::string &name) const;
 
     // copies the module

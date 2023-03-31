@@ -108,12 +108,11 @@ static void worker_func(thread_manager *ths, int tid) {
     int st;
     auto &task = ths->state.task;
     int current_job_id = 2;
-
+    thread_manager::idle_func_t idl_f = nullptr;
+    uint64_t exec_flags = 0;
     while (true) {
-        auto idl_f = ths->state.idle_func;
         bool has_idle_func = idl_f
-                && (ths->state.execution_flags
-                        & thread_pool_flags::THREAD_POOL_RUN_IDLE_FUNC);
+                && (exec_flags & thread_pool_flags::THREAD_POOL_RUN_IDLE_FUNC);
         int count = 0;
         if (has_idle_func && (st = ths->state.trigger) != current_job_id) {
             count = idl_f(&ths->state.trigger, current_job_id, tid,
@@ -129,9 +128,17 @@ static void worker_func(thread_manager *ths, int tid) {
             _mm_pause();
         }
         std::atomic_thread_fence(std::memory_order_acquire);
+        idl_f = ths->state.idle_func;
+        exec_flags = ths->state.execution_flags;
         make_trace(1, count);
         do_dispatch(ths, tid);
         make_trace(0, 0);
+        // check for last parallel-for fast exit
+        if (exec_flags & thread_pool_flags::THREAD_POOL_EXIT) {
+            do_cleanup();
+            make_trace(1, count);
+            return;
+        }
         --ths->state.remaining;
         current_job_id++;
     }
@@ -154,6 +161,8 @@ void thread_manager::run_main_function(main_func_t f, runtime::stream_t *stream,
     state.num_threads = threads;
     if (threads > 1) {
         state.trigger = 1;
+        state.execution_flags
+                = gc::runtime::thread_pool_flags::THREAD_POOL_DEFAULT;
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
 #pragma omp parallel for
         for (int i = 0; i < threads; i++) {
@@ -173,7 +182,14 @@ void thread_manager::run_main_function(main_func_t f, runtime::stream_t *stream,
 #endif
             if (i == 0) {
                 f(stream, mod_data, args);
-                state.trigger = -1;
+                if (!(state.execution_flags
+                            & thread_pool_flags::THREAD_POOL_EXIT)) {
+                    // send the exit signal. If it has EXIT flag, don't send,
+                    // and let the thread exit by itself. If we send the signal
+                    // in this case, it may result in some threads skipping
+                    // the last job
+                    state.trigger = -1;
+                }
                 do_cleanup();
             } else {
                 worker_func(this, i);
@@ -187,7 +203,10 @@ void thread_manager::run_main_function(main_func_t f, runtime::stream_t *stream,
             current_active_thr_mgr = nullptr;
         });
 #endif
-
+        if (state.execution_flags & thread_pool_flags::THREAD_POOL_EXIT) {
+            state.trigger = -1;
+            state.execution_flags = 0;
+        }
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_SEQ
         throw std::runtime_error("Running SEQ in thread pool");
 #endif
@@ -264,6 +283,11 @@ void sc_parallel_call_managed(
     stream->state.trigger
             = stream->state.trigger.load(std::memory_order_relaxed) + 1;
     do_dispatch(stream, 0);
+    if (execution_flags
+            & dnnl::impl::graph::gc::runtime::thread_pool_flags::
+                    THREAD_POOL_EXIT) {
+        return;
+    }
     stream->state.wait_all();
 
     if (execution_flags

@@ -1357,7 +1357,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     // managed/native thread pool
     auto &rtl_cfg = runtime_config_t::get();
     bool use_managed_thread_pool = rtl_cfg.managed_thread_pool_
-            && (graph.is_dynamic() || num_ops > 2
+            && (num_ops > 2 || ctx->use_amx() || graph.is_dynamic()
                     || rtl_cfg.get_num_threads() == 1
                     || gflop / rtl_cfg.get_num_threads() > 0.0666f);
     ret_mod->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL]

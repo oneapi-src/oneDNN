@@ -18,6 +18,7 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <compiler/ir/attr_keys.hpp>
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
@@ -191,7 +192,11 @@ public:
         } else {
             sz *= get_const_as_int(dim.static_as<constant>());
         }
-        if (is_const && sz <= threshold_) {
+        if (is_const && sz <= threshold_
+                && /*and the tensor is not marked runtime_stack_alloc*/
+                !(tsr->attr_
+                        && tsr->attr_->get_or_else(
+                                attr_keys::runtime_stack_alloc, false))) {
             // if the tensor is small enough
             return v;
         }

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,26 +14,20 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_THREAD_POOL_FLAGS_HPP
-#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_THREAD_POOL_FLAGS_HPP
-#include <stdint.h>
+#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_ATTR_KEYS_HPP
+#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_ATTR_KEYS_HPP
 
 namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
 
-namespace runtime {
+namespace attr_keys {
+// bool. Default false. Applied on local tensors. If true, the tensor must be
+// allocated using runtime memory allocator instead of the native stack
+constexpr const char *runtime_stack_alloc = "runtime_stack_alloc";
+} // namespace attr_keys
 
-namespace thread_pool_flags {
-constexpr int THREAD_POOL_DEFAULT = 0;
-constexpr int THREAD_POOL_RUN_IDLE_FUNC = 1;
-constexpr int THREAD_POOL_DISABLE_ROLLING = 1 << 1;
-// set when this parallel-for is the last one in the whole kernel
-constexpr int THREAD_POOL_EXIT = 1 << 2;
-} // namespace thread_pool_flags
-
-} // namespace runtime
 } // namespace gc
 } // namespace graph
 } // namespace impl

@@ -19,6 +19,7 @@
 #include <compiler/ir/transform/cpu/closurize.hpp>
 
 #include <iostream>
+#include "context.hpp"
 #include "exception_util.hpp"
 #include "gtest/gtest.h"
 #include <runtime/config.hpp>
@@ -127,4 +128,63 @@ TEST(GCCore_closurize_cpp, TestClosurizeCPU) {
         builder.emit(builder.pop_scope());
     }
     EXPECT_TRUE(cmp.compare(outfuncs[0], tester2, false));
+}
+
+static optional<uint64_t> get_parallel_call_flag(const func_t f) {
+    return f->body_.static_as<stmts>()
+            ->seq_[0]
+            .cast<stmts>()
+            .map([](const stmts &v) { return v->seq_.at(1).as<evaluate>(); })
+            .map([](const evaluate &v) { return v->value_.as<call>(); })
+            .map([](const call &v) { return v->args_.at(1).as<constant>(); })
+            .map([](const constant &v) { return v->get_index(); });
+}
+
+TEST(GCCore_closurize_cpp, TestClosurizeCPURemoveBarrier) {
+    builder::ir_builder_t builder;
+
+    _function_(datatypes::boolean, aaa) {
+        _for_(i, 0, 10, 2, for_type::PARALLEL) {}
+        _return_(true);
+    }
+
+    {
+        _function_(datatypes::void_t, tester1) {
+            _evaluate_call_(aaa);
+            _tensor_(b, datatypes::index, 1);
+        }
+        auto m1 = ir_module_t::from_entry_func(get_test_ctx(), tester1);
+        auto testerout1 = closurizer_cpu_t(false)(m1);
+        auto f = testerout1->get_func("aaa");
+        ASSERT_TRUE(f);
+        ASSERT_EQ(f->body_.static_as<stmts>()->seq_.size(), 2UL);
+        auto flag = get_parallel_call_flag(f);
+        ASSERT_TRUE(flag.has_value() && flag.get() == 0);
+    }
+
+    {
+        _function_(datatypes::void_t, tester1) { _evaluate_call_(aaa); }
+        auto m1 = ir_module_t::from_entry_func(get_test_ctx(), tester1);
+        auto testerout1 = closurizer_cpu_t(false)(m1);
+        auto f = testerout1->get_func("aaa");
+        ASSERT_TRUE(f);
+        ASSERT_EQ(f->body_.static_as<stmts>()->seq_.size(), 2UL);
+        auto flag = get_parallel_call_flag(f);
+        ASSERT_TRUE(flag.has_value() && flag.get() == 4UL);
+    }
+
+    _function_(datatypes::void_t, bbb) {
+        _for_(i, 0, 10, 2, for_type::PARALLEL) {}
+        _tensor_(b, datatypes::index, 1);
+    }
+    {
+        _function_(datatypes::void_t, tester1) { _evaluate_call_(bbb); }
+        auto m1 = ir_module_t::from_entry_func(get_test_ctx(), tester1);
+        auto testerout1 = closurizer_cpu_t(false)(m1);
+        auto f = testerout1->get_func("bbb");
+        ASSERT_TRUE(f);
+        ASSERT_EQ(f->body_.static_as<stmts>()->seq_.size(), 2UL);
+        auto flag = get_parallel_call_flag(f);
+        ASSERT_TRUE(flag.has_value() && flag.get() == 0);
+    }
 }
