@@ -87,7 +87,7 @@ protected:
             const pd_t *pd, engine_t *engine, bool use_global_scratchpad,
             const cache_blob_t &cache_blob) {
 
-        auto &global_primitive_cache = primitive_cache();
+        auto global_primitive_cache = primitive_cache();
         primitive_hashing::key_t key(pd, engine);
 
         struct create_context_t {
@@ -100,13 +100,13 @@ protected:
         create_context_t context {
                 engine, pd, cache_blob, use_global_scratchpad, false};
 
-        auto create = [](void *context) {
+        primitive_cache_iface_t::create_func_ptr_t create = [](void *context) {
             auto &c = *static_cast<create_context_t *>(context);
             std::shared_ptr<primitive_t> p = std::make_shared<impl_type>(c.pd);
             status_t status
                     = p->init(c.engine, c.use_global_scratchpad, c.cache_blob);
             c.is_create_called = true;
-            return primitive_cache_t::result_t {std::move(p), status};
+            return primitive_cache_iface_t::result_t {std::move(p), status};
         };
         auto result
                 = global_primitive_cache.get_or_create(key, *create, &context);

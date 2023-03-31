@@ -41,15 +41,6 @@ namespace dnnl {
 namespace impl {
 namespace utils {
 
-template <typename O>
-struct cache_object_t {
-    constexpr cache_object_t() : value(), status(status::success) {}
-    constexpr cache_object_t(std::shared_ptr<O> p, status_t s)
-        : value(std::move(p)), status(s) {}
-    std::shared_ptr<O> value;
-    status_t status;
-};
-
 // A key k and object o may share resources. This function moves the shared
 // resources from a copy of object o into the key k. This is used to deduplicate
 // data stored in cached objects.
@@ -294,7 +285,6 @@ protected:
     }
 
 private:
-    friend class lru_primitive_cache_t;
     static size_t get_timestamp() {
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
         return cpu::platform::get_timestamp();

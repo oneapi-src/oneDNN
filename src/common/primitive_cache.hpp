@@ -18,7 +18,6 @@
 #define COMMON_PRIMITIVE_CACHE_HPP
 
 #include "c_types_map.hpp"
-#include "cache_utils.hpp"
 #include "oneapi/dnnl/dnnl.h"
 #include "primitive_hashing.hpp"
 #include "type_helpers.hpp"
@@ -27,56 +26,37 @@ namespace dnnl {
 namespace impl {
 
 struct primitive_t;
-struct primitive_cache_t : public c_compatible {
+struct primitive_cache_t;
+
+struct primitive_cache_iface_t {
     using key_t = primitive_hashing::key_t;
-    using result_t = utils::cache_object_t<primitive_t>;
+    struct result_t {
+        result_t() : status(status::success) {};
+        result_t(std::shared_ptr<primitive_t> p, status_t s)
+            : value(std::move(p)), status(s) {}
+        std::shared_ptr<primitive_t> value;
+        status_t status;
+    };
     using create_func_t = result_t (&)(void *);
+    using create_func_ptr_t = result_t (*)(void *);
 
-    virtual ~primitive_cache_t() = default;
+    primitive_cache_iface_t(primitive_cache_t &cache) : cache_(cache) {};
 
-    virtual status_t set_capacity(int capacity) = 0;
-    virtual int get_capacity() const = 0;
-    virtual int get_size() const = 0;
+    ~primitive_cache_iface_t() = default;
 
-    virtual std::shared_ptr<primitive_desc_t> get_pd(const key_t &key) = 0;
-    virtual result_t get_or_create(
-            const key_t &key, create_func_t create, void *create_context)
-            = 0;
-};
+    status_t set_capacity(int capacity);
+    int get_capacity() const;
+    int get_size() const;
 
-// The cache uses LRU replacement policy
-struct lru_primitive_cache_t final : public primitive_cache_t {
-    lru_primitive_cache_t(int capacity) : cache_(capacity) {};
-
-    ~lru_primitive_cache_t() override = default;
-
-    status_t set_capacity(int capacity) override {
-        return cache_.set_capacity(capacity);
-    }
-    int get_capacity() const override { return cache_.get_capacity(); }
-    int get_size() const override { return cache_.get_size(); }
-
-    std::shared_ptr<primitive_desc_t> get_pd(const key_t &key) override;
-    result_t get_or_create(const key_t &key, create_func_t create,
-            void *create_context) override {
-        return cache_.get_or_create(key, create, create_context);
-    }
+    std::shared_ptr<primitive_desc_t> get_pd(const key_t &key);
+    result_t get_or_create(
+            const key_t &key, create_func_t create, void *create_context);
 
 private:
-    static void update_key(const key_t &key, const primitive_t &p);
-    // Used for testing.
-    friend size_t DNNL_API set_primitive_cache_capacity_without_clearing(
-            size_t capacity);
-    void set_capacity_without_clearing(int capacity) {
-        cache_.set_capacity_without_clearing(capacity);
-    }
-
-    utils::lru_cache_t<key_t, primitive_t, utils::cache_object_t<primitive_t>,
-            update_key>
-            cache_;
+    primitive_cache_t &cache_;
 };
 
-primitive_cache_t &primitive_cache();
+primitive_cache_iface_t primitive_cache();
 
 // Undocumented API for testing.
 status_t DNNL_API get_primitive_cache_size(int *size);

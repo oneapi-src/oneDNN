@@ -17,6 +17,7 @@
 #ifndef COMMON_PRIMITIVE_HASHING_HPP
 #define COMMON_PRIMITIVE_HASHING_HPP
 
+#include <thread>
 #include <typeindex>
 #include <type_traits>
 
