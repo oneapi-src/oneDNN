@@ -30,6 +30,10 @@
 # GPU-specific optimizations
 /src/gpu/ @intel-innersource/dnn-gpu
 
+# NVIDIA and AMD backends
+/src/gpu/nvidia @intel-innersource/dnn-gpu @intel-innersource/dnn-arch
+/src/gpu/amd @intel-innersource/dnn-gpu @intel-innersource/dnn-arch
+
 # Tests
 /tests/benchdnn/inputs/ @intel-innersource/dnn-arch @intel-innersource/dnn-cpu @intel-innersource/dnn-gpu
 
