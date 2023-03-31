@@ -1317,7 +1317,7 @@ void jit_brgemm_ip_fwd_conf_t::init_scratchpad(
             const bool need_extra_buffer
                     = (jbgp.dst_dt == f32 && jbgp.with_sum);
             int n_reduction_buffers = jbgp.nthr_ic_b - !need_extra_buffer;
-            nelements = (size_t)n_reduction_buffers * jbgp.oc * jbgp.os;
+            nelements = (size_t)n_reduction_buffers * jbgp.LDC * jbgp.os;
         }
         scratchpad.book(key_brgemm_primitive_buffer, nelements,
                 types::data_type_size(jbgp.acc_dt));
