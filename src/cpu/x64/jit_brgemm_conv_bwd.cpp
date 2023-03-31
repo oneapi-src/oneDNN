@@ -138,6 +138,7 @@ status_t brgemm_convolution_bwd_t<isa>::pd_t::init(engine_t *engine) {
     if (bias_md_.format_kind == format_kind::any)
         bias_md_ = *fwd_pd_->weights_md(1);
 
+    init_name();
     auto scratchpad = scratchpad_registry().registrar();
     scratchpad.book(
             memory_tracking::names::key_nested, fwd_pd_->scratchpad_registry());
