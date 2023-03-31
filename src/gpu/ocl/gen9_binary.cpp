@@ -21,14 +21,10 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-// Gen9_binary requires that dst and both src tensors have the same
-// format, with one exception: it also works if src0 and dst are blocked,
-// src1 is plain, src's D1 is divisible by 16 and src1 has broadcast on all
-// dimensions except D0 and D1. This function checks for such circumstance.
-bool perf_workaround(const memory_desc_t *md) {
-    if (md->ndims < 2) { return false; }
-    if (md->format_desc.blocking.inner_nblks != 0) { return false; }
-    if (md->format_desc.blocking.strides[1] != 1) { return false; }
+// For cases with src0 and dst blocked, and s1 in plain layout
+// src1 channels are divisible by 16 and has broadcast on all other dims
+// except n & c
+bool check_layout_constraints(const memory_desc_t *md) {
     if (md->dims[1] % 16 != 0) { return false; }
     for (int i = 2; i < md->ndims; i++) {
         if (md->dims[i] != 1) { return false; }
@@ -37,6 +33,7 @@ bool perf_workaround(const memory_desc_t *md) {
 }
 
 status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
+    using namespace dnnl::impl::format_tag;
     const memory_desc_wrapper src0_d(src_md(0));
     const memory_desc_wrapper src1_d(src_md(1));
     const memory_desc_wrapper dst_d(dst_md());
@@ -93,7 +90,14 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch = compute_engine->create_dispatch(dst_d.md_);
 
-    using namespace dnnl::impl::format_tag;
+    format_tag_t dst_tag = dst_d.matches_one_of_tag(nc, ncw, nchw, ncdhw);
+    conf.is_plain_layout = dst_tag;
+
+    format_tag_t src0_16b
+            = src0_d.matches_one_of_tag(aBc16b, aBcd16b, aBcde16b);
+    bool is_mixed_layout = dst_d.matches_tag(src0_16b)
+            && src1_d.matches_one_of_tag(abc, abcd, abcde) && src0_16b;
+    bool is_16b = src1_d.matches_tag(src0_16b) && dst_d.matches_tag(src0_16b);
 
     conf.isXa16b = src0_d.matches_one_of_tag(
                            ABcd32a16b, ABcde32a16b, ABcd16a16b, ABcde16a16b)
@@ -101,104 +105,89 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
                     ABcd32a16b, ABcde32a16b, ABcd16a16b, ABcde16a16b)
             && src1_d.matches_one_of_tag(
                     ABcd32a16b, ABcde32a16b, ABcd16a16b, ABcde16a16b);
-    format_tag_t dst_tag = dst_d.matches_one_of_tag(nc, ncw, nchw, ncdhw);
-    conf.is_plain_layout = dst_tag;
-    if (!conf.is_plain_layout) {
-        format_tag_t src_tag = src0_d.matches_one_of_tag(abcd, acdb);
-        const auto &padded_dims = dst_d.padded_dims();
-        if (src1_d.matches_tag(src_tag) && dst_d.matches_one_of_tag(ABcd4a4b)
-                && src0_d.is_dense() && dst_d.is_dense(true)
-                && padded_dims[3] % 16 == 0 && dst_d.data_type() != dnnl_f32) {
-            dim_t blocks[MAX_NDIMS] = {1, 1, 1, 1, 1, 1};
-            auto &blk = dst_d.blocking_desc();
-            int b_block = blk.inner_blks[blk.inner_nblks - 1];
-            int sub_group_size = (b_block == 2 ? 8 : 16);
-            blocks[0] = 4;
-            blocks[1] = b_block;
-            int vect_dim = 3;
-            conf.nvect = 8;
-            for (int i = 0; i < MAX_NDIMS; ++i) {
-                auto dim_str = utils::format("D%d", i);
-                if (i < dst_d.ndims()) {
-                    conf.dispatch.define_dim(
-                            dim_str, i, padded_dims[i], blocks[i]);
-                } else {
-                    conf.dispatch.define_dim(dim_str, 1);
-                }
-            }
 
-            auto dim_str = utils::format("D%d", vect_dim);
-            CHECK(conf.dispatch.vectorize_dim(dim_str, sub_group_size));
-            conf.plain_to_ABcd4a4b = true;
-        } else if (conf.isXa16b) {
-            conf.nvect = 8;
-            int channel_blk = 16;
-            const int vect_dim_size = 16;
-            const int padded_channels = padded_dims[1];
-            conf.mb_block = dst_d.md_->format_desc.blocking.inner_blks[0];
-            while (padded_channels % (vect_dim_size * channel_blk) != 0) {
-                channel_blk /= 2;
-            }
-            dim_t blocks[MAX_NDIMS] = {8, channel_blk, 1, 1, 1, 1};
-            for (int i = 0; i < MAX_NDIMS; ++i) {
-                auto dim_str = utils::format("D%d", i);
-                if (i < dst_d.ndims()) {
-                    conf.dispatch.define_dim(
-                            dim_str, i, padded_dims[i], blocks[i]);
-                    if (i == 1) {
-                        CHECK(conf.dispatch.vectorize_dim(
-                                dim_str, vect_dim_size));
-                    }
-                } else {
-                    conf.dispatch.define_dim(dim_str, 1);
-                }
-            }
-        } else {
-            auto format_fits = [](const memory_desc_t &md) {
-                if (md.format_kind != dnnl_blocked) { return false; }
-                auto blocking = md.format_desc.blocking;
-                return blocking.inner_nblks == 1 && blocking.inner_idxs[0] == 1
-                        && blocking.inner_blks[0] == 16 && md.dims[1] % 16 == 0;
-            };
-            if (!(format_fits(*src_md(0)) && format_fits(*dst_md())
-                        && (format_fits(*src_md(1))
-                                || perf_workaround(src_md(1))))) {
-                return status::unimplemented;
-            }
-            format_tag_t src_tag
-                    = src0_d.matches_one_of_tag(aBc16b, aBcd16b, aBcde16b);
-            bool is16b
-                    = src1_d.matches_tag(src_tag) && dst_d.matches_tag(src_tag);
-            int idx = 0;
-            if (!is16b) {
-                idx = 1;
-                // Setting the MB as the innermost dim for optimized performance
-                // Hence starting i = 1, ignoring MB
-                conf.dispatch.define_dim_with_nesting_level(
-                        "D0", ndims, dst_d.dims()[0], 1);
-            }
-            for (int i = idx; i < MAX_NDIMS; ++i) {
-                int dim = i < ndims ? dst_d.dims()[i] : 1;
-                if (i == 1) {
-                    conf.dispatch.define_dim(utils::format("D%d", i),
-                            nstl::min(i, ndims - 1), dim, 1);
-                    CHECK(conf.dispatch.vectorize_dim("D1", 16));
-                } else if (i == ndims - 1) {
-                    conf.dispatch.define_dim(utils::format("D%d", i),
-                            nstl::min(i, ndims - 1), dim, conf.nvect);
-                } else {
-                    conf.dispatch.define_dim(utils::format("D%d", i),
-                            nstl::min(i, ndims - 1), dim, 1);
-                }
+    format_tag_t src_plain = src0_d.matches_one_of_tag(abcd, acdb);
+    const auto &padded_dims = dst_d.padded_dims();
+
+    bool plain_and_X4a4b = (src1_d.matches_tag(src_plain)
+            && dst_d.matches_one_of_tag(ABcd4a4b) && src0_d.is_dense()
+            && dst_d.is_dense(true) && padded_dims[3] % 16 == 0
+            && dst_d.data_type() != dnnl_f32);
+
+    if (plain_and_X4a4b) {
+        dim_t blocks[MAX_NDIMS] = {1, 1, 1, 1, 1, 1};
+        auto &blk = dst_d.blocking_desc();
+        int b_block = blk.inner_blks[blk.inner_nblks - 1];
+        int sub_group_size = (b_block == 2 ? 8 : 16);
+        blocks[0] = 4;
+        blocks[1] = b_block;
+        int vect_dim = 3;
+        conf.nvect = 8;
+        for (int i = 0; i < MAX_NDIMS; ++i) {
+            auto dim_str = utils::format("D%d", i);
+            if (i < dst_d.ndims()) {
+                conf.dispatch.define_dim(dim_str, i, padded_dims[i], blocks[i]);
+            } else {
+                conf.dispatch.define_dim(dim_str, 1);
             }
         }
-    } else {
+
+        auto dim_str = utils::format("D%d", vect_dim);
+        CHECK(conf.dispatch.vectorize_dim(dim_str, sub_group_size));
+        conf.plain_to_ABcd4a4b = true;
+    } else if (conf.isXa16b) {
+        conf.nvect = 8;
+        int channel_blk = 16;
+        const int vect_dim_size = 16;
+        const int padded_channels = padded_dims[1];
+        conf.mb_block = dst_d.md_->format_desc.blocking.inner_blks[0];
+        while (padded_channels % (vect_dim_size * channel_blk) != 0) {
+            channel_blk /= 2;
+        }
+        dim_t blocks[MAX_NDIMS] = {8, channel_blk, 1, 1, 1, 1};
+        for (int i = 0; i < MAX_NDIMS; ++i) {
+            auto dim_str = utils::format("D%d", i);
+            if (i < dst_d.ndims()) {
+                conf.dispatch.define_dim(dim_str, i, padded_dims[i], blocks[i]);
+                if (i == 1) {
+                    CHECK(conf.dispatch.vectorize_dim(dim_str, vect_dim_size));
+                }
+            } else {
+                conf.dispatch.define_dim(dim_str, 1);
+            }
+        }
+    } else if ((is_mixed_layout || is_16b)
+            && check_layout_constraints(src_md(1))) {
+        int idx = 0;
+        if (!is_16b) {
+            idx = 1;
+            // Setting the MB as the innermost dim for optimized performance
+            // Hence starting i = 1, ignoring MB
+            conf.dispatch.define_dim_with_nesting_level(
+                    "D0", ndims, dst_d.dims()[0], 1);
+        }
+        for (int i = idx; i < MAX_NDIMS; ++i) {
+            int dim = i < ndims ? dst_d.dims()[i] : 1;
+            if (i == 1) {
+                conf.dispatch.define_dim(utils::format("D%d", i),
+                        nstl::min(i, ndims - 1), dim, 1);
+                CHECK(conf.dispatch.vectorize_dim("D1", 16));
+            } else if (i == ndims - 1) {
+                conf.dispatch.define_dim(utils::format("D%d", i),
+                        nstl::min(i, ndims - 1), dim, conf.nvect);
+            } else {
+                conf.dispatch.define_dim(utils::format("D%d", i),
+                        nstl::min(i, ndims - 1), dim, 1);
+            }
+        }
+    } else if (conf.is_plain_layout) {
         if (!src0_d.matches_tag(dst_tag) || !src1_d.matches_tag(dst_tag)) {
             return status::unimplemented;
         }
 
         if (dst_md()->dims[dst_md()->ndims - 1] % 16 != 0)
             return status::unimplemented;
+
         conf.nvect = 16;
         while ((dst_d.dims()[ndims - 1] / 16) % conf.nvect != 0) {
             --conf.nvect;
@@ -210,6 +199,8 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
         }
         conf.dispatch.define_dim("MIXED_DIM", 0, mixed_dim, conf.nvect);
         CHECK(conf.dispatch.vectorize_dim("MIXED_DIM", 16));
+    } else {
+        return status::unimplemented;
     }
 
     conf.dispatch.generate();
