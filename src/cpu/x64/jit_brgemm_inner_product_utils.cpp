@@ -595,11 +595,26 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
     jbgp.N_tail = jbgp.oc % jbgp.oc_block;
     jbgp.K_tail = jbgp.use_buffer_a ? 0 : jbgp.ic % jbgp.K;
 
+    // NOTE: Choose loop order before before setting brgemm buffer leading
+    // dimensions, since buffer size might depend on loop order chosen.
+    choose_loop_order();
+
     jbgp.LDA = jbgp.use_buffer_a ? jbgp.K * jbgp.gemm_batch_size
                                  : jbgp.ic_without_padding;
     jbgp.LDB = jbgp.N;
     jbgp.LDD = jbgp.oc_without_padding;
-    jbgp.LDC = (jbgp.use_buffer && jbgp.nthr_ic_b == 1) ? jbgp.N : jbgp.LDD;
+    jbgp.LDC = jbgp.LDD;
+    if (jbgp.use_buffer && jbgp.nthr_ic_b == 1) {
+        // Adjust LDC according to buffer size used at execute stage.
+        switch (jbgp.loop_order) {
+            case osc_occ_osb_ocb_icc: jbgp.LDC = jbgp.N; break;
+            case osc_occ_icc_osb_ocb:
+                jbgp.LDC = jbgp.oc_block * jbgp.nb_oc_blocking;
+                break;
+            case icc_osc_occ_osb_ocb:
+            case icc_occ_osc_ocb_osb: jbgp.LDC = jbgp.LDD; break;
+        }
+    }
 
     if (jbgp.is_bf32) {
         const float M = static_cast<float>(jbgp.M);
@@ -612,7 +627,6 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
             return status::unimplemented;
     }
 
-    choose_loop_order();
     return status::success;
 }
 
@@ -1073,6 +1087,10 @@ status_t jit_brgemm_ip_bwd_w_conf_t::init_conf(cpu_isa_t isa,
 
     jbgp.use_buffer = IMPLICATION(!has_weights_buffer, jbgp.nthr_mb > 1);
 
+    // NOTE: Choose loop order before before setting brgemm buffer leading
+    // dimensions, since buffer size might depend on loop order chosen.
+    choose_loop_order();
+
     jbgp.LDA = jbgp.K;
     jbgp.LDB = (jbgp.use_buffer_b) ? jbgp.N * jbgp.nb_oc_blocking
                                    : jbgp.oc_without_padding;
@@ -1088,8 +1106,6 @@ status_t jit_brgemm_ip_bwd_w_conf_t::init_conf(cpu_isa_t isa,
         if (one_of(true, M <= 8, K <= 8, N < 16, tmul_efficiency <= 2.25))
             return status::unimplemented;
     }
-
-    choose_loop_order();
 
     return status::success;
 }
@@ -1312,13 +1328,36 @@ void jit_brgemm_ip_fwd_conf_t::init_scratchpad(
     const auto &jbgp = *this;
 
     if (jbgp.use_buffer) {
-        size_t nelements = (size_t)jbgp.nthr * jbgp.LDC * jbgp.M;
+        size_t nelements = 0;
+        size_t nrows = 0;
+
+        // Number of reduction, per thread or shared buffers.
+        size_t nbuffers = 0;
+
         if (jbgp.nthr_ic_b > 1) {
             const bool need_extra_buffer
                     = (jbgp.dst_dt == f32 && jbgp.with_sum);
             int n_reduction_buffers = jbgp.nthr_ic_b - !need_extra_buffer;
-            nelements = (size_t)n_reduction_buffers * jbgp.LDC * jbgp.os;
+            nbuffers = n_reduction_buffers;
+            nrows = jbgp.os;
+        } else {
+            switch (jbgp.loop_order) {
+                case osc_occ_osb_ocb_icc:
+                    nbuffers = jbgp.nthr;
+                    nrows = jbgp.M;
+                    break;
+                case osc_occ_icc_osb_ocb:
+                    nbuffers = jbgp.nthr;
+                    nrows = jbgp.os_block * nb_os_blocking;
+                    break;
+                case icc_osc_occ_osb_ocb:
+                case icc_occ_osc_ocb_osb:
+                    nbuffers = 1;
+                    nrows = jbgp.os;
+                    break;
+            }
         }
+        nelements = nbuffers * nrows * jbgp.LDC;
         scratchpad.book(key_brgemm_primitive_buffer, nelements,
                 types::data_type_size(jbgp.acc_dt));
     }
@@ -1443,12 +1482,8 @@ void jit_brgemm_ip_fwd_conf_t::choose_loop_order() {
     const bool is_f32 = everyone_is(f32, src_dt, wei_dt, dst_dt);
     const bool is_f32_compute = is_f32 && !is_bf32;
 
-    // icc-loop can only be interchanged if we don't need additional memory
-    // for accumulation.
-    const bool icc_loop_swapable = !use_buffer;
-
     // Optimize loop order for f32, if buffer is not required.
-    const bool ocb_inner_most = is_f32_compute && icc_loop_swapable;
+    const bool ocb_inner_most = is_f32_compute;
     if (ocb_inner_most) {
         loop_order = osc_occ_icc_osb_ocb;
 
@@ -1495,8 +1530,7 @@ void jit_brgemm_ip_fwd_conf_t::choose_loop_order() {
     // Enable occ_osc_... for f32 and with small os-blocks.
     // TODO: Expand to other precisions and other blocks sizes.
     const bool is_avx512 = is_superset(isa, avx512_core);
-    if ((os_block < 32 || do_occ_osc) && is_f32_compute && icc_loop_swapable
-            && is_avx512)
+    if ((os_block < 32 || do_occ_osc) && is_f32_compute && is_avx512)
         loop_order = icc_occ_osc_ocb_osb;
 }
 

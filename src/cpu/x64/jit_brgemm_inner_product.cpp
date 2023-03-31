@@ -152,18 +152,52 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
 
         char *c_buffer = nullptr;
         if (use_c_buffer) {
-            const size_t c_buf_thr_idx = jbgp.nthr_ic_b <= 1
-                    ? ithr
-                    : (jbgp.acc_dt != jbgp.dst_dt || jbgp.with_sum
-                                    ? ithr_ic
-                                    : ithr_ic - 1);
-            const size_t c_buf_num_rows = jbgp.nthr_ic_b > 1 ? jbgp.mb : jbgp.M;
-            const size_t c_buffer_shift
-                    = c_buf_thr_idx * c_buf_num_rows * jbgp.LDC;
-            const size_t c_buffer_off = acc_dt_size * c_buffer_shift
-                    + (jbgp.nthr_ic_b > 1 ? acc_dt_size * dst_off / dst_dt_size
-                                          : 0);
-            c_buffer = c_buffer_global + c_buffer_off;
+            size_t c_buf_idx = 0;
+            size_t c_buf_nrows = 0;
+            size_t c_buf_walk = 0;
+
+            if (jbgp.nthr_ic_b > 1) {
+                c_buf_idx = ithr_ic - 1;
+                c_buf_idx += jbgp.acc_dt != jbgp.dst_dt || jbgp.with_sum;
+                c_buf_nrows = jbgp.mb;
+
+                // NOTE: This trick only works because the leading dimension of
+                // buffer and memory descriptor is same.
+                c_buf_walk = dst_off / dst_dt_size;
+            } else {
+                using loop_order_t = jit_brgemm_ip_fwd_conf_t::loop_order_t;
+                switch (jbgp.loop_order) {
+                    case loop_order_t::osc_occ_osb_ocb_icc:
+                        c_buf_idx = ithr;
+                        c_buf_nrows = jbgp.M;
+
+                        // Single small block buffer, no walk needed.
+                        c_buf_walk = 0;
+                        break;
+                    case loop_order_t::osc_occ_icc_osb_ocb:
+                        c_buf_idx = ithr;
+                        c_buf_nrows = jbgp.os_block * jbgp.nb_os_blocking;
+
+                        // Walk for each block in os/oc-chunk.
+                        c_buf_walk = osb * jbgp.os_block * jbgp.LDC
+                                + ocb * jbgp.oc_block;
+                        break;
+                    case loop_order_t::icc_osc_occ_osb_ocb:
+                    case loop_order_t::icc_occ_osc_ocb_osb:
+                        c_buf_idx = 0;
+                        c_buf_nrows = jbgp.os;
+
+                        // NOTE: This trick only works because the leading
+                        // dimension of buffer and memory descriptor is same.
+                        c_buf_walk = dst_off / dst_dt_size;
+                        break;
+                }
+            }
+
+            size_t c_buf_shift = c_buf_idx * c_buf_nrows * jbgp.LDC;
+            c_buf_shift += c_buf_walk;
+            size_t c_buf_off = acc_dt_size * c_buf_shift;
+            c_buffer = c_buffer_global + c_buf_off;
         }
 
         char *wsp_tile = is_amx
