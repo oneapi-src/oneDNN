@@ -3104,6 +3104,29 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
             jcp.stride_h
                     * brg_blocking_t::get_inp_size(jcp.ih, jcp.oh_block, jcp.kh,
                             jcp.stride_h, jcp.dilate_h));
+
+    // try to find tr_ic_block to have enough src transpose work to distribute
+    // among nthr_oc_b
+    jcp.tr_ic_block = jcp.ic_block;
+    if (jcp.ic <= jcp.ic_block) {
+        for (int itr_icb = jcp.ic_block; itr_icb > 1; itr_icb--) {
+            if (jcp.ic_block % itr_icb != 0) continue;
+            const auto icb_per_thr_ic_b = div_up(jcp.nb_ic, jcp.nthr_ic_b);
+            const auto ic_per_thr_ic_b
+                    = nstl::min(jcp.ic, icb_per_thr_ic_b * jcp.ic_block);
+            const auto ic_block_per_thr_ic_b = nstl::min(jcp.ic, jcp.ic_block);
+            if (ic_block_per_thr_ic_b % itr_icb != 0) continue;
+            const auto tr_icb_per_thr = div_up(ic_per_thr_ic_b, itr_icb);
+            const auto sp_per_thr_mb
+                    = div_up(jcp.id * jcp.ih_block, jcp.nthr_mb);
+            if (tr_icb_per_thr * sp_per_thr_mb < jcp.nthr_oc_b)
+                jcp.tr_ic_block = itr_icb;
+        }
+    }
+
+    jcp.nb_tr_ic = utils::div_up(jcp.ic, jcp.tr_ic_block);
+    jcp.tr_ic_tail = jcp.ic % jcp.tr_ic_block;
+
     // TODO: Optimize memory allocation when threaded on height and depth
     jcp.tr_src_buf_count = jcp.global_transpose
             ? jcp.nthr_mb * jcp.nb_ic * jcp.ngroups

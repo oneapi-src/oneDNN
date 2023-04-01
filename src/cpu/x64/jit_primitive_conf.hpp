@@ -701,6 +701,7 @@ struct jit_brgemm_conv_conf_t {
     bool is_rtus;
     bool ununroll_bd_loop {false};
     int nb_ic, ic_block;
+    int nb_tr_ic, tr_ic_block, tr_ic_tail;
     int nb_oc, oc_block;
     int nb_iw, iw_block, iw_tail;
     int nb_ow, ow_block, ow_tail;
