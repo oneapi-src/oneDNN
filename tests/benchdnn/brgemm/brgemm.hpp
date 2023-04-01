@@ -120,7 +120,9 @@ struct prb_t : public prb_vdims_t {
     }
 
     int m, n, k;
-    dir_t dir = FLAG_FWD; // Lack of prop_kind, always considered as forward.
+    // brgemm does not have any propagation kind. Treat as forward inference to
+    // have correct check for data type support.
+    dir_t dir = FWD_I;
     std::vector<dnnl_data_type_t> dt;
     std::string stag, wtag, dtag;
     std::vector<int64_t> ld;
