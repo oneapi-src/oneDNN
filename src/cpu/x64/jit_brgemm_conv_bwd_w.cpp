@@ -477,41 +477,28 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
     }
 
     void trans_src_nxc(src_data_t *tr_src, const src_data_t *src_base,
-            int spatial_start, dim_t spatial_start_offset, int icb_start,
-            dim_t chb_stride, int row_count, int ih_s) const {
+            int icb_start, int row_count, int ih_s) const {
         const int src_stride = jcp.iw * jcp.ngroups * jcp.ic;
         const int tr_src_stride = jcp.tr_iw * jcp.ic_block;
 
-        int work_rest = row_count;
-        int max_spatial_work = jcp.id * jcp.ih;
-        int sp_work = nstl::min(work_rest, max_spatial_work - spatial_start);
-        const src_data_t *src = src_base + spatial_start_offset;
-        int icb = 0;
+        int sp_work = row_count;
+        const src_data_t *src = src_base;
         const int ic_tail_work = jcp.ic_tail ? jcp.ic_tail : jcp.ic_block;
-        while (work_rest > 0) {
-            for (int iwork = 0; iwork < sp_work; iwork++) {
-                // For 1x1 convolutions with strides we transpose only
-                // needed lines
-                if (IMPLICATION(
-                            jcp.kh == 1, (ih_s + iwork) % jcp.stride_h == 0)) {
-                    auto ctx = jit_trans_src_t::ctx_t();
-                    ctx.src = src;
-                    ctx.tr_src = tr_src;
-                    assert(icb_start + icb < jcp.nb_ic);
-                    ctx.ch_work = (icb_start + icb + 1) == jcp.nb_ic
-                            ? ic_tail_work
-                            : jcp.ic_block;
-                    ctx.src_prf = nullptr;
-                    ctx.tr_src_prf = nullptr;
-                    (*self->trans_kernel_)(&ctx);
-                }
-                src += src_stride;
-                tr_src += tr_src_stride;
+        for (int iwork = 0; iwork < sp_work; iwork++) {
+            // For 1x1 convolutions with strides we transpose only
+            // needed lines
+            if (IMPLICATION(jcp.kh == 1, (ih_s + iwork) % jcp.stride_h == 0)) {
+                auto ctx = jit_trans_src_t::ctx_t();
+                ctx.src = src;
+                ctx.tr_src = tr_src;
+                ctx.ch_work = (icb_start + 1) == jcp.nb_ic ? ic_tail_work
+                                                           : jcp.ic_block;
+                ctx.src_prf = nullptr;
+                ctx.tr_src_prf = nullptr;
+                (*self->trans_kernel_)(&ctx);
             }
-            work_rest -= sp_work;
-            sp_work = nstl::min(work_rest, max_spatial_work);
-            icb++;
-            src = src_base + icb * chb_stride;
+            src += src_stride;
+            tr_src += tr_src_stride;
         }
     }
 
@@ -602,8 +589,7 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
 
                 src_data_t *p_tr_src = &tr_src[tr_src_off(
                         g_, ic_b_, jd_s - id_s, jh_s - ih_s)];
-                trans_src_nxc(
-                        p_tr_src, p_src, 0, 0, ic_b_, 0, jh_e - jh_s, jh_s);
+                trans_src_nxc(p_tr_src, p_src, ic_b_, jh_e - jh_s, jh_s);
 
                 nd_iterator_jump(tr_start, tr_end, g, g_work, ic_b, icb_work,
                         jd, idb_e - idb_s, jh, ihb_e - ihb_s);
@@ -704,7 +690,7 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
                         img, ic_off_idx, idb, ihb_s)];
             } else
                 assert(!"Invalid harness type");
-            trans_src_nxc(tr_src_local, p_raw_src, 0, 0, (ic_b + icb), 0,
+            trans_src_nxc(tr_src_local, p_raw_src, (ic_b + icb),
                     (ihb_e - ihb_s), ihb_s);
         }
 
