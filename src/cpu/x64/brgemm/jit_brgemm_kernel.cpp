@@ -1888,7 +1888,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
                 const Vmm vmm_load
                         = vmm_mask(load(), is_ld_tail, false, ld_tail_mask);
                 // Note: Assuming the tails are properly padded/blocked for
-                // avx2_vnni_2, as the B matrix is generally
+                // avx2_vnni_2 with xf16 data type, as the B matrix is generally
                 // at least double-blocked.
                 if (brg.dt_b == data_type::f16) {
                     if (brg.isa_impl == avx2_vnni_2) {
