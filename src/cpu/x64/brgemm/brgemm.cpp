@@ -181,6 +181,10 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
                 false, brg->is_int8, brg->is_bf16, brg->is_f32, brg->is_f16))
         return status::unimplemented;
 
+    // Only avx512_core_amx kernel supports u8 weights.
+    if (!IMPLICATION(brg->dt_b == u8, brg->isa_impl == avx512_core_amx))
+        return status::unimplemented;
+
     CHECK(brgemm_blocking(brg));
 
     // avx2_vnni_2 kernel with xf16 data type requires blocked weights.
