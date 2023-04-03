@@ -573,6 +573,15 @@ public:
     }
 };
 
+class bwd_d_optimize_unstrided_param_t : public bool_param_t {
+public:
+    bwd_d_optimize_unstrided_param_t() : bool_param_t(false) {}
+    std::string name() const override { return "bwd-d-optimize-unstrided"; }
+    std::string desc() const override {
+        return "Apply special optimization for unstrided BWD_D convolution.";
+    }
+};
+
 class bwd_d_optimize_strided_iw_param_t : public bool_param_t {
 public:
     bwd_d_optimize_strided_iw_param_t() : bool_param_t(false) {}
@@ -1036,6 +1045,7 @@ public:
     name##_param_t &name() { return name##_; }
 
     DECL_PARAM(bwd_d_optimize_strided)
+    DECL_PARAM(bwd_d_optimize_unstrided)
     DECL_PARAM(bwd_d_optimize_strided_iw)
     DECL_PARAM(check_slm_size)
     DECL_PARAM(exec_cfg)
@@ -1233,6 +1243,7 @@ private:
 
     INIT_PARAM(bia_layout)
     INIT_PARAM(bwd_d_optimize_strided)
+    INIT_PARAM(bwd_d_optimize_unstrided)
     INIT_PARAM(bwd_d_optimize_strided_iw)
     INIT_PARAM(check_slm_size)
     INIT_PARAM(dims)

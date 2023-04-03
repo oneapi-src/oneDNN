@@ -478,6 +478,9 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
             gemm_schedule.set_skip_condition(kw, ow % prb_.sw != 0);
         // Put kd/kh/kw outermost to allow pipelining in oc loop.
         gemm_schedule.reorder({kd, kh, kw, oc_tile.loop_idx()});
+    } else if (cfg_.bwd_d_optimize_unstrided()) {
+        gemm_schedule.set_skip_condition(kw, iw - kw >= prb_.ow);
+        gemm_schedule.reorder({kd, kh, kw, oc_tile.loop_idx()});
     } else {
         gemm_schedule.reorder({oc_tile.loop_idx(), kd, kh, kw});
     }

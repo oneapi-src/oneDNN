@@ -1787,7 +1787,10 @@ void init_thread_group_grid(conv_config_t &cfg) {
 void init_bwd_d_optimize_strided(conv_config_t &cfg) {
     const auto &prb = cfg.prb();
     if (!prb.is_bwd_d) return;
-    if (prb.is_stride1()) return;
+    if (prb.is_stride1()) {
+        if (cfg.loop_dim("iw") != 1) cfg.set_bwd_d_optimize_unstrided(true);
+        return;
+    }
 
     cfg.set_bwd_d_optimize_strided(true);
 

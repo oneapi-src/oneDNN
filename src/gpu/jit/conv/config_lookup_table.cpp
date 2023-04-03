@@ -244,6 +244,7 @@ conv_config_lookup_table_t::conv_config_lookup_table_t() {
     add("hw=xehpc eus=448 dir=bwd_d cfg=f32f32f32 mb=32+ desc=ic256iw17oc128ow15kw4pw0", "simd=16 vec=16 fsp=0 l=kw4 T=oc4 i=ic32iw6oc32");
     add("hw=xehpc eus=448 dir=bwd_d cfg=f32f32f32 mb=32+ desc=ic256iw90oc256ow59kw32pw0", "l=kw32oc2 T=oc8");
     add("hw=xehpc eus=512 dir=bwd_d cfg=f32f32f32 mb=32+ desc=ic256iw90oc256ow59kw32pw0", "l=kw32oc4 T=oc4");
+    add("hw=xehpc eus=512 dir=fwd cfg=f32f32f32 mb=32+ desc=ic256iw90oc256ow59kw32pw0", "l=ic4kw32 T=ic4 i=ic16mb16oc32");
     // wdsr
     add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic128ih240iw135oc32oh240ow135kh3kw3ph1pw1", "fsp=1");
     add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic32ih240iw135oc128oh240ow135kh3kw3ph1pw1", "fsp=1");
