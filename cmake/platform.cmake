@@ -146,6 +146,8 @@ if(MSVC)
         append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:2586")
         # disable: disabling optimization; runtime debug checks enabled
         append(CMAKE_CXX_FLAGS_DEBUG "-Qdiag-disable:10182")
+        # disable: icpc deprecation notice
+        append(CMAKE_CXX_FLAGS_DEBUG "-Qdiag-disable:10441")
     endif()
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         append(CMAKE_CCXX_NOEXCEPT_FLAGS "-fno-exceptions")
