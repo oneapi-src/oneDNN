@@ -178,6 +178,16 @@ inline static std::vector<int> get_splits(const int X) {
   return splits;
 }
 
+inline static std::vector<int> get_sub_blocks(const int X, int factor = 2) {
+  std::vector<int> sub_blocks = {1, 2, 4, 8, 12, 16, 32};
+  for (size_t i = 0; i < sub_blocks.size(); i++) {
+    if (sub_blocks.at(i) >= X / factor) {
+      return {sub_blocks.begin(), sub_blocks.begin() + i + 1};
+    }
+  }
+  return sub_blocks;
+}
+
 inline expr get_balance211_length(
   const expr &n, const expr &team, const expr &idx, expr &n_start, expr &T1) {
   assert(get_expr_as_int(team) >= 1);

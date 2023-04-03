@@ -1300,12 +1300,15 @@ bool fuse_anchor_map_t::validate_input_for_op(
                 COMPILE_ASSERT(!dep_op->get_inputs().empty(),
                         dep_op->op_name_ << " op has no input")
                 // find the borrowed scope
+                auto dep_inp = dep_op->get_inputs()[0];
                 while (cur->parent_) {
                     cur = cur->parent_.get();
                     // if input is ready on cur anchor, its input slice range
                     // should not be empty
-                    if (!cur->fsmap_.haskey(dep_op->get_inputs()[0])
-                            || cur->fsmap_.get(dep_op->get_inputs()[0]).empty()
+                    if ((!(dep_op->isa<tunable_op_t>()
+                                 && parti->is_parti_inp(dep_inp))
+                                && (!cur->fsmap_.haskey(dep_inp)
+                                        || cur->fsmap_.get(dep_inp).empty()))
                             || !cur->fsmap_.haskey(gt)
                             || cur->fsmap_.get(gt).empty())
                         continue;
@@ -2315,6 +2318,8 @@ static bool try_merge_mixed_parti_vertically(mixed_parti_t *A, mixed_parti_t *B,
     auto dep_flag = check_parti_dep(A, B);
     // if two partition inter-depends each other, could not merge them
     if (dep_flag == parti_dep::inter_dep) return false;
+    // if both two partitions have input anchor, could not merge them
+    if (A->contain_input_anchor() && B->contain_input_anchor()) return false;
     mixed_parti_t *pa_to_merge = nullptr, *parti_be_merged = nullptr;
 
     pa_to_merge = (dep_flag == parti_dep::l_dep_r) ? B : A;
@@ -2339,8 +2344,21 @@ static bool try_merge_mixed_parti_vertically(mixed_parti_t *A, mixed_parti_t *B,
                 parti_be_merged, merged_loop_size, parti_merge_kind::vertical))
         return false;
 
-    if (!pa_to_merge->get_anchor_inside_loop(
+    if (auto max_to_merge_anchor_map = pa_to_merge->get_anchor_inside_loop(
                 outer_loops_to_merge[merged_loop_size - 1])) {
+        if (joint_op
+                && std::any_of(joint_op->get_inputs().begin(),
+                        joint_op->get_inputs().end(),
+                        [&max_to_merge_anchor_map, &pa_to_merge](
+                                const graph_tensor_ptr &inp) {
+                            return pa_to_merge->contains(inp->producer_owner_)
+                                    && max_to_merge_anchor_map->blocked_gt_set_
+                                               .find(inp)
+                                    != max_to_merge_anchor_map->blocked_gt_set_
+                                               .end();
+                        }))
+            return false;
+    } else {
         return false;
     }
 
@@ -2607,7 +2625,7 @@ fuse_anchor_map_ptr mixed_parti_t::get_anchor_inside_loop(
             auto inner_ss = s.static_as<stmts>();
             auto anchor_map = lookup_anchor_map(inner_ss);
             if (anchor_map) {
-                if (input_anchor && !anchor_map->is_input_anchor()) continue;
+                if (input_anchor != anchor_map->is_input_anchor()) continue;
                 return anchor_map;
             }
         }

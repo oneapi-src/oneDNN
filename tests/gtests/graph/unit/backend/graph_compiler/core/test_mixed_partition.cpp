@@ -736,7 +736,8 @@ TEST(GCCore_graph_mixed_partition_cpp, TestaxisBinding2) {
     runtime_config_t::get().set_num_threads(2);
 
     int M, N, K;
-    M = N = K = 256;
+    M = N = 256;
+    K = 64;
 
     auto input0 = graph.make_input(
             {graph_tensor::make({M, K}, sc_data_format_t(format_kinds::MN))});
@@ -768,7 +769,7 @@ TEST(GCCore_graph_mixed_partition_cpp, TestaxisBinding2) {
     // mmm0 and mmm1 are exactly two forking partitions
     // three levels of loops are merged
     std::string expected_str
-            = R"(graph(v0: f32[256, 256], v1: f32[256], v2: f32[256, 256], v3: f32[256, 256]) -> [v4: f32[256, 256], v5: f32[256, 256]] {
+            = R"(graph(v0: f32[256, 64], v1: f32[256], v2: f32[64, 256], v3: f32[64, 256]) -> [v4: f32[256, 256], v5: f32[256, 256]] {
   [v6: f32[1, 256]] = tensor_view(v1)
   [v5: f32[256, 256], v4: f32[256, 256]] = outerloop_2X1X1X1X1_partition_managed_matmul_core_add_managed_matmul_core_add(v0, v3, v6, v2)
 }
@@ -880,6 +881,13 @@ TEST(GCCore_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy1) {
     auto relu1 = graph.make("relu", {mmm1->get_outputs()[0]}, {}, {});
     auto out0 = graph.make_output(relu0->get_outputs());
     auto out1 = graph.make_output(relu1->get_outputs());
+    ops::managed_matmul_core_config_t cfg = {16, 1, 1, 1, 1, 0};
+    for (auto &op : graph.ops_) {
+        if (op->op_name_ == "managed_matmul_core") {
+            auto matmul_op = op->dyn_cast<ops::managed_matmul_core_op_t>();
+            matmul_op->set_config(reflection::general_object_t::make(cfg));
+        }
+    }
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     ctx->flags_.mixed_fusion_ = true;
@@ -1567,6 +1575,109 @@ TEST(GCCore_graph_mixed_partition_cpp, TestInputFusionAnchor) {
 }
 )";
     EXPECT_EQ(ss.str(), expected_str);
+}
+
+TEST(GCCore_graph_mixed_partition_cpp, TestMergeMixedPartiVertically1) {
+    sc_graph_t graph;
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    auto input0 = graph.make_input(
+            {graph_tensor::make({4, 4096}, sc_data_format_t::MK())});
+    auto weight0 = graph.make_input(
+            {graph_tensor::make({4096, 11008}, sc_data_format_t::KN())});
+    auto input1 = graph.make_input(
+            {graph_tensor::make({4, 4096}, sc_data_format_t::MK())});
+    auto weight1 = graph.make_input(
+            {graph_tensor::make({4096, 11008}, sc_data_format_t::KN())});
+
+    auto gemm0 = graph.make("managed_matmul_core",
+            {input0->get_outputs()[0], weight0->get_outputs()[0]}, {}, {});
+    auto sig = graph.make("sigmoid", {gemm0->get_outputs()[0]}, {}, {});
+    auto reo0 = graph.make("reorder", {sig->get_outputs()[0]}, {},
+            {{"out_format", sc_data_format_t::MKmk(4, 16)},
+                    {"internal", true}});
+    auto gemm1 = graph.make("managed_matmul_core",
+            {input1->get_outputs()[0], weight1->get_outputs()[0]}, {}, {});
+    auto relu = graph.make("sigmoid", {gemm1->get_outputs()[0]}, {}, {});
+    auto reo1 = graph.make("reorder", {relu->get_outputs()[0]}, {},
+            {{"out_format", sc_data_format_t::MKmk(4, 32)},
+                    {"internal", true}});
+
+    auto add = graph.make(
+            "add", {reo1->get_outputs()[0], reo0->get_outputs()[0]}, {}, {});
+    graph.make_output(add->get_outputs());
+    thread_num_reset reseter;
+    runtime_config_t::get().set_num_threads(56);
+    ops::managed_matmul_core_config_t cfg = {1, 56, 1, 1, 1, 0};
+    for (auto &op : graph.ops_) {
+        if (op->op_name_ == "managed_matmul_core") {
+            auto matmul_op = op->dyn_cast<ops::managed_matmul_core_op_t>();
+            matmul_op->set_config(reflection::general_object_t::make(cfg));
+        }
+    }
+    graph_driver(graph, ctx);
+    std::stringstream ss;
+    print_graph(graph, ss, true);
+    std::string expected_str
+            = R"(graph(v0: f32[4, 4096], v1: f32[4096, 11008], v2: f32[4, 4096], v3: f32[4096, 11008]) -> [v4: f32[4, 11008]] {
+  [v4: f32[4, 11008]] = outerloop_1X56X1X1X1_partition_managed_matmul_core_sigmoid_reorder_managed_matmul_core_sigmoid_reorder_add_reorder(v2, v3, v0, v1)
+}
+)";
+    EXPECT_EQ(ss.str(), expected_str);
+}
+
+TEST(GCCore_graph_mixed_partition_cpp, TestMergeMixedPartiVertically2) {
+    sc_graph_t graph;
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    auto input0 = graph.make_input(
+            {graph_tensor::make({4, 4096}, sc_data_format_t::MK())});
+    auto weight0 = graph.make_input(
+            {graph_tensor::make({4096, 11008}, sc_data_format_t::KN())});
+    auto input1 = graph.make_input(
+            {graph_tensor::make({4, 4096}, sc_data_format_t::MK())});
+    auto weight1 = graph.make_input(
+            {graph_tensor::make({4096, 11008}, sc_data_format_t::KN())});
+
+    auto gemm0 = graph.make("managed_matmul_core",
+            {input0->get_outputs()[0], weight0->get_outputs()[0]}, {}, {});
+    auto sig = graph.make("sigmoid", {gemm0->get_outputs()[0]}, {}, {});
+    auto reo0 = graph.make("reorder", {sig->get_outputs()[0]}, {},
+            {{"out_format", sc_data_format_t::MKmk(4, 16)},
+                    {"internal", true}});
+    auto gemm1 = graph.make("managed_matmul_core",
+            {input1->get_outputs()[0], weight1->get_outputs()[0]}, {}, {});
+    auto reo1 = graph.make("reorder", {gemm1->get_outputs()[0]}, {},
+            {{"out_format", sc_data_format_t::MKmk(4, 32)},
+                    {"internal", true}});
+
+    auto add = graph.make(
+            "add", {reo0->get_outputs()[0], reo1->get_outputs()[0]}, {}, {});
+    graph.make_output(add->get_outputs());
+    thread_num_reset reseter;
+    runtime_config_t::get().set_num_threads(56);
+    ops::managed_matmul_core_config_t cfg = {1, 56, 1, 1, 1, 0};
+    for (auto &op : graph.ops_) {
+        if (op->op_name_ == "managed_matmul_core") {
+            auto matmul_op = op->dyn_cast<ops::managed_matmul_core_op_t>();
+            matmul_op->set_config(reflection::general_object_t::make(cfg));
+        }
+    }
+    graph_driver(graph, ctx);
+    std::stringstream ss;
+    print_graph(graph, ss, true);
+    std::string expected_str
+            = R"(graph(v0: f32[4, 4096], v1: f32[4096, 11008], v2: f32[4, 4096], v3: f32[4096, 11008]) -> [v4: f32[4, 11008]] {
+  [v4: f32[4, 11008]] = outerloop_1X56X1X1X1_partition_managed_matmul_core_managed_matmul_core_sigmoid_reorder_add_reorder(v2, v3, v0, v1)
+}
+)";
+    bool is_special_fm = ctx->machine_.cpu_flags_.family == 6
+            && ctx->machine_.cpu_flags_.model == 143;
+    if (is_special_fm) {
+        // managed matmul core will have different config under such machine
+        // Only compare result in this case
+        EXPECT_EQ(ss.str(), expected_str);
+    }
 }
 
 class test_prefetchable_op : public tunable_op_t,

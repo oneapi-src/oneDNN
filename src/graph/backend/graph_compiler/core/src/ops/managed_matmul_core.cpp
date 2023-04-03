@@ -221,7 +221,7 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
                         && attrs_.get_or_else("transposed_a", false))
                     || (B_format == sc_data_format_t::NK()
                             && attrs_.get_or_else("transposed_b", false)
-                            && M <= 512)) {
+                            && M <= 512 && K < 4096)) {
                 // do pre-op fusion for NK -> NKkn2k only when shapes are small.
                 in_formats.push_back({B_format});
             } else {

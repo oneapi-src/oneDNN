@@ -168,7 +168,17 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
         new_cost = sew * (num_brgemm + i / 2) / num_core + empty_cores;
       }
     } else {
-      new_cost = sew * (num_brgemm + 8 * i) / num_core;
+      // give bigger splits on N when N is bigger
+      if (N >= 16 * M && N >= 4096 && !is_f32) {
+        // TODO(xianhang): in some mlp shapes, only one or some few layres have
+        // big N while others are small. Give bigger splits on N would break
+        // fusion to some extent, which influences the performance. The logic
+        // will be refactored after involving graph-level loop up to make all
+        // the matmul use the same split manner
+        new_cost = sew * (num_brgemm + num_threads / i / 2) / num_core;
+      } else {
+        new_cost = sew * (num_brgemm + 8 * i) / num_core;
+      }
     }
 
     if (new_cost < cost) {
@@ -189,18 +199,44 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
     // N/Ks
     cfg.M_split_num = num_threads;
     cfg.N_split_num = 1;
-  } else if (M == iim_block && num_threads <= 4) {
+  } else if (M == iim_block) {
     cfg.M_split_num = 1;
-    // magic number = 4096, needs to be further discussed for pretty big K
-    if (K < 4096) {
-      cfg.N_split_num = num_threads;
+    if (num_threads <= 4) {
+      // magic number = 4096, needs to be further discussed for pretty big K
+      // magic number = 4, needs to be further discussed for different M
+      if ((K < 4096 || M <= 4) && !is_f32) {
+        cfg.N_split_num = num_threads;
+      } else {
+        if (K >= N && get_splits(num_threads).size() > 2) {
+          cfg.N_split_num = num_threads / get_splits(num_threads).at(1);
+        } else {
+          cfg.N_split_num = num_threads;
+        }
+      }
     } else {
-      for (auto i : get_splits(num_threads)) {
-        float new_cost
-          = std::abs(float(i * i) / float(num_threads) - float(N) / float(K));
-        if (new_cost < cost) {
-          cfg.N_split_num = i;
-          cost = new_cost;
+      // for really small M with super big N and K, despites N is bigger than K,
+      // giving splits on K has performance advantage
+      auto possible_splits = get_splits(num_threads);
+      if (is_int8) {
+        if (N >= 4 * K && N >= 4096 && M <= 4) {
+          cfg.N_split_num = num_threads
+            / possible_splits.at(possible_splits.size() > 3 ? 2 : 1);
+        } else {
+          auto split_idx = K >= 4096
+            ? (N < 2 * K ? (N <= K / 2 && possible_splits.size() > 2 ? 2 : 1)
+                         : (K >= 4096 ? 1 : 0))
+            : 0;
+          cfg.N_split_num = num_threads / possible_splits.at(split_idx);
+        }
+      } else {
+        // works well on bf16, needs to be further discussed for f32
+        if (K >= 4096) {
+          auto split_idx
+            = possible_splits.size() > 6 ? 3 : (num_threads > 32 ? 1 : 0);
+          if (N >= 10 * K) {
+            if (M > 16 || num_threads <= 28) { split_idx = 1; }
+          }
+          cfg.N_split_num = num_threads / possible_splits.at(split_idx);
         }
       }
     }
@@ -212,7 +248,7 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
         cfg.M_split_num = cfg.M_split_num / possible_splits[1];
       } else {
         cfg.M_split_num = 1;
-        int K_split_num = get_splits(num_threads).at(1);
+        int K_split_num = num_threads == 1 ? 1 : get_splits(num_threads).at(1);
         cfg.N_split_num = num_threads / K_split_num;
       }
     } else {
@@ -269,35 +305,52 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
     && num_threads / cfg.M_split_num / cfg.N_split_num <= 2 && M >= 128) {
     // if no split is given on K axis, bigger K_sub_block is required
     single_K_threshold /= 4;
+  } else if (is_f32 && num_threads <= 4) {
+    single_K_threshold /= 2;
   }
   if (single_K >= single_K_threshold) {
     cfg.K_sub_block = utils::divide_and_ceil(single_K, single_K_threshold);
     int K_split_num = num_threads / cfg.M_split_num / cfg.N_split_num;
-    while (K / iik_block_ / K_split_num < cfg.K_sub_block) {
+    while (
+      K / iik_block_ / K_split_num < cfg.K_sub_block && cfg.K_sub_block > 1) {
       cfg.K_sub_block--;
     }
     int L2_K = utils::divide_and_ceil(
                  utils::divide_and_ceil(single_K, iik_block), cfg.K_sub_block)
       * iik_block;
     // sizeofdtypeA* (M * K) + sizeofdtypeB * (N * K) + sizeofdtypeC(M * N) <=
-    // L2_size, let M == N, then
-    // 2 * sizeofdtypeA * M * K + sizeofdtypeC * M * M <= L2_size
-    // Then M = (sqrt((2 * sizeofdtypeA * K) ^ 2 + 4 * sizeofdtypeC *
-    // L2_size) - 2 * sizeofdtypeA * K)/ (2 * sizeofdtypeC)
-    int L2_MN
-      = (sqrt(pow(2 * sizeofdtypeA * L2_K, 2) + 4 * sizeofdtypeC * L2_size)
-          - 2 * sizeofdtypeA * L2_K)
-      / (2 * sizeofdtypeC);
+    // L2_size, let N == P * M, then
+    // (P + 1) * sizeofdtypeA * M * K + sizeofdtypeC * M * P * M <= L2_size
+    // Then M = (sqrt(((P + 1) * sizeofdtypeA * K) ^ 2 + 4 * P* sizeofdtypeC *
+    // L2_size) - (P + 1) * sizeofdtypeA * K)/ (2 * P * sizeofdtypeC)
+    int P = single_N > single_M
+      ? (single_N / single_M > 16 ? (is_f32 ? 4 : 16) : single_N / single_M)
+      : 1;
+    int L2_MN = (sqrt(pow((P + 1) * sizeofdtypeA * L2_K, 2)
+                   + 4 * P * sizeofdtypeC * L2_size)
+                  - (P + 1) * sizeofdtypeA * L2_K)
+      / (2 * P * sizeofdtypeC);
     cfg.M_sub_block = std::max(1, single_M / L2_MN);
     cfg.N_sub_block = std::max(1, single_N / L2_MN);
   } else {
     // sizeofdtypeA * M * K + sizeofdtypeB * N * K <= L2_size
-    // let M == N, then
-    // M = L2_size / (2 * sizeofdtypeA * K)
-    int L2_MN = L2_size / (2 * sizeofdtypeA * single_K);
+    // let let N == P * M, then
+    // M = L2_size / ((1 + P) * sizeofdtypeA * K)
+    int P = single_N > single_M
+      ? (single_N / single_M > 16 ? (is_f32 ? 4 : 16) : single_N / single_M)
+      : 1;
+    int L2_MN = L2_size / ((1 + P) * sizeofdtypeA * single_K);
     cfg.M_sub_block = std::max(1, single_M / L2_MN);
     cfg.N_sub_block = std::max(1, single_N / L2_MN);
     cfg.K_sub_block = 1;
+  }
+  while (
+    M / iim_block_ / cfg.M_split_num < cfg.M_sub_block && cfg.M_sub_block > 1) {
+    cfg.M_sub_block--;
+  }
+  while (
+    N / iin_block_ / cfg.N_split_num < cfg.N_sub_block && cfg.N_sub_block > 1) {
+    cfg.N_sub_block--;
   }
   return std::move(ret);
 }
@@ -528,11 +581,16 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
     N_block_default = 32;
     K_block_default = 32;
   } else {
+    bool is_amx = get_default_context()->use_amx();
     assert(utils::is_one_of(get_A_dtype(), datatypes::u8, datatypes::s8));
-    M_block_default
-      = (plain_M >= 1024 && !get_default_context()->use_amx()) ? 64 : 32;
-    N_block_default = 64;
-    K_block_default = 64;
+    M_block_default = (plain_M >= 1024 && !is_amx) ? 64 : 32;
+    // in amx, single core small M perfers using 128
+    N_block_default
+      = (num_threads == 1 && plain_M <= 12 && is_amx && plain_N >= 512) ? 128
+                                                                        : 64;
+    K_block_default
+      = (num_threads == 1 && plain_M <= 12 && is_amx && plain_K >= 512) ? 128
+                                                                        : 64;
   }
   if (plain_N <= 512 && plain_K <= 512) {
     iim_block_
@@ -1314,6 +1372,8 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   int dtype_block = 1;
   auto A_dtype = get_A_dtype();
   auto B_dtype = get_B_dtype();
+  const int sizeofdtypeA
+    = utils::get_sizeof_etype(in_tensors_[0].dtype_.as_etype());
   if (B_dtype == datatypes::bf16) {
     dtype_block = 2;
   } else if (utils::is_one_of(B_dtype, datatypes::u8, datatypes::s8)) {
@@ -1361,7 +1421,8 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           M_split_num * N_split_num == num_threads ? 0 : K_split_num) {
           // create input anchor for A if necessary
           if (fusion && in_tensors_[0].get_format().is_blocking()
-            && M * K <= 1024 * 1024) {
+            && (M * K * sizeofdtypeA <= 1024 * 1024
+              || K * sizeofdtypeA <= 1024)) {
             fusion->create_input_fusion_anchor({tensor_slice(A,
               {{m_idx / iim_block_,
                  utils::divide_and_ceil(M_block_size, iim_block_)},
