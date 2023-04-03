@@ -224,7 +224,7 @@ static status_t init_conf_common(
     const bool has_scales = false;
     const int hw_threads = device_info->hw_threads();
     std::vector<prb_info_t> infos;
-    for (int simd : {16, 8}) {
+    for (int simd : {16, 8, 1}) {
         if (simd > 1 && !compute_engine->mayiuse_sub_group(simd)) continue;
         if (has_scales) {
             infos.emplace_back(simd, hw_threads, (int)data_type_size,
