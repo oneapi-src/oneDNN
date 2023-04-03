@@ -117,7 +117,6 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("DH", conf.dilate_h);
     kernel_ctx.define_int("DW", conf.dilate_w);
     kernel_ctx.define_int("WITH_BIAS", conf.with_bias);
-    kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
 
     kernel_ctx.define_int("IS_FWD",
             utils::one_of(conf.prop_kind, prop_kind::forward_inference,
