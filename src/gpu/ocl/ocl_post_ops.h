@@ -17,10 +17,6 @@
 #ifndef GPU_OCL_OCL_POST_OPS_H
 #define GPU_OCL_OCL_POST_OPS_H
 
-#ifndef SUB_GROUP_SIZE
-#define SUB_GROUP_SIZE get_sub_group_size()
-#endif
-
 #if WITH_POST_OP
 
 #if !WITH_ELTWISE
@@ -183,11 +179,11 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
         } \
     }
 
-#define X_NELEMS(x) ({ x / SUB_GROUP_SIZE; })
+#define X_NELEMS(x) ({ x / get_sub_group_size(); })
 
 #define CONDITIONAL_FILL( \
         idx, blocked_coord, nelem, src_ptr, dst_ptr, data_type) \
-    if (blocked_coord / SUB_GROUP_SIZE == nelem) \
+    if (blocked_coord / get_sub_group_size() == nelem) \
         FILL_WITH_BLOCK_READ(idx, src_ptr, dst_ptr, nelem, data_type);
 
 #define FILL_BIN_ARG_TRY_BLOCK(idx, dest_ptr, dest_size, x0, x0_s, x1, x1_s, \
@@ -269,7 +265,7 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
             REPLICATE_DATA(bin_arg_ptr, bin_arg_size, x0_s, X_NELEMS(x1_s), \
                     x2_s, x3_s, x4_s, x5_s); \
         } else { \
-            const unsigned x1_jump = is_burst ? SUB_GROUP_SIZE : 1; \
+            const unsigned x1_jump = is_burst ? get_sub_group_size() : 1; \
             const unsigned x1_size = x1_s / x1_jump; \
             FILL_BIN_ARG_SERIAL(idx, bin_arg_ptr, x0, x0_s, (x1 + x1_incr), \
                     x1_s, x1_jump, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s); \
