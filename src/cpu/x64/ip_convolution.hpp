@@ -207,7 +207,7 @@ struct ip_convolution_fwd_t : public primitive_t {
         std::shared_ptr<primitive_desc_t> ip_pd_;
 
     private:
-        std::string name_ = "ip:";
+        std::string name_ = "ip:any+";
 
         void init_name() {
             const std::string ips(ip_pd_->name());
@@ -309,7 +309,7 @@ struct ip_convolution_bwd_data_t : public primitive_t {
         std::shared_ptr<primitive_desc_t> ip_pd_;
 
     private:
-        std::string name_ = "ip:";
+        std::string name_ = "ip:any+";
 
         void init_name() { name_.append(ip_pd_->name()); }
 
@@ -407,7 +407,7 @@ struct ip_convolution_bwd_weights_t : public primitive_t {
         std::shared_ptr<primitive_desc_t> ip_pd_;
 
     private:
-        std::string name_ = "ip:";
+        std::string name_ = "ip:any+";
 
         void init_name() { name_.append(ip_pd_->name()); }
 
