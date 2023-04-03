@@ -719,7 +719,7 @@ status_t brdgmm_blocking(brgemm_t *brg) {
     const int max_acc_vmms = max_vregs - aux_vregs;
     const int simd_w = isa_max_vlen(brg->isa_impl) / brg->typesize_C;
     const bool is_avx2_vnni_2_xf16
-            = (brg->is_bf16 || brg->is_f16) && brg->isa_impl == avx2_vnni_2;
+            = brg->is_xf16() && brg->isa_impl == avx2_vnni_2;
 
     auto &M = brg->bcast_dim;
     auto &N = brg->load_dim;

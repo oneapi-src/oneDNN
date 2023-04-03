@@ -188,7 +188,7 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
     CHECK(brgemm_blocking(brg));
 
     // avx2_vnni_2 kernel with xf16 data type requires blocked weights.
-    if (brg->isa_impl == avx2_vnni_2 && (brg->is_bf16 || brg->is_f16)
+    if (brg->isa_impl == avx2_vnni_2 && brg->is_xf16()
             && brg->LDB % brg->ld_block > 0)
         return status::unimplemented;
 

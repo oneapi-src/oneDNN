@@ -353,6 +353,7 @@ struct brgemm_t {
         // and transparent to user.
         return !(dt_b == data_type::f16 && isa_impl == avx512_core_fp16);
     }
+    bool is_xf16() const noexcept { return is_bf16 || is_f16; }
 
     bool operator==(const brgemm_t &rhs) const;
     bool operator<(const brgemm_t &rhs) const;

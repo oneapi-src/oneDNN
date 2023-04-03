@@ -142,8 +142,7 @@ private:
     bool is_fma_embd() { return brg.is_f32 && is_superset(isa, avx512_core); }
     bool is_fast_vnni_int8() { return is_fast_vnni_int8(brg); }
     int vnni_substep() {
-        return brg.isa_impl == avx2_vnni_2 && (brg.is_bf16 || brg.is_f16) ? 2
-                                                                          : 1;
+        return brg.isa_impl == avx2_vnni_2 && brg.is_xf16() ? 2 : 1;
     }
     int get_substep_simd(int n_i, int v_i, bool has_n_tail) {
         const int last_n_block_sz
