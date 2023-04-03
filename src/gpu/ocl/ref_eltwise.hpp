@@ -62,8 +62,6 @@ struct ref_eltwise_fwd_t : public gpu_primitive_t {
             if (!ok) return status::unimplemented;
 
             CHECK(init_conf(engine));
-            if (!compute_engine->mayiuse_sub_group(conf.sub_group_size))
-                return status::unimplemented;
             return status::success;
         }
 
@@ -110,9 +108,6 @@ struct ref_eltwise_bwd_t : public gpu_primitive_t {
             using namespace utils;
             assert(engine->kind() == engine_kind::gpu);
 
-            auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine);
-
             using namespace alg_kind;
             const bool ok = !is_fwd()
                     && !memory_desc_ndims_ok(data_md(), diff_dst_md())
@@ -127,8 +122,6 @@ struct ref_eltwise_bwd_t : public gpu_primitive_t {
             if (!ok) return status::unimplemented;
 
             CHECK(init_conf(engine));
-            if (!compute_engine->mayiuse_sub_group(conf.sub_group_size))
-                return status::unimplemented;
             return status::success;
         }
 

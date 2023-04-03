@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,8 +22,6 @@
 
 #define DIFF_DATA_OFF(x0, x1, x2, x3, x4, x5) \
     OFF_MD(DIFF_DATA, x0, x1, x2, x3, x4, x5)
-
-#define KERNEL_ATTR __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 
 #if IS_FWD
 KERNEL_ATTR
