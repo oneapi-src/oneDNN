@@ -90,7 +90,80 @@ private:
 
     compute::kernel_t kernel_;
 };
-// TODO: add BWD implementation
+
+struct vectorized_lnorm_bwd_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
+    struct pd_t : public gpu_layer_normalization_bwd_pd_t {
+        using gpu_layer_normalization_bwd_pd_t::
+                gpu_layer_normalization_bwd_pd_t;
+
+        DECLARE_COMMON_PD_T("ocl:vectorized", vectorized_lnorm_bwd_t);
+
+        status_t init(engine_t *engine) {
+            using namespace data_type;
+
+            auto src_dt = src_md()->data_type;
+            auto diff_dst_dt = diff_dst_md()->data_type;
+            auto diff_src_dt = diff_src_md()->data_type;
+
+            bool ok = is_bwd()
+                    && (utils::everyone_is(
+                                f32, src_dt, diff_dst_dt, diff_src_dt)
+                            || utils::everyone_is(
+                                    bf16, src_dt, diff_dst_dt, diff_src_dt))
+                    && stat_md()->data_type == f32
+                    && check_scale_shift_data_type()
+                    && attr()->has_default_values()
+                    && set_default_formats_common();
+            if (!ok) return status::unimplemented;
+
+            CHECK(init_conf(engine));
+            init_scratchpad();
+            return status::success;
+        }
+
+        status_t init_conf(engine_t *engine);
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+        void init_scratchpad();
+
+        lnorm_conf_t conf;
+    };
+
+    status_t init(engine_t *engine) override {
+        if (pd()->has_zero_dim_memory()) return status::success;
+
+        compute::kernel_ctx_t kernel_ctx;
+
+        status_t status = pd()->init_kernel_ctx(kernel_ctx);
+        CHECK(status);
+
+        CHECK(create_kernel(
+                engine, &kernel_, "vectorized_lnorm_bwd", kernel_ctx));
+        if (!kernel_) return status::runtime_error;
+        if (pd()->conf.use_scale || pd()->conf.use_shift) {
+            CHECK(create_kernel(engine, &kernel_scaleshift_,
+                    "vectorized_lnorm_bwd_scaleshift", kernel_ctx));
+            if (!kernel_scaleshift_) return status::runtime_error;
+            CHECK(create_kernel(engine, &kernel_scaleshift_finalize_,
+                    "vectorized_lnorm_bwd_scaleshift_final", kernel_ctx));
+            if (!kernel_scaleshift_finalize_) return status::runtime_error;
+        }
+
+        return status::success;
+    }
+
+    status_t execute(const exec_ctx_t &ctx) const override {
+        return execute_backward(ctx);
+    }
+
+private:
+    status_t execute_backward(const exec_ctx_t &ctx) const;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+
+    compute::kernel_t kernel_scaleshift_;
+    compute::kernel_t kernel_scaleshift_finalize_;
+    compute::kernel_t kernel_;
+};
 
 } // namespace ocl
 } // namespace gpu

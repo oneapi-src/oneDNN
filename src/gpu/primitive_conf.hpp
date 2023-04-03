@@ -567,6 +567,7 @@ struct lnorm_conf_t {
     bool is_fwd;
     int ndims;
     int norm_axis;
+    int across_axis;
 
     memory_desc_info_t src_md_info;
     memory_desc_info_t dst_md_info;
