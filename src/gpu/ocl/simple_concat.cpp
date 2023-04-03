@@ -253,7 +253,11 @@ static status_t init_conf_common(
     conf.gws_d[2] = concat_dim_size;
 
     // Bound estimates based on limited empirical evidence
+    int coalesced_writes = ((inner_size ^ (inner_size - 1)) >> 1) + 1;
+    size_t extern_axis_bound = 256 * 512 * std::min(coalesced_writes, 8);
     if (conf.simd == 1 && conf.gws_d[2] > 64) return status::unimplemented;
+    if (conf.simd == 1 && conf.gws_d[1] > extern_axis_bound)
+        return status::unimplemented;
     if (conf.simd > 1 && inner_size < 32) return status::unimplemented;
 
     compute::get_optimal_lws(
