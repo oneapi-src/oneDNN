@@ -57,7 +57,6 @@
     F(hardswish); \
     F(log); \
     F(mish); \
-    F(pow); \
     F(soft_plus); \
     F(square); \
     F(swish); \

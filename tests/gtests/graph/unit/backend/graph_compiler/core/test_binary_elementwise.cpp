@@ -287,13 +287,6 @@ static void check_binary_elementwise(const std::string &op_name,
 
 static std::vector<sc_dims> test_shapes
         = {{16, 63}, {2, 8, 4}, {4, 16, 256, 1024}};
-TEST(GCCore_binary_elementwise_test, TestPowOp) {
-    BUILTIN_REQUIRE_AVX512();
-    for (auto &shape : test_shapes) {
-        check_binary_elementwise<float>("pow", shape, ref_pow);
-        check_binary_elementwise<bf16_t>("pow", shape, ref_pow);
-    }
-}
 
 TEST(GCCore_binary_elementwise_test, TestPReluOp) {
     BUILTIN_REQUIRE_AVX512();
