@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -203,7 +203,10 @@ status_t gemm_convolution_fwd_t::execute_forward_thr_nspc(const exec_ctx_t &ctx,
                                 args.dst_md = pd()->dst_md();
 
                                 for (size_t oc = start_oc; oc <= end_oc; oc++) {
-                                    args.l_offset = (g * jcp.oc + oc) * jcp.os;
+                                    // jcp.od is not part of jcp.os, so multiply
+                                    // jcp.od to get spatial offset.
+                                    args.l_offset = (g * jcp.oc + oc)
+                                            * (jcp.os * jcp.od);
                                     post_ops_->execute(dst_arr[oc], args);
                                 }
                             }
