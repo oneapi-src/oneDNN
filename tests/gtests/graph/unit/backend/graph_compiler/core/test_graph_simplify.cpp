@@ -269,6 +269,89 @@ TEST(GCCore_graph_simplify_cpp, TestGraphConstantFoldingS32) {
     EXPECT_EQ(ss.str(), expected);
 }
 
+TEST(GCCore_graph_simplify_cpp, TestGraphConstantFoldingRecursiveStop) {
+    sc_dims in_plain_dims {128, 64, 256};
+    auto graph = sc_graph_t();
+    auto inp = graph.make_input({graph_tensor::make(
+            in_plain_dims, sc_data_format_t(), datatypes::s32)});
+    auto const_inp = graph.make_input(
+            {graph_tensor::make(
+                    in_plain_dims, sc_data_format_t(), datatypes::s32)},
+            {{"constant", const_kind::local_const}, {"all_positive", true}});
+    int v = 2;
+    auto const_op = graph.make("constant", {}, {},
+            {{"all_positive", true}, {"plain_dims", sc_dims {1}},
+                    {"format", sc_data_format_t()}, {"dtype", datatypes::s32},
+                    {"values",
+                            std::make_shared<static_data_t>(
+                                    (void *)&v, sizeof(int))}});
+    auto &const_inp_tsr = const_inp->get_outputs()[0];
+    auto &const_op_tsr = const_op->get_outputs()[0];
+    auto mul0
+            = graph.make("mul", {inp->get_outputs()[0], const_op_tsr}, {}, {});
+    auto mul1 = graph.make(
+            "mul", {const_inp_tsr, mul0->get_outputs()[0]}, {}, {});
+
+    auto output0 = graph.make_output(mul1->get_outputs());
+
+    graph_simplify(graph, get_test_ctx());
+    EXPECT_EQ(check_graph_connection(graph), true);
+    std::stringstream ss;
+    print_graph(graph, ss, true);
+    const char *expected
+            = R"(graph(v0: s32[128, 64, 256], v1: s32[128, 64, 256]) -> [v2: s32[128, 64, 256]] {
+  [v3: s32[1]] = constant([1])
+  [v4: s32[128, 64, 256]] = mul(v3, v1)
+  [v2: s32[128, 64, 256]] = mul(v0, v4)
+}
+)";
+    EXPECT_EQ(ss.str(), expected);
+}
+
+TEST(GCCore_graph_simplify_cpp, TestGraphConstantFoldingMultiOutput) {
+    sc_dims in_plain_dims {128, 64, 256};
+    auto graph = sc_graph_t();
+    auto inp = graph.make_input({graph_tensor::make(
+            in_plain_dims, sc_data_format_t(), datatypes::s32)});
+    auto const_inp = graph.make_input(
+            {graph_tensor::make(
+                    in_plain_dims, sc_data_format_t(), datatypes::s32)},
+            {{"constant", const_kind::local_const}, {"all_positive", true}});
+    int v = 2;
+    auto const_op = graph.make("constant", {}, {},
+            {{"all_positive", true}, {"plain_dims", sc_dims {1}},
+                    {"format", sc_data_format_t()}, {"dtype", datatypes::s32},
+                    {"values",
+                            std::make_shared<static_data_t>(
+                                    (void *)&v, sizeof(int))}});
+    auto &const_inp_tsr = const_inp->get_outputs()[0];
+    auto &const_op_tsr = const_op->get_outputs()[0];
+    auto mul0
+            = graph.make("mul", {inp->get_outputs()[0], const_op_tsr}, {}, {});
+    auto add0 = graph.make(
+            "add", {const_inp_tsr, mul0->get_outputs()[0]}, {}, {});
+    auto mul1 = graph.make(
+            "mul", {add0->get_outputs()[0], const_inp_tsr}, {}, {});
+    auto relu0 = graph.make("relu", add0->get_outputs(), {}, {});
+    auto output0 = graph.make_output(
+            {relu0->get_outputs()[0], mul1->get_outputs()[0]});
+
+    graph_simplify(graph, get_test_ctx());
+    EXPECT_EQ(check_graph_connection(graph), true);
+    std::stringstream ss;
+    print_graph(graph, ss, true);
+    const char *expected
+            = R"(graph(v0: s32[128, 64, 256], v1: s32[128, 64, 256]) -> [v2: s32[128, 64, 256], v3: s32[128, 64, 256]] {
+  [v4: s32[1]] = constant([1])
+  [v5: s32[128, 64, 256]] = mul(v0, v4)
+  [v6: s32[128, 64, 256]] = add(v5, v1)
+  [v2: s32[128, 64, 256]] = relu(v6)
+  [v3: s32[128, 64, 256]] = mul(v6, v1)
+}
+)";
+    EXPECT_EQ(ss.str(), expected);
+}
+
 TEST(GCCore_graph_simplify_cpp, TestGraphPushReluBackNegative) {
     sc_dims in_plain_dims {128, 64, 256};
     auto graph = sc_graph_t();

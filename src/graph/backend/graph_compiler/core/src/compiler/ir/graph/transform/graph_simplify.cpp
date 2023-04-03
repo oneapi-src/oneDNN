@@ -463,7 +463,8 @@ static sc_op_ptr same_priority_pattern_fold(
                         node, next_node, out_tsr->details_.dtype_, elt_type)) {
             auto *cur_inp1 = node->get_inputs()[1]->producer_owner_;
             auto *next_inp1 = next_node->get_inputs()[1]->producer_owner_;
-            if (is_constant_op(cur_inp1) && is_constant_op(next_inp1)) {
+            if (is_constant_op(cur_inp1) && is_constant_op(next_inp1)
+                    && next_inp1 != node.get()) {
                 sc_op_ptr cal_const;
                 cal_const = graph.make(elt_type,
                         {cur_inp1->get_outputs()[0],
@@ -505,7 +506,8 @@ static sc_op_ptr diff_priority_pattern_fold(
             auto nnext_node = next_node->get_outputs()[0]->uses_[0].second;
             auto *next_inp1 = next_node->get_inputs()[1]->producer_owner_;
             if (!is_constant_op(next_inp1)) { return nullptr; }
-            if (is_high_priority_op(nnext_node)) {
+            if (is_high_priority_op(nnext_node)
+                    && next_node->is_single_output_single_use()) {
                 auto nnext_inp1 = nnext_node->get_inputs()[1]->producer_owner_;
                 if (!is_constant_op(nnext_inp1)) { return nullptr; }
                 std::string cur_elt_type = "mul",
