@@ -3063,7 +3063,7 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
     }
     jcp.K_tail = 0;
 
-    jcp.M = jcp.ic_block * jcp.nb_ic_blocking;
+    jcp.M = jcp.ic <= 16 ? jcp.ic : jcp.ic_block * jcp.nb_ic_blocking;
     // assumption that jcp.nb_ic_blocking is always 2
     if (jcp.nb_ic % jcp.nthr_ic_b == 0
             && (jcp.nb_ic / jcp.nthr_ic_b) % jcp.nb_ic_blocking == 0)
