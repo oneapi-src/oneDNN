@@ -176,9 +176,15 @@ std::unordered_map<int, format_tag_t> get_desired_weights_tag(
                     {32,
                             pick(n_sp_dims, OI8i32o2i, OIw8i32o2i, OIhw8i32o2i,
                                     OIdhw8i32o2i)},
+                    {24,
+                            pick(n_sp_dims, OI8i24o2i, OIw8i24o2i, OIhw8i24o2i,
+                                    OIdhw8i24o2i)},
                     {16,
                             pick(n_sp_dims, OI8i16o2i, OIw8i16o2i, OIhw8i16o2i,
-                                    OIdhw8i16o2i)}};
+                                    OIdhw8i16o2i)},
+                    {8,
+                            pick(n_sp_dims, OI8i8o2i, OIw8i8o2i, OIhw8i8o2i,
+                                    OIdhw8i8o2i)}};
         }
     } else if (jbgp.wei_dt == data_type::s8) {
         if (jbgp.is_amx) {
