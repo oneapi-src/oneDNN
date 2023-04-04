@@ -135,7 +135,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
         brgemm_attr_t brgattr;
         brgattr.generate_skip_accumulation
                 = bgmmc_.post_ops_applicable && bgmmc_.nthr_k > 1;
-        const bool is_amx = is_superset(isa, avx512_core_amx);
+        constexpr bool is_amx = one_of(
+                isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16);
         if (is_amx) {
             if (!brgattr.generate_skip_accumulation) {
                 // TODO: uker doesn't yet support generate_skip_accumulation
@@ -400,7 +401,8 @@ void brgemm_matmul_t<isa>::maybe_reduce_partial_results_and_apply_postops(
         const brg_matmul_exec_ctx_t &brgmm_ctx) const {
     if (!brgmm_ctx.parallel_reduction_is_used()) return;
 
-    const bool is_amx = is_superset(isa, avx512_core_amx);
+    constexpr bool is_amx
+            = one_of(isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16);
 
     const auto &bgmmc = pd()->get_brgemm_matmul_conf();
     const int num_threads = brgmm_ctx.get_num_threads_for_parallelization();
