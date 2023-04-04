@@ -293,6 +293,7 @@ set_property(TARGET graphcompiler_runtime PROPERTY POSITION_INDEPENDENT_CODE ON
 add_definitions(-DDNNL_ENABLE_JIT_PROFILING=0)
 add_definitions(-DDNNL_ENABLE_MAX_CPU_ISA=1)
 add_definitions(-DDNNL_ENABLE_CPU_ISA_HINTS=1)
+add_definitions(-DDISABLE_VERBOSE=1)
 file(GLOB_RECURSE DNNL_SOURCES
     ${DNNL_PATH}/src/cpu/x64/brgemm/*.cpp
     ${DNNL_PATH}/src/cpu/x64/injectors/*.cpp
@@ -316,6 +317,7 @@ file(GLOB_RECURSE DNNL_SOURCES
     ${DNNL_PATH}/src/common/memory_desc_wrapper.cpp
     ${DNNL_PATH}/src/common/memory_desc.[ch]pp
     ${DNNL_PATH}/src/common/dnnl_thread.cpp
+    ${DNNL_PATH}/src/common/verbose.cpp
 )
 add_library(dnnl_brgemm ${DNNL_SOURCES})
 set_property(TARGET dnnl_brgemm PROPERTY POSITION_INDEPENDENT_CODE ON
