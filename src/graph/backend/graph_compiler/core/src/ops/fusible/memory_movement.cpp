@@ -202,7 +202,7 @@ concat_op_t::concat_op_t(const std::vector<graph_tensor_ptr> &ins,
             attrs.has_key("concat_axis"), "Concat axis should be provided.");
     axis_ = attrs.get<int>("concat_axis");
     // We accept negative axis_, but keep it non-negative internally
-    int64_t rank = ins[0]->details_.get_plain_dims().size();
+    int64_t rank = ins[0]->details_.get_blocking_dims().size();
     COMPILE_ASSERT(axis_ >= -rank && axis_ <= rank - 1,
             "Concat axis should be in range [" << -rank << ", " << rank - 1
                                                << "], but get: " << axis_);
@@ -211,25 +211,37 @@ concat_op_t::concat_op_t(const std::vector<graph_tensor_ptr> &ins,
     for (auto &in : ins) {
         info_.inputs_.emplace_back(in);
     }
+    is_input_valid_ = std::vector<bool>(info_.inputs_.size(), true);
+    if (info_.inputs_[0]->details_.get_format().get_format_category()
+            == sc_format_category::non_blocking) {
+        ori_format_ = info_.inputs_[0]->details_.get_format();
+    } else {
+        // if the input has any/block/vnni format, use plain format when concat
+        ori_format_ = sc_data_format_t::get_plain_by_dims(
+                (int)info_.inputs_[0]->details_.get_plain_dims().size());
+    }
     if (outs.empty()) {
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this));
         info_.outputs_[0]->details_.dtype_ = info_.inputs_[0]->details_.dtype_;
-        auto shape = info_.inputs_[0]->details_.get_plain_dims();
+        auto shape = info_.inputs_[0]->details_.get_blocking_dims();
         COMPILE_ASSERT(axis_ < int64_t(shape.size()),
                 "Wrong concat axis: " << axis_
                                       << " exceeds input #0 shape rank: "
                                       << shape.size());
         for (unsigned i = 1; i < info_.inputs_.size(); i++) {
-            auto tmp_shape = info_.inputs_[i]->details_.get_plain_dims();
+            auto &tmp_shape = info_.inputs_[i]->details_.get_blocking_dims();
             COMPILE_ASSERT(axis_ < int64_t(tmp_shape.size()),
                     "Wrong concat axis: " << axis_ << " exceeds input #" << i
                                           << " shape rank: "
                                           << tmp_shape.size());
             shape[axis_] += tmp_shape[axis_];
         }
-        info_.outputs_[0]->details_.set_plain_dims(shape);
+        info_.outputs_[0]->details_.set_blocking_dims(shape);
         info_.outputs_[0]->details_.set_format(
                 info_.inputs_[0]->details_.get_format());
+        auto plain_dims = sc_data_format_t::get_padded_plain_shapes(
+                shape, info_.outputs_[0]->details_.get_format());
+        info_.outputs_[0]->details_.set_plain_dims(plain_dims);
     } else {
         COMPILE_ASSERT(
                 outs.size() == 1, "Only one output is supported for concat op");
@@ -244,14 +256,10 @@ concat_op_t::concat_op_t(
 void concat_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<format_stride_pair>> &supported_ins,
         std::vector<std::vector<format_stride_pair>> &supported_outs) {
-    std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
-    // before concat tensors, they should be in plain format
-    for (size_t i = 0; i < info_.inputs_.size(); ++i) {
-        in_formats.push_back({sc_data_format_t::get_plain_by_dims(
-                (int)info_.inputs_[i]->details_.get_plain_dims().size())});
-    }
-    out_formats.push_back({sc_data_format_t::get_plain_by_dims(
-            (int)info_.outputs_[0]->details_.get_plain_dims().size())});
+    std::vector<std::vector<sc_data_format_t>> in_formats(
+            info_.inputs_.size(), {ori_format_});
+    std::vector<std::vector<sc_data_format_t>> out_formats(
+            info_.outputs_.size(), {ori_format_});
     format_to_dense_format_stride_pair(
             in_formats, out_formats, supported_ins, supported_outs);
 }
@@ -305,7 +313,7 @@ void concat_op_t::infer_slice_ranges(
     for (size_t n = 0; n < slice_size; n++) { // multi-slice index
         // slice at concat dim should be full
         if (!slice_range_full(sr[n],
-                    info_.inputs_[known_id]->details_.get_plain_dims(),
+                    info_.inputs_[known_id]->details_.get_blocking_dims(),
                     axis_)) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
@@ -316,13 +324,13 @@ void concat_op_t::infer_slice_ranges(
             if (known_ranges_map.find(i) == known_ranges_map.end()) {
                 slice_range sr_i = sr[n];
                 sr_i[axis_].second = dim2unsigned(
-                        info_.inputs_[i]->details_.get_plain_dims()[axis_]);
+                        info_.inputs_[i]->details_.get_blocking_dims()[axis_]);
                 fsmap.get(get_inputs()[i]).at(n) = sr_i;
             }
         }
         slice_range sr_o = sr[n];
         sr_o[axis_].second = dim2unsigned(
-                info_.outputs_[0]->details_.get_plain_dims()[axis_]);
+                info_.outputs_[0]->details_.get_blocking_dims()[axis_]);
         fsmap.get(get_outputs()[0]).at(n) = sr_o;
     }
 }

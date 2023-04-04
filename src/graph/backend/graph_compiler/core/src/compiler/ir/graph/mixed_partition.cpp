@@ -33,6 +33,7 @@
 #include <compiler/ir/graph/lowering.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/buffer_schedule.hpp>
+#include <compiler/ir/transform/concat_memory_planning.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/index_flatten.hpp>
 #include <compiler/ir/transform/loop_transform.hpp>
@@ -576,6 +577,39 @@ void mxp_buffer_allocator::tensor_initialize() {
             }
             auto ret = padding->get_zero_out_stmt(pad_tsr, range_list);
             decl_body->seq_.insert(decl_body->seq_.begin(), ret);
+        }
+    }
+}
+
+void mxp_buffer_allocator::copy_concat_memory_attrs_tsr2buf() {
+    for (auto &op : binded_mxp_->committed_ops_) {
+        if (!op->isa<concat_op_t>()) { continue; }
+        auto concat = op->stc_cast<concat_op_t>();
+        for (auto &input_tsr : concat->get_inputs()) {
+            if (input_tsr->attrs_.has_key(
+                        concat_optim_attr_keys::graph_memory_offset)) {
+                auto &offset = input_tsr->attrs_.get<std::vector<expr>>(
+                        concat_optim_attr_keys::graph_memory_offset);
+
+                auto &buf = binded_mxp_->buf_alloc_.g2b_map_.get(input_tsr);
+                COMPILE_ASSERT(buf.isa<tensor>(),
+                        "Buffer with memory_offset should be a tensor")
+                buf->attr()[concat_optim_attr_keys::pass_memory_offset]
+                        = offset;
+
+                auto &final_tsr = input_tsr->attrs_.get<graph_tensor_ptr>(
+                        concat_optim_attr_keys::graph_memory_offset_to);
+                COMPILE_ASSERT(
+                        binded_mxp_->buf_alloc_.g2b_map_.haskey(final_tsr),
+                        "No buffer allocated for concat outputs")
+                auto &out_buffer
+                        = binded_mxp_->buf_alloc_.g2b_map_.get(final_tsr);
+                buf->attr()[concat_optim_attr_keys::pass_memory_offset_to]
+                        = out_buffer;
+                SC_MODULE_INFO
+                        << "Buffer: " << buf
+                        << " has memory offset to buffer: " << out_buffer;
+            }
         }
     }
 }
@@ -2779,6 +2813,9 @@ void mixed_parti_t::buffer_schedule() {
         get_root()->buffer_schedule();
         return;
     }
+    if (ctx_->flags_.concat_optimization_) {
+        buf_alloc_.copy_concat_memory_attrs_tsr2buf();
+    }
     buf_alloc_.tensor_initialize();
     buf_alloc_.declare_tensor();
     buf_alloc_.set_shrink_info();
@@ -3361,6 +3398,9 @@ std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
     std::string op_name;
     COMPILE_ASSERT(partition, "No partition found")
     auto &parti = *partition;
+    if (ctx->flags_.concat_optimization_) {
+        graph_concat_memory_planning_on_mxp(parti);
+    }
     // the mapping for original LT in original ops to fuse => the LT in the
     // sub_graph.
     std::unordered_map<graph_tensor_ptr, graph_tensor_ptr> orig_2_graph;
@@ -3402,8 +3442,13 @@ std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
         for (auto &out : op->get_outputs()) {
             new_graph_ou.emplace_back(get_or_create_graph_tsr(out));
             // if the output is a "cut" - an edge across the parti and
-            // outside of the parti
-            if (parti.is_parti_out(out)) {
+            // outside of the parti; or if concat optimization is enabled:
+            if (parti.is_parti_out(out)
+                    || (ctx->flags_.concat_optimization_
+                            && op->isa<concat_op_t>()
+                            && op->attrs_.get_or_else(
+                                    concat_optim_attr_keys::is_final_concat,
+                                    false))) {
                 // if there is a use outside of the parti, the tensor should
                 // be marked "output"
                 const auto &outtsr = new_graph_ou.back();

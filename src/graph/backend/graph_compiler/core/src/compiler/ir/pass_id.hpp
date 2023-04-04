@@ -31,6 +31,7 @@ enum pass_id {
     undef = 0,
     dyn_tensor_transformer,
     interface_generalizer,
+    concat_memory_planning,
     index_flattener,
     auto_caster,
     validator,

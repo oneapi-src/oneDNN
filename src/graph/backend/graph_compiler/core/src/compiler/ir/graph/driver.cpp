@@ -115,6 +115,10 @@ create_default_graph_flow(const context_ptr &ctx) {
 #endif
     post_tune_passes.push_back(create_graph_pass("const_folding",
             graph_constant_input_folding, {}, pass_type::post_tune, true));
+    if (ctx->flags_.concat_optimization_) {
+        post_tune_passes.push_back(create_graph_pass("merge_concats",
+                merge_concats, {}, pass_type::post_tune, true));
+    }
     if (!ctx->flags_.mixed_fusion_) {
         post_tune_passes.push_back(create_graph_pass(
                 "fuse_ops", fuse_ops, {}, pass_type::post_tune, true));
@@ -131,6 +135,10 @@ create_default_graph_flow(const context_ptr &ctx) {
     } else {
         post_tune_passes.push_back(create_graph_pass("mixed_partition",
                 mixed_partition, {}, pass_type::post_tune, true));
+    }
+    if (ctx->flags_.concat_optimization_) {
+        post_tune_passes.push_back(create_graph_pass("graph_concat_optimize",
+                graph_concat_memory_planning, {}, pass_type::post_tune, true));
     }
 
     // get passes map

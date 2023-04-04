@@ -23,6 +23,7 @@
 #include <compiler/dimensions.hpp>
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/pass_dep_util.hpp>
+#include <compiler/ir/transform/concat_memory_planning.hpp>
 #include <unordered_map>
 #include <util/any_map.hpp>
 
@@ -167,6 +168,15 @@ public:
     std::unordered_map<expr, expr> replace_map;
 
     stmt_c visit(define_c v) override {
+        expr var = v->var_;
+        if (var->attr_
+                && var->attr_->has_key(
+                        concat_optim_attr_keys::pass_memory_offset)) {
+            // This var has memory_offset to another var, and will be replaced
+            // by tensorptr. It will become unused and be deleted finally.
+            var->attr_->remove(tensor_shrinker_attrs::should_shrink);
+            return v;
+        }
         if (is_tensor_and_should_shrink(v->var_)) {
             auto tsr = v->var_.static_as<tensor>();
             bool no_init = !tsr->init_value_

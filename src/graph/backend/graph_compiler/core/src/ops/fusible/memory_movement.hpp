@@ -17,6 +17,7 @@
 #ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_FUSIBLE_MEMORY_MOVEMENT_HPP
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_FUSIBLE_MEMORY_MOVEMENT_HPP
 
+#include <numeric>
 #include <utility>
 #include <vector>
 #include <compiler/ir/graph/fusible_op.hpp>
@@ -41,8 +42,24 @@ public:
 
     int64_t get_axis() { return axis_; }
 
+    // For each input tensor, concat optimization pass will try to make the
+    // parent op directly write it into the output of concat; If so, we mark the
+    // corresponding input as invalid (false). For the input tensor that cannot
+    // be optimized, we need to generate IR to copy it into the output of
+    // concat; we mark this tensor as valid (true), because this is the default
+    // action of concatenating.
+    std::vector<bool> is_input_valid_;
+    // if returned value is false, then this concat has been optimized and some
+    // inputs's strides are changed
+    bool all_inputs_valid() {
+        return std::all_of(is_input_valid_.begin(), is_input_valid_.end(),
+                [](bool valid) { return valid; });
+    }
+
 protected:
     int64_t axis_;
+    // To make sense, the axis_ should be combined with a fixed format.
+    sc_data_format_t ori_format_;
 };
 
 /**

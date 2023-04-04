@@ -36,6 +36,7 @@
 #include <compiler/ir/ir_utils.hpp>
 #include <compiler/ir/pass/ir_copy_internal.hpp>
 #include <compiler/ir/transform/buffer_schedule.hpp>
+#include <compiler/ir/transform/concat_memory_planning.hpp>
 #include <compiler/ir/transform/cpu/local_tensor_lower.hpp>
 #include <compiler/ir/transform/dead_write_eliminate.hpp>
 #include <compiler/ir/transform/dyn_tsr_transform.hpp>
@@ -497,6 +498,12 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
         }
         if (gp.is_graph_dynamic) {
             tsr->attr().set(attr_keys::always_trans, true);
+        }
+        // this tensor is an input to a standalone concat op
+        if (t->attrs_.has_key(concat_optim_attr_keys::graph_memory_offset)) {
+            tsr->attr()[concat_optim_attr_keys::pass_memory_offset]
+                    = t->attrs_.get<std::vector<expr>>(
+                            concat_optim_attr_keys::graph_memory_offset);
         }
     } else if (type == info_etype_t::placeholder) {
         if (itr->second.tensor_.defined()) {
@@ -1266,6 +1273,11 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                     }
                     callee_name = callee->name_;
                     kernel_call = builder::make_call(callee, exprargs);
+                    if (node->isa<concat_op_t>()) {
+                        kernel_call->attr()
+                                [concat_optim_attr_keys::is_standalone_concat]
+                                = true;
+                    }
                     if (mark_as_main && const_type == const_kind::not_const) {
                         insert_prefetch(ctx, op_execution_log, node.get(), ins,
                                 *ret_mod, func_body->seq_);

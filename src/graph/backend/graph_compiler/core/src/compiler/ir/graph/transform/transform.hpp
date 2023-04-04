@@ -17,6 +17,7 @@
 #ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_TRANSFORM_TRANSFORM_HPP
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_TRANSFORM_TRANSFORM_HPP
 
+#include <vector>
 #include "../graph.hpp"
 namespace dnnl {
 namespace impl {
@@ -86,6 +87,12 @@ void brgemm_fusion_transform(
 
 SC_INTERNAL_API void shape_relationship_binding(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+
+SC_INTERNAL_API void merge_concats(
+        sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+SC_INTERNAL_API void graph_concat_memory_planning(
+        sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+
 namespace quantize {
 SC_INTERNAL_API void annotate_fusion_break(
         sc_graph_t &mgr, const context_ptr &ctx = get_default_context());

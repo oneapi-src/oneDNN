@@ -122,6 +122,9 @@ public:
     void replace_anchor(const std::vector<fuse_anchor_map_ptr> &fanchors);
 };
 
+// perform concat memory planning optimization on GraphIR
+void graph_concat_memory_planning_on_mxp(mixed_parti_t &mxp);
+
 struct mxp_buffer_allocator {
 private:
     mixed_parti_t *binded_mxp_;
@@ -193,6 +196,8 @@ public:
     void validate_buffer();
     // count of buffer usage
     int use_count(const expr &buffer) const;
+    // concat memory planning related
+    void copy_concat_memory_attrs_tsr2buf();
 };
 
 struct outerloop_axis_binder {

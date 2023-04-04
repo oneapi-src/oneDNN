@@ -25,6 +25,7 @@
 #include <compiler/ir/transform/bf16_legalize.hpp>
 #include <compiler/ir/transform/buffer_reschedule_tensor_hoist.hpp>
 #include <compiler/ir/transform/buffer_schedule.hpp>
+#include <compiler/ir/transform/concat_memory_planning.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/cpu/closurize.hpp>
 #include <compiler/ir/transform/cpu/kernel_lower.hpp>
@@ -69,6 +70,9 @@ sequential_module_pass_t get_default_precodegen_passes(
     }
     ret.emplace_back(utils::make_unique<module_function_pass_t>(
             utils::make_unique<tensor_shrinker_t>()));
+    if (ctx->flags_.concat_optimization_) {
+        ret.emplace_back(utils::make_unique<concat_memory_planning_t>());
+    }
     ret.emplace_back(utils::make_unique<index_flattener_t>());
     ret.emplace_back(utils::make_unique<auto_caster_t>());
     ret.emplace_back(module_function_pass_t::make<bf16_legalizer_t>(ctx));

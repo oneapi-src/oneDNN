@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -285,12 +285,12 @@ TEST(GCCore_concat_op_t_cpp, ConcatManagedMatmulAxis1) {
         auto in0 = graph0.make_input({graph_tensor::make(
                 {M, K}, sc_data_format_t(format_kinds::MK), datatypes::f32)});
         auto weight0 = graph0.make_input({graph_tensor::make(
-                {K, N0}, sc_data_format_t(format_kinds::NK), datatypes::f32)});
+                {K, N0}, sc_data_format_t(format_kinds::KN), datatypes::f32)});
         auto mm0 = graph0.make("managed_matmul_core",
                 {in0->get_outputs()[0], weight0->get_outputs()[0]}, {}, {});
         auto relu0 = graph0.make("relu", {mm0->get_outputs()[0]}, {}, {});
         auto weight1 = graph0.make_input({graph_tensor::make(
-                {K, N1}, sc_data_format_t(format_kinds::NK), datatypes::f32)});
+                {K, N1}, sc_data_format_t(format_kinds::KN), datatypes::f32)});
         auto mm1 = graph0.make("managed_matmul_core",
                 {in0->get_outputs()[0], weight1->get_outputs()[0]}, {}, {});
         auto relu1 = graph0.make("relu", {mm1->get_outputs()[0]}, {}, {});
@@ -312,9 +312,9 @@ TEST(GCCore_concat_op_t_cpp, ConcatManagedMatmulAxis1) {
         auto in0 = graph0.make_input({graph_tensor::make(
                 {M, K}, sc_data_format_t(format_kinds::MK), datatypes::f32)});
         auto weight0 = graph0.make_input({graph_tensor::make(
-                {K, N0}, sc_data_format_t(format_kinds::NK), datatypes::f32)});
+                {K, N0}, sc_data_format_t(format_kinds::KN), datatypes::f32)});
         auto weight1 = graph0.make_input({graph_tensor::make(
-                {K, N1}, sc_data_format_t(format_kinds::NK), datatypes::f32)});
+                {K, N1}, sc_data_format_t(format_kinds::KN), datatypes::f32)});
         auto concat1 = graph0.make("concat",
                 {weight0->get_outputs()[0], weight1->get_outputs()[0]}, {},
                 {{"concat_axis", 1}});
@@ -370,13 +370,7 @@ TEST(GCCore_concat_op_t_cpp, InceptionLikeTopoConv) {
             {{"strides", strides1}, {"paddings", paddings1}});
     auto relu1 = graph0.make("relu", {conv1->get_outputs()[0]}, {}, {});
 
-    /* windows CI seems do not support avg_pooling_fwd op.
-    int kw2 = 3, kh2 = 3, stride2 = 1, padding2 = 1;
-    sc_dims strides2 = {stride2, stride2}, paddings2 = {padding2, padding2};
-    auto pool2 = graph0.make("avg_pooling_fwd", {in0->get_outputs()[0]}, {},
-            {{"strides", strides2}, {"paddings", paddings2},
-                    {"kernel", sc_dims {kw2, kh2}}});
-    */
+    // PreCI do not support avg_pooling_fwd op. Use conv.
     int Cout2 = 32, kw2 = 3, kh2 = 3, stride2 = 1, padding2 = 1;
     auto weight2 = graph0.make_input({graph_tensor::make({Cout2, Cin, kw2, kh2},
             sc_data_format_t(format_kinds::KCRS), datatypes::f32)});
@@ -425,4 +419,57 @@ TEST(GCCore_concat_op_t_cpp, InceptionLikeTopoConv) {
     fptr1->call_default(&input0_data[0], &weight0_data[0], &weight1_data[0],
             &weight2_data[0], &ref_output0_data[0]);
     test_utils::compare_data(graph_output0_data, ref_output0_data, 1e-4, 1e-5);
+}
+
+TEST(GCCore_concat_op_t_cpp, ConcatPermuteConcat) {
+    BUILTIN_REQUIRE_AVX512();
+    thread_num_reset reseter;
+    runtime_config_t::get().set_num_threads(16);
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+
+    int N = 32, L = 1024, D = 256;
+    sc_graph_t graph0;
+    auto in0 = graph0.make_input({graph_tensor::make(
+            {N, L, D}, sc_data_format_t(format_kinds::ABC), datatypes::f32)});
+    auto in1 = graph0.make_input({graph_tensor::make(
+            {N, L, D}, sc_data_format_t(format_kinds::ABC), datatypes::f32)});
+    auto in2 = graph0.make_input({graph_tensor::make(
+            {N, L, D}, sc_data_format_t(format_kinds::ABC), datatypes::f32)});
+    // in3: plain dims and blocking format
+    auto in3 = graph0.make_input({graph_tensor::make({N, 2 * L, D},
+            sc_data_format_t(format_kinds::ACB), datatypes::f32)});
+
+    auto add1 = graph0.make(
+            "add", {in1->get_outputs()[0], in2->get_outputs()[0]}, {}, {});
+    auto concat2 = graph0.make("concat",
+            {in0->get_outputs()[0], add1->get_outputs()[0]}, {},
+            {{"concat_axis", 1}});
+    // concat2 output: (N, 2*L, D) @ ABC
+    auto permute3 = graph0.make("reorder", {concat2->get_outputs()[0]}, {},
+            {{"out_format", sc_data_format_t(format_kinds::ACB)},
+                    {"internal", true}});
+    // permute3 output: (N, D, 2*L) @ACB
+    auto concat4 = graph0.make("concat",
+            {permute3->get_outputs()[0], in3->get_outputs()[0]}, {},
+            {{"concat_axis", 1}});
+    // concat4 output: (N, 2*D, 2*L) @ACB
+    auto out = graph0.make_output(concat4->get_outputs());
+    // output: (N, 2*L, 2*D) @ABC
+
+    graph_driver(graph0, ctx);
+    auto ir_mod = lower_graph(ctx, graph0,
+            {graph0.get_input_ops()[0], graph0.get_input_ops()[1],
+                    graph0.get_input_ops()[2], graph0.get_input_ops()[3],
+                    graph0.get_output_ops()[0]});
+    std::stringstream ss;
+    ss << ir_mod->get_entry_func();
+    // Note the shapes should be right.
+    expr out_buf = ir_mod->get_entry_func()->params_.back();
+    std::vector<int64_t> expected_shape = {32, 2048, 512};
+    auto shape = out_buf.checked_as<tensor>()->dims_;
+    for (size_t i = 0; i < shape.size(); ++i) {
+        EXPECT_EQ(get_const_as_int(shape[i].static_as<constant>()),
+                expected_shape[i]);
+    }
 }

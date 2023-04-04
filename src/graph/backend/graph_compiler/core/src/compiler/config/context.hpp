@@ -60,6 +60,7 @@ struct scflags_t {
     // whether jit supports directly generating amx intrinsics instead of using
     // dnnl
     bool jit_support_amx_intrinsics_ = false;
+    bool concat_optimization_ = true;
 };
 
 struct context_t {
