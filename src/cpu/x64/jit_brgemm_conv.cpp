@@ -2084,6 +2084,7 @@ template struct brgemm_convolution_fwd_t<avx2_vnni_2, true>;
 template struct brgemm_convolution_fwd_t<avx512_core>;
 template struct brgemm_convolution_fwd_t<avx512_core, true>;
 template struct brgemm_convolution_fwd_t<avx512_core_vnni>;
+template struct brgemm_convolution_fwd_t<avx512_core_vnni, true>;
 template struct brgemm_convolution_fwd_t<avx512_core_bf16>;
 template struct brgemm_convolution_fwd_t<avx512_core_bf16, true>;
 template struct brgemm_convolution_fwd_t<avx512_core_fp16>;

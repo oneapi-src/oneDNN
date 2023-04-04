@@ -1477,8 +1477,16 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     // TODO: Extend zero points support to AMX
     const bool has_zero_points = jcp.src_zero_point || jcp.dst_zero_point;
-    if (has_zero_points || jcp.s8s8_compensation_required)
-        return status::unimplemented;
+
+    const bool params_ok = IMPLICATION(has_zero_points, !is_amx(jcp.isa))
+            && IMPLICATION(has_zero_points, utils::one_of(jcp.src_dt, u8, s8))
+            && IMPLICATION(jcp.src_zero_point,
+                    attr.zero_points_.common(
+                            is_deconv ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST))
+            && IMPLICATION(jcp.dst_zero_point,
+                    attr.zero_points_.common(
+                            is_deconv ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC));
+    if (!params_ok) return status::unimplemented;
 
     if (is_deconv) {
         const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
@@ -1617,6 +1625,119 @@ void get_kw_range(const jit_brgemm_conv_conf_t &jcp, int iw, int iw_raw,
         while (kw_full_s % SW != s)
             kw_full_s++;
     }
+}
+
+dim_t precalculate_comp_pad_kernels(const jit_brgemm_conv_conf_t &jcp,
+        std::vector<dim_t> *kd_bs, std::vector<dim_t> *kd_es,
+        std::vector<dim_t> *kh_bs, std::vector<dim_t> *kh_es,
+        std::vector<dim_t> *kw_bs, std::vector<dim_t> *kw_es) {
+    using namespace dnnl::impl::utils;
+    using namespace nstl;
+
+#define ndims_pick(v5, v4, v3) \
+    ((ndims == 5) ? (v5) : (ndims == 4) ? (v4) : (ndims == 3) ? (v3) : 0)
+    const auto ndims = jcp.ndims;
+    const auto KD = jcp.kd;
+    const auto KH = jcp.kh;
+    const auto KW = jcp.kw;
+    const auto KW_BLOCK = jcp.kw_block;
+    const auto ID = ndims_pick(jcp.id, 1, 1);
+    const auto ID_BLOCK = jcp.id_block;
+    const auto IH = ndims_pick(jcp.ih, jcp.ih, 1);
+    const auto IH_BLOCK = jcp.ih_block;
+    const auto IW_BLOCK = jcp.iw_block;
+    const auto OD = ndims_pick(jcp.od, 1, 1);
+    const auto OH = ndims_pick(jcp.oh, jcp.oh, 1);
+    const auto SD = ndims_pick(jcp.stride_d, 1, 1);
+    const auto SH = ndims_pick(jcp.stride_h, jcp.stride_h, 1);
+    const auto SW = jcp.stride_w;
+    const auto FP = ndims_pick(jcp.f_pad, 0, 0);
+    const auto TP = ndims_pick(jcp.t_pad, jcp.t_pad, 0);
+    const auto DD = ndims_pick(jcp.dilate_d, 0, 0) + 1;
+    const auto DH = ndims_pick(jcp.dilate_h, jcp.dilate_h, 0) + 1;
+
+    const bool fill_k_ranges
+            = !any_null(kd_bs, kd_es, kh_bs, kh_es, kw_bs, kw_es);
+    std::set<std::vector<int>> unique_kernels;
+    dim_t k = 0;
+    if (fill_k_ranges) {
+        kd_bs->resize(jcp.ker_ranges_size);
+        kd_es->resize(jcp.ker_ranges_size);
+        kh_bs->resize(jcp.ker_ranges_size);
+        kh_es->resize(jcp.ker_ranges_size);
+        kw_bs->resize(jcp.ker_ranges_size);
+        kw_es->resize(jcp.ker_ranges_size);
+    }
+
+    const auto update_kernels
+            = [&](int kd_b, int kd_e, int kh_b, int kh_e, int kw_b, int kw_e) {
+                  unique_kernels.insert({kd_b, kd_e, kh_b, kh_e, kw_b, kw_e});
+                  if (k == static_cast<dim_t>(unique_kernels.size())) return;
+                  if (fill_k_ranges) {
+                      (*kd_bs)[k] = kd_b;
+                      (*kd_es)[k] = kd_e;
+                      (*kh_bs)[k] = kh_b;
+                      (*kh_es)[k] = kh_e;
+                      (*kw_bs)[k] = kw_b;
+                      (*kw_es)[k] = kw_e;
+                  }
+                  k++;
+                  assert(IMPLICATION(fill_k_ranges, k <= jcp.ker_ranges_size));
+              };
+
+    for_(int idb = 0; idb < jcp.nb_id; idb++)
+    for_(int ihb = 0; ihb < jcp.nb_ih; ihb++)
+    for (int iwb = 0; iwb < jcp.nb_iw; iwb++) {
+        auto id_begin = idb * ID_BLOCK;
+        auto id_end = nstl::min(ID, id_begin + ID_BLOCK);
+        auto ih_begin = ihb * IH_BLOCK;
+        auto ih_end = jcp.is_os_blocking ? ih_begin + 1
+                                         : nstl::min(IH, ih_begin + IH_BLOCK);
+        for_(int id = id_begin; id < id_end; id++)
+        for_(int ih = ih_begin; ih < ih_end; ih++)
+        for (int sw = 0; sw < SW; sw++) {
+            const int iw = iwb * IW_BLOCK + sw;
+            const int iw_raw = iwb * IW_BLOCK;
+
+            int kw_s {0}, kw_full_s {0}, kw_f {0}, kw_full_f {0};
+            int kd_s_(0), kh_s_(0), kd_f_(0), kh_f_(0);
+            get_kw_range(jcp, iw, iw_raw, kw_s, kw_full_s, kw_full_f, kw_f);
+
+            set_k_range(FP, DD, SD, id, OD, KD, kd_s_, kd_f_);
+            set_k_range(TP, DH, SH, ih, OH, KH, kh_s_, kh_f_);
+            const auto kh_f = ndims_pick(kh_f_, kh_f_, 1);
+            const auto kh_s = ndims_pick(kh_s_, kh_s_, 0);
+
+            const auto kd_f = ndims_pick(kd_f_, 1, 1);
+            const auto kd_s = ndims_pick(kd_s_, 0, 0);
+
+            if (kd_f > kd_s && kh_f > kh_s && kw_f > kw_s && kw_s < KW) {
+                if (jcp.exec_type == exec_base) {
+                    if (kw_s < kw_full_s) {
+                        for (auto kw = kw_s; kw < kw_full_s; kw += SW) {
+                            update_kernels(kd_s, kd_f, kh_s, kh_f, kw, kw + 1);
+                        }
+                    }
+                    if (kw_full_s < kw_full_f) {
+                        for (auto kw = kw_full_s; kw < kw_full_f;
+                                kw += KW_BLOCK) {
+                            const auto kw_e
+                                    = nstl::min(kw_full_f, kw + KW_BLOCK);
+                            update_kernels(kd_s, kd_f, kh_s, kh_f, kw, kw_e);
+                        }
+                    }
+                    if (kw_full_f < kw_f) {
+                        for (auto kw = kw_full_f; kw < kw_f; kw += SW) {
+                            update_kernels(kd_s, kd_f, kh_s, kh_f, kw, kw + 1);
+                        }
+                    }
+                } else
+                    assert(!"Unsupported exec type.");
+            }
+        }
+    }
+    return k;
+#undef ndims_pick
 }
 
 status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
@@ -1758,41 +1879,23 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                     * jcp.nb_iw * jcp.ngroups * jcp.nb_oc,
             P4K);
 
-    const bool with_groups = weights_d.ndims() == diff_src_d.ndims() + 1;
-    const bool with_pad = jcp.f_pad > 0 || jcp.back_pad > 0 || jcp.t_pad > 0
-            || jcp.b_pad > 0 || jcp.l_pad > 0 || jcp.r_pad > 0;
-
-    if (jcp.s8s8_compensation_required) {
-        weights_md.extra.flags = 0 | memory_extra_flags::compensation_conv_s8s8;
-        weights_md.extra.compensation_mask = with_groups ? 0x3 : 0x1;
-    }
-    if (jcp.src_zero_point && !is_amx(jcp.isa)) {
-        weights_md.extra.flags
-                |= memory_extra_flags::compensation_conv_asymmetric_src;
-        weights_md.extra.asymm_compensation_mask = with_groups ? 0x3 : 0x1;
-    }
-
-    // For padding shapes, we calculate the comp along with the computation
-    // inside brgemm kernel when output size is small to get optimal perf
-    // Or we calculate the comp using brgemm_coomp_pad kernel
+    // Calculate the comp along with the computation inside brgemm kernel when
+    // output size is small to get optimal perf
+    // Otherwise we calculate the comp using brgemm_comp_pad kernel
     const auto output_sz = static_cast<dim_t>(jcp.mb) * jcp.ngroups * jcp.ic
             * jcp.id * jcp.ih * jcp.iw;
-    const auto comp_with_pads
-            = (jcp.src_zero_point || jcp.s8s8_compensation_required)
-            && IMPLICATION(jcp.exec_type == exec_vpad, with_pad);
-    jcp.req_brg_comp_pad = comp_with_pads && output_sz <= 8192 && jcp.ic < 512;
-    jcp.req_cal_comp_pad = comp_with_pads && !jcp.req_brg_comp_pad;
+    const auto need_compensation
+            = jcp.src_zero_point || jcp.s8s8_compensation_required;
+    jcp.req_brg_comp_pad
+            = need_compensation && output_sz <= 8192 && jcp.ic < 512;
+    jcp.req_cal_comp_pad = need_compensation && !jcp.req_brg_comp_pad;
 
-    // estimate the number of kernel range combination for compensation
-    const auto kd_cnt = 1 + utils::div_up(abs(jcp.f_pad), jcp.dilate_d + 1)
-            + utils::div_up(abs(jcp.back_pad), jcp.dilate_d + 1);
-    const auto kh_cnt = 1 + utils::div_up(abs(jcp.t_pad), jcp.dilate_h + 1)
-            + utils::div_up(abs(jcp.b_pad), jcp.dilate_h + 1);
-
-    jcp.ker_ranges_size = kd_cnt * kh_cnt;
-    jcp.comp_a_buffer_size = static_cast<dim_t>(jcp.ngroups) * jcp.nb_ic
-            * jcp.ker_ranges_size * jcp.iw * jcp.ic_block;
-    jcp.s8s8_comp_buffer_size = jcp.comp_a_buffer_size;
+    if (jcp.req_cal_comp_pad) {
+        jcp.ker_ranges_size = precalculate_comp_pad_kernels(jcp);
+        jcp.comp_a_buffer_size = static_cast<dim_t>(jcp.ngroups) * jcp.nb_ic
+                * jcp.ker_ranges_size * jcp.ic_block;
+        jcp.s8s8_comp_buffer_size = jcp.comp_a_buffer_size;
+    }
 
     return status::success;
 }

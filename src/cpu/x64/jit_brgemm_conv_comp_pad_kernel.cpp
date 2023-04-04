@@ -25,6 +25,7 @@ namespace x64 {
 using namespace dnnl::impl::utils;
 using namespace nstl;
 using namespace data_type;
+using namespace prop_kind;
 
 namespace jit_uni_brgemm_conv_comp_pad_kernel {
 
@@ -38,9 +39,15 @@ jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::
     , jcp_(ajcp)
     , inp_dsz_(jcp_.wei_dsz)
     , out_dsz_(jcp_.acc_dsz)
-    , nb_ic_(utils::div_up(jcp_.ic, 4))
-    , inp_ic_sz_(static_cast<size_t>(inp_dsz_) * jcp_.oc_block * 4)
-    , inp_kw_sz_(static_cast<size_t>(inp_dsz_) * jcp_.icp * jcp_.oc_block)
+    , nb_ic_(utils::div_up(
+              jcp_.prop_kind == backward_data ? jcp_.oc : jcp_.ic, 4))
+    , inp_ic_sz_(static_cast<size_t>(inp_dsz_)
+              * (jcp_.prop_kind == backward_data ? jcp_.ic_block
+                                                 : jcp_.oc_block)
+              * 4)
+    , inp_kw_sz_(static_cast<size_t>(inp_dsz_)
+              * (jcp_.prop_kind == backward_data ? jcp_.ocp * jcp_.ic_block
+                                                 : jcp_.icp * jcp_.oc_block))
     , inp_kh_sz_(static_cast<size_t>(jcp_.kw) * inp_kw_sz_)
     , inp_kd_sz_(static_cast<size_t>(jcp_.kh) * inp_kh_sz_)
     , isa_max_regs(isa_num_vregs(jcp_.isa)) {}
@@ -174,13 +181,17 @@ void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::khw_loop(const int icb,
             cmp(reg_kw_l, 0);
             je(label_kw_end, T_NEAR);
             icb_loop(icb, icb_tail, ic_step, m_block, mb_tail, n_block);
-            add(reg_aux_kw_in, inp_kw_sz_);
+            add(reg_aux_kw_in,
+                    jcp_.prop_kind == backward_data ? inp_kw_sz_ * jcp_.stride_w
+                                                    : inp_kw_sz_);
             dec(reg_kw_l);
             jmp(label_kw_loop, T_NEAR);
         }
         L_aligned(label_kw_end);
 
-        add(reg_aux_kh_in, inp_kh_sz_);
+        add(reg_aux_kh_in,
+                jcp_.prop_kind == backward_data ? inp_kh_sz_ * jcp_.stride_h
+                                                : inp_kh_sz_);
         dec(reg_kh_l);
         jmp(label_kh_loop, T_NEAR);
     }
@@ -213,7 +224,9 @@ int jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::compute_ic_step(
                 / ((n_block + blocks) * max_ic_step);
         const float block_eff = block_disb * eff;
         float block_footprint = static_cast<float>(inp_dsz_) * blocks
-                * jcp_.oc_block * last_ic_block_;
+                * (jcp_.prop_kind == backward_data ? jcp_.ic_block
+                                                   : jcp_.oc_block)
+                * last_ic_block_;
         if (block_footprint <= static_cast<float>(
                     platform::get_per_core_cache_size(1))
                 && (block_eff > best_block_eff)) {
@@ -253,7 +266,11 @@ void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::generate() {
     const int max_regs = isa_max_regs
             - (is_int8_avx512_core ? 6
                                    : (jcp_.s8s8_compensation_required ? 4 : 3));
-    const int nb = div_up(nstl::min(jcp_.oc, jcp_.oc_block), m_block2_);
+    const int nb = div_up(
+            nstl::min(jcp_.prop_kind == backward_data ? jcp_.ic : jcp_.oc,
+                    jcp_.prop_kind == backward_data ? jcp_.ic_block
+                                                    : jcp_.oc_block),
+            m_block2_);
     const int nb2 = nb / n_max_regs_;
     const int nb2_tail = nb % n_block2_;
     const int n_block = (nb2 == 0) ? nstl::max(1, nb2_tail) : 4;
@@ -279,7 +296,9 @@ void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::generate() {
         cmp(reg_kd_l, 0);
         je(label_loop_end, T_NEAR);
         khw_loop(icb, icb_tail, ic_step, m_block, mb_tail, n_block);
-        add(reg_in, inp_kd_sz_);
+        add(reg_in,
+                jcp_.prop_kind == backward_data ? inp_kd_sz_ * jcp_.stride_d
+                                                : inp_kd_sz_);
         dec(reg_kd_l);
         jmp(label_kd_loop, T_NEAR);
     }

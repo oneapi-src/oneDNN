@@ -30,6 +30,7 @@
 #include "cpu/x64/brgemm/brgemm.hpp"
 #include "cpu/x64/brgemm/brgemm_containers.hpp"
 #include "cpu/x64/jit_brgemm_conv_bwd_trans_kernel.hpp"
+#include "cpu/x64/jit_brgemm_conv_comp_pad_kernel.hpp"
 #include "cpu/x64/jit_brgemm_post_ops.hpp"
 
 namespace dnnl {
@@ -120,6 +121,10 @@ private:
         int sw;
         const float *oscales {nullptr};
         const float *dst_scales {nullptr};
+        int32_t src_zp_vals;
+        int32_t *src_zp_comp_ptr;
+        int32_t *dst_zp_vals;
+        int32_t *s8s8_comp_ptr;
     };
 
     static int get_ker_po_idx(int m, bool do_postwork, bool is_N_tail) {
@@ -158,6 +163,14 @@ private:
     status_t add_po_kernel(brgemm_t *bcfg, int ker_idx, bool is_init);
     void add_po_kernels(int i_N, int init_bcast_dim, int po_bcast_dim);
     status_t add_brg_kernel(int bs, int M, int i_N, int i_K, int i_init);
+
+    void cal_compensation(const char *__restrict weights,
+            int32_t *src_zp_buffer, int32_t *s8s8_comp_buffer) const;
+    int get_comp_ker_idx(const int kd_b, const int kd_e, const int kh_b,
+            const int kh_e, const int kw_b, const int kw_e) const;
+    int get_comp_offset(const int g, const int icb, const int iw,
+            const int kd_b, const int kd_e, const int kh_b, const int kh_e,
+            const int kw_b, const int kw_e) const;
     void create_kernels();
 
     const pd_t *pd() const {
@@ -171,10 +184,14 @@ private:
     std::unique_ptr<jit_avx512_core_brgemm_conv_bwd_trans_kernel::
                     jit_avx512_core_brgemm_conv_bwd_trans_kernel_t>
             copy_to_pbuffer_;
+    std::unique_ptr<jit_generator> comp_vpad_pbuffer_;
 
     size_t acc_dsz, bia_dsz, src_dsz, wei_dsz, dst_dsz;
 
     const memory_desc_wrapper bias_d;
+
+    // precalculated values
+    std::vector<dim_t> kd_bs, kd_es, kh_bs, kh_es, kw_bs, kw_es;
 
     int KD, KH, KW, EXT_KD, EXT_KH, EXT_KW, KS, KD_BLOCK, KH_BLOCK, KW_BLOCK,
             KD_BLOCK_PAD, KH_BLOCK_PAD, ID, IH, IW, ODP, OHP, OWP, OD, OH, OW,
@@ -182,9 +199,11 @@ private:
     dim_t src_w_sz, src_h_sz, src_d_sz, dst_w_sz, dst_h_sz, dst_d_sz, wei_oc_sz,
             wei_kw_sz, wei_kh_sz, wei_kd_sz, wei_icb_sz;
     dim_t pbuf_w_sz, pbuf_h_sz, pbuf_d_sz;
+    dim_t comp_icb_sz, comp_ker_sz, comp_kw_sz;
 
     int oc_chunks;
     bool need_postwork;
+    bool need_compensation;
     bool is_amx;
 };
 

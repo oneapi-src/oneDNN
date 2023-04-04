@@ -48,6 +48,14 @@ void get_iw_range(const jit_brgemm_conv_conf_t &jcp, int iw, int iw_raw, int kw,
 void get_kw_range(const jit_brgemm_conv_conf_t &jcp, int iw, int iw_raw,
         int &kw_s, int &kw_full_s, int &kw_full_f, int &kw_f);
 
+dim_t precalculate_comp_pad_kernels(const jit_brgemm_conv_conf_t &jcp,
+        std::vector<dim_t> *kd_bs = nullptr,
+        std::vector<dim_t> *kd_es = nullptr,
+        std::vector<dim_t> *kh_bs = nullptr,
+        std::vector<dim_t> *kh_es = nullptr,
+        std::vector<dim_t> *kw_bs = nullptr,
+        std::vector<dim_t> *kw_es = nullptr);
+
 status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const convolution_desc_t &cd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,

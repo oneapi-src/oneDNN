@@ -35,6 +35,9 @@ struct jit_brgemm_conv_comp_pad_call_s {
     size_t kd_l;
 };
 
+// Kernel is unified to work with fwd and bwd_d conv
+// Variables with "ic" and "oc" are named from perspective of fwd
+// For bwd_d "ic" and "oc" are swapped
 template <typename Vmm>
 struct jit_uni_brgemm_conv_comp_pad_kernel_t : public jit_generator {
 
