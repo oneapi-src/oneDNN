@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -125,18 +125,9 @@ struct nchw_pooling_bwd_t : public primitive_t {
             if (!ok) return status::unimplemented;
 
             if (desc()->alg_kind == pooling_max) {
-                bool ws_ok
-                        = true && hint_fwd_pd_ && hint_fwd_pd_->workspace_md();
-                if (!ws_ok) return status::unimplemented;
-
-                const auto &ws_blk
-                        = hint_fwd_pd_->workspace_md()->format_desc.blocking;
-                ws_ok = ws_ok && ws_blk.inner_nblks <= 1
-                        && IMPLICATION(ws_blk.inner_nblks == 1,
-                                ws_blk.inner_idxs[0] == 1);
-                if (!ws_ok) return status::unimplemented;
-
-                ws_md_ = *hint_fwd_pd_->workspace_md();
+                const auto ws_dt = hint_fwd_pd_->workspace_md()->data_type;
+                init_default_ws(ws_dt);
+                if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
 
             nthr_ = dnnl_get_max_threads();

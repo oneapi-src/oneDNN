@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -147,7 +147,8 @@ struct nhwc_pooling_bwd_t : public primitive_t {
             if (!ok) return status::unimplemented;
 
             if (desc()->alg_kind == pooling_max) {
-                init_default_ws();
+                const auto ws_dt = hint_fwd_pd_->workspace_md()->data_type;
+                init_default_ws(ws_dt);
                 if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
 
