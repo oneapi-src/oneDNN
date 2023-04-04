@@ -146,6 +146,10 @@ TEST(GCCore_graph_reshedule, TestGraphReschedule1) {
 #endif
 
 TEST(GCCore_graph_reshedule, TestGraphReschedule2) {
+    thread_num_reset reseter;
+    // set threads envoriment
+    runtime_config_t::get().set_num_threads(8);
+
     auto get_test_graph = []() {
         sc_graph_t mgr;
         auto in_a = mgr.make_input({graph_tensor::make(
@@ -213,6 +217,10 @@ TEST(GCCore_graph_reshedule, TestGraphReschedule2) {
 }
 
 TEST(GCCore_graph_reshedule, TestGraphReschedule3) {
+    thread_num_reset reseter;
+    // set threads envoriment
+    runtime_config_t::get().set_num_threads(8);
+
     auto get_test_graph = []() {
         sc_graph_t mgr;
         auto in_a = mgr.make_input({graph_tensor::make(
@@ -293,6 +301,10 @@ TEST(GCCore_graph_reshedule, TestGraphReschedule3) {
 }
 
 TEST(GCCore_graph_reshedule, TestGraphReschedule4) {
+    thread_num_reset reseter;
+    // set threads envoriment
+    runtime_config_t::get().set_num_threads(8);
+
     auto get_test_graph = []() {
         sc_graph_t mgr;
         auto in_a = mgr.make_input({graph_tensor::make(

@@ -1775,7 +1775,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerMultiAnchor) {
 TEST(GCCore_fuse_mgr_cpp, TestFusionManagerMultiAnchorShrink) {
     sc_graph_t mgr;
     thread_num_reset reseter;
-    // set single threads envoriment
+    // set threads envoriment
     runtime_config_t::get().set_num_threads(56);
 
     // gemm + exp + reduce fusion pattern

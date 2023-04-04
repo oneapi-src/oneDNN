@@ -274,6 +274,10 @@ TEST(GCCore_graph_mixed_partition_cpp, TestGraphBatchWiseFuse) {
 }
 
 TEST(GCCore_graph_mixed_partition_cpp, TestGraphHorizontalMerge) {
+    thread_num_reset reseter;
+    // set threads envoriment
+    runtime_config_t::get().set_num_threads(32);
+
     sc_graph_t graph;
     int M = 384, K = 1024, N = 1024;
     auto input = graph.make_input({graph_tensor::make({M, K})});
@@ -301,11 +305,16 @@ TEST(GCCore_graph_mixed_partition_cpp, TestGraphHorizontalMerge) {
     auto ctx = get_test_ctx();
 
     gtest_graph_driver_before_fusion(graph, ctx);
-    auto cfg = matmul0->stc_cast<ops::matmul_core_op_t>()
-                       ->get_default_config(ctx)
-                       .get_as<ops::matmul_core_config_t>();
-    int M_num_block = M / cfg->M_block;
-    int N_num_block = N / cfg->N_block;
+    ops::matmul_core_config_t cfg = {32, 32, 32};
+    for (auto &op : graph.ops_) {
+        if (op->op_name_ == "matmul_core") {
+            auto matmul_op = op->dyn_cast<ops::matmul_core_op_t>();
+            matmul_op->set_config(reflection::general_object_t::make(cfg));
+        }
+    }
+
+    int M_num_block = M / cfg.M_block;
+    int N_num_block = N / cfg.N_block;
     mixed_partition(graph, ctx);
     std::stringstream ss;
     print_graph(graph, ss, true);
@@ -334,7 +343,7 @@ TEST(GCCore_graph_mixed_partition_cpp, TestGraphRunSingleThreads) {
 
     auto ctx = get_test_ctx();
     thread_num_reset reseter;
-    // set single threads envoriment
+    // set threads envoriment
     runtime_config_t::get().set_num_threads(1);
     gtest_graph_driver_before_fusion(graph, ctx);
     mixed_partition(graph, ctx);
@@ -539,7 +548,7 @@ TEST(GCCore_graph_mixed_partition_cpp, TestGraphPartitionRingRiskCheck1) {
     sc_graph_t graph;
 
     thread_num_reset reseter;
-    // set single threads envoriment
+    // set threads envoriment
     runtime_config_t::get().set_num_threads(1);
 
     int M, N, K;
@@ -732,7 +741,7 @@ TEST(GCCore_graph_mixed_partition_cpp, TestaxisBinding2) {
     sc_graph_t graph;
 
     thread_num_reset reseter;
-    // set single threads envoriment
+    // set threads envoriment
     runtime_config_t::get().set_num_threads(2);
 
     int M, N, K;
