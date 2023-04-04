@@ -117,7 +117,7 @@ typedef enum {
     dnnl_fpmath_mode_bf16,
     /// Implicit f32->f16 conversions allowed
     dnnl_fpmath_mode_f16,
-    /// Implicit f32->f16 or f32->bf16 conversions allowed
+    /// Implicit f32->f16, f32->tf32 or f32->bf16 conversions allowed
     dnnl_fpmath_mode_any,
     /// Implicit f32->tf32 conversions allowed
     dnnl_fpmath_mode_tf32,
