@@ -149,6 +149,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   cfg.tile_os = -1;
   cfg.pack_input = (is_1x1_conv_ && (sd_ > 1 || sh_ > 1 || sw_ > 1)) ? 1 : -1;
   cfg.loop_sched = 0;
+  auto is_small_ic = ic_ < (64 / dtype_size);
   // C_block shall only relay to ic_
   int max_ic_block = -1;
   int max_oc_block = -1;
@@ -229,7 +230,9 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   // tile q
   if (!is_1x1_conv_) {
     cfg.tile_q = tile_q_list.back();
-    if (large_spatial) { cfg.tile_q = utils::get_blocks(ow_, 1, 32).back(); }
+    if (large_spatial && !is_small_ic) {
+      cfg.tile_q = utils::get_blocks(ow_, 1, 32).back();
+    }
   } else {
     // handle large M for gemm kernel: shrink M
     if (sw_ > 1) {
@@ -261,6 +264,13 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
     max_ic_block, utils::get_blocks(ic_, 1, ow_ * 2 / dtype_size).back());
   cfg.K_block = oc_ % 32 == 0 ? max_oc_block : oc_;
   cfg.C_block = ic_ % 32 == 0 ? max_ic_block : ic_;
+
+  bool has_pad = (pd_ > 0) || (ph_ > 0) || (pw_ > 0);
+  if (is_3d_ && has_pad) {
+    if (mb_ * od_ / cfg.tile_d >= 8) {
+      cfg.tile_p = utils::get_blocks(oh_, 1, 32).back();
+    }
+  }
   validate_conv_fwd_default_config(ctx, cfg);
   if (inverse_filter_) {
     cfg.C_block = 64;
@@ -461,6 +471,47 @@ static int tensor_offset(const sc_dims &dims_, const std::vector<int> &idx) {
     dim = dims_.at(i) * dim;
   }
   return offset;
+}
+
+static inline int get_oc_split_factor(const int mb, const int weight_size,
+  const int L2_cache_size, const int K_num_block) {
+  int oc_split = 1;
+  auto nthreads = runtime_config_t::get().get_num_threads();
+  bool parallel_space_is_enough
+    = (mb % nthreads == 0 || utils::divide_and_ceil(mb, nthreads) > 8);
+  if (weight_size >= L2_cache_size && parallel_space_is_enough) {
+    int expected_split_num = utils::divide_and_ceil(weight_size, L2_cache_size);
+    for (auto &factor : utils::get_factors(K_num_block)) {
+      if (factor >= expected_split_num) {
+        expected_split_num = factor;
+        break;
+      }
+    }
+    oc_split = K_num_block < expected_split_num ? 1 : expected_split_num;
+  }
+  return oc_split;
+}
+
+static inline void create_anchor(fusion_manager *fusion, expr &output,
+  const expr &n, const int n_len, const expr &k, const int k_len, const expr &d,
+  const int d_len, const expr &p, const expr &p_len, const expr &q,
+  const int q_len, const int K_block, const int inner_k_len,
+  const bool blocking_output, const bool is_3d) {
+  if (fusion) {
+    if (is_3d) {
+      fusion->create_output_fusion_anchor({tensor_slice(output,
+        blocking_output ? slice_range {{n, n_len}, {k, k_len}, {d, d_len},
+          {p, p_len}, {q, q_len}, {0, K_block}}
+                        : slice_range {{n, n_len}, {d, d_len}, {p, p_len},
+                          {q, q_len}, {k * K_block, inner_k_len}})});
+    } else {
+      fusion->create_output_fusion_anchor({tensor_slice(output,
+        blocking_output ? slice_range {{n, n_len}, {k, k_len}, {p, p_len},
+          {q, q_len}, {0, K_block}}
+                        : slice_range {{n, n_len}, {p, p_len}, {q, q_len},
+                          {k * K_block, inner_k_len}})});
+    }
+  }
 }
 
 #define CONV_ARG_LIST \
@@ -813,6 +864,7 @@ void gen_conv_fwd_t::compute_1x1_no_pack_input(CONV_ARG_LIST) const {
     oh_expr_ = static_cast<int>(get_expr_as_int(
       output.checked_as<tensor>()->dims_[out_p2b_map[is_3d_ ? 3 : 2][0]]));
   }
+
   _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
     _named_for_(lk, k, 0, K_num_block) {
       _named_for_(lp, p_o, 0, oh_expr_ / config.tile_p) {
@@ -904,66 +956,38 @@ void gen_conv_fwd_t::compute_1x1_no_pack_input(CONV_ARG_LIST) const {
                     1 /*useless*/, 1 /*useless*/, C_num_block,
                     get_input_dtype(), get_weight_dtype(), brg_attrs);
                 }
-                if (fusion) {
-                  if (is_3d_) {
-                    fusion->create_output_fusion_anchor({tensor_slice(output,
-                      blocking_output_
-                        ? slice_range {{n, 1}, {k, 1},
-                          {d_o * config.tile_d + d_i, 1},
-                          {p_o * config.tile_p + p_i, 1},
-                          {q_o * config.tile_q, config.tile_q},
-                          {0, config.K_block}}
-                        : slice_range {{n, 1}, {d_o * config.tile_d + d_i, 1},
-                          {p_o * config.tile_p + p_i, 1},
-                          {q_o * config.tile_q, config.tile_q},
-                          {k * config.K_block, config.K_block}})});
-                  } else {
-                    fusion->create_output_fusion_anchor({tensor_slice(output,
-                      blocking_output_
-                        ? slice_range {{n, 1}, {k, 1},
-                          {p_o * config.tile_p + p_i, 1},
-                          {q_o * config.tile_q, config.tile_q},
-                          {0, config.K_block}}
-                        : slice_range {{n, 1}, {p_o * config.tile_p + p_i, 1},
-                          {q_o * config.tile_q, config.tile_q},
-                          {k * config.K_block, config.K_block}})});
-                  }
-                }
+                create_anchor(fusion, output, n, 1, k, 1,
+                  d_o * config.tile_d + d_i, 1, p_o * config.tile_p + p_i, 1,
+                  q_o * config.tile_q, config.tile_q, config.K_block,
+                  config.K_block, blocking_output_, is_3d_);
               }
+              create_anchor(fusion, output, n, 1, k, 1,
+                d_o * config.tile_d + d_i, 1, p_o * config.tile_p,
+                config.tile_p, q_o * config.tile_q, config.tile_q,
+                config.K_block, config.K_block, blocking_output_, is_3d_);
             }
-          }
-
-          if (fusion) {
             if (is_3d_) {
-              fusion->create_output_fusion_anchor({tensor_slice(output,
-                blocking_output_
-                  ? slice_range {{n, 1}, {k, 1},
-                    {d_o * config.tile_d, config.tile_d},
-                    {p_o * config.tile_p, config.tile_p}, {0, ow_},
-                    {0, config.K_block}}
-                  : slice_range {{n, 1}, {d_o * config.tile_d, config.tile_d},
-                    {p_o * config.tile_p, config.tile_p}, {0, ow_},
-                    {k * config.K_block, config.K_block}})});
-            } else {
-              fusion->create_output_fusion_anchor({tensor_slice(output,
-                blocking_output_
-                  ? slice_range {{n, 1}, {k, 1},
-                    {p_o * config.tile_p, config.tile_p}, {0, ow_},
-                    {0, config.K_block}}
-                  : slice_range {{n, 1}, {p_o * config.tile_p, config.tile_p},
-                    {0, ow_}, {k * config.K_block, config.K_block}})});
+              create_anchor(fusion, output, n, 1, k, 1, d_o * config.tile_d,
+                config.tile_d, p_o * config.tile_p, config.tile_p,
+                q_o * config.tile_q, config.tile_q, config.K_block,
+                config.K_block, blocking_output_, true);
             }
           }
+          create_anchor(fusion, output, n, 1, k, 1, d_o * config.tile_d,
+            config.tile_d, p_o * config.tile_p, config.tile_p, 0, ow_,
+            config.K_block, config.K_block, blocking_output_, is_3d_);
+        }
+        if (is_3d_) {
+          create_anchor(fusion, output, n, 1, k, 1, 0, od_, p_o * config.tile_p,
+            config.tile_p, 0, ow_, config.K_block, config.K_block,
+            blocking_output_, true);
         }
       }
+      create_anchor(fusion, output, n, 1, k, 1, 0, od_, 0, oh_expr_, 0, ow_,
+        config.K_block, config.K_block, blocking_output_, is_3d_);
     }
-    if (fusion) {
-      fusion->create_output_fusion_anchor({tensor_slice(output,
-        blocking_output_
-          ? slice_range {{n, 1}, {0, K_num_block}, {0, oh_expr_}, {0, ow_},
-            {0, config.K_block}}
-          : slice_range {{n, 1}, {0, oh_expr_}, {0, ow_}, {0, oc_}})});
-    }
+    create_anchor(fusion, output, n, 1, 0, K_num_block, 0, od_, 0, oh_expr_, 0,
+      ow_, config.K_block, oc_, blocking_output_, is_3d_);
   }
 }
 
@@ -1101,8 +1125,8 @@ void gen_conv_fwd_t::compute_conv3d_no_padding(CONV_ARG_LIST) const {
   auto mb_expr_ = input_expr_dims[0];
   _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
     _named_for_(lk, k_o, 0, K_num_block) {
-      _named_for_(ld, d_o, 0, od_ / config.tile_d) {
-        _named_for_(lp, p_o, 0, oh_ / config.tile_p) {
+      _named_for_(lp, p_o, 0, oh_ / config.tile_p) {
+        _named_for_(ld, d_o, 0, od_ / config.tile_d) {
           _tensor_(A_list, datatypes::pointer, {kd_ * kh_ * kw_ * C_num_block});
           _tensor_(B_list, datatypes::pointer, {kd_ * kh_ * kw_ * C_num_block});
           _for_(q_o, 0, ow_ / config.tile_q) {
@@ -1176,9 +1200,60 @@ void gen_conv_fwd_t::compute_conv3d_no_padding(CONV_ARG_LIST) const {
                         {k_o * config.K_block, config.K_block}})});
                 }
               }
+              if (fusion) {
+                fusion->create_output_fusion_anchor({tensor_slice(output,
+                  blocking_output_
+                    ? slice_range {{n, 1}, {k_o, 1},
+                      {d_o * config.tile_d + d_i, 1},
+                      {p_o * config.tile_p, config.tile_p},
+                      {q_o * config.tile_q, config.tile_q}, {0, config.K_block}}
+                    : slice_range {{n, 1}, {d_o * config.tile_d + d_i, 1},
+                      {p_o * config.tile_p, config.tile_p},
+                      {q_o * config.tile_q, config.tile_q},
+                      {k_o * config.K_block, config.K_block}})});
+              }
+            }
+            if (fusion) {
+              fusion->create_output_fusion_anchor({tensor_slice(output,
+                blocking_output_
+                  ? slice_range {{n, 1}, {k_o, 1},
+                    {d_o * config.tile_d, config.tile_d},
+                    {p_o * config.tile_p, config.tile_p},
+                    {q_o * config.tile_q, config.tile_q}, {0, config.K_block}}
+                  : slice_range {{n, 1}, {d_o * config.tile_d, config.tile_d},
+                    {p_o * config.tile_p, config.tile_p},
+                    {q_o * config.tile_q, config.tile_q},
+                    {k_o * config.K_block, config.K_block}})});
             }
           }
+          if (fusion) {
+            fusion->create_output_fusion_anchor({tensor_slice(output,
+              blocking_output_
+                ? slice_range {{n, 1}, {k_o, 1},
+                  {d_o * config.tile_d, config.tile_d},
+                  {p_o * config.tile_p, config.tile_p}, {0, ow_},
+                  {0, config.K_block}}
+                : slice_range {{n, 1}, {d_o * config.tile_d, config.tile_d},
+                  {p_o * config.tile_p, config.tile_p}, {0, ow_},
+                  {k_o * config.K_block, config.K_block}})});
+          }
         }
+        if (fusion) {
+          fusion->create_output_fusion_anchor({tensor_slice(output,
+            blocking_output_ ? slice_range {{n, 1}, {k_o, 1}, {0, od_},
+              {p_o * config.tile_p, config.tile_p}, {0, ow_},
+              {0, config.K_block}}
+                             : slice_range {{n, 1}, {0, od_},
+                               {p_o * config.tile_p, config.tile_p}, {0, ow_},
+                               {k_o * config.K_block, config.K_block}})});
+        }
+      }
+      if (fusion) {
+        fusion->create_output_fusion_anchor({tensor_slice(output,
+          blocking_output_ ? slice_range {{n, 1}, {k_o, 1}, {0, od_}, {0, oh_},
+            {0, ow_}, {0, config.K_block}}
+                           : slice_range {{n, 1}, {0, od_}, {0, oh_}, {0, ow_},
+                             {k_o * config.K_block, config.K_block}})});
       }
     }
     if (fusion) {
@@ -1203,24 +1278,12 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
   auto LDC = blocking_output_ ? config.K_block : oc_;
   auto input_expr_dims = input.checked_as<tensor>()->dims_;
   auto mb_expr_ = input_expr_dims[0];
-  int oc_split = 1;
-  auto nthreads = runtime_config_t::get().get_num_threads();
-  bool parallel_space_is_enough
-    = (mb_ % nthreads == 0 || utils::divide_and_ceil(mb_, nthreads) > 8);
   auto weight_size
     = math_utils::get_dims_product(in_tensors_[1].get_blocking_dims())
     * utils::get_sizeof_type(get_weight_dtype());
   auto L2_cache_size = ctx->machine_.cpu_flags_.getDCacheSize(2);
-  if (weight_size >= L2_cache_size && parallel_space_is_enough) {
-    int expected_split_num = utils::divide_and_ceil(weight_size, L2_cache_size);
-    for (auto &factor : utils::get_factors(K_num_block)) {
-      if (factor >= expected_split_num) {
-        expected_split_num = factor;
-        break;
-      }
-    }
-    oc_split = K_num_block < expected_split_num ? 1 : expected_split_num;
-  }
+  int oc_split
+    = get_oc_split_factor(mb_, weight_size, L2_cache_size, K_num_block);
 
   _named_for_(lok, outer_k, 0, oc_split, 1, for_type::PARALLEL) {
     _named_for_(ln, n, 0, mb_expr_, 1) {
@@ -1779,40 +1842,25 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
 }
 
 void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
-  COMPILE_ASSERT(!is_3d_, "3D conv with padding is not supported yet!");
   assert(loops.size() == 4 && "expected to have 4 level loops!");
+  loops.emplace_back(for_loop());
   for_loop &ln = loops.at(0), &lk = loops.at(1), &ld = loops.at(2),
-           &lp = loops.at(3);
+           &lp = loops.at(3), &lok = loops.at(4);
 
-  auto LDA = blocking_input_ ? config.C_block : ic_;
-  auto LDC = blocking_output_ ? config.K_block : oc_;
+  const auto LDA = blocking_input_ ? config.C_block : ic_;
+  const auto LDC = blocking_output_ ? config.K_block : oc_;
 
-  int ih_padded = ih_ + 2 * ph_, iw_padded = iw_ + 2 * pw_;
-  auto dtypeInput = get_input_dtype();
-  auto dtypeWeight = get_weight_dtype();
-  auto dtypeOutput = get_output_dtype();
-
+  const int id_padded = is_3d_ ? (id_ + 2 * pd_) : 1;
+  const int ih_padded = ih_ + 2 * ph_;
+  const int iw_padded = iw_ + 2 * pw_;
+  const auto dtype_input = get_input_dtype();
+  const auto dtype_weight = get_weight_dtype();
+  const auto dtype_output = get_output_dtype();
+  const int num_threads = runtime_config_t::get().get_num_threads();
   const int src_row_tile_size = (config.tile_q - 1) * sw_ + kw_;
-  /** calculate the unpadded point of spatial space in output tensor
-   *   +-----------------------+
-   *   |p p p p ...    p p p p |
-   *   |p a x x ...    x x b p |
-   *   |p x x x ...    x x x p |
-   *   |p x x x ...    x x x p |
-   *   |p x x x ...    x x x p |
-   *   |p c x x ...    x x d p |
-   *   |p p p p ...    p p p p |
-   *   +-----------------------+
-   *  where:
-   *    p: pad area
-   *    x: valid area
-   *    a: (y_unpad_top, y_unpad_left)
-   *    b: (y_unpad_top, y_unpad_right)
-   *    c: (y_unpad_bottom, y_unpad_left)
-   *    d: (y_unpad_bottom, y_unpad_right)
-   */
+  typedef enum { LEFT_PAD = 0, BOTH_PAD, RIGHT_PAD } pad_kind;
 
-  // some shapes might not have bottom or right pad at all
+  // some shapes might have less pad than given at the end of current axis
   auto get_num_pad_end = [](int ip, int k, int s, int p) {
     int remaining = (ip - k) % s;
     int num_pad_end = (remaining == 0)
@@ -1820,329 +1868,749 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
       : ((p > remaining) ? utils::divide_and_ceil(p - remaining, s) : 0);
     return num_pad_end;
   };
-  const int dst_num_pad_top = utils::divide_and_ceil(ph_, sh_);
-  const int dst_num_pad_left = utils::divide_and_ceil(pw_, sw_);
-  const int dst_num_pad_bottom = get_num_pad_end(ih_padded, kh_, sh_, ph_);
-  const int dst_num_pad_right = get_num_pad_end(iw_padded, kw_, sw_, pw_);
+  const int y_num_pad_top = utils::divide_and_ceil(ph_, sh_);
+  const int y_num_pad_left = utils::divide_and_ceil(pw_, sw_);
+  const int y_num_pad_front = is_3d_ ? utils::divide_and_ceil(pd_, sd_) : 0;
+  const int y_num_pad_bottom = get_num_pad_end(ih_padded, kh_, sh_, ph_);
+  const int y_num_pad_right = get_num_pad_end(iw_padded, kw_, sw_, pw_);
+  const int y_num_pad_back
+    = is_3d_ ? get_num_pad_end(id_padded, kd_, sd_, pd_) : 0;
 
-  int y_unpad_top = dst_num_pad_top;
-  int y_unpad_bottom = oh_ - dst_num_pad_bottom - 1;
-  int y_unpad_left = dst_num_pad_left;
-  int y_unpad_right = ow_ - dst_num_pad_right - 1;
+  const int y_unpad_top = y_num_pad_top;
+  const int y_unpad_bottom = oh_ - y_num_pad_bottom - 1;
+  const int y_unpad_left = y_num_pad_left;
+  const int y_unpad_right = ow_ - y_num_pad_right - 1;
+  const int y_unpad_front = is_3d_ ? y_num_pad_front : 0;
+  const int y_unpad_back = is_3d_ ? od_ - y_num_pad_front - 1 : 1;
+  const uint32_t lanes = get_lanes(ctx, config.C_block, dtype_input);
 
-  // create a global shared zero-buffer referenced by padding
-  _tensor_(pbuffer, dtypeInput, {src_row_tile_size, LDA});
-  builtin::mem_zero(pbuffer, src_row_tile_size * LDA, dtypeInput);
+  // large pd and ph will be skipped for non-os-blocking approach.
+  const bool large_pad = src_row_tile_size < pw_;
 
-  uint32_t lanes = get_lanes(ctx, config.C_block, dtypeInput);
+  const int work_amount = mb_ * K_num_block * ow_ / config.tile_q;
+  bool parallel_space_is_enough = (num_threads == 1
+    || (num_threads > 1
+      && utils::divide_and_ceil(work_amount, num_threads) >= 4));
+  bool reuse_sub_tensor
+    = sh_ < kh_ && C_num_block == 1 && parallel_space_is_enough;
+  bool use_var_bs = attrs_.get_or_else("use_var_bs", true);
+
+  _tensor_(pbuffer, dtype_input, {src_row_tile_size, LDA});
+  if (!use_var_bs) {
+    // when not using var_bs, define a unified zero-buffer for padding.
+    builtin::mem_zero(pbuffer, src_row_tile_size * LDA, dtype_input);
+  }
+
+  // thread shared var to hold stateful status
+  _tensor_(g_sub_tensor, dtype_input,
+    is_3d_ ? std::vector<expr> {num_threads, kd_, kh_, src_row_tile_size, LDA}
+           : std::vector<expr> {num_threads, kh_, src_row_tile_size, LDA});
+  _tensor_(g_cur_indices, datatypes::u32, {num_threads, kh_});
+  _tensor_(g_init_state, datatypes::boolean, {num_threads});
+
+  auto weight_size
+    = math_utils::get_dims_product(in_tensors_[1].get_blocking_dims())
+    * utils::get_sizeof_type(get_weight_dtype());
+  auto L2_cache_size = ctx->machine_.cpu_flags_.getDCacheSize(2);
+  int oc_split
+    = get_oc_split_factor(mb_, weight_size, L2_cache_size, K_num_block);
+
+  int outer_range
+    = reuse_sub_tensor ? ow_ / config.tile_q : oh_ / config.tile_p;
+  int inner_range
+    = reuse_sub_tensor ? oh_ / config.tile_p : ow_ / config.tile_q;
   auto input_expr_dims = input.checked_as<tensor>()->dims_;
   auto mb_expr_ = input_expr_dims[0];
-  _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
-    _named_for_(lk, k_o, 0, K_num_block) {
-      _named_for_(lp, p_o, 0, oh_ / config.tile_p) {
-        _tensor_(A_list, datatypes::pointer, {kh_ * kw_});
-        _tensor_(B_list, datatypes::pointer, {kh_ * kw_});
-        // create a sub-tensor with maximum size which holds all the boundary
-        // that contains padding
-        _tensor_(sub_tensor, dtypeInput, {kh_, src_row_tile_size, LDA});
-        _var_(pad_begin_index, datatypes::index);
-        _var_(pad_end_index, datatypes::index);
-        _var_(unpad_begin_index, datatypes::index);
-        _var_(unpad_end_index, datatypes::index);
-        _var_(real_pad_left, datatypes::u32);
-        _var_(real_pad_right, datatypes::u32);
-        _var_(num_pad_rows, datatypes::u32);
-        _var_(copy_width, datatypes::u32);
+  _named_for_(lok, outer_k, 0, oc_split, 1, for_type::PARALLEL) {
+    _named_for_(ln, n, 0, mb_expr_, 1) {
+      _named_for_(lk, k_i, 0, K_num_block / oc_split) {
+        expr k_o = outer_k * K_num_block / oc_split + k_i;
+        _named_for_(lp, outer_var, 0, outer_range) {
+          expr p_o, q_o;
+          if (reuse_sub_tensor) {
+            q_o = outer_var;
+          } else {
+            p_o = outer_var;
+          }
+          _named_for_(ld, d_o, 0, od_ / config.tile_d) {
+            _var_init_(tid, datatypes::s32, builtin::get_thread_id_func()());
+            _tensor_(A_list, datatypes::pointer, {kd_ * kh_ * kw_});
+            _tensor_(B_list, datatypes::pointer, {kd_ * kh_ * kw_});
+            _var_(prev_indices, datatypes::u32);
+            _var_(num_h_pad, datatypes::s32);
+            _var_(h_pad_begin_idx, datatypes::index);
+            _var_(h_pad_end_idx, datatypes::index);
+            _var_(h_unpad_begin_idx, datatypes::index);
+            _var_(h_unpad_end_idx, datatypes::index);
+            _var_(real_l_pad, datatypes::s32);
+            _var_(real_r_pad, datatypes::s32);
+            _var_(copy_width, datatypes::s32);
+            _var_(num_d_pad, datatypes::s32);
+            _var_(d_pad_begin_idx, datatypes::index);
+            _var_(d_pad_end_idx, datatypes::index);
+            _var_(d_unpad_begin_idx, datatypes::index);
+            _var_(d_unpad_end_idx, datatypes::index);
 
-        _for_(q_o, 0, ow_ / config.tile_q) {
-          _for_(p_i, 0, config.tile_p) {
-            std::vector<expr> output_pos = blocking_output_
-              ? std::vector<expr> {n, k_o, p_o * config.tile_p + p_i,
-                q_o * config.tile_q, 0}
-              : std::vector<expr> {n, p_o * config.tile_p + p_i,
-                q_o * config.tile_q, k_o * config.K_block};
-
-            builtin::brgemm_init(tensor_ptr(output, output_pos), config.tile_q,
-              config.K_block, LDC, dtypeOutput, 0);
-            _for_(c_o, 0, C_num_block) {
-              // 1) top or bottom region with padding inputs
-              // 1.1) calculate the number of padding rows
-              _if_(((p_o * config.tile_p + p_i) >= y_unpad_top)
-                && ((p_o * config.tile_p + p_i) <= y_unpad_bottom)) {
-                num_pad_rows = 0;
-                pad_begin_index = 0;
-                pad_end_index = 0;
-                unpad_begin_index = 0;
-                unpad_end_index = kh_;
+            _for_(d_i, 0, config.tile_d) {
+              // initialized stateful vars for each thread.
+              if (reuse_sub_tensor) {
+                _for_(gi, 0, kh_) {
+                  g_cur_indices[{tid, gi}]
+                    = builder::make_cast(datatypes::u32, gi);
+                }
+                g_init_state[tid] = true;
               }
-              _else_ {
-                _if_((p_o * config.tile_p + p_i) < y_unpad_top) {
-                  num_pad_rows = ph_
-                    - builder::make_cast(
-                        datatypes::u32, p_o * config.tile_p + p_i)
-                      * sh_;
-                  pad_begin_index = 0;
-                  pad_end_index = num_pad_rows;
-                  unpad_begin_index = num_pad_rows;
-                  unpad_end_index = kh_;
+              _for_(inner_var, 0, inner_range) {
+                if (reuse_sub_tensor) {
+                  p_o = inner_var;
+                } else {
+                  q_o = inner_var;
                 }
-                _else_ {
-                  num_pad_rows = builder::make_cast(
-                                   datatypes::u32, p_o * config.tile_p + p_i)
-                      * sh_
-                    + kh_ - (ih_ + ph_);
-                  pad_begin_index = kh_ - num_pad_rows;
-                  pad_end_index = kh_;
-                  unpad_begin_index = 0;
-                  unpad_end_index = kh_ - num_pad_rows;
-                }
+                _for_(p_i, 0, config.tile_p) {
+                  _for_(c_o, 0, C_num_block) {
+                    std::vector<expr> output_pos = is_3d_
+                      ? (blocking_output_
+                          ? std::vector<expr> {n, k_o,
+                            d_o * config.tile_d + d_i,
+                            p_o * config.tile_p + p_i, q_o * config.tile_q, 0}
+                          : std::vector<expr> {n, d_o * config.tile_d + d_i,
+                            p_o * config.tile_p + p_i, q_o * config.tile_q,
+                            k_o * config.K_block})
+                      : (blocking_output_
+                          ? std::vector<expr> {n, k_o,
+                            p_o * config.tile_p + p_i, q_o * config.tile_q, 0}
+                          : std::vector<expr> {n, p_o * config.tile_p + p_i,
+                            q_o * config.tile_q, k_o * config.K_block});
 
-                // 1.2) Add zero-padding tensor to A_list
-                _for_(r, pad_begin_index, pad_end_index) {
-                  _for_(s, 0, kw_) {
-                    _var_(idx, datatypes::u32);
-                    idx = builder::make_cast(datatypes::u32, r * kw_ + s);
-                    A_list[idx] = tensor_ptr(pbuffer, {0, 0});
-                  }
-                }
-              }
+                    auto update_pad_idx =
+                      [](const expr &cur_o, const expr &cur_i, const int ker,
+                        const int pad, const int in, const int unpad_begin,
+                        const int unpad_end, expr::lvalue_proxy_t &num_pad,
+                        expr::lvalue_proxy_t &pad_begin_idx,
+                        expr::lvalue_proxy_t &pad_end_idx,
+                        expr::lvalue_proxy_t &unpad_begin_idx,
+                        expr::lvalue_proxy_t &unpad_end_idx) {
+                        _if_((cur_o >= unpad_begin) && (cur_o <= unpad_end)) {
+                          num_pad = 0;
+                          pad_begin_idx = 0;
+                          pad_end_idx = 0;
+                          unpad_begin_idx = 0;
+                          unpad_end_idx = ker;
+                        }
+                        _else_ {
+                          _if_(cur_o < unpad_begin) {
+                            num_pad
+                              = pad - builder::make_cast(datatypes::s32, cur_i);
+                            pad_begin_idx = 0;
+                            pad_end_idx = num_pad;
+                            unpad_begin_idx = num_pad;
+                            unpad_end_idx = ker;
+                          }
+                          _else_ {
+                            num_pad = builder::make_cast(datatypes::s32, cur_i)
+                              + ker - (in + pad);
+                            pad_begin_idx = ker - num_pad;
+                            pad_end_idx = ker;
+                            unpad_begin_idx = 0;
+                            unpad_end_idx = ker - num_pad;
+                          }
+                        }
+                      };
 
-              // 1.3) copy sub-tensor and append to A_list
-              _if_(num_pad_rows < kh_) {
-                // 1.3.1) copy sub-tensor
-                _if_(q_o * config.tile_q < y_unpad_left) {
-                  _if_((q_o * config.tile_q + config.tile_q - 1)
-                    <= y_unpad_right) {
-                    // 1.3.1.1) left pad only
-                    real_pad_left = pw_
-                      - builder::make_cast(
-                        datatypes::u32, q_o * config.tile_q * sw_);
+                    auto cur_d = d_o * config.tile_d + d_i;
+                    auto cur_id = cur_d * sd_;
+                    auto cur_p = p_o * config.tile_p + p_i;
+                    auto cur_ih = cur_p * sh_;
+                    auto cur_tile_begin = q_o * config.tile_q;
+                    auto cur_tile_end = cur_tile_begin + config.tile_q - 1;
+                    auto cur_iw = cur_tile_begin * sw_;
 
-                    // copy sub-tensor
-                    _for_(i, unpad_begin_index, unpad_end_index) {
-                      builtin::brgemm_init(
-                        tensor_ptr(sub_tensor, {i - unpad_begin_index, 0, 0}),
-                        builder::make_cast(datatypes::s32, real_pad_left),
-                        config.C_block, LDA, dtypeInput, 0);
+                    if (is_3d_) {
+                      update_pad_idx(cur_d, cur_id, kd_, pd_, id_,
+                        y_unpad_front, y_unpad_back, num_d_pad, d_pad_begin_idx,
+                        d_pad_end_idx, d_unpad_begin_idx, d_unpad_end_idx);
+                    }
+                    update_pad_idx(cur_p, cur_ih, kh_, ph_, ih_, y_unpad_top,
+                      y_unpad_bottom, num_h_pad, h_pad_begin_idx, h_pad_end_idx,
+                      h_unpad_begin_idx, h_unpad_end_idx);
 
-                      // mapping dst to padding src, then mapping
-                      // padding src to real src to get the actual elements.
-                      _for_(j, real_pad_left, src_row_tile_size) {
-                        _for_(k, 0, config.C_block, (int)lanes) {
-                          sub_tensor[span_t(
-                            {i - unpad_begin_index, j, k}, lanes)]
-                            = input[blocking_input_
-                                ? span_t(
-                                  {n, c_o,
-                                    (p_o * config.tile_p + p_i) * sh_ + i - ph_,
-                                    q_o * config.tile_q * sw_ + j - pw_, k},
-                                  lanes)
-                                : span_t(
-                                  {n,
-                                    (p_o * config.tile_p + p_i) * sh_ + i - ph_,
-                                    q_o * config.tile_q * sw_ + j - pw_,
-                                    c_o * config.C_block + k},
-                                  lanes)];
+                    auto zero_out_sub_tensor = [&]() {
+                      builtin::brgemm_init(tensor_ptr(output, output_pos),
+                        config.tile_q, config.K_block, LDC, dtype_output, 0);
+                    };
+
+                    auto process_tile_with_pad =
+                      [&](const expr &d_begin, const expr &d_end,
+                        const expr &h_begin, const expr &h_end,
+                        const expr &left_pad, const expr &right_pad,
+                        const expr &tile_size_exclude_right_pad,
+                        const pad_kind &kind, const expr &sub_tsr_hi = 0,
+                        const bool &update_mode = false) {
+                        _for_(di, d_begin, d_end) {
+                          _for_(hi, h_begin, h_end) {
+                            _var_(sub_tsr_d, datatypes::index);
+                            _var_(sub_tsr_h, datatypes::index);
+                            if (is_3d_) { sub_tsr_d = di - d_begin; }
+                            sub_tsr_h
+                              = update_mode ? sub_tsr_hi : (hi - h_begin);
+                            if (kind == LEFT_PAD || kind == BOTH_PAD) {
+                              builtin::brgemm_init(
+                                tensor_ptr(g_sub_tensor,
+                                  is_3d_
+                                    ? std::vector<expr> {tid, sub_tsr_d,
+                                      sub_tsr_h, 0, 0}
+                                    : std::vector<expr> {tid, sub_tsr_h, 0, 0}),
+                                builder::make_cast(datatypes::s32, left_pad),
+                                config.C_block, LDA, dtype_input, 0);
+                            }
+
+                            // mapping dst to src_padded then mapping to
+                            // original src to copy the origin elements.
+                            _for_(j, left_pad, tile_size_exclude_right_pad) {
+                              _for_(k, 0, config.C_block, (int)lanes) {
+                                if (is_3d_) {
+                                  g_sub_tensor[span_t(
+                                    {tid, sub_tsr_d, sub_tsr_h, j, k}, lanes)]
+                                    = input[blocking_input_
+                                        ? span_t({n, c_o, cur_id + di - pd_,
+                                                   cur_ih + hi - ph_,
+                                                   cur_iw + j - pw_, k},
+                                          lanes)
+                                        : span_t(
+                                          {n, cur_id + di - pd_,
+                                            cur_ih + hi - ph_, cur_iw + j - pw_,
+                                            c_o * config.C_block + k},
+                                          lanes)];
+                                } else {
+                                  g_sub_tensor[span_t(
+                                    {tid, sub_tsr_h, j, k}, lanes)]
+                                    = input[blocking_input_
+                                        ? span_t({n, c_o, cur_ih + hi - ph_,
+                                                   cur_iw + j - pw_, k},
+                                          lanes)
+                                        : span_t({n, cur_ih + hi - ph_,
+                                                   cur_iw + j - pw_,
+                                                   c_o * config.C_block + k},
+                                          lanes)];
+                                }
+                              }
+                            }
+
+                            if (kind == RIGHT_PAD || kind == BOTH_PAD) {
+                              builtin::brgemm_init(
+                                tensor_ptr(g_sub_tensor,
+                                  is_3d_ ? std::vector<expr> {tid, sub_tsr_d,
+                                    sub_tsr_h, tile_size_exclude_right_pad, 0}
+                                         : std::vector<expr> {tid, sub_tsr_h,
+                                           tile_size_exclude_right_pad, 0}),
+                                builder::make_cast(datatypes::s32, right_pad),
+                                config.C_block, LDA, dtype_input, 0);
+                            }
+
+                            _for_(wi, 0, kw_) {
+                              _var_(idx, datatypes::u32);
+                              if (is_3d_) {
+                                auto valid_kh
+                                  = h_unpad_end_idx - h_unpad_begin_idx;
+                                idx = builder::make_cast(datatypes::u32,
+                                  use_var_bs
+                                    ? (sub_tsr_d * valid_kh * kw_
+                                      + sub_tsr_h * kw_ + wi)
+                                    : (di * kh_ * kw_ + hi * kw_ + wi));
+                              } else {
+                                idx = builder::make_cast(datatypes::u32,
+                                  use_var_bs ? (sub_tsr_h * kw_ + wi)
+                                             : (hi * kw_ + wi));
+                              }
+                              A_list[idx] = tensor_ptr(g_sub_tensor,
+                                is_3d_
+                                  ? std::vector<expr> {tid, sub_tsr_d,
+                                    sub_tsr_h, wi, 0}
+                                  : std::vector<expr> {tid, sub_tsr_h, wi, 0});
+                            }
+                          }
+                        }
+                      };
+
+                    auto fill_sub_tensor = [&](const expr &d_unpad_begin = 0,
+                                             const expr &d_unpad_end = 1) {
+                      _if_(cur_tile_begin < y_unpad_left) {
+                        _if_(cur_tile_end <= y_unpad_right) {
+                          // left pad only
+                          real_l_pad
+                            = pw_ - builder::make_cast(datatypes::s32, cur_iw);
+                          process_tile_with_pad(d_unpad_begin, d_unpad_end,
+                            h_unpad_begin_idx, h_unpad_end_idx, real_l_pad, 0,
+                            src_row_tile_size, LEFT_PAD);
+                        }
+                        _else_ {
+                          // both left and right pad
+                          real_l_pad
+                            = pw_ - builder::make_cast(datatypes::s32, cur_iw);
+                          real_r_pad = builder::make_cast(datatypes::s32,
+                                         cur_iw + src_row_tile_size)
+                            - (iw_padded - pw_);
+                          copy_width = src_row_tile_size - real_r_pad;
+                          process_tile_with_pad(d_unpad_begin, d_unpad_end,
+                            h_unpad_begin_idx, h_unpad_end_idx, real_l_pad,
+                            real_r_pad, copy_width, BOTH_PAD);
+                        }
+                      }
+                      _else_ {
+                        // right pad only
+                        real_r_pad = builder::make_cast(datatypes::s32,
+                                       cur_iw + src_row_tile_size)
+                          - (iw_padded - pw_);
+                        copy_width = src_row_tile_size - real_r_pad;
+                        process_tile_with_pad(d_unpad_begin, d_unpad_end,
+                          h_unpad_begin_idx, h_unpad_end_idx, 0, real_r_pad,
+                          copy_width, RIGHT_PAD);
+                      }
+                    };
+
+                    auto update_sub_tensor = [&](const int kd = 1) {
+                      _tensor_(modified_indices, datatypes::index, {sh_});
+                      _var_(m_idx, datatypes::index);
+                      _var_(actual_idx, datatypes::index);
+                      m_idx = 0;
+                      _for_(idx, 0, kh_) {
+                        prev_indices = g_cur_indices[{tid, idx}];
+                        _if_(prev_indices < sh_) {
+                          g_cur_indices[{tid, idx}] = prev_indices + kh_ - sh_;
+                          modified_indices[m_idx] = idx;
+                          m_idx = m_idx + 1;
+                        }
+                        _else_ {
+                          g_cur_indices[{tid, idx}] = prev_indices - sh_;
+                        }
+                      }
+
+                      _for_(idx, 0, sh_) {
+                        m_idx = modified_indices[idx];
+                        actual_idx = g_cur_indices[{tid, m_idx}];
+                        // update necessary row of sub-tensor according
+                        // to actual_idx
+                        _if_(cur_tile_begin < y_unpad_left) {
+                          _if_(cur_tile_end <= y_unpad_right) {
+                            // left pad only
+                            real_l_pad = pw_
+                              - builder::make_cast(datatypes::s32, cur_iw);
+                            process_tile_with_pad(0, kd, actual_idx,
+                              actual_idx + 1, real_l_pad, 0, src_row_tile_size,
+                              LEFT_PAD, m_idx, true);
+                          }
+                          _else_ {
+                            // both left and right pad
+                            real_l_pad = pw_
+                              - builder::make_cast(datatypes::s32, cur_iw);
+                            real_r_pad = builder::make_cast(datatypes::s32,
+                                           cur_iw + src_row_tile_size)
+                              - (iw_padded - pw_);
+                            copy_width = src_row_tile_size - real_r_pad;
+                            process_tile_with_pad(0, kd, actual_idx,
+                              actual_idx + 1, real_l_pad, real_r_pad,
+                              copy_width, BOTH_PAD, m_idx, true);
+                          }
+                        }
+                        _else_ {
+                          // right pad only
+                          real_r_pad = builder::make_cast(datatypes::s32,
+                                         cur_iw + src_row_tile_size)
+                            - (iw_padded - pw_);
+                          copy_width = src_row_tile_size - real_r_pad;
+                          process_tile_with_pad(0, kd, actual_idx,
+                            actual_idx + 1, 0, real_r_pad, copy_width,
+                            RIGHT_PAD, m_idx, true);
+                        }
+                      }
+
+                      // update A_list with reusable sub-tensor using
+                      // cur_indices, no padding on depth or height axis.
+                      _for_(di, 0, kd) {
+                        _for_(hi, 0, kh_) {
+                          _var_(sub_tsr_idx, datatypes::index);
+                          sub_tsr_idx = builder::make_cast(
+                            datatypes::index, g_cur_indices[{tid, hi}]);
+                          _for_(wi, 0, kw_) {
+                            _var_(A_idx, datatypes::u32);
+
+                            if (is_3d_) {
+                              A_idx = builder::make_cast(datatypes::u32,
+                                di * kh_ * kw_ + sub_tsr_idx * kw_ + wi);
+                              A_list[A_idx] = tensor_ptr(
+                                g_sub_tensor, {tid, di, hi, wi, 0});
+                            } else {
+                              A_idx = builder::make_cast(
+                                datatypes::u32, sub_tsr_idx * kw_ + wi);
+                              A_list[A_idx]
+                                = tensor_ptr(g_sub_tensor, {tid, hi, wi, 0});
+                            }
+                          }
+                        }
+                      }
+                    };
+
+                    auto call_brgemm = [&](int valid_kh, int valid_kd = 1) {
+                      COMPILE_ASSERT(valid_kd > 0 && valid_kh > 0,
+                        "Expect valid_kh and valid_kd are positive "
+                        "integer, "
+                        "but got valid_kh="
+                          << valid_kh << ", valid_kd=" << valid_kd << ".");
+                      auto valid_ker_size = valid_kd * valid_kh * kw_;
+                      auto hint_A_size
+                        = config.tile_q * config.C_block * valid_ker_size;
+                      auto hint_B_size
+                        = config.K_block * config.C_block * valid_ker_size;
+                      auto hint_C_size = config.tile_q * config.K_block;
+                      sc_brgemm_attrs_t brg_attrs {
+                        {brgemm::attr_key::max_bs, valid_ker_size},
+                        {brgemm::attr_key::hint_expected_A_size, hint_A_size},
+                        {brgemm::attr_key::hint_expected_B_size, hint_B_size},
+                        {brgemm::attr_key::hint_expected_C_size, hint_C_size},
+                        {brgemm::attr_key::use_interleave_stores, true},
+                        {brgemm::attr_key::use_uker, true},
+                        {brgemm::attr_key::var_bs, use_var_bs ? true : false}};
+
+                      _if_(c_o == 0) {
+                        builtin::brgemm_init_list_update(A_list, B_list,
+                          tensor_ptr(output, output_pos), 1, config.tile_q,
+                          config.K_block, config.C_block, sw_ * LDA,
+                          config.K_block, LDC, 1, 1, valid_ker_size,
+                          dtype_input, dtype_weight, brg_attrs);
+                      }
+                      _else_ {
+                        builtin::brgemm_list_update(A_list, B_list,
+                          tensor_ptr(output, output_pos), 1, config.tile_q,
+                          config.K_block, config.C_block, sw_ * LDA,
+                          config.K_block, LDC, 1, 1, valid_ker_size,
+                          dtype_input, dtype_weight, brg_attrs);
+                      }
+                    };
+
+                    auto generate_var_bs
+                      = [](const std::function<void(int, int)> &func, int k,
+                          int o, int s, int p, int i, int valid_kd,
+                          expr &cur_pos) {
+                          int valid_k;
+                          auto current_builder = get_current_builder();
+                          current_builder->push_scope();
+                          func(k, valid_kd);
+                          stmt else_stmt = current_builder->pop_scope();
+                          for (auto pos = 0; pos < o; ++pos) {
+                            auto pos_begin = pos * s - p;
+                            auto pos_end = pos_begin + k;
+                            valid_k
+                              = std::min(pos_end, i) - std::max(pos_begin, 0);
+                            if (valid_k < k && valid_k > 0) {
+                              current_builder->push_scope();
+                              func(valid_k, valid_kd);
+                              auto then_stmt = current_builder->pop_scope();
+                              auto cond = (cur_pos == pos);
+                              else_stmt = make_if_else_unattached(
+                                cond, then_stmt, else_stmt);
+                            }
+                          }
+                          current_builder->emit(else_stmt);
+                        };
+
+                    auto do_var_bs_for_2d = [&](const int kd, const int kh) {
+                      generate_var_bs(
+                        call_brgemm, kh, oh_, sh_, ph_, ih_, kd, cur_p);
+                    };
+
+                    if (is_3d_) {
+                      auto cond = large_pad
+                        ? (((cur_iw + src_row_tile_size <= pw_)
+                             || (cur_iw > iw_ + pw_))
+                          || (num_d_pad >= kd_ || num_h_pad >= kh_))
+                        : (num_d_pad >= kd_ || num_h_pad >= kh_);
+                      _if_(cond) { zero_out_sub_tensor(); }
+                      _else_ {
+                        // 1) fill A_list
+                        if (!use_var_bs) {
+                          _for_(di, 0, kd_) {
+                            // all zero feature map
+                            _if_(di >= d_pad_begin_idx && di < d_pad_end_idx) {
+                              _for_(hi, 0, kh_) {
+                                _for_(wi, 0, kw_) {
+                                  _var_(idx, datatypes::u32);
+                                  idx = builder::make_cast(datatypes::u32,
+                                    di * kh_ * kw_ + hi * kw_ + wi);
+                                  A_list[idx] = tensor_ptr(pbuffer, {0, 0});
+                                }
+                              }
+                            }
+                            _else_ {
+                              _for_(hi, h_pad_begin_idx, h_pad_end_idx) {
+                                _for_(wi, 0, kw_) {
+                                  _var_(idx, datatypes::u32);
+                                  idx = builder::make_cast(datatypes::u32,
+                                    di * kh_ * kw_ + hi * kw_ + wi);
+                                  A_list[idx] = tensor_ptr(pbuffer, {0, 0});
+                                }
+                              }
+                            }
+                          }
+                        }
+
+                        // 1.1) The middle region which don't need to copy input
+                        // rows but just refer to original input buffer.
+                        _if_(cur_tile_begin >= y_unpad_left
+                          && cur_tile_end <= y_unpad_right) {
+                          _for_(di, d_unpad_begin_idx, d_unpad_end_idx) {
+                            _for_(hi, h_unpad_begin_idx, h_unpad_end_idx) {
+                              _for_(wi, 0, kw_) {
+                                _var_(idx, datatypes::u32);
+                                auto valid_kh
+                                  = h_unpad_end_idx - h_unpad_begin_idx;
+                                idx = builder::make_cast(datatypes::u32,
+                                  use_var_bs
+                                    ? ((di - d_unpad_begin_idx) * valid_kh * kw_
+                                      + (hi - h_unpad_begin_idx) * kw_ + wi)
+                                    : (di * kh_ * kw_ + hi * kw_ + wi));
+                                A_list[idx] = tensor_ptr(input,
+                                  blocking_input_
+                                    ? std::vector<expr> {n, c_o,
+                                      cur_id + di - pd_, cur_ih + hi - ph_,
+                                      cur_iw + wi - pw_, 0}
+                                    : std::vector<expr> {n, cur_id + di - pd_,
+                                      cur_ih + hi - ph_, cur_iw + wi - pw_,
+                                      c_o * config.C_block});
+                              }
+                            }
+                          }
+                        }
+                        _else_ {
+                          // copy rows and do physical padding
+                          if (!reuse_sub_tensor) {
+                            fill_sub_tensor(d_unpad_begin_idx, d_unpad_end_idx);
+                          } else {
+                            _if_(num_d_pad > 0 || num_h_pad > 0
+                              || g_init_state[tid]) {
+                              _if_(num_d_pad == 0 && num_h_pad == 0) {
+                                g_init_state[tid] = false;
+                              }
+                              fill_sub_tensor(
+                                d_unpad_begin_idx, d_unpad_end_idx);
+                            }
+                            _else_ {
+                              // num_d_pad == 0 && num_h_pad == 0, reuse sub-tsr
+                              update_sub_tensor(kd_);
+                            }
+                          }
+                        }
+
+                        // 2) fill B_list
+                        if (use_var_bs) {
+                          _for_(di, d_unpad_begin_idx, d_unpad_end_idx) {
+                            _for_(hi, h_unpad_begin_idx, h_unpad_end_idx) {
+                              _for_(wi, 0, kw_) {
+                                _var_(idx, datatypes::u32);
+                                auto valid_kh
+                                  = h_unpad_end_idx - h_unpad_begin_idx;
+                                idx = builder::make_cast(datatypes::u32,
+                                  ((di - d_unpad_begin_idx) * valid_kh * kw_
+                                    + (hi - h_unpad_begin_idx) * kw_ + wi));
+                                B_list[idx] = tensor_ptr(weight,
+                                  kpack > 1 ? std::vector<expr> {k_o, c_o, di,
+                                    hi, wi, 0, 0, 0}
+                                            : std::vector<expr> {
+                                              k_o, c_o, di, hi, wi, 0, 0});
+                              }
+                            }
+                          }
+                        } else {
+                          _for_(di, 0, kd_) {
+                            _for_(hi, 0, kh_) {
+                              _for_(wi, 0, kw_) {
+                                _var_(idx, datatypes::u32);
+                                // inverse the idx
+                                if (inverse_filter_) {
+                                  idx = builder::make_cast(datatypes::u32,
+                                    kd_ * kh_ * kw_ - 1
+                                      - (di * kh_ * kw_ + hi * kw_ + wi));
+                                } else {
+                                  idx = builder::make_cast(datatypes::u32,
+                                    di * kh_ * kw_ + hi * kw_ + wi);
+                                }
+                                B_list[idx] = tensor_ptr(weight,
+                                  kpack > 1 ? std::vector<expr> {k_o, c_o, di,
+                                    hi, wi, 0, 0, 0}
+                                            : std::vector<expr> {
+                                              k_o, c_o, di, hi, wi, 0, 0});
+                              }
+                            }
+                          }
+                        }
+
+                        if (use_var_bs) {
+                          // determine the exact value of var_bs for brgemm
+                          // call, Ai & Bi are already fulfilled at this stage.
+                          generate_var_bs(do_var_bs_for_2d, kd_, od_, sd_, pd_,
+                            id_, kh_, cur_d);
+                        } else {
+                          call_brgemm(kh_, kd_);
+                        }
+                      }
+                    } else {
+                      auto cond = large_pad
+                        ? (((cur_iw + src_row_tile_size <= pw_)
+                             || (cur_iw > iw_ + pw_))
+                          || (num_h_pad >= kh_))
+                        : (num_h_pad >= kh_);
+                      _if_(cond) { zero_out_sub_tensor(); }
+                      _else_ {
+                        // 1) fill A_list
+                        if (!use_var_bs) {
+                          // Add zero-padding tensorptr to A_list
+                          _for_(hi, h_pad_begin_idx, h_pad_end_idx) {
+                            _for_(wi, 0, kw_) {
+                              _var_(idx, datatypes::u32);
+                              idx = builder::make_cast(
+                                datatypes::u32, hi * kw_ + wi);
+                              A_list[idx] = tensor_ptr(pbuffer, {0, 0});
+                            }
+                          }
+                        }
+                        _if_(cur_tile_begin >= y_unpad_left
+                          && cur_tile_end <= y_unpad_right) {
+                          _for_(hi, h_unpad_begin_idx, h_unpad_end_idx) {
+                            _for_(wi, 0, kw_) {
+                              _var_(idx, datatypes::u32);
+                              idx = builder::make_cast(datatypes::u32,
+                                (use_var_bs ? (hi - h_unpad_begin_idx) : hi)
+                                    * kw_
+                                  + wi);
+                              A_list[idx] = tensor_ptr(input,
+                                blocking_input_
+                                  ? std::vector<expr> {n, c_o,
+                                    cur_ih + hi - ph_, cur_iw + wi - pw_, 0}
+                                  : std::vector<expr> {n, cur_ih + hi - ph_,
+                                    cur_iw + wi - pw_, c_o * config.C_block});
+                            }
+                          }
+                        }
+                        _else_ {
+                          // copy rows and do physical padding
+                          if (!reuse_sub_tensor) {
+                            fill_sub_tensor();
+                          } else {
+                            _if_(num_h_pad > 0 || g_init_state[tid]) {
+                              _if_(num_h_pad == 0) {
+                                g_init_state[tid] = false;
+                              }
+                              fill_sub_tensor();
+                            }
+                            _else_ { update_sub_tensor(); }
+                          }
+                        }
+
+                        // 2) fill B_list
+                        if (use_var_bs) {
+                          _for_(hi, h_unpad_begin_idx, h_unpad_end_idx) {
+                            _for_(wi, 0, kw_) {
+                              _var_(idx, datatypes::u32);
+                              idx = builder::make_cast(datatypes::u32,
+                                (hi - h_unpad_begin_idx) * kw_ + wi);
+                              B_list[idx] = tensor_ptr(weight,
+                                kpack > 1
+                                  ? std::vector<expr> {k_o, c_o, hi, wi, 0, 0,
+                                    0}
+                                  : std::vector<expr> {k_o, c_o, hi, wi, 0, 0});
+                            }
+                          }
+                        } else {
+                          _for_(hi, 0, kh_) {
+                            _for_(wi, 0, kw_) {
+                              _var_(idx, datatypes::u32);
+                              // inverse the idx
+                              if (inverse_filter_) {
+                                idx = builder::make_cast(datatypes::u32,
+                                  kh_ * kw_ - 1 - (hi * kw_ + wi));
+                              } else {
+                                idx = builder::make_cast(
+                                  datatypes::u32, hi * kw_ + wi);
+                              }
+                              B_list[idx] = tensor_ptr(weight,
+                                kpack > 1
+                                  ? std::vector<expr> {k_o, c_o, hi, wi, 0, 0,
+                                    0}
+                                  : std::vector<expr> {k_o, c_o, hi, wi, 0, 0});
+                            }
+                          }
+                        }
+
+                        if (use_var_bs) {
+                          do_var_bs_for_2d(kd_, kh_);
+                        } else {
+                          call_brgemm(kh_);
                         }
                       }
                     }
-
-                    _for_(r, unpad_begin_index, unpad_end_index) {
-                      _for_(s, 0, kw_) {
-                        _var_(idx, datatypes::u32);
-                        idx = builder::make_cast(datatypes::u32, r * kw_ + s);
-                        A_list[idx] = tensor_ptr(
-                          sub_tensor, {r - unpad_begin_index, s, 0});
-                      }
-                    }
                   }
-                  _else_ {
-                    // 1.3.1.2) both left and right pad
-                    real_pad_left = pw_
-                      - builder::make_cast(
-                        datatypes::u32, q_o * config.tile_q * sw_);
-                    real_pad_right
-                      = builder::make_cast(datatypes::u32,
-                          q_o * config.tile_q * sw_ + src_row_tile_size)
-                      - (iw_padded - pw_);
 
-                    copy_width
-                      = src_row_tile_size - real_pad_left - real_pad_right;
-
-                    // copy sub-tensor
-                    _for_(i, unpad_begin_index, unpad_end_index) {
-                      // memzero left part
-                      builtin::brgemm_init(
-                        tensor_ptr(sub_tensor, {i - unpad_begin_index, 0, 0}),
-                        builder::make_cast(datatypes::s32, real_pad_left),
-                        config.C_block, LDA, dtypeInput, 0);
-
-                      _for_(j, real_pad_left, copy_width + real_pad_left) {
-                        _for_(k, 0, config.C_block, (int)lanes) {
-                          // N, C, H, W, c
-                          sub_tensor[span_t(
-                            {i - unpad_begin_index, j, k}, lanes)]
-                            = input[blocking_input_
-                                ? span_t(
-                                  {n, c_o,
-                                    (p_o * config.tile_p + p_i) * sh_ + i - ph_,
-                                    q_o * config.tile_q * sw_ + j - pw_, k},
-                                  lanes)
-                                : span_t(
-                                  {n,
-                                    (p_o * config.tile_p + p_i) * sh_ + i - ph_,
-                                    q_o * config.tile_q * sw_ + j - pw_,
-                                    c_o * config.C_block + k},
-                                  lanes)];
-                        }
-                      }
-
-                      builtin::brgemm_init(tensor_ptr(sub_tensor,
-                                             {i - unpad_begin_index,
-                                               copy_width + real_pad_left, 0}),
-                        builder::make_cast(datatypes::s32, real_pad_right),
-                        config.C_block, LDA, dtypeInput, 0);
-                    }
-
-                    _for_(r, unpad_begin_index, unpad_end_index) {
-                      _for_(s, 0, kw_) {
-                        _var_(idx, datatypes::u32);
-                        idx = builder::make_cast(datatypes::u32, r * kw_ + s);
-                        A_list[idx] = tensor_ptr(
-                          sub_tensor, {r - unpad_begin_index, s, 0});
-                      }
-                    }
-                  }
+                  // tile_q * K_block
+                  create_anchor(fusion, output, n, 1, k_o, 1,
+                    d_o * config.tile_d + d_i, 1, p_o * config.tile_p + p_i, 1,
+                    q_o * config.tile_q, config.tile_q, config.K_block,
+                    config.K_block, blocking_output_, is_3d_);
                 }
-                _else_ {
-                  _if_((q_o * config.tile_q + config.tile_q - 1)
-                    <= y_unpad_right) {
-                    // 1.3.1.3) not using pad buffer, use original buffer
-                    _for_(r, unpad_begin_index, unpad_end_index) {
-                      _for_(s, 0, kw_) {
-                        _var_(idx, datatypes::u32);
-                        idx = builder::make_cast(datatypes::u32, r * kw_ + s);
-                        A_list[idx] = tensor_ptr(input,
-                          blocking_input_
-                            ? std::vector<expr> {n, c_o,
-                              (p_o * config.tile_p + p_i) * sh_ + r - ph_,
-                              q_o * config.tile_q * sw_ + s - pw_, 0}
-                            : std::vector<expr> {n,
-                              (p_o * config.tile_p + p_i) * sh_ + r - ph_,
-                              q_o * config.tile_q * sw_ + s - pw_,
-                              c_o * config.C_block});
-                      }
-                    }
-                  }
-                  _else_ {
-                    // 1.3.1.4) right pad only
-                    real_pad_right
-                      = builder::make_cast(datatypes::u32,
-                          q_o * config.tile_q * sw_ + src_row_tile_size)
-                      - (iw_padded - pw_);
-                    copy_width = src_row_tile_size - real_pad_right;
-                    // copy sub-tensor
-
-                    _for_(i, unpad_begin_index, unpad_end_index) {
-                      _for_(j, 0, copy_width) {
-                        _for_(k, 0, config.C_block, (int)lanes) {
-                          sub_tensor[span_t(
-                            {i - unpad_begin_index, j, k}, lanes)]
-                            = input[blocking_input_
-                                ? span_t(
-                                  {n, c_o,
-                                    (p_o * config.tile_p + p_i) * sh_ + i - ph_,
-                                    q_o * config.tile_q * sw_ + j - pw_, k},
-                                  lanes)
-                                : span_t(
-                                  {n,
-                                    (p_o * config.tile_p + p_i) * sh_ + i - ph_,
-                                    q_o * config.tile_q * sw_ + j - pw_,
-                                    c_o * config.C_block + k},
-                                  lanes)];
-                        }
-                      }
-                      builtin::brgemm_init(
-                        tensor_ptr(
-                          sub_tensor, {i - unpad_begin_index, copy_width, 0}),
-                        builder::make_cast(datatypes::s32, real_pad_right),
-                        config.C_block, LDA, dtypeInput, 0);
-                    }
-
-                    _for_(r, unpad_begin_index, unpad_end_index) {
-                      _for_(s, 0, kw_) {
-                        _var_(idx, datatypes::u32);
-                        idx = builder::make_cast(datatypes::u32, r * kw_ + s);
-                        A_list[idx] = tensor_ptr(
-                          sub_tensor, {r - unpad_begin_index, s, 0});
-                      }
-                    }
-                  }
-                }
+                // tile_p * tile_q *K_block
+                create_anchor(fusion, output, n, 1, k_o, 1,
+                  d_o * config.tile_d + d_i, 1, p_o * config.tile_p,
+                  config.tile_p, q_o * config.tile_q, config.tile_q,
+                  config.K_block, config.K_block, blocking_output_, is_3d_);
               }
-
-              // Add tensor to B_list
-              _for_(r, 0, kh_) {
-                _for_(s, 0, kw_) {
-                  _var_(idx, datatypes::u32);
-                  // inverse the idx
-                  if (inverse_filter_) {
-                    idx = builder::make_cast(
-                      datatypes::u32, kh_ * kw_ - 1 - (r * kw_ + s));
-                  } else {
-                    idx = builder::make_cast(datatypes::u32, r * kw_ + s);
-                  }
-                  B_list[idx] = tensor_ptr(weight,
-                    kpack > 1 ? std::vector<expr> {k_o, c_o, r, s, 0, 0, 0}
-                              : std::vector<expr> {k_o, c_o, r, s, 0, 0});
-                }
+              if (reuse_sub_tensor) {
+                // oh_ * tile_q * K_block
+                create_anchor(fusion, output, n, 1, k_o, 1,
+                  d_o * config.tile_d + d_i, 1, 0, oh_, q_o * config.tile_q,
+                  config.tile_q, config.K_block, config.K_block,
+                  blocking_output_, is_3d_);
+              } else {
+                // tile_p * ow_ * K_block
+                create_anchor(fusion, output, n, 1, k_o, 1,
+                  d_o * config.tile_d + d_i, 1, p_o * config.tile_p,
+                  config.tile_p, 0, ow_, config.K_block, config.K_block,
+                  blocking_output_, is_3d_);
               }
-
-              const auto hint_A_size
-                = config.tile_q * config.C_block * kh_ * kw_;
-              const auto hint_B_size = config.K_block * config.C_block;
-              const auto hint_C_size = config.tile_q * config.K_block;
-              sc_brgemm_attrs_t brg_attrs {
-                {brgemm::attr_key::max_bs, kh_ * kw_},
-                {brgemm::attr_key::hint_expected_A_size, hint_A_size},
-                {brgemm::attr_key::hint_expected_B_size, hint_B_size},
-                {brgemm::attr_key::hint_expected_C_size, hint_C_size},
-                {brgemm::attr_key::use_interleave_stores, true},
-                {brgemm::attr_key::use_uker, true}};
-
-              builtin::brgemm_list_update(A_list, B_list,
-                tensor_ptr(output, output_pos), 1, config.tile_q,
-                config.K_block, config.C_block, sw_ * LDA, config.K_block, LDC,
-                1, 1, kh_ * kw_, dtypeInput, dtypeWeight, brg_attrs);
             }
-
-            if (fusion) {
-              fusion->create_output_fusion_anchor({tensor_slice(output,
-                blocking_output_
-                  ? slice_range {{n, 1}, {k_o, 1},
-                    {p_o * config.tile_p + p_i, 1},
-                    {q_o * config.tile_q, config.tile_q}, {0, config.K_block}}
-                  : slice_range {{n, 1}, {p_o * config.tile_p + p_i, 1},
-                    {q_o * config.tile_q, config.tile_q},
-                    {k_o * config.K_block, config.K_block}})});
+            if (is_3d_) {
+              if (reuse_sub_tensor) {
+                // tile_d * oh_ * tile_q * K_block
+                create_anchor(fusion, output, n, 1, k_o, 1, d_o * config.tile_d,
+                  config.tile_d, 0, oh_, q_o * config.tile_q, config.tile_q,
+                  config.K_block, config.K_block, blocking_output_, true);
+              } else {
+                // tile_d * tile_p * ow_ * K_block
+                create_anchor(fusion, output, n, 1, k_o, 1, d_o * config.tile_d,
+                  config.tile_d, p_o * config.tile_p, config.tile_p, 0, ow_,
+                  config.K_block, config.K_block, blocking_output_, true);
+              }
+            }
+          }
+          if (is_3d_) {
+            if (reuse_sub_tensor) {
+              // od_ * oh_ * tile_q * K_block
+              create_anchor(fusion, output, n, 1, k_o, 1, 0, od_, 0, oh_,
+                q_o * config.tile_q, config.tile_q, config.K_block,
+                config.K_block, blocking_output_, true);
+            } else {
+              // od_ * tile_p * ow_ * K_block
+              create_anchor(fusion, output, n, 1, k_o, 1, 0, od_,
+                p_o * config.tile_p, config.tile_p, 0, ow_, config.K_block,
+                config.K_block, blocking_output_, true);
             }
           }
         }
+        // od_ * oh_ * ow_ * K_block
+        create_anchor(fusion, output, n, 1, k_o, 1, 0, od_, 0, oh_, 0, ow_,
+          config.K_block, config.K_block, blocking_output_, is_3d_);
       }
-      if (fusion) {
-        fusion->create_output_fusion_anchor({tensor_slice(output,
-          blocking_output_ ? slice_range {{n, 1}, {k_o, 1}, {0, oh_}, {0, ow_},
-            {0, config.K_block}}
-                           : slice_range {{n, 1}, {0, oh_}, {0, ow_},
-                             {k_o * config.K_block, config.K_block}})});
-      }
-    }
-    if (fusion) {
-      fusion->create_output_fusion_anchor({tensor_slice(output,
-        blocking_output_
-          ? slice_range {{n, 1}, {0, K_num_block}, {0, oh_}, {0, ow_},
-            {0, config.K_block}}
-          : slice_range {{n, 1}, {0, oh_}, {0, ow_}, {0, config.K_block}})});
+      // od_ *oh_ *ow_ *oc
+      create_anchor(fusion, output, n, 1, outer_k * K_num_block / oc_split,
+        K_num_block / oc_split, 0, od_, 0, oh_, 0, ow_, config.K_block, oc_,
+        blocking_output_, is_3d_);
     }
   }
 }
@@ -2165,20 +2633,20 @@ void gen_conv_fwd_t::schedule_loops(context_ptr ctx,
     }
     auto loop_sched = config.loop_sched;
     if (loop_sched == 0) {
-      // default loop order ln->lk->ld->lp
+      // default loop order ln->lk->lp->ld,
       // merge ln, lk, lp
       auto outer = ln->fuse(lk);
-      if (is_3d_) { outer->fuse(ld); }
       outer = outer->fuse(lp);
+      if (is_3d_ && ld.defined()) { outer->fuse(ld); }
       outer->kind_ = for_type::PARALLEL;
     } else if (loop_sched == 1) {
       // loop order lk->lp->ln
       // merge lk, lp, ln
       for_loop outer;
-      if (is_3d_) {
-        ln->reorder(body, {lk, ld, lp, ln});
-        outer = lk->fuse(ld);
-        outer = outer->fuse(lp);
+      if (is_3d_ && ld.defined()) {
+        ln->reorder(body, {lk, lp, ld, ln});
+        outer = lk->fuse(lp);
+        outer = outer->fuse(ld);
       } else {
         ln->reorder(body, {lk, lp, ln});
         outer = lk->fuse(lp);
@@ -2189,9 +2657,9 @@ void gen_conv_fwd_t::schedule_loops(context_ptr ctx,
       // loop order lp->lk->ln
       // merge lp, lk, ln
       for_loop outer;
-      if (is_3d_) {
-        ln->reorder(body, {ld, lp, lk, ln});
-        outer = ld->fuse(lp);
+      if (is_3d_ && ld.defined()) {
+        ln->reorder(body, {lp, ld, lk, ln});
+        outer = lp->fuse(ld);
         outer = outer->fuse(lk);
       } else {
         ln->reorder(body, {lp, lk, ln});
@@ -2204,8 +2672,8 @@ void gen_conv_fwd_t::schedule_loops(context_ptr ctx,
       // merge lk,ln,lp
       ln->reorder(body, {lk, ln});
       auto outer = lk->fuse(ln);
-      if (is_3d_) { outer = outer->fuse(ld); }
       outer = outer->fuse(lp);
+      if (is_3d_ && ld.defined()) { outer = outer->fuse(ld); }
       outer->kind_ = for_type::PARALLEL;
     }
   }
@@ -2267,22 +2735,22 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
   //  | 4  | VNNI_INT8    |
   //  +----+--------------+
   int kpack = 1;
-  auto dtypeInput = get_input_dtype();
-  auto dtypeWeight = get_weight_dtype();
-  auto dtypeOutput = get_output_dtype();
-  if (dtypeInput == datatypes::bf16) {
-    COMPILE_ASSERT((dtypeWeight == datatypes::bf16),
+  auto dtype_input = get_input_dtype();
+  auto dtype_weight = get_weight_dtype();
+  auto dtype_output = get_output_dtype();
+  if (dtype_input == datatypes::bf16) {
+    COMPILE_ASSERT((dtype_weight == datatypes::bf16),
       "Weights should be bf16 as "
       "data, the mixed datatypes is not supported yet!");
-    COMPILE_ASSERT((dtypeOutput == datatypes::f32),
+    COMPILE_ASSERT((dtype_output == datatypes::f32),
       "Output should be f32 when data and weights are in bf16.");
     kpack = 2;
   }
-  if (utils::is_one_of(dtypeInput, datatypes::s8, datatypes::u8)) {
-    COMPILE_ASSERT((dtypeWeight == datatypes::s8),
+  if (utils::is_one_of(dtype_input, datatypes::s8, datatypes::u8)) {
+    COMPILE_ASSERT((dtype_weight == datatypes::s8),
       "Weights should be s8 when \
             data is s8/u8, the mixed datatypes is not supported yet!");
-    COMPILE_ASSERT((dtypeOutput == datatypes::s32),
+    COMPILE_ASSERT((dtype_output == datatypes::s32),
       "Output should be s32 when data and weights are in "
       "s8/u8.");
     kpack = 4;
@@ -2363,7 +2831,7 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
           pack_rows, os_acc_size, os_mask);
       }
     } else {
-      if (ctx->use_amx() && (ph_ <= kh_ && pw_ <= kw_)) {
+      if (ops::is_amx_dtype(ctx, dtype_input) || is_3d_) {
         if (inverse_filter_) {
           SC_INFO << "inverse_filter_ used in conv padding v2.";
         }

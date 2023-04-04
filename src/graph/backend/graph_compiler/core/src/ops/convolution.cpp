@@ -653,13 +653,12 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
     auto weight_plain_dims = info_.inputs_[1]->details_.get_plain_dims();
     bool channel_last_support = false;
     if (!is_1d) {
-        auto ph = pads_begin[0];
         auto kh = weight_plain_dims[ndims_ - 2];
-        auto pw = pads_begin[0];
         auto kw = weight_plain_dims[ndims_ - 1];
-        channel_last_support = (kh == 1 || kw == 1)
-                || (ctx->use_amx() && ph <= kh && pw <= kw);
+        channel_last_support
+                = (kh == 1 || kw == 1) || ops::is_amx_dtype(ctx, src_dtype);
     }
+
     std::string test_format;
     if (attrs_.has_key("temp.test_format")) {
         test_format = attrs_.get<std::string>("temp.test_format");
