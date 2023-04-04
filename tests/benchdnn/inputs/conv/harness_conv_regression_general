@@ -349,3 +349,8 @@ mb1ic2ih10iw7oc2oh6ow4kh1kw1sh2sw2ph1pw0dh1dw1_n"brgemm_post-op-jit_sum-with-zp:
 ic256ih56oc64oh56kh1ph0n"primitive-cache_dispatch_shape-1"
 --dir=bwd_d
 ic64ih56oc256oh56kh1ph0n"primitive-cache_dispatch_shape-2"
+
+# test 3d gemm convs with binary post-ops
+--stag=axb --dtag=axb
+--skip-impl=brg,jit:avx,ref
+--attr-post-ops=add:f32:per_oc,prelu:per_oc g4ic16id5oc16od5kd3pd1n"3d_conv:grouped_gemm_conv"
