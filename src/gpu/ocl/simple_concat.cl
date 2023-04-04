@@ -96,12 +96,12 @@ simple_concat(__global DATA_T *dst, long dst_offset0, SRC_PTRS) {
     const int d_offset = 8 * vec8s * SIMD;
     const int c_offset = d_offset + (repeats & 4) * SIMD;
     const int b_offset = c_offset + (repeats & 2) * SIMD;
-#if HAS_TAIL
     const int lane = get_sub_group_local_id();
+#if HAS_TAIL
     int tail_offset = repeats * SIMD + lane;
 #endif
 
-#if HAS_TAIL && (BLOCK * DATA_TYPE_SIZE % 4 != 0)
+#if (BLOCK * DATA_TYPE_SIZE % 4 != 0)
     for (int i = 0; i < vec8s; ++i) {
         A[i].s0 = src[(8 * i + 0) * SIMD + lane];
         A[i].s1 = src[(8 * i + 1) * SIMD + lane];
@@ -136,7 +136,7 @@ simple_concat(__global DATA_T *dst, long dst_offset0, SRC_PTRS) {
 
     dst += dst_offset0 + get_global_id(1) * DST_EXT_OFFSET + x;
 
-#if HAS_TAIL && (BLOCK * DATA_TYPE_SIZE % 16 != 0)
+#if (BLOCK * DATA_TYPE_SIZE % 16 != 0)
     for (int i = 0; i < vec8s; ++i) {
         dst[(8 * i + 0) * SIMD + lane] = A[i].s0;
         dst[(8 * i + 1) * SIMD + lane] = A[i].s1;
