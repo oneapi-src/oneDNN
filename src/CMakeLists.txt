@@ -216,6 +216,15 @@ foreach(header ${HEADERS_SUBDIR})
     install(FILES ${header} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/oneapi/dnnl/")
 endforeach()
 
+string(TOUPPER "${LIB_PACKAGE_NAME}::" LIB_NAMESPACE)
+if(DNNL_INSTALL_MODE STREQUAL "BUNDLE_V2" AND WIN32)
+    # Config file for binary distribution needs to define a mapping
+    # DEBUG -> RELWITHMDD so that proper library (dnnld) is picked up for the
+    # DEBUG configuration.
+    set(HANDLE_BUNDLE_DEBUG_SYCL_CONFIGURATION
+        "set_property(TARGET ${LIB_NAMESPACE}${LIB_PACKAGE_NAME} PROPERTY \"MAP_IMPORTED_CONFIG_DEBUG\" \"RELWITHMDD\")")
+endif()
+
 # Write version and package config files
 set(LIB_CONFIG_GENERATE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 set(LIB_CONFIG_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/${LIB_PACKAGE_NAME}")
@@ -233,7 +242,6 @@ configure_package_config_file(
     INSTALL_DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 install(FILES ${LIB_CONFIG_FILE} ${LIB_VERSION_FILE}
     DESTINATION ${LIB_CONFIG_INSTALL_DIR})
-string(TOUPPER "${LIB_PACKAGE_NAME}::" LIB_NAMESPACE)
 install(EXPORT ${LIB_EXPORT_NAME}
     NAMESPACE ${LIB_NAMESPACE}
     DESTINATION ${LIB_CONFIG_INSTALL_DIR})

@@ -36,15 +36,29 @@ if(POLICY CMP0074)
     cmake_policy(SET CMP0074 NEW)
 endif()
 
+set(DNNL_INSTALL_MODE "@DNNL_INSTALL_MODE@")
+set(IS_NEW_DIR_LAYOUT FALSE)
+if(DNNL_INSTALL_MODE STREQUAL "BUNDLE_V2")
+    set(IS_NEW_DIR_LAYOUT TRUE)
+endif()
+
 if(NOT DEFINED DNNLROOT AND DEFINED ENV{DNNLROOT})
     set(DNNLROOT "$ENV{DNNLROOT}" CACHE STRING "")
 else()
-    set(DNNLROOT "${PROJECT_SOURCE_DIR}/.." CACHE STRING "")
+    if(IS_NEW_DIR_LAYOUT)
+        set(DNNLROOT "${PROJECT_SOURCE_DIR}/../../../.." CACHE STRING "")
+    else()
+        set(DNNLROOT "${PROJECT_SOURCE_DIR}/.." CACHE STRING "")
+    endif()
 endif()
 
 message(STATUS "DNNLROOT: ${DNNLROOT}")
 
-include_directories(${DNNLROOT}/examples)
+if(IS_NEW_DIR_LAYOUT)
+    include_directories(${DNNLROOT}/share/doc/@LIB_PACKAGE_NAME@/examples)
+else()
+    include_directories(${DNNLROOT}/examples)
+endif()
 
 enable_testing()
 
@@ -129,11 +143,13 @@ if(WIN32 AND DNNL_WITH_SYCL)
     endif()
 endif()
 
-# DNNL_CONFIGURATION is only used by oneAPI CMake config and ignored otherwise.
-get_filename_component(DNNL_CONFIGURATION "${DNNLROOT}" ABSOLUTE)
-get_filename_component(DNNL_CONFIGURATION "${DNNL_CONFIGURATION}" NAME)
-# The hint can be used to find CMake config in oneAPI directory layout.
-set(ONEAPI_CMAKE_CONFIG_HINT "../..")
+if(NOT IS_NEW_DIR_LAYOUT)
+    # DNNL_CONFIGURATION is only used by oneAPI CMake config and ignored otherwise.
+    get_filename_component(DNNL_CONFIGURATION "${DNNLROOT}" ABSOLUTE)
+    get_filename_component(DNNL_CONFIGURATION "${DNNL_CONFIGURATION}" NAME)
+    # The hint can be used to find CMake config in oneAPI directory layout.
+    set(ONEAPI_CMAKE_CONFIG_HINT "../..")
+endif()
 
 find_package(@LIB_PACKAGE_NAME@ @PROJECT_VERSION@ CONFIG REQUIRED HINTS ${DNNLROOT} ${ONEAPI_CMAKE_CONFIG_HINT})
 

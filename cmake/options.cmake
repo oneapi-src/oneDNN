@@ -77,10 +77,14 @@ set(DNNL_TEST_SET "CI" CACHE STRING
     option is set, it enables a broader set of test targets to run.")
 
 set(DNNL_INSTALL_MODE "DEFAULT" CACHE STRING
-    "specifies installation mode; supports DEFAULT or BUNDLE.
+    "specifies installation mode; supports DEFAULT, BUNDLE and BUNDLE_V2.
 
-    When BUNDLE option is set oneDNN will be installed as a bundle
-    which contains examples and benchdnn.")
+    When BUNDLE or BUNDLE_V2 option is set oneDNN will be installed as a bundle
+    which contains examples and benchdnn. The difference between BUNDLE and
+    BUNDLE_V2 is in the directory layout.")
+if (NOT "${DNNL_INSTALL_MODE}" MATCHES "^(DEFAULT|BUNDLE|BUNDLE_V2)$")
+    message(FATAL_ERROR "Unsupported install mode: ${DNNL_INSTALL_MODE}")
+endif()
 
 set(DNNL_CODE_COVERAGE "OFF" CACHE STRING
     "specifies which supported tool for code coverage will be used

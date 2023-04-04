@@ -151,27 +151,33 @@ foreach(src ${sources})
     endif()
 endforeach()
 
-if (DNNL_INSTALL_MODE STREQUAL "BUNDLE")
+if (DNNL_INSTALL_MODE STREQUAL "BUNDLE" OR DNNL_INSTALL_MODE STREQUAL "BUNDLE_V2")
+    if(DNNL_INSTALL_MODE STREQUAL "BUNDLE")
+        set(BUNDLE_EXAMPLES_DIR "examples")
+    else()
+        set(BUNDLE_EXAMPLES_DIR "${CMAKE_INSTALL_DATAROOTDIR}/doc/${LIB_PACKAGE_NAME}/examples")
+    endif()
+
     configure_file(CMakeLists.txt.in CMakeLists.txt @ONLY)
     install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/CMakeLists.txt
         ${sources} ${headers}
-        DESTINATION examples)
+        DESTINATION ${BUNDLE_EXAMPLES_DIR})
 
     if(DNNL_WITH_SYCL)
         install(FILES
             ${PROJECT_SOURCE_DIR}/cmake/dpcpp_driver_check.cmake
-            DESTINATION examples)
+            DESTINATION ${BUNDLE_EXAMPLES_DIR})
     else()
     # Skip matmul examples with SYCL
         install(DIRECTORY
             tutorials
-            DESTINATION examples)
+            DESTINATION ${BUNDLE_EXAMPLES_DIR})
     endif()
 
     if(WIN32)
         install(FILES
             ${PROJECT_SOURCE_DIR}/cmake/template.vcxproj.user
-            DESTINATION examples)
+            DESTINATION ${BUNDLE_EXAMPLES_DIR})
     endif()
 endif()
