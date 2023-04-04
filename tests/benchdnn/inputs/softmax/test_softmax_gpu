@@ -1,6 +1,6 @@
 --reset
 
---sdt=f32,bf16
+--sdt=f64,f32,bf16
 --dir=FWD_D
 --alg=SOFTMAX,LOGSOFTMAX
 --inplace=true,false
@@ -34,7 +34,7 @@
 --batch=shapes_2d
 
 --reset
---sdt=f32,f16
+--sdt=f32,f64,f16
 --dir=FWD_D
 --stag=acb
 --axis=2
@@ -49,7 +49,7 @@
 # f32 precision testing for large tensors
 --reset
 --dir=FWD_D,BWD_D
---sdt=f32
+--sdt=f32,f64
 --alg=SOFTMAX,LOGSOFTMAX
 --axis=0 --batch=shapes_large
 

@@ -8,12 +8,12 @@
 --axis=0,1
 
 --dir=FWD_D,BWD_D
---sdt=f32,bf16,f16
---ddt=f32,bf16,f16
+--sdt=f32,f64,bf16,f16
+--ddt=f32,f64,bf16,f16
 --batch=shapes_ci
 
 --dir=FWD_I
---sdt=f32,bf16,f16,s8,u8
+--sdt=f32,f64,bf16,f16,s8,u8
 --ddt=s8,u8
 --attr-scales=src:common:64*+dst:common:0.5*
 --attr-post-ops=,add:f32:per_oc,linear:0.5:-1

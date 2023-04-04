@@ -26,6 +26,36 @@
     WRITE_BLOCK8(prefix, (__global BLOCK_T(ALIAS(prefix)) *)(ptr), \
             DATA_TO_BLOCK8(prefix, FLOAT_TO_DATA8(prefix, val)))
 
+#define LOAD_DOUBLE8(prefix, ptr) \
+    DATA_TO_DOUBLE8(prefix, \
+            BLOCK_TO_DATA8(prefix, \
+                    READ_BLOCK8(prefix, \
+                            (__global BLOCK_T(ALIAS(prefix)) *)(ptr))))
+
+#define STORE_DOUBLE8(prefix, ptr, val) \
+    WRITE_BLOCK8(prefix, (__global BLOCK_T(ALIAS(prefix)) *)(ptr), \
+            DATA_TO_BLOCK8(prefix, DOUBLE_TO_DATA8(prefix, val)))
+
+#if DST_DT_F64
+#define UP_CASE_DATA DOUBLE
+#define COMMON_DATA_T double
+#define COMMON_DATA_MAX DBL_MAX
+#define COMMON_DATA_ZERO 0.0
+#else
+#define UP_CASE_DATA FLOAT
+#define COMMON_DATA_T float
+#define COMMON_DATA_MAX FLT_MAX
+#define COMMON_DATA_ZERO 0.0f
+#endif
+
+#define COMMON_DATA8_T CONCAT2(COMMON_DATA_T, 8)
+
+#define COMMON_DATA_TO_X(x, y) CONCAT2(DATA_TO_, UP_CASE_DATA)(x, y)
+#define COMMON_X_TO_DATA(x, y) CONCAT2(UP_CASE_DATA, _TO_DATA)(x, y)
+
+#define COMMON_LOAD_DATA8(x, y) CONCAT3(LOAD_, UP_CASE_DATA, 8)(x, y)
+#define COMMON_STORE_DATA8(x, y, z) CONCAT3(STORE_, UP_CASE_DATA, 8)(x, y, z)
+
 #define VECT_SIZE 8
 #define SV (GROUP_SIZE * VECT_SIZE)
 #define HAS_TAIL (SOFTMAX_AXIS_SIZE % SV != 0)
@@ -99,13 +129,14 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     const int subgroup_id = get_sub_group_id();
 
     int buf_chunk = (local_id / SUB_GROUP_SIZE) * SOFTMAX_BUF;
-
-    float max_ = -FLT_MAX;
-    float denom_ = 0.f;
+    COMMON_DATA_T max_ = -COMMON_DATA_MAX;
+    COMMON_DATA_T denom_ = COMMON_DATA_ZERO;
 
 #if SUBGROUPS_REPEATED // only for NHWC kernel
     // total reads should be num_buf x THREAD_BUF_SIZE
-    float d[2][THREAD_BUF_SIZE];
+
+    COMMON_DATA_T d[2][THREAD_BUF_SIZE];
+
     int num_buf = (subgroup_id < SUBGROUPS_REPEATED) ? 2 : 1;
 
     int local_off = get_local_off(subgroup_id, subgroup_local_id);
@@ -122,7 +153,7 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
         src_copy += data_off;
         for (int k = 0, axis_channel_id = CHANNELS * buf_chunk; k < buf_reads;
                 ++k, axis_channel_id += CHANNELS) {
-            d[i][k] = DATA_TO_FLOAT(SRC, src_copy[axis_channel_id]);
+            d[i][k] = COMMON_DATA_TO_X(SRC, src_copy[axis_channel_id]);
             max_ = max(d[i][k], max_);
         }
     }
@@ -167,7 +198,6 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
         int data_off = mb * CHANNELS_PADDED * SOFTMAX_AXIS_SIZE + axis_offset
                 + channel_id;
         int buf_reads = get_buffer_size(i, subgroup_id, local_off);
-
         dst_copy += data_off;
         for (int k = 0, axis_channel_id = CHANNELS * buf_chunk; k < buf_reads;
                 ++k, axis_channel_id += CHANNELS) {
@@ -176,7 +206,7 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 #else
             d[i][k] = d[i][k] * denom_;
 #endif
-            dst_copy[axis_channel_id] = FLOAT_TO_DATA(DST, d[i][k] * scale);
+            dst_copy[axis_channel_id] = COMMON_X_TO_DATA(DST, d[i][k] * scale);
         }
     }
 
@@ -203,11 +233,11 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
             : (SOFTMAX_AXIS_SIZE % THREAD_BUF_SIZE);
 #endif
 
-    float d[THREAD_BUF_SIZE];
+    COMMON_DATA_T d[THREAD_BUF_SIZE];
     src += data_off;
     for (int k = 0, axis_channel_id = CHANNELS * buf_chunk; k < buf_reads;
             ++k, axis_channel_id += CHANNELS) {
-        d[k] = DATA_TO_FLOAT(SRC, src[axis_channel_id]);
+        d[k] = COMMON_DATA_TO_X(SRC, src[axis_channel_id]);
         max_ = max(d[k], max_);
     }
 
@@ -245,17 +275,17 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 #else
         d[k] = d[k] * denom_;
 #endif
-        dst[axis_channel_id] = FLOAT_TO_DATA(DST, d[k] * scale);
+        dst[axis_channel_id] = COMMON_X_TO_DATA(DST, d[k] * scale);
     }
 #endif
 
 #else // NCHW kernel starts here
     const int data_off = (get_global_id(0) / GROUP_SIZE) * SOFTMAX_AXIS_SIZE;
 
-    float8 d[NUM_BUF];
+    COMMON_DATA8_T d[NUM_BUF];
+    COMMON_DATA_T max_ = -COMMON_DATA_MAX;
+    COMMON_DATA_T denom_ = COMMON_DATA_ZERO;
 
-    float max_ = -FLT_MAX;
-    float denom_ = 0.f;
     int last_buf = HAS_TAIL ? (NUM_BUF - 1) : NUM_BUF;
 
     src += data_off;
@@ -267,7 +297,7 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 #else
         int idx = HAS_TAIL ? k * SUB_GROUP_SIZE : sid * SUB_GROUP_SIZE;
 #endif
-        d[k] = LOAD_FLOAT8(SRC, &src[idx * VECT_SIZE]);
+        d[k] = COMMON_LOAD_DATA8(SRC, &src[idx * VECT_SIZE]);
         for (int i = 0; i < VECT_SIZE; ++i) {
             max_ = max(d[k][i], max_);
         }
@@ -279,8 +309,8 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
         for (int i = 0; i < VECT_SIZE; ++i) {
             int off = k * VECT_SIZE * SUB_GROUP_SIZE + i * SUB_GROUP_SIZE
                     + get_sub_group_local_id();
-            d[k][i] = (off < SOFTMAX_AXIS_SIZE ? DATA_TO_FLOAT(SRC, src[off])
-                                               : -FLT_MAX);
+            d[k][i] = (off < SOFTMAX_AXIS_SIZE ? COMMON_DATA_TO_X(SRC, src[off])
+                                               : -COMMON_DATA_MAX);
             max_ = max(d[k][i], max_);
         }
     }
@@ -349,7 +379,7 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
         d[k] = d[k] * denom_;
 #endif
 
-        STORE_FLOAT8(DST, &dst[idx * VECT_SIZE], scale * d[k]);
+        COMMON_STORE_DATA8(DST, &dst[idx * VECT_SIZE], scale * d[k]);
     }
 #if HAS_TAIL // for tail cases with 16-byte aligned tensor shapes
     {
@@ -363,7 +393,7 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
             int off = k * VECT_SIZE * SUB_GROUP_SIZE + i * SUB_GROUP_SIZE
                     + get_sub_group_local_id();
             if (off < SOFTMAX_AXIS_SIZE)
-                dst[off] = FLOAT_TO_DATA(DST, scale * d[k][i]);
+                dst[off] = COMMON_X_TO_DATA(DST, scale * d[k][i]);
         }
     }
 #endif
@@ -378,7 +408,7 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
             int off = k * VECT_SIZE * SUB_GROUP_SIZE + i * SUB_GROUP_SIZE
                     + get_sub_group_local_id();
             if (off < SOFTMAX_AXIS_SIZE)
-                dst[off] = FLOAT_TO_DATA(DST, scale * d[k][i]);
+                dst[off] = COMMON_X_TO_DATA(DST, scale * d[k][i]);
         }
     }
 #endif
@@ -409,17 +439,17 @@ gen9_softmax_bwd(__global DST_DATA_T *dst, __global SRC_DATA_T *diff_src,
     int data_off = batch * IC * SOFTMAX_AXIS_SIZE + ic_buff * sub_grp_id + ic;
 #endif
 
-    float sbr = 0.f;
-    float diff_d[VECT_SIZE];
-    float dst_[VECT_SIZE];
+    COMMON_DATA_T sbr = COMMON_DATA_ZERO;
+    COMMON_DATA_T diff_d[VECT_SIZE];
+    COMMON_DATA_T dst_[VECT_SIZE];
 
     diff_dst += data_off;
     dst += data_off;
 
     for (int i = 0, idx = IC * slice * SOFTMAX_BUF; i < VECT_SIZE;
             ++i, idx += IC) {
-        diff_d[i] = DATA_TO_FLOAT(DST, diff_dst[idx]);
-        dst_[i] = DATA_TO_FLOAT(DST, dst[idx]);
+        diff_d[i] = COMMON_DATA_TO_X(DST, diff_dst[idx]);
+        dst_[i] = COMMON_DATA_TO_X(DST, dst[idx]);
 #if LOGSOFTMAX
         sbr += diff_d[i];
 #else
@@ -440,22 +470,23 @@ gen9_softmax_bwd(__global DST_DATA_T *dst, __global SRC_DATA_T *diff_src,
 #else
         diff_d[i] = (diff_d[i] - sbr) * dst_[i];
 #endif
-        diff_src[idx] = FLOAT_TO_DATA(SRC, diff_d[i]);
+        diff_src[idx] = COMMON_X_TO_DATA(SRC, diff_d[i]);
     }
 
 #else
     const int data_off = (get_global_id(0) / GROUP_SIZE) * SOFTMAX_AXIS_SIZE;
 
-    float sbr = 0.f;
-
-    float8 diff_d[NUM_BUF];
-    float8 dst_[NUM_BUF];
+    COMMON_DATA_T sbr = COMMON_DATA_ZERO;
+    COMMON_DATA8_T diff_d[NUM_BUF];
+    COMMON_DATA8_T dst_[NUM_BUF];
 
     diff_dst += data_off;
     dst += data_off;
     for (int k = 0; k < NUM_BUF; ++k) {
-        diff_d[k] = LOAD_FLOAT8(DST, &diff_dst[k * VECT_SIZE * SUB_GROUP_SIZE]);
-        dst_[k] = LOAD_FLOAT8(DST, &dst[k * VECT_SIZE * SUB_GROUP_SIZE]);
+        diff_d[k] = COMMON_LOAD_DATA8(
+                DST, &diff_dst[k * VECT_SIZE * SUB_GROUP_SIZE]);
+        dst_[k] = COMMON_LOAD_DATA8(DST, &dst[k * VECT_SIZE * SUB_GROUP_SIZE]);
+
         for (int i = 0; i < VECT_SIZE; ++i) {
 #if LOGSOFTMAX
             sbr += diff_d[k][i];
@@ -475,7 +506,8 @@ gen9_softmax_bwd(__global DST_DATA_T *dst, __global SRC_DATA_T *diff_src,
 #else
         diff_d[k] = (diff_d[k] - sbr) * dst_[k];
 #endif
-        STORE_FLOAT8(SRC, &diff_src[k * VECT_SIZE * SUB_GROUP_SIZE], diff_d[k]);
+        COMMON_STORE_DATA8(
+                SRC, &diff_src[k * VECT_SIZE * SUB_GROUP_SIZE], diff_d[k]);
     }
 #endif
 }

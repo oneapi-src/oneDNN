@@ -66,6 +66,14 @@ float2  __attribute__((overloadable)) cvt_bf16_to_f32(ushort2  a) { return __bui
 float4  __attribute__((overloadable)) cvt_bf16_to_f32(ushort4  a) { return __builtin_IB_bftof_4 (as_short4 (a)); }
 float8  __attribute__((overloadable)) cvt_bf16_to_f32(ushort8  a) { return __builtin_IB_bftof_8 (as_short8 (a)); }
 float16 __attribute__((overloadable)) cvt_bf16_to_f32(ushort16 a) { return __builtin_IB_bftof_16(as_short16(a)); }
+
+#ifdef cl_khr_fp64
+double   __attribute__((overloadable)) cvt_bf16_to_f64(ushort   a) { return convert_double(__builtin_IB_bftof_1 (as_short  (a))); }
+double2  __attribute__((overloadable)) cvt_bf16_to_f64(ushort2  a) { return convert_double2(__builtin_IB_bftof_2 (as_short2 (a))); }
+double4  __attribute__((overloadable)) cvt_bf16_to_f64(ushort4  a) { return convert_double4(__builtin_IB_bftof_4 (as_short4 (a))); }
+double8  __attribute__((overloadable)) cvt_bf16_to_f64(ushort8  a) { return convert_double8(__builtin_IB_bftof_8 (as_short8 (a))); }
+double16 __attribute__((overloadable)) cvt_bf16_to_f64(ushort16 a) { return convert_double16(__builtin_IB_bftof_16(as_short16(a))); }
+#endif
 // clang-format on
 
 #else
@@ -147,6 +155,7 @@ float16 __attribute__((overloadable)) cvt_bf16_to_f32(ushort16 b) {
     }
     return f;
 }
+
 #endif
 #endif
 

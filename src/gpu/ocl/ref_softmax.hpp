@@ -51,8 +51,9 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
 
             using namespace data_type;
             using skip_mask_t = primitive_attr_t::skip_mask_t;
-            bool ok = is_fwd() && utils::one_of(src_dt, f32, f16, bf16, u8, s8)
-                    && utils::one_of(dst_dt, f32, f16, bf16, u8, s8)
+            bool ok = is_fwd()
+                    && utils::one_of(src_dt, f64, f32, f16, bf16, u8, s8)
+                    && utils::one_of(dst_dt, f32, f16, f64, bf16, u8, s8)
                     && IMPLICATION(utils::one_of(f16, src_dt, dst_dt),
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16))
@@ -179,8 +180,8 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
 
             using namespace data_type;
             bool ok = !is_fwd()
-                    && utils::one_of(diff_src_d.data_type(), f32, bf16)
-                    && utils::one_of(diff_dst_d.data_type(), f32, bf16)
+                    && utils::one_of(diff_src_d.data_type(), f64, f32, bf16)
+                    && utils::one_of(diff_dst_d.data_type(), f64, f32, bf16)
                     && compute_engine->mayiuse_sub_group(16)
                     && !memory_desc_ndims_ok(
                             dst_md(), diff_src_md(), diff_dst_md())
