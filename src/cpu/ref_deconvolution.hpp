@@ -164,7 +164,7 @@ struct ref_deconvolution_fwd_t : public primitive_t {
             using namespace format_tag;
             using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
-            auto skip_mask = smask_t::post_ops;
+            auto skip_mask = smask_t::post_ops | smask_t::sum_dt;
             if (utils::one_of(desc()->src_desc.data_type, s8, u8))
                 skip_mask |= smask_t::scales_runtime
                         | smask_t::zero_points_runtime;

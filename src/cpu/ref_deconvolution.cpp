@@ -246,6 +246,8 @@ status_t ref_deconvolution_fwd_t::compute_ref_attrs(const exec_ctx_t &ctx,
                   d *= scales[oc * scale_idx_mult];
               };
 
+    const auto sum_dt = pd()->attr()->post_ops_.get_sum_dt(dst_d.data_type());
+
     parallel_nd(MB, OCP, OD, OH, OW,
             [&](dim_t mb, int ocp, dim_t od, dim_t oh, dim_t ow) {
                 auto dst_off = ref_conv_utils::get_data_off(
@@ -262,7 +264,7 @@ status_t ref_deconvolution_fwd_t::compute_ref_attrs(const exec_ctx_t &ctx,
                     ref_post_ops_t::args_t args;
                     if (pd()->attr()->post_ops_.find(primitive_kind::sum) != -1)
                         args.dst_val = io::load_float_value(
-                                dst_d.data_type(), original_dst, dst_off);
+                                sum_dt, original_dst, dst_off);
                     args.ctx = &ctx;
                     args.l_offset = dst_l_off;
                     args.dst_md = pd()->dst_md();
