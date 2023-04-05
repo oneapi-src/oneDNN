@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -86,12 +86,12 @@ public:
     }
 
     int load() const {
-        return static_cast<int>(constant_cache_enabled_.load(
-                std::memory_order::memory_order_relaxed));
+        return static_cast<int>(
+                constant_cache_enabled_.load(std::memory_order_relaxed));
     }
     void store(int flag) {
-        constant_cache_enabled_.store(static_cast<bool>(flag),
-                std::memory_order::memory_order_relaxed);
+        constant_cache_enabled_.store(
+                static_cast<bool>(flag), std::memory_order_relaxed);
     }
 };
 

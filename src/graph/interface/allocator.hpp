@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -61,9 +61,7 @@ public:
     // occur!
 
     // This function increments the reference count
-    void retain() {
-        counter_.fetch_add(1, std::memory_order::memory_order_relaxed);
-    }
+    void retain() { counter_.fetch_add(1, std::memory_order_relaxed); }
 
     // This function decrements the reference count. If the reference count is
     // decremented to zero, the object will be destroyed.

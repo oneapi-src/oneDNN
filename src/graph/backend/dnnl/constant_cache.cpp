@@ -158,9 +158,9 @@ void constant_cache_t::evict(size_t n) {
                     // important, therefore we can safely use the weakest memory
                     // ordering (relaxed).
                     return left.second.timestamp_.load(
-                                   std::memory_order::memory_order_relaxed)
+                                   std::memory_order_relaxed)
                             < right.second.timestamp_.load(
-                                    std::memory_order::memory_order_relaxed);
+                                    std::memory_order_relaxed);
                 });
         evicted_size += it->second.value_.get()->size();
         auto res = constant_map().erase(it->first);
