@@ -2077,6 +2077,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
 #undef BRGEMM_CONV_KER_HEADER
 
 template struct brgemm_convolution_fwd_t<avx2>;
+template struct brgemm_convolution_fwd_t<avx2, true>;
 template struct brgemm_convolution_fwd_t<avx2_vnni>;
 template struct brgemm_convolution_fwd_t<avx2_vnni, true>;
 template struct brgemm_convolution_fwd_t<avx2_vnni_2>;

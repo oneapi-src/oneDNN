@@ -263,6 +263,8 @@ status_t brgemm_deconvolution_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
     return conv_p_->execute(conv_ctx);
 }
 
+template struct brgemm_deconvolution_fwd_t<avx2>;
+template struct brgemm_deconvolution_fwd_t<avx2_vnni_2>;
 template struct brgemm_deconvolution_fwd_t<avx512_core>;
 template struct brgemm_deconvolution_fwd_t<avx512_core_vnni>;
 template struct brgemm_deconvolution_fwd_t<avx512_core_bf16>;
