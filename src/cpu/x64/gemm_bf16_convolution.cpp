@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -172,13 +172,6 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate() {
     mov(reg_len, ptr[reg_param + PARAM_OFF(spatial_length)]);
     mov(reg_oc_iter, ptr[reg_param + PARAM_OFF(oc_work)]);
 
-    if (jcp_.with_binary) {
-        // zero initialize binary post_ops offset accumulator (store on stack)
-        const auto binary_post_op_acc_off_reg = reg_tmp;
-        xor_(binary_post_op_acc_off_reg, binary_post_op_acc_off_reg);
-        push(binary_post_op_acc_off_reg);
-    }
-
     if (do_sum_)
         vbroadcastss(vreg_sum_scale, ptr[reg_param + PARAM_OFF(sum_scale)]);
 #undef PARAM_OFF
@@ -291,15 +284,11 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate() {
     add(reg_dst_base, reg_dst_str);
     add(reg_acc_base, reg_acc_str);
     if (jcp_.with_bias) add(reg_bias, sizeof(acc_data_t));
-    if (jcp_.with_binary)
-        inc(EVEX_compress_addr(rsp, reg_binary_post_op_acc_off));
 
     dec(reg_oc_iter);
     jnz(oc_loop, T_NEAR); // oc_loop end
 
     L(oc_loop_end);
-
-    if (jcp_.with_binary) add(rsp, stack_space_needed);
 
     postamble();
 

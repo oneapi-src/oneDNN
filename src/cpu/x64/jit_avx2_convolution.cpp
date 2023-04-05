@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -161,7 +161,6 @@ void jit_avx2_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                             - div_up(d_b_overflow, (jcp.dilate_d + 1));
                     par_conv.kd_padding = nstl::max(0, kd_padding);
 
-                    par_conv.oc_l_off = _oc * oc_bias_scale;
                     par_conv.post_ops_binary_rhs_arg_vec
                             = post_ops_binary_rhs_arg_vec.data();
                     par_conv.dst_orig = dst;

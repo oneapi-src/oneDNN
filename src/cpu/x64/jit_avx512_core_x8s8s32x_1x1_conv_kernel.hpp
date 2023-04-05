@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -119,9 +119,8 @@ private:
     constexpr static int reg_src_zero_point_off = 8 * reg64_size_;
     constexpr static int reg_dst_zero_point_off = 9 * reg64_size_;
     constexpr static int reg_dst_scale_off = 10 * reg64_size_;
-    constexpr static int reg_binary_post_op_acc_off = 11 * reg64_size_;
-    constexpr static int reg_abi_param1_backup = 12 * reg64_size_;
-    constexpr static int stack_space_needed = 13 * reg64_size_;
+    constexpr static int reg_abi_param1_backup = 11 * reg64_size_;
+    constexpr static int stack_space_needed = 12 * reg64_size_;
 
     inline Vmm maybe_mask_vmm(Vmm vmm, bool mask_flag) {
         return mask_flag ? vmm | k_load_dim_mask_extended : vmm;

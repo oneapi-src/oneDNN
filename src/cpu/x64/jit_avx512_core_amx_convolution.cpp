@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -390,7 +390,6 @@ jit_avx512_core_amx_convolution_fwd_t::execute_forward_reduced_lowering(
 
                 p.oc_blocks = occ * jcp.nb_oc_blocking;
 
-                p.oc_l_off = oc;
                 p.post_ops_binary_rhs_arg_vec
                         = post_ops_binary_rhs_arg_vec.data();
                 p.dst_orig = dst;
@@ -781,7 +780,6 @@ status_t jit_avx512_core_amx_convolution_fwd_t::execute_forward(
 
                 p.oc_blocks = occ * jcp.nb_oc_blocking;
 
-                p.oc_l_off = oc;
                 p.post_ops_binary_rhs_arg_vec
                         = post_ops_binary_rhs_arg_vec.data();
                 p.dst_orig = dst;

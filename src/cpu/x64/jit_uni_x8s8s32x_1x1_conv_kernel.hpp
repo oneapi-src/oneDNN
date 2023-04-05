@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -106,8 +106,7 @@ private:
     constexpr static int reg_src_zero_point_off = 8 * reg64_size;
     constexpr static int reg_dst_zero_point_off = 9 * reg64_size;
     constexpr static int reg_dst_scale_off = 10 * reg64_size;
-    constexpr static int reg_binary_post_op_acc_off = 11 * reg64_size;
-    constexpr static int stack_space_needed = 12 * reg64_size;
+    constexpr static int stack_space_needed = 11 * reg64_size;
 
     int vreg_accum_idx(
             const int load_loop_blk, const int i_load, const int i_ur);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -196,7 +196,6 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_2d(
                     p.b_overflow = i_b_overflow;
                     p.owb = owb;
 
-                    p.oc_l_off = g_oc;
                     p.post_ops_binary_rhs_arg_vec
                             = post_ops_binary_rhs_arg_vec.data();
                     p.dst_orig = dst;
@@ -330,7 +329,6 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_1d(
             p.b_overflow = 0;
             p.owb = owb;
 
-            p.oc_l_off = g_oc;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
             p.dst_orig = dst;
 
@@ -469,7 +467,6 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_2d_dw(
                 p.b_overflow = i_b_overflow;
                 p.owb = owb;
 
-                p.oc_l_off = g;
                 p.post_ops_binary_rhs_arg_vec
                         = post_ops_binary_rhs_arg_vec.data();
                 p.dst_orig = dst;
@@ -640,7 +637,6 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_3d(
                     p.back_overflow = d_back_overflow;
                     p.owb = owb;
 
-                    p.oc_l_off = g_oc;
                     p.post_ops_binary_rhs_arg_vec
                             = post_ops_binary_rhs_arg_vec.data();
                     p.dst_orig = dst;

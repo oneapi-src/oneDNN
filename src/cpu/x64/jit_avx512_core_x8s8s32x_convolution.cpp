@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -163,7 +163,6 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t::execute_forward_1d(
             p.b_overflow = 0;
             p.owb = owb;
 
-            p.oc_l_off = (g * jcp.nb_oc + ocb) * jcp.oc_block;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
             p.dst_orig = dst;
             (*kernel_)(&p);
@@ -331,7 +330,6 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t::execute_forward_2d(
                     p.b_overflow = i_b_overflow;
                     p.owb = owb;
 
-                    p.oc_l_off = (g * jcp.nb_oc + ocb) * jcp.oc_block;
                     p.post_ops_binary_rhs_arg_vec
                             = post_ops_binary_rhs_arg_vec.data();
                     p.dst_orig = dst;
@@ -469,7 +467,6 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t::execute_forward_2d_dw(
                 p.b_overflow = i_b_overflow;
                 p.owb = owb;
 
-                p.oc_l_off = g * jcp.oc;
                 p.post_ops_binary_rhs_arg_vec
                         = post_ops_binary_rhs_arg_vec.data();
                 p.dst_orig = dst;
@@ -640,7 +637,6 @@ status_t jit_avx512_core_x8s8s32x_convolution_fwd_t::execute_forward_3d(
                     p.back_overflow = d_back_overflow;
                     p.owb = owb;
 
-                    p.oc_l_off = (g * jcp.nb_oc + ocb) * jcp.oc_block;
                     p.post_ops_binary_rhs_arg_vec
                             = post_ops_binary_rhs_arg_vec.data();
                     p.dst_orig = dst;

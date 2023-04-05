@@ -83,12 +83,11 @@ inline void jit_conv_3d_ker_pipeline(const jit_conv_ker_t ker,
 inline void jit_conv_ker_pipeline_ow_thr(jit_conv_ker_t ker, jit_conv_call_s &p,
         const void *src, const void *dst, const void *filt, const void *bias,
         int channel, int kh_padding, int owb, int reduce_work, int load_work,
-        const void *post_ops_binary_rhs_arg_vec, int oc_l_off,
-        const void *dst_orig, int flags) {
+        const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
+        int flags) {
     p.owb = owb;
     p.flags = flags;
 
-    p.oc_l_off = oc_l_off;
     p.dst_orig = dst_orig;
     p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
 
@@ -102,9 +101,8 @@ inline void jit_conv_3d_ker_pipeline_ow_thr(const jit_conv_ker_t ker,
         jit_conv_call_s &p, const void *src, const void *dst, const void *filt,
         const void *bias, int channel, int kh_padding, int kd_padding, int owb,
         int reduce_work, int load_work, const void *post_ops_binary_rhs_arg_vec,
-        int oc_l_off, const void *dst_orig, int flags) {
+        const void *dst_orig, int flags) {
 
-    p.oc_l_off = oc_l_off;
     p.dst_orig = dst_orig;
     p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
 
@@ -270,8 +268,6 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
                         jcp.nb_oc_blocking * jcp.oc_block);
 
                 int ic_work = icb_step * jcp.ic_block;
-                const int oc_l_off
-                        = oc_off_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block);
 
                 for (int icb = icb_l2; icb < icb_end; icb += icb_step) {
                     int curr_nb_ic = nstl::min(icb_step, icb_end - icb);
@@ -284,8 +280,7 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
                     }
                     jit_conv_ker_pipeline_ow_thr(jit_ker, par_conv, src_w,
                             dst_w, wht_w, bias_w, icb, 1, owb, ic_work, oc_work,
-                            post_ops_binary_rhs_arg_vec.data(), oc_l_off, dst,
-                            flags);
+                            post_ops_binary_rhs_arg_vec.data(), dst, flags);
 
                     src_w += src_c_stride;
                     wht_w += wht_ic_stride;
@@ -406,8 +401,6 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
                     const int oc_work = utils::this_block_size(
                             ocb * jcp.oc_block, jcp.oc_without_padding,
                             jcp.nb_oc_blocking * jcp.oc_block);
-                    const int oc_l_off = oc_off_idx
-                            * (is_dst_layout_nxc ? 1 : jcp.oc_block);
                     int ic_work = icb_step * jcp.ic_block;
                     for (int icb = icb_l2; icb < icb_end; icb += icb_step) {
                         int curr_nb_ic = nstl::min(icb_step, icb_end - icb);
@@ -441,8 +434,8 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
                             jit_conv_ker_pipeline_ow_thr(jit_ker, par_conv,
                                     aux_src, dst_c, aux_wht, bias_w, icb,
                                     kh_padding, owb, ic_work, oc_work,
-                                    post_ops_binary_rhs_arg_vec.data(),
-                                    oc_l_off, dst, flags);
+                                    post_ops_binary_rhs_arg_vec.data(), dst,
+                                    flags);
 
                             src_c += src_h_stride * jcp.stride_h;
                             dst_c += dst_h_stride;
@@ -575,8 +568,6 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
                         jcp.oc_without_padding,
                         jcp.nb_oc_blocking * jcp.oc_block);
 
-                const int oc_l_off
-                        = oc_off_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block);
                 int ic_work = icb_step * jcp.ic_block;
                 for (int icb = icb_l2; icb < icb_end; icb += icb_step) {
                     int curr_nb_ic = nstl::min(icb_step, icb_end - icb);
@@ -605,8 +596,7 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
                                 dst_c, wht_w + i_t_overflow * wht_h_stride,
                                 bias_w, icb, kh_padding, kd_padding, owb,
                                 ic_work, oc_work,
-                                post_ops_binary_rhs_arg_vec.data(), oc_l_off,
-                                dst, flags);
+                                post_ops_binary_rhs_arg_vec.data(), dst, flags);
 
                         src_c += src_h_stride * jcp.stride_h;
                         dst_c += dst_h_stride;

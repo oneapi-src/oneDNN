@@ -633,12 +633,8 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::generate() {
     vpbroadcastw(vmm_one, _t);
 
     sub(rsp, stack_space_needed);
-    if (jcp.with_binary) {
-        const auto zeroed_reg = r15;
-        xor_(zeroed_reg, zeroed_reg);
-        mov(EVEX_compress_addr(rsp, reg_binary_post_op_acc_off), zeroed_reg);
+    if (jcp.with_binary)
         mov(EVEX_compress_addr(rsp, reg_abi_param1_backup), abi_param1);
-    }
 
     if (jcp.with_bias) mov(reg_bias_data, ptr[param1 + GET_OFF(bias_data)]);
     if (jcp.signed_input) {
@@ -737,13 +733,6 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::generate() {
                     load_loop_blk * jcp.load_block * jcp.typesize_bia);
             if (jcp.signed_input || jcp.dst_scale)
                 mov(EVEX_compress_addr(rsp, reg_bias_data_off), reg_bias_data);
-        }
-        if (jcp.with_binary) {
-            mov(reg_scratch,
-                    EVEX_compress_addr(rsp, reg_binary_post_op_acc_off));
-            add(reg_scratch, jcp.load_block * load_loop_blk);
-            mov(EVEX_compress_addr(rsp, reg_binary_post_op_acc_off),
-                    reg_scratch);
         }
         if (jcp.signed_input) {
             mov(reg_comp_data, EVEX_compress_addr(rsp, reg_comp_data_off));

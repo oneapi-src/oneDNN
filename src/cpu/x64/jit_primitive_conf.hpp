@@ -298,13 +298,7 @@ struct jit_conv_call_s {
     // ptr to table of void * elements that are pointers to
     // post_op binary src1 tensors
     const void *post_ops_binary_rhs_arg_vec;
-    // logical (# of elems) offset to the processed output channel
-    // (for broadcasting [1,OC,1,1])
-    size_t oc_l_off;
     const void *dst_orig; // pointer to dst memory (no offset)
-
-    size_t oc_l_off_prf;
-    const void *dst_orig_prf;
 
     size_t kd_offset;
     size_t kd_offset_prf;
@@ -372,11 +366,6 @@ struct jit_deconv_call_s {
      */
     const void *post_ops_binary_rhs_arg_vec;
     const void *dst_orig; /* pointer to dst memory (no offset) */
-    /*
-     * logical (# of elems) offset to the processed output channel
-     * (for broadcasting [1,OC,1,1])
-     */
-    size_t oc_l_off;
     size_t t_overflow;
     size_t b_overflow;
     size_t f_overflow;
@@ -484,12 +473,6 @@ struct jit_1x1_conv_call_s {
     // ptr to table of void * elements that are pointers to
     // post_op binary src1 tensors
     const void *post_ops_binary_rhs_arg_vec;
-    // logical (# of elems) offset to the processed output channel
-    // (for broadcasting [1,OC,1,1])
-    size_t oc_l_off;
-    // logical (# of elems) offset to the processed pixel
-    // (for non-broadcasting policy)
-    size_t dst_l_off;
     const void *dst_orig; // pointer to dst memory (no offset)
 
     size_t load_dim;

@@ -117,9 +117,8 @@ private:
     constexpr static int reg_load_loop_work_off = 1 * reg64_size_;
     constexpr static int perm_reg_offset = 2 * reg64_size_;
     constexpr static int broadcast_space = 3 * reg64_size_;
-    constexpr static int reg_binary_post_op_acc_off = 4 * reg64_size_;
-    constexpr static int reg_abi_param1_backup = 5 * reg64_size_;
-    constexpr static int reg_dw_binary_output_off = 6 * reg64_size_;
+    constexpr static int reg_abi_param1_backup = 4 * reg64_size_;
+    constexpr static int reg_dw_binary_output_off = 5 * reg64_size_;
     constexpr static int stack_space_needed = 376;
 
     void bcast_loop(int load_loop_blk);

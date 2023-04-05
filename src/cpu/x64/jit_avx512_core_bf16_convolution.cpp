@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -128,7 +128,6 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_1d(
             par_conv.bias = bias_w;
             par_conv.owb = owb;
 
-            par_conv.oc_l_off = oc_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block);
             par_conv.dst_orig = dst;
             par_conv.post_ops_binary_rhs_arg_vec
                     = post_ops_binary_rhs_arg_vec.data();
@@ -251,8 +250,6 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_2d(
                 par_conv.kh_padding = kh_padding;
                 par_conv.owb = owb;
 
-                par_conv.oc_l_off
-                        = oc_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block);
                 par_conv.dst_orig = dst;
                 par_conv.post_ops_binary_rhs_arg_vec
                         = post_ops_binary_rhs_arg_vec.data();
@@ -390,8 +387,6 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_3d(
                 par_conv.kd_padding = kd_padding;
                 par_conv.owb = owb;
 
-                par_conv.oc_l_off
-                        = oc_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block);
                 par_conv.dst_orig = dst;
                 par_conv.post_ops_binary_rhs_arg_vec
                         = post_ops_binary_rhs_arg_vec.data();

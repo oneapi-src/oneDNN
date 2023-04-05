@@ -992,12 +992,12 @@ void jit_avx512_core_bf16_1x1_conv_kernel::generate() {
 
     sub(rsp, stack_space_needed);
     if (jcp.with_binary) {
-        const auto zeroed_reg = r15;
-        xor_(zeroed_reg, zeroed_reg);
-        mov(EVEX_compress_addr(rsp, reg_binary_post_op_acc_off), zeroed_reg);
         mov(EVEX_compress_addr(rsp, reg_abi_param1_backup), abi_param1);
-        if (jcp.with_dw_conv)
+        if (jcp.with_dw_conv) {
+            const auto zeroed_reg = r15;
+            xor_(zeroed_reg, zeroed_reg);
             mov(EVEX_compress_addr(rsp, reg_dw_binary_output_off), zeroed_reg);
+        }
     }
 
     mov(reg_bcast_data, ptr[param1 + GET_OFF(bcast_data)]);
@@ -1085,22 +1085,10 @@ void jit_avx512_core_bf16_1x1_conv_kernel::generate() {
                 add(reg_store_buf,
                         load_loop_blk * jcp.load_block * jcp.typesize_acc
                                 * (is_out_layout_nxc() ? 1 : jcp.bcast_dim));
-                if (jcp.with_binary) {
-                    const auto oc_off_oprnd = rcx;
-                    mov(oc_off_oprnd,
-                            EVEX_compress_addr(
-                                    rsp, reg_binary_post_op_acc_off));
-                    add(oc_off_oprnd, jcp.load_block * load_loop_blk);
-                    mov(EVEX_compress_addr(rsp, reg_binary_post_op_acc_off),
-                            oc_off_oprnd);
-                    if (jcp.with_dw_conv) {
-                        mov(oc_off_oprnd,
-                                EVEX_compress_addr(
-                                        rsp, reg_dw_binary_output_off));
-                        add(oc_off_oprnd, offst_wo_dw_conv - off_with_dw_conv);
-                        mov(EVEX_compress_addr(rsp, reg_dw_binary_output_off),
-                                oc_off_oprnd);
-                    }
+                if (jcp.with_binary && jcp.with_dw_conv) {
+                    mov(rcx, EVEX_compress_addr(rsp, reg_dw_binary_output_off));
+                    add(rcx, offst_wo_dw_conv - off_with_dw_conv);
+                    mov(EVEX_compress_addr(rsp, reg_dw_binary_output_off), rcx);
                 }
                 break;
             case backward_data:

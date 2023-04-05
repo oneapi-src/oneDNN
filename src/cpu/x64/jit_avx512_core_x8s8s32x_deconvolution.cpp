@@ -1474,7 +1474,6 @@ status_t jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_1d(
             p.kh_padding = jcp.kh;
             p.oc_blocks = jcp.is_depthwise ? g : ocb;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
-            p.oc_l_off = g_oc;
             p.zp_compensation
                     = jcp.src_zero_point ? zp_compensation + g_oc : nullptr;
             p.zp_src_pad_str_compensation
@@ -1640,7 +1639,6 @@ status_t jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_2d(
                 p.oc_blocks = jcp.is_depthwise ? g : ocb;
                 p.post_ops_binary_rhs_arg_vec
                         = post_ops_binary_rhs_arg_vec.data();
-                p.oc_l_off = g_oc;
                 p.zp_compensation
                         = jcp.src_zero_point ? zp_compensation + g_oc : nullptr;
                 p.zp_src_pad_str_compensation = jcp.src_zero_point
@@ -1864,7 +1862,6 @@ status_t jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_3d(
                 p.oc_blocks = jcp.is_depthwise ? g : ocb;
                 p.post_ops_binary_rhs_arg_vec
                         = post_ops_binary_rhs_arg_vec.data();
-                p.oc_l_off = g_oc;
                 p.zp_compensation
                         = jcp.src_zero_point ? zp_compensation + g_oc : nullptr;
                 p.zp_src_pad_str_compensation = jcp.src_zero_point

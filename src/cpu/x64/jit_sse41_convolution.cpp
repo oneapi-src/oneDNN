@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -130,7 +130,6 @@ void jit_sse41_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                             - div_up(i_b_overflow, (jcp.dilate_h + 1));
                     par_conv.kh_padding = nstl::max(0, kh_padding);
 
-                    par_conv.oc_l_off = (g * jcp.nb_oc + ocb) * jcp.oc_block;
                     par_conv.post_ops_binary_rhs_arg_vec
                             = post_ops_binary_rhs_arg_vec.data();
                     par_conv.dst_orig = dst;

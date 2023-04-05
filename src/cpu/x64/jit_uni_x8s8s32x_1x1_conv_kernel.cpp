@@ -517,12 +517,6 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::generate() {
     preamble();
 
     sub(rsp, stack_space_needed);
-    if (jcp.with_binary) {
-        // zero initialize binary post_ops offset accumulator (store on stack)
-        const auto binary_post_op_acc_off_reg = r15;
-        xor_(binary_post_op_acc_off_reg, binary_post_op_acc_off_reg);
-        mov(ptr[rsp + reg_binary_post_op_acc_off], binary_post_op_acc_off_reg);
-    }
 
     if (jcp.with_bias) mov(reg_bias_data, ptr[param1 + GET_OFF(bias_data)]);
     if (jcp.signed_input) {
@@ -567,13 +561,6 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::generate() {
                     load_loop_blk * jcp.load_block * jcp.typesize_bia);
             if (jcp.signed_input || jcp.dst_scale)
                 mov(ptr[rsp + reg_bias_data_off], reg_bias_data);
-        }
-        if (jcp.with_binary) {
-            mov(aux_reg_load_data,
-                    EVEX_compress_addr(rsp, reg_binary_post_op_acc_off));
-            add(aux_reg_load_data, jcp.load_block * load_loop_blk);
-            mov(EVEX_compress_addr(rsp, reg_binary_post_op_acc_off),
-                    aux_reg_load_data);
         }
         if (jcp.signed_input) {
             mov(reg_comp_data, ptr[rsp + reg_comp_data_off]);

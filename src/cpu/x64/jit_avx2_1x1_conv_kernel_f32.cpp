@@ -570,12 +570,12 @@ void jit_avx2_1x1_conv_kernel_f32::generate() {
     sub(rsp, stack_space_needed);
 
     if (jcp.with_binary) {
-        const auto zeroed_reg = r15;
-        xor_(zeroed_reg, zeroed_reg);
-        mov(ptr[rsp + reg_binary_post_op_acc_off], zeroed_reg);
         mov(ptr[rsp + reg_abi_param1_backup], abi_param1);
-        if (jcp.with_dw_conv)
+        if (jcp.with_dw_conv) {
+            const auto zeroed_reg = r15;
+            xor_(zeroed_reg, zeroed_reg);
             mov(ptr[rsp + reg_dw_binary_output_off], zeroed_reg);
+        }
     }
 
     mov(reg_bcast_data, ptr[param1 + GET_OFF(bcast_data)]);
@@ -610,20 +610,11 @@ void jit_avx2_1x1_conv_kernel_f32::generate() {
                 add(reg_bias_data,
                         load_loop_blk * jcp.oc_block * sizeof(float));
                 safe_add(reg_output_data, offst_with_dw_conv, reg_long_offt);
-                if (jcp.with_binary) {
-                    mov(aux_reg_load_data,
-                            ptr[rsp + reg_binary_post_op_acc_off]);
-                    add(aux_reg_load_data, jcp.load_block * load_loop_blk);
-                    mov(ptr[rsp + reg_binary_post_op_acc_off],
-                            aux_reg_load_data);
-                    if (jcp.with_dw_conv) {
-                        mov(aux_reg_load_data,
-                                ptr[rsp + reg_dw_binary_output_off]);
-                        add(aux_reg_load_data,
-                                offst_wo_dw_conv - offst_with_dw_conv);
-                        mov(ptr[rsp + reg_dw_binary_output_off],
-                                aux_reg_load_data);
-                    }
+                if (jcp.with_binary && jcp.with_dw_conv) {
+                    mov(aux_reg_load_data, ptr[rsp + reg_dw_binary_output_off]);
+                    add(aux_reg_load_data,
+                            offst_wo_dw_conv - offst_with_dw_conv);
+                    mov(ptr[rsp + reg_dw_binary_output_off], aux_reg_load_data);
                 }
                 break;
             case backward_data:

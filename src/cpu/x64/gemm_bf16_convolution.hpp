@@ -189,10 +189,6 @@ private:
         Xbyak::Zmm bf16_emu_reserv_5 = Xbyak::Zmm(30);
         Xbyak::Zmm bf16_emu_reserv_6 = Xbyak::Zmm(31);
 
-        constexpr static int reg64_size = sizeof(int64_t);
-        constexpr static int reg_binary_post_op_acc_off = 0;
-        constexpr static int stack_space_needed = reg64_size;
-
         const conv_gemm_conf_t &jcp_;
         const bool do_sum_;
         int max_data_reg_idx_, max_unroll_, compute_reg_step_;

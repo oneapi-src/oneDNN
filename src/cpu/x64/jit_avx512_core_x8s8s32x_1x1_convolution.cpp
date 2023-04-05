@@ -295,8 +295,6 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward_thr(
         } else
             p.bcast_data = src + src_dt_size * src_off;
 
-        p.dst_l_off = dst_off;
-        p.oc_l_off = _ocb * jcp.oc_block;
         p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
         p.dst_orig = static_cast<const char *>(p.output_data)
                 - dst_off * dst_dt_size;
@@ -422,7 +420,6 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward_thr(
                     : nullptr;
             par_conv_dw.dst_scale = dw_dst_scales;
 
-            par_conv_dw.oc_l_off = ocb * jcp_dw->ch_block;
             par_conv_dw.post_ops_binary_rhs_arg_vec
                     = post_ops_binary_rhs_arg_vec_dw;
             par_conv_dw.dst_orig = dst;
