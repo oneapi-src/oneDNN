@@ -254,7 +254,8 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         }
     }
 
-    skip_unimplemented_sum_po(prb->attr, res, prb->get_dt_conf(DST).dt);
+    skip_unimplemented_sum_po(prb->attr, res, dnnl_inner_product,
+            prb->get_dt_conf(SRC).dt, prb->get_dt_conf(DST).dt);
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {}

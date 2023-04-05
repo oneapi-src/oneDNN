@@ -314,7 +314,8 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_data_type(
             {prb->get_dt(SRC), prb->get_dt(WEI), prb->get_dt(DST)}, prb->dir,
             res);
-    skip_unimplemented_sum_po(prb->attr, res, prb->get_dt(DST));
+    skip_unimplemented_sum_po(prb->attr, res, dnnl_convolution,
+            prb->get_dt(SRC), prb->get_dt(DST));
 
     if (is_cpu()) {
         // Specific configurations are not supported.

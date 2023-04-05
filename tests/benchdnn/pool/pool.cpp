@@ -123,7 +123,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_data_type(
             {prb->cfg[SRC].dt, prb->cfg[DST].dt}, prb->dir, res);
-    skip_unimplemented_sum_po(prb->attr, res);
+    skip_unimplemented_sum_po(prb->attr, res, dnnl_pooling, prb->cfg[SRC].dt);
 
     if (is_cpu() && prb->cfg[SRC].dt != prb->cfg[DST].dt) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;

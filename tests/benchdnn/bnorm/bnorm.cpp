@@ -356,7 +356,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_data_type({prb->dt}, prb->dir, res);
-    skip_unimplemented_sum_po(prb->attr, res);
+    skip_unimplemented_sum_po(
+            prb->attr, res, dnnl_batch_normalization, prb->dt);
 
     // Non-zero alpha is not supported for training in general.
     const auto &po = prb->attr.post_ops;

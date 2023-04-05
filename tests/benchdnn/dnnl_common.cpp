@@ -594,8 +594,9 @@ void skip_unimplemented_data_type(
     }
 }
 
-void skip_unimplemented_sum_po(
-        const attr_t &attr, res_t *res, dnnl_data_type_t dst_dt) {
+void skip_unimplemented_sum_po(const attr_t &attr, res_t *res,
+        dnnl_primitive_kind_t pkind, dnnl_data_type_t src_dt,
+        dnnl_data_type_t dst_dt) {
     const auto &po = attr.post_ops;
     if (po.is_def()) return;
 
@@ -607,6 +608,24 @@ void skip_unimplemented_sum_po(
     for (int idx = 0; idx < po.len(); ++idx) {
         const auto &e = po.entry[idx];
         if (e.is_sum_kind()) {
+            // API requirements
+            if (e.sum.zero_point != 0) {
+                // Sum with zero-point is only supported for int8
+                if (!is_integral_dt(src_dt)) {
+                    res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                    return;
+                } else {
+                    // Only quantized sum operand can have zero point
+                    const dnnl_data_type_t e_sum_dt
+                            = e.sum.dt == dnnl_data_type_undef ? dst_dt
+                                                               : e.sum.dt;
+                    if (!is_integral_dt(e_sum_dt)) {
+                        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                        return;
+                    }
+                }
+            }
+
             // Sum with zero-point is not supported on GPU
             if (is_gpu() && e.sum.zero_point != 0) {
                 res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;

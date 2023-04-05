@@ -324,7 +324,8 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_data_type(
             {prb->get_dt(SRC), prb->get_dt(WEI), prb->get_dt(DST)}, prb->dir,
             res);
-    skip_unimplemented_sum_po(prb->attr, res);
+    skip_unimplemented_sum_po(
+            prb->attr, res, dnnl_deconvolution, prb->get_dt(SRC));
 
     // GPU supports only post ops and all but x8s8bf16 cfg
     if (is_gpu()) {

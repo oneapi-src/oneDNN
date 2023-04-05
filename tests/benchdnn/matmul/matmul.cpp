@@ -378,7 +378,8 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_data_type(
             {prb->src_dt(), prb->wei_dt(), prb->bia_dt, prb->dst_dt()},
             prb->dir, res);
-    skip_unimplemented_sum_po(prb->attr, res, prb->dst_dt());
+    skip_unimplemented_sum_po(
+            prb->attr, res, dnnl_matmul, prb->src_dt(), prb->dst_dt());
 
     if (is_gpu()) {
 #ifdef DNNL_EXPERIMENTAL_SPARSE
