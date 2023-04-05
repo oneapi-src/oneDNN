@@ -1810,7 +1810,8 @@ static dnnl_status_t gemm_threading_driver(
     for (int ithr = 0; ithr < nthr_max; ithr++) {
         thread_arg[ithr].result = dnnl_success;
         thread_arg[ithr].compute_done = false;
-        thread_arg[ithr].c_local = thread_arg[ithr].c_global = nullptr;
+        thread_arg[ithr].c_local = nullptr;
+        thread_arg[ithr].c_global = nullptr;
         thread_arg[ithr].ldc_global = arg->ldc;
         thread_arg[ithr].ldc_local = 0;
 

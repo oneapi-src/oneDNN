@@ -92,7 +92,7 @@ void jit_avx512_core_amx_compute_zp_pbuff_t::compute_ker(int ur_w, int pad_l,
                     (jcp.ic_without_padding % jcp.ic_block_int), ic_inner_block)
             : ic_block / ic_inner_block;
 
-    auto get_filter_offset = [=](int ocb, int ic, int ki) {
+    auto get_filter_offset = [this, oc_block](int ocb, int ic, int ki) {
         size_t w_step = jcp.is_relo ? jcp.kh : 1;
         size_t kw_offset = static_cast<size_t>(ki) * w_step
                 * jcp.ic_block_int_np * jcp.oc_block;
@@ -103,8 +103,8 @@ void jit_avx512_core_amx_compute_zp_pbuff_t::compute_ker(int ur_w, int pad_l,
                 + static_cast<size_t>(ic) * oc_block * ic_inner_block;
         return sizeof(char) * offset;
     };
-    auto compute_fma = [=](const Zmm zmm_accum, const int ic,
-                               const Address addr) {
+    auto compute_fma = [this, masked_write, icb](const Zmm zmm_accum,
+                               const int ic, const Address addr) {
         if (jcp.is_relo) {
             vmovups(zmm_permb, ptr[reg_scratch]); // get permute index table
             const Zmm r_zmm = masked_write && ic == icb - 1
@@ -158,7 +158,7 @@ void jit_avx512_core_amx_compute_zp_pbuff_t::kh_loop(int ur_w, int pad_l,
     // Compute zero_point compensation for the padded region. Total compute
     // area is 'overflow * kw' where 'overflow' indicates the overlap
     // between the filter and either top_pad or bottom_pad region.
-    auto compute_kh_loop = [=](size_t param_overflow) {
+    auto compute_kh_loop = [&](size_t param_overflow) {
         Label overflow_label, no_overflow_label;
 
         mov(reg_overflow, ptr[param1 + param_overflow]);
@@ -209,7 +209,7 @@ void jit_avx512_core_amx_compute_zp_pbuff_t::kd_loop(int ur_w, int pad_l,
     // Compute zero_point compensation for the padded region. Total compute
     // area is 'overflow * kh * kw' where 'overflow' indicates the overlap
     // between the filter and either front_pad or back_pad region.
-    auto compute_kd_loop = [=](size_t param_overflow) {
+    auto compute_kd_loop = [&](size_t param_overflow) {
         Label kh_loop_label;
         Label no_overflow_label, overflow_label;
 
@@ -698,7 +698,7 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
     assert(jcp.ic_block_int * jcp.typesize_in == 64);
     assert(jcp.is_nspc);
 
-    auto load_mask = [=](int tail, Opmask kmask) {
+    auto load_mask = [this](int tail, Opmask kmask) {
         uint64_t mask = (UINT64_C(1) << tail) - 1;
         mov(reg_tmp, mask);
         kmovq(kmask, reg_tmp);
@@ -713,7 +713,7 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
     const int tail_size = jcp.ic_without_padding % jcp.ic_block_int;
     if (tail_size > 0) load_mask(tail_size, ktail_mask);
 
-    auto zero_it = [=](reg64_t tmp_out_ptr) {
+    auto zero_it = [this, is_bf16](reg64_t tmp_out_ptr) {
         for (int ic = 0; ic < jcp.ic_without_padding; ic += jcp.ic_block_int) {
             const int offset = ic * jcp.typesize_in;
             const bool masked = ic + jcp.ic_block_int > jcp.ic_without_padding;
@@ -1555,7 +1555,7 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output(int width, int tail,
         bool do_store, const bool handle_h_blk, const int t_pad_output,
         const int b_pad_output, const int l_pad_output, const int r_pad_output,
         const bool is_last_oh_block, const bool zp_3d_pad) {
-    auto store_output_block = [=](int width, int tail, bool do_store,
+    auto store_output_block = [&](int width, int tail, bool do_store,
                                       bool is_last_h = false) {
         // Calculate the number of oh blocks; it may differ on last call
         const int last_h_blks
@@ -1723,7 +1723,7 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_icb_loop(int width,
         const bool zp_3d_pad, const bool is_last_oh_block) {
     const bool tail = width == jcp.tile_tail;
 
-    auto tdpbxxd = [=](const Tmm &x1, const Tmm &x2, const Tmm &x3) {
+    auto tdpbxxd = [this](const Tmm &x1, const Tmm &x2, const Tmm &x3) {
         if (jcp.src_dt == data_type::bf16 && jcp.wei_dt == data_type::bf16) {
             tdpbf16ps(x1, x2, x3);
         } else if (jcp.src_dt == data_type::u8 && jcp.wei_dt == data_type::u8) {
@@ -1808,7 +1808,7 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_icb_loop(int width,
     };
 
     auto safe_tileloadd
-            = [=](const Tmm &t1, const Xbyak::Reg64 &reg_ptr, size_t offset,
+            = [this](const Tmm &t1, const Xbyak::Reg64 &reg_ptr, size_t offset,
                       const Xbyak::Reg64 &reg_stride) {
                   if (offset <= INT32_MAX) {
                       tileloadd(t1, ptr[reg_ptr + offset + reg_stride]);
@@ -1956,7 +1956,7 @@ void jit_avx512_core_amx_fwd_kernel_t::dispatch_zp_3d_compute(int width,
 }
 
 void jit_avx512_core_amx_fwd_kernel_t::compute_ow_loop() {
-    auto compute_ow_loop_body = [=](bool last_owb, int num_tile_blocks,
+    auto compute_ow_loop_body = [this](bool last_owb, int num_tile_blocks,
                                         const int l_pad_output,
                                         const int r_pad_output) {
         int cur_l_pad_output = l_pad_output;
@@ -2638,8 +2638,7 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
 
     // Relevant to 'zero_point padding buffer' (pbuff) jit kernel
     if (jcp.req_zero_point_buffer) {
-        auto calculate_output_padding_dims = [=](int o_dim, int s_pad,
-                                                     int e_pad,
+        auto calculate_output_padding_dims = [](int o_dim, int s_pad, int e_pad,
                                                      int &s_pad_output,
                                                      int &e_pad_output,
                                                      bool &o_mid, int &o_pad,
@@ -2743,7 +2742,7 @@ void jit_avx512_core_amx_bwd_data_copy_kernel_t::copy_row(
     const int out_w_step = jcp.oc_block_int * jcp.typesize_in;
     const int out_h_step = jcp.owp * out_w_step;
 
-    auto zero_it = [=](reg64_t tmp_out_ptr, int offset) {
+    auto zero_it = [this, is_bf16](reg64_t tmp_out_ptr, int offset) {
         // no mask as output is a padded buffer
         if (is_bf16)
             vmovdqu16(ptr[tmp_out_ptr + offset], zmm_zero);
@@ -2751,8 +2750,8 @@ void jit_avx512_core_amx_bwd_data_copy_kernel_t::copy_row(
             vmovdqu8(ptr[tmp_out_ptr + offset], zmm_zero);
     };
 
-    auto copy_it = [=](reg64_t tmp_inp_ptr, int inp_off, reg64_t tmp_out_ptr,
-                           int out_off) {
+    auto copy_it = [this, is_masked, is_bf16](reg64_t tmp_inp_ptr, int inp_off,
+                           reg64_t tmp_out_ptr, int out_off) {
         Zmm zmm_load = is_masked ? zmm_tmp | ktail_mask | T_z : zmm_tmp;
         Zmm zmm_stor = zmm_tmp; // no mask as output is padded buffer
         if (is_bf16) {
@@ -3316,7 +3315,7 @@ void jit_avx512_core_amx_bwd_data_kernel_t::store_output_vector(
 
 void jit_avx512_core_amx_bwd_data_kernel_t::store_output(
         int width, bool do_store) {
-    auto store_output_block = [=](int width, bool do_store,
+    auto store_output_block = [this](int width, bool do_store,
                                       bool is_last_ih_blks) {
         // Calculate the number of ih blocks; it may differ on last call
         const int n_ih_blks = is_last_ih_blks ? jcp.ih % jcp.nb_ih_blocking
@@ -3408,7 +3407,7 @@ void jit_avx512_core_amx_bwd_data_kernel_t::skipped_interleave_store() {
 void jit_avx512_core_amx_bwd_data_kernel_t::compute_ocb_loop(
         int width, bool do_interleave_store) {
 
-    auto tdpbxxd = [=](const Tmm &x1, const Tmm &x2, const Tmm &x3) {
+    auto tdpbxxd = [this](const Tmm &x1, const Tmm &x2, const Tmm &x3) {
         switch (jcp.ddst_dt) {
             using namespace data_type;
             case bf16: tdpbf16ps(x1, x2, x3); break;
@@ -3518,7 +3517,7 @@ void jit_avx512_core_amx_bwd_data_kernel_t::compute_kd_loop(
 }
 
 void jit_avx512_core_amx_bwd_data_kernel_t::compute_iw_loop() {
-    auto compute_iw_loop_body = [=](bool last_iwb, int num_tile_blocks) {
+    auto compute_iw_loop_body = [this](bool last_iwb, int num_tile_blocks) {
         // check if there are '0' gaps in input stores due to dilation or stride
         bool handle_skipped_stores = gaps_in_store() && num_tile_blocks > 1;
 
@@ -5454,7 +5453,8 @@ void jit_avx512_core_amx_bwd_weights_kernel_t::balance(const jit_conv_conf_t &j,
     nthr_g_ = j.ngroups;
     const int nthr = max_threads / nthr_g_;
 
-    auto calc_mem_cost = [=](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
+    auto calc_mem_cost = [j, nthr_g_](
+                                 int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
         /* calculate per thread memory cost (read/write). high level optimizer
          * tries to minimize memory consumption. few notes:
          *  (n1) if weights tensor size is less than source and destination
@@ -5480,18 +5480,20 @@ void jit_avx512_core_amx_bwd_weights_kernel_t::balance(const jit_conv_conf_t &j,
         float wei_compensation_scale = 0.5f * (dst_size + src_size) / wei_size;
         float oi_channels_ratio = (float)(j.nb_oc / j.nb_oc_blocking)
                 / (j.nb_ic / j.nb_ic_blocking);
-        auto get_src_coef = [=]() {
+        auto get_src_coef = [oi_channels_ratio, wei_compensation_scale]() {
             float src_coef = nstl::max(1.0f / oi_channels_ratio, 1.0f);
             if (wei_compensation_scale < 1.0f) src_coef *= 4.0f;
 
             return src_coef;
         };
 
-        auto get_dst_coef
-                = [=]() { return nstl::max(oi_channels_ratio, 1.0f); };
+        auto get_dst_coef = [oi_channels_ratio]() {
+            return nstl::max(oi_channels_ratio, 1.0f);
+        };
 
-        auto get_wei_coef
-                = [=]() { return nstl::max(wei_compensation_scale, 1.0f); };
+        auto get_wei_coef = [wei_compensation_scale]() {
+            return nstl::max(wei_compensation_scale, 1.0f);
+        };
 
         const float src_coef = get_src_coef();
         const float dst_coef = get_dst_coef();

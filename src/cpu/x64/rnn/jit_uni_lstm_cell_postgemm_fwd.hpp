@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -205,7 +205,7 @@ protected:
                 loop_unroll_tail = 1;
         }
 
-        auto compute_loop = [=](size_t current_vlen, int current_unroll_len) {
+        auto compute_loop = [&](size_t current_vlen, int current_unroll_len) {
             this->reset_tmp_vmm_idx_range(
                     get_last_preserved_vmm_idx(current_unroll_len) + 1,
                     this->get_max_allowed_tmp_vmm_allowed_idx());

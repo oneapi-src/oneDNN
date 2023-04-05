@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -91,46 +91,47 @@ void jit_trans_iw_ic_int16_t::transpose(
     static_assert(transpose_size == 16, "Unsupported transpose size");
     if (!nrows) return;
 
-    auto src_zmm = [=](int i) { return Zmm(i); };
+    auto src_zmm = [](int i) { return Zmm(i); };
 
-    auto src_ymm = [=](int i) {
+    auto src_ymm = [](int i) {
         assert(i >= 0 && i < 16);
         return Ymm(i);
     };
 
-    auto load_ymm = [=](int i) {
+    auto load_ymm = [this, src_ymm](int i) {
         vmovups(src_ymm(i), EVEX_compress_addr(reg_src, i * src_stride));
     };
 
-    auto kmovw = [=](Opmask k, unsigned w) {
+    auto kmovw = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovw(k, regw_tmp);
     };
 
-    auto kmovd = [=](Opmask k, unsigned w) {
+    auto kmovd = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovd(k, regw_tmp);
     };
 
-    auto store = [=](Zmm r, int i) {
-        auto padding = [=](Reg64 base, int pad_rows, int pad_tail) {
-            // note: pad can be bigger than 16 because of dilation
-            const size_t row_offset = 2 * transpose_size * typesize;
-            auto zmm_zero = zmm_tmp;
-            vpxord(zmm_zero, zmm_zero, zmm_zero);
-            for (int i_row = 0; i_row < pad_rows; i_row++) {
-                auto addr = EVEX_compress_addr(
-                        base, i * tr_src_stride + i_row * row_offset);
-                vmovups(addr, zmm_zero);
-            }
-            if (pad_tail > 0) {
-                kmovw(kTail, (1 << pad_tail) - 1);
-                base.setOpmaskIdx(kTail.getIdx(), true);
-                auto addr = EVEX_compress_addr(
-                        base, i * tr_src_stride + pad_rows * row_offset);
-                vmovups(addr, zmm_zero);
-            }
-        };
+    auto store = [&](Zmm r, int i) {
+        auto padding
+                = [this, i, kmovw](Reg64 base, int pad_rows, int pad_tail) {
+                      // note: pad can be bigger than 16 because of dilation
+                      const size_t row_offset = 2 * transpose_size * typesize;
+                      auto zmm_zero = zmm_tmp;
+                      vpxord(zmm_zero, zmm_zero, zmm_zero);
+                      for (int i_row = 0; i_row < pad_rows; i_row++) {
+                          auto addr = EVEX_compress_addr(
+                                  base, i * tr_src_stride + i_row * row_offset);
+                          vmovups(addr, zmm_zero);
+                      }
+                      if (pad_tail > 0) {
+                          kmovw(kTail, (1 << pad_tail) - 1);
+                          base.setOpmaskIdx(kTail.getIdx(), true);
+                          auto addr = EVEX_compress_addr(base,
+                                  i * tr_src_stride + pad_rows * row_offset);
+                          vmovups(addr, zmm_zero);
+                      }
+                  };
 
         mov(reg_tr_src_tmp, reg_tr_src);
         if (l_pad > 0) {
@@ -323,7 +324,7 @@ void jit_trans_iw_ic_int16_t::transpose(
     for (int i = 0; i < 8; i++)
         vextracti64x4(src_ymm(2 * i), src_zmm(2 * i + 1), 1);
 
-    auto get_vec_idx = [=](int ic_idx) {
+    auto get_vec_idx = [](int ic_idx) {
         assert(ic_idx < 16 && ic_idx >= 0);
         switch (ic_idx) {
             case 0: return 1;
@@ -376,7 +377,7 @@ void jit_trans_iw_ic_int16_t::generate() {
     const int tr_iw_s = tr_iw / str_w;
     assert(transpose_size >= ic_block);
 
-    auto kmovw = [=](Opmask k, unsigned w) {
+    auto kmovw = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovw(k, regw_tmp);
     };
@@ -389,12 +390,12 @@ void jit_trans_iw_ic_int16_t::generate() {
     kmovw(kCC, 0xcc);
     kmovw(k33, 0x33);
 
-    auto vmovdqa64 = [=](Zmm z, const int64_t *addr) {
+    auto vmovdqa64 = [this](Zmm z, const int64_t *addr) {
         mov(imm_addr64, reinterpret_cast<size_t>(addr));
         jit_generator::vmovdqa64(z, ptr[imm_addr64]);
     };
 
-    auto vmovdqa32 = [=](Zmm z, const int32_t *addr) {
+    auto vmovdqa32 = [this](Zmm z, const int32_t *addr) {
         mov(imm_addr64, reinterpret_cast<size_t>(addr));
         jit_generator::vmovdqa32(z, ptr[imm_addr64]);
     };
@@ -526,14 +527,14 @@ void jit_trans_ow_oc_t::transpose(int nrows, int l_pad, int r_pad,
     static_assert(transpose_size == 16, "Unsupported transpose size");
     if (!nrows) return;
 
-    auto src_zmm = [=](int i) { return Zmm(i); };
+    auto src_zmm = [](int i) { return Zmm(i); };
 
-    auto src_ymm = [=](int i) {
+    auto src_ymm = [](int i) {
         assert(i >= 0 && i < 16);
         return Ymm(i);
     };
 
-    auto load_ymm = [=](int i) {
+    auto load_ymm = [this, src_ymm](int i) {
         auto ymm_reg = src_ymm(i);
         auto addr = EVEX_compress_addr(reg_src, i * src_stride);
         if (conf_->oc_tail) {
@@ -547,7 +548,7 @@ void jit_trans_ow_oc_t::transpose(int nrows, int l_pad, int r_pad,
         }
     };
 
-    auto store = [=](Zmm r, int i) {
+    auto store = [this, nontemporal_stores](Zmm r, int i) {
         auto addr = EVEX_compress_addr(reg_tr_src, i * tr_src_stride);
         if (nontemporal_stores)
             vmovntps(addr, r);
@@ -667,11 +668,11 @@ void jit_trans_ow_oc_t::generate() {
     mov(reg_src_prf, ptr[param1 + GET_OFF(src_prf)]);
     mov(reg_tr_src_prf, ptr[param1 + GET_OFF(tr_src_prf)]);
 
-    auto kmovw = [=](Opmask k, unsigned w) {
+    auto kmovw = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovw(k, regw_tmp);
     };
-    auto kmovd = [=](Opmask k, unsigned w) {
+    auto kmovd = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovd(k, regw_tmp);
     };
@@ -688,7 +689,7 @@ void jit_trans_ow_oc_t::generate() {
         L(done);
     }
 
-    auto vmovdqa64 = [=](Zmm z, const int64_t *addr) {
+    auto vmovdqa64 = [this](Zmm z, const int64_t *addr) {
         mov(imm_addr64, reinterpret_cast<size_t>(addr));
         jit_generator::vmovdqa64(z, ptr[imm_addr64]);
     };
@@ -752,43 +753,43 @@ void jit_transpose4x16_src::transpose(int nrows) {
     static_assert(transpose_size == 4, "Unsupported transpose size");
     if (!nrows) return;
 
-    auto pf_src_t0 = [=](int i) {
+    auto pf_src_t0 = [this](int i) {
         if (tparams->src_pf0_distance)
             prefetcht0(EVEX_compress_addr(
                     reg_src, (tparams->src_pf0_distance + i) * src_stride));
     };
 
-    auto pf_tr_src_t0 = [=](int i) {
+    auto pf_tr_src_t0 = [this](int i) {
         if (tparams->tr_src_pf0_distance)
             prefetcht0(EVEX_compress_addr(reg_tr_src,
                     (tparams->tr_src_pf0_distance + i) * src_stride));
     };
 
-    auto pf_src_t1 = [=](int i) {
+    auto pf_src_t1 = [this](int i) {
         if (tparams->src_pf1)
             prefetcht1(EVEX_compress_addr(reg_src_prf, i * src_stride));
     };
 
-    auto pf_tr_src_t1 = [=](int i) {
+    auto pf_tr_src_t1 = [this](int i) {
         if (tparams->tr_src_pf1)
             prefetchwt1(EVEX_compress_addr(reg_tr_src_prf, i * tr_src_stride));
     };
 
-    auto src_zmm = [=](int i) {
+    auto src_zmm = [](int i) {
         assert(i >= 0 && i < 4);
         return Zmm(i);
     };
 
-    auto tmp_zmm = [=](int i) {
+    auto tmp_zmm = [](int i) {
         assert(i >= 0 && i < 4);
         return Zmm(4 + i);
     };
 
-    auto load = [=](int i) {
+    auto load = [this, src_zmm](int i) {
         vmovups(src_zmm(i), EVEX_compress_addr(reg_src, i * src_stride));
     };
 
-    auto store = [=](Zmm r, int i) {
+    auto store = [this](Zmm r, int i) {
         vmovups(EVEX_compress_addr(reg_tr_src, i * tr_src_stride), r);
     };
 
@@ -889,17 +890,17 @@ void jit_transpose4x16_src::generate() {
     mov(reg_tr_src_prf, ptr[param1 + GET_TR_OFF(tr_src_prf)]);
 #undef GET_TR_OFF
 
-    auto kmovw = [=](Opmask k, unsigned w) {
+    auto kmovw = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovw(k, regw_tmp);
     };
 
-    auto vmovdqa64 = [=](Zmm z, const int64_t *addr) {
+    auto vmovdqa64 = [this](Zmm z, const int64_t *addr) {
         mov(imm_addr64, reinterpret_cast<size_t>(addr));
         jit_generator::vmovdqa64(z, ptr[imm_addr64]);
     };
 
-    auto vmovdqa32 = [=](Zmm z, const int32_t *addr) {
+    auto vmovdqa32 = [this](Zmm z, const int32_t *addr) {
         mov(imm_addr64, reinterpret_cast<size_t>(addr));
         jit_generator::vmovdqa32(z, ptr[imm_addr64]);
     };

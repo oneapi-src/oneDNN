@@ -376,7 +376,7 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
             ? &s8s8_compensation[comp_offset]
             : nullptr;
 
-    const auto call_brgemm = [=](int brg_idx, int ic_block_s, int n_ic_blocks,
+    const auto call_brgemm = [&](int brg_idx, int ic_block_s, int n_ic_blocks,
                                      bool do_postops) {
         // NOTE: avoid some costly tile reconfigurations here by keeping track
         //       of the previous brg kernel tile configuration palette

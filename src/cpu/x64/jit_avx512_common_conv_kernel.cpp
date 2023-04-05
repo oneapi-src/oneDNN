@@ -1025,11 +1025,11 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.nb_ic_blocking = jcp.nb_oc_blocking = 1;
 
     auto is_ow_threading_applicable
-            = [=]() { return (!jcp.is_1stconv && one_of(jcp.ndims, 3, 4)); };
+            = [&]() { return (!jcp.is_1stconv && one_of(jcp.ndims, 3, 4)); };
 
     jcp.ow_block = jcp.ow;
 
-    auto get_thr_eff = [=](int nb_oc_blocking, int ow_block, int nthr) {
+    auto get_thr_eff = [&](int nb_oc_blocking, int ow_block, int nthr) {
         int nb_ow = div_up(jcp.ow, ow_block);
         int nb_oc_chunks = div_up(jcp.nb_oc, nb_oc_blocking);
         int work_amount = jcp.mb * jcp.oh * nb_oc_chunks * nb_ow;
@@ -1039,7 +1039,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         return thr_eff;
     };
 
-    auto get_ow_block = [=](int nb_oc_blocking, int ur_w, int nthr) {
+    auto get_ow_block = [&](int nb_oc_blocking, int ur_w, int nthr) {
         int res_ow_block = jcp.ow;
         float eff = get_thr_eff(nb_oc_blocking, res_ow_block, nthr);
         if (!is_ow_threading_applicable()) return res_ow_block;
@@ -1499,7 +1499,7 @@ void _jit_avx512_common_conv_bwd_data_kernel_f32<Vmm>::compute_loop_fma_core(
     const int max_filter_size = 20;
     Label oc_tail_jmp[max_filter_size];
 
-    auto kernel_offset = [=](int icb, int oc, int ki) {
+    auto kernel_offset = [this](int icb, int oc, int ki) {
         int blk_idx = icb * jcp.kh * jcp.kw * jcp.kd + ki;
         int blk_offset = blk_idx * jcp.oc_block * jcp.ic_block;
         int oc_offset = oc * jcp.oc_block;
@@ -2110,9 +2110,9 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     }
     jcp.ur_w_tail = jcp.iw % jcp.ur_w;
 
-    auto is_iw_threading_applicable = [=]() { return one_of(jcp.ndims, 3, 4); };
+    auto is_iw_threading_applicable = [&]() { return one_of(jcp.ndims, 3, 4); };
 
-    auto get_thr_eff = [=](int nb_ic_blocking, int iw_block, int nthr) {
+    auto get_thr_eff = [&](int nb_ic_blocking, int iw_block, int nthr) {
         // Cost heuristic for threading overhead. Determined using OMP.
         const float iw_block_cost = 32.0;
 
@@ -2126,7 +2126,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
         return thr_eff;
     };
 
-    auto get_iw_block = [=](int nb_ic_blocking, int ur_w, float &eff,
+    auto get_iw_block = [&](int nb_ic_blocking, int ur_w, float &eff,
                                 int nthr) {
         int res_iw_block = jcp.iw;
         if (!is_iw_threading_applicable()) return res_iw_block;
@@ -2327,7 +2327,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_ic_block_step_fma(
     int kw_tr_mult = jcp.is_hw_transp ? jcp.kw : 1;
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
-    auto get_ker_offt = [=](int i_kw, int i_ic) {
+    auto get_ker_offt = [&](int i_kw, int i_ic) {
         return typesize * (i_kw * kw_tr_mult * ic_block + i_ic) * jcp.oc_block
                 + kernel_offset;
     };
@@ -2340,11 +2340,11 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_ic_block_step_fma(
 
     for (int i_ur = 0; i_ur < ur_w; i_ur++) {
         const int ddst_pipeline_start_idx = ic_block_step * kw;
-        const int ddst_pipeline_len = 4;
-        auto get_ddst_reg_idx = [=](int ur_idx) {
+        static constexpr int ddst_pipeline_len = 4;
+        auto get_ddst_reg_idx = [ddst_pipeline_start_idx](int ur_idx) {
             return ddst_pipeline_start_idx + (ur_idx) % ddst_pipeline_len;
         };
-        auto get_ddst_offt = [=](int ur_idx) {
+        auto get_ddst_offt = [out_mult, output_offset](int ur_idx) {
             return typesize * ur_idx * out_mult + output_offset;
         };
 
@@ -2405,15 +2405,17 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::
             && jcp.kernel_kind == expl_bcast);
 
     const int out_mult = ddst_layout_nxc ? jcp.ngroups * jcp.oc : oc_block;
-    auto get_diff_wei_reg_idx
-            = [=](int i_kw, int i_ic) { return i_kw * ic_block_step + i_ic; };
-    auto get_src_reg_idx = [=](int i_iw, int i_ic) {
+    auto get_diff_wei_reg_idx = [ic_block_step](int i_kw, int i_ic) {
+        return i_kw * ic_block_step + i_ic;
+    };
+    auto get_src_reg_idx = [&](int i_iw, int i_ic) {
         return kw * ic_block_step + ((i_iw + pad_l) % kw) * ic_block_step
                 + i_ic;
     };
-    auto get_diff_dst_reg_idx = [=](int i_ur) {
-        return ddst_pipeline_start_idx + i_ur % ddst_pipeline_len;
-    };
+    auto get_diff_dst_reg_idx
+            = [ddst_pipeline_start_idx, ddst_pipeline_len](int i_ur) {
+                  return ddst_pipeline_start_idx + i_ur % ddst_pipeline_len;
+              };
 
     for (int i_kw = 0; i_kw < kw; i_kw++)
         for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
@@ -2801,7 +2803,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32 ::compute_oh_step_common(
     const int ic_tail = jcp.ic_tail;
     const bool generate_icb_loop = jcp.nb_ic_blocking_max > 1;
 
-    auto ic_loop = [=](int ic_block_step) {
+    auto ic_loop = [&](int ic_block_step) {
         Label ow_block_label, ic_block_inner_label;
         int ur_w_blocks = ur_w_trips;
 
@@ -3657,25 +3659,25 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::generate_microkernel() {
         return i_ow * ow_block_size;
     };
 
-    auto get_src_zmm = [=](int iw_index, int i_ic) {
+    auto get_src_zmm = [ic_unroll, ker_reg_count](int iw_index, int i_ic) {
         int zmm_index = iw_index * ic_unroll + i_ic + ker_reg_count;
         return Zmm(zmm_index);
     };
 
-    auto get_ddst_zmm = [=](int i_ow) {
+    auto get_ddst_zmm = [src_reg_count, ker_reg_count](int i_ow) {
         int zmm_index = i_ow + src_reg_count + ker_reg_count;
         return Zmm(zmm_index);
     };
 
-    auto get_ker_zmm = [=](int i_ic) { return Zmm(i_ic); };
+    auto get_ker_zmm = [](int i_ic) { return Zmm(i_ic); };
 
-    auto load_ddsts = [=](int ur_ow) {
+    auto load_ddsts = [&](int ur_ow) {
         for (int i_ow = 0; i_ow < ur_ow; i_ow++) {
             vmovups(get_ddst_zmm(i_ow), zword[reg_ddst + ddst_offset(i_ow)]);
         }
     };
 
-    auto load_srcs = [=](int ur_iw, int ur_ic, bool is_iw_edge) {
+    auto load_srcs = [&](int ur_iw, int ur_ic, bool is_iw_edge) {
         Label iw_load_end;
         if (is_iw_edge) {
             for_(int i_iw_index = 0; i_iw_index < ur_iw; i_iw_index++)
@@ -3706,7 +3708,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::generate_microkernel() {
         L(iw_load_end);
     };
 
-    auto compute_kernel = [=](int ur_ow, int ur_ic, int ur_kw, int is_iw_edge) {
+    auto compute_kernel = [&](int ur_ow, int ur_ic, int ur_kw, int is_iw_edge) {
         Label kw_loop_end;
         load_srcs(ur_ow + ur_kw - 1, ur_ic, is_iw_edge);
 
@@ -3730,7 +3732,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::generate_microkernel() {
         L(kw_loop_end);
     };
 
-    auto kw_loop = [=](int ur_ow, int ur_ic, int is_iw_edge) {
+    auto kw_loop = [&](int ur_ow, int ur_ic, int is_iw_edge) {
         Label kwb_loop_begin, kwb_loop_end;
         int kw_tail = jcp.kw % kw_unroll;
         int kw_iter = jcp.kw / kw_unroll;
@@ -3759,7 +3761,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::generate_microkernel() {
         L(kwb_loop_end);
     };
 
-    auto ic_loop = [=](int ur_ow, int is_iw_edge) {
+    auto ic_loop = [&](int ur_ow, int is_iw_edge) {
         Label icb_loop_begin, icb_loop_end;
         int ic_tail = jcp.ic % ic_unroll;
         int ic_iter = jcp.ic / ic_unroll;
@@ -3814,7 +3816,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::generate_microkernel() {
         L(icb_loop_end);
     };
 
-    auto ic_loop_dispatch = [=](int ur_ow) {
+    auto ic_loop_dispatch = [&](int ur_ow) {
         Label iw_edge_case, ic_end;
 
         const int iw_overflow_bound = jcp.iw - (ur_ow - 1) * jcp.stride_w
@@ -4268,7 +4270,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::balance(
     int oh_no_reduce = j.harness == harness_2d_reduction ? 1 : oh;
     int nthr_oh_reduce = nstl::max(1, oh_reduce / min_oh_reduce);
 
-    auto calc_mem_cost = [=](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
+    auto calc_mem_cost = [&](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
         /* calculate per thread memory cost (read/write). high level optimizer
          * tries to minimize memory consumption. few notes:
          *  (n1) unclear why, but that essentially helps first convolution...
@@ -4318,7 +4320,8 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::balance(
         }
     }
 
-    auto calc_comp_cost = [=](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
+    auto calc_comp_cost = [j, oh_reduce, nthr_g_](
+                                  int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
         return (dim_t)div_up(j.mb * oh_reduce, nthr_mb)
                 * div_up(j.ngroups, nthr_g_) * div_up(j.nb_oc, nthr_oc_b)
                 * div_up(j.nb_ic, nthr_ic_b);

@@ -170,20 +170,20 @@ void jit_sse41_1x1_conv_kernel_f32::apply_postops(
 
 void jit_sse41_1x1_conv_kernel_f32::generate_reduce_loop(
         int load_loop_blk, int ur) {
-    auto reg_load = [=](int i, int n) {
+    auto reg_load = [ur, load_loop_blk](int i, int n) {
         return Xmm(2 * ur * load_loop_blk + 2 * i + n + 1);
     };
 
-    auto reg_accum = [=](int i, int j, int n) {
+    auto reg_accum = [load_loop_blk](int i, int j, int n) {
         return Xmm(reg_accum_idx(load_loop_blk, i, j, n));
     };
 
-    auto bias_ptr = [=](int i, int n) {
+    auto bias_ptr = [this](int i, int n) {
         return ptr[reg_bias_data + sizeof(float) * jcp.oc_block * i
                 + n * 4 * sizeof(float)];
     };
 
-    auto bcast_ptr = [=](int u, int j) {
+    auto bcast_ptr = [&](int u, int j) {
         assert(j < jcp.ur);
         assert(u <= jcp.reduce_loop_unroll);
         size_t offt;
@@ -196,7 +196,7 @@ void jit_sse41_1x1_conv_kernel_f32::generate_reduce_loop(
         return ptr[aux_reg_bcast_data + offt];
     };
 
-    auto load_ptr = [=](int u, int i, int n) {
+    auto load_ptr = [&](int u, int i, int n) {
         size_t offt;
         size_t u0 = u % jcp.reduce_loop_unroll;
         size_t u1 = u / jcp.reduce_loop_unroll;
@@ -213,7 +213,7 @@ void jit_sse41_1x1_conv_kernel_f32::generate_reduce_loop(
                 + sizeof(float) * offt + n * 4 * sizeof(float)];
     };
 
-    auto output_ptr = [=](int i, int j, int n) {
+    auto output_ptr = [this](int i, int j, int n) {
         switch (jcp.prop_kind) {
             case backward_data:
                 return ptr[aux_reg_output_data
@@ -231,7 +231,7 @@ void jit_sse41_1x1_conv_kernel_f32::generate_reduce_loop(
         }
     };
 
-    auto init = [=]() {
+    auto init = [&]() {
         Label init_done;
         Label init_zero;
 
@@ -269,7 +269,7 @@ void jit_sse41_1x1_conv_kernel_f32::generate_reduce_loop(
         shufps(reg_bcast, reg_bcast, 0);
     }; // init()
 
-    auto store = [=]() {
+    auto store = [&]() {
         Label store_noadd;
 
         if (!jcp.with_sum) {
@@ -306,7 +306,7 @@ void jit_sse41_1x1_conv_kernel_f32::generate_reduce_loop(
             }
     };
 
-    auto fma_block = [=](bool last_block) {
+    auto fma_block = [&](bool last_block) {
         for (int u = 0; u < jcp.reduce_loop_unroll; ++u) {
             for (int j = 0; j < ur; ++j) {
                 for (int i = 0; i < load_loop_blk; ++i) {
@@ -367,18 +367,18 @@ void jit_sse41_1x1_conv_kernel_f32::generate_diff_bias_loop(int load_loop_blk) {
     Label diff_bias_loop, diff_bias_loop_out, diff_bias_init_out;
     Label diff_bias_load;
 
-    auto diff_bias_ptr = [=](int i, int n) {
+    auto diff_bias_ptr = [this](int i, int n) {
         return ptr[reg_diff_bias_data + i * jcp.oc_block * sizeof(float)
                 + 4 * n * sizeof(float)];
     };
 
-    auto load_ptr = [=](int u, int i, int n) {
+    auto load_ptr = [this](int u, int i, int n) {
         return ptr[aux_reg_load_data
                 + (i * jcp.os + u) * jcp.oc_block * sizeof(float)
                 + 4 * n * sizeof(float)];
     };
 
-    auto diff_bias_reg = [=](int i, int n) { return Xmm(2 * i + n + 1); };
+    auto diff_bias_reg = [](int i, int n) { return Xmm(2 * i + n + 1); };
 
     mov(reg_diff_bias_data, ptr[rsp + reg_diff_bias_data_stack_offt]);
     cmp(reg_diff_bias_data, 0);
@@ -462,7 +462,7 @@ void jit_sse41_1x1_conv_kernel_f32::generate() {
     if (jcp.prop_kind == backward_weights)
         mov(reg_output_stride, ptr[param1 + GET_OFF(output_stride)]);
 
-    auto generate_load_loop_body = [=](int load_loop_blk) {
+    auto generate_load_loop_body = [&](int load_loop_blk) {
         const size_t offst_with_dw_conv
                 = get_load_loop_output_fwd_offset(jcp, load_loop_blk);
         const size_t offst_wo_dw_conv

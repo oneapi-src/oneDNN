@@ -577,7 +577,7 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
         return remaining < tail_step ? remaining : default_step;
     };
 
-    auto oc_ic_sp_loop = [=](int sp_start, int sp_end, bool first_image,
+    auto oc_ic_sp_loop = [&](int sp_start, int sp_end, bool first_image,
                                  data_t *store_to, size_t store_to_ld,
                                  const data_t *diff_dst, const data_t *src,
                                  int ithr) {

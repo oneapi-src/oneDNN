@@ -84,7 +84,7 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_unroll_kw(
                         div_up(ki * dilate_w + pad_r - (kw - 1) * dilate_w,
                                 stride_w));
 
-        auto compute = [=](int cur_ic_blk) {
+        auto compute = [&](int cur_ic_blk) {
             for (int ifm2 = 0; ifm2 < cur_ic_blk; ifm2++) {
                 for (int jj = jj_start; jj < jj_end; jj++) {
                     size_t inp_off = get_input_offset(
@@ -262,7 +262,7 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
         mov(reg_oc_flag, ptr[param1 + GET_OFF(oc_flag)]);
     }
 
-    auto load_output_bias_and_add_bias = [=](bool is_tail) {
+    auto load_output_bias_and_add_bias = [&](bool is_tail) {
         Label init_done, init_first;
 
         if (!jcp.with_sum) {
@@ -421,7 +421,7 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
 
     apply_postops(oc_blocks, ur_w, oc_tail);
 
-    auto store_output = [=](bool is_tail, int tail) {
+    auto store_output = [&](bool is_tail, int tail) {
         const auto is_padding = jcp.oc_without_padding != jcp.oc;
         if (is_padding) uni_vxorps(ytmp, ytmp, ytmp);
         for (int ii = 0; ii < oc_blocks; ii++)
@@ -890,7 +890,7 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
             int jj_start = get_iw_start(ki, l_overflow); // 0;
             int jj_end = get_iw_end(ur_w, ki, r_overflow); // ur_w;
 
-            auto compute = [=](int cur_oc_blk) {
+            auto compute = [&](int cur_oc_blk) {
                 for (int ofm2 = 0; ofm2 < cur_oc_blk; ofm2++) {
                     for (int jj = jj_start; jj < jj_end; jj += stride_w) {
                         int aux_output_offset = get_ddst_offset(
@@ -971,7 +971,7 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
 
     if (oc_tail) pop(reg_long_offt);
 
-    auto load_store_dsrc = [=](bool is_tail) {
+    auto load_store_dsrc = [&](bool is_tail) {
         mov(reg_channel, ptr[param1 + GET_OFF(channel)]);
         Label no_update_label;
         cmp(reg_channel, 0);
@@ -1480,7 +1480,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_ic_block_step(
         mov(reg_ci_flag, ptr[param1 + GET_OFF(flags)]);
     }
 
-    auto load_compute_store = [=](bool is_tail) {
+    auto load_compute_store = [&](bool is_tail) {
         for (int i_kw = 0; i_kw < kw; i_kw++)
             for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
                 size_t off = get_kernel_offset(i_kw, i_ic) + kernel_offset;

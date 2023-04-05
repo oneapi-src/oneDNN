@@ -115,7 +115,8 @@ size_t jit_avx512_core_amx_1x1_fwd_kernel_t::out_row_offset(
 }
 
 void jit_avx512_core_amx_1x1_fwd_kernel_t::update_buffer_pointers() {
-    auto buffer_offset = [=](bool shift) { return ((buf_count_ + shift) % 2); };
+    auto buffer_offset
+            = [this](bool shift) { return ((buf_count_ + shift) % 2); };
     int wsp_shift = jcp.typesize_acc * (jcp.wsp_buffer_size / 2);
 
     int postop_shift = wsp_shift * buffer_offset(true);
@@ -605,7 +606,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::prepare_output() {
 void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output(
         bool do_store, bool has_tail) {
 
-    auto store_output_subblock = [=](int ocb, int osb) {
+    auto store_output_subblock = [&](int ocb, int osb) {
         const int wsp_offset = jcp.typesize_acc
                 * (osb * jcp.nb_oc_blocking * jcp.max_width * jcp.oc_block
                         + ocb * jcp.max_width * jcp.oc_block);
@@ -631,7 +632,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output(
         if (do_store && jcp.is_fast_postops) store_output_vectors(ocb, osb);
     };
 
-    auto store_output_block = [=](int os_b = 1) {
+    auto store_output_block = [&](int os_b = 1) {
         if (jcp.src_zero_point) {
             mov(reg_src_zero_point, ptr[param1 + GET_OFF(src_zero_point)]);
             mov(reg_zp_compensation, ptr[param1 + GET_OFF(zp_compensation)]);
@@ -669,7 +670,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::icb_loop(bool do_store) {
     enum tiles_cfg_t { cfg_tiles, cfg_tiles_tail };
     enum restore_tiles_t { write_tiles, read_tiles };
 
-    auto tdpbxxd = [=](const Tmm &x1, const Tmm &x2, const Tmm &x3) {
+    auto tdpbxxd = [this](const Tmm &x1, const Tmm &x2, const Tmm &x3) {
         if (jcp.src_dt == data_type::bf16 && jcp.wei_dt == data_type::bf16) {
             tdpbf16ps(x1, x2, x3);
         } else if (jcp.src_dt == data_type::u8 && jcp.wei_dt == data_type::u8) {
@@ -685,7 +686,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::icb_loop(bool do_store) {
         }
     };
 
-    auto tileloadd_nt = [=](const Tmm &t1, int offset) {
+    auto tileloadd_nt = [this](const Tmm &t1, int offset) {
         int ab_size = jcp.nb_os2_blocking * jcp.nb_os_blocking * jcp.tile_width
                 * (jcp.nb_ic_int * jcp.ic_block_int_np
                         + jcp.nb_oc_blocking * jcp.oc_block);
@@ -700,7 +701,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::icb_loop(bool do_store) {
             tileloadd(t1, ptr[wei_ptr + offset + stride_seq]);
     };
 
-    auto compute_block = [=](int icb, int os_b) {
+    auto compute_block = [&](int icb, int os_b) {
         for (int osb = 0; osb < os_b; osb++) {
             int ih = ((osb * jcp.tile_width) / jcp.ow) * jcp.stride_h;
             int iw = ((osb * jcp.tile_width) % jcp.ow) * jcp.stride_w;
@@ -723,7 +724,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::icb_loop(bool do_store) {
         }
     };
 
-    auto reconfig_tiles = [=](tiles_cfg_t cfg) {
+    auto reconfig_tiles = [this](tiles_cfg_t cfg) {
         tilerelease();
         if (cfg == cfg_tiles) {
             mov(reg_scratch, ptr[param1 + GET_OFF(tile_cfg)]);
@@ -733,7 +734,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::icb_loop(bool do_store) {
         ldtilecfg(ptr[reg_scratch]);
     };
 
-    auto restore_output_tiles = [=](int os_b, restore_tiles_t restore) {
+    auto restore_output_tiles = [&](int os_b, restore_tiles_t restore) {
         mov(reg_tilebuff, ptr[param1 + GET_OFF(src_prf)]);
         for (int ocb = 0; ocb < jcp.nb_oc_blocking; ocb++)
             for (int osb = 0; osb < os_b; osb++) {
@@ -750,7 +751,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::icb_loop(bool do_store) {
             }
     };
 
-    auto reset_tiles = [=](int os_b, bool tail) {
+    auto reset_tiles = [&](int os_b, bool tail) {
         if (jcp.nb_ic_int != 1) {
             restore_output_tiles(os_b, write_tiles);
             reconfig_tiles((tail) ? cfg_tiles_tail : cfg_tiles);
@@ -758,7 +759,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::icb_loop(bool do_store) {
         }
     };
 
-    auto compute_icb_loop = [=](int os_b = 1) {
+    auto compute_icb_loop = [&](int os_b = 1) {
         int shift = (get_ic_tail() && os_b == 1) ? 1 : 0;
         int nb_ic_int = jcp.nb_ic_int - shift;
 
@@ -901,7 +902,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::tile_configure(char *tcfg_buff) {
             = amx::get_max_column_bytes(amx::get_target_palette());
     const int max_palette_size_in_bytes = 64;
 
-    auto cfg_tiles = [=](palette_config_t *buff, int Ac) {
+    auto cfg_tiles = [&](palette_config_t *buff, int Ac) {
         char *_tc = (char *)buff;
         for (int i = 0; i < max_palette_size_in_bytes; i++)
             _tc[i] = 0;

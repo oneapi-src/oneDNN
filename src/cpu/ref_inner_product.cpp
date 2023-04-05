@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,12 +44,12 @@ status_t ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     const auto MB = pd()->MB();
     const auto OC = pd()->OC();
     const auto IC = pd()->IC();
+    const dim_t KD = pd()->KD();
+    const dim_t KH = pd()->KH();
+    const dim_t KW = pd()->KW();
 
-    auto ker = [=](dim_t mb, dim_t oc) {
+    auto ker = [&](dim_t mb, dim_t oc) {
         float d = 0;
-        const dim_t KD = pd()->KD();
-        const dim_t KH = pd()->KH();
-        const dim_t KW = pd()->KW();
         for_(dim_t ic = 0; ic < IC; ++ic)
         for_(dim_t kd = 0; kd < KD; ++kd)
         for_(dim_t kh = 0; kh < KH; ++kh)

@@ -153,7 +153,7 @@ void jit_brgemm_matmul_copy_a_impl_t<Ymm>::store_vmm(int idx, int offset) {
 template <>
 void jit_brgemm_matmul_copy_a_impl_t<Zmm>::load_tail(
         int k_tail, size_t offset) {
-    const auto kmovx = [=](Opmask k, size_t q) {
+    const auto kmovx = [this](Opmask k, size_t q) {
         if (conf_->is_bf32) {
             mov(regq_tmp.cvt32(), q);
             jit_generator::kmovw(k, regq_tmp.cvt32());
@@ -245,7 +245,7 @@ void jit_brgemm_matmul_copy_a_impl_t<Vmm>::copy_K_loop(
         }
     }
 
-    auto maybe_compute_compensation = [=](int k_idx, Vmm vmm_copy) {
+    auto maybe_compute_compensation = [this, num_acc](int k_idx, Vmm vmm_copy) {
         if (do_compute_compensation_) {
             const auto vmm_comp_acc = get_vmm_comp_acc(k_idx % num_acc);
             const bool use_evex = mayiuse(avx512_core_vnni);
@@ -436,7 +436,7 @@ void jit_brgemm_matmul_copy_a_impl_t<Vmm>::generate() {
         uni_vpbroadcastb(vmm_comp_add, imm_addr64.cvt8());
     }
 
-    auto copy_body = [=](bool is_first_K_iter, bool is_last_K_iter) {
+    auto copy_body = [this](bool is_first_K_iter, bool is_last_K_iter) {
         Label copy_body_done;
         // might be different from conf_->K_tail
         const dim_t K_blk_tail
@@ -525,8 +525,8 @@ private:
 
     const size_t typesize;
     const size_t tr_typesize;
-    const int rows_step = 16;
-    const int columns_step = rows_step;
+    static constexpr int rows_step = 16;
+    static constexpr int columns_step = rows_step;
     const dim_t src_stride, dst_stride;
     const dim_t m_loop_src_shift;
     const dim_t m_loop_dst_shift;
@@ -592,32 +592,33 @@ void jit_brgemm_matmul_copy_a_transposed_impl_t::transpose_bf16(
             && ncolumns <= columns_step);
     if (!nrows) return;
 
-    auto src_zmm = [=](int i) { return Zmm(i); };
+    auto src_zmm = [](int i) { return Zmm(i); };
 
-    auto src_ymm = [=](int i) {
+    auto src_ymm = [](int i) {
         assert(i >= 0 && i < 16);
         return Ymm(i);
     };
 
     Label transpose_bf16_done;
     const bool dynamic_column_size = ncolumns == 0 && is_dynamic_src_ld;
-    auto kmovx = [=](Opmask k, unsigned w, bool load_mask_stage = false,
-                         bool use_word_sz = false) {
-        if (dynamic_column_size && load_mask_stage) {
-            // reg_opmask_shift_compute is rcx, and we need cl for the shift
-            mov(reg_opmask_shift_compute, reg_loop_m);
-            mov(regq_tmp, 1);
-            shl(regq_tmp, cl);
-            sub(regq_tmp, 1);
-        } else
-            mov(regw_tmp, w);
-        if (use_word_sz)
-            jit_generator::kmovw(k, regw_tmp);
-        else
-            jit_generator::kmovd(k, regw_tmp);
-    };
+    auto kmovx
+            = [this, dynamic_column_size](Opmask k, unsigned w,
+                      bool load_mask_stage = false, bool use_word_sz = false) {
+                  if (dynamic_column_size && load_mask_stage) {
+                      // reg_opmask_shift_compute is rcx, and we need cl for the shift
+                      mov(reg_opmask_shift_compute, reg_loop_m);
+                      mov(regq_tmp, 1);
+                      shl(regq_tmp, cl);
+                      sub(regq_tmp, 1);
+                  } else
+                      mov(regw_tmp, w);
+                  if (use_word_sz)
+                      jit_generator::kmovw(k, regw_tmp);
+                  else
+                      jit_generator::kmovd(k, regw_tmp);
+              };
 
-    auto store = [=](Zmm r, int i) {
+    auto store = [this, dst](Zmm r, int i) {
         auto addr = EVEX_compress_addr(dst, i * dst_stride);
         vmovdqu16(addr, r | kTail);
     };
@@ -749,7 +750,7 @@ void jit_brgemm_matmul_copy_a_transposed_impl_t::transpose_bf16(
     for (int i = 0; i < 8; i++)
         vextracti64x4(src_ymm(2 * i), src_zmm(2 * i + 1), 1);
 
-    auto get_vec_idx = [=](int col_idx) {
+    auto get_vec_idx = [](int col_idx) {
         assert(col_idx < columns_step && col_idx >= 0);
         const int blk_sz = 4;
         const int blk_idx = col_idx / blk_sz;
@@ -786,7 +787,8 @@ void jit_brgemm_matmul_copy_a_transposed_impl_t::transpose_f32(
     if (!nrows) return;
     Label transpose_f32_done;
     const bool dynamic_column_size = ncolumns == 0 && is_dynamic_src_ld;
-    auto kmovw = [=](Opmask k, size_t q, bool load_mask = false) {
+    auto kmovw = [this, dynamic_column_size](
+                         Opmask k, size_t q, bool load_mask = false) {
         if (dynamic_column_size && load_mask) {
             // reg_opmask_shift_compute is rcx, and we need cl for the shift
             mov(reg_opmask_shift_compute, reg_loop_m);
@@ -802,17 +804,17 @@ void jit_brgemm_matmul_copy_a_transposed_impl_t::transpose_f32(
             = ncolumns < columns_step ? (1 << ncolumns) - 1 : 0xffff;
     kmovw(kTail, load_mask, true);
 
-    auto src_zmm = [=](int i) {
+    auto src_zmm = [](int i) {
         assert(i >= 0 && i < 16);
         return Zmm(i);
     };
 
-    auto tmp_zmm = [=](int i) {
+    auto tmp_zmm = [](int i) {
         assert(i >= 0 && i < 16);
         return Zmm(16 + i);
     };
 
-    auto load = [=](int i) {
+    auto load = [this, src, nrows, src_zmm](int i) {
         const auto addr = is_dynamic_src_ld
                 ? ptr[i % 2 == 0 ? reg_aux_src0 : reg_aux_src1]
                 : EVEX_compress_addr(src, i * src_stride);
@@ -825,12 +827,12 @@ void jit_brgemm_matmul_copy_a_transposed_impl_t::transpose_f32(
             vpxord(src_zmm(i), src_zmm(i), src_zmm(i));
     };
 
-    auto store = [=](Zmm r, int i) {
+    auto store = [this, dst](Zmm r, int i) {
         auto addr = EVEX_compress_addr(dst, i * dst_stride);
         vmovups(addr, r | kTail);
     };
 
-    auto transpose16x8 = [=](int base_idx) {
+    auto transpose16x8 = [&](int base_idx) {
         assert(base_idx == 0 || base_idx == 8);
 
         // swap 1
@@ -907,7 +909,7 @@ void jit_brgemm_matmul_copy_a_transposed_impl_t::transpose_f32(
         }
     };
 
-    auto fixup16x16 = [=]() {
+    auto fixup16x16 = [&]() {
         const int store_mask = nrows < rows_step ? (1 << nrows) - 1 : 0xffff;
         kmovw(kTail, store_mask);
 
@@ -1000,7 +1002,7 @@ void jit_brgemm_matmul_copy_a_transposed_impl_t::generate() {
     const int m_block_tail = conf_->M_blk % columns_step;
     const int last_m_block_tail = conf_->M_tail % columns_step;
 
-    auto kmovw = [=](Opmask k, unsigned w) {
+    auto kmovw = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovw(k, regw_tmp);
     };
@@ -1022,12 +1024,12 @@ void jit_brgemm_matmul_copy_a_transposed_impl_t::generate() {
         kmovw(k33, 0x33);
     }
 
-    auto vmovdqa64 = [=](Zmm z, const int64_t *addr) {
+    auto vmovdqa64 = [this](Zmm z, const int64_t *addr) {
         mov(imm_addr64, reinterpret_cast<size_t>(addr));
         jit_generator::vmovdqa64(z, ptr[imm_addr64]);
     };
 
-    auto vmovdqa32 = [=](Zmm z, const int32_t *addr) {
+    auto vmovdqa32 = [this](Zmm z, const int32_t *addr) {
         mov(imm_addr64, reinterpret_cast<size_t>(addr));
         jit_generator::vmovdqa32(z, ptr[imm_addr64]);
     };
@@ -1607,7 +1609,7 @@ void jit_brgemm_matmul_copy_b_int8_t<Vmm>::generate() {
         uni_vpbroadcastb(vmm_comp_mul, imm_addr64.cvt8());
     }
 
-    auto compute_K_loop = [=](bool is_N_tail) {
+    auto compute_K_loop = [&](bool is_N_tail) {
         const int k_unroll = 4;
         int ncolumns = is_N_tail ? conf_->N_tail : conf_->N_blk;
 
@@ -1859,20 +1861,21 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_2x32_vnni(
     const auto tail_mask = (1 << columns_tail) - 1;
     if (columns_tail < n_blk_step) kmovx(kTail, tail_mask);
 
-    const int blk_sz = k_blk_step;
-    constexpr int reserved_regs = 2;
+    static constexpr int blk_sz = k_blk_step;
+    static constexpr int reserved_regs = 2;
     const int max_isa_regs = isa_num_vregs(conf_->isa);
     const int max_regs_available = max_isa_regs - reserved_regs;
     const int max_unroll = max_regs_available / blk_sz;
 
-    auto get_vmm = [=](int blk, int idx) {
+    auto get_vmm = [max_unroll, max_isa_regs](int blk, int idx) {
         assert(idx >= 0 && idx < blk_sz && blk >= 0);
         auto reg_idx = reserved_regs + max_unroll * ((idx + 1) % blk_sz) + blk;
+        UNUSED(max_isa_regs);
         assert(reg_idx >= reserved_regs && reg_idx < max_isa_regs);
         return Vmm(reg_idx);
     };
 
-    auto load = [=](int blk, int k, int n) {
+    auto load = [this, get_vmm, ncolumns, columns_tail](int blk, int k, int n) {
         auto src_reg = get_vmm(blk, k % k_blk_step);
         const bool is_tail = ncolumns - n < n_blk_step;
         auto src_load = maybe_mask(src_reg, is_tail);
@@ -1969,7 +1972,7 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::generate() {
     mov(reg_N_blk, ptr[param1 + GET_OFF(current_N_blk)]);
 
     init_masks();
-    auto compute_K_loop = [=](bool is_N_tail) {
+    auto compute_K_loop = [&](bool is_N_tail) {
         const int k_unroll = 8;
         int ncolumns = is_N_tail ? conf_->N_tail : conf_->N_blk;
 
@@ -2087,12 +2090,12 @@ private:
 void jit_brgemm_matmul_copy_b_f32_t::copy_16_x_n_block(
         int nrows, int ncolumns) {
 
-    auto get_zmm = [=](int reg_idx) {
+    auto get_zmm = [](int reg_idx) {
         assert(reg_idx >= 0 && reg_idx < max_regs_available);
         return zmm(reg_idx);
     };
 
-    auto load = [=](int blk, int k, int n, opmask_t current_mask) {
+    auto load = [this, get_zmm](int blk, int k, int n, opmask_t current_mask) {
         auto src_zmm = get_zmm(blk);
         auto src_zmm_m = src_zmm | current_mask | T_z;
         auto addr = EVEX_compress_addr(
@@ -2315,7 +2318,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col_vnni(
             kmovq(kTail, tail_mask);
     }
 
-    auto load_bf32 = [=](int i) {
+    auto load_bf32 = [this, nrows, columns_tail, ncolumns](int i) {
         auto src_reg = src_vmm(i);
         auto src_reg_next = tmp_vmm(i);
 
@@ -2343,7 +2346,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col_vnni(
         vcvtne2ps2bf16(src_reg, src_reg_next, src_reg);
     };
 
-    auto load = [=](int i) {
+    auto load = [this, nrows, columns_tail](int i) {
         auto src_reg = src_vmm(i);
         if (i >= nrows) {
             vpxord(src_reg, src_reg, src_reg);
@@ -2358,12 +2361,12 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col_vnni(
             vmovdqu8(src_load, addr);
     };
 
-    auto store = [=](Zmm r, int i) {
+    auto store = [this](Zmm r, int i) {
         auto addr = EVEX_compress_addr(reg_tr_src, i * tr_src_stride_);
         vmovups(addr, r);
     };
 
-    auto transpose16x8 = [=](int base_idx) {
+    auto transpose16x8 = [&](int base_idx) {
         assert(base_idx == 0 || base_idx == 8);
         // If compensation compute is required - use tmp(0) ... tmp(7)
         // to not spoil reserved registers' values
@@ -2462,7 +2465,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col_vnni(
         }
     };
 
-    auto fixup16x16 = [=]() {
+    auto fixup16x16 = [&]() {
         // swap 8
         for (int i = 0; i < 8; i++) {
             const auto tmp = tmp_vmm(i);
@@ -2501,7 +2504,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<Ymm>::copy_row_x_col_vnni(
     if (!nrows) return;
 
     const int columns_tail = ncolumns % k_blk_step_;
-    auto load = [=](int i) {
+    auto load = [this, nrows, columns_tail](int i) {
         auto vmm_src = src_vmm(i);
         if (i >= nrows) {
             uni_vpxor(vmm_src, vmm_src, vmm_src);
@@ -2707,7 +2710,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::generate() {
     const auto K_blk_tail = nstl::min(conf_->K, conf_->K_blk) % k_blk_step_;
     const auto K_tail_tail = (conf_->K % conf_->K_blk) % k_blk_step_;
 
-    auto compute_body = [=](bool is_first_K_iter, bool is_last_K_iter) {
+    auto compute_body = [&](bool is_first_K_iter, bool is_last_K_iter) {
         if (is_last_K_iter) {
             if (req_s8s8_comp_) {
                 mov(imm_addr64, 0xffffffff);

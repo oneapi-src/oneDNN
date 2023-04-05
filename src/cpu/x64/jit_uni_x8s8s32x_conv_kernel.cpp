@@ -159,7 +159,10 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::apply_sum(const int nb_oc_block,
                 uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_tmp);
             }
         };
-        const auto sum_injector = [=]() {
+        // Capture by value has to be applied since this lambda is called from
+        // a different context when stack values are unavailable.
+        const auto sum_injector = [nb_oc_block, ur_w, last_oc_block_flag,
+                                          sum_injector_lam]() {
             iterate(nb_oc_block, ur_w, last_oc_block_flag, sum_injector_lam);
         };
         if (*p_sum_scale != 1.f)
@@ -385,11 +388,11 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker_dw(int ur_w, int pad_l,
         uni_vpbroadcastd(vmm_zp, ptr[reg_src_zero_point]);
     }
 
-    auto input_spatial_index = [=](int oi, int ki) {
+    auto input_spatial_index = [this, pad_l](int oi, int ki) {
         return (ki * (jcp.dilate_w + 1) + oi * jcp.stride_w - pad_l);
     };
 
-    auto input_offset2 = [=](int ii, int ci) {
+    auto input_offset2 = [this](int ii, int ci) {
         if (jcp.is_fused_conv)
             return jcp.typesize_in
                     * (ii * jcp.dw_conv_buffer_oc + ci * jcp.ch_block);
@@ -397,15 +400,16 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker_dw(int ur_w, int pad_l,
             return jcp.typesize_in * (ii * jcp.ngroups + ci * jcp.ch_block);
     };
 
-    auto input_offset3 = [=](int oi, int ci, int ki) {
+    auto input_offset3 = [this, input_offset2, input_spatial_index](
+                                 int oi, int ci, int ki) {
         return jcp.typesize_in * input_offset2(input_spatial_index(oi, ki), ci);
     };
 
-    auto kernel_offset = [=](int ci, int ki) {
+    auto kernel_offset = [this](int ci, int ki) {
         return jcp.typesize_in * ((ci * jcp.kh * jcp.kw + ki) * jcp.ch_block);
     };
 
-    auto compute = [=](Vmm vreg_acc, Vmm vreg_wei, Vmm vreg_src) {
+    auto compute = [this](Vmm vreg_acc, Vmm vreg_wei, Vmm vreg_src) {
         if (jcp.has_vnni) {
             vpdpbusd(vreg_acc, vreg_src, vreg_wei, VexEncoding);
         } else {
@@ -532,19 +536,20 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker(int ur_w, int pad_l,
         mov(reg_src_zero_point, ptr[param1 + GET_OFF(src_zero_point)]);
     }
 
-    auto input_offset = [=](int oi, int ic, int ki) {
+    auto input_offset = [this, stride_w, pad_l](int oi, int ic, int ki) {
         return jcp.typesize_in
                 * ((ki * (jcp.dilate_w + 1) + oi * stride_w - pad_l)
                                 * jcp.ic_without_padding * jcp.ngroups
                         + ic_sub_step * ic);
     };
-    auto kernel_offset = [=](int ii, int ic, int ki) {
-        return jcp.typesize_in
-                * ((ii * jcp.nb_ic * jcp.kd * jcp.kh * jcp.kw + ki)
-                                * ch_block_all
-                        + ic_sub_step * ic * oc_block);
-    };
-    auto compute = [=](Vmm vreg_acc, Vmm vreg_wei, Vmm vreg_src) {
+    auto kernel_offset
+            = [this, ch_block_all, oc_block](int ii, int ic, int ki) {
+                  return jcp.typesize_in
+                          * ((ii * jcp.nb_ic * jcp.kd * jcp.kh * jcp.kw + ki)
+                                          * ch_block_all
+                                  + ic_sub_step * ic * oc_block);
+              };
+    auto compute = [this](Vmm vreg_acc, Vmm vreg_wei, Vmm vreg_src) {
         if (jcp.has_vnni) {
             vpdpbusd(vreg_acc, vreg_src, vreg_wei, VexEncoding);
         } else {
@@ -1502,14 +1507,14 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
         if (is_oc_blocking_ok(jcp.nb_oc_blocking_thr_chunk)) break;
     }
 
-    auto get_thr_eff = [=](int nb_ow, int nthr) {
+    auto get_thr_eff = [&](int nb_ow, int nthr) {
         int base_work_amount = jcp.mb * jcp.nb_ch * jcp.od * jcp.oh
                 * (jcp.nb_oc / jcp.nb_oc_blocking_thr_chunk);
         auto work_amount = base_work_amount * nb_ow;
         return float(work_amount) / rnd_up(work_amount, nthr);
     };
 
-    auto get_ow_block = [=](int ur_w, int nthr) {
+    auto get_ow_block = [jcp, get_thr_eff](int ur_w, int nthr) {
         int res_ow_block = jcp.ow;
         float best_thr_eff = get_thr_eff(1, nthr);
         float thr_eff;

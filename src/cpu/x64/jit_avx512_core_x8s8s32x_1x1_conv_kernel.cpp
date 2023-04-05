@@ -214,7 +214,10 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::apply_sum(
                           vfmadd231ps(
                                   r, vmm_prev_dst, zword_b[reg_ptr_sum_scale]);
                   };
-        const auto sum_injector = [=]() {
+        // Capture by value has to be applied since this lambda is called from
+        // a different context when stack values are unavailable.
+        const auto sum_injector = [load_loop_blk, ur, mask_flag_in,
+                                          sum_injector_lam]() {
             iterate(load_loop_blk, ur, mask_flag_in, sum_injector_lam);
         };
         if (sum_zp != 0) vcvtdq2ps(vmm_tmp, ptr_b[rsp + reg_ptr_sum_zp_off]);
@@ -292,25 +295,26 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::apply_postops(
 template <typename Vmm>
 void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
         int load_loop_blk, int ur, bool wraparound) {
-    auto vreg_load
-            = [=](int i_load) { return Vmm(ur * load_loop_blk + i_load); };
+    auto vreg_load = [ur, load_loop_blk](int i_load) {
+        return Vmm(ur * load_loop_blk + i_load);
+    };
 
-    auto bias_ptr = [=](int i_load) {
+    auto bias_ptr = [this](int i_load) {
         return EVEX_compress_addr(
                 reg_bias_data, jcp.typesize_bia * jcp.oc_block * i_load);
     };
 
-    auto comp_ptr = [=](int i_load) {
+    auto comp_ptr = [this](int i_load) {
         return EVEX_compress_addr(
                 reg_comp_data, sizeof(int32_t) * jcp.oc_block * i_load);
     };
 
-    auto scale_ptr = [=](int i_load) {
+    auto scale_ptr = [this](int i_load) {
         return EVEX_compress_addr(reg_ptr_scales,
                 jcp.is_oc_scale * (sizeof(float) * jcp.oc_block * i_load));
     };
 
-    auto bcast_ptr = [=](int i_reduce, int i_ur, bool bcast) {
+    auto bcast_ptr = [this](int i_reduce, int i_ur, bool bcast) {
         assert(i_ur < jcp.ur);
         assert(i_reduce <= jcp.reduce_loop_unroll);
         assert(jcp.reduce_loop_unroll == jcp.reduce_block);
@@ -321,7 +325,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
                 aux_reg_bcast_data, jcp.typesize_in * offt, bcast);
     };
 
-    auto load_ptr = [=](int i_reduce, int i_load) {
+    auto load_ptr = [this](int i_reduce, int i_load) {
         int u0 = i_reduce % jcp.reduce_loop_unroll;
         int u1 = i_reduce / jcp.reduce_loop_unroll;
 
@@ -331,7 +335,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
                 u1 * jcp.reduce_loop_load_step + jcp.typesize_in * offt);
     };
 
-    auto init = [=]() {
+    auto init = [this, load_loop_blk, ur]() {
         for (int i_load = 0; i_load < load_loop_blk; ++i_load)
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
                 auto r = vreg_accum(load_loop_blk, i_load, i_ur);
@@ -343,7 +347,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
         }
     };
 
-    auto store = [=](const bool mask_flag_in) {
+    auto store = [&](const bool mask_flag_in) {
         const auto &p = attr_.post_ops_;
         const int sum_idx = p.find(primitive_kind::sum);
         const float *p_sum_scale = nullptr;
@@ -526,7 +530,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
             mov(reg_load_data, EVEX_compress_addr(rsp, reg_load_data_off));
     };
 
-    auto compute = [=](Vmm vreg_acc, Vmm vreg_wei, Vmm vreg_src) {
+    auto compute = [this](Vmm vreg_acc, Vmm vreg_wei, Vmm vreg_src) {
         if (jcp.has_vnni) {
             vpdpbusd(vreg_acc, vreg_src, vreg_wei);
         } else {
@@ -536,7 +540,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
         }
     };
 
-    auto fma_block = [=](bool last_block) {
+    auto fma_block = [&](bool last_block) {
         int reduce_step = 4;
         int ic_tail_size = jcp.ic_without_padding % reduce_step;
         int loop_unroll = last_block && jcp.ic != jcp.ic_without_padding
@@ -705,7 +709,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::generate() {
             kmovw(postops_mask, reg_tail_32);
         }
 
-    auto load_loop_body = [=](int load_loop_blk) {
+    auto load_loop_body = [&](int load_loop_blk) {
         if (load_dim_tail) {
             kxnorw(k_load_dim_mask, k_load_dim_mask, k_load_dim_mask);
             if (use_extended_mask)

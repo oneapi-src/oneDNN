@@ -81,22 +81,22 @@ void jit_brgemm_trans_m_k_f32_t::transpose_16x16(int nrows, int ncolumns) {
     static_assert(transpose_size == 16, "Unsupported transpose size");
     if (!nrows) return;
 
-    auto src_zmm = [=](int i) {
+    auto src_zmm = [](int i) {
         assert(i >= 0 && i < 16);
         return Zmm(i);
     };
 
-    auto tmp_zmm = [=](int i) {
+    auto tmp_zmm = [](int i) {
         assert(i >= 0 && i < 16);
         return Zmm(16 + i);
     };
 
-    auto kmovw = [=](Opmask k, unsigned w) {
+    auto kmovw = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovw(k, regw_tmp);
     };
 
-    auto load = [=](int i) {
+    auto load = [&](int i) {
         auto src_load = src_zmm(i);
         if (i >= nrows) {
             vpxord(src_load, src_load, src_load);
@@ -110,7 +110,7 @@ void jit_brgemm_trans_m_k_f32_t::transpose_16x16(int nrows, int ncolumns) {
         vmovups(src_load, EVEX_compress_addr(reg_src, i * src_stride));
     };
 
-    auto store = [=](Zmm r, int i) {
+    auto store = [&](Zmm r, int i) {
         mov(reg_tr_src_tmp, reg_tr_src);
         if (nrows < transpose_size) kmovw(kTail, (1 << nrows) - 1);
 
@@ -126,7 +126,7 @@ void jit_brgemm_trans_m_k_f32_t::transpose_16x16(int nrows, int ncolumns) {
         vmovups(addr, r);
     };
 
-    auto transpose16x8 = [=](int base_idx) {
+    auto transpose16x8 = [&](int base_idx) {
         assert(base_idx == 0 || base_idx == 8);
 
         // swap 1
@@ -193,7 +193,7 @@ void jit_brgemm_trans_m_k_f32_t::transpose_16x16(int nrows, int ncolumns) {
         }
     };
 
-    auto fixup16x16 = [=]() {
+    auto fixup16x16 = [&]() {
         // swap 8
         const auto max_iters_phase_1 = std::min(ncolumns, 8);
         for (int i = 0; i < max_iters_phase_1; i++) {
@@ -267,7 +267,7 @@ void jit_brgemm_trans_m_k_f32_t::generate() {
     mov(reg_loop_batch, ptr[param1 + GET_OFF(current_gemm_batch)]);
     mov(reg_loop_K, ptr[param1 + GET_OFF(current_K)]);
 
-    auto kmovw = [=](Opmask k, unsigned w) {
+    auto kmovw = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovw(k, regw_tmp);
     };
@@ -279,7 +279,7 @@ void jit_brgemm_trans_m_k_f32_t::generate() {
     kmovw(k0F0F, 0x0f0f); // 0000111100001111
     kmovw(kF0F0, 0xf0f0); // 1111000011110000
 
-    auto compute_M = [=](bool is_os_tail) {
+    auto compute_M = [&](bool is_os_tail) {
         const auto nrows = is_os_tail ? last_os_block_tail : os_block;
         mov(reg_loop_M, ptr[param1 + GET_OFF(current_M)]);
         mov(reg_src, reg_src_base);
@@ -312,7 +312,7 @@ void jit_brgemm_trans_m_k_f32_t::generate() {
         L(M_done);
     };
 
-    auto compute_batch = [=](bool is_os_tail) {
+    auto compute_batch = [&](bool is_os_tail) {
         Label batch_loop;
         L(batch_loop);
 
@@ -409,24 +409,24 @@ void jit_brgemm_trans_m_k_bf16_t::transpose(
     static_assert(transpose_size == 16, "Unsupported transpose size");
     if (!nrows) return;
 
-    auto src_zmm = [=](int i) { return Zmm(i); };
+    auto src_zmm = [](int i) { return Zmm(i); };
 
-    auto src_ymm = [=](int i) {
+    auto src_ymm = [](int i) {
         assert(i >= 0 && i < 16);
         return Ymm(i);
     };
 
-    auto kmovw = [=](Opmask k, unsigned w) {
+    auto kmovw = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovw(k, regw_tmp);
     };
 
-    auto kmovd = [=](Opmask k, unsigned w) {
+    auto kmovd = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovd(k, regw_tmp);
     };
 
-    auto store = [=](Zmm r, int i) {
+    auto store = [&](Zmm r, int i) {
         mov(reg_tr_src_tmp, dst);
 
         auto k = kTail;
@@ -528,7 +528,7 @@ void jit_brgemm_trans_m_k_bf16_t::transpose(
     for (int i = 0; i < 8; i++)
         vextracti64x4(src_ymm(2 * i), src_zmm(2 * i + 1), 1);
 
-    auto get_vec_idx = [=](int ic_idx) {
+    auto get_vec_idx = [](int ic_idx) {
         assert(ic_idx < 16 && ic_idx >= 0);
         switch (ic_idx) {
             case 0: return 1;
@@ -592,7 +592,7 @@ void jit_brgemm_trans_m_k_bf16_t::generate() {
     const dim_t K_src_shift = transpose_size * conf_->ic * typesize;
     const dim_t K_tr_src_shift = transpose_size * typesize;
 
-    auto kmovw = [=](Opmask k, unsigned w) {
+    auto kmovw = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovw(k, regw_tmp);
     };
@@ -605,12 +605,12 @@ void jit_brgemm_trans_m_k_bf16_t::generate() {
     kmovw(kCC, 0xcc);
     kmovw(k33, 0x33);
 
-    auto vmovdqa64 = [=](Zmm z, const int64_t *addr) {
+    auto vmovdqa64 = [this](Zmm z, const int64_t *addr) {
         mov(imm_addr64, reinterpret_cast<size_t>(addr));
         jit_generator::vmovdqa64(z, ptr[imm_addr64]);
     };
 
-    auto vmovdqa32 = [=](Zmm z, const int32_t *addr) {
+    auto vmovdqa32 = [this](Zmm z, const int32_t *addr) {
         mov(imm_addr64, reinterpret_cast<size_t>(addr));
         jit_generator::vmovdqa32(z, ptr[imm_addr64]);
     };
@@ -754,22 +754,22 @@ void jit_brgemm_trans_m_k_f16_t::transpose_16x16(int nrows, int ncolumns) {
     static_assert(transpose_size == 16, "Unsupported transpose size");
     if (!nrows) return;
 
-    auto src_zmm = [=](int i) {
+    auto src_zmm = [](int i) {
         assert(i >= 0 && i < 16);
         return Zmm(i);
     };
 
-    auto tmp_zmm = [=](int i) {
+    auto tmp_zmm = [](int i) {
         assert(i >= 0 && i < 16);
         return Zmm(16 + i);
     };
 
-    auto kmovw = [=](Opmask k, unsigned w) {
+    auto kmovw = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovw(k, regw_tmp);
     };
 
-    auto load = [=](int i) {
+    auto load = [&](int i) {
         auto src_load = src_zmm(i);
         if (i >= nrows) {
             vpxord(src_load, src_load, src_load);
@@ -783,7 +783,7 @@ void jit_brgemm_trans_m_k_f16_t::transpose_16x16(int nrows, int ncolumns) {
         vcvtph2psx(src_load, EVEX_compress_addr(reg_src, i * src_stride));
     };
 
-    auto store = [=](Zmm r, int i) {
+    auto store = [&](Zmm r, int i) {
         mov(reg_tr_src_tmp, reg_tr_src);
         if (nrows < transpose_size) kmovw(kTail, (1 << nrows) - 1);
 
@@ -799,7 +799,7 @@ void jit_brgemm_trans_m_k_f16_t::transpose_16x16(int nrows, int ncolumns) {
         vmovups(addr, r);
     };
 
-    auto transpose16x8 = [=](int base_idx) {
+    auto transpose16x8 = [&](int base_idx) {
         assert(base_idx == 0 || base_idx == 8);
 
         // swap 1
@@ -866,7 +866,7 @@ void jit_brgemm_trans_m_k_f16_t::transpose_16x16(int nrows, int ncolumns) {
         }
     };
 
-    auto fixup16x16 = [=]() {
+    auto fixup16x16 = [&]() {
         // swap 8
         const auto max_iters_phase_1 = std::min(ncolumns, 8);
         for (int i = 0; i < max_iters_phase_1; i++) {
@@ -911,7 +911,7 @@ void jit_brgemm_trans_m_k_f16_t::generate() {
     mov(reg_loop_batch, ptr[param1 + GET_OFF(current_gemm_batch)]);
     mov(reg_loop_K, ptr[param1 + GET_OFF(current_K)]);
 
-    auto kmovw = [=](Opmask k, unsigned w) {
+    auto kmovw = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovw(k, regw_tmp);
     };
@@ -923,7 +923,7 @@ void jit_brgemm_trans_m_k_f16_t::generate() {
     kmovw(k0F0F, 0x0f0f); // 0000111100001111
     kmovw(kF0F0, 0xf0f0); // 1111000011110000
 
-    auto compute_M = [=](bool is_os_tail) {
+    auto compute_M = [&](bool is_os_tail) {
         const auto nrows = is_os_tail ? last_os_block_tail : transpose_size;
         mov(reg_loop_M, ptr[param1 + GET_OFF(current_M)]);
         mov(reg_src, reg_src_base);
@@ -956,7 +956,7 @@ void jit_brgemm_trans_m_k_f16_t::generate() {
         L(M_done);
     };
 
-    auto compute_batch = [=](bool is_os_tail) {
+    auto compute_batch = [&](bool is_os_tail) {
         Label batch_loop;
         L(batch_loop);
 
@@ -1270,14 +1270,14 @@ void jit_trans_to_vnni_t::transpose(
     static_assert(transpose_size == 16, "Unsupported transpose size");
     if (!nrows) return;
 
-    auto src_zmm = [=](int i) { return Zmm(i); };
+    auto src_zmm = [](int i) { return Zmm(i); };
 
-    auto src_ymm = [=](int i) {
+    auto src_ymm = [](int i) {
         assert(i >= 0 && i < 16);
         return Ymm(i);
     };
 
-    auto store = [=](Zmm r, int i) {
+    auto store = [this, dst](Zmm r, int i) {
         auto addr = EVEX_compress_addr(dst, i * tr_src_stride);
         vmovups(addr, r);
     };
@@ -1378,11 +1378,11 @@ void jit_trans_to_vnni_t::generate() {
     //    mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
     //    mov(reg_loop_row, ptr[param1 + GET_OFF(current_row_size)]);
 
-    auto kmovw = [=](Opmask k, unsigned w) {
+    auto kmovw = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovw(k, regw_tmp);
     };
-    auto kmovd = [=](Opmask k, unsigned w) {
+    auto kmovd = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovd(k, regw_tmp);
     };
@@ -1390,7 +1390,7 @@ void jit_trans_to_vnni_t::generate() {
     kmovw(kFFFF, 0xffff); // 1111111111111111
     kmovd(mask_tail, (1 << col_tail) - 1);
 
-    auto vmovdqa64 = [=](Zmm z, const int64_t *addr) {
+    auto vmovdqa64 = [this](Zmm z, const int64_t *addr) {
         mov(imm_addr64, reinterpret_cast<size_t>(addr));
         jit_generator::vmovdqa64(z, ptr[imm_addr64]);
     };
@@ -1539,7 +1539,7 @@ private:
 
 void jit_copy_f32_t::copy_block(int nrows, int ncolumns) {
 
-    auto kmovd = [=](Opmask k, unsigned w) {
+    auto kmovd = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovd(k, regw_tmp);
     };
@@ -1547,9 +1547,9 @@ void jit_copy_f32_t::copy_block(int nrows, int ncolumns) {
     const int nc_tail = ncolumns % column_step;
     if (nc_tail > 0) kmovd(mask_tail, (1 << nc_tail) - 1);
 
-    auto get_zmm = [=](int i) { return Zmm(i % num_regs); };
+    auto get_zmm = [](int i) { return Zmm(i % num_regs); };
 
-    auto load = [=](int r, int cb) {
+    auto load = [&](int r, int cb) {
         auto src_reg = get_zmm(r * cb);
         const bool is_tail
                 = nc_tail > 0 && ncolumns - cb * column_step < column_step;
@@ -1559,7 +1559,7 @@ void jit_copy_f32_t::copy_block(int nrows, int ncolumns) {
         vmovups(src_load, addr);
     };
 
-    auto store = [=](int r, int cb) {
+    auto store = [&](int r, int cb) {
         auto reg = get_zmm(r * cb);
         const dim_t offset = r * tr_src_stride + cb * col_shift;
         auto addr = EVEX_compress_addr_safe(reg_tr_src, offset, reg_long_offt);
@@ -1591,7 +1591,7 @@ void jit_copy_f32_t::generate() {
     mov(reg_loop_row, ptr[param1 + GET_OFF(current_row_size)]);
     mov(reg_loop_col, ptr[param1 + GET_OFF(current_col_size)]);
 
-    auto compute_batch = [=](int nrows, int ncolumns) {
+    auto compute_batch = [this](int nrows, int ncolumns) {
         Label batch_loop;
         L(batch_loop);
 
@@ -1603,7 +1603,7 @@ void jit_copy_f32_t::generate() {
         jnz(batch_loop, T_NEAR);
     };
 
-    auto compute_rows = [=](int ncolumns) {
+    auto compute_rows = [&](int ncolumns) {
         Label row_done;
         if (row_tail > 0) {
             Label row_common;
@@ -1724,7 +1724,7 @@ void jit_copy_f16_t::copy_block(bool is_row_tail, bool is_col_tail) {
             ? col_tail
             : col_block;
 
-    auto kmovd = [=](Opmask k, unsigned w) {
+    auto kmovd = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovd(k, regw_tmp);
     };
@@ -1732,9 +1732,9 @@ void jit_copy_f16_t::copy_block(bool is_row_tail, bool is_col_tail) {
     const int nc_tail = ncolumns % column_step;
     if (nc_tail > 0) kmovd(mask_tail, (1 << nc_tail) - 1);
 
-    auto get_zmm = [=](int i) { return Zmm(i % num_regs); };
+    auto get_zmm = [](int i) { return Zmm(i % num_regs); };
 
-    auto load = [=](int r, int cb) {
+    auto load = [&](int r, int cb) {
         auto src_reg = get_zmm(r * cb);
         const bool is_tail
                 = nc_tail > 0 && ncolumns - cb * column_step < column_step;
@@ -1751,7 +1751,7 @@ void jit_copy_f16_t::copy_block(bool is_row_tail, bool is_col_tail) {
         }
     };
 
-    auto store = [=](int r, int cb) {
+    auto store = [&](int r, int cb) {
         auto reg = get_zmm(r * cb);
         const dim_t offset = r * tr_src_stride + cb * col_shift_out;
         auto addr = EVEX_compress_addr_safe(reg_tr_src, offset, reg_long_offt);
@@ -1777,7 +1777,7 @@ void jit_copy_f16_t::generate() {
     mov(reg_loop_row, ptr[param1 + GET_OFF(current_row_size)]);
     mov(reg_loop_col, ptr[param1 + GET_OFF(current_col_size)]);
 
-    auto compute_batch = [=](bool is_row_tail, bool is_col_tail) {
+    auto compute_batch = [this](bool is_row_tail, bool is_col_tail) {
         Label batch_loop;
         L(batch_loop);
 
@@ -1789,7 +1789,7 @@ void jit_copy_f16_t::generate() {
         jnz(batch_loop, T_NEAR);
     };
 
-    auto compute_rows = [=](bool is_col_tail) {
+    auto compute_rows = [&](bool is_col_tail) {
         Label row_done;
         if (row_tail > 0) {
             Label row_common;
@@ -1881,17 +1881,17 @@ void jit_brgemm_trans_wei_f32_t::transpose_16x16(int nrows, int ncolumns) {
     assert(transpose_size == 16 && "Unsupported transpose size");
     if (!nrows) return;
 
-    auto src_zmm = [=](int i) {
+    auto src_zmm = [](int i) {
         assert(i >= 0 && i < 16);
         return Zmm(i);
     };
 
-    auto tmp_zmm = [=](int i) {
+    auto tmp_zmm = [](int i) {
         assert(i >= 0 && i < 16);
         return Zmm(16 + i);
     };
 
-    auto load = [=](int i) {
+    auto load = [&](int i) {
         auto src_load = src_zmm(i);
         if (ncolumns < transpose_size) {
             kmovw(kTail, (1 << ncolumns) - 1);
@@ -1900,7 +1900,7 @@ void jit_brgemm_trans_wei_f32_t::transpose_16x16(int nrows, int ncolumns) {
         vmovups(src_load, EVEX_compress_addr(reg_src, i * src_stride));
     };
 
-    auto store = [=](Zmm r, int i) {
+    auto store = [&](Zmm r, int i) {
         mov(reg_tr_src_tmp, reg_tr_src);
         if (nrows < transpose_size) kmovw(kTail, (1 << nrows) - 1);
 
@@ -1916,7 +1916,7 @@ void jit_brgemm_trans_wei_f32_t::transpose_16x16(int nrows, int ncolumns) {
         vmovups(addr, r);
     };
 
-    auto transpose16x8 = [=](int base_idx) {
+    auto transpose16x8 = [&](int base_idx) {
         assert(base_idx == 0 || base_idx == 8);
 
         // swap 1
@@ -1983,7 +1983,7 @@ void jit_brgemm_trans_wei_f32_t::transpose_16x16(int nrows, int ncolumns) {
         }
     };
 
-    auto fixup16x16 = [=]() {
+    auto fixup16x16 = [&]() {
         // swap 8
         for (int i = 0; i < 8; i++) {
             auto tmp = tmp_zmm(i);
@@ -2127,7 +2127,7 @@ void jit_brgemm_trans_wei_f32_t::generate() {
 
     init_masks();
 
-    auto compute_N = [=](bool is_oc_tail) {
+    auto compute_N = [&](bool is_oc_tail) {
         mov(reg_loop_N, ptr[param1 + GET_OFF(current_N)]);
         mov(reg_src, reg_src_base);
         mov(reg_tr_src, reg_tr_src_base);
@@ -2229,22 +2229,22 @@ void jit_brgemm_trans_wei_bf16_t::transpose_16x16_vnni(
     static_assert(transpose_size == 16, "Unsupported transpose size");
     if (!nrows) return;
 
-    auto src_zmm = [=](int i) {
+    auto src_zmm = [](int i) {
         assert(i >= 0 && i < 8);
         return Zmm(i);
     };
 
-    auto tmp_zmm = [=](int i) {
+    auto tmp_zmm = [](int i) {
         assert(i >= 0 && i < 8);
         return Zmm(8 + i);
     };
 
-    auto kmovw = [=](Opmask k, unsigned w) {
+    auto kmovw = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovw(k, regw_tmp);
     };
 
-    auto load = [=](int i) {
+    auto load = [&](int i) {
         auto src_load = src_zmm(i);
         if (ncolumns < transpose_size) {
             kmovw(kTail, (1 << ncolumns) - 1);
@@ -2253,7 +2253,7 @@ void jit_brgemm_trans_wei_bf16_t::transpose_16x16_vnni(
         vmovups(src_load, EVEX_compress_addr(reg_src, i * src_stride));
     };
 
-    auto store = [=](Zmm r, int i) {
+    auto store = [&](Zmm r, int i) {
         mov(reg_tr_src_tmp, reg_tr_src);
         if (nrows < transpose_size) kmovw(kTail, (1 << nrows) - 1);
 
@@ -2359,13 +2359,13 @@ void jit_brgemm_trans_wei_bf16_t::generate() {
                     0x0d0c0908, 0x0f0e0b0a, 0x05040100, 0x07060302, 0x0d0c0908,
                     0x0f0e0b0a};
 
-    auto vmovdqa64 = [=](Zmm z, const int64_t *addr) {
+    auto vmovdqa64 = [this](Zmm z, const int64_t *addr) {
         mov(imm_addr64, reinterpret_cast<size_t>(addr));
         jit_generator::vmovdqa64(z, ptr[imm_addr64]);
     };
 
     vmovdqa64(v_abcdefgh_to_abefcdgh, (const int64_t *)abcdefgh_to_abefcdgh);
-    auto compute_N = [=](bool is_oc_tail) {
+    auto compute_N = [&](bool is_oc_tail) {
         mov(reg_src, reg_src_base);
         mov(reg_tr_src, reg_tr_src_base);
         mov(reg_loop_N, ptr[param1 + GET_OFF(current_N)]);
@@ -2476,22 +2476,22 @@ void jit_brgemm_trans_wei_f16_t::transpose_16x16(int nrows, int ncolumns) {
     static_assert(transpose_size == 16, "Unsupported transpose size");
     if (!nrows) return;
 
-    auto src_zmm = [=](int i) {
+    auto src_zmm = [](int i) {
         assert(i >= 0 && i < 16);
         return Zmm(i);
     };
 
-    auto tmp_zmm = [=](int i) {
+    auto tmp_zmm = [](int i) {
         assert(i >= 0 && i < 16);
         return Zmm(16 + i);
     };
 
-    auto kmovw = [=](Opmask k, unsigned w) {
+    auto kmovw = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovw(k, regw_tmp);
     };
 
-    auto load = [=](int i) {
+    auto load = [&](int i) {
         auto src_load = src_zmm(i);
         if (ncolumns < transpose_size) {
             kmovw(kTail, (1 << ncolumns) - 1);
@@ -2502,7 +2502,7 @@ void jit_brgemm_trans_wei_f16_t::transpose_16x16(int nrows, int ncolumns) {
         vcvtph2psx(src_load, EVEX_compress_addr(reg_src, i * src_stride));
     };
 
-    auto store = [=](Zmm r, int i) {
+    auto store = [&](Zmm r, int i) {
         mov(reg_tr_src_tmp, reg_tr_src);
         if (nrows < transpose_size) kmovw(kTail, (1 << nrows) - 1);
 
@@ -2518,7 +2518,7 @@ void jit_brgemm_trans_wei_f16_t::transpose_16x16(int nrows, int ncolumns) {
         vmovups(addr, r);
     };
 
-    auto transpose16x8 = [=](int base_idx) {
+    auto transpose16x8 = [&](int base_idx) {
         assert(base_idx == 0 || base_idx == 8);
 
         // swap 1
@@ -2585,7 +2585,7 @@ void jit_brgemm_trans_wei_f16_t::transpose_16x16(int nrows, int ncolumns) {
         }
     };
 
-    auto fixup16x16 = [=]() {
+    auto fixup16x16 = [&]() {
         // swap 8
         for (int i = 0; i < 8; i++) {
             auto tmp = tmp_zmm(i);
@@ -2658,7 +2658,7 @@ void jit_brgemm_trans_wei_f16_t::generate() {
     mov(reg_loop_batch, ptr[param1 + GET_OFF(current_gemm_batch)]);
     mov(reg_loop_K, ptr[param1 + GET_OFF(current_K)]);
 
-    auto kmovw = [=](Opmask k, unsigned w) {
+    auto kmovw = [this](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovw(k, regw_tmp);
     };
@@ -2670,7 +2670,7 @@ void jit_brgemm_trans_wei_f16_t::generate() {
     kmovw(k0F0F, 0x0f0f); // 0000111100001111
     kmovw(kF0F0, 0xf0f0); // 1111000011110000
 
-    auto compute_N = [=](bool is_oc_tail) {
+    auto compute_N = [&](bool is_oc_tail) {
         mov(reg_loop_N, ptr[param1 + GET_OFF(current_N)]);
         mov(reg_src, reg_src_base);
         mov(reg_tr_src, reg_tr_src_base);
@@ -2769,7 +2769,7 @@ void jit_amx_ip_trans_diff_wei_to_vnni_t::generate() {
     int tail_mask = (jbgp_->N_tail % simd_w)
             ? (1 << (jbgp_->N_tail % simd_w)) - 1
             : 0xffff;
-    auto kmovw = [=](Xbyak::Opmask k, unsigned w) {
+    auto kmovw = [this, regw_tmp](Xbyak::Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovw(k, regw_tmp);
     };

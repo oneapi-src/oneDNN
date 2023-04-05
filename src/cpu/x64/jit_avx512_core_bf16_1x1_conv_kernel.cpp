@@ -260,24 +260,25 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
     const int reduce_dim_tail = jcp.reduce_dim % jcp.reduce_block;
     const int load_dim_tail = jcp.load_dim % jcp.load_block;
 
-    auto vreg_load = [=](int i_load) {
+    auto vreg_load = [ur, load_loop_blk](int i_load) {
         int idx = ur * load_loop_blk + i_load;
         assert(idx < 31);
         return Zmm(idx);
     };
-    auto ymm_store = [=]() { return Xbyak::Ymm(31); };
-    auto zmm_store = [=]() { return Xbyak::Zmm(31); };
+    auto ymm_store = []() { return Xbyak::Ymm(31); };
+    auto zmm_store = []() { return Xbyak::Zmm(31); };
 
-    const auto vreg_accum = [=](int i_load, int i_ur) {
+    const auto vreg_accum = [load_loop_blk](int i_load, int i_ur) {
         return Zmm(vreg_accum_idx(load_loop_blk, i_load, i_ur));
     };
 
-    auto bias_ptr = [=](int i_load) {
+    auto bias_ptr = [this](int i_load) {
         return EVEX_compress_addr(
                 reg_bias_data, jcp.typesize_bia * jcp.oc_block * i_load);
     };
 
-    auto bcast_ptr = [=](int i_reduce, int i_ur, bool bcast) {
+    auto bcast_ptr = [this, bcast_layout_nxc](
+                             int i_reduce, int i_ur, bool bcast) {
         assert(i_ur < jcp.ur);
         assert(i_reduce <= jcp.reduce_loop_unroll);
         int offt;
@@ -302,7 +303,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
                 aux_reg_bcast_data, jcp.typesize_in * offt, bcast);
     };
 
-    auto load_ptr = [=](int i_reduce, int i_load) {
+    auto load_ptr = [this, load_layout_nxc](int i_reduce, int i_load) {
         int u0 = i_reduce % jcp.reduce_loop_unroll;
         int u1 = i_reduce / jcp.reduce_loop_unroll;
         int lmul = jcp.load_block
@@ -315,7 +316,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
                 u1 * jcp.reduce_loop_load_step + jcp.typesize_in * offt);
     };
 
-    auto store_buffer_ptr = [=](int i_load, int i_ur) {
+    auto store_buffer_ptr = [this](int i_load, int i_ur) {
         const bool is_output_layout_nxc = is_out_layout_nxc();
         int i_load_shift
                 = jcp.load_block * (is_output_layout_nxc ? 1 : jcp.bcast_dim);
@@ -325,7 +326,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
         return EVEX_compress_addr(aux_reg_store_buf, offset);
     };
 
-    auto init = [=]() {
+    auto init = [&]() {
         for (int i_load = 0; i_load < load_loop_blk; ++i_load)
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
                 auto r = vreg_accum(i_load, i_ur);
@@ -333,11 +334,11 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
             }
     };
 
-    auto store = [=]() {
+    auto store = [&]() {
         if (!isa_has_bf16(jcp.isa)) bf16_emu_->init_vcvtneps2bf16();
 
-        auto preamble = [=]() {
-            auto preamble_read = [=](bool from_buf) {
+        auto preamble = [&]() {
+            auto preamble_read = [&](bool from_buf) {
                 for (int i_ur = 0; i_ur < ur; ++i_ur) {
                     for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
                         auto r = vreg_accum(i_load, i_ur);
@@ -398,7 +399,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
             }
         };
 
-        const auto apply_bias = [=]() {
+        const auto apply_bias = [&]() {
             if (jcp.with_bias
                     && one_of(jcp.prop_kind, forward_training,
                             forward_inference)) {
@@ -423,7 +424,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
             }
         };
 
-        const auto apply_bias_and_postops = [=]() {
+        const auto apply_bias_and_postops = [&]() {
             Label store_no_post_ops;
 
             test(reg_reduce_pos_flag,
@@ -435,7 +436,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
             L(store_no_post_ops);
         };
 
-        auto store_output = [=](bool to_buf) {
+        auto store_output = [&](bool to_buf) {
             if (to_buf) {
                 for (int i_ur = 0; i_ur < ur; ++i_ur) {
                     for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
@@ -541,7 +542,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
         }
     };
 
-    auto fma_block_bwd_w = [=](bool is_tail) {
+    auto fma_block_bwd_w = [&](bool is_tail) {
         int n_reduce_tail = jcp.reduce_dim % jcp.reduce_loop_unroll;
         int n_reduce
                 = is_tail && n_reduce_tail > 0 && !jcp.uses_permw_transposition
@@ -563,13 +564,14 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
         }
 
         const int pipeline = saturate(1, 4, pipeline_length_max);
-        auto zmm_prm = [=]() { return zmm_store(); };
-        auto get_load_start_idx = [=](int bcast_count) {
-            return pipeline * jcp.uses_permw_transposition
-                    + (bcast_count % pipeline) * load_loop_blk;
-        };
-        auto pipeline_bcast_ptr = [=](int i_reduce, int i_ur, bool bcast,
-                                          int pipeline_idx) {
+        auto zmm_prm = [zmm_store]() { return zmm_store(); };
+        auto get_load_start_idx
+                = [this, pipeline, load_loop_blk](int bcast_count) {
+                      return pipeline * jcp.uses_permw_transposition
+                              + (bcast_count % pipeline) * load_loop_blk;
+                  };
+        auto pipeline_bcast_ptr = [this, bcast_ptr](int i_reduce, int i_ur,
+                                          bool bcast, int pipeline_idx) {
             if (jcp.uses_permw_transposition) {
                 int offset = 64 * pipeline_idx + jcp.typesize_in * 2 * i_ur;
                 auto p = rsp + broadcast_space + offset;
@@ -579,13 +581,13 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
             }
         };
 
-        auto get_load_mask = [=](int i_reduce) {
+        auto get_load_mask = [this](int i_reduce) {
             bool is_reduce_tail = jcp.reduce_loop_unroll % 2
                     && i_reduce + 2 >= jcp.reduce_loop_unroll;
             return is_load_layout_nxc() || is_reduce_tail ? half_mask
                                                           : full_mask;
         };
-        auto get_bcast_mask = [=](int i_reduce) {
+        auto get_bcast_mask = [this](int i_reduce) {
             bool is_reduce_tail = jcp.reduce_loop_unroll % 2
                     && i_reduce + 2 >= jcp.reduce_loop_unroll;
             return is_bcast_layout_nxc() || is_reduce_tail ? half_mask
@@ -743,7 +745,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
             mov(reg_reduce_pos_flag, EVEX_compress_addr(rsp, perm_reg_offset));
     };
 
-    auto fma_block_fwd_bwd_d = [=](bool is_tail) {
+    auto fma_block_fwd_bwd_d = [&](bool is_tail) {
         int n_reduce_tail = jcp.reduce_dim % jcp.reduce_loop_unroll;
         int n_reduce = is_tail && n_reduce_tail > 0 ? n_reduce_tail
                                                     : jcp.reduce_loop_unroll;
@@ -840,7 +842,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
         }
     };
 
-    auto fma_block = [=](bool is_tail) {
+    auto fma_block = [&](bool is_tail) {
         return (jcp.prop_kind == backward_weights)
                 ? fma_block_bwd_w(is_tail)
                 : fma_block_fwd_bwd_d(is_tail);
@@ -888,24 +890,27 @@ void jit_avx512_core_bf16_1x1_conv_kernel::compute_diff_bias(
     auto vunit = Zmm(31);
     auto vreg_prm = Zmm(30);
 
-    auto get_load_offset = [=](int i_reduce, int i_load) {
+    auto get_load_offset = [this](int i_reduce, int i_load) {
         dim_t lmul
                 = jcp.load_block * (is_load_layout_nxc() ? 1 : jcp.reduce_dim);
         dim_t rmul = (is_load_layout_nxc() ? jcp.load_dim : jcp.load_block);
         return (i_load * lmul + i_reduce * rmul) * jcp.typesize_in;
     };
-    auto load_ptr = [=](int i_reduce, int i_load, int offset = 0) {
+    auto load_ptr = [this, get_load_offset](
+                            int i_reduce, int i_load, int offset = 0) {
         return EVEX_compress_addr(
                 aux_reg_load_data, get_load_offset(i_reduce, i_load) + offset);
     };
-    auto bias_ptr = [=](int i_load) {
+    auto bias_ptr = [this](int i_load) {
         return ptr[reg_bias_data + i_load * jcp.load_block * jcp.typesize_acc];
     };
 
-    auto vreg_acc = [=](int i_load) { return Zmm(i_load); };
-    auto vreg_load = [=](int i_load) { return Zmm(load_loop_blk + i_load); };
+    auto vreg_acc = [](int i_load) { return Zmm(i_load); };
+    auto vreg_load = [load_loop_blk](int i_load) {
+        return Zmm(load_loop_blk + i_load);
+    };
 
-    auto compute_diff_bias_block = [=](bool is_tail) {
+    auto compute_diff_bias_block = [&](bool is_tail) {
         for (int i_load = 0; i_load < load_loop_blk; i_load++) {
             auto vacc = vreg_acc(i_load);
             auto vload = vreg_load(i_load);
@@ -1048,7 +1053,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::generate() {
         mov(reg_output_stride, ptr[param1 + GET_OFF(output_stride)]);
     }
 
-    auto load_loop_body = [=](int load_loop_blk) {
+    auto load_loop_body = [&](int load_loop_blk) {
         Label no_update_mask, update_mask_done;
         if (load_dim_tail) {
             cmp(reg_load_loop_work, load_loop_blk * jcp.load_loop_iter_step);
@@ -1834,7 +1839,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::balance(
     jcp.nthr_g = jcp.ngroups;
     const int nthr = nthreads / jcp.nthr_g;
 
-    auto calc_mem_cost = [=](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
+    auto calc_mem_cost = [&](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
         /* calculate per thread memory cost (read/write). high level
         * optimizer tries to minimize memory consumption. few notes: (n1)
         * unclear why, but that essentially helps first convolution...

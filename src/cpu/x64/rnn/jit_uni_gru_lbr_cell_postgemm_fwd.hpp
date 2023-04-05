@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -135,7 +135,7 @@ protected:
             return ptr[addr_scratch_cell_reg + i * rnn_.dhc * scratch_dt_size];
         };
 
-        auto compute_loop = [=](size_t current_vlen) {
+        auto compute_loop = [&](size_t current_vlen) {
             Label loop_start_label, loop_inc_regs_or_finish;
             L(loop_start_label);
             {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -146,7 +146,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
         return (ki * dilate_w + oi * stride_w - pad_l);
     };
 
-    auto get_input_offset = [=](int ii, int ci, int rep) {
+    auto get_input_offset = [&](int ii, int ci, int rep) {
         return (ci * icb_stride + ii * iw_stride + rep * vlen)
                 * jcp.typesize_in;
     };

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -792,11 +792,11 @@ struct jit_bnorm_t : public jit_generator {
             uni_vmovups(Vmm(0), vmmword[reg_rbuf1 + reg_coff]);
             spat_loop(
                     spat_size, unroll_blocks, unroll_regs,
-                    [=](size_t base_reg) {
+                    [this](size_t base_reg) {
                         Vmm v = Vmm(base_reg * 2);
                         if (base_reg) uni_vpxor(v, v, v);
                     },
-                    [=](size_t base_reg, size_t i) {
+                    [this](size_t base_reg, size_t i) {
                         Vmm v0 = Vmm(base_reg * 2 + 0);
                         Vmm v1 = Vmm(base_reg * 2 + 1);
                         size_t offt = i * vlen_spat_data_;
@@ -804,7 +804,7 @@ struct jit_bnorm_t : public jit_generator {
                                 v1, vmmword[reg_src + reg_soff + offt]);
                         uni_vaddps(v0, v0, v1);
                     },
-                    [=](size_t base_reg) {
+                    [this](size_t base_reg) {
                         Vmm b = Vmm(0);
                         Vmm v = Vmm(base_reg * 2);
                         if (base_reg) uni_vaddps(b, b, v);
@@ -820,7 +820,7 @@ struct jit_bnorm_t : public jit_generator {
     void mean_variance_nspc(
             const int num_ch_blks, int num_spat_pts, bool compute_mean) {
 
-        auto mean_compute_avx2_ne_xf16 = [=](int num_ch_blks,
+        auto mean_compute_avx2_ne_xf16 = [this](int num_ch_blks,
                                                  int num_spat_pts) {
             for (int spat_pt = 0; spat_pt < num_spat_pts; ++spat_pt) {
                 for (int ch_idx = 0; ch_idx < num_ch_blks; ch_idx += 2) {
@@ -843,7 +843,7 @@ struct jit_bnorm_t : public jit_generator {
             }
         };
 
-        auto variance_compute_avx2_ne_xf16 = [=](int num_ch_blks,
+        auto variance_compute_avx2_ne_xf16 = [this](int num_ch_blks,
                                                      int num_spat_pts) {
             for (int spat_pt = 0; spat_pt < num_spat_pts; ++spat_pt) {
                 for (int ch_idx = 0; ch_idx < num_ch_blks; ch_idx += 2) {
@@ -870,7 +870,7 @@ struct jit_bnorm_t : public jit_generator {
             }
         };
 
-        auto mean_compute = [=](int num_ch_blks, int num_spat_pts) {
+        auto mean_compute = [this](int num_ch_blks, int num_spat_pts) {
             for (int spat_pt = 0; spat_pt < num_spat_pts; ++spat_pt) {
                 for (int ch_idx = 0; ch_idx < num_ch_blks; ++ch_idx) {
                     const int offt = ch_idx * vlen_spat_data_;
@@ -883,7 +883,7 @@ struct jit_bnorm_t : public jit_generator {
             }
         };
 
-        auto variance_compute = [=](int num_ch_blks, int num_spat_pts) {
+        auto variance_compute = [this](int num_ch_blks, int num_spat_pts) {
             for (int spat_pt = 0; spat_pt < num_spat_pts; ++spat_pt) {
                 for (int ch_idx = 0; ch_idx < num_ch_blks; ++ch_idx) {
                     const int offt = ch_idx * vlen_spat_data_;
@@ -944,7 +944,7 @@ struct jit_bnorm_t : public jit_generator {
     }
 
     void forward_channels_nspc_compute(const int num_ch_blks) {
-        auto compute = [=](bool stream_store_allowed) {
+        auto compute = [this, num_ch_blks](bool stream_store_allowed) {
             // Overwritten during mean and variance computation
             uni_vpxor(vzero, vzero, vzero);
 
@@ -1133,11 +1133,11 @@ struct jit_bnorm_t : public jit_generator {
             uni_vmovups(Vmm(0), vmmword[reg_rbuf1 + reg_coff]);
             spat_loop(
                     spat_size, unroll_blocks, unroll_regs,
-                    [=](size_t base_reg) {
+                    [this](size_t base_reg) {
                         Vmm v = Vmm(base_reg * 3);
                         if (base_reg > 0) uni_vpxor(v, v, v);
                     },
-                    [=](size_t base_reg, size_t i) {
+                    [this](size_t base_reg, size_t i) {
                         Vmm v = Vmm(3 * base_reg);
                         Vmm vtmp0 = Vmm(3 * base_reg + 1);
                         Vmm vtmp1 = Vmm(3 * base_reg + 2);
@@ -1152,7 +1152,7 @@ struct jit_bnorm_t : public jit_generator {
                         }
                         uni_vfmadd231ps(v, vtmp1, vtmp1);
                     },
-                    [=](size_t base_reg) {
+                    [this](size_t base_reg) {
                         Vmm b = Vmm(0);
                         Vmm v = Vmm(base_reg * 3);
                         if (base_reg) uni_vaddps(b, b, v);
@@ -1347,7 +1347,7 @@ struct jit_bnorm_t : public jit_generator {
             const auto spat_loop_init_fin
                     = [](size_t base_reg) { UNUSED(base_reg); };
 
-            const auto spat_loop_body = [=](size_t base_reg, size_t i,
+            const auto spat_loop_body = [this](size_t base_reg, size_t i,
                                                 bool stream_store_allowed) {
                 const Vmm v = Vmm(base_reg);
                 const size_t offt = i * vlen_spat_data_;
@@ -1384,7 +1384,8 @@ struct jit_bnorm_t : public jit_generator {
                 }
             };
 
-            const auto compute = [=](bool stream_store_allowed) {
+            const auto compute = [this, spat_loop_init_fin, spat_loop_body](
+                                         bool stream_store_allowed) {
                 using namespace std::placeholders;
                 spat_loop(spat_size, unroll_blocks, unroll_regs,
                         spat_loop_init_fin,
@@ -1516,7 +1517,7 @@ struct jit_bnorm_t : public jit_generator {
             uni_vmovups(Vmm(1), vmmword[reg_rbuf2 + reg_coff]);
             spat_loop(
                     spat_size, 1, 1,
-                    [=](size_t base_reg) {
+                    [this](size_t base_reg) {
                         if (base_reg > 0) {
                             for (int i = 0; i < 2; i++) {
                                 Vmm v(base_reg * 5 + i);
@@ -1524,7 +1525,7 @@ struct jit_bnorm_t : public jit_generator {
                             }
                         }
                     },
-                    [=](size_t base_reg, size_t i) {
+                    [this](size_t base_reg, size_t i) {
                         // TODO: use single set of tmp regs and let ROB handle the rest
                         Vmm o0 = Vmm(base_reg * 5 + 0);
                         Vmm o1 = Vmm(base_reg * 5 + 1);
@@ -1553,7 +1554,7 @@ struct jit_bnorm_t : public jit_generator {
                         }
                         uni_vaddps(o1, o1, t2);
                     },
-                    [=](size_t base_reg) {
+                    [this](size_t base_reg) {
                         Vmm b0 = Vmm(0);
                         Vmm b1 = Vmm(1);
                         if (base_reg) {
@@ -1698,8 +1699,8 @@ struct jit_bnorm_t : public jit_generator {
             uni_vdivps(vdiff_gamma, vdiff_gamma, vchan_size);
 
             const auto spat_loop_init_fin
-                    = [=](size_t base_reg) { UNUSED(base_reg); };
-            const auto spat_loop_body = [=](size_t base_reg, size_t i,
+                    = [](size_t base_reg) { UNUSED(base_reg); };
+            const auto spat_loop_body = [this](size_t base_reg, size_t i,
                                                 bool stream_store_allowed) {
                 const Vmm v(base_reg * 2 + 0);
                 const Vmm t(base_reg * 2 + 1);
@@ -1733,7 +1734,8 @@ struct jit_bnorm_t : public jit_generator {
                 }
             };
 
-            const auto compute = [=](bool stream_store_allowed) {
+            const auto compute = [this, spat_loop_init_fin, spat_loop_body](
+                                         bool stream_store_allowed) {
                 using namespace std::placeholders;
                 spat_loop(spat_size, unroll_blocks, unroll_regs,
                         spat_loop_init_fin,
@@ -1761,7 +1763,7 @@ struct jit_bnorm_t : public jit_generator {
     }
 
     void backward_diff_channels_nspc_compute(const int num_ch_blks) {
-        auto compute = [=](bool stream_store_allowed) {
+        auto compute = [this, num_ch_blks](bool stream_store_allowed) {
             xor_(reg_soff_nspc, reg_soff_nspc);
             if (jbp_->is_spatial_thr_) {
                 mov(reg_ctr, ptr[rsp + stack_off_spat_size_loc]);

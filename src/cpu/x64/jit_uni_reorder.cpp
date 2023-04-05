@@ -260,7 +260,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         using namespace data_type;
 
         const auto cvt2ps
-                = [=](const Ymm dst, const Operand &src, data_type_t idt) {
+                = [this](const Ymm dst, const Operand &src, data_type_t idt) {
                       switch (idt) {
                           case f32:
                               if (src.isMEM() || src.getIdx() != dst.getIdx())
@@ -297,7 +297,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                       }
                   };
 
-        const auto cvt2odt = [=](const Ymm ymm, data_type_t odt,
+        const auto cvt2odt = [this, cvt2ps](const Ymm ymm, data_type_t odt,
                                      data_type_t idt) {
             const Xmm xmm = Xmm(ymm.getIdx());
             switch (odt) {
@@ -362,7 +362,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             }
         };
 
-        auto load = [=](const Ymm ymm, const Address &addr, int size) {
+        auto load = [this](const Ymm ymm, const Address &addr, int size) {
             const Xmm xmm = Xmm(ymm.getIdx());
             switch (size) {
                 case 32: vmovups(ymm, addr); break;
@@ -372,7 +372,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             }
         };
 
-        auto store = [=](const Address &addr, const Ymm ymm, int size) {
+        auto store = [this](const Address &addr, const Ymm ymm, int size) {
             const Xmm xmm = Xmm(ymm.getIdx());
             switch (size) {
                 case 32: vmovups(addr, ymm); break;
@@ -556,7 +556,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         using namespace data_type;
 
         const auto cvt2ps
-                = [=](const Xmm dst, const Operand &src, data_type_t idt) {
+                = [this](const Xmm dst, const Operand &src, data_type_t idt) {
                       Xmm dst_pure = Xmm(dst.getIdx());
                       switch (idt) {
                           case f32:
@@ -584,7 +584,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                       }
                   };
 
-        const auto cvt2odt = [=](const Xmm xmm, data_type_t odt,
+        const auto cvt2odt = [this, cvt2ps](const Xmm xmm, data_type_t odt,
                                      data_type_t idt) {
             switch (odt) {
                 case bf16:
@@ -649,7 +649,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             }
         };
 
-        auto load = [=](const Xmm xmm, const Address &addr, int size) {
+        auto load = [this](const Xmm xmm, const Address &addr, int size) {
             switch (size) {
                 case 16: uni_vmovups(xmm, addr); break;
                 case 8: uni_vmovsd(xmm, addr); break;
@@ -660,17 +660,17 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             }
         };
 
-        auto load_bytes
-                = [=](const Xmm xmm, const Address &addr, int size, int imm) {
-                      switch (size) {
-                          case 4: uni_vpinsrd(xmm, xmm, addr, imm); break;
-                          case 2: uni_vpinsrw(xmm, xmm, addr, imm); break;
-                          case 1: uni_vpinsrb(xmm, xmm, addr, imm); break;
-                          default: assert(!"unreachable");
-                      }
-                  };
+        auto load_bytes = [this](const Xmm xmm, const Address &addr, int size,
+                                  int imm) {
+            switch (size) {
+                case 4: uni_vpinsrd(xmm, xmm, addr, imm); break;
+                case 2: uni_vpinsrw(xmm, xmm, addr, imm); break;
+                case 1: uni_vpinsrb(xmm, xmm, addr, imm); break;
+                default: assert(!"unreachable");
+            }
+        };
 
-        auto store = [=](const Address &addr, const Xmm xmm, int size) {
+        auto store = [this](const Address &addr, const Xmm xmm, int size) {
             switch (size) {
                 case 16: uni_vmovups(addr, xmm); break;
                 case 8: uni_vmovsd(addr, xmm); break;

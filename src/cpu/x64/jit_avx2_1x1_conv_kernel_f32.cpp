@@ -228,27 +228,28 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
             % jcp.load_block;
     const int reduce_dim_tail = jcp.reduce_dim % jcp.reduce_block;
 
-    auto vreg_load = [=](int i) { return Ymm(ur * load_loop_blk + i); };
+    auto vreg_load = [ur, load_loop_blk](
+                             int i) { return Ymm(ur * load_loop_blk + i); };
 
-    auto bias_ptr = [=](int i) {
+    auto bias_ptr = [this](int i) {
         return ptr[reg_bias_data + sizeof(float) * jcp.oc_block * i];
     };
 
-    auto bcast_ptr = [=](int u, int j) {
+    auto bcast_ptr = [this](int u, int j) {
         assert(j < jcp.ur);
         assert(u <= jcp.reduce_loop_unroll);
         const size_t offset = get_bcast_offset(jcp, u, j);
         return make_safe_addr(aux_reg_bcast_data, offset, reg_long_offt);
     };
 
-    auto get_load_offset_bwd_w = [=](int u, int i) {
+    auto get_load_offset_bwd_w = [this](int u, int i) {
         size_t u0 = u % jcp.reduce_loop_unroll;
         size_t u1 = u / jcp.reduce_loop_unroll;
         return u1 * jcp.reduce_loop_load_step
                 + sizeof(float) * get_load_bwd_w_offset(jcp, i, u0);
     };
 
-    auto load_ptr = [=](int u, int i) {
+    auto load_ptr = [this](int u, int i) {
         size_t offt;
         size_t u0 = u % jcp.reduce_loop_unroll;
         size_t u1 = u / jcp.reduce_loop_unroll;
@@ -266,7 +267,7 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
                 + sizeof(float) * offt];
     };
 
-    auto get_output_offset = [=](int i, int j) {
+    auto get_output_offset = [this](int i, int j) {
         switch (jcp.prop_kind) {
             case backward_weights: return sizeof(float) * jcp.oc_block * j;
             default:
@@ -276,7 +277,7 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
         }
     };
 
-    auto output_ptr = [=](int i, int j) {
+    auto output_ptr = [this, get_output_offset](int i, int j) {
         switch (jcp.prop_kind) {
             case backward_weights:
                 return ptr[aux_reg_output_data
@@ -289,7 +290,7 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
         }
     };
 
-    auto init = [=]() {
+    auto init = [&]() {
         Label init_done, init_zero;
 
         if (jcp.with_bias
@@ -351,7 +352,7 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
         vbroadcastss(vreg_bcast, bcast_ptr(0, 0));
     };
 
-    auto store = [=]() {
+    auto store = [&]() {
         Label store_noadd;
 
         if (!jcp.with_sum) {
@@ -439,7 +440,7 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
         }
     };
 
-    auto fma_block = [=](bool last_block) {
+    auto fma_block = [&](bool last_block) {
         const bool is_tail = reduce_dim_tail && last_block;
         const int u_end = is_tail ? reduce_dim_tail : jcp.reduce_loop_unroll;
         for (int u = 0; u < u_end; ++u) {
@@ -514,16 +515,16 @@ void jit_avx2_1x1_conv_kernel_f32::generate_diff_bias_loop(int load_loop_blk) {
     Label diff_bias_loop, diff_bias_loop_out, diff_bias_init_out;
     Label diff_bias_load;
 
-    auto diff_bias_ptr = [=](int i) {
+    auto diff_bias_ptr = [this](int i) {
         return ptr[reg_diff_bias_data + i * jcp.oc_block * sizeof(float)];
     };
 
-    auto load_ptr = [=](int u, int i) {
+    auto load_ptr = [this](int u, int i) {
         return ptr[aux_reg_load_data
                 + (i * jcp.os + u) * jcp.oc_block * sizeof(float)];
     };
 
-    auto diff_bias_reg = [=](int i) { return Ymm(i); };
+    auto diff_bias_reg = [](int i) { return Ymm(i); };
 
     mov(reg_diff_bias_data, ptr[rsp + reg_diff_bias_data_stack_offt]);
     cmp(reg_diff_bias_data, 0);
@@ -597,7 +598,7 @@ void jit_avx2_1x1_conv_kernel_f32::generate() {
     if (jcp.prop_kind == backward_weights)
         mov(reg_output_stride, ptr[param1 + GET_OFF(output_stride)]);
 
-    auto generate_load_loop_body = [=](int load_loop_blk) {
+    auto generate_load_loop_body = [&](int load_loop_blk) {
         generate_bcast_loop(load_loop_blk);
         add(reg_load_data, load_loop_blk * jcp.load_loop_load_step);
         const size_t offst_with_dw_conv

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,14 +47,14 @@ status_t ref_inner_product_int8_fwd_t::execute_forward(
     const auto MB = pd()->MB();
     const auto OC = pd()->OC();
     const auto IC = pd()->IC();
+    const auto KD = pd()->KD();
+    const auto KH = pd()->KH();
+    const auto KW = pd()->KW();
 
     const auto ndims = pd()->ndims();
 
-    auto ker = [=](dim_t mb, dim_t oc) {
+    auto ker = [&](dim_t mb, dim_t oc) {
         int d = 0;
-        const dim_t KD = pd()->KD();
-        const dim_t KH = pd()->KH();
-        const dim_t KW = pd()->KW();
         for_(dim_t ic = 0; ic < IC; ++ic)
         for_(dim_t kd = 0; kd < KD; ++kd)
         for_(dim_t kh = 0; kh < KH; ++kh)
@@ -79,7 +79,7 @@ status_t ref_inner_product_int8_fwd_t::execute_forward(
     const bool with_dst_scales
             = !attr_scales.get(DNNL_ARG_DST).has_default_values();
 
-    auto maybe_oscale = [=](float &d, dim_t oc) {
+    auto maybe_oscale = [&](float &d, dim_t oc) {
         // scale_idx_mult = 1 for per_oc scales and 0, otherwise
         const int scale_idx_mult
                 = attr_scales.get(DNNL_ARG_WEIGHTS).mask_ == (1 << 0);

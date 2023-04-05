@@ -410,7 +410,7 @@ std::function<Vmm()> jit_avx512_core_x8s8s32x_deconv_fwd_kernel<
     const int end_vmm_idx = vmm_inp(ur_w - 1, jcp.nb_oc_blocking).getIdx() + 1;
     int current_vmm_idx = start_vmm_idx;
 
-    return [=]() mutable {
+    return [current_vmm_idx, start_vmm_idx, end_vmm_idx]() mutable {
         const Vmm vmm {static_cast<int>(current_vmm_idx++)};
 
         if (current_vmm_idx == end_vmm_idx) current_vmm_idx = start_vmm_idx;
@@ -554,14 +554,14 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::compute_ker(int ur_w,
     const int ch_block_all = jcp.ch_block * jcp.ic_block * jcp.oc_block;
     const int ur_w_stride = signed_input_or_src_zp ? 1 : jcp.stride_w;
 
-    auto src_offset = [=](int oj, int icb, int ki) {
+    auto src_offset = [this](int oj, int icb, int ki) {
         return jcp.typesize_in
                 * (((oj + jcp.l_pad - ki * (jcp.dilate_w + 1)) / jcp.stride_w)
                                 * jcp.ngroups * jcp.ic_without_padding
                         + icb * 4);
     };
 
-    auto kernel_offset = [=](int ocb, int icb, int ki) {
+    auto kernel_offset = [this, ch_block_all](int ocb, int icb, int ki) {
         return jcp.typesize_in
                 * ((ocb * jcp.nb_ic * jcp.kd * jcp.kh * jcp.kw + ki)
                                 * ch_block_all

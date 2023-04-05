@@ -1856,29 +1856,30 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
     assert(!is_src_layout_nxc() && !is_ddst_layout_nxc());
     int kw = jcp.kw;
     bool no_src_pad = jcp.is_1stconv && !jcp.transpose_src;
-    const int ddst_zmm_base_idx = 24;
+    static constexpr int ddst_zmm_base_idx = 24;
     const int num_ddst_zmm_regs = !isa_has_bf16(jcp.isa) ? 2 : 4;
     const int zmm_src_reg = ddst_zmm_base_idx + num_ddst_zmm_regs;
 
-    auto zmm_ker = [=](int i_kw, int i_ic) {
+    auto zmm_ker = [ic_block_step](int i_kw, int i_ic) {
         return Zmm(i_kw * ic_block_step + i_ic);
     };
-    auto zmm_ddst = [=](int i_iw) {
+    auto zmm_ddst = [num_ddst_zmm_regs](int i_iw) {
         // TODO: move reg calc to global member funcs
         return Zmm(ddst_zmm_base_idx + i_iw % num_ddst_zmm_regs);
     };
 
-    auto ker_addr = [=](int i_kw, int i_ic) {
+    auto ker_addr = [this, kernel_offset](int i_kw, int i_ic) {
         auto local_offset = get_kernel_offset(i_ic, i_kw);
         return EVEX_compress_addr(reg_kernel, local_offset + kernel_offset);
     };
-    auto src_addr = [=](int i_iw, int i_ic, ptrdiff_t extra_offset = 0,
-                            bool vnni_bcast = false) {
-        auto local_offset = get_src_offset(i_ic, i_iw);
-        return EVEX_compress_addr(
-                reg_src, local_offset + src_offset + extra_offset, vnni_bcast);
-    };
-    auto ddst_addr = [=](int i_ur) {
+    auto src_addr
+            = [this, src_offset](int i_iw, int i_ic, ptrdiff_t extra_offset = 0,
+                      bool vnni_bcast = false) {
+                  auto local_offset = get_src_offset(i_ic, i_iw);
+                  return EVEX_compress_addr(reg_src,
+                          local_offset + src_offset + extra_offset, vnni_bcast);
+              };
+    auto ddst_addr = [this, ddst_offset](int i_ur) {
         auto ow_scale = 2;
         return EVEX_compress_addr(
                 reg_ddst, get_ddst_offset(ow_scale * i_ur) + ddst_offset);
@@ -1978,8 +1979,8 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
     // Only supports nchw format src
     assert(jcp.is_1stconv && !jcp.transpose_src);
     int kw = jcp.kw;
-    const int ddst_zmm_base_idx = 24;
-    const int in_zmm_base_idx = 24;
+    static constexpr int ddst_zmm_base_idx = 24;
+    static constexpr int in_zmm_base_idx = 24;
     const int num_ddst_zmm_regs = !isa_has_bf16(jcp.isa) ? 2 : 4;
     //const int num_in_zmm_regs = 8;
     const int zmm_src_reg = ddst_zmm_base_idx + num_ddst_zmm_regs;
@@ -1994,32 +1995,33 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
         sub(rsp, stack_size - ic_block_step_stack_size);
     }
 
-    auto zmm_ker = [=](int i_kw, int i_ic) {
+    auto zmm_ker = [ic_block_step](int i_kw, int i_ic) {
         return Zmm(i_kw * ic_block_step + i_ic);
     };
-    auto zmm_ddst = [=](int i_iw) {
+    auto zmm_ddst = [num_ddst_zmm_regs](int i_iw) {
         return Zmm(ddst_zmm_base_idx + i_iw % num_ddst_zmm_regs);
     };
-    auto zmm_in = [=](int i_iw, int i_ic, bool stride_reg) {
+    auto zmm_in = [](int i_iw, int i_ic, bool stride_reg) {
         int stride = stride_reg ? 1 : 0;
         return Zmm(in_zmm_base_idx + 4 * (i_ic % 2) + 2 * (i_iw % 2) + stride);
     };
 
-    auto ker_addr = [=](int i_kw, int i_ic) {
+    auto ker_addr = [this, kernel_offset](int i_kw, int i_ic) {
         auto local_offset = get_kernel_offset(i_ic, i_kw);
         return EVEX_compress_addr(reg_kernel, local_offset + kernel_offset);
     };
-    auto src_addr = [=](int i_iw, int i_ic, ptrdiff_t extra_offset = 0,
+    auto src_addr = [this, reorder_bytes](int i_iw, int i_ic,
+                            ptrdiff_t extra_offset = 0,
                             bool vnni_bcast = false) {
         int local_offset = i_ic * reorder_bytes + 2 * jcp.typesize_in * i_iw;
         return EVEX_compress_addr(rsp, local_offset, vnni_bcast);
     };
-    auto ddst_addr = [=](int i_ur) {
+    auto ddst_addr = [this, ddst_offset](int i_ur) {
         auto ow_scale = 2;
         return EVEX_compress_addr(
                 reg_ddst, get_ddst_offset(ow_scale * i_ur) + ddst_offset);
     };
-    auto load_src_to_stack = [=](int i_iw, int i_ic, Opmask mask,
+    auto load_src_to_stack = [&](int i_iw, int i_ic, Opmask mask,
                                      bool mask_empty, Opmask stride_mask,
                                      bool stride_mask_empty) {
         auto local_offset = get_src_offset(i_ic, i_iw);
@@ -2311,17 +2313,19 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
     const int diff_dst_pl_start_reg_idx = ic_block_step * (kw + src_pl_len);
     const int diff_dst_pl_len = max_regs - diff_dst_pl_start_reg_idx;
 
-    auto get_diff_wei_reg_idx
-            = [=](int i_kw, int i_ic) { return i_kw * ic_block_step + i_ic; };
-    auto get_src_reg_idx = [=](int i_iw, int i_ic) {
+    auto get_diff_wei_reg_idx = [ic_block_step](int i_kw, int i_ic) {
+        return i_kw * ic_block_step + i_ic;
+    };
+    auto get_src_reg_idx = [&](int i_iw, int i_ic) {
         return kw * ic_block_step + (i_iw % src_pl_len) * ic_block_step + i_ic;
     };
-    auto get_diff_dst_reg_idx = [=](int i_ur) {
+    auto get_diff_dst_reg_idx = [diff_dst_pl_start_reg_idx, diff_dst_pl_len](
+                                        int i_ur) {
         return diff_dst_pl_start_reg_idx + (i_ur / 2) % diff_dst_pl_len;
     };
 
     may_be_set_oc_tail_mask();
-    auto load_dst = [=](int c) {
+    auto load_dst = [&](int c) {
         bool is_tail = ur_w % 2 && c * 2 + 2 >= ur_w;
         bool is_ddst_nxc = is_ddst_layout_nxc();
         auto offset = get_ddst_offset(c * 2) + ddst_offset;
@@ -2345,7 +2349,8 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
                     Zmm(get_diff_wei_reg_idx(i_kw, i_ic)),
                     Zmm(get_diff_wei_reg_idx(i_kw, i_ic)));
 
-    auto get_bcast_ptr = [=](int i_ur, int i_kw, int ic) {
+    auto get_bcast_ptr = [this, ic_block_step_idx, ic_block_step](
+                                 int i_ur, int i_kw, int ic) {
         int scale = 2 * jcp.typesize_in;
         return rsp + b_ic * scale + permw_buffer_start + (i_ur + i_kw) * 64
                 + jcp.typesize_in * 2
@@ -2438,7 +2443,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
     may_be_set_oc_tail_mask();
 
     const int dst_off_reg = (!isa_has_bf16(jcp.isa)) ? 26 : 31;
-    auto load_dst = [=](int c) {
+    auto load_dst = [&](int c) {
         bool is_tail = ur_w % 2 && c * 2 + 2 >= ur_w;
         bool is_ddst_nxc = is_ddst_layout_nxc();
         auto offset = get_ddst_offset(2 * c) + ddst_offset;
@@ -2465,7 +2470,8 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
     for (dst_count = 0; dst_count < pipeline_length; dst_count++) {
         load_dst(dst_count);
     }
-    auto get_bcast_ptr = [=](int i_ur, int i_kw, int ic) {
+    auto get_bcast_ptr = [this, ic_block_step_idx, ic_block_step](
+                                 int i_ur, int i_kw, int ic) {
         int scale = 2 * jcp.typesize_in;
         return rsp + b_ic * scale + permw_buffer_start + (i_ur + i_kw) * 64
                 + jcp.typesize_in * 2
@@ -2949,7 +2955,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_oh_step_common(
     if (use_kh_ic_ow_loop_order) {
         assert(!jcp.uses_permw_transposition);
 
-        auto ic_loop = [=](int ic_block_step) {
+        auto ic_loop = [&](int ic_block_step) {
             Label ow_block_label;
             // create a local copy
             int ur_w_blocks = ur_w_trips;
@@ -3054,7 +3060,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_oh_step_common(
         assert(!jcp.is_1stconv);
         auto src_icbstep_shift = get_src_offset(1, 0);
 
-        auto ic_loop = [=](int ic_block_step) {
+        auto ic_loop = [&](int ic_block_step) {
             int ic_work = ic_block;
             Label ow_block_label, ic_block_label_padl, ic_block_label_general,
                     ic_block_label_tail;
@@ -4579,7 +4585,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::balance(
     nthr_g_ = j.ngroups;
     const int nthr = max_threads / nthr_g_;
 
-    auto calc_mem_cost = [=](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
+    auto calc_mem_cost = [&](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
         /* calculate per thread memory cost (read/write). high level optimizer
          * tries to minimize memory consumption. few notes:
          *  (n1) if weights tensor size is less than source and destination
@@ -4604,18 +4610,20 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::balance(
 
         float wei_compensation_scale = 0.5f * (dst_size + src_size) / wei_size;
         float oi_channels_ratio = (float)j.nb_oc / j.nb_ic;
-        auto get_src_coef = [=]() {
+        auto get_src_coef = [oi_channels_ratio, wei_compensation_scale]() {
             float src_coef = nstl::max(1.0f / oi_channels_ratio, 1.0f);
             if (wei_compensation_scale < 1.0f) src_coef *= 4.0f;
 
             return src_coef;
         };
 
-        auto get_dst_coef
-                = [=]() { return nstl::max(oi_channels_ratio, 1.0f); };
+        auto get_dst_coef = [oi_channels_ratio]() {
+            return nstl::max(oi_channels_ratio, 1.0f);
+        };
 
-        auto get_wei_coef
-                = [=]() { return nstl::max(wei_compensation_scale, 1.0f); };
+        auto get_wei_coef = [wei_compensation_scale]() {
+            return nstl::max(wei_compensation_scale, 1.0f);
+        };
 
         const float src_coef = get_src_coef();
         const float dst_coef = get_dst_coef();

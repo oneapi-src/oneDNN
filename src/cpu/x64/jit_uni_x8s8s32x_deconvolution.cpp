@@ -502,7 +502,7 @@ std::function<Vmm()> _jit_uni_x8s8s32x_deconv_fwd_kernel<isa,
     const int end_vmm_idx = vmm_inp(0, jcp_.nb_oc_blocking).getIdx() + 1;
     int current_vmm_idx = start_vmm_idx;
 
-    return [=]() mutable {
+    return [current_vmm_idx, start_vmm_idx, end_vmm_idx]() mutable {
         const Vmm vmm {static_cast<int>(current_vmm_idx++)};
 
         if (current_vmm_idx == end_vmm_idx) current_vmm_idx = start_vmm_idx;
@@ -645,7 +645,7 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::compute_ker(int ur_w,
     const int ch_block_all = jcp_.ch_block * jcp_.ic_block * jcp_.oc_block;
     const int ur_w_stride = signed_input_or_src_zp ? 1 : jcp_.stride_w;
 
-    const auto src_offset = [=](int oj, int icb, int ki) {
+    const auto src_offset = [this](int oj, int icb, int ki) {
         return jcp_.typesize_in
                 * (((oj + jcp_.l_pad - ki * (jcp_.dilate_w + 1))
                            / jcp_.stride_w)
@@ -653,7 +653,7 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::compute_ker(int ur_w,
                         + icb * 4);
     };
 
-    const auto kernel_offset = [=](int ocb, int icb, int ki) {
+    const auto kernel_offset = [this, ch_block_all](int ocb, int icb, int ki) {
         return jcp_.typesize_in
                 * ((ocb * jcp_.nb_ic * jcp_.kd * jcp_.kh * jcp_.kw + ki)
                                 * ch_block_all
@@ -982,7 +982,7 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::cvt2ps(data_type_t type_in,
 template <cpu_isa_t isa, typename Vmm>
 void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::apply_postops(int ur_w,
         bool last_oc_block, const float *p_sum_scale, const int32_t *p_sum_zp) {
-    const auto sum_injector = [=]() {
+    const auto sum_injector = [&]() {
         if (p_sum_scale) { // post_op: sum
             for (int k = 0; k < jcp_.nb_oc_blocking; k++) {
                 const bool mask_flag

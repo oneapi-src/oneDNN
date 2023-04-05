@@ -1318,7 +1318,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators(int bd_block2,
         else
             mov(reg_stride_ld_block, brg.LDC * brg.typesize_C);
 
-        auto store_accumulators_amx = [=](const bool apply_post_ops) {
+        auto store_accumulators_amx = [&](const bool apply_post_ops) {
             mov(reg_buf, ptr[rsp + reg_buf_offs_]);
             for (int bdb = 0; bdb < bd_block2; bdb++) {
                 int adj_bd_block = (brg.is_M_tail && is_bdb_tail)
@@ -1522,7 +1522,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::set_A_B_matrices() {
 template <cpu_isa_t isa, typename Wmm>
 void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel_amx(int bd_block2,
         bool is_bdb_tail, int ld_block2, bool is_rd_tail, bool is_ld_tail) {
-    auto tdpbxxd = [=](const Tmm &x1, const Tmm &x2, const Tmm &x3) {
+    auto tdpbxxd = [this](const Tmm &x1, const Tmm &x2, const Tmm &x3) {
         if (brg.dt_a == data_type::bf16 && brg.dt_b == data_type::bf16) {
             tdpbf16ps(x1, x2, x3);
         } else if (brg.dt_a == data_type::f16 && brg.dt_b == data_type::f16) {
@@ -1540,7 +1540,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel_amx(int bd_block2,
         }
     };
 
-    auto maybe_tileloadd_nt = [=](const Tmm &t1, reg64_t base, int offset,
+    auto maybe_tileloadd_nt = [this](const Tmm &t1, reg64_t base, int offset,
                                       reg64_t stride, bool try_load_nt) {
         if (try_load_nt
                 && static_cast<size_t>(
@@ -1609,43 +1609,43 @@ void jit_brgemm_kernel_t<isa, Wmm>::compute_int8_compensation(int rd_loop,
         int vpad) {
     assert(brg.is_int8);
 
-    auto compensation_padding
-            = [=](Vmm vmm_load, Vmm vmm_tmp, int ld, int bd_b, int bd_e) {
-                  // req_cal_comp_pads -> only calculate compensation along with
-                  // computation and do not use pre-calculated compensation.
-                  // Calculate comp padding as:
-                  // accum - inp_shift * conv(1, wei_s32)
-                  if (brg.req_s8s8_compensation) {
-                      if (brg.req_cal_comp_pads) {
-                          uni_vpxor(vmm_tmp, vmm_tmp, vmm_tmp);
-                          dot_product(vmm_tmp, vmm_load, vmm_inp_shift());
-                      }
+    auto compensation_padding = [this, ld_block2](Vmm vmm_load, Vmm vmm_tmp,
+                                        int ld, int bd_b, int bd_e) {
+        // req_cal_comp_pads -> only calculate compensation along with
+        // computation and do not use pre-calculated compensation.
+        // Calculate comp padding as:
+        // accum - inp_shift * conv(1, wei_s32)
+        if (brg.req_s8s8_compensation) {
+            if (brg.req_cal_comp_pads) {
+                uni_vpxor(vmm_tmp, vmm_tmp, vmm_tmp);
+                dot_product(vmm_tmp, vmm_load, vmm_inp_shift());
+            }
 
-                      for (int bd = bd_b; bd < bd_e; bd++) {
-                          auto vmm = accm(ld_block2, bd, ld);
-                          if (brg.req_cal_comp_pads) {
-                              uni_vpsubd(vmm, vmm, vmm_tmp);
-                          } else {
-                              dot_product(vmm, vmm_load, vmm_inp_shift());
-                          }
-                      }
-                  }
+            for (int bd = bd_b; bd < bd_e; bd++) {
+                auto vmm = accm(ld_block2, bd, ld);
+                if (brg.req_cal_comp_pads) {
+                    uni_vpsubd(vmm, vmm, vmm_tmp);
+                } else {
+                    dot_product(vmm, vmm_load, vmm_inp_shift());
+                }
+            }
+        }
 
-                  if (brg.zp_type_a != brgemm_broadcast_t::none) {
-                      uni_vpxor(vmm_tmp, vmm_tmp, vmm_tmp);
-                      dot_product(vmm_tmp, vmm_load, vmm_one_bytes());
-                      uni_vpmulld(vmm_tmp, vmm_tmp, vmm_zp_a_shift());
+        if (brg.zp_type_a != brgemm_broadcast_t::none) {
+            uni_vpxor(vmm_tmp, vmm_tmp, vmm_tmp);
+            dot_product(vmm_tmp, vmm_load, vmm_one_bytes());
+            uni_vpmulld(vmm_tmp, vmm_tmp, vmm_zp_a_shift());
 
-                      for (int bd = bd_b; bd < bd_e; bd++) {
-                          auto vmm = accm(ld_block2, bd, ld);
-                          if (brg.req_cal_comp_pads) {
-                              uni_vpsubd(vmm, vmm, vmm_tmp);
-                          } else {
-                              uni_vpaddd(vmm, vmm, vmm_tmp);
-                          }
-                      }
-                  }
-              };
+            for (int bd = bd_b; bd < bd_e; bd++) {
+                auto vmm = accm(ld_block2, bd, ld);
+                if (brg.req_cal_comp_pads) {
+                    uni_vpsubd(vmm, vmm, vmm_tmp);
+                } else {
+                    uni_vpaddd(vmm, vmm, vmm_tmp);
+                }
+            }
+        }
+    };
 
     if (n_bcast_1_load && brg.zp_type_a != brgemm_broadcast_t::none) {
         mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
@@ -1705,7 +1705,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
     } else
         rd_loop = brg.rd_block;
 
-    auto broadcast = [=](Vmm v1, size_t offset, bool is_tail, data_type_t dt) {
+    auto broadcast = [this, rd_tail_size](Vmm v1, size_t offset, bool is_tail,
+                             data_type_t dt) {
         if (is_tail) {
             uni_vpxor(v1, v1, v1);
             Xmm xmm_tmp = Xmm(v1.getIdx());
@@ -1872,7 +1873,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::ldb_loop(int bd_block2, bool is_bdb_tail,
 
     copy_post_ops_stack_values_to_aux(is_reg_tail);
 
-    auto ld_loop_body = [=](int vpad) {
+    auto ld_loop_body = [&](int vpad) {
         set_A_B_matrices();
 
         int bd_block = (is_bdb_tail) ? brg.bdb_tail : brg.bd_block;
@@ -2056,9 +2057,9 @@ void jit_brgemm_kernel_t<isa, Wmm>::ldb_loop(int bd_block2, bool is_bdb_tail,
 
 template <cpu_isa_t isa, typename Wmm>
 void jit_brgemm_kernel_t<isa, Wmm>::bdb_loop() {
-    auto do_ldb_loop = [=](int bd_block2, bool is_bdb_tail, bool check_top_vpad,
-                               bool check_bottom_vpad, int rows_for_rd_tail,
-                               bool skip_accumulation) {
+    auto do_ldb_loop = [this](int bd_block2, bool is_bdb_tail,
+                               bool check_top_vpad, bool check_bottom_vpad,
+                               int rows_for_rd_tail, bool skip_accumulation) {
         if (brg.ldb2 > 0) {
             const bool is_ld_reg_tail = false;
             const bool is_ld_tail = false;
@@ -2083,7 +2084,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::bdb_loop() {
         }
     };
 
-    auto bdb_loop_body = [=](int bd_block2, bool is_bdb_tail,
+    auto bdb_loop_body = [this, do_ldb_loop](int bd_block2, bool is_bdb_tail,
                                  bool check_top_vpad, bool check_bottom_vpad,
                                  int rows_for_rd_tail, bool skip_accumulation) {
         do_ldb_loop(bd_block2, is_bdb_tail, check_top_vpad, check_bottom_vpad,
@@ -2130,7 +2131,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::bdb_loop() {
                     : false;
     }
 
-    auto bdb_loop_avx512 = [=](bool skip_accumulation) {
+    auto bdb_loop_avx512 = [&](bool skip_accumulation) {
         Label bdb_loop_end_label, no_vpad_label;
         if (vpad_exist) {
             // max_top_vp is restricted by bd_block due to
@@ -2212,7 +2213,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::bdb_loop() {
         }
         L_aligned(bdb_loop_end_label, 64);
     };
-    auto bdb_loop_amx = [=](bool skip_accumulation) {
+    auto bdb_loop_amx = [&](bool skip_accumulation) {
         Label bdb_loop_label;
         if (brg.bd_block2 >= 1) {
             mov(reg_bdb_loop, brg.bdb2);
@@ -2235,7 +2236,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::bdb_loop() {
             do_ldb_loop(1, true, false, false, 0, skip_accumulation);
     };
 
-    auto bdb_loop_general = [=](bool skip_accumulation) {
+    auto bdb_loop_general = [&](bool skip_accumulation) {
         if (brg.type == brgemm_addr && brg.brgattr.max_bs == 1 && !vpad_exist
                 && !skip_accumulation) {
             mov(reg_aux1_A, ptr[reg_addr_batch + GET_OFF_BATCH_ELEMENT(ptr.A)]);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -81,13 +81,13 @@ void jit_avx512_core_u8_copy_sum_bn_kern::generate() {
         mov(A1, (size_t)&hbit);
         movdqu(xmm15, xword[A1]);
 
-        auto maybe_perform_s8_shift_xmm = [=](Xbyak::Xmm x) {
+        auto maybe_perform_s8_shift_xmm = [this](Xbyak::Xmm x) {
             if (s8_case) xorps(x, xmm15);
         };
-        auto maybe_perform_s8_shift_r8 = [=](const Xbyak::Reg8 &r) {
+        auto maybe_perform_s8_shift_r8 = [this](const Xbyak::Reg8 &r) {
             if (s8_case) xor_(r, (int8_t)0x80);
         };
-        auto maybe_perform_s8_shift_r16 = [=](const Xbyak::Reg16 &r) {
+        auto maybe_perform_s8_shift_r16 = [this](const Xbyak::Reg16 &r) {
             if (s8_case) xor_(r, (int16_t)0x8080);
         };
 

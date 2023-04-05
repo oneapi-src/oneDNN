@@ -217,19 +217,20 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(
     const int reduce_dim_tail = jcp.reduce_dim % jcp.reduce_block;
     const int load_dim_tail = jcp.load_dim % jcp.load_block;
 
-    auto vreg_load
-            = [=](int i_load) { return Zmm(ur * load_loop_blk + i_load); };
+    auto vreg_load = [ur, load_loop_blk](int i_load) {
+        return Zmm(ur * load_loop_blk + i_load);
+    };
 
-    auto vreg_accum = [=](int i_load, int i_ur) {
+    auto vreg_accum = [load_loop_blk](int i_load, int i_ur) {
         return Zmm(vreg_accum_idx(load_loop_blk, i_load, i_ur));
     };
 
-    auto bias_ptr = [=](int i_load) {
+    auto bias_ptr = [this](int i_load) {
         return EVEX_compress_addr(
                 reg_bias_data, jcp.typesize_out * jcp.oc_block * i_load);
     };
 
-    auto bcast_ptr = [=](int i_reduce, int i_ur, bool bcast) {
+    auto bcast_ptr = [&](int i_reduce, int i_ur, bool bcast) {
         assert(i_ur < jcp.ur);
         assert(i_reduce <= jcp.reduce_loop_unroll);
         dim_t offt;
@@ -249,7 +250,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(
                 aux_reg_bcast_data, jcp.typesize_in * offt, bcast);
     };
 
-    auto load_ptr = [=](int i_reduce, int i_load) {
+    auto load_ptr = [&](int i_reduce, int i_load) {
         int offt;
         int u0 = i_reduce % jcp.reduce_loop_unroll;
         int u1 = i_reduce / jcp.reduce_loop_unroll;
@@ -263,7 +264,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(
                 u1 * jcp.reduce_loop_load_step + jcp.typesize_in * offt);
     };
 
-    auto init = [=]() {
+    auto init = [&]() {
         Label init_done;
         Label init_zero;
 
@@ -292,7 +293,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(
         L(init_done);
     };
 
-    auto store = [=]() {
+    auto store = [&]() {
         Label store_noadd;
         if (!jcp.with_sum) {
             test(reg_reduce_pos_flag, FLAG_REDUCE_FIRST);
@@ -319,7 +320,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(
             L(store_nopostops);
         }
 
-        auto store_output = [=](bool output_is_aligned) {
+        auto store_output = [&](bool output_is_aligned) {
             const auto mask_flag = load_dim_tail;
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
                 for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
@@ -347,7 +348,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(
         L(end_store);
     };
 
-    auto fma_block = [=](bool last_block) {
+    auto fma_block = [&](bool last_block) {
         const int i_reduce_end = reduce_dim_tail && last_block
                 ? reduce_dim_tail
                 : jcp.reduce_loop_unroll;
@@ -444,7 +445,7 @@ void jit_avx512_common_1x1_conv_kernel::generate() {
         kmovw(k_load_dim_tail_mask, reg_tail_32);
     }
 
-    auto load_loop_body = [=](int load_loop_blk) {
+    auto load_loop_body = [&](int load_loop_blk) {
         if (load_dim_tail)
             kxnorw(k_load_dim_mask, k_load_dim_mask, k_load_dim_mask);
         sub(reg_load_loop_work, load_loop_blk * jcp.load_loop_iter_step);
@@ -921,7 +922,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
             load_blocking = jcp.load_block;
         }
 
-        auto get_thr_eff = [=](int load_chunk, int nthr) {
+        auto get_thr_eff = [&](int load_chunk, int nthr) {
             int lgc = div_up(nb_load, load_chunk);
             int thr_per_grp = div_up(nthr, lgc);
             int bcast_per_thr
@@ -940,7 +941,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
             return overall_eff;
         };
 
-        auto get_load_chunk = [=](int nthr) {
+        auto get_load_chunk = [&](int nthr) {
             float best_eff = -1.0f;
             int best_lgc = 1;
             float eff;
@@ -1177,7 +1178,7 @@ void jit_avx512_common_1x1_conv_kernel::balance(jit_1x1_conv_conf_t &jcp) {
     jcp.nthr_g = jcp.ngroups;
     const int nthr = nthreads / jcp.nthr_g;
 
-    auto calc_mem_cost = [=](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
+    auto calc_mem_cost = [&](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
         /* calculate per thread memory cost (read/write). high level
         * optimizer tries to minimize memory consumption. few notes: (n1)
         * unclear why, but that essentially helps first convolution...

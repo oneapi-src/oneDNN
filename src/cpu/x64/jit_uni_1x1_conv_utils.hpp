@@ -189,7 +189,7 @@ struct rtus_driver_t : public jit_generator {
          * fail to work on reg_v, reg_zero because of this
          * data_type change, e.g. uni_vpxor doen't
          * work on reg_zero now*/
-        auto Vmm = [=](int idx, size_t typesize) {
+        auto Vmm = [this](int idx, size_t typesize) {
             Xmm res;
             if (is_nspc_) {
                 switch (isa) {
@@ -327,7 +327,7 @@ struct rtus_driver_t : public jit_generator {
             }
         }
 
-        auto load_reg = [=](const Xmm &vreg, const Reg64 &reg,
+        auto load_reg = [this](const Xmm &vreg, const Reg64 &reg,
                                 const int64_t offset, const int load_size) {
             if (isa == avx512_core) {
                 const Address &addr = ptr[reg + offset];
@@ -348,7 +348,7 @@ struct rtus_driver_t : public jit_generator {
             }
         };
 
-        auto store_reg = [=](const Reg64 &reg, const Xmm &vreg,
+        auto store_reg = [this](const Reg64 &reg, const Xmm &vreg,
                                  const int64_t offset, const int store_size) {
             if (isa == avx512_core) {
                 const Address &addr = ptr[reg + offset];

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -156,7 +156,7 @@ protected:
         }
         const size_t loop_ur = loop_ur_val;
 
-        auto compute_loop = [=](size_t current_vlen_elem,
+        auto compute_loop = [&](size_t current_vlen_elem,
                                     size_t current_loop_unroll) {
             const auto current_vlen = current_vlen_elem * scratch_dt_size;
             Label loop_start_label;

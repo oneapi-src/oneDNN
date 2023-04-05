@@ -147,11 +147,14 @@ struct memory_desc_wrapper : public c_compatible {
     size_t additional_buffer_size(memory_extra_flags_t flag) const {
         using namespace memory_extra_flags;
 
-        auto calculate_size = [=](int cmask, size_t buff_data_size) {
+        const auto ndims = this->ndims();
+        const auto &pdims = padded_dims();
+
+        auto calculate_size = [ndims, pdims](int cmask, size_t buff_data_size) {
             assert(utils::one_of(cmask, 1, 2, 3, 5, 13, 27));
             dim_t prod = 1;
-            for (int d = 0; d < ndims(); ++d)
-                if (cmask & (1 << d)) { prod *= padded_dims()[d]; }
+            for (int d = 0; d < ndims; ++d)
+                if (cmask & (1 << d)) { prod *= pdims[d]; }
             return (size_t)prod * buff_data_size;
         };
 

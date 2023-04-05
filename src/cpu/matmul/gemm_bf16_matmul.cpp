@@ -250,10 +250,17 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
         const dim_t acc_stride = gemm_based::get_scratchpad_block_elements(
                 batch, M, N, use_single_gemm_call, nthr);
 
+#if (defined __GNUC__) && (__GNUC__ <= 7) && (!defined(__INTEL_COMPILER)) \
+        && (!defined(__clang__major__))
         // NOTE: inside lambda, type cast variables captured by reference using
         // either c-like "(type)var" or functional "type(var)" notation in order
-        // to avoid gcc bug with c++14 standard. Otherwise, capture by value.
+        // to avoid gcc7 bug with c++14 standard
+        // (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=83204).
+        // Otherwise, capture by value.
         parallel(nthr, [=, &st](int ithr, int nthr) {
+#else
+        parallel(nthr, [&](int ithr, int nthr) {
+#endif
             size_t t_work_start {0}, t_work_end {0};
             balance211(work_amount, nthr, ithr, t_work_start, t_work_end);
 

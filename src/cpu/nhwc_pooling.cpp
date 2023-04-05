@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -580,13 +580,14 @@ status_t nhwc_pooling_bwd_t<data_type::f32>::execute_backward(
                 PRAGMA_OMP_SIMD()
 #endif
                 for (dim_t oc = 0; oc < OC; ++oc) {
-                    const int index_from_ws = ws_is_u8 ? ws_[oc] : intws_[oc];
+                    const dim_t index_from_ws = ws_is_u8 ? ws_[oc] : intws_[oc];
                     const data_t d = diff_dst[dst_offset_init + oc];
 
                     // Check if kernel windows are disjoint, in this case
                     // there's no update needed and we just write there once
                     // otherwise we add value to the contents.
-                    auto value = (index_from_ws == index) ? d : data_type_t(0);
+                    const data_t zero = 0;
+                    auto value = (index_from_ws == index) ? d : zero;
                     if (!(KD == SD && KH == SH && KW == SW))
                         diff_src[src_offset_init + oc] += value;
                     else
