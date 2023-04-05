@@ -7,7 +7,7 @@
 --dir=FWD_B,FWD_D
 ### Direct
 --alg=direct
---cfg=f32,bf16bf16bf16,f16
+--dt=f32,bf16,f16
 --stag=any,axb
 --dtag=any,axb
 --attr-post-ops=, \
@@ -19,7 +19,7 @@
 --batch=shapes_basic
 ### Wino
 --alg=wino
---cfg=f32_wino
+--dt=f32
 --stag=any
 --dtag=any
 --batch=shapes_basic
@@ -28,13 +28,13 @@
 --attr-post-ops=
 ### Direct
 --alg=direct
---cfg=f32,bf16bf16bf16
+--dt=f32,bf16
 --stag=any,axb
 --dtag=any,axb
 --batch=shapes_basic
 ### Wino
 --alg=wino
---cfg=f32_wino
+--dt=f32
 --stag=any
 --dtag=any
 --batch=shapes_basic
@@ -47,12 +47,12 @@
 --alg=direct
 
 ### All inference configs
---cfg=s8s8f32,s8s8bf16,s8s8f16,s8s8s32,s8s8s8,s8s8u8, \
-      u8s8f32,u8s8bf16,u8s8f16,u8s8s32,u8s8s8,u8s8u8
+--dt=s8:s8:f32,s8:s8:bf16,s8:s8:f16,s8:s8:s32,s8:s8:s8,s8:s8:u8, \
+      u8:s8:f32,u8:s8:bf16,u8:s8:f16,u8:s8:s32,u8:s8:s8,u8:s8:u8
 --batch=shapes_basic
 
 ### Unsigned input
---cfg=u8s8s32
+--dt=u8:s8:s32
 --stag=any,axb
 --dtag=any,axb
 --attr-post-ops=, \
@@ -66,7 +66,7 @@
 --attr-zero-points=,src:common:2*+dst:common:1*,src:per_dim_1:1*+dst:per_dim_1:1*
 --batch=shapes_basic
 ### Signed input
---cfg=s8s8s8
+--dt=s8:s8:s8
 --stag=any
 --dtag=any
 --attr-post-ops=, \
@@ -82,7 +82,7 @@
 # BF32
 --reset
 --dir=FWD_D,BWD_D
---cfg=f32
+--dt=f32
 --stag=any
 --dtag=any
 --attr-fpmath=bf16
