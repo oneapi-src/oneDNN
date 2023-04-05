@@ -27,6 +27,9 @@ where *softmax-knobs* are:
  - `--attr-scales=STRING` -- per argument scales primitive attribute. No
             scales are set by default. Refer to [attributes](knobs_attr.md) for
             details.
+ - `--attr-post-ops=STRING` -- post operation primitive attribute. No post
+            operations are set by default. Refer to [attributes](knobs_attr.md)
+            for details.
  - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual
              problem descriptor. The default is `0`.

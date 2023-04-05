@@ -30,6 +30,7 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
+#include "binary/binary.hpp"
 #include "softmax/softmax.hpp"
 
 namespace softmax {
@@ -43,8 +44,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     dnnl_alg_kind_t alg_kind = dnnl_softmax_accurate;
     if (prb->alg == LOGSOFTMAX) alg_kind = dnnl_softmax_log;
 
+    attr_args_t attr_args;
+    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dims.data());
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
-            create_dnnl_attr(prb->attr, attr_args_t()));
+            create_dnnl_attr(prb->attr, attr_args));
 
     if (prb->dir & FLAG_FWD) {
         auto src_d = dnn_mem_t::init_md(
@@ -184,6 +187,16 @@ int fill_data_bwd(
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_data_type({prb->sdt, prb->ddt}, prb->dir, res);
     skip_unimplemented_sum_po(prb->attr, res, dnnl_softmax, prb->sdt);
+
+    if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) != -1) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+
+    if (is_gpu() && prb->attr.post_ops.len() != 0) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
@@ -275,6 +288,12 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                     int exec_src_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
                     SAFE(fill_scales(prb->attr, exec_src_arg, mem, ref_mem),
                             WARN);
+                }
+                int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
+                        - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
+                bool is_post_ops_arg = (exec_arg & post_ops_range);
+                if (is_post_ops_arg) {
+                    SAFE(binary::fill_mem(exec_arg, mem, ref_mem), WARN);
                 }
             } break;
         }

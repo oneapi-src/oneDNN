@@ -46,12 +46,14 @@ void check_correctness(
     for_(const auto &i_alg : s.alg)
     for_(const auto &i_axis : s.axis)
     for_(const auto &i_mb : s.mb)
+    for_(const auto &i_post_ops : s.post_ops)
     for_(const auto &i_scales : s.scales)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for_(const auto &i_ctx_init : s.ctx_init)
     for_(const auto &i_ctx_exe : s.ctx_exe)
     for (auto i_inplace : s.inplace) {
-        auto attr = settings_t::get_attr(i_scales, i_scratchpad_mode);
+        auto attr
+                = settings_t::get_attr(i_post_ops, i_scales, i_scratchpad_mode);
 
         const prb_t prb(s.prb_dims, i_dir, i_sdt, i_ddt, i_stag, i_dtag, i_alg,
                 i_axis, i_inplace, attr, i_ctx_init, i_ctx_exe, i_mb);
@@ -91,6 +93,7 @@ int bench(int argc, char **argv) {
                 || parse_axis(s.axis, def.axis, argv[0])
                 || parse_inplace(s.inplace, def.inplace, argv[0])
                 || parse_mb(s.mb, def.mb, argv[0])
+                || parse_attr_post_ops(s.post_ops, argv[0])
                 || parse_attr_scales(s.scales, argv[0])
                 || parse_attr_scratchpad_mode(
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
