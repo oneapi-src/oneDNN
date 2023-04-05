@@ -74,14 +74,15 @@ The backward propagation computes \f$\diffsrc(ou, c, in)\f$, based on
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
-| Primitive input/output | Execution argument index             |
-|------------------------|--------------------------------------|
-| \src                   | DNNL_ARG_SRC                         |
-| \dst                   | DNNL_ARG_DST                         |
-| \diffsrc               | DNNL_ARG_DIFF_SRC                    |
-| \diffdst               | DNNL_ARG_DIFF_DST                    |
-| \f$src scale\f$        | DNNL_ARG_ATTR_SCALES \| DNNL_ARG_SRC |
-| \f$dst scale\f$        | DNNL_ARG_ATTR_SCALES \| DNNL_ARG_DST |
+| Primitive input/output      | Execution argument index                                                  |
+|-----------------------------|---------------------------------------------------------------------------|
+| \src                        | DNNL_ARG_SRC                                                              |
+| \dst                        | DNNL_ARG_DST                                                              |
+| \diffsrc                    | DNNL_ARG_DIFF_SRC                                                         |
+| \diffdst                    | DNNL_ARG_DIFF_DST                                                         |
+| \f$src scale\f$             | DNNL_ARG_ATTR_SCALES \| DNNL_ARG_SRC                                      |
+| \f$dst scale\f$             | DNNL_ARG_ATTR_SCALES \| DNNL_ARG_DST                                      |
+| \f$\text{binary post-op}\f$ | DNNL_ARG_ATTR_MULTIPLE_POST_OP(binary_post_op_position) \| DNNL_ARG_SRC_1 |
 
 ## Implementation Details
 
@@ -102,6 +103,8 @@ The following attributes are supported by the softmax primitive:
 | Propagation | Type      | Operation                                            | Description                                                   | Restrictions                                                           |
 |:------------|:----------|:-----------------------------------------------------|:--------------------------------------------------------------|:-----------------------------------------------------------------------|
 | forward     | attribute | [Scales](@ref dnnl::primitive_attr::set_scales_mask) | Scales the corresponding tensor by the given scale factor(s). | Supported only for int8 softmax and one scale per tensor is supported. |
+| forward     | post-op   | [Binary](@ref dnnl::post_ops::append_binary)         | Applies a @ref dnnl_api_binary operation to the result        | General binary post-op restrictions                                    |
+| forward     | Post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)       | Applies an @ref dnnl_api_eltwise operation to the result.     |                                                                        |
 
 
 ### Data Type Support
@@ -129,6 +132,7 @@ typically referred to as channels (hence in formulas we use \f$c\f$).
 
 2. **GPU**
    - Only tensors of 6 or fewer dimensions are supported.
+   - Post-ops are not supported.
 
 ## Performance Tips
 
