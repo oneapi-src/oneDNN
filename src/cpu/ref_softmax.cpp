@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -166,7 +166,16 @@ status_t ref_softmax_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
             } else if (pd()->is_logsoftmax()) {
                 val = d - space_denom;
             }
-            val *= src_scales[0] * dst_scales[0];
+            val *= src_scales[0];
+
+            // post-ops
+            ref_post_ops_t::args_t args;
+            args.ctx = &ctx;
+            args.l_offset = ou * ou_stride + c;
+            args.dst_md = pd()->dst_md();
+            ref_post_ops->execute(val, args);
+
+            val *= dst_scales[0];
             io::store_float_value(dst_d.data_type(), val, dst_data, c);
         }
         if (zero_padding) {
@@ -279,7 +288,16 @@ status_t ref_softmax_fwd_t::execute_forward_generic(
                 } else if (pd()->is_logsoftmax()) {
                     d -= sd;
                 }
-                d *= src_scales[0] * dst_scales[0];
+                d *= src_scales[0];
+
+                // post-ops
+                ref_post_ops_t::args_t args;
+                args.ctx = &ctx;
+                args.l_offset = ou_in_offset + c * inner_size_;
+                args.dst_md = pd()->dst_md();
+                ref_post_ops->execute(d, args);
+                d *= dst_scales[0];
+
                 io::store_float_value(dst_d.data_type(), d, dst, dst_off);
             }
         }

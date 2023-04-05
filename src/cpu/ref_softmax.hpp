@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,7 +26,13 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/primitive_attr_postops.hpp"
+
 #include "cpu/cpu_softmax_pd.hpp"
+
+#define VCHECK_SOFTMAX(cond, msg, ...) \
+    VCONDCHECK(create, dispatch, softmax, (cond), status::unimplemented, \
+            "%s," msg, this->info(engine), ##__VA_ARGS__)
 
 namespace dnnl {
 namespace impl {
@@ -48,10 +54,19 @@ struct ref_softmax_fwd_t : public primitive_t {
                     && utils::one_of(
                             dst_md()->data_type, f32, bf16, f16, s8, u8)
                     && platform::has_data_type_support(src_md()->data_type)
-                    && platform::has_data_type_support(dst_md()->data_type)
-                    && attr()->has_default_values(skip_mask_t::scales_runtime)
-                    && attr_scales_ok()
-                    && set_default_formats() == status::success;
+                    && platform::has_data_type_support(dst_md()->data_type);
+            if (!ok) return status::unimplemented;
+
+            VCHECK_SOFTMAX(
+                    attr()->has_default_values(skip_mask_t::scales_runtime
+                            | skip_mask_t::post_ops),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VCHECK_SOFTMAX(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VCHECK_SOFTMAX(post_ops_ok(), VERBOSE_UNSUPPORTED_POSTOP);
+#undef VCHECK_SOFTMAX
+
+            ok = set_default_formats() == status::success
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             nthr_ = 0;
@@ -86,6 +101,9 @@ struct ref_softmax_fwd_t : public primitive_t {
                         axis_size(true) * sizeof(float) * nthr_);
             }
         }
+        bool post_ops_ok() const {
+            return attr()->post_ops_.find(primitive_kind::sum) == -1;
+        }
     };
 
     ref_softmax_fwd_t(const pd_t *apd) : primitive_t(apd) {}
@@ -108,6 +126,11 @@ struct ref_softmax_fwd_t : public primitive_t {
         use_dense_ = inner_size_ == 1 && src_d == dst_d && src_d.is_dense(true)
                 && src_d.only_padded_dim(axis)
                 && bd.strides[axis] == axis_blk_size;
+
+        ref_post_ops
+                = utils::make_unique<ref_post_ops_t>(pd()->attr()->post_ops_);
+        if (!ref_post_ops) return status::out_of_memory;
+
         return status::success;
     }
 
@@ -124,6 +147,7 @@ private:
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
+    std::unique_ptr<ref_post_ops_t> ref_post_ops;
     bool use_dense_;
     int outer_size_, channels_, inner_size_;
 };

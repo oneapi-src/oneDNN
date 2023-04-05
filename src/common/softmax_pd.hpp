@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -140,7 +140,7 @@ struct softmax_fwd_pd_t : public softmax_pd_t {
         return index == 0 ? &dst_md_ : &glob_zero_md;
     }
 
-    int n_inputs() const override { return 1; }
+    int n_inputs() const override { return 1 + n_binary_po_inputs(); }
     int n_outputs() const override {
         return 1 + (!types::is_zero_md(workspace_md()));
     }
