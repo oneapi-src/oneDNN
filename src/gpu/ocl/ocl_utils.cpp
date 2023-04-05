@@ -370,6 +370,68 @@ void dump_kernel_binary(const engine_t *, const compute::kernel_t &) {}
 void dump_kernel_binary(cl_kernel) {}
 #endif
 
+void debugdump_processed_source(
+        const std::string &source, const std::string &options) {
+#if defined(__linux__) && defined(OCL_DEBUG)
+    if (verbose_debuginfo() >= 10) {
+        auto get_defines = [](const std::string &from) {
+            std::string ret;
+            size_t pos = 0;
+            while (pos < from.length()) {
+                // Find next define argument
+                pos = from.find("-D", pos);
+
+                // Generate argument, quotes are interpreted literally, but
+                // other special shell characters need escaped. Does not
+                // currently handle quotes with the ' character or nested quotes
+                char quote_parity = true;
+                while (pos < from.length()) {
+                    if (quote_parity
+                            && utils::one_of(from[pos], '~', '#', '$', '&', '*',
+                                    '(', ')', '\\', '|', '[', ']', '{', '}',
+                                    ';', '\'', '<', '>', '/', '?', '!')) {
+                        ret += '\\';
+                    }
+                    ret += from[pos];
+                    if (from[pos] == '"') quote_parity ^= true;
+                    if (from[pos] == ' ' && quote_parity) break;
+
+                    pos++;
+                }
+            }
+            return ret;
+        };
+        auto execute_command = [](const std::string &cmd,
+                                       const std::string &stdin) {
+            std::string result;
+            std::array<char, 256> buffer;
+            FILE *pipe = popen(cmd.c_str(), "w");
+            fputs(stdin.c_str(), pipe);
+            if (pipe) {
+                while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+                    result += buffer.data();
+                }
+            }
+            pclose(pipe);
+            return result;
+        };
+
+        // Run utilities to evaluate preprocessor defines and format the file
+        // Theoretically, we can accomplish this task with libclang, but it
+        // seems more work than it is worth. Instead, wrapping this in OCL_DEBUG
+        // so that calls to the system are not included in the default build.
+
+        // Due to the use of a different C preprocessor, warnings should not be
+        // ignored, as they may correspond to a different behavior in the OpenCL
+        // C preprocessor
+        auto o = get_defines(options);
+        std::string preprocess_cmd
+                = std::string() + "cpp -P " + o.c_str() + " | clang-format";
+        execute_command(preprocess_cmd, source);
+    }
+#endif
+}
+
 status_t get_kernel_arg_types(cl_kernel ocl_kernel,
         std::vector<gpu::compute::scalar_type_t> *arg_types) {
     cl_uint nargs;

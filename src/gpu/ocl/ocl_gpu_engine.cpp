@@ -269,6 +269,8 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
     std::string pp_code_str = pp_code.str();
     const char *pp_code_str_ptr = pp_code_str.c_str();
 
+    debugdump_processed_source(pp_code_str, options);
+
     auto program = make_ocl_wrapper(clCreateProgramWithSource(
             context(), 1, &pp_code_str_ptr, nullptr, &err));
     OCL_CHECK(err);
