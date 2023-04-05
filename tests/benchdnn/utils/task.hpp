@@ -17,11 +17,13 @@
 #ifndef UTILS_TASK_HPP
 #define UTILS_TASK_HPP
 
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
 
 #include "common.hpp"
+#include "utils/wrapper.hpp"
 
 template <typename prb_t, typename perf_report_t, typename create_func_t,
         typename check_cache_func_t, typename do_func_t>

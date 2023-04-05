@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,5 +46,7 @@ void benchdnn_parallel_nd(int64_t D0, int64_t D1, int64_t D2, int64_t D3,
         int64_t D4, int64_t D5,
         const std::function<void(
                 int64_t, int64_t, int64_t, int64_t, int64_t, int64_t)> &f);
+
+int benchdnn_get_max_threads();
 
 #endif

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,4 +65,8 @@ void benchdnn_parallel_nd(int64_t D0, int64_t D1, int64_t D2, int64_t D3,
                 int64_t, int64_t, int64_t, int64_t, int64_t, int64_t)> &f) {
     ACTIVATE_THREADPOOL;
     dnnl::impl::parallel_nd(D0, D1, D2, D3, D4, D5, f);
+}
+
+int benchdnn_get_max_threads() {
+    return dnnl_get_max_threads();
 }
