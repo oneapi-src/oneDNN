@@ -45,6 +45,7 @@ struct brgemm_deconvolution_fwd_t : public primitive_t {
         pd_t(const pd_t &other)
             : cpu_deconvolution_fwd_pd_t(other)
             , conv_pd_(other.conv_pd_->clone())
+            , has_strides_(other.has_strides_)
             , name_(other.name_) {}
 
         ~pd_t() = default;
