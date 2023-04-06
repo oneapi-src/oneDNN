@@ -177,13 +177,15 @@ shape_infer_fn op_schema_t::get_shape_inference_function() const {
     return tensor_inference_function_;
 }
 
-op_schema_t &op_schema_t::set_type_constraint_function(type_constraint_fn fn) {
-    op_type_constraint_function_ = std::move(fn);
+op_schema_t &op_schema_t::set_op_def_constraint_function(
+        op_def_constraint_fn fn) {
+    op_def_constraint_functions_.emplace_back(std::move(fn));
     return *this;
 }
 
-type_constraint_fn op_schema_t::get_type_constraint_function() const {
-    return op_type_constraint_function_;
+std::vector<op_def_constraint_fn>
+op_schema_t::get_op_def_constraint_functions() const {
+    return op_def_constraint_functions_;
 }
 
 op_schema_t &op_schema_t::set_additional_item(
@@ -353,33 +355,17 @@ bool op_schema_t::verify(const op_t *l_op, bool check_undefined_attrs) const {
             outputs_, outputs_option, dtype_constraints);
     if (!param_dtype_verify_result) { return false; }
 
-    type_constraint_fn tc_fn = get_type_constraint_function();
-    if (tc_fn) { param_dtype_verify_result = tc_fn(l_op); }
-    if (!param_dtype_verify_result) { return false; }
-
-    auto attrs = l_op->get_attributes();
+    const auto &attrs = l_op->get_attributes();
     bool attr_verify_result
             = verify_attributes(attrs, attributes_, check_undefined_attrs);
 
     if (!attr_verify_result) { return false; };
 
-    // additional check for Quantize and Dequantize
-    // TODO(team): better to move it op schema as a constraint.
-    const op_kind_t opk = l_op->get_kind();
-    if (opk == op_kind::Quantize || opk == op_kind::Dequantize) {
-        // attrs should always have the attributes, verified above.
-        const size_t sz_scales
-                = attrs[op_attr::scales].get<std::vector<float>>().size();
-        const size_t sz_zps
-                = attrs[op_attr::zps].get<std::vector<int64_t>>().size();
-        if (sz_scales != sz_zps) return false;
-
-        // qtype is not a required attribute.
-        auto it = attrs.find(op_attr::qtype);
-        if (it == attrs.end()
-                || it->second.get<std::string>() == "per_tensor") {
-            if (sz_scales != 1 || sz_zps != 1) { return false; }
-        }
+    auto op_def_constraint_funcs = get_op_def_constraint_functions();
+    bool additional_verify_result = true;
+    for (auto &op_def_fn : op_def_constraint_funcs) {
+        additional_verify_result = op_def_fn(l_op);
+        if (!additional_verify_result) { return false; }
     }
     return true;
 }

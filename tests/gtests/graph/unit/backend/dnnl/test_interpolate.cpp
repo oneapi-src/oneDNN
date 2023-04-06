@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -475,6 +475,7 @@ TEST(Execute, InterpolateBackwardNearest) {
     test::vector<float> ref_diff_src {0.f, 3.f, 9.f, 24.f};
 
     graph::op_t op(graph::op_kind::InterpolateBackward);
+    op.set_attr(graph::op_attr::sizes, std::vector<int64_t> {3, 3});
     op.set_attr<std::string>(graph::op_attr::mode, "nearest");
     op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
 
@@ -529,6 +530,7 @@ TEST(Execute, InterpolateBackwardLinear) {
     test::vector<float> ref_diff_src {3.f, 6.f, 12.f, 15.f};
 
     graph::op_t op(graph::op_kind::InterpolateBackward);
+    op.set_attr(graph::op_attr::sizes, std::vector<int64_t> {3, 3});
     op.set_attr<std::string>(graph::op_attr::mode, "bilinear");
     op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
 

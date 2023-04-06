@@ -3455,8 +3455,9 @@ TEST(OpSchema, LayerNormOptionalInputs) {
 
     ln_op.add_output(lt_output);
 
-    ln_op.set_attr(op_attr::keep_stats, true);
-    EXPECT_TRUE(ln_op_schema->verify(&ln_op));
+    // Since number of output is only 1,
+    // which doesn't fit requirement when keep_stats is true
+    EXPECT_FALSE(ln_op_schema->verify(&ln_op));
 
     logical_tensor_t lt_beta = logical_tensor_init(2, data_type::f32);
     ln_op.add_input(lt_beta);
@@ -3464,7 +3465,7 @@ TEST(OpSchema, LayerNormOptionalInputs) {
 
     logical_tensor_t lt_gamma = logical_tensor_init(3, data_type::f32);
     ln_op.add_input(lt_gamma);
-    EXPECT_TRUE(ln_op_schema->verify(&ln_op));
+    EXPECT_FALSE(ln_op_schema->verify(&ln_op));
 
     logical_tensor_t lt_mean = logical_tensor_init(4, data_type::f32);
     ln_op.add_output(lt_mean);
@@ -4106,6 +4107,7 @@ TEST(OpSchema, LayerNormBf16) {
             = op_schema_registry_t::get_op_schema(op_kind::LayerNorm);
 
     op_t lnorm {0, op_kind::LayerNorm, std::string("layer_norm")};
+    lnorm.set_attr(op_attr::keep_stats, false);
     logical_tensor_t lt_data = logical_tensor_init(0, data_type::bf16);
     logical_tensor_t lt_gamma = logical_tensor_init(1, data_type::f32);
     logical_tensor_t lt_beta = logical_tensor_init(2, data_type::f32);
@@ -4124,6 +4126,7 @@ TEST(OpSchema, LayerNormBf16WithGamma) {
             = op_schema_registry_t::get_op_schema(op_kind::LayerNorm);
 
     op_t lnorm {0, op_kind::LayerNorm, std::string("layer_norm")};
+    lnorm.set_attr(op_attr::keep_stats, false);
     logical_tensor_t lt_data = logical_tensor_init(0, data_type::bf16);
     logical_tensor_t lt_gamma = logical_tensor_init(1, data_type::bf16);
     logical_tensor_t lt_beta = logical_tensor_init(2, data_type::bf16);
@@ -4632,8 +4635,7 @@ TEST(OpSchema, InferInterpolateShape) {
     op_.set_attr<std::string>(op_attr::data_format, "NCX");
     op_.set_attr<std::vector<float>>(op_attr::scales, {0.5f, 0.6f});
     lt_out = logical_tensor_init(2, data_type::f32, layout_type::strided);
-    ret = op_schema_->shape_infer(&op_, in, out);
-    EXPECT_NE(ret, status::success);
+    EXPECT_NE(op_schema_->verify(&op_), true);
 
     // test normal scales case
     op_.set_attr<dims>(op_attr::sizes, {});

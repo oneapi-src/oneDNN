@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GRAPH_INTERFACE_TYPE_CONSTRAINT_HPP
-#define GRAPH_INTERFACE_TYPE_CONSTRAINT_HPP
+#ifndef GRAPH_INTERFACE_OP_DEF_CONSTRAINT_HPP
+#define GRAPH_INTERFACE_OP_DEF_CONSTRAINT_HPP
 
 #include "graph/interface/op.hpp"
 
@@ -23,13 +23,29 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 
-bool check_bn_fwd_data_type(const op_t *n);
-
-bool check_bn_bwd_data_type(const op_t *n);
+bool check_bn_data_type(const op_t *n);
 
 bool check_ln_data_type(const op_t *n);
 
 bool check_typecast_data_type(const op_t *n);
+
+bool check_avgpool_bwd_input_shape(const op_t *n);
+
+bool check_conv_bwd_data_output_shape(const op_t *n);
+
+bool check_conv_bwd_weights_weights_shape(const op_t *n);
+
+bool check_interpolate_sizes_scales(const op_t *n);
+
+bool check_ln_fwd_outputs_num(const op_t *n);
+
+bool check_ln_bwd_use_affine(const op_t *n);
+
+bool check_reduce_axes(const op_t *n);
+
+bool check_quant_dequant_scales_zps(const op_t *n);
+
+bool check_dyn_quant_dequant_scales_zps(const op_t *n);
 
 } // namespace graph
 } // namespace impl

@@ -43,7 +43,7 @@ namespace graph {
 using opset_version = size_t;
 using shape_infer_fn = std::function<status_t(op_t *,
         std::vector<logical_tensor_t *> &, std::vector<logical_tensor_t *> &)>;
-using type_constraint_fn = std::function<bool(const op_t *)>;
+using op_def_constraint_fn = std::function<bool(const op_t *)>;
 
 class op_schema_t {
 public:
@@ -227,11 +227,11 @@ public:
     /*! @brief Get shape inference function of the op schema. */
     shape_infer_fn get_shape_inference_function() const;
 
-    /*! @brief Set type constraint function of the op schema. */
-    op_schema_t &set_type_constraint_function(type_constraint_fn fn);
+    /*! @brief Set sanity constraint function of the op schema. */
+    op_schema_t &set_op_def_constraint_function(op_def_constraint_fn fn);
 
-    /*! @brief Get type constraint function of the op schema. */
-    type_constraint_fn get_type_constraint_function() const;
+    /*! @brief Get sanity constraint functions of the op schema. */
+    std::vector<op_def_constraint_fn> get_op_def_constraint_functions() const;
 
     /*! @brief Get inputs of the op schema. */
     const std::vector<op_parameter_t> &get_inputs() const;
@@ -319,7 +319,7 @@ private:
     std::vector<op_parameter_t> outputs_;
     std::unordered_map<op_attr_t, attribute_t> attributes_;
     shape_infer_fn tensor_inference_function_ = nullptr;
-    type_constraint_fn op_type_constraint_function_ = nullptr;
+    std::vector<op_def_constraint_fn> op_def_constraint_functions_;
     bool commutative_inputs_enabled_ = false;
     // type erased key-value storage
     std::unordered_map<std::string, utils::any_t> additional_items_map_;

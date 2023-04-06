@@ -12451,9 +12451,11 @@ TEST(PassSystem, FuseLayernormQuantize) {
              | (u8/s8)
     */
     graph_t agraph;
+    bool keep_stats = false;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t layernorm {0, LayerNorm, "layernorm"};
+    layernorm.set_attr(op_attr::keep_stats, keep_stats);
     op_t quant {1, Quantize, "quant"};
     quant.set_attr(op_attr::scales, scales);
     quant.set_attr(op_attr::zps, zps);
@@ -12537,7 +12539,9 @@ TEST(PassSystem, FuseLayernormTypecast) {
              | (f32)
     */
     graph_t agraph;
+    bool keep_stats = false;
     op_t layernorm {0, LayerNorm, "layernorm"};
+    layernorm.set_attr(op_attr::keep_stats, keep_stats);
     op_t typecast {1, TypeCast, "typecast"};
 
     logical_tensor_t src = logical_tensor_init(0, data_type::bf16);
@@ -12634,9 +12638,11 @@ TEST(PassSystem, FuseLayernormTypecastQuantize) {
              | (u8/s8)
     */
     graph_t agraph;
+    bool keep_stats = false;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t layernorm {0, LayerNorm, "layernorm"};
+    layernorm.set_attr(op_attr::keep_stats, keep_stats);
     op_t typecast {1, TypeCast, "typecast"};
     op_t quant {2, Quantize, "quant"};
     quant.set_attr(op_attr::scales, scales);
@@ -12690,9 +12696,11 @@ TEST(PassSystem, NotFuseLayernormTypecast) {
              | (u8/s8)
     */
     graph_t agraph;
+    bool keep_stats = false;
     std::vector<int64_t> zps = {198};
     std::vector<float> scales = {3.1f};
     op_t layernorm {0, LayerNorm, "layernorm"};
+    layernorm.set_attr(op_attr::keep_stats, keep_stats);
     op_t typecast {1, TypeCast, "typecast"};
     op_t quant {2, Quantize, "quant"};
     quant.set_attr(op_attr::scales, scales);

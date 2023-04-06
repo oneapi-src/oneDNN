@@ -20,9 +20,9 @@
 #include <set>
 #include <vector>
 
+#include "graph/interface/op_def_constraint.hpp"
 #include "graph/interface/op_schema.hpp"
 #include "graph/interface/shape_infer.hpp"
-#include "graph/interface/type_constraint.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -135,7 +135,8 @@ DNNL_GRAPH_OP_SCHEMA(AvgPoolBackward, 1,
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T1", {data_type::s32})
-                .set_shape_inference_function(infer_pool_bwd_output_shape))
+                .set_shape_inference_function(infer_pool_bwd_output_shape)
+                .set_op_def_constraint_function(check_avgpool_bwd_input_shape))
 
 DNNL_GRAPH_OP_SCHEMA(BatchNormInference, 1,
         op_schema_t()
@@ -162,7 +163,7 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormInference, 1,
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})
                 .set_shape_inference_function(infer_identity_output_shape)
-                .set_type_constraint_function(check_bn_fwd_data_type))
+                .set_op_def_constraint_function(check_bn_data_type))
 
 DNNL_GRAPH_OP_SCHEMA(BatchNormForwardTraining, 1,
         op_schema_t()
@@ -201,7 +202,7 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormForwardTraining, 1,
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})
                 .set_shape_inference_function(infer_bn_fwd_train_output_shape)
-                .set_type_constraint_function(check_bn_fwd_data_type))
+                .set_op_def_constraint_function(check_bn_data_type))
 
 DNNL_GRAPH_OP_SCHEMA(BatchNormTrainingBackward, 1,
         op_schema_t()
@@ -246,7 +247,7 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormTrainingBackward, 1,
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})
                 .set_shape_inference_function(infer_bn_bwd_output_shape)
-                .set_type_constraint_function(check_bn_bwd_data_type))
+                .set_op_def_constraint_function(check_bn_data_type))
 
 DNNL_GRAPH_OP_SCHEMA(BiasAdd, 1,
         op_schema_t()
@@ -367,6 +368,8 @@ DNNL_GRAPH_OP_SCHEMA(ConvolutionBackwardData, 1,
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
+                .set_op_def_constraint_function(
+                        check_conv_bwd_data_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ConvolutionBackwardWeights, 1,
@@ -393,6 +396,8 @@ DNNL_GRAPH_OP_SCHEMA(ConvolutionBackwardWeights, 1,
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
+                .set_op_def_constraint_function(
+                        check_conv_bwd_weights_weights_shape)
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ConvTranspose, 1,
@@ -454,6 +459,8 @@ DNNL_GRAPH_OP_SCHEMA(ConvTransposeBackwardWeights, 1,
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
+                .set_op_def_constraint_function(
+                        check_conv_bwd_weights_weights_shape)
                 .SET_CONVTRANSPOSE_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(Divide, 1,
@@ -638,7 +645,8 @@ DNNL_GRAPH_OP_SCHEMA(Interpolate, 1,
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
-                .set_shape_inference_function(infer_interpolate_output_shape))
+                .set_shape_inference_function(infer_interpolate_output_shape)
+                .set_op_def_constraint_function(check_interpolate_sizes_scales))
 
 DNNL_GRAPH_OP_SCHEMA(InterpolateBackward, 1,
         op_schema_t()
@@ -678,7 +686,8 @@ DNNL_GRAPH_OP_SCHEMA(InterpolateBackward, 1,
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
-                .set_shape_inference_function(infer_identity_output_shape))
+                .set_shape_inference_function(infer_identity_output_shape)
+                .set_op_def_constraint_function(check_interpolate_sizes_scales))
 
 DNNL_GRAPH_OP_SCHEMA(LayerNorm, 1,
         op_schema_t()
@@ -717,7 +726,8 @@ DNNL_GRAPH_OP_SCHEMA(LayerNorm, 1,
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})
                 .set_shape_inference_function(infer_norm_output_shape)
-                .set_type_constraint_function(check_ln_data_type))
+                .set_op_def_constraint_function(check_ln_data_type)
+                .set_op_def_constraint_function(check_ln_fwd_outputs_num))
 
 DNNL_GRAPH_OP_SCHEMA(LayerNormBackward, 1,
         op_schema_t()
@@ -762,7 +772,8 @@ DNNL_GRAPH_OP_SCHEMA(LayerNormBackward, 1,
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})
                 .set_shape_inference_function(infer_norm_bprop_output_shape)
-                .set_type_constraint_function(check_ln_data_type))
+                .set_op_def_constraint_function(check_ln_data_type)
+                .set_op_def_constraint_function(check_ln_bwd_use_affine))
 
 DNNL_GRAPH_OP_SCHEMA(LeakyReLU, 1,
         op_schema_t()
@@ -1038,6 +1049,7 @@ DNNL_GRAPH_OP_SCHEMA(ReduceL1, 1,
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
                 .set_shape_inference_function(infer_reduce_output_shape)
+                .set_op_def_constraint_function(check_reduce_axes)
                 .SET_REDUCE_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ReduceL2, 1,
@@ -1055,6 +1067,7 @@ DNNL_GRAPH_OP_SCHEMA(ReduceL2, 1,
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
                 .set_shape_inference_function(infer_reduce_output_shape)
+                .set_op_def_constraint_function(check_reduce_axes)
                 .SET_REDUCE_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ReduceMax, 1,
@@ -1072,6 +1085,7 @@ DNNL_GRAPH_OP_SCHEMA(ReduceMax, 1,
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
                 .set_shape_inference_function(infer_reduce_output_shape)
+                .set_op_def_constraint_function(check_reduce_axes)
                 .SET_REDUCE_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ReduceMean, 1,
@@ -1089,6 +1103,7 @@ DNNL_GRAPH_OP_SCHEMA(ReduceMean, 1,
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
                 .set_shape_inference_function(infer_reduce_output_shape)
+                .set_op_def_constraint_function(check_reduce_axes)
                 .SET_REDUCE_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ReduceMin, 1,
@@ -1106,6 +1121,7 @@ DNNL_GRAPH_OP_SCHEMA(ReduceMin, 1,
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
                 .set_shape_inference_function(infer_reduce_output_shape)
+                .set_op_def_constraint_function(check_reduce_axes)
                 .SET_REDUCE_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ReduceProd, 1,
@@ -1123,6 +1139,7 @@ DNNL_GRAPH_OP_SCHEMA(ReduceProd, 1,
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
                 .set_shape_inference_function(infer_reduce_output_shape)
+                .set_op_def_constraint_function(check_reduce_axes)
                 .SET_REDUCE_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ReduceSum, 1,
@@ -1140,6 +1157,7 @@ DNNL_GRAPH_OP_SCHEMA(ReduceSum, 1,
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
                 .set_shape_inference_function(infer_reduce_output_shape)
+                .set_op_def_constraint_function(check_reduce_axes)
                 .SET_REDUCE_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ReLU, 1,
@@ -1398,7 +1416,8 @@ DNNL_GRAPH_OP_SCHEMA(Quantize, 1,
                         true, attribute_kind::is)
                 .set_type_constraints("T1", {data_type::f32})
                 .set_type_constraints("T2", {data_type::u8, data_type::s8})
-                .set_shape_inference_function(infer_identity_output_shape))
+                .set_shape_inference_function(infer_identity_output_shape)
+                .set_op_def_constraint_function(check_quant_dequant_scales_zps))
 
 DNNL_GRAPH_OP_SCHEMA(Dequantize, 1,
         op_schema_t()
@@ -1420,7 +1439,8 @@ DNNL_GRAPH_OP_SCHEMA(Dequantize, 1,
                         true, attribute_kind::is)
                 .set_type_constraints("T1", {data_type::u8, data_type::s8})
                 .set_type_constraints("T2", {data_type::f32})
-                .set_shape_inference_function(infer_identity_output_shape))
+                .set_shape_inference_function(infer_identity_output_shape)
+                .set_op_def_constraint_function(check_quant_dequant_scales_zps))
 
 DNNL_GRAPH_OP_SCHEMA(Reorder, 1,
         op_schema_t()
@@ -1443,7 +1463,7 @@ DNNL_GRAPH_OP_SCHEMA(TypeCast, 1,
                 .set_type_constraints(
                         "T2", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape)
-                .set_type_constraint_function(check_typecast_data_type))
+                .set_op_def_constraint_function(check_typecast_data_type))
 
 DNNL_GRAPH_OP_SCHEMA(StaticReshape, 1,
         op_schema_t()
@@ -1499,7 +1519,9 @@ DNNL_GRAPH_OP_SCHEMA(DynamicQuantize, 1,
                 .set_type_constraints(
                         "T2", {data_type::u8, data_type::s8, data_type::s32})
                 .set_type_constraints("T3", {data_type::u8, data_type::s8})
-                .set_shape_inference_function(infer_identity_output_shape))
+                .set_shape_inference_function(infer_identity_output_shape)
+                .set_op_def_constraint_function(
+                        check_dyn_quant_dequant_scales_zps))
 
 DNNL_GRAPH_OP_SCHEMA(DynamicDequantize, 1,
         op_schema_t()
@@ -1518,7 +1540,9 @@ DNNL_GRAPH_OP_SCHEMA(DynamicDequantize, 1,
                 .set_type_constraints("T2", {data_type::f32})
                 .set_type_constraints(
                         "T3", {data_type::u8, data_type::s8, data_type::s32})
-                .set_shape_inference_function(infer_identity_output_shape))
+                .set_shape_inference_function(infer_identity_output_shape)
+                .set_op_def_constraint_function(
+                        check_dyn_quant_dequant_scales_zps))
 
 DNNL_GRAPH_OP_SCHEMA(Reciprocal, 1,
         op_schema_t()

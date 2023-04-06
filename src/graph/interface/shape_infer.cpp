@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -973,7 +973,8 @@ status_t infer_norm_output_shape(op_t *n,
 
     const bool keep_stats = n->has_attr(op_attr::keep_stats)
             ? n->get_attr<bool>(op_attr::keep_stats)
-            : false;
+            // Keep default value as which in op_schema
+            : true;
     if (!keep_stats) return status::success;
 
     auto in0 = logical_tensor_wrapper_t(inputs[0]);
@@ -1374,11 +1375,6 @@ status_t infer_interpolate_output_shape(op_t *n,
     if (n->has_attr(op_attr::scales)) {
         // scales is set by user
         scales = n->get_attr<std::vector<float>>(op_attr::scales);
-    }
-    if ((!scales.empty() && !sizes.empty())
-            || (scales.empty() && sizes.empty())) {
-        // only one of them should be not none
-        return status::invalid_arguments;
     }
 
     std::string src_fmt = n->get_attr<std::string>(op_attr::data_format);
