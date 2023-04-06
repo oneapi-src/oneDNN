@@ -639,6 +639,8 @@ struct reduction_phase_t {
     compute::nd_range_t nd_range;
     compute::kernel_t kernel;
     dim_t outer_dim_size, reduction_size, inner_dim_size;
+    int vect_size;
+    bool reduce_vector;
     bool is_final, is_first;
 };
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -112,6 +112,11 @@ constexpr const T &max(const T &a, const T &b) {
 template <typename T>
 constexpr const T &min(const T &a, const T &b) {
     return a < b ? a : b;
+}
+
+template <typename T>
+static inline constexpr T clamp(T val, T lo, T hi) {
+    return std::min<T>(hi, std::max<T>(lo, val));
 }
 
 template <typename T>

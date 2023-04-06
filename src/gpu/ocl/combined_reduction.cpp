@@ -35,18 +35,83 @@ using extended_dims_t = dim_t[2 * DNNL_MAX_NDIMS];
 
 static reduction_phase_t init_phase(dim_t outer_dim_size, dim_t reduction_size,
         dim_t inner_dim_size, data_type_t src_type, data_type_t dst_type,
-        int subgroup_size) {
+        const compute::compute_engine_t *compute_engine) {
     reduction_phase_t phase;
     phase.outer_dim_size = outer_dim_size;
     phase.reduction_size = reduction_size;
     phase.inner_dim_size = inner_dim_size;
+    const int subgroup_size
+            = compute_engine->device_info()->max_subgroup_size();
+    const int num_EU = compute_engine->device_info()->eu_count();
+    const size_t max_wg_size = compute_engine->device_info()->max_wg_size();
+
+    // Derive relevant constants defined by the problem's shape
+    // inner_dim can either be:
+    // 1. packed into a single subgroup (small inner dim), or
+    // 2. split among several subgroups (large inner dim)
+    const int num_packed_inner_dims
+            = nstl::clamp(subgroup_size / phase.inner_dim_size, (dim_t)1,
+                    phase.reduction_size);
+    const dim_t num_split_inner_dims
+            = utils::div_up(phase.inner_dim_size, subgroup_size); // S per I
+    const bool inner_dim_aligned = (subgroup_size % phase.inner_dim_size == 0
+            || phase.inner_dim_size % subgroup_size == 0);
+
+    const dim_t num_horiz_reductions
+            = phase.reduction_size / num_packed_inner_dims;
+    const int num_tail_reductions
+            = phase.reduction_size % num_packed_inner_dims;
+    const bool reductions_aligned = (num_tail_reductions == 0);
+
+    int num_subgroups = phase.outer_dim_size * num_split_inner_dims;
+
+    // We need to determine 2 variables according to some heuristic:
+    // 1. Vector size (increases block load size)
+    // 2. Threads per EU (decreases scheduling overhead, in this case)
+
+    // Vector size requirements:
+    // 1. (required) reductions and inner_dim aligned with no tails on either one
+    // 2. (heuristic) Block loads should not exceed maximum instruction load size
+    // 3. (heuristic) EUs should not become unsaturated due to vector size
+    int nvec = 1;
+    bool reduce_vec = false;
+    if (reductions_aligned && inner_dim_aligned) {
+        const size_t single_load_size
+                = types::data_type_size(src_type) * subgroup_size;
+        const int max_load_size = 256; // Set on ATS-M, may depend on arch
+        const int max_vect_size
+                = static_cast<int>(max_load_size / single_load_size);
+
+        for (int N : {8, 4, 2}) {
+            // Related to EU saturation
+            if (num_subgroups / N < num_EU) continue;
+            // Related to block load size
+            if (N > max_vect_size) continue;
+            if (num_horiz_reductions % N == 0) {
+                if (num_split_inner_dims == 1
+                        || num_split_inner_dims % N == 0) {
+                    nvec = N;
+                    reduce_vec = (num_split_inner_dims == 1);
+                    break;
+                }
+            }
+        }
+    }
+    phase.vect_size = nvec;
+    phase.reduce_vector = reduce_vec;
+
+    if (!phase.reduce_vector) num_subgroups /= phase.vect_size;
+
+    // Compute the number of threads per EU - this has no major impact
+    // on average time, but can improve the best times on
+    // close-to-cache-size problems with high parallelism
+    const int max_threads = num_subgroups / num_EU;
+    int threads_per_wg = nstl::clamp(
+            static_cast<int>(max_wg_size / subgroup_size), 1, max_threads);
+    threads_per_wg = get_previous_factor(num_subgroups, threads_per_wg);
 
     // Compute the nd_range for this phase
     size_t gws[3] = {1, 1, 1}, lws[3] = {1, 1, 1};
-    const dim_t sg_per_inner_dim
-            = utils::div_up(phase.inner_dim_size, subgroup_size);
-    const int num_subgroups = phase.outer_dim_size * sg_per_inner_dim;
-    const int threads_per_wg = get_previous_factor(num_subgroups, 8);
     gws[0] = num_subgroups * subgroup_size;
     lws[0] = threads_per_wg * subgroup_size;
     phase.nd_range = compute::nd_range_t(gws, lws);
@@ -182,7 +247,7 @@ status_t set_reduction_phases(dim_t outer_elems, dim_t reduction_elems,
         dim_t reduction_size = reduction_elems / reduction_end;
 
         phases.push_back(init_phase(outer_elems * reduction_end, reduction_size,
-                inner_elems, accum_data_type, accum_data_type, subgroup_size));
+                inner_elems, accum_data_type, accum_data_type, compute_engine));
 
         reduction_elems = reduction_end;
 
@@ -397,10 +462,10 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.set_data_type(phase.src_type);
 
     // Used for packing small inner vectors into a subgroup
-    const dim_t inner_dim_per_sg = std::min(phase.reduction_size,
-            std::max((dim_t)1, conf.sub_group_size / phase.inner_dim_size));
-    int num_sg_reductions
-            = utils::div_up(phase.reduction_size, inner_dim_per_sg);
+    const dim_t inner_dim_per_sg
+            = nstl::clamp(conf.sub_group_size / phase.inner_dim_size, (dim_t)1,
+                    phase.reduction_size);
+    const dim_t num_horiz_reductions = phase.reduction_size / inner_dim_per_sg;
 
     kernel_ctx.define_int("SUBGROUP_SIZE", conf.sub_group_size);
     kernel_ctx.define_int("LWS_SIZE", phase.nd_range.local_range()[0]);
@@ -416,17 +481,17 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("IS_FINAL", phase.is_final);
     kernel_ctx.define_int("IS_FIRST", phase.is_first);
 
+    kernel_ctx.define_int("VECT_DT_N", phase.vect_size);
+    kernel_ctx.define_int("REDUCE_VECTOR", phase.reduce_vector ? 1 : 0);
+
     // Because the reduction loop is quite tight, we can override the compiler's
     // loop unrolling logic to increase it a lot and get a bit more speed
     // Heuristic determined on ATS-m, set to exclude the possibility of
     // exceeding the instruction cache
     const dim_t max_unroll = 256;
-    const dim_t inner_dims_per_sg = std::min(phase.reduction_size,
-            std::max((dim_t)1, conf.sub_group_size / phase.inner_dim_size));
-    const dim_t num_horiz_reductions
-            = utils::div_up(phase.reduction_size, inner_dims_per_sg);
-    const dim_t unroll_factor = std::max(
-            (dim_t)1, std::min(max_unroll, num_horiz_reductions - 1));
+    const dim_t unroll_factor = nstl::clamp(
+            num_horiz_reductions / (phase.reduce_vector ? phase.vect_size : 1),
+            (dim_t)1, max_unroll);
     kernel_ctx.define_int("UNROLL_FACTOR", unroll_factor);
 
     // Block loading
@@ -434,7 +499,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     //  1) Pointer is 4-byte aligned (pointer has 3 access patterns, one for each dimension)
     const bool can_block_read_outer = can_block_read(phase.outer_dim_size,
             phase.reduction_size * phase.inner_dim_size, phase.src_type);
-    const bool can_block_read_reduction = can_block_read(num_sg_reductions,
+    const bool can_block_read_reduction = can_block_read(num_horiz_reductions,
             inner_dim_per_sg * phase.inner_dim_size, phase.src_type);
     const bool can_block_read_inner = can_block_read(
             phase.inner_dim_size, conf.sub_group_size, phase.src_type);
@@ -444,7 +509,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
             = (phase.inner_dim_size * inner_dim_per_sg % conf.sub_group_size
                     == 0);
     const bool aligned_reduction
-            = (phase.reduction_size == num_sg_reductions * inner_dim_per_sg);
+            = (phase.reduction_size == num_horiz_reductions * inner_dim_per_sg);
 
     const bool can_use_block_reads = can_block_read_outer
             && can_block_read_reduction && can_block_read_inner
