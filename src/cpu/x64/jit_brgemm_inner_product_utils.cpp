@@ -446,11 +446,11 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
 
     int oc_chunks = div_up(jbgp.nb_oc, jbgp.nb_oc_blocking);
     int os_chunks = div_up(jbgp.nb_os, jbgp.nb_os_blocking);
-    int num_work_to_parallel = oc_chunks * os_chunks;
+    int other_work = oc_chunks * os_chunks;
 
     // TODO: although the below heuristic produces good performance for fp32,
-    // num_work_to_parallel needs to compared with nthr (instead of nb_ic)
-    // and os_block needs some further tuning.
+    // other_work needs to compared with nthr (instead of nb_ic) and os_block
+    // needs some further tuning.
 
     // Use parallel IC reduction for f32 if we have:
     //  * very large input channels
@@ -459,8 +459,7 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
     //  * not a "gigantic shape" since it already has a lot of parallelism
     //      in mb and oc dimensions w/o enabling IC parallelism
     const bool use_parallel_ic_reduction = is_f32_compute && jbgp.ic > 1024
-            && num_work_to_parallel < jbgp.nb_ic && jbgp.nthr > 1
-            && !is_gigantic_shape;
+            && other_work < jbgp.nb_ic && jbgp.nthr > 1 && !is_gigantic_shape;
 
     // For os > 256, compute all os blocks as a single chunk when performing
     // IC reduction. Note that this condition is empirical
@@ -549,7 +548,7 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
     const int nthrs_other = jbgp.nthr / jbgp.nthr_ic_b;
     const int min_work = 5;
 
-    bool balanced = is_balanced(num_work_to_parallel, min_work, nthrs_other);
+    bool balanced = is_balanced(other_work, min_work, nthrs_other);
 
     // Reduce os-block as needed for better thread balance for f32 case.
     const bool is_avx512 = is_superset(jbgp.isa, avx512_core);
@@ -562,8 +561,8 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
         jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
         jbgp.nb_os_blocking = max_div(jbgp.nb_os, jbgp.nb_os_blocking);
         os_chunks = div_up(jbgp.nb_os, jbgp.nb_os_blocking);
-        num_work_to_parallel = os_chunks * oc_chunks;
-        balanced = is_balanced(num_work_to_parallel, min_work, nthrs_other);
+        other_work = os_chunks * oc_chunks;
+        balanced = is_balanced(other_work, min_work, nthrs_other);
     }
 
     // to avoid cache concurrent write access from different threads
@@ -728,11 +727,11 @@ status_t jit_brgemm_ip_bwd_d_conf_t::init_conf(cpu_isa_t isa,
     jbgp.nthr_oc_b = 1;
     const int ic_chunks = div_up(jbgp.nb_ic, jbgp.nb_ic_blocking);
     const int os_chunks = div_up(jbgp.nb_os, jbgp.nb_os_blocking);
-    const int num_work_to_parallel = ic_chunks * os_chunks;
+    const int other_work = ic_chunks * os_chunks;
     // Use oc reduction if we have
     //   * very large output channels
     //   * small work amount available to each thread
-    if ((num_work_to_parallel < 2 * jbgp.nthr
+    if ((other_work < 2 * jbgp.nthr
                 || jbgp.oc > (is_bf16 || jbgp.is_bf32 ? 4096 : 1024))) {
         const int min_chunk_sz
                 = (is_avx512_bf16) ? 2 * jbgp.simd_w : jbgp.simd_w;
