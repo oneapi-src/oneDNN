@@ -1374,10 +1374,10 @@ void gemm_kernel_generator_t<hw>::releaseFusedRemainders(GEMMState &state) {
     state.remaindersFused[LoopN] = Subregister {};
 }
 
-static inline void releaseCoopRemainders(GEMMState &state) {
+static inline void releaseSLMRemainders(GEMMState &state) {
     for (LoopType loop : {LoopM, LoopN, LoopK})
-        if (state.remaindersCoop[loop] != state.remainders[loop])
-            state.ra.safeRelease(state.remaindersCoop[loop]);
+        if (state.remaindersSLM[loop] != state.remainders[loop])
+            state.ra.safeRelease(state.remaindersSLM[loop]);
 }
 
 template <HW hw>
@@ -12114,8 +12114,10 @@ void gemm_kernel_generator_t<hw>::kLoopActivateSLMRemainder(bool active,
     }
 
     // k mask information.
-    Subregister rems[3] = {
-            state.remaindersCoop[LoopM], state.remaindersCoop[LoopN], state.K};
+    // Should use state.remaindersSLM[Loop{M,N}] but in practice all those masks are
+    //   already loaded.
+    Subregister rems[3]
+            = {state.remaindersSLM[LoopM], state.remaindersSLM[LoopN], state.K};
     int offsets[3] = {0, 0, -kOffset};
 
     // If not changing between main loop and remainder, update k masks as needed and return.
@@ -12139,7 +12141,7 @@ void gemm_kernel_generator_t<hw>::kLoopActivateSLMRemainder(bool active,
                 state.inputs.lda, false, true, AvoidFragment, state.Ai,
                 state.Ai_strategy, strategy, state, state.Ai_regCount);
         if (!assignMasks(state.Ai_layoutRem, LoopM, LoopK, kMasksSLM, strategy,
-                    state, true, &state.AB_masksCoop))
+                    state, true, &state.AiBi_masks))
             stub();
         if (state.aioShare && state.Ao_regsRem.empty()
                 && state.Ai_layoutRem[0].crosspack
@@ -12156,7 +12158,7 @@ void gemm_kernel_generator_t<hw>::kLoopActivateSLMRemainder(bool active,
                 state.inputs.ldb, true, false, AvoidFragment, state.Bi,
                 state.Bi_strategy, strategy, state, state.Bi_regCount);
         if (!assignMasks(state.Bi_layoutRem, LoopK, LoopN, kMasksSLM, strategy,
-                    state, true, &state.AB_masksCoop))
+                    state, true, &state.AiBi_masks))
             stub();
         if (state.bioShare && state.Bo_regsRem.empty()
                 && state.Bi_layoutRem[0].crosspack
@@ -13677,26 +13679,6 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
     state.effCoopA = effCoopSplitA(problem, strategy);
     state.effCoopB = effCoopSplitB(problem, strategy);
 
-    // Prepare m/n remainders for m/n-cooperative operations.
-    for (LoopType loop : {LoopM, LoopN, LoopK})
-        state.remaindersCoop[loop] = state.remainders[loop];
-
-    if ((strategy.slmA || (strategy.prefetchA && strategy.cooperativePF))
-            && remM_A && state.effCoopA == CoopSplit::MN) {
-        state.remaindersCoop[LoopM] = state.ra.alloc_sub<uint16_t>();
-        int32_t chunkM = unrollM / strategy.wg[LoopN];
-        emad(1 | sat, state.remaindersCoop[LoopM], state.remainders[LoopM],
-                -state.lidN.w(), chunkM, strategy, state);
-    }
-
-    if ((strategy.slmB || (strategy.prefetchB && strategy.cooperativePF))
-            && remN_B && state.effCoopB == CoopSplit::MN) {
-        state.remaindersCoop[LoopN] = state.ra.alloc_sub<uint16_t>();
-        int32_t chunkN = unrollN / strategy.wg[LoopM];
-        emad(1 | sat, state.remaindersCoop[LoopN], state.remainders[LoopN],
-                -state.lidM.w(), chunkN, strategy, state);
-    }
-
     // Prepare layouts for prefetch.
     bool remM_Cp = remM_C && strategy.C.base.isStateless();
     bool remN_Cp = remN_C && strategy.C.base.isStateless();
@@ -13733,6 +13715,9 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
     gemmABPrefetchAddrSetup(problem, strategy, state);
 
     // Prepare layouts and starting addresses for SLM copies and adjust problem.
+    for (LoopType loop : {LoopM, LoopN, LoopK})
+        state.remaindersSLM[loop] = state.remainders[loop];
+
     if (strategy.slmBuffers > 0) {
         int A_slmCP, B_slmCP;
         int A_tileR, A_tileC, B_tileR, B_tileC;
@@ -13745,8 +13730,15 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
             coopSplit(true, state.ma_slm, state.ka_slm, unrollM, unrollKSLM,
                     state.effCoopA, strategy.wg[LoopN], problem.A);
 
-            if (state.effCoopA == CoopSplit::MN)
+            if (state.effCoopA == CoopSplit::MN) {
+                if (remM_A) {
+                    state.remaindersSLM[LoopM] = state.ra.alloc_sub<uint16_t>();
+                    emad(1 | sat, state.remaindersSLM[LoopM],
+                            state.remainders[LoopM], -state.lidN.w(),
+                            state.ma_slm, strategy, state);
+                }
                 remK_A = remainderK && strategy.slmEarlyKMask;
+            }
 
             if (strategy.slmATrans) {
                 A_slmCP = state.ka_slm;
@@ -13928,8 +13920,15 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
             coopSplit(false, state.kb_slm, state.nb_slm, unrollKSLM, unrollN,
                     state.effCoopB, strategy.wg[LoopM], problem.B);
 
-            if (state.effCoopB == CoopSplit::MN)
+            if (state.effCoopB == CoopSplit::MN) {
+                if (remN_B) {
+                    state.remaindersSLM[LoopN] = state.ra.alloc_sub<uint16_t>();
+                    emad(1 | sat, state.remaindersSLM[LoopN],
+                            state.remainders[LoopN], -state.lidM.w(),
+                            state.nb_slm, strategy, state);
+                }
                 remK_B = remainderK && strategy.slmEarlyKMask;
+            }
 
             if (strategy.slmBTrans) {
                 B_slmCP = state.kb_slm;
@@ -14269,29 +14268,29 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
     // Try first without virtual flags and retry if needed.
     // m/n cooperative SLM copies may use k masking; skip those masks for now.
     auto &masks = state.AB_masks;
-    auto &masksCoop = state.AB_masksCoop;
-    auto &A_cmasks = (state.effCoopA == CoopSplit::K) ? masks : masksCoop;
-    auto &B_cmasks = (state.effCoopB == CoopSplit::K) ? masks : masksCoop;
+    auto &imasks = state.AiBi_masks;
+    auto &Ai_masks = (state.effCoopA == CoopSplit::K) ? masks : imasks;
+    auto &Bi_masks = (state.effCoopB == CoopSplit::K) ? masks : imasks;
 
     auto assignAllMasks = [&]() {
         return assignMasks(state.A_layout, LoopM, LoopK, masks, strategy, state)
                 && assignMasks(
                         state.A_layoutAlt, LoopM, LoopK, masks, strategy, state)
-                && assignMasks(state.Ap_layout, LoopM, LoopK, A_cmasks,
-                        strategy, state)
-                && assignMasks(state.Ap_layoutAlt, LoopM, LoopK, A_cmasks,
-                        strategy, state)
-                && assignMasks(state.Ai_layout, LoopM, LoopNone, A_cmasks,
+                && assignMasks(
+                        state.Ap_layout, LoopM, LoopK, masks, strategy, state)
+                && assignMasks(state.Ap_layoutAlt, LoopM, LoopK, masks,
                         strategy, state)
                 && assignMasks(
                         state.B_layout, LoopK, LoopN, masks, strategy, state)
                 && assignMasks(
                         state.B_layoutAlt, LoopK, LoopN, masks, strategy, state)
-                && assignMasks(state.Bp_layout, LoopK, LoopN, B_cmasks,
+                && assignMasks(
+                        state.Bp_layout, LoopK, LoopN, masks, strategy, state)
+                && assignMasks(state.Bp_layoutAlt, LoopK, LoopN, masks,
                         strategy, state)
-                && assignMasks(state.Bp_layoutAlt, LoopK, LoopN, B_cmasks,
+                && assignMasks(state.Ai_layout, LoopM, LoopNone, Ai_masks,
                         strategy, state)
-                && assignMasks(state.Bi_layout, LoopNone, LoopN, B_cmasks,
+                && assignMasks(state.Bi_layout, LoopNone, LoopN, Bi_masks,
                         strategy, state);
     };
 
@@ -14307,10 +14306,10 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
     if (!success) return false;
 
     loadMasks(masks, state.remainders, strategy, state);
-    loadMasks(masksCoop, state.remaindersCoop, strategy, state);
+    loadMasks(imasks, state.remaindersSLM, strategy, state);
 
     if (!state.simd32KMasks)
-        releaseCoopRemainders(
+        releaseSLMRemainders(
                 state); /* may need SLM m/n remainders for k masking later */
 
     // Apply panel masks, if defined, to all A/B blocks.
@@ -14495,7 +14494,7 @@ void gemm_kernel_generator_t<hw>::gemmAccumulateCTeardown(
     // We're done with A and B. Free their address, data, and flag registers.
     // Also done with loop counter.
     safeReleaseMaskAssignments(state.AB_masks, state);
-    safeReleaseMaskAssignments(state.AB_masksCoop, state);
+    safeReleaseMaskAssignments(state.AiBi_masks, state);
     safeReleaseRanges(state.A_addrs, state);
     safeReleaseRanges(state.B_addrs, state);
     safeReleaseRanges(state.A_addrsAlt, state);
@@ -14522,7 +14521,7 @@ void gemm_kernel_generator_t<hw>::gemmAccumulateCTeardown(
     state.ra.safeRelease(state.broadcast_regs);
     safeReleaseRanges(state.tempMul_regs, state);
     clearTokenAllocations(hw, state);
-    releaseCoopRemainders(state);
+    releaseSLMRemainders(state);
 
     deduplicateScalar(state.lda, state);
     deduplicateScalar(state.ldb, state);

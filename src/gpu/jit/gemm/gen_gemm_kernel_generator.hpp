@@ -1213,14 +1213,14 @@ struct GEMMState : public CommonState {
     GRFMultirange Ao_regsRem, Bo_regsRem;
     GRFMultirange As_regs, Bs_regs; // A row sums/B column sums.
     GRFMultirange Ap_regs, Bp_regs, Cp_regs; // A/B/C prefetch registers.
-    std::vector<MaskAssignment> AB_masks, AB_masksCoop;
+    std::vector<MaskAssignment> AB_masks, AiBi_masks;
     ngen::GRFRange broadcast_regs;
     std::vector<ngen::GRFRange> tempMul_regs;
     ngen::Subregister i0, j0, h0; // d
     ngen::Subregister remainders[3]; // d (todo: w)
     ngen::Subregister remaindersFused[2]; // w
     ngen::Subregister remaindersWG[2]; // d (todo: w)
-    ngen::Subregister remaindersCoop[3]; // d
+    ngen::Subregister remaindersSLM[3]; // d
     ngen::Subregister remFusedStorage; // d
     ngen::Subregister diagA, diagB, diagC; // d
     SubregisterPair lda, ldb;
