@@ -199,7 +199,8 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
     // N/Ks
     cfg.M_split_num = num_threads;
     cfg.N_split_num = 1;
-  } else if (M == iim_block) {
+  } else if ((M == iim_block && is_special_fm)
+    || (M == iim_block && !is_special_fm && num_threads <= 4)) {
     cfg.M_split_num = 1;
     if (num_threads <= 4) {
       // magic number = 4096, needs to be further discussed for pretty big K
