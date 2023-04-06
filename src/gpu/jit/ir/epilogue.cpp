@@ -739,10 +739,6 @@ public:
     int c_reg_buf_size() const { return c_reg_buf_size_; }
 
 private:
-    void register_buffer(const expr_t &buf, int size) {
-        buf_sizes_[buf] = std::max(buf_sizes_[buf], size);
-    }
-
     expr_t make_c_tmp_buffer() const {
         return ir_ctx_.create_tmp_var(type_t::byte_ptr(), "c_tmp");
     }
@@ -769,7 +765,6 @@ private:
                 int this_off = to_cpp<int>(layout.offset_in_bytes());
                 int next_off = to_cpp<int>(next->layout.offset_in_bytes());
                 ir_assert(next_off == 0);
-                update_size(next->get_buf_size());
                 next->set_buf(buf[this_off]);
             }
         }
@@ -792,12 +787,9 @@ private:
             return (buf_size == 0) ? int(layout.size()) : buf_size;
         }
 
-        void update_size(int new_size) {
-            if (buf_size != 0) {
-                buf_size = std::max(new_size, buf_size);
-            } else {
-                buf_size = std::max(new_size, (int)layout.max_off_bytes());
-            }
+        int max_off_bytes() const {
+            int l_off_bytes = (int)layout.max_off_bytes(/*ignore_offset=*/true);
+            return std::max(buf_size, l_off_bytes);
         }
 
         void prepend_stmt(const stmt_t &stmt) {
@@ -811,6 +803,7 @@ private:
     };
 
     void build(const layout_t &c_reg_layout, const expr_t &c_reg_buf) {
+        c_reg_buf_size_ = c_reg_layout.size();
         auto tmp_type = (post_op_builders_.empty() ? c_mem_view_.type()
                                                    : type_t::f32());
         int tmp_buf_elems = tile_size_ / tmp_type.size();
@@ -964,11 +957,27 @@ private:
 
         int nstages = int(c_stages.size());
 
+        // Update buffer sizes.
+        std::vector<int> buf_sizes(nstages);
+        for (int i = 1; i < nstages; i++) {
+            auto &s = c_stages[i];
+            buf_sizes[i] = s.max_off_bytes();
+        }
+
         // Generate reorders between C stages if needed.
         for (int i = 0; i < nstages; i++) {
             auto *next_stage = (i + 1 < nstages ? &c_stages[i + 1] : nullptr);
             c_stages[i].set_next(ir_ctx_, next_stage,
                     /*force_reorder=*/i == 0 && force_c_reorder_);
+        }
+
+        // Update buffer sizes.
+        for (int i = nstages - 2; i >= 0; i--) {
+            auto &s_cur = c_stages[i];
+            auto &s_next = c_stages[i + 1];
+            if (s_cur.buf_base().is_same(s_next.buf_base())) {
+                buf_sizes[i] = std::max(buf_sizes[i], buf_sizes[i + 1]);
+            }
         }
 
         // Restore zero padding if needed.
@@ -1013,13 +1022,13 @@ private:
             auto &buf = s.buf_base();
             auto ret = seen.insert(buf);
             if (i == 0 || !ret.second) continue;
-            int size = utils::rnd_up(s.get_buf_size(), ir_ctx_.grf_size());
+            int size = utils::rnd_up(buf_sizes[i], ir_ctx_.grf_size());
             tile_stmt = alloc_t::make(buf, size, alloc_kind_t::grf, tile_stmt);
         }
 
         stmt_ = stmt_.append(tile_stmt);
-        c_reg_buf_size_ = std::max(c_reg_buf_size_,
-                c_stages[0].get_buf_size(/*check_base=*/false));
+        int c_off_bytes = to_cpp<int>(c_tile_layout.offset_in_bytes());
+        c_reg_buf_size_ = std::max(c_reg_buf_size_, c_off_bytes + buf_sizes[0]);
     }
 
     stmt_t build_post_op_block_stmt(const tensor_t &tile,
@@ -1101,8 +1110,6 @@ private:
     std::vector<post_op_builder_t> post_op_builders_;
     std::vector<post_op_tensor_t> post_op_tensors_;
     int c_po_idx_ = -1;
-
-    object_map_t<expr_t, int> buf_sizes_;
 
     stmt_t stmt_;
     int c_reg_buf_size_ = 0;
