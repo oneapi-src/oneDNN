@@ -816,6 +816,8 @@ public:
         }
     }
 
+    void _visit(const cast_t &obj) override { visit_new_scope(obj); }
+
     void _visit(const iif_t &obj) override { visit_new_scope(obj); }
 
     void _visit(const load_t &obj) override { visit_new_scope(obj); }
