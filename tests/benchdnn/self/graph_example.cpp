@@ -89,7 +89,7 @@ void link_args(std::unordered_map<int, graph_link_t> &op_graph) {
 
     const auto &dst_m = args_prev.find(DNNL_ARG_DST);
     const auto &ref_dst_m = ref_args_prev.find(DNNL_ARG_DST);
-    if (!dst_m || !ref_dst_m) {
+    if (has_bench_mode_bit(mode_bit_t::corr) && (!dst_m || !ref_dst_m)) {
         printf("Failed to find prev dst in ref\n");
         exit(1);
     }
@@ -157,7 +157,7 @@ int init_op(std::unordered_map<int, graph_link_t> &op_graph,
     SAFE(execute_and_wait(prim, args, res), WARN);
 
     // Execute reference.
-    compute_ref(prb, ref_args);
+    if (has_bench_mode_bit(mode_bit_t::corr)) { compute_ref(prb, ref_args); }
 
     return OK;
 }
@@ -235,7 +235,9 @@ static int check_graph() {
     INIT_OP(eltwise);
     INIT_OP(binary);
 
-    SAFE(check_correctness(op_graph, {DST}, res), WARN);
+    if (has_bench_mode_bit(mode_bit_t::corr)) {
+        SAFE(check_correctness(op_graph, {DST}, res), WARN);
+    }
 
     return res->state == FAILED ? FAIL : OK;
 }
