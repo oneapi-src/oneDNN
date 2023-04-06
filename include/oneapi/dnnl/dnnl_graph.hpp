@@ -110,7 +110,7 @@ DNNL_GRAPH_HANDLE_ALIAS(partition);
 #undef DNNL_GRAPH_HANDLE_ALIAS
 
 template <bool B>
-using requires = typename std::enable_if<B, bool>::type;
+using req = typename std::enable_if<B, bool>::type;
 
 /// @endcond
 
@@ -1000,8 +1000,7 @@ public:
     /// @param name Attribute's name.
     /// @param value The attribute's value.
     /// @returns The Op self.
-    template <typename Type,
-            requires<std::is_same<Type, int64_t>::value> = true>
+    template <typename Type, req<std::is_same<Type, int64_t>::value> = true>
     op &set_attr(attr name, const Type &value) {
         dnnl_graph_op_attr_t attr = convert_to_c(name);
         error::wrap_c_api(dnnl_graph_op_set_attr_s64(get(), attr, &value, 1),
@@ -1015,7 +1014,7 @@ public:
     /// @param name Attribute's name.
     /// @param value The attribute's value.
     /// @returns The Op self.
-    template <typename Type, requires<std::is_same<Type, float>::value> = true>
+    template <typename Type, req<std::is_same<Type, float>::value> = true>
     op &set_attr(attr name, const Type &value) {
         dnnl_graph_op_attr_t attr = convert_to_c(name);
         error::wrap_c_api(dnnl_graph_op_set_attr_f32(get(), attr, &value, 1),
@@ -1029,7 +1028,7 @@ public:
     /// @param name Attribute's name.
     /// @param value The attribute's value.
     /// @returns The Op self.
-    template <typename Type, requires<std::is_same<Type, bool>::value> = true>
+    template <typename Type, req<std::is_same<Type, bool>::value> = true>
     op &set_attr(attr name, const Type &value) {
         dnnl_graph_op_attr_t attr = convert_to_c(name);
         const uint8_t val = value;
@@ -1044,8 +1043,7 @@ public:
     /// @param name Attribute's name.
     /// @param value The attribute's value.
     /// @returns The Op self.
-    template <typename Type,
-            requires<std::is_same<Type, std::string>::value> = true>
+    template <typename Type, req<std::is_same<Type, std::string>::value> = true>
     op &set_attr(attr name, const Type &value) {
         dnnl_graph_op_attr_t attr = convert_to_c(name);
         error::wrap_c_api(dnnl_graph_op_set_attr_str(
@@ -1062,7 +1060,7 @@ public:
     /// @param value The attribute's value.
     /// @returns The Op self.
     template <typename Type,
-            requires<std::is_same<Type, std::vector<int64_t>>::value> = true>
+            req<std::is_same<Type, std::vector<int64_t>>::value> = true>
     op &set_attr(attr name, const Type &value) {
         dnnl_graph_op_attr_t attr = convert_to_c(name);
         error::wrap_c_api(dnnl_graph_op_set_attr_s64(
@@ -1078,7 +1076,7 @@ public:
     /// @param value The attribute's value.
     /// @returns The Op self.
     template <typename Type,
-            requires<std::is_same<Type, std::vector<float>>::value> = true>
+            req<std::is_same<Type, std::vector<float>>::value> = true>
     op &set_attr(attr name, const Type &value) {
         dnnl_graph_op_attr_t attr = convert_to_c(name);
         error::wrap_c_api(dnnl_graph_op_set_attr_f32(
