@@ -307,7 +307,8 @@ struct cudnn_convolution_bwd_weights_t : public primitive_t {
                             utils::one_of(data_type::bf16, src_md_.data_type,
                                     diff_weights_md_.data_type,
                                     diff_dst_md_.data_type),
-                            has_bf16_support(sycl_engine->device()));
+                            has_bf16_support(sycl_engine->device())
+                                    && !with_bias());
 
             ok = ok
                     && IMPLICATION(
