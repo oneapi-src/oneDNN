@@ -26,7 +26,7 @@ int bench(int argc, char **argv) {
 
     (void)argv;
     auto &bs = benchdnn_stat;
-    if (has_bench_mode_bit(mode_bit_t::corr)) {
+    if (has_bench_mode_bit(mode_bit_t::perf)) {
         bs.skipped = bs.tests;
         return OK;
     }
