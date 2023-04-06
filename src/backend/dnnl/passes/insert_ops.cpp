@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -617,7 +617,7 @@ impl::status_t insert_runtime_u8_to_s8_for_matmul(
         } else {
             assertm(cur_op->num_inputs() == index,
                     "only support insert input at the end of inputs");
-            std::vector<int64_t> zp {128};
+            std::vector<int64_t> zp {-128};
             auto zps_op = std::make_shared<impl::op_t>(op_kind::dnnl_add_zps);
             zps_op->set_attr<std::string>(op_attr::qtype, "per_tensor");
             zps_op->set_attr<int64_t>(op_attr::axis, 0);
@@ -627,7 +627,6 @@ impl::status_t insert_runtime_u8_to_s8_for_matmul(
             const_data_op->set_attr(op_attr::zps, zp);
             std::vector<int64_t> dst_shape(1, zp.size());
             const_data_op->set_attr(op_attr::shape, dst_shape);
-            const_data_op->set_attr(op_attr::is_constant, true);
             impl::logical_tensor_t const_data_dst_lt
                     = impl::empty_logical_tensor_with_default_id();
             auto const_data_dst_value = std::make_shared<value_t>(
