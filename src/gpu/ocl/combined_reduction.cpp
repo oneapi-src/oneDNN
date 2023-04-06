@@ -211,50 +211,40 @@ status_t set_reduction_phases(dim_t outer_elems, dim_t reduction_elems,
         dim_t inner_elems, data_type_t accum_data_type, int subgroup_size,
         const compute::compute_engine_t *compute_engine,
         std::vector<reduction_phase_t> &phases) {
-    // Heuristic:
-    // If reduction_elems*inner_elems < single_phase_threshold,
-    // it doesn't help to add another phase, regardless of EU saturation
-    const float single_phase_threshold = 1900;
+    // Recursive end condition: reduction_elems == 1
+    if (reduction_elems == 1) return status::success;
+
+    const dim_t inner_dim_per_sg
+            = nstl::max((dim_t)1, subgroup_size / inner_elems);
     const int num_EU = compute_engine->device_info()->eu_count();
-    const float frac_EU = 15; // Heuristic determined on ATS-m
-    const dim_t max_parallelism = num_EU * frac_EU;
+    const dim_t num_sg_per_red_end
+            = outer_elems * utils::div_up(inner_elems, subgroup_size);
 
-    const dim_t sg_per_inner_dim = utils::div_up(inner_elems, subgroup_size);
-    const dim_t sg_per_reduction_end = outer_elems * sg_per_inner_dim;
-    while (reduction_elems > 1) {
-        // Heuristically determine reduction_end
-        // Approximation of the number of remaining phases
-        int N = std::ceil(std::log2(reduction_elems)
-                / std::log2(single_phase_threshold / inner_elems));
-        N = std::max(N, 1); // avoid negative N for large inner_elems
-        dim_t reduction_end = static_cast<dim_t>(
-                std::pow(reduction_elems, (float)(N - 1) / N));
+    //Heuristics:
+    // EU_mult: reduce parallelism to at most num_EU*EU_mult (reduces scheduling overhead?)
+    const int EU_mult = 20;
+    // Target single_phase_threshold horizontal reductions with each phase
+    const int single_phase_threshold = 128;
 
-        // Heuristic 1: For large # of subgroups, reduce phases to avoid excess parallelism
-        reduction_end = std::min(
-                reduction_end, max_parallelism / sg_per_reduction_end);
+    // Estimate the number of phases remaining, and divide it up evenly around this target
+    int N = (int)std::ceil(std::log2(reduction_elems)
+            / std::log2(single_phase_threshold * inner_dim_per_sg));
+    N = std::max(1, N); // N must be positive
+    dim_t reduction_end
+            = static_cast<dim_t>(std::pow(reduction_elems, (float)(N - 1) / N));
 
-        // Heuristic 2: for small reduction_elems + inner_elems, always cut back to 1 phase
-        if (reduction_elems * inner_elems < single_phase_threshold) {
-            // If reduction + inner_size is small, do a single phase
-            reduction_end = 1;
-        }
-        // End Heuristic
+    // Reduce parallelism and finalize reduction_end
+    reduction_end = nstl::clamp(
+            num_EU * EU_mult / num_sg_per_red_end, (dim_t)1, reduction_end);
+    reduction_end = get_previous_factor(reduction_elems, reduction_end);
 
-        // To help the compiler, only allow reduction_end which is a FACTOR of reduction_elems.
-        // Otherwise, each work item could have a vastly different amount of work than its neighbors
-        reduction_end = get_previous_factor(reduction_elems, reduction_end);
-        dim_t reduction_size = reduction_elems / reduction_end;
+    // Create the phase and recursively enter
+    dim_t reduction_size = reduction_elems / reduction_end;
+    phases.push_back(init_phase(outer_elems * reduction_end, reduction_size,
+            inner_elems, accum_data_type, accum_data_type, compute_engine));
 
-        phases.push_back(init_phase(outer_elems * reduction_end, reduction_size,
-                inner_elems, accum_data_type, accum_data_type, compute_engine));
-
-        reduction_elems = reduction_end;
-
-        // To break out of potentially infinite while loops
-        if (phases.size() > 20) return status::runtime_error;
-    }
-    return status::success;
+    return set_reduction_phases(outer_elems, reduction_end, inner_elems,
+            accum_data_type, subgroup_size, compute_engine, phases);
 }
 
 status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
