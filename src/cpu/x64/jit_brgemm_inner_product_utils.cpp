@@ -514,10 +514,10 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
             if (work_1 >= work_2 && nthr_other > 1) jbgp.nthr_ic_b--;
         }
 
-        if (jbgp.nthr_ic_b > 1) {
-            jbgp.nb_ic_blocking = div_up(jbgp.nb_ic, jbgp.nthr_ic_b);
-            jbgp.nb_ic_blocking /= div_up(jbgp.nb_ic_blocking, 64);
-        }
+        assert(jbgp.nthr_ic_b >= 1);
+        jbgp.nb_ic_blocking = div_up(jbgp.nb_ic, jbgp.nthr_ic_b);
+        jbgp.nb_ic_blocking /= div_up(jbgp.nb_ic_blocking, 64);
+
         jbgp.gemm_batch_size = jbgp.nb_ic_blocking;
         jbgp.K = jbgp.ic_block;
     } else {
