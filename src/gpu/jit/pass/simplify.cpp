@@ -1497,6 +1497,30 @@ public:
     }
 };
 
+expr_t reorder_nary_add_args(const expr_t &e, bool x64_first) {
+    auto *nary_op = e.as_ptr<nary_op_t>();
+    if (nary_op->op_kind != op_kind_t::_add || nary_op->args.size() <= 2)
+        return e;
+
+    std::vector<expr_t> other_args;
+    std::vector<expr_t> x64_args;
+    for (auto &a : nary_op->args) {
+        if (a.type().is_x64()) {
+            x64_args.push_back(a);
+        } else {
+            other_args.push_back(a);
+        }
+    }
+
+    if (other_args.empty() || x64_args.empty()) return e;
+
+    std::vector<expr_t> new_args = std::move(other_args);
+    new_args.insert(x64_first ? new_args.begin() : new_args.end(),
+            x64_args.begin(), x64_args.end());
+
+    return nary_op_t::make(nary_op->op_kind, new_args);
+}
+
 // Rewrites addition with mixed 64-bit/32-bit expressions to reduce 64-bit
 // arithmetic. Example:
 // Before: ((x.s64 + y.s32) + z.s32) [two 64-bit add]
@@ -1505,26 +1529,7 @@ class _64_bit_add_optimizer_t : public nary_op_mutator_t {
 public:
     object_t _mutate(const nary_op_t &obj) override {
         auto new_obj = nary_op_mutator_t::_mutate(obj);
-        auto *nary_op = new_obj.as_ptr<nary_op_t>();
-        if (nary_op->op_kind != op_kind_t::_add || nary_op->args.size() <= 2)
-            return new_obj;
-
-        std::vector<expr_t> other_args;
-        std::vector<expr_t> x64_args;
-        for (auto &a : nary_op->args) {
-            if (a.type().is_x64()) {
-                x64_args.push_back(a);
-            } else {
-                other_args.push_back(a);
-            }
-        }
-
-        if (other_args.empty() || x64_args.empty()) return new_obj;
-
-        std::vector<expr_t> new_args = std::move(other_args);
-        new_args.insert(new_args.end(), x64_args.begin(), x64_args.end());
-
-        return nary_op_t::make(nary_op->op_kind, new_args);
+        return reorder_nary_add_args(new_obj, /*x64_first=*/false);
     }
 };
 
