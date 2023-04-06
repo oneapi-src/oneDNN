@@ -2515,6 +2515,18 @@ struct memory : public handle<dnnl_memory_t> {
         OIhw8i24o2i = dnnl_OIhw8i24o2i,
         OIdhw8i8o2i = dnnl_OIdhw8i8o2i,
         OIdhw8i24o2i = dnnl_OIdhw8i24o2i,
+        BcA8b4a = dnnl_BcA8b4a,
+        BcdA8b4a = dnnl_BcdA8b4a,
+        BcdeA8b4a = dnnl_BcdeA8b4a,
+        aCdB8c4b = dnnl_aCdB8c4b,
+        aCdeB8c4b = dnnl_aCdeB8c4b,
+        aCdefB8c4b = dnnl_aCdefB8c4b,
+        BcA24b4a = dnnl_BcA24b4a,
+        BcdA24b4a = dnnl_BcdA24b4a,
+        BcdeA24b4a = dnnl_BcdeA24b4a,
+        aCdB24c4b = dnnl_aCdB24c4b,
+        aCdeB24c4b = dnnl_aCdeB24c4b,
+        aCdefB24c4b = dnnl_aCdefB24c4b,
     };
 
     /// A memory descriptor.
