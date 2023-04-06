@@ -823,6 +823,18 @@ const format_tag_t aCdeB16b48c2b = dnnl_aCdeB16b48c2b;
 const format_tag_t aCdeB16b48c4b = dnnl_aCdeB16b48c4b;
 const format_tag_t aCdeB16b64c2b = dnnl_aCdeB16b64c2b;
 const format_tag_t aCdeB16b64c4b = dnnl_aCdeB16b64c4b;
+const format_tag_t Bca8b = dnnl_Bca8b;
+const format_tag_t BcA8b2a = dnnl_BcA8b2a;
+const format_tag_t Bcda8b = dnnl_Bcda8b;
+const format_tag_t BcdA8b2a = dnnl_BcdA8b2a;
+const format_tag_t Bcdea8b = dnnl_Bcdea8b;
+const format_tag_t BcdeA8b2a = dnnl_BcdeA8b2a;
+const format_tag_t aCdb8c = dnnl_aCdb8c;
+const format_tag_t aCdB8c2b = dnnl_aCdB8c2b;
+const format_tag_t aCdeb8c = dnnl_aCdeb8c;
+const format_tag_t aCdeB8c2b = dnnl_aCdeB8c2b;
+const format_tag_t aCdefb8c = dnnl_aCdefb8c;
+const format_tag_t aCdefB8c2b = dnnl_aCdefB8c2b;
 const format_tag_t Bca16b = dnnl_Bca16b;
 const format_tag_t BcA16b2a = dnnl_BcA16b2a;
 const format_tag_t BcA16b4a = dnnl_BcA16b4a;
@@ -841,6 +853,18 @@ const format_tag_t aCdeB16c4b = dnnl_aCdeB16c4b;
 const format_tag_t aCdefb16c = dnnl_aCdefb16c;
 const format_tag_t aCdefB16c2b = dnnl_aCdefB16c2b;
 const format_tag_t aCdefB16c4b = dnnl_aCdefB16c4b;
+const format_tag_t Bca24b = dnnl_Bca24b;
+const format_tag_t BcA24b2a = dnnl_BcA24b2a;
+const format_tag_t Bcda24b = dnnl_Bcda24b;
+const format_tag_t BcdA24b2a = dnnl_BcdA24b2a;
+const format_tag_t Bcdea24b = dnnl_Bcdea24b;
+const format_tag_t BcdeA24b2a = dnnl_BcdeA24b2a;
+const format_tag_t aCdb24c = dnnl_aCdb24c;
+const format_tag_t aCdB24c2b = dnnl_aCdB24c2b;
+const format_tag_t aCdeb24c = dnnl_aCdeb24c;
+const format_tag_t aCdeB24c2b = dnnl_aCdeB24c2b;
+const format_tag_t aCdefb24c = dnnl_aCdefb24c;
+const format_tag_t aCdefB24c2b = dnnl_aCdefB24c2b;
 const format_tag_t Bcda32b = dnnl_Bcda32b;
 const format_tag_t BcdA32b2a = dnnl_BcdA32b2a;
 const format_tag_t BcdA32b4a = dnnl_BcdA32b4a;
@@ -1547,17 +1571,36 @@ const format_tag_t gIhwo64i = dnnl_gIhwo64i;
 const format_tag_t gIhwO64i2o = dnnl_gIhwO64i2o;
 const format_tag_t gIhwO64i4o = dnnl_gIhwO64i4o;
 
+const format_tag_t Iwo8i = dnnl_Iwo8i;
+const format_tag_t IwO8i2o = dnnl_IwO8i2o;
+const format_tag_t Ihwo8i = dnnl_Ihwo8i;
+const format_tag_t IhwO8i2o = dnnl_IhwO8i2o;
+const format_tag_t Idhwo8i = dnnl_Idhwo8i;
+const format_tag_t IdhwO8i2o = dnnl_IdhwO8i2o;
+
 const format_tag_t Iwo16i = dnnl_Iwo16i;
 const format_tag_t IwO16i2o = dnnl_IwO16i2o;
 const format_tag_t IwO16i4o = dnnl_IwO16i4o;
-
 const format_tag_t Ihwo16i = dnnl_Ihwo16i;
 const format_tag_t IhwO16i2o = dnnl_IhwO16i2o;
 const format_tag_t IhwO16i4o = dnnl_IhwO16i4o;
-
 const format_tag_t Idhwo16i = dnnl_Idhwo16i;
 const format_tag_t IdhwO16i2o = dnnl_IdhwO16i2o;
 const format_tag_t IdhwO16i4o = dnnl_IdhwO16i4o;
+
+const format_tag_t Iwo24i = dnnl_Iwo24i;
+const format_tag_t IwO24i2o = dnnl_IwO24i2o;
+const format_tag_t Ihwo24i = dnnl_Ihwo24i;
+const format_tag_t IhwO24i2o = dnnl_IhwO24i2o;
+const format_tag_t Idhwo24i = dnnl_Idhwo24i;
+const format_tag_t IdhwO24i2o = dnnl_IdhwO24i2o;
+
+const format_tag_t gIwo8i = dnnl_gIwo8i;
+const format_tag_t gIwO8i2o = dnnl_gIwO8i2o;
+const format_tag_t gIhwo8i = dnnl_gIhwo8i;
+const format_tag_t gIhwO8i2o = dnnl_gIhwO8i2o;
+const format_tag_t gIdhwo8i = dnnl_gIdhwo8i;
+const format_tag_t gIdhwO8i2o = dnnl_gIdhwO8i2o;
 
 const format_tag_t gIwo16i = dnnl_gIwo16i;
 const format_tag_t gIwO16i2o = dnnl_gIwO16i2o;
@@ -1570,6 +1613,13 @@ const format_tag_t gIhwO16i4o = dnnl_gIhwO16i4o;
 const format_tag_t gIdhwo16i = dnnl_gIdhwo16i;
 const format_tag_t gIdhwO16i2o = dnnl_gIdhwO16i2o;
 const format_tag_t gIdhwO16i4o = dnnl_gIdhwO16i4o;
+
+const format_tag_t gIwo24i = dnnl_gIwo24i;
+const format_tag_t gIwO24i2o = dnnl_gIwO24i2o;
+const format_tag_t gIhwo24i = dnnl_gIhwo24i;
+const format_tag_t gIhwO24i2o = dnnl_gIhwO24i2o;
+const format_tag_t gIdhwo24i = dnnl_gIdhwo24i;
+const format_tag_t gIdhwO24i2o = dnnl_gIdhwO24i2o;
 
 const format_tag_t hwioG16g = dnnl_hwioG16g;
 const format_tag_t hwioG8g = dnnl_hwioG8g;
