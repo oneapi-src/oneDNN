@@ -184,7 +184,7 @@ public:
         auto kernel_creator = part->get_kernel_creator();
 
         // This internal env var is used for test purpose. When setting
-        // _DNNL_GRAPH_USE_LARGE_PARTITION_KERNEL to 1, all partitions will be
+        // _DNNL_USE_LARGE_PARTITION_KERNEL to 1, all partitions will be
         // dispatched to the large partition kernel.
         if (graph::utils::getenv_int_internal(
                     "USE_LARGE_PARTITION_KERNEL", 0)) {
