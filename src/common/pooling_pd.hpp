@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -212,7 +212,7 @@ struct pooling_fwd_pd_t : public pooling_pd_t {
 
     std::vector<memory_desc_t> hint_mds(bool is_hint) const override {
         if (!is_hint) return {};
-        return {*dst_md(0)};
+        return {*dst_md(0), *workspace_md(0)};
     }
 
 protected:
