@@ -492,13 +492,11 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
                 nstl::min(jbgp.nb_ic >= 1024 ? 8 : 4, num_min_chunk_sz),
                 jbgp.nthr);
 
-        if (is_f32_compute) {
-            // Don't sacrifice reduction threads if other dimension will
-            // not benefit.
-            int nthr_other = jbgp.nthr / reduce_work;
-            if (reduce_work < max_nthr_ic_b && nthr_other <= 1) {
-                reduce_work = max_nthr_ic_b;
-            }
+        // Don't sacrifice reduction threads if other dimension will
+        // not benefit.
+        int nthr_other = jbgp.nthr / reduce_work;
+        if (reduce_work < max_nthr_ic_b && nthr_other <= 1) {
+            reduce_work = max_nthr_ic_b;
         }
 
         jbgp.nthr_ic_b = saturate(1, max_nthr_ic_b, reduce_work);
