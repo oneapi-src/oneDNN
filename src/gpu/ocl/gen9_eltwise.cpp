@@ -23,14 +23,16 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-static status_t init_conf_common(
-        eltwise_conf_t &conf, engine_t *engine, const eltwise_pd_t *pd) {
+status_t gen9_eltwise_jit_params_t::init(engine_t *engine,
+        const memory_desc_wrapper data_d, alg_kind_t alg_kind_) {
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
-    auto arch = compute_engine->device_info()->gpu_arch();
+
+    arch = compute_engine->device_info()->gpu_arch();
+    data_type = data_d.data_type();
+    alg_kind = alg_kind_;
+
     bool is_pre_xe_hp = arch < compute::gpu_arch_t::xe_hp;
 
-    const auto &data_md = pd->use_dst() ? pd->dst_md() : pd->src_md();
-    const memory_desc_wrapper data_d(*data_md);
     // Important hw features for code generation
     const int dt_size = (int)data_d.data_type_size();
     const int max_load_size = is_pre_xe_hp ? 128 : 256;
@@ -44,56 +46,49 @@ static status_t init_conf_common(
     // Prefer loading multiple of max load size to reduce messages
     const int load_size = load_unroll * max_load_size;
 
-    conf.alg = pd->desc()->alg_kind;
-    conf.with_zero_padding = data_d.nelems(false) != data_d.nelems(true);
-
     // Set simd size
-    conf.sub_group_size = compute_engine->device_info()->max_subgroup_size(
+    sub_group_size = compute_engine->device_info()->max_subgroup_size(
             data_d.data_type());
 
     // VECT_DATA_T only supports vector sizes up to 8
-    conf.vector_size = std::min(load_size / (dt_size * conf.sub_group_size), 8);
-    conf.work_group_size = local_threads * conf.sub_group_size;
+    vector_size = std::min(load_size / (dt_size * sub_group_size), 8);
+    work_group_size = local_threads * sub_group_size;
+
+    const int local_block_size = work_group_size * vector_size;
+    with_overflow = (data_d.nelems(true) % local_block_size) != 0;
 
     return status::success;
 }
 
-static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
-        const eltwise_conf_t &conf, const offsets_t &off,
-        const memory_desc_wrapper &data_d) {
-    kernel_ctx.set_data_type(data_d.data_type());
+compute::kernel_ctx_t gen9_eltwise_jit_params_t::get_kernel_ctx() const {
+    compute::kernel_ctx_t kernel_ctx;
+
+    kernel_ctx.set_data_type(data_type);
     def_eltwise_alg_kinds(kernel_ctx);
 
     kernel_ctx.define_int("WITH_ELTWISE", 1);
-    kernel_ctx.define_int("ELTWISE_ALG", conf.alg);
+    kernel_ctx.define_int("ELTWISE_ALG", alg_kind);
 
-    kernel_ctx.define_int("VECT_DT_N", conf.vector_size);
+    kernel_ctx.define_int("VECT_DT_N", vector_size);
 
-    const int local_block_size = conf.work_group_size * conf.vector_size;
-    kernel_ctx.define_int("NELEMS_OVERFLOW",
-            (data_d.nelems(conf.with_zero_padding) % local_block_size) != 0);
+    kernel_ctx.define_int("NELEMS_OVERFLOW", with_overflow);
 
     // attribute for wg-size and subgroup-size
     kernel_ctx.define_int("GWS_WITH_SG_DEFAULT", 1);
     // wg-size
-    kernel_ctx.define_int("GWS_LWS0_DEFAULT", conf.work_group_size);
+    kernel_ctx.define_int("GWS_LWS0_DEFAULT", work_group_size);
     kernel_ctx.define_int("GWS_LWS1_DEFAULT", 1);
     kernel_ctx.define_int("GWS_LWS2_DEFAULT", 1);
     // subgroup-size
-    kernel_ctx.define_int("GWS_SGS_DEFAULT", conf.sub_group_size);
+    kernel_ctx.define_int("GWS_SGS_DEFAULT", sub_group_size);
 
-    return status::success;
+    return kernel_ctx;
 }
 
 status_t gen9_eltwise_fwd_t::pd_t::init_conf(engine_t *engine) {
-    const memory_desc_wrapper src_d(src_md());
-    return init_conf_common(conf, engine, this);
-}
-
-status_t gen9_eltwise_fwd_t::pd_t::init_kernel_ctx(
-        compute::kernel_ctx_t &kernel_ctx) const {
-    const memory_desc_wrapper src_d(src_md());
-    return init_kernel_ctx_common(kernel_ctx, conf, off, src_d);
+    const memory_desc_wrapper data_d(use_dst() ? dst_md() : src_md());
+    status_t status = conf.init(engine, data_d, this->desc()->alg_kind);
+    return status;
 }
 
 status_t gen9_eltwise_fwd_t::execute_forward_dense(
@@ -103,8 +98,10 @@ status_t gen9_eltwise_fwd_t::execute_forward_dense(
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
-    const memory_desc_wrapper src_d(pd()->src_md());
-    const dim_t nelems = src_d.nelems(pd()->conf.with_zero_padding);
+    const auto &conf = pd()->conf;
+    const memory_desc_wrapper data_d(
+            pd()->use_dst() ? pd()->dst_md() : pd()->src_md());
+    const dim_t nelems = data_d.nelems(true);
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
 
@@ -115,8 +112,8 @@ status_t gen9_eltwise_fwd_t::execute_forward_dense(
     arg_list.set(3, alpha);
     arg_list.set(4, beta);
 
-    dim_t lws = pd()->conf.work_group_size;
-    dim_t total_wi = utils::div_up(nelems, pd()->conf.vector_size);
+    dim_t lws = conf.work_group_size;
+    dim_t total_wi = utils::div_up(nelems, conf.vector_size);
     compute::nd_range_t nd_range({utils::rnd_up(total_wi, lws)}, {lws});
 
     status = parallel_for(ctx, nd_range, kernel_, arg_list);
@@ -138,13 +135,7 @@ status_t gen9_eltwise_bwd_t::pd_t::init_conf(engine_t *engine) {
     // This kernel supports only matching data and diff formats
     if (data_d != diff_data_d) return status::unimplemented;
 
-    return init_conf_common(conf, engine, this);
-}
-
-status_t gen9_eltwise_bwd_t::pd_t::init_kernel_ctx(
-        compute::kernel_ctx_t &kernel_ctx) const {
-    const memory_desc_wrapper data_d(data_md());
-    return init_kernel_ctx_common(kernel_ctx, conf, off, data_d);
+    return conf.init(engine, data_d, this->desc()->alg_kind);
 }
 
 status_t gen9_eltwise_bwd_t::execute_backward_dense(
@@ -156,8 +147,9 @@ status_t gen9_eltwise_bwd_t::execute_backward_dense(
     auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
     auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
 
+    const auto &conf = pd()->conf;
     const memory_desc_wrapper data_d(pd()->data_md());
-    const dim_t nelems = data_d.nelems(pd()->conf.with_zero_padding);
+    const dim_t nelems = data_d.nelems(true);
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
 
@@ -169,8 +161,8 @@ status_t gen9_eltwise_bwd_t::execute_backward_dense(
     arg_list.set(4, alpha);
     arg_list.set(5, beta);
 
-    dim_t lws = pd()->conf.work_group_size;
-    dim_t total_wi = utils::div_up(nelems, pd()->conf.vector_size);
+    dim_t lws = conf.work_group_size;
+    dim_t total_wi = utils::div_up(nelems, conf.vector_size);
     compute::nd_range_t nd_range({utils::rnd_up(total_wi, lws)}, {lws});
 
     status = parallel_for(ctx, nd_range, kernel_, arg_list);

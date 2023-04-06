@@ -20,9 +20,11 @@
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/generator.hpp"
 #include "gpu/gpu_eltwise_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_resource.hpp"
+#include "gpu/kernel_cache.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
@@ -31,6 +33,34 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
+
+struct gen9_eltwise_jit_params_t {
+    status_t create_generator(
+            engine_t *engine, compute::compiled_bundle_t &generator) const {
+
+        auto status = compute::compiled_bundle_t::create(
+                generator, engine, get_kernel_names(), get_kernel_ctx());
+        return status;
+    }
+
+    const std::vector<const char *> &get_kernel_names() const {
+        static const std::vector<const char *> names {
+                "gen9_eltwise_fwd", "gen9_eltwise_bwd"};
+        return names;
+    }
+
+    status_t init(engine_t *engine, const memory_desc_wrapper data_d,
+            alg_kind_t alg_kind);
+    compute::kernel_ctx_t get_kernel_ctx() const;
+
+    compute::gpu_arch_t arch;
+    int vector_size;
+    data_type_t data_type;
+    alg_kind_t alg_kind;
+    int work_group_size;
+    int sub_group_size;
+    bool with_overflow;
+};
 
 struct gen9_eltwise_fwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
@@ -62,22 +92,13 @@ struct gen9_eltwise_fwd_t : public gpu_primitive_t {
         }
 
         status_t init_conf(engine_t *engine);
-        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
-        eltwise_conf_t conf;
+        trivial_key_t<gen9_eltwise_jit_params_t> conf;
         offsets_t off;
     };
 
     status_t init(engine_t *engine) override {
-        compute::kernel_ctx_t kernel_ctx;
-
-        status_t status = pd()->init_kernel_ctx(kernel_ctx);
-        if (status != status::success) return status;
-
-        CHECK(create_kernel(engine, &kernel_, "gen9_eltwise_fwd", kernel_ctx));
-        if (!kernel_) return status::runtime_error;
-
-        return status::success;
+        return create_kernel(engine, kernel_, "gen9_eltwise_fwd", pd()->conf);
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -125,23 +146,14 @@ struct gen9_eltwise_bwd_t : public gpu_primitive_t {
         }
 
         status_t init_conf(engine_t *engine);
-        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
-        eltwise_conf_t conf;
+        trivial_key_t<gen9_eltwise_jit_params_t> conf;
         offsets_t off;
         bool use_dense;
     };
 
     status_t init(engine_t *engine) override {
-        compute::kernel_ctx_t kernel_ctx;
-
-        status_t status = pd()->init_kernel_ctx(kernel_ctx);
-        if (status != status::success) return status;
-
-        CHECK(create_kernel(engine, &kernel_, "gen9_eltwise_bwd", kernel_ctx));
-        if (!kernel_) return status::runtime_error;
-
-        return status::success;
+        return create_kernel(engine, kernel_, "gen9_eltwise_bwd", pd()->conf);
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
