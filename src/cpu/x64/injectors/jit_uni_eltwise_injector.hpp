@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -189,7 +189,7 @@ private:
             const injector_utils::vmm_index_set_iterator_t &end_idx_it);
     void injector_preamble(const injector_utils::vmm_index_set_t &vmm_idxs);
     void injector_preamble_tail(
-            const injector_utils::vmm_index_set_iterator_t start_idx_it);
+            const injector_utils::vmm_index_set_iterator_t &start_idx_it);
     void injector_postamble();
     void assign_regs();
     void vec_shift(const Vmm &vmm_dst, const Vmm &vmm_src, bool shift_left,
