@@ -77,9 +77,12 @@ using graph_link_t = std::tuple<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>,
         dnn_mem_map_t, dnn_mem_map_t, args_t, args_t,
         std::shared_ptr<prb_wrapper_base_t>>;
 
+template <bool B>
+using req = typename std::enable_if<B, bool>::type;
+
 #define DECLARE_SET_PRB_CFG(driver) \
     template <typename prb_t, \
-            requires<std::is_same<prb_t, ::driver::prb_t>::value> = true> \
+            req<std::is_same<prb_t, ::driver::prb_t>::value> = true> \
     void set_prb_cfg(prb_t *prb, \
             const std::unordered_map<size_t, const std::string> \
                     &map_off_to_dt, \
@@ -89,8 +92,7 @@ using graph_link_t = std::tuple<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>,
 
 #define DECLARE_TEMPLATE_GET_SETTING(driver) \
     template <typename setting_t, \
-            requires<std::is_same<setting_t, \
-                    ::driver::settings_t>::value> = true> \
+            req<std::is_same<setting_t, ::driver::settings_t>::value> = true> \
     setting_t get_setting(const deserialized_op &base_op_ref, \
             const std::unordered_set<size_t> &rewrite_lt_ids, res_t *res) { \
         return driver::get_setting(base_op_ref, rewrite_lt_ids, res); \
