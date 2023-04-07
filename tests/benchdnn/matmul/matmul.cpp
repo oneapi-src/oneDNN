@@ -459,6 +459,10 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
     if ((src_rt_mask.any() && prb->stag == "any")
             || (wei_rt_mask.any() && prb->wtag == "any")
             || (dst_rt_mask.any() && prb->dtag == "any")) {
+        BENCHDNN_PRINT(1, "%s\n",
+                "WARNING: runtime dimensions require user to specify a memory "
+                "format for affected arguments. Consider specifying `--stag`, "
+                "`--wtag`, and/or `--dtag`.");
         res->state = SKIPPED, res->reason = INVALID_CASE;
         return;
     }

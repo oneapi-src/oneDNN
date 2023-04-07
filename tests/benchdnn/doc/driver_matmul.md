@@ -70,9 +70,11 @@ file:
     ./benchdnn --matmul --batch=inputs/matmul/shapes_2d
 ```
 
-Run single precision matrix multiplication with all sizes provided at run-time:
+Run single precision matrix multiplication with all sizes provided at run-time
+using plain `ab` format for all inputs:
 ``` sh
-    ./benchdnn --matmul --runtime_dims_masks=3:3 10x30:30x20
+    ./benchdnn --matmul --stag=ab --wtag=ab --dtag=ab \
+                        --runtime_dims_masks=3:3 10x30:30x20
 ```
 
 Run reduced precision (int8) matrix multiplication with asymmetric quantization
