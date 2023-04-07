@@ -15,7 +15,7 @@
 # attributes
 --dir=FWD_B
 --cfg=f16,f16f16f32
---attr-post-ops=linear:1:1:2.5,add:s32,sum:0.5+mul:s32:per_oc+relu:0.5
+--attr-post-ops=linear:1:1:2.5,add:s32,sum:0.5+mul:s32:per_oc+relu:0.5,prelu:per_oc
 --mb=2 --batch=set_all
 --mb=0 --batch=shapes_0d
 
