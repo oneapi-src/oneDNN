@@ -20,15 +20,20 @@
 #include <compiler/ir/attr_keys.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
+#include <compiler/ir/ir_utils.hpp>
 #include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/buffer_schedule.hpp>
 #include <compiler/ir/transform/closurize_impl.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
+#include <compiler/ir/viewer.hpp>
 #include <runtime/config.hpp>
 #include <runtime/thread_pool_flags.hpp>
 #include <runtime/trace.hpp>
+#include <unordered_map>
 #include <util/any_map.hpp>
+#include <util/optional.hpp>
+#include <util/optional_find.hpp>
 #include <util/utils.hpp>
 
 SC_MODULE(pass.closurize)
@@ -68,6 +73,83 @@ func_t get_parallel_call_with_env_func(bool managed) {
     return managed ? f_managed : f;
 }
 
+// the sub-pass to collect the tensor definitions in a function. It is used in
+// last-barrier safe removal to find the captured base tensors
+class tensor_def_collector_t : public ir_viewer_t {
+public:
+    using ir_viewer_t::dispatch;
+    struct tensor_def_info_t {
+        expr_c init_;
+        bool is_arg_;
+    };
+    using result_t = std::unordered_map<expr_c, tensor_def_info_t>;
+    static expr_c find_base_tensor(const expr_c &v,
+            const tensor_def_collector_t::result_t &scope, bool &out_is_arg) {
+        expr_c cur = v;
+        for (;;) {
+            auto base = utils::find_map_value(scope, cur).get_or_else(nullptr);
+            // global tensor
+            if (!base) { return cur; }
+            if (base->is_arg_) {
+                // it is arg tensor
+                out_is_arg = true;
+                return v;
+            }
+            if (!base->init_.defined()) {
+                // itself is a base tensor
+                out_is_arg = false;
+                return cur;
+            }
+            if (!base->init_.isa<tensor>()) {
+                // base is not a tensor, failed
+                out_is_arg = false;
+                return expr_c();
+            }
+            cur = base->init_;
+        }
+    }
+
+    result_t result_;
+
+    expr_c dispatch(expr_c v) override { return v; }
+    func_c dispatch(func_c v) override {
+        for (auto &arg : v->params_) {
+            if (arg.isa<tensor>()) {
+                result_[arg] = tensor_def_info_t {expr_c(), true};
+            }
+        }
+        return ir_viewer_t::dispatch(v);
+    }
+
+    void view(define_c v) override {
+        if (v->var_.isa<tensor>()) {
+            expr_c base;
+            if (v->init_.defined()) {
+                auto tsr = get_base_tensor_of(v->init_);
+                if (tsr.defined()) {
+                    base = tsr;
+                } else {
+                    base = v->init_;
+                }
+            }
+            result_[v->var_] = tensor_def_info_t {base, false};
+        }
+    }
+
+    // link the args of a function into the current function's tensor info. The
+    // call should happen in the current func body
+    void link_call_args(const call &thecall, const func_t &callee) {
+        for (size_t i = 0; i < callee->params_.size(); i++) {
+            auto &param = callee->params_[i];
+            auto &arg = thecall->args_[i];
+            if (param.isa<tensor>()) {
+                result_[param]
+                        = tensor_def_info_t {get_base_tensor_of(arg), false};
+            }
+        }
+    }
+};
+
 namespace parallel_call_args {
 enum { ADDR = 0, FLAGS, STREAM, MODULE_DATA, BEGIN, END, STEP, ARGS };
 }
@@ -77,6 +159,10 @@ class closurize_cpu_impl_t : public closurize_impl_t {
     bool use_managed_thread_pool_;
     std::vector<call> out_calls;
     func_t the_last_op_;
+    // we use pointers instead of reference to bypass a g++4.8 bug. If we pass
+    // result_t by reference, the address will be wrong in g++4.8
+    const tensor_def_collector_t::result_t *main_tensor_def_info_;
+    const tensor_def_collector_t::result_t *lastop_tensor_def_info_;
     // makes the closure function and its generic wrapper
     func_t make_closure_func(const std::string &name,
             std::vector<expr_c> &&params, stmt_c body,
@@ -176,6 +262,7 @@ class closurize_cpu_impl_t : public closurize_impl_t {
                         make_expr<constant_node>(
                                 UINT64_C(0), datatypes::s8.get_pointerof()),
                         begin_v, end_v, step_v, argsbuf});
+        ret_call->temp_data() = captures;
         out_calls.emplace_back(ret_call.static_as<call>());
         seq->seq_.emplace_back(make_stmt<evaluate_node_t>(std::move(ret_call)));
         return seq;
@@ -192,6 +279,39 @@ public:
                 .u64;
     }
 
+    optional<std::vector<expr_c>> collect_captured_base_tensors(
+            const std::vector<expr> &captured) {
+        std::vector<expr_c> ret;
+        for (auto &v : captured) {
+            if (!v.isa<tensor>()) {
+                if (v.isa<var>() && v->dtype_.is_etype_pointer()) {
+                    return none_opt();
+                }
+                continue;
+            }
+            if (v.static_as<tensor>()->elem_dtype_.is_pointer()) {
+                return none_opt();
+            }
+            bool is_arg = false;
+            expr_c base = tensor_def_collector_t::find_base_tensor(
+                    v, *lastop_tensor_def_info_, is_arg);
+            if (!base.defined()) {
+                // failed to find the captured base tensor
+                return none_opt();
+            }
+            if (is_arg) {
+                base = tensor_def_collector_t::find_base_tensor(
+                        base, *main_tensor_def_info_, is_arg);
+                if (!base.defined()) {
+                    // failed to find the captured base tensor
+                    return none_opt();
+                }
+            }
+            ret.emplace_back(base);
+        }
+        return ret;
+    }
+
     func_c dispatch(func_c f) override {
         out_calls.clear();
         auto ret = closurize_impl_t::dispatch(f);
@@ -202,7 +322,8 @@ public:
             the_flag |= runtime::thread_pool_flags::THREAD_POOL_RUN_IDLE_FUNC;
             the_flag |= runtime::thread_pool_flags::THREAD_POOL_DISABLE_ROLLING;
         }
-        if (f == the_last_op_) {
+        if (f == the_last_op_ && !out_calls.empty()) {
+            // try to remove the last barrier
             auto &seq = f->body_.checked_as<stmts>()->seq_;
             for (auto itr = seq.rbegin(); itr != seq.rend(); ++itr) {
                 auto &s = *itr;
@@ -220,6 +341,27 @@ public:
                                     return v->kind_ == for_type::PARALLEL;
                                 })
                                 .has_value()) {
+                    // we need to pin the captured tensors to runtime stack, we
+                    // first collect the base tensors
+                    auto captured_base = collect_captured_base_tensors(
+                            out_calls.back()
+                                    ->get_temp_data()
+                                    .get<std::vector<expr>>());
+                    // if the captured tensors are based on complex
+                    // tensors/pointers, we can't optimize it
+                    if (!captured_base.has_value()) {
+                        SC_MODULE_WARN
+                                << "Cannot optimize the last barrier in "
+                                   "function "
+                                << f->name_
+                                << " because it captures complex pointers.";
+                        break;
+                    }
+                    for (auto &base : captured_base.get()) {
+                        base.remove_const()
+                                ->attr()[attr_keys::runtime_stack_alloc]
+                                = true;
+                    }
                     auto &the_flag = get_last_parallel_call_flag();
                     the_flag |= runtime::thread_pool_flags::THREAD_POOL_EXIT;
                     // the closure args buffer must be allocated via runtime
@@ -234,6 +376,7 @@ public:
                     closure_arg->attr()[attr_keys::runtime_stack_alloc] = true;
                     break;
                 }
+
                 // else, there are some complex statements after the last
                 // parallel-for, do not optimize
                 SC_MODULE_WARN
@@ -247,10 +390,14 @@ public:
         return ret;
     }
     closurize_cpu_impl_t(const ir_module_ptr &m, bool use_managed_thread_pool,
-            const func_t &the_last_op)
+            const func_t &the_last_op,
+            const tensor_def_collector_t::result_t &main_tensor_def_info,
+            const tensor_def_collector_t::result_t &lastop_tensor_def_info)
         : closurize_impl_t(m->get_module_vars(), m)
         , use_managed_thread_pool_(use_managed_thread_pool)
-        , the_last_op_ {the_last_op} {}
+        , the_last_op_ {the_last_op}
+        , main_tensor_def_info_ {&main_tensor_def_info}
+        , lastop_tensor_def_info_ {&lastop_tensor_def_info} {}
 };
 
 class single_core_remove_parallel_t : public ir_visitor_t {
@@ -290,9 +437,14 @@ const_ir_module_ptr closurizer_cpu_t::operator()(const_ir_module_ptr inmod) {
                    << ". Module gflops = " << gflop;
 
     func_t the_last_op;
-    if (!single_core_) {
+    tensor_def_collector_t::result_t main_tensor_def_info;
+    tensor_def_collector_t::result_t lastop_tensor_def_info;
+    if (!single_core_ && use_managed_thread_pool) {
         // find the last op in main entry
-        if (auto main_entry_func = inmod->get_entry_func()) {
+        auto main_entry_func = inmod->get_entry_func();
+        if (main_entry_func && main_entry_func->attr_
+                && main_entry_func->attr_->get_or_else(
+                        function_attrs::is_main, false)) {
             auto &seq = main_entry_func->body_.checked_as<stmts>()->seq_;
             for (auto itr = seq.rbegin(); itr != seq.rend(); ++itr) {
                 auto &s = *itr;
@@ -316,6 +468,16 @@ const_ir_module_ptr closurizer_cpu_t::operator()(const_ir_module_ptr inmod) {
                     the_last_op = inmod->get_func(f.get()->name_);
                     if (the_last_op) {
                         assert(the_last_op->name_ == f.get()->name_);
+                        tensor_def_collector_t collector;
+                        collector.dispatch(main_entry_func);
+                        auto last_call = s.static_as<evaluate>()
+                                                 ->value_.static_as<call>();
+                        collector.link_call_args(last_call, the_last_op);
+                        main_tensor_def_info = std::move(collector.result_);
+
+                        tensor_def_collector_t collector2;
+                        collector2.dispatch(the_last_op);
+                        lastop_tensor_def_info = std::move(collector2.result_);
                     }
                     break;
                 }
@@ -333,7 +495,8 @@ const_ir_module_ptr closurizer_cpu_t::operator()(const_ir_module_ptr inmod) {
 
     auto ret = inmod->copy();
     ir_visitor_t *the_pass;
-    closurize_cpu_impl_t pass(ret, use_managed_thread_pool, the_last_op);
+    closurize_cpu_impl_t pass(ret, use_managed_thread_pool, the_last_op,
+            main_tensor_def_info, lastop_tensor_def_info);
     single_core_remove_parallel_t singlepass {};
     if (single_core_) {
         the_pass = &singlepass;

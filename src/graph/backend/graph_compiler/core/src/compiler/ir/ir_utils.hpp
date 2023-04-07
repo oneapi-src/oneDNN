@@ -35,6 +35,12 @@ void get_direct_dependency_of_expr(
  * @param v the input dims of tensor.
  */
 std::vector<expr> dims_to_dense_stride(const std::vector<expr> &v);
+
+/**
+ * Gets the base tensor of the argument. It will look into 1) tensorptr 2) cast
+ * nodes. If the expr has not base tensor, returns null.
+ */
+tensor_c get_base_tensor_of(const expr &p);
 } // namespace gc
 } // namespace graph
 } // namespace impl

@@ -119,6 +119,18 @@ std::vector<expr> dims_to_dense_stride(const std::vector<expr> &v) {
     }
     return stride;
 }
+
+tensor_c get_base_tensor_of(const expr &p) {
+    tensor_c tsr;
+    if (p.isa<tensor>()) {
+        return p.static_as<tensor_c>();
+    } else if (p.isa<tensorptr>()) {
+        return p.static_as<tensorptr_c>()->base_->ptr_.checked_as<tensor_c>();
+    } else if (p.isa<cast>()) {
+        return get_base_tensor_of(p.static_as<cast>()->in_);
+    }
+    return tensor_c();
+}
 } // namespace gc
 } // namespace graph
 } // namespace impl
