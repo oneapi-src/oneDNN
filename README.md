@@ -1,6 +1,20 @@
 oneAPI Deep Neural Network Library (oneDNN) Graph API
 ===========================================
 
+> **NOTE**
+>
+> This dev-graph branch is under deprecation.
+>
+> oneDNN Graph API has been merged into oneDNN master branch and released in
+> oneDNN [v3.0](https://github.com/oneapi-src/oneDNN/releases/tag/v3.0) as an
+> experimental feature and oneDNN
+> [v3.1](https://github.com/oneapi-src/oneDNN/releases/tag/v3.1) as a production
+> feature.
+>
+> Please refer to the [graph API
+> proposal](https://github.com/oneapi-src/oneDNN/tree/rfcs/rfcs/20220711-graph-api)
+> for more details about the merge.
+
 This branch is to propose a preview for the graph API extension to oneDNN.
 oneDNN Graph API extends oneDNN with a unified high-level graph API for multiple
 AI hardware classes (CPU, GPU, accelerators). With a flexible graph interface,
