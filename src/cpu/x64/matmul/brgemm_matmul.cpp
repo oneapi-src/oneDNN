@@ -343,8 +343,6 @@ void brgemm_matmul_t<isa>::compute_kernel(
     auto is_bs_tail = (gemm_batch != bgmmc.brgemm_batch_size);
     const int brg_ker_idx = pd()->get_brg_kernel_idx(
             is_bs_tail, do_init, m_ker_idx, is_N_tail, false);
-    const bool is_amx = is_superset(
-            pd()->get_brg_desc(brg_ker_idx).isa_impl, avx512_core_amx);
     const auto ptr_bias = brgmm_ctx.get_bias_ptr(n);
     auto ptr_D = need_copy_d ? brgmm_ctx.get_buf_D_ptr(m_blk_idx, n_blk_idx)
                              : brgmm_ctx.get_data_C_ptr(b_idx, m, n);
@@ -366,6 +364,8 @@ void brgemm_matmul_t<isa>::compute_kernel(
         brgmm_ctx.copy_dst_values_to_buffer(b_idx, m_blk_idx, n_blk_idx);
 
     if (gemm_batch > 0 && brg_ker_idx >= 0) {
+        const bool is_amx = is_superset(
+                pd()->get_brg_desc(brg_ker_idx).isa_impl, avx512_core_amx);
         const auto brg_kernel = brg_kernels_[brg_ker_idx].get();
         assert(brg_kernel != nullptr);
         brgemm_palettes_.maybe_tile_configure(
@@ -416,6 +416,9 @@ void brgemm_matmul_t<isa>::compute_kernel(
         const bool use_init_ker = (do_init && gemm_batch == 0);
         const int brg_ker_idx = pd()->get_brg_kernel_idx(
                 false, use_init_ker, m_ker_idx, is_N_tail, true);
+        assert(brg_ker_idx >= 0);
+        const bool is_amx = is_superset(
+                pd()->get_brg_desc(brg_ker_idx).isa_impl, avx512_core_amx);
         brgemm_palettes_.maybe_tile_configure(
                 is_amx, prev_ker_idx, brg_ker_idx);
         const auto brg_kernel_k_tail = brg_kernels_[brg_ker_idx].get();

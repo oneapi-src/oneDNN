@@ -1395,8 +1395,10 @@ private:
 
     void copy_4x64_vnni(int nrows, int ncolumns) override {
         const bool is_tail = ncolumns < n_blk_step_;
-        const auto tail_mask = size_t(((size_t)1 << ncolumns) - 1);
-        if (is_tail) kmovq(kTail, tail_mask);
+        if (is_tail) {
+            const auto tail_mask = size_t(((size_t)1 << ncolumns) - 1);
+            kmovq(kTail, tail_mask);
+        }
 
         const int max_unroll = (do_compute_compensation_ ? 21 : 25) / blk_sz_;
 
