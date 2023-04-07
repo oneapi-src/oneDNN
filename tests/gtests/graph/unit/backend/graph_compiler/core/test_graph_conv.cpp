@@ -288,6 +288,54 @@ TEST(GCCore_graph_conv_test, TestGraphConvolutionBwdData) {
     }
 }
 
+TEST(GCCore_graph_conv_test, TestGraphConvolutionBwdDataWithInverseWeight) {
+    REQUIRE_AMX();
+    int N = 8, IC = 64, OC = 64, H = 32, W = 32, R = 3, S = 3;
+    auto ctx = get_test_ctx();
+    sc_dims ginput_dims {N, H, W, IC};
+    sc_dims filter_dims {R, S, OC, IC}; // bwd's semantic
+    sc_dims goutput_dims {N, H, W, OC}; // valid_pad mode
+    auto ins0 = graph_tensor::make(
+            ginput_dims, sc_data_format_t(format_kinds::ABCD));
+    auto ins1 = graph_tensor::make(
+            filter_dims, sc_data_format_t(format_kinds::ABCD));
+
+    std::unordered_map<std::string, any_t> attrs
+            = {{"strides", sc_dims {1, 1}}, {"pads_begin", sc_dims {1, 1}},
+                    {"pads_end", sc_dims {1, 1}}, {"dst_shape", goutput_dims}};
+
+    sc_graph_t graph;
+    auto in = graph.make_input({ins0, ins1});
+    auto conv = graph.make(
+            "conv_bwd_data", in->get_outputs(), {}, any_map_t(attrs));
+    auto out = graph.make_output(conv->get_outputs());
+    graph_driver(graph, ctx);
+
+    std::stringstream ss;
+    print_graph(graph, ss, true);
+    const char *expected_graph
+            = R"(graph(v0: f32[8, 32, 32, 64], v1: f32[3, 3, 64, 64]) -> [v2: f32[8, 32, 32, 64]] {
+  [v3: f32[3, 3, 64, 64]] = tensor_view(v1)
+  [v4: f32[1, 1, 3, 3, 64, 64]] = reorder(v3)
+  [v5: f32[8, 1, 32, 32, 64]] = tensor_view(v0)
+  [v6: f32[8, 1, 32, 32, 64]] = conv_fwd_core(v5, v4)
+  [v2: f32[8, 32, 32, 64]] = tensor_view(v6)
+}
+)";
+    EXPECT_EQ(ss.str(), expected_graph);
+
+    for (auto op : graph.ops_) {
+        if (op->op_name_ == "conv_bwd_data_core") {
+            sc_dims out_shape = op->attrs_.get<sc_dims>("dst_shape");
+            sc_dims expected_out_shape {N, IC, H, W};
+            EXPECT_EQ(out_shape, expected_out_shape);
+            break;
+        }
+    }
+    auto f = lower_graph(ctx, graph, {in, out});
+    ASSERT_TRUE(f);
+}
+
 TEST(GCCore_graph_conv_test, TestGraphConvolutionBwdWeight) {
     int N = 64, IC = 16, OC = 64, H = 32, W = 32, R = 1, S = 1;
     sc_dims output_delta_dims {N, H, W, OC};

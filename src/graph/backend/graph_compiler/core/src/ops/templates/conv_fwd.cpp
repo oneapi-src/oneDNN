@@ -2411,6 +2411,13 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                                 idx = builder::make_cast(datatypes::u32,
                                   ((di - d_unpad_begin_idx) * valid_kh * kw_
                                     + (hi - h_unpad_begin_idx) * kw_ + wi));
+                                if (inverse_filter_) {
+                                  idx = builder::make_cast(datatypes::u32,
+                                    (d_unpad_end_idx - d_unpad_begin_idx)
+                                        * (h_unpad_end_idx - h_unpad_begin_idx)
+                                        * kw_
+                                      - 1 - idx);
+                                }
                                 B_list[idx] = tensor_ptr(weight,
                                   kpack > 1 ? std::vector<expr> {k_o, c_o, di,
                                     hi, wi, 0, 0, 0}
@@ -2424,14 +2431,11 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                             _for_(hi, 0, kh_) {
                               _for_(wi, 0, kw_) {
                                 _var_(idx, datatypes::u32);
-                                // inverse the idx
+                                idx = builder::make_cast(datatypes::u32,
+                                  di * kh_ * kw_ + hi * kw_ + wi);
                                 if (inverse_filter_) {
-                                  idx = builder::make_cast(datatypes::u32,
-                                    kd_ * kh_ * kw_ - 1
-                                      - (di * kh_ * kw_ + hi * kw_ + wi));
-                                } else {
-                                  idx = builder::make_cast(datatypes::u32,
-                                    di * kh_ * kw_ + hi * kw_ + wi);
+                                  idx = builder::make_cast(
+                                    datatypes::u32, kd_ * kh_ * kw_ - 1 - idx);
                                 }
                                 B_list[idx] = tensor_ptr(weight,
                                   kpack > 1 ? std::vector<expr> {k_o, c_o, di,
@@ -2512,6 +2516,11 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                               _var_(idx, datatypes::u32);
                               idx = builder::make_cast(datatypes::u32,
                                 (hi - h_unpad_begin_idx) * kw_ + wi);
+                              if (inverse_filter_) {
+                                idx = builder::make_cast(datatypes::u32,
+                                  (h_unpad_end_idx - h_unpad_begin_idx) * kw_
+                                    - 1 - idx);
+                              }
                               B_list[idx] = tensor_ptr(weight,
                                 kpack > 1
                                   ? std::vector<expr> {k_o, c_o, hi, wi, 0, 0,
@@ -2523,13 +2532,11 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                           _for_(hi, 0, kh_) {
                             _for_(wi, 0, kw_) {
                               _var_(idx, datatypes::u32);
-                              // inverse the idx
+                              idx = builder::make_cast(
+                                datatypes::u32, hi * kw_ + wi);
                               if (inverse_filter_) {
-                                idx = builder::make_cast(datatypes::u32,
-                                  kh_ * kw_ - 1 - (hi * kw_ + wi));
-                              } else {
                                 idx = builder::make_cast(
-                                  datatypes::u32, hi * kw_ + wi);
+                                  datatypes::u32, kh_ * kw_ - 1 - idx);
                               }
                               B_list[idx] = tensor_ptr(weight,
                                 kpack > 1
@@ -2831,7 +2838,7 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
           pack_rows, os_acc_size, os_mask);
       }
     } else {
-      if (ops::is_amx_dtype(ctx, dtype_input) || is_3d_) {
+      if (ops::is_amx_dtype(ctx, dtype_input) || is_3d_ || inverse_filter_) {
         if (inverse_filter_) {
           SC_INFO << "inverse_filter_ used in conv padding v2.";
         }
