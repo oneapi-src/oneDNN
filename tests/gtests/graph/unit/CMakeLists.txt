@@ -45,8 +45,9 @@ include_directories_with_host_compiler(
 
 if(DNNL_ENABLE_JIT_PROFILING OR DNNL_ENABLE_ITT_TASKS)
     if (UNIX AND NOT APPLE)
-        # Not every compiler adds -ldl automatically
+        # Not every compiler adds -ldl and -lrt automatically
         list(APPEND EXTRA_SHARED_LIBS "${CMAKE_DL_LIBS}")
+        list(APPEND EXTRA_SHARED_LIBS rt)
     endif()
 endif()
 
