@@ -20,14 +20,14 @@ constructing an operation.
 ### Inputs
 
 | Index | Argument Name | Required or Optional |
-| ----- | ------------- | -------------------- |
-| 0     | `src`       | Optional             |
+|:------|:--------------|:---------------------|
+| 0     | `src`         | Optional             |
 
 ### Outputs
 
 | Index | Argument Name | Required or Optional |
-| ----- | ------------- | -------------------- |
-| 0     | `dst`       | Optional             |
+|:------|:--------------|:---------------------|
+| 0     | `dst`         | Optional             |
 
 @note WildCard operation can accept arbitrary number of inputs or outputs.
 

@@ -16,9 +16,9 @@ broadcasting SquaredDifference does the following with the input tensors:
 
 ## Operation attributes
 
-Attribute Name | Description | Value Type | Supported Values | Required or Optional
--- | -- | -- | -- | --
-[auto_broadcast](@ref dnnl::graph::op::attr::auto_broadcast) | Specifies rules used for auto-broadcasting of input tensors. | string | `none`, `numpy`(default) | Optional
+| Attribute Name                                               | Description                                                  | Value Type | Supported Values         | Required or Optional |
+|:-------------------------------------------------------------|:-------------------------------------------------------------|:-----------|:-------------------------|:---------------------|
+| [auto_broadcast](@ref dnnl::graph::op::attr::auto_broadcast) | Specifies rules used for auto-broadcasting of input tensors. | string     | `none`, `numpy`(default) | Optional             |
 
 ## Execution arguments
 
@@ -27,23 +27,23 @@ constructing an operation.
 
 ### Inputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0 | `src_1` | Required
-1 | `src_2` | Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `src_1`       | Required             |
+| 1     | `src_2`       | Required             |
 
 ### Outputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0 | `dst` | Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `dst`         | Required             |
 
 ## Supported data types
 
 SquaredDifference operation supports the following data type combinations.
 
-Src_1 | Src_2 | Dst
--- | -- | --
-f32 | f32 | f32
-bf16 | bf16 | bf16
-f16 | f16 | f16
+| Src_1 | Src_2 | Dst  |
+|:------|:------|:-----|
+| f32   | f32   | f32  |
+| bf16  | bf16  | bf16 |
+| f16   | f16   | f16  |

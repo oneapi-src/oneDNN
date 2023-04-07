@@ -10,9 +10,9 @@ restricted to be 1-D. Broadcasting is supported.
 
 ## Operation attributes
 
-Attribute Name | Description | Value Type |Supported Values | Required or Optional
--- | -- | --| --|--
-[data_format](@ref dnnl::graph::op::attr::data_format) | Controls how to interpret the shape of `src` and `dst`. |string |`NCX` , `NXC` (default)  | Optional
+| Attribute Name                                         | Description                                             | Value Type | Supported Values         | Required or Optional |
+|:-------------------------------------------------------|:--------------------------------------------------------|:-----------|:-------------------------|:---------------------|
+| [data_format](@ref dnnl::graph::op::attr::data_format) | Controls how to interpret the shape of `src` and `dst`. | string     | `NCX` , `NXC` (default)  | Optional             |
 
 ## Execution arguments
 
@@ -22,7 +22,7 @@ constructing an operation.
 ### Inputs
 
 | Index | Argument Name | Required or Optional |
-| ----- | ------------- | -------------------- |
+|:------|:--------------|:---------------------|
 | 0     | `src`         | Required             |
 | 1     | `bias`        | Required             |
 
@@ -32,7 +32,7 @@ same as size of channel dimension of `src` tensor.
 ### Outputs
 
 | Index | Argument Name | Required or Optional |
-| ----- | ------------- | -------------------- |
+|:------|:--------------|:---------------------|
 | 0     | `dst`         | Required             |
 
 ## Supported data types
@@ -40,7 +40,7 @@ same as size of channel dimension of `src` tensor.
 BiasAdd operation supports the following data type combinations.
 
 | Src  |  Bias  | Dst     |
-| ---- | ------ | ------- |
+|:-----|:-------|:--------|
 | f32  | f32    | f32     |
 | bf16 | bf16   | bf16    |
 | f16  | f16    | f16     |

@@ -19,22 +19,22 @@ constructing an operation.
 
 ### Inputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0|`src` | Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `src`         | Required             |
 
 ### Outputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0|`dst` |Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `dst`         | Required             |
 
 ## Supported data types
 
 Tanh operation supports the following data type combinations.
 
-Src | Dst
--- | --
-f32 | f32
-bf16 | bf16
-f16 | f16
+| Src  | Dst  |
+|:-----|:-----|
+| f32  | f32  |
+| bf16 | bf16 |
+| f16  | f16  |

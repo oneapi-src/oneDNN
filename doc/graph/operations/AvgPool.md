@@ -23,16 +23,16 @@ where,
 
 ## Operation attributes
 
-Attribute Name | Description | Value Type |Supported Values | Required or Optional
--- | -- | --| --|--
-[strides](@ref dnnl::graph::op::attr::strides) | Controls the strides the window is moved. |s64 |A s64 list containing positive values  | Required
-[pads_begin](@ref dnnl::graph::op::attr::pads_begin) | Controls number of zeros to be add to the front/top/left of spatial dimensions, the attribute will be ignored when `auto_pad` attribute is specified to `same_upper`, `same_lower` or `valid`.|s64 | A s64 list containing non-negative values  | Required
-[pads_end](@ref dnnl::graph::op::attr::pads_end) | Controls number of zeros to be add to the back/bottom/right of spatial dimensions, the attribute will be ignored when `auto_pad` attribute is specified to `same_upper`, `same_lower` or `valid`. |s64 |A s64 list containing non-negative values | Required
-[kernel](@ref dnnl::graph::op::attr::kernel) | Size of pooling window. | s64| A s64 list containing positive values | Required
-[exclude_pad](@ref dnnl::graph::op::attr::exclude_pad)| Controls whether the padded values are counted. |bool | True, False| required
-[rounding_type](@ref dnnl::graph::op::attr::rounding_type) | Controls how to do rounding. |string |  `floor` (default), `ceil` | Optional
-[auto_pad](@ref dnnl::graph::op::attr::auto_pad) |Controls how the paddings are calculated.| string | `none` (default), `same_upper`, `same_lower`, `valid` | Optional
-[data_format](@ref dnnl::graph::op::attr::data_format) |Controls how to interpret the shape of `src` and `dst`.| string|`NCX`, `NXC` (default) | Optional
+| Attribute Name                                             | Description                                                                                                                                                                                       | Value Type | Supported Values                                      | Required or Optional |
+|:-----------------------------------------------------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:-----------|:------------------------------------------------------|:---------------------|
+| [strides](@ref dnnl::graph::op::attr::strides)             | Controls the strides the window is moved.                                                                                                                                                         | s64        | A s64 list containing positive values.                | Required             |
+| [pads_begin](@ref dnnl::graph::op::attr::pads_begin)       | Controls number of zeros to be add to the front/top/left of spatial dimensions, the attribute will be ignored when `auto_pad` attribute is specified to `same_upper`, `same_lower` or `valid`.    | s64        | A s64 list containing non-negative values.            | Required             |
+| [pads_end](@ref dnnl::graph::op::attr::pads_end)           | Controls number of zeros to be add to the back/bottom/right of spatial dimensions, the attribute will be ignored when `auto_pad` attribute is specified to `same_upper`, `same_lower` or `valid`. | s64        | A s64 list containing non-negative values.            | Required             |
+| [kernel](@ref dnnl::graph::op::attr::kernel)               | Size of pooling window.                                                                                                                                                                           | s64        | A s64 list containing positive values.                | Required             |
+| [exclude_pad](@ref dnnl::graph::op::attr::exclude_pad)     | Controls whether the padded values are counted.                                                                                                                                                   | bool       | True, False                                           | Required             |
+| [rounding_type](@ref dnnl::graph::op::attr::rounding_type) | Controls how to do rounding.                                                                                                                                                                      | string     | `floor` (default), `ceil`                             | Optional             |
+| [auto_pad](@ref dnnl::graph::op::attr::auto_pad)           | Controls how the paddings are calculated.                                                                                                                                                         | string     | `none` (default), `same_upper`, `same_lower`, `valid` | Optional             |
+| [data_format](@ref dnnl::graph::op::attr::data_format)     | Controls how to interpret the shape of `src` and `dst`.                                                                                                                                           | string     | `NCX`, `NXC` (default)                                | Optional             |
 
 ## Execution arguments
 
@@ -41,22 +41,22 @@ constructing an operation.
 
 ### Inputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0|`src` | Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `src`         | Required             |
 
 ### Outputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0|`dst` | Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `dst`         | Required             |
 
 ## Supported data types
 
 AvgPool operation supports the following data type combinations.
 
-Src | Dst
--- | --
-f32 |f32
-bf16 |bf16
-f16 |f16
+| Src  | Dst  |
+|:-----|:-----|
+| f32  | f32  |
+| bf16 | bf16 |
+| f16  | f16  |

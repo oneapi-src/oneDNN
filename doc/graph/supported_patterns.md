@@ -70,38 +70,38 @@ ReduceProd | ReduceSum]
 
 #### Floating Point Patterns
 
-Pattern | Description
-:-- | :--:
-Convolution + BiasAdd\f$^?\f$ + BatchNormInference\f$^?\f$ + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in Convolution Neural Networks, for example ResNet, ResNext, SSD, etc.
-ConvTranspose + BiasAdd\f$^?\f$ + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in Generative Adversarial Networks.
-Interpolate + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used for image processing.
-MatMul + BiasAdd\f$^?\f$ + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in language models and recommendation models, for example BERT, DLRM, etc.
-Reduction + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used for data processing, for example loss reduction.
-Unary + Binary\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in Convolution Neural Networks.
-Binary + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in Generative Adversarial Networks, for example ParallelWaveGAN.
-[AvgPool \| MaxPool] + Binary\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in Convolution Neural Networks.
-BatchNormInference + ReLU\f$_{>out}\f$ | This pattern is widely used in Convolution Neural Networks, for example DenseNet.
-Reciprocal + Multiply\f$_{>out}\f$ | N/A
-Reorder + Add\f$_{>out}\f$ | N/A
+| Pattern | Description                  |
+|:--------|:-----------------------------|
+| Convolution + BiasAdd\f$^?\f$ + BatchNormInference\f$^?\f$ + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in Convolution Neural Networks, for example ResNet, ResNext, SSD, etc. |
+| ConvTranspose + BiasAdd\f$^?\f$ + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in Generative Adversarial Networks. |
+| Interpolate + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used for image processing. |
+| MatMul + BiasAdd\f$^?\f$ + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in language models and recommendation models, for example BERT, DLRM, etc. |
+| Reduction + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used for data processing, for example loss reduction. |
+| Unary + Binary\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in Convolution Neural Networks. |
+| Binary + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in Generative Adversarial Networks, for example ParallelWaveGAN. |
+| [AvgPool \| MaxPool] + Binary\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in Convolution Neural Networks. |
+| BatchNormInference + ReLU\f$_{>out}\f$ | This pattern is widely used in Convolution Neural Networks, for example DenseNet. |
+| Reciprocal + Multiply\f$_{>out}\f$ | N/A |
+| Reorder + Add\f$_{>out}\f$ | N/A |
 
 #### Quantized Patterns
 
-Pattern | Description
-:-- | :--:
-Quantize\f$^?\f$ + Dequantize\f$_{>t1}\f$, Dequantize\f$_{>t2}\f$\f$^{0-3}\f$, Dequantize + Convolution\f$_{<t1}\f$ + BiasAdd\f$^?\f$ + [Unary \| Binary\f$_{<t2}\f$]\f$^{0-3}\f$ + Quantize\f$^?\f$\f$_{>out}\f$ | N/A
-Quantize\f$^?\f$ + Dequantize\f$_{>t1}\f$, Dequantize\f$_{>t2}\f$\f$^{0-3}\f$, Dequantize + ConvTranspose\f$_{<t1}\f$ + BiasAdd\f$^?\f$ + [Unary \| Binary\f$_{<t2}\f$]\f$^{0-3}\f$ + Quantize\f$^?\f$\f$_{>out}\f$ |N/A
-Quantize\f$^?\f$ + Dequantize\f$_{>t1}\f$, Dequantize\f$_{>t2}\f$\f$^{0-3}\f$, Dequantize + MatMul\f$_{<t1}\f$ + BiasAdd\f$^?\f$ + [Unary \| Binary\f$_{<t2}\f$]\f$^{0-3}\f$ + Quantize\f$^?\f$\f$_{>out}\f$ |N/A
-Dequantize + [AvgPool \| MaxPool] + Quantize\f$_{>out}\f$ |N/A
-Dequantize\f$_{>t1}\f$, Dequantize + [AvgPool \| MaxPool] + Add\f$_{<t1}\f$ + Quantize\f$_{>out}\f$ |N/A
-Dequantize + Reorder + Quantize\f$_{>out}\f$ |N/A
-Dequantize\f$_{>t1}\f$, Dequantize + Reorder + Add\f$_{<t1}\f$ + Quantize\f$_{>out}\f$ |N/A
+| Pattern | Description                  |
+|:--------|:-----------------------------|
+| Quantize\f$^?\f$ + Dequantize\f$_{>t1}\f$, Dequantize\f$_{>t2}\f$\f$^{0-3}\f$, Dequantize + Convolution\f$_{<t1}\f$ + BiasAdd\f$^?\f$ + [Unary \| Binary\f$_{<t2}\f$]\f$^{0-3}\f$ + Quantize\f$^?\f$\f$_{>out}\f$ | N/A |
+| Quantize\f$^?\f$ + Dequantize\f$_{>t1}\f$, Dequantize\f$_{>t2}\f$\f$^{0-3}\f$, Dequantize + ConvTranspose\f$_{<t1}\f$ + BiasAdd\f$^?\f$ + [Unary \| Binary\f$_{<t2}\f$]\f$^{0-3}\f$ + Quantize\f$^?\f$\f$_{>out}\f$ |N/A |
+| Quantize\f$^?\f$ + Dequantize\f$_{>t1}\f$, Dequantize\f$_{>t2}\f$\f$^{0-3}\f$, Dequantize + MatMul\f$_{<t1}\f$ + BiasAdd\f$^?\f$ + [Unary \| Binary\f$_{<t2}\f$]\f$^{0-3}\f$ + Quantize\f$^?\f$\f$_{>out}\f$ |N/A |
+| Dequantize + [AvgPool \| MaxPool] + Quantize\f$_{>out}\f$ |N/A |
+| Dequantize\f$_{>t1}\f$, Dequantize + [AvgPool \| MaxPool] + Add\f$_{<t1}\f$ + Quantize\f$_{>out}\f$ |N/A |
+| Dequantize + Reorder + Quantize\f$_{>out}\f$ |N/A |
+| Dequantize\f$_{>t1}\f$, Dequantize + Reorder + Add\f$_{<t1}\f$ + Quantize\f$_{>out}\f$ |N/A |
 
 ### Training
 
-Pattern | Description
-:-- | :--:
-ConvolutionBackwardWeights + BiasAddBackward\f$_{>out}\f$ | N/A
-ReLUBackward + BatchNormTrainingBackward\f$_{>out}\f$ |N/A
+| Pattern | Description                  |
+|:--------|:-----------------------------|
+| ConvolutionBackwardWeights + BiasAddBackward\f$_{>out}\f$ | N/A |
+| ReLUBackward + BatchNormTrainingBackward\f$_{>out}\f$ |N/A |
 
 All the above fusion patterns are supported by default.
 
@@ -125,33 +125,33 @@ patterns.
 
 #### Floating Point Patterns
 
-Pattern | Description
-:-- | :--:
-MatMul + [Multiply \| Divide] + Add + Softmax + MatMul + StaticTranspose + Reorder\f$_{>out}\f$ | Multi-head Attention. This pattern is widely used in models containing encoder-decoder structures, for example BERT.
-ReshapeTranspose\f$_{>t1}\f$, ReshapeTranspose\f$_{>t2}\f$, ReshapeTranspose + MatMul\f$_{<t1}\f$ + [Multiply \| Divide] + Add + Softmax + MatMul\f$_{<t2}\f$ + StaticTranspose + StaticReshape\f$_{>out}\f$ | Multi-head Attention.
-MatMul + Activation\f$_{>t1}\f$, [MatMul\f$_{<t1}\f$ + Activation\f$_{>t1}\f$]\f$^{0-4}\f$, MatMul\f$_{<t1}\f$ + Activation\f$_{>out}\f$ | Multi-layer Perceptron. This pattern is widely used in recommendation models, for example DLRM.
-[Convolution + BiasAdd\f$^{?}\f$ + ReLU]\f$^{1-3}\f$ + Convolution + BiasAdd\f$^{?}\f$ + Add + ReLU\f$_{>out}\f$ | Identical Bottleneck. Enabled only in single thread runtime scenario. This pattern is widely used in Convolution Neural Networks, for example ResNet.
-Convolution + BiasAdd\f$^{?}\f$\f$_{>t1}\f$, [Convolution + BiasAdd\f$^{?}\f$ + ReLU]\f$^{1-3}\f$ + Convolution + BiasAdd\f$^{?}\f$ + Add\f$_{<t1}\f$ + ReLU\f$_{>out}\f$ | Convolutional Bottleneck. Enabled only in single thread runtime scenario. This pattern is widely used in Convolution Neural Networks, for example ResNet.
+| Pattern | Description                  |
+|:--------|:-----------------------------|
+| MatMul + [Multiply \| Divide] + Add + Softmax + MatMul + StaticTranspose + Reorder\f$_{>out}\f$ | Multi-head Attention. This pattern is widely used in models containing encoder-decoder structures, for example BERT. |
+| ReshapeTranspose\f$_{>t1}\f$, ReshapeTranspose\f$_{>t2}\f$, ReshapeTranspose + MatMul\f$_{<t1}\f$ + [Multiply \| Divide] + Add + Softmax + MatMul\f$_{<t2}\f$ + StaticTranspose + StaticReshape\f$_{>out}\f$ | Multi-head Attention. |
+| MatMul + Activation\f$_{>t1}\f$, [MatMul\f$_{<t1}\f$ + Activation\f$_{>t1}\f$]\f$^{0-4}\f$, MatMul\f$_{<t1}\f$ + Activation\f$_{>out}\f$ | Multi-layer Perceptron. This pattern is widely used in recommendation models, for example DLRM. |
+| [Convolution + BiasAdd\f$^{?}\f$ + ReLU]\f$^{1-3}\f$ + Convolution + BiasAdd\f$^{?}\f$ + Add + ReLU\f$_{>out}\f$ | Identical Bottleneck. Enabled only in single thread runtime scenario. This pattern is widely used in Convolution Neural Networks, for example ResNet. |
+| Convolution + BiasAdd\f$^{?}\f$\f$_{>t1}\f$, [Convolution + BiasAdd\f$^{?}\f$ + ReLU]\f$^{1-3}\f$ + Convolution + BiasAdd\f$^{?}\f$ + Add\f$_{<t1}\f$ + ReLU\f$_{>out}\f$ | Convolutional Bottleneck. Enabled only in single thread runtime scenario. This pattern is widely used in Convolution Neural Networks, for example ResNet. |
 
 #### Quantized Patterns
 
-Pattern | Description
-:-- | :--:
-Dequantize\f$_{>t1}\f$, Dequantize\f$_{>t2}\f$, Dequantize + MatMul\f$_{<t1}\f$ + [Multiply \| Divide] + Add + Softmax + Quantize + Dequantize + MatMul\f$_{<t2}\f$ + StaticTranspose + Reorder + Quantize\f$_{>out}\f$ | Quantized Multi-head Attention.
-Dequantize + ReshapeTranspose\f$_{>t1}\f$, Dequantize + ReshapeTranspose\f$_{>t2}\f$, Dequantize + MatMul\f$_{<t1}\f$ + [Multiply \| Divide] + Add + Softmax + Quantize + Dequantize + MatMul\f$_{<t2}\f$ + StaticTranspose + StaticReshape + Quantize\f$_{>out}\f$ | Quantized Multi-head Attention.
-Dequantize\f$_{>t1}\f$, Dequantize + MatMul\f$_{<t1}\f$ + Activation + Quantize\f$_{>t2}\f$, [Dequantize\f$_{>t3}\f$, Dequantize\f$_{<t2}\f$ + MatMul\f$_{<t3}\f$ + Activation + Quantize\f$_{>t2}\f$]\f$^{0-4}\f$, Dequantize\f$_{>t4}\f$, Dequantize\f$_{<t2}\f$ + MatMul\f$_{<t4}\f$ + Activation + Quantize\f$_{>out}\f$ | Quantized Multi-layer Perceptron.
-Dequantize\f$_{>t2}\f$, Dequantize\f$_{>t3}\f$, [Dequantize\f$_{>t1}\f$, Dequantize + Convolution\f$_{<t1}\f$ + BiasAdd\f$^{?}\f$ + ReLU + Quantize]\f$^{1-3}\f$ + Dequantize + Convolution\f$_{<t2}\f$ + BiasAdd\f$^{?}\f$ + Add\f$_{<t3}\f$ + ReLU + Quantize\f$_{>out}\f$ | Quantized Identical Bottleneck. Enabled only in single thread runtime scenario. 
-[Dequantize\f$_{>t1}\f$, Dequantize + Convolution\f$_{<t1}\f$ + BiasAdd\f$^{?}\f$ + Quantize + Dequantize]\f$_{>t2}\f$, Dequantize\f$_{>t4}\f$, [Dequantize\f$_{>t3}\f$, Dequantize + Convolution\f$_{<t3}\f$ + BiasAdd\f$^{?}\f$ + ReLU + Quantize]\f$^{1-3}\f$ + Dequantize + Convolution\f$_{<t4}\f$ + BiasAdd\f$^{?}\f$ + Add\f$_{<t2}\f$ + ReLU + Quantize\f$_{>out}\f$ | Quantized Convolutional Bottleneck. Enabled only in single thread runtime scenario. 
+| Pattern | Description                  |
+|:--------|:-----------------------------|
+| Dequantize\f$_{>t1}\f$, Dequantize\f$_{>t2}\f$, Dequantize + MatMul\f$_{<t1}\f$ + [Multiply \| Divide] + Add + Softmax + Quantize + Dequantize + MatMul\f$_{<t2}\f$ + StaticTranspose + Reorder + Quantize\f$_{>out}\f$ | Quantized Multi-head Attention. |
+| Dequantize + ReshapeTranspose\f$_{>t1}\f$, Dequantize + ReshapeTranspose\f$_{>t2}\f$, Dequantize + MatMul\f$_{<t1}\f$ + [Multiply \| Divide] + Add + Softmax + Quantize + Dequantize + MatMul\f$_{<t2}\f$ + StaticTranspose + StaticReshape + Quantize\f$_{>out}\f$ | Quantized Multi-head Attention. |
+| Dequantize\f$_{>t1}\f$, Dequantize + MatMul\f$_{<t1}\f$ + Activation + Quantize\f$_{>t2}\f$, [Dequantize\f$_{>t3}\f$, Dequantize\f$_{<t2}\f$ + MatMul\f$_{<t3}\f$ + Activation + Quantize\f$_{>t2}\f$]\f$^{0-4}\f$, Dequantize\f$_{>t4}\f$, Dequantize\f$_{<t2}\f$ + MatMul\f$_{<t4}\f$ + Activation + Quantize\f$_{>out}\f$ | Quantized Multi-layer Perceptron. |
+| Dequantize\f$_{>t2}\f$, Dequantize\f$_{>t3}\f$, [Dequantize\f$_{>t1}\f$, Dequantize + Convolution\f$_{<t1}\f$ + BiasAdd\f$^{?}\f$ + ReLU + Quantize]\f$^{1-3}\f$ + Dequantize + Convolution\f$_{<t2}\f$ + BiasAdd\f$^{?}\f$ + Add\f$_{<t3}\f$ + ReLU + Quantize\f$_{>out}\f$ | Quantized Identical Bottleneck. Enabled only in single thread runtime scenario. |
+| [Dequantize\f$_{>t1}\f$, Dequantize + Convolution\f$_{<t1}\f$ + BiasAdd\f$^{?}\f$ + Quantize + Dequantize]\f$_{>t2}\f$, Dequantize\f$_{>t4}\f$, [Dequantize\f$_{>t3}\f$, Dequantize + Convolution\f$_{<t3}\f$ + BiasAdd\f$^{?}\f$ + ReLU + Quantize]\f$^{1-3}\f$ + Dequantize + Convolution\f$_{<t4}\f$ + BiasAdd\f$^{?}\f$ + Add\f$_{<t2}\f$ + ReLU + Quantize\f$_{>out}\f$ | Quantized Convolutional Bottleneck. Enabled only in single thread runtime scenario. |
 
 ### Training
 
-Pattern | Description
-:-- | :--:
-Dequantize\f$_{>t1}\f$, Dequantize\f$_{>t2}\f$, Dequantize + MatMul\f$_{<t1}\f$ + [Multiply \| Divide] + Add + Softmax + Quantize + Dequantize + MatMul\f$_{<t2}\f$ + StaticTranspose + Reorder + Quantize\f$_{>out}\f$ | Multi-head Attention Training Forward Pattern.
-StaticReshape + StaticTranspose\f$_{>t1}\f$ + MatMul + Multiply\f$_{>t2}\f$ + Subtract\f$_{<t3}\f$ + Multiply\f$^{?}\f$ + [Multiply \| Divide]\f$_{>t4}\f$ + MatMul\f$_{>out1}\f$, Multiply\f$_{<t2}\f$ + ReduceSum\f$_{>t3}\f$, MatMul\f$_{<t1,>out2}\f$, MatMul\f$_{<t4,>out3}\f$ | Multi-head Attention Training Backward Pattern.
-MatMul\f$_{>out1}\f$ + Activation\f$_{>t1,>out2}\f$, [MatMul\f$_{<t1,>out3}\f$ + Activation\f$_{>t1,>out4}\f$]\f$^{0-4}\f$, MatMul\f$_{<t1,>out5}\f$ + Activation\f$_{>out6}\f$ | Multi-layer Perceptron Training Forward Pattern.
-StaticTranspose\f$^{?}\f$\f$_{>t0}\f$, ActivationBackward\f$_{>t2}\f$ + MatMul\f$_{<t0,>t1}\f$, ReduceSum\f$^{?}\f$\f$_{<t2,>out1}\f$, StaticTranspose\f$^{?}\f$ + MatMul\f$_{<t2,>out2}\f$, [StaticTranspose\f$^{?}\f$\f$_{>t3}\f$, ActivationBackward\f$_{>t4,<t1}\f$ + MatMul\f$_{<t3,>t1}\f$, ReduceSum\f$^{?}\f$\f$_{<t4,>out3}\f$, StaticTranspose\f$^{?}\f$ + MatMul\f$_{<t4,>out4}\f$]\f$^{0-4}\f$, StaticTranspose\f$^{?}\f$\f$_{>t5}\f$, ActivationBackward\f$_{>t6,<t1}\f$ + MatMul\f$_{<t5,>out5}\f$, ReduceSum\f$^{?}\f$\f$_{<t6,>out6}\f$, StaticTranspose\f$^{?}\f$ + MatMul\f$_{<t6,>out7}\f$ | Multi-layer Perceptron Training Backward Pattern.
-Convolution\f$_{>out1}\f$ + BatchNormForwardTraining\f$_{>out2}\f$ + ReLU\f$_{>out3}\f$ + Convolution\f$_{>out4}\f$ + BatchNormForwardTraining\f$_{>out5}\f$ + ReLU\f$_{>out6}\f$ + Convolution\f$_{>out7}\f$ + BatchNormForwardTraining\f$_{>out8}\f$ + Add + ReLU\f$_{>out9}\f$ | Identical Bottleneck Training Forward Pattern.
-Convolution\f$_{>out1}\f$ + BatchNormForwardTraining\f$_{>t1,>out2}\f$, Convolution\f$_{>out3}\f$ + BatchNormForwardTraining\f$_{>out4}\f$ + ReLU\f$_{>out5}\f$ + Convolution\f$_{>out6}\f$ + BatchNormForwardTraining\f$_{>out7}\f$ + ReLU\f$_{>out8}\f$ + Convolution\f$_{>out9}\f$ + BatchNormForwardTraining\f$_{>out10}\f$ + Add\f$_{<t1}\f$ + ReLU\f$_{>out11}\f$ | Convolutional Bottleneck Training Forward Pattern.
-ReLUBackward\f$_{>t1}\f$ + BatchNormTrainingBackward\f$_{>t2,>out1}\f$ + ConvolutionBackwardData + ReLUBackward + BatchNormTrainingBackward\f$_{>t3,>out2}\f$ + ConvolutionBackwardData + ReLUBackward + BatchNormTrainingBackward\f$_{>t4,>out3}\f$ + ConvolutionBackwardData + Add\f$_{<t1,>out4}\f$, ConvolutionBackwardWeights\f$_{<t2,>out5}\f$, ConvolutionBackwardWeights\f$_{<t3,>out6}\f$, ConvolutionBackwardWeights\f$_{<t4,>out7}\f$ | Identical Bottleneck Training Backward Pattern.
-ReLUBackward\f$_{>t1}\f$ + BatchNormTrainingBackward\f$_{>t2,>out1}\f$ + ConvolutionBackwardData + ReLUBackward + BatchNormTrainingBackward\f$_{>t3,>out2}\f$ + ConvolutionBackwardData + ReLUBackward + BatchNormTrainingBackward\f$_{>t4,>out3}\f$ + ConvolutionBackwardData + Add\f$_{<t6,>out4}\f$, BatchNormTrainingBackward\f$_{<t1,>t5,>out5}\f$ + ConvolutionBackwardData\f$_{>t6}\f$, ConvolutionBackwardWeights\f$_{<t2,>out6}\f$, ConvolutionBackwardWeights\f$_{<t3,>out7}\f$, ConvolutionBackwardWeights\f$_{<t4,>out8}\f$, ConvolutionBackwardWeights\f$_{<t5,>out9}\f$ | Convolutional Bottleneck Training Backward Pattern.
+| Pattern | Description                  |
+|:--------|:-----------------------------|
+| Dequantize\f$_{>t1}\f$, Dequantize\f$_{>t2}\f$, Dequantize + MatMul\f$_{<t1}\f$ + [Multiply \| Divide] + Add + Softmax + Quantize + Dequantize + MatMul\f$_{<t2}\f$ + StaticTranspose + Reorder + Quantize\f$_{>out}\f$ | Multi-head Attention Training Forward Pattern. |
+| StaticReshape + StaticTranspose\f$_{>t1}\f$ + MatMul + Multiply\f$_{>t2}\f$ + Subtract\f$_{<t3}\f$ + Multiply\f$^{?}\f$ + [Multiply \| Divide]\f$_{>t4}\f$ + MatMul\f$_{>out1}\f$, Multiply\f$_{<t2}\f$ + ReduceSum\f$_{>t3}\f$, MatMul\f$_{<t1,>out2}\f$, MatMul\f$_{<t4,>out3}\f$ | Multi-head Attention Training Backward Pattern. |
+| MatMul\f$_{>out1}\f$ + Activation\f$_{>t1,>out2}\f$, [MatMul\f$_{<t1,>out3}\f$ + Activation\f$_{>t1,>out4}\f$]\f$^{0-4}\f$, MatMul\f$_{<t1,>out5}\f$ + Activation\f$_{>out6}\f$ | Multi-layer Perceptron Training Forward Pattern. |
+| StaticTranspose\f$^{?}\f$\f$_{>t0}\f$, ActivationBackward\f$_{>t2}\f$ + MatMul\f$_{<t0,>t1}\f$, ReduceSum\f$^{?}\f$\f$_{<t2,>out1}\f$, StaticTranspose\f$^{?}\f$ + MatMul\f$_{<t2,>out2}\f$, [StaticTranspose\f$^{?}\f$\f$_{>t3}\f$, ActivationBackward\f$_{>t4,<t1}\f$ + MatMul\f$_{<t3,>t1}\f$, ReduceSum\f$^{?}\f$\f$_{<t4,>out3}\f$, StaticTranspose\f$^{?}\f$ + MatMul\f$_{<t4,>out4}\f$]\f$^{0-4}\f$, StaticTranspose\f$^{?}\f$\f$_{>t5}\f$, ActivationBackward\f$_{>t6,<t1}\f$ + MatMul\f$_{<t5,>out5}\f$, ReduceSum\f$^{?}\f$\f$_{<t6,>out6}\f$, StaticTranspose\f$^{?}\f$ + MatMul\f$_{<t6,>out7}\f$ | Multi-layer Perceptron Training Backward Pattern. |
+| Convolution\f$_{>out1}\f$ + BatchNormForwardTraining\f$_{>out2}\f$ + ReLU\f$_{>out3}\f$ + Convolution\f$_{>out4}\f$ + BatchNormForwardTraining\f$_{>out5}\f$ + ReLU\f$_{>out6}\f$ + Convolution\f$_{>out7}\f$ + BatchNormForwardTraining\f$_{>out8}\f$ + Add + ReLU\f$_{>out9}\f$ | Identical Bottleneck Training Forward Pattern. |
+| Convolution\f$_{>out1}\f$ + BatchNormForwardTraining\f$_{>t1,>out2}\f$, Convolution\f$_{>out3}\f$ + BatchNormForwardTraining\f$_{>out4}\f$ + ReLU\f$_{>out5}\f$ + Convolution\f$_{>out6}\f$ + BatchNormForwardTraining\f$_{>out7}\f$ + ReLU\f$_{>out8}\f$ + Convolution\f$_{>out9}\f$ + BatchNormForwardTraining\f$_{>out10}\f$ + Add\f$_{<t1}\f$ + ReLU\f$_{>out11}\f$ | Convolutional Bottleneck Training Forward Pattern. |
+| ReLUBackward\f$_{>t1}\f$ + BatchNormTrainingBackward\f$_{>t2,>out1}\f$ + ConvolutionBackwardData + ReLUBackward + BatchNormTrainingBackward\f$_{>t3,>out2}\f$ + ConvolutionBackwardData + ReLUBackward + BatchNormTrainingBackward\f$_{>t4,>out3}\f$ + ConvolutionBackwardData + Add\f$_{<t1,>out4}\f$, ConvolutionBackwardWeights\f$_{<t2,>out5}\f$, ConvolutionBackwardWeights\f$_{<t3,>out6}\f$, ConvolutionBackwardWeights\f$_{<t4,>out7}\f$ | Identical Bottleneck Training Backward Pattern. |
+| ReLUBackward\f$_{>t1}\f$ + BatchNormTrainingBackward\f$_{>t2,>out1}\f$ + ConvolutionBackwardData + ReLUBackward + BatchNormTrainingBackward\f$_{>t3,>out2}\f$ + ConvolutionBackwardData + ReLUBackward + BatchNormTrainingBackward\f$_{>t4,>out3}\f$ + ConvolutionBackwardData + Add\f$_{<t6,>out4}\f$, BatchNormTrainingBackward\f$_{<t1,>t5,>out5}\f$ + ConvolutionBackwardData\f$_{>t6}\f$, ConvolutionBackwardWeights\f$_{<t2,>out6}\f$, ConvolutionBackwardWeights\f$_{<t3,>out7}\f$, ConvolutionBackwardWeights\f$_{<t4,>out8}\f$, ConvolutionBackwardWeights\f$_{<t5,>out9}\f$ | Convolutional Bottleneck Training Backward Pattern. |

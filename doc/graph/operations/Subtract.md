@@ -13,9 +13,9 @@ tensors applying multi-directional broadcast rules.
 
 ## Operation attributes
 
-Attribute Name | Description | Value Type |Supported Values | Required or Optional
--- | -- | --| --|--
-[auto_broadcast](@ref dnnl::graph::op::attr::auto_broadcast) | Specifies rules used for auto-broadcasting of src tensors. |string |`none`,`numpy` (default)  | Optional
+| Attribute Name                                               | Description                                                | Value Type | Supported Values         | Required or Optional |
+|:-------------------------------------------------------------|:-----------------------------------------------------------|:-----------|:-------------------------|:---------------------|
+| [auto_broadcast](@ref dnnl::graph::op::attr::auto_broadcast) | Specifies rules used for auto-broadcasting of src tensors. |string      |`none`,`numpy` (default)  | Optional             |
 
 ## Execution arguments
 
@@ -25,7 +25,7 @@ constructing an operation.
 ### Inputs
 
 | Index | Argument Name | Required or Optional |
-| ----- | ------------- | -------------------- |
+|:------|:--------------|:---------------------|
 | 0     | `src_0`       | Required             |
 | 1     | `src_1`       | Required             |
 
@@ -37,7 +37,7 @@ different and auto-broadcasting is allowed if `auto_broadcast` attributes is
 ### Outputs
 
 | Index | Argument Name | Required or Optional |
-| ----- | ------------- | -------------------- |
+|:------|:--------------|:---------------------|
 | 0     | `dst`         | Required             |
 
 ## Supported data types
@@ -45,7 +45,7 @@ different and auto-broadcasting is allowed if `auto_broadcast` attributes is
 Substract operation supports the following data type combinations.
 
 | Source0/1  | Destination |
-| ---- | ------- | 
-| f32  | f32     |
-| bf16 | bf16    | 
-| f16  | f16     |
+|:-----------|:------------|
+| f32        | f32         |
+| bf16       | bf16        |
+| f16        | f16         |

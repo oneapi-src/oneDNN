@@ -13,10 +13,10 @@ shape can be passed via `shape` attribute.
 
 ## Operation attributes
 
-Attribute Name | Description | Value Type |Supported Values | Required or Optional
--- | -- | --| --|--
-[shape](@ref dnnl::graph::op::attr::shape) | Specifies rules used for auto-broadcasting of src tensors. |string |`none`, `numpy` (default)  | Required
-[special_zero](@ref dnnl::graph::op::attr::special_zero) | Controls how zero values in shape are interpreted. |bool |`true`, `false` | Required
+| Attribute Name                                           | Description                                                | Value Type | Supported Values           | Required or Optional |
+|:---------------------------------------------------------|:-----------------------------------------------------------|:-----------|:---------------------------|:---------------------|
+| [shape](@ref dnnl::graph::op::attr::shape)               | Specifies rules used for auto-broadcasting of src tensors. | string     | `none`, `numpy` (default)  | Required             |
+| [special_zero](@ref dnnl::graph::op::attr::special_zero) | Controls how zero values in shape are interpreted.         | bool       | `true`, `false` | Required                        |
 
 @note `shape`: dimension `-1` means that this dimension is calculated to keep
 the same overall elements count as the src tensor. That case that more than
@@ -34,21 +34,21 @@ constructing an operation.
 ### Inputs
 
 | Index | Argument Name | Required or Optional |
-| ----- | ------------- | -------------------- |
-| 0     | `src`       | Required             |
+|:------|:--------------|:---------------------|
+| 0     | `src`         | Required             |
 
 ### Outputs
 
 | Index | Argument Name | Required or Optional |
-| ----- | ------------- | -------------------- |
-| 0     | `dst`       | Required             |
+|:------|:--------------|:-------------------- |
+| 0     | `dst`         | Required             |
 
 ## Supported data types
 
 StaticReshape operation supports the following data type combinations.
 
-| Src  | Dst |
-| ---- | ------- |
+| Src  | Dst     |
+|:-----|:--------|
 | f32  | f32     |
 | bf16 | bf16    |
 | f16  | f16     |

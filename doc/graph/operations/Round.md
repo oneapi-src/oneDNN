@@ -3,7 +3,7 @@ Round {#dev_guide_op_round}
 
 ## General
 
-Round operation rounds the values of a tensor to the nearest integer, 
+Round operation rounds the values of a tensor to the nearest integer,
 element-wise.
 
 ## Operation attributes
@@ -17,22 +17,22 @@ constructing an operation.
 
 ### Inputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0 | `src` | Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `src`         | Required             |
 
 ### Outputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0 | `dst` | Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `dst`         | Required             |
 
 ## Supported data types
 
 Round operation supports the following data type combinations.
 
-Src | Dst
--- | --
-f32 | f32
-f16 | f16
-bf16 | bf16
+| Src  | Dst  |
+|:-----|:-----|
+| f32  | f32  |
+| f16  | f16  |
+| bf16 | bf16 |

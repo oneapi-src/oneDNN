@@ -10,9 +10,9 @@ SoftPlus operation applies following formula on every element of \src tensor
 
 ## Operation attributes
 
-Attribute Name | Description | Value Type | Supported Values | Required or Optional
--- | -- | -- | -- | --
-[beta](@ref dnnl::graph::op::attr::beta) | Value for the SoftPlus formulation. | f32 | Arbitrary f32 value (`1.f` by default) | Optional
+| Attribute Name                          | Description                         | Value Type | Supported Values ----------------------| Required or Optional |
+|:----------------------------------------|:------------------------------------|:-----------|:---------------------------------------|:---------------------|
+|[beta](@ref dnnl::graph::op::attr::beta) | Value for the SoftPlus formulation. | f32        | Arbitrary f32 value (`1.f` by default) | Optional             |
 
 ## Execution arguments
 
@@ -21,22 +21,22 @@ constructing an operation.
 
 ### Inputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0 | `src` | Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `src`         | Required             |
 
 ### Outputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0 | `dst` |Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `dst`         | Required             |
 
 ## Supported data types
 
 SoftPlus operation supports the following data type combinations.
 
-Src | Dst
--- | --
-f32 | f32
-bf16 | bf16
-f16 | f16
+| Src  | Dst  |
+|:-----|:-----|
+| f32  | f32  |
+| bf16 | bf16 |
+| f16  | f16  |

@@ -8,9 +8,9 @@ dumped graph can be used for visualization and performance benchmark.
 
 The graph dumping feature only works when `ONEDNN_BUILD_GRAPH` is ON.
 
-| CMake Option                | Supported values (defaults in bold) | Description
-| :---                        | :---                                | :---
-| ONEDNN_ENABLE_GRAPH_DUMP    | ON, **OFF**                         | Controls dumping (@ref dev_guide_graph_dump) graph artifacts
+| CMake Option                | Supported values (defaults in bold) | Description                                                  |
+| :---                        | :---                                | :---                                                         |
+| ONEDNN_ENABLE_GRAPH_DUMP    | ON, **OFF**                         | Controls dumping (@ref dev_guide_graph_dump) graph artifacts |
 
 ## Run-Time Controls
 
@@ -20,11 +20,11 @@ accepts setting flags. These flags can be combined together to make the library
 dumping different files. For example, the below setting will generate files
 containing library graph and subgraphs in each partition.
 
-| Variable                  | Flags            | Description
-| :---                      | :---             |:---
-| ONEDNN_GRAPH_DUMP         | (default)        | No graph or subgraph dumped
-|                           | graph            | Library graph
-|                           | subgraph         | Library subgraph contained in a partition
+| Variable                  | Flags            | Description                               |
+| :---                      | :---             |:---                                       |
+| ONEDNN_GRAPH_DUMP         | (default)        | No graph or subgraph dumped               |
+|                           | graph            | Library graph                             |
+|                           | subgraph         | Library subgraph contained in a partition |
 
 ~~~bash
 ONEDNN_GRAPH_DUMP=graph,subgraph ./application

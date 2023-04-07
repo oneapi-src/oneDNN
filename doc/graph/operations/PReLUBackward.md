@@ -7,9 +7,9 @@ PReLUBackward operation computes gradient for PReLU.
 
 ## Operation attributes
 
-Attribute Name | Description | Value Type | Supported Values | Required or Optional
--- | -- | -- | -- | --
-[data_format](@ref dnnl::graph::op::attr::data_format) | Denotes the data format of the input and output data. | string | `NCX`, `NXC`(default) | Optional
+| Attribute Name                                        | Description                                           | Value Type | Supported Values      | Required or Optional |
+|:------------------------------------------------------|:------------------------------------------------------|:-----------|:----------------------|:---------------------|
+|[data_format](@ref dnnl::graph::op::attr::data_format) | Denotes the data format of the input and output data. | string     | `NCX`, `NXC`(default) | Optional             |
 
 ### Broadcasting Rules
 
@@ -33,25 +33,25 @@ constructing an operation.
 
 ### Inputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0 | `src` | Required
-1 | `slope` | Required
-2 | `diff_dst` | Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `src`         | Required             |
+| 1     | `slope`       | Required             |
+| 2     | `diff_dst`    | Required             |
 
 ### Outputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0 | `diff_src` | Required
-1 | `diff_slope` | Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `diff_src`    | Required             |
+| 1     | `diff_slope`  | Required             |
 
 ## Supported data types
 
 PReLUBackward operation supports the following data type combinations.
 
-Src | Slope | Diff_dst | Diff_src | Diff_slope
--- | -- | -- | -- | --
-f32 | f32 | f32 | f32 | f32
-bf16 | bf16 | bf16 | bf16 | bf16
-f16 | f16 | f16 | f16 | f16
+| Src  | Slope | Diff_dst | Diff_src | Diff_slope |
+|:-----|:------|:---------|:---------|:-----------|
+| f32  | f32   | f32      | f32      | f32        |
+| bf16 | bf16  | bf16     | bf16     | bf16       |
+| f16  | f16   | f16      | f16      | f16        |

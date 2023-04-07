@@ -21,22 +21,22 @@ constructing an operation.
 
 ### Inputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0 | `src` | Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `src`         | Required             |
 
 ### Outputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0 | `dst` | Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `dst`         | Required             |
 
 ## Supported data types
 
 Abs operation supports the following data type combinations.
 
-Src | Dst
--- | --
-f32 | f32
-f16 | f16
-bf16 | bf16
+| Src  | Dst  |
+|:-----|:-----|
+| f32  | f32  |
+| f16  | f16  |
+| bf16 | bf16 |

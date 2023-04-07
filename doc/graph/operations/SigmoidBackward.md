@@ -7,9 +7,9 @@ SigmoidBackward operation computes gradient for Sigmoid.
 
 ## Operation attributes
 
-Attribute Name | Description | Value Type | Supported Values | Required or Optional
--- | -- | -- | -- | --
-[use_dst](@ref dnnl::graph::op::attr::use_dst) | If true, use `dst` of Sigmoid operation to calculate the gradient. Otherwise, use `src`. | bool | `true` (default), `false` | Optional
+| Attribute Name                                 | Description                                                                              | Value Type | Supported Values          | Required or Optional |
+|:-----------------------------------------------|:-----------------------------------------------------------------------------------------|:-----------|:--------------------------|:----------------------|
+| [use_dst](@ref dnnl::graph::op::attr::use_dst) | If true, use `dst` of Sigmoid operation to calculate the gradient. Otherwise, use `src`. | bool       | `true` (default), `false` | Optional              |
 
 ## Execution arguments
 
@@ -18,10 +18,10 @@ constructing an operation.
 
 ### Inputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0 | `src` / `dst` | Required
-1 | `diff_dst` | Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `src` / `dst` | Required             |
+| 1     | `diff_dst`    | Required             |
 
 ### Outputs
 

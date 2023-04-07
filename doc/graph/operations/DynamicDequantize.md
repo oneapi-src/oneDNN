@@ -18,10 +18,10 @@ For per-channel de-quantization, taking channel axis = 1 as an example:
 
 ## Operation attributes
 
-Attribute Name | Description | Value Type |Supported Values | Required or Optional
--- | -- | --| --|--
-[qtype](@ref dnnl::graph::op::attr::qtype) | Specifies which de-quantization type is used. |string | `per_tensor` (default), `per_channel` | Optional
-[axis](@ref dnnl::graph::op::attr::axis) | Specifies dimension on which per-channel de-quantization is applied. |s64 | A s64 value in the range of [-r, r-1] where r = rank(src), `1` by default. Negative value means counting the dimension backwards from the end.  | Optional
+| Attribute Name                             | Description                                                          | Value Type | Supported Values                                                                                                                                | Required or Optional |
+|:-------------------------------------------|:---------------------------------------------------------------------|:-----------|:------------------------------------------------------------------------------------------------------------------------------------------------|:---------------------|
+| [qtype](@ref dnnl::graph::op::attr::qtype) | Specifies which de-quantization type is used.                        | string     | `per_tensor` (default), `per_channel`                                                                                                           | Optional             |
+| [axis](@ref dnnl::graph::op::attr::axis)   | Specifies dimension on which per-channel de-quantization is applied. | s64        | A s64 value in the range of [-r, r-1] where r = rank(src), `1` by default. Negative value means counting the dimension backwards from the end.  | Optional             |
 
 ## Execution arguments
 
@@ -30,11 +30,11 @@ constructing an operation.
 
 ### Inputs
 
-Index | Argument Name | Required or Optional
------ | ------------- | --------------------
-0     | `src`         | Required
-1     | `scales`      | Required
-2     | `zps`         | Optional
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `src`         | Required             |
+| 1     | `scales`      | Required             |
+| 2     | `zps`         | Optional             |
 
 @note `scales` is a f32 1D tensor to be applied to the de-quantization formula.
 For `qtype` = `per-tensor`, there should be only one element in the scales
@@ -49,15 +49,15 @@ operator is symmetric de-quantization and perform kernel optimization accordingl
 
 ### Outputs
 
-Index | Argument Name | Required or Optional
------ | ------------- | --------------------
-0     | `dst`         | Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `dst`         | Required             |
 
 ## Supported data types
 
 DynamicDequantize operation supports the following data type combinations.
 
-Src  | Dst| Scales |Zps
----- | -------   | ---|--
-s8   | f32     | f32  |s8, u8, s32
-u8   | f32     | f32  |s8, u8, s32
+| Src | Dst | Scales | Zps         |
+|:-- -|:----|:-------|:------------|
+| s8  | f32 | f32    | s8, u8, s32 |
+| u8  | f32 | f32    | s8, u8, s32 |

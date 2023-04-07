@@ -70,22 +70,22 @@ Compared with C or LLVM codegen, it has no extra dependency.
 The following environment variables are introduced by the graph compiler
 backend.
 
-| Environment Variable                                 | Value                            | Description
-| :---                                                 | :---                             |:---
-| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_CPU_JIT           | **llvm**                         | Uses LLVM as codegen and JIT method
-|                                                      | builtin                          | Uses builtin as codegen and JIT method
-|                                                      | c                                | Uses C as codegen and JIT method
-| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_OPT_LEVEL         | 0                                | Turns off optimization passes and sets the compilation optimization level to be 0 in C and LLVM JIT
-|                                                      | 1,2,**3**                        | Sets the compilation optimization level of C and LLVM JIT
-| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_KERNEL_TRACE      | **0**                            | No kernel execution trace output
-|                                                      | 1,*stderr or filename.json*      | Generates kernel execution trace to the file specified by the given filename with chrome tracing format
-| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_PRINT_PASS_RESULT | **0**                            | No IR output after each graph or tensor IR pass 
-| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_PRINT_PASS_RESULT | 1                                | Prints the output IR of each graph and tensor IR passes
-| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_VERBOSE           | **0**                            | No verbose output
-|                                                      | 1                                | Prints warning messages during compilation
-|                                                      | 2                                | Prints warning messages and info logs (e.g. fusion-related information) during compilation
-| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_DUMP_GENCODE      | *path_to_dump*                   | Dumps the generated kernel in C
-| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_C_INCLUDE         | *path_to_c_codegen_header*       | Specifies the C codegen header for JIT compilation
+| Environment Variable                                 | Value                            | Description                                                                                             |
+| :---                                                 | :---                             |:---                                                                                                     |
+| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_CPU_JIT           | **llvm**                         | Uses LLVM as codegen and JIT method                                                                     |
+|                                                      | builtin                          | Uses builtin as codegen and JIT method                                                                  |
+|                                                      | c                                | Uses C as codegen and JIT method                                                                        |
+| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_OPT_LEVEL         | 0                                | Turns off optimization passes and sets the compilation optimization level to be 0 in C and LLVM JIT     |
+|                                                      | 1,2,**3**                        | Sets the compilation optimization level of C and LLVM JIT                                               |
+| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_KERNEL_TRACE      | **0**                            | No kernel execution trace output                                                                        |
+|                                                      | 1,*stderr or filename.json*      | Generates kernel execution trace to the file specified by the given filename with chrome tracing format |
+| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_PRINT_PASS_RESULT | **0**                            | No IR output after each graph or tensor IR pass                                                         |
+| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_PRINT_PASS_RESULT | 1                                | Prints the output IR of each graph and tensor IR passes                                                 |
+| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_VERBOSE           | **0**                            | No verbose output                                                                                       |
+|                                                      | 1                                | Prints warning messages during compilation                                                              |
+|                                                      | 2                                | Prints warning messages and info logs (e.g. fusion-related information) during compilation              |
+| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_DUMP_GENCODE      | *path_to_dump*                   | Dumps the generated kernel in C                                                                         |
+| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_C_INCLUDE         | *path_to_c_codegen_header*       | Specifies the C codegen header for JIT compilation                                                      |
 
 ### Enable Tracing
 ~~~bash

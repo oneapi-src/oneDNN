@@ -25,10 +25,10 @@ the left side of dimensions (inserting `1`) to make sure two ranks matched.
 
 ## Operation attributes
 
-Attribute Name | Description | Value Type |Supported Values | Required or Optional
--- | -- | --| --|--
-[transpose_a](@ref dnnl::graph::op::attr::transpose_a) | Controls whether to transpose the last two dimensions of `src`. |bool | True, False (default) | Optional
-[transpose_b](@ref dnnl::graph::op::attr::transpose_b) | Controls whether to transpose the last two dimensions of `weights`. |bool | True, False (default) | Optional
+| Attribute Name                                         | Description                                                         | Value Type | Supported Values      | Required or Optional |
+|:-------------------------------------------------------|:--------------------------------------------------------------------|:-----------|:----------------------|:---------------------|
+| [transpose_a](@ref dnnl::graph::op::attr::transpose_a) | Controls whether to transpose the last two dimensions of `src`.     |bool        | True, False (default) | Optional             |
+| [transpose_b](@ref dnnl::graph::op::attr::transpose_b) | Controls whether to transpose the last two dimensions of `weights`. |bool        | True, False (default) | Optional             |
 
 The above transpose attribute will not in effect when rank of an input tensor is
 less than 2. For example, in library implementation 1D tensor is unsqueezed
@@ -45,24 +45,24 @@ constructing an operation.
 
 ### Inputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0|`src` | Required
-1|`weights` | Required
-2|`bias` | Optional
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `src`         | Required             |
+| 1     | `weights`     | Required             |
+| 2     | `bias`        | Optional             |
 
 ### Outputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0|`dst` |Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `dst`         | Required             |
 
 ## Supported data types
 
 MatMul operation supports the following data type combinations.
 
-Src | Weights | Bias | Dst
---|--|-- | --
-f32 | f32 | f32 |f32
-bf16 | bf16 | bf16 |bf16
-f16 | f16 | f16 |f16
+| Src  | Weights | Bias | Dst  |
+|:-----|:--------|:-----|:-----|
+| f32  | f32     | f32  | f32  |
+| bf16 | bf16    | bf16 | bf16 |
+| f16  | f16     | f16  | f16  |

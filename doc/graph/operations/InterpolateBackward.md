@@ -7,18 +7,18 @@ InterpolateBackward computes the gradients of Interpolate operation.
 
 ## Operation attributes
 
-Attribute Name | Description | Value Type |Supported Values | Required or Optional
--- | -- | --| --|--
-[mode](@ref dnnl::graph::op::attr::mode) | Specifies type of interpolation |string. |`nearest`, `linear`, `bilinear`, `trilinear`  | Required
-[coordinate_transformation_mode](@ref dnnl::graph::op::attr::coordinate_transformation_mode) | Specifies how to transform the coordinate in the resized tensor to the coordinate in the original tensor|string. | `half_pixel`(default),`align_corners`  | Optional
-[sizes](@ref dnnl::graph::op::attr::sizes) | Specifies dst shape for spatial axes. |s64 |A s64 list containing positive values,`none` is default | Optional
-[scales](@ref dnnl::graph::op::attr::scales) | Specifies `scales` for spatial axes. | f32| A f32 list,`none` is default | Optional
-[data_format](@ref dnnl::graph::op::attr::data_format)| Controls how to interpret the shape of `src` and `dst`.|string | `NCX`, `NXC` (default) | Optional
+| Attribute Name                                                                               | Description                                                                                              | Value Type |Supported Values                                         | Required or Optional |
+|:---------------------------------------------------------------------------------------------|:---------------------------------------------------------------------------------------------------------|:-----------|:--------------------------------------------------------|:----------------------|
+| [mode](@ref dnnl::graph::op::attr::mode)                                                     | Specifies type of interpolation                                                                          | string.    | `nearest`, `linear`, `bilinear`, `trilinear`            | Required              |
+| [coordinate_transformation_mode](@ref dnnl::graph::op::attr::coordinate_transformation_mode) | Specifies how to transform the coordinate in the resized tensor to the coordinate in the original tensor | string.    | `half_pixel`(default),`align_corners`                   | Optional              |
+| [sizes](@ref dnnl::graph::op::attr::sizes)                                                   | Specifies dst shape for spatial axes.                                                                    | s64        | A s64 list containing positive values,`none` is default | Optional              |
+| [scales](@ref dnnl::graph::op::attr::scales)                                                 | Specifies `scales` for spatial axes.                                                                     | f32        | A f32 list,`none` is default                            | Optional              |
+| [data_format](@ref dnnl::graph::op::attr::data_format)                                       | Controls how to interpret the shape of `src` and `dst`.                                                  | string     | `NCX`, `NXC` (default) -                                | Optional              |
 
 @note Either `sizes` or `scales` should be provided. When `sizes` is
 used, `scales` will be ignored.
 
-@note 
+@note
 The attribute `coordinate_transformation_mode` is the name of transformation
 mode in string format.\n
 Here `scale[x]` is `dst_shape[x]/src_shape[x]` and `x_resized` is a
@@ -36,22 +36,22 @@ constructing an operation.
 
 ### Inputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0|`src`         | Required
-1|`diff_dst`    | Required
-2|`sizes`       | Optional
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `src`         | Required             |
+| 1     | `diff_dst`    | Required             |
+| 2     | `sizes`       | Optional             |
 
-@note 
+@note
 `src` is original input tensor of Interpolate op.\n
 `diff_dst` is the gradient tensor with respect to the dst.\n
 `sizes` is a 1D tensor describing output shape for spatial axes.
 
 ### Outputs
 
-Index| Argument Name | Required or Optional
--- | --        | --
-0  |`diff_src` | Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `diff_src`    | Required             |
 
 @note `diff_src` is the gradient tensor with respect to the src of Interpolate.
 
@@ -59,8 +59,8 @@ Index| Argument Name | Required or Optional
 
 InterpolateBackward operation supports the following data type combinations.
 
-Src/Diff_dst/Diff_src | Sizes
---   |--
-f32  | s32
-bf16 | s32
-f16  | s32
+| Src/Diff_dst/Diff_src | Sizes |
+|:----------------------|:------|
+| f32                   | s32   |
+| bf16                  | s32   |
+| f16                   | s32   |

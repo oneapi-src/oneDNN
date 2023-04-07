@@ -19,9 +19,9 @@ LeakyReLU operation applies following formula on every element of \src tensor
 
 ## Operation attributes
 
-Attribute Name | Description | Value Type | Supported Values | Required or Optional
--- | -- | -- | -- | --
-[alpha](@ref dnnl::graph::op::attr::alpha) | Alpha is the coefficient of leakage. | f32 | Arbitrary f32 value but usually a small positive value. | Required
+| Attribute Name                             | Description                          | Value Type | Supported Values                                        | Required or Optional |
+|:-------------------------------------------|:-------------------------------------|:-----------|:--------------------------------------------------------|:---------------------|
+| [alpha](@ref dnnl::graph::op::attr::alpha) | Alpha is the coefficient of leakage. | f32        | Arbitrary f32 value but usually a small positive value. | Required             |
 
 ## Execution arguments
 
@@ -30,22 +30,22 @@ constructing an operation.
 
 ### Inputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0 | `src` | Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `src`         | Required             |
 
 ### Outputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0 | `dst` |Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `dst`         | Required             |
 
 ## Supported data types
 
 LeakyReLU operation supports the following data type combinations.
 
-Src | Dst
--- | --
-f32 | f32
-bf16 | bf16
-f16 | f16
+| Src  | Dst  |
+|:-----|:-----|
+| f32  | f32  |
+| bf16 | bf16 |
+| f16  | f16  |

@@ -23,10 +23,10 @@ where
 
 ## Operation attributes
 
-Attribute Name | Description | Value Type |Supported Values | Required or Optional
--- | -- | --| --|--
-[epsilon](@ref dnnl::graph::op::attr::epsilon) | A number to be added to the variance to avoid division by zero. |f32 |A positive float value  | Required
-[data_format](@ref dnnl::graph::op::attr::data_format) |Controls how to interpret the shape of `src` and `dst`.| string|`NCX`, `NXC` (default) | Optional
+| Attribute Name                                         | Description                                                     | Value Type | Supported Values       | Required or Optional |
+|:-------------------------------------------------------|:----------------------------------------------------------------|:-----------|:-----------------------|:---------------------|
+| [epsilon](@ref dnnl::graph::op::attr::epsilon)         | A number to be added to the variance to avoid division by zero. | f32        | A positive float value | Required             |
+| [data_format](@ref dnnl::graph::op::attr::data_format) | Controls how to interpret the shape of `src` and `dst`.         | string     |`NCX`, `NXC` (default)  | Optional             |
 
 ## Execution arguments
 
@@ -35,26 +35,26 @@ constructing an operation.
 
 ### Inputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0|`src` | Required
-1|`gamma` | Required
-2|`beta`|Required
-3|`mean` | Required
-4|`variance` (\f$\sigma^2\f$)|Required
+| Index | Argument Name               | Required or Optional |
+|:------|:----------------------------|:---------------------|
+| 0     | `src`                       | Required             |
+| 1     | `gamma`                     | Required             |
+| 2     | `beta`                      | Required             |
+| 3     | `mean`                      | Required             |
+| 4     | `variance` (\f$\sigma^2\f$) | Required             |
 
 ### Outputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0|`dst` | Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `dst`         | Required             |
 
 ## Supported data types
 
 BatchNormInference operation supports the following data type combinations.
 
-Src / Dst | Gamma / Beta / Mean / Variance
---|--
-f32 | f32
-bf16 | f32, bf16
-f16 | f32
+| Src / Dst | Gamma / Beta / Mean / Variance |
+|:----------|:-------------------------------|
+| f32       | f32                            |
+| bf16      | f32, bf16                      |
+| f16       | f32                            |

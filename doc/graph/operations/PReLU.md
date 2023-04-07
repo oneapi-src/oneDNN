@@ -3,7 +3,7 @@ PReLU {#dev_guide_op_prelu}
 
 ## General
 
-PReLU operation performs element-wise parametric ReLU operation on a given 
+PReLU operation performs element-wise parametric ReLU operation on a given
 input tensor, based on the following mathematical formula:
 
 \f[ dst = \begin{cases} src & \text{if}\ src \ge 0 \\
@@ -11,10 +11,10 @@ input tensor, based on the following mathematical formula:
 
 ## Operation attributes
 
-Attribute Name | Description | Value Type | Supported Values | Required or Optional
--- | -- | -- | -- | --
-[data_format](@ref dnnl::graph::op::attr::data_format) | Denotes the data format of the input and output data. | string | `NCX`, `NXC`(default) | Optional
-[per_channel_broadcast](@ref dnnl::graph::op::attr::per_channel_broadcast) | Denotes whether to apply per_channel broadcast when slope is 1D tensor. | bool | `false`, `true`(default) | Optional
+| Attribute Name                                                             | Description                                                             | Value Type | Supported Values         | Required or Optional |
+|:---------------------------------------------------------------------------|:------------------------------------------------------------------------|:-----------|:-------------------------|:---------------------|
+| [data_format](@ref dnnl::graph::op::attr::data_format)                     | Denotes the data format of the input and output data.                   | string     | `NCX`, `NXC`(default)    | Optional             |
+| [per_channel_broadcast](@ref dnnl::graph::op::attr::per_channel_broadcast) | Denotes whether to apply per_channel broadcast when slope is 1D tensor. | bool       | `false`, `true`(default) | Optional             |
 
 ### Broadcasting Rules
 
@@ -39,23 +39,23 @@ constructing an operation.
 
 ### Inputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0 | `src` | Required
-1 | `slope` | Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `src`         | Required             |
+| 1     | `slope`       | Required             |
 
 ### Outputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0 | `dst` |Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `dst`         | Required             |
 
 ## Supported data types
 
 PReLU operation supports the following data type combinations.
 
-Src | Dst | Slope
--- | -- | --
-f32 | f32 | f32
-bf16 | bf16 | bf16
-f16 | f16 | f16
+| Src  | Dst  | Slope |
+|:-----|:-----|:------|
+| f32  | f32  | f32   |
+| bf16 | bf16 | bf16  |
+| f16  | f16  | f16   |

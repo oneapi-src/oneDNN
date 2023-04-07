@@ -18,7 +18,7 @@ constructing an operation.
 ### Inputs
 
 | Index | Argument Name | Required or Optional |
-| ----- | ------------- | -------------------- |
+|:------|:--------------|:---------------------|
 | 0     | `src`         | Required             |
 
 ### Outputs
@@ -29,8 +29,8 @@ End operation does not support output tensor.
 
 End operation supports the following data type combinations.
 
-| Src  | Destination |
-| ---- | ------- |
-| f32  | f32     |
-| bf16 | bf16    |
-| f16  | f16     |
+| Src  | Dst  |
+|:-----|:-----|
+| f32  | f32  |
+| f16  | f16  |
+| bf16 | bf16 |
