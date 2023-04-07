@@ -347,6 +347,14 @@ private:
                 auto new_let = inner_let_stmts_[i];
                 if (!new_value.is_same(old_let.value)) {
                     new_let = let_t::make(old_let.var, new_value, old_let.body);
+                    if (info.is_preload()) {
+                        preload_lets_.erase(&old_let);
+                        preload_lets_.insert(new_let);
+                    }
+                    if (info.is_mul()) {
+                        mul_lets_.erase(&old_let);
+                        mul_lets_.insert(new_let);
+                    }
                 }
                 new_lets.push_back(new_let);
                 continue;
