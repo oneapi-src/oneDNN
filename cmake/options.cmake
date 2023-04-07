@@ -69,12 +69,16 @@ option(DNNL_BUILD_FOR_CI
 option(DNNL_WERROR "treat warnings as errors" OFF)
 
 set(DNNL_TEST_SET "CI" CACHE STRING
-    "specifies testing targets coverage. Supports CI, CI_NO_CORR, NIGHTLY.
+    "specifies testing targets coverage. Supports SMOKE, CI, CI_NO_CORR,
+    NIGHTLY.
 
-    When CI option is set, it enables a subset of test targets to run. When
-    CI_NO_CORR option is set, it enables same coverage as for CI option, but
-    switches off correctness validation for benchdnn targets. When NIGHTLY
-    option is set, it enables a broader set of test targets to run.")
+    When SMOKE option is set, it enables a subset of test targets which verify
+        that basic library functionality works as expected.
+    When CI option is set, it enables a subset of test targets to run.
+    When CI_NO_CORR option is set, it enables same coverage as for CI option,
+        but switches off correctness validation for benchdnn targets.
+    When NIGHTLY option is set, it enables a broader set of test targets to
+        run.")
 
 set(DNNL_INSTALL_MODE "DEFAULT" CACHE STRING
     "specifies installation mode; supports DEFAULT, BUNDLE and BUNDLE_V2.

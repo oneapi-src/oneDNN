@@ -142,15 +142,22 @@ foreach(driver ${all_drivers})
             inputs/${driver}/test_*_gpu_ci)
     file(GLOB test_files_gpu RELATIVE ${driver_dir} inputs/${driver}/test_*_gpu)
     file(GLOB test_files_ci RELATIVE ${driver_dir} inputs/${driver}/test_*_ci)
+    file(GLOB test_files_smoke RELATIVE ${driver_dir} inputs/${driver}/test_*_smoke)
     file(GLOB test_files_cpu RELATIVE ${driver_dir} inputs/${driver}/test_*)
 
-    if(NOT DNNL_EXPERIMENTAL_SPARSE)
-        list(REMOVE_ITEM test_files_cpu "test_matmul_sparse")
-        list(REMOVE_ITEM test_files_ci "test_matmul_sparse_ci")
-    endif()
+    if(DNNL_TEST_SET EQUAL DNNL_TEST_SET_SMOKE)
+        if(has_gpu)
+            register_all_tests(gpu "${driver}" "${test_files_smoke}")
+        endif()
+        if(has_cpu)
+            register_all_tests(cpu "${driver}" "${test_files_smoke}")
+        endif()
+    elseif((DNNL_TEST_SET EQUAL DNNL_TEST_SET_CI_NO_CORR)
+        OR (DNNL_TEST_SET EQUAL DNNL_TEST_SET_CI))
+        if(NOT DNNL_EXPERIMENTAL_SPARSE)
+            list(REMOVE_ITEM test_files_ci "test_matmul_sparse_ci")
+        endif()
 
-    # Register ci input files for ci only
-    if((DNNL_TEST_SET LESS DNNL_TEST_SET_CI) OR (DNNL_TEST_SET EQUAL DNNL_TEST_SET_CI))
         # gpu_ci files may happen if cpu coverage can not be used on gpu
         # Filter out gpu_ci inputs from ci
         foreach(test_file ${test_files_gpu_ci})
@@ -168,13 +175,15 @@ foreach(driver ${all_drivers})
         if(has_cpu)
             register_all_tests(cpu "${driver}" "${test_files_ci}")
         endif()
-    endif()
+    elseif(DNNL_TEST_SET EQUAL DNNL_TEST_SET_NIGHTLY)
+        if(NOT DNNL_EXPERIMENTAL_SPARSE)
+            list(REMOVE_ITEM test_files_cpu "test_matmul_sparse")
+        endif()
 
-    # Register nightly input files
-    if(DNNL_TEST_SET GREATER DNNL_TEST_SET_CI)
         ## Filter out gpu, large cpu and invalid inputs from cpu
         foreach(test_file ${test_files_large_cpu} ${test_files_gpu_ci}
-            ${test_files_gpu} ${test_files_ci} "test_conv_all;" "test_graph_all")
+            ${test_files_gpu} ${test_files_ci} ${test_files_smoke}
+            "test_conv_all;" "test_graph_all;")
             string(REPLACE "${test_file}" "" test_files_cpu "${test_files_cpu}")
         endforeach()
 
@@ -187,5 +196,7 @@ foreach(driver ${all_drivers})
         if(has_cpu)
             register_all_tests(cpu "${driver}" "${test_files_cpu}")
         endif()
+    else()
+        message(FATAL_ERROR "DNNL_TEST_SET doesn't support ${DNNL_TEST_SET} value.")
     endif()
 endforeach()

@@ -1,0 +1,9 @@
+--reset
+
+--match=.*ih.* # Use 2d inputs from shapes_ci only
+--mb=2
+--dt=f32,bf16,f16
+--alg=ACROSS,WITHIN
+--dir=FWD_D,FWD_I,BWD_D
+--tag=axb
+--batch=shapes_ci

@@ -1,0 +1,18 @@
+--reset
+
+--match=.*ih.* # Use 2d inputs from shapes_basic only
+--mb=2
+--tag=axb
+--alg=max,avg_np,avg_p
+
+# Training
+--cfg=f32,bf16
+--dir=FWD_D,BWD_D
+--batch=shapes_basic
+
+# Inference
+--dir=FWD_I
+--tag=axb
+--cfg=f16,s8,u8
+--attr-post-ops=,add:f32:per_oc
+--batch=shapes_basic
