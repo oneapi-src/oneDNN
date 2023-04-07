@@ -252,6 +252,11 @@ static status_t init_kernel_ctx_common(
         compute::kernel_ctx_t &kernel_ctx, const lnorm_conf_t &conf) {
     kernel_ctx.set_data_type(conf.data_type);
 
+    // Since FWD kernel agressively uses GRF (allocates a private buffer for
+    // SRC chunk), large GRF mode decreases number/probability of register
+    // spills.
+    if (conf.is_fwd) kernel_ctx.add_option("-cl-intel-256-GRF-per-thread");
+
     kernel_ctx.define_int("C", conf.norm_axis);
     kernel_ctx.define_int("N", conf.across_axis);
     kernel_ctx.define_int("NDIMS", conf.ndims);
