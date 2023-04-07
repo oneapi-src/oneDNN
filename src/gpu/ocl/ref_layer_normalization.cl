@@ -95,10 +95,11 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
         total_sum = sub_group_reduce_add(v_variance);
         v_variance = total_sum / C;
     }
-    float sqrt_variance = sqrt(v_variance + eps);
+    const float rsqrt_variance = rsqrt(v_variance + eps);
+
     int local_id = get_sub_group_local_id();
     for (int c = 0; c < C; c += SUB_GROUP_SIZE) {
-        float sm = (scale ? scale[c + local_id] : 1.0f) / sqrt_variance;
+        float sm = (scale ? scale[c + local_id] : 1.0f) * rsqrt_variance;
         float sv = shift ? shift[c + local_id] : 0.0f;
 
         x[NDIMS - 1] = c + local_id;
@@ -166,9 +167,9 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
         }
         v_variance /= C;
     }
-    ACC_DATA_T sqrt_variance = sqrt(v_variance + eps);
+    ACC_DATA_T rsqrt_variance = rsqrt(v_variance + eps);
     for (int c = 0; c < C; ++c) {
-        ACC_DATA_T sm = (scale ? scale[c] : 1.0f) / sqrt_variance;
+        ACC_DATA_T sm = (scale ? scale[c] : 1.0f) * rsqrt_variance;
         ACC_DATA_T sv = shift ? shift[c] : 0.0f;
 
         x[NDIMS - 1] = c;
@@ -239,7 +240,7 @@ __kernel void ref_lnorm_bwd_scaleshift(__global DATA_T *src,
     for (int n_off = n_start; n_off < n_end; n_off += VECTOR_SIZE_SCALESHIFT) {
         const vector_float mean_vect = vector_load(mean[n_off]);
         const vector_float variance_vect = vector_load(variance[n_off]);
-        const vector_float inv_sqrt_variance = 1.0f / sqrt(variance_vect + eps);
+        const vector_float inv_sqrt_variance = rsqrt(variance_vect + eps);
 #if NDIMS == 2
         const int src_off = SRC_OFF(n_off, c, 0, 0, 0, 0);
         const int dst_off = DST_OFF(n_off, c, 0, 0, 0, 0);
@@ -329,7 +330,7 @@ __kernel void ref_lnorm_bwd_scaleshift(__global DATA_T *src,
                             = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
 
                     const float inv_sqrt_variance
-                            = 1.0f / sqrt(variance[s_off] + eps);
+                            = rsqrt(variance[s_off] + eps);
                     const float dd = DST_TO_REF(diff_dst[dst_off]);
 
                     diff_gamma += (SRC_TO_REF(src[src_off]) - mean[s_off]) * dd
@@ -359,7 +360,7 @@ __kernel void ref_lnorm_bwd(__global DATA_T *src, __global float *mean,
 
     const int s_off = STAT_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
     const float mean_val = mean[s_off];
-    const float inv_sqrt_variance = 1.0f / sqrt(variance[s_off] + eps);
+    const float inv_sqrt_variance = rsqrt(variance[s_off] + eps);
 
     float dd_gamma = 0, dd_gamma_x = 0;
     VECT_FLOAT_T dd_gamma_vect = 0;
@@ -446,7 +447,7 @@ __kernel void ref_lnorm_bwd(__global DATA_T *src, __global float *mean,
     const int s_off = STAT_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
     const ACC_DATA_T mean_val = mean[s_off];
 
-    const ACC_DATA_T inv_sqrt_variance = 1.0f / sqrt(variance[s_off] + eps);
+    const ACC_DATA_T inv_sqrt_variance = rsqrt(variance[s_off] + eps);
     ACC_DATA_T dd_gamma = 0;
     ACC_DATA_T dd_gamma_x = 0;
 
