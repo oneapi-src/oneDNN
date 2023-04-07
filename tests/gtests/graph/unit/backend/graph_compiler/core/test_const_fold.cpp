@@ -129,29 +129,29 @@ TEST(GCCore_const_fold_cpp, TestConstCompute) {
 TEST(GCCore_const_fold_cpp, TestConstFoldRotation) {
     var va = make_expr<var_node>(datatypes::s32, "a");
     var vb = make_expr<var_node>(datatypes::boolean, "b");
-    constant_folder_t f;
+    constant_folder_t f {false};
     ir_comparer cmper(false, true, true);
     expr tmp;
     // c + x => x + c
-    EXPECT_TRUE(cmper.compare(f(2 + va), va + 2));
-    EXPECT_NO_CHANGE(va + 2);
+    EXPECT_TRUE(cmper.compare(f(2 * va), va * 2));
+    EXPECT_NO_CHANGE(va * 2);
     EXPECT_NO_CHANGE(2 - va);
 
     // (x + c1) + c2 => x + (c1 + c2)
-    EXPECT_TRUE(cmper.compare(f((va + 2) + 3), va + 5));
+    EXPECT_TRUE(cmper.compare(f((va * 2) * 3), va * 6));
 
     // (x + c) + y => (x + y) + c
-    EXPECT_TRUE(cmper.compare(f((va + 2) + va), va + va + 2));
+    EXPECT_TRUE(cmper.compare(f((va * 2) * va), va * va * 2));
     EXPECT_NO_CHANGE(va + va + 3);
 
     // x + (y + c) => (x + y) + c
-    EXPECT_TRUE(cmper.compare(f(va + (va + 2)), va + va + 2));
-    EXPECT_NO_CHANGE(va + (va - 2));
+    EXPECT_TRUE(cmper.compare(f(va * (va * 2)), va * va * 2));
+    EXPECT_TRUE(cmper.compare(f(va + (va - 2)), va + va - 2));
     EXPECT_NO_CHANGE(va + va + va);
 
     // (x + c1) + (y + c2) => (x + y) + (c1 + c2)
-    EXPECT_TRUE(cmper.compare(f((va + 4) + (va + 2)), va + va + 6));
-    EXPECT_TRUE(cmper.compare(f((va + 4) + (va - 2)), va + (va - 2) + 4));
+    EXPECT_TRUE(cmper.compare(f((va * 4) * (va * 2)), va * va * 8));
+    EXPECT_TRUE(cmper.compare(f((va + 4) + (va - 2)), va + va + 2));
 }
 
 TEST(GCCore_const_fold_cpp, TestConstFoldSpecialConst) {
@@ -159,7 +159,7 @@ TEST(GCCore_const_fold_cpp, TestConstFoldSpecialConst) {
     var fa = make_expr<var_node>(datatypes::f32, "fa");
     var vb = make_expr<var_node>(datatypes::boolean, "b");
     var vc = make_expr<var_node>(datatypes::boolean, "c");
-    constant_folder_t f;
+    constant_folder_t f {false};
     ir_comparer cmper(false, true, true);
     expr tmp;
 
@@ -191,7 +191,7 @@ TEST(GCCore_const_fold_cpp, TestConstFoldSpecialExpr) {
     var fa = make_expr<var_node>(datatypes::f32, "fa");
     var vb = make_expr<var_node>(datatypes::boolean, "b");
     var vc = make_expr<var_node>(datatypes::boolean, "c");
-    constant_folder_t f;
+    constant_folder_t f {false};
     ir_comparer cmper(false, true, true);
     expr tmp;
     EXPECT_TRUE(cmper.compare(f(va * expr(8UL) / expr(4UL)), va * expr(2UL)));
@@ -223,28 +223,78 @@ TEST(GCCore_const_fold_cpp, TestConstFoldSpecialExpr) {
     EXPECT_TRUE(cmper.compare(f(fa == fa), expr(true)));
 }
 
+TEST(GCCore_const_fold_cpp, TestCanonialize) {
+    var a = make_expr<var_node>(datatypes::s32, "a");
+    var b = make_expr<var_node>(datatypes::s32, "b");
+    var c = make_expr<var_node>(datatypes::s32, "c");
+    var d = make_expr<var_node>(datatypes::index, "d");
+    var e = make_expr<var_node>(datatypes::index, "e");
+    auto tsr = builder::make_tensor("C", {100}, datatypes::f32);
+    constant_folder_t folder {false};
+    // complex add/sub
+    EXPECT_TRUE(folder((2 + a) + ((b + a) - (a + b - 10 - (a - b))))
+                        ->equals(((a - b) + a) + 12));
+    //((a - b) + a) + 12
+
+    // test unchanged
+    expr inp = (b * a) * c;
+    EXPECT_TRUE(folder(inp).ptr_same(inp));
+    // if the order is already sorted, but is not chained to the right
+    EXPECT_TRUE(folder(b * (a * c))->equals(inp));
+
+    // add negative => sub
+    EXPECT_TRUE(folder(10 + (a + 99 - 200))->equals(a - 91));
+    EXPECT_TRUE(folder(UINT64_C(10) + (d + UINT64_C(99) - UINT64_C(200)))
+                        ->equals(d - UINT64_C(91)));
+    EXPECT_TRUE(folder(UINT64_C(10) + (d + UINT64_C(99) - UINT64_C(100)))
+                        ->equals(d + UINT64_C(9)));
+    // add zero
+    EXPECT_TRUE(folder(10 + (a + 190 - 200))->equals(a));
+    EXPECT_TRUE(folder(UINT64_C(10) + (d + UINT64_C(190) - UINT64_C(200)))
+                        ->equals(d));
+
+    // fold to zero
+    EXPECT_TRUE(folder(a + a - a - a + 10 - 10)->equals(0));
+
+    // fold to negative start
+    EXPECT_TRUE(folder(a + b - a - b - a - 10)->equals(0 - a - 10));
+    EXPECT_TRUE(folder(e + d - e - d - e - UINT64_C(190))
+                        ->equals(UINT64_C(0) - e - UINT64_C(190)));
+
+    // in other expr
+    EXPECT_TRUE(folder(tsr[a + 10 - b - a])->equals(tsr[10 - b]));
+
+    // mixed
+    EXPECT_TRUE(folder(a + 10 * (10 + b + c) + 10 + b)
+                        ->equals(((b + a) + ((b + c) * 10)) + 110));
+
+    EXPECT_TRUE(folder(tsr[a + (10 - a)] + tsr[b + (10 - a)])
+                        ->equals(tsr[10] + tsr[((b - a) + 10)]));
+}
+
 TEST(GCCore_const_fold_cpp, TestConstFoldMutiLevel) {
     var a = make_expr<var_node>(datatypes::s32, "a");
-    var b = make_expr<var_node>(datatypes::boolean, "b");
-    EXPECT_TRUE(constant_folder_t()(a + 2 + (a + 4) * 2 + (4 + a * 0))
-                        ->equals(a + (a + 4) * 2 + 6));
-    EXPECT_TRUE(constant_folder_t()((2 + a) + (4 + a) + (6 + a))
+    var b = make_expr<var_node>(datatypes::s32, "b");
+    var c = make_expr<var_node>(datatypes::s32, "c");
+    EXPECT_TRUE(constant_folder_t(false)(a + 2 + (a + 4) * 2 + (4 + a * 0))
+                        ->equals(a + a * 2 + 14));
+    EXPECT_TRUE(constant_folder_t(false)((2 + a) + (4 + a) + (6 + a))
                         ->equals(a + a + a + 12));
-    EXPECT_TRUE(
-            constant_folder_t()(builder::make_max(1, builder::make_max(a, 2)))
-                    ->equals(builder::make_max(a, 2)));
+    EXPECT_TRUE(constant_folder_t(false)(
+            builder::make_max(1, builder::make_max(a, 2)))
+                        ->equals(builder::make_max(a, 2)));
     // special values
-    EXPECT_TRUE(
-            constant_folder_t()((0 + a) + (a - 0) + (a * 1) + (a * 0) + (a / 1))
-                    ->equals(a + a + a + a));
-    EXPECT_TRUE(constant_folder_t()((b && expr(true)) || expr(true))
+    EXPECT_TRUE(constant_folder_t(false)(
+            (0 + a) + (a - 0) + (a * 1) + (a * 0) + (a / 1))
+                        ->equals(a + a + a + a));
+    EXPECT_TRUE(constant_folder_t(false)((b && expr(true)) || expr(true))
                         ->equals(expr(true)));
 
     // special exprs
-    EXPECT_TRUE(constant_folder_t()((a - 12) - (a - 12))->equals(expr(0)));
-    EXPECT_TRUE(constant_folder_t()((b && b) || (b || b))->equals(b));
-    EXPECT_TRUE(constant_folder_t()(a + b - a)->equals(b));
-    EXPECT_TRUE(constant_folder_t()(b + a - a)->equals(b));
+    EXPECT_TRUE(constant_folder_t(false)((a - 12) - (a - 12))->equals(expr(0)));
+    EXPECT_TRUE(constant_folder_t(false)((b && b) || (b || b))->equals(b));
+    EXPECT_TRUE(constant_folder_t(false)(a + c - a)->equals(c));
+    EXPECT_TRUE(constant_folder_t(false)(c + a - a)->equals(c));
 }
 
 static const uint32_t lanes = 4;
@@ -336,7 +386,7 @@ TEST(GCCore_const_fold_cpp, TestConstFoldwithPolynomialExpansion) {
     var va = make_expr<var_node>(datatypes::s32, "a");
     var vb = make_expr<var_node>(datatypes::s32, "b");
     var vd = make_expr<var_node>(datatypes::s32, "d");
-    constant_folder_t f;
+    constant_folder_t f {false};
     ir_comparer cmper(false, true, true);
     expr tmp;
 

@@ -40,21 +40,32 @@ static void merge_attrs(std::unique_ptr<any_map_t> &mergeto,
     }
 }
 
+static void copy_temp_data(const node_base *src, node_base *dst) {
+    if (src->temp_data_) {
+        auto &data = *src->temp_data_;
+        if (!data.vtable()) { return; }
+        if (!data.vtable()->copy_assigner_ && !data.vtable()->copy_ctor_) {
+            return;
+        }
+        dst->temp_data() = data;
+    }
+}
+
 expr copy_attr(const expr_base &ths, expr &&newexpr) {
     if (ths.attr_) { merge_attrs(newexpr->attr_, ths.attr_); }
-    if (ths.temp_data_) { newexpr->temp_data() = *ths.temp_data_; }
+    copy_temp_data(&ths, newexpr.get());
     return std::move(newexpr);
 }
 
 stmt copy_attr(const stmt_base_t &ths, stmt &&newstmt) {
     if (ths.attr_) { merge_attrs(newstmt->attr_, ths.attr_); }
-    if (ths.temp_data_) { newstmt->temp_data() = *ths.temp_data_; }
+    copy_temp_data(&ths, newstmt.get());
     return std::move(newstmt);
 }
 
 func_t copy_attr(const func_base &ths, func_t &&newfunc) {
     if (ths.attr_) { merge_attrs(newfunc->attr_, ths.attr_); }
-    if (ths.temp_data_) { newfunc->temp_data() = *ths.temp_data_; }
+    copy_temp_data(&ths, newfunc.get());
     return std::move(newfunc);
 }
 

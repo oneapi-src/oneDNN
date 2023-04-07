@@ -158,7 +158,7 @@ extern "C" void aaa(void* __stream, int8_t* __restrict__ __module_data, float* _
   for (uint64_t i = 0UL; i < 128UL; i += 1UL) {
     for (uint64_t j = 0UL; j < 128UL; j += 1UL) {
       for (uint64_t k = 0UL; k < 128UL; k += 1UL) {
-        C[((i * 128UL) + j)] = (C[((i * 128UL) + j)] + (A[((i * 128UL) + k)] * B[((k * 128UL) + j)]));
+        C[((i * 128UL) + j)] = (C[((i * 128UL) + j)] + (A[((i * 128UL) + k)] * B[(j + (k * 128UL))]));
       }
     }
   }
@@ -249,7 +249,7 @@ static void aaa(void* __stream, int8_t* __restrict__ __module_data, float* __res
   for (uint64_t i = 0UL; i < 128UL; i += 1UL) {
     for (uint64_t j = 0UL; j < 128UL; j += 1UL) {
       for (uint64_t k = 0UL; k < 128UL; k += 1UL) {
-        C[((i * 128UL) + j)] = (C[((i * 128UL) + j)] + (A[((i * 128UL) + k)] * B[((k * 128UL) + j)]));
+        C[((i * 128UL) + j)] = (C[((i * 128UL) + j)] + (A[((i * 128UL) + k)] * B[(j + (k * 128UL))]));
       }
     }
   }
@@ -405,7 +405,7 @@ static void aaa0_closure_0(void* __stream, int8_t* __restrict__ __module_data, u
   float* E = (float*)sc_thread_aligned_malloc_fptr(__stream, 8000UL);
   for (uint64_t j = 0UL; j < 128UL; j += 1UL) {
     for (uint64_t k = 0UL; k < 128UL; k += 1UL) {
-      C[((i * 128UL) + j)] = ((((C[((i * 128UL) + j)] + D[((i * 10UL) + k)]) + (A[((i * 128UL) + k)] * B[((k * 128UL) + j)])) + (float)len) + v1);
+      C[((i * 128UL) + j)] = ((((C[((i * 128UL) + j)] + D[((i * 10UL) + k)]) + (A[((i * 128UL) + k)] * B[(j + (k * 128UL))])) + (float)len) + v1);
     }
   }
   sc_thread_aligned_free_fptr(__stream, E);
@@ -416,7 +416,7 @@ static void aaa0_closure_0_0wrapper(void* __stream, int8_t* __restrict__ __modul
 }
 
 static void aaa0_closure_1(void* __stream, int8_t* __restrict__ __module_data, uint64_t i_1, float* __restrict__ A, int32_t t) noexcept{
-  A[((i_1 * 128UL) + i_1)] = (float)(i_1 + (uint64_t)t);
+  A[(i_1 + (i_1 * 128UL))] = (float)((uint64_t)t + i_1);
 }
 
 static void aaa0_closure_1_0wrapper(void* __stream, int8_t* __restrict__ __module_data, uint64_t i, generic_val* __restrict__ args) noexcept{

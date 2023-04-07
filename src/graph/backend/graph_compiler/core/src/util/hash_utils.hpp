@@ -32,6 +32,11 @@ template <typename T>
 inline void hash_combine(std::size_t &seed, T const &v) {
     seed ^= std::hash<T>()(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
 }
+
+// a stable hash that does not depend on stl implementation
+inline void hash_combine_stable(std::size_t &seed, std::size_t v) {
+    seed ^= v + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+}
 } // namespace gc
 } // namespace graph
 } // namespace impl

@@ -15,6 +15,9 @@
  *******************************************************************************/
 #include <unordered_map>
 
+#include <algorithm>
+#include <atomic>
+#include <string>
 #include <utility>
 #include <vector>
 #include "../builder.hpp"
@@ -22,11 +25,15 @@
 #include "../visitor.hpp"
 #include "auto_cast.hpp"
 #include "constant_fold.hpp"
+#include <compiler/ir/content_hash.hpp>
 #include <compiler/ir/ir_comparer.hpp>
+#include <compiler/ir/ir_utils.hpp>
 #include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/viewer.hpp>
 #include <unordered_map>
 #include <util/any_map.hpp>
+#include <util/hash_utils.hpp>
+#include <util/optional.hpp>
 #include <util/utils.hpp>
 #include <util/variant.hpp>
 
@@ -174,10 +181,25 @@ private:
     variant<const_range_t, expr_base *> range_or_assignment;
 
 public:
-    constant_fold_analysis_result_t() = default;
-    constant_fold_analysis_result_t(expr_base *v) : range_or_assignment {v} {}
-    constant_fold_analysis_result_t(const const_range_t &v)
-        : range_or_assignment {v} {}
+    optional<size_t> hash;
+    int loop_depth = 0;
+    // the current "run_count" when the analysis result is created. It is used
+    // to avoid reading stale result of previous runs of the pass
+    uint64_t run_idx;
+    bool canonicalized = false;
+    constant_fold_analysis_result_t(const constant_fold_analysis_result_t &)
+            = delete;
+    constant_fold_analysis_result_t(constant_fold_analysis_result_t &&)
+            = default;
+    constant_fold_analysis_result_t(uint64_t run) : run_idx(run) {}
+    constant_fold_analysis_result_t(uint64_t run, expr_base *v)
+        : range_or_assignment {v}, run_idx {run} {}
+    constant_fold_analysis_result_t(uint64_t run, const const_range_t &v)
+        : range_or_assignment {v}, run_idx {run} {}
+
+    constant_fold_analysis_result_t &operator=(
+            constant_fold_analysis_result_t &&other)
+            = default;
     const const_range_t *get_range() const {
         if (range_or_assignment.isa<const_range_t>()) {
             return &range_or_assignment.get<const_range_t>();
@@ -273,9 +295,42 @@ static bool compute_range(const expr_c &parent, const const_range_t *l,
     return false;
 }
 
-static void mark_range_for_const(const expr_c &v, bool fast) {
+static const constant_fold_analysis_result_t *get_analysis(
+        const expr_base *v, uint64_t run) {
+    if (auto ret = v->get_temp_data()
+                           .get_or_null<constant_fold_analysis_result_t>()) {
+        if (ret->run_idx == run) { return ret; }
+    }
+    return nullptr;
+}
+
+static constant_fold_analysis_result_t *get_analysis_for_edit(
+        const expr_base *v, uint64_t run) {
+    auto &temp = v->temp_data();
+    if (temp.isa<constant_fold_analysis_result_t>()) {
+        auto &ret = temp.get<constant_fold_analysis_result_t>();
+        if (ret.run_idx == run) { return &ret; }
+    }
+    temp = constant_fold_analysis_result_t {run};
+    return &temp.get<constant_fold_analysis_result_t>();
+}
+
+static const constant_fold_analysis_result_t *get_analysis(
+        const expr_c &v, uint64_t run) {
+    return get_analysis(v.get(), run);
+}
+
+static const const_range_t *get_range_of_expr(
+        uint64_t run, const expr_c &v, bool fast) {
+    if (fast) { return nullptr; }
+    auto ana = get_analysis(v, run);
+    if (!ana) return nullptr;
+    return ana->get_range();
+}
+
+static void mark_range_for_const(uint64_t run, const expr_c &v, bool fast) {
     if (!fast && v.isa<constant>() && v->dtype_.lanes_ == 1
-            && !v->get_temp_data().isa<constant_fold_analysis_result_t>()) {
+            && !get_range_of_expr(run, v, fast)) {
         auto cate = get_type_category_nothrow(v->dtype_);
         if (cate != CATE_OTHER) {
             // TODO(niuxiaoguang): find out why value_ is empty
@@ -284,25 +339,22 @@ static void mark_range_for_const(const expr_c &v, bool fast) {
             if (v.static_as<constant>()->value_.empty()) { return; }
             auto constv = v.static_as<constant>()->value_.front();
             v->temp_data() = constant_fold_analysis_result_t {
-                    const_range_t {cate, constv, constv}};
+                    run, const_range_t {cate, constv, constv}};
         }
     }
 }
 
-static const const_range_t *get_range_of_expr(const expr_c &v, bool fast) {
-    if (fast) { return nullptr; }
-    auto ana
-            = v->get_temp_data().get_or_null<constant_fold_analysis_result_t>();
-    if (!ana) return nullptr;
-    return ana->get_range();
+static bool is_expr_already_canonicalized(uint64_t run, const expr_c &v) {
+    auto ana = get_analysis(v, run);
+    if (!ana) return false;
+    return ana->canonicalized;
 }
 
-static const expr_base *get_assigned_expr(const expr_base *v) {
-    auto ana
-            = v->get_temp_data().get_or_null<constant_fold_analysis_result_t>();
+static const expr_base *get_assigned_expr(uint64_t run, const expr_base *v) {
+    auto ana = get_analysis(v, run);
     if (!ana) { return v; }
     if (auto single_assign = ana->get_assigned_expr()) {
-        return get_assigned_expr(single_assign);
+        return get_assigned_expr(run, single_assign);
     }
     return v;
 }
@@ -314,7 +366,8 @@ public:
     // the map of var to single assign value. if key=value, it means that this
     // var is not single assign
     std::unordered_map<expr_c, expr> single_assign_;
-
+    uint64_t run_idx_;
+    constant_fold_analysis_t(uint64_t run) : run_idx_(run) {}
     expr_c dispatch(expr_c v) override { return v; }
 
     func_c dispatch(func_c v) override {
@@ -324,9 +377,9 @@ public:
             if (kv.second.defined() && !kv.first.ptr_same(kv.second)) {
                 auto cate = get_type_category_nothrow(kv.first->dtype_);
                 if (cate != CATE_OTHER) {
-                    mark_range_for_const(kv.second, false);
-                    kv.first->temp_data()
-                            = constant_fold_analysis_result_t {kv.second.get()};
+                    mark_range_for_const(run_idx_, kv.second, false);
+                    kv.first->temp_data() = constant_fold_analysis_result_t {
+                            run_idx_, kv.second.get()};
                 }
             }
         }
@@ -695,9 +748,11 @@ std::pair<expr_c, expr_c> get_operand_from_binary(const expr_c &a) {
         auto v = a.static_as<cmp_c>();
         return std::make_pair(v->l_, v->r_);
     }
-    assert(a.instanceof <logic_c>());
-    auto v = a.static_as<logic_c>();
-    return std::make_pair(v->l_, v->r_);
+    if (a.instanceof <logic_c>()) {
+        auto v = a.static_as<logic_c>();
+        return std::make_pair(v->l_, v->r_);
+    }
+    return std::make_pair(expr_c(), expr_c());
 }
 
 bool fold_special_consts(expr_c &orig, expr_c l, const constant_c &r) {
@@ -761,18 +816,311 @@ bool fold_special_consts(expr_c &orig, expr_c l, const constant_c &r) {
     }
     return false;
 }
+
+/*
+ * ==========================================
+ * Canonicalization related general commutative and associative rule:
+ * (for associative operators, a sequence of operators will always chain to
+ * the left, e.g. ((a+b)+c)+d))
+ * (a+b)+(c+d) => ((a+b)+c)+d
+ * a+(b+c) => (a+b)+c
+ * ==========================================
+ * For sub(-) and integers only, transform to add(+)
+ * a-b => a+(-b)
+ * a-(b+c) > a+(-b)+(-c)
+ * a-(b-c) > a+(-b)+c
+ * ==========================================
+ * Fold sub(-) related expr
+ * (-a)+a => 0
+ * a+(-a) => 0
+ * (a+b)+(-b) => a
+ * (a+(-b))+b => a
+ * ==========================================
+ * Sort expressions by hash
+ * sort positions of a,b,c in (a+b)+c and a+b
+ * make sure (-a) and a has the same hash value
+ */
+struct canonicalize_expressions_t : ir_visitor_t {
+    uint64_t run_;
+    const std::unordered_map<expr_c, expr_c> &var_tensor_map_;
+    canonicalize_expressions_t(uint64_t run,
+            const std::unordered_map<expr_c, expr_c> &var_tensor_map)
+        : run_ {run}, var_tensor_map_(var_tensor_map) {}
+    // the operand collected in sequenced expr
+    struct operand_t {
+        expr_c v_;
+        // if the expr is sub(-), this field will be true
+        bool negative_;
+    };
+    size_t simple_hash_string(const std::string &v) {
+        size_t i = 0;
+        for (auto c : v) {
+            i = i * 23 + c;
+        }
+        return i;
+    }
+    size_t simple_hash_expr(const expr_c &v, int *out_loop_depth = nullptr) {
+        auto ana = get_analysis_for_edit(v.get(), run_);
+        if (ana->hash.has_value()) {
+            if (out_loop_depth) { *out_loop_depth = ana->loop_depth; }
+            return ana->hash.get();
+        }
+        size_t ret = 0;
+        if (v.isa<var>()) {
+            ret = simple_hash_string(v.static_as<var>()->name_);
+            hash_combine_stable(ret, v->dtype_);
+        } else if (v.isa<tensor>()) {
+            ret = simple_hash_string(v.static_as<tensor>()->name_);
+            hash_combine_stable(ret, v->dtype_);
+        } else if (v.isa<constant>()) {
+            ret = content_hash_t<constant_c>()(v.static_as<constant_c>());
+        } else {
+            ret = static_cast<size_t>(v->node_type_);
+            int loop_depth = 0;
+            auto ths = this;
+            get_direct_dependency_of_expr(v.remove_const(),
+                    [&loop_depth, &ret, ths](array_ref<expr> args) {
+                        for (auto &v : args) {
+                            hash_combine_stable(ret, ths->simple_hash_expr(v));
+                            loop_depth = std::max(loop_depth,
+                                    get_analysis_for_edit(v.get(), ths->run_)
+                                            ->loop_depth);
+                        }
+                    });
+            ana->loop_depth = loop_depth;
+        }
+        ana->hash = ret;
+        if (out_loop_depth) { *out_loop_depth = ana->loop_depth; }
+        return ret;
+    }
+
+    bool can_be_chained(const expr_c &v, const expr_c &parent) {
+        auto parentop = parent->node_type_;
+        if (parentop == sc_expr_type::sub) { parentop = sc_expr_type::add; }
+        auto vop = v->node_type_;
+        if (vop == sc_expr_type::sub) { vop = sc_expr_type::add; }
+        if (parentop != vop) { return false; }
+        if (parentop == sc_expr_type::intrin_call) {
+            return v.static_as<intrin_call_c>()->type_
+                    == parent.static_as<intrin_call_c>()->type_;
+        }
+        return true;
+    }
+
+    // recursively collect the nested expressions with the same op. We also
+    // consider "+" as the same as "-" and use "negative" flag to preserve
+    // "-"
+    bool collect_chained_operands(const expr_c &v, const expr_c &parent,
+            std::vector<operand_t> &collected, bool negative) {
+        if (can_be_chained(v, parent)) {
+            auto operands = get_operand_from_binary(v);
+            bool changed = collect_chained_operands(
+                    operands.first, parent, collected, negative);
+            bool rhs_negative = negative;
+            if (v->node_type_ == sc_expr_type::sub) {
+                rhs_negative = !rhs_negative;
+            }
+            size_t old_collected = collected.size();
+            changed = changed
+                    | collect_chained_operands(
+                            operands.second, parent, collected, rhs_negative);
+            // if there are more than 1 operand collected on the RHS, we need to
+            // rebuild the IR because it is not in canonicalized form
+            if (old_collected + 1 != collected.size()) { changed = true; }
+            return changed;
+        } else {
+            auto ret = dispatch(v);
+            collected.emplace_back(operand_t {ret, negative});
+            return !ret.ptr_same(v);
+        }
+    }
+
+    expr_c canonicalize(const expr_c &v) {
+        // skip if it is not int scalar
+        auto cate = get_type_category_nothrow(v->dtype_);
+        bool is_int_cate = (cate == CATE_INT || cate == CATE_UINT);
+        if (!is_int_cate) { return ir_visitor_t::dispatch(v); }
+        // skip if already handled
+        if (is_expr_already_canonicalized(run_, v)) { return v; }
+        auto theop = v->node_type_;
+        if (theop == sc_expr_type::sub) { theop = sc_expr_type::add; }
+        std::vector<operand_t> collected;
+        auto changed = collect_chained_operands(v, v, collected, false);
+        auto cmper = [&](const operand_t &ths, const operand_t &other) {
+            bool ths_const = ths.v_.isa<constant>();
+            bool other_const = other.v_.isa<constant>();
+            if (ths_const && other_const) { return false; }
+            if (ths_const) { return false; }
+            if (other_const) { return true; }
+            int loop_depth1 = 0;
+            int loop_depth2 = 0;
+            size_t hash1 = simple_hash_expr(ths.v_, &loop_depth1);
+            size_t hash2 = simple_hash_expr(other.v_, &loop_depth2);
+            if (loop_depth1 != loop_depth2) {
+                // expr with in a deeper loop should be sorted after others
+                return loop_depth1 < loop_depth2;
+            }
+            return hash1 < hash2;
+        };
+        bool need_special_fold = theop == sc_expr_type::add;
+        if (!changed && !need_special_fold
+                && std::is_sorted(collected.begin(), collected.end(), cmper)) {
+            get_analysis_for_edit(v.get(), run_)->canonicalized = true;
+            return v;
+        }
+        auto num_orig_collected = collected.size();
+        std::stable_sort(collected.begin(), collected.end(), cmper);
+        if (need_special_fold) {
+            // fold constants at RHS
+            for (auto itr = collected.begin(); itr != collected.end(); ++itr) {
+                if (itr->v_.isa<constant>()) {
+                    if (cate == CATE_UINT) {
+                        uint64_t cur = itr->v_.static_as<constant_c>()
+                                               ->value_.at(0)
+                                               .u64;
+                        bool negative = itr->negative_;
+                        for (auto itr2 = itr + 1; itr2 != collected.end();
+                                ++itr2) {
+                            COMPILE_ASSERT(itr2->v_.isa<constant>(),
+                                    "Expecting constant after canonicalize");
+                            uint64_t cur2 = itr2->v_.static_as<constant_c>()
+                                                    ->value_.at(0)
+                                                    .u64;
+                            bool negative2 = itr2->negative_;
+                            if (negative == negative2) {
+                                cur += cur2;
+                            } else {
+                                if (cur > cur2) {
+                                    cur -= cur2;
+                                } else {
+                                    negative = negative2;
+                                    cur = cur2 - cur;
+                                }
+                            }
+                        }
+                        itr->negative_ = negative;
+                        itr->v_ = make_expr<constant_node>(cur, v->dtype_);
+                    } else {
+                        int64_t cur = itr->v_.static_as<constant_c>()
+                                              ->value_.at(0)
+                                              .s64;
+                        if (itr->negative_) cur = (-cur);
+                        for (auto itr2 = itr + 1; itr2 != collected.end();
+                                ++itr2) {
+                            COMPILE_ASSERT(itr2->v_.isa<constant>(),
+                                    "Expecting constant after canonicalize");
+                            int64_t cur2 = itr2->v_.static_as<constant_c>()
+                                                   ->value_.at(0)
+                                                   .s64;
+                            if (itr2->negative_) cur2 = (-cur2);
+                            cur += cur2;
+                        }
+                        itr->negative_ = cur < 0;
+                        cur = cur < 0 ? -cur : cur;
+                        itr->v_ = make_expr<constant_node>(cur, v->dtype_);
+                    }
+                    collected.erase(itr + 1, collected.end());
+                    break;
+                }
+            }
+            size_t num_operands = collected.size();
+            // delete pairs like +a,-a
+            for (auto itr = collected.begin(); itr != collected.end(); ++itr) {
+                // already removed, skip
+                if (!itr->v_.defined()) { continue; }
+                auto cur_hash = simple_hash_expr(itr->v_);
+                for (auto itr2 = itr + 1; itr2 != collected.end(); ++itr2) {
+                    // already removed, skip
+                    if (!itr2->v_.defined()) { continue; }
+                    auto cur_hash2 = simple_hash_expr(itr2->v_);
+                    if (cur_hash != cur_hash2) { break; }
+                    if (itr->negative_ == itr2->negative_) { continue; }
+                    // same hash and different negative, we can try to remove
+                    // them
+                    ir_comparer cmper {false, false, true};
+                    if (cmper.compare(itr->v_, itr2->v_)) {
+                        itr->v_ = expr_c();
+                        itr2->v_ = expr_c();
+                        num_operands -= 2;
+                        break;
+                    }
+                }
+            }
+            // all values are destoryed
+            if (num_operands == 0) {
+                return make_expr<constant_node>(UINT64_C(0), v->dtype_);
+            }
+            expr_c cur_expr;
+            // find the first positive value
+            for (auto itr = collected.begin(); itr != collected.end(); ++itr) {
+                // already removed, skip
+                if (!itr->v_.defined()) { continue; }
+                if (!itr->negative_) {
+                    cur_expr = itr->v_;
+                    itr->v_ = expr_c();
+                    break;
+                }
+            }
+            if (!cur_expr.defined()) {
+                cur_expr = make_expr<constant_node>(UINT64_C(0), v->dtype_);
+            }
+            for (auto itr = collected.begin(); itr != collected.end(); ++itr) {
+                // already removed, skip
+                if (!itr->v_.defined()) { continue; }
+                // if is constant zero
+                if (itr->v_.cast<constant_c>()
+                                .filter([](const constant_c &v) {
+                                    return v->value_.at(0).u64 == 0;
+                                })
+                                .has_value()) {
+                    continue;
+                }
+                if (!itr->negative_) {
+                    cur_expr = cur_expr + itr->v_;
+                } else {
+                    cur_expr = cur_expr - itr->v_;
+                }
+            }
+            expr_c retval = cur_expr;
+            if (!changed && num_operands == num_orig_collected) {
+                // if the new expr is the same as the old, return the old expr
+                ir_comparer cmper {false, false, true};
+                if (cmper.compare(v, cur_expr)) { retval = v; }
+            }
+            get_analysis_for_edit(retval.get(), run_)->canonicalized = true;
+            return retval;
+        } else {
+            expr_c cur_expr = collected.begin()->v_;
+            // non-add expr
+            for (auto itr = collected.begin() + 1; itr != collected.end();
+                    ++itr) {
+                cur_expr = builder::remake_binary(cur_expr, itr->v_, v);
+            }
+            get_analysis_for_edit(cur_expr.get(), run_)->canonicalized = true;
+            return cur_expr;
+        }
+    }
+
+    expr_c dispatch(expr_c v) override {
+        if (v.isa<var>() || v.isa<tensor>()) {
+            auto itr = var_tensor_map_.find(v);
+            if (itr != var_tensor_map_.end()) { return itr->second; }
+            return v;
+        }
+        if (v.isa<sub>() || is_op_commutative_and_associative(v)) {
+            return canonicalize(v);
+        }
+        return ir_visitor_t::dispatch(v);
+    }
+};
+
 } // namespace constant_folding
 
 using namespace constant_folding;
 
 /**
- * It will do the following (c as constant, "+" as an example):
- * c1 + c2 => c3
- * c + x => x + c
- * (x + c1) + c2 => x + (c1 + c2)
- * (x + c) + y => (x + y) + c
- * x + (y + c) => (x + y) + c
- * (x + c1) + (y + c2) => (x + y) + (c1 + c2)
+ * It will canonicalize the expressions. And execute the pure constant
+ * expressions like c1 + c2 => c3
  *
  * Also fold special expr:
  * a (+ - * && ||) 0/false
@@ -786,7 +1134,11 @@ public:
     using ir_consistent_visitor_t::visit;
     // a comparer with strict var/tensor comparison
     ir_comparer cmper;
+    uint64_t run_idx_ = get_run_id();
+    int expr_depth_ = 0;
+    int loop_depth_ = 0;
     bool fast_;
+
     constant_fold_t(bool fast) : cmper(false, true, true, false), fast_(fast) {}
 
     bool is_same_op(expr_c &v1, expr_c &v2) {
@@ -797,6 +1149,17 @@ public:
         return true;
     }
 
+    /**
+     * Try to canonicalize the expression. "+" as an example.
+     * x,y,z as general expr, c as const.
+     * Canonicalization related to constants:
+     * (constants are moved to RHS)
+     * c + x => x + c
+     * (x + c1) + c2 => x + (c1 + c2)
+     * (x + c) + y => (x + y) + c
+     * x + (y + c) => (x + y) + c
+     * (x + c1) + (y + c2) => (x + y) + (c1 + c2)
+     */
     // try to rotate by the rotation rule.
     // returns true if rotation succeed
     bool try_rotate_const(expr_c &parent, expr_c &l, expr_c &r) {
@@ -859,17 +1222,6 @@ public:
                     parent = make_expr<constant_node>(0UL, parent->dtype_);
                     return true;
                 }
-                // fold a + b - c ==> b
-                if (lhs.isa<add>()) {
-                    if (cmper.compare(lhs.static_as<add>()->l_, rhs)) {
-                        parent = lhs.static_as<add>()->r_;
-                        return true;
-                    }
-                    if (cmper.compare(lhs.static_as<add>()->r_, rhs)) {
-                        parent = lhs.static_as<add>()->l_;
-                        return true;
-                    }
-                }
                 break;
             case sc_expr_type::mod:
                 if (cmper.compare(lhs, rhs)) {
@@ -884,7 +1236,7 @@ public:
                     int64_t rv1
                             = get_const_as_int(rhs.checked_as<constant_c>());
                     // fold i % C ==> i, if 0 <= i < C
-                    if (auto rng = get_range_of_expr(lhs, fast_)) {
+                    if (auto rng = get_range_of_expr(run_idx_, lhs, fast_)) {
                         int64_t end_r = -1;
                         int64_t start_r = -1;
                         if (rng->cate == CATE_INT) {
@@ -926,6 +1278,20 @@ public:
                             }
                         }
                     }
+                }
+                break;
+            case sc_expr_type::mul:
+                // expand (v+const)*const
+                if (rhs.isa<constant>()
+                        && lhs.cast<add>()
+                                   .filter([](const add &v) {
+                                       return v->r_.isa<constant>();
+                                   })
+                                   .has_value()) {
+                    auto lhs_add = lhs.static_as<add>();
+                    parent = (lhs_add->l_ * rhs)
+                            + fold_binary(lhs_add->r_ * rhs);
+                    return true;
                 }
                 break;
             case sc_expr_type::div:
@@ -1032,7 +1398,7 @@ public:
     expr_c expand_polynomial(expr_c parent) {
         if (parent->dtype_.lanes_ > 1) {
             // todo: handle vector types
-            return false;
+            return parent;
         }
         switch (parent->node_type_) {
             case sc_expr_type::mul:
@@ -1133,46 +1499,56 @@ public:
         if (fold_special_exprs(parent, l, r)) { return parent; }
         if (fold_successive_div(parent, l, r)) { return parent; }
 
-        mark_range_for_const(l, fast_);
-        mark_range_for_const(r, fast_);
-        auto l_range = get_range_of_expr(l, fast_);
-        auto r_range = get_range_of_expr(r, fast_);
-        constant_fold_analysis_result_t new_range;
+        mark_range_for_const(run_idx_, l, fast_);
+        mark_range_for_const(run_idx_, r, fast_);
+        auto l_range = get_range_of_expr(run_idx_, l, fast_);
+        auto r_range = get_range_of_expr(run_idx_, r, fast_);
+        const_range_t rg;
         bool successful_infer = false;
         if (r_range) {
-            const_range_t rg;
             successful_infer = compute_range(parent, l_range, r_range, rg);
             if (successful_infer) {
                 if (rg.is_single_value()) {
                     return make_expr<constant_node>(rg.start, parent->dtype_);
                 }
             }
-            new_range.set_range(rg);
         }
-
         expr_c ret;
         if (!l.ptr_same(lhs) || !r.ptr_same(rhs)) {
             ret = builder::remake_binary(l, r, parent);
         } else {
             ret = parent;
         }
-        if (successful_infer && !get_range_of_expr(ret, fast_)) {
-            ret->temp_data() = new_range;
+        if (successful_infer && !get_range_of_expr(run_idx_, ret, fast_)) {
+            get_analysis_for_edit(ret.get(), run_idx_)->set_range(rg);
         }
         return ret;
     }
 
     // run fold_binary_impl repeatedly on the expr until no changes happen
     expr_c fold_binary(expr_c parent) {
+        expr_depth_++;
         expr_c old = parent;
         auto parent_type = parent->node_type_;
         constexpr int max_iter = 5000;
         int loop_cnt = 0;
         for (;;) {
-            auto l_r = get_operand_from_binary(parent);
-            expr_c ret = fold_binary_impl(parent, l_r.first, l_r.second);
-            bool isT = ret->node_type_ == parent_type;
-            if (ret.ptr_same(old) || !isT) { return ret; }
+            expr_c ret = parent;
+            if (!fast_ && expr_depth_ == 1) {
+                canonicalize_expressions_t canonicalizer {
+                        run_idx_, replace_map_};
+                ret = canonicalizer.dispatch(parent);
+            }
+            auto l_r = get_operand_from_binary(ret);
+            if (!l_r.first.defined() || !l_r.second.defined()) {
+                expr_depth_--;
+                return ret;
+            }
+            ret = fold_binary_impl(ret, l_r.first, l_r.second);
+            if (ret.ptr_same(old)) {
+                expr_depth_--;
+                return ret;
+            }
             parent = ret;
             old = std::move(ret);
             loop_cnt++;
@@ -1186,7 +1562,7 @@ public:
     expr_c fold_range_dispatch(const expr_c &in) {
         auto v = dispatch(in);
         if (v.isa<constant>()) { return v; }
-        if (auto data = get_range_of_expr(v, fast_)) {
+        if (auto data = get_range_of_expr(run_idx_, v, fast_)) {
             if (data->is_single_value()) {
                 return make_expr<constant_node>(data->start, v->dtype_);
             }
@@ -1231,12 +1607,13 @@ public:
         } else {
             ret = v;
         }
-        if (auto ana = get_range_of_expr(in, fast_)) {
+        if (auto ana = get_range_of_expr(run_idx_, in, fast_)) {
             auto cur_cate = get_type_category(v->dtype_);
             if (ana->cate != CATE_FLOAT && cur_cate != CATE_FLOAT
-                    && !get_range_of_expr(ret, fast_)) {
-                ret->temp_data() = constant_fold_analysis_result_t {
-                        const_range_t {cur_cate, ana->start, ana->end}};
+                    && !get_range_of_expr(run_idx_, ret, fast_)) {
+                get_analysis_for_edit(ret.get(), run_idx_)
+                        ->set_range(
+                                const_range_t {cur_cate, ana->start, ana->end});
             }
         }
         return ret;
@@ -1303,61 +1680,69 @@ public:
         auto end = fold_range_dispatch(v->iter_end_);
         auto step = fold_range_dispatch(v->step_);
 
-        mark_range_for_const(begin, fast_);
-        mark_range_for_const(end, fast_);
-        if (step.isa<constant>()) {
-            auto stepc = get_const_as_int(step.static_as<constant_c>());
-            auto begin_r = get_range_of_expr(begin, fast_);
-            auto end_r = get_range_of_expr(end, fast_);
-            if (stepc > 0 && begin_r && end_r) {
-                int64_t max_loop_len = end_r->end.s64 - begin_r->start.s64;
-                int64_t real_loop_len = max_loop_len / stepc * stepc;
-                if (max_loop_len > 0 && real_loop_len > 0) {
-                    var->temp_data() = constant_fold_analysis_result_t {
-                            const_range_t {get_type_category(var->dtype_),
-                                    begin_r->start,
-                                    begin_r->start.s64
-                                            + (real_loop_len - 1) * stepc}};
-                }
-            }
-        }
-
+        mark_range_for_const(run_idx_, begin, fast_);
+        mark_range_for_const(run_idx_, end, fast_);
         int64_t loop_len_hint = -1;
-        if (!fast_ && v->attr_) {
-            loop_len_hint = v->attr_->get_or_else("loop_len_hint", INT64_C(-1));
-        }
-        // try to fold the for range like for(i = A to A+1 step 1) {}
-        if (!fast_ && loop_len_hint == -1) {
-            if (!begin.isa<constant>() && !end.isa<constant>()) {
-                expr_c real_begin
-                        = get_assigned_expr(begin.get())->node_ptr_from_this();
-                expr_c real_end
-                        = get_assigned_expr(end.get())->node_ptr_from_this();
-                auto ths = this;
-                auto try_fold = [ths, &loop_len_hint](const expr_c &beg_v,
-                                        const expr_c &end_v,
-                                        const expr_c &step_v) -> bool {
-                    auto loop_len = ths->fold_range_dispatch(
-                            (end_v - beg_v) / step_v);
-                    if (loop_len.isa<constant>()) {
-                        loop_len_hint = get_expr_as_int(loop_len);
-                        return true;
+        if (!fast_) {
+            if (step.isa<constant>()) {
+                auto stepc = get_const_as_int(step.static_as<constant_c>());
+                auto begin_r = get_range_of_expr(run_idx_, begin, fast_);
+                auto end_r = get_range_of_expr(run_idx_, end, fast_);
+                if (stepc > 0 && begin_r && end_r) {
+                    int64_t max_loop_len = end_r->end.s64 - begin_r->start.s64;
+                    int64_t real_loop_len = max_loop_len / stepc * stepc;
+                    if (max_loop_len > 0 && real_loop_len > 0) {
+                        get_analysis_for_edit(var.get(), run_idx_)
+                                ->set_range(const_range_t {
+                                        get_type_category(var->dtype_),
+                                        begin_r->start,
+                                        begin_r->start.s64
+                                                + (real_loop_len - 1) * stepc});
                     }
-                    return false;
-                };
-                if (try_fold(real_begin, real_end, step)) {
-                    // fall through
-                } else if (!real_end.ptr_same(end)
-                        && try_fold(real_begin, end, step)) {
-                    // fall through
-                } else if (!real_begin.ptr_same(begin)
-                        && try_fold(begin, real_end, step)) {
-                    // fall through
+                }
+            }
+            if (v->attr_) {
+                loop_len_hint
+                        = v->attr_->get_or_else("loop_len_hint", INT64_C(-1));
+            }
+            // try to fold the for range like for(i = A to A+1 step 1) {}
+            if (loop_len_hint == -1) {
+                if (!begin.isa<constant>() && !end.isa<constant>()) {
+                    expr_c real_begin = get_assigned_expr(run_idx_, begin.get())
+                                                ->node_ptr_from_this();
+                    expr_c real_end = get_assigned_expr(run_idx_, end.get())
+                                              ->node_ptr_from_this();
+                    auto ths = this;
+                    auto try_fold = [ths, &loop_len_hint](const expr_c &beg_v,
+                                            const expr_c &end_v,
+                                            const expr_c &step_v) -> bool {
+                        auto loop_len = ths->fold_range_dispatch(
+                                (end_v - beg_v) / step_v);
+                        if (loop_len.isa<constant>()) {
+                            loop_len_hint = get_expr_as_int(loop_len);
+                            return true;
+                        }
+                        return false;
+                    };
+                    if (try_fold(real_begin, real_end, step)) {
+                        // fall through
+                    } else if (!real_end.ptr_same(end)
+                            && try_fold(real_begin, end, step)) {
+                        // fall through
+                    } else if (!real_begin.ptr_same(begin)
+                            && try_fold(begin, real_end, step)) {
+                        // fall through
+                    }
                 }
             }
         }
-
+        loop_depth_++;
+        if (!old_fast) {
+            get_analysis_for_edit(var.get(), run_idx_)->loop_depth
+                    = loop_depth_;
+        }
         auto body = dispatch(v->body_);
+        loop_depth_--;
 
         bool changed = !(var.ptr_same(v->var_) && begin.ptr_same(v->iter_begin_)
                 && end.ptr_same(v->iter_end_) && step.ptr_same(v->step_)
@@ -1411,7 +1796,7 @@ public:
             func_c cur_f = v;
             func_c ret;
             for (;;) {
-                constant_fold_analysis_t ana;
+                constant_fold_analysis_t ana {run_idx_};
                 ana.dispatch(cur_f);
                 // keep the exprs alive to make sure the raw pointers in
                 // analysis result is valid
@@ -1462,7 +1847,8 @@ expr_c constant_folder_t::expand_polynomial(expr_c f, int max_iter) {
         ret = pass.expand_polynomial(old);
         if (ret.ptr_same(old)) { break; }
     }
-    return pass.dispatch(ret);
+    constant_fold_t pass2 {true};
+    return pass2.dispatch(ret);
 }
 
 const_ir_module_ptr constant_folder_t::operator()(const_ir_module_ptr f) {
@@ -1472,7 +1858,7 @@ const_ir_module_ptr constant_folder_t::operator()(const_ir_module_ptr f) {
 
 expr do_cast_and_fold(const expr &in) {
     static auto_caster_t caster;
-    static constant_folder_t folder {false};
+    constant_folder_t folder {true};
     return folder(caster(in)).remove_const();
 }
 

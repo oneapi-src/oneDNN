@@ -139,10 +139,10 @@ for_body5:                                        ; preds = %for_check4
   %18 = add i64 %17, %k_v
   %19 = getelementptr float, float* %A_arg, i64 %18
   %20 = load float, float* %19, align 4, !alias.scope !8, !noalias !9
-  %k_v8 = load i64, i64* %k, align 8
-  %21 = mul i64 %k_v8, 128
-  %j_v9 = load i64, i64* %j, align 8
-  %22 = add i64 %21, %j_v9
+  %j_v8 = load i64, i64* %j, align 8
+  %k_v9 = load i64, i64* %k, align 8
+  %21 = mul i64 %k_v9, 128
+  %22 = add i64 %j_v8, %21
   %23 = getelementptr float, float* %B_arg, i64 %22
   %24 = load float, float* %23, align 4, !alias.scope !10, !noalias !11
   %25 = fmul fast float %20, %24
@@ -370,10 +370,10 @@ for_body2:                                        ; preds = %for_check1
   %16 = add i64 %15, %k_v6
   %17 = getelementptr float, float* %A_arg, i64 %16
   %18 = load float, float* %17, align 4
-  %k_v7 = load i64, i64* %k, align 8
-  %19 = mul i64 %k_v7, 128
-  %j_v8 = load i64, i64* %j, align 8
-  %20 = add i64 %19, %j_v8
+  %j_v7 = load i64, i64* %j, align 8
+  %k_v8 = load i64, i64* %k, align 8
+  %19 = mul i64 %k_v8, 128
+  %20 = add i64 %j_v7, %19
   %21 = getelementptr float, float* %B_arg, i64 %20
   %22 = load float, float* %21, align 4
   %23 = fmul fast float %18, %22
@@ -419,15 +419,15 @@ entry:
   store i64 %i_1_arg, i64* %i_1, align 8
   %t = alloca i32, align 4
   store i32 %t_arg, i32* %t, align 4
-  %i_1_v = load i64, i64* %i_1, align 8
   %t_v = load i32, i32* %t, align 4
   %0 = sext i32 %t_v to i64
-  %1 = add i64 %i_1_v, %0
+  %i_1_v = load i64, i64* %i_1, align 8
+  %1 = add i64 %0, %i_1_v
   %2 = uitofp i64 %1 to float
   %i_1_v1 = load i64, i64* %i_1, align 8
-  %3 = mul i64 %i_1_v1, 128
   %i_1_v2 = load i64, i64* %i_1, align 8
-  %4 = add i64 %3, %i_1_v2
+  %3 = mul i64 %i_1_v2, 128
+  %4 = add i64 %i_1_v1, %3
   %5 = getelementptr float, float* %A_arg, i64 %4
   store float %2, float* %5, align 4
   ret void

@@ -172,6 +172,12 @@ private:
 
 protected:
     using ir_visitor_base_impl_t<false>::dispatch_impl;
+    // gets a unique run id. Multiple calls of get_run_id() will return
+    // different IDs. It is used to mark the age of temp_data on TIR.
+    // Passes/Visitors can call this function once in the constructor, and use
+    // the run_id to compare with the run_id in the temp_data to avoid reading
+    // stale data
+    static uint64_t get_run_id();
 };
 
 /**

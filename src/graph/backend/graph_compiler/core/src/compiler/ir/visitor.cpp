@@ -14,6 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 #include <algorithm>
+#include <atomic>
 #include <iostream>
 #include "builder.hpp"
 #include "sc_expr.hpp"
@@ -601,6 +602,11 @@ bool ir_visitor_t::dispatch_expr_vector(
     return ret;
 }
 
+uint64_t ir_visitor_t::get_run_id() {
+    static std::atomic<uint64_t> id = {0};
+    return id++;
+}
+
 template class ir_visitor_base_impl_t<true>; // instantiation of the template
 template class ir_visitor_base_impl_t<false>; // instantiation of the template
 
@@ -611,7 +617,10 @@ expr_c ir_consistent_visitor_t::dispatch(expr_c e) {
         if (itr != replace_map_.end()) { e = itr->second; }
     }
     expr_c newe = ir_visitor_t::dispatch(e);
-    if (is_var_or_tensor && !newe.ptr_same(e)) { replace_map_[e] = newe; }
+    if (is_var_or_tensor && !newe.ptr_same(e)) {
+        assert(replace_map_.count(e) == 0);
+        replace_map_[e] = newe;
+    }
     return newe;
 }
 
