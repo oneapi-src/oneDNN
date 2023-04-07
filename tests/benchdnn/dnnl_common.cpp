@@ -454,7 +454,7 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
     reset_gpu_profiling();
 
     // Nvidia/AMD don't support profiling.
-    bool use_profiling = !is_nvidia_gpu() && !is_amd_gpu();
+    bool use_profiling = is_gpu() && !is_nvidia_gpu() && !is_amd_gpu();
     bool is_first_loop = true;
     while (true) {
         for (int i = 0; i < cur_batch_times; i++) {
