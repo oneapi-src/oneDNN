@@ -359,3 +359,8 @@ ic64ih56oc256oh56kh1ph0n"primitive-cache_dispatch_shape-2"
 --skip-impl=ref,x64:gemm
 --cfg=u8s8f32 --attr-scales=wei:common:0.025*
 mb2_ic512_oc64_ih7_oh7_kh1_ph0_n"test_wei-scale_computation"
+
+# brgemm convolution for amx: Some shapes with stride results SegFault
+--reset
+--dir=FWD_B --cfg=bf16bf16bf16 --stag=axb --dtag=axb
+mb2_g1_ic256ih9oc324oh3kh3sh3ph1n"brgemm_strided_conv_inp_buffer_size"

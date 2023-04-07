@@ -6,6 +6,7 @@ g1ic17oc17_iw5ow5kw3pw1_n"1d_tail_conv:3x3"
 
 # two dimensional shapes
 g1ic3oc16_ih5oh5kh3ph1_n"2d_conv:1st"
+g1ic3oc17_ih5oh5kh3ph1_n"2d_conv:1st_tail"
 g1ic17oc17_ih5oh5kh1ph0_n"2d_tail_conv:1x1"
 g1ic16oc16_ih5oh5kh3ph1_n"2d_conv:3x3"
 g4ic16oc16_ih5oh5kh3ph1_n"2d_conv:grouped"

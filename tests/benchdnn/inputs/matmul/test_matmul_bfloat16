@@ -85,3 +85,6 @@
 --attr-post-ops=,sum:2+relu+mul:f32:per_oc
 8x2664:2664x256:8x256
 3x4128:4128x128:3x128
+
+# regression
+--batch=harness_matmul_regression_bf16

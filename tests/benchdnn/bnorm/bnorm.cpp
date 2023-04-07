@@ -451,6 +451,12 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
+    // MIOpen cannot handle inplace cases correctly.
+    if (is_amd_gpu() && prb->inplace) {
+        res->state = SKIPPED;
+        return;
+    }
+
     // See `skip_invalid_inplace` for details.
     if (prb->inplace) {
         skip_invalid_inplace(res, prb->dt, prb->dt, prb->tag, prb->tag);
@@ -480,11 +486,12 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     const bool bnorm_single_pass = false;
 #endif
 
-    const bool use_relaxed_validation = is_nvidia_gpu() || bnorm_single_pass;
+    const bool use_relaxed_validation
+            = is_nvidia_gpu() || is_amd_gpu() || bnorm_single_pass;
     if (use_relaxed_validation) {
-        // Nvidia: cuDNN stores unbiased variance which requires rescaling by
-        // `(N - 1) / N`, where `N = MB * Spatial`. Hence, we cannot set the
-        // threshold to 0...
+        // Nvidia (cuDNN) and AMD (MIOpen): store unbiased variance which
+        // requires rescaling by `(N - 1) / N`, where `N = MB * Spatial`.
+        // Hence, we cannot set the threshold to 0...
         // Also mean could be computed using a single pass formula.
         //
         // On Intel GPUs mean and variance could be rounded incorrectly because
