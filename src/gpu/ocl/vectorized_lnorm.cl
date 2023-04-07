@@ -83,17 +83,17 @@ __kernel void vectorized_lnorm_fwd(__global DATA_T *src, __global float *mean,
         CALC_V_STAT(v_variance, v_acc);
         v_variance = sub_group_reduce_add(v_variance) / C;
     }
-    float sqrt_variance = sqrt(v_variance + eps);
+    const float rsqrt_variance = rsqrt(v_variance + eps);
 
     for (int c = 0; c < VLEN_C; c++) {
-        VECT_FLOAT_T sm
+        const VECT_FLOAT_T sm
 #if USE_SCALE
                 = LOAD_VECT_FLOAT(&scale[c * SUB_GROUP_SIZE * VECT_DT_N])
-                / sqrt_variance;
+                * rsqrt_variance;
 #else
-                = 1.0f / sqrt_variance;
+                = rsqrt_variance;
 #endif
-        VECT_FLOAT_T sv
+        const VECT_FLOAT_T sv
 #if USE_SHIFT
                 = LOAD_VECT_FLOAT(&shift[c * SUB_GROUP_SIZE * VECT_DT_N]);
 #else
@@ -147,7 +147,7 @@ __kernel void vectorized_lnorm_bwd_scaleshift(__global DATA_T *src,
     for (int n_off = n_start; n_off < n_end; n_off++) {
         const float mean_vect = mean[n_off];
         const float variance_vect = variance[n_off];
-        const float inv_sqrt_variance = 1.0f / sqrt(variance_vect + eps);
+        const float inv_sqrt_variance = rsqrt(variance_vect + eps);
 #if NDIMS == 2
         const int src_off = SRC_OFF(n_off, c, 0, 0, 0, 0);
         const int dst_off = DST_OFF(n_off, c, 0, 0, 0, 0);
@@ -220,7 +220,7 @@ __kernel void vectorized_lnorm_bwd(__global DATA_T *src, __global float *mean,
 
     const int s_off = STAT_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
     const float mean_val = mean[s_off];
-    const float inv_sqrt_variance = 1.0f / sqrt(variance[s_off] + eps);
+    const float inv_sqrt_variance = rsqrt(variance[s_off] + eps);
 
     float dd_gamma = 0, dd_gamma_x = 0;
     VECT_FLOAT_T dd_gamma_vect = 0;
