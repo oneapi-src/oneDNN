@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,7 +37,8 @@ public:
 
         std::vector<expr_t> new_args = obj.args;
         send_t::arg_mem_buf(new_args) = base;
-        send_t::arg_mem_off(new_args) += off;
+        auto &mem_off = send_t::arg_mem_off(new_args);
+        mem_off += shuffle_t::make_broadcast(off, mem_off.type().elems());
         return obj.func.call(new_args, obj.attr);
     }
 };
