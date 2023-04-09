@@ -198,6 +198,8 @@ enum {
     key_conv_gemm_imtr,
     key_conv_gemm_zp_src_comp,
     key_conv_int_dat_in_acc_dt,
+    key_conv_ncsp_dst,
+    key_conv_ncsp_src,
     key_conv_padded_bias,
     key_conv_permuted_inputs,
     key_conv_permuted_outputs,

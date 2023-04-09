@@ -49,6 +49,7 @@
 #include "cpu/x64/jit_brgemm_conv_bwd.hpp"
 #include "cpu/x64/jit_brgemm_conv_bwd_strided.hpp"
 #include "cpu/x64/jit_brgemm_conv_bwd_w.hpp"
+#include "cpu/x64/jit_ncsp_conv.hpp"
 #include "cpu/x64/jit_sse41_1x1_convolution.hpp"
 #include "cpu/x64/jit_sse41_convolution.hpp"
 #include "cpu/x64/jit_uni_dw_convolution.hpp"
@@ -152,6 +153,7 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             CPU_INSTANCE_AARCH64(brgemm_convolution_fwd_t<sve_256>)
             CPU_INSTANCE_AARCH64(jit_sve_1x1_convolution_fwd_t<f32,f32,f32,sve_256>)
             CPU_INSTANCE_AARCH64(jit_sve_convolution_fwd_t<f32,f32,f32,sve_256>)
+            CPU_INSTANCE_X64(ncsp_convolution_fwd_t)
             CPU_INSTANCE(gemm_convolution_fwd_t)
             CPU_INSTANCE(ref_convolution_fwd_t)
             CPU_INSTANCE(ref_fused_convolution_fwd_t)
@@ -169,6 +171,7 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             CPU_INSTANCE_AVX512(jit_uni_dw_convolution_fwd_t<avx512_core, bf16, f32>)
             CPU_INSTANCE_AVX512(jit_avx512_core_bf16_1x1_convolution_fwd_t<f32>)
             CPU_INSTANCE_AVX512(jit_avx512_core_bf16_convolution_fwd_t)
+            CPU_INSTANCE_X64(ncsp_convolution_fwd_t)
             CPU_INSTANCE_AVX512(gemm_bf16_convolution_fwd_t<f32>)
             CPU_INSTANCE_AVX2(brgemm_1x1_convolution_fwd_t<avx2_vnni_2>)
             CPU_INSTANCE_AVX2(brgemm_convolution_fwd_t<avx2_vnni_2>)
@@ -187,6 +190,7 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             CPU_INSTANCE_AVX512(jit_uni_dw_convolution_fwd_t<avx512_core, bf16, bf16>)
             CPU_INSTANCE_AVX512(jit_avx512_core_bf16_1x1_convolution_fwd_t<bf16>)
             CPU_INSTANCE_AVX512(jit_avx512_core_bf16_convolution_fwd_t)
+            CPU_INSTANCE_X64(ncsp_convolution_fwd_t)
             CPU_INSTANCE_AVX512(gemm_bf16_convolution_fwd_t<bf16>)
             CPU_INSTANCE_AVX2(brgemm_1x1_convolution_fwd_t<avx2_vnni_2>)
             CPU_INSTANCE_AVX2(brgemm_convolution_fwd_t<avx2_vnni_2>)
