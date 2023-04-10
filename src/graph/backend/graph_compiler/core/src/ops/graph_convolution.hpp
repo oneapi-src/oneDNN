@@ -44,8 +44,8 @@ public:
     static sc_dims infer_out_dims(sc_graph_t &owner_graph,
             const sc_dims &input_dims, const sc_dims &filter_dims,
             const sc_dims &pads_begin, const sc_dims &pads_end,
-            const sc_dims &strides, const std::string &data_format,
-            const std::string &filter_format);
+            const sc_dims &strides, const sc_dims &dilations,
+            const std::string &data_format, const std::string &filter_format);
 };
 
 class conv_bwd_data_op_t : public configurable_graph_op_t,

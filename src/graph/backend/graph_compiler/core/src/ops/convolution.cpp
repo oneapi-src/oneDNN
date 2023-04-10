@@ -279,9 +279,9 @@ void conv_fwd_core_op_t::infer_out_tensor_details() {
     auto &pads_end = attrs_.has_key("pads_end")
             ? attrs_.get<sc_dims>("pads_end")
             : attrs_.get<sc_dims>("paddings");
-    auto expected_out_shape
-            = infer_out_dims(get_owner_graph(), indims, weightdims, pads_begin,
-                    pads_end, attrs_.get<sc_dims>("strides"), attrs_);
+    auto expected_out_shape = infer_out_dims(get_owner_graph(), indims,
+            weightdims, pads_begin, pads_end, attrs_.get<sc_dims>("strides"),
+            get_dilations(attrs_), attrs_);
     if (!cur_plain_dims.empty()) {
         COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims()
                         == expected_out_shape,
@@ -294,7 +294,8 @@ void conv_fwd_core_op_t::infer_out_tensor_details() {
 sc_dims conv_fwd_core_op_t::infer_out_dims(sc_graph_t &owner_graph,
         const sc_dims &input_dims, const sc_dims &weight_dims,
         const sc_dims &pads_begin, const sc_dims &pads_end,
-        const sc_dims &stride, const any_map_t &attrs) {
+        const sc_dims &stride, const sc_dims &dilation,
+        const any_map_t &attrs) {
     int ndims = input_dims.size();
     const bool is_1d = (ndims == 3);
     const bool is_3d = (ndims == 5);
@@ -341,14 +342,28 @@ sc_dims conv_fwd_core_op_t::infer_out_dims(sc_graph_t &owner_graph,
                                        : is_1d ? 1
                                                : 2)
                     << "D conv.");
+    COMPILE_ASSERT(is_3d
+                    ? utils::is_one_of(static_cast<int>(dilation.size()), 1, 3)
+                    : is_1d
+                    ? utils::is_one_of(static_cast<int>(dilation.size()), 1, 2)
+                    : utils::is_one_of(static_cast<int>(dilation.size()), 1, 2),
+            "wrong dilation dims, should be 1D or 2D for 2D conv, and 1D or 3D "
+            "for 3D conv, but got "
+                    << dilation.size() << "D for in "
+                    << (is_3d                  ? 3
+                                       : is_1d ? 1
+                                               : 2)
+                    << "D conv.");
     sc_dims pads_begin_dims(ndims - 2, pads_begin[0]);
     if (pads_begin.size() > 1) { pads_begin_dims = pads_begin; }
     sc_dims pads_end_dims(ndims - 2, pads_end[0]);
     if (pads_end.size() > 1) { pads_end_dims = pads_end; }
     sc_dims stride_dims(ndims - 2, stride[0]);
     if (stride.size() > 1) { stride_dims = stride; }
-    auto calc_out_shapes = [](int i, int k, int pb, int pe, int s) {
-        auto r = (i + pb + pe - k) / s + 1;
+    sc_dims dilation_dims(ndims - 2, dilation[0]);
+    if (dilation.size() > 1) { dilation_dims = dilation; }
+    auto calc_out_shapes = [](int i, int k, int pb, int pe, int s, int d) {
+        auto r = (i + pb + pe - d * (k - 1) - 1) / s + 1;
         return r;
     };
     sc_dims out_dims(ndims);
@@ -363,7 +378,7 @@ sc_dims conv_fwd_core_op_t::infer_out_dims(sc_graph_t &owner_graph,
         } else {
             out_dims[i] = calc_out_shapes(input_dims[i], weight_dims[i],
                     pads_begin_dims[i - 2], pads_end_dims[i - 2],
-                    stride_dims[i - 2]);
+                    stride_dims[i - 2], dilation_dims[i - 2]);
         }
     }
     if (is_1d && stride.size() > 1) {
@@ -377,14 +392,17 @@ sc_dims conv_fwd_core_op_t::infer_out_dims(sc_graph_t &owner_graph,
 
 void conv_fwd_core_op_t::infer_auto_pad(sc_graph_t &owner_graph,
         const sc_dims &input_dims, const sc_dims &weight_dims,
-        const sc_dims &stride, any_map_t &attrs, bool is_same_upper) {
+        const sc_dims &stride, const sc_dims &dilation, any_map_t &attrs,
+        bool is_same_upper) {
     int ndims = input_dims.size();
     sc_dims stride_dims(ndims - 2, stride[0]);
     if (stride.size() > 1) { stride_dims = stride; }
+    sc_dims dilation_dims(ndims - 2, dilation[0]);
+    if (dilation.size() > 1) { dilation_dims = dilation; }
     sc_dims pads_begin(ndims - 2, 0);
     sc_dims pads_end(ndims - 2, 0);
-    auto calc_total_padding = [](int i, int k, int o, int s) {
-        return std::max((o - 1) * s + k - i, 0);
+    auto calc_total_padding = [](int i, int k, int o, int s, int d) {
+        return std::max((o - 1) * s + (d * (k - 1) + 1) - i, 0);
     };
     for (int i = 2; i < ndims; ++i) {
         if (is_dynamic_dim(input_dims[i]) || is_dynamic_dim(weight_dims[i])
@@ -396,7 +414,7 @@ void conv_fwd_core_op_t::infer_auto_pad(sc_graph_t &owner_graph,
             sc_dim output_dim
                     = utils::divide_and_ceil(input_dims[i], stride_dims[i - 2]);
             sc_dim total_pad = calc_total_padding(input_dims[i], weight_dims[i],
-                    output_dim, stride_dims[i - 2]);
+                    output_dim, stride_dims[i - 2], dilation_dims[i - 2]);
             if (total_pad % 2 == 0) {
                 pads_begin[i - 2] = pads_end[i - 2] = total_pad / 2;
             } else {
@@ -448,6 +466,7 @@ conv_fwd_core_op_t::conv_fwd_core_op_t(const std::vector<graph_tensor_ptr> &ins,
     auto &weightdims = info_.inputs_[1]->details_.get_plain_dims();
     ndims_ = indims.size();
     auto strides = attrs_.get<sc_dims>("strides");
+    auto dilations = get_dilations(attrs_);
     // processing padding info
     // if auto_pad is set, original pads_begin/pads_end values will be omitted
     // so we directly overwrite attrs_
@@ -459,7 +478,7 @@ conv_fwd_core_op_t::conv_fwd_core_op_t(const std::vector<graph_tensor_ptr> &ins,
         } else if (pad_type == "SAME_UPPER" || pad_type == "SAME_LOWER") {
             // output spatial dims are equal to input spatial dims
             infer_auto_pad(get_owner_graph(), indims, weightdims, strides,
-                    attrs_, pad_type == "SAME_UPPER");
+                    dilations, attrs_, pad_type == "SAME_UPPER");
         }
         attrs_.set<std::string>("auto_pad", "none");
     }
@@ -569,6 +588,7 @@ bool conv_fwd_core_op_t::use_conv1d() {
 
 body_generator_ptr conv_fwd_core_op_t::create_generator() {
     auto &stride = attrs_.get<sc_dims>("strides");
+    auto dilations = get_dilations(attrs_);
     auto &pads_begin = attrs_.has_key("pads_begin")
             ? attrs_.get<sc_dims>("pads_begin")
             : attrs_.get<sc_dims>("paddings");
@@ -581,11 +601,12 @@ body_generator_ptr conv_fwd_core_op_t::create_generator() {
 
     if (use_nested_conv_fwd_generator()) {
         return utils::make_unique<gen_nested_conv_fwd_t>(this, stride,
-                pads_begin, graph::extract_detail_from_tensors(get_inputs()),
+                dilations, pads_begin,
+                graph::extract_detail_from_tensors(get_inputs()),
                 graph::extract_detail_from_tensors(get_outputs()));
     } else {
-        auto ret = utils::make_unique<gen_conv_fwd_t>(this, stride, pads_begin,
-                graph::extract_detail_from_tensors(get_inputs()),
+        auto ret = utils::make_unique<gen_conv_fwd_t>(this, stride, dilations,
+                pads_begin, graph::extract_detail_from_tensors(get_inputs()),
                 graph::extract_detail_from_tensors(get_outputs()));
         if (attrs_.get_or_else("inverse_filter", false)) {
             ret->inverse_filter_ = true;
@@ -640,6 +661,9 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
     const bool is_1d = ndims_ == 3;
     const auto src_dtype = info_.inputs_[0]->details_.dtype_;
     const auto wei_dtype = info_.inputs_[1]->details_.dtype_;
+    auto dilations = get_dilations(attrs_);
+    sc_dims dilation_dims(ndims_ - 2, dilations[0]);
+    if (dilations.size() > 1) { dilation_dims = dilations; }
     auto &pads_begin = attrs_.has_key("pads_begin")
             ? attrs_.get<sc_dims>("pads_begin")
             : attrs_.get<sc_dims>("paddings");
@@ -651,12 +675,16 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
                     "constant", const_kind::not_const);
 
     auto weight_plain_dims = info_.inputs_[1]->details_.get_plain_dims();
+    auto input_plain_dims = info_.inputs_[0]->details_.get_plain_dims();
     bool channel_last_support = false;
     if (!is_1d) {
         auto kh = weight_plain_dims[ndims_ - 2];
         auto kw = weight_plain_dims[ndims_ - 1];
-        channel_last_support
-                = (kh == 1 || kw == 1) || ops::is_amx_dtype(ctx, src_dtype);
+        channel_last_support = (kh == 1 || kw == 1)
+                || (ops::is_amx_dtype(ctx, src_dtype)
+                        && (kh - 1) * dilation_dims[1] + 1
+                                < input_plain_dims[input_plain_dims.size()
+                                        - 2]);
     }
 
     std::string test_format;
@@ -667,8 +695,8 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
             || test_format == "NSC";
     bool force_blocking = test_format == "NCHWc" || test_format == "NCDHWc"
             || test_format == "NCSc";
-    bool use_channel_last
-            = (channel_last_support && !force_blocking) || force_channel_last;
+    bool use_channel_last = (channel_last_support && !force_blocking)
+            || (channel_last_support && force_channel_last);
     // data layout
     if (use_channel_last) {
         in_formats.push_back({is_3d ? sc_data_format_t::NDHWC()
@@ -791,6 +819,10 @@ conv_bwd_data_core_op_t::conv_bwd_data_core_op_t(
     is_1x1_ = std::all_of(weightdims.begin() + 2, weightdims.end(),
             [](int x) { return x == 1; });
     auto strides = attrs_.get<sc_dims>("strides");
+    auto dilations = get_dilations(attrs_);
+    COMPILE_ASSERT(std::all_of(dilations.begin(), dilations.end(),
+                           [](int x) { return x == 1; }),
+            "conv_bwd_data_core does not support dilation > 1 now");
     if (attrs_.has_key("auto_pad")) {
         auto pad_type = attrs_.get<std::string>("auto_pad");
         if (pad_type == "VALID") {
@@ -799,7 +831,8 @@ conv_bwd_data_core_op_t::conv_bwd_data_core_op_t(
         } else if (pad_type == "SAME_UPPER" || pad_type == "SAME_LOWER") {
             // output spatial dims are equal to input spatial dims
             conv_fwd_core_op_t::infer_auto_pad(get_owner_graph(), output_shape,
-                    weightdims, strides, attrs_, pad_type == "SAME_UPPER");
+                    weightdims, strides, dilations, attrs_,
+                    pad_type == "SAME_UPPER");
         }
         attrs_.set<std::string>("auto_pad", "none");
     }
@@ -989,6 +1022,10 @@ conv_bwd_weight_core_op_t::conv_bwd_weight_core_op_t(
             "same datatype");
     ndims_ = in_data_dims.size();
     auto strides = attrs_.get<sc_dims>("strides");
+    auto dilations = get_dilations(attrs_);
+    COMPILE_ASSERT(std::all_of(dilations.begin(), dilations.end(),
+                           [](int x) { return x == 1; }),
+            "conv_bwd_data_core does not support dilation > 1 now");
     if (attrs_.has_key("auto_pad")) {
         auto pad_type = attrs_.get<std::string>("auto_pad");
         if (pad_type == "VALID") {
@@ -997,7 +1034,8 @@ conv_bwd_weight_core_op_t::conv_bwd_weight_core_op_t(
         } else if (pad_type == "SAME_UPPER" || pad_type == "SAME_LOWER") {
             // output spatial dims are equal to input spatial dims
             conv_fwd_core_op_t::infer_auto_pad(get_owner_graph(), in_data_dims,
-                    weight_shape, strides, attrs_, pad_type == "SAME_UPPER");
+                    weight_shape, strides, dilations, attrs_,
+                    pad_type == "SAME_UPPER");
         }
         attrs_.set<std::string>("auto_pad", "none");
     }

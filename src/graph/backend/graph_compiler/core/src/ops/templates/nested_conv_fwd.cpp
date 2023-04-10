@@ -227,7 +227,7 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
 }
 
 gen_nested_conv_fwd_t::gen_nested_conv_fwd_t(sc_op *owner,
-  const sc_dims &stride, const sc_dims &pads_begin,
+  const sc_dims &stride, const sc_dims &dilation, const sc_dims &pads_begin,
   std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs)
   : parent(owner, std::move(ins), std::move(outs)) {
   COMPILE_ASSERT(in_tensors_.size() == 2,
@@ -240,6 +240,7 @@ gen_nested_conv_fwd_t::gen_nested_conv_fwd_t(sc_op *owner,
   auto input_plain_dims = get_input_plain_dims();
   auto weight_plain_dims = get_weight_plain_dims();
   auto out_plain_dims = get_output_plain_dims();
+  if (owner) { attrs_ = owner->attrs_; }
   COMPILE_ASSERT(
     utils::is_one_of(static_cast<int>(input_plain_dims.size()), 3, 4, 5),
     "Wrong input dims, expected to be 3D, 4D or 5D input, but got "
@@ -271,6 +272,11 @@ gen_nested_conv_fwd_t::gen_nested_conv_fwd_t(sc_op *owner,
       : utils::is_one_of(static_cast<int>(stride.size()), 1, 2),
     "Wrong stride dims, should be 1D, 2D or 3D, but got " << stride.size()
                                                           << "D.");
+  COMPILE_ASSERT(is_3d_
+      ? utils::is_one_of(static_cast<int>(dilation.size()), 1, 3)
+      : utils::is_one_of(static_cast<int>(dilation.size()), 1, 2),
+    "Wrong dilation dims, should be 1D, 2D or 3D, but got " << dilation.size()
+                                                            << "D.");
   COMPILE_ASSERT(input_plain_dims[1] == weight_plain_dims[1],
     "expect input_plain_dims[1] == weight_plain_dims[1], but got "
       << input_plain_dims[1] << " vs " << weight_plain_dims[1] << ".");
@@ -290,7 +296,6 @@ gen_nested_conv_fwd_t::gen_nested_conv_fwd_t(sc_op *owner,
   is_1x1_conv_ = (kd_ == 1 && kh_ == 1 && kw_ == 1);
   pd_ = is_3d_ ? pads_begin[0] : 0;
   ph_ = is_1d_ ? 0 : pads_begin[0], pw_ = pads_begin[0];
-  if (owner) { attrs_ = owner->attrs_; }
   if (pads_begin.size() > 1) {
     ph_ = pads_begin[ndims_ - 4];
     pw_ = pads_begin[ndims_ - 3];
@@ -303,12 +308,20 @@ gen_nested_conv_fwd_t::gen_nested_conv_fwd_t(sc_op *owner,
     sw_ = stride[stride_size - 1];
   }
 
+  dd_ = is_3d_ ? dilation[0] : 1;
+  dh_ = is_1d_ ? 1 : dilation[0], dw_ = dilation[0];
+  if (dilation.size() > 1) {
+    auto dilation_size = dilation.size();
+    dh_ = dilation[dilation_size - 2];
+    dw_ = dilation[dilation_size - 1];
+  }
+
   // For non 1x1 conv and AMX platform, spatial blocking instead of row
   // blocking is used, which needs to consider the border carefully, as the
   // cross row boundary (contains padding or not) will generate useless output
   // which have to be skipped before storing.
   actual_os_ = oh_ * ow_;
-  num_elems_skip_per_ow_ = ((kw_ - 1) / sw_) * sh_ + (sh_ - 1) * ow_;
+  num_elems_skip_per_ow_ = ((dw_ * (kw_ - 1)) / sw_) * sh_ + (sh_ - 1) * ow_;
   adj_os_ = std::min(actual_os_ + num_elems_skip_per_ow_ * (oh_ - 1),
     (ih_ + 2 * ph_) * (iw_ + 2 * pw_));
 
@@ -1330,10 +1343,10 @@ void gen_nested_conv_fwd_t::compute_conv_no_padding_os_blocking_nested(
                                       % adj_ow);
                                     std::vector<expr> input_pos
                                       = blocking_input_
-                                      ? std::vector<expr> {n, ic, h * sh_ + r,
-                                        w * sw_ + s, 0}
-                                      : std::vector<expr> {n, h * sh_ + r,
-                                        w * sw_ + s, ic * im_ic_block};
+                                      ? std::vector<expr> {n, ic,
+                                        h * sh_ + dh_ * r, w * sw_ + dw_ * s, 0}
+                                      : std::vector<expr> {n, h * sh_ + dh_ * r,
+                                        w * sw_ + dw_ * s, ic * im_ic_block};
 
                                     A_list[idx] = tensor_ptr(input, input_pos);
                                     B_list[idx] = tensor_ptr(weight,
@@ -1615,11 +1628,13 @@ void gen_nested_conv_fwd_t::compute_conv_no_padding_nested(
                                                 std::vector<expr> input_pos
                                                   = blocking_input_
                                                   ? std::vector<expr> {n, ic,
-                                                    (h + im_h_i) * sh_ + r,
-                                                    w * sw_ + s, 0}
+                                                    (h + im_h_i) * sh_
+                                                      + dh_ * r,
+                                                    w * sw_ + dw_ * s, 0}
                                                   : std::vector<expr> {n,
-                                                    (h + im_h_i) * sh_ + r,
-                                                    w * sw_ + s,
+                                                    (h + im_h_i) * sh_
+                                                      + dh_ * r,
+                                                    w * sw_ + dw_ * s,
                                                     ic * im_ic_block};
 
                                                 A_list[idx] = tensor_ptr(

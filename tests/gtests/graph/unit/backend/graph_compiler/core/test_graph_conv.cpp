@@ -104,6 +104,51 @@ TEST(GCCore_graph_conv_test, TestGraphConvolutionNXCXIO) {
     EXPECT_EQ(ss.str(), expected_graph);
 }
 
+TEST(GCCore_graph_conv_test, TestGraphConvolutionWithDilation) {
+    int N = 64, IC = 16, OC = 64, H = 32, W = 32, R = 3, S = 3, dilation = 2;
+    sc_dims input_dims {N, H, W, IC};
+    sc_dims filter_dims {R, S, IC, OC};
+    sc_dims output_dims {N, H - 2 * dilation, W - 2 * dilation, OC};
+    auto ins0 = graph_tensor::make(
+            input_dims, sc_data_format_t(format_kinds::ABCD));
+    auto ins1 = graph_tensor::make(
+            filter_dims, sc_data_format_t(format_kinds::ABCD));
+    auto ins2 = graph_tensor::make({OC});
+    auto out0 = graph_tensor::make(output_dims);
+
+    std::unordered_map<std::string, any_t> attrs = {{"strides", sc_dims {1, 1}},
+            {"pads_begin", sc_dims {0, 0}}, {"pads_end", sc_dims {0, 0}},
+            {"dilations", sc_dims {dilation, dilation}}};
+
+    sc_graph_t graph;
+    auto in = graph.make_input({ins0, ins1, ins2});
+    auto conv = graph.make(
+            "conv_fwd", in->get_outputs(), {out0}, any_map_t(attrs));
+    auto out = graph.make_output(conv->get_outputs());
+    graph_driver(graph, get_test_ctx());
+    std::stringstream ss;
+    print_graph(graph, ss, true);
+    const char *expected_graph_blocking =
+            R"(graph(v0: f32[64, 32, 32, 16], v1: f32[3, 3, 16, 64], v2: f32[64]) -> [v3: f32[64, 28, 28, 64]] {
+  [v4: f32[1, 1, 1, 1, 64]] = tensor_view(v2)
+  [v5: f32[1, 1, 3, 3, 16, 64]] = tensor_view(v1)
+  [v6: f32[64, 1, 32, 32, 16]] = tensor_view(v0)
+  [v7: f32[64, 1, 28, 28, 64]] = conv_fwd_core_tensor_view_add(v6, v5, v4)
+  [v3: f32[64, 28, 28, 64]] = tensor_view(v7)
+}
+)";
+    const char *expected_graph_plain =
+            R"(graph(v0: f32[64, 32, 32, 16], v1: f32[3, 3, 16, 64], v2: f32[64]) -> [v3: f32[64, 28, 28, 64]] {
+  [v4: f32[1, 1, 1, 64]] = tensor_view(v2)
+  [v5: f32[1, 1, 3, 3, 16, 64]] = tensor_view(v1)
+  [v6: f32[64, 32, 32, 16]] = tensor_view(v0)
+  [v3: f32[64, 28, 28, 64]] = conv_fwd_core_tensor_view_add(v6, v5, v4)
+}
+)";
+    EXPECT_TRUE(ss.str() == expected_graph_plain
+            || ss.str() == expected_graph_blocking);
+}
+
 TEST(GCCore_graph_conv_test, TestGraphConvolutionNXCXIODifferentHW) {
     int N = 64, IC = 16, OC = 64, H = 128, W = 32, R = 1, S = 1;
     sc_dims input_dims {N, H, W, IC};

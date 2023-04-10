@@ -48,7 +48,8 @@ test_buffer<float> alloc_conv_block_array(size_t size, bool rand_non_negative) {
 void compute_conv_block(gc::sc_graph_t &g, std::vector<gc::sc_op_ptr> &args,
         const sc_dims &input_dims,
         const std::vector<sc_dims> &weight_dims_block,
-        const sc_dims &stride_block, const sc_dims &padding_block,
+        const sc_dims &stride_block, const sc_dims &dilations_block,
+        const sc_dims &padding_block,
         const std::vector<std::vector<gc::postop_type>> &post_types_block,
         const std::vector<gc::ops::conv_fwd_config_t> &cfg_ptr,
         test_buffer<float> &sc_output, test_buffer<float> &ref_output,
@@ -243,7 +244,8 @@ void compute_conv_block(gc::sc_graph_t &g, std::vector<gc::sc_op_ptr> &args,
             padding_block.at(0), ref_input.data(), ref_weights.at(0).data(),
             ref_biases.at(0).data(), ref_outputs.at(0).data(),
             bias_block.at(0) ? dir_t::FWD_B : FWD_I, ref_bn_muls.at(0).data(),
-            ref_bn_adds.at(0).data(), bn_relu_block.at(0));
+            ref_bn_adds.at(0).data(), bn_relu_block.at(0), 1, 1, 1, 0, 1, 1,
+            dilations_block.at(0), dilations_block.at(0));
     if (post_types_block.at(0).end()
             != std::find(post_types_block.at(0).begin(),
                     post_types_block.at(0).end(), postop_type::eleadd)) {
@@ -265,7 +267,8 @@ void compute_conv_block(gc::sc_graph_t &g, std::vector<gc::sc_op_ptr> &args,
                 ref_outputs.at(i).data(),
                 bias_block.at(i) ? dir_t::FWD_B : FWD_I,
                 ref_bn_muls.at(i).data(), ref_bn_adds.at(i).data(),
-                bn_relu_block.at(i));
+                bn_relu_block.at(i), 1, 1, 1, 0, 1, 1, dilations_block.at(i),
+                dilations_block.at(i));
         if (post_types_block.at(i).end()
                 != std::find(post_types_block.at(i).begin(),
                         post_types_block.at(i).end(), postop_type::eleadd)) {
@@ -280,4 +283,16 @@ void compute_conv_block(gc::sc_graph_t &g, std::vector<gc::sc_op_ptr> &args,
     ref_output = std::move(ref_outputs.back());
 }
 
+void compute_conv_block(gc::sc_graph_t &g, std::vector<gc::sc_op_ptr> &args,
+        const sc_dims &input_dims,
+        const std::vector<sc_dims> &weight_dims_block,
+        const sc_dims &stride_block, const sc_dims &padding_block,
+        const std::vector<std::vector<gc::postop_type>> &post_types_block,
+        const std::vector<gc::ops::conv_fwd_config_t> &cfg_ptr,
+        test_buffer<float> &sc_output, test_buffer<float> &ref_output,
+        bool rand_non_negative = false) {
+    compute_conv_block(g, args, input_dims, weight_dims_block, stride_block,
+            sc_dims(stride_block.size(), 1), padding_block, post_types_block,
+            cfg_ptr, sc_output, ref_output, rand_non_negative);
+}
 #endif

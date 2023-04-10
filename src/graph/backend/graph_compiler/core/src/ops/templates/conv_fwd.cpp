@@ -258,11 +258,24 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
     cfg.tile_q = -1;
     cfg.tile_p = -1;
   }
-  max_oc_block = std::max(
-    max_oc_block, utils::get_blocks(oc_, 1, ow_ * 2 / dtype_size).back());
+  if (is_1x1_conv_) {
+    max_oc_block = std::max(
+      max_oc_block, utils::get_blocks(oc_, 1, ow_ * 2 / dtype_size).back());
+    cfg.K_block = oc_ % 32 == 0 ? max_oc_block : oc_;
+  } else {
+    // config observation: small oc block could provide a good performance for
+    // conv3x3
+    bool small_oc = oc_ <= 128;
+    if (small_oc) {
+      // config observation: if oc is small enough, directly consuming all oc
+      // would be better
+      cfg.K_block = utils::get_blocks(oc_, 64).front();
+    } else {
+      cfg.K_block = utils::get_blocks(oc_, 32).front();
+    }
+  }
   max_ic_block = std::max(
     max_ic_block, utils::get_blocks(ic_, 1, ow_ * 2 / dtype_size).back());
-  cfg.K_block = oc_ % 32 == 0 ? max_oc_block : oc_;
   cfg.C_block = ic_ % 32 == 0 ? max_ic_block : ic_;
 
   bool has_pad = (pd_ > 0) || (ph_ > 0) || (pw_ > 0);
@@ -330,8 +343,8 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
 }
 
 gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
-  const sc_dims &pads_begin, std::vector<logical_tensor_t> &&ins,
-  std::vector<logical_tensor_t> &&outs)
+  const sc_dims &dilation, const sc_dims &pads_begin,
+  std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs)
   : parent(owner, std::move(ins), std::move(outs)) {
   COMPILE_ASSERT(in_tensors_.size() == 2,
     "Wrong number of inputs, expected to be 2 but got " << in_tensors_.size()
@@ -343,6 +356,7 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
   auto input_plain_dims = get_input_plain_dims();
   auto weight_plain_dims = get_weight_plain_dims();
   auto out_plain_dims = get_output_plain_dims();
+  if (owner) { attrs_ = owner->attrs_; }
   COMPILE_ASSERT(
     utils::is_one_of(static_cast<int>(input_plain_dims.size()), 3, 4, 5),
     "Wrong input dims, expected to be 3D, 4D or 5D input, but got "
@@ -374,6 +388,11 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
       : utils::is_one_of(static_cast<int>(stride.size()), 1, 2),
     "Wrong stride dims, should be 1D, 2D or 3D, but got " << stride.size()
                                                           << "D.");
+  COMPILE_ASSERT(is_3d_
+      ? utils::is_one_of(static_cast<int>(dilation.size()), 1, 3)
+      : utils::is_one_of(static_cast<int>(dilation.size()), 1, 2),
+    "Wrong dilation dims, should be 1D, 2D or 3D, but got " << dilation.size()
+                                                            << "D.");
   COMPILE_ASSERT(input_plain_dims[1] == weight_plain_dims[1],
     "expect input_plain_dims[1] == weight_plain_dims[1], but got "
       << input_plain_dims[1] << " vs " << weight_plain_dims[1] << ".");
@@ -399,7 +418,6 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
 
   auto dtype_block = is_int8 ? 4 : (is_bf16 ? 2 : 1);
   const int num_threads = runtime_config_t::get().get_num_threads();
-  if (owner) { attrs_ = owner->attrs_; }
   default_im_block_ = dtype_block * 64;
   if (ic_ * oc_ < 512 * 512) { default_im_block_ /= 2; }
   if (mb_ == 1 && num_threads == 4) { default_im_block_ = 64; }
@@ -419,12 +437,20 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
     sw_ = stride[stride_size - 1];
   }
 
+  dd_ = is_3d_ ? dilation[0] : 1;
+  dh_ = is_1d_ ? 1 : dilation[0], dw_ = dilation[0];
+  auto dilation_size = dilation.size();
+  if (dilation_size > 1) {
+    dh_ = dilation[dilation_size - 2];
+    dw_ = dilation[dilation_size - 1];
+  }
+
   // For non 1x1 conv and AMX platform, spatial blocking instead of row
   // blocking is used, which needs to consider the border carefully, as the
   // cross row boundary (contains padding or not) will generate useless output
   // which have to be skipped before storing.
   actual_os_ = oh_ * ow_;
-  num_elems_skip_per_ow_ = ((kw_ - 1) / sw_) * sh_ + (sh_ - 1) * ow_;
+  num_elems_skip_per_ow_ = ((dw_ * (kw_ - 1)) / sw_) * sh_ + (sh_ - 1) * ow_;
   adj_os_ = std::min(actual_os_ + num_elems_skip_per_ow_ * (oh_ - 1),
     (ih_ + 2 * ph_) * (iw_ + 2 * pw_));
 
@@ -477,10 +503,12 @@ static inline int get_oc_split_factor(const int mb, const int weight_size,
   const int L2_cache_size, const int K_num_block) {
   int oc_split = 1;
   auto nthreads = runtime_config_t::get().get_num_threads();
-  bool parallel_space_is_enough
-    = (mb % nthreads == 0 || utils::divide_and_ceil(mb, nthreads) > 8);
-  if (weight_size >= L2_cache_size && parallel_space_is_enough) {
-    int expected_split_num = utils::divide_and_ceil(weight_size, L2_cache_size);
+  if (weight_size >= L2_cache_size || nthreads > mb) {
+    // config observation: real time mode will prefer split oc first and
+    // oc_split = nthreads.
+    int expected_split_num
+      = std::max(utils::divide_and_ceil(weight_size, L2_cache_size),
+        utils::divide_and_ceil(nthreads, mb));
     for (auto &factor : utils::get_factors(K_num_block)) {
       if (factor >= expected_split_num) {
         expected_split_num = factor;
@@ -1145,13 +1173,13 @@ void gen_conv_fwd_t::compute_conv3d_no_padding(CONV_ARG_LIST) const {
                       _for_(s, 0, kw_) {
                         std::vector<expr> input_pos = blocking_input_
                           ? std::vector<expr> {n, c_o,
-                            (d_o * config.tile_d + d_i) * sd_ + d,
-                            (p_o * config.tile_p + p_i) * sh_ + r,
-                            q_o * config.tile_q * sw_ + s, 0}
+                            (d_o * config.tile_d + d_i) * sd_ + dd_ * d,
+                            (p_o * config.tile_p + p_i) * sh_ + dh_ * r,
+                            q_o * config.tile_q * sw_ + dw_ * s, 0}
                           : std::vector<expr> {n,
-                            (d_o * config.tile_d + d_i) * sd_ + d,
-                            (p_o * config.tile_p + p_i) * sh_ + r,
-                            q_o * config.tile_q * sw_ + s,
+                            (d_o * config.tile_d + d_i) * sd_ + dd_ * d,
+                            (p_o * config.tile_p + p_i) * sh_ + dh_ * r,
+                            q_o * config.tile_q * sw_ + dw_ * s,
                             c_o * config.C_block};
                         auto idx
                           = c_o * kd_ * kh_ * kw_ + d * kh_ * kw_ + r * kw_ + s;
@@ -1287,9 +1315,9 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
 
   _named_for_(lok, outer_k, 0, oc_split, 1, for_type::PARALLEL) {
     _named_for_(ln, n, 0, mb_expr_, 1) {
-      _named_for_(lk, k_i, 0, K_num_block / oc_split) {
-        expr k_o = outer_k * K_num_block / oc_split + k_i;
-        if (use_os_blocking) {
+      if (use_os_blocking) {
+        _named_for_(lk, k_i, 0, K_num_block / oc_split) {
+          expr k_o = outer_k * K_num_block / oc_split + k_i;
           _named_for_(lp, o_o, 0, os / config.tile_os) {
             _tensor_(A_list, datatypes::pointer, {kh_ * kw_ * C_num_block});
             _tensor_(B_list, datatypes::pointer, {kh_ * kw_ * C_num_block});
@@ -1323,11 +1351,11 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
                   auto idx = c_o * kh_ * kw_ + r * kw_ + s;
                   std::vector<expr> input_pos = blocking_input_
                     ? std::vector<expr> {n, c_o,
-                      ((o_o * config.tile_os) / adj_ow) * sh_ + r,
-                      ((o_o * config.tile_os) % adj_ow) * sw_ + s, 0}
+                      ((o_o * config.tile_os) / adj_ow) * sh_ + dh_ * r,
+                      ((o_o * config.tile_os) % adj_ow) * sw_ + dw_ * s, 0}
                     : std::vector<expr> {n,
-                      ((o_o * config.tile_os) / adj_ow) * sh_ + r,
-                      ((o_o * config.tile_os) % adj_ow) * sw_ + s,
+                      ((o_o * config.tile_os) / adj_ow) * sh_ + dh_ * r,
+                      ((o_o * config.tile_os) % adj_ow) * sw_ + dw_ * s,
                       c_o * config.C_block};
                   A_list[idx] = tensor_ptr(input, input_pos);
                   B_list[idx] = tensor_ptr(weight,
@@ -1391,8 +1419,11 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
                                : slice_range {{n, 1}, {0, oh_}, {0, ow_},
                                  {k_o * config.K_block, config.K_block}})});
           }
-        } else {
-          _named_for_(lp, p_o, 0, oh_ / config.tile_p) {
+        }
+      } else {
+        _named_for_(lp, p_o, 0, oh_ / config.tile_p) {
+          _named_for_(lk, k_i, 0, K_num_block / oc_split) {
+            expr k_o = outer_k * K_num_block / oc_split + k_i;
             _tensor_(A_list, datatypes::pointer, {kh_ * kw_ * C_num_block});
             _tensor_(B_list, datatypes::pointer, {kh_ * kw_ * C_num_block});
             _for_(q_o, 0, ow_ / config.tile_q) {
@@ -1408,11 +1439,12 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
                       auto idx = c_o * kh_ * kw_ + r * kw_ + s;
                       std::vector<expr> input_pos = blocking_input_
                         ? std::vector<expr> {n, c_o,
-                          (p_o * config.tile_p + p_i) * sh_ + r,
-                          q_o * config.tile_q * sw_ + s, 0}
+                          (p_o * config.tile_p + p_i) * sh_ + dh_ * r,
+                          q_o * config.tile_q * sw_ + dw_ * s, 0}
                         : std::vector<expr> {n,
-                          (p_o * config.tile_p + p_i) * sh_ + r,
-                          q_o * config.tile_q * sw_ + s, c_o * config.C_block};
+                          (p_o * config.tile_p + p_i) * sh_ + dw_ * r,
+                          q_o * config.tile_q * sw_ + dw_ * s,
+                          c_o * config.C_block};
 
                       A_list[idx] = tensor_ptr(input, input_pos);
                       B_list[idx] = tensor_ptr(weight,
@@ -1477,11 +1509,26 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
           }
           if (fusion) {
             fusion->create_output_fusion_anchor({tensor_slice(output,
-              blocking_output_ ? slice_range {{n, 1}, {k_o, 1}, {0, oh_},
-                {0, ow_}, {0, config.K_block}}
-                               : slice_range {{n, 1}, {0, oh_}, {0, ow_},
-                                 {k_o * config.K_block, config.K_block}})});
+              blocking_output_
+                ? slice_range {{n, 1},
+                  {outer_k * K_num_block / oc_split, K_num_block / oc_split},
+                  {p_o * config.tile_p, config.tile_p}, {0, ow_},
+                  {0, config.K_block}}
+                : slice_range {{n, 1}, {p_o * config.tile_p, config.tile_p},
+                  {0, ow_},
+                  {outer_k * K_num_block / oc_split * config.K_block,
+                    K_num_block / oc_split * config.K_block}})});
           }
+        }
+        if (fusion) {
+          fusion->create_output_fusion_anchor({tensor_slice(output,
+            blocking_output_
+              ? slice_range {{n, 1},
+                {outer_k * K_num_block / oc_split, K_num_block / oc_split},
+                {0, oh_}, {0, ow_}, {0, config.K_block}}
+              : slice_range {{n, 1}, {0, oh_}, {0, ow_},
+                {outer_k * K_num_block / oc_split * config.K_block,
+                  K_num_block / oc_split * config.K_block}})});
         }
       }
       if (fusion) {
@@ -1537,24 +1584,25 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
               0, (p_o * config.tile_p + p_i) * sh_, W_PADDED - pw_ - 1, 0});
         for (int s = 0; s < kw_; s++) {
           int pad_tmp
-            = (x_threshold_left - (x_start_offset + s * config.C_block))
+            = (x_threshold_left - (x_start_offset + (dw_ * s) * config.C_block))
             / config.C_block;
-          if (((x_start_offset + s * config.C_block) < x_threshold_left)
-            && ((x_start_offset + s * config.C_block
+          if (((x_start_offset + dw_ * s * config.C_block) < x_threshold_left)
+            && ((x_start_offset + dw_ * s * config.C_block
                   + (config.tile_q - 1) * config.C_block * sw_)
               <= x_threshold_right)) {
             int interval = (pad_tmp + sw_ - 1) / sw_;
             int Q_tmp = config.tile_q - interval;
             Q1.insert(Q_tmp);
           } else {
-            if (((x_start_offset + s * config.C_block) >= x_threshold_left)
-              && ((x_start_offset + s * config.C_block
+            if (((x_start_offset + dw_ * s * config.C_block)
+                  >= x_threshold_left)
+              && ((x_start_offset + dw_ * s * config.C_block
                     + (config.tile_q - 1) * config.C_block * sw_)
                 > x_threshold_right)) {
-              int Q_tmp
-                = ((x_threshold_right - (x_start_offset + s * config.C_block))
-                      / config.C_block
-                    + sw_)
+              int Q_tmp = ((x_threshold_right
+                             - (x_start_offset + dw_ * s * config.C_block))
+                              / config.C_block
+                            + sw_)
                 / sw_;
               if (Q_tmp > 0) { Q2.insert(Q_tmp); }
             } else {
@@ -1610,8 +1658,9 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
               _var_(head, datatypes::s32);
               head = -1;
               _for_(s, 0, kw_) {
-                _if_(((x_start_offset + s * config.C_block) >= x_threshold_left)
-                  && ((x_start_offset + s * config.C_block
+                _if_(((x_start_offset + dw_ * s * config.C_block)
+                       >= x_threshold_left)
+                  && ((x_start_offset + dw_ * s * config.C_block
                         + (config.tile_q - 1) * config.C_block * sw_)
                     <= x_threshold_right)) {
                   cnt = cnt + 1;
@@ -1621,14 +1670,14 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                   _var_(pad_tmp, datatypes::s32);
                   _var_(interval, datatypes::s32);
                   _var_(Q_tmp, datatypes::s32);
-                  _if_(
-                    ((x_start_offset + s * config.C_block) < x_threshold_left)
-                    && ((x_start_offset + s * config.C_block
+                  _if_(((x_start_offset + dw_ * s * config.C_block)
+                         < x_threshold_left)
+                    && ((x_start_offset + dw_ * s * config.C_block
                           + (config.tile_q - 1) * config.C_block * sw_)
                       <= x_threshold_right)) {
                     pad_tmp = (x_threshold_left
                                 - (x_start_offset
-                                  + builder::make_cast(datatypes::s32, s)
+                                  + builder::make_cast(datatypes::s32, dw_ * s)
                                     * config.C_block))
                       / config.C_block;
                     interval = (pad_tmp + sw_ - 1) / sw_;
@@ -1637,14 +1686,16 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                       tmp = 0;
                       _for_(r, 0, kh_) {
                         x_tmp_offset = tensor_offset(padded_input_dims,
-                          {0, 0, (p_o * config.tile_p + p_i) * sh_ + r,
-                            q_o * config.tile_q * sw_ + s + interval * sw_, 0});
+                          {0, 0, (p_o * config.tile_p + p_i) * sh_ + dh_ * r,
+                            q_o * config.tile_q * sw_ + dw_ * s
+                              + interval * sw_,
+                            0});
                         _if_(x_tmp_offset >= x_threshold_top
                           && x_tmp_offset < x_threshold_bottom) {
                           A_list[tmp] = tensor_ptr(input,
                             {n, c_o,
-                              (p_o * config.tile_p + p_i) * sh_ + r - ph_,
-                              q_o * config.tile_q * sw_ - pw_ + s
+                              (p_o * config.tile_p + p_i) * sh_ + dh_ * r - ph_,
+                              q_o * config.tile_q * sw_ - pw_ + dw_ * s
                                 + interval * sw_,
                               0});
                           B_list[tmp] = tensor_ptr(weight,
@@ -1680,14 +1731,14 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                     }
                   }
                   _else_ {
-                    _if_(((x_start_offset + s * config.C_block)
+                    _if_(((x_start_offset + dw_ * s * config.C_block)
                            >= x_threshold_left)
-                      && ((x_start_offset + s * config.C_block
+                      && ((x_start_offset + dw_ * s * config.C_block
                             + (config.tile_q - 1) * config.C_block * sw_)
                         > x_threshold_right)) {
                       Q_tmp = ((x_threshold_right
                                  - (x_start_offset
-                                   + builder::make_cast(datatypes::s32, s)
+                                   + builder::make_cast(datatypes::s32, dw_ * s)
                                      * config.C_block))
                                   / config.C_block
                                 + sw_)
@@ -1696,14 +1747,15 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                         tmp = 0;
                         _for_(r, 0, kh_) {
                           x_tmp_offset = tensor_offset(padded_input_dims,
-                            {0, 0, (p_o * config.tile_p + p_i) * sh_ + r,
-                              q_o * config.tile_q * sw_ + s, 0});
+                            {0, 0, (p_o * config.tile_p + p_i) * sh_ + dh_ * r,
+                              q_o * config.tile_q * sw_ + dw_ * s, 0});
                           _if_(x_tmp_offset >= x_threshold_top
                             && x_tmp_offset < x_threshold_bottom) {
                             A_list[tmp] = tensor_ptr(input,
                               {n, c_o,
-                                (p_o * config.tile_p + p_i) * sh_ + r - ph_,
-                                q_o * config.tile_q * sw_ - pw_ + s, 0});
+                                (p_o * config.tile_p + p_i) * sh_ + dh_ * r
+                                  - ph_,
+                                q_o * config.tile_q * sw_ - pw_ + dw_ * s, 0});
                             B_list[tmp] = tensor_ptr(weight,
                               kpack > 1
                                 ? std::vector<expr> {k_o, c_o, r, s, 0, 0, 0}
@@ -1737,10 +1789,11 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                       }
                     }
                     _else_ {
-                      pad_tmp = (x_threshold_left
-                                  - (x_start_offset
-                                    + builder::make_cast(datatypes::s32, s)
-                                      * config.C_block))
+                      pad_tmp
+                        = (x_threshold_left
+                            - (x_start_offset
+                              + builder::make_cast(datatypes::s32, dw_ * s)
+                                * config.C_block))
                         / config.C_block;
                       interval = (pad_tmp + sw_ - 1) / sw_;
                       Q_tmp = (pad_tmp
@@ -1753,15 +1806,17 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                         tmp = 0;
                         _for_(r, 0, kh_) {
                           x_tmp_offset = tensor_offset(padded_input_dims,
-                            {0, 0, (p_o * config.tile_p + p_i) * sh_ + r,
-                              q_o * config.tile_q * sw_ + s + interval * sw_,
+                            {0, 0, (p_o * config.tile_p + p_i) * sh_ + dh_ * r,
+                              q_o * config.tile_q * sw_ + dw_ * s
+                                + interval * sw_,
                               0});
                           _if_(x_tmp_offset >= x_threshold_top
                             && x_tmp_offset < x_threshold_bottom) {
                             A_list[tmp] = tensor_ptr(input,
                               {n, c_o,
-                                (p_o * config.tile_p + p_i) * sh_ + r - ph_,
-                                q_o * config.tile_q * sw_ - pw_ + s
+                                (p_o * config.tile_p + p_i) * sh_ + dh_ * r
+                                  - ph_,
+                                q_o * config.tile_q * sw_ - pw_ + dw_ * s
                                   + interval * sw_,
                                 0});
                             B_list[tmp] = tensor_ptr(weight,
@@ -1803,13 +1858,14 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
                 tmp = 0;
                 _for_(r, 0, kh_) {
                   x_tmp_offset = tensor_offset(padded_input_dims,
-                    {0, 0, (p_o * config.tile_p + p_i) * sh_ + r,
-                      q_o * config.tile_q * sw_ + head, 0});
+                    {0, 0, (p_o * config.tile_p + p_i) * sh_ + dh_ * r,
+                      q_o * config.tile_q * sw_ + dw_ * head, 0});
                   _if_(x_tmp_offset >= x_threshold_top
                     && x_tmp_offset < x_threshold_bottom) {
                     A_list[tmp] = tensor_ptr(input,
-                      {n, c_o, (p_o * config.tile_p + p_i) * sh_ + r - ph_,
-                        q_o * config.tile_q * sw_ - pw_ + head, 0});
+                      {n, c_o,
+                        (p_o * config.tile_p + p_i) * sh_ + dh_ * r - ph_,
+                        q_o * config.tile_q * sw_ - pw_ + dw_ * head, 0});
                     B_list[tmp] = tensor_ptr(weight,
                       kpack > 1 ? std::vector<expr> {k_o, c_o, r, head, 0, 0, 0}
                                 : std::vector<expr> {k_o, c_o, r, head, 0, 0});
@@ -1857,7 +1913,7 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
   const auto dtype_weight = get_weight_dtype();
   const auto dtype_output = get_output_dtype();
   const int num_threads = runtime_config_t::get().get_num_threads();
-  const int src_row_tile_size = (config.tile_q - 1) * sw_ + kw_;
+  const int src_row_tile_size = (config.tile_q - 1) * sw_ + dw_ * (kw_ - 1) + 1;
   typedef enum { LEFT_PAD = 0, BOTH_PAD, RIGHT_PAD } pad_kind;
 
   // some shapes might have less pad than given at the end of current axis
@@ -1871,10 +1927,12 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
   const int y_num_pad_top = utils::divide_and_ceil(ph_, sh_);
   const int y_num_pad_left = utils::divide_and_ceil(pw_, sw_);
   const int y_num_pad_front = is_3d_ ? utils::divide_and_ceil(pd_, sd_) : 0;
-  const int y_num_pad_bottom = get_num_pad_end(ih_padded, kh_, sh_, ph_);
-  const int y_num_pad_right = get_num_pad_end(iw_padded, kw_, sw_, pw_);
+  const int y_num_pad_bottom
+    = get_num_pad_end(ih_padded, dh_ * (kh_ - 1) + 1, sh_, ph_);
+  const int y_num_pad_right
+    = get_num_pad_end(iw_padded, dw_ * (kw_ - 1) + 1, sw_, pw_);
   const int y_num_pad_back
-    = is_3d_ ? get_num_pad_end(id_padded, kd_, sd_, pd_) : 0;
+    = is_3d_ ? get_num_pad_end(id_padded, dd_ * (kd_ - 1) + 1, sd_, pd_) : 0;
 
   const int y_unpad_top = y_num_pad_top;
   const int y_unpad_bottom = oh_ - y_num_pad_bottom - 1;
@@ -1891,8 +1949,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
   bool parallel_space_is_enough = (num_threads == 1
     || (num_threads > 1
       && utils::divide_and_ceil(work_amount, num_threads) >= 4));
-  bool reuse_sub_tensor
-    = sh_ < kh_ && C_num_block == 1 && parallel_space_is_enough;
+  bool reuse_sub_tensor = sh_ < (dh_ * (kh_ - 1) + 1) && C_num_block == 1
+    && parallel_space_is_enough;
   bool use_var_bs = attrs_.get_or_else("use_var_bs", true);
 
   _tensor_(pbuffer, dtype_input, {src_row_tile_size, LDA});
@@ -1984,8 +2042,9 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
 
                     auto update_pad_idx =
                       [](const expr &cur_o, const expr &cur_i, const int ker,
-                        const int pad, const int in, const int unpad_begin,
-                        const int unpad_end, expr::lvalue_proxy_t &num_pad,
+                        const int pad, const int dilation, const int in,
+                        const int unpad_begin, const int unpad_end,
+                        expr::lvalue_proxy_t &num_pad,
                         expr::lvalue_proxy_t &pad_begin_idx,
                         expr::lvalue_proxy_t &pad_end_idx,
                         expr::lvalue_proxy_t &unpad_begin_idx,
@@ -2000,15 +2059,31 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                         _else_ {
                           _if_(cur_o < unpad_begin) {
                             num_pad
-                              = pad - builder::make_cast(datatypes::s32, cur_i);
+                              = (pad - builder::make_cast(datatypes::s32, cur_i)
+                                  - 1)
+                                / dilation
+                              + 1;
+                            expr num_right_pad
+                              = ((builder::make_cast(datatypes::s32, cur_i)
+                                   + (ker - 1) * dilation + 1 - (in + pad))
+                                  - 1)
+                                / dilation
+                              + 1;
                             pad_begin_idx = 0;
                             pad_end_idx = num_pad;
                             unpad_begin_idx = num_pad;
                             unpad_end_idx = ker;
+                            _if_(num_right_pad > 0) {
+                              unpad_end_idx = ker - num_right_pad;
+                            }
                           }
                           _else_ {
-                            num_pad = builder::make_cast(datatypes::s32, cur_i)
-                              + ker - (in + pad);
+                            num_pad
+                              = ((builder::make_cast(datatypes::s32, cur_i)
+                                   + (ker - 1) * dilation + 1 - (in + pad))
+                                  - 1)
+                                / dilation
+                              + 1;
                             pad_begin_idx = ker - num_pad;
                             pad_end_idx = ker;
                             unpad_begin_idx = 0;
@@ -2026,111 +2101,115 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                     auto cur_iw = cur_tile_begin * sw_;
 
                     if (is_3d_) {
-                      update_pad_idx(cur_d, cur_id, kd_, pd_, id_,
+                      update_pad_idx(cur_d, cur_id, kd_, pd_, dd_, id_,
                         y_unpad_front, y_unpad_back, num_d_pad, d_pad_begin_idx,
                         d_pad_end_idx, d_unpad_begin_idx, d_unpad_end_idx);
                     }
-                    update_pad_idx(cur_p, cur_ih, kh_, ph_, ih_, y_unpad_top,
-                      y_unpad_bottom, num_h_pad, h_pad_begin_idx, h_pad_end_idx,
-                      h_unpad_begin_idx, h_unpad_end_idx);
+                    update_pad_idx(cur_p, cur_ih, kh_, ph_, dh_, ih_,
+                      y_unpad_top, y_unpad_bottom, num_h_pad, h_pad_begin_idx,
+                      h_pad_end_idx, h_unpad_begin_idx, h_unpad_end_idx);
 
                     auto zero_out_sub_tensor = [&]() {
                       builtin::brgemm_init(tensor_ptr(output, output_pos),
                         config.tile_q, config.K_block, LDC, dtype_output, 0);
                     };
 
-                    auto process_tile_with_pad =
-                      [&](const expr &d_begin, const expr &d_end,
-                        const expr &h_begin, const expr &h_end,
-                        const expr &left_pad, const expr &right_pad,
-                        const expr &tile_size_exclude_right_pad,
-                        const pad_kind &kind, const expr &sub_tsr_hi = 0,
-                        const bool &update_mode = false) {
-                        _for_(di, d_begin, d_end) {
-                          _for_(hi, h_begin, h_end) {
-                            _var_(sub_tsr_d, datatypes::index);
-                            _var_(sub_tsr_h, datatypes::index);
-                            if (is_3d_) { sub_tsr_d = di - d_begin; }
-                            sub_tsr_h
-                              = update_mode ? sub_tsr_hi : (hi - h_begin);
-                            if (kind == LEFT_PAD || kind == BOTH_PAD) {
-                              builtin::brgemm_init(
-                                tensor_ptr(g_sub_tensor,
-                                  is_3d_
-                                    ? std::vector<expr> {tid, sub_tsr_d,
+                    auto process_tile_with_pad
+                      = [&](const expr &d_begin, const expr &d_end,
+                          const expr &h_begin, const expr &h_end,
+                          const expr &left_pad, const expr &right_pad,
+                          const expr &tile_size_exclude_right_pad,
+                          const pad_kind &kind, const expr &sub_tsr_hi = 0,
+                          const bool &update_mode = false) {
+                          _for_(di, d_begin, d_end) {
+                            _for_(hi, h_begin, h_end) {
+                              _var_(sub_tsr_d, datatypes::index);
+                              _var_(sub_tsr_h, datatypes::index);
+                              if (is_3d_) { sub_tsr_d = di - d_begin; }
+                              sub_tsr_h
+                                = update_mode ? sub_tsr_hi : (hi - h_begin);
+                              if (kind == LEFT_PAD || kind == BOTH_PAD) {
+                                builtin::brgemm_init(
+                                  tensor_ptr(g_sub_tensor,
+                                    is_3d_ ? std::vector<expr> {tid, sub_tsr_d,
                                       sub_tsr_h, 0, 0}
-                                    : std::vector<expr> {tid, sub_tsr_h, 0, 0}),
-                                builder::make_cast(datatypes::s32, left_pad),
-                                config.C_block, LDA, dtype_input, 0);
-                            }
+                                           : std::vector<expr> {tid, sub_tsr_h,
+                                             0, 0}),
+                                  builder::make_cast(datatypes::s32, left_pad),
+                                  config.C_block, LDA, dtype_input, 0);
+                              }
 
-                            // mapping dst to src_padded then mapping to
-                            // original src to copy the origin elements.
-                            _for_(j, left_pad, tile_size_exclude_right_pad) {
-                              _for_(k, 0, config.C_block, (int)lanes) {
-                                if (is_3d_) {
-                                  g_sub_tensor[span_t(
-                                    {tid, sub_tsr_d, sub_tsr_h, j, k}, lanes)]
-                                    = input[blocking_input_
-                                        ? span_t({n, c_o, cur_id + di - pd_,
-                                                   cur_ih + hi - ph_,
-                                                   cur_iw + j - pw_, k},
-                                          lanes)
-                                        : span_t(
-                                          {n, cur_id + di - pd_,
-                                            cur_ih + hi - ph_, cur_iw + j - pw_,
-                                            c_o * config.C_block + k},
-                                          lanes)];
-                                } else {
-                                  g_sub_tensor[span_t(
-                                    {tid, sub_tsr_h, j, k}, lanes)]
-                                    = input[blocking_input_
-                                        ? span_t({n, c_o, cur_ih + hi - ph_,
-                                                   cur_iw + j - pw_, k},
-                                          lanes)
-                                        : span_t({n, cur_ih + hi - ph_,
-                                                   cur_iw + j - pw_,
-                                                   c_o * config.C_block + k},
-                                          lanes)];
+                              // mapping dst to src_padded then mapping to
+                              // original src to copy the origin elements.
+                              _for_(j, left_pad, tile_size_exclude_right_pad) {
+                                _for_(k, 0, config.C_block, (int)lanes) {
+                                  if (is_3d_) {
+                                    g_sub_tensor[span_t(
+                                      {tid, sub_tsr_d, sub_tsr_h, j, k}, lanes)]
+                                      = input[blocking_input_
+                                          ? span_t(
+                                            {n, c_o, cur_id + di * dd_ - pd_,
+                                              cur_ih + hi * dh_ - ph_,
+                                              cur_iw + j - pw_, k},
+                                            lanes)
+                                          : span_t({n, cur_id + di * dd_ - pd_,
+                                                     cur_ih + hi * dh_ - ph_,
+                                                     cur_iw + j - pw_,
+                                                     c_o * config.C_block + k},
+                                            lanes)];
+                                  } else {
+                                    g_sub_tensor[span_t(
+                                      {tid, sub_tsr_h, j, k}, lanes)]
+                                      = input[blocking_input_
+                                          ? span_t(
+                                            {n, c_o, cur_ih + hi * dh_ - ph_,
+                                              cur_iw + j - pw_, k},
+                                            lanes)
+                                          : span_t({n, cur_ih + hi * dh_ - ph_,
+                                                     cur_iw + j - pw_,
+                                                     c_o * config.C_block + k},
+                                            lanes)];
+                                  }
                                 }
                               }
-                            }
 
-                            if (kind == RIGHT_PAD || kind == BOTH_PAD) {
-                              builtin::brgemm_init(
-                                tensor_ptr(g_sub_tensor,
-                                  is_3d_ ? std::vector<expr> {tid, sub_tsr_d,
-                                    sub_tsr_h, tile_size_exclude_right_pad, 0}
-                                         : std::vector<expr> {tid, sub_tsr_h,
-                                           tile_size_exclude_right_pad, 0}),
-                                builder::make_cast(datatypes::s32, right_pad),
-                                config.C_block, LDA, dtype_input, 0);
-                            }
-
-                            _for_(wi, 0, kw_) {
-                              _var_(idx, datatypes::u32);
-                              if (is_3d_) {
-                                auto valid_kh
-                                  = h_unpad_end_idx - h_unpad_begin_idx;
-                                idx = builder::make_cast(datatypes::u32,
-                                  use_var_bs
-                                    ? (sub_tsr_d * valid_kh * kw_
-                                      + sub_tsr_h * kw_ + wi)
-                                    : (di * kh_ * kw_ + hi * kw_ + wi));
-                              } else {
-                                idx = builder::make_cast(datatypes::u32,
-                                  use_var_bs ? (sub_tsr_h * kw_ + wi)
-                                             : (hi * kw_ + wi));
+                              if (kind == RIGHT_PAD || kind == BOTH_PAD) {
+                                builtin::brgemm_init(
+                                  tensor_ptr(g_sub_tensor,
+                                    is_3d_ ? std::vector<expr> {tid, sub_tsr_d,
+                                      sub_tsr_h, tile_size_exclude_right_pad, 0}
+                                           : std::vector<expr> {tid, sub_tsr_h,
+                                             tile_size_exclude_right_pad, 0}),
+                                  builder::make_cast(datatypes::s32, right_pad),
+                                  config.C_block, LDA, dtype_input, 0);
                               }
-                              A_list[idx] = tensor_ptr(g_sub_tensor,
-                                is_3d_
-                                  ? std::vector<expr> {tid, sub_tsr_d,
-                                    sub_tsr_h, wi, 0}
-                                  : std::vector<expr> {tid, sub_tsr_h, wi, 0});
+
+                              _for_(wi, 0, kw_) {
+                                _var_(idx, datatypes::u32);
+                                if (is_3d_) {
+                                  auto valid_kh
+                                    = (h_unpad_end_idx - h_unpad_begin_idx - 1)
+                                      / dh_
+                                    + 1;
+                                  idx = builder::make_cast(datatypes::u32,
+                                    use_var_bs
+                                      ? (sub_tsr_d * valid_kh * kw_
+                                        + sub_tsr_h * kw_ + wi)
+                                      : (di * kh_ * kw_ + hi * kw_ + wi));
+                                } else {
+                                  idx = builder::make_cast(datatypes::u32,
+                                    use_var_bs ? (sub_tsr_h * kw_ + wi)
+                                               : (hi * kw_ + wi));
+                                }
+                                A_list[idx] = tensor_ptr(g_sub_tensor,
+                                  is_3d_ ? std::vector<expr> {tid, sub_tsr_d,
+                                    sub_tsr_h, wi * dw_, 0}
+                                         : std::vector<expr> {
+                                           tid, sub_tsr_h, wi * dw_, 0});
+                              }
                             }
                           }
-                        }
-                      };
+                        };
 
                     auto fill_sub_tensor = [&](const expr &d_unpad_begin = 0,
                                              const expr &d_unpad_end = 1) {
@@ -2289,7 +2368,7 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
 
                     auto generate_var_bs
                       = [](const std::function<void(int, int)> &func, int k,
-                          int o, int s, int p, int i, int valid_kd,
+                          int o, int s, int d, int p, int i, int valid_kd,
                           expr &cur_pos) {
                           int valid_k;
                           auto current_builder = get_current_builder();
@@ -2298,9 +2377,12 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                           stmt else_stmt = current_builder->pop_scope();
                           for (auto pos = 0; pos < o; ++pos) {
                             auto pos_begin = pos * s - p;
-                            auto pos_end = pos_begin + k;
-                            valid_k
-                              = std::min(pos_end, i) - std::max(pos_begin, 0);
+                            valid_k = 0;
+                            auto ker_pos = pos_begin;
+                            for (auto ker = 0; ker < k; ker++) {
+                              if (ker_pos >= 0 && ker_pos < i) { valid_k++; }
+                              ker_pos += d;
+                            }
                             if (valid_k < k && valid_k > 0) {
                               current_builder->push_scope();
                               func(valid_k, valid_kd);
@@ -2315,7 +2397,7 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
 
                     auto do_var_bs_for_2d = [&](const int kd, const int kh) {
                       generate_var_bs(
-                        call_brgemm, kh, oh_, sh_, ph_, ih_, kd, cur_p);
+                        call_brgemm, kh, oh_, sh_, dh_, ph_, ih_, kd, cur_p);
                     };
 
                     if (is_3d_) {
@@ -2369,13 +2451,15 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                                       + (hi - h_unpad_begin_idx) * kw_ + wi)
                                     : (di * kh_ * kw_ + hi * kw_ + wi));
                                 A_list[idx] = tensor_ptr(input,
-                                  blocking_input_
-                                    ? std::vector<expr> {n, c_o,
-                                      cur_id + di - pd_, cur_ih + hi - ph_,
-                                      cur_iw + wi - pw_, 0}
-                                    : std::vector<expr> {n, cur_id + di - pd_,
-                                      cur_ih + hi - ph_, cur_iw + wi - pw_,
-                                      c_o * config.C_block});
+                                  blocking_input_ ? std::vector<expr> {n, c_o,
+                                    cur_id + di * dd_ - pd_,
+                                    cur_ih + hi * dh_ - ph_,
+                                    cur_iw + wi * dw_ - pw_, 0}
+                                                  : std::vector<expr> {n,
+                                                    cur_id + di * dd_ - pd_,
+                                                    cur_ih + hi * dh_ - ph_,
+                                                    cur_iw + wi * dw_ - pw_,
+                                                    c_o * config.C_block});
                               }
                             }
                           }
@@ -2450,8 +2534,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                         if (use_var_bs) {
                           // determine the exact value of var_bs for brgemm
                           // call, Ai & Bi are already fulfilled at this stage.
-                          generate_var_bs(do_var_bs_for_2d, kd_, od_, sd_, pd_,
-                            id_, kh_, cur_d);
+                          generate_var_bs(do_var_bs_for_2d, kd_, od_, sd_, dd_,
+                            pd_, id_, kh_, cur_d);
                         } else {
                           call_brgemm(kh_, kd_);
                         }
@@ -2486,11 +2570,13 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                                     * kw_
                                   + wi);
                               A_list[idx] = tensor_ptr(input,
-                                blocking_input_
-                                  ? std::vector<expr> {n, c_o,
-                                    cur_ih + hi - ph_, cur_iw + wi - pw_, 0}
-                                  : std::vector<expr> {n, cur_ih + hi - ph_,
-                                    cur_iw + wi - pw_, c_o * config.C_block});
+                                blocking_input_ ? std::vector<expr> {n, c_o,
+                                  cur_ih + hi * dh_ - ph_,
+                                  cur_iw + wi * dw_ - pw_, 0}
+                                                : std::vector<expr> {n,
+                                                  cur_ih + hi * dh_ - ph_,
+                                                  cur_iw + wi * dw_ - pw_,
+                                                  c_o * config.C_block});
                             }
                           }
                         }
@@ -2642,6 +2728,13 @@ void gen_conv_fwd_t::schedule_loops(context_ptr ctx,
     if (loop_sched == 0) {
       // default loop order ln->lk->lp->ld,
       // merge ln, lk, lp
+      if (!is_1x1_conv_) {
+        if (is_3d_) {
+          ln->reorder(body, {ln, lk, ld, lp});
+        } else {
+          ln->reorder(body, {ln, lk, lp});
+        }
+      }
       auto outer = ln->fuse(lk);
       outer = outer->fuse(lp);
       if (is_3d_ && ld.defined()) { outer->fuse(ld); }
@@ -2677,7 +2770,7 @@ void gen_conv_fwd_t::schedule_loops(context_ptr ctx,
     } else if (loop_sched == 3) {
       // loop order lk->ln->lp
       // merge lk,ln,lp
-      ln->reorder(body, {lk, ln});
+      ln->reorder(body, {lk, ln, lp});
       auto outer = lk->fuse(ln);
       outer = outer->fuse(lp);
       if (is_3d_ && ld.defined()) { outer = outer->fuse(ld); }
@@ -2810,7 +2903,7 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
   expr input = inputs[op_params_t::in_data];
   expr weight = inputs[op_params_t::in_weight];
   if (use_conv1d) {
-    // no padding/stride 1x1 1d/2d
+    // no padding 1x1 1d/2d
     compute_conv1d(ctx, config, fusion, output, input, weight, loops,
       K_num_block, C_num_block, os, kpack);
   } else if (is_1x1_conv_) {
@@ -2838,7 +2931,9 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
           pack_rows, os_acc_size, os_mask);
       }
     } else {
-      if (ops::is_amx_dtype(ctx, dtype_input) || is_3d_ || inverse_filter_) {
+      if (((ops::is_amx_dtype(ctx, dtype_input) || is_3d_)
+            && (kh_ - 1) * dh_ + 1 < ih_)
+        || inverse_filter_) {
         if (inverse_filter_) {
           SC_INFO << "inverse_filter_ used in conv padding v2.";
         }

@@ -90,8 +90,8 @@ static sc_data_type_t check_and_infer_out_dtype(
 sc_dims conv_fwd_op_t::infer_out_dims(sc_graph_t &owner_graph,
         const sc_dims &input_dims, const sc_dims &filter_dims,
         const sc_dims &pads_begin, const sc_dims &pads_end,
-        const sc_dims &strides, const std::string &data_format,
-        const std::string &filter_format) {
+        const sc_dims &strides, const sc_dims &dilations,
+        const std::string &data_format, const std::string &filter_format) {
     // logic besides conv_fwd_core_op_t::infer_out_dims will not be affected
     // by dynamic shape
     sc_dims input_dims_copy = input_dims;
@@ -103,8 +103,9 @@ sc_dims conv_fwd_op_t::infer_out_dims(sc_graph_t &owner_graph,
     // the conv_fwd_core in get_graph_impl will do the same inferring again
     // which will introduce 2nd set of unknown dim axis
     // needs to add mapping between these 2 set of unknown axis
-    sc_dims output_dims = conv_fwd_core_op_t::infer_out_dims(owner_graph,
-            input_dims_copy, filter_dims_copy, pads_begin, pads_end, strides);
+    sc_dims output_dims
+            = conv_fwd_core_op_t::infer_out_dims(owner_graph, input_dims_copy,
+                    filter_dims_copy, pads_begin, pads_end, strides, dilations);
     if (data_format == "NXC") { permute_shape_NCX2NXC(output_dims); }
     return output_dims;
 }
@@ -125,6 +126,7 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
     auto filter_format
             = attrs_.get_or_else("weights_format", std::string("XIO"));
     auto strides = attrs_.get<sc_dims>("strides");
+    sc_dims dilations = get_dilations(attrs_);
     if (attrs_.has_key("auto_pad")) {
         auto pad_type = attrs_.get<std::string>("auto_pad");
         if (pad_type == "VALID") {
@@ -143,8 +145,8 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
                 permute_shape_XIO2OIX(filter_dims_copy);
             }
             conv_fwd_core_op_t::infer_auto_pad(get_owner_graph(),
-                    input_dims_copy, filter_dims_copy, strides, attrs_,
-                    pad_type == "SAME_UPPER");
+                    input_dims_copy, filter_dims_copy, strides, dilations,
+                    attrs_, pad_type == "SAME_UPPER");
         }
     }
     COMPILE_ASSERT(attrs_.has_key("pads_begin") && attrs_.has_key("pads_end"),
@@ -155,9 +157,9 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
     // we must infer_out_dims even when pad_type is SAME_UPPER or
     // SAME_LOWER, because output shape will be different from inputs shape
     // when stride > 1
-    auto expected_out_shape
-            = infer_out_dims(get_owner_graph(), input_dims, filter_dims,
-                    pads_begin, pads_end, strides, data_format, filter_format);
+    auto expected_out_shape = infer_out_dims(get_owner_graph(), input_dims,
+            filter_dims, pads_begin, pads_end, strides, dilations, data_format,
+            filter_format);
     auto expected_out_dtype
             = check_and_infer_out_dtype(info_.inputs_[0]->details_.dtype_,
                     info_.inputs_[1]->details_.dtype_);
@@ -314,6 +316,11 @@ void conv_bwd_data_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
             || std::all_of(filter_shape.begin(), filter_shape.end() - 2,
                     [](int x) { return x == 3; });
     auto &stride = attrs_.get<sc_dims>("strides");
+    auto dilations = get_dilations(attrs_);
+    COMPILE_ASSERT(std::all_of(dilations.begin(), dilations.end(),
+                           [](int x) { return x == 1; }),
+            "Not support dilation > 1 in conv bwd");
+
     auto &pads_begin = attrs_.has_key("pads_begin")
             ? attrs_.get<sc_dims>("pads_begin")
             : attrs_.get<sc_dims>("paddings");

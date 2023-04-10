@@ -27,6 +27,20 @@ namespace impl {
 namespace graph {
 namespace gc {
 namespace ops {
+
+inline sc_dims get_dilations(const any_map_t &attr) {
+    // In dumped graph, dilation is represented as std::vector<int>
+    // but in onednn graph doc, the type of dilation is s64
+    sc_dims dilations;
+    try {
+        dilations = attr.get_or_else("dilations", sc_dims({1}));
+    } catch (...) {
+        auto dilation_i = attr.get_or_else("dilations", std::vector<int>({1}));
+        dilations = sc_dims(dilation_i.begin(), dilation_i.end());
+    }
+    return dilations;
+}
+
 class SC_INTERNAL_API conv_fwd_core_op_t
     : public tunable_op_t,
       public op_traits::batchwise_shrinkable_t {
@@ -43,10 +57,12 @@ public:
     static sc_dims infer_out_dims(sc_graph_t &owner_graph,
             const sc_dims &input_dims, const sc_dims &weight_dims,
             const sc_dims &pads_begin, const sc_dims &pads_end,
-            const sc_dims &stride, const any_map_t &attrs = {});
+            const sc_dims &stride, const sc_dims &dilation,
+            const any_map_t &attrs = {});
     static void infer_auto_pad(sc_graph_t &owner_graph,
             const sc_dims &input_dims, const sc_dims &weight_dims,
-            const sc_dims &stride, any_map_t &attrs, bool is_same_upper);
+            const sc_dims &stride, const sc_dims &dilation, any_map_t &attrs,
+            bool is_same_upper);
     sc_data_type_t infer_out_dtype(const sc_data_type_t &input_dtype,
             const sc_data_type_t &weight_dtype);
     void check_dtypes(const sc_data_type_t &data_dtype,

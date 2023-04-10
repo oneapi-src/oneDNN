@@ -54,13 +54,16 @@ graph_tensor_ptr make_tensor(const sc_dims &d, sc_data_type_t dtype) {
 
 template <typename src_type, typename wei_type, typename dst_type>
 void check_qconv(conv_fwd_config_t cfg, int N, int K, int C, int H, int W,
-        int R, int S, const sc_dims &stride, const sc_dims &padding,
-        bool fuse_bias = false, bool default_cfg = false,
-        bool force_blocking = false, bool force_channel_last = false) {
+        int R, int S, const sc_dims &stride, const sc_dims &dilations,
+        const sc_dims &padding, bool fuse_bias = false,
+        bool default_cfg = false, bool force_blocking = false,
+        bool force_channel_last = false) {
     int stride_h = stride[0], stride_w = stride[0];
     if (stride.size() == 2) { stride_w = stride[1]; }
     int padding_h = padding[0], padding_w = padding[0];
     if (padding.size() == 2) { padding_w = padding[1]; }
+    int dilation_h = dilations[0], dilation_w = dilations[0];
+    if (dilations.size() == 2) { dilation_w = dilations[1]; }
 
     sc_graph_t g;
 
@@ -70,8 +73,8 @@ void check_qconv(conv_fwd_config_t cfg, int N, int K, int C, int H, int W,
     auto g_weight = g.make_input({make_tensor({K, C, R, S}, wei_dtype)});
     auto g_conv_out = g.make("conv_fwd_core",
             {g_data->get_outputs()[0], g_weight->get_outputs()[0]}, {},
-            {{"strides", stride}, {"paddings", padding},
-                    {"use_nested", false}});
+            {{"strides", stride}, {"paddings", padding}, {"use_nested", false},
+                    {"dilations", dilations}});
     COMPILE_ASSERT(!force_blocking || !force_channel_last,
             "only one of force_blocking and force_channel_last allowed");
     if (force_blocking) {
@@ -138,7 +141,8 @@ void check_qconv(conv_fwd_config_t cfg, int N, int K, int C, int H, int W,
 
     compute_ref_direct_fwd(N, 1, K, C, H, W, P, Q, R, S, stride_h, stride_w,
             padding_h, padding_w, &plain_input[0], &plain_weight[0],
-            &plain_bias[0], &plain_output[0], fuse_bias ? dir_t::FWD_B : FWD_I);
+            &plain_bias[0], &plain_output[0], fuse_bias ? dir_t::FWD_B : FWD_I,
+            nullptr, nullptr, false, 1, 1, 1, 0, 1, 1, dilation_h, dilation_w);
 
     bool correctness = equal(sc_output, plain_output, 1e-3);
     if (!correctness) {
@@ -147,6 +151,16 @@ void check_qconv(conv_fwd_config_t cfg, int N, int K, int C, int H, int W,
         check_sum(sc_output, plain_output);
     }
     EXPECT_TRUE(correctness);
+}
+
+template <typename src_type, typename wei_type, typename dst_type>
+void check_qconv(conv_fwd_config_t cfg, int N, int K, int C, int H, int W,
+        int R, int S, const sc_dims &stride, const sc_dims &padding,
+        bool fuse_bias = false, bool default_cfg = false,
+        bool force_blocking = false, bool force_channel_last = false) {
+    check_qconv<src_type, wei_type, dst_type>(cfg, N, K, C, H, W, R, S, stride,
+            sc_dims {1}, padding, fuse_bias, default_cfg, force_blocking,
+            force_channel_last);
 }
 
 template <typename src_type, typename wei_type, typename dst_type>
@@ -297,6 +311,44 @@ TEST(GCCore_qconv2d_u8s8s32_3x3, multi_os_block_NXC) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(multi_os_block_cfg, 4, 128, 64, 7, 7,
             3, 3, {1, 1}, {0, 0}, false, true, false, true);
+}
+TEST(GCCore_qconv2d, Test_2DConv_3x3_with_dilation_int8) {
+    REQUIRE_AMX();
+    std::vector<std::vector<int>> workload_list = {
+            // prepadding
+            {1, 256, 960, 38, 38, 12, 1, 0}, // deeplabv3_mobilenet
+            {1, 256, 960, 62, 62, 24, 1, 0}, // deeplabv3_mobilenet
+            {1, 256, 960, 86, 86, 36, 1, 0}, // deeplabv3_mobilenet
+            {1, 256, 256, 32, 32, 2, 1, 0}, // deeplabv3_resnet101
+            {1, 256, 256, 36, 36, 4, 1, 0}, // deeplabv3_resnet101
+            {1, 1024, 512, 31, 31, 6, 1, 0}, // ssd300_vgg16
+            // with padding
+            {1, 256, 960, 14, 14, 12, 1, 12}, // deeplabv3_mobilenet
+            {1, 256, 960, 14, 14, 24, 1, 24}, // deeplabv3_mobilenet
+            {1, 256, 960, 14, 14, 36, 1, 36}, // deeplabv3_mobilenet
+            {1, 256, 256, 28, 28, 2, 1, 2}, // deeplabv3_resnet101
+            {1, 256, 256, 28, 28, 4, 1, 4}, // deeplabv3_resnet101
+            {1, 1024, 512, 19, 19, 6, 1, 6}, // ssd300_vgg16
+    }; // N, K, C, H, W, Dilation, Stride, Padding
+    int R = 3, S = 3;
+    for (auto workload : workload_list) {
+        auto N = workload[0];
+        auto K = workload[1];
+        auto C = workload[2];
+        auto H = workload[3];
+        auto W = workload[4];
+        auto dilation = workload[5];
+        auto stride = workload[6];
+        auto padding = workload[7];
+        if (dilation * 2 + 1 > H + 2 * padding) { continue; }
+        check_qconv<uint8_t, int8_t, int32_t>(conv_fwd_config_t(), N, K, C, H,
+                W, R, S, {stride, stride}, {dilation, dilation},
+                {padding, padding}, false, true, false, true);
+        check_qconv<int8_t, int8_t, int32_t>(conv_fwd_config_t(), N, K, C, H, W,
+                R, S, {stride, stride}, {dilation, dilation},
+                {padding, padding}, false, true, false, true);
+    }
+    return;
 }
 
 TEST(GCCore_qconv2d_u8s8s32_1x1, no_padding_1_NCX) {

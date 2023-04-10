@@ -78,8 +78,8 @@ public:
   }
 
   gen_nested_conv_fwd_t(sc_op *owner, const sc_dims &stride,
-    const sc_dims &pads_begin, std::vector<logical_tensor_t> &&ins,
-    std::vector<logical_tensor_t> &&outs);
+    const sc_dims &dilation, const sc_dims &pads_begin,
+    std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs);
 
   float get_gflop() const override;
 
@@ -137,6 +137,7 @@ public:
   int od_ = 0, oh_ = 0, ow_ = 0;
   int sd_ = 0, sh_ = 0, sw_ = 0;
   int pd_ = 0, ph_ = 0, pw_ = 0;
+  int dd_ = 0, dh_ = 0, dw_ = 0;
   int actual_os_ = 0, adj_os_ = 0;
   int num_elems_skip_per_ow_ = 0;
   bool try_os_blocking_ = false;
