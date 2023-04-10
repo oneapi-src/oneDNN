@@ -85,6 +85,8 @@ inline int measure_perf_aggregate(timer::timer_t &t,
     t.reset();
     reset_gpu_profiling();
 
+    // Nvidia/AMD don't support profiling.
+    bool use_profiling = is_gpu() && !is_nvidia_gpu() && !is_amd_gpu();
     bool is_first_loop = true;
     while (true) {
         for_(size_t i = 0; i < sz; i++)
@@ -94,16 +96,20 @@ inline int measure_perf_aggregate(timer::timer_t &t,
         }
         DNN_GRAPH_SAFE(stream.wait(), WARN);
 
-        std::vector<uint64_t> nsecs;
-        std::vector<uint64_t> cycles;
-        get_gpu_profiling_info(nsecs, cycles);
-        reset_gpu_profiling();
+        if (use_profiling) {
+            std::vector<uint64_t> nsecs;
+            std::vector<uint64_t> cycles;
+            get_gpu_profiling_info(nsecs, cycles);
+            reset_gpu_profiling();
 
-        // Profiling should have information to stop the cycle.
-        if (nsecs.empty()) SAFE(FAIL, WARN);
+            // Profiling should have information to stop the cycle.
+            if (nsecs.empty()) SAFE(FAIL, WARN);
 
-        for (size_t i = 0; i < nsecs.size(); i++) {
-            t.stop(1, (int64_t)cycles[i], nsecs[i] / 1e6);
+            for (size_t i = 0; i < nsecs.size(); i++) {
+                t.stop(1, (int64_t)cycles[i], nsecs[i] / 1e6);
+            }
+        } else {
+            t.stamp(cur_batch_times);
         }
 
         if (should_stop(t)) break;
@@ -146,11 +152,15 @@ int measure_perf(timer::timer_t &t, std::vector<perf_function_t> &perf_func_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &inputs_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v) {
     if (has_bench_mode_bit(mode_bit_t::perf)) {
+        // enable GPU profiling, Nvidia/AMD dose not support profiling.
+        bool use_profiling = is_gpu() && !is_nvidia_gpu() && !is_amd_gpu();
+        if (use_profiling) enable_gpu_profiling();
         if (is_cpu() && !is_sycl_engine()) {
             return measure_perf_individual(t, perf_func_v, inputs_v, outputs_v);
         } else {
             return measure_perf_aggregate(t, perf_func_v, inputs_v, outputs_v);
         }
+        if (use_profiling) disable_gpu_profiling();
     } else {
         return OK;
     }

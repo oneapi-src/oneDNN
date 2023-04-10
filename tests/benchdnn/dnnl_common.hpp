@@ -668,6 +668,9 @@ int execute_and_wait(
         dnnl_primitive_t prim, const args_t &args, res_t *res = nullptr);
 
 void reset_gpu_profiling();
+void enable_gpu_profiling();
+void disable_gpu_profiling();
+
 void finalize();
 
 void get_gpu_profiling_info(
