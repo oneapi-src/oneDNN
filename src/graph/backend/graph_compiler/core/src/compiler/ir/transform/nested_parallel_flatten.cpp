@@ -290,9 +290,17 @@ void work() {
                                .has_value()) {
                 // if the statement is a define node and the init value is not
                 // indexing (bypass a LLVM bug)
-                single_thread_body = stmts();
-                new_body->seq_.emplace_back(
-                        dispatch(old_body[i]).remove_const());
+                if (old_body[i].static_as<define>()->init_.defined()) {
+                    single_thread_body = stmts();
+                    new_body->seq_.emplace_back(
+                            dispatch(old_body[i]).remove_const());
+                } else {
+                    // if the def node is a pure definition, lift it to the
+                    // begining of the block and don't break the current
+                    // for-body
+                    new_body->seq_.insert(new_body->seq_.begin(),
+                            dispatch(old_body[i]).remove_const());
+                }
             } else {
                 cannot_parallel_ = true;
                 auto dispatched = dispatch(old_body[i]).remove_const();
