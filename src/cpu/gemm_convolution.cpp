@@ -23,7 +23,9 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "cpu/gemm_convolution.hpp"
+#if DNNL_X64
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -52,8 +54,12 @@ status_t gemm_convolution_fwd_t::execute_forward_nspc(
     auto bia_base = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
     auto dst_base = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
+#if DNNL_X64
     const auto post_ops_binary_rhs_arg_vec
             = x64::binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
+#else
+    const auto post_ops_binary_rhs_arg_vec = std::vector<const void *>();
+#endif
 
     auto scratchpad = ctx.get_scratchpad_grantor();
     const conv_gemm_conf_t &jcp = pd()->jcp_;
@@ -185,8 +191,12 @@ status_t gemm_convolution_fwd_t::execute_forward_ncsp(
 
     auto MB = CTX_IN_BATCH(DNNL_ARG_SRC);
 
+#if DNNL_X64
     const auto post_ops_binary_rhs_arg_vec
             = x64::binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
+#else
+    const auto post_ops_binary_rhs_arg_vec = std::vector<const void *>();
+#endif
 
     auto col = ctx.get_scratchpad_grantor().get<data_t>(key_conv_gemm_col);
 
@@ -339,8 +349,12 @@ status_t gemm_convolution_bwd_data_t::execute_backward_data_nspc(
     auto bia_base = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
     auto diff_src_base = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
+#if DNNL_X64
     const auto post_ops_binary_rhs_arg_vec
             = x64::binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
+#else
+    const auto post_ops_binary_rhs_arg_vec = std::vector<const void *>();
+#endif
 
     auto MB = CTX_IN_BATCH(DNNL_ARG_DIFF_DST);
 
@@ -467,8 +481,12 @@ status_t gemm_convolution_bwd_data_t::execute_backward_data_ncsp(
     auto weights = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
+#if DNNL_X64
     const auto post_ops_binary_rhs_arg_vec
             = x64::binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
+#else
+    const auto post_ops_binary_rhs_arg_vec = std::vector<const void *>();
+#endif
 
     auto MB = CTX_IN_BATCH(DNNL_ARG_DIFF_DST);
 
