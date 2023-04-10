@@ -239,7 +239,7 @@ SC_INTERNAL_API void graph_constant_input_folding(
             }
         }
     });
-    if (!edge_ops.empty()) {
+    if (!edge_ops.empty() && ctx->flags_.const_share_) {
         op_dep_matrix_t dependency {mgr};
         std::vector<size_t> hash_cache(mgr.ops_.size());
         std::vector<void *> existing_data_vec;

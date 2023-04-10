@@ -43,6 +43,7 @@ struct scflags_t {
     int backend_opt_level = 3;
     bool tensor_inplace_ = true;
     bool bf16_fast_trunc_ = false;
+    bool const_share_ = true;
     bool trace_ = false;
     bool dead_write_elimination_ = true;
     int buffer_schedule_ = 3; // 0 off, 1 whole reuse, 2 size first, 3 hot first
