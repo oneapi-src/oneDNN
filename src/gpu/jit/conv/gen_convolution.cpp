@@ -122,26 +122,22 @@ public:
                         }
                         break;
                     case kernel_id_t::pre_reorder: {
-                        auto src_layout
-                                = tensor_cfg.user_layout(info.arg_name(1));
-                        auto dst_layout
-                                = tensor_cfg.compute_layout(info.arg_name(1));
+                        reorder_config_t reorder_cfg(cfg.exec_cfg(),
+                                tensor_cfg.user_layout(info.arg_name(1)),
+                                tensor_cfg.compute_layout(info.arg_name(1)));
                         kernels_.push_back(make_kernel<reorder_kernel_t>(
-                                primitive, engine, cfg.exec_cfg(),
-                                "conv_reorder", info, src_layout, dst_layout,
-                                cfg.is_dpas_or_dpasw_fma(),
+                                primitive, engine, reorder_cfg, "conv_reorder",
+                                info, cfg.is_dpas_or_dpasw_fma(),
                                 grf_mode_t::matches));
                         break;
                     }
                     case kernel_id_t::post_reorder: {
-                        auto src_layout
-                                = tensor_cfg.compute_layout(info.arg_name(0));
-                        auto dst_layout
-                                = tensor_cfg.user_layout(info.arg_name(0));
+                        reorder_config_t reorder_cfg(cfg.exec_cfg(),
+                                tensor_cfg.compute_layout(info.arg_name(0)),
+                                tensor_cfg.user_layout(info.arg_name(0)));
                         kernels_.push_back(make_kernel<reorder_kernel_t>(
-                                primitive, engine, cfg.exec_cfg(),
-                                "conv_reorder", info, src_layout, dst_layout,
-                                cfg.is_dpas_or_dpasw_fma(),
+                                primitive, engine, reorder_cfg, "conv_reorder",
+                                info, cfg.is_dpas_or_dpasw_fma(),
                                 grf_mode_t::matches));
                         break;
                     }
@@ -239,7 +235,6 @@ private:
         for (auto &t : data.tensor_cfg.tensors()) {
             int compute_arg_key = t.arg_key;
             int user_arg_key = t.arg_key;
-            size_t elems = t.compute_layout.elems();
             size_t compute_size = t.compute_layout.size();
             auto compute_buf = make_buffer(t.name);
             auto user_buf = (t.needs_reorder ? make_buffer(t.name + "_user")
@@ -268,9 +263,6 @@ private:
                     reorder_info.register_scratchpad_arg(compute_buf,
                             compute_arg_key,
                             /*is_input=*/false, compute_size);
-                    auto elems_var = var_t::make(type_t::u32(), "elems");
-                    reorder_info.register_internal_arg(
-                            elems_var, uint32_t(elems));
                     reorder_info.set_nd_range(reorder_kernel_t<>::nd_range(
                             cfg.exec_cfg(), t.user_layout, t.compute_layout));
                 }
@@ -282,9 +274,6 @@ private:
                             /*is_input=*/true, compute_size);
                     reorder_info.register_user_arg(user_buf, user_arg_key,
                             /*is_input=*/false);
-                    auto elems_var = var_t::make(type_t::u32(), "elems");
-                    reorder_info.register_internal_arg(
-                            elems_var, uint32_t(elems));
                     reorder_info.set_nd_range(reorder_kernel_t<>::nd_range(
                             cfg.exec_cfg(), t.compute_layout, t.user_layout));
                 }

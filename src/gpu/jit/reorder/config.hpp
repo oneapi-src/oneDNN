@@ -20,10 +20,7 @@
 #include <iostream>
 #include <sstream>
 
-#include "common/memory_desc_wrapper.hpp"
-#include "common/reorder_pd.hpp"
-#include "gpu/jit/ir/hw_config.hpp"
-#include "gpu/jit/ir/tensor.hpp"
+#include "gpu/jit/ir/config.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -31,23 +28,20 @@ namespace gpu {
 namespace jit {
 
 // Parameters for kernel generation.
-struct reorder_config_t {
-    std::string str() const {
+class reorder_config_t : public prim_config_t {
+public:
+    std::string str() const override {
         std::ostringstream ss;
-        ss << src_layout.str() << " -> " << dst_layout.str();
+        ss << src_layout().user().str() << " -> " << dst_layout().user().str();
         return ss.str();
     }
 
-    layout_t src_layout;
-    layout_t dst_layout;
-
-    exec_config_t exec_cfg;
-
-    reorder_config_t(engine_t *engine, const memory_desc_t *src_md,
-            const memory_desc_t *dst_md)
-        : src_layout(memory_desc_wrapper(src_md), /*do_normalize=*/false)
-        , dst_layout(memory_desc_wrapper(dst_md), /*do_normalize=*/false)
-        , exec_cfg(engine) {}
+    reorder_config_t(
+            const exec_config_t &ec, const layout_t &src, const layout_t &dst) {
+        src_layout().set_user(src);
+        dst_layout().set_user(dst);
+        set_exec_cfg(ec);
+    }
 };
 
 } // namespace jit

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/jit/conv/normalization.hpp"
+#include "gpu/jit/ir/normalization.hpp"
 #include "gpu/jit/ir/tensor.hpp"
 
 namespace dnnl {

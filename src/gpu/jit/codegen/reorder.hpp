@@ -191,6 +191,7 @@ bool try_emit_batched_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         host->emov(mod, dst, src);
     };
 
+    const auto dst_off = dst.byte_offset();
     for (int i = 0; i < width; i += batch) {
         int i_beg = i;
         int i_end = std::min(width, i + batch);
@@ -200,7 +201,7 @@ bool try_emit_batched_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             esize = utils::rnd_down_pow2(esize);
 
             auto s = src.subregister(ii, esize, src_type_size);
-            auto t = tmp.subregister((ii - i_beg) * 4, small_type)(4);
+            auto t = tmp.subregister(dst_off + (ii - i_beg) * 4, small_type)(4);
             ngen::InstructionModifier mod = esize;
             if (dst_type == small_type) mod |= host->sat;
             plan(mov, mod, t, s(1));
@@ -211,7 +212,7 @@ bool try_emit_batched_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             esize = utils::rnd_down_pow2(esize);
 
             auto d = dst.subregister(ii, esize, dst_type_size);
-            auto t = tmp.subregister((ii - i_beg) * 4, small_type)(4);
+            auto t = tmp.subregister(dst_off + (ii - i_beg) * 4, small_type)(4);
             plan(mov, esize, d(1), t);
             ii += esize;
         }

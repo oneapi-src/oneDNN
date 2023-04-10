@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,10 +23,10 @@
 #include "gpu/jit/ir/gemm_schedule.hpp"
 #include "gpu/jit/ir/ir.hpp"
 #include "gpu/jit/ir/ir_builder.hpp"
+#include "gpu/jit/ir/post_ops.hpp"
 #include "gpu/jit/ir/tensor.hpp"
 
 #include "gpu/jit/conv/config.hpp"
-#include "gpu/jit/conv/post_ops.hpp"
 
 namespace dnnl {
 namespace impl {

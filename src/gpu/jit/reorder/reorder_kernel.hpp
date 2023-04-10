@@ -38,14 +38,15 @@ class reorder_kernel_t : public ir_kernel_t<hw> {
 public:
     IR_KERNEL_FORWARD(hw)
 
-    reorder_kernel_t(const exec_config_t &exec_cfg,
+    reorder_kernel_t(const reorder_config_t &cfg,
             const std::string &kernel_name, const kernel_info_t &kernel_info,
-            const layout_t &src_layout, const layout_t &dst_layout,
-            bool require_dpas, grf_mode_t grf_mode)
-        : ir_kernel_t<hw>(
-                kernel_name, exec_cfg, kernel_info, require_dpas, grf_mode) {
-        reorder_ir_builder_t builder(
-                exec_cfg, kernel_info, src_layout, dst_layout);
+            bool require_dpas, grf_mode_t grf_mode,
+            const primitive_desc_t *pd = nullptr)
+        : ir_kernel_t<hw>(kernel_name, cfg.exec_cfg(), kernel_info,
+                require_dpas, grf_mode) {
+        const primitive_attr_t *attr = (pd) ? pd->attr() : nullptr;
+        const memory_desc_t *dst_md = (pd) ? pd->dst_md() : nullptr;
+        reorder_ir_builder_t builder(cfg, kernel_info, attr, dst_md);
         stmt_t body = builder.stmt();
         setup_interface(body);
         generate_prologue();

@@ -25,6 +25,7 @@
 #include "gpu/jit/ir/ir_builder.hpp"
 #include "gpu/jit/ir/kernel_info.hpp"
 #include "gpu/jit/ir/tensor.hpp"
+#include "gpu/jit/reorder/config.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -33,13 +34,15 @@ namespace jit {
 
 class reorder_ir_builder_t : public ir_builder_t {
 public:
-    reorder_ir_builder_t(const exec_config_t &exec_cfg,
-            const kernel_info_t &kernel_info, const layout_t &src_layout,
-            const layout_t &dst_layout)
+    reorder_ir_builder_t(const reorder_config_t &cfg,
+            const kernel_info_t &kernel_info, const primitive_attr_t *attr,
+            const memory_desc_t *dst_md)
         : ir_builder_t(kernel_info)
-        , exec_cfg_(exec_cfg)
-        , src_layout_(src_layout)
-        , dst_layout_(dst_layout) {
+        , src_layout_(cfg.src_layout().user())
+        , dst_layout_(cfg.dst_layout().user())
+        , cfg_(cfg)
+        , attr_(attr)
+        , dst_md_(dst_md) {
         normalize_reorder_layouts(src_layout_, dst_layout_);
         build();
     }
@@ -86,11 +89,13 @@ private:
     static dim_t message_latency(const exec_config_t &exec_cfg,
             const layout_t &l, const tensor_t &t);
 
-    exec_config_t exec_cfg_;
     grid_info_t kernel_grid_;
     grid_info_t tg_grid_;
     layout_t src_layout_;
     layout_t dst_layout_;
+    const reorder_config_t &cfg_;
+    const primitive_attr_t *attr_;
+    const memory_desc_t *dst_md_;
 };
 
 } // namespace jit

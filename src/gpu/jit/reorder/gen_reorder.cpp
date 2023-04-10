@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,10 +19,13 @@
 #include <iostream>
 #include <utility>
 
+#include "common/c_types_map.hpp"
 #include "common/impl_registration.hpp"
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
 #include "gpu/jit/ir/kernel_info.hpp"
+#include "gpu/jit/ir/post_ops.hpp"
+#include "gpu/jit/ir/tensor_config.hpp"
 #include "gpu/jit/reorder/config.hpp"
 #include "gpu/jit/reorder/reorder_kernel.hpp"
 #include "gpu/jit/utils/utils.hpp"
@@ -39,6 +42,20 @@ status_t gen_reorder_t::pd_t::init(
     const auto dst_dt = dst_md()->data_type;
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     auto *device_info = compute_engine->device_info();
+    zero_points_config_t zp_cfg(this);
+
+    auto scales_ok = [&]() {
+        return (attr()->scales_.get(DNNL_ARG_SRC).mask_ == 0)
+                && (attr()->scales_.get(DNNL_ARG_DST).mask_ == 0);
+    };
+    auto zps_ok = [&]() {
+        return (!zp_cfg.do_src_compensation || zp_cfg.is_common_src_zero_point)
+                && (!zp_cfg.do_dst_compensation
+                        || zp_cfg.is_common_dst_zero_point);
+    };
+    auto skip_mask = dnnl_primitive_attr::skip_mask_t::post_ops
+            | dnnl_primitive_attr::skip_mask_t::zero_points_runtime
+            | dnnl_primitive_attr::skip_mask_t::scales_runtime;
     bool ok = src_engine == dst_engine && src_engine->kind() == engine_kind::gpu
             && device_info->gpu_arch() > compute::gpu_arch_t::xe_lp
             && IMPLICATION(src_dt == data_type::f16 || dst_dt == data_type::f16,
@@ -49,7 +66,8 @@ status_t gen_reorder_t::pd_t::init(
                     utils::one_of(src_dt, data_type::bf16, data_type::f32))
             && IMPLICATION(src_dt == data_type::f64 || dst_dt == data_type::f64,
                     compute_engine->mayiuse(compute::device_ext_t::khr_fp64))
-            && attr()->has_default_values() && extra_ok();
+            && attr()->has_default_values(skip_mask) && extra_ok()
+            && post_ops_ok() && scales_ok() && zps_ok();
     if (!ok) return status::unimplemented;
 
     memory_desc_wrapper src_mdw {src_md()};
@@ -82,28 +100,49 @@ status_t gen_reorder_t::pd_t::init(
     if (!check_layout(src_layout)) return status::unimplemented;
     if (!check_layout(dst_layout)) return status::unimplemented;
     if (!compute_engine->mayiuse_ngen_kernels()) return status::unimplemented;
-    cfg = std::make_shared<reorder_config_t>(engine, src_md(), dst_md());
-    cfg->exec_cfg.set_regs(128);
-    cfg->exec_cfg.set_simd(16);
+    exec_config_t exec_cfg(engine);
+    exec_cfg.set_regs(128);
+    exec_cfg.set_simd(16);
+    cfg = std::make_shared<reorder_config_t>(exec_cfg, src_layout, dst_layout);
+    cfg->set_zp_cfg(zp_cfg);
     CHECK(init_kernel_info());
 
     return status::success;
 }
 
 status_t gen_reorder_t::pd_t::init_kernel_info() {
-    auto &info = kernel_info;
-    auto elems = cfg->dst_layout.elems();
+    tensor_config_t tensor_cfg;
+    tensor_cfg.add_tensor("src", DNNL_ARG_SRC, true, false,
+            cfg->src_layout().user(), cfg->src_layout().user());
+    tensor_cfg.add_tensor("dst", DNNL_ARG_DST, true, true,
+            cfg->dst_layout().user(), cfg->dst_layout().user());
 
-    info = std::make_shared<kernel_info_t>();
-    auto src_buf = make_buffer("src_user");
-    auto dst_buf = make_buffer("dst_user");
-    info->register_user_arg(src_buf, DNNL_ARG_SRC, /*is_input=*/true);
-    info->register_user_arg(dst_buf, DNNL_ARG_DST, /*is_input=*/false);
-    auto elems_var = var_t::make(type_t::u32(), "elems");
-    info->register_internal_arg(elems_var, uint32_t(elems));
-    info->set_nd_range(reorder_kernel_t<>::nd_range(
-            cfg->exec_cfg, cfg->src_layout, cfg->dst_layout));
+    // TODO: set input/output channels here to enable per-channel ZPs/scales
+    init_extra_tensors(
+            cfg->zp_cfg(), *attr(), *dst_md(), /*ic=*/1, /*oc=*/1, tensor_cfg);
 
+    kernel_info = std::make_shared<kernel_info_t>();
+    kernel_info->set_nd_range(reorder_kernel_t<>::nd_range(cfg->exec_cfg(),
+            cfg->src_layout().user(), cfg->dst_layout().user()));
+
+    // Initialize kernel arguments.
+    for (auto &t : tensor_cfg.tensors()) {
+        ir_assert(!t.needs_reorder);
+        ir_assert(!t.needs_zero_out);
+
+        int user_arg_key = t.arg_key;
+        auto user_buf = make_buffer(t.name);
+
+        if (user_arg_key == -1) {
+            ir_assert(!t.needs_reorder);
+            ir_assert(!t.needs_zero_out);
+            ir_error_not_expected();
+            continue;
+        }
+
+        kernel_info->register_user_arg(user_buf, user_arg_key,
+                /*is_input=*/t.is_input && !t.is_output);
+    }
     return status::success;
 }
 
@@ -111,9 +150,8 @@ status_t gen_reorder_t::init(engine_t *engine) {
     auto &cfg = *pd()->cfg;
     auto &info = *pd()->kernel_info;
 
-    kernel_ = make_kernel<reorder_kernel_t>(this, engine, cfg.exec_cfg,
-            "gen_reorder", info, cfg.src_layout, cfg.dst_layout, false,
-            grf_mode_t::any);
+    kernel_ = make_kernel<reorder_kernel_t>(this, engine, cfg, "gen_reorder",
+            info, /*require_dpas=*/false, grf_mode_t::any, pd());
     if (!kernel_) return status::runtime_error;
     return status::success;
 }

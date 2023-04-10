@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,25 +14,24 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_CONV_EPILOGUE_HPP
-#define GPU_JIT_CONV_EPILOGUE_HPP
+#ifndef GPU_JIT_IR_EPILOGUE_HPP
+#define GPU_JIT_IR_EPILOGUE_HPP
 
-#include "gpu/jit/conv/config.hpp"
-#include "gpu/jit/conv/post_ops.hpp"
-#include "gpu/jit/conv/slm_reduce_builder.hpp"
 #include "gpu/jit/ir/gemm_schedule.hpp"
 #include "gpu/jit/ir/ir.hpp"
+#include "gpu/jit/ir/post_ops.hpp"
+#include "gpu/jit/ir/slm_reduce_builder.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace jit {
 
-stmt_t create_epilogue_stmt(const conv_config_t &cfg, ir_context_t &ir_ctx,
-        const gemm_schedule_t &gemm_schedule,
+stmt_t create_epilogue_stmt(const exec_config_t &exec_cfg, ir_context_t &ir_ctx,
+        const gemm_schedule_t &gemm_schedule, bool force_c_reorder,
         const post_op_context_t &post_op_ctx, const tensor_t &thr_tile,
         const view_t &c_mem_view, const layout_t &c_reg_layout,
-        const expr_t &c_mem_buf, const expr_t &c_reg_buf);
+        const expr_t &c_mem_buf, const expr_t &c_reg_buf, int &c_reg_buf_size);
 
 } // namespace jit
 } // namespace gpu

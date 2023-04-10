@@ -29,11 +29,13 @@
 #include "gpu/compute/compute.hpp"
 #include "gpu/compute/compute_engine.hpp"
 #include "gpu/jit/conv/block_helper.hpp"
-#include "gpu/jit/conv/tensor_config.hpp"
+#include "gpu/jit/ir/config.hpp"
 #include "gpu/jit/ir/fma.hpp"
 #include "gpu/jit/ir/hw_config.hpp"
 #include "gpu/jit/ir/message_patterns.hpp"
+#include "gpu/jit/ir/post_ops.hpp"
 #include "gpu/jit/ir/tensor.hpp"
+#include "gpu/jit/ir/tensor_config.hpp"
 #include "gpu/jit/jit_eltwise_injector.hpp"
 #include "gpu/jit/utils/utils.hpp"
 
@@ -83,20 +85,6 @@ public:
             ir_error_not_expected();
             return false;
         }
-    }
-
-    bool with_zero_points() const {
-        if (zp_cfg.do_src_compensation) return true;
-        if (zp_cfg.do_dst_compensation) return true;
-        if (zp_cfg.is_runtime_src_zero_points) return true;
-        if (zp_cfg.is_runtime_dst_zero_points) return true;
-        if (zp_cfg.is_common_src_zero_point
-                && zp_cfg.common_src_zero_point != 0)
-            return true;
-        if (zp_cfg.is_common_dst_zero_point
-                && zp_cfg.common_dst_zero_point != 0)
-            return true;
-        return false;
     }
 
     bool reduce_b() const { return is_bwd_w && with_bias; }
@@ -180,18 +168,6 @@ public:
     int c_data_type_size;
     int acc_data_type_size;
 
-    // Specific to FWD int8
-    struct zero_points_config_t {
-        bool do_src_compensation;
-        bool do_dst_compensation;
-        bool is_runtime_src_zero_points;
-        bool is_runtime_dst_zero_points;
-        bool is_common_src_zero_point;
-        bool is_common_dst_zero_point;
-        int common_src_zero_point;
-        int common_dst_zero_point;
-    } zp_cfg;
-
 private:
     // Initializes A/B/C data types (GEMM notation: C += A * B) according to
     // the following convention:
@@ -266,8 +242,6 @@ private:
         acc_data_type_size = (int)types::data_type_size(acc_data_type);
         return status::success;
     }
-
-    status_t init_zero_points_config();
 
     bool with_sum_post_op() {
         auto &post_ops = attr->post_ops_;
@@ -352,142 +326,9 @@ private:
     const conv_problem_t &prb_;
 };
 
-class param_t {
-public:
-    virtual std::string name() const = 0;
-    virtual std::string short_name() const { return name(); }
-    virtual std::string desc() const = 0;
-
-    virtual bool accept_key(const std::string &key) const {
-        return key == short_name();
-    }
-
-    virtual void set_from_str(const std::string &s) { ir_error_not_expected(); }
-    virtual void set_from_str(
-            const std::string &key, const std::string &value) {
-        if (key == short_name()) {
-            set_from_str(value);
-            return;
-        }
-        ir_error_not_expected();
-    }
-    void override_set(
-            const std::string &key, const std::string &value, bool is_env) {
-        key_states_[key] = is_env ? key_state_t::env_overridden
-                                  : key_state_t::overridden;
-        set_from_str(key, value);
-    }
-    bool is_overridden() const { return is_overridden(short_name()); }
-    bool is_env_overridden() const { return is_env_overridden(short_name()); }
-    bool is_overridden(const std::string &key) const {
-        return is_overridden_impl(key, /*only_env=*/false);
-    }
-    bool is_env_overridden(const std::string &key) const {
-        return is_overridden_impl(key, /*only_env=*/true);
-    }
-
-private:
-    enum class key_state_t {
-        overridden,
-        env_overridden,
-    };
-
-    bool is_overridden_impl(const std::string &key, bool only_env) const {
-        auto it = key_states_.find(key);
-        if (it == key_states_.end()) return false;
-        if (only_env) return it->second == key_state_t::env_overridden;
-        return utils::one_of(it->second, key_state_t::overridden,
-                key_state_t::env_overridden);
-    }
-
-    std::unordered_map<std::string, key_state_t> key_states_;
-};
-
-template <typename T>
-class value_param_t : public param_t {
-public:
-    using value_t = T;
-    using param_t::is_overridden;
-
-    value_param_t() = default;
-    value_param_t(const T &value) : value_(value) {}
-
-    const T &get() const { return value_; }
-
-    operator const T &() const { return get(); }
-
-    void set(const T &value) { value_ = value; }
-
-protected:
-    T value_;
-};
-
-class bool_param_t : public value_param_t<bool> {
-public:
-    using value_param_t::value_param_t;
-
-    void set_from_str(const std::string &s) override {
-        value_ = ir_utils::to_bool(s);
-    }
-};
-
-class int_param_t : public value_param_t<int> {
-public:
-    using value_param_t::value_param_t;
-
-    void set_from_str(const std::string &s) override { value_ = std::stoi(s); }
-};
-
 class grid_param_t : public value_param_t<grid_info_t> {
 public:
     using value_param_t::value_param_t;
-};
-
-class layout_param_t : public param_t {
-public:
-    const layout_t &user() const { return user_; }
-    const layout_t &compute() const { return compute_; }
-    const layout_t &user_unnormalized() const { return user_unnormalized_; }
-    const layout_t &compute_unnormalized() const {
-        return compute_unnormalized_;
-    }
-
-    const std::string &user_unnormalized_overridden_tag() const {
-        return user_unnormalized_overridden_tag_;
-    }
-    const std::string &compute_unnormalized_overridden_tag() const {
-        return compute_unnormalized_overridden_tag_;
-    }
-
-    void set_from_str(const std::string &s) override {
-        auto parts = ir_utils::split(s, ".");
-        switch ((int)parts.size()) {
-            case 1:
-                compute_unnormalized_overridden_tag_ = parts[0];
-                user_unnormalized_overridden_tag_ = parts[0];
-                break;
-            case 2:
-                compute_unnormalized_overridden_tag_ = parts[0];
-                user_unnormalized_overridden_tag_ = parts[1];
-                break;
-            default: ir_error_not_expected();
-        }
-    }
-
-    void set_user(const layout_t &l) { user_ = l; }
-    void set_compute(const layout_t &l) { compute_ = l; }
-    void set_user_unnormalized(const layout_t &l) { user_unnormalized_ = l; }
-    void set_compute_unnormalized(const layout_t &l) {
-        compute_unnormalized_ = l;
-    }
-
-private:
-    layout_t user_;
-    layout_t compute_;
-    layout_t user_unnormalized_;
-    layout_t compute_unnormalized_;
-    std::string user_unnormalized_overridden_tag_;
-    std::string compute_unnormalized_overridden_tag_;
 };
 
 inline std::unordered_map<std::string, int> to_map(const std::string &s) {
@@ -608,41 +449,6 @@ class dims_param_t : public map_param_t {
 public:
     std::string name() const override { return "dims"; }
     std::string desc() const override { return "Problem dimensions."; }
-};
-
-class dst_layout_param_t : public layout_param_t {
-    std::string name() const override { return "dst"; }
-    std::string desc() const override { return "Destination layout."; }
-};
-
-class exec_cfg_param_t : public value_param_t<exec_config_t> {
-public:
-    using value_param_t::accept_key;
-    using value_param_t::is_overridden;
-    using value_param_t::value_param_t;
-
-    std::string name() const override { return "exec-cfg"; }
-    std::string desc() const override {
-        return "Execution config (hardware config, number of registers, SIMD, "
-               "etc).";
-    }
-
-    bool accept_key(const std::string &key) const override {
-        if (key == "simd") return true;
-        if (key == "vec") return true;
-        return false;
-    }
-
-    void set_from_str(
-            const std::string &key, const std::string &value) override {
-        if (key == "simd") {
-            value_.set_simd(std::stoi(value));
-        } else if (key == "vec") {
-            value_.set_vec_size(std::stoi(value));
-        } else {
-            ir_error_not_expected() << key;
-        }
-    }
 };
 
 class fma_kind_param_t : public value_param_t<fma_kind_t> {
@@ -918,12 +724,6 @@ private:
     bool b_ = false;
 };
 
-class src_layout_param_t : public layout_param_t {
-public:
-    std::string name() const override { return "src"; }
-    std::string desc() const override { return "Source layout."; }
-};
-
 // Subtiles to split into for the inner A x B multiplication:
 //
 // Case 1. a_subtiles = 1, b_subtiles = 1
@@ -1021,11 +821,8 @@ static const int reserved_regs_default = 16;
 
 struct conv_plan_t;
 
-class conv_config_t {
+class conv_config_t : public prim_config_t {
 public:
-    conv_config_t();
-    ~conv_config_t();
-
 #define DECL_PARAM(name) \
     const name##_param_t &name##_param() const { \
         (void)name##_init_; \
@@ -1048,7 +845,6 @@ public:
     DECL_PARAM(bwd_d_optimize_unstrided)
     DECL_PARAM(bwd_d_optimize_strided_iw)
     DECL_PARAM(check_slm_size)
-    DECL_PARAM(exec_cfg)
     DECL_PARAM(fma_kind)
     DECL_PARAM(fuse_spatial)
     DECL_PARAM(hint)
@@ -1062,14 +858,12 @@ public:
     DECL_PARAM(thread_group_grid)
     DECL_PARAM2(bia_layout)
     DECL_PARAM2(dims)
-    DECL_PARAM2(dst_layout)
     DECL_PARAM2(iter_dims)
     DECL_PARAM2(loop_dims)
     DECL_PARAM2(padded_dims)
     DECL_PARAM2(pipeline)
     DECL_PARAM2(prefetch)
     DECL_PARAM2(slm)
-    DECL_PARAM2(src_layout)
     DECL_PARAM2(subtiles)
     DECL_PARAM2(thread_group_dims)
     DECL_PARAM2(unroll)
@@ -1081,9 +875,7 @@ public:
     send_pattern_t a_load_pattern;
     send_pattern_t b_load_pattern;
 
-    void override_set(const std::string &s, bool is_env);
-
-    std::string str() const;
+    std::string str() const override;
 
     std::string blocking_brief_str() const;
 
@@ -1224,22 +1016,12 @@ public:
     bool can_skip_bia_zero_out() const;
 
 private:
-    struct param_init_t {};
-
-    template <typename GetParamFuncT, typename PtrT>
-    static param_init_t register_param(
-            PtrT ptr, std::vector<GetParamFuncT> &get_params_) {
-        get_params_.push_back([=](conv_config_t *cfg) { return &(cfg->*ptr); });
-        return param_init_t();
-    }
-
     std::shared_ptr<conv_plan_t> plan_;
-    std::vector<std::function<param_t *(conv_config_t *)>> get_params_;
 
 #define INIT_PARAM(name) \
     name##_param_t name##_; \
-    param_init_t name##_init_ \
-            = register_param(&conv_config_t::name##_, get_params_);
+    param_init_t name##_init_ = register_param( \
+            [](prim_config_t *c) { return &((conv_config_t *)c)->name##_; });
 
     INIT_PARAM(bia_layout)
     INIT_PARAM(bwd_d_optimize_strided)
@@ -1247,8 +1029,6 @@ private:
     INIT_PARAM(bwd_d_optimize_strided_iw)
     INIT_PARAM(check_slm_size)
     INIT_PARAM(dims)
-    INIT_PARAM(dst_layout)
-    INIT_PARAM(exec_cfg)
     INIT_PARAM(fma_kind)
     INIT_PARAM(fuse_spatial)
     INIT_PARAM(hint)
@@ -1265,7 +1045,6 @@ private:
     INIT_PARAM(send_2d_nhwc)
     INIT_PARAM(shrink_tg_dims)
     INIT_PARAM(slm)
-    INIT_PARAM(src_layout)
     INIT_PARAM(subtiles)
     INIT_PARAM(thread_group_dims)
     INIT_PARAM(thread_group_grid)
@@ -1376,7 +1155,6 @@ private:
     const conv_config_t &cfg_;
 };
 
-const memory_desc_t *output_md(const convolution_pd_t *pd);
 status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
         const engine_t *engine, convolution_pd_t *pd, primitive_attr_t *attr);
 status_t init_cfg(conv_config_t &cfg, const convolution_pd_t *pd);

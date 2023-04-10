@@ -2115,8 +2115,7 @@ private:
     plan_status_t init_zp_plan(const x2r_plan_t &x2r, const fma_plan_t &fma,
             zp_plan_t &plan) const {
         auto &prb = cfg_.prb();
-        auto &zp_cfg = prb.zp_cfg;
-        if (!zp_cfg.do_src_compensation) return plan_status_t::success;
+        if (!cfg_.zp_cfg().do_src_compensation) return plan_status_t::success;
 
         auto b_tile = gemm_schedule_.b_thr_tile(/*is_relative=*/false);
 
@@ -2124,7 +2123,7 @@ private:
         int ic_idx = 2;
         expr_t zp_off;
         dim_t zp_g_dim, zp_ic_dim;
-        if (zp_cfg.is_common_src_zero_point) {
+        if (cfg_.zp_cfg().is_common_src_zero_point) {
             zp_off = expr_t(0);
             zp_g_dim = 1;
             zp_ic_dim = 1;

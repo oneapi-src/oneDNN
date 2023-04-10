@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/jit/conv/epilogue.hpp"
+#include "gpu/jit/ir/epilogue.hpp"
 
 #include "gpu/jit/ir/message.hpp"
 #include "gpu/jit/ir/mul_add.hpp"
@@ -558,34 +558,36 @@ private:
             int &inner_dim_idx) const {
         auto &lhs_tensor = *args.at(post_op_.lhs());
 
-        int ndims = lhs_tensor.mem_view().nvdims();
-
         ir_assert(!lhs_tensor.reg_layout().is_empty());
-        ir_assert(!lhs_tensor.reg_layout().blocks().empty());
-        auto &b0 = lhs_tensor.reg_layout().blocks()[0];
-        ir_assert(dim_t(b0.stride) == 1);
-        inner_dim_idx = b0.dim_idx;
+        std::vector<dim_t> dims(lhs_tensor.mem_view().nvdims(), 1);
 
-        int inner_block = b0.block;
-        int max_step = 2 * ngen::GRF::bytes(hw_) / lhs_type.size();
-        inner_block = std::max(8, math::gcd(inner_block, max_step));
+        if (lhs_tensor.reg_layout().blocks().empty()) {
+            for (dim_t d : lhs_tensor.mem_view().vdims())
+                ir_assert(d == 1);
+            inner_dim_idx = 0;
+        } else {
+            auto &b0 = lhs_tensor.reg_layout().blocks()[0];
+            ir_assert(dim_t(b0.stride) == 1);
+            inner_dim_idx = b0.dim_idx;
 
-        for (auto &kv : args) {
-            auto &t = *kv.second;
-            if (t.is_broadcast_dim(b0.dim_idx)) continue;
+            int inner_block = b0.block;
+            int max_step = 2 * ngen::GRF::bytes(hw_) / lhs_type.size();
+            inner_block = std::max(8, math::gcd(inner_block, max_step));
 
-            auto &l = t.reg_layout();
-            ir_assert(!l.is_empty());
-            ir_assert(!l.blocks().empty());
-            auto &lb0 = l.blocks()[0];
-            ir_assert(lb0.dim_idx == b0.dim_idx);
-            ir_assert(dim_t(lb0.stride) == 1);
-            inner_block = math::gcd(int(lb0.block), inner_block);
+            for (auto &kv : args) {
+                auto &t = *kv.second;
+                if (t.is_broadcast_dim(b0.dim_idx)) continue;
+
+                auto &l = t.reg_layout();
+                ir_assert(!l.is_empty());
+                ir_assert(!l.blocks().empty());
+                auto &lb0 = l.blocks()[0];
+                ir_assert(lb0.dim_idx == b0.dim_idx);
+                ir_assert(dim_t(lb0.stride) == 1);
+                inner_block = math::gcd(int(lb0.block), inner_block);
+            }
+            dims[b0.dim_idx] = inner_block;
         }
-
-        std::vector<dim_t> dims(ndims, 1);
-        dims[b0.dim_idx] = inner_block;
-
         return tensor_t(dims);
     }
 
@@ -605,6 +607,55 @@ private:
     ngen::HW hw_;
     post_op_t post_op_;
 };
+
+int get_post_op_mem_usage(const post_op_tensor_info_t &info, int c_elems,
+        const view_t &c_mem_view, int max_elems_per_dim = 64) {
+    int po_elems = 1;
+    for (int i = 0; i < info.view().nvdims(); i++) {
+        if ((info.mask() & (1 << i)) == 0) continue;
+        po_elems *= std::min(max_elems_per_dim, (int)c_mem_view.vdims()[i]);
+    }
+    po_elems = std::min(po_elems, c_elems);
+    int type_size = info.view().type().size();
+    int load_size = po_elems * type_size;
+    int cvt_size = info.view().type().is_f32() ? 0 : po_elems * sizeof(float);
+    return load_size + cvt_size;
+}
+
+int find_tile_size(const exec_config_t &exec_cfg,
+        const post_op_context_t &post_op_ctx, const view_t &c_mem_view,
+        const layout_t &c_reg_layout, int preload_max_size, int post_op_blk) {
+    bool with_post_ops = !post_op_ctx.post_ops().empty();
+    for (int tile_size = 1024; tile_size >= 1; tile_size /= 2) {
+        int c_type_size = c_mem_view.type().size();
+        int elems = tile_size / (with_post_ops ? sizeof(float) : c_type_size);
+        int c_mul_size = elems * c_type_size;
+        int c_f32_size = with_post_ops && !c_mem_view.type().is_f32()
+                ? elems * sizeof(float)
+                : 0;
+        int c_size = c_mul_size + c_f32_size;
+        int po_size = 0;
+
+        auto &infos = post_op_ctx.post_op_tensor_infos();
+        int npost_ops = int(infos.size());
+        for (int i = 0; i < npost_ops; i += post_op_blk) {
+            int po_batch_size = 0;
+            for (int j = i; j < std::min(npost_ops, i + post_op_blk); j++) {
+                auto &t = infos[j];
+                if (!t.is_input() || !t.buf().type().is_ptr()) continue;
+                po_batch_size += get_post_op_mem_usage(t, elems, c_mem_view);
+            }
+            po_size = std::max(po_size, po_batch_size);
+        }
+
+        int total_size = c_size + preload_max_size + po_size;
+        int available_size = exec_cfg.regs() * exec_cfg.grf_size()
+                - (int)c_reg_layout.size();
+        if (total_size <= available_size * 0.8) return tile_size;
+    }
+    ir_error_not_expected();
+    return -1;
+}
 
 // Epilogue consists of the following steps after the main computation (C += A * B):
 // - C GRF reorder to match the memory layout for global memory store
@@ -630,24 +681,34 @@ private:
 // - S_y    is the stage before storing C to global memory
 class epilogue_builder_t {
 public:
-    epilogue_builder_t(ir_context_t &ir_ctx, const conv_config_t &cfg,
-            const gemm_schedule_t &gemm_schedule,
+    epilogue_builder_t(ir_context_t &ir_ctx, const exec_config_t &exec_cfg,
+            const gemm_schedule_t &gemm_schedule, bool force_c_reorder,
             const post_op_context_t &post_op_ctx, const tensor_t &thr_tile,
             const view_t &c_mem_view, const layout_t &c_reg_layout,
-            const expr_t &c_mem_buf, const expr_t &c_reg_buf, int tile_size,
+            const expr_t &c_mem_buf, const expr_t &c_reg_buf,
             int preload_max_size, int post_op_blk)
         : ir_ctx_(ir_ctx)
-        , cfg_(cfg)
         , gemm_schedule_(gemm_schedule)
         , post_op_ctx_(post_op_ctx)
         , c_mem_view_(c_mem_view)
         , c_mem_buf_(c_mem_buf)
-        , tg_grid_(gemm_schedule.tg_grid())
-        , tile_size_(tile_size)
+        , force_c_reorder_(force_c_reorder)
+        , restore_zero_padding_(post_op_ctx.need_to_restore_zero_padding())
         , preload_max_size_(preload_max_size)
         , post_op_blk_(post_op_blk) {
 
         int tensor_idx = 0;
+
+        // Tile size in bytes. All post-ops are applied to a single tile, then
+        // to the next tile, etc.
+        tile_size_ = find_tile_size(exec_cfg, post_op_ctx_, c_mem_view_,
+                c_reg_layout, preload_max_size_, post_op_blk_);
+
+        ir_trace() << "Creating epilogue with parameters"
+                   << ": tile_size = " << tile_size_
+                   << ", preload_max_size = " << preload_max_size
+                   << ", post_op_blk = " << post_op_blk << std::endl;
+
         for (auto &po_tensor_info : post_op_ctx_.post_op_tensor_infos()) {
             post_op_tensor_t po_tensor(ir_ctx_, po_tensor_info);
             po_tensor = po_tensor.create_sub_tensor(thr_tile);
@@ -659,8 +720,6 @@ public:
             post_op_tensors_.push_back(po_tensor);
             tensor_idx++;
         }
-
-        restore_zero_padding_ = post_op_ctx_.need_to_restore_zero_padding();
 
         for (auto &po : post_op_ctx_.post_ops()) {
             post_op_builders_.emplace_back(ir_ctx_.hw(), po);
@@ -681,6 +740,8 @@ public:
     }
 
     const stmt_t &stmt() const { return stmt_; }
+
+    int c_reg_buf_size() const { return c_reg_buf_size_; }
 
 private:
     void register_buffer(const expr_t &buf, int size) {
@@ -713,7 +774,8 @@ private:
                 int this_off = to_cpp<int>(layout.offset_in_bytes());
                 int next_off = to_cpp<int>(next->layout.offset_in_bytes());
                 ir_assert(next_off == 0);
-                MAYBE_UNUSED(next_off);
+                buf_size = std::max(
+                        get_buf_size(), this_off + next->get_buf_size());
                 next->set_buf(buf[this_off]);
             }
         }
@@ -730,9 +792,8 @@ private:
         }
 
         int get_buf_size() const {
-            ir_assert(buf.is_same(buf_base()))
-                    << "Size must be queried from another stage.";
-            return (buf_size == 0) ? int(layout.size()) : buf_size;
+            int off = to_cpp<int>(layout.offset_in_bytes());
+            return (buf_size == 0) ? off + int(layout.size()) : buf_size;
         }
 
         void prepend_stmt(const stmt_t &stmt) {
@@ -801,7 +862,7 @@ private:
 
         // TODO: Generalize the condition. Iterate through output tensor masks
         // and ensure C is distributed accordingly in thread group.
-        bool use_slm_reduction = (tg_grid_.dim(1) > 1);
+        bool use_slm_reduction = (gemm_schedule_.tg_grid().dim(1) > 1);
 
         // Generate reduce and store statements for output post-op tensors.
         stmt_t thr_reduce_stmt;
@@ -813,7 +874,8 @@ private:
 
             thr_reduce_stmt = thr_reduce_stmt.append(t.build_reduce_stmt());
             if (use_slm_reduction) {
-                auto store_stmt = t.build_slm_store_stmt(tg_grid_);
+                auto store_stmt
+                        = t.build_slm_store_stmt(gemm_schedule_.tg_grid());
                 auto load_stmt = t.build_slm_load_stmt();
                 slm_store_stmt = slm_store_stmt.append(store_stmt);
                 slm_load_stmt = slm_load_stmt.append(load_stmt);
@@ -864,9 +926,13 @@ private:
         auto send_op = gemm_schedule_.with_kernel_grid_k_slicing()
                 ? send_op_t::atomic_fadd
                 : send_op_t::store;
+        auto offset = c_mem_tile_view.tlayout().offset_in_bytes();
+        const int cache_line_size = 64;
+        const bool allow_2d = !offset.is<int_imm_t>()
+                || (offset.as<int_imm_t>().value % cache_line_size == 0);
         auto send_params = get_send_params(ir_ctx_.exec_cfg(), send_op,
                 send_address_t::a64, fma_kind_t::unknown, abc_kind_t::c,
-                c_mem_tile_view, gemm_schedule_);
+                c_mem_tile_view, gemm_schedule_, allow_2d);
         auto r2g = make_access_builder(
                 ir_ctx_, c_mem_tile_view, c_mem_buf_, tmp_reg_buf, send_params);
 
@@ -893,15 +959,12 @@ private:
                 r2g.stmt()); // S_y
 
         int nstages = int(c_stages.size());
-        bool is_dpasw = (cfg_.fma_kind() == fma_kind_t::dpasw);
 
         // Generate reorders between C stages if needed.
         for (int i = 0; i < nstages; i++) {
             auto *next_stage = (i + 1 < nstages ? &c_stages[i + 1] : nullptr);
-            // Always perform reorder when dpasw is used. This is to ensure
-            // that C is properly restored and permuted after dpasw.
             c_stages[i].set_next(ir_ctx_, next_stage,
-                    /*force_reorder=*/i == 0 && is_dpasw);
+                    /*force_reorder=*/i == 0 && force_c_reorder_);
         }
 
         // Restore zero padding if needed.
@@ -951,6 +1014,7 @@ private:
         }
 
         stmt_ = stmt_.append(tile_stmt);
+        c_reg_buf_size_ = std::max(c_reg_buf_size_, c_stages[0].get_buf_size());
     }
 
     stmt_t build_post_op_block_stmt(const tensor_t &tile,
@@ -1006,7 +1070,6 @@ private:
     }
 
     ir_context_t &ir_ctx_;
-    const conv_config_t &cfg_;
     const gemm_schedule_t &gemm_schedule_;
     const post_op_context_t &post_op_ctx_;
 
@@ -1018,9 +1081,8 @@ private:
     layout_t c_reg_layout_;
     expr_t c_reg_buf_;
 
-    const grid_info_t &tg_grid_;
-
-    bool restore_zero_padding_;
+    const bool force_c_reorder_;
+    const bool restore_zero_padding_;
 
     zero_pad_builder_t zero_pad_builder_;
 
@@ -1038,80 +1100,25 @@ private:
     object_map_t<expr_t, int> buf_sizes_;
 
     stmt_t stmt_;
+    int c_reg_buf_size_ = 0;
 };
 
-int get_post_op_mem_usage(const post_op_tensor_info_t &info, int c_elems,
-        const view_t &c_mem_view, int max_elems_per_dim = 64) {
-    int po_elems = 1;
-    for (int i = 0; i < info.view().nvdims(); i++) {
-        if ((info.mask() & (1 << i)) == 0) continue;
-        po_elems *= std::min(max_elems_per_dim, (int)c_mem_view.vdims()[i]);
-    }
-    po_elems = std::min(po_elems, c_elems);
-    int type_size = info.view().type().size();
-    int load_size = po_elems * type_size;
-    int cvt_size = info.view().type().is_f32() ? 0 : po_elems * sizeof(float);
-    return load_size + cvt_size;
-}
-
-int find_tile_size(const exec_config_t &exec_cfg,
-        const post_op_context_t &post_op_ctx, const view_t &c_mem_view,
-        const layout_t &c_reg_layout, int preload_max_size, int post_op_blk) {
-    bool with_post_ops = !post_op_ctx.post_ops().empty();
-    for (int tile_size = 1024; tile_size >= 1; tile_size /= 2) {
-        int c_type_size = c_mem_view.type().size();
-        int elems = tile_size / (with_post_ops ? sizeof(float) : c_type_size);
-        int c_mul_size = elems * c_type_size;
-        int c_f32_size = with_post_ops && !c_mem_view.type().is_f32()
-                ? elems * sizeof(float)
-                : 0;
-        int c_size = c_mul_size + c_f32_size;
-        int po_size = 0;
-
-        auto &infos = post_op_ctx.post_op_tensor_infos();
-        int npost_ops = int(infos.size());
-        for (int i = 0; i < npost_ops; i += post_op_blk) {
-            int po_batch_size = 0;
-            for (int j = i; j < std::min(npost_ops, i + post_op_blk); j++) {
-                auto &t = infos[j];
-                if (!t.is_input() || !t.buf().type().is_ptr()) continue;
-                po_batch_size += get_post_op_mem_usage(t, elems, c_mem_view);
-            }
-            po_size = std::max(po_size, po_batch_size);
-        }
-
-        int total_size = c_size + preload_max_size + po_size;
-        int available_size = exec_cfg.regs() * exec_cfg.grf_size()
-                - (int)c_reg_layout.size();
-        if (total_size <= available_size * 0.8) return tile_size;
-    }
-    ir_error_not_expected();
-    return -1;
-}
-
-stmt_t create_epilogue_stmt(const conv_config_t &cfg, ir_context_t &ir_ctx,
-        const gemm_schedule_t &gemm_schedule,
+stmt_t create_epilogue_stmt(const exec_config_t &exec_cfg, ir_context_t &ir_ctx,
+        const gemm_schedule_t &gemm_schedule, bool force_c_reorder,
         const post_op_context_t &post_op_ctx, const tensor_t &thr_tile,
         const view_t &c_mem_view, const layout_t &c_reg_layout,
-        const expr_t &c_mem_buf, const expr_t &c_reg_buf) {
+        const expr_t &c_mem_buf, const expr_t &c_reg_buf, int &c_reg_buf_size) {
     // Max size of post-op tensor buffers to preload and reuse for all tiles.
     int preload_max_size = 512;
     // Block size to apply post-ops within tile. A post-op may have associated
     // loads/conversions, larger block size helps to have more latency hiding
     // across multiple post-ops.
     int post_op_blk = 8;
-    // Tile size in bytes. All post-ops are applied to a single tile, then to
-    // the next tile, etc.
-    int tile_size = find_tile_size(cfg.exec_cfg(), post_op_ctx, c_mem_view,
-            c_reg_layout, preload_max_size, post_op_blk);
 
-    ir_trace() << "Creating epilogue with parameters"
-               << ": tile_size = " << tile_size
-               << ", preload_max_size = " << preload_max_size
-               << ", post_op_blk = " << post_op_blk << std::endl;
-    epilogue_builder_t builder(ir_ctx, cfg, gemm_schedule, post_op_ctx,
-            thr_tile, c_mem_view, c_reg_layout, c_mem_buf, c_reg_buf, tile_size,
-            preload_max_size, post_op_blk);
+    epilogue_builder_t builder(ir_ctx, exec_cfg, gemm_schedule, force_c_reorder,
+            post_op_ctx, thr_tile, c_mem_view, c_reg_layout, c_mem_buf,
+            c_reg_buf, preload_max_size, post_op_blk);
+    c_reg_buf_size = builder.c_reg_buf_size();
     return builder.stmt();
 }
 

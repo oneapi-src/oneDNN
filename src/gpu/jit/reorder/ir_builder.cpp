@@ -26,9 +26,12 @@
 #include <vector>
 #include <unordered_map>
 
+#include "common/c_types_map.hpp"
+#include "gpu/jit/ir/epilogue.hpp"
 #include "gpu/jit/ir/gemm_schedule.hpp"
 #include "gpu/jit/ir/ir.hpp"
 #include "gpu/jit/ir/message.hpp"
+#include "gpu/jit/ir/post_ops.hpp"
 #include "gpu/jit/ir/reorder.hpp"
 #include "gpu/jit/ir/tensor.hpp"
 #include "gpu/jit/pass/pass.hpp"
@@ -591,12 +594,12 @@ void reorder_ir_builder_t::build() {
     std::vector<int> iter_blocks;
     std::vector<int> loop_blocks;
     std::vector<int> tg_blocks;
-    compute_blocks(exec_cfg_, src_layout_, dst_layout_, iter_blocks,
+    compute_blocks(cfg_.exec_cfg(), src_layout_, dst_layout_, iter_blocks,
             loop_blocks, tg_blocks);
 
     int max_iters = 10;
     int cur_iter_bytes
-            = max_tile_size(exec_cfg_.hw_cfg(), dst_layout_, src_layout_);
+            = max_tile_size(cfg_.exec_cfg().hw_cfg(), dst_layout_, src_layout_);
     for (int i = 0; i < max_iters; i++) {
         if (try_build(iter_blocks, loop_blocks, tg_blocks)) {
             ir_info() << "Reorder configuration:" << std::endl;
@@ -619,8 +622,8 @@ void reorder_ir_builder_t::build() {
         cur_iter_bytes /= 2;
         while (cur_iter_bytes >= 1) {
             std::vector<int> new_iter_blocks;
-            compute_blocks(exec_cfg_, src_layout_, dst_layout_, new_iter_blocks,
-                    loop_blocks, tg_blocks, cur_iter_bytes);
+            compute_blocks(cfg_.exec_cfg(), src_layout_, dst_layout_,
+                    new_iter_blocks, loop_blocks, tg_blocks, cur_iter_bytes);
             if (!ir_utils::is_equal(new_iter_blocks, iter_blocks)) {
                 iter_blocks = new_iter_blocks;
                 break;
@@ -648,8 +651,8 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
             kernel_grid_, tg_grid_, &dim2grid);
 
     std::vector<stmt_t> init_stmts;
-    init_kernel_grid(
-            kernel_grid_, tg_grid_, exec_cfg_.simd(), init_cset, init_stmts);
+    init_kernel_grid(kernel_grid_, tg_grid_, cfg_.exec_cfg().simd(), init_cset,
+            init_stmts);
 
     std::vector<dim_t> vdims(ndims);
     for (int i = 0; i < ndims; i++) {
@@ -730,7 +733,7 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
     auto src_buf = kernel_info_.arg_var(0);
     auto dst_buf = kernel_info_.arg_var(1);
 
-    ir_context_t ir_ctx(exec_cfg_, init_cset);
+    ir_context_t ir_ctx(cfg_.exec_cfg(), init_cset);
     auto reg_buf = ir_ctx.create_tmp_var(type_t::byte_ptr(), "reg");
 
     std::vector<stmt_t> allocs;
@@ -740,15 +743,15 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
         allocs.push_back(alloc_t::make(var, 0, alloc_kind_t::global));
     }
 
-    auto read_params = get_send_params(
-            exec_cfg_, send_op_t::load, send_address_t::a64, src_thr_view);
+    auto read_params = get_send_params(cfg_.exec_cfg(), send_op_t::load,
+            send_address_t::a64, src_thr_view);
     read_params.try_legacy = false;
     auto read = make_access_builder(
             ir_ctx, src_thr_view, src_buf, reg_buf, read_params);
     auto &read_stmt = read.stmt();
 
-    auto write_params = get_send_params(
-            exec_cfg_, send_op_t::store, send_address_t::a64, dst_thr_view);
+    auto write_params = get_send_params(cfg_.exec_cfg(), send_op_t::store,
+            send_address_t::a64, dst_thr_view);
     write_params.try_legacy = false;
     auto write = make_access_builder(
             ir_ctx, dst_thr_view, dst_buf, reg_buf, write_params);
@@ -758,11 +761,14 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
     auto &write_layout = write.reg_layout();
     int read_buf_size = read.reg_buf_size();
     int write_buf_size = write.reg_buf_size();
-    int reg_buf_size = std::max(read_buf_size, write_buf_size);
 
-    if (read_layout != write_layout) {
+    bool has_post_ops = dst_md_ && attr_
+            && (!attr_->post_ops_.has_default_values()
+                    || !attr_->zero_points_.has_default_values()
+                    || !attr_->scales_.has_default_values());
+
+    if (!has_post_ops && (read_layout != write_layout)) {
         auto tmp_buf = ir_ctx.create_tmp_var(type_t::byte_ptr(), "tmp");
-        reg_buf_size = read_buf_size;
         allocs.push_back(
                 alloc_t::make(tmp_buf, write_buf_size, alloc_kind_t::grf));
 
@@ -771,8 +777,16 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
         write_stmt = substitute(write_stmt, reg_buf, tmp_buf);
         write_stmt = reorder_stmt.append(write_stmt);
     }
+    if (has_post_ops) {
+        post_op_context_t post_op_ctx(*attr_, cfg_.zp_cfg(),
+                /*fuse_spatial=*/false, dst_view, schedule, kernel_info_,
+                *dst_md_, *dst_md_, nullptr);
+        write_stmt = create_epilogue_stmt(cfg_.exec_cfg(), ir_ctx, schedule,
+                /*force_c_reorder=*/false, post_op_ctx, thr_tile, dst_thr_view,
+                read_layout, dst_buf, reg_buf, write_buf_size);
+    }
 
-    allocs.push_back(alloc_t::make(reg_buf, reg_buf_size, alloc_kind_t::grf));
+    allocs.push_back(alloc_t::make(reg_buf, read_buf_size, alloc_kind_t::grf));
 
     stmt_ = stmt_t();
     stmt_ = stmt_.append(read_stmt);
@@ -790,15 +804,15 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
     stmt_ = split_wide_stores(stmt_, ir_ctx);
     stmt_ = fix_int32_overflow(stmt_, ir_ctx);
     stmt_ = eliminate_common_subexprs(
-            stmt_, ir_ctx, exec_cfg_.regs() * exec_cfg_.grf_size());
+            stmt_, ir_ctx, cfg_.exec_cfg().regs() * cfg_.exec_cfg().grf_size());
     stmt_ = simplify(stmt_, ir_ctx);
     stmt_ = optimize_alloc_let(stmt_, ir_ctx);
     stmt_ = stmt_group_t::make(stmt_label_t::kernel(), stmt_);
 
-    int ir_regs = get_peak_regs(stmt_, exec_cfg_.grf_size());
+    int ir_regs = get_peak_regs(stmt_, cfg_.exec_cfg().grf_size());
     int reserved_regs = 16;
     int regs = ir_regs + reserved_regs;
-    if (regs > exec_cfg_.regs()) {
+    if (regs > cfg_.exec_cfg().regs()) {
         ir_warning() << "Estimated GRF usage is " << regs
                      << " registers which exceeds available space, retry with "
                         "a smaller tile."

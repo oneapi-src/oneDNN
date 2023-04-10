@@ -19,15 +19,15 @@
 #include <cctype>
 #include <cstring>
 
-#include "common/type_helpers.hpp"
 #include "gpu/jit/conv/block_helper.hpp"
 #include "gpu/jit/conv/config_lookup_table.hpp"
 #include "gpu/jit/conv/config_plan.hpp"
 #include "gpu/jit/conv/grf_usage.hpp"
 #include "gpu/jit/conv/message_patterns.hpp"
-#include "gpu/jit/conv/normalization.hpp"
 #include "gpu/jit/ir/block_2d_utils.hpp"
 #include "gpu/jit/ir/gemm_schedule.hpp"
+#include "gpu/jit/ir/normalization.hpp"
+#include "gpu/jit/ir/tensor_config.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -35,25 +35,6 @@ namespace gpu {
 namespace jit {
 
 // Helper functions.
-layout_t make_layout(const memory_desc_t &md) {
-    if (md.format_kind == format_kind::any) return layout_t();
-    return layout_t(md, /*do_normalize=*/false);
-}
-
-layout_t make_layout(const memory_desc_t &md, const std::string &tag) {
-    return layout_t(md, tag, /*do_normalize=*/false);
-}
-
-layout_t make_layout(const type_t &type, const std::vector<dim_t> &dims,
-        const std::string &tag) {
-    return layout_t(type, 0, tag, dims, /*do_normalize=*/false);
-}
-
-void set_default_format(memory_desc_t &md, const std::string &tag) {
-    if (md.format_kind != format_kind::any) return;
-    md = make_layout(md, tag).to_dnnl(md.dims);
-}
-
 bool matches_tag(const layout_t &layout, const std::string &tag,
         const std::vector<dim_t> &dims) {
     if (layout.is_empty()) return false;
@@ -205,7 +186,6 @@ status_t conv_problem_t::init(
 
     CHECK(init_abc_data_types(hw));
     CHECK(init_acc_data_type());
-    CHECK(init_zero_points_config());
 
     return status::success;
 }
@@ -261,23 +241,6 @@ void conv_problem_t::try_reduce_to_1d() {
     }
 }
 
-status_t conv_problem_t::init_zero_points_config() {
-    zp_cfg = zero_points_config_t();
-    zp_cfg.do_src_compensation
-            = !attr->zero_points_.has_default_values(DNNL_ARG_SRC);
-    zp_cfg.do_dst_compensation
-            = !attr->zero_points_.has_default_values(DNNL_ARG_DST);
-    zp_cfg.is_runtime_src_zero_points
-            = !attr->zero_points_.defined(DNNL_ARG_SRC);
-    zp_cfg.is_runtime_dst_zero_points
-            = !attr->zero_points_.defined(DNNL_ARG_DST);
-    zp_cfg.is_common_src_zero_point = attr->zero_points_.common(DNNL_ARG_SRC);
-    zp_cfg.is_common_dst_zero_point = attr->zero_points_.common(DNNL_ARG_DST);
-    zp_cfg.common_src_zero_point = 0;
-    zp_cfg.common_dst_zero_point = 0;
-    return status::success;
-}
-
 std::string conv_problem_t::desc_str(bool print_mb) const {
     std::ostringstream oss;
     if (print_mb) oss << "mb" << mb;
@@ -330,14 +293,6 @@ int get_default_max_tg_size(const hw_config_t &hw_cfg, int regs, int simd) {
     // to simd_size used in computation.
     return std::min(max_eus_per_wg * utils::rnd_down_pow2(threads_per_eu),
             static_cast<int>(hw_cfg.max_wg_size() / wg_per_thr));
-}
-
-std::vector<dim_t> get_prelu_weights_dims(
-        uint32_t mask, const memory_desc_t &md) {
-    std::vector<dim_t> dims(md.dims, md.dims + md.ndims);
-    for (int i = 0; i < md.ndims; ++i)
-        dims[i] = (mask & (1 << i)) ? dims[i] : 1;
-    return dims;
 }
 
 std::string build_tag(const std::vector<int> &inner_blocks,
@@ -958,12 +913,6 @@ bool zero_points_ok(const conv_problem_t &prb) {
             && (mask_dst == 0 || mask_dst == 1 << 1);
 }
 
-std::vector<int> get_scale_args(const conv_problem_t &prb) {
-    conv_arg_helper_t h(prb);
-    std::vector<int> ret = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
-    return ret;
-}
-
 bool post_ops_ok(const conv_problem_t &prb, const hw_config_t &hw_cfg) {
     auto *attr = prb.attr;
 
@@ -981,9 +930,12 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_config_t &hw_cfg) {
 
     if (!attr->scales_.has_default_values())
         if (!prb.is_s32_accumulator()) return false;
-    auto scale_args = get_scale_args(prb);
-    if (!attr->scales_.has_default_values(scale_args)) return false;
-    for (int arg : scale_args) {
+    auto scale_args = get_scale_args();
+    std::vector<int> scales(scale_args.size());
+    for (int i = 0; i < (int)scale_args.size(); i++)
+        scales[i] = scale_args[i].second;
+    if (!attr->scales_.has_default_values(scales)) return false;
+    for (int arg : scales) {
         int mask = attr->scales_.get(arg).mask_;
         // XXX: per_oc for BWD_D is treated as per_ic assuming it's called from
         // deconvolution.
@@ -1011,14 +963,6 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_config_t &hw_cfg) {
     return true;
 }
 
-const memory_desc_t *output_md(const convolution_pd_t *pd) {
-    if (pd->is_fwd()) return pd->dst_md();
-    if (pd->is_bwd_d()) return pd->diff_src_md();
-    if (pd->is_bwd_w()) return pd->diff_weights_md();
-    ir_error_not_expected();
-    return nullptr;
-}
-
 void maybe_override_from_lookup_table(conv_config_t &cfg) {
 #ifdef GEN_CONV_DEBUG
     if (!ir_utils::getenv_bool("lookup", true)) return;
@@ -1031,7 +975,7 @@ void maybe_override_from_lookup_table(conv_config_t &cfg) {
 void maybe_override_from_env(conv_config_t &cfg) {
     auto cfg_env = ir_utils::getenv_str("cfg", "");
     if (cfg_env.empty()) return;
-    cfg.override_set(cfg_env.c_str(), /*is_env=*/true);
+    cfg.override_set(cfg_env, /*is_env=*/true);
 }
 
 void maybe_override(conv_config_t &cfg) {
@@ -1119,6 +1063,8 @@ status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
     if (!post_ops_ok(prb, hw_cfg)) return status::unimplemented;
     if (!zero_points_ok(prb)) return status::unimplemented;
 
+    zero_points_config_t zp_cfg(pd);
+    cfg.set_zp_cfg(zp_cfg);
     cfg.set_prb(prb);
     cfg.set_exec_cfg(exec_config_t(hw_cfg));
 
@@ -1876,7 +1822,7 @@ void init_slm(conv_config_t &cfg) {
             // Limit the SLM buffer count to 1 in the presence of ZP, since
             // for now the masks are otherwise computed for next iterations.
             const bool use_pref_bufs = (enable_a == enable_b)
-                    && (!prb.zp_cfg.do_src_compensation);
+                    && (!cfg.zp_cfg().do_src_compensation);
             bufs = (use_pref_bufs ? pref_bufs : 1);
             gmem_bufs = 1;
         }
@@ -2097,39 +2043,11 @@ status_t init_cfg(conv_config_t &cfg, const convolution_pd_t *pd) {
     return ok ? status::success : status::runtime_error;
 }
 
-conv_config_t::conv_config_t() = default;
-conv_config_t::~conv_config_t() = default;
-
 int conv_config_t::reserved_regs() const {
     int ret = constants::reserved_regs_default;
     // XXX: Workaround for incorrect register estimation.
     if (prb().is_bwd_w && prb().mb % 16 != 0) ret += 4;
     return ret;
-}
-
-void conv_config_t::override_set(const std::string &s, bool is_env) {
-    std::vector<param_t *> params;
-    for (auto &gp : get_params_)
-        params.push_back(gp(this));
-    auto parts = ir_utils::split(s);
-    for (auto &p : parts) {
-        if (p.empty()) continue;
-        auto sub_parts = ir_utils::split(p, "=");
-        ir_assert(sub_parts.size() == 2);
-        auto &key = sub_parts[0];
-        auto &value = sub_parts[1];
-        bool found = false;
-        for (auto *p : params) {
-            if (p->accept_key(key)) {
-                ir_info() << "Override " << p->name() << ": " << key << "="
-                          << value << std::endl;
-                p->override_set(key, value, is_env);
-                found = true;
-                break;
-            }
-        }
-        if (!found) ir_warning() << "Unknown parameter: " << p << std::endl;
-    }
 }
 
 int get_thread_count(const conv_config_t &cfg) {
@@ -2264,66 +2182,6 @@ bool conv_config_t::can_skip_bia_zero_out() const {
     return can_skip_wei_zero_out() && !slm().b();
 }
 
-void init_extra_tensors(const conv_config_t &cfg, tensor_config_t &tensor_cfg) {
-    const auto &prb = cfg.prb();
-    auto &zp_cfg = prb.zp_cfg;
-    auto *pd = prb.conv_pd;
-    auto *attr = prb.attr;
-    if (zp_cfg.do_src_compensation && zp_cfg.is_runtime_src_zero_points) {
-        int zp_ic = (zp_cfg.is_common_src_zero_point) ? 1 : prb.ic;
-        std::vector<dim_t> dims = {zp_ic};
-        layout_t zp_layout(type_t::s32(), 0, dims);
-        int arg_key = DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC;
-        tensor_cfg.add_tensor("src_zero_points", arg_key,
-                /*is_input=*/true, /*is_output=*/false, zp_layout);
-    }
-    if (zp_cfg.do_dst_compensation && zp_cfg.is_runtime_dst_zero_points) {
-        std::vector<dim_t> dims = {prb.oc};
-        layout_t zp_layout(type_t::s32(), 0, dims);
-        int arg_key = DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST;
-        tensor_cfg.add_tensor("dst_zero_points", arg_key,
-                /*is_input=*/true, /*is_output=*/false, zp_layout);
-    }
-    auto scale_args = get_scale_args(prb);
-    const char *scale_names[] = {"src_scales", "wei_scales", "dst_scales"};
-    const int scale_names_len = sizeof(scale_names) / sizeof(scale_names[0]);
-    ir_assert((int)scale_args.size() == scale_names_len);
-    for (int i = 0; i < (int)scale_args.size(); i++) {
-        int arg = scale_args[i];
-        auto &s = attr->scales_.get(arg);
-        if (s.has_default_values()) continue;
-        int dim = s.mask_ == 0 ? 1 : (prb.is_fwd ? prb.oc : prb.ic);
-        std::vector<dim_t> dims = {dim};
-        layout_t layout(type_t::f32(), 0, dims);
-        int arg_key = DNNL_ARG_ATTR_SCALES | arg;
-        tensor_cfg.add_tensor(scale_names[i], arg_key, /*is_input=*/true,
-                /*is_output=*/false, layout);
-    }
-    for (int i = 0; i < attr->post_ops_.len(); i++) {
-        auto &po = attr->post_ops_.entry_[i];
-        if (po.is_eltwise()
-                || po.is_sum(/*require_scale_one=*/false,
-                        /*require_zp_zero=*/false)) {
-            // No extra tensors.
-        } else if (po.is_binary()) {
-            auto layout = make_layout(po.binary.src1_desc);
-            int arg_key = DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1;
-            tensor_cfg.add_tensor("binary_rhs_" + std::to_string(i), arg_key,
-                    /*is_input=*/true,
-                    /*is_output=*/false, layout);
-        } else if (po.is_prelu()) {
-            layout_t layout(type_t::f32(), 0,
-                    get_prelu_weights_dims(
-                            po.prelu.mask, *pd->invariant_dst_md()));
-            int arg_key = DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_WEIGHTS;
-            tensor_cfg.add_tensor("prelu_rhs_" + std::to_string(i), arg_key,
-                    /*is_input=*/true, /*is_output=*/false, layout);
-        } else {
-            ir_error_not_expected();
-        }
-    }
-}
-
 tensor_config_t get_tensor_config(const conv_config_t &cfg) {
     const auto &prb = cfg.prb();
     tensor_config_t tensor_cfg;
@@ -2345,7 +2203,9 @@ tensor_config_t get_tensor_config(const conv_config_t &cfg) {
         tensor_cfg.require_zero_out("wei");
         if (prb.with_bias) tensor_cfg.require_zero_out("bia");
     }
-    init_extra_tensors(cfg, tensor_cfg);
+    init_extra_tensors(cfg.zp_cfg(), *prb.conv_pd->attr(),
+            *prb.conv_pd->invariant_dst_md(), (prb.is_fwd) ? prb.ic : prb.oc,
+            (prb.is_fwd) ? prb.oc : prb.ic, tensor_cfg);
     return tensor_cfg;
 }
 
