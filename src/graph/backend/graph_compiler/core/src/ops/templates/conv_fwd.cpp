@@ -258,19 +258,27 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
     cfg.tile_q = -1;
     cfg.tile_p = -1;
   }
+
+  bool has_pad = (pd_ > 0) || (ph_ > 0) || (pw_ > 0);
   if (is_1x1_conv_) {
     max_oc_block = std::max(
       max_oc_block, utils::get_blocks(oc_, 1, ow_ * 2 / dtype_size).back());
     cfg.K_block = oc_ % 32 == 0 ? max_oc_block : oc_;
   } else {
-    // config observation: small oc block could provide a good performance for
-    // conv3x3
+    // config observation: if oc is small enough, directly consuming all oc
+    // would be better
+    // A relative large K_block(128) is good for padding_v2 template
+    auto run_on_amx = ops::is_amx_dtype(ctx, get_weight_dtype());
     bool small_oc = oc_ <= 128;
-    if (small_oc) {
-      // config observation: if oc is small enough, directly consuming all oc
-      // would be better
-      cfg.K_block = utils::get_blocks(oc_, 64).front();
+    bool using_v2_template
+      = has_pad && ((run_on_amx || is_3d_) && (kh_ - 1) * dh_ + 1 < ih_);
+    if (!run_on_amx || using_v2_template || small_oc) {
+      auto default_block
+        = small_oc || using_v2_template ? 128 : 128 / dtype_size;
+      cfg.K_block = utils::get_blocks(oc_, 16, default_block).back();
     } else {
+      // config observation: small oc block could provide a good performance for
+      // conv3x3 on amx no padding case
       cfg.K_block = utils::get_blocks(oc_, 32).front();
     }
   }
@@ -278,7 +286,6 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
     max_ic_block, utils::get_blocks(ic_, 1, ow_ * 2 / dtype_size).back());
   cfg.C_block = ic_ % 32 == 0 ? max_ic_block : ic_;
 
-  bool has_pad = (pd_ > 0) || (ph_ > 0) || (pw_ > 0);
   if (is_3d_ && has_pad) {
     if (mb_ * od_ / cfg.tile_d >= 8) {
       cfg.tile_p = utils::get_blocks(oh_, 1, 32).back();
