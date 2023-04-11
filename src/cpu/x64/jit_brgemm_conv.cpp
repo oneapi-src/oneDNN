@@ -538,8 +538,8 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
             for_(int i_init = i_init_begin; i_init < i_init_end; i_init++)
             for_(int i_N = N_begin; i_N < N_end; i_N++)
             for (int i_K = K_begin; i_K < K_end; i_K++) {
-                add_brg_descriptor(
-                        vM, i_N, i_K, i_init, kd_b, kd_e, kh_b, kh_e);
+                CHECK(add_brg_descriptor(
+                        vM, i_N, i_K, i_init, kd_b, kd_e, kh_b, kh_e));
             }
         }
     }
