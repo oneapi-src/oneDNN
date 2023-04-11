@@ -136,6 +136,7 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
         CHECK(conf.dispatch.vectorize_dim(dim_str, sub_group_size));
         conf.plain_to_ABcd4a4b = true;
     } else if (conf.isXa16b) {
+        if (is_broadcast()) return status::unimplemented;
         conf.nvect = 8;
         int channel_blk = 16;
         const int vect_dim_size = 16;
@@ -256,5 +257,4 @@ status_t gen9_binary_t::pd_t::init_kernel_ctx(
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
-
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
