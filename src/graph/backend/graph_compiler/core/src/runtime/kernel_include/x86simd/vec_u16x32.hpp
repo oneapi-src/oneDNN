@@ -49,20 +49,21 @@ public:
     static INLINE void store_aligned(vec_u16x32 v, uint16_t *p) {
         _mm512_store_si512((__m512i *)p, v.v);
     }
-    static INLINE void mask_store(uint16_t *p, __mmask32 mask, vec_u16x32 &a) {
+    static INLINE void mask_store(
+            uint16_t *p, __mmask32 mask, vec_u16x32 const &a) {
         return _mm512_mask_storeu_epi16(p, mask, a.v);
     }
 };
 
 INLINE vec_u16x32 operator+(vec_u16x32 const &a, vec_u16x32 const &b) {
-    return _mm512_adds_epu16(a.v, b.v);
+    return _mm512_add_epi16(a.v, b.v);
 }
 
 INLINE vec_u16x32 operator-(vec_u16x32 const &a, vec_u16x32 const &b) {
-    return _mm512_subs_epu16(a.v, b.v);
+    return _mm512_sub_epi16(a.v, b.v);
 }
 INLINE vec_u16x32 operator-(vec_u16x32 const &a) {
-    return _mm512_subs_epu16(_mm512_setzero_si512(), a.v);
+    return _mm512_sub_epi16(_mm512_setzero_si512(), a.v);
 }
 
 // _mm_mulhi_epu16 was supported, but the high 16 bits of result was return.

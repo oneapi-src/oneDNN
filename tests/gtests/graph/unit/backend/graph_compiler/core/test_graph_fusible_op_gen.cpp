@@ -19,6 +19,7 @@
 #include "gtest/gtest.h"
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/graph/fused_op.hpp>
+#include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/lowering.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
@@ -95,21 +96,29 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorAdd2) {
         auto ip0 = builder::tensor_ptr(in0, {0}, {}, true);
         auto ip1 = builder::tensor_ptr(in1, {0}, {}, true);
         auto iter = builder::make_var(datatypes::index, "iter");
-        auto iter2 = builder::make_var(datatypes::index, "iter2");
-        auto loop = builder::make_for_loop_unattached(iter, 0, UINT64_C(1024),
+        auto last_axis_offset = builder::make_cast(datatypes::s32, expr(1030UL))
+                - builder::make_cast(datatypes::s32, (iter));
+        // mask = min(max(0, last_dim_len -
+        // last_dim_idx),real_step) To choose [0 ~
+        // step] mask
+        auto cur_step = builder::make_min(
+                builder::make_max(builder::make_constant(0), last_axis_offset),
+                simd_len);
+
+        auto loop = builder::make_for_loop_unattached(iter, 0, UINT64_C(1030),
                 simd_len,
                 builder::make_stmts_unattached({builder::make_assign_unattached(
-                        op[span_t({iter}, simd_len)],
-                        ip0[span_t({iter}, simd_len)]
-                                + ip1[span_t({iter}, simd_len)])}),
+                        op[span_t({iter}, simd_len,
+                                generate_mask_by_step_directly(
+                                        cur_step, simd_len))],
+                        ip0[span_t({iter}, simd_len,
+                                generate_mask_by_step_directly(
+                                        cur_step, simd_len))]
+                                + ip1[span_t({iter}, simd_len,
+                                        generate_mask_by_step_directly(
+                                                cur_step, simd_len))])}),
                 true, for_type::PARALLEL);
         builder.emit(loop);
-        auto loop2 = builder::make_for_loop_unattached(iter2, UINT64_C(1024),
-                UINT64_C(1030), 1,
-                builder::make_stmts_unattached({builder::make_assign_unattached(
-                        op[iter2], ip0[iter2] + ip1[iter2])}),
-                true, for_type::NORMAL);
-        builder.emit(loop2);
         _return_(true);
     }
     CMP_SIMPLIFIED_IR(addf, bbb);

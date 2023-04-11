@@ -47,22 +47,23 @@ public:
         _mm256_store_si256((__m256i *)p, v.v);
     }
 #ifdef __AVX512F__
-    static INLINE void mask_store(uint8_t *p, __mmask32 mask, vec_u8x32 &a) {
+    static INLINE void mask_store(
+            uint8_t *p, __mmask32 mask, vec_u8x32 const &a) {
         return _mm256_mask_storeu_epi8(p, mask, a.v);
     }
 #endif
 };
 
 INLINE vec_u8x32 operator+(vec_u8x32 const &a, vec_u8x32 const &b) {
-    return _mm256_adds_epu8(a.v, b.v);
+    return _mm256_add_epi8(a.v, b.v);
 }
 
 INLINE vec_u8x32 operator-(vec_u8x32 const &a, vec_u8x32 const &b) {
-    return _mm256_subs_epu8(a.v, b.v);
+    return _mm256_sub_epi8(a.v, b.v);
 }
 
 INLINE vec_u8x32 operator-(vec_u8x32 const &a) {
-    return _mm256_subs_epu8(_mm256_setzero_si256(), a.v);
+    return _mm256_sub_epi8(_mm256_setzero_si256(), a.v);
 }
 
 // INLINE vec_u8x32 operator*(vec_u8x32 const &a, vec_u8x32 const &b) {

@@ -54,7 +54,8 @@ public:
     static INLINE void store_aligned(vec_u32x16 v, uint32_t *p) {
         _mm512_store_si512((__m512i *)p, v.v);
     }
-    static INLINE void mask_store(uint32_t *p, __mmask16 mask, vec_u32x16 &a) {
+    static INLINE void mask_store(
+            uint32_t *p, __mmask16 mask, vec_u32x16 const &a) {
         return _mm512_mask_storeu_epi32(p, mask, a.v);
     }
 };

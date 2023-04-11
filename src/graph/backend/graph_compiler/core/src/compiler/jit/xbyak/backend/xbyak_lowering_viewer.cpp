@@ -1364,6 +1364,9 @@ void xbyak_lowering_viewer::handle_avx_add(const operand &op_dst,
         case cpu_data_type::float_32: {
             XBYAK_GEN(vaddss, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
         } break;
+        case cpu_data_type::uint_8_x16: {
+            XBYAK_GEN(vpaddb, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
+        } break;
         case cpu_data_type::sint_32_x2:
         case cpu_data_type::uint_32_x4:
         case cpu_data_type::sint_32_x4:

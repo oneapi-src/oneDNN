@@ -750,29 +750,7 @@ void compute_block_broadcast(sc_graph_t &graph,
     }
     // For empty bc_axis
     if (in_bc_idx.empty()) in_bc_idx = {0};
-    std::vector<expr> in_idx_tail = in_idx, in_bc_idx_tail = in_bc_idx,
-                      dst_idx_tail = dst_idx;
-    auto tail_var = builder::make_var(
-            datatypes::index, std::string("_fuseiter") + fusion_create_idx());
-    in_idx_tail[vx_info.axis] = tail_var;
-    dst_idx_tail[vx_info.axis] = tail_var;
-
-    expr indexed_target
-            = builder::make_indexing(dst.tptr_, dst_idx, vx_info.lanes);
-    expr indexed_input
-            = builder::make_indexing(in_tsl->tptr_, in_idx, vx_info.lanes);
-
-    expr indexed_target_tail = builder::make_indexing(dst.tptr_, dst_idx_tail);
-    expr indexed_input_tail
-            = builder::make_indexing(in_tsl->tptr_, in_idx_tail);
-    if (!in_tsl->tptr_->dtype_.get_pointer_element().is_etype(out_etype)) {
-        indexed_input = builder::make_cast(
-                sc_data_type_t(out_etype, indexed_input->dtype_.lanes_),
-                indexed_input);
-        indexed_input_tail = builder::make_cast(
-                sc_data_type_t(out_etype, indexed_input_tail->dtype_.lanes_),
-                indexed_input);
-    }
+    expr indexed_target, indexed_input;
     auto bld = builder::get_current_builder();
     COMPILE_ASSERT(bld, "No active builder is set");
     auto slice_len = dst.get_shape().at(vx_info.axis);
@@ -781,8 +759,16 @@ void compute_block_broadcast(sc_graph_t &graph,
     auto tail = do_cast_and_fold(slice_len % lanes);
     int floor_int = 0;
     int tail_int = 0;
-    if (floor.isa<constant>()) { floor_int = get_expr_as_int(floor); }
-    if (tail.isa<constant>()) { tail_int = get_expr_as_int(tail); }
+    int floor_len
+            = get_const_as_int(slice_len.static_as<constant>()) / lanes * lanes;
+    int tail_len = get_const_as_int(slice_len.static_as<constant>()) % lanes;
+    if (floor.isa<constant>()) {
+        floor_int = get_expr_as_int(floor);
+        tail_int = get_expr_as_int(tail);
+        COMPILE_ASSERT((floor_int + tail_int), "Don't support shape len is 0.");
+    }
+
+    auto last_axis = expr(floor + tail);
     int last_axis_mask = -1;
     std::unordered_map<expr, std::pair<expr, expr>> conditions;
     if (use_mask) {
@@ -808,78 +794,74 @@ void compute_block_broadcast(sc_graph_t &graph,
         // move broadcast op to body
         if (static_cast<int>(dst.get_shape().size()) == vx_info.axis + 1
                 && i == vx_info.axis) {
-            // IF last dim is included in bc_axis.
-            if (!floor.isa<constant>() || floor_int) {
-                expr indexed_bc_input;
-                if (bc_axis.back() == static_cast<int64_t>(vx_info.axis)) {
-                    indexed_bc_input = builder::make_indexing(
-                            in_bc_tsl->tptr_, in_bc_idx, vx_info.lanes);
+            bld->push_scope();
+            // if the shape is 1, we don't use mask to process.
+            bool is_last_dim_1
+                    = tail.isa<constant>() && tail_int == 1 && floor_int == 0;
+            bool has_tail = (!tail.isa<constant>() || tail_int);
+            indexing_from_diff_cond(is_last_dim_1, has_tail, dst, dst_idx,
+                    lanes, indexed_target, slice_len, iter_vars.at(i));
+            indexing_from_diff_cond(is_last_dim_1, has_tail, *in_tsl, in_idx,
+                    lanes, indexed_input, slice_len, iter_vars.at(i));
+            auto func_op_cast = [](bool is_last_dim_1, sc_data_etype out_etype,
+                                        expr &indexed_input) {
+                if (is_last_dim_1) {
+                    indexed_input = builder::make_cast(
+                            sc_data_type_t(out_etype), indexed_input);
+                } else {
+                    indexed_input = builder::make_cast(
+                            sc_data_type_t(
+                                    out_etype, indexed_input->dtype_.lanes_),
+                            indexed_input);
                 }
-                // IF last dim is excluded in bc_axis.
-                else {
+            };
+            if (!in_tsl->tptr_->dtype_.get_pointer_element().is_etype(
+                        out_etype)) {
+                func_op_cast(is_last_dim_1, out_etype, indexed_input);
+            }
+
+            expr indexed_bc_input;
+            if (bc_axis.back() == static_cast<int64_t>(vx_info.axis)) {
+                indexing_from_diff_cond(is_last_dim_1, has_tail, *in_bc_tsl,
+                        in_bc_idx, lanes, indexed_bc_input, slice_len,
+                        iter_vars.at(i));
+            }
+            // IF last dim is excluded in bc_axis.
+            else {
+                if (is_last_dim_1) {
+                    indexed_bc_input = builder::make_indexing(
+                            in_bc_tsl->tptr_, in_bc_idx);
+                } else {
                     indexed_bc_input = builder::make_broadcast(
                             builder::make_indexing(in_bc_tsl->tptr_, in_bc_idx),
                             static_cast<int>(vx_info.lanes));
                 }
-                if (bc_input_cast) {
-                    indexed_bc_input = builder::make_cast(
-                            sc_data_type_t(
-                                    out_etype, indexed_bc_input->dtype_.lanes_),
-                            indexed_bc_input);
-                }
-                bld->push_scope();
-                std::vector<expr::lvalue_proxy_t> target_vec {
-                        expr::lvalue_proxy_t(indexed_target, false)};
-                auto cond_it = conditions.find(iter_vars[i]);
-                if (cond_it != conditions.end()) {
-                    assert(last_axis_mask != -1);
-                    cur = compute(
-                            std::vector<expr> {indexed_input, indexed_bc_input},
-                            target_vec, cond_it->second.first,
-                            cond_it->second.second, vx_info.lanes);
-                } else {
-                    cur = compute(
-                            std::vector<expr> {indexed_input, indexed_bc_input},
-                            target_vec);
-                }
-                cur->attr()[op_traits::workload_computable_t::workload_number]
-                        = wkld;
-                bld->emit(cur);
-                cur = make_stmt<for_loop_node_t>(iter_vars.at(i), expr(0),
-                        expr(floor), expr(int(vx_info.lanes)), bld->pop_scope(),
-                        true, for_type::NORMAL);
-                tcur.emplace_back(cur);
             }
-            if (!tail.isa<constant>() || tail_int) {
-                auto res_it = std::find(
-                        bc_axis.begin(), bc_axis.end(), vx_info.axis);
-                if (res_it != bc_axis.end()) {
-                    in_bc_idx_tail[keep_dims ? vx_info.axis
-                                             : (res_it - bc_axis.begin())]
-                            = tail_var;
-                }
-                expr indexed_bc_input_tail = builder::make_indexing(
-                        in_bc_tsl->tptr_, in_bc_idx_tail);
-                if (bc_input_cast) {
-                    indexed_bc_input_tail = builder::make_cast(
-                            sc_data_type_t(out_etype,
-                                    indexed_bc_input_tail->dtype_.lanes_),
-                            indexed_bc_input_tail);
-                }
-                std::vector<expr::lvalue_proxy_t> target_vec_tail {
-                        expr::lvalue_proxy_t(indexed_target_tail, false)};
-                bld->push_scope();
-                cur = compute(std::vector<expr> {indexed_input_tail,
-                                      indexed_bc_input_tail},
-                        target_vec_tail);
-                cur->attr()[op_traits::workload_computable_t::workload_number]
-                        = wkld;
-                bld->emit(cur);
-                cur = make_stmt<for_loop_node_t>(tail_var, expr(floor),
-                        do_cast_and_fold(floor + tail), expr(1),
-                        bld->pop_scope(), true, for_type::NORMAL);
-                tcur.emplace_back(cur);
+            if (bc_input_cast) {
+                func_op_cast(is_last_dim_1, out_etype, indexed_bc_input);
             }
+            std::vector<expr::lvalue_proxy_t> target_vec {
+                    expr::lvalue_proxy_t(indexed_target, false)};
+            auto cond_it = conditions.find(iter_vars[i]);
+            if (cond_it != conditions.end()) {
+                assert(last_axis_mask != -1);
+                cur = compute(
+                        std::vector<expr> {indexed_input, indexed_bc_input},
+                        target_vec, cond_it->second.first,
+                        cond_it->second.second, vx_info.lanes);
+            } else {
+                cur = compute(
+                        std::vector<expr> {indexed_input, indexed_bc_input},
+                        target_vec);
+            }
+            cur->attr()[op_traits::workload_computable_t::workload_number]
+                    = wkld;
+            bld->emit(cur);
+            cur = make_stmt<for_loop_node_t>(iter_vars.at(i), expr(0),
+                    slice_len,
+                    is_last_dim_1 ? expr(1) : expr(int(vx_info.lanes)),
+                    bld->pop_scope(), true, for_type::NORMAL);
+            tcur.emplace_back(cur);
         } else {
             if (!tcur.empty() && tcur[0].defined()) {
                 body = make_stmt<stmts_node_t>(std::move(tcur));

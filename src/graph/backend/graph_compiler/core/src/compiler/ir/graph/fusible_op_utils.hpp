@@ -114,6 +114,14 @@ void compute_vectorized_op(sc_graph_t &graph,
 expr make_select_by_mask(const expr &, const expr &, const expr &, uint32_t);
 expr generate_mask_var_by_step(stmt &mask_def, const expr &cur_step,
         int32_t step, const expr &sup_condition = expr());
+expr generate_mask_by_step_directly(
+        const expr &cur_step, int32_t step, const expr &sup_condition = expr());
+expr calculate_mask_cur_step(
+        const expr &len, const expr &iter_var, const int32_t lanes);
+expr indexing_from_diff_cond(const bool is_last_dim_1, const bool has_tail,
+        const tensor_slice &input, std::vector<expr> &input_idx,
+        const int32_t lanes, expr &res_idx, const expr &axis_len,
+        const expr &iter_var);
 void compute_mask_and_generate_condition(sc_graph_t &graph,
         const std::vector<const tensor_slice *> &src, const sc_dims &plain_dims,
         sc_data_format_t format, const std::vector<expr> &iter_vars, int lanes,

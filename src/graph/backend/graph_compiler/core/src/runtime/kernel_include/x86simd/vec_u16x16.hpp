@@ -60,21 +60,22 @@ public:
         _mm256_store_si256((__m256i *)p, v.v);
     }
 #ifdef __AVX512F__
-    static INLINE void mask_store(uint16_t *p, __mmask16 mask, vec_u16x16 &a) {
+    static INLINE void mask_store(
+            uint16_t *p, __mmask16 mask, vec_u16x16 const &a) {
         return _mm256_mask_storeu_epi16(p, mask, a.v);
     }
 #endif
 };
 
 INLINE vec_u16x16 operator+(vec_u16x16 const &a, vec_u16x16 const &b) {
-    return _mm256_adds_epu16(a.v, b.v);
+    return _mm256_add_epi16(a.v, b.v);
 }
 
 INLINE vec_u16x16 operator-(vec_u16x16 const &a, vec_u16x16 const &b) {
-    return _mm256_subs_epu16(a.v, b.v);
+    return _mm256_sub_epi16(a.v, b.v);
 }
 INLINE vec_u16x16 operator-(vec_u16x16 const &a) {
-    return _mm256_subs_epu16(_mm256_setzero_si256(), a.v);
+    return _mm256_sub_epi16(_mm256_setzero_si256(), a.v);
 }
 
 // _mm_mulhi_epu16 was supported, but the high 16 bits of result was return.

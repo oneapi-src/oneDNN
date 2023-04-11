@@ -23,10 +23,10 @@ INLINE vec_f32x8 mask_load(const float *p, vec_s32x8 mask) {
 INLINE vec_f32x4 mask_load(const float *p, vec_s32x4 mask) {
     return _mm_maskload_ps(p, mask.v);
 }
-INLINE void mask_store(float *p, vec_s32x8 mask, vec_f32x8 &a) {
+INLINE void mask_store(float *p, vec_s32x8 mask, vec_f32x8 const &a) {
     _mm256_maskstore_ps(p, mask.v, a.v);
 }
-INLINE void mask_store(float *p, vec_s32x4 mask, vec_f32x4 &a) {
+INLINE void mask_store(float *p, vec_s32x4 mask, vec_f32x4 const &a) {
     _mm_maskstore_ps(p, mask.v, a.v);
 }
 #endif

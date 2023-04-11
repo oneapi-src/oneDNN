@@ -50,7 +50,7 @@ public:
         _mm_store_ps(p, v.v);
     }
 #ifdef __AVX512F__
-    static INLINE void mask_store(float *p, __mmask8 mask, vec_f32x4 &a) {
+    static INLINE void mask_store(float *p, __mmask8 mask, vec_f32x4 const &a) {
         return _mm_mask_storeu_ps(p, mask, a.v);
     }
 #endif

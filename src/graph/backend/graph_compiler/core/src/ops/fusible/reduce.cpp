@@ -566,8 +566,7 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
         }
     }
     // need mask
-    expr mask;
-    stmt mask_def;
+    expr mask_directly;
     int lanes = static_cast<int>(vx_info.lanes);
     if (last_dim == 1) {
         lanes = 1;
@@ -578,16 +577,17 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
                                     - cast_to_s32(src_idx.back()),
                             0),
                     lanes);
-            mask = generate_mask_var_by_step(mask_def, cur_step, lanes);
+            mask_directly = generate_mask_by_step_directly(cur_step, lanes);
         } else {
             lanes = 1;
         }
     }
     dst_idx = !dst_idx.empty() ? dst_idx : std::vector<expr> {expr {0}};
     expr indexed_target = builder::make_indexing(dst.tptr_, dst_idx,
-            !last_axis_reduce ? lanes : 1, !last_axis_reduce ? mask : expr());
+            !last_axis_reduce ? lanes : 1,
+            !last_axis_reduce ? mask_directly : expr());
     expr indexed_input = builder::make_indexing(
-            src.at(0)->tptr_, src_indices.at(0), lanes, mask);
+            src.at(0)->tptr_, src_indices.at(0), lanes, mask_directly);
 
     auto bld = builder::get_current_builder();
     COMPILE_ASSERT(bld, "No active builder is set");
@@ -686,11 +686,6 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
                 ? cur
                 : make_stmt<stmts_node_t>(std::vector<stmt> {std::move(cur)});
         // insert mask define.
-        if (i == static_cast<int>(src.at(0)->nslice_dims() - 1)
-                && mask_def.defined()) {
-            auto &seq = body.static_as<stmts>()->seq_;
-            seq.insert(seq.begin(), mask_def);
-        }
         cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)), expr(0),
                 src.at(0)->get_shape().at(i),
                 i == static_cast<int>(src.at(0)->nslice_dims() - 1)

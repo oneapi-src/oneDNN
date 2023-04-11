@@ -48,7 +48,8 @@ public:
         _mm256_store_si256((__m256i *)p, v.v);
     }
 #ifdef __AVX512F__
-    static INLINE void mask_store(int8_t *p, __mmask32 mask, vec_s8x32 &a) {
+    static INLINE void mask_store(
+            int8_t *p, __mmask32 mask, vec_s8x32 const &a) {
         return _mm256_mask_storeu_epi8(p, mask, a.v);
     }
 #endif

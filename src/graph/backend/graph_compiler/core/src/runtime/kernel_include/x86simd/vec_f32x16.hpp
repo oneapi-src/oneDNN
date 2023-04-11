@@ -57,7 +57,8 @@ public:
     static INLINE void store_aligned(vec_f32x16 v, float *p) {
         _mm512_store_ps(p, v.v);
     }
-    static INLINE void mask_store(float *p, __mmask16 mask, vec_f32x16 &a) {
+    static INLINE void mask_store(
+            float *p, __mmask16 mask, vec_f32x16 const &a) {
         return _mm512_mask_storeu_ps(p, mask, a.v);
     }
 };

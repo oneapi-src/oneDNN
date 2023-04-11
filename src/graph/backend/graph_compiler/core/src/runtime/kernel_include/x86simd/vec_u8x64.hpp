@@ -45,21 +45,22 @@ public:
     static INLINE void store_aligned(vec_u8x64 v, int8_t *p) {
         _mm512_store_si512((__m512i *)p, v.v);
     }
-    static INLINE void mask_store(uint8_t *p, __mmask64 mask, vec_u8x64 &a) {
+    static INLINE void mask_store(
+            uint8_t *p, __mmask64 mask, vec_u8x64 const &a) {
         return _mm512_mask_storeu_epi8(p, mask, a.v);
     }
 };
 
 INLINE vec_u8x64 operator+(vec_u8x64 const &a, vec_u8x64 const &b) {
-    return _mm512_adds_epu8(a.v, b.v);
+    return _mm512_add_epi8(a.v, b.v);
 }
 
 INLINE vec_u8x64 operator-(vec_u8x64 const &a, vec_u8x64 const &b) {
-    return _mm512_subs_epu8(a.v, b.v);
+    return _mm512_sub_epi8(a.v, b.v);
 }
 
 INLINE vec_u8x64 operator-(vec_u8x64 const &a) {
-    return _mm512_subs_epu8(_mm512_setzero_si512(), a.v);
+    return _mm512_sub_epi8(_mm512_setzero_si512(), a.v);
 }
 
 // INLINE vec_u8x64 operator*(vec_u8x64 const &a, vec_u8x64 const &b) {
