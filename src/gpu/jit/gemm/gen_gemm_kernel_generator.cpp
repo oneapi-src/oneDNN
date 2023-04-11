@@ -18888,6 +18888,7 @@ bool gemm_kernel_generator_t<hw>::sysgemmAccumulateC(
     auto diagC = saveData[1].ud(1);
     auto effCO = saveData[1].uq(1);
     auto slotAB = saveData[1].ud(4);
+    auto ldco = saveData[1].ud(5);
     auto effAs = saveData[1].uq(2).reinterpret(0, state.effA.getType());
     auto effBs = saveData[1].uq(3).reinterpret(0, state.effB.getType());
     auto saveI0 = saveData[1].ud(1);
@@ -18919,6 +18920,7 @@ bool gemm_kernel_generator_t<hw>::sysgemmAccumulateC(
     if (state.effCO.isValid()) {
         effCO = effCO.reinterpret(0, state.effCO.getType());
         emov(1, effCO, state.effCO, strategy, state);
+        if (state.inputs.ldco.isValid()) mov(1, ldco, state.inputs.ldco);
     }
     if (problem.hasBinaryPostOp()) {
         if (state.diagC.isValid()) stub();
@@ -18956,6 +18958,7 @@ bool gemm_kernel_generator_t<hw>::sysgemmAccumulateC(
     state.ra.release(state.remFusedStorage);
     state.ra.release(state.diagC);
     state.ra.release(state.effCO);
+    state.ra.release(state.inputs.ldco);
     state.ra.release(state.fusedGEMM.slotA);
     state.ra.release(state.fusedGEMM.slotB);
 
@@ -19010,6 +19013,7 @@ bool gemm_kernel_generator_t<hw>::sysgemmAccumulateC(
     }
     if (state.diagC.isValid()) state.diagC = diagC;
     if (state.effCO.isValid()) state.effCO = effCO;
+    if (state.inputs.ldco.isValid()) state.inputs.ldco = ldco;
     if (state.fusedGEMM.slotA.isValid()) {
         state.fusedGEMM.slotA = slotAB.uw(0);
         state.fusedGEMM.slotB = slotAB.uw(1);
@@ -20322,6 +20326,7 @@ bool gemm_kernel_generator_t<hw>::sysgemm2AccumulateC(
     auto effCO = saveData[1].uq(1);
     auto C_ptr = saveData[1].uq(2);
     auto slotAB = saveData[1].ud(6);
+    auto ldco = saveData[1].ud(7);
     auto effAs = a0.ud(4); // dwords 4-5
     auto effBs = a0.ud(6); // dwords 6-7
     auto saveI0 = saveData[1].ud(1);
@@ -20354,6 +20359,7 @@ bool gemm_kernel_generator_t<hw>::sysgemm2AccumulateC(
     if (state.effCO.isValid()) {
         effCO = effCO.reinterpret(0, state.effCO.getType());
         emov(1, effCO, state.effCO, strategy, state);
+        if (state.inputs.ldco.isValid()) mov(1, ldco, state.inputs.ldco);
     }
     if (problem.hasBinaryPostOp()) {
         if (state.diagC.isValid()) stub();
@@ -20397,6 +20403,7 @@ bool gemm_kernel_generator_t<hw>::sysgemm2AccumulateC(
     state.ra.release(state.remFusedStorage);
     state.ra.release(state.diagC);
     state.ra.release(state.effCO);
+    state.ra.release(state.inputs.ldco);
     state.ra.release(state.fusedGEMM.slotA);
     state.ra.release(state.fusedGEMM.slotB);
 
@@ -20449,6 +20456,7 @@ bool gemm_kernel_generator_t<hw>::sysgemm2AccumulateC(
     }
     if (state.diagC.isValid()) state.diagC = diagC;
     if (state.effCO.isValid()) state.effCO = effCO;
+    if (state.inputs.ldco.isValid()) state.inputs.ldco = ldco;
     if (state.fusedGEMM.slotA.isValid()) {
         state.fusedGEMM.slotA = slotAB.uw(0);
         state.fusedGEMM.slotB = slotAB.uw(1);
