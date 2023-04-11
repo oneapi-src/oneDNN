@@ -93,8 +93,7 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
 #endif
 
     // Generate assembly from IR.
-    ir_to_ngen_t<hw> visitor(this, expr_binding);
-    visitor.visit(body);
+    convert_ir_to_ngen<hw>(body, this, expr_binding);
     profile.stamp("Generate Assembly");
 
     generate_epilogue();

@@ -55,8 +55,7 @@ public:
                 body, builder.kernel_grid(), builder.local_id(), expr_binding);
 
         // Generate assembly from IR.
-        ir_to_ngen_t<hw> visitor(this, expr_binding);
-        visitor.visit(body);
+        convert_ir_to_ngen<hw>(body, this, expr_binding);
 
         generate_epilogue();
     }
