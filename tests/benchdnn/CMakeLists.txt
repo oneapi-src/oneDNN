@@ -144,13 +144,12 @@ foreach(driver ${all_drivers})
     file(GLOB test_files_ci RELATIVE ${driver_dir} inputs/${driver}/test_*_ci)
     file(GLOB test_files_cpu RELATIVE ${driver_dir} inputs/${driver}/test_*)
 
-    if(NOT DNNL_EXPERIMENTAL_SPARSE)
-        list(REMOVE_ITEM test_files_cpu "test_matmul_sparse")
-        list(REMOVE_ITEM test_files_ci "test_matmul_sparse_ci")
-    endif()
-
     # Register ci input files for ci only
     if((DNNL_TEST_SET LESS DNNL_TEST_SET_CI) OR (DNNL_TEST_SET EQUAL DNNL_TEST_SET_CI))
+        if(NOT DNNL_EXPERIMENTAL_SPARSE)
+            list(REMOVE_ITEM test_files_ci "test_matmul_sparse_ci")
+        endif()
+
         # gpu_ci files may happen if cpu coverage can not be used on gpu
         # Filter out gpu_ci inputs from ci
         foreach(test_file ${test_files_gpu_ci})
@@ -172,6 +171,10 @@ foreach(driver ${all_drivers})
 
     # Register nightly input files
     if(DNNL_TEST_SET GREATER DNNL_TEST_SET_CI)
+        if(NOT DNNL_EXPERIMENTAL_SPARSE)
+            list(REMOVE_ITEM test_files_cpu "test_matmul_sparse")
+        endif()
+
         ## Filter out gpu, large cpu and invalid inputs from cpu
         foreach(test_file ${test_files_large_cpu} ${test_files_gpu_ci}
             ${test_files_gpu} ${test_files_ci} "test_conv_all;" "test_graph_all")
