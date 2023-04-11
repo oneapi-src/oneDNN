@@ -129,14 +129,14 @@ __kernel void gemm_post_ops(__global SRC_DATA_T *src, __global BIA_DATA_T *bias,
         APPLY_POST_OPS_SERIAL(accumulator, float, sum_src, float, d0, 1, d1, 1,
                 d2, 1, d3, 1, 0, 1, 0, 1);
 #endif
-    }
 
 #if C_SCALES
-    accumulator /= c_scales[0];
+        accumulator /= c_scales[0];
 #endif
 #if DST_ZERO_POINT
-    accumulator += dst_zp[0];
+        accumulator += dst_zp[0];
 #endif
+    }
 
     dst[data_idx] = TO_DST(accumulator);
 }
