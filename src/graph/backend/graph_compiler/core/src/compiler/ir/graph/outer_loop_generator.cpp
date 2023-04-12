@@ -22,6 +22,7 @@
 #include <vector>
 #include "fusible_op_utils.hpp"
 #include "fusion_mgr.hpp"
+#include "mixed_partition.hpp"
 #include "utils.hpp"
 #include "visitor.hpp"
 #include <compiler/ir/builder.hpp>
@@ -111,14 +112,18 @@ typedef std::vector<int> (*loop_sort_rule_func)(
  * parallelism which means some op may break fusion. Default is false.
  * */
 static bool axis_can_be_sort(sc_graph_t &graph, bool forced = false) {
-    bool res = std::all_of(graph.ops_.begin(), graph.ops_.end(),
-            [&forced](const sc_op_ptr &op) {
-                if (op->isa<reorder_op_t>() || op->isa<tensor_view_op_t>()) {
-                    if (forced) { op->attrs_.set(op_attr_key::no_fuse, true); }
-                    return false;
-                }
-                return true;
-            });
+    bool res = is_optimized_graph(graph)
+            || std::all_of(graph.ops_.begin(), graph.ops_.end(),
+                    [&forced](const sc_op_ptr &op) {
+                        if (op->isa<reorder_op_t>()
+                                || op->isa<tensor_view_op_t>()) {
+                            if (forced) {
+                                op->attrs_.set(op_attr_key::no_fuse, true);
+                            }
+                            return false;
+                        }
+                        return true;
+                    });
     // if forced, the given graph need repartition
     if (!res && forced) graph.attrs_["temp.need_repartition"] = true;
     return res;
@@ -344,8 +349,9 @@ bool outer_loop_generator_t::generate(context_ptr ctx, const void *config,
     }
 
     if (!loops.empty()) {
-        bound_axis bd_axis(loop_axis.size());
-        std::transform(loop_axis.begin(), loop_axis.end(), bd_axis.begin(),
+        bound_axis bd_axis(loops.size());
+        std::transform(loop_axis.begin(), loop_axis.begin() + loops.size(),
+                bd_axis.begin(),
                 [](const int &ax) { return std::vector<int> {ax}; });
         loops[0]->attr()[stmt_attr_key::loop_axis_hint] = bd_axis;
     }

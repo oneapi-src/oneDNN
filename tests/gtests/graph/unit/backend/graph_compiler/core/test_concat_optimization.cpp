@@ -317,16 +317,15 @@ static sc_graph_t build_sequential_concats_in_one_partition() {
 
 TEST(GCCore_concat_optimization_cpp, SequentialConcatsInOnePartition) {
     accuracy_test_on_graph(build_sequential_concats_in_one_partition);
-
+    // The added new buffer arguemnt is wrapped into inlined function
+    // illustrated below
     std::string expected_str = R"(/**
  * main_entry
  * @param buffer_0 [f32 [4, 8, 16, 32] @ ABCD]
- * @param buffer_2 [f32 [4, 8, 128, 32] @ ABCD]
+ * @param buffer_1 [f32 [4, 8, 128, 32] @ ABCD]
 */
-func main_entry(buffer_0: [f32 * 4UL * 8UL * 16UL * 32UL], buffer_2: [f32 * 4UL * 8UL * 128UL * 32UL]): void {
-  // [f32 [4, 8, 128, 32] @ ABCD]
-  tensor buffer_1: [f32 * 4UL * 8UL * 128UL * 32UL]
-  evaluate{outerloop_4X8_partition_add_relu_concat_relu_concat_relu_concat_add_2(buffer_1, buffer_2, buffer_0)}
+func main_entry(buffer_0: [f32 * 4UL * 8UL * 16UL * 32UL], buffer_1: [f32 * 4UL * 8UL * 128UL * 32UL]): void {
+  evaluate{outerloop_4X8_partition_add_relu_concat_relu_concat_relu_concat_add(buffer_1, buffer_0)}
 })";
     ir_compare_test_on_graph(
             build_sequential_concats_in_one_partition, expected_str);
@@ -403,10 +402,10 @@ TEST(GCCore_concat_optimization_cpp,
 func main_entry(buffer_0: [f32 * 4UL * 8UL * 16UL * 32UL], buffer_7: [f32 * 4UL * 8UL * 2048UL * 32UL]): void {
   // [f32 [4, 8, 256, 32] @ ABCD]
   tensor buffer_3: [f32 * 4UL * 8UL * 256UL * 32UL]
-  evaluate{outerloop_4X8_partition_add_tanh_concat_relu_concat_sigmoid_concat_tanh_5(&buffer_3[0UL, 0UL, 0UL, 0UL], &buffer_3[0UL, 0UL, 128UL, 0UL], buffer_0)}
+  evaluate{outerloop_4X8_partition_add_tanh_concat_relu_concat_sigmoid_concat_tanh(&buffer_3[0UL, 0UL, 0UL, 0UL], &buffer_3[0UL, 0UL, 128UL, 0UL], buffer_0)}
   // [f32 [4, 8, 2048, 32] @ ABCD]
   tensor buffer_6: [f32 * 4UL * 8UL * 2048UL * 32UL]
-  evaluate{outerloop_4X8_partition_relu_concat_tanh_concat_sigmoid_6(&buffer_6[0UL, 0UL, 0UL, 0UL], &buffer_6[0UL, 0UL, 1024UL, 0UL], buffer_3)}
+  evaluate{outerloop_4X8_partition_relu_concat_tanh_concat_sigmoid(&buffer_6[0UL, 0UL, 0UL, 0UL], &buffer_6[0UL, 0UL, 1024UL, 0UL], buffer_3)}
   evaluate{add_0(buffer_7, buffer_6, buffer_6)}
 })";
     ir_compare_test_on_graph(
@@ -467,7 +466,7 @@ TEST(GCCore_concat_optimization_cpp, TensorviewAddConcat) {
  * @param buffer_2 [f32 [4, 8, 32, 32] @ ABCD]
 */
 func main_entry(buffer_1: [f32 * 4UL * 128UL * 32UL], buffer_0: [f32 * 4UL * 8UL * 16UL * 32UL], buffer_2: [f32 * 4UL * 8UL * 32UL * 32UL]): void {
-  evaluate{outerloop_4X8_partition_add_concat_4(buffer_2, buffer_0, &buffer_1[0, 0, 0])}
+  evaluate{outerloop_4X8_partition_add_concat(buffer_2, buffer_0, &buffer_1[0, 0, 0])}
 })";
     ir_compare_test_on_graph(build_tensorview_add_concat, expected_str);
 }

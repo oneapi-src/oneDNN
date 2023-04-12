@@ -266,7 +266,7 @@ TEST(GCCore_graph_mixed_partition_cpp, TestGraphBatchWiseFuse) {
     print_graph(graph, ss, true);
     std::string expected_str
             = R"(graph(v0: f32[16, 32, 384, 1024], v1: f32[16, 32, 384, 1024], v2: f32[16, 1, 384, 1]) -> [v3: f32[8, 2, 32, 384, 1024]] {
-  [v4: f32[16, 32, 384, 1024]] = outerloop_16X384_partition_add_reduce_add_add(v0, v1, v2)
+  [v4: f32[16, 32, 384, 1024]] = outerloop_16X384_partition_add_reduce_compute_reduce_collect_add_add(v0, v1, v2)
   [v3: f32[8, 2, 32, 384, 1024]] = tensor_view(v4)
 }
 )";

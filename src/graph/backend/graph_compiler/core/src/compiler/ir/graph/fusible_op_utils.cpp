@@ -131,11 +131,14 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx) {
     COMPILE_ASSERT(copied->get_outputs().size() == 1,
             "Currently only support 1 output only");
     g.make_output(outs);
+    // create dummy parti
     auto parti = std::make_shared<mixed_parti_t>(ctx,
-            std::const_pointer_cast<sc_op>(copied->shared_from_this()),
-            std::make_shared<op_dep_matrix_t>(g));
+            std::const_pointer_cast<sc_op>(op->shared_from_this()), nullptr);
+    // create graph-to-original ops maping
+    std::unordered_map<sc_op_ptr, sc_op_ptr> graph2orig_ops
+            = {{copied, op->shared_from_this()}};
     // try optimize partition
-    if (try_optimize_parti(parti.get(), g)) {
+    if (try_optimize_parti(parti.get(), g, graph2orig_ops)) {
         // redo partition
         std::vector<mixed_parti_t::ptr> op2parti(g.ops_.size());
         do_partition(ctx, g, op_dep_matrix_t(g), op2parti);
@@ -146,6 +149,10 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx) {
                 "Only sinlge partition is expected, but got " << res.size());
         // reset new partition
         parti = res[0];
+    } else {
+        parti = std::make_shared<mixed_parti_t>(ctx,
+                std::const_pointer_cast<sc_op>(copied->shared_from_this()),
+                std::make_shared<op_dep_matrix_t>(g));
     }
     auto mx_op = transform_pa_to_mixed_op(ctx, g, parti);
     mx_op->set_owner_graph(&g);

@@ -3211,153 +3211,205 @@ static bool validate_optimized_reduce(
 
 bool mixed_parti_t::can_optimize_loop_order_for_parti(
         bool allow_tensorview) const {
-    return contain_op_with_type<reduce_op_t>()
+    return contain_op_with_type<op_traits::maybe_split_optimized_t>()
             && std::all_of(ops.begin(), ops.end(), [&](const sc_op_ptr &op) {
-                   if (allow_tensorview && op->isa<tensor_view_op_t>()) {
-                       return is_parti_out(op->get_outputs()[0])
-                               || is_parti_inp(op->get_inputs()[0]);
+                   if (op->isa<movement_op_t>()) {
+                       if (op->isa<tensor_view_op_t>() && allow_tensorview) {
+                           return is_parti_out(op->get_outputs()[0])
+                                   || is_parti_inp(op->get_inputs()[0]);
+                       } else if (op->isa<reorder_op_t>()) {
+                           return op->attrs_.get_or_else(
+                                   op_attr_key::no_fuse, false);
+                       } else {
+                           return false;
+                       }
                    } else {
                        return op->isa<unary_elementwise_op_t>()
                                || op->isa<binary_elementwise_op_t>()
                                || op->isa<reduce_op_t>()
-                               || op->isa<reduce_impl_op_t>();
+                               || op->isa<reduce_collect_op_t>()
+                               || (op->isa<reduce_compute_op_t>()
+                                       && !op->stc_cast<reduce_compute_op_t>()
+                                                   ->is_partial_reduce());
                    }
                });
 }
 
-static bool try_optimize_reduce(const mixed_parti_t *parti, sc_graph_t &g) {
+static bool try_optimize_reduce(mixed_parti_t *parti, sc_graph_t &sub_graph,
+        const std::unordered_map<sc_op_ptr, sc_op_ptr> &graph2orig_ops) {
     // currently disable reduce optimization in dynamic
     if (!parti->contain_op_with_type<op_traits::maybe_split_optimized_t>()
-            || g.is_dynamic())
+            || sub_graph.is_dynamic())
         return false;
 
     bool redo = false;
-    auto split_rd_op = [&redo](const context_ptr &ctx, sc_graph_t &g,
-                               sc_op *op) {
-        COMPILE_ASSERT(op->isa<op_traits::maybe_split_optimized_t>(),
-                op->op_name_ << " could not be split")
-        op->dyn_cast<op_traits::maybe_split_optimized_t>()->split_op(ctx, g, 1);
-        redo = true;
-    };
-
     auto ctx = parti->ctx_;
-    auto ops = g.ops_;
 
-    if (parti->contain_op_with_type<tunable_op_t>()) {
-        std::unordered_set<op_traits::maybe_split_optimized_t *>
-                splited_reduce_set;
-        std::unordered_set<sc_op_ptr> tunable_op_set;
-        for (auto &op : ops) {
-            if (op->isa<tunable_op_t>()) { tunable_op_set.insert(op); }
-        }
-        op_dep_matrix_t dep(g);
-        std::for_each(ops.begin(), ops.end(),
-                [&dep, &tunable_op_set, &splited_reduce_set](
-                        const sc_op_ptr &op) {
-                    if (auto red_op = op->dyn_cast<
-                                      op_traits::maybe_split_optimized_t>()) {
-                        if (std::any_of(tunable_op_set.begin(),
-                                    tunable_op_set.end(),
-                                    [&dep, &op](const sc_op_ptr &tun) {
-                                        return dep.lookup(tun, op) == 1;
-                                    })
-                                && !op->is_dynamic()) {
-                            splited_reduce_set.insert(red_op);
-                        }
-                    }
-                });
-        if (splited_reduce_set.empty()) return false;
-        std::for_each(splited_reduce_set.begin(), splited_reduce_set.end(),
-                [&g, &ctx, &split_rd_op](
-                        op_traits::maybe_split_optimized_t *red_op) {
-                    auto op = dynamic_cast<sc_op *>(red_op);
-                    // pre-check
-                    if (auto rd_op = op->dyn_cast<reduce_compute_op_t>()) {
-                        auto rd_axis = rd_op->get_rd_axis();
-                        // check if empty to make g++12 happy
-                        if (!rd_axis.empty()) {
-                            rd_axis.erase(rd_axis.begin());
-                        }
-                        if (!rd_axis.empty()) {
-                            sc_dim prod = 1;
-                            for (auto &ax : rd_axis) {
-                                prod *= rd_op->get_inputs()[0]
-                                                ->details_
-                                                .get_blocking_dims()[ax];
-                            }
-                            auto tsr_simd_len = vectorize_step(ctx,
-                                    rd_op->get_inputs()[0]
-                                            ->details_.dtype_.type_code_);
-                            constexpr int max_register_tol = 16;
-                            if (prod % tsr_simd_len != 0
-                                    || (prod / tsr_simd_len)
-                                            >= max_register_tol)
-                                return;
-                        }
-                    }
-                    if (red_op->can_split_op()) { split_rd_op(ctx, g, op); }
-                });
-    } else {
-        auto run_threads = runtime_config_t::get().get_num_threads();
-        if (run_threads == 1) {
-            for (auto &op : ops) {
-                if (auto rd = op->dyn_cast<reduce_op_t>()) {
-                    if (rd->can_split_op()) { split_rd_op(ctx, g, op.get()); }
-                }
-            }
-        } else {
-            // check reorder in partition which includes reduce op but
-            // exclude tunable op
-            if (parti->contain_op_with_type<movement_op_t>()) {
-                bool forced_reorder_axis = false;
-                std::unordered_set<sc_op_ptr> movement_op_set;
-                for (auto &op : ops) {
-                    if (auto rd_op = op->dyn_cast<reduce_op_t>()) {
-                        int outer_rd_axis_size = 1;
-                        auto reduce_axis = rd_op->get_rd_axis();
-                        auto shape = rd_op->get_inputs()[0]
-                                             ->details_.get_blocking_dims();
-                        for (int i = 0; i < *reduce_axis.begin(); i++) {
-                            outer_rd_axis_size *= shape[i];
-                        }
-                        if (outer_rd_axis_size < run_threads)
-                            forced_reorder_axis = true;
-                    } else if (op->isa<movement_op_t>()) {
-                        movement_op_set.insert(op);
-                    }
-                }
-                if (forced_reorder_axis) {
-                    redo = true;
-                    std::for_each(movement_op_set.begin(),
-                            movement_op_set.end(), [](const sc_op_ptr &op) {
-                                op->attrs_[op_attr_key::no_fuse] = true;
-                            });
-                }
+    auto outer_loops = parti->get_outer_loops();
+    // calculate least loop size which satisfies parallelism
+    size_t parallel_least_size = 0;
+    if (!outer_loops.empty()) {
+        for (parallel_least_size = 1; parallel_least_size < outer_loops.size();
+                parallel_least_size++) {
+            if (evaluate_loop_parallel_balance({outer_loops.begin(),
+                        outer_loops.begin() + parallel_least_size})
+                    == 1.0f) {
+                break;
             }
         }
     }
+    // If parallel loop can be ensured in advanced
+    if (parallel_least_size > 0) {
+        std::unordered_set<op_traits::maybe_split_optimized_t *>
+                splited_reduce_set;
+        parti->ax_binder_.run(parallel_least_size);
+        for (auto &op : sub_graph.ops_) {
+            if (auto red_op
+                    = op->dyn_cast<op_traits::maybe_split_optimized_t>()) {
+                if (!red_op->can_split_op()) continue;
+                // check rd_axis
+                std::vector<int> rd_axis;
+                if (auto rd_op = op->dyn_cast<reduce_op_t>()) {
+                    rd_axis = rd_op->get_rd_axis();
+                } else if (auto rd_op = op->dyn_cast<reduce_compute_op_t>()) {
+                    if (rd_op->is_partial_reduce()) {
+                        splited_reduce_set.insert(red_op);
+                        continue;
+                    }
+                    rd_axis = rd_op->get_rd_axis();
+                } else {
+                    COMPILE_ASSERT(
+                            0, "Unexpected kind of op found: " << op->op_name_)
+                }
+                // transform to plain rd axis
+                rd_axis = transform_axis_blocking2plain(
+                        op->get_inputs()[0]->details_, rd_axis);
+                // find original reduce op in partition
+                auto orig_iter = graph2orig_ops.find(op);
+                if (orig_iter == graph2orig_ops.end()) continue;
+                auto &rd_binding_axis = parti->ax_binder_.bd_ax_map_.get(
+                        orig_iter->second->get_inputs()[0]);
+                // If all of `rd_axis` would not appear on parallel
+                // outer loops
+                if (std::all_of(rd_binding_axis.begin(), rd_binding_axis.end(),
+                            [&rd_axis](const std::vector<int> &bd_ax) {
+                                return std::all_of(bd_ax.begin(), bd_ax.end(),
+                                        [&rd_axis](const int &ax) {
+                                            return std::all_of(rd_axis.begin(),
+                                                    rd_axis.end(),
+                                                    [&ax](const int &rd_ax) {
+                                                        return ax != rd_ax;
+                                                    });
+                                        });
+                            })) {
+                    splited_reduce_set.insert(red_op);
+                }
+            }
+        }
+        // If split reduce op exist
+        for (auto &red_op : splited_reduce_set) {
+            auto op = dynamic_cast<sc_op *>(red_op);
+            // pre-check
+            if (auto rd_op = op->dyn_cast<reduce_compute_op_t>()) {
+                auto rd_axis = rd_op->get_rd_axis();
+                // check if empty to make g++12 happy
+                if (!rd_axis.empty()) { rd_axis.erase(rd_axis.begin()); }
+                if (!rd_axis.empty()) {
+                    sc_dim prod = 1;
+                    for (auto &ax : rd_axis) {
+                        prod *= rd_op->get_inputs()[0]
+                                        ->details_.get_blocking_dims()[ax];
+                    }
+                    auto tsr_simd_len = vectorize_step(ctx,
+                            rd_op->get_inputs()[0]->details_.dtype_.type_code_);
+                    constexpr int max_register_tol = 16;
+                    if (prod % tsr_simd_len != 0
+                            || (prod / tsr_simd_len) >= max_register_tol)
+                        continue;
+                }
+            }
+            // Do split
+            red_op->split_op(ctx, sub_graph, 1);
+            redo = true;
+        }
+    }
+
     return redo;
 }
 
-bool try_optimize_parti(const mixed_parti_t *parti, sc_graph_t &sub_graph) {
-    if (sub_graph.is_dynamic()) { return false; }
-    bool need_optimize = false;
-    // can add more optimize rules here
-    need_optimize |= try_optimize_reduce(parti, sub_graph);
+static bool try_optimize_concat(mixed_parti_t *parti, sc_graph_t &sub_graph) {
+    return parti->ctx_->flags_.concat_optimization_
+            && concat_memory_planning_on_graph(sub_graph);
+}
+
+static bool try_optimize_loop(mixed_parti_t *parti, sc_graph_t &sub_graph) {
+    // prepare stage
+    auto &ops = sub_graph.ops_;
+    // check reorder in partition which includes reduce op but
+    // exclude tunable op
+    if (parti->contain_op_with_type<op_traits::maybe_split_optimized_t>()
+            && !parti->contain_tunable_op()
+            && parti->contain_op_with_type<reorder_op_t>()) {
+        bool forced_reorder_axis = false;
+        std::unordered_set<sc_op_ptr> reo_op_set;
+        auto run_threads = runtime_config_t::get().get_num_threads();
+        for (auto &op : ops) {
+            if (op->isa<op_traits::maybe_split_optimized_t>()) {
+                std::vector<int> rd_axis;
+                if (auto rd_op = op->dyn_cast<reduce_op_t>()) {
+                    rd_axis = rd_op->get_rd_axis();
+                } else if (auto rd_op = op->dyn_cast<reduce_compute_op_t>()) {
+                    if (rd_op->is_partial_reduce()) {
+                        forced_reorder_axis = false;
+                        break;
+                    }
+                    rd_axis = rd_op->get_rd_axis();
+                }
+                auto shape = op->get_inputs()[0]->details_.get_blocking_dims();
+                int outer_rd_axis_size = 1;
+                for (int i = 0; i < *rd_axis.begin(); i++) {
+                    outer_rd_axis_size *= shape[i];
+                }
+                if (outer_rd_axis_size < run_threads)
+                    forced_reorder_axis = true;
+            } else if (op->isa<reorder_op_t>()) {
+                reo_op_set.insert(op);
+            }
+        }
+        if (forced_reorder_axis) {
+            std::for_each(reo_op_set.begin(), reo_op_set.end(),
+                    [](const sc_op_ptr &op) {
+                        op->attrs_[op_attr_key::no_fuse] = true;
+                    });
+        }
+    }
+
     // optimize loop order
     if (parti->can_optimize_loop_order_for_parti()) {
-        std::for_each(sub_graph.ops_.begin(), sub_graph.ops_.end(),
-                [&sub_graph](const sc_op_ptr &op) {
-                    if (op->isa<unary_elementwise_op_t>()
-                            || op->isa<binary_elementwise_op_t>()
-                            || op->isa<reduce_op_t>()
-                            || op->isa<reduce_impl_op_t>()) {
-                        op->attrs_[mixed_partition_hint::sub_graph_ptr]
-                                = &sub_graph;
-                    }
-                });
-        need_optimize = true;
+        for (auto &op : ops) {
+            if (op->isa<unary_elementwise_op_t>()
+                    || op->isa<binary_elementwise_op_t>()
+                    || op->isa<op_traits::maybe_split_optimized_t>()) {
+                // set sub graph hint
+                op->attrs_[mixed_partition_hint::sub_graph_ptr] = &sub_graph;
+            }
+        }
+        return true;
     }
+    return false;
+}
+
+bool try_optimize_parti(mixed_parti_t *parti, sc_graph_t &sub_graph,
+        const std::unordered_map<sc_op_ptr, sc_op_ptr> &graph2orig_ops) {
+    if (sub_graph.is_dynamic()) { return false; }
+    bool need_optimize = false;
+    // optimize reduce
+    need_optimize |= try_optimize_reduce(parti, sub_graph, graph2orig_ops);
+    // optimize concat
+    need_optimize |= try_optimize_concat(parti, sub_graph);
+    // optimize loop order
+    need_optimize |= try_optimize_loop(parti, sub_graph);
+
     if (need_optimize)
         sub_graph.attrs_[mixed_partition_hint::optimized_graph] = true;
     return need_optimize;
@@ -3398,9 +3450,8 @@ std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
     std::string op_name;
     COMPILE_ASSERT(partition, "No partition found")
     auto &parti = *partition;
-    if (ctx->flags_.concat_optimization_) {
-        graph_concat_memory_planning_on_mxp(parti);
-    }
+    // the mapping for original op to op in sub graph
+    std::unordered_map<sc_op_ptr, sc_op_ptr> graph2orig_ops;
     // the mapping for original LT in original ops to fuse => the LT in the
     // sub_graph.
     std::unordered_map<graph_tensor_ptr, graph_tensor_ptr> orig_2_graph;
@@ -3477,27 +3528,29 @@ std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
         assert(copyable);
         auto copied = copyable->copy(new_graph_in, new_graph_ou, sub_graph);
         copied->copy_dispatch_key_set_from_op(op);
-
+        graph2orig_ops.insert(std::make_pair(copied, op));
         // build the fused op name
         if (!op_name.empty()) op_name += '_';
         op_name += copied->op_name_;
     });
 
-    // prepare for redo fall-back case
+    // copy graph in avoid of redo fall-back case
     auto copied_grpah = copy_graph(sub_graph);
 
     if (!is_optimized_graph(g)
-            && try_optimize_parti(partition.get(), copied_grpah)) {
+            && try_optimize_parti(partition.get(), sub_graph, graph2orig_ops)) {
         SC_MODULE_INFO << "Optimizing mixed partition for current pattern: "
                        << partition->func_->name_;
+        // copy optimized sub graph
+        auto copied_opt_grpah = copy_graph(sub_graph);
         // redo mixed partition with setting hint
-        do_mixed_partition(ctx, copied_grpah);
+        do_mixed_partition(ctx, sub_graph);
         bool fall_back = false;
         std::vector<mixed_parti_t::ptr> parti_list;
         std::string mx_op_name;
-        bool non_mixed_op = false;
+        bool non_mixed_op_exist = false;
         // redo validation stage
-        for (auto &op : copied_grpah.ops_) {
+        for (auto &op : sub_graph.ops_) {
             if (op->isa<input_op>() || op->isa<output_op>()
                     || op->isa<constant_op_t>())
                 continue;
@@ -3517,31 +3570,31 @@ std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
                 parti_list.emplace_back(mx_op->parti_list_[0]);
                 mx_op_name += get_graph_name(mx_op->sub_graph_);
             } else {
-                if (!op->isa<tensor_view_op_t>()) non_mixed_op = true;
+                if (!op->isa<tensor_view_op_t>()) non_mixed_op_exist = true;
                 mx_op_name += op->op_name_;
             }
         }
         if (!fall_back) {
-            if (parti_list.size() == 1 && !non_mixed_op) {
+            if (parti_list.size() == 1 && !non_mixed_op_exist) {
                 mx_op_name = get_parti_prefix(*parti_list[0]) + mx_op_name;
             } else {
                 mx_op_name = "multi_partitions_" + mx_op_name;
             }
-            std::vector<sc_op_ptr> lower_args(copied_grpah.get_output_ops());
-            auto input_ops = copied_grpah.get_input_ops();
+            std::vector<sc_op_ptr> lower_args(sub_graph.get_output_ops());
+            auto input_ops = sub_graph.get_input_ops();
             lower_args.insert(
                     lower_args.end(), input_ops.begin(), input_ops.end());
-            auto modu = lower_graph(ctx, copied_grpah, lower_args, false);
+            auto modu = lower_graph(ctx, sub_graph, lower_args, false);
             auto main_func = modu->get_entry_func();
             main_func->name_ = mx_op_name;
             main_func->decl_->name_ = mx_op_name;
-            copied_grpah.attrs_.remove(mixed_partition_hint::optimized_graph);
             return std::make_shared<mixed_fuse_op_t>(mx_op_name, parti_list,
-                    modu, copied_grpah,
+                    modu, copied_opt_grpah,
                     /*ins*/ fused_op_in,
                     /*outs*/
                     fused_op_out, any_map_t {});
         } else {
+            // fall-back
             parti_list.clear();
             mx_op_name.clear();
         }
@@ -3582,7 +3635,7 @@ std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
     SC_MODULE_INFO << parti.func_;
 
     auto fused_op = std::make_shared<mixed_fuse_op_t>(op_name,
-            std::vector<mixed_parti_t::ptr> {partition}, nullptr, sub_graph,
+            std::vector<mixed_parti_t::ptr> {partition}, nullptr, copied_grpah,
             /*ins*/ fused_op_in,
             /*outs*/
             fused_op_out, any_map_t {});
@@ -3736,9 +3789,9 @@ void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph) {
         for (auto &op : partition->ops) {
             op->remove();
         }
-        if (partition->main_tunable_op) {
-            partition->main_tunable_op->remove();
-        }
+
+        // no main op is expected
+        assert(!partition->main_tunable_op);
     }
     graph.reset_op_ids();
 }

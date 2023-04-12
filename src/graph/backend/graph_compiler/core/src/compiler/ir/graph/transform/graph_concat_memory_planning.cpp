@@ -159,7 +159,6 @@ static bool set_offsets_and_strides_for_op(
                             != 1) {
                 SC_MODULE_INFO << "Do not support mixed fuse op with "
                                   "multiple partitions";
-                std::cout << "Warning here, parent multi parti\n";
                 continue;
             }
 
@@ -263,7 +262,7 @@ static void set_final_offsets(sc_op *op,
     }
 }
 
-static void set_offsets_and_strides_recursively(std::vector<sc_op_ptr> &ops) {
+bool set_offsets_and_strides_recursively(std::vector<sc_op_ptr> &ops) {
     std::unordered_set<sc_op_ptr> ops_set(ops.begin(), ops.end());
     std::vector<std::vector<sc_op *>> concats_seqs;
     for (sc_op_ptr &op : ops) {
@@ -332,6 +331,7 @@ static void set_offsets_and_strides_recursively(std::vector<sc_op_ptr> &ops) {
             }
         }
     }
+    return !concats_seqs.empty();
 }
 
 SC_INTERNAL_API void graph_concat_memory_planning(
@@ -342,11 +342,8 @@ SC_INTERNAL_API void graph_concat_memory_planning(
     set_offsets_and_strides_recursively(graph.ops_);
 }
 
-SC_INTERNAL_API void graph_concat_memory_planning_on_mxp(mixed_parti_t &mxp) {
-    SC_MODULE_INFO << "Run graph concat memory planning on mxp with "
-                   << mxp.committed_ops_.size() << " ops.";
-    if (mxp.committed_ops_.size() < 2) { return; }
-    set_offsets_and_strides_recursively(mxp.committed_ops_);
+SC_INTERNAL_API bool concat_memory_planning_on_graph(sc_graph_t &graph) {
+    return set_offsets_and_strides_recursively(graph.ops_);
 }
 
 } // namespace gc

@@ -122,9 +122,6 @@ public:
     void replace_anchor(const std::vector<fuse_anchor_map_ptr> &fanchors);
 };
 
-// perform concat memory planning optimization on GraphIR
-void graph_concat_memory_planning_on_mxp(mixed_parti_t &mxp);
-
 struct mxp_buffer_allocator {
 private:
     mixed_parti_t *binded_mxp_;
@@ -493,8 +490,11 @@ inline bool is_optimized_graph(sc_graph_t &g) {
     return g.attrs_.get_or_else(mixed_partition_hint::optimized_graph, false);
 }
 
+bool concat_memory_planning_on_graph(sc_graph_t &graph);
+
 // try optimize partition, such as reduce_op optimization
-bool try_optimize_parti(const mixed_parti_t *parti, sc_graph_t &sub_graph);
+bool try_optimize_parti(mixed_parti_t *parti, sc_graph_t &sub_graph,
+        const std::unordered_map<sc_op_ptr, sc_op_ptr> &graph2orig_ops = {});
 
 /** transform the given partition to one mixed op
  * @param ctx the context pointer
