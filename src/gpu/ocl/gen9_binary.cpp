@@ -68,6 +68,7 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
     conf.plain_to_ABcd4a4b = false;
     conf.isXa16b = false;
     conf.mb_block = 0;
+    conf.is_src1_broadcast = check_layout_constraints(src_md(1));
 
     for (int i = 0; i < MAX_NDIMS; ++i) {
         // Kernel doesn't support src0 broadcast
@@ -157,8 +158,7 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
                 conf.dispatch.define_dim(dim_str, 1);
             }
         }
-    } else if ((is_mixed_layout || is_16b)
-            && check_layout_constraints(src_md(1))) {
+    } else if ((is_mixed_layout || is_16b) && conf.is_src1_broadcast) {
         int idx = 0;
         if (!is_16b) {
             idx = 1;
@@ -176,6 +176,23 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
             } else if (i == ndims - 1) {
                 conf.dispatch.define_dim(utils::format("D%d", i),
                         nstl::min(i, ndims - 1), dim, conf.nvect);
+            } else {
+                conf.dispatch.define_dim(utils::format("D%d", i),
+                        nstl::min(i, ndims - 1), dim, 1);
+            }
+        }
+    } else if (is_mixed_layout && !conf.is_src1_broadcast) {
+        conf.nvect = 1;
+        int block_size = 16;
+        for (int i = 0; i < MAX_NDIMS; ++i) {
+            int dim = i < ndims ? dst_d.dims()[i] : 1;
+            if (i == 1) {
+                conf.dispatch.define_dim(utils::format("D%d", i),
+                        nstl::min(i, ndims - 1), dim, 1);
+                CHECK(conf.dispatch.vectorize_dim("D1", block_size));
+            } else if (i == ndims - 1) {
+                conf.dispatch.define_dim(utils::format("D%d", i),
+                        nstl::min(i, ndims - 1), dim, block_size);
             } else {
                 conf.dispatch.define_dim(utils::format("D%d", i),
                         nstl::min(i, ndims - 1), dim, 1);
@@ -230,6 +247,7 @@ status_t gen9_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("IS_NE", conf.is_ne);
     kernel_ctx.define_int("MB_BLOCK", conf.mb_block);
     kernel_ctx.define_int("SAME_SRC_DT", conf.same_src_dt);
+    kernel_ctx.define_int("IS_SRC1_BROADCAST", conf.is_src1_broadcast);
     kernel_ctx.define_int("BCAST_DIM0", conf.src1_bcast_dims[0]);
     kernel_ctx.define_int("BCAST_DIM1", conf.src1_bcast_dims[1]);
     kernel_ctx.define_int("BCAST_DIM2", conf.src1_bcast_dims[2]);

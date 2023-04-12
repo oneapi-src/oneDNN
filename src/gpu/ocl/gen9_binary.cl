@@ -285,6 +285,7 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
     dims0[4] = GWS_GET_D4();
     dims0[5] = GWS_GET_D5();
 
+#if IS_SRC1_BROADCAST
     int src0_off = SRC0_OFF(
             dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
     src0 += src0_off;
@@ -374,5 +375,52 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
 #elif NVECT == 8
     DST_BLOCK_WRITE8(&dst[0], TO_DST8(d));
 #endif
+
+#else // mixed_layout with no broadcast in src1
+    int local_channel = get_sub_group_local_id();
+    int channel_block = get_sub_group_id();
+    const int sub_group_size = 16;
+    const int CHANNELS = SRC1_PD1;
+
+    int src0_off = SRC0_OFF(
+            dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
+    src0 += src0_off;
+
+    // Convert Plain to Blocked Reads
+    int src1_off = dims0[0] * CHANNELS * SRC1_PD2 * SRC1_PD3 * SRC1_PD4
+            + (channel_block * sub_group_size + local_channel) * SRC1_PD2
+                    * SRC1_PD3 * SRC1_PD4
+            + dims0[2] * SRC1_PD3 * SRC1_PD4 + dims0[3] * SRC1_PD4 + dims0[4];
+    src1 += src1_off;
+
+    int dst_off = DST_OFF(
+            dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
+    dst += dst_off;
+
+    float d = 0;
+    float dst_data;
+    float tmp_src0 = CONVERT_FLOAT_T(src0[local_channel]);
+    float tmp_src1 = CONVERT_FLOAT_T(src1[0]);
+
+#if WITH_SRC0_SCALE
+    tmp_src0 = tmp_src0 * src0_scale[0];
+#endif
+#if WITH_SRC1_SCALE
+    tmp_src1 = tmp_src1 * src1_scale[0];
+#endif
+
+    d = get_eltwise_op(tmp_src0, tmp_src1);
+
+#if WITH_SUM
+    dst_data = CONVERT_FLOAT_T(DST_BLOCK_READ(&dst[0]));
+#endif
+
+    const int po_mb = dims0[0];
+    const int po_oc = dims0[1] + get_sub_group_local_id();
+    APPLY_POST_OPS_SERIAL(d, float, dst_data, float, po_mb, 1, po_oc, 1,
+            dims0[2], 1, dims0[3], 1, dims0[4], 1, dims0[5], 1);
+    DST_BLOCK_WRITE(&dst[local_channel], TO_DST(d));
+
+#endif // IS_SRC1_BRAODCAST
 }
 #endif // IS_PLAIN_LAYOUT
