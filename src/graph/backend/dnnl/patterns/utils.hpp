@@ -211,6 +211,31 @@ inline graph::utils::pm::repetition_t *optional_bias_add(
     return popt_bias;
 }
 
+inline graph::utils::pm::repetition_t *post_quantized_add(
+        const std::shared_ptr<graph::utils::pm::pb_graph_t> &pgraph,
+        graph::utils::pm::pb_node_t *input) {
+    graph::utils::pm::pb_op_t *pdequant_add
+            = pgraph->append_op(graph::op_kind::Dequantize, "dequant");
+    graph::utils::pm::pb_op_t *padd = pgraph->append_op(graph::op_kind::Add,
+            graph::utils::pm::in_edges_t {
+                    in_edge(0, input, 0), in_edge(1, pdequant_add, 0)},
+            "padd");
+
+    // post ops
+    auto postop_graph
+            = std::make_shared<graph::utils::pm::pb_graph_t>("postops_graph");
+    graph::utils::pm::pb_op_t *pop = postop_graph->append_alternation(
+            get_unary_binary_ops(), "postop");
+    postop_graph->create_input_port(0, pop, 0);
+    postop_graph->create_input_port(1, pop, 1);
+    postop_graph->create_output_port(0, pop, 0);
+
+    auto prep = pgraph->append_repetition(postop_graph, {0, 0}, 0,
+            MAX_REPETITION, graph::utils::pm::in_edges_t {in_edge(0, padd, 0)},
+            "prepetition");
+    return prep;
+}
+
 } // namespace pattern
 } // namespace dnnl_impl
 } // namespace graph
