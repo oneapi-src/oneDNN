@@ -1742,6 +1742,9 @@ private:
             if (a > 1) plan_.set_split(abc_kind_t::a, a);
             if (b > 1) plan_.set_split(abc_kind_t::b, b);
         }
+        if (cfg_.pipeline().is_env_overridden()) {
+            plan_.reuse_headers = cfg_.pipeline().reuse_headers();
+        }
         PLAN_CHECK(fixup_grf_usage(plan_));
         set_plan();
         return plan_status_t::success;
