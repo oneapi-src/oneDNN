@@ -861,9 +861,7 @@ status_t brg_blocking_t::get_brgemm_ur(
 
                 brgemm_attr_t brgattr;
                 brgattr.max_bs = max_batch;
-                const auto max_vpad = (exec_type == exec_vpad)
-                        ? nstl::max(l_pad, r_pad)
-                        : 0;
+                max_vpad = exec_type == exec_vpad ? nstl::max(l_pad, r_pad) : 0;
                 brgattr.max_top_vpad = max_vpad;
                 brgattr.max_bottom_vpad = max_vpad;
                 brgattr.fpmath_mode = attr->fpmath_mode_;
@@ -2165,10 +2163,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.brg_type = (jcp.use_uker && jcp.exec_type == exec_trans)
             ? brgemm_static_offs
             : brgemm_addr; // TODO: Choose right type of BRGEMM
-    if (jcp.exec_type == exec_vpad)
-        jcp.max_vpad = nstl::max(jcp.l_pad, jcp.r_pad);
-    else
-        jcp.max_vpad = 0;
 
     if (jcp.ow_block == 0 || jcp.ic_block == 0 || jcp.oc_block == 0)
         return status::unimplemented;
@@ -2351,9 +2345,8 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     jcp.brg_type = brgemm_addr; // TODO: Choose right type of BRGEMM
 
-    // max_batch is 1 and max_vpad is 0 for 1x1 convolutions
+    // max_batch is 1 for 1x1 convolutions
     jcp.max_batch = 1;
-    jcp.max_vpad = 0;
 
     brg_blocking_t best_brgb = zero<decltype(best_brgb)>();
     best_brgb.oc_block = min_oc_block;
