@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -311,7 +311,7 @@ jit_pp_kernel_t<isa>::jit_pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
     if (this->do_eltwise_ || this->do_binary_) {
 #define PARAM_OFF(field) offsetof(ker_args_t, field)
         static constexpr bool preserve_gpr = true;
-        static constexpr bool preserve_vmm = false;
+        static constexpr bool preserve_vmm = true;
         static const size_t helper_vmm_idx = is_avx512_ ? 31 : 15;
         static constexpr bool use_exact_tail_scalar_bcast = false;
         const auto dst_md_wrapper = memory_desc_wrapper(*dst_md);
