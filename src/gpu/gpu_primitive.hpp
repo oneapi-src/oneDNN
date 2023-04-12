@@ -85,6 +85,7 @@ struct gpu_primitive_t : public primitive_t {
     status_t get_cache_blob_size(
             engine_t *engine, size_t *size) const override {
         if (!size) return status::invalid_arguments;
+        if (version_ != -1) (*size) += sizeof(version_);
         // Query binary size for each created kernel.
         for (const auto &cb : compute_blocks()) {
             if (!cb) continue;
@@ -109,6 +110,8 @@ struct gpu_primitive_t : public primitive_t {
 
     status_t get_cache_blob(
             engine_t *engine, cache_blob_t &blob) const override {
+        if (version_ != -1)
+            CHECK(blob.add_value((const uint8_t *)&version_, sizeof(version_)));
         for (const auto &cb : compute_blocks()) {
             if (!cb) continue;
 
@@ -180,6 +183,10 @@ struct gpu_primitive_t : public primitive_t {
     }
 
 protected:
+    int32_t version() const { return version_; }
+
+    void set_version(int32_t version) { version_ = version; }
+
     void register_primitive(const primitive_t *primitive) {
         registered_compute_blocks_.emplace_back(primitive);
     }
@@ -229,6 +236,13 @@ private:
     }
 
     std::vector<compute_block_t> registered_compute_blocks_;
+
+    // Persistent cache versioning is not used by default. To enable versioning
+    // the primitive should:
+    // 1) Set the version via set_version() in case of non-cached initialization
+    // 2) Retrieve the version from the cache blob and set it via set_version()
+    //    in case of cached initialization
+    int32_t version_ = -1;
 };
 
 } // namespace gpu
