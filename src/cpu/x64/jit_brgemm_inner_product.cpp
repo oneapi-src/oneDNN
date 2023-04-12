@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1502,8 +1502,10 @@ void brgemm_inner_product_bwd_weights_t<
     const bool is_bf16_out = jbgp.wei_dt == data_type::bf16;
     const int icb_scale = (!is_bf16_out) ? jbgp.ic_block / jbgp.simd_w : 1;
 
-    const int icb_work = ti->ic_c_work * jbgp.nb_ic_blocking;
-    const int ocb_work = ti->oc_c_work * jbgp.nb_oc_blocking;
+    const int icb_work = nstl::min(ti->ic_c_work * jbgp.nb_ic_blocking,
+            jbgp.nb_ic - ti->ic_c_start * jbgp.nb_ic_blocking);
+    const int ocb_work = nstl::min(ti->oc_c_work * jbgp.nb_oc_blocking,
+            jbgp.nb_oc - ti->oc_c_start * jbgp.nb_oc_blocking);
     const int work = ocb_work * icb_work;
 
     int os_chunks = utils::div_up(jbgp.nb_os, jbgp.nb_os_blocking);
