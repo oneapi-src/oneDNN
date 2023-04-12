@@ -26,15 +26,19 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
+using namespace compute;
+
 static status_t init_conf_common(lnorm_conf_t &conf,
         const layer_normalization_pd_t *pd, engine_t *engine) {
     using namespace dnnl::impl::format_tag;
 
-    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
 
     // Limited due to performance reasons
-    if (gpu_arch < compute::gpu_arch_t::xe_hpc) return status::unimplemented;
+    // Vectorized implementation can be used for FWD on DG2+, for BWD on PVC+
+    if (gpu_arch < (pd->is_fwd() ? gpu_arch_t::xe_hpg : gpu_arch_t::xe_hpc))
+        return status::unimplemented;
 
     memory_desc_wrapper src_mdw(pd->src_md());
     memory_desc_wrapper stat_mdw(pd->stat_md());
@@ -83,35 +87,40 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     const auto &dims = conf.is_fwd ? src_mdw.padded_dims() : dst_mdw.dims();
 
     auto eu_count = compute_engine->device_info()->eu_count();
-    auto threads_per_eu
-            = compute::device_info_t::threads_per_eu(gpu_arch, false);
+    auto threads_per_eu = device_info_t::threads_per_eu(gpu_arch, false);
 
     // Vectorized vs Reference heuristics.
-    // FWD:
+    // PVC, FWD:
     // Key feature of this version is single reading src data, keeping it in
     // private buffer and reusing this buffer for stats calculation.
     // It works for relatively short shapes.
-    // BWD:
+    // PVC, BWD:
     // Because of the sync overhead, the vectorized version performs worse
     // on the shapes with short sizes by across dimensions.
-    // Limit values experimentally selected, based on PVC perf data.
+    // ATSM, FWD: vectorized version is faster w/o conditions.
+    // Limit values experimentally selected, based on perf data.
 
-    if (conf.is_fwd) {
-        const int nthr = conf.across_axis;
-        const int nthr_on_ss
-                = nstl::min(threads_per_eu, nstl::max(1, nthr / eu_count));
-        const int src_buff_KB
-                = nthr_on_ss * conf.norm_axis * sizeof(float) / 1024;
-        int buff_size_limit = 128;
-        if (conf.data_type == data_type::f16
-                || conf.data_type == data_type::bf16) {
-            buff_size_limit *= 2;
+    if (gpu_arch >= gpu_arch_t::xe_hpc) {
+        if (conf.is_fwd) {
+            const int nthr = conf.across_axis;
+            const int nthr_on_ss
+                    = nstl::min(threads_per_eu, nstl::max(1, nthr / eu_count));
+            const int src_buff_KB
+                    = nthr_on_ss * conf.norm_axis * sizeof(float) / 1024;
+            int buff_size_limit = 128;
+            if (conf.data_type == data_type::f16
+                    || conf.data_type == data_type::bf16) {
+                buff_size_limit *= 2;
+            }
+            if (src_buff_KB > buff_size_limit) return status::unimplemented;
+        } else {
+            const int N_dim_limit = 64;
+            if (conf.across_axis < N_dim_limit) return status::unimplemented;
         }
-        if (src_buff_KB > buff_size_limit) return status::unimplemented;
-    } else {
-        const int N_dim_limit = 64;
-        if (conf.across_axis < N_dim_limit) return status::unimplemented;
     }
+
+    // DG2/ATSM optimization specifics - dont use private SRC buffer
+    conf.use_src_buffer = gpu_arch >= gpu_arch_t::xe_hpc;
 
     const int desired_sg_size = 32;
     auto mayiuse_sg = [=](const int sg_size) {
@@ -249,7 +258,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
 }
 
 static status_t init_kernel_ctx_common(
-        compute::kernel_ctx_t &kernel_ctx, const lnorm_conf_t &conf) {
+        kernel_ctx_t &kernel_ctx, const lnorm_conf_t &conf) {
     kernel_ctx.set_data_type(conf.data_type);
 
     // Since FWD kernel aggressively uses GRF (allocates a private buffer for
@@ -272,6 +281,7 @@ static status_t init_kernel_ctx_common(
             "VECTOR_SIZE_SCALESHIFT", conf.vector_size_scaleshift);
     kernel_ctx.define_int("N_CHUNK_SIZE", conf.n_chunk_size);
     kernel_ctx.define_int("N_CHUNKS", conf.n_chunks);
+    kernel_ctx.define_int("USE_SRC_BUFFER", conf.use_src_buffer);
 
     kernel_ctx.add_option("-cl-std=CL2.0");
     def_memory_desc_info(kernel_ctx, conf.src_md_info, "SRC");
@@ -292,7 +302,7 @@ status_t vectorized_lnorm_fwd_t::pd_t::init_conf(engine_t *engine) {
 }
 
 status_t vectorized_lnorm_fwd_t::pd_t::init_kernel_ctx(
-        compute::kernel_ctx_t &kernel_ctx) const {
+        kernel_ctx_t &kernel_ctx) const {
     return init_kernel_ctx_common(kernel_ctx, conf);
 }
 
@@ -313,7 +323,7 @@ status_t vectorized_lnorm_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto &shift = CTX_IN_STORAGE(DNNL_ARG_SHIFT);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
-    compute::kernel_arg_list_t arg_list;
+    kernel_arg_list_t arg_list;
     arg_list.set(0, src);
     arg_list.set(1, mean);
     arg_list.set(2, variance);
@@ -333,7 +343,7 @@ status_t vectorized_lnorm_bwd_t::pd_t::init_conf(engine_t *engine) {
 }
 
 status_t vectorized_lnorm_bwd_t::pd_t::init_kernel_ctx(
-        compute::kernel_ctx_t &kernel_ctx) const {
+        kernel_ctx_t &kernel_ctx) const {
     return init_kernel_ctx_common(kernel_ctx, conf);
 }
 
@@ -366,7 +376,7 @@ status_t vectorized_lnorm_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
         auto temp_reduce = ctx.get_scratchpad_grantor().get_memory_storage(
                 memory_tracking::names::key_lnorm_reduction);
 
-        compute::kernel_arg_list_t arg_list;
+        kernel_arg_list_t arg_list;
         arg_list.set(0, src);
         arg_list.set(1, mean);
         arg_list.set(2, variance);
@@ -379,7 +389,7 @@ status_t vectorized_lnorm_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
         status = parallel_for(ctx, nd_range, kernel_scaleshift_, arg_list);
         if (status != status::success) return status;
 
-        compute::kernel_arg_list_t arg_list_final;
+        kernel_arg_list_t arg_list_final;
         arg_list_final.set(0, *temp_reduce);
         arg_list_final.set(1, diff_scale);
         arg_list_final.set(2, diff_shift);
@@ -390,7 +400,7 @@ status_t vectorized_lnorm_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
         if (status != status::success) return status;
     }
 
-    compute::kernel_arg_list_t arg_list;
+    kernel_arg_list_t arg_list;
     arg_list.set(0, src);
     arg_list.set(1, mean);
     arg_list.set(2, variance);

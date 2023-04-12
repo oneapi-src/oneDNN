@@ -587,6 +587,7 @@ struct lnorm_conf_t {
     int n_chunk_size;
     int n_chunks;
     int vector_size_scaleshift;
+    bool use_src_buffer;
 
     compute::dispatch_t dispatch_scaleshift;
     compute::dispatch_t dispatch_scaleshift_finalize;

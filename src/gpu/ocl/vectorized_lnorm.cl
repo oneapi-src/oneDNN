@@ -57,8 +57,11 @@ __kernel void vectorized_lnorm_fwd(__global DATA_T *src, __global float *mean,
     float v_mean = CALCULATE_STATS ? 0 : mean[s_off];
     float v_variance = CALCULATE_STATS ? 0 : variance[s_off];
 
+#if USE_SRC_BUFFER
+
     // Key feature of this version is single reading src data, keeping it in
     // v_src buffer and reusing this buffer for stats calculation.
+    // Targeted for PVC+.
     VECT_FLOAT_T v_src[VLEN_C];
     for (int c = 0; c < VLEN_C; c++) {
         x[NDIMS - 1] = c * SUB_GROUP_SIZE * VECT_DT_N;
@@ -104,6 +107,69 @@ __kernel void vectorized_lnorm_fwd(__global DATA_T *src, __global float *mean,
         VECT_FLOAT_T v_dst = sm * (v_src[c] - v_mean) + sv;
         STORE_VECT_DATA(&dst[dst_off], v_dst);
     }
+
+#else // USE_SRC_BUFFER
+
+    // Key feature of this version is only vectorized block read/write
+    // without using GRF src buffer.
+    // Targeted for ATSM/DG2.
+    if (CALCULATE_STATS) {
+        VECT_FLOAT_T v_acc = 0;
+        for (int c = 0; c < C; c += SUB_GROUP_SIZE * VECT_DT_N) {
+            x[NDIMS - 1] = c;
+            int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
+            v_acc += CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(VECT_BLOCK_READ(
+                    (const __global BLOCK_DATA_T *)&src[src_off])));
+        }
+        CALC_V_STAT(v_mean, v_acc);
+        float total_sum = sub_group_reduce_add(v_mean);
+        v_mean = total_sum / C;
+
+        v_acc = 0;
+        VECT_FLOAT_T m = 0;
+        for (int c = 0; c < C; c += SUB_GROUP_SIZE * VECT_DT_N) {
+            x[NDIMS - 1] = c;
+            int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
+
+            m = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(VECT_BLOCK_READ(
+                    (const __global BLOCK_DATA_T *)&src[src_off])));
+            m -= v_mean;
+            v_acc += m * m;
+        }
+        CALC_V_STAT(v_variance, v_acc);
+        total_sum = sub_group_reduce_add(v_variance);
+        v_variance = total_sum / C;
+    }
+
+    const float r_sqrt_variance = rsqrt(v_variance + eps);
+    int local_id = get_sub_group_local_id();
+
+    for (int c = 0; c < C; c += SUB_GROUP_SIZE * VECT_DT_N) {
+        const VECT_FLOAT_T sm
+#if USE_SCALE
+                = LOAD_VECT_FLOAT(&scale[c]) * r_sqrt_variance;
+#else
+                = r_sqrt_variance;
+#endif
+        const VECT_FLOAT_T sv
+#if USE_SHIFT
+                = LOAD_VECT_FLOAT(&shift[c]);
+#else
+                = 0.0f;
+#endif
+
+        x[NDIMS - 1] = c;
+        int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
+        int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
+        VECT_FLOAT_T v_src = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
+                VECT_BLOCK_READ((const __global BLOCK_DATA_T *)&src[src_off])));
+        VECT_FLOAT_T v_dst = sm * (v_src - v_mean) + sv;
+
+        STORE_VECT_DATA(&dst[dst_off], v_dst);
+    }
+
+#endif USE_SRC_BUFFER
+
     if (CALCULATE_STATS && SAVE_STATS) {
         mean[s_off] = v_mean;
         variance[s_off] = v_variance;
