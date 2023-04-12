@@ -24,31 +24,32 @@ or `any`. Refer to
 [fpmath primitve attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_fpmath_mode.html)
 for details.
 
-`--attr-scales` defines scales per memory argument primitive attribute.
-`ARG` specifies which memory argument will be modified with input scale.
-`POLICY` specifies the way scale values will be applied to the `ARG` tensor. 
-`SCALE` is an optional argument, parsed as a real number that specifies either a 
-common scale (for `common` policy) or a starting point for a policy with 
-non-zero mask (e.g. `per_oc`), which uses many scales. The default scale is 
-`1.0`. Asterisk mark (`*`) is a required addition to `SCALE` indicating the 
-scales will be passed to a primitive at run-time. To specify more than one memory 
-argument, plus delimiter `+` is used.
+`--attr-scales` defines per memory argument primitive scales attribute.
+`ARG` specifies which memory argument will be modified. Supported values are:
+  - `src` or `src0` corresponds to `DNNL_ARG_SRC`.
+  - `src1` corresponds to `DNNL_ARG_SRC_1`.
+  - `wei` corresponds to `DNNL_ARG_WEIGHTS`.
+  - `dst` corresponds to `DNNL_ARG_DST`.
+  - `msrci` corresponds to `DNNL_ARG_MULTIPLE_SRC + i`.
 
-`POLICY` supported values are:
-  - `none`           (the default) means no scale is applied.
+`POLICY` specifies the way scale values will be applied to an `ARG` tensor. By
+default no scales are applied which corresponds to `common` policy and `1.f`
+scale value. Supported values are:
   - `common`         corresponds to `mask = 0` and means a whole tensor will be
-                     multiplied by a single SCALE value.
-  - `per_oc`         corresponds to `mask = 1 << 1` and means elements of dim1
-                     will be multiplied by scale factors different for each
-                     point. Number of scale factors is equal to dims[1].
+                     multiplied by a single `SCALE` value.
   - `per_dim_0`      corresponds to `mask = 1 << 0` and means elements of dim0
                      will be multiplied by scale factors different for each
                      point. Number of scale factors is equal to dims[0].
-  - `per_dim_1`      same as `per_oc`.
+  - `per_dim_1`      corresponds to `mask = 1 << 1` and means elements of dim1
+                     will be multiplied by scale factors different for each
+                     point. Number of scale factors is equal to dims[1].
   - `per_dim_01`     corresponds to `mask = (1 << 0) + (1 << 1)` and means
                      elements of dim0 and dim1 will be multiplied by scale
                      factors different for a pair of {dim0, dim1} points.
                      Number of scale factors is equal to dims[0] * dims[1].
+  - `per_oc`         same as `per_dim_0` for non-grouped case of `WEI` argument,
+                     same as `per_dim_01` for grouped case of `WEI` argument,
+                     same as `per_dim_1` for arguments other than `WEI`.
   - `per_dim_023`    corresponds to `mask = (1 << 0) + (1 << 2) + (1 << 3)` and
                      means elements of dim0, dim2 and dim3 will be multiplied
                      by scale factors different for {dim0, dim2, dim3} points.
@@ -76,14 +77,13 @@ argument, plus delimiter `+` is used.
                      by a unique number. Number of scale factor is equal to
                      `nelems`. As of now supported only by binary post-ops.
 
-`ARG` supported values are:
-  - `src` or `src0` corresponds to `DNNL_ARG_SRC`
-  - `src1` corresponds to `DNNL_ARG_SRC_1`
-  - `msrci` corresponds to `DNNL_ARG_MULTIPLE_SRC + i`
+`SCALE` is required for the `common` policy only, and specifies a floating-point
+value which is passed for execution at runtime. For any other policies it
+doesn't take any effect though allowed by parsing routine. Asterisk mark `*`
+is deprecated. It was required to specify runtime value and passed after scale.
 
-`POLICY` supported values are:
-  - `none`
-  - `common`
+To specify more than one memory argument for this attribute, `+` delimiter is
+used.
 
 `--attr-zero-points` defines zero points per memory argument primitive
 attribute. This attribute is supported only for integer data types as of now.
