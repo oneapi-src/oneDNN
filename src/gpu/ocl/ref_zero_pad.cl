@@ -36,7 +36,6 @@ static inline void typed_ref_zero_pad(__global void *a, ulong type_size,
     // Interpret buffer differently based on type_size, this is implicitly
     // using the fact that the bit representation of 0 is the same regardless of
     // data type, e.g. int32 and f32 represent 0 the same.
-    __global double *a8 = (__global double *)a;
     __global int *a4 = (__global int *)a;
     __global short *a2 = (__global short *)a;
     __global char *a1 = (__global char *)a;
@@ -53,7 +52,6 @@ static inline void typed_ref_zero_pad(__global void *a, ulong type_size,
             for (int i = i0; i < step_nelems; i += nelems_block) {
                 if (step_bitmask.mask[i / step] & (1 << (i % step))) {
                     switch (type_size) {
-                        case 8: a8[offset + i] = 0; break;
                         case 4: a4[offset + i] = 0; break;
                         case 2: a2[offset + i] = 0; break;
                         case 1: a1[offset + i] = 0; break;
@@ -72,7 +70,6 @@ static inline void typed_ref_zero_pad(__global void *a, ulong type_size,
         int i = step_bitmask.mask[i0];
         for (int k = 0; k < step_block; k++) {
             switch (type_size) {
-                case 8: a8[offset + i] = 0; break;
                 case 4: a4[offset + i] = 0; break;
                 case 2: a2[offset + i] = 0; break;
                 case 1: a1[offset + i] = 0; break;
@@ -86,11 +83,6 @@ static inline void sized_ref_zero_pad(__global void *a, ulong type_size,
         ulong step_nelems, ulong nelems_block, ulong step_block, ulong nsteps,
         ulong step_size, zero_pad_mask_t step_bitmask, ulong mode) {
     switch (type_size) {
-        case 8:
-            typed_ref_zero_pad((__global float *)a, 8, step_nelems,
-                    nelems_block, step_block, nsteps, step_size, step_bitmask,
-                    mode);
-            break;
         case 4:
             typed_ref_zero_pad((__global float *)a, 4, step_nelems,
                     nelems_block, step_block, nsteps, step_size, step_bitmask,
