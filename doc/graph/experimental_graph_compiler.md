@@ -1,5 +1,5 @@
 Graph Compiler {#dev_guide_graph_compiler}
-==================================
+==========================================
 
 oneDNN Graph Compiler is an experimental backend for oneDNN Graph API. It can
 generate optimized implementations for complex computational graphs including
@@ -88,6 +88,7 @@ backend.
 | ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_C_INCLUDE         | *path_to_c_codegen_header*       | Specifies the C codegen header for JIT compilation                                                      |
 
 ### Enable Tracing
+
 ~~~bash
 ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_KERNEL_TRACE=1 ./application
 ~~~
@@ -142,7 +143,7 @@ users shall manually set `ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_C_INCLUDE` to
 @warn The specified codegen method must be built. Otherwise, the default
 codegen method would be used.
 
-# Enable Code Dumping
+### Enable Code Dumping
 Users can use `ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_DUMP_GENCODE` variable to
 generate offline C kernels.
 
