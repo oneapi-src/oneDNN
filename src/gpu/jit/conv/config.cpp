@@ -125,8 +125,8 @@ bool is_small_oc(const conv_problem_t &prb) {
 }
 
 bool is_mad_g_small_oc(const conv_config_t &cfg) {
-    return (cfg.prb().g > 1 && cfg.fma_kind() == fma_kind_t::mad
-            && is_small_oc(cfg.prb()));
+    return (cfg.prb().g > 1 && cfg.prb().g < 16
+            && cfg.fma_kind() == fma_kind_t::mad && is_small_oc(cfg.prb()));
 }
 
 bool is_dw_large_mb(const conv_problem_t &prb) {
