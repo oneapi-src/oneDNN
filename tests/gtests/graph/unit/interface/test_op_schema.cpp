@@ -194,6 +194,218 @@ TEST(OpSchema, InferConvolutionAutoPadShape) {
     }
 }
 
+TEST(OpSchema, InferConvolutionAutoPadNegtivePaddingSize) {
+    const op_schema_t *a_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::Convolution);
+    EXPECT_TRUE(nullptr != a_op_schema);
+    op_t a_op {op_kind::Convolution, op_t::kind2str(op_kind::Convolution)};
+    std::vector<int64_t> strides = {3, 3};
+    std::vector<int64_t> pads_begin = {1, 1}; // empty pads_begin
+    std::vector<int64_t> pads_end = {2, 2}; // empty pads_end
+    std::vector<int64_t> dilations = {1, 1};
+    std::string data_format = "NCX";
+    std::string filter_format = "OIX";
+    const std::vector<std::string> auto_pads_vec {"SAME_UPPER", "SAME_LOWER"};
+    int64_t groups = 1;
+    int64_t id = 0;
+
+    for (const auto &auto_pad : auto_pads_vec) {
+        set_conv_common_attr(a_op, strides, pads_begin, pads_end, dilations,
+                auto_pad, data_format, filter_format, groups);
+
+        auto lt_data = logical_tensor_init(id++, {1, 1, 5, 5}, data_type::f32);
+        auto lt_weight
+                = logical_tensor_init(id++, {1, 1, 1, 1}, data_type::f32);
+        auto lt_o = logical_tensor_init(
+                id++, data_type::f32, layout_type::strided);
+        std::vector<logical_tensor_t *> lt_in {&lt_data, &lt_weight};
+        std::vector<logical_tensor_t *> lt_out {&lt_o};
+        a_op_schema->shape_infer(&a_op, lt_in, lt_out);
+
+        const auto &inferred_pads_begin
+                = a_op.get_attr<std::vector<int64_t>>(op_attr::pads_begin);
+        const auto &inferred_pads_end
+                = a_op.get_attr<std::vector<int64_t>>(op_attr::pads_end);
+        const auto inferred_out_shape = logical_tensor_wrapper_t(lt_o).vdims();
+        const std::vector<int64_t> expected_out_shape {1, 1, 2, 2};
+        ASSERT_EQ(inferred_out_shape, expected_out_shape);
+
+        std::vector<int64_t> expected_pads_begin {0, 0};
+        std::vector<int64_t> expected_pads_end {0, 0};
+        EXPECT_EQ(inferred_pads_begin, expected_pads_begin);
+        EXPECT_EQ(inferred_pads_end, expected_pads_end);
+    }
+}
+
+TEST(OpSchema, InferConvolutionNXCAutoPadShapeWithDilations) {
+    const op_schema_t *a_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::Convolution);
+    EXPECT_TRUE(nullptr != a_op_schema);
+    op_t a_op {op_kind::Convolution, op_t::kind2str(op_kind::Convolution)};
+    std::vector<int64_t> strides = {1, 1};
+    std::vector<int64_t> pads_begin = {0, 0}; // empty pads_begin
+    std::vector<int64_t> pads_end = {0, 0}; // empty pads_end
+    std::vector<int64_t> dilations = {2, 2};
+    std::string data_format = "NXC";
+    std::string filter_format = "XIO";
+    const std::vector<std::string> auto_pads_vec {
+            "None", "SAME_UPPER", "SAME_LOWER", "VALID"};
+    int64_t groups = 1;
+    int64_t id = 0;
+
+    for (const auto &auto_pad : auto_pads_vec) {
+        set_conv_common_attr(a_op, strides, pads_begin, pads_end, dilations,
+                auto_pad, data_format, filter_format, groups);
+
+        auto lt_data
+                = logical_tensor_init(id++, {1, 100, 100, 160}, data_type::f32);
+        auto lt_weight
+                = logical_tensor_init(id++, {7, 1, 160, 192}, data_type::f32);
+        auto lt_o = logical_tensor_init(
+                id++, data_type::f32, layout_type::strided);
+        std::vector<logical_tensor_t *> lt_in {&lt_data, &lt_weight};
+        std::vector<logical_tensor_t *> lt_out {&lt_o};
+        a_op_schema->shape_infer(&a_op, lt_in, lt_out);
+
+        const auto &infered_pads_begin
+                = a_op.get_attr<std::vector<int64_t>>(op_attr::pads_begin);
+        const auto &infered_pads_end
+                = a_op.get_attr<std::vector<int64_t>>(op_attr::pads_end);
+        const auto infered_out_shape = logical_tensor_wrapper_t(lt_o).vdims();
+
+        if (auto_pad == "None" || auto_pad == "VALID") {
+            const std::vector<int64_t> expected_out_shape {1, 88, 100, 192};
+            ASSERT_EQ(infered_out_shape, expected_out_shape);
+
+            std::vector<int64_t> expected_pads_begin {0, 0};
+            std::vector<int64_t> expected_pads_end {0, 0};
+            EXPECT_EQ(infered_pads_begin, expected_pads_begin);
+            EXPECT_EQ(infered_pads_end, expected_pads_end);
+        } else {
+            const std::vector<int64_t> expected_out_shape {1, 100, 100, 192};
+            ASSERT_EQ(infered_out_shape, expected_out_shape);
+
+            std::vector<int64_t> expected_pads_begin {6, 0};
+            std::vector<int64_t> expected_pads_end {6, 0};
+            EXPECT_EQ(infered_pads_begin, expected_pads_begin);
+            EXPECT_EQ(infered_pads_end, expected_pads_end);
+        }
+    }
+}
+
+TEST(OpSchema, InferConvtransposeAutoPadNegtivePaddingSize) {
+    const op_schema_t *a_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::ConvTranspose);
+    EXPECT_TRUE(nullptr != a_op_schema);
+    op_t a_op {op_kind::ConvTranspose, op_t::kind2str(op_kind::ConvTranspose)};
+    std::vector<int64_t> strides = {2, 2};
+    std::vector<int64_t> pads_begin = {0, 0};
+    std::vector<int64_t> pads_end = {0, 0};
+    std::vector<int64_t> dilations = {1, 1};
+    std::string data_format = "NCX";
+    std::string filter_format = "OIX";
+    const std::vector<std::string> auto_pads_vec {"SAME_UPPER", "SAME_LOWER"};
+
+    int64_t groups = 1;
+    int64_t id = 0;
+    // according to the convtranspose semantic, output_padding is bigger
+    // than 0 only if stride is greater than 1.
+    std::vector<int64_t> output_padding = {0, 0};
+    for (const auto &auto_pad : auto_pads_vec) {
+        set_convtranspose_common_attr(a_op, strides, pads_begin, pads_end,
+                dilations, auto_pad, data_format, filter_format, groups,
+                output_padding);
+
+        auto lt_data = logical_tensor_init(0, {1, 1, 3, 3}, data_type::f32);
+        auto lt_weight = logical_tensor_init(1, {1, 1, 1, 1}, data_type::f32);
+        auto lt_o = logical_tensor_init(
+                id++, data_type::f32, layout_type::strided);
+        std::vector<logical_tensor_t *> lt_in {&lt_data, &lt_weight};
+        std::vector<logical_tensor_t *> lt_out {&lt_o};
+        a_op_schema->shape_infer(&a_op, lt_in, lt_out);
+
+        const auto &infered_pads_begin
+                = a_op.get_attr<std::vector<int64_t>>(op_attr::pads_begin);
+        const auto &infered_pads_end
+                = a_op.get_attr<std::vector<int64_t>>(op_attr::pads_end);
+        const auto infered_out_shape = logical_tensor_wrapper_t(lt_o).vdims();
+
+        const std::vector<int64_t> expected_out_shape {1, 1, 5, 5};
+        ASSERT_EQ(infered_out_shape, expected_out_shape);
+
+        std::vector<int64_t> expected_pads_begin {0, 0};
+        std::vector<int64_t> expected_pads_end {0, 0};
+        EXPECT_EQ(infered_pads_begin, expected_pads_begin);
+        EXPECT_EQ(infered_pads_end, expected_pads_end);
+    }
+}
+
+TEST(OpSchema, InferConvtransposeAutoPadShapeWithDilations) {
+    const op_schema_t *a_op_schema
+            = op_schema_registry_t::get_op_schema(op_kind::ConvTranspose);
+    EXPECT_TRUE(nullptr != a_op_schema);
+    op_t a_op {op_kind::ConvTranspose, op_t::kind2str(op_kind::ConvTranspose)};
+    std::vector<int64_t> strides = {1, 1};
+    std::vector<int64_t> pads_begin = {1, 1};
+    std::vector<int64_t> pads_end = {2, 2};
+    std::vector<int64_t> dilations = {2, 2};
+    std::string data_format = "NCX";
+    std::string filter_format = "OIX";
+    const std::vector<std::string> auto_pads_vec {
+            "NONE", "SAME_UPPER", "SAME_LOWER", "VALID"};
+
+    int64_t groups = 1;
+    int64_t id = 0;
+    // according to the convtranspose semantic, output_padding is bigger
+    // than 0 only if stride is greater than 1.
+    std::vector<int64_t> output_padding = {0, 0};
+    for (const auto &auto_pad : auto_pads_vec) {
+        set_convtranspose_common_attr(a_op, strides, pads_begin, pads_end,
+                dilations, auto_pad, data_format, filter_format, groups,
+                output_padding);
+
+        auto lt_data = logical_tensor_init(0, {1, 1, 10, 10}, data_type::f32);
+        auto lt_weight = logical_tensor_init(1, {1, 1, 4, 4}, data_type::f32);
+        auto lt_o = logical_tensor_init(
+                id++, data_type::f32, layout_type::strided);
+        std::vector<logical_tensor_t *> lt_in {&lt_data, &lt_weight};
+        std::vector<logical_tensor_t *> lt_out {&lt_o};
+        a_op_schema->shape_infer(&a_op, lt_in, lt_out);
+
+        const auto &infered_pads_begin
+                = a_op.get_attr<std::vector<int64_t>>(op_attr::pads_begin);
+        const auto &infered_pads_end
+                = a_op.get_attr<std::vector<int64_t>>(op_attr::pads_end);
+        const auto infered_out_shape = logical_tensor_wrapper_t(lt_o).vdims();
+
+        if (auto_pad == "NONE") {
+            const std::vector<int64_t> expected_out_shape {1, 1, 13, 13};
+            ASSERT_EQ(infered_out_shape, expected_out_shape);
+
+            std::vector<int64_t> expected_pads_begin {1, 1};
+            std::vector<int64_t> expected_pads_end {2, 2};
+            EXPECT_EQ(infered_pads_begin, expected_pads_begin);
+            EXPECT_EQ(infered_pads_end, expected_pads_end);
+        } else if (auto_pad == "SAME_UPPER" || auto_pad == "SAME_LOWER") {
+            const std::vector<int64_t> expected_out_shape {1, 1, 10, 10};
+            ASSERT_EQ(infered_out_shape, expected_out_shape);
+
+            std::vector<int64_t> expected_pads_begin {3, 3};
+            std::vector<int64_t> expected_pads_end {3, 3};
+            EXPECT_EQ(infered_pads_begin, expected_pads_begin);
+            EXPECT_EQ(infered_pads_end, expected_pads_end);
+        } else if (auto_pad == "VALID") {
+            const std::vector<int64_t> expected_out_shape {1, 1, 16, 16};
+            ASSERT_EQ(infered_out_shape, expected_out_shape);
+
+            std::vector<int64_t> expected_pads_begin {0, 0};
+            std::vector<int64_t> expected_pads_end {0, 0};
+            EXPECT_EQ(infered_pads_begin, expected_pads_begin);
+            EXPECT_EQ(infered_pads_end, expected_pads_end);
+        }
+    }
+}
+
 TEST(OpSchema, InferConvolutionDilationsShape) {
     const op_schema_t *a_op_schema
             = op_schema_registry_t::get_op_schema(op_kind::Convolution);

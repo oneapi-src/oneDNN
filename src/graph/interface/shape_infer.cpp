@@ -187,24 +187,32 @@ inline void set_shapes_in_range(const std::vector<logical_tensor_t *> &lts,
 }
 
 /// infer the padding sizes according auto_pad type
-status_t infer_auto_pad(const dim_t in_dim, const dim_t stride,
+status_t infer_auto_pad(const dim_t input_size, const dim_t stride,
         const dim_t kernel, const dim_t dilation, const std::string &auto_pad,
         dim_t &pad_begin, dim_t &pad_end, bool is_deconv) {
     if (auto_pad == "VALID") {
         pad_begin = 0;
         pad_end = 0;
     } else if (auto_pad == "SAME_UPPER" || auto_pad == "SAME_LOWER") {
-        // TODO(xxx): need to improve?
-        if (1 != dilation) return status::unimplemented;
-
-        dim_t legacy = (in_dim + stride - 1) / stride;
-        dim_t pad_needed = is_deconv ? kernel - stride
-                                     : (legacy - 1) * stride + kernel - in_dim;
-        pad_begin = auto_pad == "SAME_LOWER" ? ((pad_needed + 1) / 2)
-                                             : (pad_needed / 2);
-        pad_end = pad_needed - pad_begin;
+        dim_t effective_kernel = (kernel - 1) * dilation + 1;
+        dim_t total_padding_size = 0;
+        // calculate total padding size
+        if (is_deconv) {
+            total_padding_size = effective_kernel - stride;
+        } else {
+            if (input_size % stride == 0) {
+                total_padding_size = effective_kernel - stride;
+            } else {
+                total_padding_size = effective_kernel - (input_size % stride);
+            }
+        }
+        // padding size should not be negative
+        if (total_padding_size < 0) { total_padding_size = 0; }
+        pad_begin = auto_pad == "SAME_LOWER" ? ((total_padding_size + 1) / 2)
+                                             : (total_padding_size / 2);
+        pad_end = total_padding_size - pad_begin;
     } else {
-        return status::invalid_arguments;
+        if (auto_pad != "NONE") return status::invalid_arguments;
     }
 
     return status::success;
@@ -294,8 +302,9 @@ status_t infer_conv_output_shape(op_t *n,
         std::string auto_pad = n->get_attr<std::string>(op_attr::auto_pad);
         // infer auto padding sizes
         for (size_t i = 0; i < src_sp.size(); ++i) {
-            infer_auto_pad(src_sp[i], strides[i], fil_sp[i], dilations[i],
-                    auto_pad, new_pads_begin[i], new_pads_end[i]);
+            auto ret = infer_auto_pad(src_sp[i], strides[i], fil_sp[i],
+                    dilations[i], auto_pad, new_pads_begin[i], new_pads_end[i]);
+            if (ret != status::success) return ret;
         }
 
         n->set_attr(op_attr::pads_begin, new_pads_begin);
@@ -375,8 +384,9 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
 
         // infer auto_pad
         for (size_t i = 0; i < src_sp.size(); ++i) {
-            infer_auto_pad(src_sp[i], strides[i], fil_sp[i], dilations[i],
-                    auto_pad, new_pads_begin[i], new_pads_end[i]);
+            auto ret = infer_auto_pad(src_sp[i], strides[i], fil_sp[i],
+                    dilations[i], auto_pad, new_pads_begin[i], new_pads_end[i]);
+            if (ret != status::success) return ret;
         }
 
         n->set_attr(op_attr::pads_begin, new_pads_begin);
@@ -446,8 +456,9 @@ status_t infer_convtranspose_bprop_data_output_shape(op_t *n,
         std::string auto_pad = n->get_attr<std::string>(op_attr::auto_pad);
         // infer auto padding sizes
         for (size_t i = 0; i < src_sp.size(); ++i) {
-            infer_auto_pad(src_sp[i], strides[i], fil_sp[i], dilations[i],
-                    auto_pad, new_pads_begin[i], new_pads_end[i]);
+            auto ret = infer_auto_pad(src_sp[i], strides[i], fil_sp[i],
+                    dilations[i], auto_pad, new_pads_begin[i], new_pads_end[i]);
+            if (ret != status::success) return ret;
         }
 
         n->set_attr(op_attr::pads_begin, new_pads_begin);
@@ -526,8 +537,9 @@ status_t infer_conv_bprop_filters_output_shape_common(op_t *n,
         std::string auto_pad = n->get_attr<std::string>(op_attr::auto_pad);
         // infer auto padding sizes
         for (size_t i = 0; i < src_sp.size(); ++i) {
-            infer_auto_pad(src_sp[i], strides[i], fil_sp[i], dilations[i],
-                    auto_pad, new_pads_begin[i], new_pads_end[i]);
+            auto ret = infer_auto_pad(src_sp[i], strides[i], fil_sp[i],
+                    dilations[i], auto_pad, new_pads_begin[i], new_pads_end[i]);
+            if (ret != status::success) return ret;
         }
 
         n->set_attr(op_attr::pads_begin, new_pads_begin);
@@ -605,8 +617,10 @@ status_t infer_convtranspose_output_shape(op_t *n,
 
         // infer auto_pad
         for (size_t i = 0; i < src_sp.size(); ++i) {
-            infer_auto_pad(src_sp[i], strides[i], fil_sp[i], dilations[i],
-                    auto_pad, new_pads_begin[i], new_pads_end[i], true);
+            auto ret = infer_auto_pad(src_sp[i], strides[i], fil_sp[i],
+                    dilations[i], auto_pad, new_pads_begin[i], new_pads_end[i],
+                    true);
+            if (ret != status::success) return ret;
         }
 
         n->set_attr(op_attr::pads_begin, new_pads_begin);
@@ -676,8 +690,9 @@ status_t infer_pool_output_shape(op_t *n,
         std::string auto_pad = n->get_attr<std::string>(op_attr::auto_pad);
         // infer auto_pad
         for (size_t i = 0; i < src_sp.size(); ++i) {
-            infer_auto_pad(src_sp[i], strides[i], kernel[i], dilations[i],
-                    auto_pad, new_pads_begin[i], new_pads_end[i]);
+            auto ret = infer_auto_pad(src_sp[i], strides[i], kernel[i],
+                    dilations[i], auto_pad, new_pads_begin[i], new_pads_end[i]);
+            if (ret != status::success) return ret;
         }
         n->set_attr(op_attr::pads_begin, new_pads_begin);
         n->set_attr(op_attr::pads_end, new_pads_end);
@@ -772,8 +787,9 @@ status_t infer_pool_bwd_output_shape(op_t *n,
         std::string auto_pad = n->get_attr<std::string>(op_attr::auto_pad);
         // infer auto_pad
         for (size_t i = 0; i < src_sp.size(); ++i) {
-            infer_auto_pad(src_sp[i], strides[i], kernel[i], dilations[i],
-                    auto_pad, new_pads_begin[i], new_pads_end[i]);
+            auto ret = infer_auto_pad(src_sp[i], strides[i], kernel[i],
+                    dilations[i], auto_pad, new_pads_begin[i], new_pads_end[i]);
+            if (ret != status::success) return ret;
         }
         n->set_attr(op_attr::pads_begin, new_pads_begin);
         n->set_attr(op_attr::pads_end, new_pads_end);
