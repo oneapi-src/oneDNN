@@ -583,7 +583,11 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::init(
             CHECK(safe_ptr_assign(comp_vpad_pbuffer_,
                     new jit_uni_brgemm_conv_comp_pad_kernel_t<Xbyak::Zmm>(
                             jcp)));
-        else
+        else if (one_of(isa, avx2_vnni, avx2_vnni_2)) {
+            CHECK(safe_ptr_assign(comp_vpad_pbuffer_,
+                    new jit_uni_brgemm_conv_comp_pad_kernel_t<Xbyak::Ymm>(
+                            jcp)));
+        } else
             assert(!"Unsupported ISA for comp pad kernel.");
         CHECK(comp_vpad_pbuffer_->create_kernel());
     }
@@ -1495,6 +1499,7 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::ker_trans(
 
 template struct brgemm_convolution_bwd_strided_t<avx2>;
 template struct brgemm_convolution_bwd_strided_t<avx2, true>;
+template struct brgemm_convolution_bwd_strided_t<avx2_vnni, true>;
 template struct brgemm_convolution_bwd_strided_t<avx2_vnni_2>;
 template struct brgemm_convolution_bwd_strided_t<avx2_vnni_2, true>;
 template struct brgemm_convolution_bwd_strided_t<avx512_core_amx>;
