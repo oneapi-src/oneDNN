@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "cpu/aarch64/acl_convolution_utils.hpp"
+#include "common/utils.hpp"
 #include "oneapi/dnnl/dnnl.hpp"
 
 namespace dnnl {
@@ -54,10 +55,12 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     const int with_groups = wei_d.ndims() == src_d.ndims() + 1;
     ACL_CHECK_SUPPORT(with_groups, " does not support groups");
 
-    ACL_CHECK_SUPPORT(src_d.data_type() != data_type::f32
-                    || wei_d.data_type() != data_type::f32
-                    || dst_d.data_type() != data_type::f32,
-            " src, dst and wei must be fp32");
+    ACL_CHECK_SUPPORT(!one_of(true,
+                              everyone_is(data_type::f32, src_d.data_type(),
+                                      wei_d.data_type(), dst_d.data_type()),
+                              everyone_is(data_type::f16, src_d.data_type(),
+                                      wei_d.data_type(), dst_d.data_type())),
+            " src, dst and wei must be fp16 or fp32");
 
     // batch size
     const int mb = src_d.dims()[0];
@@ -150,7 +153,8 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     const auto acl_layout = is_nhwc ? arm_compute::DataLayout::NHWC
                                     : arm_compute::DataLayout::NCHW;
 
-    auto acl_data_type = arm_compute::DataType::F32;
+    // all have the same datatype
+    auto acl_data_type = acl_utils::get_acl_data_t(src_d.data_type());
 
     // clang-format off
     acp.src_tensor_info = arm_compute::TensorInfo(
