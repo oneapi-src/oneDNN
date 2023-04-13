@@ -133,7 +133,7 @@ public:
                 if (send_func.is_load() || send_func.is_load_2d()) {
                     auto reg_buf_op = ir_to_ngen_t<hw>::eval(
                             send_t::arg_reg_buf(args), scope);
-                    zero_out_data_payload(send_func, reg_buf_op.reg_buf_data());
+                    zero_out(reg_buf_op, send_func.payload_size());
                 }
                 return;
             }
@@ -162,6 +162,9 @@ public:
             signal(obj.attr);
         } else if (func.is_equal(funcs::slm_fence_func())) {
             slm_fence(obj.attr);
+        } else if (func.is_equal(funcs::zero_out_func())) {
+            auto buf_op = eval(obj.args[0], scope);
+            zero_out(buf_op.reg_buf_data(), to_cpp<int>(obj.args[1]));
         } else {
             ir_error_not_expected() << object_t(obj);
         }
@@ -478,14 +481,13 @@ private:
         }
     }
 
-    void zero_out_data_payload(
-            const send_t &send_func, const reg_buf_data_t &rd) const {
+    void zero_out(const ngen_operand_t &buf_op, int size) const {
+        auto &rd = buf_op.reg_buf_data();
         type_t type = type_t::f32();
-        int send_size = send_func.payload_size();
         int grf_size = ngen::GRF::bytes(hw);
         int step = 2 * grf_size;
-        for (int i = 0; i < send_size; i += step) {
-            int exec_size = std::min(step, send_size - i) / type.size();
+        for (int i = 0; i < size; i += step) {
+            int exec_size = std::min(step, size - i) / type.size();
             auto sub_rd_mov = rd.format(i, to_ngen(type), exec_size).reg_data();
             ir_assert(math::is_pow2(exec_size));
             host_->emov(exec_size, sub_rd_mov, ngen::Immediate(0.0f));
@@ -565,7 +567,7 @@ private:
         // Zero-out inactive channels.
         if ((send_func.is_load() || send_func.is_load_2d())
                 && mod.getPredCtrl() != ngen::PredCtrl::None) {
-            zero_out_data_payload(send_func, reg_buf_op.reg_buf_data());
+            zero_out(reg_buf_op, send_func.payload_size());
         }
 
         // Emit send instruction.

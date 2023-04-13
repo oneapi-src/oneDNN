@@ -17,7 +17,6 @@
 #include "gpu/jit/ir/epilogue.hpp"
 
 #include "gpu/jit/ir/message.hpp"
-#include "gpu/jit/ir/mul_add.hpp"
 #include "gpu/jit/ir/reduce.hpp"
 #include "gpu/jit/ir/reorder.hpp"
 #include "gpu/jit/utils/trace.hpp"
@@ -319,7 +318,7 @@ public:
 
     stmt_t build_zero_out_stmt() const {
         ir_assert(needs_store());
-        return create_zero_out_stmt(*ir_ctx_, reg_buf_, reg_layout_.size());
+        return funcs::zero_out(reg_buf_, reg_layout_.size());
     }
 
     stmt_t build_reduce_stmt() {

@@ -19,7 +19,6 @@
 #include <algorithm>
 
 #include "gpu/jit/ir/message.hpp"
-#include "gpu/jit/ir/mul_add.hpp"
 #include "gpu/jit/ir/reduce.hpp"
 #include "gpu/jit/utils/trace.hpp"
 #include "gpu/jit/utils/utils.hpp"
@@ -101,8 +100,8 @@ void slm_reduce_builder_t::build() {
     auto read = make_access_builder(*ir_ctx_, view_t(slm_layout.map(read_tile)),
             slm_buf_, tmp_reg_buf_, send_op_t::load, send_address_t::slm);
 
-    load_stmt_ = load_stmt_.append(
-            create_zero_out_stmt(*ir_ctx_, reg_buf_, reg_layout_.size()));
+    load_stmt_
+            = load_stmt_.append(funcs::zero_out(reg_buf_, reg_layout_.size()));
     load_stmt_ = load_stmt_.append(read.stmt());
 
     tmp_reg_buf_size_ = std::max(tmp_reg_buf_size_, read.reg_buf_size());

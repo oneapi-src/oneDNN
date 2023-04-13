@@ -22,7 +22,6 @@
 #include "gpu/jit/ir/fma.hpp"
 #include "gpu/jit/ir/gemm_schedule.hpp"
 #include "gpu/jit/ir/message.hpp"
-#include "gpu/jit/ir/mul_add.hpp"
 #include "gpu/jit/ir/send_plan.hpp"
 #include "gpu/jit/ir/tensor.hpp"
 #include "gpu/jit/utils/utils.hpp"
@@ -183,8 +182,7 @@ public:
             auto init = store_t::make(zp_1x4, 0, 0x01010101);
             stmt = init.append(stmt);
         }
-        auto comp_zero_out = create_zero_out_stmt(
-                buf_mgr.ir_ctx(), comp_buf, comp_reg_buf_size());
+        auto comp_zero_out = funcs::zero_out(comp_buf, comp_reg_buf_size());
         stmt = comp_zero_out.append(stmt);
         return stmt;
     }

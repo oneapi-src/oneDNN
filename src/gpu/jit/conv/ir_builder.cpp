@@ -35,7 +35,6 @@
 #include "gpu/jit/ir/gemm_schedule.hpp"
 #include "gpu/jit/ir/ir.hpp"
 #include "gpu/jit/ir/message.hpp"
-#include "gpu/jit/ir/mul_add.hpp"
 #include "gpu/jit/ir/post_ops.hpp"
 #include "gpu/jit/ir/reduce.hpp"
 #include "gpu/jit/ir/reorder.hpp"
@@ -200,11 +199,11 @@ public:
     stmt_t zero_out_stmt() const {
         auto c_entry = buf_mgr_.find("c");
         auto ret = stmt_group_t::make(stmt_label_t::c_zero_out(),
-                create_zero_out_stmt(ir_ctx_, c_entry.buf, c_entry.size));
+                funcs::zero_out(c_entry.buf, c_entry.size));
         auto b_reduce_entry = buf_mgr_.find("b_reduce", /*allow_empty=*/true);
         if (!b_reduce_entry.is_empty()) {
-            ret = ret.append(create_zero_out_stmt(
-                    ir_ctx_, b_reduce_entry.buf, b_reduce_entry.size));
+            ret = ret.append(
+                    funcs::zero_out(b_reduce_entry.buf, b_reduce_entry.size));
         }
         return ret;
     }

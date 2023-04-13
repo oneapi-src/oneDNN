@@ -914,6 +914,15 @@ inline stmt_t _continue() {
     return continue_func().call();
 }
 
+inline func_t zero_out_func() {
+    static thread_local auto f = builtin_t::make("zero_out");
+    return f;
+}
+
+inline stmt_t zero_out(const expr_t &buf, int size) {
+    return zero_out_func().call({buf, expr_t(size)});
+}
+
 } // namespace funcs
 
 } // namespace jit
