@@ -29,6 +29,7 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 #include "src/common/z_magic.hpp"
 
@@ -129,7 +130,7 @@ struct stat_t {
     int unimplemented;
     int invalid_arguments;
     int listed;
-    double ms[timer::timer_t::mode_t::n_modes];
+    std::unordered_map<std::string, double[timer::timer_t::mode_t::n_modes]> ms;
 };
 extern stat_t benchdnn_stat;
 

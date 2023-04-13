@@ -150,13 +150,23 @@ int main(int argc, char **argv) {
             benchdnn_stat.invalid_arguments, benchdnn_stat.failed,
             benchdnn_stat.listed);
     if (has_bench_mode_bit(mode_bit_t::perf)) {
-        printf("total perf: min(ms):%g avg(ms):%g\n",
-                benchdnn_stat.ms[timer::timer_t::min],
-                benchdnn_stat.ms[timer::timer_t::avg]);
+        const auto &perf_timer
+                = benchdnn_stat.ms.find(timer::names::perf_timer);
+        if (perf_timer != benchdnn_stat.ms.end()) {
+            const auto &perf_timer_stats = perf_timer->second;
+            printf("total perf: min(ms):%g avg(ms):%g\n",
+                    perf_timer_stats[timer::timer_t::min],
+                    perf_timer_stats[timer::timer_t::avg]);
+        }
     }
     if (has_bench_mode_bit(mode_bit_t::corr)) {
-        const auto compute_ref_time_s = benchdnn_stat.ms[timer::timer_t::sum];
-        printf("total compute_ref: sum(s):%.2f\n", compute_ref_time_s);
+        const auto &compute_ref_timer
+                = benchdnn_stat.ms.find(timer::names::ref_timer);
+        if (compute_ref_timer != benchdnn_stat.ms.end()) {
+            const auto &compute_ref_timer_stats = compute_ref_timer->second;
+            printf("total compute_ref: sum(s):%.2f\n",
+                    compute_ref_timer_stats[timer::timer_t::sum]);
+        }
     }
 
     finalize();

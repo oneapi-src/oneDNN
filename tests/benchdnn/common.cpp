@@ -142,13 +142,14 @@ void parse_result(res_t &res, const char *pstr) {
         using bt = timer::timer_t;
         const auto &t = res.timer_map.perf_timer();
         for (int mode = 0; mode < (int)bt::n_modes; ++mode)
-            bs.ms[mode] += t.ms((bt::mode_t)mode);
+            bs.ms[timer::names::perf_timer][mode] += t.ms((bt::mode_t)mode);
     }
 
     if (has_bench_mode_bit(mode_bit_t::corr)) {
         using bt = timer::timer_t;
         const auto &t = res.timer_map.get_timer(timer::names::ref_timer);
-        bs.ms[bt::mode_t::sum] += t.sec(bt::mode_t::sum);
+        bs.ms[timer::names::ref_timer][bt::mode_t::sum]
+                += t.sec(bt::mode_t::sum);
     }
 }
 
