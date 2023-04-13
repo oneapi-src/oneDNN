@@ -18,6 +18,7 @@
 
 #include "gpu/jit/ir/message.hpp"
 #include "gpu/jit/ir/reorder.hpp"
+#include "gpu/jit/pass/simplify.hpp"
 #include "gpu/jit/utils/trace.hpp"
 
 namespace dnnl {
@@ -173,6 +174,35 @@ stmt_t fixup_if_conditions(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
     auto ret = if_condition_fixer_t(ir_ctx.exec_cfg().simd()).mutate(s);
     trace_pass("fixup_if_conditions", ret, ir_ctx);
+    return ret;
+}
+
+class int64_expr_optimizer_t : public ir_mutator_t {
+public:
+#define HANDLE_IR_OBJECT(type) \
+    object_t _mutate(const type &obj) override { return mutate_expr(obj); }
+
+    HANDLE_EXPR_IR_OBJECTS()
+
+#undef HANDLE_IR_OBJECT
+
+private:
+    template <typename T>
+    object_t mutate_expr(const T &obj) {
+        auto new_obj = ir_mutator_t::_mutate(obj);
+        if (auto *binary = new_obj.template as_ptr<binary_op_t>()) {
+            if (binary->op_kind == op_kind_t::_add) {
+                new_obj = simplify_64_bit_add(new_obj);
+            }
+        }
+        return new_obj;
+    }
+};
+
+stmt_t optimize_int64_exprs(const stmt_t &s, ir_context_t &ir_ctx) {
+    trace_start();
+    auto ret = int64_expr_optimizer_t().mutate(s);
+    trace_pass("optimize_int64_exprs", ret, ir_ctx);
     return ret;
 }
 

@@ -57,6 +57,10 @@ stmt_t split_wide_stores(const stmt_t &s, ir_context_t &ir_ctx);
 //     if (bcast8(cond)) { ... }
 stmt_t fixup_if_conditions(const stmt_t &s, ir_context_t &ir_ctx);
 
+// Rewrites mixed 64-bit/32-bit expressions to reduce 64-bit arithmetic.
+// Potential overflow is ignored and must be checked/fixed by further passes.
+stmt_t optimize_int64_exprs(const stmt_t &s, ir_context_t &ir_ctx);
+
 } // namespace jit
 } // namespace gpu
 } // namespace impl

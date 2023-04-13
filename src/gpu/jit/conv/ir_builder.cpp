@@ -737,6 +737,7 @@ void conv_ir_builder_t::build() {
             cfg_.reserved_regs());
     stmt_ = split_shuffle(stmt_, ir_ctx);
     stmt_ = fixup_if_conditions(stmt_, ir_ctx);
+    stmt_ = optimize_int64_exprs(stmt_, ir_ctx);
     stmt_ = fix_int32_overflow(stmt_, ir_ctx);
     stmt_ = eliminate_common_subexprs(
             stmt_, ir_ctx, cfg_.reserved_regs(), cfg_.slm().gmem_bufs());

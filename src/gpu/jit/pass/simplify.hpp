@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,6 +42,12 @@ expr_t simplify_rewrite_with_ternary(const expr_t &e, bool recursive = true);
 // Moves constants to the right hand side of an expression.
 // Example: (c0 + x) op c1 -> x op (c1 - c0)
 expr_t simplify_cmp_move_const_to_rhs(const expr_t &e);
+
+// Rewrites addition with mixed 64-bit/32-bit expressions to reduce 64-bit
+// arithmetic. Example:
+// Before: ((x.s64 + y.s32) + z.s32) [two 64-bit add]
+// After:  ((y.s32 + z.s32) + x.s64) [one 32-bit add and one 64-bit add]
+expr_t simplify_64_bit_add(const expr_t &e);
 
 // Reduces left and right hand sides of an expression.
 // Example: A * x < A * B -> x < B (if A > 0).
