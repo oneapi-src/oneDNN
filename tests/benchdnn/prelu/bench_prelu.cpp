@@ -66,7 +66,7 @@ int verify_input(const settings_t &s) {
     }
 
     for (const auto &i_sdt : s.sdt) {
-        if (i_sdt.size() != n_inputs) {
+        if (i_sdt.size() != 1 && i_sdt.size() != n_inputs) {
             BENCHDNN_PRINT(0, "%s\n",
                     "Error: input data types were specified in wrong format. "
                     "Please use --sdt=X:X format.");

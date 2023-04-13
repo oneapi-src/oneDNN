@@ -75,6 +75,12 @@ struct prb_t : public prb_vdims_t {
         , attr(attr)
         , ctx_init(ctx_init)
         , ctx_exe(ctx_exe) {
+        // Broadcast data types if needed
+        if (sdt.size() == 1) {
+            const auto val = sdt[0]; // Need a copy here.
+            this->sdt.assign(2, val);
+        }
+
         repro = set_repro_line(); // must be last in ctor to collect right info
     }
 
