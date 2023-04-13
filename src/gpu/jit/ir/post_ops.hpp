@@ -81,7 +81,7 @@ public:
     post_op_tensor_info_t() = default;
 
     post_op_tensor_info_t(bool is_input, bool is_output, const view_t &view,
-            const expr_t &buf, uint32_t mask, const expr_t &op_var, float scale,
+            const expr_t &buf, uint32_t mask, const expr_t &op_var,
             post_load_op_kind_t post_load_op)
         : is_input_(is_input)
         , is_output_(is_output)
@@ -89,13 +89,9 @@ public:
         , buf_(buf)
         , mask_(mask)
         , op_var_(op_var)
-        , scale_(scale)
         , post_load_op_(post_load_op) {
         if (op_var_.is_empty())
             op_var_ = var_t::make(type_t::f32(), make_op_var_name(buf));
-        if (scale != 1)
-            ir_assert(is_output_)
-                    << "Scale is supported with output tensors only.";
     }
 
     bool is_input() const { return is_input_; }
@@ -111,8 +107,6 @@ public:
     const uint32_t &mask() const { return mask_; }
 
     const expr_t &op_var() const { return op_var_; }
-
-    float scale() const { return scale_; }
 
     post_load_op_kind_t post_load_op() const { return post_load_op_; }
 
@@ -147,7 +141,6 @@ private:
     expr_t buf_;
     uint32_t mask_;
     expr_t op_var_;
-    float scale_;
     post_load_op_kind_t post_load_op_ = post_load_op_kind_t::none;
 };
 
@@ -294,23 +287,22 @@ private:
     const expr_t &add_input_tensor(const view_t &view, const expr_t &buf,
             post_load_op_kind_t post_load_op = post_load_op_kind_t::none) {
         return add_tensor(/*is_input=*/true, /*is_output=*/false, view, buf,
-                expr_t(), /*scale=*/1.0f, post_load_op);
+                expr_t(), post_load_op);
     }
 
-    const expr_t &add_output_tensor(
-            const view_t &view, const expr_t &buf, float scale = 1.0f) {
-        return add_tensor(/*is_input=*/false, /*is_output=*/true, view, buf,
-                expr_t(), scale);
+    const expr_t &add_output_tensor(const view_t &view, const expr_t &buf) {
+        return add_tensor(
+                /*is_input=*/false, /*is_output=*/true, view, buf, expr_t());
     }
 
     const expr_t &add_tensor(bool is_input, bool is_output, const view_t &view,
-            const expr_t &buf, const expr_t &op_var, float scale = 1.0f,
+            const expr_t &buf, const expr_t &op_var,
             post_load_op_kind_t post_load_op = post_load_op_kind_t::none) {
         ir_assert(cp_ndims() == view.nvdims());
         uint32_t mask
                 = (buf.is_empty() ? ~(1u << cp_ndims()) : compute_mask(view));
-        tensor_infos_.emplace_back(is_input, is_output, view, buf, mask, op_var,
-                scale, post_load_op);
+        tensor_infos_.emplace_back(
+                is_input, is_output, view, buf, mask, op_var, post_load_op);
         return tensor_infos_.back().op_var();
     }
 

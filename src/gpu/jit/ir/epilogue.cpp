@@ -337,10 +337,6 @@ public:
             reg_layout_ = reduced_layout;
         }
 
-        // Apply optional scaling.
-        stmt = stmt.append(create_mul_add_stmt(*ir_ctx_, reg_buf_,
-                reg_layout_.size(), reg_layout_.type(), info_.scale(), 0));
-
         return stmt;
     }
 
