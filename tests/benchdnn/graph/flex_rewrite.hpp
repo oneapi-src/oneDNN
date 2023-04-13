@@ -244,6 +244,7 @@ struct flex_rewrite {
                 case dnnl::graph::op::kind::ReLUBackprop:
                 case dnnl::graph::op::kind::Reorder:
                 case dnnl::graph::op::kind::Round:
+                case dnnl::graph::op::kind::Rsqrt:
                 case dnnl::graph::op::kind::Sigmoid:
                 case dnnl::graph::op::kind::SigmoidBackprop:
                 case dnnl::graph::op::kind::Sign:
@@ -294,7 +295,6 @@ struct flex_rewrite {
                 case dnnl::graph::op::kind::Multiply:
                 case dnnl::graph::op::kind::NotEqual:
                 case dnnl::graph::op::kind::Pow:
-                case dnnl::graph::op::kind::Rsqrt:
                 case dnnl::graph::op::kind::SquaredDifference:
                 case dnnl::graph::op::kind::Subtract:
                     in0 = aop.in_lts_[0].id_;
