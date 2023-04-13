@@ -7,7 +7,7 @@
 --dir=FWD_B
 --stag=any,axb
 --attr-zero-points=src:common:31*+dst:common:15*
---cfg=u8s8u8,s8s8u8
+--dt=u8:s8:u8,s8:s8:u8
 --batch=shapes_1d
 --batch=shapes_1x1
 --batch=shapes_2d
@@ -21,7 +21,7 @@ g1ic16iw5oc3ow5kw3pw1n
 --dir=FWD_D
 --stag=any,axb
 --attr-zero-points=src:common:31*
---cfg=s8s8f32,u8s8s32
+--dt=s8:s8:f32,u8:s8:s32
 --batch=shapes_3d
 --batch=shapes_dilated
 

@@ -6,13 +6,13 @@
 --batch=set_all
 
 # fp64
---cfg=f64
+--dt=f64
 --attr-post-ops=
 --batch=set_all
 
 
 #run backward without post ops
---cfg=f32,f64
+--dt=f32,f64
 --dir=BWD_D,BWD_WB
 --attr-post-ops=
 --batch=set_all
@@ -20,7 +20,7 @@
 
 # f16
 --reset
---cfg=f16
+--dt=f16
 --mb=2
 --dir=FWD_B
 --attr-post-ops=sum:0.5+add:f32+add:u8:per_dim_01+linear:0.5:1.5:2.0+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_dim_01+relu:0.5
@@ -29,7 +29,7 @@
 #bf16
 --reset
 --mb=2
---cfg=bf16bf16bf16,bf16bf16f32
+--dt=bf16,bf16:bf16:f32
 --dir=FWD_B
 --attr-post-ops=sum:0.5+add:f32+add:u8:per_dim_01+linear:0.5:1.5:2.0+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_dim_01+relu:0.5
 --batch=set_all
@@ -37,19 +37,19 @@
 #mixed float->int8 (dont cover all combinations to reduce size)
 --reset
 --mb=16
---cfg=bf16bf16s8,f32f32u8
+--dt=bf16:bf16:s8,f32:f32:u8
 --dir=FWD_B
 --batch=set_all
 
 #run backward without post ops
 --attr-post-ops=
---cfg=bf16bf16bf16 --dir=BWD_D,BWD_WB --batch=set_all
---cfg=f32bf16bf16 --dir=BWD_D --batch=set_all
---cfg=bf16f32bf16 --dir=BWD_WB --batch=set_all
+--dt=bf16 --dir=BWD_D,BWD_WB --batch=set_all
+--dt=f32:bf16:bf16 --dir=BWD_D --batch=set_all
+--dt=bf16:f32:bf16 --dir=BWD_WB --batch=set_all
 
 # int8
 --reset
---cfg=u8s8u8,s8s8u8,s8s8s8,s8s8s32,u8s8s32,u8s8f16,u8s8bf16
+--dt=u8:s8:u8,s8:s8:u8,s8:s8:s8,s8:s8:s32,u8:s8:s32,u8:s8:f16,u8:s8:bf16
 --mb=2
 --dir=FWD_B
 --attr-post-ops=sum:0.5+add:f32+add:u8:per_dim_01+linear:0.5:1.5:2.0+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_tensor+relu:0.5
@@ -57,7 +57,7 @@
 
 # regression
 --reset
---cfg=f32,f16
+--dt=f32,f16
 --dtag=axb
 --attr-post-ops=sum:0.5+add:f32+add:u8:per_dim_01+linear:0.5:1.5:2.0+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_dim_01+relu:0.5
 g1ic16iw5oc16ow5kw1pw0

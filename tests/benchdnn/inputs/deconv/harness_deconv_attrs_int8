@@ -5,17 +5,17 @@
 --dir=FWD_B
 --attr-scales=src:common:0.25*+wei:per_oc:0.5*,src:common:0.25*+wei:per_oc:0.5*+dst:common:2.25*
 --attr-post-ops=sum:1.5+relu:0:0:2.6
---cfg=u8s8u8,s8s8s32 --batch=shapes_1d
---cfg=s8s8f32 --batch=shapes_2d
---cfg=u8s8s32 --batch=shapes_3d
+--dt=u8:s8:u8,s8:s8:s32 --batch=shapes_1d
+--dt=s8:s8:f32 --batch=shapes_2d
+--dt=u8:s8:s32 --batch=shapes_3d
 
 --dir=FWD_D
 --attr-scales=src:common:0.25*+wei:per_oc:0.5*,src:common:0.25*+wei:common:0.5*+dst:common:2.25*
 --attr-post-ops=sum:1.5
---cfg=u8s8s8  --batch=shapes_1x1
---cfg=u8s8f32,s8s8s8  --batch=shapes_dilated
---cfg=s8s8s32 --batch=shapes_2d
+--dt=u8:s8:s8  --batch=shapes_1x1
+--dt=u8:s8:f32,s8:s8:s8  --batch=shapes_dilated
+--dt=s8:s8:s32 --batch=shapes_2d
 
 --dir=FWD_I
 --attr-post-ops=sum:0.25+add:f32:per_oc+relu:0.5
---cfg=s8s8s8,u8s8s32 --batch=shapes_ci
+--dt=s8:s8:s8,u8:s8:s32 --batch=shapes_ci
