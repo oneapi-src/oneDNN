@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -113,11 +113,7 @@ timer_t &timer_map_t::get_timer(const std::string &name) {
 }
 
 timer_t &timer_map_t::perf_timer() {
-    return get_timer(timer_t::perf_timer);
+    return get_timer(names::perf_timer);
 }
-
-// Initializing timers with fixed names.
-const std::string timer_t::perf_timer = "perf_timer";
-const std::string timer_t::ref_timer = "compute_ref_timer";
 
 } // namespace timer

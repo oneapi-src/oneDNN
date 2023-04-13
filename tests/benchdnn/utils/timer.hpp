@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@
     } while (0)
 
 // Designated timer to calculate time spent on reference computations
-#define TIME_REF(func) TIME_FUNC(func, res, timer::timer_t::ref_timer)
+#define TIME_REF(func) TIME_FUNC(func, res, timer::names::ref_timer)
 
 namespace timer {
 
@@ -73,11 +73,12 @@ struct timer_t {
     int times_;
     uint64_t ticks_[n_modes], ticks_start_;
     double ms_[n_modes], ms_start_;
-
-    // Section with timer fixed timer names for ease of use
-    static const std::string perf_timer;
-    static const std::string ref_timer;
 };
+
+namespace names {
+const std::string perf_timer = "perf_timer";
+const std::string ref_timer = "compute_ref_timer";
+} // namespace names
 
 struct timer_map_t {
     timer_t &get_timer(const std::string &name);

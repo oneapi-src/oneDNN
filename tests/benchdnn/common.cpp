@@ -147,7 +147,7 @@ void parse_result(res_t &res, const char *pstr) {
 
     if (has_bench_mode_bit(mode_bit_t::corr)) {
         using bt = timer::timer_t;
-        const auto &t = res.timer_map.get_timer(timer::timer_t::ref_timer);
+        const auto &t = res.timer_map.get_timer(timer::names::ref_timer);
         bs.ms[bt::mode_t::sum] += t.sec(bt::mode_t::sum);
     }
 }
