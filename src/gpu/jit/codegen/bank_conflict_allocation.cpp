@@ -642,6 +642,7 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
 
     bool is_dpas = false;
     bool is_dp4a = false;
+    bool is_f64 = false;
     expr_t dst_base;
     if (!attr.instructions.empty()) {
         auto &s = attr.instructions[0];
@@ -652,6 +653,8 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
             dst_base = get_base(dpas_t::arg_dst(s));
         } else if (func.is<mad_t>()) {
             dst_base = get_base(mad_t::arg_dst(s));
+            auto &mad = func.as<mad_t>();
+            is_f64 = mad.dst_type.is_f64();
         } else {
             ir_error_not_expected();
         }
@@ -763,6 +766,9 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
         // dpas doesn't need bundle check.
         if (is_dpas && check_bundles) continue;
         if (hw_ctx.hw <= ngen::HW::XeLP && check_bundles) continue;
+        // XXX: f64 allocations with bundle check result in high fragmentation.
+        if (is_f64 && check_bundles) continue;
+
         ctx.reset_steps();
         ctx.set_check_bundles(check_bundles);
 
