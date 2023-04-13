@@ -364,7 +364,18 @@ matmul_executable_t::desc_t matmul_executable_t::create_desc(
             = ((src.get_ndims() == 2 || src.get_ndims() == 3)
                       && p_engine.get_kind() == dnnl::engine::kind::gpu)
             || keep_dst_layout;
-    if (!use_strided_dst) { dst = to_format_any(dst); }
+    if (!use_strided_dst) {
+        dst = to_format_any(dst);
+    } else if (dst.get_format_kind() == dnnl::memory::format_kind::any
+            && !keep_dst_layout) {
+        // convert to strided for avoiding blocked activation. The format kind
+        // of dst is possible to be any when:
+        // 1) It is created with internal logical tensor
+        // 2) It is the partition output and defined by user
+        dst = to_ncx_format(dst);
+    } else {
+        // do nothing
+    }
 
     dnnl::matmul::primitive_desc pd;
     if (op->has_attr(op_attr::with_bias)
