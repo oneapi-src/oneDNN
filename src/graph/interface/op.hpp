@@ -408,6 +408,7 @@ public:
             CASE(ReLUBackward);
             CASE(Reorder);
             CASE(Round);
+            CASE(Select);
             CASE(Sigmoid);
             CASE(SigmoidBackward);
             CASE(SoftMax);

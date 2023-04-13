@@ -76,6 +76,8 @@ logical_tensor::data_type deserialized_lt::get_data_type() const {
         return logical_tensor::data_type::bf16;
     } else if (data_type_ == "s32") {
         return logical_tensor::data_type::s32;
+    } else if (data_type_ == "boolean") {
+        return logical_tensor::data_type::boolean;
     } else {
         return logical_tensor::data_type::undef;
     }

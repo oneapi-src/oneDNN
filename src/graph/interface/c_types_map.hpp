@@ -56,6 +56,7 @@ const data_type_t f32 = dnnl_f32;
 const data_type_t s32 = dnnl_s32;
 const data_type_t s8 = dnnl_s8;
 const data_type_t u8 = dnnl_u8;
+const data_type_t boolean = dnnl_boolean;
 } // namespace data_type
 
 using partition_policy_t = dnnl_graph_partition_policy_t;
@@ -179,6 +180,7 @@ const op_kind_t ReLU = dnnl_graph_op_relu;
 const op_kind_t ReLUBackward = dnnl_graph_op_relu_backward;
 const op_kind_t Reorder = dnnl_graph_op_reorder;
 const op_kind_t Round = dnnl_graph_op_round;
+const op_kind_t Select = dnnl_graph_op_select;
 const op_kind_t Sigmoid = dnnl_graph_op_sigmoid;
 const op_kind_t SigmoidBackward = dnnl_graph_op_sigmoid_backward;
 const op_kind_t SoftMax = dnnl_graph_op_softmax;

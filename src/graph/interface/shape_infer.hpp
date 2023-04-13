@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -71,6 +71,8 @@ status_t infer_auto_pad(const dim_t in_dim, const dim_t stride,
 /// numpy broadcasting
 /// TODO(xxx): 0-D broadcasting?
 status_t broadcast(const dims &lhs, const dims &rhs, dims &broadcasted);
+
+status_t one_way_broadcast(const dims &lhs, const dims &rhs);
 
 /// This function assumes the size of all vectors are correct. Eg. size of
 /// strides/dilations/pads should be the same as spatial size of src_dims and
@@ -180,6 +182,10 @@ status_t infer_unsupported_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &outputs);
 
 status_t infer_reduce_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs);
+
+status_t infer_select_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 

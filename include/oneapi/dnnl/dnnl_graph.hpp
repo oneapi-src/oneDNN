@@ -775,6 +775,7 @@ public:
         ReLUBackward = dnnl_graph_op_relu_backward,
         Reorder = dnnl_graph_op_reorder,
         Round = dnnl_graph_op_round,
+        Select = dnnl_graph_op_select,
         Sigmoid = dnnl_graph_op_sigmoid,
         SigmoidBackward = dnnl_graph_op_sigmoid_backward,
         SoftMax = dnnl_graph_op_softmax,

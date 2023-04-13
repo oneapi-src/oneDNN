@@ -607,6 +607,19 @@ void flex_rewrite::infer_output_shape(deserialized_graph &dgraph) {
                     }
                 }
                 break;
+            // infer_select_output_shape
+            case dnnl::graph::op::kind::Select:
+                in0 = aop.in_lts_[0].id_;
+                out0 = aop.out_lts_[0].id_;
+                if (auto_broadcast == "none") {
+                    gi[out0] = gi[in0];
+                } else {
+                    broadcast(gi[aop.in_lts_[1].id_], gi[aop.in_lts_[2].id_],
+                            gi[out0]);
+                    // one way broadcast only check whether cond can broadcast to the output
+                    // no need to do one way broadcast
+                }
+                break;
             // infer_static_reshape_output_shape
             case dnnl::graph::op::kind::StaticReshape:
                 in0 = aop.in_lts_[0].id_;

@@ -28,6 +28,27 @@ namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 using graph::dims;
 
+TEST(ShapeInfer, OneWayBroadcast) {
+    using dims = graph::dims;
+    dims src_shape {2, 3};
+    dims dst1_shape {2};
+    dims dst2_shape {2, 3};
+    dims dst3_shape {4, 3};
+    dims dst4_shape {1, 2, 3};
+
+    ASSERT_EQ(graph::one_way_broadcast(dst1_shape, src_shape),
+            graph::status::invalid_shape);
+
+    ASSERT_EQ(graph::one_way_broadcast(dst2_shape, src_shape),
+            graph::status::success);
+
+    ASSERT_EQ(graph::one_way_broadcast(dst3_shape, src_shape),
+            graph::status::invalid_shape);
+
+    ASSERT_EQ(graph::one_way_broadcast(dst4_shape, src_shape),
+            graph::status::success);
+}
+
 TEST(ShapeInfer, InvalidShapeForMatmul) {
     graph::op_t matmul {0, graph::op_kind::MatMul, std::string("matmul")};
     graph::logical_tensor_t src0

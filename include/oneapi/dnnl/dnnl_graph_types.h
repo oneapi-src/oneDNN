@@ -250,6 +250,7 @@ typedef enum {
     dnnl_graph_op_wildcard,
     dnnl_graph_op_hard_sigmoid,
     dnnl_graph_op_hard_sigmoid_backward,
+    dnnl_graph_op_select,
     dnnl_graph_op_last_symbol,
 } dnnl_graph_op_kind_t;
 

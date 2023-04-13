@@ -407,6 +407,7 @@ dnnl::graph::op::kind opstr2kind(const std::string &kind) {
             {"ReLUBackward", dnnl::graph::op::kind::ReLUBackward},
             {"Reorder", dnnl::graph::op::kind::Reorder},
             {"Round", dnnl::graph::op::kind::Round},
+            {"Select", dnnl::graph::op::kind::Select},
             {"Sigmoid", dnnl::graph::op::kind::Sigmoid},
             {"SigmoidBackward", dnnl::graph::op::kind::SigmoidBackward},
             {"SoftMax", dnnl::graph::op::kind::SoftMax},
