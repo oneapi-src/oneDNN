@@ -108,8 +108,8 @@ timer_t &timer_map_t::get_timer(const std::string &name) {
     auto it = timers.find(name);
     if (it != timers.end()) return it->second;
     // Set a new timer if requested one wasn't found
-    timers.insert(std::make_pair(std::string(name), timer_t()));
-    return timers.find(name)->second;
+    auto res = timers.emplace(name, timer_t());
+    return res.first->second;
 }
 
 timer_t &timer_map_t::perf_timer() {

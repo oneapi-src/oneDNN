@@ -17,8 +17,8 @@
 #ifndef UTILS_TIMER_HPP
 #define UTILS_TIMER_HPP
 
-#include <map>
 #include <string>
+#include <unordered_map>
 
 #define TIME_FUNC(func, res, name) \
     do { \
@@ -85,7 +85,7 @@ struct timer_map_t {
 
     timer_t &perf_timer();
 
-    std::map<std::string, timer_t> timers;
+    std::unordered_map<std::string, timer_t> timers;
 };
 
 } // namespace timer
