@@ -29,7 +29,6 @@
 #include "graph/unit/utils.hpp"
 
 namespace graph = dnnl::impl::graph;
-namespace utils = dnnl::graph::tests::unit::utils;
 namespace dnnl_impl = graph::dnnl_impl;
 
 TEST(OpExecutableDeathTest, DummyArgIndicesGetter) {

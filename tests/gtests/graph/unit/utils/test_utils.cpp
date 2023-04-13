@@ -65,7 +65,6 @@ TEST(utils_test, Iffy_getenv) {
 }
 
 TEST(Utils, IffyGetenvInt) {
-    namespace utils = dnnl::impl::graph::utils;
     ASSERT_NO_THROW(dnnl::impl::getenv_int("PWD", 57));
     ASSERT_NO_THROW(dnnl::impl::getenv_int("LANG", 7));
 }

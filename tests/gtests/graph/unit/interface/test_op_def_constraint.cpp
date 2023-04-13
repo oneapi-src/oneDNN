@@ -26,7 +26,7 @@ using namespace dnnl::impl::graph::data_type;
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-struct dnnl_graph_data_type_params {
+struct dnnl_graph_data_type_params_t {
     graph::op_kind_t op_name;
     size_t input_nums;
     size_t output_nums;
@@ -36,12 +36,12 @@ struct dnnl_graph_data_type_params {
     bool result;
 };
 
-class DataTypeCheck
-    : public ::testing::TestWithParam<dnnl_graph_data_type_params> {
+class data_type_check_t
+    : public ::testing::TestWithParam<dnnl_graph_data_type_params_t> {
 public:
     void TestDataTypeCheck() {
         auto params = ::testing::TestWithParam<
-                dnnl_graph_data_type_params>::GetParam();
+                dnnl_graph_data_type_params_t>::GetParam();
 
         graph::op_t op(params.op_name);
         if (params.op_name != TypeCast) {
@@ -76,56 +76,56 @@ public:
     }
 };
 
-TEST_P(DataTypeCheck, TestDataTypeCheck) {
+TEST_P(data_type_check_t, TestDataTypeCheck) {
     TestDataTypeCheck();
 }
 
-INSTANTIATE_TEST_SUITE_P(OpDefConstraint, DataTypeCheck,
+INSTANTIATE_TEST_SUITE_P(OpDefConstraint, data_type_check_t,
         ::testing::Values(
                 // test function of CheckBatchNormDataType
-                dnnl_graph_data_type_params {BatchNormTrainingBackward, 5, 1,
+                dnnl_graph_data_type_params_t {BatchNormTrainingBackward, 5, 1,
                         f32, f32, graph::check_bn_data_type, true},
-                dnnl_graph_data_type_params {BatchNormTrainingBackward, 5, 1,
+                dnnl_graph_data_type_params_t {BatchNormTrainingBackward, 5, 1,
                         bf16, f32, graph::check_bn_data_type, true},
-                dnnl_graph_data_type_params {BatchNormTrainingBackward, 5, 1,
+                dnnl_graph_data_type_params_t {BatchNormTrainingBackward, 5, 1,
                         f32, bf16, graph::check_bn_data_type, false},
-                dnnl_graph_data_type_params {BatchNormTrainingBackward, 5, 1,
+                dnnl_graph_data_type_params_t {BatchNormTrainingBackward, 5, 1,
                         bf16, bf16, graph::check_bn_data_type, true},
                 // test function of CheckBatchNormDataType
-                dnnl_graph_data_type_params {BatchNormForwardTraining, 5, 5,
+                dnnl_graph_data_type_params_t {BatchNormForwardTraining, 5, 5,
                         f32, f32, graph::check_bn_data_type, true},
-                dnnl_graph_data_type_params {BatchNormForwardTraining, 5, 5,
+                dnnl_graph_data_type_params_t {BatchNormForwardTraining, 5, 5,
                         bf16, f32, graph::check_bn_data_type, true},
-                dnnl_graph_data_type_params {BatchNormForwardTraining, 5, 5,
+                dnnl_graph_data_type_params_t {BatchNormForwardTraining, 5, 5,
                         f32, bf16, graph::check_bn_data_type, false},
-                dnnl_graph_data_type_params {BatchNormForwardTraining, 5, 5,
+                dnnl_graph_data_type_params_t {BatchNormForwardTraining, 5, 5,
                         bf16, bf16, graph::check_bn_data_type, true},
                 // test function of CheckBatchNormDataType
-                dnnl_graph_data_type_params {BatchNormInference, 5, 1, f32, f32,
-                        graph::check_bn_data_type, true},
-                dnnl_graph_data_type_params {BatchNormInference, 5, 1, bf16,
+                dnnl_graph_data_type_params_t {BatchNormInference, 5, 1, f32,
                         f32, graph::check_bn_data_type, true},
-                dnnl_graph_data_type_params {BatchNormInference, 5, 1, f32,
+                dnnl_graph_data_type_params_t {BatchNormInference, 5, 1, bf16,
+                        f32, graph::check_bn_data_type, true},
+                dnnl_graph_data_type_params_t {BatchNormInference, 5, 1, f32,
                         bf16, graph::check_bn_data_type, false},
-                dnnl_graph_data_type_params {BatchNormInference, 5, 1, bf16,
+                dnnl_graph_data_type_params_t {BatchNormInference, 5, 1, bf16,
                         bf16, graph::check_bn_data_type, true},
                 // test function of CheckTypeCastDataType
-                dnnl_graph_data_type_params {TypeCast, 1, 1, f32, bf16,
+                dnnl_graph_data_type_params_t {TypeCast, 1, 1, f32, bf16,
                         graph::check_typecast_data_type, true},
-                dnnl_graph_data_type_params {TypeCast, 1, 1, f32, f16,
+                dnnl_graph_data_type_params_t {TypeCast, 1, 1, f32, f16,
                         graph::check_typecast_data_type, true},
-                dnnl_graph_data_type_params {TypeCast, 1, 1, bf16, f32,
+                dnnl_graph_data_type_params_t {TypeCast, 1, 1, bf16, f32,
                         graph::check_typecast_data_type, true},
-                dnnl_graph_data_type_params {TypeCast, 1, 1, f16, f32,
+                dnnl_graph_data_type_params_t {TypeCast, 1, 1, f16, f32,
                         graph::check_typecast_data_type, true},
-                dnnl_graph_data_type_params {TypeCast, 1, 1, bf16, bf16,
+                dnnl_graph_data_type_params_t {TypeCast, 1, 1, bf16, bf16,
                         graph::check_typecast_data_type, false},
-                dnnl_graph_data_type_params {TypeCast, 1, 1, f16, f16,
+                dnnl_graph_data_type_params_t {TypeCast, 1, 1, f16, f16,
                         graph::check_typecast_data_type, false},
-                dnnl_graph_data_type_params {TypeCast, 1, 1, f32, f32,
+                dnnl_graph_data_type_params_t {TypeCast, 1, 1, f32, f32,
                         graph::check_typecast_data_type, false}));
 
-struct dnnl_graph_ln_params {
+struct dnnl_graph_ln_params_t {
     graph::op_kind_t op_name;
     graph::data_type_t T1;
     graph::data_type_t T2;
@@ -136,12 +136,12 @@ struct dnnl_graph_ln_params {
     bool result;
 };
 
-class LayerNormAllCheck
-    : public ::testing::TestWithParam<dnnl_graph_ln_params> {
+class layer_norm_all_check_t
+    : public ::testing::TestWithParam<dnnl_graph_ln_params_t> {
 public:
     void TestLayerNormAllCheck() {
         auto params
-                = ::testing::TestWithParam<dnnl_graph_ln_params>::GetParam();
+                = ::testing::TestWithParam<dnnl_graph_ln_params_t>::GetParam();
 
         graph::op_t op(params.op_name);
 
@@ -176,41 +176,41 @@ public:
     }
 };
 
-TEST_P(LayerNormAllCheck, TestLayerNormAllCheck) {
+TEST_P(layer_norm_all_check_t, TestLayerNormAllCheck) {
     TestLayerNormAllCheck();
 }
 
-INSTANTIATE_TEST_SUITE_P(OpDefConstraint, LayerNormAllCheck,
+INSTANTIATE_TEST_SUITE_P(OpDefConstraint, layer_norm_all_check_t,
         ::testing::Values(
                 // test function of CheckLayerNormDataType
-                dnnl_graph_ln_params {LayerNorm, f32, f32, true, false, true,
+                dnnl_graph_ln_params_t {LayerNorm, f32, f32, true, false, true,
                         graph::check_ln_data_type, true},
-                dnnl_graph_ln_params {LayerNorm, bf16, f32, true, false, true,
+                dnnl_graph_ln_params_t {LayerNorm, bf16, f32, true, false, true,
                         graph::check_ln_data_type, true},
-                dnnl_graph_ln_params {LayerNorm, f32, bf16, true, false, true,
+                dnnl_graph_ln_params_t {LayerNorm, f32, bf16, true, false, true,
                         graph::check_ln_data_type, false},
-                dnnl_graph_ln_params {LayerNorm, bf16, bf16, true, false, true,
-                        graph::check_ln_data_type, true},
+                dnnl_graph_ln_params_t {LayerNorm, bf16, bf16, true, false,
+                        true, graph::check_ln_data_type, true},
                 // test function of CheckLayerNormFwdOutputsNum
-                dnnl_graph_ln_params {LayerNorm, f32, f32, true, false, true,
+                dnnl_graph_ln_params_t {LayerNorm, f32, f32, true, false, true,
                         graph::check_ln_fwd_outputs_num, true},
-                dnnl_graph_ln_params {LayerNorm, f32, f32, true, false, false,
+                dnnl_graph_ln_params_t {LayerNorm, f32, f32, true, false, false,
                         graph::check_ln_fwd_outputs_num, false},
-                dnnl_graph_ln_params {LayerNorm, f32, bf16, false, false, true,
-                        graph::check_ln_fwd_outputs_num, true},
-                dnnl_graph_ln_params {LayerNorm, f32, bf16, false, false, false,
-                        graph::check_ln_fwd_outputs_num, true},
+                dnnl_graph_ln_params_t {LayerNorm, f32, bf16, false, false,
+                        true, graph::check_ln_fwd_outputs_num, true},
+                dnnl_graph_ln_params_t {LayerNorm, f32, bf16, false, false,
+                        false, graph::check_ln_fwd_outputs_num, true},
                 // test function of CheckLayerNormBwdUseAffine
-                dnnl_graph_ln_params {LayerNormBackward, f32, f32, true, true,
+                dnnl_graph_ln_params_t {LayerNormBackward, f32, f32, true, true,
                         true, graph::check_ln_bwd_use_affine, true},
-                dnnl_graph_ln_params {LayerNormBackward, f32, f32, true, true,
+                dnnl_graph_ln_params_t {LayerNormBackward, f32, f32, true, true,
                         false, graph::check_ln_bwd_use_affine, false},
-                dnnl_graph_ln_params {LayerNormBackward, f32, bf16, true, false,
-                        true, graph::check_ln_bwd_use_affine, true},
-                dnnl_graph_ln_params {LayerNormBackward, f32, bf16, true, false,
-                        false, graph::check_ln_bwd_use_affine, true}));
+                dnnl_graph_ln_params_t {LayerNormBackward, f32, bf16, true,
+                        false, true, graph::check_ln_bwd_use_affine, true},
+                dnnl_graph_ln_params_t {LayerNormBackward, f32, bf16, true,
+                        false, false, graph::check_ln_bwd_use_affine, true}));
 
-struct dnnl_graph_shape_params {
+struct dnnl_graph_shape_params_t {
     graph::op_kind_t op_name;
     size_t input_nums;
     std::vector<graph::data_type_t> inputs_dtype;
@@ -222,11 +222,12 @@ struct dnnl_graph_shape_params {
     bool result;
 };
 
-class ShapeCheck : public ::testing::TestWithParam<dnnl_graph_shape_params> {
+class shape_check_t
+    : public ::testing::TestWithParam<dnnl_graph_shape_params_t> {
 public:
     void TestShapeCheck() {
-        auto params
-                = ::testing::TestWithParam<dnnl_graph_shape_params>::GetParam();
+        auto params = ::testing::TestWithParam<
+                dnnl_graph_shape_params_t>::GetParam();
 
         graph::op_t op(params.op_name);
 
@@ -261,85 +262,87 @@ public:
     }
 };
 
-TEST_P(ShapeCheck, TestShapeCheck) {
+TEST_P(shape_check_t, TestShapeCheck) {
     TestShapeCheck();
 }
 
-INSTANTIATE_TEST_SUITE_P(OpDefConstraint, ShapeCheck,
+INSTANTIATE_TEST_SUITE_P(OpDefConstraint, shape_check_t,
         ::testing::Values(
                 // test function of CheckAvgPoolBwdInputShape
-                dnnl_graph_shape_params {AvgPoolBackward, 1, {f32}, 1, {}, {},
+                dnnl_graph_shape_params_t {AvgPoolBackward, 1, {f32}, 1, {}, {},
                         graph::check_avgpool_bwd_input_shape, false, false},
-                dnnl_graph_shape_params {AvgPoolBackward, 1, {f32}, 1,
+                dnnl_graph_shape_params_t {AvgPoolBackward, 1, {f32}, 1,
                         {graph::op_attr::src_shape}, {{1, 1, 6, 6}},
                         graph::check_avgpool_bwd_input_shape, false, true},
-                dnnl_graph_shape_params {AvgPoolBackward, 2, {f32, s32}, 1, {},
-                        {}, graph::check_avgpool_bwd_input_shape, false, true},
-                dnnl_graph_shape_params {AvgPoolBackward, 2, {f32, s32}, 1,
+                dnnl_graph_shape_params_t {AvgPoolBackward, 2, {f32, s32}, 1,
+                        {}, {}, graph::check_avgpool_bwd_input_shape, false,
+                        true},
+                dnnl_graph_shape_params_t {AvgPoolBackward, 2, {f32, s32}, 1,
                         {graph::op_attr::src_shape}, {{1, 1, 6, 6}},
                         graph::check_avgpool_bwd_input_shape, false, true},
                 // test function of CheckConvBwdDataOutputShape
-                dnnl_graph_shape_params {ConvolutionBackwardData, 2, {f32, f32},
-                        1, {}, {}, graph::check_conv_bwd_data_output_shape,
-                        false, false},
-                dnnl_graph_shape_params {ConvolutionBackwardData, 2, {f32, f32},
-                        1, {graph::op_attr::dst_shape}, {{1, 1, 6, 6}},
-                        graph::check_conv_bwd_data_output_shape, false, true},
-                dnnl_graph_shape_params {ConvolutionBackwardData, 3,
+                dnnl_graph_shape_params_t {ConvolutionBackwardData, 2,
+                        {f32, f32}, 1, {}, {},
+                        graph::check_conv_bwd_data_output_shape, false, false},
+                dnnl_graph_shape_params_t {ConvolutionBackwardData, 2,
+                        {f32, f32}, 1, {graph::op_attr::dst_shape},
+                        {{1, 1, 6, 6}}, graph::check_conv_bwd_data_output_shape,
+                        false, true},
+                dnnl_graph_shape_params_t {ConvolutionBackwardData, 3,
                         {f32, f32, s32}, 1, {}, {},
                         graph::check_conv_bwd_data_output_shape, false, true},
-                dnnl_graph_shape_params {ConvolutionBackwardData, 3,
+                dnnl_graph_shape_params_t {ConvolutionBackwardData, 3,
                         {f32, f32, s32}, 1, {graph::op_attr::dst_shape},
                         {{1, 1, 6, 6}}, graph::check_conv_bwd_data_output_shape,
                         false, true},
                 // test function of CheckConvBwdWeightsWeightsShape
-                dnnl_graph_shape_params {ConvolutionBackwardWeights, 2,
+                dnnl_graph_shape_params_t {ConvolutionBackwardWeights, 2,
                         {f32, f32}, 1, {}, {},
                         graph::check_conv_bwd_weights_weights_shape, false,
                         false},
-                dnnl_graph_shape_params {ConvolutionBackwardWeights, 2,
+                dnnl_graph_shape_params_t {ConvolutionBackwardWeights, 2,
                         {f32, f32}, 1, {graph::op_attr::weights_shape},
                         {{1, 1, 3, 3}},
                         graph::check_conv_bwd_weights_weights_shape, false,
                         true},
-                dnnl_graph_shape_params {ConvolutionBackwardWeights, 3,
+                dnnl_graph_shape_params_t {ConvolutionBackwardWeights, 3,
                         {f32, f32, s32}, 1, {}, {},
                         graph::check_conv_bwd_weights_weights_shape, false,
                         true},
-                dnnl_graph_shape_params {ConvolutionBackwardWeights, 3,
+                dnnl_graph_shape_params_t {ConvolutionBackwardWeights, 3,
                         {f32, f32, s32}, 1, {graph::op_attr::weights_shape},
                         {{1, 1, 3, 3}},
                         graph::check_conv_bwd_weights_weights_shape, false,
                         true},
                 // test function of CheckInterpolateSizesScales
-                dnnl_graph_shape_params {Interpolate, 1, {f32}, 1, {}, {},
+                dnnl_graph_shape_params_t {Interpolate, 1, {f32}, 1, {}, {},
                         graph::check_interpolate_sizes_scales, false, false},
-                dnnl_graph_shape_params {Interpolate, 1, {f32}, 1,
+                dnnl_graph_shape_params_t {Interpolate, 1, {f32}, 1,
                         {graph::op_attr::sizes}, {{2, 2}},
                         graph::check_interpolate_sizes_scales, false, true},
-                dnnl_graph_shape_params {Interpolate, 1, {f32}, 1,
+                dnnl_graph_shape_params_t {Interpolate, 1, {f32}, 1,
                         {graph::op_attr::scales}, {{2, 2}},
                         graph::check_interpolate_sizes_scales, false, true},
-                dnnl_graph_shape_params {Interpolate, 1, {f32}, 1,
+                dnnl_graph_shape_params_t {Interpolate, 1, {f32}, 1,
                         {graph::op_attr::sizes, graph::op_attr::scales},
                         {{2, 2}, {2, 2}}, graph::check_interpolate_sizes_scales,
                         false, false},
                 // test function of CheckReduceAxes
                 // including Reduce: L1/L2/Max/Mean/Min/Prod/Sum
                 // here we take ReduceL2 as an example
-                dnnl_graph_shape_params {ReduceL2, 1, {f32}, 1, {}, {},
+                dnnl_graph_shape_params_t {ReduceL2, 1, {f32}, 1, {}, {},
                         graph::check_reduce_axes, true, false},
-                dnnl_graph_shape_params {ReduceL2, 1, {f32}, 1,
+                dnnl_graph_shape_params_t {ReduceL2, 1, {f32}, 1,
                         {graph::op_attr::axes}, {{1}}, graph::check_reduce_axes,
                         true, true},
-                dnnl_graph_shape_params {ReduceL2, 2, {f32, s32}, 1, {}, {},
+                dnnl_graph_shape_params_t {ReduceL2, 2, {f32, s32}, 1, {}, {},
                         graph::check_reduce_axes, true, true},
-                dnnl_graph_shape_params {ReduceL2, 2, {f32, s32}, 1,
+                dnnl_graph_shape_params_t {ReduceL2, 2, {f32, s32}, 1,
                         {graph::op_attr::axes}, {{1}}, graph::check_reduce_axes,
                         true, false}));
 
 // including Quantize/Dequantize/DynamicQuantize/DynamicDequantize
-struct dnnl_graph_quant_params {
+struct dnnl_graph_quant_params_t {
     graph::op_kind_t op_name;
     int64_t scales;
     int64_t zps;
@@ -348,11 +351,12 @@ struct dnnl_graph_quant_params {
     bool result;
 };
 
-class QuantCheck : public ::testing::TestWithParam<dnnl_graph_quant_params> {
+class quant_check_t
+    : public ::testing::TestWithParam<dnnl_graph_quant_params_t> {
 public:
     void TestQuantCheck() {
-        auto params
-                = ::testing::TestWithParam<dnnl_graph_quant_params>::GetParam();
+        auto params = ::testing::TestWithParam<
+                dnnl_graph_quant_params_t>::GetParam();
 
         graph::op_t op(params.op_name);
 
@@ -383,43 +387,47 @@ public:
     }
 };
 
-TEST_P(QuantCheck, TestQuantCheck) {
+TEST_P(quant_check_t, TestQuantCheck) {
     TestQuantCheck();
 }
 
-INSTANTIATE_TEST_SUITE_P(OpDefConstraint, QuantCheck,
+INSTANTIATE_TEST_SUITE_P(OpDefConstraint, quant_check_t,
         ::testing::Values(
                 // test function of CheckQuantDequantScalesZps
-                dnnl_graph_quant_params {Quantize, 4, 4, "per_channel",
+                dnnl_graph_quant_params_t {Quantize, 4, 4, "per_channel",
                         graph::check_quant_dequant_scales_zps, true},
-                dnnl_graph_quant_params {Quantize, 3, 4, "per_channel",
+                dnnl_graph_quant_params_t {Quantize, 3, 4, "per_channel",
                         graph::check_quant_dequant_scales_zps, false},
-                dnnl_graph_quant_params {Quantize, 1, 1, "per_tensor",
+                dnnl_graph_quant_params_t {Quantize, 1, 1, "per_tensor",
                         graph::check_quant_dequant_scales_zps, true},
-                dnnl_graph_quant_params {Quantize, 1, 2, "per_tensor",
+                dnnl_graph_quant_params_t {Quantize, 1, 2, "per_tensor",
                         graph::check_quant_dequant_scales_zps, false},
-                dnnl_graph_quant_params {Dequantize, 4, 4, "per_channel",
+                dnnl_graph_quant_params_t {Dequantize, 4, 4, "per_channel",
                         graph::check_quant_dequant_scales_zps, true},
-                dnnl_graph_quant_params {Dequantize, 3, 4, "per_channel",
+                dnnl_graph_quant_params_t {Dequantize, 3, 4, "per_channel",
                         graph::check_quant_dequant_scales_zps, false},
-                dnnl_graph_quant_params {Dequantize, 1, 1, "per_tensor",
+                dnnl_graph_quant_params_t {Dequantize, 1, 1, "per_tensor",
                         graph::check_quant_dequant_scales_zps, true},
-                dnnl_graph_quant_params {Dequantize, 1, 2, "per_tensor",
+                dnnl_graph_quant_params_t {Dequantize, 1, 2, "per_tensor",
                         graph::check_quant_dequant_scales_zps, false},
                 // test function of CheckDynQuantDequantScalesZps
-                dnnl_graph_quant_params {DynamicQuantize, 4, 4, "per_channel",
+                dnnl_graph_quant_params_t {DynamicQuantize, 4, 4, "per_channel",
                         graph::check_dyn_quant_dequant_scales_zps, true},
-                dnnl_graph_quant_params {DynamicQuantize, 3, 4, "per_channel",
+                dnnl_graph_quant_params_t {DynamicQuantize, 3, 4, "per_channel",
                         graph::check_dyn_quant_dequant_scales_zps, false},
-                dnnl_graph_quant_params {DynamicQuantize, 1, 1, "per_tensor",
+                dnnl_graph_quant_params_t {DynamicQuantize, 1, 1, "per_tensor",
                         graph::check_dyn_quant_dequant_scales_zps, true},
-                dnnl_graph_quant_params {DynamicQuantize, 1, 2, "per_tensor",
+                dnnl_graph_quant_params_t {DynamicQuantize, 1, 2, "per_tensor",
                         graph::check_dyn_quant_dequant_scales_zps, false},
-                dnnl_graph_quant_params {DynamicDequantize, 4, 4, "per_channel",
+                dnnl_graph_quant_params_t {DynamicDequantize, 4, 4,
+                        "per_channel",
                         graph::check_dyn_quant_dequant_scales_zps, true},
-                dnnl_graph_quant_params {DynamicDequantize, 3, 4, "per_channel",
+                dnnl_graph_quant_params_t {DynamicDequantize, 3, 4,
+                        "per_channel",
                         graph::check_dyn_quant_dequant_scales_zps, false},
-                dnnl_graph_quant_params {DynamicDequantize, 1, 1, "per_tensor",
-                        graph::check_dyn_quant_dequant_scales_zps, true},
-                dnnl_graph_quant_params {DynamicDequantize, 1, 2, "per_tensor",
-                        graph::check_dyn_quant_dequant_scales_zps, false}));
+                dnnl_graph_quant_params_t {DynamicDequantize, 1, 1,
+                        "per_tensor", graph::check_dyn_quant_dequant_scales_zps,
+                        true},
+                dnnl_graph_quant_params_t {DynamicDequantize, 1, 2,
+                        "per_tensor", graph::check_dyn_quant_dequant_scales_zps,
+                        false}));

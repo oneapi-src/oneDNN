@@ -374,7 +374,7 @@ TEST(ExecuteSubgraphInt8, LayernormTypecastQuant) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
     static auto isa = dnnl_get_effective_cpu_isa();
-    SKIP_IF((isa < dnnl_cpu_isa_avx512_core || isa == dnnl_cpu_isa_avx2_vnni)
+    SKIP_IF((isa < dnnl_cpu_isa_avx512_core)
                     && engine->kind() == graph::engine_kind::cpu,
             "Skip bf16 tests for systems that do not support avx512_core.");
     // some cases can't pass correctness check on GPU

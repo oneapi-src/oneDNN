@@ -559,7 +559,7 @@ TEST(Execute, Int8Bf16Mha) {
     SKIP_IF(eng->kind() == graph::engine_kind::gpu, "skip on gpu");
 
     static auto isa = dnnl_get_effective_cpu_isa();
-    SKIP_IF((isa < dnnl_cpu_isa_avx512_core || isa == dnnl_cpu_isa_avx2_vnni)
+    SKIP_IF((isa < dnnl_cpu_isa_avx512_core)
                     && eng->kind() == graph::engine_kind::cpu,
             "Skip bf16 tests for systems that do not support avx512_core.");
 

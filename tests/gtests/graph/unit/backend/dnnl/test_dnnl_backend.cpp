@@ -23,14 +23,14 @@
 namespace graph = dnnl::impl::graph;
 
 TEST(LayoutIdManager, GetMemDesc) {
-    class layout_id_manager_test_impl
+    class layout_id_manager_test_impl_t
         : public graph::dnnl_impl::layout_id_manager_t {
         bool is_mem_desc_equal(const graph::utils::any_t &mem_desc1,
                 const graph::utils::any_t &mem_desc2) const override {
             return true;
         }
     };
-    layout_id_manager_test_impl manager;
+    layout_id_manager_test_impl_t manager;
     size_t layout_id1 = 1;
     ASSERT_FALSE(manager.get_mem_desc(layout_id1).has_value());
     graph::utils::any_t mem_desc(int64_t(12));

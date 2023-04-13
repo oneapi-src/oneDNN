@@ -30,7 +30,7 @@ TEST(CAPI, CreateOp) {
 #define CREATE_OP_DESTROY \
     do { \
         dnnl_graph_op_destroy(op); \
-        op = NULL; \
+        op = nullptr; \
     } while (0);
 
     ASSERT_EQ_SAFE(dnnl_graph_op_create(&op, 1, op_kind, "conv2d"),
@@ -47,9 +47,9 @@ TEST(CAPI, OpAttr) {
 #define OP_ATTR_DESTROY \
     do { \
         dnnl_graph_op_destroy(op); \
-        op = NULL; \
+        op = nullptr; \
         dnnl_graph_op_destroy(matmul_op); \
-        matmul_op = NULL; \
+        matmul_op = nullptr; \
     } while (0);
 
     ASSERT_EQ_SAFE(dnnl_graph_op_create(&op, 1, op_kind, "conv2d"),
@@ -87,19 +87,20 @@ TEST(CAPI, OpAttr) {
 }
 
 TEST(CAPI, DnnlGraphOpGetKind) {
-    dnnl_graph_op_t op = NULL;
+    dnnl_graph_op_t op = nullptr;
     dnnl_graph_op_kind_t op_kind = dnnl_graph_op_wildcard;
 
 #define CREATE_OP_DESTROY \
     do { \
         dnnl_graph_op_destroy(op); \
-        op = NULL; \
+        op = nullptr; \
     } while (0);
     ASSERT_EQ_SAFE(dnnl_graph_op_create(&op, 1, op_kind, "conv2d"),
             dnnl_success, CREATE_OP_DESTROY);
 
-    ASSERT_EQ(dnnl_graph_op_get_kind(NULL, &op_kind), dnnl_invalid_arguments);
-    ASSERT_EQ(dnnl_graph_op_get_kind(op, NULL), dnnl_invalid_arguments);
+    ASSERT_EQ(
+            dnnl_graph_op_get_kind(nullptr, &op_kind), dnnl_invalid_arguments);
+    ASSERT_EQ(dnnl_graph_op_get_kind(op, nullptr), dnnl_invalid_arguments);
 
     ASSERT_EQ(dnnl_graph_op_get_kind(op, &op_kind), dnnl_success);
     ASSERT_EQ(op_kind, dnnl_graph_op_wildcard);

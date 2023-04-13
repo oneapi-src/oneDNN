@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,9 +38,8 @@ public:
 
         static auto isa = dnnl_get_effective_cpu_isa();
         SKIP_IF(p.engine == dnnl_cpu && p.data_type == dnnl_bf16
-                        && (isa < dnnl_cpu_isa_avx512_core
-                                || isa == dnnl_cpu_isa_avx2_vnni),
-                "Skip test for systems that do not support avx512_core.");
+                        && (isa < dnnl_cpu_isa_avx512_core),
+                "Skip bf16 test for systems that do not support avx512_core.");
 
         dnnl_graph_graph_t agraph = nullptr;
         dnnl_graph_op_t op = nullptr;

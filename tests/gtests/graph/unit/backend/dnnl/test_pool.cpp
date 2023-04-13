@@ -1349,9 +1349,7 @@ public:
         for_(const auto &data_format : data_formats)
         for (const auto c_broadcast : with_channel_broadcast_flags) {
             static auto isa = dnnl_get_effective_cpu_isa();
-            if (dt == graph::data_type::bf16
-                    && (isa < dnnl_cpu_isa_avx512_core
-                            || isa == dnnl_cpu_isa_avx2_vnni)
+            if (dt == graph::data_type::bf16 && (isa < dnnl_cpu_isa_avx512_core)
                     && eng->kind() == graph::engine_kind::cpu) {
                 continue;
             }
