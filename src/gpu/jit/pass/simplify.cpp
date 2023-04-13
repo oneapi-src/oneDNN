@@ -1521,18 +1521,6 @@ expr_t reorder_nary_add_args(const expr_t &e, bool x64_first) {
     return nary_op_t::make(nary_op->op_kind, new_args);
 }
 
-// Rewrites addition with mixed 64-bit/32-bit expressions to reduce 64-bit
-// arithmetic. Example:
-// Before: ((x.s64 + y.s32) + z.s32) [two 64-bit add]
-// After:  ((y.s32 + z.s32) + x.s64) [one 32-bit add and one 64-bit add]
-class _64_bit_add_optimizer_t : public nary_op_mutator_t {
-public:
-    object_t _mutate(const nary_op_t &obj) override {
-        auto new_obj = nary_op_mutator_t::_mutate(obj);
-        return reorder_nary_add_args(new_obj, /*x64_first=*/false);
-    }
-};
-
 // Simplifies using the N-ary form.
 expr_t simplify_with_nary(const expr_t &_e, const constraint_set_t &cset) {
     auto e = _e;
@@ -1545,8 +1533,25 @@ expr_t simplify_with_nary(const expr_t &_e, const constraint_set_t &cset) {
     e = int_div_mod_expander_t(cset).mutate(e);
     e = common_factor_simplifier_t().mutate(e);
     e = int_div_mod_range_simplifier_t(cset).mutate(e);
-    e = _64_bit_add_optimizer_t().mutate(e);
 
+    e = nary_op_back_transform(e);
+
+    return e;
+}
+
+class _64_bit_add_optimizer_t : public nary_op_mutator_t {
+public:
+    object_t _mutate(const nary_op_t &obj) override {
+        auto new_obj = nary_op_mutator_t::_mutate(obj);
+        return reorder_nary_add_args(new_obj, /*x64_first=*/false);
+    }
+};
+
+expr_t simplify_64_bit_add(const expr_t &_e) {
+    auto e = _e;
+
+    e = nary_op_canonicalize(e);
+    e = _64_bit_add_optimizer_t().mutate(e);
     e = nary_op_back_transform(e);
 
     return e;
