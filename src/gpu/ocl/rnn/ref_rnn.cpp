@@ -1170,13 +1170,13 @@ status_t _ref_rnn_common_t<aprop>::bias_prepare(const exec_ctx_t &ctx,
     float data_scale = pd()->attr()->rnn_data_qparams_.scale_;
 
     compute::kernel_arg_list_t arg_list;
-    arg_list.set(0, ws);
-    arg_list.set(1, scales);
-    arg_list.set(2, wei_layer);
-    arg_list.set(3, wei_iter);
-    arg_list.set(4, bias);
-    arg_list.set(5, data_shift);
-    arg_list.set(6, data_scale);
+    arg_list.append(ws);
+    arg_list.append(scales);
+    arg_list.append(wei_layer);
+    arg_list.append(wei_iter);
+    arg_list.append(bias);
+    arg_list.append(data_shift);
+    arg_list.append(data_scale);
 
     return parallel_for(ctx,
             compute::nd_range_t({dhc, n_bias, n_layer * n_dir}),
@@ -1193,22 +1193,22 @@ status_t _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
 
     if (aprop == prop_kind::forward) {
         compute::kernel_arg_list_t arg_list;
-        arg_list.set(0, ws);
-        arg_list.set(1, input);
-        arg_list.set(2, scratch_diff_states);
-        arg_list.set(3, (cl_int)lr);
-        arg_list.set(4, (cl_int)rl);
+        arg_list.append(ws);
+        arg_list.append(input);
+        arg_list.append(scratch_diff_states);
+        arg_list.append((cl_int)lr);
+        arg_list.append((cl_int)rl);
 
         return parallel_for(ctx,
                 compute::nd_range_t(get_nd_range({slc, batch, n_iter})),
                 copy_init_layer_kernel_, arg_list);
     } else {
         compute::kernel_arg_list_t arg_list;
-        arg_list.set(0, ws);
-        arg_list.set(1, diff_dst_layer);
-        arg_list.set(2, scratch_diff_states);
-        arg_list.set(3, (cl_int)0);
-        arg_list.set(4, (cl_int)0);
+        arg_list.append(ws);
+        arg_list.append(diff_dst_layer);
+        arg_list.append(scratch_diff_states);
+        arg_list.append((cl_int)0);
+        arg_list.append((cl_int)0);
 
         return parallel_for(ctx,
                 compute::nd_range_t(get_nd_range({batch, n_iter})),
@@ -1263,23 +1263,23 @@ status_t _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
 
     if (aprop == prop_kind::forward) {
         compute::kernel_arg_list_t arg_list;
-        arg_list.set(0, ws);
-        arg_list.set(1, dst_last_layer);
-        arg_list.set(2, scratch_diff_states);
-        arg_list.set(3, (cl_int)lr);
-        arg_list.set(4, (cl_int)rl);
-        arg_list.set(5, shift);
-        arg_list.set(6, scale);
-        arg_list.set(7, (int)dequantize);
+        arg_list.append(ws);
+        arg_list.append(dst_last_layer);
+        arg_list.append(scratch_diff_states);
+        arg_list.append((cl_int)lr);
+        arg_list.append((cl_int)rl);
+        arg_list.append(shift);
+        arg_list.append(scale);
+        arg_list.append((int)dequantize);
         return parallel_for(ctx, get_nd_range({dhc, batch, n_iter}),
                 copy_res_layer_kernel_, arg_list);
     } else {
         compute::kernel_arg_list_t arg_list;
-        arg_list.set(0, ws);
-        arg_list.set(1, diff_src_layer);
-        arg_list.set(2, scratch_diff_states);
-        arg_list.set(3, (cl_int)lr);
-        arg_list.set(4, (cl_int)rl);
+        arg_list.append(ws);
+        arg_list.append(diff_src_layer);
+        arg_list.append(scratch_diff_states);
+        arg_list.append((cl_int)lr);
+        arg_list.append((cl_int)rl);
         return parallel_for(ctx, get_nd_range({slc, batch, n_iter}),
                 copy_res_layer_kernel_, arg_list);
     }

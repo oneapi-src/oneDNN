@@ -181,6 +181,31 @@ private:
 class kernel_arg_list_t {
 public:
     kernel_arg_list_t() { nargs_ = 0; }
+
+    void append(const memory_storage_t &storage) {
+        assert(nargs_ + 1 < max_args);
+        args_[nargs_++].set_value(storage);
+    }
+
+    void append(void *value, kernel_arg_kind_t kind) {
+        assert(nargs_ + 1 < max_args);
+        args_[nargs_++].set_value(value, kind);
+    }
+
+    template <class T>
+    void append(const T &value) {
+        assert(nargs_ + 1 < max_args);
+        args_[nargs_++].set_value(value, unused_storage);
+
+        assert(unused_storage
+                <= reinterpret_cast<char *>(&scalar_storage_) + storage_size);
+    }
+
+    void append(size_t size, std::nullptr_t) {
+        assert(nargs_ + 1 < max_args);
+        args_[nargs_++].set_value(size, nullptr);
+    }
+
     void set(int index, const memory_storage_t &storage) {
         assert(index < max_args);
         nargs_ = nstl::max(nargs_, index + 1);
