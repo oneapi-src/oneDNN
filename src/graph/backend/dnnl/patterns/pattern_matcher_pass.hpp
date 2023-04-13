@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GRAPH_BACKEND_DNNL_PATTERNS_TRANSFORMATION_PATTERN_HPP
-#define GRAPH_BACKEND_DNNL_PATTERNS_TRANSFORMATION_PATTERN_HPP
+#ifndef GRAPH_BACKEND_DNNL_PATTERNS_PATTERN_MATCHER_PASS_HPP
+#define GRAPH_BACKEND_DNNL_PATTERNS_PATTERN_MATCHER_PASS_HPP
 
 #include <memory>
 #include <string>
@@ -87,18 +87,17 @@ inline void pattern_utils_t::init_partition(graph_t &backend_graph,
 }
 
 /*!
- * \brief transformation_pass_t generates an optimized graph
- *        when the pass is hit, it can be op replacements,
- *        dead branch elimination, etc.
+ * \brief pattern_matcher_pass_t generates an optimized graph
+ *        when a pre-defined pattern is hit.
  */
-class transformation_pass_t : public graph::pass::pass_base {
+class pattern_matcher_pass_t : public graph::pass::pass_base {
 public:
-    explicit transformation_pass_t(std::string pbackend, std::string pname)
+    explicit pattern_matcher_pass_t(std::string pbackend, std::string pname)
         : graph::pass::pass_base(std::move(pbackend), std::move(pname)) {}
 
     static graph::pass::pass_base_ptr create(
             std::string pbackend, std::string pname) {
-        return std::make_shared<transformation_pass_t>(
+        return std::make_shared<pattern_matcher_pass_t>(
                 std::move(pbackend), std::move(pname));
     }
 
@@ -147,7 +146,7 @@ public:
 #define DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN( \
         backend_name, pattern_name) \
     registry.register_pass( \
-            #backend_name, #pattern_name, &transformation_pass_t::create)
+            #backend_name, #pattern_name, &pattern_matcher_pass_t::create)
 
 #define DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(pattern_class_) \
     void register_##pattern_class_(graph::pass::pass_registry_t &registry) {

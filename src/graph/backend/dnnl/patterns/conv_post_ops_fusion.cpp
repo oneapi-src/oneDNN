@@ -16,7 +16,7 @@
 
 #include "graph/backend/dnnl/kernels/conv.hpp"
 #include "graph/backend/dnnl/patterns/fusions.hpp"
-#include "graph/backend/dnnl/patterns/transformation_pattern.hpp"
+#include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
 #include "graph/backend/dnnl/patterns/utils.hpp"
 
 #include "graph/utils/pm/pbuilder.hpp"

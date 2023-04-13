@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 #include "graph/backend/dnnl/kernels/concat.hpp"
 #include "graph/backend/dnnl/patterns/fusions.hpp"
-#include "graph/backend/dnnl/patterns/transformation_pattern.hpp"
+#include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
 
 namespace dnnl {
 namespace impl {
