@@ -220,6 +220,64 @@ TEST(Execute, MatmulBf16Bf16Bf16) {
     strm->wait();
 }
 
+TEST(Compile, MatmulMatmulBf16Bf16Bf16) {
+    graph::op_t matmul_op0(0, graph::op_kind::MatMul, "matmul_0");
+    graph::op_t matmul_op1(1, graph::op_kind::MatMul, "matmul_1");
+
+    graph::engine_t *eng = get_engine();
+    static auto isa = dnnl_get_effective_cpu_isa();
+    SKIP_IF((isa < dnnl_cpu_isa_avx512_core)
+                    && eng->kind() == graph::engine_kind::cpu,
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
+    // prepare logical tensor
+    graph::logical_tensor_t src = utils::logical_tensor_init(
+            0, {24576, 1024}, graph::data_type::bf16);
+    graph::logical_tensor_t weight0 = utils::logical_tensor_init(
+            1, {1024, 1024}, graph::data_type::bf16);
+    graph::logical_tensor_t dst0 = utils::logical_tensor_init(
+            2, {24576, 1024}, graph::data_type::bf16, graph::layout_type::any);
+    graph::logical_tensor_t weight1 = utils::logical_tensor_init(
+            3, {1024, 4096}, graph::data_type::bf16);
+    graph::logical_tensor_t dst1 = utils::logical_tensor_init(
+            4, {24576, 4096}, graph::data_type::bf16, graph::layout_type::any);
+
+    matmul_op0.add_input(src);
+    matmul_op0.add_input(weight0);
+    matmul_op0.add_output(dst0);
+    matmul_op1.add_input(dst0);
+    matmul_op1.add_input(weight1);
+    matmul_op1.add_output(dst1);
+
+    graph::graph_t g(eng->kind());
+    g.add_op(&matmul_op0);
+    g.add_op(&matmul_op1);
+    g.finalize();
+
+    graph::pass::pass_base_ptr apass = get_pass("matmul_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 2U);
+    auto parts = g.get_partitions();
+
+    // compile
+    graph::partition_t p0;
+    p0.init(parts[0]);
+    graph::compiled_partition_t cp0(p0);
+    std::vector<const graph::logical_tensor_t *> inputs0 {&src, &weight0};
+    std::vector<const graph::logical_tensor_t *> outputs0 {&dst0};
+    ASSERT_EQ(p0.compile(&cp0, inputs0, outputs0, eng), graph::status::success);
+
+    graph::partition_t p1;
+    p1.init(parts[1]);
+    graph::compiled_partition_t cp1(p1);
+    graph::logical_tensor_t opaque_lt;
+    cp0.query_logical_tensor(2, &opaque_lt);
+    ASSERT_EQ(opaque_lt.layout_type, graph::layout_type::strided);
+    std::vector<const graph::logical_tensor_t *> inputs1 {&opaque_lt, &weight1};
+    std::vector<const graph::logical_tensor_t *> outputs1 {&dst1};
+    ASSERT_EQ(p1.compile(&cp1, inputs1, outputs1, eng), graph::status::success);
+}
+
 TEST(Execute, MatmulNdx1d) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
