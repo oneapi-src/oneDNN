@@ -1464,7 +1464,7 @@ public:
                 blocks.push_back(vb);
                 continue;
             }
-            ir_assert(!seen);
+            if (seen) return layout_t();
             seen = true;
             for (int i = 0; i < tdim.nvargs(); i++) {
                 int vidx = tdim.vidx(i);
@@ -1974,7 +1974,10 @@ private:
         load = create_send_plan(cfg_.exec_cfg(), load_view, params);
 
         auto reg_layout = load.reg_layout();
-        if (direct_view) reg_layout = direct_view.transform(reg_layout);
+        if (direct_view) {
+            reg_layout = direct_view.transform(reg_layout);
+            if (reg_layout.is_empty()) return plan_status_t::invalid_layout;
+        }
 
         if (reduce_mask) {
             ir_assert(!direct_view);
