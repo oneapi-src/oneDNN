@@ -13693,7 +13693,7 @@ TEST(Pass, FuseToInt8ConvTransposeAdd) {
         agraph.finalize();
 
         pass::pass_base_ptr apass
-                = get_pass("int8_convtranspose_post_ops_fusion_cpu");
+                = get_pass("int8_convtranspose_add_post_ops_fusion_cpu");
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
         ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -13739,7 +13739,9 @@ TEST(PassSystem, FuseToInt8ConvTransposeAdd) {
     for (auto with_bias : with_biases) {
         graph_t agraph(engine_kind);
         std::vector<int64_t> zps = {0};
-        std::vector<float> scales = {3.1f};
+        std::vector<float> scales = engine_kind == engine_kind::gpu
+                ? std::vector<float> {1.f}
+                : std::vector<float> {3.1f};
         op_t dequant1 {0, Dequantize, "dequant"};
         dequant1.set_attr(op_attr::scales, scales);
         dequant1.set_attr(op_attr::zps, zps);
@@ -13829,11 +13831,9 @@ TEST(PassSystem, FuseToInt8ConvTransposeAdd) {
             ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id,
                     with_bias ? 9U : 8U);
         } else {
-            ASSERT_EQ(agraph.get_num_partitions(), 2U);
+            ASSERT_EQ(agraph.get_num_partitions(), 1U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
                     partition_kind_t::quantized_convtranspose_post_ops);
-            ASSERT_EQ((agraph.get_partitions()[1])->get_kind(),
-                    partition_kind_t::misc_post_ops);
         }
     }
 }

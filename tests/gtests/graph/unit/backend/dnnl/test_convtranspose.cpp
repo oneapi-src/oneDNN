@@ -2076,8 +2076,8 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_convtranspose_post_ops_fusion_gpu"
-                                : "int8_convtranspose_post_ops_fusion_cpu");
+                                ? "int8_convtranspose_add_post_ops_fusion_gpu"
+                                : "int8_convtranspose_add_post_ops_fusion_cpu");
         ASSERT_TRUE(apass != nullptr);
         apass->run(graph);
         ASSERT_EQ(graph.get_num_partitions(), 1U);
@@ -2520,9 +2520,12 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dAddGetInplacePair) {
         graph.add_op(&qout_node2);
         graph.finalize();
 
-        graph::pass::pass_base_ptr apass
+        graph::pass::pass_base_ptr apass1
+                = get_pass("int8_convtranspose_add_post_ops_fusion_cpu");
+        graph::pass::pass_base_ptr apass2
                 = get_pass("int8_convtranspose_post_ops_fusion_cpu");
-        apass->run(graph);
+        apass1->run(graph);
+        apass2->run(graph);
         ASSERT_EQ(graph.get_num_partitions(), 2U);
         auto part2 = graph.get_partitions()[0]; // int8_convtranspose
         auto part1 = graph.get_partitions()[1]; // int8_convtranspose_add

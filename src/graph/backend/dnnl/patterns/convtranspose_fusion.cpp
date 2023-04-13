@@ -45,10 +45,8 @@ DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(convtranspose_fusion)
          \              /
            convtranspose
                 |
-              [bias]*                      [dequant]*
-                |                       for Add/Multiply/Maximum/
-                |                        Minimum/Divide/Subtract
-                |                             /
+              [bias]*
+                |
         [ Abs/Clamp/Elu/GELU/Log/Sigmoid/SoftPlus/
           ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/
           Maximum/Minimum/Divide/Subtract]*[0,3]
@@ -62,7 +60,6 @@ features on GPU:
 1. ConvTranspose with per_channel output scale
 2. ConvTranspose with per_tensor output scale != 1
 3. ConvTranspose with zero points
-4. Post-sum/binary with zero points
 5. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
@@ -99,21 +96,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     auto popt_bias
                             = optional_bias_add(pgraph, pconvtranspose, false);
 
-                    auto pint8_binary_graph = std::make_shared<pb_graph_t>(
-                            "pint8_binary_graph");
-                    pm::pb_op_t *pdequant_binary
-                            = pint8_binary_graph->append_op(
-                                    graph::op_kind::Dequantize, "dequant");
-                    pm::pb_op_t *pbinary
-                            = pint8_binary_graph->append_alternation(
-                                    get_binary_ops(),
-                                    in_edges_t {in_edge(1, pdequant_binary, 0)},
-                                    "pbinary");
-                    pint8_binary_graph->create_input_port(0, pbinary, 0);
-                    pint8_binary_graph->create_input_port(
-                            1, pdequant_binary, 0);
-                    pint8_binary_graph->create_output_port(0, pbinary, 0);
-
                     auto postop_graph
                             = std::make_shared<pb_graph_t>("postop_graph");
                     pm::pb_op_t *pop = postop_graph->append_alternation(
@@ -123,16 +105,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     postop_graph->create_input_port(1, pop, 1);
                     postop_graph->create_output_port(0, pop, 0);
 
-                    auto prep_graph
-                            = std::make_shared<pb_graph_t>("prep_graph");
-                    auto palt = prep_graph->append_alternation(
-                            {pint8_binary_graph, postop_graph}, "palternation");
-                    prep_graph->create_input_port(0, palt, 0);
-                    prep_graph->create_input_port(1, palt, 1);
-                    prep_graph->create_output_port(0, palt, 0);
-
-                    auto prep = pgraph->append_repetition(prep_graph, {0, 0}, 0,
-                            MAX_REPETITION,
+                    auto prep = pgraph->append_repetition(postop_graph, {0, 0},
+                            0, MAX_REPETITION,
                             in_edges_t {in_edge(0, popt_bias, 0)},
                             "prepetition");
 
@@ -156,7 +130,6 @@ features on GPU:
 1. ConvTranspose with per_channel output scale
 2. ConvTranspose with per_tensor output scale != 1
 3. ConvTranspose with zero points
-4. Post-sum/binary with zero points
 5. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
@@ -199,23 +172,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     auto popt_bias
                             = optional_bias_add(pgraph, pconvtranspose, false);
 
-                    auto pint8_binary_graph = std::make_shared<pb_graph_t>(
-                            "pint8_binary_graph");
-                    pm::pb_op_t *pdequant_binary
-                            = pint8_binary_graph->append_op(
-                                    graph::op_kind::Dequantize, "dequant");
-                    pdequant_binary->append_decision_function(
-                            check_zps_values<0>);
-                    pm::pb_op_t *pbinary
-                            = pint8_binary_graph->append_alternation(
-                                    get_binary_ops(),
-                                    in_edges_t {in_edge(1, pdequant_binary, 0)},
-                                    "pbinary");
-                    pint8_binary_graph->create_input_port(0, pbinary, 0);
-                    pint8_binary_graph->create_input_port(
-                            1, pdequant_binary, 0);
-                    pint8_binary_graph->create_output_port(0, pbinary, 0);
-
                     auto postop_graph
                             = std::make_shared<pb_graph_t>("postop_graph");
                     pm::pb_op_t *pop = postop_graph->append_alternation(
@@ -225,16 +181,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     postop_graph->create_input_port(1, pop, 1);
                     postop_graph->create_output_port(0, pop, 0);
 
-                    auto prep_graph
-                            = std::make_shared<pb_graph_t>("prep_graph");
-                    auto palt = prep_graph->append_alternation(
-                            {pint8_binary_graph, postop_graph}, "palternation");
-                    prep_graph->create_input_port(0, palt, 0);
-                    prep_graph->create_input_port(1, palt, 1);
-                    prep_graph->create_output_port(0, palt, 0);
-
-                    auto prep = pgraph->append_repetition(prep_graph, {0, 0}, 0,
-                            MAX_REPETITION,
+                    auto prep = pgraph->append_repetition(postop_graph, {0, 0},
+                            0, MAX_REPETITION,
                             in_edges_t {in_edge(0, popt_bias, 0)},
                             "prepetition");
 
@@ -252,6 +200,144 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     popt_qout_graph->create_output_port(0, pquant_out, 0);
                     pgraph->append_optional(popt_qout_graph,
                             in_edges_t {in_edge(0, prep, 0)}, "popt_quant_out");
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_convtranspose>();
+        });
+
+/*
+                    [quant_weight]*
+        |                  |
+   dequant_data     dequant_weight
+         \              /
+           convtranspose
+                |
+              [bias]*  dequant_add
+                |     /
+               add
+                |
+        [ Abs/Clamp/Elu/GELU/Log/Sigmoid/SoftPlus/
+          ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/
+          Maximum/Minimum/Divide/Subtract]*[0,3]
+                |
+            quant_out 
+                |      
+*/
+/*
+ConvTranspose: Currently DNNL Backend doesn't support below
+features on GPU:
+1. ConvTranspose with per_channel output scale
+2. ConvTranspose with per_tensor output scale != 1
+3. ConvTranspose with zero points
+4. Post-sum/binary with zero points
+5. Reorder with zero points (used in weight u8->s8)
+While CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, int8_convtranspose_add_post_ops_fusion_cpu)
+        .set_priority(10.6f)
+        .set_engine_kind(engine_kind::cpu)
+        .set_kind(partition_kind_t::quantized_convtranspose_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op_t *dequant_data = pgraph->append_op(
+                            graph::op_kind::Dequantize, "dequant_data");
+
+                    // Optional quant_weight
+                    auto popt_graph = std::make_shared<pb_graph_t>(
+                            "poptional_quant_weight");
+                    pm::pb_op_t *pquant = popt_graph->append_op(
+                            graph::op_kind::Quantize, "pquant");
+                    popt_graph->create_input_port(0, pquant, 0);
+                    popt_graph->create_output_port(0, pquant, 0);
+                    auto popt = pgraph->append_optional(popt_graph, "popt");
+
+                    pm::pb_op_t *dequant_weight = pgraph->append_op(
+                            graph::op_kind::Dequantize,
+                            in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
+
+                    pm::pb_op_t *pconvtranspose
+                            = pgraph->append_op(graph::op_kind::ConvTranspose,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)},
+                                    "conv");
+
+                    // Optional bias_add
+                    auto popt_bias
+                            = optional_bias_add(pgraph, pconvtranspose, false);
+
+                    // dequantize(rhs) -> add
+                    auto prep = post_quantized_add(pgraph, popt_bias);
+
+                    // quantize
+                    pgraph->append_op(graph::op_kind::Quantize,
+                            in_edges_t {in_edge(0, prep, 0)}, "pquant_out");
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_convtranspose>();
+        });
+
+/*
+ConvTranspose: Currently DNNL Backend doesn't support below
+features on GPU:
+1. ConvTranspose with per_channel output scale
+2. ConvTranspose with per_tensor output scale != 1
+3. ConvTranspose with zero points
+4. Post-sum/binary with zero points
+5. Reorder with zero points (used in weight u8->s8)
+While CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, int8_convtranspose_add_post_ops_fusion_gpu)
+        .set_priority(10.6f)
+        .set_engine_kind(engine_kind::gpu)
+        .set_kind(partition_kind_t::quantized_convtranspose_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op_t *dequant_data = pgraph->append_op(
+                            graph::op_kind::Dequantize, "dequant_data");
+                    dequant_data->append_decision_function(check_zps_values<0>);
+
+                    // Optional quant_weight
+                    auto popt_graph = std::make_shared<pb_graph_t>(
+                            "poptional_quant_weight");
+                    pm::pb_op_t *pquant = popt_graph->append_op(
+                            graph::op_kind::Quantize, "pquant");
+                    pquant->append_decision_function(check_zps_values<0>);
+                    popt_graph->create_input_port(0, pquant, 0);
+                    popt_graph->create_output_port(0, pquant, 0);
+                    auto popt = pgraph->append_optional(popt_graph, "popt");
+
+                    pm::pb_op_t *dequant_weight = pgraph->append_op(
+                            graph::op_kind::Dequantize,
+                            in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
+                    dequant_weight->append_decision_function(
+                            check_input_dtype<graph::data_type::s8>);
+                    dequant_weight->append_decision_function(
+                            check_zps_values<0>);
+
+                    pm::pb_op_t *pconvtranspose
+                            = pgraph->append_op(graph::op_kind::ConvTranspose,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)},
+                                    "conv");
+
+                    // Optional bias_add
+                    auto popt_bias
+                            = optional_bias_add(pgraph, pconvtranspose, false);
+
+                    // dequantize(rhs) -> add
+                    auto prep = post_quantized_add(pgraph, popt_bias);
+
+                    // quantize
+                    pm::pb_op_t *pquant_out = pgraph->append_op(
+                            graph::op_kind::Quantize,
+                            in_edges_t {in_edge(0, prep, 0)}, "pquant_out");
+                    pquant_out->append_decision_function(
+                            check_qtype_equal_to_per_tensor);
+                    pquant_out->append_decision_function(
+                            check_scales_equal_to_1);
+                    pquant_out->append_decision_function(check_zps_values<0>);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_convtranspose>();
