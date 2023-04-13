@@ -271,6 +271,18 @@ public:
                         transform_disabled("reduce_mul"),
                         transform_simd_reduce_seq(xbyak_intrin_type::mul));
             } break;
+            case intrin_type::reduce_min: {
+                transform(dst, {intrin->args_[0]},
+                        intrin->args_[0]->dtype_, //
+                        transform_disabled("reduce_min"),
+                        transform_simd_reduce_seq(xbyak_intrin_type::min));
+            } break;
+            case intrin_type::reduce_max: {
+                transform(dst, {intrin->args_[0]},
+                        intrin->args_[0]->dtype_, //
+                        transform_disabled("reduce_max"),
+                        transform_simd_reduce_seq(xbyak_intrin_type::max));
+            } break;
             case intrin_type::unpack_low: {
                 auto imm = intrin->intrin_attrs_->get<int>("elem_bits");
                 transform(dst,
@@ -746,7 +758,9 @@ public:
             if (lanes == 1) {
                 if (convert_x86_operation(dtype)) {
                     assert(intrin == xbyak_intrin_type::add
-                            || intrin == xbyak_intrin_type::mul);
+                            || intrin == xbyak_intrin_type::mul
+                            || intrin == xbyak_intrin_type::min
+                            || intrin == xbyak_intrin_type::max);
                     // e.g. if reduce_add for s32x16 reach s32x1
                     // The calculation cannot use simd intrins any more
                     add_assignment(dst, extract_low);

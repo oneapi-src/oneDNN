@@ -511,6 +511,54 @@ shape_rl_vec reduce_op_t::get_dynamic_shape_relations() const {
     return ret;
 }
 
+static union_val get_init_val_for_reduce(
+        reduce_operator rd_op, sc_data_type_t dtype) {
+    variant<float, int64_t> init_value;
+    bool is_int = utils::is_one_of(dtype.type_code_, sc_data_etype::U8,
+            sc_data_etype::U32, sc_data_etype::S8, sc_data_etype::S32);
+    if (rd_op == reduce_operator::mul) {
+        if (is_int) {
+            init_value = int64_t(1);
+        } else {
+            init_value = 1.f;
+        }
+    } else if (rd_op == reduce_operator::add) {
+        if (is_int) {
+            init_value = int64_t(0);
+        } else {
+            init_value = 0.f;
+        }
+    } else if (rd_op == reduce_operator::min) {
+        init_value = numeric_limits_maximum(dtype.type_code_);
+    } else {
+        COMPILE_ASSERT(rd_op == reduce_operator::max, "wrong reduce kind");
+        init_value = numeric_limits_minimum(dtype.type_code_);
+    }
+    return init_value.cast<union_val>();
+}
+
+using binary_tir_gen_f = expr (*)(const expr_c &, const expr_c &);
+static binary_tir_gen_f get_binary_by_reduce_op(reduce_operator rdop) {
+    switch (rdop) {
+        case reduce_operator::add: return builder::make_add; break;
+        case reduce_operator::mul: return builder::make_mul; break;
+        case reduce_operator::max: return builder::make_max; break;
+        case reduce_operator::min: return builder::make_min; break;
+    }
+    return nullptr;
+}
+
+using unary_tir_gen_f = expr (*)(const expr_c &);
+static unary_tir_gen_f get_binary_reduce_by_reduce_op(reduce_operator rdop) {
+    switch (rdop) {
+        case reduce_operator::add: return builder::make_reduce_add; break;
+        case reduce_operator::mul: return builder::make_reduce_mul; break;
+        case reduce_operator::max: return builder::make_reduce_max; break;
+        case reduce_operator::min: return builder::make_reduce_min; break;
+    }
+    return nullptr;
+}
+
 // reduce all tensor_slice into sum, NOTE here src is a common
 // tensor_slice but dst maybe whole temp_buffer because output shape of
 // reduction is not equal to src, so it will allocate a new buffer
@@ -595,50 +643,11 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
     auto reduce_value
             = builder::make_var(sc_data_type_t(dtype.type_code_, lanes),
                     "reduce_" + fusion_create_var_idx());
-    stmt asnode;
-    variant<float, int64_t> init_value;
-    bool is_int = utils::is_one_of(dtype.type_code_, sc_data_etype::U8,
-            sc_data_etype::U32, sc_data_etype::S8, sc_data_etype::S32);
-    if (rd_op == reduce_operator::mul) {
-        if (is_int) {
-            init_value = int64_t(1);
-        } else {
-            init_value = 1.f;
-        }
-    } else if (rd_op == reduce_operator::add) {
-        if (is_int) {
-            init_value = int64_t(0);
-        } else {
-            init_value = 0.f;
-        }
-    } else if (rd_op == reduce_operator::min) {
-        init_value = numeric_limits_maximum(dtype.type_code_);
-    } else {
-        COMPILE_ASSERT(rd_op == reduce_operator::max, "wrong reduce kind");
-        init_value = numeric_limits_minimum(dtype.type_code_);
-    }
 
-    if (dtype.type_code_ == sc_data_etype::F32) {
-        asnode = make_stmt<assign_node_t>(reduce_value,
-                make_expr<constant_node>(init_value.get<float>(),
-                        sc_data_type_t(dtype.type_code_, lanes)));
-    } else if (dtype.type_code_ == sc_data_etype::BF16) {
-        asnode = make_stmt<assign_node_t>(reduce_value,
-                make_expr<constant_node>(bf16_t(init_value.get<float>()),
-                        sc_data_type_t(dtype.type_code_, lanes)));
-    } else if (dtype.type_code_ == sc_data_etype::U8
-            || dtype.type_code_ == sc_data_etype::U32) {
-        asnode = make_stmt<assign_node_t>(reduce_value,
-                make_expr<constant_node>(uint64_t(init_value.get<int64_t>()),
-                        sc_data_type_t(dtype.type_code_, lanes)));
-    } else if (dtype.type_code_ == sc_data_etype::S8
-            || dtype.type_code_ == sc_data_etype::S32) {
-        asnode = make_stmt<assign_node_t>(reduce_value,
-                make_expr<constant_node>(init_value.get<int64_t>(),
-                        sc_data_type_t(dtype.type_code_, lanes)));
-    } else {
-        COMPILE_ASSERT(0, "unsupported dtype.");
-    }
+    union_val value = get_init_val_for_reduce(rd_op, dtype);
+    stmt asnode = make_stmt<assign_node_t>(reduce_value,
+            make_expr<constant_node>(
+                    value, sc_data_type_t(dtype.type_code_, lanes)));
     auto define_reduce
             = make_stmt<define_node_t>(reduce_value, linkage::local, expr());
 
@@ -666,19 +675,9 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
     }
     for (auto i : new_loop_order) {
         if (i == new_loop_order.front()) {
-            if (rd_op == reduce_operator::add) {
-                cur = make_stmt<assign_node_t>(reduce_value,
-                        builder::make_add(indexed_input, reduce_value));
-            } else if (rd_op == reduce_operator::mul) {
-                cur = make_stmt<assign_node_t>(reduce_value,
-                        builder::make_mul(indexed_input, reduce_value));
-            } else if (rd_op == reduce_operator::max) {
-                cur = make_stmt<assign_node_t>(reduce_value,
-                        builder::make_max(indexed_input, reduce_value));
-            } else if (rd_op == reduce_operator::min) {
-                cur = make_stmt<assign_node_t>(reduce_value,
-                        builder::make_min(indexed_input, reduce_value));
-            }
+            cur = make_stmt<assign_node_t>(reduce_value,
+                    get_binary_by_reduce_op(rd_op)(
+                            indexed_input, reduce_value));
             cur->attr()[op_traits::workload_computable_t::workload_number]
                     = wkld;
         }
@@ -694,35 +693,13 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
                 std::move(body), true, for_type::NORMAL);
         // the outer-most reduction axis
         if (i == rd_axis.front()) {
-            if (rd_op == reduce_operator::add) {
-                cur = make_stmt<stmts_node_t>(std::vector<stmt> {define_reduce,
-                        asnode, std::move(cur),
-                        make_stmt<assign_node_t>(indexed_target,
-                                lanes > 1 && last_axis_reduce
-                                        ? builder::make_reduce_add(reduce_value)
-                                        : reduce_value)});
-            } else if (rd_op == reduce_operator::mul) {
-                cur = make_stmt<stmts_node_t>(std::vector<stmt> {define_reduce,
-                        asnode, std::move(cur),
-                        make_stmt<assign_node_t>(indexed_target,
-                                (lanes > 1 && last_axis_reduce)
-                                        ? builder::make_reduce_mul(reduce_value)
-                                        : reduce_value)});
-            } else if (rd_op == reduce_operator::max) {
-                cur = make_stmt<stmts_node_t>(std::vector<stmt> {define_reduce,
-                        asnode, std::move(cur),
-                        make_stmt<assign_node_t>(indexed_target,
-                                (lanes > 1 && last_axis_reduce)
-                                        ? builder::make_reduce_max(reduce_value)
-                                        : reduce_value)});
-            } else if (rd_op == reduce_operator::min) {
-                cur = make_stmt<stmts_node_t>(std::vector<stmt> {define_reduce,
-                        asnode, std::move(cur),
-                        make_stmt<assign_node_t>(indexed_target,
-                                (lanes > 1 && last_axis_reduce)
-                                        ? builder::make_reduce_min(reduce_value)
-                                        : reduce_value)});
-            }
+            cur = make_stmt<stmts_node_t>(
+                    std::vector<stmt> {define_reduce, asnode, std::move(cur),
+                            make_stmt<assign_node_t>(indexed_target,
+                                    lanes > 1 && last_axis_reduce
+                                            ? get_binary_reduce_by_reduce_op(
+                                                    rd_op)(reduce_value)
+                                            : reduce_value)});
             // try to create inner anchor for reduce op
             create_fusible_output_anchor(
                     cur, dst, iter_vars, {rd_axis}, vx_info, attrs);
@@ -1109,26 +1086,18 @@ void reduce_compute_op_t::compute_block(context_ptr ctx,
             }
             indexing_nd->idx_ = std::move(new_idx);
         }
-        expr result;
-        expr operand;
-        switch (ths->rd_op_) {
-            case reduce_operator::add:
-                operand = in[0];
-                result = indexing_nd + operand;
-                break;
-            case reduce_operator::mul:
-                operand = in[0];
-                result = indexing_nd + operand;
-                break;
-            default: assert(0); break;
-        }
-
+        expr result = get_binary_by_reduce_op(ths->rd_op_)(indexing_nd, in[0]);
         return builder::make_assign_unattached(indexing_nd, result);
     };
 
     compute_vectorized_op(get_owner_graph(), inputs, *dst[0], info_, vx_info_,
             mask_compute_func_t(func), mask_compute_func_t(func), attrs_, wkld,
             false, inputs[0], /*unroll*/ local_mode_);
+}
+
+void reduce_compute_op_t::set_reduce_buffer(const tensor &buf) {
+    buf->init_value_ = tensor_node::make_tensor_initializer(
+            get_init_val_for_reduce(rd_op_, buf->elem_dtype_));
 }
 
 reduce_collect_op_t::reduce_collect_op_t(const graph_tensor_ptr &in,
@@ -1141,6 +1110,13 @@ reduce_collect_op_t::reduce_collect_op_t(const graph_tensor_ptr &in,
         info_.tensor_share_info_[0] = {0};
     } else {
         info_.tensor_share_info_ = {};
+    }
+}
+
+void reduce_collect_op_t::set_reduce_buffer(const tensor &buf) {
+    if (!is_place_holder_op()) {
+        buf->init_value_ = tensor_node::make_tensor_initializer(
+                get_init_val_for_reduce(rd_op_, buf->elem_dtype_));
     }
 }
 
@@ -1193,7 +1169,8 @@ void reduce_collect_op_t::compute_block(context_ptr ctx,
             //  add the axis to indexing node
             out_nd->idx_.front()
                     = out_nd->idx_.front() + builtin::get_thread_id_func()();
-            return builder::make_assign_unattached(out[0], out[0] + in[0]);
+            return builder::make_assign_unattached(
+                    out[0], get_binary_by_reduce_op(rd_op_)(out[0], in[0]));
         };
         compute_vectorized_op(get_owner_graph(), inputs, *dst[0], info_,
                 vx_info_, mask_compute_func_t(func), mask_compute_func_t(func),
@@ -1216,20 +1193,7 @@ void reduce_collect_op_t::compute_block(context_ptr ctx,
             in_nd->dtype_.lanes_ = lanes;
             //  add the axis to indexing node
             in_nd->idx_.emplace_back(0);
-            expr result;
-            expr operand;
-            switch (ths->rd_op_) {
-                case reduce_operator::add:
-                    operand = builder::make_reduce_add(in_nd);
-                    result = operand;
-                    break;
-                case reduce_operator::mul:
-                    operand = builder::make_reduce_mul(in_nd);
-                    result = operand;
-                    break;
-                default: assert(0); break;
-            }
-
+            expr result = get_binary_reduce_by_reduce_op(rd_op_)(in_nd);
             return builder::make_assign_unattached(out[0], result);
         };
 

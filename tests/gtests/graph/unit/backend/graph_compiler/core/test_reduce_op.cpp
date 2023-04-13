@@ -124,9 +124,9 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp3) {
 }
 
 // test reduce mul
-TEST(GCCore_reduce_op_cpp, TestReduceOp4) {
+static void test_single_mul(int lastdim) {
     const int out_size = 3;
-    do_test_reduce_op<float>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
+    do_test_reduce_op<float>(sc_dims({3, 3, lastdim}), std::vector<int>({1, 2}),
             "reduce_prod", out_size, datatypes::f32,
             [&](std::vector<float> &input) {
                 auto ref_out = std::vector<float>(out_size, 0);
@@ -134,14 +134,21 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp4) {
                     ref_out[i] = 1;
                 for (size_t i = 0; i < 3; ++i)
                     for (size_t j = 0; j < 3; ++j)
-                        for (size_t k = 0; k < 3; ++k)
-                            ref_out[i] *= input[i * 3 * 3 + j * 3 + k];
+                        for (size_t k = 0; k < (size_t)lastdim; ++k)
+                            ref_out[i]
+                                    *= input[i * 3 * lastdim + j * lastdim + k];
                 return ref_out;
             });
 }
+TEST(GCCore_reduce_op_cpp, TestReduceOp4) {
+    test_single_mul(3);
+    thread_num_reset reseter;
+    runtime_config_t::get().set_num_threads(1);
+    test_single_mul(256);
+}
 
 // test reduce max
-TEST(GCCore_reduce_op_cpp, TestReduceOp5) {
+static void test_single_max() {
     const int out_size = 3;
     do_test_reduce_op<float>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
             "reduce_max", out_size, datatypes::f32,
@@ -156,6 +163,13 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp5) {
                                     ref_out[i], input[i * 3 * 3 + j * 3 + k]);
                 return ref_out;
             });
+}
+
+TEST(GCCore_reduce_op_cpp, TestReduceOp5) {
+    test_single_max();
+    thread_num_reset reseter;
+    runtime_config_t::get().set_num_threads(1);
+    test_single_max();
 }
 
 // test reduce mean

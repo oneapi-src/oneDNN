@@ -181,7 +181,8 @@ public:
             auto tsr = v->var_.static_as<tensor>();
             bool no_init = !tsr->init_value_
                     || tsr->init_value_
-                            == tensor_node::get_zero_tensor_initializer();
+                            == tensor_node::get_zero_tensor_initializer()
+                    || tsr->init_value_->size_ == sizeof(union_val);
             COMPILE_ASSERT(no_init && !v->init_.defined()
                             && v->linkage_ == linkage::local,
                     "The tensor to shrink should not have init value or be "

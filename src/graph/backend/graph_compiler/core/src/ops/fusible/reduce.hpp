@@ -166,6 +166,9 @@ public:
     void infer_binding_axis(bound_axis_map &bdax_map) override;
     void pre_binding_axis(bound_axis_map &bdax_map) override;
 
+    // set the attributes of the reduce buffer, like init values
+    virtual void set_reduce_buffer(const tensor &buf) = 0;
+
 protected:
     // the axis which need reduction
     std::vector<int> real_rd_axis_;
@@ -218,6 +221,7 @@ public:
     bool can_split_op() const override;
     graph_tensor_ptr split_op(const context_ptr &ctx, sc_graph_t &graph,
             int num_threads) override;
+    void set_reduce_buffer(const tensor &buf) override;
 };
 
 class reduce_collect_op_t : public reduce_impl_op_t,
@@ -235,6 +239,7 @@ public:
     sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins, // NOLINT
             const std::vector<graph_tensor_ptr> &outs,
             sc_graph_t &mgr) override;
+    void set_reduce_buffer(const tensor &buf) override;
 };
 } // namespace gc
 } // namespace graph

@@ -649,7 +649,8 @@ void validate_impl_t::check_var_tensor_def(
     if (!is_global && v->var_.isa<tensor>()) {
         auto &init = v->var_.static_as<tensor>()->init_value_;
         COMPILE_ASSERT_POS(init == nullptr
-                        || init == tensor_node::get_zero_tensor_initializer(),
+                        || init == tensor_node::get_zero_tensor_initializer()
+                        || init->size_ == sizeof(union_val),
                 "The tensor defined in function cannot have init value: " << v);
     }
 }

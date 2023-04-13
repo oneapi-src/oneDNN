@@ -1417,6 +1417,7 @@ void xbyak_lowering_viewer::handle_avx_mul(const operand &op_dst,
         case cpu_data_type::sint_32_x16: {
             XBYAK_GEN(vpmulld, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
         } break;
+        case cpu_data_type::float_32_x2:
         case cpu_data_type::float_32_x4:
         case cpu_data_type::float_32_x8:
         case cpu_data_type::float_32_x16: {
@@ -1498,6 +1499,9 @@ void xbyak_lowering_viewer::handle_avx_min(const operand &op_dst,
         case cpu_data_type::float_32: {
             XBYAK_GEN(vminss, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
         } break;
+        case cpu_data_type::float_32_x2:
+        case cpu_data_type::float_32_x4:
+        case cpu_data_type::float_32_x8:
         case cpu_data_type::float_32_x16: {
             XBYAK_GEN(vminps, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
         } break;
@@ -1516,6 +1520,9 @@ void xbyak_lowering_viewer::handle_avx_max(const operand &op_dst,
         case cpu_data_type::sint_32_x16: {
             XBYAK_GEN(vpmaxsd, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
         } break;
+        case cpu_data_type::float_32_x2:
+        case cpu_data_type::float_32_x4:
+        case cpu_data_type::float_32_x8:
         case cpu_data_type::float_32_x16: {
             XBYAK_GEN(vmaxps, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
         } break;

@@ -252,24 +252,12 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
     }
 
     /* deal with special ops: set tensor initial value */
-    // reduce compute op
-    if (op->isa<reduce_compute_op_t>()) {
+    // reduce collect and compute op
+    if (auto collc_op = op->dyn_cast<reduce_impl_op_t>()) {
         auto buf = g2b_map_.get(op->get_outputs()[0]);
         COMPILE_ASSERT(buf.isa<tensor>(),
-                "output of reduce_compute_op_t should be tensor type")
-        buf.checked_as<tensor>()->init_value_
-                = tensor_node::get_zero_tensor_initializer();
-    }
-
-    // reduce collect op
-    if (auto collc_op = op->dyn_cast<reduce_collect_op_t>()) {
-        if (!collc_op->is_place_holder_op()) {
-            auto buf = g2b_map_.get(op->get_outputs()[0]);
-            COMPILE_ASSERT(buf.isa<tensor>(),
-                    "output of reduce_collect_op_t should be tensor type")
-            buf.checked_as<tensor>()->init_value_
-                    = tensor_node::get_zero_tensor_initializer();
-        }
+                "output of reduce_collect_op_t should be tensor type")
+        collc_op->set_reduce_buffer(buf.checked_as<tensor>());
     }
 
     /* infer pre-op inplace */
