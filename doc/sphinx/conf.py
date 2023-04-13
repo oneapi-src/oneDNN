@@ -271,6 +271,7 @@ def addTocTrees(app, env, docnames):
                     'dev_guide_op_relubackward',
                     'dev_guide_op_reorder.rst',
                     'dev_guide_op_round',
+                    'dev_guide_op_select',
                     'dev_guide_op_sigmoid',
                     'dev_guide_op_sigmoidbackward',
                     'dev_guide_op_softmax',
