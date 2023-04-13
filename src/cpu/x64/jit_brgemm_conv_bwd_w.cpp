@@ -133,7 +133,7 @@ status_t brgemm_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
                 brgattr.max_top_vpad = 0;
                 brgattr.max_bottom_vpad = 0;
 
-                brgattr.LDA2 = jcp_.tr_iw * jcp_.ih * jcp_.id;
+                brgattr.LDA2 = jcp_.tr_iw * jcp_.ih_block * jcp_.id;
                 brgattr.LDB2 = jcp_.tr_ow * jcp_.oc_block * jcp_.oh * jcp_.od;
                 brgattr.LDC2_M = jcp_.oc_block * jcp_.kd * jcp_.kh * jcp_.kw;
                 brgattr.LDC2_N = jcp_.nb_ic * jcp_.ic_block * jcp_.oc_block
@@ -460,7 +460,7 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
 
     size_t tr_src_off(int g, int icb, int id, int ih) const {
         const size_t tr_row_size = jcp.tr_iw * jcp.ic_block;
-        const size_t tr_3d_size = tr_row_size * jcp.ih;
+        const size_t tr_3d_size = tr_row_size * jcp.ih_block;
         int adj = (jcp.global_transpose) ? 1 : jcp.nb_ic_blocking;
         // Aligned to buffer end to use guard elements
         return tr_src_buf_number(g, icb) * adj * jcp.tr_src_buf_size
@@ -1012,7 +1012,7 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_3d(
                 + _pd->filter_w_to_src(kw) / jcp.stride_w
                 + (kw % jcp.stride_w) * src_stride_w_shift
                 + (bs_ih_s - ih_s) * jcp.tr_iw * jcp.ic_block
-                + (bs_id_s - id_s) * jcp.ih * jcp.tr_iw * jcp.ic_block;
+                + (bs_id_s - id_s) * jcp.ih_block * jcp.tr_iw * jcp.ic_block;
         const void *ptr_B = ((diff_dst_data_t *)p_dst)
                 + (bs_oh_s - oh_s) * jcp.tr_ow * jcp.oc_block
                 + (bs_od_s - od_s) * jcp.oh * jcp.tr_ow * jcp.oc_block;
@@ -1033,7 +1033,7 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_3d(
                 ti->brg_batch[odb * bs_h + ohb].ptr.A = (char *)ptr_A
                         + ohb * jcp.typesize_in * jcp.tr_iw * jcp.ic_block
                                 * jcp.stride_h
-                        + odb * jcp.typesize_in * jcp.ih * jcp.tr_iw
+                        + odb * jcp.typesize_in * jcp.ih_block * jcp.tr_iw
                                 * jcp.ic_block * jcp.stride_d;
                 ti->brg_batch[odb * bs_h + ohb].ptr.B = (char *)ptr_B
                         + ohb * jcp.typesize_in * jcp.tr_ow * jcp.oc_block
