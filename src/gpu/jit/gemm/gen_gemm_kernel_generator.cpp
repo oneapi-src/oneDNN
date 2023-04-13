@@ -162,7 +162,7 @@ static inline bool hasNativeAtomicAdd(HW hw, Type T,
     if (astrategy.newDP)
         floatAtomics |= (astrategy.base.getModel() != ModelSLM);
 
-    if (T.isInteger())
+    if (T.isInteger() && T.size() >= (astrategy.newDP ? 2 : 4))
         return true;
     else if (T == Type::f32)
         return floatAtomics && (hw >= HW::XeHP);
