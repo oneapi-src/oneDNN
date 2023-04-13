@@ -358,6 +358,8 @@ status_t get_ocl_program_binary(
 status_t get_ocl_program_binary_size(
         cl_kernel kernel, cl_device_id device, size_t *size);
 
+void dump_kernel_binary(
+        const compute::binary_t &binary, const std::string &name);
 void dump_kernel_binary(cl_kernel ocl_kernel);
 void dump_kernel_binary(
         const engine_t *engine, const compute::kernel_t &binary_kernel);
@@ -373,7 +375,7 @@ status_t get_ocl_device_eu_count(cl_device_id device, int32_t *eu_count);
 status_t clone_kernel(cl_kernel kernel, cl_kernel *cloned_kernel);
 
 status_t create_ocl_program(gpu::ocl::ocl_wrapper_t<cl_program> &ocl_program,
-        cl_device_id dev, cl_context ctx, const gpu::compute::binary_t *binary);
+        cl_device_id dev, cl_context ctx, const gpu::compute::binary_t &binary);
 
 } // namespace ocl
 } // namespace gpu

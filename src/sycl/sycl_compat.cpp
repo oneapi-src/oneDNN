@@ -78,23 +78,6 @@ void *get_native(const ::sycl::context &ctx) {
     return get_native_impl(backend, ctx);
 }
 
-static status_t create_ocl_program(
-        gpu::ocl::ocl_wrapper_t<cl_program> &ocl_program, cl_device_id dev,
-        cl_context ctx, const gpu::compute::binary_t &binary) {
-    cl_int err;
-    const unsigned char *binary_buffer = binary.data();
-    size_t binary_size = binary.size();
-    assert(binary_size > 0);
-
-    ocl_program = clCreateProgramWithBinary(
-            ctx, 1, &dev, &binary_size, &binary_buffer, nullptr, &err);
-    OCL_CHECK(err);
-    err = clBuildProgram(ocl_program, 1, &dev, nullptr, nullptr, nullptr);
-    OCL_CHECK(err);
-
-    return status::success;
-}
-
 status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
         const sycl_engine_base_t *sycl_engine,
         const gpu::compute::binary_t &binary, const char *kernel_name) {

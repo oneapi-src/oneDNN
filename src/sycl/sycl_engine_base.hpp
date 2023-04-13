@@ -80,20 +80,12 @@ public:
 
         auto kernel_name = jitter->kernel_name();
 
-        gpu::ocl::ocl_wrapper_t<cl_kernel> ocl_kernel = jitter->get_kernel(
+        gpu::compute::binary_t binary = jitter->get_binary(
                 ocl_engine->context(), ocl_engine->device());
 
-        gpu::ocl::dump_kernel_binary(ocl_kernel.get());
+        gpu::ocl::dump_kernel_binary(binary, kernel_name);
 
         std::vector<gpu::compute::scalar_type_t> arg_types;
-        CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
-
-        gpu::compute::binary_t binary;
-        {
-            auto kernel = gpu::compute::kernel_t(
-                    new gpu::ocl::ocl_gpu_kernel_t(ocl_kernel, arg_types));
-            CHECK(kernel.get_binary(ocl_engine.get(), binary));
-        }
 
         std::unique_ptr<::sycl::kernel> sycl_kernel;
         CHECK(compat::make_kernel(sycl_kernel, this, binary, kernel_name));

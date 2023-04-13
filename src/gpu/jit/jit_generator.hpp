@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -133,8 +133,9 @@ public:
         return ngen::OpenCLCodeGenerator<hw>::getExternalName().c_str();
     }
 
-    cl_kernel get_kernel(cl_context context, cl_device_id device) override {
-        return ngen::OpenCLCodeGenerator<hw>::getKernel(context, device);
+    compute::binary_t get_binary(
+            cl_context context, cl_device_id device) override {
+        return ngen::OpenCLCodeGenerator<hw>::getBinary(context, device);
     }
 
 #ifdef CL_VERSION_2_0

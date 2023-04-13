@@ -215,8 +215,16 @@ status_t ocl_gpu_engine_t::create_kernel(compute::kernel_t *kernel,
         return status::success;
     }
 
-    ocl_wrapper_t<cl_kernel> ocl_kernel
-            = jitter->get_kernel(context(), device());
+    compute::binary_t binary = jitter->get_binary(context(), device());
+
+    ocl_wrapper_t<cl_program> program;
+    CHECK(ocl::create_ocl_program(
+            program, this->device(), this->context(), binary));
+
+    cl_int err;
+    auto ocl_kernel = clCreateKernel(program, kernel_name, &err);
+    OCL_CHECK(err);
+
     std::vector<gpu::compute::scalar_type_t> arg_types;
     CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
 

@@ -318,6 +318,25 @@ status_t get_ocl_program_binary(
 }
 
 #if DNNL_ENABLE_JIT_DUMP
+void dump_kernel_binary(
+        const compute::binary_t &binary, const std::string &name) {
+    static std::mutex m;
+    std::lock_guard<std::mutex> guard(m);
+
+    static int counter = 0;
+    std::ostringstream fname;
+    fname << "dnnl_dump_gpu_" << name << "." << counter << ".bin";
+
+    FILE *fp = fopen(fname.str().c_str(), "wb+");
+
+    // Ignore error.
+    if (!fp) return;
+
+    fwrite(binary.data(), binary.size(), 1, fp);
+    fclose(fp);
+
+    counter++;
+}
 
 void dump_kernel_binary(cl_kernel ocl_kernel) {
     if (!get_jit_dump()) return;
@@ -339,23 +358,7 @@ void dump_kernel_binary(cl_kernel ocl_kernel) {
     auto name = get_kernel_name(ocl_kernel);
     // Ignore error.
     if (name.empty()) return;
-
-    static std::mutex m;
-    std::lock_guard<std::mutex> guard(m);
-
-    static int counter = 0;
-    std::ostringstream fname;
-    fname << "dnnl_dump_gpu_" << name << "." << counter << ".bin";
-
-    FILE *fp = fopen(fname.str().c_str(), "wb+");
-
-    // Ignore error.
-    if (!fp) return;
-
-    fwrite(binary.data(), binary.size(), 1, fp);
-    fclose(fp);
-
-    counter++;
+    dump_kernel_binary(binary, name);
 }
 
 void dump_kernel_binary(
@@ -367,6 +370,7 @@ void dump_kernel_binary(
 }
 #else
 void dump_kernel_binary(const engine_t *, const compute::kernel_t &) {}
+void dump_kernel_binary(compute::binary_t binary, const std::string &name) {}
 void dump_kernel_binary(cl_kernel) {}
 #endif
 
@@ -507,10 +511,10 @@ status_t clone_kernel(cl_kernel kernel, cl_kernel *cloned_kernel) {
 
 status_t create_ocl_program(gpu::ocl::ocl_wrapper_t<cl_program> &ocl_program,
         cl_device_id dev, cl_context ctx,
-        const gpu::compute::binary_t *binary) {
+        const gpu::compute::binary_t &binary) {
     cl_int err;
-    const unsigned char *binary_buffer = binary->data();
-    size_t binary_size = binary->size();
+    const unsigned char *binary_buffer = binary.data();
+    size_t binary_size = binary.size();
     assert(binary_size > 0);
 
     ocl_program = clCreateProgramWithBinary(

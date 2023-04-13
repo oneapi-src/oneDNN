@@ -563,10 +563,8 @@ void gen_gemm_kernel_t::init_interface() {
     interface_.externalName(kernel_name());
 }
 
-cl_kernel gen_gemm_kernel_t::get_kernel(
+gpu::compute::binary_t gen_gemm_kernel_t::get_binary(
         cl_context context, cl_device_id device) {
-    cl_kernel ocl_kernel = nullptr;
-
     init_interface();
 
 #define ARCH_DISPATCH(arch) \
@@ -574,7 +572,7 @@ cl_kernel gen_gemm_kernel_t::get_kernel(
         gemm_kernel_generator_t<ngen::HW::arch> generator; \
         generator.setStepping(desc()->stepping_); \
         generator.gemm(*desc()->problem(), *desc()->strategy(), interface_); \
-        ocl_kernel = generator.getKernel(context, device); \
+        return generator.getBinary(context, device); \
         break; \
     }
 
@@ -588,7 +586,7 @@ cl_kernel gen_gemm_kernel_t::get_kernel(
         default: assert(!"Unsupported architecture"); break;
     }
 
-    return ocl_kernel;
+    return {};
 
 #undef ARCH_DISPATCH
 }
