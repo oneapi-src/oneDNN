@@ -17,6 +17,7 @@
 #ifndef GPU_JIT_CODEGEN_REORDER_HPP
 #define GPU_JIT_CODEGEN_REORDER_HPP
 
+#include "common/utils.hpp"
 #include "gpu/jit/codegen/operand.hpp"
 #include "gpu/jit/codegen/register_scope.hpp"
 #include "gpu/jit/ir/reorder.hpp"
@@ -191,7 +192,8 @@ bool try_emit_batched_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         host->emov(mod, dst, src);
     };
 
-    const auto dst_off = dst.byte_offset();
+    // Do not attempt to match offsets when not moving data between pipes
+    const auto dst_off = (to_ir(dst_type).is_fp()) ? dst.byte_offset() : 0;
     for (int i = 0; i < width; i += batch) {
         int i_beg = i;
         int i_end = std::min(width, i + batch);
@@ -1402,7 +1404,7 @@ private:
 
         const auto type = to_ngen(src_layout_.type());
         for (const auto &tile : find_2d_dense_tiles(src_layout_, dst_layout_)) {
-            if (tile.is_empty()) continue;
+            if (tile.ndims() < 2) continue;
             if (tile.elems() < 4) break;
             auto src_tile_layout = src_layout_.map(tile);
             auto dst_tile_layout = dst_layout_.map(tile);

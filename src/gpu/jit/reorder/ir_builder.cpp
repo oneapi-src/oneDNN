@@ -767,23 +767,23 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
                     || !attr_->zero_points_.has_default_values()
                     || !attr_->scales_.has_default_values());
 
-    if (!has_post_ops && (read_layout != write_layout)) {
-        auto tmp_buf = ir_ctx.create_tmp_var(type_t::byte_ptr(), "tmp");
-        allocs.push_back(
-                alloc_t::make(tmp_buf, write_buf_size, alloc_kind_t::grf));
-
-        auto reorder_stmt = create_reorder_stmt(
-                read_layout, write_layout, reg_buf, tmp_buf);
-        write_stmt = substitute(write_stmt, reg_buf, tmp_buf);
-        write_stmt = reorder_stmt.append(write_stmt);
-    }
     if (has_post_ops) {
         post_op_context_t post_op_ctx(*attr_, cfg_.zp_cfg(),
                 /*fuse_spatial=*/false, dst_view, schedule, kernel_info_,
                 *dst_md_, *dst_md_, nullptr);
         write_stmt = create_epilogue_stmt(cfg_.exec_cfg(), ir_ctx, schedule,
-                /*force_c_reorder=*/false, post_op_ctx, thr_tile, dst_thr_view,
+                /*force_c_reorder=*/true, post_op_ctx, thr_tile, dst_thr_view,
                 read_layout, dst_buf, reg_buf, write_buf_size);
+    } else if (read_layout != write_layout) {
+        auto tmp_buf = ir_ctx.create_tmp_var(type_t::byte_ptr(), "tmp");
+        allocs.push_back(
+                alloc_t::make(tmp_buf, write_buf_size, alloc_kind_t::grf));
+        auto reorder_stmt = create_reorder_stmt(
+                read_layout, write_layout, reg_buf, tmp_buf);
+        write_stmt = substitute(write_stmt, reg_buf, tmp_buf);
+        write_stmt = reorder_stmt.append(write_stmt);
+    } else {
+        read_buf_size = std::max(read_buf_size, write_buf_size);
     }
 
     allocs.push_back(alloc_t::make(reg_buf, read_buf_size, alloc_kind_t::grf));

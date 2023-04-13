@@ -774,8 +774,7 @@ private:
                 int this_off = to_cpp<int>(layout.offset_in_bytes());
                 int next_off = to_cpp<int>(next->layout.offset_in_bytes());
                 ir_assert(next_off == 0);
-                buf_size = std::max(
-                        get_buf_size(), this_off + next->get_buf_size());
+                update_size(next->get_buf_size());
                 next->set_buf(buf[this_off]);
             }
         }
@@ -791,9 +790,19 @@ private:
             return buf.as<ptr_t>().base;
         }
 
-        int get_buf_size() const {
-            int off = to_cpp<int>(layout.offset_in_bytes());
-            return (buf_size == 0) ? off + int(layout.size()) : buf_size;
+        int get_buf_size(bool check_base = true) const {
+            if (check_base)
+                ir_assert(buf.is_same(buf_base()))
+                        << "Size must be queried from another stage.";
+            return (buf_size == 0) ? int(layout.size()) : buf_size;
+        }
+
+        void update_size(int new_size) {
+            if (buf_size != 0) {
+                buf_size = std::max(new_size, buf_size);
+            } else {
+                buf_size = std::max(new_size, (int)layout.max_off_bytes());
+            }
         }
 
         void prepend_stmt(const stmt_t &stmt) {
@@ -1014,7 +1023,8 @@ private:
         }
 
         stmt_ = stmt_.append(tile_stmt);
-        c_reg_buf_size_ = std::max(c_reg_buf_size_, c_stages[0].get_buf_size());
+        c_reg_buf_size_ = std::max(c_reg_buf_size_,
+                c_stages[0].get_buf_size(/*check_base=*/false));
     }
 
     stmt_t build_post_op_block_stmt(const tensor_t &tile,

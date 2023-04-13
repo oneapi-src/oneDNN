@@ -515,6 +515,18 @@ public:
         return std::max(max_off_bytes, max_block_size * type().size());
     }
 
+    // Offset in bytes following the last accessible element.
+    dim_t max_off_bytes(bool ignore_offset = false) const {
+        if (is_empty()) return 0;
+        dim_t max_off = 0;
+        for (auto &b : blocks_) {
+            max_off += (b.block - 1) * (dim_t)b.stride;
+        }
+        dim_t after_last = max_off + 1;
+        if (!ignore_offset) after_last += expr_cast<dim_t>(offset_);
+        return after_last * type().size();
+    }
+
     template <typename T = expr_t>
     T offset(
             const std::vector<T> &args = {}, bool ignore_offset = false) const {
