@@ -2634,16 +2634,6 @@ void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
     jcp.nthr_g = nthr_g;
     jcp.nthr_oc_b = nthr_oc_b;
     jcp.nthr_ic_b = nthr_ic_b;
-
-    // TODO: Optimize memory allocation when threaded on height and depth
-    jcp.tr_src_buf_size = jcp.tr_iw * jcp.ic_block * jcp.ih * jcp.id;
-    jcp.tr_diff_dst_buf_size = jcp.tr_ow * jcp.oc_block * jcp.oh * jcp.od;
-    jcp.tr_src_buf_count = jcp.global_transpose
-            ? jcp.nthr_mb * jcp.nb_ic * jcp.ngroups
-            : jcp.nthr;
-    jcp.tr_diff_dst_buf_count = jcp.global_transpose
-            ? jcp.nthr_mb * jcp.nb_oc * jcp.ngroups
-            : jcp.nthr;
 }
 
 status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
@@ -2886,6 +2876,19 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
     // try to split oh by equal oh blocks
     oh_block_limit = div_up(jcp.oh, div_up(jcp.oh, oh_block_limit));
     jcp.oh_block = utils::saturate(1, jcp.oh, oh_block_limit);
+    jcp.ih_block = nstl::min(jcp.ih,
+            jcp.stride_h
+                    * brg_blocking_t::get_inp_size(jcp.ih, jcp.oh_block, jcp.kh,
+                            jcp.stride_h, jcp.dilate_h));
+    // TODO: Optimize memory allocation when threaded on height and depth
+    jcp.tr_src_buf_count = jcp.global_transpose
+            ? jcp.nthr_mb * jcp.nb_ic * jcp.ngroups
+            : jcp.nthr;
+    jcp.tr_diff_dst_buf_count = jcp.global_transpose
+            ? jcp.nthr_mb * jcp.nb_oc * jcp.ngroups
+            : jcp.nthr;
+    jcp.tr_src_buf_size = jcp.tr_iw * jcp.ic_block * jcp.ih_block * jcp.id;
+    jcp.tr_diff_dst_buf_size = jcp.tr_ow * jcp.oc_block * jcp.oh * jcp.od;
 
     const int iframe_size = irow_size * jcp.id;
     const int oframe_size = orow_size * jcp.od;
