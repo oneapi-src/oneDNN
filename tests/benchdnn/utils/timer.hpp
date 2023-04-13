@@ -83,7 +83,7 @@ const std::string ref_timer = "compute_ref_timer";
 struct timer_map_t {
     timer_t &get_timer(const std::string &name);
 
-    timer_t &perf_timer();
+    timer_t &perf_timer() { return get_timer(names::perf_timer); }
 
     std::unordered_map<std::string, timer_t> timers;
 };

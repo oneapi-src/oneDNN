@@ -112,8 +112,4 @@ timer_t &timer_map_t::get_timer(const std::string &name) {
     return res.first->second;
 }
 
-timer_t &timer_map_t::perf_timer() {
-    return get_timer(names::perf_timer);
-}
-
 } // namespace timer
