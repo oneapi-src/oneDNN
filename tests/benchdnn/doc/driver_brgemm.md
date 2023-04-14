@@ -29,6 +29,8 @@ where *brgemm-knobs* are:
             The format is: KEY:VALUE[+KEY:VALUE[...]] following post-ops
             notation. STRING may have `,` to iterate over multiple attribute
             settings. Refer to internal brgemm headers for more details.
+ - `--attr-scales=STRING` -- scale primitive attribute. No scale is
+            set by default. Refer to [attributes](knobs_attr.md) for details.
  - `--attr-zero-points=STRING` -- zero points primitive attribute. No zero
             points are set by default. Refer to [attributes](knobs_attr.md)
             for details.

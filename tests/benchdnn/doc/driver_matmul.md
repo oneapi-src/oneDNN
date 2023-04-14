@@ -28,6 +28,8 @@ where *matmul-knobs* are:
             default format of the skipped tensor will be used. As long as
             `--strides` and `--*tag` options refer to different tensors, they
             can be specified together.
+ - `--attr-scales=STRING` -- scale primitive attribute. No scale is
+            set by default. Refer to [attributes](knobs_attr.md) for details.
  - `--attr-zero-points=STRING` -- zero points primitive attribute. No zero
             points are set by default. Refer to [attributes](knobs_attr.md)
             for details.

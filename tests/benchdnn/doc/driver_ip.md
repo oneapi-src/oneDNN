@@ -17,6 +17,8 @@ where *ip-knobs* are:
             Refer to [tags](knobs_tag.md) for details.
  - `--dtag={any [default], ...}` -- physical dst memory layout.
             Refer to [tags](knobs_tag.md) for details.
+ - `--attr-scales=STRING` -- scale primitive attribute. No scale is
+            set by default. Refer to [attributes](knobs_attr.md) for details.
  - `--attr-post-ops=STRING` -- post operation primitive attribute. No post
             operations are set by default. Refer to [attributes](knobs_attr.md)
             for details.
@@ -48,6 +50,7 @@ prop_kind, applying output scale of `2.25`, appending the result into dst with
 output scale of `0.5`, and applying tanh as a post op:
 ``` sh
     ./benchdnn --ip --dir=BWD_D \
+               --attr-scales=dst:common:2.25* \
                --attr-post-ops=sum:0.5+tanh \
                mb112ic2048_ih1iw1_oc1000_n"resnet:ip1"
 ```
