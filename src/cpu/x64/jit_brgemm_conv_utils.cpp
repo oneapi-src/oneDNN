@@ -2888,7 +2888,7 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
             ? jcp.nthr_mb * jcp.nb_oc * jcp.ngroups
             : jcp.nthr;
     jcp.tr_src_buf_size = jcp.tr_iw * jcp.ic_block * jcp.ih_block * jcp.id;
-    jcp.tr_diff_dst_buf_size = jcp.tr_ow * jcp.oc_block * jcp.oh * jcp.od;
+    jcp.tr_diff_dst_buf_size = jcp.tr_ow * jcp.oc_block * jcp.oh_block * jcp.od;
 
     const int iframe_size = irow_size * jcp.id;
     const int oframe_size = orow_size * jcp.od;
