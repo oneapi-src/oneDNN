@@ -1177,6 +1177,9 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
         kh_block_pad = kw_block >= kh ? kh : 1;
         kw_block_pad = kw;
     }
+    gemm_batch_size = nb_ic_blocking
+            * nstl::max(kd_block * kh_block * kw_block,
+                    kd_block_pad * kh_block_pad * kw_block_pad);
 
     sp_block = -1;
     select_ic_block();
@@ -2167,9 +2170,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (jcp.ow_block == 0 || jcp.ic_block == 0 || jcp.oc_block == 0)
         return status::unimplemented;
 
-    jcp.gemm_batch_size = jcp.nb_ic_blocking
-            * nstl::max(jcp.kd_block * jcp.kh_block * jcp.kw_block,
-                    jcp.kd_block_pad * jcp.kh_block_pad * jcp.kw_block_pad);
     // to avoid cache concurrent write access from different threads
     size_t sc_size = sizeof(brgemm_batch_element_t);
     jcp.adjusted_batch_size
