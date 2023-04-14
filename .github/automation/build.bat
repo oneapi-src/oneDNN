@@ -2,7 +2,7 @@
 SETLOCAL
 
 ::===============================================================================
-:: Copyright 2019-2022 Intel Corporation
+:: Copyright 2019-2023 Intel Corporation
 ::
 :: Licensed under the Apache License, Version 2.0 (the "License");
 :: you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ IF "%VSVERSION%" == "vs2017" SET CMAKE_OPTIONS=%CMAKE_OPTIONS% -G "Visual Studio
 IF "%VSVERSION%" == "vs2019" SET CMAKE_OPTIONS=%CMAKE_OPTIONS% -G "Visual Studio 16 2019" -A x64
 IF "%VSVERSION%" == "vs2022" SET CMAKE_OPTIONS=%CMAKE_OPTIONS% -G "Visual Studio 17 2022" -A x64
 
-SET "CMAKE_OPTIONS=%CMAKE_OPTIONS% -DDNNL_CPU_RUNTIME=%CPU_RUNTIME% -DDNNL_GPU_RUNTIME=%GPU_RUNTIME%"
+SET "CMAKE_OPTIONS=%CMAKE_OPTIONS% -DDNNL_CPU_RUNTIME=%CPU_RUNTIME% -DDNNL_GPU_RUNTIME=%GPU_RUNTIME% -DDNNL_TEST_SET=SMOKE"
 
 CD /D %SOURCEDIR%
 

@@ -1,7 +1,7 @@
 #! /bin/bash
 
 #===============================================================================
-# Copyright 2019-2022 Intel Corporation
+# Copyright 2019-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ jobs:
           .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
         displayName: 'build'
       - script: |
-          .github/automation/test.sh --test-kind gtest --build-dir $(pwd)/build --report-dir $(pwd)/report
+          .github/automation/test.sh --build-dir $(pwd)/build --report-dir $(pwd)/report
         displayName: 'test'
         failOnStderr: true
   - job: 'Ubuntu22'
@@ -78,7 +78,7 @@ jobs:
           .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
         displayName: 'build'
       - script: |
-          .github/automation/test.sh --test-kind gtest --build-dir $(pwd)/build --report-dir $(pwd)/report
+          .github/automation/test.sh --build-dir $(pwd)/build --report-dir $(pwd)/report
         displayName: 'test'
         failOnStderr: true
   - job: 'macOS11'
@@ -90,7 +90,7 @@ jobs:
           .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
         displayName: 'build'
       - script: |
-          .github/automation/test.sh --test-kind gtest --build-dir $(pwd)/build --report-dir $(pwd)/report
+          .github/automation/test.sh --build-dir $(pwd)/build --report-dir $(pwd)/report
         displayName: 'test'
         failOnStderr: true
   - job: 'macOS12'
@@ -102,7 +102,7 @@ jobs:
           .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
         displayName: 'build'
       - script: |
-          .github/automation/test.sh --test-kind gtest --build-dir $(pwd)/build --report-dir $(pwd)/report
+          .github/automation/test.sh --build-dir $(pwd)/build --report-dir $(pwd)/report
         displayName: 'test'
         failOnStderr: true
   - job: 'Windows_Server_2022'
@@ -114,7 +114,7 @@ jobs:
           .github\automation\build.bat /THREADING omp /MODE Release /VSVERSION vs2022 /SOURCEDIR %CD% /BUILDDIR %CD%\build
         displayName: 'build'
       - script: |
-          .github\automation\test.bat /TESTKIND gtest /BUILDDIR %CD%\build /MODE Release /REPORTDIR %CD%\report
+          .github\automation\test.bat /BUILDDIR %CD%\build /MODE Release /REPORTDIR %CD%\report
         displayName: 'test'
         failOnStderr: true
   - job: 'Windows_Server_2019'
@@ -126,6 +126,6 @@ jobs:
           .github\automation\build.bat /THREADING omp /MODE Release /VSVERSION vs2019 /SOURCEDIR %CD% /BUILDDIR %CD%\build
         displayName: 'build'
       - script: |
-         .github\automation\test.bat /TESTKIND gtest /BUILDDIR %CD%\build /MODE Release /REPORTDIR %CD%\report
+         .github\automation\test.bat /BUILDDIR %CD%\build /MODE Release /REPORTDIR %CD%\report
         displayName: 'test'
         failOnStderr: true

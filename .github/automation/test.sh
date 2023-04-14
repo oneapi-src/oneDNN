@@ -1,7 +1,7 @@
 #! /bin/bash
 
 #===============================================================================
-# Copyright 2019-2020 Intel Corporation
+# Copyright 2019-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,9 +20,6 @@ while [[ $# -gt 0 ]]; do
     key="$1"
 
     case $key in
-        --test-kind)
-        TEST_KIND="$2"
-        ;;
         --build-dir)
         BUILD_DIR="$2"
         ;;
@@ -45,20 +42,11 @@ else
     export OMP_NUM_THREADS="$(sysctl -n hw.physicalcpu)"
 fi
 
-if [ "${TEST_KIND}" == "gtest" ]; then
-    CTEST_OPTS="-E benchdnn"
-elif [ "${TEST_KIND}" == "benchdnn" ]; then
-    CTEST_OPTS="-R benchdnn --verbose"
-else
-    echo "Error: unknown test kind: ${TEST_KIND}"
-    exit 1
-fi
-
 if  [[ ! -z "${REPORT_DIR}" ]]; then
     export GTEST_OUTPUT="${REPORT_DIR}/report/test_report.xml"
 fi
 
-CTEST_OPTS="${CTEST_OPTS} --output-on-failure"
+CTEST_OPTS="${CTEST_OPTS} --verbose --output-on-failure"
 
 echo "CTest options: ${CTEST_OPTS}"
 cd "${BUILD_DIR}"

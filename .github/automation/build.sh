@@ -1,7 +1,7 @@
 #! /bin/bash
 
 #===============================================================================
-# Copyright 2019-2022 Intel Corporation
+# Copyright 2019-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -69,7 +69,11 @@ else
     exit 1
 fi
 
-CMAKE_OPTIONS="${CMAKE_OPTIONS} -DDNNL_CPU_RUNTIME=${CPU_RUNTIME} -DDNNL_GPU_RUNTIME=${GPU_RUNTIME}"
+CMAKE_OPTIONS="${CMAKE_OPTIONS}
+               -DDNNL_CPU_RUNTIME=${CPU_RUNTIME}
+               -DDNNL_GPU_RUNTIME=${GPU_RUNTIME}
+               -DDNNL_TEST_SET=SMOKE
+              "
 
 # Enable Compute Library backend if a location for the built library is given
 # NOTE: only for AArch64 builds.
