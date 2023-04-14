@@ -211,6 +211,7 @@ bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
         static constexpr bool sum_at_pos_0_only = true;
         static constexpr bool sum_requires_scale_one = false;
         static constexpr bool sum_requires_zp_zero = false;
+        static constexpr bool sum_requires_same_params = true;
         const auto ndims = dst_d->ndims();
 
         bool is_binary_po_channel_bcast {};
@@ -235,7 +236,8 @@ bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
                 && injector::post_ops_ok(post_ops_ok_args_t(isa,
                         {binary, eltwise, sum}, post_ops, dst_d,
                         sum_at_pos_0_only, sum_requires_scale_one,
-                        sum_requires_zp_zero, enabled_bcast_strategy));
+                        sum_requires_zp_zero, sum_requires_same_params,
+                        enabled_bcast_strategy));
     }
 #endif
     for (size_t i = 0; i < post_ops.entry_.size(); i++) {

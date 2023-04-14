@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -80,13 +80,15 @@ status_t jit_uni_reduction_t::pd_t::init(engine_t *engine) {
     static constexpr bool sum_at_0_pos_only = false;
     static constexpr bool sum_requires_scale_one = false;
     static constexpr bool sum_requires_zp_zero = true;
+    static constexpr bool sum_requires_same_params = false;
     const bcast_set_t accepted_broadcasts
             = {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
                     broadcasting_strategy_t::per_oc_spatial,
                     broadcasting_strategy_t::no_broadcast};
     injector::post_ops_ok_args_t post_ops_args(conf_.isa, accepted_post_ops,
             attr()->post_ops_, &dst_mdw, sum_at_0_pos_only,
-            sum_requires_scale_one, sum_requires_zp_zero, accepted_broadcasts);
+            sum_requires_scale_one, sum_requires_zp_zero,
+            sum_requires_same_params, accepted_broadcasts);
     if (!post_ops_ok(post_ops_args)) return status::unimplemented;
 
     conf_.post_ops = attr()->post_ops_;

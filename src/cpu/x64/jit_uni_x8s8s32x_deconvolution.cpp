@@ -386,6 +386,7 @@ bool jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::post_ops_ok(jit_conv_conf_t &jcp,
     return injector::post_ops_ok(post_ops_ok_args_t(isa, {sum, eltwise, binary},
             attr.post_ops_, &dst_d, false /*sum_at_pos_0_only*/,
             false /*sum_requires_scale_one*/, false /*sum_requires_zp_zero*/,
+            true /*sum_requires_same_params*/,
             {broadcasting_strategy_t::per_oc,
                     broadcasting_strategy_t::scalar}));
 }

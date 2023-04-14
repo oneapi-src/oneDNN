@@ -188,7 +188,7 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
                     = {injector::eltwise, injector::binary};
             const memory_desc_wrapper dst_d(dst_md());
             injector::post_ops_ok_args_t post_ops_args(isa_, accepted_post_ops,
-                    attr()->post_ops_, &dst_d, true, true, true,
+                    attr()->post_ops_, &dst_d, true, true, true, true,
                     softmax_impl::get_supported_bcast_strategies());
             return !with_sum && injector::post_ops_ok(post_ops_args);
         }

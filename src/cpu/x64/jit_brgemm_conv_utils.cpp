@@ -102,7 +102,7 @@ bool post_ops_ok(jit_brgemm_conv_conf_t &jcp, primitive_attr_t &attr,
     return injector::post_ops_ok(post_ops_ok_args_t(jcp.isa,
             {sum, eltwise, binary}, post_ops, &dst_d,
             false /*sum_at_pos_0_only*/, false /*sum_requires_scale_one*/,
-            false /*sum_requires_zp_zero*/,
+            false /*sum_requires_zp_zero*/, true /*sum_requires_same_params*/,
             {broadcasting_strategy_t::per_oc, broadcasting_strategy_t::scalar,
                     broadcasting_strategy_t::no_broadcast}));
 }
