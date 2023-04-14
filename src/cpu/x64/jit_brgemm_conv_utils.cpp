@@ -86,6 +86,13 @@ bool is_amx(cpu_isa_t isa) {
     return is_superset(isa, avx512_core_amx);
 }
 
+bool uses_batch_elements(
+        brgemm_batch_kind_t brg_type, conv_brgemm_exec_type_t exec_type) {
+    // Batch elements are required for all batch kinds except fixed strides.
+    // Batch elements are also required for virtual padding.
+    return IMPLICATION(brg_type == brgemm_strd, exec_type == exec_vpad);
+}
+
 bool post_ops_ok(jit_brgemm_conv_conf_t &jcp, primitive_attr_t &attr,
         const memory_desc_wrapper &dst_d) {
     using namespace injector;
@@ -2479,9 +2486,7 @@ void set_amx_wsp_per_thread(jit_brgemm_conv_conf_t &jcp) {
 
 void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         const jit_brgemm_conv_conf_t &jcp) {
-    if (jcp.brg_type == brgemm_addr || jcp.brg_type == brgemm_offs
-            || jcp.brg_type == brgemm_static_offs
-            || (jcp.brg_type == brgemm_strd && jcp.exec_type == exec_vpad)) {
+    if (uses_batch_elements(jcp.brg_type, jcp.exec_type)) {
         scratchpad.book(key_brgemm_primitive_batch,
                 static_cast<size_t>(jcp.nthr) * jcp.adjusted_batch_size,
                 sizeof(brgemm_batch_element_t), 64, P4K);

@@ -1152,10 +1152,11 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::execute(
 
     const memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
     brgemm_batch_element_t *const __restrict brg_batch_global
-            = (jcp.brg_type == brgemm_strd && jcp.exec_type != exec_vpad)
-            ? nullptr
-            : scratchpad.template get<brgemm_batch_element_t>(
-                    key_brgemm_primitive_batch);
+            = brgemm_convolution_utils::uses_batch_elements(
+                      jcp.brg_type, jcp.exec_type)
+            ? scratchpad.template get<brgemm_batch_element_t>(
+                    key_brgemm_primitive_batch)
+            : nullptr;
     char *const __restrict c_buffer_global = (jcp.use_buffer)
             ? scratchpad.template get<char>(key_brgemm_primitive_buffer)
             : nullptr;
@@ -1479,6 +1480,8 @@ inline void brgemm_convolution_fwd_t<isa, use_inversion>::call_brgemm_kernel(
     const auto maybe_do_postops
             = one_of(true, do_postops, do_only_comp, do_only_pass_comp);
 
+    assert(brgemm_convolution_utils::uses_batch_elements(
+            jcp.brg_type, jcp.exec_type));
     const auto ptrA = btc.brg_batch[0].ptr.A;
     const auto ptrB = btc.brg_batch[0].ptr.B;
 

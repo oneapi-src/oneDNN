@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,6 +38,8 @@ namespace brgemm_convolution_utils {
 constexpr size_t P4K = 4096;
 
 bool is_amx(cpu_isa_t isa);
+bool uses_batch_elements(
+        brgemm_batch_kind_t brg_type, conv_brgemm_exec_type_t exec_type);
 
 status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const convolution_desc_t &cd, memory_desc_t &src_md,
