@@ -1499,7 +1499,8 @@ public:
 
 expr_t reorder_nary_add_args(const expr_t &e, bool x64_first) {
     auto *nary_op = e.as_ptr<nary_op_t>();
-    if (nary_op->op_kind != op_kind_t::_add || nary_op->args.size() <= 2)
+    if (!nary_op || nary_op->op_kind != op_kind_t::_add
+            || nary_op->args.size() <= 2)
         return e;
 
     std::vector<expr_t> other_args;
