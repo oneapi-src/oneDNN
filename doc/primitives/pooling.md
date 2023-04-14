@@ -142,9 +142,10 @@ of any preceding compute-intensive primitive.
 
 ### Post-Ops and Attributes
 
-| Propagation | Type    | Operation                                    | Description                                            | Restrictions                        |
-|:------------|:--------|:---------------------------------------------|:-------------------------------------------------------|:------------------------------------|
-| Forward     | Post-op | [Binary](@ref dnnl::post_ops::append_binary) | Applies a @ref dnnl_api_binary operation to the result | General binary post-op restrictions |
+| Propagation | Type    | Operation                                      | Description                                               | Restrictions                        |
+|:------------|:--------|:-----------------------------------------------|:----------------------------------------------------------|:------------------------------------|
+| Forward     | Post-op | [Binary](@ref dnnl::post_ops::append_binary)   | Applies a @ref dnnl_api_binary operation to the result    | General binary post-op restrictions |
+| Forward     | Post-op | [Eltwise](@ref dnnl::post_ops::append_eltwise) | Applies an @ref dnnl_api_eltwise operation to the result. |                                     |
 
 @anchor dg_pool_impl_limits
 ## Implementation Limitations
