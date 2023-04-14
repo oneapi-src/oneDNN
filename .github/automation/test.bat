@@ -18,7 +18,6 @@ SETLOCAL
 ::===============================================================================
 
 :process_arguments
-IF "%1" == "/TESTKIND" SET "TESTKIND=%2"
 IF "%1" == "/BUILDDIR" SET "BUILDDIR=%2"
 IF "%1" == "/MODE" SET "MODE=%2"
 IF "%1" == "/REPORTDIR" SET "REPORTDIR=%2"
@@ -28,13 +27,6 @@ SHIFT
 IF NOT "%1" == "" GOTO process_arguments
 
 SET "CTEST_OPTS=--output-on-failure"
-
-IF "%TESTKIND%" == "gtest" SET "CTEST_OPTS=%CTEST_OPTS% -E benchdnn"
-IF "%TESTKIND%" == "benchdnn" SET "CTEST_OPTS=%CTEST_OPTS% -R benchdnn --verbose" 
-IF NOT "%TESTKIND%" == "benchdnn" IF NOT "%TESTKIND%" == "gtest" (
-    ECHO "Error: unknown test kind: %TESTKIND%"
-    EXIT 1
-)
 
 IF NOT "%REPORTDIR%" == "" SET "GTEST_OUTPUT=%REPORTDIR%\report\test_report.xml"
 
