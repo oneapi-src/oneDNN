@@ -18,12 +18,14 @@
 #include <sstream>
 #include <utility>
 #include "fusible_op.hpp"
+#include "fusible_op_utils.hpp"
 #include "fusion_mgr.hpp"
 #include "tunable_op.hpp"
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <unordered_map>
+#include <unordered_set>
 #include <util/assert.hpp>
 #include <util/def.hpp>
 namespace dnnl {
@@ -381,17 +383,20 @@ op_sorting_visitor_t::create_preop_fusion_rule() {
     };
 }
 
-op_visitor_t::updater_func op_visitor_t::create_DAG_updater(size_t total_hint) {
+op_visitor_t::updater_func op_visitor_t::create_DAG_updater(
+        size_t total_hint, const user_sort_func &sorter) {
     struct count_t {
         int count = -1;
     };
     // the count of pending depending logical tensors for each node
     std::vector<count_t> pending_count;
-    return [pending_count, total_hint](
+    return [pending_count, total_hint, sorter](
                    op_visitor_t *v, const sc_op_ptr &cur) mutable {
         v->set_visited(cur->logical_op_id_);
         for (auto &lt : cur->get_outputs()) {
-            for (auto &user : lt->uses_) {
+            auto visit_index = sorter(lt);
+            for (auto &idx : visit_index) {
+                auto user = lt->uses_[idx];
                 auto id = user.second->logical_op_id_;
                 assert(id >= 0);
                 if ((unsigned)id >= pending_count.size()) {
@@ -465,66 +470,58 @@ op_visitor_t::updater_func op_visitor_t::create_DAG_updater_post(
     };
 }
 
-op_visitor_t::updater_func op_visitor_t::create_DAG_updater_speculate_tuneop(
-        size_t total_hint) {
-    struct count_t {
-        int count = -1;
-    };
-    // the count of pending depending logical tensors for each node
-    std::vector<count_t> pending_count;
-    return [pending_count, total_hint](
-                   op_visitor_t *v, const sc_op_ptr &cur) mutable {
-        v->set_visited(cur->logical_op_id_);
-        for (auto &lt : cur->get_outputs()) {
-            std::vector<std::pair<int, int>> tunnum_index_list;
-            // one of its use is tunable op
-            for (size_t i = 0; i < lt->uses_.size(); i++) {
-                auto u = lt->uses_[i];
-                tunnum_index_list.emplace_back(
-                        std::make_pair(count_tuneop_linearly(u.second, 15), i));
-            }
-
-            // sort tunnum_index_list by descend
-            std::sort(tunnum_index_list.begin(), tunnum_index_list.end(),
-                    [](const std::pair<int, int> &p1,
-                            const std::pair<int, int> &p2) {
-                        return p1.first > p2.first;
-                    });
-
-            std::vector<int> visit_index;
-            visit_index.reserve(tunnum_index_list.size());
-            for (auto &p : tunnum_index_list) {
-                visit_index.emplace_back(p.second);
-            }
-
-            for (auto &idx : visit_index) {
-                auto user = lt->uses_[idx];
-                auto id = user.second->logical_op_id_;
-                assert(id >= 0);
-                if ((unsigned)id >= pending_count.size()) {
-                    // need to extend pending_count
-                    if ((unsigned)id < total_hint) {
-                        pending_count.resize(total_hint);
-                    } else {
-                        pending_count.resize((id + 1) * 1.5f);
-                    }
-                }
-                if (pending_count[id].count == -1) {
-                    // we have not met it before, initialize the dependency
-                    // count
-                    pending_count[id].count = user.second->get_inputs().size();
-                }
-                // the pending count is decreased by 1 because current node is
-                // done
-                --pending_count[id].count;
-                assert(pending_count[id].count >= 0);
-                // all dependencies resolved, we can visit it now
-                if (pending_count[id].count == 0) {
-                    v->to_visit_.emplace_back(user.second);
-                }
-            }
+static std::vector<int> usr_speculative_sorter(const graph_tensor_ptr &gt) {
+    std::vector<int> visit_index;
+    visit_index.reserve(gt->uses_.size());
+    std::unordered_set<int> visited_set;
+    // Step 1: sorted by tunable op cnt
+    std::vector<std::pair<size_t, int>> priority_index_list;
+    auto sort_by_prority = [&priority_index_list, &visit_index]() {
+        std::sort(priority_index_list.begin(), priority_index_list.end(),
+                [](const std::pair<size_t, int> &p1,
+                        const std::pair<size_t, int> &p2) {
+                    return p1.first > p2.first;
+                });
+        for (auto &p : priority_index_list) {
+            visit_index.emplace_back(p.second);
         }
+        priority_index_list.clear();
     };
+    // counter tunable op users
+    for (size_t i = 0; i < gt->uses_.size(); i++) {
+        auto u = gt->uses_[i];
+        auto tun_cnt = count_tuneop_linearly(u.second, 15);
+        if (tun_cnt > 0) {
+            priority_index_list.emplace_back(std::make_pair(tun_cnt, i));
+            visited_set.insert(i);
+        }
+    }
+    // sort tunable_cnt_index_list by descend
+    sort_by_prority();
+    // Step 2: sorted by user tensor size
+    for (size_t i = 0; i < gt->uses_.size(); i++) {
+        if (visited_set.find(i) != visited_set.end()) continue;
+        auto u = gt->uses_[i];
+        if (u.second->get_outputs().empty()) continue;
+        auto dt = u.second->get_outputs()[0]->details_;
+        size_t user_tsr_size = utils::get_sizeof_etype(dt.dtype_.type_code_)
+                * get_dims_product(dt.get_blocking_dims());
+        priority_index_list.emplace_back(std::make_pair(user_tsr_size, i));
+        visited_set.insert(i);
+    }
+    // sort tensor_size_index_list by descend
+    sort_by_prority();
+    // Step 3: push remaining
+    for (size_t i = 0; i < gt->uses_.size(); i++) {
+        if (visited_set.find(i) != visited_set.end()) continue;
+        visit_index.emplace_back(i);
+    }
+    return visit_index;
+}
+
+op_visitor_t::updater_func op_visitor_t::create_DAG_updater_speculative(
+        size_t total_hint) {
+    return create_DAG_updater(total_hint, usr_speculative_sorter);
 }
 
 sc_op_ptr op_visitor_t::pop_back_selector(op_visitor_t *v) {
@@ -557,7 +554,7 @@ op_visitor_t op_visitor_t::dfs_topology_sort(size_t total_nodes_hint) {
 op_visitor_t op_visitor_t::dfs_topology_speculative_sort(
         size_t total_nodes_hint) {
     return op_visitor_t(pop_back_selector,
-            create_DAG_updater_speculate_tuneop(total_nodes_hint), true);
+            create_DAG_updater_speculative(total_nodes_hint), true);
 }
 
 op_visitor_t op_visitor_t::bfs_topology_sort(size_t total_nodes_hint) {

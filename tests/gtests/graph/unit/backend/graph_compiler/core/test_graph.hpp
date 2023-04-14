@@ -106,6 +106,25 @@ inline sc_graph_t get_test_sorting_graph(
     return graph;
 }
 
+inline sc_graph_t get_test_speculative_graph() {
+    sc_graph_t mgr;
+    // make a graph of:
+    auto in_a = mgr.make_input({make_tensor({32, 64})}); // 0
+    auto relu0 = mgr.make("relu", {in_a->get_outputs()[0]}, {}, {}); // 1
+    auto relu1 = mgr.make("relu", {relu0->get_outputs()[0]}, {}, {}); // 2
+    auto in_b = mgr.make_input({make_tensor({128, 32, 64})}); // 3
+    auto add = mgr.make("add",
+            {relu0->get_outputs()[0], in_b->get_outputs()[0]}, {}, {}); // 4
+    auto in_c = mgr.make_input({make_tensor({64, 32})}); // 5
+    auto matmul = mgr.make("matmul_core",
+            {relu0->get_outputs()[0], in_c->get_outputs()[0]}, {}, {}); // 6
+
+    mgr.make_output(matmul->get_outputs()); // 7
+    mgr.make_output(add->get_outputs()); // 8
+    mgr.make_output(relu1->get_outputs()); // 9
+    return mgr;
+}
+
 inline sc_graph_t get_conv_bn_relu_graph(const sc_dims &src_dims,
         const sc_dims &weight_dims, const sc_dims &dst_dims,
         const sc_dims &strides, const sc_dims &paddings,

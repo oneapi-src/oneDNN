@@ -20,6 +20,7 @@
 #include <functional>
 #include <list>
 #include <memory>
+#include <numeric>
 #include <vector>
 #include <compiler/ir/graph/graph.hpp>
 
@@ -83,12 +84,24 @@ public:
     // to the back of the to_visit list
     static void push_back_updater(op_visitor_t *, const sc_op_ptr &sc_op_ptr);
 
+    // For DAG updater, its user visit order can be specified as demand, the
+    // return vector is the index of multi-users
+    using user_sort_func
+            = std::function<std::vector<int>(const graph_tensor_ptr &gt)>;
     // the updater which pushes all nodes whose dependencies have already been
-    // visited. Used in topology sort
-    static updater_func create_DAG_updater(size_t total_nodes_hint);
+    // visited. Used in topology sort. The default user order is sorted by
+    // ascend
+    static updater_func create_DAG_updater(
+            size_t total_nodes_hint,
+            const user_sort_func &func
+            = [](const graph_tensor_ptr &gt) -> std::vector<int> {
+                std::vector<int> usr_vis_ord(gt->uses_.size());
+                std::iota(usr_vis_ord.begin(), usr_vis_ord.end(), 0);
+                return usr_vis_ord;
+            });
     static updater_func create_DAG_updater_post(size_t total_nodes_hint);
-    static updater_func create_DAG_updater_speculate_tuneop(
-            size_t total_nodes_hint);
+    // Different from default create_DAG_updater, it has specific user sort func
+    static updater_func create_DAG_updater_speculative(size_t total_nodes_hint);
     // create_DAG_updatater_post;
     // post order traversing
     void post_visit_graph(const sc_graph_t &mgr, const visitor_func &f);
