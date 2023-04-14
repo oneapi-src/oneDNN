@@ -87,7 +87,7 @@ uint32_t get_verbose() {
             // Legacy: we accept values 0,1,2
             // 0 and none erase previously set flags, including error
             if (s == "0" || s == "none") return k = verbose_t::none;
-            if (s == "1") return k | verbose_t::exec_profile;
+            if (s == "1") return k |= verbose_t::exec_profile;
             if (s == "2")
                 return k |= verbose_t::exec_profile | verbose_t::create_profile;
             if (s == "all" || s == "-1") return k |= verbose_t::all;
