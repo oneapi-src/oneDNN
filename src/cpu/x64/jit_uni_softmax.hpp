@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,8 +26,14 @@
 #include "common/utils.hpp"
 
 #include "cpu/cpu_softmax_pd.hpp"
+
 #include "cpu/x64/cpu_isa_traits.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
+
+#define VCHECK_SOFTMAX(cond, msg, ...) \
+    VCONDCHECK(create, dispatch, softmax, (cond), status::unimplemented, \
+            "%s," msg, this->info(engine), ##__VA_ARGS__)
 
 namespace dnnl {
 namespace impl {
@@ -37,7 +43,9 @@ namespace x64 {
 namespace softmax_impl {
 template <cpu_isa_t isa>
 struct driver_t;
-}
+
+bcast_set_t get_supported_bcast_strategies();
+} // namespace softmax_impl
 
 template <cpu_isa_t isa>
 struct jit_uni_softmax_fwd_t : public primitive_t {
@@ -90,10 +98,19 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
                     && IMPLICATION(utils::one_of(f16, src_dt, dst_dt),
                             (is_superset(isa, avx512_core)
                                     && mayiuse(avx512_core_fp16))
-                                    || (isa == avx2 && mayiuse(avx2_vnni_2)))
-                    && attr()->has_default_values(skip_mask_t::scales_runtime)
-                    && attr_scales_ok()
-                    && set_default_formats() == status::success;
+                                    || (isa == avx2 && mayiuse(avx2_vnni_2)));
+            if (!ok) return status::unimplemented;
+
+            VCHECK_SOFTMAX(
+                    attr()->has_default_values(skip_mask_t::scales_runtime
+                            | skip_mask_t::post_ops),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VCHECK_SOFTMAX(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VCHECK_SOFTMAX(post_ops_ok(), VERBOSE_UNSUPPORTED_POSTOP);
+#undef VCHECK_SOFTMAX
+
+            ok = set_default_formats() == status::success
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             ok = memory_desc_wrapper(src_md()).similar_to(
@@ -125,6 +142,18 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
                         memory_tracking::names::key_softmax_interim_store,
                         axis_size(true) * sizeof(float) * nthr_);
             }
+        }
+
+        bool post_ops_ok() const {
+            const auto &post_ops = attr()->post_ops_;
+            const bool with_sum = post_ops.find(primitive_kind::sum) != -1;
+            const std::vector<injector::post_op_type> accepted_post_ops
+                    = {injector::eltwise, injector::binary};
+            const memory_desc_wrapper dst_d(dst_md());
+            injector::post_ops_ok_args_t post_ops_args(get_max_cpu_isa(),
+                    accepted_post_ops, attr()->post_ops_, &dst_d, true, true,
+                    true, softmax_impl::get_supported_bcast_strategies());
+            return !with_sum && injector::post_ops_ok(post_ops_args);
         }
     };
 

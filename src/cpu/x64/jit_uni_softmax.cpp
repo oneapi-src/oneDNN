@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@
 
 #include "cpu/x64/jit_generator.hpp"
 
-#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_uni_softmax.hpp"
 #include "cpu/x64/utils/jit_io_helper.hpp"
 
@@ -56,7 +56,12 @@ struct jit_softmax_t : public jit_generator {
         const void *src_scales; // src_scales defined for all data type cases
         const void *dst_scales; // dst_scales defined for all data type cases
         size_t process_n_elems;
+
+        // post ops
+        const void *dst_orig;
+        const void *post_ops_binary_rhs_arg_vec;
     };
+
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_softmax_t)
 
     // cpu specific part
@@ -72,6 +77,8 @@ struct jit_softmax_t : public jit_generator {
 
     std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> exp_injector_;
     std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> log_injector_;
+    std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
+            postops_injector_;
 
     Reg64 reg_param = abi_param1;
 
@@ -114,6 +121,9 @@ struct jit_softmax_t : public jit_generator {
     bool is_logsoftmax_ = pd_->is_logsoftmax();
     bool axis_is_blocked_;
     bool need_scratchpad_;
+    bool with_postops_ = false;
+    bool with_binary_ = false;
+    bool with_eltwise_ = false;
 
     size_t simd_w_ = 0;
     size_t unroll_regs_ = 4;
@@ -203,7 +213,6 @@ struct jit_softmax_t : public jit_generator {
         }
         mov(reg_src_scales, ptr[reg_param + PARAM_OFF(src_scales)]);
         mov(reg_dst_scales, ptr[reg_param + PARAM_OFF(dst_scales)]);
-#undef PARAM_OFF
     }
 
     Address diff_src_ptr(size_t offt = 0) {
@@ -537,6 +546,23 @@ struct jit_softmax_t : public jit_generator {
                     if (is_logsoftmax_)
                         uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
 
+                    if (with_postops_) {
+                        binary_injector::rhs_arg_dynamic_params_t
+                                rhs_arg_params;
+                        if (with_binary_) {
+                            rhs_arg_params.vmm_idx_to_out_addr.emplace(
+                                    vreg_tmp_src.getIdx(), dst_ptr());
+                            rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                                    vreg_tmp_src.getIdx(),
+                                    dst_axis_stride_ * i);
+                            if (tail)
+                                rhs_arg_params.vmm_tail_idx_.emplace(
+                                        vreg_tmp_src.getIdx());
+                        }
+                        postops_injector_->compute_vector(
+                                vreg_tmp_src.getIdx(), rhs_arg_params);
+                    }
+
                     store(dst_ptr(dst_axis_stride_ * (i + i_odd)), vreg_tmp_src,
                             dst_d_.data_type(), tail);
                 }
@@ -569,7 +595,23 @@ struct jit_softmax_t : public jit_generator {
                     Vmm vscale = vmax;
                     uni_vmovups(vscale, ptr[reg_src_scales]);
                     uni_vmulps(vreg_tmp_src, vreg_tmp_src, vscale);
-                    // Reserved spot for post-ops injector
+                }
+                if (with_postops_) {
+                    binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+                    if (with_binary_) {
+                        rhs_arg_params.vmm_idx_to_out_addr.emplace(
+                                vreg_tmp_src.getIdx(), dst_ptr());
+                        rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                                vreg_tmp_src.getIdx(), dst_axis_stride_ * i);
+                        if (tail)
+                            rhs_arg_params.vmm_tail_idx_.emplace(
+                                    vreg_tmp_src.getIdx());
+                    }
+                    postops_injector_->compute_vector(
+                            vreg_tmp_src.getIdx(), rhs_arg_params);
+                }
+                if (is_superset(isa, avx512_core)) {
+                    Vmm vscale = vmax;
                     uni_vmovups(vscale, ptr[reg_dst_scales]);
                     uni_vmulps(vreg_tmp_src, vreg_tmp_src, vscale);
                 }
@@ -651,6 +693,27 @@ struct jit_softmax_t : public jit_generator {
                     alg_kind::eltwise_log, 0.0f, 0.0f, 1.0f, true,
                     reg_log_injector_table, injector_mask));
         }
+        if (with_postops_) {
+            static constexpr bool preserve_gpr = true;
+            static constexpr bool preserve_vmm = true;
+            static constexpr bool use_exact_tail_scalar_bcast = true;
+            static constexpr std::size_t tmp_vmm_injector = 0u;
+
+            const binary_injector::rhs_arg_static_params_t rhs_sp {
+                    tmp_vmm_injector, this->r14, this->r15, this->r13,
+                    preserve_gpr, preserve_vmm,
+                    PARAM_OFF(post_ops_binary_rhs_arg_vec), PARAM_OFF(dst_orig),
+                    dst_d_, axis_simd_tail_, tail_opmask,
+                    use_exact_tail_scalar_bcast};
+
+            const binary_injector::static_params_t bsp {reg_param,
+                    softmax_impl::get_supported_bcast_strategies(), rhs_sp};
+
+            postops_injector_ = utils::make_unique<
+                    injector::jit_uni_postops_injector_t<isa>>(
+                    this, pd_->attr()->post_ops_, bsp);
+        }
+#undef PARAM_OFF
 
         compute_predefined_variables();
         preamble();
@@ -666,6 +729,8 @@ struct jit_softmax_t : public jit_generator {
         postamble();
         if (exp_injector_) exp_injector_->prepare_table();
         if (log_injector_) log_injector_->prepare_table();
+        if (with_eltwise_ && postops_injector_)
+            postops_injector_->prepare_table();
     }
 
     jit_softmax_t(const softmax_pd_t *pd)
@@ -685,6 +750,11 @@ struct jit_softmax_t : public jit_generator {
         axis_simd_tail_ = pd_->axis_size() % simd_w_;
         need_scratchpad_ = utils::one_of(
                 dst_d_.data_type(), data_type::u8, data_type::s8);
+
+        const auto &post_ops = pd_->attr()->post_ops_;
+        with_postops_ = post_ops.len() != 0;
+        with_binary_ = post_ops.find(primitive_kind::binary) != -1;
+        with_eltwise_ = post_ops.find(primitive_kind::eltwise) != -1;
 
         io::io_conf_t io_conf;
         io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_,
@@ -727,6 +797,10 @@ status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
     DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(
+                    pd()->attr()->post_ops_, ctx);
+
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const auto src_data_type_size = src_d.data_type_size();
@@ -744,6 +818,7 @@ status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
 
     const int nthr = pd()->nthr_;
 
+    const char *dst_orig_ptr = dst;
     parallel_nd_ext(nthr, outer_size, inner_size,
             [&](int ithr, int, dim_t ou, dim_t in) {
                 dim_t offset = (ou * outer_stride + in * inner_stride);
@@ -753,7 +828,8 @@ status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
                                 + ithr * axis_size_padded * sizeof(float)
                                                    : nullptr;
                 softmax_driver_->exec(src_ptr, dst_ptr, interim_ptr, src_scales,
-                        dst_scales, process_n_elems);
+                        dst_scales, process_n_elems, dst_orig_ptr,
+                        post_ops_binary_rhs_arg_vec.data());
             });
 
     return status::success;
@@ -816,7 +892,8 @@ struct driver_t : public c_compatible {
     driver_t(const softmax_pd_t *pd) : pd_(pd), ker_(pd_) {}
 
     void exec(const void *src, void *dst, void *interim, const void *src_scales,
-            const void *dst_scales, const dim_t process_n_elems) {
+            const void *dst_scales, const dim_t process_n_elems,
+            const void *dst_orig, const void *post_ops_binary_rhs_arg_vec) {
         typename jit_softmax_t<isa>::call_params_t p;
         p.process_n_elems = process_n_elems;
         p.src = src;
@@ -824,6 +901,9 @@ struct driver_t : public c_compatible {
         p.interim = interim;
         p.src_scales = src_scales;
         p.dst_scales = dst_scales;
+        // post-ops
+        p.dst_orig = dst_orig;
+        p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
         ker_(&p);
     }
 
@@ -843,6 +923,10 @@ private:
     const softmax_pd_t *pd_;
     jit_softmax_t<isa> ker_;
 };
+
+bcast_set_t get_supported_bcast_strategies() {
+    return {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc};
+}
 
 } // namespace softmax_impl
 
