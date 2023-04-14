@@ -390,7 +390,14 @@ public:
         if (src1.is_reg_data()) {
             eadd(mod, dst.reg_data(), src0.reg_data(), src1.reg_data());
         } else {
-            eadd(mod, dst.reg_data(), src0.reg_data(), src1.immediate());
+            if (ngen_is_qw(src1.type())) {
+                auto tmp = ra_.alloc_sub(src1.type());
+                emov(1, tmp, src1.immediate());
+                eadd(mod, dst.reg_data(), src0.reg_data(), tmp);
+                ra_.safeRelease(tmp);
+            } else {
+                eadd(mod, dst.reg_data(), src0.reg_data(), src1.immediate());
+            }
         }
     }
 
