@@ -1159,10 +1159,17 @@ float brg_blocking_t::est_eff() {
     const auto call_kernel_cost
             = 1000.f * job * ic_chunks * nb_kd * nb_kh * nb_kw;
 
+    // Avoid huge batch sizes if possible (ie prefer to block on kd/kh/kw).
+    const float gemm_batch_bytes
+            = sizeof(brgemm_batch_element_t) * gemm_batch_size;
+    const float batch_eff = uses_batch_elements(brg_type, exec_type)
+            ? nstl::min(1.f, L2 / (gemm_batch_bytes))
+            : 1.f;
+
     const auto cache_eff = (static_cast<dim_t>(mb) * od * oh * sp * ic * oc)
             / (nthr * (src_cost + dst_cost + wei_cost + call_kernel_cost));
     const auto res_eff = oc_block_eff * brgemm_microkernel_eff * sp_eff
-            * job_eff * ur_eff * cache_eff * brgemm_eff;
+            * job_eff * ur_eff * cache_eff * brgemm_eff * batch_eff;
     return res_eff;
 }
 
