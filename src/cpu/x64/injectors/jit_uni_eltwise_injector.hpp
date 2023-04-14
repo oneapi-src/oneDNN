@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -285,11 +285,12 @@ private:
         gelu_erf_Abramowitz_Stegun_one_over_sqrt_pi,
         // see correspondent table for float values
         gelu_erf_Abramowitz_Stegun_pol,
-        gelu_erf_minimax_neg_saturation_ubound, // x <= arg => gelu_erf = 0.0f
-        // when |x| <= arg => gelu_erf = 0.5f * x
-        gelu_erf_minimax_linear_ubound,
-        gelu_erf_minimax_saturation_lbound, // x >= arg => gelu_erf = x
         gelu_erf_minimax_pol, // see correspondent table for float values
+        gelu_erf_idx_bias, // bias applied to compute table index
+        gelu_erf_rbound, // upper bound at which we clamp erf at 1
+        gelu_erf_one, // just the integer value 1, used for index clamping
+        gelu_erf_twenty_three, // just the integer value 23, used for index clamping
+        gelu_erf_twenty_four, // just the integer value 24, used for index clamping
         log_inf, // inf
         log_minus_inf, // -inf
         log_qnan, // qnan
