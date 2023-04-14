@@ -1,5 +1,5 @@
-15x3
-30x300
-256x768
-128x1x1024
-6x2x128x1024
+15x3_n"lnorm_ci_0d:0"
+30x300_n"lnorm_ci_0d:1"
+256x768_n"lnorm_ci_0d:2"
+128x1x1024_n"lnorm_ci_1d:0"
+6x2x128x1024_n"lnorm_ci_2d:0"
