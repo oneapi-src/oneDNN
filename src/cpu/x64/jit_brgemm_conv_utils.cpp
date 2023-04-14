@@ -839,41 +839,39 @@ status_t brg_blocking_t::get_brgemm_ur(
                 && vM != M && vM != M_tail)
             continue;
         for (int i_init = 0; i_init < 2; i_init++) {
-            for (int i_N = 0; i_N < 2; i_N++) {
-                for (int i_K = 0; i_K < 2; i_K++) {
-                    auto vbeta = (i_init) ? beta_init : beta;
-                    auto vN = (i_N) ? N_tail : N;
-                    auto vK = (i_K) ? K_tail : K;
-                    if (vN == 0 || vK == 0) continue;
-                    brgemm_t brg;
-                    brgemm_strides_t brg_strides;
-                    brg_strides.stride_a = ngroups * ic_without_padding
-                            * (dilate_w + 1) * src_dsz;
-                    //weights are padded by oc_block and last_ic_block
-                    brg_strides.stride_b = rnd_up(ic, last_ic_block_size)
-                            * rnd_up(oc, oc_block) * wei_dsz;
-                    const auto strides_ptr = (brg_type == brgemm_strd)
-                            ? &brg_strides
-                            : nullptr;
-                    brgemm_utils::init_brgemm_conf(&brg, isa, brg_type, src_dt,
-                            wei_dt, brgemm_row_major, alpha, vbeta, LDA, LDB,
-                            LDC, vM, vN, vK, strides_ptr, is_bf32);
-                    CHECK(brgemm_utils::brgemm_blocking(&brg));
+            for_(int i_N = 0; i_N < 2; i_N++)
+            for (int i_K = 0; i_K < 2; i_K++) {
+                auto vbeta = (i_init) ? beta_init : beta;
+                auto vN = (i_N) ? N_tail : N;
+                auto vK = (i_K) ? K_tail : K;
+                if (vN == 0 || vK == 0) continue;
+                brgemm_t brg;
+                brgemm_strides_t brg_strides;
+                brg_strides.stride_a = ngroups * ic_without_padding
+                        * (dilate_w + 1) * src_dsz;
+                // weights are padded by oc_block and last_ic_block
+                brg_strides.stride_b = rnd_up(ic, last_ic_block_size)
+                        * rnd_up(oc, oc_block) * wei_dsz;
+                const auto strides_ptr
+                        = (brg_type == brgemm_strd) ? &brg_strides : nullptr;
+                brgemm_utils::init_brgemm_conf(&brg, isa, brg_type, src_dt,
+                        wei_dt, brgemm_row_major, alpha, vbeta, LDA, LDB, LDC,
+                        vM, vN, vK, strides_ptr, is_bf32);
+                CHECK(brgemm_utils::brgemm_blocking(&brg));
 
-                    brgemm_attr_t brgattr;
-                    brgattr.max_bs = max_batch;
-                    const auto max_vpad = (exec_type == exec_vpad)
-                            ? nstl::max(l_pad, r_pad)
-                            : 0;
-                    brgattr.max_top_vpad = max_vpad;
-                    brgattr.max_bottom_vpad = max_vpad;
-                    brgattr.fpmath_mode = attr->fpmath_mode_;
-                    CHECK(brgemm_desc_set_attr(&brg, brgattr));
+                brgemm_attr_t brgattr;
+                brgattr.max_bs = max_batch;
+                const auto max_vpad = (exec_type == exec_vpad)
+                        ? nstl::max(l_pad, r_pad)
+                        : 0;
+                brgattr.max_top_vpad = max_vpad;
+                brgattr.max_bottom_vpad = max_vpad;
+                brgattr.fpmath_mode = attr->fpmath_mode_;
+                CHECK(brgemm_desc_set_attr(&brg, brgattr));
 
-                    brg.with_sum = with_sum;
-                    CHECK(brgemm_desc_set_postops(
-                            &brg, attr, &dst_md, LDD, bia_dt));
-                }
+                brg.with_sum = with_sum;
+                CHECK(brgemm_desc_set_postops(
+                        &brg, attr, &dst_md, LDD, bia_dt));
             }
         }
     }
@@ -2490,10 +2488,11 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         const jit_brgemm_conv_conf_t &jcp) {
     if (jcp.brg_type == brgemm_addr || jcp.brg_type == brgemm_offs
             || jcp.brg_type == brgemm_static_offs
-            || (jcp.brg_type == brgemm_strd && jcp.exec_type == exec_vpad))
+            || (jcp.brg_type == brgemm_strd && jcp.exec_type == exec_vpad)) {
         scratchpad.book(key_brgemm_primitive_batch,
                 static_cast<size_t>(jcp.nthr) * jcp.adjusted_batch_size,
                 sizeof(brgemm_batch_element_t), 64, P4K);
+    }
     if (jcp.exec_type == exec_trans) {
         size_t inp_buffer_size
                 = static_cast<size_t>(jcp.nthr) * jcp.inp_buffer_size;
