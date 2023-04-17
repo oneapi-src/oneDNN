@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2021 Intel Corporation
+# Copyright 2020-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,11 +24,14 @@ set(testing_cmake_included true)
 include("cmake/options.cmake")
 
 # Transfer string literal into a number to support nested inclusions easier
-set(DNNL_TEST_SET_CI_NO_CORR "1")
-set(DNNL_TEST_SET_CI "2")
-set(DNNL_TEST_SET_NIGHTLY "3")
+set(DNNL_TEST_SET_SMOKE "1")
+set(DNNL_TEST_SET_CI_NO_CORR "2")
+set(DNNL_TEST_SET_CI "3")
+set(DNNL_TEST_SET_NIGHTLY "4")
 
-if(DNNL_TEST_SET STREQUAL "CI_NO_CORR")
+if(DNNL_TEST_SET STREQUAL "SMOKE")
+    set(DNNL_TEST_SET ${DNNL_TEST_SET_SMOKE})
+elseif(DNNL_TEST_SET STREQUAL "CI_NO_CORR")
     set(DNNL_TEST_SET ${DNNL_TEST_SET_CI_NO_CORR})
 elseif(DNNL_TEST_SET STREQUAL "NIGHTLY")
     set(DNNL_TEST_SET ${DNNL_TEST_SET_NIGHTLY})

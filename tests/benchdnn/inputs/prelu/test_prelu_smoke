@@ -1,0 +1,12 @@
+--reset
+
+--match=.*prelu_ci_2d.* # Use 2d problems only from shapes_ci
+--stag=axb:any
+
+--dir=FWD_D,BWD_DW
+--sdt=f32,bf16,f16
+--batch=shapes_ci
+
+--dir=FWD_I
+--sdt=s8,u8
+--batch=shapes_ci

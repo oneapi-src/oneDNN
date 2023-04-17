@@ -1,0 +1,22 @@
+--reset
+
+--match=.*lnorm_ci_0d.* # Use 0d problems only from shapes_ci
+--inplace=false
+--tag=axb
+--stat_tag=any
+
+--dir=FWD_D,BWD_DW
+--dt=f32,bf16,f16
+--flags=,G,CH
+--batch=shapes_ci
+
+--dir=BWD_D
+--flags=,G
+--batch=shapes_ci
+
+# Different data type combinations
+--dt=f32:s8,u8:f32
+--dir=FWD_I
+--attr-scales=,src:common:64*+dst:common:0.5*
+--flags=,CH
+--batch=shapes_ci

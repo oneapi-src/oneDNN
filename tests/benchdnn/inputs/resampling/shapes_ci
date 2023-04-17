@@ -7,6 +7,7 @@ mb4ic17_iw17ow21_n"resampling_ci_1d:2"
 mb4ic17_iw21ow17_n"resampling_ci_1d:3"
 
 # 2D
+# Used in smoke validation, don't change the name
 mb3ic16_ih3oh5_iw11ow11_n"resampling_ci_2d:0"
 mb3ic16_ih5oh3_iw11ow11_n"resampling_ci_2d:1"
 mb4ic17_ih7oh6_iw14ow12_n"resampling_ci_2d:2"

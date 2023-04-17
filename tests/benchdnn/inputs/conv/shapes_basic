@@ -30,6 +30,7 @@ g17ic17oc17_iw5ow5kw3pw1_n"conv_basic_1d:depthwise_tail"
 g17ic17oc17_iw8ow4kw3pw1sw2_n"conv_basic_1d:depthwise_stride_tail"
 
 # two dimensional shapes
+# Used in smoke validation, don't change the name
 g1ic3oc16_ih5oh5kh3ph1_n"conv_basic_2d:1st"
 g1ic3oc17_ih5oh5kh3ph1_n"conv_basic_2d:1st_tail"
 g1ic3oc17_ih8oh4kh3ph1sh2_n"conv_basic_2d:1st_stride_tail"
