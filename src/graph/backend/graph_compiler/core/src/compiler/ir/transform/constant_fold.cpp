@@ -1771,16 +1771,16 @@ public:
         bool changed = !cond.ptr_same(v->condition_)
                 || !elsecase.ptr_same(v->else_case_)
                 || !thencase.ptr_same(v->then_case_);
-        if (v->condition_.isa<constant>()) {
-            assert(!v->condition_.as<constant>()->is_vector());
-            COMPILE_ASSERT(v->condition_->dtype_ == datatypes::boolean,
+        if (cond.isa<constant>()) {
+            assert(!cond.as<constant>()->is_vector());
+            COMPILE_ASSERT(cond->dtype_ == datatypes::boolean,
                     "IfElse node expects an boolean expr as the condition, got "
-                            << v->condition_->dtype_ << " expr = " << v);
-            bool val = v->condition_.as<constant>()->value_[0].u64;
+                            << cond->dtype_ << " expr = " << v);
+            bool val = cond.as<constant>()->value_[0].u64;
             if (val) {
-                return v->then_case_;
+                return thencase;
             } else {
-                if (v->else_case_.defined()) { return v->else_case_; }
+                if (v->else_case_.defined()) { return elsecase; }
                 return make_stmt<stmts_node_t>(std::vector<stmt>());
             }
         }

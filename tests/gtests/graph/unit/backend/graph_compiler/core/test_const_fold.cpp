@@ -496,3 +496,24 @@ TEST(GCCore_const_fold_cpp, TestConstFoldRangeGEGT) {
     ir_comparer cmper {true};
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
+
+TEST(GCCore_const_fold_cpp, TestConstFoldElseBlock) {
+    builder::ir_builder_t bld;
+    _function_(datatypes::void_t, aaa) {
+        _var_(p, datatypes::s32);
+        _if_(false) { p = 1; }
+        _else_ { p = expr(2) + expr(3); }
+    }
+
+    constant_folder_t f {true};
+    auto out = f(aaa);
+
+    _function_(datatypes::void_t, expected) {
+        _var_(p, datatypes::s32);
+        bld.push_scope();
+        { p = 5; }
+        bld.emit(bld.pop_scope());
+    }
+    ir_comparer cmper {true};
+    EXPECT_TRUE(cmper.compare(out, expected, false));
+}
