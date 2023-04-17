@@ -88,7 +88,7 @@ struct prb_info_t {
             dim_t outer_elems)
         : simd(simd), type_size(type_size) {
         int best_block = 1;
-        int best_messages = subgroup_messages(simd, best_block);
+        int best_messages = subgroup_messages(simd, best_block, type_size);
         dim_t inner_elems = inner_size / type_size;
         for (int i = 1; i < simd * 32; ++i) {
             dim_t block_size = i * type_size;
@@ -101,7 +101,7 @@ struct prb_info_t {
             if (reqd_threads > (dim_t)hw_threads
                     && 2 * block_size > max_block_size)
                 continue;
-            int messages = subgroup_messages(simd, i);
+            int messages = subgroup_messages(simd, i, type_size);
             if (i * best_messages < best_block * messages) continue;
             if (i * best_messages == best_block * messages && i < best_block)
                 continue;
@@ -112,11 +112,13 @@ struct prb_info_t {
         messages = best_messages;
     }
 
-    static int subgroup_messages(int simd, int block) {
-        const int set_bits[] = {0, 1, 1, 2, 1, 2, 2, 3};
+    static int subgroup_messages(int simd, int block, int type_size) {
+        const int set_bits[] = {0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4};
         int thread_block_elems = block / simd;
-        int block_messages
-                = (thread_block_elems / 8) + set_bits[thread_block_elems & 0x7];
+        int max_vec_size = type_size == 1 ? 16 : 8;
+        int num_max_vecs = thread_block_elems / max_vec_size;
+        int num_small_vecs = set_bits[thread_block_elems & (max_vec_size - 1)];
+        int block_messages = num_max_vecs + num_small_vecs;
         int scattered_messages = block % simd ? 1 : 0;
         return block_messages + scattered_messages * scattered_message_penalty;
     }
