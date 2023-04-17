@@ -31,6 +31,7 @@ TEST(DebugUtilsDeathTest, DataType2str) {
     EXPECT_STREQ("s32", data_type2str(data_type::s32));
     EXPECT_STREQ("s8", data_type2str(data_type::s8));
     EXPECT_STREQ("u8", data_type2str(data_type::u8));
+    EXPECT_STREQ("boolean", data_type2str(data_type::boolean));
 #ifndef NDEBUG
     EXPECT_DEATH(data_type2str(static_cast<data_type_t>(data_type::u8 + 1)),
             "unknown data_type");
