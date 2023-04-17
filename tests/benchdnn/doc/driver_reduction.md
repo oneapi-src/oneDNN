@@ -25,6 +25,10 @@ where *reduction-knobs* are:
  - `--attr-post-ops=STRING` -- post operation primitive attribute. No post
             operations are set by default. Refer to [attributes](knobs_attr.md)
             for details.
+ - `--match=REGEX` -- skip problems not matching the regular expression in
+            `REGEX`. By default no pattern is applied (run everything).
+            Note: Windows may interpret only string arguments surrounded by
+            double quotation marks.
 
 and *reduction-desc* is a problem descriptor. The canonical form is:
 ```

@@ -18,6 +18,10 @@ where *shuffle-knobs* are:
             logical memory layout.
  - `--group=INT` -- group size along the shuffle axis. Must evenly divide the
             shuffle axis. The default is `1`.
+ - `--match=REGEX` -- skip problems not matching the regular expression in
+            `REGEX`. By default no pattern is applied (run everything).
+            Note: Windows may interpret only string arguments surrounded by
+            double quotation marks.
 
 and *shuffle-desc* is a problem descriptor. The canonical form is:
 ```

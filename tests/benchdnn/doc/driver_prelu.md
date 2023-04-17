@@ -12,6 +12,10 @@ where *prelu-knobs* are:
             Refer to [data types](knobs_dt.md) for details.
  - `--stag={abx:any [default], ...}` -- physical src and wei memory layout.
             Refer to [tags](knobs_tag.md) for details.
+ - `--match=REGEX` -- skip problems not matching the regular expression in
+            `REGEX`. By default no pattern is applied (run everything).
+            Note: Windows may interpret only string arguments surrounded by
+            double quotation marks.
 
 and *prelu-desc* is a problem descriptor. The canonical form is:
 ```

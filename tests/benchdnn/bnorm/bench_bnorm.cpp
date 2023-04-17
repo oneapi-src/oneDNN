@@ -53,7 +53,6 @@ void check_correctness(
 
         const prb_t prb(s.desc, i_mb, i_dir, i_dt, i_tag, i_flags, i_inplace,
                 attr, i_ctx_init, i_ctx_exe, s.check_alg, s.debug_check_ws);
-
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
 
         task_executor.submit(

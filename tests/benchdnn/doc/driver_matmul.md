@@ -52,6 +52,10 @@ where *matmul-knobs* are:
             default. Refer to [encodings](knobs_encoding.md) for details. This
             is an experimental feature that must be enabled via a build time
             CMake option `DNNL_EXPERIMENTAL_SPARSE`.
+ - `--match=REGEX` -- skip problems not matching the regular expression in
+            `REGEX`. By default no pattern is applied (run everything).
+            Note: Windows may interpret only string arguments surrounded by
+            double quotation marks.
 
 and *matmul-desc* is a problem descriptor. The canonical form is:
 ```

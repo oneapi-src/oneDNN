@@ -18,6 +18,10 @@ where *concat-knobs* are:
             Refer to [tags](knobs_tag.md) for details.
  - `--axis=INT` -- dimension on which operation will be performed.
             Default is `1`; corresponds to channels in logical memory layout.
+ - `--match=REGEX` -- skip problems not matching the regular expression in
+            `REGEX`. By default no pattern is applied (run everything).
+            Note: Windows may interpret only string arguments surrounded by
+            double quotation marks.
 
 and *concat-desc* is a problem descriptor. The canonical form is:
 ```

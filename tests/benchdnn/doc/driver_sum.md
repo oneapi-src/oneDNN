@@ -18,6 +18,10 @@ where *sum-knobs* are:
             Refer to [tags](knobs_tag.md) for details.
  - `--scales={FLOAT[:FLOAT...]}` -- input scales. Refer to ``Scales`` below.
             The default is 1.f.
+ - `--match=REGEX` -- skip problems not matching the regular expression in
+            `REGEX`. By default no pattern is applied (run everything).
+            Note: Windows may interpret only string arguments surrounded by
+            double quotation marks.
 
 and *sum-desc* is a problem descriptor. The canonical form is:
 ```

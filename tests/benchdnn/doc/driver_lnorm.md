@@ -29,6 +29,10 @@ where *lnorm-knobs* are:
  - `--inplace=BOOL` -- memory mode for the primitive. If `true`, it uses input
             memory as output, otherwise, input and output are separate.
             Default is `false`.
+ - `--match=REGEX` -- skip problems not matching the regular expression in
+            `REGEX`. By default no pattern is applied (run everything).
+            Note: Windows may interpret only string arguments surrounded by
+            double quotation marks.
 
 and *lnorm-desc* is a problem descriptor. The canonical form is:
 ```

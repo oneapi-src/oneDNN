@@ -39,6 +39,10 @@ where *brgemm-knobs* are:
             for details.
  - `--attr-fpmath=STRING` -- fpmath mode primitive attribute. `strict` math mode
             is set by default. Refer to [attributes](knobs_attr.md) for details.
+ - `--match=REGEX` -- skip problems not matching the regular expression in
+            `REGEX`. By default no pattern is applied (run everything).
+            Note: Windows may interpret only string arguments surrounded by
+            double quotation marks.
 
 and *brgemm-desc* is a problem descriptor. The canonical form is:
 ```

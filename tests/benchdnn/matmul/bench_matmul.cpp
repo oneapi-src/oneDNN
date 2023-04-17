@@ -74,6 +74,7 @@ void check_correctness(
                 i_sparse_options,
 #endif
                 attr, i_ctx_init, i_ctx_exe);
+        if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
 
         task_executor.submit(
                 prb, s.perf_template, createit, check_cacheit, doit);
@@ -167,6 +168,7 @@ int bench(int argc, char **argv) {
                         s.fpmath_mode, def.fpmath_mode, argv[0])
                 || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
                 || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
+                || parse_test_pattern_match(s.pattern, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv(), argv[0])
                 || parse_reset(s, argv[0]) || parse_help(argv[0]);

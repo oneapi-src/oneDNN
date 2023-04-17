@@ -50,6 +50,7 @@ void check_correctness(const settings_t &s, const settings_t &def) {
         const prb_t prb(s.prb_vdims, i_dt, i_stag, i_wtag, i_dtag, i_ld,
                 i_bia_dt, i_alpha, i_beta, i_batch_size, i_brgemm_attr, attr,
                 i_ctx_init, i_ctx_exe);
+        if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
         BENCHDNN_PRINT(1, "run: %s\n", prb.str());
 
         res_t res {};
@@ -142,6 +143,7 @@ int bench(int argc, char **argv) {
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_attr_fpmath_mode(
                         s.fpmath_mode, def.fpmath_mode, argv[0])
+                || parse_test_pattern_match(s.pattern, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv(), argv[0])
                 || parse_reset(s, argv[0]) || parse_help(argv[0]);

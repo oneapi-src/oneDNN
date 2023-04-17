@@ -46,6 +46,10 @@ where *reorder-knobs* are:
             `DNNL_RUNTIME_DIM_VAL` (indicated as 1-bit in the corresponding
             dimension position). The default is `0`, meaning all tensor
             dimensions are fully defined at primitive creation.
+ - `--match=REGEX` -- skip problems not matching the regular expression in
+            `REGEX`. By default no pattern is applied (run everything).
+            Note: Windows may interpret only string arguments surrounded by
+            double quotation marks.
 
 and *reorder-desc* is a problem descriptor. The canonical form is:
 ```
