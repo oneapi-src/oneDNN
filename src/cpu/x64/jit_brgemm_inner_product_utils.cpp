@@ -653,6 +653,16 @@ status_t jit_brgemm_ip_bwd_d_conf_t::init_conf(cpu_isa_t isa,
 
     jbgp.oc_block = get_adjusted_oc_block();
 
+    const int n_sp_dims = jbgp.ndims - 2;
+    const format_tag_t wei_blk_8
+            = pick(n_sp_dims, OI8i8o2i, OIw8i8o2i, OIhw8i8o2i, OIdhw8i8o2i);
+    const format_tag_t wei_blk_24
+            = pick(n_sp_dims, OI8i24o2i, OIw8i24o2i, OIhw8i24o2i, OIdhw8i24o2i);
+    // Note: these wei tags are currently unsupported in the transform JIT
+    // kernels.
+    if (one_of(jbgp.wei_tag, wei_blk_8, wei_blk_24))
+        return status::unimplemented;
+
     // Optimization: for small shape we avoid large ic_block
     // Thinking of os, ic, and oc as three dimensions, the boundary for small
     // shapes is heuristically chosen via the following constraints:
@@ -1019,6 +1029,16 @@ status_t jit_brgemm_ip_bwd_w_conf_t::init_conf(cpu_isa_t isa,
     jbgp.oc_block
             = has_weights_buffer ? get_oc_block() : get_adjusted_oc_block();
     jbgp.oc_block_ext = get_adjusted_oc_block();
+
+    const int n_sp_dims = jbgp.ndims - 2;
+    const format_tag_t wei_blk_8
+            = pick(n_sp_dims, OI8i8o2i, OIw8i8o2i, OIhw8i8o2i, OIdhw8i8o2i);
+    const format_tag_t wei_blk_24
+            = pick(n_sp_dims, OI8i24o2i, OIw8i24o2i, OIhw8i24o2i, OIdhw8i24o2i);
+    // Note: these wei tags are currently unsupported in the transform JIT
+    // kernels.
+    if (one_of(jbgp.wei_tag, wei_blk_8, wei_blk_24))
+        return status::unimplemented;
 
     jbgp.os_block = get_os_block(false, false);
     jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
