@@ -1201,11 +1201,18 @@ void brgemm_convolution_bwd_weights_t::store_in_vnni_format(
         thread_info_t *ti) const {
     const auto &jcp = pd()->jcp_;
 
-    for_(int g = ti->g_start; g < ti->g_end; g++)
-    for_(int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; oc_b++)
-    for_(int ic_b = ti->ic_b_start; ic_b < ti->ic_b_start + ti->ic_b_work;
-            ic_b += 2)
-    {
+    const auto icb2_work = div_up(ti->ic_b_work, 2);
+    const auto work = ti->g_work * ti->oc_b_work * icb2_work;
+
+    int start {0}, end {0};
+    balance211(work, jcp.nthr_mb, ti->ithr_mb, start, end);
+    int sub_g_start {0}, sub_oc_b_start {0}, sub_icb2_start {0};
+    nd_iterator_init(start, sub_g_start, ti->g_work, sub_oc_b_start,
+            ti->oc_b_work, sub_icb2_start, icb2_work);
+    for (int w = start; w < end; w++) {
+        const int g = ti->g_start + sub_g_start;
+        const int oc_b = ti->oc_b_start + sub_oc_b_start;
+        const int ic_b = ti->ic_b_start + 2 * sub_icb2_start;
         jit_conv_call_s p = jit_conv_call_s();
 
         bfloat16_t *output = (bfloat16_t *)ti->diff_weights
@@ -1216,6 +1223,8 @@ void brgemm_convolution_bwd_weights_t::store_in_vnni_format(
         p.dst = (void *)output;
         p.last_ic_block = ((ic_b + 1) >= jcp.nb_ic) ? 1 : 0;
         (*diff_wei_trans_kernel_)(&p);
+        nd_iterator_step(sub_g_start, ti->g_work, sub_oc_b_start, ti->oc_b_work,
+                sub_icb2_start, icb2_work);
     }
 }
 
