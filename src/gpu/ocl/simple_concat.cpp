@@ -223,8 +223,10 @@ static status_t init_conf_common(
     // TODO: add proper scales support
     const bool has_scales = false;
     const int hw_threads = device_info->hw_threads();
+    const int max_sg_size = device_info->max_subgroup_size();
     std::vector<prb_info_t> infos;
-    for (int simd : {16, 8, 1}) {
+    for (int simd : {32, 16, 8, 1}) {
+        if (simd > max_sg_size) continue;
         if (simd > 1 && !compute_engine->mayiuse_sub_group(simd)) continue;
         if (has_scales) {
             infos.emplace_back(simd, hw_threads, (int)data_type_size,
