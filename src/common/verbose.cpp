@@ -97,8 +97,8 @@ uint32_t get_verbose() {
             if (s == "dispatch") return k |= verbose_t::create_dispatch;
             if (s == "profile")
                 return k |= verbose_t::create_profile | verbose_t::exec_profile;
-            if (s == "create_profile") return k |= verbose_t::create_profile;
-            if (s == "exec_profile") return k |= verbose_t::exec_profile;
+            if (s == "profile_create") return k |= verbose_t::create_profile;
+            if (s == "profile_exec") return k |= verbose_t::exec_profile;
             // we extract debug info debug_info=XX. ignore if debuginfo is invalid.
             if (s.rfind("debuginfo=", 0) == 0)
                 return k |= verbose_t::make_debuginfo(
