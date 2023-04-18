@@ -492,6 +492,42 @@ TEST(GCGraphTest, INT8BF16BartMHACompileExecution) {
     compile_execution_pipeline(agraph, 1);
 }
 
+TEST(GCGraphTest, FP32DistillBertMHA) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    compiler_utils::add_distill_bert_MHA(&agraph, false, false);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, BF16DistillBertMHA) {
+    REQUIRE_BF16_AMXBF16();
+    impl::graph_t agraph;
+    compiler_utils::add_distill_bert_MHA(&agraph, true, false);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8FP32DistillBertMHA) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_distill_bert_MHA(&agraph, false, true);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8BF16DistillBertMHA) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_distill_bert_MHA(&agraph, true, true);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
 TEST(GCGraphTest, FP32MLPCompileExecution) {
     REQUIRE_AVX512();
     REQUIRE_AMX();

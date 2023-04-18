@@ -77,6 +77,17 @@ bool check_conv_attrs(op_t *op) {
     return true;
 }
 
+bool check_select(op_t *op) {
+    auto inputs = op->get_input_values();
+    if (inputs.size() != 3) return false;
+    // input[1]'s shape shall be either {1} or a 0-dim tensor
+    if (inputs[1]->get_logical_tensor().ndims == 0
+            || (inputs[1]->get_logical_tensor().ndims == 1
+                    && inputs[1]->get_logical_tensor().dims[0] == 1))
+        return true;
+    return false;
+}
+
 } // namespace pass
 } // namespace compiler_impl
 } // namespace graph

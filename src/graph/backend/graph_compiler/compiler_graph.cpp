@@ -49,7 +49,8 @@ static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
                         "batchnorm_forward_training"},
                 {op_kind::BatchNormTrainingBackward,
                         "batchnorm_training_backprop"},
-                {op_kind::Maximum, "max"}, {op_kind::LayerNorm, "layernorm"}};
+                {op_kind::Maximum, "max"}, {op_kind::LayerNorm, "layernorm"},
+                {op_kind::Select, "select"}};
 
 // we convert all int64[] to int32[] except for allowlist
 static std::unordered_set<graph::op_attr_t> type_conversion_allowlist {
@@ -242,7 +243,7 @@ inline gc::sc_data_type_t compiler_graph_impl_t::convert_data_type(
         return gc::sc_data_type_t(gc::sc_data_etype::S32, 1);
     if (dtype == data_type::s8)
         return gc::sc_data_type_t(gc::sc_data_etype::S8, 1);
-    if (dtype == data_type::u8)
+    if (dtype == data_type::u8 || dtype == data_type::boolean)
         return gc::sc_data_type_t(gc::sc_data_etype::U8, 1);
     assert(0 && "undefined or unknown data_type");
     return gc::sc_data_type_t();
