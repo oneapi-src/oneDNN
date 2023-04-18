@@ -75,7 +75,52 @@ namespace impl {
 
 static setting_t<uint32_t> verbose {0};
 
-uint32_t get_verbose() {
+void print_header(int verbosity_flag_hint = verbose_t::none) {
+    static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
+    if ((verbose.get() & verbosity_flag_hint)
+            && !version_printed.test_and_set()) {
+        printf("onednn_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
+                dnnl_version()->major, dnnl_version()->minor,
+                dnnl_version()->patch, dnnl_version()->hash);
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+        printf("onednn_verbose,info,cpu,runtime:%s,nthr:%d\n",
+                dnnl_runtime2str(dnnl_version()->cpu_runtime),
+                dnnl_get_max_threads());
+        printf("onednn_verbose,info,cpu,isa:%s\n",
+                cpu::platform::get_isa_info());
+#endif
+        printf("onednn_verbose,info,gpu,runtime:%s\n",
+                dnnl_runtime2str(dnnl_version()->gpu_runtime));
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        gpu::ocl::print_verbose_header();
+#endif
+#ifdef DNNL_WITH_SYCL
+        sycl::print_verbose_header();
+#endif
+#ifdef DNNL_EXPERIMENTAL
+        printf("onednn_verbose,info,experimental features are enabled\n");
+        printf("onednn_verbose,info,use batch_normalization stats one pass is "
+               "%s\n",
+                experimental::use_bnorm_stats_one_pass() ? "enabled"
+                                                         : "disabled");
+#endif
+
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        printf("onednn_verbose,info,experimental functionality for sparse "
+               "domain is enabled\n");
+#endif
+
+        printf("onednn_verbose,info,prim_template:");
+        printf("%soperation,engine,primitive,implementation,prop_"
+               "kind,memory_descriptors,attributes,auxiliary,problem_desc,exec_"
+               "time\n",
+                get_verbose_timestamp() ? "timestamp," : "");
+    }
+}
+
+// verbosity flag is a hint on when to print header so that we print
+// header only when something will effectively be logged
+uint32_t get_verbose(int verbosity_flag_hint = verbose_t::none) {
 #if defined(DISABLE_VERBOSE)
     return verbose_t::none;
 #else
@@ -118,66 +163,29 @@ uint32_t get_verbose() {
         verbose.set(val);
     }
 
-    static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
-    if (verbose.get() > 0 && !version_printed.test_and_set()) {
-        printf("onednn_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
-                dnnl_version()->major, dnnl_version()->minor,
-                dnnl_version()->patch, dnnl_version()->hash);
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-        printf("onednn_verbose,info,cpu,runtime:%s,nthr:%d\n",
-                dnnl_runtime2str(dnnl_version()->cpu_runtime),
-                dnnl_get_max_threads());
-        printf("onednn_verbose,info,cpu,isa:%s\n",
-                cpu::platform::get_isa_info());
-#endif
-        printf("onednn_verbose,info,gpu,runtime:%s\n",
-                dnnl_runtime2str(dnnl_version()->gpu_runtime));
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-        gpu::ocl::print_verbose_header();
-#endif
-#ifdef DNNL_WITH_SYCL
-        sycl::print_verbose_header();
-#endif
-#ifdef DNNL_EXPERIMENTAL
-        printf("onednn_verbose,info,experimental features are enabled\n");
-        printf("onednn_verbose,info,use batch_normalization stats one pass is "
-               "%s\n",
-                experimental::use_bnorm_stats_one_pass() ? "enabled"
-                                                         : "disabled");
-#endif
+    print_header(verbosity_flag_hint);
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
-        printf("onednn_verbose,info,experimental functionality for sparse "
-               "domain is enabled\n");
-#endif
-
-        printf("onednn_verbose,info,prim_template:");
-        printf("%soperation,engine,primitive,implementation,prop_"
-               "kind,memory_descriptors,attributes,auxiliary,problem_desc,exec_"
-               "time\n",
-                get_verbose_timestamp() ? "timestamp," : "");
-    }
     return verbose.get();
 #endif
 }
 
 bool verbose_has_error() {
-    return get_verbose() & verbose_t::error;
+    return get_verbose(verbose_t::error) & verbose_t::error;
 };
 bool verbose_has_create_dispatch() {
-    return get_verbose() & verbose_t::create_dispatch;
+    return get_verbose(verbose_t::create_dispatch) & verbose_t::create_dispatch;
 };
 bool verbose_has_create_check() {
-    return get_verbose() & verbose_t::create_check;
+    return get_verbose(verbose_t::create_check) & verbose_t::create_check;
 };
 bool verbose_has_create_profile() {
-    return get_verbose() & verbose_t::create_profile;
+    return get_verbose(verbose_t::create_profile) & verbose_t::create_profile;
 };
 bool verbose_has_exec_check() {
-    return get_verbose() & verbose_t::exec_check;
+    return get_verbose(verbose_t::exec_check) & verbose_t::exec_check;
 };
 bool verbose_has_exec_profile() {
-    return get_verbose() & verbose_t::exec_profile;
+    return get_verbose(verbose_t::exec_profile) & verbose_t::exec_profile;
 };
 int verbose_debuginfo() {
     return get_verbose() >> 24;
