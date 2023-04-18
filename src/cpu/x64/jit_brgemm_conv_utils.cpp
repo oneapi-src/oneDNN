@@ -2852,6 +2852,13 @@ void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
             nthr_oc_b = jcp.nthr / (nthr_mb * nthr_ic_b);
         }
         nthr = nthr_mb * nthr_g * nthr_oc_b * nthr_ic_b;
+    } else if (jcp.kw > 100 && jcp.id == 1 && jcp.ih == 1) {
+        nthr_g = nstl::min(jcp.nthr, jcp.ngroups);
+        nthr_oc_b = nstl::min(jcp.nthr / nthr_g, div_up(jcp.nb_oc, 2));
+        nthr_ic_b = nstl::min(
+                jcp.nthr / (nthr_g * nthr_oc_b), div_up(jcp.nb_ic, 2));
+        nthr_mb = jcp.nthr / (nthr_g * nthr_oc_b * nthr_ic_b);
+        nthr = nthr_mb * nthr_g * nthr_oc_b * nthr_ic_b;
     }
 
     jcp.nthr = nthr;
