@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -825,8 +825,8 @@ struct jit_brgemm_conv_conf_t {
     int mb;
     int ngroups, ic, oc, oc_without_padding, ic_without_padding;
 
-    int od_block, oh_block, nb_od,
-            nb_oh; // blocking  - included in parallelization
+    int od_block, oh_block, nb_od, nb_oh,
+            ih_block; // blocking  - included in parallelization
     dim_t inp_buffer_size, inp_buffer_mask_size;
     conv_brgemm_exec_type_t exec_type;
 
