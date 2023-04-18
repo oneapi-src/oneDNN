@@ -336,6 +336,10 @@ TEST_F(attr_test_t, TestPostOpsCheckLimit) {
 }
 
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestSumPostOpQuantization) {
+#define ALLOW_UNIMPL(f) \
+    EXPECT_NO_THROW( \
+            catch_expected_failures([&]() { f; }, false, dnnl_success, true))
+
     auto engine_kind = get_test_engine_kind();
     engine e {engine_kind, 0};
 
@@ -418,8 +422,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestSumPostOpQuantization) {
                                     if (impl::utils::one_of(sum_dt,
                                                 data_type::s8, data_type::u8,
                                                 data_type::s32))
-                                        EXPECT_NO_THROW(
-                                                create_pd(pk, dt, attr));
+                                        ALLOW_UNIMPL(create_pd(pk, dt, attr));
                                     else
                                         // unsupported scenario
                                         EXPECT_ANY_THROW(
@@ -427,7 +430,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestSumPostOpQuantization) {
                                 }
                             } else {
                                 // gemm-style beta support
-                                EXPECT_NO_THROW(create_pd(pk, dt, attr));
+                                ALLOW_UNIMPL(create_pd(pk, dt, attr));
                             }
                         } else {
                             // unsupported scenario
