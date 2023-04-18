@@ -835,9 +835,12 @@ void reorder_op_t::pre_slice_ranges(
     slice_range_list known_ranges_list = fsmap.get(get_outputs()[0]);
     // deal with begining reorder op, which use output loop
     if (!stat_map.is_recursive_mode() && fsmap.datamap_.size() == 1) {
-        if (support_optimized_kernel(stat_map.get_context())
-                && !check_required_slice(get_outputs()[0], known_ranges_list,
-                        get_output_format().is_vnni_format() ? 3 : 2)) {
+        if (!use_output_loop()
+                || (support_optimized_kernel(stat_map.get_context())
+                        && !check_required_slice(get_outputs()[0],
+                                known_ranges_list,
+                                get_output_format().is_vnni_format() ? 3
+                                                                     : 2))) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
         } else {
             // set input slice for anchor check
