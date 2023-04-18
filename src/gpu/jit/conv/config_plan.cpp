@@ -165,8 +165,18 @@ void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
         check_oh = is_2d && check_osp;
         check_od = is_3d && check_osp;
 
-        if (!is_1d) ow %= prb_.ow;
-        if (!is_2d) oh %= prb_.oh;
+        if (is_1d) {
+            oh = expr_t(0);
+            od = expr_t(0);
+        } else if (is_2d) {
+            ow %= prb_.ow;
+            od = expr_t(0);
+        } else if (is_3d) {
+            ow %= prb_.ow;
+            oh %= prb_.oh;
+        } else {
+            ir_error_not_expected();
+        }
     } else {
         od = var_t::make(type_t::s32(), "od");
         oh = var_t::make(type_t::s32(), "oh");
