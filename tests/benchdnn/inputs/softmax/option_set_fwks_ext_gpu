@@ -1,18 +1,31 @@
-#bert.inf.bf16.pt.mb64_pvc
---reset --allow-enum-tags-only=0 --sdt=bf16 --ddt=bf16 --dir=FWD_D --stag=abcd --dtag=abcd --axis=3 64x16x384x384n"bert.inf.bf16.pt.mb64_pvc*24"
-#bert.inf.bf16.tf.mb64_pvc
---reset --allow-enum-tags-only=0 --sdt=bf16 --ddt=bf16 --dir=FWD_D --stag=abcd --dtag=abcd --axis=3 64x16x384x384n"bert.inf.bf16.tf.mb64_pvc*24"
-#bert.inf.fp32.tf.mb64_pvc
---reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=FWD_D --stag=abcd --dtag=abcd --axis=3 64x16x384x384n"bert.inf.fp32.tf.mb64_pvc*24"
-#maskrcnn.inf.fp32.tf.mb4_pvc
---reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=FWD_D --stag=abc --dtag=abc --axis=2 4x1000x91n"maskrcnn.inf.fp32.tf.mb4_pvc*1"
-#unet-3d.tr.bf16.tf.mb2_pvc
---reset --allow-enum-tags-only=0 --sdt=bf16 --ddt=bf16 --dir=FWD_D --stag=aBcde16b --dtag=aBcde16b --axis=1 2x4x128x128x128n"unet-3d.tr.bf16.tf.mb2_pvc*1"
-#unet-3d.tr.bf16.tf.mb1_pvc
---reset --allow-enum-tags-only=0 --sdt=bf16 --ddt=bf16 --dir=FWD_D --stag=abcde --dtag=abcde --axis=4 1x128x128x128x4n"unet-3d.tr.bf16.tf.mb1_pvc*1"
-#cosmictagger.tr.fp32.tf.mb14_pvc
---reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=FWD_D --stag=abcd --dtag=abcd --axis=3 14x640x1024x3n"cosmictagger.tr.fp32.tf.mb14_pvc*3"
-#img-preprocessing-blur.inf.fp16.pt.mb1
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --dir=FWD_D --stag=ab --dtag=ab --axis=1 1x5n"img-preprocessing-blur.inf.fp16.pt.mb1*1"
-#img-preprocessing-blur.inf.fp16.pt.mb1
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --dir=FWD_D --stag=ab --dtag=ab --axis=1 1x5n"img-preprocessing-blur.inf.fp16.pt.mb1*1"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax --axis=3 --ddt=bf16 --dtag=abcd --dtag= 64x16x384x384n"*24"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax --axis=3 --ddt=bf16 --dtag=abcd --dtag= 64x16x384x384n"*24"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax --axis=3 --ddt=f32 --dtag=abcd --dtag= 64x16x384x384n"*24"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax --axis=2 --ddt=f32 --dtag=abc --dtag= 4x1000x91n"*1"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax --axis=1 --ddt=bf16 --dtag=aBcde16b --dtag= 2x4x128x128x128n"*1"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax --axis=4 --ddt=bf16 --dtag=abcde --dtag= 1x128x128x128x4n"*1"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax --axis=3 --ddt=f32 --dtag=abcd --dtag= 14x640x1024x3n"*3"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f32 --ddt=f32 --stag=ab --dtag=ab 32x1000n"*1"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f32 --ddt=f32 --stag=ab --dtag=ab 32x1000n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f32 --ddt=f32 --stag=ab --dtag=ab 32x2n"*1"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=3 --sdt=f32 --ddt=f32 --stag=abcd --dtag=abcd 1113x8x1x30n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=3 --sdt=f32 --ddt=f32 --stag=abcd --dtag=abcd 1113x8x30x30n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=3 --sdt=f32 --ddt=f32 --stag=abcd --dtag=abcd 64x8x1x50n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=3 --sdt=f32 --ddt=f32 --stag=abcd --dtag=abcd 64x8x50x50n"*1"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=2 --sdt=f32 --ddt=f32 --stag=abc --dtag=abc 32x1x2n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=3 --sdt=f32 --ddt=f32 --stag=abcd --dtag=abcd 32x16x250x250n"*4"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f32 --ddt=f32 --stag=ab --dtag=ab 1024x1001n"*1"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f32 --ddt=f32 --stag=ab --dtag=ab 1024x1001n"*1"

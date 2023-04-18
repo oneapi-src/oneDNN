@@ -79,3 +79,7 @@
 --direction=right2left,concat,sum
 
 --alg=VANILLA_RNN --activation=RELU --batch=shapes_large
+
+# Test layers of some key GPU DL Frameworks
+--reset
+--batch=option_set_fwks_key_gpu
