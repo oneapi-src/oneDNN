@@ -224,8 +224,9 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     using namespace injector;
     static constexpr bool sum_at_pos_0_only = true;
     static constexpr bool sum_requires_scale_one = true;
-    const bool post_ops_ok_ = post_ops_ok({isa, {eltwise, binary, sum},
-            jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one});
+    const bool post_ops_ok_ = post_ops_ok(
+            post_ops_ok_args_t(isa, {eltwise, binary, sum}, jcp.post_ops,
+                    &dst_d, sum_at_pos_0_only, sum_requires_scale_one));
     if (!post_ops_ok_) return status::unimplemented;
 
     const bool ok_to_pad_channels = true && !is_data_layout_nxc

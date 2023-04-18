@@ -1469,8 +1469,8 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
 
     using namespace injector;
 
-    const bool post_ops_ok_ = post_ops_ok({isa, {eltwise, binary, sum},
-            jcp.post_ops, &dst_d, false, false, false});
+    const bool post_ops_ok_ = post_ops_ok(post_ops_ok_args_t(isa,
+            {eltwise, binary, sum}, jcp.post_ops, &dst_d, false, false, false));
     if (!post_ops_ok_) return status::unimplemented;
 
     jcp.typesize_in = types::data_type_size(src_d.data_type());

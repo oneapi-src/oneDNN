@@ -694,9 +694,9 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     static constexpr bool sum_at_pos_0_only = true;
     static constexpr bool sum_requires_scale_one = true;
     static constexpr bool sum_requires_zp_zero = true;
-    const bool post_ops_ok_ = post_ops_ok({avx2, {eltwise, binary, sum},
-            jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one,
-            sum_requires_zp_zero});
+    const bool post_ops_ok_ = post_ops_ok(post_ops_ok_args_t(jcp.isa,
+            {eltwise, binary, sum}, jcp.post_ops, &dst_d, sum_at_pos_0_only,
+            sum_requires_scale_one, sum_requires_zp_zero));
     if (!post_ops_ok_) return status::unimplemented;
 
     bool args_ok = true

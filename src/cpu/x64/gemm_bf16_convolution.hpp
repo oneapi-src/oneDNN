@@ -62,9 +62,10 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
                 static constexpr bool sum_requires_scale_one = true;
                 static constexpr bool sum_requires_zp_zero = true;
                 const auto dst_md = memory_desc_wrapper(dst_md_);
-                ok &= post_ops_ok({avx512_core, {binary, eltwise, sum},
-                        attr()->post_ops_, &dst_md, sum_at_pos_0_only,
-                        sum_requires_scale_one, sum_requires_zp_zero});
+                ok &= post_ops_ok(
+                        post_ops_ok_args_t(avx512_core, {binary, eltwise, sum},
+                                attr()->post_ops_, &dst_md, sum_at_pos_0_only,
+                                sum_requires_scale_one, sum_requires_zp_zero));
             }
             if (!ok) return status::unimplemented;
 

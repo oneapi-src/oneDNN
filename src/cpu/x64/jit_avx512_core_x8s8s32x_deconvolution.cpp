@@ -366,8 +366,9 @@ bool _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::post_ops_ok(
     static constexpr bool sum_at_pos_0_only = true;
     static constexpr bool sum_requires_scale_one = false;
 
-    return injector::post_ops_ok({avx512_core, {eltwise, binary, sum}, post_ops,
-            &dst_d, sum_at_pos_0_only, sum_requires_scale_one});
+    return injector::post_ops_ok(
+            post_ops_ok_args_t(avx512_core, {eltwise, binary, sum}, post_ops,
+                    &dst_d, sum_at_pos_0_only, sum_requires_scale_one));
 }
 
 void _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_scratchpad(
