@@ -724,20 +724,42 @@ struct send_2d_params_t {
 
     layout_t reg_layout(int grf_size, int ndims, const type_t &mem_type) const {
         layout_t l(type, 0, std::vector<dim_t>(ndims, 1));
+        dim_t cur_stride = 1;
+        enum class pad_kind_t {
+            none,
+            dim_pow2,
+            stride_grf,
+        };
+        auto add_block = [&](int dim_idx, dim_t block,
+                                 pad_kind_t pad = pad_kind_t::none) {
+            l = l.add_outer_block(dim_idx, block, cur_stride);
+            dim_t stride = cur_stride * block;
+            switch (pad) {
+                case pad_kind_t::dim_pow2:
+                    stride = cur_stride * utils::rnd_up_pow2(block);
+                    break;
+                case pad_kind_t::stride_grf:
+                    stride = utils::rnd_up(stride, grf_size / type.size());
+                    break;
+                case pad_kind_t::none: break;
+                default: ir_error_not_expected();
+            }
+            cur_stride = stride;
+        };
         if (transpose) {
-            l = l.add_outer_block(h_vidx, h);
-            l = l.add_outer_block(w_vidx, w);
+            add_block(h_vidx, h, pad_kind_t::dim_pow2);
+            add_block(w_vidx, w, pad_kind_t::stride_grf);
         } else if (vnni) {
             int h_inner = 4 / type.size();
             int h_outer = ir_utils::safe_divide(h, h_inner);
-            l = l.add_outer_block(h_vidx, h_inner);
-            l = l.add_outer_block(w_vidx, w);
-            l = l.add_outer_block(h_vidx, h_outer);
+            add_block(h_vidx, h_inner);
+            add_block(w_vidx, w, pad_kind_t::dim_pow2);
+            add_block(h_vidx, h_outer, pad_kind_t::stride_grf);
         } else {
-            l = l.add_outer_block(w_vidx, w);
-            l = l.add_outer_block(h_vidx, h);
+            add_block(w_vidx, w, pad_kind_t::dim_pow2);
+            add_block(h_vidx, h, pad_kind_t::stride_grf);
         }
-        l = l.add_outer_block(vnni_factor > 1 ? h_vidx : w_vidx, c);
+        add_block(vnni_factor > 1 ? h_vidx : w_vidx, c);
         l = l.add_outer_block_and_pad(w_vidx, w_rcount, grf_size);
         l = l.add_outer_block_and_pad(h_vidx, h_rcount, grf_size);
         if (type != mem_type) l = l.reinterpret(mem_type);
