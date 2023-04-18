@@ -185,25 +185,25 @@ TEST(GCCore_concat_optimization_cpp, MergeConsecutiveConcats) {
 
     auto concat0 = graph0.make("concat",
             {mul0->get_outputs()[0], add0->get_outputs()[0]}, {},
-            {{"concat_axis", 0}, {op_attr_key::break_pre_fuse, true},
+            {{"axis", 0}, {op_attr_key::break_pre_fuse, true},
                     {op_attr_key::break_post_fuse, true}});
     // concat0 output: [A0+A0, B, C0, D], A0+A0 = A1
 
     auto concat1 = graph0.make("concat",
             {concat0->get_outputs()[0], add1->get_outputs()[0]}, {},
-            {{"concat_axis", 2}, {op_attr_key::break_pre_fuse, true},
+            {{"axis", 2}, {op_attr_key::break_pre_fuse, true},
                     {op_attr_key::break_post_fuse, true}});
     // concat1 output: [A1, B, C0+C1, D]
 
     auto concat2 = graph0.make("concat",
             {concat1->get_outputs()[0], add2->get_outputs()[0]}, {},
-            {{"concat_axis", 2}, {op_attr_key::break_pre_fuse, true},
+            {{"axis", 2}, {op_attr_key::break_pre_fuse, true},
                     {op_attr_key::break_post_fuse, true}});
     // concat2 output: [A1, B, C0+C1+C2, D]
 
     auto concat3 = graph0.make("concat",
             {concat2->get_outputs()[0], add2->get_outputs()[0]}, {},
-            {{"concat_axis", 2}, {op_attr_key::break_pre_fuse, true},
+            {{"axis", 2}, {op_attr_key::break_pre_fuse, true},
                     {op_attr_key::break_post_fuse, true}});
     // concat3 output: [A1, B, C0+C1+C2+C2, D]
 
@@ -241,21 +241,21 @@ static sc_graph_t build_sequential_standalone_concats() {
     auto relu1 = graph0.make("tanh", {add0->get_outputs()[0]}, {}, {});
     auto concat1 = graph0.make("concat",
             {add0->get_outputs()[0], relu1->get_outputs()[0]}, {},
-            {{"concat_axis", 2}, {op_attr_key::break_pre_fuse, true},
+            {{"axis", 2}, {op_attr_key::break_pre_fuse, true},
                     {op_attr_key::break_post_fuse, true}});
     // concat1 output: [A, B, C0*2, D]
 
     auto relu2 = graph0.make("sigmoid", {concat1->get_outputs()[0]}, {}, {});
     auto concat2 = graph0.make("concat",
             {concat1->get_outputs()[0], relu2->get_outputs()[0]}, {},
-            {{"concat_axis", 2}, {op_attr_key::break_pre_fuse, true},
+            {{"axis", 2}, {op_attr_key::break_pre_fuse, true},
                     {op_attr_key::break_post_fuse, true}});
     // concat2 output: [A, B, C0*4, D]
 
     auto relu3 = graph0.make("relu", {concat2->get_outputs()[0]}, {}, {});
     auto concat3 = graph0.make("concat",
             {concat2->get_outputs()[0], relu3->get_outputs()[0]}, {},
-            {{"concat_axis", 2}, {op_attr_key::break_pre_fuse, true},
+            {{"axis", 2}, {op_attr_key::break_pre_fuse, true},
                     {op_attr_key::break_post_fuse, true}});
     // concat3 output: [A, B, C0*8, D]
 
@@ -294,19 +294,19 @@ static sc_graph_t build_sequential_concats_in_one_partition() {
     auto relu1 = graph0.make("relu", {add0->get_outputs()[0]}, {}, {});
     auto concat1 = graph0.make("concat",
             {add0->get_outputs()[0], relu1->get_outputs()[0]}, {},
-            {{"concat_axis", 2}});
+            {{"axis", 2}});
     // concat1 output: [A, B, C0*2, D]
 
     auto relu2 = graph0.make("relu", {concat1->get_outputs()[0]}, {}, {});
     auto concat2 = graph0.make("concat",
             {concat1->get_outputs()[0], relu2->get_outputs()[0]}, {},
-            {{"concat_axis", 2}});
+            {{"axis", 2}});
     // concat2 output: [A, B, C0*4, D]
 
     auto relu3 = graph0.make("relu", {concat2->get_outputs()[0]}, {}, {});
     auto concat3 = graph0.make("concat",
             {concat2->get_outputs()[0], relu3->get_outputs()[0]}, {},
-            {{"concat_axis", 2}});
+            {{"axis", 2}});
     // concat3 output: [A, B, C0*8, D]
 
     auto add1 = graph0.make("add",
@@ -342,44 +342,44 @@ static sc_graph_t build_sequential_concats_standalone_and_in_one_partition() {
     auto relu1 = graph0.make("tanh", {add0->get_outputs()[0]}, {}, {});
     auto concat1 = graph0.make("concat",
             {add0->get_outputs()[0], relu1->get_outputs()[0]}, {},
-            {{"concat_axis", 2}});
+            {{"axis", 2}});
     // concat1 output: [A, B, C0*2, D]
 
     auto relu2 = graph0.make("relu", {concat1->get_outputs()[0]}, {}, {});
     auto concat2 = graph0.make("concat",
             {concat1->get_outputs()[0], relu2->get_outputs()[0]}, {},
-            {{"concat_axis", 2}});
+            {{"axis", 2}});
     // concat2 output: [A, B, C0*4, D]
 
     auto relu3 = graph0.make("sigmoid", {concat2->get_outputs()[0]}, {}, {});
     auto concat3 = graph0.make("concat",
             {concat2->get_outputs()[0], relu3->get_outputs()[0]}, {},
-            {{"concat_axis", 2}});
+            {{"axis", 2}});
     // concat3 output: [A, B, C0*8, D]
 
     auto relu4 = graph0.make("tanh", {concat3->get_outputs()[0]}, {}, {});
     auto concat4 = graph0.make("concat",
             {concat3->get_outputs()[0], relu4->get_outputs()[0]}, {},
-            {{"concat_axis", 2}, {op_attr_key::break_pre_fuse, true},
+            {{"axis", 2}, {op_attr_key::break_pre_fuse, true},
                     {op_attr_key::break_post_fuse, true}});
     // concat4 output: [A, B, C0*16, D], standalone
 
     auto relu5 = graph0.make("relu", {concat4->get_outputs()[0]}, {}, {});
     auto concat5 = graph0.make("concat",
             {concat4->get_outputs()[0], relu5->get_outputs()[0]}, {},
-            {{"concat_axis", 2}});
+            {{"axis", 2}});
     // concat5 output: [A, B, C0*32, D]
 
     auto relu6 = graph0.make("tanh", {concat5->get_outputs()[0]}, {}, {});
     auto concat6 = graph0.make("concat",
             {concat5->get_outputs()[0], relu6->get_outputs()[0]}, {},
-            {{"concat_axis", 2}});
+            {{"axis", 2}});
     // concat6 output: [A, B, C0*64, D]
 
     auto relu7 = graph0.make("sigmoid", {concat6->get_outputs()[0]}, {}, {});
     auto concat7 = graph0.make("concat",
             {concat6->get_outputs()[0], relu7->get_outputs()[0]}, {},
-            {{"concat_axis", 2}, {op_attr_key::break_pre_fuse, true},
+            {{"axis", 2}, {op_attr_key::break_pre_fuse, true},
                     {op_attr_key::break_post_fuse, true}});
     // concat7 output: [A, B, C0*128, D], standalone
 
@@ -425,7 +425,7 @@ static sc_graph_t build_reduce_reduce_concat() {
             {{"rd_axis", std::vector<int> {2}}, {"rd_op", 0}});
     auto concat1 = graph0.make("concat",
             {reduce0->get_outputs()[0], reduce1->get_outputs()[0]}, {},
-            {{"concat_axis", 2}});
+            {{"axis", 2}});
     // concat1 output: [A, B, 2, D]
     auto out = graph0.make_output(concat1->get_outputs());
     return graph0;
@@ -449,8 +449,7 @@ static sc_graph_t build_tensorview_add_concat() {
     auto add1 = graph0.make(
             "add", {in1->get_outputs()[0], in1->get_outputs()[0]}, {}, {});
     auto concat1 = graph0.make("concat",
-            {tv0->get_outputs()[0], add1->get_outputs()[0]}, {},
-            {{"concat_axis", 2}});
+            {tv0->get_outputs()[0], add1->get_outputs()[0]}, {}, {{"axis", 2}});
     // concat1 output: [A, B, 2 * C0, D]
     auto out = graph0.make_output(concat1->get_outputs());
     return graph0;
@@ -490,7 +489,7 @@ static sc_graph_t build_inception_block_with_adds() {
     auto concat1 = graph0.make("concat",
             {relu1->get_outputs()[0], relu2->get_outputs()[0],
                     relu3->get_outputs()[0]},
-            {}, {{"concat_axis", 2}});
+            {}, {{"axis", 2}});
     // concat1 output: [A, B, C0*3, D]
     auto out = graph0.make_output(concat1->get_outputs());
     return graph0;
@@ -568,7 +567,7 @@ static sc_graph_t build_inception_block() {
 
     auto concat1 = graph0.make("concat",
             {relu0->get_outputs()[0], relu1->get_outputs()[0]}, {},
-            {{"concat_axis", 1}});
+            {{"axis", 1}});
     // concat1 output: [N, Cout0 + Cout1, Hin, Win]
     auto out = graph0.make_output(concat1->get_outputs());
 
@@ -632,8 +631,7 @@ static graph_tensor_ptr build_conv_block(sc_graph_t &graph,
 
     // do not fuse concat
     data = graph.make("concat", {ori_data, data}, {},
-                        {{"concat_axis", 1},
-                                {op_attr_key::break_pre_fuse, true},
+                        {{"axis", 1}, {op_attr_key::break_pre_fuse, true},
                                 {op_attr_key::break_post_fuse, true}})
                    ->get_outputs()[0];
 
@@ -735,7 +733,7 @@ static sc_graph_t build_gptj_subgraph() {
             "add", {in1->get_outputs()[0], in2->get_outputs()[0]}, {}, {});
     auto concat2 = graph0.make("concat",
             {to0->get_outputs()[0], add1->get_outputs()[0]}, {},
-            {{"concat_axis", 1}, {op_attr_key::break_pre_fuse, true},
+            {{"axis", 1}, {op_attr_key::break_pre_fuse, true},
                     {op_attr_key::break_post_fuse, true}});
     // concat2 output: (N, 2*L, D) @ ABC
     auto permute3 = graph0.make("reorder", {concat2->get_outputs()[0]}, {},
@@ -748,7 +746,7 @@ static sc_graph_t build_gptj_subgraph() {
     // permute_in3 output: (N, D, 2*L) @ACB
     auto concat4 = graph0.make("concat",
             {permute3->get_outputs()[0], permute_in3->get_outputs()[0]}, {},
-            {{"concat_axis", 1}, {op_attr_key::break_pre_fuse, true},
+            {{"axis", 1}, {op_attr_key::break_pre_fuse, true},
                     {op_attr_key::break_post_fuse, true}});
     // concat4 output: (N, 2*D, 2*L) @ACB
     auto to5 = graph0.make("cast", {concat4->get_outputs()[0]}, {},

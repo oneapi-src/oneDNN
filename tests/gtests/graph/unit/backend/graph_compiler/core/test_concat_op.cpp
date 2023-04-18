@@ -72,7 +72,7 @@ TEST(GCCore_concat_op_t_cpp, FourDimsConcatAxis0) {
     auto concat0 = graph0.make("concat",
             {add0->get_outputs()[0], add1->get_outputs()[0],
                     add2->get_outputs()[0]},
-            {}, {{"concat_axis", 0}});
+            {}, {{"axis", 0}});
 
     auto add3 = graph0.make("add",
             {concat0->get_outputs()[0], concat0->get_outputs()[0]}, {}, {});
@@ -169,7 +169,7 @@ TEST(GCCore_concat_op_t_cpp, FourDimsConcatAxis2) {
     auto concat0 = graph0.make("concat",
             {add0->get_outputs()[0], add1->get_outputs()[0],
                     add2->get_outputs()[0]},
-            {}, {{"concat_axis", 2}});
+            {}, {{"axis", 2}});
 
     auto add3 = graph0.make("add",
             {concat0->get_outputs()[0], concat0->get_outputs()[0]}, {}, {});
@@ -222,7 +222,7 @@ TEST(GCCore_concat_op_t_cpp, ConcatManagedMatmulAxis0) {
         auto relu1 = graph0.make("relu", {mm1->get_outputs()[0]}, {}, {});
         auto concat1 = graph0.make("concat",
                 {relu0->get_outputs()[0], relu1->get_outputs()[0]}, {},
-                {{"concat_axis", 0}});
+                {{"axis", 0}});
         // concat1 output: [M0 + M1, N]
         auto out = graph0.make_output(concat1->get_outputs());
         graph_driver(graph0, ctx);
@@ -247,7 +247,7 @@ TEST(GCCore_concat_op_t_cpp, ConcatManagedMatmulAxis0) {
                 {K, N}, sc_data_format_t(format_kinds::NK), datatypes::f32)});
         auto concat1 = graph0.make("concat",
                 {in0->get_outputs()[0], in1->get_outputs()[0]}, {},
-                {{"concat_axis", 0}});
+                {{"axis", 0}});
         // concat1 output: [M0 + M1, K]
         auto mm0 = graph0.make("managed_matmul_core",
                 {concat1->get_outputs()[0], weight0->get_outputs()[0]}, {}, {});
@@ -296,7 +296,7 @@ TEST(GCCore_concat_op_t_cpp, ConcatManagedMatmulAxis1) {
         auto relu1 = graph0.make("relu", {mm1->get_outputs()[0]}, {}, {});
         auto concat1 = graph0.make("concat",
                 {relu0->get_outputs()[0], relu1->get_outputs()[0]}, {},
-                {{"concat_axis", 1}});
+                {{"axis", 1}});
         // concat1 output: [M, N0 + N1]
         auto out = graph0.make_output(concat1->get_outputs());
         graph_driver(graph0, ctx);
@@ -317,7 +317,7 @@ TEST(GCCore_concat_op_t_cpp, ConcatManagedMatmulAxis1) {
                 {K, N1}, sc_data_format_t(format_kinds::KN), datatypes::f32)});
         auto concat1 = graph0.make("concat",
                 {weight0->get_outputs()[0], weight1->get_outputs()[0]}, {},
-                {{"concat_axis", 1}});
+                {{"axis", 1}});
         // concat1 output: [K, N0 + N1]
         auto mm0 = graph0.make("managed_matmul_core",
                 {in0->get_outputs()[0], concat1->get_outputs()[0]}, {}, {});
@@ -383,7 +383,7 @@ TEST(GCCore_concat_op_t_cpp, InceptionLikeTopoConv) {
     auto concat1 = graph0.make("concat",
             {relu0->get_outputs()[0], relu1->get_outputs()[0],
                     relu2->get_outputs()[0]},
-            {}, {{"concat_axis", 1}});
+            {}, {{"axis", 1}});
     // concat1 output: [N, Cout0 + Cout1 + Cout2, Hin, Win]
     auto out = graph0.make_output(concat1->get_outputs());
     auto graph1 = copy_graph(graph0);
@@ -443,8 +443,7 @@ TEST(GCCore_concat_op_t_cpp, ConcatPermuteConcat) {
     auto add1 = graph0.make(
             "add", {in1->get_outputs()[0], in2->get_outputs()[0]}, {}, {});
     auto concat2 = graph0.make("concat",
-            {in0->get_outputs()[0], add1->get_outputs()[0]}, {},
-            {{"concat_axis", 1}});
+            {in0->get_outputs()[0], add1->get_outputs()[0]}, {}, {{"axis", 1}});
     // concat2 output: (N, 2*L, D) @ ABC
     auto permute3 = graph0.make("reorder", {concat2->get_outputs()[0]}, {},
             {{"out_format", sc_data_format_t(format_kinds::ACB)},
@@ -452,7 +451,7 @@ TEST(GCCore_concat_op_t_cpp, ConcatPermuteConcat) {
     // permute3 output: (N, D, 2*L) @ACB
     auto concat4 = graph0.make("concat",
             {permute3->get_outputs()[0], in3->get_outputs()[0]}, {},
-            {{"concat_axis", 1}});
+            {{"axis", 1}});
     // concat4 output: (N, 2*D, 2*L) @ACB
     auto out = graph0.make_output(concat4->get_outputs());
     // output: (N, 2*L, 2*D) @ABC

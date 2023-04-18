@@ -49,7 +49,7 @@ ir_module_ptr reshape_op_t::get_func(context_ptr ctx) {
 }
 
 static void check_concat_validity(
-        const std::vector<graph_tensor_ptr> &candidates, unsigned concat_axis) {
+        const std::vector<graph_tensor_ptr> &candidates, unsigned axis) {
     COMPILE_ASSERT(candidates.size() > 1,
             "Number of candidates for concat op must be larger than 1!\n");
     auto firstShape = candidates[0]->details_.get_blocking_dims();
@@ -63,7 +63,7 @@ static void check_concat_validity(
                     0, "Input shapes are not matched in concat fusion op!\n");
         }
         for (unsigned dim = 0; dim < firstShape.size(); dim++) {
-            if (concat_axis == dim && curShape[dim]) { continue; }
+            if (axis == dim && curShape[dim]) { continue; }
             COMPILE_ASSERT(curShape[dim] == firstShape[dim],
                     "Input shapes: "
                             << utils::print_vector(curShape) << " and "
@@ -153,7 +153,7 @@ static void compute_block_concat(const std::vector<const tensor_slice *> &src,
 }
 
 static bool check_slice_on_non_concat_axis_equal(
-        const slice_range_map &known_ranges_map, int64_t concat_axis) {
+        const slice_range_map &known_ranges_map, int64_t axis) {
     std::vector<slice_range_list> slices;
     for (auto &id_sr_pair : known_ranges_map) {
         slices.push_back(id_sr_pair.second);
@@ -169,7 +169,7 @@ static bool check_slice_on_non_concat_axis_equal(
                     "The rank of inout tensors should be equal");
             for (size_t k = 0; k < slices[0][j].size(); ++k) {
                 // if pair offset and range is not equal on non-concat axis
-                if (int64_t(k) != concat_axis
+                if (int64_t(k) != axis
                         && slices[0][j][k].first.isa<constant_c>()
                         && slices[i][j][k].first.isa<constant_c>()
                         && slices[0][j][k].second.isa<constant_c>()
@@ -198,9 +198,8 @@ concat_op_t::concat_op_t(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
     op_name_ = "concat";
     COMPILE_ASSERT(!ins.empty(), "Inputs to concat should be non-empty");
-    COMPILE_ASSERT(
-            attrs.has_key("concat_axis"), "Concat axis should be provided.");
-    axis_ = attrs.get<int>("concat_axis");
+    COMPILE_ASSERT(attrs.has_key("axis"), "Concat axis should be provided.");
+    axis_ = attrs.get<int>("axis");
     // We accept negative axis_, but keep it non-negative internally
     int64_t rank = ins[0]->details_.get_blocking_dims().size();
     COMPILE_ASSERT(axis_ >= -rank && axis_ <= rank - 1,
@@ -251,7 +250,7 @@ concat_op_t::concat_op_t(const std::vector<graph_tensor_ptr> &ins,
 
 concat_op_t::concat_op_t(
         const std::vector<graph_tensor_ptr> &candidates, int axis)
-    : concat_op_t(candidates, {}, any_map_t({{"concat_axis", axis}})) {}
+    : concat_op_t(candidates, {}, any_map_t({{"axis", axis}})) {}
 
 void concat_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<format_stride_pair>> &supported_ins,

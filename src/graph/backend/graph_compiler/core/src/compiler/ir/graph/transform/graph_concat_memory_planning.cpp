@@ -151,7 +151,9 @@ static bool set_offsets_and_strides_for_op(
     // set strides of the output of the parent op.
     for (size_t i = 0; i < inputs.size(); ++i) {
         auto parent_op = inputs[i]->producer_owner_->shared_from_this();
-        if (parent_op->isa<input_op>()) { continue; }
+        if (parent_op->isa<input_op>() || parent_op->isa<tensor_view_op_t>()) {
+            continue;
+        }
         if (ops.count(parent_op)) {
             if (parent_op->isa<mixed_fuse_op_t>()
                     && parent_op->stc_cast<mixed_fuse_op_t>()
