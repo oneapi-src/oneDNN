@@ -35,6 +35,12 @@ namespace jit {
 ;
 #undef _CATALOG_
 
+status_t gen_gemm_kernel_desc_t::create_generator(
+        engine_t *engine, compute::compiled_kernel_t &generator) const {
+    gen_gemm_kernel_t kd(*this);
+    return compute::compiled_kernel_t::create(generator, engine, kd);
+}
+
 status_t gen_gemm_kernel_desc_t::finalize() {
     // Update problem alignments to match catalog entry.
     if (!isPacked(problem_.A.layout)) {

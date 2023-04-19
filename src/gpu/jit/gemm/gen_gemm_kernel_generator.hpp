@@ -27,6 +27,7 @@
 #include "gpu/jit/gemm/utils.hpp"
 #include "gpu/jit/jit_generator.hpp"
 #include "gpu/jit/jit_post_op_injector.hpp"
+#include "gpu/kernel_cache.hpp"
 
 #if defined(ZEBIN_OUTPUT)
 #include "../ngen/ngen_elf.hpp"
@@ -446,7 +447,8 @@ private:
     }
 };
 
-struct MatrixAddressingStrategy {
+struct MatrixAddressingStrategy
+    : public trivially_hashable_trait_t<MatrixAddressingStrategy> {
     ngen::AddressBase base; // Base for addressing (A64/BTS/...)
     AccessType accessType = AccessType::Block; // Block/scattered/etc. access
     uint8_t tileR = 0, tileC = 0; // Desired tiling (0 if none) in registers.
@@ -834,7 +836,8 @@ enum class BatchMode { None, Strided, Nonstrided, Variable };
 enum class BinaryOp { Add, Sub, Mul, Div, Min, Max };
 
 // GEMM kernel problem description.
-struct GEMMProblem : public CommonProblem {
+struct GEMMProblemPOD : public trivially_hashable_trait_t<GEMMProblemPOD>,
+                        public CommonProblem {
     Type Ta, Tb, Tc, Tco, Ts; // Types for A/B/C/C offsets/scalars in registers.
     Type Ta_ext, Tb_ext, Tc_ext; // Types for A/B/C data in memory.
 
@@ -849,8 +852,11 @@ struct GEMMProblem : public CommonProblem {
     bool sumA = false,
          sumB
             = false; // If true, calculate A row sums/B column sums and store in CO.
-    post_ops_t postOps; // Fused post operations to apply
     bool postOpFwd = true; // Eltwise parameters
+};
+
+struct GEMMProblem : public GEMMProblemPOD {
+    post_ops_t postOps; // Fused post operations to apply
     std::vector<MatrixAddressing> binary; // Binary postop data
     std::vector<Type> Tbinary; // Binary types
     std::vector<bool> binaryRow; // Dimensionality of binary data
@@ -901,6 +907,25 @@ struct GEMMProblem : public CommonProblem {
     bool needsBSums() const { return (abOffset == ABOffset::Calc) || sumB; }
     bool usesCO() const { return (cOffset != COffset::None) || sumA || sumB; }
     bool allowMatrixOffset() const { return (cOffset == COffset::Pre); }
+
+    /* Kernel cache helpers. */
+    size_t hash() const {
+        auto seed = GEMMProblemPOD::hash();
+        if (postOps.len() > 0) {
+            seed = hash_combine(seed,
+                    hash_range(reinterpret_cast<const uint8_t *>(
+                                       postOps.entry_.data()),
+                            postOps.entry_.size() * sizeof(postOps.entry_[0])));
+        }
+        return seed;
+    }
+
+    bool operator==(const GEMMProblem &other) const {
+        return (static_cast<GEMMProblemPOD>(*this)
+                       == static_cast<GEMMProblemPOD>(other))
+                && (postOps == other.postOps);
+        /* binary/Tbinary/etc. member variables are derived from postOps and do not need to be compared. */
+    }
 };
 
 struct GEMMState;
@@ -913,7 +938,8 @@ enum class CoopSplit {
 };
 
 // Strategy parameters for GEMM kernels.
-struct GEMMStrategy : public CommonStrategy {
+struct GEMMStrategyPOD : public trivially_hashable_trait_t<GEMMStrategyPOD>,
+                         public CommonStrategy {
     int blocking[3] = {
             0}; // Recommended block size in each dimension (m/n/k) -- for driver.
     int blockingAlt[3] = {
@@ -1048,14 +1074,20 @@ struct GEMMStrategy : public CommonStrategy {
     bool checkBeta1
             = false; // If true, check for beta = 1 and handle specially.
     bool panelCheck = false; // If true, check for out-of-bounds panel reads.
+    bool insideSK = false; // Inside a superkernel?
+
+    GEMMStrategyPOD() {}
+    GEMMStrategyPOD(ngen::HW hw, int stepping = 0)
+        : CommonStrategy(hw, stepping) {}
+};
+
+struct GEMMStrategy : public GEMMStrategyPOD {
     std::vector<MatrixAddressingStrategy>
             binary; // Strategies for binary postop data
 
-    bool insideSK = false; // Inside a superkernel?
-
     GEMMStrategy() {}
     GEMMStrategy(ngen::HW hw, int stepping = 0)
-        : CommonStrategy(hw, stepping) {}
+        : GEMMStrategyPOD(hw, stepping) {}
 
     void preflight(ngen::HW hw, const GEMMProblem &problem);
     bool minimize(ngen::HW hw, const GEMMProblem &problem);
@@ -1129,6 +1161,23 @@ struct GEMMStrategy : public CommonStrategy {
         return (getWGType(problem) == WGFixed);
     }
     bool linearOrder() const { return hilbertOrder || boustrophedon; }
+
+    /* Kernel cache helpers. */
+    size_t hash() const {
+        auto seed = GEMMStrategyPOD::hash();
+        if (!binary.empty()) {
+            seed = hash_combine(seed,
+                    hash_range(reinterpret_cast<const uint8_t *>(binary.data()),
+                            binary.size() * sizeof(binary[0])));
+        }
+        return seed;
+    }
+
+    bool operator==(const GEMMStrategy &other) const {
+        return (static_cast<GEMMStrategyPOD>(*this)
+                       == static_cast<GEMMStrategyPOD>(other))
+                && (binary == other.binary);
+    }
 };
 
 struct LDMultiples {

@@ -434,18 +434,21 @@ status_t xe_hp_systolic_gemm_t::init(engine_t *engine) {
             if (clear_sum && !pd()->with_ab_zero_points()) continue;
             if (!copy_b ? pd()->packed_a() : pd()->packed_b()) continue;
 
-            using copy_kernel_t = ocl::xe_systolic_gemm_copy_kernel_t;
+            using copy_kernel_params_t
+                    = trivial_key_t<ocl::xe_systolic_gemm_copy_kernel_t>;
             compute::kernel_ctx_t kernel_ctx;
 
             auto trans
                     = !copy_b ? pd()->desc()->transa() : pd()->desc()->transb();
-            auto status = copy_kernel_t::init_kernel_ctx(kernel_ctx, arch_,
-                    !copy_b ? a_type : b_type, pd()->unroll_n(), copy_b, trans,
-                    pd()->with_ab_zero_points(), clear_sum);
-            if (status != status::success) return status;
+            copy_kernel_params_t params;
+            CHECK(params.init(arch_, !copy_b ? a_type : b_type,
+                    pd()->unroll_n(), copy_b, trans,
+                    pd()->with_ab_zero_points(), clear_sum));
 
-            CHECK(create_kernel(engine, &copy_kernel_[copy_b][clear_sum],
-                    copy_kernel_t::name(arch_), kernel_ctx));
+            // TODO: Refactor so this can be switched to 1 batch compilation.
+            // Having up to 4 calls to the OpenCL compiler is sub-optimal.
+            CHECK(create_kernel(engine, copy_kernel_[copy_b][clear_sum],
+                    params.name(), params));
             if (!copy_kernel_[copy_b][clear_sum]) return status::runtime_error;
         }
     }
@@ -460,7 +463,6 @@ status_t xe_hp_systolic_gemm_t::init(engine_t *engine) {
 }
 
 status_t xe_hp_systolic_gemm_t::init_compute(engine_t *engine) {
-    using kernel_t = gen_gemm_kernel_t;
     using kd_t = gen_gemm_xe_systolic_kernel_desc_t;
 
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
@@ -536,10 +538,9 @@ status_t xe_hp_systolic_gemm_t::init_compute(engine_t *engine) {
                     got_info = true;
                 }
 
-                kernel_t kernel(kd);
-
                 CHECK(create_kernel(engine,
-                        &kernel_[first_k_block][last_k_block], &kernel));
+                        kernel_[first_k_block][last_k_block], "gemm_kernel",
+                        kd));
 
                 if (!kernel_[first_k_block][last_k_block])
                     return status::runtime_error;

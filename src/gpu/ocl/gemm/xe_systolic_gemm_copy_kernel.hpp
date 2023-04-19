@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,6 +27,31 @@ namespace gpu {
 namespace ocl {
 
 struct xe_systolic_gemm_copy_kernel_t {
+    status_t init(compute::gpu_arch_t arch, data_type_t dt, int unroll_n,
+            bool copyb, bool trans, bool sum = false, bool clear_sum = false) {
+        arch_ = arch;
+        dt_ = dt;
+        unroll_n_ = unroll_n;
+        copyb_ = copyb;
+        trans_ = trans;
+        sum_ = sum;
+        clear_sum_ = clear_sum;
+        return status::success;
+    };
+
+    status_t create_generator(
+            engine_t *engine, compute::compiled_bundle_t &generator) const {
+        compute::kernel_ctx_t ctx;
+        CHECK(init_kernel_ctx(ctx));
+        return compute::compiled_bundle_t::create(
+                generator, engine, {name()}, ctx);
+    };
+
+    status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const {
+        return init_kernel_ctx(kernel_ctx, arch_, dt_, unroll_n_, copyb_,
+                trans_, sum_, clear_sum_);
+    }
+
     static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
             compute::gpu_arch_t arch, data_type_t dt, int unroll_n, bool copyb,
             bool trans, bool sum = false, bool clear_sum = false) {
@@ -55,6 +80,7 @@ struct xe_systolic_gemm_copy_kernel_t {
         return status::success;
     }
 
+    const char *name() const { return name(arch_); }
     static const char *name(compute::gpu_arch_t arch) {
         switch (arch) {
             case compute::gpu_arch_t::xe_hp: return "xe_hp_systolic_gemm_copy";
@@ -90,6 +116,15 @@ struct xe_systolic_gemm_copy_kernel_t {
             compute::gpu_arch_t arch, size_t element_size, bool copyb) {
         return (arch == compute::gpu_arch_t::xe_hpc) ? 16 : 8;
     }
+
+private:
+    compute::gpu_arch_t arch_;
+    data_type_t dt_;
+    int unroll_n_;
+    bool copyb_;
+    bool trans_;
+    bool sum_;
+    bool clear_sum_;
 };
 
 } // namespace ocl

@@ -27,6 +27,7 @@
 #include "gpu/jit/gemm/kernel_evaluator.hpp"
 #include "gpu/jit/jit_generator_base.hpp"
 #include "gpu/jit/utils/ngen_type_bridge.hpp"
+#include "gpu/kernel_cache.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -59,6 +60,18 @@ struct gen_gemm_kernel_desc_t {
             default: return compute::scalar_type_t::undef;
         }
     }
+
+    status_t create_generator(
+            engine_t *engine, compute::compiled_kernel_t &generator) const;
+
+    bool operator==(const gen_gemm_kernel_desc_t &other) const {
+        return problem_ == other.problem_ && strategy_ == other.strategy_;
+    }
+
+    size_t hash() const {
+        return hash_combine(problem_.hash(), strategy_.hash());
+    }
+    compute::gpu_arch_t arch() const { return arch_; }
 
 protected:
     static Type convert_dnnl_to_kernel_type(data_type_t type) {
