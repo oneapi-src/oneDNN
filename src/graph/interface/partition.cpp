@@ -192,7 +192,7 @@ status_t DNNL_API dnnl_graph_partition_compile(partition_t *partition,
     //   false - cache_miss, the compiled partition is not in the cache
     std::pair<compiled_partition_t *, bool> cp {compiled_partition, false};
 
-    if (utils::get_verbose() >= 2) {
+    if (utils::verbose_has_create_profile()) {
         double ms = dnnl::impl::get_msec();
         CHECK(partition->compile(cp, in, out, engine));
         ms = dnnl::impl::get_msec() - ms;
@@ -311,7 +311,7 @@ status_t DNNL_API dnnl_graph_compiled_partition_execute(
     }
 
 #ifndef NDEBUG
-    if (utils::get_verbose() >= 3) {
+    if (utils::verbose_has_exec_profile()) {
         allocator_t *alloc = reinterpret_cast<allocator_t *>(
                 compiled_partition->get_engine()->get_allocator());
         allocator_t::monitor_t::reset_peak_temp_memory(alloc);
@@ -326,9 +326,9 @@ status_t DNNL_API dnnl_graph_compiled_partition_execute(
                 allocator_t::monitor_t::get_total_persist_memory(alloc),
                 allocator_t::monitor_t::get_peak_temp_memory(alloc));
         fflush(stdout);
-    } else if (utils::get_verbose()) {
+    } else if (utils::verbose_has_exec_profile()) {
 #else
-    if (utils::get_verbose()) {
+    if (utils::verbose_has_exec_profile()) {
 #endif
         stream->wait();
         double ms = dnnl::impl::get_msec();
@@ -371,7 +371,7 @@ status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute(
         outs.emplace_back(**(outputs + i));
     }
 #ifndef NDEBUG
-    if (utils::get_verbose() >= 3) {
+    if (utils::verbose_has_exec_profile()) {
         allocator_t *alloc = reinterpret_cast<allocator_t *>(
                 compiled_partition->get_engine()->get_allocator());
         allocator_t::monitor_t::reset_peak_temp_memory(alloc);
@@ -393,9 +393,9 @@ status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute(
                 allocator_t::monitor_t::get_total_persist_memory(alloc),
                 allocator_t::monitor_t::get_peak_temp_memory(alloc));
         fflush(stdout);
-    } else if (utils::get_verbose()) {
+    } else if (utils::verbose_has_exec_profile()) {
 #else
-    if (utils::get_verbose()) {
+    if (utils::verbose_has_exec_profile()) {
 #endif
         stream->wait();
         double ms = dnnl::impl::get_msec();

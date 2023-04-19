@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,7 +56,9 @@ private:
     std::once_flag initialization_flag_;
 };
 
-int get_verbose();
+bool verbose_has_error();
+bool verbose_has_create_profile();
+bool verbose_has_exec_profile();
 
 } // namespace utils
 } // namespace graph

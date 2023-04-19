@@ -26,6 +26,7 @@
 #include "oneapi/dnnl/dnnl_graph.h"
 
 #include "common/utils.hpp"
+#include "common/verbose.hpp"
 
 #include "graph/interface/backend.hpp"
 #include "graph/interface/c_types_map.hpp"
@@ -45,16 +46,47 @@ namespace impl {
 namespace graph {
 namespace utils {
 
-static dnnl::impl::setting_t<int> verbose {0};
-int get_verbose() {
-#if !defined(DISABLE_VERBOSE)
+static dnnl::impl::setting_t<uint32_t> verbose {0};
+uint32_t get_verbose() {
+#if defined(DISABLE_VERBOSE)
+    return verbose_t::none;
+#else
     if (!verbose.initialized()) {
         // Assumes that all threads see the same environment
-        static int val = getenv_int_user("GRAPH_VERBOSE", verbose.get());
+        static std::string user_opt = getenv_string_user("GRAPH_VERBOSE");
+
+        auto update_kind = [&](const std::string &s, int &k) -> int {
+            // Legacy: we accept values 0,1,2
+            // 0 and none erase previously set flags, including error
+            if (s == "0" || s == "none") return k = impl::verbose_t::none;
+            if (s == "1") return k |= impl::verbose_t::exec_profile;
+            if (s == "2")
+                return k |= impl::verbose_t::exec_profile
+                        | impl::verbose_t::create_profile;
+            if (s == "all" || s == "-1") return k |= impl::verbose_t::all;
+            if (s == "error") return k |= impl::verbose_t::error;
+            if (s == "profile")
+                return k |= impl::verbose_t::create_profile
+                        | impl::verbose_t::exec_profile;
+            if (s == "compile_profile")
+                return k |= impl::verbose_t::create_profile;
+            if (s == "exec_profile") return k |= impl::verbose_t::exec_profile;
+
+            // Unknown option is ignored
+            // TODO: exit on unsupported or print a message?
+            return k;
+        };
+
+        // we always enable error by default
+        int val = impl::verbose_t::error;
+        for (auto &tok : utils::str_split(user_opt, ','))
+            update_kind(tok, val);
+
+        // We parse for explicit flags
         verbose.set(val);
     }
-    static bool version_printed = false;
-    if (!version_printed && verbose.get() > 0) {
+    static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
+    if (verbose.get() > 0 && !version_printed.test_and_set()) {
         printf("onednn_graph_verbose,info,oneDNN Graph v%d.%d.%d (commit %s)\n",
                 dnnl_version()->major, dnnl_version()->minor,
                 dnnl_version()->patch, dnnl_version()->hash);
@@ -74,11 +106,20 @@ int get_verbose() {
             printf("onednn_graph_verbose,info,backend,%zu:%s\n", i,
                     bkd->get_name().c_str());
         }
-        version_printed = true;
     }
-#endif
     return verbose.get();
+#endif
 }
+
+bool verbose_has_error() {
+    return get_verbose() & impl::verbose_t::error;
+};
+bool verbose_has_create_profile() {
+    return get_verbose() & impl::verbose_t::create_profile;
+};
+bool verbose_has_exec_profile() {
+    return get_verbose() & impl::verbose_t::exec_profile;
+};
 
 #if defined(DISABLE_VERBOSE)
 void partition_info_t::init(
