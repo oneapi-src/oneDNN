@@ -42,7 +42,9 @@ architecture. Hence, for portability reasons [`cpu/platform.hpp`](platform.hpp)
 header file provides a set of helpers macros that could help conditionally
 enable or disable parts of code. There the following macros defined:
 - `DNNL_X64` is 1 on x64 architecture;
+- `DNNL_X86` is 1 on x86 architecture;
 - `DNNL_AARCH64` is 1 on Arm AArch64 architecture;
+- `DNNL_ARM` is 1 on Arm 32 architecture;
 - `DNNL_PPC64` is 1 on OpenPOWER / IBM Power architecture;
 - `DNNL_S390X` is 1 on IBMz / s390x architecture;
 - `DNNL_RV64` is 1 on RISC-V architecture;

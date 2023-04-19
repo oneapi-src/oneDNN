@@ -2158,7 +2158,12 @@ typedef enum {
 /// A `size_t` counterpart of the DNNL_RUNTIME_DIM_VAL.
 /// For instance, this value is returned by dnnl_memory_desc_get_size() if
 /// either of the dimensions or strides equal to #DNNL_RUNTIME_DIM_VAL.
+
+#if INTPTR_MAX == INT64_MAX
 #define DNNL_RUNTIME_SIZE_VAL ((size_t)DNNL_RUNTIME_DIM_VAL)
+#else
+#define DNNL_RUNTIME_SIZE_VAL ((size_t)INT32_MIN)
+#endif
 
 /// @cond DO_NOT_DOCUMENT_THIS
 /// Hex representation for a **special** quiet NAN (!= NAN from math.h)

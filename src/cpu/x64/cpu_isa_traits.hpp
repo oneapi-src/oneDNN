@@ -351,11 +351,13 @@ namespace {
 static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
     using namespace Xbyak::util;
 #if DNNL_X64
-    unsigned cpu_isa_mask = x64::get_max_cpu_isa_mask(soft);
+    const unsigned cpu_isa_mask = x64::get_max_cpu_isa_mask(soft);
+#elif DNNL_X86
+    const unsigned cpu_isa_mask = isa_undef;
 #else
-    unsigned cpu_isa_mask = isa_all;
+    const unsigned cpu_isa_mask = isa_all;
 #endif
-    unsigned cpu_isa_no_hints = cpu_isa & ~cpu_isa_hints_utils::hints_mask;
+    const unsigned cpu_isa_no_hints = cpu_isa & ~cpu_isa_hints_utils::hints_mask;
 
     if ((cpu_isa_mask & cpu_isa_no_hints) != cpu_isa_no_hints) return false;
 

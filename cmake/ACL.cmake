@@ -21,7 +21,7 @@ endif()
 set(acl_cmake_included true)
 include("cmake/options.cmake")
 
-if(NOT DNNL_TARGET_ARCH STREQUAL "AARCH64")
+if(NOT DNNL_TARGET_ARCH MATCHES "^(AARCH64|ARM)$")
     return()
 endif()
 

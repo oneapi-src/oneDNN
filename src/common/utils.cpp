@@ -187,7 +187,7 @@ bool get_jit_dump() {
     return jit_dump.get();
 }
 
-#if defined(DNNL_AARCH64) && (DNNL_AARCH64 == 1)
+#if defined(DNNL_AARCH64) && (DNNL_AARCH64 == 1) || defined(DNNL_ARM) && (DNNL_ARM == 1)
 static setting_t<unsigned> jit_profiling_flags {DNNL_JIT_PROFILE_LINUX_PERFMAP};
 #else
 static setting_t<unsigned> jit_profiling_flags {DNNL_JIT_PROFILE_VTUNE};

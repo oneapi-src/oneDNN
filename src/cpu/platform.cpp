@@ -196,7 +196,7 @@ unsigned get_per_core_cache_size(int level) {
 unsigned get_num_cores() {
 #if DNNL_X64
     return x64::cpu().getNumCores(Xbyak::util::CoreLevel);
-#elif DNNL_AARCH64_USE_ACL
+#elif (DNNL_AARCH64 || DNNL_ARM) && DNNL_AARCH64_USE_ACL
     return arm_compute::cpuinfo::num_threads_hint();
 #else
     return 1;
