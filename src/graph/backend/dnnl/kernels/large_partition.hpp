@@ -122,6 +122,10 @@ public:
 
         BACKEND_DNNL_ADD_PASS(
                 pipeline, insert_unsqueeze_and_squeeze_for_reduction);
+        // bnorm here.
+        BACKEND_DNNL_ADD_PASS(pipeline, swap_relu_mul_scales);
+        BACKEND_DNNL_ADD_PASS(pipeline, fold_pre_mul_scale_into_bn);
+        BACKEND_DNNL_ADD_PASS(pipeline, fold_post_mul_scale_into_bn);
 
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
         BACKEND_DNNL_ADD_PASS(pipeline, fold_mul_scales);
