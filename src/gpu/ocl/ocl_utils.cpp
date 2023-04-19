@@ -320,6 +320,8 @@ status_t get_ocl_program_binary(
 #if DNNL_ENABLE_JIT_DUMP
 void dump_kernel_binary(
         const compute::binary_t &binary, const std::string &name) {
+    if (!get_jit_dump()) return;
+
     static std::mutex m;
     std::lock_guard<std::mutex> guard(m);
 
