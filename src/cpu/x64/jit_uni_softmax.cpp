@@ -779,11 +779,11 @@ jit_softmax_kernel_base_t *jit_softmax_kernel_base_t::create(
         const softmax_pd_t *pd) {
 #define HANDLE_ISA(isa) \
     if (mayiuse(isa)) return new jit_softmax_kernel_t<isa>(pd)
-    HANDLE_ISA(avx512_core_fp16);
-    HANDLE_ISA(avx512_core);
-    HANDLE_ISA(avx2_vnni_2);
-    HANDLE_ISA(avx2);
-    HANDLE_ISA(sse41);
+    REG_AVX512_ISA(HANDLE_ISA(avx512_core_fp16));
+    REG_AVX512_ISA(HANDLE_ISA(avx512_core));
+    REG_AVX2_ISA(HANDLE_ISA(avx2_vnni_2));
+    REG_AVX2_ISA(HANDLE_ISA(avx2));
+    REG_SSE41_ISA(HANDLE_ISA(sse41));
 #undef HANDLE_ISA
     assert(!"kernel is empty.");
     return nullptr;
