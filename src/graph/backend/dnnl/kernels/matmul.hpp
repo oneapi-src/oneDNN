@@ -105,9 +105,6 @@ public:
 
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_sigmoid_to_swish);
 
-        BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
-        BACKEND_DNNL_ADD_PASS(pipeline, binary_broadcast_swap);
-
         if (quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
             BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_scales);
@@ -117,7 +114,8 @@ public:
             // tricky here.
             BACKEND_DNNL_ADD_PASS(pipeline, insert_runtime_u8_to_s8_for_matmul);
         }
-
+        BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
+        BACKEND_DNNL_ADD_PASS(pipeline, binary_broadcast_swap);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
 
         if (quantized) {
@@ -130,6 +128,7 @@ public:
             // fuse neighboring mul_scales and zdd_zps op to quantize/dequantize
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_mul_scales_add_zps);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_sub_zps_mul_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, convert_dynamic_quantize_ops);
         }
 
         BACKEND_DNNL_ADD_PASS(pipeline, insert_u8_to_s8_for_matmul);

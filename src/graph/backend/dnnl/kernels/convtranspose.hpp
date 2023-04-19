@@ -268,8 +268,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_sigmoid_to_swish);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_bias_add);
         BACKEND_DNNL_ADD_PASS(pipeline, check_with_bias);
-
-        BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
         if (quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, expand_convtranspose_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
@@ -278,6 +276,7 @@ public:
             BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_zero_points);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_zero_points);
         }
+        BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
         if (quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_dst_scales);
@@ -289,6 +288,7 @@ public:
             // fuse neighboring mul_scales and zdd_zps op to quantize/dequantize
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_mul_scales_add_zps);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_sub_zps_mul_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, convert_dynamic_quantize_ops);
         }
         BACKEND_DNNL_ADD_PASS(pipeline, insert_permute_for_conv_or_deconv);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_to_group_for_conv_or_deconv);

@@ -142,9 +142,15 @@ status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg);
 
 status_t fuse_typecast_to_mul_scales(std::shared_ptr<subgraph_t> &sg);
 
+// This pass handle dynamic quantization:mul_scale+add_zp
 status_t fuse_dynamic_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg);
 
+// This pass handle dynamic dequantization:sub_zp+mul_scale
 status_t fuse_dynamic_sub_zps_mul_scales(std::shared_ptr<subgraph_t> &sg);
+
+// This pass is used to convert single mul_scale,add_zp,sub_zp to reorder
+// After "remove_quant_data_with_no_effect", maybe there is only single op.
+impl::status_t convert_dynamic_quantize_ops(std::shared_ptr<subgraph_t> &sg);
 
 status_t reorder_canonicalization(std::shared_ptr<subgraph_t> &sg);
 
