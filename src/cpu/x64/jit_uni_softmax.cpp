@@ -47,8 +47,13 @@ namespace x64 {
 
 using namespace Xbyak;
 
-template <cpu_isa_t isa>
-struct jit_softmax_t : public jit_generator {
+// This class isolates primitive implementation from templates introduced by
+// the kernel.
+struct jit_softmax_kernel_base_t {
+    static jit_softmax_kernel_base_t *create(const softmax_pd_t *pd);
+
+    virtual ~jit_softmax_kernel_base_t() = default;
+
     struct call_params_t {
         // keep all sizes at 8 bytes -- jit code expects this
         const void *src, *dst, *diff_dst; // src dubs as diff_src
@@ -62,16 +67,26 @@ struct jit_softmax_t : public jit_generator {
         const void *post_ops_binary_rhs_arg_vec;
     };
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_softmax_t)
+    virtual void operator()(const call_params_t *p) const = 0;
+    virtual status_t create_kernel() = 0;
+
+protected:
+    jit_softmax_kernel_base_t(const softmax_pd_t *pd) : pd_(pd) {}
+
+    const softmax_pd_t *pd_;
+};
+
+template <cpu_isa_t isa>
+struct jit_softmax_kernel_t : jit_softmax_kernel_base_t, public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_softmax_kernel_t)
 
     // cpu specific part
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
-    const AddressFrame &vmmword = (isa == sse41) ? xword
-            : (isa == avx2)                      ? yword
-                                                 : zword;
+    const AddressFrame &vmmword = is_superset(isa, avx512_core) ? zword
+            : is_superset(isa, avx)                             ? yword
+                                                                : xword;
     const int vlen = cpu_isa_traits<isa>::vlen;
 
-    const softmax_pd_t *pd_;
     const memory_desc_wrapper src_d_, dst_d_, diff_dst_d_;
     io::jit_io_multi_dt_helper_t<Vmm> io_;
 
@@ -104,14 +119,14 @@ struct jit_softmax_t : public jit_generator {
     Vmm vtmp; // assigned at placed where used
     Vmm tail_vmask = Vmm(0);
     Xmm xneg_flt_max = Xmm(12);
-    Vmm vneg_flt_max = Vmm(isa == avx512_core ? 28 : 12);
+    Vmm vneg_flt_max = Vmm(is_superset(isa, avx512_core) ? 28 : 12);
     Xmm xone = Xmm(13);
-    Vmm vone = Vmm(isa == avx512_core ? 29 : 13);
-    Vmm vsum = Vmm(isa == avx512_core ? 30 : 14);
-    Vmm vmax = Vmm(isa == avx512_core ? 31 : 15);
+    Vmm vone = Vmm(is_superset(isa, avx512_core) ? 29 : 13);
+    Vmm vsum = Vmm(is_superset(isa, avx512_core) ? 30 : 14);
+    Vmm vmax = Vmm(is_superset(isa, avx512_core) ? 31 : 15);
     Vmm vsbr = vsum; // must be not equal to vmax
-    Vmm vzero = Vmm(isa == avx512_core ? 21 : 11);
-    Vmm vcvt_vmm = Vmm(isa == avx512_core ? 22 : 10);
+    Vmm vzero = Vmm(is_superset(isa, avx512_core) ? 21 : 11);
+    Vmm vcvt_vmm = Vmm(is_superset(isa, avx512_core) ? 22 : 10);
     Vmm vsaturation_ubound = vneg_flt_max;
 
     bool is_bf16_ = false;
@@ -146,24 +161,11 @@ struct jit_softmax_t : public jit_generator {
 
     Opmask tail_opmask = Opmask(tail_opmask_idx_);
 
-    void operator()(const call_params_t *p) {
+    void operator()(const call_params_t *p) const override {
         return jit_generator::operator()(p);
     }
 
-    cpu_isa_t get_io_isa() {
-        // reusing avx512_core instantiation for xf16 on AVX512_CORE+
-        // reusing avx2 instantiation for xf16 on AVX2_VNNI_2
-        const bool is_reuse_avx512_core = isa == avx512_core
-                && (mayiuse(avx512_core_bf16) || mayiuse(avx512_core_fp16));
-        const bool is_reuse_avx2 = isa == avx2 && mayiuse(avx2_vnni_2);
-        if (is_bf16_ || is_f16_) {
-            return is_reuse_avx512_core
-                    ? is_f16_ ? avx512_core_fp16 : avx512_core_bf16
-                    : is_reuse_avx2 ? avx2_vnni_2
-                                    : isa;
-        } else
-            return isa;
-    }
+    status_t create_kernel() override { return jit_generator::create_kernel(); }
 
     bool is_data_type_xf16(data_type_t dt) {
         return utils::one_of(dt, data_type::bf16, data_type::f16);
@@ -420,7 +422,8 @@ struct jit_softmax_t : public jit_generator {
                 Vmm vreg_tmp_src = Vmm(i + 1);
                 vtmp = Vmm(i + 2);
                 // do maxps directly from memory on f32 avx2 for performance purpose
-                if (!tail && isa == avx2
+                if (!tail && is_superset(isa, avx2)
+                        && !is_superset(isa, avx512_core)
                         && src_d_.data_type() == data_type::f32) {
                     uni_vmaxps(vmax, vmax, src_ptr(src_axis_stride_ * i));
                 } else {
@@ -733,9 +736,9 @@ struct jit_softmax_t : public jit_generator {
             postops_injector_->prepare_table();
     }
 
-    jit_softmax_t(const softmax_pd_t *pd)
-        : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
-        , pd_(pd)
+    jit_softmax_kernel_t(const softmax_pd_t *pd)
+        : jit_softmax_kernel_base_t(pd)
+        , jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
         , src_d_(pd_->is_fwd() ? pd_->src_md() : pd_->diff_src_md())
         , dst_d_(pd_->dst_md())
         , diff_dst_d_(pd_->diff_dst_md()) {
@@ -744,8 +747,8 @@ struct jit_softmax_t : public jit_generator {
         is_f16_ = utils::one_of(
                 data_type::f16, src_d_.data_type(), dst_d_.data_type());
         simd_w_ = vlen / sizeof(float); // bf16 works on ymms
-        is_avx2_ne_xf16_
-                = isa == avx2 && mayiuse(avx2_vnni_2) && (is_bf16_ || is_f16_);
+        is_avx2_ne_xf16_ = mayiuse(avx2_vnni_2) && !mayiuse(avx512_core)
+                && (is_bf16_ || is_f16_);
         axis_simd_full_ = pd_->axis_size() / simd_w_;
         axis_simd_tail_ = pd_->axis_size() % simd_w_;
         need_scratchpad_ = utils::one_of(
@@ -764,7 +767,7 @@ struct jit_softmax_t : public jit_generator {
                 bf16_emu_zmm_4_idx_);
         io::io_saturation_conf_t io_saturation_conf(
                 vzero.getIdx(), vsaturation_ubound.getIdx(), reg_tmp);
-        io_ = io::jit_io_multi_dt_helper_t<Vmm>(this, get_io_isa(),
+        io_ = io::jit_io_multi_dt_helper_t<Vmm>(this, isa,
                 {src_d_.data_type(), dst_d_.data_type(),
                         data_type::f32 /* stats */},
                 io_conf, io_tail_conf, io_bf16_conf,
@@ -772,23 +775,80 @@ struct jit_softmax_t : public jit_generator {
     }
 };
 
-template <cpu_isa_t isa>
-jit_uni_softmax_fwd_t<isa>::jit_uni_softmax_fwd_t(const pd_t *apd)
-    : primitive_t(apd)
-    , softmax_driver_(new softmax_impl::driver_t<isa>(pd())) {}
+jit_softmax_kernel_base_t *jit_softmax_kernel_base_t::create(
+        const softmax_pd_t *pd) {
+#define HANDLE_ISA(isa) \
+    if (mayiuse(isa)) return new jit_softmax_kernel_t<isa>(pd)
+    HANDLE_ISA(avx512_core_fp16);
+    HANDLE_ISA(avx512_core);
+    HANDLE_ISA(avx2_vnni_2);
+    HANDLE_ISA(avx2);
+    HANDLE_ISA(sse41);
+#undef HANDLE_ISA
+    assert(!"kernel is empty.");
+    return nullptr;
+}
 
-template <cpu_isa_t isa>
-jit_uni_softmax_fwd_t<isa>::~jit_uni_softmax_fwd_t() {
+namespace softmax_impl {
+
+struct driver_t : public c_compatible {
+
+    driver_t(const softmax_pd_t *pd) : pd_(pd) {}
+
+    void exec(const void *src, void *dst, void *interim, const void *src_scales,
+            const void *dst_scales, const dim_t process_n_elems,
+            const void *dst_orig, const void *post_ops_binary_rhs_arg_vec) {
+        jit_softmax_kernel_base_t::call_params_t p;
+        p.process_n_elems = process_n_elems;
+        p.src = src;
+        p.dst = dst;
+        p.interim = interim;
+        p.src_scales = src_scales;
+        p.dst_scales = dst_scales;
+        // post-ops
+        p.dst_orig = dst_orig;
+        p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
+        (*ker_)(&p);
+    }
+
+    void exec(void *diff_src, const void *dst, const void *diff_dst,
+            const dim_t process_n_elems) {
+        jit_softmax_kernel_base_t::call_params_t p;
+        p.process_n_elems = process_n_elems;
+        p.src = diff_src;
+        p.dst = dst;
+        p.diff_dst = diff_dst;
+        (*ker_)(&p);
+    }
+
+    status_t create_kernel() {
+        CHECK(safe_ptr_assign(ker_, jit_softmax_kernel_base_t::create(pd_)));
+        if (ker_) CHECK(ker_->create_kernel());
+        return status::success;
+    }
+
+private:
+    const softmax_pd_t *pd_;
+    std::unique_ptr<jit_softmax_kernel_base_t> ker_;
+};
+
+bcast_set_t get_supported_bcast_strategies() {
+    return {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc};
+}
+} // namespace softmax_impl
+
+jit_uni_softmax_fwd_t::jit_uni_softmax_fwd_t(const pd_t *apd)
+    : primitive_t(apd), softmax_driver_(new softmax_impl::driver_t(pd())) {}
+
+jit_uni_softmax_fwd_t::~jit_uni_softmax_fwd_t() {
     delete softmax_driver_;
 }
 
-template <cpu_isa_t isa>
-status_t jit_uni_softmax_fwd_t<isa>::init(engine_t *engine) {
+status_t jit_uni_softmax_fwd_t::init(engine_t *engine) {
     return softmax_driver_->create_kernel();
 }
 
-template <cpu_isa_t isa>
-status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
+status_t jit_uni_softmax_fwd_t::execute(const exec_ctx_t &ctx) const {
     const auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
     auto scratchpad_ptr = ctx.get_scratchpad_grantor().template get<char>(
@@ -835,23 +895,18 @@ status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
     return status::success;
 }
 
-template <cpu_isa_t isa>
-jit_uni_softmax_bwd_t<isa>::jit_uni_softmax_bwd_t(const pd_t *apd)
-    : primitive_t(apd)
-    , softmax_driver_(new softmax_impl::driver_t<isa>(pd())) {}
+jit_uni_softmax_bwd_t::jit_uni_softmax_bwd_t(const pd_t *apd)
+    : primitive_t(apd), softmax_driver_(new softmax_impl::driver_t(pd())) {}
 
-template <cpu_isa_t isa>
-jit_uni_softmax_bwd_t<isa>::~jit_uni_softmax_bwd_t() {
+jit_uni_softmax_bwd_t::~jit_uni_softmax_bwd_t() {
     delete softmax_driver_;
 }
 
-template <cpu_isa_t isa>
-status_t jit_uni_softmax_bwd_t<isa>::init(engine_t *engine) {
+status_t jit_uni_softmax_bwd_t::init(engine_t *engine) {
     return softmax_driver_->create_kernel();
 }
 
-template <cpu_isa_t isa>
-status_t jit_uni_softmax_bwd_t<isa>::execute(const exec_ctx_t &ctx) const {
+status_t jit_uni_softmax_bwd_t::execute(const exec_ctx_t &ctx) const {
     auto dst = CTX_IN_MEM(const char *, DNNL_ARG_DST);
     auto diff_dst = CTX_IN_MEM(const char *, DNNL_ARG_DIFF_DST);
     auto diff_src = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_SRC);
@@ -883,58 +938,6 @@ status_t jit_uni_softmax_bwd_t<isa>::execute(const exec_ctx_t &ctx) const {
 
     return status::success;
 }
-
-namespace softmax_impl {
-
-template <cpu_isa_t isa>
-struct driver_t : public c_compatible {
-
-    driver_t(const softmax_pd_t *pd) : pd_(pd), ker_(pd_) {}
-
-    void exec(const void *src, void *dst, void *interim, const void *src_scales,
-            const void *dst_scales, const dim_t process_n_elems,
-            const void *dst_orig, const void *post_ops_binary_rhs_arg_vec) {
-        typename jit_softmax_t<isa>::call_params_t p;
-        p.process_n_elems = process_n_elems;
-        p.src = src;
-        p.dst = dst;
-        p.interim = interim;
-        p.src_scales = src_scales;
-        p.dst_scales = dst_scales;
-        // post-ops
-        p.dst_orig = dst_orig;
-        p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
-        ker_(&p);
-    }
-
-    void exec(void *diff_src, const void *dst, const void *diff_dst,
-            const dim_t process_n_elems) {
-        typename jit_softmax_t<isa>::call_params_t p;
-        p.process_n_elems = process_n_elems;
-        p.src = diff_src;
-        p.dst = dst;
-        p.diff_dst = diff_dst;
-        ker_(&p);
-    }
-
-    status_t create_kernel() { return ker_.create_kernel(); }
-
-private:
-    const softmax_pd_t *pd_;
-    jit_softmax_t<isa> ker_;
-};
-
-bcast_set_t get_supported_bcast_strategies() {
-    return {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc};
-}
-
-} // namespace softmax_impl
-
-/* struct instantiation */
-template struct jit_uni_softmax_fwd_t<sse41>;
-template struct jit_uni_softmax_fwd_t<avx2>;
-template struct jit_uni_softmax_fwd_t<avx512_core>;
-template struct jit_uni_softmax_bwd_t<avx512_core>;
 
 } // namespace x64
 } // namespace cpu

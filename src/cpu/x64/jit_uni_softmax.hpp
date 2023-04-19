@@ -41,19 +41,16 @@ namespace cpu {
 namespace x64 {
 
 namespace softmax_impl {
-template <cpu_isa_t isa>
 struct driver_t;
 
 bcast_set_t get_supported_bcast_strategies();
 } // namespace softmax_impl
 
-template <cpu_isa_t isa>
 struct jit_uni_softmax_fwd_t : public primitive_t {
     struct pd_t : public cpu_softmax_fwd_pd_t {
         using cpu_softmax_fwd_pd_t::cpu_softmax_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_softmax_fwd_t);
+        DECLARE_COMMON_PD_T("jit:uni", jit_uni_softmax_fwd_t);
 
         status_t init(engine_t *engine) {
             auto is_dense = [&]() {
@@ -67,7 +64,8 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
 
                 // It is fine to use float here as the kernel uses halfs of
                 // vector registers.
-                const auto blk_size = cpu_isa_traits<isa>::vlen / sizeof(float);
+                const dim_t blk_size
+                        = isa_max_vlen(get_max_cpu_isa()) / sizeof(float);
                 // 31 is a general limit, 2 is for unroll_regs_ = 4;
                 const size_t max_stride = (1LL << (31 - 2)) - 1;
                 const int last_blk = bd.inner_nblks - 1;
@@ -81,24 +79,18 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
 
             const auto src_dt = src_md()->data_type;
             const auto dst_dt = dst_md()->data_type;
-            bool ok = mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
+            bool ok = is_fwd() && !has_zero_dim_memory()
                     && utils::one_of(src_dt, f32, bf16, f16, s8, u8)
                     && utils::one_of(dst_dt, f32, bf16, f16, s8, u8)
                     // s8/u8 are temporary limitations due to priorities
                     && IMPLICATION(
                             (utils::one_of(s8, src_dt, dst_dt)
                                     || utils::one_of(u8, src_dt, dst_dt)),
-                            is_superset(isa, avx512_core))
+                            mayiuse(avx512_core))
                     && IMPLICATION(utils::one_of(bf16, src_dt, dst_dt),
-                            (is_superset(isa, avx512_core)
-                                    || (isa == avx2 && mayiuse(avx2_vnni_2))))
-                    // for f16 we reuse avx512_core/avx2 just to avoid
-                    // additional instantiation. Possible because we do not
-                    // currently support post-ops for this primitive
+                            mayiuse(avx512_core) || mayiuse(avx2_vnni_2))
                     && IMPLICATION(utils::one_of(f16, src_dt, dst_dt),
-                            (is_superset(isa, avx512_core)
-                                    && mayiuse(avx512_core_fp16))
-                                    || (isa == avx2 && mayiuse(avx2_vnni_2)));
+                            mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2));
             if (!ok) return status::unimplemented;
 
             VCHECK_SOFTMAX(
@@ -119,7 +111,7 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
             if (!ok) return status::unimplemented;
 
             // AVX2 only supports xf16 on plain layout now
-            ok = IMPLICATION(isa == avx2 && mayiuse(avx2_vnni_2)
+            ok = IMPLICATION(mayiuse(avx2_vnni_2) && !mayiuse(avx512_core)
                             && (utils::one_of(bf16, src_dt, dst_dt)
                                     || utils::one_of(f16, src_dt, dst_dt)),
                     memory_desc_wrapper(src_md()).is_plain());
@@ -166,16 +158,14 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    softmax_impl::driver_t<isa> *softmax_driver_;
+    softmax_impl::driver_t *softmax_driver_;
 };
 
-template <cpu_isa_t isa>
 struct jit_uni_softmax_bwd_t : public primitive_t {
     struct pd_t : public cpu_softmax_bwd_pd_t {
         using cpu_softmax_bwd_pd_t::cpu_softmax_bwd_pd_t;
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_softmax_bwd_t);
+        DECLARE_COMMON_PD_T("jit:uni", jit_uni_softmax_bwd_t);
 
         status_t init(engine_t *engine) {
             auto is_dense = [&]() {
@@ -187,7 +177,8 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
 
                 // It is fine to use float here as the kernel uses halfs of
                 // vector registers.
-                const auto blk_size = cpu_isa_traits<isa>::vlen / sizeof(float);
+                const dim_t blk_size
+                        = isa_max_vlen(get_max_cpu_isa()) / sizeof(float);
                 if (dst_d.is_plain())
                     return bd.strides[axis()] == 1;
                 else {
@@ -201,21 +192,18 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
             };
 
             using namespace data_type;
-            bool ok = mayiuse(isa) && !is_fwd() && !has_zero_dim_memory()
+            bool ok = !is_fwd() && !has_zero_dim_memory()
                     && utils::one_of(dst_md()->data_type, f32, bf16, f16)
                     && utils::one_of(diff_dst_md()->data_type, f32, bf16, f16)
                     && utils::one_of(diff_src_md()->data_type, f32, bf16, f16)
                     && IMPLICATION(utils::one_of(bf16, dst_md()->data_type,
                                            diff_dst_md()->data_type,
                                            diff_src_md()->data_type),
-                            is_superset(isa, avx512_core))
-                    // for f16 we reuse avx512_core just to avoid additional
-                    // instantiation.
+                            mayiuse(avx512_core))
                     && IMPLICATION(utils::one_of(f16, dst_md()->data_type,
                                            diff_dst_md()->data_type,
                                            diff_src_md()->data_type),
-                            is_superset(isa, avx512_core)
-                                    && mayiuse(avx512_core_fp16))
+                            mayiuse(avx512_core_fp16))
                     && attr()->has_default_values()
                     && set_default_formats() == status::success;
             if (!ok) return status::unimplemented;
@@ -242,7 +230,7 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    softmax_impl::driver_t<isa> *softmax_driver_;
+    softmax_impl::driver_t *softmax_driver_;
 };
 
 } // namespace x64
