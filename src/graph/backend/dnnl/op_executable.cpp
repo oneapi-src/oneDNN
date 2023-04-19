@@ -985,6 +985,7 @@ eltwise_bwd_executable_t::desc_t eltwise_bwd_executable_t::create_desc(
     auto diff_src = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
     diff_dst = to_format_any(diff_dst);
+    diff_src = to_format_any(diff_src);
     dnnl::eltwise_backward::primitive_desc pd(p_engine, bwd_algo, diff_src,
             diff_dst, forward_data, alpha, beta, fwd_hints, prm_attr);
 

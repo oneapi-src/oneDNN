@@ -172,7 +172,7 @@ static inline void test_eltwise_bwd_common(
     graph::logical_tensor_t fwd_data_lt = utils::logical_tensor_init(
             0, dims, strides_fwd, graph::data_type::f32);
     graph::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
-            1, dims, graph::data_type::f32, graph::layout_type::any);
+            1, dims, strides_diff, graph::data_type::f32);
     graph::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(
             2, dims, strides_diff, graph::data_type::f32);
 
@@ -413,6 +413,7 @@ TEST(Execute, ReluBackward) {
     graph::dims strides_diff {9, 1, 3};
     diff_dst = {
             3, -0.0559478, 0.754086, -7, 70, -0.218955, 0.0194608, 0, 88.5838};
+    ref_diff_src = {0, -0, 0.754086, -0, 70, 0, 0.0194608, -0, 88.5838};
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
             graph::op_kind::ReLUBackward, "relu_bw", strides, strides_diff);
     test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -332,7 +332,8 @@ status_t layout_propagator_for_eltwise_bwd(op_ptr &op,
     value_ptr diff_dst = op->get_input_value(1);
     status = fill_layout_info(diff_dst, opt_desc);
     if (status != status::success) return status;
-
+    insert_reorder_after(
+            op, 0, pd.diff_src_desc(), p_engine, mgr, pd_cache, rewriter);
     value_ptr diff_src = op->get_output_value(0);
     status = fill_layout_info(diff_src, pd.diff_src_desc());
     if (status != status::success) return status;
