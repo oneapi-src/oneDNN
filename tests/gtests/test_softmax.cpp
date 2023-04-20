@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -146,6 +146,10 @@ protected:
                                              : p.aprop_kind;
 
         allows_attr_t aa {false};
+        if (get_test_engine_kind() != engine::kind::gpu) {
+            aa.po_eltwise = true;
+            aa.po_binary = true;
+        }
         if (!(is_nvidia_gpu(eng) || is_amd_gpu(eng))) { aa.scales = true; }
 
         // To validate backward on valid tag::any settings reuse dst tag.
