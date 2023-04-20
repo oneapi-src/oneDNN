@@ -158,10 +158,12 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
   }
   bool is_cfg_set = false;
   bool is_2d_gemm = A_plain_dims.size() == 2 ? true : false;
+  auto a_batch_dims = get_a_batch_dims();
+  auto b_batch_dims = get_b_batch_dims();
   if (in_tensors_[0].get_format().is_blocking() && !is_2d_gemm) {
     cfg.M_block = in_tensors_[0].get_format().blocks_[0];
     cfg.K_block = in_tensors_[0].get_format().blocks_[1];
-    if (!get_a_batch_dims().empty() || !get_b_batch_dims().empty()) {
+    if (!a_batch_dims.empty() || !b_batch_dims.empty()) {
       cfg.N_block = 64;
       // Safe Guard: avoid K_block % rbd != 0
       validate_cfg(cfg, is_amx, get_in_dtypes(0));
@@ -173,7 +175,7 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
     int M = static_cast<int>(A_plain_dims[0]);
     int K = static_cast<int>(A_plain_dims[1]);
     int N = static_cast<int>(B_plain_dims[1]);
-    if (get_a_batch_dims().empty() && get_b_batch_dims().empty()) {
+    if (a_batch_dims.empty() && b_batch_dims.empty()) {
       // matmul2d default config
       for (int m_blk = 64; m_blk >= 16; m_blk--) {
         if (M % m_blk == 0) { possible_blks.emplace_back(m_blk); }
@@ -264,7 +266,7 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
     int N = static_cast<int>(B_plain_dims[1]);
     int K = static_cast<int>(B_plain_dims[0]);
 
-    if (get_a_batch_dims().empty() && get_b_batch_dims().empty()) {
+    if (a_batch_dims.empty() && b_batch_dims.empty()) {
       // matmul2d default config
       // do nothing
     } else {
@@ -304,7 +306,7 @@ float gen_matmul_core_t::get_gflop() const {
   const int64_t plain_M = get_mma_plain_dims()[0];
   const int64_t plain_K = get_mma_plain_dims()[1];
   const int64_t plain_N = get_mmb_plain_dims()[1];
-  return get_a_batch_dims().empty() && get_a_batch_dims().empty()
+  return get_a_batch_dims().empty() && get_b_batch_dims().empty()
     ? 2.f * plain_M * plain_N * plain_K / 1e9
     : 2.f * plain_M * plain_N * plain_K
       * math_utils::get_dims_product(
