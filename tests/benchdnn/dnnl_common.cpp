@@ -880,10 +880,18 @@ struct check_mem_size_args_t {
     bool add_ref_size;
     bool is_scratchpad;
 
-    // Output args.
+    // Output args:
+    // `sizes` used to validate OpenCL memory requirements.
     std::vector<size_t> sizes;
+    // `total_size_device` specifies memory allocated on device for a test obj.
     size_t total_size_device;
+    // `total_size_cpu` specifies:
+    // * Memory allocated for reference ocmputations (`C` mode only).
+    // * Memory allocated for comparison results (`C` mode only).
+    // * Memory allocated for mapping device memory (GPU backend only).
+    // * Memory allocated on CPU for a test obj (CPU backend only).
     size_t total_size_cpu;
+    // `scratchpad_size` specifies a scratchpad size for specific checks.
     size_t scratchpad_size;
 };
 
@@ -924,9 +932,10 @@ static int check_total_size(
     if (is_gpu()) {
         BENCHDNN_PRINT((!fits_device_ram ? 2 : 6),
                 "Requested: %g GB, benchdnn device limit: %g GB, device RAM "
-                "capacity: %g GB\n",
+                "capacity: %g GB, gpu_max_alloc: %g GB\n",
                 GB(check_mem_size_args.total_size_device),
-                GB(benchdnn_device_limit), GB(gpu_device_capacity));
+                GB(benchdnn_device_limit), GB(gpu_device_capacity),
+                GB(gpu_max_alloc_capacity));
     }
 
     size_t total_size_cpu = check_mem_size_args.total_size_cpu;
@@ -967,37 +976,46 @@ static int check_total_size(
     return res->state == FAILED ? FAIL : OK;
 }
 
-static void add_md_size(const_dnnl_memory_desc_t md,
+void add_md_size(const_dnnl_memory_desc_t md,
         check_mem_size_args_t &check_mem_size_args) {
     const auto mem_size = dnnl_memory_desc_get_size(md);
     // Runtime mem size is not defined.
     if (mem_size == 0 || mem_size == DNNL_RUNTIME_SIZE_VAL) return;
 
-    check_mem_size_args.total_size_device += mem_size; // Original memory size.
     check_mem_size_args.sizes.push_back(mem_size);
-    if (!check_mem_size_args.add_ref_size) return;
 
-    // Reference memories are always tag::abx fp32, hence need re-creating
-    // memory descriptor and take its size.
-    auto ref_md = dnn_mem_t::init_md(
-            query_md_ndims(md), query_md_dims(md), dnnl_f32, tag::abx);
-    const auto ref_md_size = dnnl_memory_desc_get_size(ref_md);
+    // Original memory size.
+    check_mem_size_args.total_size_device += mem_size;
 
-    // Correctness pass allocates additional tag::abx f32 memory.
-    bool compare_mem_factor = !check_mem_size_args.want_input
-            && check_mem_size_args.add_ref_size;
-
+    // GPU mapped memory factor.
     // All memory is mapped once it is created and unmapped only before
     // primitive execution. Device memory requires additional buffer for mapped
-    // memory.
-    // XXX: In DPC++ build oneDNN uses USM memory, which shouldn't require an
+    // memory allocated on host (CPU).
+    // Note: In DPC++ build oneDNN uses USM memory, which shouldn't require an
     // additional buffer, so map factor should be equal to 0 for DPC++.
     // However due to a driver issue oneDNN pretends that shared USM is not
     // accessible on the host, hence map will allocate an extra memory.
-    check_mem_size_args.total_size_cpu += !is_cpu() * mem_size; // Map factor.
+    const bool mapped_mem_factor = !is_cpu()
+            && !has_bench_mode_modifier(mode_modifier_t::no_host_memory);
+
+    // Mapped memory for GPU backend on CPU.
+    check_mem_size_args.total_size_cpu += mapped_mem_factor * mem_size;
+
     if (check_mem_size_args.is_scratchpad) {
         check_mem_size_args.scratchpad_size += mem_size;
     } else {
+        if (!check_mem_size_args.add_ref_size) return;
+
+        // Reference memories are always tag::abx fp32, hence need re-creating
+        // memory descriptor and take its size.
+        auto ref_md = dnn_mem_t::init_md(
+                query_md_ndims(md), query_md_dims(md), dnnl_f32, tag::abx);
+        const auto ref_md_size = dnnl_memory_desc_get_size(ref_md);
+
+        // Correctness pass allocates additional tag::abx f32 memory.
+        bool compare_mem_factor = !check_mem_size_args.want_input
+                && check_mem_size_args.add_ref_size;
+
         check_mem_size_args.total_size_cpu += ref_md_size; // Reference memory.
         // Comparison memory.
         check_mem_size_args.total_size_cpu += compare_mem_factor * ref_md_size;
@@ -1052,20 +1070,28 @@ int check_mem_size(const_dnnl_memory_desc_t md, res_t *res) {
 int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res) {
     if (!mem_check) return OK;
 
+    // Add reference memory estimation for correctness only.
+    bool add_ref_size = has_bench_mode_bit(mode_bit_t::corr);
     // Get input sizes.
-    check_mem_size_args_t check_mem_size_args(const_pd, /* want_input = */ true,
-            /* add_ref_size = */ true);
+    check_mem_size_args_t check_mem_size_args(
+            const_pd, /* want_input = */ true, add_ref_size);
     get_memory_bytes(check_mem_size_args);
 
-    // Get scratchpad size. Treat it as `want_input=true` to avoid comparison
-    // factor count. Since scratchpad modes are mutual excluded, it takes sizes
-    // of both modes since either of them will report 0 size.
-    check_mem_size_args.is_scratchpad = true;
-    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
-    add_md_size(scratchpad_md, check_mem_size_args);
-    check_mem_size_args.is_scratchpad = false;
-    check_mem_size_args.total_size_device += query_mem_consumption(const_pd);
-    check_mem_size_args.scratchpad_size += query_mem_consumption(const_pd);
+    // Get scratchpad size.
+    // Since scratchpad modes are mutually excluded, it takes sizes of both
+    // modes as either of them will report 0 size depending on the mode.
+    const auto library_scratchpad_size = query_mem_consumption(const_pd);
+    if (library_scratchpad_size > 0) {
+        // Update same fields as `add_md_size` would. See details there.
+        check_mem_size_args.sizes.push_back(library_scratchpad_size);
+        check_mem_size_args.total_size_device += library_scratchpad_size;
+        check_mem_size_args.scratchpad_size += library_scratchpad_size;
+    } else {
+        check_mem_size_args.is_scratchpad = true;
+        const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
+        add_md_size(scratchpad_md, check_mem_size_args);
+        check_mem_size_args.is_scratchpad = false;
+    }
 
     // Get output sizes.
     check_mem_size_args.want_input = false;
