@@ -378,7 +378,7 @@ void dump_kernel_binary(cl_kernel) {}
 
 void debugdump_processed_source(
         const std::string &source, const std::string &options) {
-#if defined(__linux__) && defined(OCL_DEBUG)
+#if defined(__linux__) && defined(DNNL_DEV_MODE)
     if (verbose_debuginfo() >= 10) {
         auto get_defines = [](const std::string &from) {
             std::string ret;

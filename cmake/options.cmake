@@ -66,6 +66,7 @@ option(DNNL_BUILD_FOR_CI
     "specifies whether oneDNN library will use special testing environment for
     internal testing processes"
     OFF)
+option(DNNL_DEVEL_MODE "Enables internal tracing capabilities" OFF)
 option(DNNL_WERROR "treat warnings as errors" OFF)
 
 set(DNNL_TEST_SET "CI" CACHE STRING

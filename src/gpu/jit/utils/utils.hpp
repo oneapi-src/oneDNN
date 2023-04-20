@@ -34,7 +34,7 @@
 // Uncomment this when jit::ir debugging is required:
 //#define GEN_IR_DEBUG
 #ifdef GEN_IR_DEBUG
-#define GEN_CONV_DEBUG
+#define DNNL_DEVEL_MODE
 #endif
 
 // Uncomment this when jit::ir profiling is required:
@@ -70,7 +70,7 @@ const int LOG_INFO = 150;
 const int LOG_PERF = 170;
 const int LOG_TRACE = 200;
 
-#ifdef GEN_CONV_DEBUG
+#ifdef DNNL_DEVEL_MODE
 const int LOG_LEVEL = LOG_WARNING;
 #else
 const int LOG_LEVEL = LOG_OFF;
@@ -248,7 +248,7 @@ private:
 // related messages. Usage:
 //     ir_assert(condition) << "Error message" << ...;
 
-#if !defined(NDEBUG) || defined(GEN_CONV_DEBUG)
+#if !defined(NDEBUG) || defined(DNNL_DEVEL_MODE)
 #define ir_assert(cond) \
     !(cond) \
             && dnnl::impl::gpu::jit::ir_utils::error_stream_t( \
@@ -271,7 +271,7 @@ public:
     operator bool() const { return true; }
 
     static bool is_enabled() {
-#if defined(GEN_CONV_DEBUG) || defined(GEN_CONV_PROFILE)
+#if defined(DNNL_DEVEL_MODE) || defined(GEN_CONV_PROFILE)
         static const int log_level(getenv_int("log_level", LOG_LEVEL));
         return log_level >= level;
 #else

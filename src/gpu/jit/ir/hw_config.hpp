@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ public:
         max_wg_size_ = static_cast<int>(device_info->max_wg_size());
         large_grf_support_ = compute_engine->mayiuse_large_grf_mode();
 
-#ifdef GEN_CONV_DEBUG
+#ifdef DNNL_DEVEL_MODE
         gpu_arch_t old_arch = gpu_arch;
         gpu_arch = ir_utils::getenv_gpu(
                 "gpu_arch", gpu_arch, &eu_count_, &max_wg_size_);

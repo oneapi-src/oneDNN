@@ -86,7 +86,7 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
             body, cfg_.kernel_grid(), builder.local_id(), expr_binding);
     profile.stamp("Bind Variables");
 
-#ifdef GEN_CONV_DEBUG
+#ifdef DNNL_DEVEL_MODE
     profile.stop();
     verify_grf_usage(cfg, body, ra_.get_alloced_regs());
     profile.start();
@@ -102,7 +102,7 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
 #ifdef GEN_CONV_PROFILE
     ir_perf_no_trace() << profile << "\n";
 #endif
-#ifdef GEN_CONV_DEBUG
+#ifdef DNNL_DEVEL_MODE
     ir_trace() << "Actual register usage:           " << ra_.get_peak_regs()
                << std::endl;
     int estimated_peak_regs = estimate_register_count(cfg_);

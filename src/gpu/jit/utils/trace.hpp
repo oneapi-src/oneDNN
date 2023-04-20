@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ inline void trace_stop(const char *) {};
 inline void trace_perf() {};
 #endif
 
-#if defined(GEN_CONV_PROFILE) || defined(GEN_CONV_DEBUG)
+#if defined(GEN_CONV_PROFILE) || defined(DNNL_DEVEL_MODE)
 void trace_pass(
         const char *pass_name, const stmt_t &stmt, ir_context_t &ir_ctx);
 #else

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,13 +31,13 @@ ir_utils::debug_profiler_t &get_trace_profiler() {
 }
 #endif
 
-#if defined(GEN_CONV_PROFILE) || defined(GEN_CONV_DEBUG)
+#if defined(GEN_CONV_PROFILE) || defined(DNNL_DEVEL_MODE)
 void trace_pass(
         const char *pass_name, const stmt_t &stmt, ir_context_t &ir_ctx) {
     trace_stop(pass_name);
     ir_trace() << "=== After " << pass_name << std::endl;
     ir_trace() << stmt << std::endl;
-#ifdef GEN_CONV_DEBUG
+#ifdef DNNL_DEVEL_MODE
     auto grf_usage = get_grf_usage(stmt, ir_ctx.hw_cfg().grf_size());
     if (!grf_usage.is_empty()) ir_trace() << grf_usage << std::endl;
 #endif

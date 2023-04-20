@@ -995,7 +995,7 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_config_t &hw_cfg) {
 }
 
 void maybe_override_from_lookup_table(conv_config_t &cfg) {
-#ifdef GEN_CONV_DEBUG
+#ifdef DNNL_DEVEL_MODE
     if (!ir_utils::getenv_bool("lookup", true)) return;
 #endif
     static conv_config_lookup_table_t table;
@@ -1011,7 +1011,7 @@ void maybe_override_from_env(conv_config_t &cfg) {
 
 void maybe_override(conv_config_t &cfg) {
     maybe_override_from_lookup_table(cfg);
-#ifdef GEN_CONV_DEBUG
+#ifdef DNNL_DEVEL_MODE
     maybe_override_from_env(cfg);
 #endif
 }
@@ -1527,7 +1527,7 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
     }
 
     bh.compute();
-#ifdef GEN_CONV_DEBUG
+#ifdef DNNL_DEVEL_MODE
     if (!can_use_2d_send(cfg, cfg.a_layout().compute_unnormalized(), true)
             && prb.g == 1)
         cfg.a_load_pattern = validate_blocking(cfg, bh,
@@ -1575,7 +1575,7 @@ void init_bwd_d(conv_config_t &cfg, block_helper_t &bh) {
 
     bh.compute();
 
-#ifdef GEN_CONV_DEBUG
+#ifdef DNNL_DEVEL_MODE
     if (!can_use_2d_send(cfg, cfg.a_layout().compute_unnormalized(), true))
         validate_blocking(cfg, bh, conv_stride_layout_t::input_tensor_t::dst);
     if (!can_use_2d_send(cfg, cfg.b_layout().compute_unnormalized(), false))
@@ -1634,7 +1634,7 @@ void init_bwd_w(conv_config_t &cfg, block_helper_t &bh) {
     if (cfg.send_2d_nhwc()) bh.set_reduce_m_block_hint(false);
 
     bh.compute();
-#ifdef GEN_CONV_DEBUG
+#ifdef DNNL_DEVEL_MODE
     if (!can_use_2d_send(cfg, cfg.a_layout().compute_unnormalized(), true))
         validate_blocking(cfg, bh, conv_stride_layout_t::input_tensor_t::src);
     if (!can_use_2d_send(cfg, cfg.b_layout().compute_unnormalized(), false))
@@ -1939,7 +1939,7 @@ status_t check_plan(conv_config_t &cfg) {
     ir_assert(cfg.slm().b() == plan.slm.has_b());
     ir_assert(cfg.pipeline().reuse_headers() == plan.reuse_headers);
 
-#ifdef GEN_CONV_DEBUG
+#ifdef DNNL_DEVEL_MODE
     auto dummy_mem(var_t::make(type_t::byte_ptr(), "mem"));
     auto dummy_reg(var_t::make(type_t::byte_ptr(), "reg"));
     if (!cfg.a_load_pattern.matches(

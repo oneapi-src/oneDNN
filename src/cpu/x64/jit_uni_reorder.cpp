@@ -35,11 +35,10 @@
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/utils/jit_io_helper.hpp"
 
-// #define TR_DEBUG
-#if defined(TR_DEBUG)
+#if defined(DNNL_DEVEL_MODE)
 #define DEBUg(...) \
     do { \
-        __VA_ARGS__ \
+        if (verbose_debuginfo() >= 5) { __VA_ARGS__ } \
     } while (0)
 #else
 #define DEBUg(...)

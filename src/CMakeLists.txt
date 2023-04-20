@@ -66,6 +66,11 @@ if(DNNL_ENABLE_JIT_PROFILING OR DNNL_ENABLE_ITT_TASKS)
     endif()
 endif()
 
+if(DNNL_DEVEL_MODE)
+  add_definitions_with_host_compiler(-DDNNL_DEVEL_MODE)
+  message(STATUS "Developer mode enabled")
+endif()
+
 if(DNNL_EXPERIMENTAL)
     message(STATUS "Experimental features are enabled")
 endif()

@@ -188,7 +188,7 @@ private:
             // TODO: bf16 and f16 currently perform worse than tf32, this is
             // likely due to an extra reorder required on the b buffer.
             bool use_matching_fpmath = false;
-#ifdef GEN_CONV_DEBUG
+#ifdef DNNL_DEVEL_MODE
             use_matching_fpmath = ir_utils::getenv_bool(
                     "use_matching_fpmath", use_matching_fpmath);
 #endif

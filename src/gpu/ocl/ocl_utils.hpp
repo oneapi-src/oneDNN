@@ -17,9 +17,6 @@
 #ifndef GPU_OCL_OCL_UTILS_HPP
 #define GPU_OCL_OCL_UTILS_HPP
 
-// Uncomment this when OpenCL debugging is required:
-// #define OCL_DEBUG
-
 #include <cinttypes>
 #include <memory>
 #include <sstream>

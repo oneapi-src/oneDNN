@@ -761,7 +761,7 @@ void conv_ir_builder_t::build() {
     stmt_ = inject_bank_conflict_attribute(stmt_, ir_ctx);
     stmt_ = stmt_group_t::make(stmt_label_t::kernel(), stmt_);
 
-#if !defined(NDEBUG) || defined(GEN_CONV_DEBUG)
+#if !defined(NDEBUG) || defined(DNNL_DEVEL_MODE)
     verify_buffer_access(stmt_, ir_ctx);
 #endif
 
