@@ -18,10 +18,13 @@
 #include <limits>
 #include <memory>
 
+#include "common/verbose.hpp"
+
 #include "graph/interface/op_schema.hpp"
 #include "graph/interface/opset.hpp"
 
 #include "graph/utils/utils.hpp"
+#include "graph/utils/verbose.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -241,14 +244,19 @@ bool op_schema_t::verify_param_dtype(
         std::unordered_map<std::string, std::set<data_type_t>>
                 &dtype_constraints) const {
     size_t offset = 0;
-    for (auto &v : actual_values) {
+    for (size_t i = 0; i < actual_values.size(); ++i) {
+        const auto &v = actual_values.at(i);
         const logical_tensor_t &lt = v->get_logical_tensor();
         const std::string &dtype_string = expected_params[offset].dtype_string_;
         if (dtype_string == "any") continue;
         std::set<data_type_t> &expected_dtypes
                 = dtype_constraints[dtype_string];
-        if (expected_dtypes.find(lt.data_type) == expected_dtypes.end())
-            return false;
+        VCONDCHECKGRAPH(create, check, op,
+                (expected_dtypes.find(lt.data_type) != expected_dtypes.end()),
+                false, "%s,given data type for input%zu is %s v.s. expected %s",
+                op_t::kind2str(op_schema_t::get_op_kind()).c_str(), i,
+                utils::data_type2str(lt.data_type),
+                utils::set2str(expected_dtypes, utils::data_type2str).c_str());
 
         if (expected_dtypes.size() != 1) {
             // dtype for current dtype_string has not been fixed
@@ -269,44 +277,45 @@ bool op_schema_t::verify_attributes(
         bool check_undefined_attrs) const {
     // check if required attributes are not provided
     for (const auto &elem : expected_attrs) {
-        if (elem.second.required_ && actual_attrs.count(elem.first) == 0) {
-            DEBUG_PRINT_ERROR("attribute \"" + op_t::attr2str(elem.first)
-                    + "\" is required but not set");
-            return false;
-        }
+        VCONDCHECKGRAPH(create, check, op,
+                !(elem.second.required_ && actual_attrs.count(elem.first) == 0),
+                false, "%s,attribute %s is required but not set",
+                op_t::kind2str(op_schema_t::get_op_kind()).c_str(),
+                op_t::attr2str(elem.first).c_str());
     }
     // check if the data types of actual attributes meet requirements
     for (const auto &elem : actual_attrs) {
         const op_attr_t attr_name = elem.first;
         if (expected_attrs.count(attr_name) == 0) continue;
-        if (elem.second.get_kind() != expected_attrs.at(attr_name).attr_kind_) {
-            DEBUG_PRINT_ERROR("attribute \"" + op_t::attr2str(elem.first)
-                    + "\" has invalid type");
-            return false;
-        }
+        VCONDCHECKGRAPH(create, check, op,
+                (elem.second.get_kind()
+                        == expected_attrs.at(attr_name).attr_kind_),
+                false, "%s,attribute %s has invalid type",
+                op_t::kind2str(op_schema_t::get_op_kind()).c_str(),
+                op_t::attr2str(elem.first).c_str());
 
         // check if user set valid attribute value
         const auto &candidates
                 = expected_attrs.find(attr_name)->second.candidates_;
         if (!candidates.empty()) {
-            if (std::find(candidates.begin(), candidates.end(), elem.second)
-                    == candidates.end()) {
-                DEBUG_PRINT_ERROR("attribute \"" + op_t::attr2str(elem.first)
-                        + "\" has invalid value: "
-                        + elem.second.get<std::string>());
-                return false;
-            }
+            VCONDCHECKGRAPH(create, check, op,
+                    (std::find(
+                             candidates.begin(), candidates.end(), elem.second)
+                            != candidates.end()),
+                    false, "%s,attribute %s has invalid value",
+                    op_t::kind2str(op_schema_t::get_op_kind()).c_str(),
+                    op_t::attr2str(elem.first).c_str());
         }
     }
 
     // check if user set undefined attributes
     if (check_undefined_attrs) {
         for (const auto &elem : actual_attrs) {
-            if (expected_attrs.count(elem.first) == 0) {
-                DEBUG_PRINT_ERROR("attribute \"" + op_t::attr2str(elem.first)
-                        + "\" is not defined in spec");
-                return false;
-            }
+            VCONDCHECKGRAPH(create, check, op,
+                    (expected_attrs.count(elem.first) != 0), false,
+                    "%s,attribute %s is not defined in spec",
+                    op_t::kind2str(op_schema_t::get_op_kind()).c_str(),
+                    op_t::attr2str(elem.first).c_str());
         }
     }
 
@@ -335,7 +344,10 @@ bool op_schema_t::verify(const op_t *l_op, bool check_undefined_attrs) const {
     std::set<size_t> expected_num_inputs = get_num_inputs();
     bool param_num_verify_result = verify_param_num(
             actual_num_inputs, expected_num_inputs, inputs_option);
-    if (!param_num_verify_result) { return false; }
+    VCONDCHECKGRAPH(create, check, op, (param_num_verify_result), false,
+            "%s,given num inputs %zu v.s. expected %s",
+            op_t::kind2str(op_schema_t::get_op_kind()).c_str(),
+            actual_num_inputs, utils::set2str(expected_num_inputs).c_str());
 
     // this is used to pass input dtype constraints to output
     bool param_dtype_verify_result = true;
@@ -349,7 +361,10 @@ bool op_schema_t::verify(const op_t *l_op, bool check_undefined_attrs) const {
     std::set<size_t> expected_num_outputs = get_num_outputs();
     param_num_verify_result = verify_param_num(
             actual_num_outputs, expected_num_outputs, outputs_option);
-    if (!param_num_verify_result) { return false; }
+    VCONDCHECKGRAPH(create, check, op, (param_num_verify_result), false,
+            "%s,given num outputs %zu v.s. expected %s",
+            op_t::kind2str(op_schema_t::get_op_kind()).c_str(),
+            actual_num_outputs, utils::set2str(expected_num_outputs).c_str());
 
     param_dtype_verify_result = verify_param_dtype(l_op->get_output_values(),
             outputs_, outputs_option, dtype_constraints);

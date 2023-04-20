@@ -26,6 +26,7 @@
 #include <functional>
 #include <iostream>
 #include <numeric>
+#include <set>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -120,6 +121,36 @@ inline int div_and_ceil(float x, float y) {
 
 inline int div_and_floor(float x, float y) {
     return std::floor(x / y);
+}
+
+template <typename T, typename... Args>
+inline std::string set2str(const std::set<T, Args...> &obj) {
+    std::ostringstream oss;
+
+    oss << '{';
+    auto it = obj.cbegin();
+    if (it != obj.cend()) {
+        oss << *it++;
+        while (it != obj.cend())
+            oss << ',' << *it++;
+    }
+    oss << '}';
+    return oss.str();
+}
+
+template <typename T, typename F, typename... Args>
+inline std::string set2str(const std::set<T, Args...> &obj, F f) {
+    std::ostringstream oss;
+
+    oss << '{';
+    auto it = obj.cbegin();
+    if (it != obj.cend()) {
+        oss << f(*it++);
+        while (it != obj.cend())
+            oss << ',' << f(*it++);
+    }
+    oss << '}';
+    return oss.str();
 }
 
 } // namespace utils
