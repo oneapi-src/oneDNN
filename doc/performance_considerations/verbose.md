@@ -70,7 +70,7 @@ created.  Here is an example of output one can get when providing
 incorrect dimensions to a matmul primitive.
 
 ~~~sh
-> ONEDNN_VERBOSE=all ./benchdnn --matmul 256x256:25x256
+ONEDNN_VERBOSE=all ./benchdnn --matmul 256x256:25x256
 ~~~
 
 This produces the following output:
