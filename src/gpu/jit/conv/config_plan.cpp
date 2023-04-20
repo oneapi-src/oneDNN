@@ -1106,7 +1106,8 @@ struct fma_config_t {
         fma = cfg.fma_kind();
         a_type = type_t(cfg.prb().a_data_type);
         b_type = type_t(cfg.prb().b_data_type);
-        is_src1_broadcast = !cfg.prb().is_dw;
+        is_src2_broadcast = cfg.is_broadcast_oc();
+        is_src1_broadcast = !is_src2_broadcast && !cfg.prb().is_dw;
     }
 
     int simd;
@@ -1115,6 +1116,7 @@ struct fma_config_t {
     type_t a_type;
     type_t b_type;
     bool is_src1_broadcast;
+    bool is_src2_broadcast;
 };
 
 bool check_k_blocks_order(layout_t &a, layout_t &b,
@@ -1219,24 +1221,45 @@ layout_t get_fma_friendly_layout(const fma_config_t &fma_cfg, abc_kind_t abc,
     }
 
     if (is_mad) {
+        auto new_layout = layout;
+        // try to reorder a_layout if n dim is smaller then vec_size
+        // so that mad  broadcasts along the n dim
+        if (is_a && fma_cfg.is_src2_broadcast) {
+            auto a_bmnk = {bmnk_kind_t::b, bmnk_kind_t::m, bmnk_kind_t::k};
+            auto a_layout = mapper.map_to_bmnk(abc_kind_t::a, a_bmnk, layout);
+            std::vector<block_t> blocks;
+            for (int i = 0; i < (int)a_layout.blocks().size(); i++) {
+                auto &b = a_layout.blocks()[i];
+                if (b.dim_idx == 1 && b.block % fma_cfg.vec_size == 0)
+                    blocks.insert(blocks.begin(), b);
+                else
+                    blocks.emplace_back(b);
+            }
+            auto tmp_layout = layout_t(a_layout.type(), a_layout.ndims(),
+                    a_layout.offset(), blocks);
+            ir_assert(blocks[0].block % fma_cfg.vec_size == 0);
+            new_layout = mapper.map_from_bmnk(abc, a_bmnk, tmp_layout, layout);
+        }
+
         // mad with s8/u8 is not supported, promote to strided s16.
-        if (type.is_x8()) return layout.retype(type_t::s16()).make_strided(2);
+        if (type.is_x8())
+            return new_layout.retype(type_t::s16()).make_strided(2);
 
         // mad with f16 requires aligned regioning for src1/src2.
-        if (fma_cfg.a_type.is_f16()) return layout.make_dense();
+        if (fma_cfg.a_type.is_f16()) return new_layout.make_dense();
 
         if (fma_cfg.a_type.is_bf16()) {
             // bf16 mixed mode requires src1 to be converted to f32 when it's
             // broadcasted.
             if (is_a && fma_cfg.is_src1_broadcast)
-                return layout.retype(type_t::f32()).make_dense();
+                return new_layout.retype(type_t::f32()).make_dense();
             // bf16 mixed mode mad requires src1 to be packed
-            if (is_a) return layout.make_dense();
+            if (is_a) return new_layout.make_dense();
             // bf16 mixed mode mad requires src2 to be f32.
-            if (is_b) return layout.retype(type_t::f32()).make_dense();
+            if (is_b) return new_layout.retype(type_t::f32()).make_dense();
         }
 
-        return layout;
+        return new_layout;
     }
 
     ir_error_not_expected();

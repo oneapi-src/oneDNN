@@ -1433,6 +1433,11 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
 
     //scattered send messages use too much GRF for XeLP
     if (is_xe_lp && prb.is_dw && prb.g < 32) bh.set_base_iter_block("g", 16);
+    if (cfg.is_broadcast_oc()) {
+        int blk = utils::rnd_up_pow2(prb.oc);
+        bh.set_base_iter_block("oc", blk);
+        bh.dim("oc").set_iter_dim(blk);
+    }
     int mb_base_iter_blk = bh.dim("mb").base_iter_block();
     // mb blocking is always outer so we can safely use a smaller divisor to
     // have more flexible blocking for some cases.

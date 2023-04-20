@@ -948,6 +948,13 @@ public:
                 && prb().oc < 4 && prb().mb < 8 && !prb().is_dw;
     }
 
+    bool is_broadcast_oc() const {
+        return prb().is_fwd && fma_kind() == fma_kind_t::mad
+                && hw() <= ngen::HW::XeLP && !prb().is_s32_accumulator()
+                && prb().oc < 4 && prb().g == 1
+                && (fuse_spatial() ? prb().osp : prb().ow) % vec_size() == 0;
+    }
+
     bool is_dp_fma() const {
         return utils::one_of(fma_kind(), fma_kind_t::dpas, fma_kind_t::dpasw,
                 fma_kind_t::dp4a);
