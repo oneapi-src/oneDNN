@@ -151,7 +151,7 @@ struct gpu_primitive_t : public primitive_t {
 
 #ifndef DISABLE_VERBOSE
         // Print out kernel options if the correct verbosity is set
-        if (verbose_debuginfo() >= 5) {
+        if (get_verbose(verbose_t::debuginfo) >= 5) {
             std::ostringstream oss;
             for (const char *name : kernel_names)
                 oss << name << " ";

@@ -407,7 +407,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
         scalar_type_ = kd->scalar_type();
 
-        if (verbose_debuginfo() >= 2) {
+        if (get_verbose(verbose_t::debuginfo) >= 2) {
             auto info = kd->driver_info();
             printf("onednn_verbose,info,gpu,gemm,kernel:%dx%d,%dx%dx%d\n",
                     info->unroll[LoopM], info->unroll[LoopN], info->wg[LoopM],

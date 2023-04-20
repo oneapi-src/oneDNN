@@ -158,7 +158,7 @@ status_t create_ocl_kernel_from_cache_blob(const ocl_gpu_engine_t *ocl_engine,
 cl_int maybe_print_debug_info(
         cl_int err, cl_program program, cl_device_id dev) {
     // Return error code if verbose is not enabled.
-    if (err == CL_SUCCESS || verbose_has_error() == 0) return err;
+    if (err == CL_SUCCESS || get_verbose(verbose_t::error)) return err;
 
     size_t log_length = 0;
     err = clGetProgramBuildInfo(

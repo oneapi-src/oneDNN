@@ -76,10 +76,9 @@ namespace impl {
 
 static setting_t<uint32_t> verbose {0};
 
-void print_header(int verbosity_flag_hint = verbose_t::none) {
+void print_header() {
     static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
-    if ((verbose.get() & verbosity_flag_hint)
-            && !version_printed.test_and_set()) {
+    if (!version_printed.test_and_set()) {
         printf("onednn_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
                 dnnl_version()->major, dnnl_version()->minor,
                 dnnl_version()->patch, dnnl_version()->hash);
@@ -119,9 +118,8 @@ void print_header(int verbosity_flag_hint = verbose_t::none) {
     }
 }
 
-// verbosity flag is a hint on when to print header so that we print
-// header only when something will effectively be logged
-uint32_t get_verbose(int verbosity_flag_hint = verbose_t::none) {
+// hint parameter is the kind of verbose we are querying for
+int get_verbose(verbose_t::flag_kind verbosity_kind) {
 #if defined(DISABLE_VERBOSE)
     return verbose_t::none;
 #else
@@ -148,7 +146,7 @@ uint32_t get_verbose(int verbosity_flag_hint = verbose_t::none) {
             // Enable profiling to external libraries
             if (s == "profile_externals")
                 return k |= verbose_t::profile_externals;
-            // we extract debug info debug_info=XX. ignore if debuginfo is invalid.
+            // we extract debug info debuginfo=XX. ignore if debuginfo is invalid.
             if (s.rfind("debuginfo=", 0) == 0)
                 return k |= verbose_t::make_debuginfo(
                                std::strtol(s.c_str() + 10, nullptr, 10));
@@ -167,35 +165,12 @@ uint32_t get_verbose(int verbosity_flag_hint = verbose_t::none) {
         verbose.set(val);
     }
 
-    print_header(verbosity_flag_hint);
-
-    return verbose.get();
+    int result = verbose.get() & verbosity_kind;
+    if (verbosity_kind == verbose_t::debuginfo)
+        result = verbose_t::get_debuginfo(verbose.get());
+    if (result) print_header();
+    return result;
 #endif
-}
-
-bool verbose_has_error() {
-    return get_verbose(verbose_t::error) & verbose_t::error;
-};
-bool verbose_has_create_dispatch() {
-    return get_verbose(verbose_t::create_dispatch) & verbose_t::create_dispatch;
-};
-bool verbose_has_create_check() {
-    return get_verbose(verbose_t::create_check) & verbose_t::create_check;
-};
-bool verbose_has_create_profile() {
-    return get_verbose(verbose_t::create_profile) & verbose_t::create_profile;
-};
-bool verbose_has_exec_check() {
-    return get_verbose(verbose_t::exec_check) & verbose_t::exec_check;
-};
-bool verbose_has_exec_profile() {
-    return get_verbose(verbose_t::exec_profile) & verbose_t::exec_profile;
-};
-bool verbose_has_profile_externals() {
-    return get_verbose() & verbose_t::profile_externals;
-};
-int verbose_debuginfo() {
-    return get_verbose() >> 24;
 }
 
 static setting_t<bool> verbose_timestamp {false};

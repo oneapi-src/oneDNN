@@ -379,7 +379,7 @@ void dump_kernel_binary(cl_kernel) {}
 void debugdump_processed_source(
         const std::string &source, const std::string &options) {
 #if defined(__linux__) && defined(DNNL_DEV_MODE)
-    if (verbose_debuginfo() >= 10) {
+    if (get_verbose(verbose_t::debuginfo) >= 10) {
         auto get_defines = [](const std::string &from) {
             std::string ret;
             size_t pos = 0;

@@ -299,7 +299,7 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("WEI_QPARAM_MASK", conf.wei_qparam_mask);
     kernel_ctx.define_int("IS_TESTMODE", conf.is_testmode);
 #ifdef DNNL_DEVEL_MODE
-    kernel_ctx.define_int("DEBUGPRINT", verbose_debuginfo() >= 5);
+    kernel_ctx.define_int("DEBUGPRINT", get_verbose(verbose_t::debuginfo) >= 5);
 #endif
     return status::success;
 }

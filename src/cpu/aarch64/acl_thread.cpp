@@ -98,12 +98,12 @@ void acl_set_tp_benchmark_scheduler() {
 void set_acl_threading() {
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
     acl_thread_bind();
-    if (verbose_has_profile_externals()) {
+    if (get_verbose(verbose_t::profile_externals)) {
         acl_set_benchmark_scheduler_default();
     }
 #endif
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    if (verbose_has_profile_externals()) {
+    if (get_verbose(verbose_t::profile_externals)) {
         acl_set_tp_benchmark_scheduler();
     } else {
         acl_set_tp_scheduler();

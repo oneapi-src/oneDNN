@@ -99,7 +99,7 @@ void reorder_to_weight_format(arm_compute::TensorInfo &info, memory_desc_t &md,
 // Logs a custom 'info' line describing an unsupported case
 #define LOG_ACL_UNSUPPORTED(msg) \
     do { \
-        if (verbose_has_create_dispatch()) \
+        if (get_verbose(verbose_t::create_dispatch)) \
             printf("onednn_verbose,cpu,acl,unsupported: %s\n", (msg)); \
     } while (0)
 

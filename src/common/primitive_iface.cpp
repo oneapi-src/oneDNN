@@ -64,7 +64,7 @@ status_t primitive_create(primitive_iface_t **primitive_iface,
 
     std::pair<primitive_iface_t *, bool> p_iface;
 
-    if (verbose_has_create_profile()) {
+    if (get_verbose(verbose_t::create_profile)) {
         double start_ms = get_msec();
         CHECK(primitive_desc_iface->create_primitive_iface(
                 p_iface, cache_blob));
@@ -92,7 +92,7 @@ status_t primitive_execute(
         itt::primitive_task_start(primitive_iface->pd()->impl()->kind());
 #endif
 
-    if (verbose_has_exec_profile()) {
+    if (get_verbose(verbose_t::exec_profile)) {
         stream->wait();
         double start_ms = get_msec();
         status = stream->enqueue_primitive(primitive_iface, ctx);

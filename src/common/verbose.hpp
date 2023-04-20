@@ -79,7 +79,7 @@ struct const_expr_value {
 // Logging info
 #define VINFO(logtype, logsubtype, component, msg, ...) \
     do { \
-        if (verbose_has_##logtype##_##logsubtype()) \
+        if (get_verbose(verbose_t::logtype##_##logsubtype)) \
             VFORMAT(get_msec(), logtype, VERBOSE_##logsubtype, \
                     #component "," msg ",%s:%d", ##__VA_ARGS__, __FILENAME__, \
                     __LINE__); \
@@ -106,7 +106,7 @@ struct const_expr_value {
 // Special syntactic sugar for error, plus flush of the output stream
 #define VERROR(component, msg, ...) \
     do { \
-        if (verbose_has_error()) { \
+        if (get_verbose(verbose_t::error)) { \
             VFORMAT(get_msec(), error, "", #component "," msg, ##__VA_ARGS__); \
         } \
         fflush(stdout); \
@@ -142,17 +142,10 @@ struct verbose_t {
     };
 
     static int make_debuginfo(int level) { return level << 24; }
+    static int get_debuginfo(int flag) { return flag >> 24; }
 };
 
-bool verbose_has_error();
-bool verbose_has_create_check();
-bool verbose_has_create_dispatch();
-bool verbose_has_create_profile();
-bool verbose_has_exec_check();
-bool verbose_has_exec_profile();
-bool verbose_has_profile_externals();
-
-int verbose_debuginfo();
+int get_verbose(verbose_t::flag_kind kind = verbose_t::none);
 
 bool get_verbose_timestamp();
 

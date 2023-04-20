@@ -41,7 +41,7 @@
 #if defined(DNNL_DEVEL_MODE)
 #define DEBUg(...) \
     do { \
-        if (verbose_debuginfo() > 1) { __VA_ARGS__ } \
+        if (get_verbose(verbose_t::debuginfo) > 1) { __VA_ARGS__ } \
     } while (0)
 #else
 #define DEBUg(...)

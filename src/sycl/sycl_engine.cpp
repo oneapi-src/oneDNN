@@ -35,7 +35,7 @@ status_t sycl_engine_factory_t::engine_create(
 
     auto exception_handler = [](const ::sycl::exception_list &eptr_list) {
         for (auto &eptr : eptr_list) {
-            if (verbose_has_error()) {
+            if (get_verbose(verbose_t::error)) {
                 try {
                     std::rethrow_exception(eptr);
                 } catch (const ::sycl::exception &e) {
