@@ -145,7 +145,8 @@ static inline void test_eltwise_bwd_common(
         const test::vector<float> &ref_diff_src, dnnl::impl::graph::dims &dims,
         const graph::op_kind_t op_kind, const std::string &op_name,
         const dnnl::impl::graph::dims strides_fwd,
-        const dnnl::impl::graph::dims strides_diff,
+        const dnnl::impl::graph::dims strides_diff_src,
+        const dnnl::impl::graph::dims strides_diff_dst,
         const std::map<dnnl::impl::graph::op_attr_t, attr_data_t> &attrs_data
         = {}) {
     static const std::set<graph::op_kind_t> with_support_for_use_dst {
@@ -172,9 +173,9 @@ static inline void test_eltwise_bwd_common(
     graph::logical_tensor_t fwd_data_lt = utils::logical_tensor_init(
             0, dims, strides_fwd, graph::data_type::f32);
     graph::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
-            1, dims, strides_diff, graph::data_type::f32);
+            1, dims, strides_diff_src, graph::data_type::f32);
     graph::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(
-            2, dims, strides_diff, graph::data_type::f32);
+            2, dims, strides_diff_dst, graph::data_type::f32);
 
     op.add_input(fwd_data_lt);
     op.add_input(diff_dst_lt);
@@ -234,10 +235,10 @@ TEST(Execute, ClampBackward) {
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
             graph::op_kind::ClampBackward, "clamp_bw", strides, strides,
-            attrs_data);
+            strides, attrs_data);
     test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
             graph::op_kind::ClampBackward, "clamp_bw", strides, strides,
-            attrs_data);
+            strides, attrs_data);
 }
 
 TEST(Execute, Elu) {
@@ -278,10 +279,10 @@ TEST(Execute, EluBackward) {
             {graph::op_attr::alpha, 1.f}};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            graph::op_kind::EluBackward, "elu_bw", strides, strides,
+            graph::op_kind::EluBackward, "elu_bw", strides, strides, strides,
             attrs_data);
     test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
-            graph::op_kind::EluBackward, "elu_bw", strides, strides,
+            graph::op_kind::EluBackward, "elu_bw", strides, strides, strides,
             attrs_data);
 }
 
@@ -319,7 +320,7 @@ TEST(Execute, GeluBackward) {
     dnnl::impl::graph::dims dims {1, 3, 3};
     graph::dims strides {9, 3, 1};
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            graph::op_kind::GELUBackward, "gelu_bw", strides, strides);
+            graph::op_kind::GELUBackward, "gelu_bw", strides, strides, strides);
 }
 
 TEST(Execute, HardSigmoid) {
@@ -356,7 +357,7 @@ TEST(Execute, HardSigmoidBackward) {
 
     test_eltwise_bwd_common({src, false}, diff_dst, ref_diff_src, dims,
             graph::op_kind::HardSigmoidBackward, "hardsigmoid_bw", strides,
-            strides, attrs_data);
+            strides, strides, attrs_data);
 }
 
 TEST(Execute, HardSwish) {
@@ -381,7 +382,7 @@ TEST(Execute, HardSwishBackward) {
     dnnl::impl::graph::dims dims {1, 3, 3};
     graph::dims strides {9, 3, 1};
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            graph::op_kind::HardSwishBackward, "hardswish_bw", strides,
+            graph::op_kind::HardSwishBackward, "hardswish_bw", strides, strides,
             strides);
 }
 
@@ -407,17 +408,25 @@ TEST(Execute, ReluBackward) {
     dnnl::impl::graph::dims dims {1, 3, 3};
     graph::dims strides {9, 3, 1};
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            graph::op_kind::ReLUBackward, "relu_bw", strides, strides);
+            graph::op_kind::ReLUBackward, "relu_bw", strides, strides, strides);
     test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
-            graph::op_kind::ReLUBackward, "relu_bw", strides, strides);
+            graph::op_kind::ReLUBackward, "relu_bw", strides, strides, strides);
     graph::dims strides_diff {9, 1, 3};
     diff_dst = {
             3, -0.0559478, 0.754086, -7, 70, -0.218955, 0.0194608, 0, 88.5838};
+    test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
+            graph::op_kind::ReLUBackward, "relu_bw", strides, strides,
+            strides_diff);
+    test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
+            graph::op_kind::ReLUBackward, "relu_bw", strides, strides,
+            strides_diff);
     ref_diff_src = {0, -0, 0.754086, -0, 70, 0, 0.0194608, -0, 88.5838};
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            graph::op_kind::ReLUBackward, "relu_bw", strides, strides_diff);
+            graph::op_kind::ReLUBackward, "relu_bw", strides, strides_diff,
+            strides_diff);
     test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
-            graph::op_kind::ReLUBackward, "relu_bw", strides, strides_diff);
+            graph::op_kind::ReLUBackward, "relu_bw", strides, strides_diff,
+            strides_diff);
 }
 
 TEST(Execute, Sigmoid) {
@@ -442,9 +451,11 @@ TEST(Execute, SigmoidBackward) {
     dnnl::impl::graph::dims dims {1, 3, 3};
     graph::dims strides {9, 3, 1};
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            graph::op_kind::SigmoidBackward, "sigmoid_bw", strides, strides);
+            graph::op_kind::SigmoidBackward, "sigmoid_bw", strides, strides,
+            strides);
     test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
-            graph::op_kind::SigmoidBackward, "sigmoid_bw", strides, strides);
+            graph::op_kind::SigmoidBackward, "sigmoid_bw", strides, strides,
+            strides);
 }
 
 TEST(Execute, SoftPlus) {
@@ -506,16 +517,16 @@ TEST(Execute, SoftPlusBackward) {
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src_case1, dims,
             graph::op_kind::SoftPlusBackward, "softplus_bw", strides, strides,
-            attrs_data_case1);
+            strides, attrs_data_case1);
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src_case2, dims,
             graph::op_kind::SoftPlusBackward, "softplus_bw", strides, strides,
-            attrs_data_case2);
+            strides, attrs_data_case2);
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src_case3, dims,
             graph::op_kind::SoftPlusBackward, "softplus_bw", strides, strides,
-            attrs_data_case3);
+            strides, attrs_data_case3);
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src_case4, dims,
             graph::op_kind::SoftPlusBackward, "softplus_bw", strides, strides,
-            attrs_data_case4);
+            strides, attrs_data_case4);
 }
 
 TEST(Execute, Sqrt) {
@@ -540,9 +551,9 @@ TEST(Execute, SqrtBackward) {
     dnnl::impl::graph::dims dims {1, 3, 3};
     graph::dims strides {9, 3, 1};
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            graph::op_kind::SqrtBackward, "sqrt_bw", strides, strides);
+            graph::op_kind::SqrtBackward, "sqrt_bw", strides, strides, strides);
     test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
-            graph::op_kind::SqrtBackward, "sqrt_bw", strides, strides);
+            graph::op_kind::SqrtBackward, "sqrt_bw", strides, strides, strides);
 }
 
 TEST(Execute, Square) {
@@ -593,9 +604,9 @@ TEST(Execute, TanhBackward) {
     dnnl::impl::graph::dims dims {1, 3, 3};
     graph::dims strides {9, 3, 1};
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            graph::op_kind::TanhBackward, "tanh_bw", strides, strides);
+            graph::op_kind::TanhBackward, "tanh_bw", strides, strides, strides);
     test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
-            graph::op_kind::TanhBackward, "tanh_bw", strides, strides);
+            graph::op_kind::TanhBackward, "tanh_bw", strides, strides, strides);
 }
 
 TEST(ExecuteSubgraphFp32, Shuffle) {
