@@ -45,36 +45,8 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
+namespace softmax_impl {
 using namespace Xbyak;
-
-// This class isolates primitive implementation from templates introduced by
-// the kernel.
-struct jit_softmax_kernel_base_t {
-    static jit_softmax_kernel_base_t *create(const softmax_pd_t *pd);
-
-    virtual ~jit_softmax_kernel_base_t() = default;
-
-    struct call_params_t {
-        // keep all sizes at 8 bytes -- jit code expects this
-        const void *src, *dst, *diff_dst; // src dubs as diff_src
-        const void *interim; // scratch memory for intermediate storage
-        const void *src_scales; // src_scales defined for all data type cases
-        const void *dst_scales; // dst_scales defined for all data type cases
-        size_t process_n_elems;
-
-        // post ops
-        const void *dst_orig;
-        const void *post_ops_binary_rhs_arg_vec;
-    };
-
-    virtual void operator()(const call_params_t *p) const = 0;
-    virtual status_t create_kernel() = 0;
-
-protected:
-    jit_softmax_kernel_base_t(const softmax_pd_t *pd) : pd_(pd) {}
-
-    const softmax_pd_t *pd_;
-};
 
 template <cpu_isa_t isa>
 struct jit_softmax_kernel_t : jit_softmax_kernel_base_t, public jit_generator {
@@ -709,8 +681,8 @@ struct jit_softmax_kernel_t : jit_softmax_kernel_base_t, public jit_generator {
                     dst_d_, axis_simd_tail_, tail_opmask,
                     use_exact_tail_scalar_bcast};
 
-            const binary_injector::static_params_t bsp {reg_param,
-                    softmax_impl::get_supported_bcast_strategies(), rhs_sp};
+            const binary_injector::static_params_t bsp {
+                    reg_param, get_supported_bcast_strategies(), rhs_sp};
 
             postops_injector_ = utils::make_unique<
                     injector::jit_uni_postops_injector_t<isa>>(
@@ -789,63 +761,19 @@ jit_softmax_kernel_base_t *jit_softmax_kernel_base_t::create(
     return nullptr;
 }
 
-namespace softmax_impl {
-
-struct driver_t : public c_compatible {
-
-    driver_t(const softmax_pd_t *pd) : pd_(pd) {}
-
-    void exec(const void *src, void *dst, void *interim, const void *src_scales,
-            const void *dst_scales, const dim_t process_n_elems,
-            const void *dst_orig, const void *post_ops_binary_rhs_arg_vec) {
-        jit_softmax_kernel_base_t::call_params_t p;
-        p.process_n_elems = process_n_elems;
-        p.src = src;
-        p.dst = dst;
-        p.interim = interim;
-        p.src_scales = src_scales;
-        p.dst_scales = dst_scales;
-        // post-ops
-        p.dst_orig = dst_orig;
-        p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
-        (*ker_)(&p);
-    }
-
-    void exec(void *diff_src, const void *dst, const void *diff_dst,
-            const dim_t process_n_elems) {
-        jit_softmax_kernel_base_t::call_params_t p;
-        p.process_n_elems = process_n_elems;
-        p.src = diff_src;
-        p.dst = dst;
-        p.diff_dst = diff_dst;
-        (*ker_)(&p);
-    }
-
-    status_t create_kernel() {
-        CHECK(safe_ptr_assign(ker_, jit_softmax_kernel_base_t::create(pd_)));
-        if (ker_) CHECK(ker_->create_kernel());
-        return status::success;
-    }
-
-private:
-    const softmax_pd_t *pd_;
-    std::unique_ptr<jit_softmax_kernel_base_t> ker_;
-};
-
 bcast_set_t get_supported_bcast_strategies() {
     return {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc};
 }
 } // namespace softmax_impl
 
 jit_uni_softmax_fwd_t::jit_uni_softmax_fwd_t(const pd_t *apd)
-    : primitive_t(apd), softmax_driver_(new softmax_impl::driver_t(pd())) {}
-
-jit_uni_softmax_fwd_t::~jit_uni_softmax_fwd_t() {
-    delete softmax_driver_;
-}
+    : primitive_t(apd) {}
 
 status_t jit_uni_softmax_fwd_t::init(engine_t *engine) {
-    return softmax_driver_->create_kernel();
+    CHECK(safe_ptr_assign(
+            ker_, softmax_impl::jit_softmax_kernel_base_t::create(pd())));
+    if (ker_) CHECK(ker_->create_kernel());
+    return status::success;
 }
 
 status_t jit_uni_softmax_fwd_t::execute(const exec_ctx_t &ctx) const {
@@ -887,23 +815,31 @@ status_t jit_uni_softmax_fwd_t::execute(const exec_ctx_t &ctx) const {
                 char *interim_ptr = scratchpad_ptr ? scratchpad_ptr
                                 + ithr * axis_size_padded * sizeof(float)
                                                    : nullptr;
-                softmax_driver_->exec(src_ptr, dst_ptr, interim_ptr, src_scales,
-                        dst_scales, process_n_elems, dst_orig_ptr,
-                        post_ops_binary_rhs_arg_vec.data());
+                softmax_impl::jit_softmax_kernel_base_t::call_params_t p;
+                p.process_n_elems = process_n_elems;
+                p.src = src_ptr;
+                p.dst = dst_ptr;
+                p.interim = interim_ptr;
+                p.src_scales = src_scales;
+                p.dst_scales = dst_scales;
+                // post-ops
+                p.dst_orig = dst_orig_ptr;
+                p.post_ops_binary_rhs_arg_vec
+                        = post_ops_binary_rhs_arg_vec.data();
+                (*ker_)(&p);
             });
 
     return status::success;
 }
 
 jit_uni_softmax_bwd_t::jit_uni_softmax_bwd_t(const pd_t *apd)
-    : primitive_t(apd), softmax_driver_(new softmax_impl::driver_t(pd())) {}
-
-jit_uni_softmax_bwd_t::~jit_uni_softmax_bwd_t() {
-    delete softmax_driver_;
-}
+    : primitive_t(apd) {}
 
 status_t jit_uni_softmax_bwd_t::init(engine_t *engine) {
-    return softmax_driver_->create_kernel();
+    CHECK(safe_ptr_assign(
+            ker_, softmax_impl::jit_softmax_kernel_base_t::create(pd())));
+    if (ker_) CHECK(ker_->create_kernel());
+    return status::success;
 }
 
 status_t jit_uni_softmax_bwd_t::execute(const exec_ctx_t &ctx) const {
@@ -932,8 +868,12 @@ status_t jit_uni_softmax_bwd_t::execute(const exec_ctx_t &ctx) const {
         char *diff_src_ptr = diff_src + offset * diff_src_data_type_size;
         const char *dst_ptr = dst + offset * dst_data_type_size;
         const char *diff_dst_ptr = diff_dst + offset * diff_dst_data_type_size;
-        softmax_driver_->exec(
-                diff_src_ptr, dst_ptr, diff_dst_ptr, process_n_elems);
+        softmax_impl::jit_softmax_kernel_base_t::call_params_t p;
+        p.process_n_elems = process_n_elems;
+        p.src = diff_src_ptr;
+        p.dst = dst_ptr;
+        p.diff_dst = diff_dst_ptr;
+        (*ker_)(&p);
     });
 
     return status::success;

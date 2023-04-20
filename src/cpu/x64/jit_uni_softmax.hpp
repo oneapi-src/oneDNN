@@ -41,7 +41,34 @@ namespace cpu {
 namespace x64 {
 
 namespace softmax_impl {
-struct driver_t;
+// This class isolates primitive implementation from templates introduced by
+// the kernel.
+struct jit_softmax_kernel_base_t {
+    static jit_softmax_kernel_base_t *create(const softmax_pd_t *pd);
+
+    virtual ~jit_softmax_kernel_base_t() = default;
+
+    struct call_params_t {
+        // keep all sizes at 8 bytes -- jit code expects this
+        const void *src, *dst, *diff_dst; // src dubs as diff_src
+        const void *interim; // scratch memory for intermediate storage
+        const void *src_scales; // src_scales defined for all data type cases
+        const void *dst_scales; // dst_scales defined for all data type cases
+        size_t process_n_elems;
+
+        // post ops
+        const void *dst_orig;
+        const void *post_ops_binary_rhs_arg_vec;
+    };
+
+    virtual void operator()(const call_params_t *p) const = 0;
+    virtual status_t create_kernel() = 0;
+
+protected:
+    jit_softmax_kernel_base_t(const softmax_pd_t *pd) : pd_(pd) {}
+
+    const softmax_pd_t *pd_;
+};
 
 bcast_set_t get_supported_bcast_strategies();
 } // namespace softmax_impl
@@ -150,7 +177,6 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
     };
 
     jit_uni_softmax_fwd_t(const pd_t *apd);
-    ~jit_uni_softmax_fwd_t();
 
     status_t init(engine_t *engine) override;
 
@@ -158,7 +184,7 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    softmax_impl::driver_t *softmax_driver_;
+    std::unique_ptr<softmax_impl::jit_softmax_kernel_base_t> ker_;
 };
 
 struct jit_uni_softmax_bwd_t : public primitive_t {
@@ -221,7 +247,6 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
     };
 
     jit_uni_softmax_bwd_t(const pd_t *apd);
-    ~jit_uni_softmax_bwd_t();
 
     status_t init(engine_t *engine) override;
 
@@ -230,7 +255,7 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    softmax_impl::driver_t *softmax_driver_;
+    std::unique_ptr<softmax_impl::jit_softmax_kernel_base_t> ker_;
 };
 
 } // namespace x64
