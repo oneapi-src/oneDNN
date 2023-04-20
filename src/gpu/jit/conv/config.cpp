@@ -914,6 +914,7 @@ bool zero_points_ok(const conv_problem_t &prb) {
 }
 
 bool post_ops_ok(const conv_problem_t &prb, const hw_config_t &hw_cfg) {
+    auto *pd = prb.conv_pd;
     auto *attr = prb.attr;
 
     // No post-ops are supported for f64
@@ -927,6 +928,13 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_config_t &hw_cfg) {
     } else {
         if (!attr->has_default_values()) return false;
     }
+
+    using namespace data_type;
+    const auto input_type = (prb.is_fwd) ? pd->invariant_src_md()->data_type
+                                         : pd->invariant_dst_md()->data_type;
+    if (!attr->post_ops_.check_sum_consistency(
+                prb.c_data_type, utils::one_of(input_type, s8, u8), true))
+        return false;
 
     if (!attr->scales_.has_default_values())
         if (!prb.is_s32_accumulator()) return false;
