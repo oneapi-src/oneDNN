@@ -29,6 +29,63 @@ namespace impl {
 namespace graph {
 namespace utils {
 
+// General formatting macro for verbose.
+// msg is typically a constant string pulled from verbose_msg.hpp
+// The string can contain format specifiers which are provided in VA_ARGS
+// Note: using ##__VAR_ARGS__ is necessary to avoid trailing comma in printf call
+
+#define VFORMATGRAPH(stamp, logtype, logsubtype, msg, ...) \
+    do { \
+        std::string stamp_; \
+        printf("onednn_graph_verbose%s," CONCAT2(VERBOSE_, logtype) "%s," msg \
+                                                                    "\n", \
+                stamp_.c_str(), logsubtype, ##__VA_ARGS__); \
+    } while (0)
+
+// Logging info
+#define VINFOGRAPH(logtype, logsubtype, component, msg, ...) \
+    do { \
+        if (utils::verbose_has_##logtype##_##logsubtype()) \
+            VFORMATGRAPH(get_msec(), logtype, VERBOSE_##logsubtype, \
+                    #component "," msg ",%s:%d", ##__VA_ARGS__, __FILENAME__, \
+                    __LINE__); \
+    } while (0)
+
+// Macro for boolean checks
+#define VCONDCHECKGRAPH( \
+        logtype, logsubtype, component, condition, status, msg, ...) \
+    do { \
+        if (!(condition)) { \
+            VINFOGRAPH(logtype, logsubtype, component, msg, ##__VA_ARGS__); \
+            return status; \
+        } \
+    } while (0)
+
+// Macro for status checks
+#define VCHECKGRAPH(logtype, logsubtype, component, f, msg, ...) \
+    do { \
+        status_t _status_ = (f); \
+        VCONDCHECKGRAPH(logtype, logsubtype, component, \
+                _status_ == status::success, _status_, msg, ##__VA_ARGS__); \
+    } while (0)
+
+// Special syntactic sugar for error, plus flush of the output stream
+#define VERRORGRAPH(component, msg, ...) \
+    do { \
+        if (verbose_has_error()) { \
+            VFORMATGRAPH( \
+                    get_msec(), error, "", #component "," msg, ##__VA_ARGS__); \
+        } \
+        fflush(stdout); \
+    } while (0)
+
+// Special syntactic sugar for logging performance
+// NOTE: the VPROF macro does not check for verbose flags, it is the
+// responsibility of the caller do check those (it should happen
+// anyway to condition collecting stamp/duration)
+#define VPROFGRAPH(stamp, logtype, logsubtype, info, duration) \
+    { VFORMATGRAPH(stamp, logtype, logsubtype, "%s,%g", info, duration); }
+
 struct partition_info_t {
     partition_info_t() = default;
     partition_info_t(const partition_info_t &rhs)
@@ -57,6 +114,7 @@ private:
 };
 
 bool verbose_has_error();
+bool verbose_has_create_check();
 bool verbose_has_create_profile();
 bool verbose_has_exec_profile();
 

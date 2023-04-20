@@ -65,6 +65,9 @@ uint32_t get_verbose() {
                         | impl::verbose_t::create_profile;
             if (s == "all" || s == "-1") return k |= impl::verbose_t::all;
             if (s == "error") return k |= impl::verbose_t::error;
+            if (s == "check")
+                return k |= impl::verbose_t::create_check
+                        | impl::verbose_t::exec_check;
             if (s == "profile")
                 return k |= impl::verbose_t::create_profile
                         | impl::verbose_t::exec_profile;
@@ -113,6 +116,9 @@ uint32_t get_verbose() {
 
 bool verbose_has_error() {
     return get_verbose() & impl::verbose_t::error;
+};
+bool verbose_has_create_check() {
+    return get_verbose() & impl::verbose_t::create_check;
 };
 bool verbose_has_create_profile() {
     return get_verbose() & impl::verbose_t::create_profile;
