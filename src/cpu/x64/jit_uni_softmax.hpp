@@ -44,7 +44,8 @@ namespace softmax_impl {
 // This class isolates primitive implementation from templates introduced by
 // the kernel.
 struct jit_softmax_kernel_base_t {
-    static jit_softmax_kernel_base_t *create(const softmax_pd_t *pd);
+    static jit_softmax_kernel_base_t *create(
+            const softmax_pd_t *pd, const cpu_isa_t isa);
 
     virtual ~jit_softmax_kernel_base_t() = default;
 
@@ -77,7 +78,11 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
     struct pd_t : public cpu_softmax_fwd_pd_t {
         using cpu_softmax_fwd_pd_t::cpu_softmax_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T("jit:uni", jit_uni_softmax_fwd_t);
+        const char *impl_name() const {
+            return JIT_IMPL_NAME_HELPER("jit:", isa_, "");
+        }
+
+        DECLARE_COMMON_PD_T(impl_name(), jit_uni_softmax_fwd_t);
 
         status_t init(engine_t *engine) {
             auto is_dense = [&]() {
@@ -91,8 +96,7 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
 
                 // It is fine to use float here as the kernel uses halfs of
                 // vector registers.
-                const dim_t blk_size
-                        = isa_max_vlen(get_max_cpu_isa()) / sizeof(float);
+                const dim_t blk_size = isa_max_vlen(isa_) / sizeof(float);
                 // 31 is a general limit, 2 is for unroll_regs_ = 4;
                 const size_t max_stride = (1LL << (31 - 2)) - 1;
                 const int last_blk = bd.inner_nblks - 1;
@@ -103,6 +107,8 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
 
             using namespace data_type;
             using skip_mask_t = primitive_attr_t::skip_mask_t;
+
+            isa_ = get_max_cpu_isa();
 
             const auto src_dt = src_md()->data_type;
             const auto dst_dt = dst_md()->data_type;
@@ -151,6 +157,7 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
         };
 
         int nthr_; // To not exceed the limit in execute used for set up.
+        cpu_isa_t isa_;
 
     private:
         void init_scratchpad() {
@@ -169,9 +176,9 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
             const std::vector<injector::post_op_type> accepted_post_ops
                     = {injector::eltwise, injector::binary};
             const memory_desc_wrapper dst_d(dst_md());
-            injector::post_ops_ok_args_t post_ops_args(get_max_cpu_isa(),
-                    accepted_post_ops, attr()->post_ops_, &dst_d, true, true,
-                    true, softmax_impl::get_supported_bcast_strategies());
+            injector::post_ops_ok_args_t post_ops_args(isa_, accepted_post_ops,
+                    attr()->post_ops_, &dst_d, true, true, true,
+                    softmax_impl::get_supported_bcast_strategies());
             return !with_sum && injector::post_ops_ok(post_ops_args);
         }
     };
@@ -191,7 +198,11 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
     struct pd_t : public cpu_softmax_bwd_pd_t {
         using cpu_softmax_bwd_pd_t::cpu_softmax_bwd_pd_t;
 
-        DECLARE_COMMON_PD_T("jit:uni", jit_uni_softmax_bwd_t);
+        const char *impl_name() const {
+            return JIT_IMPL_NAME_HELPER("jit:", isa_, "");
+        }
+
+        DECLARE_COMMON_PD_T(impl_name(), jit_uni_softmax_bwd_t);
 
         status_t init(engine_t *engine) {
             auto is_dense = [&]() {
@@ -203,8 +214,7 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
 
                 // It is fine to use float here as the kernel uses halfs of
                 // vector registers.
-                const dim_t blk_size
-                        = isa_max_vlen(get_max_cpu_isa()) / sizeof(float);
+                const dim_t blk_size = isa_max_vlen(isa_) / sizeof(float);
                 if (dst_d.is_plain())
                     return bd.strides[axis()] == 1;
                 else {
@@ -216,6 +226,8 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
                             && sizeof(float) * bd.strides[axis()] < max_stride;
                 }
             };
+
+            isa_ = get_max_cpu_isa();
 
             using namespace data_type;
             bool ok = !is_fwd() && !has_zero_dim_memory()
@@ -243,7 +255,8 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
             if (!ok) return status::unimplemented;
 
             return status::success;
-        };
+        }
+        cpu_isa_t isa_;
     };
 
     jit_uni_softmax_bwd_t(const pd_t *apd);

@@ -748,9 +748,9 @@ struct jit_softmax_kernel_t : jit_softmax_kernel_base_t, public jit_generator {
 };
 
 jit_softmax_kernel_base_t *jit_softmax_kernel_base_t::create(
-        const softmax_pd_t *pd) {
-#define HANDLE_ISA(isa) \
-    if (mayiuse(isa)) return new jit_softmax_kernel_t<isa>(pd)
+        const softmax_pd_t *pd, const cpu_isa_t isa) {
+#define HANDLE_ISA(isa_) \
+    if (is_subset(isa_, isa)) return new jit_softmax_kernel_t<isa_>(pd)
     REG_AVX512_ISA(HANDLE_ISA(avx512_core_fp16));
     REG_AVX512_ISA(HANDLE_ISA(avx512_core));
     REG_AVX2_ISA(HANDLE_ISA(avx2_vnni_2));
@@ -770,8 +770,8 @@ jit_uni_softmax_fwd_t::jit_uni_softmax_fwd_t(const pd_t *apd)
     : primitive_t(apd) {}
 
 status_t jit_uni_softmax_fwd_t::init(engine_t *engine) {
-    CHECK(safe_ptr_assign(
-            ker_, softmax_impl::jit_softmax_kernel_base_t::create(pd())));
+    CHECK(safe_ptr_assign(ker_,
+            softmax_impl::jit_softmax_kernel_base_t::create(pd(), pd()->isa_)));
     if (ker_) CHECK(ker_->create_kernel());
     return status::success;
 }
@@ -836,8 +836,8 @@ jit_uni_softmax_bwd_t::jit_uni_softmax_bwd_t(const pd_t *apd)
     : primitive_t(apd) {}
 
 status_t jit_uni_softmax_bwd_t::init(engine_t *engine) {
-    CHECK(safe_ptr_assign(
-            ker_, softmax_impl::jit_softmax_kernel_base_t::create(pd())));
+    CHECK(safe_ptr_assign(ker_,
+            softmax_impl::jit_softmax_kernel_base_t::create(pd(), pd()->isa_)));
     if (ker_) CHECK(ker_->create_kernel());
     return status::success;
 }
