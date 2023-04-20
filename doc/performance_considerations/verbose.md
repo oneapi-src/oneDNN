@@ -26,16 +26,16 @@ the type of tracing information to display.
 | Environment variable       | Value               | Description                                       |
 |:---------------------------|:--------------------|:--------------------------------------------------|
 | `ONEDNN_VERBOSE`           | `none`              | no messages printed                               |
-|                            | **`error`**         | **error messages**  (default)                     |
-|                            | `check`             | primitive creation parameter checking information |
-|                            | `profile_create`    | primitive creation  timings                       |
-|                            | `profile_exec`      | primitive execution timings                       |
-|                            | `profile`           | primitive creation and execution timings          |
-|                            | `dispatch`          | primitive dispatching information                 |
-|                            | `all`               | enables all above flags but `none`                |
-|                            | `debuginfo=<level>` | enables internal debug printing (for developers)  |
+| \                          | **`error`**         | **error messages**  (default)                     |
+| \                          | `check`             | primitive creation parameter checking information |
+| \                          | `profile_create`    | primitive creation  timings                       |
+| \                          | `profile_exec`      | primitive execution timings                       |
+| \                          | `profile`           | primitive creation and execution timings          |
+| \                          | `dispatch`          | primitive dispatching information                 |
+| \                          | `all`               | enables all above flags but `none`                |
+| \                          | `debuginfo=<level>` | enables internal debug printing (for developers)  |
 | `ONEDNN_VERBOSE_TIMESTAMP` | **0**               | **display timestamps disabled (default)**         |
-|                            | 1                   | display timestamps enabled                        |
+| \                          | 1                   | display timestamps enabled                        |
 
 The verbose flags can be combined,
 e.g. `ONEDNN_VERBOSE=profile,dispatch` will enable printing both
@@ -50,8 +50,8 @@ oneDNN supports the following legacy settings:
 | Environment variable | Value | Description                                                       |
 |:---------------------|:------|:------------------------------------------------------------------|
 | ONEDNN_VERBOSE       | 0     | no verbose output, replaced by `none`                             |
-|                      | 1     | primitive execution profiling timings, replaced by `profile_exec` |
-|                      | 2     | primitive creation and execution timings, replaced by `profile`   |
+| \                    | 1     | primitive execution profiling timings, replaced by `profile_exec` |
+| \                    | 2     | primitive creation and execution timings, replaced by `profile`   |
 
 
 The oneDNN verbose can also be managed at run-time with the following
