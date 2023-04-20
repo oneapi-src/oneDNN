@@ -18,6 +18,7 @@
 
 #include "common/dnnl_thread.hpp"
 #include "cpu/cpu_primitive.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_uni_binary.hpp"
 
 namespace dnnl {
@@ -134,8 +135,8 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
 
     // All operations over blocking descriptors should have md initialized.
     conf_.is_src_different_layouts = !compare_layouts(src0_md_, src1_md_);
-    ok = post_ops_ok(
-                 attr(), src_md(0), dst_md(), conf_.is_src_different_layouts)
+    ok = post_ops_ok(attr(), src_md(0), dst_md(),
+                 conf_.is_src_different_layouts, conf_.isa)
             && (conf_.is_i8 || elt_idx == -1
                     || IMPLICATION(!dst_md_.is_dense(),
                             cpu_eltwise_fwd_pd_t::eltwise_preserves_zero(
@@ -440,42 +441,49 @@ bool jit_uni_binary_t::pd_t::is_applicable() {
 
 bool jit_uni_binary_t::post_ops_ok(const primitive_attr_t *attr,
         const memory_desc_wrapper &src0_d, const memory_desc_wrapper &dst_d,
-        const bool is_src_different_layouts) {
+        const bool is_src_different_layouts, const cpu_isa_t isa) {
+    using namespace injector;
     using namespace primitive_kind;
 
     const auto &p = attr->post_ops_;
-    const auto is_eltwise = [&](int idx) {
-        if (p.entry_[idx].is_eltwise()) {
-            const auto alg = p.entry_[idx].eltwise.alg;
-            return eltwise_injector::is_alg_supported(alg);
-        }
+    const auto supported_strategies = get_supported_postops_bcast_strategies();
+    if (!injector::post_ops_ok(post_ops_ok_args_t(isa, {binary, eltwise, sum},
+                p, &dst_d, false /*sum_at_pos_0_only*/,
+                false /*sum_requires_scale_one*/, true /*sum_requires_zp_zero*/,
+                true /*sum_requires_same_params*/, supported_strategies)))
         return false;
-    };
+
+    // data type of int8 dst is allowed to differ from src0 unless there is a sum postop
+    // TODO: remove this limitation as it appears unnecessary
+    if (p.find(primitive_kind::sum) != -1)
+        if (src0_d.data_type() != dst_d.data_type()) return false;
+
+    // no prelu support
+    if (p.find(primitive_kind::prelu) != -1) return false;
+
     const auto is_binary = [&](int idx) { return p.entry_[idx].is_binary(); };
     const bool is_avx512_core = mayiuse(avx512_core);
     const bool is_avx512_core_fp16 = mayiuse(avx512_core_fp16);
     const bool is_i8 = utils::one_of(dst_d.data_type(), s8, u8);
 
-    const auto supported_strategies = get_supported_postops_bcast_strategies();
     for (int i = 0; i < p.len(); i++) {
-        if (p.contain(primitive_kind::sum, i)) {
-            if (p.entry_[i].sum.zero_point != 0) return false;
-            if (src0_d.data_type() != dst_d.data_type()) return false;
-        } else if (is_binary(i)) {
+        if (is_binary(i)) {
             const auto &post_ops_mem = p.entry_[i].binary.src1_desc;
             const bool is_src1_bf16 = post_ops_mem.data_type == data_type::bf16;
             const bool is_src1_f16 = post_ops_mem.data_type == data_type::f16;
+            // TODO: set conf_.isa so that these checks are handled by injector
+            // (namely, conf_.isa should match the binary kernel isa)
             if (is_i8 && (is_src1_bf16 || is_src1_f16)) return false;
             if (!IMPLICATION(is_src1_bf16, is_avx512_core)) return false;
             if (!IMPLICATION(is_src1_f16, is_avx512_core_fp16)) return false;
+            // TODO: eliminate in favor of check in injectors::post_ops_ok
+            // (conditions are slightly different, need to check corner cases)
             if (get_rhs_arg_broadcasting_strategy(
                         post_ops_mem, dst_d, supported_strategies)
                     == broadcasting_strategy_t::no_broadcast) {
                 const memory_desc_wrapper post_op_mem_d(post_ops_mem);
                 if (!post_op_mem_d.similar_to(dst_d, true, false)) return false;
             }
-        } else if (!is_eltwise(i)) {
-            return false;
         }
     }
 

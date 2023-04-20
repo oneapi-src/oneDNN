@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -97,7 +97,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     static bool post_ops_ok(const primitive_attr_t *attr,
             const memory_desc_wrapper &src0_d, const memory_desc_wrapper &dst_d,
-            const bool is_src1_different_layouts);
+            const bool is_src1_different_layouts, const cpu_isa_t isa);
 
     std::unique_ptr<binary_kernel_t> kernel_;
     // used only in bcast_c_blocked strategy if tail exists
