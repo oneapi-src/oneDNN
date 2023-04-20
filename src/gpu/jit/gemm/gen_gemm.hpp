@@ -123,7 +123,9 @@ struct gen_gemm_t : public gpu_gemm_t {
                     && IMPLICATION(with_sum_ab(),
                             !with_bias()
                                     && (attr()->zero_points_.has_default_values(
-                                            DNNL_ARG_DST)));
+                                            DNNL_ARG_DST)))
+                    && attr()->post_ops_.check_sum_consistency(
+                            d->c_type(), utils::one_of(d->a_type(), s8, u8));
 
             auto status = init_post_ops();
             if (status != status::success) return status;
