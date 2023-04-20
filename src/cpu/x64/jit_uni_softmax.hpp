@@ -72,6 +72,7 @@ protected:
 };
 
 bcast_set_t get_supported_bcast_strategies();
+std::vector<cpu_isa_t> get_supported_isa();
 } // namespace softmax_impl
 
 struct jit_uni_softmax_fwd_t : public primitive_t {
@@ -85,7 +86,7 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T(impl_name(), jit_uni_softmax_fwd_t);
 
         status_t init(engine_t *engine) {
-            auto is_dense = [&]() {
+            auto is_dense = [&](const cpu_isa_t isa) {
                 const memory_desc_wrapper src_d(src_md());
                 const auto &bd = src_d.blocking_desc();
 
@@ -96,7 +97,7 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
 
                 // It is fine to use float here as the kernel uses halfs of
                 // vector registers.
-                const dim_t blk_size = isa_max_vlen(isa_) / sizeof(float);
+                const dim_t blk_size = isa_max_vlen(isa) / sizeof(float);
                 // 31 is a general limit, 2 is for unroll_regs_ = 4;
                 const size_t max_stride = (1LL << (31 - 2)) - 1;
                 const int last_blk = bd.inner_nblks - 1;
@@ -108,7 +109,15 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
             using namespace data_type;
             using skip_mask_t = primitive_attr_t::skip_mask_t;
 
-            isa_ = get_max_cpu_isa();
+            // try multiple vlen
+            for (const auto &i : softmax_impl::get_supported_isa()) {
+                if (mayiuse(i) && is_dense(i)) {
+                    isa_ = i;
+                    break;
+                }
+            }
+            // not dense impl can be easily done
+            if (isa_ == isa_undef) return status::unimplemented;
 
             const auto src_dt = src_md()->data_type;
             const auto dst_dt = dst_md()->data_type;
@@ -119,11 +128,13 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
                     && IMPLICATION(
                             (utils::one_of(s8, src_dt, dst_dt)
                                     || utils::one_of(u8, src_dt, dst_dt)),
-                            mayiuse(avx512_core))
+                            is_superset(isa_, avx512_core))
                     && IMPLICATION(utils::one_of(bf16, src_dt, dst_dt),
-                            mayiuse(avx512_core) || mayiuse(avx2_vnni_2))
+                            is_superset(isa_, avx512_core)
+                                    || is_superset(isa_, avx2_vnni_2))
                     && IMPLICATION(utils::one_of(f16, src_dt, dst_dt),
-                            mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2));
+                            is_superset(isa_, avx512_core_fp16)
+                                    || is_superset(isa_, avx2_vnni_2));
             if (!ok) return status::unimplemented;
 
             VCHECK_SOFTMAX(
@@ -139,12 +150,12 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
             if (!ok) return status::unimplemented;
 
             ok = memory_desc_wrapper(src_md()).similar_to(
-                         memory_desc_wrapper(dst_md()), true, false, 0)
-                    && is_dense(); // not dense impl can be easily done
+                    memory_desc_wrapper(dst_md()), true, false, 0);
             if (!ok) return status::unimplemented;
 
             // AVX2 only supports xf16 on plain layout now
-            ok = IMPLICATION(mayiuse(avx2_vnni_2) && !mayiuse(avx512_core)
+            ok = IMPLICATION(is_superset(isa_, avx2_vnni_2)
+                            && !is_superset(isa_, avx512_core)
                             && (utils::one_of(bf16, src_dt, dst_dt)
                                     || utils::one_of(f16, src_dt, dst_dt)),
                     memory_desc_wrapper(src_md()).is_plain());
@@ -157,7 +168,7 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
         };
 
         int nthr_; // To not exceed the limit in execute used for set up.
-        cpu_isa_t isa_;
+        cpu_isa_t isa_ = isa_undef;
 
     private:
         void init_scratchpad() {
@@ -205,7 +216,7 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
         DECLARE_COMMON_PD_T(impl_name(), jit_uni_softmax_bwd_t);
 
         status_t init(engine_t *engine) {
-            auto is_dense = [&]() {
+            auto is_dense = [&](const cpu_isa_t isa) {
                 const memory_desc_wrapper dst_d(dst_md());
                 const auto &bd = dst_d.blocking_desc();
 
@@ -214,7 +225,7 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
 
                 // It is fine to use float here as the kernel uses halfs of
                 // vector registers.
-                const dim_t blk_size = isa_max_vlen(isa_) / sizeof(float);
+                const dim_t blk_size = isa_max_vlen(isa) / sizeof(float);
                 if (dst_d.is_plain())
                     return bd.strides[axis()] == 1;
                 else {
@@ -227,7 +238,15 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
                 }
             };
 
-            isa_ = get_max_cpu_isa();
+            // try multiple vlen
+            for (const auto &i : softmax_impl::get_supported_isa()) {
+                if (mayiuse(i) && is_dense(i)) {
+                    isa_ = i;
+                    break;
+                }
+            }
+            // not dense impl can be easily done
+            if (isa_ == isa_undef) return status::unimplemented;
 
             using namespace data_type;
             bool ok = !is_fwd() && !has_zero_dim_memory()
@@ -237,11 +256,11 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
                     && IMPLICATION(utils::one_of(bf16, dst_md()->data_type,
                                            diff_dst_md()->data_type,
                                            diff_src_md()->data_type),
-                            mayiuse(avx512_core))
+                            is_superset(isa_, avx512_core))
                     && IMPLICATION(utils::one_of(f16, dst_md()->data_type,
                                            diff_dst_md()->data_type,
                                            diff_src_md()->data_type),
-                            mayiuse(avx512_core_fp16))
+                            is_superset(isa_, avx512_core_fp16))
                     && attr()->has_default_values()
                     && set_default_formats() == status::success;
             if (!ok) return status::unimplemented;
@@ -250,13 +269,12 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
                             .similar_to(memory_desc_wrapper(diff_dst_md()),
                                     true, false, 0)
                     && memory_desc_wrapper(diff_dst_md())
-                            == memory_desc_wrapper(dst_md())
-                    && is_dense(); // not dense impl can be easily done
+                            == memory_desc_wrapper(dst_md());
             if (!ok) return status::unimplemented;
 
             return status::success;
         }
-        cpu_isa_t isa_;
+        cpu_isa_t isa_ = isa_undef;
     };
 
     jit_uni_softmax_bwd_t(const pd_t *apd);

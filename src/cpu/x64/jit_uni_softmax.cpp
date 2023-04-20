@@ -750,7 +750,7 @@ struct jit_softmax_kernel_t : jit_softmax_kernel_base_t, public jit_generator {
 jit_softmax_kernel_base_t *jit_softmax_kernel_base_t::create(
         const softmax_pd_t *pd, const cpu_isa_t isa) {
 #define HANDLE_ISA(isa_) \
-    if (is_subset(isa_, isa)) return new jit_softmax_kernel_t<isa_>(pd)
+    if ((isa_) == isa) return new jit_softmax_kernel_t<isa_>(pd)
     REG_AVX512_ISA(HANDLE_ISA(avx512_core_fp16));
     REG_AVX512_ISA(HANDLE_ISA(avx512_core));
     REG_AVX2_ISA(HANDLE_ISA(avx2_vnni_2));
@@ -759,6 +759,10 @@ jit_softmax_kernel_base_t *jit_softmax_kernel_base_t::create(
 #undef HANDLE_ISA
     assert(!"kernel is empty.");
     return nullptr;
+}
+
+std::vector<cpu_isa_t> get_supported_isa() {
+    return {avx512_core_fp16, avx512_core, avx2_vnni_2, avx2, sse41};
 }
 
 bcast_set_t get_supported_bcast_strategies() {
