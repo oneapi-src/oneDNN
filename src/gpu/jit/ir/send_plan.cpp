@@ -474,14 +474,15 @@ public:
     void set_base(const expr_t &base) {
         base_ = base;
         int factor = get_max_const_factor(base_, constraint_set_t());
-        int max_block = math::gcd(
-                math::gcd(factor, a_ * tdim_.block()), b_ * tdim_.block());
+        factor = math::gcd(factor, a_ * tdim_.block());
+        factor = math::gcd(factor, b_ * tdim_.block());
+        if (factor % tdim_.block() != 0)
+            factor = math::gcd(factor, tdim_.block());
 
-        if (tdim_.block() < max_block) {
-            ir_assert(max_block % tdim_.block() == 0);
-            a_ = a_ * tdim_.block() / max_block;
-            b_ = b_ * tdim_.block() / max_block;
-            tdim_ = tdim_.with_block(max_block);
+        if (factor != tdim_.block()) {
+            a_ = a_ * tdim_.block() / factor;
+            b_ = b_ * tdim_.block() / factor;
+            tdim_ = tdim_.with_block(factor);
         }
 
         if (tdim_.block() != 1) base_ /= tdim_.block();
