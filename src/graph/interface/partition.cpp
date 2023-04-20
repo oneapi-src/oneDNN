@@ -42,6 +42,8 @@
 
 using namespace dnnl::impl::graph;
 
+#define VERBOSE_compile "compile"
+
 /// This allows to create a partition directly with an op and an engine kind. In
 /// order to not break backend API and change the existing graph and partition
 /// implementation, we internally construct a temporal graph object, add the
@@ -193,14 +195,13 @@ status_t DNNL_API dnnl_graph_partition_compile(partition_t *partition,
     std::pair<compiled_partition_t *, bool> cp {compiled_partition, false};
 
     if (utils::verbose_has_create_profile()) {
-        double ms = dnnl::impl::get_msec();
+        double start_ms = dnnl::impl::get_msec();
         CHECK(partition->compile(cp, in, out, engine));
-        ms = dnnl::impl::get_msec() - ms;
+        double duration_ms = dnnl::impl::get_msec() - start_ms;
 
-        const char *cache_status = cp.second ? "cache_hit" : "cache_miss";
-        printf("onednn_graph_verbose,compile:%s,%s,%g\n", cache_status,
-                compiled_partition->info(), ms);
-        fflush(stdout);
+        const char *cache_status = cp.second ? ":cache_hit" : ":cache_miss";
+        VPROFGRAPH(start_ms, compile, cache_status, compiled_partition->info(),
+                duration_ms);
     } else {
         CHECK(partition->compile(cp, in, out, engine));
     }
@@ -316,28 +317,26 @@ status_t DNNL_API dnnl_graph_compiled_partition_execute(
                 compiled_partition->get_engine()->get_allocator());
         allocator_t::monitor_t::reset_peak_temp_memory(alloc);
         stream->wait();
-        double ms = dnnl::impl::get_msec();
+        double start_ms = dnnl::impl::get_msec();
         CHECK(compiled_partition->execute(stream, ins, outs));
         stream->wait();
-        ms = dnnl::impl::get_msec() - ms;
-        printf("onednn_graph_verbose,exec,%s,%g,%zu,%s,%zu,%zu\n",
-                compiled_partition->info(), ms, alloc->id(),
+        double duration_ms = dnnl::impl::get_msec() - start_ms;
+        VFORMATGRAPH(start_ms, exec, VERBOSE_profile, "%s,%g,%zu,%s,%zu,%zu",
+                compiled_partition->info(), duration_ms, alloc->id(),
                 utils::thread_id_to_str(std::this_thread::get_id()).c_str(),
                 allocator_t::monitor_t::get_total_persist_memory(alloc),
                 allocator_t::monitor_t::get_peak_temp_memory(alloc));
-        fflush(stdout);
     } else if (utils::verbose_has_exec_profile()) {
 #else
     if (utils::verbose_has_exec_profile()) {
 #endif
         stream->wait();
-        double ms = dnnl::impl::get_msec();
+        double start_ms = dnnl::impl::get_msec();
         CHECK(compiled_partition->execute(stream, ins, outs));
         stream->wait();
-        ms = dnnl::impl::get_msec() - ms;
-        printf("onednn_graph_verbose,exec,%s,%g\n", compiled_partition->info(),
-                ms);
-        fflush(stdout);
+        double duration_ms = dnnl::impl::get_msec() - start_ms;
+        VPROFGRAPH(start_ms, exec, VERBOSE_profile, compiled_partition->info(),
+                duration_ms);
     } else {
         CHECK(compiled_partition->execute(stream, ins, outs));
     }
@@ -376,7 +375,7 @@ status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute(
                 compiled_partition->get_engine()->get_allocator());
         allocator_t::monitor_t::reset_peak_temp_memory(alloc);
         stream->wait();
-        double ms = dnnl::impl::get_msec();
+        double start_ms = dnnl::impl::get_msec();
         if (deps != nullptr) {
             const auto &sycl_deps = *(const std::vector<::sycl::event> *)deps;
             CHECK(compiled_partition->execute_sycl(stream, ins, outs, sycl_deps,
@@ -386,19 +385,18 @@ status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute(
                     static_cast<::sycl::event *>(sycl_event)));
         }
         stream->wait();
-        ms = dnnl::impl::get_msec() - ms;
-        printf("onednn_graph_verbose,exec,%s,%g,%zu,%s,%zu,%zu\n",
-                compiled_partition->info(), ms, alloc->id(),
+        double duration_ms = dnnl::impl::get_msec() - start_ms;
+        VFORMATGRAPH(start_ms, exec, VERBOSE_profile, "%s,%g,%zu,%s,%zu,%zu",
+                compiled_partition->info(), duration_ms, alloc->id(),
                 utils::thread_id_to_str(std::this_thread::get_id()).c_str(),
                 allocator_t::monitor_t::get_total_persist_memory(alloc),
                 allocator_t::monitor_t::get_peak_temp_memory(alloc));
-        fflush(stdout);
     } else if (utils::verbose_has_exec_profile()) {
 #else
     if (utils::verbose_has_exec_profile()) {
 #endif
         stream->wait();
-        double ms = dnnl::impl::get_msec();
+        double start_ms = dnnl::impl::get_msec();
         if (deps != nullptr) {
             const auto &sycl_deps = *(const std::vector<::sycl::event> *)deps;
             CHECK(compiled_partition->execute_sycl(stream, ins, outs, sycl_deps,
@@ -408,10 +406,9 @@ status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute(
                     static_cast<::sycl::event *>(sycl_event)));
         }
         stream->wait();
-        ms = dnnl::impl::get_msec() - ms;
-        printf("onednn_graph_verbose,exec,%s,%g\n", compiled_partition->info(),
-                ms);
-        fflush(stdout);
+        double duration_ms = dnnl::impl::get_msec() - start_ms;
+        VPROFGRAPH(start_ms, exec, VERBOSE_profile, compiled_partition->info(),
+                duration_ms);
     } else {
         if (deps != nullptr) {
             const auto &sycl_deps = *(const std::vector<::sycl::event> *)deps;
