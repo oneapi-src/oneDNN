@@ -35,12 +35,18 @@
 #include "common/type_helpers.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
 
-#define DEBUGPRINT 0
-#if DEBUGPRINT
+#ifdef DNNL_DEVEL_MODE
 #define DPRINT(fmt, ...) \
-    printf(fmt, __VA_ARGS__); \
-    fflush(nullptr)
-#define WS_PRINT(c, s, w) ws_print(c, s, w)
+    do { \
+        if (get_verbose(verbose_t::debuginfo) >= 2) { \
+            printf(fmt, __VA_ARGS__); \
+            fflush(nullptr); \
+        } \
+    } while (0)
+#define WS_PRINT(c, s, w) \
+    do { \
+        if (get_verbose(verbose_t::debuginfo) >= 3) { ws_print(c, s, w); } \
+    } while (0)
 #else
 #define DPRINT(fmt, ...)
 #define WS_PRINT(c, s, w)
@@ -292,8 +298,9 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("COPY_BIAS", conf.copy_bias);
     kernel_ctx.define_int("WEI_QPARAM_MASK", conf.wei_qparam_mask);
     kernel_ctx.define_int("IS_TESTMODE", conf.is_testmode);
-
-    kernel_ctx.define_int("DEBUGPRINT", DEBUGPRINT);
+#ifdef DNNL_DEVEL_MODE
+    kernel_ctx.define_int("DEBUGPRINT", verbose_debuginfo() >= 5);
+#endif
     return status::success;
 }
 
@@ -752,7 +759,7 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
                   "ref_rnn_elemwise_fwd",
                   "ref_rnn_elemwise_bwd",
                   "ref_rnn_gates_reduction"
-#if DEBUGPRINT
+#if DNNL_DEVEL_MODE
                   ,
                   "ref_rnn_ws_print"
 #endif
@@ -771,7 +778,7 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
     elemwise_fwd_kernel_ = kernels[6];
     elemwise_bwd_kernel_ = kernels[7];
     gates_reduction_kernel_ = kernels[8];
-#if DEBUGPRINT
+#if DNNL_DEVEL_MODE
     ws_print_kernel_ = kernels[9];
 #endif
 
@@ -1414,7 +1421,7 @@ status_t _ref_rnn_common_t<aprop>::ws_set(const exec_ctx_t &ctx,
     return parallel_for(ctx, nd_range, ws_set_kernel_, arg_list);
 }
 
-#if DEBUGPRINT
+#if DNNL_DEVEL_MODE
 template <prop_kind_t aprop>
 status_t _ref_rnn_common_t<aprop>::ws_print(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream,
@@ -1586,7 +1593,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
         DPRINT("%s\n", "+++++++++++++++");
     };
 
-#if DEBUGPRINT
+#if DNNL_DEVEL_MODE
     prints();
 #else
     UNUSED(dlc);
