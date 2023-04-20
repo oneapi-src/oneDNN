@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -277,7 +277,9 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
                     S02 = DATA_ZERO;
                     S03 = DATA_ZERO;
 #endif
+#if KH != 1 || KW != 1 || KD != 1
                     continue;
+#endif
                 }
                 DATA8_T A0 = AS_DATA8_T(
                         BLOCK_READ8((const __global BLOCK_DATA_T *)(src1)));
