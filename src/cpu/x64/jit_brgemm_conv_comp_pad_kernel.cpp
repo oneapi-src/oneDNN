@@ -272,8 +272,8 @@ void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::generate() {
                                                     : jcp_.oc_block),
             m_block2_);
     const int nb2 = nb / n_max_regs_;
-    const int nb2_tail = nb % n_block2_;
-    const int n_block = (nb2 == 0) ? nstl::max(1, nb2_tail) : 4;
+    const int nb2_tail = nb % n_max_regs_;
+    const int n_block = (nb2 == 0) ? nstl::max(1, nb2_tail) : n_max_regs_;
 
     const size_t m_max_regs = max_regs / n_block;
     const int m_block = nstl::min(m_max_regs, nb_ic_);
