@@ -246,6 +246,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp9) {
 
 // test s8 reduce max
 TEST(GCCore_reduce_op_cpp, TestReduceOp10) {
+    REQUIRE_PARALLEL();
     const int out_size = 3;
     do_test_reduce_op<int8_t>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
             "reduce_max", out_size, datatypes::s8,
@@ -265,6 +266,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp10) {
 
 // test s8 reduce min
 TEST(GCCore_reduce_op_cpp, TestReduceOp11) {
+    REQUIRE_PARALLEL();
     const int out_size = 3;
     do_test_reduce_op<int8_t>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
             "reduce_min", out_size, datatypes::s8,
@@ -283,6 +285,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp11) {
 
 // test u8 reduce max
 TEST(GCCore_reduce_op_cpp, TestReduceOp12) {
+    REQUIRE_PARALLEL();
     const int out_size = 3;
     do_test_reduce_op<uint8_t>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
             "reduce_max", out_size, datatypes::u8,
@@ -302,6 +305,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp12) {
 
 // test u8 reduce min
 TEST(GCCore_reduce_op_cpp, TestReduceOp13) {
+    REQUIRE_PARALLEL();
     const int out_size = 3;
     do_test_reduce_op<uint8_t>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
             "reduce_min", out_size, datatypes::u8,

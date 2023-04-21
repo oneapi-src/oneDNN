@@ -940,13 +940,18 @@ bound_axis infer_tensor_view_binding_axis(const bound_axis &src_axis,
     int j = 0;
     for (size_t i = 0; i < acc_src_dims.size(); i++) {
         std::vector<int> axis;
-        while (true) {
-            axis.emplace_back(j);
-            if (acc_src_dims[i] <= acc_dst_dims[j]) {
-                if (acc_src_dims[i] == acc_dst_dims[j]) { j++; }
-                break;
+        if ((size_t)j < acc_dst_dims.size()) {
+            while (true) {
+                axis.emplace_back(j);
+                if (acc_src_dims[i] <= acc_dst_dims[j]) {
+                    if (acc_src_dims[i] == acc_dst_dims[j]) { j++; }
+                    break;
+                }
+                j++;
             }
-            j++;
+        } else {
+            assert(acc_dst_dims.size() != 0);
+            axis.emplace_back(-1);
         }
         tv_axis_map.emplace_back(axis);
     }

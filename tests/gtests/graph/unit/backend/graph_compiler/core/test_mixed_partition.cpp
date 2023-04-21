@@ -240,6 +240,7 @@ TEST(GCCore_graph_mixed_partition_cpp, TestFuseOpBreakAndNoFuse) {
 }
 
 TEST(GCCore_graph_mixed_partition_cpp, TestGraphBatchWiseFuse) {
+    REQUIRE_PARALLEL();
     sc_graph_t graph;
     auto input_A = graph.make_input({graph_tensor::make({16, 32, 384, 1024})});
     auto input_B = graph.make_input({graph_tensor::make({16, 32, 384, 1024})});

@@ -808,7 +808,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerBroadcast3) {
                 _for_(j, 0, bc_block, int(lanes)) {
                     out_tptr[span_t({n, i, j}, lanes)]
                             = buf_tptr[span_t({n, i, j}, lanes)]
-                            + builder::make_broadcast(bc_args_add_tptr[{i}],
+                            + builder::make_broadcast(bc_args_add_tptr[i],
                                     static_cast<int>(lanes));
                 }
             }
@@ -858,7 +858,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerBroadcast4) {
             _for_(i, 0, bc_block, 1) {
                 _for_(j, 0, bc_block, int(lanes)) {
                     out_tptr[span_t({n, i, j}, lanes)]
-                            = builder::make_broadcast(bc_args_add_tptr[{i}],
+                            = builder::make_broadcast(bc_args_add_tptr[i],
                                       static_cast<int>(lanes))
                             - buf_tptr[span_t({n, i, j}, lanes)];
                 }

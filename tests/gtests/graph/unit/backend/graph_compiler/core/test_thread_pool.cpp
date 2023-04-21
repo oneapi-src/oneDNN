@@ -132,7 +132,9 @@ TEST(GCCore_thread_pool, TestThreadPool) {
     cfg.thread_pool_table_->set_num_threads(old_num_threads);
     EXPECT_EQ(cfg.thread_pool_table_->get_num_threads(), old_num_threads);
 }
+#endif
 
+#if SC_CPU_THREADPOOL != SC_THREAD_POOL_CUSTOM
 TEST(GCCore_thread_pool, TestThreadNum) {
     dnnl_thread_env();
     auto &cfg = runtime_config_t::get();

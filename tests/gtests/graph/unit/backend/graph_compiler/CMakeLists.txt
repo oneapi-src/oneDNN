@@ -21,8 +21,12 @@ endif()
 get_property(DEFINITIONS GLOBAL PROPERTY GRAPH_COMPILER_DEFINITIONS)
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
-    # inherits via dominance
-    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4250")
+    get_property(CCXX_NOWARN_FLAGS GLOBAL PROPERTY GRAPH_COMPILER_CCXX_NOWARN_FLAGS)
+    append(CMAKE_CCXX_NOWARN_FLAGS ${CCXX_NOWARN_FLAGS})
+endif()
+
+if(CMAKE_BASE_NAME MATCHES "(icx|icpx)")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations -Wno-unused-variable -Wno-unused-function")
 endif()
 
 append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")

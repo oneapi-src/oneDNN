@@ -37,6 +37,7 @@
 
 using namespace dnnl::impl::graph::gc;
 TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorAdd) {
+    REQUIRE_PARALLEL();
     sc_graph_t mgr;
     auto ins = mgr.make_input({graph_tensor::make({32, 16, 64}),
             graph_tensor::make({32, 16, 64})});
@@ -78,6 +79,7 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorAdd) {
 }
 
 TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorAdd2) {
+    REQUIRE_PARALLEL();
     REQUIRE_AVX();
     sc_graph_t mgr;
     auto ins = mgr.make_input(
@@ -282,6 +284,7 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorReorder2) {
 }
 
 TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorReduce) {
+    REQUIRE_PARALLEL();
     sc_graph_t mgr;
     auto ins = mgr.make_input(
             {graph_tensor::make({32, 32, 64, 64}, sc_data_format_t::NCHW())});
@@ -385,6 +388,7 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorReduceBroadcast) {
 }
 
 TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorFuse) {
+    REQUIRE_PARALLEL();
     sc_graph_t mgr;
     auto ins = mgr.make_input({graph_tensor::make({32, 16}),
             graph_tensor::make({32, 16}), graph_tensor::make({32, 16})});
@@ -476,6 +480,7 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorNoAxisOptim) {
 }
 
 TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorForcedAxisOptim) {
+    REQUIRE_PARALLEL();
     sc_graph_t mgr;
     auto ins = mgr.make_input({graph_tensor::make(
             {1 * 64, 8 * 64}, sc_data_format_t::MKmk(64, 64))});
@@ -521,6 +526,7 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorLoopConflict) {
 }
 
 TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorExpMask) {
+    REQUIRE_PARALLEL();
     REQUIRE_AVX();
     sc_graph_t mgr;
     auto ins = mgr.make_input(

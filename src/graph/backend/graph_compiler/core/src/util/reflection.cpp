@@ -365,14 +365,16 @@ general_ref_t general_ref_t::from(const general_object_t &obj) {
 }
 
 using stdanymap = std::unordered_map<std::string, any_t>;
-static reflection::type general_obj_type
-        = reflection::type_registry<reflection::general_object_t>::type_;
-static reflection::type std_anymap_type
-        = reflection::type_registry<stdanymap>::type_;
+static const reflection::type &general_obj_type() {
+    return reflection::type_registry<reflection::general_object_t>::type_;
+}
+static const reflection::type &std_anymap_type() {
+    return reflection::type_registry<stdanymap>::type_;
+}
 
 bool visitor_t::dispatch(general_ref_t *v, general_ref_t *v2) {
     if (v2 && !(v->type_ == v2->type_)) { return false; }
-    if (v->type_ == general_obj_type) {
+    if (v->type_ == general_obj_type()) {
         auto obj = reinterpret_cast<general_object_t *>(v->data_);
         general_object_t *obj2 = v2
                 ? reinterpret_cast<general_object_t *>(v2->data_)

@@ -29,6 +29,7 @@
 #include "thread_pool_flags.hpp"
 #include <cpu/x64/amx_tile_configure.hpp>
 #include <runtime/microkernel/cpu/kernel_timer.hpp>
+#include <util/compiler_macros.hpp>
 #include <util/simple_math.hpp>
 
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
@@ -148,6 +149,10 @@ static void worker_func(thread_manager *ths, int tid) {
 static thread_local thread_manager *current_active_thr_mgr = nullptr;
 #endif
 
+static thread_local_buffer_t &get_tls_helper() {
+    return thread_local_buffer_t::tls_buffer_;
+}
+
 void thread_manager::run_main_function(main_func_t f, runtime::stream_t *stream,
         void *mod_data, generic_val *args) {
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
@@ -163,9 +168,12 @@ void thread_manager::run_main_function(main_func_t f, runtime::stream_t *stream,
         state.trigger = 1;
         state.execution_flags
                 = gc::runtime::thread_pool_flags::THREAD_POOL_DEFAULT;
+
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
+        SC_NO_OP();
 #pragma omp parallel for
         for (int i = 0; i < threads; i++) {
+            SC_NO_OP();
 #elif SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
         oneapi::tbb::task_arena arena(threads);
         arena.execute([&] {
@@ -174,7 +182,8 @@ void thread_manager::run_main_function(main_func_t f, runtime::stream_t *stream,
         dnnl::impl::parallel(threads, [&](int64_t i, int64_t dummy) {
             current_active_thr_mgr = this;
 #endif
-            auto &tls = thread_local_buffer_t::tls_buffer_;
+            // use helper func to workaround a icx compiler bug
+            auto &tls = get_tls_helper();
             tls.in_managed_thread_pool_ = true;
             tls.additional_->linear_thread_id_ = i;
 #ifdef SC_KERNEL_PROFILE

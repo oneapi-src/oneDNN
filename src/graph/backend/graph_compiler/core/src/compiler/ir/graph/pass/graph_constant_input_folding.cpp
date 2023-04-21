@@ -155,9 +155,9 @@ struct const_graph_tensor_cache {
          */
         bool already_deleted = *v.deletion_flag_;
         if (already_deleted) { return; }
-        if (v.graph_iter_ != graph_weak_ptr_map::iterator {})
+        if (v.graph_iter_ != from_dep_graph_.end())
             from_dep_graph_.erase(v.graph_iter_);
-        if (v.id_iter_ != tensor_id_map::iterator {})
+        if (v.id_iter_ != from_tensor_id_.end())
             from_tensor_id_.erase(v.id_iter_);
     }
 };

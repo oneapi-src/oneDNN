@@ -108,29 +108,33 @@ if(${SC_CPU_RUNTIME} STREQUAL "THREADPOOL")
 endif()
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
-    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4200")
+    set(CCXX_NOWARN_FLAGS "")
+    append(CCXX_NOWARN_FLAGS "/wd4200")
     # allow usage of "deprecated" functions
-    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4996")
+    append(CCXX_NOWARN_FLAGS "/wd4996")
     # inherits via dominance
-    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4250")
+    append(CCXX_NOWARN_FLAGS "/wd4250")
     # conversion from 'size_t' to 'uint16_t'
-    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4267")
+    append(CCXX_NOWARN_FLAGS "/wd4267")
     # function assumed not to throw an exception but does
-    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4297")
+    append(CCXX_NOWARN_FLAGS "/wd4297")
     #  format string '%lu' requires an argument of type 'unsigned long'
-    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4477")
+    append(CCXX_NOWARN_FLAGS "/wd4477")
     # not enough arguments for function-like macro
-    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4003")
+    append(CCXX_NOWARN_FLAGS "/wd4003")
     # 
-    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4624")
+    append(CCXX_NOWARN_FLAGS "/wd4624")
     # 'elem_type': unreferenced local variable
-    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4101")
+    append(CCXX_NOWARN_FLAGS "/wd4101")
     # unary minus operator applied to unsigned type
-    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4146")
+    append(CCXX_NOWARN_FLAGS "/wd4146")
     # destructor never returns, potential memory leak
-    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4722")
+    append(CCXX_NOWARN_FLAGS "/wd4722")
     # needs to have dll-interface to be used by clients of struct
-    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4251")
+    append(CCXX_NOWARN_FLAGS "/wd4251")
+    
+    append(CMAKE_CCXX_NOWARN_FLAGS ${CCXX_NOWARN_FLAGS})
+    set_property(GLOBAL PROPERTY GRAPH_COMPILER_CCXX_NOWARN_FLAGS "${CCXX_NOWARN_FLAGS}")
 endif()
 
 append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")

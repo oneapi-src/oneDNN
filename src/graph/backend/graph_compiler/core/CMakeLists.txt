@@ -49,21 +49,6 @@ if(${SC_CPU_RUNTIME} STREQUAL "THREADPOOL")
     set_property(GLOBAL APPEND PROPERTY GRAPH_COMPILER_DEFINITIONS "-DSC_CPU_THREADPOOL=3")
 endif()
 
-##############################
-# Enable better debug info...
-##############################
-
-if(NOT MSVC)
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb -O0 -fno-inline -fno-omit-frame-pointer -gdwarf-4")
-endif()
-
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL Clang)
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-limit-debug-info")
-endif()
-
-##############################
-
-
 set(DNNL_PATH "${CMAKE_SOURCE_DIR}/src")
 
 include_directories(
@@ -204,11 +189,15 @@ endif()
 # Setting compiler flags
 ##########################
 
-if(NOT MSVC)
-    if(${CMAKE_VERSION} VERSION_LESS "3.1.0") 
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++${SC_CPP_VER}")
+if(NOT MSVC OR CMAKE_BASE_NAME MATCHES "(icx|icpx)")
+    if(NOT MSVC)
+        if(${CMAKE_VERSION} VERSION_LESS "3.1.0") 
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++${SC_CPP_VER}")
+        else()
+            set_property(TARGET ${SC_LIB_NAME} PROPERTY CXX_STANDARD ${SC_CPP_VER})
+        endif()
     else()
-        set_property(TARGET ${SC_LIB_NAME} PROPERTY CXX_STANDARD ${SC_CPP_VER})
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
     endif()
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-variable -Wno-unused-function -std=c99 -DSC_HOME=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-variable -Wno-unused-function -DSC_HOME=\"${CMAKE_CURRENT_SOURCE_DIR}\"")

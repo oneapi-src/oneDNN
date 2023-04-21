@@ -15,6 +15,7 @@
  *******************************************************************************/
 #include <iostream>
 #include "context.hpp"
+#include "test_utils.hpp"
 #include "gtest/gtest.h"
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
@@ -25,6 +26,7 @@
 
 using namespace dnnl::impl::graph::gc;
 TEST(GCCore_tensor_init_cpp, TestTensorInit) {
+    REQUIRE_PARALLEL();
     REQUIRE_AVX();
     builder::ir_builder_t builder;
 

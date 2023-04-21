@@ -97,8 +97,8 @@ static void write_compact_traces(FILE *outf,
         fprintf(outf, "trace:%d,%d:", tlb->additional_->linear_thread_id_,
                 tlb->additional_->instance_id_);
         for (auto &v : tlb->additional_->trace_.trace_logs_) {
-            fprintf(outf, "%ld-%d-%d-%d,", (v.tick_ - min_val), v.in_or_out_,
-                    v.func_id_, v.arg_);
+            fprintf(outf, "%ld-%d-%d-%d,", (long)(v.tick_ - min_val), // NOLINT
+                    v.in_or_out_, (int)v.func_id_, (int)v.arg_); // NOLINT
         }
         fprintf(outf, "\n");
         tlb->additional_->trace_.trace_logs_.clear();

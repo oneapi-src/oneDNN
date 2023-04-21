@@ -29,4 +29,8 @@
 #define SC_GNUC_VERSION_LT(x) 0
 #endif
 
+// a macro which does nothing. It is used as placeholder which workarounds a
+// bug in parsing of "omp parallel for" in icx compiler
+#define SC_NO_OP()
+
 #endif

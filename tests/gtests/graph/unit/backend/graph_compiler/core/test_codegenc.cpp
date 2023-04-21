@@ -15,6 +15,7 @@
  *******************************************************************************/
 
 #include <sstream>
+#include "test_utils.hpp"
 #include <compiler/codegen/codegen_c.hpp>
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/ir_module.hpp>
@@ -35,6 +36,7 @@ static context_ptr get_ctx() {
 }
 
 TEST(GCCore_codegenc_cpp, TestCodegenC) {
+    REQUIRE_PARALLEL();
     builder::ir_builder_t builder;
     const int shape1 = 128;
     for_loop li, lj, lk, lp;
@@ -318,6 +320,7 @@ alignas(64) uint8_t aaa_data[40512] = {)";
 }
 
 TEST(GCCore_codegenc_cpp, TestCodegenCParallelFor) {
+    REQUIRE_PARALLEL();
     builder::ir_builder_t builder;
     const int shape1 = 128;
     for_loop li, lj, lk, lp;

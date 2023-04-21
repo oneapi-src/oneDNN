@@ -138,9 +138,12 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
     }
     auto parent_scope = used_anchor->get_parent_scope();
     for (auto iter = parent_scope->seq_.begin();
-            iter < parent_scope->seq_.end(); iter++) {
-        if ((*iter).ptr_same(used_anchor->anchor_position_)) continue;
-        parent_scope->seq_.erase(iter);
+            iter < parent_scope->seq_.end();) {
+        if ((*iter).ptr_same(used_anchor->anchor_position_)) {
+            ++iter;
+            continue;
+        }
+        iter = parent_scope->seq_.erase(iter);
     }
 
     // bind outer loops with axis hint
@@ -385,6 +388,7 @@ void output_op::prepare_fusion_data(fdata_map &fdmap) {
 
 // special handling for union values
 bool constant_op_t::compare_contents(const sc_op *other) const {
+    if (other->op_name_ != op_name_) { return false; }
     COMPILE_ASSERT(attrs_.has_key("values") && attrs_.has_key("dtype"),
             "expecting values and dtype in attr");
     COMPILE_ASSERT(

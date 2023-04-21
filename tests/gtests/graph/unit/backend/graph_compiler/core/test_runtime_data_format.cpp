@@ -50,9 +50,18 @@ static std::array<uint64_t, 3> generate_format(
     return {f0, f1, f2};
 }
 
+static constexpr uint64_t MK = format_kinds::MK;
+static constexpr uint64_t MKmk = format_kinds::MKmk;
+static constexpr uint64_t NKkn = format_kinds::NKkn;
+
+static constexpr uint64_t NCHWc = format_kinds::NCHWc;
+static constexpr uint64_t ACBD = format_kinds::ACBD;
+static constexpr uint64_t ABCD = format_kinds::ABCD;
+static constexpr uint64_t ACBDcd = format_kinds::ACBDcd;
+static constexpr uint64_t ACBDdc = format_kinds::ACBDdc;
+
 TEST(GCCore_runtime_data_format, Benchmark) {
     using namespace runtime;
-    using namespace format_kinds;
     struct block_compute {
         static uint64_t call(uint64_t *args, uint64_t v) {
             // args[0] for MK blocking and args[1].block_idx2_ for N blocking
@@ -255,7 +264,6 @@ TEST(GCCore_runtime_data_format, TestDataFormatStaticDispatch) {
 
 TEST(GCCore_runtime_data_format, TestDataFormatDynDispatch) {
     using namespace runtime;
-    using namespace format_kinds;
     dyn_dispatch_table_t table(
             {
                     {{{MKmk}, {NKkn}, {NCHWc}}},

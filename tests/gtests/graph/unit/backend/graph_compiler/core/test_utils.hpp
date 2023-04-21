@@ -582,6 +582,12 @@ struct thread_num_reset {
     ~thread_num_reset() { runtime_config_t::get().set_num_threads(old_); }
 };
 
+#define REQUIRE_PARALLEL() \
+    if (::dnnl::impl::graph::gc::runtime_config_t::get().get_num_threads() \
+            <= 1) { \
+        GTEST_SKIP(); \
+    }
+
 } // namespace gc
 } // namespace graph
 } // namespace impl

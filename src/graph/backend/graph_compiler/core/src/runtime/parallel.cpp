@@ -20,6 +20,7 @@
 #include "context.hpp"
 #include <runtime/generic_val.hpp>
 #include <runtime/parallel.hpp>
+#include <util/compiler_macros.hpp>
 #include <util/simple_math.hpp>
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
 #include <common/dnnl_thread.hpp>
@@ -163,11 +164,13 @@ extern "C" void sc_parallel_call_cpu_with_env_impl(
             = true;
 
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
+    SC_NO_OP();
 #pragma omp parallel for
 #endif
     for (int64_t i = begin; i < end; i += step) {
-        auto &tls = runtime::thread_local_buffer_t::tls_buffer_;
+        SC_NO_OP();
 #ifdef SC_KERNEL_PROFILE
+        auto &tls = runtime::thread_local_buffer_t::tls_buffer_;
         tls.additional_->instance_id_ = parent_instance_id;
         tls.additional_->linear_thread_id_ = get_thread_num();
 #endif

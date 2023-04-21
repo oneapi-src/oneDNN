@@ -24,8 +24,8 @@ inline dnnl::impl::graph::gc::context_ptr get_test_ctx() {
     namespace gc = dnnl::impl::graph::gc;
     static gc::context_ptr ctx = []() {
         auto ret = std::make_shared<gc::context_t>(*gc::get_default_context());
-        ctx->flags_.mixed_fusion_ = false;
-        ctx->flags_.use_cost_model_ = false;
+        ret->flags_.mixed_fusion_ = false;
+        ret->flags_.use_cost_model_ = false;
         return ret;
     }();
     return ctx;

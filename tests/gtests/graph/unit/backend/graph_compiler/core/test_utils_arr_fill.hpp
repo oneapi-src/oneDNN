@@ -92,14 +92,28 @@ inline void fill_data(T *data, size_t size, T a, T b) {
             });
 }
 
-template <typename T>
-inline void fill_data(T *data, size_t size) {
-    if (std::is_floating_point<T>::value || std::is_same<T, bf16_t>::value) {
+template <typename T,
+        bool is_float
+        = std::is_floating_point<T>::value || std::is_same<T, bf16_t>::value>
+struct fill_data_impl_t {
+    // default: is_float=true, value range from -1 to 1
+    static void call(T *data, size_t size) {
         fill_data(data, size, (T)-1.0, (T)1.0);
-    } else {
+    }
+};
+
+template <typename T>
+struct fill_data_impl_t<T, false> {
+    // default: is_float=false
+    static void call(T *data, size_t size) {
         fill_data(data, size, std::numeric_limits<T>::min(),
                 std::numeric_limits<T>::max());
     }
+};
+
+template <typename T>
+inline void fill_data(T *data, size_t size) {
+    fill_data_impl_t<T>::call(data, size);
 }
 } // namespace test_utils
 } // namespace gc
