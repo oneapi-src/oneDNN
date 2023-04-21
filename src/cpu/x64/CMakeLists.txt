@@ -50,12 +50,8 @@ if(MSVC)
     set_source_files_properties(${FILES_WITHOUT_OPT}
         PROPERTIES COMPILE_FLAGS "/Od")
 else()
-    if(UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
-        # Some compilers enable optimizations by default.
-        set(OPT_LEVEL "-O0")
-    else()
-        set(OPT_LEVEL "-O1")
-    endif()
+    # Some compilers enable optimizations by default.
+    set(OPT_LEVEL $<IF:$<CONFIG:Debug>,-O0,-O1>)
     set_source_files_properties(${FILES_WITHOUT_OPT}
         PROPERTIES COMPILE_FLAGS "${OPT_LEVEL}")
 endif()

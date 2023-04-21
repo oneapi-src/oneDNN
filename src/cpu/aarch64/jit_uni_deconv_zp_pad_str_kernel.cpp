@@ -16,6 +16,7 @@
 *******************************************************************************/
 
 #include <cassert>
+#include <cstdint>
 #include "common/utils.hpp"
 #include "cpu/aarch64/jit_primitive_conf.hpp"
 #include <type_traits>
@@ -127,7 +128,7 @@ template <cpu_isa_t isa>
 uint32_t jit_uni_deconv_zp_pad_str_kernel_t<isa>::get_next_vmm_idx() {
     static constexpr int max_v_regs = cpu_isa_traits<isa>::n_vregs;
 
-    const ZReg vmm {static_cast<unsigned int>(current_vmm_++)};
+    const ZReg vmm {static_cast<uint32_t>(current_vmm_++)};
 
     if (current_vmm_ == max_v_regs) current_vmm_ = number_reserved_vmms_;
 

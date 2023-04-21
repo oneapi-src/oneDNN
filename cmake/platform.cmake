@@ -39,6 +39,7 @@ set(CMAKE_CCXX_FLAGS)
 set(CMAKE_CCXX_NOWARN_FLAGS)
 set(CMAKE_CCXX_NOEXCEPT_FLAGS)
 set(DEF_ARCH_OPT_FLAGS)
+set(DEF_ARCH_OPT_FLAGS_NON_DEBUG)
 
 # Compatibility with DNNL
 if($ENV{ONEDNN_WERROR})
@@ -108,7 +109,7 @@ endif()
 if(MSVC)
     set(USERCONFIG_PLATFORM "x64")
     append_if(DNNL_WERROR CMAKE_CCXX_FLAGS "/WX")
-    if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
         append(CMAKE_CCXX_FLAGS "/MP")
         # increase number of sections in obj file
         append(CMAKE_CCXX_FLAGS "/bigobj")
@@ -207,9 +208,7 @@ elseif(UNIX OR MINGW)
     # compiler specific settings
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         if(DNNL_TARGET_ARCH MATCHES "^(AARCH64|ARM)$")
-             if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-                 set(DEF_ARCH_OPT_FLAGS "-O3")
-             endif()
+             set(DEF_ARCH_OPT_FLAGS_NON_DEBUG "-O3")
              if (CMAKE_SYSTEM_PROCESSOR STREQUAL CMAKE_HOST_SYSTEM_PROCESSOR)
                  # Defaults to a generic cpu target, equivalent to setting -mtune=generic -march=armv8-a.
                  # This ensures no implementation specific tuning, or architectural features beyond
@@ -219,21 +218,17 @@ elseif(UNIX OR MINGW)
                  append(DEF_ARCH_OPT_FLAGS "-mcpu=generic")
              endif()
         elseif(DNNL_TARGET_ARCH STREQUAL "PPC64")
-             if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-                 set(DEF_ARCH_OPT_FLAGS "-O3")
-             endif()
-             # For native compilation tune for the host processor
-             if (CMAKE_SYSTEM_PROCESSOR STREQUAL CMAKE_HOST_SYSTEM_PROCESSOR)
-                 append(DEF_ARCH_OPT_FLAGS "-mcpu=native")
-             endif()
+            set(DEF_ARCH_OPT_FLAGS_NON_DEBUG "-O3")
+            # For native compilation tune for the host processor
+            if (CMAKE_SYSTEM_PROCESSOR STREQUAL CMAKE_HOST_SYSTEM_PROCESSOR)
+                append(DEF_ARCH_OPT_FLAGS "-mcpu=native")
+            endif()
         elseif(DNNL_TARGET_ARCH STREQUAL "S390X")
-             if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-                 set(DEF_ARCH_OPT_FLAGS "-O3")
-             endif()
-             # For native compilation tune for the host processor
-             if (CMAKE_SYSTEM_PROCESSOR STREQUAL CMAKE_HOST_SYSTEM_PROCESSOR)
-                 append(DEF_ARCH_OPT_FLAGS "-march=native")
-             endif()
+            set(DEF_ARCH_OPT_FLAGS_NON_DEBUG "-O3")
+            # For native compilation tune for the host processor
+            if (CMAKE_SYSTEM_PROCESSOR STREQUAL CMAKE_HOST_SYSTEM_PROCESSOR)
+                append(DEF_ARCH_OPT_FLAGS "-march=native")
+            endif()
         elseif(DNNL_TARGET_ARCH STREQUAL "X64")
              set(DEF_ARCH_OPT_FLAGS "-msse4.1")
         endif()
@@ -300,7 +295,7 @@ elseif(UNIX OR MINGW)
             endif()
         endif()
 
-    elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         # XXX: Suppress a warning that pops up when using a function pointer
         # to an OpenCL function as a template argument (GCC Bugzilla – Bug 71463).
         if (DNNL_GPU_RUNTIME STREQUAL "OCL")
@@ -308,9 +303,8 @@ elseif(UNIX OR MINGW)
         endif()
 
         if(DNNL_TARGET_ARCH MATCHES "^(AARCH64|ARM)$")
-            if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-                set(DEF_ARCH_OPT_FLAGS "-O3")
-            endif()
+            set(DEF_ARCH_OPT_FLAGS_NON_DEBUG "-O3")
+            # For native compilation tune for the host processor
             if (CMAKE_SYSTEM_PROCESSOR STREQUAL CMAKE_HOST_SYSTEM_PROCESSOR)
                  # Defaults to a generic cpu target, equivalent to setting -mtune=generic -march=armv8-a.
                  # This ensures no implementation specific tuning, or architectural features beyond
@@ -320,18 +314,14 @@ elseif(UNIX OR MINGW)
                  append(DEF_ARCH_OPT_FLAGS "-mcpu=generic")
             endif()
         elseif(DNNL_TARGET_ARCH STREQUAL "PPC64")
-            if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-                set(DEF_ARCH_OPT_FLAGS "-O3")
-            endif()
+            set(DEF_ARCH_OPT_FLAGS_NON_DEBUG "-O3")
             # In GCC, -ftree-vectorize is turned on under -O3 since 2007.
             # For native compilation tune for the host processor
             if (CMAKE_SYSTEM_PROCESSOR STREQUAL CMAKE_HOST_SYSTEM_PROCESSOR)
                 append(DEF_ARCH_OPT_FLAGS "-mcpu=native")
             endif()
         elseif(DNNL_TARGET_ARCH STREQUAL "S390X")
-            if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-                set(DEF_ARCH_OPT_FLAGS "-O3")
-            endif()
+            set(DEF_ARCH_OPT_FLAGS_NON_DEBUG "-O3")
             # In GCC, -ftree-vectorize is turned on under -O3 since 2007.
             # For native compilation tune for the host processor
             if (CMAKE_SYSTEM_PROCESSOR STREQUAL CMAKE_HOST_SYSTEM_PROCESSOR)
@@ -383,8 +373,13 @@ if(DNNL_ARCH_OPT_FLAGS STREQUAL "HostOpts")
     set(DNNL_ARCH_OPT_FLAGS "${DEF_ARCH_OPT_FLAGS}")
 endif()
 
-append(CMAKE_C_FLAGS "${CMAKE_CCXX_FLAGS} ${DNNL_ARCH_OPT_FLAGS}")
-append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_FLAGS} ${DNNL_ARCH_OPT_FLAGS}")
+append(CMAKE_C_FLAGS "${CMAKE_CCXX_FLAGS}")
+append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_FLAGS}")
+
+foreach(config RELEASE RELWITHDEBINFO MINSIZEREL)
+    append(CMAKE_CXX_FLAGS_${config} "${DEF_ARCH_OPT_FLAGS_NON_DEBUG}")
+    append(CMAKE_C_FLAGS_${config} "${DEF_ARCH_OPT_FLAGS_NON_DEBUG}")
+endforeach()
 
 if(APPLE)
     set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)

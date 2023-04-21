@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <cstdint>
+
 #include "cpu/aarch64/acl_convolution_utils.hpp"
 #include "common/utils.hpp"
 #include "oneapi/dnnl/dnnl.hpp"

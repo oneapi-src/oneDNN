@@ -77,7 +77,7 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
             bool ok = is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(
-                            src_type, wei_type, bia_type, dst_type, undef)
+                            src_type, wei_type, bia_type, dst_type, data_type::undef)
                     && !has_zero_dim_memory()
                     && attr()->has_default_values(smask_t::post_ops, dst_type)
                     && output_scales_mask_ok() && zero_points_ok();

@@ -40,10 +40,8 @@ if(DNNL_TARGET_ARCH STREQUAL "PPC64")
     file(GLOB FILES_REQUIRED_OPT
         ${CMAKE_CURRENT_SOURCE_DIR}/gemm/*.[ch]pp
     )
-    if(NOT UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
-        set_source_files_properties(${FILES_REQUIRED_OPT}
-            PROPERTIES COMPILE_FLAGS "-O3 -funroll-loops")
-    endif()
+    set_source_files_properties(${FILES_REQUIRED_OPT}
+        PROPERTIES COMPILE_FLAGS <$<NOT:$<CONFIG:Debug>>,"-O3 -funroll-loops">)
 endif()
 
 if(NOT DNNL_ENABLE_JIT_PROFILING)
