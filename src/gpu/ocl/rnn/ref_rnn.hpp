@@ -58,6 +58,49 @@ enum gemm_kind_t {
     gemm_diff_wei_layer
 };
 
+struct workspace_t {
+    using mst = memory_storage_t;
+    workspace_t(
+            const mst &ws, const rnn_conf_t &rnn, const rnn_utils::conf_t &conf)
+        : ws_(ws)
+        , gates_(conf.ws_gates_size > 0 ? ws.get_sub_storage(
+                         rnn.ws_gates_offset, conf.ws_gates_size)
+                                        : nullptr)
+        , states_(conf.ws_states_size > 0 ? ws.get_sub_storage(
+                          rnn.ws_states_offset, conf.ws_states_size)
+                                          : nullptr)
+        , c_states_(conf.ws_c_states_size > 0 ? ws.get_sub_storage(
+                            rnn.ws_c_state_offset, conf.ws_c_states_size)
+                                              : nullptr)
+        , bias_(conf.ws_bias_size > 0 ? ws.get_sub_storage(
+                        rnn.ws_bias_offset, conf.ws_bias_size)
+                                      : nullptr)
+        , grid_comp_(conf.ws_grid_comp_size > 0 ? ws.get_sub_storage(
+                             rnn.ws_grid_comp_offset, conf.ws_grid_comp_size)
+                                                : nullptr) {}
+
+    const mst &ws() const { return ws_; }
+    const mst &gates() const { return gates_ ? *gates_ : mst::empty_storage(); }
+    const mst &states() const {
+        return states_ ? *states_ : mst::empty_storage();
+    }
+    const mst &c_states() const {
+        return c_states_ ? *c_states_ : mst::empty_storage();
+    }
+    const mst &bias() const { return bias_ ? *bias_ : mst::empty_storage(); }
+    const mst &grid_comp() const {
+        return grid_comp_ ? *grid_comp_ : mst::empty_storage();
+    }
+
+private:
+    const mst &ws_;
+    std::unique_ptr<mst> gates_;
+    std::unique_ptr<mst> states_;
+    std::unique_ptr<mst> c_states_;
+    std::unique_ptr<mst> bias_;
+    std::unique_ptr<mst> grid_comp_;
+};
+
 template <prop_kind_t aprop>
 struct _ref_rnn_common_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
@@ -225,19 +268,19 @@ private:
     float (*activation_func)(float dd, float s, float alpha, float cliping);
     status_t bias_prepare(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
-            int n_bias, int n_gates, int dhc, const memory_storage_t &ws,
+            int n_bias, int n_gates, int dhc, const memory_storage_t &ws_bias,
             const memory_storage_t &scales, const memory_storage_t &wei_layer,
             const memory_storage_t &wei_iter,
             const memory_storage_t &bias) const;
     status_t copy_init_layer(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream, bool lr, bool rl,
-            int n_iter, int batch, int slc, const memory_storage_t &ws,
+            int n_iter, int batch, int slc, const memory_storage_t &ws_states,
             const memory_storage_t &scratch_diff_states,
             const memory_storage_t &input,
             const memory_storage_t &diff_dst_layer) const;
     status_t copy_init_iter(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
-            int batch, int sic, int dhc, const memory_storage_t &ws,
+            int batch, int sic, int dhc, const workspace_t &ws,
             const memory_storage_t &scratch_diff_states,
             const memory_storage_t &firstit_states,
             const memory_storage_t &firstit_c_states,
@@ -249,8 +292,9 @@ private:
             int n_iter, int batch, int slc, int dlc,
             const memory_storage_t &scratch_diff_states,
             const memory_storage_t &dst_last_layer,
-            const memory_storage_t &diff_src_layer, const memory_storage_t &ws,
-            const float shift, const float scale, const bool dequantize) const;
+            const memory_storage_t &diff_src_layer,
+            const memory_storage_t &ws_states, const float shift,
+            const float scale, const bool dequantize) const;
     status_t copy_res_iter(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
             int batch, int sic, int dhc,
@@ -258,7 +302,7 @@ private:
             const memory_storage_t &dst_last_iter,
             const memory_storage_t &dst_last_iter_c,
             const memory_storage_t &diff_src_iter,
-            const memory_storage_t &diff_src_iter_c, const memory_storage_t &ws,
+            const memory_storage_t &diff_src_iter_c, const workspace_t &ws,
             const float shift, const float scale, const bool dequantize) const;
     status_t gates_reduction(const exec_ctx_t &ctx, int dir, int lay, int iter,
             int n_gates, int dhc, int batch, const memory_storage_t &gates,
@@ -270,7 +314,7 @@ private:
             const int ws_part, const float val, const size_t size) const;
 #if DEBUGPRINT
     status_t ws_print(const exec_ctx_t &ctx, compute::compute_stream_t *s,
-            const memory_storage_t &workspace) const;
+            const workspace_t &workspace) const;
     compute::kernel_t ws_print_kernel_;
 #endif
 

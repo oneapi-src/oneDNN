@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -120,8 +120,9 @@ float activation_bwd(float s, float alpha, float cliping) {
 }
 
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
-ref_rnn_copy_init_layer(__global char *ws, __global char *src_base,
-        __global char *scratch_diff_states, int lr, int rl) {
+ref_rnn_copy_init_layer(__global WS_STATE_DATA_T *dst_base,
+        __global char *src_base, __global char *scratch_diff_states, int lr,
+        int rl) {
 
 #if IS_FWD
 
@@ -131,8 +132,6 @@ ref_rnn_copy_init_layer(__global char *ws, __global char *src_base,
     if (c >= SLC || b >= BATCH || it >= N_ITER) return;
 
     __global WS_STATE_DATA_T *dst;
-    __global WS_STATE_DATA_T *dst_base
-            = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET);
     __global WS_STATE_DATA_T *src = (__global WS_STATE_DATA_T *)src_base
             + SRC_L_OFF(it, 0, 0) + b * SLC + c;
 
@@ -189,7 +188,8 @@ ref_rnn_copy_init_layer(__global char *ws, __global char *src_base,
 #endif
 }
 
-__kernel void ref_rnn_copy_init_iter(__global char *ws, __global char *src_base,
+__kernel void ref_rnn_copy_init_iter(__global WS_STATE_DATA_T *dst_base,
+        __global AUX_DATA_T *dst_c_base, __global char *src_base,
         __global char *src_c_base, __global char *scratch_diff_states
 #if IS_FWD
         ,
@@ -204,8 +204,7 @@ __kernel void ref_rnn_copy_init_iter(__global char *ws, __global char *src_base,
 
 #if IS_FWD
     __global INPUT_DATA_T *src = (__global INPUT_DATA_T *)(src_base);
-    __global WS_STATE_DATA_T *dst
-            = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET);
+    __global WS_STATE_DATA_T *dst = dst_base;
 
     if (s < SIC)
         dst[OFF_WS_STATE(lay + 1, dir, 0, b, s)] = src_base
@@ -215,8 +214,7 @@ __kernel void ref_rnn_copy_init_iter(__global char *ws, __global char *src_base,
                 : TO_WS_STATE(0.0f);
 #if WITH_SRC_ITER_C
     __global AUX_DATA_T *src_c = (__global AUX_DATA_T *)(src_c_base);
-    __global AUX_DATA_T *dst_c
-            = (__global AUX_DATA_T *)(ws + WS_C_STATE_OFFSET);
+    __global AUX_DATA_T *dst_c = dst_c_base;
     if (s < DHC)
         dst_c[OFF_WS_STATE(lay + 1, dir, 0, b, s)] = src_c_base
                 ? src_c[SRC_I_C_OFF(lay, dir, b, s)]
@@ -241,7 +239,8 @@ __kernel void ref_rnn_copy_init_iter(__global char *ws, __global char *src_base,
 }
 
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
-ref_rnn_copy_res_layer(__global char *ws, __global char *dst_base,
+ref_rnn_copy_res_layer(
+        __global WS_STATE_DATA_T *src_base, __global char *dst_base,
         __global char *scratch_diff_states, int lr, int rl
 #if IS_FWD
         ,
@@ -255,8 +254,7 @@ ref_rnn_copy_res_layer(__global char *ws, __global char *dst_base,
 
 #if IS_FWD
     if (s >= DHC || b >= BATCH || it >= N_ITER) return;
-    __global WS_STATE_DATA_T *src
-            = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET);
+    __global WS_STATE_DATA_T *src = src_base;
     __global DST_DATA_T *dst = (__global DST_DATA_T *)(dst_base);
     int dir = 0;
     if (lr) {
@@ -318,7 +316,8 @@ ref_rnn_copy_res_layer(__global char *ws, __global char *dst_base,
 #endif
 }
 
-__kernel void ref_rnn_copy_res_iter(__global char *ws, __global char *dst_base,
+__kernel void ref_rnn_copy_res_iter(__global WS_STATE_DATA_T *src_base,
+        __global AUX_DATA_T *src_c_base, __global char *dst_base,
         __global char *dst_c_base, __global char *scratch_diff_states
 #if IS_FWD
         ,
@@ -332,8 +331,7 @@ __kernel void ref_rnn_copy_res_iter(__global char *ws, __global char *dst_base,
     const int dir = get_global_id(2) % N_DIR;
 
 #if IS_FWD
-    __global WS_STATE_DATA_T *src
-            = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET);
+    __global WS_STATE_DATA_T *src = src_base;
     __global OUTPUT_DATA_T *dst = (__global OUTPUT_DATA_T *)(dst_base);
 
     if (dst_base && s < DHC) {
@@ -345,8 +343,7 @@ __kernel void ref_rnn_copy_res_iter(__global char *ws, __global char *dst_base,
                 : TO_OUTPUT(src[OFF_WS_STATE(lay + 1, dir, N_ITER, b, s)]);
     }
 #if WITH_DST_ITER_C
-    __global AUX_DATA_T *src_c
-            = (__global AUX_DATA_T *)(ws + WS_C_STATE_OFFSET);
+    __global AUX_DATA_T *src_c = src_c_base;
     __global AUX_DATA_T *dst_c = (__global AUX_DATA_T *)(dst_c_base);
     if (dst_c_base && s < DHC) {
         dst_c[DST_I_C_OFF(lay, dir, b, s)]
@@ -390,10 +387,12 @@ __kernel void ref_rnn_ws_set(
 
 // useful for debug
 #if DEBUGPRINT
-__kernel void ref_rnn_ws_print(const __global char *ws) {
+__kernel void ref_rnn_ws_print(__global ACC_DATA_T *gates_base,
+        __global WS_STATE_DATA_T *states_base,
+        __global AUX_DATA_T *c_states_base, __global AUX_DATA_T *bias_base,
+        __global ACC_DATA_T *grid_comp_base) {
     {
-        __global ACC_DATA_T *wt = (__global ACC_DATA_T *)(ws + WS_GATES_OFFSET);
-        printf("ws_gates: off %d\n", WS_GATES_OFFSET);
+        __global ACC_DATA_T *wt = gates_base;
         printf("[lay,dir,iter,batch]\n");
         for_(int j = 0; j < N_LAYER; j++)
         for_(int dir = 0; dir < N_DIR; dir++)
@@ -409,9 +408,7 @@ __kernel void ref_rnn_ws_print(const __global char *ws) {
         }
     }
     {
-        __global WS_STATE_DATA_T *wt
-                = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET);
-        printf("ws_states (H): off %d\n", WS_STATES_OFFSET);
+        __global WS_STATE_DATA_T *wt = states_base;
         printf("[lay,dir,iter]\n");
         for_(int j = 0; j < N_LAYER + 1; j++)
         for_(int dir = 0; dir < N_DIR; dir++)
@@ -427,9 +424,7 @@ __kernel void ref_rnn_ws_print(const __global char *ws) {
     }
 #if IS_TRAINING && CELL_KIND == LBR_GRU
     {
-        __global ACC_DATA_T *wt
-                = (__global ACC_DATA_T *)(ws + WS_GRID_COMP_OFFSET);
-        printf("ws_grid: off %d\n", WS_GRID_COMP_OFFSET);
+        __global ACC_DATA_T *wt = grid_comp_base;
         printf("[lay,dir,iter,batch]\n");
         for_(int j = 0; j < N_LAYER; j++)
         for_(int dir = 0; dir < N_DIR; dir++)
@@ -445,9 +440,7 @@ __kernel void ref_rnn_ws_print(const __global char *ws) {
 #endif
 #if IS_FWD && CELL_KIND == VANILLA_LSTM
     {
-        __global AUX_DATA_T *wt
-                = (__global AUX_DATA_T *)(ws + WS_C_STATE_OFFSET);
-        printf("ws_states (C): off %d\n", WS_C_STATE_OFFSET);
+        __global AUX_DATA_T *wt = c_states_base;
         printf("[lay,dir,iter]\n");
         for_(int j = 0; j < N_LAYER; j++)
         for_(int dir = 0; dir < N_DIR; dir++)
@@ -463,8 +456,7 @@ __kernel void ref_rnn_ws_print(const __global char *ws) {
 #endif
 #if COPY_BIAS
     {
-        __global AUX_DATA_T *wt = (__global AUX_DATA_T *)(ws + WS_BIAS_OFFSET);
-        printf("ws_bias: off %d\n", WS_BIAS_OFFSET);
+        __global AUX_DATA_T *wt = bias_base;
         printf("[lay,dir]\n");
         for_(int j = 0; j < N_LAYER; j++)
         for_(int dir = 0; dir < N_DIR; dir++)
@@ -481,17 +473,16 @@ __kernel void ref_rnn_ws_print(const __global char *ws) {
 }
 #endif
 
-__kernel void ref_rnn_bias_prepare(__global char *ws, __global float *scales,
-        __global char *wei_layer, __global char *wei_iter, __global float *bias,
-        float data_shift, float data_scale) {
+__kernel void ref_rnn_bias_prepare(__global float *ws_bias,
+        __global float *scales, __global char *wei_layer,
+        __global char *wei_iter, __global float *bias, float data_shift,
+        float data_scale) {
 #if COPY_BIAS
 
     const int dhc = get_global_id(0);
     const int nbias = get_global_id(1);
     const int layer = get_global_id(2) / N_DIR;
     const int dir = get_global_id(2) % N_DIR;
-
-    __global float *ws_bias = (__global float *)(ws + WS_BIAS_OFFSET);
 
     const float wei_scale
 #if WEI_QPARAM_MASK
@@ -545,7 +536,10 @@ __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
 ref_rnn_elemwise_fwd(int dir, int lay, int iter, __global char *ws,
         __global char *scr_gates, __global float *scales,
         __global float *bias_base, float alpha, float data_shift,
-        float data_scale, __global float *tm_scales, float tm_cscale) {
+        float data_scale, __global float *tm_scales,
+        __global WS_STATE_DATA_T *states_base, __global float *c_states_base,
+        __global AUX_DATA_T *ws_gates_base, __global float *ws_bias_base,
+        float tm_cscale) {
 
     const int i = get_global_id(1); // batch
     const int j = get_global_id(0); // dhc
@@ -553,21 +547,18 @@ ref_rnn_elemwise_fwd(int dir, int lay, int iter, __global char *ws,
     if (j >= DHC || i >= BATCH) return;
 
     const __global float *c_states_tm1_l
-            = (__global float *)(ws + WS_C_STATE_OFFSET)
-            + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
-    __global float *ws_bias = (__global float *)(ws + WS_BIAS_OFFSET);
+            = c_states_base + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
+    __global float *ws_bias = ws_bias_base;
 
     __global ACC_DATA_T *ws_gates
-            = (__global ACC_DATA_T *)(ws + WS_GATES_OFFSET)
-            + OFF_WS_GATES(lay, dir, iter, 0, 0, 0);
+            = ws_gates_base + OFF_WS_GATES(lay, dir, iter, 0, 0, 0);
     __global ACC_DATA_T *scratch_gates = (__global ACC_DATA_T *)(scr_gates)
             + OFF_SCRATCH_MEM(iter, 0, 0, 0);
 
     __global WS_STATE_DATA_T *h_states_t_l
-            = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET)
-            + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
-    __global float *c_states_t_l = (__global float *)(ws + WS_C_STATE_OFFSET)
-            + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
+            = states_base + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
+    __global float *c_states_t_l
+            = c_states_base + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
 
     float G0 = logistic_fwd_tm(deq_w(scratch_gates[CELL_SCRATCH_MEM(i, 0, j)],
                                        0, j, scales, data_scale)
@@ -596,9 +587,11 @@ ref_rnn_elemwise_fwd(int dir, int lay, int iter, __global char *ws,
 #else
 
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
-ref_rnn_elemwise_fwd(
-        int dir, int lay, int iter, __global char *ws, __global char *scr_gates,
-        __global AUX_DATA_T *bias_base, float alpha, __global float *tm_scales,
+ref_rnn_elemwise_fwd(int dir, int lay, int iter, __global char *ws,
+        __global char *scr_gates, __global AUX_DATA_T *bias_base, float alpha,
+        __global float *tm_scales, __global WS_STATE_DATA_T *states_base,
+        __global AUX_DATA_T *c_states_base, __global AUX_DATA_T *ws_gates_base,
+        __global AUX_DATA_T *ws_grid_base,
 #if CELL_KIND == VANILLA_LSTM || CELL_KIND == VANILLA_RNN
         float tm_cscale
 #elif CELL_KIND == LBR_GRU
@@ -613,24 +606,20 @@ ref_rnn_elemwise_fwd(
     if (j >= DHC || i >= BATCH) return;
 
     const __global AUX_DATA_T *c_states_tm1_l
-            = (__global AUX_DATA_T *)(ws + WS_C_STATE_OFFSET)
-            + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
+            = c_states_base + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
     const __global AUX_DATA_T *bias = bias_base + BIAS_OFF(lay, dir, 0, 0);
 
     __global AUX_DATA_T *ws_gates
-            = (__global AUX_DATA_T *)(ws + WS_GATES_OFFSET)
-            + OFF_WS_GATES(lay, dir, iter, 0, 0, 0);
+            = ws_gates_base + OFF_WS_GATES(lay, dir, iter, 0, 0, 0);
     __global AUX_DATA_T *scratch_gates = (__global AUX_DATA_T *)(scr_gates)
             + OFF_SCRATCH_MEM(iter, 0, 0, 0);
     // dst_iter & dst_layer --> h_states_t_l
     __global WS_STATE_DATA_T *h_states_t_l
-            = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET)
-            + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
+            = states_base + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
 
 #if CELL_KIND == VANILLA_LSTM
     __global AUX_DATA_T *c_states_t_l
-            = (__global AUX_DATA_T *)(ws + WS_C_STATE_OFFSET)
-            + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
+            = c_states_base + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
 
     float g_i = logistic_fwd_tm((float)scratch_gates[CELL_SCRATCH_MEM(i, 0, j)]
                     + bias[OFF_KER_BIAS(0, j)],
@@ -678,11 +667,9 @@ ref_rnn_elemwise_fwd(
     __global AUX_DATA_T *scratch_cell = (__global AUX_DATA_T *)(scr_cell);
 
     __global WS_STATE_DATA_T *src_iter
-            = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET)
-            + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
+            = states_base + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
     __global AUX_DATA_T *ws_grid
-            = (__global AUX_DATA_T *)(ws + WS_GRID_COMP_OFFSET)
-            + OFF_WS_GRID_OFFSET(lay, dir, iter, 0, 0);
+            = ws_grid_base + OFF_WS_GRID_OFFSET(lay, dir, iter, 0, 0);
 
     float Wh_b = (float)scratch_cell[CELL_SCRATCH_MEM(i, 2, j)]
             + bias[OFF_KER_BIAS(3, j)];
@@ -710,8 +697,7 @@ ref_rnn_elemwise_fwd(
 #endif
 #elif CELL_KIND == VANILLA_GRU
     __global WS_STATE_DATA_T *src_iter
-            = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET)
-            + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
+            = states_base + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
     if (n_part == 1) {
         float G0 = logistic_fwd_tm(scratch_gates[CELL_SCRATCH_MEM(i, 0, j)]
                         + bias[OFF_KER_BIAS(0, j)],
@@ -751,7 +737,9 @@ ref_rnn_elemwise_fwd(
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
 ref_rnn_elemwise_bwd(int dir, int lay, int iter, __global char *ws,
         __global char *scr_gates, __global AUX_DATA_T *bias_base, float alpha,
-        __global float *tm_scales,
+        __global float *tm_scales, __global WS_STATE_DATA_T *states_base,
+        __global AUX_DATA_T *c_states_base, __global AUX_DATA_T *ws_gates_base,
+        __global AUX_DATA_T *ws_grid_base,
 #if CELL_KIND == VANILLA_LSTM || CELL_KIND == VANILLA_RNN
         float tm_cscale,
 #elif CELL_KIND == LBR_GRU
@@ -769,17 +757,14 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter, __global char *ws,
 #if CELL_KIND == VANILLA_LSTM
 
     __global AUX_DATA_T *ws_gates
-            = (__global AUX_DATA_T *)(ws + WS_GATES_OFFSET)
-            + OFF_WS_GATES(lay, dir, iter, 0, 0, 0);
+            = ws_gates_base + OFF_WS_GATES(lay, dir, iter, 0, 0, 0);
     __global SRC_DATA_T *scratch_gates = (__global SRC_DATA_T *)(scr_gates)
             + OFF_SCRATCH_MEM(iter, 0, 0, 0);
 
     __global AUX_DATA_T *c_states_t_l
-            = (__global AUX_DATA_T *)(ws + WS_C_STATE_OFFSET)
-            + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
+            = c_states_base + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
     __global AUX_DATA_T *c_states_tm1_l
-            = (__global AUX_DATA_T *)(ws + WS_C_STATE_OFFSET)
-            + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
+            = c_states_base + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
     __global DIFF_DATA_T *diff_states_t_l = (__global DIFF_DATA_T *)diff_states
             + OFF_SCRATCH_DIFF_STATES(lay, dir, 0, iter, 0, 0);
     __global DIFF_DATA_T *diff_states_tp1_l
@@ -821,11 +806,9 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter, __global char *ws,
     __global SRC_DATA_T *scratch_gate_r = (__global SRC_DATA_T *)(scr_gate_r);
 
     __global AUX_DATA_T *ws_gates
-            = (__global AUX_DATA_T *)(ws + WS_GATES_OFFSET)
-            + OFF_WS_GATES(lay, dir, iter, 0, 0, 0);
+            = ws_gates_base + OFF_WS_GATES(lay, dir, iter, 0, 0, 0);
     __global AUX_DATA_T *ws_grid
-            = (__global AUX_DATA_T *)(ws + WS_GRID_COMP_OFFSET)
-            + OFF_WS_GRID_OFFSET(lay, dir, iter, 0, 0);
+            = ws_grid_base + OFF_WS_GRID_OFFSET(lay, dir, iter, 0, 0);
 
     __global DIFF_DATA_T *diff_src_iter = (__global DIFF_DATA_T *)diff_states
             + OFF_SCRATCH_DIFF_STATES(lay, dir, 0, iter, 0, 0);
@@ -834,8 +817,7 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter, __global char *ws,
     __global DIFF_DATA_T *diff_dst_layer = (__global DIFF_DATA_T *)diff_states
             + OFF_SCRATCH_DIFF_STATES(lay + 1, dir, 0, iter, 0, 0);
     __global WS_STATE_DATA_T *src_iter //h_states_tm1_l
-            = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET)
-            + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
+            = states_base + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
 
     float h = TO_REF(src_iter[CELL_WS_STATE(i, j)]);
     float Wh_b = ws_grid[CELL_WS_GRID_COMP(i, j)];
@@ -862,8 +844,7 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter, __global char *ws,
 #elif CELL_KIND == VANILLA_RNN
 
     __global AUX_DATA_T *ws_gates
-            = (__global AUX_DATA_T *)(ws + WS_GATES_OFFSET)
-            + OFF_WS_GATES(lay, dir, iter, i, 0, j);
+            = ws_gates_base + OFF_WS_GATES(lay, dir, iter, i, 0, j);
     __global SRC_DATA_T *scratch_gates = (__global SRC_DATA_T *)(scr_gates)
             + OFF_SCRATCH_MEM(iter, i, 0, j);
 
@@ -885,8 +866,7 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter, __global char *ws,
     __global SRC_DATA_T *scratch_gates = (__global SRC_DATA_T *)(scr_gates)
             + OFF_SCRATCH_MEM(iter, 0, 0, 0);
     __global AUX_DATA_T *ws_gates
-            = (__global AUX_DATA_T *)(ws + WS_GATES_OFFSET)
-            + OFF_WS_GATES(lay, dir, iter, 0, 0, 0);
+            = ws_gates_base + OFF_WS_GATES(lay, dir, iter, 0, 0, 0);
     __global DIFF_DATA_T *diff_src_iter = (__global DIFF_DATA_T *)diff_states
             + OFF_SCRATCH_DIFF_STATES(lay, dir, 0, iter, 0, 0);
     __global DIFF_DATA_T *diff_dst_iter = (__global DIFF_DATA_T *)diff_states
@@ -894,8 +874,7 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter, __global char *ws,
     __global DIFF_DATA_T *diff_dst_layer = (__global DIFF_DATA_T *)diff_states
             + OFF_SCRATCH_DIFF_STATES(lay + 1, dir, 0, iter, 0, 0);
     __global WS_STATE_DATA_T *src_iter //h_states_tm1_l
-            = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET)
-            + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
+            = states_base + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
     float h = TO_REF(src_iter[CELL_WS_STATE(i, j)]);
     if (n_part == 1) {
         float dHt = diff_dst_iter[CELL_SCRATCH_DIFF_STATES(0, i, j)]

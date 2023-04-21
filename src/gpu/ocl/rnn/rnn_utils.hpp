@@ -35,7 +35,7 @@
 
 #define elemwise_sig(f) \
     status_t f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
-            int batch, const memory_storage_t &workspace, \
+            int batch, const workspace_t &workspace, \
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_diff_states, \
             const memory_storage_t *scales, const memory_storage_t &bias, \
@@ -43,7 +43,7 @@
 
 #define elemwise_sig_gru_lbr(f) \
     status_t f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
-            int batch, const memory_storage_t &workspace, \
+            int batch, const workspace_t &workspace, \
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_cell, \
             const memory_storage_t &scratch_diff_states, \
@@ -52,7 +52,7 @@
 
 #define elemwise_sig_gru(f) \
     status_t f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
-            int batch, const memory_storage_t &workspace, \
+            int batch, const workspace_t &workspace, \
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_cell, \
             const memory_storage_t &scratch_diff_states, \
@@ -63,7 +63,7 @@
 #define cell_execution_sig(f) \
     status_t f(engine_t *engine, const exec_ctx_t &ctx, int dir, int lay, \
             int iter, size_t *wei_layer_offset, size_t *wei_iter_offset, \
-            const memory_storage_t &bias, const memory_storage_t &workspace, \
+            const memory_storage_t &bias, const workspace_t &workspace, \
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_cell, \
             const memory_storage_t &scratch_diff_states, \
@@ -77,7 +77,7 @@
 
 #define grid_execution_sig(f) \
     status_t f(engine_t *engine, const exec_ctx_t &ctx, \
-            const memory_storage_t &bias, const memory_storage_t &workspace, \
+            const memory_storage_t &bias, const workspace_t &workspace, \
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_cell, \
             const memory_storage_t &scratch_diff_states, \

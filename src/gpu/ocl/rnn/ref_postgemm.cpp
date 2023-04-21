@@ -30,17 +30,22 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
             : elemwise_bwd_kernel_;
 
     compute::kernel_arg_list_t arg_list;
-    arg_list.set(0, dir);
-    arg_list.set(1, lay);
-    arg_list.set(2, iter);
-    arg_list.set(3, workspace);
-    arg_list.set(4, scratch_gates);
-    arg_list.set(5, bias);
-    arg_list.set(6, pd()->desc()->alpha);
+    arg_list.append(dir);
+    arg_list.append(lay);
+    arg_list.append(iter);
+    arg_list.append(workspace.ws());
+    arg_list.append(scratch_gates);
+    arg_list.append(bias);
+    arg_list.append(pd()->desc()->alpha);
     // for test mode
-    arg_list.set(7, tm_scales ? *tm_scales : memory_storage_t::empty_storage());
-    arg_list.set(8, pd()->rnn_conf.tm_cscale);
-    if (aprop != dnnl_forward) { arg_list.set(9, scratch_diff_states); }
+    arg_list.append(tm_scales ? *tm_scales : memory_storage_t::empty_storage());
+    arg_list.append(workspace.states());
+    arg_list.append(workspace.c_states());
+    arg_list.append(workspace.gates());
+    arg_list.append(workspace.grid_comp());
+
+    arg_list.append(pd()->rnn_conf.tm_cscale);
+    if (aprop != dnnl_forward) { arg_list.append(scratch_diff_states); }
     return parallel_for(ctx, nd_range, kernel, arg_list);
 }
 template elemwise_sig(ref_rnn_fwd_t::rnn_elemwise);
@@ -55,17 +60,22 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
             : elemwise_bwd_kernel_;
 
     compute::kernel_arg_list_t arg_list;
-    arg_list.set(0, dir);
-    arg_list.set(1, lay);
-    arg_list.set(2, iter);
-    arg_list.set(3, workspace);
-    arg_list.set(4, scratch_gates);
-    arg_list.set(5, bias);
-    arg_list.set(6, pd()->desc()->alpha);
+    arg_list.append(dir);
+    arg_list.append(lay);
+    arg_list.append(iter);
+    arg_list.append(workspace.ws());
+    arg_list.append(scratch_gates);
+    arg_list.append(bias);
+    arg_list.append(pd()->desc()->alpha);
     // for test mode
-    arg_list.set(7, tm_scales ? *tm_scales : memory_storage_t::empty_storage());
-    arg_list.set(8, pd()->rnn_conf.tm_cscale);
-    if (aprop != dnnl_forward) { arg_list.set(9, scratch_diff_states); }
+    arg_list.append(tm_scales ? *tm_scales : memory_storage_t::empty_storage());
+    arg_list.append(workspace.states());
+    arg_list.append(workspace.c_states());
+    arg_list.append(workspace.gates());
+    arg_list.append(workspace.grid_comp());
+
+    arg_list.append(pd()->rnn_conf.tm_cscale);
+    if (aprop != dnnl_forward) { arg_list.append(scratch_diff_states); }
     return parallel_for(ctx, nd_range, kernel, arg_list);
 }
 template elemwise_sig(ref_rnn_fwd_t::lstm_elemwise);
@@ -79,20 +89,24 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise_u8s8)) {
     float data_scale = pd()->attr()->rnn_data_qparams_.scale_;
 
     compute::kernel_arg_list_t arg_list;
-    arg_list.set(0, dir);
-    arg_list.set(1, lay);
-    arg_list.set(2, iter);
-    arg_list.set(3, workspace);
-    arg_list.set(4, scratch_gates);
-    arg_list.set(5, scales ? *scales : memory_storage_t::empty_storage());
-    arg_list.set(6, bias);
-    arg_list.set(7, pd()->desc()->alpha);
-    arg_list.set(8, data_shift);
-    arg_list.set(9, data_scale);
+    arg_list.append(dir);
+    arg_list.append(lay);
+    arg_list.append(iter);
+    arg_list.append(workspace.ws());
+    arg_list.append(scratch_gates);
+    arg_list.append(scales ? *scales : memory_storage_t::empty_storage());
+    arg_list.append(bias);
+    arg_list.append(pd()->desc()->alpha);
+    arg_list.append(data_shift);
+    arg_list.append(data_scale);
     // for test mode
-    arg_list.set(
-            10, tm_scales ? *tm_scales : memory_storage_t::empty_storage());
-    arg_list.set(11, pd()->rnn_conf.tm_cscale);
+    arg_list.append(tm_scales ? *tm_scales : memory_storage_t::empty_storage());
+    arg_list.append(workspace.states());
+    arg_list.append(workspace.c_states());
+    arg_list.append(workspace.gates());
+    arg_list.append(workspace.bias());
+
+    arg_list.append(pd()->rnn_conf.tm_cscale);
     return parallel_for(ctx, nd_range, elemwise_fwd_kernel_, arg_list);
 }
 template elemwise_sig(ref_rnn_fwd_t::lstm_elemwise_u8s8);
@@ -107,17 +121,22 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
             : elemwise_bwd_kernel_;
 
     compute::kernel_arg_list_t arg_list;
-    arg_list.set(0, dir);
-    arg_list.set(1, lay);
-    arg_list.set(2, iter);
-    arg_list.set(3, workspace);
-    arg_list.set(4, scratch_gates);
-    arg_list.set(5, bias);
-    arg_list.set(6, pd()->desc()->alpha);
+    arg_list.append(dir);
+    arg_list.append(lay);
+    arg_list.append(iter);
+    arg_list.append(workspace.ws());
+    arg_list.append(scratch_gates);
+    arg_list.append(bias);
+    arg_list.append(pd()->desc()->alpha);
     // for test mode
-    arg_list.set(7, tm_scales ? *tm_scales : memory_storage_t::empty_storage());
-    arg_list.set(8, scratch_cell);
-    if (aprop != dnnl_forward) { arg_list.set(9, scratch_diff_states); }
+    arg_list.append(tm_scales ? *tm_scales : memory_storage_t::empty_storage());
+    arg_list.append(workspace.states());
+    arg_list.append(workspace.c_states());
+    arg_list.append(workspace.gates());
+    arg_list.append(workspace.grid_comp());
+
+    arg_list.append(scratch_cell);
+    if (aprop != dnnl_forward) { arg_list.append(scratch_diff_states); }
     return parallel_for(ctx, nd_range, kernel, arg_list);
 }
 template elemwise_sig_gru_lbr(ref_rnn_fwd_t::gru_lbr_elemwise);
@@ -132,19 +151,24 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
             : elemwise_bwd_kernel_;
 
     compute::kernel_arg_list_t arg_list;
-    arg_list.set(0, dir);
-    arg_list.set(1, lay);
-    arg_list.set(2, iter);
-    arg_list.set(3, workspace);
-    arg_list.set(4, scratch_gates);
-    arg_list.set(5, bias);
-    arg_list.set(6, pd()->desc()->alpha);
-    arg_list.set(7, tm_scales ? *tm_scales : memory_storage_t::empty_storage());
-    arg_list.set(8, part);
+    arg_list.append(dir);
+    arg_list.append(lay);
+    arg_list.append(iter);
+    arg_list.append(workspace.ws());
+    arg_list.append(scratch_gates);
+    arg_list.append(bias);
+    arg_list.append(pd()->desc()->alpha);
+    arg_list.append(tm_scales ? *tm_scales : memory_storage_t::empty_storage());
+    arg_list.append(workspace.states());
+    arg_list.append(workspace.c_states());
+    arg_list.append(workspace.gates());
+    arg_list.append(workspace.grid_comp());
+
+    arg_list.append(part);
     if (aprop != dnnl_forward) {
-        arg_list.set(9, scratch_cell);
-        arg_list.set(10, scratch_dhG1);
-        arg_list.set(11, scratch_diff_states);
+        arg_list.append(scratch_cell);
+        arg_list.append(scratch_dhG1);
+        arg_list.append(scratch_diff_states);
     }
     return parallel_for(ctx, nd_range, kernel, arg_list);
 }
