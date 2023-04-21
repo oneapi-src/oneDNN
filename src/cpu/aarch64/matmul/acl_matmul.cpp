@@ -36,6 +36,11 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
     std::lock_guard<std::mutex> _lock {this->mtx};
     auto *acl_resource = ctx.get_resource_mapper()->get<acl_resource_t>(this);
     acl_matmul_obj_t &acl_obj = acl_resource->get_acl_obj();
+
+    // [WA] ACL Matmul produces wrong results in case it is not reconfigured on each inference
+    acl_obj.gemm.configure(&acl_obj.src_tensor, &acl_obj.wei_tensor,
+        nullptr, &acl_obj.dst_tensor, pd()->amp_.alpha, 0.0f, pd()->amp_.gemm_info);
+
     // Run transpose kernel
     if (is_transA) {
         acl_obj.src_tensor.allocator()->allocate();
