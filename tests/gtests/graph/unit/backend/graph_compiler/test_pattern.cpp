@@ -32,6 +32,12 @@ namespace pass = dnnl::impl::graph::pass;
 namespace utils = dnnl::graph::tests::unit::utils;
 namespace compiler_utils = dnnl::impl::graph::tests::unit::compiler::utils;
 
+typedef struct {
+    unsigned int num_ops;
+    unsigned int num_inputs;
+    unsigned int num_outputs;
+} partition_info_t;
+
 pass::pass_base_ptr get_pass(compiler_impl::compiler_backend_t &backend_ptr,
         const std::string &pass_name) {
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
@@ -44,6 +50,33 @@ pass::pass_base_ptr get_pass(compiler_impl::compiler_backend_t &backend_ptr,
     return *find;
 }
 
+void test_pattern_matched(graph::graph_t &agraph,
+        const std::vector<std::string> &pass_names, unsigned int partition_num,
+        const std::vector<partition_info_t> &partition_infos) {
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+
+    for (const auto &pass_name : pass_names) {
+        pass::pass_base_ptr apass = get_pass(compiler_backend_ptr, pass_name);
+        apass->run(agraph);
+    }
+
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), partition_num);
+
+    for (unsigned int i = 0; i < partition_num; ++i) {
+        graph::partition_t p;
+        p.init(partitions[i]);
+
+        auto partition_inputs = p.get_inputs();
+        auto partition_outputs = p.get_outputs();
+
+        ASSERT_EQ(p.num_ops(), partition_infos[i].num_ops);
+        ASSERT_EQ(partition_inputs.size(), partition_infos[i].num_inputs);
+        ASSERT_EQ(partition_outputs.size(), partition_infos[i].num_outputs);
+    }
+}
+
 // test int8 MHA pattern (optimized graph)
 TEST(GCPatternTests, INT8MHAPattern) {
     REQUIRE_VNNI_AMXINT8();
@@ -51,22 +84,8 @@ TEST(GCPatternTests, INT8MHAPattern) {
     compiler_utils::add_MHA_subgraph(&agraph, false, true);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "int8_mha_pattern");
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 20U);
-    ASSERT_EQ(partition_inputs.size(), 5U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"int8_mha_pattern"}, 1,
+            std::vector<partition_info_t> {{20, 5, 1}});
 }
 
 TEST(GCPatternTests, INT8MHAPattern2) {
@@ -75,22 +94,8 @@ TEST(GCPatternTests, INT8MHAPattern2) {
     compiler_utils::add_MHA_subgraph(&agraph, false, true, true);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "int8_mha_pattern");
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 19U);
-    ASSERT_EQ(partition_inputs.size(), 5U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"int8_mha_pattern"}, 1,
+            std::vector<partition_info_t> {{19, 5, 1}});
 }
 
 // test fp32 MHA pattern
@@ -100,23 +105,8 @@ TEST(GCPatternTests, FP32MHAPattern) {
     compiler_utils::add_MHA_subgraph(&agraph, false);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "fp32_mha_pattern");
-
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 14U);
-    ASSERT_EQ(partition_inputs.size(), 5U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"fp32_mha_pattern"}, 1,
+            std::vector<partition_info_t> {{14, 5, 1}});
 }
 
 TEST(GCPatternTests, FP32MHAPattern2) {
@@ -125,22 +115,8 @@ TEST(GCPatternTests, FP32MHAPattern2) {
     compiler_utils::add_MHA_subgraph(&agraph, false, false, true);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "fp32_mha_pattern");
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 13U);
-    ASSERT_EQ(partition_inputs.size(), 5U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"fp32_mha_pattern"}, 1,
+            std::vector<partition_info_t> {{13, 5, 1}});
 }
 
 // test fp32 MHA pattern alternative
@@ -150,23 +126,8 @@ TEST(GCPatternTests, FP32MHAPatternAlternative) {
     compiler_utils::add_MHA_subgraph_alternative(&agraph, false, false);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "fp32_mha_pattern_alternative");
-
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 7U);
-    ASSERT_EQ(partition_inputs.size(), 5U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"fp32_mha_pattern_alternative"}, 1,
+            std::vector<partition_info_t> {{7, 5, 1}});
 }
 
 // test fp32 MHA pattern (no reshape)
@@ -176,22 +137,8 @@ TEST(GCPatternTests, FP32MHAPatternOptionalReshape) {
     utils::construct_f32_MHA(&agraph);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "fp32_mha_pattern");
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 13U);
-    ASSERT_EQ(partition_inputs.size(), 5U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"fp32_mha_pattern"}, 1,
+            std::vector<partition_info_t> {{13, 5, 1}});
 }
 
 TEST(GCPatternTests, INT8BF16MHAPattern) {
@@ -200,22 +147,8 @@ TEST(GCPatternTests, INT8BF16MHAPattern) {
     compiler_utils::add_MHA_subgraph(&agraph, true, true, true);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "int8_bf16_mha_pattern");
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 25U);
-    ASSERT_EQ(partition_inputs.size(), 5U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"int8_bf16_mha_pattern"}, 1,
+            std::vector<partition_info_t> {{25, 5, 1}});
 }
 
 // test bf16 MHA pattern
@@ -291,14 +224,8 @@ TEST(GCPatternTests, INT8MHAPatternVariation1) {
     compiler_utils::get_int8_MHA_subgraph_varients(&agraph);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "int8_mha_pattern");
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 20U);
+    test_pattern_matched(agraph, {"int8_mha_pattern"}, 1,
+            std::vector<partition_info_t> {{20, 5, 1}});
 }
 
 TEST(GCPatternTests, INT8MHAPatternVariation2) {
@@ -308,14 +235,8 @@ TEST(GCPatternTests, INT8MHAPatternVariation2) {
     compiler_utils::get_int8_MHA_subgraph_varients(&agraph, false);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "int8_mha_pattern");
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 20U);
+    test_pattern_matched(agraph, {"int8_mha_pattern"}, 1,
+            std::vector<partition_info_t> {{20, 5, 1}});
 }
 
 TEST(GCPatternTests, INT8MHAPatternVariation3) {
@@ -328,14 +249,8 @@ TEST(GCPatternTests, INT8MHAPatternVariation3) {
             1);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "int8_mha_pattern");
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 20U);
+    test_pattern_matched(agraph, {"int8_mha_pattern"}, 1,
+            std::vector<partition_info_t> {{20, 5, 1}});
 }
 
 // test fp32 distill_bert MHA pattern
@@ -344,23 +259,9 @@ TEST(GCPatternTests, FP32DistillBertMHAPattern) {
     graph::graph_t agraph;
     compiler_utils::add_distill_bert_MHA(&agraph, false, false);
     agraph.finalize();
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "fp32_distill_bert_mha_pattern");
 
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1UL);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 6U);
-    ASSERT_EQ(partition_inputs.size(), 5U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"fp32_distill_bert_mha_pattern"}, 1,
+            std::vector<partition_info_t> {{6, 5, 1}});
 }
 
 // test bf16 distill_bert MHA pattern
@@ -369,23 +270,9 @@ TEST(GCPatternTests, BF16DistillBertMHAPattern) {
     graph::graph_t agraph;
     compiler_utils::add_distill_bert_MHA(&agraph, true, false);
     agraph.finalize();
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "bf16_distill_bert_mha_pattern");
 
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 6U);
-    ASSERT_EQ(partition_inputs.size(), 5U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"bf16_distill_bert_mha_pattern"}, 1,
+            std::vector<partition_info_t> {{6, 5, 1}});
 }
 
 TEST(GCPatternTests, INT8FP32DistillBertMHAPattern) {
@@ -393,23 +280,9 @@ TEST(GCPatternTests, INT8FP32DistillBertMHAPattern) {
     graph::graph_t agraph;
     compiler_utils::add_distill_bert_MHA(&agraph, false, true);
     agraph.finalize();
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "int8_distill_bert_mha_pattern");
 
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 12U);
-    ASSERT_EQ(partition_inputs.size(), 5U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"int8_distill_bert_mha_pattern"}, 1,
+            std::vector<partition_info_t> {{12, 5, 1}});
 }
 
 // test int8-bf16 distill_Bert MHA pattern
@@ -418,23 +291,9 @@ TEST(GCPatternTests, INT8BF16DistillBertMHAPattern) {
     graph::graph_t agraph;
     compiler_utils::add_distill_bert_MHA(&agraph, true, true);
     agraph.finalize();
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass = get_pass(
-            compiler_backend_ptr, "int8_bf16_distill_bert_mha_pattern");
 
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 18U);
-    ASSERT_EQ(partition_inputs.size(), 5U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"int8_bf16_distill_bert_mha_pattern"}, 1,
+            std::vector<partition_info_t> {{18, 5, 1}});
 }
 
 TEST(GCPatternTests, FP32DLRMBottom) {
@@ -445,25 +304,8 @@ TEST(GCPatternTests, FP32DLRMBottom) {
             {graph::op_kind::ReLU, graph::op_kind::ReLU, graph::op_kind::ReLU});
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "fp32_mlp_forward_pattern");
-
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-
-    ASSERT_EQ(p.num_ops(), 6U);
-
-    ASSERT_EQ(partition_inputs.size(), 7U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"fp32_mlp_forward_pattern"}, 1,
+            std::vector<partition_info_t> {{6, 7, 1}});
 }
 
 TEST(GCPatternTests, FP32DLRMTop) {
@@ -476,25 +318,8 @@ TEST(GCPatternTests, FP32DLRMTop) {
                     graph::op_kind::ReLU, graph::op_kind::Sigmoid});
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "fp32_mlp_forward_pattern");
-
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-
-    ASSERT_EQ(p.num_ops(), 10U);
-
-    ASSERT_EQ(partition_inputs.size(), 11U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"fp32_mlp_forward_pattern"}, 1,
+            std::vector<partition_info_t> {{10, 11, 1}});
 }
 
 TEST(GCPatternTests, INT8DLRMBottom) {
@@ -504,25 +329,8 @@ TEST(GCPatternTests, INT8DLRMBottom) {
             {graph::op_kind::ReLU, graph::op_kind::ReLU, graph::op_kind::ReLU});
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "int8_mlp_pattern");
-
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-
-    ASSERT_EQ(p.num_ops(), 15U);
-
-    ASSERT_EQ(partition_inputs.size(), 7U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"int8_mlp_pattern"}, 1,
+            std::vector<partition_info_t> {{15, 7, 1}});
 }
 
 TEST(GCPatternTests, INT8DLRMTop) {
@@ -534,25 +342,8 @@ TEST(GCPatternTests, INT8DLRMTop) {
                     graph::op_kind::ReLU, graph::op_kind::Sigmoid});
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "int8_mlp_pattern");
-
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-
-    ASSERT_EQ(p.num_ops(), 25U);
-
-    ASSERT_EQ(partition_inputs.size(), 11U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"int8_mlp_pattern"}, 1,
+            std::vector<partition_info_t> {{25, 11, 1}});
 }
 
 TEST(GCPatternTests, FP32MLPSeparateAdd) {
@@ -566,25 +357,8 @@ TEST(GCPatternTests, FP32MLPSeparateAdd) {
             true);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "fp32_mlp_forward_pattern");
-
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-
-    ASSERT_EQ(p.num_ops(), 15U);
-
-    ASSERT_EQ(partition_inputs.size(), 11U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"fp32_mlp_forward_pattern"}, 1,
+            std::vector<partition_info_t> {{15, 11, 1}});
 }
 
 TEST(GCPatternTests, FP32MLPNoActivation) {
@@ -598,25 +372,8 @@ TEST(GCPatternTests, FP32MLPNoActivation) {
                     graph::op_kind::Wildcard});
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "fp32_mlp_forward_pattern");
-
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-
-    ASSERT_EQ(p.num_ops(), 5U);
-
-    ASSERT_EQ(partition_inputs.size(), 11U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"fp32_mlp_forward_pattern"}, 1,
+            std::vector<partition_info_t> {{5, 11, 1}});
 }
 
 TEST(GCPatternTests, FP32MLPSeparateAddNoActivation) {
@@ -631,25 +388,8 @@ TEST(GCPatternTests, FP32MLPSeparateAddNoActivation) {
             true);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "fp32_mlp_forward_pattern");
-
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-
-    ASSERT_EQ(p.num_ops(), 10U);
-
-    ASSERT_EQ(partition_inputs.size(), 11U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"fp32_mlp_forward_pattern"}, 1,
+            std::vector<partition_info_t> {{10, 11, 1}});
 }
 
 TEST(GCPatternTests, INT8MLPNoActivation) {
@@ -662,25 +402,8 @@ TEST(GCPatternTests, INT8MLPNoActivation) {
                     graph::op_kind::Wildcard});
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "int8_mlp_pattern");
-
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-
-    ASSERT_EQ(p.num_ops(), 20U);
-
-    ASSERT_EQ(partition_inputs.size(), 11U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"int8_mlp_pattern"}, 1,
+            std::vector<partition_info_t> {{20, 11, 1}});
 }
 
 TEST(GCPatternTests, FP32MLPTraining) {
@@ -693,20 +416,9 @@ TEST(GCPatternTests, FP32MLPTraining) {
                     graph::op_kind::ReLUBackward});
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass_fwd
-            = get_pass(compiler_backend_ptr, "fp32_mlp_forward_pattern");
-    pass::pass_base_ptr apass_bwd
-            = get_pass(compiler_backend_ptr, "fp32_mlp_backward_pattern_v2");
-
-    apass_fwd->run(agraph);
-    apass_bwd->run(agraph);
-
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 2U);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 6U);
-    ASSERT_EQ(partitions[1]->get_ops().size(), 13U);
+    test_pattern_matched(agraph,
+            {"fp32_mlp_forward_pattern", "fp32_mlp_backward_pattern_v2"}, 2,
+            std::vector<partition_info_t> {{6, 7, 3}, {13, 7, 3}});
 }
 
 TEST(GCPatternTests, FP32MHATrainingPattern) {
@@ -715,24 +427,9 @@ TEST(GCPatternTests, FP32MHATrainingPattern) {
     compiler_utils::add_MHA_training_subgraph(&agraph, false);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-
-    pass::pass_base_ptr fwd_apass
-            = get_pass(compiler_backend_ptr, "fp32_mha_forward_pattern");
-    pass::pass_base_ptr bwd_apass
-            = get_pass(compiler_backend_ptr, "fp32_mha_backward_pattern");
-    fwd_apass->run(agraph);
-    bwd_apass->run(agraph);
-
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 2U);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 8U);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 6U);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 3U);
-    ASSERT_EQ(partitions[1]->get_ops().size(), 11U);
-    ASSERT_EQ(partitions[1]->get_inputs().size(), 8U);
-    ASSERT_EQ(partitions[1]->get_outputs().size(), 3U);
+    test_pattern_matched(agraph,
+            {"fp32_mha_forward_pattern", "fp32_mha_backward_pattern"}, 2,
+            std::vector<partition_info_t> {{8, 6, 3}, {11, 8, 3}});
 }
 
 TEST(GCPatternTests, FP32MHATrainingPattern2) {
@@ -741,24 +438,9 @@ TEST(GCPatternTests, FP32MHATrainingPattern2) {
     compiler_utils::add_MHA_training_subgraph(&agraph, false, true);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-
-    pass::pass_base_ptr fwd_apass
-            = get_pass(compiler_backend_ptr, "fp32_mha_forward_pattern");
-    pass::pass_base_ptr bwd_apass
-            = get_pass(compiler_backend_ptr, "fp32_mha_backward_pattern");
-    fwd_apass->run(agraph);
-    bwd_apass->run(agraph);
-
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 2U);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 9U);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 7U);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 3U);
-    ASSERT_EQ(partitions[1]->get_ops().size(), 12U);
-    ASSERT_EQ(partitions[1]->get_inputs().size(), 9U);
-    ASSERT_EQ(partitions[1]->get_outputs().size(), 3U);
+    test_pattern_matched(agraph,
+            {"fp32_mha_forward_pattern", "fp32_mha_backward_pattern"}, 2,
+            std::vector<partition_info_t> {{9, 7, 3}, {12, 9, 3}});
 }
 
 TEST(GCPatternTests, BF16MHATrainingPattern) {
@@ -767,23 +449,9 @@ TEST(GCPatternTests, BF16MHATrainingPattern) {
     compiler_utils::add_MHA_training_subgraph(&agraph, true);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr fwd_apass
-            = get_pass(compiler_backend_ptr, "bf16_mha_forward_pattern");
-    pass::pass_base_ptr bwd_apass
-            = get_pass(compiler_backend_ptr, "bf16_mha_backward_pattern");
-    fwd_apass->run(agraph);
-    bwd_apass->run(agraph);
-
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 2U);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 8U);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 6U);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 3U);
-    ASSERT_EQ(partitions[1]->get_ops().size(), 11U);
-    ASSERT_EQ(partitions[1]->get_inputs().size(), 8U);
-    ASSERT_EQ(partitions[1]->get_outputs().size(), 3U);
+    test_pattern_matched(agraph,
+            {"bf16_mha_forward_pattern", "bf16_mha_backward_pattern"}, 2,
+            std::vector<partition_info_t> {{8, 6, 3}, {11, 8, 3}});
 }
 
 TEST(GCPatternTests, BF16MHATrainingPattern2) {
@@ -792,23 +460,9 @@ TEST(GCPatternTests, BF16MHATrainingPattern2) {
     compiler_utils::add_MHA_training_subgraph(&agraph, true, true);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr fwd_apass
-            = get_pass(compiler_backend_ptr, "bf16_mha_forward_pattern");
-    pass::pass_base_ptr bwd_apass
-            = get_pass(compiler_backend_ptr, "bf16_mha_backward_pattern");
-    fwd_apass->run(agraph);
-    bwd_apass->run(agraph);
-
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 2U);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 9U);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 7U);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 3U);
-    ASSERT_EQ(partitions[1]->get_ops().size(), 12U);
-    ASSERT_EQ(partitions[1]->get_inputs().size(), 9U);
-    ASSERT_EQ(partitions[1]->get_outputs().size(), 3U);
+    test_pattern_matched(agraph,
+            {"bf16_mha_forward_pattern", "bf16_mha_backward_pattern"}, 2,
+            std::vector<partition_info_t> {{9, 7, 3}, {12, 9, 3}});
 }
 
 TEST(GCPatternTests, FP32IdenticalBottleneckPattern1) {
@@ -822,17 +476,8 @@ TEST(GCPatternTests, FP32IdenticalBottleneckPattern1) {
             {{1, 1}, {1, 1}}, {{0, 0}, {0, 0}});
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "f32_identical_bottleneck");
-    apass->run(agraph);
-
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 5U);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 5U);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 1U);
+    test_pattern_matched(agraph, {"f32_identical_bottleneck"}, 1,
+            std::vector<partition_info_t> {{5, 5, 1}});
 }
 
 TEST(GCPatternTests, FP32IdenticalBottleneckPattern2) {
@@ -848,17 +493,8 @@ TEST(GCPatternTests, FP32IdenticalBottleneckPattern2) {
             {{0, 0}, {0, 0}, {0, 0}, {0, 0}});
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "f32_identical_bottleneck");
-    apass->run(agraph);
-
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 9U);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 9U);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 1U);
+    test_pattern_matched(agraph, {"f32_identical_bottleneck"}, 1,
+            std::vector<partition_info_t> {{9, 9, 1}});
 }
 
 TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern1) {
@@ -872,17 +508,8 @@ TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern1) {
             false, {{2, 2}, {1, 1}, {2, 2}}, {{0, 0}, {0, 0}, {0, 0}});
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "f32_convolutional_bottleneck");
-    apass->run(agraph);
-
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 6U);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 7U);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 1U);
+    test_pattern_matched(agraph, {"f32_convolutional_bottleneck"}, 1,
+            std::vector<partition_info_t> {{6, 7, 1}});
 }
 
 TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern2) {
@@ -899,17 +526,8 @@ TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern2) {
             {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}});
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "f32_convolutional_bottleneck");
-    apass->run(agraph);
-
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 10U);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 11U);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 1U);
+    test_pattern_matched(agraph, {"f32_convolutional_bottleneck"}, 1,
+            std::vector<partition_info_t> {{10, 11, 1}});
 }
 
 TEST(GCPatternTests, BF16IdenticalBottleneckPattern) {
@@ -922,17 +540,8 @@ TEST(GCPatternTests, BF16IdenticalBottleneckPattern) {
             {{256, 64, 1, 1}, {64, 64, 3, 3}, {256, 64, 1, 1}}, true);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "bf16_identical_bottleneck");
-    apass->run(agraph);
-
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 7U);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 7U);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 1U);
+    test_pattern_matched(agraph, {"bf16_identical_bottleneck"}, 1,
+            std::vector<partition_info_t> {{7, 7, 1}});
 }
 
 TEST(GCPatternTests, INT8ConvolutionalBottleneckPattern) {
@@ -949,17 +558,8 @@ TEST(GCPatternTests, INT8ConvolutionalBottleneckPattern) {
             {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}});
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "int8_convolutional_bottleneck");
-    apass->run(agraph);
-
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 26U);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 11U);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 1U);
+    test_pattern_matched(agraph, {"int8_convolutional_bottleneck"}, 1,
+            std::vector<partition_info_t> {{26, 11, 1}});
 }
 
 TEST(GCPatternTests, BF16ConvolutionalBottleneckPattern) {
@@ -973,17 +573,8 @@ TEST(GCPatternTests, BF16ConvolutionalBottleneckPattern) {
             true);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "bf16_convolutional_bottleneck");
-    apass->run(agraph);
-
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 8U);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 9U);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 1U);
+    test_pattern_matched(agraph, {"bf16_convolutional_bottleneck"}, 1,
+            std::vector<partition_info_t> {{8, 9, 1}});
 }
 
 TEST(GCPatternTests, FP32ConvolutionalBottleneckTrainingPattern) {
@@ -995,24 +586,10 @@ TEST(GCPatternTests, FP32ConvolutionalBottleneckTrainingPattern) {
             {{1, 1, 64, 256}, {1, 1, 64, 64}, {3, 3, 64, 64}, {1, 1, 64, 256}});
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass_fwd = get_pass(
-            compiler_backend_ptr, "f32_convolutional_bottleneck_forward");
-    pass::pass_base_ptr apass_bwd = get_pass(
-            compiler_backend_ptr, "f32_convolutional_bottleneck_backward_v1");
-
-    apass_fwd->run(agraph);
-    apass_bwd->run(agraph);
-
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 2U);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 12U);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 21U);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 23U);
-    ASSERT_EQ(partitions[1]->get_ops().size(), 16U);
-    ASSERT_EQ(partitions[1]->get_inputs().size(), 25U);
-    ASSERT_EQ(partitions[1]->get_outputs().size(), 13U);
+    test_pattern_matched(agraph,
+            {"f32_convolutional_bottleneck_forward",
+                    "f32_convolutional_bottleneck_backward_v1"},
+            2, std::vector<partition_info_t> {{12, 21, 23}, {16, 25, 13}});
 }
 
 TEST(GCPatternTests, FP32IdenticalBottleneckTrainingPattern) {
@@ -1024,24 +601,10 @@ TEST(GCPatternTests, FP32IdenticalBottleneckTrainingPattern) {
             {{1, 1, 64, 64}, {3, 3, 64, 64}, {1, 1, 64, 64}});
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass_fwd = get_pass(
-            compiler_backend_ptr, "f32_identical_bottleneck_forward");
-    pass::pass_base_ptr apass_bwd = get_pass(
-            compiler_backend_ptr, "f32_identical_bottleneck_backward_v1");
-
-    apass_fwd->run(agraph);
-    apass_bwd->run(agraph);
-
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 2U);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 10U);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 16U);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 18U);
-    ASSERT_EQ(partitions[1]->get_ops().size(), 13U);
-    ASSERT_EQ(partitions[1]->get_inputs().size(), 20U);
-    ASSERT_EQ(partitions[1]->get_outputs().size(), 10U);
+    test_pattern_matched(agraph,
+            {"f32_identical_bottleneck_forward",
+                    "f32_identical_bottleneck_backward_v1"},
+            2, std::vector<partition_info_t> {{10, 16, 18}, {13, 20, 10}});
 }
 
 TEST(GCPatternTests, FP32MatMulSoftmaxPattern) {
@@ -1050,23 +613,8 @@ TEST(GCPatternTests, FP32MatMulSoftmaxPattern) {
     compiler_utils::add_MHA_subgraph_alternative(&agraph, false, false);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "fp32_matmul_softmax_fusion");
-
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 4U);
-    ASSERT_EQ(partition_inputs.size(), 4U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"fp32_matmul_softmax_fusion"}, 1,
+            std::vector<partition_info_t> {{4, 4, 1}});
 }
 
 TEST(GCPatternTests, BF16MatMulSoftmaxPattern) {
@@ -1075,23 +623,8 @@ TEST(GCPatternTests, BF16MatMulSoftmaxPattern) {
     compiler_utils::add_MHA_subgraph_alternative(&agraph, true, false);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "bf16_matmul_softmax_fusion");
-
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 4U);
-    ASSERT_EQ(partition_inputs.size(), 4U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"bf16_matmul_softmax_fusion"}, 1,
+            std::vector<partition_info_t> {{4, 4, 1}});
 }
 
 TEST(GCPatternTests, INT8MatMulSoftmaxPattern) {
@@ -1100,23 +633,8 @@ TEST(GCPatternTests, INT8MatMulSoftmaxPattern) {
     compiler_utils::add_MHA_subgraph_alternative(&agraph, false, true);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "int8_matmul_softmax_fusion");
-
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 7U);
-    ASSERT_EQ(partition_inputs.size(), 4U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"int8_matmul_softmax_fusion"}, 1,
+            std::vector<partition_info_t> {{7, 4, 1}});
 }
 
 TEST(GCPatternTests, INT8BF16MatMulSoftmaxPattern) {
@@ -1125,21 +643,6 @@ TEST(GCPatternTests, INT8BF16MatMulSoftmaxPattern) {
     compiler_utils::add_MHA_subgraph_alternative(&agraph, true, true);
     agraph.finalize();
 
-    auto &compiler_backend_ptr
-            = compiler_impl::compiler_backend_t::get_singleton();
-    pass::pass_base_ptr apass
-            = get_pass(compiler_backend_ptr, "int8_bf16_matmul_softmax_fusion");
-
-    apass->run(agraph);
-    auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1U);
-
-    graph::partition_t p;
-    p.init(partitions[0]);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 10U);
-    ASSERT_EQ(partition_inputs.size(), 4U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
+    test_pattern_matched(agraph, {"int8_bf16_matmul_softmax_fusion"}, 1,
+            std::vector<partition_info_t> {{10, 4, 1}});
 }
