@@ -1113,7 +1113,14 @@ void xbyak_lowering_viewer::handle_reinterpret(
             handle_x86_mov(op_dst, op_src);
         } break;
         case 4: { // 32-bit
-            if (dtype_dst == datatypes::f32 || dtype_src == datatypes::f32) {
+            if (dtype_dst != datatypes::f32 && op_src.is_addr()) {
+                // int <- addr
+                handle_x86_mov(op_dst, op_src);
+            } else if (dtype_dst == datatypes::f32 && op_src.is_addr()) {
+                // float <- addr
+                handle_avx_movss(op_dst, op_src);
+            } else if (dtype_dst == datatypes::f32
+                    || dtype_src == datatypes::f32) {
                 // float <-> int
                 XBYAK_GEN(vmovd, AVX_XMR32_XMR32, op_dst, op_src);
             } else {
@@ -1683,6 +1690,8 @@ void xbyak_lowering_viewer::handle_avx_fmadd(const operand &op_dst,
                 XBYAK_GEN(vfmadd213ss, AVX_X_X_XM, op_dst, op_mul, op_add);
             }
         } break;
+        case cpu_data_type::float_32_x4:
+        case cpu_data_type::float_32_x8:
         case cpu_data_type::float_32_x16: {
             if (op_mul.is_addr()) {
                 XBYAK_GEN(vfmadd132ps, AVX_X_X_XM, op_dst, op_add, op_mul);
@@ -1833,12 +1842,12 @@ void xbyak_lowering_viewer::handle_avx_extract_high(const operand &op_dst,
                     op_src, operand(INT64_C(0x01)));
         } break;
         case cpu_data_type::float_32_x2: {
-            XBYAK_GEN(vshufps, AVX_X_X_XM_I, op_dst, //
-                    op_src, op_src, operand(INT64_C(0x55)));
+            XBYAK_GEN(vmovshdup, AVX_X_XM, op_dst, //
+                    op_src);
         } break;
         case cpu_data_type::float_32_x4: {
-            XBYAK_GEN(vpermilps, AVX_X_X_XI, op_dst, //
-                    op_src, operand(INT64_C(0x4e)));
+            XBYAK_GEN(vpermilpd, AVX_X_X_XI, op_dst, //
+                    op_src, operand(INT64_C(0x01)));
         } break;
         case cpu_data_type::float_32_x8: {
             XBYAK_GEN(vextractf128, AVX_XM_Y_I, op_dst, //
@@ -1874,37 +1883,38 @@ void xbyak_lowering_viewer::handle_avx_broadcast(const operand &op_dst,
     switch (src_dtype) {
         case cpu_data_type::uint_8:
         case cpu_data_type::sint_8: {
-            // TODO(XXX): add dedicated move reg to xmm in IR if needed
             XBYAK_GEN(vpbroadcastb, AVX_X_XMR8, op_dst, op_src);
         } break;
         case cpu_data_type::uint_16: {
-            // TODO(XXX): add dedicated move reg to xmm in IR if needed
             XBYAK_GEN(vpbroadcastw, AVX_X_XMR16, op_dst, op_src);
         } break;
         case cpu_data_type::uint_32:
         case cpu_data_type::sint_32: {
-            // TODO(XXX): add dedicated move reg to xmm in IR if needed
             XBYAK_GEN(vpbroadcastd, AVX_X_XMR32, op_dst, op_src);
         } break;
         case cpu_data_type::float_32: {
             XBYAK_GEN(vbroadcastss, AVX_X_XM, op_dst, op_src);
         } break;
         case cpu_data_type::uint_16_x8: {
-            // TODO(XXX): 128-bit broadcast from memory
-            COMPILE_ASSERT(op_src.is_xyz(), "Broadcast 128-bit reg only.");
-            switch (cpu_dtype) {
-                case cpu_data_type::uint_16_x16: {
-                    auto op_src_y = operand(to_ymm(op_src.get_reg()));
-                    XBYAK_GEN(vshufi32x4, AVX_Y_Y_XM_I, op_dst, op_src_y,
-                            op_src_y, operand(INT64_C(0x0)));
-                } break;
-                case cpu_data_type::uint_16_x32: {
-                    auto op_src_z = operand(to_zmm(op_src.get_reg()));
-                    XBYAK_GEN(vshufi32x4, AVX_Y_Y_XM_I, op_dst, op_src_z,
-                            op_src_z, operand(INT64_C(0x0)));
-                } break;
-                default:
-                    COMPILE_ASSERT(false, "Invalid broadcast: " << cpu_dtype);
+            if (op_src.is_addr()) {
+                XBYAK_GEN(vbroadcasti32x4, AVX_Y_M, op_dst, op_src);
+            } else {
+                assert(op_src.is_xyz());
+                switch (cpu_dtype) {
+                    case cpu_data_type::uint_16_x16: {
+                        auto op_src_y = operand(to_ymm(op_src.get_reg()));
+                        XBYAK_GEN(vshufi32x4, AVX_Y_Y_XM_I, op_dst, op_src_y,
+                                op_src_y, operand(INT64_C(0x0)));
+                    } break;
+                    case cpu_data_type::uint_16_x32: {
+                        auto op_src_z = operand(to_zmm(op_src.get_reg()));
+                        XBYAK_GEN(vshufi32x4, AVX_Y_Y_XM_I, op_dst, op_src_z,
+                                op_src_z, operand(INT64_C(0x0)));
+                    } break;
+                    default:
+                        COMPILE_ASSERT(
+                                false, "Invalid broadcast: " << cpu_dtype);
+                }
             }
         } break;
         default:

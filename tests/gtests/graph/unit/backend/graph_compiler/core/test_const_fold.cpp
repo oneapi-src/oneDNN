@@ -163,6 +163,7 @@ TEST(GCCore_const_fold_cpp, TestConstFoldSpecialConst) {
     ir_comparer cmper(false, true, true);
     expr tmp;
 
+    // scalar
     EXPECT_TRUE(cmper.compare(f(false && vb), expr(false)));
     EXPECT_TRUE(cmper.compare(f(true && vb), vb));
     EXPECT_NO_CHANGE(vb && vc);
@@ -184,6 +185,40 @@ TEST(GCCore_const_fold_cpp, TestConstFoldSpecialConst) {
     EXPECT_TRUE(cmper.compare(f(va / 1), va));
     EXPECT_TRUE(cmper.compare(f(fa / 1.0f), fa));
     EXPECT_TRUE(cmper.compare(f(va % 1), expr(0)));
+
+    // vec
+    var vax = make_expr<var_node>(sc_data_type_t::s32(16), "a");
+    var fax = make_expr<var_node>(sc_data_type_t::f32(16), "fa");
+    var vbx = make_expr<var_node>(sc_data_type_t::boolean(16), "b");
+    var vcx = make_expr<var_node>(sc_data_type_t::boolean(16), "c");
+    expr zero_i = builder::make_constant({0UL}, sc_data_type_t::s32(16));
+    expr one_i = builder::make_constant({1UL}, sc_data_type_t::s32(16));
+    expr zero_f = builder::make_constant({0.f}, sc_data_type_t::f32(16));
+    expr one_f = builder::make_constant({1.f}, sc_data_type_t::f32(16));
+    expr zero_b = builder::make_constant({0UL}, sc_data_type_t::boolean(16));
+    expr one_b = builder::make_constant({1UL}, sc_data_type_t::boolean(16));
+
+    EXPECT_TRUE(cmper.compare(f(zero_b && vbx), zero_b));
+    EXPECT_TRUE(cmper.compare(f(one_b && vbx), vbx));
+    EXPECT_NO_CHANGE(vbx && vcx);
+
+    EXPECT_TRUE(cmper.compare(f(zero_b || vbx), vbx));
+    EXPECT_TRUE(cmper.compare(f(one_b || vbx), one_b));
+    EXPECT_NO_CHANGE(vbx || vcx);
+
+    EXPECT_TRUE(cmper.compare(f(vax & vax), vax));
+    EXPECT_TRUE(cmper.compare(f(vax | vax), vax));
+    EXPECT_TRUE(cmper.compare(f(zero_i + vax), vax));
+    EXPECT_TRUE(cmper.compare(f(zero_f + fax), fax));
+    EXPECT_TRUE(cmper.compare(f(vax - zero_i), vax));
+    EXPECT_TRUE(cmper.compare(f(fax - zero_f), fax));
+    EXPECT_TRUE(cmper.compare(f(zero_i * vax), zero_i));
+    EXPECT_TRUE(cmper.compare(f(zero_f * fax), zero_f));
+    EXPECT_TRUE(cmper.compare(f(one_i * vax), vax));
+    EXPECT_TRUE(cmper.compare(f(one_f * fax), fax));
+    EXPECT_TRUE(cmper.compare(f(vax / one_i), vax));
+    EXPECT_TRUE(cmper.compare(f(fax / one_f), fax));
+    EXPECT_TRUE(cmper.compare(f(vax % one_i), zero_i));
 }
 
 TEST(GCCore_const_fold_cpp, TestConstFoldSpecialExpr) {
@@ -221,6 +256,33 @@ TEST(GCCore_const_fold_cpp, TestConstFoldSpecialExpr) {
     EXPECT_TRUE(cmper.compare(f(fa <= fa), expr(true)));
     EXPECT_TRUE(cmper.compare(f(va == va), expr(true)));
     EXPECT_TRUE(cmper.compare(f(fa == fa), expr(true)));
+}
+
+TEST(GCCore_const_fold_cpp, TestConstFoldFmadd) {
+#define ADD(a, b) builder::make_add(a, b)
+#define MUL(a, b) builder::make_mul(a, b)
+#define FMADD(a, b, c) builder::make_fmadd(a, b, c)
+    var fax = make_expr<var_node>(sc_data_type_t::f32(16), "fax");
+    var fbx = make_expr<var_node>(sc_data_type_t::f32(16), "fbx");
+    var fcx = make_expr<var_node>(sc_data_type_t::f32(16), "fcx");
+    expr zero_f = builder::make_constant({0.f}, sc_data_type_t::f32(16));
+    expr one_f = builder::make_constant({1.f}, sc_data_type_t::f32(16));
+
+    constant_folder_t f;
+    ir_comparer cmper(false, true, true);
+    expr tmp;
+
+    EXPECT_NO_CHANGE(FMADD(fax, fbx, fcx));
+
+    EXPECT_TRUE(cmper.compare(f(FMADD(fax, fbx, zero_f)), MUL(fax, fbx)));
+    EXPECT_TRUE(cmper.compare(f(FMADD(one_f, fbx, fcx)), ADD(fbx, fcx)));
+    EXPECT_TRUE(cmper.compare(f(FMADD(fax, one_f, fcx)), ADD(fax, fcx)));
+    EXPECT_TRUE(cmper.compare(f(FMADD(one_f, fbx, zero_f)), fbx));
+    EXPECT_TRUE(cmper.compare(f(FMADD(zero_f, fbx, fcx)), fcx));
+    EXPECT_TRUE(cmper.compare(f(FMADD(fax, zero_f, fcx)), fcx));
+#undef ADD
+#undef MUL
+#undef FMADD
 }
 
 TEST(GCCore_const_fold_cpp, TestCanonialize) {

@@ -46,6 +46,7 @@
 #include <compiler/jit/xbyak/ir/pass/live_interval.hpp>
 #include <compiler/jit/xbyak/ir/transform/call_transform.hpp>
 #include <compiler/jit/xbyak/ir/transform/constant_optimizer.hpp>
+#include <compiler/jit/xbyak/ir/transform/intrinsics_combine.hpp>
 #include <compiler/jit/xbyak/ir/transform/low_level_legalizer.hpp>
 #include <compiler/jit/xbyak/ir/transform/module_var_resolver.hpp>
 #include <compiler/jit/xbyak/ir/transform/register_allocation.hpp>
@@ -77,6 +78,7 @@ sequential_module_pass_t get_xbyak_precodegen_passes(
     ret.emplace_back(module_function_pass_t::make<value_numbering_t>());
     ret.emplace_back(
             module_function_pass_t::make<loop_invariant_code_motion_t>());
+    ret.emplace_back(module_function_pass_t::make<intrinsics_combine_t>());
     ret.emplace_back(module_function_pass_t::make<value_numbering_t>());
     ret.emplace_back(module_function_pass_t::make<dessa_transform_t>());
     ret.emplace_back(utils::make_unique<constant_folder_t>(false));

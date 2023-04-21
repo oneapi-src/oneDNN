@@ -208,6 +208,7 @@ static func_t create_exp_func(
 
     auto ZERO = gen_vec_const(elements, 0.0f);
     auto ln2 = gen_vec_const(elements, 0.693147181f);
+    auto minus_ln2 = gen_vec_const(elements, -0.693147181f);
     auto one_over_ln2 = gen_vec_const(elements, 1.442695041f);
     auto ONE_f = gen_vec_const(elements, 1.0f);
     auto ONE_i = make_expr<constant_node>(
@@ -235,7 +236,9 @@ static func_t create_exp_func(
         k_int = builder::make_cast(ty_epi_32, k_float); // k_int = int(k_float)
 
         _var_(r, type);
-        r = a_ - k_float * ln2; // r = x - k_float * ln2
+        // TODO(x): mabye utilize fnmadd, fmsub, etc. in the future
+        // r = a_ - k_float * ln2;
+        r = builder::make_fmadd(k_float, minus_ln2, a_);
 
         expr table[7];
         table[6] = gen_vec_const(elements, 0.142857143f);
@@ -247,9 +250,10 @@ static func_t create_exp_func(
         table[0] = ONE_f;
         // Calculate e^r (Tn)
 
+        const size_t top_idx = 5;
         _var_(Tn, type);
-        Tn = ONE_f;
-        for (auto loop = 6; loop > 0; loop--) {
+        Tn = builder::make_fmadd(r, table[top_idx], ONE_f);
+        for (auto loop = top_idx; loop > 0; loop--) {
             // Tn = Tn * (r / i) + 1
             Tn = builder::make_fmadd(Tn, r * table[loop - 1], ONE_f);
         }

@@ -267,6 +267,7 @@ public:
      */
     template <typename T2>
     optional<node_ptr<typename T2::type, Base>> cast() const {
+        if (!defined()) return {};
         return as<T2>();
     }
 
@@ -1464,6 +1465,7 @@ SC_DEFINE_EXPR_NODE_PTR(func_addr)
 // intrin_type for low_level_intrin_kind::x86_general
 namespace x86_intrin_type {
 enum x86_intrin_type_t {
+    avx_broadcast_idx = 0,
     NUM_INTRINSICS,
 };
 } // namespace x86_intrin_type
@@ -1497,8 +1499,9 @@ public:
     low_level_intrin_kind kind_;
     int64_t type_;
     std::vector<expr> args_;
+    std::unique_ptr<any_map_t> intrin_attrs_;
     low_level_intrin_node(low_level_intrin_kind kind, int64_t type,
-            const std::vector<expr> &args);
+            const std::vector<expr> &args, const any_map_t &attrs);
     expr remake() const override;
     bool equals(expr_c other, ir_comparer &ctx) const override;
 };

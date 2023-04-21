@@ -497,19 +497,23 @@ expr create_cast(sc_data_type_t to_dtype, type_category to_cate,
 }
 
 bool is_const_equal_to(const constant_c &v, int64_t V) {
-    auto cate = get_type_category(v->dtype_);
+    auto cate = get_etype_category(v->dtype_);
     switch (cate) {
-        case CATE_FLOAT: {
-            float outv = v->value_[0].f32;
-            return outv == V;
-        }
         case CATE_INT: {
-            int64_t outv = v->value_[0].s64;
-            return outv == V;
+            return std::all_of(v->value_.begin(), v->value_.end(),
+                    [&](const union_val &r) { return r.s64 == V; });
         }
         case CATE_UINT: {
-            uint64_t outv = v->value_[0].u64;
-            return outv == static_cast<uint64_t>(V);
+            return std::all_of(v->value_.begin(), v->value_.end(),
+                    [&](const union_val &r) {
+                        return r.u64 == static_cast<uint64_t>(V);
+                    });
+        }
+        case CATE_FLOAT: {
+            return std::all_of(v->value_.begin(), v->value_.end(),
+                    [&](const union_val &r) {
+                        return r.f32 == static_cast<float>(V);
+                    });
         }
         default: assert(0 && "Bad category"); return false;
     }
@@ -756,10 +760,10 @@ std::pair<expr_c, expr_c> get_operand_from_binary(const expr_c &a) {
 }
 
 bool fold_special_consts(expr_c &orig, expr_c l, const constant_c &r) {
-    // todo: handle vector types
-    if (r->is_vector()) return false;
+    // todo: handle vector types with different value
+    if (r->value_.size() > 1) return false;
     sc_expr_type op = orig->node_type_;
-    if (r->dtype_ == datatypes::boolean) {
+    if (r->dtype_.is_etype(sc_data_etype::BOOLEAN)) {
         bool val = r->value_[0].u64;
         switch (op) {
             case sc_expr_type::logic_and:
@@ -769,16 +773,14 @@ bool fold_special_consts(expr_c &orig, expr_c l, const constant_c &r) {
                     return true;
                 } else {
                     // X && 0 = 0
-                    orig = make_expr<constant_node>(
-                            uint64_t(0), datatypes::boolean);
+                    orig = make_expr<constant_node>(uint64_t(0), r->dtype_);
                     return true;
                 }
                 break;
             case sc_expr_type::logic_or:
                 if (val) {
                     // x || 1 = 1
-                    orig = make_expr<constant_node>(
-                            uint64_t(1), datatypes::boolean);
+                    orig = make_expr<constant_node>(uint64_t(1), r->dtype_);
                     return true;
                 } else {
                     // X || 0 = X
@@ -1559,6 +1561,22 @@ public:
         }
     }
 
+    expr_c fold_fmadd(intrin_call_c parent) {
+        assert(parent->args_.size() == 3);
+        auto &a = parent->args_[0];
+        auto &b = parent->args_[1];
+        auto &c = parent->args_[2];
+        auto is_const = [](const expr &v, int64_t V) {
+            return v.isa<constant>()
+                    && is_const_equal_to(v.static_as<constant>(), V);
+        };
+        if (is_const(a, 0) || is_const(a, 1) || is_const(b, 0) || is_const(b, 1)
+                || is_const(c, 0)) {
+            return fold_binary(a * b + c);
+        }
+        return parent;
+    }
+
     expr_c fold_range_dispatch(const expr_c &in) {
         auto v = dispatch(in);
         if (v.isa<constant>()) { return v; }
@@ -1633,6 +1651,7 @@ public:
                 case intrin_type::min:
                 case intrin_type::int_and:
                 case intrin_type::int_or: return fold_binary(node);
+                case intrin_type::fmadd: return fold_fmadd(node);
                 default: break;
             }
         }

@@ -209,6 +209,7 @@ private:
     std::unordered_map<expr_c, expr_location> local_location_map_;
     std::unordered_map<expr_c, expr_location> expr_location_map_;
     content_hash_map<expr_c, Xbyak::Label> simd_constant_map_;
+    std::vector<expr_c> simd_constant_vec_;
 };
 
 } // namespace xbyak

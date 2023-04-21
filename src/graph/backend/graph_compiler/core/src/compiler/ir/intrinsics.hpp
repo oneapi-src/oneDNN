@@ -35,6 +35,13 @@ struct intrinsic_handler_t {
     virtual ~intrinsic_handler_t() = default;
 };
 
+struct x86_intrinsic_handler_t : public intrinsic_handler_t {
+    virtual void on_initialize(intrin_call_node &node) {};
+    virtual void on_initialize(low_level_intrin_node &node) = 0;
+    x86_intrinsic_handler_t(const std::string &name);
+    virtual ~x86_intrinsic_handler_t() = default;
+};
+
 // user defined struct for reading/writing at runtime.
 struct dyn_tsr_struct_t {
     static constexpr const char *name = "dyn_tsr";
@@ -137,6 +144,7 @@ extern sc_data_type_t list_arg_types[NUM_FULL_ARGS_LIST];
 } // namespace brgemm_args
 
 intrinsic_handler_t &get_intrinsic_handler(intrin_type intrin);
+x86_intrinsic_handler_t &get_x86_intrinsic_handler(int64_t intrin);
 
 } // namespace gc
 } // namespace graph

@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
+#include <cfloat>
+#include <cmath>
 #include <memory>
 #include <set>
 #include <string>
@@ -746,6 +748,7 @@ void location_manager::clear() {
     local_location_map_.clear();
     expr_location_map_.clear();
     simd_constant_map_.clear();
+    simd_constant_vec_.clear();
 }
 
 //==============================================================================
@@ -971,8 +974,10 @@ location_manager::encode_simd_constant() {
     std::function<uint16_t(union_val)> select_bf16
             = [](union_val u) -> uint16_t { return bf16_t(u.f32).storage_; };
     uint8_t buffer[64];
-    for (auto &simd_kv : simd_constant_map_) {
-        auto v = simd_kv.first.static_as<constant_c>();
+    for (auto &c : simd_constant_vec_) {
+        auto simd_it = simd_constant_map_.find(c);
+        assert(simd_it != simd_constant_map_.end());
+        auto v = simd_it->first.static_as<constant_c>();
         auto lanes = v->dtype_.lanes_;
         auto type_code = v->dtype_.type_code_;
         auto size = get_data_type_size(get_cpu_data_type(v->dtype_));
@@ -1010,7 +1015,7 @@ location_manager::encode_simd_constant() {
                 COMPILE_ASSERT(false, "Can't encode constant: " << v->dtype_);
         }
         gen_.align(16);
-        gen_.L(simd_kv.second);
+        gen_.L(simd_it->second);
         gen_.db(buffer, size);
     }
     return simd_constant_map_;
@@ -1074,7 +1079,21 @@ expr_location location_manager::get_location(const expr_c &v) {
     return expr_location();
 }
 
-expr_location location_manager::get_location(const constant_c &v) {
+expr_location location_manager::get_location(const constant_c &c) {
+    auto constant_clear_nan = [](const constant_c &c) -> constant_c {
+        // if the constant to encode is f32 NaN, represent it as u32
+        // so content_hash can regard same NaN binary as equal
+        // e.g. used in fabs and log
+        if (c->dtype_.is_etype(sc_data_etype::F32) && c->value_.size() == 1
+                && std::isnan(c->value_[0].f32)) {
+            auto new_c = c->remake();
+            new_c->dtype_.type_code_ = sc_data_etype::U32;
+            new_c->temp_data() = GET_EXPR_DATA(c);
+            return new_c.static_as<constant_c>();
+        }
+        return c;
+    };
+    auto v = constant_clear_nan(c);
     auto data_type = get_cpu_data_type(v->dtype_);
     if (GET_VIRTUAL_REG(v).spilled()) {
         // Save to encode value inside code later
@@ -1082,6 +1101,7 @@ expr_location location_manager::get_location(const constant_c &v) {
         if (simd_iter == simd_constant_map_.end()) {
             simd_iter = simd_constant_map_.insert(simd_iter,
                     std::make_pair<expr_c, Xbyak::Label>(v, Xbyak::Label()));
+            simd_constant_vec_.emplace_back(v);
         }
         // Add to location map
         auto addr = get_offset_address(simd_iter->second, data_type);

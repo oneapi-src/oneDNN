@@ -28,6 +28,9 @@ namespace gc {
 intrinsic_handler_t::intrinsic_handler_t(const std::string &name)
     : name_(name) {}
 
+x86_intrinsic_handler_t::x86_intrinsic_handler_t(const std::string &name)
+    : intrinsic_handler_t(name) {}
+
 struct binary_intrinsic_handler_t : public intrinsic_handler_t {
     binary_intrinsic_handler_t(const std::string &name)
         : intrinsic_handler_t(name) {}
@@ -378,6 +381,19 @@ struct get_group_thread_id_handler_t : public intrinsic_handler_t {
         : intrinsic_handler_t("get_group_thread_id") {}
 };
 
+struct avx_broadcast_idx_handler_t : public x86_intrinsic_handler_t {
+    void on_initialize(low_level_intrin_node &node) override {
+        assert(node.args_.size() == 3);
+        assert(node.args_[0]->dtype_.is_pointer());
+        auto lanes = node.intrin_attrs_->get<int>("lanes");
+        node.dtype_ = sc_data_type_t(
+                etypes::get_pointer_element(node.args_[0]->dtype_.type_code_),
+                lanes);
+    }
+    avx_broadcast_idx_handler_t()
+        : x86_intrinsic_handler_t("avx_broadcast_idx") {}
+};
+
 namespace brgemm_args {
 sc_data_type_t arg_types[NUM_FULL_ARGS_STRIDE] = {
         datatypes::pointer, // A (overloaded)
@@ -495,6 +511,17 @@ static_assert(sizeof(handlers) / sizeof(handlers[0])
 intrinsic_handler_t &get_intrinsic_handler(intrin_type intrin) {
     return *handlers[static_cast<int>(intrin)];
 }
+
+static std::unique_ptr<x86_intrinsic_handler_t> x86_handlers[] = {
+        utils::make_unique<avx_broadcast_idx_handler_t>(),
+};
+x86_intrinsic_handler_t &get_x86_intrinsic_handler(int64_t intrin) {
+    return *x86_handlers[intrin];
+}
+
+static_assert(sizeof(x86_handlers) / sizeof(x86_handlers[0])
+                == int(x86_intrin_type::NUM_INTRINSICS),
+        "Not all intrinsics are filled in x86 handlers");
 
 #define OFFSET(struct_type, field) \
     (size_t)(&(((struct_type *)nullptr)->field)) // NOLINT

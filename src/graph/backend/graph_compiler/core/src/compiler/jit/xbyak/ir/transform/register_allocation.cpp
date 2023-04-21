@@ -442,6 +442,9 @@ protected:
             } else if (const_exceed_32bit(vv->init_)) {
                 // load constant to mem location cannot exceed 32bit
                 vv->init_ = insert_load(std::move(vv->init_), cur_index_);
+            } else if (is_spilled(vv->init_)) {
+                // load mem to mem need intermediate reg
+                vv->init_ = insert_load(std::move(vv->init_), cur_index_);
             }
         }
         return vv;

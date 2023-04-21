@@ -44,7 +44,7 @@ void get_direct_dependency_of_expr(
             assert(owner.defined());
             auto init = owner.static_as<define>()->init_;
             if (owner.isa<define>() && init.defined()) {
-                if (init.isa<var>()) {
+                if (init.isa<var>() || init.isa<tensor>()) {
                     callback({init});
                 } else {
                     get_direct_dependency_of_expr(init, callback);

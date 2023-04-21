@@ -273,7 +273,7 @@ xbyak_intrin_node::xbyak_intrin_node(const std::vector<expr> &args,
         xbyak_intrin_type intrin, xbyak_intrin_isa isa,
         xbyak_intrin_modifier modifier)
     : low_level_intrin_node(low_level_intrin_kind::x86_xbyak,
-            static_cast<int64_t>(intrin), args)
+            static_cast<int64_t>(intrin), args, {})
     , modifier_(std::move(modifier))
     , isa_(isa) {
     get_xbyak_intrin_handler(isa_, type_).on_initialize(*this);

@@ -17,6 +17,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -95,8 +96,28 @@ func_c xbyak_printer_t::dispatch(func_c e) {
     assert(func->attr_ && func->attr_->has_key(attr_keys::global_spilled));
     auto &spilled
             = func->attr_->get<std::vector<expr_c>>(attr_keys::global_spilled);
+
+    struct expr_cmp_t {
+        bool operator()(const expr_c &a, const expr_c &b) const {
+            return (void *)a.get() < (void *)b.get();
+        }
+    };
+    std::set<expr_c, expr_cmp_t> params(e->params_.begin(), e->params_.end());
+    std::set<expr_c, expr_cmp_t> spills(spilled.begin(), spilled.end());
+
+    std::vector<expr_c> spilled_params;
+    std::vector<expr_c> spilled_global;
+
+    std::set_intersection(spills.begin(), spills.end(), params.begin(),
+            params.end(), std::back_inserter(spilled_params), expr_cmp_t());
+
+    std::set_difference(spills.begin(), spills.end(), params.begin(),
+            params.end(), std::back_inserter(spilled_global), expr_cmp_t());
+
     print_padding_indents();
-    print_expr_vec(ss_ << "--GLOBAL_SPILLED: ", spilled);
+    print_expr_vec(ss_ << "--PARAMS_SPILLED: ", spilled_params);
+    print_padding_indents();
+    print_expr_vec(ss_ << "--GLOBAL_SPILLED: ", spilled_global);
 
     dispatch(e->body_);
 

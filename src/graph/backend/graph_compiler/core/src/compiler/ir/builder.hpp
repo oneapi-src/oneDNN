@@ -920,6 +920,12 @@ expr make_func_addr(func_t v);
  * */
 expr make_phi(const std::vector<expr> &values, bool is_loop_phi = false);
 
+/**
+ * Makes a x86 gerenal intrinsic node
+ * */
+expr make_x86_intrin(x86_intrin_type::x86_intrin_type_t type,
+        const std::vector<expr> &args, const any_map_t &attrs = any_map_t());
+
 // makes a new low_level_intrin with newargs and type_ copied
 low_level_intrin remake_low_level_intrin(
         const low_level_intrin_c &v, const std::vector<expr> &newargs);

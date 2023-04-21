@@ -144,6 +144,12 @@ class ir_copier_with_unroll_check_t : public ir_copier_impl_t {
         replace_map_[v->var_] = expr();
         ir_copier_impl_t::view(std::move(v));
     }
+
+    void view(for_loop_c v) override {
+        // Replace var defined by a for_loop
+        replace_map_[v->var_] = expr();
+        ir_copier_impl_t::view(std::move(v));
+    }
 };
 
 static int find_ths_and_then_remove(for_loop_node_t *ths, const stmts &parent) {

@@ -269,6 +269,16 @@ low_level_intrin remake_low_level_intrin(
     return new_intrin;
 }
 
+expr make_x86_intrin(x86_intrin_type::x86_intrin_type_t type,
+        const std::vector<expr> &args, const any_map_t &attrs) {
+    auto intrin = make_expr<low_level_intrin_node>(
+            low_level_intrin_kind::x86_general, // x86 low level kind
+            static_cast<int64_t>(type), // x86 intrin type
+            args, attrs);
+    get_x86_intrinsic_handler(intrin->type_).on_initialize(*intrin);
+    return intrin;
+}
+
 expr make_reinterpret(const expr_c &v, sc_data_type_t dtype) {
     any_map_t attr;
     attr[intrin_attr::out_dtype] = dtype;

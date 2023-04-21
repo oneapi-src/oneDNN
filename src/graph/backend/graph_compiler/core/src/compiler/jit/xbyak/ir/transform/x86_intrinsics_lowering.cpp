@@ -383,9 +383,23 @@ public:
             add_assignment(dst, intrin);
             return;
         }
-        // Currently all x86 low_level_intrin are not in PRODUCTION
-        // When there are x86_intrins in PRODUCTION, remove this
-        COMPILE_ASSERT(false, "No low level intrinsic supported!");
+        // only transform x86 low_level_intrin
+        COMPILE_ASSERT(intrin->kind_ == low_level_intrin_kind::x86_general,
+                "Must be x86 intrinsic!");
+        switch (intrin->type_) {
+            case x86_intrin_type::avx_broadcast_idx: {
+                auto &lanes = intrin->args_[2];
+                assert(lanes.isa<constant>());
+                auto arg = builder::make_indexing( //
+                        intrin->args_[0], {intrin->args_[1]},
+                        get_const_as_int(lanes.static_as<constant>()));
+                transform_intrin(dst, {arg}, //
+                        xbyak_intrin_type::broadcast, xbyak_intrin_isa::avx);
+            } break;
+            default:
+                COMPILE_ASSERT(false, "Unknown low level intrinsic!");
+                break;
+        }
     }
 
     void transform_cast(const expr &dst, const cast &src) {

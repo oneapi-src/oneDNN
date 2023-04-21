@@ -136,6 +136,7 @@ ostream &operator<<(ostream &os, x86_intrin_type::x86_intrin_type_t val) {
     switch (val) {
 #define HANDLE_CASE(X) \
     case x86_intrin_type::X: os << "x86_intrin_type::" #X; break;
+        HANDLE_CASE(avx_broadcast_idx)
         HANDLE_CASE(NUM_INTRINSICS)
 #undef HANDLE_CASE
         default: os << "(unrecognized x86_intrin_type value)"; break;
@@ -695,15 +696,17 @@ bool ssa_phi_node::equals(expr_c v, ir_comparer &ctx) const {
             && ctx.expr_arr_equals(values_, other->values_));
 }
 
-low_level_intrin_node::low_level_intrin_node(
-        low_level_intrin_kind kind, int64_t type, const std::vector<expr> &args)
+low_level_intrin_node::low_level_intrin_node(low_level_intrin_kind kind,
+        int64_t type, const std::vector<expr> &args, const any_map_t &attrs)
     : expr_base(sc_expr_type::low_level_intrin)
     , kind_(kind)
     , type_(type)
-    , args_(args) {}
+    , args_(args)
+    , intrin_attrs_(utils::make_unique<any_map_t>(attrs)) {}
 
 expr low_level_intrin_node::remake() const {
-    auto ret = make_expr<low_level_intrin_node>(kind_, type_, args_);
+    auto ret = make_expr<low_level_intrin_node>(
+            kind_, type_, args_, *intrin_attrs_);
     ret->dtype_ = dtype_;
     return copy_attr(*this, std::move(ret));
 }
