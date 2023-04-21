@@ -679,6 +679,14 @@ void brg_blocking_t::update_blocks() {
                     kd_block, kh_block, kw_block, is_block, iw_block))
         return;
 
+    const bool maskrcnn_cond = is_superset(isa, avx2_vnni) && ic == 256
+            && oc == 256 && everyone_is(28, ih, iw) && everyone_is(14, oh, ow)
+            && everyone_is(2, kh, stride_h, kw, stride_w);
+    if (maskrcnn_cond) {
+        ic_block = 64;
+        iw_block = 28;
+        ih_block = 14;
+    }
     nb_id = div_up(id, id_block);
     nb_ih = div_up(ih, ih_block);
     nb_oc = div_up(oc, oc_block);
