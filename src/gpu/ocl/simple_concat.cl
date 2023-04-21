@@ -13,131 +13,214 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
 #if DATA_TYPE_SIZE == 4
 #define DATA_T uint
-#define DATA2_T uint2
-#define DATA4_T uint4
-#define DATA8_T uint8
 #define BLOCK_READ intel_sub_group_block_read
 #define BLOCK_WRITE intel_sub_group_block_write
-#define BLOCK_READ2 intel_sub_group_block_read2
-#define BLOCK_WRITE2 intel_sub_group_block_write2
-#define BLOCK_READ4 intel_sub_group_block_read4
-#define BLOCK_WRITE4 intel_sub_group_block_write4
-#define BLOCK_READ8 intel_sub_group_block_read8
-#define BLOCK_WRITE8 intel_sub_group_block_write8
 #elif DATA_TYPE_SIZE == 2
 #define DATA_T ushort
-#define DATA2_T ushort2
-#define DATA4_T ushort4
-#define DATA8_T ushort8
 #define BLOCK_READ intel_sub_group_block_read_us
 #define BLOCK_WRITE intel_sub_group_block_write_us
-#define BLOCK_READ2 intel_sub_group_block_read_us2
-#define BLOCK_WRITE2 intel_sub_group_block_write_us2
-#define BLOCK_READ4 intel_sub_group_block_read_us4
-#define BLOCK_WRITE4 intel_sub_group_block_write_us4
-#define BLOCK_READ8 intel_sub_group_block_read_us8
-#define BLOCK_WRITE8 intel_sub_group_block_write_us8
 #elif DATA_TYPE_SIZE == 1
 #define DATA_T uchar
-#define DATA2_T uchar2
-#define DATA4_T uchar4
-#define DATA8_T uchar8
-#define DATA16_T uchar16
 #define BLOCK_READ intel_sub_group_block_read_uc
 #define BLOCK_WRITE intel_sub_group_block_write_uc
-#define BLOCK_READ2 intel_sub_group_block_read_uc2
-#define BLOCK_WRITE2 intel_sub_group_block_write_uc2
-#define BLOCK_READ4 intel_sub_group_block_read_uc4
-#define BLOCK_WRITE4 intel_sub_group_block_write_uc4
-#define BLOCK_READ8 intel_sub_group_block_read_uc8
-#define BLOCK_WRITE8 intel_sub_group_block_write_uc8
-#define BLOCK_READ16 intel_sub_group_block_read_uc16
-#define BLOCK_WRITE16 intel_sub_group_block_write_uc16
 #endif
+
+#define INTERNAL_CAT(a, b) a##b
+#define CAT(a, b) INTERNAL_CAT(a, b)
+#define DIV_UP(a, b) ((a) + ((b)-1)) / (b)
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+#define DATA2_T CAT(DATA_T, 2)
+#define BLOCK_READ2 CAT(BLOCK_READ, 2)
+#define BLOCK_WRITE2 CAT(BLOCK_WRITE, 2)
+
+#define DATA4_T CAT(DATA_T, 4)
+#define BLOCK_READ4 CAT(BLOCK_READ, 4)
+#define BLOCK_WRITE4 CAT(BLOCK_WRITE, 4)
+
+#define DATA8_T CAT(DATA_T, 8)
+#define BLOCK_READ8 CAT(BLOCK_READ, 8)
+#define BLOCK_WRITE8 CAT(BLOCK_WRITE, 8)
+
+#define DATA16_T CAT(DATA_T, 16)
+#if DATA_TYPE_SIZE == 1
+#define BLOCK_READ16 CAT(BLOCK_READ, 16)
+#define BLOCK_WRITE16 CAT(BLOCK_WRITE, 16)
+#else
+#define BLOCK_READ16(ptr) \
+    (DATA16_T)((DATA8_T)(BLOCK_READ8(ptr)), \
+            (DATA8_T)(BLOCK_READ8((ptr) + 8 * SIMD)))
+#define BLOCK_WRITE16(ptr, v) \
+    do { \
+        DATA16_T tmp = v; \
+        BLOCK_WRITE8((ptr), tmp.s01234567); \
+        BLOCK_WRITE8((ptr) + 8 * SIMD, tmp.s89abcdef); \
+    } while (0)
+#endif
+
+#define RW_RATIO DIV_UP(BLOCK, INNER_OFFSET)
 
 #include "gpu/ocl/concat_common.h"
 
 #define SRC_PTR(n) __global const DATA_T *src##n
 #define SRC_PTRS REDUCE(N_INPUTS, JOIN_COMMA, SRC_PTR)
 #define JOIN_ELSE(x, y) y else x
-#define CHECK_AND_GET(n) \
-    if (get_global_id(2) >= OFFSET##n) \
-        src = src##n + get_global_id(1) * SRC##n##_EXT_OFFSET + x \
-                - OFFSET##n * INNER_OFFSET;
-#define SET_SRC REDUCE(N_INPUTS, JOIN_ELSE, CHECK_AND_GET)
+
+typedef union {
+    DATA16_T v16[2];
+    DATA8_T v8[4];
+    DATA4_T v4[8];
+    DATA2_T v2[16];
+    DATA_T v1[32];
+} buffer_t;
+
+DATA_T load_vec1(const buffer_t *buf, size_t offset) {
+    return buf->v1[offset];
+}
+
+DATA2_T load_vec2(const buffer_t *buf, size_t offset) {
+    return offset & 0x1
+            ? (DATA2_T)(load_vec1(buf, offset), load_vec1(buf, offset + 1))
+            : buf->v2[offset / 2];
+}
+
+// XXX: Consider handling the special cases
+//   offset & 0x1 -> (DATA4_T)(load_vec1(buf, offset),
+//          load_vec2(buf, offset + 1), load_vec1(buf, offset + 3))
+// (and similar for vec8/16)
+DATA4_T load_vec4(const buffer_t *buf, size_t offset) {
+    return offset & 0x3
+            ? (DATA4_T)(load_vec2(buf, offset), load_vec2(buf, offset + 2))
+            : buf->v4[offset / 4];
+}
+
+DATA8_T load_vec8(const buffer_t *buf, size_t offset) {
+    return offset & 0x7
+            ? (DATA8_T)(load_vec4(buf, offset), load_vec4(buf, offset + 4))
+            : buf->v8[offset / 8];
+}
+
+DATA16_T load_vec16(const buffer_t *buf, size_t offset) {
+    return offset & 0xf
+            ? (DATA16_T)(load_vec8(buf, offset), load_vec8(buf, offset + 8))
+            : buf->v16[offset / 16];
+}
 
 #if SIMD != 1
 __attribute__((intel_reqd_sub_group_size(SIMD)))
 #endif
 __kernel void
 simple_concat(__global DATA_T *dst, long dst_offset0, SRC_PTRS) {
-    const size_t x = (get_global_id(0) / SIMD) * BLOCK
-            + get_global_id(2) * INNER_OFFSET;
+    const uint x = (get_global_id(0) / SIMD) * BLOCK;
     __global const DATA_T *src;
+    size_t src_ext_offset, src_offset, input_offset;
 
-    SET_SRC;
+#define CHECK_AND_GET(n) \
+    if (get_global_id(2) >= OFFSET##n) { \
+        src_ext_offset = SRC##n##_EXT_OFFSET; \
+        src_offset = RW_RATIO * (get_global_id(2) - OFFSET##n) * INNER_OFFSET; \
+        src = src##n + RW_RATIO * get_global_id(1) * src_ext_offset + x \
+                + src_offset; \
+        input_offset = OFFSET##n; \
+    }
+    REDUCE(N_INPUTS, JOIN_ELSE, CHECK_AND_GET);
+#undef CHECK_AND_GET
 
-#if SIMD == 1
-    dst += dst_offset0 + get_global_id(1) * DST_EXT_OFFSET + x;
+    const size_t thr_elems = BLOCK / SIMD;
 
-    for (int i = 0; i < BLOCK; ++i)
-        dst[i] = src[i];
+#if BLOCK > INNER_OFFSET
+#define DST_IDX(idx) \
+    ((src_offset + idx) / src_ext_offset) * DST_EXT_OFFSET \
+            + ((src_offset + idx) % src_ext_offset)
 #else
-    union {
-#if DATA_TYPE_SIZE == 1
-        DATA16_T v16[2];
+#define DST_IDX(idx) src_offset + idx
 #endif
-        DATA8_T v8[4];
-        DATA4_T v4[8];
-        DATA2_T v2[16];
-        DATA_T v1[32];
-    } buf;
+#if SIMD == 1
+    dst += dst_offset0 + RW_RATIO * get_global_id(1) * DST_EXT_OFFSET + x
+            + input_offset * INNER_OFFSET;
 
-    const int thr_elems = BLOCK / SIMD;
-    const int lane = get_sub_group_local_id();
+    for (int i = 0; i < thr_elems; ++i)
+        dst[DST_IDX(i)] = src[i];
+#else
+    const size_t lane = get_sub_group_local_id();
+    buffer_t buf;
 
 #if (BLOCK * DATA_TYPE_SIZE % 4 != 0)
     for (int i = 0; i < thr_elems; ++i)
         buf.v1[i] = src[i * SIMD + lane];
 #else
-    const uint v8_off = thr_elems & ~0xf;
-    const uint v4_off = thr_elems & ~0x7;
-    const uint v2_off = thr_elems & ~0x3;
-    const uint v1_off = thr_elems & ~0x1;
-#if DATA_TYPE_SIZE == 1
+#define MAYBE_BLOCK_READ(n, read, elems) \
+    do { \
+        if ((elems) & (n)) { \
+            const uint rel = (elems) & ~(((n) << 1) - 1); \
+            buf.v##n[rel / (n)] = read(&src[rel * SIMD]); \
+        } \
+    } while (0)
+
     for (int i = 0; i < thr_elems / 16; ++i)
         buf.v16[i] = BLOCK_READ16(&src[16 * i * SIMD]);
-    if (thr_elems & 8) buf.v8[v8_off / 8] = BLOCK_READ8(&src[v8_off * SIMD]);
-#else
-    for (int i = 0; i < thr_elems / 8; ++i)
-        buf.v8[i] = BLOCK_READ8(&src[8 * i * SIMD]);
-#endif
-    if (thr_elems & 4) buf.v4[v4_off / 4] = BLOCK_READ4(&src[v4_off * SIMD]);
-    if (thr_elems & 2) buf.v2[v2_off / 2] = BLOCK_READ2(&src[v2_off * SIMD]);
-    if (thr_elems & 1) buf.v1[v1_off / 1] = BLOCK_READ(&src[v1_off * SIMD]);
-#endif
+    MAYBE_BLOCK_READ(8, BLOCK_READ8, thr_elems);
+    MAYBE_BLOCK_READ(4, BLOCK_READ4, thr_elems);
+    MAYBE_BLOCK_READ(2, BLOCK_READ2, thr_elems);
+    MAYBE_BLOCK_READ(1, BLOCK_READ, thr_elems);
+#undef MAYBE_BLOCK_READ
+#endif // aligned for block reads
     if (lane < BLOCK % SIMD) buf.v1[thr_elems] = src[thr_elems * SIMD + lane];
 
-    dst += dst_offset0 + get_global_id(1) * DST_EXT_OFFSET + x;
+    dst += dst_offset0 + RW_RATIO * get_global_id(1) * DST_EXT_OFFSET + x
+            + input_offset * INNER_OFFSET;
 
-#if (BLOCK * DATA_TYPE_SIZE % 16 != 0)
+#if (MIN(BLOCK, INNER_OFFSET) * DATA_TYPE_SIZE % 16 != 0)
     for (int i = 0; i < thr_elems; ++i)
-        dst[i * SIMD + lane] = buf.v1[i];
+        dst[DST_IDX(i * SIMD + lane)] = buf.v1[i];
+    if (lane < BLOCK % SIMD)
+        dst[DST_IDX(thr_elems * SIMD + lane)] = buf.v1[thr_elems];
 #else
-#if DATA_TYPE_SIZE == 1
-    for (int i = 0; i < thr_elems / 16; ++i)
-        BLOCK_WRITE16(&dst[16 * i * SIMD], buf.v16[i]);
-    if (thr_elems & 8) BLOCK_WRITE8(&dst[v8_off * SIMD], buf.v8[v8_off / 8]);
-#else
-    for (int i = 0; i < thr_elems / 8; ++i)
-        BLOCK_WRITE8(&dst[8 * i * SIMD], buf.v8[i]);
-#endif
-    if (thr_elems & 4) BLOCK_WRITE4(&dst[v4_off * SIMD], buf.v4[v4_off / 4]);
-    if (thr_elems & 2) BLOCK_WRITE2(&dst[v2_off * SIMD], buf.v2[v2_off / 2]);
-    if (thr_elems & 1) BLOCK_WRITE(&dst[v1_off * SIMD], buf.v1[v1_off / 1]);
-#endif
-    if (lane < BLOCK % SIMD) dst[thr_elems * SIMD + lane] = buf.v1[thr_elems];
-#endif
+    // Break up the data that was read into several blocks that may be written
+    // sequentially. If the block size is not divisible by the subgroup size,
+    // borrow values from the next block(s), if available, to fill a scattered
+    // write.
+    const size_t block_elems = MIN(BLOCK, INNER_OFFSET);
+    const size_t elems_per_iteration = MAX(SIMD, block_elems);
+    const size_t iterations = DIV_UP(BLOCK, elems_per_iteration);
+
+#pragma unroll
+    for (int j = 0; j < iterations; ++j) {
+        const size_t buf_off = DIV_UP(j * elems_per_iteration, SIMD);
+        const size_t block_off = buf_off * SIMD;
+        // Accounting for any values borrowed from the last iteration, this
+        // block only has `iter_elems` values to write:
+        const size_t iter_elems = block_elems - (block_off % block_elems);
+        const size_t thr_iter_elems = iter_elems / SIMD;
+        __global DATA_T *iter_dst = dst + DST_IDX(block_off);
+#define MAYBE_BLOCK_WRITE(n, write, elems) \
+    do { \
+        if ((elems) & (n)) { \
+            const uint rel = (elems) & ~(((n) << 1) - 1); \
+            write(&iter_dst[rel * SIMD], load_vec##n(&buf, buf_off + rel)); \
+        } \
+    } while (0)
+
+        for (int i = 0; i < thr_iter_elems / 16; ++i)
+            BLOCK_WRITE16(&iter_dst[16 * i * SIMD],
+                    load_vec16(&buf, buf_off + i * 16));
+        MAYBE_BLOCK_WRITE(8, BLOCK_WRITE8, thr_iter_elems);
+        MAYBE_BLOCK_WRITE(4, BLOCK_WRITE4, thr_iter_elems);
+        MAYBE_BLOCK_WRITE(2, BLOCK_WRITE2, thr_iter_elems);
+        MAYBE_BLOCK_WRITE(1, BLOCK_WRITE, thr_iter_elems);
+#undef MAYBE_BLOCK_WRITE
+
+        // Write tail elements + the leading elements of the next block
+        if (iter_elems % SIMD) {
+            const size_t written = block_off + thr_iter_elems * SIMD;
+            if (lane < MIN(SIMD, BLOCK - written))
+                dst[DST_IDX(written + lane)] = buf.v1[buf_off + thr_iter_elems];
+        }
+    }
+#endif // aligned for block writes
+#endif // SIMD == 1
 }
