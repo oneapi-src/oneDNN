@@ -369,3 +369,7 @@ mb2_g1_ic256ih9oc324oh3kh3sh3ph1n"brgemm_strided_conv_inp_buffer_size"
 --stag=axb --dtag=axb
 --skip-impl=brg,jit:avx,ref
 --attr-post-ops=add:f32:per_oc,prelu:per_oc g4ic16id5oc16od5kd3pd1n"3d_conv:grouped_gemm_conv"
+--skip-impl=ref,x64:gemm # reset does not affect skip-impl
+
+# repeated sum with varying scale
+--reset --dir=FWD_I --attr-post-ops=sum+relu+sum:2 ic64ih7oc64oh7kh1ph0_n"multisum"

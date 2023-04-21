@@ -8,6 +8,7 @@
 --mb=2 --batch=set_all
 --mb=0 --batch=shapes_0d
 
+--batch=harness_ip_regression
 --batch=harness_ip_tag
 
 # int8

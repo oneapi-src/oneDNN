@@ -20,3 +20,6 @@
 
 #strided 1x1 with negative (right) padding
 --reset --dt=u8:s8:f32 ic16id5oc16od9kd1sd2pd0n"deconv_strided_1x1_negative_padding"
+
+# repeated sum with varying scale
+--reset --dt=u8:s8:f32 --attr-post-ops=sum+relu+sum:2 ic64ih7oc64oh7kh1ph0_n"multisum"
