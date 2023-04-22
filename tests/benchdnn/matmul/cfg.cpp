@@ -26,6 +26,12 @@ cfg_t::cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds) {
                 kind, orig_data_type, data_type, get_cfg_map(kind));
     }
 
+    // Use wider dst to test proper u8 loads.
+    const bool is_int8_and_wide_dst = this->get_dt(SRC) == dnnl_u8
+            && dnnl_data_type_size(this->get_dt(WEI)) == 1
+            && dnnl_data_type_size(this->get_dt(DST)) >= 4;
+    if (is_int8_and_wide_dst) { set_range_max(SRC, 160); }
+
     BENCHDNN_PRINT(6, "%s SRC_%s=[%d;%d] : WEI_%s=[%d;%d]\n", "[FILL_CFG]",
             dt2str(this->get_dt(SRC)), cfg_entry_[SRC].get_range_min(),
             cfg_entry_[SRC].get_range_max(), dt2str(this->get_dt(WEI)),

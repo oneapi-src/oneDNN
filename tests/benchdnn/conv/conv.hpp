@@ -117,7 +117,7 @@ struct settings_t : public base_settings_t {
     void reset() { *this = settings_t(perf_template); }
 
     bool has_single_setup() const override {
-        return dir.size() == 1 && cfg.size() == 1 && stag.size() == 1
+        return dir.size() == 1 && dt.size() == 1 && stag.size() == 1
                 && wtag.size() == 1 && dtag.size() == 1 && alg.size() == 1
                 && base_settings_t::has_single_setup();
     }
@@ -174,7 +174,11 @@ struct prb_t : public desc_t {
     thr_ctx_t ctx_init, ctx_exe;
 
     void count_ops();
-    int64_t count_n_acc() const { return kd * kh * kw * ic / g; }
+    int64_t count_n_acc() const {
+        return (dir & FLAG_FWD)    ? kd * kh * kw * ic / g
+                : (dir & FLAG_WEI) ? od * oh * ow * mb
+                                   : kd * kh * kw * oc / g;
+    }
 
     dnnl_data_type_t src_dt() const { return dt[0]; }
     dnnl_data_type_t wei_dt() const { return dt[1]; }

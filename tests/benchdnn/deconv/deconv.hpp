@@ -118,7 +118,7 @@ struct settings_t : public base_settings_t {
     void reset() { *this = settings_t(perf_template); }
 
     bool has_single_setup() const override {
-        return dir.size() == 1 && cfg.size() == 1 && stag.size() == 1
+        return dir.size() == 1 && dt.size() == 1 && stag.size() == 1
                 && wtag.size() == 1 && dtag.size() == 1 && alg.size() == 1
                 && base_settings_t::has_single_setup();
     }

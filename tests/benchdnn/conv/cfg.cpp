@@ -107,7 +107,7 @@ cfg_t::cfg_entry_t::cfg_map_t cfg_t::get_cfg_map(data_kind_t kind) const {
     static const cfg_t::cfg_entry_t::cfg_map_t wei_cfg_map = {
             {{dnnl_f64}, {-32, 32}},
             {{dnnl_f32}, {-32, 32}},
-            {{dnnl_bf16}, {-8, 8}},
+            {{dnnl_bf16}, {-4, 4}},
             {{dnnl_f16}, {-2, 2}},
             {{dnnl_s8}, {-4, 4}},
     };
