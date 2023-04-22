@@ -36,6 +36,7 @@
 namespace conv {
 
 double get_non_zero_trust_percent(const prb_t *prb, data_kind_t kind) {
+    // TODO: duplicated with compare internal logic.
     auto negative_to_zero = [&]() {
         using pk = attr_t::post_ops_t::kind_t;
         const auto &po = prb->attr.post_ops;

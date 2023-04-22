@@ -71,8 +71,9 @@ private:
     bool use_norm_ = false;
     // Threshold for a point-to-point comparison.
     float trh_ = 0.f;
-    // The default percent value of zeros allowed in the output.
-    float zero_trust_percent_ = 30.f;
+    // The percent value of zeros allowed in the output.
+    float default_zero_trust_percent_ = 30.f;
+    float zero_trust_percent_ = default_zero_trust_percent_;
     // Kind specifies what tensor is checked. Not printed if default one.
     data_kind_t kind_ = DAT_TOTAL;
     // Driver-specific function that adds additional criteria for a test case to

@@ -81,6 +81,37 @@ bool has_binary_comparison_po(const attr_t &attr) {
     }
     return false;
 }
+
+bool negative_converts_to_zero(const attr_t &attr, dnnl_data_type_t target_dt) {
+    using po_kind_t = attr_t::post_ops_t::kind_t;
+    const auto &po = attr.post_ops;
+
+    // Check for all post-ops that convert negative to zero
+    std::vector<po_kind_t> non_neg_po {po_kind_t::ABS};
+    std::vector<po_kind_t> non_neg_alpha_0_po {po_kind_t::CLIP,
+            po_kind_t::CLIP_V2, po_kind_t::ELU, po_kind_t::RELU};
+    for (int i = 0; i < po.len(); ++i) {
+        const auto &e = po.entry[i];
+        if (!e.is_eltwise_kind()) continue;
+
+        auto k = e.kind;
+        auto alpha = e.eltwise.alpha;
+
+        if (std::any_of(non_neg_po.cbegin(), non_neg_po.cend(),
+                    [k](const po_kind_t alg) { return alg == k; }))
+            return true;
+
+        if (std::any_of(non_neg_alpha_0_po.cbegin(), non_neg_alpha_0_po.cend(),
+                    [k, alpha](const po_kind_t alg) {
+                        return alg == k && alpha == 0;
+                    }))
+            return true;
+    }
+    // Check for u8 dst
+    if (target_dt == dnnl_u8) return true;
+
+    return false;
+}
 } // namespace
 
 bool compare_extreme_values(float a, float b) {
@@ -285,13 +316,21 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     if (n_errors) res->errors = n_errors, res->state = FAILED;
     // State could be already FAILED, check zero trust for non-FAILED only.
     const float zeros_percent = 100.f * zeros / nelems;
-    if (res->state != FAILED && zeros_percent > zero_trust_percent_
+    float zero_trust_percent = zero_trust_percent_;
+    // Adjust default zero trust for cases when negative are converted into 0.
+    if (zero_trust_percent_ == default_zero_trust_percent_
+            && negative_converts_to_zero(attr, dt)) {
+        // (100% - X%) / 2 + X%. X% is default. Each half represents positive
+        // and negative in the output equally.
+        zero_trust_percent = (100.f + zero_trust_percent_) / 2.f;
+    }
+    if (res->state != FAILED && zeros_percent > zero_trust_percent
             && nelems >= 10)
         res->state = MISTRUSTED;
 
     BENCHDNN_PRINT((res->state == MISTRUSTED ? 2 : 6),
             "[TRUST_STATS]%s: z:%2.0f%% (>%2.0f%%) (z: %ld, total: %ld)\n",
-            get_kind_str().c_str(), zeros_percent, zero_trust_percent_,
+            get_kind_str().c_str(), zeros_percent, zero_trust_percent,
             (long)zeros.load(), (long)nelems);
 
     // Set PASSED if no failure in current or previous checks happened and test
