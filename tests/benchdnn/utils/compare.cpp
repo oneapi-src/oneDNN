@@ -30,9 +30,10 @@
 
 namespace compare {
 
-static void dump_point_values(const_dnnl_memory_desc_t md,
-        const std::string &kind_str, int64_t l_offset, float exp_f32, float exp,
-        float got, float diff, float rel_diff) {
+namespace {
+void dump_point_values(const_dnnl_memory_desc_t md, const std::string &kind_str,
+        int64_t l_offset, float exp_f32, float exp, float got, float diff,
+        float rel_diff) {
     std::stringstream ss;
     dims_t l_dims = md2dims(md);
     dims_t dims_idx = off2dims_idx(l_dims, l_offset);
@@ -45,7 +46,7 @@ static void dump_point_values(const_dnnl_memory_desc_t md,
             got, diff, rel_diff);
 }
 
-static void dump_norm_values(
+void dump_norm_values(
         const diff_norm_t &diff_norm, const std::string &kind_str) {
     BENCHDNN_PRINT(0,
             "%s[L0] = %g\n"
@@ -62,7 +63,7 @@ static void dump_norm_values(
             diff_norm.diff_[norm_t::L8], diff_norm.rel_diff(norm_t::L8));
 }
 
-static bool has_binary_comparison_po(const attr_t &attr) {
+bool has_binary_comparison_po(const attr_t &attr) {
     const auto &po = attr.post_ops;
     if (po.is_def()) return false;
 
@@ -80,6 +81,7 @@ static bool has_binary_comparison_po(const attr_t &attr) {
     }
     return false;
 }
+} // namespace
 
 bool compare_extreme_values(float a, float b) {
     if (std::isnan(a) && std::isnan(b)) return true;
