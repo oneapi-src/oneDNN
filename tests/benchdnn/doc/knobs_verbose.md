@@ -22,6 +22,7 @@ following information is printed for certain verbosity levels:
 * Level 6.
     * The problem memory footprint and RAM capacity on devices.
     * Fill configuration stats.
+    * Compare configuration stats.
 * Level 50.
     * Full path of batch file used.
 * Level 99.

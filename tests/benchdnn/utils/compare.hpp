@@ -92,6 +92,15 @@ private:
             const attr_t &attr, res_t *res) const;
     int compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             const attr_t &attr, res_t *res) const;
+
+    std::string get_kind_str() const {
+        std::string kind_str;
+        if (kind_ == DAT_TOTAL) return kind_str;
+
+        kind_str = std::string("[") + std::string(data_kind2str(kind_))
+                + std::string("]");
+        return kind_str;
+    }
 };
 
 } // namespace compare

@@ -30,39 +30,35 @@
 
 namespace compare {
 
-static void dump_point_values(const_dnnl_memory_desc_t md, data_kind_t kind,
-        int64_t l_offset, float exp_f32, float exp, float got, float diff,
-        float rel_diff) {
+static void dump_point_values(const_dnnl_memory_desc_t md,
+        const std::string &kind_str, int64_t l_offset, float exp_f32, float exp,
+        float got, float diff, float rel_diff) {
     std::stringstream ss;
     dims_t l_dims = md2dims(md);
     dims_t dims_idx = off2dims_idx(l_dims, l_offset);
     ss << dims_idx;
     std::string ind_str = ss.str();
 
-    std::string skind;
-    if (kind != DAT_TOTAL) skind = "[" + std::string(data_kind2str(kind)) + "]";
-
     BENCHDNN_PRINT(0,
             "[%4ld]%s[%s] exp_f32:%12g exp:%12g got:%12g diff:%8g rdiff:%8g\n",
-            (long)l_offset, skind.c_str(), ind_str.c_str(), exp_f32, exp, got,
-            diff, rel_diff);
+            (long)l_offset, kind_str.c_str(), ind_str.c_str(), exp_f32, exp,
+            got, diff, rel_diff);
 }
 
-static void dump_norm_values(const diff_norm_t &diff_norm, data_kind_t kind) {
-    std::string skind;
-    if (kind != DAT_TOTAL) skind = "[" + std::string(data_kind2str(kind)) + "]";
-
+static void dump_norm_values(
+        const diff_norm_t &diff_norm, const std::string &kind_str) {
     BENCHDNN_PRINT(0,
             "%s[L0] = %g\n"
             "%s[L1] exp:%8g got:%8g diff:%8g rel_diff:%8g\n"
             "%s[L2] exp:%8g got:%8g diff:%8g rel_diff:%8g\n"
             "%s[L8] exp:%8g got:%8g diff:%8g rel_diff:%8g\n",
-            skind.c_str(), diff_norm.rel_diff(norm_t::L0), skind.c_str(),
+            kind_str.c_str(), diff_norm.rel_diff(norm_t::L0), kind_str.c_str(),
             diff_norm.a_[norm_t::L1], diff_norm.b_[norm_t::L1],
             diff_norm.diff_[norm_t::L1], diff_norm.rel_diff(norm_t::L1),
-            skind.c_str(), diff_norm.a_[norm_t::L2], diff_norm.b_[norm_t::L2],
-            diff_norm.diff_[norm_t::L2], diff_norm.rel_diff(norm_t::L2),
-            skind.c_str(), diff_norm.a_[norm_t::L8], diff_norm.b_[norm_t::L8],
+            kind_str.c_str(), diff_norm.a_[norm_t::L2],
+            diff_norm.b_[norm_t::L2], diff_norm.diff_[norm_t::L2],
+            diff_norm.rel_diff(norm_t::L2), kind_str.c_str(),
+            diff_norm.a_[norm_t::L8], diff_norm.b_[norm_t::L8],
             diff_norm.diff_[norm_t::L8], diff_norm.rel_diff(norm_t::L8));
 }
 
@@ -137,8 +133,8 @@ int compare_t::compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         }
 
         if (need_dump)
-            dump_point_values(got_mem.md_, kind_, i, args.exp_f32, args.exp,
-                    args.got, args.diff, args.rel_diff);
+            dump_point_values(got_mem.md_, get_kind_str(), i, args.exp_f32,
+                    args.exp, args.got, args.diff, args.rel_diff);
     }
     diff_norm.done();
 
@@ -146,7 +142,7 @@ int compare_t::compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     if (!ok) res->errors = 1;
 
     const bool dump = need_dump || !ok;
-    if (dump) dump_norm_values(diff_norm, kind_);
+    if (dump) dump_norm_values(diff_norm, get_kind_str());
 
     if (res->errors) res->state = FAILED;
     if (res->state == EXECUTED) res->state = PASSED;
@@ -269,8 +265,8 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         const bool dump
                 = need_dump || (!ok && (n_errors < 10 || verbose >= 10));
         if (!from_parallel && dump)
-            dump_point_values(got_mem.md_, kind_, i, args.exp_f32, args.exp,
-                    args.got, args.diff, args.rel_diff);
+            dump_point_values(got_mem.md_, get_kind_str(), i, args.exp_f32,
+                    args.exp, args.got, args.diff, args.rel_diff);
     };
 
     // parallel comparison to speed up the process
@@ -286,20 +282,16 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     // Set state to FAILED in case of any errors.
     if (n_errors) res->errors = n_errors, res->state = FAILED;
     // State could be already FAILED, check zero trust for non-FAILED only.
-    if (res->state != FAILED) {
-        const auto zeros_percent = 100.f * zeros / nelems;
-        if (nelems >= 10 && zeros_percent > zero_trust_percent_) {
-            res->state = MISTRUSTED;
-            std::string skind;
-            if (kind_ != DAT_TOTAL)
-                skind = "[" + std::string(data_kind2str(kind_)) + "]";
-            BENCHDNN_PRINT(2,
-                    "No trust stats [%s]: z:%2.0f%% (>%2.0f%%) (z: %ld, "
-                    "total: %ld)\n",
-                    skind.c_str(), zeros_percent, zero_trust_percent_,
-                    (long)zeros.load(), (long)nelems);
-        }
-    }
+    const float zeros_percent = 100.f * zeros / nelems;
+    if (res->state != FAILED && zeros_percent > zero_trust_percent_
+            && nelems >= 10)
+        res->state = MISTRUSTED;
+
+    BENCHDNN_PRINT((res->state == MISTRUSTED ? 2 : 6),
+            "[TRUST_STATS]%s: z:%2.0f%% (>%2.0f%%) (z: %ld, total: %ld)\n",
+            get_kind_str().c_str(), zeros_percent, zero_trust_percent_,
+            (long)zeros.load(), (long)nelems);
+
     // Set PASSED if no failure in current or previous checks happened and test
     // can be trusted.
     if (res->state == EXECUTED) res->state = PASSED;
@@ -309,6 +301,11 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
 
 int compare_t::compare(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         const attr_t &attr, res_t *res) const {
+    std::string add_args = std::string(use_norm_ ? "use_norm:true" : "")
+            + std::string(op_output_has_nans_ ? "has_nans:true" : "");
+    BENCHDNN_PRINT(6, "[COMPARE]%s: trh=%g zero_trust%%=%.2f%% extra=%s\n",
+            get_kind_str().c_str(), trh_, zero_trust_percent_,
+            add_args.c_str());
     if (use_norm_) return compare_norm(exp_mem, got_mem, attr, res);
     return compare_p2p(exp_mem, got_mem, attr, res);
 }
