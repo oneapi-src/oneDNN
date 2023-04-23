@@ -45,12 +45,12 @@ void register_fake_backend();
 void register_compiler_backend();
 #endif
 
-class backend {
+class backend_t {
 public:
-    backend(const std::string &name, float priority)
+    backend_t(const std::string &name, float priority)
         : name_(name), priority_(priority), id_(get_counter()) {}
 
-    virtual ~backend() = default;
+    virtual ~backend_t() = default;
 
     const std::string &get_name() const { return name_; };
     size_t get_id() const { return id_; }
@@ -131,8 +131,8 @@ public:
         return inst;
     }
 
-    backend *register_backend(const backend *abackend) {
-        auto has_colliding_name = [&](const backend *backend) {
+    backend_t *register_backend(const backend_t *abackend) {
+        auto has_colliding_name = [&](const backend_t *backend) {
             return backend->get_name().compare(abackend->get_name()) == 0;
         };
         auto backend_already_registered = [&]() {
@@ -141,7 +141,7 @@ public:
                     != sorted_backends_.end();
         };
 
-        auto compare_priority = [](const backend *l, const backend *r) {
+        auto compare_priority = [](const backend_t *l, const backend_t *r) {
             return l->get_priority() > r->get_priority();
         };
 
@@ -156,13 +156,13 @@ public:
         sorted_backends_.emplace_back(abackend);
         std::sort(sorted_backends_.begin(), sorted_backends_.end(),
                 compare_priority);
-        return const_cast<backend *>(abackend);
+        return const_cast<backend_t *>(abackend);
     }
 
     // This interface will firstly register all available backends and then
     // return sorted backends. The highest priority backend will be at the front
     // of vector
-    std::vector<const backend *> &get_registered_backends() {
+    std::vector<const backend_t *> &get_registered_backends() {
         invoke_backend_registration();
         std::lock_guard<std::mutex> lock(m_);
         return sorted_backends_;
@@ -174,7 +174,7 @@ public:
     // In this function, we will first decode the layout id to a backend id
     // and a native layout id. Then we will use the backend id to get the
     // backend from the backend registry
-    const backend *get_registered_backend(size_t layout_id) {
+    const backend_t *get_registered_backend(size_t layout_id) {
         invoke_backend_registration();
         size_t backend_id = extract_backend_id(layout_id);
         std::lock_guard<std::mutex> lock(m_);
@@ -211,10 +211,10 @@ private:
     std::once_flag register_flag_;
 
     // sorted backends by priority
-    std::vector<const backend *> sorted_backends_;
+    std::vector<const backend_t *> sorted_backends_;
 
     // the map from backend id to backend shared pointer
-    std::unordered_map<size_t, const backend *> backends_;
+    std::unordered_map<size_t, const backend_t *> backends_;
 };
 
 // Backend API used by each backend to check the constant tensor cache enabling

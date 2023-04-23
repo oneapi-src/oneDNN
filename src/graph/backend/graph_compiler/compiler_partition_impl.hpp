@@ -64,7 +64,7 @@ public:
             const std::vector<graph::logical_tensor_t> &outputs,
             const graph::engine_t *aengine) const override;
 
-    const graph::backend *get_assigned_backend() const override {
+    const graph::backend_t *get_assigned_backend() const override {
         return &compiler_backend_t::get_singleton();
     }
 

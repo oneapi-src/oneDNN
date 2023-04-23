@@ -58,7 +58,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 
-class backend;
+class backend_t;
 
 class partition_impl_t : public std::enable_shared_from_this<partition_impl_t> {
 public:
@@ -106,7 +106,7 @@ public:
     virtual std::shared_ptr<partition_impl_t> clone() const = 0;
 
     /// Return the assigned backend of this partition
-    virtual const backend *get_assigned_backend() const = 0;
+    virtual const backend_t *get_assigned_backend() const = 0;
 
     /// Infer the outputs shape according to the inputs shape and the ops in
     /// this partition.

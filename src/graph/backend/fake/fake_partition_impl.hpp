@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -118,7 +118,7 @@ public:
         return ret;
     }
 
-    const backend *get_assigned_backend() const override {
+    const backend_t *get_assigned_backend() const override {
         return &fake_backend_t::get_singleton();
     }
 

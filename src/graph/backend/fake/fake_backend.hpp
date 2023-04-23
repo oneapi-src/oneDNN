@@ -33,7 +33,7 @@ namespace impl {
 namespace graph {
 namespace fake_impl {
 
-class fake_backend_t : public backend {
+class fake_backend_t : public backend_t {
     friend class fake_partition_impl_t;
 
 public:

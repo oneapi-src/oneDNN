@@ -30,7 +30,7 @@ namespace graph {
 namespace dnnl_impl {
 
 dnnl_backend::dnnl_backend(const std::string &name, float priority)
-    : backend(name, priority) {
+    : backend_t(name, priority) {
     register_op_schemas();
     register_passes();
 }

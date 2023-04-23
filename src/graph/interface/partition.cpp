@@ -82,10 +82,10 @@ status_t DNNL_API dnnl_graph_partition_create_with_op(
     if (opaque_in_iter == input_vals.end()
             && opaque_out_iter == output_vals.end()) {
         // get partition impl. by calling each backend
-        std::vector<const backend *> &backends
+        std::vector<const backend_t *> &backends
                 = backend_registry_t::get_singleton().get_registered_backends();
         for (const auto &cbkd : backends) {
-            backend *bkd = const_cast<backend *>(cbkd);
+            backend_t *bkd = const_cast<backend_t *>(cbkd);
             ret = bkd->get_partitions(g, partition_policy::fusion);
             if (ret != status::success) return ret;
         }
@@ -114,7 +114,7 @@ status_t DNNL_API dnnl_graph_partition_create_with_op(
         }
         size_t valid_layout_id = in_has_valid_layout_id ? in_valid_layout_id
                                                         : out_valid_layout_id;
-        backend *bkd = const_cast<backend *>(
+        backend_t *bkd = const_cast<backend_t *>(
                 backend_registry_t::get_singleton().get_registered_backend(
                         valid_layout_id));
         assertm(bkd != nullptr,
@@ -479,7 +479,7 @@ status_t dnnl_graph_partition::infer_shape(
 }
 
 static status_t pre_process(std::vector<logical_tensor_t> &dst,
-        std::vector<const logical_tensor_t *> &src, const backend *abackend) {
+        std::vector<const logical_tensor_t *> &src, const backend_t *abackend) {
     using ltw = logical_tensor_wrapper_t;
     dst.reserve(src.size());
     for (size_t i = 0; i < src.size(); i++) {
@@ -499,7 +499,7 @@ static status_t pre_process(std::vector<logical_tensor_t> &dst,
 }
 
 static status_t post_process(std::vector<logical_tensor_t> &dst,
-        std::vector<logical_tensor_t> &src, const backend *abackend) {
+        std::vector<logical_tensor_t> &src, const backend_t *abackend) {
     using ltw = logical_tensor_wrapper_t;
     UNUSED(src);
 
@@ -514,7 +514,7 @@ static status_t post_process(std::vector<logical_tensor_t> &dst,
 }
 
 static status_t pre_process(std::vector<tensor_t> &dst,
-        const std::vector<tensor_t> &src, const backend *abackend) {
+        const std::vector<tensor_t> &src, const backend_t *abackend) {
     using ltw = logical_tensor_wrapper_t;
     dst.reserve(src.size());
     for (size_t i = 0; i < src.size(); i++) {
@@ -549,7 +549,7 @@ status_t dnnl_graph_partition::compile(compiled_partition_t *cp,
     if (!aengine || aengine->kind() != pimpl_->get_engine_kind())
         return status::invalid_arguments;
 
-    const backend *backend = pimpl_->get_assigned_backend();
+    const backend_t *backend = pimpl_->get_assigned_backend();
     if (!backend) return status::invalid_arguments;
 
     // Pre-process the given logical tensor. The pre-process includes
@@ -719,7 +719,7 @@ status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,
     if (!astream || (astream->engine()->kind() != pimpl_->get_engine()->kind()))
         return status::invalid_arguments;
 
-    const backend *backend = src_partition_.get_assigned_backend();
+    const backend_t *backend = src_partition_.get_assigned_backend();
     if (!backend) return status::invalid_arguments;
 
     // Pre-process the given tensor. The pre-process includes
@@ -745,7 +745,7 @@ status_t dnnl_graph_compiled_partition::execute_sycl(const stream_t *astream,
 
     status_t ret;
 
-    const backend *backend = src_partition_.get_assigned_backend();
+    const backend_t *backend = src_partition_.get_assigned_backend();
     if (!backend) return status::invalid_arguments;
 
     // Pre-process the given tensor. The pre-process includes

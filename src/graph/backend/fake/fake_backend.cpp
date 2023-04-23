@@ -26,7 +26,7 @@ namespace graph {
 namespace fake_impl {
 
 fake_backend_t::fake_backend_t(const std::string &name, float priority)
-    : backend(name, priority) {
+    : backend_t(name, priority) {
     register_passes();
 }
 

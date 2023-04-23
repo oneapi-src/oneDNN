@@ -39,7 +39,7 @@
 namespace dnnl {
 namespace impl {
 namespace graph {
-class backend;
+class backend_t;
 } // namespace graph
 } // namespace impl
 } // namespace dnnl
@@ -74,7 +74,7 @@ public:
 
     const graph::partition_impl_t *get_pimpl() const { return pimpl_.get(); }
 
-    const graph::backend *get_assigned_backend() const {
+    const graph::backend_t *get_assigned_backend() const {
         return pimpl_->get_assigned_backend();
     }
 

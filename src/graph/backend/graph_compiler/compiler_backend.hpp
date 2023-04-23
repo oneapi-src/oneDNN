@@ -32,7 +32,7 @@ namespace impl {
 namespace graph {
 namespace compiler_impl {
 
-class compiler_backend_t : public backend {
+class compiler_backend_t : public backend_t {
     friend class compiler_partition_impl_t;
 
 public:
@@ -68,7 +68,7 @@ public:
 
 private:
     compiler_backend_t(const std::string &backend_name, float priority)
-        : backend(backend_name, priority) {
+        : backend_t(backend_name, priority) {
         bool ret = register_passes();
         if (!ret) {
             throw std::runtime_error(backend_name + " initialize failed");

@@ -60,11 +60,11 @@ TEST(GCBackendApi, GetMemSize) {
 }
 
 TEST(GCBackendApi, CompilerBackendRegistration) {
-    std::vector<const graph::backend *> &backends
+    std::vector<const graph::backend_t *> &backends
             = graph::backend_registry_t::get_singleton()
                       .get_registered_backends();
     auto compiler_backend = std::find_if(
-            backends.begin(), backends.end(), [](const graph::backend *bkd) {
+            backends.begin(), backends.end(), [](const graph::backend_t *bkd) {
                 return bkd->get_name() == "compiler_backend";
             });
     ASSERT_NE(compiler_backend, backends.end());

@@ -167,7 +167,7 @@ public:
         return ret;
     }
 
-    const backend *get_assigned_backend() const override {
+    const backend_t *get_assigned_backend() const override {
         return &dnnl_backend::get_singleton();
     }
 

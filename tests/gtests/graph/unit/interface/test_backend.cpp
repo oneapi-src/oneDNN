@@ -29,7 +29,7 @@ namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
 TEST(Backend, CompareLogicalTensor) {
-    graph::backend &bkd = graph::fake_impl::fake_backend_t::get_singleton();
+    graph::backend_t &bkd = graph::fake_impl::fake_backend_t::get_singleton();
 
     graph::logical_tensor_t lt1 = utils::logical_tensor_init(
             0, {1, 2, 2, 1}, graph::data_type::f32, graph::layout_type::undef);

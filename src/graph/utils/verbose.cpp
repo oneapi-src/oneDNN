@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -67,10 +67,10 @@ int get_verbose() {
 #endif
         printf("onednn_graph_verbose,info,gpu,runtime:%s\n",
                 dnnl_runtime2str(dnnl_version()->gpu_runtime));
-        std::vector<const backend *> &backends
+        std::vector<const backend_t *> &backends
                 = backend_registry_t::get_singleton().get_registered_backends();
         for (size_t i = 0; i < backends.size() - 1; ++i) {
-            backend *bkd = const_cast<backend *>(backends[i]);
+            backend_t *bkd = const_cast<backend_t *>(backends[i]);
             printf("onednn_graph_verbose,info,backend,%zu:%s\n", i,
                     bkd->get_name().c_str());
         }

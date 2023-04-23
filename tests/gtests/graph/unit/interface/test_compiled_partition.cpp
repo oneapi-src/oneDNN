@@ -75,12 +75,12 @@ TEST(CompiledPartitionCache, SingleOpCase) {
             g.finalize();
 
             // Create single-op partition
-            std::vector<const impl::graph::backend *> &backends
+            std::vector<const impl::graph::backend_t *> &backends
                     = impl::graph::backend_registry_t::get_singleton()
                               .get_registered_backends();
             for (const auto &cbkd : backends) {
-                impl::graph::backend *bkd
-                        = const_cast<impl::graph::backend *>(cbkd);
+                impl::graph::backend_t *bkd
+                        = const_cast<impl::graph::backend_t *>(cbkd);
                 bkd->get_partitions(g, impl::graph::partition_policy::fusion);
             }
 
@@ -162,11 +162,11 @@ TEST(LruCompiledPartitionCache, Method) {
     g.finalize();
 
     // Create single-op partition
-    std::vector<const graph::backend *> &backends
+    std::vector<const graph::backend_t *> &backends
             = graph::backend_registry_t::get_singleton()
                       .get_registered_backends();
     for (const auto &cbkd : backends) {
-        graph::backend *bkd = const_cast<graph::backend *>(cbkd);
+        graph::backend_t *bkd = const_cast<graph::backend_t *>(cbkd);
         bkd->get_partitions(g, graph::partition_policy::fusion);
     }
 
