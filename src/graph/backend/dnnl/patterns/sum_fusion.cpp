@@ -32,7 +32,7 @@ using FCreatePattern = graph::pass::FCreatePattern;
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(sum_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, sum_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, sum_fusion)
         .set_priority(8.1f)
         .set_kind(partition_kind_t::binary_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",

@@ -34,7 +34,7 @@ using FCreatePattern = graph::pass::FCreatePattern;
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(binary_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, reciprocal_multiply_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, reciprocal_multiply_fusion)
         .set_priority(8.2f)
         .set_kind(partition_kind_t::binary_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -49,7 +49,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, reciprocal_multiply_fusion)
 
 // TODO(zitian): wait for the implementation of comparison ops:
 //      Gt, Ge, Le, Lt, Eq, Ne
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, binary_post_ops_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, binary_post_ops_fusion)
         .set_priority(8.3f)
         .set_kind(partition_kind_t::binary_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",

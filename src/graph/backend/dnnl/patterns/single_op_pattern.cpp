@@ -35,7 +35,7 @@ DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(single_op_pass)
 // patterns is always 8.f.
 #define DEFAULT_P 8.f
 #define DNNL_BACKEND_SINGLE_OP_TRANSFORM(pname, op, kernel) \
-    DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, pname) \
+    DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, pname) \
             .set_priority(DEFAULT_P) \
             .set_kind(partition_kind_t::misc_post_ops) \
             .set_attr<FCreatePattern>("FCreatePattern", \
@@ -53,7 +53,7 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         avg_pool_bw_pass, AvgPoolBackward, pooling_bwd_t)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(bias_add_pass, BiasAdd, binary_t)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_pass)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, bn_pass)
         .set_priority(8.f)
         .set_kind(partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -79,7 +79,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_pass)
                 || check_output_num<n2>(graph_op); \
     })
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_fw_train_pass)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, bn_fw_train_pass)
         .set_priority(DEFAULT_P)
         .set_kind(partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -96,7 +96,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_fw_train_pass)
             return std::make_shared<batchnorm_fwd_t>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_bw_pass)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, bn_bw_pass)
         .set_priority(DEFAULT_P)
         .set_kind(partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -113,7 +113,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_bw_pass)
             return std::make_shared<batchnorm_bwd_t>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, ln_pass)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, ln_pass)
         .set_priority(DEFAULT_P)
         .set_kind(partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -128,7 +128,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, ln_pass)
             return std::make_shared<layernorm_fwd_t>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, ln_bw_pass)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, ln_bw_pass)
         .set_priority(DEFAULT_P)
         .set_kind(partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -189,7 +189,7 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(mish_bw_pass, MishBackward, eltwise_bwd_t)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(div_pass, Divide, binary_t)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(sub_pass, Subtract, binary_t)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, round_pass)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, round_pass)
         .set_priority(DEFAULT_P)
         .set_kind(partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -240,7 +240,7 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(reorder_pass, Reorder, float_reorder)
         return true; \
     })
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, interpolate_pass)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, interpolate_pass)
         .set_priority(DEFAULT_P)
         .set_kind(partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -254,7 +254,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, interpolate_pass)
             return std::make_shared<float_resampling_fwd>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, interpolate_bwd_pass)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, interpolate_bwd_pass)
         .set_priority(DEFAULT_P)
         .set_kind(partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -287,7 +287,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, interpolate_bwd_pass)
         return true; \
     })
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, typecast_pass)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, typecast_pass)
         .set_priority(DEFAULT_P)
         .set_kind(partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -302,7 +302,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, typecast_pass)
 
 // pname: pattern name, bname: backend name
 #define DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(pname, bname, op) \
-    DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(bname, pname) \
+    DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(bname, pname) \
             .set_priority(DEFAULT_P) \
             .set_attr<FCreatePattern>("FCreatePattern", \
                     [](const std::shared_ptr<pb_graph_t> &pgraph) -> void { \
@@ -331,7 +331,7 @@ DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceMin)
 DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceProd)
 DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceSum)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, softplus_pass)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, softplus_pass)
         .set_priority(DEFAULT_P)
         .set_kind(partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -342,7 +342,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, softplus_pass)
             return std::make_shared<float_eltwise_fwd>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, softplus_bw_pass)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, softplus_bw_pass)
         .set_priority(DEFAULT_P)
         .set_kind(partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",

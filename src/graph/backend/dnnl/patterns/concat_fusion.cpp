@@ -63,7 +63,7 @@ bool check_scales_zps_all_equal(op_t *op) {
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(concat_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_concat_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_concat_fusion)
         .set_priority(8.2f)
         .set_kind(partition_kind_t::misc_quantized_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",

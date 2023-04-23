@@ -37,7 +37,7 @@ DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(conv_post_ops_fusion)
 // Conv: Currently DNNL backend doesn't support conv + depthwise conv
 // post-op fusion on GPU, while CPU supports. Check engine_kind == cpu
 // before matching
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_depthwise_fusion_cpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, conv_depthwise_fusion_cpu)
         .set_priority(10.2f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind_t::convolution_post_ops)
@@ -75,8 +75,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_depthwise_fusion_cpu)
             quant_out
                 |
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
-        dnnl, int8_conv_add_post_ops_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_conv_add_post_ops_fusion)
         .set_priority(10.6f)
         .set_kind(partition_kind_t::quantized_convolution_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -117,7 +116,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
             return std::make_shared<quantized_conv>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_post_ops_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_conv_post_ops_fusion)
         .set_priority(10.5f)
         .set_kind(partition_kind_t::quantized_convolution_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -201,7 +200,7 @@ features on GPU:
 1. Reorder with zero points (used in weight u8->s8)
 while CPU supports.
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion_cpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_conv_bias_fusion_cpu)
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind_t::quantized_convolution_post_ops)
@@ -271,7 +270,7 @@ features on GPU:
 1. Reorder with zero points (used in weight u8->s8)
 while CPU supports.
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion_gpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_conv_bias_fusion_gpu)
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind_t::quantized_convolution_post_ops)
@@ -357,7 +356,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion_gpu)
                 |
              quant_out
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_bf16_conv_add_post_ops_fusion)
         .set_priority(10.5f)
         .set_kind(graph::partition_kind_t::quantized_matmul_post_ops)
@@ -458,8 +457,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                 |
   [typecast_out -> quant_out]*
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
-        dnnl, int8_bf16_conv_post_ops_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bf16_conv_post_ops_fusion)
         .set_priority(10.4f)
         .set_kind(graph::partition_kind_t::quantized_matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -574,7 +572,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
             [TypeCast]*
                 |
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_post_ops_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, conv_post_ops_fusion)
         .set_priority(9.7f)
         .set_kind(partition_kind_t::convolution_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -637,7 +635,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_post_ops_fusion)
            [TypeCast]*
                 |
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_bias_post_ops_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, conv_bias_post_ops_fusion)
         .set_priority(9.8f)
         .set_kind(partition_kind_t::convolution_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -733,7 +731,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_bias_post_ops_fusion)
             return std::make_shared<float_conv_fwd>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, conv_bwd_weights_bwd_bias_fusion)
         .set_enable(false)
         .set_kind(partition_kind_t::convolution_backward_post_ops)

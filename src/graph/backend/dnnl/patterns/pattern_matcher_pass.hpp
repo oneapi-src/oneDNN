@@ -143,8 +143,7 @@ public:
     }
 };
 
-#define DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN( \
-        backend_name, pattern_name) \
+#define DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(backend_name, pattern_name) \
     registry.register_pass( \
             #backend_name, #pattern_name, &pattern_matcher_pass_t::create)
 

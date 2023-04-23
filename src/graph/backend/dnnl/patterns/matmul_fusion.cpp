@@ -35,7 +35,7 @@ using FCreatePattern = graph::pass::FCreatePattern;
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(matmul_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, matmul_post_ops_chain_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, matmul_post_ops_chain_fusion)
         .set_priority(8.8f)
         .set_kind(partition_kind_t::matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -69,7 +69,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, matmul_post_ops_chain_fusion)
             return std::make_shared<float_matmul>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, matmul_bias_post_ops_chain_fusion)
         .set_priority(8.9f)
         .set_kind(partition_kind_t::matmul_post_ops)
@@ -134,7 +134,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
             return std::make_shared<float_matmul>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, matmul_transpose_optional_reshape_fusion)
         .set_priority(9.f)
         .set_kind(partition_kind_t::matmul_post_ops)
@@ -191,8 +191,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
 MatMul: Currently DNNL Backend doesn't support Reorder with zero points
 (used in weight u8->s8) on GPU, while CPU supports.
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
-        dnnl, int8_matmul_div_add_fusion_cpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_matmul_div_add_fusion_cpu)
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind_t::quantized_matmul_post_ops)
@@ -221,8 +220,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
 MatMul: Currently DNNL Backend doesn't support Reorder with zero points
 (used in weight u8->s8) on GPU, while CPU supports.
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
-        dnnl, int8_matmul_div_add_fusion_gpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_matmul_div_add_fusion_gpu)
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind_t::quantized_matmul_post_ops)
@@ -271,7 +269,7 @@ features on GPU:
 1. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_matmul_post_ops_fusion_cpu)
         .set_priority(9.9f)
         .set_engine_kind(engine_kind::cpu)
@@ -338,7 +336,7 @@ features on GPU:
 1. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_matmul_post_ops_fusion_gpu)
         .set_priority(9.9f)
         .set_engine_kind(engine_kind::gpu)
@@ -421,7 +419,7 @@ features on GPU:
 1. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_matmul_add_post_ops_fusion_cpu)
         .set_priority(10.f)
         .set_engine_kind(engine_kind::cpu)
@@ -471,7 +469,7 @@ features on GPU:
 1. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_matmul_add_post_ops_fusion_gpu)
         .set_priority(10.f)
         .set_engine_kind(engine_kind::gpu)
@@ -521,7 +519,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
 MatMul: Currently DNNL Backend doesn't support Reorder with zero points
 (used in weight u8->s8) on GPU, while CPU supports.
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_bf16_matmul_scale_add_fusion_cpu)
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::cpu)
@@ -564,7 +562,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
 MatMul: Currently DNNL Backend doesn't support Reorder with zero points
 (used in weight u8->s8) on GPU, while CPU supports.
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_bf16_matmul_scale_add_fusion_gpu)
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::gpu)
@@ -625,7 +623,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
 MatMul: Currently DNNL Backend doesn't support Reorder with zero points
 (used in weight u8->s8) on GPU, while CPU supports.
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_bf16_matmul_post_ops_fusion_cpu)
         .set_priority(10.4f)
         .set_engine_kind(engine_kind::cpu)
@@ -708,7 +706,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
 MatMul: Currently DNNL Backend doesn't support Reorder with zero points
 (used in weight u8->s8) on GPU, while CPU supports.
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_bf16_matmul_post_ops_fusion_gpu)
         .set_priority(10.4f)
         .set_engine_kind(engine_kind::gpu)
@@ -813,7 +811,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
 MatMul: Currently DNNL Backend doesn't support Reorder with zero points
 (used in weight u8->s8) on GPU, while CPU supports.
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_bf16_matmul_add_post_ops_fusion_cpu)
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::cpu)
@@ -901,7 +899,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
 MatMul: Currently DNNL Backend doesn't support Reorder with zero points
 (used in weight u8->s8) on GPU, while CPU supports.
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_bf16_matmul_add_post_ops_fusion_gpu)
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::gpu)
@@ -987,7 +985,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
             return std::make_shared<quantized_matmul>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_matmul_transpose_optional_reshape_fusion)
         .set_priority(10.f)
         .set_kind(partition_kind_t::quantized_matmul_post_ops)
@@ -1066,7 +1064,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
             return std::make_shared<quantized_matmul>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_bf16_matmul_transpose_optional_reshape_fusion)
         .set_priority(10.5f)
         .set_kind(partition_kind_t::quantized_matmul_post_ops)
@@ -1163,7 +1161,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
             return std::make_shared<quantized_matmul>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, matmul_transpose_reorder_fusion)
         .set_priority(9.1f)
         .set_kind(partition_kind_t::matmul_post_ops)
@@ -1189,7 +1187,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
             return std::make_shared<float_matmul>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_matmul_transpose_reorder_fusion)
         .set_priority(10.f)
         .set_kind(partition_kind_t::quantized_matmul_post_ops)
@@ -1246,7 +1244,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
             return std::make_shared<quantized_matmul>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_bf16_matmul_transpose_reorder_fusion)
         .set_priority(10.5f)
         .set_kind(partition_kind_t::quantized_matmul_post_ops)
@@ -1321,7 +1319,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
             return std::make_shared<quantized_matmul>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_MHA_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_MHA_fusion)
         .set_priority(22.0f)
         .set_kind(partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -1378,7 +1376,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_MHA_fusion)
             return std::make_shared<larger_partition_kernel_t>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, f32_MHA_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, f32_MHA_fusion)
         .set_priority(21.0f)
         .set_kind(partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -1411,7 +1409,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, f32_MHA_fusion)
             return std::make_shared<larger_partition_kernel_t>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_bf16_MHA_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bf16_MHA_fusion)
         .set_priority(22.0f)
         .set_kind(partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",

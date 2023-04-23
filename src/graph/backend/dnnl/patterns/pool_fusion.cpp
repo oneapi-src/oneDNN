@@ -41,7 +41,7 @@ bool check_avgpool_attributes(op_t *op) {
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(pool_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, avg_pool_pass)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, avg_pool_pass)
         .set_priority(8.f)
         .set_kind(partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -54,7 +54,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, avg_pool_pass)
             return std::make_shared<float_pooling_fwd>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, pool_post_ops_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, pool_post_ops_fusion)
         .set_priority(9.9f)
         .set_kind(partition_kind_t::pooling_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -104,7 +104,7 @@ matched pattern:
                                 |
                               Quantize
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_pool_binary_fusion_cpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_pool_binary_fusion_cpu)
         .set_priority(10.0f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind_t::quantized_pooling_post_ops)
@@ -196,7 +196,7 @@ matched pattern:
                                 |
                               Quantize
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_pool_binary_fusion_gpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_pool_binary_fusion_gpu)
         .set_priority(10.0f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind_t::quantized_pooling_post_ops)

@@ -40,7 +40,7 @@ bool check_attributes(op_t *op) {
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(interpolate_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, interpolate_post_ops_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, interpolate_post_ops_fusion)
         .set_priority(8.4f)
         .set_kind(partition_kind_t::interpolate_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",

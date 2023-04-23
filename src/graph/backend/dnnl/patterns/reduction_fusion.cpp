@@ -44,7 +44,7 @@ bool check_attributes(op_t *graph_op) {
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(reduction_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, reduction_post_ops_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, reduction_post_ops_fusion)
         .set_priority(8.4f)
         .set_kind(partition_kind_t::reduction_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",

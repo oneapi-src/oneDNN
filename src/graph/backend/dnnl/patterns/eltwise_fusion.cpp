@@ -36,7 +36,7 @@ using FCreatePattern = graph::pass::FCreatePattern;
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(eltwise_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, eltwise_binary_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, eltwise_binary_fusion)
         .set_priority(8.2f)
         .set_kind(partition_kind_t::unary_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",

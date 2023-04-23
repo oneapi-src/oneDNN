@@ -63,7 +63,7 @@ features on GPU:
 5. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_convtranspose_post_ops_fusion_cpu)
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::cpu)
@@ -133,7 +133,7 @@ features on GPU:
 5. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_convtranspose_post_ops_fusion_gpu)
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::gpu)
@@ -233,7 +233,7 @@ features on GPU:
 5. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_convtranspose_add_post_ops_fusion_cpu)
         .set_priority(10.6f)
         .set_engine_kind(engine_kind::cpu)
@@ -287,7 +287,7 @@ features on GPU:
 5. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_convtranspose_add_post_ops_fusion_gpu)
         .set_priority(10.6f)
         .set_engine_kind(engine_kind::gpu)
@@ -343,8 +343,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
             return std::make_shared<quantized_convtranspose>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
-        dnnl, convtranspose_post_ops_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, convtranspose_post_ops_fusion)
         .set_priority(10.4f)
         .set_kind(partition_kind_t::convtranspose_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",

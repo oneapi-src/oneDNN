@@ -33,7 +33,7 @@ using FCreatePattern = graph::pass::FCreatePattern;
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(bn_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_relu_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, bn_relu_fusion)
         .set_priority(8.8f)
         .set_kind(partition_kind_t::batch_norm_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -52,7 +52,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_relu_fusion)
             return std::make_shared<batchnorm_fwd_t>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_bn_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bn_fusion)
         .set_priority(9.f)
         .set_kind(partition_kind_t::batch_norm_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -99,7 +99,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_bn_fusion)
                 || check_output_num<n2>(graph_op); \
     })
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_bwd_relu_bwd_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, bn_bwd_relu_bwd_fusion)
         .set_priority(8.8f)
         .set_kind(partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",

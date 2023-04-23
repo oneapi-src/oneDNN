@@ -33,7 +33,7 @@ using FCreatePattern = graph::pass::FCreatePattern;
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(reorder_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, reorder_sum_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, reorder_sum_fusion)
         .set_priority(10.1f)
         .set_kind(partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -53,7 +53,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, reorder_sum_fusion)
             return std::make_shared<float_reorder>();
         });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_reorder_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_reorder_fusion)
         .set_priority(10.1f)
         .set_kind(partition_kind_t::misc_quantized_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -74,7 +74,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_reorder_fusion)
 Currently DNNL Backend doesn't support Post-sum/binary with zero points
 on GPU, while CPU supports.
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_reorder_sum_fusion_cpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_reorder_sum_fusion_cpu)
         .set_priority(10.2f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind_t::misc_quantized_post_ops)
@@ -108,7 +108,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_reorder_sum_fusion_cpu)
 Currently DNNL Backend doesn't support Post-sum/binary with zero points
 on GPU, while CPU supports.
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_reorder_sum_fusion_gpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_reorder_sum_fusion_gpu)
         .set_priority(10.2f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind_t::misc_quantized_post_ops)

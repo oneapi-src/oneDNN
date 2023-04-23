@@ -42,7 +42,7 @@ bool check_inputs_all_bf16(op_t *op) {
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(quantize_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, typecast_quantize_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, typecast_quantize_fusion)
         .set_priority(8.1f)
         .set_kind(partition_kind_t::misc_quantized_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
