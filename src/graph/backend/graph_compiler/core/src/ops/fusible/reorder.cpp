@@ -33,7 +33,6 @@
 #include <util/exceptions.hpp>
 #include <util/math_utils.hpp>
 #include <util/utils.hpp>
-
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -792,7 +791,8 @@ void reorder_op_t::infer_slice_ranges(
 
     if (optimized_slice_check
             && !check_required_slice(get_inputs()[0], input_slice_list,
-                    get_input_format().is_vnni_format() ? 3 : 2)) {
+                    meet_vnni_reorder_require(stat_map.get_context()) ? 3
+                                                                      : 2)) {
         stat_map.append_ops_by_status(this, infer_status_code::RETRY);
         return;
     }
@@ -821,7 +821,9 @@ void reorder_op_t::infer_slice_ranges(
     } else {
         if (optimized_slice_check
                 && !check_required_slice(get_outputs()[0], reorder_ranges_list,
-                        get_output_format().is_vnni_format() ? 3 : 2)) {
+                        meet_vnni_reorder_require(stat_map.get_context())
+                                ? 3
+                                : 2)) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
         }
@@ -839,8 +841,10 @@ void reorder_op_t::pre_slice_ranges(
                 || (support_optimized_kernel(stat_map.get_context())
                         && !check_required_slice(get_outputs()[0],
                                 known_ranges_list,
-                                get_output_format().is_vnni_format() ? 3
-                                                                     : 2))) {
+                                meet_vnni_reorder_require(
+                                        stat_map.get_context())
+                                        ? 3
+                                        : 2))) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
         } else {
             // set input slice for anchor check
@@ -919,10 +923,12 @@ static std::vector<expr> get_reorder_stride2stride_indexes(
     return ret;
 }
 
+const int TARGET_AXIS_NOT_DEFINE = -1;
 static std::vector<expr> get_reorder_block2plain_indexes(sc_graph_t &graph,
         const std::vector<expr> &in_indexes, const sc_data_format_t &format,
         const sc_dims &plain_dims, expr &condition, expr &last_axis_offset,
-        expr &other_axis_condition) {
+        expr &other_axis_condition,
+        const int target_axis = TARGET_AXIS_NOT_DEFINE) {
     if (in_indexes.empty()) { return std::vector<expr>(); }
     COMPILE_ASSERT(format.format_code_ != format_kinds::any,
             "format can not be any_t in reorder op, please check it in layout "
@@ -945,6 +951,10 @@ static std::vector<expr> get_reorder_block2plain_indexes(sc_graph_t &graph,
             axis2blocks; // plain_axis to block idx, idx++ after an access
     auto last_orig_axis
             = format.format_code_.get(static_cast<int>(num_format_dims) - 1);
+    if (target_axis != TARGET_AXIS_NOT_DEFINE
+            && last_orig_axis != target_axis) {
+        last_orig_axis = format.format_code_.get(target_axis);
+    }
     // format index
     for (int inp_idx = static_cast<int>(num_format_dims + base_out_dim) - 1;
             inp_idx >= static_cast<int>(base_out_dim); inp_idx--) {
@@ -1061,6 +1071,30 @@ static void set_const_fold_bypass(const context_ptr &ctx, const stmt &v) {
 #endif
 }
 
+/**
+ * @brief find the axis closest to the last which could be vectorized.
+ * @param blocking_dims_expr blocking expr dim
+ * @param format format
+ * @param last_origin_axis original last axis
+ * @param origin_axis_vectorized finded axis closed to the last
+that can be vectorized
+ * */
+void find_vectorized_axis(std::vector<expr> &blocking_dims_expr,
+        const sc_data_format_t &format, int &last_origin_axis,
+        int &origin_axis_vectorized) {
+    origin_axis_vectorized = format.format_code_.ndims() - 1;
+    // find not 1 dim in the last, if in dynamic cases, it will be as
+    // original logic
+    for (int i = origin_axis_vectorized; i >= 0; i--) {
+        if (!blocking_dims_expr[i].isa<constant>()) { break; }
+        if (get_expr_as_int(blocking_dims_expr[i]) > 1) {
+            origin_axis_vectorized = i;
+            break;
+        }
+    }
+    last_origin_axis = format.format_code_.get(origin_axis_vectorized);
+}
+
 constexpr const int byte = 8;
 constexpr const int avx_simd_length = 128;
 bool is_valid_step(int step) {
@@ -1092,6 +1126,13 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
             output_format.format_code_.ndims() - 1);
     auto input_last_origin_axis = input_format.format_code_.get(
             input_format.format_code_.ndims() - 1);
+    int input_origin_axis_vectorized = input_format.format_code_.ndims() - 1;
+    int output_origin_axis_vectorized = output_format.format_code_.ndims() - 1;
+    find_vectorized_axis(input_blocking_dims_expr, input_format,
+            input_last_origin_axis, input_origin_axis_vectorized);
+    find_vectorized_axis(output_blocking_dims_expr, output_format,
+            output_last_origin_axis, output_origin_axis_vectorized);
+
     bool can_vectorize = !is_innermost_dim_strided
             && input_last_origin_axis == output_last_origin_axis
             && step * utils::get_sizeof_type(dtype) * byte >= avx_simd_length;
@@ -1101,7 +1142,9 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
     step = can_vectorize ? step : 1;
     bool no_padding = is_dynamic && dynamic_no_padding;
     if (!output_loop) {
-        no_padding |= !is_dynamic && input_blocking_dims.back() % step == 0;
+        no_padding |= !is_dynamic
+                && input_blocking_dims[input_origin_axis_vectorized] % step
+                        == 0;
         for (size_t i = 0; i < plain_dims.size(); i++) {
             iter_vars.emplace_back(builder::make_var(datatypes::index,
                     std::string("_fuseiter") + fusion_create_idx()));
@@ -1114,10 +1157,11 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
         expr mask;
         stmt mask_def;
         if (!no_padding && can_vectorize) {
+            auto idx_len = cast_to_s32(input_blocking_dims_expr
+                                           [input_origin_axis_vectorized])
+                    - cast_to_s32(iter_vars[input_origin_axis_vectorized]);
             auto cur_step = builder::make_min(
-                    builder::make_max(builder::make_constant(0),
-                            cast_to_s32(input_blocking_dims_expr.back())
-                                    - cast_to_s32(iter_vars.back())),
+                    builder::make_max(builder::make_constant(0), idx_len),
                     step);
             mask = generate_mask_var_by_step(mask_def, cur_step, step);
             cur.static_as<stmts>()->seq_.emplace_back(mask_def);
@@ -1129,14 +1173,14 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
         cur.static_as<stmts>()->seq_.emplace_back(assign);
         stmt body;
         std::vector<stmt> loops;
+
         for (int i = static_cast<int>(plain_dims.size()) - 1; i >= 0; i--) {
             body = cur.isa<stmts>() ? cur
                                     : make_stmt<stmts_node_t>(
                                             std::vector<stmt> {std::move(cur)});
             cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
                     expr(0), src.get_shape()[i],
-                    i == static_cast<int>(plain_dims.size()) - 1
-                                    && can_vectorize
+                    can_vectorize && i == input_origin_axis_vectorized
                             ? expr(step)
                             : expr(1),
                     std::move(body), true, for_type::NORMAL);
@@ -1150,7 +1194,9 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
         bld->emit(cur);
         if (!can_vectorize) { set_const_fold_bypass(ctx, cur); }
     } else {
-        no_padding |= !is_dynamic && output_blocking_dims.back() % step == 0;
+        no_padding |= !is_dynamic
+                && output_blocking_dims[output_origin_axis_vectorized] % step
+                        == 0;
         for (size_t i = 0; i < plain_dims.size(); i++) {
             iter_vars.emplace_back(builder::make_var(datatypes::index,
                     std::string("_fuseiter") + fusion_create_idx()));
@@ -1162,10 +1208,11 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
         expr mask;
         stmt mask_def;
         if (!no_padding && can_vectorize) {
+            auto idx_len = cast_to_s32(output_blocking_dims_expr
+                                           [output_origin_axis_vectorized])
+                    - cast_to_s32(iter_vars[input_origin_axis_vectorized]);
             auto cur_step = builder::make_min(
-                    builder::make_max(builder::make_constant(0),
-                            cast_to_s32(output_blocking_dims_expr.back())
-                                    - cast_to_s32(iter_vars.back())),
+                    builder::make_max(builder::make_constant(0), idx_len),
                     step);
             mask = generate_mask_var_by_step(mask_def, cur_step, step);
             cur.static_as<stmts>()->seq_.emplace_back(mask_def);
@@ -1183,8 +1230,7 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
                                             std::vector<stmt> {std::move(cur)});
             cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
                     expr(0), dst.get_shape()[i],
-                    i == static_cast<int>(plain_dims.size()) - 1
-                                    && can_vectorize
+                    can_vectorize && i == output_origin_axis_vectorized
                             ? expr(step)
                             : expr(1),
                     std::move(body), true, for_type::NORMAL);
@@ -1214,6 +1260,10 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
             = sc_data_format_t::get_blocking_shapes(plain_dims, input_format);
     auto output_blocking_dims
             = sc_data_format_t::get_blocking_shapes(plain_dims, output_format);
+    auto input_blocking_dims_expr
+            = get_blocking_shapes_expr(graph, plain_dims, input_format);
+    auto output_blocking_dims_expr
+            = get_blocking_shapes_expr(graph, plain_dims, output_format);
     assert(output_format.format_code_.ndims()
             == output_format.format_code_.norig_dims());
     auto output_last_origin_axis = output_format.format_code_.get(
@@ -1222,18 +1272,29 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
             input_format.format_code_.ndims() - 1);
     // block has constraint
     assert(!is_dynamic_dim(input_blocking_dims.back()));
+    int input_origin_axis_vectorized = input_format.format_code_.ndims() - 1;
+    int output_origin_axis_vectorized = output_format.format_code_.ndims() - 1;
+    find_vectorized_axis(input_blocking_dims_expr, input_format,
+            input_last_origin_axis, input_origin_axis_vectorized);
+    find_vectorized_axis(output_blocking_dims_expr, output_format,
+            output_last_origin_axis, output_origin_axis_vectorized);
+
     int max_step = ctx->get_max_vector_lanes(dtype.type_code_);
     int step = std::min(static_cast<int>(vectorize_step(ctx, dtype.type_code_)),
-            static_cast<int>(input_blocking_dims.back()));
+            static_cast<int>(
+                    input_blocking_dims[input_origin_axis_vectorized]));
     if (attrs.get_or_else(op_attr_key::no_fuse, false)) {
         while (step < max_step
-                && input_blocking_dims.back() % (2 * step) == 0) {
+                && input_blocking_dims[input_origin_axis_vectorized]
+                                % (2 * step)
+                        == 0) {
             step = 2 * step;
         }
     }
     bool can_vectorize = !is_innermost_dim_strided
             && input_last_origin_axis == output_last_origin_axis
-            && input_blocking_dims.back() % step == 0 && is_valid_step(step)
+            && input_blocking_dims[input_origin_axis_vectorized] % step == 0
+            && is_valid_step(step)
             && step * utils::get_sizeof_type(dtype) * 8 >= 128;
 
     bool no_padding = !is_dynamic
@@ -1260,7 +1321,7 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
     expr last_axis_offset, other_axis_condition;
     std::vector<expr> tmp_out_indexes = get_reorder_block2plain_indexes(graph,
             in_indexes, input_format, plain_dims, condition, last_axis_offset,
-            other_axis_condition);
+            other_axis_condition, input_origin_axis_vectorized);
     std::vector<expr> out_indexes
             = get_reorder_stride2stride_indexes(tmp_out_indexes,
                     output_format.to_plain(), output_format, plain_dims);
@@ -1300,8 +1361,7 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
                 : make_stmt<stmts_node_t>(std::vector<stmt> {std::move(cur)});
         cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)), expr(0),
                 src.get_shape()[i],
-                i == static_cast<int>(input_blocking_dims.size()) - 1
-                                && can_vectorize
+                can_vectorize && i == input_origin_axis_vectorized
                         ? expr(static_cast<int>(step))
                         : expr(1),
                 std::move(body), true, for_type::NORMAL);
@@ -1338,24 +1398,35 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
 
     // block has constraint
     assert(!is_dynamic_dim(output_blocking_dims.back()));
+    int input_origin_axis_vectorized = input_format.format_code_.ndims() - 1;
+    int output_origin_axis_vectorized = output_format.format_code_.ndims() - 1;
+    find_vectorized_axis(input_blocking_exprs, input_format,
+            input_last_origin_axis, input_origin_axis_vectorized);
+    find_vectorized_axis(output_blocking_exprs, output_format,
+            output_last_origin_axis, output_origin_axis_vectorized);
+
     int max_step = ctx->get_max_vector_lanes(dtype.type_code_);
     int step = std::min(static_cast<int>(vectorize_step(ctx, dtype.type_code_)),
-            static_cast<int>(output_blocking_dims.back()));
+            static_cast<int>(
+                    output_blocking_dims[output_origin_axis_vectorized]));
     if (attrs.get_or_else(op_attr_key::no_fuse, false)) {
         while (step < max_step
-                && output_blocking_dims.back() % (2 * step) == 0) {
+                && output_blocking_dims[output_origin_axis_vectorized]
+                                % (2 * step)
+                        == 0) {
             step = 2 * step;
         }
     }
 
     bool can_vectorize = !is_innermost_dim_strided
             && input_last_origin_axis == output_last_origin_axis
-            && output_blocking_dims.back() % step == 0 && is_valid_step(step)
+            && output_blocking_dims[output_origin_axis_vectorized] % step == 0
+            && is_valid_step(step)
             && step * utils::get_sizeof_type(dtype) * 8 >= 128;
     // Usually use input loop means no padding in static, but not in dynamic, if
     // dynamic and use input loop, need to check the static dim with blocks.
     if (!output_loop && !is_dynamic_dim(input_blocking_dims.back())
-            && input_blocking_dims.back() % step != 0) {
+            && input_blocking_dims[input_origin_axis_vectorized] % step != 0) {
         can_vectorize = false;
     }
     bool no_padding = !is_dynamic
@@ -1404,8 +1475,7 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
                                             std::vector<stmt> {std::move(cur)});
             cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
                     expr(0), src.get_shape()[i],
-                    i == static_cast<int>(input_blocking_dims.size()) - 1
-                                    && can_vectorize
+                    can_vectorize && i == input_origin_axis_vectorized
                             ? expr(static_cast<int>(step))
                             : expr(1),
                     std::move(body), true, for_type::NORMAL);
@@ -1422,9 +1492,10 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
         }
         expr condition;
         expr last_axis_offset, other_axis_condition;
-        std::vector<expr> tmp_in_indexes = get_reorder_block2plain_indexes(
-                graph, out_indexes, output_format, plain_dims, condition,
-                last_axis_offset, other_axis_condition);
+        std::vector<expr> tmp_in_indexes
+                = get_reorder_block2plain_indexes(graph, out_indexes,
+                        output_format, plain_dims, condition, last_axis_offset,
+                        other_axis_condition, output_origin_axis_vectorized);
         std::vector<expr> in_indexes
                 = get_reorder_stride2stride_indexes(tmp_in_indexes,
                         input_format.to_plain(), input_format, plain_dims);
@@ -1473,8 +1544,7 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
                     (no_padding || !dst.get_offset()[i].isa<constant>())
                             ? dst.get_shape()[i]
                             : output_blocking_exprs[i],
-                    i == static_cast<int>(output_blocking_dims.size()) - 1
-                                    && can_vectorize
+                    can_vectorize && i == output_origin_axis_vectorized
                             ? expr(static_cast<int>(step))
                             : expr(1),
                     std::move(body), true, for_type::NORMAL);
@@ -1524,20 +1594,25 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
             input_format.format_code_.ndims() - 1);
     auto output_block_axis = output_format.format_code_.get(
             output_format.format_code_.ndims() - 1);
+    int input_origin_axis_vectorized = input_format.format_code_.ndims() - 1;
+    int output_origin_axis_vectorized = output_format.format_code_.ndims() - 1;
+    find_vectorized_axis(input_blocking_exprs, input_format, input_block_axis,
+            input_origin_axis_vectorized);
+    find_vectorized_axis(output_blocking_exprs, output_format,
+            output_block_axis, output_origin_axis_vectorized);
     bool no_padding = !is_dynamic
             && input_padded_plain_dims == output_padded_plain_dims;
     no_padding |= (is_dynamic && dynamic_no_padding);
     bool can_vectorize = !is_innermost_dim_strided
             && input_block_axis == output_block_axis
-            && output_blocking_dims[output_blocking_dims.size() - 1] % step == 0
-            && input_blocking_dims[input_blocking_dims.size() - 1] % step == 0
+            && output_blocking_dims[output_origin_axis_vectorized] % step == 0
+            && input_blocking_dims[input_origin_axis_vectorized] % step == 0
             && plain_dims[input_block_axis]
-                            % input_blocking_dims[input_blocking_dims.size()
-                                    - 1]
+                            % input_blocking_dims[input_origin_axis_vectorized]
                     == 0
             && plain_dims[output_block_axis]
-                            % output_blocking_dims[output_blocking_dims.size()
-                                    - 1]
+                            % output_blocking_dims
+                                    [output_origin_axis_vectorized]
                     == 0;
 
     if (!can_vectorize) {
@@ -1557,9 +1632,10 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
         }
         expr condition;
         expr last_axis_offset, other_axis_condition;
-        std::vector<expr> tmp_indexes = get_reorder_block2plain_indexes(graph,
-                in_indexes, input_format, plain_dims, condition,
-                last_axis_offset, other_axis_condition);
+        std::vector<expr> tmp_indexes
+                = get_reorder_block2plain_indexes(graph, in_indexes,
+                        input_format, plain_dims, condition, last_axis_offset,
+                        other_axis_condition, input_origin_axis_vectorized);
         std::vector<expr> out_indexes
                 = get_reorder_plain2block_indexes(tmp_indexes, output_format);
 
@@ -1584,8 +1660,7 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
                                             std::vector<stmt> {std::move(cur)});
             cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
                     expr(0), src.get_shape()[i],
-                    i == static_cast<int>(input_blocking_dims.size()) - 1
-                                    && can_vectorize
+                    can_vectorize && i == input_origin_axis_vectorized
                             ? expr(static_cast<int>(step))
                             : expr(1),
                     std::move(body), true, for_type::NORMAL);
@@ -1602,9 +1677,10 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
         }
         expr condition;
         expr last_axis_offset, other_axis_condition;
-        std::vector<expr> tmp_indexes = get_reorder_block2plain_indexes(graph,
-                out_indexes, output_format, plain_dims, condition,
-                last_axis_offset, other_axis_condition);
+        std::vector<expr> tmp_indexes
+                = get_reorder_block2plain_indexes(graph, out_indexes,
+                        output_format, plain_dims, condition, last_axis_offset,
+                        other_axis_condition, output_origin_axis_vectorized);
         std::vector<expr> in_indexes
                 = get_reorder_plain2block_indexes(tmp_indexes, input_format);
         auto assign = builder::make_stmts_unattached(
@@ -1633,8 +1709,7 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
                     (no_padding || !dst.get_offset()[i].isa<constant>())
                             ? dst.get_shape()[i]
                             : output_blocking_exprs[i],
-                    i == static_cast<int>(output_blocking_dims.size()) - 1
-                                    && can_vectorize
+                    can_vectorize && i == output_origin_axis_vectorized
                             ? expr(static_cast<int>(step))
                             : expr(1),
                     std::move(body), true, for_type::NORMAL);
@@ -1674,6 +1749,10 @@ static bool can_be_fast_transpose(const context_ptr &ctx,
             && !dtype.is_etype(sc_data_etype::BF16)) {
         return false;
     }
+    inp_a_axis.clear();
+    inp_b_axis.clear();
+    out_a_axis.clear();
+    out_b_axis.clear();
     int inp_idx = 0, out_idx = 0;
     auto &inp_code = input_format.format_code_;
     auto &out_code = output_format.format_code_;
@@ -1683,9 +1762,6 @@ static bool can_be_fast_transpose(const context_ptr &ctx,
             = sc_data_format_t::get_blocking_shapes(plain_dims, input_format);
     auto output_blocking_shapes
             = sc_data_format_t::get_blocking_shapes(plain_dims, output_format);
-    if (input_format.is_vnni_format() || output_format.is_vnni_format()) {
-        return false;
-    }
     auto inp_b_idx = inp_code.get(input_ndims - 1);
     auto out_a_idx = out_code.get(output_ndims - 1);
     if (inp_b_idx == out_a_idx) { return false; }
@@ -2080,7 +2156,10 @@ static void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
         expr last_axis_offset, other_axis_condition;
         std::vector<expr> tmp_indexes = get_reorder_block2plain_indexes(graph,
                 in_indexes, input_format, plain_dims, condition,
-                last_axis_offset, other_axis_condition);
+                last_axis_offset, other_axis_condition,
+                input_format.format_code_.get(
+                        static_cast<int>(input_format.format_code_.ndims())
+                        - 1));
         std::vector<expr> out_indexes
                 = get_reorder_plain2block_indexes(tmp_indexes, output_format);
         if (dtype == datatypes::f32) {
@@ -2130,6 +2209,7 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
     // eg. 384N 64K -> 12N 4K 8k 32n 2k
     //     384N 64K -> 12N 2K 8k 32n 4k
     //     128A 16B 32C -> 128A 2B 2C 4c 8b 4c
+    // dynamic cases can't check in current condition
     auto input_blocking_dims
             = sc_data_format_t::get_blocking_shapes(plain_dims, input_format);
     auto output_blocking_dims
@@ -2151,7 +2231,6 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
     inp_k_axis.clear();
     out_n_axis.clear();
     out_k_axis.clear();
-    if (!output_format.is_vnni_format()) { return false; }
     if (!utils::is_one_of(dtype.as_etype(), sc_data_etype::U8,
                 sc_data_etype::S8, sc_data_etype::BF16)) {
         return false;
@@ -2161,18 +2240,39 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
     auto &out_code = output_format.format_code_;
     int input_ndims = input_format.format_code_.ndims();
     int output_ndims = output_format.format_code_.ndims();
+    int vectorized_last_dims = output_ndims - 1;
+    int out_dim_counts[sc_data_format_kind_t::MAX_DIMS] = {0};
+    output_format.format_code_.collect_dim_count(out_dim_counts);
+    int vectorized_original_axis
+            = output_format.format_code_.get(vectorized_last_dims);
+    // Relax the restriction that the irrelevant dimension in the output is 1
+    for (int i = vectorized_last_dims; i >= 0; i--) {
+        auto tmp = output_format.format_code_.get(i);
+        auto target_axis_dim = dst.shape_[i];
+        // can't do vnni in dynamic cases
+        if (!target_axis_dim.isa<constant>()) return false;
+        if (out_dim_counts[tmp] > 1 && (get_expr_as_int(target_axis_dim) > 1)) {
+            vectorized_last_dims = i;
+            vectorized_original_axis = tmp;
+            break;
+        }
+    }
+    if (out_dim_counts[vectorized_original_axis] < 2) { return false; }
 
-    auto out_k2_pos = output_ndims - 1, out_n_pos = output_ndims - 2,
-         out_k_pos = -1, out_K_pos = -1, out_N_pos = -1, in_K_pos = -1,
-         in_N_pos = -1;
+    if (!dst.get_shape().at(vectorized_last_dims).isa<constant>()
+            || get_expr_as_int(
+                       dst.get_real_tensor()->strides_[vectorized_last_dims])
+                    != 1) {
+        return false;
+    }
+
+    auto out_k2_pos = vectorized_last_dims,
+         out_n_pos = vectorized_last_dims - 1, out_k_pos = -1, out_K_pos = -1,
+         out_N_pos = -1, in_K_pos = -1, in_N_pos = -1;
     auto k_idx = out_code.get(out_k2_pos);
     auto n_idx = out_code.get(out_n_pos);
 
-    if (!(inp_code.get(input_ndims - 1) == k_idx
-                || inp_code.get(input_ndims - 1) == n_idx))
-        return false;
-
-    for (auto i = output_ndims - 2; i >= 0; --i) {
+    for (auto i = vectorized_last_dims - 1; i >= 0; --i) {
         if (out_code.get(i) == k_idx) {
             if (out_k_pos == -1) {
                 out_k_pos = i;
@@ -2182,7 +2282,7 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
         }
     }
 
-    for (auto i = output_ndims - 3; i >= 0; --i) {
+    for (auto i = vectorized_last_dims - 2; i >= 0; --i) {
         if (out_code.get(i) == n_idx) {
             if (out_N_pos == -1) { out_N_pos = i; }
         }
@@ -2196,6 +2296,23 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
     for (auto i = input_ndims - 1; i >= 0; --i) {
         if (inp_code.get(i) == n_idx) {
             if (in_N_pos == -1) { in_N_pos = i; }
+        }
+    }
+    // our K and N dims need to be constant
+    if (!(src.get_shape().at(in_K_pos).isa<constant>()
+                || src.get_shape().at(in_N_pos).isa<constant>())) {
+        return false;
+    }
+    // Relax the restriction that the irrelevant dimension in the input is 1
+    // eg: ABC[16,16,1] -> ABCbab[1,1,1,8,16,2] C dim is 1, still use vnni
+    // reorder
+    if (!(inp_code.get(input_ndims - 1) == k_idx
+                || inp_code.get(input_ndims - 1) == n_idx)) {
+        int input_lastdim_max_idx = std::max(in_K_pos, in_N_pos);
+        if (get_expr_as_int(
+                    src.get_real_tensor()->strides_[input_lastdim_max_idx])
+                != 1) {
+            return false;
         }
     }
 
@@ -2214,7 +2331,7 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
 
     // VNNI reorder kernel shape is 4x16 for u8/s8 and 4x8 for bf16.
     if (!is_padding) {
-        if (get_expr_as_int(dst.shape_[out_k2_pos]) % (is_bf16 ? 2 : 4) != 0)
+        if (get_expr_as_int(dst.shape_[out_k2_pos]) != (is_bf16 ? 2 : 4))
             return false;
         if (!is_vnni_reorder) {
             if (get_expr_as_int(dst.shape_[out_n_pos]) % 4 != 0) return false;
@@ -2231,8 +2348,7 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
                 return false;
         }
     } else {
-        if (output_blocking_dims[out_k2_pos] % (is_bf16 ? 2 : 4) != 0)
-            return false;
+        if (output_blocking_dims[out_k2_pos] != (is_bf16 ? 2 : 4)) return false;
         if (!is_vnni_reorder) {
             if (output_blocking_dims[out_n_pos] % 4 != 0) return false;
             if (output_blocking_dims[out_k_pos] % 4 != 0) return false;
@@ -2452,6 +2568,17 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
             = get_blocking_shapes_expr(graph, plain_dims, output_format);
     auto output_blocking_dims_expr
             = get_blocking_shapes_expr(graph, plain_dims, output_format);
+    // plain axis of last block
+    auto input_last_origin_axis = input_format.format_code_.get(
+            input_format.format_code_.ndims() - 1);
+    auto output_last_origin_axis = output_format.format_code_.get(
+            output_format.format_code_.ndims() - 1);
+    int input_origin_axis_vectorized = input_format.format_code_.ndims() - 1;
+    int output_origin_axis_vectorized = output_format.format_code_.ndims() - 1;
+    find_vectorized_axis(input_blocking_dims_expr, input_format,
+            input_last_origin_axis, input_origin_axis_vectorized);
+    find_vectorized_axis(output_blocking_dims_expr, output_format,
+            output_last_origin_axis, output_origin_axis_vectorized);
     bool is_padding = false;
     if ((!is_dynamic
                 && math_utils::get_dims_product(input_blocking_dims)
@@ -2483,9 +2610,10 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         }
         expr condition;
         expr last_axis_offset, other_axis_condition;
-        std::vector<expr> tmp_indexes = get_reorder_block2plain_indexes(graph,
-                in_indexes, input_format, plain_dims, condition,
-                last_axis_offset, other_axis_condition);
+        std::vector<expr> tmp_indexes
+                = get_reorder_block2plain_indexes(graph, in_indexes,
+                        input_format, plain_dims, condition, last_axis_offset,
+                        other_axis_condition, input_origin_axis_vectorized);
         std::vector<expr> out_indexes
                 = get_reorder_plain2block_indexes(tmp_indexes, output_format);
         for (int i = 0; i < step; i++) {
@@ -2594,9 +2722,10 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         // calculate the input index according to the output index
         expr condition, vnni_condition;
         expr last_axis_offset, other_axis_condition;
-        std::vector<expr> tmp_indexes = get_reorder_block2plain_indexes(graph,
-                out_indexes, output_format, plain_dims, condition,
-                last_axis_offset, other_axis_condition);
+        std::vector<expr> tmp_indexes
+                = get_reorder_block2plain_indexes(graph, out_indexes,
+                        output_format, plain_dims, condition, last_axis_offset,
+                        other_axis_condition, output_origin_axis_vectorized);
         std::vector<expr> in_indexes
                 = get_reorder_plain2block_indexes(tmp_indexes, input_format);
         expr cur_step_var;
@@ -2757,18 +2886,11 @@ void compute_reorder_block(sc_graph_t &graph, const context_ptr &ctx,
             "Can not convert input format "
                     << input_format << " to output format " << output_format
                     << ".");
+
     std::vector<int> inp_a_axis, inp_b_axis, out_a_axis, out_b_axis;
     bool is_vnni_reorder = false;
     bool dynamic_no_padding = impl_alg & impl_kind_t::no_padding;
     if (!is_innermost_dim_strided
-            && can_be_fast_transpose(ctx, inp_a_axis, inp_b_axis, out_a_axis,
-                    out_b_axis, plain_dims, input_format, output_format, src,
-                    dst, dtype, is_dynamic, dynamic_no_padding)) {
-        compute_fast_transpose(graph, ctx, src, dst, input_format,
-                output_format, dtype, plain_dims, output_loop, attrs,
-                inp_a_axis, inp_b_axis, out_a_axis, out_b_axis, wkld,
-                is_dynamic, dynamic_no_padding);
-    } else if (!is_innermost_dim_strided
             && can_be_vnni_reorder(ctx, inp_a_axis, inp_b_axis, out_a_axis,
                     out_b_axis, plain_dims, input_format, output_format, src,
                     dst, dtype, is_vnni_reorder, is_dynamic,
@@ -2777,6 +2899,14 @@ void compute_reorder_block(sc_graph_t &graph, const context_ptr &ctx,
                 dtype, plain_dims, output_loop, attrs, inp_a_axis, inp_b_axis,
                 out_a_axis, out_b_axis, wkld, is_vnni_reorder, is_dynamic,
                 dynamic_no_padding);
+    } else if (!is_innermost_dim_strided
+            && can_be_fast_transpose(ctx, inp_a_axis, inp_b_axis, out_a_axis,
+                    out_b_axis, plain_dims, input_format, output_format, src,
+                    dst, dtype, is_dynamic, dynamic_no_padding)) {
+        compute_fast_transpose(graph, ctx, src, dst, input_format,
+                output_format, dtype, plain_dims, output_loop, attrs,
+                inp_a_axis, inp_b_axis, out_a_axis, out_b_axis, wkld,
+                is_dynamic, dynamic_no_padding);
     } else if (is_not_blocking(input_format)
             && is_not_blocking(output_format)) {
         compute_reorder_stride2stride(graph, ctx, src, dst, input_format,
@@ -2859,33 +2989,43 @@ bool reorder_op_t::support_output_loop() const {
     return get_output_format().is_blocking();
 }
 
-bool reorder_op_t::support_optimized_kernel(const context_ptr &ctx) const {
-    bool is_innermost_dim_strided
-            = info_.inputs_[0]->details_.get_strides().back() != 1
-            || info_.outputs_[0]->details_.get_strides().back() != 1;
-    auto &input_format = info_.inputs_[0]->details_.get_format();
-    auto &output_format = info_.outputs_[0]->details_.get_format();
-
-    auto dtype = info_.inputs_[0]->details_.dtype_;
-    auto input_blocking_shapes_expr = get_blocking_shapes_expr(
-            get_owner_graph(), plain_dims_, input_format);
-    auto output_blocking_shapes_expr = get_blocking_shapes_expr(
-            get_owner_graph(), plain_dims_, output_format);
-    sc_graph_t g;
-    auto toy_inp_tsr = builder::make_tensor(
-            std::string("dummy_inp"), input_blocking_shapes_expr, dtype);
-    auto toy_out_tsr = builder::make_tensor(
-            std::string("dummy_out"), output_blocking_shapes_expr, dtype);
-    auto src = tensor_slice(toy_inp_tsr), dst = tensor_slice(toy_out_tsr);
-
-    std::vector<int> inp_a_axis, inp_b_axis, out_a_axis, out_b_axis;
+#define INIT_REORDER_OP_INFO() \
+    bool is_innermost_dim_strided \
+            = info_.inputs_[0]->details_.get_strides().back() != 1 \
+            || info_.outputs_[0]->details_.get_strides().back() != 1; \
+    auto &input_format = info_.inputs_[0]->details_.get_format(); \
+    auto &output_format = info_.outputs_[0]->details_.get_format(); \
+    auto dtype = info_.inputs_[0]->details_.dtype_; \
+    auto input_blocking_shapes_expr = get_blocking_shapes_expr( \
+            get_owner_graph(), plain_dims_, input_format); \
+    auto output_blocking_shapes_expr = get_blocking_shapes_expr( \
+            get_owner_graph(), plain_dims_, output_format); \
+    sc_graph_t g; \
+    auto toy_inp_tsr = builder::make_tensor( \
+            std::string("dummy_inp"), input_blocking_shapes_expr, dtype); \
+    auto toy_out_tsr = builder::make_tensor( \
+            std::string("dummy_out"), output_blocking_shapes_expr, dtype); \
+    auto src = tensor_slice(toy_inp_tsr), dst = tensor_slice(toy_out_tsr); \
+    std::vector<int> inp_a_axis, inp_b_axis, out_a_axis, out_b_axis; \
     bool is_vnni_reorder = false;
+
+bool reorder_op_t::support_optimized_kernel(const context_ptr &ctx) const {
+    INIT_REORDER_OP_INFO()
     return (!is_innermost_dim_strided
                    && can_be_fast_transpose(ctx, inp_a_axis, inp_b_axis,
                            out_a_axis, out_b_axis, plain_dims_, input_format,
                            output_format, src, dst, dtype, is_dynamic(),
                            info_.cur_impl_ & impl_kind_t::no_padding))
             || can_be_vnni_reorder(ctx, inp_a_axis, inp_b_axis, out_a_axis,
+                    out_b_axis, plain_dims_, input_format, output_format, src,
+                    dst, dtype, is_vnni_reorder, is_dynamic(),
+                    info_.cur_impl_ & impl_kind_t::no_padding);
+}
+
+bool reorder_op_t::meet_vnni_reorder_require(const context_ptr &ctx) const {
+    INIT_REORDER_OP_INFO()
+    return !is_innermost_dim_strided
+            && can_be_vnni_reorder(ctx, inp_a_axis, inp_b_axis, out_a_axis,
                     out_b_axis, plain_dims_, input_format, output_format, src,
                     dst, dtype, is_vnni_reorder, is_dynamic(),
                     info_.cur_impl_ & impl_kind_t::no_padding);

@@ -55,7 +55,11 @@ static sc_data_format_kind_t ABDCcdc {0, 1, 3, 2, 2, 3, 2};
 static sc_data_format_t ABDCcd2c(int c, int d) {
     return sc_data_format_t(ABDCcdc, {c, d, 2});
 }
-
+static sc_data_format_kind_t ABCbabc {0, 1, 2, 1, 0, 1, 2};
+static sc_data_format_t ABCba2bc(int a, int b, int c) {
+    return sc_data_format_t(ABCbabc, {b, a, 2, c});
+}
+static sc_data_format_kind_t ABCabc {0, 1, 2, 0, 1, 2};
 template <typename T>
 static void compute_elementwise_add(T *src_m1, T *src_m2, sc_dims dims,
         T *dst_m = nullptr, bool inplace = true, char op = '+') {
@@ -686,6 +690,69 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder22) {
             sc_data_format_t::NKkn4k(16, 32), sc_data_type_t::u8(), true, false,
             [](test_buffer<uint8_t> &input) {
                 return KN2NKkn(input, 1, 4, 16, 32, 64, 15, 4);
+            });
+}
+
+TEST(GCCore_vnni_reorder_test, TestVNNIReorder23) {
+    REQUIRE_AVX512VBMI()
+    check<uint8_t>({64, 64, 1, 1}, sc_data_format_t::KCRS(),
+            sc_data_format_t::KCRSck4c(32, 32), sc_data_type_t::u8(), true,
+            false, [](test_buffer<uint8_t> &input) {
+                return KCRS2KCRSckc(input, 2, 2, 1, 1, 8, 32, 4);
+            });
+}
+
+TEST(GCCore_vnni_reorder_test, TestVNNIReorder25) {
+    REQUIRE_AVX512()
+    check<uint8_t>({64, 64, 2, 1}, sc_data_format_t::KCRS(),
+            sc_data_format_t::KCRSck4c(32, 32), sc_data_type_t::u8(), false,
+            false, [](test_buffer<uint8_t> &input) {
+                return KCRS2KCRSckc(input, 2, 2, 2, 1, 8, 32, 4);
+            });
+}
+
+TEST(GCCore_vnni_reorder_test, TestVNNIReorder26) {
+    REQUIRE_AVX512VBMI()
+    check<bf16_t>({16, 128, 1}, sc_data_format_t(format_kinds::ABC),
+            ABCba2bc(16, 16, 1), sc_data_type_t::bf16(), true, true,
+            [](test_buffer<bf16_t> &input) {
+                return ABC2ABCbac(input, 1, 8, 1, 16, 16, 1, 16, 128, 1, 2);
+            });
+}
+
+TEST(GCCore_vnni_reorder_test, TestVNNIReorder27) {
+    REQUIRE_AVX512()
+    check<bf16_t>({16, 128, 8}, sc_data_format_t(format_kinds::ABC),
+            ABCba2bc(16, 16, 8), sc_data_type_t::bf16(), false, true,
+            [](test_buffer<bf16_t> &input) {
+                return ABC2ABCbac(input, 1, 8, 1, 16, 16, 8, 16, 128, 8, 2);
+            });
+}
+
+TEST(GCCore_vnni_reorder_test, TestVNNIReorder28) {
+    REQUIRE_AVX512VBMI()
+    check<bf16_t>({16, 128, 1}, sc_data_format_t(format_kinds::ABC),
+            sc_data_format_t(ABCabc, {16, 2, 1}), sc_data_type_t::bf16(), true,
+            true, [](test_buffer<bf16_t> &input) {
+                return ABC2ABCabc(input, 1, 64, 1, 16, 2, 1, 16, 128, 1);
+            });
+}
+
+TEST(GCCore_vnni_reorder_test, TestVNNIReorder29) {
+    REQUIRE_AVX512VBMI()
+    check<bf16_t>({16, 128, 16}, sc_data_format_t(format_kinds::ABC),
+            sc_data_format_t(ABCabc, {16, 4, 2}), sc_data_type_t::bf16(), true,
+            true, [](test_buffer<bf16_t> &input) {
+                return ABC2ABCabc(input, 1, 32, 8, 16, 4, 2, 16, 128, 16);
+            });
+}
+
+TEST(GCCore_vnni_reorder_test, TestVNNIReorder30) {
+    REQUIRE_AVX512()
+    check<bf16_t>({16, 128, 16}, sc_data_format_t(format_kinds::ABC),
+            sc_data_format_t(ABCabc, {16, 4, 4}), sc_data_type_t::bf16(), false,
+            true, [](test_buffer<bf16_t> &input) {
+                return ABC2ABCabc(input, 1, 32, 4, 16, 4, 4, 16, 128, 16);
             });
 }
 

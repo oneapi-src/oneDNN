@@ -185,6 +185,126 @@ T KN2NKkn(T &input, int N, int K, int k, int n, int origin_k = 0,
     return output;
 }
 template <typename T>
+T ABC2ABCbcb(T &input, int A, int B, int C, int b, int c, int origin_A,
+        int origin_B, int origin_C) {
+    const int dtype_block = 1;
+    T output(test_utils::product({A, B, C, b, c, dtype_block}));
+    int dim6 = B * C * b * c * dtype_block, dim5 = C * b * c * dtype_block,
+        dim4 = b * c * dtype_block, dim3 = c * dtype_block;
+    for (auto a_o = 0; a_o < A; ++a_o) {
+        for (auto b_o = 0; b_o < B; ++b_o)
+            for (auto c_o = 0; c_o < C; ++c_o)
+                for (auto b_i = 0; b_i < b; ++b_i) {
+                    for (auto c_i = 0; c_i < c; ++c_i) {
+                        if ((c_o * c + c_i < origin_C)
+                                && (b_o * b + b_i) < origin_B) {
+                            auto input_idx = (b_o * b + b_i) * origin_C
+                                    + (c_o * c + c_i)
+                                    + (a_o) * (origin_C * origin_B);
+                            output[a_o * dim6 + b_o * dim5 + c_o * dim4
+                                    + b_i * dim3 + c_i]
+                                    = input[input_idx];
+                        } else {
+                            output[a_o * dim6 + b_o * dim5 + c_o * dim4
+                                    + b_i * dim3 + c_i]
+                                    = 0;
+                        }
+                    }
+                }
+    }
+    return output;
+}
+template <typename T>
+T ABCbcb2ABC(T &input, int A, int B, int C, int b, int c, int origin_A,
+        int origin_B, int origin_C) {
+    const int dtype_block = 1;
+    T output(test_utils::product({A, B, C, b, c, dtype_block}));
+    int dim6 = B * C * b * c * dtype_block, dim5 = C * b * c * dtype_block,
+        dim4 = b * c * dtype_block, dim3 = c * dtype_block;
+    for (auto a_o = 0; a_o < A; ++a_o) {
+        for (auto b_o = 0; b_o < B; ++b_o)
+            for (auto c_o = 0; c_o < C; ++c_o)
+                for (auto b_i = 0; b_i < b; ++b_i) {
+                    for (auto c_i = 0; c_i < c; ++c_i) {
+                        if ((c_o * c + c_i < origin_C)
+                                && (b_o * b + b_i) < origin_B) {
+                            auto output_idx = (b_o * b + b_i) * origin_C
+                                    + (c_o * c + c_i)
+                                    + (a_o) * (origin_C * origin_B);
+                            auto input_idx = a_o * dim6 + b_o * dim5
+                                    + c_o * dim4 + b_i * dim3 + c_i;
+                            output[output_idx] = input[input_idx];
+                        } else {
+                            auto output_idx = (b_o * b + b_i) * origin_C
+                                    + (c_o * c + c_i)
+                                    + (a_o) * (origin_C * origin_B);
+                            output[output_idx] = 0;
+                        }
+                    }
+                }
+    }
+    return output;
+}
+template <typename T>
+T ABCD2BACD(T &input, int B, int A, int C, int D, int origin_A, int origin_B,
+        int origin_C, int origin_D) {
+    T output(test_utils::product({B, A, C, D}));
+    int dim1 = origin_D, dim2 = origin_C * dim1, dim3 = origin_B * dim2;
+    for (auto a_o = 0; a_o < A; ++a_o) {
+        for (auto b_o = 0; b_o < B; ++b_o)
+            for (auto c_o = 0; c_o < C; ++c_o)
+                for (auto d_o = 0; d_o < D; ++d_o) {
+                    if ((c_o < origin_C) && b_o < origin_B && a_o < origin_A
+                            && d_o < origin_D) {
+                        auto output_idx = b_o * (origin_A * origin_C * origin_D)
+                                + a_o * (origin_C * origin_D) + c_o * (origin_D)
+                                + d_o;
+                        auto input_idx
+                                = a_o * dim3 + b_o * dim2 + c_o * dim1 + d_o;
+                        output[output_idx] = input[input_idx];
+                    } else {
+                        auto output_idx = b_o * (origin_A * origin_C * origin_D)
+                                + a_o * (origin_C * origin_D) + c_o * (origin_D)
+                                + d_o;
+                        output[output_idx] = 0;
+                    }
+                }
+    }
+    return output;
+}
+template <typename T>
+T ABab2BAab(T &input, int B, int A, int a, int b, int origin_A, int origin_B,
+        int origin_a, int origin_b) {
+    T output(test_utils::product({B, A, a, b}));
+    int plain_A = origin_A * origin_a;
+    int plain_B = origin_B * origin_b;
+    for (auto b_o = 0; b_o < B; ++b_o) {
+        for (auto a_o = 0; a_o < A; ++a_o)
+            for (auto a_i = 0; a_i < a; ++a_i)
+                for (auto b_i = 0; b_i < b; ++b_i) {
+                    if ((a_o * a + a_i) < plain_A
+                            && (b_o * b + b_i) < plain_B) {
+                        auto output_idx = b_o * (A * a * b) + a_o * (a * b)
+                                + a_i * b + b_i;
+                        int cur_b_o = (b_o * b + b_i) / origin_b;
+                        int cur_a_o = (a_o * a + a_i) / origin_a;
+                        int cur_b_i = (b_o * b + b_i) % origin_b;
+                        int cur_a_i = (a_o * a + a_i) % origin_a;
+                        auto input_idx
+                                = cur_a_o * (origin_B * origin_a * origin_b)
+                                + cur_b_o * (origin_a * origin_b)
+                                + cur_a_i * origin_b + cur_b_i;
+                        output[output_idx] = input[input_idx];
+                    } else {
+                        auto output_idx = b_o * (A * a * b) + a_o * (a * b)
+                                + a_i * b + b_i;
+                        output[output_idx] = 0;
+                    }
+                }
+    }
+    return output;
+}
+template <typename T>
 T ACBD2ABDCcd(T &input, int A, int B, int D, int C, int c, int d, int origin_A,
         int origin_C, int origin_B, int origin_D, int dtype_block = 1) {
     int pad_c = utils::divide_and_ceil(c, dtype_block);
@@ -193,7 +313,6 @@ T ACBD2ABDCcd(T &input, int A, int B, int D, int C, int c, int d, int origin_A,
         dim5 = C * D * pad_c * d * dtype_block,
         dim4 = C * pad_c * d * dtype_block, dim3 = pad_c * d * dtype_block,
         dim2 = d * dtype_block, dim1 = dtype_block;
-    // #pragma omp parallel for
     for (auto a_o = 0; a_o < A; ++a_o) {
         for (auto b_o = 0; b_o < B; ++b_o)
             for (auto d_o = 0; d_o < D; ++d_o) {
@@ -239,7 +358,6 @@ T ADBC2ABDCcd(T &input, int A, int B, int D, int C, int c, int d, int origin_A,
         dim5 = C * D * pad_c * d * dtype_block,
         dim4 = C * pad_c * d * dtype_block, dim3 = pad_c * d * dtype_block,
         dim2 = d * dtype_block, dim1 = dtype_block;
-    // #pragma omp parallel for
     for (auto a_o = 0; a_o < A; ++a_o) {
         for (auto b_o = 0; b_o < B; ++b_o)
             for (auto d_o = 0; d_o < D; ++d_o) {
@@ -286,7 +404,6 @@ T ACBD2ABCDcd(T &input, int A, int B, int C, int D, int c, int d, int origin_A,
         dim5 = C * D * pad_c * d * dtype_block,
         dim4 = D * pad_c * d * dtype_block, dim3 = pad_c * d * dtype_block,
         dim2 = d * dtype_block, dim1 = dtype_block;
-    // #pragma omp parallel for
     for (auto a_o = 0; a_o < A; ++a_o) {
         for (auto b_o = 0; b_o < B; ++b_o)
             for (auto c_o = 0; c_o < C; ++c_o)
@@ -325,6 +442,84 @@ T ACBD2ABCDcd(T &input, int A, int B, int C, int D, int c, int d, int origin_A,
 }
 
 template <typename T>
+T ABC2ABCbac(T &input, int A, int B, int C, int b, int a, int c, int origin_A,
+        int origin_B, int origin_C, int dtype_block = 1) {
+    int pad_b = utils::divide_and_ceil(b, dtype_block);
+    T output(test_utils::product({A, B, C, pad_b, a, c, dtype_block}));
+    int dim5 = B * C * pad_b * a * dtype_block * c,
+        dim4 = C * pad_b * a * dtype_block * c,
+        dim3 = pad_b * a * dtype_block * c, dim2 = a * dtype_block * c,
+        dim1 = dtype_block * c, dim0 = c;
+    for (auto a_o = 0; a_o < A; ++a_o) {
+        for (auto b_o = 0; b_o < B; ++b_o)
+            for (auto c_o = 0; c_o < C; ++c_o)
+                for (auto b_i = 0; b_i < pad_b; ++b_i) {
+                    for (auto a_i = 0; a_i < a; ++a_i) {
+                        for (auto b_b = 0; b_b < dtype_block; ++b_b) {
+                            for (auto c_i = 0; c_i < c; ++c_i) {
+                                if ((b_b + b_i * dtype_block + b_o * b
+                                            < origin_B)
+                                        && (c_o * c + c_i < origin_C)
+                                        && (a_o * a + a_i) < origin_A) {
+                                    auto input_idx = (a_o * a + a_i)
+                                                    * (origin_B) * (origin_C)
+                                            + (b_o * b + b_i * dtype_block
+                                                      + b_b)
+                                                    * (origin_C)
+                                            + c_o * c + c_i;
+                                    output[a_o * dim5 + b_o * dim4 + c_o * dim3
+                                            + b_i * dim2 + a_i * dim1
+                                            + b_b * dim0 + c_i]
+                                            = input[input_idx];
+                                } else {
+                                    output[a_o * dim5 + b_o * dim4 + c_o * dim3
+                                            + b_i * dim2 + a_i * dim1
+                                            + b_b * dim0 + c_i]
+                                            = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+    }
+    return output;
+}
+
+template <typename T>
+T ABC2ABCabc(T &input, int A, int B, int C, int a, int b, int c, int origin_A,
+        int origin_B, int origin_C) {
+    T output(test_utils::product({A, B, C, a, b, c}));
+    int dim4 = B * C * a * b * c, dim3 = C * a * b * c, dim2 = a * b * c,
+        dim1 = b * c, dim0 = c;
+    for (auto a_o = 0; a_o < A; ++a_o) {
+        for (auto b_o = 0; b_o < B; ++b_o)
+            for (auto c_o = 0; c_o < C; ++c_o)
+                for (auto a_i = 0; a_i < a; ++a_i) {
+                    for (auto b_i = 0; b_i < b; ++b_i) {
+                        for (auto c_i = 0; c_i < c; ++c_i) {
+                            if ((b_i + b_o * b < origin_B)
+                                    && (c_o * c + c_i < origin_C)
+                                    && (a_o * a + a_i) < origin_A) {
+                                auto input_idx = (a_o * a + a_i) * (origin_B)
+                                                * (origin_C)
+                                        + (b_o * b + b_i) * (origin_C) + c_o * c
+                                        + c_i;
+                                output[a_o * dim4 + b_o * dim3 + c_o * dim2
+                                        + a_i * dim1 + b_i * dim0 + c_i]
+                                        = input[input_idx];
+                            } else {
+                                output[a_o * dim4 + b_o * dim3 + c_o * dim2
+                                        + a_i * dim1 + b_i * dim0 + c_i]
+                                        = 0;
+                            }
+                        }
+                    }
+                }
+    }
+    return output;
+}
+
+template <typename T>
 T ABDC2ABCDcd(T &input, int A, int B, int C, int D, int c, int d, int origin_A,
         int origin_B, int origin_D, int origin_C, int dtype_block = 1) {
     int pad_c = utils::divide_and_ceil(c, dtype_block);
@@ -333,7 +528,6 @@ T ABDC2ABCDcd(T &input, int A, int B, int C, int D, int c, int d, int origin_A,
         dim5 = C * D * pad_c * d * dtype_block,
         dim4 = D * pad_c * d * dtype_block, dim3 = pad_c * d * dtype_block,
         dim2 = d * dtype_block, dim1 = dtype_block;
-    // #pragma omp parallel for
     for (auto a_o = 0; a_o < A; ++a_o) {
         for (auto b_o = 0; b_o < B; ++b_o)
             for (auto c_o = 0; c_o < C; ++c_o)
@@ -380,7 +574,6 @@ T ABCD2ABDCcd(T &input, int A, int B, int C, int D, int c, int d, int origin_A,
         dim5 = C * D * pad_c * d * dtype_block,
         dim4 = C * pad_c * d * dtype_block, dim3 = pad_c * d * dtype_block,
         dim2 = d * dtype_block, dim1 = dtype_block;
-    // #pragma omp parallel for
     for (auto a_o = 0; a_o < A; ++a_o) {
         for (auto b_o = 0; b_o < B; ++b_o)
             for (auto d_o = 0; d_o < D; ++d_o) {
