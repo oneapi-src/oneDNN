@@ -53,7 +53,6 @@ namespace dnnl_impl {
 
 struct batchnorm_fwd_t : public kernel_base_t {
 private:
-    dnnl::engine p_engine_;
     allocator_t *g_alloc_;
 
     std::shared_ptr<subgraph_t> subgraph_;
