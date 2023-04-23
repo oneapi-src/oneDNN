@@ -98,10 +98,6 @@ typedef std::function<void(dnnl::stream &,
         const std::vector<dnnl::graph::tensor> &outputs)>
         perf_function_t;
 
-// engine used for graph lib, graph lib engine needs allocator to allocate
-// memory for constant cache, scratchpad.
-const dnnl::engine get_graph_engine();
-
 struct cpu_deletor {
     cpu_deletor() = default;
     void operator()(void *ptr) {
@@ -276,6 +272,26 @@ private:
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(cpp_stream_t);
     dnnl::stream stream_;
 };
+
+// engine used for graph lib, graph lib engine needs allocator to allocate
+// memory for constant cache, scratchpad.
+struct cpp_engine_t {
+    cpp_engine_t();
+    dnnl::engine::kind get_kind() const { return engine_.get_kind(); }
+    operator dnnl::engine &() { return engine_; }
+    operator const dnnl::engine &() const { return engine_; }
+
+private:
+    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(cpp_engine_t);
+    dnnl::engine engine_;
+};
+
+// engine used for graph lib, graph lib engine needs allocator to allocate
+// memory for constant cache, scratchpad.
+inline const cpp_engine_t &get_graph_engine() {
+    static const cpp_engine_t instance;
+    return instance;
+}
 
 } // namespace graph
 #endif

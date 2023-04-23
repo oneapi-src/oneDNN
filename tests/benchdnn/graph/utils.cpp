@@ -280,49 +280,6 @@ bool is_sycl_engine() {
     return false;
 }
 
-// engine used for graph lib, graph lib engine needs allocator to allocate
-// memory for constant cache, scratchpad.
-const dnnl::engine get_graph_engine() {
-    if (is_cpu()) {
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
-        static dnnl::graph::allocator sycl_allocator {
-                dnnl::graph::sycl_interop::make_allocator(
-                        sycl_malloc_wrapper, sycl_free_wrapper)};
-        static dnnl::engine eng
-                = dnnl::graph::sycl_interop::make_engine_with_allocator(
-                        {dnnl::sycl_interop::get_device(
-                                dnnl::engine {::get_test_engine(), true})},
-                        {dnnl::sycl_interop::get_context(
-                                dnnl::engine {::get_test_engine(), true})},
-                        sycl_allocator);
-#else
-        static dnnl::graph::allocator alloc {};
-        static dnnl::engine eng
-                = make_engine_with_allocator(dnnl::engine::kind::cpu,
-                        static_cast<size_t>(engine_index), alloc);
-#endif
-        return eng;
-    } else {
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-        static dnnl::graph::allocator sycl_allocator {
-                dnnl::graph::sycl_interop::make_allocator(
-                        sycl_malloc_wrapper, sycl_free_wrapper)};
-        static dnnl::engine eng
-                = dnnl::graph::sycl_interop::make_engine_with_allocator(
-                        {dnnl::sycl_interop::get_device(
-                                dnnl::engine {::get_test_engine(), true})},
-                        {dnnl::sycl_interop::get_context(
-                                dnnl::engine {::get_test_engine(), true})},
-                        sycl_allocator);
-#else
-        assert(!"GPU only support DPCPP runtime now");
-        dnnl::engine eng {
-                dnnl::engine::kind::gpu, static_cast<size_t>(engine_index)};
-#endif
-        return eng;
-    }
-}
-
 dnnl::graph::op::kind opstr2kind(const std::string &kind) {
     const std::unordered_map<std::string, dnnl::graph::op::kind> op_map = {
             {"Abs", dnnl::graph::op::kind::Abs},
@@ -1392,4 +1349,27 @@ cpp_stream_t::cpp_stream_t(const dnnl::engine &eng, void *interop_obj) {
     stream_ = dnnl::stream {eng};
 }
 
+cpp_engine_t::cpp_engine_t() {
+    if (is_cpu()) {
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
+        static dnnl::graph::allocator alloc {
+                dnnl::graph::sycl_interop::make_allocator(
+                        sycl_malloc_wrapper, sycl_free_wrapper)};
+#else
+        static dnnl::graph::allocator alloc {};
+#endif
+        engine_ = make_engine_with_allocator(dnnl::engine::kind::cpu,
+                static_cast<size_t>(engine_index), alloc);
+    } else {
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+        static dnnl::graph::allocator alloc {
+                dnnl::graph::sycl_interop::make_allocator(
+                        sycl_malloc_wrapper, sycl_free_wrapper)};
+        engine_ = make_engine_with_allocator(dnnl::engine::kind::gpu,
+                static_cast<size_t>(engine_index), alloc);
+#else
+        assert(!"GraphAPI GPU only support DPCPP runtime now");
+#endif
+    }
+}
 } // namespace graph
