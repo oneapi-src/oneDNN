@@ -679,8 +679,9 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
     bool channel_last_support = false;
     if (!is_1d) {
         auto kh = weight_plain_dims[ndims_ - 2];
-        auto kw = weight_plain_dims[ndims_ - 1];
-        channel_last_support = (kh == 1 || kw == 1)
+        auto is_1x1 = std::all_of(weight_plain_dims.begin() + 2,
+                weight_plain_dims.end(), [](int x) { return x == 1; });
+        channel_last_support = is_1x1
                 || (ops::is_amx_dtype(ctx, src_dtype)
                         && (kh - 1) * dilation_dims[1] + 1
                                 < input_plain_dims[input_plain_dims.size()

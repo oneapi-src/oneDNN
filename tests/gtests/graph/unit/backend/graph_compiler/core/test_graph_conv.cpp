@@ -104,6 +104,29 @@ TEST(GCCore_graph_conv_test, TestGraphConvolutionNXCXIO) {
     EXPECT_EQ(ss.str(), expected_graph);
 }
 
+TEST(GCCore_graph_conv_test, TestGraphConvolution7x1) {
+    int N = 112, IC = 128, OC = 128, H = 12, W = 12, R = 7, S = 1;
+    sc_dims input_dims {N, H, W, IC};
+    sc_dims filter_dims {R, S, IC, OC};
+    sc_dims output_dims {N, H, W, OC};
+    auto ins0 = graph_tensor::make(
+            input_dims, sc_data_format_t(format_kinds::ABCD));
+    auto ins1 = graph_tensor::make(
+            filter_dims, sc_data_format_t(format_kinds::ABCD));
+    auto ins2 = graph_tensor::make({OC});
+
+    std::unordered_map<std::string, any_t> attrs = {{"strides", sc_dims {1, 1}},
+            {"pads_begin", sc_dims {3, 0}}, {"pads_end", sc_dims {3, 0}}};
+
+    sc_graph_t graph;
+    auto in = graph.make_input({ins0, ins1, ins2});
+    auto conv = graph.make("conv_fwd", in->get_outputs(), {}, any_map_t(attrs));
+    auto out = graph.make_output(conv->get_outputs());
+    // The conv1d graph is different from the reference
+    graph.attrs_["no_conv1d"] = true;
+    graph_driver(graph, get_test_ctx());
+}
+
 TEST(GCCore_graph_conv_test, TestGraphConvolutionWithDilation) {
     int N = 64, IC = 16, OC = 64, H = 32, W = 32, R = 3, S = 3, dilation = 2;
     sc_dims input_dims {N, H, W, IC};
