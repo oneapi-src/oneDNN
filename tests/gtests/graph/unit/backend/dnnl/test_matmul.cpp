@@ -4507,7 +4507,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
     std::vector<std::vector<int64_t>> weight_shapes {{4, 2}};
     std::vector<std::vector<int64_t>> dst_shapes {
             {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {2}};
-    std::vector<float> scales = {1 / 127.f};
+    std::vector<float> scales = {1.f, 1 / 127.f};
     std::vector<int64_t> zps = {0, 110};
     for_(const auto &scale : scales)
     for_(const auto &zp : zps)
