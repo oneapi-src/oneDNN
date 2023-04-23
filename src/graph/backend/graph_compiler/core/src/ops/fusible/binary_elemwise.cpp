@@ -79,7 +79,7 @@ std::vector<int> binary_elementwise_op_impl_t::infer_broadcast_axis() const {
         for (int64_t j = bc_dims.size() - 1; j >= 0; j--) {
             while (i >= 1) {
                 i--;
-                if (elt_dims.at(i) == bc_dims.at(j)) {
+                if (elt_dims.at(i) == bc_dims.at(j) || bc_dims.at(j) == 1) {
                     common_axis.at(i) = 1;
                     break;
                 }

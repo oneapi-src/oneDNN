@@ -169,6 +169,10 @@ TEST(GCCore_binary_elementwise_test, TestCorrectnessNonBlocking) {
     check_broadcast_correctness({2, 3, 5, 7}, {2, 1, 1, 7},
             sc_data_format_t(format_kinds::ACBD),
             sc_data_format_t(sc_data_format_kind_t(3, 0, 2, 1)));
+    // 3D + 4D
+    check_broadcast_correctness({96, 1, 1}, {2, 96, 56, 56},
+            sc_data_format_t(sc_data_format_kind_t(0, 1, 2)),
+            sc_data_format_t(sc_data_format_kind_t(0, 1, 2, 3)));
 }
 
 TEST(GCCore_binary_elementwise_test, TestCorrectnessSingleSideBlockingLHS) {
