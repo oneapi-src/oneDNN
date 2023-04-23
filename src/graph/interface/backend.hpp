@@ -108,9 +108,6 @@ public:
     virtual status_t get_partitions(graph_t &agraph, partition_policy_t policy)
             = 0;
 
-    /// Register the pointer of created backend instance to oneDNN Graph
-    static backend *register_backend(const backend *abackend);
-
     /// Check if a backend supports a specific engine kind
     virtual bool support_engine_kind(engine_kind_t kind) const = 0;
 
@@ -134,7 +131,6 @@ public:
         return inst;
     }
 
-    // Will be used in backend class's @register_backend method
     backend *register_backend(const backend *abackend) {
         auto has_colliding_name = [&](const backend *backend) {
             return backend->get_name().compare(abackend->get_name()) == 0;

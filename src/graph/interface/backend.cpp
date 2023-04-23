@@ -23,9 +23,6 @@
 namespace dnnl {
 namespace impl {
 namespace graph {
-backend *backend::register_backend(const backend *abackend) {
-    return backend_registry_t::get_singleton().register_backend(abackend);
-}
 
 std::pair<size_t, size_t> backend_registry_t::decode_layout_id(
         size_t layout_id) {
