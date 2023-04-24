@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ status_t ocl_gpu_device_info_t::init_arch(engine_t *engine) {
     OCL_CHECK(err);
 
     init_gpu_hw_info(engine, device, context, gpu_arch_, stepping_id_,
-            mayiuse_ngen_kernels_);
+            mayiuse_systolic_, mayiuse_ngen_kernels_);
 
     err = clReleaseContext(context);
     OCL_CHECK(err);
@@ -129,7 +129,8 @@ status_t ocl_gpu_device_info_t::init_extensions(engine_t *engine) {
     }
 
     // Handle future extensions, not yet supported by the OpenCL API
-    extensions_ |= (uint64_t)get_future_extensions(gpu_arch());
+    extensions_
+            |= (uint64_t)get_future_extensions(gpu_arch(), mayiuse_systolic());
 
     return status::success;
 }

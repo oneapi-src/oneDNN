@@ -186,7 +186,8 @@ struct runtime_version_t {
 };
 
 // Needed workaround for future HW extensions
-uint64_t get_future_extensions(compute::gpu_arch_t gpu_arch);
+uint64_t get_future_extensions(
+        compute::gpu_arch_t gpu_arch, bool mayiuse_systolic);
 
 struct device_info_t {
 public:
@@ -242,6 +243,8 @@ public:
 
     bool mayiuse_ngen_kernels() const { return mayiuse_ngen_kernels_; }
 
+    bool mayiuse_systolic() const { return mayiuse_systolic_; }
+
     bool mayiuse_non_uniform_work_groups() const {
         return mayiuse_non_uniform_work_groups_;
     }
@@ -273,6 +276,7 @@ protected:
 
     compute::gpu_arch_t gpu_arch_ = compute::gpu_arch_t::unknown;
     int stepping_id_ = 0;
+    bool mayiuse_systolic_ = false;
     bool mayiuse_ngen_kernels_ = false;
 
     std::string name_;

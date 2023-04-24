@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,7 +51,8 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
         OCL_CHECK(err);
 
         gpu::ocl::init_gpu_hw_info(engine, ocl_dev_wrapper, ocl_ctx_wrapper,
-                gpu_arch_, stepping_id_, mayiuse_ngen_kernels_);
+                gpu_arch_, stepping_id_, mayiuse_systolic_,
+                mayiuse_ngen_kernels_);
     } else if (be == backend_t::level0) {
         // TODO: add support for L0 binary ngen check
         // XXX: query from ocl_engine for now
@@ -68,6 +69,7 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
         auto *dev_info = compute_engine->device_info();
         gpu_arch_ = dev_info->gpu_arch();
         stepping_id_ = dev_info->stepping_id();
+        mayiuse_systolic_ = dev_info->mayiuse_systolic();
         mayiuse_ngen_kernels_ = dev_info->mayiuse_ngen_kernels();
     } else {
         assert(!"not_expected");
@@ -107,7 +109,8 @@ status_t sycl_device_info_t::init_extensions(engine_t *engine) {
     extensions_ = compat::init_extensions(device);
 
     // Handle future extensions, not yet supported by the DPC++ API
-    extensions_ |= (uint64_t)get_future_extensions(gpu_arch());
+    extensions_
+            |= (uint64_t)get_future_extensions(gpu_arch(), mayiuse_systolic());
 
     return status::success;
 }

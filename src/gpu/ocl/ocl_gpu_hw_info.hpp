@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ namespace gpu {
 namespace ocl {
 
 void init_gpu_hw_info(engine_t *engine, cl_device_id device, cl_context context,
-        compute::gpu_arch_t &gpu_arch, int &stepping_id,
+        compute::gpu_arch_t &gpu_arch, int &stepping_id, bool &mayiuse_systolic,
         bool &mayiuse_ngen_kernels);
 
 } // namespace ocl

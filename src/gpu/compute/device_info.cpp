@@ -29,7 +29,8 @@ namespace impl {
 namespace gpu {
 namespace compute {
 
-uint64_t get_future_extensions(compute::gpu_arch_t gpu_arch) {
+uint64_t get_future_extensions(
+        compute::gpu_arch_t gpu_arch, bool mayiuse_systolic) {
     using namespace compute;
 
     uint64_t extensions = 0;
@@ -40,18 +41,20 @@ uint64_t get_future_extensions(compute::gpu_arch_t gpu_arch) {
         case gpu_arch_t::xe_hpg:
         case gpu_arch_t::xe_hpc:
             extensions |= (uint64_t)device_ext_t::intel_global_float_atomics;
-            extensions |= (uint64_t)
-                    device_ext_t::intel_subgroup_matrix_multiply_accumulate;
-            extensions |= (uint64_t)device_ext_t::
-                    intel_subgroup_split_matrix_multiply_accumulate;
             extensions
                     |= (uint64_t)device_ext_t::intel_variable_eu_thread_count;
-            extensions |= (uint64_t)device_ext_t::future_bf16_cvt;
         case gpu_arch_t::xe_lp:
             extensions |= (uint64_t)device_ext_t::intel_subgroup_local_block_io;
             extensions |= (uint64_t)device_ext_t::intel_dot_accumulate;
             break;
         case gpu_arch_t::unknown: break;
+    }
+    if (mayiuse_systolic) {
+        extensions |= (uint64_t)
+                device_ext_t::intel_subgroup_matrix_multiply_accumulate;
+        extensions |= (uint64_t)
+                device_ext_t::intel_subgroup_split_matrix_multiply_accumulate;
+        extensions |= (uint64_t)device_ext_t::future_bf16_cvt;
     }
     return extensions;
 }
@@ -202,6 +205,7 @@ status_t device_info_t::init_serialized_device_info(
     serialized_device_info_.write(&max_wg_size_);
     serialized_device_info_.write(&llc_cache_size_);
     serialized_device_info_.write(&extensions_);
+    serialized_device_info_.write(&mayiuse_systolic_);
     serialized_device_info_.write(&mayiuse_ngen_kernels_);
     serialized_device_info_.write(&mayiuse_non_uniform_work_groups_);
 
@@ -237,6 +241,7 @@ status_t device_info_t::init_from_cache_blob(
     DESERIALIZE(max_wg_size_, size_t);
     DESERIALIZE(llc_cache_size_, size_t);
     DESERIALIZE(extensions_, uint64_t);
+    DESERIALIZE(mayiuse_systolic_, bool);
     DESERIALIZE(mayiuse_ngen_kernels_, bool);
     DESERIALIZE(mayiuse_non_uniform_work_groups_, bool);
 #undef DESERIALIZE
