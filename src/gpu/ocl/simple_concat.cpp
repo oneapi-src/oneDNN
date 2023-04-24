@@ -45,10 +45,14 @@ std::vector<int> get_ordered_dim_idxs(const memory_desc_wrapper &mdw) {
     return idxs;
 }
 
-// Returns true if two sets of data have the same order of axis (i.e. the
-// strides are ordered by the same permutation) and the layout is dense except
-// possibly exterior to the concat dimension.
-bool is_striding_ok(const std::vector<int> &idxs,
+enum class striding_t {
+    mismatched, // Formats are incompatible
+    sparse, // Dimensions have additional striding
+    partitioned, // Striding between concat dim and exterior dimensions
+    dense
+};
+
+striding_t striding_type(const std::vector<int> &idxs,
         const memory_desc_wrapper &mdw, int concat_dim) {
     const auto ndims = mdw.ndims();
 
@@ -64,42 +68,53 @@ bool is_striding_ok(const std::vector<int> &idxs,
     // Check that the order specified by idxs matches the src tensor
     const auto &padded_dims = mdw.padded_dims();
     bool allow_larger_stride = false;
+    dim_t last_stride = exp_stride;
+    striding_t striding = striding_t::dense;
     for (auto idx : idxs) {
         auto stride = blkg.strides[idx];
-        if (stride < exp_stride) return false;
-        if (stride > exp_stride && !allow_larger_stride) return false;
-        auto step = utils::div_up(padded_dims[idx], blocks[idx]);
-        exp_stride = stride * step;
+        if (stride < last_stride) return striding_t::mismatched;
+        if (stride < exp_stride) return striding_t::sparse;
+        if (stride > exp_stride) {
+            if (!allow_larger_stride) return striding_t::sparse;
+            striding = striding_t::partitioned;
+        }
+        last_stride = stride;
+        exp_stride = stride * (padded_dims[idx] / blocks[idx]);
         allow_larger_stride = idx == concat_dim;
     }
-    return true;
+    return striding;
+}
+
+// Returns true if two sets of data have the same order of axis (i.e. the
+// strides are ordered by the same permutation) and the layout is dense except
+// possibly exterior to the concat dimension.
+bool is_striding_ok(striding_t striding) {
+    return utils::one_of(striding, striding_t::dense, striding_t::partitioned);
 }
 
 struct prb_info_t {
     static constexpr dim_t max_block_size = 1024;
-    static constexpr int scattered_message_penalty = 4;
+    static constexpr int scattered_message_penalty = 2;
 
     int simd;
     int type_size;
     int block;
     int messages;
 
-    prb_info_t(int simd, int hw_threads, int type_size, dim_t inner_size,
-            dim_t outer_elems)
+    prb_info_t(int simd, int type_size, dim_t max_elems, dim_t max_read_size,
+            dim_t inner_size, dim_t outer_elems)
         : simd(simd), type_size(type_size) {
         int best_block = 1;
-        int best_messages = subgroup_messages(simd, best_block, type_size);
-        dim_t inner_elems = inner_size / type_size;
+        int best_messages = subgroup_messages(simd, 1, type_size);
+        const dim_t inner_elems = inner_size / type_size;
         for (int i = 1; i < simd * 32; ++i) {
             dim_t block_size = i * type_size;
             if (block_size > max_block_size) break;
-            if (block_size > inner_size) break;
-            if (inner_elems % i) continue;
-            // From empirical observations on ATSM-512, reduce max block size if
-            // we are already occupying all threads.
-            dim_t reqd_threads = outer_elems * (inner_elems / i);
-            if (reqd_threads > (dim_t)hw_threads
-                    && 2 * block_size > max_block_size)
+            if (block_size > max_read_size) break;
+            if (i > max_elems) break;
+            if (i < inner_elems && inner_elems % i) continue;
+            if (i > inner_elems
+                    && (i % inner_elems || max_read_size % block_size))
                 continue;
             int messages = subgroup_messages(simd, i, type_size);
             if (i * best_messages < best_block * messages) continue;
@@ -171,6 +186,7 @@ static status_t init_conf_common(
     auto common_factor = concat_dim_size;
     int nonempty_inputs = 0;
     bool has_padding = false;
+    bool can_read_past_concat_dim = true;
     for (int i = 0; i < pd->n_inputs(); ++i) {
         const memory_desc_wrapper src_mdw(pd->src_md(i));
 
@@ -189,8 +205,9 @@ static status_t init_conf_common(
         if (!types::blocking_desc_is_equal(*pd->dst_md(), *pd->src_md(i), true))
             return status::unimplemented;
 
-        if (!is_striding_ok(dst_dim_order, src_mdw, concat_dim))
-            return status::unimplemented;
+        striding_t striding = striding_type(dst_dim_order, src_mdw, concat_dim);
+        if (!is_striding_ok(striding)) return status::unimplemented;
+        if (striding != striding_t::dense) can_read_past_concat_dim = false;
 
         const auto &src_blk = src_mdw.blocking_desc();
         const auto step = src_mdw.padded_dims()[concat_dim] / c_blks;
@@ -221,24 +238,25 @@ static status_t init_conf_common(
     conf.inner_axis *= common_factor;
     dim_t inner_size = conf.inner_axis * data_type_size;
     dim_t outer_elems = concat_dim_size * extern_axis;
+    dim_t max_read_size
+            = can_read_past_concat_dim ? inner_size * extern_axis : inner_size;
 
     // TODO: add proper scales support
     const bool has_scales = false;
-    const int hw_threads = device_info->hw_threads();
+    const int eu_count = device_info->eu_count();
     const int max_sg_size = device_info->max_subgroup_size();
+    const dim_t total_elems = conf.inner_axis * concat_dim_size * extern_axis;
+    const dim_t max_elems = std::max((dim_t)1, total_elems / eu_count);
     std::vector<prb_info_t> infos;
     for (int simd : {32, 16, 8, 1}) {
         if (simd > max_sg_size) continue;
+        if (simd > max_elems) continue;
         if (simd > 1 && !compute_engine->mayiuse_sub_group(simd)) continue;
-        if (has_scales) {
-            infos.emplace_back(simd, hw_threads, (int)data_type_size,
-                    inner_size, outer_elems);
-            continue;
-        }
         for (int bytes : {4, 2, 1}) {
+            if (has_scales && bytes < (int)data_type_size) break;
             if (inner_size % bytes) continue;
-            infos.emplace_back(
-                    simd, hw_threads, bytes, inner_size, outer_elems);
+            infos.emplace_back(simd, bytes, max_elems, max_read_size,
+                    inner_size, outer_elems);
         }
     }
     if (infos.empty()) return status::unimplemented;
@@ -252,8 +270,13 @@ static status_t init_conf_common(
     conf.dst_extern_dim_size
             = conf.dst_extern_dim_size * data_type_size / info.type_size;
     conf.block = info.block;
-    conf.gws_d[0] = conf.inner_axis / conf.block * conf.simd;
-    conf.gws_d[1] = extern_axis;
+    if (conf.block < conf.inner_axis) {
+        conf.gws_d[0] = conf.inner_axis / conf.block * conf.simd;
+        conf.gws_d[1] = extern_axis;
+    } else {
+        conf.gws_d[0] = conf.simd;
+        conf.gws_d[1] = extern_axis * conf.inner_axis / conf.block;
+    }
     conf.gws_d[2] = concat_dim_size;
 
     // Bound estimates based on limited empirical evidence
@@ -262,7 +285,9 @@ static status_t init_conf_common(
     if (conf.simd == 1 && conf.gws_d[2] > 64) return status::unimplemented;
     if (conf.simd == 1 && conf.gws_d[1] > extern_axis_bound)
         return status::unimplemented;
-    if (conf.simd > 1 && inner_size < 32) return status::unimplemented;
+    if (conf.inner_axis == 1 && 16 * conf.simd <= conf.block
+            && (size_t)conf.block < conf.gws_d[2])
+        return status::unimplemented;
 
     compute::get_optimal_lws(
             conf.gws_d, conf.lws_d, 3, 0, device_info->gpu_arch());
