@@ -202,7 +202,7 @@ int calculate_max_bcast_block(brgemm_t *brg, const int adj_ld_block2) {
     }
 
     // non-VNNI INT8 dot product required 2 temp vectors
-    if (brg->is_int8 && !brg->has_vnni) max_bcast_block -= 2;
+    if (brg->is_int8 && !brg->has_int8_vnni) max_bcast_block -= 2;
 
     max_bcast_block /= adj_ld_block2;
 
@@ -795,7 +795,7 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
             && utils::one_of(brg->isa_user, isa_undef, avx512_core_amx)
             && mayiuse(avx512_core_amx);
 
-    brg->has_vnni = isa_has_vnni(brg->isa_impl);
+    brg->has_int8_vnni = isa_has_int8_vnni(brg->isa_impl);
 
     set_brg_vmm(brg); // TODO: Investigate if it is really needed here.
     brg->req_s8s8_compensation = brg->is_int8 && !brg->is_int8_tmm

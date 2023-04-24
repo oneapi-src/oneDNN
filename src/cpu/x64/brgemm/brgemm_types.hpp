@@ -255,7 +255,7 @@ struct brgemm_t {
     bool is_f32 = false;
     bool is_bf32 = false;
 
-    bool has_vnni = false;
+    bool has_int8_vnni = false;
 
     bool load_nt_A = false;
     bool load_nt_B = false;

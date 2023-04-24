@@ -53,7 +53,7 @@ struct jit_brgemm_matmul_copy_a_impl_t : public jit_brgemm_matmul_copy_a_t,
                   * tr_typesize_)
         , do_compute_compensation_(conf_->has_zero_point_b)
         , avx512_core_dot_product_(
-                  do_compute_compensation_ && !isa_has_vnni(conf->isa))
+                  do_compute_compensation_ && !isa_has_int8_vnni(conf->isa))
         , k_loop_unroll_(is_ymm_ ? 7 : 16)
         , vmm_copy_idx_(is_ymm_                      ? 13
                           : avx512_core_dot_product_ ? 27
@@ -1189,7 +1189,7 @@ struct jit_brgemm_matmul_copy_b_int8_t : public jit_brgemm_matmul_copy_b_t,
         , do_compute_compensation_(
                   conf->s8s8_compensation_required || conf->has_zero_point_a)
         , avx512_core_dot_product_(
-                  do_compute_compensation_ && !isa_has_vnni(conf->isa))
+                  do_compute_compensation_ && !isa_has_int8_vnni(conf->isa))
         , comp_acc_idx_(is_ymm_                      ? 13
                           : avx512_core_dot_product_ ? 23
                                                      : 25) {}
@@ -2251,7 +2251,7 @@ struct jit_brgemm_matmul_copy_b_transposed_t
         , req_zp_comp_(conf_->has_zero_point_a)
         , req_s8s8_comp_(conf_->s8s8_compensation_required)
         , avx512_core_dot_product_(
-                  do_compute_compensation_ && !isa_has_vnni(conf->isa))
+                  do_compute_compensation_ && !isa_has_int8_vnni(conf->isa))
         , max_tmp_idx(16
                   - (avx512_core_dot_product_
                                   ? 8

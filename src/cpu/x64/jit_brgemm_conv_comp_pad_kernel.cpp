@@ -125,7 +125,7 @@ void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::compute(const int ic_step,
             auto addr = is_superset(jcp_.isa, avx512_core)
                     ? EVEX_compress_addr(reg_aux_in, oc_offset)
                     : ptr[reg_aux_in + oc_offset];
-            if (jcp_.has_vnni) {
+            if (jcp_.has_int8_vnni) {
                 vpdpbusd(vmm, vmm_one_bytes, addr,
                         is_superset(jcp_.isa, avx512_core)
                                 ? Xbyak::EvexEncoding
@@ -257,7 +257,7 @@ void jit_uni_brgemm_conv_comp_pad_kernel_t<Vmm>::generate() {
     uni_vpbroadcastd(vmm_zp_shift, reg32_scratch);
 
     const bool is_int8_avx512_core = utils::one_of(jcp_.src_dt, s8, u8)
-            && jcp_.wei_dt == s8 && !jcp_.has_vnni;
+            && jcp_.wei_dt == s8 && !jcp_.has_int8_vnni;
     if (is_int8_avx512_core) {
         mov(reg_tmp.cvt16(), 0x1);
         vpbroadcastw(zmm_one_words, reg_tmp.cvt16());

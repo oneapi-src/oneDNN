@@ -45,7 +45,7 @@ struct jit_brgemm_kernel_t : public jit_generator {
         , brg(abrg)
         , postops_injector_(nullptr)
         , max_effective_vregs(
-                  max_vregs - ((brg.is_int8 && !brg.has_vnni) ? 2 : 0)) {
+                  max_vregs - (brg.is_int8 && !brg.has_int8_vnni ? 2 : 0)) {
 
         // The implementation uses is_superset(), is_subset() utilities.
         // So avoid isa_all, isa_undef in these comparisions.
@@ -1591,7 +1591,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::dot_product(Vmm v1, Vmm v2, Vmm v3) {
     else if (brg.is_int8) {
         if (brg.isa_impl == avx2_vnni_2 && brg.dt_a == data_type::s8)
             vpdpbssd(v1, v3, v2);
-        else if (brg.has_vnni)
+        else if (brg.has_int8_vnni)
             vpdpbusd(v1, v3, v2,
                     is_superset(isa, avx512_core) ? EvexEncoding : VexEncoding);
         else {
@@ -2292,7 +2292,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::generate() {
         kmovq(ld_tail_mask, reg_mask);
     }
 
-    if (brg.is_int8 && !brg.has_vnni) {
+    if (brg.is_int8 && !brg.has_int8_vnni) {
         mov(reg_tmp_gpr.cvt16(), 0x1);
         vpbroadcastw(int8_ones_words(), reg_tmp_gpr.cvt16());
     }

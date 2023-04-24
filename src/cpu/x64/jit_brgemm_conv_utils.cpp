@@ -1914,7 +1914,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     const bool is_signed_input = jcp.src_dt == s8;
     jcp.s8s8_compensation_required = is_signed_input && !isa_has_s8s8(jcp.isa);
-    jcp.has_vnni = isa_has_vnni(jcp.isa);
+    jcp.has_int8_vnni = isa_has_int8_vnni(jcp.isa);
     if (!IMPLICATION(jcp.wei_dt == s8,
                 mayiuse(avx512_core)
                         || one_of(jcp.isa, avx2_vnni, avx2_vnni_2)))
@@ -2229,12 +2229,13 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (jcp.s8s8_compensation_required) {
         weights_md.extra.flags = 0 | memory_extra_flags::compensation_conv_s8s8;
         weights_md.extra.compensation_mask = with_groups ? 0x3 : 0x1;
-        if (!jcp.has_vnni) {
+        if (!jcp.has_int8_vnni) {
             weights_md.extra.flags |= memory_extra_flags::scale_adjust;
             weights_md.extra.scale_adjust = 0.5f;
         }
     }
-    jcp.scale_adjust_factor = (jcp.s8s8_compensation_required && !jcp.has_vnni)
+    jcp.scale_adjust_factor
+            = (jcp.s8s8_compensation_required && !jcp.has_int8_vnni)
             ? 1 / weights_md.extra.scale_adjust
             : 1.0f;
     if (jcp.src_zero_point && !is_amx(jcp.isa)) {
@@ -2462,12 +2463,13 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (jcp.s8s8_compensation_required) {
         weights_md.extra.flags = 0 | memory_extra_flags::compensation_conv_s8s8;
         weights_md.extra.compensation_mask = with_groups ? 0x3 : 0x1;
-        if (!jcp.has_vnni) {
+        if (!jcp.has_int8_vnni) {
             weights_md.extra.flags |= memory_extra_flags::scale_adjust;
             weights_md.extra.scale_adjust = 0.5f;
         }
     }
-    jcp.scale_adjust_factor = (jcp.s8s8_compensation_required && !jcp.has_vnni)
+    jcp.scale_adjust_factor
+            = (jcp.s8s8_compensation_required && !jcp.has_int8_vnni)
             ? 1 / weights_md.extra.scale_adjust
             : 1.0f;
     if (jcp.src_zero_point) {
@@ -2912,8 +2914,6 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
     if (jcp.max_batch == 1
             && everyone_is(0, jcp.f_pad, jcp.back_pad, jcp.t_pad, jcp.b_pad))
         jcp.var_bs = false;
-
-    jcp.has_vnni = true; // Needed for transpose routines
 
     jcp.typesize_in = sizeof(bfloat16_t);
     jcp.typesize_out = sizeof(float);

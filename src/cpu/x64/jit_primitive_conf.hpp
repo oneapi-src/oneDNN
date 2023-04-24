@@ -770,7 +770,7 @@ struct jit_brgemm_conv_conf_t {
 
     int nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b, nthr_oh;
     bool transform_to_vnni;
-    bool has_vnni;
+    bool has_int8_vnni;
     float scale_adjust_factor;
     int ic_tail, oc_tail;
     size_t tr_src_block_size, tr_src_buf_size, tr_src_buf_count;
