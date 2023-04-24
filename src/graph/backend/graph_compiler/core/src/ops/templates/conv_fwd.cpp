@@ -1901,6 +1901,10 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
         }
       }
     }
+    if (fusion) {
+      fusion->create_output_fusion_anchor({tensor_slice(output,
+        {{n, 1}, {0, K_num_block}, {0, oh_}, {0, ow_}, {0, config.K_block}})});
+    }
   }
 }
 
