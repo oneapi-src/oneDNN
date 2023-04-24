@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,288 +14,105 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <float.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "dnnl_common.hpp"
-#include "oneapi/dnnl/dnnl.h"
-
-#include "ip.hpp"
+#include "ip/ip.hpp"
 
 namespace ip {
 
-/* cfgs definition
- * arrays: SRC, WEI, BIA, DST, ACC
- * params: {data_type, min, max, f_min, f_max, f_base, f_sparsity, f_scale, eps}
- */
+cfg_t::cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds) {
+    output_data_kind_ = (prb->dir & FLAG_FWD) ? DST
+            : (prb->dir & FLAG_WEI)           ? WEI
+                                              : SRC;
+    for (const auto kind : kinds) {
+        auto orig_data_type = prb->get_dt(kind);
+        auto data_type = deduce_cfg_data_type(orig_data_type, prb->attr, kind);
+        cfg_entry_.emplace(kind,
+                cfg_entry_t {
+                        kind, orig_data_type, data_type, get_cfg_map(kind)});
+    }
 
-const int int_max_exact = 1 << 24;
-const _dt_conf_t conf_f32 = {
-        {dnnl_f32, -int_max_exact, int_max_exact, -64, 64, 0, .35, 1. / 128,
-                1e-6},
-        {dnnl_f32, -int_max_exact, int_max_exact, -128, 128, 0, 1.0, 1. / 256,
-                1e-6},
-        {dnnl_f32, -int_max_exact, int_max_exact, -10, 10, 0, 1.0, 1. / 64,
-                1e-6},
-        {dnnl_f32, -int_max_exact, int_max_exact, -10, 10, 0, .35, 1. / 64,
-                1e-6},
-        {dnnl_f32},
-};
+    // Use wider dst to test proper u8 loads.
+    const bool is_int8_and_wide_dst = this->get_dt(SRC) == dnnl_u8
+            && dnnl_data_type_size(this->get_dt(WEI)) == 1
+            && dnnl_data_type_size(this->get_dt(DST)) >= 4;
+    if (is_int8_and_wide_dst) { set_range_max(SRC, 160); }
 
-const _dt_conf_t conf_bf16bf16f32 = {
-        {dnnl_bf16, -int_max_exact, int_max_exact, -64, 64, 0, .35, 1. / 128,
-                0},
-        {dnnl_bf16, -int_max_exact, int_max_exact, -128, 128, 0, 1.0, 1. / 256,
-                0},
-        {dnnl_f32, -int_max_exact, int_max_exact, -10, 10, 0, 1.0, 1. / 64, 0},
-        {dnnl_f32, -int_max_exact, int_max_exact, -10, 10, 0, .35, 1. / 64,
-                1e-6},
-        {dnnl_f32},
-};
-
-const _dt_conf_t conf_bf16bf16bf16 = {
-        /* eps is 1e-2 because of loss in precision of
-     * output when converted from fp32 to bf16.
-     * oneDNN output is compared against reference computed in fp32.*/
-        {dnnl_bf16, -int_max_exact, int_max_exact, -64, 64, 0, .35, 1. / 128,
-                1e-2},
-        {dnnl_bf16, -int_max_exact, int_max_exact, -128, 128, 0, 1.0, 1. / 256,
-                1e-2},
-        {dnnl_bf16, -int_max_exact, int_max_exact, -10, 10, 0, 1.0, 1. / 64,
-                1e-2},
-        {dnnl_bf16, -int_max_exact, int_max_exact, -10, 10, 0, .35, 1. / 64,
-                1e-2},
-        {dnnl_f32},
-};
-
-const _dt_conf_t conf_f32bf16bf16 = {
-        {dnnl_f32, -int_max_exact, int_max_exact, -64, 64, 0, .35, 1. / 128,
-                1e-6},
-        {dnnl_bf16, -int_max_exact, int_max_exact, -128, 128, 0, 1.0, 1. / 256,
-                0},
-        {dnnl_bf16, -int_max_exact, int_max_exact, -10, 10, 0, 1.0, 1. / 64, 0},
-        {dnnl_bf16, -int_max_exact, int_max_exact, -10, 10, 0, .35, 1. / 64, 0},
-        {dnnl_f32},
-};
-
-const _dt_conf_t conf_bf16f32bf16 = {
-        {dnnl_bf16, -int_max_exact, int_max_exact, -64, 64, 0, .35, 1. / 128,
-                0},
-        {dnnl_f32, -int_max_exact, int_max_exact, -128, 128, 0, 1.0, 1. / 256,
-                1e-6},
-        {dnnl_f32, -int_max_exact, int_max_exact, -10, 10, 0, 1.0, 1. / 64,
-                1e-6},
-        {dnnl_bf16, -int_max_exact, int_max_exact, -10, 10, 0, .35, 1. / 64, 0},
-        {dnnl_f32},
-};
-
-const int int_max_exact_half = 1 << 11;
-const _dt_conf_t conf_f16 = {
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
-                1e-3},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -2, 2, 0, .35, 1,
-                1e-3},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -8, 8, 0, .35, 1,
-                1e-3},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
-                1e-3},
-        {dnnl_f32},
-};
-
-const _dt_conf_t conf_f16f16f32 = {
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
-                1e-3},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -2, 2, 0, .35, 1,
-                1e-3},
-        {dnnl_f32, -int_max_exact, int_max_exact, -10, 10, 0, 1.0, 1. / 64, 0},
-        {dnnl_f32, -int_max_exact, int_max_exact, -10, 10, 0, .35, 1. / 64,
-                1e-6},
-        {dnnl_f32},
-};
-
-const _dt_conf_t conf_f32f16f16 = {
-        {dnnl_f32, -int_max_exact, int_max_exact, -64, 64, 0, .35, 1. / 128,
-                1e-6},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -2, 2, 0, .35, 1,
-                1e-3},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -8, 8, 0, .35, 1,
-                1e-3},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
-                1e-3},
-        {dnnl_f32},
-};
-
-const _dt_conf_t conf_f16f32f16 = {
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
-                1e-3},
-        {dnnl_f32, -int_max_exact, int_max_exact, -128, 128, 0, 1.0, 1. / 256,
-                1e-6},
-        {dnnl_f32, -int_max_exact, int_max_exact, -10, 10, 0, 1.0, 1. / 64,
-                1e-6},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
-                1e-3},
-        {dnnl_f32},
-};
-
-const _dt_conf_t conf_f16f16s8 = {
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
-                1e-3},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -2, 2, 0, .35, 1,
-                1e-3},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -8, 8, 0, .35, 1,
-                1e-3},
-        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
-        {dnnl_f32},
-};
-
-const _dt_conf_t conf_f16f16u8 = {
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
-                1e-3},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -2, 2, 0, .35, 1,
-                1e-3},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -8, 8, 0, .35, 1,
-                1e-3},
-        {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, .35, 1, 0.},
-        {dnnl_f32},
-};
-
-const _dt_conf_t conf_u8s8f32 = {
-        {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, .35, 1, 0.},
-        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
-        {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
-        {dnnl_f32, -int_max_exact, int_max_exact, -255, 255, 0, .35, 1, 0.},
-        {dnnl_s32},
-};
-
-const _dt_conf_t conf_u8s8s32 = {
-        {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, .35, 1, 0.},
-        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
-        {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
-        {dnnl_s32, INT32_MIN, INT32_MAX, -255, 255, 0, .35, 1, 0.},
-        {dnnl_s32},
-};
-
-const _dt_conf_t conf_u8s8s8 = {
-        {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, .35, 1, 0.},
-        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
-        {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
-        {dnnl_s8, INT8_MIN, INT8_MAX, -127, 127, 0, .35, 1, 0.},
-        {dnnl_s32},
-};
-
-const _dt_conf_t conf_u8s8u8 = {
-        {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, .35, 1, 0.},
-        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
-        {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
-        {dnnl_u8, 0, UINT8_MAX, 0, 255, 0, .35, 1, 0.},
-        {dnnl_s32},
-};
-
-const _dt_conf_t conf_s8s8f32 = {
-        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
-        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
-        {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
-        {dnnl_f32, -int_max_exact, int_max_exact, -255, 255, 0, .35, 1, 0.},
-        {dnnl_s32},
-};
-
-const _dt_conf_t conf_s8s8s32 = {
-        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
-        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
-        {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
-        {dnnl_s32, INT32_MIN, INT32_MAX, -255, 255, 0, .35, 1, 0.},
-        {dnnl_s32},
-};
-
-const _dt_conf_t conf_s8s8s8 = {
-        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
-        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
-        {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
-        {dnnl_s8, INT8_MIN, INT8_MAX, -127, 127, 0, .35, 1, 0.},
-        {dnnl_s32},
-};
-
-const _dt_conf_t conf_s8s8u8 = {
-        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
-        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
-        {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
-        {dnnl_u8, 0, UINT8_MAX, 0, 255, 0, .35, 1, 0.},
-        {dnnl_s32},
-};
-
-const _dt_conf_t conf_u8s8bf16 = {
-        {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, .35, 1, 0.},
-        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
-        {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
-        {dnnl_bf16, -int_max_exact, int_max_exact, -255, 255, 0, .35, 1, 0.},
-        {dnnl_s32},
-};
-
-const _dt_conf_t conf_s8s8bf16 = {
-        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
-        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
-        {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
-        {dnnl_bf16, -int_max_exact, int_max_exact, -255, 255, 0, .35, 1, 0.},
-        {dnnl_s32},
-};
-
-const _dt_conf_t conf_u8s8f16 = {
-        {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, .35, 1, 0.},
-        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
-        {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
-                1e-3},
-        {dnnl_s32},
-};
-
-const _dt_conf_t conf_s8s8f16 = {
-        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
-        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
-        {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
-                1e-3},
-        {dnnl_s32},
-};
-
-const dt_conf_t *str2cfg(const char *str) {
-#define CASE(cfg) \
-    if (!strcasecmp(STRINGIFY(cfg), str)) return CONCAT2(conf_, cfg)
-    CASE(f32);
-    CASE(f16);
-    CASE(f16f16f32);
-    CASE(f32f16f16);
-    CASE(f16f32f16);
-    CASE(f16f16s8);
-    CASE(f16f16u8);
-    CASE(u8s8f32);
-    CASE(u8s8s32);
-    CASE(u8s8s8);
-    CASE(u8s8u8);
-    CASE(s8s8f32);
-    CASE(s8s8s32);
-    CASE(s8s8s8);
-    CASE(s8s8u8);
-    CASE(s8s8bf16);
-    CASE(u8s8bf16);
-    CASE(s8s8f16);
-    CASE(u8s8f16);
-    CASE(bf16bf16f32);
-    CASE(bf16bf16bf16);
-    CASE(f32bf16bf16);
-    CASE(bf16f32bf16);
-#undef CASE
-    []() {
-        SAFE(FAIL, CRIT);
-        return 0;
-    }();
-    return (const dt_conf_t *)1;
+    BENCHDNN_PRINT(6, "%s SRC_%s=[%d;%d] : WEI_%s=[%d;%d]\n", "[FILL_CFG]",
+            dt2str(this->get_dt(SRC)), get_range_min(SRC), get_range_max(SRC),
+            dt2str(this->get_dt(WEI)), get_range_min(WEI), get_range_max(WEI));
 }
 
-std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg) {
-#define CASE(_cfg) \
-    if (cfg == CONCAT2(conf_, _cfg)) return s << STRINGIFY(_cfg)
+// Adjust density based on accumulation chain.
+float cfg_t::get_density(const cfg_t::density_args_t &density_args) const {
+    float density = 1.f;
+    // BWD_D will always use dense tensors. It's fine as long as accumulators
+    // stay in f32 "safe digit" space, otherwise potential result mismatch may
+    // happen.
+    if (!has_bench_mode_bit(mode_bit_t::corr) || density_args.data_kind != SRC)
+        return density;
+
+    const auto safe_n_acc = get_safe_n_acc();
+    assert(safe_n_acc > 0);
+
+    // Bump density for some empiric value for int8 validation to hit saturation
+    // bound.
+    float safe_density = (float)safe_n_acc / density_args.n_acc;
+    if (is_int8()) safe_density *= 3.f;
+    density = MIN2(density, safe_density);
+
+    BENCHDNN_PRINT(6, "%s safe_n_acc=%d density=%f\n", "[FILL_CFG]",
+            (int)safe_n_acc, density);
+
+    return density;
+}
+
+cfg_t::cfg_entry_t::cfg_map_t cfg_t::get_cfg_map(data_kind_t kind) const {
+    static const cfg_t::cfg_entry_t::cfg_map_t src_cfg_map = {
+            {{dnnl_f32}, {-32, 32}},
+            {{dnnl_bf16}, {-4, 4}},
+            {{dnnl_f16}, {-4, 4}},
+            {{dnnl_s8}, {-4, 4}},
+            {{dnnl_u8}, {0, 8}},
+    };
+
+    static const cfg_t::cfg_entry_t::cfg_map_t wei_cfg_map = {
+            {{dnnl_f32}, {-32, 32}},
+            {{dnnl_bf16}, {-8, 8}},
+            {{dnnl_f16}, {-2, 2}},
+            {{dnnl_s8}, {-4, 4}},
+    };
+
+    static const cfg_t::cfg_entry_t::cfg_map_t bia_cfg_map = {
+            {{dnnl_f32}, {-8, 8}},
+            {{dnnl_bf16}, {-8, 8}},
+            {{dnnl_f16}, {-8, 8}},
+            {{dnnl_s8}, {-8, 8}},
+            {{dnnl_u8}, {0, 8}},
+            {{dnnl_s32}, {-8, 8}},
+    };
+
+    static const cfg_t::cfg_entry_t::cfg_map_t dst_cfg_map = {
+            {{dnnl_f32}, {-8, 8}},
+            {{dnnl_bf16}, {-8, 8}},
+            {{dnnl_f16}, {-4, 4}},
+            {{dnnl_s8}, {-4, 4}},
+            {{dnnl_u8}, {0, 160}},
+            {{dnnl_s32}, {-128, 128}},
+    };
+
+    switch (kind) {
+        case SRC: return src_cfg_map;
+        case WEI: return wei_cfg_map;
+        case BIA: return bia_cfg_map;
+        case DST: return dst_cfg_map;
+        default: assert(!"unsupported data kind"); break;
+    }
+    static cfg_t::cfg_entry_t::cfg_map_t dummy;
+    return dummy;
+}
+
+std::string str2cfg(const char *str) {
+#define CASE(cfg) \
+    if (!strcasecmp(STRINGIFY(cfg), str)) return str
     CASE(f32);
     CASE(f16);
     CASE(f16f16f32);
@@ -320,8 +137,65 @@ std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg) {
     CASE(f32bf16bf16);
     CASE(bf16f32bf16);
 #undef CASE
-    SAFE_V(FAIL);
-    return s;
+    BENCHDNN_PRINT(0, "Config name \'%s\' is not supported.\n", str);
+    SAFE_V(CRIT);
+    return std::string();
+}
+
+int handle_legacy_cfg(
+        std::vector<dnnl_data_type_t> &dt, const std::string &cfg) {
+    if (cfg == "f32")
+        dt = {dnnl_f32};
+    else if (cfg == "bf16bf16bf16")
+        dt = {dnnl_bf16};
+    else if (cfg == "f16")
+        dt = {dnnl_f16};
+    else if (cfg == "u8s8f32")
+        dt = {dnnl_u8, dnnl_s8, dnnl_f32};
+    else if (cfg == "u8s8f16")
+        dt = {dnnl_u8, dnnl_s8, dnnl_f16};
+    else if (cfg == "u8s8bf16")
+        dt = {dnnl_u8, dnnl_s8, dnnl_bf16};
+    else if (cfg == "u8s8s32")
+        dt = {dnnl_u8, dnnl_s8, dnnl_s32};
+    else if (cfg == "u8s8s8")
+        dt = {dnnl_u8, dnnl_s8, dnnl_s8};
+    else if (cfg == "u8s8u8")
+        dt = {dnnl_u8, dnnl_s8, dnnl_u8};
+    else if (cfg == "s8s8f32")
+        dt = {dnnl_s8, dnnl_s8, dnnl_f32};
+    else if (cfg == "s8s8f16")
+        dt = {dnnl_s8, dnnl_s8, dnnl_f16};
+    else if (cfg == "s8s8bf16")
+        dt = {dnnl_s8, dnnl_s8, dnnl_bf16};
+    else if (cfg == "s8s8s32")
+        dt = {dnnl_s8, dnnl_s8, dnnl_s32};
+    else if (cfg == "s8s8s8")
+        dt = {dnnl_s8, dnnl_s8, dnnl_s8};
+    else if (cfg == "s8s8u8")
+        dt = {dnnl_s8, dnnl_s8, dnnl_u8};
+    else if (cfg == "f16f16f32")
+        dt = {dnnl_f16, dnnl_f16, dnnl_f32};
+    else if (cfg == "f16f16s8")
+        dt = {dnnl_f16, dnnl_f16, dnnl_s8};
+    else if (cfg == "f16f16u8")
+        dt = {dnnl_f16, dnnl_f16, dnnl_u8};
+    else if (cfg == "bf16bf16f32")
+        dt = {dnnl_bf16, dnnl_bf16, dnnl_f32};
+    else if (cfg == "f32bf16bf16")
+        dt = {dnnl_f32, dnnl_bf16, dnnl_bf16};
+    else if (cfg == "bf16f32bf16")
+        dt = {dnnl_bf16, dnnl_f32, dnnl_bf16};
+    else if (cfg == "f32f16f16")
+        dt = {dnnl_f32, dnnl_f16, dnnl_f16};
+    else if (cfg == "f16f32f16")
+        dt = {dnnl_f16, dnnl_f32, dnnl_f16};
+    else {
+        BENCHDNN_PRINT(0, "Error: Config name \'%s\' is not supported.\n",
+                cfg.c_str());
+        return FAIL;
+    }
+    return OK;
 }
 
 } // namespace ip
