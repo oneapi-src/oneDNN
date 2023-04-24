@@ -368,6 +368,7 @@ std::pair<func_t, func_t> get_brgemm_creator_and_call_func(
 // returns <update, init_update> pair
 std::pair<func_t, func_t> get_brgemm_update_funcs(
         brgemm_mode mode, scflags_t::brgemm_t backend);
+func_t get_brgemm_call_range_func(brgemm_mode mode);
 
 // dynamic query format function evaluation at runtime.
 expr call_matmul_core_query_format(const expr &tb, const expr &out0,

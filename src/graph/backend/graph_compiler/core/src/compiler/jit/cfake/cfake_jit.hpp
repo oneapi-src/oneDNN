@@ -73,10 +73,11 @@ public:
     bool debug_info_;
 
     statics_table_t codegen_to_cpp(std::ostream &os,
-            const const_ir_module_ptr &module, bool generate_wrapper);
+            const_ir_module_ptr &new_mod, const const_ir_module_ptr &module,
+            bool generate_wrapper);
     statics_table_t codegen_to_cpp(std::ostream &os,
-            const const_ir_module_ptr &module, bool generate_wrapper,
-            bool &out_managed_thread_pool,
+            const_ir_module_ptr &new_mod, const const_ir_module_ptr &module,
+            bool generate_wrapper, bool &out_managed_thread_pool,
             c_generator_optional_out_t *optional_out = nullptr);
     std::shared_ptr<jit_module> make_jit_module(
             const_ir_module_ptr module, bool generate_wrapper) override;

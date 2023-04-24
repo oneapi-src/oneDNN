@@ -29,6 +29,7 @@
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/pass_dep_util.hpp>
+#include <runtime/microkernel/cpu/brgemm_range_handle.hpp>
 #include <util/hash_utils.hpp>
 
 SC_MODULE(pass.kernel_lowering_cpu)
@@ -87,11 +88,20 @@ static bool check_arg_range(const std::vector<expr> &args,
     return true;
 }
 
-static std::vector<int64_t> get_brgemm_attrs_key(
-        const sc_brgemm_attrs_t &attrs) {
+static std::vector<int64_t> get_brgemm_attrs_key(const sc_brgemm_attrs_t &attrs,
+        size_t &valid_sz, bool &range_optimize) {
     std::vector<int64_t> key(attr_key::nkeys, 0);
+    valid_sz = 0;
     for (auto &attr : attrs) {
-        key[attr.first] = attr.second;
+        if (attr.first < brgemm::attr_key::nkeys) {
+            valid_sz++;
+            key[attr.first] = attr.second;
+        } else if (utils::is_one_of(attr.first,
+                           brgemm::attr_key::M_range_upper_bound,
+                           brgemm::attr_key::N_range_upper_bound,
+                           brgemm::attr_key::K_range_upper_bound)) {
+            range_optimize = true;
+        }
     }
     return key;
 }
@@ -99,7 +109,9 @@ static std::vector<int64_t> get_brgemm_attrs_key(
 static void validate_brgemm_attrs(const sc_brgemm_attrs_t &brg_attrs,
         const sc_brgemm_bd_mask_t &bd_mask, const int bd_mask_set_num,
         bool &use_bd_mask) {
-    auto keys = get_brgemm_attrs_key(brg_attrs);
+    size_t dummy;
+    bool dummy1;
+    auto keys = get_brgemm_attrs_key(brg_attrs, dummy, dummy1);
     if (keys[attr_key::use_uker]) {
         COMPILE_ASSERT(keys[attr_key::max_bs] > 0,
                 "max_bs should be >0 and valid number for the bs used by "
@@ -119,12 +131,13 @@ static void validate_brgemm_attrs(const sc_brgemm_attrs_t &brg_attrs,
 
 static expr get_brgemm_attrs_arg(const ir_module_ptr &mod,
         const sc_brgemm_attrs_t &attrs,
-        std::unordered_map<std::vector<int64_t>, expr> &cache) {
-    size_t sz = attrs.size();
+        std::unordered_map<std::vector<int64_t>, expr> &cache,
+        bool &range_optimize) {
+    size_t sz;
+    std::vector<int64_t> key = get_brgemm_attrs_key(attrs, sz, range_optimize);
     if (sz == 0) { return get_ir_null(); }
     COMPILE_ASSERT(sz <= attr_key::nkeys,
             "Size of user defined attributes should not exceed nkeys!");
-    std::vector<int64_t> key = get_brgemm_attrs_key(attrs);
     if (cache.find(key) != cache.end()) { return cache[key]; }
     size_t tsr_sz = sz * sizeof(attrs_setting_t::attrs_map_t) + sizeof(int64_t);
     std::vector<char> data(tsr_sz, 0);
@@ -132,7 +145,7 @@ static expr get_brgemm_attrs_arg(const ir_module_ptr &mod,
     setting->num_ = sz;
     int c = 0;
     for (auto &it : attrs) {
-        setting->map_[c++] = it;
+        if (it.first < brgemm::attr_key::nkeys) { setting->map_[c++] = it; }
     }
     auto init = std::make_shared<static_data_t>(data.data(), tsr_sz);
     auto tsr = builder::make_tensor("__brgemm_attrs", {tsr_sz}, datatypes::u8,
@@ -394,6 +407,36 @@ static expr brgemm_run(brgemm_mode mode, scflags_t::brgemm_t backend,
     }
 }
 
+static expr range_brgemm_run(brgemm_mode mode, scflags_t::brgemm_t backend,
+        const expr &cache, const std::vector<expr> &args, bool has_postop) {
+    if (mode == brgemm_mode::stride) {
+        const int expected_num_args = brgemm_args::NUM_FULL_ARGS_STRIDE
+                + brgemm_args::extra_args_offset::nargs;
+        assert(args.size() == expected_num_args + 1);
+        auto run_func = get_brgemm_call_range_func(mode);
+        return run_func(cache, args[brgemm_args::M], args[brgemm_args::N],
+                args[brgemm_args::K], args[brgemm_args::A],
+                args[brgemm_args::B], args[brgemm_args::C],
+                args[brgemm_args::NUM],
+                /*ctx*/ args.back());
+    } else {
+        const int expected_num_args = brgemm_args::NUM_FULL_ARGS_LIST
+                + brgemm_args::extra_args_offset::nargs;
+        assert(args.size() == expected_num_args + 1);
+        auto run_func = get_brgemm_call_range_func(mode);
+        return run_func(cache, args[brgemm_args::M], args[brgemm_args::N],
+                args[brgemm_args::K], args[brgemm_args::A],
+                args[brgemm_args::B], args[brgemm_args::C],
+                args[brgemm_args::NUM], args[brgemm_args::STRIDE_A],
+                args[brgemm_args::STRIDE_B], args[brgemm_args::LEN],
+                args[brgemm_args::NUM_FULL_ARGS_LIST
+                        + brgemm_args::extra_args_offset::dtypeA],
+                args[brgemm_args::NUM_FULL_ARGS_LIST
+                        + brgemm_args::extra_args_offset::dtypeB],
+                /*ctx*/ args.back());
+    }
+}
+
 class kernel_lower_impl_t : public ir_visitor_t {
 public:
     using ir_visitor_t::dispatch;
@@ -421,6 +464,113 @@ public:
             float beta, bool has_postop);
     using run_func_t = expr (*)(brgemm_mode, scflags_t::brgemm_t, const expr &,
             const std::vector<expr> &, bool has_postop);
+
+    expr_c optimize_range_kernel_call(brgemm_mode mode,
+            scflags_t::brgemm_t backend, expr_c v,
+            const std::vector<expr> &args, const std::string &name,
+            run_func_t run_func, const sc_brgemm_attrs_t &brg_attrs, float beta,
+            bool has_postop, bool use_bdmask) {
+        std::vector<expr_c> cached_args;
+        if (backend != scflags_t::brgemm_t::dnnl || has_postop || use_bdmask) {
+            SC_MODULE_INFO << "Cannot optimize the range kernel call: " << v;
+            return v;
+        }
+        auto M_iter = brg_attrs.find(brgemm::attr_key::M_range_upper_bound);
+        auto N_iter = brg_attrs.find(brgemm::attr_key::N_range_upper_bound);
+        auto K_iter = brg_attrs.find(brgemm::attr_key::K_range_upper_bound);
+        if ((M_iter == brg_attrs.end() && !args[brgemm_args::M].isa<constant>())
+                || (N_iter == brg_attrs.end()
+                        && !args[brgemm_args::N].isa<constant>())
+                || (K_iter == brg_attrs.end()
+                        && !args[brgemm_args::K].isa<constant>())) {
+            SC_MODULE_INFO << "Cannot optimize the range kernel call: " << v;
+            return v;
+        }
+        auto M_tail_iter = brg_attrs.find(brgemm::attr_key::M_range_tail_value);
+        auto N_tail_iter = brg_attrs.find(brgemm::attr_key::N_range_tail_value);
+        auto K_tail_iter = brg_attrs.find(brgemm::attr_key::K_range_tail_value);
+        auto get_tail_value
+                = [](const sc_brgemm_attrs_t &m,
+                          const sc_brgemm_attrs_t::const_iterator &tail_it,
+                          bool is_range) {
+                      if (is_range) {
+                          if (tail_it != m.end()) {
+                              return static_cast<int>(tail_it->second);
+                          }
+                          return brg_range_tail_value::dyn_tail;
+                      }
+                      return brg_range_tail_value::no_tail;
+                  };
+        bool is_M_range = M_iter != brg_attrs.end();
+        bool is_N_range = N_iter != brg_attrs.end();
+        bool is_K_range = K_iter != brg_attrs.end();
+        int M_tail_value = get_tail_value(brg_attrs, M_tail_iter, is_M_range);
+        int N_tail_value = get_tail_value(brg_attrs, N_tail_iter, is_N_range);
+        int K_tail_value = get_tail_value(brg_attrs, K_tail_iter, is_K_range);
+        int M_upper_bound = static_cast<int>(is_M_range
+                        ? M_iter->second
+                        : get_expr_as_int(args[brgemm_args::M]));
+        int N_upper_bound = static_cast<int>(is_N_range
+                        ? N_iter->second
+                        : get_expr_as_int(args[brgemm_args::N]));
+        int K_upper_bound = static_cast<int>(is_K_range
+                        ? K_iter->second
+                        : get_expr_as_int(args[brgemm_args::K]));
+        const int expected_cache_org_args = brgemm_args::NUM_BASIC_ARGS_STRIDE;
+        const int expected_cache_extra_start = mode == brgemm_mode::stride
+                ? brgemm_args::NUM_FULL_ARGS_STRIDE
+                : brgemm_args::NUM_FULL_ARGS_LIST;
+        const int expected_cache_extra_args
+                = brgemm_args::extra_args_offset::cache_nargs;
+        // start from lda
+        if (!check_arg_range(args, cached_args, brgemm_args::LDA,
+                    expected_cache_org_args)) {
+            return v;
+        }
+        if (!check_arg_range(args, cached_args, expected_cache_extra_start,
+                    expected_cache_extra_start + expected_cache_extra_args)) {
+            return v;
+        }
+        int LDA = static_cast<int>(get_expr_as_int(args[brgemm_args::LDA]));
+        int LDB = static_cast<int>(get_expr_as_int(args[brgemm_args::LDB]));
+        int LDC = static_cast<int>(get_expr_as_int(args[brgemm_args::LDC]));
+        int stride_a = static_cast<int>(
+                get_expr_as_int(args[brgemm_args::STRIDE_A]));
+        int stride_b = static_cast<int>(
+                get_expr_as_int(args[brgemm_args::STRIDE_B]));
+        int dtypeA = static_cast<int>(
+                get_expr_as_int(args[expected_cache_extra_start
+                        + brgemm_args::extra_args_offset::dtypeA]));
+        int dtypeB = static_cast<int>(
+                get_expr_as_int(args[expected_cache_extra_start
+                        + brgemm_args::extra_args_offset::dtypeB]));
+        void *attr_ptr = nullptr;
+        auto attr_arg = args[expected_cache_extra_start
+                + brgemm_args::extra_args_offset::brg_attrs];
+        if (attr_arg.isa<tensor>()) {
+            attr_arg = attr_arg.static_as<tensor>()->init_value_->data_;
+        }
+        auto handle = (mode == brgemm_mode::stride
+                        ? std::make_shared<brg_range_handle_t>(M_upper_bound,
+                                N_upper_bound, K_upper_bound, LDA, LDB, LDC,
+                                stride_a, stride_b, beta, dtypeA, dtypeB,
+                                attr_ptr, M_tail_value, N_tail_value,
+                                K_tail_value)
+                        : std::make_shared<brg_range_handle_t>(M_upper_bound,
+                                N_upper_bound, K_upper_bound, LDA, LDB, LDC,
+                                beta, dtypeA, dtypeB, attr_ptr, M_tail_value,
+                                N_tail_value, K_tail_value));
+        mod_->get_brg_range_handle_vec().emplace_back(handle);
+        // Make kernel pointer global var. will be auto-renamed
+        auto init = make_expr<constant_node>(
+                reinterpret_cast<uintptr_t>(handle.get()), datatypes::pointer);
+        auto handlev = mod_->make_global_var(datatypes::pointer,
+                "__sc_range_kernel_cache", linkage::private_global, init);
+        // todo: add cache for range handle.
+        expr result = run_func(mode, backend, handlev, args, has_postop);
+        assert(result.defined());
+        return result;
+    }
 
     expr_c optimize_kernel_call(brgemm_mode mode, scflags_t::brgemm_t backend,
             expr_c v, const std::vector<expr> &args, const std::string &name,
@@ -583,8 +733,9 @@ public:
         opt_args.emplace_back(dtypeA.as_etype_int());
         opt_args.emplace_back(dtypeB.as_etype_int());
         // brgemm attrs
-        expr brg_attrs_arg
-                = get_brgemm_attrs_arg(mod_, brg_attrs, attrs_cache_);
+        bool try_range_optimize = false;
+        expr brg_attrs_arg = get_brgemm_attrs_arg(
+                mod_, brg_attrs, attrs_cache_, try_range_optimize);
         opt_args.emplace_back(brg_attrs_arg);
         // bd mask
         expr bd_mask_arr = get_ir_null(), cur_bd_mask = get_ir_null();
@@ -657,6 +808,14 @@ public:
         if (!optimized) {
             return builder::make_call(f, no_opt_args);
         } else {
+            if (try_range_optimize) {
+                auto ret = optimize_range_kernel_call(mode, backend, v,
+                        opt_args, f->name_, range_brgemm_run, brg_attrs,
+                        extras->cpu_.init_ ? 0.0f : 1.0f,
+                        !brg_postops_setting.empty(), use_bdmask);
+                if (!ret.ptr_same(v)) { return ret; }
+            }
+            // try general optimization again for bd mask and postop.
             auto ret = optimize_kernel_call(mode, backend, v, opt_args,
                     f->name_, brgemm_init_kernel_cache, brgemm_run,
                     extras->cpu_.init_ ? 0.0f : 1.0f,
@@ -699,45 +858,44 @@ const_ir_module_ptr kernel_lowering_cpu_t::operator()(const_ir_module_ptr m) {
     for (auto &f : ret->get_contents()) {
         f = std::const_pointer_cast<func_base>(pass.dispatch(f));
     }
-    // only kernel cache needs init define.
-    if (!pass.kernel_cache.empty()) {
-        if (auto initf = ret->get_func("__sc_init__")) {
-            for (size_t i = old_gval_size; i < ret->get_module_vars().size();
-                    i++) {
-                auto pvar = ret->get_module_vars()[i];
-                // attrs/bdmask/set are tensors.
-                if (pvar->var_.isa<var>()) {
+    if (auto initf = ret->get_func("__sc_init__")) {
+        for (size_t i = old_gval_size; i < ret->get_module_vars().size(); i++) {
+            auto pvar = ret->get_module_vars()[i];
+            // attrs/bdmask/set are tensors.
+            if (pvar->var_.isa<var>()) {
+                auto name = pvar->var_.static_as<var>()->name_;
+                // only kernel cache needs init define.
+                if (name.find("kernel_cache") != std::string::npos) {
                     initf->body_.checked_as<stmts>()->seq_.emplace_back(
                             builder::make_assign_unattached(
                                     pvar->var_, pvar->init_));
                 }
             }
-        } else {
-            initf = ret->make_init_func();
-            if (initf) ret->add_func({initf});
         }
+    } else {
+        initf = ret->make_init_func();
+        if (initf) ret->add_func({initf});
+    }
 
-        if (pass.brg_use_bdmask_) {
-            auto initf = ret->get_func("__sc_init__");
-            if (!initf) {
-                stmts seq = make_stmt<stmts_node_t>(std::vector<stmt>());
-                initf = builder::make_func("__sc_init__", std::vector<expr_c>(),
-                        std::move(seq), datatypes::void_t);
-                ret->add_func({initf});
-            }
-
-            assert(initf && "__sc_init__ func is expected be presented in \
+    if (pass.brg_use_bdmask_) {
+        auto initf = ret->get_func("__sc_init__");
+        if (!initf) {
+            stmts seq = make_stmt<stmts_node_t>(std::vector<stmt>());
+            initf = builder::make_func("__sc_init__", std::vector<expr_c>(),
+                    std::move(seq), datatypes::void_t);
+            ret->add_func({initf});
+        }
+        assert(initf && "__sc_init__ func is expected be presented in \
             the current ir module, but not.");
 
-            for (auto &sts : pass.brg_bd_mask_arr_assignment_) {
-                for (auto &st : sts) {
-                    initf->body_.checked_as<stmts>()->seq_.push_back(st);
-                }
+        for (auto &sts : pass.brg_bd_mask_arr_assignment_) {
+            for (auto &st : sts) {
+                initf->body_.checked_as<stmts>()->seq_.push_back(st);
             }
-            for (auto &sts : pass.sc_kernel_cache_assignment_) {
-                for (auto &st : sts) {
-                    initf->body_.checked_as<stmts>()->seq_.push_back(st);
-                }
+        }
+        for (auto &sts : pass.sc_kernel_cache_assignment_) {
+            for (auto &st : sts) {
+                initf->body_.checked_as<stmts>()->seq_.push_back(st);
             }
         }
     }

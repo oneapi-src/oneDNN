@@ -31,6 +31,7 @@
 #include <compiler/ir/pass/ir_copy.hpp>
 #include <runtime/config.hpp>
 #include <runtime/managed_thread_pool.hpp>
+#include <runtime/microkernel/cpu/brgemm_range_handle.hpp>
 #include <util/math_utils.hpp>
 #include <util/scoped_timer.hpp>
 
@@ -121,7 +122,7 @@ jit_module::jit_module(statics_table_t &&globals, bool managed_thread_pool)
     , managed_thread_pool_(managed_thread_pool) {}
 
 void jit_module::postprocess(const const_ir_module_ptr &ir_mod) {
-    update_runtime_op_tables(ir_mod);
+    update_runtime_data(ir_mod);
     using cache_t = std::shared_ptr<cached_const_graph_tensor>;
     for (auto &v : ir_mod->get_module_vars()) {
         auto pcache
@@ -134,8 +135,7 @@ void jit_module::postprocess(const const_ir_module_ptr &ir_mod) {
         if (pcache) { shared_globals_.emplace_back(*pcache); }
     }
 }
-
-void jit_module::update_runtime_op_tables(const const_ir_module_ptr &ir_mod) {
+void jit_module::update_op_dispatch_table(const const_ir_module_ptr &ir_mod) {
     constexpr size_t capacity_coefficient = 2;
     auto compiler_tables = ir_mod->get_op_table_map();
     if (compiler_tables.empty()) { return; }
@@ -221,6 +221,15 @@ void jit_module::update_runtime_op_tables(const const_ir_module_ptr &ir_mod) {
         ret[var_name] = std::move(runtime_table);
     }
     op_tables_ = std::move(ret);
+}
+
+void jit_module::update_runtime_data(const const_ir_module_ptr &ir_mod) {
+    // update op dispatch table
+    update_op_dispatch_table(ir_mod);
+    // update brgemm range handler.
+    auto brg_handles = ir_mod->get_brg_range_handle_vec();
+    brg_handles_.insert(
+            brg_handles_.end(), brg_handles.begin(), brg_handles.end());
 }
 
 template <bool execution_verbose>

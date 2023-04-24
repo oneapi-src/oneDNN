@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "brgemm_common.hpp"
+#include "brgemm_range_handle.hpp"
 #include "kernel_timer.hpp"
 #include "microkernel.hpp"
 #include <common/memory_desc.hpp>
@@ -146,7 +147,8 @@ static brgemm_attr_t get_dnnl_brgemm_attrs(const attrs_setting_t &attrs) {
             case attr_key::var_bs:
                 dnnl_attrs.var_bs = static_cast<bool>(it.second);
                 break;
-            case attr_key::nkeys: break;
+            case attr_key::nkeys:
+            default: break;
         }
     }
     return dnnl_attrs;
@@ -551,6 +553,141 @@ struct brg_desc_safe_t {
 static brg_desc_safe_t g_brg_desc_s;
 thread_local brg_desc_safe_t::thread_local_cache
         brg_desc_safe_t::brg_desc_vec_local_;
+static int get_range_size(int tail_value, int upper_bound) {
+    if (tail_value == brg_range_tail_value::dyn_tail) { return upper_bound; }
+    if (tail_value == brg_range_tail_value::no_tail) { return 1; }
+    // static tail has 2 possible values.
+    assert(tail_value > 0);
+    return 2;
+}
+void brg_range_handle_t::init_func(brgemm_batch_kind_t brg_type, int M, int N,
+        int K, int LDA, int LDB, int LDC, int stride_a, int stride_b,
+        float beta, int dtypeA, int dtypeB, const void *brg_attrs,
+        int M_tail_value, int N_tail_value, int K_tail_value) {
+    int M_size = get_range_size(M_tail_value, M_upper_bound);
+    int N_size = get_range_size(N_tail_value, N_upper_bound);
+    int K_size = get_range_size(K_tail_value, K_upper_bound);
+    int total_size = M_size * N_size * K_size;
+    if (total_size <= linear_cache_capacity) {
+        linear_cache.reserve(total_size);
+        auto get_real_value = [](int i, int tail_value, int upper_bound) {
+            if (tail_value == brg_range_tail_value::dyn_tail) {
+                return i + 1; // idx + 1
+            }
+            if (tail_value == brg_range_tail_value::no_tail) {
+                return upper_bound;
+            }
+            assert(tail_value > 0);
+            return i ? upper_bound : tail_value;
+        };
+        for (int i = 0; i < total_size; i++) {
+            int M_real = get_real_value(
+                    i / (N_size * K_size), M_tail_value, M_upper_bound);
+            int N_real = get_real_value(
+                    i / K_size % N_size, N_tail_value, N_upper_bound);
+            int K_real
+                    = get_real_value(i % K_size, K_tail_value, K_upper_bound);
+            linear_cache.emplace_back(g_brg_desc_s.getInstance(1.f, beta, LDA,
+                    LDB, LDC, M_real, N_real, K_real,
+                    static_cast<int>(stride_a * get_dtype_sizeof(dtypeA)),
+                    static_cast<int>(stride_b * get_dtype_sizeof(dtypeB)),
+                    brg_type, dtypeA, dtypeB, brg_attrs, nullptr, nullptr));
+        }
+    } else {
+        extra_args = std::make_shared<extra_arg_t>(beta, LDA, LDB, LDC,
+                stride_a, stride_b, dtypeA, dtypeB, brg_attrs);
+    }
+}
+brg_range_handle_t::brg_range_handle_t(int M, int N, int K, int LDA, int LDB,
+        int LDC, float beta, int dtypeA, int dtypeB, const void *brg_attrs,
+        int M_tail_value, int N_tail_value, int K_tail_value)
+    : M_upper_bound(M)
+    , N_upper_bound(N)
+    , K_upper_bound(K)
+    , M_tail_value(M_tail_value)
+    , N_tail_value(N_tail_value)
+    , K_tail_value(K_tail_value) {
+    init_func(brgemm_addr, M, N, K, LDA, LDB, LDC, 0, 0, beta, dtypeA, dtypeB,
+            brg_attrs, M_tail_value, N_tail_value, K_tail_value);
+}
+
+brg_range_handle_t::brg_range_handle_t(int M, int N, int K, int LDA, int LDB,
+        int LDC, int stride_a, int stride_b, float beta, int dtypeA, int dtypeB,
+        const void *brg_attrs, int M_tail_value, int N_tail_value,
+        int K_tail_value)
+    : M_upper_bound(M)
+    , N_upper_bound(N)
+    , K_upper_bound(K)
+    , M_tail_value(M_tail_value)
+    , N_tail_value(N_tail_value)
+    , K_tail_value(K_tail_value) {
+    init_func(brgemm_strd, M, N, K, LDA, LDB, LDC, stride_a, stride_b, beta,
+            dtypeA, dtypeB, brg_attrs, M_tail_value, N_tail_value,
+            K_tail_value);
+}
+brgemm_kernel_info *brg_range_handle_t::get_linear_kernel(
+        int M_real, int N_real, int K_real) const {
+    int M_size = get_range_size(M_tail_value, M_upper_bound);
+    int N_size = get_range_size(N_tail_value, N_upper_bound);
+    int K_size = get_range_size(K_tail_value, K_upper_bound);
+    size_t linear_idx = 0;
+    auto cal_dim = [&](int dim, size_t base, int tail_value, int upper_bound) {
+        if (tail_value == brg_range_tail_value::dyn_tail) {
+            linear_idx += (dim - 1) * base;
+            return;
+        }
+        if (tail_value == brg_range_tail_value::no_tail) { return; }
+        assert(tail_value > 0);
+        // static tail process
+        if (dim == tail_value) { return; }
+        if (dim == upper_bound) {
+            linear_idx += base;
+            return;
+        }
+        // not in cache.
+        linear_idx += linear_cache_capacity;
+    };
+    cal_dim(M_real, N_size * K_size, M_tail_value, M_upper_bound);
+    cal_dim(N_real, K_size, N_tail_value, N_upper_bound);
+    cal_dim(K_real, 1, K_tail_value, K_upper_bound);
+    if (linear_idx < linear_cache.size()) { return linear_cache[linear_idx]; }
+    return nullptr;
+}
+void brg_range_handle_t::brg_list_call(int M_real, int N_real, int K_real,
+        const void **A_list, const void **B_list, void *C, int num,
+        int stride_a, int stride_b, int len, int dtypeA, int dtypeB,
+        dnnl::impl::graph::gc::runtime::stream_t *stream) {
+    brgemm_kernel_info *brg = get_linear_kernel(M_real, N_real, K_real);
+    // default use runtime kernel creation.
+    if (!brg) {
+        assert(extra_args);
+        brg = g_brg_desc_s.getInstance(1.f, extra_args->beta, extra_args->LDA,
+                extra_args->LDB, extra_args->LDC, M_real, N_real, K_real, 0, 0,
+                brgemm_addr, dtypeA, dtypeB, extra_args->brg_attrs, nullptr,
+                nullptr);
+    }
+    dnnl_brgemm_list_call(brg, A_list, B_list, C, num, stride_a, stride_b, len,
+            dtypeA, dtypeB, stream);
+}
+
+void brg_range_handle_t::brg_strd_call(int M_real, int N_real, int K_real,
+        const void *A, const void *B, void *C, int num,
+        dnnl::impl::graph::gc::runtime::stream_t *stream) {
+    brgemm_kernel_info *brg = get_linear_kernel(M_real, N_real, K_real);
+    if (!brg) {
+        // default use runtime kernel creation.
+        assert(extra_args);
+        brg = g_brg_desc_s.getInstance(1.f, extra_args->beta, extra_args->LDA,
+                extra_args->LDB, extra_args->LDC, M_real, N_real, K_real,
+                static_cast<int>(extra_args->stride_a
+                        * get_dtype_sizeof(extra_args->dtypeA)),
+                static_cast<int>(extra_args->stride_b
+                        * get_dtype_sizeof(extra_args->dtypeB)),
+                brgemm_strd, extra_args->dtypeA, extra_args->dtypeB,
+                extra_args->brg_attrs, nullptr, nullptr);
+    }
+    dnnl_brgemm_call(brg, A, B, C, num, stream);
+}
 
 namespace dnnl {
 namespace impl {
@@ -627,6 +764,12 @@ SC_API void dnnl_brgemm_call(brgemm_kernel_info *brg_desc, const void *A,
     if (!amx_exclusive && brg_desc->is_amx_) { amx_tile_release(); }
 }
 
+SC_API void dnnl_brgemm_call_range(brg_range_handle_t *brg_range_desc,
+        int M_real, int N_real, int K_real, const void *A, const void *B,
+        void *C, int num, gc::runtime::stream_t *stream) {
+    brg_range_desc->brg_strd_call(M_real, N_real, K_real, A, B, C, num, stream);
+}
+
 SC_API void dnnl_brgemm_call_postops(brgemm_kernel_info *brg_desc,
         const void *A, const void *B, void *C, int num,
         const void *postops_data, void *c_buf, gc::runtime::stream_t *stream) {
@@ -686,6 +829,14 @@ SC_API void dnnl_brgemm_list_call(brgemm_kernel_info *brg_desc,
     _freea(batch);
 #endif
     if (!amx_exclusive && brg_desc->is_amx_) { amx_tile_release(); }
+}
+
+SC_API void dnnl_brgemm_list_call_range(brg_range_handle_t *brg_range_desc,
+        int M_real, int N_real, int K_real, const void **A_list,
+        const void **B_list, void *C, int num, int stride_a, int stride_b,
+        int len, int dtypeA, int dtypeB, gc::runtime::stream_t *stream) {
+    brg_range_desc->brg_list_call(M_real, N_real, K_real, A_list, B_list, C,
+            num, stride_a, stride_b, len, dtypeA, dtypeB, stream);
 }
 
 SC_API void dnnl_brgemm_list_call_postops(brgemm_kernel_info *brg_desc,

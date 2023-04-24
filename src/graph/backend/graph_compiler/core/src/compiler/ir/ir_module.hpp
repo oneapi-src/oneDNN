@@ -28,7 +28,8 @@
 #include <compiler/ir/sc_function.hpp>
 #include <unordered_map>
 #include <util/any_map.hpp>
-
+struct brg_range_handle_t;
+using brg_range_handle_ptr = std::shared_ptr<brg_range_handle_t>;
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -54,6 +55,8 @@ class SC_INTERNAL_API ir_module_t {
     // hold all op tables in ir module and pass to jit module for dynamic
     // dispatch. the op function name -> op tables ptr
     dispatch_table_map_t op_table_map_;
+    // vector of brgemm range handler.
+    std::vector<brg_range_handle_ptr> brg_handles_;
 
 public:
     // the attr keys for ir_module
@@ -106,6 +109,12 @@ public:
         return op_table_map_;
     }
     dispatch_table_map_t &get_op_table_map() { return op_table_map_; }
+    const std::vector<brg_range_handle_ptr> &get_brg_range_handle_vec() const {
+        return brg_handles_;
+    }
+    std::vector<brg_range_handle_ptr> &get_brg_range_handle_vec() {
+        return brg_handles_;
+    }
 
     // run the pass on all functions in this module
     void run_pass(function_pass_t &pass);

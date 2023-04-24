@@ -34,7 +34,14 @@ brgemm::attrs_setting_t::attrs_map_t attr_2
         = {brgemm::attr_key::hint_expected_B_size, 1024};
 brgemm::attrs_setting_t::attrs_map_t attr_3
         = {brgemm::attr_key::bd_mask_level, 2};
-
+brgemm::attrs_setting_t::attrs_map_t range_attr_0
+        = {brgemm::attr_key::M_range_upper_bound, 64};
+brgemm::attrs_setting_t::attrs_map_t range_attr_1
+        = {brgemm::attr_key::N_range_upper_bound, 64};
+brgemm::attrs_setting_t::attrs_map_t range_attr_2
+        = {brgemm::attr_key::K_range_upper_bound, 64};
+brgemm::attrs_setting_t::attrs_map_t range_attr_3
+        = {brgemm::attr_key::M_range_tail_value, 2};
 sc_brgemm_bd_mask_t bd_mask_0 {1, 0};
 sc_brgemm_bd_mask_t bd_mask_1 {0, 1};
 
@@ -151,6 +158,7 @@ TEST(GCCore_kernel_lowering_cpp, TestKernelLowering) {
     sc_brgemm_postops_setting_t postop_set_0 = {postop_0, postop_1, postop_2};
     sc_brgemm_attrs_t attrs_1 = {attr_0, attr_2, attr_3};
     sc_brgemm_postops_setting_t postop_set_1 = {postop_0, postop_3, postop_1};
+    sc_brgemm_attrs_t attrs_2 = {range_attr_0};
     _function_(datatypes::void_t, aaa, {}) {
         _tensor_(A, datatypes::f32, {100});
         _tensor_(B, datatypes::f32, {100});
@@ -166,7 +174,7 @@ TEST(GCCore_kernel_lowering_cpp, TestKernelLowering) {
                 datatypes::bf16, datatypes::bf16);
         _var_(c, datatypes::s32);
         builtin::brgemm_init_update(A, B, C, 1, 2, 3, 4, 5, c, 7, 8, 9,
-                datatypes::bf16, datatypes::bf16);
+                datatypes::bf16, datatypes::bf16, attrs_2);
 
         builtin::brgemm_update(A, B, C, 1, 2, 3, 4, 5, 6, 7, 8, 9,
                 datatypes::bf16, datatypes::bf16);
@@ -628,4 +636,70 @@ TEST(GCCore_kernel_lowering_cpp, TestBrgemmSharedBdmask) {
         EXPECT_TRUE(cmp.compare(
                 m2->get_contents()[i], tested->get_contents()[i], false));
     }
+}
+
+TEST(GCCore_kernel_lowering_cpp, TestRangeKernelLowering) {
+    auto backend = get_default_context()->flags_.brgemm_backend_;
+    if (backend != scflags_t::brgemm_t::dnnl) { GTEST_SKIP(); }
+    builder::ir_builder_t builder;
+    sc_brgemm_attrs_t attrs_0 = {range_attr_0, range_attr_3};
+    sc_brgemm_attrs_t attrs_1 = {range_attr_0, range_attr_1, range_attr_2};
+    _function_(datatypes::void_t, aaa, {}) {
+        _tensor_(A, datatypes::f32, {100});
+        _tensor_(B, datatypes::f32, {100});
+        _tensor_(C, datatypes::f32, {100});
+        builtin::brgemm_init_update(A, B, C, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+                datatypes::f32, datatypes::f32, attrs_0);
+        builtin::brgemm_update(A, B, C, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+                datatypes::f32, datatypes::f32, attrs_1);
+        ///////////// list calls
+        builtin::brgemm_init_list_update(A, B, C, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1,
+                datatypes::f32, datatypes::f32, attrs_1);
+        builtin::brgemm_list_update(A, B, C, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1,
+                datatypes::f32, datatypes::f32, attrs_0);
+    }
+    expr ir_nullptr = make_expr<constant_node>(0UL, datatypes::pointer);
+    auto m = ir_module_t::from_entry_func(get_default_context(), aaa);
+    auto res = kernel_lowering_cpu_t(true)(m);
+    func_t strd_range_func, list_range_func;
+    strd_range_func
+            = builtin::get_brgemm_call_range_func(builtin::brgemm_mode::stride);
+    list_range_func = builtin::get_brgemm_call_range_func(
+            builtin::brgemm_mode::addr_list);
+    /////////////////// expected
+    auto m2 = std::make_shared<ir_module_t>(get_default_context());
+
+    _module_var_(
+            m2, handle_0, datatypes::pointer, res->get_module_vars()[0]->init_);
+    _module_var_(
+            m2, handle_1, datatypes::pointer, res->get_module_vars()[1]->init_);
+    _module_var_(
+            m2, handle_2, datatypes::pointer, res->get_module_vars()[2]->init_);
+    _module_var_(
+            m2, handle_3, datatypes::pointer, res->get_module_vars()[3]->init_);
+
+    _function_(datatypes::void_t, expected, {}) {
+        _tensor_(A, datatypes::f32, {100});
+        _tensor_(B, datatypes::f32, {100});
+        _tensor_(C, datatypes::f32, {100});
+        _evaluate_call_(
+                strd_range_func, handle_0, 2, 3, 4, A, B, C, 1, ir_nullptr);
+        _evaluate_call_(
+                strd_range_func, handle_1, 2, 3, 4, A, B, C, 1, ir_nullptr);
+        _evaluate_call_(list_range_func, handle_2, 3, 4, 5, A, B, C, 2, 9, 10,
+                1, datatypes::f32.as_etype_int(), datatypes::f32.as_etype_int(),
+                ir_nullptr);
+        _evaluate_call_(list_range_func, handle_3, 3, 4, 5, A, B, C, 2, 9, 10,
+                1, datatypes::f32.as_etype_int(), datatypes::f32.as_etype_int(),
+                ir_nullptr);
+    }
+    m2->add_func({expected});
+    ir_comparer cmp(true);
+    ASSERT_TRUE(m2->get_module_vars().size() == res->get_module_vars().size());
+    for (unsigned i = 0; i < m2->get_module_vars().size(); i++) {
+        EXPECT_TRUE(cmp.compare(
+                m2->get_module_vars()[i], res->get_module_vars()[i]));
+    }
+    EXPECT_TRUE(
+            cmp.compare(m2->get_contents()[0], res->get_contents()[0], false));
 }

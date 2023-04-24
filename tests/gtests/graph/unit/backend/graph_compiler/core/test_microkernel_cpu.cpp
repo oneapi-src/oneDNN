@@ -22,6 +22,7 @@
 #include <ops/templates/utils.hpp>
 #include <runtime/context.hpp>
 #include <runtime/microkernel/cpu/brgemm_common.hpp>
+#include <runtime/microkernel/cpu/brgemm_range_handle.hpp>
 #include <runtime/microkernel/cpu/microkernel.hpp>
 
 using namespace dnnl::impl::graph::gc;
@@ -315,5 +316,51 @@ TEST(GCCore_microkernel_cpu_cpp, TestBrgemmOnednnAttrs) {
                 EXPECT_EQ(C[i * N + j], 0);
             }
         }
+    }
+}
+
+TEST(GCCore_microkernel_cpu_cpp, TestBrgemmOnednnRange) {
+    REQUIRE_VNNI();
+    const int M = 32;
+    const int N = 64;
+    const int K = 14;
+    const int blocks = 10;
+    std::vector<uint8_t> qA(blocks * M * K);
+    std::vector<int8_t> tmpB(blocks * N * K);
+    fill_data(qA.data(), blocks * M * K);
+    fill_data(tmpB.data(), blocks * N * K);
+    std::vector<float> refA(qA.begin(), qA.end());
+    std::vector<float> refB(tmpB.begin(), tmpB.end());
+    std::vector<int8_t> qB
+            = reorder_low_accuracy_format<int8_t>(tmpB, blocks, K, N);
+    std::vector<float> refC(M * N);
+    std::vector<int32_t> qC_strd(M * N), qC_list(M * N);
+
+    brg_range_handle_t stride_handle(M + 1, N, K, K, N, N, M * K, 16 * N, 0.f,
+            datatypes::u8.as_etype_int(), datatypes::s8.as_etype_int(),
+            /*attrs*/ nullptr, /*M_tail_value*/ brg_range_tail_value::dyn_tail,
+            /*N_tail_value*/ brg_range_tail_value::no_tail,
+            /*K_tail_value*/ brg_range_tail_value::no_tail);
+    brg_range_handle_t list_handle(M + 1, N, K, K, N, N, 0.f,
+            datatypes::u8.as_etype_int(), datatypes::s8.as_etype_int(),
+            /*attrs*/ nullptr, /*M_tail_value*/ M,
+            /*N_tail_value*/ brg_range_tail_value::no_tail,
+            /*K_tail_value*/ brg_range_tail_value::no_tail);
+    dnnl_brgemm_call_range(&stride_handle, M, N, K, qA.data(), qB.data(),
+            qC_strd.data(), blocks, runtime::get_default_stream());
+    const void *qA_ptr = qA.data(), *qB_ptr = qB.data();
+    dnnl_brgemm_list_call_range(&list_handle, M, N, K, &qA_ptr, &qB_ptr,
+            qC_list.data(), blocks, M * K, 16 * N, 1,
+            datatypes::u8.as_etype_int(), datatypes::s8.as_etype_int(),
+            runtime::get_default_stream());
+    dnnl_brgemm_init_update(refA.data(), refB.data(), refC.data(), blocks, M, N,
+            K, K, N, N, M * K, K * N, datatypes::f32.as_etype_int(),
+            datatypes::f32.as_etype_int(), /*attrs*/ nullptr,
+            /*bd_mask*/ nullptr, /*postop set*/ nullptr,
+            /*postop data*/ nullptr, /*c_buf*/ nullptr,
+            /*ctx*/ runtime::get_default_stream());
+    for (unsigned i = 0; i < qC_strd.size(); i++) {
+        EXPECT_TRUE(std::abs(qC_strd[i] - refC[i]) < 1e-4);
+        EXPECT_TRUE(std::abs(qC_list[i] - refC[i]) < 1e-4);
     }
 }

@@ -164,7 +164,7 @@ std::shared_ptr<jit_module> llvm_jit::make_jit_module(
             std::unique_ptr<llvm::ExecutionEngine>(engine), std::move(llvm_ctx),
             std::move(attr_table), std::move(outlisteners), use_managed_tp,
             source_path);
-    ret->postprocess(module);
+    ret->postprocess(new_mod);
 
     if (copied_ir_module) {
         std::stringstream of;

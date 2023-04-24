@@ -67,7 +67,14 @@ enum attr_key {
     hint_prfC_dist1,
     hint_prfC_dist2,
     var_bs, // bool, enable variable batch size for uker
-    nkeys,
+    nkeys, // brgemm internal attribute nkeys
+    // extra attribute for range brgemm cache.
+    M_range_upper_bound, // generate brg with M from 1 to M_range_upper_bound
+    N_range_upper_bound, // generate brg with N from 1 to N_range_upper_bound
+    K_range_upper_bound, // generate brg with K from 1 to K_range_upper_bound
+    M_range_tail_value, // could be dyn_tail(-1), no_tail(0), static tail(>0)
+    N_range_tail_value, // could be dyn_tail(-1), no_tail(0), static tail(>0)
+    K_range_tail_value, // could be dyn_tail(-1), no_tail(0), static tail(>0)
 };
 
 // enumerate of buffer type in post op calculation

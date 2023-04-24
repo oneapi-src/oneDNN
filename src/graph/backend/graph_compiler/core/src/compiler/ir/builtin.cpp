@@ -284,6 +284,40 @@ static func_t declare_brgemm_update_funcs(
     }
 }
 
+func_t get_brgemm_call_range_func(brgemm_mode mode) {
+    if (mode == brgemm_mode::stride) {
+        auto update_args = std::vector<std::vector<expr>> {
+                _arg_("func", datatypes::pointer),
+                _arg_("M_real", datatypes::s32),
+                _arg_("N_real", datatypes::s32),
+                _arg_("K_real", datatypes::s32), _arg_("A", datatypes::pointer),
+                _arg_("B", datatypes::pointer), _arg_("C", datatypes::pointer),
+                _arg_("num", datatypes::s32),
+                _arg_("stream", datatypes::pointer)};
+
+        static func_t update
+                = mark_brgemm_func(_decl_func("dnnl_brgemm_call_range",
+                        datatypes::s32, std::move(update_args)));
+        return update;
+    } else {
+        auto update_args = std::vector<std::vector<expr>> {
+                _arg_("func", datatypes::pointer),
+                _arg_("M_real", datatypes::s32),
+                _arg_("N_real", datatypes::s32),
+                _arg_("K_real", datatypes::s32), _arg_("A", datatypes::pointer),
+                _arg_("B", datatypes::pointer), _arg_("C", datatypes::pointer),
+                _arg_("num", datatypes::s32), _arg_("stride_a", datatypes::s32),
+                _arg_("stride_b", datatypes::s32), _arg_("len", datatypes::s32),
+                _arg_("dtypeA", datatypes::s32),
+                _arg_("dtypeB", datatypes::s32),
+                _arg_("stream", datatypes::pointer)};
+        static func_t brgemm_func
+                = mark_brgemm_func(_decl_func("dnnl_brgemm_list_call_range",
+                        datatypes::s32, std::move(update_args)));
+        return brgemm_func;
+    }
+}
+
 std::pair<func_t, func_t> get_brgemm_update_funcs(
         brgemm_mode mode, scflags_t::brgemm_t backend) {
 #define DEF_FUNC(back) \

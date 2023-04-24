@@ -194,10 +194,11 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
 }
 
 statics_table_t cfake_jit::codegen_to_cpp(std::ostream &os,
-        const const_ir_module_ptr &module, bool generate_wrapper,
-        bool &out_managed_thread_pool, c_generator_optional_out_t *optout) {
+        const_ir_module_ptr &new_mod, const const_ir_module_ptr &module,
+        bool generate_wrapper, bool &out_managed_thread_pool,
+        c_generator_optional_out_t *optout) {
     auto gen = create_c_generator(os, context_, generate_wrapper, optout);
-    auto new_mod = gen(module);
+    new_mod = gen(module);
     out_managed_thread_pool = new_mod->attr_.get<bool>(
             ir_module_t::attr_key_t::MANAGED_THREAD_POOL);
     return std::move(*new_mod->attr_.get<std::shared_ptr<statics_table_t>>(
@@ -205,9 +206,10 @@ statics_table_t cfake_jit::codegen_to_cpp(std::ostream &os,
 }
 
 statics_table_t cfake_jit::codegen_to_cpp(std::ostream &os,
-        const const_ir_module_ptr &module, bool generate_wrapper) {
+        const_ir_module_ptr &new_mod, const const_ir_module_ptr &module,
+        bool generate_wrapper) {
     bool dummy;
-    return codegen_to_cpp(os, module, generate_wrapper, dummy);
+    return codegen_to_cpp(os, new_mod, module, generate_wrapper, dummy);
 }
 
 std::shared_ptr<jit_module> cfake_jit::make_jit_module(
@@ -247,13 +249,14 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
     }
 
     bool managed_thread_pool;
-    auto attr_table = codegen_to_cpp(of, module, generate_wrapper,
+    const_ir_module_ptr new_mod;
+    auto attr_table = codegen_to_cpp(of, new_mod, module, generate_wrapper,
             managed_thread_pool, ptr_optional_dump);
     of.close();
 
     auto ret = make_jit_module(inpath, outpath, std::move(attr_table),
             generate_wrapper, managed_thread_pool);
-    ret->postprocess(module);
+    ret->postprocess(new_mod);
     return ret;
 }
 

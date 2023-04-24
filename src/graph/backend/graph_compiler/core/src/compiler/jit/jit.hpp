@@ -25,6 +25,7 @@
 #include <runtime/context.hpp>
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
 #include <runtime/generic_val.hpp>
+struct brg_range_handle_t;
 
 namespace dnnl {
 namespace impl {
@@ -107,6 +108,8 @@ public:
     statics_table_t globals_;
     // runtime op table for dynamic shape/format infer and dispatch.
     runtime::dispatch_table_map_t op_tables_;
+    // brgemm range handle vec
+    std::vector<std::shared_ptr<brg_range_handle_t>> brg_handles_;
     // the unique id for a JIT module in a process scope
     size_t module_id_;
     // whether to use managed thread pool
@@ -127,9 +130,12 @@ public:
     void postprocess(const const_ir_module_ptr &ir_mod);
 
 protected:
-    // upate kerenl values of op_tables_ with address of specific function.
-    // call the self-update function after jit module is created.
-    virtual void update_runtime_op_tables(const const_ir_module_ptr &ir_mod);
+    // update runtime data with same lifetime as jit module like kerenl
+    // values of op_tables_ with address of specific function and brgemm range
+    // handlers. call the self-update function after jit module is created.
+    virtual void update_runtime_data(const const_ir_module_ptr &ir_mod);
+    // child function in update_runtime_data.
+    void update_op_dispatch_table(const const_ir_module_ptr &ir_mod);
 };
 
 class SC_INTERNAL_API general_jit_function_t : public jit_function_t {
