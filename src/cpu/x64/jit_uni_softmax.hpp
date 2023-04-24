@@ -72,7 +72,7 @@ protected:
 };
 
 bcast_set_t get_supported_bcast_strategies();
-std::vector<cpu_isa_t> get_supported_isa();
+std::vector<cpu_isa_t> get_supported_isa(bool is_fwd);
 } // namespace softmax_impl
 
 struct jit_uni_softmax_fwd_t : public primitive_t {
@@ -110,7 +110,7 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
             using skip_mask_t = primitive_attr_t::skip_mask_t;
 
             // try multiple vlen
-            for (const auto &i : softmax_impl::get_supported_isa()) {
+            for (const auto &i : softmax_impl::get_supported_isa(true)) {
                 if (mayiuse(i) && is_dense(i)) {
                     isa_ = i;
                     break;
@@ -239,7 +239,7 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
             };
 
             // try multiple vlen
-            for (const auto &i : softmax_impl::get_supported_isa()) {
+            for (const auto &i : softmax_impl::get_supported_isa(false)) {
                 if (mayiuse(i) && is_dense(i)) {
                     isa_ = i;
                     break;

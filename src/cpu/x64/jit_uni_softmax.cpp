@@ -752,6 +752,7 @@ jit_softmax_kernel_base_t *jit_softmax_kernel_base_t::create(
 #define HANDLE_ISA(isa_) \
     if ((isa_) == isa) return new jit_softmax_kernel_t<isa_>(pd)
     REG_AVX512_ISA(HANDLE_ISA(avx512_core_fp16));
+    REG_AVX512_ISA(HANDLE_ISA(avx512_core_bf16));
     REG_AVX512_ISA(HANDLE_ISA(avx512_core));
     REG_AVX2_ISA(HANDLE_ISA(avx2_vnni_2));
     REG_AVX2_ISA(HANDLE_ISA(avx2));
@@ -761,8 +762,12 @@ jit_softmax_kernel_base_t *jit_softmax_kernel_base_t::create(
     return nullptr;
 }
 
-std::vector<cpu_isa_t> get_supported_isa() {
-    return {avx512_core_fp16, avx512_core, avx2_vnni_2, avx2, sse41};
+std::vector<cpu_isa_t> get_supported_isa(bool is_fwd) {
+    if (is_fwd)
+        return {avx512_core_fp16, avx512_core_bf16, avx512_core, avx2_vnni_2,
+                avx2, sse41};
+    else
+        return {avx512_core_fp16, avx512_core_bf16, avx512_core};
 }
 
 bcast_set_t get_supported_bcast_strategies() {
