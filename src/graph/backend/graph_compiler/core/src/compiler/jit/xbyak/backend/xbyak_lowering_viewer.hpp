@@ -68,7 +68,7 @@ public:
     /// For a given instance of @c xbyak_lowering_generator, this will
     /// always return the same object.
     /// The returned object remains valid even after this
-    /// @c xbyak_lowering_viewer is destiroyed.
+    /// @c xbyak_lowering_viewer is destroyed.
     std::shared_ptr<xbyak_jit_generator> get_jit_output() const;
 
 private:
@@ -79,15 +79,23 @@ private:
         code_comment(const Xbyak::Label &label, std::string comment);
         Xbyak::Label label_;
         std::string comment_;
+        const node_base *ir_node_;
+    };
+
+    struct label_line {
+        Xbyak::Label label_;
+        const node_base *ir_node_;
     };
 
     std::vector<code_comment> code_comments_;
+    std::vector<label_line> debug_lines_;
 
     void add_code_comment(std::string text);
 
     /// Only call this after labels have been resolved to actual memory
     /// addresses.
-    void dump_code_comments(std::ostream &os);
+    std::vector<std::unique_ptr<debug_info_mgr>> dump_code_comments(
+            std::ostream &os);
 
     //--------------------------------------------------------------------------
     // Member variables

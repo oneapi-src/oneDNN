@@ -21,13 +21,17 @@
 #include <set>
 #include <utility>
 
+#include <mutex>
+#include <compiler/ir/pass/printer.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/jit/xbyak/backend/operations.hpp>
+#include <compiler/jit/xbyak/debug/debug_info_mgr.hpp>
 #include <compiler/jit/xbyak/ir/transform/call_transform.hpp>
 #include <compiler/jit/xbyak/ir/transform/register_allocation.hpp>
 #include <compiler/jit/xbyak/ir/utils.hpp>
 #include <compiler/jit/xbyak/x86_64/type_mapping.hpp>
 #include <compiler/jit/xbyak/xbyak_jit.hpp>
+#include <util/optional.hpp>
 #include <util/utils.hpp>
 
 #include "xbyak_lowering_viewer.hpp"
@@ -68,13 +72,11 @@ static const bool log_module_info_enabled
         add_code_comment(os.str()); \
     }
 
-// Like ASM_COMMENT, but add file:line information in the output text.
-#define ASM_COMMENT_V(S1, ...) \
+#define ASM_COMMENT_WITH_IR(NODE, S1, ...) \
     if (utils::compiler_configs_t::get().xbyak_jit_asm_listing_) { \
         ostringstream os; \
         os << asm_listing_ind_ << S1 __VA_ARGS__; \
-        os << " [" << brief_lineloc(__FILE__, __LINE__) << "]"; \
-        add_code_comment(os.str()); \
+        add_code_comment(os.str(), NODE.get()); \
     }
 
 // Like ASM_COMMENT, but add simd constant and dtype in the output text.
@@ -96,7 +98,12 @@ void xbyak_lowering_viewer::add_code_comment(std::string text) {
     gen_->L(code_comments_.back().label_);
 }
 
-void xbyak_lowering_viewer::dump_code_comments(std::ostream &os) {
+std::mutex debug_info_lock;
+
+std::vector<std::unique_ptr<debug_info_mgr>>
+xbyak_lowering_viewer::dump_code_comments(std::ostream &os) {
+    std::vector<debug_line> lines;
+    std::vector<func_symbol> symbols;
     // Use a map to sort the comments by memory address, to help humans relate
     // the dump output to gdb's asm display of the JIT'ed code.
     for (auto &iter : func_name_to_entry_label_) {
@@ -105,6 +112,21 @@ void xbyak_lowering_viewer::dump_code_comments(std::ostream &os) {
         void *exit = (void *)(func_name_to_exit_label_[key].getAddress());
         if (entry == nullptr || exit == nullptr) { continue; }
         os << utils::as_hex_t(entry) << " - " << utils::as_hex_t(exit) << endl;
+        symbols.emplace_back(func_symbol {key, entry, exit});
+    }
+
+    for (auto &line : debug_lines_) {
+        void *p = (void *)(line.label_.getAddress());
+        const source_pos *src
+                = some_opt(line.ir_node_)
+                          .map([](const node_base *p) {
+                              return p->attr_.get();
+                          })
+                          .map([](const any_map_t *v) {
+                              return v->get_or_null<source_pos>("source_pos");
+                          })
+                          .get_or_else(nullptr);
+        if (src) { lines.emplace_back(debug_line {p, src->line_, src->pos_}); }
     }
 
     std::map<void *, std::vector<std::string>> m;
@@ -130,6 +152,9 @@ void xbyak_lowering_viewer::dump_code_comments(std::ostream &os) {
             os << " : " << comment << endl;
         }
     }
+    std::lock_guard<std::mutex> guard {debug_info_lock};
+    return create_debug_info_mgr((void *)gen_->getCode(), gen_->getSize(),
+            "xbyak_ir.txt", symbols, lines);
 }
 
 //==============================================================================
@@ -262,7 +287,7 @@ xbyak_lowering_viewer::xbyak_lowering_viewer(const xbyak_jit &xje,
         string fname = "asm_comments.txt";
         std::ofstream f(fname);
         f << "Code comments:" << endl;
-        dump_code_comments(f);
+        gen_->debug_info_ = dump_code_comments(f);
     }
 
     if (config.xbyak_jit_save_obj_) {
@@ -335,6 +360,9 @@ void xbyak_lowering_viewer::handle_local_definition(
 //==============================================================================
 
 stmt_c xbyak_lowering_viewer::dispatch(stmt_c v) {
+    if (utils::compiler_configs_t::get().xbyak_jit_asm_listing_) {
+        debug_lines_.emplace_back(label_line {gen_->L(), v.get()});
+    }
     stmt_c vv;
     auto &stmt_data = GET_STMT_DATA(v);
     if (!stmt_data.optimized_out_) { vv = ir_viewer_t::dispatch(std::move(v)); }

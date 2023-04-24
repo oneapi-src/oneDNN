@@ -62,9 +62,9 @@ ostream &xbyak_printer_t::print_expr_vec(
     return os;
 }
 
-xbyak_printer_t::xbyak_printer_t(
-        const_ir_module_ptr &ir_mod, x86_64::target_profile_t &profile)
-    : profile_(profile) {
+xbyak_printer_t::xbyak_printer_t(std::ostream &os, const_ir_module_ptr &ir_mod,
+        x86_64::target_profile_t &profile)
+    : profile_(profile), ss_ {os} {
     // Slot map for virtual slot and physical reg mapping
     virtual_slots_map_ = std::make_shared<virtual_slots_map_t>(profile_);
     // Print module vars
@@ -78,10 +78,27 @@ xbyak_printer_t::xbyak_printer_t(
     }
 }
 
+stmt_c xbyak_printer_t::dispatch(stmt_c f) {
+    f.remove_const()->attr()["source_pos"]
+            = source_pos {ss_.buf_.pos_, ss_.buf_.line_};
+    return ir_viewer_t::dispatch(f);
+}
+
+expr_c xbyak_printer_t::dispatch(expr_c f) {
+    if (!f.isa<var>() && !f.isa<tensor>()) {
+        f.remove_const()->attr()["source_pos"]
+                = source_pos {ss_.buf_.pos_, ss_.buf_.line_};
+    }
+    return ir_viewer_t::dispatch(f);
+}
+
 func_c xbyak_printer_t::dispatch(func_c e) {
     indent_ = 0;
 
     if (e->name_.find("_should_inline_") != std::string::npos) { return e; }
+
+    std::const_pointer_cast<func_base>(e)->attr()["source_pos"]
+            = source_pos {ss_.buf_.pos_, ss_.buf_.line_};
 
     ss_ << "func " << e->name_ << '(';
     if (!e->params_.empty()) {
@@ -228,10 +245,6 @@ void xbyak_printer_t::print_index_indents(int64_t index) {
 
 void xbyak_printer_t::print_padding_indents() {
     ss_ << std::string((indent_ * 2) + index_width_ + 1, ' ');
-}
-
-std::stringstream &xbyak_printer_t::get_stream() {
-    return ss_;
 }
 
 } // namespace xbyak

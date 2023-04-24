@@ -22,8 +22,11 @@
 #include <compiler/jit/xbyak/configured_xbyak.hpp>
 // clang-format on
 
+#include <memory>
+#include <vector>
 #include <map>
 #include <string>
+#include <compiler/jit/xbyak/debug/debug_info_mgr.hpp>
 
 namespace dnnl {
 namespace impl {
@@ -62,7 +65,7 @@ public:
 
 private:
     friend class xbyak_lowering_viewer;
-
+    std::vector<std::unique_ptr<debug_info_mgr>> debug_info_;
     std::map<std::string, void *> func_name_to_address_;
 };
 

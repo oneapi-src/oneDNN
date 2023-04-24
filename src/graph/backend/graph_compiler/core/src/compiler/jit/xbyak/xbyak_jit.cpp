@@ -147,9 +147,8 @@ std::shared_ptr<jit_module> xbyak_jit::make_jit_module(
     assert(ir_mod2);
 
     if (utils::compiler_configs_t::get().xbyak_jit_asm_listing_) {
-        xbyak_printer_t printer(ir_mod2, target_profile);
         std::ofstream f("xbyak_ir.txt");
-        f << printer.get_stream().rdbuf();
+        xbyak_printer_t printer(f, ir_mod2, target_profile);
     }
 
     //========================================================================

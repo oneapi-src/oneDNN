@@ -24,6 +24,7 @@
 #include <compiler/ir/ir_module.hpp>
 #include <compiler/ir/viewer.hpp>
 #include <compiler/jit/xbyak/ir/reg_allocation/virtual_slot.hpp>
+#include <util/pos_track_stream.hpp>
 
 namespace dnnl {
 namespace impl {
@@ -33,15 +34,16 @@ namespace xbyak {
 
 class xbyak_printer_t : public ir_viewer_t {
 public:
-    xbyak_printer_t(
-            const_ir_module_ptr &ir_mod, x86_64::target_profile_t &profile);
-    std::stringstream &get_stream();
+    xbyak_printer_t(std::ostream &os, const_ir_module_ptr &ir_mod,
+            x86_64::target_profile_t &profile);
 
 private:
     using ir_viewer_t::dispatch;
     using ir_viewer_t::view;
 
     func_c dispatch(func_c e) override;
+    stmt_c dispatch(stmt_c e) override;
+    expr_c dispatch(expr_c e) override;
 
     void view(assign_c v) override;
     void view(stmts_c v) override;
@@ -63,7 +65,7 @@ private:
     constexpr static int index_width_ = 6;
     int indent_ = 0;
 
-    std::stringstream ss_;
+    track_pos_stream_t ss_;
 };
 
 } // namespace xbyak

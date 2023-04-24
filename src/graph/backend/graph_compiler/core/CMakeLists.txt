@@ -63,6 +63,12 @@ file(GLOB_RECURSE SC_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp
     )
 
+if(NOT DNNL_ENABLE_JIT_PROFILING)
+    list(REMOVE_ITEM SC_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/compiler/jit/xbyak/debug/vtune/vtune.cpp)
+else()
+    add_definitions(-DSC_PROFILING=1)
+endif()
+
 if(WIN32 OR APPLE OR NOT SC_CFAKE_ENABLED)
     list(REMOVE_ITEM SC_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/util/fdstream.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/util/fdstream.hpp

@@ -489,6 +489,13 @@ public:
         return &get_any(k).get<T>();
     };
 
+    // gets the pointer of a value. if key is not found, returns nullptr
+    template <typename T>
+    const T *get_or_null(const std::string &k) const {
+        if (!has_key(k)) { return nullptr; }
+        return &get_any(k).get<T>();
+    };
+
     template <typename T>
     void set(const std::string &k, const T &v) {
         if (has_key(k)) {
