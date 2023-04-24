@@ -273,6 +273,36 @@ TEST(GCCore_licm_transform, TestLICMTransformIfNodeHoist) {
             _else_ { m = 2; }
             A[m] = m;
         }
+        // can hoist inside if scope
+        _var_init_(d, s32, 0);
+        _for_(i, 0, 10) {
+            _if_(true) {
+                _for_(i1, 0, 10) {
+                    _var_init_(tmp, s32, d + 2);
+                    A[i1] = tmp;
+                }
+            }
+            _else_ {
+                _for_(i2, 0, 10) {
+                    _var_init_(tmp2, s32, d + 1);
+                    A[i2] = tmp2;
+                }
+            }
+        }
+        // can hoist
+        _var_init_(m1, s32, 0);
+        _var_init_(m2, s32, 0);
+        _for_(i, 0, 10) {
+            _if_(true) {
+                _for_(j, 0, 10) {
+                    _var_init_(tmp, s32, m2 + 1);
+                    m1 = tmp;
+                }
+            }
+            _else_ { m1 = 2; }
+            A[m1] = m1;
+        }
+
         _return_(0);
     }
     ssa_transform_t s;
@@ -283,6 +313,7 @@ TEST(GCCore_licm_transform, TestLICMTransformIfNodeHoist) {
 
     _function_(s32, expected, _arg_("A", s32, {10000})) {
         _bind_(A);
+        //
         _var_init_(t0, s32, 0);
         _var_init_(t1, s32, 10);
         _var_init_(t2, s32, 1);
@@ -294,7 +325,7 @@ TEST(GCCore_licm_transform, TestLICMTransformIfNodeHoist) {
             _var_init_(a_3, s32, builder::make_phi({a_1_, a_2_}));
             A[a_3] = a_3;
         }
-
+        //
         _var_init_(t8, s32, 0);
         _var_init_(t9, s32, 10);
         _var_init_(t10, s32, 1);
@@ -305,7 +336,7 @@ TEST(GCCore_licm_transform, TestLICMTransformIfNodeHoist) {
             _var_init_(c_7, s32, builder::make_phi({0, c_6_}));
             A[c_7] = c_7;
         }
-
+        //
         _var_init_(f, s32, 1);
         _var_init_(t15, s32, 0);
         _var_init_(t16, s32, 10);
@@ -323,21 +354,66 @@ TEST(GCCore_licm_transform, TestLICMTransformIfNodeHoist) {
             _var_init_(e_3, s32, builder::make_phi({e_1_, e_2_}));
             A[e_3] = e_3;
         }
-
+        //
         _var_init_(t29, s32, 0);
         _var_init_(t30, s32, 10);
         _var_init_(t31, s32, 1);
         _var_init_(t32, datatypes::boolean, true);
         expr m_1_, m_2_;
-        _if_(t32) {
-            _var_init_(tmp, s32, 1);
-            _var_init_copy_(m_1, s32, 1);
-        }
+        _if_(t32) { _var_init_copy_(m_1, s32, 1); }
         _else_ { _var_init_copy_(m_2, s32, 2); }
         _var_init_(m_3, s32, builder::make_phi({m_1_, m_2_}));
-
         _for_(i, t29, t30, t31) { A[m_3] = m_3; }
-
+        //
+        _var_init_(d, s32, 0);
+        _var_init_(t37, s32, 0);
+        _var_init_(t38, s32, 10);
+        _var_init_(t39, s32, 1);
+        _var_init_(d_18, s32, builder::make_phi({d}));
+        _var_init_(t40, datatypes::boolean, true);
+        _for_(i, t37, t38, t39) {
+            _if_(t40) {
+                _var_init_(t41, s32, 0);
+                _var_init_(t42, s32, 10);
+                _var_init_(t43, s32, 1);
+                _var_init_(d_19, s32, builder::make_phi({d_18}));
+                _var_init_(t46, s32, 2);
+                _var_init_(tmp, s32, (d_19 + t46));
+                _for_(i1, t41, t42, t43) { A[i1] = tmp; }
+            }
+            _else_ {
+                _var_init_(t47, s32, 0);
+                _var_init_(t48, s32, 10);
+                _var_init_(t49, s32, 1);
+                _var_init_(d_20, s32, builder::make_phi({d_18}));
+                _var_init_(t51, s32, 1);
+                _var_init_(tmp2, s32, (d_20 + t51));
+                _for_(i2, t47, t48, t49) { A[i2] = tmp2; }
+            }
+        }
+        //
+        _var_init_(m100, s32, 0);
+        _var_init_(m200, s32, 0);
+        _var_init_(t50, s32, 0);
+        _var_init_(t51, s32, 10);
+        _var_init_(t52, s32, 1);
+        _var_init_(m201, s32, builder::make_phi({m200}));
+        _var_init_(t53, datatypes::boolean, true);
+        expr m103_, m104_;
+        _if_(t53) {
+            _var_init_(t54, s32, 0);
+            _var_init_(t55, s32, 10);
+            _var_init_(t56, s32, 1);
+            _var_init_(m202, s32, builder::make_phi({m201}));
+            _var_init_(t59, s32, 1);
+            _var_init_(m102, s32, (m202 + t59));
+            _for_(j, t54, t55, t56) {}
+            _var_init_copy_(m103, s32, builder::make_phi({m100, m102}));
+        }
+        _else_ { _var_init_copy_(m104, s32, 2); }
+        _var_init_(m105, s32, builder::make_phi({m103_, m104_}));
+        _for_(i, t50, t51, t52) { A[m105] = m105; }
+        //
         _var_init_(t33, s32, 0);
         _return_(t33);
     }
