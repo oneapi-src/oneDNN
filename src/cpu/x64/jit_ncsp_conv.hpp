@@ -43,18 +43,35 @@ struct ncsp_convolution_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T(name_.c_str(), ncsp_convolution_fwd_t);
 
         status_t init(engine_t *engine);
+        status_t init_convolution(engine_t *engine);
+        status_t init_matmul(engine_t *engine);
+        status_t reshape_activations(memory_desc_t *o_md,
+                const memory_desc_t *i_md, bool to_matmul = false,
+                bool is_dst = true);
+        status_t reshape_weights(memory_desc_t *o_md, const memory_desc_t *i_md,
+                bool to_matmul = false);
 
+        std::shared_ptr<primitive_desc_t> matmul_pd_;
         std::shared_ptr<primitive_desc_t> nspc_conv_pd_;
         std::shared_ptr<primitive_desc_t> src_reorder_pd_;
         std::shared_ptr<primitive_desc_t> dst_pre_reorder_pd_;
         std::shared_ptr<primitive_desc_t> dst_post_reorder_pd_;
+        memory_desc_t matmul_src_md_;
+        memory_desc_t matmul_wei_md_;
+        memory_desc_t matmul_dst_md_;
         memory_desc_t nspc_src_md_;
         memory_desc_t nspc_dst_md_;
 
     private:
+        bool is_matmul_;
         const bool with_sum_;
         std::string name_ = "ncsp:any+";
-        void init_name() { name_.append(nspc_conv_pd_->name()); }
+        void init_name() {
+            std::string suffix = is_matmul_ ? "matmul" : "conv";
+            name_ = "ncsp:" + suffix + "+";
+            name_.append(
+                    is_matmul_ ? matmul_pd_->name() : nspc_conv_pd_->name());
+        }
         void init_scratchpad();
     };
 
@@ -64,6 +81,8 @@ struct ncsp_convolution_fwd_t : public primitive_t {
 
     status_t init(engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute_convolution(const exec_ctx_t &ctx) const;
+    status_t execute_matmul(const exec_ctx_t &ctx) const;
 
 private:
     status_t reorder_activations(const exec_ctx_t &ctx,
@@ -72,6 +91,7 @@ private:
     const pd_t *pd() const {
         return static_cast<const pd_t *>(primitive_t::pd().get());
     }
+    std::shared_ptr<primitive_t> matmul_p_;
     std::shared_ptr<primitive_t> nspc_conv_p_;
     std::shared_ptr<primitive_t> src_reorder_p_;
     std::shared_ptr<primitive_t> dst_pre_reorder_p_;

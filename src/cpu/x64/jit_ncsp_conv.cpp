@@ -18,6 +18,7 @@
 #include "common/compiler_workarounds.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/nstl.hpp"
+#include "common/primitive_desc_iface.hpp"
 #include "common/primitive_desc_iterator.hpp"
 #include "common/reorder.hpp"
 #include "common/stream.hpp"
@@ -52,18 +53,57 @@ format_tag_t get_nspc_tag(int ndims) {
 }
 } // namespace
 
-status_t ncsp_convolution_fwd_t::pd_t::init(engine_t *engine) {
-    using namespace data_type;
-    using namespace utils;
+status_t ncsp_convolution_fwd_t::pd_t::reshape_activations(memory_desc_t *o_md,
+        const memory_desc_t *i_md, bool to_matmul, bool is_dst) {
+    dims_t reduce {};
+    const dim_t ndims_out
+            = to_matmul ? 1 + with_groups() + 2 : with_groups() + ndims();
+    // convert between activations for convolution and matmul
+    // batch dimension is the same for convolution and matmul
+    // channel dimension of convolution is split into group and channels
+    // spatial dimensions of convolution are combined into one
+    // eg. {n, c, d, h, w} <-> {n, g, c/g, sp}
+    if (to_matmul) {
+        // conv to matmul: add batch, remove spatial
+        int d = 0;
+        reduce[d++] = MB(); // n
+        if (with_groups()) reduce[d++] = G(); // g
+        reduce[d++] = i_md->dims[1] / G(); // c/g
+        reduce[d++] = ID() * IH() * IW(); // sp
+    } else {
+        // matmul to conv: restore original dimensions
+        const memory_desc_t *a_md = is_dst ? dst_md() : src_md();
+        for (int d = 0; d < ndims(); ++d)
+            reduce[d] = a_md->dims[d]; // n, c, d, h, w
+    }
+    return memory_desc_reshape(*o_md, *i_md, ndims_out, reduce);
+}
 
-    // TODO: enable attributes (could be tricky for binary-like postops)
-    const bool ok = is_fwd()
-            && set_default_alg_kind(alg_kind::convolution_direct)
-            && attr()->has_default_values() && !has_zero_dim_memory()
-            && memory_desc_matches_tag(*src_md(), get_ncsp_tag(ndims()))
-            && memory_desc_matches_tag(*dst_md(), get_ncsp_tag(ndims()));
-    if (!ok) return status::unimplemented;
+status_t ncsp_convolution_fwd_t::pd_t::reshape_weights(
+        memory_desc_t *o_md, const memory_desc_t *i_md, bool to_matmul) {
+    dims_t reduce {};
+    const dim_t ndims_out
+            = to_matmul ? 1 + with_groups() + 2 : with_groups() + ndims();
+    const dim_t ndims_ch = 2 + with_groups();
+    // convert between weights for convolution and matmul
+    // for matmul, batch dimension b is always 1
+    // eg. {g, o, i, d, h, w} <-> {b, g, o, i}
+    if (to_matmul) {
+        // conv to matmul: add batch, remove spatial
+        reduce[0] = 1; // b
+        for (int d = 0; d < ndims_ch; ++d)
+            reduce[d + 1] = i_md->dims[d]; // g, oc, ic
+    } else {
+        // matmul to conv: remove batch, restore spatial
+        for (int d = 0; d < ndims_ch; ++d)
+            reduce[d] = i_md->dims[d + 1]; // g, o, i
+        for (int d = ndims_ch; d < ndims_out; ++d)
+            reduce[d] = 1; // d, h, w
+    }
+    return memory_desc_reshape(*o_md, *i_md, ndims_out, reduce);
+}
 
+status_t ncsp_convolution_fwd_t::pd_t::init_convolution(engine_t *engine) {
     // create a convolution descriptor with activations in nspc format
     convolution_desc_t nspc_conv_d = convolution_desc_t();
     format_tag_t nspc_tag = get_nspc_tag(ndims());
@@ -98,6 +138,63 @@ status_t ncsp_convolution_fwd_t::pd_t::init(engine_t *engine) {
                 dst_pre_reorder_pd_, engine, dst_md(), &nspc_dst_md_));
     CHECK(reorder_primitive_desc_create(
             dst_post_reorder_pd_, engine, &nspc_dst_md_, dst_md()));
+    return status::success;
+}
+
+status_t ncsp_convolution_fwd_t::pd_t::init_matmul(engine_t *engine) {
+    const bool to_matmul = true;
+    CHECK(reshape_activations(&matmul_dst_md_, dst_md(), to_matmul, true));
+    // For call to matmul:
+    // - conv src becomes matmul weights (ie matrix B)
+    // - conv weights becomes matmul src (ie matrix A)
+    // This allows to keep conv src and conv dst in ncsp layout.
+    CHECK(reshape_activations(&matmul_wei_md_, src_md(), to_matmul, false));
+    CHECK(reshape_weights(&matmul_src_md_, weights_md(), to_matmul));
+    primitive_desc_iface_t *matmul_pdi;
+    const primitive_attr_t *_attr = attr();
+    CHECK(dnnl_matmul_primitive_desc_create(&matmul_pdi, engine,
+            &matmul_src_md_, &matmul_wei_md_, nullptr /*bias*/, &matmul_dst_md_,
+            _attr));
+    matmul_pd_ = matmul_pdi->impl();
+
+    if (weights_md_.format_kind == format_kind::any)
+        CHECK(reshape_weights(
+                &weights_md_, matmul_pd_->src_md(), false /*to_matmul*/));
+    if (bias_md_.format_kind == format_kind::any)
+        bias_md_ = *matmul_pd_->weights_md(1);
+
+    return status::success;
+}
+
+status_t ncsp_convolution_fwd_t::pd_t::init(engine_t *engine) {
+    using namespace data_type;
+    using namespace utils;
+
+    // TODO: enable attributes (could be tricky for binary-like postops)
+    const bool ok = is_fwd()
+            && set_default_alg_kind(alg_kind::convolution_direct)
+            && attr()->has_default_values() && !has_zero_dim_memory()
+            && memory_desc_matches_tag(*src_md(), get_ncsp_tag(ndims()))
+            && memory_desc_matches_tag(*dst_md(), get_ncsp_tag(ndims()));
+    if (!ok) return status::unimplemented;
+
+    const bool is_gemm = true // turn on later
+            // 1x1
+            && utils::everyone_is(1, KD(), KH(), KW())
+            // no pre-padding
+            && utils::everyone_is(0, padFront(), padT(), padL())
+            // no post-padding
+            && utils::everyone_is(0, padBack(), padB(), padR())
+            // no strides
+            && utils::everyone_is(1, KSD(), KSH(), KSW());
+    // TODO: support bias and attributes in matmul-based convolution
+    // (bias can be supported via binary postop, attr might need translation)
+    is_matmul_ = is_gemm && attr()->has_default_values() && !with_bias();
+
+    if (is_matmul_)
+        CHECK(init_matmul(engine));
+    else
+        CHECK(init_convolution(engine));
 
     init_name();
     init_scratchpad();
@@ -107,20 +204,32 @@ status_t ncsp_convolution_fwd_t::pd_t::init(engine_t *engine) {
 void ncsp_convolution_fwd_t::pd_t::init_scratchpad() {
     using namespace memory_tracking::names;
     auto scratchpad = scratchpad_registry().registrar();
-    const memory_desc_wrapper dst_mdw(dst_md());
-    const memory_desc_wrapper src_mdw(src_md());
-    scratchpad.book(
-            key_conv_ncsp_dst, dst_mdw.nelems(), sizeof(dst_mdw.data_type()));
-    scratchpad.book(
-            key_conv_ncsp_src, src_mdw.nelems(), sizeof(src_mdw.data_type()));
-    scratchpad.book(key_nested, nspc_conv_pd_->scratchpad_registry());
-    scratchpad.book(key_nested, src_reorder_pd_->scratchpad_registry());
-    if (with_sum_)
-        scratchpad.book(key_nested, dst_pre_reorder_pd_->scratchpad_registry());
-    scratchpad.book(key_nested, dst_post_reorder_pd_->scratchpad_registry());
+    if (is_matmul_) {
+        if (matmul_pd_)
+            scratchpad.book(key_nested, matmul_pd_->scratchpad_registry());
+    } else {
+        const memory_desc_wrapper dst_mdw(dst_md());
+        const memory_desc_wrapper src_mdw(src_md());
+        scratchpad.book(key_conv_ncsp_dst, dst_mdw.nelems(),
+                sizeof(dst_mdw.data_type()));
+        scratchpad.book(key_conv_ncsp_src, src_mdw.nelems(),
+                sizeof(src_mdw.data_type()));
+        if (nspc_conv_pd_)
+            scratchpad.book(key_nested, nspc_conv_pd_->scratchpad_registry());
+        if (src_reorder_pd_)
+            scratchpad.book(key_nested, src_reorder_pd_->scratchpad_registry());
+        if (dst_pre_reorder_pd_)
+            scratchpad.book(
+                    key_nested, dst_pre_reorder_pd_->scratchpad_registry());
+        if (dst_post_reorder_pd_)
+            scratchpad.book(
+                    key_nested, dst_post_reorder_pd_->scratchpad_registry());
+    }
 }
 
 status_t ncsp_convolution_fwd_t::init(engine_t *engine) {
+    if (pd()->matmul_pd_)
+        CHECK(pd()->matmul_pd_->create_primitive(matmul_p_, engine));
     if (pd()->nspc_conv_pd_)
         CHECK(pd()->nspc_conv_pd_->create_primitive(nspc_conv_p_, engine));
     if (pd()->src_reorder_pd_)
@@ -150,7 +259,8 @@ status_t ncsp_convolution_fwd_t::reorder_activations(const exec_ctx_t &ctx,
     return status::success;
 }
 
-status_t ncsp_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
+status_t ncsp_convolution_fwd_t::execute_convolution(
+        const exec_ctx_t &ctx) const {
 
     using namespace memory_tracking::names;
     engine_t *engine = ctx.stream()->engine();
@@ -193,6 +303,46 @@ status_t ncsp_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
             {&nspc_dst, false}, ctx.args().at(DNNL_ARG_DST)));
 
     return status::success;
+}
+
+status_t ncsp_convolution_fwd_t::execute_matmul(const exec_ctx_t &ctx) const {
+    engine_t *engine = ctx.stream()->engine();
+
+    // must cast away const-ness to use as handles for new memory objects
+    void *conv_src = const_cast<void *>(CTX_IN_MEM(const void *, DNNL_ARG_SRC));
+    void *conv_wei
+            = const_cast<void *>(CTX_IN_MEM(const void *, DNNL_ARG_WEIGHTS));
+    void *conv_dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+
+    // init matmul src, weights, dst mems from conv weights, src, dst handles
+    memory_t matmul_src(engine, &(pd()->matmul_src_md_),
+            memory_flags_t::use_runtime_ptr, conv_wei);
+    memory_t matmul_wei(engine, &(pd()->matmul_wei_md_),
+            memory_flags_t::use_runtime_ptr, conv_src);
+    memory_t matmul_dst(engine, &(pd()->matmul_dst_md_),
+            memory_flags_t::use_runtime_ptr, conv_dst);
+
+    // execute matmul
+    const auto &args = ctx.args();
+    exec_args_t matmul_args;
+    matmul_args[DNNL_ARG_SRC] = {&matmul_src, false};
+    matmul_args[DNNL_ARG_WEIGHTS] = {&matmul_wei, false};
+    matmul_args[DNNL_ARG_DST] = {&matmul_dst, true};
+    if (pd()->with_bias()) matmul_args[DNNL_ARG_BIAS] = args.at(DNNL_ARG_BIAS);
+
+    exec_ctx_t matmul_ctx(ctx, std::move(matmul_args));
+
+    nested_scratchpad_t ns(ctx, memory_tracking::names::key_nested, matmul_p_);
+    matmul_ctx.set_scratchpad_grantor(ns.grantor());
+    CHECK(matmul_p_->execute(matmul_ctx));
+
+    return status::success;
+}
+
+status_t ncsp_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
+    if (matmul_p_) return execute_matmul(ctx);
+    if (nspc_conv_p_) return execute_convolution(ctx);
+    return status::runtime_error;
 }
 
 } // namespace x64
