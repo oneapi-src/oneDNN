@@ -1593,12 +1593,12 @@ TEST(GCCore_graph_mixed_partition_cpp, TestInputFusionAnchor2) {
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     ctx->flags_.mixed_fusion_ = true;
     auto input = graph.make_input(
-            {graph_tensor::make({128, 1}, sc_data_format_t::MK())});
+            {graph_tensor::make({128, 16}, sc_data_format_t::MK())});
     auto weight = graph.make_input(
             {graph_tensor::make({1, 32}, sc_data_format_t::MKmk(4, 16))});
 
     auto reo0 = graph.make("reorder", {input->get_outputs()[0]}, {},
-            {{"out_format", sc_data_format_t::MKmk(16, 1)}});
+            {{"out_format", sc_data_format_t::MKmk(16, 2)}});
     // This reorder could not be executed input fusion because it use input loop
     auto reo1 = graph.make("reorder", {weight->get_outputs()[0]}, {},
             {{"out_format", sc_data_format_t::NKkn(1, 16)}});
@@ -1620,7 +1620,7 @@ TEST(GCCore_graph_mixed_partition_cpp, TestInputFusionAnchor2) {
     print_graph(graph, ss, true);
     // reorder1 should not be fused
     std::string expected_str
-            = R"(graph(v0: f32[128, 1], v1: f32[1, 2, 4, 16]) -> [v2: f32[128, 32]] {
+            = R"(graph(v0: f32[128, 16], v1: f32[1, 2, 4, 16]) -> [v2: f32[128, 32]] {
   [v3: f32[2, 1, 1, 16]] = reorder(v1)
   [v2: f32[128, 32]] = outerloop_32X1X1_partition_reorder_managed_matmul_core(v0, v3)
 }

@@ -520,6 +520,61 @@ T ABC2ABCabc(T &input, int A, int B, int C, int a, int b, int c, int origin_A,
 }
 
 template <typename T>
+T ACBDcd2ABCDcd(T &input, int A, int B, int C, int D, int c, int d,
+        int origin_A, int origin_C, int origin_B, int origin_D, int origin_c,
+        int origin_d) {
+    T output(test_utils::product({A, B, C, D, c, d}));
+    int plain_A = origin_A;
+    int plain_B = origin_B;
+    int plain_C = origin_C * origin_c;
+    int plain_D = origin_D * origin_d;
+    for (auto a_o = 0; a_o < A; ++a_o)
+        for (auto b_o = 0; b_o < B; ++b_o)
+            for (auto c_o = 0; c_o < C; ++c_o)
+                for (auto d_o = 0; d_o < D; ++d_o) {
+                    for (auto c_i = 0; c_i < c; ++c_i)
+                        for (auto d_i = 0; d_i < d; ++d_i) {
+                            if ((a_o) < plain_A && (b_o) < plain_B
+                                    && (c_o * c + c_i) < plain_C
+                                    && (d_o * d + d_i) < plain_D) {
+                                auto output_idx = a_o * (B * C * D * c * d)
+                                        + b_o * (C * D * c * d)
+                                        + c_o * (D * c * d) + d_o * (c * d)
+                                        + c_i * d + d_i;
+
+                                int cur_a_o = (a_o);
+                                int cur_c_o = (c_o * c + c_i) / origin_c;
+                                int cur_c_i = (c_o * c + c_i) % origin_c;
+                                int cur_b_o = (b_o);
+                                int cur_d_o = (d_o * d + d_i) / origin_d;
+                                int cur_d_i = (d_o * d + d_i) % origin_d;
+                                auto input_idx = cur_a_o
+                                                * (origin_C * origin_B
+                                                        * origin_D * origin_c
+                                                        * origin_d)
+                                        + cur_c_o
+                                                * (origin_B * origin_D
+                                                        * origin_c * origin_d)
+                                        + cur_b_o
+                                                * (origin_D * origin_c
+                                                        * origin_d)
+
+                                        + cur_d_o * (origin_c * origin_d)
+                                        + cur_c_i * origin_d + cur_d_i;
+                                output[output_idx] = input[input_idx];
+                            } else {
+                                auto output_idx = a_o * (C * B * D * c * d)
+                                        + c_o * (B * D * c * d)
+                                        + b_o * (D * c * d) + d_o * (c * d)
+                                        + c_i * d + d_i;
+                                output[output_idx] = 0;
+                            }
+                        }
+                }
+    return output;
+}
+
+template <typename T>
 T ABDC2ABCDcd(T &input, int A, int B, int C, int D, int c, int d, int origin_A,
         int origin_B, int origin_D, int origin_C, int dtype_block = 1) {
     int pad_c = utils::divide_and_ceil(c, dtype_block);

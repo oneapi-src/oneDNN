@@ -745,13 +745,60 @@ bool check_required_slice(const graph_tensor_ptr &gt,
         const slice_range_list &range_list, int required_axis_from_end) {
     auto gt_dims = gt->details_.get_blocking_dims();
     std::vector<int> required_axis;
-    for (size_t i = gt_dims.size() - required_axis_from_end; i < gt_dims.size();
-            i++) {
+    int cur_len = gt_dims.size() - required_axis_from_end;
+    for (size_t i = std::max(cur_len, 0); i < gt_dims.size(); i++) {
         required_axis.emplace_back(i);
     }
     return range_list.size() == 1
             && slice_full_on_axis(gt_dims, range_list[0], required_axis);
 }
+
+/**
+ * @brief find the axis closest to the last which could be vectorized.
+ * @param blocking_dims_expr blocking expr dim
+ * @param format format
+ * @param last_origin_axis original last axis
+ * @param origin_axis_vectorized finded axis closed to the last
+that can be vectorized
+ * */
+void find_vectorized_axis(std::vector<expr> const &blocking_dims_expr,
+        sc_data_format_t const &format, int &last_origin_axis,
+        int &origin_axis_vectorized) {
+    origin_axis_vectorized = format.format_code_.ndims() - 1;
+    // find not 1 dim in the last, if in dynamic cases, it will be as
+    // original logic
+    for (int i = origin_axis_vectorized; i >= 0; i--) {
+        if (!blocking_dims_expr[i].isa<constant>()) { break; }
+        if (get_expr_as_int(blocking_dims_expr[i]) > 1) {
+            origin_axis_vectorized = i;
+            break;
+        }
+    }
+    last_origin_axis = format.format_code_.get(origin_axis_vectorized);
+}
+
+#define SLICE_RAGNE_CHECK_INIT_DATA() \
+    bool use_out_loop = use_output_loop(); \
+    sc_data_format_t target_format \
+            = use_out_loop ? output_format : input_format; \
+    auto blocking_exprs = get_blocking_shapes_expr( \
+            get_owner_graph(), plain_dims_, target_format); \
+    auto block_axis = target_format.format_code_.get( \
+            target_format.format_code_.ndims() - 1); \
+    int origin_axis_vectorized = target_format.format_code_.ndims() - 1; \
+    find_vectorized_axis(blocking_exprs, target_format, block_axis, \
+            origin_axis_vectorized); \
+    int len_from_last \
+            = target_format.format_code_.ndims() - 1 - origin_axis_vectorized; \
+    bool must_recheck = len_from_last > 0; \
+    bool optimized_slice_check = !stat_map.is_recursive_mode() \
+            && support_optimized_kernel(stat_map.get_context()); \
+    bool special_slice_check = !stat_map.is_recursive_mode() \
+            && (support_optimized_kernel(stat_map.get_context()) \
+                    || must_recheck); \
+    len_from_last += optimized_slice_check \
+            ? meet_vnni_reorder_require(stat_map.get_context()) ? 3 : 2 \
+            : 1;
 
 // infer reorder slice according input_slice
 void reorder_op_t::infer_slice_ranges(
@@ -786,13 +833,10 @@ void reorder_op_t::infer_slice_ranges(
     if (known_ranges_map.empty()) return;
     auto input_slice_list = known_ranges_map[0];
 
-    bool optimized_slice_check = !stat_map.is_recursive_mode()
-            && support_optimized_kernel(stat_map.get_context());
-
-    if (optimized_slice_check
-            && !check_required_slice(get_inputs()[0], input_slice_list,
-                    meet_vnni_reorder_require(stat_map.get_context()) ? 3
-                                                                      : 2)) {
+    SLICE_RAGNE_CHECK_INIT_DATA()
+    if (special_slice_check
+            && !check_required_slice(
+                    get_inputs()[0], input_slice_list, len_from_last)) {
         stat_map.append_ops_by_status(this, infer_status_code::RETRY);
         return;
     }
@@ -820,10 +864,8 @@ void reorder_op_t::infer_slice_ranges(
         }
     } else {
         if (optimized_slice_check
-                && !check_required_slice(get_outputs()[0], reorder_ranges_list,
-                        meet_vnni_reorder_require(stat_map.get_context())
-                                ? 3
-                                : 2)) {
+                && !check_required_slice(
+                        get_outputs()[0], reorder_ranges_list, len_from_last)) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
         }
@@ -835,16 +877,15 @@ void reorder_op_t::infer_slice_ranges(
 void reorder_op_t::pre_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
     slice_range_list known_ranges_list = fsmap.get(get_outputs()[0]);
+    auto &input_format = get_input_format();
+    auto &output_format = get_output_format();
+    SLICE_RAGNE_CHECK_INIT_DATA()
     // deal with begining reorder op, which use output loop
     if (!stat_map.is_recursive_mode() && fsmap.datamap_.size() == 1) {
         if (!use_output_loop()
-                || (support_optimized_kernel(stat_map.get_context())
+                || (special_slice_check
                         && !check_required_slice(get_outputs()[0],
-                                known_ranges_list,
-                                meet_vnni_reorder_require(
-                                        stat_map.get_context())
-                                        ? 3
-                                        : 2))) {
+                                known_ranges_list, len_from_last))) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
         } else {
             // set input slice for anchor check
@@ -1069,30 +1110,6 @@ static void set_const_fold_bypass(const context_ptr &ctx, const stmt &v) {
         v->attr()["bypass_complex_const_fold"] = true;
     }
 #endif
-}
-
-/**
- * @brief find the axis closest to the last which could be vectorized.
- * @param blocking_dims_expr blocking expr dim
- * @param format format
- * @param last_origin_axis original last axis
- * @param origin_axis_vectorized finded axis closed to the last
-that can be vectorized
- * */
-void find_vectorized_axis(std::vector<expr> &blocking_dims_expr,
-        const sc_data_format_t &format, int &last_origin_axis,
-        int &origin_axis_vectorized) {
-    origin_axis_vectorized = format.format_code_.ndims() - 1;
-    // find not 1 dim in the last, if in dynamic cases, it will be as
-    // original logic
-    for (int i = origin_axis_vectorized; i >= 0; i--) {
-        if (!blocking_dims_expr[i].isa<constant>()) { break; }
-        if (get_expr_as_int(blocking_dims_expr[i]) > 1) {
-            origin_axis_vectorized = i;
-            break;
-        }
-    }
-    last_origin_axis = format.format_code_.get(origin_axis_vectorized);
 }
 
 constexpr const int byte = 8;
