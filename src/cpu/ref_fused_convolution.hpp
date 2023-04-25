@@ -387,7 +387,7 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
         return status::success;
     }
 
-#if DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
+#if DNNL_USE_ACL
     status_t create_resource(
             engine_t *engine, resource_mapper_t &mapper) const override {
         for (auto &p : primitives_) {

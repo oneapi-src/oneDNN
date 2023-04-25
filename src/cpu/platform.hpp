@@ -115,19 +115,11 @@
 #define DNNL_NON_X64_ONLY(...) Z_CONDITIONAL_DO(Z_NOT(DNNL_X64), __VA_ARGS__)
 
 // Using Arm Compute Library kernels is optional for AArch64 builds
-// and can be enabled with the DNNL_AARCH64_USE_ACL CMake option
-#if defined(DNNL_AARCH64) && defined(DNNL_AARCH64_USE_ACL)
-#define DNNL_AARCH64_ACL_ONLY(...) __VA_ARGS__
+// and can be enabled with the DNNL_USE_ACL CMake option
+#ifdef DNNL_USE_ACL
+#define DNNL_ACL_ONLY(...) __VA_ARGS__
 #else
-#define DNNL_AARCH64_ACL_ONLY(...)
-#endif
-
-// Using Arm Compute Library kernels is optional for ARM builds
-// and can be enabled with the DNNL_AARCH64_USE_ACL CMake option
-#if defined(DNNL_ARM) && defined(DNNL_AARCH64_USE_ACL)
-#define DNNL_ARM_ACL_ONLY(...) __VA_ARGS__
-#else
-#define DNNL_ARM_ACL_ONLY(...)
+#define DNNL_ACL_ONLY(...)
 #endif
 
 // Primitive ISA section for configuring knobs.

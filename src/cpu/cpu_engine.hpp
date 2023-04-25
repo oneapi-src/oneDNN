@@ -29,8 +29,8 @@
 
 #include "cpu/platform.hpp"
 
-#if (DNNL_AARCH64 || DNNL_ARM) && DNNL_AARCH64_USE_ACL
-#include "cpu/aarch64/acl_thread.hpp"
+#if DNNL_USE_ACL
+#include "cpu/acl/acl_thread.hpp"
 #endif
 
 #define CPU_INSTANCE_IMPL(...) \
@@ -47,10 +47,7 @@
 #define CPU_INSTANCE_AMX(...) REG_AMX_ISA(CPU_INSTANCE(__VA_ARGS__))
 #define CPU_INSTANCE_AARCH64(...) DNNL_AARCH64_ONLY(CPU_INSTANCE(__VA_ARGS__))
 #define CPU_INSTANCE_ARM(...) DNNL_ARM_ONLY(CPU_INSTANCE(__VA_ARGS__))
-#define CPU_INSTANCE_AARCH64_ACL(...) \
-    DNNL_AARCH64_ACL_ONLY(CPU_INSTANCE(__VA_ARGS__))
-#define CPU_INSTANCE_ARM_ACL(...) \
-    DNNL_ARM_ACL_ONLY(CPU_INSTANCE(__VA_ARGS__))
+#define CPU_INSTANCE_ACL(...) DNNL_ACL_ONLY(CPU_INSTANCE(__VA_ARGS__))
 #define CPU_INSTANCE_RV64GCV(...) DNNL_RV64GCV_ONLY(CPU_INSTANCE(__VA_ARGS__))
 
 namespace dnnl {
@@ -172,8 +169,8 @@ public:
         assert(index == 0);
         *engine = new cpu_engine_t();
 
-#if (DNNL_AARCH64 || DNNL_ARM) && DNNL_AARCH64_USE_ACL
-        dnnl::impl::cpu::aarch64::acl_thread_utils::set_acl_threading();
+#if DNNL_USE_ACL
+        dnnl::impl::cpu::acl::acl_thread_utils::set_acl_threading();
 #endif
         return status::success;
     };

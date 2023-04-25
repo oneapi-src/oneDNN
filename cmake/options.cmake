@@ -382,7 +382,7 @@ set(DNNL_BLAS_VENDOR "NONE" CACHE STRING
 # AArch64 optimizations with Arm Compute Library
 # ==============================================
 
-option(DNNL_AARCH64_USE_ACL "Enables use of AArch64 optimised functions
+option(DNNL_USE_ACL "Enables use of ARM optimised functions
     from Arm Compute Library.
     This is only supported on AArch64 builds and assumes there is a
     functioning Compute Library build available at the location specified by the

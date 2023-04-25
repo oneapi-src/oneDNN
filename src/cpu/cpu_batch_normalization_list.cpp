@@ -32,10 +32,11 @@ using namespace dnnl::impl::cpu::x64;
 #if DNNL_AARCH64
 #include "cpu/aarch64/jit_uni_batch_normalization.hpp"
 #include "cpu/aarch64/jit_uni_batch_normalization_s8.hpp"
-#if DNNL_AARCH64_USE_ACL
-#include "cpu/aarch64/acl_batch_normalization.hpp"
-#endif
 using namespace dnnl::impl::cpu::aarch64;
+#endif
+#if DNNL_USE_ACL
+#include "cpu/acl/acl_batch_normalization.hpp"
+using namespace dnnl::impl::cpu::acl;
 #endif
 
 namespace dnnl {

@@ -25,8 +25,9 @@
 using namespace dnnl::impl::cpu::x64;
 #endif
 
-#if DNNL_AARCH64_USE_ACL
-#include "cpu/aarch64/acl_layer_normalization.hpp"
+#if DNNL_USE_ACL
+#include "cpu/acl/acl_layer_normalization.hpp"
+using namespace dnnl::impl::cpu::acl;
 #endif
 
 namespace dnnl {
@@ -37,16 +38,12 @@ namespace {
 using namespace dnnl::impl::data_type;
 using namespace dnnl::impl::prop_kind;
 
-#if DNNL_AARCH64_USE_ACL
-using namespace dnnl::impl::cpu::aarch64;
-#endif
-
 // clang-format off
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
     static const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> the_map = REG_LNORM_P({
         {{forward}, {
             CPU_INSTANCE_X64(jit_uni_layer_normalization_fwd_t)
-            CPU_INSTANCE_AARCH64_ACL(acl_layer_normalization_fwd_t)
+            CPU_INSTANCE_ACL(acl_layer_normalization_fwd_t)
             CPU_INSTANCE(simple_layer_normalization_fwd_t)
             CPU_INSTANCE(ref_layer_normalization_fwd_t)
             nullptr,

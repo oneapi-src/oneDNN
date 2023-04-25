@@ -755,7 +755,7 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
     }
 #endif
 
-#ifdef DNNL_AARCH64_USE_ACL
+#ifdef DNNL_USE_ACL
     const bool is_acl_f16_not_ok = prb.cfg[SRC_LAYER].dt == dnnl_f16
             && dnnl::impl::cpu::platform::has_data_type_support(dnnl_f16);
     if (is_acl_f16_not_ok) {

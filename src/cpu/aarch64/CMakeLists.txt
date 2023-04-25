@@ -27,14 +27,6 @@ file(GLOB XBYAK_AARCH64_FILES
 
 list(REMOVE_ITEM SOURCES ${XBYAK_AARCH64_FILES})
 
-if(NOT DNNL_AARCH64_USE_ACL)
-    file(GLOB_RECURSE ACL_FILES
-        ${CMAKE_CURRENT_SOURCE_DIR}/acl_*.[ch]
-        ${CMAKE_CURRENT_SOURCE_DIR}/acl_*.[ch]pp
-        )
-    list(REMOVE_ITEM SOURCES ${ACL_FILES})
-endif()
-
 # If the runtime is not THREADPOOL remove threadpool_scheduler sources.
 if(NOT DNNL_CPU_RUNTIME STREQUAL "THREADPOOL")
     list(APPEND ACL_THREADPOOL_FILES

@@ -117,7 +117,7 @@ make -j
 ~~~sh
 export ACL_ROOT_DIR=<path/to/Compute Library>
 cmake .. \
-          -DDNNL_AARCH64_USE_ACL=ON \
+          -DDNNL_USE_ACL=ON \
           <extra build options>
 ~~~
 

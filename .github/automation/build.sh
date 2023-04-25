@@ -79,7 +79,7 @@ CMAKE_OPTIONS="${CMAKE_OPTIONS}
 # NOTE: only for AArch64 builds.
 if [ ! -z ${ACL_DIR} ]; then
   export ACL_ROOT_DIR=$ACL_DIR
-  CMAKE_OPTIONS="${CMAKE_OPTIONS} -DDNNL_AARCH64_USE_ACL=ON"
+  CMAKE_OPTIONS="${CMAKE_OPTIONS} -DDNNL_USE_ACL=ON"
   echo "Info: Building with Arm Compute Library backend for Aarch64..."
 fi
 
