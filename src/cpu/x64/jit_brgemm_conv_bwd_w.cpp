@@ -1400,24 +1400,27 @@ void brgemm_convolution_bwd_weights_t::prepare_scratchpad_data(
     const auto &jcp = pd()->jcp_;
 
     auto tr_src = scratchpad.template get<src_data_t>(key_conv_tr_src);
+    const auto bytes_to_zero = jcp.src_dsz * jcp.tr_src_num_guard_elems;
     if (jcp.oh_block < jcp.oh || jcp.id > 1) {
-        // if (oh_block < oh) or (id > 1) then we zero all buffer because last
-        // elements position may vary depending on position of od_s, oh_block,
-        // padding and kh
-        parallel_nd(jcp.tr_src_buf_count, [&](size_t isb) {
-            src_data_t *ts = &tr_src[isb * jcp.tr_src_buf_size];
-            std::memset(ts, 0, jcp.src_dsz * jcp.tr_src_buf_size);
-        });
+        // if (oh_block < oh) or (id > 1) then we zero end of each row because
+        // last elements position may vary depending on position of od_s,
+        // oh_block, padding and kh
+        parallel_nd(jcp.tr_src_buf_count, jcp.ih_block * jcp.id,
+                [&](size_t isb, size_t is) {
+                    src_data_t *ts = &tr_src[isb * jcp.tr_src_buf_size
+                            + (is + 1) * jcp.tr_iw * jcp.ic_block];
+                    std::memset(ts, 0, bytes_to_zero);
+                });
         // Zero out last guard elements
         src_data_t *ts = &tr_src[jcp.tr_src_buf_count * jcp.tr_src_buf_size];
-        std::memset(ts, 0, jcp.src_dsz * jcp.tr_src_num_guard_elems);
+        std::memset(ts, 0, bytes_to_zero);
     } else {
         // Zero out guard elements that cross a buffer boundary to prevent a
         // race condition due to buffer overflows from memory optimization where
         // buffers sharing padding
         parallel_nd(jcp.tr_src_buf_count, [&](size_t isb) {
             src_data_t *ts = &tr_src[(isb + 1) * jcp.tr_src_buf_size];
-            std::memset(ts, 0, jcp.src_dsz * jcp.tr_src_num_guard_elems);
+            std::memset(ts, 0, bytes_to_zero);
         });
     }
 
