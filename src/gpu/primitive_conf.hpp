@@ -627,6 +627,7 @@ struct binary_conf_t {
     bool same_src_dt;
     bool with_binary_post_op;
     bool is_src1_broadcast;
+    bool is_src0_blocked;
 
     memory_desc_info_t src0_md_info;
     memory_desc_info_t src1_md_info;

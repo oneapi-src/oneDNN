@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -381,45 +381,70 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
     int channel_block = get_sub_group_id();
     const int sub_group_size = 16;
     const int CHANNELS = SRC1_PD1;
+    int src0_off, src1_off;
 
-    int src0_off = SRC0_OFF(
+#if IS_SRC0_BLOCKED
+    src0_off = SRC0_OFF(
             dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
     src0 += src0_off;
 
     // Convert Plain to Blocked Reads
-    int src1_off = dims0[0] * CHANNELS * SRC1_PD2 * SRC1_PD3 * SRC1_PD4
+    src1_off = dims0[0] * CHANNELS * SRC1_PD2 * SRC1_PD3 * SRC1_PD4
             + (channel_block * sub_group_size + local_channel) * SRC1_PD2
                     * SRC1_PD3 * SRC1_PD4
             + dims0[2] * SRC1_PD3 * SRC1_PD4 + dims0[3] * SRC1_PD4 + dims0[4];
     src1 += src1_off;
+#else // IS_SRC1_BLOCKED
+    src1_off = SRC1_OFF(
+            dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
+    src1 += src1_off;
+
+    // Convert Plain to Blocked Reads
+    src0_off = dims0[0] * CHANNELS * SRC0_PD2 * SRC0_PD3 * SRC0_PD4
+            + (channel_block * sub_group_size + local_channel) * SRC0_PD2
+                    * SRC0_PD3 * SRC0_PD4
+            + dims0[2] * SRC0_PD3 * SRC0_PD4 + dims0[3] * SRC0_PD4 + dims0[4];
+    src0 += src0_off;
+#endif
 
     int dst_off = DST_OFF(
             dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
     dst += dst_off;
 
-    float d = 0;
-    float dst_data;
-    float tmp_src0 = CONVERT_FLOAT_T(src0[local_channel]);
-    float tmp_src1 = CONVERT_FLOAT_T(src1[0]);
+    for (int idx = 0; idx < sub_group_size; idx++) {
+        float d = 0;
+        float dst_data;
 
+#if IS_SRC0_BLOCKED
+        float tmp_src0
+                = CONVERT_FLOAT_T(src0[local_channel + sub_group_size * idx]);
+        float tmp_src1 = CONVERT_FLOAT_T(src1[idx]);
+#else // IS_SRC1_BLOCKED
+        float tmp_src0 = CONVERT_FLOAT_T(src0[idx]);
+        float tmp_src1
+                = CONVERT_FLOAT_T(src1[local_channel + sub_group_size * idx]);
+#endif
 #if WITH_SRC0_SCALE
-    tmp_src0 = tmp_src0 * src0_scale[0];
+        tmp_src0 = tmp_src0 * src0_scale[0];
 #endif
 #if WITH_SRC1_SCALE
-    tmp_src1 = tmp_src1 * src1_scale[0];
+        tmp_src1 = tmp_src1 * src1_scale[0];
 #endif
 
-    d = get_eltwise_op(tmp_src0, tmp_src1);
+        d = get_eltwise_op(tmp_src0, tmp_src1);
 
 #if WITH_SUM
-    dst_data = CONVERT_FLOAT_T(DST_BLOCK_READ(&dst[0]));
+        dst_data = CONVERT_FLOAT_T(
+                DST_BLOCK_READ(&dst[local_channel + sub_group_size * idx]));
 #endif
+        const int po_mb = dims0[0];
+        const int po_oc = dims0[1] + get_sub_group_local_id();
+        APPLY_POST_OPS_SERIAL(d, float, dst_data, float, po_mb, 1, po_oc, 1,
+                dims0[2], 1, dims0[3], 1, dims0[4], 1, dims0[5], 1);
+        ++dims0[NDIMS - 1];
 
-    const int po_mb = dims0[0];
-    const int po_oc = dims0[1] + get_sub_group_local_id();
-    APPLY_POST_OPS_SERIAL(d, float, dst_data, float, po_mb, 1, po_oc, 1,
-            dims0[2], 1, dims0[3], 1, dims0[4], 1, dims0[5], 1);
-    DST_BLOCK_WRITE(&dst[local_channel], TO_DST(d));
+        DST_BLOCK_WRITE(&dst[local_channel + sub_group_size * idx], TO_DST(d));
+    }
 
 #endif // IS_SRC1_BRAODCAST
 }

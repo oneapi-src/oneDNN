@@ -32,6 +32,31 @@ bool check_layout_constraints(const memory_desc_t *md) {
     return true;
 }
 
+// This is part-one of checking all the conditions to allow plain and
+// single blocked layouts in src tensors & single blocked dst tensors
+// src0_* and src1_* is nomenclature to distinguish between input tensors
+bool check_mixed_layout(const memory_desc_wrapper &src0_d,
+        const memory_desc_wrapper &dst_d, const memory_desc_t *src1_md) {
+    using namespace dnnl::impl::format_tag;
+    format_tag_t src0_tag
+            = src0_d.matches_one_of_tag(aBc16b, aBcd16b, aBcde16b);
+    const memory_desc_wrapper src1_d(src1_md);
+    bool is_mixed = dst_d.matches_tag(src0_tag)
+            && src1_d.matches_one_of_tag(abc, abcd, abcde) && src0_tag;
+    return (is_mixed && src1_md->dims[1] % 16 == 0) ? true : false;
+}
+
+// This is part-two of checking mixed layouts, as it works with
+// non-broadcast cases, mostly. Except for shapes like 1x16x16x16:1x16x16x16
+// i.e. where mb = 1 (that is counted as a broadcast case in binary prim)
+bool check_broadcast(
+        const memory_desc_t *src0_md, const memory_desc_t *src1_md) {
+    for (int i = 0; i < src0_md->ndims; i++) {
+        if (src0_md->dims[i] != src1_md->dims[i]) { return false; }
+    }
+    return true;
+}
+
 status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
     using namespace dnnl::impl::format_tag;
     const memory_desc_wrapper src0_d(src_md(0));
@@ -69,6 +94,7 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
     conf.isXa16b = false;
     conf.mb_block = 0;
     conf.is_src1_broadcast = check_layout_constraints(src_md(1));
+    conf.is_src0_blocked = false;
 
     for (int i = 0; i < MAX_NDIMS; ++i) {
         // Kernel doesn't support src0 broadcast
@@ -94,10 +120,13 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
     format_tag_t dst_tag = dst_d.matches_one_of_tag(nc, ncw, nchw, ncdhw);
     conf.is_plain_layout = dst_tag;
 
+    conf.is_src0_blocked = check_mixed_layout(src0_d, dst_d, src_md(1));
+    bool is_src1_blocked = check_mixed_layout(src1_d, dst_d, src_md(0));
+    bool is_mixed_layout = check_broadcast(src_md(0), src_md(1))
+            && (conf.is_src0_blocked || is_src1_blocked);
+
     format_tag_t src0_16b
             = src0_d.matches_one_of_tag(aBc16b, aBcd16b, aBcde16b);
-    bool is_mixed_layout = dst_d.matches_tag(src0_16b)
-            && src1_d.matches_one_of_tag(abc, abcd, abcde) && src0_16b;
     bool is_16b = src1_d.matches_tag(src0_16b) && dst_d.matches_tag(src0_16b);
 
     conf.isXa16b = src0_d.matches_one_of_tag(
@@ -158,7 +187,7 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
                 conf.dispatch.define_dim(dim_str, 1);
             }
         }
-    } else if ((is_mixed_layout || is_16b) && conf.is_src1_broadcast) {
+    } else if ((conf.is_src0_blocked || is_16b) && conf.is_src1_broadcast) {
         int idx = 0;
         if (!is_16b) {
             idx = 1;
@@ -181,7 +210,7 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
                         nstl::min(i, ndims - 1), dim, 1);
             }
         }
-    } else if (is_mixed_layout && !conf.is_src1_broadcast) {
+    } else if (is_mixed_layout) {
         conf.nvect = 1;
         int block_size = 16;
         for (int i = 0; i < MAX_NDIMS; ++i) {
@@ -248,6 +277,7 @@ status_t gen9_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("MB_BLOCK", conf.mb_block);
     kernel_ctx.define_int("SAME_SRC_DT", conf.same_src_dt);
     kernel_ctx.define_int("IS_SRC1_BROADCAST", conf.is_src1_broadcast);
+    kernel_ctx.define_int("IS_SRC0_BLOCKED", conf.is_src0_blocked);
     kernel_ctx.define_int("BCAST_DIM0", conf.src1_bcast_dims[0]);
     kernel_ctx.define_int("BCAST_DIM1", conf.src1_bcast_dims[1]);
     kernel_ctx.define_int("BCAST_DIM2", conf.src1_bcast_dims[2]);
