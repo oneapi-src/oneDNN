@@ -286,6 +286,8 @@ int get_default_max_tg_size(const hw_config_t &hw_cfg, int regs, int simd) {
     const int max_eus_per_wg = compute::device_info_t::max_eus_per_wg(arch);
     const int threads_per_eu
             = compute::device_info_t::threads_per_eu(arch, regs > 128);
+    // When threads_per_eu is reduced by cfg (large_grf_mode) wg_per_thread
+    // is increased proportionally.
     const int wg_per_thr = simd * compute::device_info_t::threads_per_eu(arch)
             / threads_per_eu;
 
@@ -2080,8 +2082,8 @@ float get_thread_utilization(const conv_config_t &cfg) {
 // latency may be an issue due to limited use of SMT to hide the latency.
 float get_wave_utilization(const conv_config_t &cfg) {
     auto arch = convert_ngen_arch_to_dnnl(cfg.hw());
-    int threads_per_eu = compute::device_info_t::threads_per_eu(
-            arch, cfg.hw_cfg().large_grf_support());
+    int threads_per_eu
+            = compute::device_info_t::threads_per_eu(arch, cfg.regs() > 128);
     int slice_eu_count = compute::device_info_t::max_eus_per_wg(arch);
     int slice_count = cfg.hw_cfg().eu_count() / slice_eu_count;
 
