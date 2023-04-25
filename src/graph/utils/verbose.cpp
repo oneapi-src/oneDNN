@@ -90,7 +90,7 @@ uint32_t get_verbose() {
     }
     static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
     if (verbose.get() > 0 && !version_printed.test_and_set()) {
-        printf("onednn_graph_verbose,info,oneDNN Graph v%d.%d.%d (commit %s)\n",
+        printf("onednn_graph_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
                 dnnl_version()->major, dnnl_version()->minor,
                 dnnl_version()->patch, dnnl_version()->hash);
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
