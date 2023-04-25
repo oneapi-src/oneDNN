@@ -3141,8 +3141,14 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
     jcp.tr_diff_dst_buf_count = jcp.global_transpose
             ? jcp.nthr_mb * jcp.nb_oc * jcp.ngroups
             : jcp.nthr;
-    jcp.tr_src_buf_size = jcp.tr_iw * jcp.ic_block * jcp.ih_block * jcp.id;
-    jcp.tr_diff_dst_buf_size = jcp.tr_ow * jcp.oc_block * jcp.oh_block * jcp.od;
+    jcp.tr_src_block_size = jcp.tr_iw * jcp.ic_block * jcp.ih_block * jcp.id;
+    jcp.tr_diff_dst_block_size
+            = jcp.tr_ow * jcp.oc_block * jcp.oh_block * jcp.od;
+
+    jcp.tr_src_buf_size = jcp.tr_src_block_size
+            * (jcp.global_transpose ? 1 : jcp.nb_ic_blocking);
+    jcp.tr_diff_dst_buf_size = jcp.tr_diff_dst_block_size
+            * (jcp.global_transpose ? 1 : jcp.nb_oc_blocking);
 
     const int iframe_size = irow_size * jcp.id;
     const int oframe_size = orow_size * jcp.od;
@@ -3181,8 +3187,7 @@ status_t init_scratchpad_bwd_w(memory_tracking::registrar_t &scratchpad,
 
     // XXX: See the comment about tr_iw and guarding elements in
     // jit_avx512_core_amx_bwd_weights_kernel_t::init_conf()
-    const size_t tr_src_size
-            = (jcp.tr_src_buf_count * jcp.tr_src_buf_size * jcp.nb_ic_blocking)
+    const size_t tr_src_size = jcp.tr_src_buf_count * jcp.tr_src_buf_size
             + jcp.tr_src_num_guard_elems;
     scratchpad.book(key_conv_tr_src, tr_src_size, jcp.src_dsz);
 
@@ -3196,10 +3201,9 @@ status_t init_scratchpad_bwd_w(memory_tracking::registrar_t &scratchpad,
     // The tr_ow <= tr_iw, so we need some guarding at the end of diff_dst
     // TODO: update this guarding:
     // (jcp.tr_diff_dst_buf_size + jcp.tr_iw * jcp.oc_block)
-    const auto tr_diff_dst_size = jcp.tr_diff_dst_buf_count
-
-            * (jcp.tr_diff_dst_buf_size + jcp.tr_iw * jcp.oc_block)
-            * jcp.nb_oc_blocking;
+    const auto tr_diff_dst_size
+            = jcp.tr_diff_dst_buf_count * jcp.tr_diff_dst_buf_size
+            + jcp.tr_iw * jcp.oc_block;
 
     const size_t min_align = 64;
     scratchpad.book(

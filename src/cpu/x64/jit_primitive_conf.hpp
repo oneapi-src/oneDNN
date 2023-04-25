@@ -773,8 +773,8 @@ struct jit_brgemm_conv_conf_t {
     bool has_vnni;
     float scale_adjust_factor;
     int ic_tail, oc_tail;
-    size_t tr_src_buf_size, tr_src_buf_count;
-    size_t tr_diff_dst_buf_size, tr_diff_dst_buf_count;
+    size_t tr_src_block_size, tr_src_buf_size, tr_src_buf_count;
+    size_t tr_diff_dst_block_size, tr_diff_dst_buf_size, tr_diff_dst_buf_count;
     int tr_src_num_guard_elems;
     bool global_transpose; // diff_dst & src tensors are transposed in one go
     int nthr_mb_work;

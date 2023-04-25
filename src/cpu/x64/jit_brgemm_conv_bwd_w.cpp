@@ -203,7 +203,7 @@ void brgemm_convolution_bwd_weights_t::pd_t::copy2jit_jcp() {
 
     jit_jcp_.tr_iw = jcp_.tr_iw;
     jit_jcp_.tr_ow = jcp_.tr_ow;
-    jit_jcp_.tr_diff_dst_buf_size = jcp_.tr_diff_dst_buf_size;
+    jit_jcp_.tr_diff_dst_buf_size = jcp_.tr_diff_dst_block_size;
     jit_jcp_.typesize_in = jcp_.typesize_in;
     jit_jcp_.typesize_out = jcp_.typesize_out;
     jit_jcp_.ddst_dt = jcp_.dst_dt;
@@ -462,10 +462,9 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
     size_t tr_src_off(int g, int icb, int id, int ih) const {
         const size_t tr_row_size = jcp.tr_iw * jcp.ic_block;
         const size_t tr_3d_size = tr_row_size * jcp.ih_block;
-        int adj = (jcp.global_transpose) ? 1 : jcp.nb_ic_blocking;
         // Aligned to buffer end to use guard elements
-        return tr_src_buf_number(g, icb) * adj * jcp.tr_src_buf_size
-                + id * tr_3d_size + ih * tr_row_size;
+        return tr_src_buf_number(g, icb) * jcp.tr_src_buf_size + id * tr_3d_size
+                + ih * tr_row_size;
     }
 
     inline size_t tr_ic_block_src_off(int g, int tr_icb, int id, int ih) const {
@@ -477,8 +476,7 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
     inline size_t tr_diff_dst_off(int g, int ocb, int od, int oh) const {
         const size_t tr_row_size = jcp.tr_ow * jcp.oc_block;
         const size_t tr_3d_size = tr_row_size * jcp.oh_block;
-        int adj = (jcp.global_transpose) ? 1 : jcp.nb_oc_blocking;
-        return tr_diff_dst_buf_number(g, ocb) * adj * jcp.tr_diff_dst_buf_size
+        return tr_diff_dst_buf_number(g, ocb) * jcp.tr_diff_dst_buf_size
                 + od * tr_3d_size + oh * tr_row_size;
     }
 
@@ -692,7 +690,7 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
             const int ic_off_idx = g * jcp.ic + (ic_b + icb) * jcp.ic_block;
             src_data_t *p_tr_src
                     = &tr_src[tr_src_off(0, 0, idb - id_s, ihb_s - ih_s)];
-            src_data_t *tr_src_local = p_tr_src + icb * jcp.tr_src_buf_size;
+            src_data_t *tr_src_local = p_tr_src + icb * jcp.tr_src_block_size;
             const src_data_t *p_raw_src {nullptr};
             if (jcp.harness == harness_2d_reduction) {
                 p_raw_src = (src_data_t
@@ -724,7 +722,7 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
             diff_dst_data_t *p_tr_diff_dst = &tr_diff_dst[tr_diff_dst_off(
                     0, 0, odb - od_s, ohb_s - oh_s)];
             diff_dst_data_t *tr_diff_dst_local
-                    = p_tr_diff_dst + ocb * jcp.tr_diff_dst_buf_size;
+                    = p_tr_diff_dst + ocb * jcp.tr_diff_dst_block_size;
             trans_dst_nxc(tr_diff_dst_local, p_raw_diff_dst, 0, 0, (oc_b + ocb),
                     0, (ohb_e - ohb_s));
         }
@@ -1402,24 +1400,23 @@ void brgemm_convolution_bwd_weights_t::prepare_scratchpad_data(
     const auto &jcp = pd()->jcp_;
 
     auto tr_src = scratchpad.template get<src_data_t>(key_conv_tr_src);
-    const auto tr_src_full_size = jcp.tr_src_buf_size * jcp.nb_ic_blocking;
     if (jcp.oh_block < jcp.oh || jcp.id > 1) {
         // if (oh_block < oh) or (id > 1) then we zero all buffer because last
         // elements position may vary depending on position of od_s, oh_block,
         // padding and kh
         parallel_nd(jcp.tr_src_buf_count, [&](size_t isb) {
-            src_data_t *ts = &tr_src[isb * tr_src_full_size];
-            std::memset(ts, 0, jcp.src_dsz * tr_src_full_size);
+            src_data_t *ts = &tr_src[isb * jcp.tr_src_buf_size];
+            std::memset(ts, 0, jcp.src_dsz * jcp.tr_src_buf_size);
         });
         // Zero out last guard elements
-        src_data_t *ts = &tr_src[jcp.tr_src_buf_count * tr_src_full_size];
+        src_data_t *ts = &tr_src[jcp.tr_src_buf_count * jcp.tr_src_buf_size];
         std::memset(ts, 0, jcp.src_dsz * jcp.tr_src_num_guard_elems);
     } else {
         // Zero out guard elements that cross a buffer boundary to prevent a
         // race condition due to buffer overflows from memory optimization where
         // buffers sharing padding
         parallel_nd(jcp.tr_src_buf_count, [&](size_t isb) {
-            src_data_t *ts = &tr_src[(isb + 1) * tr_src_full_size];
+            src_data_t *ts = &tr_src[(isb + 1) * jcp.tr_src_buf_size];
             std::memset(ts, 0, jcp.src_dsz * jcp.tr_src_num_guard_elems);
         });
     }
