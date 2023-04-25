@@ -24,9 +24,9 @@
 #include "gpu/jit/conv/config_plan.hpp"
 #include "gpu/jit/conv/grf_usage.hpp"
 #include "gpu/jit/conv/message_patterns.hpp"
+#include "gpu/jit/conv/normalization.hpp"
 #include "gpu/jit/ir/block_2d_utils.hpp"
 #include "gpu/jit/ir/gemm_schedule.hpp"
-#include "gpu/jit/ir/normalization.hpp"
 #include "gpu/jit/ir/tensor_config.hpp"
 
 namespace dnnl {

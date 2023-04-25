@@ -44,6 +44,18 @@ status_t gen_reorder_t::pd_t::init(
     auto *device_info = compute_engine->device_info();
     zero_points_config_t zp_cfg(this);
 
+    auto post_ops_ok = [&]() {
+        const auto &po = attr()->post_ops_;
+        memory_desc_t dst_md_type(*dst_md());
+        for (int i = 0; i < po.len(); i++)
+            if (po.entry_[i].is_binary()) {
+                dst_md_type.data_type = po.entry_[i].binary.src1_desc.data_type;
+                if (!dnnl_memory_desc_equal(
+                            &dst_md_type, &po.entry_[i].binary.src1_desc))
+                    return false;
+            }
+        return true;
+    };
     auto scales_ok = [&]() {
         return (attr()->scales_.get(DNNL_ARG_SRC).mask_ == 0)
                 && (attr()->scales_.get(DNNL_ARG_DST).mask_ == 0);

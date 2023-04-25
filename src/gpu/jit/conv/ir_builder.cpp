@@ -28,6 +28,7 @@
 
 #include "gpu/jit/conv/config.hpp"
 #include "gpu/jit/conv/config_plan.hpp"
+#include "gpu/jit/conv/normalization.hpp"
 #include "gpu/jit/conv/pipeline.hpp"
 #include "gpu/jit/ir/epilogue.hpp"
 #include "gpu/jit/ir/fma.hpp"
@@ -470,10 +471,11 @@ private:
 
     void build_c_store() {
         auto &gemm_schedule = plan_.gemm_schedule;
+        conv_post_op_view_mapper_t view_mapper(
+                gemm_schedule, cfg_.prb(), cfg_.fuse_spatial());
         post_op_context_t post_op_ctx(*cfg_.prb().attr, cfg_.zp_cfg(),
-                cfg_.fuse_spatial(), gemm_schedule.c_view(), gemm_schedule,
-                kernel_info_, *cfg_.prb().conv_pd->dst_md(), cfg_.prb().c_md(),
-                &cfg_.prb());
+                gemm_schedule, kernel_info_, *cfg_.prb().conv_pd->dst_md(),
+                cfg_.prb().c_md(), view_mapper);
         auto c_buf = buf_mgr_.find("c").buf;
         auto c_thr_reg_layout = plan_.fma.c_prb_layout;
         auto thr_tile = gemm_schedule.c_thr_tile(/*is_relative=*/false);
@@ -486,7 +488,6 @@ private:
             thr_tile = slm_reduce_builder.thr_tile();
             reduce_cond = slm_reduce_builder.reduce_cond();
         }
-        auto c_thr_mem_view = gemm_schedule.c_view().create_sub_view(thr_tile);
 
         // Always perform reorder when dpasw is used. This is to ensure
         // that C is properly restored and permuted after dpasw.
@@ -495,7 +496,7 @@ private:
         int c_buf_size = 0;
         auto stmt = create_epilogue_stmt(cfg_.exec_cfg(), ir_ctx_,
                 gemm_schedule, force_c_reorder, post_op_ctx, thr_tile,
-                c_thr_mem_view, c_thr_reg_layout, cp_buf_, c_buf, c_buf_size);
+                c_thr_reg_layout, cp_buf_, c_buf, c_buf_size);
         (void)buf_mgr_.get("c", c_buf_size);
         if (!reduce_cond.is_empty()) stmt = if_t::make(reduce_cond, stmt);
         c_store_stmt_ = c_store_stmt_.append(stmt);

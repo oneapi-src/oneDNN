@@ -1116,8 +1116,8 @@ private:
 stmt_t create_epilogue_stmt(const exec_config_t &exec_cfg, ir_context_t &ir_ctx,
         const gemm_schedule_t &gemm_schedule, bool force_c_reorder,
         const post_op_context_t &post_op_ctx, const tensor_t &thr_tile,
-        const view_t &c_mem_view, const layout_t &c_reg_layout,
-        const expr_t &c_mem_buf, const expr_t &c_reg_buf, int &c_reg_buf_size) {
+        const layout_t &c_reg_layout, const expr_t &c_mem_buf,
+        const expr_t &c_reg_buf, int &c_reg_buf_size) {
     // Max size of post-op tensor buffers to preload and reuse for all tiles.
     int preload_max_size = 512;
     // Block size to apply post-ops within tile. A post-op may have associated
@@ -1125,6 +1125,7 @@ stmt_t create_epilogue_stmt(const exec_config_t &exec_cfg, ir_context_t &ir_ctx,
     // across multiple post-ops.
     int post_op_blk = 8;
 
+    const auto c_mem_view = post_op_ctx.cp_view().create_sub_view(thr_tile);
     epilogue_builder_t builder(ir_ctx, exec_cfg, gemm_schedule, force_c_reorder,
             post_op_ctx, thr_tile, c_mem_view, c_reg_layout, c_mem_buf,
             c_reg_buf, preload_max_size, post_op_blk);

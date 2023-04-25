@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/jit/ir/normalization.hpp"
+#include "gpu/jit/conv/normalization.hpp"
+#include "gpu/jit/conv/config.hpp"
 #include "gpu/jit/ir/tensor.hpp"
 
 namespace dnnl {
@@ -166,6 +167,137 @@ void normalize_conv_layouts(layout_t &src_layout, layout_t &wei_layout,
         ir_assert(bia_layout.ndims() == 1) << bia_layout;
         bia_layout = split_dimension(bia_layout, 0, g);
     }
+}
+
+uint32_t conv_post_op_view_mapper_t::normalize_mask(uint32_t orig_mask) const {
+    int cp_ndims = cp_view().nvdims();
+    ir_assert(cp_ndims >= 3);
+    // Add groups to match ngcdhw layout.
+    bool add_groups = (cp_view().vvars()[1].as<var_t>().name == "g");
+    // Number of dimensions before normalization.
+    int orig_ndims = 2 + prb_.ndims;
+    std::vector<dim_t> dummy_dims(orig_ndims, 1);
+    dim_t mask_set_value = 2;
+    for (int i = 0; i < orig_ndims; i++) {
+        if ((orig_mask & (1 << i)) != 0) dummy_dims[i] = mask_set_value;
+    }
+    auto cvt_dims = normalize_conv_dims(dummy_dims, /*with_groups=*/false,
+            prb_.g, prb_.is_dw, prb_.reduced_dim, fuse_spatial_,
+            /*add_groups=*/false, /*is_wei=*/false);
+    // Split channels into groups and channels to match ngcdhw layout.
+    if (add_groups) cvt_dims.insert(cvt_dims.begin() + 1, cvt_dims[1]);
+    ir_assert(int(cvt_dims.size()) == cp_ndims);
+
+    uint32_t mask = 0;
+    for (int i = 0; i < cp_ndims; i++) {
+        if (cvt_dims[i] == mask_set_value) mask = mask | (1 << i);
+    }
+    return mask;
+}
+
+void maybe_reshape_dims(int ndims, layout_t &layout, std::vector<dim_t> &dims,
+        std::vector<dim_t> &padded_dims) {
+    ir_assert(layout.ndims() == int(dims.size()));
+    if (layout.ndims() < ndims) {
+        layout = layout_t(layout.type(), ndims, layout.offset(),
+                layout.blocks(), /*do_normalize=*/false);
+        dims.resize(ndims, 1);
+        padded_dims.resize(ndims, 1);
+    }
+}
+
+view_t conv_post_op_view_mapper_t::create_view(const memory_desc_t &md) const {
+    int cp_ndims = cp_view().nvdims();
+    ir_assert(cp_ndims >= 3);
+    // Add groups to match ngcdhw layout.
+    bool add_groups = (cp_view().vvars()[1].as<var_t>().name == "g");
+    layout_t layout(md, /*do_normalize=*/false);
+    std::vector<dim_t> dims(md.dims, md.dims + md.ndims);
+    std::vector<dim_t> padded_dims(md.padded_dims, md.padded_dims + md.ndims);
+    maybe_reshape_dims(prb_.ndims, layout, dims, padded_dims);
+    layout = normalize_conv_layout(layout, /*with_groups=*/false, prb_.g,
+            prb_.is_dw, prb_.reduced_dim, fuse_spatial_, add_groups,
+            /*is_wei=*/false);
+    dims = normalize_conv_dims(dims, /*with_groups=*/false, prb_.g, prb_.is_dw,
+            prb_.reduced_dim, fuse_spatial_, add_groups, /*is_wei=*/false);
+    padded_dims = normalize_conv_dims(padded_dims, /*with_groups=*/false,
+            prb_.g, prb_.is_dw, prb_.reduced_dim, fuse_spatial_, add_groups,
+            /*is_wei=*/false);
+    ir_assert(layout.ndims() == cp_ndims) << "Incompatible dimensions.";
+    uint32_t bound_check_mask = 0;
+    for (int i = 0; i < cp_ndims; i++) {
+        if (dims[i] == 1) continue; // Broadcast, no bound check needed.
+        if (padded_dims[i] != cp_view().tlayout().dim(i)) {
+            bound_check_mask |= (1 << i);
+        } else if (cp_view().has_tmask(i)) {
+            bound_check_mask |= (1 << i);
+        }
+    }
+    return view_t(layout, cp_view().vvars(), dims, bound_check_mask);
+}
+
+view_t conv_post_op_view_mapper_t::try_create_bias_view(uint32_t mask) const {
+    if ((prb_.is_fwd || prb_.is_bwd_d) && prb_.with_bias)
+        return create_view(prb_.conv_pd->invariant_bia_md()->data_type, mask);
+    return {};
+}
+
+bool conv_post_op_view_mapper_t::is_spurious_spatial(int dim_idx) const {
+    auto &var = cp_view().vvars()[dim_idx].as<var_t>();
+
+    int sp_idx = -1;
+    if (utils::one_of(var.name, "od", "id")) {
+        sp_idx = 0;
+    } else if (utils::one_of(var.name, "oh", "ih")) {
+        sp_idx = 1;
+    } else if (utils::one_of(var.name, "ow", "iw")) {
+        sp_idx = 2;
+    } else {
+        return false;
+    }
+
+    int p = utils::pick(sp_idx, prb_.pd, prb_.ph, prb_.pw);
+    int s = utils::pick(sp_idx, prb_.sd, prb_.sh, prb_.sw);
+    int k = utils::pick(sp_idx, prb_.kd, prb_.kh, prb_.kw);
+    int d = utils::pick(sp_idx, prb_.dd, prb_.dh, prb_.dw);
+
+    if (prb_.is_fwd) {
+        int o_value = utils::pick(sp_idx, prb_.od, prb_.oh, prb_.ow);
+        int o_bound = schedule_.var_bound(var);
+        int i = utils::pick(sp_idx, prb_.id, prb_.ih, prb_.iw);
+
+        for (int o = o_value; o < o_bound; o++) {
+            int i_min = o * s - p;
+            if (i_min < i) return true;
+        }
+        return false;
+    }
+
+    if (prb_.is_bwd_d) {
+        int i_value = utils::pick(sp_idx, prb_.id, prb_.ih, prb_.iw);
+        int i_bound = schedule_.var_bound(var);
+        int o = utils::pick(sp_idx, prb_.od, prb_.oh, prb_.ow);
+
+        for (int i = i_value; i < i_bound; i++) {
+            int os_min = i - (k - 1) * (d + 1) + p;
+            if (os_min < o * s) return true;
+        }
+        return false;
+    }
+
+    return false;
+}
+
+bool conv_post_op_view_mapper_t::need_to_restore_zero_padding() const {
+    return prb_.with_bias;
+}
+
+bool conv_post_op_view_mapper_t::use_dst_in_sum_post_op() const {
+    return prb_.is_fwd;
+}
+
+bool conv_post_op_view_mapper_t::can_use_scales() const {
+    return prb_.is_fwd || prb_.is_bwd_d;
 }
 
 } // namespace jit

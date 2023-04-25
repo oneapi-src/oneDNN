@@ -25,7 +25,6 @@
 #include "gpu/jit/ir/gemm_schedule.hpp"
 #include "gpu/jit/ir/ir.hpp"
 #include "gpu/jit/ir/kernel_info.hpp"
-#include "gpu/jit/ir/normalization.hpp"
 #include "gpu/jit/ir/tensor.hpp"
 #include "gpu/jit/utils/utils.hpp"
 
@@ -152,6 +151,45 @@ private:
     post_load_op_kind_t post_load_op_ = post_load_op_kind_t::none;
 };
 
+class post_op_view_mapper_t {
+public:
+    post_op_view_mapper_t() = delete;
+    post_op_view_mapper_t(const view_t &cp_view) : cp_view_(cp_view) {}
+    virtual ~post_op_view_mapper_t() = default;
+
+    const view_t &cp_view() const { return cp_view_; };
+
+    virtual view_t create_view(const type_t &type, uint32_t rhs_mask) const {
+        std::vector<dim_t> rhs_dims = cp_view_.vdims();
+        uint32_t bound_check_mask = 0;
+        for (int i = 0; i < int(rhs_dims.size()); i++) {
+            if ((rhs_mask & (1 << i)) == 0) {
+                // Broadcast dimension.
+                rhs_dims[i] = 1;
+            } else if (cp_view_.is_masked_vdim(i)) {
+                bound_check_mask |= (1 << i);
+            }
+        }
+        return view_t(layout_t(type, 0, rhs_dims, /*do_normalize=*/false),
+                cp_view_.vvars(), bound_check_mask);
+    }
+
+    virtual view_t create_view(const memory_desc_t &md) const {
+        return cp_view().retype(md.data_type);
+    }
+
+    virtual view_t try_create_bias_view(uint32_t mask) const { return {}; }
+
+    virtual bool is_spurious_spatial(int dim_idx) const { return false; };
+    virtual bool need_to_restore_zero_padding() const { return false; }
+    virtual bool use_dst_in_sum_post_op() const { return true; }
+    virtual bool can_use_scales() const { return true; }
+    virtual bool can_use_simple_src_zps() const { return true; }
+
+private:
+    const view_t &cp_view_;
+};
+
 // There are two types of post-ops:
 // - Eltwise:          lhs = eltwise(rhs) and rhs must be equal lhs
 //   Eltwise is supported via special IR function eltwise_t
@@ -212,18 +250,16 @@ inline op_kind_t alg_kind_to_op_kind(alg_kind_t alg) {
     return op_kind_t::undef;
 }
 
-class conv_problem_t;
 class post_op_context_t {
 public:
     post_op_context_t() = delete;
 
     post_op_context_t(const primitive_attr_t &attr,
-            const zero_points_config_t &zp_cfg, bool fuse_spatial,
-            const view_t &cp_view, const gemm_schedule_t &schedule,
+            const zero_points_config_t &zp_cfg, const gemm_schedule_t &schedule,
             const kernel_info_t &kernel_info, const memory_desc_t &dst_md,
-            const memory_desc_t &out_md, const conv_problem_t *prb);
+            const memory_desc_t &out_md, const post_op_view_mapper_t &po_vm);
 
-    const view_t &cp_view() const { return cp_view_; }
+    const view_t &cp_view() const { return po_vm_.cp_view(); }
 
     const std::vector<post_op_t> &post_ops() const { return post_ops_; }
 
@@ -246,29 +282,13 @@ private:
     }
 
     bool init_need_to_restore_zero_padding(const primitive_attr_t &attr,
-            const memory_desc_t &dst_md, const memory_desc_t &out_md) const;
+            const memory_desc_t &dst_md, const memory_desc_t &out_md,
+            const zero_points_config_t &zp_cfg) const;
 
-    // Checks if convolution computes output elements that are out of bound in
-    // the output tensor. This can happen due to spatial padding.
-    //
-    // For example for forward convolution OW is padded to OW_PADDED. Then if
-    // ow >= OW (out of bounds) and iw = ow * SW - PW + kw * (DW + 1) < IW (in
-    // bounds) convolution computes an out-of-bound element which is not
-    // generally zero. This requires special handling if there are post-ops
-    // followed the convolution.
-    bool is_spurious_spatial(const gemm_schedule_t &schedule, int dim_idx,
-            const conv_problem_t *prb) const;
-
-    int cp_ndims() const { return cp_view_.nvdims(); }
-
-    dim_t cp_dim(int idx) const { return cp_view_.vdims()[idx]; }
-
-    dim_t cp_padded_dim(int idx) const { return cp_view_.tlayout().dim(idx); }
-
-    bool has_cp_mask(int idx) const { return cp_view_.has_tmask(idx); }
+    int cp_ndims() const { return cp_view().nvdims(); }
 
     bool is_cp_dim_zero_padded(int idx) const {
-        return cp_view_.is_masked_vdim(idx);
+        return cp_view().is_masked_vdim(idx);
     }
 
     const expr_t &add_input_tensor(const view_t &view, const expr_t &buf,
@@ -286,7 +306,7 @@ private:
     const expr_t &add_tensor(bool is_input, bool is_output, const view_t &view,
             const expr_t &buf, const expr_t &op_var, float scale = 1.0f,
             post_load_op_kind_t post_load_op = post_load_op_kind_t::none) {
-        ir_assert(view.nvdims() == cp_view_.nvdims());
+        ir_assert(cp_ndims() == view.nvdims());
         uint32_t mask
                 = (buf.is_empty() ? ~(1u << cp_ndims()) : compute_mask(view));
         tensor_infos_.emplace_back(is_input, is_output, view, buf, mask, op_var,
@@ -295,109 +315,16 @@ private:
     }
 
     uint32_t compute_mask(const view_t &view) const {
-        ir_assert(cp_view_.nvdims() == view.nvdims());
+        ir_assert(cp_ndims() == view.nvdims());
         uint32_t mask = 0;
-        for (int i = 0; i < view.nvdims(); i++) {
+        for (int i = 0; i < cp_ndims(); i++) {
             if (view.vdims()[i] != 1) mask |= (1 << i);
         }
         return mask;
     }
 
-    // rhs tensor has plain layout.
-    view_t create_view(const type_t &type, uint32_t rhs_mask) const {
-        std::vector<dim_t> rhs_dims = cp_view_.vdims();
-        uint32_t bound_check_mask = 0;
-        for (int i = 0; i < cp_ndims(); i++) {
-            if ((rhs_mask & (1 << i)) == 0) {
-                // Broadcast dimension.
-                rhs_dims[i] = 1;
-            } else if (is_cp_dim_zero_padded(i)) {
-                bound_check_mask |= (1 << i);
-            }
-        }
-        return view_t(layout_t(type, 0, rhs_dims, /*do_normalize=*/false),
-                cp_view_.vvars(), bound_check_mask);
-    }
-
-    // rhs tensor layout is defined by md memory descriptor.
-    view_t create_view(const memory_desc_t &md) const {
-        ir_assert(cp_ndims() >= 3);
-        // Add groups to match ngcdhw layout.
-        bool add_groups = (cp_view_.vvars()[1].as<var_t>().name == "g");
-        layout_t layout(md, /*do_normalize=*/false);
-        std::vector<dim_t> dims(md.dims, md.dims + md.ndims);
-        std::vector<dim_t> padded_dims(
-                md.padded_dims, md.padded_dims + md.ndims);
-        maybe_reshape_dims(ndims_, layout, dims, padded_dims);
-        layout = normalize_conv_layout(layout, /*with_groups=*/false, g_,
-                is_dw_, reduced_dim_, fuse_spatial_, add_groups,
-                /*is_wei=*/false);
-        dims = normalize_conv_dims(dims, /*with_groups=*/false, g_, is_dw_,
-                reduced_dim_, fuse_spatial_, add_groups, /*is_wei=*/false);
-        padded_dims = normalize_conv_dims(padded_dims,
-                /*with_groups=*/false, g_, is_dw_, reduced_dim_, fuse_spatial_,
-                add_groups, /*is_wei=*/false);
-        ir_assert(layout.ndims() == cp_ndims()) << "Incompatible dimensions.";
-        uint32_t bound_check_mask = 0;
-        for (int i = 0; i < cp_ndims(); i++) {
-            if (dims[i] == 1) continue; // Broadcast, no bound check needed.
-            if (padded_dims[i] != cp_padded_dim(i)) {
-                bound_check_mask |= (1 << i);
-            } else if (has_cp_mask(i)) {
-                bound_check_mask |= (1 << i);
-            }
-        }
-        return view_t(layout, cp_view_.vvars(), dims, bound_check_mask);
-    }
-
-    static void maybe_reshape_dims(int ndims, layout_t &layout,
-            std::vector<dim_t> &dims, std::vector<dim_t> &padded_dims) {
-        ir_assert(layout.ndims() == int(dims.size()));
-        if (layout.ndims() < ndims) {
-            layout = layout_t(layout.type(), ndims, layout.offset(),
-                    layout.blocks(), /*do_normalize=*/false);
-            dims.resize(ndims, 1);
-            padded_dims.resize(ndims, 1);
-        }
-    }
-
-    uint32_t normalize_mask(uint32_t orig_mask) const {
-        ir_assert(cp_ndims() >= 3);
-        // Add groups to match ngcdhw layout.
-        bool add_groups = (cp_view_.vvars()[1].as<var_t>().name == "g");
-        // Number of dimensions before normalization.
-        int orig_ndims = 2 + ndims_;
-        std::vector<dim_t> dummy_dims(orig_ndims, 1);
-        dim_t mask_set_value = 2;
-        for (int i = 0; i < orig_ndims; i++) {
-            if ((orig_mask & (1 << i)) != 0) dummy_dims[i] = mask_set_value;
-        }
-        auto cvt_dims = normalize_conv_dims(dummy_dims, /*with_groups=*/false,
-                g_, is_dw_, reduced_dim_, fuse_spatial_,
-                /*add_groups=*/false,
-                /*is_wei=*/false);
-        // Split channels into groups and channels to match ngcdhw layout.
-        if (add_groups) cvt_dims.insert(cvt_dims.begin() + 1, cvt_dims[1]);
-        ir_assert(int(cvt_dims.size()) == cp_ndims());
-
-        uint32_t mask = 0;
-        for (int i = 0; i < cp_ndims(); i++) {
-            if (cvt_dims[i] == mask_set_value) mask = mask | (1 << i);
-        }
-        return mask;
-    }
-
-    bool fuse_spatial_ = false;
     bool need_to_restore_zero_padding_ = false;
-    bool is_dw_ = false;
-
-    int ndims_;
-    int reduced_dim_;
-    int g_;
-
-    const zero_points_config_t &zp_cfg_;
-
-    view_t cp_view_;
+    const post_op_view_mapper_t &po_vm_;
     std::vector<post_op_t> post_ops_;
     std::vector<post_op_tensor_info_t> tensor_infos_;
 };

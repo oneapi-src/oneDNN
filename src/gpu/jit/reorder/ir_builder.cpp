@@ -768,12 +768,12 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
                     || !attr_->scales_.has_default_values());
 
     if (has_post_ops) {
-        post_op_context_t post_op_ctx(*attr_, cfg_.zp_cfg(),
-                /*fuse_spatial=*/false, dst_view, schedule, kernel_info_,
-                *dst_md_, *dst_md_, nullptr);
+        post_op_view_mapper_t view_mapper(dst_view);
+        post_op_context_t post_op_ctx(*attr_, cfg_.zp_cfg(), schedule,
+                kernel_info_, *dst_md_, *dst_md_, view_mapper);
         write_stmt = create_epilogue_stmt(cfg_.exec_cfg(), ir_ctx, schedule,
-                /*force_c_reorder=*/true, post_op_ctx, thr_tile, dst_thr_view,
-                read_layout, dst_buf, reg_buf, write_buf_size);
+                /*force_c_reorder=*/true, post_op_ctx, thr_tile, read_layout,
+                dst_buf, reg_buf, write_buf_size);
     } else if (read_layout != write_layout) {
         auto tmp_buf = ir_ctx.create_tmp_var(type_t::byte_ptr(), "tmp");
         allocs.push_back(

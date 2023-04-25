@@ -153,7 +153,6 @@ bool primitive_attr_t::defined(dnnl_primitive_attr::skip_mask_t mask) const {
 
 status_t post_ops_t::append_sum(
         float scale, int32_t zero_point, data_type_t dt) {
-    if (len() == post_ops_limit) return out_of_memory;
     entry_.emplace_back();
     auto &e = entry_.back();
     e.kind = primitive_kind::sum;
@@ -165,7 +164,6 @@ status_t post_ops_t::append_sum(
 
 status_t post_ops_t::append_eltwise(
         float scale, alg_kind_t alg, float alpha, float beta) {
-    if (len() == post_ops_limit) return out_of_memory;
     if (!math::is_eltwise_ok(data_type::f32, alg, alpha, beta))
         return invalid_arguments;
 
@@ -502,6 +500,7 @@ primitive_kind_t dnnl_post_ops_get_kind(const post_ops_t *post_ops, int index) {
 status_t dnnl_post_ops_append_sum(
         post_ops_t *post_ops, float scale, int32_t zero_point, data_type_t dt) {
     if (post_ops == nullptr) return invalid_arguments;
+    if (post_ops->len() >= post_ops_t::post_ops_limit) return out_of_memory;
 
     return post_ops->append_sum(scale, zero_point, dt);
 }
@@ -530,6 +529,7 @@ status_t dnnl_post_ops_get_params_sum(const post_ops_t *post_ops, int index,
 status_t dnnl_post_ops_append_eltwise(
         post_ops_t *post_ops, alg_kind_t kind, float alpha, float beta) {
     if (post_ops == nullptr) return invalid_arguments;
+    if (post_ops->len() >= post_ops_t::post_ops_limit) return out_of_memory;
 
     return post_ops->append_eltwise(1.0f, kind, alpha, beta);
 }
