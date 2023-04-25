@@ -19,9 +19,12 @@
 #include <stdexcept>
 #include <stdint.h>
 #include <utility>
+#ifdef _GLIBCXX_DEBUG
+#include <string.h>
+#endif
 
 // MSVC had a old bug that it can not optimize empty base (EBO) with
-// multiple-inheritance. The bug was fixed but EBO is diabled by default. We
+// multiple-inheritance. The bug was fixed but EBO is disabled by default. We
 // need to enable it with this macro
 #ifdef _MSC_VER
 #define SC_EMPTY_BASE_OPTIMIZE __declspec(empty_bases)
@@ -52,7 +55,14 @@ template <typename T>
 struct optional_base {
     bool has_value_;
 
-    void init_as_empty(void *v) { has_value_ = false; }
+    void init_as_empty(void *v) {
+        has_value_ = false;
+        // make GCC _GLIBCXX_DEBUG mode happy, or it may complain that it is
+        // uninitialized
+#ifdef _GLIBCXX_DEBUG
+        ::memset(v, 0, sizeof(T));
+#endif
+    }
     void set_has_value(void *v) { has_value_ = true; }
     bool has_value_impl(const void *v) const { return has_value_; }
 };

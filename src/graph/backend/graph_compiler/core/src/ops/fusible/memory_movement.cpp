@@ -1109,6 +1109,17 @@ void reshape_op_t::pre_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {}
 void reshape_op_t::infer_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
+    slice_range_map known_ranges_map
+            = search_known_slice_ranges(this, fsmap, stat_map);
+    if (known_ranges_map.empty()) return;
+    if (known_ranges_map[0].size() != 1) return;
+    auto blocking_dims = info_.inputs_[0]->details_.get_blocking_dims();
+    std::vector<int> axis(blocking_dims.size());
+    std::iota(axis.begin(), axis.end(), 0);
+    if (!slice_full_on_axis(blocking_dims, known_ranges_map[0][0], axis)) {
+        stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+        return;
+    }
     // fake infer slice
     std::vector<std::pair<expr, expr>> ranges;
     auto &shapes = info_.outputs_[0]->details_.get_plain_dims();

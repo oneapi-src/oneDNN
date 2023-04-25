@@ -14,16 +14,15 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include "context.hpp"
+#include "exception_util.hpp"
+#include "gtest/gtest.h"
 #include <compiler/ir/graph/driver.hpp>
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/lowering.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <compiler/ir/graph/transform/transform.hpp>
-#include <runtime/context.hpp>
-
-#include <iostream>
-#include "exception_util.hpp"
-#include "gtest/gtest.h"
+#include <compiler/jit/jit.hpp>
 
 using namespace dnnl::impl::graph::gc;
 TEST(GCCore_graph_reshape_cpp, TestGraphReshapeCreation) {
@@ -359,5 +358,33 @@ TEST(GCCore_graph_reshape_cpp, TestSingleOptimizeMultipleUse) {
         EXPECT_TRUE(compare_graph(g, expected));
 
         lower_graph(get_default_context(), g, {});
+    }
+}
+
+TEST(GCCore_graph_reshape_cpp, TestSingleExecution) {
+    BUILTIN_REQUIRE_AVX512();
+    sc_graph_t g;
+
+    auto in = g.make_input({graph_tensor::make({112, 197})});
+    std::string op_name = "reshape";
+    auto reshape_op = g.make(
+            op_name, in->get_outputs(), {}, {{"shape", sc_dims {112, 197}}});
+    auto out = g.make_output(reshape_op->get_outputs());
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    graph_driver(g, ctx);
+    auto f = lower_graph(ctx, g, {out, in});
+    auto fptr = jit_engine_t::make(ctx)->get_entry_func(f, true);
+    auto output = alloc_array<float>(112 * 197, INIT_NOOP);
+    auto input = alloc_array<float>(112 * 197, INIT_RANGE, 0, 112 * 197);
+    std::vector<float *> sc_args = {&output[0], &input[0]};
+    std::vector<generic_val> generic_args;
+    for (unsigned i = 0; i < sc_args.size(); i++)
+        generic_args.emplace_back(sc_args.at(i));
+    fptr->call_generic_default(generic_args.data());
+
+    for (auto i = 0; i < 112 * 197; i++) {
+        EXPECT_EQ(input[i], output[i]);
     }
 }
