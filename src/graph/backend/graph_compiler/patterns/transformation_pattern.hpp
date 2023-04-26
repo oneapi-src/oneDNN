@@ -55,7 +55,7 @@ public:
         pattern_utils_t pu;
         for (auto &pfunc : pfuncs) {
             std::shared_ptr<graph::utils::pm::pb_graph_t> pgraph
-                    = std::make_shared<graph::utils::pm::pb_graph_t>("pgraph");
+                    = std::make_shared<graph::utils::pm::pb_graph_t>();
             pfunc(pgraph);
 
             // match the given pattern in the graph

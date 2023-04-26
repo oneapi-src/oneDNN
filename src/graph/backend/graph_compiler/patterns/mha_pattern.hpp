@@ -37,54 +37,49 @@ pm::repetition_t *create_append_transpose_repetition_subgraph(
         int rep_min, int rep_max) {
     in_edges_t in_edges;
     if (input) { in_edges = in_edges_t {in_edge(0, input, 0)}; }
-    auto transpose_subgraph
-            = std::make_shared<pb_graph_t>("transpose_subgraph");
-    auto transpose_rep = transpose_subgraph->append_op(
-            graph::op_kind::StaticTranspose, "transpose_rep");
+    auto transpose_subgraph = std::make_shared<pb_graph_t>();
+    auto transpose_rep
+            = transpose_subgraph->append_op(graph::op_kind::StaticTranspose);
     transpose_subgraph->create_input_port(0, transpose_rep, 0);
     transpose_subgraph->create_output_port(0, transpose_rep, 0);
-    auto transpose = pgraph->append_repetition(transpose_subgraph, {0, 0},
-            rep_min, rep_max, in_edges, "transpose");
+    auto transpose = pgraph->append_repetition(
+            transpose_subgraph, {0, 0}, rep_min, rep_max, in_edges);
     return transpose;
 };
 
 pm::repetition_t *create_optional_mul_subgraph(
         const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op_t *input,
         bool allow_external = false) {
-    auto optional_mul_subgraph
-            = std::make_shared<pb_graph_t>("optional_mul_subgraph");
-    auto optional_mul = optional_mul_subgraph->append_op(
-            graph::op_kind::Multiply, "optional_mul");
+    auto optional_mul_subgraph = std::make_shared<pb_graph_t>();
+    auto optional_mul
+            = optional_mul_subgraph->append_op(graph::op_kind::Multiply);
     if (allow_external) { optional_mul->allow_external_outputs(); }
 
     optional_mul_subgraph->create_input_port(0, optional_mul, 0);
     optional_mul_subgraph->create_output_port(0, optional_mul, 0);
     auto mul = pgraph->append_optional(
-            optional_mul_subgraph, {in_edge(0, input, 0)}, "optional_mul");
+            optional_mul_subgraph, {in_edge(0, input, 0)});
     return mul;
 };
 
 pm::alternation_t *create_alternative_mul_subgraph(
         const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op_t *input) {
     // 2 alternations: 1) a single mul; 2) 2 consecutive mul
-    auto successive_mul_subgraph
-            = std::make_shared<pb_graph_t>("successive_mul_subgraph");
-    auto mul1 = successive_mul_subgraph->append_op(
-            graph::op_kind::Multiply, "mul1");
+    auto successive_mul_subgraph = std::make_shared<pb_graph_t>();
+    auto mul1 = successive_mul_subgraph->append_op(graph::op_kind::Multiply);
     auto mul2 = successive_mul_subgraph->append_op(
-            graph::op_kind::Multiply, {in_edge(0, mul1, 0)}, "mul2");
+            graph::op_kind::Multiply, {in_edge(0, mul1, 0)});
     successive_mul_subgraph->create_input_port(0, mul1, 0);
     successive_mul_subgraph->create_output_port(0, mul2, 0);
 
-    auto single_mul_subgraph
-            = std::make_shared<pb_graph_t>("single_mul_subgraph");
-    auto mul = single_mul_subgraph->append_op(graph::op_kind::Multiply, "mul");
+    auto single_mul_subgraph = std::make_shared<pb_graph_t>();
+    auto mul = single_mul_subgraph->append_op(graph::op_kind::Multiply);
     single_mul_subgraph->create_input_port(0, mul, 0);
     single_mul_subgraph->create_output_port(0, mul, 0);
 
     auto mul_subgraph = pgraph->append_alternation(
             {successive_mul_subgraph, single_mul_subgraph},
-            {in_edge(0, input, 0)}, "mul_subgraph");
+            {in_edge(0, input, 0)});
     return mul_subgraph;
 }
 
@@ -118,57 +113,52 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_mha_pattern)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto query_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape, "query_reshape");
+                    auto query_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape);
                     query_reshape->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
                     auto query_transpose
                             = create_append_transpose_repetition_subgraph(
                                     pgraph, query_reshape, 1, 3);
-                    auto key_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape, "key_reshape");
+                    auto key_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape);
                     auto key_transpose
                             = create_append_transpose_repetition_subgraph(
                                     pgraph, key_reshape, 1, 3);
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, query_transpose, 0),
-                                    in_edge(1, key_transpose, 0)},
-                            "matmul_qk");
+                                    in_edge(1, key_transpose, 0)});
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            {in_edge(0, matmul_qk, 0)}, "fscore_scale");
-                    auto fscore_add = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, fscore_scale, 0)}, "fscore_add");
+                            {in_edge(0, matmul_qk, 0)});
+                    auto fscore_add = pgraph->append_op(
+                            graph::op_kind::Add, {in_edge(0, fscore_scale, 0)});
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, fscore_add, 0)}, "softmax");
-                    auto value_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape, "value_reshape");
+                            {in_edge(0, fscore_add, 0)});
+                    auto value_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape);
                     auto value_transpose
                             = create_append_transpose_repetition_subgraph(
                                     pgraph, value_reshape, 1, 3);
                     auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, softmax, 0),
-                                    in_edge(1, value_transpose, 0)},
-                            "matmul_v");
-                    auto transpose_output = pgraph->append_op(
-                            graph::op_kind::StaticTranspose,
-                            {in_edge(0, matmul_v, 0)}, "transpose_output");
+                                    in_edge(1, value_transpose, 0)});
+                    auto transpose_output
+                            = pgraph->append_op(graph::op_kind::StaticTranspose,
+                                    {in_edge(0, matmul_v, 0)});
 
                     auto optional_reshape_subgraph
-                            = std::make_shared<pb_graph_t>(
-                                    "optional_reshape_subgraph");
+                            = std::make_shared<pb_graph_t>();
                     auto optional_reshape
                             = optional_reshape_subgraph->append_op(
-                                    graph::op_kind::StaticReshape,
-                                    "optional_reshape");
+                                    graph::op_kind::StaticReshape);
                     optional_reshape_subgraph->create_input_port(
                             0, optional_reshape, 0);
                     optional_reshape_subgraph->create_output_port(
                             0, optional_reshape, 0);
 
                     pgraph->append_optional(optional_reshape_subgraph,
-                            {in_edge(0, transpose_output, 0)},
-                            "reshape_output");
+                            {in_edge(0, transpose_output, 0)});
                 });
 
 // fp32 MHA pattern alternative
@@ -197,29 +187,27 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto matmul_qk = pgraph->append_op(
-                            graph::op_kind::MatMul, "matmul_qk");
+                    auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            {in_edge(0, matmul_qk, 0)}, "fscore_scale");
-                    auto fscore_add = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, fscore_scale, 0)}, "fscore_add");
+                            {in_edge(0, matmul_qk, 0)});
+                    auto fscore_add = pgraph->append_op(
+                            graph::op_kind::Add, {in_edge(0, fscore_scale, 0)});
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, fscore_add, 0)}, "softmax");
-                    auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
-                            {in_edge(0, softmax, 0)}, "matmul_v");
+                            {in_edge(0, fscore_add, 0)});
+                    auto matmul_v = pgraph->append_op(
+                            graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
                     matmul_v->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
-                    auto transpose_output = pgraph->append_op(
-                            graph::op_kind::StaticTranspose,
-                            {in_edge(0, matmul_v, 0)}, "transpose_output");
+                    auto transpose_output
+                            = pgraph->append_op(graph::op_kind::StaticTranspose,
+                                    {in_edge(0, matmul_v, 0)});
                     pgraph->append_alternation(
                             {graph::op_kind::Reorder,
                                     graph::op_kind::StaticReshape},
-                            {in_edge(0, transpose_output, 0)},
-                            "reshape_reorder_output");
+                            {in_edge(0, transpose_output, 0)});
                 });
 
 // fp32_distill_bert_mha_pattern
@@ -248,24 +236,23 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto matmul_qk = pgraph->append_op(
-                            graph::op_kind::MatMul, "matmul_qk");
+                    auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
                             check_input_dtype<impl::data_type::f32>);
-                    auto select = pgraph->append_op(graph::op_kind::Select,
-                            {in_edge(2, matmul_qk, 0)}, "select");
+                    auto select = pgraph->append_op(
+                            graph::op_kind::Select, {in_edge(2, matmul_qk, 0)});
                     select->append_decision_function(check_select);
-                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, select, 0)}, "softmax");
-                    auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
-                            {in_edge(0, softmax, 0)}, "matmul_v");
+                    auto softmax = pgraph->append_op(
+                            graph::op_kind::SoftMax, {in_edge(0, select, 0)});
+                    auto matmul_v = pgraph->append_op(
+                            graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
                     matmul_v->append_decision_function(
                             check_input_dtype<impl::data_type::f32>);
                     auto transpose
                             = pgraph->append_op(graph::op_kind::StaticTranspose,
-                                    {in_edge(0, matmul_v, 0)}, "transpose");
+                                    {in_edge(0, matmul_v, 0)});
                     pgraph->append_op(graph::op_kind::Reorder,
-                            {in_edge(0, transpose, 0)}, "reorder_output");
+                            {in_edge(0, transpose, 0)});
                 });
 
 // fp32 MHA training forward pattern
@@ -298,36 +285,35 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto matmul_qk = pgraph->append_op(
-                            graph::op_kind::MatMul, "matmul_qk");
+                    auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            {in_edge(0, matmul_qk, 0)}, "fscore_scale");
+                            {in_edge(0, matmul_qk, 0)});
                     fscore_scale->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
-                    auto fscore_add = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, fscore_scale, 0)}, "fscore_add");
+                    auto fscore_add = pgraph->append_op(
+                            graph::op_kind::Add, {in_edge(0, fscore_scale, 0)});
                     fscore_add->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, fscore_add, 0)}, "softmax");
+                            {in_edge(0, fscore_add, 0)});
                     softmax->allow_external_outputs();
-                    auto dropout = pgraph->append_op(graph::op_kind::Multiply,
-                            {in_edge(0, softmax, 0)}, "dropout");
+                    auto dropout = pgraph->append_op(
+                            graph::op_kind::Multiply, {in_edge(0, softmax, 0)});
                     dropout->allow_external_outputs();
                     auto select = create_optional_mul_subgraph(
                             pgraph, dropout, true);
-                    auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
-                            {in_edge(0, select, 0)}, "matmul_v");
+                    auto matmul_v = pgraph->append_op(
+                            graph::op_kind::MatMul, {in_edge(0, select, 0)});
                     matmul_v->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
                     auto reshape
                             = pgraph->append_op(graph::op_kind::StaticTranspose,
-                                    {in_edge(0, matmul_v, 0)}, "reshape");
+                                    {in_edge(0, matmul_v, 0)});
                     pgraph->append_op(graph::op_kind::StaticReshape,
-                            {in_edge(0, reshape, 0)}, "transpose_output");
+                            {in_edge(0, reshape, 0)});
                 });
 
 // fp32 MHA training backward pattern
@@ -366,63 +352,59 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto in_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape, "in_reshape");
+                    auto in_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape);
                     in_reshape->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
-                    auto in_transpose = pgraph->append_op(
-                            graph::op_kind::StaticTranspose,
-                            {in_edge(0, in_reshape, 0)}, "in_transpose");
-                    auto bmm_v_grad_weight = pgraph->append_op(
-                            graph::op_kind::MatMul,
-                            {in_edge(1, in_transpose, 0)}, "bmm_v_grad_weight");
+                    auto in_transpose
+                            = pgraph->append_op(graph::op_kind::StaticTranspose,
+                                    {in_edge(0, in_reshape, 0)});
+                    auto bmm_v_grad_weight
+                            = pgraph->append_op(graph::op_kind::MatMul,
+                                    {in_edge(1, in_transpose, 0)});
                     bmm_v_grad_weight->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
-                    auto bmm_v_grad_data = pgraph->append_op(
-                            graph::op_kind::MatMul,
-                            {in_edge(0, in_transpose, 0)}, "bmm_v_grad_data");
+                    auto bmm_v_grad_data
+                            = pgraph->append_op(graph::op_kind::MatMul,
+                                    {in_edge(0, in_transpose, 0)});
                     bmm_v_grad_data->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
                     auto dropout_grad = create_alternative_mul_subgraph(
                             pgraph, bmm_v_grad_data);
-                    auto softmax_mul = pgraph->append_op(
-                            graph::op_kind::Multiply,
-                            {in_edge(0, dropout_grad, 0)}, "softmax_mul");
+                    auto softmax_mul
+                            = pgraph->append_op(graph::op_kind::Multiply,
+                                    {in_edge(0, dropout_grad, 0)});
                     softmax_mul->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
-                    auto softmax_sum = pgraph->append_op(
-                            graph::op_kind::ReduceSum,
-                            {in_edge(0, softmax_mul, 0)}, "softmax_sum");
+                    auto softmax_sum
+                            = pgraph->append_op(graph::op_kind::ReduceSum,
+                                    {in_edge(0, softmax_mul, 0)});
                     softmax_sum->append_decision_function(check_reduce_attrs);
                     auto softmax_sub
                             = pgraph->append_op(graph::op_kind::Subtract,
                                     {in_edge(0, dropout_grad, 0),
-                                            in_edge(1, softmax_sum, 0)},
-                                    "softmax_sub");
+                                            in_edge(1, softmax_sum, 0)});
                     /* Create 2 subgraph for alternation */
-                    auto successive_mul_subgraph = std::make_shared<pb_graph_t>(
-                            "successive_mul_subgraph");
+                    auto successive_mul_subgraph
+                            = std::make_shared<pb_graph_t>();
                     auto softmax_mul2 = successive_mul_subgraph->append_op(
-                            graph::op_kind::Multiply, "softmax_mul2");
+                            graph::op_kind::Multiply);
                     auto fscore_grad_alter1
                             = successive_mul_subgraph->append_alternation(
                                     {graph::op_kind::Divide,
                                             graph::op_kind::Multiply},
-                                    {in_edge(0, softmax_mul2, 0)},
-                                    "fscore_grad");
+                                    {in_edge(0, softmax_mul2, 0)});
                     successive_mul_subgraph->create_input_port(
                             0, softmax_mul2, 0);
                     successive_mul_subgraph->create_output_port(
                             0, fscore_grad_alter1, 0);
 
                     auto single_fscore_grad_subgraph
-                            = std::make_shared<pb_graph_t>(
-                                    "single_fscore_grad_subgraph");
+                            = std::make_shared<pb_graph_t>();
                     auto fscore_grad_alter2
                             = single_fscore_grad_subgraph->append_alternation(
                                     {graph::op_kind::Divide,
-                                            graph::op_kind::Multiply},
-                                    "fscore_grad");
+                                            graph::op_kind::Multiply});
                     single_fscore_grad_subgraph->create_input_port(
                             0, fscore_grad_alter2, 0);
                     single_fscore_grad_subgraph->create_output_port(
@@ -431,17 +413,15 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto softmax_grad_alter = pgraph->append_alternation(
                             {successive_mul_subgraph,
                                     single_fscore_grad_subgraph},
-                            {in_edge(0, softmax_sub, 0)}, "softmax_grad_alter");
+                            {in_edge(0, softmax_sub, 0)});
                     auto bmm_q_grad_weight
                             = pgraph->append_op(graph::op_kind::MatMul,
-                                    {in_edge(0, softmax_grad_alter, 0)},
-                                    "bmm_q_grad_weight");
+                                    {in_edge(0, softmax_grad_alter, 0)});
                     bmm_q_grad_weight->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
                     auto bmm_k_grad_weight
                             = pgraph->append_op(graph::op_kind::MatMul,
-                                    {in_edge(0, softmax_grad_alter, 0)},
-                                    "bmm_k_grad_weight");
+                                    {in_edge(0, softmax_grad_alter, 0)});
                     bmm_k_grad_weight->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
                 });
@@ -478,80 +458,74 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto query_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape, "query_reshape");
-                    auto query_transpose = pgraph->append_op(
-                            graph::op_kind::StaticTranspose,
-                            {in_edge(0, query_reshape, 0)}, "query_transpose");
+                    auto query_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape);
+                    auto query_transpose
+                            = pgraph->append_op(graph::op_kind::StaticTranspose,
+                                    {in_edge(0, query_reshape, 0)});
 
-                    auto key_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape, "key_reshape");
-                    auto key_transpose = pgraph->append_op(
-                            graph::op_kind::StaticTranspose,
-                            {in_edge(0, key_reshape, 0)}, "key_transpose");
+                    auto key_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape);
+                    auto key_transpose
+                            = pgraph->append_op(graph::op_kind::StaticTranspose,
+                                    {in_edge(0, key_reshape, 0)});
 
                     auto mul = create_optional_mul_subgraph(
                             pgraph, key_transpose);
 
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, query_transpose, 0),
-                                    in_edge(1, mul, 0)},
-                            "matmul_qk");
+                                    in_edge(1, mul, 0)});
                     matmul_qk->append_decision_function(
                             check_input_dtype<impl::data_type::f32>);
 
-                    auto fscore_add = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, matmul_qk, 0)}, "fscore_add");
+                    auto fscore_add = pgraph->append_op(
+                            graph::op_kind::Add, {in_edge(0, matmul_qk, 0)});
 
                     auto optional_pre_reshape_subgraph
-                            = std::make_shared<pb_graph_t>(
-                                    "optional_pre_reshape_subgraph");
+                            = std::make_shared<pb_graph_t>();
                     auto optional_pre_reshape
                             = optional_pre_reshape_subgraph->append_op(
-                                    graph::op_kind::StaticReshape,
-                                    "optional_pre_reshape");
+                                    graph::op_kind::StaticReshape);
                     optional_pre_reshape_subgraph->create_input_port(
                             0, optional_pre_reshape, 0);
                     optional_pre_reshape_subgraph->create_output_port(
                             0, optional_pre_reshape, 0);
                     auto pre_reshape = pgraph->append_optional(
                             optional_pre_reshape_subgraph,
-                            {in_edge(0, fscore_add, 0)}, "pre_reshape");
+                            {in_edge(0, fscore_add, 0)});
 
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, pre_reshape, 0)}, "softmax");
+                            {in_edge(0, pre_reshape, 0)});
 
                     auto optional_post_reshape_subgraph
-                            = std::make_shared<pb_graph_t>(
-                                    "optional_post_reshape_subgraph");
+                            = std::make_shared<pb_graph_t>();
                     auto optional_post_reshape
                             = optional_post_reshape_subgraph->append_op(
-                                    graph::op_kind::StaticReshape,
-                                    "optional_post_reshape");
+                                    graph::op_kind::StaticReshape);
                     optional_post_reshape_subgraph->create_input_port(
                             0, optional_post_reshape, 0);
                     optional_post_reshape_subgraph->create_output_port(
                             0, optional_post_reshape, 0);
                     auto post_reshape = pgraph->append_optional(
                             optional_post_reshape_subgraph,
-                            {in_edge(0, softmax, 0)}, "post_reshape");
+                            {in_edge(0, softmax, 0)});
 
-                    auto value_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape, "value_reshape");
-                    auto value_transpose = pgraph->append_op(
-                            graph::op_kind::StaticTranspose,
-                            {in_edge(0, value_reshape, 0)}, "value_transpose");
+                    auto value_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape);
+                    auto value_transpose
+                            = pgraph->append_op(graph::op_kind::StaticTranspose,
+                                    {in_edge(0, value_reshape, 0)});
 
                     auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, post_reshape, 0),
-                                    in_edge(1, value_transpose, 0)},
-                            "matmul_v");
+                                    in_edge(1, value_transpose, 0)});
 
-                    auto post_transpose = pgraph->append_op(
-                            graph::op_kind::StaticTranspose,
-                            {in_edge(0, matmul_v, 0)}, "post_transpose");
+                    auto post_transpose
+                            = pgraph->append_op(graph::op_kind::StaticTranspose,
+                                    {in_edge(0, matmul_v, 0)});
                     pgraph->append_op(graph::op_kind::StaticReshape,
-                            {in_edge(0, post_transpose, 0)}, "reshape_output");
+                            {in_edge(0, post_transpose, 0)});
                 });
 
 // fake int8 MHA pattern corresponding to fp32_mha_pattern_alternative2
@@ -587,51 +561,49 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fake_int8_mha_pattern)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto query_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape, "query_reshape");
-                    auto query_transpose = pgraph->append_op(
-                            graph::op_kind::StaticTranspose,
-                            {in_edge(0, query_reshape, 0)}, "query_transpose");
+                    auto query_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape);
+                    auto query_transpose
+                            = pgraph->append_op(graph::op_kind::StaticTranspose,
+                                    {in_edge(0, query_reshape, 0)});
 
-                    auto key_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape, "key_reshape");
-                    auto key_transpose = pgraph->append_op(
-                            graph::op_kind::StaticTranspose,
-                            {in_edge(0, key_reshape, 0)}, "key_transpose");
+                    auto key_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape);
+                    auto key_transpose
+                            = pgraph->append_op(graph::op_kind::StaticTranspose,
+                                    {in_edge(0, key_reshape, 0)});
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, query_transpose, 0),
-                                    in_edge(1, key_transpose, 0)},
-                            "matmul_qk");
+                                    in_edge(1, key_transpose, 0)});
 
                     auto fquantize = pgraph->append_op(graph::op_kind::Quantize,
-                            {in_edge(0, matmul_qk, 0)}, "fquantize");
+                            {in_edge(0, matmul_qk, 0)});
                     auto fdequantize
                             = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, fquantize, 0)}, "fdequantize");
-                    auto radd = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, fdequantize, 0)}, "radd");
-                    auto rmultiply = pgraph->append_op(graph::op_kind::Multiply,
-                            {in_edge(0, radd, 0)}, "rmultiply");
+                                    {in_edge(0, fquantize, 0)});
+                    auto radd = pgraph->append_op(
+                            graph::op_kind::Add, {in_edge(0, fdequantize, 0)});
+                    auto rmultiply = pgraph->append_op(
+                            graph::op_kind::Multiply, {in_edge(0, radd, 0)});
 
-                    auto pre_softmax_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape,
-                            {in_edge(0, rmultiply, 0)}, "pre_softmax_reshape");
+                    auto pre_softmax_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape,
+                                    {in_edge(0, rmultiply, 0)});
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, pre_softmax_reshape, 0)}, "softmax");
-                    auto post_softmax_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape,
-                            {in_edge(0, softmax, 0)}, "post_softmax_reshape");
+                            {in_edge(0, pre_softmax_reshape, 0)});
+                    auto post_softmax_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape,
+                                    {in_edge(0, softmax, 0)});
 
-                    auto value_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape, "value_reshape");
-                    auto value_transpose = pgraph->append_op(
-                            graph::op_kind::StaticTranspose,
-                            {in_edge(0, value_reshape, 0)}, "value_transpose");
+                    auto value_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape);
+                    auto value_transpose
+                            = pgraph->append_op(graph::op_kind::StaticTranspose,
+                                    {in_edge(0, value_reshape, 0)});
 
                     pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, post_softmax_reshape, 0),
-                                    in_edge(1, value_transpose, 0)},
-                            "matmul_v");
+                                    in_edge(1, value_transpose, 0)});
                 });
 
 /*
@@ -655,27 +627,24 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto matmul_qk = pgraph->append_op(
-                            graph::op_kind::MatMul, "matmul_qk");
+                    auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
                             check_input_dtype<impl::data_type::f32>);
                     auto optional_postops_subgraph
-                            = std::make_shared<pb_graph_t>(
-                                    "optional_postops_subgraph");
+                            = std::make_shared<pb_graph_t>();
                     auto scale = optional_postops_subgraph->append_alternation(
-                            {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            "scale");
+                            {graph::op_kind::Divide, graph::op_kind::Multiply});
                     auto add = optional_postops_subgraph->append_op(
-                            graph::op_kind::Add, {in_edge(0, scale, 0)}, "add");
+                            graph::op_kind::Add, {in_edge(0, scale, 0)});
                     optional_postops_subgraph->create_input_port(0, scale, 0);
                     optional_postops_subgraph->create_output_port(0, add, 0);
                     auto postops
                             = pgraph->append_optional(optional_postops_subgraph,
-                                    {in_edge(0, matmul_qk, 0)}, "postops");
-                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, postops, 0)}, "softmax");
-                    pgraph->append_op(graph::op_kind::MatMul,
-                            {in_edge(0, softmax, 0)}, "matmul_v");
+                                    {in_edge(0, matmul_qk, 0)});
+                    auto softmax = pgraph->append_op(
+                            graph::op_kind::SoftMax, {in_edge(0, postops, 0)});
+                    pgraph->append_op(
+                            graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
                 });
 
 /*
@@ -697,17 +666,16 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto matmul_qk = pgraph->append_op(
-                            graph::op_kind::MatMul, "matmul_qk");
+                    auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
                             check_input_dtype<impl::data_type::f32>);
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            {in_edge(0, matmul_qk, 0)}, "fscore_scale");
-                    auto fscore_add = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, fscore_scale, 0)}, "fscore_add");
+                            {in_edge(0, matmul_qk, 0)});
+                    auto fscore_add = pgraph->append_op(
+                            graph::op_kind::Add, {in_edge(0, fscore_scale, 0)});
                     pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, fscore_add, 0)}, "softmax");
+                            {in_edge(0, fscore_add, 0)});
                 });
 
 // fp32 MHA pattern with special view and max
@@ -736,25 +704,24 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto matmul_qk = pgraph->append_op(
-                            graph::op_kind::MatMul, "matmul_qk");
+                    auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
                             check_input_dtype<impl::data_type::f32>);
                     auto reshape1
                             = pgraph->append_op(graph::op_kind::StaticReshape,
-                                    {in_edge(0, matmul_qk, 0)}, "reshape1");
-                    auto fscore_add = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, reshape1, 0)}, "fscore_add");
+                                    {in_edge(0, matmul_qk, 0)});
+                    auto fscore_add = pgraph->append_op(
+                            graph::op_kind::Add, {in_edge(0, reshape1, 0)});
                     auto fscore_max = pgraph->append_op(graph::op_kind::Maximum,
-                            {in_edge(0, fscore_add, 0)}, "fscore_max");
+                            {in_edge(0, fscore_add, 0)});
                     auto reshape2
                             = pgraph->append_op(graph::op_kind::StaticReshape,
-                                    {in_edge(0, fscore_max, 0)}, "reshape2");
-                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, reshape2, 0)}, "softmax");
+                                    {in_edge(0, fscore_max, 0)});
+                    auto softmax = pgraph->append_op(
+                            graph::op_kind::SoftMax, {in_edge(0, reshape2, 0)});
 
-                    pgraph->append_op(graph::op_kind::MatMul,
-                            {in_edge(0, softmax, 0)}, "matmul_v");
+                    pgraph->append_op(
+                            graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
                 });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
@@ -788,57 +755,52 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_mha_pattern)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto query_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape, "query_reshape");
+                    auto query_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape);
                     query_reshape->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
                     auto query_transpose
                             = create_append_transpose_repetition_subgraph(
                                     pgraph, query_reshape, 1, 3);
-                    auto key_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape, "key_reshape");
+                    auto key_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape);
                     auto key_transpose
                             = create_append_transpose_repetition_subgraph(
                                     pgraph, key_reshape, 1, 3);
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, query_transpose, 0),
-                                    in_edge(1, key_transpose, 0)},
-                            "matmul_qk");
+                                    in_edge(1, key_transpose, 0)});
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            {in_edge(0, matmul_qk, 0)}, "fscore_scale");
-                    auto fscore_add = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, fscore_scale, 0)}, "fscore_add");
+                            {in_edge(0, matmul_qk, 0)});
+                    auto fscore_add = pgraph->append_op(
+                            graph::op_kind::Add, {in_edge(0, fscore_scale, 0)});
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, fscore_add, 0)}, "softmax");
-                    auto value_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape, "value_reshape");
+                            {in_edge(0, fscore_add, 0)});
+                    auto value_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape);
                     auto value_transpose
                             = create_append_transpose_repetition_subgraph(
                                     pgraph, value_reshape, 1, 3);
                     auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, softmax, 0),
-                                    in_edge(1, value_transpose, 0)},
-                            "matmul_v");
-                    auto transpose_output = pgraph->append_op(
-                            graph::op_kind::StaticTranspose,
-                            {in_edge(0, matmul_v, 0)}, "transpose_output");
+                                    in_edge(1, value_transpose, 0)});
+                    auto transpose_output
+                            = pgraph->append_op(graph::op_kind::StaticTranspose,
+                                    {in_edge(0, matmul_v, 0)});
 
                     auto optional_reshape_subgraph
-                            = std::make_shared<pb_graph_t>(
-                                    "optional_reshape_subgraph");
+                            = std::make_shared<pb_graph_t>();
                     auto optional_reshape
                             = optional_reshape_subgraph->append_op(
-                                    graph::op_kind::StaticReshape,
-                                    "optional_reshape");
+                                    graph::op_kind::StaticReshape);
                     optional_reshape_subgraph->create_input_port(
                             0, optional_reshape, 0);
                     optional_reshape_subgraph->create_output_port(
                             0, optional_reshape, 0);
 
                     pgraph->append_optional(optional_reshape_subgraph,
-                            {in_edge(0, transpose_output, 0)},
-                            "reshape_output");
+                            {in_edge(0, transpose_output, 0)});
                 });
 
 // bf16 MHA pattern alternative
@@ -867,29 +829,27 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto matmul_qk = pgraph->append_op(
-                            graph::op_kind::MatMul, "matmul_qk");
+                    auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            {in_edge(0, matmul_qk, 0)}, "fscore_scale");
-                    auto fscore_add = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, fscore_scale, 0)}, "fscore_add");
+                            {in_edge(0, matmul_qk, 0)});
+                    auto fscore_add = pgraph->append_op(
+                            graph::op_kind::Add, {in_edge(0, fscore_scale, 0)});
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, fscore_add, 0)}, "softmax");
-                    auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
-                            {in_edge(0, softmax, 0)}, "matmul_v");
+                            {in_edge(0, fscore_add, 0)});
+                    auto matmul_v = pgraph->append_op(
+                            graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
                     matmul_v->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
-                    auto transpose_output = pgraph->append_op(
-                            graph::op_kind::StaticTranspose,
-                            {in_edge(0, matmul_v, 0)}, "transpose_output");
+                    auto transpose_output
+                            = pgraph->append_op(graph::op_kind::StaticTranspose,
+                                    {in_edge(0, matmul_v, 0)});
                     pgraph->append_alternation(
                             {graph::op_kind::Reorder,
                                     graph::op_kind::StaticReshape},
-                            {in_edge(0, transpose_output, 0)},
-                            "reshape_reorder_output");
+                            {in_edge(0, transpose_output, 0)});
                 });
 
 // bf16_distill_bert_mha_pattern
@@ -918,24 +878,23 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto matmul_qk = pgraph->append_op(
-                            graph::op_kind::MatMul, "matmul_qk");
+                    auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
                             check_input_dtype<impl::data_type::bf16>);
-                    auto select = pgraph->append_op(graph::op_kind::Select,
-                            {in_edge(2, matmul_qk, 0)}, "select");
+                    auto select = pgraph->append_op(
+                            graph::op_kind::Select, {in_edge(2, matmul_qk, 0)});
                     select->append_decision_function(check_select);
-                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, select, 0)}, "softmax");
-                    auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
-                            {in_edge(0, softmax, 0)}, "matmul_v");
+                    auto softmax = pgraph->append_op(
+                            graph::op_kind::SoftMax, {in_edge(0, select, 0)});
+                    auto matmul_v = pgraph->append_op(
+                            graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
                     matmul_v->append_decision_function(
                             check_input_dtype<impl::data_type::bf16>);
                     auto transpose
                             = pgraph->append_op(graph::op_kind::StaticTranspose,
-                                    {in_edge(0, matmul_v, 0)}, "transpose");
+                                    {in_edge(0, matmul_v, 0)});
                     pgraph->append_op(graph::op_kind::Reorder,
-                            {in_edge(0, transpose, 0)}, "reorder_output");
+                            {in_edge(0, transpose, 0)});
                 });
 
 // bf16 MHA training forward pattern
@@ -968,34 +927,33 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto matmul_qk = pgraph->append_op(
-                            graph::op_kind::MatMul, "matmul_qk");
+                    auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            {in_edge(0, matmul_qk, 0)}, "fscore_scale");
-                    auto fscore_add = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, fscore_scale, 0)}, "fscore_add");
+                            {in_edge(0, matmul_qk, 0)});
+                    auto fscore_add = pgraph->append_op(
+                            graph::op_kind::Add, {in_edge(0, fscore_scale, 0)});
                     fscore_add->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, fscore_add, 0)}, "softmax");
+                            {in_edge(0, fscore_add, 0)});
                     softmax->allow_external_outputs();
-                    auto dropout = pgraph->append_op(graph::op_kind::Multiply,
-                            {in_edge(0, softmax, 0)}, "dropout");
+                    auto dropout = pgraph->append_op(
+                            graph::op_kind::Multiply, {in_edge(0, softmax, 0)});
                     dropout->allow_external_outputs();
                     auto select = create_optional_mul_subgraph(
                             pgraph, dropout, true);
-                    auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
-                            {in_edge(0, select, 0)}, "matmul_v");
+                    auto matmul_v = pgraph->append_op(
+                            graph::op_kind::MatMul, {in_edge(0, select, 0)});
                     matmul_v->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
                     auto reshape
                             = pgraph->append_op(graph::op_kind::StaticTranspose,
-                                    {in_edge(0, matmul_v, 0)}, "reshape");
+                                    {in_edge(0, matmul_v, 0)});
                     pgraph->append_op(graph::op_kind::StaticReshape,
-                            {in_edge(0, reshape, 0)}, "transpose_output");
+                            {in_edge(0, reshape, 0)});
                 });
 
 // bf16 MHA training backward pattern
@@ -1034,63 +992,59 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto in_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape, "in_reshape");
+                    auto in_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape);
                     in_reshape->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
-                    auto in_transpose = pgraph->append_op(
-                            graph::op_kind::StaticTranspose,
-                            {in_edge(0, in_reshape, 0)}, "in_transpose");
-                    auto bmm_v_grad_weight = pgraph->append_op(
-                            graph::op_kind::MatMul,
-                            {in_edge(1, in_transpose, 0)}, "bmm_v_grad_weight");
+                    auto in_transpose
+                            = pgraph->append_op(graph::op_kind::StaticTranspose,
+                                    {in_edge(0, in_reshape, 0)});
+                    auto bmm_v_grad_weight
+                            = pgraph->append_op(graph::op_kind::MatMul,
+                                    {in_edge(1, in_transpose, 0)});
                     bmm_v_grad_weight->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
-                    auto bmm_v_grad_data = pgraph->append_op(
-                            graph::op_kind::MatMul,
-                            {in_edge(0, in_transpose, 0)}, "bmm_v_grad_data");
+                    auto bmm_v_grad_data
+                            = pgraph->append_op(graph::op_kind::MatMul,
+                                    {in_edge(0, in_transpose, 0)});
                     bmm_v_grad_data->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
                     auto dropout_grad = create_alternative_mul_subgraph(
                             pgraph, bmm_v_grad_data);
-                    auto softmax_mul = pgraph->append_op(
-                            graph::op_kind::Multiply,
-                            {in_edge(0, dropout_grad, 0)}, "softmax_mul");
+                    auto softmax_mul
+                            = pgraph->append_op(graph::op_kind::Multiply,
+                                    {in_edge(0, dropout_grad, 0)});
                     softmax_mul->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
-                    auto softmax_sum = pgraph->append_op(
-                            graph::op_kind::ReduceSum,
-                            {in_edge(0, softmax_mul, 0)}, "softmax_sum");
+                    auto softmax_sum
+                            = pgraph->append_op(graph::op_kind::ReduceSum,
+                                    {in_edge(0, softmax_mul, 0)});
                     softmax_sum->append_decision_function(check_reduce_attrs);
                     auto softmax_sub
                             = pgraph->append_op(graph::op_kind::Subtract,
                                     {in_edge(0, dropout_grad, 0),
-                                            in_edge(1, softmax_sum, 0)},
-                                    "softmax_sub");
+                                            in_edge(1, softmax_sum, 0)});
                     /* Create 2 subgraph for alternation */
-                    auto successive_mul_subgraph = std::make_shared<pb_graph_t>(
-                            "successive_mul_subgraph");
+                    auto successive_mul_subgraph
+                            = std::make_shared<pb_graph_t>();
                     auto softmax_mul2 = successive_mul_subgraph->append_op(
-                            graph::op_kind::Multiply, "softmax_mul2");
+                            graph::op_kind::Multiply);
                     auto fscore_grad_alter1
                             = successive_mul_subgraph->append_alternation(
                                     {graph::op_kind::Divide,
                                             graph::op_kind::Multiply},
-                                    {in_edge(0, softmax_mul2, 0)},
-                                    "fscore_grad");
+                                    {in_edge(0, softmax_mul2, 0)});
                     successive_mul_subgraph->create_input_port(
                             0, softmax_mul2, 0);
                     successive_mul_subgraph->create_output_port(
                             0, fscore_grad_alter1, 0);
 
                     auto single_fscore_grad_subgraph
-                            = std::make_shared<pb_graph_t>(
-                                    "single_fscore_grad_subgraph");
+                            = std::make_shared<pb_graph_t>();
                     auto fscore_grad_alter2
                             = single_fscore_grad_subgraph->append_alternation(
                                     {graph::op_kind::Divide,
-                                            graph::op_kind::Multiply},
-                                    "fscore_grad");
+                                            graph::op_kind::Multiply});
                     single_fscore_grad_subgraph->create_input_port(
                             0, fscore_grad_alter2, 0);
                     single_fscore_grad_subgraph->create_output_port(
@@ -1099,17 +1053,15 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto softmax_grad_alter = pgraph->append_alternation(
                             {successive_mul_subgraph,
                                     single_fscore_grad_subgraph},
-                            {in_edge(0, softmax_sub, 0)}, "softmax_grad_alter");
+                            {in_edge(0, softmax_sub, 0)});
                     auto bmm_q_grad_weight
                             = pgraph->append_op(graph::op_kind::MatMul,
-                                    {in_edge(0, softmax_grad_alter, 0)},
-                                    "bmm_q_grad_weight");
+                                    {in_edge(0, softmax_grad_alter, 0)});
                     bmm_q_grad_weight->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
                     auto bmm_k_grad_weight
                             = pgraph->append_op(graph::op_kind::MatMul,
-                                    {in_edge(0, softmax_grad_alter, 0)},
-                                    "bmm_k_grad_weight");
+                                    {in_edge(0, softmax_grad_alter, 0)});
                     bmm_k_grad_weight->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
                 });
@@ -1131,14 +1083,13 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto matmul_qk = pgraph->append_op(
-                            graph::op_kind::MatMul, "matmul_qk");
+                    auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, matmul_qk, 0)}, "softmax");
-                    pgraph->append_op(graph::op_kind::MatMul,
-                            {in_edge(0, softmax, 0)}, "matmul_v");
+                            {in_edge(0, matmul_qk, 0)});
+                    pgraph->append_op(
+                            graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
                 });
 
 /*
@@ -1160,17 +1111,16 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto matmul_qk = pgraph->append_op(
-                            graph::op_kind::MatMul, "matmul_qk");
+                    auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
                             check_input_dtype<impl::data_type::bf16>);
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            {in_edge(0, matmul_qk, 0)}, "fscore_scale");
-                    auto fscore_add = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, fscore_scale, 0)}, "fscore_add");
+                            {in_edge(0, matmul_qk, 0)});
+                    auto fscore_add = pgraph->append_op(
+                            graph::op_kind::Add, {in_edge(0, fscore_scale, 0)});
                     pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, fscore_add, 0)}, "softmax");
+                            {in_edge(0, fscore_add, 0)});
                 });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
@@ -1212,64 +1162,58 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mha_pattern)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_query");
-                    auto dequantize_key = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_key");
-                    auto dequantize_value = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_value");
-                    auto query_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape,
-                            {in_edge(0, dequantize_query, 0)}, "query_reshape");
+                    auto dequantize_query
+                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_key
+                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_value
+                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto query_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape,
+                                    {in_edge(0, dequantize_query, 0)});
                     auto query_transpose
                             = create_append_transpose_repetition_subgraph(
                                     pgraph, query_reshape, 1, 3);
-                    auto key_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape,
-                            {in_edge(0, dequantize_key, 0)}, "key_reshape");
+                    auto key_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape,
+                                    {in_edge(0, dequantize_key, 0)});
                     auto key_transpose
                             = create_append_transpose_repetition_subgraph(
                                     pgraph, key_reshape, 1, 3);
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, query_transpose, 0),
-                                    in_edge(1, key_transpose, 0)},
-                            "matmul_qk");
+                                    in_edge(1, key_transpose, 0)});
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            {in_edge(0, matmul_qk, 0)}, "fscore_scale");
-                    auto fscore_add = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, fscore_scale, 0)}, "fscore_add");
+                            {in_edge(0, matmul_qk, 0)});
+                    auto fscore_add = pgraph->append_op(
+                            graph::op_kind::Add, {in_edge(0, fscore_scale, 0)});
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, fscore_add, 0)}, "softmax");
+                            {in_edge(0, fscore_add, 0)});
                     auto quantize_softmax = pgraph->append_op(
-                            graph::op_kind::Quantize, {in_edge(0, softmax, 0)},
-                            "quantize_softmax");
+                            graph::op_kind::Quantize, {in_edge(0, softmax, 0)});
                     auto dequantize_softmax
                             = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_softmax, 0)},
-                                    "dequantize_softmax");
-                    auto value_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape,
-                            {in_edge(0, dequantize_value, 0)}, "value_reshape");
+                                    {in_edge(0, quantize_softmax, 0)});
+                    auto value_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape,
+                                    {in_edge(0, dequantize_value, 0)});
                     auto value_transpose
                             = create_append_transpose_repetition_subgraph(
                                     pgraph, value_reshape, 1, 3);
                     auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_softmax, 0),
-                                    in_edge(1, value_transpose, 0)},
-                            "matmul_v");
+                                    in_edge(1, value_transpose, 0)});
 
-                    auto transpose_output = pgraph->append_op(
-                            graph::op_kind::StaticTranspose,
-                            {in_edge(0, matmul_v, 0)}, "transpose_output");
+                    auto transpose_output
+                            = pgraph->append_op(graph::op_kind::StaticTranspose,
+                                    {in_edge(0, matmul_v, 0)});
 
                     auto optional_reshape_subgraph
-                            = std::make_shared<pb_graph_t>(
-                                    "optional_reshape_subgraph");
+                            = std::make_shared<pb_graph_t>();
                     auto optional_reshape
                             = optional_reshape_subgraph->append_op(
-                                    graph::op_kind::StaticReshape,
-                                    "optional_reshape");
+                                    graph::op_kind::StaticReshape);
                     optional_reshape_subgraph->create_input_port(
                             0, optional_reshape, 0);
                     optional_reshape_subgraph->create_output_port(
@@ -1277,10 +1221,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mha_pattern)
 
                     auto reshape_output
                             = pgraph->append_optional(optional_reshape_subgraph,
-                                    {in_edge(0, transpose_output, 0)},
-                                    "reshape_output");
+                                    {in_edge(0, transpose_output, 0)});
                     pgraph->append_op(graph::op_kind::Quantize,
-                            {in_edge(0, reshape_output, 0)}, "quantize_output");
+                            {in_edge(0, reshape_output, 0)});
                 });
 
 // int8-bf16 MHA pattern
@@ -1328,87 +1271,77 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_mha_pattern)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_query");
+                    auto dequantize_query
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     auto typecast_query
                             = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_query, 0)},
-                                    "typecast_query");
-                    auto query_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape,
-                            {in_edge(0, typecast_query, 0)}, "query_reshape");
+                                    {in_edge(0, dequantize_query, 0)});
+                    auto query_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape,
+                                    {in_edge(0, typecast_query, 0)});
                     auto query_transpose
                             = create_append_transpose_repetition_subgraph(
                                     pgraph, query_reshape, 1, 3);
 
-                    auto dequantize_key = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_key");
-                    auto typecast_key = pgraph->append_op(
-                            graph::op_kind::TypeCast,
-                            {in_edge(0, dequantize_key, 0)}, "typecast_key");
-                    auto key_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape,
-                            {in_edge(0, typecast_key, 0)}, "key_reshape");
+                    auto dequantize_key
+                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto typecast_key
+                            = pgraph->append_op(graph::op_kind::TypeCast,
+                                    {in_edge(0, dequantize_key, 0)});
+                    auto key_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape,
+                                    {in_edge(0, typecast_key, 0)});
                     auto key_transpose
                             = create_append_transpose_repetition_subgraph(
                                     pgraph, key_reshape, 1, 3);
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, query_transpose, 0),
-                                    in_edge(1, key_transpose, 0)},
-                            "matmul_qk");
+                                    in_edge(1, key_transpose, 0)});
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            {in_edge(0, matmul_qk, 0)}, "fscore_scale");
-                    auto fscore_add = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, fscore_scale, 0)}, "fscore_add");
+                            {in_edge(0, matmul_qk, 0)});
+                    auto fscore_add = pgraph->append_op(
+                            graph::op_kind::Add, {in_edge(0, fscore_scale, 0)});
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, fscore_add, 0)}, "softmax");
+                            {in_edge(0, fscore_add, 0)});
                     auto typecast_softmax = pgraph->append_op(
-                            graph::op_kind::TypeCast, {in_edge(0, softmax, 0)},
-                            "typecast_softmax");
+                            graph::op_kind::TypeCast, {in_edge(0, softmax, 0)});
                     auto quantize_softmax
                             = pgraph->append_op(graph::op_kind::Quantize,
-                                    {in_edge(0, typecast_softmax, 0)},
-                                    "quantize_softmax");
+                                    {in_edge(0, typecast_softmax, 0)});
                     auto dequantize_softmax
                             = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_softmax, 0)},
-                                    "dequantize_softmax");
+                                    {in_edge(0, quantize_softmax, 0)});
                     auto typecast_softmax_bf16
                             = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_softmax, 0)},
-                                    "typecast_softmax");
+                                    {in_edge(0, dequantize_softmax, 0)});
 
-                    auto dequantize_value = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_value");
+                    auto dequantize_value
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     auto typecast_value
                             = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_value, 0)},
-                                    "typecast_value");
-                    auto value_reshape = pgraph->append_op(
-                            graph::op_kind::StaticReshape,
-                            {in_edge(0, typecast_value, 0)}, "value_reshape");
+                                    {in_edge(0, dequantize_value, 0)});
+                    auto value_reshape
+                            = pgraph->append_op(graph::op_kind::StaticReshape,
+                                    {in_edge(0, typecast_value, 0)});
                     auto value_transpose
                             = create_append_transpose_repetition_subgraph(
                                     pgraph, value_reshape, 1, 3);
                     auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, typecast_softmax_bf16, 0),
-                                    in_edge(1, value_transpose, 0)},
-                            "matmul_v");
+                                    in_edge(1, value_transpose, 0)});
 
-                    auto transpose_output = pgraph->append_op(
-                            graph::op_kind::StaticTranspose,
-                            {in_edge(0, matmul_v, 0)}, "transpose_output");
+                    auto transpose_output
+                            = pgraph->append_op(graph::op_kind::StaticTranspose,
+                                    {in_edge(0, matmul_v, 0)});
                     auto reshape_output
                             = pgraph->append_op(graph::op_kind::StaticReshape,
-                                    {in_edge(0, transpose_output, 0)},
-                                    "reshape_output");
-                    auto typecast_output = pgraph->append_op(
-                            graph::op_kind::TypeCast,
-                            {in_edge(0, reshape_output, 0)}, "typecast_output");
+                                    {in_edge(0, transpose_output, 0)});
+                    auto typecast_output
+                            = pgraph->append_op(graph::op_kind::TypeCast,
+                                    {in_edge(0, reshape_output, 0)});
                     pgraph->append_op(graph::op_kind::Quantize,
-                            {in_edge(0, typecast_output, 0)},
-                            "quantize_output");
+                            {in_edge(0, typecast_output, 0)});
                 });
 
 /*
@@ -1444,49 +1377,43 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_query");
+                    auto dequantize_query
+                            = pgraph->append_op(graph::op_kind::Dequantize);
 
-                    auto dequantize_key = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_key");
+                    auto dequantize_key
+                            = pgraph->append_op(graph::op_kind::Dequantize);
 
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_query, 0),
-                                    in_edge(1, dequantize_key, 0)},
-                            "matmul_qk");
+                                    in_edge(1, dequantize_key, 0)});
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            {in_edge(0, matmul_qk, 0)}, "fscore_scale");
-                    auto fscore_add = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, fscore_scale, 0)}, "fscore_add");
+                            {in_edge(0, matmul_qk, 0)});
+                    auto fscore_add = pgraph->append_op(
+                            graph::op_kind::Add, {in_edge(0, fscore_scale, 0)});
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, fscore_add, 0)}, "softmax");
+                            {in_edge(0, fscore_add, 0)});
                     auto quantize_softmax = pgraph->append_op(
-                            graph::op_kind::Quantize, {in_edge(0, softmax, 0)},
-                            "quantize_softmax");
+                            graph::op_kind::Quantize, {in_edge(0, softmax, 0)});
                     auto dequantize_softmax
                             = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_softmax, 0)},
-                                    "dequantize_softmax");
+                                    {in_edge(0, quantize_softmax, 0)});
 
-                    auto dequantize_value = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_value");
+                    auto dequantize_value
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_softmax, 0),
-                                    in_edge(1, dequantize_value, 0)},
-                            "matmul_v");
+                                    in_edge(1, dequantize_value, 0)});
 
-                    auto transpose_output = pgraph->append_op(
-                            graph::op_kind::StaticTranspose,
-                            {in_edge(0, matmul_v, 0)}, "transpose_output");
+                    auto transpose_output
+                            = pgraph->append_op(graph::op_kind::StaticTranspose,
+                                    {in_edge(0, matmul_v, 0)});
                     auto reshape_reorder_output = pgraph->append_alternation(
                             {graph::op_kind::Reorder,
                                     graph::op_kind::StaticReshape},
-                            {in_edge(0, transpose_output, 0)},
-                            "reshape_reorder_output");
+                            {in_edge(0, transpose_output, 0)});
                     pgraph->append_op(graph::op_kind::Quantize,
-                            {in_edge(0, reshape_reorder_output, 0)},
-                            "quantize_output");
+                            {in_edge(0, reshape_reorder_output, 0)});
                 });
 
 /*
@@ -1530,69 +1457,60 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_query");
-                    auto cast_query = pgraph->append_op(
-                            graph::op_kind::TypeCast,
-                            {in_edge(0, dequantize_query, 0)}, "cast_query");
+                    auto dequantize_query
+                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto cast_query
+                            = pgraph->append_op(graph::op_kind::TypeCast,
+                                    {in_edge(0, dequantize_query, 0)});
 
-                    auto dequantize_key = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_key");
+                    auto dequantize_key
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     auto cast_key = pgraph->append_op(graph::op_kind::TypeCast,
-                            {in_edge(0, dequantize_key, 0)}, "cast_key");
+                            {in_edge(0, dequantize_key, 0)});
 
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, cast_query, 0),
-                                    in_edge(1, cast_key, 0)},
-                            "matmul_qk");
+                                    in_edge(1, cast_key, 0)});
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            {in_edge(0, matmul_qk, 0)}, "fscore_scale");
-                    auto fscore_add = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, fscore_scale, 0)}, "fscore_add");
+                            {in_edge(0, matmul_qk, 0)});
+                    auto fscore_add = pgraph->append_op(
+                            graph::op_kind::Add, {in_edge(0, fscore_scale, 0)});
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, fscore_add, 0)}, "softmax");
+                            {in_edge(0, fscore_add, 0)});
                     auto cast_softmax_fp32 = pgraph->append_op(
-                            graph::op_kind::TypeCast, {in_edge(0, softmax, 0)},
-                            "cast_softmax_fp32");
+                            graph::op_kind::TypeCast, {in_edge(0, softmax, 0)});
                     auto quantize_softmax
                             = pgraph->append_op(graph::op_kind::Quantize,
-                                    {in_edge(0, cast_softmax_fp32, 0)},
-                                    "quantize_softmax");
+                                    {in_edge(0, cast_softmax_fp32, 0)});
                     auto dequantize_softmax
                             = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_softmax, 0)},
-                                    "dequantize_softmax");
+                                    {in_edge(0, quantize_softmax, 0)});
                     auto cast_softmax
                             = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_softmax, 0)},
-                                    "cast_softmax");
+                                    {in_edge(0, dequantize_softmax, 0)});
 
-                    auto dequantize_value = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_value");
-                    auto cast_value = pgraph->append_op(
-                            graph::op_kind::TypeCast,
-                            {in_edge(0, dequantize_value, 0)}, "cast_value");
+                    auto dequantize_value
+                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto cast_value
+                            = pgraph->append_op(graph::op_kind::TypeCast,
+                                    {in_edge(0, dequantize_value, 0)});
 
                     auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, cast_softmax, 0),
-                                    in_edge(1, cast_value, 0)},
-                            "matmul_v");
-                    auto transpose_output = pgraph->append_op(
-                            graph::op_kind::StaticTranspose,
-                            {in_edge(0, matmul_v, 0)}, "transpose_output");
+                                    in_edge(1, cast_value, 0)});
+                    auto transpose_output
+                            = pgraph->append_op(graph::op_kind::StaticTranspose,
+                                    {in_edge(0, matmul_v, 0)});
                     auto reshape_reorder_output = pgraph->append_alternation(
                             {graph::op_kind::Reorder,
                                     graph::op_kind::StaticReshape},
-                            {in_edge(0, transpose_output, 0)},
-                            "reshape_reorder_output");
+                            {in_edge(0, transpose_output, 0)});
                     auto cast_output_fp32
                             = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, reshape_reorder_output, 0)},
-                                    "cast_output_fp32");
+                                    {in_edge(0, reshape_reorder_output, 0)});
                     pgraph->append_op(graph::op_kind::Quantize,
-                            {in_edge(0, cast_output_fp32, 0)},
-                            "quantize_output");
+                            {in_edge(0, cast_output_fp32, 0)});
                 });
 
 /*
@@ -1620,34 +1538,30 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_query");
-                    auto dequantize_key = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_key");
+                    auto dequantize_query
+                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_key
+                            = pgraph->append_op(graph::op_kind::Dequantize);
 
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_query, 0),
-                                    in_edge(1, dequantize_key, 0)},
-                            "matmul_qk");
+                                    in_edge(1, dequantize_key, 0)});
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, matmul_qk, 0)}, "softmax");
+                            {in_edge(0, matmul_qk, 0)});
                     auto quantize_softmax = pgraph->append_op(
-                            graph::op_kind::Quantize, {in_edge(0, softmax, 0)},
-                            "quantize_softmax");
+                            graph::op_kind::Quantize, {in_edge(0, softmax, 0)});
                     auto dequantize_softmax
                             = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_softmax, 0)},
-                                    "dequantize_softmax");
+                                    {in_edge(0, quantize_softmax, 0)});
 
-                    auto dequantize_value = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_value");
+                    auto dequantize_value
+                            = pgraph->append_op(graph::op_kind::Dequantize);
 
                     auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_softmax, 0),
-                                    in_edge(1, dequantize_value, 0)},
-                            "matmul_v");
+                                    in_edge(1, dequantize_value, 0)});
                     pgraph->append_op(graph::op_kind::Quantize,
-                            {in_edge(0, matmul_v, 0)}, "quantize_output");
+                            {in_edge(0, matmul_v, 0)});
                 });
 
 /*
@@ -1683,54 +1597,48 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_query");
-                    auto cast_query = pgraph->append_op(
-                            graph::op_kind::TypeCast,
-                            {in_edge(0, dequantize_query, 0)}, "cast_query");
+                    auto dequantize_query
+                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto cast_query
+                            = pgraph->append_op(graph::op_kind::TypeCast,
+                                    {in_edge(0, dequantize_query, 0)});
 
-                    auto dequantize_key = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_key");
+                    auto dequantize_key
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     auto cast_key = pgraph->append_op(graph::op_kind::TypeCast,
-                            {in_edge(0, dequantize_key, 0)}, "cast_key");
+                            {in_edge(0, dequantize_key, 0)});
 
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, cast_query, 0),
-                                    in_edge(1, cast_key, 0)},
-                            "matmul_qk");
+                                    in_edge(1, cast_key, 0)});
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, matmul_qk, 0)}, "softmax");
+                            {in_edge(0, matmul_qk, 0)});
                     auto cast_softmax_fp32 = pgraph->append_op(
-                            graph::op_kind::TypeCast, {in_edge(0, softmax, 0)},
-                            "cast_softmax_fp32");
+                            graph::op_kind::TypeCast, {in_edge(0, softmax, 0)});
                     auto quantize_softmax
                             = pgraph->append_op(graph::op_kind::Quantize,
-                                    {in_edge(0, cast_softmax_fp32, 0)},
-                                    "quantize_softmax");
+                                    {in_edge(0, cast_softmax_fp32, 0)});
                     auto dequantize_softmax
                             = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_softmax, 0)},
-                                    "dequantize_softmax");
+                                    {in_edge(0, quantize_softmax, 0)});
                     auto cast_softmax
                             = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_softmax, 0)},
-                                    "cast_softmax");
+                                    {in_edge(0, dequantize_softmax, 0)});
 
-                    auto dequantize_value = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_value");
-                    auto cast_value = pgraph->append_op(
-                            graph::op_kind::TypeCast,
-                            {in_edge(0, dequantize_value, 0)}, "cast_value");
+                    auto dequantize_value
+                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto cast_value
+                            = pgraph->append_op(graph::op_kind::TypeCast,
+                                    {in_edge(0, dequantize_value, 0)});
 
                     auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, cast_softmax, 0),
-                                    in_edge(1, cast_value, 0)},
-                            "matmul_v");
+                                    in_edge(1, cast_value, 0)});
                     auto cast_output
                             = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, matmul_v, 0)}, "cast_output");
+                                    {in_edge(0, matmul_v, 0)});
                     pgraph->append_op(graph::op_kind::Quantize,
-                            {in_edge(0, cast_output, 0)}, "quantize_output");
+                            {in_edge(0, cast_output, 0)});
                 });
 
 /*
@@ -1756,36 +1664,33 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_query");
+                    auto dequantize_query
+                            = pgraph->append_op(graph::op_kind::Dequantize);
 
-                    auto dequantize_key = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_key");
+                    auto dequantize_key
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_query, 0),
-                                    in_edge(1, dequantize_key, 0)},
-                            "matmul_qk");
+                                    in_edge(1, dequantize_key, 0)});
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            {in_edge(0, matmul_qk, 0)}, "fscore_scale");
-                    auto fscore_add = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, fscore_scale, 0)}, "fscore_add");
+                            {in_edge(0, matmul_qk, 0)});
+                    auto fscore_add = pgraph->append_op(
+                            graph::op_kind::Add, {in_edge(0, fscore_scale, 0)});
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, fscore_add, 0)}, "softmax");
+                            {in_edge(0, fscore_add, 0)});
 
                     auto optional_quantize_subgraph
-                            = std::make_shared<pb_graph_t>(
-                                    "optional_quantize_subgraph");
+                            = std::make_shared<pb_graph_t>();
                     auto optional_quantize
                             = optional_quantize_subgraph->append_op(
-                                    graph::op_kind::Quantize,
-                                    "optional_quantize");
+                                    graph::op_kind::Quantize);
                     optional_quantize_subgraph->create_input_port(
                             0, optional_quantize, 0);
                     optional_quantize_subgraph->create_output_port(
                             0, optional_quantize, 0);
                     pgraph->append_optional(optional_quantize_subgraph,
-                            {in_edge(0, softmax, 0)}, "quantize_softmax");
+                            {in_edge(0, softmax, 0)});
                 });
 
 /*
@@ -1815,48 +1720,44 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_query");
-                    auto cast_query = pgraph->append_op(
-                            graph::op_kind::TypeCast,
-                            {in_edge(0, dequantize_query, 0)}, "cast_query");
+                    auto dequantize_query
+                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto cast_query
+                            = pgraph->append_op(graph::op_kind::TypeCast,
+                                    {in_edge(0, dequantize_query, 0)});
 
-                    auto dequantize_key = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_key");
+                    auto dequantize_key
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     auto cast_key = pgraph->append_op(graph::op_kind::TypeCast,
-                            {in_edge(0, dequantize_key, 0)}, "cast_key");
+                            {in_edge(0, dequantize_key, 0)});
 
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, cast_query, 0),
-                                    in_edge(1, cast_key, 0)},
-                            "matmul_qk");
+                                    in_edge(1, cast_key, 0)});
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            {in_edge(0, matmul_qk, 0)}, "fscore_scale");
-                    auto fscore_add = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, fscore_scale, 0)}, "fscore_add");
+                            {in_edge(0, matmul_qk, 0)});
+                    auto fscore_add = pgraph->append_op(
+                            graph::op_kind::Add, {in_edge(0, fscore_scale, 0)});
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, fscore_add, 0)}, "softmax");
+                            {in_edge(0, fscore_add, 0)});
 
                     auto optional_output_subgraph
-                            = std::make_shared<pb_graph_t>(
-                                    "optional_output_subgraph");
+                            = std::make_shared<pb_graph_t>();
                     auto optional_typecast
                             = optional_output_subgraph->append_op(
-                                    graph::op_kind::TypeCast,
-                                    "optional_typecast");
+                                    graph::op_kind::TypeCast);
                     auto optional_quantize
                             = optional_output_subgraph->append_op(
                                     graph::op_kind::Quantize,
-                                    {in_edge(0, optional_typecast, 0)},
-                                    "optional_quantize");
+                                    {in_edge(0, optional_typecast, 0)});
 
                     optional_output_subgraph->create_input_port(
                             0, optional_typecast, 0);
                     optional_output_subgraph->create_output_port(
                             0, optional_quantize, 0);
-                    pgraph->append_optional(optional_output_subgraph,
-                            {in_edge(0, softmax, 0)}, "cast_softmax");
+                    pgraph->append_optional(
+                            optional_output_subgraph, {in_edge(0, softmax, 0)});
                 });
 
 // int8 version of MHA pattern with special view and max
@@ -1894,42 +1795,38 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_query");
-                    auto dequantize_key = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_key");
+                    auto dequantize_query
+                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_key
+                            = pgraph->append_op(graph::op_kind::Dequantize);
 
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_query, 0),
-                                    in_edge(1, dequantize_key, 0)},
-                            "matmul_qk");
+                                    in_edge(1, dequantize_key, 0)});
                     auto reshape1
                             = pgraph->append_op(graph::op_kind::StaticReshape,
-                                    {in_edge(0, matmul_qk, 0)}, "reshape1");
-                    auto fscore_add = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, reshape1, 0)}, "fscore_add");
+                                    {in_edge(0, matmul_qk, 0)});
+                    auto fscore_add = pgraph->append_op(
+                            graph::op_kind::Add, {in_edge(0, reshape1, 0)});
                     auto fscore_max = pgraph->append_op(graph::op_kind::Maximum,
-                            {in_edge(0, fscore_add, 0)}, "fscore_max");
+                            {in_edge(0, fscore_add, 0)});
                     auto reshape2
                             = pgraph->append_op(graph::op_kind::StaticReshape,
-                                    {in_edge(0, fscore_max, 0)}, "reshape2");
-                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, reshape2, 0)}, "softmax");
+                                    {in_edge(0, fscore_max, 0)});
+                    auto softmax = pgraph->append_op(
+                            graph::op_kind::SoftMax, {in_edge(0, reshape2, 0)});
                     auto quantize_softmax = pgraph->append_op(
-                            graph::op_kind::Quantize, {in_edge(0, softmax, 0)},
-                            "quantize_softmax");
+                            graph::op_kind::Quantize, {in_edge(0, softmax, 0)});
                     auto dequantize_softmax
                             = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_softmax, 0)},
-                                    "dequantize_softmax");
-                    auto dequantize_value = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_value");
+                                    {in_edge(0, quantize_softmax, 0)});
+                    auto dequantize_value
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_softmax, 0),
-                                    in_edge(1, dequantize_value, 0)},
-                            "matmul_v");
+                                    in_edge(1, dequantize_value, 0)});
                     pgraph->append_op(graph::op_kind::Quantize,
-                            {in_edge(0, matmul_v, 0)}, "quantize_output");
+                            {in_edge(0, matmul_v, 0)});
                 });
 
 // int8_distill_bert_mha_pattern
@@ -1966,46 +1863,39 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_query");
-                    auto dequantize_key = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_key");
+                    auto dequantize_query
+                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_key
+                            = pgraph->append_op(graph::op_kind::Dequantize);
 
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_query, 0),
-                                    in_edge(1, dequantize_key, 0)},
-                            "matmul_qk");
+                                    in_edge(1, dequantize_key, 0)});
                     auto fscore_select = pgraph->append_op(
-                            graph::op_kind::Select, {in_edge(2, matmul_qk, 0)},
-                            "fscore_select");
+                            graph::op_kind::Select, {in_edge(2, matmul_qk, 0)});
                     fscore_select->append_decision_function(check_select);
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, fscore_select, 0)}, "softmax");
+                            {in_edge(0, fscore_select, 0)});
                     auto quantize_softmax = pgraph->append_op(
-                            graph::op_kind::Quantize, {in_edge(0, softmax, 0)},
-                            "quantize_softmax");
+                            graph::op_kind::Quantize, {in_edge(0, softmax, 0)});
                     auto dequantize_softmax
                             = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_softmax, 0)},
-                                    "dequantize_softmax");
-                    auto dequantize_value = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_value");
+                                    {in_edge(0, quantize_softmax, 0)});
+                    auto dequantize_value
+                            = pgraph->append_op(graph::op_kind::Dequantize);
 
                     auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_softmax, 0),
-                                    in_edge(1, dequantize_value, 0)},
-                            "matmul_v");
-                    auto transpose_output = pgraph->append_op(
-                            graph::op_kind::StaticTranspose,
-                            {in_edge(0, matmul_v, 0)}, "transpose_output");
+                                    in_edge(1, dequantize_value, 0)});
+                    auto transpose_output
+                            = pgraph->append_op(graph::op_kind::StaticTranspose,
+                                    {in_edge(0, matmul_v, 0)});
                     auto reshape_reorder_output = pgraph->append_alternation(
                             {graph::op_kind::Reorder,
                                     graph::op_kind::StaticReshape},
-                            {in_edge(0, transpose_output, 0)},
-                            "reshape_reorder_output");
+                            {in_edge(0, transpose_output, 0)});
                     pgraph->append_op(graph::op_kind::Quantize,
-                            {in_edge(0, reshape_reorder_output, 0)},
-                            "quantize_output");
+                            {in_edge(0, reshape_reorder_output, 0)});
                 });
 
 /*
@@ -2049,68 +1939,58 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_query");
-                    auto cast_query = pgraph->append_op(
-                            graph::op_kind::TypeCast,
-                            {in_edge(0, dequantize_query, 0)}, "cast_query");
+                    auto dequantize_query
+                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto cast_query
+                            = pgraph->append_op(graph::op_kind::TypeCast,
+                                    {in_edge(0, dequantize_query, 0)});
 
-                    auto dequantize_key = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_key");
+                    auto dequantize_key
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     auto cast_key = pgraph->append_op(graph::op_kind::TypeCast,
-                            {in_edge(0, dequantize_key, 0)}, "cast_key");
+                            {in_edge(0, dequantize_key, 0)});
 
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, cast_query, 0),
-                                    in_edge(1, cast_key, 0)},
-                            "matmul_qk");
+                                    in_edge(1, cast_key, 0)});
                     auto fscore_select = pgraph->append_op(
-                            graph::op_kind::Select, {in_edge(2, matmul_qk, 0)},
-                            "fscore_select");
+                            graph::op_kind::Select, {in_edge(2, matmul_qk, 0)});
                     fscore_select->append_decision_function(check_select);
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, fscore_select, 0)}, "softmax");
+                            {in_edge(0, fscore_select, 0)});
                     auto cast_softmax_fp32 = pgraph->append_op(
-                            graph::op_kind::TypeCast, {in_edge(0, softmax, 0)},
-                            "cast_softmax_fp32");
+                            graph::op_kind::TypeCast, {in_edge(0, softmax, 0)});
                     auto quantize_softmax
                             = pgraph->append_op(graph::op_kind::Quantize,
-                                    {in_edge(0, cast_softmax_fp32, 0)},
-                                    "quantize_softmax");
+                                    {in_edge(0, cast_softmax_fp32, 0)});
                     auto dequantize_softmax
                             = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_softmax, 0)},
-                                    "dequantize_softmax");
+                                    {in_edge(0, quantize_softmax, 0)});
                     auto cast_softmax
                             = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_softmax, 0)},
-                                    "cast_softmax");
+                                    {in_edge(0, dequantize_softmax, 0)});
 
-                    auto dequantize_value = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequantize_value");
-                    auto cast_value = pgraph->append_op(
-                            graph::op_kind::TypeCast,
-                            {in_edge(0, dequantize_value, 0)}, "cast_value");
+                    auto dequantize_value
+                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto cast_value
+                            = pgraph->append_op(graph::op_kind::TypeCast,
+                                    {in_edge(0, dequantize_value, 0)});
 
                     auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, cast_softmax, 0),
-                                    in_edge(1, cast_value, 0)},
-                            "matmul_v");
-                    auto transpose_output = pgraph->append_op(
-                            graph::op_kind::StaticTranspose,
-                            {in_edge(0, matmul_v, 0)}, "transpose_output");
+                                    in_edge(1, cast_value, 0)});
+                    auto transpose_output
+                            = pgraph->append_op(graph::op_kind::StaticTranspose,
+                                    {in_edge(0, matmul_v, 0)});
                     auto reshape_reorder_output = pgraph->append_alternation(
                             {graph::op_kind::Reorder,
                                     graph::op_kind::StaticReshape},
-                            {in_edge(0, transpose_output, 0)},
-                            "reshape_reorder_output");
+                            {in_edge(0, transpose_output, 0)});
                     auto cast_output_fp32
                             = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, reshape_reorder_output, 0)},
-                                    "cast_output_fp32");
+                                    {in_edge(0, reshape_reorder_output, 0)});
                     pgraph->append_op(graph::op_kind::Quantize,
-                            {in_edge(0, cast_output_fp32, 0)},
-                            "quantize_output");
+                            {in_edge(0, cast_output_fp32, 0)});
                 });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 

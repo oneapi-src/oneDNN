@@ -39,15 +39,13 @@ std::pair<pm::pb_node_t *, pm::pb_node_t *> single_layer_mlp(
     pm::pb_node_t *layer_input, *layer_output;
     in_edges_t matmul_in_edges;
     if (is_int8) {
-        auto dequantize_input = pgraph->append_op(
-                graph::op_kind::Dequantize, "dequantize_input");
-        auto dequantize_weight = pgraph->append_op(
-                graph::op_kind::Dequantize, "dequantize_weight");
+        auto dequantize_input = pgraph->append_op(graph::op_kind::Dequantize);
+        auto dequantize_weight = pgraph->append_op(graph::op_kind::Dequantize);
         if (is_bf16) {
             auto typecast_input = pgraph->append_op(graph::op_kind::TypeCast,
-                    {in_edge(0, dequantize_input, 0)}, "typecast_input");
+                    {in_edge(0, dequantize_input, 0)});
             auto typecast_weight = pgraph->append_op(graph::op_kind::TypeCast,
-                    {in_edge(0, dequantize_weight, 0)}, "typecast_weight");
+                    {in_edge(0, dequantize_weight, 0)});
             matmul_in_edges = in_edges_t {in_edge(0, typecast_input, 0),
                     in_edge(1, typecast_weight, 0)};
         } else {
@@ -56,8 +54,7 @@ std::pair<pm::pb_node_t *, pm::pb_node_t *> single_layer_mlp(
         }
         layer_input = dequantize_input;
     }
-    auto matmul = pgraph->append_op(
-            graph::op_kind::MatMul, matmul_in_edges, "matmul");
+    auto matmul = pgraph->append_op(graph::op_kind::MatMul, matmul_in_edges);
     matmul->append_decision_function(is_bf16
                     ? check_input_dtype<graph::data_type::bf16>
                     : check_input_dtype<graph::data_type::f32>);
@@ -65,35 +62,34 @@ std::pair<pm::pb_node_t *, pm::pb_node_t *> single_layer_mlp(
     if (!is_int8) { layer_input = matmul; }
 
     /* optional add/biasAdd after matmul */
-    auto add_subgraph = std::make_shared<pb_graph_t>("add_subgraph");
+    auto add_subgraph = std::make_shared<pb_graph_t>();
     auto add = add_subgraph->append_alternation(
-            {graph::op_kind::Add, graph::op_kind::BiasAdd}, "add");
+            {graph::op_kind::Add, graph::op_kind::BiasAdd});
     add->allow_external_outputs();
     add_subgraph->create_input_port(0, add, 0);
     add_subgraph->create_output_port(0, add, 0);
-    auto optional_add = pgraph->append_optional(
-            add_subgraph, {in_edge(0, matmul, 0)}, "optional_add");
+    auto optional_add
+            = pgraph->append_optional(add_subgraph, {in_edge(0, matmul, 0)});
 
     /* optional activation */
-    auto activation_subgraph
-            = std::make_shared<pb_graph_t>("activation_subgraph");
+    auto activation_subgraph = std::make_shared<pb_graph_t>();
     auto activation = activation_subgraph->append_alternation(
-            {graph::op_kind::ReLU, graph::op_kind::Sigmoid}, "activation");
+            {graph::op_kind::ReLU, graph::op_kind::Sigmoid});
     activation->allow_external_outputs();
     activation_subgraph->create_input_port(0, activation, 0);
     activation_subgraph->create_output_port(0, activation, 0);
-    auto optional_activation = pgraph->append_optional(activation_subgraph,
-            {in_edge(0, optional_add, 0)}, "optional_activation");
+    auto optional_activation = pgraph->append_optional(
+            activation_subgraph, {in_edge(0, optional_add, 0)});
     layer_output = optional_activation;
 
     if (is_int8) {
         if (is_bf16) {
-            auto typecast_output = pgraph->append_op(graph::op_kind::TypeCast,
-                    {in_edge(0, layer_output, 0)}, "typecast_output");
+            auto typecast_output = pgraph->append_op(
+                    graph::op_kind::TypeCast, {in_edge(0, layer_output, 0)});
             layer_output = typecast_output;
         }
-        auto quantize_output = pgraph->append_op(graph::op_kind::Quantize,
-                {in_edge(0, layer_output, 0)}, "quantize_output");
+        auto quantize_output = pgraph->append_op(
+                graph::op_kind::Quantize, {in_edge(0, layer_output, 0)});
         layer_output = quantize_output;
     }
     return std::make_pair(layer_input, layer_output);
@@ -102,33 +98,30 @@ std::pair<pm::pb_node_t *, pm::pb_node_t *> single_layer_mlp(
 pm::pb_node_t *weight_grad_alternation_unit(
         const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op_t *activation) {
     /* Create 2 subgraph for alternation */
-    auto weight_grad_option1
-            = std::make_shared<pb_graph_t>("weight_grad_option1");
-    auto transpose_subgraph1
-            = std::make_shared<pb_graph_t>("transpose_subgraph1");
-    auto transpose_x1 = transpose_subgraph1->append_op(
-            graph::op_kind::StaticTranspose, "transpose_x");
+    auto weight_grad_option1 = std::make_shared<pb_graph_t>();
+    auto transpose_subgraph1 = std::make_shared<pb_graph_t>();
+    auto transpose_x1
+            = transpose_subgraph1->append_op(graph::op_kind::StaticTranspose);
     transpose_subgraph1->create_input_port(0, transpose_x1, 0);
     transpose_subgraph1->create_output_port(0, transpose_x1, 0);
-    auto optional_transpose_x = weight_grad_option1->append_optional(
-            transpose_subgraph1, "optional_transpose_x");
-    auto matmul_grad_w1 = weight_grad_option1->append_op(graph::op_kind::MatMul,
-            {in_edge(0, optional_transpose_x, 0)}, "matmul_weight");
+    auto optional_transpose_x
+            = weight_grad_option1->append_optional(transpose_subgraph1);
+    auto matmul_grad_w1 = weight_grad_option1->append_op(
+            graph::op_kind::MatMul, {in_edge(0, optional_transpose_x, 0)});
     weight_grad_option1->create_input_port(0, matmul_grad_w1, 1);
     weight_grad_option1->create_output_port(0, matmul_grad_w1, 0);
 
-    auto weight_grad_option2
-            = std::make_shared<pb_graph_t>("weight_grad_option2");
-    auto transpose_x2 = weight_grad_option2->append_op(
-            graph::op_kind::StaticTranspose, "transpose_x");
-    auto matmul_grad_w2 = weight_grad_option2->append_op(graph::op_kind::MatMul,
-            {in_edge(0, transpose_x2, 0)}, "matmul_weight");
+    auto weight_grad_option2 = std::make_shared<pb_graph_t>();
+    auto transpose_x2
+            = weight_grad_option2->append_op(graph::op_kind::StaticTranspose);
+    auto matmul_grad_w2 = weight_grad_option2->append_op(
+            graph::op_kind::MatMul, {in_edge(0, transpose_x2, 0)});
     weight_grad_option2->create_input_port(0, transpose_x2, 0);
     weight_grad_option2->create_output_port(0, matmul_grad_w2, 0);
 
     auto weight_grad = pgraph->append_alternation(
             {weight_grad_option1, weight_grad_option2},
-            {in_edge(0, activation, 0)}, "weight_grad");
+            {in_edge(0, activation, 0)});
     return weight_grad;
 };
 
@@ -152,7 +145,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto mlp_layer = std::make_shared<pb_graph_t>("mlp_layer");
+                    auto mlp_layer = std::make_shared<pb_graph_t>();
                     pm::pb_node_t *matmul, *optional_activation;
                     std::tie(matmul, optional_activation)
                             = single_layer_mlp(mlp_layer, false, false);
@@ -161,7 +154,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     // repeat layer for [LOWER_BOUND, UPPER_BOUND) times
                     pgraph->append_repetition(mlp_layer, {0, 0},
                             MLP_NUM_LAYER_LOWER_BOUND,
-                            MLP_NUM_LAYER_UPPER_BOUND, "rep_unit");
+                            MLP_NUM_LAYER_UPPER_BOUND);
                 });
 
 /*
@@ -200,34 +193,30 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto bwd_mlp_layer
-                            = std::make_shared<pb_graph_t>("bwd_mlp_layer");
+                    auto bwd_mlp_layer = std::make_shared<pb_graph_t>();
                     auto activation_bwd = bwd_mlp_layer->append_alternation(
                             {graph::op_kind::ReLUBackward,
-                                    graph::op_kind::SigmoidBackward},
-                            "activation_bwd");
+                                    graph::op_kind::SigmoidBackward});
                     activation_bwd->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
 
                     weight_grad_alternation_unit(bwd_mlp_layer, activation_bwd);
 
-                    auto transpose_subgraph2 = std::make_shared<pb_graph_t>(
-                            "transpose_subgraph2");
+                    auto transpose_subgraph2 = std::make_shared<pb_graph_t>();
                     auto transpose_w = transpose_subgraph2->append_op(
-                            graph::op_kind::StaticTranspose, "transpose_w");
+                            graph::op_kind::StaticTranspose);
                     transpose_subgraph2->create_input_port(0, transpose_w, 0);
                     transpose_subgraph2->create_output_port(0, transpose_w, 0);
                     auto optional_transpose_w = bwd_mlp_layer->append_optional(
-                            transpose_subgraph2, "optional_transpose_w");
+                            transpose_subgraph2);
                     auto matmul_layer = bwd_mlp_layer->append_op(
                             graph::op_kind::MatMul,
                             {in_edge(0, activation_bwd, 0),
-                                    in_edge(1, optional_transpose_w, 0)},
-                            "matmul_layer");
+                                    in_edge(1, optional_transpose_w, 0)});
 
                     auto reduce_bias = bwd_mlp_layer->append_op(
                             graph::op_kind::ReduceSum,
-                            {in_edge(0, activation_bwd, 0)}, "reduce_bias");
+                            {in_edge(0, activation_bwd, 0)});
                     reduce_bias->append_decision_function(check_reduce_attrs);
 
                     bwd_mlp_layer->create_input_port(0, activation_bwd, 1);
@@ -236,15 +225,13 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     // repeat layer for [LOWER_BOUND - 1, UPPER_BOUND) times
                     auto repetition = pgraph->append_repetition(bwd_mlp_layer,
                             {0, 0}, MLP_NUM_LAYER_LOWER_BOUND - 1,
-                            MLP_NUM_LAYER_UPPER_BOUND, "rep_unit");
+                            MLP_NUM_LAYER_UPPER_BOUND);
 
                     // start append the optional last layer
-                    auto last_layer
-                            = std::make_shared<pb_graph_t>("last_layer");
+                    auto last_layer = std::make_shared<pb_graph_t>();
                     auto activation_bwd_last = last_layer->append_alternation(
                             {graph::op_kind::ReLUBackward,
-                                    graph::op_kind::SigmoidBackward},
-                            "activation_bwd");
+                                    graph::op_kind::SigmoidBackward});
                     activation_bwd_last->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
                     // still allow extra grad_input computation
@@ -254,14 +241,13 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             last_layer, activation_bwd_last);
                     auto reduce_bias_last
                             = last_layer->append_op(graph::op_kind::ReduceSum,
-                                    {in_edge(0, activation_bwd_last, 0)},
-                                    "reduce_bias");
+                                    {in_edge(0, activation_bwd_last, 0)});
                     reduce_bias_last->append_decision_function(
                             check_reduce_attrs);
                     last_layer->create_input_port(0, activation_bwd_last, 1);
                     last_layer->create_output_port(0, weight_grad, 0);
-                    pgraph->append_optional(last_layer,
-                            {in_edge(0, repetition, 0)}, "optional_last_layer");
+                    pgraph->append_optional(
+                            last_layer, {in_edge(0, repetition, 0)});
                 });
 
 /*
@@ -296,43 +282,37 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto bwd_mlp_layer
-                            = std::make_shared<pb_graph_t>("bwd_mlp_layer");
+                    auto bwd_mlp_layer = std::make_shared<pb_graph_t>();
                     auto activation_bwd = bwd_mlp_layer->append_alternation(
                             {graph::op_kind::ReLUBackward,
-                                    graph::op_kind::SigmoidBackward},
-                            "activation_bwd");
+                                    graph::op_kind::SigmoidBackward});
                     activation_bwd->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
                     activation_bwd->allow_external_outputs();
 
-                    auto transpose_subgraph1 = std::make_shared<pb_graph_t>(
-                            "transpose_subgraph1");
+                    auto transpose_subgraph1 = std::make_shared<pb_graph_t>();
                     auto transpose_x = transpose_subgraph1->append_op(
-                            graph::op_kind::StaticTranspose, "transpose_x");
+                            graph::op_kind::StaticTranspose);
                     transpose_subgraph1->create_input_port(0, transpose_x, 0);
                     transpose_subgraph1->create_output_port(0, transpose_x, 0);
                     auto optional_transpose_x = bwd_mlp_layer->append_optional(
-                            transpose_subgraph1, "optional_transpose_x");
+                            transpose_subgraph1);
 
-                    auto transpose_subgraph2 = std::make_shared<pb_graph_t>(
-                            "transpose_subgraph2");
+                    auto transpose_subgraph2 = std::make_shared<pb_graph_t>();
                     auto transpose_w = transpose_subgraph2->append_op(
-                            graph::op_kind::StaticTranspose, "transpose_w");
+                            graph::op_kind::StaticTranspose);
                     transpose_subgraph2->create_input_port(0, transpose_w, 0);
                     transpose_subgraph2->create_output_port(0, transpose_w, 0);
                     auto optional_transpose_w = bwd_mlp_layer->append_optional(
-                            transpose_subgraph2, "optional_transpose_w");
+                            transpose_subgraph2);
 
                     bwd_mlp_layer->append_op(graph::op_kind::MatMul,
                             {in_edge(0, optional_transpose_x, 0),
-                                    in_edge(1, activation_bwd, 0)},
-                            "matmul_weight");
+                                    in_edge(1, activation_bwd, 0)});
                     auto matmul_layer = bwd_mlp_layer->append_op(
                             graph::op_kind::MatMul,
                             {in_edge(0, activation_bwd, 0),
-                                    in_edge(1, optional_transpose_w, 0)},
-                            "matmul_layer");
+                                    in_edge(1, optional_transpose_w, 0)});
 
                     bwd_mlp_layer->create_input_port(0, activation_bwd, 1);
                     bwd_mlp_layer->create_output_port(0, matmul_layer, 0);
@@ -340,41 +320,37 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     // repeat layer for [LOWER_BOUND - 1, UPPER_BOUND) times
                     auto repetition = pgraph->append_repetition(bwd_mlp_layer,
                             {0, 0}, MLP_NUM_LAYER_LOWER_BOUND - 1,
-                            MLP_NUM_LAYER_UPPER_BOUND, "rep_unit");
+                            MLP_NUM_LAYER_UPPER_BOUND);
 
                     // start append the optional last layer
-                    auto last_layer
-                            = std::make_shared<pb_graph_t>("last_layer");
+                    auto last_layer = std::make_shared<pb_graph_t>();
                     auto activation_bwd_last = last_layer->append_alternation(
                             {graph::op_kind::ReLUBackward,
-                                    graph::op_kind::SigmoidBackward},
-                            "activation_bwd");
+                                    graph::op_kind::SigmoidBackward});
                     activation_bwd_last->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
                     // still allow extra grad_input computation
                     activation_bwd_last->allow_external_outputs();
 
-                    auto transpose_subgraph_last = std::make_shared<pb_graph_t>(
-                            "transpose_subgraph");
+                    auto transpose_subgraph_last
+                            = std::make_shared<pb_graph_t>();
                     auto transpose_x_last = transpose_subgraph_last->append_op(
-                            graph::op_kind::StaticTranspose, "transpose_x");
+                            graph::op_kind::StaticTranspose);
                     transpose_subgraph_last->create_input_port(
                             0, transpose_x_last, 0);
                     transpose_subgraph_last->create_output_port(
                             0, transpose_x_last, 0);
                     auto optional_transpose_x_last
                             = last_layer->append_optional(
-                                    transpose_subgraph_last,
-                                    "optional_transpose_x");
-                    auto matmul_last
-                            = last_layer->append_op(graph::op_kind::MatMul,
-                                    {in_edge(0, optional_transpose_x_last, 0),
-                                            in_edge(1, activation_bwd_last, 0)},
-                                    "matmul_weight");
+                                    transpose_subgraph_last);
+                    auto matmul_last = last_layer->append_op(
+                            graph::op_kind::MatMul,
+                            {in_edge(0, optional_transpose_x_last, 0),
+                                    in_edge(1, activation_bwd_last, 0)});
                     last_layer->create_input_port(0, activation_bwd_last, 1);
                     last_layer->create_output_port(0, matmul_last, 0);
-                    pgraph->append_optional(last_layer,
-                            {in_edge(0, repetition, 0)}, "optional_last_layer");
+                    pgraph->append_optional(
+                            last_layer, {in_edge(0, repetition, 0)});
                 });
 
 /*
@@ -405,29 +381,28 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto matmul_layer1 = pgraph->append_op(
-                            graph::op_kind::MatMul, "matmul_layer1");
+                    auto matmul_layer1
+                            = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_layer1->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
                     auto add_layer1 = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, matmul_layer1, 0)}, "add_layer1");
-                    auto layernorm_layer1 = pgraph->append_op(
-                            graph::op_kind::LayerNorm,
-                            {in_edge(0, add_layer1, 0)}, "layernorm_layer1");
-                    auto matmul_layer2 = pgraph->append_op(
-                            graph::op_kind::MatMul,
-                            {in_edge(0, layernorm_layer1, 0)}, "matmul_layer2");
+                            {in_edge(0, matmul_layer1, 0)});
+                    auto layernorm_layer1
+                            = pgraph->append_op(graph::op_kind::LayerNorm,
+                                    {in_edge(0, add_layer1, 0)});
+                    auto matmul_layer2
+                            = pgraph->append_op(graph::op_kind::MatMul,
+                                    {in_edge(0, layernorm_layer1, 0)});
                     auto gelu_layer2 = pgraph->append_op(graph::op_kind::GELU,
-                            {in_edge(0, matmul_layer2, 0)}, "gelu_layer2");
-                    auto matmul_layer3 = pgraph->append_op(
-                            graph::op_kind::MatMul,
-                            {in_edge(0, gelu_layer2, 0)}, "matmul_layer3");
+                            {in_edge(0, matmul_layer2, 0)});
+                    auto matmul_layer3
+                            = pgraph->append_op(graph::op_kind::MatMul,
+                                    {in_edge(0, gelu_layer2, 0)});
                     auto add_layer3 = pgraph->append_op(graph::op_kind::Add,
                             {in_edge(0, layernorm_layer1, 0),
-                                    in_edge(1, matmul_layer3, 0)},
-                            "add_layer3");
+                                    in_edge(1, matmul_layer3, 0)});
                     pgraph->append_op(graph::op_kind::LayerNorm,
-                            {in_edge(0, add_layer3, 0)}, "layernorm_layer3");
+                            {in_edge(0, add_layer3, 0)});
                 });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
@@ -454,7 +429,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mlp_pattern)
         .set_kind(graph::partition_kind_t::quantized_mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto mlp_layer = std::make_shared<pb_graph_t>("mlp_layer");
+                    auto mlp_layer = std::make_shared<pb_graph_t>();
                     pm::pb_node_t *dequantize_input, *quantize_output;
                     std::tie(dequantize_input, quantize_output)
                             = single_layer_mlp(mlp_layer, false, true);
@@ -465,7 +440,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mlp_pattern)
                     // repeat layer for [LOWER_BOUND, UPPER_BOUND) times
                     pgraph->append_repetition(mlp_layer, {0, 0},
                             MLP_NUM_LAYER_LOWER_BOUND,
-                            MLP_NUM_LAYER_UPPER_BOUND, "rep_unit");
+                            MLP_NUM_LAYER_UPPER_BOUND);
                 });
 
 /*
@@ -509,76 +484,62 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto dequantize_input_layer1
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    "dequantize_input_layer1");
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     auto dequantize_weight_layer1
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    "dequantize_weight_layer1");
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     auto matmul_layer1 = pgraph->append_op(
                             graph::op_kind::MatMul,
                             {in_edge(0, dequantize_input_layer1, 0),
-                                    in_edge(1, dequantize_weight_layer1, 0)},
-                            "matmul_layer1");
+                                    in_edge(1, dequantize_weight_layer1, 0)});
                     auto add_layer1 = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, matmul_layer1, 0)}, "add_layer1");
-                    auto layernorm_layer1 = pgraph->append_op(
-                            graph::op_kind::LayerNorm,
-                            {in_edge(0, add_layer1, 0)}, "layernorm_layer1");
+                            {in_edge(0, matmul_layer1, 0)});
+                    auto layernorm_layer1
+                            = pgraph->append_op(graph::op_kind::LayerNorm,
+                                    {in_edge(0, add_layer1, 0)});
                     // quantize is the second use of layernorm output
                     auto quantize_output_layer1
                             = pgraph->append_op(graph::op_kind::Quantize,
-                                    {in_edge(0, layernorm_layer1, 0)},
-                                    "quantize_output_layer1");
+                                    {in_edge(0, layernorm_layer1, 0)});
                     auto dequantize_input_layer2
                             = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_output_layer1, 0)},
-                                    "dequantize_input_layer2");
+                                    {in_edge(0, quantize_output_layer1, 0)});
                     auto dequantize_weight_layer2
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    "dequantize_weight_layer2");
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     auto matmul_layer2 = pgraph->append_op(
                             graph::op_kind::MatMul,
                             {in_edge(0, dequantize_input_layer2, 0),
-                                    in_edge(1, dequantize_weight_layer2, 0)},
-                            "matmul_layer2");
+                                    in_edge(1, dequantize_weight_layer2, 0)});
                     auto gelu_layer2 = pgraph->append_op(graph::op_kind::GELU,
-                            {in_edge(0, matmul_layer2, 0)}, "gelu_layer2");
+                            {in_edge(0, matmul_layer2, 0)});
 
                     auto quantize_output_layer2
                             = pgraph->append_op(graph::op_kind::Quantize,
-                                    {in_edge(0, gelu_layer2, 0)},
-                                    "quantize_output_layer2");
+                                    {in_edge(0, gelu_layer2, 0)});
 
                     auto dequantize_input_layer3
                             = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_output_layer2, 0)},
-                                    "dequantize_input_layer3");
+                                    {in_edge(0, quantize_output_layer2, 0)});
                     auto dequantize_weight_layer3
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    "dequantize_weight_layer3");
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     auto matmul_layer3 = pgraph->append_op(
                             graph::op_kind::MatMul,
                             {in_edge(0, dequantize_input_layer3, 0),
-                                    in_edge(1, dequantize_weight_layer3, 0)},
-                            "matmul_layer3");
+                                    in_edge(1, dequantize_weight_layer3, 0)});
                     auto add_layer3 = pgraph->append_op(graph::op_kind::Add,
                             {in_edge(0, layernorm_layer1, 0),
-                                    in_edge(1, matmul_layer3, 0)},
-                            "add_layer3");
-                    auto layernorm_layer3 = pgraph->append_op(
-                            graph::op_kind::LayerNorm,
-                            {in_edge(0, add_layer3, 0)}, "layernorm_layer3");
+                                    in_edge(1, matmul_layer3, 0)});
+                    auto layernorm_layer3
+                            = pgraph->append_op(graph::op_kind::LayerNorm,
+                                    {in_edge(0, add_layer3, 0)});
                     layernorm_layer3->allow_external_outputs();
-                    auto last_layer
-                            = std::make_shared<pb_graph_t>("last_layer");
-                    auto quantize_output_layer3 = last_layer->append_op(
-                            graph::op_kind::Quantize, "quantize_output_layer3");
+                    auto last_layer = std::make_shared<pb_graph_t>();
+                    auto quantize_output_layer3
+                            = last_layer->append_op(graph::op_kind::Quantize);
                     last_layer->create_input_port(0, quantize_output_layer3, 0);
                     last_layer->create_output_port(
                             0, quantize_output_layer3, 0);
-                    pgraph->append_optional(last_layer,
-                            {in_edge(0, layernorm_layer3, 0)},
-                            "optional_last_layer");
+                    pgraph->append_optional(
+                            last_layer, {in_edge(0, layernorm_layer3, 0)});
                 });
 
 /*
@@ -634,111 +595,88 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto dequantize_input_layer1
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    "dequantize_input_layer1");
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     auto typecast_input_layer1
                             = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_input_layer1, 0)},
-                                    "typecast_input_layer1");
+                                    {in_edge(0, dequantize_input_layer1, 0)});
                     auto dequantize_weight_layer1
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    "dequantize_weight_layer1");
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     auto typecast_weight_layer1
                             = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_weight_layer1, 0)},
-                                    "typecast_weight_layer1");
+                                    {in_edge(0, dequantize_weight_layer1, 0)});
                     auto matmul_layer1 = pgraph->append_op(
                             graph::op_kind::MatMul,
                             {in_edge(0, typecast_input_layer1, 0),
-                                    in_edge(1, typecast_weight_layer1, 0)},
-                            "matmul_layer1");
+                                    in_edge(1, typecast_weight_layer1, 0)});
                     auto add_layer1 = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, matmul_layer1, 0)}, "add_layer1");
-                    auto layernorm_layer1 = pgraph->append_op(
-                            graph::op_kind::LayerNorm,
-                            {in_edge(0, add_layer1, 0)}, "layernorm_layer1");
+                            {in_edge(0, matmul_layer1, 0)});
+                    auto layernorm_layer1
+                            = pgraph->append_op(graph::op_kind::LayerNorm,
+                                    {in_edge(0, add_layer1, 0)});
                     auto typecast_output_layer1
                             = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, layernorm_layer1, 0)},
-                                    "typecast_output_layer1");
+                                    {in_edge(0, layernorm_layer1, 0)});
                     auto quantize_output_layer1
                             = pgraph->append_op(graph::op_kind::Quantize,
-                                    {in_edge(0, typecast_output_layer1, 0)},
-                                    "quantize_output_layer1");
+                                    {in_edge(0, typecast_output_layer1, 0)});
 
                     auto dequantize_input_layer2
                             = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_output_layer1, 0)},
-                                    "dequantize_input_layer2");
+                                    {in_edge(0, quantize_output_layer1, 0)});
                     auto typecast_input_layer2
                             = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_input_layer2, 0)},
-                                    "typecast_input_layer2");
+                                    {in_edge(0, dequantize_input_layer2, 0)});
                     auto dequantize_weight_layer2
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    "dequantize_weight_layer2");
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     auto typecast_weight_layer2
                             = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_weight_layer2, 0)},
-                                    "typecast_weight_layer2");
+                                    {in_edge(0, dequantize_weight_layer2, 0)});
                     auto matmul_layer2 = pgraph->append_op(
                             graph::op_kind::MatMul,
                             {in_edge(0, typecast_input_layer2, 0),
-                                    in_edge(1, typecast_weight_layer2, 0)},
-                            "matmul_layer2");
+                                    in_edge(1, typecast_weight_layer2, 0)});
                     auto gelu_layer2 = pgraph->append_op(graph::op_kind::GELU,
-                            {in_edge(0, matmul_layer2, 0)}, "gelu_layer2");
+                            {in_edge(0, matmul_layer2, 0)});
                     auto typecast_output_layer2
                             = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, gelu_layer2, 0)},
-                                    "typecast_output_layer2");
+                                    {in_edge(0, gelu_layer2, 0)});
                     auto quantize_output_layer2
                             = pgraph->append_op(graph::op_kind::Quantize,
-                                    {in_edge(0, typecast_output_layer2, 0)},
-                                    "quantize_output_layer2");
+                                    {in_edge(0, typecast_output_layer2, 0)});
 
                     auto dequantize_input_layer3
                             = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_output_layer2, 0)},
-                                    "dequantize_input_layer3");
+                                    {in_edge(0, quantize_output_layer2, 0)});
                     auto typecast_input_layer3
                             = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_input_layer3, 0)},
-                                    "typecast_input_layer3");
+                                    {in_edge(0, dequantize_input_layer3, 0)});
                     auto dequantize_weight_layer3
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    "dequantize_weight_layer3");
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     auto typecast_weight_layer3
                             = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_weight_layer3, 0)},
-                                    "typecast_weight_layer3");
+                                    {in_edge(0, dequantize_weight_layer3, 0)});
                     auto matmul_layer3 = pgraph->append_op(
                             graph::op_kind::MatMul,
                             {in_edge(0, typecast_input_layer3, 0),
-                                    in_edge(1, typecast_weight_layer3, 0)},
-                            "matmul_layer3");
+                                    in_edge(1, typecast_weight_layer3, 0)});
                     auto add_layer3 = pgraph->append_op(graph::op_kind::Add,
                             {in_edge(0, layernorm_layer1, 0),
-                                    in_edge(1, matmul_layer3, 0)},
-                            "add_layer3");
-                    auto layernorm_layer3 = pgraph->append_op(
-                            graph::op_kind::LayerNorm,
-                            {in_edge(0, add_layer3, 0)}, "layernorm_layer3");
+                                    in_edge(1, matmul_layer3, 0)});
+                    auto layernorm_layer3
+                            = pgraph->append_op(graph::op_kind::LayerNorm,
+                                    {in_edge(0, add_layer3, 0)});
                     layernorm_layer3->allow_external_outputs();
-                    auto last_layer
-                            = std::make_shared<pb_graph_t>("last_layer");
-                    auto typecast_output_layer3 = last_layer->append_op(
-                            graph::op_kind::TypeCast, "typecast_output_layer3");
+                    auto last_layer = std::make_shared<pb_graph_t>();
+                    auto typecast_output_layer3
+                            = last_layer->append_op(graph::op_kind::TypeCast);
                     auto quantize_output_layer3
                             = last_layer->append_op(graph::op_kind::Quantize,
-                                    {in_edge(0, typecast_output_layer3, 0)},
-                                    "quantize_output_layer3");
+                                    {in_edge(0, typecast_output_layer3, 0)});
                     last_layer->create_input_port(0, typecast_output_layer3, 0);
                     last_layer->create_output_port(
                             0, quantize_output_layer3, 0);
-                    pgraph->append_optional(last_layer,
-                            {in_edge(0, layernorm_layer3, 0)},
-                            "optional_last_layer");
+                    pgraph->append_optional(
+                            last_layer, {in_edge(0, layernorm_layer3, 0)});
                 });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
@@ -762,7 +700,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto mlp_layer = std::make_shared<pb_graph_t>("mlp_layer");
+                    auto mlp_layer = std::make_shared<pb_graph_t>();
                     pm::pb_node_t *matmul, *optional_activation;
                     std::tie(matmul, optional_activation)
                             = single_layer_mlp(mlp_layer, true, false);
@@ -772,7 +710,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     // repeat layer for [LOWER_BOUND, UPPER_BOUND) times
                     pgraph->append_repetition(mlp_layer, {0, 0},
                             MLP_NUM_LAYER_LOWER_BOUND,
-                            MLP_NUM_LAYER_UPPER_BOUND, "rep_unit");
+                            MLP_NUM_LAYER_UPPER_BOUND);
                 });
 
 /*
@@ -811,34 +749,30 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto bwd_mlp_layer
-                            = std::make_shared<pb_graph_t>("bwd_mlp_layer");
+                    auto bwd_mlp_layer = std::make_shared<pb_graph_t>();
                     auto activation_bwd = bwd_mlp_layer->append_alternation(
                             {graph::op_kind::ReLUBackward,
-                                    graph::op_kind::SigmoidBackward},
-                            "activation_bwd");
+                                    graph::op_kind::SigmoidBackward});
                     activation_bwd->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
 
                     weight_grad_alternation_unit(bwd_mlp_layer, activation_bwd);
 
-                    auto transpose_subgraph2 = std::make_shared<pb_graph_t>(
-                            "transpose_subgraph2");
+                    auto transpose_subgraph2 = std::make_shared<pb_graph_t>();
                     auto transpose_w = transpose_subgraph2->append_op(
-                            graph::op_kind::StaticTranspose, "transpose_w");
+                            graph::op_kind::StaticTranspose);
                     transpose_subgraph2->create_input_port(0, transpose_w, 0);
                     transpose_subgraph2->create_output_port(0, transpose_w, 0);
                     auto optional_transpose_w = bwd_mlp_layer->append_optional(
-                            transpose_subgraph2, "optional_transpose_w");
+                            transpose_subgraph2);
                     auto matmul_layer = bwd_mlp_layer->append_op(
                             graph::op_kind::MatMul,
                             {in_edge(0, activation_bwd, 0),
-                                    in_edge(1, optional_transpose_w, 0)},
-                            "matmul_layer");
+                                    in_edge(1, optional_transpose_w, 0)});
 
                     auto reduce_bias = bwd_mlp_layer->append_op(
                             graph::op_kind::ReduceSum,
-                            {in_edge(0, activation_bwd, 0)}, "reduce_bias");
+                            {in_edge(0, activation_bwd, 0)});
                     reduce_bias->append_decision_function(check_reduce_attrs);
 
                     bwd_mlp_layer->create_input_port(0, activation_bwd, 1);
@@ -847,15 +781,13 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     // repeat layer for [LOWER_BOUND - 1, UPPER_BOUND) times
                     auto repetition = pgraph->append_repetition(bwd_mlp_layer,
                             {0, 0}, MLP_NUM_LAYER_LOWER_BOUND - 1,
-                            MLP_NUM_LAYER_UPPER_BOUND, "rep_unit");
+                            MLP_NUM_LAYER_UPPER_BOUND);
 
                     // start append the optional last layer
-                    auto last_layer
-                            = std::make_shared<pb_graph_t>("last_layer");
+                    auto last_layer = std::make_shared<pb_graph_t>();
                     auto activation_bwd_last = last_layer->append_alternation(
                             {graph::op_kind::ReLUBackward,
-                                    graph::op_kind::SigmoidBackward},
-                            "activation_bwd");
+                                    graph::op_kind::SigmoidBackward});
                     activation_bwd_last->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
                     // still allow extra grad_input computation
@@ -865,14 +797,13 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             last_layer, activation_bwd_last);
                     auto reduce_bias_last
                             = last_layer->append_op(graph::op_kind::ReduceSum,
-                                    {in_edge(0, activation_bwd_last, 0)},
-                                    "reduce_bias");
+                                    {in_edge(0, activation_bwd_last, 0)});
                     reduce_bias_last->append_decision_function(
                             check_reduce_attrs);
                     last_layer->create_input_port(0, activation_bwd_last, 1);
                     last_layer->create_output_port(0, weight_grad, 0);
-                    pgraph->append_optional(last_layer,
-                            {in_edge(0, repetition, 0)}, "optional_last_layer");
+                    pgraph->append_optional(
+                            last_layer, {in_edge(0, repetition, 0)});
                 });
 
 /*
@@ -907,43 +838,37 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto bwd_mlp_layer
-                            = std::make_shared<pb_graph_t>("bwd_mlp_layer");
+                    auto bwd_mlp_layer = std::make_shared<pb_graph_t>();
                     auto activation_bwd = bwd_mlp_layer->append_alternation(
                             {graph::op_kind::ReLUBackward,
-                                    graph::op_kind::SigmoidBackward},
-                            "activation_bwd");
+                                    graph::op_kind::SigmoidBackward});
                     activation_bwd->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
                     activation_bwd->allow_external_outputs();
 
-                    auto transpose_subgraph1 = std::make_shared<pb_graph_t>(
-                            "transpose_subgraph1");
+                    auto transpose_subgraph1 = std::make_shared<pb_graph_t>();
                     auto transpose_x = transpose_subgraph1->append_op(
-                            graph::op_kind::StaticTranspose, "transpose_x");
+                            graph::op_kind::StaticTranspose);
                     transpose_subgraph1->create_input_port(0, transpose_x, 0);
                     transpose_subgraph1->create_output_port(0, transpose_x, 0);
                     auto optional_transpose_x = bwd_mlp_layer->append_optional(
-                            transpose_subgraph1, "optional_transpose_x");
+                            transpose_subgraph1);
 
-                    auto transpose_subgraph2 = std::make_shared<pb_graph_t>(
-                            "transpose_subgraph2");
+                    auto transpose_subgraph2 = std::make_shared<pb_graph_t>();
                     auto transpose_w = transpose_subgraph2->append_op(
-                            graph::op_kind::StaticTranspose, "transpose_w");
+                            graph::op_kind::StaticTranspose);
                     transpose_subgraph2->create_input_port(0, transpose_w, 0);
                     transpose_subgraph2->create_output_port(0, transpose_w, 0);
                     auto optional_transpose_w = bwd_mlp_layer->append_optional(
-                            transpose_subgraph2, "optional_transpose_w");
+                            transpose_subgraph2);
 
                     bwd_mlp_layer->append_op(graph::op_kind::MatMul,
                             {in_edge(0, optional_transpose_x, 0),
-                                    in_edge(1, activation_bwd, 0)},
-                            "matmul_weight");
+                                    in_edge(1, activation_bwd, 0)});
                     auto matmul_layer = bwd_mlp_layer->append_op(
                             graph::op_kind::MatMul,
                             {in_edge(0, activation_bwd, 0),
-                                    in_edge(1, optional_transpose_w, 0)},
-                            "matmul_layer");
+                                    in_edge(1, optional_transpose_w, 0)});
 
                     bwd_mlp_layer->create_input_port(0, activation_bwd, 1);
                     bwd_mlp_layer->create_output_port(0, matmul_layer, 0);
@@ -951,41 +876,37 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     // repeat layer for [LOWER_BOUND - 1, UPPER_BOUND) times
                     auto repetition = pgraph->append_repetition(bwd_mlp_layer,
                             {0, 0}, MLP_NUM_LAYER_LOWER_BOUND - 1,
-                            MLP_NUM_LAYER_UPPER_BOUND, "rep_unit");
+                            MLP_NUM_LAYER_UPPER_BOUND);
 
                     // start append the optional last layer
-                    auto last_layer
-                            = std::make_shared<pb_graph_t>("last_layer");
+                    auto last_layer = std::make_shared<pb_graph_t>();
                     auto activation_bwd_last = last_layer->append_alternation(
                             {graph::op_kind::ReLUBackward,
-                                    graph::op_kind::SigmoidBackward},
-                            "activation_bwd");
+                                    graph::op_kind::SigmoidBackward});
                     activation_bwd_last->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
                     // still allow extra grad_input computation
                     activation_bwd_last->allow_external_outputs();
 
-                    auto transpose_subgraph_last = std::make_shared<pb_graph_t>(
-                            "transpose_subgraph");
+                    auto transpose_subgraph_last
+                            = std::make_shared<pb_graph_t>();
                     auto transpose_x_last = transpose_subgraph_last->append_op(
-                            graph::op_kind::StaticTranspose, "transpose_x");
+                            graph::op_kind::StaticTranspose);
                     transpose_subgraph_last->create_input_port(
                             0, transpose_x_last, 0);
                     transpose_subgraph_last->create_output_port(
                             0, transpose_x_last, 0);
                     auto optional_transpose_x_last
                             = last_layer->append_optional(
-                                    transpose_subgraph_last,
-                                    "optional_transpose_x");
-                    auto matmul_last
-                            = last_layer->append_op(graph::op_kind::MatMul,
-                                    {in_edge(0, optional_transpose_x_last, 0),
-                                            in_edge(1, activation_bwd_last, 0)},
-                                    "matmul_weight");
+                                    transpose_subgraph_last);
+                    auto matmul_last = last_layer->append_op(
+                            graph::op_kind::MatMul,
+                            {in_edge(0, optional_transpose_x_last, 0),
+                                    in_edge(1, activation_bwd_last, 0)});
                     last_layer->create_input_port(0, activation_bwd_last, 1);
                     last_layer->create_output_port(0, matmul_last, 0);
-                    pgraph->append_optional(last_layer,
-                            {in_edge(0, repetition, 0)}, "optional_last_layer");
+                    pgraph->append_optional(
+                            last_layer, {in_edge(0, repetition, 0)});
                 });
 /*
 mlp residual graph, having an extra edge from LayerNorm to Add.
@@ -1015,29 +936,28 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto matmul_layer1 = pgraph->append_op(
-                            graph::op_kind::MatMul, "matmul_layer1");
+                    auto matmul_layer1
+                            = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_layer1->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
                     auto add_layer1 = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, matmul_layer1, 0)}, "add_layer1");
-                    auto layernorm_layer1 = pgraph->append_op(
-                            graph::op_kind::LayerNorm,
-                            {in_edge(0, add_layer1, 0)}, "layernorm_layer1");
-                    auto matmul_layer2 = pgraph->append_op(
-                            graph::op_kind::MatMul,
-                            {in_edge(0, layernorm_layer1, 0)}, "matmul_layer2");
+                            {in_edge(0, matmul_layer1, 0)});
+                    auto layernorm_layer1
+                            = pgraph->append_op(graph::op_kind::LayerNorm,
+                                    {in_edge(0, add_layer1, 0)});
+                    auto matmul_layer2
+                            = pgraph->append_op(graph::op_kind::MatMul,
+                                    {in_edge(0, layernorm_layer1, 0)});
                     auto gelu_layer2 = pgraph->append_op(graph::op_kind::GELU,
-                            {in_edge(0, matmul_layer2, 0)}, "gelu_layer2");
-                    auto matmul_layer3 = pgraph->append_op(
-                            graph::op_kind::MatMul,
-                            {in_edge(0, gelu_layer2, 0)}, "matmul_layer3");
+                            {in_edge(0, matmul_layer2, 0)});
+                    auto matmul_layer3
+                            = pgraph->append_op(graph::op_kind::MatMul,
+                                    {in_edge(0, gelu_layer2, 0)});
                     auto add_layer3 = pgraph->append_op(graph::op_kind::Add,
                             {in_edge(0, layernorm_layer1, 0),
-                                    in_edge(1, matmul_layer3, 0)},
-                            "add_layer3");
+                                    in_edge(1, matmul_layer3, 0)});
                     pgraph->append_op(graph::op_kind::LayerNorm,
-                            {in_edge(0, add_layer3, 0)}, "layernorm_layer3");
+                            {in_edge(0, add_layer3, 0)});
                 });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 

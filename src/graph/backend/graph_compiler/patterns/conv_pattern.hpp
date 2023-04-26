@@ -60,9 +60,8 @@ pm::pb_node_t *conv_bias_relu(const std::shared_ptr<pb_graph_t> &pgraph,
                 check_input_dtype<graph::data_type::f32>);
     }
 
-    auto biasadd_subgraph = std::make_shared<pb_graph_t>("biasadd_subgraph");
-    auto biasadd
-            = biasadd_subgraph->append_op(graph::op_kind::BiasAdd, "biasadd");
+    auto biasadd_subgraph = std::make_shared<pb_graph_t>();
+    auto biasadd = biasadd_subgraph->append_op(graph::op_kind::BiasAdd);
     biasadd_subgraph->create_input_port(0, biasadd, 0);
     biasadd_subgraph->create_output_port(0, biasadd, 0);
     auto optional_biasadd = pgraph->append_optional(
@@ -89,9 +88,8 @@ std::pair<pm::pb_op_t *, pm::pb_op_t *> conv_bias_relu_subgraph(
                 check_input_dtype<graph::data_type::f32>);
     }
 
-    auto biasadd_subgraph = std::make_shared<pb_graph_t>("biasadd_subgraph");
-    auto biasadd
-            = biasadd_subgraph->append_op(graph::op_kind::BiasAdd, "biasadd");
+    auto biasadd_subgraph = std::make_shared<pb_graph_t>();
+    auto biasadd = biasadd_subgraph->append_op(graph::op_kind::BiasAdd);
     biasadd_subgraph->create_input_port(0, biasadd, 0);
     biasadd_subgraph->create_output_port(0, biasadd, 0);
     auto optional_biasadd = pgraph->append_optional(
@@ -133,9 +131,8 @@ pm::pb_node_t *conv_bias_add_relu_flex(
                 check_input_dtype<graph::data_type::f32>);
     }
 
-    auto biasadd_subgraph = std::make_shared<pb_graph_t>("biasadd_subgraph");
-    auto biasadd
-            = biasadd_subgraph->append_op(graph::op_kind::BiasAdd, "biasadd");
+    auto biasadd_subgraph = std::make_shared<pb_graph_t>();
+    auto biasadd = biasadd_subgraph->append_op(graph::op_kind::BiasAdd);
     biasadd_subgraph->create_input_port(0, biasadd, 0);
     biasadd_subgraph->create_output_port(0, biasadd, 0);
     auto optional_biasadd = pgraph->append_optional(
@@ -222,9 +219,8 @@ pm::pb_node_t *int8_conv_bias_relu(const std::shared_ptr<pb_graph_t> &pgraph,
                     in_edge(0, dequant_src, 0), in_edge(1, dequant_wei, 0)});
     conv->append_decision_function(check_conv_attrs);
 
-    auto biasadd_subgraph = std::make_shared<pb_graph_t>("biasadd_subgraph");
-    auto biasadd
-            = biasadd_subgraph->append_op(graph::op_kind::BiasAdd, "biasadd");
+    auto biasadd_subgraph = std::make_shared<pb_graph_t>();
+    auto biasadd = biasadd_subgraph->append_op(graph::op_kind::BiasAdd);
     biasadd_subgraph->create_input_port(0, biasadd, 0);
     biasadd_subgraph->create_output_port(0, biasadd, 0);
     auto optional_biasadd = pgraph->append_optional(
@@ -251,9 +247,8 @@ std::pair<pm::pb_op_t *, pm::pb_op_t *> int8_conv_bias_relu_subgraph(
                     in_edge(0, dequant_src, 0), in_edge(1, dequant_wei, 0)});
     conv->append_decision_function(check_conv_attrs);
 
-    auto biasadd_subgraph = std::make_shared<pb_graph_t>("biasadd_subgraph");
-    auto biasadd
-            = biasadd_subgraph->append_op(graph::op_kind::BiasAdd, "biasadd");
+    auto biasadd_subgraph = std::make_shared<pb_graph_t>();
+    auto biasadd = biasadd_subgraph->append_op(graph::op_kind::BiasAdd);
     biasadd_subgraph->create_input_port(0, biasadd, 0);
     biasadd_subgraph->create_output_port(0, biasadd, 0);
     auto optional_biasadd = pgraph->append_optional(
@@ -312,9 +307,8 @@ pm::pb_node_t *int8_conv_bias_add_relu_flex(
                     in_edge(0, dequant_src, 0), in_edge(1, dequant_wei, 0)});
     conv->append_decision_function(check_conv_attrs);
 
-    auto biasadd_subgraph = std::make_shared<pb_graph_t>("biasadd_subgraph");
-    auto biasadd
-            = biasadd_subgraph->append_op(graph::op_kind::BiasAdd, "biasadd");
+    auto biasadd_subgraph = std::make_shared<pb_graph_t>();
+    auto biasadd = biasadd_subgraph->append_op(graph::op_kind::BiasAdd);
     biasadd_subgraph->create_input_port(0, biasadd, 0);
     biasadd_subgraph->create_output_port(0, biasadd, 0);
     auto optional_biasadd = pgraph->append_optional(
@@ -445,13 +439,12 @@ pm::pb_node_t *int8_convolutional_bottleneck_resblock_v2(
 
 pm::pb_node_t *general_identical_bottleneck_resblock(
         const std::shared_ptr<pb_graph_t> &pgraph, bool is_bf16 = false) {
-    auto subgraph = std::make_shared<pb_graph_t>("conv_bias_relu_subgraph");
+    auto subgraph = std::make_shared<pb_graph_t>();
     auto ports = conv_bias_relu_subgraph(subgraph, is_bf16);
     subgraph->create_input_port(0, ports.first, 0);
     subgraph->create_output_port(0, ports.second, 0);
 
-    pm::pb_node_t *dst1
-            = pgraph->append_repetition(subgraph, {0, 0}, 1, 4, "rep_unit");
+    pm::pb_node_t *dst1 = pgraph->append_repetition(subgraph, {0, 0}, 1, 4);
 
     pm::pb_node_t *dst2
             = conv_bias_add_relu_flex(pgraph, dst1, nullptr, is_bf16);
@@ -460,12 +453,11 @@ pm::pb_node_t *general_identical_bottleneck_resblock(
 
 pm::pb_node_t *general_convolutional_bottleneck_resblock(
         const std::shared_ptr<pb_graph_t> &pgraph, bool is_bf16 = false) {
-    auto subgraph = std::make_shared<pb_graph_t>("conv_bias_relu_subgraph");
+    auto subgraph = std::make_shared<pb_graph_t>();
     auto ports = conv_bias_relu_subgraph(subgraph, is_bf16);
     subgraph->create_input_port(0, ports.first, 0);
     subgraph->create_output_port(0, ports.second, 0);
-    pm::pb_node_t *dst1
-            = pgraph->append_repetition(subgraph, {0, 0}, 1, 4, "rep_unit");
+    pm::pb_node_t *dst1 = pgraph->append_repetition(subgraph, {0, 0}, 1, 4);
 
     pm::pb_node_t *dst2 = conv_bias_relu(pgraph, nullptr, false, is_bf16);
     pm::pb_node_t *dst3 = conv_bias_add_relu_flex(pgraph, dst1, dst2, is_bf16);
@@ -474,13 +466,12 @@ pm::pb_node_t *general_convolutional_bottleneck_resblock(
 
 pm::pb_node_t *general_int8_identical_bottleneck_resblock(
         const std::shared_ptr<pb_graph_t> &pgraph) {
-    auto subgraph
-            = std::make_shared<pb_graph_t>("int8_conv_bias_relu_subgraph");
+    auto subgraph = std::make_shared<pb_graph_t>();
     auto ports = int8_conv_bias_relu_subgraph(subgraph);
     subgraph->create_input_port(0, ports.first, 0);
     subgraph->create_output_port(0, ports.second, 0);
     pm::pb_node_t *quant_dst1
-            = pgraph->append_repetition(subgraph, {0, 0}, 1, 4, "rep_unit");
+            = pgraph->append_repetition(subgraph, {0, 0}, 1, 4);
 
     pm::pb_node_t *quant_dst2
             = int8_conv_bias_add_relu_flex(pgraph, quant_dst1, nullptr);
@@ -489,13 +480,12 @@ pm::pb_node_t *general_int8_identical_bottleneck_resblock(
 
 pm::pb_node_t *general_int8_convolutional_bottleneck_resblock(
         const std::shared_ptr<pb_graph_t> &pgraph) {
-    auto subgraph
-            = std::make_shared<pb_graph_t>("int8_conv_bias_relu_subgraph");
+    auto subgraph = std::make_shared<pb_graph_t>();
     auto ports = int8_conv_bias_relu_subgraph(subgraph);
     subgraph->create_input_port(0, ports.first, 0);
     subgraph->create_output_port(0, ports.second, 0);
     pm::pb_node_t *quant_dst1
-            = pgraph->append_repetition(subgraph, {0, 0}, 1, 4, "rep_unit");
+            = pgraph->append_repetition(subgraph, {0, 0}, 1, 4);
 
     pm::pb_node_t *quant_dst2
             = int8_conv_bias_relu(pgraph, nullptr, false, false);
@@ -585,10 +575,10 @@ pm::pb_op_t *convolutional_bottleneck_training_forward(
     pm::pb_op_t *dst1 = conv_bn_relu(pgraph, dst0, true, is_bf16);
     pm::pb_op_t *dst2 = conv_bn_relu(pgraph, dst1, false, is_bf16);
     pm::pb_op_t *dst3 = conv_bn_relu(pgraph, nullptr, false, is_bf16);
-    auto bottleneck_add = pgraph->append_op(graph::op_kind::Add,
-            {in_edge(0, dst2, 0), in_edge(1, dst3, 0)}, "bottleneck_add");
+    auto bottleneck_add = pgraph->append_op(
+            graph::op_kind::Add, {in_edge(0, dst2, 0), in_edge(1, dst3, 0)});
     auto relu = pgraph->append_op(
-            graph::op_kind::ReLU, {in_edge(0, bottleneck_add, 0)}, "relu_last");
+            graph::op_kind::ReLU, {in_edge(0, bottleneck_add, 0)});
     return relu;
 };
 
@@ -598,38 +588,35 @@ pm::pb_op_t *identical_bottleneck_training_forward(
     pm::pb_op_t *dst0 = conv_bn_relu(pgraph, input, true, is_bf16);
     pm::pb_op_t *dst1 = conv_bn_relu(pgraph, dst0, true, is_bf16);
     pm::pb_op_t *dst2 = conv_bn_relu(pgraph, dst1, false, is_bf16);
-    auto bottleneck_add = pgraph->append_op(
-            graph::op_kind::Add, {in_edge(0, dst2, 0)}, "bottleneck_add");
+    auto bottleneck_add
+            = pgraph->append_op(graph::op_kind::Add, {in_edge(0, dst2, 0)});
     auto relu = pgraph->append_op(
-            graph::op_kind::ReLU, {in_edge(0, bottleneck_add, 0)}, "relu_last");
+            graph::op_kind::ReLU, {in_edge(0, bottleneck_add, 0)});
     return relu;
 };
 
 pm::pb_op_t *convolutional_bottleneck_training_backward(
         const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op_t *input,
         bool is_bf16 = false) {
-    pm::pb_op_t *relu_bwd_top
-            = pgraph->append_op(graph::op_kind::ReLUBackward, "relu_bwd_top");
+    pm::pb_op_t *relu_bwd_top = pgraph->append_op(graph::op_kind::ReLUBackward);
     pm::pb_op_t *dst0 = conv_bn_relu_bwd(pgraph, relu_bwd_top, false, is_bf16);
     pm::pb_op_t *dst1 = conv_bn_relu_bwd(pgraph, dst0, true, is_bf16);
     pm::pb_op_t *dst2 = conv_bn_relu_bwd(pgraph, dst1, true, is_bf16);
     pm::pb_op_t *dst3 = conv_bn_relu_bwd(pgraph, relu_bwd_top, false, is_bf16);
-    pm::pb_op_t *bottleneck_add = pgraph->append_op(graph::op_kind::Add,
-            {in_edge(0, dst2, 0), in_edge(1, dst3, 0)}, "bottleneck_add");
+    pm::pb_op_t *bottleneck_add = pgraph->append_op(
+            graph::op_kind::Add, {in_edge(0, dst2, 0), in_edge(1, dst3, 0)});
     return bottleneck_add;
 };
 
 pm::pb_op_t *identical_bottleneck_training_backward(
         const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op_t *input,
         bool is_bf16 = false) {
-    pm::pb_op_t *relu_bwd_top
-            = pgraph->append_op(graph::op_kind::ReLUBackward, "relu_bwd_top");
+    pm::pb_op_t *relu_bwd_top = pgraph->append_op(graph::op_kind::ReLUBackward);
     pm::pb_op_t *dst0 = conv_bn_relu_bwd(pgraph, relu_bwd_top, false, is_bf16);
     pm::pb_op_t *dst1 = conv_bn_relu_bwd(pgraph, dst0, true, is_bf16);
     pm::pb_op_t *dst2 = conv_bn_relu_bwd(pgraph, dst1, true, is_bf16);
     pm::pb_op_t *bottleneck_add = pgraph->append_op(graph::op_kind::Add,
-            {in_edge(0, dst2, 0), in_edge(1, relu_bwd_top, 0)},
-            "bottleneck_add");
+            {in_edge(0, dst2, 0), in_edge(1, relu_bwd_top, 0)});
     return bottleneck_add;
 };
 
@@ -640,10 +627,10 @@ pm::pb_op_t *convolutional_bottleneck_training_backward_v2(
     auto dst1 = conv_bn_relu_bwd(pgraph, dst0, true, is_bf16);
     auto dst2 = conv_bn_relu_bwd(pgraph, dst1, true, is_bf16);
     auto dst3 = conv_bn_relu_bwd(pgraph, nullptr, false, is_bf16);
-    auto bottleneck_add = pgraph->append_op(graph::op_kind::Add,
-            {in_edge(0, dst2, 0), in_edge(1, dst3, 0)}, "bottleneck_add");
-    auto relu_bwd = pgraph->append_op(graph::op_kind::ReLUBackward,
-            {in_edge(1, bottleneck_add, 0)}, "relu_bwd");
+    auto bottleneck_add = pgraph->append_op(
+            graph::op_kind::Add, {in_edge(0, dst2, 0), in_edge(1, dst3, 0)});
+    auto relu_bwd = pgraph->append_op(
+            graph::op_kind::ReLUBackward, {in_edge(1, bottleneck_add, 0)});
     return relu_bwd;
 };
 
@@ -653,10 +640,10 @@ pm::pb_op_t *identical_bottleneck_training_backward_v2(
     pm::pb_op_t *dst0 = conv_bn_relu_bwd(pgraph, nullptr, false, is_bf16);
     pm::pb_op_t *dst1 = conv_bn_relu_bwd(pgraph, dst0, true, is_bf16);
     pm::pb_op_t *dst2 = conv_bn_relu_bwd(pgraph, dst1, true, is_bf16);
-    pm::pb_op_t *bottleneck_add = pgraph->append_op(
-            graph::op_kind::Add, {in_edge(0, dst2, 0)}, "bottleneck_add");
-    pm::pb_op_t *relu_bwd = pgraph->append_op(graph::op_kind::ReLUBackward,
-            {in_edge(1, bottleneck_add, 0)}, "relu_bwd");
+    pm::pb_op_t *bottleneck_add
+            = pgraph->append_op(graph::op_kind::Add, {in_edge(0, dst2, 0)});
+    pm::pb_op_t *relu_bwd = pgraph->append_op(
+            graph::op_kind::ReLUBackward, {in_edge(1, bottleneck_add, 0)});
     return relu_bwd;
 };
 
