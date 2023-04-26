@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,15 +22,15 @@
 
 KERNEL_ATTR
 __kernel void gen9_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
-        int nelems, float alpha, float beta) {
-    const uint grsize = get_local_size(0);
-    const uint grid = get_group_id(0);
-    const uint sgid = get_sub_group_id();
-    const uint lid = get_sub_group_local_id();
+        dim_t nelems, float alpha, float beta) {
+    const dim_t grsize = get_local_size(0);
+    const dim_t grid = get_group_id(0);
+    const dim_t sgid = get_sub_group_id();
+    const dim_t lid = get_sub_group_local_id();
 
-    const uint gid = get_global_id(0);
+    const dim_t gid = get_global_id(0);
 
-    ptrdiff_t offset
+    dim_t offset
             = (grid * grsize + sgid * get_max_sub_group_size()) * VECT_DT_N;
 
     // grsize is a multiple of 16, SIMD is 16 -> offset mod 16 = 0
@@ -40,7 +40,7 @@ __kernel void gen9_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
     __global BLOCK_DATA_T *write_pos = (__global BLOCK_DATA_T *)dst + offset;
 
     VECT_DATA_T val;
-    const uint nel_per_read = SIMD * VECT_DT_N;
+    const int nel_per_read = SIMD * VECT_DT_N;
 
     // READ
     if (!NELEMS_OVERFLOW || offset + nel_per_read < nelems) {
@@ -48,7 +48,7 @@ __kernel void gen9_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
 
     } else {
         // read data in the same access pattern block_reads would
-        uint pos = offset + lid;
+        dim_t pos = offset + lid;
         for (int i = 0; i < VECT_DT_N && pos < nelems; ++i) {
             val[i] = src[pos];
             pos += SIMD;
@@ -66,7 +66,7 @@ __kernel void gen9_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
         VECT_BLOCK_WRITE(write_pos, AS_VECT_BLOCK_DATA_T(val));
 
     } else {
-        uint pos = offset + lid;
+        dim_t pos = offset + lid;
         for (int i = 0; i < VECT_DT_N && pos < nelems; ++i) {
             dst[pos] = val[i];
             pos += SIMD;
@@ -76,13 +76,13 @@ __kernel void gen9_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
 
 KERNEL_ATTR
 __kernel void gen9_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
-        __global DATA_T *diff_dst, int nelems, float alpha, float beta) {
-    const uint grsize = get_local_size(0);
-    const uint grid = get_group_id(0);
-    const uint sgid = get_sub_group_id();
-    const uint lid = get_sub_group_local_id();
+        __global DATA_T *diff_dst, dim_t nelems, float alpha, float beta) {
+    const dim_t grsize = get_local_size(0);
+    const dim_t grid = get_group_id(0);
+    const dim_t sgid = get_sub_group_id();
+    const dim_t lid = get_sub_group_local_id();
 
-    ptrdiff_t offset = (grid * grsize + sgid * SIMD) * VECT_DT_N;
+    dim_t offset = (grid * grsize + sgid * SIMD) * VECT_DT_N;
     //TODO: It should be implemented two distinct offsets
     //The one for src and the second for diff_src
 
@@ -97,7 +97,7 @@ __kernel void gen9_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
 
     VECT_DATA_T val_dd;
     VECT_DATA_T val_src;
-    const uint nel_per_read = SIMD * VECT_DT_N;
+    const int nel_per_read = SIMD * VECT_DT_N;
 
     // READ
     if (!NELEMS_OVERFLOW || offset + nel_per_read < nelems) {
@@ -106,7 +106,7 @@ __kernel void gen9_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
 
     } else {
         // read data in the same access pattern block_reads would
-        uint pos = offset + lid;
+        dim_t pos = offset + lid;
         for (int i = 0; i < VECT_DT_N && pos < nelems; ++i) {
             val_dd[i] = diff_dst[pos];
             val_src[i] = src[pos];
@@ -126,7 +126,7 @@ __kernel void gen9_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
 
     } else {
         // write data in the same access pattern block_writes would
-        uint pos = offset + lid;
+        dim_t pos = offset + lid;
         for (int i = 0; i < VECT_DT_N && pos < nelems; ++i) {
             diff_src[pos] = val_dd[i];
             pos += SIMD;
