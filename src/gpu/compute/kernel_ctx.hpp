@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,8 +47,11 @@ public:
         for (auto &opt : option_set_)
             oss << " " << opt;
 
-        for (auto &int_var : int_var_map_)
+        for (auto &int_var : int_var_map_) {
             oss << " -D" << int_var.first << "=" << int_var.second;
+            if (int_var.second > INT_MAX || int_var.second < INT_MIN)
+                oss << "L";
+        }
 
         for (auto &float_var : float_var_map_) {
             oss << " -D" << float_var.first << "=as_float(0x" << std::hex
