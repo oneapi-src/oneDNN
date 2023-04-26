@@ -37,6 +37,8 @@
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #endif
 
+#define dim_t long // 64 bit per the OpenCL specification
+
 #if DT_F32 == 1
 #define DATA_T float
 #define DATA2_T float2
