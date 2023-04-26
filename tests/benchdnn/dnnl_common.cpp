@@ -1056,6 +1056,21 @@ static void get_memory_bytes(check_mem_size_args_t &check_mem_size_args) {
         const auto &md = query_md(const_pd, query, idx);
         add_md_size(md, check_mem_size_args);
     }
+
+    // Binary post-op memories counted as input.
+    if (check_mem_size_args.want_input) {
+        auto const_attr_po = query_post_ops(const_pd);
+        auto po_len = dnnl_post_ops_len(const_attr_po);
+        for (int idx = 0; idx < po_len; ++idx) {
+            const auto kind = dnnl_post_ops_get_kind(const_attr_po, idx);
+            if (kind == dnnl_binary) {
+                int po_arg
+                        = DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1;
+                const auto &po_md = query_md(const_pd, po_arg);
+                add_md_size(po_md, check_mem_size_args);
+            }
+        }
+    }
 }
 
 int check_mem_size(const_dnnl_memory_desc_t md, res_t *res) {
@@ -1116,6 +1131,10 @@ int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
         if (kind == dnnl_sum) {
             const auto &dst_md = query_md(const_pd, DNNL_ARG_DST);
             add_md_size(dst_md, check_mem_in_size_args);
+        } else if (kind == dnnl_binary) {
+            int po_arg = DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1;
+            const auto &po_md = query_md(const_pd, po_arg);
+            add_md_size(po_md, check_mem_in_size_args);
         }
     }
 
