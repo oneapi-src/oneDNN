@@ -18,12 +18,26 @@
 #define UTILS_CFG_HPP
 
 #include <algorithm>
-#include <map>
 #include <vector>
+#include <unordered_map>
 
 #include "oneapi/dnnl/dnnl_types.h"
 
 #include "common.hpp"
+
+class data_type_hash_t {
+public:
+    size_t operator()(dnnl_data_type_t dt) const {
+        return std::hash<int>()(static_cast<int>(dt));
+    }
+};
+
+class data_kind_hash_t {
+public:
+    size_t operator()(data_kind_t data_kind) const {
+        return std::hash<int>()(static_cast<int>(data_kind));
+    }
+};
 
 // `base_cfg_t` class is a base class to define configurations across drivers.
 // Parent `cfg_t` object specifies a constructor to initialize `cfg_entry_`
@@ -37,7 +51,8 @@ struct base_cfg_t {
             int range_max;
         };
 
-        using cfg_map_t = std::map<dnnl_data_type_t, cfg_range_t>;
+        using cfg_map_t = std::unordered_map<dnnl_data_type_t, cfg_range_t,
+                data_type_hash_t>;
 
         // Constructor takes:
         // * Data kind it was created for (this is used only for accessing
@@ -92,17 +107,17 @@ struct base_cfg_t {
     };
 
     int get_range_min(data_kind_t dk) const {
-        return cfg_entry_[dk].get_range_min();
+        return cfg_entry_.at(dk).get_range_min();
     }
     int get_range_max(data_kind_t dk) const {
-        return cfg_entry_[dk].get_range_max();
+        return cfg_entry_.at(dk).get_range_max();
     }
 
     dnnl_data_type_t get_orig_dt(data_kind_t dk) const {
-        return cfg_entry_[dk].get_orig_dt();
+        return cfg_entry_.at(dk).get_orig_dt();
     }
     dnnl_data_type_t get_dt(data_kind_t dk) const {
-        return cfg_entry_[dk].get_dt();
+        return cfg_entry_.at(dk).get_dt();
     }
 
     // This type allows to differentiate density in filling functions by certain
@@ -123,16 +138,16 @@ struct base_cfg_t {
     }
 
 protected:
-    std::vector<cfg_entry_t> cfg_entry_;
+    std::unordered_map<data_kind_t, cfg_entry_t, data_kind_hash_t> cfg_entry_;
     data_kind_t output_data_kind_ = DST; // Assume FWD by default.
 
     int64_t get_safe_digits() const {
-        return MIN2(digits_dt(cfg_entry_[output_data_kind_].get_dt()),
+        return MIN2(digits_dt(cfg_entry_.at(output_data_kind_).get_dt()),
                 digits_dt(dnnl_f32));
     }
 
-    bool is_int8() const {
-        return dnnl_data_type_size(cfg_entry_[WEI].get_dt()) == 1;
+    bool is_int8(data_kind_t dk = WEI) const {
+        return dnnl_data_type_size(cfg_entry_.at(dk).get_dt()) == 1;
     }
 
     // Find the number of accumulators safe to use with the following equations:
@@ -144,11 +159,13 @@ protected:
     // SUM_1_N(VALUES) <= N_ACC * MAX_VALUE <= PREC;  It's a top estimate
     // MAX_VALUE = MAX_VAL_SRC * MAX_VAL_WEI;
     // SAFE_N_ACC <= PREC / MAX_VALUE;
-    int64_t get_safe_n_acc() const {
-        const auto &cfg_e_src = cfg_entry_[SRC];
-        const auto &cfg_e_wei = cfg_entry_[WEI];
-        const int64_t max_value
-                = cfg_e_src.get_range_abs_max() * cfg_e_wei.get_range_abs_max();
+    int64_t get_safe_n_acc(
+            const std::vector<data_kind_t> &kinds = {SRC, WEI}) const {
+        int64_t max_value = 1;
+        for (auto k : kinds) {
+            const auto &cfg_entry = cfg_entry_.at(k);
+            max_value *= cfg_entry.get_range_abs_max();
+        }
         const int64_t safe_digits = get_safe_digits();
         const int64_t safe_n_acc = (1LL << safe_digits) / max_value;
         return safe_n_acc;
@@ -156,10 +173,10 @@ protected:
 
     // Modification of ranges has to happen at construction stage.
     void set_range_min(data_kind_t dk, int new_value) {
-        cfg_entry_[dk].set_range_min(new_value);
+        cfg_entry_.at(dk).set_range_min(new_value);
     }
     void set_range_max(data_kind_t dk, int new_value) {
-        cfg_entry_[dk].set_range_max(new_value);
+        cfg_entry_.at(dk).set_range_max(new_value);
     }
     // Configuration like f32:f32:s8 may trigger an assert `safe_n_acc <= 0`.
     // It can be solved only at construction stage by adjusting min and max
@@ -174,20 +191,11 @@ protected:
         while (safe_n_acc < 1) {
             set_range_min(cur_kind, get_range_min(cur_kind) / 2);
             set_range_max(cur_kind, get_range_max(cur_kind) / 2);
-            int64_t max_value = cfg_entry_[SRC].get_range_abs_max()
-                    * cfg_entry_[WEI].get_range_abs_max();
+            int64_t max_value = cfg_entry_.at(SRC).get_range_abs_max()
+                    * cfg_entry_.at(WEI).get_range_abs_max();
             safe_n_acc = (1LL << get_safe_digits()) / max_value;
             cur_kind = cur_kind == SRC ? WEI : SRC;
         }
-    }
-
-private:
-    const cfg_entry_t &operator[](data_kind_t kind) const {
-        for (const auto &e : cfg_entry_) {
-            if (e.get_dk() == kind) return e;
-        }
-        assert(!"unexpected data kind");
-        return cfg_entry_[0];
     }
 };
 

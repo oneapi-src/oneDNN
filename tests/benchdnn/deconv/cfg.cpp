@@ -25,8 +25,9 @@ cfg_t::cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds) {
     for (const auto kind : kinds) {
         auto orig_data_type = prb->get_dt(kind);
         auto data_type = deduce_cfg_data_type(orig_data_type, prb->attr, kind);
-        cfg_entry_.emplace_back(
-                kind, orig_data_type, data_type, get_cfg_map(kind));
+        cfg_entry_.emplace(kind,
+                cfg_entry_t {
+                        kind, orig_data_type, data_type, get_cfg_map(kind)});
     }
 
     adjust_ranges_for_safe_n_acc();
@@ -48,9 +49,8 @@ cfg_t::cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds) {
     }
 
     BENCHDNN_PRINT(6, "%s SRC_%s=[%d;%d] : WEI_%s=[%d;%d]\n", "[FILL_CFG]",
-            dt2str(this->get_dt(SRC)), cfg_entry_[SRC].get_range_min(),
-            cfg_entry_[SRC].get_range_max(), dt2str(this->get_dt(WEI)),
-            cfg_entry_[WEI].get_range_min(), cfg_entry_[WEI].get_range_max());
+            dt2str(this->get_dt(SRC)), get_range_min(SRC), get_range_max(SRC),
+            dt2str(this->get_dt(WEI)), get_range_min(WEI), get_range_max(WEI));
 }
 
 // Adjust density based on accumulation chain.
