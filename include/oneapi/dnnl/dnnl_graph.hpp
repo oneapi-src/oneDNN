@@ -760,6 +760,7 @@ public:
         Mish = dnnl_graph_op_mish,
         MishBackward = dnnl_graph_op_mish_backward,
         Multiply = dnnl_graph_op_multiply,
+        Pow = dnnl_graph_op_pow,
         PReLU = dnnl_graph_op_prelu,
         PReLUBackward = dnnl_graph_op_prelu_backward,
         Quantize = dnnl_graph_op_quantize,

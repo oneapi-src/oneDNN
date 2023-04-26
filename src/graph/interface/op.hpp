@@ -393,6 +393,7 @@ public:
             CASE(Mish);
             CASE(MishBackward);
             CASE(Multiply);
+            CASE(Pow);
             CASE(PReLU);
             CASE(PReLUBackward);
             CASE(Quantize);

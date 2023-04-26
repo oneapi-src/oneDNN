@@ -165,6 +165,7 @@ const op_kind_t Minimum = dnnl_graph_op_minimum;
 const op_kind_t Mish = dnnl_graph_op_mish;
 const op_kind_t MishBackward = dnnl_graph_op_mish_backward;
 const op_kind_t Multiply = dnnl_graph_op_multiply;
+const op_kind_t Pow = dnnl_graph_op_pow;
 const op_kind_t PReLU = dnnl_graph_op_prelu;
 const op_kind_t PReLUBackward = dnnl_graph_op_prelu_backward;
 const op_kind_t Quantize = dnnl_graph_op_quantize;
