@@ -273,39 +273,34 @@ protected:
 
 class pb_graph_t : public pb_node_t {
 public:
-    pb_graph_t(std::string name = "");
+    pb_graph_t();
 
     // Restrict "pb_op_t" create to a pb_graph_t to avoid dangling "pb_op_t"s
-    pb_op_t *append_op(dnnl::impl::graph::op_kind_t p_kind,
-            const in_edges_t &p_in_edges, std::string name = "");
     pb_op_t *append_op(
-            dnnl::impl::graph::op_kind_t p_kind, std::string name = "");
+            dnnl::impl::graph::op_kind_t p_kind, const in_edges_t &p_in_edges);
+    pb_op_t *append_op(dnnl::impl::graph::op_kind_t p_kind);
 
     pb_op_t *append_alternation(
             const std::vector<dnnl::impl::graph::op_kind_t> &p_kind,
-            const in_edges_t &p_in_edges, std::string name = "");
+            const in_edges_t &p_in_edges);
     pb_op_t *append_alternation(
-            const std::vector<dnnl::impl::graph::op_kind_t> &p_kind,
-            std::string name = "");
+            const std::vector<dnnl::impl::graph::op_kind_t> &p_kind);
 
     alternation_t *append_alternation(
             std::vector<std::shared_ptr<pb_graph_t>> p_nodes,
-            const in_edges_t &p_in_edges, std::string name = "");
+            const in_edges_t &p_in_edges);
     alternation_t *append_alternation(
-            std::vector<std::shared_ptr<pb_graph_t>> p_nodes,
-            std::string name = "");
+            std::vector<std::shared_ptr<pb_graph_t>> p_nodes);
 
     repetition_t *append_repetition(std::shared_ptr<pb_graph_t> p_node,
             port_map p_map, size_t min_rep, size_t max_rep,
-            const in_edges_t &p_in_edges, std::string name = "");
+            const in_edges_t &p_in_edges);
     repetition_t *append_repetition(std::shared_ptr<pb_graph_t> p_node,
-            port_map p_map, size_t min_rep, size_t max_rep,
-            std::string name = "");
+            port_map p_map, size_t min_rep, size_t max_rep);
 
-    repetition_t *append_optional(std::shared_ptr<pb_graph_t> p_node,
-            const in_edges_t &p_in_edges, std::string name = "");
     repetition_t *append_optional(
-            std::shared_ptr<pb_graph_t> p_node, std::string name = "");
+            std::shared_ptr<pb_graph_t> p_node, const in_edges_t &p_in_edges);
+    repetition_t *append_optional(std::shared_ptr<pb_graph_t> p_node);
 
     std::vector<std::pair<iport_t, consumers_t>> get_inner_consumers();
     std::vector<std::pair<oport_t, producer_t>> get_inner_producers();
