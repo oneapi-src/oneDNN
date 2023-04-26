@@ -9,7 +9,12 @@ where *pool-knobs* are:
 
  - `--dir={FWD_D [default], FWD_I, BWD_D}` -- dnnl_prop_kind_t.
             Refer to [direction](knobs_dir.md) for details.
- - `--cfg={f32 [default], ...}` -- Refer to ``Configurations`` below.
+ - `--dt={f32:f32:f32 [default], ...}` -- source, weights and destination data
+            types. Interface supports broadcasting, when a single input is
+            provided, e.g., `--dt=f32`, and the value will be applied for all
+            tensors. Refer to [data types](knobs_dt.md) for details.
+ - `--cfg={f32 [default], ...}` -- Deprecated setting.
+            Refer to ``Configurations`` below.
  - `--tag={nchw [default], ...}` -- physical src and dst memory layout.
             Refer to [tags](knobs_tag.md) for details.
  - `--alg={max [default], avg_np, avg_p}` -- pooling algorithm.
@@ -89,7 +94,7 @@ Run a named problem with single precision src/dst, iterating by:
 3) all algorithm combinations,
 4) using default minibatch of 96 and 5:
 ``` sh
-    ./benchdnn --pool --cfg=f32 --tag=nChw8c,nChw16c \
+    ./benchdnn --pool --dt=f32 --tag=nChw8c,nChw16c \
                --dir=FWD_D,FWD_I,BWD_D --alg=max,avg_np,avg_p --mb=0,5 \
                mb96ic768_ih17oh17_kh3sh1ph1n"googlenet_v3:ave_pool_mixed_4_pool"
 ```

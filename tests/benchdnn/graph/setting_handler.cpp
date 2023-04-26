@@ -1297,10 +1297,9 @@ bool get_pool_dir(const deserialized_op &base_op_ref, dir_t &dir) {
     return ret;
 }
 
-bool get_pool_cfg(const deserialized_op &base_op_ref,
-        const ::pool::dt_conf_t **cfg,
+bool get_pool_dt(const deserialized_op &base_op_ref,
+        std::vector<dnnl_data_type_t> &dt,
         const std::unordered_set<size_t> &rewrite_lt_ids) {
-    std::string cfg_str {"f32"};
     auto src_dt = base_op_ref.in_lts_[0].data_type_;
     auto dst_dt = base_op_ref.out_lts_[0].data_type_;
     if (rewrite_lt_ids.find(base_op_ref.in_lts_[0].id_) != rewrite_lt_ids.end())
@@ -1309,15 +1308,9 @@ bool get_pool_cfg(const deserialized_op &base_op_ref,
             != rewrite_lt_ids.end())
         dst_dt = "f32";
 
-    if (src_dt == dst_dt
-            && ((src_dt == "f32" || src_dt == "f16" || src_dt == "bf16"))) {
-        // if ((src_dt == "f16" || src_dt == "bf16") && !is_gpu()) return false;
-        // temporarily removed, will add the check later for all drivers
-        cfg_str = src_dt;
-        *cfg = ::pool::str2cfg(cfg_str.c_str());
-        return true;
-    }
-    return false;
+    dt = {convert_dt(get_data_type(src_dt)), convert_dt(get_data_type(dst_dt))};
+
+    return true;
 }
 
 bool get_pool_alg(const deserialized_op &base_op_ref, ::pool::alg_t &alg) {
@@ -1356,8 +1349,8 @@ bool get_pool_alg(const deserialized_op &base_op_ref, ::pool::alg_t &alg) {
             pool::get_pool_alg(base_op_ref, op_setting.alg.front()), res);
     DNN_GRAPH_CHECK_SETTINGS(
             pool::get_pool_dir(base_op_ref, op_setting.dir.front()), res);
-    DNN_GRAPH_CHECK_SETTINGS(pool::get_pool_cfg(base_op_ref,
-                                     &op_setting.cfg.front(), rewrite_lt_ids),
+    DNN_GRAPH_CHECK_SETTINGS(pool::get_pool_dt(base_op_ref,
+                                     op_setting.dt.front(), rewrite_lt_ids),
             res);
     DNN_GRAPH_CHECK_SETTINGS(
             get_driver_tag(base_op_ref, op_setting.tag.front()), res);
@@ -1370,9 +1363,8 @@ void set_s8u8_for_prb(::pool::prb_t *prb,
         res_t *res) {
     std::string cfg_str;
     for (size_t offset = 0; offset < map_off_to_dt.size(); offset++) {
-        cfg_str += map_off_to_dt.at(offset);
+        prb->dt[offset] = convert_dt(get_data_type(map_off_to_dt.at(offset)));
     }
-    prb->cfg = ::pool::str2cfg(cfg_str.c_str());
 }
 
 } //namespace pool

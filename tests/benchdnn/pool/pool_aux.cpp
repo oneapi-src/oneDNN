@@ -235,6 +235,14 @@ int str2desc(desc_t *desc, const char *str) {
     return OK;
 }
 
+dnnl_data_type_t prb_t::get_dt(data_kind_t data_kind) const {
+    switch (data_kind) {
+        case SRC: return src_dt();
+        case DST: return dst_dt();
+        default: assert(!"unexpected data_kind"); return dnnl_data_type_undef;
+    }
+}
+
 dims_t desc_t::src_dims() const {
     dims_t src_dims {mb, ic, id, ih, iw};
     for (int d = 0; d < 5 - ndims; ++d) {
@@ -317,8 +325,12 @@ std::string prb_t::set_repro_line() {
     dump_global_params(s);
     settings_t def;
 
+    bool has_default_dts = true;
+    for (const auto &i_dt : dt)
+        has_default_dts = has_default_dts && i_dt == dnnl_f32;
+
     if (canonical || dir != def.dir[0]) s << "--dir=" << dir << " ";
-    if (canonical || cfg != def.cfg[0]) s << "--cfg=" << cfg << " ";
+    if (canonical || !has_default_dts) s << "--dt=" << dt << " ";
     if (canonical || tag != def.tag[0]) s << "--tag=" << tag << " ";
     if (canonical || alg != def.alg[0]) s << "--alg=" << alg2str(alg) << " ";
 

@@ -15,9 +15,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <stdio.h>
-#include <stdlib.h>
-
+#include <algorithm>
+#include <cstring>
+#include <random>
 #include <sstream>
 
 #include "oneapi/dnnl/dnnl.h"
@@ -32,36 +32,46 @@
 
 namespace pool {
 
-int fill_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp) {
-    const int64_t MB {prb->mb};
-    const int64_t IC {prb->ic};
-    const int64_t D {kind == SRC ? prb->id : prb->od};
-    const int64_t H {kind == SRC ? prb->ih : prb->oh};
-    const int64_t W {kind == SRC ? prb->iw : prb->ow};
-    const int64_t ker_size {prb->kd * prb->kh * prb->kw};
-    const auto &c = prb->cfg[kind];
-    // For huge kernels to get different output values filling should be very
-    // variative, thus, use a factor of 1.
-    const bool has_huge_kernel = ker_size >= c.f_max;
+int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
+        dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
+    const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
 
-    benchdnn_parallel_nd(MB, IC, D, H, W,
-            [&](int64_t mb, int64_t ic, int64_t d, int64_t h, int64_t w) {
-                const int64_t factor
-                        = prb->alg == max || has_huge_kernel ? 1 : ker_size;
-                // keep values for avg_exclude_pad positive to prevent cancellation err
-                const int64_t f_min = prb->alg == max ? c.f_min / factor : 0;
-                // divide on factor to keep value in the range
-                const int64_t range = c.f_max / factor - f_min + 1;
-                const int64_t gen
-                        = 5 * d + 17 * h + 13 * w + 13 * mb + 19 * ic + 1637;
-                const float value = (f_min + gen % range) * factor;
+    /* Do fixed partitioning to have same filling for any number of threads */
+    const int64_t n_chunks = 16;
+    const int64_t chunk_size = div_up(nelems, n_chunks);
 
-                const size_t off = kind == SRC
-                        ? src_off_f(prb, mb, ic, d, h, w)
-                        : dst_off_f(prb, mb, ic, d, h, w);
-                ((float *)mem_fp)[off] = value;
-            });
+    benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
+        int64_t idx_start = idx_chunk * chunk_size;
+        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
+        // Note: we use a different seed for each chunk to avoid
+        // repeating patterns. We could use discard(idx_start) too but
+        // it has a complexity in O(idx_start). We also add 1 to avoid
+        // seeding with 0.
+        std::minstd_rand int_seed(kind * nelems + idx_start + 1);
+        int_seed.discard(1);
+        std::minstd_rand b_seed(kind * nelems + idx_start + 1);
+        b_seed.discard(10);
+
+        std::uniform_int_distribution<> gen(
+                cfg.get_range_min(kind), cfg.get_range_max(kind));
+
+        // make sure the first element is positive
+        if (idx_start == 0) {
+            float val = 0;
+            while (val <= 0)
+                val = gen(int_seed);
+            mem_fp.set_elem(
+                    0, round_to_nearest_representable(cfg.get_dt(kind), val));
+            idx_start += 1;
+        }
+
+        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
+            float val = gen(int_seed);
+            mem_fp.set_elem(
+                    idx, round_to_nearest_representable(cfg.get_dt(kind), val));
+        }
+    });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
 
@@ -89,9 +99,9 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const auto src_tag = (dir & FLAG_FWD) ? prb->tag : tag::any;
 
     auto src_d = dnn_mem_t::init_md(
-            prb->ndims, prb->src_dims().data(), prb->cfg[SRC].dt, src_tag);
+            prb->ndims, prb->src_dims().data(), prb->src_dt(), src_tag);
     auto dst_d = dnn_mem_t::init_md(
-            prb->ndims, prb->dst_dims().data(), prb->cfg[DST].dt, tag::any);
+            prb->ndims, prb->dst_dims().data(), prb->dst_dt(), tag::any);
 
     attr_args_t attr_args;
     attr_args.prepare_post_ops_mds(
@@ -121,11 +131,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
-    skip_unimplemented_data_type(
-            {prb->cfg[SRC].dt, prb->cfg[DST].dt}, prb->dir, res);
-    skip_unimplemented_sum_po(prb->attr, res, dnnl_pooling, prb->cfg[SRC].dt);
+    skip_unimplemented_data_type({prb->src_dt(), prb->dst_dt()}, prb->dir, res);
+    skip_unimplemented_sum_po(prb->attr, res, dnnl_pooling, prb->src_dt());
 
-    if (is_cpu() && prb->cfg[SRC].dt != prb->cfg[DST].dt) {
+    if (is_cpu() && prb->src_dt() != prb->dst_dt()) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
@@ -151,7 +160,9 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
-    cmp.set_threshold(prb->cfg[kind].eps);
+    // Threshold to compensate division error. CPU could live with 6.f coeff.
+    const float trh = 10.f * epsilon_dt(prb->dt[1]);
+    cmp.set_threshold(trh);
     // Backward may have most zeroes for ker_in_pad with huge kernels problems.
     const float zero_percent = (prb->dir & FLAG_FWD) ? 99.f : 100.f;
     cmp.set_zero_trust_percent(zero_percent); // TODO: consider enabling
@@ -195,6 +206,9 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
     const auto &ref_engine = get_cpu_engine();
 
+    // Move cfg out of filling since its creation is not free.
+    cfg_t cfg(prb, {SRC, DST});
+
     for (auto &entry : mem_map) {
         const int exec_arg = entry.first;
         auto &mem = entry.second; // `mem` is modified by filler (reorder).
@@ -205,10 +219,10 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
         switch (exec_arg) {
             case DNNL_ARG_SRC:
-                SAFE(fill_dat(prb, SRC, mem, ref_mem), WARN);
+                SAFE(fill_data(SRC, prb, cfg, mem, ref_mem, res), WARN);
                 break;
             case DNNL_ARG_DIFF_DST:
-                SAFE(fill_dat(prb, DST, mem, ref_mem), WARN);
+                SAFE(fill_data(DST, prb, cfg, mem, ref_mem, res), WARN);
                 break;
             case DNNL_ARG_WORKSPACE:
                 ref_mem_map[exec_arg]
