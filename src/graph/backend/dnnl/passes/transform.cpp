@@ -3519,8 +3519,8 @@ impl::status_t fold_pre_mul_scale_into_bn(std::shared_ptr<subgraph_t> &sg) {
             auto quant_data_out_val = cur_op->get_output_value(0);
             auto quant_data_in_val = cur_op->get_input_value(0);
             next_op->connect_input(0, quant_data_in_val);
-            quant_data_out_val->remove_consumer(*next_op.get(), 0);
-            if (quant_data_out_val->get_consumers().size() == 0) {
+            quant_data_out_val->remove_consumer(*next_op, 0);
+            if (quant_data_out_val->get_consumers().empty()) {
                 rewriter.to_remove(cur_op);
             }
         }

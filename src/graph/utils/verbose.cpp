@@ -153,7 +153,7 @@ std::string partition2fmt_str(const partition_t &partition) {
     bool data_filled = false;
     bool filter_filled = false;
     for (size_t i = 0; i < num_operator; ++i) {
-        const std::shared_ptr<op_t> op = operators[i];
+        const std::shared_ptr<op_t> &op = operators[i];
         if (op->has_attr(op_attr::data_format)) {
             // If the first i ops have no data_format, empty string with suffix
             // `;` should be printed out for each of them.
@@ -186,7 +186,7 @@ std::string partition2fmt_str(const partition_t &partition) {
         }
     }
     for (size_t i = 0; i < num_operator; ++i) {
-        const std::shared_ptr<op_t> op = operators[i];
+        const std::shared_ptr<op_t> &op = operators[i];
         if (op->has_attr(op_attr::weights_format)) {
             if (!filter_filled) {
                 s += "filter:";

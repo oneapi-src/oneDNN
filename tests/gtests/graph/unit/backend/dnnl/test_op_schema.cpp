@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,7 +85,7 @@ TEST(OpSchema, InferUnsqueezeOutputShape) {
 
         const std::vector<int64_t> inferred_out_shape
                 = logical_tensor_wrapper_t(lt_out).vdims();
-        const std::vector<int64_t> expected_out_shape = dst_shapes[i];
+        const std::vector<int64_t> &expected_out_shape = dst_shapes[i];
         EXPECT_EQ(inferred_out_shape, expected_out_shape);
     }
 }
@@ -118,7 +118,7 @@ TEST(OpSchema, InferUnsqueezeOutputShapeBasedOnAxes) {
 
         const std::vector<int64_t> inferred_out_shape
                 = logical_tensor_wrapper_t(lt_out).vdims();
-        const std::vector<int64_t> expected_out_shape = dst_shapes[i];
+        const std::vector<int64_t> &expected_out_shape = dst_shapes[i];
         EXPECT_EQ(inferred_out_shape, expected_out_shape);
     }
 }

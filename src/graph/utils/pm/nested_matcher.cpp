@@ -73,9 +73,7 @@ binding_t::binding_t(node_bind_kind p_kind, op_t *p_op, size_t p_op_port,
     , bind_op_port {p_op_port} {}
 
 match_context_t::match_context_t(match_context_t *p_ctx, pb_node_t *p_graph)
-    : parent_ctx {p_ctx} {
-    graph_ = dynamic_cast<pb_graph_t *>(p_graph);
-}
+    : parent_ctx(p_ctx), graph_(dynamic_cast<pb_graph_t *>(p_graph)) {}
 
 bool match_node_attributes(op_t *op, pb_node_t *node) {
     size_t n_func = node->get_num_decision_functions();
@@ -229,12 +227,13 @@ bool match_node_inputs(const binding_t &b, match_context_t *ctx,
 node_outputs_matcher_t::node_outputs_matcher_t(op_t *op, pb_node_t *node,
         match_context_t *ctx,
         std::unordered_map<op_t *, pb_op_t *> &matched_op_map)
-    : op_ {op}, node_ {node}, ctx_ {ctx}, updated_op_map_ {matched_op_map} {
-
-    is_optional_case_ = false;
-    support_optional_ = support_optional_outputs(node_);
-    node_outputs_ = node_->get_outputs();
-}
+    : op_(op)
+    , node_(node)
+    , ctx_(ctx)
+    , updated_op_map_(matched_op_map)
+    , node_outputs_(node_->get_outputs())
+    , support_optional_(support_optional_outputs(node_))
+    , is_optional_case_(false) {}
 
 // check if a pb_node's all consumers are optional
 bool node_outputs_matcher_t::support_optional_outputs(pb_node_t *n) {
@@ -716,16 +715,16 @@ bool match_alternation(const binding_t &bind_arg, match_context_t *ctx,
 repetition_matcher_t::repetition_matcher_t(const binding_t &bind_arg,
         match_context_t *parent_ctx,
         std::unordered_map<op_t *, pb_op_t *> &matched_op_map)
-    : single_iter_bind_ {bind_arg}
-    , parent_ctx_ {parent_ctx}
-    , updated_op_map_ {matched_op_map}
-    , rep_global_ctx_ {
-              match_context_t(parent_ctx, single_iter_bind_.bind_node)} {
-    rep_node_ = dynamic_cast<repetition_t *>(bind_arg.bind_node);
-    pmap_ = rep_node_->get_port_map();
-    min_rep_ = rep_node_->get_min_rep();
-    max_rep_ = rep_node_->get_max_rep() - 1;
-
+    : single_iter_bind_(bind_arg)
+    , parent_ctx_(parent_ctx)
+    , updated_op_map_(matched_op_map)
+    , rep_node_(dynamic_cast<repetition_t *>(bind_arg.bind_node))
+    , pmap_(rep_node_->get_port_map())
+    , min_rep_(rep_node_->get_min_rep())
+    , max_rep_(rep_node_->get_max_rep() - 1)
+    , forward_match_(single_iter_bind_.bind_kind != BIND_OUT)
+    , rep_global_ctx_(
+              match_context_t(parent_ctx, single_iter_bind_.bind_node)) {
     // binding_t for first iteration.
     // all iterations have same body_graph, bind_kind and bind_port
     // but they have different bind_op.
@@ -734,7 +733,6 @@ repetition_matcher_t::repetition_matcher_t(const binding_t &bind_arg,
 
     // a merge context to tag on incremental iterations.
     rep_global_ctx_ = match_context_t(parent_ctx_, single_iter_bind_.bind_node);
-    forward_match_ = single_iter_bind_.bind_kind != BIND_OUT;
 }
 
 bool repetition_matcher_t::prepare_next_matching_round(

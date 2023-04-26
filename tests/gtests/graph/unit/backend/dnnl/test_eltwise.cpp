@@ -144,9 +144,9 @@ static inline void test_eltwise_bwd_common(
         const test::vector<float> &diff_dst_data,
         const test::vector<float> &ref_diff_src, dnnl::impl::graph::dims &dims,
         const graph::op_kind_t op_kind, const std::string &op_name,
-        const dnnl::impl::graph::dims strides_fwd,
-        const dnnl::impl::graph::dims strides_diff_src,
-        const dnnl::impl::graph::dims strides_diff_dst,
+        const dnnl::impl::graph::dims &strides_fwd,
+        const dnnl::impl::graph::dims &strides_diff_src,
+        const dnnl::impl::graph::dims &strides_diff_dst,
         const std::map<dnnl::impl::graph::op_attr_t, attr_data_t> &attrs_data
         = {}) {
     static const std::set<graph::op_kind_t> with_support_for_use_dst {

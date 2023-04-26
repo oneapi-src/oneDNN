@@ -165,7 +165,7 @@ public:
      * \brief Get the output ops of this graph.
      * \return vector of output op pointers
      */
-    std::vector<op_t *> get_output_ops() {
+    std::vector<op_t *> get_output_ops() const {
         std::vector<op_t *> outputs;
         for (const op_ptr &n : ops_) {
             size_t num_consumers = 0;
@@ -183,7 +183,7 @@ public:
      * of this graph.
      * \return vector of input values pointers
      */
-    std::vector<value_t *> get_input_values() {
+    std::vector<value_t *> get_input_values() const {
         std::vector<value_t *> in_vals;
         for (const op_ptr &n : ops_) {
             for (const value_ptr &in_val : n->get_input_values()) {
@@ -210,7 +210,7 @@ public:
      * graph) of this graph.
      * \return vector of output values pointers
      */
-    std::vector<value_t *> get_output_values() {
+    std::vector<value_t *> get_output_values() const {
         std::vector<value_t *> out_vals;
         for (const op_ptr &n : ops_) {
             for (const value_ptr &out_val : n->get_output_values()) {
