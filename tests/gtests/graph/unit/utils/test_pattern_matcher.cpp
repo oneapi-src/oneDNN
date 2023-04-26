@@ -37,7 +37,7 @@ const oport_t OUT0 = 0;
 // All pattern starts with a "pb_graph"
 //
 TEST(PatternMatcher, Graph) {
-    auto pgraph = std::make_shared<pb_graph_t>("pgraph");
+    auto pgraph = std::make_shared<pb_graph_t>();
 
     ASSERT_NE(pgraph, nullptr);
 }
@@ -98,10 +98,10 @@ TEST(PatternMatcher, Graph) {
 // implementation.
 //
 TEST(PatternMatcher, GraphAppendLeafOp) {
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+    auto graphp = std::make_shared<pb_graph_t>();
     // Grow internal graph
     // Leaf pattern op "Add"
-    auto op0 = graphp->append_op(Add, "padd");
+    auto op0 = graphp->append_op(Add);
     ASSERT_NE(graphp, nullptr);
     ASSERT_NE(op0, nullptr);
 }
@@ -112,16 +112,16 @@ TEST(PatternMatcher, GraphAppendLeafOp) {
 // append_op for non leaf pattern ops
 //
 TEST(PatternMatcher, GraphAppendNonLeafOp) {
-    auto graphp = std::make_shared<pb_graph_t>("conv_bias");
+    auto graphp = std::make_shared<pb_graph_t>();
     // Grow internal graph
     // Convolution -> BiasAdd
     // Leaf pattern op
-    auto op0 = graphp->append_op(Convolution, "pconv");
+    auto op0 = graphp->append_op(Convolution);
     // Non leaf pattern op "BiasAdd" with only one of the inputs constrained
     // input 0 is constrained to output 0 of "Abs" op
     // unconstrained input is like matching "Any"
     // input 1 is free to match any op
-    auto op1 = graphp->append_op(BiasAdd, {in_edge(IN0, op0, OUT0)}, "pbias");
+    auto op1 = graphp->append_op(BiasAdd, {in_edge(IN0, op0, OUT0)});
     // Make sure that input1 to "BiasAdd" node does not come from within
     // the matched pattern
     ASSERT_NE(op1->get_producer(IN0), nullptr);
@@ -161,9 +161,9 @@ TEST(PatternMatcher, GraphAppendNonLeafOp) {
 }
 
 TEST(PatternMatcher, GraphNoAllowSideOutput) {
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto op0 = graphp->append_op(Convolution, "pconv");
-    auto op1 = graphp->append_op(BiasAdd, {in_edge(IN0, op0, OUT0)}, "pbias");
+    auto graphp = std::make_shared<pb_graph_t>();
+    auto op0 = graphp->append_op(Convolution);
+    auto op1 = graphp->append_op(BiasAdd, {in_edge(IN0, op0, OUT0)});
     UNUSED(op1);
 
     graph_t agraph;
@@ -197,12 +197,11 @@ TEST(PatternMatcher, GraphNoAllowSideOutput) {
 
 TEST(PatternMatcher, ConvAddFusion) {
     // conv + add fusion
-    std::shared_ptr<pb_graph_t> pattern_graph
-            = std::make_shared<pb_graph_t>("pgraph");
+    std::shared_ptr<pb_graph_t> pattern_graph = std::make_shared<pb_graph_t>();
 
-    auto pconv = pattern_graph->append_op(Convolution, "pconv");
-    auto padd = pattern_graph->append_op(Add,
-            {in_edge(IN0, pconv, OUT0), in_edge(IN1, pconv, OUT0)}, "padd");
+    auto pconv = pattern_graph->append_op(Convolution);
+    auto padd = pattern_graph->append_op(
+            Add, {in_edge(IN0, pconv, OUT0), in_edge(IN1, pconv, OUT0)});
     UNUSED(padd);
 
     graph_t agraph;
@@ -228,12 +227,10 @@ TEST(PatternMatcher, ConvAddFusion) {
 
 TEST(PatternMatcher, FailToFuseConvAdd) {
     // conv = add fusion
-    std::shared_ptr<pb_graph_t> pattern_graph
-            = std::make_shared<pb_graph_t>("pgraph");
+    std::shared_ptr<pb_graph_t> pattern_graph = std::make_shared<pb_graph_t>();
 
-    auto pconv = pattern_graph->append_op(Convolution, "pconv");
-    auto padd = pattern_graph->append_op(
-            Add, {in_edge(IN0, pconv, OUT0)}, "padd");
+    auto pconv = pattern_graph->append_op(Convolution);
+    auto padd = pattern_graph->append_op(Add, {in_edge(IN0, pconv, OUT0)});
     UNUSED(padd);
 
     graph_t agraph;
@@ -259,9 +256,8 @@ TEST(PatternMatcher, FailToFuseConvAdd) {
 TEST(PatternMatcher, ConvAddFusionCase2) {
     std::shared_ptr<pb_graph_t> pattern_graph = std::make_shared<pb_graph_t>();
 
-    auto pconv = pattern_graph->append_op(Convolution, "pconv");
-    auto padd = pattern_graph->append_op(
-            Add, {in_edge(IN0, pconv, OUT0)}, "padd");
+    auto pconv = pattern_graph->append_op(Convolution);
+    auto padd = pattern_graph->append_op(Add, {in_edge(IN0, pconv, OUT0)});
     UNUSED(padd);
 
     graph_t agraph1;
@@ -297,9 +293,8 @@ TEST(PatternMatcher, ConvAddFusionCase2) {
 TEST(PatternMatcher, ConvAddFusionCase3) {
     std::shared_ptr<pb_graph_t> pattern_graph = std::make_shared<pb_graph_t>();
 
-    auto pconv = pattern_graph->append_op(Convolution, "pconv");
-    auto padd = pattern_graph->append_op(
-            Add, {in_edge(IN0, pconv, OUT0)}, "padd");
+    auto pconv = pattern_graph->append_op(Convolution);
+    auto padd = pattern_graph->append_op(Add, {in_edge(IN0, pconv, OUT0)});
     UNUSED(padd);
 
     graph_t agraph;
@@ -341,16 +336,13 @@ TEST(PatternMatcher, ConvAddFusionCase3) {
 
 TEST(PatternMatcher, CommutativeInputBothConstrained) {
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
-    std::shared_ptr<pb_graph_t> pattern_graph
-            = std::make_shared<pb_graph_t>("pgraph");
+    std::shared_ptr<pb_graph_t> pattern_graph = std::make_shared<pb_graph_t>();
 
-    auto pconv = pattern_graph->append_op(Convolution, "pconv");
-    auto pelu = pattern_graph->append_op(
-            Elu, {in_edge(IN0, pconv, OUT0)}, "pelu");
-    auto pabsnode = pattern_graph->append_op(
-            Abs, {in_edge(IN0, pconv, OUT0)}, "pabs");
-    auto padd = pattern_graph->append_op(Add,
-            {in_edge(IN0, pelu, OUT0), in_edge(IN1, pabsnode, OUT0)}, "padd");
+    auto pconv = pattern_graph->append_op(Convolution);
+    auto pelu = pattern_graph->append_op(Elu, {in_edge(IN0, pconv, OUT0)});
+    auto pabsnode = pattern_graph->append_op(Abs, {in_edge(IN0, pconv, OUT0)});
+    auto padd = pattern_graph->append_op(
+            Add, {in_edge(IN0, pelu, OUT0), in_edge(IN1, pabsnode, OUT0)});
     UNUSED(padd);
 
     for (size_t elu_offset : {0, 1}) {
@@ -391,18 +383,15 @@ TEST(PatternMatcher, CommutativeInputBothConstrained) {
 }
 
 TEST(PatternMatcher, CommutativeInput) {
-    std::shared_ptr<pb_graph_t> pattern_graph
-            = std::make_shared<pb_graph_t>("pgraph");
-    auto pconv0 = pattern_graph->append_op(Convolution, "pconv0");
+    std::shared_ptr<pb_graph_t> pattern_graph = std::make_shared<pb_graph_t>();
+    auto pconv0 = pattern_graph->append_op(Convolution);
     pconv0->append_decision_function(
             [](op_t *o) -> bool { return o->num_inputs() == 3; });
-    auto pconv1 = pattern_graph->append_op(Convolution, "pconv1");
-    auto prelu0 = pattern_graph->append_op(
-            ReLU, {in_edge(IN0, pconv0, OUT0)}, "prelu0");
-    auto prelu1 = pattern_graph->append_op(
-            ReLU, {in_edge(IN0, pconv1, OUT0)}, "prelu1");
-    auto padd = pattern_graph->append_op(Add,
-            {in_edge(IN0, prelu0, OUT0), in_edge(IN1, prelu1, OUT0)}, "padd");
+    auto pconv1 = pattern_graph->append_op(Convolution);
+    auto prelu0 = pattern_graph->append_op(ReLU, {in_edge(IN0, pconv0, OUT0)});
+    auto prelu1 = pattern_graph->append_op(ReLU, {in_edge(IN0, pconv1, OUT0)});
+    auto padd = pattern_graph->append_op(
+            Add, {in_edge(IN0, prelu0, OUT0), in_edge(IN1, prelu1, OUT0)});
     UNUSED(padd);
 
     graph_t agraph;
@@ -454,13 +443,12 @@ TEST(PatternMatcher, CommutativeInput) {
 // Convolution + BiasAdd + Sqrt
 //
 TEST(PatternMatcher, ConvBiasActivationFusion) {
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto pconv = graphp->append_op(Convolution, "pconv");
-    auto pbias
-            = graphp->append_op(BiasAdd, {in_edge(IN0, pconv, OUT0)}, "pbias");
+    auto graphp = std::make_shared<pb_graph_t>();
+    auto pconv = graphp->append_op(Convolution);
+    auto pbias = graphp->append_op(BiasAdd, {in_edge(IN0, pconv, OUT0)});
     auto pact = graphp->append_alternation(
             {Elu, Sigmoid, ReLU, Clamp, Square, Tanh, Sqrt},
-            {in_edge(IN0, pbias, OUT0)}, "pactivation");
+            {in_edge(IN0, pbias, OUT0)});
     UNUSED(pact);
 
     graph_t agraph;
@@ -493,13 +481,12 @@ TEST(PatternMatcher, ConvBiasActivationFusion) {
 // Convolution + BiasAdd + Add + ELU
 //
 TEST(PatternMatcher, ConvBiasSumActivationFusion) {
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto pconv = graphp->append_op(Convolution, "pconv");
-    auto pbias
-            = graphp->append_op(BiasAdd, {in_edge(IN0, pconv, OUT0)}, "pbias");
-    auto padd = graphp->append_op(Add, {in_edge(IN0, pbias, OUT0)}, "padd");
+    auto graphp = std::make_shared<pb_graph_t>();
+    auto pconv = graphp->append_op(Convolution);
+    auto pbias = graphp->append_op(BiasAdd, {in_edge(IN0, pconv, OUT0)});
+    auto padd = graphp->append_op(Add, {in_edge(IN0, pbias, OUT0)});
     auto pact = graphp->append_alternation(
-            {Elu, ReLU}, {in_edge(IN0, padd, OUT0)}, "pactivation");
+            {Elu, ReLU}, {in_edge(IN0, padd, OUT0)});
     UNUSED(pact);
 
     graph_t agraph;
@@ -539,11 +526,10 @@ TEST(PatternMatcher, ConvBiasSumActivationFusion) {
 // MatMul + BiasAdd + Add
 //
 TEST(PatternMatcher, MatmulBiasSumFusion) {
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto pmatmul = graphp->append_op(MatMul, "pmatmul");
-    auto pbias = graphp->append_op(
-            BiasAdd, {in_edge(IN0, pmatmul, OUT0)}, "pbias");
-    auto padd = graphp->append_op(Add, {in_edge(IN0, pbias, OUT0)}, "padd");
+    auto graphp = std::make_shared<pb_graph_t>();
+    auto pmatmul = graphp->append_op(MatMul);
+    auto pbias = graphp->append_op(BiasAdd, {in_edge(IN0, pmatmul, OUT0)});
+    auto padd = graphp->append_op(Add, {in_edge(IN0, pbias, OUT0)});
     UNUSED(padd);
 
     graph_t agraph;
@@ -584,8 +570,8 @@ TEST(PatternMatcher, MatmulBiasSumFusion) {
 // MatMul + Clamp
 //
 TEST(PatternMatcher, MatmulActivationFusion) {
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto pmat = graphp->append_op(MatMul, "pmatmul");
+    auto graphp = std::make_shared<pb_graph_t>();
+    auto pmat = graphp->append_op(MatMul);
     auto pact = graphp->append_alternation(
             {ReLU, Elu, GELU, Sigmoid, Clamp}, {in_edge(IN0, pmat, OUT0)});
     UNUSED(pact);
@@ -625,14 +611,13 @@ TEST(PatternMatcher, ConvSwishFusion) {
     //   |   |
     // multiply
 
-    std::shared_ptr<pb_graph_t> pattern_graph
-            = std::make_shared<pb_graph_t>("pgraph");
-    auto pconv = pattern_graph->append_op(Convolution, "pconv");
-    auto psigmoid = pattern_graph->append_op(
-            Sigmoid, {in_edge(IN0, pconv, OUT0)}, "psigmoid");
+    std::shared_ptr<pb_graph_t> pattern_graph = std::make_shared<pb_graph_t>();
+    auto pconv = pattern_graph->append_op(Convolution);
+    auto psigmoid
+            = pattern_graph->append_op(Sigmoid, {in_edge(IN0, pconv, OUT0)});
     in_edges_t mul_edges
             = {in_edge(IN0, pconv, OUT0), in_edge(IN1, psigmoid, OUT0)};
-    auto pmul = pattern_graph->append_op(Multiply, mul_edges, "pmul");
+    auto pmul = pattern_graph->append_op(Multiply, mul_edges);
     UNUSED(pmul);
 
     graph_t agraph;
@@ -665,20 +650,16 @@ TEST(PatternMatcher, ConvSwishFusion) {
 
 TEST(PatternMatcher, ConvSumEltwiseFusion) {
     // conv + sum + (Relu / Elu / Clamp / Square / Tanh / Abs / Sqrt)
-    std::shared_ptr<pb_graph_t> pattern_graph
-            = std::make_shared<pb_graph_t>("pgraph");
-    auto pconv = pattern_graph->append_op(Convolution, "pconv");
-    auto padd = pattern_graph->append_op(
-            Add, {in_edge(IN0, pconv, OUT0)}, "padd");
+    std::shared_ptr<pb_graph_t> pattern_graph = std::make_shared<pb_graph_t>();
+    auto pconv = pattern_graph->append_op(Convolution);
+    auto padd = pattern_graph->append_op(Add, {in_edge(IN0, pconv, OUT0)});
 
-    std::shared_ptr<pb_graph_t> optional_act
-            = std::make_shared<pb_graph_t>("poptionalbody");
+    std::shared_ptr<pb_graph_t> optional_act = std::make_shared<pb_graph_t>();
     auto pact = optional_act->append_alternation(
-            {Elu, ReLU, Square, Tanh, Abs, Sqrt, Clamp}, "pactivation");
+            {Elu, ReLU, Square, Tanh, Abs, Sqrt, Clamp});
     optional_act->create_input_port(IN0, pact, IN0);
     optional_act->create_output_port(OUT0, pact, OUT0);
-    pattern_graph->append_optional(
-            optional_act, {in_edge(IN0, padd, OUT0)}, "poptional");
+    pattern_graph->append_optional(optional_act, {in_edge(IN0, padd, OUT0)});
 
     graph_t agraph;
     op_t conv {0, Convolution, "conv"};
@@ -718,18 +699,18 @@ TEST(PatternMatcher, ConvSumEltwiseFusion) {
 // Input of Output "n" of the alternative.
 //
 TEST(PatternMatcher, Alternation) {
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+    auto graphp = std::make_shared<pb_graph_t>();
     // MatMul -> (Add | Multiply)
-    auto pmatmul = graphp->append_op(MatMul, "pmatmul");
+    auto pmatmul = graphp->append_op(MatMul);
 
     // Prepare the alternative graphs
-    auto addgraph = std::make_shared<pb_graph_t>("paddgraph");
-    auto padd = addgraph->append_op(Add, "padd");
+    auto addgraph = std::make_shared<pb_graph_t>();
+    auto padd = addgraph->append_op(Add);
     addgraph->create_input_port(IN0, padd, IN0);
     addgraph->create_input_port(IN1, padd, IN1);
     addgraph->create_output_port(OUT0, padd, OUT0);
-    auto mulgraph = std::make_shared<pb_graph_t>("pmulgraph");
-    auto pmul = mulgraph->append_op(Multiply, "pmul");
+    auto mulgraph = std::make_shared<pb_graph_t>();
+    auto pmul = mulgraph->append_op(Multiply);
     mulgraph->create_input_port(IN0, pmul, IN0);
     mulgraph->create_input_port(IN1, pmul, IN1);
     mulgraph->create_output_port(OUT0, pmul, OUT0);
@@ -738,8 +719,8 @@ TEST(PatternMatcher, Alternation) {
     // that create a new graph add a single node and sets
     // inner consumer and producers.
 
-    auto palt = graphp->append_alternation({addgraph, mulgraph},
-            {in_edge(IN0, pmatmul, OUT0)}, "palternation");
+    auto palt = graphp->append_alternation(
+            {addgraph, mulgraph}, {in_edge(IN0, pmatmul, OUT0)});
     UNUSED(palt);
 
     graph_t agraph;
@@ -782,24 +763,22 @@ TEST(PatternMatcher, AlternationWithConsumer) {
            |
          matmul
     */
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto pmatmul = graphp->append_op(op_kind::MatMul, "pmatmul");
-    auto alter1 = std::make_shared<pb_graph_t>("alter1");
-    auto psoftmax1 = alter1->append_op(op_kind::SoftMax, "psoftmax1");
-    auto prelu1 = alter1->append_op(
-            op_kind::ReLU, {in_edge(0, psoftmax1, 0)}, "prelu1");
+    auto graphp = std::make_shared<pb_graph_t>();
+    auto pmatmul = graphp->append_op(op_kind::MatMul);
+    auto alter1 = std::make_shared<pb_graph_t>();
+    auto psoftmax1 = alter1->append_op(op_kind::SoftMax);
+    auto prelu1 = alter1->append_op(op_kind::ReLU, {in_edge(0, psoftmax1, 0)});
     alter1->create_input_port(0, psoftmax1, 0);
     alter1->create_output_port(0, prelu1, 0);
-    auto alter2 = std::make_shared<pb_graph_t>("alter2");
-    auto prelu2 = alter2->append_op(op_kind::ReLU, "prelu2");
-    auto psoftmax2 = alter2->append_op(
-            op_kind::SoftMax, {in_edge(0, prelu2, 0)}, "psoftmax2");
+    auto alter2 = std::make_shared<pb_graph_t>();
+    auto prelu2 = alter2->append_op(op_kind::ReLU);
+    auto psoftmax2
+            = alter2->append_op(op_kind::SoftMax, {in_edge(0, prelu2, 0)});
     alter2->create_input_port(0, prelu2, 0);
     alter2->create_output_port(0, psoftmax2, 0);
     auto palter = graphp->append_alternation(
-            {alter1, alter2}, {in_edge(0, pmatmul, 0)}, "palter");
-    auto pmatmul2 = graphp->append_op(
-            op_kind::MatMul, {in_edge(0, palter, 0)}, "pmatmul2");
+            {alter1, alter2}, {in_edge(0, pmatmul, 0)});
+    auto pmatmul2 = graphp->append_op(op_kind::MatMul, {in_edge(0, palter, 0)});
     UNUSED(pmatmul2);
 
     graph_t agraph;
@@ -842,13 +821,13 @@ TEST(PatternMatcher, AlternationWithConsumer) {
 // The mapping has to be given as an argument to append_repetition.
 //
 TEST(PatternMatcher, Repetition) {
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+    auto graphp = std::make_shared<pb_graph_t>();
     // Pattern that captures
     // MatMul -> (Add | Multiply) -> ReLU
     // MatMul -> (Add | Multiply) -> (Add | Multiply) -> ReLU
-    auto pmatmul = graphp->append_op(MatMul, "pmatmul");
-    auto repbody = std::make_shared<pb_graph_t>("prepetitionbody");
-    auto paddormul = repbody->append_alternation({Add, Multiply}, "paddormul");
+    auto pmatmul = graphp->append_op(MatMul);
+    auto repbody = std::make_shared<pb_graph_t>();
+    auto paddormul = repbody->append_alternation({Add, Multiply});
     repbody->create_input_port(IN0, paddormul, IN0);
     // No need to create IN1 for the body since it is not connected to
     // an outer pattern.
@@ -856,9 +835,9 @@ TEST(PatternMatcher, Repetition) {
     repbody->create_output_port(OUT0, paddormul, OUT0);
 
     // Repeat 1 or 2 times [1, 3) by mapping OUT0 back to IN0
-    auto rep = graphp->append_repetition(repbody, {OUT0, IN0}, 1, 3,
-            {in_edge(IN0, pmatmul, OUT0)}, "prepetition");
-    auto prelu = graphp->append_op(ReLU, {in_edge(IN0, rep, OUT0)}, "prelu");
+    auto rep = graphp->append_repetition(
+            repbody, {OUT0, IN0}, 1, 3, {in_edge(IN0, pmatmul, OUT0)});
+    auto prelu = graphp->append_op(ReLU, {in_edge(IN0, rep, OUT0)});
     UNUSED(prelu);
 
     graph_t agraph;
@@ -905,15 +884,15 @@ TEST(PatternMatcher, RepetitionFail) {
           \  /
           Div
     */
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto pmatmul = graphp->append_op(MatMul, "pmatmul");
-    auto repbody = std::make_shared<pb_graph_t>("prepetitionbody");
-    auto paddordiv = repbody->append_alternation({Add, Divide}, "paddormul");
+    auto graphp = std::make_shared<pb_graph_t>();
+    auto pmatmul = graphp->append_op(MatMul);
+    auto repbody = std::make_shared<pb_graph_t>();
+    auto paddordiv = repbody->append_alternation({Add, Divide});
     repbody->create_input_port(IN0, paddordiv, IN0);
     repbody->create_output_port(OUT0, paddordiv, OUT0);
 
-    graphp->append_repetition(repbody, {OUT0, IN0}, 2, 3,
-            {in_edge(IN0, pmatmul, OUT0)}, "prepetition");
+    graphp->append_repetition(
+            repbody, {OUT0, IN0}, 2, 3, {in_edge(IN0, pmatmul, OUT0)});
 
     graph_t agraph;
     op_t matmul {0, MatMul, "matmul"};
@@ -948,18 +927,17 @@ TEST(PatternMatcher, RepetitionFail) {
 // more than once.
 //
 TEST(PatternMatcher, Optional) {
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+    auto graphp = std::make_shared<pb_graph_t>();
     // Pattern that captures
     // MatMul -> ReLU
     // MatMul -> (Add | Multiply) -> ReLU
-    auto pmatmul = graphp->append_op(MatMul, "pmatmul");
-    auto repbody = std::make_shared<pb_graph_t>("poptionalbody");
-    auto paddormul = repbody->append_alternation({Add, Multiply}, "paddormul");
+    auto pmatmul = graphp->append_op(MatMul);
+    auto repbody = std::make_shared<pb_graph_t>();
+    auto paddormul = repbody->append_alternation({Add, Multiply});
     repbody->create_input_port(IN0, paddormul, IN0);
     repbody->create_output_port(OUT0, paddormul, OUT0);
-    auto rep = graphp->append_optional(
-            repbody, {in_edge(IN0, pmatmul, OUT0)}, "poptional");
-    auto prelu = graphp->append_op(ReLU, {in_edge(IN0, rep, OUT0)}, "prelu");
+    auto rep = graphp->append_optional(repbody, {in_edge(IN0, pmatmul, OUT0)});
+    auto prelu = graphp->append_op(ReLU, {in_edge(IN0, rep, OUT0)});
     UNUSED(prelu);
 
     graph_t agraph;
@@ -1026,57 +1004,52 @@ TEST(PatternMatcher, Optional) {
 // setting up the contact interface for nested patterns.
 //
 TEST(PatternMatcher, ComplexRepetition) {
-    auto graphp = std::make_shared<pb_graph_t>("pmaingraph");
+    auto graphp = std::make_shared<pb_graph_t>();
     // Basic building block
     // Convolution + (BatchNormInference)? + ReLU
 
     // Conv
-    auto pconv = graphp->append_op(Convolution, "pconv1");
+    auto pconv = graphp->append_op(Convolution);
     // Optional BN
-    auto body = std::make_shared<pb_graph_t>("poptional1body");
-    auto pbn = body->append_op(BatchNormInference, "pbn1");
+    auto body = std::make_shared<pb_graph_t>();
+    auto pbn = body->append_op(BatchNormInference);
     // Interface for body
     body->create_input_port(IN0, pbn, IN0);
     body->create_output_port(OUT0, pbn, OUT0);
-    auto popt = graphp->append_optional(
-            body, {in_edge(IN0, pconv, OUT0)}, "poptional1");
+    auto popt = graphp->append_optional(body, {in_edge(IN0, pconv, OUT0)});
     // ReLU
-    auto prelu = graphp->append_op(ReLU, {in_edge(IN0, popt, OUT0)}, "prelu1");
+    auto prelu = graphp->append_op(ReLU, {in_edge(IN0, popt, OUT0)});
     // Create same block to use as repetition body
-    auto graphp2 = std::make_shared<pb_graph_t>("prepetitionbody");
-    auto pconv2 = graphp2->append_op(Convolution, "pconv2");
-    auto body2 = std::make_shared<pb_graph_t>("poptional2body");
-    auto pbn2 = body2->append_op(BatchNormInference, "pbn2");
+    auto graphp2 = std::make_shared<pb_graph_t>();
+    auto pconv2 = graphp2->append_op(Convolution);
+    auto body2 = std::make_shared<pb_graph_t>();
+    auto pbn2 = body2->append_op(BatchNormInference);
     // Interface for body2
     body2->create_input_port(IN0, pbn2, IN0);
     body2->create_output_port(OUT0, pbn2, OUT0);
-    auto popt2 = graphp2->append_optional(
-            body2, {in_edge(IN0, pconv2, OUT0)}, "poptional2");
-    auto prelu2
-            = graphp2->append_op(ReLU, {in_edge(IN0, popt2, OUT0)}, "prelu2");
+    auto popt2 = graphp2->append_optional(body2, {in_edge(IN0, pconv2, OUT0)});
+    auto prelu2 = graphp2->append_op(ReLU, {in_edge(IN0, popt2, OUT0)});
     // Interface for graphp2
     graphp2->create_input_port(IN0, pconv2, IN0);
     graphp2->create_output_port(OUT0, prelu2, OUT0);
 
     // repeat body exactly two times
-    auto graphp3 = std::make_shared<pb_graph_t>("poptional3");
-    auto prep = graphp3->append_repetition(
-            graphp2, {OUT0, IN0}, 2, 3, "prepetition");
+    auto graphp3 = std::make_shared<pb_graph_t>();
+    auto prep = graphp3->append_repetition(graphp2, {OUT0, IN0}, 2, 3);
     // Interface for graphp3
     graphp3->create_input_port(IN0, prep, IN0);
     graphp3->create_output_port(OUT0, prep, OUT0);
 
     // optional repeated body followed by an "Add"
-    auto graphp4 = std::make_shared<pb_graph_t>("poptional4body");
-    auto popt3 = graphp4->append_optional(graphp3, "poptional3");
-    auto padd = graphp4->append_op(Add, {in_edge(IN0, popt3, OUT0)}, "padd");
+    auto graphp4 = std::make_shared<pb_graph_t>();
+    auto popt3 = graphp4->append_optional(graphp3);
+    auto padd = graphp4->append_op(Add, {in_edge(IN0, popt3, OUT0)});
     // Interface for graphp4
     graphp4->create_input_port(IN0, popt3, IN0);
     graphp4->create_output_port(OUT0, padd, OUT0);
 
     // Append the complex pattern to relu
-    auto popt4 = graphp->append_optional(
-            graphp4, {in_edge(IN0, prelu, OUT0)}, "poptional4");
+    auto popt4 = graphp->append_optional(graphp4, {in_edge(IN0, prelu, OUT0)});
     UNUSED(popt4);
 
     graph_t agraph;
@@ -1170,18 +1143,15 @@ TEST(PatternMatcher, ComplexRepetition) {
 }
 
 TEST(PatternMatcher, ParallelMatmul) {
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+    auto graphp = std::make_shared<pb_graph_t>();
     // Pattern that captures shared input to three MatMuls
     //            |--> MatMul
     //   Wildcard ----> MatMul
     //            |--> MatMul
-    auto pwild = graphp->append_op(Wildcard, "pwild");
-    auto pmm1 = graphp->append_op(
-            MatMul, {in_edge(IN0, pwild, OUT0)}, "pmatmul1");
-    auto pmm2 = graphp->append_op(
-            MatMul, {in_edge(IN0, pwild, OUT0)}, "pmatmul2");
-    auto pmm3 = graphp->append_op(
-            MatMul, {in_edge(IN0, pwild, OUT0)}, "pmatmul3");
+    auto pwild = graphp->append_op(Wildcard);
+    auto pmm1 = graphp->append_op(MatMul, {in_edge(IN0, pwild, OUT0)});
+    auto pmm2 = graphp->append_op(MatMul, {in_edge(IN0, pwild, OUT0)});
+    auto pmm3 = graphp->append_op(MatMul, {in_edge(IN0, pwild, OUT0)});
     UNUSED(pmm1);
     UNUSED(pmm2);
     UNUSED(pmm3);
@@ -1225,17 +1195,16 @@ TEST(PatternMatcher, OptionalInput) {
        MatMul                 MatMul
          |                       |
     */
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto pdq0 = graphp->append_op(Dequantize, "pdq0");
-    auto pdq1 = graphp->append_op(Dequantize, "pdq1");
-    auto optbody = std::make_shared<pb_graph_t>("poptionalbody");
-    auto preshape = optbody->append_op(StaticReshape, "preshape");
+    auto graphp = std::make_shared<pb_graph_t>();
+    auto pdq0 = graphp->append_op(Dequantize);
+    auto pdq1 = graphp->append_op(Dequantize);
+    auto optbody = std::make_shared<pb_graph_t>();
+    auto preshape = optbody->append_op(StaticReshape);
     optbody->create_input_port(IN0, preshape, IN0);
     optbody->create_output_port(OUT0, preshape, OUT0);
-    auto popt = graphp->append_optional(
-            optbody, {in_edge(IN0, pdq1, OUT0)}, "poptional");
-    auto pmatmul = graphp->append_op(MatMul,
-            {in_edge(IN0, pdq0, OUT0), in_edge(IN1, popt, OUT0)}, "prelu");
+    auto popt = graphp->append_optional(optbody, {in_edge(IN0, pdq1, OUT0)});
+    auto pmatmul = graphp->append_op(
+            MatMul, {in_edge(IN0, pdq0, OUT0), in_edge(IN1, popt, OUT0)});
     UNUSED(pmatmul);
 
     graph_t agraph;
@@ -1279,21 +1248,19 @@ TEST(PatternMatcher, OptionalInput) {
 // (Matmul -> (((ReLU | Sigmoid | Tanh)))*)*
 //
 TEST(PatternMatcher, NestedMatchingFailure) {
-    auto pgraph = std::make_shared<pb_graph_t>("pgraph");
-    auto mlp_layer = std::make_shared<pb_graph_t>("pmlp");
-    auto matmul_layer = mlp_layer->append_op(op_kind::MatMul, "pmatmul");
-    auto optional_activation_subgraph
-            = std::make_shared<pb_graph_t>("poptional_activation_subgraph");
+    auto pgraph = std::make_shared<pb_graph_t>();
+    auto mlp_layer = std::make_shared<pb_graph_t>();
+    auto matmul_layer = mlp_layer->append_op(op_kind::MatMul);
+    auto optional_activation_subgraph = std::make_shared<pb_graph_t>();
     auto activation = optional_activation_subgraph->append_alternation(
-            {op_kind::ReLU, op_kind::Sigmoid, op_kind::Tanh}, "palternation");
+            {op_kind::ReLU, op_kind::Sigmoid, op_kind::Tanh});
     optional_activation_subgraph->create_input_port(0, activation, 0);
     optional_activation_subgraph->create_output_port(0, activation, 0);
-    auto optional_activation
-            = mlp_layer->append_optional(optional_activation_subgraph,
-                    {in_edge(0, matmul_layer, 0)}, "poptional_activation");
+    auto optional_activation = mlp_layer->append_optional(
+            optional_activation_subgraph, {in_edge(0, matmul_layer, 0)});
     mlp_layer->create_input_port(0, matmul_layer, 0);
     mlp_layer->create_output_port(0, optional_activation, 0);
-    pgraph->append_repetition(mlp_layer, {0, 0}, 1, 2, "prepetition");
+    pgraph->append_repetition(mlp_layer, {0, 0}, 1, 2);
 
     graph_t agraph;
     op_t matmul {0, MatMul, "matmul"};
@@ -1320,14 +1287,14 @@ TEST(PatternMatcher, RepetitionWithMultipleConsumers) {
         |
        relu x [1,3)
     */
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto pconv = graphp->append_op(Convolution, "pconv");
-    auto repbody = std::make_shared<pb_graph_t>("prepetitionbody");
-    auto prelu = repbody->append_op(ReLU, "prelu");
+    auto graphp = std::make_shared<pb_graph_t>();
+    auto pconv = graphp->append_op(Convolution);
+    auto repbody = std::make_shared<pb_graph_t>();
+    auto prelu = repbody->append_op(ReLU);
     repbody->create_input_port(IN0, prelu, IN0);
     repbody->create_output_port(OUT0, prelu, OUT0);
-    graphp->append_repetition(repbody, {OUT0, IN0}, 1, 3,
-            {in_edge(IN0, pconv, OUT0)}, "prepetition");
+    graphp->append_repetition(
+            repbody, {OUT0, IN0}, 1, 3, {in_edge(IN0, pconv, OUT0)});
 
     /* graph
        conv
@@ -1373,10 +1340,10 @@ TEST(PatternMatcher, MultipleConsumer) {
    Matmul               /
                      MatMul
     */
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto trans = graphp->append_op(StaticTranspose, "trans");
-    auto mat1 = graphp->append_op(MatMul, {in_edge(IN1, trans, OUT0)}, "mat1");
-    auto mat2 = graphp->append_op(MatMul, {in_edge(IN1, trans, OUT0)}, "mat2");
+    auto graphp = std::make_shared<pb_graph_t>();
+    auto trans = graphp->append_op(StaticTranspose);
+    auto mat1 = graphp->append_op(MatMul, {in_edge(IN1, trans, OUT0)});
+    auto mat2 = graphp->append_op(MatMul, {in_edge(IN1, trans, OUT0)});
     UNUSED(mat1);
     UNUSED(mat2);
 
@@ -1437,17 +1404,16 @@ TEST(PatternMatcher, MultipleConsumerDifferentPartition) {
      Mul                  \
                    SoftMaxBackProp
     */
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto matmul_node = graphp->append_op(MatMul, "matmul");
-    auto div_node = graphp->append_op(
-            Divide, {in_edge(IN0, matmul_node, OUT0)}, "div");
-    auto add_node
-            = graphp->append_op(Add, {in_edge(IN0, div_node, OUT0)}, "add");
-    auto softmax_node = graphp->append_op(
-            SoftMax, {in_edge(IN0, add_node, OUT0)}, "softmax");
+    auto graphp = std::make_shared<pb_graph_t>();
+    auto matmul_node = graphp->append_op(MatMul);
+    auto div_node
+            = graphp->append_op(Divide, {in_edge(IN0, matmul_node, OUT0)});
+    auto add_node = graphp->append_op(Add, {in_edge(IN0, div_node, OUT0)});
+    auto softmax_node
+            = graphp->append_op(SoftMax, {in_edge(IN0, add_node, OUT0)});
     softmax_node->allow_external_outputs();
-    auto mul_node = graphp->append_op(
-            Multiply, {in_edge(IN0, softmax_node, OUT0)}, "mul");
+    auto mul_node
+            = graphp->append_op(Multiply, {in_edge(IN0, softmax_node, OUT0)});
     UNUSED(mul_node);
 
     graph_t agraph;
@@ -1503,25 +1469,23 @@ TEST(PatternMatcher, MultipleConsumerDifferentPartition) {
 }
 
 TEST(PatternMatcher, NestedRepetitionOptional) {
-    auto pgraph = std::make_shared<pb_graph_t>("pgraph");
-    auto mlp_layer = std::make_shared<pb_graph_t>("mlp_layer");
-    auto matmul = mlp_layer->append_op(op_kind::MatMul, "matmul");
-    auto optional_add_subgraph
-            = std::make_shared<pb_graph_t>("optional_add_subgraph");
-    auto optional_add
-            = optional_add_subgraph->append_op(op_kind::Add, "optional_add");
+    auto pgraph = std::make_shared<pb_graph_t>();
+    auto mlp_layer = std::make_shared<pb_graph_t>();
+    auto matmul = mlp_layer->append_op(op_kind::MatMul);
+    auto optional_add_subgraph = std::make_shared<pb_graph_t>();
+    auto optional_add = optional_add_subgraph->append_op(op_kind::Add);
     optional_add_subgraph->create_input_port(0, optional_add, 0);
     optional_add_subgraph->create_output_port(0, optional_add, 0);
     auto add = mlp_layer->append_optional(
-            optional_add_subgraph, {in_edge(0, matmul, 0)}, "add");
+            optional_add_subgraph, {in_edge(0, matmul, 0)});
 
     auto activation = mlp_layer->append_alternation(
             {op_kind::ReLU, op_kind::Sigmoid, op_kind::GELU},
-            {in_edge(0, add, 0)}, "activation");
+            {in_edge(0, add, 0)});
 
     mlp_layer->create_input_port(0, matmul, 0);
     mlp_layer->create_output_port(0, activation, 0);
-    pgraph->append_repetition(mlp_layer, {0, 0}, 1, 10, "rep_unit");
+    pgraph->append_repetition(mlp_layer, {0, 0}, 1, 10);
 
     graph_t agraph;
     op_t matmul_op {0, MatMul, "matmul"};
@@ -1565,19 +1529,19 @@ TEST(PatternMatcher, RepetitionExternalOutput) {
           |    \
           relu  ext2
     */
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto fwd_mlp_layer = std::make_shared<pb_graph_t>("fwd_mlp_layer");
-    auto matmul = fwd_mlp_layer->append_op(op_kind::MatMul, "matmul");
+    auto graphp = std::make_shared<pb_graph_t>();
+    auto fwd_mlp_layer = std::make_shared<pb_graph_t>();
+    auto matmul = fwd_mlp_layer->append_op(op_kind::MatMul);
     matmul->allow_external_outputs();
     auto activation = fwd_mlp_layer->append_alternation(
             {op_kind::ReLU, op_kind::Sigmoid, op_kind::Tanh},
-            {in_edge(0, matmul, 0)}, "activation");
+            {in_edge(0, matmul, 0)});
     activation->allow_external_outputs();
     fwd_mlp_layer->create_input_port(0, matmul, 0);
     fwd_mlp_layer->create_output_port(0, activation, 0);
 
     // repeat layer for [1, 10) times
-    graphp->append_repetition(fwd_mlp_layer, {0, 0}, 1, 10, "rep_unit");
+    graphp->append_repetition(fwd_mlp_layer, {0, 0}, 1, 10);
 
     graph_t agraph;
     op_t matmul0 {0, MatMul, "matmul0"};
@@ -1650,19 +1614,19 @@ TEST(PatternMatcher, RepetitionExternalOutputSwapOrder) {
             /  |
           ext2 relu
     */
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto fwd_mlp_layer = std::make_shared<pb_graph_t>("fwd_mlp_layer");
-    auto matmul = fwd_mlp_layer->append_op(op_kind::MatMul, "matmul");
+    auto graphp = std::make_shared<pb_graph_t>();
+    auto fwd_mlp_layer = std::make_shared<pb_graph_t>();
+    auto matmul = fwd_mlp_layer->append_op(op_kind::MatMul);
     matmul->allow_external_outputs();
     auto activation = fwd_mlp_layer->append_alternation(
             {op_kind::ReLU, op_kind::Sigmoid, op_kind::Tanh},
-            {in_edge(0, matmul, 0)}, "activation");
+            {in_edge(0, matmul, 0)});
     activation->allow_external_outputs();
     fwd_mlp_layer->create_input_port(0, matmul, 0);
     fwd_mlp_layer->create_output_port(0, activation, 0);
 
     // repeat layer for [1, 10) times
-    graphp->append_repetition(fwd_mlp_layer, {0, 0}, 1, 10, "rep_unit");
+    graphp->append_repetition(fwd_mlp_layer, {0, 0}, 1, 10);
 
     graph_t agraph;
     op_t matmul0 {0, MatMul, "matmul0"};
@@ -1742,12 +1706,11 @@ TEST(PatternMatcher, CyclicCheck) {
           \  /
            add
     */
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto pmatmul = graphp->append_op(op_kind::MatMul, "pmatmul");
+    auto graphp = std::make_shared<pb_graph_t>();
+    auto pmatmul = graphp->append_op(op_kind::MatMul);
     pmatmul->allow_external_outputs();
-    auto prelu = graphp->append_op(
-            op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
-    auto padd = graphp->append_op(op_kind::Add, {in_edge(0, prelu, 0)}, "padd");
+    auto prelu = graphp->append_op(op_kind::ReLU, {in_edge(0, pmatmul, 0)});
+    auto padd = graphp->append_op(op_kind::Add, {in_edge(0, prelu, 0)});
     UNUSED(padd);
 
     graph_t agraph;
@@ -1798,12 +1761,11 @@ TEST(PatternMatcher, UndirectCyclicCheck) {
           \  /
            add
     */
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto pmatmul = graphp->append_op(op_kind::MatMul, "pmatmul");
+    auto graphp = std::make_shared<pb_graph_t>();
+    auto pmatmul = graphp->append_op(op_kind::MatMul);
     pmatmul->allow_external_outputs();
-    auto prelu = graphp->append_op(
-            op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
-    auto padd = graphp->append_op(op_kind::Add, {in_edge(0, prelu, 0)}, "padd");
+    auto prelu = graphp->append_op(op_kind::ReLU, {in_edge(0, pmatmul, 0)});
+    auto padd = graphp->append_op(op_kind::Add, {in_edge(0, prelu, 0)});
     UNUSED(padd);
 
     graph_t agraph;
@@ -1866,19 +1828,18 @@ TEST(PatternMatcher, ComplexCyclicCheck) {
             \  /
              add
     */
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto fwd_mlp_layer = std::make_shared<pb_graph_t>("fwd_mlp_layer");
-    auto pmatmul = fwd_mlp_layer->append_op(op_kind::MatMul, "pmatmul");
+    auto graphp = std::make_shared<pb_graph_t>();
+    auto fwd_mlp_layer = std::make_shared<pb_graph_t>();
+    auto pmatmul = fwd_mlp_layer->append_op(op_kind::MatMul);
     pmatmul->allow_external_outputs();
-    auto prelu = fwd_mlp_layer->append_op(
-            op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
-    auto padd = fwd_mlp_layer->append_op(
-            op_kind::Add, {in_edge(0, prelu, 0)}, "padd");
+    auto prelu
+            = fwd_mlp_layer->append_op(op_kind::ReLU, {in_edge(0, pmatmul, 0)});
+    auto padd = fwd_mlp_layer->append_op(op_kind::Add, {in_edge(0, prelu, 0)});
     fwd_mlp_layer->create_input_port(0, pmatmul, 0);
     fwd_mlp_layer->create_output_port(0, padd, 0);
 
     // repeat layer for [1, 10) times
-    graphp->append_repetition(fwd_mlp_layer, {0, 0}, 1, 10, "rep_unit");
+    graphp->append_repetition(fwd_mlp_layer, {0, 0}, 1, 10);
 
     graph_t agraph;
     op_t matmul0 {0, MatMul, "matmu0"};
@@ -1948,19 +1909,18 @@ TEST(PatternMatcher, ComplexUndirectCyclicCheck) {
             \  /
              add
     */
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto fwd_mlp_layer = std::make_shared<pb_graph_t>("fwd_mlp_layer");
-    auto pmatmul = fwd_mlp_layer->append_op(op_kind::MatMul, "pmatmul");
+    auto graphp = std::make_shared<pb_graph_t>();
+    auto fwd_mlp_layer = std::make_shared<pb_graph_t>();
+    auto pmatmul = fwd_mlp_layer->append_op(op_kind::MatMul);
     pmatmul->allow_external_outputs();
-    auto prelu = fwd_mlp_layer->append_op(
-            op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
-    auto padd = fwd_mlp_layer->append_op(
-            op_kind::Add, {in_edge(0, prelu, 0)}, "padd");
+    auto prelu
+            = fwd_mlp_layer->append_op(op_kind::ReLU, {in_edge(0, pmatmul, 0)});
+    auto padd = fwd_mlp_layer->append_op(op_kind::Add, {in_edge(0, prelu, 0)});
     fwd_mlp_layer->create_input_port(0, pmatmul, 0);
     fwd_mlp_layer->create_output_port(0, padd, 0);
 
     // repeat layer for [1, 10) times
-    graphp->append_repetition(fwd_mlp_layer, {0, 0}, 1, 10, "rep_unit");
+    graphp->append_repetition(fwd_mlp_layer, {0, 0}, 1, 10);
 
     graph_t agraph;
     op_t matmul0 {0, MatMul, "matmu0"};
@@ -2023,21 +1983,19 @@ TEST(PatternMatcher, OptionalSubgraphFailure) {
               |
         [relu, sigmoid, tanh]*[0,1] ]*[1,5]
     */
-    auto pgraph = std::make_shared<pb_graph_t>("pgraph");
-    auto mlp_layer = std::make_shared<pb_graph_t>("pmlp");
-    auto matmul_layer = mlp_layer->append_op(op_kind::MatMul, "pmatmul");
-    auto optional_activation_subgraph
-            = std::make_shared<pb_graph_t>("poptional_activation_subgraph");
+    auto pgraph = std::make_shared<pb_graph_t>();
+    auto mlp_layer = std::make_shared<pb_graph_t>();
+    auto matmul_layer = mlp_layer->append_op(op_kind::MatMul);
+    auto optional_activation_subgraph = std::make_shared<pb_graph_t>();
     auto activation = optional_activation_subgraph->append_alternation(
-            {op_kind::ReLU, op_kind::Sigmoid, op_kind::Tanh}, "palternation");
+            {op_kind::ReLU, op_kind::Sigmoid, op_kind::Tanh});
     optional_activation_subgraph->create_input_port(0, activation, 0);
     optional_activation_subgraph->create_output_port(0, activation, 0);
-    auto optional_activation
-            = mlp_layer->append_optional(optional_activation_subgraph,
-                    {in_edge(0, matmul_layer, 0)}, "poptional_activation");
+    auto optional_activation = mlp_layer->append_optional(
+            optional_activation_subgraph, {in_edge(0, matmul_layer, 0)});
     mlp_layer->create_input_port(0, matmul_layer, 0);
     mlp_layer->create_output_port(0, optional_activation, 0);
-    pgraph->append_repetition(mlp_layer, {0, 0}, 1, 5, "prepetition");
+    pgraph->append_repetition(mlp_layer, {0, 0}, 1, 5);
 
     graph_t agraph;
     op_t matmul {0, MatMul, "matmul"};
@@ -2073,22 +2031,20 @@ TEST(PatternMatcher, OptionalSubgraphFailure3) {
                  |
               [relu]*[0,1] ]*[1,5]
     */
-    auto pgraph = std::make_shared<pb_graph_t>("pgraph");
-    auto mlp_layer = std::make_shared<pb_graph_t>("pmlp");
-    auto matmul_layer = mlp_layer->append_op(op_kind::MatMul, "pmatmul");
+    auto pgraph = std::make_shared<pb_graph_t>();
+    auto mlp_layer = std::make_shared<pb_graph_t>();
+    auto matmul_layer = mlp_layer->append_op(op_kind::MatMul);
     auto relu_layer = mlp_layer->append_op(
-            op_kind::ReLU, {in_edge(0, matmul_layer, 0)}, "prelu");
-    auto optional_relu_subgraph
-            = std::make_shared<pb_graph_t>("poptional_relu_subgraph");
-    auto activation
-            = optional_relu_subgraph->append_op(op_kind::ReLU, "prelu2");
+            op_kind::ReLU, {in_edge(0, matmul_layer, 0)});
+    auto optional_relu_subgraph = std::make_shared<pb_graph_t>();
+    auto activation = optional_relu_subgraph->append_op(op_kind::ReLU);
     optional_relu_subgraph->create_input_port(0, activation, 0);
     optional_relu_subgraph->create_output_port(0, activation, 0);
-    auto optional_relu = mlp_layer->append_optional(optional_relu_subgraph,
-            {in_edge(0, relu_layer, 0)}, "poptional_relu");
+    auto optional_relu = mlp_layer->append_optional(
+            optional_relu_subgraph, {in_edge(0, relu_layer, 0)});
     mlp_layer->create_input_port(0, matmul_layer, 0);
     mlp_layer->create_output_port(0, optional_relu, 0);
-    pgraph->append_repetition(mlp_layer, {0, 0}, 1, 5, "prepetition");
+    pgraph->append_repetition(mlp_layer, {0, 0}, 1, 5);
 
     graph_t agraph;
     op_t matmul {0, MatMul, "matmul"};
@@ -2118,28 +2074,25 @@ TEST(PatternMatcher, OptionalSubgraphFailure4) {
                  |
               [relu]*[0,1] ]*[1,5]
     */
-    auto pgraph = std::make_shared<pb_graph_t>("pgraph");
-    auto mlp_layer = std::make_shared<pb_graph_t>("pmlp");
-    auto matmul_layer = mlp_layer->append_op(op_kind::MatMul, "pmatmul");
-    auto optional_add_subgraph
-            = std::make_shared<pb_graph_t>("poptional_add_subgraph");
-    auto add = optional_add_subgraph->append_op(op_kind::Add, "palternation");
+    auto pgraph = std::make_shared<pb_graph_t>();
+    auto mlp_layer = std::make_shared<pb_graph_t>();
+    auto matmul_layer = mlp_layer->append_op(op_kind::MatMul);
+    auto optional_add_subgraph = std::make_shared<pb_graph_t>();
+    auto add = optional_add_subgraph->append_op(op_kind::Add);
     optional_add_subgraph->create_input_port(0, add, 0);
     optional_add_subgraph->create_output_port(0, add, 0);
-    auto optional_add = mlp_layer->append_optional(optional_add_subgraph,
-            {in_edge(0, matmul_layer, 0)}, "poptional_add");
-    auto optional_activation_subgraph
-            = std::make_shared<pb_graph_t>("poptional_activation_subgraph");
+    auto optional_add = mlp_layer->append_optional(
+            optional_add_subgraph, {in_edge(0, matmul_layer, 0)});
+    auto optional_activation_subgraph = std::make_shared<pb_graph_t>();
     auto activation = optional_activation_subgraph->append_alternation(
-            {op_kind::ReLU, op_kind::Sigmoid, op_kind::Tanh}, "palternation");
+            {op_kind::ReLU, op_kind::Sigmoid, op_kind::Tanh});
     optional_activation_subgraph->create_input_port(0, activation, 0);
     optional_activation_subgraph->create_output_port(0, activation, 0);
-    auto optional_activation
-            = mlp_layer->append_optional(optional_activation_subgraph,
-                    {in_edge(0, optional_add, 0)}, "poptional_activation");
+    auto optional_activation = mlp_layer->append_optional(
+            optional_activation_subgraph, {in_edge(0, optional_add, 0)});
     mlp_layer->create_input_port(0, matmul_layer, 0);
     mlp_layer->create_output_port(0, optional_activation, 0);
-    pgraph->append_repetition(mlp_layer, {0, 0}, 1, 5, "prepetition");
+    pgraph->append_repetition(mlp_layer, {0, 0}, 1, 5);
 
     graph_t agraph;
     op_t matmul {0, MatMul, "matmul"};
@@ -2188,20 +2141,20 @@ TEST(PatternMatcher, ShouldNotMatchIdenticalResblock) {
         pb_op_t *conv = pgraph->append_op(op_kind::Convolution, in_edges);
 
         // Optional bias_add
-        auto popt_bias_graph = std::make_shared<pb_graph_t>("poptional_bias");
-        pb_op_t *pbias = popt_bias_graph->append_op(op_kind::BiasAdd, "pbias");
+        auto popt_bias_graph = std::make_shared<pb_graph_t>();
+        pb_op_t *pbias = popt_bias_graph->append_op(op_kind::BiasAdd);
         popt_bias_graph->create_input_port(0, pbias, 0);
         popt_bias_graph->create_output_port(0, pbias, 0);
         auto popt_bias = pgraph->append_optional(
-                popt_bias_graph, in_edges_t {in_edge(0, conv, 0)}, "popt_bias");
+                popt_bias_graph, in_edges_t {in_edge(0, conv, 0)});
 
         // Optional post relu
-        auto popt_eltwise_graph = std::make_shared<pb_graph_t>("popt_eltwise");
+        auto popt_eltwise_graph = std::make_shared<pb_graph_t>();
         pb_op_t *peltwise = popt_eltwise_graph->append_op(op_kind::ReLU);
         popt_eltwise_graph->create_input_port(0, peltwise, 0);
         popt_eltwise_graph->create_output_port(0, peltwise, 0);
-        auto popt_eltwise = pgraph->append_optional(popt_eltwise_graph,
-                in_edges_t {in_edge(0, popt_bias, 0)}, "popt_eltwise");
+        auto popt_eltwise = pgraph->append_optional(
+                popt_eltwise_graph, in_edges_t {in_edge(0, popt_bias, 0)});
         return reinterpret_cast<pb_op_t *>(popt_eltwise);
     };
 
@@ -2213,12 +2166,12 @@ TEST(PatternMatcher, ShouldNotMatchIdenticalResblock) {
         pb_op_t *conv = pgraph->append_op(op_kind::Convolution, in_edges);
 
         // Optional bias_add
-        auto popt_bias_graph = std::make_shared<pb_graph_t>("poptional_bias");
-        pb_op_t *pbias = popt_bias_graph->append_op(op_kind::BiasAdd, "pbias");
+        auto popt_bias_graph = std::make_shared<pb_graph_t>();
+        pb_op_t *pbias = popt_bias_graph->append_op(op_kind::BiasAdd);
         popt_bias_graph->create_input_port(0, pbias, 0);
         popt_bias_graph->create_output_port(0, pbias, 0);
         auto popt_bias = pgraph->append_optional(
-                popt_bias_graph, in_edges_t {in_edge(0, conv, 0)}, "popt_bias");
+                popt_bias_graph, in_edges_t {in_edge(0, conv, 0)});
 
         in_edges_t add_in_edges = in_edges_t {in_edge(0, popt_bias, 0)};
         if (post_src) { add_in_edges.emplace_back(in_edge(1, post_src, 0)); }
@@ -2229,7 +2182,7 @@ TEST(PatternMatcher, ShouldNotMatchIdenticalResblock) {
         return relu;
     };
 
-    auto pgraph = std::make_shared<pb_graph_t>("pgraph");
+    auto pgraph = std::make_shared<pb_graph_t>();
     pb_op_t *dst0 = conv_opt_bias_opt_eltwise(pgraph, nullptr);
     pb_op_t *dst1 = conv_opt_bias_opt_eltwise(pgraph, dst0);
     pb_op_t *dst2 = conv_opt_bias_opt_eltwise(pgraph, nullptr);
@@ -2309,18 +2262,16 @@ TEST(PatternMatcher, RepetitionOportExternalOutput) {
            |  \
        sigmoid relu_bwd
     */
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
-    auto grep = std::make_shared<pb_graph_t>("grep");
-    auto pmatmul = grep->append_op(op_kind::MatMul, "pmatmul");
-    auto prelu
-            = grep->append_op(op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
+    auto graphp = std::make_shared<pb_graph_t>();
+    auto grep = std::make_shared<pb_graph_t>();
+    auto pmatmul = grep->append_op(op_kind::MatMul);
+    auto prelu = grep->append_op(op_kind::ReLU, {in_edge(0, pmatmul, 0)});
     prelu->allow_external_outputs();
     grep->create_input_port(0, pmatmul, 0);
     grep->create_output_port(0, prelu, 0);
-    auto prep = graphp->append_repetition(grep, {0, 0}, 1, 10, "prep");
+    auto prep = graphp->append_repetition(grep, {0, 0}, 1, 10);
 
-    auto psigmoid = graphp->append_op(
-            op_kind::Sigmoid, {in_edge(0, prep, 0)}, "psigmoid");
+    auto psigmoid = graphp->append_op(op_kind::Sigmoid, {in_edge(0, prep, 0)});
 
     UNUSED(psigmoid);
 
@@ -2387,13 +2338,13 @@ TEST(PatternMatcher, OptionalCommutative) {
         \  |
           Add
     */
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+    auto graphp = std::make_shared<pb_graph_t>();
 
     auto prelu = graphp->append_op(op_kind::ReLU);
     auto pconv
             = graphp->append_op(op_kind::Convolution, {in_edge(0, prelu, 0)});
-    auto biasadd_subgraph = std::make_shared<pb_graph_t>("biasadd_subgraph");
-    auto biasadd = biasadd_subgraph->append_op(op_kind::BiasAdd, "biasadd");
+    auto biasadd_subgraph = std::make_shared<pb_graph_t>();
+    auto biasadd = biasadd_subgraph->append_op(op_kind::BiasAdd);
     biasadd_subgraph->create_input_port(0, biasadd, 0);
     biasadd_subgraph->create_output_port(0, biasadd, 0);
     auto optional_biasadd
@@ -2455,14 +2406,14 @@ TEST(PatternMatcher, AlternativeCommutative) {
         \  |
           Add
     */
-    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+    auto graphp = std::make_shared<pb_graph_t>();
 
     auto prelu = graphp->append_op(op_kind::ReLU);
     auto pconv
             = graphp->append_op(op_kind::Convolution, {in_edge(0, prelu, 0)});
-    auto palt_subgraph = std::make_shared<pb_graph_t>("alt_subgraph");
+    auto palt_subgraph = std::make_shared<pb_graph_t>();
     auto palt = palt_subgraph->append_alternation(
-            {op_kind::ReLU, op_kind::Tanh, op_kind::Sigmoid}, "alt");
+            {op_kind::ReLU, op_kind::Tanh, op_kind::Sigmoid});
     palt_subgraph->create_input_port(0, palt, 0);
     palt_subgraph->create_output_port(0, palt, 0);
     auto optional_biasadd
@@ -2504,28 +2455,27 @@ TEST(PatternMatcher, AlternativeCommutative) {
 }
 
 TEST(PatternMatcher, CreateOutputPort) {
-    auto post_subgraph = std::make_shared<pb_graph_t>("post_subgraph");
+    auto post_subgraph = std::make_shared<pb_graph_t>();
     std::vector<graph::op_kind_t> unary_binary
             = {graph::op_kind::Abs, graph::op_kind::Clamp};
-    auto alternative_post_op = post_subgraph->append_alternation(
-            unary_binary, "alternative_post_op");
+    auto alternative_post_op = post_subgraph->append_alternation(unary_binary);
     ASSERT_NO_THROW(alternative_post_op->allow_internal_inputs());
     ASSERT_TRUE(post_subgraph->create_input_port(0, alternative_post_op, 0));
     ASSERT_TRUE(post_subgraph->create_output_port(1, alternative_post_op, 0));
 }
 
 TEST(PatternMatcher, CreateInputPort) {
-    auto alt_graph = std::make_shared<pb_graph_t>("alt_graph");
+    auto alt_graph = std::make_shared<pb_graph_t>();
     std::vector<graph::op_kind_t> unary_binary
             = {graph::op_kind::GELU, graph::op_kind::HardSwish};
-    auto palt = alt_graph->append_alternation(unary_binary, "palt");
+    auto palt = alt_graph->append_alternation(unary_binary);
     ASSERT_NO_THROW(palt->allow_internal_inputs());
     ASSERT_TRUE(alt_graph->create_input_port(0, palt, 0));
     ASSERT_FALSE(alt_graph->create_input_port(0, palt, 0));
 }
 
 TEST(PatternMatcher, GraphNodeName) {
-    auto alt_graph = std::make_shared<pb_graph_t>("alt_graph");
+    auto alt_graph = std::make_shared<pb_graph_t>();
     std::shared_ptr<pb_node_t> node_ptr = alt_graph;
     ASSERT_NO_THROW(auto node_str = node_ptr->get_name());
 }
