@@ -34,7 +34,12 @@ using dims_t = dnnl_dims_t;
 using stride_t = dnnl_dim_t;
 using strides_t = dnnl_dims_t;
 
+#ifdef DNNL_STATUS_NODISCARD
+// nodiscard is not allowed in type aliases
+using status_t __attribute__((warn_unused_result)) = dnnl_status_t;
+#else
 using status_t = dnnl_status_t;
+#endif
 namespace status {
 const status_t success = dnnl_success;
 const status_t out_of_memory = dnnl_out_of_memory;
