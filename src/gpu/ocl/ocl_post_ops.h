@@ -68,9 +68,11 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
 #define FWD_XNARY_GENERIC_DT(po_kind, algorithm, result, result_elem_dt, \
         arg0_ptr, arg0_len, arg1_ptr, arg1_len, alpha, beta, scale) \
     { \
-        const unsigned out_len = max((unsigned)arg0_len, (unsigned)arg1_len); \
+        auto ty = arg0_len + arg1_len; \
+        const typeof(ty) out_len \
+                = max((typeof(ty))arg0_len, (typeof(ty))arg1_len); \
         result_elem_dt *res_ptr = (result_elem_dt *)(&result); \
-        unroll_for(unsigned idx = 0; idx < out_len; ++idx) { \
+        unroll_for(typeof(out_len + 0) idx = 0; idx < out_len; ++idx) { \
             if (arg0_len == 1 && arg1_len == 1) { \
                 *res_ptr = fwd_Xnary(po_kind, algorithm, \
                         convert_float(*arg0_ptr), convert_float(*arg1_ptr), \
@@ -104,7 +106,7 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
 
 #define FMA_MIXED(acc_nof_elems, a, a_elem_dt, b, acc, acc_elem_dt) \
     { \
-        unsigned nof_elems = acc_nof_elems; \
+        auto nof_elems = acc_nof_elems; \
         a_elem_dt *a_ptr = (a_elem_dt *)(&a); \
         acc_elem_dt *acc_ptr = (acc_elem_dt *)(&acc); \
         FMA_BLOCK(8, nof_elems, acc_ptr, acc_elem_dt, a_ptr, a_elem_dt, b); \
@@ -115,18 +117,20 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
 
 #define FILL_BIN_ARG_SERIAL(idx, dest_ptr, x0, x0_s, x1, x1_s, x1_incr, x2, \
         x2_s, x3, x3_s, x4, x4_s, x5, x5_s) \
-    unroll_for(unsigned x0_idx = x0, bin_arg_offset = 0; x0_idx < x0 + x0_s; \
-               ++x0_idx) { \
-        unroll_for(unsigned x1_idx = x1; x1_idx < x1 + x1_s; \
+    unroll_for(typeof(x0 + x0_s) x0_idx = x0, bin_arg_offset = 0; \
+               x0_idx < x0 + x0_s; ++x0_idx) { \
+        unroll_for(typeof(x1 + x1_s) x1_idx = x1; x1_idx < x1 + x1_s; \
                    x1_idx += x1_incr) { \
-            unroll_for(unsigned x2_idx = x2; x2_idx < x2 + x2_s; ++x2_idx) { \
-                unroll_for(unsigned x3_idx = x3; x3_idx < x3 + x3_s; \
+            unroll_for(typeof(x2 + x2_s) x2_idx = x2; x2_idx < x2 + x2_s; \
+                       ++x2_idx) { \
+                unroll_for(typeof(x3 + x3_s) x3_idx = x3; x3_idx < x3 + x3_s; \
                            ++x3_idx) { \
-                    unroll_for(unsigned x4_idx = x4; x4_idx < x4 + x4_s; \
-                               ++x4_idx) { \
-                        unroll_for(unsigned x5_idx = x5; x5_idx < x5 + x5_s; \
+                    unroll_for(typeof(x4 + x4_s) x4_idx = x4; \
+                               x4_idx < x4 + x4_s; ++x4_idx) { \
+                        unroll_for(typeof(x5 + x5_s) x5_idx = x5; \
+                                   x5_idx < x5 + x5_s; \
                                    ++x5_idx, ++bin_arg_offset) { \
-                            const unsigned bin_arg_glob_off = OFF_MD( \
+                            const auto bin_arg_glob_off = OFF_MD( \
                                     CONCAT3(PO_, idx, _BIN_ARG), \
                                     x0_idx % CONCAT3(PO_, idx, _BIN_ARG_D0), \
                                     x1_idx % CONCAT3(PO_, idx, _BIN_ARG_D1), \
@@ -173,7 +177,8 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
                     = CONCAT2(intel_sub_group_block_read, nelem)( \
                             (__global uint *)(src_ptr)); \
         } \
-        unroll_for(unsigned s_index = 0; s_index < nelem; ++s_index) { \
+        unroll_for(typeof(nelem + 0) s_index = 0; s_index < nelem; \
+                   ++s_index) { \
             dst_ptr[s_index] \
                     = CONV_BIN_ARG_TO_FLOAT(idx, tmp_storage[s_index]); \
         } \
@@ -189,16 +194,15 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
 #define FILL_BIN_ARG_TRY_BLOCK(idx, dest_ptr, dest_size, x0, x0_s, x1, x1_s, \
         x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s) \
     { \
-        unroll_for(unsigned x0_idx = x0, arg_off = 0; x0_idx < x0 + x0_s; \
-                   ++x0_idx, arg_off += X_NELEMS(x1_s)) { \
-            const unsigned bin_arg_glob_off \
-                    = OFF_MD(CONCAT3(PO_, idx, _BIN_ARG), \
-                            x0_idx % CONCAT3(PO_, idx, _BIN_ARG_D0), \
-                            x1 % CONCAT3(PO_, idx, _BIN_ARG_D1), \
-                            x2 % CONCAT3(PO_, idx, _BIN_ARG_D2), \
-                            x3 % CONCAT3(PO_, idx, _BIN_ARG_D3), \
-                            x4 % CONCAT3(PO_, idx, _BIN_ARG_D4), \
-                            x5 % CONCAT3(PO_, idx, _BIN_ARG_D5)); \
+        unroll_for(typeof(x0 + x0_s) x0_idx = x0, arg_off = 0; \
+                   x0_idx < x0 + x0_s; ++x0_idx, arg_off += X_NELEMS(x1_s)) { \
+            const auto bin_arg_glob_off = OFF_MD(CONCAT3(PO_, idx, _BIN_ARG), \
+                    x0_idx % CONCAT3(PO_, idx, _BIN_ARG_D0), \
+                    x1 % CONCAT3(PO_, idx, _BIN_ARG_D1), \
+                    x2 % CONCAT3(PO_, idx, _BIN_ARG_D2), \
+                    x3 % CONCAT3(PO_, idx, _BIN_ARG_D3), \
+                    x4 % CONCAT3(PO_, idx, _BIN_ARG_D4), \
+                    x5 % CONCAT3(PO_, idx, _BIN_ARG_D5)); \
 \
             CONDITIONAL_FILL(idx, x1_s, 1, \
                     (CONCAT3(po_, idx, _binary_arg) + bin_arg_glob_off), \
@@ -215,8 +219,9 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
 #define REPLICATE_DATA( \
         dest_ptr, dest_size, x0_s, x1_s, x2_s, x3_s, x4_s, x5_s) \
     { \
-        const unsigned copy_size = x0_s * x1_s * x2_s * x3_s * x4_s * x5_s; \
-        unroll_for(unsigned fid = copy_size; fid < dest_size; ++fid) { \
+        const auto copy_size = x0_s * x1_s * x2_s * x3_s * x4_s * x5_s; \
+        unroll_for(typeof(dest_size + 0) fid = copy_size; fid < dest_size; \
+                   ++fid) { \
             *(dest_ptr + fid) = *(dest_ptr + (fid % copy_size)); \
         } \
     }
@@ -265,8 +270,8 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
             REPLICATE_DATA(bin_arg_ptr, bin_arg_size, x0_s, X_NELEMS(x1_s), \
                     x2_s, x3_s, x4_s, x5_s); \
         } else { \
-            const unsigned x1_jump = is_burst ? get_sub_group_size() : 1; \
-            const unsigned x1_size = x1_s / x1_jump; \
+            const auto x1_jump = is_burst ? get_sub_group_size() : 1; \
+            const auto x1_size = x1_s / x1_jump; \
             FILL_BIN_ARG_SERIAL(idx, bin_arg_ptr, x0, x0_s, (x1 + x1_incr), \
                     x1_s, x1_jump, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s); \
             REPLICATE_DATA(bin_arg_ptr, bin_arg_size, x0_s, x1_size, x2_s, \

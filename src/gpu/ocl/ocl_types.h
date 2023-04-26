@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,9 @@
 #define GPU_OCL_OCL_TYPES_H
 
 #include "gpu/ocl/ocl_math_utils.h"
+
+#define auto __auto_type
+#define typeof(x) __typeof__(x)
 
 #define unroll_for __attribute__((opencl_unroll_hint)) for
 
