@@ -27,14 +27,14 @@
 __kernel void ref_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
         float alpha, float beta POST_OP_ARGS) {
 #if USE_GWS_GET
-    int d0 = GWS_GET_D0();
-    int d1 = GWS_GET_D1();
-    int d2 = GWS_GET_D2();
-    int d3 = GWS_GET_D3();
-    int d4 = GWS_GET_D4();
-    int d5 = GWS_GET_D5();
+    dim_t d0 = GWS_GET_D0();
+    dim_t d1 = GWS_GET_D1();
+    dim_t d2 = GWS_GET_D2();
+    dim_t d3 = GWS_GET_D3();
+    dim_t d4 = GWS_GET_D4();
+    dim_t d5 = GWS_GET_D5();
 
-    const size_t data_off = DATA_OFF(d0, d1, d2, d3, d4, d5);
+    const dim_t data_off = DATA_OFF(d0, d1, d2, d3, d4, d5);
 
     if (d0 >= DATA_D0 || d1 >= DATA_D1 || d2 >= DATA_D2 || d3 >= DATA_D3
             || d4 >= DATA_D4 || d5 >= DATA_D5) {
@@ -42,7 +42,7 @@ __kernel void ref_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
         return;
     }
 #else
-    const size_t data_off = get_global_id(0)
+    const dim_t data_off = get_global_id(0)
 #if GWS1 > 1
             + get_global_id(1) * GWS0
 #endif
@@ -51,12 +51,12 @@ __kernel void ref_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
 #endif
             ;
 
-    const int d0 = 0;
-    const int d1 = 0;
-    const int d2 = 0;
-    const int d3 = 0;
-    const int d4 = 0;
-    const int d5 = 0;
+    const dim_t d0 = 0;
+    const dim_t d1 = 0;
+    const dim_t d2 = 0;
+    const dim_t d3 = 0;
+    const dim_t d4 = 0;
+    const dim_t d5 = 0;
 #endif
 
 #if DT_F16 == 1
@@ -83,15 +83,15 @@ __kernel void ref_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
 __kernel void ref_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
         __global DATA_T *diff_dst, float alpha, float beta) {
 
-    int d0 = GWS_GET_D0();
-    int d1 = GWS_GET_D1();
-    int d2 = GWS_GET_D2();
-    int d3 = GWS_GET_D3();
-    int d4 = GWS_GET_D4();
-    int d5 = GWS_GET_D5();
+    dim_t d0 = GWS_GET_D0();
+    dim_t d1 = GWS_GET_D1();
+    dim_t d2 = GWS_GET_D2();
+    dim_t d3 = GWS_GET_D3();
+    dim_t d4 = GWS_GET_D4();
+    dim_t d5 = GWS_GET_D5();
 
-    const size_t data_off = DATA_OFF(d0, d1, d2, d3, d4, d5);
-    const size_t diff_data_off = DIFF_DATA_OFF(d0, d1, d2, d3, d4, d5);
+    const dim_t data_off = DATA_OFF(d0, d1, d2, d3, d4, d5);
+    const dim_t diff_data_off = DIFF_DATA_OFF(d0, d1, d2, d3, d4, d5);
 
     if (d0 >= DATA_D0 || d1 >= DATA_D1 || d2 >= DATA_D2 || d3 >= DATA_D3
             || d4 >= DATA_D4 || d5 >= DATA_D5) {
