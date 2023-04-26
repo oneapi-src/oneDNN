@@ -60,7 +60,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             const bool is_int8 = one_of(src_dt, u8, s8);
 
             using skip_mask_t = primitive_attr_t::skip_mask_t;
-            auto skip_mask = skip_mask_t::post_ops;
+            auto skip_mask = skip_mask_t::post_ops | skip_mask_t::sum_dt;
             if (is_int8) skip_mask |= skip_mask_t::scales_runtime;
 
             bool ok = is_fwd() && mayiuse(isa)
