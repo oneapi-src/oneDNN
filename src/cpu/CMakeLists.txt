@@ -60,6 +60,29 @@ if(NOT DNNL_ENABLE_JIT_PROFILING)
     endif()
 endif()
 
+if(${DNNL_WERROR} STREQUAL "ON")
+    # check if warn_unused_result can be used in an alias
+    # only try with DNNL_WERROR enabled to avoid spurious warnings
+    set(COMPILER_ALLOWS_ALIAS_ATTRIBUTES_SOURCE
+    "
+        typedef enum { dnnl_status_success = 0, } dnnl_status_t;
+
+        using status_t __attribute__((warn_unused_result)) = dnnl_status_t;
+
+        int main() { return 0; }
+    ")
+    include(CheckCXXSourceCompiles)
+    check_cxx_source_compiles("${COMPILER_ALLOWS_ALIAS_ATTRIBUTES_SOURCE}" COMPILER_ALLOWS_ALIAS_ATTRIBUTES)
+
+    if(${COMPILER_ALLOWS_ALIAS_ATTRIBUTES})
+        file(GLOB FILES_WITH_STATUS_NODISCARD
+            ${CMAKE_CURRENT_SOURCE_DIR}/rnn/*.cpp
+            )
+        set_source_files_properties(${FILES_WITH_STATUS_NODISCARD}
+            PROPERTIES COMPILE_FLAGS "-DDNNL_STATUS_NODISCARD")
+    endif()
+endif()
+
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     # to make computations more stable and to align the jitted code
     # with the reference one use precise division and square root
