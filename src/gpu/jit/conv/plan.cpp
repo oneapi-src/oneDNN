@@ -404,13 +404,24 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     src_view.set_tmasks(cfg_.padded_dims().get().to_map());
 
     // Initialize GEMM schedule.
-    gemm_schedule.set_a_view(dst_view);
-    gemm_schedule.set_b_view(wei_view);
+    if (prb_.ab_swap_transpose /*.ic < 8 && prb_.mb >= 8*/) {
+        gemm_schedule.set_a_view(wei_view);
+        gemm_schedule.set_b_view(dst_view);
+    } else {
+        gemm_schedule.set_a_view(dst_view);
+        gemm_schedule.set_b_view(wei_view);
+    }
     gemm_schedule.set_c_view(src_view);
     gemm_schedule.set_b_vars({g});
-    gemm_schedule.set_m_vars({mb, id, ih, iw});
-    gemm_schedule.set_n_vars({ic});
-    gemm_schedule.set_k_vars({oc, kd, kh, kw});
+    if (prb_.ab_swap_transpose /*prb_.ic < 8 && prb_.mb >= 8*/) {
+        gemm_schedule.set_n_vars({mb, id, ih, iw});
+        gemm_schedule.set_m_vars({ic});
+        gemm_schedule.set_k_vars({oc, kd, kh, kw});
+    } else {
+        gemm_schedule.set_m_vars({mb, id, ih, iw});
+        gemm_schedule.set_n_vars({ic});
+        gemm_schedule.set_k_vars({oc, kd, kh, kw});
+    }
 
     gemm_schedule.for_each_var([&](const expr_t &var) {
         int bound
@@ -427,13 +438,21 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     auto g_isp_grid_idx = gemm_schedule.fuse(
             {g_tile.grid_idx(), id, ih, iw_tile.grid_idx()});
     auto mb_iw_tg_idx = gemm_schedule.fuse(mb_tile.tg_idx(), iw_tile.tg_idx());
-
-    gemm_schedule.bind(ic_tile.grid_idx(), cfg_.kernel_grid().idx(0));
-    gemm_schedule.bind(g_isp_grid_idx, cfg_.kernel_grid().idx(1));
-    gemm_schedule.bind(mb_tile.grid_idx(), cfg_.kernel_grid().idx(2));
-    gemm_schedule.bind(ic_tile.tg_idx(), cfg_.thread_group_grid().idx(0));
-    gemm_schedule.bind(mb_iw_tg_idx, cfg_.thread_group_grid().idx(1));
-    gemm_schedule.bind(oc_tile.tg_idx(), cfg_.thread_group_grid().idx(2));
+    if (prb_.ab_swap_transpose /*.ic < 8 && prb_.mb >= 8*/) {
+        gemm_schedule.bind(mb_tile.grid_idx(), cfg_.kernel_grid().idx(0));
+        gemm_schedule.bind(ic_tile.grid_idx(), cfg_.kernel_grid().idx(1));
+        gemm_schedule.bind(g_isp_grid_idx, cfg_.kernel_grid().idx(2));
+        gemm_schedule.bind(mb_iw_tg_idx, cfg_.thread_group_grid().idx(0));
+        gemm_schedule.bind(ic_tile.tg_idx(), cfg_.thread_group_grid().idx(1));
+        gemm_schedule.bind(oc_tile.tg_idx(), cfg_.thread_group_grid().idx(2));
+    } else {
+        gemm_schedule.bind(ic_tile.grid_idx(), cfg_.kernel_grid().idx(0));
+        gemm_schedule.bind(g_isp_grid_idx, cfg_.kernel_grid().idx(1));
+        gemm_schedule.bind(mb_tile.grid_idx(), cfg_.kernel_grid().idx(2));
+        gemm_schedule.bind(ic_tile.tg_idx(), cfg_.thread_group_grid().idx(0));
+        gemm_schedule.bind(mb_iw_tg_idx, cfg_.thread_group_grid().idx(1));
+        gemm_schedule.bind(oc_tile.tg_idx(), cfg_.thread_group_grid().idx(2));
+    }
 
     gemm_schedule.tensorize(g_tile.iter_idx());
     gemm_schedule.tensorize(ic_tile.iter_idx());
@@ -1102,6 +1121,7 @@ struct fma_context_t {
         a_type = type_t(cfg.prb().a_data_type);
         b_type = type_t(cfg.prb().b_data_type);
         is_src1_broadcast = !cfg.prb().is_dw;
+        ab_swap_transpose_ = cfg.prb().ab_swap_transpose;
     }
 
     fma_layout_hint_t &layout_hint(abc_kind_t abc) {
@@ -1964,10 +1984,13 @@ private:
                 = (abc == abc_kind_t::a ? a_direct_view_ : b_direct_view_);
         auto load_view = direct_view ? direct_view.get() : gmem_view;
 
+        bool allow_2d_load = !cfg_.prb().ab_swap_transpose
+                || cfg_.fma_kind() != fma_kind_t::dpas;
+
         auto params = get_send_params(cfg_.exec_cfg(), send_op_t::load,
                 send_address_t::a64, cfg_.fma_kind(), abc, load_view,
                 gemm_schedule_,
-                /*allow_2d_load=*/true);
+                /*allow_2d_load=*/allow_2d_load);
         load = create_send_plan(cfg_.exec_cfg(), load_view, params);
 
         auto reg_layout = load.reg_layout();

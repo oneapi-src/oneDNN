@@ -197,6 +197,7 @@ status_t conv_problem_t::init(
     auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
             conv_pd->attr()->gpu_attr_.get());
     bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
+    ab_swap_transpose = is_bwd_d && ic < 8 && mb >= 8 && is_bwd_d;
     hw_config_t hw_cfg(engine, large_grf_mode);
 
     CHECK(init_abc_data_types(hw_cfg));
@@ -942,7 +943,9 @@ status_t init_vec_size(conv_config_t &cfg) {
     int vec_size = cfg.simd();
     if (cfg.fma_kind() == fma_kind_t::mad) {
         int grf_elems = cfg.grf_size() / prb.acc_data_type_size;
-        int vec_dim = (prb.is_fwd || prb.is_bwd_w) ? prb.oc : prb.ic;
+        int vec_dim = (prb.is_fwd || prb.is_bwd_w)
+                ? prb.oc
+                : (/*prb.ab_swap_transpose ? prb.mb :*/ prb.ic);
         if (utils::rnd_up(vec_dim, grf_elems) < vec_size) vec_size = grf_elems;
     }
     // SIMD32 produces invalid layouts in bwd_w.
@@ -1530,6 +1533,7 @@ std::string conv_config_t::str() const {
     oss << "  Reuse headers:              " << to_string(pipeline().reuse_headers()) << std::endl;
     oss << "  Subtiles:                   " << "A: " << subtiles().a() << ", B: " << subtiles().b() << std::endl;
     oss << "  Estimated GRF usage:        " << estimated_peak_regs << std::endl;
+    oss << "  AB Swap Transpose:          " << to_string(prb().ab_swap_transpose) << std::endl;
     oss << "  Configuration line:         " << get_config_line() << std::endl;
     // clang-format on
     return oss.str();

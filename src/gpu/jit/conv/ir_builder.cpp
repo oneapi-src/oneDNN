@@ -665,8 +665,11 @@ void conv_ir_builder_t::build() {
     view_t c_view;
     view_t bp_reduced_view;
 
-    expr_t ap_buf = kernel_info_.find_arg(prb.is_bwd_d ? "dst" : "src");
-    expr_t bp_buf = kernel_info_.find_arg(prb.is_bwd_w ? "dst" : "wei");
+    expr_t ap_buf = kernel_info_.find_arg(
+            prb.is_bwd_d ? (prb.ab_swap_transpose ? "wei" : "dst") : "src");
+    expr_t bp_buf = kernel_info_.find_arg(
+            (prb.is_bwd_w || (prb.is_bwd_d && prb.ab_swap_transpose)) ? "dst"
+                                                                      : "wei");
     expr_t cp_buf = kernel_info_.find_arg(
             prb.is_fwd ? "dst" : (prb.is_bwd_d ? "src" : "wei"));
     expr_t b_reduced_mem_buf

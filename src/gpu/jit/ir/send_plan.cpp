@@ -1612,7 +1612,9 @@ public:
         auto &mod_info = info_.mod_info();
         params_.send_op = send_op;
         params_.type = vlayout.type();
-        ir_assert(hint.type == params_.type) << "Retyping is not supported.";
+        if (hint.type != params_.type)
+            return fail_2d("Retyping is not supported.");
+        //ir_assert(hint.type == params_.type) << "Retyping is not supported.";
 
         layout_2d_wrapper_t lw(vlayout);
 
