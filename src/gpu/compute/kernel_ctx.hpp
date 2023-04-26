@@ -45,8 +45,11 @@ public:
         for (auto &opt : option_set_)
             oss << " " << opt;
 
-        for (auto &int_var : int_var_map_)
+        for (auto &int_var : int_var_map_) {
             oss << " -D" << int_var.first << "=" << int_var.second;
+            if (int_var.second > INT_MAX || int_var.second < INT_MIN)
+                oss << "L";
+        }
 
         for (auto &float_var : float_var_map_) {
             oss << " -D" << float_var.first << "=as_float(0x" << std::hex
