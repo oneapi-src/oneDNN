@@ -1538,8 +1538,8 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumNdx2d) {
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
                 = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_matmul_post_ops_fusion_gpu"
-                                : "int8_matmul_post_ops_fusion_cpu");
+                                ? "int8_matmul_add_post_ops_fusion_gpu"
+                                : "int8_matmul_add_post_ops_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -1949,8 +1949,8 @@ TEST(ExecuteSubgraphInt8, MatmulBiasAddMul) {
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
                 = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_matmul_post_ops_fusion_gpu"
-                                : "int8_matmul_post_ops_fusion_cpu");
+                                ? "int8_matmul_add_post_ops_fusion_gpu"
+                                : "int8_matmul_add_post_ops_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -1974,183 +1974,6 @@ TEST(ExecuteSubgraphInt8, MatmulBiasAddMul) {
                 {src_u8_ts, weight_s8_ts, bias_f32_ts, add_other_s8_ts,
                         mul_other_f32_ts},
                 {dst_s8_case2_ts});
-        strm.wait();
-
-        static auto isa = dnnl_get_effective_cpu_isa();
-        if (engine.kind() == impl::engine_kind::cpu
-                && isa < dnnl_cpu_isa_avx512_core_vnni)
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                    /*atol*/ 1.f));
-        else
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
-                    /*atol*/ 1.f));
-    }
-}
-
-TEST(ExecuteSubgraphInt8, MatmulBiasSumNdx2dX8s8f32) {
-    // compare results between:
-    // case 1: [quantize] - [dequantize] - [fp32_matmul]
-    // case 2: [quantize] - [int8_matmul]
-    impl::engine_t &engine = get_engine();
-    impl::stream_t &strm = get_stream();
-
-    std::vector<std::string> qtypes {"per_tensor", "per_channel"};
-    std::vector<std::vector<int64_t>> src_shapes {
-            {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
-    std::vector<std::vector<int64_t>> weight_shapes {{4, 2}};
-    std::vector<std::vector<int64_t>> dst_shapes {
-            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {2}};
-    for_(const auto &qtype : qtypes)
-    for_(size_t i = 0; i < src_shapes.size(); ++i)
-    for (size_t j = 0; j < weight_shapes.size(); ++j) {
-        // prepare fp32 data
-        std::vector<int64_t> src_shape = src_shapes[i];
-        std::vector<int64_t> weight_shape = weight_shapes[j];
-        std::vector<int64_t> bias_shape {2};
-        std::vector<int64_t> dst_shape = dst_shapes[i];
-
-        test::vector<uint8_t> src_data(product(src_shape));
-        test::vector<int8_t> weight_data(product(weight_shape));
-        test::vector<float> bias_data(product(bias_shape));
-        test::vector<int8_t> other_data(product(dst_shape));
-
-        // random generate src, weight and bias data
-        // random seed = 7
-        std::default_random_engine generator(7);
-        std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
-        std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
-        std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
-        std::generate(src_data.begin(), src_data.end(), [&]() {
-            return static_cast<uint8_t>(u8_distribution(generator));
-        });
-        std::generate(weight_data.begin(), weight_data.end(), [&]() {
-            return static_cast<int8_t>(s8_distribution(generator));
-        });
-        std::generate(bias_data.begin(), bias_data.end(),
-                [&]() { return f32_distribution(generator); });
-        std::generate(other_data.begin(), other_data.end(), [&]() {
-            return static_cast<int8_t>(s8_distribution(generator));
-        });
-        float scale_src = 1 / 255.f; // map to 0~255
-        float scale_other = 1 / 127.f;
-        int64_t zp_src = 0;
-        int64_t zp_other = 0;
-
-        size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
-        std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
-        std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
-
-        impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
-        dqdata_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_src});
-        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
-
-        impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
-        dqweight_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, scale_wei);
-        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
-
-        impl::op_t matmul_op(3, impl::op_kind::MatMul, "matmul_op");
-        matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
-        matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
-
-        impl::op_t dqother_op(4, impl::op_kind::Dequantize, "dqother_op");
-        dqother_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
-        dqother_op.set_attr<std::vector<int64_t>>(
-                impl::op_attr::zps, {zp_other});
-        dqother_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_other});
-        dqother_op.set_attr<int64_t>(impl::op_attr::axis, 0);
-
-        impl::op_t add_op(5, impl::op_kind::Add, "add_op");
-
-        // prepare logical tensor
-        impl::logical_tensor_t src_u8
-                = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
-        impl::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
-                2, src_shape, impl::data_type::f32);
-        impl::logical_tensor_t weight_s8 = utils::logical_tensor_init(
-                4, weight_shape, impl::data_type::s8);
-        impl::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
-                5, weight_shape, impl::data_type::f32);
-        impl::logical_tensor_t bias_f32 = utils::logical_tensor_init(
-                6, bias_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_f32 = utils::logical_tensor_init(
-                7, dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t other_s8
-                = utils::logical_tensor_init(9, dst_shape, impl::data_type::s8);
-        impl::logical_tensor_t other_f32_dq = utils::logical_tensor_init(
-                10, dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_add_f32 = utils::logical_tensor_init(
-                11, dst_shape, impl::data_type::f32);
-
-        dqdata_op.add_input(src_u8);
-        dqdata_op.add_output(src_f32_dq);
-
-        dqweight_op.add_input(weight_s8);
-        dqweight_op.add_output(weight_f32_dq);
-
-        matmul_op.add_input(src_f32_dq);
-        matmul_op.add_input(weight_f32_dq);
-        matmul_op.add_input(bias_f32);
-        matmul_op.add_output(dst_f32);
-
-        dqother_op.add_input(other_s8);
-        dqother_op.add_output(other_f32_dq);
-
-        add_op.add_input(dst_f32);
-        add_op.add_input(other_f32_dq);
-        add_op.add_output(dst_add_f32);
-
-        impl::graph_t g(engine.kind());
-        g.add_op(&dqdata_op);
-        g.add_op(&dqweight_op);
-        g.add_op(&matmul_op);
-        g.add_op(&dqother_op);
-        g.add_op(&add_op);
-        g.build_graph();
-
-        impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_data.data());
-        impl::tensor_t bias_f32_ts(bias_f32, &engine, bias_data.data());
-        impl::tensor_t other_s8_ts(other_s8, &engine, other_data.data());
-        // -------------------------case 1----------------------------------
-        test::vector<float> case1_out_data(product(dst_shape));
-        impl::tensor_t dst_f32_ts(dst_add_f32, &engine, case1_out_data.data());
-        ASSERT_EQ(run_graph(g,
-                          {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts},
-                          {dst_f32_ts}, engine, strm),
-                impl::status::success);
-        // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_matmul_post_ops_fusion_gpu"
-                                : "int8_matmul_post_ops_fusion_cpu");
-        apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1U);
-        auto part = g.get_partitions()[0];
-
-        // compile
-        impl::partition_t p;
-        p.init(part);
-
-        impl::compiled_partition_t cp(p);
-
-        std::vector<const impl::logical_tensor_t *> lt_ins {
-                &src_u8, &weight_s8, &bias_f32, &other_s8};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_add_f32};
-
-        p.compile(&cp, lt_ins, lt_outs, &engine);
-
-        test::vector<float> case2_out_data(product(dst_shape));
-        impl::tensor_t dst_f32_case2_ts(
-                dst_add_f32, &engine, case2_out_data.data());
-        cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts},
-                {dst_f32_case2_ts});
         strm.wait();
 
         static auto isa = dnnl_get_effective_cpu_isa();
@@ -2987,9 +2810,12 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumGetInplacePair) {
         g.add_op(&qout_op);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass
+        impl::pass::pass_base_ptr apass1
+                = get_pass("int8_matmul_add_post_ops_fusion_cpu");
+        impl::pass::pass_base_ptr apass2
                 = get_pass("int8_matmul_post_ops_fusion_cpu");
-        apass->run(g);
+        apass1->run(g);
+        apass2->run(g);
         ASSERT_EQ(g.get_num_partitions(), 2U);
         auto part2 = g.get_partitions()[0]; // int8_mamtul_bias_sum
         auto part1 = g.get_partitions()[1]; // int8_matmul_bias
@@ -3149,168 +2975,6 @@ TEST(ExecuteSubgraphInt8, MatmulBiasU8s8bf16) {
     impl::tensor_t bias_bf16_ts(bias_bf16, &engine, bias_data.data());
     impl::tensor_t dst_ts(dst_bf16, &engine, dst_data.data());
     cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_bf16_ts}, {dst_ts});
-    strm.wait();
-}
-
-TEST(ExecuteSubgraphInt8, MatmulBiasAddU8s8bf16) {
-    impl::engine_t &engine = get_engine();
-    impl::stream_t &strm = get_stream();
-
-    // gpu doesn't support mixed int8-bf16 matmul with runtime zero points
-    SKIP_IF(engine.kind() == impl::engine_kind::gpu, "skip on gpu");
-
-    std::string qtype = "per_channel";
-    std::vector<int64_t> src_shape = {1, 8, 16};
-    std::vector<int64_t> weight_shape = {8, 16};
-    std::vector<int64_t> bias_shape = {8};
-    std::vector<int64_t> dst_shape = {1, 8, 8};
-
-    test::vector<uint8_t> src_data(product(src_shape));
-    test::vector<int8_t> weight_data(product(weight_shape));
-    test::vector<uint8_t> other_data(product(dst_shape));
-    test::vector<float> bias_data(product(bias_shape));
-
-    // random generate src, weight data
-    // random seed = 7
-    std::default_random_engine generator(7);
-    std::uniform_real_distribution<float> distribution(0.0f, 255.0f);
-    std::generate(src_data.begin(), src_data.end(),
-            [&]() { return distribution(generator); });
-    std::generate(other_data.begin(), other_data.end(),
-            [&]() { return distribution(generator); });
-    std::uniform_real_distribution<float> distribution2(-127.0f, 127.0f);
-    std::generate(weight_data.begin(), weight_data.end(),
-            [&]() { return distribution2(generator); });
-    std::uniform_real_distribution<float> distribution3(0.0f, 20.0f);
-    std::generate(bias_data.begin(), bias_data.end(),
-            [&]() { return distribution3(generator); });
-    float scale_src = 1 / 255.f; // map to 0~255
-    int64_t zp_src = 110;
-
-    size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
-    std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
-    std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
-
-    impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
-    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
-    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
-    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
-
-    impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-    dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
-    dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
-    dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
-    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 0);
-
-    impl::op_t dqother_op(2, impl::op_kind::Dequantize, "dqother_op");
-    dqother_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
-    dqother_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
-    dqother_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
-    dqother_op.set_attr<int64_t>(impl::op_attr::axis, 1);
-
-    impl::op_t tcdata_op {3, impl::op_kind::TypeCast, "typecast_data"};
-    impl::op_t tcweight_op {4, impl::op_kind::TypeCast, "typecast_weight"};
-    impl::op_t tcother_op {5, impl::op_kind::TypeCast, "typecast_other"};
-
-    impl::op_t matmul_op(6, impl::op_kind::MatMul, "matmul_op");
-    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
-    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, true);
-
-    impl::op_t add_op(7, impl::op_kind::Add, "add_op");
-
-    // prepare logical tensor
-    impl::logical_tensor_t src_u8
-            = utils::logical_tensor_init(0, src_shape, impl::data_type::u8);
-    impl::logical_tensor_t src_f32_dq
-            = utils::logical_tensor_init(1, src_shape, impl::data_type::f32);
-    impl::logical_tensor_t src_bf16
-            = utils::logical_tensor_init(2, src_shape, impl::data_type::bf16);
-    impl::logical_tensor_t weight_s8
-            = utils::logical_tensor_init(3, weight_shape, impl::data_type::s8);
-    impl::logical_tensor_t weight_f32_dq
-            = utils::logical_tensor_init(4, weight_shape, impl::data_type::f32);
-    impl::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
-            5, weight_shape, impl::data_type::bf16);
-    impl::logical_tensor_t bias_bf16
-            = utils::logical_tensor_init(6, bias_shape, impl::data_type::bf16);
-    impl::logical_tensor_t other_u8
-            = utils::logical_tensor_init(7, dst_shape, impl::data_type::u8);
-    impl::logical_tensor_t other_f32_dq
-            = utils::logical_tensor_init(8, dst_shape, impl::data_type::f32);
-    impl::logical_tensor_t other_bf16
-            = utils::logical_tensor_init(9, dst_shape, impl::data_type::bf16);
-    impl::logical_tensor_t matmul_bf16
-            = utils::logical_tensor_init(10, dst_shape, impl::data_type::bf16);
-    impl::logical_tensor_t dst_bf16
-            = utils::logical_tensor_init(11, dst_shape, impl::data_type::bf16);
-
-    dqdata_op.add_input(src_u8);
-    dqdata_op.add_output(src_f32_dq);
-
-    dqweight_op.add_input(weight_s8);
-    dqweight_op.add_output(weight_f32_dq);
-
-    dqother_op.add_input(other_u8);
-    dqother_op.add_output(other_f32_dq);
-
-    tcdata_op.add_input(src_f32_dq);
-    tcdata_op.add_output(src_bf16);
-
-    tcweight_op.add_input(weight_f32_dq);
-    tcweight_op.add_output(weight_bf16);
-
-    tcother_op.add_input(other_f32_dq);
-    tcother_op.add_output(other_bf16);
-
-    matmul_op.add_input(src_bf16);
-    matmul_op.add_input(weight_bf16);
-    matmul_op.add_input(bias_bf16);
-    matmul_op.add_output(matmul_bf16);
-
-    add_op.add_input(other_bf16);
-    add_op.add_input(matmul_bf16);
-    add_op.add_output(dst_bf16);
-
-    impl::graph_t g(engine.kind());
-    g.add_op(&dqdata_op);
-    g.add_op(&dqweight_op);
-    g.add_op(&dqother_op);
-    g.add_op(&matmul_op);
-    g.add_op(&tcdata_op);
-    g.add_op(&tcweight_op);
-    g.add_op(&tcother_op);
-    g.add_op(&add_op);
-    g.build_graph();
-
-    impl::pass::pass_base_ptr apass
-            = get_pass(engine.kind() == impl::engine_kind::gpu
-                            ? "int8_bf16_matmul_post_ops_fusion_gpu"
-                            : "int8_bf16_matmul_post_ops_fusion_cpu");
-    apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1U);
-    auto part = g.get_partitions()[0];
-
-    // compile
-    impl::partition_t p;
-    p.init(part);
-
-    impl::compiled_partition_t cp(p);
-
-    std::vector<const impl::logical_tensor_t *> lt_ins {
-            &src_u8, &weight_s8, &bias_bf16, &other_u8};
-    std::vector<const impl::logical_tensor_t *> lt_outs {&dst_bf16};
-
-    p.compile(&cp, lt_ins, lt_outs, &engine);
-
-    test::vector<float> dst_data(product(dst_shape));
-    impl::tensor_t src_u8_ts(src_u8, &engine, src_data.data());
-    impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_data.data());
-    impl::tensor_t bias_bf16_ts(bias_bf16, &engine, bias_data.data());
-    impl::tensor_t other_u8_ts(other_u8, &engine, other_data.data());
-    impl::tensor_t dst_ts(dst_bf16, &engine, dst_data.data());
-    cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_bf16_ts, other_u8_ts},
-            {dst_ts});
     strm.wait();
 }
 
@@ -4542,8 +4206,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
                 = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_matmul_post_ops_fusion_gpu"
-                                : "int8_matmul_post_ops_fusion_cpu");
+                                ? "int8_matmul_add_post_ops_fusion_gpu"
+                                : "int8_matmul_add_post_ops_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];

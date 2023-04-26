@@ -2795,10 +2795,7 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
+        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -2970,10 +2967,7 @@ static inline void quantized_conv2d_eltwise(
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
+        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -3212,9 +3206,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
 
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
+                = get_pass("int8_conv_add_post_ops_fusion");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -3428,9 +3420,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
 
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
+                = get_pass("int8_conv_add_post_ops_fusion");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -3591,10 +3581,7 @@ TEST(ExecuteSubgraphInt8, Conv2dAddRelu) {
             impl::status::success);
 
     // -------------------------case 2----------------------------------
-    impl::pass::pass_base_ptr apass
-            = get_pass(engine.kind() == impl::engine_kind::gpu
-                            ? "int8_conv_post_ops_fusion_gpu"
-                            : "int8_conv_post_ops_fusion_cpu");
+    impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
 
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -3755,10 +3742,7 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
+        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -3924,10 +3908,7 @@ TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
+        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -3952,643 +3933,6 @@ TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
                     {dst_f32_case2_ts});
         else
             cp.execute(&strm, {src_u8_ts, weight_s8_ts}, {dst_f32_case2_ts});
-        strm.wait();
-
-        if (engine.kind() == impl::engine_kind::cpu
-                && isa < dnnl_cpu_isa_avx512_core_vnni)
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                    /*atol*/ 1.f));
-        else
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
-                    /*atol*/ 1.f));
-    }
-}
-
-TEST(ExecuteSubgraphInt8, Conv2dSumReluX8s8f32) {
-    using dims = impl::dnnl_impl::dims;
-
-    impl::engine_t &engine = get_engine();
-    impl::stream_t &strm = get_stream();
-
-    static auto isa = dnnl_get_effective_cpu_isa();
-    SKIP_IF(isa < dnnl_cpu_isa_avx512_core_vnni
-                    && engine.kind() == impl::engine_kind::cpu,
-            "Skip the test for systems that do not support "
-            "avx512_core_vnni.");
-
-    std::vector<int64_t> groups = {1, 4};
-    std::vector<bool> with_biases = {true, false};
-    std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
-
-    for_(const auto &g : groups)
-    for_(const auto with_bias : with_biases)
-    for (const auto &wei_qtype : weight_qtypes) {
-        // prepare fp32 data
-        int64_t in_channel = 8, out_channel = 8;
-        int64_t kernel_size = 3;
-        std::vector<int64_t> src_shape {1, in_channel, 112, 112};
-        std::vector<int64_t> weight_shape {
-                out_channel, in_channel / g, kernel_size, kernel_size};
-        std::vector<int64_t> bias_shape {out_channel};
-        std::vector<int64_t> dst_shape {1, out_channel, 110, 110};
-
-        test::vector<uint8_t> src_u8_data(product(src_shape));
-        test::vector<int8_t> weight_s8_data(product(weight_shape));
-        test::vector<int8_t> other_s8_data(product(dst_shape));
-        size_t bias_size = with_bias ? product(bias_shape) : 0;
-        test::vector<float> bias_data(bias_size);
-        test::vector<float> case1_out_data(product(dst_shape));
-        test::vector<float> case2_out_data(product(dst_shape));
-
-        // random generate src, weight and bias data random seed = 7
-        std::default_random_engine generator(7);
-        std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
-        std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
-        std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
-        std::generate(src_u8_data.begin(), src_u8_data.end(), [&]() {
-            return static_cast<uint8_t>(u8_distribution(generator));
-        });
-        std::generate(weight_s8_data.begin(), weight_s8_data.end(), [&]() {
-            return static_cast<int8_t>(s8_distribution(generator));
-        });
-        std::generate(other_s8_data.begin(), other_s8_data.end(), [&]() {
-            return static_cast<int8_t>(s8_distribution(generator));
-        });
-        if (with_bias) {
-            std::generate(bias_data.begin(), bias_data.end(),
-                    [&]() { return f32_distribution(generator); });
-        }
-
-        float scale_src = 1 / 255.f; // map to 0~255
-        float scale_other = 1 / 127.f;
-        int64_t zp_src = 0;
-        int64_t zp_other = 0;
-
-        size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
-
-        std::vector<float> scale_wei(scale_size, 1 / 127.f);
-        std::vector<int64_t> zp_wei(scale_size, 0);
-
-        impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
-        SET_Q_DQ_DATA_ATTR(dqdata_node)
-
-        impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 0)
-
-        impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
-        SET_CONV_ATTR(conv_node, 2)
-
-        impl::op_t relu_node(5, impl::op_kind::ReLU, "relu_node");
-
-        impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
-        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
-        dqother_node.set_attr<std::vector<int64_t>>(
-                impl::op_attr::zps, {zp_other});
-        dqother_node.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_other});
-        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
-
-        impl::op_t add_node(9, impl::op_kind::Add, "add_node");
-
-        // prepare logical tensor
-        auto src_u8 = utils::logical_tensor_init(1, impl::data_type::u8);
-        auto src_f32_dq = utils::logical_tensor_init(2, impl::data_type::f32);
-        auto weight_s8 = utils::logical_tensor_init(4, impl::data_type::s8);
-        auto weight_f32_dq
-                = utils::logical_tensor_init(5, impl::data_type::f32);
-        auto dst_f32 = utils::logical_tensor_init(7, impl::data_type::f32);
-        auto dst_relu_f32 = utils::logical_tensor_init(8, impl::data_type::f32);
-        auto other_s8 = utils::logical_tensor_init(11, impl::data_type::s8);
-        auto other_f32_dq
-                = utils::logical_tensor_init(12, impl::data_type::f32);
-        auto dst_add_f32 = utils::logical_tensor_init(13, impl::data_type::f32);
-        impl::logical_tensor_t bias_f32;
-        if (with_bias) {
-            bias_f32 = utils::logical_tensor_init(6, impl::data_type::f32);
-        }
-
-        dqdata_node.add_input(src_u8);
-        dqdata_node.add_output(src_f32_dq);
-
-        dqweight_node.add_input(weight_s8);
-        dqweight_node.add_output(weight_f32_dq);
-
-        conv_node.add_input(src_f32_dq);
-        conv_node.add_input(weight_f32_dq);
-        if (with_bias) conv_node.add_input(bias_f32);
-        conv_node.add_output(dst_f32);
-
-        dqother_node.add_input(other_s8);
-        dqother_node.add_output(other_f32_dq);
-
-        add_node.add_input(dst_f32);
-        add_node.add_input(other_f32_dq);
-        add_node.add_output(dst_add_f32);
-
-        relu_node.add_input(dst_add_f32);
-        relu_node.add_output(dst_relu_f32);
-
-        impl::graph_t g(engine.kind());
-        g.add_op(&dqdata_node);
-        g.add_op(&dqweight_node);
-        g.add_op(&conv_node);
-        g.add_op(&dqother_node);
-        g.add_op(&add_node);
-        g.add_op(&relu_node);
-        g.build_graph();
-
-        // prepare in/out with full shape
-        src_u8 = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
-        weight_s8 = utils::logical_tensor_init(
-                4, weight_shape, impl::data_type::s8);
-        other_s8 = utils::logical_tensor_init(
-                11, dst_shape, impl::data_type::s8);
-        if (with_bias) {
-            bias_f32 = utils::logical_tensor_init(
-                    6, bias_shape, impl::data_type::f32);
-        }
-        dst_relu_f32 = utils::logical_tensor_init(
-                8, dst_shape, impl::data_type::f32);
-
-        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_s8_data.data());
-        impl::tensor_t other_s8_ts(other_s8, &engine, other_s8_data.data());
-        impl::tensor_t bias_f32_ts;
-        if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, &engine, bias_data.data());
-        }
-        impl::tensor_t dst_relu_f32_ts(
-                dst_relu_f32, &engine, case1_out_data.data());
-        impl::tensor_t dst_f32_case2_ts(
-                dst_relu_f32, &engine, case2_out_data.data());
-
-        // -------------------------case 1----------------------------------
-        ASSERT_EQ(run_graph(g,
-                          {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts},
-                          {dst_relu_f32_ts}, engine, strm),
-                impl::status::success);
-
-        // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
-
-        apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1U);
-        auto part = g.get_partitions()[0];
-
-        // compile
-        impl::partition_t p;
-        p.init(part);
-
-        impl::compiled_partition_t cp(p);
-
-        std::vector<const impl::logical_tensor_t *> lt_ins;
-        if (with_bias)
-            lt_ins = {&src_u8, &weight_s8, &bias_f32, &other_s8};
-        else
-            lt_ins = {&src_u8, &weight_s8, &other_s8};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_relu_f32};
-
-        p.compile(&cp, lt_ins, lt_outs, &engine);
-
-        if (with_bias)
-            cp.execute(&strm,
-                    {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts},
-                    {dst_f32_case2_ts});
-        else
-            cp.execute(&strm, {src_u8_ts, weight_s8_ts, other_s8_ts},
-                    {dst_f32_case2_ts});
-        strm.wait();
-
-        if (engine.kind() == impl::engine_kind::cpu
-                && isa < dnnl_cpu_isa_avx512_core_vnni)
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                    /*atol*/ 1.f));
-        else
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
-                    /*atol*/ 1.f));
-    }
-}
-
-TEST(ExecuteSubgraphInt8, Conv2dSumReluNxcX8s8f32) {
-    using dims = impl::dnnl_impl::dims;
-
-    impl::engine_t &engine = get_engine();
-    impl::stream_t &strm = get_stream();
-
-    static auto isa = dnnl_get_effective_cpu_isa();
-    SKIP_IF(isa < dnnl_cpu_isa_avx512_core_vnni
-                    && engine.kind() == impl::engine_kind::cpu,
-            "Skip the test for systems that do not support "
-            "avx512_core_vnni.");
-
-    std::vector<int64_t> groups = {1, 4};
-    std::vector<bool> with_biases = {true, false};
-    std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
-
-    for_(const auto &g : groups)
-    for_(const auto with_bias : with_biases)
-    for (const auto &wei_qtype : weight_qtypes) {
-        // prepare fp32 data
-        int64_t in_channel = 8, out_channel = 8;
-        int64_t kernel_size = 3;
-        std::vector<int64_t> src_shape {1, 12, 12, in_channel};
-        std::vector<int64_t> weight_shape {
-                kernel_size, kernel_size, in_channel / g, out_channel};
-        std::vector<int64_t> bias_shape {out_channel};
-        std::vector<int64_t> dst_shape {1, 10, 10, out_channel};
-
-        test::vector<uint8_t> src_u8_data(product(src_shape));
-        test::vector<int8_t> weight_s8_data(product(weight_shape));
-        test::vector<int8_t> other_s8_data(product(dst_shape));
-        size_t bias_size = with_bias ? product(bias_shape) : 0;
-        test::vector<float> bias_data(bias_size);
-        test::vector<float> case1_out_data(product(dst_shape));
-        test::vector<float> case2_out_data(product(dst_shape));
-
-        // random generate src, weight and bias data random seed = 7
-        std::default_random_engine generator(7);
-        std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
-        std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
-        std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
-        std::generate(src_u8_data.begin(), src_u8_data.end(), [&]() {
-            return static_cast<uint8_t>(u8_distribution(generator));
-        });
-        std::generate(weight_s8_data.begin(), weight_s8_data.end(), [&]() {
-            return static_cast<int8_t>(s8_distribution(generator));
-        });
-        std::generate(other_s8_data.begin(), other_s8_data.end(), [&]() {
-            return static_cast<int8_t>(s8_distribution(generator));
-        });
-        if (with_bias) {
-            std::generate(bias_data.begin(), bias_data.end(),
-                    [&]() { return f32_distribution(generator); });
-        }
-
-        float scale_src = 1 / 255.f; // map to 0~255
-        float scale_other = 1 / 127.f;
-        int64_t zp_src = 0;
-        int64_t zp_other = 0;
-
-        size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
-
-        std::vector<float> scale_wei(scale_size, 1 / 127.f);
-        std::vector<int64_t> zp_wei(scale_size, 0);
-
-        impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
-        SET_Q_DQ_DATA_ATTR(dqdata_node)
-
-        impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 0)
-        dqweight_node.set_attr<int64_t>(
-                impl::op_attr::axis, wei_qtype == "per_tensor" ? 0 : 3);
-
-        impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
-        SET_CONV_ATTR(conv_node, 2)
-        conv_node.set_attr<std::string>(impl::op_attr::data_format, "NXC");
-        conv_node.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
-
-        impl::op_t relu_node(5, impl::op_kind::ReLU, "relu_node");
-
-        impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
-        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
-        dqother_node.set_attr<std::vector<int64_t>>(
-                impl::op_attr::zps, {zp_other});
-        dqother_node.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_other});
-        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
-
-        impl::op_t add_node(9, impl::op_kind::Add, "add_node");
-
-        // prepare logical tensor
-        auto src_u8 = utils::logical_tensor_init(1, impl::data_type::u8);
-        auto src_f32_dq = utils::logical_tensor_init(2, impl::data_type::f32);
-        auto weight_s8 = utils::logical_tensor_init(4, impl::data_type::s8);
-        auto weight_f32_dq
-                = utils::logical_tensor_init(5, impl::data_type::f32);
-        auto dst_f32 = utils::logical_tensor_init(7, impl::data_type::f32);
-        auto dst_relu_f32 = utils::logical_tensor_init(8, impl::data_type::f32);
-        auto other_s8 = utils::logical_tensor_init(11, impl::data_type::s8);
-        auto other_f32_dq
-                = utils::logical_tensor_init(12, impl::data_type::f32);
-        auto dst_add_f32 = utils::logical_tensor_init(13, impl::data_type::f32);
-        impl::logical_tensor_t bias_f32;
-        if (with_bias) {
-            bias_f32 = utils::logical_tensor_init(6, impl::data_type::f32);
-        }
-
-        dqdata_node.add_input(src_u8);
-        dqdata_node.add_output(src_f32_dq);
-
-        dqweight_node.add_input(weight_s8);
-        dqweight_node.add_output(weight_f32_dq);
-
-        conv_node.add_input(src_f32_dq);
-        conv_node.add_input(weight_f32_dq);
-        if (with_bias) conv_node.add_input(bias_f32);
-        conv_node.add_output(dst_f32);
-
-        dqother_node.add_input(other_s8);
-        dqother_node.add_output(other_f32_dq);
-
-        add_node.add_input(dst_f32);
-        add_node.add_input(other_f32_dq);
-        add_node.add_output(dst_add_f32);
-
-        relu_node.add_input(dst_add_f32);
-        relu_node.add_output(dst_relu_f32);
-
-        impl::graph_t g(engine.kind());
-        g.add_op(&dqdata_node);
-        g.add_op(&dqweight_node);
-        g.add_op(&conv_node);
-        g.add_op(&dqother_node);
-        g.add_op(&add_node);
-        g.add_op(&relu_node);
-        g.build_graph();
-
-        // prepare in/out with full shape
-        src_u8 = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
-        weight_s8 = utils::logical_tensor_init(
-                4, weight_shape, impl::data_type::s8);
-        other_s8 = utils::logical_tensor_init(
-                11, dst_shape, impl::data_type::s8);
-        if (with_bias) {
-            bias_f32 = utils::logical_tensor_init(
-                    6, bias_shape, impl::data_type::f32);
-        }
-        dst_relu_f32 = utils::logical_tensor_init(
-                8, dst_shape, impl::data_type::f32);
-
-        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_s8_data.data());
-        impl::tensor_t other_s8_ts(other_s8, &engine, other_s8_data.data());
-        impl::tensor_t bias_f32_ts;
-        if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, &engine, bias_data.data());
-        }
-        impl::tensor_t dst_relu_f32_ts(
-                dst_relu_f32, &engine, case1_out_data.data());
-        impl::tensor_t dst_f32_case2_ts(
-                dst_relu_f32, &engine, case2_out_data.data());
-
-        // -------------------------case 1----------------------------------
-        ASSERT_EQ(run_graph(g,
-                          {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts},
-                          {dst_relu_f32_ts}, engine, strm),
-                impl::status::success);
-
-        // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
-
-        apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1U);
-        auto part = g.get_partitions()[0];
-
-        // compile
-        impl::partition_t p;
-        p.init(part);
-
-        impl::compiled_partition_t cp(p);
-
-        std::vector<const impl::logical_tensor_t *> lt_ins;
-        if (with_bias)
-            lt_ins = {&src_u8, &weight_s8, &bias_f32, &other_s8};
-        else
-            lt_ins = {&src_u8, &weight_s8, &other_s8};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_relu_f32};
-
-        p.compile(&cp, lt_ins, lt_outs, &engine);
-
-        if (with_bias)
-            cp.execute(&strm,
-                    {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts},
-                    {dst_f32_case2_ts});
-        else
-            cp.execute(&strm, {src_u8_ts, weight_s8_ts, other_s8_ts},
-                    {dst_f32_case2_ts});
-        strm.wait();
-
-        if (engine.kind() == impl::engine_kind::cpu
-                && isa < dnnl_cpu_isa_avx512_core_vnni)
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                    /*atol*/ 1.f));
-        else
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
-                    /*atol*/ 1.f));
-    }
-}
-TEST(ExecuteSubgraphInt8, Conv2dSumMulNxcX8s8f32) {
-    using dims = impl::dnnl_impl::dims;
-
-    impl::engine_t &engine = get_engine();
-    impl::stream_t &strm = get_stream();
-
-    static auto isa = dnnl_get_effective_cpu_isa();
-    SKIP_IF(isa < dnnl_cpu_isa_avx512_core_vnni
-                    && engine.kind() == impl::engine_kind::cpu,
-            "Skip the test for systems that do not support "
-            "avx512_core_vnni.");
-
-    std::vector<int64_t> groups = {1, 4};
-    std::vector<bool> with_biases = {true, false};
-    std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
-
-    for_(const auto &g : groups)
-    for_(const auto with_bias : with_biases)
-    for (const auto &wei_qtype : weight_qtypes) {
-        // prepare fp32 data
-        int64_t in_channel = 8, out_channel = 8;
-        int64_t kernel_size = 3;
-        std::vector<int64_t> src_shape {1, 12, 12, in_channel};
-        std::vector<int64_t> weight_shape {
-                kernel_size, kernel_size, in_channel / g, out_channel};
-        std::vector<int64_t> bias_shape {out_channel};
-        std::vector<int64_t> dst_shape {1, 10, 10, out_channel};
-
-        test::vector<uint8_t> src_u8_data(product(src_shape));
-        test::vector<int8_t> weight_s8_data(product(weight_shape));
-        test::vector<int8_t> other_s8_data(product(dst_shape));
-        size_t bias_size = with_bias ? product(bias_shape) : 0;
-        test::vector<float> bias_data(bias_size);
-        test::vector<float> other_mul_data(product(dst_shape));
-        test::vector<float> case1_out_data(product(dst_shape));
-        test::vector<float> case2_out_data(product(dst_shape));
-
-        // random generate src, weight and bias data random seed = 7
-        std::default_random_engine generator(7);
-        std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
-        std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
-        std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
-        std::generate(src_u8_data.begin(), src_u8_data.end(), [&]() {
-            return static_cast<uint8_t>(u8_distribution(generator));
-        });
-        std::generate(weight_s8_data.begin(), weight_s8_data.end(), [&]() {
-            return static_cast<int8_t>(s8_distribution(generator));
-        });
-        std::generate(other_s8_data.begin(), other_s8_data.end(), [&]() {
-            return static_cast<int8_t>(s8_distribution(generator));
-        });
-        std::generate(other_mul_data.begin(), other_mul_data.end(),
-                [&]() { return f32_distribution(generator); });
-        if (with_bias) {
-            std::generate(bias_data.begin(), bias_data.end(),
-                    [&]() { return f32_distribution(generator); });
-        }
-
-        float scale_src = 1 / 255.f; // map to 0~255
-        float scale_other = 1 / 127.f;
-        int64_t zp_src = 0;
-        int64_t zp_other = 0;
-
-        size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
-
-        std::vector<float> scale_wei(scale_size, 1 / 127.f);
-        std::vector<int64_t> zp_wei(scale_size, 0);
-
-        impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
-        SET_Q_DQ_DATA_ATTR(dqdata_node)
-
-        impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 0)
-        dqweight_node.set_attr<int64_t>(
-                impl::op_attr::axis, wei_qtype == "per_tensor" ? 0 : 3);
-
-        impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
-        SET_CONV_ATTR(conv_node, 2)
-        conv_node.set_attr<std::string>(impl::op_attr::data_format, "NXC");
-        conv_node.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
-
-        impl::op_t dqother_node(5, impl::op_kind::Dequantize, "dqother_node");
-        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
-        dqother_node.set_attr<std::vector<int64_t>>(
-                impl::op_attr::zps, {zp_other});
-        dqother_node.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_other});
-        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
-
-        impl::op_t add_node(6, impl::op_kind::Add, "add_node");
-
-        impl::op_t mul_node(7, impl::op_kind::Multiply, "mul_node");
-
-        // prepare logical tensor
-        auto src_u8
-                = utils::logical_tensor_init(0, src_shape, impl::data_type::u8);
-        auto src_f32_dq = utils::logical_tensor_init(
-                1, src_shape, impl::data_type::f32);
-        auto weight_s8 = utils::logical_tensor_init(
-                2, weight_shape, impl::data_type::s8);
-        auto weight_f32_dq = utils::logical_tensor_init(
-                3, weight_shape, impl::data_type::f32);
-        auto dst_f32 = utils::logical_tensor_init(
-                4, dst_shape, impl::data_type::f32);
-        auto other_s8
-                = utils::logical_tensor_init(5, dst_shape, impl::data_type::s8);
-        auto other_f32_dq = utils::logical_tensor_init(
-                6, dst_shape, impl::data_type::f32);
-        auto dst_add_f32 = utils::logical_tensor_init(
-                7, dst_shape, impl::data_type::f32);
-        auto other_mul_f32 = utils::logical_tensor_init(
-                8, dst_shape, impl::data_type::f32);
-        auto dst_mul_f32 = utils::logical_tensor_init(
-                9, dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t bias_f32;
-        if (with_bias) {
-            bias_f32 = utils::logical_tensor_init(
-                    10, bias_shape, impl::data_type::f32);
-        }
-
-        dqdata_node.add_input(src_u8);
-        dqdata_node.add_output(src_f32_dq);
-
-        dqweight_node.add_input(weight_s8);
-        dqweight_node.add_output(weight_f32_dq);
-
-        conv_node.add_input(src_f32_dq);
-        conv_node.add_input(weight_f32_dq);
-        if (with_bias) conv_node.add_input(bias_f32);
-        conv_node.add_output(dst_f32);
-
-        dqother_node.add_input(other_s8);
-        dqother_node.add_output(other_f32_dq);
-
-        add_node.add_input(dst_f32);
-        add_node.add_input(other_f32_dq);
-        add_node.add_output(dst_add_f32);
-
-        mul_node.add_input(dst_add_f32);
-        mul_node.add_input(other_mul_f32);
-        mul_node.add_output(dst_mul_f32);
-
-        impl::graph_t g(engine.kind());
-        g.add_op(&dqdata_node);
-        g.add_op(&dqweight_node);
-        g.add_op(&conv_node);
-        g.add_op(&dqother_node);
-        g.add_op(&add_node);
-        g.add_op(&mul_node);
-        g.build_graph();
-
-        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_s8_data.data());
-        impl::tensor_t other_s8_ts(other_s8, &engine, other_s8_data.data());
-        impl::tensor_t other_mul_f32_ts
-                = impl::tensor_t(other_mul_f32, &engine, other_mul_data.data());
-        impl::tensor_t bias_f32_ts;
-        if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, &engine, bias_data.data());
-        }
-        impl::tensor_t dst_f32_case1_ts(
-                dst_mul_f32, &engine, case1_out_data.data());
-        impl::tensor_t dst_f32_case2_ts(
-                dst_mul_f32, &engine, case2_out_data.data());
-
-        // -------------------------case 1----------------------------------
-        ASSERT_EQ(run_graph(g,
-                          {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts,
-                                  other_mul_f32_ts},
-                          {dst_f32_case1_ts}, engine, strm),
-                impl::status::success);
-
-        // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
-        apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1U);
-        auto part = g.get_partitions()[0];
-
-        // compile
-        impl::partition_t p;
-        p.init(part);
-
-        impl::compiled_partition_t cp(p);
-
-        std::vector<const impl::logical_tensor_t *> lt_ins;
-        if (with_bias)
-            lt_ins = {
-                    &src_u8, &weight_s8, &bias_f32, &other_s8, &other_mul_f32};
-        else
-            lt_ins = {&src_u8, &weight_s8, &other_s8, &other_mul_f32};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_mul_f32};
-
-        p.compile(&cp, lt_ins, lt_outs, &engine);
-
-        if (with_bias)
-            cp.execute(&strm,
-                    {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts,
-                            other_mul_f32_ts},
-                    {dst_f32_case2_ts});
-        else
-            cp.execute(&strm,
-                    {src_u8_ts, weight_s8_ts, other_s8_ts, other_mul_f32_ts},
-                    {dst_f32_case2_ts});
         strm.wait();
 
         if (engine.kind() == impl::engine_kind::cpu
@@ -4758,12 +4102,13 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
         g.add_op(&qout_node2);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass
-                = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
+        impl::pass::pass_base_ptr apass1
+                = get_pass("int8_conv_add_post_ops_fusion");
+        impl::pass::pass_base_ptr apass2
+                = get_pass("int8_conv_post_ops_fusion");
 
-        apass->run(g);
+        apass1->run(g);
+        apass2->run(g);
 
         ASSERT_EQ(g.get_num_partitions(), 2U);
         auto part2 = g.get_partitions()[0]; // int8_conv_sum_relu
@@ -6083,9 +5428,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
 
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
+                = get_pass("int8_conv_add_post_ops_fusion");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -6325,9 +5668,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumS8Relu) {
 
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass(engine.kind() == impl::engine_kind::gpu
-                                ? "int8_conv_post_ops_fusion_gpu"
-                                : "int8_conv_post_ops_fusion_cpu");
+                = get_pass("int8_conv_add_post_ops_fusion");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);

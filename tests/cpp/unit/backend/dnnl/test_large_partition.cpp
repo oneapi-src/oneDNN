@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -994,10 +994,7 @@ TEST(Compile, Int8ConvBlockGetInplacePair) {
 
     impl::pass::pass_base_ptr apass1
             = get_pass("int8_identical_bottleneck_resblock_fusion");
-    impl::pass::pass_base_ptr apass2
-            = get_pass(eng.kind() == impl::engine_kind::gpu
-                            ? "int8_conv_post_ops_fusion_gpu"
-                            : "int8_conv_post_ops_fusion_cpu");
+    impl::pass::pass_base_ptr apass2 = get_pass("int8_conv_post_ops_fusion");
     apass1->run(g);
     apass2->run(g);
     ASSERT_EQ(g.get_num_partitions(), 2U);

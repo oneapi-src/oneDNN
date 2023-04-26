@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -208,6 +208,31 @@ inline impl::utils::pm::repetition_t *optional_bias_add(
             impl::utils::pm::in_edges_t {in_edge(0, input, 0)}, "popt_bias");
     return popt_bias;
 };
+
+inline impl::utils::pm::repetition_t *post_quantized_add(
+        const std::shared_ptr<impl::utils::pm::pb_graph_t> &pgraph,
+        impl::utils::pm::pb_node_t *input) {
+    impl::utils::pm::pb_op_t *pdequant_add
+            = pgraph->append_op(impl::op_kind::Dequantize, "dequant");
+    impl::utils::pm::pb_op_t *padd = pgraph->append_op(impl::op_kind::Add,
+            impl::utils::pm::in_edges_t {
+                    in_edge(0, input, 0), in_edge(1, pdequant_add, 0)},
+            "padd");
+
+    // post ops
+    auto postop_graph
+            = std::make_shared<impl::utils::pm::pb_graph_t>("postops_graph");
+    impl::utils::pm::pb_op_t *pop = postop_graph->append_alternation(
+            get_unary_binary_ops(), "postop");
+    postop_graph->create_input_port(0, pop, 0);
+    postop_graph->create_input_port(1, pop, 1);
+    postop_graph->create_output_port(0, pop, 0);
+
+    auto prep = pgraph->append_repetition(postop_graph, {0, 0}, 0,
+            MAX_REPETITION, impl::utils::pm::in_edges_t {in_edge(0, padd, 0)},
+            "prepetition");
+    return prep;
+}
 
 } // namespace pattern
 } // namespace dnnl_impl
