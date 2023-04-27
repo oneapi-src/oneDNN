@@ -63,13 +63,13 @@ struct memory_desc_info_t {
     int ndims;
     data_type_t data_type;
 
-    int offset0;
-    int dims[MAX_NDIMS];
-    int padded_dims[MAX_NDIMS];
+    dim_t offset0;
+    dim_t dims[MAX_NDIMS];
+    dim_t padded_dims[MAX_NDIMS];
 
     int nlevels;
-    int blocks[MAX_NDIMS][max_nlevels + 1];
-    int strides[MAX_NDIMS][max_nlevels + 1];
+    dim_t blocks[MAX_NDIMS][max_nlevels + 1];
+    dim_t strides[MAX_NDIMS][max_nlevels + 1];
 
     static memory_desc_info_t create(const memory_desc_wrapper &mdw) {
         using namespace format_tag;
@@ -1177,14 +1177,14 @@ inline void def_memory_desc_info(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int(utils::format("%s_NLEVELS", prefix), md_info.nlevels);
 
     for (int d = 0; d < MAX_NDIMS; ++d) {
-        int dim = (d < md_info.ndims) ? md_info.dims[d] : 1;
-        int padded_dim = (d < md_info.ndims) ? md_info.padded_dims[d] : 1;
+        dim_t dim = (d < md_info.ndims) ? md_info.dims[d] : 1;
+        dim_t padded_dim = (d < md_info.ndims) ? md_info.padded_dims[d] : 1;
         kernel_ctx.define_int(utils::format("%s_D%d", prefix, d), dim);
         kernel_ctx.define_int(utils::format("%s_PD%d", prefix, d), padded_dim);
 
         for (int l = 0; l < md_info.nlevels + 1; ++l) {
-            int block = (d < md_info.ndims) ? md_info.blocks[d][l] : 1;
-            int stride = (d < md_info.ndims) ? md_info.strides[d][l] : 0;
+            dim_t block = (d < md_info.ndims) ? md_info.blocks[d][l] : 1;
+            dim_t stride = (d < md_info.ndims) ? md_info.strides[d][l] : 0;
             kernel_ctx.define_int(
                     utils::format("%s_B%d_%d", prefix, d, l), block);
             kernel_ctx.define_int(
