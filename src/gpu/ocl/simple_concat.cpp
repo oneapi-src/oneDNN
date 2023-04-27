@@ -252,7 +252,7 @@ static status_t init_conf_common(
         if (simd > max_sg_size) continue;
         if (simd > max_elems) continue;
         if (simd > 1 && !compute_engine->mayiuse_sub_group(simd)) continue;
-        for (int bytes : {4, 2, 1}) {
+        for (int bytes : {8, 4, 2, 1}) {
             if (has_scales && bytes < (int)data_type_size) break;
             if (inner_size % bytes) continue;
             infos.emplace_back(simd, bytes, max_elems, max_read_size,

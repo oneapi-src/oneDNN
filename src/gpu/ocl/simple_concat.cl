@@ -14,7 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#if DATA_TYPE_SIZE == 4
+#if DATA_TYPE_SIZE == 8
+#define DATA_T ulong
+#define BLOCK_READ intel_sub_group_block_read_ul
+#define BLOCK_WRITE intel_sub_group_block_write_ul
+#elif DATA_TYPE_SIZE == 4
 #define DATA_T uint
 #define BLOCK_READ intel_sub_group_block_read
 #define BLOCK_WRITE intel_sub_group_block_write
