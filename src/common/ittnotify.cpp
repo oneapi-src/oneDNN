@@ -69,6 +69,7 @@ __itt_domain *itt_domain(primitive_kind_t kind) {
             CASE(prelu),
             CASE(softmax),
             CASE(layer_normalization),
+            CASE(group_normalization),
     };
 #undef CASE
 

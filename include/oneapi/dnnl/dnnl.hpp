@@ -146,6 +146,8 @@ struct primitive : public handle<dnnl_primitive_t> {
         softmax = dnnl_softmax,
         /// A layer normalization primitive.
         layer_normalization = dnnl_layer_normalization,
+        /// A group normalization primitive
+        group_normalization = dnnl_group_normalization,
     };
 
     using handle::handle;
@@ -4172,9 +4174,9 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
     ///     a pooling kernel parameter.
     memory::dims get_kernel() const { return query_dims(query::kernel); }
 
-    /// Returns a shuffle group size parameter.
-    /// @returns A shuffle group size parameter.
-    /// @returns Zero if the primitive does not have a shuffle group size
+    /// Returns a group size parameter.
+    /// @returns A group size parameter.
+    /// @returns Zero if the primitive does not have a group size
     ///     parameter.
     memory::dim get_group_size() const {
         return query_s64(query::group_size_s64);
@@ -7622,6 +7624,286 @@ struct batch_normalization_backward : public primitive {
 };
 
 /// @} dnnl_api_batch_normalization
+
+/// @addtogroup dnnl_api_group_normalization Group Normalization
+///
+/// A primitive to perform group normalization.
+///
+/// Both forward and backward propagation primitives support in-place
+/// operation; that is, src and dst can refer to the same memory for forward
+/// propagation, and diff_dst and diff_src can refer to the same memory for
+/// backward propagation.
+///
+/// The group normalization primitives computations can be controlled by
+/// specifying different @ref dnnl::normalization_flags values. For example,
+/// group normalization forward propagation can be configured to either
+/// compute the mean and variance or take them as arguments. It can either
+/// perform scaling and shifting using gamma and beta parameters or not.
+///
+/// @sa @ref dev_guide_group_normalization in developer guide
+///
+/// @{
+
+/// Group normalization forward propagation primitive.
+struct group_normalization_forward : public primitive {
+    /// Primitive descriptor for a group normalization forward propagation
+    /// primitive.
+    struct primitive_desc : public dnnl::primitive_desc {
+        /// Default constructor. Produces an empty object.
+        primitive_desc() = default;
+
+        /// Constructs a primitive descriptor for a group normalization forward
+        /// propagation primitive.
+        ///
+        /// @note
+        ///     In-place operation is supported: the dst can refer to the same
+        ///     memory as the src.
+        ///
+        /// @param aengine Engine to use.
+        /// @param aprop_kind Propagation kind. Possible values are
+        ///     #dnnl::prop_kind::forward_training and
+        ///     #dnnl::prop_kind::forward_inference.
+        /// @param src_desc Source memory descriptor.
+        /// @param dst_desc Destination memory descriptor.
+        /// @param groups Group normalization groups parameter.
+        /// @param epsilon Group normalization epsilon parameter.
+        /// @param flags Group normalization flags (@ref
+        ///     dnnl::normalization_flags).
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                const memory::desc &src_desc, const memory::desc &dst_desc,
+                memory::dim groups, float epsilon, normalization_flags flags,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false) {
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status
+                    = dnnl_group_normalization_forward_primitive_desc_create(
+                            &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
+                            src_desc.get(), dst_desc.get(), groups, epsilon,
+                            convert_to_c(flags), attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a group "
+                        "normalization forward propagation primitive");
+            reset(pd);
+        }
+
+        /// Constructs a primitive descriptor for a group normalization
+        /// forward propagation primitive from a C API primitive descriptor
+        /// that must have a matching kind.
+        ///
+        /// @param pd C API primitive descriptor for a group normalization
+        ///     forward propagation primitive.
+        primitive_desc(dnnl_primitive_desc_t pd)
+            : dnnl::primitive_desc(pd,
+                    dnnl::primitive::kind::group_normalization,
+                    dnnl::prop_kind::forward_training,
+                    dnnl::prop_kind::forward_inference) {}
+
+        /// @copydoc dnnl::primitive_desc_base::src_desc()const
+        memory::desc src_desc() const { return base::src_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::dst_desc()const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::weights_desc()const
+        memory::desc weights_desc() const { return base::weights_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::workspace_desc()const
+        memory::desc workspace_desc() const { return base::workspace_desc(); }
+
+        /// Returns memory descriptor for mean.
+        /// @returns Memory descriptor for mean.
+        memory::desc mean_desc() const { return stat_desc(mean); }
+
+        /// Returns memory descriptor for variance.
+        /// @returns Memory descriptor for variance.
+        memory::desc variance_desc() const { return stat_desc(var); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        dnnl::prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_group_size()const
+        int get_group_size() const { return base::get_group_size(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_epsilon()const
+        float get_epsilon() const { return base::get_epsilon(); }
+
+        /// Returns normalization flags.
+        /// @return Normalization flags.
+        normalization_flags get_flags() const {
+            return base::get_flags<normalization_flags>();
+        }
+
+    private:
+        enum {
+            mean = 1,
+            var = 2,
+        };
+        memory::desc stat_desc(int kind) const {
+            const bool use_global_stats
+                    = (get_flags() & normalization_flags::use_global_stats)
+                    != normalization_flags::none;
+            return query_md(
+                    use_global_stats ? query::src_md : query::dst_md, kind);
+        }
+    };
+
+    /// Default constructor. Produces an empty object.
+    group_normalization_forward() = default;
+
+    /// Constructs a group normalization forward propagation primitive.
+    /// @param pd Primitive descriptor for a group normalization forward
+    ///     propagation primitive.
+    group_normalization_forward(const primitive_desc &pd) : primitive(pd) {}
+
+    /// Constructs a group normalization forward propagation primitive from
+    ///     a cache blob.
+    /// @param pd Primitive descriptor for a group normalization forward
+    ///     propagation primitive.
+    /// @param cache_blob Cache blob.
+    group_normalization_forward(
+            const primitive_desc &pd, const std::vector<uint8_t> &cache_blob)
+        : primitive(pd, cache_blob) {}
+};
+
+/// Group normalization backward propagation primitive.
+struct group_normalization_backward : public primitive {
+    /// Primitive descriptor for a group normalization backward propagation
+    /// primitive.
+    struct primitive_desc : public dnnl::primitive_desc {
+        /// Default constructor. Produces an empty object.
+        primitive_desc() = default;
+
+        /// Constructs a primitive descriptor for a group normalization backward
+        /// propagation primitive.
+        ///
+        /// @param aengine Engine to use.
+        /// @param aprop_kind Propagation kind. Possible values are
+        ///     #dnnl::prop_kind::backward_data and #dnnl::prop_kind::backward
+        ///     (diffs for all parameters are computed in this case).
+        /// @param diff_src_desc Diff source memory descriptor.
+        /// @param diff_dst_desc Diff destination memory descriptor.
+        /// @param src_desc Source memory descriptor.
+        /// @param groups Group normalization groups parameter.
+        /// @param epsilon Group normalization epsilon parameter.
+        /// @param flags Group normalization flags (@ref
+        ///     dnnl::normalization_flags).
+        /// @param hint_fwd_pd Primitive descriptor for a group normalization
+        ///     forward propagation primitive. It is used as a hint for
+        ///     deciding which memory format to use.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                const memory::desc &diff_src_desc,
+                const memory::desc &diff_dst_desc, const memory::desc &src_desc,
+                memory::dim groups, float epsilon, normalization_flags flags,
+                const group_normalization_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false) {
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status
+                    = dnnl_group_normalization_backward_primitive_desc_create(
+                            &pd, aengine.get(), dnnl::convert_to_c(aprop_kind),
+                            diff_src_desc.get(), diff_dst_desc.get(),
+                            src_desc.get(), groups, epsilon,
+                            convert_to_c(flags), hint_fwd_pd.get(), attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a group "
+                        "normalization backward propagation primitive");
+            reset(pd);
+        }
+
+        /// Constructs a primitive descriptor for a group normalization
+        /// backward propagation primitive from a C API primitive descriptor
+        /// that must have a matching kind.
+        ///
+        /// @param pd C API primitive descriptor for a group normalization
+        ///     backward propagation primitive.
+        primitive_desc(dnnl_primitive_desc_t pd)
+            : dnnl::primitive_desc(pd,
+                    dnnl::primitive::kind::group_normalization,
+                    dnnl::prop_kind::backward, dnnl::prop_kind::backward_data) {
+        }
+
+        /// @copydoc dnnl::primitive_desc_base::src_desc()const
+        memory::desc src_desc() const { return base::src_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::weights_desc()const
+        memory::desc weights_desc() const { return base::weights_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::dst_desc()const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::diff_src_desc()const
+        memory::desc diff_src_desc() const { return base::diff_src_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::diff_dst_desc()const
+        memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::diff_weights_desc()const
+        memory::desc diff_weights_desc() const {
+            return base::diff_weights_desc(0);
+        }
+
+        /// @copydoc dnnl::group_normalization_forward::primitive_desc::mean_desc()const
+        memory::desc mean_desc() const { return query_md(query::src_md, 1); }
+
+        /// @copydoc dnnl::group_normalization_forward::primitive_desc::variance_desc()const
+        memory::desc variance_desc() const {
+            return query_md(query::src_md, 2);
+        }
+
+        /// @copydoc dnnl::primitive_desc_base::workspace_desc()const
+        memory::desc workspace_desc() const { return base::workspace_desc(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_prop_kind()const
+        dnnl::prop_kind get_prop_kind() const { return base::get_prop_kind(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_group_size()const
+        int get_group_size() const { return base::get_group_size(); }
+
+        /// @copydoc dnnl::primitive_desc_base::get_epsilon()const
+        float get_epsilon() const { return base::get_epsilon(); }
+
+        /// Returns normalization flags.
+        /// @return Normalization flags.
+        normalization_flags get_flags() const {
+            return base::get_flags<normalization_flags>();
+        }
+    };
+
+    /// Default constructor. Produces an empty object.
+    group_normalization_backward() = default;
+
+    /// Constructs a group normalization backward propagation primitive.
+    /// @param pd Primitive descriptor for a group normalization backward
+    ///     propagation primitive.
+    group_normalization_backward(const primitive_desc &pd) : primitive(pd) {}
+
+    /// Constructs a group normalization backward propagation primitive from
+    ///     a cache blob.
+    /// @param pd Primitive descriptor for a group normalization backward
+    ///     propagation primitive.
+    /// @param cache_blob Cache blob.
+    group_normalization_backward(
+            const primitive_desc &pd, const std::vector<uint8_t> &cache_blob)
+        : primitive(pd, cache_blob) {}
+};
+
+/// @} dnnl_api_group_normalization
 
 /// @addtogroup dnnl_api_layer_normalization Layer Normalization
 ///

@@ -1979,6 +1979,67 @@ dnnl_status_t DNNL_API dnnl_batch_normalization_backward_primitive_desc_create(
 
 /// @} dnnl_api_batch_normalization
 
+/// @addtogroup dnnl_api_group_normalization
+/// @{
+
+/// Creates a primitive descriptor for a group normalization forward propagation
+///     primitive.
+///
+/// @note
+///     In-place operation is supported: the dst can refer to the same memory
+///     as the src.
+///
+/// @param primitive_desc Output primitive_descriptor.
+/// @param engine Engine to use.
+/// @param prop_kind Propagation kind. Possible values are
+///     #dnnl_forward_training and #dnnl_forward_inference.
+/// @param src_desc Source memory descriptor.
+/// @param dst_desc Destination memory descriptor.
+/// @param groups Group normalization groups parameter.
+/// @param epsilon Group normalization epsilon parameter.
+/// @param flags Group normalization flags (@ref dnnl_normalization_flags_t).
+/// @param attr Primitive attributes (can be NULL).
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_group_normalization_forward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        dnnl_prop_kind_t prop_kind, const_dnnl_memory_desc_t src_desc,
+        const_dnnl_memory_desc_t dst_desc, dnnl_dim_t groups, float epsilon,
+        unsigned flags, const_dnnl_primitive_attr_t attr);
+
+/// Creates a primitive descriptor for a group normalization backward
+///     propagation primitive.
+///
+/// @note
+///     In-place operation is supported: the diff_dst can refer to the same
+///     memory as the diff_src.
+///
+/// @param primitive_desc Output primitive_descriptor.
+/// @param engine Engine to use.
+/// @param prop_kind Propagation kind. Possible values are
+///     #dnnl_backward_data and #dnnl_backward (diffs for all parameters are
+///     computed in this case).
+/// @param diff_src_desc Diff source memory descriptor.
+/// @param diff_dst_desc Diff destination memory descriptor.
+/// @param src_desc Source memory descriptor.
+/// @param groups Group normalization groups parameter.
+/// @param epsilon Group normalization epsilon parameter.
+/// @param flags Group normalization flags (@ref dnnl_normalization_flags_t).
+/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
+///     primitive.
+/// @param attr Primitive attributes (can be NULL).
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_group_normalization_backward_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        dnnl_prop_kind_t prop_kind, const_dnnl_memory_desc_t diff_src_desc,
+        const_dnnl_memory_desc_t diff_dst_desc,
+        const_dnnl_memory_desc_t src_desc, dnnl_dim_t groups, float epsilon,
+        unsigned flags, const_dnnl_primitive_desc_t hint_fwd_pd,
+        const_dnnl_primitive_attr_t attr);
+
+/// @} dnnl_api_group_normalization
+
 /// @addtogroup dnnl_api_layer_normalization
 /// @{
 

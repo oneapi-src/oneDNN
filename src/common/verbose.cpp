@@ -41,6 +41,7 @@
 #include "deconvolution_pd.hpp"
 #include "eltwise_pd.hpp"
 #include "gemm_pd.hpp"
+#include "group_normalization_pd.hpp"
 #include "inner_product_pd.hpp"
 #include "layer_normalization_pd.hpp"
 #include "lrn_pd.hpp"
@@ -838,6 +839,26 @@ std::string init_info_gemm(const engine_t *e, const pd_t *pd) {
 }
 
 template <typename pd_t>
+std::string init_info_group_normalization(const engine_t *e, const pd_t *pd) {
+    std::stringstream ss;
+    ss << e << "," << pd->kind() << "," << pd->name() << ","
+       << pd->desc()->prop_kind << ",";
+
+    auto src_md = pd->src_md();
+    auto dst_md = pd->invariant_dst_md();
+    ss << "src_" << src_md;
+    ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
+    if (!pd->is_fwd()) ss << " diff_src_" << pd->diff_src_md();
+    ss << ",";
+
+    ss << pd->attr() << ",";
+    ss << "flags:" << normalization_flags2str(pd->desc()->flags) << ",";
+    ss << "g" << pd->desc()->groups << md2desc_str(src_md);
+
+    return ss.str();
+}
+
+template <typename pd_t>
 std::string init_info_inner_product(const engine_t *e, const pd_t *pd) {
     std::stringstream ss;
     ss << e << "," << pd->kind() << "," << pd->name() << ","
@@ -1311,6 +1332,7 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
             CASE(deconvolution);
             CASE(eltwise);
             CASE(gemm);
+            CASE(group_normalization);
             CASE(inner_product);
             CASE(layer_normalization);
             CASE(lrn);

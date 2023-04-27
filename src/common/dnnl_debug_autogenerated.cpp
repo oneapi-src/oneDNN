@@ -1599,6 +1599,7 @@ const char *dnnl_prim_kind2str(dnnl_primitive_kind_t v) {
     if (v == dnnl_prelu) return "prelu";
     if (v == dnnl_softmax) return "softmax";
     if (v == dnnl_layer_normalization) return "layer_normalization";
+    if (v == dnnl_group_normalization) return "group_normalization";
     if (v == dnnl_primitive_kind_max) return "primitive_kind_max";
     assert(!"unknown prim_kind");
     return "unknown prim_kind";

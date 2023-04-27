@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -93,6 +93,13 @@
 #define REG_ELTWISE_P(...) __VA_ARGS__
 #else
 #define REG_ELTWISE_P(...) \
+    {}
+#endif
+
+#if BUILD_PRIMITIVE_ALL || BUILD_GROUP_NORMALIZATION
+#define REG_GNORM_P(...) __VA_ARGS__
+#else
+#define REG_GNORM_P(...) \
     {}
 #endif
 

@@ -79,6 +79,7 @@ size_t get_desc_hash(const binary_desc_t &desc);
 size_t get_desc_hash(const convolution_desc_t &desc);
 size_t get_desc_hash(const eltwise_desc_t &desc);
 size_t get_desc_hash(const gemm_desc_t &desc);
+size_t get_desc_hash(const group_normalization_desc_t &desc);
 size_t get_desc_hash(const inner_product_desc_t &desc);
 size_t get_desc_hash(const layer_normalization_desc_t &desc);
 size_t get_desc_hash(const lrn_desc_t &desc);
@@ -165,6 +166,7 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
             CASE(deconvolution)
             CASE(eltwise)
             CASE(gemm)
+            CASE(group_normalization)
             CASE(inner_product)
             CASE(layer_normalization)
             CASE(lrn)

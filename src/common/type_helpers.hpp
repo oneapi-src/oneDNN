@@ -484,6 +484,23 @@ inline bool operator==(const gemm_desc_t &lhs, const gemm_desc_t &rhs) {
 }
 
 inline bool operator==(
+        const group_normalization_desc_t &lhs, const group_normalization_desc_t &rhs) {
+    bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
+            && COMPARE_DESC_MEMBERS(prop_kind)
+            && COMPARE_DESC_MEMBERS(src_desc)
+            && COMPARE_DESC_MEMBERS(diff_src_desc)
+            && COMPARE_DESC_MEMBERS(scaleshift_desc)
+            && COMPARE_DESC_MEMBERS(diff_scaleshift_desc)
+            && COMPARE_DESC_MEMBERS(dst_desc)
+            && COMPARE_DESC_MEMBERS(diff_dst_desc)
+            && COMPARE_DESC_MEMBERS(stat_desc)
+            && COMPARE_DESC_MEMBERS(groups)
+            && COMPARE_FLOAT_DESC_MEMBERS(group_norm_epsilon)
+            && COMPARE_DESC_MEMBERS(flags);
+     return ret;
+}
+
+inline bool operator==(
         const inner_product_desc_t &lhs, const inner_product_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
             && COMPARE_DESC_MEMBERS(prop_kind)
@@ -956,6 +973,7 @@ inline void copy_c_op_desc(op_desc_t *dst, const op_desc_t *src) {
         CASE_OP_DESC(deconvolution);
         CASE_OP_DESC(eltwise);
         CASE_OP_DESC(gemm);
+        CASE_OP_DESC(group_normalization);
         CASE_OP_DESC(inner_product);
         CASE_OP_DESC(layer_normalization);
         CASE_OP_DESC(lrn);

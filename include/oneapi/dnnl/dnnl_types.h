@@ -1877,6 +1877,8 @@ typedef enum {
     dnnl_softmax,
     /// A layer normalization primitive.
     dnnl_layer_normalization,
+    /// A group normalization primitive.
+    dnnl_group_normalization,
 
     /// Parameter to allow internal only primitives without undefined behavior.
     /// This parameter is chosen to be valid for so long as sizeof(int) >= 2.

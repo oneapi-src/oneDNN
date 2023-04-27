@@ -41,6 +41,8 @@ void serialize_desc(
 void serialize_desc(
         serialization_stream_t &sstream, const eltwise_desc_t &desc);
 void serialize_desc(serialization_stream_t &sstream, const gemm_desc_t &desc);
+void serialize_desc(serialization_stream_t &sstream,
+        const group_normalization_desc_t &desc);
 void serialize_desc(
         serialization_stream_t &sstream, const inner_product_desc_t &desc);
 void serialize_desc(serialization_stream_t &sstream,

@@ -1788,6 +1788,7 @@ const primitive_kind_t resampling = dnnl_resampling;
 const primitive_kind_t reduction = dnnl_reduction;
 const primitive_kind_t softmax = dnnl_softmax;
 const primitive_kind_t layer_normalization = dnnl_layer_normalization;
+const primitive_kind_t group_normalization = dnnl_group_normalization;
 
 // Internal only primitive kinds.
 const primitive_kind_t internal_only_start = (primitive_kind_t)(1 << 12);
@@ -1919,6 +1920,9 @@ struct eltwise_bwd_pd_t;
 struct eltwise_fwd_pd_t;
 struct eltwise_pd_t;
 struct gemm_pd_t;
+struct group_normalization_bwd_pd_t;
+struct group_normalization_fwd_pd_t;
+struct group_normalization_pd_t;
 struct inner_product_bwd_data_pd_t;
 struct inner_product_bwd_weights_pd_t;
 struct inner_product_fwd_pd_t;

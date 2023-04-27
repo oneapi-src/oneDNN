@@ -70,6 +70,7 @@ bool key_t::operator==(const key_t &rhs) const {
             CASE(deconvolution)
             CASE(eltwise)
             CASE(gemm)
+            CASE(group_normalization)
             CASE(inner_product)
             CASE(layer_normalization)
             CASE(lrn)
@@ -392,6 +393,29 @@ size_t get_desc_hash(const gemm_desc_t &desc) {
     seed = hash_combine(seed, static_cast<size_t>(desc.sum_ab));
     seed = hash_combine(seed, static_cast<size_t>(desc.sum_ab_type));
     // Combined hash for gemm desc
+    return seed;
+}
+
+size_t get_desc_hash(const group_normalization_desc_t &desc) {
+    size_t seed = 0;
+    // Kinds
+    seed = hash_combine(seed, static_cast<size_t>(desc.primitive_kind));
+    seed = hash_combine(seed, static_cast<size_t>(desc.prop_kind));
+    // Memory descriptors
+    seed = hash_combine(seed, get_md_hash(desc.src_desc));
+    seed = hash_combine(seed, get_md_hash(desc.diff_src_desc));
+    seed = hash_combine(seed, get_md_hash(desc.scaleshift_desc));
+    seed = hash_combine(seed, get_md_hash(desc.diff_scaleshift_desc));
+    seed = hash_combine(seed, get_md_hash(desc.dst_desc));
+    seed = hash_combine(seed, get_md_hash(desc.diff_dst_desc));
+    seed = hash_combine(seed, get_md_hash(desc.stat_desc));
+    // Groups
+    seed = hash_combine(seed, desc.groups);
+    // Epsilon
+    seed = hash_combine(seed, desc.group_norm_epsilon);
+    // Flags
+    seed = hash_combine(seed, desc.flags);
+    // Combined hash for group_normalization desc
     return seed;
 }
 

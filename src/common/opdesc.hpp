@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -294,6 +294,37 @@ struct batch_normalization_desc_t {
     unsigned flags;
 };
 
+// A descriptor of a Group Normalization operation.
+struct group_normalization_desc_t {
+    // The kind of primitive. Used for self-identifying the primitive
+    // descriptor. Must be #dnnl_group_normalization.
+    primitive_kind_t primitive_kind;
+    // The kind of propagation. Possible values: #dnnl_forward_training,
+    // #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
+    prop_kind_t prop_kind;
+    // Source memory descriptor.
+    memory_desc_t src_desc;
+    // Source gradient memory descriptor.
+    memory_desc_t diff_src_desc;
+    // Scale and/or shift data and gradient memory descriptor.
+    // Scaleshift memory descriptor uses 1D #dnnl_x format[Channels].
+    memory_desc_t scaleshift_desc;
+    memory_desc_t diff_scaleshift_desc;
+    // Mean and variance data memory descriptors.
+    // Statistics (mean and variance) memory descriptor uses 2D #dnnl_ab
+    // format[Batch, groups].
+    memory_desc_t stat_desc;
+    // Group normalization groups parameter.
+    dim_t groups;
+    // Group normalization epsilon parameter.
+    float group_norm_epsilon;
+    unsigned flags;
+    // Destination memory descriptor.
+    memory_desc_t dst_desc;
+    // Destination gradient memory descriptor.
+    memory_desc_t diff_dst_desc;
+};
+
 // A descriptor of a Layer Normalization operation.
 struct layer_normalization_desc_t {
     // The kind of primitive. Used for self-identifying the primitive
@@ -570,6 +601,7 @@ struct op_desc_t {
         softmax_desc_t softmax;
         lrn_desc_t lrn;
         batch_normalization_desc_t batch_normalization;
+        group_normalization_desc_t group_normalization;
         layer_normalization_desc_t layer_normalization;
         inner_product_desc_t inner_product;
         rnn_desc_t rnn;
@@ -601,6 +633,7 @@ struct op_desc_t {
     DECL_CTOR_AND_CONVERTERS(softmax_desc_t);
     DECL_CTOR_AND_CONVERTERS(lrn_desc_t);
     DECL_CTOR_AND_CONVERTERS(batch_normalization_desc_t);
+    DECL_CTOR_AND_CONVERTERS(group_normalization_desc_t);
     DECL_CTOR_AND_CONVERTERS(layer_normalization_desc_t);
     DECL_CTOR_AND_CONVERTERS(inner_product_desc_t);
     DECL_CTOR_AND_CONVERTERS(rnn_desc_t);
