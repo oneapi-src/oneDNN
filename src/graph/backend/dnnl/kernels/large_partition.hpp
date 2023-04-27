@@ -150,10 +150,10 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, convert_dynamic_quantize_ops);
 
         BACKEND_DNNL_ADD_PASS(pipeline, insert_u8_to_s8_for_matmul);
-        BACKEND_DNNL_ADD_PASS(
-                pipeline, insert_unsqueeze_and_squeeze_for_matmul);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_permute_for_matmul);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_reshape_for_ndx2d_matmul);
+        BACKEND_DNNL_ADD_PASS(
+                pipeline, insert_unsqueeze_and_squeeze_for_matmul);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_unsqueeze_for_prelu);
         BACKEND_DNNL_ADD_PASS(
                 pipeline, insert_unsqueeze_and_squeeze_for_prelu_bwd);
