@@ -247,8 +247,8 @@ dim_t get_binary_src1_off(const memory_desc_t &src1_md, const dim_t l_offset,
 
 } // namespace
 
-status_t ref_post_ops_t::execute(float &res, const args_t &args) const {
-    if (po_.len() == 0) return status::success;
+void ref_post_ops_t::execute(float &res, const args_t &args) const {
+    if (po_.len() == 0) return;
 
     auto it_eltwise_po = eltwise_po_.begin();
     auto it_binary_po = binary_po_.begin();
@@ -304,7 +304,6 @@ status_t ref_post_ops_t::execute(float &res, const args_t &args) const {
             default: assert(!"unsupported post op primitive kind!");
         }
     }
-    return status::success;
 }
 
 } // namespace cpu

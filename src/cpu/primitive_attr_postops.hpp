@@ -69,7 +69,7 @@ struct ref_post_ops_t {
 
     virtual ~ref_post_ops_t() = default;
 
-    status_t execute(float &res, const args_t &args = args_t()) const;
+    void execute(float &res, const args_t &args = args_t()) const;
 
     static bool primitive_kind_ok(const post_ops_t &po) {
         using namespace primitive_kind;
