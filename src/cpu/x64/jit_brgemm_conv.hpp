@@ -87,6 +87,10 @@ struct brgemm_convolution_fwd_t : public primitive_t {
         };
         std::unordered_map<std::array<int, 4>, int, hasher> batchsizes;
 
+        void get_kw_range(int ow, int &kw_s, int &kw_full_s, int &kw_full_e,
+                int &kw_e) const;
+        void get_ow_range(int ow, int kw, int &ow_s, int &ow_e) const;
+
         inline size_t get_brg_idx(int m, bool do_initialization, bool is_N_tail,
                 bool is_K_tail, int kd_b, int kd_e, int kh_b, int kh_e) const {
             int bs_idx = 0;
@@ -217,10 +221,6 @@ private:
     inline int maybe_invert_range(int k, int k_inv, int K) const {
         return use_inversion ? K - k_inv : k;
     };
-
-    void get_kw_range(
-            int ow, int &kw_s, int &kw_full_s, int &kw_full_e, int &kw_e) const;
-    void get_ow_range(int ow, int kw, int &ow_s, int &ow_e) const;
 
     void ker_base(brgemm_thread_ctx_t &btc) const;
     void ker_trans(brgemm_thread_ctx_t &btc, char *inp_buffer) const;
