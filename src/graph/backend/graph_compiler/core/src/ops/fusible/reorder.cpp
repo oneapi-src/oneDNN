@@ -3028,15 +3028,16 @@ bool reorder_op_t::support_output_loop() const {
 
 bool reorder_op_t::support_optimized_kernel(const context_ptr &ctx) const {
     INIT_REORDER_OP_INFO()
-    return (!is_innermost_dim_strided
-                   && can_be_fast_transpose(ctx, inp_a_axis, inp_b_axis,
-                           out_a_axis, out_b_axis, plain_dims_, input_format,
-                           output_format, src, dst, dtype, is_dynamic(),
-                           info_.cur_impl_ & impl_kind_t::no_padding))
-            || can_be_vnni_reorder(ctx, inp_a_axis, inp_b_axis, out_a_axis,
-                    out_b_axis, plain_dims_, input_format, output_format, src,
-                    dst, dtype, is_vnni_reorder, is_dynamic(),
-                    info_.cur_impl_ & impl_kind_t::no_padding);
+    return !is_innermost_dim_strided
+            && (can_be_fast_transpose(ctx, inp_a_axis, inp_b_axis, out_a_axis,
+                        out_b_axis, plain_dims_, input_format, output_format,
+                        src, dst, dtype, is_dynamic(),
+                        info_.cur_impl_ & impl_kind_t::no_padding)
+                    || can_be_vnni_reorder(ctx, inp_a_axis, inp_b_axis,
+                            out_a_axis, out_b_axis, plain_dims_, input_format,
+                            output_format, src, dst, dtype, is_vnni_reorder,
+                            is_dynamic(),
+                            info_.cur_impl_ & impl_kind_t::no_padding));
 }
 
 bool reorder_op_t::meet_vnni_reorder_require(const context_ptr &ctx) const {

@@ -324,6 +324,12 @@ static void reschedule_reorder_nearby_input(std::vector<sc_op_ptr> target_ops) {
         pre_op = target_ops[--i].get();
         if (pre_op->isa<unary_elementwise_op_t>()) {
             if (pre_op->isa<cast_op_t>()) {
+                if (utils::get_sizeof_type(
+                            pre_op->get_inputs()[0]->details_.dtype_)
+                        > utils::get_sizeof_type(
+                                pre_op->get_outputs()[0]->details_.dtype_)) {
+                    break;
+                }
                 cached_dtype = pre_op->get_inputs()[0]->details_.dtype_;
             }
             idx_mp[i] = 0;

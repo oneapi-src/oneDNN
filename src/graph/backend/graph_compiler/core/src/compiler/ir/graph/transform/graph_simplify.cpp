@@ -26,6 +26,7 @@
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
 #include <unordered_map>
+#include <util/bf16.hpp>
 
 SC_MODULE(graph.simplify)
 
@@ -230,6 +231,38 @@ void excess_tensor_view_elimination(sc_graph_t &graph, const context_ptr &ctx) {
     graph.reset_op_ids();
 }
 
+static bool can_simplify(
+        const sc_op_ptr &node, const constant_op_t *in_const_op) {
+    auto const_dtype = in_const_op->get_constant_dtype();
+    if (in_const_op->get_constant_plain_dims() != sc_dims {1}) { return false; }
+    if (const_dtype == datatypes::f32) {
+        float constant_val = reinterpret_cast<float *>(
+                in_const_op->get_constant_values()->data_)[0];
+        if ((constant_val == 0.f
+                    && (node->isa<add_op_t>() || node->isa<sub_op_t>()))
+                || (constant_val == 1.f
+                        && (node->isa<mul_op_t>() || node->isa<div_op_t>())))
+            return true;
+    } else if (const_dtype == datatypes::s32) {
+        int constant_val = reinterpret_cast<int *>(
+                in_const_op->get_constant_values()->data_)[0];
+        if ((constant_val == 0
+                    && (node->isa<add_op_t>() || node->isa<sub_op_t>()))
+                || (constant_val == 1
+                        && (node->isa<mul_op_t>() || node->isa<div_op_t>())))
+            return true;
+    } else if (const_dtype == datatypes::bf16) {
+        bf16_t constant_val = reinterpret_cast<bf16_t *>(
+                in_const_op->get_constant_values()->data_)[0];
+        if ((constant_val == bf16_t(0)
+                    && (node->isa<add_op_t>() || node->isa<sub_op_t>()))
+                || (constant_val == bf16_t(1)
+                        && (node->isa<mul_op_t>() || node->isa<div_op_t>())))
+            return true;
+    }
+    return false;
+}
+
 // eliminate redundant binary op
 void redundant_binary_op_elimination(
         sc_graph_t &graph, const context_ptr &ctx) {
@@ -244,13 +277,8 @@ void redundant_binary_op_elimination(
                     auto in_const_op = node->get_inputs()[i]
                                                ->producer_owner_
                                                ->dyn_cast<constant_op_t>();
-                    float v = reinterpret_cast<float *>(
-                            in_const_op->get_constant_values()->data_)[0];
-                    if (((v == 0.f && node->isa<add_op_t>())
-                                || (v == 1.f && node->isa<mul_op_t>()))
-                            && in_const_op->get_constant_plain_dims().size()
-                                    == 1
-                            && in_const_op->get_constant_plain_dims()[0] == 1) {
+                    bool do_simplify = can_simplify(node, in_const_op);
+                    if (do_simplify) {
                         size_t use_size = node->get_outputs()[0]->uses_.size();
                         int use_idx = 0;
                         for (size_t j = 0; j < use_size; j++) {
@@ -289,12 +317,8 @@ void redundant_binary_op_elimination(
                 auto in_const_op
                         = node->get_inputs()[1]
                                   ->producer_owner_->dyn_cast<constant_op_t>();
-                float v = reinterpret_cast<float *>(
-                        in_const_op->get_constant_values()->data_)[0];
-                if (((v == 0.f && node->isa<sub_op_t>())
-                            || (v == 1.f && node->isa<div_op_t>()))
-                        && in_const_op->get_constant_plain_dims().size() == 1
-                        && in_const_op->get_constant_plain_dims()[0] == 1) {
+                bool do_simplify = can_simplify(node, in_const_op);
+                if (do_simplify) {
                     size_t use_size = node->get_outputs()[0]->uses_.size();
                     int use_idx = 0;
                     for (size_t j = 0; j < use_size; j++) {

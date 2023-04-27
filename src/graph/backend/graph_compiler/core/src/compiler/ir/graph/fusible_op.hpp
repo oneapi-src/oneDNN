@@ -219,13 +219,13 @@ public:
     constant_op_t(const std::shared_ptr<static_data_t> v, sc_data_type_t dtype,
             const sc_dims &plain_dims,
             const sc_data_format_t &format = sc_data_format_t());
-    std::shared_ptr<static_data_t> get_constant_values() {
+    std::shared_ptr<static_data_t> get_constant_values() const {
         return const_values_;
     }
-    sc_data_type_t get_constant_dtype() {
+    sc_data_type_t get_constant_dtype() const {
         return info_.outputs_[0]->details_.dtype_;
     }
-    const sc_dims &get_constant_plain_dims() {
+    const sc_dims &get_constant_plain_dims() const {
         return info_.outputs_[0]->details_.get_plain_dims();
     }
     const sc_data_format_t &get_constant_format() {

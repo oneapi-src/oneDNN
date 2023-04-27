@@ -1959,6 +1959,12 @@ struct inplace_recursion_context_t {
                 || producer->isa<unary_elementwise_op_t>();
         bool can_be_free = producer->isa<tensor_view_op_t>();
         good_op = good_op && (must_zero_offset || can_be_free);
+        if (must_zero_offset) {
+            good_op = good_op
+                    && !producer->dyn_cast<op_traits::may_inplace_t>()
+                                ->get_inplace_map()
+                                .empty();
+        }
         auto &inputs = producer->get_inputs();
         for (size_t input_idx = 0; input_idx < inputs.size(); input_idx++) {
             auto &intsr = inputs[input_idx];

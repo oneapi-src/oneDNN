@@ -939,8 +939,8 @@ void binary_elementwise_op_impl_t::compute_block(context_ptr ctx,
     }
     vx_info_.lanes
             = vectorize_step(ctx, info_.inputs_[0]->details_.dtype_.type_code_);
-    // todo: currently we only support mask for div.
-    bool use_mask = elt_op_ == elt_operator::DIV;
+    bool use_mask = (elt_op_ == elt_operator::DIV
+            || elt_op_ == elt_operator::ADD || elt_op_ == elt_operator::SUB);
     // use broad-cast
     int bc_input_idx = get_broadcast_input();
     if (bc_input_idx != -1) {
