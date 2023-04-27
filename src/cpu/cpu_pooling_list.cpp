@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 * Copyright 2020 FUJITSU LIMITED
 * Copyright 2022 Arm Ltd. and affiliates
 *
@@ -97,9 +97,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
             CPU_INSTANCE(nhwc_pooling_bwd_t<bf16>)
             CPU_INSTANCE(nhwc_pooling_bwd_t<f32>)
             CPU_INSTANCE(nhwc_pooling_bwd_t<f16>)
-            CPU_INSTANCE(ref_pooling_bwd_t<f32>)
-            CPU_INSTANCE(ref_pooling_bwd_t<bf16>)
-            CPU_INSTANCE(ref_pooling_bwd_t<f16>)
+            CPU_INSTANCE(ref_pooling_bwd_t)
             nullptr,
         })},
     });

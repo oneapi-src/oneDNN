@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,9 +22,9 @@
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
 
-#include "cpu/simple_q10n.hpp"
-
+#include "cpu/ref_io_helper.hpp"
 #include "cpu/ref_pooling.hpp"
+#include "cpu/simple_q10n.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -197,15 +197,12 @@ status_t ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
     return status::success;
 }
 
-template <data_type_t data_type>
-status_t ref_pooling_bwd_t<data_type>::execute_backward(
-        const exec_ctx_t &ctx) const {
-
+status_t ref_pooling_bwd_t::execute(const exec_ctx_t &ctx) const {
     status_t status = status::success;
 
-    const auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
-    const auto ws = CTX_IN_MEM(const unsigned char *, DNNL_ARG_WORKSPACE);
-    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
+    const auto diff_dst = CTX_IN_MEM(const void *, DNNL_ARG_DIFF_DST);
+    const auto ws = CTX_IN_MEM(const void *, DNNL_ARG_WORKSPACE);
+    auto diff_src = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_SRC, status);
     CHECK(status);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
@@ -238,16 +235,16 @@ status_t ref_pooling_bwd_t<data_type>::execute_backward(
         for_(dim_t id = 0; id < ID; ++id)
         for_(dim_t ih = 0; ih < IH; ++ih)
         for (dim_t iw = 0; iw < IW; ++iw) {
-            const auto off = get_offset(diff_src_d, mb, oc, id, ih, iw);
-            diff_src[off] = data_type_t(0);
+            const auto diff_src_off
+                    = get_offset(diff_src_d, mb, oc, id, ih, iw);
+            io::store_float_value(
+                    diff_src_d.data_type(), 0, diff_src, diff_src_off);
         }
     };
 
     auto ker_max = [=](dim_t mb, dim_t oc, dim_t od, dim_t oh, dim_t ow) {
         const auto ws_off = get_offset(ws_d, mb, oc, od, oh, ow);
-        const int index = ws_d.data_type() == data_type::u8
-                ? (int)ws[ws_off]
-                : ((int *)ws)[ws_off];
+        const dim_t index = io::load_int_value(ws_d.data_type(), ws, ws_off);
         const dim_t kd = (index / KW) / KH;
         const dim_t kh = (index / KW) % KH;
         const dim_t kw = index % KW;
@@ -263,16 +260,19 @@ status_t ref_pooling_bwd_t<data_type>::execute_backward(
         if (ih < 0 || ih >= IH) return;
         if (iw < 0 || iw >= IW) return;
 
-        const auto d_src_off = get_offset(diff_src_d, mb, oc, id, ih, iw);
-        const auto d_dst_off = get_offset(diff_dst_d, mb, oc, od, oh, ow);
-        diff_src[d_src_off] += diff_dst[d_dst_off];
+        const auto diff_src_off = get_offset(diff_src_d, mb, oc, id, ih, iw);
+        const auto diff_dst_off = get_offset(diff_dst_d, mb, oc, od, oh, ow);
+        const float dd = io::load_float_value(
+                diff_dst_d.data_type(), diff_dst, diff_dst_off);
+        const float ds = io::load_float_value(
+                diff_src_d.data_type(), diff_src, diff_src_off);
+        io::store_float_value(
+                diff_src_d.data_type(), ds + dd, diff_src, diff_src_off);
     };
 
     auto ker_avg = [=](dim_t mb, dim_t oc, dim_t od, dim_t oh, dim_t ow) {
-        int num_summands;
-        if (alg == alg_kind::pooling_avg_include_padding)
-            num_summands = KW * KH * KD;
-        else {
+        dim_t num_summands = KW * KH * KD;
+        if (alg != alg_kind::pooling_avg_include_padding) {
             auto id_start = od * SD - padF;
             auto ih_start = oh * SH - padT;
             auto iw_start = ow * SW - padL;
@@ -297,6 +297,7 @@ status_t ref_pooling_bwd_t<data_type>::execute_backward(
                     * (KH - ih_start_excluded - ih_end_excluded)
                     * (KW - iw_start_excluded - iw_end_excluded);
         }
+
         for (dim_t kd = 0; kd < KD; ++kd) {
             const dim_t id = od * SD - padF + kd * (DD + 1);
             if (id < 0 || id >= ID) continue;
@@ -307,11 +308,16 @@ status_t ref_pooling_bwd_t<data_type>::execute_backward(
                     const dim_t iw = ow * SW - padL + kw * (DW + 1);
                     if (iw < 0 || iw >= IW) continue;
 
-                    const auto d_src_off
+                    const auto diff_src_off
                             = get_offset(diff_src_d, mb, oc, id, ih, iw);
-                    const auto d_dst_off
+                    const auto diff_dst_off
                             = get_offset(diff_dst_d, mb, oc, od, oh, ow);
-                    diff_src[d_src_off] += diff_dst[d_dst_off] / num_summands;
+                    const float dd = io::load_float_value(
+                            diff_dst_d.data_type(), diff_dst, diff_dst_off);
+                    const float ds = io::load_float_value(
+                            diff_src_d.data_type(), diff_src, diff_src_off);
+                    io::store_float_value(diff_src_d.data_type(),
+                            ds + (dd / num_summands), diff_src, diff_src_off);
                 }
             }
         }
@@ -352,9 +358,6 @@ template struct ref_pooling_fwd_t<data_type::f16, data_type::f32>;
 template struct ref_pooling_fwd_t<data_type::s8, data_type::s32>;
 template struct ref_pooling_fwd_t<data_type::u8, data_type::s32>;
 
-template struct ref_pooling_bwd_t<data_type::f32>;
-template struct ref_pooling_bwd_t<data_type::bf16>;
-template struct ref_pooling_bwd_t<data_type::f16>;
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

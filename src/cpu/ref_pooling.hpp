@@ -82,7 +82,6 @@ private:
     std::unique_ptr<ref_post_ops_t> ref_post_ops;
 };
 
-template <impl::data_type_t data_type>
 struct ref_pooling_bwd_t : public primitive_t {
     struct pd_t : public cpu_pooling_bwd_pd_t {
         using cpu_pooling_bwd_pd_t::cpu_pooling_bwd_pd_t;
@@ -90,10 +89,16 @@ struct ref_pooling_bwd_t : public primitive_t {
         DECLARE_COMMON_PD_T("ref:any", ref_pooling_bwd_t);
 
         status_t init(engine_t *engine) {
-            bool ok = platform::has_data_type_support(data_type)
-                    && set_default_params() == status::success && !is_fwd()
-                    && utils::everyone_is(data_type, diff_dst_md()->data_type,
-                            diff_src_md()->data_type)
+            using namespace data_type;
+            const auto diff_src_type = diff_src_md(0)->data_type;
+            const auto diff_dst_type = diff_dst_md(0)->data_type;
+
+            bool ok = !is_fwd()
+                    && platform::has_data_type_support(diff_src_type)
+                    && platform::has_data_type_support(diff_dst_type)
+                    && utils::one_of(diff_src_type, f32, bf16, f16)
+                    && utils::one_of(diff_dst_type, f32, bf16, f16)
+                    && set_default_params() == status::success
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
@@ -108,14 +113,10 @@ struct ref_pooling_bwd_t : public primitive_t {
     };
 
     ref_pooling_bwd_t(const pd_t *apd) : primitive_t(apd) {}
-    typedef typename prec_traits<data_type>::type data_t;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
-        return execute_backward(ctx);
-    }
+    status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
