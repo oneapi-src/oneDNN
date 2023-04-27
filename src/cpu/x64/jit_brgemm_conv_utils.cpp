@@ -1872,6 +1872,34 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (jcp.wei_plain)
         CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
 
+    if (one_of(jcp.prop_kind, prop_kind::forward_training,
+                prop_kind::forward_inference)
+            && jcp.ngroups == 1 && jcp.dilate_w == 0 && jcp.kw > 1
+            && jcp.stride_w > 1 && jcp.l_pad <= 0 && jcp.r_pad <= 0) {
+        // such convolutions are equivalent to
+        // [iw / k][kw / k][stride_w / k][ic * k]
+        const bool pure_1d = (jcp.mb == 1 && jcp.id == 1 && jcp.ih == 1);
+        int w_koef = 1;
+        auto w_koef_max = nstl::min(jcp.kw, nstl::min(jcp.stride_w, jcp.iw));
+        for (int i = 1; i <= w_koef_max; i++) {
+            if (IMPLICATION(!pure_1d, jcp.iw % i == 0)
+                    && IMPLICATION(jcp.ic * i > jcp.simd_w,
+                            (jcp.ic * i) % jcp.simd_w == 0)
+                    && jcp.kw % i == 0 && jcp.stride_w % i == 0)
+                w_koef = i;
+        }
+        if (w_koef > 1) {
+            jcp.ic_without_padding *= w_koef;
+            jcp.ic *= w_koef;
+            jcp.iw /= w_koef;
+            jcp.kw /= w_koef;
+            jcp.stride_w /= w_koef;
+            jcp.ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
+            jcp.r_pad = calculate_end_padding(
+                    jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, jcp.ext_kw);
+        }
+    }
+
     brg_blocking_t::last_ic_block_size
             = (jcp.wei_dt == f16 && isa == avx512_core_fp16)
             ? 1
