@@ -967,6 +967,8 @@ int default_regs(const conv_config_t &cfg) {
 }
 
 status_t init_regs(conv_config_t &cfg) {
+    if (cfg.exec_cfg_param().is_overridden("regs")) return status::success;
+
     cfg.set_regs(default_regs(cfg));
     return status::success;
 }

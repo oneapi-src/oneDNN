@@ -239,6 +239,7 @@ public:
     }
     bool is_overridable() const override { return true; }
     bool is_default(const std::string &key) const override {
+        if (key == "regs") return false;
         if (key == "simd") return false;
         if (key == "vec") return value_.vec_size() == value_.simd();
         ir_error_not_expected() << key;
@@ -247,6 +248,7 @@ public:
 
     std::vector<std::string> accepted_keys() const override {
         std::vector<std::string> ret;
+        ret.push_back("regs");
         ret.push_back("simd");
         ret.push_back("vec");
         return ret;
@@ -254,7 +256,9 @@ public:
 
     void set_from_str(
             const std::string &key, const std::string &value) override {
-        if (key == "simd") {
+        if (key == "regs") {
+            value_.set_regs(std::stoi(value));
+        } else if (key == "simd") {
             value_.set_simd(std::stoi(value));
         } else if (key == "vec") {
             value_.set_vec_size(std::stoi(value));
@@ -265,7 +269,9 @@ public:
 
     std::string str(const std::string &key) const override {
         std::ostringstream oss;
-        if (key == "simd") {
+        if (key == "regs") {
+            oss << "regs=" << value_.regs();
+        } else if (key == "simd") {
             oss << "simd=" << value_.simd();
         } else if (key == "vec") {
             if (!is_default("vec")) oss << "vec=" << value_.vec_size();
