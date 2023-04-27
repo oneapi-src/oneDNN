@@ -53,6 +53,7 @@ Supported Operations
    dev_guide_op_mish
    dev_guide_op_mishbackward
    dev_guide_op_multiply
+   dev_guide_op_pow
    dev_guide_op_prelu
    dev_guide_op_prelubackward
    dev_guide_op_quantize
