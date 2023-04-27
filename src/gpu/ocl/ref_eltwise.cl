@@ -24,7 +24,6 @@
     OFF_MD(DIFF_DATA, x0, x1, x2, x3, x4, x5)
 
 #if IS_FWD
-KERNEL_ATTR
 __kernel void ref_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
         float alpha, float beta POST_OP_ARGS) {
 #if USE_GWS_GET
@@ -81,7 +80,6 @@ __kernel void ref_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
 
 #if DT_F32 == 1 || DT_BF16 == 1
 
-KERNEL_ATTR
 __kernel void ref_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
         __global DATA_T *diff_dst, float alpha, float beta) {
 
