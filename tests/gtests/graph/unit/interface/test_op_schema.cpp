@@ -5086,3 +5086,20 @@ TEST(OpSchema, FailToAddLn) {
 
     EXPECT_FALSE(schema->verify(&ln));
 }
+
+TEST(OpSchema, Pow) {
+    const op_kind_t op_kind_ = op_kind::Pow;
+    const size_t expected_in_size = 1;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 1;
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::beta, true}};
+
+    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+            expected_attr_size, attrs_data);
+}
+
+TEST(OpSchema, InferPowOutputShape) {
+    const op_kind_t op_kind_ = op_kind::Pow;
+
+    verify_single_in_identity_shape_infer(op_kind_);
+}

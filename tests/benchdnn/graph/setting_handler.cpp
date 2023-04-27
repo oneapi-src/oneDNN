@@ -837,6 +837,7 @@ get_eltwise_kind_map() {
             {"Log", ::eltwise::alg_t::LOG},
             {"Mish", ::eltwise::alg_t::MISH},
             {"MishBackward", ::eltwise::alg_t::MISH},
+            {"Pow", ::eltwise::alg_t::POW},
             {"Reciprocal", ::eltwise::alg_t::POW},
             {"ReLU", ::eltwise::alg_t::RELU},
             {"ReLUBackward", ::eltwise::alg_t::RELU},
@@ -921,6 +922,8 @@ bool get_eltwise_alpha(const deserialized_op &base_op_ref, float &alpha) {
         base_op_ref.get_attr_f32(alpha, "beta");
     } else if (op_kind == "HardSwish" || op_kind == "HardSwishBackward") {
         alpha = 1.f / 6.f;
+    } else if (op_kind == "Pow") {
+        alpha = 1; // alpha is constant 1 according to graph API Pow definition
     }
     return true;
 }
@@ -931,7 +934,8 @@ bool get_eltwise_beta(const deserialized_op &base_op_ref, float &beta) {
         beta = -1; // Reciprocal is pow(-1)
     } else if (op_kind == "Clamp" || op_kind == "ClampBackward") {
         base_op_ref.get_attr_f32(beta, "max");
-    } else if (op_kind == "HardSigmoid" || op_kind == "HardSigmoidBackward") {
+    } else if (op_kind == "HardSigmoid" || op_kind == "HardSigmoidBackward"
+            || op_kind == "Pow") {
         base_op_ref.get_attr_f32(beta, "beta");
     } else if (op_kind == "HardSwish" || op_kind == "HardSwishBackward") {
         beta = 1.f / 2.f;

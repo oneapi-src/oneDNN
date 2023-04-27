@@ -337,6 +337,7 @@ dnnl::graph::op::kind opstr2kind(const std::string &kind) {
             {"Mish", dnnl::graph::op::kind::Mish},
             {"MishBackward", dnnl::graph::op::kind::MishBackward},
             {"Multiply", dnnl::graph::op::kind::Multiply},
+            {"Pow", dnnl::graph::op::kind::Pow},
             {"PReLU", dnnl::graph::op::kind::PReLU},
             {"PReLUBackward", dnnl::graph::op::kind::PReLUBackward},
             {"Quantize", dnnl::graph::op::kind::Quantize},

@@ -233,6 +233,7 @@ void flex_rewrite::infer_output_shape(deserialized_graph &dgraph) {
             case dnnl::graph::op::kind::LogSoftmaxBackward:
             case dnnl::graph::op::kind::Mish:
             case dnnl::graph::op::kind::MishBackward:
+            case dnnl::graph::op::kind::Pow:
             case dnnl::graph::op::kind::PReLU:
             case dnnl::graph::op::kind::Quantize:
             case dnnl::graph::op::kind::Reciprocal:

@@ -112,6 +112,7 @@ TEST(APIOp, CreateAllOps) {
             op::kind::HardSigmoid,
             op::kind::HardSigmoidBackward,
             op::kind::Select,
+            op::kind::Pow,
     };
     // clang-format on
 
