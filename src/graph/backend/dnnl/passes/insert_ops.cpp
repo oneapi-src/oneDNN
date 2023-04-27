@@ -531,12 +531,10 @@ status_t insert_unsqueeze_and_squeeze_for_matmul(
                 // 1D src: [K] -> [1, K]
                 axes.emplace_back(-2);
                 squeeze_axes.emplace_back(-2);
-                op->set_attr<bool>(op_attr::transpose_a, false);
             } else if (i == 1 && ndims == 1) {
                 // 1D weight: [K] -> [K, 1]
                 axes.emplace_back(-1);
                 squeeze_axes.emplace_back(-1);
-                op->set_attr<bool>(op_attr::transpose_b, false);
             }
             // skip unsqueeze runtime scales
             if (op->get_input_value(i)->has_producer()
