@@ -1767,10 +1767,17 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
         const auto brg_ker = brgemm_kernels_[brg_idx];
         brgemm_palettes_.maybe_tile_configure(is_amx, btc.cur_brg_idx, brg_idx);
 
-        assert(jcp.brg_type != brgemm_static_offs);
-        _pd->init_batch(btc.icc, src_base, wei_base, n_ic_blocks, ic_block_s,
-                iid, iih, iiw_b, nullptr, nullptr, kd_b, kd_e, kh_b, kh_e, kw_b,
-                kw_e, k_l, btc.brg_batch);
+        if (jcp.brg_type == brgemm_static_offs) {
+            const void *ptrA {nullptr}, *ptrB {nullptr};
+            _pd->get_A_B(btc.icc, src_base, wei_base, ic_block_s, iid, iih,
+                    iiw_b, kd_b, kh_b, ptrA, ptrB);
+            btc.brg_batch[0].ptr.A = ptrA;
+            btc.brg_batch[0].ptr.B = ptrB;
+        } else {
+            _pd->init_batch(btc.icc, src_base, wei_base, n_ic_blocks,
+                    ic_block_s, iid, iih, iiw_b, nullptr, nullptr, kd_b, kd_e,
+                    kh_b, kh_e, kw_b, kw_e, k_l, btc.brg_batch);
+        }
 
         call_brgemm_kernel(btc, brg_ker, k_l * n_ic_blocks, ptr_C, ptr_D,
                 bias_w, g_oc, do_postops, comp_ker_offs, do_only_comp);

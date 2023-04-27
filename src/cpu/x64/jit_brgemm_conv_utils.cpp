@@ -2211,7 +2211,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     // ============ end blocking ===========================================
 
-    jcp.brg_type = (jcp.use_uker && jcp.exec_type == exec_trans)
+    jcp.brg_type
+            = (jcp.use_uker && one_of(jcp.exec_type, exec_base, exec_trans))
             ? brgemm_static_offs
             : brgemm_addr; // TODO: Choose right type of BRGEMM
 
