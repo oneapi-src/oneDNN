@@ -396,6 +396,16 @@ void mxp_buffer_allocator::replace_buffer(graph_tensor *gt, expr &new_buffer) {
         COMPILE_ASSERT(
                 cnt == 4, "Unexpected buffer occurs time in trace: " << cnt)
     }
+    // update inplace map if necessary
+    for (auto iter = inplace_map_.begin(); iter != inplace_map_.end();) {
+        auto buf1 = ((expr_base *)iter->first)->node_ptr_from_this();
+        auto buf2 = get_inplaced_buffer(buf1);
+        if (buf1.ptr_same(old_buffer) || buf2.ptr_same(old_buffer)) {
+            iter = inplace_map_.erase(iter);
+        } else {
+            iter++;
+        }
+    }
     g2b_map_.get(gt) = new_buffer;
 }
 
@@ -648,18 +658,9 @@ static void collect_inplace_info(graph_tensor *cur_gt, graph_tensor *ref_gt,
     // if not mark visited
     if (visited_set.find(cur_buf) == visited_set.end()) {
         // recursively mark visited
-        auto &inplace_map = alloc->inplace_map_;
-        while (true) {
+        while (cur_buf.defined()) {
             visited_set.insert(cur_buf);
-            auto iter = inplace_map.find((uintptr_t)cur_buf.get());
-            if (iter != inplace_map.end()) {
-                COMPILE_ASSERT(iter->second.size() == 1,
-                        "Unexpected inplace info size during partition")
-                cur_buf = ((expr_base *)iter->second[0].first)
-                                  ->node_ptr_from_this();
-            } else {
-                break;
-            }
+            cur_buf = alloc->get_inplaced_buffer(cur_buf);
         }
     }
     // get cur op
@@ -782,8 +783,7 @@ void mxp_buffer_allocator::validate_buffer() {
     // collect cut buffer
     std::unordered_set<expr> cut_buffer_set;
     for (auto iter = inplace_map_.begin(); iter != inplace_map_.end();) {
-        auto &hint = (*iter);
-        auto out_buf = ((expr_base *)hint.first)->node_ptr_from_this();
+        auto out_buf = ((expr_base *)iter->first)->node_ptr_from_this();
         if (!out_buf->attr().has_key(mixed_partition_hint::cut_buffer)) {
             ++iter;
             continue;
@@ -819,11 +819,8 @@ void mxp_buffer_allocator::validate_buffer() {
 
     // validate inplace hint for shrink info
     for (auto iter = inplace_map_.begin(); iter != inplace_map_.end();) {
-        auto &hint = (*iter);
-        auto buf1 = ((expr_base *)hint.first)->node_ptr_from_this();
-        COMPILE_ASSERT(hint.second.size() == 1,
-                "Unexpected inplace info size during partition")
-        auto buf2 = ((expr_base *)hint.second[0].first)->node_ptr_from_this();
+        auto buf1 = ((expr_base *)iter->first)->node_ptr_from_this();
+        auto buf2 = get_inplaced_buffer(buf1);
         // auto skip cut buffer
         if (cut_buffer_set.find(buf1) != cut_buffer_set.end()) {
             COMPILE_ASSERT(cut_buffer_set.find(buf2) != cut_buffer_set.end(),

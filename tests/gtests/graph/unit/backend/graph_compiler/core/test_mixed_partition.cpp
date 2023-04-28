@@ -30,6 +30,7 @@
 #include <compiler/ir/transform/buffer_schedule.hpp>
 #include <compiler/ir/transform/simplify.hpp>
 #include <compiler/jit/jit.hpp>
+#include <ops/fusible/padding.hpp>
 #include <ops/managed_matmul_core.hpp>
 #include <ops/matmul_core.hpp>
 #include <ops/templates/conv_fwd.hpp>
@@ -1569,6 +1570,50 @@ TEST(GCCore_graph_mixed_partition_cpp, TestGraphMarkInplaceHint7) {
                 })
                 .has_value();
     }));
+}
+
+TEST(GCCore_graph_mixed_partition_cpp, TestGraphMarkInplaceHint8) {
+    int run_threads = 28;
+    thread_num_reset reseter;
+    // set threads envoriment
+    runtime_config_t::get().set_num_threads(run_threads);
+
+    sc_graph_t graph;
+    auto input_shape = sc_dims {28, 16, 56, 56};
+    auto weight_shape = sc_dims {16, 16, 3, 3};
+    const sc_dims stride = {1, 1};
+    const sc_dims padding_conv = {0, 0};
+    const sc_dims padding_pad = {1, 1};
+
+    auto in_data = graph.make_input({std::make_shared<graph_tensor>(
+            nullptr, sc_data_format_t::NCHW(), input_shape, datatypes::f32)});
+    auto in_weight = graph.make_input({std::make_shared<graph_tensor>(
+            nullptr, sc_data_format_t::KCRS(), weight_shape, datatypes::f32)});
+    auto conv_out = graph.make("conv_fwd_core",
+            {in_data->get_outputs()[0], in_weight->get_outputs()[0]}, {},
+            {{"strides", stride}, {"pads_begin", padding_conv},
+                    {"pads_end", padding_conv}});
+    auto relu0 = graph.make("relu", conv_out->get_outputs(), {}, {});
+    // relu1 output could have inplace on relu0 output
+    auto relu1 = graph.make("relu", relu0->get_outputs(), {}, {});
+    // pre-padding replace the output of relu1, as the result, it should
+    // remove related inpalce hint at the same time
+    auto pad_out = graph.make("padding", {relu1->get_outputs()[0]}, {},
+            {{"pads_begin", padding_pad}, {"pads_end", padding_pad},
+                    {"break_post_fuse", true}});
+    auto output0 = graph.make_output(pad_out->get_outputs());
+
+    auto ctx = get_test_ctx();
+    mixed_partition(graph, ctx);
+
+    mixed_fuse_op_t *fused_op = get_mixed_op_from_graph(graph);
+    COMPILE_ASSERT(fused_op, "No mixed fused op is found, please check")
+
+    // get inplace map
+    auto inplace_map = fused_op->parti_list_[0]->buf_alloc_.inplace_map_;
+    // there is expected nothing in inplace map, due to `relu_4_outs_0 ==>
+    // relu_3_outs_0` hint is removed
+    EXPECT_EQ(inplace_map.size(), (size_t)0);
 }
 
 TEST(GCCore_graph_mixed_partition_cpp, TestUserDefinedShrintTensor) {
