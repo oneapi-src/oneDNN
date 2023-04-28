@@ -4,7 +4,7 @@
 
 # f32
 --dir=FWD_B
---cfg=f32
+--dt=f32
 
 --mb=1,32,64,128
 --batch=set_gpu
@@ -14,7 +14,7 @@
 
 # f16
 --dir=FWD_B
---cfg=f16
+--dt=f16
 
 --mb=1,32,64,128
 --batch=set_gpu
@@ -26,7 +26,7 @@
 
 # f32
 --dir=BWD_D,BWD_WB
---cfg=f32
+--dt=f32
 
 --mb=32,64,128
 --batch=set_gpu

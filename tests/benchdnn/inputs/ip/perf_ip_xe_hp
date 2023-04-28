@@ -5,7 +5,7 @@
 # Forward, bf16
 
 --dir=FWD_B
---cfg=bf16bf16bf16
+--dt=bf16
 
 --mb=1,32,64,128
 --batch=set_gpu
@@ -16,7 +16,7 @@
 # Backward, bf16
 
 --dir=BWD_D,BWD_WB
---cfg=bf16bf16bf16
+--dt=bf16
 
 --mb=32,64,128
 --batch=set_gpu
