@@ -36,7 +36,6 @@
                    src:common:-1*+wei:common:1*, \
                    src:per_dim_1:-1*+wei:common:1*+dst:common:2*
 --batch=shapes_2d_ci
---attr-zero-points=
 
 --attr-zero-points=src:common:1*+wei:common:-1*+dst:common:2*, \
                    src:common:-1*+wei:common:1*
