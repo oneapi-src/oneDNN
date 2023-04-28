@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 * Copyright 2020-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -58,6 +58,7 @@ DECLARE_IMPL_LIST(binary);
 DECLARE_IMPL_LIST(convolution);
 DECLARE_IMPL_LIST(deconvolution);
 DECLARE_IMPL_LIST(eltwise);
+DECLARE_IMPL_LIST(group_normalization);
 DECLARE_IMPL_LIST(inner_product);
 DECLARE_IMPL_LIST(layer_normalization);
 DECLARE_IMPL_LIST(lrn);
@@ -93,6 +94,7 @@ public:
             CASE(convolution);
             CASE(deconvolution);
             CASE(eltwise);
+            CASE(group_normalization);
             CASE(inner_product);
             CASE(layer_normalization);
             CASE(lrn);
