@@ -12,6 +12,7 @@ Supported Primitives
    dev_guide_binary
    dev_guide_concat
    dev_guide_eltwise
+   dev_guide_group_normalization
    dev_guide_layer_normalization
    dev_guide_lrn
    dev_guide_pooling

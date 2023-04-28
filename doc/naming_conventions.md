@@ -26,22 +26,22 @@ use such names in initialization or other functions to simplify the coding.
 To summarize, oneDNN uses the following commonly used notations for
 tensors:
 
-| Name               | Meaning                                                                                                       |
-|:-------------------|:--------------------------------------------------------------------------------------------------------------|
-| `src`              | Source tensor                                                                                                 |
-| `dst`              | Destination tensor                                                                                            |
-| `weights`          | Weights tensor                                                                                                |
-| `bias`             | Bias tensor (used in @ref dev_guide_convolution, @ref dev_guide_inner_product and other primitives)           |
-| `scale_shift`      | Scale and shift tensors (used in @ref dev_guide_batch_normalization and @ref dev_guide_layer_normalization)   |
-| `workspace`        | Workspace tensor that carries additional information from the forward propagation to the backward propagation |
-| `scratchpad`       | Temporary tensor that is required to store the intermediate results                                           |
-| `diff_src`         | Gradient tensor with respect to the source                                                                    |
-| `diff_dst`         | Gradient tensor with respect to the destination                                                               |
-| `diff_weights`     | Gradient tensor with respect to the weights                                                                   |
-| `diff_bias`        | Gradient tensor with respect to the bias                                                                      |
-| `diff_scale_shift` | Gradient tensor with respect to the scale and shift                                                           |
-| `*_layer`          | RNN layer data or weights tensors                                                                             |
-| `*_iter`           | RNN recurrent data or weights tensors                                                                         |
+| Name               | Meaning                                                                                                                                         |
+|:-------------------|:------------------------------------------------------------------------------------------------------------------------------------------------|
+| `src`              | Source tensor                                                                                                                                   |
+| `dst`              | Destination tensor                                                                                                                              |
+| `weights`          | Weights tensor                                                                                                                                  |
+| `bias`             | Bias tensor (used in @ref dev_guide_convolution, @ref dev_guide_inner_product and other primitives)                                             |
+| `scale_shift`      | Scale and shift tensors (used in @ref dev_guide_batch_normalization, @ref dev_guide_layer_normalization and @ref dev_guide_group_normalization) |
+| `workspace`        | Workspace tensor that carries additional information from the forward propagation to the backward propagation                                   |
+| `scratchpad`       | Temporary tensor that is required to store the intermediate results                                                                             |
+| `diff_src`         | Gradient tensor with respect to the source                                                                                                      |
+| `diff_dst`         | Gradient tensor with respect to the destination                                                                                                 |
+| `diff_weights`     | Gradient tensor with respect to the weights                                                                                                     |
+| `diff_bias`        | Gradient tensor with respect to the bias                                                                                                        |
+| `diff_scale_shift` | Gradient tensor with respect to the scale and shift                                                                                             |
+| `*_layer`          | RNN layer data or weights tensors                                                                                                               |
+| `*_iter`           | RNN recurrent data or weights tensors                                                                                                           |
 
 
 ## Formulas and Verbose Output

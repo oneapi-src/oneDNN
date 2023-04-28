@@ -48,6 +48,7 @@ Orphans
     example_inference_int8_matmul.cpp.rst
     example_inner_product.cpp.rst
     example_layer_normalization.cpp.rst
+    example_group_normalization.cpp.rst
     example_lrn.cpp.rst
     example_lstm.cpp.rst
     example_matmul.cpp.rst
@@ -100,6 +101,8 @@ Orphans
     page_layer_normalization_example_cpp.rst
     page_layer_normalization_example_cpp_short.rst
     page_legal_information.rst
+    page_group_normalization_example_cpp.rst
+    page_group_normalization_example_cpp_short.rst
     page_lrn_example_cpp.rst
     page_lrn_example_cpp_short.rst
     page_lstm_example_cpp.rst
