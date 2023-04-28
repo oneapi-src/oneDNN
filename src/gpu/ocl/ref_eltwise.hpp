@@ -69,7 +69,6 @@ struct ref_eltwise_fwd_t : public gpu_primitive_t {
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         eltwise_conf_t conf;
-        offsets_t off;
     };
 
     status_t init(engine_t *engine) override {
@@ -129,7 +128,6 @@ struct ref_eltwise_bwd_t : public gpu_primitive_t {
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         eltwise_conf_t conf;
-        offsets_t off;
         bool use_dense;
     };
 

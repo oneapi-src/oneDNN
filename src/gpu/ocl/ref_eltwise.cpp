@@ -21,8 +21,8 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-static status_t init_conf_common(eltwise_conf_t &conf, offsets_t &off,
-        const eltwise_pd_t *pd, engine_t *engine) {
+static status_t init_conf_common(
+        eltwise_conf_t &conf, const eltwise_pd_t *pd, engine_t *engine) {
     alg_kind_t alg = pd->desc()->alg_kind;
     const bool is_forward = pd->is_fwd();
     const auto &src_md = pd->use_dst() ? pd->dst_md() : pd->src_md();
@@ -41,9 +41,6 @@ static status_t init_conf_common(eltwise_conf_t &conf, offsets_t &off,
     conf.alg = alg;
     conf.is_forward = is_forward;
     conf.attr_info = attr_info_t::create(pd->attr());
-
-    set_offsets(src_d, off.src_off);
-    set_offsets(diff_data_d, off.dst_off);
 
     const auto &dims = src_d.padded_dims();
 
@@ -65,8 +62,7 @@ static status_t init_conf_common(eltwise_conf_t &conf, offsets_t &off,
 }
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
-        const eltwise_conf_t &conf, const offsets_t &off,
-        const post_ops_t &post_ops) {
+        const eltwise_conf_t &conf, const post_ops_t &post_ops) {
     kernel_ctx.set_data_type(conf.data_type);
 
     def_eltwise_alg_kinds(kernel_ctx);
@@ -98,12 +94,12 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 }
 
 status_t ref_eltwise_fwd_t::pd_t::init_conf(engine_t *engine) {
-    return init_conf_common(conf, off, this, engine);
+    return init_conf_common(conf, this, engine);
 }
 
 status_t ref_eltwise_fwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, off, attr()->post_ops_);
+    return init_kernel_ctx_common(kernel_ctx, conf, attr()->post_ops_);
 }
 
 status_t ref_eltwise_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
@@ -129,12 +125,12 @@ status_t ref_eltwise_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
 }
 
 status_t ref_eltwise_bwd_t::pd_t::init_conf(engine_t *engine) {
-    return init_conf_common(conf, off, this, engine);
+    return init_conf_common(conf, this, engine);
 }
 
 status_t ref_eltwise_bwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, off, attr()->post_ops_);
+    return init_kernel_ctx_common(kernel_ctx, conf, attr()->post_ops_);
 }
 
 status_t ref_eltwise_bwd_t::execute_backward_dense(
