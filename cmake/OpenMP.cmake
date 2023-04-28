@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2017-2021 Intel Corporation
+# Copyright 2017-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,20 +30,6 @@ if (APPLE AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 else()
     set(_omp_severity "FATAL_ERROR")
 endif()
-
-macro(forbid_link_compiler_omp_rt)
-    if (NOT WIN32)
-        set_if(OpenMP_C_FOUND
-            CMAKE_C_CREATE_SHARED_LIBRARY_FORBIDDEN_FLAGS
-            "${OpenMP_C_FLAGS}")
-        set_if(OpenMP_CXX_FOUND
-            CMAKE_CXX_CREATE_SHARED_LIBRARY_FORBIDDEN_FLAGS
-            "${OpenMP_CXX_FLAGS}")
-        if (NOT APPLE)
-            append(CMAKE_SHARED_LINKER_FLAGS "-Wl,--as-needed")
-        endif()
-    endif()
-endmacro()
 
 macro(set_openmp_values_for_old_cmake)
     #newer version for findOpenMP (>= v. 3.9)
@@ -122,7 +108,10 @@ if(DNNL_CPU_THREADING_RUNTIME MATCHES "OMP")
     endif()
 else()
     # Compilation happens with OpenMP to enable `#pragma omp simd`
-    # but during linkage OpenMP dependency should be avoided
-    forbid_link_compiler_omp_rt()
-    return()
+    # but during shared objects and executables linkage OpenMP dependency should
+    # be avoided.
+    if (NOT WIN32 AND NOT APPLE)
+        append(CMAKE_SHARED_LINKER_FLAGS "-Wl,--as-needed")
+        append(CMAKE_EXE_LINKER_FLAGS "-Wl,--as-needed")
+    endif()
 endif()
