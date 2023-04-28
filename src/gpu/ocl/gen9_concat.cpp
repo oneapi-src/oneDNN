@@ -39,10 +39,10 @@ std::pair<int, int> gen9_concat_t::pd_t::calculate_iter_dim_idx_chunk(
         }
     }
     const int iter_dim_idx = max_dim_idx;
-    const int all_elems = utils::array_product(dst_dims, conf.ndims);
-    const int max_iter_dim_chunk = 1024;
+    const dim_t all_elems = utils::array_product(dst_dims, conf.ndims);
+    const dim_t max_iter_dim_chunk = 1024;
     const int min_threads = num_threads * 4;
-    int iter_dim_chunk = std::min(dst_dims[iter_dim_idx], max_iter_dim_chunk);
+    dim_t iter_dim_chunk = std::min(dst_dims[iter_dim_idx], max_iter_dim_chunk);
     const auto get_num_threads = [&]() {
         return ceil(static_cast<float>(all_elems)
                 / (iter_dim_chunk * conf.sub_group_size));
