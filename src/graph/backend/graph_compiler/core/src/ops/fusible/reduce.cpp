@@ -874,11 +874,6 @@ graph_tensor_ptr reduce_op_t::split_op(
                 rd_op_, keep_dims_,
                 last_axis ? reduce_collect_op_t::LAST_AXIS_COLLECT
                           : reduce_collect_op_t::NOOP);
-        // keep last anchor in avoid of partition break for below scenario:
-        // input + output + reduce + reduce_compute + reduce_collect
-        if (ctx->flags_.mixed_fusion_ && graph.ops_.size() == 5) {
-            first->attrs_.set("temp.keep_last_anchor", true);
-        }
     }
     if (is_bf16) {
         auto out_tsr = second_out->copy();

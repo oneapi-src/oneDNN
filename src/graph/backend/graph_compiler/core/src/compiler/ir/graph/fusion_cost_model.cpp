@@ -88,8 +88,8 @@ bool static_fusion_cost_model_t::make_decision_for_parti(
     COMPILE_ASSERT(merge_kind == parti_merge_kind::vertical,
             "No cost metric found for parallel merge")
     // in avoid of loss for loop optimize opportunity
-    if (binded_mxp_->can_optimize_loop_order_for_parti(true)
-            ^ parti->can_optimize_loop_order_for_parti(true)) {
+    if (binded_mxp_->can_optimize_outer_loop(true)
+            ^ parti->can_optimize_outer_loop(true)) {
         return false;
     }
 
@@ -143,30 +143,28 @@ bool static_fusion_cost_model_t::make_decision_for_op(
     /** Auto Skip List:
      * 1. empty partition
      * 2. nested parallel template
-     * 3. non tunable op committed into partition without tunable op
+     * 3. singel op lowering
      * */
-    // Sometimes, cost model need to double check standalone op parallelism,
-    // usually for tunable op or broadcast op.
-    bool consider_standalone_op_parallel = op->isa<tunable_op_t>()
-            || (op->isa<op_traits::may_broadcast_t>()
-                    && op->dyn_cast<const op_traits::may_broadcast_t>()
-                                    ->get_broadcast_input()
-                            != -1
-                    && !binded_mxp_->contain_tunable_op()
-                    && !binded_mxp_->can_optimize_loop_order_for_parti(true));
     if (binded_mxp_->empty() || binded_mxp_->contain_nested_parallel_for()
-            || !(binded_mxp_->contain_tunable_op() || op->isa<tunable_op_t>()
-                    || consider_standalone_op_parallel))
+            || op->get_owner_graph().attrs_.get_or_else(
+                    mixed_partition_hint::single_op_graph, false))
         return true;
+
     auto orig_loop_parallelism
             = evaluate_loop_parallel_balance(binded_mxp_->get_outer_loops());
     auto fanchor_loop_parallelism = evaluate_loop_parallel_balance(
             binded_mxp_->get_outer_loops(fanchor));
 
-    bool ret = fanchor_loop_parallelism >= orig_loop_parallelism;
+    bool ret = (!binded_mxp_->contain_tunable_op() && !op->isa<tunable_op_t>())
+            || (fanchor_loop_parallelism >= orig_loop_parallelism);
 
-    // Also need to compare parallelism of standalone op
-    if (consider_standalone_op_parallel
+    bool double_check_standalone_parallel = (op->isa<tunable_op_t>()
+            || (is_broadcast_op(op) && !binded_mxp_->contain_tunable_op()
+                    && !binded_mxp_->can_optimize_outer_loop(true)));
+
+    // double check parallelism of standalone op, if original result of
+    // partition can not meet requirement
+    if (double_check_standalone_parallel
             && evaluate_loop_parallel_balance(
                        binded_mxp_->get_outer_loops(), true)
                     == 0.f) {
@@ -220,8 +218,8 @@ bool dynamic_fusion_cost_model_t::make_decision_for_parti(
     COMPILE_ASSERT(merge_kind == parti_merge_kind::vertical,
             "No cost metric found for parallel merge")
     // in avoid of loss for loop optimize opportunity
-    if (binded_mxp_->can_optimize_loop_order_for_parti(true)
-            ^ parti->can_optimize_loop_order_for_parti(true)) {
+    if (binded_mxp_->can_optimize_outer_loop(true)
+            ^ parti->can_optimize_outer_loop(true)) {
         return false;
     }
 

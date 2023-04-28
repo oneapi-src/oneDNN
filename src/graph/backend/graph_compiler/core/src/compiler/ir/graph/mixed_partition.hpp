@@ -44,12 +44,16 @@ namespace mixed_partition_hint {
 constexpr const char *parti = "partition";
 // Boolean: is cut buffer hint
 constexpr const char *cut_buffer = "cut_buffer";
-// the pointer: sub graph address
-constexpr const char *sub_graph_ptr = "sub_graph_ptr";
 // Boolean: dont inplace hint
 constexpr const char *no_inplace = "no_inplace";
-// Boolean: is retried graph
-constexpr const char *optimized_graph = "optimized_graph";
+// Boolean: is optimized sub graph
+constexpr const char *optimized_sub_graph = "optimized_sub_graph";
+// Boolean: can optimize outer loop
+constexpr const char *optimized_outer_loop = "optimized_outer_loop";
+// Boolean: is single op graph
+constexpr const char *single_op_graph = "single_op_graph";
+// Boolean: is begining op of pre-op fuse
+constexpr const char *pre_fuse_begin_op = "pre_fuse_begin_op";
 } // namespace mixed_partition_hint
 
 // different fusion policies prepared for dynamic shape, policies will be JIT
@@ -339,7 +343,7 @@ struct mixed_parti_t : fusion_partition_t {
     void try_split_outermost_loop_on_num_threads(int64_t num_groups);
 
     // query if partition can optimize its loop order
-    bool can_optimize_loop_order_for_parti(bool allow_tensorview = false) const;
+    bool can_optimize_outer_loop(bool allow_tensorview = false) const;
 
     // return op whether in op_anchor_map_
     bool ready_for_op(sc_op *op) const;
@@ -429,6 +433,12 @@ struct mixed_parti_t : fusion_partition_t {
     // query partition whether contains only elementwise op
     bool contain_elemwise_op_only() const;
 
+    // query partition whether contains only one op
+    bool is_single_op_parti() const;
+
+    // query partition whether contains op from optimized sub graph
+    bool is_optimized() const;
+
     // clear all contents of partition object
     void clear();
 
@@ -486,8 +496,9 @@ bool do_partition(const context_ptr &ctx, sc_graph_t &g,
         std::vector<mixed_parti_t::ptr> &op_2_partition);
 
 // judge the given graph whether is second time retried graph
-inline bool is_optimized_graph(sc_graph_t &g) {
-    return g.attrs_.get_or_else(mixed_partition_hint::optimized_graph, false);
+inline bool is_optimized_sub_graph(sc_graph_t &g) {
+    return g.attrs_.get_or_else(
+            mixed_partition_hint::optimized_sub_graph, false);
 }
 
 bool concat_memory_planning_on_graph(sc_graph_t &graph);

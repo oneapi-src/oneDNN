@@ -93,9 +93,8 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
         }
     }
     outer_loop_generator_t gen(base_idx, use_output_mode);
-    if (attrs_.has_key(mixed_partition_hint::sub_graph_ptr)) {
-        fmgr.bind_graph(
-                attrs_.get<sc_graph_t *>(mixed_partition_hint::sub_graph_ptr));
+    if (attrs_.get_or_else(mixed_partition_hint::optimized_outer_loop, false)) {
+        fmgr.bind_graph(&get_owner_graph());
     }
     bool status = gen.generate(parti->ctx_, nullptr, &fmgr, ins, outs, loops);
 
@@ -122,7 +121,8 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
             iter = parti->fanchors_.erase(iter);
         }
         // check whether need to keep last anchor
-        if (!attrs_.get_or_else("temp.keep_last_anchor", false)) {
+        if (!get_owner_graph().attrs_.get_or_else(
+                    mixed_partition_hint::single_op_graph, false)) {
             // remove last anchor
             parti->clear_fanchor(parti->fanchors_.back());
             parti->fanchors_.pop_back();

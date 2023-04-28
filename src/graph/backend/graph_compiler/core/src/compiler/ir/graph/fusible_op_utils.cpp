@@ -131,6 +131,7 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx) {
     COMPILE_ASSERT(copied->get_outputs().size() == 1,
             "Currently only support 1 output only");
     g.make_output(outs);
+    g.attrs_.set(mixed_partition_hint::single_op_graph, true);
     // create dummy parti
     auto parti = std::make_shared<mixed_parti_t>(ctx,
             std::const_pointer_cast<sc_op>(op->shared_from_this()), nullptr);

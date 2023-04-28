@@ -419,7 +419,7 @@ TEST(GCCore_graph_mixed_partition_cpp, TestGraphSpecialReorder) {
     EXPECT_EQ(ss.str(), expected_str);
 }
 
-TEST(GCCore_graph_mixed_partition_cpp, TestGraphBroadcastOp) {
+TEST(GCCore_graph_mixed_partition_cpp, TestGraphBroadcastOp1) {
     sc_graph_t graph;
     thread_num_reset reseter;
     // set threads envoriment
@@ -449,6 +449,48 @@ TEST(GCCore_graph_mixed_partition_cpp, TestGraphBroadcastOp) {
             = R"(graph(v0: f32[1, 64], v1: f32[32, 4, 16, 16]) -> [v2: f32[32, 4, 16, 16]] {
   [v3: f32[1, 4, 1, 16]] = reorder(v0)
   [v2: f32[32, 4, 16, 16]] = mul(v3, v1)
+}
+)";
+    EXPECT_EQ(ss.str(), expected_str);
+}
+
+TEST(GCCore_graph_mixed_partition_cpp, TestGraphBroadcastOp2) {
+    sc_graph_t graph;
+    thread_num_reset reseter;
+    // set threads envoriment
+    runtime_config_t::get().set_num_threads(28);
+
+    auto input0 = graph.make_input(
+            {graph_tensor::make({16, 160}, sc_data_format_t::MKmk(16, 16))});
+    auto input1 = graph.make_input(
+            {graph_tensor::make({16, 160}, sc_data_format_t::MKmk(16, 16))});
+
+    auto red_node = graph.make("reduce", {input0->get_outputs()[0]}, {},
+            {{"rd_axis", std::vector<int> {1}}, {"rd_op", 0}});
+    // mul op could not be added into reduce partition due to mul has more loop
+    // parallelism than reduce.
+    auto mul_node = graph.make("mul",
+            {red_node->get_outputs()[0], input1->get_outputs()[0]}, {}, {});
+    auto relu_node = graph.make("relu", mul_node->get_outputs(), {}, {});
+
+    auto output0 = graph.make_output(relu_node->get_outputs());
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    // turn on cost model
+    ctx->flags_.use_cost_model_ = true;
+    mixed_partition(graph, ctx);
+    mixed_fuse_op_t *fused_op = get_mixed_op_from_graph(graph);
+    COMPILE_ASSERT(fused_op, "No mixed fused op is found, please check")
+    // fused op should have two partition due to mul op is expected to break
+    // fusion by cost model
+    EXPECT_EQ(fused_op->parti_list_.size(), (size_t)2);
+    std::stringstream ss;
+    print_graph(graph, ss, true);
+    // multi_partitions prefix means it finally contains more than one
+    // partition: `reduce_compute+reduce_collect` and `mul+relu`
+    std::string expected_str
+            = R"(graph(v0: f32[1, 10, 16, 16], v1: f32[1, 10, 16, 16]) -> [v2: f32[1, 10, 16, 16]] {
+  [v2: f32[1, 10, 16, 16]] = multi_partitions_mul_relu_reduce_compute_reduce_collect(v0, v1)
 }
 )";
     EXPECT_EQ(ss.str(), expected_str);

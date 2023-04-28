@@ -26,12 +26,12 @@ namespace gc {
  * Removes redundant loops with parallel attribute. Will reserve the outmost
  * one loop with parallel.
  * @param body the stmts for parallel remove
- * @param forced decides whether finally remove the parallel loop which also
- * owns `num_threads_` field
+ * @param ignore_nested_parallel decides whether finally remove the parallel
+ * loop which also owns `num_threads_` field
  * */
-void remove_parallel(stmt body, bool forced = true);
+void remove_parallel(stmt body, bool ignore_nested_parallel = false);
 
-void remove_parallel(func_t body, bool forced = true);
+void remove_parallel(func_t body, bool ignore_nested_parallel = false);
 
 /**
  * Collect loops inside this body. Won't recurisvely look into loop body.
