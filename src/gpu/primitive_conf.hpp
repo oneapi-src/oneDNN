@@ -231,31 +231,31 @@ struct attr_info_t {
 };
 
 struct offsets_t {
-    int src_off[4][MAX_NDIMS];
-    int wei_off[4][MAX_NDIMS];
-    int dst_off[4][MAX_NDIMS];
+    dim_t src_off[4][MAX_NDIMS];
+    dim_t wei_off[4][MAX_NDIMS];
+    dim_t dst_off[4][MAX_NDIMS];
 };
 
 struct rnn_offsets_t {
-    int src_layer_off[4][MAX_NDIMS];
-    int src_iter_off[4][MAX_NDIMS];
-    int src_iter_c_off[4][MAX_NDIMS];
-    int weights_layer_off[4][MAX_NDIMS];
-    int weights_iter_off[4][MAX_NDIMS];
-    int bias_off[4][MAX_NDIMS];
-    int dst_layer_off[4][MAX_NDIMS];
-    int dst_iter_off[4][MAX_NDIMS];
-    int dst_iter_c_off[4][MAX_NDIMS];
-    int diff_src_layer_off[4][MAX_NDIMS];
-    int diff_src_iter_off[4][MAX_NDIMS];
-    int diff_src_iter_c_off[4][MAX_NDIMS];
-    int diff_weights_layer_off[4][MAX_NDIMS];
-    int diff_weights_iter_off[4][MAX_NDIMS];
-    int diff_bias_off[4][MAX_NDIMS];
-    int diff_dst_layer_off[4][MAX_NDIMS];
-    int diff_dst_iter_off[4][MAX_NDIMS];
-    int diff_dst_iter_c_off[4][MAX_NDIMS];
-    int ws_off[4][MAX_NDIMS];
+    dim_t src_layer_off[4][MAX_NDIMS];
+    dim_t src_iter_off[4][MAX_NDIMS];
+    dim_t src_iter_c_off[4][MAX_NDIMS];
+    dim_t weights_layer_off[4][MAX_NDIMS];
+    dim_t weights_iter_off[4][MAX_NDIMS];
+    dim_t bias_off[4][MAX_NDIMS];
+    dim_t dst_layer_off[4][MAX_NDIMS];
+    dim_t dst_iter_off[4][MAX_NDIMS];
+    dim_t dst_iter_c_off[4][MAX_NDIMS];
+    dim_t diff_src_layer_off[4][MAX_NDIMS];
+    dim_t diff_src_iter_off[4][MAX_NDIMS];
+    dim_t diff_src_iter_c_off[4][MAX_NDIMS];
+    dim_t diff_weights_layer_off[4][MAX_NDIMS];
+    dim_t diff_weights_iter_off[4][MAX_NDIMS];
+    dim_t diff_bias_off[4][MAX_NDIMS];
+    dim_t diff_dst_layer_off[4][MAX_NDIMS];
+    dim_t diff_dst_iter_off[4][MAX_NDIMS];
+    dim_t diff_dst_iter_c_off[4][MAX_NDIMS];
+    dim_t ws_off[4][MAX_NDIMS];
 };
 
 // Convolution
@@ -1086,7 +1086,7 @@ inline void set_offsets(compute::kernel_ctx_t &kernel_ctx,
     md.compute_strides_compat(strides_compat);
 
     for (int d = 0; d < MAX_NDIMS; ++d) {
-        const int block = block_dims[d];
+        const dim_t block = block_dims[d];
 
         kernel_ctx.define_int(
                 utils::format("%s_B%d", str, d), (d < md.ndims()) ? block : 1);
@@ -1099,7 +1099,8 @@ inline void set_offsets(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int(utils::format("%s_OFFSET_PAD", str), md.md_->offset0);
 }
 
-inline void set_offsets(const memory_desc_wrapper &md, int offs[4][MAX_NDIMS]) {
+inline void set_offsets(
+        const memory_desc_wrapper &md, dim_t offs[4][MAX_NDIMS]) {
     dim_t block_dims[DNNL_MAX_NDIMS];
     dim_t strides_compat[2][DNNL_MAX_NDIMS];
 
@@ -1108,7 +1109,7 @@ inline void set_offsets(const memory_desc_wrapper &md, int offs[4][MAX_NDIMS]) {
     const dims_t &dims = md.dims();
 
     for (int d = 0; d < md.ndims(); ++d) {
-        const int block = block_dims[d];
+        const dim_t block = block_dims[d];
 
         offs[0][d] = block;
         offs[1][d] = strides_compat[0][d];
@@ -1117,7 +1118,7 @@ inline void set_offsets(const memory_desc_wrapper &md, int offs[4][MAX_NDIMS]) {
     }
 }
 
-inline void def_offsets(const int offs[4][MAX_NDIMS],
+inline void def_offsets(const dim_t offs[4][MAX_NDIMS],
         compute::kernel_ctx_t &kernel_ctx, const char *str, const int ndims) {
 
     for (int d = 0; d < MAX_NDIMS; d++) {

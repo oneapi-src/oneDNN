@@ -124,7 +124,7 @@ status_t gemm_with_post_ops_t::pd_t::init_kernel_ctx(
     const memory_desc_wrapper bia_d(src_md(2));
     const memory_desc_wrapper dst_d(gemm_pd_->dst_md(0));
     offsets_t off;
-    int bia_off[4][MAX_NDIMS];
+    dim_t bia_off[4][MAX_NDIMS];
     set_offsets(dst_d, off.dst_off);
     set_offsets(bia_d, bia_off);
     int ndims = dst_d.ndims();
