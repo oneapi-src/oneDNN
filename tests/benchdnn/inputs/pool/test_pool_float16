@@ -12,7 +12,7 @@
 --batch=set_topologies
 
 --dir=FWD_D
---attr-post-ops=mul:s32:per_oc,add:f32:per_tensor
+--attr-post-ops=add:f32:per_oc,linear:0.5:-1
 --batch=set_all_small
 
 # Inference
@@ -20,5 +20,5 @@
 --tag=axb
 --batch=set_all
 
---attr-post-ops=add:f16
+--attr-post-ops=add:f16,linear:0.5:-1
 --batch=set_all_small
