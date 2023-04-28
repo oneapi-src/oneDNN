@@ -1,6 +1,6 @@
 --reset
 --mb=2
---cfg=s8u8,u8s8,u8f32,f32u8,s8f32,f32s8,u8f16,f16u8,s8f16,f16s8
+--dt=s8:u8,u8:s8,u8:f32,f32:u8,s8:f32,f32:s8,u8:f16,f16:u8,s8:f16,f16:s8
 --dir=FWD_I
 --tag=axb
 --alg=max,avg_np,avg_p

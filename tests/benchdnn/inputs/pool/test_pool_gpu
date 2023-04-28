@@ -1,7 +1,7 @@
 --reset
 # f32, bf16, f64
 --mb=2
---cfg=f32,bf16,f64
+--dt=f32,bf16,f64
 --dir=FWD_D,FWD_I,BWD_D
 --alg=max,avg_np,avg_p
 --tag=abx,aBx16b,aBx32b
@@ -9,7 +9,7 @@
 
 # f32, f64
 --mb=16
---cfg=f32,f64
+--dt=f32,f64
 --dir=FWD_D,FWD_I,BWD_D
 --alg=max,avg_np,avg_p
 --tag=ABx16a16b,ABx32a32b
@@ -17,7 +17,7 @@
 
 # u8, s8, s32, f16, bf16
 --mb=2
---cfg=u8,s8,s32,f16,bf16
+--dt=u8,s8,s32,f16,bf16
 --dir=FWD_I
 --alg=max,avg_np,avg_p
 --tag=abx,aBx16b,aBx32b
@@ -34,7 +34,7 @@
 --reset
 # f32, f64, nhwc
 --mb=1
---cfg=f32,f64
+--dt=f32,f64
 --dir=FWD_D,BWD_D
 --alg=max,avg_np,avg_p
 --tag=axb
@@ -46,7 +46,7 @@
 
 # f16, nhwc
 --mb=1,16
---cfg=f16
+--dt=f16
 --dir=FWD_I
 --alg=max
 --batch=set_all_small
@@ -54,7 +54,7 @@
 # basic post op tests
 --reset
 --dir=FWD_I
---cfg=f32,s32,f16,bf16,u8,s8,f64
+--dt=f32,s32,f16,bf16,u8,s8,f64
 --alg=max,avg_np,avg_p
 --attr-post-ops=add:s32:per_oc+sub:s8:per_tensor,add:f32+linear:-0.5:1.5
 --mb=2
@@ -71,7 +71,7 @@
 
 # int8 axb tests
 --reset
---cfg=u8,s8
+--dt=u8,s8
 --dir=FWD_I
 --tag=axb
 --alg=max,avg_np,avg_p
@@ -87,7 +87,7 @@
 
 # Test global pooling
 --reset
---cfg=f32,bf16,f64
+--dt=f32,bf16,f64
 --dir=BWD_D
 --tag=axb,abx,aBx16b,aBx32b
 --alg=max,avg_np,avg_p
