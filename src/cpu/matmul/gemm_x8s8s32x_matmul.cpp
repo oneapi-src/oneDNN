@@ -142,11 +142,12 @@ status_t gemm_x8s8s32x_matmul_t::pd_t::init(engine_t *engine) {
     return status::success;
 }
 
-void gemm_x8s8s32x_matmul_t::post_process_src_and_weights_zero_points(
-        std::vector<int32_t> &src_comp, std::vector<int32_t> &wei_comp, dim_t M,
-        dim_t N, dim_t K, const char *src, dim_t src_s0, dim_t src_s1,
-        const int8_t *wei, dim_t wei_s0, dim_t wei_s1, int32_t *acc, int ldc,
-        int32_t src_zero_point, int32_t wei_zero_point) const {
+template <typename src_dt>
+void pp_src_and_weights_zero_points(std::vector<int32_t> &src_comp,
+        std::vector<int32_t> &wei_comp, dim_t M, dim_t N, dim_t K,
+        const src_dt *src, dim_t src_s0, dim_t src_s1, const int8_t *wei,
+        dim_t wei_s0, dim_t wei_s1, int32_t *acc, int ldc,
+        int32_t src_zero_point, int32_t wei_zero_point) {
     if (wei_zero_point) {
         for_(dim_t m = 0; m < M; ++m)
         for (dim_t k = 0; k < K; ++k) {
@@ -210,8 +211,8 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             && IMPLICATION(src_d.data_type() == data_type::u8,
                     gemm_off_a_uint8 == src_zero_point)
             && gemm_off_b == weights_zero_point;
-    const bool post_process_src_and_weights_zero_points_outside_of_gemm = !ok;
-    if (post_process_src_and_weights_zero_points_outside_of_gemm) {
+    const bool pp_src_and_weights_zero_points_outside_of_gemm = !ok;
+    if (pp_src_and_weights_zero_points_outside_of_gemm) {
         gemm_off_a_int8 = gemm_off_a_uint8 = gemm_off_b = 0;
     }
     const float dst_zero_point_f32 = static_cast<float>(dst_zero_point);
@@ -355,36 +356,58 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                 status_t st_thr = status::runtime_error;
                 switch (src_d.data_type()) {
                     case data_type::s8: {
-                        const int8_t *curr_src_
+                        const int8_t *curr_src_ptr
                                 = reinterpret_cast<const int8_t *>(curr_src);
                         st_thr = gemm_s8x8s32(&transB, &transA, "F", &gemm_N,
                                 &gemm_M, &K, &alpha, curr_weights, &ldb,
-                                &gemm_off_b, curr_src_, &lda, &gemm_off_a_int8,
-                                &beta, curr_acc, &acc_ldc, &gemm_off_c);
+                                &gemm_off_b, curr_src_ptr, &lda,
+                                &gemm_off_a_int8, &beta, curr_acc, &acc_ldc,
+                                &gemm_off_c);
+
+                        if (st_thr != status::success) {
+                            st = st_thr;
+                            return;
+                        }
+
+                        // if igemm cannot handle src and weights zero points
+                        if (pp_src_and_weights_zero_points_outside_of_gemm) {
+                            pp_src_and_weights_zero_points(src_compensation,
+                                    weights_compensation, gemm_M, gemm_N, K,
+                                    curr_src_ptr, src_strides[0],
+                                    src_strides[1], curr_weights,
+                                    weights_strides[0], weights_strides[1],
+                                    curr_acc, acc_ldc, src_zero_point,
+                                    weights_zero_point);
+                        }
+
                     } break;
                     case data_type::u8: {
-                        const uint8_t *curr_src_
+                        const uint8_t *curr_src_ptr
                                 = reinterpret_cast<const uint8_t *>(curr_src);
                         st_thr = gemm_s8x8s32(&transB, &transA, "F", &gemm_N,
                                 &gemm_M, &K, &alpha, curr_weights, &ldb,
-                                &gemm_off_b, curr_src_, &lda, &gemm_off_a_uint8,
-                                &beta, curr_acc, &acc_ldc, &gemm_off_c);
+                                &gemm_off_b, curr_src_ptr, &lda,
+                                &gemm_off_a_uint8, &beta, curr_acc, &acc_ldc,
+                                &gemm_off_c);
+
+                        if (st_thr != status::success) {
+                            st = st_thr;
+                            return;
+                        }
+
+                        // if igemm cannot handle src and weights zero points
+                        if (pp_src_and_weights_zero_points_outside_of_gemm) {
+                            pp_src_and_weights_zero_points(src_compensation,
+                                    weights_compensation, gemm_M, gemm_N, K,
+                                    curr_src_ptr, src_strides[0],
+                                    src_strides[1], curr_weights,
+                                    weights_strides[0], weights_strides[1],
+                                    curr_acc, acc_ldc, src_zero_point,
+                                    weights_zero_point);
+                        }
+
                     } break;
                     default: assert(!"unsupported data type"); break;
-                }
-
-                if (st_thr != status::success) {
-                    st = st_thr;
-                    return;
-                }
-
-                // if igemm cannot handle src and weights zero points
-                if (post_process_src_and_weights_zero_points_outside_of_gemm) {
-                    post_process_src_and_weights_zero_points(src_compensation,
-                            weights_compensation, gemm_M, gemm_N, K, curr_src,
-                            src_strides[0], src_strides[1], curr_weights,
-                            weights_strides[0], weights_strides[1], curr_acc,
-                            acc_ldc, src_zero_point, weights_zero_point);
                 }
 
                 bool postops_in_matmul
@@ -443,8 +466,8 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             std::vector<int32_t> weights_compensation(N, 0);
 
             // if igemm cannot handle src and weights zero points
-            if (post_process_src_and_weights_zero_points_outside_of_gemm) {
-                post_process_src_and_weights_zero_points(src_compensation,
+            if (pp_src_and_weights_zero_points_outside_of_gemm) {
+                pp_src_and_weights_zero_points(src_compensation,
                         weights_compensation, M, N, K, src, src_strides[0],
                         src_strides[1], weights, weights_strides[0],
                         weights_strides[1], acc, acc_ldc, src_zero_point,

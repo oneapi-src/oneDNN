@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -90,12 +90,6 @@ struct gemm_x8s8s32x_matmul_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_ref(const exec_ctx_t &ctx) const;
-    void post_process_src_and_weights_zero_points(
-            std::vector<int32_t> &src_comp, std::vector<int32_t> &wei_comp,
-            dim_t M, dim_t N, dim_t K, const char *src, dim_t src_s0,
-            dim_t src_s1, const int8_t *wei, dim_t wei_s0, dim_t wei_s1,
-            int32_t *acc, int ldc, int32_t src_zero_point,
-            int32_t wei_zero_point) const;
 
     std::unique_ptr<inner_product_utils::pp_kernel_t> pp_kernel_;
 };
