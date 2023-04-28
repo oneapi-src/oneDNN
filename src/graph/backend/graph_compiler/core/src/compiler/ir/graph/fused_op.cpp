@@ -1505,7 +1505,7 @@ ir_module_ptr horizontal_fused_op_t::get_func(context_ptr ctx) {
         op_out_args.insert(
                 op_out_args.end(), op_in_args.begin(), op_in_args.end());
         auto callf = make_expr<call_node>(f, op_out_args);
-        inliner.inline_at(callf, bld.get_current_scope().body, 0, global_vars);
+        inliner.inline_at(callf, bld.get_current_scope().body, 0, mod_to_merge);
     }
     bld.push_returns(true);
     func->body_ = bld.pop_scope();
@@ -2228,7 +2228,7 @@ ir_module_ptr batchwise_fused_op_t::get_func(context_ptr ctx) {
     auto the_call = builder::make_call(sub_modu->get_entry_func(), args)
                             .checked_as<call>();
     inliner.inline_at(the_call, cur.checked_as<stmts>()->seq_,
-            cur.checked_as<stmts>()->seq_.size(), sub_vars);
+            cur.checked_as<stmts>()->seq_.size(), sub_modu);
     gen_copy_strided_tsr_ir(cur, strided_out_tsr_map, loop_vars, false);
     // std::cout << cur << "\n";
     std::reverse_copy(bw_dims_.begin(), bw_dims_.end(), loop_ranges.begin());

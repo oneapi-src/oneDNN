@@ -30,6 +30,10 @@ INLINE vec_f32x4::operator vec_s32x4() const {
     return _mm_cvttps_epi32(v);
 }
 
+INLINE vec_s32x4::operator vec_f32x4() const {
+    return _mm_cvtepi32_ps(v);
+}
+
 INLINE vec_s32x8::operator vec_f32x8() const {
     return _mm256_cvtepi32_ps(v);
 }
@@ -55,7 +59,12 @@ INLINE vec_f32x4 sc_gather(float const *a, vec_s32x4 const &b) {
 INLINE vec_f32x8 sc_gather(float const *a, vec_s32x8 const &b) {
 #ifdef __AVX512F__
     __m256 dummy = _mm256_set1_ps(0.f);
-    return _mm256_mask_i32gather_ps(dummy, a, b.v, vec_f32x8(1).v, 4);
+    union {
+        int v;
+        float v2;
+    } mask;
+    mask.v = 0xffffffff;
+    return _mm256_mask_i32gather_ps(dummy, a, b.v, vec_f32x8(mask.v2).v, 4);
 #else
     return _mm256_i32gather_ps(a, b.v, 4);
 #endif

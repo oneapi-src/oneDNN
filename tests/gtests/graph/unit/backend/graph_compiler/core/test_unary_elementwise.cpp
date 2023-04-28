@@ -97,6 +97,30 @@ static void check_unary_elementwise(const std::string &op_name,
     }
 }
 
+static void check_qnan_log(const sc_dims &input_dims) {
+    sc_graph_t g;
+    sc_op_ptr ins;
+    ins = g.make_input({graph_tensor::make(
+            input_dims, sc_data_format_t(), datatypes::f32)});
+    auto op = g.make(
+            "log", ins->get_outputs(), {}, {{"alpha", alpha}, {"beta", beta}});
+    g.make_output(op->get_outputs());
+    graph_driver(g, get_test_ctx());
+
+    auto f = lower_graph(get_test_ctx(), g, {});
+    if (verbose) std::cout << f << std::endl;
+    const auto input_size = test_utils::product(input_dims);
+    std::vector<float> input_data(input_size);
+    test_utils::fill_data(&input_data[0], input_size,
+            std::numeric_limits<float>::quiet_NaN());
+    std::vector<float> sc_output(input_size);
+    auto fptr = jit_engine_t::make(get_test_ctx())->get_entry_func(f);
+    fptr->call_default(&input_data[0], &sc_output[0]);
+    for (auto &it : sc_output) {
+        EXPECT_TRUE(std::isnan(it));
+    }
+}
+
 static std::vector<sc_dims> test_shapes
         = {{16, 63}, {2, 8, 4}, {4, 16, 256, 1024}};
 TEST(GCCore_unary_elementwise_test, TestAbsOp) {
@@ -140,6 +164,7 @@ TEST(GCCore_unary_elementwise_test, TestLogOp) {
     for (auto &shape : test_shapes) {
         check_unary_elementwise<float>("log", shape, ref_log);
         check_unary_elementwise<bf16_t>("log", shape, ref_log);
+        check_qnan_log(shape);
     }
 }
 

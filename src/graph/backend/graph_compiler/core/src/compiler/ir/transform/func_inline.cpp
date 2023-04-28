@@ -116,17 +116,17 @@ public:
     int recursions = 0;
     // the current insertion point within a stmts_node_t
     insertion_point_t *ins_point = nullptr;
-    const std::vector<define> *module_vars_ = nullptr;
-    func_inliner_impl_t(const std::vector<define> *module_vars = nullptr)
-        : module_vars_(module_vars) {}
+    const_ir_module_ptr modu_ = nullptr;
+    func_inliner_impl_t(const const_ir_module_ptr &modu = nullptr)
+        : modu_(modu) {}
     expr_c visit(call_c v) override {
         bool is_parallel_call = bool(!v->para_attr_.empty());
         auto ret = ir_visitor_t::visit(std::move(v));
         if (!is_parallel_call && ret->attr_
                 && ret->attr_->has_key("inline_level")
                 && ret->attr_->get<int>("inline_level") == 2) {
-            if (module_vars_) {
-                return inline_at(ret.checked_as<call>(), *module_vars_);
+            if (modu_) {
+                return inline_at(ret.checked_as<call>(), modu_);
             } else {
                 return inline_at(ret.checked_as<call>());
             }
@@ -208,11 +208,17 @@ public:
         return v;
     }
 
-    expr_c inline_at(call_c site,
-            const std::vector<define> &module_vars = std::vector<define>()) {
+    expr_c inline_at(call_c site, const const_ir_module_ptr &modu = nullptr) {
         auto the_func = std::dynamic_pointer_cast<func_base>(site->func_);
-        // if the callee is a declaration, skip inlining
-        if (!the_func || !the_func->body_.defined()) { return site; }
+        // if the callee is a declaration, found its function body in modu.
+        if (!the_func
+                || !(the_func->body_.defined()
+                        || (modu && modu->get_func(the_func->name_)))) {
+            return site;
+        }
+        the_func = !the_func->body_.defined() && modu
+                ? modu->get_func(the_func->name_)
+                : the_func;
         recursions++;
         COMPILE_ASSERT(recursions < 20, "Reached max inline recursion depth");
 
@@ -222,9 +228,12 @@ public:
             rmap.insert(
                     std::make_pair(the_func->params_.at(i), site->args_.at(i)));
         }
-        for (size_t i = 0; i < module_vars.size(); i++) {
-            rmap.insert(
-                    std::make_pair(module_vars[i]->var_, module_vars[i]->var_));
+        if (modu) {
+            auto module_vars = modu->get_module_vars();
+            for (size_t i = 0; i < module_vars.size(); i++) {
+                rmap.insert(std::make_pair(
+                        module_vars[i]->var_, module_vars[i]->var_));
+            }
         }
 
         // a "simple" function is a function with only one statement: return ...
@@ -275,15 +284,15 @@ public:
 };
 
 expr_c func_inliner_t::inline_at(call_c c, std::vector<stmt> &seq,
-        size_t insert_idx, const std::vector<define> &module_vars) {
+        size_t insert_idx, const const_ir_module_ptr &modu) {
     func_inliner_impl_t impl;
     func_inliner_impl_t::insertion_point_t insp {seq, insert_idx};
     impl.ins_point = &insp;
-    return impl.inline_at(std::move(c), module_vars);
+    return impl.inline_at(std::move(c), modu);
 }
 
 const_ir_module_ptr func_inliner_t::operator()(const_ir_module_ptr f) {
-    func_inliner_impl_t impl(&f->get_module_vars());
+    func_inliner_impl_t impl(f);
     return dispatch_module_on_visitor(&impl, f);
 }
 

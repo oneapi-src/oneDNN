@@ -18,6 +18,7 @@
 #include <immintrin.h>
 #include <stdint.h>
 #include "common.hpp"
+class vec_f32x4;
 class vec_s32x4 {
 public:
     union {
@@ -31,6 +32,7 @@ public:
         v = _mm_setr_epi32(i0, i1, i2, i3);
     }
     INLINE vec_s32x4(__m128i const &x) { v = x; }
+    INLINE operator vec_f32x4() const;
 
     static INLINE vec_s32x4 load(const int32_t *p) {
         return _mm_loadu_si128((const __m128i *)p);
