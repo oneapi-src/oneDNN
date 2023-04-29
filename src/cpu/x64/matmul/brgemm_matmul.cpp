@@ -168,11 +168,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
         brgattr.generate_skip_accumulation
                 = bgmmc_.post_ops_applicable && bgmmc_.nthr_k > 1;
         if (is_superset(kernel_isa, avx512_core_amx)) {
-            if (!brgattr.generate_skip_accumulation) {
-                // TODO: uker doesn't yet support generate_skip_accumulation
-                brgattr.use_uker = true;
-                brgattr.use_interleave_stores = true;
-            }
+            brgattr.use_uker = true;
+            brgattr.use_interleave_stores = true;
             brgattr.max_bs = bs;
             brgattr.wary_tail_read = false;
 

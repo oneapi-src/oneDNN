@@ -136,6 +136,7 @@ private:
 
     const reg64_t reg_stride_ld_block = rdx;
     const reg64_t reg_do_post_ops = rbx;
+    const reg64_t reg_do_skip_accum = reg_do_post_ops;
     const reg64_t reg_tmp_gpr = rbx;
     const reg64_t reg_ptr_sum_scale = rbx;
 
@@ -313,6 +314,7 @@ private:
         const bs_iteration_t *bsi {nullptr};
         const dim_iteration_t *rdi {nullptr};
         bool apply_postops {false};
+        bool skip_accumulation {false};
         bool first_bsi {false};
         bool last_bsi {false};
         brgemm_iteration_t() = default;
@@ -475,8 +477,9 @@ private:
                 || need_to_apply_post_ops || brg.brgattr.bd_mask_level;
         return store_by_vectors;
     }
-    bool actual_ils(bool apply_post_ops) const {
-        return (use_ils_ && get_store_by_vectors(apply_post_ops));
+    bool actual_ils(bool apply_post_ops, bool skip_accumulation = false) const {
+        return (use_ils_ && get_store_by_vectors(apply_post_ops)
+                && !skip_accumulation);
     }
 
     size_t A_offset(const brgemm_iteration_t &bi, int bdb) const noexcept;
@@ -770,8 +773,9 @@ void jit_brgemm_amx_uker_base_t::load_accumulators(brgemm_iteration_t &bi) {
     size_t ils_shift = 0;
     if (may_load_accumulators_) {
         mov(reg_stride_ld_block, LDC_size_);
-        const auto need_ils_shift = (actual_ils(bi.apply_postops)
-                && ununroll_bd_loop && bi.ldi->idx == 0);
+        const auto need_ils_shift
+                = (actual_ils(bi.apply_postops, bi.skip_accumulation)
+                        && ununroll_bd_loop && bi.ldi->idx == 0);
         // if need_ils_shift then we have to add shift to C because reg_C points
         // to previous iteration in this case
         ils_shift = need_ils_shift ? bi.bdi->C_shift : 0;
@@ -1091,7 +1095,7 @@ void jit_brgemm_amx_uker_base_t::prefetching(
     if (brg.prfC.dist1 >= 0) {
         bool is_pfo_bi = false;
         brgemm_iteration_t pfo_bi;
-        if (actual_ils(bi.apply_postops)) {
+        if (actual_ils(bi.apply_postops, bi.skip_accumulation)) {
             if (was_prev_bi_ && brg.prfC.dist1 == 0) {
                 is_pfo_bi = true;
                 pfo_bi = prev_bi_;
@@ -1106,7 +1110,7 @@ void jit_brgemm_amx_uker_base_t::prefetching(
     if (brg.prfC.dist2 >= 0) {
         bool is_pfo_bi = false;
         brgemm_iteration_t pfo_bi;
-        if (actual_ils(bi.apply_postops)) {
+        if (actual_ils(bi.apply_postops, bi.skip_accumulation)) {
             if (was_prev_bi_ && brg.prfC.dist2 == 0) {
                 is_pfo_bi = true;
                 pfo_bi = prev_bi_;
@@ -1139,11 +1143,6 @@ void jit_brgemm_amx_uker_base_t::prefetching(
 void jit_brgemm_amx_uker_base_t::process_output_range(
         brgemm_iteration_t &bi, int bd_start, int bd_finish, int bdb, int ldb) {
 
-    const auto wsp_offset = (use_ils_ || brg.interleave_tilestores_)
-            ? (bdb * prev_bi_.ldi->block2() + ldb) * prev_bi_.bdi->block(0)
-                    * ld_block_C_size_
-            : 0;
-
     const auto k_mask = bi.ldi->is_tail(ldb) ? ld_tail_mask : ld_full_mask;
 
     // if (brg.is_int8 && alpha_or_beta_applicable && !beta_uses_vadd) ->
@@ -1163,8 +1162,16 @@ void jit_brgemm_amx_uker_base_t::process_output_range(
                                              : accm(bd);
         some_bd_mask = true;
 
-        const auto buf_offset = bd * ld_block_C_size_;
-        vmovups(vreg_acc, ptr[reg_buf + buf_offset + wsp_offset]);
+        if (bi.skip_accumulation) {
+            vpxord(vreg_acc, vreg_acc, vreg_acc);
+        } else {
+            const auto wsp_offset = (use_ils_ || brg.interleave_tilestores_)
+                    ? (bdb * prev_bi_.ldi->block2() + ldb)
+                            * prev_bi_.bdi->block(0) * ld_block_C_size_
+                    : 0;
+            const auto buf_offset = bd * ld_block_C_size_;
+            vmovups(vreg_acc, ptr[reg_buf + buf_offset + wsp_offset]);
+        }
 
         const auto c_offset = C_offset(bi, bdb, bd, bi.ldi->pos(ldb));
         const auto ptr_C = EVEX_compress_addr(reg_C, c_offset);
@@ -1321,7 +1328,7 @@ void jit_brgemm_amx_uker_base_t::interleave_store(
 
     if (store_all) { prev_bi_ = bi; }
     if (!was_prev_bi_) return;
-    if (!actual_ils(prev_bi_.apply_postops)) return;
+    if (!actual_ils(prev_bi_.apply_postops, bi.skip_accumulation)) return;
 
     if (store_all) prefetching(prev_bi_, true);
 
@@ -1397,13 +1404,14 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(brgemm_iteration_t &bi) {
     prf1C.vec = 0;
     prf2C.vec = 0;
 
-    if (store_by_vectors && !use_ils_ && !prepare_post_ops_registers_once_)
+    const bool real_ils = actual_ils(bi.apply_postops, bi.skip_accumulation);
+    if (store_by_vectors && !real_ils && !prepare_post_ops_registers_once_)
         prepare_post_ops_registers(bi);
 
     for_(int bdb = 0; bdb < bi.bdi->block2(); bdb++)
     for (int ldb = 0; ldb < bi.ldi->block2(); ldb++) {
         if (store_by_vectors) {
-            if (!brg.interleave_tilestores_) {
+            if (!brg.interleave_tilestores_ && !bi.skip_accumulation) {
                 const auto wsp_offset = use_ils_
                         ? (bdb * bi.ldi->block2() + ldb) * bi.bdi->block(0)
                                 * ld_block_C_size_
@@ -1411,7 +1419,7 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(brgemm_iteration_t &bi) {
                 tilestored(ptr[reg_buf + reg_stride_ld_block + wsp_offset],
                         Tmm(get_C_tensor(bi, bdb, ldb)));
             }
-            if (use_ils_) continue;
+            if (real_ils) continue;
 
             prepare_post_ops_registers_ldb(bi, ldb);
 
@@ -1529,6 +1537,7 @@ void jit_brgemm_amx_uker_base_t::maybe_tileloadd_nt(
 void jit_brgemm_amx_uker_base_t::maybe_tilestore(brgemm_iteration_t &bi,
         int bdb_idx, int ldb_idx, bool do_pre_tilestore,
         bool do_post_tilestore) {
+    if (bi.skip_accumulation) return;
     auto current_tensor_idx = get_C_tensor(bi, bdb_idx, ldb_idx);
 
     if (!brg.interleave_tilestores_) return;
@@ -1821,12 +1830,14 @@ void jit_brgemm_amx_uker_base_t::rdb_loop(brgemm_iteration_t &bi) {
 }
 
 void jit_brgemm_amx_uker_base_t::bs_loop_body(brgemm_iteration_t &bi) {
-    if (brg.brgattr.var_bs) {
-        set_A_B_matrices();
-        add(reg_aux1_batch, sizeof(brgemm_batch_element_t));
-        prefetcht0(ptr[reg_aux1_batch]);
-    } else {
-        set_A_B_matrices(bi.bsi->pos);
+    if (!bi.skip_accumulation) {
+        if (brg.brgattr.var_bs) {
+            set_A_B_matrices();
+            add(reg_aux1_batch, sizeof(brgemm_batch_element_t));
+            prefetcht0(ptr[reg_aux1_batch]);
+        } else {
+            set_A_B_matrices(bi.bsi->pos);
+        }
     }
 
     rdb_loop(bi);
@@ -1845,7 +1856,8 @@ void jit_brgemm_amx_uker_base_t::bs_loop(brgemm_iteration_t &bi) {
     if (ununroll_bd_loop && was_prev_bi_) {
         if (bi.bdi->idx != prev_bi_.bdi->idx) add(reg_A, bi.bdi->A_shift);
 
-        const auto real_ils = actual_ils(bi.apply_postops);
+        const auto real_ils
+                = actual_ils(bi.apply_postops, bi.skip_accumulation);
 
         brgemm_iteration_t *bi_shift = nullptr;
         if (!real_ils && bi.bdi->idx != prev_bi_.bdi->idx)
@@ -1859,6 +1871,10 @@ void jit_brgemm_amx_uker_base_t::bs_loop(brgemm_iteration_t &bi) {
     }
 
     load_accumulators(bi);
+    if (bi.skip_accumulation) {
+        store_accumulators(bi);
+        return;
+    }
 
     if (brg.brgattr.var_bs) {
         if (brg.alpha != 0.f) {
@@ -2035,7 +2051,7 @@ void jit_brgemm_amx_uker_base_t::top_loop(brgemm_iteration_t &bi) {
     }
 
     const auto &tloop = imap_[bi.apply_postops];
-    if (actual_ils(bi.apply_postops) && ununroll_bd_loop
+    if (actual_ils(bi.apply_postops, bi.skip_accumulation) && ununroll_bd_loop
             && tloop.ldis.size() == 1) {
         // update reg_C and reg_D if they they were not updated yet
         add(reg_C, bi.bdi->C_shift);
@@ -2159,14 +2175,16 @@ void jit_brgemm_amx_uker_base_t::fill_imap() {
 
 void jit_brgemm_amx_uker_base_t::init(brgemm_iteration_t &bi) {
     was_prev_bi_ = false;
-    const auto bdb2_to_unroll
-            = nstl::max(0, brg.bdb2 - (actual_ils(bi.apply_postops) ? 1 : 0));
+    const auto bdb2_to_unroll = nstl::max(0,
+            brg.bdb2
+                    - (actual_ils(bi.apply_postops, bi.skip_accumulation) ? 1
+                                                                          : 0));
     ununroll_bd_loop = brg.brgattr.hint_ununroll_bd_loop
             && (brg.brgattr.max_bs == 1 || brg.type == brgemm_static_offs)
-            && !brg.brgattr.var_bs && bdb2_to_unroll > 1
+            && !brg.brgattr.var_bs && bdb2_to_unroll > 1 && bi.skip_accumulation
             && (brg.innermost_loop == brgemm_ld_loop_innermost || brg.ldb2 == 1)
             && get_store_by_vectors(bi.apply_postops);
-    if (brg.type == brgemm_static_offs) {
+    if (brg.type == brgemm_static_offs && !bi.skip_accumulation) {
         if (brg.layout == brgemm_row_major) {
             mov(reg_A, ptr[param1 + GET_OFF(ptr_A)]);
             mov(reg_B, ptr[param1 + GET_OFF(ptr_B)]);
@@ -2174,7 +2192,7 @@ void jit_brgemm_amx_uker_base_t::init(brgemm_iteration_t &bi) {
             mov(reg_A, ptr[param1 + GET_OFF(ptr_B)]);
             mov(reg_B, ptr[param1 + GET_OFF(ptr_A)]);
         }
-    } else if (brg.brgattr.max_bs == 1) {
+    } else if (brg.brgattr.max_bs == 1 && !bi.skip_accumulation) {
         assert(one_of(brg.type, brgemm_addr, brgemm_offs));
         if (brg.type == brgemm_addr) {
             if (brg.layout == brgemm_row_major) {
@@ -2245,6 +2263,7 @@ void jit_brgemm_amx_uker_base_t::init(brgemm_iteration_t &bi) {
                 zmm_lbound, zmm_ubound, reg_tmp_gpr, data_type::f32, brg.dt_d);
     }
 
+    if (bi.skip_accumulation) return;
     prf1A.pft = brgemm_kernel_prefetching_t::brgemm_prf1;
     prf1A.dist = brg.prfA.dist1;
     prf2A.pft = brgemm_kernel_prefetching_t::brgemm_prf2;
@@ -2339,6 +2358,20 @@ void jit_brgemm_amx_uker_base_t::generate() {
         cmp(reg_do_post_ops, 0);
         jz(label_store_without_post_ops, T_NEAR);
         bi.apply_postops = true;
+        if (brg.brgattr.generate_skip_accumulation) {
+            brgemm_iteration_t bi1;
+            mov(reg_do_skip_accum, ptr[param1 + GET_OFF(skip_accm)]);
+            cmp(reg_do_skip_accum, 0);
+            Label label_do_not_skip_acc;
+            jz(label_do_not_skip_acc, T_NEAR);
+
+            bi1.skip_accumulation = true;
+            bi1.apply_postops = true;
+            top_loop(bi1);
+            jmp(label_to_ret, T_NEAR);
+
+            L(label_do_not_skip_acc);
+        }
         top_loop(bi);
         if (non_postops_generate) jmp(label_to_ret, T_NEAR);
         transform_buf_map_A_.clear();

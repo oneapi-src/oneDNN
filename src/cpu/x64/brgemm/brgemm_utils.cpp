@@ -83,8 +83,7 @@ namespace brgemm_utils {
 bool can_dispatch_uker(const brgemm_t *brg) {
     return brg->is_tmm
             && one_of(brg->type, brgemm_addr, brgemm_offs, brgemm_static_offs)
-            && brg->brgattr.use_uker
-            && !brg->brgattr.generate_skip_accumulation;
+            && brg->brgattr.use_uker;
 }
 
 void maybe_try_bf32(brgemm_t *brg) {
