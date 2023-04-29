@@ -943,19 +943,13 @@ inline status_t memory_desc_init_by_md_and_dt(memory_desc_t &md,
     return status::success;
 }
 
-/** returns true if memory desc @p md corresponds to the given format tag and
- * strides.
- * In order to align with memory descriptor equality comparisons and hashing,
- * the strides of unit dimensions are ignored.
- * If strides are not passed (or passed as nullptr) the dense structure is
- * assumed (i.e. the one that memory_desc_init_by_tag() returns).
- * Strides might contain `0` value, indicating the stride must match the one
- * that memory_desc_init_by_tag() returns.
- * Strides might contain `-1` values, that would be ignored during the
- * comparison. For instance, this can be used if a stride along minibatch
- * doesn't matter. */
-inline bool memory_desc_matches_tag(const memory_desc_t &md, format_tag_t tag,
-        const dims_t strides = nullptr) {
+/** returns true if memory desc @p md corresponds to the given format tag.
+ * Assumes a dense structure such as that returned by memory_desc_init_by_tag().
+ * Strides must match those returned by memory_desc_init_by_tag(), with one
+ * exception: the strides of unit dimensions are ignored in order to align with
+ * memory descriptor equality comparisons and hashing.
+ */
+inline bool memory_desc_matches_tag(const memory_desc_t &md, format_tag_t tag) {
     if (md.format_kind != format_kind::sparse) {
         if (md.format_kind != types::format_tag_to_kind(tag)) return false;
     }
@@ -985,11 +979,8 @@ inline bool memory_desc_matches_tag(const memory_desc_t &md, format_tag_t tag,
     if (!same_blocks) return false;
 
     for (int d = 0; d < md.ndims; ++d) {
-        dim_t stride = strides == nullptr ? 0 : strides[d];
-        if (stride == -1) continue;
         if (md.dims[d] == 1) continue; // stride of unit dim is meaningless
-        if (stride == 0) stride = blk_gold.strides[d];
-        if (blk.strides[d] != stride) return false;
+        if (blk.strides[d] != blk_gold.strides[d]) return false;
     }
 
     return true;
