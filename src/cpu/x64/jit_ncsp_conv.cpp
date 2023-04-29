@@ -24,8 +24,18 @@
 #include "common/stream.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
+#include "common/verbose.hpp"
 
 #include "cpu/x64/jit_ncsp_conv.hpp"
+
+#define VCHECK_CONV(cond, msg, ...) \
+    VCONDCHECK(primitive, create, dispatch, convolution, (cond), \
+            status::unimplemented, "%s," msg, this->info(engine), \
+            ##__VA_ARGS__)
+
+#define VINFO_CONV(msg, ...) \
+    VINFO(primitive, create, check, convolution, "%s," msg, \
+            this->info(engine), ##__VA_ARGS__)
 
 namespace dnnl {
 namespace impl {
@@ -138,6 +148,7 @@ status_t ncsp_convolution_fwd_t::pd_t::init_convolution(engine_t *engine) {
                 dst_pre_reorder_pd_, engine, dst_md(), &nspc_dst_md_));
     CHECK(reorder_primitive_desc_create(
             dst_post_reorder_pd_, engine, &nspc_dst_md_, dst_md()));
+    // VINFO_CONV("embedded primitive implementation is %s", nspc_conv_pd_->name());
     return status::success;
 }
 
@@ -171,12 +182,19 @@ status_t ncsp_convolution_fwd_t::pd_t::init(engine_t *engine) {
     using namespace utils;
 
     // TODO: enable attributes (could be tricky for binary-like postops)
-    const bool ok = is_fwd()
-            && set_default_alg_kind(alg_kind::convolution_direct)
-            && attr()->has_default_values() && !has_zero_dim_memory()
-            && memory_desc_matches_tag(*src_md(), get_ncsp_tag(ndims()))
-            && memory_desc_matches_tag(*dst_md(), get_ncsp_tag(ndims()));
-    if (!ok) return status::unimplemented;
+    VCHECK_CONV(attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+
+    VCHECK_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+
+    VCHECK_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+            VERBOSE_BAD_ALGORITHM);
+
+    VCHECK_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
+
+    VCHECK_CONV(memory_desc_matches_tag(*src_md(), get_ncsp_tag(ndims())),
+            VERBOSE_UNSUPPORTED_TAG);
+    VCHECK_CONV(memory_desc_matches_tag(*dst_md(), get_ncsp_tag(ndims())),
+            VERBOSE_UNSUPPORTED_TAG);
 
     const bool is_gemm = true // turn on later
             // 1x1
@@ -190,11 +208,14 @@ status_t ncsp_convolution_fwd_t::pd_t::init(engine_t *engine) {
     // TODO: support bias and attributes in matmul-based convolution
     // (bias can be supported via binary postop, attr might need translation)
     is_matmul_ = is_gemm && attr()->has_default_values() && !with_bias();
+    // VINFO_CONV("embedded primitive is %s", is_matmul_ ? "matmul" : "convolution");
 
     if (is_matmul_)
         CHECK(init_matmul(engine));
     else
         CHECK(init_convolution(engine));
+
+    // VINFO_CONV("primitive descriptor has been created");
 
     init_name();
     init_scratchpad();

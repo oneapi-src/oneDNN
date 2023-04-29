@@ -65,7 +65,7 @@ struct ncsp_convolution_fwd_t : public primitive_t {
     private:
         bool is_matmul_;
         const bool with_sum_;
-        std::string name_ = "ncsp:any+";
+        std::string name_ = "ncsp:tbd";
         void init_name() {
             std::string suffix = is_matmul_ ? "matmul" : "conv";
             name_ = "ncsp:" + suffix + "+";
