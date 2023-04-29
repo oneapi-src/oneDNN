@@ -1346,6 +1346,11 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators(int bd_block2,
                                         vreg_acc, ptr[reg_buf + buf_offset]);
                             }
                         }
+
+                        if (apply_post_ops && brg.is_int8 && has_zero_points) {
+                            apply_compensation(adj_bd_block, 1, is_ld_tail);
+                        }
+
                         if (need_to_apply_alpha_beta)
                             apply_alpha_beta(adj_bd_block, 1, is_ld_tail);
 
