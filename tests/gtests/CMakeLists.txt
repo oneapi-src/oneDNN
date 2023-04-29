@@ -93,6 +93,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_layer_normalization.cpp
                               test_lrn.cpp
                               test_prelu.cpp
+                              test_group_normalization.cpp
                               )
 
 if(DNNL_EXPERIMENTAL_SPARSE)
