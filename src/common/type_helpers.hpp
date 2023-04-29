@@ -891,6 +891,8 @@ inline status_t memory_desc_init_by_md_and_dt(memory_desc_t &md,
 
 /** returns true if memory desc @p md corresponds to the given format tag and
  * strides.
+ * In order to align with memory descriptor equality comparisons and hashing,
+ * the strides of unit dimensions are ignored.
  * If strides are not passed (or passed as nullptr) the dense structure is
  * assumed (i.e. the one that memory_desc_init_by_tag() returns).
  * Strides might contain `0` value, indicating the stride must match the one
@@ -920,12 +922,10 @@ inline bool memory_desc_matches_tag(const memory_desc_t &md, format_tag_t tag,
 
     if (!same_blocks) return false;
 
-    if (strides == nullptr)
-        return array_cmp(blk.strides, blk_gold.strides, md.ndims);
-
     for (int d = 0; d < md.ndims; ++d) {
-        dim_t stride = strides[d];
+        dim_t stride = strides == nullptr ? 0 : strides[d];
         if (stride == -1) continue;
+        if (md.dims[d] == 1) continue; // stride of unit dim is meaningless
         if (stride == 0) stride = blk_gold.strides[d];
         if (blk.strides[d] != stride) return false;
     }
