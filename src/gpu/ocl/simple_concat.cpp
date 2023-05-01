@@ -93,7 +93,6 @@ bool is_striding_ok(striding_t striding) {
 }
 
 struct prb_info_t {
-    static constexpr dim_t max_block_size = 1024;
     static constexpr int scattered_message_penalty = 2;
 
     int simd;
@@ -102,14 +101,14 @@ struct prb_info_t {
     int messages;
 
     prb_info_t(int simd, int type_size, dim_t max_elems, dim_t max_read_size,
-            dim_t inner_size, dim_t outer_elems)
+            dim_t inner_size, dim_t outer_elems, compute::gpu_arch_t hw)
         : simd(simd), type_size(type_size) {
         int best_block = 1;
         int best_messages = subgroup_messages(simd, 1, type_size);
         const dim_t inner_elems = inner_size / type_size;
         for (int i = 1; i < simd * 32; ++i) {
             dim_t block_size = i * type_size;
-            if (block_size > max_block_size) break;
+            if (block_size > max_block_size(hw)) break;
             if (block_size > max_read_size) break;
             if (i > max_elems) break;
             if (i < inner_elems && inner_elems % i) continue;
@@ -125,6 +124,10 @@ struct prb_info_t {
         }
         block = best_block;
         messages = best_messages;
+    }
+
+    static dim_t max_block_size(compute::gpu_arch_t hw) {
+        return hw == compute::gpu_arch_t::xe_hpc ? 1024 : 512;
     }
 
     static int subgroup_messages(int simd, int block, int type_size) {
@@ -256,7 +259,7 @@ static status_t init_conf_common(
             if (has_scales && bytes < (int)data_type_size) break;
             if (inner_size % bytes) continue;
             infos.emplace_back(simd, bytes, max_elems, max_read_size,
-                    inner_size, outer_elems);
+                    inner_size, outer_elems, device_info->gpu_arch());
         }
     }
     if (infos.empty()) return status::unimplemented;
