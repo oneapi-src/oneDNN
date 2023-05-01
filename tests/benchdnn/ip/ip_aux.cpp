@@ -50,9 +50,16 @@ int str2desc(desc_t *desc, const char *str) {
             s += strlen(prb); \
             char *end_s; \
             d.c = strtol(s, &end_s, 10); \
+            if (end_s == s) { \
+                BENCHDNN_PRINT( \
+                        0, "ERROR: No value found for `%s` setting.\n", prb); \
+                return FAIL; \
+            } \
             s += (end_s - s); \
-            if (d.c < 0) return FAIL; \
-            /* printf("@@@debug: %s: %d\n", prb, d. c); */ \
+            if (d.c < 0) { \
+                BENCHDNN_PRINT(0, "ERROR: `%s` must be positive.\n", prb); \
+                return FAIL; \
+            } \
         } \
     } while (0)
 #define CASE_N(c) CASE_NN(#c, c)
@@ -69,12 +76,32 @@ int str2desc(desc_t *desc, const char *str) {
             break;
         }
         if (*s == '_') ++s;
-        if (!ok) return FAIL;
+        if (!ok) {
+            BENCHDNN_PRINT(0,
+                    "ERROR: The first entry of provided input `%s` doesn't "
+                    "match any of supported entries for a problem "
+                    "descriptor.\n",
+                    s);
+            return FAIL;
+        }
     }
 #undef CASE_NN
 #undef CASE_N
 
-    if (d.ic == 0 || d.oc == 0) return FAIL;
+#define CHECK_SET_OR_ZERO_VAL(val_str, val) \
+    if ((val) <= 0) { \
+        assert((val_str)[0] == 'd' && (val_str)[1] == '.'); \
+        const char *val_str__ = &(val_str)[2]; \
+        BENCHDNN_PRINT(0, \
+                "ERROR: setting `%s` was not specified or set to 0.\n", \
+                val_str__); \
+        return FAIL; \
+    }
+
+#define CHECK_SET_OR_ZERO(val) CHECK_SET_OR_ZERO_VAL(#val, val)
+
+    CHECK_SET_OR_ZERO(d.ic);
+    CHECK_SET_OR_ZERO(d.oc);
 
     if (sanitize_desc(d.ndims, {d.id}, {d.ih}, {d.iw}, {1}) != OK) return FAIL;
 

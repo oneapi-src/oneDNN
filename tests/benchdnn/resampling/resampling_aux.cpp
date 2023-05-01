@@ -81,9 +81,16 @@ int str2desc(desc_t *desc, const char *str) {
             s += strlen(prb); \
             char *end_s; \
             d.c = strtol(s, &end_s, 10); \
+            if (end_s == s) { \
+                BENCHDNN_PRINT( \
+                        0, "ERROR: No value found for `%s` setting.\n", prb); \
+                return FAIL; \
+            } \
             s += (end_s - s); \
-            if (d.c < 0) return FAIL; \
-            /* printf("@@@debug: %s: %ld\n", prb, d. c); */ \
+            if (d.c < 0) { \
+                BENCHDNN_PRINT(0, "ERROR: `%s` must be positive.\n", prb); \
+                return FAIL; \
+            } \
         } \
     } while (0)
 #define CASE_N(c) CASE_NN(#c, c)
@@ -102,15 +109,52 @@ int str2desc(desc_t *desc, const char *str) {
             break;
         }
         if (*s == '_') ++s;
-        if (!ok) return FAIL;
+        if (!ok) {
+            BENCHDNN_PRINT(0,
+                    "ERROR: The first entry of provided input `%s` doesn't "
+                    "match any of supported entries for a problem "
+                    "descriptor.\n",
+                    s);
+            return FAIL;
+        }
     }
 #undef CASE_NN
 #undef CASE_N
 
-    if (d.ic == 0) return FAIL;
-    if ((d.id && !d.od) || (!d.id && d.od)) return FAIL;
-    if ((d.ih && !d.oh) || (!d.ih && d.oh)) return FAIL;
-    if ((d.iw && !d.ow) || (!d.iw && d.ow)) return FAIL;
+#define CHECK_SET_OR_ZERO_VAL(val_str, val) \
+    if ((val) <= 0) { \
+        assert((val_str)[0] == 'd' && (val_str)[1] == '.'); \
+        const char *val_str__ = &(val_str)[2]; \
+        BENCHDNN_PRINT(0, \
+                "ERROR: setting `%s` was not specified or set to 0.\n", \
+                val_str__); \
+        return FAIL; \
+    }
+
+#define CHECK_SET_OR_ZERO(val) CHECK_SET_OR_ZERO_VAL(#val, val)
+
+    CHECK_SET_OR_ZERO(d.ic);
+
+#define CHECK_BOTH_SET_VAL(val1_str, val1, val2_str, val2) \
+    if (((val1) > 0 && (val2) <= 0) || ((val1) <= 0 && (val2) > 0)) { \
+        assert((val1_str)[0] == 'd' && (val1_str)[1] == '.'); \
+        assert((val2_str)[0] == 'd' && (val2_str)[1] == '.'); \
+        const char *val1_str__ \
+                = ((val1) > 0) ? &(val1_str)[2] : &(val2_str)[2]; \
+        const char *val2_str__ \
+                = ((val1) > 0) ? &(val2_str)[2] : &(val1_str)[2]; \
+        BENCHDNN_PRINT(0, \
+                "ERROR: setting `%s` was specified but paired setting `%s` " \
+                "was not specified or set to 0.\n", \
+                val1_str__, val2_str__); \
+        return FAIL; \
+    }
+
+#define CHECK_BOTH_SET(val1, val2) CHECK_BOTH_SET_VAL(#val1, val1, #val2, val2)
+
+    CHECK_BOTH_SET(d.id, d.od);
+    CHECK_BOTH_SET(d.ih, d.oh);
+    CHECK_BOTH_SET(d.iw, d.ow);
 
     if (sanitize_desc(
                 d.ndims, {d.od, d.id}, {d.oh, d.ih}, {d.ow, d.iw}, {1, 1}, true)

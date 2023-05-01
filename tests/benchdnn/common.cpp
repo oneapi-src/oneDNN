@@ -562,7 +562,12 @@ int sanitize_desc(int &ndims, std::vector<std::reference_wrapper<int64_t>> d,
     if (no_d) ndims--;
     if (no_d && no_h) ndims--;
     if (no_d && no_h && no_w) ndims--;
-    if (must_have_spatial && ndims <= 2) return FAIL;
+    if (must_have_spatial && ndims <= 2) {
+        BENCHDNN_PRINT(0, "%s\n",
+                "ERROR: the problem must have at least one spatial dimension "
+                "specified.");
+        return FAIL;
+    }
 
     if (ndims == 5) {
         if (no_h && no_w) {
@@ -573,7 +578,9 @@ int sanitize_desc(int &ndims, std::vector<std::reference_wrapper<int64_t>> d,
         } else if (!no_h && !no_w) {
             // User specified them all, good to go.
         } else {
-            // Problem is not cubic and one of h or w dimension is missing.
+            BENCHDNN_PRINT(0, "%s\n",
+                    "ERROR: the problem requires either all `h` and `w` "
+                    "dimensions specified or none of them.");
             return FAIL;
         }
     } else if (ndims == 4 && no_w) {

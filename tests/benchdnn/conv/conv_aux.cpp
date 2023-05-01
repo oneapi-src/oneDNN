@@ -82,11 +82,18 @@ int str2desc(desc_t *desc, const char *str) {
             s += strlen(prb); \
             char *end_s; \
             d.c = strtol(s, &end_s, 10); \
+            if (end_s == s) { \
+                BENCHDNN_PRINT( \
+                        0, "ERROR: No value found for `%s` setting.\n", prb); \
+                return FAIL; \
+            } \
             s += (end_s - s); \
             /* check any # groups, including one, works correctly */ \
             if (!strncmp(prb, "g", 1)) d.has_groups = true; \
-            if (d.c < 0) return FAIL; \
-            /* printf("@@@debug: %s: %d\n", prb, d. c); */ \
+            if (d.c < 0) { \
+                BENCHDNN_PRINT(0, "ERROR: `%s` must be positive.\n", prb); \
+                return FAIL; \
+            } \
         } \
     } while (0)
 #define CASE_N(c) CASE_NN(#c, c)
@@ -119,14 +126,36 @@ int str2desc(desc_t *desc, const char *str) {
             break;
         }
         if (*s == '_') ++s;
-        if (!ok) return FAIL;
+        if (!ok) {
+            BENCHDNN_PRINT(0,
+                    "ERROR: The first entry of provided input `%s` doesn't "
+                    "match any of supported entries for a problem "
+                    "descriptor.\n",
+                    s);
+            return FAIL;
+        }
     }
 #undef CASE_NN
 #undef CASE_N
 
-    if (d.has_groups && d.g <= 0) return FAIL;
-    if (d.ic == 0 || d.oc == 0) return FAIL;
-    if (d.sd <= 0 || d.sh <= 0 || d.sw <= 0) return FAIL;
+#define CHECK_SET_OR_ZERO_VAL(val_str, val) \
+    if ((val) <= 0) { \
+        assert((val_str)[0] == 'd' && (val_str)[1] == '.'); \
+        const char *val_str__ = &(val_str)[2]; \
+        BENCHDNN_PRINT(0, \
+                "ERROR: setting `%s` was not specified or set to 0.\n", \
+                val_str__); \
+        return FAIL; \
+    }
+
+#define CHECK_SET_OR_ZERO(val) CHECK_SET_OR_ZERO_VAL(#val, val)
+
+    CHECK_SET_OR_ZERO(d.g);
+    CHECK_SET_OR_ZERO(d.ic);
+    CHECK_SET_OR_ZERO(d.oc);
+    CHECK_SET_OR_ZERO(d.sd);
+    CHECK_SET_OR_ZERO(d.sh);
+    CHECK_SET_OR_ZERO(d.sw);
 
     auto compute_out
             = [](int64_t i, int64_t k, int64_t s, int64_t p, int64_t d) {
@@ -142,31 +171,49 @@ int str2desc(desc_t *desc, const char *str) {
     const bool no_w = (d.iw | d.kw | d.ow | d.dw) == 0 && d.sw == 1 && d.pw < 1;
 
     if (!no_d) {
-        if (!d.id || !d.kd) return FAIL;
+        CHECK_SET_OR_ZERO(d.id);
+        CHECK_SET_OR_ZERO(d.kd);
         if (!d.od) {
             if (d.pd < 0) d.pd = 0;
             d.od = compute_out(d.id, d.kd, d.sd, d.pd, d.dd);
-            if (d.od <= 0) return FAIL;
+            if (d.od <= 0) {
+                BENCHDNN_PRINT(0, "%s\n",
+                        "ERROR: `od` was not specified but rest provided "
+                        "dimensions result in negative or zero `od`.");
+                return FAIL;
+            }
         } else if (d.pd < 0)
             d.pd = compute_pad(d.od, d.id, d.kd, d.sd, d.dd);
     }
 
     if (!no_h) {
-        if (!d.ih || !d.kh) return FAIL;
+        CHECK_SET_OR_ZERO(d.ih);
+        CHECK_SET_OR_ZERO(d.kh);
         if (!d.oh) {
             if (d.ph < 0) d.ph = 0;
             d.oh = compute_out(d.ih, d.kh, d.sh, d.ph, d.dh);
-            if (d.oh <= 0) return FAIL;
+            if (d.oh <= 0) {
+                BENCHDNN_PRINT(0, "%s\n",
+                        "ERROR: `oh` was not specified but rest provided "
+                        "dimensions result in negative or zero `oh`.");
+                return FAIL;
+            }
         } else if (d.ph < 0)
             d.ph = compute_pad(d.oh, d.ih, d.kh, d.sh, d.dh);
     }
 
     if (!no_w) {
-        if (!d.iw || !d.kw) return FAIL;
+        CHECK_SET_OR_ZERO(d.iw);
+        CHECK_SET_OR_ZERO(d.kw);
         if (!d.ow) {
             if (d.pw < 0) d.pw = 0;
             d.ow = compute_out(d.iw, d.kw, d.sw, d.pw, d.dw);
-            if (d.ow <= 0) return FAIL;
+            if (d.ow <= 0) {
+                BENCHDNN_PRINT(0, "%s\n",
+                        "ERROR: `ow` was not specified but rest provided "
+                        "dimensions result in negative or zero `ow`.");
+                return FAIL;
+            }
         } else if (d.pw < 0)
             d.pw = compute_pad(d.ow, d.iw, d.kw, d.sw, d.dw);
     }
