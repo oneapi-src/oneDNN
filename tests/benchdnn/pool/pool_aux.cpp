@@ -177,12 +177,12 @@ int str2desc(desc_t *desc, const char *str) {
 #define CHECK_DEDUCED_ZERO(val) CHECK_DEDUCED_ZERO_VAL(#val, val)
 
     auto compute_out
-            = [](int64_t i, int64_t k, int64_t d, int64_t s, int64_t prb) {
-                  return (i - (k - 1) * d + k + 2 * prb) / s + 1;
+            = [](int64_t i, int64_t k, int64_t s, int64_t p, int64_t d) {
+                  return (i - ((k - 1) * (d + 1) + 1) + 2 * p) / s + 1;
               };
     auto compute_pad
-            = [](int64_t o, int64_t i, int64_t k, int64_t d, int64_t s) {
-                  return ((o - 1) * s - i + (k - 1) * d + k) / 2;
+            = [](int64_t o, int64_t i, int64_t k, int64_t s, int64_t d) {
+                  return ((o - 1) * s - i + ((k - 1) * (d + 1) + 1)) / 2;
               };
 
     const bool no_d = (d.id | d.kd | d.od) == 0 && d.sd == 1 && d.pd < 1;
@@ -194,10 +194,10 @@ int str2desc(desc_t *desc, const char *str) {
         CHECK_SET_OR_ZERO(d.kd);
         if (!d.od) {
             if (d.pd < 0) d.pd = 0;
-            d.od = compute_out(d.id, d.kd, d.dd, d.sd, d.pd);
+            d.od = compute_out(d.id, d.kd, d.sd, d.pd, d.dd);
             CHECK_DEDUCED_ZERO(d.od);
         } else if (d.pd < 0)
-            d.pd = compute_pad(d.od, d.id, d.kd, d.dd, d.sd);
+            d.pd = compute_pad(d.od, d.id, d.kd, d.sd, d.dd);
     }
 
     if (!no_h) {
@@ -205,10 +205,10 @@ int str2desc(desc_t *desc, const char *str) {
         CHECK_SET_OR_ZERO(d.kh);
         if (!d.oh) {
             if (d.ph < 0) d.ph = 0;
-            d.oh = compute_out(d.ih, d.kh, d.dh, d.sh, d.ph);
+            d.oh = compute_out(d.ih, d.kh, d.sh, d.ph, d.dh);
             CHECK_DEDUCED_ZERO(d.oh);
         } else if (d.ph < 0)
-            d.ph = compute_pad(d.oh, d.ih, d.kh, d.dh, d.sh);
+            d.ph = compute_pad(d.oh, d.ih, d.kh, d.sh, d.dh);
     }
 
     if (!no_w) {
@@ -216,10 +216,10 @@ int str2desc(desc_t *desc, const char *str) {
         CHECK_SET_OR_ZERO(d.kw);
         if (!d.ow) {
             if (d.pw < 0) d.pw = 0;
-            d.ow = compute_out(d.iw, d.kw, d.dw, d.sw, d.pw);
+            d.ow = compute_out(d.iw, d.kw, d.sw, d.pw, d.dw);
             CHECK_DEDUCED_ZERO(d.ow);
         } else if (d.pw < 0)
-            d.pw = compute_pad(d.ow, d.iw, d.kw, d.dw, d.sw);
+            d.pw = compute_pad(d.ow, d.iw, d.kw, d.sw, d.dw);
     }
 
     if (sanitize_desc(d.ndims, {d.od, d.id, d.kd, d.sd, d.pd, d.dd},
