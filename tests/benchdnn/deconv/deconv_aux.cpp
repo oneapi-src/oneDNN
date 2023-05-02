@@ -79,15 +79,20 @@ int str2desc(desc_t *desc, const char *str) {
             char *end_s; \
             d.c = strtol(s, &end_s, 10); \
             if (end_s == s) { \
-                BENCHDNN_PRINT( \
-                        0, "ERROR: No value found for `%s` setting.\n", prb); \
+                BENCHDNN_PRINT(0, \
+                        "ERROR: No value found for `%s` setting. Full " \
+                        "descriptor input: `%s`.\n", \
+                        prb, str); \
                 return FAIL; \
             } \
             s += (end_s - s); \
             /* check any # groups, including one, works correctly */ \
             if (!strncmp(prb, "g", 1)) d.has_groups = true; \
             if (d.c < 0) { \
-                BENCHDNN_PRINT(0, "ERROR: `%s` must be positive.\n", prb); \
+                BENCHDNN_PRINT(0, \
+                        "ERROR: `%s` must be positive. Full descriptor " \
+                        "input: `%s`.\n", \
+                        prb, str); \
                 return FAIL; \
             } \
         } \
@@ -124,10 +129,9 @@ int str2desc(desc_t *desc, const char *str) {
         if (*s == '_') ++s;
         if (!ok) {
             BENCHDNN_PRINT(0,
-                    "ERROR: The first entry of provided input `%s` doesn't "
-                    "match any of supported entries for a problem "
-                    "descriptor.\n",
-                    s);
+                    "ERROR: Unrecognized pattern in `%s` descriptor starting "
+                    "from `%s` entry.\n",
+                    str, s);
             return FAIL;
         }
     }
@@ -139,8 +143,9 @@ int str2desc(desc_t *desc, const char *str) {
         assert((val_str)[0] == 'd' && (val_str)[1] == '.'); \
         const char *val_str__ = &(val_str)[2]; \
         BENCHDNN_PRINT(0, \
-                "ERROR: setting `%s` was not specified or set to 0.\n", \
-                val_str__); \
+                "ERROR: setting `%s` was not specified or set to 0. Full " \
+                "descriptor input: `%s`.\n", \
+                val_str__, str); \
         return FAIL; \
     }
 
@@ -152,6 +157,20 @@ int str2desc(desc_t *desc, const char *str) {
     CHECK_SET_OR_ZERO(d.sd);
     CHECK_SET_OR_ZERO(d.sh);
     CHECK_SET_OR_ZERO(d.sw);
+
+#define CHECK_DEDUCED_ZERO_VAL(val_str, val) \
+    if ((val) <= 0) { \
+        assert((val_str)[0] == 'd' && (val_str)[1] == '.'); \
+        const char *val_str__ = &(val_str)[2]; \
+        BENCHDNN_PRINT(0, \
+                "ERROR: `%s` was not specified but rest provided dimensions " \
+                "result in negative or zero value. Full descriptor input: " \
+                "`%s`.\n", \
+                val_str__, str); \
+        return FAIL; \
+    }
+
+#define CHECK_DEDUCED_ZERO(val) CHECK_DEDUCED_ZERO_VAL(#val, val)
 
     auto compute_out
             = [](int64_t i, int64_t k, int64_t s, int64_t p, int64_t d) {
@@ -172,12 +191,7 @@ int str2desc(desc_t *desc, const char *str) {
         if (!d.od) {
             if (d.pd < 0) d.pd = 0;
             d.od = compute_out(d.id, d.kd, d.sd, d.pd, d.dd);
-            if (d.od <= 0) {
-                BENCHDNN_PRINT(0, "%s\n",
-                        "ERROR: `od` was not specified but rest provided "
-                        "dimensions result in negative or zero `od`.");
-                return FAIL;
-            }
+            CHECK_DEDUCED_ZERO(d.od);
         } else if (d.pd < 0)
             d.pd = compute_pad(d.od, d.id, d.kd, d.sd, d.dd);
     }
@@ -188,12 +202,7 @@ int str2desc(desc_t *desc, const char *str) {
         if (!d.oh) {
             if (d.ph < 0) d.ph = 0;
             d.oh = compute_out(d.ih, d.kh, d.sh, d.ph, d.dh);
-            if (d.oh <= 0) {
-                BENCHDNN_PRINT(0, "%s\n",
-                        "ERROR: `oh` was not specified but rest provided "
-                        "dimensions result in negative or zero `oh`.");
-                return FAIL;
-            }
+            CHECK_DEDUCED_ZERO(d.oh);
         } else if (d.ph < 0)
             d.ph = compute_pad(d.oh, d.ih, d.kh, d.sh, d.dh);
     }
@@ -204,12 +213,7 @@ int str2desc(desc_t *desc, const char *str) {
         if (!d.ow) {
             if (d.pw < 0) d.pw = 0;
             d.ow = compute_out(d.iw, d.kw, d.sw, d.pw, d.dw);
-            if (d.ow <= 0) {
-                BENCHDNN_PRINT(0, "%s\n",
-                        "ERROR: `ow` was not specified but rest provided "
-                        "dimensions result in negative or zero `ow`.");
-                return FAIL;
-            }
+            CHECK_DEDUCED_ZERO(d.ow);
         } else if (d.pw < 0)
             d.pw = compute_pad(d.ow, d.iw, d.kw, d.sw, d.dw);
     }

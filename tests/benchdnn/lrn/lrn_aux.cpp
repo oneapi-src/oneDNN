@@ -78,13 +78,18 @@ int str2desc(desc_t *desc, const char *str) {
             char *end_s; \
             d.c = cvfunc(s, &end_s); \
             if (end_s == s) { \
-                BENCHDNN_PRINT( \
-                        0, "ERROR: No value found for `%s` setting.\n", prb); \
+                BENCHDNN_PRINT(0, \
+                        "ERROR: No value found for `%s` setting. Full " \
+                        "descriptor input: `%s`.\n", \
+                        prb, str); \
                 return FAIL; \
             } \
             s += (end_s - s); \
             if (d.c < 0) { \
-                BENCHDNN_PRINT(0, "ERROR: `%s` must be positive.\n", prb); \
+                BENCHDNN_PRINT(0, \
+                        "ERROR: `%s` must be positive. Full descriptor " \
+                        "input: `%s`.\n", \
+                        prb, str); \
                 return FAIL; \
             } \
         } \
@@ -108,10 +113,9 @@ int str2desc(desc_t *desc, const char *str) {
         if (*s == '_') ++s;
         if (!ok) {
             BENCHDNN_PRINT(0,
-                    "ERROR: The first entry of provided input `%s` doesn't "
-                    "match any of supported entries for a problem "
-                    "descriptor.\n",
-                    s);
+                    "ERROR: Unrecognized pattern in `%s` descriptor starting "
+                    "from `%s` entry.\n",
+                    str, s);
             return FAIL;
         }
     }
@@ -123,8 +127,9 @@ int str2desc(desc_t *desc, const char *str) {
         assert((val_str)[0] == 'd' && (val_str)[1] == '.'); \
         const char *val_str__ = &(val_str)[2]; \
         BENCHDNN_PRINT(0, \
-                "ERROR: setting `%s` was not specified or set to 0.\n", \
-                val_str__); \
+                "ERROR: setting `%s` was not specified or set to 0. Full " \
+                "descriptor input: `%s`.\n", \
+                val_str__, str); \
         return FAIL; \
     }
 
