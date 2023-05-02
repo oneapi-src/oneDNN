@@ -548,7 +548,8 @@ void gemm(const char *layout, const char *transa, const char *transb, int64_t m,
 int sanitize_desc(int &ndims, std::vector<std::reference_wrapper<int64_t>> d,
         std::vector<std::reference_wrapper<int64_t>> h,
         std::vector<std::reference_wrapper<int64_t>> w,
-        const std::vector<int64_t> &def_values, bool must_have_spatial) {
+        const std::vector<int64_t> &def_values, const char *str,
+        bool must_have_spatial) {
     size_t N = d.size();
     assert(h.size() == N && w.size() == N && def_values.size() == N);
 
@@ -563,9 +564,10 @@ int sanitize_desc(int &ndims, std::vector<std::reference_wrapper<int64_t>> d,
     if (no_d && no_h) ndims--;
     if (no_d && no_h && no_w) ndims--;
     if (must_have_spatial && ndims <= 2) {
-        BENCHDNN_PRINT(0, "%s\n",
+        BENCHDNN_PRINT(0,
                 "ERROR: the problem must have at least one spatial dimension "
-                "specified.");
+                "specified. Full descriptor input: `%s`.\n",
+                str);
         return FAIL;
     }
 
@@ -578,9 +580,11 @@ int sanitize_desc(int &ndims, std::vector<std::reference_wrapper<int64_t>> d,
         } else if (!no_h && !no_w) {
             // User specified them all, good to go.
         } else {
-            BENCHDNN_PRINT(0, "%s\n",
+            BENCHDNN_PRINT(0,
                     "ERROR: the problem requires either all `h` and `w` "
-                    "dimensions specified or none of them.");
+                    "dimensions specified or none of them. Full descriptor "
+                    "input: `%s`.\n",
+                    str);
             return FAIL;
         }
     } else if (ndims == 4 && no_w) {

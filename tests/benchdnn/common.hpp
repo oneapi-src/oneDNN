@@ -211,7 +211,8 @@ void gemm(const char *layout, const char *transa, const char *transb, int64_t m,
 int sanitize_desc(int &ndims, std::vector<std::reference_wrapper<int64_t>> d,
         std::vector<std::reference_wrapper<int64_t>> h,
         std::vector<std::reference_wrapper<int64_t>> w,
-        const std::vector<int64_t> &def_values, bool must_have_spatial = false);
+        const std::vector<int64_t> &def_values, const char *str,
+        bool must_have_spatial = false);
 
 void print_dhw(bool &print_d, bool &print_h, bool &print_w, int ndims,
         const std::vector<int64_t> &d, const std::vector<int64_t> &h,

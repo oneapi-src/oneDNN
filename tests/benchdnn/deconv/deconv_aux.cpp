@@ -220,7 +220,8 @@ int str2desc(desc_t *desc, const char *str) {
 
     if (sanitize_desc(d.ndims, {d.od, d.id, d.kd, d.sd, d.pd, d.dd},
                 {d.oh, d.ih, d.kh, d.sh, d.ph, d.dh},
-                {d.ow, d.iw, d.kw, d.sw, d.pw, d.dw}, {1, 1, 1, 1, 0, 0}, true)
+                {d.ow, d.iw, d.kw, d.sw, d.pw, d.dw}, {1, 1, 1, 1, 0, 0}, str,
+                true)
             != OK)
         return FAIL;
 

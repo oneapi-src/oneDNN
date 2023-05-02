@@ -162,8 +162,8 @@ int str2desc(desc_t *desc, const char *str) {
     CHECK_BOTH_SET(d.ih, d.oh);
     CHECK_BOTH_SET(d.iw, d.ow);
 
-    if (sanitize_desc(
-                d.ndims, {d.od, d.id}, {d.oh, d.ih}, {d.ow, d.iw}, {1, 1}, true)
+    if (sanitize_desc(d.ndims, {d.od, d.id}, {d.oh, d.ih}, {d.ow, d.iw}, {1, 1},
+                str, true)
             != OK)
         return FAIL;
 

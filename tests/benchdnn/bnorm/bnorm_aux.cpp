@@ -157,7 +157,8 @@ int str2desc(desc_t *desc, const char *str) {
 
     CHECK_SET_OR_ZERO(d.ic);
 
-    if (sanitize_desc(d.ndims, {d.id}, {d.ih}, {d.iw}, {1}) != OK) return FAIL;
+    if (sanitize_desc(d.ndims, {d.id}, {d.ih}, {d.iw}, {1}, str) != OK)
+        return FAIL;
 
     *desc = d;
 
