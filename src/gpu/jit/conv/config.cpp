@@ -785,15 +785,15 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
     auto &bia = cfg.bia_layout();
     if (src.is_overridden()) {
         src_tag = src.compute_unnormalized_overridden_tag();
-        user_src_tag = src.compute_unnormalized_overridden_tag();
+        user_src_tag = src.user_unnormalized_overridden_tag();
     }
     if (wei.is_overridden()) {
         wei_tag = wei.compute_unnormalized_overridden_tag();
-        user_wei_tag = wei.compute_unnormalized_overridden_tag();
+        user_wei_tag = wei.user_unnormalized_overridden_tag();
     }
     if (dst.is_overridden()) {
         dst_tag = dst.compute_unnormalized_overridden_tag();
-        user_dst_tag = dst.compute_unnormalized_overridden_tag();
+        user_dst_tag = dst.user_unnormalized_overridden_tag();
     }
 
     // Select user layouts.
