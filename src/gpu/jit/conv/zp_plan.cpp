@@ -392,7 +392,9 @@ private:
 
     stmt_t create_tile_wei_Xy_s16(
             const expr_t &zp, const expr_t &wei, const expr_t &comp) const {
-        int zp_stride = (kind_ == zp_comp_kind_t::wei_Xb_s16) ? 1 : 0;
+        int zp_stride = (kind_ == zp_comp_kind_t::wei_Xb_s16 && !is_zp_common())
+                ? 1
+                : 0;
         int wei_stride = 2;
         auto zp_type = zp_layout_.type();
         auto wei_type = wei_layout_.type();
