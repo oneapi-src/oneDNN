@@ -83,6 +83,8 @@ namespace types {
 inline size_t data_type_size(data_type_t data_type) {
     using namespace data_type;
     switch ((int)data_type) {
+        case f8_e5m2: return sizeof(prec_traits<f8_e5m2>::type);
+        case f8_e4m3: return sizeof(prec_traits<f8_e4m3>::type);
         case f16: return sizeof(prec_traits<f16>::type);
         case bf16: return sizeof(prec_traits<bf16>::type);
         case tf32: // the tf32 type is an f32
@@ -105,6 +107,8 @@ inline T max_value(data_type_t data_type) {
     case x: \
         return static_cast<T>(nstl::numeric_limits<prec_traits<x>::type>::max())
     switch (data_type) {
+        CASE(f8_e5m2);
+        CASE(f8_e4m3);
         CASE(f16);
         CASE(bf16);
         CASE(s32);
@@ -126,6 +130,8 @@ inline float max_value(data_type_t data_type) {
         return static_cast<float>( \
                 nstl::numeric_limits<prec_traits<x>::type>::max())
     switch (data_type) {
+        CASE(f8_e5m2);
+        CASE(f8_e4m3);
         CASE(f16);
         CASE(bf16);
         CASE(s8);
@@ -281,6 +287,8 @@ inline data_type_t default_accum_data_type(
     // true
     if (one_of(src_dt, s8, u8) && (dst_dt != f32 || strict)) return s32;
 
+    if (one_of(f8_e5m2, src_dt, dst_dt)) return f32;
+    if (one_of(f8_e4m3, src_dt, dst_dt)) return f32;
     if (one_of(f16, src_dt, dst_dt)) return f32;
     if (one_of(bf16, src_dt, dst_dt)) return f32;
     if (one_of(f32, src_dt, dst_dt)) return f32;
@@ -314,6 +322,8 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
             return f32;
     }
 
+    if (one_of(f8_e5m2, src_dt, wei_dt, dst_dt)) return f32;
+    if (one_of(f8_e4m3, src_dt, wei_dt, dst_dt)) return f32;
     if (one_of(bf16, src_dt, wei_dt, dst_dt)) return f32;
     if (one_of(f16, src_dt, wei_dt, dst_dt)) return f32;
 
@@ -1012,7 +1022,8 @@ inline bool memory_desc_sanity_check(int ndims, const dims_t dims,
     if (ndims == 0) return true;
 
     bool ok = dims != nullptr && 0 < ndims && ndims <= DNNL_MAX_NDIMS
-            && utils::one_of(data_type, f16, bf16, f32, f64, s32, s8, u8);
+            && utils::one_of(data_type, f8_e5m2, f8_e4m3, f16, bf16, f32, f64,
+                    s32, s8, u8);
     if (!ok) return false;
 
     bool has_runtime_dims = false;

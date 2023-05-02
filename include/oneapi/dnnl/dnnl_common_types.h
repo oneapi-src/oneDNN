@@ -92,6 +92,12 @@ typedef enum {
     dnnl_f64 = 7,
     /// Boolean data type. Size is C++ implementation defined.
     dnnl_boolean = 8,
+    /// [OFP8 standard 8-bit floating-point](https://www.opencompute.org/documents/ocp-8-bit-floating-point-specification-ofp8-revision-1-0-2023-06-20-pdf)
+    /// with a 5-bit exponent and a 2-bit mantissa.
+    dnnl_f8_e5m2 = 9,
+    /// [OFP8 standard 8-bit floating-point](https://www.opencompute.org/documents/ocp-8-bit-floating-point-specification-ofp8-revision-1-0-2023-06-20-pdf)
+    /// with a 4-bit exponent and a 3-bit mantissa.
+    dnnl_f8_e4m3 = 10,
 
     /// Parameter to allow internal only data_types without undefined behavior.
     /// This parameter is chosen to be valid for so long as sizeof(int) >= 2.

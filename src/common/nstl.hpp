@@ -28,6 +28,7 @@
 
 #include "bfloat16.hpp"
 #include "float16.hpp"
+#include "float8.hpp"
 #include "internal_defs.hpp"
 #include "z_magic.hpp"
 
@@ -152,6 +153,38 @@ struct numeric_limits<int8_t> : public std::numeric_limits<int8_t> {};
 
 template <>
 struct numeric_limits<uint8_t> : public std::numeric_limits<uint8_t> {};
+
+template <>
+struct numeric_limits<float8_e5m2_t> {
+    static constexpr float8_e5m2_t lowest() {
+        return float8_e5m2_t(0xfb, true);
+    }
+
+    static constexpr float8_e5m2_t max() { return float8_e5m2_t(0x7b, true); }
+
+    static constexpr int bias = 0xf;
+    static constexpr int digits = 3; // s1e5m2 -> 2+1 bits
+
+    static constexpr float8_e5m2_t epsilon() {
+        return float8_e5m2_t(((bias - (digits - 1)) << (digits - 1)), true);
+    }
+};
+
+template <>
+struct numeric_limits<float8_e4m3_t> {
+    static constexpr float8_e4m3_t lowest() {
+        return float8_e4m3_t(0xfe, true);
+    }
+
+    static constexpr float8_e4m3_t max() { return float8_e4m3_t(0x7e, true); }
+
+    static constexpr int bias = 0x7;
+    static constexpr int digits = 4; // s1e4m3 -> 3+1 bits
+
+    static constexpr float8_e4m3_t epsilon() {
+        return float8_e4m3_t(((bias - (digits - 1)) << (digits - 1)), true);
+    }
+};
 
 template <>
 struct numeric_limits<bfloat16_t> {

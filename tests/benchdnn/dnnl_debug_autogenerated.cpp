@@ -43,6 +43,8 @@ dnnl_data_type_t str2dt(const char *str) {
     CASE(u8);
     CASE(f64);
     CASE(boolean);
+    CASE(f8_e5m2);
+    CASE(f8_e4m3);
     CASE(data_type_max);
 #undef CASE
     if (!strcmp("undef", str) || !strcmp("dnnl_data_type_undef", str))

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -280,6 +280,8 @@ static status_t zero_pad(const memory_t *memory, const exec_ctx_t &ctx) {
     switch (mdw.data_type()) {
         case f16: return typed_zero_pad<f16>(memory, ctx);
         case bf16: return typed_zero_pad<bf16>(memory, ctx);
+        case f8_e5m2: return typed_zero_pad<f8_e5m2>(memory, ctx);
+        case f8_e4m3: return typed_zero_pad<f8_e4m3>(memory, ctx);
         case f32: return typed_zero_pad<f32>(memory, ctx);
         case s32: return typed_zero_pad<s32>(memory, ctx);
         case s8: return typed_zero_pad<s8>(memory, ctx);

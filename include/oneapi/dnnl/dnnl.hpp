@@ -835,6 +835,12 @@ struct memory : public handle<dnnl_memory_t> {
     enum class data_type {
         /// Undefined data type (used for empty memory descriptors).
         undef = dnnl_data_type_undef,
+        /// [OFP8 standard 8-bit floating-point](https://www.opencompute.org/documents/ocp-8-bit-floating-point-specification-ofp8-revision-1-0-2023-06-20-pdf)
+        /// with a 5-bit exponent and a 2-bit mantissa.
+        f8_e5m2 = dnnl_f8_e5m2,
+        /// [OFP8 standard 8-bit floating-point](https://www.opencompute.org/documents/ocp-8-bit-floating-point-specification-ofp8-revision-1-0-2023-06-20-pdf)
+        /// with a 4-bit exponent and a 3-bit mantissa.
+        f8_e4m3 = dnnl_f8_e4m3,
         /// [16-bit/half-precision floating point](https://en.wikipedia.org/wiki/Half-precision_floating-point_format).
         f16 = dnnl_f16,
         /// non-standard

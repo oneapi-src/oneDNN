@@ -129,6 +129,7 @@ bool has_data_type_support(data_type_t data_type) {
 #else
             return false;
 #endif
+        //TODO(keola): define minimal isa for fp8 support
         default: return true;
     }
 }

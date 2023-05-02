@@ -50,6 +50,8 @@ const char *dnnl_dt2str(dnnl_data_type_t v) {
     if (v == dnnl_u8) return "u8";
     if (v == dnnl_f64) return "f64";
     if (v == dnnl_boolean) return "boolean";
+    if (v == dnnl_f8_e5m2) return "f8_e5m2";
+    if (v == dnnl_f8_e4m3) return "f8_e4m3";
     if (v == dnnl_data_type_max) return "data_type_max";
     assert(!"unknown dt");
     return "unknown dt";
