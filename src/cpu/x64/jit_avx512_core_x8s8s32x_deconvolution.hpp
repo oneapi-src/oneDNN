@@ -213,7 +213,10 @@ struct _jit_avx512_core_x8s8s32x_deconv_fwd_kernel {
         }
     }
 
-    status_t create_kernel() { return kernel_->create_kernel(); }
+    status_t create_kernel() {
+        if (kernel_) return kernel_->create_kernel();
+        return status::out_of_memory;
+    }
 
     ~_jit_avx512_core_x8s8s32x_deconv_fwd_kernel() { delete kernel_; }
 

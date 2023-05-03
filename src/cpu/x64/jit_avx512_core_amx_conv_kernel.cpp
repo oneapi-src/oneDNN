@@ -1086,6 +1086,13 @@ jit_avx512_core_amx_fwd_kernel_t::jit_avx512_core_amx_fwd_kernel_t(
 }
 
 status_t jit_avx512_core_amx_fwd_kernel_t::create_kernel() {
+    // check member object allocation
+    const bool allocation_ok = copy_to_pbuffer_
+            && IMPLICATION(jcp.with_eltwise || jcp.with_binary || jcp.with_sum,
+                    postops_injector_)
+            && IMPLICATION(jcp.is_relo, copy_to_wbuffer_);
+    if (!allocation_ok) return status::out_of_memory;
+
     CHECK(jit_generator::create_kernel());
     CHECK(copy_to_pbuffer_->create_kernel());
     if (jcp.is_relo) CHECK(copy_to_wbuffer_->create_kernel());

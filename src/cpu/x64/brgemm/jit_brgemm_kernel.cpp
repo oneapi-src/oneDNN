@@ -2354,7 +2354,8 @@ brgemm_kernel_common_t<isa, Wmm>::brgemm_kernel_common_t(const brgemm_t abrd) {
 
 template <cpu_isa_t isa, typename Wmm>
 status_t brgemm_kernel_common_t<isa, Wmm>::create_kernel() {
-    return brgemm_kernel_->create_kernel();
+    if (brgemm_kernel_) return brgemm_kernel_->create_kernel();
+    return status::out_of_memory;
 }
 
 template <cpu_isa_t isa, typename Wmm>
