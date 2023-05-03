@@ -71,6 +71,10 @@ status_t zero_points_t::get(int arg, int *mask) const {
     return status::success;
 }
 
+int zero_points_t::get(int arg) const {
+    return get_mask(arg);
+}
+
 status_t zero_points_t::set(int arg, int mask) {
     const bool supported_arg
             = utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST);

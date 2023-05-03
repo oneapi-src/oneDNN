@@ -318,6 +318,7 @@ struct zero_points_t : public c_compatible {
     }
 
     status_t get(int arg, int *mask) const;
+    int get(int arg) const; // Returns 0 if dimension is unset
 
     status_t set(int arg, int mask);
     status_t set(int arg) { return set(arg, 0); }
