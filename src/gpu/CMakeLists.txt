@@ -47,3 +47,17 @@ if(DNNL_SYCL_HIP)
     add_subdirectory(amd)
     set(${LIB_PACKAGE_NAME}_INTERFACE "${${LIB_PACKAGE_NAME}_INTERFACE}" PARENT_SCOPE)
 endif()
+
+# check if warn_unused_result can be used in an alias
+set(COMPILER_ALLOWS_ALIAS_ATTRIBUTES_SOURCE
+"
+    typedef enum { dnnl_status_success = 0, } dnnl_status_t;
+    using status_t __attribute__((warn_unused_result)) = dnnl_status_t;
+    int main() { return 0; }
+")
+include(CheckCXXSourceCompiles)
+check_cxx_source_compiles("${COMPILER_ALLOWS_ALIAS_ATTRIBUTES_SOURCE}" COMPILER_ALLOWS_ALIAS_ATTRIBUTES)
+
+if(${COMPILER_ALLOWS_ALIAS_ATTRIBUTES})
+    add_definitions_with_host_compiler(-DDNNL_STATUS_NODISCARD)
+endif()
