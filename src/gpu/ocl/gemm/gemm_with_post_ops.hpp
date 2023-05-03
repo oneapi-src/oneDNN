@@ -65,7 +65,7 @@ struct gemm_with_post_ops_t : public gpu_gemm_t {
         if (status::success
                 == pd()->gemm_pd_->query(query::preferred_gpu_threads_per_eu, 0,
                         &threads_per_eu)) {
-            attr.set_gpu_attr(gpu_primitive_attr_t(threads_per_eu));
+            CHECK(attr.set_gpu_attr(gpu_primitive_attr_t(threads_per_eu)));
         }
         compute::kernel_ctx_t kernel_ctx(&attr);
         ret_status = pd()->init_kernel_ctx(kernel_ctx);

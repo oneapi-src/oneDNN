@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -127,8 +127,9 @@ struct ref_prelu_bwd_t : public gpu_primitive_t {
             reduction_desc_t rdesc;
             memory_desc_t red_diff_mem_desc(*src_md(0));
             red_diff_mem_desc.data_type = dnnl_f32;
-            reduction_desc_init(&rdesc, dnnl_alg_kind_t::dnnl_reduction_sum,
-                    &red_diff_mem_desc, diff_weights_md(0), 0, 0);
+            CHECK(reduction_desc_init(&rdesc,
+                    dnnl_alg_kind_t::dnnl_reduction_sum, &red_diff_mem_desc,
+                    diff_weights_md(0), 0, 0));
             primitive_attr_t reduction_attr(*attr());
             if (!reduction_attr.is_initialized()) return status::out_of_memory;
             primitive_desc_iterator_t it(

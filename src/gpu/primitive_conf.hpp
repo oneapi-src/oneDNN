@@ -789,8 +789,7 @@ class zero_points_query_t {
 public:
     bool has_default_values() const { return zps_.has_default_values(arg_); }
     int get_mask() const {
-        int mask;
-        zps_.get(arg_, &mask);
+        int mask = zps_.get(arg_);
         return mask;
     }
     size_t get_count() const { return count_; }
@@ -803,8 +802,7 @@ public:
             const memory_desc_wrapper &mdw, int arg)
         : arg_(arg) {
         zps_ = attr->zero_points_;
-        int mask;
-        zps_.get(arg, &mask);
+        int mask = zps_.get(arg);
         count_ = get_attr_oscales_count(mask, mdw);
     }
 

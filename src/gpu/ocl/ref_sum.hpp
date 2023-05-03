@@ -153,7 +153,8 @@ struct ref_sum_t : public gpu_primitive_t {
         for (int i = 0; i < n; ++i) {
             memory_t scales_mem(
                     ctx.stream()->engine(), &pd()->scale_md_, nullptr);
-            scales_mem.set_data_handle(CTX_GPU_RES_STORAGE(i).data_handle());
+            CHECK(scales_mem.set_data_handle(
+                    CTX_GPU_RES_STORAGE(i).data_handle()));
             r_args[DNNL_ARG_SRC] = ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i);
             r_args[DNNL_ARG_DST] = pd()->need_output_reorder() ? dst_acc : dst;
             r_args[DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC] = {&scales_mem, true};

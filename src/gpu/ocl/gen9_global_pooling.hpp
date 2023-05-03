@@ -77,11 +77,11 @@ struct gen9_global_pooling_fwd_t : public gpu_primitive_t {
             reduction_desc_t rdesc;
             memory_desc_t red_src_mem_desc(*src_md(0));
             red_src_mem_desc.data_type = src_md()->data_type;
-            reduction_desc_init(&rdesc,
+            CHECK(reduction_desc_init(&rdesc,
                     desc()->alg_kind == pooling_max
                             ? dnnl_alg_kind_t::dnnl_reduction_max
                             : dnnl_alg_kind_t::dnnl_reduction_mean,
-                    &red_src_mem_desc, dst_md(0), 0, 0);
+                    &red_src_mem_desc, dst_md(0), 0, 0));
             primitive_attr_t reduction_attr(*attr());
             if (!reduction_attr.is_initialized()) return status::out_of_memory;
             primitive_desc_iterator_t it(

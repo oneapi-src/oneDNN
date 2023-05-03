@@ -265,7 +265,7 @@ struct gen9_convolution_bwd_weights_t : public gpu_primitive_t {
                         conf.ver == ver_1stconv))
                 return status::unimplemented;
 
-            init_scratchpad();
+            CHECK(init_scratchpad());
             return status::success;
         }
 
