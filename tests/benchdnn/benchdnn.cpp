@@ -34,6 +34,7 @@
 #include "conv/conv.hpp"
 #include "deconv/deconv.hpp"
 #include "eltwise/eltwise.hpp"
+#include "gnorm/gnorm.hpp"
 #include "ip/ip.hpp"
 #include "lnorm/lnorm.hpp"
 #include "lrn/lrn.hpp"
@@ -107,6 +108,8 @@ int main(int argc, char **argv) {
         reorder::bench(--argc, ++argv);
     } else if (!strcmp("--bnorm", argv[0])) {
         bnorm::bench(--argc, ++argv);
+    } else if (!strcmp("--gnorm", argv[0])) {
+        gnorm::bench(--argc, ++argv);
     } else if (!strcmp("--lnorm", argv[0])) {
         lnorm::bench(--argc, ++argv);
     } else if (!strcmp("--rnn", argv[0])) {
