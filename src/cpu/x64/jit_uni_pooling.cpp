@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017 - 2022 Intel Corporation
+* Copyright 2017 - 2023 Intel Corporation
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
 * You may obtain a copy of the License at
@@ -830,10 +830,7 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward_3d(const data_t *src,
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_pooling_bwd_t<isa, d_type>::jit_uni_pooling_bwd_t(const pd_t *apd)
-    : primitive_t(apd)
-    , kernel_(utils::make_unique<jit_uni_pool_kernel<isa>>(
-              pd()->jpp_, pd()->invariant_dst_md()))
-    , trans_ctx_(nullptr) {}
+    : primitive_t(apd), kernel_(nullptr), trans_ctx_(nullptr) {}
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_pooling_bwd_t<isa, d_type>::~jit_uni_pooling_bwd_t() = default;
@@ -880,6 +877,9 @@ status_t jit_uni_pooling_bwd_t<isa, d_type>::init_ncsp_trans_ctx() {
 
 template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_pooling_bwd_t<isa, d_type>::init(engine_t *engine) {
+    CHECK(safe_ptr_assign(kernel_,
+            new jit_uni_pool_kernel<isa>(
+                    pd()->jpp_, pd()->invariant_dst_md())));
     if (pd()->jpp_.tag_kind == jit_memory_tag_kind_t::ncsp)
         CHECK(init_ncsp_trans_ctx());
     return kernel_->create_kernel();
