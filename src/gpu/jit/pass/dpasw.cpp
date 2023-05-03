@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -248,6 +248,15 @@ private:
         return true;
     }
 
+    static bool has_constant_mask(const stmt_t &s) {
+        ir_assert(is_func_call<send_t>(s));
+        auto &mask = send_t::arg_mask(s);
+        if (mask.is_empty()) return true;
+        if (is_const(mask)) return true;
+        if (is_shuffle_const(mask)) return true;
+        return false;
+    }
+
     bool extract_dpas_calls(expr_t &src2_base) {
         object_eq_map_t<expr_t, stmt_t> buf2send;
 
@@ -307,6 +316,8 @@ private:
             const dpas_info_t &a, const dpas_info_t &b) {
         if (!a.dpas().is_equal(b.dpas())) return false;
         if (!a.src1_buf().is_equal(b.src1_buf())) return false;
+        if (!has_constant_mask(a.send_producer)) return false;
+        if (!has_constant_mask(b.send_producer)) return false;
 
         auto src2_off0 = to_cpp<int>(a.src2_buf().as<ptr_t>().off);
         auto src2_off1 = to_cpp<int>(b.src2_buf().as<ptr_t>().off);
@@ -325,12 +336,12 @@ private:
 
         // Perform the transformation:
         // Before:
-        //   send(slm, a_off, src2[0])
-        //   send(slm, b_off, src2[s * r * 4])
+        //   send(mem, a_off, src2[0])
+        //   send(mem, b_off, src2[s * r * 4])
         //   dpas.sxr(a_dst, a_src0, src1, src2[0])
         //   dpas.sxr(b_dst, b_src0, src1, src2[s * r * 4])
         // After:
-        //   send(slm, a_off + (tg_idx0 % 2) * (b_off - a_off), src2)
+        //   send(mem, a_off + (tg_idx0 % 2) * (b_off - a_off), src2)
         //   dpasw.sxr(p_a_dst, p_a_src0, src1, src2[0])
         //   dpasw.sxr(p_b_dst, p_b_src0, src1, src2[s * r * 4 / 2])
         // Where:
@@ -404,6 +415,7 @@ private:
     static bool can_convert_to_dpasw(const dpas_info_t &a_dpas,
             const send_info_t &a_send, const expr_t &tg_idx0) {
         if (contains_object(a_send.call, tg_idx0)) return false;
+        if (!has_constant_mask(a_send.call)) return false;
         return a_dpas.dpas().rcount % 2 == 0;
     }
 
@@ -426,10 +438,10 @@ private:
 
         // Perform the transformation:
         // Before:
-        //   send(slm, a_off, src2[0])
+        //   send(mem, a_off, src2[0])
         //   dpas.sxr(a_dst, a_src0, src1, src2[0])
         // After:
-        //   send(slm, a_off + (tg_idx0 % 2) * (s * r * 4 / 2), src2)
+        //   send(mem, a_off + (tg_idx0 % 2) * (s * r * 4 / 2), src2)
         //   dpasw.sxr(a_dst, a_src0, src1, src2[0])
 
         auto _dpasw = dpas_t::make_dpasw(a.dpas());
