@@ -410,7 +410,7 @@ TEST(ExecuteSubgraphInt8, SoftmaxTypecastQuant) {
     ASSERT_EQ(g.add_op(&quantize), graph::status::success);
     ASSERT_EQ(g.finalize(), graph::status::success);
 
-    graph::pass::pass_base_ptr apass = get_pass("softmax_post_ops_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("softmax_tc_q_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -438,6 +438,80 @@ TEST(ExecuteSubgraphInt8, SoftmaxTypecastQuant) {
     strm->wait();
     for (size_t i = 0; i < ref_data.size(); ++i) {
         ASSERT_EQ(ref_data[i], dst_data[i]);
+    }
+}
+
+TEST(Compile, SoftmaxAdd) {
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
+    SKIP_IF(engine->kind() == graph::engine_kind::gpu,
+            "Skip softmax post-ops fusion on gpu");
+
+    std::vector<int64_t> softmax_shape {2, 2, 2};
+    test::vector<float> src_data(product(softmax_shape));
+    test::vector<float> src1_data(product(softmax_shape), 0.5f);
+
+    // random seed = 7
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> src_distribution(0.f, 1.f);
+    std::generate(src_data.begin(), src_data.end(),
+            [&]() { return src_distribution(generator); });
+
+    graph::op_t softmax(0, graph::op_kind::SoftMax, "softmax");
+    softmax.set_attr<int64_t>(graph::op_attr::axis, 2);
+    graph::op_t add(1, graph::op_kind::Add, "add");
+
+    // prepare logical tensor
+    graph::logical_tensor_t src = utils::logical_tensor_init(
+            0, softmax_shape, graph::data_type::f32);
+    graph::logical_tensor_t softmax_dst = utils::logical_tensor_init(
+            1, softmax_shape, graph::data_type::f32);
+    graph::logical_tensor_t add_src1 = utils::logical_tensor_init(
+            2, softmax_shape, graph::data_type::f32);
+    graph::logical_tensor_t add_dst = utils::logical_tensor_init(
+            3, softmax_shape, graph::data_type::f32);
+
+    softmax.add_input(src);
+    softmax.add_output(softmax_dst);
+    add.add_input(softmax_dst);
+    add.add_input(add_src1);
+    add.add_output(add_dst);
+
+    graph::graph_t g(engine->kind());
+    ASSERT_EQ(g.add_op(&softmax), graph::status::success);
+    ASSERT_EQ(g.add_op(&add), graph::status::success);
+    ASSERT_EQ(g.finalize(), graph::status::success);
+
+    graph::pass::pass_base_ptr apass = get_pass("softmax_post_ops_fusion_cpu");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    graph::partition_t p;
+    p.init(part);
+
+    graph::compiled_partition_t cp(p);
+
+    std::vector<const graph::logical_tensor_t *> lt_ins {&src, &add_src1};
+    std::vector<const graph::logical_tensor_t *> lt_outs {&add_dst};
+
+    ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine), graph::status::success);
+
+    test::vector<float> dst_data(product(softmax_shape));
+    test::vector<float> ref_data(product(softmax_shape));
+    graph::tensor_t src_ts(src, engine, src_data.data());
+    graph::tensor_t src1_ts(add_src1, engine, src1_data.data());
+    graph::tensor_t dst_ts(add_dst, engine, dst_data.data());
+    graph::tensor_t ref_ts(add_dst, engine, ref_data.data());
+
+    ASSERT_EQ(run_graph(g, {src_ts, src1_ts}, {ref_ts}, *engine, *strm),
+            graph::status::success);
+    ASSERT_EQ(cp.execute(strm, {src_ts, src1_ts}, {dst_ts}),
+            graph::status::success);
+    strm->wait();
+    for (size_t i = 0; i < ref_data.size(); ++i) {
+        ASSERT_FLOAT_EQ(ref_data[i], dst_data[i]);
     }
 }
 
