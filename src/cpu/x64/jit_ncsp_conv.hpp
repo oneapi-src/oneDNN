@@ -48,6 +48,7 @@ struct ncsp_convolution_fwd_t : public primitive_t {
         status_t reshape_activations(memory_desc_t *o_md,
                 const memory_desc_t *i_md, bool to_matmul = false,
                 bool is_dst = true);
+        status_t reshape_bias(memory_desc_t *o_md, const memory_desc_t *i_md);
         status_t reshape_weights(memory_desc_t *o_md, const memory_desc_t *i_md,
                 bool to_matmul = false);
 
@@ -58,6 +59,7 @@ struct ncsp_convolution_fwd_t : public primitive_t {
         std::shared_ptr<primitive_desc_t> dst_post_reorder_pd_;
         memory_desc_t matmul_src_md_;
         memory_desc_t matmul_wei_md_;
+        memory_desc_t matmul_bia_md_;
         memory_desc_t matmul_dst_md_;
         memory_desc_t nspc_src_md_;
         memory_desc_t nspc_dst_md_;

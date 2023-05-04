@@ -89,6 +89,21 @@ status_t ncsp_convolution_fwd_t::pd_t::reshape_activations(memory_desc_t *o_md,
     return memory_desc_reshape(*o_md, *i_md, ndims_out, reduce);
 }
 
+status_t ncsp_convolution_fwd_t::pd_t::reshape_bias(
+        memory_desc_t *o_md, const memory_desc_t *i_md) {
+    dims_t reduce {};
+    const dim_t ndims_out = 1 + with_groups() + 2;
+    // reshape bias from convolution to matmul
+    // for matmul, batch and spatial dimensions are always 1
+    // eg. {o} <-> {1, g, o/g, 1}
+    int d = 0;
+    reduce[d++] = 1; // b
+    if (with_groups()) reduce[d++] = G(); // g
+    reduce[d++] = i_md->dims[0] / G(); // o/g
+    reduce[d++] = 1; // sp
+    return memory_desc_reshape(*o_md, *i_md, ndims_out, reduce);
+}
+
 status_t ncsp_convolution_fwd_t::pd_t::reshape_weights(
         memory_desc_t *o_md, const memory_desc_t *i_md, bool to_matmul) {
     dims_t reduce {};
@@ -154,18 +169,19 @@ status_t ncsp_convolution_fwd_t::pd_t::init_convolution(engine_t *engine) {
 
 status_t ncsp_convolution_fwd_t::pd_t::init_matmul(engine_t *engine) {
     const bool to_matmul = true;
-    CHECK(reshape_activations(&matmul_dst_md_, dst_md(), to_matmul, true));
+    CHECK(reshape_activations(&matmul_dst_md_, dst_md(0), to_matmul, true));
     // For call to matmul:
     // - conv src becomes matmul weights (ie matrix B)
     // - conv weights becomes matmul src (ie matrix A)
     // This allows to keep conv src and conv dst in ncsp layout.
-    CHECK(reshape_activations(&matmul_wei_md_, src_md(), to_matmul, false));
-    CHECK(reshape_weights(&matmul_src_md_, weights_md(), to_matmul));
+    CHECK(reshape_activations(&matmul_wei_md_, src_md(0), to_matmul, false));
+    CHECK(reshape_weights(&matmul_src_md_, weights_md(0), to_matmul));
+    if (with_bias()) CHECK(reshape_bias(&matmul_bia_md_, weights_md(1)));
     primitive_desc_iface_t *matmul_pdi;
     const primitive_attr_t *_attr = attr();
     CHECK(dnnl_matmul_primitive_desc_create(&matmul_pdi, engine,
-            &matmul_src_md_, &matmul_wei_md_, nullptr /*bias*/, &matmul_dst_md_,
-            _attr));
+            &matmul_src_md_, &matmul_wei_md_,
+            with_bias() ? &matmul_bia_md_ : nullptr, &matmul_dst_md_, _attr));
     matmul_pd_ = matmul_pdi->impl();
 
     if (weights_md_.format_kind == format_kind::any)
@@ -207,7 +223,7 @@ status_t ncsp_convolution_fwd_t::pd_t::init(engine_t *engine) {
             && utils::everyone_is(1, KSD(), KSH(), KSW());
     // TODO: support bias and attributes in matmul-based convolution
     // (bias can be supported via binary postop, attr might need translation)
-    is_matmul_ = is_gemm && attr()->has_default_values() && !with_bias();
+    is_matmul_ = is_gemm && attr()->has_default_values();
     // VINFO_CONV("embedded primitive is %s", is_matmul_ ? "matmul" : "convolution");
 
     if (is_matmul_)
