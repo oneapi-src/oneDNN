@@ -17,6 +17,7 @@
 #include "primitive_cache.hpp"
 #include "c_types_map.hpp"
 #include "cache_utils.hpp"
+#include "kernel_cache.hpp"
 #include "primitive.hpp"
 #include "primitive_desc_iface.hpp"
 #include "primitive_iface.hpp"
@@ -141,6 +142,7 @@ dnnl::impl::status_t dnnl_get_primitive_cache_capacity(int *capacity) {
     *capacity = 0;
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
     *capacity = dnnl::impl::global_primitive_cache().get_capacity();
+    assert(*capacity == dnnl::impl::kernel_cache::get().get_capacity());
 #endif
     return dnnl::impl::status::success;
 }
@@ -148,7 +150,9 @@ dnnl::impl::status_t dnnl_get_primitive_cache_capacity(int *capacity) {
 dnnl::impl::status_t dnnl_set_primitive_cache_capacity(int capacity) {
     if (capacity < 0) return dnnl::impl::status::invalid_arguments;
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
-    return dnnl::impl::global_primitive_cache().set_capacity(capacity);
+    auto status = dnnl::impl::global_primitive_cache().set_capacity(capacity);
+    if (status != dnnl::impl::status::success) return status;
+    return dnnl::impl::kernel_cache::get().set_capacity(capacity);
 #endif
     return dnnl::impl::status::success;
 }

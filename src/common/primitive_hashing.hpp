@@ -42,6 +42,10 @@ struct key_t {
 
     bool operator==(const key_t &other) const;
     const std::thread::id &thread_id() const { return thread_id_; }
+    bool has_runtime_dependencies() const {
+        return !(engine_id_.kind() == engine_kind::cpu
+                && is_native_runtime(engine_id_.runtime_kind()));
+    }
 
     primitive_kind_t primitive_kind_;
     // Make these data fields mutable to be able to update them without removing
