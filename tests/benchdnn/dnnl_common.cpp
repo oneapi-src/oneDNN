@@ -973,6 +973,7 @@ static int check_total_size(
             GB(total_size_cpu), GB(benchdnn_cpu_limit),
             GB(cpu_device_capacity));
 
+    res->mem_check_done = true;
     return res->state == FAILED ? FAIL : OK;
 }
 

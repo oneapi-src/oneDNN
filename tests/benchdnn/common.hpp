@@ -167,6 +167,7 @@ struct res_t {
     std::string impl_name;
     skip_reason_t reason;
     size_t ibytes, obytes;
+    bool mem_check_done;
 };
 
 void parse_result(res_t &res, const char *pstr);

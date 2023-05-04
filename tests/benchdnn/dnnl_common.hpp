@@ -467,6 +467,11 @@ int create_primitive(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw,
     SAFE(fetch_impl(pdw, init_pd_args, res, is_service_prim), WARN);
     if (res->state == SKIPPED) return OK;
 
+    // Check memory requirements if only execution happens.
+    if (bench_mode != bench_mode_t::init && !res->mem_check_done)
+        SAFE(check_mem_size(pdw, res), WARN);
+    if (res->state == SKIPPED) return OK;
+
     DNN_SAFE(dnnl_primitive_create(&prim, pdw), WARN);
     primw.reset(prim);
 
@@ -528,18 +533,13 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
             WARN);
     if (res->state == SKIPPED) return OK;
 
-    auto pd = query_pd(primw);
-    // Check memory requirements if only execution happens.
-    if (bench_mode != bench_mode_t::init) SAFE(check_mem_size(pd, res), WARN);
-
-    if (res->state == SKIPPED) return OK;
-
     // Further checks are only for tested primitives.
     if (is_service_prim) {
         user_prim.reset(primw.release());
         return OK;
     }
 
+    auto pd = query_pd(primw);
     res->impl_name = query_impl_info(pd);
     BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", res->impl_name.c_str());
     // Collect memory footprint (perf report) for a given primitive descriptor.
