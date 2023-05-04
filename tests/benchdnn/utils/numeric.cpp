@@ -16,12 +16,21 @@
 
 #include "src/common/bfloat16.hpp"
 #include "src/common/float16.hpp"
+#include "src/common/float8.hpp"
 #include "src/common/nstl.hpp"
 
 #include "common.hpp"
 
 #include "utils/numeric.hpp"
 
+template <>
+struct prec_traits<dnnl_f8_e5m2> {
+    using type = dnnl::impl::float8_e5m2_t;
+};
+template <>
+struct prec_traits<dnnl_f8_e4m3> {
+    using type = dnnl::impl::float8_e4m3_t;
+};
 template <>
 struct prec_traits<dnnl_bf16> {
     using type = dnnl::impl::bfloat16_t;
@@ -58,6 +67,8 @@ struct prec_traits<dnnl_u8> {
 
 #define CASE_ALL(dt) \
     switch (dt) { \
+        CASE(dnnl_f8_e5m2); \
+        CASE(dnnl_f8_e4m3); \
         CASE(dnnl_bf16); \
         CASE(dnnl_f16); \
         CASE(dnnl_f32); \
@@ -142,6 +153,12 @@ float round_to_nearest_representable(dnnl_data_type_t dt, float value) {
     switch (dt) {
         case dnnl_f32: break;
         case dnnl_f64: break;
+        case dnnl_f8_e5m2:
+            value = (float)dnnl::impl::float8_e5m2_t(value);
+            break;
+        case dnnl_f8_e4m3:
+            value = (float)dnnl::impl::float8_e4m3_t(value);
+            break;
         case dnnl_bf16: value = (float)dnnl::impl::bfloat16_t(value); break;
         case dnnl_f16: value = (float)dnnl::impl::float16_t(value); break;
         case dnnl_s32:
