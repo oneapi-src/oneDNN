@@ -99,10 +99,9 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
     generate_epilogue();
     profile.stop("Epilogue");
 
-#ifdef GEN_CONV_PROFILE
-    ir_perf_no_trace() << profile << "\n";
-#endif
 #ifdef DNNL_DEVEL_MODE
+    ir_perf_no_trace() << profile << "\n";
+
     ir_trace() << "Actual register usage:           " << ra_.get_peak_regs()
                << std::endl;
     int estimated_peak_regs = estimate_register_count(cfg_);

@@ -262,7 +262,7 @@ All IR objects provide:
     - `call obj.dump()` (under gdb)
 
 All the main IR passes trace the after-pass IR statement when tracing is
-enabled (controlled by `LOG_LEVEL`).
+enabled (controlled by `ONEDNN_VERBOSE=debuginfo`).
 
 `ir_printer_t` class is mainly responsible for the IR printing-related logic.
 

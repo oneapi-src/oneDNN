@@ -28,19 +28,23 @@ class stmt_t;
 class ir_context_t;
 
 // Trace for debugging purposes.
-#ifdef GEN_CONV_PROFILE
+#ifdef DNNL_DEVEL_MODE
 ir_utils::debug_profiler_t &get_trace_profiler();
 inline void trace_start() {
-    get_trace_profiler().start();
+    if (get_verbose(verbose_t::debuginfo) >= ir_utils::LOG_TRACE)
+        get_trace_profiler().start();
 }
 inline void trace_reset() {
-    get_trace_profiler().reset();
+    if (get_verbose(verbose_t::debuginfo) >= ir_utils::LOG_TRACE)
+        get_trace_profiler().reset();
 }
 inline void trace_stamp(const char *pass_name) {
-    get_trace_profiler().stamp(pass_name);
+    if (get_verbose(verbose_t::debuginfo) >= ir_utils::LOG_TRACE)
+        get_trace_profiler().stamp(pass_name);
 }
 inline void trace_stop(const char *pass_name) {
-    get_trace_profiler().stop(pass_name);
+    if (get_verbose(verbose_t::debuginfo) >= ir_utils::LOG_TRACE)
+        get_trace_profiler().stop(pass_name);
 }
 inline void trace_perf() {
     ir_perf() << get_trace_profiler() << std::endl;
@@ -53,7 +57,7 @@ inline void trace_stop(const char *) {};
 inline void trace_perf() {};
 #endif
 
-#if defined(GEN_CONV_PROFILE) || defined(DNNL_DEVEL_MODE)
+#if defined(DNNL_DEVEL_MODE)
 void trace_pass(
         const char *pass_name, const stmt_t &stmt, ir_context_t &ir_ctx);
 #else

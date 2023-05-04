@@ -44,6 +44,9 @@ given oneDNN primitive implementation was dispatched. In general, we
 recommend using `ONEDNN_VERBOSE=all`, unless message printing overhead
 becomes noticeable.
 
+`debuginfo` information is available only if the library is built with
+`ONEDNN_DEVEL_MODE=ON`.
+
 
 oneDNN supports the following legacy settings:
 

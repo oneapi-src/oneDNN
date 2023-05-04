@@ -31,23 +31,12 @@
 #include "common/utils.hpp"
 #include "gpu/compute/device_info.hpp"
 
-// Uncomment this when jit::ir debugging is required:
-//#define GEN_IR_DEBUG
-#ifdef GEN_IR_DEBUG
-#define DNNL_DEVEL_MODE
-#endif
-
-// Uncomment this when jit::ir profiling is required:
-//#define GEN_IR_PROFILE
-#ifdef GEN_IR_PROFILE
-#define GEN_CONV_PROFILE
-#endif
-
 // Uncomment this when aborting on ir_assert is desired:
 // #define IR_ABORT_ON_ERROR
 
-#ifdef GEN_CONV_PROFILE
+#ifdef DNNL_DEVEL_MODE
 #include "common/profiler.hpp"
+#include "common/verbose.hpp"
 #endif
 
 namespace dnnl {
@@ -271,11 +260,10 @@ public:
     operator bool() const { return true; }
 
     static bool is_enabled() {
-#if defined(DNNL_DEVEL_MODE) || defined(GEN_CONV_PROFILE)
-        static const int log_level(getenv_int("log_level", LOG_LEVEL));
-        return log_level >= level;
+#if defined(DNNL_DEVEL_MODE)
+        return get_verbose(verbose_t::debuginfo) >= level;
 #else
-        return LOG_LEVEL >= level;
+        return false;
 #endif
     }
 
@@ -610,7 +598,7 @@ ValueT get_or_default(const MapContainerT &map, const KeyT &key,
 }
 
 struct debug_profiler_t {
-#ifdef GEN_CONV_PROFILE
+#ifdef DNNL_DEBUG_MODE
     debug_profiler_t(std::string profile_name) : profile(profile_name) {};
     void start() { profile.start(); };
     void stamp(const char *name) { profile.stamp(name); };
@@ -629,8 +617,8 @@ private:
     void stop() {};
     void reset() {};
     std::string str() const { return ""; };
-#endif
 };
+#endif
 
 } // namespace ir_utils
 } // namespace jit
