@@ -69,3 +69,7 @@
 --reset --in-shapes=0:64x2048x7x7+1:1x1x1x1 --op-attrs=11:axes:2x3  --case=pattern/f32/reduction_post_ops_l2_fusion.json
 --reset --in-shapes=0:64x20x7x7+1:1x1x1x1 --op-attrs=11:axes:2x3  --case=pattern/f32/reduction_post_ops_l2_fusion.json
 --reset --in-shapes=0:64x512x28x28+1:1x1x1x1 --op-attrs=11:axes:0x1  --case=pattern/f32/reduction_post_ops_l2_fusion.json
+
+# softmax
+--reset --case=pattern/f32/softmax_post_ops_unary_fusion.json
+--reset --case=pattern/f32/softmax_post_ops_binary_fusion.json
