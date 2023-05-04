@@ -31,14 +31,19 @@ using namespace data_type;
 
 namespace brgemm_inner_product_utils {
 
-// Returns amount of work on a thread for 1d partition non-reduction dimension
-// when using parallel reduction.
-static int work_1d(
+// Returns amount of work on a thread when using parallel reduction.
+static int comp_work(
         int nthrs, int nthr_k, int n_chunks, int n_reduction_blocks) {
     assert(nthrs >= nthr_k);
-    int rd_work = div_up(n_reduction_blocks, nthr_k);
     int nthr_other = nthrs / nthr_k;
-    return rd_work * div_up(n_chunks, nthr_other);
+
+    // Work in reduction dimension.
+    int reduction_work = div_up(n_reduction_blocks, nthr_k);
+
+    // Work in other non-reduction dimensions.
+    int other_work = div_up(n_chunks, nthr_other);
+
+    return reduction_work * other_work;
 }
 
 int get_brg_kernel_index(bool is_bs_tail, bool do_initialization,
@@ -499,21 +504,31 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
 
         jbgp.nthr_ic_b = saturate(1, max_nthr_ic_b, reduce_work);
 
-        bool is_1d_oc = os_chunks == 1 && oc_chunks > 1;
-        bool is_1d_os = oc_chunks == 1 && os_chunks > 1;
-        bool is_1d = is_1d_oc || is_1d_os;
-        if (is_f32_compute && is_1d && jbgp.nthr_ic_b > 1) {
-            int n_chunks = is_1d_oc ? oc_chunks : os_chunks;
-            int nthr_1 = jbgp.nthr_ic_b;
-            int nthr_2 = nthr_1 - 1;
-            int nthr_other = jbgp.nthr / nthr_2;
+        int prev_work
+                = comp_work(jbgp.nthr, jbgp.nthr_ic_b, other_work, jbgp.nb_ic);
+        while (jbgp.nthr_ic_b > 1) {
+            int kthr = jbgp.nthr_ic_b - 1;
+            int nthr_other = jbgp.nthr / kthr;
 
-            int work_1 = work_1d(jbgp.nthr, nthr_1, n_chunks, jbgp.nb_ic);
-            int work_2 = work_1d(jbgp.nthr, nthr_2, n_chunks, jbgp.nb_ic);
+            int work = comp_work(jbgp.nthr, kthr, other_work, jbgp.nb_ic);
 
             // Sacrifice a thread in reduce dimension if work amount will be
-            // reduce on the thread with most work.
-            if (work_1 >= work_2 && nthr_other > 1) jbgp.nthr_ic_b--;
+            // reduced on the thread with most work.
+            bool less_work = prev_work > work && nthr_other > 1;
+
+            // Reduce number of reduction threads if non-reduction dimension
+            // still have opportunities for parallelism.
+            const int chunks_per_thr = 15;
+            int min_other_work = chunks_per_thr * nthr_other;
+            bool prefer_other = other_work > min_other_work;
+
+            // Update previous work for next iteration if needed.
+            prev_work = work;
+
+            if (less_work || prefer_other)
+                jbgp.nthr_ic_b = kthr;
+            else
+                break;
         }
 
         assert(jbgp.nthr_ic_b >= 1);
@@ -766,8 +781,8 @@ status_t jit_brgemm_ip_bwd_d_conf_t::init_conf(cpu_isa_t isa,
             int nthr_2 = nthr_1 - 1;
             int nthr_other = jbgp.nthr / nthr_2;
 
-            int work_1 = work_1d(jbgp.nthr, nthr_1, n_chunks, jbgp.nb_oc);
-            int work_2 = work_1d(jbgp.nthr, nthr_2, n_chunks, jbgp.nb_oc);
+            int work_1 = comp_work(jbgp.nthr, nthr_1, n_chunks, jbgp.nb_oc);
+            int work_2 = comp_work(jbgp.nthr, nthr_2, n_chunks, jbgp.nb_oc);
 
             // Sacrifice a thread in reduce dimension if work amount will be
             // reduce on the thread with most work.
