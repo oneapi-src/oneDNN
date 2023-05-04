@@ -274,9 +274,13 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     }
 
     if (is_cpu()) {
-        // CPU reorder doesn't support bf16<-->s32 combinations.
-        const bool s32_src_ok = IMPLICATION(sdt == dnnl_s32, ddt != dnnl_bf16);
-        const bool s32_dst_ok = IMPLICATION(ddt == dnnl_s32, sdt != dnnl_bf16);
+        // CPU reorder doesn't support (xf8,xf16)<-->s32 combinations.
+        const bool s32_src_ok = IMPLICATION(sdt == dnnl_s32,
+                ddt != dnnl_f8_e5m2 && ddt != dnnl_f8_e4m3 && ddt != dnnl_bf16
+                        && ddt != dnnl_f16);
+        const bool s32_dst_ok = IMPLICATION(ddt == dnnl_s32,
+                sdt != dnnl_f8_e5m2 && sdt != dnnl_f8_e4m3 && sdt != dnnl_bf16
+                        && sdt != dnnl_f16);
         if (!s32_src_ok || !s32_dst_ok) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
@@ -291,6 +295,18 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
+
+        // CPU xf8 reorders only support xf8<->(f16,f32) combinations
+        const bool xf8_src_ok
+                = IMPLICATION(ddt == dnnl_f8_e5m2 || ddt == dnnl_f8_e4m3,
+                        sdt == dnnl_f16 || sdt == dnnl_f32);
+        const bool xf8_dst_ok
+                = IMPLICATION(sdt == dnnl_f8_e5m2 || sdt == dnnl_f8_e4m3,
+                        ddt == dnnl_f16 || ddt == dnnl_f32);
+        if (!xf8_src_ok || !xf8_dst_ok) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
     }
 
     if (is_gpu()) {
@@ -299,6 +315,14 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         // in kernels directly, but s8s8 instructions are available in HW.
         if (prb->runtime_dim_mask != 0
                 || prb->is_reorder_with_compensation(FLAG_ANY)) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+
+        // GPU doesn't support f8_e5m2/f8_e4m3.
+        const bool is_xf8 = prb->sdt == dnnl_f8_e5m2 || prb->sdt == dnnl_f8_e4m3
+                || prb->ddt == dnnl_f8_e5m2 || prb->ddt == dnnl_f8_e4m3;
+        if (is_xf8) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,6 +37,8 @@ REG(f32, -int_max_exact, int_max_exact);
 REG(f64, -int_max_exact, int_max_exact);
 REG(f16, -f16_max_exact, f16_max_exact);
 REG(bf16, -int_max_exact, int_max_exact);
+REG(f8_e5m2, -f16_max_exact, f16_max_exact);
+REG(f8_e4m3, -f16_max_exact, f16_max_exact);
 // Do not exceed max float value representable in integer. Otherwise, we get
 // a correctness issue caused by different computations in reference and the
 // library.
@@ -53,6 +55,8 @@ dt_conf_t dt2cfg(dnnl_data_type_t dt) {
     CASE(f64);
     CASE(f16);
     CASE(bf16);
+    CASE(f8_e5m2);
+    CASE(f8_e4m3);
     CASE(s32);
     CASE(s8);
     CASE(u8);
@@ -68,6 +72,8 @@ dnnl_data_type_t cfg2dt(dt_conf_t cfg) {
     CASE(f64);
     CASE(f16);
     CASE(bf16);
+    CASE(f8_e5m2);
+    CASE(f8_e4m3);
     CASE(s32);
     CASE(s8);
     CASE(u8);

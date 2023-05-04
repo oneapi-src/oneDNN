@@ -76,6 +76,9 @@
 # bf16
 --batch=test_reorder_bfloat16
 
+# fp8
+--batch=test_reorder_float8
+
 # Run-time
 --batch=harness_reorder_runtime
 

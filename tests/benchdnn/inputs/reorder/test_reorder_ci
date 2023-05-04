@@ -1,8 +1,8 @@
 --reset
 
 # reference reorders
---sdt=f32,bf16,f16,s32,s8,u8
---ddt=f32,bf16,f16,s32,s8,u8
+--sdt=f32,bf16,f16,f8_e5m2,f8_e4m3,s32,s8,u8
+--ddt=f32,bf16,f16,f8_e5m2,f8_e4m3,s32,s8,u8
 --attr-scales=,src:per_dim_1+dst:per_dim_1
 --attr-zero-points=,src:common:-1+dst:common:2
 --attr-post-ops=,sum:0.5
@@ -24,7 +24,7 @@
 --reset
 # all combinations of scales
 --sdt=f32
---ddt=f32,bf16,f16,s32,s8,u8
+--ddt=f32,bf16,f16,s32,s8,u8,f8_e5m2,f8_e4m3
 --runtime-dim-mask=0,63
 --stag=abx
 --dtag=axb
