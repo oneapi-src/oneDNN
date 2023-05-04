@@ -50,7 +50,7 @@ struct ref_convolution_fwd_t : public primitive_t {
                     && platform::has_data_type_support(src_type)
                     && platform::has_data_type_support(bia_type)
                     && platform::has_data_type_support(dst_type)
-                    && utils::one_of(src_type, f32, bf16, f16)
+                    && utils::one_of(src_type, f32, bf16, f16, f8_e5m2, f8_e4m3)
                     && src_type == wei_type
                     && utils::one_of(dst_type, src_type, f32)
                     && utils::one_of(bia_type, data_type::undef, src_type, f32)

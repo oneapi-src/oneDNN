@@ -188,6 +188,22 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             CPU_INSTANCE(ref_fused_convolution_fwd_t)
             nullptr,
         }},
+        {{forward, f8_e5m2, f8_e5m2, f32}, {
+            CPU_INSTANCE(ref_convolution_fwd_t)
+            nullptr,
+        }},
+        {{forward, f8_e5m2, f8_e5m2, f8_e5m2}, {
+            CPU_INSTANCE(ref_convolution_fwd_t)
+            nullptr,
+        }},
+        {{forward, f8_e4m3, f8_e4m3, f32}, {
+            CPU_INSTANCE(ref_convolution_fwd_t)
+            nullptr,
+        }},
+        {{forward, f8_e4m3, f8_e4m3, f8_e4m3}, {
+            CPU_INSTANCE(ref_convolution_fwd_t)
+            nullptr,
+        }},
         // BWD_D fp
         {{backward_data, f32, f32, f32}, REG_BWD_D_PK({
             CPU_INSTANCE_X64(ip_convolution_bwd_data_t)

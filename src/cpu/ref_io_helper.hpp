@@ -59,6 +59,8 @@ inline float load_float_value(data_type_t dt, const void *ptr, dim_t idx) {
 
     using namespace data_type;
     switch (dt) {
+        CASE(f8_e5m2);
+        CASE(f8_e4m3);
         CASE(bf16);
         CASE(f16);
         CASE(f32);
@@ -83,6 +85,8 @@ inline void store_float_value(data_type_t dt, float val, void *ptr, dim_t idx) {
 
     using namespace data_type;
     switch (dt) {
+        CASE(f8_e5m2);
+        CASE(f8_e4m3);
         CASE(bf16);
         CASE(f16);
         CASE(f32);
