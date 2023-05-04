@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,6 +56,8 @@ const impl_list_map_t &regular_bf16_impl_list_map() {
             REG_SR(bf16, any, f32, any, fmt_order::any, spec::reference)
             REG_SR(bf16, any, s8, any, fmt_order::any, spec::reference)
             REG_SR(bf16, any, u8, any, fmt_order::any, spec::reference)
+            REG_SR(bf16, any, f8_e5m2, any, fmt_order::any, spec::reference)
+            REG_SR(bf16, any, f8_e4m3, any, fmt_order::any, spec::reference)
 
             nullptr,
         }},
