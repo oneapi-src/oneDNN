@@ -20,7 +20,6 @@
 #include <cstring>
 
 #include "gpu/jit/conv/block_helper.hpp"
-#include "gpu/jit/conv/config_lookup_table.hpp"
 #include "gpu/jit/conv/config_plan.hpp"
 #include "gpu/jit/conv/grf_usage.hpp"
 #include "gpu/jit/conv/message_patterns.hpp"
@@ -994,23 +993,13 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_config_t &hw_cfg) {
     return true;
 }
 
-void maybe_override_from_lookup_table(conv_config_t &cfg) {
-    if (!dev_getenv("lookup", true)) return;
-    static conv_config_lookup_table_t table;
-    auto *s_params = table.find(cfg);
-    if (s_params) cfg.override_set(s_params, /*is_env=*/false);
-}
-
 void maybe_override_from_env(conv_config_t &cfg) {
+#ifdef DNNL_DEV_MODE
     auto cfg_env = dev_getenv("cfg", std::string());
     if (cfg_env.empty()) return;
     cfg.override_set(cfg_env, /*is_env=*/true);
-}
-
-void maybe_override(conv_config_t &cfg) {
-    maybe_override_from_lookup_table(cfg);
-#ifdef DNNL_DEV_MODE
-    maybe_override_from_env(cfg);
+#else
+    UNUSED(cfg);
 #endif
 }
 
@@ -1100,7 +1089,7 @@ status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
     cfg.set_prb(prb);
     cfg.set_exec_cfg(exec_config_t(hw_cfg));
 
-    maybe_override(cfg);
+    maybe_override_from_env(cfg);
 
     CHECK(init_fma_kind(cfg));
     CHECK(init_simd(cfg));
