@@ -888,11 +888,14 @@ bool fma_plan_t::can_split(abc_kind_t abc, int factor) const {
 void fma_plan_t::set_split(abc_kind_t abc, int factor) {
     split_abc = abc;
     split_factor = factor;
-    if (fma_kind == fma_kind_t::mad) return;
-    auto blocks = a_layout.blocks();
-    blocks[1].block /= factor;
-    auto layout = layout_t(a_layout.type(), a_layout.ndims(), 0, blocks);
-    m_blk = get_dpas_block_rcount(layout, 1);
+    if (abc == abc_kind_t::a
+            && utils::one_of(fma_kind, fma_kind_t::dp4a, fma_kind_t::dpas,
+                    fma_kind_t::dpasw)) {
+        auto blocks = a_layout.blocks();
+        blocks.back().block /= factor;
+        auto layout = layout_t(a_layout.type(), a_layout.ndims(), 0, blocks);
+        m_blk = get_dpas_block_rcount(layout, 1);
+    }
 }
 
 int fma_plan_t::a_buf_size() const {
