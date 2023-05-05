@@ -20,7 +20,8 @@ class LogParser:
     Parses a log file with oneDNN verbose and converts it into internal
     representation.
     """
-    def __init__(self, writer, input=''):
+
+    def __init__(self, writer, input=""):
         # each data entry is a dictionary that consists of:
         # engine(str),
         # primitive(str),
@@ -48,47 +49,52 @@ class LogParser:
         --------
         None
         """
+
         def convert_primitive(log_entry, template):
             """
             Converts oneDNN verbose primitive entry into the internal
             representation.
             """
+
             def convert_mds(log_mds):
                 mds = []
-                for md in log_mds.split(' '):
+                for md in log_mds.split(" "):
                     # arg_dt:padding:format_kind:tag:flags
-                    fields = md.split(':')
+                    fields = md.split(":")
                     arg_dt = fields[0]
                     padding = fields[1]
                     format_kind = fields[2]
                     tag = fields[3]
                     flags = {}
-                    flags['value'] = fields[4]
+                    flags["value"] = fields[4]
                     if len(fields) > 5:
                         flag_fields = fields[5:]
                         for f in flag_fields:
-                            if f[:3] == 's8m':
-                                flags['s8_comp_mask'] = f[3:]
-                            if f[:3] == 'zpm':
-                                flags['zp_comp_mask'] = f[3:]
+                            if f[:3] == "s8m":
+                                flags["s8_comp_mask"] = f[3:]
+                            if f[:3] == "zpm":
+                                flags["zp_comp_mask"] = f[3:]
 
-                    data_type = arg_dt.split('_')[-1]
-                    arg = arg_dt[:-len(data_type) - 1]
-                    mds.append({
-                        'arg': arg,
-                        'data_type': data_type,
-                        'padding': padding,
-                        'format_kind': format_kind,
-                        'tag': tag,
-                        'flags': flags
-                    })
+                    data_type = arg_dt.split("_")[-1]
+                    arg = arg_dt[: -len(data_type) - 1]
+                    mds.append(
+                        {
+                            "arg": arg,
+                            "data_type": data_type,
+                            "padding": padding,
+                            "format_kind": format_kind,
+                            "tag": tag,
+                            "flags": flags,
+                        }
+                    )
                 return mds
 
             def convert_aux(log_aux):
                 aux = {}
-                if log_aux == '': return aux
-                for log_aux_l in log_aux.split(' '):
-                    field, value = log_aux_l.split(':')
+                if log_aux == "":
+                    return aux
+                for log_aux_l in log_aux.split(" "):
+                    field, value = log_aux_l.split(":")
                     aux[field] = value
                 return aux
 
@@ -99,82 +105,76 @@ class LogParser:
                 def extract_attr(attrs, type):
                     start_idx = attrs.find(type)
                     if start_idx == -1:
-                        return ''
+                        return ""
 
                     start_idx += len(type) + 1
-                    end_symbol = ' '
+                    end_symbol = " "
                     end_idx = attrs.find(end_symbol, start_idx)
                     return attrs[start_idx:end_idx]
 
                 def convert_structure_to_ir_seq(ir, value):
-                    params = value.split(':')
+                    params = value.split(":")
                     fields = list(ir.keys())
-                    ir.update((fields[i], params[i])
-                              for i in range(0, min(len(params), len(fields))))
+                    ir.update(
+                        (fields[i], params[i])
+                        for i in range(0, min(len(params), len(fields)))
+                    )
                     return ir
 
                 def convert_post_ops(value):
                     def convert_binary_post_op(value):
-                        p_op = {
-                            'alg': '',
-                            'dt': 'f32',
-                            'mask': '0',
-                            'tag': None
-                        }
+                        p_op = {"alg": "", "dt": "f32", "mask": "0", "tag": None}
                         p_op = convert_structure_to_ir_seq(p_op, value)
-                        p_op['prim_kind'] = 'binary'
+                        p_op["prim_kind"] = "binary"
                         return p_op
 
                     def convert_dw_post_op(value):
                         p_op = {
-                            'alg': '',
-                            'ksp': '',
-                            'dst_dt': 'f32',
-                            'wei_dt': 'f32',
-                            'scales': {
-                                'mask': '0',
-                                'value': None
-                            }
+                            "alg": "",
+                            "ksp": "",
+                            "dst_dt": "f32",
+                            "wei_dt": "f32",
+                            "scales": {"mask": "0", "value": None},
                         }
-                        params = value.split(':')
+                        params = value.split(":")
                         len_params = len(params)
-                        p_op['alg'] = params[0]
-                        p_op['ksp'] = params[1]
+                        p_op["alg"] = params[0]
+                        p_op["ksp"] = params[1]
                         if len_params > 2:
-                            p_op['dst_dt'] = params[2]
+                            p_op["dst_dt"] = params[2]
                         if len_params > 3:
-                            p_op['wei_dt'] = 's8'
-                            p_op['scales']['mask'] = params[3]
+                            p_op["wei_dt"] = "s8"
+                            p_op["scales"]["mask"] = params[3]
                         if len_params > 4:
-                            p_op['scales']['value'] = params[4]
+                            p_op["scales"]["value"] = params[4]
                         return p_op
 
                     def convert_eltwise_post_op(value):
                         p_op = {
-                            'alg': '',
-                            'alpha': '1.0',
-                            'beta': '0.0',
-                            'scale': '1.0'
+                            "alg": "",
+                            "alpha": "1.0",
+                            "beta": "0.0",
+                            "scale": "1.0",
                         }
                         return convert_structure_to_ir_seq(p_op, value)
 
                     def convert_sum_post_op(value):
-                        p_op = {'alg': '', 'scale': '1.0', 'zp': '0', 'dt': ''}
+                        p_op = {"alg": "", "scale": "1.0", "zp": "0", "dt": ""}
                         return convert_structure_to_ir_seq(p_op, value)
 
                     def convert_prelu_post_op(value):
-                        p_op = {'alg': '', 'mask': '0'}
+                        p_op = {"alg": "", "mask": "0"}
                         return convert_structure_to_ir_seq(p_op, value)
 
                     convert = {
-                        'binary': convert_binary_post_op,
-                        'dw': convert_dw_post_op,
-                        'eltwise': convert_eltwise_post_op,
-                        'sum': convert_sum_post_op,
-                        'prelu': convert_prelu_post_op,
+                        "binary": convert_binary_post_op,
+                        "dw": convert_dw_post_op,
+                        "eltwise": convert_eltwise_post_op,
+                        "sum": convert_sum_post_op,
+                        "prelu": convert_prelu_post_op,
                     }
 
-                    entries = value.split('+')
+                    entries = value.split("+")
                     postops = []
                     for e in entries:
                         for k in convert.keys():
@@ -186,24 +186,22 @@ class LogParser:
 
                 def convert_scales(value):
                     res = {}
-                    scales = value.split('+')
+                    scales = value.split("+")
                     for s in scales:
-                        arg = s[:s.find(':')]
-                        s_wo_arg = s[s.find(':') + 1:]
-                        scale_dict = {'mask': '0'}
-                        res[arg] = convert_structure_to_ir_seq(
-                            scale_dict, s_wo_arg)
+                        arg = s[: s.find(":")]
+                        s_wo_arg = s[s.find(":") + 1 :]
+                        scale_dict = {"mask": "0"}
+                        res[arg] = convert_structure_to_ir_seq(scale_dict, s_wo_arg)
                     return res
 
                 def convert_zero_points(value):
                     res = {}
-                    zp_value = value.split('+')
+                    zp_value = value.split("+")
                     for zp in zp_value:
-                        arg = zp[:zp.find(':')]
-                        zp_value_wo_arg = zp[zp.find(':') + 1:]
-                        zp_dict = {'mask': '0'}
-                        res[arg] = convert_structure_to_ir_seq(
-                            zp_dict, zp_value_wo_arg)
+                        arg = zp[: zp.find(":")]
+                        zp_value_wo_arg = zp[zp.find(":") + 1 :]
+                        zp_dict = {"mask": "0"}
+                        res[arg] = convert_structure_to_ir_seq(zp_dict, zp_value_wo_arg)
                     return res
 
                 def convert_scratchpad_mode(value):
@@ -213,16 +211,16 @@ class LogParser:
                     return value
 
                 converters = {
-                    'attr-post-ops': convert_post_ops,
-                    'attr-scales': convert_scales,
-                    'attr-zero-points': convert_zero_points,
-                    'attr-scratchpad': convert_scratchpad_mode,
-                    'attr-fpmath': convert_fpmath_mode
+                    "attr-post-ops": convert_post_ops,
+                    "attr-scales": convert_scales,
+                    "attr-zero-points": convert_zero_points,
+                    "attr-scratchpad": convert_scratchpad_mode,
+                    "attr-fpmath": convert_fpmath_mode,
                 }
                 attrs = {}
                 for e in converters.keys():
                     attr = extract_attr(exts, e)
-                    if attr != '':
+                    if attr != "":
                         attrs[e] = converters[e](attr)
                 return attrs
 
@@ -230,33 +228,39 @@ class LogParser:
                 return v
 
             convert = {
-                'prim_kind': convert_prim_kind,
-                'mds': convert_mds,
-                'aux': convert_aux,
-                'exts': convert_exts
+                "prim_kind": convert_prim_kind,
+                "mds": convert_mds,
+                "aux": convert_aux,
+                "exts": convert_exts,
             }
 
             dnnl_to_ir = {
-                'engine': 'engine',
-                'prim_kind': 'primitive',
-                'impl': 'implementation',
-                'prop_kind': 'prop_kind',
-                'mds': 'memory_descriptors',
-                'exts': 'attributes',
-                'aux': 'auxiliary',
-                'shapes': 'problem_desc',
-                'time': 'exec_time',
-                'timestamp': 'timestamp'
+                "engine": "engine",
+                "prim_kind": "primitive",
+                "impl": "implementation",
+                "prop_kind": "prop_kind",
+                "mds": "memory_descriptors",
+                "exts": "attributes",
+                "aux": "auxiliary",
+                "shapes": "problem_desc",
+                "time": "exec_time",
+                "timestamp": "timestamp",
             }
 
             ir_req = [
-                'engine', 'prim_kind', 'impl', 'prop_kind', 'mds', 'exts',
-                'aux', 'shapes'
+                "engine",
+                "prim_kind",
+                "impl",
+                "prop_kind",
+                "mds",
+                "exts",
+                "aux",
+                "shapes",
             ]
 
             entry = {}
 
-            t = template.split(',')
+            t = template.split(",")
             for key, value in dnnl_to_ir.items():
                 notification_level = "WARN" if key in ir_req else "INFO"
                 try:
@@ -271,18 +275,23 @@ class LogParser:
                         except:
                             self.__writer.print(
                                 f"Parser: parsing entry error: {field}: {value}",
-                                notification_level)
+                                notification_level,
+                            )
                     else:
-                        self.__writer.print(f"Parser: Unknown entry: {value}",
-                                            notification_level)
+                        self.__writer.print(
+                            f"Parser: Unknown entry: {value}", notification_level
+                        )
                 except:
-                    self.__writer.print(f"Parser: skipping empty entry: {key}",
-                                        notification_level)
+                    self.__writer.print(
+                        f"Parser: skipping empty entry: {key}", notification_level
+                    )
             return entry
 
-        verbose_template = "onednn_verbose,operation,engine,primitive," + \
-            "implementation,prop_kind,memory_descriptors,attributes," + \
-            "auxiliary,problem_desc"
+        verbose_template = (
+            "onednn_verbose,operation,engine,primitive,"
+            + "implementation,prop_kind,memory_descriptors,attributes,"
+            + "auxiliary,problem_desc"
+        )
 
         i = len(self.__data)
         for line in self.__input:
@@ -290,17 +299,17 @@ class LogParser:
             l_raw = line.split(",")
             marker = l_raw[0]
             if marker == "onednn_verbose":
-                if l_raw[1].split('.')[0].isdigit():
+                if l_raw[1].split(".")[0].isdigit():
                     l_raw.pop(1)
                 event = l_raw[1].split(":")[0]
                 if event == "info":
                     opt = l_raw[2]
                     if opt == "prim_template":
-                        verbose_template = "onednn_verbose," + line.split(
-                            ':')[1]
+                        verbose_template = "onednn_verbose," + line.split(":")[1]
                 if event in ["exec", "create"]:
                     l_converted = convert_primitive(
-                        l_raw, verbose_template + ',exec_time')
+                        l_raw, verbose_template + ",exec_time"
+                    )
                     if l_converted:
                         self.__data[i] = l_converted
                         i = i + 1
@@ -336,8 +345,8 @@ class LogParser:
 
         if converted:
             [
-                self.__writer.print(f"{key}, {value}", 'STDIO')
+                self.__writer.print(f"{key}, {value}", "STDIO")
                 for key, value in self.__data.items()
             ]
         else:
-            [self.__writer.print(d, 'STDIO') for d in self.__raw_data]
+            [self.__writer.print(d, "STDIO") for d in self.__raw_data]

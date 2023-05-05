@@ -19,49 +19,47 @@ class BreakdownGenerator:
     """
     Generates an input for benchdnn from internal representation.
     """
+
     def __init__(self, writer):
         self.__writer = writer
 
     def generate(self, input, agg_keys):
         data = {}
         output = {}
-        ofs = ','
+        ofs = ","
 
         def key2str(key, value):
             def mds2str(mds):
-                md_fields = [
-                    'arg', 'data_type', 'padding', 'format_kind', 'tag'
-                ]
-                ffs = ':'
-                mdfs = ' '
-                return mdfs.join([
-                    ffs.join([arg[field] for field in md_fields])
-                    for arg in mds
-                ])
+                md_fields = ["arg", "data_type", "padding", "format_kind", "tag"]
+                ffs = ":"
+                mdfs = " "
+                return mdfs.join(
+                    [ffs.join([arg[field] for field in md_fields]) for arg in mds]
+                )
 
             def aux2str(aux):
-                auxfs = ' '
-                return auxfs.join([f'{k}:{v}' for k, v in aux.items()])
+                auxfs = " "
+                return auxfs.join([f"{k}:{v}" for k, v in aux.items()])
 
-            if (key == 'mds'):
+            if key == "mds":
                 return mds2str(value)
-            elif (key == 'aux'):
+            elif key == "aux":
                 return aux2str(value)
             else:
                 return str(value)
 
-        #Gather occurences and aggregate time statistics
+        # Gather occurences and aggregate time statistics
         total_time = 0
         for key, value in input.items():
             item_key = ofs.join([key2str(k, value[k]) for k in agg_keys])
             occ, time = data.get(item_key, (0, 0.0))
-            data[item_key] = (occ + 1, time + float(value['time']))
-            total_time += float(value['time'])
+            data[item_key] = (occ + 1, time + float(value["time"]))
+            total_time += float(value["time"])
 
-        #sort keys by increasing total time
-        sorted_item_keys = sorted(data,
-                                  key=lambda t: data.__getitem__(t)[1],
-                                  reverse=True)
+        # sort keys by increasing total time
+        sorted_item_keys = sorted(
+            data, key=lambda t: data.__getitem__(t)[1], reverse=True
+        )
 
         cum_entry = 0
         cum_time = 0
@@ -75,27 +73,42 @@ class BreakdownGenerator:
             sorted_avg_call[key] = avg_call
             sorted_cum_time[key] = cum_time
 
-        output['all'] = ofs.join(agg_keys + [
-            'ncalls', 'time(ms)', "overall%", 'agg_ncalls(avg)',
-            'agg_time(ms)', 'agg_overall%'
-        ]) + '\n'
+        output["all"] = (
+            ofs.join(
+                agg_keys
+                + [
+                    "ncalls",
+                    "time(ms)",
+                    "overall%",
+                    "agg_ncalls(avg)",
+                    "agg_time(ms)",
+                    "agg_overall%",
+                ]
+            )
+            + "\n"
+        )
 
         def str_num(s):
-            return '{val:.2f}'.format(val=s)
+            return "{val:.2f}".format(val=s)
 
         def str_pct(s):
-            return '{val:.2f}'.format(val=s * 100)
+            return "{val:.2f}".format(val=s * 100)
 
-        ors = '\n'
-        output['all'] += ors.join([
-            ofs.join([
-                str(item_key),
-                str(data[item_key][0]),
-                str_num(data[item_key][1]),
-                str_pct(data[item_key][1] / total_time),
-                str_num(sorted_avg_call[item_key]),
-                str_num(sorted_cum_time[item_key]),
-                str_pct(sorted_cum_time[item_key] / total_time)
-            ]) for item_key in sorted_item_keys
-        ])
+        ors = "\n"
+        output["all"] += ors.join(
+            [
+                ofs.join(
+                    [
+                        str(item_key),
+                        str(data[item_key][0]),
+                        str_num(data[item_key][1]),
+                        str_pct(data[item_key][1] / total_time),
+                        str_num(sorted_avg_call[item_key]),
+                        str_num(sorted_cum_time[item_key]),
+                        str_pct(sorted_cum_time[item_key] / total_time),
+                    ]
+                )
+                for item_key in sorted_item_keys
+            ]
+        )
         return output

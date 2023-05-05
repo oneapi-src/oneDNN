@@ -16,21 +16,17 @@
 
 import sys
 
-status = {'SUCCESS': 0, 'FAILED': 1}
+status = {"SUCCESS": 0, "FAILED": 1}
 
 
 def get_version():
-    version = sys.version.split(' ')[0].split('.')
-    return {
-        'major': int(version[0]),
-        'minor': int(version[1]),
-        'fix': int(version[2])
-    }
+    version = sys.version.split(" ")[0].split(".")
+    return {"major": int(version[0]), "minor": int(version[1]), "fix": int(version[2])}
 
 
 def check_version():
     v = get_version()
-    if not (v['major'] >= 3 and v['minor'] >= 6):
+    if not (v["major"] >= 3 and v["minor"] >= 6):
         print("ERROR: unsupported python version")
-        return status.get('FAILED')
-    return status.get('SUCCESS')
+        return status.get("FAILED")
+    return status.get("SUCCESS")

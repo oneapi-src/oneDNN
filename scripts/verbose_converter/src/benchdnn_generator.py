@@ -15,44 +15,53 @@
 ################################################################################
 
 
-def everyone_is(list, value='None'):
-    if [value == 'None']:
+def everyone_is(list, value="None"):
+    if [value == "None"]:
         value = list[0]
     return [e for e in list if e != value] == []
 
 
-primitives_with_algs = ('binary', 'convolution', 'deconvolution', 'eltwise',
-                        'lrn', 'pooling', 'reduction', 'resampling', 'rnn')
+primitives_with_algs = (
+    "binary",
+    "convolution",
+    "deconvolution",
+    "eltwise",
+    "lrn",
+    "pooling",
+    "reduction",
+    "resampling",
+    "rnn",
+)
 
 
 def alg_remove_primitive(alg):
     for p in primitives_with_algs:
         if alg.find(p) != -1:
-            alg = alg[(alg.find(p) + len(p) + 1):]
+            alg = alg[(alg.find(p) + len(p) + 1) :]
     return alg
 
 
 def convert_driver(prop_kind):
     driver = {
-        'batch_normalization': 'bnorm',
-        'binary': 'binary',
-        'concat': 'concat',
-        'convolution': 'conv',
-        'deconvolution': 'deconv',
-        'eltwise': 'eltwise',
-        'inner_product': 'ip',
-        'layer_normalization': 'lnorm',
-        'lrn': 'lrn',
-        'matmul': 'matmul',
-        'pooling': 'pool',
-        'prelu': 'prelu',
-        'reduction': 'reduction',
-        'reorder': 'reorder',
-        'resampling': 'resampling',
-        'rnn': 'rnn',
-        'shuffle': 'shuffle',
-        'softmax': 'softmax',
-        'sum': 'sum',
+        "batch_normalization": "bnorm",
+        "binary": "binary",
+        "concat": "concat",
+        "convolution": "conv",
+        "deconvolution": "deconv",
+        "eltwise": "eltwise",
+        "inner_product": "ip",
+        "layer_normalization": "lnorm",
+        "lrn": "lrn",
+        "matmul": "matmul",
+        "pooling": "pool",
+        "prelu": "prelu",
+        "reduction": "reduction",
+        "reorder": "reorder",
+        "resampling": "resampling",
+        "rnn": "rnn",
+        "shuffle": "shuffle",
+        "softmax": "softmax",
+        "sum": "sum",
     }.get(prop_kind)
     return driver
 
@@ -64,451 +73,448 @@ def convert_engine(engine):
 def convert_dir(entry):
     # get base direction
     dir = {
-        'forward_training': 'FWD_D',
-        'forward_inference': 'FWD_I',
-        'backward_data': 'BWD_D',
-        'backward_weights': 'BWD_W',
-        'backward': 'BWD_DW'
-    }.get(entry['prop_kind'])
+        "forward_training": "FWD_D",
+        "forward_inference": "FWD_I",
+        "backward_data": "BWD_D",
+        "backward_weights": "BWD_W",
+        "backward": "BWD_DW",
+    }.get(entry["prop_kind"])
 
     if not dir:
-        return ''
+        return ""
 
     found_bias = [
-        e for e in entry['mds']
-        if 'bia' == e['arg'] and e['data_type'] != 'undef'
+        e for e in entry["mds"] if "bia" == e["arg"] and e["data_type"] != "undef"
     ]
-    dir = 'FWD_B' if 'FWD' in dir and found_bias else dir
-    dir = 'BWD_WB' if dir == 'BWD_W' and found_bias else dir
-    if entry['prim_kind'] == 'rnn':
+    dir = "FWD_B" if "FWD" in dir and found_bias else dir
+    dir = "BWD_WB" if dir == "BWD_W" and found_bias else dir
+    if entry["prim_kind"] == "rnn":
         return f"--prop={dir}"
     else:
         return f"--dir={dir}"
 
 
 def convert_aux(entry):
-    if entry.get('aux') != None:
-        alg = entry['aux']['alg'] if entry['aux'].get('alg') != None else ''
-        pk = entry['prim_kind']
-        if pk == 'convolution':
-            str = ''
+    if entry.get("aux") != None:
+        alg = entry["aux"]["alg"] if entry["aux"].get("alg") != None else ""
+        pk = entry["prim_kind"]
+        if pk == "convolution":
+            str = ""
             alg = alg_remove_primitive(alg)
-            algs = {'winograd': 'WINO', 'direct': 'direct'}
+            algs = {"winograd": "WINO", "direct": "direct"}
             alg = algs.get(alg)
             if alg != None:
                 str = f"--alg={alg}"
             return str
-        if pk == 'eltwise':
-            alpha = entry['aux']['alpha']
-            beta = entry['aux']['beta']
+        if pk == "eltwise":
+            alpha = entry["aux"]["alpha"]
+            beta = entry["aux"]["beta"]
             alg += f" --alpha={alpha} --beta={beta}"
             return f"--alg={alg}"
-        elif pk == 'concat':
-            axis = entry['aux']['axis']
+        elif pk == "concat":
+            axis = entry["aux"]["axis"]
             return f"--axis={axis}"
-        elif pk in ['batch_normalization', 'layer_normalization']:
-            flags = entry['aux']['flags']
+        elif pk in ["batch_normalization", "layer_normalization"]:
+            flags = entry["aux"]["flags"]
             return f"--flags={flags}"
-        elif pk == 'lrn':
-            str = ''
+        elif pk == "lrn":
+            str = ""
             alg = alg_remove_primitive(alg)
-            algs = {'across_channels': 'ACROSS', 'within_channel': 'WITHIN'}
+            algs = {"across_channels": "ACROSS", "within_channel": "WITHIN"}
             alg = algs.get(alg)
             if alg != None:
                 str = f"--alg={alg}"
             return str
-        elif pk == 'reduction':
-            p = entry['aux']['p']
-            eps = entry['aux']['eps']
+        elif pk == "reduction":
+            p = entry["aux"]["p"]
+            eps = entry["aux"]["eps"]
             alg += f" --p={p} --eps={eps}"
             return f"--alg={alg}"
-        elif pk == 'rnn':
-            str = ''
+        elif pk == "rnn":
+            str = ""
             algs = {
-                'vanilla_rnn': 'VANILLA_RNN',
-                'vanilla_lstm': 'VANILLA_LSTM',
-                'vanilla_gru': 'VANILLA_GRU',
-                'vanilla_augru': 'VANILLA_AUGRU',
-                'lbr_gru': 'LBR_GRU',
-                'lbr_augru': 'LBR_AUGRU'
+                "vanilla_rnn": "VANILLA_RNN",
+                "vanilla_lstm": "VANILLA_LSTM",
+                "vanilla_gru": "VANILLA_GRU",
+                "vanilla_augru": "VANILLA_AUGRU",
+                "lbr_gru": "LBR_GRU",
+                "lbr_augru": "LBR_AUGRU",
             }
             alg = algs.get(alg)
             if alg != None:
                 str += f"--alg={alg}"
-            ir_dir = entry['aux']['direction']
+            ir_dir = entry["aux"]["direction"]
             dirs = {
-                'unidirectional_left2right': 'left2right',
-                'unidirectional_right2left': 'right2left',
-                'bidirectional_sum': 'sum',
-                'bidirectional_concat': 'concat'
+                "unidirectional_left2right": "left2right",
+                "unidirectional_right2left": "right2left",
+                "bidirectional_sum": "sum",
+                "bidirectional_concat": "concat",
             }
             dir = dirs.get(ir_dir)
             if dir is not None:
                 str += f" --direction={dir}"
-            ir_act = entry['aux']['activation']
+            ir_act = entry["aux"]["activation"]
             acts = {
-                'eltwise_relu': 'RELU',
-                'eltwise_logistic': 'LOGISTIC',
-                'eltwise_tanh': 'TANH'
+                "eltwise_relu": "RELU",
+                "eltwise_logistic": "LOGISTIC",
+                "eltwise_tanh": "TANH",
             }
             act = acts.get(ir_act)
             if act is not None:
                 str += f" --activation={act}"
-            flags = entry['aux']['flags']
+            flags = entry["aux"]["flags"]
             if flags is not None:
                 str += f" --flags={flags}"
             return str
-        elif pk == 'shuffle':
-            axis = entry['aux']['axis']
-            group = entry['aux']['group']
+        elif pk == "shuffle":
+            axis = entry["aux"]["axis"]
+            group = entry["aux"]["group"]
             return f"--axis={axis} --group={group}"
-        elif pk == 'softmax':
-            axis = entry['aux']['axis']
+        elif pk == "softmax":
+            axis = entry["aux"]["axis"]
             return f"--alg={alg} --axis={axis}"
-        elif pk == 'pooling':
+        elif pk == "pooling":
             return f"--alg={alg}"
         else:
             alg = alg_remove_primitive(alg)
-            if alg != '': return f"--alg={alg}"
-    return ''
+            if alg != "":
+                return f"--alg={alg}"
+    return ""
 
 
 def convert_bias_mask(mds):
-    bia_mds = [md for md in mds if md['arg'] == 'bia']
+    bia_mds = [md for md in mds if md["arg"] == "bia"]
     if len(bia_mds) != 0:
         bia_md = bia_mds[0]
-        flags = bia_md['flags']['value'].split('_')
+        flags = bia_md["flags"]["value"].split("_")
         if len(flags) > 1:
             mask = flags[1][4:]
             return f"--bia_mask={mask}"
-    return ''
+    return ""
 
 
 def convert_dts(mds, prim_kind):
     def convert_dts_common(mds):
-        dts = [md['data_type'] for md in mds if md['data_type'] != 'undef']
+        dts = [md["data_type"] for md in mds if md["data_type"] != "undef"]
         dt = dts[0]
-        return f'--dt={dt}'
+        return f"--dt={dt}"
 
     def convert_dts_cfg(mds):
         cfg = "--cfg="
         mds_strip = mds
         # bias is not part of cfg
-        mds_strip = [md for md in mds_strip if 'bia' not in md['arg']]
+        mds_strip = [md for md in mds_strip if "bia" not in md["arg"]]
         # ws is not part of cfg
-        mds_strip = [md for md in mds_strip if 'ws' not in md['arg']]
-        common_dt = everyone_is([md['data_type'] for md in mds_strip])
-        if common_dt and mds_strip[0]['data_type'] in ['f32', 'f16']:
-            cfg += mds_strip[0]['data_type']
+        mds_strip = [md for md in mds_strip if "ws" not in md["arg"]]
+        common_dt = everyone_is([md["data_type"] for md in mds_strip])
+        if common_dt and mds_strip[0]["data_type"] in ["f32", "f16"]:
+            cfg += mds_strip[0]["data_type"]
         else:
-            args = ['src', 'wei', 'dst']
+            args = ["src", "wei", "dst"]
             for md in mds_strip:
-                if md['arg'] in args:
-                    cfg += md['data_type']
+                if md["arg"] in args:
+                    cfg += md["data_type"]
         return cfg
 
     def convert_dts_cfg_rnn(mds):
         cfg = "--cfg="
-        args = [
-            'src_iter', 'src_iter_c', 'src_layer', 'dst_iter', 'dst_layer',
-            'bias'
-        ]
-        mds_strip = [md for md in mds if md['arg'] in args]
+        args = ["src_iter", "src_iter_c", "src_layer", "dst_iter", "dst_layer", "bias"]
+        mds_strip = [md for md in mds if md["arg"] in args]
         # ws is not part of cfg
-        mds_strip = [md for md in mds_strip if 'ws' not in md['arg']]
+        mds_strip = [md for md in mds_strip if "ws" not in md["arg"]]
         # bias is not part of cfg
-        mds_strip = [md for md in mds_strip if 'bia' not in md['arg']]
-        common_dt = everyone_is([md['data_type'] for md in mds_strip])
-        if common_dt and mds_strip[0]['data_type'] in ['f32', 'f16']:
-            cfg += mds_strip[0]['data_type']
-        elif common_dt and mds_strip[0]['data_type'] == 'bf16':
-            cfg += mds_strip[0]['data_type']
+        mds_strip = [md for md in mds_strip if "bia" not in md["arg"]]
+        common_dt = everyone_is([md["data_type"] for md in mds_strip])
+        if common_dt and mds_strip[0]["data_type"] in ["f32", "f16"]:
+            cfg += mds_strip[0]["data_type"]
+        elif common_dt and mds_strip[0]["data_type"] == "bf16":
+            cfg += mds_strip[0]["data_type"]
             # bias is part of cfg for bf16
-            bias_md = [md for md in mds if md['arg'] == 'bias'][0]
-            bias_dt = bias_md['data_type']
-            if bias_dt != mds_strip[0]['data_type']:
+            bias_md = [md for md in mds if md["arg"] == "bias"][0]
+            bias_dt = bias_md["data_type"]
+            if bias_dt != mds_strip[0]["data_type"]:
                 cfg += bias_dt
         else:
             for arg in args:
                 for md in mds_strip:
-                    if md['arg'] == arg:
+                    if md["arg"] == arg:
                         # src iter is skipped if it is f32
-                        if arg == 'src_iter_c' and md['data_type'] == 'f16':
+                        if arg == "src_iter_c" and md["data_type"] == "f16":
                             continue
-                        cfg += md['data_type']
+                        cfg += md["data_type"]
         return cfg
 
     def convert_dts_cfg_pool(mds):
-        cfg = mds[0]['data_type']
+        cfg = mds[0]["data_type"]
         return f"--cfg={cfg}"
 
     def convert_dts_all(mds):
-        dts = ''
-        md_args = ''
+        dts = ""
+        md_args = ""
         for md in mds:
-            md_arg = md['arg'][0]
+            md_arg = md["arg"][0]
             if md_args.find(md_arg) == -1:
-                md_dt = md['data_type']
-                dts += f' --{md_arg}dt={md_dt}'
+                md_dt = md["data_type"]
+                dts += f" --{md_arg}dt={md_dt}"
                 md_args += md_arg
         return dts
 
     def convert_dts_prelu(mds):
-        data_md = [md for md in mds if 'data' in md['arg']][0]
-        weights_md = [md for md in mds if 'wei' in md['arg']][0]
+        data_md = [md for md in mds if "data" in md["arg"]][0]
+        weights_md = [md for md in mds if "wei" in md["arg"]][0]
 
-        data_dt = data_md['data_type']
-        weights_dt = weights_md['data_type']
+        data_dt = data_md["data_type"]
+        weights_dt = weights_md["data_type"]
 
-        return f' --sdt={data_dt}:{weights_dt}'
+        return f" --sdt={data_dt}:{weights_dt}"
 
     # --dt=SRC_DT[:WEI_DT][:DST_DT]
     def convert_dts_multiple(mds):
-        dts = '--dt='
+        dts = "--dt="
         for md in mds:
-            md_dt = md['data_type']
-            md_arg = md['arg']
-            if md_arg == 'src':
-                dts += f'{md_dt}'
-            elif md_arg == 'wei':
-                dts += f':{md_dt}'
-            elif md_arg == 'dst':
-                dts += f':{md_dt}'
+            md_dt = md["data_type"]
+            md_arg = md["arg"]
+            if md_arg == "src":
+                dts += f"{md_dt}"
+            elif md_arg == "wei":
+                dts += f":{md_dt}"
+            elif md_arg == "dst":
+                dts += f":{md_dt}"
             else:
-                dts += f''
+                dts += f""
         return dts
 
     def convert_dts_multiple_src(mds):
-        src_dts = ''
-        dts = ''
+        src_dts = ""
+        dts = ""
         first_src = True
         for md in mds:
-            md_dt = md['data_type']
-            md_arg = md['arg']
-            if md_arg == 'src':
+            md_dt = md["data_type"]
+            md_arg = md["arg"]
+            if md_arg == "src":
                 if not first_src:
-                    src_dts += f':{md_dt}'
+                    src_dts += f":{md_dt}"
                 else:
-                    src_dts += f' --{md_arg[0]}dt={md_dt}'
+                    src_dts += f" --{md_arg[0]}dt={md_dt}"
                     first_src = False
             else:
-                if md_dt != 'undef':
-                    dts += f' --{md_arg[0]}dt={md_dt}'
+                if md_dt != "undef":
+                    dts += f" --{md_arg[0]}dt={md_dt}"
         return src_dts + dts
 
     def convert_dts_with_bias(mds):
         dt = convert_dts_multiple(mds)
-        mds_bias = [md for md in mds if 'bia' in md['arg']]
+        mds_bias = [md for md in mds if "bia" in md["arg"]]
         if len(mds_bias) != 0:
             md_bias = mds_bias[0]
-            bias_dt = md_bias['data_type']
-            dt += ' ' + f"--bia_dt={bias_dt}"
+            bias_dt = md_bias["data_type"]
+            dt += " " + f"--bia_dt={bias_dt}"
         return dt
 
     convert_dts = {
-        'batch_normalization': convert_dts_common,
-        'binary': convert_dts_multiple_src,
-        'concat': convert_dts_all,
-        'convolution': convert_dts_multiple,
-        'deconvolution': convert_dts_multiple,
-        'eltwise': convert_dts_common,
-        'inner_product': convert_dts_cfg,
-        'layer_normalization': convert_dts_multiple,
-        'lrn': convert_dts_common,
-        'matmul': convert_dts_with_bias,
-        'pooling': convert_dts_cfg_pool,
-        'prelu': convert_dts_prelu,
-        'reduction': convert_dts_all,
-        'reorder': convert_dts_all,
-        'resampling': convert_dts_all,
-        'rnn': convert_dts_cfg_rnn,
-        'shuffle': convert_dts_common,
-        'softmax': convert_dts_all,
-        'sum': convert_dts_multiple_src
+        "batch_normalization": convert_dts_common,
+        "binary": convert_dts_multiple_src,
+        "concat": convert_dts_all,
+        "convolution": convert_dts_multiple,
+        "deconvolution": convert_dts_multiple,
+        "eltwise": convert_dts_common,
+        "inner_product": convert_dts_cfg,
+        "layer_normalization": convert_dts_multiple,
+        "lrn": convert_dts_common,
+        "matmul": convert_dts_with_bias,
+        "pooling": convert_dts_cfg_pool,
+        "prelu": convert_dts_prelu,
+        "reduction": convert_dts_all,
+        "reorder": convert_dts_all,
+        "resampling": convert_dts_all,
+        "rnn": convert_dts_cfg_rnn,
+        "shuffle": convert_dts_common,
+        "softmax": convert_dts_all,
+        "sum": convert_dts_multiple_src,
     }
 
     convert = convert_dts.get(prim_kind)
     if convert != None:
         return convert(mds)
     # FIXME: Error handling. Throw an error if get() is used, but None returned
-    return ''
+    return ""
 
 
 def convert_tags(mds, prim_kind):
     def convert_tags_common(mds):
-        tags = [md['tag'] for md in mds if md['tag'] != '']
+        tags = [md["tag"] for md in mds if md["tag"] != ""]
         tag = tags[0]
-        return f'--tag={tag}' if tag else ''
+        return f"--tag={tag}" if tag else ""
 
     def convert_tags_all(mds):
-        tags = ''
+        tags = ""
         for md in mds:
-            md_arg = md['arg'][0]
+            md_arg = md["arg"][0]
             # skip bias
-            if md_arg == 'b':
+            if md_arg == "b":
                 continue
 
             # pass wtag any for cases with compensation
-            if md_arg == 'w' and md['flags']['value'] != 'f0':
-                tags += f' --{md_arg}tag=any'
+            if md_arg == "w" and md["flags"]["value"] != "f0":
+                tags += f" --{md_arg}tag=any"
             else:
-                md_tag = md['tag']
-                tags += f' --{md_arg}tag={md_tag}'
+                md_tag = md["tag"]
+                tags += f" --{md_arg}tag={md_tag}"
         return tags
 
     # --tag=SRC_TAG[:WEI_TAG][:DST_TAG]
     def convert_tags_multiple(mds):
-        tags = '--tag='
+        tags = "--tag="
         for md in mds:
-            md_tag = md['tag']
-            md_arg = md['arg']
-            if md_arg == 'src':
-                tags += f'{md_tag}'
-            elif md_arg == 'wei':
-                tags += f':{md_tag}'
-            elif md_arg == 'dst':
-                tags += f':{md_tag}'
+            md_tag = md["tag"]
+            md_arg = md["arg"]
+            if md_arg == "src":
+                tags += f"{md_tag}"
+            elif md_arg == "wei":
+                tags += f":{md_tag}"
+            elif md_arg == "dst":
+                tags += f":{md_tag}"
             else:
-                tags += f''
+                tags += f""
         return tags
 
     def convert_tags_multiple_src(mds):
-        src_tags = ''
-        tags = ''
+        src_tags = ""
+        tags = ""
         first_src = False
         for md in mds:
-            md_tag = md['tag']
-            md_arg = md['arg']
-            if md_arg == 'src':
+            md_tag = md["tag"]
+            md_arg = md["arg"]
+            if md_arg == "src":
                 if first_src:
-                    src_tags += f':{md_tag}'
+                    src_tags += f":{md_tag}"
                 else:
-                    src_tags += f' --{md_arg[0]}tag={md_tag}'
+                    src_tags += f" --{md_arg[0]}tag={md_tag}"
                     first_src = True
             else:
-                if md_tag != '':
-                    tags += f' --{md_arg[0]}tag={md_tag}'
+                if md_tag != "":
+                    tags += f" --{md_arg[0]}tag={md_tag}"
         return src_tags + tags
 
     def convert_tags_prelu(mds):
         # FIXME: fix benchdnn input template
-        data_md = [md for md in mds if 'data' in md['arg']][0]
-        weights_md = [md for md in mds if 'wei' in md['arg']][0]
+        data_md = [md for md in mds if "data" in md["arg"]][0]
+        weights_md = [md for md in mds if "wei" in md["arg"]][0]
 
-        data_tag = data_md['tag']
-        weights_tag = weights_md['tag']
+        data_tag = data_md["tag"]
+        weights_tag = weights_md["tag"]
 
-        return f' --stag={data_tag}:{weights_tag}'
+        return f" --stag={data_tag}:{weights_tag}"
 
     def convert_tags_rnn(mds):
-        tags = ''
+        tags = ""
         for md in mds:
-            md_arg = md['arg']
-            md_tag = md['tag']
-            if md_arg == 'wei_proj' and md_tag != 'undef':
-                tags += ' --with-projection=true'
-            if md_arg == 'wei_peephole' and md_tag != 'undef':
-                tags += ' --with-peephole=true'
+            md_arg = md["arg"]
+            md_tag = md["tag"]
+            if md_arg == "wei_proj" and md_tag != "undef":
+                tags += " --with-projection=true"
+            if md_arg == "wei_peephole" and md_tag != "undef":
+                tags += " --with-peephole=true"
 
         return tags
 
     def convert_tags_lnorm(mds):
         tag = convert_tags_multiple(mds)
-        stat_md = ''
+        stat_md = ""
         for md in mds:
-            if md['arg'] == 'stats':
-                stat_tag = md['tag']
+            if md["arg"] == "stats":
+                stat_tag = md["tag"]
 
-        return f'{tag} --stat_tag={stat_tag}'
+        return f"{tag} --stat_tag={stat_tag}"
 
     cvt_tags = {
-        'batch_normalization': convert_tags_common,
-        'binary': convert_tags_multiple_src,
-        'concat': convert_tags_multiple_src,
-        'convolution': convert_tags_all,
-        'deconvolution': convert_tags_all,
-        'eltwise': convert_tags_common,
-        'inner_product': convert_tags_all,
-        'layer_normalization': convert_tags_lnorm,
-        'lrn': convert_tags_common,
-        'matmul': convert_tags_all,
-        'pooling': convert_tags_common,
-        'prelu': convert_tags_prelu,
-        'reduction': convert_tags_all,
-        'reorder': convert_tags_all,
-        'resampling': convert_tags_common,
-        'rnn': convert_tags_rnn,
-        'shuffle': convert_tags_common,
-        'softmax': convert_tags_all,
-        'sum': convert_tags_multiple_src
+        "batch_normalization": convert_tags_common,
+        "binary": convert_tags_multiple_src,
+        "concat": convert_tags_multiple_src,
+        "convolution": convert_tags_all,
+        "deconvolution": convert_tags_all,
+        "eltwise": convert_tags_common,
+        "inner_product": convert_tags_all,
+        "layer_normalization": convert_tags_lnorm,
+        "lrn": convert_tags_common,
+        "matmul": convert_tags_all,
+        "pooling": convert_tags_common,
+        "prelu": convert_tags_prelu,
+        "reduction": convert_tags_all,
+        "reorder": convert_tags_all,
+        "resampling": convert_tags_common,
+        "rnn": convert_tags_rnn,
+        "shuffle": convert_tags_common,
+        "softmax": convert_tags_all,
+        "sum": convert_tags_multiple_src,
     }
 
     convert = cvt_tags.get(prim_kind)
     if convert:
         return convert(mds)
-    return ''
+    return ""
 
 
 def convert_flags(mds, prim_kind):
     def convert_flags_reorder(mds):
         def convert_flag(prefix, md):
-            flag = ''
-            flag_fields = md.get('flags')
+            flag = ""
+            flag_fields = md.get("flags")
             if flag_fields != None:
-                cvt = {'s8_comp_mask': 's8s8_comp', 'zp_comp_mask': 'zp_comp'}
+                cvt = {"s8_comp_mask": "s8s8_comp", "zp_comp_mask": "zp_comp"}
                 for f in cvt.keys():
                     value = flag_fields.get(f)
                     if value != None:
-                        benchdnn_flag = cvt[f] + ':' + value
-                        if flag == '':
+                        benchdnn_flag = cvt[f] + ":" + value
+                        if flag == "":
                             flag = benchdnn_flag
                         else:
-                            flag += '+' + benchdnn_flag
-            if flag != '':
+                            flag += "+" + benchdnn_flag
+            if flag != "":
                 return f"--{prefix}flag={flag}"
             else:
-                return ''
+                return ""
 
-        flags = ''
+        flags = ""
         # FIXME: fix benchdnn input template
-        input_md = [md for md in mds if 'src' in md['arg']][0]
-        output_md = [md for md in mds if 'dst' in md['arg']][0]
+        input_md = [md for md in mds if "src" in md["arg"]][0]
+        output_md = [md for md in mds if "dst" in md["arg"]][0]
 
-        iflag = convert_flag('i', input_md)
-        oflag = convert_flag('o', output_md)
+        iflag = convert_flag("i", input_md)
+        oflag = convert_flag("o", output_md)
 
-        if iflag != '':
+        if iflag != "":
             flags += iflag
-        if oflag != '':
-            flags += ' ' + oflag
+        if oflag != "":
+            flags += " " + oflag
         return flags
 
     def convert_flags_rnn(mds):
         return f"--trivial-strides=true"
 
     cvt_flags = {
-        'rnn': convert_flags_rnn,
-        'reorder': convert_flags_reorder,
+        "rnn": convert_flags_rnn,
+        "reorder": convert_flags_reorder,
     }
 
     convert = cvt_flags.get(prim_kind)
     if convert:
         return convert(mds)
-    return ''
+    return ""
 
 
 def extract_attr(attrs, type):
     start_idx = attrs.find(type)
     if start_idx == -1:
-        return ''
+        return ""
 
     start_idx += len(type) + 1
-    end_symbol = ';'
-    if type == 'post_ops':
+    end_symbol = ";"
+    if type == "post_ops":
         start_idx += 1
-        end_symbol = '\''
+        end_symbol = "'"
     end_idx = attrs.find(end_symbol, start_idx)
-    if type == 'post_ops':
+    if type == "post_ops":
         start_idx -= 1
         end_idx += 1
     return attrs[start_idx:end_idx]
@@ -516,90 +522,97 @@ def extract_attr(attrs, type):
 
 def convert_scale_policy(value):
     # 4 is used by batched matmul
-    masks = {0: 'common', 1: 'per_oc', 2: 'per_oc', 3: 'per_oc', 4: 'per_oc'}
+    masks = {0: "common", 1: "per_oc", 2: "per_oc", 3: "per_oc", 4: "per_oc"}
     mask = masks.get(int(value))
     if mask:
         return mask
     # this is a workaround for tensors with mask more than 4
-    return 'per_tensor'
+    return "per_tensor"
 
 
 def convert_zp_policy(value):
     # 4 is used by batched matmul
-    masks = {0: 'common', 2: 'per_dim_1', 4: 'per_dim_2'}
+    masks = {0: "common", 2: "per_dim_1", 4: "per_dim_2"}
     mask = masks.get(int(value))
     if mask:
         return mask
     # this is a workaround for tensors with mask more than 4
-    return 'per_tensor'
+    return "per_tensor"
 
 
 def convert_post_ops(post_ops):
     def convert_binary_post_op(post_op):
-        masks = {0: 'common', 2: 'per_oc'}
-        mask = masks.get(int(post_op['mask']))
+        masks = {0: "common", 2: "per_oc"}
+        mask = masks.get(int(post_op["mask"]))
         if mask:
             policy = mask
         else:
-            policy = 'per_tensor'
-        po = post_op['alg'] + ':' + post_op['dt'] + ':' + policy
-        if post_op['tag'] != None:
-            po += ':' + post_op['tag']
+            policy = "per_tensor"
+        po = post_op["alg"] + ":" + post_op["dt"] + ":" + policy
+        if post_op["tag"] != None:
+            po += ":" + post_op["tag"]
         return po
 
     def convert_dw_post_op(post_op):
-        policy = convert_scale_policy(post_op['scales']['mask'])
-        po = post_op['alg'] + ':' + post_op['ksp'] + ':' + post_op[
-            'dst_dt'] + ':' + policy
-        if post_op['scales']['value'] != None:
-            po += ':' + post_op['scales']['value']
+        policy = convert_scale_policy(post_op["scales"]["mask"])
+        po = (
+            post_op["alg"]
+            + ":"
+            + post_op["ksp"]
+            + ":"
+            + post_op["dst_dt"]
+            + ":"
+            + policy
+        )
+        if post_op["scales"]["value"] != None:
+            po += ":" + post_op["scales"]["value"]
         return po
 
     def convert_eltwise_post_op(post_op):
-        benchdnn_p_op = post_op['alg']
-        alpha = post_op['alpha']
-        beta = post_op['beta']
-        scale = post_op['scale']
-        if alpha != '1.0':
-            benchdnn_p_op += ':' + alpha
-            if beta != '0.0':
-                benchdnn_p_op += ':' + beta
-                if alpha != '1.0':
-                    benchdnn_p_op += ':' + scale
+        benchdnn_p_op = post_op["alg"]
+        alpha = post_op["alpha"]
+        beta = post_op["beta"]
+        scale = post_op["scale"]
+        if alpha != "1.0":
+            benchdnn_p_op += ":" + alpha
+            if beta != "0.0":
+                benchdnn_p_op += ":" + beta
+                if alpha != "1.0":
+                    benchdnn_p_op += ":" + scale
         return benchdnn_p_op
 
     def convert_sum_post_op(post_op):
-        benchdnn_p_op = post_op['alg']
-        if post_op['scale'] != 1.0:
-            benchdnn_p_op += ':' + post_op['scale']
-            if post_op['zp'] != 0:
-                benchdnn_p_op += ':' + post_op['zp']
-                if post_op['dt'] != '':
-                    benchdnn_p_op += ':' + post_op['dt']
+        benchdnn_p_op = post_op["alg"]
+        if post_op["scale"] != 1.0:
+            benchdnn_p_op += ":" + post_op["scale"]
+            if post_op["zp"] != 0:
+                benchdnn_p_op += ":" + post_op["zp"]
+                if post_op["dt"] != "":
+                    benchdnn_p_op += ":" + post_op["dt"]
         return benchdnn_p_op
 
     def convert_prelu_post_op(post_op):
-        benchdnn_p_op = post_op['alg']
-        if post_op['mask'] != 0:
-            policy = convert_scale_policy(post_op['mask'])
-            benchdnn_p_op += ':' + policy
+        benchdnn_p_op = post_op["alg"]
+        if post_op["mask"] != 0:
+            policy = convert_scale_policy(post_op["mask"])
+            benchdnn_p_op += ":" + policy
         return benchdnn_p_op
 
     convert = {
-        'binary': convert_binary_post_op,
-        'dw': convert_dw_post_op,
-        'eltwise': convert_eltwise_post_op,
-        'sum': convert_sum_post_op,
-        'prelu': convert_prelu_post_op,
+        "binary": convert_binary_post_op,
+        "dw": convert_dw_post_op,
+        "eltwise": convert_eltwise_post_op,
+        "sum": convert_sum_post_op,
+        "prelu": convert_prelu_post_op,
     }
 
-    benchdnn_postops = ''
+    benchdnn_postops = ""
     for e in post_ops:
         for k in convert.keys():
-            if k in e['alg']:
+            if k in e["alg"]:
                 cvt = convert.get(k)
-                if benchdnn_postops != '':
-                    benchdnn_postops += '+'
+                if benchdnn_postops != "":
+                    benchdnn_postops += "+"
                 benchdnn_postops += cvt(e)
                 break
     return benchdnn_postops
@@ -609,18 +622,18 @@ def convert_scales(scales):
     res = []
     for arg in scales.keys():
         s = scales[arg]
-        benchdnn_scale = arg + ':' + convert_scale_policy(s['mask']) + ':0.5*'
+        benchdnn_scale = arg + ":" + convert_scale_policy(s["mask"]) + ":0.5*"
         res.append(benchdnn_scale)
-    return '+'.join(res)
+    return "+".join(res)
 
 
 def convert_zero_points(zero_points):
     res = []
     for arg in zero_points.keys():
         zp = zero_points[arg]
-        benchdnn_zp = arg + ':' + convert_zp_policy(zp['mask']) + ':1*'
+        benchdnn_zp = arg + ":" + convert_zp_policy(zp["mask"]) + ":1*"
         res.append(benchdnn_zp)
-    return '+'.join(res)
+    return "+".join(res)
 
 
 def convert_scratchpad_mode(scratchpad_mode):
@@ -633,26 +646,26 @@ def convert_fpmath_mode(fpmath_mode):
 
 def convert_attrs(exts):
     converters = {
-        'attr-post-ops': convert_post_ops,
-        'attr-scales': convert_scales,
-        'attr-zero-points': convert_zero_points,
-        'attr-scratchpad': convert_scratchpad_mode,
-        'attr-fpmath': convert_fpmath_mode
+        "attr-post-ops": convert_post_ops,
+        "attr-scales": convert_scales,
+        "attr-zero-points": convert_zero_points,
+        "attr-scratchpad": convert_scratchpad_mode,
+        "attr-fpmath": convert_fpmath_mode,
     }
 
-    benchdnn_attrs = ''
+    benchdnn_attrs = ""
     for e in converters.keys():
         attr = exts.get(e)
         if attr != None:
-            if benchdnn_attrs != '':
-                benchdnn_attrs += ' '
+            if benchdnn_attrs != "":
+                benchdnn_attrs += " "
             benchdnn_attrs += f"--{e}=" + converters[e](attr)
     return benchdnn_attrs
 
 
 def convert_shapes(shapes, prim_kind):
-    if prim_kind == 'binary':
-        shapes = shapes.split(' ')[0]
+    if prim_kind == "binary":
+        shapes = shapes.split(" ")[0]
     return f"{shapes}"
 
 
@@ -660,6 +673,7 @@ class InputGenerator:
     """
     Generates an input for benchdnn from internal representation.
     """
+
     def __init__(self, writer):
         self.__writer = writer
 
@@ -667,42 +681,42 @@ class InputGenerator:
         data = {}
 
         def generate_case(entry, add_driver=True):
-            case = ''
+            case = ""
             if add_driver:
-                case += '--' + convert_driver(entry['prim_kind'])
+                case += "--" + convert_driver(entry["prim_kind"])
             # reset everything, because benchdnn is a state machine and options
             # affect all following test cases
-            case += ' --reset'
+            case += " --reset"
             # allow extended set of tags
-            case += ' --allow-enum-tags-only=0'
+            case += " --allow-enum-tags-only=0"
 
-            case += ' ' + convert_engine(entry['engine'])
+            case += " " + convert_engine(entry["engine"])
             # XXX: direction depends on mds (FWD_B is forward + defined bias md)
-            case += ' ' + convert_dir(entry)
-            case += ' ' + convert_aux(entry)
-            if entry['prim_kind'] == 'matmul':
-                case += ' ' + convert_bias_mask(entry['mds'])
+            case += " " + convert_dir(entry)
+            case += " " + convert_aux(entry)
+            if entry["prim_kind"] == "matmul":
+                case += " " + convert_bias_mask(entry["mds"])
             # XXX: data types configuration is not unified across drivers
-            case += ' ' + convert_dts(entry['mds'], entry['prim_kind'])
-            case += ' ' + convert_tags(entry['mds'], entry['prim_kind'])
-            case += ' ' + convert_flags(entry['mds'], entry['prim_kind'])
-            case += ' ' + convert_attrs(entry['exts'])
-            case += ' ' + convert_shapes(entry['shapes'], entry['prim_kind'])
+            case += " " + convert_dts(entry["mds"], entry["prim_kind"])
+            case += " " + convert_tags(entry["mds"], entry["prim_kind"])
+            case += " " + convert_flags(entry["mds"], entry["prim_kind"])
+            case += " " + convert_attrs(entry["exts"])
+            case += " " + convert_shapes(entry["shapes"], entry["prim_kind"])
             return case
 
         if split_by_driver:
             for key, value in input.items():
-                case = generate_case(value, False) + '\n'
-                driver_cases = data.get(convert_driver(value['prim_kind']))
+                case = generate_case(value, False) + "\n"
+                driver_cases = data.get(convert_driver(value["prim_kind"]))
                 if driver_cases:
-                    data[convert_driver(value['prim_kind'])] += case
+                    data[convert_driver(value["prim_kind"])] += case
                 else:
-                    data[convert_driver(value['prim_kind'])] = case
+                    data[convert_driver(value["prim_kind"])] = case
         else:
             for key, value in input.items():
-                case = generate_case(value, True) + '\n'
-                if data.get('all'):
-                    data['all'] += case
+                case = generate_case(value, True) + "\n"
+                if data.get("all"):
+                    data["all"] += case
                 else:
-                    data['all'] = case
+                    data["all"] = case
         return data

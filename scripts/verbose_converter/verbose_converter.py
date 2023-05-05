@@ -24,56 +24,58 @@ from src import utils
 from src import writer
 
 
-def convert(verbose_level, parser, input, action, generator, split_output,
-            agg_keys):
+def convert(verbose_level, parser, input, action, generator, split_output, agg_keys):
     status = utils.check_version()
-    if status != utils.status.get('SUCCESS'):
+    if status != utils.status.get("SUCCESS"):
         return status
 
     logger = writer.Writer(verbose_level=verbose_level)
     log_parser = None
-    if parser == 'oneDNN':
+    if parser == "oneDNN":
         from src import dnnl_parser
+
         log_parser = dnnl_parser.LogParser(logger, input)
     else:
-        logger.print("Error: unsupported parser", 'STDIO')
-        return utils.status.get('FAILED')
+        logger.print("Error: unsupported parser", "STDIO")
+        return utils.status.get("FAILED")
 
-    logger.print(f'Processing input ...', 'INFO')
+    logger.print(f"Processing input ...", "INFO")
     log_parser.process()
 
     output = None
-    if action == 'dumpIR':
-        logger.print(f'Dumping data from input...', 'INFO')
+    if action == "dumpIR":
+        logger.print(f"Dumping data from input...", "INFO")
         log_parser.dump(True)
 
-    if action == 'generate':
-        logger.print(f'Generating output ...', 'INFO')
-        if generator == 'benchdnn':
+    if action == "generate":
+        logger.print(f"Generating output ...", "INFO")
+        if generator == "benchdnn":
             from src import benchdnn_generator
+
             gen = benchdnn_generator.InputGenerator(logger)
             output = gen.generate(log_parser.get_data(), split_output)
         elif generator == "breakdown":
             from src import breakdown_generator
+
             gen = breakdown_generator.BreakdownGenerator(logger)
             output = gen.generate(log_parser.get_data(), agg_keys)
         else:
-            logger.print("Error: unsupported generator", 'STDIO')
-            return utils.status.get('FAILED')
+            logger.print("Error: unsupported generator", "STDIO")
+            return utils.status.get("FAILED")
 
-    return utils.status.get('SUCCESS'), output
+    return utils.status.get("SUCCESS"), output
 
 
 def validate_option(value, supported_values, str):
     if not value in supported_values:
         print(f"ERROR: {str}")
-        return utils.status.get('FAILED')
-    return utils.status.get('SUCCESS')
+        return utils.status.get("FAILED")
+    return utils.status.get("SUCCESS")
 
 
 def main():
     status = utils.check_version()
-    if status != utils.status.get('SUCCESS'):
+    if status != utils.status.get("SUCCESS"):
         return status
 
     action_opts = ["generate", "dumpIR"]
@@ -81,74 +83,82 @@ def main():
     parser_opts = ["oneDNN"]
     verbose_opts = ["0", "1"]
     aggregate_opts = [
-        'engine', 'prim_kind', 'impl', 'prop_kind', 'mds', 'exts', 'aux',
-        'shapes'
+        "engine",
+        "prim_kind",
+        "impl",
+        "prop_kind",
+        "mds",
+        "exts",
+        "aux",
+        "shapes",
     ]
-    args_parser = argparse.ArgumentParser(description='oneDNN log converter',
-                                          formatter_class=RawTextHelpFormatter)
-    args_parser.add_argument('-i',
-                             '--input',
-                             default='stdin',
-                             help='input file (default: stdin)')
-    args_parser.add_argument(
-        '-p',
-        '--parser',
-        default='oneDNN',
-        help=f'type of parser (default: oneDNN). Values: {parser_opts}.')
-    args_parser.add_argument(
-        '-a',
-        '--action',
-        default='generate',
-        help=f'an action (default: generate). Values: {action_opts}.')
-    args_parser.add_argument(
-        '-s',
-        '--split',
-        type=bool,
-        default=False,
-        help='split generated inputs by primitive kinds (default: False)')
-    args_parser.add_argument(
-        '-k',
-        '--aggregate',
-        nargs='+',
-        default=aggregate_opts,
-        help=
-        f'aggregates statistics on the specified keys (default: all keys but time).\nValues: {aggregate_opts}'
+    args_parser = argparse.ArgumentParser(
+        description="oneDNN log converter", formatter_class=RawTextHelpFormatter
     )
     args_parser.add_argument(
-        '-v',
-        '--verbose_level',
-        default='0',
-        help=f'verbose level (default: 0). Values: {verbose_opts}.')
-    args_parser.add_argument('-o',
-                             '--output',
-                             default='stdout',
-                             help='output file (default: stdout)')
+        "-i", "--input", default="stdin", help="input file (default: stdin)"
+    )
     args_parser.add_argument(
-        '-g',
-        '--generator',
-        default='benchdnn',
-        help=f'target generator (default: benchdnn). Values: {generator_opts}.'
+        "-p",
+        "--parser",
+        default="oneDNN",
+        help=f"type of parser (default: oneDNN). Values: {parser_opts}.",
+    )
+    args_parser.add_argument(
+        "-a",
+        "--action",
+        default="generate",
+        help=f"an action (default: generate). Values: {action_opts}.",
+    )
+    args_parser.add_argument(
+        "-s",
+        "--split",
+        type=bool,
+        default=False,
+        help="split generated inputs by primitive kinds (default: False)",
+    )
+    args_parser.add_argument(
+        "-k",
+        "--aggregate",
+        nargs="+",
+        default=aggregate_opts,
+        help=f"aggregates statistics on the specified keys (default: all keys but time).\nValues: {aggregate_opts}",
+    )
+    args_parser.add_argument(
+        "-v",
+        "--verbose_level",
+        default="0",
+        help=f"verbose level (default: 0). Values: {verbose_opts}.",
+    )
+    args_parser.add_argument(
+        "-o", "--output", default="stdout", help="output file (default: stdout)"
+    )
+    args_parser.add_argument(
+        "-g",
+        "--generator",
+        default="benchdnn",
+        help=f"target generator (default: benchdnn). Values: {generator_opts}.",
     )
     args = args_parser.parse_args()
 
     # validate options
     status = validate_option(args.action, action_opts, "Unknown action value")
-    if status != utils.status.get('SUCCESS'):
+    if status != utils.status.get("SUCCESS"):
         return status
-    status = validate_option(args.verbose_level, verbose_opts,
-                             "Unknown verbose_level value")
-    if status != utils.status.get('SUCCESS'):
+    status = validate_option(
+        args.verbose_level, verbose_opts, "Unknown verbose_level value"
+    )
+    if status != utils.status.get("SUCCESS"):
         return status
     status = validate_option(args.parser, parser_opts, "Unknown parser value")
-    if status != utils.status.get('SUCCESS'):
+    if status != utils.status.get("SUCCESS"):
         return status
-    status = validate_option(args.generator, generator_opts,
-                             "Unknown generator value")
-    if status != utils.status.get('SUCCESS'):
+    status = validate_option(args.generator, generator_opts, "Unknown generator value")
+    if status != utils.status.get("SUCCESS"):
         return status
 
     input_data = []
-    if args.input == 'stdin':
+    if args.input == "stdin":
         # if no input was piped, skip reading
         if not sys.stdin.isatty():
             for line in sys.stdin:
@@ -158,32 +168,34 @@ def main():
             args_parser.print_help()
     else:
         try:
-            input_data = open(args.input, 'r').readlines()
+            input_data = open(args.input, "r").readlines()
         except BaseException as e:
             print(f"Error while reading input: {e}")
 
     output = None
 
-    status, output = convert(verbose_level=args.verbose_level,
-                             parser=args.parser,
-                             input=input_data,
-                             action=args.action,
-                             generator=args.generator,
-                             split_output=args.split,
-                             agg_keys=args.aggregate)
+    status, output = convert(
+        verbose_level=args.verbose_level,
+        parser=args.parser,
+        input=input_data,
+        action=args.action,
+        generator=args.generator,
+        split_output=args.split,
+        agg_keys=args.aggregate,
+    )
 
-    if status != utils.status.get('SUCCESS'):
+    if status != utils.status.get("SUCCESS"):
         return status
 
     if output != None:
-        if args.output != 'stdout':
+        if args.output != "stdout":
             if output != None:
                 for key, value in output.items():
                     filename = args.output
                     if args.split == True:
-                        filename += '.' + key
-                    of = open(filename, 'w')
-                    print(value, end='', file=of)
+                        filename += "." + key
+                    of = open(filename, "w")
+                    print(value, end="", file=of)
         else:
             for key, value in output.items():
                 if args.split == False:
