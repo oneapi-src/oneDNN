@@ -166,6 +166,12 @@ public:
     // deep copies the module
     std::shared_ptr<ir_module_t> deep_copy() const;
 
+    // copies the module and remove the specified funcs by mask. A function will
+    // be copied to the returned IR module only if it is get_contents()[i] and
+    // mask[i] is true.
+    std::shared_ptr<ir_module_t> copy_and_remove_funcs(
+            const std::vector<bool> &mask) const;
+
     /**
      * Creates an IR module from a list of functions. Finds the direct and
      * indirect dependent functions of the given functions. Also rename the

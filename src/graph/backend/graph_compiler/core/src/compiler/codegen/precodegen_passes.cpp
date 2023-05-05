@@ -31,6 +31,7 @@
 #include <compiler/ir/transform/cpu/kernel_lower.hpp>
 #include <compiler/ir/transform/cpu/local_tensor_lower.hpp>
 #include <compiler/ir/transform/cpu/target_specific_lower.hpp>
+#include <compiler/ir/transform/dead_func_eliminate.hpp>
 #include <compiler/ir/transform/dead_write_eliminate.hpp>
 #include <compiler/ir/transform/dessa_transform.hpp>
 #include <compiler/ir/transform/dyn_tsr_transform.hpp>
@@ -116,6 +117,7 @@ sequential_module_pass_t get_default_precodegen_passes(
     ret.emplace_back(module_function_pass_t::make<bf16_eliminator_t>(ctx));
     ret.emplace_back(utils::make_unique<target_specific_lowering_cpu_t>(ctx));
     ret.emplace_back(utils::make_unique<func_inliner_t>());
+    ret.emplace_back(utils::make_unique<dead_func_eliminate_t>());
     ret.emplace_back(module_function_pass_t::make<loop_unroller_t>());
     ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>(false));
 

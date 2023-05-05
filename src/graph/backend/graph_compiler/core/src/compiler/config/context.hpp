@@ -62,6 +62,7 @@ struct scflags_t {
     // dnnl
     bool jit_support_amx_intrinsics_ = false;
     bool concat_optimization_ = true;
+    bool graph_default_private_ = true;
 };
 
 struct context_t {

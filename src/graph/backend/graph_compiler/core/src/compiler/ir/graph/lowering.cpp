@@ -1377,6 +1377,24 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     if (graph_name != default_graph_name) {
         ret_mod->attr_[ir_module_t::attr_key_t::NAME] = graph_name;
     }
+
+    if (ctx->flags_.graph_default_private_) {
+        for (auto &f : ret_mod->get_contents()) {
+            f->attr()[function_attrs::private_] = true;
+        }
+
+        ret_mod->get_entry_func()->attr().remove(function_attrs::private_);
+        for (auto &table : ret_mod->get_op_table_map()) {
+            for (auto &kv : table.second->kernel_table_) {
+                if (kv.second.already_compiled()) {
+                    if (auto f
+                            = ret_mod->get_func(kv.second.name_or_postfix_)) {
+                        f->attr().remove(function_attrs::private_);
+                    }
+                }
+            }
+        }
+    }
     return ret_mod;
 }
 } // namespace gc

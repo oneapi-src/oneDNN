@@ -37,6 +37,7 @@ enum pass_id {
     validator,
     trace_inserter,
     constant_folder,
+    dead_func_eliminate,
     tensor_inplace,
     target_specific_lowering_cpu,
     kernel_lowering_cpu,
