@@ -301,32 +301,33 @@ struct brgemm_t {
         return (M * get_ld_block2() + N);
     }
 
-    int tiles_for_A() const noexcept {
-        return (AMX_TILES_NUM - get_num_C_tiles() - 1);
+    int get_num_A_tiles() const noexcept {
+        const auto req_tiles = (bdb_tail && bdb > 1) ? 2 : 1;
+        const auto max_tiles = AMX_TILES_NUM - get_num_C_tiles() - 1;
+        const auto n_tiles = nstl::min(get_bd_block2(), max_tiles);
+        assert(n_tiles >= req_tiles);
+        return nstl::max(req_tiles, n_tiles);
     }
 
     int get_A_tensor(int m, bool m_tail = false) const noexcept {
-        auto full_A_tiles = get_num_A_tiles() - (bdb_tail ? 1 : 0);
+        const auto full_A_tiles = get_num_A_tiles() - (bdb_tail ? 1 : 0);
         auto M = m_tail ? get_num_A_tiles() - 1 : m % full_A_tiles;
         return (get_num_C_tiles() + M);
     }
 
-    int get_num_A_tiles() const noexcept {
-        return nstl::min(get_bd_block2(), tiles_for_A());
-    }
-
-    int tiles_for_B() const noexcept {
-        return (AMX_TILES_NUM - get_num_C_tiles() - get_num_A_tiles());
+    int get_num_B_tiles() const noexcept {
+        const auto req_tiles = (ldb_tail && ldb > 1) ? 2 : 1;
+        const auto max_tiles
+                = AMX_TILES_NUM - get_num_C_tiles() - get_num_A_tiles();
+        const auto n_tiles = nstl::min(get_ld_block2(), max_tiles);
+        assert(n_tiles >= req_tiles);
+        return nstl::max(req_tiles, n_tiles);
     }
 
     int get_B_tensor(int n, bool n_tail = false) const noexcept {
-        auto full_B_tiles = get_num_B_tiles() - (ldb_tail ? 1 : 0);
+        const auto full_B_tiles = get_num_B_tiles() - (ldb_tail ? 1 : 0);
         auto N = n_tail ? get_num_B_tiles() - 1 : n % full_B_tiles;
         return (get_num_C_tiles() + get_num_A_tiles() + N);
-    }
-
-    int get_num_B_tiles() const noexcept {
-        return nstl::min(get_ld_block2(), tiles_for_B());
     }
 
     int get_wsp_buffer_size() const noexcept {

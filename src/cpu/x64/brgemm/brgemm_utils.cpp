@@ -619,10 +619,7 @@ status_t brgemm_blocking(brgemm_t *brg) {
                 recalc_bd_block(16);
                 recalc_ld_block(16); // we can't use ld_block other than 16
                 recalc_bd_block2(
-                        nstl::min((brg->bcast_dim % 16 != 0
-                                          && brg->brgattr.bd_mask_level == 0)
-                                        ? ((brg->bdb > 4) ? 3 : 4)
-                                        : 5,
+                        nstl::min(brg->bdb_tail ? (brg->bdb > 4 ? 3 : 4) : 5,
                                 div_up(brg->bcast_dim, 16)));
                 recalc_ld_block2(1);
             } else if (bdb_block_tail && ldb_tail_16
@@ -646,6 +643,13 @@ status_t brgemm_blocking(brgemm_t *brg) {
                 else
                     recalc_ld_block2(div_up(brg->ldb2, k_it));
             }
+        }
+
+        if (brg->get_num_A_tiles() + brg->get_num_B_tiles()
+                        + brg->get_num_C_tiles()
+                > brgemm_t::AMX_TILES_NUM) {
+            assert(!"brgemm internal error: invalid blocking");
+            return status::runtime_error;
         }
 
         // check hints for blocking parameters

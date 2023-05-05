@@ -565,10 +565,11 @@ status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {
 
     const auto Br = (brg.typesize_C != 0) ? Ac / brg.typesize_C : 0;
 
-    if (brg.get_num_A_tiles() + brg.get_num_B_tiles()
-                    + brg.get_bd_block2() * brg.get_ld_block2()
-            > brgemm_t::AMX_TILES_NUM)
+    if (brg.get_num_A_tiles() + brg.get_num_B_tiles() + brg.get_num_C_tiles()
+            > brgemm_t::AMX_TILES_NUM) {
+        assert(!"brgemm internal error: invalid blocking");
         return status::unimplemented;
+    }
 
     // Due to interleaving tileload/tmul we don't support blocking 1x6 and 6x1
     //TODO: update gemm_microkernel_amx to support such blocking
