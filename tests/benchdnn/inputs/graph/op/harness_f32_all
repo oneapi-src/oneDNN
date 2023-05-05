@@ -1,6 +1,7 @@
 --reset --case=op/f32/abs.json
 --reset --case=op/f32/abs_bwd.json
 --reset --case=op/f32/add.json
+--reset --case=op/f32/add_0d.json
 --reset --case=op/f32/avgpool.json
 --reset --op-attrs=0:auto_pad:SAME_UPPER*kernel:2x2 --case=op/f32/avgpool.json
 --reset --op-attrs=0:auto_pad:SAME_LOWER*kernel:2x2 --case=op/f32/avgpool.json
