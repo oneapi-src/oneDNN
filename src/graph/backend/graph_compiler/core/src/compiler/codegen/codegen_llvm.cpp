@@ -1244,23 +1244,55 @@ public:
                     default: assert(0); break;
                 }
             } break;
-            case intrin_type::rsqrt: {
+            case intrin_type::sqrt: {
                 current_val_ = call_unary_llvm_intrin(
                         v, cate, Intrinsic::sqrt, true);
-                Value *ones
-                        = ConstantFP::get(builder_.getFloatTy(), APFloat(1.0f));
-                if (v->dtype_.lanes_ > 1) {
-                    ones = builder_.CreateVectorSplat(v->dtype_.lanes_, ones);
+            } break;
+            case intrin_type::rsqrt: {
+                // todo: The precision of AVX2 intrinsic is ~0.000366, not meet
+                // f32 precision judgements. Use fast-math pass to enable
+                // avx2/sse intrinsic with low precision(bf16/int8)
+                if (ctx_->machine_.cpu_flags_.fAVX512F
+                        && v->dtype_.lanes_ > 1) {
+                    auto inval = generate_expr(v->args_[0]);
+                    switch (v->dtype_.lanes_) {
+                        case 4:
+                            current_val_ = builder_.CreateIntrinsic(
+                                    Intrinsic::x86_avx512_rsqrt14_ps_128, {},
+                                    {inval, inval, builder_.getInt8(0xff)});
+
+                            break;
+                        case 8:
+                            current_val_ = builder_.CreateIntrinsic(
+                                    Intrinsic::x86_avx512_rsqrt14_ps_256, {},
+                                    {inval, inval, builder_.getInt8(0xff)});
+
+                            break;
+                        case 16:
+                            COMPILE_ASSERT(ctx_->machine_.cpu_flags_.fAVX512F,
+                                    "rsqrt of 16 floats needs AVX512");
+                            current_val_ = builder_.CreateIntrinsic(
+                                    Intrinsic::x86_avx512_rsqrt14_ps_512, {},
+                                    {inval, inval, builder_.getInt16(0xffff)});
+                            break;
+                        default:
+                            COMPILE_ASSERT(false,
+                                    "LLVM backend has not yet support "
+                                    "rsqrt with lanes = "
+                                            << v->dtype_.lanes_);
+                            break;
+                    }
+                } else {
+                    current_val_ = call_unary_llvm_intrin(
+                            v, cate, Intrinsic::sqrt, true);
+                    Value *ones = ConstantFP::get(
+                            builder_.getFloatTy(), APFloat(1.0f));
+                    if (v->dtype_.lanes_ > 1) {
+                        ones = builder_.CreateVectorSplat(
+                                v->dtype_.lanes_, ones);
+                    }
+                    current_val_ = builder_.CreateFDiv(ones, current_val_);
                 }
-                current_val_ = builder_.CreateFDiv(ones, current_val_);
-
-                // fix-me: (yijie) LLVM-8 does not correctly generate
-                // x86_avx_rsqrt_ps_256. LLVM-13 not tested
-
-                // COMPILE_ASSERT(v->dtype_ == sc_data_type_t::f32(8),
-                //         "Expecting f32x8 for rsqrt, got " << v->dtype_);
-                // current_val_ = call_unary_llvm_intrin(
-                //         v, cate, Intrinsic::x86_avx_rsqrt_ps_256, true);
             } break;
             case intrin_type::int_and: {
                 current_val_ = call_binary_llvm_normal(

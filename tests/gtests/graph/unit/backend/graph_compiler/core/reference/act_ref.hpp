@@ -153,9 +153,9 @@ static void ref_mish(T *out, const T *in, size_t size) {
 }
 
 template <typename T>
-static void ref_pow(T *out, const T *in, const T *ex, size_t size) {
+static void ref_pow(T *out, const T *in, size_t size, T ex) {
     test_utils::parallel_nd(static_cast<int>(size),
-            [&](int64_t i) { out[i] = powf(in[i], ex[i]); });
+            [&](int64_t i) { out[i] = powf(in[i], ex); });
 }
 
 template <typename T>
