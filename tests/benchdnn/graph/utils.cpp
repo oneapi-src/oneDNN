@@ -594,6 +594,7 @@ dnnl_driver_t opkind2driver(const dnnl::graph::op::kind &kind) {
 
 std::string strides2memory_tag(const size_t ndims,
         const dnnl::graph::logical_tensor::dims &strides, bool use_x_tag) {
+    if (ndims == 0) return use_x_tag ? "abx" : "a";
     std::string template_tag = "abcdefghijk";
     std::vector<std::pair<int64_t, char>> vp;
     bool valid_strides = ndims == strides.size();
