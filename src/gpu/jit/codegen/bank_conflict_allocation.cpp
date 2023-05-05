@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -786,7 +786,15 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
         // Can't find allocation without conflicts, use the fallback scheme:
         // use different banks for src0 and src2.
         int bank = -1;
-        for (size_t i = 0; i < bufs.size(); i++) {
+        // Sort bufs by size to mitigate fragmentation when allocating.
+        auto &buf_sizes = attr.buf_sizes;
+        std::vector<int> idx(bufs.size());
+        std::iota(idx.begin(), idx.end(), 0);
+        auto block_cmp = [&](int idx0, int idx1) {
+            return buf_sizes[idx0] > buf_sizes[idx1];
+        };
+        std::sort(idx.begin(), idx.end(), block_cmp);
+        for (int i : idx) {
             bool is_src02 = utils::one_of(buf_src_idx[i], 0, 2);
             int regs = buf_masks[i].regs;
             // Always use single block buffer.
