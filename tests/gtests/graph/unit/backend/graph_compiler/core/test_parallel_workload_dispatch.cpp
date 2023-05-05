@@ -75,6 +75,8 @@ TEST(GCCore_parallel_workload_dispatch, TestParallelElimination) {
             _for_(k, 0, 256, 1) { builder.emit(assign_stmt); }
         }
         _for_(i, 0, 1024, 1, for_type::PARALLEL) {
+            _var_(a, datatypes::s32);
+            a = builder::make_get_group_thread_id(-1);
             _for_(j, 0, 16, 16) {
                 _for_(k, 0, 512, 1) { builder.emit(assign_stmt); }
             }
@@ -99,6 +101,8 @@ TEST(GCCore_parallel_workload_dispatch, TestParallelElimination) {
             _var_init_(start, datatypes::index, tid * UINT64_C(64));
             _var_init_(end, datatypes::index, start + UINT64_C(64));
             _for_(i, start, end, 1) {
+                _var_(a, datatypes::s32);
+                a = builder::make_cast(datatypes::s32, tid);
                 _for_(j, 0, 16, 16) {
                     _for_(k, 0, 512, 1) { builder.emit(assign_stmt); }
                 }

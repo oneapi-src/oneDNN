@@ -317,7 +317,7 @@ void gen_nested_conv1x1_backprop_data_t::
       ori_W = static_cast<int>(ta.get_plain_dims()[ndims_ - 1]),
       ori_S = ori_H * ori_W, ori_IC = static_cast<int>(tb.get_plain_dims()[1]),
       ori_OC = static_cast<int>(tb.get_plain_dims()[0]);
-  _var_init_(tid, datatypes::s32, builtin::get_thread_id_func()());
+  _var_init_(tid, datatypes::s32, builder::make_get_group_thread_id(-1));
 
   _for_(o_bs, 0, BS_sub_block) {
     _for_(o_s, 0, S_sub_block) {

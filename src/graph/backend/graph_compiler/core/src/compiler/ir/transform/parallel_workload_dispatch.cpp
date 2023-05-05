@@ -59,6 +59,22 @@ static inline size_t extract_workload_from_stmt(
     return 0UL;
 }
 
+class tid_intrin_replacer_t : public ir_visitor_t {
+public:
+    expr tid_;
+    tid_intrin_replacer_t(const expr &tid) : tid_ {tid} {}
+    tid_intrin_replacer_t() = default;
+    expr_c visit(intrin_call_c v) override {
+        if (v->type_ == intrin_type::get_group_thread_id) {
+            auto level = v->args_.at(0).as<constant>();
+            if (get_const_as_int(level) == -1) {
+                return builder::make_cast(datatypes::s32, tid_);
+            }
+        }
+        return ir_visitor_t::visit(v);
+    }
+};
+
 static stmt split_parallel_loop(
         const for_loop &v, size_t wkld, int runtime_num_threads) {
     if (v->kind_ != for_type::PARALLEL || runtime_num_threads == 1) {
@@ -84,7 +100,9 @@ static stmt split_parallel_loop(
         v->iter_end_ = end;
         v->num_threads_ = 0;
         v->kind_ = for_type::NORMAL;
-        seq->seq_.emplace_back(v);
+
+        tid_intrin_replacer_t replacer {tid};
+        seq->seq_.emplace_back(replacer.dispatch(v).remove_const());
         return thread_for;
     }
     return v;

@@ -14,6 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include "exception_util.hpp"
+#include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/ir_comparer.hpp>
 #include <compiler/ir/transform/cpu/target_specific_lower.hpp>
@@ -156,4 +158,35 @@ TEST(GCCore_target_specific_lower_cpp, TestLowerSaturatedCast) {
     }
     ir_comparer cmper {true};
     EXPECT_TRUE(cmper.compare(ret, expected, false));
+}
+
+TEST(GCCore_target_specific_lower_cpp, TestLowerGetTidGid) {
+    builder::ir_builder_t builder;
+    _function_(datatypes::void_t, aaa, _arg_("A", datatypes::f32, {123, 321})) {
+        _bind_(A);
+        A[0] = builder::make_get_group_thread_id(-1);
+    }
+    _function_(datatypes::void_t, expected,
+            _arg_("A", datatypes::f32, {123, 321})) {
+        _bind_(A);
+        A[0] = builtin::get_thread_id_func()();
+    }
+    target_specific_lowering_cpu_t pass {get_default_context()};
+    auto ret = pass(ir_module_t::from_entry_func(get_default_context(), aaa));
+    ir_comparer cmper {true};
+    EXPECT_TRUE(cmper.compare(ret->get_entry_func(), expected, false));
+
+    _function_(datatypes::void_t, ccc, _arg_("A", datatypes::f32, {123, 321})) {
+        _bind_(A);
+        A[0] = builder::make_get_group_thread_id(0);
+    }
+    auto cccmod = ir_module_t::from_entry_func(get_default_context(), ccc);
+    EXPECT_SC_ERROR(pass(cccmod), "get_group_thread_id");
+
+    _function_(datatypes::void_t, ddd, _arg_("A", datatypes::f32, {123, 321})) {
+        _bind_(A);
+        A[0] = builder::make_get_group_id(0);
+    }
+    auto ddddmod = ir_module_t::from_entry_func(get_default_context(), ddd);
+    EXPECT_SC_ERROR(pass(ddddmod), "get_group_id");
 }

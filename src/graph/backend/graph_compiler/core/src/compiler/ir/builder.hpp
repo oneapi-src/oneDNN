@@ -700,6 +700,14 @@ expr make_write_struct(const expr_c &dyn_tsr, const expr_c &in,
 expr make_get_group_id(uint64_t par_for_level_id);
 
 /**
+ * Makes a node to get thread id in group. Specifying the (-1) group will return
+ * the global thread id
+ * @param par_for_level_id the level of parallel for
+ * @return the created node
+ * */
+expr make_get_group_thread_id(int par_for_level_id);
+
+/**
  * Makes a logic_not (!) node
  * @param in the input expression, should be of boolean type
  * @return the created node

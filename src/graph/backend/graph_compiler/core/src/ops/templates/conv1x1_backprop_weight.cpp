@@ -759,7 +759,7 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_ALL2(const context_ptr &ctx,
             _named_for_(ld, d, 0, D_num_block) {
               _named_for_(lp, oh, 0, OH_num_block) {
                 _var_init_(
-                  tid, datatypes::s32, builtin::get_thread_id_func()());
+                  tid, datatypes::s32, builder::make_get_group_thread_id(-1));
                 std::vector<expr> grad_input_idx
                   = {bs, oc, oh + padded_h_num, padded_w_num, 0, 0},
                   data_input_idx

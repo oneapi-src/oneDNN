@@ -733,7 +733,7 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
   int ori_M = static_cast<int>(ta.get_plain_dims()[0]),
       ori_K = static_cast<int>(ta.get_plain_dims()[1]),
       ori_N = static_cast<int>(tb.get_plain_dims()[1]);
-  expr tid = builtin::get_thread_id_func()();
+  expr tid = builder::make_get_group_thread_id(-1);
   expr B_vnni_tensor;
   _tensor_(B_vnni, get_B_dtype(),
     {utils::divide_and_ceil(ori_N, iin_block_),
@@ -1065,7 +1065,7 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
   int ori_M = static_cast<int>(ta.get_plain_dims()[0]),
       ori_K = static_cast<int>(ta.get_plain_dims()[1]),
       ori_N = static_cast<int>(tb.get_plain_dims()[1]);
-  expr tid = builtin::get_thread_id_func()();
+  expr tid = builder::make_get_group_thread_id(-1);
   _for_(m_b, 0, M_sub_block) {
     _named_for_(o_im_n, n_b, 0, N_sub_block) {
       expr m_b_idx, n_b_idx, k_b_idx, m_b_bigger_num, n_b_bigger_num,

@@ -1992,7 +1992,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
             p_o = outer_var;
           }
           _named_for_(ld, d_o, 0, od_ / config.tile_d) {
-            _var_init_(tid, datatypes::s32, builtin::get_thread_id_func()());
+            _var_init_(
+              tid, datatypes::s32, builder::make_get_group_thread_id(-1));
             _tensor_(A_list, datatypes::pointer, {kd_ * kh_ * kw_});
             _tensor_(B_list, datatypes::pointer, {kd_ * kh_ * kw_});
             _var_(prev_indices, datatypes::u32);

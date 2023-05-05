@@ -532,6 +532,17 @@ public:
             if (!runtime_config_t::get().managed_thread_pool_) { return 0; }
             return builtin::get_set_idle_func_managed_func()(
                     v->args_[0], args_pack);
+        } else if (v->type_ == intrin_type::get_group_thread_id) {
+            int64_t level_id
+                    = get_const_as_int(v->args_[0].checked_as<constant_c>());
+            COMPILE_ASSERT(level_id < 0,
+                    "get_group_thread_id is used outside of nested "
+                    "parallel. It must has group level -1.");
+            return builtin::get_thread_id_func()();
+        } else if (v->type_ == intrin_type::get_group_id) {
+            throw std::runtime_error(
+                    "get_group_id cannot be used outside of nested parallel.");
+            return expr();
         }
         intrin_func_creator lower_func = nullptr;
         intrin_func_namer namer_func = nullptr;

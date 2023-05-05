@@ -1370,8 +1370,12 @@ enum class intrin_type {
     prefetch,
     // explicitly load from const memory location
     load_const_mem,
-    // used in nested parallel flattening
+    // gets the group id in nested-parallel-for. It should be in 0 to (max
+    // number of groups)-1. Takes one parameter of u32 for the level of group.
     get_group_id,
+    // gets the thread id in nested-parallel-for. It should be in 0 to (max
+    // number of threads in group)-1. Takes one parameter of s32 for the
+    // level of group. A special parameter of (-1) gets the global thread id
     get_group_thread_id,
     // Below are micro-kernels, which should be lower to function call before
     // codegen

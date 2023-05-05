@@ -56,6 +56,7 @@ class nested_parallel_flatten_impl_t : public ir_visitor_t {
 
     std::vector<parallel_info_t> info_;
     std::vector<stmt> *top_level_parallel_seq_ = nullptr;
+    expr global_tid_;
     int runtime_threads_ = runtime_config_t::get().get_num_threads();
     int count_ = 0;
     int var_count_ = 0;
@@ -382,6 +383,7 @@ void work() {
                 // use the greatest number of total threads divisible by the
                 // current num_threads
                 num_threads = runtime_threads_ / num_threads * num_threads;
+                global_tid_ = tid0;
 
                 auto for_lv1 = builder::make_for_loop_unattached(tid0,
                         UINT64_C(0), uint64_t(num_threads), UINT64_C(1),
@@ -389,6 +391,7 @@ void work() {
                 transform_loop(
                         v, num_threads, body_lv1->seq_, tid0, false, false);
                 body_lv0->seq_.emplace_back(for_lv1);
+                global_tid_ = expr();
                 top_level_parallel_seq_ = nullptr;
                 cannot_parallel_ = false;
                 return body_lv0;
@@ -442,7 +445,19 @@ void work() {
                     level_id < info_.size(), "Level of group out of range");
             return info_[level_id].group_id_;
         } else if (v->type_ == intrin_type::get_group_thread_id) {
-            COMPILE_ASSERT(false, "Not used now");
+            int64_t level_id
+                    = get_const_as_int(v->args_[0].checked_as<constant_c>());
+            COMPILE_ASSERT(level_id < (int64_t)info_.size(),
+                    "Level of group out of range");
+            if (level_id < 0) {
+                if (global_tid_.defined()) {
+                    return builder::make_cast(datatypes::s32, global_tid_);
+                } else {
+                    return v;
+                }
+            } else {
+                return info_[level_id].thread_id_;
+            }
         } else {
             return ir_visitor_t::visit(v);
         }

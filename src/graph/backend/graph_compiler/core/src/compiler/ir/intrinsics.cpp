@@ -375,7 +375,7 @@ struct get_group_id_handler_t : public intrinsic_handler_t {
 struct get_group_thread_id_handler_t : public intrinsic_handler_t {
     void on_initialize(intrin_call_node &node) override {
         assert(node.args_.size() == 1);
-        node.dtype_ = datatypes::u32;
+        node.dtype_ = datatypes::s32;
     }
     get_group_thread_id_handler_t()
         : intrinsic_handler_t("get_group_thread_id") {}
