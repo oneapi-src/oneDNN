@@ -118,8 +118,8 @@ would lead to the following operation:
     * The intermediate operations are being done using single precision
       floating point data type.
     * \f$\alpha\f$ must be passed during execution runtime as a separate memory
-      argument. Using \src scale argument will lead to multiplication of tensor
-      values by a scale value. Using \dst scale argument will lead to division
+      argument. Using \f$\src\f$ scale argument will lead to multiplication of tensor
+      values by a scale value. Using \f$\dst\f$ scale argument will lead to division
       of tensor values by a scale value.
 
 ## Implementation Limitations

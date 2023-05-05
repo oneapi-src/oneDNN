@@ -22,6 +22,7 @@ operations which take bool as inputs and/or outputs data type.
 @note
     boolean is only supported in Graph Compiler in CPU engine. No primitives
     support boolean during primitive computation.
+
 ## Inference and Training
 
 oneDNN supports training and inference with the following data types:

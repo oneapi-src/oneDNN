@@ -51,11 +51,11 @@ exception is the API for creating a memory object. In that case, the API takes a
 of buffers. The order of the buffers in the vector matters and should correspond to
 the buffers' indices.
 
-oneDNN also introduces a new format kind #dnnl::memory::format_kind::sparse,
-sparse encoding. Sparse encoding (a.k.a. sparse format) is an
+oneDNN also introduces a new format kind dnnl::memory::format_kind::sparse. 
+Sparse encoding (a.k.a. sparse format) is an
 enumeration type that specifies how data is encoded. Currently, oneDNN only
 supports CSR (Compressed sparse row) sparse encoding
-(#dnnl::memory::sparse_encoding::csr).
+(dnnl::memory::sparse_encoding::csr).
 
 The memory descriptor has dedicated static member functions for creating memory
 descriptors for different sparse encodings.

@@ -140,7 +140,7 @@ the following error message occurs
 users shall manually set `ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_C_INCLUDE` to
 `/path_to_onednn_repo/src/graph/backend/graph_compiler/core/src`. 
 
-@warn The specified codegen method must be built. Otherwise, the default
+@warning The specified codegen method must be built. Otherwise, the default
 codegen method would be used.
 
 ### Enable Code Dumping
@@ -153,7 +153,7 @@ ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_DUMP_GENCODE="./dump_code" ./application
 
 This will dump the generated C kernels to `dump_code` folder.
 
-@warn `ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_DUMP_GENCODE` works under both LLVM
+@warning `ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_DUMP_GENCODE` works under both LLVM
 and C codegen.
 
 @warning The user specified `ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_DUMP_GENCODE`
