@@ -1051,12 +1051,12 @@ struct send_group_t {
         return type;
     }
 
-    send_group_t split(const split_bounds_t &bounds, int subtile_idx) const {
+    send_group_t split(
+            const split_bounds_t &bounds, int subtile_idx, bool is_g1b1) const {
         if (!is_block()) return send_group_t();
 
         int factor = bounds.factor();
-        int nblocks = (int)blocks.size();
-        if (nblocks == 1) {
+        if (is_g1b1) {
             if (type_size % factor != 0) return send_group_t();
             int new_type_size = type_size / factor;
             int grf_size = ngen::GRF::bytes(hw);
@@ -1950,11 +1950,13 @@ public:
     stmt_t create_stmt(const expr_t &mem_buf, const expr_t &reg_buf,
             int subtile_idx) const override {
         stmt_t ret;
+        bool is_g1b1 = (send_groups_.size() == 1)
+                && (send_groups_[0].blocks.size() == 1);
         for (auto &_g : send_groups_) {
             auto g = (split_factor_ == 1)
                     ? _g
                     : _g.split(split_bounds_t(reg_layout(), split_factor_),
-                            subtile_idx);
+                            subtile_idx, is_g1b1);
             ir_assert(!g.is_empty());
             bool try_legacy = send_params().try_legacy
                     && (g.hw < ngen::HW::XeHPC) && g.is_block();
@@ -2007,12 +2009,12 @@ public:
         if (factor == 1) return true;
         // XXX: For now handle block messages only.
         if (!is_block()) return false;
-        bool is_single_block = (send_groups_.size() == 1)
+        bool is_g1b1 = (send_groups_.size() == 1)
                 && (send_groups_[0].blocks.size() == 1);
-        if (is_single_block) {
+        if (is_g1b1) {
             // Try split.
             auto g = send_groups_[0].split(
-                    split_bounds_t(reg_layout(), factor), 0);
+                    split_bounds_t(reg_layout(), factor), 0, is_g1b1);
             if (!g.is_empty()) return true;
         }
 
@@ -2103,7 +2105,7 @@ private:
 
     static std::vector<stmt_t> try_legacy_send(const std::vector<stmt_t> &calls,
             const std::vector<send_info_t> &infos) {
-        ir_assert(!calls.empty());
+        if (calls.empty()) return calls;
         ir_assert(calls.size() == infos.size());
         int nmsgs = (int)calls.size();
         std::vector<bool> can_fuse(nmsgs + 1, true);
