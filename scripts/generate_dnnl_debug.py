@@ -348,7 +348,8 @@ def usage():
 Generates oneDNN debug header and source files with enum to string mapping.
 Input types.xml file can be obtained with CastXML[1]:
 $ castxml --castxml-cc-gnu-c clang --castxml-output=1 \\
-        -Iinclude include/oneapi/dnnl/dnnl_types.h -o types.xml
+        -DDNNL_EXPERIMENTAL_SPARSE -Iinclude -Ibuild/include \\
+        include/oneapi/dnnl/dnnl_types.h -o types.xml
 
 [1] https://github.com/CastXML/CastXML"""
         % sys.argv[0]
