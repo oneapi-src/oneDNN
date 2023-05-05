@@ -486,7 +486,7 @@ status_t memory_desc_init_by_string_tag(memory_desc_t &md, int ndims,
                     ? DNNL_RUNTIME_DIM_VAL
                     : (md.dims[dim_idx] + fib - 1) / fib * fib;
             md.padded_dims[dim_idx] = padded_dim;
-            if (padded_dim == DNNL_RUNTIME_DIM_VAL)
+            if (one_of(DNNL_RUNTIME_DIM_VAL, padded_dim, stride))
                 stride = DNNL_RUNTIME_DIM_VAL;
             else
                 stride *= (padded_dim / fib);
