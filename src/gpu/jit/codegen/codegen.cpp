@@ -472,7 +472,8 @@ private:
             align_src_dst_offset(host_, scope, mod, dst, _src1, _src2);
             if (hw < ngen::HW::XeLP
                     && (ngen_is_dw(to_ngen(mad_func.dst_type))
-                            || mad_func.dst_type == type_t::f64())) {
+                            || mad_func.dst_type == type_t::f64()
+                            || (src1_width == 1 && src2_width == 1))) {
                 // On Gen9 int is not supported; f64 supports broadcast only with exec size 2.
                 // Use mul/add sequence instead.
                 auto tmp = scope.alloc_range(
