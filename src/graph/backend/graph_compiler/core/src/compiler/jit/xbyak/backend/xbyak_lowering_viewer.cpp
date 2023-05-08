@@ -1955,9 +1955,26 @@ void xbyak_lowering_viewer::handle_avx_blend(const operand &op_dst,
         const x86_64::cpu_data_type &cpu_dtype) {
     COMPILE_ASSERT(op_cond.is_mask(), "op_cond must be Opmask.");
     switch (cpu_dtype) {
+        case cpu_data_type::uint_8_x16:
+        case cpu_data_type::uint_8_x32:
+        case cpu_data_type::uint_8_x64:
+        case cpu_data_type::sint_8_x16:
+        case cpu_data_type::sint_8_x32:
+        case cpu_data_type::sint_8_x64: {
+            XBYAK_GEN(vpblendmb, AVX_X_X_XM, op_dst.set_evex(op_cond), op_lhs,
+                    op_rhs);
+        } break;
+        case cpu_data_type::uint_16_x8:
         case cpu_data_type::uint_16_x16:
         case cpu_data_type::uint_16_x32: {
             XBYAK_GEN(vpblendmw, AVX_X_X_XM, op_dst.set_evex(op_cond), op_lhs,
+                    op_rhs);
+        } break;
+        case cpu_data_type::uint_32_x8:
+        case cpu_data_type::uint_32_x16:
+        case cpu_data_type::sint_32_x8:
+        case cpu_data_type::sint_32_x16: {
+            XBYAK_GEN(vpblendmd, AVX_X_X_XM, op_dst.set_evex(op_cond), op_lhs,
                     op_rhs);
         } break;
         case cpu_data_type::float_32_x8:
@@ -2057,20 +2074,36 @@ void xbyak_lowering_viewer::handle_avx_cmp_set(const operand &op_dst,
     };
     // Generate cmp_set code
     switch (cpu_dtype) {
-        case cpu_data_type::float_32: {
-            XBYAK_GEN(vcmpss, AVX_X_X_XM_I, op_dst, op_lhs, op_rhs, //
-                    op_imm(code));
-        } break;
-        case cpu_data_type::uint_8_x16: {
+        case cpu_data_type::uint_8_x16:
+        case cpu_data_type::uint_8_x32:
+        case cpu_data_type::uint_8_x64: {
             XBYAK_GEN(vpcmpub, AVX_K_X_XM_I, op_dst, op_lhs, op_rhs, //
                     op_imm(code));
         } break;
+        case cpu_data_type::sint_8_x16:
+        case cpu_data_type::sint_8_x32:
+        case cpu_data_type::sint_8_x64: {
+            XBYAK_GEN(vpcmpb, AVX_K_X_XM_I, op_dst, op_lhs, op_rhs, //
+                    op_imm(code));
+        } break;
+        case cpu_data_type::uint_16_x8:
+        case cpu_data_type::uint_16_x16:
+        case cpu_data_type::uint_16_x32: {
+            XBYAK_GEN(vpcmpuw, AVX_K_X_XM_I, op_dst, op_lhs, op_rhs, //
+                    op_imm(code));
+        } break;
+        case cpu_data_type::uint_32_x8:
         case cpu_data_type::uint_32_x16: {
             XBYAK_GEN(vpcmpud, AVX_K_X_XM_I, op_dst, op_lhs, op_rhs, //
                     op_imm(code));
         } break;
+        case cpu_data_type::sint_32_x8:
         case cpu_data_type::sint_32_x16: {
-            XBYAK_GEN(vcmppd, AVX_K_X_XM_I, op_dst, op_lhs, op_rhs, //
+            XBYAK_GEN(vpcmpd, AVX_K_X_XM_I, op_dst, op_lhs, op_rhs, //
+                    op_imm(code));
+        } break;
+        case cpu_data_type::float_32: {
+            XBYAK_GEN(vcmpss, AVX_X_X_XM_I, op_dst, op_lhs, op_rhs, //
                     op_imm(code));
         } break;
         case cpu_data_type::float_32_x8:

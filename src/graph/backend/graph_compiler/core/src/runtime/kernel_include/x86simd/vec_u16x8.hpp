@@ -98,25 +98,25 @@ INLINE vec_u16x8 operator^(vec_u16x8 const &a, vec_u16x8 const &b) {
 
 #ifdef __AVX512F__
 INLINE __mmask8 operator!(vec_u16x8 const &a) {
-    return _mm_cmp_epi16_mask(a.v, _mm_setzero_si128(), _MM_CMPINT_EQ);
+    return _mm_cmp_epu16_mask(a.v, _mm_setzero_si128(), _MM_CMPINT_EQ);
 }
 INLINE __mmask8 operator==(vec_u16x8 const &a, vec_u16x8 const &b) {
-    return _mm_cmp_epi16_mask(a.v, b.v, _MM_CMPINT_EQ);
+    return _mm_cmp_epu16_mask(a.v, b.v, _MM_CMPINT_EQ);
 }
 INLINE __mmask8 operator!=(vec_u16x8 const &a, vec_u16x8 const &b) {
-    return _mm_cmp_epi16_mask(a.v, b.v, _MM_CMPINT_NE);
+    return _mm_cmp_epu16_mask(a.v, b.v, _MM_CMPINT_NE);
 }
 INLINE __mmask8 operator>(vec_u16x8 const &a, vec_u16x8 const &b) {
-    return _mm_cmp_epi16_mask(a.v, b.v, _MM_CMPINT_GT);
+    return _mm_cmp_epu16_mask(a.v, b.v, _MM_CMPINT_GT);
 }
 INLINE __mmask8 operator<(vec_u16x8 const &a, vec_u16x8 const &b) {
-    return _mm_cmp_epi16_mask(a.v, b.v, _MM_CMPINT_LT);
+    return _mm_cmp_epu16_mask(a.v, b.v, _MM_CMPINT_LT);
 }
 INLINE __mmask8 operator>=(vec_u16x8 const &a, vec_u16x8 const &b) {
-    return _mm_cmp_epi16_mask(a.v, b.v, _MM_CMPINT_GE);
+    return _mm_cmp_epu16_mask(a.v, b.v, _MM_CMPINT_GE);
 }
 INLINE __mmask8 operator<=(vec_u16x8 const &a, vec_u16x8 const &b) {
-    return _mm_cmp_epi16_mask(a.v, b.v, _MM_CMPINT_LE);
+    return _mm_cmp_epu16_mask(a.v, b.v, _MM_CMPINT_LE);
 }
 INLINE vec_u16x8 sc_select(
         __mmask8 mask, vec_u16x8 const &a, vec_u16x8 const &b) {

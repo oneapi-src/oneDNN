@@ -88,25 +88,25 @@ INLINE vec_u8x32 operator^(vec_u8x32 const &a, vec_u8x32 const &b) {
 
 #ifdef __AVX512F__
 INLINE __mmask32 operator!(vec_u8x32 const &a) {
-    return _mm256_cmp_epi8_mask(a.v, _mm256_setzero_si256(), _MM_CMPINT_EQ);
+    return _mm256_cmp_epu8_mask(a.v, _mm256_setzero_si256(), _MM_CMPINT_EQ);
 }
 INLINE __mmask32 operator==(vec_u8x32 const &a, vec_u8x32 const &b) {
-    return _mm256_cmp_epi8_mask(a.v, b.v, _MM_CMPINT_EQ);
+    return _mm256_cmp_epu8_mask(a.v, b.v, _MM_CMPINT_EQ);
 }
 INLINE __mmask32 operator!=(vec_u8x32 const &a, vec_u8x32 const &b) {
-    return _mm256_cmp_epi8_mask(a.v, b.v, _MM_CMPINT_NE);
+    return _mm256_cmp_epu8_mask(a.v, b.v, _MM_CMPINT_NE);
 }
 INLINE __mmask32 operator>(vec_u8x32 const &a, vec_u8x32 const &b) {
-    return _mm256_cmp_epi8_mask(a.v, b.v, _MM_CMPINT_GT);
+    return _mm256_cmp_epu8_mask(a.v, b.v, _MM_CMPINT_GT);
 }
 INLINE __mmask32 operator<(vec_u8x32 const &a, vec_u8x32 const &b) {
-    return _mm256_cmp_epi8_mask(a.v, b.v, _MM_CMPINT_LT);
+    return _mm256_cmp_epu8_mask(a.v, b.v, _MM_CMPINT_LT);
 }
 INLINE __mmask32 operator>=(vec_u8x32 const &a, vec_u8x32 const &b) {
-    return _mm256_cmp_epi8_mask(a.v, b.v, _MM_CMPINT_GE);
+    return _mm256_cmp_epu8_mask(a.v, b.v, _MM_CMPINT_GE);
 }
 INLINE __mmask32 operator<=(vec_u8x32 const &a, vec_u8x32 const &b) {
-    return _mm256_cmp_epi8_mask(a.v, b.v, _MM_CMPINT_LE);
+    return _mm256_cmp_epu8_mask(a.v, b.v, _MM_CMPINT_LE);
 }
 INLINE vec_u8x32 sc_select(
         __mmask32 mask, vec_u8x32 const &a, vec_u8x32 const &b) {

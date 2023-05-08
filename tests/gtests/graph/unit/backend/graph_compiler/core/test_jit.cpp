@@ -633,72 +633,93 @@ TEST(GCCore_jit_cpp, TestJITVectorLoad) {
 #ifdef __AVX512F__
 TEST(GCCore_jit_cpp, TestJITCondition) {
     builder::ir_builder_t builder;
-    _function_(datatypes::void_t, aaa, _arg_("A", datatypes::f32, {1024}),
-            _arg_("B", datatypes::f32, {1024}),
-            _arg_("C", datatypes::f32, {1024}),
-            _arg_("D", datatypes::f32, {1024}),
-            _arg_("E", datatypes::f32, {1024}),
-            _arg_("F", datatypes::f32, {1024})) {
-        _bind_(A, B, C, D, E, F);
-        _for_(i, 0, 1024, 8) {
-            E[span_t({i}, 8)] = builder::make_select(
-                    C[span_t({i}, 8)] > D[span_t({i}, 8)], A[span_t({i}, 8)],
-                    B[span_t({i}, 8)]);
-            F[span_t({i}, 8)] = builder::make_select(
-                    builder::make_constant({UINT64_C(0x03)}, datatypes::u8),
-                    A[span_t({i}, 8)], B[span_t({i}, 8)]);
-        }
-    }
 
-    auto engines = get_engines();
-    for (auto &engine : engines) {
-        SCOPED_TRACE(std::string("Testing ") + get_engine_name(engine));
-        auto fptr = engine->get_entry_func(
-                ir_module_t::from_entry_func(get_default_context(), aaa));
-        ASSERT_TRUE(fptr);
-        auto getC = []() {
-            std::vector<float> A(2048);
-            for (int i = 0; i < (int)A.size(); i++) {
-                A[i] = i;
-            }
-            return A;
-        };
-        auto getD = []() {
-            std::vector<float> A(2048);
-            for (int i = 0; i < (int)A.size(); i++) {
-                A[i] = 2 * i - 100;
-            }
-            return A;
-        };
-        auto getA = []() {
-            std::vector<float> A(2048);
-            for (int i = 0; i < (int)A.size(); i++) {
-                A[i] = 2 * i + 100;
-            }
-            return A;
-        };
-        auto getB = []() {
-            std::vector<float> A(2048);
-            for (int i = 0; i < (int)A.size(); i++) {
-                A[i] = 2 * i - 100;
-            }
-            return A;
-        };
-        std::vector<float> E(1024);
-        std::vector<float> F(1024);
-        auto A = getA();
-        auto B = getB();
-        auto C = getC();
-        auto D = getD();
-        fptr->call<void>(
-                A.data(), B.data(), C.data(), D.data(), E.data(), F.data());
-        for (int i = 0; i < 1024; i++) {
-            auto expected_e = C[i] > D[i] ? A[i] : B[i];
-            auto expected_f = (i % 8) < 2 ? A[i] : B[i];
-            EXPECT_NEAR(E[i], expected_e, 1e-5);
-            EXPECT_NEAR(F[i], expected_f, 1e-5);
-        }
-    }
+#define TEST_FUNC( \
+        test_type, test_step, test_dtype, test_const_type, test_func_name) \
+    auto test_func_name = [](const int step, sc_data_type_t dtype_sc, \
+                                  sc_data_type_t sc_const_type) { \
+        _function_(datatypes::void_t, aaa, _arg_("A", dtype_sc, {1024}), \
+                _arg_("B", dtype_sc, {1024}), _arg_("C", dtype_sc, {1024}), \
+                _arg_("D", dtype_sc, {1024}), _arg_("E", dtype_sc, {1024}), \
+                _arg_("F", dtype_sc, {1024})) { \
+            _bind_(A, B, C, D, E, F); \
+            _for_(i, 0, 1024, step) { \
+                E[span_t({i}, step)] = builder::make_select( \
+                        C[span_t({i}, step)] > D[span_t({i}, step)], \
+                        A[span_t({i}, step)], B[span_t({i}, step)]); \
+                F[span_t({i}, step)] = builder::make_select( \
+                        builder::make_constant( \
+                                {UINT64_C(0x03)}, sc_const_type), \
+                        A[span_t({i}, step)], B[span_t({i}, step)]); \
+            } \
+        } \
+        auto engines = get_engines(); \
+        for (auto &engine : engines) { \
+            SCOPED_TRACE(std::string("Testing ") + get_engine_name(engine)); \
+            auto fptr = engine->get_entry_func( \
+                    ir_module_t::from_entry_func(get_default_context(), aaa)); \
+            ASSERT_TRUE(fptr); \
+            auto getC = []() { \
+                std::vector<test_type> A(2048); \
+                for (int i = 0; i < (int)A.size(); i++) { \
+                    A[i] = i % 2; \
+                } \
+                return A; \
+            }; \
+            auto getD = [&]() { \
+                std::vector<test_type> A(2048); \
+                for (int i = 0; i < (int)A.size(); i++) { \
+                    A[i] = 2 * i % step; \
+                } \
+                return A; \
+            }; \
+            auto getA = []() { \
+                std::vector<test_type> A(2048); \
+                for (int i = 0; i < (int)A.size(); i++) { \
+                    A[i] = 2 * i + 100; \
+                } \
+                return A; \
+            }; \
+            auto getB = []() { \
+                std::vector<test_type> A(2048); \
+                for (int i = 0; i < (int)A.size(); i++) { \
+                    A[i] = 2 * i - 100; \
+                } \
+                return A; \
+            }; \
+            std::vector<test_type> E(1024); \
+            std::vector<test_type> F(1024); \
+            auto A = getA(); \
+            auto B = getB(); \
+            auto C = getC(); \
+            auto D = getD(); \
+            fptr->call<void>(A.data(), B.data(), C.data(), D.data(), E.data(), \
+                    F.data()); \
+            for (int i = 0; i < 1024; i++) { \
+                auto expected_e = C[i] > D[i] ? A[i] : B[i]; \
+                auto expected_f = (i % step) < 2 ? A[i] : B[i]; \
+                EXPECT_NEAR(E[i], expected_e, 1e-5); \
+                EXPECT_NEAR(F[i], expected_f, 1e-5); \
+            } \
+        } \
+    }; \
+    test_func_name(test_step, test_dtype, test_const_type);
+
+    TEST_FUNC(float, 8, datatypes::f32, datatypes::u8, test_floatx8)
+    TEST_FUNC(float, 16, datatypes::f32, datatypes::u16, test_floatx16)
+    TEST_FUNC(int32_t, 8, datatypes::s32, datatypes::u8, test_s32x8)
+    TEST_FUNC(int32_t, 16, datatypes::s32, datatypes::u16, test_s32x16)
+    TEST_FUNC(uint32_t, 8, datatypes::u32, datatypes::u8, test_u32x8)
+    TEST_FUNC(uint32_t, 16, datatypes::u32, datatypes::u16, test_u32x16)
+    TEST_FUNC(uint16_t, 8, datatypes::u16, datatypes::u8, test_u16x8)
+    TEST_FUNC(uint16_t, 16, datatypes::u16, datatypes::u16, test_u16x16)
+    TEST_FUNC(uint16_t, 32, datatypes::u16, datatypes::u32, test_u16x32)
+    TEST_FUNC(uint8_t, 16, datatypes::u8, datatypes::u16, test_u8x16)
+    TEST_FUNC(uint8_t, 32, datatypes::u8, datatypes::u32, test_u8x32)
+    TEST_FUNC(uint8_t, 64, datatypes::u8, datatypes::index, test_u8x64)
+    TEST_FUNC(int8_t, 16, datatypes::s8, datatypes::u16, test_s8x16)
+    TEST_FUNC(int8_t, 32, datatypes::s8, datatypes::u32, test_s8x32)
+    TEST_FUNC(int8_t, 64, datatypes::s8, datatypes::index, test_s8x64)
 }
 
 TEST(GCCore_jit_cpp, TestJITVectorUnpackElemLanes) {
