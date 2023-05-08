@@ -448,18 +448,18 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
     int os_chunks = div_up(jbgp.nb_os, jbgp.nb_os_blocking);
     int other_work = oc_chunks * os_chunks;
 
-    // TODO: although the below heuristic produces good performance for fp32,
-    // other_work needs to compared with nthr (instead of nb_ic) and os_block
-    // needs some further tuning.
+    const int max_nb_ic_blocking = nstl::min(64, jbgp.nb_ic);
+    const int min_ic_chunks = jbgp.nb_ic / max_nb_ic_blocking;
 
     // Use parallel IC reduction for f32 if we have:
-    //  * very large input channels
-    //  * work amount in mb and oc dimensions is small compared to nb_ic
-    //  * number of threads > 1
-    //  * not a "gigantic shape" since it already has a lot of parallelism
-    //      in mb and oc dimensions w/o enabling IC parallelism
-    const bool use_parallel_ic_reduction = is_f32_compute && jbgp.ic > 1024
-            && other_work < jbgp.nb_ic && jbgp.nthr > 1 && !is_gigantic_shape;
+    //  * Very large input channels.
+    //  * Low amount of parallelism on os/oc dimensions compared to ic dimension.
+    //  * Number of threads > 1.
+    //  * Not a "gigantic shape" since it already has a lot of parallelism
+    //    in os and oc dimensions w/o enabling IC parallelism.
+    bool low_work_amount = other_work < 2 * min_ic_chunks * jbgp.nthr;
+    bool use_parallel_ic_reduction = is_f32_compute && jbgp.ic > 1024
+            && low_work_amount && jbgp.nthr > 1 && !is_gigantic_shape;
 
     // For os > 256, compute all os blocks as a single chunk when performing
     // IC reduction. Note that this condition is empirical
@@ -469,7 +469,6 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
     jbgp.nb_ic_blocking = 1;
     jbgp.nthr_ic_b = 1;
     const int k_blk = jbgp.is_bf32 ? amx_xf16_row : jbgp.ic_block;
-    const int max_nb_ic_blocking = nstl::min(64, jbgp.nb_ic);
     const bool trivial_shape
             = everyone_is(1, jbgp.kw, jbgp.kh, jbgp.kd) && !jbgp.use_buffer_a;
     const bool small_ic = jbgp.ic <= max_nb_ic_blocking * jbgp.ic_block;
