@@ -223,7 +223,7 @@ private:
     };
 
     void ker_base(brgemm_thread_ctx_t &btc) const;
-    void ker_trans(brgemm_thread_ctx_t &btc, char *inp_buffer) const;
+    void ker_trans(brgemm_thread_ctx_t &btc) const;
     void ker_vpad(brgemm_thread_ctx_t &btc) const;
 
     void perform_outwork(const brgemm_thread_ctx_t &btc, char *dst_base,
@@ -236,11 +236,9 @@ private:
             char *ptr_D, const char *bias_w, int g_oc, bool do_postops,
             int comp_ker_offs, bool do_only_comp) const;
 
-    void maybe_conv_inp(int ithr, const char *__restrict src,
-            char *__restrict inp_buffer, uint8_t *__restrict inp_buffer_mask,
-            int g, int n, int icc, int odb, int ohb, int owb, int last_g,
-            int last_n, int last_icc, int last_odb, int last_ohb,
-            int last_owb) const;
+    void maybe_conv_inp(const brgemm_thread_ctx_t &btc,
+            const brgemm_thread_ctx_t &last_btc,
+            const char *__restrict src) const;
 
     status_t add_po_kernel(brgemm_t *bcfg, int ker_idx, bool is_init);
     void add_po_kernels(int i_N, int init_bcast_dim, int po_bcast_dim);

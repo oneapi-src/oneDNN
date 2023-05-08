@@ -1131,28 +1131,32 @@ template <cpu_isa_t isa, bool use_inversion>
 struct brgemm_convolution_fwd_t<isa, use_inversion>::brgemm_thread_ctx_t {
     brgemm_thread_ctx_t(brgemm_exec_ctx_t &brgemm_ctx_, int ithr_,
             brgemm_batch_element_t *__restrict brg_batch_, char *c_buffer_,
-            char *wsp_tile_)
+            char *wsp_tile_, const char *__restrict weights_)
         : brgemm_ctx(brgemm_ctx_)
         , ithr(ithr_)
         , brg_batch(brg_batch_)
         , c_buffer(c_buffer_)
-        , wsp_tile(wsp_tile_) {}
+        , wsp_tile(wsp_tile_)
+        , weights(weights_) {}
 
     brgemm_exec_ctx_t &brgemm_ctx;
     int ithr {0};
     brgemm_batch_element_t *__restrict brg_batch {nullptr};
-    char *c_buffer {nullptr};
-    char *wsp_tile {nullptr};
+    char *__restrict c_buffer {nullptr};
+    char *__restrict wsp_tile {nullptr};
     int cur_brg_idx {-1};
-    int g {0}, n {0}, ocb {0};
-    int od {0}, odb {0}, oh {0}, ohb {0}, owb {0};
-    int icc = 0;
-    const float *oscales {nullptr};
+    int g {-1}, n {-1}, ocb {-1};
+    int od {-1}, odb {-1}, oh {-1}, ohb {-1}, owb {-1};
+    int icc {-1};
+    const float *__restrict oscales {nullptr};
     int32_t src_zp_vals {0};
-    int32_t *src_zp_comp_ptr {nullptr};
-    int32_t *dst_zp_vals {nullptr};
-    int32_t *s8s8_comp_ptr {nullptr};
-    const float *dst_scales {nullptr};
+    int32_t *__restrict src_zp_comp_ptr {nullptr};
+    int32_t *__restrict dst_zp_vals {nullptr};
+    int32_t *__restrict s8s8_comp_ptr {nullptr};
+    const float *__restrict dst_scales {nullptr};
+    char *__restrict inp_buffer {nullptr};
+    uint8_t *__restrict inp_buffer_mask {nullptr};
+    const char *const __restrict weights {nullptr};
 };
 
 template <cpu_isa_t isa, bool use_inversion>
@@ -1175,7 +1179,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::execute(
     brgemm_exec_ctx_t brgemm_ctx(ctx, _pd);
 
     const char *const __restrict src = brgemm_ctx.src;
-    const char *const __restrict wei = brgemm_ctx.weights;
+    const char *__restrict wei = brgemm_ctx.weights;
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
     const auto extra_data_offset
@@ -1244,24 +1248,29 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::execute(
         char *const __restrict c_buffer = (jcp.use_buffer)
                 ? c_buffer_global + ithr * acc_dsz * jcp.buffer_size
                 : nullptr;
-        char *inp_buffer = (jcp.exec_type == exec_trans)
+        char *const wsp_tile = is_amx
+                ? wsp_tile_global + ithr * jcp.amx_buf_size_per_thread
+                : nullptr;
+
+        brgemm_thread_ctx_t btc(
+                brgemm_ctx, ithr, brg_batch, c_buffer, wsp_tile, wei);
+        brgemm_thread_ctx_t last_btc = btc;
+
+        btc.inp_buffer = (jcp.exec_type == exec_trans)
                 ? inp_p_buffer + src_dsz * ithr * jcp.inp_buffer_size
                 : nullptr;
-        if (is_amx && inp_buffer) {
+        if (is_amx && btc.inp_buffer) {
             // Workaround: for some machines SEGFAULT possible on tile load
             // if the page was not touched before it
             for (dim_t i = 0; i < jcp.inp_buffer_size;
                     i += brgemm_convolution_utils::P4K)
-                inp_buffer[i] = 0;
+                btc.inp_buffer[i] = 0;
         }
 
-        uint8_t *__restrict inp_buffer_mask = (jcp.exec_type == exec_trans)
+        btc.inp_buffer_mask = (jcp.exec_type == exec_trans)
                 ? inp_p_buffer_mask + ithr * jcp.inp_buffer_mask_size
                 : nullptr;
 
-        char *const wsp_tile = is_amx
-                ? wsp_tile_global + ithr * jcp.amx_buf_size_per_thread
-                : nullptr;
         dim_t start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
         int n {0}, g {0}, ocb {0}, odb {0}, ohb {0}, owb {0};
@@ -1274,15 +1283,6 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::execute(
         else
             assert(!"Unknown loop order");
 
-        brgemm_thread_ctx_t btc(
-                brgemm_ctx, ithr, brg_batch, c_buffer, wsp_tile);
-
-        int last_n = -1;
-        int last_g = -1;
-        int last_icc = -1;
-        int last_odb = -1;
-        int last_ohb = -1;
-        int last_owb = -1;
         for (auto work = start; work < end; work++) {
             btc.g = g;
             btc.n = n;
@@ -1299,10 +1299,11 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::execute(
                     = jcp.s8s8_compensation_required ? s8s8_comp_base : nullptr;
             btc.dst_scales = dst_scales;
 
-            if (jcp.exec_type == exec_trans && (last_n != n || last_g != g)) {
+            if (jcp.exec_type == exec_trans
+                    && (last_btc.n != n || last_btc.g != g)) {
                 if (!jcp.copy_block_only)
-                    std::memset(
-                            inp_buffer_mask, false, jcp.inp_buffer_mask_size);
+                    std::memset(btc.inp_buffer_mask, false,
+                            jcp.inp_buffer_mask_size);
             }
             auto od_begin = odb * jcp.od_block;
             auto od_end = nstl::min(OD, od_begin + jcp.od_block);
@@ -1313,30 +1314,27 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::execute(
                     ? oh_begin + 1
                     : nstl::min(OH, oh_begin + jcp.oh_block);
             for_(int od = od_begin; od < od_end; od++)
-            for (int oh = oh_begin; oh < oh_end; oh++) {
-                for (int icc = 0; icc < _pd->ic_chunks; icc++) {
-                    btc.od = od;
-                    btc.oh = oh;
-                    btc.icc = icc;
+            for_(int oh = oh_begin; oh < oh_end; oh++)
+            for (int icc = 0; icc < _pd->ic_chunks; icc++) {
+                btc.od = od;
+                btc.oh = oh;
+                btc.icc = icc;
 
-                    if (jcp.exec_type == exec_base) {
-                        ker_base(btc);
-                    } else if (jcp.exec_type == exec_trans) {
-                        maybe_conv_inp(ithr, src, inp_buffer, inp_buffer_mask,
-                                g, n, icc, odb, ohb, owb, last_g, last_n,
-                                last_icc, last_odb, last_ohb, last_owb);
-                        ker_trans(btc, inp_buffer);
-                    } else if (jcp.exec_type == exec_vpad) {
-                        ker_vpad(btc);
-                    } else
-                        assert(!"Unknown exec type");
-                    last_n = n;
-                    last_g = g;
-                    last_icc = icc;
-                    last_odb = odb;
-                    last_ohb = ohb;
-                    last_owb = owb;
-                }
+                if (jcp.exec_type == exec_base) {
+                    ker_base(btc);
+                } else if (jcp.exec_type == exec_trans) {
+                    maybe_conv_inp(btc, last_btc, src);
+                    ker_trans(btc);
+                } else if (jcp.exec_type == exec_vpad) {
+                    ker_vpad(btc);
+                } else
+                    assert(!"Unknown exec type");
+                last_btc.n = n;
+                last_btc.g = g;
+                last_btc.icc = icc;
+                last_btc.odb = odb;
+                last_btc.ohb = ohb;
+                last_btc.owb = owb;
             }
             if (jcp.loop_order == loop_ndhwgc)
                 nd_iterator_step(n, jcp.mb, odb, jcp.nb_od, ohb, jcp.nb_oh, owb,
@@ -1558,52 +1556,54 @@ inline void brgemm_convolution_fwd_t<isa, use_inversion>::call_brgemm_kernel(
 }
 
 template <cpu_isa_t isa, bool use_inversion>
-void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_inp(int ithr,
-        const char *__restrict src, char *__restrict inp_buffer,
-        uint8_t *__restrict inp_buffer_mask, int g, int n, int icc, int odb,
-        int ohb, int owb, int last_g, int last_n, int last_icc, int last_odb,
-        int last_ohb, int last_owb) const {
+void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_inp(
+        const brgemm_thread_ctx_t &btc, const brgemm_thread_ctx_t &last_btc,
+        const char *__restrict src) const {
 
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
-    const auto icb = icc * jcp.nb_ic_blocking;
+    const auto icb = btc.icc * jcp.nb_ic_blocking;
 
 #define bmask(icb, odb, ohb, owb) \
-    inp_buffer_mask[(((icb)*jcp.nb_od + (odb)) * jcp.nb_oh + (ohb)) \
+    btc.inp_buffer_mask[(((icb)*jcp.nb_od + (odb)) * jcp.nb_oh + (ohb)) \
                     * jcp.nb_ow \
             + (owb)]
 
     if (jcp.copy_block_only) {
-        if (last_g == g && last_n == n && last_icc == icc && last_odb == odb
-                && last_ohb == ohb && last_owb == owb)
+        if (last_btc.g == btc.g && last_btc.n == btc.n
+                && last_btc.icc == btc.icc && last_btc.odb == btc.odb
+                && last_btc.ohb == btc.ohb && last_btc.owb == btc.owb)
             return;
     } else {
-        if (bmask(icb, odb, ohb, owb)) return;
+        if (bmask(icb, btc.odb, btc.ohb, btc.owb)) return;
     }
 
     auto cp = jit_brgemm_conv_trans_kernel_call_s();
 
-    const auto prev_odb = (jcp.copy_block_only || odb == 0
-                                  || bmask(icb, odb - 1, ohb, owb) == 0)
+    const auto prev_odb
+            = (jcp.copy_block_only || btc.odb == 0
+                      || bmask(icb, btc.odb - 1, btc.ohb, btc.owb) == 0)
             ? false
             : true;
 
-    const auto prev_ohb = (jcp.copy_block_only || ohb == 0
-                                  || bmask(icb, odb, ohb - 1, owb) == 0)
+    const auto prev_ohb
+            = (jcp.copy_block_only || btc.ohb == 0
+                      || bmask(icb, btc.odb, btc.ohb - 1, btc.owb) == 0)
             ? false
             : true;
 
     const auto prev_odb_ohb
             = (jcp.copy_block_only
-                      || (odb > 0 && ohb > 0
-                              && bmask(icb, odb - 1, ohb - 1, owb) == 0))
+                      || (btc.odb > 0 && btc.ohb > 0
+                              && bmask(icb, btc.odb - 1, btc.ohb - 1, btc.owb)
+                                      == 0))
             ? false
             : true;
 
     const auto ic = icb * jcp.ic_block;
-    const auto g_ic = g * jcp.ic + ic;
-    const auto oh = ohb * jcp.oh_block;
-    const auto ow = owb * jcp.ow_block;
+    const auto g_ic = btc.g * jcp.ic + ic;
+    const auto oh = btc.ohb * jcp.oh_block;
+    const auto ow = btc.owb * jcp.ow_block;
     const auto iw = nstl::max(0, ow * SW - LP);
 
     int id_start {0}, id_end {0}, ih_start {0}, ih_end {0};
@@ -1627,41 +1627,42 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_inp(int ithr,
         virt_end = virt_cur_start + virt_i_bs;
         end = saturate(0, i, cur_start + i_bs);
     };
-    get_start_end(id_start, id_end, virt_id_start, virt_id_end, odb,
+    get_start_end(id_start, id_end, virt_id_start, virt_id_end, btc.odb,
             jcp.od_block, nstl::min(ID, IDP - FP), OD, SD, FP, KD, DD - 1,
             prev_odb && prev_odb_ohb);
-    get_start_end(ih_start, ih_end, virt_ih_start, virt_ih_end, ohb,
+    get_start_end(ih_start, ih_end, virt_ih_start, virt_ih_end, btc.ohb,
             jcp.oh_block, nstl::min(IH, IHP - TP), OH, SH, TP, KH, DH - 1,
             prev_ohb && prev_odb_ohb);
 
     // how many real data rows to copy (including padding)
     const auto rows_to_copy = ih_end - ih_start;
-    cp.owb = owb;
+    cp.owb = btc.owb;
     cp.ic = ic;
     const auto iw_buf = jcp.copy_block_only ? 0 : (ow * SW);
     dim_t inp_offset_start, out_offset_start;
 
+    const auto base_ih_buf = (jcp.copy_block_only ? 0 : ih_start) + TP;
+    const auto base_out_offset_start
+            = (jcp.copy_block_only ? 0
+                                   : static_cast<dim_t>(icb) * _pd->pbuf_d_sz)
+            + base_ih_buf * _pd->pbuf_w_sz
+            + iw_buf * jcp.ic_block * jcp.kh_sets * jcp.kw_sets;
+    const auto base_inp_offset_start = static_cast<dim_t>(btc.n) * src_d_sz
+            + iw * jcp.ngroups * jcp.ic_without_padding + g_ic;
+
     for (int kh = 0; kh < jcp.kh_sets; kh++) {
+        int ih_s {0}, ih_f {0};
         if (jcp.kh_sets > 1) {
             assert(!jcp.is_os_blocking);
-            const auto ih_s = oh * SH + kh * DH - TP;
-            const auto ih_f = (oh + jcp.oh_block - 1) * SH + kh * DH - TP + 1;
+            ih_s = max(0, TP - oh * SH - kh * DH);
+            ih_f = max(0, (oh + jcp.oh_block - 1) * SH + kh * DH - TP + 1 - IH);
 
-            cp.t_pad = max(0, -ih_s);
-            cp.b_pad = max(0, ih_f - jcp.ih);
             cp.h_count = max(0, jcp.oh_block);
-            const auto ih_buf = (jcp.copy_block_only ? 0 : ih_start) + TP;
-
-            inp_offset_start = static_cast<dim_t>(n) * src_d_sz
-                    + max(ih_s, ih_start) * src_w_sz
-                    + iw * jcp.ngroups * jcp.ic_without_padding + g_ic;
-
+            inp_offset_start
+                    = base_inp_offset_start + max(ih_s, ih_start) * src_w_sz;
             // inp_buffer has physical padding
-            out_offset_start = (jcp.copy_block_only ? 0
-                                                    : static_cast<dim_t>(icb)
-                                                       * _pd->pbuf_d_sz)
-                    + ih_buf * _pd->pbuf_w_sz
-                    + (iw_buf * jcp.kh_sets + kh) * jcp.kw_sets * jcp.ic_block;
+            out_offset_start
+                    = base_out_offset_start + kh * jcp.kw_sets * jcp.ic_block;
         } else {
             // For os_blocking:
             // We have to zero top and bottom padding now
@@ -1669,41 +1670,34 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_inp(int ithr,
             // TODO: extend M_mask (may be different for different kh) to avoid copying
             // top/bottom padded rows and avoid extra calculations in kernel
             // also for convolutions with pw == 0 the copy routine maybe not needed
-            cp.t_pad = jcp.is_os_blocking ? max(0, -virt_ih_start) : 0;
-            cp.b_pad = jcp.is_os_blocking ? max(0, virt_ih_end - IH) : 0;
-            cp.h_count = max(0, rows_to_copy) + cp.t_pad + cp.b_pad;
-            const auto ih_buf
-                    = (jcp.copy_block_only ? 0 : ih_start) + TP - cp.t_pad;
+            ih_s = jcp.is_os_blocking ? max(0, -virt_ih_start) : 0;
+            ih_f = jcp.is_os_blocking ? max(0, virt_ih_end - IH) : 0;
 
-            inp_offset_start = static_cast<dim_t>(n) * src_d_sz
-                    + ih_start * src_w_sz
-                    + iw * jcp.ngroups * jcp.ic_without_padding + g_ic;
-
+            cp.h_count = max(0, rows_to_copy) + ih_s + ih_f;
+            inp_offset_start = base_inp_offset_start + ih_start * src_w_sz;
             // inp_buffer has physical padding
-            out_offset_start = (jcp.copy_block_only ? 0
-                                                    : static_cast<dim_t>(icb)
-                                                       * _pd->pbuf_d_sz)
-                    + ih_buf * _pd->pbuf_w_sz
-                    + iw_buf * jcp.ic_block * jcp.kh_sets * jcp.kw_sets;
+            out_offset_start = base_out_offset_start - ih_s * _pd->pbuf_w_sz;
         }
+        cp.t_pad = ih_s;
+        cp.b_pad = ih_f;
 
         for (int id = id_start; id < id_end; id++) {
             const auto inp_offset = inp_offset_start + id * src_h_sz;
             const auto id_buf = id - (jcp.copy_block_only ? id_start : 0) + FP;
             const auto out_offset = out_offset_start + id_buf * _pd->pbuf_h_sz;
             cp.src = src + src_dsz * inp_offset;
-            cp.dst = inp_buffer + src_dsz * out_offset;
+            cp.dst = btc.inp_buffer + src_dsz * out_offset;
             (*copy_to_pbuffer_)(&cp);
         }
     }
-    if (!jcp.copy_block_only) bmask(icb, odb, ohb, owb) = 1;
+    if (!jcp.copy_block_only) bmask(icb, btc.odb, btc.ohb, btc.owb) = 1;
 
 #undef bmask
 }
 
 #define BRGEMM_CONV_KER_HEADER \
     const char *const __restrict src = btc.brgemm_ctx.src; \
-    const char *const __restrict weights = btc.brgemm_ctx.weights; \
+    const char *const __restrict weights = btc.weights; \
     const char *const __restrict bias = btc.brgemm_ctx.bias; \
     const int oc = btc.ocb * jcp.oc_block; \
     const int g_oc = btc.g * jcp.oc + oc; \
@@ -1899,7 +1893,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
 
 template <cpu_isa_t isa, bool use_inversion>
 void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
-        brgemm_thread_ctx_t &btc, char *inp_buffer) const {
+        brgemm_thread_ctx_t &btc) const {
 
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
@@ -1951,7 +1945,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
         brgemm_palettes_.maybe_tile_configure(is_amx, btc.cur_brg_idx, brg_idx);
 
         const auto kh_ee = jcp.kh_sets > 1 ? kh_b + 1 : kh_e;
-        const auto pbuf_base = inp_buffer
+        const auto pbuf_base = btc.inp_buffer
                 + src_dsz
                         * ((jcp.copy_block_only ? 0
                                                 : ((icb + ic_block_s)
