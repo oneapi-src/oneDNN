@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2016-2022 Intel Corporation
-* Copyright 2020-2022 Arm Ltd. and affiliates
+* Copyright 2020-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -164,16 +164,7 @@ public:
         *engine = new cpu_engine_t();
 
 #if DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
-#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
-        // Number of threads in Compute Library is set by OMP_NUM_THREADS
-        // dnnl_get_max_threads() == OMP_NUM_THREADS
-        dnnl::impl::cpu::aarch64::acl_thread_utils::acl_thread_bind();
-#endif
-
-#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-        // Set ACL scheduler for threadpool runtime
-        dnnl::impl::cpu::aarch64::acl_thread_utils::acl_set_custom_scheduler();
-#endif
+        dnnl::impl::cpu::aarch64::acl_thread_utils::set_acl_threading();
 #endif
         return status::success;
     };

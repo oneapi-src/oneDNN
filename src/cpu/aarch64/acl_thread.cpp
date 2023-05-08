@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Arm Ltd. and affiliates
+* Copyright 2022-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -13,11 +13,12 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#include "cpu/aarch64/acl_thread.hpp"
 
+#include "cpu/aarch64/acl_thread.hpp"
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 #include "cpu/aarch64/acl_threadpool_scheduler.hpp"
 #endif
+#include "cpu/aarch64/acl_benchmark_scheduler.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -38,10 +39,23 @@ void acl_thread_bind() {
         arm_compute::Scheduler::get().set_num_threads(max_threads);
     });
 }
+// Swap BenchmarkScheduler for default ACL scheduler builds (i.e. CPPScheduler, OMPScheduler)
+void acl_set_benchmark_scheduler_default() {
+    static std::once_flag flag_once;
+    arm_compute::IScheduler *_real_scheduler = &arm_compute::Scheduler::get();
+    std::shared_ptr<arm_compute::IScheduler> benchmark_scheduler
+            = std::make_unique<BenchmarkScheduler>(*_real_scheduler);
+    // set Benchmark scheduler in ACL
+    std::call_once(flag_once, [&]() {
+        arm_compute::Scheduler::set(
+                std::static_pointer_cast<arm_compute::IScheduler>(
+                        benchmark_scheduler));
+    });
+}
 #endif
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-void acl_set_custom_scheduler() {
+void acl_set_threadpool_scheduler() {
     static std::once_flag flag_once;
     // Create threadpool scheduler
     std::shared_ptr<arm_compute::IScheduler> threadpool_scheduler
@@ -65,7 +79,38 @@ void acl_set_threadpool_num_threads() {
         });
     }
 }
+// Swap BenchmarkScheduler for custom scheduler builds (i.e. ThreadPoolScheduler)
+void acl_set_benchmark_scheduler_tp() {
+    static std::once_flag flag_once;
+    // Create threadpool scheduler
+    std::unique_ptr<arm_compute::IScheduler> threadpool_scheduler
+            = std::make_unique<ThreadpoolScheduler>();
+    arm_compute::IScheduler *_real_scheduler = nullptr;
+    _real_scheduler = threadpool_scheduler.release();
+    // Create benchmark scheduler and set TP as real scheduler
+    std::shared_ptr<arm_compute::IScheduler> benchmark_scheduler
+            = std::make_unique<BenchmarkScheduler>(*_real_scheduler);
+    std::call_once(flag_once,
+            [&]() { arm_compute::Scheduler::set(benchmark_scheduler); });
+}
 #endif
+
+void set_acl_threading() {
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
+    acl_thread_bind();
+    if (verbose_has_profile_externals()) {
+        acl_set_benchmark_scheduler_default();
+    }
+#endif
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    if (verbose_has_profile_externals()) {
+        acl_set_tp_benchmark_scheduler();
+    } else {
+        acl_set_tp_scheduler();
+    }
+
+#endif
+}
 
 } // namespace acl_thread_utils
 

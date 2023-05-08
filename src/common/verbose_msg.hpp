@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2023 Intel Corporation
+* Copyright 2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,6 +28,7 @@
 #define VERBOSE_dispatch ":dispatch"
 #define VERBOSE_debug ":debug"
 #define VERBOSE_profile ""
+#define VERBOSE_external ":external"
 
 // verbose messages
 #define VERBOSE_NULL_ARG "one of the mandatory arguments is nullptr"
