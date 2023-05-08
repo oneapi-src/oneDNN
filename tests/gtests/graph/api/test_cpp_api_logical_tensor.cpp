@@ -70,9 +70,11 @@ TEST(APILogicalTensor, CreateWithStrides) {
     const size_t id = 123;
 
     // 0D
-    logical_tensor lt_0 {id, data_type::f32, {}, {}};
+    logical_tensor lt_0 {id, data_type::f32, logical_tensor::dims {},
+            logical_tensor::dims {}};
     ASSERT_EQ(lt_0.get_id(), id);
     ASSERT_EQ(lt_0.get_dims().size(), 0U);
+    ASSERT_EQ(lt_0.get_strides().size(), 0U);
 
     // 1D
     logical_tensor lt_1 {id, data_type::f32, {3}, logical_tensor::dims {1}};
