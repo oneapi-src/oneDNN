@@ -274,10 +274,11 @@ void dynamic_quantize_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     auto inp_op = graph->make_input(inputs);
     auto div_scale = graph->make("div", {inp, scales}, {}, {});
     if (inputs.size() == 3) {
-        auto zp_cast = graph->make("cast", {div_scale->get_outputs()[0]}, {},
-                {{"dtype", datatypes::s32}, {"saturated", true}});
-        div_scale = graph->make(
-                "add", {zp_cast->get_outputs()[0], inputs[2]}, {}, {});
+        auto zp_cast = graph->make(
+                "cast", {inputs[2]}, {}, {{"dtype", datatypes::f32}});
+        div_scale = graph->make("add",
+                {div_scale->get_outputs()[0], zp_cast->get_outputs()[0]}, {},
+                {});
     }
     auto int8_cast = graph->make("cast", div_scale->get_outputs(), {},
             {{"dtype", qinfos.dtype_}, {"saturated", true}});
@@ -331,10 +332,11 @@ void dynamic_dequantize_op_t::get_graph_impl(
     auto inp_op = graph->make_input(inputs);
     auto f32_cast = graph->make("cast", {inp}, {}, {{"dtype", datatypes::f32}});
     if (inputs.size() == 3) {
-        auto zp_cast = graph->make("cast", {f32_cast->get_outputs()[0]}, {},
-                {{"dtype", datatypes::s32}, {"saturated", true}});
-        f32_cast = graph->make(
-                "sub", {zp_cast->get_outputs()[0], inputs[2]}, {}, {});
+        auto zp_cast = graph->make(
+                "cast", {inputs[2]}, {}, {{"dtype", datatypes::f32}});
+        f32_cast = graph->make("sub",
+                {f32_cast->get_outputs()[0], zp_cast->get_outputs()[0]}, {},
+                {});
     }
     auto mul_scale
             = graph->make("mul", {f32_cast->get_outputs()[0], scales}, {}, {});
