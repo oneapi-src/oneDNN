@@ -97,9 +97,10 @@ status_t gen_gemm_kernel_desc_t::finalize() {
             dim_t thread_gpu = eu_count_
                     * compute::device_info_t::threads_per_eu(
                             arch_, strategy_.GRFs > 128);
-            if (thread_count <= thread_gpu)
-                strategy_.persistent = strategy_.hilbertOrder
-                        = strategy_.boustrophedon = false;
+            if (thread_count <= thread_gpu) {
+                strategy_.persistent = false;
+                strategy_.cWalkOrder = WalkOrder::HW2D;
+            }
         }
     }
 
@@ -302,7 +303,10 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     EvaluateParams eval_params;
 
     eval_params.sizes = match_params[0].sizes;
-    eval_params.beta = (post_ops.len() > 0) ? 0.0f : beta;
+    eval_params.alpha = alpha;
+    eval_params.beta = beta;
+    eval_params.postOps = (post_ops.len() > 0);
+    eval_params.cConvert = (acc_type != c_type);
     eval_params.euCount = eu_count;
 
     entry_ = select(
@@ -553,11 +557,11 @@ void gen_gemm_kernel_t::init_interface() {
         interface_.newArgument("group_count_m", DataType::ud);
         interface_.newArgument("group_count_n", DataType::ud);
     }
-    if (strategy.hilbertOrder) {
+    if (strategy.cWalkOrder == WalkOrder::Hilbertlike) {
         interface_.newArgument("hilbert_vd", DataType::ud);
         interface_.newArgument("hilbert_uvd_recip", DataType::ud);
         interface_.newArgument("hilbert_bail", DataType::ud);
-    } else if (strategy.boustrophedon) {
+    } else if (strategy.cWalkOrder == WalkOrder::Boustrophedon) {
         interface_.newArgument("bslice", DataType::d);
         interface_.newArgument("bthresh", DataType::d);
     }

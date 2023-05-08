@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,10 +33,12 @@ struct SizeParams {
 
 struct EvaluateParams {
     SizeParams sizes;
-    double beta;
+    double alpha, beta;
     int euCount;
     int tileCount = 1;
     bool effective = false;
+    bool cConvert = false;
+    bool postOps = false;
 };
 
 struct DerivedEvaluateParams : public EvaluateParams {
@@ -46,7 +48,9 @@ struct DerivedEvaluateParams : public EvaluateParams {
     int threadsPerEU;
     int hwThreadCapacity;
     int hwMinThreadsToFill;
+    int hwMinThreadsToFillFullWGK;
     int partialWaveCount;
+    bool autoatomic;
 };
 
 struct EvaluateAuxOutput {

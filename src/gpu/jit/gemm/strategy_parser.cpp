@@ -108,8 +108,8 @@ void getCaching(std::stringstream &s, MatrixAddressingStrategy &astrategy) {
 static void getTiling(std::stringstream &s, bool doR, bool doC,
         MatrixAddressingStrategy &astrategy) {
     if (s.peek() == '#') {
-        char eat;
-        int in;
+        char eat = 0;
+        int in = 0;
         if (doR) s >> eat >> in, astrategy.tileR = in;
         if (doC) s >> eat >> in, astrategy.tileC = in;
     }
@@ -320,16 +320,29 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.reverse[LoopM] = true;
         else if (mod == "rn")
             strategy.reverse[LoopN] = true;
-        else if (mod == "kb") {
-            strategy.kParallel = true;
+        else if (mod == "kb" || mod == "kv") {
+            if (mod == "kb") strategy.kParallel = true;
+            if (mod == "kv") {
+                strategy.kParallelVariable = true;
+                strategy.fuseBeta = true;
+                strategy.fusePostOps = true;
+            }
             strategy.C.atomic = true;
             strategy.CO.atomic = problem.sumA || problem.sumB;
             if (strategy.CO.atomic)
                 strategy.CO.base = AddressBase::createA64(true);
         } else if (mod == "kr")
             strategy.kParallelLocal = true;
+        else if (mod == "fb")
+            strategy.fuseBeta = true;
+        else if (mod == "fp")
+            strategy.fusePostOps = true;
+        else if (mod == "afb")
+            strategy.fuseBeta = strategy.altFusedBeta = true;
         else if (mod == "au")
             strategy.C.atomic = true;
+        else if (mod == "nau")
+            strategy.C.atomic = strategy.autoatomic = false;
         else if (mod == "ff")
             strategy.forceWGUpdate = WGFixed;
         else if (mod == "wg") {
@@ -345,16 +358,14 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             s >> std::ws >> x;
             s >> strategy.namedBarriers[LoopN];
         } else if (mod == "bo")
-            strategy.boustrophedon = true;
+            strategy.cWalkOrder = WalkOrder::Boustrophedon;
         else if (mod == "hi")
-            strategy.hilbertOrder = true;
+            strategy.cWalkOrder = WalkOrder::Hilbertlike;
+        else if (mod == "li")
+            strategy.cWalkOrder = WalkOrder::SimpleLinear;
         else if (mod == "pt")
             strategy.persistent = true;
-        else if (mod == "pl") {
-            strategy.A_prefetch.prefetch = false;
-            strategy.B_prefetch.prefetch = false;
-            strategy.C_prefetch.prefetch = false;
-        } else if (mod == "nq") {
+        else if (mod == "nq") {
             strategy.A.noExtraPad = strategy.A_prefetch.noExtraPad = true;
             strategy.B.noExtraPad = strategy.B_prefetch.noExtraPad = true;
             strategy.C.noExtraPad = strategy.C_prefetch.noExtraPad = true;
@@ -375,7 +386,9 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             } else if (mod.substr(0, 2) == "sb") {
                 strategy.barrierFreq = stoi(mod.substr(2));
                 strategy.splitBarrier = true;
-            } else if (mod.substr(0, 2) == "ql") {
+            } else if (mod.substr(0, 2) == "pk")
+                strategy.kPadding = stoi(mod.substr(2));
+            else if (mod.substr(0, 2) == "ql") {
                 strategy.skewLocalIDs = true;
             } else
                 switch (mod[0]) {
