@@ -60,8 +60,29 @@ struct gemm_inner_product_fwd_t : public primitive_t {
                     && inner_product_utils::post_ops_ok(
                             attr()->post_ops_, &dst_md_)
                     && attr_.set_default_formats(dst_md(0)) == status::success;
+            if (!ok) return status::unimplemented;
 
-            return ok ? status::success : status::unimplemented;
+            const auto sum_idx = attr()->post_ops_.find(primitive_kind::sum);
+            // Native GeMM doesn't support sum with a dt other than dst_dt.
+            sum_through_pp_kernel_ = sum_idx >= 0
+                    && !utils::one_of(attr()->post_ops_.entry_[sum_idx].sum.dt,
+                            data_type::undef, dst_md()->data_type);
+            init_scratchpad();
+
+            return status::success;
+        }
+
+        bool sum_through_pp_kernel_ = false;
+
+    private:
+        void init_scratchpad() {
+            using namespace memory_tracking::names;
+            if (sum_through_pp_kernel_) {
+                auto scratchpad = scratchpad_registry().registrar();
+                const memory_desc_wrapper dst_d(dst_md());
+                scratchpad.template book<char>(
+                        key_gemm_tmp_buffer, dst_d.size());
+            }
         }
     };
 
@@ -76,14 +97,13 @@ struct gemm_inner_product_fwd_t : public primitive_t {
                 = pd()->attr()->post_ops_.find(primitive_kind::binary) >= 0;
         const bool has_prelu
                 = pd()->attr()->post_ops_.find(primitive_kind::prelu) >= 0;
-        postops_in_ip_ = has_bias || has_eltwise || has_binary || has_prelu;
+
+        const bool has_sum = pd()->sum_through_pp_kernel_;
+        postops_in_ip_
+                = has_bias || has_eltwise || has_binary || has_prelu || has_sum;
 
         CHECK(safe_ptr_assign(pp_kernel_,
-                inner_product_utils::pp_kernel_t::create(pd(), true)));
-
-        auto sum_idx = pd()->attr()->post_ops_.find(primitive_kind::sum);
-        beta_ = sum_idx >= 0 ? pd()->attr()->post_ops_.entry_[sum_idx].sum.scale
-                             : 0.0;
+                inner_product_utils::pp_kernel_t::create(pd(), !has_sum)));
 
         return pp_kernel_->create_kernel();
     }
@@ -100,7 +120,6 @@ private:
 
     std::unique_ptr<inner_product_utils::pp_kernel_t> pp_kernel_;
     bool postops_in_ip_;
-    float beta_;
 };
 
 template <impl::data_type_t data_type>

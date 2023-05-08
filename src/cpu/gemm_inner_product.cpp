@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,6 +43,11 @@ status_t gemm_inner_product_fwd_t<data_type>::execute_forward(
             = binary_injector_utils::prepare_binary_args(
                     this->pd()->attr()->post_ops_, ctx);
 
+    auto scratchpad = ctx.get_scratchpad_grantor();
+    auto acc_ptr = scratchpad.template get<data_t>(
+            memory_tracking::names::key_gemm_tmp_buffer);
+    auto acc = pd()->sum_through_pp_kernel_ ? acc_ptr : dst;
+
     const dim_t MB = pd()->MB();
     const dim_t OC = pd()->OC();
     const dim_t IC = pd()->IC_total_padded();
@@ -53,11 +58,15 @@ status_t gemm_inner_product_fwd_t<data_type>::execute_forward(
     bool wei_tr = wmd.format_desc.blocking.strides[0] != 1;
     // check if MB is the leading dimension
     bool src_tr = smd.format_desc.blocking.strides[0] == 1 && IC > 1;
+    const auto sum_idx = pd()->attr()->post_ops_.find(primitive_kind::sum);
+    float beta = !pd()->sum_through_pp_kernel_ && sum_idx >= 0
+            ? pd()->attr()->post_ops_.entry_[sum_idx].sum.scale
+            : 0.f;
 
     float alpha = 1.;
     status_t st = extended_sgemm(wei_tr ? "T" : "N", src_tr ? "T" : "N", &OC,
             &MB, &IC, &alpha, weights, wei_tr ? &IC : &OC, src,
-            src_tr ? &MB : &IC, &beta_, dst, &OC,
+            src_tr ? &MB : &IC, &beta, acc, &OC,
             postops_in_ip_ ? nullptr : bias);
 
     if (st != status::success) return st;
@@ -68,7 +77,7 @@ status_t gemm_inner_product_fwd_t<data_type>::execute_forward(
             size_t start, end;
             balance211((size_t)(OC * MB), nthr, ithr, start, end);
             const size_t dim1_off = start % OC;
-            (*pp_kernel_)(dst, dst, (char *)bias, nullptr, 1.0f, start, start,
+            (*pp_kernel_)(dst, acc, (char *)bias, nullptr, 1.0f, start, start,
                     dim1_off, end, 0,
                     pd()->OC() * pd()->OD() * pd()->OH() * pd()->OW(), nullptr,
                     post_ops_binary_rhs_arg_vec.data(), dst, 0, ctx,
