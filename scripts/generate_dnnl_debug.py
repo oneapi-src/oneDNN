@@ -147,6 +147,7 @@ def source_benchdnn(body):
     return (
         """\
 #include <assert.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "oneapi/dnnl/dnnl_debug.h"
@@ -288,6 +289,10 @@ def str_to_func(enum, values, is_dnnl=True):
             v,
         )
     if enum != "dnnl_format_tag_t":
+        func += (
+            '%sprintf("Error: %s ' % (indent, abbrev)
+            + '`%s` is not supported.\\n", str);\n'
+        )
         func += '%sassert(!"unknown %s");\n' % (indent, abbrev)
     func += "%sreturn %s;\n}\n" % (
         indent,

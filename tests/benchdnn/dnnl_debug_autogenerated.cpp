@@ -20,6 +20,7 @@
 // clang-format off
 
 #include <assert.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "oneapi/dnnl/dnnl_debug.h"
@@ -46,6 +47,7 @@ dnnl_data_type_t str2dt(const char *str) {
 #undef CASE
     if (!strcmp("undef", str) || !strcmp("dnnl_data_type_undef", str))
         return dnnl_data_type_undef;
+    printf("Error: dt `%s` is not supported.\n", str);
     assert(!"unknown dt");
     return dnnl_data_type_undef;
 }
@@ -61,6 +63,7 @@ dnnl_sparse_encoding_t str2sparse_encoding(const char *str) {
 #undef CASE
     if (!strcmp("undef", str) || !strcmp("dnnl_sparse_encoding_undef", str))
         return dnnl_sparse_encoding_undef;
+    printf("Error: sparse_encoding `%s` is not supported.\n", str);
     assert(!"unknown sparse_encoding");
     return dnnl_sparse_encoding_undef;
 }
