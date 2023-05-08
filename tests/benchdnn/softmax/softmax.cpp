@@ -162,20 +162,22 @@ int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     return OK;
 }
 
-int fill_data_bwd(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, int seed) {
+int fill_data_bwd(data_kind_t data_kind, const prb_t *prb, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, int seed) {
     const auto nelems = mem_fp.nelems();
-    const int range = 128;
+    const int range = seed % 2 == 0 ? 8 : 128;
 
-    // to avoid any cancellation erros it's better to have d_dst and dst of
+    // to avoid any cancellation error it's better to have d_dst and dst of
     // different signs (refer to ref computations).
     // softmax := (d_dst - SUM (d_dst * dst); keep +d_dst and -dst.
     // logsoftmax := d_dst - exp(dst) * SUM (d_dst); keep -d_dst and +dst.
-    // seed decides about the sign.
+    // seed decides about the sign; 1 for SOFTMAX, 0 for LOGSOFTMAX
+
     const float sign = seed % 2 == 0 ? 1.f : -1.f;
     benchdnn_parallel_nd(nelems, [&](int64_t i) {
         const float gen = ((11 * i) + 37 + 19 * seed) % range;
-        const float value = sign * gen / range;
+        float coeff = data_kind == DIFF_DST ? sign * 1.f : sign * (1.f / range);
+        float value = coeff * gen;
         mem_fp.set_elem(i, value);
     });
 
@@ -274,12 +276,13 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
             case DNNL_ARG_DST:
                 if (dir & FLAG_BWD) {
                     const bool neg_sign = prb->alg == SOFTMAX ? true : false;
-                    SAFE(fill_data_bwd(prb, mem, ref_mem, neg_sign), WARN);
+                    SAFE(fill_data_bwd(DST, prb, mem, ref_mem, neg_sign), WARN);
                 }
                 break;
             case DNNL_ARG_DIFF_DST: {
                 const bool neg_sign = prb->alg == SOFTMAX ? true : false;
-                SAFE(fill_data_bwd(prb, mem, ref_mem, !neg_sign), WARN);
+                SAFE(fill_data_bwd(DIFF_DST, prb, mem, ref_mem, !neg_sign),
+                        WARN);
             } break;
             case DNNL_ARG_SCRATCHPAD: break;
             default: { // Process all attributes here
