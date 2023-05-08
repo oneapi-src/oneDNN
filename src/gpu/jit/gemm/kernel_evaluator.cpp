@@ -203,7 +203,6 @@ double evaluateECore(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
     auto kthread = k;
     auto capacity = dp.hwThreadCapacity;
     auto capacity1 = dp.hwMinThreadsToFill;
-    auto capacity1K = dp.hwMinThreadsToFillFullWGK;
 
     if (e.driverInfo.kParallel())
         kthread = aux.k0;
@@ -218,8 +217,7 @@ double evaluateECore(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
     double threadsFull = std::floor(threads / capacity) * capacity;
     double threadsPartial = threads - threadsFull;
     double partialWaves = std::ceil(threadsPartial / capacity1);
-    double npartial
-            = std::ceil(threads / capacity1) * ((double)capacity1 / capacity1K);
+    double npartial = std::ceil(threads / capacity1);
 
     double Mc = (dp.beta == 0. || dp.autoatomic) ? PARAM(Mc) : PARAM(Mcu);
     double C0 = PARAM(C0), C1 = PARAM(C1);
@@ -379,12 +377,9 @@ DerivedEvaluateParams getDerivedParams(
 
     auto unrollM = e.driverInfo.unroll[LoopM];
     auto unrollN = e.driverInfo.unroll[LoopN];
-    auto unrollK = e.driverInfo.unroll[LoopK];
 
     auto wgM = e.driverInfo.wg[LoopM];
     auto wgN = e.driverInfo.wg[LoopN];
-    auto wgK = e.driverInfo.wg[LoopK];
-    auto fullWGK = wgK;
 
     auto wgTileM = wgM * unrollM;
     auto wgTileN = wgN * unrollN;
@@ -406,12 +401,7 @@ DerivedEvaluateParams getDerivedParams(
         }
     }
 
-    if (e.driverInfo.kParallelLocal()) {
-        int minK0 = unrollK * (e.driverInfo.kParallel() ? 1 : 2);
-        wgK = std::min<int>(wgK, std::max<int>(1, divUp(p.sizes.k, minK0)));
-    }
-
-    auto threadsPerWG = wgM * wgN * wgK;
+    auto threadsPerWG = wgM * wgN * e.driverInfo.wg[LoopK];
 
     dp.mPad = dp.wgCountM * wgTileM;
     dp.nPad = dp.wgCountN * wgTileN;
@@ -437,7 +427,6 @@ DerivedEvaluateParams getDerivedParams(
 
     dp.hwThreadCapacity = dp.threadsPerEU * p.euCount;
     dp.hwMinThreadsToFill = threadsPerWG * ssCount;
-    dp.hwMinThreadsToFillFullWGK = wgM * wgN * fullWGK * ssCount;
     dp.partialWaveCount = divUp(dp.hwThreadCapacity, dp.hwMinThreadsToFill);
 
     dp.autoatomic = (dp.beta == 1) && !p.cConvert && !p.postOps

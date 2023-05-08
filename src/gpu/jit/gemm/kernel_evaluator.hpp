@@ -48,7 +48,6 @@ struct DerivedEvaluateParams : public EvaluateParams {
     int threadsPerEU;
     int hwThreadCapacity;
     int hwMinThreadsToFill;
-    int hwMinThreadsToFillFullWGK;
     int partialWaveCount;
     bool autoatomic;
 };
