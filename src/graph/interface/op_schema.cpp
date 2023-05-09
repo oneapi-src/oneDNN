@@ -46,15 +46,6 @@ op_kind_t op_schema_t::get_op_kind() const {
     return op_kind_;
 }
 
-op_schema_t &op_schema_t::set_doc(std::string &&doc) {
-    doc_ = std::move(doc);
-    return *this;
-}
-
-const std::string &op_schema_t::get_doc() const {
-    return doc_;
-}
-
 op_schema_t &op_schema_t::since_version(opset_version n) {
     version_ = n;
     return *this;
@@ -92,11 +83,11 @@ std::set<size_t> op_schema_t::get_num_outputs() const {
     return num_outputs_;
 }
 
-op_schema_t &op_schema_t::set_input(size_t in_offset, std::string &&in_name,
-        std::string &&in_description, std::string &&dtype_string) {
+op_schema_t &op_schema_t::set_input(
+        size_t in_offset, std::string &&in_name, std::string &&dtype_string) {
     verify_input_(in_offset);
-    inputs_.emplace_back(op_parameter_t(std::move(in_name),
-            std::move(in_description), std::move(dtype_string)));
+    inputs_.emplace_back(
+            op_parameter_t(std::move(in_name), std::move(dtype_string)));
     return *this;
 }
 
@@ -105,11 +96,11 @@ op_schema_t::get_inputs() const {
     return inputs_;
 }
 
-op_schema_t &op_schema_t::set_output(size_t out_offset, std::string &&out_name,
-        std::string &&out_description, std::string &&dtype_string) {
+op_schema_t &op_schema_t::set_output(
+        size_t out_offset, std::string &&out_name, std::string &&dtype_string) {
     verify_output_(out_offset);
-    outputs_.emplace_back(op_parameter_t(std::move(out_name),
-            std::move(out_description), std::move(dtype_string)));
+    outputs_.emplace_back(
+            op_parameter_t(std::move(out_name), std::move(dtype_string)));
     return *this;
 }
 
@@ -135,8 +126,8 @@ op_schema_t::get_outputs() const {
     return outputs_;
 }
 
-op_schema_t &op_schema_t::set_attr(op_attr_t name, std::string &&description,
-        bool required, attribute_kind_t attr_kind,
+op_schema_t &op_schema_t::set_attr(op_attr_t name, bool required,
+        attribute_kind_t attr_kind,
         const std::vector<const char *> &candidates) {
     assertm(attributes_.count(name) == 0,
             "provided attribute has already been set");
@@ -145,13 +136,13 @@ op_schema_t &op_schema_t::set_attr(op_attr_t name, std::string &&description,
             [](const char *c) {
                 return utils::attribute_value_t {std::string(c)};
             });
-    attributes_[name] = attribute_t(name, std::move(description), required,
-            attr_kind, std::move(candidates_tmp));
+    attributes_[name]
+            = attribute_t(name, required, attr_kind, std::move(candidates_tmp));
     return *this;
 }
 
-op_schema_t &op_schema_t::set_attr(op_attr_t name, std::string &&description,
-        bool required, attribute_kind_t attr_kind, const char *value,
+op_schema_t &op_schema_t::set_attr(op_attr_t name, bool required,
+        attribute_kind_t attr_kind, const char *value,
         const std::vector<const char *> &candidates) {
     assertm(attributes_.count(name) == 0,
             "provided attribute has already been set");
@@ -160,8 +151,8 @@ op_schema_t &op_schema_t::set_attr(op_attr_t name, std::string &&description,
             [](const char *c) {
                 return utils::attribute_value_t {std::string(c)};
             });
-    attributes_[name] = attribute_t(name, std::move(description), required,
-            attr_kind, utils::attribute_value_t {std::string(value)},
+    attributes_[name] = attribute_t(name, required, attr_kind,
+            utils::attribute_value_t {std::string(value)},
             std::move(candidates_tmp));
     return *this;
 }

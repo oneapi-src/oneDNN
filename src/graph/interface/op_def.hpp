@@ -32,8 +32,8 @@ DNNL_GRAPH_OP_SCHEMA(Abs, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -42,11 +42,9 @@ DNNL_GRAPH_OP_SCHEMA(AbsBackward, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input_forward", "input of forward", "T")
-                .set_input(1, "output_delta",
-                        "gradient tensor w.r.t. the output", "T")
-                .set_output(0, "input_delta",
-                        "gradient tensor w.r.t. the input of Abs", "T")
+                .set_input(0, "input_forward", "T")
+                .set_input(1, "output_delta", "T")
+                .set_output(0, "input_delta", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -56,13 +54,11 @@ DNNL_GRAPH_OP_SCHEMA(Add, 1,
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_commutative_inputs()
-                .set_input(0, "a", "first input tensor", "T")
-                .set_input(1, "b", "second input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::auto_broadcast,
-                        "specifies rules used for auto-broadcasting of input "
-                        "tensors",
-                        false, attribute_kind::s, "numpy", {"none", "numpy"})
+                .set_input(0, "a", "T")
+                .set_input(1, "b", "T")
+                .set_output(0, "output", "T")
+                .set_attr(op_attr::auto_broadcast, false, attribute_kind::s,
+                        "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
@@ -72,27 +68,18 @@ DNNL_GRAPH_OP_SCHEMA(AvgPool, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::strides, "the distance to slide the filter",
-                        true, attribute_kind::is)
-                .set_attr(op_attr::pads_begin, "top and left padding", true,
-                        attribute_kind::is)
-                .set_attr(op_attr::pads_end, "bottom and right padding", true,
-                        attribute_kind::is)
-                .set_attr(op_attr::exclude_pad, "a type of pooling strategy",
-                        true, attribute_kind::b)
-                .set_attr(op_attr::kernel, "size of each filter", true,
-                        attribute_kind::is)
-                .set_attr(op_attr::data_format,
-                        "the data format of input / output, the options are "
-                        "NCX and NXC",
-                        false, attribute_kind::s, "NXC", {"NCX", "NXC"})
-                .set_attr(op_attr::rounding_type,
-                        "a type of rounding to be applied", false,
-                        attribute_kind::s, "floor")
-                .set_attr(op_attr::auto_pad, "how the padding is calculated",
-                        false, attribute_kind::s, "None",
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
+                .set_attr(op_attr::strides, true, attribute_kind::is)
+                .set_attr(op_attr::pads_begin, true, attribute_kind::is)
+                .set_attr(op_attr::pads_end, true, attribute_kind::is)
+                .set_attr(op_attr::exclude_pad, true, attribute_kind::b)
+                .set_attr(op_attr::kernel, true, attribute_kind::is)
+                .set_attr(op_attr::data_format, false, attribute_kind::s, "NXC",
+                        {"NCX", "NXC"})
+                .set_attr(op_attr::rounding_type, false, attribute_kind::s,
+                        "floor")
+                .set_attr(op_attr::auto_pad, false, attribute_kind::s, "None",
                         {"None", "SAME_UPPER", "SAME_LOWER", "VALID"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
@@ -103,34 +90,19 @@ DNNL_GRAPH_OP_SCHEMA(AvgPoolBackward, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({1, 2}))
                 .set_num_outputs(1)
-                .set_input(0, "output_delta",
-                        "the gradient tensor with respect to output of avg "
-                        "pool",
-                        "T")
-                .set_input(1, "input_shape",
-                        "(OPTIONAL) the dimensions of original input", "T1")
-                .set_output(0, "input_delta",
-                        "the the gradient tensor w.r.t. the input of avg pool",
-                        "T")
-                .set_attr(op_attr::strides, "the distance to slide the filter",
-                        true, attribute_kind::is)
-                .set_attr(op_attr::pads_begin, "top and left padding", true,
-                        attribute_kind::is)
-                .set_attr(op_attr::pads_end, "bottom and right padding", true,
-                        attribute_kind::is)
-                .set_attr(op_attr::exclude_pad, "a type of pooling strategy",
-                        true, attribute_kind::b)
-                .set_attr(op_attr::kernel, "size of each filter", true,
-                        attribute_kind::is)
-                .set_attr(op_attr::auto_pad, "how the padding is calculated",
-                        false, attribute_kind::s, "None",
+                .set_input(0, "output_delta", "T")
+                .set_input(1, "input_shape", "T1")
+                .set_output(0, "input_delta", "T")
+                .set_attr(op_attr::strides, true, attribute_kind::is)
+                .set_attr(op_attr::pads_begin, true, attribute_kind::is)
+                .set_attr(op_attr::pads_end, true, attribute_kind::is)
+                .set_attr(op_attr::exclude_pad, true, attribute_kind::b)
+                .set_attr(op_attr::kernel, true, attribute_kind::is)
+                .set_attr(op_attr::auto_pad, false, attribute_kind::s, "None",
                         {"None", "SAME_UPPER", "SAME_LOWER", "VALID"})
-                .set_attr(op_attr::data_format,
-                        "the data format of input / output, the options are "
-                        "NCX and NXC",
-                        false, attribute_kind::s, "NXC", {"NCX", "NXC"})
-                .set_attr(op_attr::src_shape, "describing input shape", false,
-                        attribute_kind::is,
+                .set_attr(op_attr::data_format, false, attribute_kind::s, "NXC",
+                        {"NCX", "NXC"})
+                .set_attr(op_attr::src_shape, false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_MAX_NDIMS, 0))
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
@@ -142,23 +114,15 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormInference, 1,
         op_schema_t()
                 .set_num_inputs(5)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T1")
-                .set_input(
-                        1, "gamma", "gamma scaling for normalized value", "T2")
-                .set_input(2, "beta",
-                        "beta added to the scaled normalized value", "T2")
-                .set_input(3, "mean", "value for mean normalization", "T2")
-                .set_input(
-                        4, "variance", "value for variance normalization", "T2")
-                .set_output(0, "output", "output tensor", "T1")
-                .set_attr(op_attr::epsilon,
-                        "the number to be added to the variance to avoid "
-                        "division by zero",
-                        true, attribute_kind::f)
-                .set_attr(op_attr::data_format,
-                        "the data format of input / output, the options are "
-                        "NCX and NXC",
-                        false, attribute_kind::s, "NXC", {"NCX", "NXC"})
+                .set_input(0, "input", "T1")
+                .set_input(1, "gamma", "T2")
+                .set_input(2, "beta", "T2")
+                .set_input(3, "mean", "T2")
+                .set_input(4, "variance", "T2")
+                .set_output(0, "output", "T1")
+                .set_attr(op_attr::epsilon, true, attribute_kind::f)
+                .set_attr(op_attr::data_format, false, attribute_kind::s, "NXC",
+                        {"NCX", "NXC"})
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})
@@ -170,34 +134,20 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormForwardTraining, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({3, 4, 5}))
                 .set_num_outputs(5)
-                .set_input(0, "input", "input tensor", "T1")
-                .set_input(1, "mean", "value for mean normalization", "T2")
-                .set_input(
-                        2, "variance", "value for variance normalization", "T2")
-                .set_input(
-                        3, "gamma", "gamma scaling for normalized value", "T2")
-                .set_input(4, "beta",
-                        "beta added to the scaled normalized value", "T2")
-                .set_output(0, "output", "output tensor", "T1")
-                .set_output(
-                        1, "running mean", "the computed running mean", "T2")
-                .set_output(2, "running variance",
-                        "the computed running variance", "T2")
-                .set_output(3, "batch mean", "the computed batch mean", "T2")
-                .set_output(4, "batch variance", "the computed batch variance",
-                        "T2")
-                .set_attr(op_attr::epsilon,
-                        "the number to be added to the variance to avoid "
-                        "division by zero",
-                        true, attribute_kind::f)
-                .set_attr(op_attr::momentum,
-                        "used for the computation of running_mean and "
-                        "running_var",
-                        false, attribute_kind::f)
-                .set_attr(op_attr::data_format,
-                        "the data format of input / output, the options are "
-                        "NCX and NXC",
-                        false, attribute_kind::s, "NXC", {"NCX", "NXC"})
+                .set_input(0, "input", "T1")
+                .set_input(1, "mean", "T2")
+                .set_input(2, "variance", "T2")
+                .set_input(3, "gamma", "T2")
+                .set_input(4, "beta", "T2")
+                .set_output(0, "output", "T1")
+                .set_output(1, "running mean", "T2")
+                .set_output(2, "running variance", "T2")
+                .set_output(3, "batch mean", "T2")
+                .set_output(4, "batch variance", "T2")
+                .set_attr(op_attr::epsilon, true, attribute_kind::f)
+                .set_attr(op_attr::momentum, false, attribute_kind::f)
+                .set_attr(op_attr::data_format, false, attribute_kind::s, "NXC",
+                        {"NCX", "NXC"})
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})
@@ -210,39 +160,17 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormTrainingBackward, 1,
                 .set_num_inputs(std::set<size_t>({4, 5}))
                 .set_outputs_option(op_schema_t::param_num_option::optional)
                 .set_num_outputs(std::set<size_t>({1, 2, 3}))
-                .set_input(0, "input", "input tensor", "T1")
-                .set_input(1, "output_delta", "the gradient w.r.t. the output",
-                        "T1")
-                .set_input(2, "mean",
-                        "if is_training is true, pass batch mean, otherwise "
-                        "running mean",
-                        "T2")
-                .set_input(3, "variance",
-                        "if is_training is true, pass batch variance, "
-                        "otherwise running variance",
-                        "T2")
-                .set_input(
-                        4, "gamma", "gamma scaling for normalized value", "T2")
-                .set_output(0, "input_delta",
-                        "the gradient w.r.t the output of the batch "
-                        "normalization",
-                        "T1")
-                .set_output(1, "gamma_delta",
-                        "the gradient w.r.t the gamma of the batch "
-                        "normalization",
-                        "T2")
-                .set_output(2, "beta_delta",
-                        "the gradient w.r.t the beta of the batch "
-                        "normalization",
-                        "T2")
-                .set_attr(op_attr::epsilon,
-                        " the number to be added to the variance to avoid "
-                        "division by zero",
-                        true, attribute_kind::f)
-                .set_attr(op_attr::data_format,
-                        "the data format of input / output, the options are "
-                        "NCX and NXC",
-                        false, attribute_kind::s, "NXC", {"NCX", "NXC"})
+                .set_input(0, "input", "T1")
+                .set_input(1, "output_delta", "T1")
+                .set_input(2, "mean", "T2")
+                .set_input(3, "variance", "T2")
+                .set_input(4, "gamma", "T2")
+                .set_output(0, "input_delta", "T1")
+                .set_output(1, "gamma_delta", "T2")
+                .set_output(2, "beta_delta", "T2")
+                .set_attr(op_attr::epsilon, true, attribute_kind::f)
+                .set_attr(op_attr::data_format, false, attribute_kind::s, "NXC",
+                        {"NCX", "NXC"})
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})
@@ -253,13 +181,11 @@ DNNL_GRAPH_OP_SCHEMA(BiasAdd, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "data tensor", "T")
-                .set_input(1, "bias", "1D tensor", "T")
-                .set_output(0, "output", "sum of input and bias", "T")
-                .set_attr(op_attr::data_format,
-                        "the data format of input / output, the options are "
-                        "NCX and NXC",
-                        false, attribute_kind::s, "NXC", {"NCX", "NXC"})
+                .set_input(0, "input", "T")
+                .set_input(1, "bias", "T")
+                .set_output(0, "output", "T")
+                .set_attr(op_attr::data_format, false, attribute_kind::s, "NXC",
+                        {"NCX", "NXC"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_bias_add_output_shape))
@@ -268,12 +194,10 @@ DNNL_GRAPH_OP_SCHEMA(BiasAddBackward, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "output_delta",
-                        "gradient tensor w.r.t. the output", "T")
-                .set_output(0, "bias_delta", "gradient tensor w.r.t. bias", "T")
-                .set_attr(op_attr::data_format,
-                        "the data format of input, the options are NCX and NXC",
-                        false, attribute_kind::s, "NXC", {"NCX", "NXC"})
+                .set_input(0, "output_delta", "T")
+                .set_output(0, "bias_delta", "T")
+                .set_attr(op_attr::data_format, false, attribute_kind::s, "NXC",
+                        {"NCX", "NXC"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_bias_backprop_output_shape))
@@ -282,12 +206,10 @@ DNNL_GRAPH_OP_SCHEMA(Clamp, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::min, "lower bound of values in the output",
-                        true, attribute_kind::f)
-                .set_attr(op_attr::max, "upper bound of values in the output",
-                        true, attribute_kind::f)
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
+                .set_attr(op_attr::min, true, attribute_kind::f)
+                .set_attr(op_attr::max, true, attribute_kind::f)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -296,21 +218,12 @@ DNNL_GRAPH_OP_SCHEMA(ClampBackward, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "data",
-                        "if use_dst is true, data is result of forward. Else, "
-                        "data is src of forward.",
-                        "T")
-                .set_input(1, "output_delta",
-                        "gradient tensor w.r.t. the output", "T")
-                .set_output(0, "input_delta",
-                        "gradient tensor w.r.t. the input of Clamp.", "T")
-                .set_attr(op_attr::min, "lower bound of values in the output",
-                        true, attribute_kind::f)
-                .set_attr(op_attr::max, "upper bound of values in the output",
-                        true, attribute_kind::f)
-                .set_attr(op_attr::use_dst,
-                        "if true, use dst to calculate gradient; else use src",
-                        false, attribute_kind::b, true)
+                .set_input(0, "data", "T")
+                .set_input(1, "output_delta", "T")
+                .set_output(0, "input_delta", "T")
+                .set_attr(op_attr::min, true, attribute_kind::f)
+                .set_attr(op_attr::max, true, attribute_kind::f)
+                .set_attr(op_attr::use_dst, false, attribute_kind::b, true)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -320,11 +233,9 @@ DNNL_GRAPH_OP_SCHEMA(Concat, 1,
                 .set_inputs_option(op_schema_t::param_num_option::variadic)
                 .set_num_inputs(std::set<size_t>({1, 64}))
                 .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::axis,
-                        "specifies which dimension to concatenate along", true,
-                        attribute_kind::i)
+                .set_input(0, "a", "T")
+                .set_output(0, "output", "T")
+                .set_attr(op_attr::axis, true, attribute_kind::i)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_concat_output_shape))
@@ -334,10 +245,10 @@ DNNL_GRAPH_OP_SCHEMA(Convolution, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_input(1, "filter", "filter tensor", "T")
-                .set_input(2, "bias", "bias tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
+                .set_input(0, "input", "T")
+                .set_input(1, "filter", "T")
+                .set_input(2, "bias", "T")
+                .set_output(0, "output", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_conv_output_shape)
@@ -348,20 +259,13 @@ DNNL_GRAPH_OP_SCHEMA(ConvolutionBackwardData, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T1")
-                .set_input(1, "weight", "weight tensor", "T1")
-                .set_input(2, "output_shape",
-                        "tensor, that specifies shape of "
-                        "the output",
-                        "T2")
-                .set_output(0, "output", "output tensor", "T1")
-                .set_attr(op_attr::output_padding,
-                        "additional amount of paddings to be added to each "
-                        "spatial axis in the output tensor",
-                        false, attribute_kind::is,
+                .set_input(0, "input", "T1")
+                .set_input(1, "weight", "T1")
+                .set_input(2, "output_shape", "T2")
+                .set_output(0, "output", "T1")
+                .set_attr(op_attr::output_padding, false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_MAX_NDIMS, 0))
-                .set_attr(op_attr::dst_shape, "describing output shape", false,
-                        attribute_kind::is,
+                .set_attr(op_attr::dst_shape, false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_MAX_NDIMS, 0))
                 .set_shape_inference_function(
                         infer_conv_bprop_data_output_shape)
@@ -377,19 +281,11 @@ DNNL_GRAPH_OP_SCHEMA(ConvolutionBackwardWeights, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T1")
-                .set_input(1, "output_delta",
-                        "gradients tensor with respect to the output of the "
-                        "convolution",
-                        "T1")
-                .set_input(2, "filter_shape",
-                        "tensor, that specifies shape of filter", "T2")
-                .set_output(0, "weight_delta",
-                        "gradient tensor with respect to the weight of the "
-                        "convolution",
-                        "T1")
-                .set_attr(op_attr::weights_shape, "describing filter shape",
-                        false, attribute_kind::is,
+                .set_input(0, "input", "T1")
+                .set_input(1, "output_delta", "T1")
+                .set_input(2, "filter_shape", "T2")
+                .set_output(0, "weight_delta", "T1")
+                .set_attr(op_attr::weights_shape, false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_MAX_NDIMS, 0))
                 .set_shape_inference_function(
                         infer_conv_bprop_filters_output_shape)
@@ -405,14 +301,11 @@ DNNL_GRAPH_OP_SCHEMA(ConvTranspose, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_input(1, "weight", "weight tensor", "T")
-                .set_input(2, "bias", "bias tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::output_padding,
-                        "additional amount of paddings to be added to each "
-                        "spatial axis in the output tensor",
-                        false, attribute_kind::is,
+                .set_input(0, "input", "T")
+                .set_input(1, "weight", "T")
+                .set_input(2, "bias", "T")
+                .set_output(0, "output", "T")
+                .set_attr(op_attr::output_padding, false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_MAX_NDIMS, 0))
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
@@ -423,12 +316,9 @@ DNNL_GRAPH_OP_SCHEMA(ConvTransposeBackwardData, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "output_delta",
-                        "gradients tensor with respect to the output of the "
-                        "ConvTranspose",
-                        "T")
-                .set_input(1, "filter", "filter tensor", "T")
-                .set_output(0, "input_delta", "output tensor", "T")
+                .set_input(0, "output_delta", "T")
+                .set_input(1, "filter", "T")
+                .set_output(0, "input_delta", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
@@ -440,19 +330,11 @@ DNNL_GRAPH_OP_SCHEMA(ConvTransposeBackwardWeights, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T1")
-                .set_input(1, "output_delta",
-                        "gradients tensor with respect to the output of the "
-                        "ConvTranspose",
-                        "T1")
-                .set_input(2, "filter_shape",
-                        "tensor, that specifies shape of filter", "T2")
-                .set_output(0, "filter_delta",
-                        "gradient tensor with respect to the weight of the "
-                        "ConvTranspose",
-                        "T1")
-                .set_attr(op_attr::weights_shape, "describing filter shape",
-                        false, attribute_kind::is,
+                .set_input(0, "input", "T1")
+                .set_input(1, "output_delta", "T1")
+                .set_input(2, "filter_shape", "T2")
+                .set_output(0, "filter_delta", "T1")
+                .set_attr(op_attr::weights_shape, false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_MAX_NDIMS, 0))
                 .set_shape_inference_function(
                         infer_convtranspose_bprop_filters_output_shape)
@@ -467,13 +349,11 @@ DNNL_GRAPH_OP_SCHEMA(Divide, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor", "T1")
-                .set_input(1, "b", "second input tensor", "T2")
-                .set_output(0, "output", "output tensor", "T3")
-                .set_attr(op_attr::auto_broadcast,
-                        "specifies rules used for auto-broadcasting of input "
-                        "tensors",
-                        false, attribute_kind::s, "numpy", {"none", "numpy"})
+                .set_input(0, "a", "T1")
+                .set_input(1, "b", "T2")
+                .set_output(0, "output", "T3")
+                .set_attr(op_attr::auto_broadcast, false, attribute_kind::s,
+                        "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints(
@@ -487,10 +367,9 @@ DNNL_GRAPH_OP_SCHEMA(Elu, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::alpha, "scale for the negative factor", true,
-                        attribute_kind::f)
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
+                .set_attr(op_attr::alpha, true, attribute_kind::f)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -499,19 +378,11 @@ DNNL_GRAPH_OP_SCHEMA(EluBackward, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "data",
-                        "if use_dst is true, data is result of forward. Else, "
-                        "data is src of forward.",
-                        "T")
-                .set_input(1, "output_delta",
-                        "gradient tensor w.r.t. the output", "T")
-                .set_output(0, "input_delta",
-                        "gradient tensor w.r.t. the input of Elu", "T")
-                .set_attr(op_attr::alpha, "scale for the negative factor", true,
-                        attribute_kind::f)
-                .set_attr(op_attr::use_dst,
-                        "if true, use dst to calculate gradient; else use src",
-                        false, attribute_kind::b, true)
+                .set_input(0, "data", "T")
+                .set_input(1, "output_delta", "T")
+                .set_output(0, "input_delta", "T")
+                .set_attr(op_attr::alpha, true, attribute_kind::f)
+                .set_attr(op_attr::use_dst, false, attribute_kind::b, true)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -520,7 +391,7 @@ DNNL_GRAPH_OP_SCHEMA(End, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(0)
-                .set_input(0, "input", "input tensor", "T")
+                .set_input(0, "input", "T")
                 .set_type_constraints("T",
                         {data_type::f32, data_type::f16, data_type::bf16,
                                 data_type::s8, data_type::u8, data_type::s32,
@@ -530,8 +401,8 @@ DNNL_GRAPH_OP_SCHEMA(Exp, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -540,8 +411,8 @@ DNNL_GRAPH_OP_SCHEMA(GELU, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -550,11 +421,9 @@ DNNL_GRAPH_OP_SCHEMA(GELUBackward, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input_forward", "input of forward", "T")
-                .set_input(1, "output_delta",
-                        "gradient tensor w.r.t. the output", "T")
-                .set_output(0, "input_delta",
-                        "gradient tensor w.r.t. the input of GELU", "T")
+                .set_input(0, "input_forward", "T")
+                .set_input(1, "output_delta", "T")
+                .set_output(0, "input_delta", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -563,10 +432,10 @@ DNNL_GRAPH_OP_SCHEMA(HardSigmoid, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "src", "input tensor", "T")
-                .set_output(0, "dst", "output tensor", "T")
-                .set_attr(op_attr::alpha, "alpha", true, attribute_kind::f)
-                .set_attr(op_attr::beta, "beta", true, attribute_kind::f)
+                .set_input(0, "src", "T")
+                .set_output(0, "dst", "T")
+                .set_attr(op_attr::alpha, true, attribute_kind::f)
+                .set_attr(op_attr::beta, true, attribute_kind::f)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -575,15 +444,11 @@ DNNL_GRAPH_OP_SCHEMA(HardSigmoidBackward, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "src", "forward input tensor of HardSigmoid", "T")
-                .set_input(1, "diff_dst",
-                        "gradient with respect to the forward output tensor",
-                        "T")
-                .set_output(0, "diff_src",
-                        "gradient with respect to the input of HardSigmoid",
-                        "T")
-                .set_attr(op_attr::alpha, "alpha", true, attribute_kind::f)
-                .set_attr(op_attr::beta, "beta", true, attribute_kind::f)
+                .set_input(0, "src", "T")
+                .set_input(1, "diff_dst", "T")
+                .set_output(0, "diff_src", "T")
+                .set_attr(op_attr::alpha, true, attribute_kind::f)
+                .set_attr(op_attr::beta, true, attribute_kind::f)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -592,8 +457,8 @@ DNNL_GRAPH_OP_SCHEMA(HardSwish, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -602,11 +467,9 @@ DNNL_GRAPH_OP_SCHEMA(HardSwishBackward, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "forward input tensor of HSwish", "T")
-                .set_input(1, "output_delta",
-                        "gradient tensor w.r.t. the output", "T")
-                .set_output(0, "input_delta",
-                        "gradient tensor w.r.t. the input of HSwish", "T")
+                .set_input(0, "input", "T")
+                .set_input(1, "output_delta", "T")
+                .set_output(0, "input_delta", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -616,32 +479,18 @@ DNNL_GRAPH_OP_SCHEMA(Interpolate, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({1, 2}))
                 .set_num_outputs(1)
-                .set_input(0, "data",
-                        "Input tensor with data for interpolation", "T1")
-                .set_input(1, "sizes",
-                        "optional non-differentiable tensor, describing output"
-                        " shape for spatial axes",
-                        "T2")
-                .set_output(0, "output",
-                        "a tensor with selected data from input tensor", "T1")
-                .set_attr(op_attr::mode, "specifies type of interpolation",
-                        true, attribute_kind::s,
+                .set_input(0, "data", "T1")
+                .set_input(1, "sizes", "T2")
+                .set_output(0, "output", "T1")
+                .set_attr(op_attr::mode, true, attribute_kind::s,
                         {"nearest", "linear", "bilinear", "trilinear"})
-                .set_attr(op_attr::sizes,
-                        "describing output shape for spatial axes", false,
-                        attribute_kind::is)
-                .set_attr(op_attr::scales, "describing scales for spatial axes",
-                        false, attribute_kind::fs)
-                .set_attr(op_attr::coordinate_transformation_mode,
-                        "specifies how to transform the coordinate in the "
-                        "resized tensor to the coordinate in the original "
-                        "tensor",
-                        false, attribute_kind::s, "half_pixel",
+                .set_attr(op_attr::sizes, false, attribute_kind::is)
+                .set_attr(op_attr::scales, false, attribute_kind::fs)
+                .set_attr(op_attr::coordinate_transformation_mode, false,
+                        attribute_kind::s, "half_pixel",
                         {"half_pixel", "align_corners"})
-                .set_attr(op_attr::data_format,
-                        "the data format of input / output, the options are "
-                        "NCX and NXC",
-                        false, attribute_kind::s, "NXC", {"NCX", "NXC"})
+                .set_attr(op_attr::data_format, false, attribute_kind::s, "NXC",
+                        {"NCX", "NXC"})
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
@@ -653,36 +502,19 @@ DNNL_GRAPH_OP_SCHEMA(InterpolateBackward, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
-                .set_input(0, "data",
-                        "Input tensor with data for interpolation", "T1")
-                .set_input(1, "output_delta",
-                        "the gradient with respect to the output", "T1")
-                .set_input(2, "sizes",
-                        "(optional) tensor describing output shape for spatial "
-                        "axes",
-                        "T2")
-                .set_output(0, "input_delta",
-                        "the gradient tensor with respect to the input of "
-                        "interpolate",
-                        "T1")
-                .set_attr(op_attr::mode, "specifies type of interpolation",
-                        true, attribute_kind::s,
+                .set_input(0, "data", "T1")
+                .set_input(1, "output_delta", "T1")
+                .set_input(2, "sizes", "T2")
+                .set_output(0, "input_delta", "T1")
+                .set_attr(op_attr::mode, true, attribute_kind::s,
                         {"nearest", "linear", "bilinear", "trilinear"})
-                .set_attr(op_attr::coordinate_transformation_mode,
-                        "specifies how to transform the coordinate in the "
-                        "resized tensor to the coordinate in the original "
-                        "tensor",
-                        false, attribute_kind::s, "half_pixel",
+                .set_attr(op_attr::coordinate_transformation_mode, false,
+                        attribute_kind::s, "half_pixel",
                         {"half_pixel", "align_corners"})
-                .set_attr(op_attr::sizes,
-                        "describing output shape for spatial axes", false,
-                        attribute_kind::is)
-                .set_attr(op_attr::scales, "describing scales for spatial axes",
-                        false, attribute_kind::fs)
-                .set_attr(op_attr::data_format,
-                        "the data format of input / output, the options are "
-                        "NCX and NXC",
-                        false, attribute_kind::s, "NXC", {"NCX", "NXC"})
+                .set_attr(op_attr::sizes, false, attribute_kind::is)
+                .set_attr(op_attr::scales, false, attribute_kind::fs)
+                .set_attr(op_attr::data_format, false, attribute_kind::s, "NXC",
+                        {"NCX", "NXC"})
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
@@ -695,33 +527,17 @@ DNNL_GRAPH_OP_SCHEMA(LayerNorm, 1,
                 .set_num_inputs(std::set<size_t>({1, 3}))
                 .set_outputs_option(op_schema_t::param_num_option::optional)
                 .set_num_outputs(std::set<size_t>({1, 3}))
-                .set_input(0, "input", "input tensor", "T1")
-                .set_input(1, "gamma",
-                        "(optional) gamma scaling for normalized value", "T2")
-                .set_input(2, "beta",
-                        "(optional) bias added to the scaled normalized value",
-                        "T2")
-                .set_output(0, "output", "output tensor", "T1")
-                .set_output(1, "mean",
-                        "(optional) the mean calculated along the given axis",
-                        "T2")
-                .set_output(2, "variance",
-                        "(optional) the std calculated along the given axis",
-                        "T2")
-                .set_attr(op_attr::keep_stats,
-                        "used to indicate whether to output mean and variance",
-                        false, attribute_kind::b, true)
-                .set_attr(op_attr::begin_norm_axis,
-                        "used to indicate which axis to perform layer "
-                        "normalization",
-                        false, attribute_kind::i, int64_t(-1))
-                .set_attr(op_attr::use_affine,
-                        "when set to True, this module has learnable "
-                        "per-element affine parameters",
-                        false, attribute_kind::b, true)
-                .set_attr(op_attr::epsilon,
-                        "constant to improve numerical stability", false,
-                        attribute_kind::f, 1e-5f)
+                .set_input(0, "input", "T1")
+                .set_input(1, "gamma", "T2")
+                .set_input(2, "beta", "T2")
+                .set_output(0, "output", "T1")
+                .set_output(1, "mean", "T2")
+                .set_output(2, "variance", "T2")
+                .set_attr(op_attr::keep_stats, false, attribute_kind::b, true)
+                .set_attr(op_attr::begin_norm_axis, false, attribute_kind::i,
+                        int64_t(-1))
+                .set_attr(op_attr::use_affine, false, attribute_kind::b, true)
+                .set_attr(op_attr::epsilon, false, attribute_kind::f, 1e-5f)
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})
@@ -735,39 +551,19 @@ DNNL_GRAPH_OP_SCHEMA(LayerNormBackward, 1,
                 .set_num_inputs(std::set<size_t>({4, 5, 6}))
                 .set_outputs_option(op_schema_t::param_num_option::optional)
                 .set_num_outputs(std::set<size_t>({1, 3}))
-                .set_input(0, "input_tensor", "input tensor", "T1")
-                .set_input(1, "output_delta", "the gradient w.r.t. the output",
-                        "T1")
-                .set_input(2, "mean", "mean of input", "T2")
-                .set_input(3, "variance", "variance of input", "T2")
-                .set_input(4, "gamma",
-                        "(optional) gamma scaling for normalized value", "T2")
-                .set_input(5, "beta",
-                        "(optional) bias added to the scaled normalized value",
-                        "T2")
-                .set_output(0, "input_delta",
-                        "the gradient tensor with respect to the output of the "
-                        "layer normalization",
-                        "T1")
-                .set_output(1, "gamma_delta",
-                        "(optional) the gradient tensor with respect to the "
-                        "gamma of the layer normalization",
-                        "T2")
-                .set_output(2, "beta_delta",
-                        "(optional) the gradient tensor with respect to the "
-                        "beta of the layer normalization",
-                        "T2")
-                .set_attr(op_attr::begin_norm_axis,
-                        "used to indicate which axis to perform layer "
-                        "normalization",
-                        false, attribute_kind::i, int64_t(-1))
-                .set_attr(op_attr::use_affine,
-                        "when set to True, this module has learnable "
-                        "per-element affine parameters",
-                        false, attribute_kind::b, true)
-                .set_attr(op_attr::epsilon,
-                        "constant to improve numerical stability", false,
-                        attribute_kind::f, 1e-5f)
+                .set_input(0, "input_tensor", "T1")
+                .set_input(1, "output_delta", "T1")
+                .set_input(2, "mean", "T2")
+                .set_input(3, "variance", "T2")
+                .set_input(4, "gamma", "T2")
+                .set_input(5, "beta", "T2")
+                .set_output(0, "input_delta", "T1")
+                .set_output(1, "gamma_delta", "T2")
+                .set_output(2, "beta_delta", "T2")
+                .set_attr(op_attr::begin_norm_axis, false, attribute_kind::i,
+                        int64_t(-1))
+                .set_attr(op_attr::use_affine, false, attribute_kind::b, true)
+                .set_attr(op_attr::epsilon, false, attribute_kind::f, 1e-5f)
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})
@@ -779,10 +575,9 @@ DNNL_GRAPH_OP_SCHEMA(LeakyReLU, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::alpha, "coefficient of the leakage", true,
-                        attribute_kind::f)
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
+                .set_attr(op_attr::alpha, true, attribute_kind::f)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -791,8 +586,8 @@ DNNL_GRAPH_OP_SCHEMA(Log, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -801,11 +596,9 @@ DNNL_GRAPH_OP_SCHEMA(LogSoftmax, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::axis,
-                        "the axis of which the LogSoftmax is calculated", false,
-                        attribute_kind::i, int64_t(-1))
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
+                .set_attr(op_attr::axis, false, attribute_kind::i, int64_t(-1))
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -814,15 +607,10 @@ DNNL_GRAPH_OP_SCHEMA(LogSoftmaxBackward, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "output_delta",
-                        "gradients tensor w.r.t. the output", "T")
-                .set_input(1, "forward_result", "result of forward", "T")
-                .set_output(0, "input_delta",
-                        "the gradient tensor w.r.t. the input of LogSoftmax",
-                        "T")
-                .set_attr(op_attr::axis,
-                        "the axis of which the LogSoftmax is calculated", false,
-                        attribute_kind::i, int64_t(-1))
+                .set_input(0, "output_delta", "T")
+                .set_input(1, "forward_result", "T")
+                .set_output(0, "input_delta", "T")
+                .set_attr(op_attr::axis, false, attribute_kind::i, int64_t(-1))
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -832,10 +620,10 @@ DNNL_GRAPH_OP_SCHEMA(MatMul, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor", "T")
-                .set_input(1, "b", "second input tensor", "T")
-                .set_input(2, "bias", "bias tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
+                .set_input(0, "a", "T")
+                .set_input(1, "b", "T")
+                .set_input(2, "bias", "T")
+                .set_output(0, "output", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_matmul_output_shape)
@@ -846,13 +634,11 @@ DNNL_GRAPH_OP_SCHEMA(Maximum, 1,
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_commutative_inputs()
-                .set_input(0, "a", "first input tensor", "T")
-                .set_input(1, "b", "second input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::auto_broadcast,
-                        "specifies rules used for auto-broadcasting "
-                        "of input tensors",
-                        false, attribute_kind::s, "numpy", {"none", "numpy"})
+                .set_input(0, "a", "T")
+                .set_input(1, "b", "T")
+                .set_output(0, "output", "T")
+                .set_attr(op_attr::auto_broadcast, false, attribute_kind::s,
+                        "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
@@ -862,30 +648,19 @@ DNNL_GRAPH_OP_SCHEMA(MaxPool, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::strides, "the distance to slide the filter",
-                        true, attribute_kind::is)
-                .set_attr(op_attr::pads_begin, "top and left padding", true,
-                        attribute_kind::is)
-                .set_attr(op_attr::pads_end, "bottom and right padding", true,
-                        attribute_kind::is)
-                .set_attr(op_attr::kernel, "size of each filter", true,
-                        attribute_kind::is)
-                .set_attr(op_attr::dilations,
-                        "the distance in width and height between elements "
-                        "in the filter",
-                        false, attribute_kind::is,
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
+                .set_attr(op_attr::strides, true, attribute_kind::is)
+                .set_attr(op_attr::pads_begin, true, attribute_kind::is)
+                .set_attr(op_attr::pads_end, true, attribute_kind::is)
+                .set_attr(op_attr::kernel, true, attribute_kind::is)
+                .set_attr(op_attr::dilations, false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_MAX_NDIMS, 1))
-                .set_attr(op_attr::data_format,
-                        "the data format of input / output, the options are "
-                        "NCX and NXC",
-                        false, attribute_kind::s, "NXC", {"NCX", "NXC"})
-                .set_attr(op_attr::rounding_type,
-                        "a type of rounding to be applied", false,
-                        attribute_kind::s, "floor")
-                .set_attr(op_attr::auto_pad, "how the padding is calculated",
-                        false, attribute_kind::s, "None",
+                .set_attr(op_attr::data_format, false, attribute_kind::s, "NXC",
+                        {"NCX", "NXC"})
+                .set_attr(op_attr::rounding_type, false, attribute_kind::s,
+                        "floor")
+                .set_attr(op_attr::auto_pad, false, attribute_kind::s, "None",
                         {"None", "SAME_UPPER", "SAME_LOWER", "VALID"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
@@ -895,31 +670,19 @@ DNNL_GRAPH_OP_SCHEMA(MaxPoolBackward, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_input(1, "output_delta",
-                        "the gradient tensor with respect to output", "T")
-                .set_output(0, "input_delta",
-                        "the gradient tensor with respect to input", "T")
-                .set_attr(op_attr::strides, "the distance to slide the filter",
-                        true, attribute_kind::is)
-                .set_attr(op_attr::pads_begin, "top and left padding", true,
-                        attribute_kind::is)
-                .set_attr(op_attr::pads_end, "bottom and right padding", true,
-                        attribute_kind::is)
-                .set_attr(op_attr::kernel, "size of each filter", true,
-                        attribute_kind::is)
-                .set_attr(op_attr::auto_pad, "how the padding is calculated",
-                        false, attribute_kind::s, "None",
+                .set_input(0, "input", "T")
+                .set_input(1, "output_delta", "T")
+                .set_output(0, "input_delta", "T")
+                .set_attr(op_attr::strides, true, attribute_kind::is)
+                .set_attr(op_attr::pads_begin, true, attribute_kind::is)
+                .set_attr(op_attr::pads_end, true, attribute_kind::is)
+                .set_attr(op_attr::kernel, true, attribute_kind::is)
+                .set_attr(op_attr::auto_pad, false, attribute_kind::s, "None",
                         {"None", "SAME_UPPER", "SAME_LOWER", "VALID"})
-                .set_attr(op_attr::dilations,
-                        "the distance in width and height between elements "
-                        "in the filter",
-                        false, attribute_kind::is,
+                .set_attr(op_attr::dilations, false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_MAX_NDIMS, 1))
-                .set_attr(op_attr::data_format,
-                        "the data format of input / output, the options are "
-                        "NCX and NXC",
-                        false, attribute_kind::s, "NXC", {"NCX", "NXC"})
+                .set_attr(op_attr::data_format, false, attribute_kind::s, "NXC",
+                        {"NCX", "NXC"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_pool_bwd_output_shape))
@@ -929,13 +692,11 @@ DNNL_GRAPH_OP_SCHEMA(Minimum, 1,
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_commutative_inputs()
-                .set_input(0, "a", "first input tensor", "T")
-                .set_input(1, "b", "second input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::auto_broadcast,
-                        "specifies rules used for auto-broadcasting "
-                        "of input tensors",
-                        false, attribute_kind::s, "numpy", {"none", "numpy"})
+                .set_input(0, "a", "T")
+                .set_input(1, "b", "T")
+                .set_output(0, "output", "T")
+                .set_attr(op_attr::auto_broadcast, false, attribute_kind::s,
+                        "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
@@ -945,8 +706,8 @@ DNNL_GRAPH_OP_SCHEMA(Mish, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -955,14 +716,9 @@ DNNL_GRAPH_OP_SCHEMA(MishBackward, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "data",
-                        "if use_dst is true, data is result of forward. Else, "
-                        "data is src of forward.",
-                        "T")
-                .set_input(1, "output_delta",
-                        "gradient tensor w.r.t. the output", "T")
-                .set_output(0, "input_delta",
-                        "gradient tensor w.r.t. the input of Mish", "T")
+                .set_input(0, "data", "T")
+                .set_input(1, "output_delta", "T")
+                .set_output(0, "input_delta", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -975,13 +731,11 @@ DNNL_GRAPH_OP_SCHEMA(Multiply, 1,
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_commutative_inputs()
-                .set_input(0, "a", "first input tensor", "T1")
-                .set_input(1, "b", "second input tensor", "T2")
-                .set_output(0, "output", "output tensor", "T3")
-                .set_attr(op_attr::auto_broadcast,
-                        "specifies rules used for auto-broadcasting of input "
-                        "tensors",
-                        false, attribute_kind::s, "numpy", {"none", "numpy"})
+                .set_input(0, "a", "T1")
+                .set_input(1, "b", "T2")
+                .set_output(0, "output", "T3")
+                .set_attr(op_attr::auto_broadcast, false, attribute_kind::s,
+                        "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints(
@@ -995,10 +749,9 @@ DNNL_GRAPH_OP_SCHEMA(Pow, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "src", "input tensor", "T")
-                .set_output(0, "dst", "output tensor", "T")
-                .set_attr(op_attr::beta, "exponent of power", true,
-                        attribute_kind::f)
+                .set_input(0, "src", "T")
+                .set_output(0, "dst", "T")
+                .set_attr(op_attr::beta, true, attribute_kind::f)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -1007,17 +760,13 @@ DNNL_GRAPH_OP_SCHEMA(PReLU, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "data", "input tensor", "T")
-                .set_input(1, "slope", "slope tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::data_format,
-                        "the data format of input / output, the options are "
-                        "NCX and NXC",
-                        false, attribute_kind::s, "NXC", {"NCX", "NXC"})
-                .set_attr(op_attr::per_channel_broadcast,
-                        "whether to apply per channel broadcast when slope is "
-                        "1D tensor",
-                        false, attribute_kind::b, true)
+                .set_input(0, "data", "T")
+                .set_input(1, "slope", "T")
+                .set_output(0, "output", "T")
+                .set_attr(op_attr::data_format, false, attribute_kind::s, "NXC",
+                        {"NCX", "NXC"})
+                .set_attr(op_attr::per_channel_broadcast, false,
+                        attribute_kind::b, true)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -1026,22 +775,13 @@ DNNL_GRAPH_OP_SCHEMA(PReLUBackward, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(2)
-                .set_input(0, "input_forward", "input of forward", "T")
-                .set_input(1, "slope", "slope tensor", "T")
-                .set_input(2, "output_delta",
-                        "the gradient tensor with respect to the output of "
-                        "prelu",
-                        "T")
-                .set_output(0, "input_delta",
-                        "the gradient tensor with respect to the input of "
-                        "prelu",
-                        "T")
-                .set_output(1, "slope_delta",
-                        "the gradient tensor with respect to the slope", "T")
-                .set_attr(op_attr::data_format,
-                        "the data format of input / output, the options are "
-                        "NCX and NXC",
-                        false, attribute_kind::s, "NXC", {"NCX", "NXC"})
+                .set_input(0, "input_forward", "T")
+                .set_input(1, "slope", "T")
+                .set_input(2, "output_delta", "T")
+                .set_output(0, "input_delta", "T")
+                .set_output(1, "slope_delta", "T")
+                .set_attr(op_attr::data_format, false, attribute_kind::s, "NXC",
+                        {"NCX", "NXC"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_prelu_bwd_output_shape))
@@ -1051,12 +791,9 @@ DNNL_GRAPH_OP_SCHEMA(ReduceL1, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({1, 2}))
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T1")
-                .set_input(1, "axes",
-                        "(optional) 1D tensor, specifies indices of input "
-                        "data, along which the reduction is performed.",
-                        "T2")
-                .set_output(0, "output", "output tensor", "T1")
+                .set_input(0, "input", "T1")
+                .set_input(1, "axes", "T2")
+                .set_output(0, "output", "T1")
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
@@ -1069,12 +806,9 @@ DNNL_GRAPH_OP_SCHEMA(ReduceL2, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({1, 2}))
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T1")
-                .set_input(1, "axes",
-                        "(optional) 1D tensor, specifies indices of input "
-                        "data, along which the reduction is performed.",
-                        "T2")
-                .set_output(0, "output", "output tensor", "T1")
+                .set_input(0, "input", "T1")
+                .set_input(1, "axes", "T2")
+                .set_output(0, "output", "T1")
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
@@ -1087,12 +821,9 @@ DNNL_GRAPH_OP_SCHEMA(ReduceMax, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({1, 2}))
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T1")
-                .set_input(1, "axes",
-                        "(optional) 1D tensor, specifies indices of input "
-                        "data, along which the reduction is performed.",
-                        "T2")
-                .set_output(0, "output", "output tensor", "T1")
+                .set_input(0, "input", "T1")
+                .set_input(1, "axes", "T2")
+                .set_output(0, "output", "T1")
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
@@ -1105,12 +836,9 @@ DNNL_GRAPH_OP_SCHEMA(ReduceMean, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({1, 2}))
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T1")
-                .set_input(1, "axes",
-                        "(optional) 1D tensor, specifies indices of input "
-                        "data, along which the reduction is performed.",
-                        "T2")
-                .set_output(0, "output", "output tensor", "T1")
+                .set_input(0, "input", "T1")
+                .set_input(1, "axes", "T2")
+                .set_output(0, "output", "T1")
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
@@ -1123,12 +851,9 @@ DNNL_GRAPH_OP_SCHEMA(ReduceMin, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({1, 2}))
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T1")
-                .set_input(1, "axes",
-                        "(optional) 1D tensor, specifies indices of input "
-                        "data, along which the reduction is performed.",
-                        "T2")
-                .set_output(0, "output", "output tensor", "T1")
+                .set_input(0, "input", "T1")
+                .set_input(1, "axes", "T2")
+                .set_output(0, "output", "T1")
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
@@ -1141,12 +866,9 @@ DNNL_GRAPH_OP_SCHEMA(ReduceProd, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({1, 2}))
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T1")
-                .set_input(1, "axes",
-                        "(optional) 1D tensor, specifies indices of input "
-                        "data, along which the reduction is performed.",
-                        "T2")
-                .set_output(0, "output", "output tensor", "T1")
+                .set_input(0, "input", "T1")
+                .set_input(1, "axes", "T2")
+                .set_output(0, "output", "T1")
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
@@ -1159,12 +881,9 @@ DNNL_GRAPH_OP_SCHEMA(ReduceSum, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({1, 2}))
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T1")
-                .set_input(1, "axes",
-                        "(optional) 1D tensor, specifies indices of input "
-                        "data, along which the reduction is performed.",
-                        "T2")
-                .set_output(0, "output", "output tensor", "T1")
+                .set_input(0, "input", "T1")
+                .set_input(1, "axes", "T2")
+                .set_output(0, "output", "T1")
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
@@ -1176,8 +895,8 @@ DNNL_GRAPH_OP_SCHEMA(ReLU, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -1186,17 +905,10 @@ DNNL_GRAPH_OP_SCHEMA(ReLUBackward, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "data",
-                        "if use_dst is true, data is result of forward. Else, "
-                        "data is src of forward.",
-                        "T")
-                .set_input(1, "output_delta",
-                        "gradient tensor w.r.t. the output", "T")
-                .set_output(0, "input_delta",
-                        "gradient tensor w.r.t. the input of ReLU", "T")
-                .set_attr(op_attr::use_dst,
-                        "if true, use dst to calculate gradient; else use src",
-                        false, attribute_kind::b, true)
+                .set_input(0, "data", "T")
+                .set_input(1, "output_delta", "T")
+                .set_output(0, "input_delta", "T")
+                .set_attr(op_attr::use_dst, false, attribute_kind::b, true)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -1205,8 +917,8 @@ DNNL_GRAPH_OP_SCHEMA(Round, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -1215,14 +927,12 @@ DNNL_GRAPH_OP_SCHEMA(Select, 1,
         op_schema_t()
                 .set_num_inputs(3)
                 .set_num_outputs(1)
-                .set_input(0, "cond", "cond tensor with selection mask", "T1")
-                .set_input(1, "src_0", "src_0 tensor", "T2")
-                .set_input(2, "src_1", "src_1 tensor", "T2")
-                .set_output(0, "dst", "output tensor", "T2")
-                .set_attr(op_attr::auto_broadcast,
-                        "specifies rules used for auto-broadcasting of input "
-                        "tensors",
-                        false, attribute_kind::s, "numpy", {"none", "numpy"})
+                .set_input(0, "cond", "T1")
+                .set_input(1, "src_0", "T2")
+                .set_input(2, "src_1", "T2")
+                .set_output(0, "dst", "T2")
+                .set_attr(op_attr::auto_broadcast, false, attribute_kind::s,
+                        "numpy", {"none", "numpy"})
                 .set_type_constraints("T1", {data_type::boolean})
                 .set_type_constraints(
                         "T2", {data_type::f32, data_type::bf16, data_type::f16})
@@ -1232,8 +942,8 @@ DNNL_GRAPH_OP_SCHEMA(Sigmoid, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -1242,17 +952,10 @@ DNNL_GRAPH_OP_SCHEMA(SigmoidBackward, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "data",
-                        "if use_dst is true, data is result of forward. Else, "
-                        "data is src of forward.",
-                        "T")
-                .set_input(1, "output_delta",
-                        "gradient tensor w.r.t. the output", "T")
-                .set_output(0, "input_delta",
-                        "gradient tensor w.r.t. the input of Sigmoid", "T")
-                .set_attr(op_attr::use_dst,
-                        "if true, use dst to calculate gradient, else, use src",
-                        false, attribute_kind::b, true)
+                .set_input(0, "data", "T")
+                .set_input(1, "output_delta", "T")
+                .set_output(0, "input_delta", "T")
+                .set_attr(op_attr::use_dst, false, attribute_kind::b, true)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -1261,11 +964,9 @@ DNNL_GRAPH_OP_SCHEMA(SoftMax, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::axis,
-                        "the axis of which the SoftMax is calculated", false,
-                        attribute_kind::i, (int64_t)1)
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
+                .set_attr(op_attr::axis, false, attribute_kind::i, (int64_t)1)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -1274,14 +975,10 @@ DNNL_GRAPH_OP_SCHEMA(SoftMaxBackward, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "output_delta",
-                        "gradients tensor w.r.t. the output", "T")
-                .set_input(1, "forward_result", "result of forward", "T")
-                .set_output(0, "input_delta",
-                        "the gradient tensor w.r.t. the input of SoftMax", "T")
-                .set_attr(op_attr::axis,
-                        "the axis of which the SoftMax is calculated", false,
-                        attribute_kind::i, (int64_t)1)
+                .set_input(0, "output_delta", "T")
+                .set_input(1, "forward_result", "T")
+                .set_output(0, "input_delta", "T")
+                .set_attr(op_attr::axis, false, attribute_kind::i, (int64_t)1)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -1290,10 +987,9 @@ DNNL_GRAPH_OP_SCHEMA(SoftPlus, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::beta, "value for the Softplus formulation",
-                        false, attribute_kind::f, 1.f)
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
+                .set_attr(op_attr::beta, false, attribute_kind::f, 1.f)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -1302,13 +998,10 @@ DNNL_GRAPH_OP_SCHEMA(SoftPlusBackward, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input_forward", "input of forward", "T")
-                .set_input(1, "output_delta",
-                        "gradients tensor w.r.t. the output", "T")
-                .set_output(0, "input_delta",
-                        "the gradient tensor w.r.t. the input of SoftPlus", "T")
-                .set_attr(op_attr::beta, "value for the SoftPlus formulation",
-                        false, attribute_kind::f, 1.f)
+                .set_input(0, "input_forward", "T")
+                .set_input(1, "output_delta", "T")
+                .set_output(0, "input_delta", "T")
+                .set_attr(op_attr::beta, false, attribute_kind::f, 1.f)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -1317,8 +1010,8 @@ DNNL_GRAPH_OP_SCHEMA(Sqrt, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -1327,18 +1020,10 @@ DNNL_GRAPH_OP_SCHEMA(SqrtBackward, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "data",
-                        "if use_dst is true, data is result of forward. Else, "
-                        "data is src of forward.",
-                        "T")
-                .set_input(1, "output_delta",
-                        "gradients tensor w.r.t. the output", "T")
-                .set_output(0, "input_delta",
-                        "the gradient tensor w.r.t. the input of Sqrt", "T")
-                .set_attr(op_attr::use_dst,
-                        "if true, use dst to calculate gradient; else use "
-                        "src.",
-                        false, attribute_kind::b, true)
+                .set_input(0, "data", "T")
+                .set_input(1, "output_delta", "T")
+                .set_output(0, "input_delta", "T")
+                .set_attr(op_attr::use_dst, false, attribute_kind::b, true)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -1347,8 +1032,8 @@ DNNL_GRAPH_OP_SCHEMA(Square, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -1357,13 +1042,11 @@ DNNL_GRAPH_OP_SCHEMA(SquaredDifference, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor", "T")
-                .set_input(1, "b", "second input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::auto_broadcast,
-                        "specifies rules used for auto-broadcasting of input "
-                        "tensors",
-                        false, attribute_kind::s, "numpy", {"none", "numpy"})
+                .set_input(0, "a", "T")
+                .set_input(1, "b", "T")
+                .set_output(0, "output", "T")
+                .set_attr(op_attr::auto_broadcast, false, attribute_kind::s,
+                        "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
@@ -1373,13 +1056,11 @@ DNNL_GRAPH_OP_SCHEMA(Subtract, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor", "T")
-                .set_input(1, "b", "second input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::auto_broadcast,
-                        "specifies rules used for auto-broadcasting of input "
-                        "tensors",
-                        false, attribute_kind::s, "numpy", {"none", "numpy"})
+                .set_input(0, "a", "T")
+                .set_input(1, "b", "T")
+                .set_output(0, "output", "T")
+                .set_attr(op_attr::auto_broadcast, false, attribute_kind::s,
+                        "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
@@ -1389,8 +1070,8 @@ DNNL_GRAPH_OP_SCHEMA(Tanh, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -1399,17 +1080,10 @@ DNNL_GRAPH_OP_SCHEMA(TanhBackward, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "data",
-                        "if use_dst is true, data is result of forward. Else, "
-                        "data is src of forward.",
-                        "T")
-                .set_input(1, "output_delta",
-                        "gradients tensor w.r.t. the output", "T")
-                .set_output(0, "input_delta",
-                        "the gradient tensor w.r.t. the input of Tanh", "T")
-                .set_attr(op_attr::use_dst,
-                        "if true, use dst to calculate gradient; else use src",
-                        false, attribute_kind::b, true)
+                .set_input(0, "data", "T")
+                .set_input(1, "output_delta", "T")
+                .set_output(0, "input_delta", "T")
+                .set_attr(op_attr::use_dst, false, attribute_kind::b, true)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -1422,27 +1096,21 @@ DNNL_GRAPH_OP_SCHEMA(Wildcard, 1,
                 .set_outputs_option(op_schema_t::param_num_option::variadic)
                 .set_num_outputs(std::set<size_t>(
                         {0, std::numeric_limits<size_t>::max()}))
-                .set_input(0, "input", "input tensor", "any")
-                .set_output(0, "output", "output tensor", "any")
+                .set_input(0, "input", "any")
+                .set_output(0, "output", "any")
                 .set_shape_inference_function(infer_unsupported_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Quantize, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", " fp32 tensor to be quantized", "T1")
-                .set_output(0, "output", "quantized tensor", "T2")
-                .set_attr(op_attr::qtype,
-                        "specifies which quantization type is used", false,
-                        attribute_kind::s, "per_tensor")
-                .set_attr(op_attr::axis,
-                        "specifies dimension on which apply per-channel "
-                        "quantization",
-                        false, attribute_kind::i, int64_t(1))
-                .set_attr(op_attr::scales, "apply in quantization formula",
-                        true, attribute_kind::fs)
-                .set_attr(op_attr::zps, "offset value that maps to float zero",
-                        true, attribute_kind::is)
+                .set_input(0, "input", "T1")
+                .set_output(0, "output", "T2")
+                .set_attr(
+                        op_attr::qtype, false, attribute_kind::s, "per_tensor")
+                .set_attr(op_attr::axis, false, attribute_kind::i, int64_t(1))
+                .set_attr(op_attr::scales, true, attribute_kind::fs)
+                .set_attr(op_attr::zps, true, attribute_kind::is)
                 .set_type_constraints("T1", {data_type::f32})
                 .set_type_constraints("T2", {data_type::u8, data_type::s8})
                 .set_shape_inference_function(infer_identity_output_shape)
@@ -1452,20 +1120,13 @@ DNNL_GRAPH_OP_SCHEMA(Dequantize, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(
-                        0, "input", "quantized tensor to be dequantized", "T1")
-                .set_output(0, "output", "dequantized tensor", "T2")
-                .set_attr(op_attr::qtype,
-                        "specifies which dequantization type is used", false,
-                        attribute_kind::s, "per_tensor")
-                .set_attr(op_attr::axis,
-                        "specifies dimension on which apply per-channel "
-                        "dequantization",
-                        false, attribute_kind::i, int64_t(1))
-                .set_attr(op_attr::scales, "apply in quantization formula",
-                        true, attribute_kind::fs)
-                .set_attr(op_attr::zps, "offset value that maps to float zero",
-                        true, attribute_kind::is)
+                .set_input(0, "input", "T1")
+                .set_output(0, "output", "T2")
+                .set_attr(
+                        op_attr::qtype, false, attribute_kind::s, "per_tensor")
+                .set_attr(op_attr::axis, false, attribute_kind::i, int64_t(1))
+                .set_attr(op_attr::scales, true, attribute_kind::fs)
+                .set_attr(op_attr::zps, true, attribute_kind::is)
                 .set_type_constraints("T1", {data_type::u8, data_type::s8})
                 .set_type_constraints("T2", {data_type::f32})
                 .set_shape_inference_function(infer_identity_output_shape)
@@ -1475,8 +1136,8 @@ DNNL_GRAPH_OP_SCHEMA(Reorder, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -1485,8 +1146,8 @@ DNNL_GRAPH_OP_SCHEMA(TypeCast, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T1")
-                .set_output(0, "output", "output tensor", "T2")
+                .set_input(0, "input", "T1")
+                .set_output(0, "output", "T2")
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints(
@@ -1498,17 +1159,10 @@ DNNL_GRAPH_OP_SCHEMA(StaticReshape, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "data", "multidimensional input tensor", "T")
-                .set_output(0, "output",
-                        "Output tensor with the same content as a tensor at "
-                        "input data but with shape defined by input shape",
-                        "T")
-                .set_attr(op_attr::shape, "describing output shape", true,
-                        attribute_kind::is)
-                .set_attr(op_attr::special_zero,
-                        "controls how zero values in shape are interpreted "
-                        "shape",
-                        true, attribute_kind::b)
+                .set_input(0, "data", "T")
+                .set_output(0, "output", "T")
+                .set_attr(op_attr::shape, true, attribute_kind::is)
+                .set_attr(op_attr::special_zero, true, attribute_kind::b)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
@@ -1518,14 +1172,9 @@ DNNL_GRAPH_OP_SCHEMA(StaticTranspose, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "data", "the tensor to be transposed", "T")
-                .set_output(0, "output",
-                        "A tensor with shape and type matching 1st tensor.",
-                        "T")
-                .set_attr(op_attr::order,
-                        "the permutation to apply to the axes of the input "
-                        "shape",
-                        true, attribute_kind::is)
+                .set_input(0, "data", "T")
+                .set_output(0, "output", "T")
+                .set_attr(op_attr::order, true, attribute_kind::is)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
@@ -1536,14 +1185,13 @@ DNNL_GRAPH_OP_SCHEMA(DynamicQuantize, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
-                .set_input(0, "input", "", "T1")
-                .set_input(1, "scales", "", "T1")
-                .set_input(2, "zps", "", "T2")
-                .set_output(0, "output", "", "T3")
-                .set_attr(op_attr::qtype, "", false, attribute_kind::s,
-                        "per_tensor")
+                .set_input(0, "input", "T1")
+                .set_input(1, "scales", "T1")
+                .set_input(2, "zps", "T2")
+                .set_output(0, "output", "T3")
                 .set_attr(
-                        op_attr::axis, "", false, attribute_kind::i, int64_t(1))
+                        op_attr::qtype, false, attribute_kind::s, "per_tensor")
+                .set_attr(op_attr::axis, false, attribute_kind::i, int64_t(1))
                 .set_type_constraints("T1", {data_type::f32})
                 .set_type_constraints(
                         "T2", {data_type::u8, data_type::s8, data_type::s32})
@@ -1557,14 +1205,13 @@ DNNL_GRAPH_OP_SCHEMA(DynamicDequantize, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
-                .set_input(0, "input", "", "T1")
-                .set_input(1, "scales", "", "T2")
-                .set_input(2, "zps", "", "T3")
-                .set_output(0, "output", "", "T2")
-                .set_attr(op_attr::qtype, "", false, attribute_kind::s,
-                        "per_tensor")
+                .set_input(0, "input", "T1")
+                .set_input(1, "scales", "T2")
+                .set_input(2, "zps", "T3")
+                .set_output(0, "output", "T2")
                 .set_attr(
-                        op_attr::axis, "", false, attribute_kind::i, int64_t(1))
+                        op_attr::qtype, false, attribute_kind::s, "per_tensor")
+                .set_attr(op_attr::axis, false, attribute_kind::i, int64_t(1))
                 .set_type_constraints("T1", {data_type::u8, data_type::s8})
                 .set_type_constraints("T2", {data_type::f32})
                 .set_type_constraints(
@@ -1577,8 +1224,8 @@ DNNL_GRAPH_OP_SCHEMA(Reciprocal, 1,
         op_schema_t()
                 .set_num_inputs(1)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
+                .set_input(0, "input", "T")
+                .set_output(0, "output", "T")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
