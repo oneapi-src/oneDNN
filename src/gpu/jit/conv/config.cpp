@@ -253,8 +253,8 @@ std::string conv_problem_t::desc_str(bool print_mb) const {
     std::vector<int> xdef = {1, 1, 1, 1, 0, 0};
     bool has_d = !ir_utils::is_equal(xd, xdef);
     bool has_h = !ir_utils::is_equal(xh, xdef);
-    bool is_square = ir_utils::is_equal(xh, xw);
-    bool is_cubic = is_square && ir_utils::is_equal(xd, xh);
+    bool is_square = !has_d && ir_utils::is_equal(xh, xw);
+    bool is_cubic = ir_utils::is_equal(xd, xh) && ir_utils::is_equal(xd, xw);
     bool print_d = has_d;
     bool print_h = has_h && !is_cubic;
     bool print_w = !is_cubic && !is_square;
