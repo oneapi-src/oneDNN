@@ -396,6 +396,22 @@ public:
                 std::string(graph::utils::engine_kind2str(get_engine_kind())));
         writer.write_keyvalue("fpmath_mode",
                 std::string(graph::utils::fpmath_mode2str(get_fpmath_mode())));
+        std::vector<size_t> inputs_id;
+        inputs_id.reserve(get_input_values().size());
+        for (const auto &val : get_input_values()) {
+            auto lt = val->get_logical_tensor();
+            auto ltw = logical_tensor_wrapper_t(lt);
+            inputs_id.push_back(ltw.id());
+        }
+        writer.write_keyvalue("input_ports", inputs_id);
+        std::vector<size_t> outputs_id;
+        outputs_id.reserve(get_output_values().size());
+        for (const auto &val : get_output_values()) {
+            auto lt = val->get_logical_tensor();
+            auto ltw = logical_tensor_wrapper_t(lt);
+            outputs_id.push_back(ltw.id());
+        }
+        writer.write_keyvalue("output_ports", outputs_id);
         writer.write_keyvalue("graph", get_ops());
         writer.end_object();
 
