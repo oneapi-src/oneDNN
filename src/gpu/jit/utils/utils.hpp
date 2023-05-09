@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <fstream>
 #include <functional>
 #include <iomanip>
 #include <iostream>
@@ -579,6 +580,164 @@ private:
     std::string str() const { return ""; };
 #endif
 };
+
+template <typename T>
+void serialize(const T &t, std::ostream &out);
+
+template <typename T, typename = void>
+struct serialize_helper_t {
+    static void call(const T &t, std::ostream &out) { t.serialize(out); }
+};
+
+template <typename T>
+struct serialize_helper_t<T,
+        typename std::enable_if<std::is_trivial<T>::value>::type> {
+    static void call(const T &t, std::ostream &out) {
+        out.write((const char *)&t, sizeof(t));
+    }
+};
+
+template <typename T, size_t N>
+struct serialize_helper_t<std::array<T, N>, void> {
+    static void call(const std::array<T, N> &a, std::ostream &out) {
+        out.write((const char *)&a, sizeof(a));
+    }
+};
+
+template <typename T>
+struct serialize_helper_t<std::vector<T>, void> {
+    static void call(const std::vector<T> &v, std::ostream &out) {
+        serialize((int)v.size(), out);
+        for (auto &t : v)
+            serialize(t, out);
+    }
+};
+
+template <>
+struct serialize_helper_t<std::string, void> {
+    static void call(const std::string &s, std::ostream &out) {
+        serialize((int)s.size(), out);
+        out.write((const char *)s.data(), s.size());
+    }
+};
+
+template <typename T>
+void serialize(const T &t, std::ostream &out) {
+    serialize_helper_t<T>::call(t, out);
+}
+
+template <typename T>
+T deserialize(std::istream &in);
+
+template <typename T, typename = void>
+struct deserialize_helper_t {
+    static T call(std::istream &in) {
+        T ret;
+        ret.deserialize(in);
+        return ret;
+    }
+};
+
+template <typename T>
+struct deserialize_helper_t<T,
+        typename std::enable_if<std::is_trivial<T>::value>::type> {
+    static T call(std::istream &in) {
+        T ret;
+        in.read((char *)&ret, sizeof(ret));
+        return ret;
+    }
+};
+
+template <typename T, size_t N>
+struct deserialize_helper_t<std::array<T, N>, void> {
+    static std::array<T, N> call(std::istream &in) {
+        std::array<T, N> ret;
+        in.read((char *)&ret, sizeof(ret));
+        return ret;
+    }
+};
+
+template <typename T>
+struct deserialize_helper_t<std::vector<T>, void> {
+    static std::vector<T> call(std::istream &in) {
+        int size = deserialize<int>(in);
+        std::vector<T> ret;
+        for (int i = 0; i < size; i++)
+            ret.push_back(deserialize<T>(in));
+        return ret;
+    }
+};
+
+template <>
+struct deserialize_helper_t<std::string, void> {
+    static std::string call(std::istream &in) {
+        int size = deserialize<int>(in);
+        std::string ret(size, 0);
+        in.read((char *)ret.data(), size);
+        return ret;
+    }
+};
+
+template <typename T>
+T deserialize(std::istream &in) {
+    return deserialize_helper_t<T>::call(in);
+}
+
+template <typename T>
+void serialize_to_file(
+        const T &t, const std::string &file_name, const std::string &var_name) {
+    std::ostringstream t_oss;
+    serialize(t, t_oss);
+    auto str = t_oss.str();
+    auto data = std::vector<uint8_t>(str.begin(), str.end());
+    std::ostringstream oss;
+    oss << "std::vector<uint64_t> " << var_name << " = {" << std::endl;
+    size_t bytes = data.size();
+    size_t u64_bytes = sizeof(uint64_t);
+    for (size_t i = 0; i < bytes; i += u64_bytes) {
+        uint64_t v = 0;
+        for (size_t j = 0; j < std::min(bytes - i, u64_bytes); j++) {
+            v |= ((uint64_t)data[i + j]) << (j * 8);
+        }
+        oss << "0x" << std::setfill('0') << std::setw(16) << std::hex << v;
+        if (i + u64_bytes < bytes) {
+            oss << ",";
+            if ((i / u64_bytes + 1) % 8 == 0) {
+                oss << std::endl;
+            } else {
+                oss << " ";
+            }
+        }
+    }
+    oss << "};";
+    std::ofstream out(file_name);
+    out << oss.str() << std::endl;
+}
+
+inline bool is_big_endian() {
+    uint32_t u = 0x01020304;
+    uint8_t a[4] = {};
+    std::memcpy(a, &u, sizeof(u));
+    return a[0] == 0x01;
+}
+
+template <typename T, typename U>
+T deserialize_from_data(const std::vector<U> &data) {
+    if (data.empty()) return T();
+    auto *data_str = (const char *)data.data();
+    size_t size = data.size() * sizeof(data[0]);
+    auto str = std::string(data_str, data_str + size);
+    if (is_big_endian()) {
+        size_t u_len = sizeof(U);
+        for (size_t i = 0; i < str.length(); i += u_len) {
+            for (size_t j = 0; j < u_len / 2; j++) {
+                std::swap(str[i + j], str[i + u_len - j]);
+            }
+        }
+    }
+    std::istringstream iss(str);
+    return deserialize<T>(iss);
+}
 
 } // namespace ir_utils
 } // namespace jit
