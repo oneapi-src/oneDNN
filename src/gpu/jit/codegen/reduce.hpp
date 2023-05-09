@@ -143,7 +143,10 @@ private:
 
         min_step = std::min(std::min(simd_size_, min_step), (int)a0.block);
 
-        ir_assert(a0.block % min_step == 0) << "Reduction is not supported.";
+        if (a0.block % min_step != 0) {
+            // TODO: Extend implementation to support this case.
+            ir_except_not_implemented("Reduction is not supported.");
+        }
 
         std::vector<dim_t> tile_dims(src_layout_.ndims(), 1);
         tile_dims[a0.dim_idx]
