@@ -786,7 +786,7 @@ std::string prefetch_plan_t::str() const {
 }
 
 bool x2r_plan_t::can_split(abc_kind_t abc, int factor) const {
-    ir_assert(factor > 1);
+    if (factor == 1) return true;
     bool is_a = (abc == abc_kind_t::a);
     auto &load = (is_a ? a_load : b_load);
     auto &reorder = (is_a ? a_reorder : b_reorder);
@@ -800,6 +800,7 @@ bool x2r_plan_t::can_split(abc_kind_t abc, int factor) const {
 }
 
 void x2r_plan_t::set_split(abc_kind_t abc, int factor) {
+    ir_assert(can_split(abc, factor));
     // Reset split factors.
     a_load.set_split(1);
     a_reorder.set_split(1);
@@ -868,7 +869,7 @@ int get_dpas_block_rcount(const layout_t &layout, int dim_idx) {
 }
 
 bool fma_plan_t::can_split(abc_kind_t abc, int factor) const {
-    ir_assert(factor > 1);
+    if (factor == 1) return true;
     bool is_a = (abc == abc_kind_t::a);
     bool is_m = is_a;
     auto &layout = is_a ? a_layout : b_layout;
@@ -886,6 +887,7 @@ bool fma_plan_t::can_split(abc_kind_t abc, int factor) const {
 }
 
 void fma_plan_t::set_split(abc_kind_t abc, int factor) {
+    ir_assert(can_split(abc, factor));
     split_abc = abc;
     split_factor = factor;
     if (abc == abc_kind_t::a
@@ -973,6 +975,7 @@ bool conv_plan_t::can_split(abc_kind_t abc, int factor) const {
 }
 
 void conv_plan_t::set_split(abc_kind_t abc, int factor) {
+    ir_assert(can_split(abc, factor));
     split_abc = abc;
     split_factor = factor;
     x2r.set_split(abc, factor);
