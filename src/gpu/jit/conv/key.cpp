@@ -191,6 +191,25 @@ key_type_kind_t to_type_kind(data_type_t dt) {
 #undef CASE
 }
 
+key_type_kind_t to_filter(key_type_kind_t kind) {
+    switch (kind) {
+        case key_type_kind_t::any:
+        case key_type_kind_t::f32:
+        case key_type_kind_t::s32:
+        case key_type_kind_t::tf32:
+        case key_type_kind_t::f64:
+        case key_type_kind_t::undef: return kind;
+        case key_type_kind_t::s8:
+        case key_type_kind_t::u8:
+        case key_type_kind_t::x8: return key_type_kind_t::x8;
+        case key_type_kind_t::f16:
+        case key_type_kind_t::bf16:
+        case key_type_kind_t::x16: return key_type_kind_t::x16;
+        default: ir_error_not_expected();
+    }
+    return key_type_kind_t::undef;
+}
+
 template <>
 struct key_kind_traits_t<key_type_kind_t> {
     static bool supports_filter() { return true; }
@@ -282,6 +301,9 @@ struct key_type_info_t {
 
     key_type_info_t to_filter(key_prop_kind_t prop) const {
         auto ret = *this;
+        ret.src = key_type_t(jit::to_filter(src.kind));
+        ret.wei = key_type_t(jit::to_filter(wei.kind));
+        ret.dst = key_type_t(jit::to_filter(dst.kind));
         auto any_type = key_type_t(key_type_kind_t::any);
         switch (prop) {
             case key_prop_kind_t::fwd: ret.dst = any_type; break;
