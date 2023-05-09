@@ -162,20 +162,26 @@ bool static_fusion_cost_model_t::make_decision_for_op(
             || (is_broadcast_op(op) && !binded_mxp_->contain_tunable_op()
                     && !binded_mxp_->can_optimize_outer_loop(true)));
 
-    // double check parallelism of standalone op, if original result of
-    // partition can not meet requirement
-    if (double_check_standalone_parallel
-            && evaluate_loop_parallel_balance(
-                       binded_mxp_->get_outer_loops(), true)
-                    == 0.f) {
+    // double check parallelism of standalone op
+    if (double_check_standalone_parallel) {
         mixed_parti_t op_parti(binded_mxp_->ctx_,
                 std::const_pointer_cast<sc_op>(op->shared_from_this()),
                 nullptr);
-        // if new parti created by op owning more loop parallelism, reject to
-        // fuse it
-        if (evaluate_loop_parallel_balance(op_parti.get_outer_loops())
-                > fanchor_loop_parallelism) {
-            ret = false;
+        float standalone_parallel
+                = evaluate_loop_parallel_balance(op_parti.get_outer_loops());
+        //  if original result of partition can not meet requirement
+        if (ret
+                && !evaluate_loop_parallel_balance(
+                        binded_mxp_->get_outer_loops(), true)) {
+            // if new parti created by op owning more loop parallelism, reject
+            // to fuse it
+            if (standalone_parallel > fanchor_loop_parallelism) { ret = false; }
+        } else if (!ret
+                && evaluate_loop_parallel_balance(
+                        binded_mxp_->get_outer_loops(fanchor), true)) {
+            // if new parti created by op can not meet loop parallelism
+            // requirement, suggest to fuse it anyway.
+            if (standalone_parallel != 1.f) { ret = true; }
         }
     }
     if (!ret) {

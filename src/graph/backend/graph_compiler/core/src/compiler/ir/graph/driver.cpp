@@ -261,6 +261,29 @@ void graph_driver(
             ptun_creator);
 }
 
+void graph_driver_before_fusion(sc_graph_t &graph, const context_ptr &ctx) {
+    analysis_quantized(graph, ctx);
+    graph_inline(graph, ctx);
+    constant_optimization(graph, ctx);
+    quantize::quantize_info_propagation(graph, ctx);
+
+    quantize::graph_reschedule(graph, ctx);
+    quantize::quantize_inline(graph, ctx);
+
+    elemwise_bcast_swap(graph, ctx);
+    shape_relationship_binding(graph, ctx);
+    permute_propagation(graph, ctx);
+
+    quantize::calculate_op_compensation(graph, ctx);
+    elemwise_dimension_alignment(graph, ctx);
+    layout_propagation(graph, ctx);
+
+    tensor_view_transform(graph, ctx);
+    graph_simplify(graph, ctx);
+    global_reschedule(graph, ctx);
+    graph_constant_input_folding(graph, ctx);
+}
+
 } // namespace gc
 } // namespace graph
 } // namespace impl

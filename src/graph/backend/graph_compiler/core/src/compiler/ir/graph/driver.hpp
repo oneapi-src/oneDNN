@@ -129,6 +129,9 @@ std::unordered_map<sc_op_ptr, std::vector<sc_op_ptr>> create_op_map(
 void run_graph_passes(sc_graph_t &graph, const context_ptr &ctx,
         const std::vector<basic_graph_pass_ptr> &passes);
 
+// get graph driver result before fusion, usually used for unit test
+void graph_driver_before_fusion(sc_graph_t &graph, const context_ptr &ctx);
+
 } // namespace gc
 } // namespace graph
 } // namespace impl
