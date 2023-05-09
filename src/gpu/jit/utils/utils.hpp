@@ -582,6 +582,23 @@ private:
 };
 
 template <typename T>
+T quantize(float v, float v_min = 0, float v_max = 1) {
+    static_assert(std::is_integral<T>::value, "T must be integer.");
+    float f = (v - v_min) / v_max;
+    float t_min = std::numeric_limits<T>::min();
+    float t_max = std::numeric_limits<T>::max();
+    return (T)(t_min + (t_max - t_min) * f + 0.5);
+}
+
+template <typename T>
+float dequantize(T t, float v_min = 0, float v_max = 1) {
+    float t_min = std::numeric_limits<T>::min();
+    float t_max = std::numeric_limits<T>::max();
+    float f = (t - t_min) / (t_max - t_min);
+    return v_min + f * (v_max - v_min);
+}
+
+template <typename T>
 void serialize(const T &t, std::ostream &out);
 
 template <typename T, typename = void>
