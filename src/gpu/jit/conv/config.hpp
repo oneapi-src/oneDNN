@@ -1006,30 +1006,7 @@ public:
     // compute and store, we still need to pad 8 to 32 and
     // spawn more thread groups to ensure 32c block is
     // properly zero-padded.
-    int pad_block(const std::string &name) const {
-        auto &src = src_layout().compute();
-        auto &wei = wei_layout().compute();
-        auto &dst = dst_layout().compute();
-
-#define CASE(_name, layout, idx) \
-    if (name == _name) return layout.inner_block(idx)
-
-        if (prb().is_fwd) {
-            CASE("mb", dst, 0);
-            CASE("g", dst, 1);
-            CASE("oc", dst, 2);
-        } else if (prb().is_bwd_d) {
-            CASE("mb", src, 0);
-            CASE("g", src, 1);
-            CASE("ic", src, 2);
-        } else if (prb().is_bwd_w) {
-            CASE("g", wei, 0);
-            CASE("oc", wei, 1);
-            CASE("ic", wei, 2);
-        }
-#undef CASE
-        return 1;
-    }
+    int pad_block(const std::string &name) const;
 
     int unroll(const std::string &name) const { return unroll()(name); }
 

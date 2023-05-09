@@ -2088,6 +2088,39 @@ int conv_config_t::reserved_regs() const {
     return ret;
 }
 
+int conv_config_t::pad_block(const std::string &name) const {
+    auto &src = src_layout().compute();
+    auto &wei = wei_layout().compute();
+    auto &dst = dst_layout().compute();
+
+    const layout_t *layouts[] = {&src, &wei, &dst};
+    // src, wei, dst
+    int g_idxs[] = {1, 0, 1};
+    int mb_idxs[] = {0, -1, 0};
+    int oc_idxs[] = {-1, 1, 2};
+    int ic_idxs[] = {2, 2, -1};
+    int *idxs = nullptr;
+#define CASE(_name) \
+    if (name == #_name) idxs = _name##_idxs
+    CASE(g);
+    CASE(mb);
+    CASE(oc);
+    CASE(ic);
+#undef CASE
+
+    if (!idxs) return 1;
+
+    int ret = 1;
+    for (int i = 0; i < 3; i++) {
+        if (idxs[i] == -1) continue;
+        int blk = (int)layouts[i]->inner_block(
+                idxs[i], /*skip_outer=*/true, /*inner_only=*/false);
+        ret = math::lcm(ret, blk);
+    }
+
+    return ret;
+}
+
 int get_thread_count(const conv_config_t &cfg) {
     return cfg.kernel_grid().elems() * cfg.thread_group_grid().elems();
 }
