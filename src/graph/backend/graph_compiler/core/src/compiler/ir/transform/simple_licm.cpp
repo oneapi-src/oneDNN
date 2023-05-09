@@ -62,15 +62,20 @@ public:
     // don't care about expr.
     expr_c dispatch(expr_c v) override { return v; }
     stmt_c visit(define_c v) override {
-        if (non_parallel_loop_depth_ != 0 && v->var_.isa<tensor>()
-                && !v->init_.defined()
-                && v->var_.checked_as<tensor>()->init_value_ == nullptr) {
-            viewer_.dispatch(v->var_);
-            if (!viewer_.volatile_) {
+        if (non_parallel_loop_depth_ != 0 && !v->init_.defined()
+                && (!v->var_.isa<tensor>()
+                        || v->var_.checked_as<tensor>()->init_value_
+                                == nullptr)) {
+            bool do_hoist = true;
+            if (v->var_.isa<tensor>()) {
+                viewer_.dispatch(v->var_);
+                if (viewer_.volatile_) { do_hoist = false; }
+                viewer_.volatile_ = false;
+            }
+            if (do_hoist) {
                 no_depend_defs_.emplace_back(v);
                 return builder::make_stmts_unattached({});
             }
-            viewer_.volatile_ = false;
         }
         return v;
     }

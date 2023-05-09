@@ -232,3 +232,83 @@ TEST(GCCore_loop_function_motion_cpp, TestPureFunctionMotion) {
     ir_comparer cmper {true};
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
+
+TEST(GCCore_simple_licm_cpp, TestSimpleLICMVarMotion) {
+    builder::ir_builder_t builder;
+    auto dim1 = builder::make_var(s32, "dim1");
+    dim1->attr().set(attr_key::const_attr, true);
+    auto dim2 = builder::make_var(s32, "dim2");
+    _function_(s32, ccc, _arg_("A", s32, {100}), _arg_("B", s32, {100})) {
+        _bind_(A, B);
+
+        _for_(i, 0, 100) {
+            _var_(var1, s32);
+            _tensor_(c, s32, {100});
+            _var_init_(d, s32, 3);
+            d = c[0] + 3;
+            _tensor_(e, s32, {dim1, 100});
+            e[{0, 0}] = d;
+            _tensor_(g, s32, {100});
+            var1 = 10;
+            g.get().checked_as<tensor>()->init_value_
+                    = tensor_node::get_zero_tensor_initializer();
+            _for_(j, 0, 100) {
+                _tensor_(f, s32, {200});
+                _tensor_(h, s32, {i, 100});
+                _tensor_(l, s32, {dim2, 100});
+                var1 = var1 + 1;
+                f[1] = d;
+                g[j] = g[j] + 1;
+                _var_(var2, s32);
+                var2 = 5;
+                h[0] = 2;
+            }
+        }
+        _return_(1);
+    }
+
+    simple_loop_invariant_code_motion_t licm;
+    auto out = licm(ccc);
+
+    _function_(s32, expected, _arg_("A", s32, {100}), _arg_("B", s32, {100})) {
+        _bind_(A, B);
+        builder.push_scope();
+        _var_(var1, s32);
+        _tensor_(c, s32, {100});
+        _tensor_(e, s32, {dim1, 100});
+        _tensor_(f, s32, {200});
+        _var_(var2, s32);
+        _for_(i, 0, 100) {
+            builder.push_scope();
+            builder.emit(builder.pop_scope());
+            builder.push_scope();
+            builder.emit(builder.pop_scope());
+            _var_init_(d, s32, 3);
+            d = c[0] + 3;
+            builder.push_scope();
+            builder.emit(builder.pop_scope());
+            e[{0, 0}] = d;
+            _tensor_(g, s32, {100});
+            var1 = 10;
+            g.get().checked_as<tensor>()->init_value_
+                    = tensor_node::get_zero_tensor_initializer();
+            _for_(j, 0, 100) {
+                builder.push_scope();
+                builder.emit(builder.pop_scope());
+                _tensor_(h, s32, {i, 100});
+                _tensor_(l, s32, {dim2, 100});
+                var1 = var1 + 1;
+                f[1] = d;
+                g[j] = g[j] + 1;
+                builder.push_scope();
+                builder.emit(builder.pop_scope());
+                var2 = 5;
+                h[0] = 2;
+            }
+        }
+        builder.emit(builder.pop_scope());
+        _return_(1);
+    }
+    ir_comparer cmper {true};
+    EXPECT_TRUE(cmper.compare(out, expected, false));
+}
