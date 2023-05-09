@@ -756,6 +756,33 @@ T deserialize_from_data(const std::vector<U> &data) {
     return deserialize<T>(iss);
 }
 
+class fast_random_t {
+public:
+    fast_random_t(int32_t seed = 0) : seed_(seed) {}
+
+    int32_t operator()() {
+        seed_ = (1103515245U * seed_ + 12345U) & 0x7fffffff;
+        return seed_;
+    }
+
+    template <typename T>
+    int32_t rand_index(const std::vector<T> &v) {
+        return operator()() % (int)v.size();
+    }
+
+    template <typename IteratorT>
+    void shuffle(IteratorT beg, IteratorT end) {
+        int n = (int)(end - beg);
+        for (int i = n - 1; i >= 1; i--) {
+            int j = operator()() % (i + 1);
+            std::swap(*(beg + i), *(beg + j));
+        }
+    }
+
+private:
+    int32_t seed_;
+};
+
 } // namespace ir_utils
 } // namespace jit
 } // namespace gpu
