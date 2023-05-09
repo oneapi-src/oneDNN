@@ -56,7 +56,14 @@ public:
     // Reduces dimensions for 1x1 kernel.
     void try_reduce_to_1d();
 
-    // Helper methods.
+    // Number of operations (including virtual padding operations).
+    double ops() const {
+        double ret = 2.0;
+        ret *= (double)g * mb * oc * ic;
+        ret *= ksp;
+        ret *= (is_bwd_d ? isp : osp);
+        return ret;
+    }
     bool is_s32_accumulator() const { return acc_data_type == data_type::s32; }
     bool is_f32_conv() const {
         return utils::everyone_is(src_data_type, wei_data_type, data_type::f32);
@@ -88,6 +95,14 @@ public:
     }
 
     bool reduce_b() const { return is_bwd_w && with_bias; }
+
+    prop_kind_t prop_kind() const {
+        if (is_fwd) return prop_kind::forward;
+        if (is_bwd_d) return prop_kind::backward_data;
+        if (is_bwd_w) return prop_kind::backward_weights;
+        ir_error_not_expected();
+        return prop_kind::undef;
+    }
 
     const memory_desc_t &a_md() const {
         return *pick_a(conv_pd->invariant_src_md(), conv_pd->invariant_wei_md(),
