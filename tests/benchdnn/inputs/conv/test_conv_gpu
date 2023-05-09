@@ -138,3 +138,5 @@ mb128ic3ih230oc64oh112kh7sh2ph0
 # Test layers of some key GPU DL Frameworks
 --reset
 --batch=option_set_fwks_key_gpu
+--reset
+--batch=option_set_fwks_ext_gpu_reduced

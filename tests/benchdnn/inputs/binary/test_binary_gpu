@@ -137,6 +137,8 @@
 8x128x64x64:8x128x64x64
 16x64x16x16:16x64x16x16
 
-# Test layers of some key GPU DL Frameworks
+# Test layers of some key and ext GPU DL Frameworks
 --reset
 --batch=option_set_fwks_key_gpu
+--reset
+--batch=option_set_fwks_ext_gpu
