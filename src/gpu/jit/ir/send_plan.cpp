@@ -610,6 +610,7 @@ struct send_2d_params_t {
     // Reduce the number of messages by increasing count per
     // message.
     void try_promote_count() {
+        if (vnni_factor != 1) return;
         while (c * 2 <= max_count()) {
             if (w_rcount % 2 != 0) break;
             c *= 2;
