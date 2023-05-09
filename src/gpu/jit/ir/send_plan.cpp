@@ -1738,7 +1738,9 @@ private:
         int x_align = align;
         if (!x_mod.is_divisible(x_align) != 0)
             return fail_2d("Unsupported x alignment: ", x_mod);
-        ir_assert(params_.w % align == 0);
+        if (params_.w % align != 0)
+            return fail_2d(
+                    "Unsupported width/alignment combination: ", params_.w);
 
         return true;
     }
