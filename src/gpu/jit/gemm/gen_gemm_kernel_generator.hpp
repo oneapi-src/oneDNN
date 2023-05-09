@@ -27,7 +27,7 @@
 #include "gpu/jit/gemm/utils.hpp"
 #include "gpu/jit/jit_generator.hpp"
 #include "gpu/jit/jit_post_op_injector.hpp"
-#include "gpu/kernel_cache.hpp"
+#include "gpu/serialization.hpp"
 
 #if defined(ZEBIN_OUTPUT)
 #include "../ngen/ngen_elf.hpp"
@@ -304,6 +304,10 @@ public:
     explicit SubregisterPair(ngen::Subregister reg)
         : SubregisterPair(reg, reg) {}
 
+    void serialize(serialized_data_t &s) const {
+        s.append(regs);
+        s.append(negative);
+    }
     /* implicit */ operator ngen::Subregister() const { return regs[0]; }
 
     SubregisterPair &operator=(ngen::Subregister reg) {
@@ -357,6 +361,13 @@ public:
         fixed_value = false;
         subs = reg;
         return *this;
+    }
+    void serialize(serialized_data_t &s) const {
+        s.append(fixed_value);
+        if (fixed_value)
+            s.append(value);
+        else
+            s.append_complex(subs);
     }
 
     template <typename U>
@@ -447,8 +458,7 @@ private:
     }
 };
 
-struct MatrixAddressingStrategy
-    : public trivially_hashable_trait_t<MatrixAddressingStrategy> {
+struct MatrixAddressingStrategy {
     ngen::AddressBase base; // Base for addressing (A64/BTS/...)
     AccessType accessType = AccessType::Block; // Block/scattered/etc. access
     uint8_t tileR = 0, tileC = 0; // Desired tiling (0 if none) in registers.
@@ -843,8 +853,8 @@ enum class BatchMode { None, Strided, Nonstrided, Variable };
 enum class BinaryOp { Add, Sub, Mul, Div, Min, Max };
 
 // GEMM kernel problem description.
-struct GEMMProblemPOD : public trivially_hashable_trait_t<GEMMProblemPOD>,
-                        public CommonProblem {
+struct GEMMProblem : public CommonProblem {
+
     Type Ta, Tb, Tc, Tco, Ts; // Types for A/B/C/C offsets/scalars in registers.
     Type Ta_ext, Tb_ext, Tc_ext; // Types for A/B/C data in memory.
 
@@ -860,10 +870,11 @@ struct GEMMProblemPOD : public trivially_hashable_trait_t<GEMMProblemPOD>,
          sumB
             = false; // If true, calculate A row sums/B column sums and store in CO.
     bool postOpFwd = true; // Eltwise parameters
-};
 
-struct GEMMProblem : public GEMMProblemPOD {
     post_ops_t postOps; // Fused post operations to apply
+
+    // The following data is derived from the postOps and does not need
+    // considered for equality/hashing purposes
     std::vector<MatrixAddressing> binary; // Binary postop data
     std::vector<Type> Tbinary; // Binary types
     std::vector<bool> binaryRow; // Dimensionality of binary data
@@ -916,22 +927,20 @@ struct GEMMProblem : public GEMMProblemPOD {
     bool allowMatrixOffset() const { return (cOffset == COffset::Pre); }
 
     /* Kernel cache helpers. */
-    size_t hash() const {
-        auto seed = GEMMProblemPOD::hash();
-        if (postOps.len() > 0) {
-            seed = hash_combine(seed,
-                    hash_range(reinterpret_cast<const uint8_t *>(
-                                       postOps.entry_.data()),
-                            postOps.entry_.size() * sizeof(postOps.entry_[0])));
-        }
-        return seed;
-    }
-
-    bool operator==(const GEMMProblem &other) const {
-        return (static_cast<GEMMProblemPOD>(*this)
-                       == static_cast<GEMMProblemPOD>(other))
-                && (postOps == other.postOps);
-        /* binary/Tbinary/etc. member variables are derived from postOps and do not need to be compared. */
+    void serialize(serialized_data_t &s) const {
+        s.append(Ta, Tb, Tc, Tco, Ts);
+        s.append(Ta_ext, Tb_ext, Tc_ext);
+        s.append_complex(alpha_real, alpha_imag);
+        s.append_complex(beta_real, beta_imag);
+        s.append(A, B, C, CO);
+        s.append(checkBeta0);
+        s.append(abOffset);
+        s.append(cOffset);
+        s.append(batch);
+        s.append(batchDims);
+        s.append(sumA, sumB);
+        s.append(postOpFwd);
+        s.append(postOps);
     }
 };
 
@@ -945,8 +954,12 @@ enum class CoopSplit {
 };
 
 // Strategy parameters for GEMM kernels.
-struct GEMMStrategyPOD : public trivially_hashable_trait_t<GEMMStrategyPOD>,
-                         public CommonStrategy {
+struct GEMMStrategyPOD : public CommonStrategy {
+    void serialize(serialized_data_t &s) const {
+        // Explicitly maintain zero padding to keep the implementation simple and
+        // robust
+        s.append(*this);
+    }
     int blocking[3] = {
             0}; // Recommended block size in each dimension (m/n/k) -- for driver.
     int blockingAlt[3] = {
@@ -1180,21 +1193,10 @@ struct GEMMStrategy : public GEMMStrategyPOD {
     }
     bool linearOrder() const { return hilbertOrder || boustrophedon; }
 
-    /* Kernel cache helpers. */
-    size_t hash() const {
-        auto seed = GEMMStrategyPOD::hash();
-        if (!binary.empty()) {
-            seed = hash_combine(seed,
-                    hash_range(reinterpret_cast<const uint8_t *>(binary.data()),
-                            binary.size() * sizeof(binary[0])));
-        }
-        return seed;
-    }
-
-    bool operator==(const GEMMStrategy &other) const {
-        return (static_cast<GEMMStrategyPOD>(*this)
-                       == static_cast<GEMMStrategyPOD>(other))
-                && (binary == other.binary);
+    void serialize(serialized_data_t &s) const {
+        GEMMStrategyPOD::serialize(s);
+        for (const auto &astrategy : binary)
+            s.append(astrategy);
     }
 };
 

@@ -25,6 +25,7 @@ namespace ocl {
 
 status_t gen9_eltwise_jit_params_t::init(engine_t *engine,
         const memory_desc_wrapper data_d, alg_kind_t alg_kind_) {
+    *this = {};
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
 
     arch = compute_engine->device_info()->gpu_arch();

@@ -29,6 +29,7 @@ namespace ocl {
 struct xe_systolic_gemm_copy_kernel_t {
     status_t init(compute::gpu_arch_t arch, data_type_t dt, int unroll_n,
             bool copyb, bool trans, bool sum = false, bool clear_sum = false) {
+        *this = {};
         arch_ = arch;
         dt_ = dt;
         unroll_n_ = unroll_n;
@@ -115,6 +116,12 @@ struct xe_systolic_gemm_copy_kernel_t {
     static constexpr int subgroup_size_clear_sum(
             compute::gpu_arch_t arch, size_t element_size, bool copyb) {
         return (arch == compute::gpu_arch_t::xe_hpc) ? 16 : 8;
+    }
+
+    serialized_t<xe_systolic_gemm_copy_kernel_t> serialize() const {
+        serialized_t<xe_systolic_gemm_copy_kernel_t> s;
+        s.append(*this);
+        return s;
     }
 
 private:

@@ -30,69 +30,30 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 
-// Helper trait using the CRTP idiom to represent trivially hashable types. A
-// trivially hashable type requires the input type T be a trivial class with
-// value equality semantics when inheritance of this trait is removed. In
-// addition, any assignments into a trivially hashable type need to be via
-// structures with zero initialized padding.
-template <typename T>
-struct trivially_hashable_trait_t {
-    // Zero initialize the type upon construction. Because of this,
-    // trivially_hashable_trait_t needs to be inherited before any other class.
-    trivially_hashable_trait_t() {
-        std::memset(reinterpret_cast<uint8_t *>(this), 0, sizeof(T));
-    }
-
-    // Use memory copy to retain zero initialization.
-    trivially_hashable_trait_t(const trivially_hashable_trait_t &other) {
-        std::memmove(reinterpret_cast<uint8_t *>(this),
-                reinterpret_cast<const uint8_t *>(&other), sizeof(T));
-    }
-
-    T &operator=(const T &other) {
-        std::memmove(reinterpret_cast<uint8_t *>(this),
-                reinterpret_cast<const uint8_t *>(&other), sizeof(T));
-        return *this;
-    }
-    T &operator=(const T &&other) {
-        std::memmove(reinterpret_cast<uint8_t *>(this),
-                reinterpret_cast<const uint8_t *>(&other), sizeof(T));
-        return *this;
-    }
-
-    bool operator==(const T &other) const {
-        return std::memcmp(reinterpret_cast<const uint8_t *>(this),
-                       reinterpret_cast<const uint8_t *>(&other), sizeof(T))
-                == 0;
-    }
-
-    static size_t hash_range(const uint8_t *v, size_t size) {
-        size_t seed = 0;
-        const uint8_t *end = v + size;
-        for (; v < end; v += sizeof(seed)) {
-            size_t value = 0;
-            std::memcpy(&value, v, std::min((size_t)(end - v), sizeof(seed)));
-            seed = hash_combine(seed, value);
-        }
-
-        return seed;
-    }
-
-    size_t hash() const {
-        return hash_range(
-                reinterpret_cast<const uint8_t *>(this), sizeof(*this));
-    };
-};
-
-template <typename T, typename = std::enable_if<std::is_trivial<T>::value>>
-struct trivially_hashable_t
-    : public trivially_hashable_trait_t<trivially_hashable_t<T>>,
-      T {};
-
 // Helper structure to generate a hashing interface for a gpu_key_impl_t from a
 // trivial structure.
 template <typename T>
-using trivial_key_t = trivially_hashable_t<T>;
+struct trivial_key_t : public T {
+    trivial_key_t() = default;
+    trivial_key_t(const T &t) : T(t) {}
+    bool operator==(const trivial_key_t &other) const {
+        return this->serialize() == other.serialize();
+    }
+    size_t hash() const {
+        assert(validate());
+        return T::serialize().hash();
+    }
+    bool validate() const {
+        // TODO: implement actual validation logic. Requires some extra work as
+        // constexpr deserialization or constexpr operator== are required to
+        // prevent missed input check.
+
+        // if (!serialized_data_t::is_trivially_serialized<T>::value)
+        //     return *this == T::deserialize(T::serialize());
+        // else
+        return true;
+    }
+};
 
 // GPU specific abstract interface for kernel_cache::value_impl_t
 struct gpu_kernel_value_impl_t : public kernel_cache::value_impl_t {

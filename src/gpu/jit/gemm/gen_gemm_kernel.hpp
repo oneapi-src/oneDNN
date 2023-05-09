@@ -64,12 +64,11 @@ struct gen_gemm_kernel_desc_t {
     status_t create_generator(
             engine_t *engine, compute::compiled_kernel_t &generator) const;
 
-    bool operator==(const gen_gemm_kernel_desc_t &other) const {
-        return problem_ == other.problem_ && strategy_ == other.strategy_;
-    }
-
-    size_t hash() const {
-        return hash_combine(problem_.hash(), strategy_.hash());
+    serialized_t<gen_gemm_kernel_desc_t> serialize() const {
+        serialized_t<gen_gemm_kernel_desc_t> s {};
+        problem_.serialize(s);
+        strategy_.serialize(s);
+        return s;
     }
     compute::gpu_arch_t arch() const { return arch_; }
 
@@ -101,8 +100,8 @@ protected:
     compute::gpu_arch_t arch_;
     ngen::HW hw_ = ngen::HW::Unknown;
     int stepping_ = 0;
-    GEMMProblem problem_;
-    GEMMStrategy strategy_;
+    GEMMProblem problem_ = {};
+    GEMMStrategy strategy_ = {};
     const kcatalog::Entry *entry_ = nullptr;
     EvaluateAuxOutput aux_params_;
     CommonDriverInfo driver_info_;

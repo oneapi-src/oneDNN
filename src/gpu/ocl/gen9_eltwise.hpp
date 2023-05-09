@@ -23,10 +23,10 @@
 #include "gpu/gpu_eltwise_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_resource.hpp"
-#include "gpu/kernel_cache.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
+#include "gpu/serialization.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -48,6 +48,22 @@ struct gen9_eltwise_jit_params_t {
         return names;
     }
 
+    serialized_t<gen9_eltwise_jit_params_t> serialize() const {
+        serialized_t<gen9_eltwise_jit_params_t> s {};
+        // Explicitly maintain zero padding to keep the implementation simple and
+        // robust
+        s.append(*this);
+        return s;
+    }
+
+    gen9_eltwise_jit_params_t deserialize(
+            const serialized_t<gen9_eltwise_jit_params_t> &s) {
+        gen9_eltwise_jit_params_t t {};
+        deserializer_t d(s);
+        d.pop(t);
+        return t;
+    }
+
     status_t init(engine_t *engine, const memory_desc_wrapper data_d,
             alg_kind_t alg_kind);
     compute::kernel_ctx_t get_kernel_ctx() const;
@@ -59,6 +75,7 @@ struct gen9_eltwise_jit_params_t {
     int work_group_size;
     int sub_group_size;
     bool with_overflow;
+    uint8_t pad0[3] = {};
 };
 
 struct gen9_eltwise_fwd_t : public gpu_primitive_t {
@@ -92,7 +109,7 @@ struct gen9_eltwise_fwd_t : public gpu_primitive_t {
 
         status_t init_conf(engine_t *engine);
 
-        trivial_key_t<gen9_eltwise_jit_params_t> conf;
+        gen9_eltwise_jit_params_t conf;
         offsets_t off;
     };
 
@@ -146,7 +163,7 @@ struct gen9_eltwise_bwd_t : public gpu_primitive_t {
 
         status_t init_conf(engine_t *engine);
 
-        trivial_key_t<gen9_eltwise_jit_params_t> conf;
+        gen9_eltwise_jit_params_t conf;
         offsets_t off;
         bool use_dense;
     };
