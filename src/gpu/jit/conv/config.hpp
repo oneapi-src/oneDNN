@@ -431,35 +431,85 @@ public:
     bool is_default() const override { return false; }
 };
 
-class bwd_d_optimize_strided_param_t : public bool_param_t {
-public:
-    bwd_d_optimize_strided_param_t() : bool_param_t(false) {}
-    std::string name() const override { return "bwd-d-optimize-strided"; }
-    std::string desc() const override {
-        return "Apply special optimization for strided BWD_D convolution.";
-    }
-    bool is_overridable() const override { return false; }
+// Special optimization techniques for backward by data convolution.
+//
+// skip_out_of_bound_w enables skip-conditions for kw loop (unit stride only):
+//     for (int kw = 0; kw < KW++) {
+//         if (iw + PW - kw >= OW) continue;
+//         ...
+//     }
+//
+// skip_strided_{dh,dhw} kinds enable skip-conditions to handle strided
+// backward by data convolution:
+//     for (int kw = 0; kw < KW++) {
+//         if ((iw + PW - kw) % SW != 0) continue;
+//         ...
+//     }
+// skip_strided_dh enables skip-conditions for kd and kh loops.
+// skip_strided_dhw enables skip-conditions for kd, kh and kw loops.
+enum class bwd_d_optimize_kind_t {
+    undef,
+    none,
+    skip_out_of_bound_w,
+    skip_strided_dh,
+    skip_strided_dhw,
 };
 
-class bwd_d_optimize_unstrided_param_t : public bool_param_t {
-public:
-    bwd_d_optimize_unstrided_param_t() : bool_param_t(false) {}
-    std::string name() const override { return "bwd-d-optimize-unstrided"; }
-    std::string desc() const override {
-        return "Apply special optimization for unstrided BWD_D convolution.";
+inline std::string to_string(bwd_d_optimize_kind_t kind) {
+    switch (kind) {
+#define CASE(name) \
+    case bwd_d_optimize_kind_t::name: return #name
+        CASE(undef);
+        CASE(none);
+        CASE(skip_out_of_bound_w);
+        CASE(skip_strided_dh);
+        CASE(skip_strided_dhw);
+#undef CASE
+        default: ir_error_not_expected();
     }
-    bool is_overridable() const override { return false; }
-};
+    return "unknown";
+}
 
-class bwd_d_optimize_strided_iw_param_t : public bool_param_t {
+inline bwd_d_optimize_kind_t to_bwd_d_optimize_kind(const std::string &s) {
+#define CASE(name) \
+    if (s == #name) return bwd_d_optimize_kind_t::name
+    CASE(none);
+    CASE(skip_out_of_bound_w);
+    CASE(skip_strided_dh);
+    CASE(skip_strided_dhw);
+#undef CASE
+    ir_error_not_expected();
+    return bwd_d_optimize_kind_t::undef;
+}
+
+class bwd_d_optimize_kind_param_t
+    : public value_param_t<bwd_d_optimize_kind_t> {
 public:
-    bwd_d_optimize_strided_iw_param_t() : bool_param_t(false) {}
-    std::string name() const override { return "bwd-d-optimize-strided-iw"; }
+    bwd_d_optimize_kind_param_t()
+        : value_param_t(bwd_d_optimize_kind_t::undef) {}
+
+    std::string name() const override { return "bwd-d-optimize"; }
     std::string desc() const override {
-        return "Apply special optimization for strided BWD_D convolution (iw "
-               "dimension).";
+        return "Kind of special optimization for strided backward by data "
+               "convolution.";
     }
-    bool is_overridable() const override { return false; }
+    bool is_undef() const override {
+        return get() == bwd_d_optimize_kind_t::undef;
+    }
+    bool is_overridable() const override { return true; }
+    bool is_default() const override { return get() == default_value; }
+
+    void set_from_str(const std::string &s) override {
+        value_ = to_bwd_d_optimize_kind(s);
+    }
+
+    std::string str() const override {
+        std::ostringstream oss;
+        oss << short_name() << "=" << to_string(value_);
+        return oss.str();
+    }
+
+    static const bwd_d_optimize_kind_t default_value;
 };
 
 // TODO: Remove, use heuristics to determine if it's worth to sacrifice EU
@@ -933,11 +983,15 @@ class conv_config_t : public prim_config_t {
 public:
 #define DECL_PARAM(name) \
     const name##_param_t &name##_param() const { \
+        ir_assert(!name##_.is_undef()); \
         (void)name##_init_; \
         return name##_; \
     } \
     name##_param_t &name##_param() { return name##_; } \
-    const name##_param_t::value_t &name() const { return name##_.get(); } \
+    const name##_param_t::value_t &name() const { \
+        ir_assert(!name##_.is_undef()); \
+        return name##_.get(); \
+    } \
     void set_##name(const name##_param_t::value_t &value) { \
         name##_.set(value); \
     }
@@ -945,13 +999,12 @@ public:
 #define DECL_PARAM2(name) \
     const name##_param_t &name() const { \
         (void)name##_init_; \
+        ir_assert(!name##_.is_undef()); \
         return name##_; \
     } \
     name##_param_t &name() { return name##_; }
 
-    DECL_PARAM(bwd_d_optimize_strided)
-    DECL_PARAM(bwd_d_optimize_unstrided)
-    DECL_PARAM(bwd_d_optimize_strided_iw)
+    DECL_PARAM(bwd_d_optimize_kind)
     DECL_PARAM(check_slm_size)
     DECL_PARAM(fma_kind)
     DECL_PARAM(fuse_spatial)
@@ -1118,9 +1171,7 @@ private:
     });
 
     INIT_PARAM(bia_layout)
-    INIT_PARAM(bwd_d_optimize_strided)
-    INIT_PARAM(bwd_d_optimize_unstrided)
-    INIT_PARAM(bwd_d_optimize_strided_iw)
+    INIT_PARAM(bwd_d_optimize_kind)
     INIT_PARAM(check_slm_size)
     INIT_PARAM(dims)
     INIT_PARAM(fma_kind)

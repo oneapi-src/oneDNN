@@ -364,7 +364,7 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     if (check_ow) ow_mask = (x >= 0) & (x < prb_.ow);
 
     std::function<expr_t(const expr_t &)> iw_mapping;
-    if (cfg_.bwd_d_optimize_strided_iw()) {
+    if (cfg_.bwd_d_optimize_kind() == bwd_d_optimize_kind_t::skip_strided_dhw) {
         // Apply mapping to iw to ensure each thread group has the same
         // stride condition when evaluating skip conditions.
         iw_mapping = [&](const expr_t &e) {
@@ -398,10 +398,17 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
 
     // When stride optimization is enabled, stride conditions are handled by
     // continue calls in the outer loops.
-    if (!cfg_.bwd_d_optimize_strided_iw()) {
-        if (prb_.sd != 1) od_mask &= (od % prb_.sd == 0);
-        if (prb_.sh != 1) oh_mask &= (oh % prb_.sh == 0);
-        if (prb_.sw != 1) ow_mask &= (ow % prb_.sw == 0);
+    switch (cfg_.bwd_d_optimize_kind()) {
+        case bwd_d_optimize_kind_t::none:
+            if (prb_.sd != 1) od_mask &= (od % prb_.sd == 0);
+            if (prb_.sh != 1) oh_mask &= (oh % prb_.sh == 0);
+            if (prb_.sw != 1) ow_mask &= (ow % prb_.sw == 0);
+            break;
+        case bwd_d_optimize_kind_t::skip_strided_dhw: break;
+        case bwd_d_optimize_kind_t::skip_strided_dh:
+            if (prb_.sw != 1) ow_mask &= (ow % prb_.sw == 0);
+            break;
+        default: ir_error_not_expected();
     }
     dst_view.set_tdim(3, od / prb_.sd, od_mask);
     dst_view.set_tdim(4, oh / prb_.sh, oh_mask);
@@ -481,19 +488,25 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     gemm_schedule.tensorize(iw_tile.iter_idx());
     gemm_schedule.tensorize(oc_tile.iter_idx());
 
-    if (cfg_.bwd_d_optimize_strided()) {
-        gemm_schedule.set_skip_condition(kd, od % prb_.sd != 0);
-        gemm_schedule.set_skip_condition(kh, oh % prb_.sh != 0);
-        if (cfg_.bwd_d_optimize_strided_iw())
+    switch (cfg_.bwd_d_optimize_kind()) {
+        case bwd_d_optimize_kind_t::none:
+            gemm_schedule.reorder({oc_tile.loop_idx(), kd, kh, kw});
+            break;
+        case bwd_d_optimize_kind_t::skip_strided_dhw:
             gemm_schedule.set_skip_condition(kw, ow % prb_.sw != 0);
-        // Put kd/kh/kw outermost to allow pipelining in oc loop.
-        gemm_schedule.reorder({kd, kh, kw, oc_tile.loop_idx()});
-    } else if (cfg_.bwd_d_optimize_unstrided()) {
-        gemm_schedule.set_skip_condition(
-                kw, iw - kw * (1 + prb_.dw) + prb_.pw >= prb_.ow);
-        gemm_schedule.reorder({kd, kh, kw, oc_tile.loop_idx()});
-    } else {
-        gemm_schedule.reorder({oc_tile.loop_idx(), kd, kh, kw});
+        case bwd_d_optimize_kind_t::skip_strided_dh:
+            gemm_schedule.set_skip_condition(kd, od % prb_.sd != 0);
+            gemm_schedule.set_skip_condition(kh, oh % prb_.sh != 0);
+            // Put kd/kh/kw outermost to allow pipelining in oc loop.
+            gemm_schedule.reorder({kd, kh, kw, oc_tile.loop_idx()});
+            break;
+        case bwd_d_optimize_kind_t::skip_out_of_bound_w:
+            gemm_schedule.set_skip_condition(
+                    kw, iw - kw * (1 + prb_.dw) + prb_.pw >= prb_.ow);
+            // Put kd/kh/kw outermost to allow pipelining in oc loop.
+            gemm_schedule.reorder({kd, kh, kw, oc_tile.loop_idx()});
+            break;
+        default: ir_error_not_expected();
     }
 }
 

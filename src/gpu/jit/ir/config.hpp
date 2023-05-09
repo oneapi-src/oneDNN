@@ -34,6 +34,7 @@ public:
     virtual std::string name() const = 0;
     virtual std::string short_name() const { return name(); }
     virtual std::string desc() const = 0;
+    virtual bool is_undef() const { return false; }
     virtual bool is_overridable() const = 0;
     virtual std::vector<std::string> accepted_keys() const {
         return std::vector<std::string>({short_name()});
@@ -307,16 +308,21 @@ public:
 #define DECL_PARAM(name) \
     const name##_param_t &name##_param() const { \
         (void)name##_init_; \
+        ir_assert(!name##_.is_undef()); \
         return name##_; \
     } \
     name##_param_t &name##_param() { return name##_; } \
-    const name##_param_t::value_t &name() const { return name##_.get(); } \
+    const name##_param_t::value_t &name() const { \
+        ir_assert(!name##_.is_undef()); \
+        return name##_.get(); \
+    } \
     void set_##name(const name##_param_t::value_t &value) { \
         name##_.set(value); \
     }
 #define DECL_PARAM2(name) \
     const name##_param_t &name() const { \
         (void)name##_init_; \
+        ir_assert(!name##_.is_undef()); \
         return name##_; \
     } \
     name##_param_t &name() { return name##_; }

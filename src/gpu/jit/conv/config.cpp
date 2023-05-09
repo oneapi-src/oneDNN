@@ -315,6 +315,8 @@ int get_default_max_tg_size(const hw_config_t &hw_cfg, int regs, int simd) {
             static_cast<int>(hw_cfg.max_wg_size() / wg_per_thr));
 }
 
+const bwd_d_optimize_kind_t bwd_d_optimize_kind_param_t::default_value
+        = bwd_d_optimize_kind_t::none;
 const bool check_slm_size_param_t::default_value = true;
 const bool fuse_spatial_param_t::default_value = false;
 const bool shrink_tg_dims_param_t::default_value = false;
@@ -1133,7 +1135,9 @@ void init_pipeline(conv_config_t &cfg) {
         // stride optimization is enabled. These cases have non-trivial
         // post-increment updates which result in unrolling all reduction loops
         // and exceeding the instruction cache.
-        if (!prb.is_stride1() && !cfg.bwd_d_optimize_strided_iw())
+        if (!prb.is_stride1()
+                && cfg.bwd_d_optimize_kind()
+                        != bwd_d_optimize_kind_t::skip_strided_dhw)
             do_unroll = false;
     } else if (prb.is_bwd_w) {
         int mb_iter_blk = cfg.iter_dim("mb");
@@ -1778,15 +1782,16 @@ void init_bwd_d_optimize_strided(conv_config_t &cfg) {
     if (prb.is_stride1()) {
         if (cfg.loop_dim("kw") != 1 && cfg.thread_group_dim("iw") == 1
                 && cfg.iter_dim("iw") == 1)
-            cfg.set_bwd_d_optimize_unstrided(true);
+            cfg.set_bwd_d_optimize_kind(
+                    bwd_d_optimize_kind_t::skip_out_of_bound_w);
         return;
     }
 
-    cfg.set_bwd_d_optimize_strided(true);
+    cfg.set_bwd_d_optimize_kind(bwd_d_optimize_kind_t::skip_strided_dh);
 
     if (cfg.iter_dim("iw") > 1) return;
     if (prb.iw % prb.sw != 0) return;
-    cfg.set_bwd_d_optimize_strided_iw(true);
+    cfg.set_bwd_d_optimize_kind(bwd_d_optimize_kind_t::skip_strided_dhw);
 
     // Update blocks.
     int iw_tg_dim0 = cfg.thread_group_dim("iw");
