@@ -1534,7 +1534,6 @@ mixed_fuse_op_t::mixed_fuse_op_t(const std::string &name,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
     info_.inputs_ = ins;
     info_.outputs_ = outs;
-    assert(!parti_list.empty());
     parti_list_ = parti_list;
     mod_ = mod;
     sub_graph_ = copy_graph(graph);
