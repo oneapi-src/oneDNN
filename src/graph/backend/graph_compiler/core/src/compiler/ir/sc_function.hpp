@@ -65,6 +65,8 @@ constexpr const char *top_level = "top_level";
 // the pair holds the indices of input tensor args of this function, which this
 // output tensor can share buffer with.
 constexpr const char *inplace_hint = "inplace_hint";
+// bool, if the function is a trace probe function
+constexpr const char *is_trace_func = "is_trace_func";
 
 } // namespace function_attrs
 

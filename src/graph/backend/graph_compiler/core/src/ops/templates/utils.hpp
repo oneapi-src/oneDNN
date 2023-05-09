@@ -243,6 +243,12 @@ inline int get_lanes(
   return lanes;
 }
 
+bool is_prefetch_debug_mode();
+// emit traces of prefetched address for debugging
+void trace_prefetch_for_debug(const expr &addr);
+// emit traces of BRGEMM B address for debugging
+void trace_brgemm_for_debug(
+  const expr &Baddr, const expr &bs, const expr &N, const expr &K);
 } // namespace ops
 } // namespace gc
 } // namespace graph

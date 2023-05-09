@@ -119,6 +119,20 @@ public:
         }
     }
 
+    bool is_trace_call(const stmt &v) {
+        return v.cast<evaluate>()
+                .map([](const evaluate &v) { return v->value_.as<call>(); })
+                .map([](const call &v) {
+                    return dynamic_cast<func_base *>(v->func_.get());
+                })
+                .filter([](func_base *f) {
+                    return f->attr_
+                            && f->attr_->get_or_else(
+                                    function_attrs::is_trace_func, false);
+                })
+                .has_value();
+    }
+
     /*
 transforming:
 void work() {
@@ -263,11 +277,13 @@ void work() {
                 // don't need the barrier
                 for (size_t n = i + 1; n < old_body.size(); n++) {
                     // if the next stmt is a pure definition, we can ignore it
-                    if (old_body[i].isa<define_c>()) {
-                        auto &initv = old_body[i].static_as<define_c>()->init_;
+                    if (old_body[n].isa<define_c>()) {
+                        auto &initv = old_body[n].static_as<define_c>()->init_;
                         if (!initv.defined() || initv.isa<constant>()) {
                             continue;
                         }
+                    } else if (is_trace_call(old_body[n])) {
+                        continue;
                     }
 
                     // otherwise, we cannot remove the barrier because the stmt
@@ -302,6 +318,9 @@ void work() {
                     new_body->seq_.insert(new_body->seq_.begin(),
                             dispatch(old_body[i]).remove_const());
                 }
+            } else if (is_trace_call(old_body[i])) {
+                new_body->seq_.emplace_back(
+                        dispatch(old_body[i]).remove_const());
             } else {
                 cannot_parallel_ = true;
                 auto dispatched = dispatch(old_body[i]).remove_const();

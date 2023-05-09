@@ -89,22 +89,28 @@ void print_str(const char *v) {
     print_str(std::string(v));
 }
 
+static const func_t &mark_trace_func(const func_t &f) {
+    f->attr()[function_attrs::is_trace_func] = true;
+    return f;
+}
+
 expr make_trace(expr func_name, expr in_or_out, expr arg) {
-    static func_t make_trace_f = make_func("sc_make_trace",
+    static func_t make_trace_f = mark_trace_func(make_func("sc_make_trace",
             {make_var(datatypes::s32, "func_name"),
                     make_var(datatypes::s32, "in_or_out"),
                     make_var(datatypes::s32, "arg")},
-            stmt(), datatypes::void_t);
+            stmt(), datatypes::void_t));
     return make_trace_f(
             std::move(func_name), std::move(in_or_out), std::move(arg));
 }
 
 expr make_trace_kernel(expr func_name, expr in_or_out, expr arg) {
-    static func_t make_trace_f = make_func("sc_make_trace_kernel",
-            {make_var(datatypes::s32, "func_name"),
-                    make_var(datatypes::s32, "in_or_out"),
-                    make_var(datatypes::s32, "arg")},
-            stmt(), datatypes::void_t);
+    static func_t make_trace_f
+            = mark_trace_func(make_func("sc_make_trace_kernel",
+                    {make_var(datatypes::s32, "func_name"),
+                            make_var(datatypes::s32, "in_or_out"),
+                            make_var(datatypes::s32, "arg")},
+                    stmt(), datatypes::void_t));
     return make_trace_f(
             std::move(func_name), std::move(in_or_out), std::move(arg));
 }

@@ -58,6 +58,40 @@ SC_CLASS_END();
 
 namespace ops {
 
+bool is_prefetch_debug_mode() {
+  auto &cfg = runtime_config_t::get();
+  if (cfg.trace_mode_ == 1
+    && utils::string_endswith(cfg.trace_out_path_, "pref.log")) {
+    return true;
+  }
+  return false;
+}
+
+void trace_prefetch_for_debug(const expr &addr) {
+  if (!is_prefetch_debug_mode()) { return; }
+  static auto trace_id = register_traced_func("pref");
+  builder::get_current_builder()->push_evaluate(builtin::make_trace(trace_id,
+    builder::make_cast(datatypes::s32,
+      builder::make_reinterpret(addr, datatypes::index) >> UINT64_C(32)),
+    builder::make_cast(
+      datatypes::s32, builder::make_reinterpret(addr, datatypes::index))));
+}
+
+void trace_brgemm_for_debug(
+  const expr &Baddr, const expr &bs, const expr &N, const expr &K) {
+  if (!is_prefetch_debug_mode()) { return; }
+  static auto trace_id = register_traced_func("brg");
+  builder::get_current_builder()->push_evaluate(builtin::make_trace(trace_id,
+    builder::make_cast(datatypes::s32,
+      builder::make_reinterpret(Baddr, datatypes::index) >> UINT64_C(32)),
+    builder::make_cast(
+      datatypes::s32, builder::make_reinterpret(Baddr, datatypes::index))));
+  builder::get_current_builder()->push_evaluate(builtin::make_trace(trace_id, 0,
+    bs * N * K
+      * static_cast<int>(
+        utils::get_sizeof_type(Baddr->dtype_.get_pointer_element()))));
+}
+
 config_ptr_vec gen_managed_matmul_core_t::get_dynamic_config_candidates(
   const context_ptr &ctx) const {
   config_ptr_vec ret;
@@ -219,9 +253,14 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
       // giving splits on K has performance advantage
       auto possible_splits = get_splits(num_threads);
       if (is_int8) {
-        if (N >= 4 * K && N >= 4096 && M <= 4) {
-          cfg.N_split_num = num_threads
-            / possible_splits.at(possible_splits.size() > 3 ? 2 : 1);
+        if (K >= 4096 && N >= 4096 && M <= 4) {
+          auto split_idx = 1;
+          if (N >= K) {
+            split_idx = possible_splits.size() > 3 ? 2 : 1;
+          } else if (K >= 4 * N) {
+            split_idx = possible_splits.size() > 4 ? 3 : 1;
+          }
+          cfg.N_split_num = num_threads / possible_splits.at(split_idx);
         } else {
           auto split_idx = K >= 4096
             ? (N < 2 * K ? (N <= K / 2 && possible_splits.size() > 2 ? 2 : 1)
@@ -620,10 +659,7 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
 bool gen_managed_matmul_core_t::is_okay_to_prefetch(
   const managed_matmul_core_config_t &config, bool is_global) {
   const int num_threads = runtime_config_t::get().get_num_threads();
-  if (!in_tensors_[1].get_format().is_blocking()
-    || num_threads / config.M_split_num / config.N_split_num > 1) {
-    return false;
-  }
+  if (!in_tensors_[1].get_format().is_blocking()) { return false; }
   return true;
 }
 
@@ -642,51 +678,113 @@ void gen_managed_matmul_core_t::generate_prefetcher_body_for_tensor(
       K = static_cast<int>(
         utils::rnd_up(in_tensors_[0].get_plain_dims()[1], iik_block_));
   auto num_threads = runtime_config_t::get().get_num_threads();
+  // N_split_num
   auto threads_per_group = num_threads / config.M_split_num;
-  if (config.N_split_num * config.M_split_num != num_threads) {
+  int K_split_num = num_threads / config.M_split_num / config.N_split_num;
+  if (config.N_split_num * config.M_split_num != num_threads
+    && K_split_num <= 1) {
     _if_(tid % threads_per_group >= config.N_split_num) {
       _return_(UINT64_C(0));
     }
   }
   _var_(cnt, datatypes::index);
   cnt = 0;
-  expr n_idx, N_single_thr_size, X_bigger_num;
-  _for_(n_s, tid % threads_per_group, tid % threads_per_group + 1) {
-    N_single_thr_size = get_balance211_length(
-      N / iin_block_, config.N_split_num, n_s, n_idx, X_bigger_num);
-    N_single_thr_size = N_single_thr_size * iin_block_;
-    n_idx = n_idx * iin_block_;
-    // only K_split_num=1 for convenience
-    _for_(n_b, 0, config.N_sub_block) {
-      expr n_b_idx, n_b_bigger_num, k_b_idx, k_b_bigger_num;
-      _var_init_(n_o_end, datatypes::s32,
-        get_balance211_length(N_single_thr_size / iin_block_,
-          config.N_sub_block, n_b, n_b_idx, n_b_bigger_num));
-      _for_(k_b, 0, config.K_sub_block) {
-        _for_(n_o, 0, n_o_end) {
-          _var_init_(n_start_idx, datatypes::index,
-            n_idx + n_b_idx * iin_block_
-              + ((n_o + tid) % n_o_end) * iin_block_);
-          _var_init_(bs, datatypes::s32,
-            get_balance211_length(K / iik_block_, config.K_sub_block, k_b,
-              k_b_idx, k_b_bigger_num));
-          _var_init_(k_start_idx, datatypes::index, 0 + k_b_idx * iik_block_);
-          _for_(i, 0, iik_block_ * iin_block_ * bs, 512 / sizeof_dtype) {
-            _if_(lookup[0] == expected) { _return_(cnt); }
-            cnt = cnt + 1;
-            _for_(j, 0, 512 / sizeof_dtype, 64 / sizeof_dtype) {
-              std::vector<expr> indices;
-              if (get_A_dtype() == datatypes::f32) {
-                indices = {n_start_idx / expr(iin_block_),
-                  k_start_idx / expr(iik_block_), 0, i + j};
-              } else {
-                indices = {n_start_idx / expr(iin_block_),
-                  k_start_idx / expr(iik_block_), 0, 0, i + j};
+  expr n_idx, k_idx, N_single_thr_size, K_single_thr_size, X_bigger_num;
+  if (K_split_num == 1) {
+    _for_(n_s, tid % threads_per_group, tid % threads_per_group + 1) {
+      N_single_thr_size = get_balance211_length(
+        N / iin_block_, config.N_split_num, n_s, n_idx, X_bigger_num);
+      N_single_thr_size = N_single_thr_size * iin_block_;
+      n_idx = n_idx * iin_block_;
+      _for_(n_b, 0, config.N_sub_block) {
+        expr n_b_idx, n_b_bigger_num, k_b_idx, k_b_bigger_num;
+        _var_init_(n_o_end, datatypes::s32,
+          get_balance211_length(N_single_thr_size / iin_block_,
+            config.N_sub_block, n_b, n_b_idx, n_b_bigger_num));
+        _for_(k_b, 0, config.K_sub_block) {
+          _for_(n_o, 0, n_o_end) {
+            _var_init_(n_start_idx, datatypes::index,
+              n_idx + n_b_idx * iin_block_
+                + ((n_o + tid) % n_o_end) * iin_block_);
+            _var_init_(bs, datatypes::s32,
+              get_balance211_length(K / iik_block_, config.K_sub_block, k_b,
+                k_b_idx, k_b_bigger_num));
+            _var_init_(k_start_idx, datatypes::index, 0 + k_b_idx * iik_block_);
+            _for_(i, 0, iik_block_ * iin_block_ * bs, 512 / sizeof_dtype) {
+              _if_(lookup[0] == expected && !is_prefetch_debug_mode()) {
+                _return_(cnt);
               }
-              auto tptr = builder::tensor_ptr(ins[0], indices);
-              builder::get_current_builder()->push_evaluate(
-                make_expr<intrin_call_node>(intrin_type::prefetch,
-                  std::vector<expr> {tptr}, any_map_t {{"locality", 1}}));
+              cnt = cnt + 1;
+              _for_(j, 0, 512 / sizeof_dtype, 64 / sizeof_dtype) {
+                std::vector<expr> B_indices;
+                if (get_A_dtype() == datatypes::f32) {
+                  B_indices = {n_start_idx / expr(iin_block_),
+                    k_start_idx / expr(iik_block_), 0, i + j};
+                } else {
+                  B_indices = {n_start_idx / expr(iin_block_),
+                    k_start_idx / expr(iik_block_), 0, 0, i + j};
+                }
+                auto tptr = builder::tensor_ptr(ins[0], B_indices);
+                trace_prefetch_for_debug(tptr);
+                builder::get_current_builder()->push_evaluate(
+                  make_expr<intrin_call_node>(intrin_type::prefetch,
+                    std::vector<expr> {tptr}, any_map_t {{"locality", 1}}));
+              }
+            }
+          }
+        }
+      }
+    }
+  } else {
+    _for_(n_s, tid % (config.N_split_num * K_split_num) / K_split_num,
+      tid % (config.N_split_num * K_split_num) / K_split_num + 1) {
+      N_single_thr_size = get_balance211_length(
+        N / iin_block_, config.N_split_num, n_s, n_idx, X_bigger_num);
+      N_single_thr_size = N_single_thr_size * iin_block_;
+      n_idx = n_idx * iin_block_;
+      _for_(k_s, tid % (config.N_split_num * K_split_num) % K_split_num,
+        tid % (config.N_split_num * K_split_num) % K_split_num + 1) {
+        K_single_thr_size = get_balance211_length(
+          K / iik_block_, K_split_num, k_s, k_idx, X_bigger_num);
+        K_single_thr_size = K_single_thr_size * iik_block_;
+        k_idx = k_idx * iik_block_;
+        _for_(n_b, 0, config.N_sub_block) {
+          expr n_b_idx, n_b_bigger_num, k_b_idx, k_b_bigger_num;
+          _var_init_(n_o_end, datatypes::s32,
+            get_balance211_length(N_single_thr_size / iin_block_,
+              config.N_sub_block, n_b, n_b_idx, n_b_bigger_num));
+          _for_(k_b, 0, config.K_sub_block) {
+            _for_(n_o, 0, n_o_end) {
+              _var_init_(n_start_idx, datatypes::index,
+                n_idx + n_b_idx * iin_block_
+                  + ((n_o + tid) % n_o_end) * iin_block_);
+              _var_init_(bs, datatypes::s32,
+                get_balance211_length(K_single_thr_size / iik_block_,
+                  config.K_sub_block, k_b, k_b_idx, k_b_bigger_num));
+              _var_init_(
+                k_start_idx, datatypes::index, k_idx + k_b_idx * iik_block_);
+              _for_(i, 0, iik_block_ * iin_block_ * bs, 512 / sizeof_dtype) {
+                _if_(lookup[0] == expected && !is_prefetch_debug_mode()) {
+                  _return_(cnt);
+                }
+                cnt = cnt + 1;
+
+                _for_(j, 0, 512 / sizeof_dtype, 64 / sizeof_dtype) {
+                  std::vector<expr> B_indices;
+                  if (get_A_dtype() == datatypes::f32) {
+                    B_indices = {n_start_idx / expr(iin_block_),
+                      k_start_idx / expr(iik_block_), 0, i + j};
+                  } else {
+                    B_indices = {n_start_idx / expr(iin_block_),
+                      k_start_idx / expr(iik_block_), 0, 0, i + j};
+                  }
+                  auto tptr = builder::tensor_ptr(ins[0], B_indices);
+                  trace_prefetch_for_debug(tptr);
+                  builder::get_current_builder()->push_evaluate(
+                    make_expr<intrin_call_node>(intrin_type::prefetch,
+                      std::vector<expr> {tptr}, any_map_t {{"locality", 1}}));
+                }
+              }
             }
           }
         }
@@ -1142,6 +1240,9 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
             auto stride_b = !tb.get_format().is_blocking()
               ? iik_block_ * ori_N
               : iik_block_ * iin_block_;
+            trace_brgemm_for_debug(
+              tensor_ptr(B, bidx), bs, iin_block_, iik_block_);
+
             _if_(k_b == 0) {
               builtin::brgemm_init_update(tensor_ptr(A, aidx),
                 tensor_ptr(B, bidx), tensor_ptr(C, cidx), bs, iim_block_,
@@ -1850,7 +1951,9 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           = divide_and_ceil(N_single_thr_size, iin_block_);
         if (out_tensors_[0].get_format().is_blocking()) {
           trace_guard_t tg(ctx, "blocking_post_reduce");
-          _for_(lm_ln, 0, M_single_thr_num_block * N_single_thr_num_block, 1,
+          for_loop reduce_loop;
+          _named_for_(reduce_loop, lm_ln, 0,
+            M_single_thr_num_block * N_single_thr_num_block, 1,
             for_type::PARALLEL, K_split_num) { //
             expr lm = lm_ln / N_single_thr_num_block;
             expr ln = lm_ln % N_single_thr_num_block;
@@ -1879,6 +1982,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
                   {0, expr(iin_block_)}})});
             }
           }
+          reduce_loop->attr()["dont_prefetch"] = true;
         } else {
           trace_guard_t tg(ctx, "plain_post_reduce");
           builtin::dnnl_brgemm_init(tensor_ptr(C, {m_idx, n_idx}),

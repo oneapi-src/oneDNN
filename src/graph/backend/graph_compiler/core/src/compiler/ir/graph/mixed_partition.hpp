@@ -54,6 +54,8 @@ constexpr const char *optimized_outer_loop = "optimized_outer_loop";
 constexpr const char *single_op_graph = "single_op_graph";
 // Boolean: is begining op of pre-op fuse
 constexpr const char *pre_fuse_begin_op = "pre_fuse_begin_op";
+// Boolean: is the first op for prefetching
+constexpr const char *first_prefetch_op = "first_prefetch_op";
 } // namespace mixed_partition_hint
 
 // different fusion policies prepared for dynamic shape, policies will be JIT

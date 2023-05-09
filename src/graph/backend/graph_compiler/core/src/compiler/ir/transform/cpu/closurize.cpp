@@ -163,6 +163,7 @@ class closurize_cpu_impl_t : public closurize_impl_t {
     // result_t by reference, the address will be wrong in g++4.8
     const tensor_def_collector_t::result_t *main_tensor_def_info_;
     const tensor_def_collector_t::result_t *lastop_tensor_def_info_;
+    bool has_idle_func_ = false;
     // makes the closure function and its generic wrapper
     func_t make_closure_func(const std::string &name,
             std::vector<expr_c> &&params, stmt_c body,
@@ -251,10 +252,13 @@ class closurize_cpu_impl_t : public closurize_impl_t {
         expr_c step_v = para_attr[0].step_;
         cast_to(step_v, datatypes::index, step_v);
         step_v = folder(step_v);
+        uint64_t flag = has_idle_func_
+                ? runtime::thread_pool_flags::THREAD_POOL_RUN_IDLE_FUNC
+                : 0;
         auto ret_call = builder::make_call(
                 get_parallel_call_with_env_func(use_managed_thread_pool_),
                 std::vector<expr_c> {builder::make_func_addr(std::move(target)),
-                        /*flags*/ make_expr<constant_node>(UINT64_C(0)),
+                        /*flags*/ make_expr<constant_node>(flag),
                         /*stream*/
                         make_expr<constant_node>(
                                 UINT64_C(0), datatypes::pointer),
@@ -265,11 +269,21 @@ class closurize_cpu_impl_t : public closurize_impl_t {
         ret_call->temp_data() = captures;
         out_calls.emplace_back(ret_call.static_as<call>());
         seq->seq_.emplace_back(make_stmt<evaluate_node_t>(std::move(ret_call)));
+        has_idle_func_ = false;
         return seq;
     }
 
 public:
     using closurize_impl_t::dispatch;
+    using closurize_impl_t::visit;
+
+    expr_c visit(call_c v) override {
+        if (v->func_ == builtin::get_set_idle_func_managed_func()
+                && !in_parallel_for) {
+            has_idle_func_ = true;
+        }
+        return closurize_impl_t::visit(std::move(v));
+    }
 
     uint64_t &get_last_parallel_call_flag() {
         return out_calls.back()
@@ -314,6 +328,7 @@ public:
 
     func_c dispatch(func_c f) override {
         out_calls.clear();
+        has_idle_func_ = false;
         auto ret = closurize_impl_t::dispatch(f);
         if (!out_calls.empty() && f->attr_
                 && f->attr_->get_or_else(

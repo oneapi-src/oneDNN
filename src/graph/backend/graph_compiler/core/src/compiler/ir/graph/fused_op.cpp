@@ -1715,7 +1715,10 @@ static op_traits::may_prefetch_t *find_prefetch_op(const sc_graph_t &graph) {
                     graph, [&found_op](op_visitor_t *vis, const sc_op_ptr &op) {
                         if (found_op) { return; }
                         if (op->isa<tunable_op_t>()
-                                && op->isa<op_traits::may_prefetch_t>()) {
+                                && op->isa<op_traits::may_prefetch_t>()
+                                && op->attrs_.get_or_else(
+                                        mixed_partition_hint::first_prefetch_op,
+                                        false)) {
                             for (auto &ins : op->get_inputs()) {
                                 if (ins->producer_owner_->isa<input_op>()) {
                                     found_op = op->dyn_cast<

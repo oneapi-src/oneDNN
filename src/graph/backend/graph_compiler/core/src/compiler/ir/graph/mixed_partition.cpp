@@ -1580,8 +1580,15 @@ static stmts find_last_parallel_for(const stmts &scope, int64_t &out_index) {
                         s.static_as<stmts>(), out_index);
                 if (ret.defined()) { return ret; }
             }
-            if (s.isa<for_loop>()
-                    && s.static_as<for_loop>()->kind_ == for_type::PARALLEL) {
+            if (s.cast<for_loop>()
+                            .filter([](const for_loop &v) {
+                                return v->kind_ == for_type::PARALLEL
+                                        && (!v->attr_
+                                                || !v->attr_->get_or_else(
+                                                        "dont_prefetch",
+                                                        false));
+                            })
+                            .has_value()) {
                 out_index = i;
                 return scope;
             }
@@ -1855,7 +1862,8 @@ static bool try_merge_mixed_parti_parallel_inners(
                 = op_second->dyn_cast<op_traits::may_prefetch_t>()) {
             int64_t prefetch_insertion_point = -1;
             auto last_for_parent = find_last_parallel_for(
-                    outer_loops_to_merge[0]->body_.static_as<stmts>(),
+                    outer_loops_to_merge[merged_loop_size - 1]
+                            ->body_.static_as<stmts>(),
                     prefetch_insertion_point);
 
             std::vector<tensor_slice> in_slice;
@@ -3476,6 +3484,15 @@ static std::string get_parti_prefix(const mixed_parti_t &parti) {
     return prefix;
 }
 
+static void search_first_prefetch_op(mixed_parti_t &parti) {
+    for (const auto &op : parti.committed_ops_) {
+        if (op->isa<tunable_op_t>() && op->isa<op_traits::may_prefetch_t>()) {
+            op->attrs_[mixed_partition_hint::first_prefetch_op] = true;
+            break;
+        }
+    }
+}
+
 std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
         const context_ptr &ctx, sc_graph_t &g,
         const std::shared_ptr<mixed_parti_t> &partition) {
@@ -3486,6 +3503,8 @@ std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
     std::string op_name;
     COMPILE_ASSERT(partition, "No partition found")
     auto &parti = *partition;
+    search_first_prefetch_op(parti);
+
     // the mapping for original op to op in sub graph
     std::unordered_map<sc_op_ptr, sc_op_ptr> graph2orig_ops;
     // the mapping for original LT in original ops to fuse => the LT in the

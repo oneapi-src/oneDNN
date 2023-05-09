@@ -1632,7 +1632,7 @@ public:
     virtual sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs,
             sc_graph_t &mgr) override {
-        return mgr.make<test_prefetchable_op>("tperf", ins, outs, any_map_t {});
+        return mgr.make<test_prefetchable_op>("tperf", ins, outs, attrs_);
     }
     ir_module_ptr get_func(context_ptr ctx) override { return nullptr; }
     void query_format(context_ptr ctx,
@@ -1659,9 +1659,12 @@ TEST(GCCore_graph_mixed_partition_cpp, TestPrefetchNone) {
             std::vector<graph_tensor_ptr> {
                     reo0->get_outputs()[0], reo1->get_outputs()[0]},
             std::vector<graph_tensor_ptr> {}, any_map_t {});
+    gemm->attrs_.set(mixed_partition_hint::first_prefetch_op, true);
     graph.make_output(gemm->get_outputs());
 
-    mixed_fuse_op_t tester {"test", {}, nullptr, graph,
+    std::vector<mixed_parti_t::ptr> par(graph.ops_.size());
+
+    mixed_fuse_op_t tester {"test", par, nullptr, graph,
             {graph_tensor::make({128, 128}, sc_data_format_t::MK()),
                     graph_tensor::make({128, 128}, sc_data_format_t::MK())},
             {graph_tensor::make({128, 128}, sc_data_format_t::MK())}, {}};
@@ -1684,9 +1687,12 @@ TEST(GCCore_graph_mixed_partition_cpp, TestPrefetchSelected) {
             std::vector<graph_tensor_ptr> {
                     reo1->get_outputs()[0], input->get_outputs()[0]},
             std::vector<graph_tensor_ptr> {}, any_map_t {});
+    gemm->attrs_.set(mixed_partition_hint::first_prefetch_op, true);
     graph.make_output(gemm->get_outputs());
 
-    mixed_fuse_op_t tester {"test", {}, nullptr, graph,
+    std::vector<mixed_parti_t::ptr> par(graph.ops_.size());
+
+    mixed_fuse_op_t tester {"test", par, nullptr, graph,
             {graph_tensor::make({128, 128}, sc_data_format_t::MK()),
                     graph_tensor::make({128, 128}, sc_data_format_t::MK())},
             {graph_tensor::make({128, 128}, sc_data_format_t::MK())}, {}};
