@@ -29,6 +29,7 @@
 #include "gpu/compute/compute.hpp"
 #include "gpu/compute/compute_engine.hpp"
 #include "gpu/jit/conv/block_helper.hpp"
+#include "gpu/jit/conv/key.hpp"
 #include "gpu/jit/conv/params.hpp"
 #include "gpu/jit/ir/config.hpp"
 #include "gpu/jit/ir/fma.hpp"
@@ -984,6 +985,8 @@ public:
     std::string str() const override;
 
     std::string blocking_brief_str() const;
+
+    conv_key_t key() const;
 
     // Helper methods.
     int dim(const std::string &name) const { return dims()(name); }

@@ -2207,6 +2207,10 @@ std::string pad_int(int i, int pad) {
     return pad_str(std::to_string(i), pad);
 }
 
+conv_key_t conv_config_t::key() const {
+    return conv_key_t(*this);
+}
+
 std::string conv_config_t::blocking_brief_str() const {
     std::ostringstream oss;
     std::vector<std::string> names;
