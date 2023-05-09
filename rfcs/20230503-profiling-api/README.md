@@ -173,7 +173,7 @@ Below is pseudo-code that demonstrates the use of the C++ profiling API.
     // Create dnnl::stream with the queue.
     dnnl::stream stream = ocl_interop::make_stream(engine, ocl_queue);
 
-    // Enable profiling before the first engine creation.
+    // Enable profiling for the given stream.
     dnnl::enable_profiling(stream);
 
     // Create a convolution primitive ... //
