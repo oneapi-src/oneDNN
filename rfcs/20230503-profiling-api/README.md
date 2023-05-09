@@ -21,14 +21,13 @@ time option `ONEDNN_EXPERIMENTAL_PROFILING`.
 The profiling API will have the following requirements:
 * The profiling mechanism will have to be enabled and disabled explicitly with
 the corresponding API
-* Enabling of the mechanism should be done prior to the first engine creation
 * When the mechanism is enabled the oneDNN stream is expected to contain a queue
 that was created with enabled profiling capabilities
 * Explicit synchronization after submitting a primitive to the queue is required
 to query the profiling data for the primitive
 
 In order to support profiling for multiple streams each stream will have its own
-profiler, this is why some profiling API will have a stream as a parameter.
+profiler, this is why the profiling API will have a stream as a parameter.
 
 A typical workflow looks as follows:
 * Enable profiling
@@ -48,24 +47,26 @@ The API for enabling and disabling profiling:
 ```c
 /// Enable profiling capabilities.
 ///
+/// @param stream Stream to be used for profiling.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t dnnl_enable_profiling(void);
+dnnl_status_t dnnl_enable_profiling(dnnl_stream_t stream);
 
 /// Disable profiling capabilities.
 ///
+/// @param stream Stream that is used for profiling
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t dnnl_disable_profiling(void);
+dnnl_status_t dnnl_disable_profiling(dnnl_stream_t stream);
 ```
 
 #### C++
 ```cpp
 /// @copydoc dnnl_enable_profiling()
-status enable_profiling();
+status enable_profiling(stream &stream);
 
 /// @copydoc dnnl_disable_profiling()
-status disable_profiling();
+status disable_profiling(stream &stream);
 ```
 
 The API for resetting the profiler's state:
@@ -161,11 +162,7 @@ uint64_t get_profiling_data(stream &stream, profiling_data_kind data_kind,
 
 Below is pseudo-code that demonstrates the use of the C++ profiling API.
 ```cpp
-    // Enable profiling before the first engine creation.
-    dnnl::enable_profiling();
-
     dnnl::engine engine(engine::kind::gpu, 0);
-
     // Create a queue with enabled profiling mode.
     cl_command_queue ocl_queue {};
 
@@ -175,6 +172,9 @@ Below is pseudo-code that demonstrates the use of the C++ profiling API.
 
     // Create dnnl::stream with the queue.
     dnnl::stream stream = ocl_interop::make_stream(engine, ocl_queue);
+
+    // Enable profiling before the first engine creation.
+    dnnl::enable_profiling(stream);
 
     // Create a convolution primitive ... //
 
@@ -192,5 +192,5 @@ Below is pseudo-code that demonstrates the use of the C++ profiling API.
     // Reset profiler's state.
     dnnl::reset_profiling(stream);
     // Disable profiling.
-    dnnl::disable_profiling();
+    dnnl::disable_profiling(stream);
 ```
