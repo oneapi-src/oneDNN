@@ -30,56 +30,44 @@ using namespace dnnl::graph::tests::unit::utils;
 
 TEST(OpSchemaDeathTest, DuplicateAttribute) {
     EXPECT_DEATH(op_schema_t()
-                         .set_attr(op_attr::kernel, "size of each filter", true,
-                                 attribute_kind::b)
-                         .set_attr(op_attr::kernel, "size of each filter", true,
-                                 attribute_kind::b),
+                         .set_attr(op_attr::kernel, true, attribute_kind::b)
+                         .set_attr(op_attr::kernel, true, attribute_kind::b),
             "provided attribute has already been set");
 }
 
 TEST(OpSchemaDeathTest, DuplicatedInput) {
-    EXPECT_DEATH(op_schema_t()
-                         .set_num_inputs(5)
-                         .set_input(3, "mean", "value for mean normalization")
-                         .set_input(3, "mean", "value for mean normalization"),
+    EXPECT_DEATH(op_schema_t().set_num_inputs(5).set_input(3, "mean").set_input(
+                         3, "mean"),
             "provided `in_offset` has already been set");
 }
 
 TEST(OpSchemaDeathTest, DuplicatedOutput) {
     EXPECT_DEATH(op_schema_t()
                          .set_num_outputs(1)
-                         .set_output(0, "output", "output tensor")
-                         .set_output(0, "output", "output tensor"),
+                         .set_output(0, "output")
+                         .set_output(0, "output"),
             "provided `out_offset` has already been set");
 }
 
 TEST(OpSchemaDeathTest, SetInputBeforeSetNumInputs) {
-    EXPECT_DEATH(op_schema_t()
-                         .set_input(0, "a", "first input tensor")
-                         .set_num_inputs(2),
+    EXPECT_DEATH(op_schema_t().set_input(0, "a").set_num_inputs(2),
             "input set before setting num_inputs_");
 }
 
 TEST(OpSchemaDeathTest, SetOutputBeforeSetNumOutputs) {
-    EXPECT_DEATH(op_schema_t()
-                         .set_output(0, "output", "output tensor")
-                         .set_num_outputs(1),
+    EXPECT_DEATH(op_schema_t().set_output(0, "output").set_num_outputs(1),
             "output set before setting num_outputs_");
 }
 
 TEST(OpSchemaDeathTest, ExceededNumInputs) {
-    EXPECT_DEATH(op_schema_t()
-                         .set_num_inputs(1)
-                         .set_input(0, "a", "first input tensor")
-                         .set_input(1, "b", "second input tensor"),
+    EXPECT_DEATH(
+            op_schema_t().set_num_inputs(1).set_input(0, "a").set_input(1, "b"),
             "input offset exceeds declared num of inputs");
 }
 
 TEST(OpSchemaDeathTest, ExceededNumOutputs) {
-    EXPECT_DEATH(op_schema_t()
-                         .set_num_outputs(1)
-                         .set_output(0, "a", "first output tensor")
-                         .set_output(1, "b", "second output tensor"),
+    EXPECT_DEATH(op_schema_t().set_num_outputs(1).set_output(0, "a").set_output(
+                         1, "b"),
             "output offset exceeds declared num of outputs");
 }
 
@@ -88,17 +76,12 @@ TEST(OpSchemaDeathTest, ExceededNumOutputs) {
 TEST(OpSchemaDeathTest, OpschemaMethod) {
     auto op_schema = op_schema_t(op_kind::Add, 1);
 
-    ASSERT_NO_THROW({ op_schema.set_doc(std::string("this is conv")); });
-    ASSERT_NO_THROW({ op_schema.get_doc(); });
     ASSERT_NO_THROW({ op_schema.set_num_inputs(2); });
     ASSERT_NO_THROW({ op_schema.set_num_outputs(1); });
-    ASSERT_NO_THROW(
-            { op_schema.set_input(0, "a", "first input tensor", "T"); });
-    ASSERT_NO_THROW(
-            { op_schema.set_input(1, "b", "second input tensor", "T"); });
+    ASSERT_NO_THROW({ op_schema.set_input(0, "a", "T"); });
+    ASSERT_NO_THROW({ op_schema.set_input(1, "b", "T"); });
     ASSERT_NO_THROW({ op_schema.get_inputs(); });
-    ASSERT_NO_THROW(
-            { op_schema.set_output(0, "output", "output tensor", "T"); });
+    ASSERT_NO_THROW({ op_schema.set_output(0, "output", "T"); });
 
     ASSERT_NO_THROW({
         op_schema.set_type_constraints(
