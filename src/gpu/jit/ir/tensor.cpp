@@ -168,14 +168,16 @@ layout_t layout_t::map(const tensor_t &tensor) const {
             if (block % rem_dim == 0)
                 return split_block(eb, rem_dim, block / rem_dim).map(tensor);
 
-            ir_error_not_expected() << "Can't map tensor layout.";
+            // TODO: Remove exception usage.
+            ir_except_not_implemented("Can't map tensor layout.");
         }
         rem_dim /= block;
         mapped_blocks.emplace_back(b.dim_idx, block, b.stride);
     }
 
     for (auto &d : remaining_dims) {
-        ir_assert(d == 1) << "Can't map tensor layout.";
+        // TODO: Remove exception usage.
+        if (d != 1) ir_except_not_implemented("Can't map tensor layout.");
         MAYBE_UNUSED(d);
     }
 
@@ -569,7 +571,8 @@ layout_t view_t::create_pseudo_vlayout(
                 return create_pseudo_vlayout(tmp_layout, init_offset);
             }
 
-            ir_error_not_expected() << "Can't create pseudo-layout.";
+            // TODO: Remove exception usage.
+            ir_except_not_implemented("Can't create pseudo-layout.");
         }
         blocks.emplace_back(tb.dim_idx, tblock, tb.stride);
     }
