@@ -1068,7 +1068,7 @@ send_2d_hint_t get_send_2d_hint(send_op_t send_op, const type_t &_type,
     if (h_blk > 0 && (h_blk < h_min || h_blk > h_max)) return send_2d_hint_t();
 
     auto find_block = [&](int dim, int min, int max) {
-        for (int b = max; b >= min; b /= 2) {
+        for (int b = max; b >= min; b--) {
             if (dim % b == 0) return b;
         }
         return 0;
@@ -1133,24 +1133,24 @@ send_2d_hint_t get_send_2d_hint(const exec_config_t &exec_cfg,
 
     if (send_op == send_op_t::load && fma_kind == fma_kind_t::dpas
             && utils::one_of(abc_kind, abc_kind_t::a, abc_kind_t::b)) {
-        bool is_dpas_src1 = (abc_kind == abc_kind_t::b);
-        int mn_blk = (is_dpas_src1 ? exec_cfg.simd() : 8);
-        int k_blk = 32 / view.type().size();
-
-        bool is_b0_k = (bmnk_mapper.bmnk_kind(abc_kind, b0.dim_idx)
-                == bmnk_kind_t::k);
-
         // Handle 4 cases (consider bf16):
         // src1, MxK: 16a16b -> 8a16b2a           (VNNI)
         // src1, KxM: 16a16b -> 16b16a -> 8b16a2b (transpose + VNNI)
         // src2, KxN: 16a16b -> 16b16a            (transpose)
         // src2, NxK: 16a16b -> 16a16b            ()
+        bool is_dpas_src1 = (abc_kind == abc_kind_t::b);
+        int m_blk = exec_cfg.simd();
+        int n_blk = 0;
+        int mn_blk = (is_dpas_src1 ? m_blk : n_blk);
+        int k_blk = 32 / view.type().size();
+        bool is_b0_k = (bmnk_mapper.bmnk_kind(abc_kind, b0.dim_idx)
+                == bmnk_kind_t::k);
         bool vnni = is_dpas_src1;
         bool transpose = (is_dpas_src1 == is_b0_k);
         int b0_blk = is_b0_k ? k_blk : mn_blk;
         int b1_blk = !is_b0_k ? k_blk : mn_blk;
-        if (b0.block % b0_blk != 0) return hint;
-        if (b1.block % b1_blk != 0) return hint;
+        if (b0_blk != 0 && b0.block % b0_blk != 0) return hint;
+        if (b1_blk != 0 && b1.block % b1_blk != 0) return hint;
         hint = get_send_2d_hint(send_op, view.type(), vnni, transpose, b0.block,
                 b1.block, b0_blk, b1_blk);
     } else {
