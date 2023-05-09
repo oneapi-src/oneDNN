@@ -36,7 +36,7 @@ namespace jit {
 // offset is assumed to be generated from simplifying expressions like
 // (f(entry_var) + c) * stride, so it results in the same effective alignments.
 // The resulting overflow/underflow is handled by the entry can_overflow.
-template <typename dim_id_t>
+template <typename dim_type_t>
 struct stride_layout_t {
     static const int MAX_NDIMS = 12;
     stride_layout_t(int type_size)
@@ -52,16 +52,16 @@ struct stride_layout_t {
 
     struct stride_dim_t {
         stride_dim_t() = default;
-        stride_dim_t(dim_id_t id, dim_t size, dim_t stride, bool can_overflow,
-                bool is_complex)
-            : id(id)
+        stride_dim_t(dim_type_t dim, dim_t size, dim_t stride,
+                bool can_overflow, bool is_complex)
+            : dim(dim)
             , size(size)
             , stride(stride)
             , can_overflow(can_overflow)
             , is_complex(is_complex) {}
         stride_dim_t(const stride_dim_t &other) = default;
 
-        dim_id_t id;
+        dim_type_t dim;
         dim_t size;
         dim_t stride;
 
@@ -79,13 +79,13 @@ struct stride_layout_t {
                 if (size > other.size)
                     return true;
                 else if (size == other.size)
-                    return id < other.id;
+                    return dim.id() < other.dim.id();
             }
             return false;
         }
         std::string str() const {
             std::ostringstream oss;
-            oss << id << ":" << size << "*" << stride;
+            oss << dim << ":" << size << "*" << stride;
             return oss.str();
         }
     };
@@ -122,17 +122,18 @@ struct stride_layout_t {
     stride_array_t strides;
 };
 
-template <typename dim_id_t>
+template <typename dim_type_t>
 struct block_hint_t {
     static const dim_t unset = 0;
-    const dim_t &operator[](dim_id_t i) const { return hint_[i.as_int()]; }
-    dim_t &operator[](dim_id_t i) { return hint_[i.as_int()]; }
+    const dim_t &operator[](dim_type_t i) const { return hint_[i.id()]; }
+    dim_t &operator[](dim_type_t i) { return hint_[i.id()]; }
     std::string str() const {
         std::ostringstream oss;
         oss << "hint:";
-        for (dim_id_t i : dim_id_t::dims()) {
-            if (hint_[i.as_int()] > 1) {
-                oss << " " << i.str() << ":" << hint_[i.as_int()];
+        for (int id = 0; id < dim_type_t::max_id(); id++) {
+            auto i = dim_type_t::from_id(id);
+            if (hint_[i.id()] > 1) {
+                oss << " " << i.str() << ":" << hint_[i.id()];
             }
         }
         return oss.str();
@@ -140,7 +141,7 @@ struct block_hint_t {
 
     block_hint_t lcm(const block_hint_t &other) {
         block_hint_t ret;
-        for (int i = 0; i < dim_id_t::NDIMS; i++) {
+        for (int i = 0; i < dim_type_t::NDIMS; i++) {
             if (hint_[i] == unset)
                 ret.hint_[i] = other.hint_[i];
             else if (other.hint_[i] == unset)
@@ -152,13 +153,13 @@ struct block_hint_t {
     }
 
 private:
-    std::array<dim_t, dim_id_t::NDIMS> hint_ = {};
+    std::array<dim_t, dim_type_t::max_id()> hint_ = {};
 };
 
-template <typename dim_id_t>
+template <typename dim_type_t>
 struct send_idiom_t {
-    virtual std::vector<block_hint_t<dim_id_t>> get_hints(
-            const stride_layout_t<dim_id_t> &layout) const = 0;
+    virtual std::vector<block_hint_t<dim_type_t>> get_hints(
+            const stride_layout_t<dim_type_t> &layout) const = 0;
 };
 
 // The uniform blocked pattern corresponds to a sequence blocked send
@@ -178,13 +179,13 @@ struct uniform_blocked_pattern_t {
     dim_t alignment;
 };
 
-template <typename dim_id_t>
-struct uniform_blocked_idiom_t final : public send_idiom_t<dim_id_t> {
+template <typename dim_type_t>
+struct uniform_blocked_idiom_t final : public send_idiom_t<dim_type_t> {
     constexpr uniform_blocked_idiom_t(const uniform_blocked_pattern_t &data)
         : data_(data) {}
 
-    using hint_t = block_hint_t<dim_id_t>;
-    using slayout_t = stride_layout_t<dim_id_t>;
+    using hint_t = block_hint_t<dim_type_t>;
+    using slayout_t = stride_layout_t<dim_type_t>;
 
     dim_t load_size() const { return data_.size; }
     dim_t alignment() const { return data_.alignment; }
@@ -240,13 +241,13 @@ struct uniform_blocked_idiom_t final : public send_idiom_t<dim_id_t> {
                 // No masking means the final load block must be divisible by the
                 // load_size
                 hint_t new_hint = hint;
-                new_hint[i->id] = load_rem;
+                new_hint[i->dim] = load_rem;
                 return get_hints(layout, i + 1, new_hint, 0);
 
             } else if (load_rem % i->size == 0) {
                 // No masking means we cannot handle any overflow
                 hint_t new_hint = hint;
-                new_hint[i->id] = i->size;
+                new_hint[i->dim] = i->size;
                 return get_hints(layout, i + 1, new_hint, load_rem / i->size);
             } else {
                 // Dimension cannot be packed into a blocked load

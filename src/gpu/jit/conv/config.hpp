@@ -29,6 +29,7 @@
 #include "gpu/compute/compute.hpp"
 #include "gpu/compute/compute_engine.hpp"
 #include "gpu/jit/conv/block_helper.hpp"
+#include "gpu/jit/conv/params.hpp"
 #include "gpu/jit/ir/config.hpp"
 #include "gpu/jit/ir/fma.hpp"
 #include "gpu/jit/ir/hw_config.hpp"
@@ -396,6 +397,13 @@ public:
     }
 
     void set(const value_t &value) { map_ = value; }
+
+    template <typename T>
+    void set(const tile_generic_t<T> &tile) {
+        for (auto d : tile) {
+            set(d.str(), tile[d]);
+        }
+    }
 
     std::string str() const override {
         std::ostringstream oss;

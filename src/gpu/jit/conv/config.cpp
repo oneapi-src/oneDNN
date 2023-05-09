@@ -1346,13 +1346,13 @@ bool should_use_spatial_blocking(const conv_config_t &cfg,
 send_pattern_t validate_blocking(const conv_config_t &cfg,
         const block_helper_t &bh, conv_stride_layout_t::input_tensor_t tensor,
         std::pair<const char *, const char *> translation = {"", ""}) {
-
+    auto &prb = cfg.prb();
     const compute::gpu_arch_t arch
             = convert_ngen_arch_to_dnnl(cfg.hw_cfg().hw());
 
     auto is_match = [&](const block_hint_t<conv_dim_t> &hint,
                             const block_helper_t &bh) {
-        for (auto dim : conv_dim_t::dims()) {
+        for (auto dim : get_conv_dims(prb.prop_kind())) {
             if (hint[dim]) {
                 if (dim.str() == translation.first) {
                     if (bh.iter_dim(translation.second) % hint[dim])
