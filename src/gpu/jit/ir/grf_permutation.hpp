@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,7 +44,8 @@ public:
         ir_assert(old_off >= 0 && old_off < max_regs);
         if (old_off == new_off || new_off == -1) return;
         is_empty_ = false;
-        ir_assert(permutation_[old_off] == -1) << "Already assigned.";
+        ir_assert(utils::one_of(permutation_[old_off], -1, new_off))
+                << "Already assigned to a different offset.";
         permutation_[old_off] = new_off;
     }
 
