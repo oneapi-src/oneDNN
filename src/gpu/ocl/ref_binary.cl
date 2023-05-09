@@ -23,8 +23,8 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
         __global float *src1_scale) {
     int off = GWS_GET_IDX();
 
-    float tmp_src0 = CONVERT_FLOAT_T(src0[off]);
-    float tmp_src1 = CONVERT_FLOAT_T(src1[off]);
+    float tmp_src0 = SRC0_TO_FLOAT(src0[off]);
+    float tmp_src1 = SRC1_TO_FLOAT(src1[off]);
     float d = 0;
 
 #if WITH_SRC0_SCALE
@@ -87,7 +87,7 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
 
     if (dims0[0] >= DST_D0) {
         for (int ic = 0; ic < block_size; ++ic) {
-            dst[dst_off] = DATA_ZERO;
+            dst[dst_off] = TO_DST(DATA_ZERO);
             dst_off++;
         }
 
@@ -96,10 +96,8 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
 
     if (d1_init + block_size <= DST_D1) {
         for (int ic = 0; ic < block_size; ++ic) {
-            // using tmp vars to handle float calculations for bf16 datatypes
-            // CONVERT_FLOAT_T is a macro defined in ocl_types.h
-            float tmp_src0 = CONVERT_FLOAT_T(src0[src0_off]);
-            float tmp_src1 = CONVERT_FLOAT_T(src1[src1_off]);
+            float tmp_src0 = SRC0_TO_FLOAT(src0[src0_off]);
+            float tmp_src1 = SRC1_TO_FLOAT(src1[src1_off]);
             float d = 0;
 
 #if WITH_SRC0_SCALE
@@ -133,10 +131,8 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
         }
     } else {
         for (int ic = 0; ic < DST_D1 - d1_init; ic++) {
-            // using tmp vars to handle float calculations for bf16 datatypes
-            // CONVERT_FLOAT_T is a macro defined in ocl_types.h
-            float tmp_src0 = CONVERT_FLOAT_T(src0[src0_off]);
-            float tmp_src1 = CONVERT_FLOAT_T(src1[src1_off]);
+            float tmp_src0 = SRC0_TO_FLOAT(src0[src0_off]);
+            float tmp_src1 = SRC1_TO_FLOAT(src1[src1_off]);
             float d = 0;
 
 #if WITH_SRC0_SCALE
@@ -170,7 +166,7 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
         }
 #if DST_D1 != DST_PD1
         for (int ic = 0; ic < min(DST_PD1 - DST_D1, block_size); ic++) {
-            dst[dst_off] = DATA_ZERO;
+            dst[dst_off] = TO_DST(DATA_ZERO);
             dst_off++;
         }
 #endif

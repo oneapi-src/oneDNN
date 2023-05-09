@@ -48,13 +48,18 @@ struct ref_binary_t : public gpu_primitive_t {
             bool ok = set_default_params() == status::success
                     && ((utils::everyone_is(bf16, src_md(0)->data_type,
                                  src_md(1)->data_type)
-                                && utils::one_of(dst_md()->data_type, bf16, u8))
+                                && utils::one_of(
+                                        dst_md()->data_type, bf16, u8, f32))
                             || (utils::one_of(
                                         src_md(0)->data_type, f16, f32, s8, u8)
                                     && utils::one_of(src_md(1)->data_type, f16,
                                             f32, s8, u8)
                                     && utils::one_of(dst_md()->data_type, f16,
-                                            f32, s8, u8)))
+                                            f32, s8, u8))
+                            || (src_md(0)->data_type == f32
+                                    && src_md(1)->data_type == bf16
+                                    && utils::one_of(
+                                            dst_md()->data_type, bf16, f32)))
                     && !memory_desc_ndims_ok(src_md(0), src_md(1), dst_md())
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             check_scales_mask())
