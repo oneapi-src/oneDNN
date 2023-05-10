@@ -322,19 +322,24 @@ struct cudnn_matmul_impl_t {
         };
 
         float scale = 1.0f;
-        if (src_scale || wei_scale) {
-            if (src_scale) {
-                float host_src_scale = 1.0f;
-                CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_src_scale,
-                        (CUdeviceptr)src_scale, sizeof(float));
-                scale *= host_src_scale;
-            }
-            if (wei_scale) {
-                float host_wei_scale = 1.0f;
-                CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_wei_scale,
-                        (CUdeviceptr)wei_scale, sizeof(float));
-                scale *= host_wei_scale;
-            }
+        float host_dst_scale = 1.0f;
+        if (src_scale) {
+            float host_src_scale = 1.0f;
+            CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_src_scale,
+                    (CUdeviceptr)src_scale, sizeof(float));
+            scale *= host_src_scale;
+        }
+        if (wei_scale) {
+            float host_wei_scale = 1.0f;
+            CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_wei_scale,
+                    (CUdeviceptr)wei_scale, sizeof(float));
+            scale *= host_wei_scale;
+        }
+        if (dst_scale) {
+            CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_dst_scale,
+                    (CUdeviceptr)dst_scale, sizeof(float));
+            // For eltwise post-ops, apply the dst scale afterward
+            if (!with_eltwise_) scale /= host_dst_scale;
         }
 
         if (isbatched_) {
@@ -370,13 +375,14 @@ struct cudnn_matmul_impl_t {
         if (with_bias_) {
             // When bias is specified call cudnnAddTensor()
             float bias_beta = 1;
+            scale = (with_eltwise_ ? 1 : 1.0f / host_dst_scale);
             CUDNN_EXECUTE_FUNC(cudnnAddTensor, cudnn_handle, &scale,
                     tensor_descs_[io::bias], bias, &bias_beta, temp_mem_desc_,
                     scratch);
         }
         if (with_eltwise_) {
             // Perform elementwise operation if specified
-            float alpha = 1;
+            float alpha = 1.0f / host_dst_scale;
             float beta = 0;
             CUDNN_EXECUTE_FUNC(cudnnActivationForward, cudnn_handle, act_desc_,
                     &alpha, temp_mem_desc_, scratch, &beta, temp_mem_desc_,
@@ -388,15 +394,6 @@ struct cudnn_matmul_impl_t {
             CUDNN_EXECUTE_FUNC(cudnnTransformTensor, cudnn_handle,
                     &reorder_alpha, temp_mem_desc_, scratch, &post_op_sum_,
                     tensor_descs_[io::dst], c);
-        }
-
-        if (dst_scale) {
-            float host_dst_scale = 1.0f;
-            CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_dst_scale,
-                    (CUdeviceptr)dst_scale, sizeof(float));
-            float inv_scale = 1.0f / host_dst_scale;
-            CUDNN_EXECUTE_FUNC(cudnnScaleTensor, cudnn_handle,
-                    tensor_descs_[io::dst], c, &inv_scale);
         }
     }
 
