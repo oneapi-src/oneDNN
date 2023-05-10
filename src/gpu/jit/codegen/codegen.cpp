@@ -656,7 +656,9 @@ private:
                 mod |= flag;
             }
         }
-        if (hw <= ngen::HW::XeLP && send_func.is_atomic()) {
+        if ((hw <= ngen::HW::XeLP && send_func.is_atomic())
+                || (hw == ngen::HW::XeHPG && send_func.is_atomic()
+                        && send_func.type.kind() == type_kind_t::qword)) {
             send_atomic_add_emu(scope, send_func, mask_op, mod, mem_buf_rd,
                     surf_bti, mem_off_op.reg_data(), rd);
         } else {
