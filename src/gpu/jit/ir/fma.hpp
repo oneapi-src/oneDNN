@@ -42,8 +42,8 @@ namespace fma_kind {
 std::string to_string(fma_kind_t val);
 fma_kind_t from_string(std::string enum_string);
 
-fma_kind_t get_supported_kind(
-        ngen::HW hw, const type_t &a, const type_t &b, const type_t &c);
+fma_kind_t get_supported_kind(const hw_config_t &hw, const type_t &a,
+        const type_t &b, const type_t &c);
 
 int get_simd_size(ngen::HW hw, fma_kind_t kind, const type_t &a,
         const type_t &b, const type_t &c);

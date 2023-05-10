@@ -43,17 +43,21 @@ fma_kind_t fma_kind::from_string(std::string enum_string) {
     return fma_kind_t::unknown;
 }
 
-fma_kind_t fma_kind::get_supported_kind(
-        ngen::HW hw, const type_t &a, const type_t &b, const type_t &c) {
-    if (hw >= ngen::HW::XeHP && dpas_t::matches_types(hw, a, b, c)) {
-        if (hw >= ngen::HW::XeHPC)
+fma_kind_t fma_kind::get_supported_kind(const hw_config_t &hw_cfg,
+        const type_t &a, const type_t &b, const type_t &c) {
+    if (hw_cfg.hw() >= ngen::HW::XeHP && hw_cfg.systolic_support()
+            && dpas_t::matches_types(hw_cfg.hw(), a, b, c)) {
+        if (hw_cfg.hw() >= ngen::HW::XeHPC)
             return fma_kind_t::dpas;
         else
             return fma_kind_t::dpasw;
     }
-    if (hw == ngen::HW::XeLP && (a.is_x8() && b.is_x8() && c.is_s32()))
+    if ((hw_cfg.hw() == ngen::HW::XeLP
+                || (hw_cfg.hw() == ngen::HW::XeHP
+                        && !hw_cfg.systolic_support()))
+            && (a.is_x8() && b.is_x8() && c.is_s32()))
         return fma_kind_t::dp4a;
-    if (mad_t::matches_types(hw, a, b, c)) return fma_kind_t::mad;
+    if (mad_t::matches_types(hw_cfg.hw(), a, b, c)) return fma_kind_t::mad;
     return fma_kind_t::unknown;
 }
 
