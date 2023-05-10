@@ -173,6 +173,13 @@ static std::string get_log_func_name(const intrin_call_c &node) {
     ss << "_should_inline_log_" << node->dtype_;
     return ss.str();
 }
+
+static std::string get_erf_func_name(const intrin_call_c &node) {
+    std::stringstream ss;
+    ss << "_should_inline_erf_" << node->dtype_;
+    return ss.str();
+}
+
 class target_specific_lower_cpu_impl_t;
 static func_t create_isnan_func(const ir_module_ptr &mod,
         const intrin_call_c &node, target_specific_lower_cpu_impl_t *visitor) {
@@ -275,6 +282,9 @@ static func_t create_exp_func(const ir_module_ptr &mod,
 }
 
 static func_t create_log_func(const ir_module_ptr &mod,
+        const intrin_call_c &node, target_specific_lower_cpu_impl_t *visitor);
+
+static func_t create_erf_func(const ir_module_ptr &mod,
         const intrin_call_c &node, target_specific_lower_cpu_impl_t *visitor);
 
 static size_t get_field_offset(const std::string &in, int field) {
@@ -565,6 +575,12 @@ public:
                 lower_func = &create_log_func;
                 namer_func = &get_log_func_name;
                 break;
+            case intrin_type::erf:
+                COMPILE_ASSERT(v->args_[0]->dtype_.is_etype(sc_data_etype::F32),
+                        "Currently erf only supports f32");
+                lower_func = &create_erf_func;
+                namer_func = &get_erf_func_name;
+                break;
             case intrin_type::saturated_cast:
                 return do_lower_saturated_cast(ret.checked_as<intrin_call_c>());
                 break;
@@ -722,20 +738,14 @@ static func_t create_log_func(const ir_module_ptr &mod,
                 0xc2b08174, 0xc2b08174, 0xc2b08174, 0xc2b06731, 0xc2b06731,
                 0xc2b04b82, 0xc2b04b82, 0xc2b04b82, 0xc2b04b82, 0xc2b02e3e,
                 0xc2b02e3e, 0xc2b02e3e, 0xc2b00f34, 0xc2b00f34};
-        float *log_const_float_ptr_1
-                = reinterpret_cast<float *>(log_const_int_vals_1);
-        std::vector<float> log_const_vec_1(
-                log_const_float_ptr_1, log_const_float_ptr_1 + 32);
-        float *log_const_float_ptr_2
-                = reinterpret_cast<float *>(log_const_int_vals_2);
-        std::vector<float> log_const_vec_2(
-                log_const_float_ptr_2, log_const_float_ptr_2 + 32);
         log_table_tsr_1 = builder::make_tensor(log_const_table_name_1, {32},
                 datatypes::f32, address_space::automatic,
-                std::make_shared<static_data_t>(log_const_vec_1));
+                std::make_shared<static_data_t>(
+                        log_const_int_vals_1, sizeof(log_const_int_vals_1)));
         log_table_tsr_2 = builder::make_tensor(log_const_table_name_2, {32},
                 datatypes::f32, address_space::automatic,
-                std::make_shared<static_data_t>(log_const_vec_2));
+                std::make_shared<static_data_t>(
+                        log_const_int_vals_2, sizeof(log_const_int_vals_2)));
         mod->add_global_var(builder::make_var_tensor_def_unattached(
                 log_table_tsr_1, linkage::public_global)
                                     .checked_as<define>());
@@ -814,6 +824,199 @@ const_ir_module_ptr target_specific_lowering_cpu_t::operator()(
         pass.barrier_idle_func_args_.clear();
     }
     return ret;
+}
+
+static func_t create_erf_func(const ir_module_ptr &mod,
+        const intrin_call_c &node, target_specific_lower_cpu_impl_t *visitor) {
+    auto type = node->dtype_;
+    uint32_t elements = type.lanes_;
+
+    auto ONE_i = gen_vec_const_int(elements, 1);
+    auto ONE_f = gen_vec_const(elements, 1.0f);
+    expr ZERO_f = make_expr<constant_node>(0.0f, sc_data_type_t::f32(elements));
+    auto half_f = gen_vec_const(elements, 0.5f);
+    auto INT_23 = gen_vec_const_int(elements, 23);
+    auto INT_24 = gen_vec_const_int(elements, 24);
+    auto positive_mask = gen_vec_const_int(elements, 0x7fffffff);
+    auto sign_mask = gen_vec_const_int(elements, 0x80000000);
+    auto index_bias = gen_vec_const_int(elements, 0xc21fffff);
+    union {
+        float v;
+        int v2;
+    } caster;
+    caster.v2 = 0x40b15cee;
+    auto rbound = gen_vec_const(elements, caster.v);
+    caster.v2 = 0x3FB504F3;
+    auto sqrt_2 = gen_vec_const(elements, caster.v);
+    auto ty_epi_32 = sc_data_type_t::s32(elements);
+
+    builder::ir_builder_t builder;
+    if (mod->ctx_->machine_.cpu_flags_.fAVX512F) {
+        std::vector<std::string> erf_const_table_names = {"erf_const_table_0",
+                "erf_const_table_1", "erf_const_table_2", "erf_const_table_3",
+                "erf_const_table_4", "erf_const_table_5"};
+        auto global_erf_const_0
+                = mod->get_var_def_from_symbol(erf_const_table_names[0]);
+        std::vector<expr> erf_table_tsr_list(6);
+        if (!global_erf_const_0.defined()) {
+            static const uint32_t erf_const_int_vals[6][32] = {
+                    {0xa6f2cb94, 0x32827792, 0x3381cc0c, 0x34523d4a, 0x351ac44d,
+                            0x35f36d88, 0x36ee8229, 0x37b8a3bb, 0x3867a213,
+                            0x3940033b, 0x3a2a5a1d, 0x3ae35863, 0x3b7828f2,
+                            0x3c08b14b, 0x3c515ed3, 0xbb503236, 0xbd8d8e5e,
+                            0xbe8abcd9, 0xbf0c19a2, 0xbeccb328, 0x3e176ced,
+                            0x3f470d99, 0x3f7abb28, 0x3f800000, 0x00000000,
+                            0x00000000, 0x00000000, 0x00000000, 0x00000000,
+                            0x00000000, 0x00000000, 0x00000000},
+                    {0x3f4c422a, 0x3f4c421f, 0x3f4c4207, 0x3f4c41cb, 0x3f4c413b,
+                            0x3f4c3fad, 0x3f4c3a2f, 0x3f4c2d40, 0x3f4c146a,
+                            0x3f4bc341, 0x3f4ad08c, 0x3f48f8cf, 0x3f45fac7,
+                            0x3f404e07, 0x3f3b980f, 0x3f48dff3, 0x3f78b21b,
+                            0x3fbb0704, 0x40019c32, 0x3fe536d6, 0x3f81331e,
+                            0x3e6c8684, 0x3c98f936, 0x00000000, 0x3f800000,
+                            0x00000000, 0x00000000, 0x00000000, 0x00000000,
+                            0x00000000, 0x00000000, 0x00000000},
+                    {0xb62173f4, 0x3735e4cf, 0x37f2ff89, 0x388c23be, 0x3917535c,
+                            0x39ab2ab0, 0x3a60fadb, 0x3af9b960, 0x3b6e5491,
+                            0x3c0a4ec5, 0x3ca5aa8c, 0x3d2138d9, 0x3d8737d4,
+                            0x3ddfb660, 0x3e0f27ab, 0x3d94004b, 0xbe0efdeb,
+                            0xbf1d96c3, 0xbf89db58, 0xbf6d9897, 0xbef69fb8,
+                            0xbdc4f8a8, 0xbbde6422, 0x00000000, 0x00000000,
+                            0x00000000, 0x00000000, 0x00000000, 0x00000000,
+                            0x00000000, 0x00000000, 0x00000000},
+                    {0xbe081a19, 0xbe084570, 0xbe08639b, 0xbe089837, 0xbe08f409,
+                            0xbe09ab95, 0xbe0b66d0, 0xbe0e400a, 0xbe124df8,
+                            0xbe1bde02, 0xbe2f19c9, 0xbe4931bf, 0xbe685fbc,
+                            0xbe89c95f, 0xbe96cbca, 0xbe8044aa, 0xbe0550f2,
+                            0x3dcfd6a1, 0x3e94c826, 0x3e79345f, 0x3decec91,
+                            0x3ca46568, 0x3aa1e00a, 0x00000000, 0x00000000,
+                            0x00000000, 0x00000000, 0x00000000, 0x00000000,
+                            0x00000000, 0x00000000, 0x00000000},
+                    {0xba3d61db, 0x39f097a3, 0x3a5845dc, 0x3ab1fa35, 0x3b0cefb8,
+                            0x3b653ab6, 0x3bcae527, 0x3c221712, 0x3c6c5840,
+                            0x3cc0a703, 0x3d1dcc19, 0x3d63656d, 0x3d955907,
+                            0x3dbf9910, 0x3dd53f69, 0x3db7dcef, 0x3d639ebe,
+                            0xba6ede48, 0xbd22be69, 0xbd041cf1, 0xbc64f5ab,
+                            0xbb097a32, 0xb8ebf380, 0x00000000, 0x00000000,
+                            0x00000000, 0x00000000, 0x00000000, 0x00000000,
+                            0x00000000, 0x00000000, 0x00000000},
+                    {0x3cb7d80c, 0x3c9b6050, 0x3c978d11, 0x3c92e850, 0x3c8d058b,
+                            0x3c848454, 0x3c6cd623, 0x3c4c824b, 0x3c2a7935,
+                            0x3be0b390, 0x3b0651ac, 0xbb232f53, 0xbbd42fa0,
+                            0xbc2c5366, 0xbc492c9e, 0xbc2a7aa6, 0xbbd55d04,
+                            0xba823a76, 0x3b102aa8, 0x3ae25a7e, 0x3a31f792,
+                            0x38b84375, 0x3689bb5a, 0x00000000, 0x00000000,
+                            0x00000000, 0x00000000, 0x00000000, 0x00000000,
+                            0x00000000, 0x00000000, 0x00000000}};
+            for (int i = 0; i < 6; i++) {
+                erf_table_tsr_list[i] = builder::make_tensor(
+                        erf_const_table_names[i], {32}, datatypes::f32,
+                        address_space::automatic,
+                        std::make_shared<static_data_t>(
+                                erf_const_int_vals[i], sizeof(uint32_t) * 32));
+                mod->add_global_var(builder::make_var_tensor_def_unattached(
+                        erf_table_tsr_list[i], linkage::public_global)
+                                            .checked_as<define>());
+            }
+        } else {
+            erf_table_tsr_list[0] = global_erf_const_0->var_;
+            for (int i = 1; i < 6; i++) {
+                erf_table_tsr_list[i]
+                        = mod->get_var_def_from_symbol(erf_const_table_names[i])
+                                  ->var_;
+            }
+        }
+        _function_(type, the_erf_func, make_args_by_intrinsic(node)) {
+            assert(node->args_.size() == 1);
+            // to avoid underflow
+            _bind_(inval);
+            inval = inval * sqrt_2;
+            auto in_s32 = builder::make_reinterpret(inval, ty_epi_32);
+            _var_init_(src_pos_s32, ty_epi_32, in_s32 & positive_mask);
+            _var_init_(src_pos, inval->dtype_,
+                    builder::make_reinterpret(src_pos_s32, inval->dtype_));
+            _var_init_(indices, ty_epi_32,
+                    builder::make_min(
+                            builder::make_max((src_pos_s32 + index_bias)
+                                            >> gen_vec_const_int(elements, 21),
+                                    ONE_i),
+                            INT_24));
+            indices = builder::make_select(src_pos > rbound, INT_23, indices);
+            _var_init_(pol, inval->dtype_,
+                    builder::make_indexing(
+                            erf_table_tsr_list[5], {0}, elements));
+            pol = builder::make_permutex2var(pol, indices,
+                    builder::make_indexing(
+                            erf_table_tsr_list[5], {16}, elements));
+            _var_(tmp, inval->dtype_);
+            for (int i = 4; i >= 0; i--) {
+                tmp = builder::make_indexing(
+                        erf_table_tsr_list[i], {0}, elements);
+                tmp = builder::make_permutex2var(tmp, indices,
+                        builder::make_indexing(
+                                erf_table_tsr_list[i], {16}, elements));
+                pol = builder::make_fmadd(pol, src_pos, tmp);
+            }
+            auto tmp2 = in_s32 & sign_mask;
+            pol = builder::make_reinterpret(
+                    builder::make_reinterpret(pol, ty_epi_32) ^ tmp2,
+                    inval->dtype_);
+            _return_(pol);
+        }
+        std::string fixed_name = get_erf_func_name(node);
+        the_erf_func->name_ = fixed_name;
+        the_erf_func->decl_->name_ = fixed_name;
+        return the_erf_func;
+    } else {
+        expr const_a1 = make_expr<constant_node>(
+                0.254829592f, sc_data_type_t::f32(elements));
+        expr const_a2 = make_expr<constant_node>(
+                -0.284496736f, sc_data_type_t::f32(elements));
+        expr const_a3 = make_expr<constant_node>(
+                1.421413741f, sc_data_type_t::f32(elements));
+        expr const_a4 = make_expr<constant_node>(
+                -1.453152027f, sc_data_type_t::f32(elements));
+        expr const_a5 = make_expr<constant_node>(
+                1.061405429f, sc_data_type_t::f32(elements));
+        expr const_p = make_expr<constant_node>(
+                0.3275911f, sc_data_type_t::f32(elements));
+        _function_(type, the_erf_func, make_args_by_intrinsic(node)) {
+            assert(node->args_.size() == 1);
+            // to avoid underflow
+            _bind_(inval);
+            _var_init_(temp, sc_data_type_t::f32(elements),
+                    builder::make_abs(inval));
+            _var_init_(neg_square, sc_data_type_t::f32(elements),
+                    ZERO_f - inval * inval);
+            _var_init_(Q, sc_data_type_t::f32(elements),
+                    ZERO_f - visitor->dispatch(builder::make_exp(neg_square)));
+            _var_init_(t, sc_data_type_t::f32(elements),
+                    builder::make_div(
+                            ONE_f, builder::make_fmadd(const_p, temp, ONE_f)));
+            _var_init_(result, sc_data_type_t::f32(elements), const_a5);
+            _var_init_(sign, sc_data_type_t::u32(elements),
+                    builder::make_int_and(
+                            builder::make_reinterpret(
+                                    inval, sc_data_type_t::u32(elements)),
+                            sign_mask));
+            temp = builder::make_mul(Q, t);
+            result = builder::make_fmadd(result, t, const_a4);
+            result = builder::make_fmadd(result, t, const_a3);
+            result = builder::make_fmadd(result, t, const_a2);
+            result = builder::make_fmadd(result, t, const_a1);
+            result = builder::make_fmadd(result, temp, ONE_f);
+            result = builder::make_reinterpret(
+                    builder::make_int_xor(sign,
+                            builder::make_reinterpret(
+                                    result, sc_data_type_t::u32(elements))),
+                    sc_data_type_t::f32(elements));
+            _return_(result);
+        }
+        std::string fixed_name = get_erf_func_name(node);
+        the_erf_func->name_ = fixed_name;
+        the_erf_func->decl_->name_ = fixed_name;
+        return the_erf_func;
+    }
 }
 
 } // namespace gc

@@ -1540,6 +1540,9 @@ void xbyak_lowering_viewer::handle_avx_min(const operand &op_dst,
         case cpu_data_type::float_32_x16: {
             XBYAK_GEN(vminps, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
         } break;
+        case cpu_data_type::sint_32_x16: {
+            XBYAK_GEN(vpminsd, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
+        } break;
         default:
             COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);
     }
@@ -1590,13 +1593,19 @@ void xbyak_lowering_viewer::handle_avx_shr(const operand &op_dst,
         const x86_64::cpu_data_type &cpu_dtype, bool variable) {
     switch (cpu_dtype) {
         case cpu_data_type::uint_32_x8:
-        case cpu_data_type::uint_32_x16:
-        case cpu_data_type::sint_32_x8:
-        case cpu_data_type::sint_32_x16: {
+        case cpu_data_type::uint_32_x16: {
             if (variable) {
                 XBYAK_GEN(vpsrlvd, AVX_X_X_XM, op_dst, op_lhs, op_sft);
             } else {
                 XBYAK_GEN(vpsrld, AVX_X_XM_XMI, op_dst, op_lhs, op_sft);
+            }
+        } break;
+        case cpu_data_type::sint_32_x8:
+        case cpu_data_type::sint_32_x16: {
+            if (variable) {
+                XBYAK_GEN(vpsravd, AVX_X_X_XM, op_dst, op_lhs, op_sft);
+            } else {
+                XBYAK_GEN(vpsrad, AVX_X_XM_XMI, op_dst, op_lhs, op_sft);
             }
         } break;
         default:
@@ -1894,6 +1903,7 @@ void xbyak_lowering_viewer::handle_avx_permutex2var(const operand &op_dst,
         const operand &op_idx, const operand &op_src,
         const x86_64::cpu_data_type &cpu_dtype) {
     switch (cpu_dtype) {
+        case cpu_data_type::float_32_x16:
         case cpu_data_type::float_32_x4: {
             XBYAK_GEN(vpermt2ps, AVX_X_X_XM, op_dst, op_idx, op_src);
         } break;

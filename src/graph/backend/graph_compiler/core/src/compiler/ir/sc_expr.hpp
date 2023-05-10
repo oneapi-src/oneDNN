@@ -1327,6 +1327,7 @@ enum class intrin_type {
     ceil,
     exp,
     log,
+    erf,
     sqrt,
     rsqrt,
     reduce_add,

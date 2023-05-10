@@ -1523,16 +1523,36 @@ public:
                 auto inval3 = generate_expr(v->args_[2]);
                 switch (v->args_[0]->dtype_.type_code_) {
                     case sc_data_etype::F32:
-                        current_val_ = builder_.CreateIntrinsic(
-                                Intrinsic::x86_avx512_vpermi2var_ps_128, {},
-                                {inval1, inval2, inval3});
+                        switch (v->args_[0]->dtype_.lanes_) {
+                            case 4:
+                                current_val_ = builder_.CreateIntrinsic(
+                                        Intrinsic::x86_avx512_vpermi2var_ps_128,
+                                        {}, {inval1, inval2, inval3});
+                                break;
+                            case 8:
+                                current_val_ = builder_.CreateIntrinsic(
+                                        Intrinsic::x86_avx512_vpermi2var_ps_256,
+                                        {}, {inval1, inval2, inval3});
+                                break;
+                            case 16:
+                                current_val_ = builder_.CreateIntrinsic(
+                                        Intrinsic::x86_avx512_vpermi2var_ps_512,
+                                        {}, {inval1, inval2, inval3});
+                                break;
+                            default:
+                                COMPILE_ASSERT(false,
+                                        "Unimplement lanes for permute2var: "
+                                                << v->args_[0]->dtype_.lanes_);
+                        }
                         break;
                     case sc_data_etype::U8:
-                    default:
                         current_val_ = builder_.CreateIntrinsic(
                                 Intrinsic::x86_avx512_vpermi2var_qi_128, {},
                                 {inval1, inval2, inval3});
                         break;
+                    default:
+                        COMPILE_ASSERT(
+                                false, "Unimplement datatype for permute2var");
                 }
             } break;
             case intrin_type::unpack_high:

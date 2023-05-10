@@ -233,6 +233,14 @@ TEST(GCCore_unary_elementwise_test, TestTanhOp) {
     }
 }
 
+TEST(GCCore_unary_elementwise_test, TestErfOp) {
+    BUILTIN_REQUIRE_AVX512();
+    for (auto &shape : test_shapes) {
+        check_unary_elementwise<float>("erf", shape, ref_erf);
+        check_unary_elementwise<bf16_t>("erf", shape, ref_erf);
+    }
+}
+
 TEST(GCCore_unary_elementwise_test, TestPowOp) {
     BUILTIN_REQUIRE_AVX512();
     std::vector<float> beta_candidates

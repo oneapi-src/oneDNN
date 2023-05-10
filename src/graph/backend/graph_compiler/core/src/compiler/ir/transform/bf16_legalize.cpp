@@ -119,6 +119,7 @@ expr_c bf16_promote_impl_t::visit(intrin_call_c v) {
         case intrin_type::ceil:
         case intrin_type::exp:
         case intrin_type::log:
+        case intrin_type::erf:
         case intrin_type::sqrt:
         case intrin_type::rsqrt:
         case intrin_type::reduce_add:

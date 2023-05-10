@@ -380,6 +380,11 @@ expr make_log(const expr_c &v) {
             std::vector<expr> {v.remove_const()}, any_map_t());
 }
 
+expr make_erf(const expr_c &v) {
+    return make_expr<intrin_call_node>(intrin_type::erf,
+            std::vector<expr> {v.remove_const()}, any_map_t());
+}
+
 expr make_sqrt(const expr_c &v) {
     return make_expr<intrin_call_node>(intrin_type::sqrt,
             std::vector<expr> {v.remove_const()}, any_map_t());

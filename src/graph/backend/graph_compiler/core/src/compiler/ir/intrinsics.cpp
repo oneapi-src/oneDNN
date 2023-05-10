@@ -123,6 +123,14 @@ struct log_handler_t : public intrinsic_handler_t {
     log_handler_t() : intrinsic_handler_t("log") {}
 };
 
+struct erf_handler_t : public intrinsic_handler_t {
+    void on_initialize(intrin_call_node &node) override {
+        assert(node.args_.size() == 1);
+        node.dtype_ = node.args_[0]->dtype_;
+    }
+    erf_handler_t() : intrinsic_handler_t("erf") {}
+};
+
 struct sqrt_handler_t : public intrinsic_handler_t {
     void on_initialize(intrin_call_node &node) override {
         assert(node.args_.size() == 1);
@@ -468,6 +476,7 @@ static std::unique_ptr<intrinsic_handler_t> handlers[] = {
         utils::make_unique<ceil_handler_t>(),
         utils::make_unique<exp_handler_t>(),
         utils::make_unique<log_handler_t>(),
+        utils::make_unique<erf_handler_t>(),
         utils::make_unique<sqrt_handler_t>(),
         utils::make_unique<rsqrt_handler_t>(),
         utils::make_unique<reduce_add_handler_t>(),

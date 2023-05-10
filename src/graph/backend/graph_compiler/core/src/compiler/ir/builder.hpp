@@ -392,6 +392,13 @@ expr make_exp(const expr_c &v);
 expr make_log(const expr_c &v);
 
 /**
+ * Makes a erf node
+ * @param v the input value
+ * @return the created node
+ * */
+expr make_erf(const expr_c &v);
+
+/**
  * Makes an sqrt node
  * @param v the input value
  * @return the created node
@@ -566,6 +573,15 @@ expr make_permute(const expr_c &v_a, const expr_c &v_b, const int &v_c);
  * @return the created node
  * */
 expr make_gather(const expr_c &addr, const expr_c &indices);
+
+/**
+ * Makes a permutex2var node
+ * @param v_a the first input value
+ * @param v_b the second input value
+ * @param v_c the third input value
+ * @return the created node
+ * */
+expr make_permutex2var(const expr_c &v_a, const expr_c &v_b, const expr_c &v_c);
 
 /**
  * Makes a cmp_eq (==) node

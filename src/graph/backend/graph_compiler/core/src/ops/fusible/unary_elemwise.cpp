@@ -346,63 +346,13 @@ expr tanh_op_t::compute_element(expr in) {
 
 expr erf_op_t::compute_element(expr in) {
     auto lanes = in->dtype_.lanes_;
-
-    auto bld = builder::get_current_builder();
-    expr const_a1 = make_expr<constant_node>(
-            0.254829592f, sc_data_type_t::f32(lanes));
-    expr const_a2 = make_expr<constant_node>(
-            -0.284496736f, sc_data_type_t::f32(lanes));
-    expr const_a3 = make_expr<constant_node>(
-            1.421413741f, sc_data_type_t::f32(lanes));
-    expr const_a4 = make_expr<constant_node>(
-            -1.453152027f, sc_data_type_t::f32(lanes));
-    expr const_a5 = make_expr<constant_node>(
-            1.061405429f, sc_data_type_t::f32(lanes));
-    expr ONE_f = make_expr<constant_node>(1.0f, sc_data_type_t::f32(lanes));
-    expr ZERO_f = make_expr<constant_node>(0.0f, sc_data_type_t::f32(lanes));
-    expr const_p
-            = make_expr<constant_node>(0.3275911f, sc_data_type_t::f32(lanes));
-    expr sign_mask = make_expr<constant_node>(
-            0x80000000UL, sc_data_type_t::u32(lanes));
-
-    auto temp = builder::make_var(
-            sc_data_type_t::f32(lanes), "temp" + fusion_create_var_idx());
-    auto Q = builder::make_var(
-            sc_data_type_t::f32(lanes), "Q" + fusion_create_var_idx());
-    auto t = builder::make_var(
-            sc_data_type_t::f32(lanes), "t" + fusion_create_var_idx());
-    auto result = builder::make_var(
-            sc_data_type_t::f32(lanes), "result" + fusion_create_var_idx());
-    auto sign = builder::make_var(
-            sc_data_type_t::u32(lanes), "sign" + fusion_create_var_idx());
-    bld->push_var_tensor_def(temp);
-    bld->push_var_tensor_def(Q);
-    bld->push_var_tensor_def(t);
-    bld->push_var_tensor_def(result);
-    bld->push_var_tensor_def(sign);
-
-    bld->push_assign(sign,
-            builder::make_int_and(
-                    builder::make_reinterpret(in, sc_data_type_t::u32(lanes)),
-                    sign_mask));
-    bld->push_assign(temp, builder::make_abs(in));
-    bld->push_assign(Q, ZERO_f - builder::make_exp(ZERO_f - in * in));
-    bld->push_assign(t,
-            builder::make_div(
-                    ONE_f, builder::make_fmadd(const_p, temp, ONE_f)));
-    bld->push_assign(temp, builder::make_mul(Q, t));
-    bld->push_assign(result, const_a5);
-    bld->push_assign(result, builder::make_fmadd(result, t, const_a4));
-    bld->push_assign(result, builder::make_fmadd(result, t, const_a3));
-    bld->push_assign(result, builder::make_fmadd(result, t, const_a2));
-    bld->push_assign(result, builder::make_fmadd(result, t, const_a1));
-    bld->push_assign(result, builder::make_fmadd(result, temp, ONE_f));
-
-    return builder::make_reinterpret(
-            builder::make_int_xor(sign,
-                    builder::make_reinterpret(
-                            result, sc_data_type_t::u32(lanes))),
-            sc_data_type_t::f32(lanes));
+    bool is_bf16 = in->dtype_.is_etype(sc_data_etype::BF16);
+    if (is_bf16) {
+        return builder::make_cast(in->dtype_,
+                builder::make_erf(builder::make_cast(
+                        sc_data_type_t::f32(in->dtype_.lanes_), in)));
+    }
+    return builder::make_erf(in);
 }
 
 expr square_op_t::compute_element(expr in) {
