@@ -715,7 +715,10 @@ void gen_managed_matmul_core_t::generate_prefetcher_body_for_tensor(
                 _return_(cnt);
               }
               cnt = cnt + 1;
-              _for_(j, 0, 512 / sizeof_dtype, 64 / sizeof_dtype) {
+              _for_(j, 0,
+                builder::make_min(
+                  iik_block_ * iin_block_ * bs, 512 / sizeof_dtype),
+                64 / sizeof_dtype) {
                 std::vector<expr> B_indices;
                 if (get_A_dtype() == datatypes::f32) {
                   B_indices = {n_start_idx / expr(iin_block_),
@@ -769,7 +772,10 @@ void gen_managed_matmul_core_t::generate_prefetcher_body_for_tensor(
                 }
                 cnt = cnt + 1;
 
-                _for_(j, 0, 512 / sizeof_dtype, 64 / sizeof_dtype) {
+                _for_(j, 0,
+                  builder::make_min(
+                    iik_block_ * iin_block_ * bs, 512 / sizeof_dtype),
+                  64 / sizeof_dtype) {
                   std::vector<expr> B_indices;
                   if (get_A_dtype() == datatypes::f32) {
                     B_indices = {n_start_idx / expr(iin_block_),
