@@ -107,8 +107,8 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
         x2_s, x3, x3_s, x4, x4_s, x5, x5_s) \
     unroll_for(typeof(x0 + x0_s) x0_idx = x0, bin_arg_offset = 0; \
                x0_idx < x0 + x0_s; ++x0_idx) { \
-        unroll_for(typeof(x1 + x1_s) x1_idx = x1; x1_idx < x1 + x1_s; \
-                   x1_idx += x1_incr) { \
+        unroll_for(typeof(x1 + x1_s + x1_incr) x1_idx = x1; \
+                   x1_idx < x1 + x1_s; x1_idx += x1_incr) { \
             unroll_for(typeof(x2 + x2_s) x2_idx = x2; x2_idx < x2 + x2_s; \
                        ++x2_idx) { \
                 unroll_for(typeof(x3 + x3_s) x3_idx = x3; x3_idx < x3 + x3_s; \
@@ -258,7 +258,7 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
             REPLICATE_DATA(bin_arg_ptr, bin_arg_size, x0_s, X_NELEMS(x1_s), \
                     x2_s, x3_s, x4_s, x5_s); \
         } else { \
-            const auto x1_jump = is_burst ? get_sub_group_size() : 1; \
+            const auto x1_jump = is_burst ? (int)get_sub_group_size() : 1; \
             const auto x1_size = x1_s / x1_jump; \
             FILL_BIN_ARG_SERIAL(idx, bin_arg_ptr, x0, x0_s, (x1 + x1_incr), \
                     x1_s, x1_jump, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s); \
