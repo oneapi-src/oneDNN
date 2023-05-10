@@ -55,7 +55,7 @@ void acl_set_benchmark_scheduler_default() {
 #endif
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-void acl_set_threadpool_scheduler() {
+void acl_set_tp_scheduler() {
     static std::once_flag flag_once;
     // Create threadpool scheduler
     std::shared_ptr<arm_compute::IScheduler> threadpool_scheduler
@@ -80,7 +80,7 @@ void acl_set_threadpool_num_threads() {
     }
 }
 // Swap BenchmarkScheduler for custom scheduler builds (i.e. ThreadPoolScheduler)
-void acl_set_benchmark_scheduler_tp() {
+void acl_set_tp_benchmark_scheduler() {
     static std::once_flag flag_once;
     // Create threadpool scheduler
     std::unique_ptr<arm_compute::IScheduler> threadpool_scheduler
