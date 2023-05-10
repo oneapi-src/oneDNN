@@ -202,12 +202,19 @@ status_t ref_pooling_bwd_t::execute(const exec_ctx_t &ctx) const {
 
     const auto diff_dst = CTX_IN_MEM(const void *, DNNL_ARG_DIFF_DST);
     const auto ws = CTX_IN_MEM(const void *, DNNL_ARG_WORKSPACE);
-    auto diff_src = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_SRC, status);
+    auto diff_src_ptr = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DIFF_SRC, status);
     CHECK(status);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
     const memory_desc_wrapper ws_d(pd()->workspace_md());
+
+    auto scratchpad = ctx.get_scratchpad_grantor();
+    float *cvt_src = scratchpad.template get<float>(
+            memory_tracking::names::key_pool_src_bf16cvt);
+    void *diff_src = (diff_src_d.data_type() != data_type::f32)
+            ? cvt_src
+            : reinterpret_cast<float *>(diff_src_ptr);
 
     const auto alg = pd()->desc()->alg_kind;
     const dim_t MB = pd()->MB();
@@ -231,17 +238,6 @@ status_t ref_pooling_bwd_t::execute(const exec_ctx_t &ctx) const {
     const dim_t DH = pd()->KDH();
     const dim_t DW = pd()->KDW();
 
-    auto ker_zero = [=](dim_t mb, dim_t oc) {
-        for_(dim_t id = 0; id < ID; ++id)
-        for_(dim_t ih = 0; ih < IH; ++ih)
-        for (dim_t iw = 0; iw < IW; ++iw) {
-            const auto diff_src_off
-                    = get_offset(diff_src_d, mb, oc, id, ih, iw);
-            io::store_float_value(
-                    diff_src_d.data_type(), 0, diff_src, diff_src_off);
-        }
-    };
-
     auto ker_max = [=](dim_t mb, dim_t oc, dim_t od, dim_t oh, dim_t ow) {
         const auto ws_off = get_offset(ws_d, mb, oc, od, oh, ow);
         const dim_t index = io::load_int_value(ws_d.data_type(), ws, ws_off);
@@ -264,10 +260,9 @@ status_t ref_pooling_bwd_t::execute(const exec_ctx_t &ctx) const {
         const auto diff_dst_off = get_offset(diff_dst_d, mb, oc, od, oh, ow);
         const float dd = io::load_float_value(
                 diff_dst_d.data_type(), diff_dst, diff_dst_off);
-        const float ds = io::load_float_value(
-                diff_src_d.data_type(), diff_src, diff_src_off);
-        io::store_float_value(
-                diff_src_d.data_type(), ds + dd, diff_src, diff_src_off);
+        const float ds
+                = io::load_float_value(data_type::f32, diff_src, diff_src_off);
+        io::store_float_value(data_type::f32, ds + dd, diff_src, diff_src_off);
     };
 
     auto ker_avg = [=](dim_t mb, dim_t oc, dim_t od, dim_t oh, dim_t ow) {
@@ -315,8 +310,8 @@ status_t ref_pooling_bwd_t::execute(const exec_ctx_t &ctx) const {
                     const float dd = io::load_float_value(
                             diff_dst_d.data_type(), diff_dst, diff_dst_off);
                     const float ds = io::load_float_value(
-                            diff_src_d.data_type(), diff_src, diff_src_off);
-                    io::store_float_value(diff_src_d.data_type(),
+                            data_type::f32, diff_src, diff_src_off);
+                    io::store_float_value(data_type::f32,
                             ds + (dd / num_summands), diff_src, diff_src_off);
                 }
             }
@@ -339,14 +334,39 @@ status_t ref_pooling_bwd_t::execute(const exec_ctx_t &ctx) const {
     ker_t kernel
             = alg == alg_kind::pooling_max ? (ker_t)ker_max : (ker_t)ker_avg;
 
-    parallel_nd(MB, OC, [&](dim_t mb, dim_t oc) {
-        ker_zero(mb, oc);
+    const int nthr = pd()->nthr_;
+    parallel(nthr, [&](const int ithr, const int nthr) {
+        dim_t start = 0, end = 0;
+        balance211(diff_src_d.nelems(true), nthr, ithr, start, end);
+        if (start == end) return;
+
+        for (int i = start; i < end; i++)
+            io::store_float_value(data_type::f32, 0, diff_src, i);
+    });
+
+    parallel_nd_ext(nthr, MB, OC, [&](int, int, dim_t mb, dim_t oc) {
         for_(dim_t od = od_start; od < od_end; ++od)
         for_(dim_t oh = oh_start; oh < oh_end; ++oh)
         for (dim_t ow = ow_start; ow < ow_end; ++ow) {
             kernel(mb, oc, od, oh, ow);
         }
     });
+
+    if (diff_src_d.data_type() != data_type::f32) {
+        parallel(nthr, [&](const int ithr, const int nthr) {
+            dim_t start = 0, end = 0;
+            balance211(diff_src_d.nelems(true), nthr, ithr, start, end);
+            if (start == end) return;
+
+            const auto diff_src_dt_size = diff_src_d.data_type_size();
+            const auto in_ptr = reinterpret_cast<float *>(diff_src) + start;
+            auto out_ptr = reinterpret_cast<char *>(diff_src_ptr)
+                    + start * diff_src_dt_size;
+
+            types::cvt_from_float(
+                    diff_src_d.data_type(), out_ptr, in_ptr, end - start);
+        });
+    }
 
     return status::success;
 }

@@ -108,7 +108,23 @@ struct ref_pooling_bwd_t : public primitive_t {
                 if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
 
+            nthr_ = dnnl_get_max_threads();
+            init_scratchpad();
+
             return status::success;
+        }
+
+        int nthr_; // To not exceed the limit in execute used for set up.
+
+    private:
+        void init_scratchpad() {
+            using namespace memory_tracking::names;
+            auto scratchpad = scratchpad_registry().registrar();
+            if (diff_src_md()->data_type != data_type::f32) {
+                const memory_desc_wrapper diff_src_d(diff_src_md());
+                scratchpad.template book<float>(
+                        key_pool_src_bf16cvt, diff_src_d.nelems(true));
+            }
         }
     };
 
