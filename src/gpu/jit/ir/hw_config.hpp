@@ -62,6 +62,7 @@ public:
         eu_count_ = device_info->eu_count();
         max_wg_size_ = static_cast<int>(device_info->max_wg_size());
         large_grf_support_ = compute_engine->mayiuse_large_grf_mode();
+        systolic_support_ = device_info->mayiuse_systolic();
 
 #ifdef DNNL_DEV_MODE
         gpu_arch_t old_arch = gpu_arch;
@@ -80,6 +81,7 @@ public:
     int max_wg_size() const { return max_wg_size_; }
     int large_grf_support() const { return large_grf_support_; }
     int grf_size() const { return ngen::GRF::bytes(hw_); }
+    int systolic_support() const { return systolic_support_; }
 
     std::string str() const {
         std::ostringstream oss;
@@ -97,6 +99,7 @@ private:
     int eu_count_;
     int max_wg_size_;
     bool large_grf_support_;
+    bool systolic_support_;
 };
 
 class exec_config_t {
