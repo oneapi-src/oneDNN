@@ -543,8 +543,8 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     if (d_or_f_to_b || b_to_d_or_f) {
         if (dst_d || dst_f) ir_assert(dst_stride_bytes == 4);
         if (src_d || src_f) ir_assert(src_stride_bytes == 4);
-        if (dst_b) ir_assert(utils::one_of(dst_stride_bytes, 1, 4));
-        if (src_b) ir_assert(utils::one_of(src_stride_bytes, 1, 4));
+        if (dst_b) ir_assert(utils::one_of(dst_stride_bytes, 1, 4, 8));
+        if (src_b) ir_assert(utils::one_of(src_stride_bytes, 1, 4, 8));
         int step = get_step();
         const int step_size = step * (int)sizeof(uint32_t);
         const int nregs = 1 + utils::div_up(step_size, grf_size);
