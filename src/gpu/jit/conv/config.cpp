@@ -179,12 +179,9 @@ status_t conv_problem_t::init(
     isp = id * ih * iw;
     osp = od * oh * ow;
 
-    auto *compute_engine = utils::downcast<const compute_engine_t *>(engine);
-    auto *device_info = compute_engine->device_info();
-    gpu_arch_t gpu_arch = device_info->gpu_arch();
-    auto hw = convert_dnnl_arch_to_ngen(gpu_arch);
+    hw_config_t hw_cfg(engine);
 
-    CHECK(init_abc_data_types(hw));
+    CHECK(init_abc_data_types(hw_cfg));
     CHECK(init_acc_data_type());
 
     return status::success;
@@ -895,9 +892,12 @@ bool data_types_ok(const conv_problem_t &prb, const hw_config_t &hw_cfg) {
     bool is_bf16 = utils::one_of(data_type::bf16, src, wei, dst, bia);
     if (!prb.is_f64_conv() && utils::one_of(data_type::f64, src, wei, dst, bia))
         return false;
-    if (is_bf16 && hw_cfg.hw() <= ngen::HW::XeLP) return false;
+    bool is_xelpg
+            = hw_cfg.hw() == ngen::HW::XeHPG && !hw_cfg.systolic_support();
+    if (is_bf16 && (hw_cfg.hw() <= ngen::HW::XeLP || is_xelpg)) return false;
     if (prb.is_f64_conv()
-            && utils::one_of(hw_cfg.hw(), ngen::HW::XeLP, ngen::HW::XeHPG))
+            && (utils::one_of(hw_cfg.hw(), ngen::HW::XeLP, ngen::HW::XeHPG)
+                    && !is_xelpg))
         return false;
     if (prb.is_fwd) return true;
     if (prb.is_bwd_d) return true;
@@ -1020,7 +1020,7 @@ status_t init_fma_kind(conv_config_t &cfg) {
     if (cfg.fma_kind_param().is_overridden()) return status::success;
     const auto &prb = cfg.prb();
     auto fma_kind = fma_kind::get_supported_kind(
-            cfg.hw(), prb.a_data_type, prb.b_data_type, prb.acc_data_type);
+            cfg.hw_cfg(), prb.a_data_type, prb.b_data_type, prb.acc_data_type);
     // Force mad for some cases.
     if (prb.is_dw || (prb.ic < 3 && prb.oc < 3 && prb.mb < 8))
         fma_kind = fma_kind_t::mad;

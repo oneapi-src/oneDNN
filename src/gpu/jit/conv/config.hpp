@@ -174,7 +174,7 @@ private:
     // FWD:        src -> A,      wei -> B,      dst -> C
     // BWD_D: diff_dst -> A,      wei -> B, diff_src -> C
     // BWD_W:      src -> A, diff_dst -> B, diff_wei -> C
-    status_t init_abc_data_types(ngen::HW hw) {
+    status_t init_abc_data_types(const hw_config_t &hw_cfg) {
         a_data_type = pick_a(src_data_type, wei_data_type, dst_data_type);
         b_data_type = pick_b(src_data_type, wei_data_type, dst_data_type);
         // Always use f32 for accumulation/storing in the main kernel.
@@ -194,20 +194,20 @@ private:
 #endif
             if (use_matching_fpmath
                     && attr->mayidownconvert(data_type::f32, data_type::bf16)
-                    && fma_kind::get_supported_kind(hw, data_type::bf16,
+                    && fma_kind::get_supported_kind(hw_cfg, data_type::bf16,
                                data_type::bf16, data_type::f32)
                             != fma_kind_t::unknown) {
                 a_data_type = data_type::bf16;
                 b_data_type = data_type::bf16;
             } else if (use_matching_fpmath
                     && attr->mayidownconvert(data_type::f32, data_type::f16)
-                    && fma_kind::get_supported_kind(hw, data_type::f16,
+                    && fma_kind::get_supported_kind(hw_cfg, data_type::f16,
                                data_type::f16, data_type::f32)
                             != fma_kind_t::unknown) {
                 a_data_type = data_type::f16;
                 b_data_type = data_type::f16;
             } else if (attr->mayidownconvert(data_type::f32, data_type::tf32)
-                    && fma_kind::get_supported_kind(hw, data_type::tf32,
+                    && fma_kind::get_supported_kind(hw_cfg, data_type::tf32,
                                data_type::tf32, data_type::f32)
                             != fma_kind_t::unknown) {
                 a_data_type = data_type::tf32;
