@@ -14,6 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 #include <stdint.h>
+#include "config.hpp"
 #include "impl_type.hpp"
 #include "util.hpp"
 #include <runtime/data_type.hpp>
@@ -21,15 +22,20 @@
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
 #include <runtime/dynamic_dispatch/utils.hpp>
 #include <runtime/target_machine.hpp>
+#include <util/utils.hpp>
 
 namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-static int check_and_set_matmul_impl(runtime::op_dispatch_tables_t *op_table,
+static int check_and_set_matmul_core_impl(
+        runtime::op_dispatch_tables_t *op_table,
         runtime::dispatch_key *data_fmt_st,
         runtime::dispatch_key *weight_fmt_st, runtime::dispatch_key *out_fmt_st,
-        int M_blk, int N_blk, int K_blk) {
+        runtime::dynamic_tensor_t *data_dyn_tsr,
+        runtime::dynamic_tensor_t *weight_dyn_tsr,
+        runtime::dynamic_tensor_t *out_dyn_tsr, int M_blk, int N_blk,
+        int K_blk) {
     // query impl kind here. default return normal impl kind.
     auto &impl_kind_table = op_table->impl_kind_table_;
     if (impl_kind_table) {
@@ -41,9 +47,54 @@ static int check_and_set_matmul_impl(runtime::op_dispatch_tables_t *op_table,
         data_fmt_st->set_impl_alg(impl);
         weight_fmt_st->set_impl_alg(impl);
         out_fmt_st->set_impl_alg(impl);
+        return impl;
     }
 
     return impl_kind_t::normal;
+}
+
+static int check_and_set_managed_matmul_core_impl(
+        runtime::op_dispatch_tables_t *op_table,
+        runtime::dispatch_key *data_fmt_st,
+        runtime::dispatch_key *weight_fmt_st, runtime::dispatch_key *out_fmt_st,
+        runtime::dynamic_tensor_t *data_dyn_tsr,
+        runtime::dynamic_tensor_t *weight_dyn_tsr,
+        runtime::dynamic_tensor_t *out_dyn_tsr, int M_blk, int N_blk,
+        int K_blk) {
+    // query impl kind here.
+    auto &impl_kind_table = op_table->impl_kind_table_;
+    assert(impl_kind_table);
+    int M_split_num, N_split_num, M_sub_block, N_sub_block, K_sub_block,
+            im_loop_order;
+    bool is_int8 = utils::is_one_of(sc_data_etype(data_dyn_tsr->dtype_),
+            sc_data_etype::U8, sc_data_etype::S8);
+    bool is_f32 = sc_data_etype(data_dyn_tsr->dtype_) == sc_data_etype::F32;
+    const int M = utils::divide_and_ceil(data_dyn_tsr->dims_[0], M_blk) * M_blk;
+    const int N
+            = utils::divide_and_ceil(weight_dyn_tsr->dims_[1], N_blk) * N_blk;
+    const int K = utils::divide_and_ceil(data_dyn_tsr->dims_[1], K_blk) * K_blk;
+    const int sizeofdtypeA
+            = utils::get_sizeof_etype(sc_data_etype(data_dyn_tsr->dtype_));
+    const int sizeofdtypeC
+            = utils::get_sizeof_etype(sc_data_etype(out_dyn_tsr->dtype_));
+    get_managed_matmul_config(runtime::get_runtime_target_machine(),
+            M_split_num, N_split_num, M_sub_block, N_sub_block, K_sub_block,
+            im_loop_order, M, N, K, M_blk, N_blk, K_blk, sizeofdtypeA,
+            sizeofdtypeC, is_int8, is_f32,
+            /*is_dynamic*/ true);
+    uint64_t keys[6] = {static_cast<uint64_t>(M_split_num),
+            static_cast<uint64_t>(N_split_num),
+            static_cast<uint64_t>(M_sub_block),
+            static_cast<uint64_t>(N_sub_block),
+            static_cast<uint64_t>(K_sub_block),
+            static_cast<uint64_t>(im_loop_order)};
+    void *value = impl_kind_table->get(keys, 6);
+    assert(value);
+    int impl = *reinterpret_cast<int *>(value);
+    data_fmt_st->set_impl_alg(impl);
+    weight_fmt_st->set_impl_alg(impl);
+    out_fmt_st->set_impl_alg(impl);
+    return impl;
 }
 
 extern "C" void infer_shape_matmul_op(void *out, void *data, void *weight) {
@@ -68,12 +119,16 @@ extern "C" void infer_shape_matmul_op(void *out, void *data, void *weight) {
     out_dyn_tsr->dims_[out_ndims - 2] = data_dyn_tsr->dims_[data_ndims - 2];
     out_dyn_tsr->dims_[out_ndims - 1] = weight_dyn_tsr->dims_[weight_ndims - 1];
 }
-
-extern "C" void query_format_matmul_core_op(void *table, void *out, void *data,
-        void *weight, void *ori_data, void *ori_weight, uint64_t *out_fmt,
-        uint64_t *data_fmt, uint64_t *weight_fmt, uint64_t *ori_data_fmt,
-        uint64_t *ori_weight_fmt, uint64_t *out_size, void *kernel,
-        int *impl_alg) {
+typedef int (*impl_set_func)(runtime::op_dispatch_tables_t *,
+        runtime::dispatch_key *, runtime::dispatch_key *,
+        runtime::dispatch_key *, runtime::dynamic_tensor_t *,
+        runtime::dynamic_tensor_t *, runtime::dynamic_tensor_t *, int, int,
+        int);
+extern "C" void query_format_matmul_common_process(void *table, void *out,
+        void *data, void *weight, void *ori_data, void *ori_weight,
+        uint64_t *out_fmt, uint64_t *data_fmt, uint64_t *weight_fmt,
+        uint64_t *ori_data_fmt, uint64_t *ori_weight_fmt, uint64_t *out_size,
+        void *kernel, int *impl_alg, impl_set_func impl_func) {
     // update output shape and mask.
     runtime::dynamic_tensor_t *out_dyn_tsr
             = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
@@ -190,8 +245,8 @@ extern "C" void query_format_matmul_core_op(void *table, void *out, void *data,
     auto *out_fmt_st = reinterpret_cast<runtime::dispatch_key *>(&cp_out_fmt);
     auto &kernel_table = op_table->kernel_table_;
     if (kernel_table) {
-        check_and_set_matmul_impl(op_table, data_fmt_st, weight_fmt_st,
-                out_fmt_st, M_blk, N_blk, K_blk);
+        impl_func(op_table, data_fmt_st, weight_fmt_st, out_fmt_st,
+                data_dyn_tsr, weight_dyn_tsr, out_dyn_tsr, M_blk, N_blk, K_blk);
         uint64_t keys[3] = {cp_data_fmt, cp_weight_fmt, cp_out_fmt};
         void *func = runtime::run_query_and_wait(
                 op_table->kernel_dispatch_func_, kernel_table.get(), keys, 3);
@@ -201,8 +256,8 @@ extern "C" void query_format_matmul_core_op(void *table, void *out, void *data,
         *reinterpret_cast<void **>(kernel) = func;
     } else {
         assert(impl_alg);
-        *impl_alg = check_and_set_matmul_impl(op_table, data_fmt_st,
-                weight_fmt_st, out_fmt_st, M_blk, N_blk, K_blk);
+        *impl_alg = impl_func(op_table, data_fmt_st, weight_fmt_st, out_fmt_st,
+                data_dyn_tsr, weight_dyn_tsr, out_dyn_tsr, M_blk, N_blk, K_blk);
     }
     // avoid internal status change in multi thread case.
     *data_fmt = cp_data_fmt;
@@ -210,6 +265,28 @@ extern "C" void query_format_matmul_core_op(void *table, void *out, void *data,
 
     // query inplace
     *out_size = calculate_blocking_dims(out_dyn_tsr, out_fmt);
+}
+
+extern "C" void query_format_matmul_core_op(void *table, void *out, void *data,
+        void *weight, void *ori_data, void *ori_weight, uint64_t *out_fmt,
+        uint64_t *data_fmt, uint64_t *weight_fmt, uint64_t *ori_data_fmt,
+        uint64_t *ori_weight_fmt, uint64_t *out_size, void *kernel,
+        int *impl_alg) {
+    query_format_matmul_common_process(table, out, data, weight, ori_data,
+            ori_weight, out_fmt, data_fmt, weight_fmt, ori_data_fmt,
+            ori_weight_fmt, out_size, kernel, impl_alg,
+            check_and_set_matmul_core_impl);
+}
+
+extern "C" void query_format_managed_matmul_core_op(void *table, void *out,
+        void *data, void *weight, void *ori_data, void *ori_weight,
+        uint64_t *out_fmt, uint64_t *data_fmt, uint64_t *weight_fmt,
+        uint64_t *ori_data_fmt, uint64_t *ori_weight_fmt, uint64_t *out_size,
+        void *kernel, int *impl_alg) {
+    query_format_matmul_common_process(table, out, data, weight, ori_data,
+            ori_weight, out_fmt, data_fmt, weight_fmt, ori_data_fmt,
+            ori_weight_fmt, out_size, kernel, impl_alg,
+            check_and_set_managed_matmul_core_impl);
 }
 } // namespace gc
 } // namespace graph

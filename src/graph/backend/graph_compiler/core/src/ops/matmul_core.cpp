@@ -511,8 +511,8 @@ sc_op_ptr matmul_core_op_t::do_compensations(
     // whether we need special compensation for microkernel.
     bool s8s8_compensation = ctx->machine_.cpu_flags_.fAVX512VNNI
             && info_.inputs_[0]->details_.dtype_ == datatypes::s8
-            && (!ctx->flags_.brgemm_use_amx_
-                    || (ctx->flags_.brgemm_use_amx_
+            && (!ctx->machine_.brgemm_use_amx_
+                    || (ctx->machine_.brgemm_use_amx_
                             && !ctx->machine_.cpu_flags_.fAVX512AMXINT8));
 
     auto cur_node = shared_from_this();

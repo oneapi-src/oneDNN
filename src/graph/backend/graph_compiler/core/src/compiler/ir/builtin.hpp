@@ -377,6 +377,12 @@ expr call_matmul_core_query_format(const expr &tb, const expr &out0,
         const expr &in_format1, const expr &ori_in_format0,
         const expr &ori_in_format1, const expr &out_size, const expr &kernel,
         const expr &impl = get_ir_null());
+expr call_managed_matmul_core_query_format(const expr &tb, const expr &out0,
+        const expr &in0, const expr &in1, const expr &ori_in0,
+        const expr &ori_in1, const expr &out_format0, const expr &in_format0,
+        const expr &in_format1, const expr &ori_in_format0,
+        const expr &ori_in_format1, const expr &out_size, const expr &kernel,
+        const expr &impl = get_ir_null());
 expr call_unary_fusible_op_query_format(const expr &tb, const expr &out0,
         const expr &in0, const expr &out_foramt0, const expr &in_format0,
         const expr &out_size, const expr &kernel);

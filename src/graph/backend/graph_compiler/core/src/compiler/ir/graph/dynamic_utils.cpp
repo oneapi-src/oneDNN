@@ -27,8 +27,13 @@
 #include <compiler/ir/sc_data_format.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/dyn_tsr_transform.hpp>
+#include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/reduce.hpp>
 #include <ops/fusible/ternary_elemwise.hpp>
+#include <ops/fusible/unary_elemwise.hpp>
+#include <ops/managed_matmul_core.hpp>
+#include <ops/matmul_core.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <runtime/dynamic_dispatch/hash_dispatch_table.hpp>
 #include <unordered_set>
@@ -458,6 +463,53 @@ void update_graph_format_by_key(const context_ptr &ctx,
         node_outputs[i]->details_.set_format(
                 graph_outputs[i]->get_inputs()[0]->details_.get_format());
     }
+}
+
+expr call_op_dynamic_query_function(
+        const sc_op_ptr &op, const std::vector<expr> &args) {
+    if (op->isa<ops::matmul_core_op_t>()) {
+        assert(args.size() == 13 || args.size() == 14);
+        return builtin::call_matmul_core_query_format(args[0], args[1], args[2],
+                args[3], args[4], args[5], args[6], args[7], args[8], args[9],
+                args[10], args[11], args[12],
+                args.size() == 13 ? get_ir_null() : args[13]);
+    } else if (op->isa<ops::managed_matmul_core_op_t>()) {
+        assert(args.size() == 13 || args.size() == 14);
+        return builtin::call_managed_matmul_core_query_format(args[0], args[1],
+                args[2], args[3], args[4], args[5], args[6], args[7], args[8],
+                args[9], args[10], args[11], args[12],
+                args.size() == 13 ? get_ir_null() : args[13]);
+    } else if (op->isa<unary_elementwise_op_t>()) {
+        assert(args.size() == 7);
+        return builtin::call_unary_fusible_op_query_format(
+                args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+    } else if (op->isa<binary_elementwise_op_t>()) {
+        assert(args.size() == 9);
+        return builtin::call_binary_fusible_op_query_format(args[0], args[1],
+                args[2], args[3], args[4], args[5], args[6], args[7], args[8]);
+    } else if (op->isa<reorder_op_t>()) {
+        assert(args.size() == 7 || args.size() == 8);
+        return builtin::call_reorder_op_query_format(args[0], args[1], args[2],
+                args[3], args[4], args[5], args[6],
+                args.size() == 7 ? get_ir_null() : args[7]);
+    } else if (op->isa<reduce_op_t>()) {
+        assert(args.size() == 7);
+        return builtin::call_reduce_op_query_format(
+                args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+    } else if (op->isa<tensor_view_op_t>()) {
+        assert(args.size() == 7);
+        return builtin::call_tensor_view_op_query_format(
+                args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+    } else if (op->isa<select_op_t>()) {
+        assert(args.size() == 11);
+        return builtin::call_select_op_query_format(args[0], args[1], args[2],
+                args[3], args[4], args[5], args[6], args[7], args[8], args[9],
+                args[10]);
+    } else {
+        COMPILE_ASSERT(
+                false, "unsupported op query function: " << op->op_name_);
+    }
+    return expr();
 }
 
 int count_dynamic_dims(const sc_dims &in) {

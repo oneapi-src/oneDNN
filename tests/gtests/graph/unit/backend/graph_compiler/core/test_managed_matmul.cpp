@@ -34,28 +34,49 @@
 #include <reference/act_ref.hpp>
 #include <reference/gemm_ref.hpp>
 #include <runtime/config.hpp>
+#include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <util/reflection.hpp>
 
 using namespace dnnl::impl::graph::gc;
 using namespace dnnl::impl::graph::gc::ops;
 using namespace dnnl::impl::graph::gc::test_utils;
 struct managed_gemm_params_t {
-    managed_gemm_params_t(sc_dims input_dims, sc_dims weight_dims,
-            sc_dims out_dims, sc_data_type_t input_dtype = datatypes::f32,
+    managed_gemm_params_t(const sc_dims &input_dims, const sc_dims &weight_dims,
+            const sc_dims &out_dims,
+            sc_data_type_t input_dtype = datatypes::f32,
             sc_data_type_t weight_dtype = datatypes::f32,
-            bool is_input_constant = true)
+            bool is_input_constant = true,
+            const sc_dims &real_input_dims = sc_dims(),
+            const sc_dims &real_weight_dims = sc_dims(),
+            const sc_dims &real_out_dims = sc_dims())
         : input_dims_(std::move(input_dims))
         , weight_dims_(std::move(weight_dims))
         , out_dims_(std::move(out_dims))
         , input_dtype_(input_dtype)
         , weight_dtype_(weight_dtype)
-        , is_input_constant_(is_input_constant) {}
+        , is_input_constant_(is_input_constant)
+        , real_input_dims_(real_input_dims)
+        , real_weight_dims_(real_weight_dims)
+        , real_out_dims_(real_out_dims) {}
+    const sc_dims &get_real_input_dims() const {
+        return real_input_dims_.empty() ? input_dims_ : real_input_dims_;
+    }
+    const sc_dims &get_real_weight_dims() const {
+        return real_weight_dims_.empty() ? weight_dims_ : real_weight_dims_;
+    }
+    const sc_dims &get_real_out_dims() const {
+        return real_out_dims_.empty() ? out_dims_ : real_out_dims_;
+    }
+    bool is_dynamic() const { return !real_input_dims_.empty(); }
     sc_dims input_dims_;
     sc_dims weight_dims_;
     sc_dims out_dims_;
     sc_data_type_t input_dtype_;
     sc_data_type_t weight_dtype_;
     bool is_input_constant_;
+    sc_dims real_input_dims_;
+    sc_dims real_weight_dims_;
+    sc_dims real_out_dims_;
 };
 
 static bool is_param_valid(const managed_gemm_params_t &param,
@@ -102,7 +123,8 @@ void alloc_sc_input_and_weight(test_buffer<Atype> &sc_input,
 template <typename Atype, typename Btype, typename Ctype>
 void run_mmm_test(const std::shared_ptr<jit_function_t> &fptr, int M, int N,
         int K, const sc_dims input_dims, const sc_dims weight_dims,
-        const sc_dims out_dims, bool fuse_sigmoid = false) {
+        const sc_dims out_dims, bool fuse_sigmoid = false,
+        bool is_dynamic = false) {
     test_buffer<Atype> sc_input;
     test_buffer<Btype> sc_weight;
     alloc_sc_input_and_weight(sc_input, sc_weight, input_dims, weight_dims);
@@ -112,8 +134,27 @@ void run_mmm_test(const std::shared_ptr<jit_function_t> &fptr, int M, int N,
     auto ref_weight = std::vector<Ctype>(sc_weight.begin(), sc_weight.end());
     auto ref_output = std::vector<Ctype>(cal_size(out_dims));
     auto ref_output_s = std::vector<Ctype>(cal_size(out_dims));
-
-    fptr->call_default(&sc_output[0], &sc_input[0], &sc_weight[0]);
+    if (is_dynamic) {
+        runtime::dynamic_tensor_t dyn_sc_output, dyn_sc_input, dyn_sc_weight;
+        dyn_sc_output.data_ = sc_output.data();
+        dyn_sc_output.ndims_ = 2;
+        dyn_sc_output.dims_ = const_cast<sc_dim *>(out_dims.data());
+        dyn_sc_output.dtype_
+                = uint32_t(sc_data_traits_t<Ctype>::type().type_code_);
+        dyn_sc_input.data_ = sc_input.data();
+        dyn_sc_input.ndims_ = 2;
+        dyn_sc_input.dims_ = const_cast<sc_dim *>(input_dims.data());
+        dyn_sc_input.dtype_
+                = uint32_t(sc_data_traits_t<Atype>::type().type_code_);
+        dyn_sc_weight.data_ = sc_weight.data();
+        dyn_sc_weight.ndims_ = 2;
+        dyn_sc_weight.dims_ = const_cast<sc_dim *>(weight_dims.data());
+        dyn_sc_weight.dtype_
+                = uint32_t(sc_data_traits_t<Btype>::type().type_code_);
+        fptr->call_default(&dyn_sc_output, &dyn_sc_input, &dyn_sc_weight);
+    } else {
+        fptr->call_default(&sc_output[0], &sc_input[0], &sc_weight[0]);
+    }
     int out_size = M * N;
 
     gemm_params gemm_param {false, false, M, N, K, 1.0, 0.0, K, N, N};
@@ -132,12 +173,15 @@ static void check_managed_matmul(const managed_gemm_params_t &param,
         const managed_matmul_core_config_t &cfg, bool default_cfg = false,
         bool fuse_sigmoid = false) {
     BUILTIN_REQUIRE_AVX512();
-    const sc_dims input_dims = param.input_dims_;
-    const sc_dims weight_dims = param.weight_dims_;
-    const sc_dims out_dims = param.out_dims_;
-    const sc_data_type_t input_dtype = param.input_dtype_;
-    const sc_data_type_t weight_dtype = param.weight_dtype_;
-    sc_dims batch_dims;
+    const sc_dims &input_dims = param.input_dims_;
+    const sc_dims &weight_dims = param.weight_dims_;
+    const sc_dims &out_dims = param.out_dims_;
+    const sc_data_type_t &input_dtype = param.input_dtype_;
+    const sc_data_type_t &weight_dtype = param.weight_dtype_;
+    const sc_dims &real_input_dims = param.get_real_input_dims();
+    const sc_dims &real_weight_dims = param.get_real_weight_dims();
+    const sc_dims &real_out_dims = param.get_real_out_dims();
+
     sc_graph_t graph;
     int M, N, K;
     bool is_quantized
@@ -152,9 +196,9 @@ static void check_managed_matmul(const managed_gemm_params_t &param,
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     ctx->flags_.mixed_fusion_ = 1;
 
-    M = input_dims[input_dims.size() - 2];
-    N = weight_dims[weight_dims.size() - 1];
-    K = input_dims[input_dims.size() - 1];
+    M = real_input_dims[input_dims.size() - 2];
+    N = real_weight_dims[weight_dims.size() - 1];
+    K = real_input_dims[input_dims.size() - 1];
 
     auto data = graph.make_input(
             {graph_tensor::make(input_dims, sc_data_format_t(), input_dtype)});
@@ -165,26 +209,30 @@ static void check_managed_matmul(const managed_gemm_params_t &param,
             {graph_tensor::make(out_dims, sc_data_format_t(),
                     is_quantized ? datatypes::s32 : datatypes::f32)},
             {});
-    if (default_cfg) {
-        auto mmm_gen = mmm->dyn_cast<ops::managed_matmul_core_op_t>()
-                               ->create_generator();
-        auto dcfg = *(managed_matmul_core_config_t *)mmm_gen
-                             ->get_default_config(get_default_context())
-                             .get();
-        mmm->stc_cast<tunable_op_t>()->set_config(
-                reflection::general_object_t::make(dcfg));
-    } else {
-        auto mmm_gen = mmm->dyn_cast<ops::managed_matmul_core_op_t>()
-                               ->create_generator();
-        auto gen = static_cast<gen_managed_matmul_core_t *>(mmm_gen.get());
-        if (!is_param_valid(param, cfg, gen->iim_block_, gen->iin_block_,
-                    gen->iik_block_)) {
-            GTEST_SKIP();
+    if (!param.is_dynamic()) {
+        if (default_cfg) {
+            auto mmm_gen = mmm->dyn_cast<ops::managed_matmul_core_op_t>()
+                                   ->create_generator();
+            auto dcfg = *(managed_matmul_core_config_t *)mmm_gen
+                                 ->get_default_config(get_default_context())
+                                 .get();
+            mmm->stc_cast<tunable_op_t>()->set_config(
+                    reflection::general_object_t::make(dcfg));
+        } else {
+            auto mmm_gen = mmm->dyn_cast<ops::managed_matmul_core_op_t>()
+                                   ->create_generator();
+            auto gen = static_cast<gen_managed_matmul_core_t *>(mmm_gen.get());
+            if (!is_param_valid(param, cfg, gen->iim_block_, gen->iin_block_,
+                        gen->iik_block_)) {
+                GTEST_SKIP();
+            }
+            mmm->stc_cast<tunable_op_t>()->set_config(
+                    reflection::general_object_t::make(cfg));
         }
-        mmm->stc_cast<tunable_op_t>()->set_config(
-                reflection::general_object_t::make(cfg));
     }
-
+    thread_num_reset reseter;
+    // reduce the kernel number in ut.
+    if (param.is_dynamic()) { runtime_config_t::get().set_num_threads(14); }
     mmm->dyn_cast<op_traits::may_quantize_t>()->is_quantized_ = is_quantized;
     sc_op_ptr output;
     if (fuse_sigmoid) {
@@ -205,17 +253,21 @@ static void check_managed_matmul(const managed_gemm_params_t &param,
     auto fptr = jit_engine_t::make(ctx)->get_entry_func(f);
 
     if (is_quantized && is_s8s8) { // s8s8
-        run_mmm_test<int8_t, int8_t, int32_t>(
-                fptr, M, N, K, input_dims, weight_dims, out_dims, fuse_sigmoid);
+        run_mmm_test<int8_t, int8_t, int32_t>(fptr, M, N, K, real_input_dims,
+                real_weight_dims, real_out_dims, fuse_sigmoid,
+                param.is_dynamic());
     } else if (is_quantized && is_u8s8) { // u8s8
-        run_mmm_test<uint8_t, int8_t, int32_t>(
-                fptr, M, N, K, input_dims, weight_dims, out_dims, fuse_sigmoid);
+        run_mmm_test<uint8_t, int8_t, int32_t>(fptr, M, N, K, real_input_dims,
+                real_weight_dims, real_out_dims, fuse_sigmoid,
+                param.is_dynamic());
     } else if (is_bf16) { // bf16
-        run_mmm_test<bf16_t, bf16_t, float>(
-                fptr, M, N, K, input_dims, weight_dims, out_dims, fuse_sigmoid);
+        run_mmm_test<bf16_t, bf16_t, float>(fptr, M, N, K, real_input_dims,
+                real_weight_dims, real_out_dims, fuse_sigmoid,
+                param.is_dynamic());
     } else { // f32
-        run_mmm_test<float, float, float>(
-                fptr, M, N, K, input_dims, weight_dims, out_dims, fuse_sigmoid);
+        run_mmm_test<float, float, float>(fptr, M, N, K, real_input_dims,
+                real_weight_dims, real_out_dims, fuse_sigmoid,
+                param.is_dynamic());
     }
 }
 
@@ -245,6 +297,8 @@ const managed_matmul_core_config_t cfg3 = {
         3, // K_sub_block
         1, // im_loop_order
 };
+
+const managed_matmul_core_config_t dummy_cfg = {1, 1, 1, 1, 1, 0};
 
 // f32
 TEST(GCCore_managed_matmul_test, TestMATMUL2D_1) {
@@ -347,4 +401,50 @@ TEST(GCCore_managed_matmul_test, TestMATMUL2D_FUSED_SIGMOID3) {
     check_managed_matmul({{1136, 912}, {912, 1344}, {1136, 1344},
                                  datatypes::f32, datatypes::f32, false},
             cfg3, false, true);
+}
+
+TEST(GCCore_managed_matmul_test, TestDynamicMATMUL2D_F32) {
+    check_managed_matmul({{-1, 1792}, {1792, 1792}, {-1, 1792}, datatypes::f32,
+                                 datatypes::f32, false, {1792, 1792},
+                                 {1792, 1792}, {1792, 1792}},
+            dummy_cfg);
+    check_managed_matmul({{-1, 1115}, {1115, 1120}, {-1, 1120}, datatypes::f32,
+                                 datatypes::f32, false, {1125, 1115},
+                                 {1115, 1120}, {1125, 1120}},
+            dummy_cfg);
+    check_managed_matmul({{-1, 2230}, {2230, 2240}, {-1, 2240}, datatypes::f32,
+                                 datatypes::f32, false, {2250, 2230},
+                                 {2230, 2240}, {2250, 2240}},
+            dummy_cfg);
+}
+
+TEST(GCCore_managed_matmul_test, TestDynamicMATMUL2D_INT8) {
+    REQUIRE_VNNI();
+    check_managed_matmul(
+            {{-1, 1792}, {1792, 1792}, {-1, 1792}, datatypes::s8, datatypes::s8,
+                    false, {1792, 1792}, {1792, 1792}, {1792, 1792}},
+            dummy_cfg);
+    check_managed_matmul(
+            {{-1, 1115}, {1115, 1120}, {-1, 1120}, datatypes::s8, datatypes::s8,
+                    false, {1125, 1115}, {1115, 1120}, {1125, 1120}},
+            dummy_cfg);
+    check_managed_matmul(
+            {{-1, 2230}, {2230, 2240}, {-1, 2240}, datatypes::s8, datatypes::s8,
+                    false, {2250, 2230}, {2230, 2240}, {2250, 2240}},
+            dummy_cfg);
+}
+
+TEST(GCCore_managed_matmul_test, TestDynamicMATMUL2D_FUSED_SIGMOID) {
+    check_managed_matmul(
+            {{-1, 1344}, {1344, 912}, {-1, 912}, datatypes::f32, datatypes::f32,
+                    false, {912, 1344}, {1344, 912}, {912, 912}},
+            dummy_cfg, false, true);
+    check_managed_matmul({{-1, 1344}, {1344, 1360}, {-1, 1360}, datatypes::f32,
+                                 datatypes::f32, false, {912, 1344},
+                                 {1344, 1360}, {912, 1360}},
+            dummy_cfg, false, true);
+    check_managed_matmul(
+            {{-1, 912}, {-1, 1344}, {-1, 1344}, datatypes::f32, datatypes::f32,
+                    false, {1136, 912}, {912, 1344}, {1136, 1344}},
+            dummy_cfg, false, true);
 }

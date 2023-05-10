@@ -104,7 +104,7 @@
     (::dnnl::impl::graph::gc::get_default_context() \
                     ->machine_.cpu_flags_.fAVX512AMXTILE \
             && ::dnnl::impl::graph::gc::get_default_context() \
-                       ->flags_.brgemm_use_amx_)
+                       ->machine_.brgemm_use_amx_)
 
 #define REQUIRE_AMX() \
     if (!IS_AMX_AVAILABLE()) { GTEST_SKIP(); }

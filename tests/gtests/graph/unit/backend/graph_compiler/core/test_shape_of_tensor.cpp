@@ -27,7 +27,7 @@
 #include <compiler/jit/jit.hpp>
 #include <ops/fusible/shape_of_tensor.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
-#include <runtime/dynamic_dispatch/utils.hpp>
+#include <runtime/dynamic_dispatch/ops/config.hpp>
 #include <runtime/runtime.hpp>
 #include <util/any_map.hpp>
 

@@ -38,6 +38,9 @@ SC_API void infer_shape_select_op(void *out, void *in0, void *in1, void *in2);
 SC_API void query_format_matmul_core_op(void *table, void *out, void *data,
         void *weight, uint64_t *out_fmt, uint64_t *data_fmt,
         uint64_t *weight_fmt, uint64_t *out_size, void *kernel, int *impl_alg);
+SC_API void query_format_managed_matmul_core_op(void *table, void *out,
+        void *data, void *weight, uint64_t *out_fmt, uint64_t *data_fmt,
+        uint64_t *weight_fmt, uint64_t *out_size, void *kernel, int *impl_alg);
 SC_API void query_format_unary_fusible_op(void *table, void *out, void *in,
         uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel);
 SC_API void query_format_binary_fusible_op(void *table, void *out, void *in0,

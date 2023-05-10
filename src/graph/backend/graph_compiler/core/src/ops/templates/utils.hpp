@@ -36,6 +36,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
+expr divide_and_ceil(const expr &, const expr &);
 namespace ops {
 template <typename T>
 /**
@@ -166,10 +167,6 @@ struct trace_guard_t {
   }
 };
 
-inline expr divide_and_ceil(const expr &v, const expr &d) {
-  return constant_folder_t()(auto_caster_t()((v + d - 1) / d)).remove_const();
-}
-
 inline static std::vector<int> get_splits(const int X) {
   std::vector<int> splits;
   for (auto i = 1; i <= X; ++i) {
@@ -191,11 +188,11 @@ inline static std::vector<int> get_sub_blocks(const int X, int factor = 2) {
 inline expr get_balance211_length(
   const expr &n, const expr &team, const expr &idx, expr &n_start, expr &T1) {
   assert(get_expr_as_int(team) >= 1);
-  expr n1 = ops::divide_and_ceil(n, team);
-  expr n2 = n1 - 1;
-  T1 = n - n2 * team;
-  n_start
-    = builder::make_select(idx <= T1, idx * n1, T1 * n1 + (idx - T1) * n2);
+  expr n1 = divide_and_ceil(n, team);
+  expr n2 = do_cast_and_fold(n1 - 1);
+  T1 = do_cast_and_fold(n - n2 * team);
+  n_start = builder::make_select(idx <= T1, do_cast_and_fold(idx * n1),
+    do_cast_and_fold(T1 * n1 + (idx - T1) * n2));
   return builder::make_select(idx < T1, n1, n2);
 }
 

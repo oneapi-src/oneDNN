@@ -822,9 +822,10 @@ void reorder_op_t::infer_slice_ranges(
         required_axis[i] = i;
     }
     for (auto &src_range : fsmap.get(get_inputs()[0])) {
-        if (!slice_divisible_on_axis(
-                    get_inputs()[0]->details_.get_blocking_dims(), src_range,
-                    required_axis)) {
+        if (!get_inputs()[0]->details_.is_dynamic()
+                && !slice_divisible_on_axis(
+                        get_inputs()[0]->details_.get_blocking_dims(),
+                        src_range, required_axis)) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
         }

@@ -80,6 +80,8 @@ public:
             const context_ptr &ctx) override;
     impl_kind_map convert_config_candidates_to_impl_map(
             const config_ptr_vec &configs) override;
+    std::vector<int> get_impl_dispatch_candidates(
+            const context_ptr &ctx) override;
 
     virtual body_generator_ptr create_generator() = 0;
 

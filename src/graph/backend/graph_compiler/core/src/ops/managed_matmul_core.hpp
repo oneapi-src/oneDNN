@@ -72,6 +72,17 @@ public:
             const std::vector<int> &indices) override;
     void infer_binding_axis(bound_axis_map &bdax_map) override;
     void pre_binding_axis(bound_axis_map &bdax_map) override;
+
+    void set_config_by_key(
+            const op_dispatch_key_t &key, const context_ptr &ctx) override;
+    virtual sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins, // NOLINT
+            const std::vector<graph_tensor_ptr> &outs,
+            sc_graph_t &mgr) override;
+
+private:
+    int iim_block_ = -1;
+    int iin_block_ = -1;
+    int iik_block_ = -1;
 };
 } // namespace ops
 } // namespace gc

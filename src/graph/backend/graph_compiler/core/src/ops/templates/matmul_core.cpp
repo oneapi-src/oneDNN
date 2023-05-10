@@ -28,7 +28,7 @@
 #include <compiler/ir/transform/scope_flatten.hpp>
 #include <ops/matmul_core.hpp>
 #include <runtime/config.hpp>
-#include <runtime/dynamic_dispatch/utils.hpp>
+#include <runtime/dynamic_dispatch/ops/config.hpp>
 #include <runtime/parallel.hpp>
 #include <util/any_map.hpp>
 #include <util/math_utils.hpp>
@@ -382,22 +382,22 @@ void gen_matmul_core_t::get_and_check_blocks(sc_graph_t &graph,
     "Unmatched config with input format");
   // divide and ceil(x, 1) to convert x to index datatype.
   M_num_blocks = blocking_axis_.A_m.size() == 1
-    ? ops::divide_and_ceil(
+    ? divide_and_ceil(
       A_dims[blocking_axis_.A_m.at(0)], graph.dim_to_expr(M_block))
     : A_dims[blocking_axis_.A_m.at(0)];
 
   K_num_blocks = blocking_axis_.A_k.size() == 1
-    ? ops::divide_and_ceil(
+    ? divide_and_ceil(
       A_dims[blocking_axis_.A_k.at(0)], graph.dim_to_expr(K_block))
     : A_dims[blocking_axis_.A_k.at(0)];
 
   B_K_num_blocks = blocking_axis_.B_k.size() == 1
-    ? ops::divide_and_ceil(
+    ? divide_and_ceil(
       B_dims[blocking_axis_.B_k.at(0)], graph.dim_to_expr(K_block))
     : B_dims[blocking_axis_.B_k.at(0)];
 
   N_num_blocks = blocking_axis_.B_n.size() == 1
-    ? ops::divide_and_ceil(
+    ? divide_and_ceil(
       B_dims[blocking_axis_.B_n.at(0)], graph.dim_to_expr(N_block))
     : B_dims[blocking_axis_.B_n.at(0)];
 

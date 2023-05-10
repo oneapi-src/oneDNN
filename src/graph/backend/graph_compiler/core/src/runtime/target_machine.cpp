@@ -52,7 +52,9 @@ target_machine_t::target_machine_t(
     : device_type_(device_type), device_flags_(std::move(device_flags)) {}
 
 target_machine_t::target_machine_t(const target_machine_t &other)
-    : device_type_(other.device_type_), cpu_flags_(other.cpu_flags_) {}
+    : device_type_(other.device_type_)
+    , cpu_flags_(other.cpu_flags_)
+    , brgemm_use_amx_(other.brgemm_use_amx_) {}
 
 target_machine_t &target_machine_t::operator=(const target_machine_t &other) {
     device_type_ = other.device_type_;
@@ -85,6 +87,11 @@ void target_machine_t::set_simd_length_and_max_cpu_threads(cpu_flags_t &flg) {
         flg.max_simd_bits = 128;
     else
         flg.max_simd_bits = 0;
+}
+
+bool target_machine_t::use_amx() const {
+    return cpu_flags_.fAVX512AMXTILE
+            && (cpu_flags_.fAVX512AMXBF16 || cpu_flags_.fAVX512AMXINT8);
 }
 
 uint32_t machine_flags_t::get_max_vector_lanes(sc_data_etype etype) const {

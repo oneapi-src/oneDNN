@@ -24,38 +24,6 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-extern "C" int get_matmul_dyn_cfg_single(int in, bool is_batch) {
-    assert(in > 0);
-    const int blk_step = 16;
-    int blk = 16;
-    bool has_no_tail = false;
-    int padded_in = std::numeric_limits<int>::max();
-    if (is_batch && in <= 16) {
-        if (in <= 2) { return 2; }
-        if (in <= 4) { return 4; }
-        if (in <= 8) { return 8; }
-        return 16;
-    }
-    for (int i = 1; i <= 4; i++) {
-        int cur_blk = blk_step * i;
-        if (cur_blk == 48) { continue; }
-        int cur_num_blk = utils::divide_and_ceil(in, cur_blk);
-        int cur_padded_in = cur_num_blk * cur_blk;
-        if (in % cur_padded_in == 0) {
-            has_no_tail = true;
-            blk = cur_blk;
-        } else if (!has_no_tail && in / (float)cur_padded_in >= 0.8) {
-            blk = cur_blk;
-            padded_in = cur_padded_in;
-        } else if (!has_no_tail) {
-            if (cur_padded_in <= padded_in) {
-                blk = cur_blk;
-                padded_in = cur_padded_in;
-            }
-        }
-    }
-    return blk;
-}
 namespace runtime {
 void deep_copy_dynamic_tensor(
         runtime::dynamic_tensor_t *out, const runtime::dynamic_tensor_t *in) {

@@ -220,8 +220,9 @@ config_ptr tunable_op_t::get_default_config(context_ptr ctx) {
 config_ptr_vec tunable_op_t::get_dynamic_config_candidates(
         const context_ptr &ctx) {
     if (dyn_config_candidates_.empty()) {
-        dyn_config_candidates_
-                = create_generator()->get_dynamic_config_candidates(ctx);
+        if (auto gen = create_generator()) {
+            dyn_config_candidates_ = gen->get_dynamic_config_candidates(ctx);
+        }
     }
     return dyn_config_candidates_;
 }
@@ -237,6 +238,11 @@ impl_kind_map tunable_op_t::convert_config_candidates_to_impl_map(
         ret.insert(std::make_pair(gen->convert_config_to_keys(cfg), i));
     }
     return ret;
+}
+
+std::vector<int> tunable_op_t::get_impl_dispatch_candidates(
+        const context_ptr &ctx) {
+    return get_dynamic_impl_dispatch_candidates(this, ctx);
 }
 
 } // namespace gc

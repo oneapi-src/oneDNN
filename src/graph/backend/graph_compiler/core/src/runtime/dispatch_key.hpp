@@ -38,7 +38,7 @@ union dispatch_key {
         unsigned block_idx2_ : 2;
         // the compressed encoding for op implement algorithm type. There are 16
         // reserved algorithms for select.
-        unsigned impl_alg_ : 4;
+        unsigned impl_alg_ : 11;
         // uncompressed 1st blocking number: 0-255. If compressed encoding is
         // used, it should be 0
         unsigned block1_ : 8;
@@ -51,12 +51,12 @@ union dispatch_key {
         // encode at most 8 axises
         unsigned format_kind_ : 32;
         // unused bits to pad to 64 bits. Should be 0
-        // unsigned unused_ : 10;
+        // unsigned unused_ : 0;
     };
     struct meta {
         static constexpr int MAX_DIMS = 8;
-        static constexpr int IMPL_ALG_BITS = 4;
-        static constexpr int LINEAR_INDEX_BITS = 8;
+        static constexpr int IMPL_ALG_BITS = 11;
+        static constexpr int LINEAR_INDEX_BITS = 4 + IMPL_ALG_BITS;
         static constexpr int BLOCKS_BIT_OFFSET = LINEAR_INDEX_BITS;
         static constexpr int BLOCKS_BITS = 16;
         static constexpr int BLOCKS_MASK = ((1UL << BLOCKS_BITS) - 1)
