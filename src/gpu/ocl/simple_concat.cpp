@@ -249,15 +249,16 @@ static status_t init_conf_common(
     const int eu_count = device_info->eu_count();
     const int max_sg_size = device_info->max_subgroup_size();
     const dim_t total_elems = conf.inner_axis * concat_dim_size * extern_axis;
-    const dim_t max_elems = std::max((dim_t)1, total_elems / eu_count);
     std::vector<prb_info_t> infos;
     for (int simd : {32, 16, 8, 1}) {
         if (simd > max_sg_size) continue;
-        if (simd > max_elems) continue;
         if (simd > 1 && !compute_engine->mayiuse_sub_group(simd)) continue;
         for (int bytes : {8, 4, 2, 1}) {
             if (has_scales && bytes < (int)data_type_size) break;
             if (inner_size % bytes) continue;
+            const dim_t elems = total_elems * data_type_size / bytes;
+            const dim_t max_elems = std::max((dim_t)1, elems / eu_count);
+            if (simd > max_elems) continue;
             infos.emplace_back(simd, bytes, max_elems, max_read_size,
                     inner_size, outer_elems, device_info->gpu_arch());
         }
