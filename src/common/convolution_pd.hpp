@@ -140,10 +140,7 @@ struct convolution_pd_t : public primitive_desc_t {
     int ndims() const { return invariant_src_md()->ndims; }
 
     bool with_bias() const {
-        auto *bia_d = desc()->prop_kind == prop_kind::backward_weights
-                ? &desc()->diff_bias_desc
-                : &desc()->bias_desc;
-        return !memory_desc_wrapper(bia_d).is_zero();
+        return !memory_desc_wrapper(invariant_bia_md()).is_zero();
     }
     bool with_groups() const {
         return invariant_wei_md()->ndims == ndims() + 1;
@@ -292,7 +289,7 @@ struct convolution_fwd_pd_t : public convolution_pd_t {
     }
     const memory_desc_t *weights_md(int index = 0) const override {
         if (index == 0) return &weights_md_;
-        if (index == 1 && with_bias()) return &bias_md_;
+        if (index == 1) return &bias_md_;
         return &glob_zero_md;
     }
 
@@ -364,7 +361,7 @@ struct convolution_bwd_data_pd_t : public convolution_pd_t {
     }
     const memory_desc_t *weights_md(int index = 0) const override {
         if (index == 0) return &weights_md_;
-        if (index == 1 && with_bias()) return &bias_md_;
+        if (index == 1) return &bias_md_;
         return &glob_zero_md;
     }
 
@@ -438,7 +435,7 @@ struct convolution_bwd_weights_pd_t : public convolution_pd_t {
     }
     const memory_desc_t *diff_weights_md(int index = 0) const override {
         if (index == 0) return &diff_weights_md_;
-        if (index == 1 && with_bias()) return &diff_bias_md_;
+        if (index == 1) return &diff_bias_md_;
         return &glob_zero_md;
     }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -107,18 +107,18 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             return op_pds_.front()->weights_md(index); // for now
         }
 
-        const memory_desc_t *arg_md(int index = 0) const override {
+        const memory_desc_t *arg_md(int arg) const override {
             // Binary post-op:
             // format_tag::any should be supported here since output dst_md
             // may be different from the intermediate one and they should be
             // initialized and queried separately.
-            if (index >= DNNL_ARG_ATTR_MULTIPLE_POST_OP(0)
-                    && index < DNNL_ARG_ATTR_MULTIPLE_POST_OP(
+            if (arg >= DNNL_ARG_ATTR_MULTIPLE_POST_OP(0)
+                    && arg < DNNL_ARG_ATTR_MULTIPLE_POST_OP(
                                post_ops_t::post_ops_limit)) {
                 const auto &po = attr()->post_ops_;
                 auto dw_idx = po.find(primitive_kind::convolution);
                 for (int idx = 0; idx < po.len(); ++idx) {
-                    if (index
+                    if (arg
                             != (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
                                     | DNNL_ARG_SRC_1))
                         continue;
@@ -136,12 +136,12 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                 }
             }
 
-            switch (index) { // for now
+            switch (arg) { // for now
                 case DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS:
                     return op_pds_.back()->weights_md(0);
                 case DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS:
                     return op_pds_.back()->weights_md(1);
-                default: return convolution_fwd_pd_t::arg_md(index);
+                default: return convolution_fwd_pd_t::arg_md(arg);
             }
         }
 
