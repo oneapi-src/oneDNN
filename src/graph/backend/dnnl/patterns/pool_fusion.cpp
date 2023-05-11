@@ -60,24 +60,20 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, pool_post_ops_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto ppool = pgraph->append_alternation(
-                            {graph::op_kind::AvgPool, graph::op_kind::MaxPool},
-                            "ppool");
+                            {graph::op_kind::AvgPool, graph::op_kind::MaxPool});
                     ppool->append_decision_function(check_avgpool_attributes);
-                    auto pbinary_subgraph
-                            = std::make_shared<pb_graph_t>("pbinary_subgraph");
+                    auto pbinary_subgraph = std::make_shared<pb_graph_t>();
                     auto pbinary = pbinary_subgraph->append_alternation(
                             {graph::op_kind::Add, graph::op_kind::Multiply,
                                     graph::op_kind::Maximum,
                                     graph::op_kind::Minimum,
                                     graph::op_kind::Divide,
-                                    graph::op_kind::Subtract},
-                            "pbinary");
+                                    graph::op_kind::Subtract});
                     pbinary->allow_internal_inputs();
                     pbinary_subgraph->create_input_port(0, pbinary, 0);
                     pbinary_subgraph->create_output_port(0, pbinary, 0);
                     pgraph->append_repetition(pbinary_subgraph, {0, 0}, 1,
-                            MAX_REPETITION, {in_edge(0, ppool, 0)},
-                            "prepetition");
+                            MAX_REPETITION, {in_edge(0, ppool, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<float_pooling_fwd>();
@@ -110,22 +106,21 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_pool_binary_fusion_cpu)
         .set_kind(partition_kind_t::quantized_pooling_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto pdequant_data = pgraph->append_op(
-                            graph::op_kind::Dequantize, "pdequnt_data");
+                    auto pdequant_data
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     pdequant_data->append_decision_function(
                             check_qtype_equal_to_per_tensor);
 
                     auto ppool = pgraph->append_alternation(
                             {graph::op_kind::AvgPool, graph::op_kind::MaxPool},
-                            {in_edge(0, pdequant_data, 0)}, "ppool");
+                            {in_edge(0, pdequant_data, 0)});
                     ppool->append_decision_function(check_avgpool_attributes);
 
                     // case1: quant
-                    auto subgraph_1 = std::make_shared<pb_graph_t>(
-                            "subgraph_only_quant");
+                    auto subgraph_1 = std::make_shared<pb_graph_t>();
                     {
                         auto quant = subgraph_1->append_op(
-                                graph::op_kind::Quantize, "pquantize");
+                                graph::op_kind::Quantize);
                         quant->append_decision_function(
                                 check_qtype_equal_to_per_tensor);
                         subgraph_1->create_input_port(0, quant, 0);
@@ -133,16 +128,14 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_pool_binary_fusion_cpu)
                     }
 
                     // case2: reshape - quant
-                    auto subgraph_2 = std::make_shared<pb_graph_t>(
-                            "subgraph_reshape_quant");
+                    auto subgraph_2 = std::make_shared<pb_graph_t>();
                     {
                         auto reshape = subgraph_2->append_alternation(
                                 {graph::op_kind::StaticReshape,
-                                        graph::op_kind::StaticTranspose},
-                                "reshape");
+                                        graph::op_kind::StaticTranspose});
                         auto quant = subgraph_2->append_op(
                                 graph::op_kind::Quantize,
-                                {in_edge(0, reshape, 0)}, "pquantize");
+                                {in_edge(0, reshape, 0)});
                         quant->append_decision_function(
                                 check_qtype_equal_to_per_tensor);
                         subgraph_2->create_input_port(0, reshape, 0);
@@ -150,16 +143,15 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_pool_binary_fusion_cpu)
                     }
 
                     // case3: binary op -quant
-                    auto subgraph_3
-                            = std::make_shared<pb_graph_t>("padd_subgraph");
+                    auto subgraph_3 = std::make_shared<pb_graph_t>();
                     {
                         auto pdequant_other = subgraph_3->append_op(
-                                graph::op_kind::Dequantize, "pdequnt_other");
+                                graph::op_kind::Dequantize);
                         auto padd = subgraph_3->append_op(graph::op_kind::Add,
-                                {in_edge(1, pdequant_other, 0)}, "padd");
+                                {in_edge(1, pdequant_other, 0)});
                         auto quant = subgraph_3->append_op(
-                                graph::op_kind::Quantize, {in_edge(0, padd, 0)},
-                                "pquantize");
+                                graph::op_kind::Quantize,
+                                {in_edge(0, padd, 0)});
 
                         quant->append_decision_function(
                                 check_qtype_equal_to_per_tensor);
@@ -202,52 +194,48 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_pool_binary_fusion_gpu)
         .set_kind(partition_kind_t::quantized_pooling_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto pdequant_data = pgraph->append_op(
-                            graph::op_kind::Dequantize, "pdequnt_data");
+                    auto pdequant_data
+                            = pgraph->append_op(graph::op_kind::Dequantize);
 
                     auto ppool = pgraph->append_alternation(
                             {graph::op_kind::AvgPool, graph::op_kind::MaxPool},
-                            {in_edge(0, pdequant_data, 0)}, "ppool");
+                            {in_edge(0, pdequant_data, 0)});
                     ppool->append_decision_function(check_avgpool_attributes);
 
                     // case1: quant
-                    auto subgraph_1 = std::make_shared<pb_graph_t>(
-                            "subgraph_only_quant");
+                    auto subgraph_1 = std::make_shared<pb_graph_t>();
                     {
                         auto quant = subgraph_1->append_op(
-                                graph::op_kind::Quantize, "pquantize");
+                                graph::op_kind::Quantize);
                         subgraph_1->create_input_port(0, quant, 0);
                         subgraph_1->create_output_port(0, quant, 0);
                     }
 
                     // case2: reshape - quant
-                    auto subgraph_2 = std::make_shared<pb_graph_t>(
-                            "subgraph_reshape_quant");
+                    auto subgraph_2 = std::make_shared<pb_graph_t>();
                     {
                         auto reshape = subgraph_2->append_alternation(
                                 {graph::op_kind::StaticReshape,
-                                        graph::op_kind::StaticTranspose},
-                                "reshape");
+                                        graph::op_kind::StaticTranspose});
                         auto quant = subgraph_2->append_op(
                                 graph::op_kind::Quantize,
-                                {in_edge(0, reshape, 0)}, "pquantize");
+                                {in_edge(0, reshape, 0)});
                         subgraph_2->create_input_port(0, reshape, 0);
                         subgraph_2->create_output_port(0, quant, 0);
                     }
 
                     // case3: binary op -quant
-                    auto subgraph_3
-                            = std::make_shared<pb_graph_t>("padd_subgraph");
+                    auto subgraph_3 = std::make_shared<pb_graph_t>();
                     {
                         auto pdequant_other = subgraph_3->append_op(
-                                graph::op_kind::Dequantize, "pdequnt_other");
+                                graph::op_kind::Dequantize);
                         pdequant_other->append_decision_function(
                                 check_zps_values<0>);
                         auto padd = subgraph_3->append_op(graph::op_kind::Add,
-                                {in_edge(1, pdequant_other, 0)}, "padd");
+                                {in_edge(1, pdequant_other, 0)});
                         auto quant = subgraph_3->append_op(
-                                graph::op_kind::Quantize, {in_edge(0, padd, 0)},
-                                "pquantize");
+                                graph::op_kind::Quantize,
+                                {in_edge(0, padd, 0)});
                         subgraph_3->create_input_port(0, padd, 0);
                         subgraph_3->create_input_port(1, pdequant_other, 0);
                         subgraph_3->create_output_port(0, quant, 0);

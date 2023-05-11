@@ -125,12 +125,11 @@ pm::pb_op_t *int8_conv_bias(const std::shared_ptr<pb_graph_t> &pgraph,
     if (input) { in_edges = in_edges_t {in_edge(0, input, 0)}; }
     pm::pb_op_t *dequant_src
             = pgraph->append_op(graph::op_kind::Dequantize, in_edges);
-    auto popt_graph = std::make_shared<pb_graph_t>("poptional_quant_weight");
-    pm::pb_op_t *pquant
-            = popt_graph->append_op(graph::op_kind::Quantize, "pquant");
+    auto popt_graph = std::make_shared<pb_graph_t>();
+    pm::pb_op_t *pquant = popt_graph->append_op(graph::op_kind::Quantize);
     popt_graph->create_input_port(0, pquant, 0);
     popt_graph->create_output_port(0, pquant, 0);
-    auto quant_wei = pgraph->append_optional(popt_graph, "popt");
+    auto quant_wei = pgraph->append_optional(popt_graph);
 
     pm::pb_op_t *dequant_wei = pgraph->append_op(
             graph::op_kind::Dequantize, in_edges_t {in_edge(0, quant_wei, 0)});
@@ -162,12 +161,11 @@ pm::pb_op_t *int8_conv_bias_relu(const std::shared_ptr<pb_graph_t> &pgraph,
     pm::pb_op_t *dequant_src
             = pgraph->append_op(graph::op_kind::Dequantize, in_edges);
 
-    auto popt_graph = std::make_shared<pb_graph_t>("poptional_quant_weight");
-    pm::pb_op_t *pquant
-            = popt_graph->append_op(graph::op_kind::Quantize, "pquant");
+    auto popt_graph = std::make_shared<pb_graph_t>();
+    pm::pb_op_t *pquant = popt_graph->append_op(graph::op_kind::Quantize);
     popt_graph->create_input_port(0, pquant, 0);
     popt_graph->create_output_port(0, pquant, 0);
-    auto quant_wei = pgraph->append_optional(popt_graph, "popt");
+    auto quant_wei = pgraph->append_optional(popt_graph);
 
     pm::pb_op_t *dequant_wei = pgraph->append_op(
             graph::op_kind::Dequantize, in_edges_t {in_edge(0, quant_wei, 0)});
@@ -203,12 +201,11 @@ pm::pb_op_t *int8_conv_bias_add_relu(const std::shared_ptr<pb_graph_t> &pgraph,
     pm::pb_op_t *dequant_src
             = pgraph->append_op(graph::op_kind::Dequantize, in_edges);
 
-    auto popt_graph = std::make_shared<pb_graph_t>("poptional_quant_weight");
-    pm::pb_op_t *pquant
-            = popt_graph->append_op(graph::op_kind::Quantize, "pquant");
+    auto popt_graph = std::make_shared<pb_graph_t>();
+    pm::pb_op_t *pquant = popt_graph->append_op(graph::op_kind::Quantize);
     popt_graph->create_input_port(0, pquant, 0);
     popt_graph->create_output_port(0, pquant, 0);
-    auto quant_wei = pgraph->append_optional(popt_graph, "popt");
+    auto quant_wei = pgraph->append_optional(popt_graph);
 
     pm::pb_op_t *dequant_wei = pgraph->append_op(
             graph::op_kind::Dequantize, in_edges_t {in_edge(0, quant_wei, 0)});

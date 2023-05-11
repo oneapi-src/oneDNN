@@ -49,10 +49,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, interpolate_post_ops_fusion)
                             = pgraph->append_op(graph::op_kind::Interpolate);
                     interpolate->append_decision_function(check_attributes);
 
-                    auto postop_graph
-                            = std::make_shared<pb_graph_t>("postop_graph");
+                    auto postop_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pop = postop_graph->append_alternation(
-                            get_unary_binary_ops(), "pother_postop");
+                            get_unary_binary_ops());
                     pop->allow_internal_inputs();
                     postop_graph->create_input_port(0, pop, 0);
                     postop_graph->create_input_port(1, pop, 1);
@@ -60,8 +59,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, interpolate_post_ops_fusion)
 
                     pgraph->append_repetition(postop_graph, {0, 0}, 1,
                             MAX_REPETITION,
-                            in_edges_t {in_edge(0, interpolate, 0)},
-                            "prepetition");
+                            in_edges_t {in_edge(0, interpolate, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<float_resampling_fwd>();

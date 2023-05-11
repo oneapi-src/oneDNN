@@ -39,10 +39,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, reciprocal_multiply_fusion)
         .set_kind(partition_kind_t::binary_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto reciprocal = pgraph->append_op(
-                            graph::op_kind::Reciprocal, "reciprocal");
+                    auto reciprocal
+                            = pgraph->append_op(graph::op_kind::Reciprocal);
                     pgraph->append_op(graph::op_kind::Multiply,
-                            in_edges_t {in_edge(0, reciprocal, 0)}, "multiply");
+                            in_edges_t {in_edge(0, reciprocal, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel",
                 []() -> kernel_ptr { return std::make_shared<binary_t>(); });
@@ -54,22 +54,20 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, binary_post_ops_fusion)
         .set_kind(partition_kind_t::binary_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto binary_op = pgraph->append_alternation(
-                            get_binary_ops(), "binary_op");
+                    auto binary_op
+                            = pgraph->append_alternation(get_binary_ops());
 
-                    auto post_subgraph
-                            = std::make_shared<pb_graph_t>("post_subgraph");
+                    auto post_subgraph = std::make_shared<pb_graph_t>();
                     auto alternative_post_op
                             = post_subgraph->append_alternation(
-                                    get_unary_binary_ops(),
-                                    "alternative_post_op");
+                                    get_unary_binary_ops());
                     alternative_post_op->allow_internal_inputs();
                     post_subgraph->create_input_port(0, alternative_post_op, 0);
                     post_subgraph->create_output_port(
                             0, alternative_post_op, 0);
 
                     pgraph->append_repetition(post_subgraph, {0, 0}, 1,
-                            MAX_REPETITION, {in_edge(0, binary_op, 0)}, "palt");
+                            MAX_REPETITION, {in_edge(0, binary_op, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel",
                 []() -> kernel_ptr { return std::make_shared<binary_t>(); });

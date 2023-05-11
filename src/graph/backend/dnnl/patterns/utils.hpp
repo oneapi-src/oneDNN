@@ -184,30 +184,27 @@ inline bool check_if_constant_weight(op_t *op) {
 inline graph::utils::pm::repetition_t *optional_bias_add(
         const std::shared_ptr<graph::utils::pm::pb_graph_t> &pgraph,
         graph::utils::pm::pb_op_t *input, bool maybe_typecast = false) {
-    auto popt_bias_graph
-            = std::make_shared<graph::utils::pm::pb_graph_t>("poptional_bias");
+    auto popt_bias_graph = std::make_shared<graph::utils::pm::pb_graph_t>();
     graph::utils::pm::pb_op_t *pbias = nullptr;
     if (maybe_typecast) {
-        auto popt_tc_graph = std::make_shared<graph::utils::pm::pb_graph_t>(
-                "poptional_tc");
+        auto popt_tc_graph = std::make_shared<graph::utils::pm::pb_graph_t>();
         graph::utils::pm::pb_op_t *typecast_bias
-                = popt_tc_graph->append_op(graph::op_kind::TypeCast, "tc_bias");
+                = popt_tc_graph->append_op(graph::op_kind::TypeCast);
         typecast_bias->append_decision_function(
                 check_output_dtype<graph::data_type::bf16>);
         popt_tc_graph->create_input_port(0, typecast_bias, 0);
         popt_tc_graph->create_output_port(0, typecast_bias, 0);
-        auto popt_tc
-                = popt_bias_graph->append_optional(popt_tc_graph, "popt_tc");
+        auto popt_tc = popt_bias_graph->append_optional(popt_tc_graph);
         pbias = popt_bias_graph->append_op(graph::op_kind::BiasAdd,
-                graph::utils::pm::in_edges_t {in_edge(1, popt_tc, 0)}, "pbias");
+                graph::utils::pm::in_edges_t {in_edge(1, popt_tc, 0)});
     } else {
-        pbias = popt_bias_graph->append_op(graph::op_kind::BiasAdd, "pbias");
+        pbias = popt_bias_graph->append_op(graph::op_kind::BiasAdd);
     }
     pbias->append_decision_function(check_producer_input_num<2>);
     popt_bias_graph->create_input_port(0, pbias, 0);
     popt_bias_graph->create_output_port(0, pbias, 0);
     auto popt_bias = pgraph->append_optional(popt_bias_graph,
-            graph::utils::pm::in_edges_t {in_edge(0, input, 0)}, "popt_bias");
+            graph::utils::pm::in_edges_t {in_edge(0, input, 0)});
     return popt_bias;
 }
 
@@ -215,24 +212,21 @@ inline graph::utils::pm::repetition_t *post_quantized_add(
         const std::shared_ptr<graph::utils::pm::pb_graph_t> &pgraph,
         graph::utils::pm::pb_node_t *input) {
     graph::utils::pm::pb_op_t *pdequant_add
-            = pgraph->append_op(graph::op_kind::Dequantize, "dequant");
+            = pgraph->append_op(graph::op_kind::Dequantize);
     graph::utils::pm::pb_op_t *padd = pgraph->append_op(graph::op_kind::Add,
             graph::utils::pm::in_edges_t {
-                    in_edge(0, input, 0), in_edge(1, pdequant_add, 0)},
-            "padd");
+                    in_edge(0, input, 0), in_edge(1, pdequant_add, 0)});
 
     // post ops
-    auto postop_graph
-            = std::make_shared<graph::utils::pm::pb_graph_t>("postops_graph");
-    graph::utils::pm::pb_op_t *pop = postop_graph->append_alternation(
-            get_unary_binary_ops(), "postop");
+    auto postop_graph = std::make_shared<graph::utils::pm::pb_graph_t>();
+    graph::utils::pm::pb_op_t *pop
+            = postop_graph->append_alternation(get_unary_binary_ops());
     postop_graph->create_input_port(0, pop, 0);
     postop_graph->create_input_port(1, pop, 1);
     postop_graph->create_output_port(0, pop, 0);
 
     auto prep = pgraph->append_repetition(postop_graph, {0, 0}, 0,
-            MAX_REPETITION, graph::utils::pm::in_edges_t {in_edge(0, padd, 0)},
-            "prepetition");
+            MAX_REPETITION, graph::utils::pm::in_edges_t {in_edge(0, padd, 0)});
     return prep;
 }
 

@@ -194,8 +194,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, round_pass)
         .set_kind(partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    graph::utils::pm::pb_op_t *p_round = pgraph->append_op(
-                            graph::op_kind::Round, "p-round");
+                    graph::utils::pm::pb_op_t *p_round
+                            = pgraph->append_op(graph::op_kind::Round);
                     // the round algorithm in eltwise primitive does not
                     // support other data types.
                     p_round->append_decision_function(
@@ -246,8 +246,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, interpolate_pass)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     graph::utils::pm::pb_op_t *p_interpolate
-                            = pgraph->append_op(graph::op_kind::Interpolate,
-                                    "p-interpolate");
+                            = pgraph->append_op(graph::op_kind::Interpolate);
                     p_interpolate->INTERPOLATE_ATTR_CHECK();
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
@@ -261,8 +260,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, interpolate_bwd_pass)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     graph::utils::pm::pb_op_t *p_interpolate_bwd
                             = pgraph->append_op(
-                                    graph::op_kind::InterpolateBackward,
-                                    "p-interpolate_bwd");
+                                    graph::op_kind::InterpolateBackward);
                     p_interpolate_bwd->INTERPOLATE_ATTR_CHECK();
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
@@ -292,8 +290,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, typecast_pass)
         .set_kind(partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    graph::utils::pm::pb_op_t *p_tc = pgraph->append_op(
-                            graph::op_kind::TypeCast, "p-typecast");
+                    graph::utils::pm::pb_op_t *p_tc
+                            = pgraph->append_op(graph::op_kind::TypeCast);
                     p_tc->SET_BF16_F16_CHECK();
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
@@ -336,7 +334,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, softplus_pass)
         .set_kind(partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pgraph->append_op(graph::op_kind::SoftPlus, "softplus");
+                    pgraph->append_op(graph::op_kind::SoftPlus);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<float_eltwise_fwd>();
@@ -347,8 +345,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, softplus_bw_pass)
         .set_kind(partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pgraph->append_op(
-                            graph::op_kind::SoftPlusBackward, "softplus_bw");
+                    pgraph->append_op(graph::op_kind::SoftPlusBackward);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<eltwise_bwd_t>();

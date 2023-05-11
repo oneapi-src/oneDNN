@@ -57,8 +57,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bn_fusion)
         .set_kind(partition_kind_t::batch_norm_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto pdequant_data = pgraph->append_op(
-                            graph::op_kind::Dequantize, "pdequant_data");
+                    auto pdequant_data
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     pdequant_data->append_decision_function(
                             check_qtype_equal_to_per_tensor);
                     pdequant_data->append_decision_function(
@@ -66,25 +66,23 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bn_fusion)
 
                     auto bn = pgraph->append_op(
                             graph::op_kind::BatchNormInference,
-                            {in_edge(0, pdequant_data, 0)}, "batchnorm");
+                            {in_edge(0, pdequant_data, 0)});
                     bn->append_decision_function(
                             check_input_dtype_from_offset<impl::data_type::f32,
                                     1>);
 
                     std::shared_ptr<pb_graph_t> relu_graph;
                     {
-                        relu_graph = std::make_shared<pb_graph_t>("prelu");
-                        auto relu = relu_graph->append_op(
-                                graph::op_kind::ReLU, "relu");
+                        relu_graph = std::make_shared<pb_graph_t>();
+                        auto relu = relu_graph->append_op(graph::op_kind::ReLU);
                         relu_graph->create_input_port(0, relu, 0);
                         relu_graph->create_output_port(0, relu, 0);
                     }
                     auto bn_relu = pgraph->append_optional(
-                            relu_graph, {in_edge(0, bn, 0)}, "optional_relu");
+                            relu_graph, {in_edge(0, bn, 0)});
 
-                    auto pquant_data
-                            = pgraph->append_op(graph::op_kind::Quantize,
-                                    {in_edge(0, bn_relu, 0)}, "quant_data");
+                    auto pquant_data = pgraph->append_op(
+                            graph::op_kind::Quantize, {in_edge(0, bn_relu, 0)});
                     pquant_data->append_decision_function(
                             check_qtype_equal_to_per_tensor);
                     pquant_data->append_decision_function(check_zps_values<0>);

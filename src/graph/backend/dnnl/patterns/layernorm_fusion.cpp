@@ -63,22 +63,20 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, layernorm_post_ops_fusion_cpu)
                             check_input_dtype_from_offset<impl::data_type::f32,
                                     1>);
                     // Alt0: Typecast + Quantize
-                    auto ptcq_graph
-                            = std::make_shared<pb_graph_t>("ptcq_graph");
-                    pm::pb_op_t *ptc = ptcq_graph->append_op(
-                            graph::op_kind::TypeCast, "typecast");
-                    pm::pb_op_t *pquant = ptcq_graph->append_op(
-                            graph::op_kind::Quantize,
-                            in_edges_t {in_edge(0, ptc, 0)}, "quantize");
+                    auto ptcq_graph = std::make_shared<pb_graph_t>();
+                    pm::pb_op_t *ptc
+                            = ptcq_graph->append_op(graph::op_kind::TypeCast);
+                    pm::pb_op_t *pquant
+                            = ptcq_graph->append_op(graph::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, ptc, 0)});
                     pquant->append_decision_function(check_zps_values<0>);
                     ptcq_graph->create_input_port(0, ptc, 0);
                     ptcq_graph->create_output_port(0, pquant, 0);
 
                     // Alt1: Typecast
-                    auto ptypecast_graph
-                            = std::make_shared<pb_graph_t>("ptypecast_graph");
+                    auto ptypecast_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *ptypecast = ptypecast_graph->append_op(
-                            graph::op_kind::TypeCast, "typecast");
+                            graph::op_kind::TypeCast);
                     // For layernorm+tc+quant case, if the quant's zp is not
                     // zero, then layernorm+tc will be matched and the tc+quant
                     // fusion will be broken. To avoid this, we make the
@@ -96,10 +94,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, layernorm_post_ops_fusion_cpu)
                     ptypecast_graph->create_output_port(0, ptypecast, 0);
 
                     // Alt2: Quantize
-                    auto pquantize_graph
-                            = std::make_shared<pb_graph_t>("pquantize_graph");
+                    auto pquantize_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pquantize = pquantize_graph->append_op(
-                            graph::op_kind::Quantize, "quantize");
+                            graph::op_kind::Quantize);
                     pquantize->append_decision_function(check_zps_values<0>);
                     pquantize_graph->create_input_port(0, pquantize, 0);
                     pquantize_graph->create_output_port(0, pquantize, 0);
@@ -107,8 +104,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, layernorm_post_ops_fusion_cpu)
                     // It will be mathced in priority order of Alt0, Alt1, Alt2.
                     pgraph->append_alternation(
                             {ptcq_graph, ptypecast_graph, pquantize_graph},
-                            in_edges_t {in_edge(0, layernorm_base, 0)},
-                            "palternation");
+                            in_edges_t {in_edge(0, layernorm_base, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<layernorm_fwd_t>();

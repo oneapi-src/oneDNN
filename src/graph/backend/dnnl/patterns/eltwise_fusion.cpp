@@ -41,12 +41,11 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, eltwise_binary_fusion)
         .set_kind(partition_kind_t::unary_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op_t *peltwise = pgraph->append_alternation(
-                            get_unary_ops(), "peltwise");
-                    auto pbinary_graph
-                            = std::make_shared<pb_graph_t>("pbinary_graph");
+                    pm::pb_op_t *peltwise
+                            = pgraph->append_alternation(get_unary_ops());
+                    auto pbinary_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pbinary_op = pbinary_graph->append_alternation(
-                            get_binary_ops(), "pbinary_op");
+                            get_binary_ops());
                     pbinary_op->allow_internal_inputs();
                     pbinary_graph->create_input_port(0, pbinary_op, 0);
                     pbinary_graph->create_input_port(1, pbinary_op, 1);
@@ -54,8 +53,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, eltwise_binary_fusion)
 
                     pgraph->append_repetition(pbinary_graph, {0, 0}, 1,
                             MAX_REPETITION,
-                            in_edges_t {in_edge(0, peltwise, 0)},
-                            "prepetition");
+                            in_edges_t {in_edge(0, peltwise, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<float_eltwise_fwd>();

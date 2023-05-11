@@ -38,10 +38,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, reorder_sum_fusion)
         .set_kind(partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph> &pgraph) -> void {
-                    pm::pb_op_t *reorder = pgraph->append_op(
-                            graph::op_kind::Reorder, "preorder");
-                    pm::pb_op_t *add = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, reorder, 0)}, "padd");
+                    pm::pb_op_t *reorder
+                            = pgraph->append_op(graph::op_kind::Reorder);
+                    pm::pb_op_t *add = pgraph->append_op(
+                            graph::op_kind::Add, {in_edge(0, reorder, 0)});
                     add->append_decision_function([](op_t *graph_op) -> bool {
                         return !graph_op->has_attr(op_attr::auto_broadcast)
                                 || graph_op->get_attr<std::string>(
@@ -58,13 +58,12 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_reorder_fusion)
         .set_kind(partition_kind_t::misc_quantized_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph> &pgraph) -> void {
-                    pm::pb_op_t *dequant = pgraph->append_op(
-                            graph::op_kind::Dequantize, "pdequant");
-                    pm::pb_op_t *reorder
-                            = pgraph->append_op(graph::op_kind::Reorder,
-                                    {in_edge(0, dequant, 0)}, "preorder");
-                    pgraph->append_op(graph::op_kind::Quantize,
-                            {in_edge(0, reorder, 0)}, "pquant");
+                    pm::pb_op_t *dequant
+                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    pm::pb_op_t *reorder = pgraph->append_op(
+                            graph::op_kind::Reorder, {in_edge(0, dequant, 0)});
+                    pgraph->append_op(
+                            graph::op_kind::Quantize, {in_edge(0, reorder, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_reorder>();
@@ -80,25 +79,23 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_reorder_sum_fusion_cpu)
         .set_kind(partition_kind_t::misc_quantized_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph> &pgraph) -> void {
-                    pm::pb_op_t *dequant = pgraph->append_op(
-                            graph::op_kind::Dequantize, "pdequant");
-                    pm::pb_op_t *dequant_other = pgraph->append_op(
-                            graph::op_kind::Dequantize, "pdequant_other");
-                    pm::pb_op_t *reorder
-                            = pgraph->append_op(graph::op_kind::Reorder,
-                                    {in_edge(0, dequant, 0)}, "preorder");
+                    pm::pb_op_t *dequant
+                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    pm::pb_op_t *dequant_other
+                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    pm::pb_op_t *reorder = pgraph->append_op(
+                            graph::op_kind::Reorder, {in_edge(0, dequant, 0)});
                     pm::pb_op_t *add = pgraph->append_op(graph::op_kind::Add,
                             {in_edge(0, reorder, 0),
-                                    in_edge(1, dequant_other, 0)},
-                            "padd");
+                                    in_edge(1, dequant_other, 0)});
                     add->append_decision_function([](op_t *graph_op) -> bool {
                         return !graph_op->has_attr(op_attr::auto_broadcast)
                                 || graph_op->get_attr<std::string>(
                                            op_attr::auto_broadcast)
                                 == "none";
                     });
-                    pgraph->append_op(graph::op_kind::Quantize,
-                            {in_edge(0, add, 0)}, "pquant");
+                    pgraph->append_op(
+                            graph::op_kind::Quantize, {in_edge(0, add, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_reorder>();
@@ -114,27 +111,25 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_reorder_sum_fusion_gpu)
         .set_kind(partition_kind_t::misc_quantized_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph> &pgraph) -> void {
-                    pm::pb_op_t *dequant = pgraph->append_op(
-                            graph::op_kind::Dequantize, "pdequant");
-                    pm::pb_op_t *dequant_other = pgraph->append_op(
-                            graph::op_kind::Dequantize, "pdequant_other");
+                    pm::pb_op_t *dequant
+                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    pm::pb_op_t *dequant_other
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     dequant_other->append_decision_function(
                             check_zps_values<0>);
-                    pm::pb_op_t *reorder
-                            = pgraph->append_op(graph::op_kind::Reorder,
-                                    {in_edge(0, dequant, 0)}, "preorder");
+                    pm::pb_op_t *reorder = pgraph->append_op(
+                            graph::op_kind::Reorder, {in_edge(0, dequant, 0)});
                     pm::pb_op_t *add = pgraph->append_op(graph::op_kind::Add,
                             {in_edge(0, reorder, 0),
-                                    in_edge(1, dequant_other, 0)},
-                            "padd");
+                                    in_edge(1, dequant_other, 0)});
                     add->append_decision_function([](op_t *graph_op) -> bool {
                         return !graph_op->has_attr(op_attr::auto_broadcast)
                                 || graph_op->get_attr<std::string>(
                                            op_attr::auto_broadcast)
                                 == "none";
                     });
-                    pgraph->append_op(graph::op_kind::Quantize,
-                            {in_edge(0, add, 0)}, "pquant");
+                    pgraph->append_op(
+                            graph::op_kind::Quantize, {in_edge(0, add, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_reorder>();

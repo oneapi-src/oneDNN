@@ -70,36 +70,33 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         .set_kind(partition_kind_t::quantized_convtranspose_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op_t *dequant_data = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequant_data");
+                    pm::pb_op_t *dequant_data
+                            = pgraph->append_op(graph::op_kind::Dequantize);
 
                     // Optional quant_weight
-                    auto popt_graph = std::make_shared<pb_graph_t>(
-                            "poptional_quant_weight");
-                    pm::pb_op_t *pquant = popt_graph->append_op(
-                            graph::op_kind::Quantize, "pquant");
+                    auto popt_graph = std::make_shared<pb_graph_t>();
+                    pm::pb_op_t *pquant
+                            = popt_graph->append_op(graph::op_kind::Quantize);
                     popt_graph->create_input_port(0, pquant, 0);
                     popt_graph->create_output_port(0, pquant, 0);
-                    auto popt = pgraph->append_optional(popt_graph, "popt");
+                    auto popt = pgraph->append_optional(popt_graph);
 
-                    pm::pb_op_t *dequant_weight = pgraph->append_op(
-                            graph::op_kind::Dequantize,
-                            in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
+                    pm::pb_op_t *dequant_weight
+                            = pgraph->append_op(graph::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, popt, 0)});
 
                     pm::pb_op_t *pconvtranspose
                             = pgraph->append_op(graph::op_kind::ConvTranspose,
                                     in_edges_t {in_edge(0, dequant_data, 0),
-                                            in_edge(1, dequant_weight, 0)},
-                                    "conv");
+                                            in_edge(1, dequant_weight, 0)});
 
                     // Optional bias_add
                     auto popt_bias
                             = optional_bias_add(pgraph, pconvtranspose, false);
 
-                    auto postop_graph
-                            = std::make_shared<pb_graph_t>("postop_graph");
+                    auto postop_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pop = postop_graph->append_alternation(
-                            get_unary_binary_ops(), "postop");
+                            get_unary_binary_ops());
                     pop->allow_internal_inputs();
                     postop_graph->create_input_port(0, pop, 0);
                     postop_graph->create_input_port(1, pop, 1);
@@ -107,18 +104,16 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
 
                     auto prep = pgraph->append_repetition(postop_graph, {0, 0},
                             0, MAX_REPETITION,
-                            in_edges_t {in_edge(0, popt_bias, 0)},
-                            "prepetition");
+                            in_edges_t {in_edge(0, popt_bias, 0)});
 
                     // Optional quant_out
-                    auto popt_qout_graph = std::make_shared<pb_graph_t>(
-                            "poptional_quant_out");
-                    pm::pb_op_t *pquant_out = popt_graph->append_op(
-                            graph::op_kind::Quantize, "pquant_out");
+                    auto popt_qout_graph = std::make_shared<pb_graph_t>();
+                    pm::pb_op_t *pquant_out
+                            = popt_graph->append_op(graph::op_kind::Quantize);
                     popt_qout_graph->create_input_port(0, pquant_out, 0);
                     popt_qout_graph->create_output_port(0, pquant_out, 0);
-                    pgraph->append_optional(popt_qout_graph,
-                            in_edges_t {in_edge(0, prep, 0)}, "popt_quant_out");
+                    pgraph->append_optional(
+                            popt_qout_graph, in_edges_t {in_edge(0, prep, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_convtranspose>();
@@ -140,23 +135,22 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         .set_kind(partition_kind_t::quantized_convtranspose_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op_t *dequant_data = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequant_data");
+                    pm::pb_op_t *dequant_data
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     dequant_data->append_decision_function(check_zps_values<0>);
 
                     // Optional quant_weight
-                    auto popt_graph = std::make_shared<pb_graph_t>(
-                            "poptional_quant_weight");
-                    pm::pb_op_t *pquant = popt_graph->append_op(
-                            graph::op_kind::Quantize, "pquant");
+                    auto popt_graph = std::make_shared<pb_graph_t>();
+                    pm::pb_op_t *pquant
+                            = popt_graph->append_op(graph::op_kind::Quantize);
                     pquant->append_decision_function(check_zps_values<0>);
                     popt_graph->create_input_port(0, pquant, 0);
                     popt_graph->create_output_port(0, pquant, 0);
-                    auto popt = pgraph->append_optional(popt_graph, "popt");
+                    auto popt = pgraph->append_optional(popt_graph);
 
-                    pm::pb_op_t *dequant_weight = pgraph->append_op(
-                            graph::op_kind::Dequantize,
-                            in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
+                    pm::pb_op_t *dequant_weight
+                            = pgraph->append_op(graph::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, popt, 0)});
                     dequant_weight->append_decision_function(
                             check_input_dtype<graph::data_type::s8>);
                     dequant_weight->append_decision_function(
@@ -165,17 +159,15 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     pm::pb_op_t *pconvtranspose
                             = pgraph->append_op(graph::op_kind::ConvTranspose,
                                     in_edges_t {in_edge(0, dequant_data, 0),
-                                            in_edge(1, dequant_weight, 0)},
-                                    "conv");
+                                            in_edge(1, dequant_weight, 0)});
 
                     // Optional bias_add
                     auto popt_bias
                             = optional_bias_add(pgraph, pconvtranspose, false);
 
-                    auto postop_graph
-                            = std::make_shared<pb_graph_t>("postop_graph");
+                    auto postop_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pop = postop_graph->append_alternation(
-                            get_unary_binary_ops(), "postop");
+                            get_unary_binary_ops());
                     pop->allow_internal_inputs();
                     postop_graph->create_input_port(0, pop, 0);
                     postop_graph->create_input_port(1, pop, 1);
@@ -183,14 +175,12 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
 
                     auto prep = pgraph->append_repetition(postop_graph, {0, 0},
                             0, MAX_REPETITION,
-                            in_edges_t {in_edge(0, popt_bias, 0)},
-                            "prepetition");
+                            in_edges_t {in_edge(0, popt_bias, 0)});
 
                     // Optional quant_out
-                    auto popt_qout_graph = std::make_shared<pb_graph_t>(
-                            "poptional_quant_out");
-                    pm::pb_op_t *pquant_out = popt_graph->append_op(
-                            graph::op_kind::Quantize, "pquant_out");
+                    auto popt_qout_graph = std::make_shared<pb_graph_t>();
+                    pm::pb_op_t *pquant_out
+                            = popt_graph->append_op(graph::op_kind::Quantize);
                     pquant_out->append_decision_function(
                             check_qtype_equal_to_per_tensor);
                     pquant_out->append_decision_function(
@@ -198,8 +188,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     pquant_out->append_decision_function(check_zps_values<0>);
                     popt_qout_graph->create_input_port(0, pquant_out, 0);
                     popt_qout_graph->create_output_port(0, pquant_out, 0);
-                    pgraph->append_optional(popt_qout_graph,
-                            in_edges_t {in_edge(0, prep, 0)}, "popt_quant_out");
+                    pgraph->append_optional(
+                            popt_qout_graph, in_edges_t {in_edge(0, prep, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_convtranspose>();
@@ -240,27 +230,25 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         .set_kind(partition_kind_t::quantized_convtranspose_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op_t *dequant_data = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequant_data");
+                    pm::pb_op_t *dequant_data
+                            = pgraph->append_op(graph::op_kind::Dequantize);
 
                     // Optional quant_weight
-                    auto popt_graph = std::make_shared<pb_graph_t>(
-                            "poptional_quant_weight");
-                    pm::pb_op_t *pquant = popt_graph->append_op(
-                            graph::op_kind::Quantize, "pquant");
+                    auto popt_graph = std::make_shared<pb_graph_t>();
+                    pm::pb_op_t *pquant
+                            = popt_graph->append_op(graph::op_kind::Quantize);
                     popt_graph->create_input_port(0, pquant, 0);
                     popt_graph->create_output_port(0, pquant, 0);
-                    auto popt = pgraph->append_optional(popt_graph, "popt");
+                    auto popt = pgraph->append_optional(popt_graph);
 
-                    pm::pb_op_t *dequant_weight = pgraph->append_op(
-                            graph::op_kind::Dequantize,
-                            in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
+                    pm::pb_op_t *dequant_weight
+                            = pgraph->append_op(graph::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, popt, 0)});
 
                     pm::pb_op_t *pconvtranspose
                             = pgraph->append_op(graph::op_kind::ConvTranspose,
                                     in_edges_t {in_edge(0, dequant_data, 0),
-                                            in_edge(1, dequant_weight, 0)},
-                                    "conv");
+                                            in_edge(1, dequant_weight, 0)});
 
                     // Optional bias_add
                     auto popt_bias
@@ -271,7 +259,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
 
                     // quantize
                     pgraph->append_op(graph::op_kind::Quantize,
-                            in_edges_t {in_edge(0, prep, 0)}, "pquant_out");
+                            in_edges_t {in_edge(0, prep, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_convtranspose>();
@@ -294,23 +282,22 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         .set_kind(partition_kind_t::quantized_convtranspose_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op_t *dequant_data = pgraph->append_op(
-                            graph::op_kind::Dequantize, "dequant_data");
+                    pm::pb_op_t *dequant_data
+                            = pgraph->append_op(graph::op_kind::Dequantize);
                     dequant_data->append_decision_function(check_zps_values<0>);
 
                     // Optional quant_weight
-                    auto popt_graph = std::make_shared<pb_graph_t>(
-                            "poptional_quant_weight");
-                    pm::pb_op_t *pquant = popt_graph->append_op(
-                            graph::op_kind::Quantize, "pquant");
+                    auto popt_graph = std::make_shared<pb_graph_t>();
+                    pm::pb_op_t *pquant
+                            = popt_graph->append_op(graph::op_kind::Quantize);
                     pquant->append_decision_function(check_zps_values<0>);
                     popt_graph->create_input_port(0, pquant, 0);
                     popt_graph->create_output_port(0, pquant, 0);
-                    auto popt = pgraph->append_optional(popt_graph, "popt");
+                    auto popt = pgraph->append_optional(popt_graph);
 
-                    pm::pb_op_t *dequant_weight = pgraph->append_op(
-                            graph::op_kind::Dequantize,
-                            in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
+                    pm::pb_op_t *dequant_weight
+                            = pgraph->append_op(graph::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, popt, 0)});
                     dequant_weight->append_decision_function(
                             check_input_dtype<graph::data_type::s8>);
                     dequant_weight->append_decision_function(
@@ -319,8 +306,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     pm::pb_op_t *pconvtranspose
                             = pgraph->append_op(graph::op_kind::ConvTranspose,
                                     in_edges_t {in_edge(0, dequant_data, 0),
-                                            in_edge(1, dequant_weight, 0)},
-                                    "conv");
+                                            in_edge(1, dequant_weight, 0)});
 
                     // Optional bias_add
                     auto popt_bias
@@ -330,9 +316,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     auto prep = post_quantized_add(pgraph, popt_bias);
 
                     // quantize
-                    pm::pb_op_t *pquant_out = pgraph->append_op(
-                            graph::op_kind::Quantize,
-                            in_edges_t {in_edge(0, prep, 0)}, "pquant_out");
+                    pm::pb_op_t *pquant_out
+                            = pgraph->append_op(graph::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, prep, 0)});
                     pquant_out->append_decision_function(
                             check_qtype_equal_to_per_tensor);
                     pquant_out->append_decision_function(
@@ -349,24 +335,23 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, convtranspose_post_ops_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     // convtranspose
-                    auto convtranspose = pgraph->append_op(
-                            graph::op_kind::ConvTranspose, "convtranspose");
+                    auto convtranspose
+                            = pgraph->append_op(graph::op_kind::ConvTranspose);
 
                     // optional biasadd
                     auto optional_biasadd
                             = optional_bias_add(pgraph, convtranspose, false);
 
-                    auto post_ops = std::make_shared<pb_graph_t>("post_ops");
+                    auto post_ops = std::make_shared<pb_graph_t>();
                     auto alternation = post_ops->append_alternation(
-                            get_unary_binary_ops(), "alternation");
+                            get_unary_binary_ops());
                     alternation->allow_internal_inputs();
                     post_ops->create_input_port(0, alternation, 0);
                     post_ops->create_output_port(0, alternation, 0);
 
                     auto repetition_post_ops = pgraph->append_repetition(
                             post_ops, {0, 0}, 0, MAX_REPETITION,
-                            {in_edge(0, optional_biasadd, 0)},
-                            "repetition_post_ops");
+                            {in_edge(0, optional_biasadd, 0)});
                     pgraph->create_input_port(0, convtranspose, 0);
                     pgraph->create_output_port(0, repetition_post_ops, 0);
                 })

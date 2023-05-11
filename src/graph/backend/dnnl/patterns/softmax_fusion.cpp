@@ -35,33 +35,29 @@ namespace {
 std::shared_ptr<pb_graph_t> make_typecast_quantize_alt() {
     // alternation(TypeCast | Quantize | (TypeCast + Quantize))
     // Alt0: Typecast
-    auto tc_graph = std::make_shared<pb_graph_t>("tc_graph");
-    pm::pb_op_t *ptypecast
-            = tc_graph->append_op(graph::op_kind::TypeCast, "typecast");
+    auto tc_graph = std::make_shared<pb_graph_t>();
+    pm::pb_op_t *ptypecast = tc_graph->append_op(graph::op_kind::TypeCast);
     tc_graph->create_input_port(0, ptypecast, 0);
     tc_graph->create_output_port(0, ptypecast, 0);
 
     // Alt1: Quantize
-    auto q_graph = std::make_shared<pb_graph_t>("q_graph");
-    pm::pb_op_t *pquantize
-            = q_graph->append_op(graph::op_kind::Quantize, "quantize");
+    auto q_graph = std::make_shared<pb_graph_t>();
+    pm::pb_op_t *pquantize = q_graph->append_op(graph::op_kind::Quantize);
     pquantize->append_decision_function(check_zps_values<0>);
     q_graph->create_input_port(0, pquantize, 0);
     q_graph->create_output_port(0, pquantize, 0);
 
     // Alt2: TypeCast + Quantize
-    auto tc_q_graph = std::make_shared<pb_graph_t>("tc_q_graph");
-    pm::pb_op_t *ptc
-            = tc_q_graph->append_op(graph::op_kind::TypeCast, "typecast");
-    pm::pb_op_t *pquant = tc_q_graph->append_op(graph::op_kind::Quantize,
-            in_edges_t {in_edge(0, ptc, 0)}, "quantize");
+    auto tc_q_graph = std::make_shared<pb_graph_t>();
+    pm::pb_op_t *ptc = tc_q_graph->append_op(graph::op_kind::TypeCast);
+    pm::pb_op_t *pquant = tc_q_graph->append_op(
+            graph::op_kind::Quantize, in_edges_t {in_edge(0, ptc, 0)});
     pquant->append_decision_function(check_zps_values<0>);
     tc_q_graph->create_input_port(0, ptc, 0);
     tc_q_graph->create_output_port(0, pquant, 0);
 
-    auto alt_tc_q = std::make_shared<pb_graph_t>("alt_tc_q");
-    auto palt_0 = alt_tc_q->append_alternation(
-            {tc_q_graph, tc_graph, q_graph}, "palternation");
+    auto alt_tc_q = std::make_shared<pb_graph_t>();
+    auto palt_0 = alt_tc_q->append_alternation({tc_q_graph, tc_graph, q_graph});
     alt_tc_q->create_input_port(0, palt_0, 0);
     alt_tc_q->create_output_port(0, palt_0, 0);
 
@@ -72,27 +68,23 @@ void make_softmax_post_ops_pattern(const std::shared_ptr<pb_graph_t> &pgraph) {
     pm::pb_op_t *softmax_base = pgraph->append_op(graph::op_kind::SoftMax);
 
     // repetition(alternation(unary | binary))
-    auto alt_unary_binary = std::make_shared<pb_graph_t>("alt_unary_binary");
-    auto palt = alt_unary_binary->append_alternation(
-            get_unary_binary_ops(), "palt");
+    auto alt_unary_binary = std::make_shared<pb_graph_t>();
+    auto palt = alt_unary_binary->append_alternation(get_unary_binary_ops());
     palt->allow_internal_inputs();
     alt_unary_binary->create_input_port(0, palt, 0);
     alt_unary_binary->create_output_port(0, palt, 0);
     auto prep = pgraph->append_repetition(alt_unary_binary, {0, 0}, 0,
-            MAX_REPETITION, in_edges_t {in_edge(0, softmax_base, 0)},
-            "prepetition");
+            MAX_REPETITION, in_edges_t {in_edge(0, softmax_base, 0)});
 
     auto alt_tc_q = make_typecast_quantize_alt();
-    pgraph->append_optional(
-            alt_tc_q, in_edges_t {in_edge(0, prep, 0)}, "popt_tc_quant_out");
+    pgraph->append_optional(alt_tc_q, in_edges_t {in_edge(0, prep, 0)});
 }
 
 void make_softmax_tc_q_pattern(const std::shared_ptr<pb_graph_t> &pgraph) {
     pm::pb_op_t *softmax_base = pgraph->append_op(graph::op_kind::SoftMax);
 
     auto alt_tc_q = make_typecast_quantize_alt();
-    pgraph->append_optional(alt_tc_q, in_edges_t {in_edge(0, softmax_base, 0)},
-            "popt_tc_quant_out");
+    pgraph->append_optional(alt_tc_q, in_edges_t {in_edge(0, softmax_base, 0)});
 }
 } // namespace
 
