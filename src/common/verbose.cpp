@@ -406,15 +406,19 @@ static std::string get_val_str(T val) {
 
 // Returns string with dimensions from a given memory descriptor.
 // The format is defined as: dim0xdim1x...xdimN, with RT values signed as `*`.
-std::string md2dim_str(const memory_desc_t *md) {
+std::string md2dim_str(const memory_desc_t *md, dims_type_t dims_type) {
     if (md == nullptr || md->ndims == 0) return "";
 
     memory_desc_wrapper mdw(md);
     std::string s;
 
-    s += get_val_str(mdw.dims()[0]);
+    assert(dims_type == dims_type_t::dims || dims_type == dims_type_t::strides);
+    const auto &dims_obj
+            = dims_type == dims_type_t::dims ? mdw.dims() : mdw.strides();
+
+    s += get_val_str(dims_obj[0]);
     for (int d = 1; d < mdw.ndims(); ++d)
-        s += ("x" + get_val_str(mdw.dims()[d]));
+        s += ("x" + get_val_str(dims_obj[d]));
 
     return s;
 }
