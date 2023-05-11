@@ -687,6 +687,10 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
             case OIw16i64o2i:
             case OIhw16i64o2i:
             case OIdhw16i64o2i: fwd_oc_block = 64; break;
+            case OI16i48o:
+            case OIw16i48o:
+            case OIhw16i48o:
+            case OIdhw16i48o: fwd_oc_block = 48; break;
             case OI16i32o:
             case OIw16i32o:
             case OIhw16i32o:

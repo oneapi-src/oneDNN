@@ -90,6 +90,7 @@ enum class inner_blk_t {
     _16a48b,
     _16a64b,
     _16b64a,
+    _16b48a,
     _16b32a,
     _16b16a,
     _16b16c,
@@ -201,27 +202,27 @@ constexpr int AB_or_BC_blk_off(int x0, int x1) {
                     ib::_8a2b, ib::_8a4b, ib::_8b2a, ib::_8b4a, ib::_8b2c,
                     ib::_8c2b, ib::_8c4b, ib::_8b4c, ib::_8a8b, ib::_8b8a,
                     ib::_8b16a, ib::_8b24a, ib::_8b32a, ib::_8b8c, ib::_8c8b,
-                    ib::_16a16b, ib::_16b64a, ib::_16b32a, ib::_16b16a,
-                    ib::_16b16c, ib::_16c16b, ib::_32a32b, ib::_16a2b,
-                    ib::_16a4b, ib::_16b2a, ib::_16b4a, ib::_16b2c, ib::_16b4c,
-                    ib::_16c2b, ib::_16c4b, ib::_2c8b4c, ib::_8a16b2a,
-                    ib::_4b64a4b, ib::_4b32a4b, ib::_4b24a4b, ib::_4b16a4b,
-                    ib::_4b8a4b, ib::_2b8a4b, ib::_8b64a2b, ib::_8b32a2b,
-                    ib::_8b24a2b, ib::_8b16a2b, ib::_8b8a2b, ib::_8b16c2b,
-                    ib::_4c16b4c, ib::_8c16b2c, ib::_2b4c2b, ib::_2c4b2c,
-                    ib::_4b8c2b, ib::_4c8b2c, ib::_16a32b, ib::_16a48b,
-                    ib::_16a64b, ib::_16a16b2a, ib::_16a32b2a, ib::_16a48b2a,
-                    ib::_16a64b2a, ib::_16a16b4a, ib::_16a32b4a, ib::_16a48b4a,
-                    ib::_16a64b4a, ib::_16b16a2b, ib::_16b16a4b, ib::_16b16c2b,
-                    ib::_16c16b2c, ib::_16c16b4c, ib::_2a8b8a2b, ib::_2b8c8b2c,
-                    ib::_4a8b8a4b, ib::_4b8c8b4c, ib::_16b32a2b, ib::_16b48a2b,
-                    ib::_16b64a2b, ib::_16b32a4b, ib::_16b48a4b, ib::_16b64a4b,
-                    ib::_16c32b2c, ib::_16c48b2c, ib::_16c64b2c, ib::_16c32b4c,
-                    ib::_16c48b4c, ib::_16c64b4c, ib::_16b32c, ib::_16b48c,
-                    ib::_16b64c, ib::_16b32c2b, ib::_16b48c2b, ib::_16b64c2b,
-                    ib::_16b16c4b, ib::_16b32c4b, ib::_16b48c4b, ib::_16b64c4b,
-                    ib::_24a2b, ib::_24a4b, ib::_24b2a, ib::_24b4a, ib::_24b2c,
-                    ib::_24b4c, ib::_24c2b, ib::_24c4b),
+                    ib::_16a16b, ib::_16b64a, ib::_16b48a, ib::_16b32a,
+                    ib::_16b16a, ib::_16b16c, ib::_16c16b, ib::_32a32b,
+                    ib::_16a2b, ib::_16a4b, ib::_16b2a, ib::_16b4a, ib::_16b2c,
+                    ib::_16b4c, ib::_16c2b, ib::_16c4b, ib::_2c8b4c,
+                    ib::_8a16b2a, ib::_4b64a4b, ib::_4b32a4b, ib::_4b24a4b,
+                    ib::_4b16a4b, ib::_4b8a4b, ib::_2b8a4b, ib::_8b64a2b,
+                    ib::_8b32a2b, ib::_8b24a2b, ib::_8b16a2b, ib::_8b8a2b,
+                    ib::_8b16c2b, ib::_4c16b4c, ib::_8c16b2c, ib::_2b4c2b,
+                    ib::_2c4b2c, ib::_4b8c2b, ib::_4c8b2c, ib::_16a32b,
+                    ib::_16a48b, ib::_16a64b, ib::_16a16b2a, ib::_16a32b2a,
+                    ib::_16a48b2a, ib::_16a64b2a, ib::_16a16b4a, ib::_16a32b4a,
+                    ib::_16a48b4a, ib::_16a64b4a, ib::_16b16a2b, ib::_16b16a4b,
+                    ib::_16b16c2b, ib::_16c16b2c, ib::_16c16b4c, ib::_2a8b8a2b,
+                    ib::_2b8c8b2c, ib::_4a8b8a4b, ib::_4b8c8b4c, ib::_16b32a2b,
+                    ib::_16b48a2b, ib::_16b64a2b, ib::_16b32a4b, ib::_16b48a4b,
+                    ib::_16b64a4b, ib::_16c32b2c, ib::_16c48b2c, ib::_16c64b2c,
+                    ib::_16c32b4c, ib::_16c48b4c, ib::_16c64b4c, ib::_16b32c,
+                    ib::_16b48c, ib::_16b64c, ib::_16b32c2b, ib::_16b48c2b,
+                    ib::_16b64c2b, ib::_16b16c4b, ib::_16b32c4b, ib::_16b48c4b,
+                    ib::_16b64c4b, ib::_24a2b, ib::_24a4b, ib::_24b2a,
+                    ib::_24b4a, ib::_24b2c, ib::_24b4c, ib::_24c2b, ib::_24c4b),
             "unexpected inner_blk format");
 
     // clang-format off
@@ -232,6 +233,7 @@ constexpr int AB_or_BC_blk_off(int x0, int x1) {
         : (f == ib::_8b8a || f == ib::_8c8b) ? 8 * x1 + x0
         : (f == ib::_16a16b || f == ib::_16b16c) ? 16 * x0 + x1
         : (f == ib::_16b64a) ? 64 * x1 + x0
+        : (f == ib::_16b48a) ? 48 * x1 + x0
         : (f == ib::_8b32a || f == ib::_16b32a) ? 32 * x1 + x0
         : (f == ib::_8b24a) ? 24 * x1 + x0
         : (f == ib::_8b16a || f == ib::_16b16a || f == ib::_16c16b) ? 16 * x1 + x0
@@ -387,6 +389,7 @@ DECL_TRAITS(Acdeb4a, _A, _4a, 5);
 
 DECL_TRAITS(AB16b16a, _AB, _16b16a, 2);
 DECL_TRAITS(AB16b32a, _AB, _16b32a, 2);
+DECL_TRAITS(AB16b48a, _AB, _16b48a, 2);
 DECL_TRAITS(AB16b64a, _AB, _16b64a, 2);
 DECL_TRAITS(AB8b16a2b, _AB, _8b16a2b, 2);
 DECL_TRAITS(AB8b32a2b, _AB, _8b32a2b, 2);
@@ -593,6 +596,7 @@ DECL_TRAITS(ABc4a4b, _AB, _4a4b, 3);
 DECL_TRAITS(aBc16b, _B, _16b, 3);
 DECL_TRAITS(ABc16b16a, _AB, _16b16a, 3);
 DECL_TRAITS(ABc16b32a, _AB, _16b32a, 3);
+DECL_TRAITS(ABc16b48a, _AB, _16b48a, 3);
 DECL_TRAITS(ABc16b64a, _AB, _16b64a, 3);
 DECL_TRAITS(ABc8a16b2a, _AB, _8a16b2a, 3);
 DECL_TRAITS(ABc8a8b, _AB, _8a8b, 3);
@@ -608,6 +612,7 @@ DECL_TRAITS(ABcd16a16b, _AB, _16a16b, 4);
 DECL_TRAITS(aBcd16b, _B, _16b, 4);
 DECL_TRAITS(ABcd16b16a, _AB, _16b16a, 4);
 DECL_TRAITS(ABcd16b32a, _AB, _16b32a, 4);
+DECL_TRAITS(ABcd16b48a, _AB, _16b48a, 4);
 DECL_TRAITS(ABcd16b64a, _AB, _16b64a, 4);
 DECL_TRAITS(aBCd16b16c, _BC, _16b16c, 4);
 DECL_TRAITS(aBCd16c16b, _BC, _16c16b, 4);
@@ -656,6 +661,7 @@ DECL_TRAITS(ABcde2b8a4b, _AB, _2b8a4b, 5);
 DECL_TRAITS(aBcde16b, _B, _16b, 5);
 DECL_TRAITS(ABcde16b16a, _AB, _16b16a, 5);
 DECL_TRAITS(ABcde16b32a, _AB, _16b32a, 5);
+DECL_TRAITS(ABcde16b48a, _AB, _16b48a, 5);
 DECL_TRAITS(ABcde16b64a, _AB, _16b64a, 5);
 DECL_TRAITS(aBCde16b16c, _BC, _16b16c, 5);
 DECL_TRAITS(aBCde16c16b, _BC, _16c16b, 5);
