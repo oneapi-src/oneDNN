@@ -61,8 +61,16 @@ public:
             CHECK(prb.init(engine, pd));
 
             pd->data = std::make_shared<conv_pd_data_t>();
-            CHECK(init_pd_time_cfg(
-                    prb, pd->data->pd_cfg, engine, pd, &pd->attr_));
+            memory_desc_t &src_md
+                    = *(const_cast<memory_desc_t *>(pd->invariant_src_md()));
+            memory_desc_t &wei_md
+                    = *(const_cast<memory_desc_t *>(pd->invariant_wei_md()));
+            memory_desc_t &bia_md
+                    = *(const_cast<memory_desc_t *>(pd->invariant_bia_md()));
+            memory_desc_t &dst_md
+                    = *(const_cast<memory_desc_t *>(pd->invariant_dst_md()));
+            CHECK(init_pd_time_cfg(prb, pd->data->pd_cfg, engine, pd, src_md,
+                    wei_md, bia_md, dst_md, &pd->attr_));
 
             // XXX: This is to be removed once we'll be able to properly handle
             // out-of-registers cases during primitive creation.

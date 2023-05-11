@@ -727,7 +727,8 @@ void init_data_tags(const conv_config_t &cfg, bool allow_src_reorder,
     if (prb.is_bwd_d && src_axb) src_tag = "axb";
 }
 
-status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
+status_t init_tensor_layouts(conv_config_t &cfg, memory_desc_t &src_md,
+        memory_desc_t &wei_md, memory_desc_t &bia_md, memory_desc_t &dst_md) {
     const auto &prb = cfg.prb();
     // Compute layout tags and user layout tags. If a compute layout is
     // different from a user layout then an extra pre/post reorder will be
@@ -735,11 +736,6 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
     std::string src_tag, user_src_tag;
     std::string wei_tag, user_wei_tag;
     std::string dst_tag, user_dst_tag;
-
-    auto &src_md = *pd->invariant_src_md();
-    auto &wei_md = *pd->invariant_wei_md();
-    auto &dst_md = *pd->invariant_dst_md();
-    auto &bia_md = *pd->invariant_bia_md();
 
     // If src/dst is nhwc then set the other one with any to nhwc too (except
     // 1st convolution).
@@ -1090,7 +1086,9 @@ bool post_op_layouts_ok(const conv_problem_t &prb) {
 }
 
 status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
-        const engine_t *engine, convolution_pd_t *pd, primitive_attr_t *attr) {
+        const engine_t *engine, convolution_pd_t *pd, memory_desc_t &src_md,
+        memory_desc_t &wei_md, memory_desc_t &bia_md, memory_desc_t &dst_md,
+        primitive_attr_t *attr) {
     hw_config_t hw_cfg(engine);
 
     if (!hw_ok(hw_cfg)) return status::unimplemented;
@@ -1108,7 +1106,7 @@ status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
     CHECK(init_fma_kind(cfg));
     CHECK(init_simd(cfg));
     CHECK(init_vec_size(cfg));
-    CHECK(init_tensor_layouts(cfg, pd));
+    CHECK(init_tensor_layouts(cfg, src_md, wei_md, bia_md, dst_md));
 
     CHECK(attr->set_default_formats(&prb.c_md()));
 
