@@ -1,0 +1,9 @@
+# Instance normalization
+g2mb2ic2iw4
+g7mb2ic7ih3iw4
+g5mb2ic5id9ih1iw10
+
+# Group normalization
+g1mb2ic2iw4
+g2mb2ic8ih3iw4
+g5mb2ic10id9ih1iw10
