@@ -277,7 +277,7 @@ graph::status_t compiler_partition_impl_t::compile(
 
         ctx->engine_ = static_cast<gc::runtime::engine_t *>(graph_engine.get());
 
-        gc::graph_driver(backend_graph_obj, 28, 10, ctx);
+        gc::graph_driver(backend_graph_obj, ctx);
 
         std::vector<gc::sc_op_ptr> args;
         for (auto &out_lt : outputs) {
