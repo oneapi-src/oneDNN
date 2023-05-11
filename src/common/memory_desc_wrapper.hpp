@@ -92,6 +92,8 @@ struct memory_desc_wrapper : public c_compatible {
         return sparse_desc().nnz;
     }
 
+    const dims_t &strides() const { return blocking_desc().strides; }
+
     const memory_extra_desc_t &extra() const { return md_->extra; }
 
     /* some useful function */

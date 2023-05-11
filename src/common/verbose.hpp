@@ -186,8 +186,16 @@ private:
     std::once_flag initialization_flag_;
 };
 
+// Enum to define which dims member of memory::desc to be dumped.
+enum class dims_type_t {
+    undef,
+    dims,
+    strides,
+};
+
 std::string md2fmt_str(const memory_desc_t *md);
-std::string md2dim_str(const memory_desc_t *md);
+std::string md2dim_str(
+        const memory_desc_t *md, dims_type_t dims_type = dims_type_t::dims);
 
 } // namespace impl
 } // namespace dnnl
