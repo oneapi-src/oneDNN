@@ -216,18 +216,11 @@ void batchnorm_forward_training_op::get_graph_impl(
     // running_mean and running_variance
     sc_op_ptr add2, add3;
     if (attrs_.get_or_else("momentum", float(1.)) == 1.f) {
-        add2 = graph->make("tensor_view", {mean}, {},
-                {{"shape", mean->details_.get_plain_dims()}});
-        add3 = graph->make("tensor_view", {variance}, {},
-                {{"shape", variance->details_.get_plain_dims()}});
+        add2 = graph->make("duplicate", {mean}, {}, {});
+        add3 = graph->make("duplicate", {variance}, {}, {});
     } else if (attrs_.get_or_else("momentum", float(1.)) == 0.f) {
-        add2 = graph->make("reshape", {new_mean->get_outputs()[0]}, {},
-                {{"shape",
-                        new_mean->get_outputs()[0]
-                                ->details_.get_plain_dims()}});
-        add3 = graph->make("reshape", {new_var->get_outputs()[0]}, {},
-                {{"shape",
-                        new_var->get_outputs()[0]->details_.get_plain_dims()}});
+        add2 = graph->make("duplicate", {new_mean->get_outputs()[0]}, {}, {});
+        add3 = graph->make("duplicate", {new_var->get_outputs()[0]}, {}, {});
     } else {
         auto momentum = graph->make<constant_op_t>(
                 std::make_shared<static_data_t>(std::vector<float> {

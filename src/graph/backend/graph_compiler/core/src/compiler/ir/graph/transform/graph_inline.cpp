@@ -114,19 +114,32 @@ const std::set<std::string> &get_op_blocked_lists() {
 }
 
 void graph_inline(sc_graph_t &graph, const context_ptr &ctx) {
-    auto vis = op_visitor_t::bfs();
     auto &blocked_list = get_op_blocked_lists();
-    vis.visit_graph(graph, [&](op_visitor_t *vis, sc_op_ptr node) {
-        if (auto graph_node = node->dyn_cast<graph_op_t>()) {
-            if (blocked_list.find(node->op_name_) == blocked_list.end()) {
-                auto sub_graph = graph_node->get_graph();
-                vis->update_state_for_visited(node);
-                do_inline_graph(graph, node, *sub_graph);
-                node->remove();
+    constexpr const int max_recursion = 10;
+    int i = 0;
+    for (; i < max_recursion; i++) {
+        auto vis = op_visitor_t::bfs();
+        vis.visit_graph(graph, [&](op_visitor_t *vis, sc_op_ptr node) {
+            if (auto graph_node = node->dyn_cast<graph_op_t>()) {
+                if (blocked_list.find(node->op_name_) == blocked_list.end()) {
+                    auto sub_graph = graph_node->get_graph();
+                    vis->update_state_for_visited(node);
+                    do_inline_graph(graph, node, *sub_graph);
+                    node->remove();
+                }
             }
+        });
+        graph.reset_op_ids();
+        if (std::all_of(graph.ops_.begin(), graph.ops_.end(),
+                    [&](const sc_op_ptr &op) {
+                        return !op->isa<graph_op_t>()
+                                || blocked_list.find(op->op_name_)
+                                != blocked_list.end();
+                    })) {
+            break;
         }
-    });
-    graph.reset_op_ids();
+    }
+    COMPILE_ASSERT(i < max_recursion, "Reached max inline recursion depth");
     graph.attrs_[sc_graph_t::attr_key_t::gflop] = graph.get_gflop();
 }
 

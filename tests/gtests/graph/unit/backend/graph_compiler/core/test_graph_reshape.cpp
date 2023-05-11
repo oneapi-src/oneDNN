@@ -277,17 +277,17 @@ TEST(GCCore_graph_reshape_cpp, TestSingleOptimize) {
                                            {{"values", data}})
                                    ->get_outputs()[0];
             }
-            any_map_t attr = {{"special_zero", true}};
-            auto reshape_out
-                    = expected.make("reshape", {in0},
-                                      {graph_tensor::make({10, 10, 20, 10})},
-                                      {{"shape", sc_dims {10, 10, 20, 10}}})
-                              ->get_outputs()[0];
-            expected.make_output({reshape_out});
+            auto tv = expected.make("tensor_view", {in0},
+                    {graph_tensor::make({10, 10, 20, 10})},
+                    {{"shape", sc_dims {10, 10, 20, 10}}});
+            auto cp_reorder = expected.make("reorder", tv->get_outputs(), {},
+                    {{"internal", true}, {"actually_copy", true},
+                            {"out_format",
+                                    tv->get_outputs()[0]
+                                            ->details_.get_format()}});
+            expected.make_output(cp_reorder->get_outputs());
         }
         EXPECT_TRUE(compare_graph(g, expected));
-
-        lower_graph(get_default_context(), g, {});
     }
 }
 
@@ -345,19 +345,20 @@ TEST(GCCore_graph_reshape_cpp, TestSingleOptimizeMultipleUse) {
                                            {{"values", data}})
                                    ->get_outputs()[0];
             }
-            any_map_t attr = {{"special_zero", true}};
-            auto reshape_out
-                    = expected.make("reshape", {in0},
-                                      {graph_tensor::make({10, 10, 20, 10})},
-                                      {{"shape", sc_dims {10, 10, 20, 10}}})
+            auto tv = expected.make("tensor_view", {in0},
+                    {graph_tensor::make({10, 10, 20, 10})},
+                    {{"shape", sc_dims {10, 10, 20, 10}}});
+            auto relu_out
+                    = expected.make("relu", {tv->get_outputs()[0]}, {}, {})
                               ->get_outputs()[0];
-            auto relu_out = expected.make("relu", {reshape_out}, {}, {})
-                                    ->get_outputs()[0];
-            expected.make_output({reshape_out, relu_out});
+            auto cp_reorder = expected.make("reorder", tv->get_outputs(), {},
+                    {{"internal", true}, {"actually_copy", true},
+                            {"out_format",
+                                    tv->get_outputs()[0]
+                                            ->details_.get_format()}});
+            expected.make_output({cp_reorder->get_outputs()[0], relu_out});
         }
         EXPECT_TRUE(compare_graph(g, expected));
-
-        lower_graph(get_default_context(), g, {});
     }
 }
 

@@ -1205,7 +1205,7 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
             loops.push_back(cur);
         }
         std::reverse(loops.begin(), loops.end());
-        for (size_t i = 0; i < plain_dims.size() - 2; i++) {
+        for (int i = 0; i < static_cast<int>(plain_dims.size()) - 2; i++) {
             loops[0].checked_as<for_loop>()->fuse(
                     loops[i].checked_as<for_loop>());
         }
@@ -1255,7 +1255,7 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
             loops.push_back(cur);
         }
         std::reverse(loops.begin(), loops.end());
-        for (size_t i = 0; i < plain_dims.size() - 2; i++) {
+        for (int i = 0; i < static_cast<int>(plain_dims.size()) - 2; i++) {
             loops[0].checked_as<for_loop>()->fuse(
                     loops[i].checked_as<for_loop>());
         }
@@ -1734,7 +1734,8 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
             loops.push_back(cur);
         }
         std::reverse(loops.begin(), loops.end());
-        for (size_t i = 0; i < output_blocking_dims.size() - 2; i++) {
+        for (int i = 0; i < static_cast<int>(output_blocking_dims.size()) - 2;
+                i++) {
             loops[0].checked_as<for_loop>()->fuse(
                     loops[i].checked_as<for_loop>());
         }
