@@ -20,8 +20,12 @@ set(SC_LIB_NAME dnnl_graph_backend_compiler_core)
 SET(SC_MEMORY_LEAK_CHECK 0 CACHE STRING "memory leak checking. 0 = off, 1 = check numbers of instances, 2 = dump leaked objects")
 set(SC_CPP_VER 11)
 
-if(NOT "${SC_CPU_RUNTIME}" MATCHES "^(OMP|TBB|SEQ|THREADPOOL)$")
+if(NOT "${SC_CPU_RUNTIME}" MATCHES "^(OMP|TBB|SEQ|THREADPOOL|SYCL)$")
     message(FATAL_ERROR "Unsupported CPU runtime: ${SC_CPU_RUNTIME}")
+endif()
+
+if("${SC_CPU_RUNTIME}" STREQUAL "SYCL")
+    set(SC_CPU_RUNTIME "TBB")
 endif()
 
 # SET(DNNL_CPU_RUNTIME ${SC_CPU_RUNTIME})
@@ -29,29 +33,28 @@ endif()
 
 if(${SC_CPU_RUNTIME} STREQUAL "OMP")
     set(SC_OMP_ENABLED ON)
-    add_definitions("-DSC_CPU_THREADPOOL=1")
+    add_definitions_with_host_compiler("-DSC_CPU_THREADPOOL=1")
     set_property(GLOBAL APPEND PROPERTY GRAPH_COMPILER_DEFINITIONS "-DSC_CPU_THREADPOOL=1")
-    find_package(OpenMP REQUIRED)
 endif()
 
 if(${SC_CPU_RUNTIME} STREQUAL "TBB")
-    add_definitions("-DSC_CPU_THREADPOOL=2")
+    add_definitions_with_host_compiler("-DSC_CPU_THREADPOOL=2")
     set_property(GLOBAL APPEND PROPERTY GRAPH_COMPILER_DEFINITIONS "-DSC_CPU_THREADPOOL=2")
 endif()
 
 if(${SC_CPU_RUNTIME} STREQUAL "SEQ")
-    add_definitions("-DSC_CPU_THREADPOOL=0")
+    add_definitions_with_host_compiler("-DSC_CPU_THREADPOOL=0")
     set_property(GLOBAL APPEND PROPERTY GRAPH_COMPILER_DEFINITIONS "-DSC_CPU_THREADPOOL=0")
 endif()
 
 if(${SC_CPU_RUNTIME} STREQUAL "THREADPOOL")
-    add_definitions("-DSC_CPU_THREADPOOL=3")
+    add_definitions_with_host_compiler("-DSC_CPU_THREADPOOL=3")
     set_property(GLOBAL APPEND PROPERTY GRAPH_COMPILER_DEFINITIONS "-DSC_CPU_THREADPOOL=3")
 endif()
 
 set(DNNL_PATH "${CMAKE_SOURCE_DIR}/src")
 
-include_directories(
+include_directories_with_host_compiler(
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${PROJECT_SOURCE_DIR}/src/cpu/x64
 )
@@ -66,7 +69,7 @@ file(GLOB_RECURSE SC_SOURCES
 if(NOT DNNL_ENABLE_JIT_PROFILING)
     list(REMOVE_ITEM SC_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/compiler/jit/xbyak/debug/vtune/vtune.cpp)
 else()
-    add_definitions(-DSC_PROFILING=1)
+    add_definitions_with_host_compiler(-DSC_PROFILING=1)
 endif()
 
 if(WIN32 OR APPLE OR NOT SC_CFAKE_ENABLED)
@@ -76,10 +79,10 @@ if(WIN32 OR APPLE OR NOT SC_CFAKE_ENABLED)
         ${CMAKE_CURRENT_SOURCE_DIR}/src/compiler/jit/cfake/cfake_jit.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/compiler/jit/cfake/cfake_jit.hpp
     )
-    add_definitions("-DSC_CFAKE_JIT_ENABLED=0")
+    add_definitions_with_host_compiler("-DSC_CFAKE_JIT_ENABLED=0")
     set_property(GLOBAL APPEND PROPERTY GRAPH_COMPILER_DEFINITIONS "-DSC_CFAKE_JIT_ENABLED=0")
 else()
-    add_definitions("-DSC_CFAKE_JIT_ENABLED=1")
+    add_definitions_with_host_compiler("-DSC_CFAKE_JIT_ENABLED=1")
     set_property(GLOBAL APPEND PROPERTY GRAPH_COMPILER_DEFINITIONS "-DSC_CFAKE_JIT_ENABLED=1")
 endif()
 
@@ -90,10 +93,10 @@ if(NOT SC_BUILTIN_ENABLED)
     )
     list(APPEND SC_BUILTIN_JIT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/dummy)
     list(REMOVE_ITEM SC_SOURCES ${SC_BUILTIN_JIT_SRC})
-    add_definitions("-DSC_BUILTIN_JIT_ENABLED=0")
+    add_definitions_with_host_compiler("-DSC_BUILTIN_JIT_ENABLED=0")
     set_property(GLOBAL APPEND PROPERTY GRAPH_COMPILER_DEFINITIONS "-DSC_BUILTIN_JIT_ENABLED=0")
 else()
-    add_definitions("-DSC_BUILTIN_JIT_ENABLED=1")
+    add_definitions_with_host_compiler("-DSC_BUILTIN_JIT_ENABLED=1")
     set_property(GLOBAL APPEND PROPERTY GRAPH_COMPILER_DEFINITIONS "-DSC_BUILTIN_JIT_ENABLED=1")
 endif()
 
@@ -126,7 +129,7 @@ if(NOT SC_LLVM_ENABLED)
 endif()
 
 if( SC_MEMORY_LEAK_CHECK GREATER -1 AND SC_MEMORY_LEAK_CHECK LESS 3 )
-    add_definitions("-DSC_MEMORY_LEAK_CHECK=${SC_MEMORY_LEAK_CHECK}")
+    add_definitions_with_host_compiler("-DSC_MEMORY_LEAK_CHECK=${SC_MEMORY_LEAK_CHECK}")
     set_property(GLOBAL APPEND PROPERTY GRAPH_COMPILER_DEFINITIONS "-DSC_MEMORY_LEAK_CHECK=${SC_MEMORY_LEAK_CHECK}")
 else()
     message(FATAL_ERROR "SC_MEMORY_LEAK_CHECK should be in 0 to 2")
@@ -138,9 +141,9 @@ endif()
 
 if(SC_LLVM_ENABLED)
     message(STATUS "LLVM backend is ON. version ${SC_LLVM_VERSION}")
-    add_definitions("-DSC_LLVM_BACKEND=${SC_LLVM_VERSION}")
+    add_definitions_with_host_compiler("-DSC_LLVM_BACKEND=${SC_LLVM_VERSION}")
     set_property(GLOBAL APPEND PROPERTY GRAPH_COMPILER_DEFINITIONS -DSC_LLVM_BACKEND=${SC_LLVM_VERSION})
-    include_directories(BEFORE ${SC_LLVM_INCLUDE_PATH}) # include LLVM headers
+    include_directories_with_host_compiler(${SC_LLVM_INCLUDE_PATH}) # include LLVM headers
 endif()
 ####################
 # Compiling objlib
@@ -156,10 +159,10 @@ if(SC_LIBRARY_TYPE STREQUAL "SHARED")
     else()
         set_property(TARGET dnnl_graph_backend_compiler PROPERTY COMPILE_FLAGS "-DSC_DLL_EXPORTS")
     endif()
-    add_definitions("-DSC_DLL_EXPORTS")
+    add_definitions_with_host_compiler("-DSC_DLL_EXPORTS")
 endif()
 
-include_directories(
+include_directories_with_host_compiler(
     ${PROJECT_BINARY_DIR}/include
 )
 
@@ -204,11 +207,23 @@ if(NOT MSVC OR CMAKE_BASE_NAME MATCHES "(icx|icpx)")
         endif()
     else()
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
+        append_host_compiler_options(CMAKE_CXX_FLAGS "-Wno-deprecated-declarations")
     endif()
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-variable -Wno-unused-function -std=c99 -DSC_HOME=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-variable -Wno-unused-function -DSC_HOME=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-variable -Wno-unused-function")
+    append_host_compiler_options(CMAKE_CXX_FLAGS "-Wno-unused-variable -Wno-unused-function")
+    if(DNNL_DPCPP_HOST_COMPILER STREQUAL "DEFAULT")
+        append(CMAKE_CXX_FLAGS " -DSC_HOME=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
+    endif()
     if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmissing-field-initializers")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wmissing-field-initializers")
     endif()
 endif()
+
+if("${DNNL_CPU_RUNTIME}" STREQUAL "SYCL" AND WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
+    append_host_compiler_options(CMAKE_CXX_FLAGS "-Wno-deprecated-declarations")
+endif()
+
+# SET(DNNL_CPU_RUNTIME ${SC_CPU_RUNTIME})

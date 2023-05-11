@@ -29,7 +29,7 @@ include("core/cmake/find_llvm.cmake")
 set(SC_LLVM_CONFIG ${ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_CPU_LLVM_CONFIG})
 
 if(DNNL_LIBRARY_TYPE STREQUAL "SHARED")
-    add_definitions(-DSC_DLL)
+    add_definitions_with_host_compiler(-DSC_DLL)
     set(SC_LIBRARY_TYPE "SHARED")
 else()
     set(SC_LIBRARY_TYPE "STATIC")
@@ -83,28 +83,26 @@ if(DNNL_CPU_RUNTIME MATCHES "(DPCPP)$")
     "Consider changing DNNL_CPU_RUNTIME to OMP or turning off graph compiler backend.")
 endif()
 
-if(NOT DNNL_GPU_RUNTIME MATCHES "NONE")
-    message(FATAL_ERROR "Graph compiler backend does not support GPU runtime. "
-    "Consider changing DNNL_CPU_RUNTIME to NONE or turning off graph compiler backend.")
-endif()
-
 message(STATUS "Graph compiler backend is enabled.")
 set(SC_CPU_RUNTIME ${DNNL_CPU_RUNTIME})
+if("${SC_CPU_RUNTIME}" STREQUAL "SYCL")
+    set(SC_CPU_RUNTIME "TBB")
+endif()
 
 if(${SC_CPU_RUNTIME} STREQUAL "OMP")
-    add_definitions("-DSC_CPU_THREADPOOL=1")
+    add_definitions_with_host_compiler("-DSC_CPU_THREADPOOL=1")
 endif()
 
 if(${SC_CPU_RUNTIME} STREQUAL "TBB")
-    add_definitions("-DSC_CPU_THREADPOOL=2")
+    add_definitions_with_host_compiler("-DSC_CPU_THREADPOOL=2")
 endif()
 
 if(${SC_CPU_RUNTIME} STREQUAL "SEQ")
-    add_definitions("-DSC_CPU_THREADPOOL=0")
+    add_definitions_with_host_compiler("-DSC_CPU_THREADPOOL=0")
 endif()
 
 if(${SC_CPU_RUNTIME} STREQUAL "THREADPOOL")
-    add_definitions("-DSC_CPU_THREADPOOL=3")
+    add_definitions_with_host_compiler("-DSC_CPU_THREADPOOL=3")
 endif()
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
@@ -138,8 +136,9 @@ if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
 endif()
 
 append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
+append_host_compiler_options(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/core/src/)
+include_directories_with_host_compiler(${CMAKE_CURRENT_SOURCE_DIR}/core/src/)
 
 file(GLOB SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp

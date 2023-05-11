@@ -31,28 +31,6 @@ using namespace dnnl::impl::graph::gc;
 
 using conv_fwd_config_t = ops::conv_fwd_config_t;
 
-const conv_fwd_config_t cfg_fwd = {
-        64, // K_block
-        32, // C_block
-        1, // tile_d
-        7, // tile_p
-        28, // tile_q
-        28, // tile_os
-        0, // pack_input
-        1 // loop_sched
-};
-
-const conv_fwd_config_t cfg_fwd_3x3 = {
-        64, // K_block
-        32, // C_block
-        1, // tile_d
-        1, // tile_p
-        1, // tile_q
-        1, // tile_os
-        0, // pack_input
-        1 // loop_sched
-};
-
 static inline graph_tensor_ptr make_tensor(const sc_dims &shape,
         const sc_data_type_t dtype = datatypes::f32,
         const sc_data_format_t &fmt = sc_data_format_t()) {

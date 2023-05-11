@@ -188,9 +188,13 @@ TEST(GCCore_dynamic_impl_kind_cpp, TestImplKindMatmulCoreExec) {
     dyn_a.data_ = sc_a.data();
     dyn_a.dims_ = shape_a.data();
     dyn_a.ndims_ = 2;
+    dyn_a.dtype_ = uint32_t(sc_data_etype::F32);
+    dyn_a.dyn_mask_ = 1 << 0;
     dyn_b.data_ = sc_b.data();
     dyn_b.dims_ = shape_b.data();
     dyn_b.ndims_ = 2;
+    dyn_b.dtype_ = uint32_t(sc_data_etype::F32);
+    dyn_b.dyn_mask_ = 0;
     dyn_out.data_ = sc_out.data();
     dyn_out.dims_ = shape_out.data();
     dyn_out.ndims_ = 2;

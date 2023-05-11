@@ -27,11 +27,13 @@ endif()
 
 if(CMAKE_BASE_NAME MATCHES "(icx|icpx)")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations -Wno-unused-variable -Wno-unused-function")
+    append_host_compiler_options(CMAKE_CXX_FLAGS "-Wno-deprecated-declarations -Wno-unused-variable -Wno-unused-function")
 endif()
 
 append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
+append_host_compiler_options(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 
-add_definitions(${DEFINITIONS})
+add_definitions_with_host_compiler(${DEFINITIONS})
 set(OBJ_LIB graph_unit_test_compiler_backend)
 
 file(GLOB_RECURSE TEST_SRC
@@ -40,7 +42,7 @@ ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
 
 add_library(${OBJ_LIB} OBJECT ${TEST_SRC})
 
-target_include_directories(${OBJ_LIB}
+include_directories_with_host_compiler(${OBJ_LIB}
     PRIVATE
     ${PROJECT_SOURCE_DIR}/tests/gtests/graph # gtest related headers
     ${PROJECT_SOURCE_DIR}/src/

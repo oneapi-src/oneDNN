@@ -24,8 +24,8 @@
 
 using namespace dnnl::impl::graph::gc;
 static bool verbose = false;
-float alpha = 0.35f;
-float beta = 1.47f;
+static float alpha = 0.35f;
+static float thebeta = 1.47f;
 
 TEST(GCCore_unary_elemwise, TestStridedRelu) {
     BUILTIN_REQUIRE_AVX512();
@@ -69,7 +69,7 @@ static void check_unary_elementwise(const std::string &op_name,
     ins = g.make_input({graph_tensor::make(input_dims, sc_data_format_t(),
             is_bf16 ? datatypes::bf16 : datatypes::f32)});
     auto op = g.make(op_name, ins->get_outputs(), {},
-            {{"alpha", alpha}, {"beta", beta}});
+            {{"alpha", alpha}, {"beta", thebeta}});
     g.make_output(op->get_outputs());
     graph_driver(g, get_test_ctx());
 
@@ -124,7 +124,7 @@ TEST(GCCore_unary_elementwise_test, TestEluOp) {
 template <typename T>
 void ref_hardswish_func(T *out, const T *in, size_t size) {
     auto func = std::bind(ref_hardswish<T>, std::placeholders::_1,
-            std::placeholders::_2, std::placeholders::_3, alpha, beta);
+            std::placeholders::_2, std::placeholders::_3, alpha, thebeta);
     func(out, in, size);
 }
 TEST(GCCore_unary_elementwise_test, TestHardSwishOp) {
@@ -154,7 +154,7 @@ TEST(GCCore_unary_elementwise_test, TestMishOp) {
 template <typename T>
 void ref_soft_plus_func(T *out, const T *in, size_t size) {
     auto func = std::bind(ref_soft_plus<T>, std::placeholders::_1,
-            std::placeholders::_2, std::placeholders::_3, beta);
+            std::placeholders::_2, std::placeholders::_3, thebeta);
     func(out, in, size);
 }
 TEST(GCCore_unary_elementwise_test, TestSoftPlusOp) {

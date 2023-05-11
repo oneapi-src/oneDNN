@@ -131,6 +131,16 @@ public:
             const std::vector<graph::tensor_t> &inputs,
             const std::vector<graph::tensor_t> &outputs) override;
 
+#ifdef DNNL_WITH_SYCL
+    status_t execute_sycl(const stream_t *astream,
+            const std::vector<tensor_t> &inputs,
+            const std::vector<tensor_t> &outputs,
+            const std::vector<::sycl::event> &sycl_deps,
+            ::sycl::event *sycl_event) override {
+        return execute(astream, inputs, outputs);
+    }
+#endif
+
 private:
     std::shared_ptr<gc::jit_function_t> jit_func_;
     std::shared_ptr<graph::compiler_impl::compiler_graph_engine_t>
