@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 * Copyright 2018 YANDEX LLC
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -629,7 +629,7 @@ void jit_uni_pool_kernel<isa>::apply_postops(int ur_bc, int ur_w, int c_block,
     const int start_idx = end_idx - (ur_bc * ur_w);
     const bool sse41_postops_disabled
             = isa == sse41 && disable_postops_when_sse_high_half_processed_;
-
+    if (end_idx - start_idx == 0) return;
     if (jpp.with_binary && !sse41_postops_disabled) {
 
         const int c_off = (jpp.tag_kind == jit_memory_tag_kind_t::nspc)
