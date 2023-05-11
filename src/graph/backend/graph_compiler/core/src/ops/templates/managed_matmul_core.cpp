@@ -1437,7 +1437,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
               in_tensors_[1], out_tensors_[0], config, M_single_thr_size,
               N_single_thr_size, (int)utils::rnd_up(K, iik_block_), m_idx,
               n_idx, k_s, A, B, C, dtype_block, fusion, m_s, n_s, M_anchor_info,
-              N_anchor_info, K_anchor_info);
+              N_anchor_info, K_anchor_info, false, k_s);
           } else {
             single_thread_matmul_call(graph, in_tensors_[0], in_tensors_[1],
               out_tensors_[0], config, M_single_thr_size, N_single_thr_size,

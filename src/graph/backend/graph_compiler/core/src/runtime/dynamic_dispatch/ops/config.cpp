@@ -176,6 +176,7 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
             // for really small M with super big N and K, despites N is bigger
             // than K, giving splits on K has performance advantage
             auto possible_splits = thread_factors;
+            auto split_idx = 0;
             if (is_int8) {
                 if (K >= 4096 && N >= 4096 && M <= 4) {
                     auto split_idx = 1;
@@ -186,7 +187,7 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
                     }
                     N_split_num = num_threads / possible_splits.at(split_idx);
                 } else {
-                    auto split_idx = K >= 4096
+                    split_idx = K >= 4096
                             ? (N < 2 * K ? (
                                        N <= K / 2 && possible_splits.size() > 2
                                                ? 2
@@ -198,11 +199,19 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
             } else {
                 // works well on bf16, needs to be further discussed for f32
                 if (K >= 4096) {
-                    auto split_idx = possible_splits.size() > 6
-                            ? 3
-                            : (num_threads > 32 ? 1 : 0);
-                    if (N >= 10 * K) {
-                        if (M > 16 || num_threads <= 28) { split_idx = 1; }
+                    if (M < 16) {
+                        split_idx = possible_splits.size() > 6
+                                ? (N >= 4 * K ? 2 : 3)
+                                : (num_threads > 32 ? 1 : 0);
+                        if (N >= 10 * K) {
+                            if (M > 16 || num_threads <= 28) { split_idx = 1; }
+                        }
+                    } else {
+                        split_idx = K >= 4 * N
+                                ? (possible_splits.size() > 6
+                                                ? 3
+                                                : (num_threads > 32 ? 2 : 0))
+                                : ((N >= 10 * K || num_threads <= 32) ? 0 : 1);
                     }
                     N_split_num = num_threads / possible_splits.at(split_idx);
                 }
