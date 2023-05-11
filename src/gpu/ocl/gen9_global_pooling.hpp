@@ -106,8 +106,10 @@ struct gen9_global_pooling_fwd_t : public gpu_primitive_t {
         CHECK(status);
 
         using namespace alg_kind;
-        // TODO: max-pooling requires workspace to track indices for training config.
-        if (pd()->desc()->alg_kind != pooling_max) {
+        // TODO: max-pooling requires workspace to track indices for training config
+        if (pd()->desc()->alg_kind != pooling_max
+                && !utils::one_of(data_type::f64, pd()->dst_md()->data_type,
+                        pd()->src_md()->data_type)) {
             if (create_nested_primitive(
                         reduction_p_, pd()->reduction_pd_, engine)
                     == status::success) {
