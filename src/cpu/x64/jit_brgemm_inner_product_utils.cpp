@@ -16,6 +16,8 @@
 
 #include "cpu/x64/jit_brgemm_inner_product_utils.hpp"
 
+#include "cpu/x64/brgemm/brgemm.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -604,6 +606,35 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
     jbgp.use_buffer = (IMPLICATION(jbgp.dst_dt == jbgp.acc_dt, jbgp.with_sum))
             || (jbgp.nthr_ic_b > 1);
 
+    // NOTE: Choose loop order before setting brgemm buffer leading dimensions,
+    // since buffer size might depend on loop order chosen.
+    choose_loop_order();
+
+    // If innermost loop on driver around the kernel matches kernel outermost
+    // loop dimension (m-dim), we can reduce blocking to the same used in
+    // register blocking in m-dim to force most efficient register
+    // decomposition and avoid tail cases.
+    bool no_inner_blocking_loops
+            = jbgp.nb_os_blocking == 1 && jbgp.nb_oc_blocking == 1;
+    bool use_min_os_block
+            = no_inner_blocking_loops && jbgp.loop_order == icc_occ_osc_ocb_osb;
+
+    // TODO: Consider expanding to other arches and data types.
+    use_min_os_block &= is_f32_compute && is_avx512;
+
+    if (use_min_os_block) {
+        // Get potential bd_block from main kernel.
+        brgemm_t brg_desc;
+        CHECK(brgemm_desc_init(&brg_desc, isa, jbgp.brg_type, jbgp.src_dt,
+                jbgp.wei_dt, false, false, brgemm_row_major, 1.0f, 1.0f,
+                jbgp.ic_without_padding, jbgp.oc_block, jbgp.oc_without_padding,
+                jbgp.os_block, jbgp.oc_block, jbgp.K));
+        int bd_block = brg_desc.bd_block;
+
+        if (jbgp.oc_block == 64 && bd_block != 6) jbgp.os_block = 6;
+        jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
+    }
+
     // Configure matrix sizes
     jbgp.M = jbgp.os_block;
     jbgp.M_tail = jbgp.os % jbgp.os_block;
@@ -611,10 +642,6 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
     jbgp.N = jbgp.oc_block;
     jbgp.N_tail = jbgp.oc % jbgp.oc_block;
     jbgp.K_tail = jbgp.use_buffer_a ? 0 : jbgp.ic % jbgp.K;
-
-    // NOTE: Choose loop order before before setting brgemm buffer leading
-    // dimensions, since buffer size might depend on loop order chosen.
-    choose_loop_order();
 
     jbgp.LDA = jbgp.use_buffer_a ? jbgp.K * jbgp.gemm_batch_size
                                  : jbgp.ic_without_padding;
@@ -1124,8 +1151,8 @@ status_t jit_brgemm_ip_bwd_w_conf_t::init_conf(cpu_isa_t isa,
 
     jbgp.use_buffer = IMPLICATION(!has_weights_buffer, jbgp.nthr_mb > 1);
 
-    // NOTE: Choose loop order before before setting brgemm buffer leading
-    // dimensions, since buffer size might depend on loop order chosen.
+    // NOTE: Choose loop order before setting brgemm buffer leading dimensions,
+    // since buffer size might depend on loop order chosen.
     choose_loop_order();
 
     jbgp.LDA = jbgp.K;
