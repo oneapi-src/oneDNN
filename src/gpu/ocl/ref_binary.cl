@@ -14,41 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/ocl_post_ops.h"
-#include "gpu/ocl/ocl_types.h"
-
-#undef DST_OFF
-#define SRC0_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(SRC0, x0, x1, x2, x3, x4, x5)
-#define SRC1_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(SRC1, x0, x1, x2, x3, x4, x5)
-#define DST_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(DST, x0, x1, x2, x3, x4, x5)
-
-float binary_op(float src0, float src1) {
-#if IS_ADD
-    return src0 + src1;
-#elif IS_MUL
-    return src0 * src1;
-#elif IS_MAX
-    return max(src0, src1);
-#elif IS_MIN
-    return min(src0, src1);
-#elif IS_DIV
-    return src0 / src1;
-#elif IS_SUB
-    return src0 - src1;
-#elif IS_GE
-    return src0 >= src1;
-#elif IS_GT
-    return src0 > src1;
-#elif IS_LE
-    return src0 <= src1;
-#elif IS_LT
-    return src0 < src1;
-#elif IS_EQ
-    return src0 == src1;
-#elif IS_NE
-    return src0 != src1;
-#endif
-}
+#include "gpu/ocl/binary_types.h"
 
 #if IS_TENSOR_OP && IS_DENSE && IS_SAME_MD && !WITH_BINARY_POST_OP
 KERNEL_ATTR
@@ -68,7 +34,7 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
     tmp_src1 = tmp_src1 * (*src1_scale);
 #endif
 
-    d = binary_op(tmp_src0, tmp_src1);
+    d = get_eltwise_op(tmp_src0, tmp_src1);
 
     float dst_data;
 #if WITH_SUM
@@ -142,7 +108,7 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
 #if WITH_SRC1_SCALE
             tmp_src1 = tmp_src1 * (*src1_scale);
 #endif
-            d = binary_op(tmp_src0, tmp_src1);
+            d = get_eltwise_op(tmp_src0, tmp_src1);
 
             float dst_data;
 #if WITH_SUM
@@ -179,7 +145,7 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
 #if WITH_SRC1_SCALE
             tmp_src1 = tmp_src1 * (*src1_scale);
 #endif
-            d = binary_op(tmp_src0, tmp_src1);
+            d = get_eltwise_op(tmp_src0, tmp_src1);
 
             float dst_data;
 #if WITH_SUM
