@@ -4007,6 +4007,37 @@ inline void add_bart_mlp_residual_subgraph(graph::graph_t *agraph,
     agraph->add_op(&layernorm_2);
 }
 
+inline void construct_mul_quantize_subgraph(graph::graph_t *agraph,
+        utils::id_generator &id_gen, const graph::dims &input_shape,
+        bool is_mixed_precision = false) {
+    graph::dims smooth_quant_scales_shape {input_shape[input_shape.size() - 1]};
+    auto dtype = is_mixed_precision ? graph::data_type::bf16
+                                    : graph::data_type::f32;
+    auto mul_in
+            = utils::logical_tensor_init(id_gen.get_id(), input_shape, dtype);
+    auto smooth_quant_scale = utils::logical_tensor_init(
+            id_gen.get_id(), smooth_quant_scales_shape, graph::data_type::f32);
+    auto mul_out = utils::logical_tensor_init(
+            id_gen.get_id(), input_shape, graph::data_type::f32);
+    auto quant_out = utils::logical_tensor_init(
+            id_gen.get_id(), input_shape, graph::data_type::u8);
+
+    graph::op_t mul {id_gen.get_id(), graph::op_kind::Multiply, "mul"};
+    mul.set_attr(graph::op_attr::auto_broadcast, std::string("numpy"));
+    graph::op_t quantize {
+            id_gen.get_id(), graph::op_kind::Quantize, "quantize"};
+    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize);
+
+    mul.add_input(mul_in);
+    mul.add_input(smooth_quant_scale);
+    mul.add_output(mul_out);
+    quantize.add_input(mul_out);
+    quantize.add_output(quant_out);
+
+    agraph->add_op(&mul);
+    agraph->add_op(&quantize);
+}
+
 } // namespace utils
 } // namespace compiler
 } // namespace unit

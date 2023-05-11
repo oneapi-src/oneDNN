@@ -938,6 +938,18 @@ TEST(GCGraphTest,
             {{256, 64, 1, 1}, {64, 64, 1, 1}, {64, 64, 3, 3}, {256, 64, 1, 1}},
             {{2, 2}, {1, 1}, {2, 2}, {1, 1}}, {{0, 0}, {0, 0}, {1, 1}, {0, 0}},
             "NCX", "OIX", true);
+
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8MulQuantizeCompileExecution_CPU) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_mul_quantize_subgraph(
+            &agraph, id_gen, {4, 1, 4096});
     agraph.finalize();
 
     compile_execution_pipeline(agraph, 1);

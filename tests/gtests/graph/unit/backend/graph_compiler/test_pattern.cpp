@@ -646,3 +646,82 @@ TEST(GCPatternTests, INT8BF16MatMulSoftmaxPattern_CPU) {
     test_pattern_matched(agraph, {"int8_bf16_matmul_softmax_fusion"}, 1,
             std::vector<partition_info_t> {{10, 4, 1}});
 }
+
+TEST(GCPatternTests, INT8MulQuantizePattern_CPU) {
+    {
+        REQUIRE_AVX512();
+        utils::id_generator id_gen;
+        graph::graph_t agraph;
+        compiler_utils::construct_mul_quantize_subgraph(
+                &agraph, id_gen, {4, 1, 4096});
+        agraph.finalize();
+
+        auto ops = agraph.get_ops();
+
+        for (auto &op : ops) {
+            if (op->get_kind() == graph::op_kind::Multiply) {
+                auto relu = agraph.create_op(graph::op_kind::ReLU, "relu");
+                auto in_val = op->get_input_value(0);
+                in_val->remove_consumer(*op, 0);
+                in_val->add_consumer(*relu, 0);
+                relu->add_input(in_val);
+                auto relu_out = in_val->get_logical_tensor();
+                relu_out.id = id_gen.get_id();
+                auto new_val = std::make_shared<graph::value_t>(
+                        *relu, 0, relu_out, false);
+                relu->add_output(new_val);
+                new_val->add_consumer(*op, 0);
+                op->connect_input(0, new_val);
+                break;
+            }
+        }
+
+        auto &compiler_backend_ptr
+                = compiler_impl::compiler_backend_t::get_singleton();
+        pass::pass_base_ptr apass
+                = get_pass(compiler_backend_ptr, "mul_typecast_quantize");
+
+        apass->run(agraph);
+        auto partitions = agraph.get_partitions();
+        ASSERT_EQ(partitions.size(), 0U);
+    }
+    {
+        REQUIRE_AVX512();
+        utils::id_generator id_gen;
+        graph::graph_t agraph;
+        compiler_utils::construct_mul_quantize_subgraph(
+                &agraph, id_gen, {4, 1, 4096});
+        agraph.finalize();
+
+        auto ops = agraph.get_ops();
+
+        for (auto &op : ops) {
+            if (op->get_kind() == graph::op_kind::Multiply) {
+                auto wildcard = agraph.create_op(
+                        graph::op_kind::Wildcard, "wildcard");
+                auto in_val = op->get_input_value(0);
+                wildcard->add_output(in_val);
+                in_val->set_producer(*wildcard);
+                break;
+            }
+        }
+
+        auto &compiler_backend_ptr
+                = compiler_impl::compiler_backend_t::get_singleton();
+        pass::pass_base_ptr apass
+                = get_pass(compiler_backend_ptr, "mul_typecast_quantize");
+
+        apass->run(agraph);
+        auto partitions = agraph.get_partitions();
+        ASSERT_EQ(partitions.size(), 1U);
+
+        graph::partition_t p;
+        p.init(partitions[0]);
+
+        auto partition_inputs = p.get_inputs();
+        auto partition_outputs = p.get_outputs();
+        ASSERT_EQ(p.num_ops(), 2U);
+        ASSERT_EQ(partition_inputs.size(), 2U);
+        ASSERT_EQ(partition_outputs.size(), 1U);
+    }
+}

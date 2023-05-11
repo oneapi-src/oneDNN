@@ -88,6 +88,19 @@ bool check_select(op_t *op) {
     return false;
 }
 
+// checks whether an op has no producer or wildcard producer
+bool check_if_null_producer(op_t *op) {
+    bool null_producer = true;
+    for (const auto &in_value : op->get_input_values()) {
+        if (in_value->has_producer()) {
+            null_producer = null_producer
+                    && in_value->get_producer().get_kind()
+                            == graph::op_kind::Wildcard;
+        }
+    }
+    return null_producer;
+}
+
 } // namespace pass
 } // namespace compiler_impl
 } // namespace graph
