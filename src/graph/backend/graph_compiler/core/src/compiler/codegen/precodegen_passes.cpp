@@ -45,6 +45,7 @@
 #include <compiler/ir/transform/loop_unroll.hpp>
 #include <compiler/ir/transform/module_globals_resolve.hpp>
 #include <compiler/ir/transform/nested_parallel_flatten.hpp>
+#include <compiler/ir/transform/parallel_merge.hpp>
 #include <compiler/ir/transform/parallel_workload_dispatch.hpp>
 #include <compiler/ir/transform/simple_licm.hpp>
 #include <compiler/ir/transform/simplify.hpp>
@@ -114,6 +115,8 @@ sequential_module_pass_t get_default_precodegen_passes(
     ret.emplace_back(utils::make_unique<constant_folder_t>(false));
     ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>(true));
 
+    ret.emplace_back(utils::make_unique<parallel_merge_t>());
+    ret.emplace_back(utils::make_unique<dead_func_eliminate_t>());
     ret.emplace_back(module_function_pass_t::make<bf16_eliminator_t>(ctx));
     ret.emplace_back(utils::make_unique<target_specific_lowering_cpu_t>(ctx));
     ret.emplace_back(utils::make_unique<func_inliner_t>());

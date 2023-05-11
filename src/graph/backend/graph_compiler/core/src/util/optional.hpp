@@ -278,7 +278,7 @@ public:
         return none_opt {};
     }
 
-    // Clear the variant. After calling this function, the variant object will
+    // Clear the optional. After calling this function, the optional object will
     // be empty.
     void clear() {
         if (has_value()) {

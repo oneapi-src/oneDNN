@@ -29,8 +29,13 @@ namespace gc {
 
 /**
  * Buffer inplace optimization in main entry function based on "inplace_hint"
- * attr of the functions. It will also schedule local buffers of the main
- * function.
+ * attr of the functions. It will decide the specific tensor to reuse for each
+ * function arg called by main entry. For each output tensor of function, this
+ * pass then narrows down the "inplace_hint" to a single selected candidate.
+ * This pass also sets the pointer alias info to help index2var and dead write
+ * elim pass to correctly handle inplaced tensor. Note that this pass will only
+ * modify the attrs of IR and will not change the IR itself. The real tensor
+ * inplace and allocation happens in buffer_schedule pass.
  * */
 class tensor_inplace_t : public module_pass_t {
 public:

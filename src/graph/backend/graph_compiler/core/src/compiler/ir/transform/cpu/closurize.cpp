@@ -45,7 +45,7 @@ namespace gc {
 SC_DECL_PASS_INFO(closurizer_cpu,
         SC_PASS_DEPENDS_ON(nested_parallel_flattener,
                 parallel_workload_dispatcher, validator, trace_inserter,
-                tensor_init),
+                parallel_merge, tensor_init),
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
         SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 

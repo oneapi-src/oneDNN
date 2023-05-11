@@ -39,9 +39,10 @@ namespace gc {
 
 SC_DECL_PASS_INFO(index2var,
         SC_PASS_DEPENDS_ON(constant_folder, ir_simplifier, validator,
-                index_flattener, parallel_workload_dispatcher),
+                index_flattener, parallel_workload_dispatcher, tensor_inplace),
         SC_PASS_REQUIRE_STATE(FUNC_INLINED), SC_PASS_REQUIRE_NOT_STATE(),
         SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE(IR_SIMPLIFIED));
+// it requires tensor_inplace for pointer alias info
 
 // the visitor to find the mutable dependencies in the indices of indexing
 // nodes. e.g., for A[i+j], it will find i and j as dependencies. Note that if

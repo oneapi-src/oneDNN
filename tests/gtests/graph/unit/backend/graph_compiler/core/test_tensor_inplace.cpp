@@ -44,6 +44,10 @@ TEST(GCCore_tensor_inplace_cpp, TestSimpleSchedule) {
     aaa->attr()[function_attrs::inplace_hint]
             = std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>> {
                     {2, {{0, inplace_kind::FREE}}}};
+    // make sure decl and def does not share the same tensor node
+    for (auto &arg : aaa->decl_->params_) {
+        arg = arg->remake();
+    }
 
     _function_(datatypes::void_t, bbb, _arg_("A", datatypes::f32, {100}),
             _arg_("B", datatypes::f32, {100}),
@@ -51,6 +55,10 @@ TEST(GCCore_tensor_inplace_cpp, TestSimpleSchedule) {
     bbb->attr()[function_attrs::inplace_hint]
             = std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>> {
                     {2, {{0, inplace_kind::FREE}}}};
+    // make sure decl and def does not share the same tensor node
+    for (auto &arg : bbb->decl_->params_) {
+        arg = arg->remake();
+    }
 
     _function_(
             datatypes::void_t, main_entry, _arg_("C", datatypes::f32, {100})) {
@@ -119,9 +127,6 @@ TEST(GCCore_tensor_inplace_cpp, TestSimpleSchedule) {
         C[1] = temp2[1];
     }
 
-    ir_comparer cmper {true};
-    EXPECT_TRUE(cmper.compare(out_mod->get_entry_func(), expected, false));
-
     EXPECT_FALSE(aaa->params_[0]->attr_);
     EXPECT_FALSE(aaa->params_[1]->attr_);
     EXPECT_FALSE(aaa->params_[2]->attr_);
@@ -143,4 +148,9 @@ TEST(GCCore_tensor_inplace_cpp, TestSimpleSchedule) {
     auto &theset = group1->alias_cliques_[0]->set_;
     auto in_set = theset.find(group2->shared_from_this()) != theset.end();
     ASSERT_TRUE(in_set);
+
+    buffer_scheduler_t scheduler {out_mod->ctx_, true, true};
+    auto after_sched = scheduler(out_mod->get_entry_func());
+    ir_comparer cmper {true};
+    EXPECT_TRUE(cmper.compare(after_sched, expected, false));
 }

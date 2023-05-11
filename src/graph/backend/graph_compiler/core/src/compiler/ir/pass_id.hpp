@@ -44,6 +44,7 @@ enum pass_id {
     builtin_microkernel_generate_cpu,
     closurizer_cpu,
     module_globals_resolver,
+    parallel_merge,
 
     FUNCTION_PASS_START,
     tensor_shrinker = FUNCTION_PASS_START,

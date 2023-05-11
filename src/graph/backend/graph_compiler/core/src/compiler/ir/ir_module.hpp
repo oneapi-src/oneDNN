@@ -91,6 +91,7 @@ public:
         entry_func_idx_ = entry_func_idx;
     }
 
+    int get_entry_func_idx() const { return entry_func_idx_; }
     void set_entry_func_idx(int entry_func_idx) {
         COMPILE_ASSERT(entry_func_idx == -1
                         || (entry_func_idx >= 0
