@@ -30,7 +30,14 @@ class BreakdownGenerator:
 
         def key2str(key, value):
             def mds2str(mds):
-                md_fields = ["arg", "data_type", "padding", "format_kind", "tag"]
+                md_fields = [
+                    "arg",
+                    "data_type",
+                    "padding",
+                    "format_kind",
+                    "tag",
+                    "strides",
+                ]
                 ffs = ":"
                 mdfs = " "
                 return mdfs.join(

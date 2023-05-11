@@ -336,13 +336,28 @@ std::string md2fmt_tag_str(const memory_desc_t *md) {
             s += (std::to_string(blk.inner_blks[iblk]) + c);
         }
     }
+
+    return s;
+}
+
+std::string md2fmt_strides_str(const memory_desc_t *md) {
+    memory_desc_wrapper mdw(md);
+    std::string s;
+
+    // Print strides if non-dense descriptor with defined dims/strides was
+    // provided.
+    if (mdw.has_runtime_dims_or_strides() || mdw.is_dense(true)) return s;
+
+    // Note: there's no API to create a memory desc with strides and blocks
+    // together, thus, this non-plain md will dump strides for info purpose.
+    s += md2dim_str(md, dims_type_t::strides);
     return s;
 }
 
 // Forms a format string for a given memory descriptor.
 //
 // There are two formats:
-// - dense: defined as: 'dt:[p|o|0]:fmt_kind:fmt:extra'.
+// - dense: defined as: 'dt:[p|o|0]:fmt_kind:fmt:strides:extra'.
 // - sparse: defined as: 'dt:[p|o|0]:fmt_kind:encoding:extra'.
 // Here:
 //  - dt       -- data type
@@ -352,11 +367,12 @@ std::string md2fmt_tag_str(const memory_desc_t *md) {
 //  - fmt_kind -- format kind (blocked, wino, etc...)
 //  - encoding -- [sparse_desc only] sparse encoding (csr, etc...)
 //  - fmt      -- [blocking_desc only] extended format string
+//  - strides  -- [blocking_desc only] non-dense strides string (dims style)
 //  - extra    -- shows extra fields (underspecified)
 std::string md2fmt_str(const memory_desc_t *md) {
     std::stringstream ss;
     if (!md || types::is_zero_md(md)) {
-        ss << data_type::undef << "::" << format_kind::undef << "::";
+        ss << data_type::undef << "::" << format_kind::undef << ":::";
         return ss.str();
     }
 
@@ -375,13 +391,15 @@ std::string md2fmt_str(const memory_desc_t *md) {
     ss << ":" << mdw.format_kind();
 
     switch (mdw.format_kind()) {
-        case format_kind::blocked: ss << ":" << md2fmt_tag_str(md); break;
-        case format_kind::opaque: ss << ":"; break;
-        case format_kind::sparse: ss << ":" << mdw.encoding(); break;
-        case format_kind::any: ss << ":any"; break;
+        case format_kind::blocked:
+            ss << ":" << md2fmt_tag_str(md) << ":" << md2fmt_strides_str(md);
+            break;
+        case format_kind::opaque: ss << "::"; break;
+        case format_kind::sparse: ss << ":" << mdw.encoding() << ":"; break;
+        case format_kind::any: ss << ":any:"; break;
         default:
             assert(!"unsupported format_kind");
-            ss << ":";
+            ss << "::";
             break;
     }
 

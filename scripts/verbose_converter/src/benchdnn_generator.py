@@ -341,6 +341,31 @@ def convert_tags(mds, prim_kind):
                 tags += f" --{md_arg}tag={md_tag}"
         return tags
 
+    def convert_tags_and_strides(mds):
+        tags = ""
+        strides = f" --strides="
+        for md in mds:
+            md_arg = md["arg"][0]
+            # skip bias
+            if md_arg == "b":
+                continue
+
+            # pass wtag any for cases with compensation
+            if md_arg == "w" and md["flags"]["value"] != "f0":
+                tags += f" --{md_arg}tag=any"
+            else:
+                md_strides = md["strides"]
+                if md_strides == "":
+                    md_tag = md["tag"]
+                    tags += f" --{md_arg}tag={md_tag}"
+                else:
+                    strides += f"{md_strides}"
+            if md_arg != "d":
+                strides += f":"
+
+        tags += strides
+        return tags
+
     # --tag=SRC_TAG[:WEI_TAG][:DST_TAG]
     def convert_tags_multiple(mds):
         tags = "--tag="
@@ -416,7 +441,7 @@ def convert_tags(mds, prim_kind):
         "inner_product": convert_tags_all,
         "layer_normalization": convert_tags_lnorm,
         "lrn": convert_tags_common,
-        "matmul": convert_tags_all,
+        "matmul": convert_tags_and_strides,
         "pooling": convert_tags_common,
         "prelu": convert_tags_prelu,
         "reduction": convert_tags_all,
@@ -469,6 +494,13 @@ def convert_flags(mds, prim_kind):
         return flags
 
     def convert_flags_rnn(mds):
+        for md in mds:
+            md_arg = md["arg"]
+            if md_arg == "src_iter" or md_arg == "src_layer":
+                md_strides = md["strides"]
+                if md_strides != "":
+                    return f"--trivial-strides=false"
+
         return f"--trivial-strides=true"
 
     cvt_flags = {
