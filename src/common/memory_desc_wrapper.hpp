@@ -193,7 +193,7 @@ struct memory_desc_wrapper : public c_compatible {
 
     /** returns the size required to store described memory
      * note: if offset0 != 0 returns 0 (need to specify the behavior) */
-    size_t size(int index = 0) const {
+    size_t size(int index = 0, bool include_additional_size = true) const {
         if (utils::one_of(format_kind(), format_kind::undef, format_kind::any)
                 || is_zero() || has_zero_dim())
             return 0;
@@ -238,7 +238,8 @@ struct memory_desc_wrapper : public c_compatible {
                 const size_t alignment_in_bytes = 4;
                 data_size = utils::rnd_up(data_size, alignment_in_bytes);
             }
-            return data_size + additional_buffer_size();
+            return data_size
+                    + (include_additional_size ? additional_buffer_size() : 0);
         } else if (is_sparse_desc()) {
             if (sparse_desc().encoding == sparse_encoding::csr) {
                 switch (index) {
@@ -288,7 +289,8 @@ struct memory_desc_wrapper : public c_compatible {
         if (utils::one_of(format_kind(), format_kind::undef, format_kind::any))
             return false;
         if (has_runtime_dims_or_strides() || has_broadcast()) return false;
-        return nelems(with_padding) * data_type_size() == size();
+        return nelems(with_padding) * data_type_size()
+                == size(0, /* include_additional_size = */ false);
     }
 
     /** returns true if format is set to `any` */
