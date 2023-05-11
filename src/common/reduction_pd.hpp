@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,16 +52,16 @@ struct reduction_pd_t : public primitive_desc_t {
 
     arg_usage_t arg_usage(int arg) const override {
         switch (arg) {
-            case DNNL_ARG_SRC: return arg_usage_t::input; break;
-            case DNNL_ARG_DST: return arg_usage_t::output; break;
+            case DNNL_ARG_SRC: return arg_usage_t::input;
+            case DNNL_ARG_DST: return arg_usage_t::output;
             default: return primitive_desc_t::arg_usage(arg);
         }
     }
 
     const memory_desc_t *arg_md(int arg) const override {
         switch (arg) {
-            case DNNL_ARG_SRC: return src_md(0); break;
-            case DNNL_ARG_DST: return dst_md(0); break;
+            case DNNL_ARG_SRC: return src_md(0);
+            case DNNL_ARG_DST: return dst_md(0);
             default: return primitive_desc_t::arg_md(arg);
         }
     }

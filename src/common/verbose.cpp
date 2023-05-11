@@ -304,20 +304,15 @@ std::ostream &operator<<(std::ostream &ss, const memory_extra_desc_t &extra) {
 std::string md2fmt_tag_str(const memory_desc_t *md) {
     memory_desc_wrapper mdw(md);
 
-    const auto &blk = mdw.blocking_desc();
-
     dims_t blocks = {0};
     mdw.compute_blocks(blocks);
 
     char dim_chars[DNNL_MAX_NDIMS + 1];
-
     dims_t ou_blocks = {0};
     utils::array_copy(ou_blocks, mdw.padded_dims(), mdw.ndims());
 
-    bool plain = true;
     for (int d = 0; d < mdw.ndims(); ++d) {
         dim_chars[d] = (blocks[d] == 1 ? 'a' : 'A') + (char)d;
-        if (blocks[d] != 1) plain = false;
         ou_blocks[d] /= blocks[d];
     }
 
@@ -325,6 +320,7 @@ std::string md2fmt_tag_str(const memory_desc_t *md) {
     if (mdw.has_runtime_strides()) return "*";
 
     dims_t strides;
+    const auto &blk = mdw.blocking_desc();
     utils::array_copy(strides, blk.strides, mdw.ndims());
 
     utils::simultaneous_sort(strides, ou_blocks, dim_chars, mdw.ndims(),
@@ -334,7 +330,7 @@ std::string md2fmt_tag_str(const memory_desc_t *md) {
 
     std::string s(dim_chars);
 
-    if (!plain) {
+    if (!mdw.is_plain()) {
         for (int iblk = 0; iblk < blk.inner_nblks; ++iblk) {
             char c = ('a' + (char)blk.inner_idxs[iblk]);
             s += (std::to_string(blk.inner_blks[iblk]) + c);
@@ -354,8 +350,8 @@ std::string md2fmt_tag_str(const memory_desc_t *md) {
 //  - o        -- indicates there is non-trivial padding offset
 //  - 0        -- indicates there is non-trivial offset0
 //  - fmt_kind -- format kind (blocked, wino, etc...)
-//  - encoding -- sparse encoding (csr, etc...)
-//  - fmt      -- extended format string (format_kind specific)
+//  - encoding -- [sparse_desc only] sparse encoding (csr, etc...)
+//  - fmt      -- [blocking_desc only] extended format string
 //  - extra    -- shows extra fields (underspecified)
 std::string md2fmt_str(const memory_desc_t *md) {
     std::stringstream ss;
@@ -373,11 +369,21 @@ std::string md2fmt_str(const memory_desc_t *md) {
         if (mdw.padded_offsets()[d] != 0) padded_offsets = true;
     }
     bool offset0 = mdw.offset0();
-    ss << (padded_dims ? "p" : "") << (padded_offsets ? "o" : "");
-    ss << (offset0 ? "0" : "") << ":" << mdw.format_kind() << ":";
+    ss << (padded_dims ? "p" : "");
+    ss << (padded_offsets ? "o" : "");
+    ss << (offset0 ? "0" : "");
+    ss << ":" << mdw.format_kind();
 
-    if (mdw.is_blocking_desc()) ss << md2fmt_tag_str(md);
-    if (mdw.is_sparse_desc()) ss << mdw.encoding();
+    switch (mdw.format_kind()) {
+        case format_kind::blocked: ss << ":" << md2fmt_tag_str(md); break;
+        case format_kind::opaque: ss << ":"; break;
+        case format_kind::sparse: ss << ":" << mdw.encoding(); break;
+        case format_kind::any: ss << ":any"; break;
+        default:
+            assert(!"unsupported format_kind");
+            ss << ":";
+            break;
+    }
 
     ss << mdw.extra();
 
@@ -611,11 +617,11 @@ std::string init_info_batch_normalization(const engine_t *e, const pd_t *pd) {
 
     auto src_md = pd->src_md();
     auto diff_src_md = pd->diff_src_md();
+
     ss << "data_" << src_md;
     if (diff_src_md) ss << " diff_" << diff_src_md;
-    ss << ",";
 
-    ss << pd->attr() << ",";
+    ss << "," << pd->attr() << ",";
     ss << "flags:" << normalization_flags2str(pd->desc()->flags) << ",";
     ss << md2desc_str(src_md);
 
@@ -631,9 +637,12 @@ std::string init_info_binary(const engine_t *e, const pd_t *pd) {
     auto src0_md = pd->src_md(0);
     auto src1_md = pd->src_md(1);
     auto dst_md = pd->dst_md();
-    ss << "src_" << src0_md << " src_" << src1_md << " dst_" << dst_md << ",";
 
-    ss << pd->attr() << ",";
+    ss << "src_" << src0_md;
+    ss << " src_" << src1_md;
+    ss << " dst_" << dst_md;
+
+    ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->desc()->alg_kind << ",";
     ss << md2dim_str(src0_md) << ":" << md2dim_str(src1_md);
 
@@ -651,9 +660,9 @@ std::string init_info_concat(const engine_t *e, const pd_t *pd) {
         ss << "src_" << src_i_md << " ";
     }
     auto dst_md = pd->dst_md();
-    ss << "dst_" << dst_md << ",";
+    ss << "dst_" << dst_md;
 
-    ss << pd->attr() << ",";
+    ss << "," << pd->attr() << ",";
     ss << "axis:" << pd->desc()->concat_dimension << ",";
 
     for (int i = 0; i < pd->n_inputs(); ++i) {
@@ -671,22 +680,17 @@ std::string init_info_convolution(const engine_t *e, const pd_t *pd) {
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
 
-    auto src_md = pd->desc()->prop_kind == prop_kind::backward_data
-            ? pd->diff_src_md()
-            : pd->src_md();
-    auto wei_md = pd->desc()->prop_kind == prop_kind::backward_weights
-            ? pd->diff_weights_md(0)
-            : pd->weights_md(0);
-    auto bia_md = pd->desc()->prop_kind == prop_kind::backward_weights
-            ? pd->diff_weights_md(1)
-            : pd->weights_md(1);
-    auto dst_md = !pd->is_fwd() ? pd->diff_dst_md() : pd->dst_md();
+    auto src_md = pd->invariant_src_md();
+    auto wei_md = pd->invariant_wei_md();
+    auto bia_md = pd->invariant_bia_md();
+    auto dst_md = pd->invariant_dst_md();
 
-    ss << "src_" << src_md << " wei_" << wei_md;
+    ss << "src_" << src_md;
+    ss << " wei_" << wei_md;
     if (bia_md) ss << " bia_" << bia_md;
-    ss << " dst_" << dst_md << ",";
+    ss << " dst_" << dst_md;
 
-    ss << pd->attr() << ",";
+    ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->desc()->alg_kind << ",";
 
     if (pd->with_groups()) ss << "g" << pd->G();
@@ -717,11 +721,11 @@ std::string init_info_eltwise(const engine_t *e, const pd_t *pd) {
 
     auto data_md = pd->use_dst() ? pd->dst_md() : pd->src_md();
     auto diff_src_md = pd->diff_src_md();
+
     ss << "data_" << data_md;
     if (diff_src_md) ss << " diff_" << diff_src_md;
-    ss << ",";
 
-    ss << pd->attr() << ",";
+    ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->desc()->alg_kind << " alpha:" << pd->desc()->alpha
        << " beta:" << pd->desc()->beta << ",";
     ss << md2dim_str(data_md);
@@ -735,22 +739,17 @@ std::string init_info_inner_product(const engine_t *e, const pd_t *pd) {
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
 
-    auto src_md = pd->desc()->prop_kind == prop_kind::backward_data
-            ? pd->diff_src_md()
-            : pd->src_md();
-    auto wei_md = pd->desc()->prop_kind == prop_kind::backward_weights
-            ? pd->diff_weights_md(0)
-            : pd->weights_md(0);
-    auto bia_md = pd->desc()->prop_kind == prop_kind::backward_weights
-            ? pd->diff_weights_md(1)
-            : pd->weights_md(1);
-    auto dst_md = !pd->is_fwd() ? pd->diff_dst_md() : pd->dst_md();
+    auto src_md = pd->invariant_src_md();
+    auto wei_md = pd->invariant_wei_md();
+    auto bia_md = pd->invariant_bia_md();
+    auto dst_md = pd->invariant_dst_md();
 
-    ss << "src_" << src_md << " wei_" << wei_md;
+    ss << "src_" << src_md;
+    ss << " wei_" << wei_md;
     if (bia_md) ss << " bia_" << bia_md;
-    ss << " dst_" << dst_md << ",";
+    ss << " dst_" << dst_md;
 
-    ss << pd->attr() << ",,";
+    ss << "," << pd->attr() << ",,";
 
     ss << md2desc_str(src_md);
     ss << "oc" << pd->OC();
@@ -768,12 +767,13 @@ std::string init_info_layer_normalization(const engine_t *e, const pd_t *pd) {
     auto dst_md = pd->is_fwd() ? pd->dst_md() : pd->diff_dst_md();
     auto stats_md = pd->is_fwd() && !pd->stats_are_src() ? pd->dst_md(1)
                                                          : pd->src_md(1);
-    ss << "src_" << src_md << " dst_" << dst_md;
-    if (stats_md) ss << " stats_" << stats_md;
-    if (pd->is_bwd()) ss << " diff_src_" << pd->diff_src_md();
-    ss << ",";
 
-    ss << pd->attr() << ",";
+    ss << "src_" << src_md;
+    ss << " dst_" << dst_md;
+    if (stats_md) ss << " stats_" << stats_md;
+    if (!pd->is_fwd()) ss << " diff_src_" << pd->diff_src_md();
+
+    ss << "," << pd->attr() << ",";
     ss << "flags:" << normalization_flags2str(pd->desc()->flags) << ",";
     ss << md2dim_str(src_md);
 
@@ -788,11 +788,11 @@ std::string init_info_lrn(const engine_t *e, const pd_t *pd) {
 
     auto data_md = pd->src_md();
     auto diff_src_md = pd->diff_src_md();
+
     ss << "data_" << data_md;
     if (diff_src_md) ss << " diff_" << diff_src_md;
-    ss << ",";
 
-    ss << pd->attr() << ",";
+    ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->desc()->alg_kind << ",";
     ss << md2desc_str(data_md);
     ss << "ls" << pd->desc()->local_size << "beta" << pd->desc()->lrn_beta;
@@ -821,14 +821,14 @@ std::string init_info_matmul(const engine_t *e, const pd_t *pd) {
         return mask;
     };
 
-    ss << "src_" << src_md << " wei_" << wei_md;
+    ss << "src_" << src_md;
+    ss << " wei_" << wei_md;
     if (pd->with_bias()) ss << " bia_" << bia_md << "_mask" << get_bia_mask();
-    ss << " dst_" << dst_md << ",";
+    ss << " dst_" << dst_md;
 
-    ss << pd->attr() << ",,";
+    ss << "," << pd->attr() << ",,";
 
-    ss << md2dim_str(src_md) << ":" << md2dim_str(wei_md) << ":"
-       << md2dim_str(dst_md);
+    ss << md2dim_str(src_md) << ":" << md2dim_str(wei_md);
 
     return ss.str();
 }
@@ -843,11 +843,11 @@ std::string init_info_pooling(const engine_t *e, const pd_t *pd) {
     auto dst_md = pd->is_fwd() ? pd->dst_md() : pd->diff_dst_md();
     auto ws_md = pd->workspace_md();
 
-    ss << "src_" << src_md << " dst_" << dst_md;
+    ss << "src_" << src_md;
+    ss << " dst_" << dst_md;
     if (ws_md) ss << " ws_" << ws_md;
-    ss << ",";
 
-    ss << pd->attr() << ",";
+    ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->desc()->alg_kind << ",";
 
     ss << "mb" << pd->MB() << "ic" << pd->IC() << "_";
@@ -874,12 +874,12 @@ std::string init_info_prelu(const engine_t *e, const pd_t *pd) {
     auto diff_data_md = pd->diff_src_md(0);
     auto diff_wei_md = pd->diff_weights_md(0);
 
-    ss << "data_" << data_md << " wei_" << wei_md;
+    ss << "data_" << data_md;
+    ss << " wei_" << wei_md;
     if (diff_data_md) ss << " diff_" << diff_data_md;
     if (diff_wei_md) ss << " diff_wei_" << diff_wei_md;
-    ss << ",";
 
-    ss << pd->attr() << ",,";
+    ss << "," << pd->attr() << ",,";
     ss << md2dim_str(data_md) << ":" << md2dim_str(wei_md);
 
     return ss.str();
@@ -893,9 +893,11 @@ std::string init_info_reduction(const engine_t *e, const pd_t *pd) {
 
     auto src_md = pd->src_md();
     auto dst_md = pd->dst_md();
-    ss << "src_" << src_md << " dst_" << dst_md << ",";
 
-    ss << pd->attr() << ",";
+    ss << "src_" << src_md;
+    ss << " dst_" << dst_md;
+
+    ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->desc()->alg_kind << " p:" << pd->desc()->p
        << " eps:" << pd->desc()->eps << ",";
     ss << md2dim_str(src_md) << ":" << md2dim_str(dst_md);
@@ -920,9 +922,11 @@ std::string init_info_reorder(const engine_t *e, pd_t *pd) {
 
     auto src_md = pd->src_md();
     auto dst_md = pd->dst_md();
-    ss << "src_" << src_md << " dst_" << dst_md << ",";
 
-    ss << pd->attr() << ",,";
+    ss << "src_" << src_md;
+    ss << " dst_" << dst_md;
+
+    ss << "," << pd->attr() << ",,";
     ss << md2dim_str(dst_md);
 
     return ss.str();
@@ -937,9 +941,10 @@ std::string init_info_resampling(const engine_t *e, const pd_t *pd) {
     auto src_md = pd->is_fwd() ? pd->src_md() : pd->diff_src_md();
     auto dst_md = pd->is_fwd() ? pd->dst_md() : pd->diff_dst_md();
 
-    ss << "src_" << src_md << " dst_" << dst_md << ",";
+    ss << "src_" << src_md;
+    ss << " dst_" << dst_md;
 
-    ss << pd->attr() << ",";
+    ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->desc()->alg_kind << ",";
 
     ss << "mb" << pd->MB() << "ic" << pd->C() << "_";
@@ -995,9 +1000,7 @@ std::string init_info_rnn(const engine_t *e, const pd_t *pd) {
                 pd->with_dst_iter(), DNNL_ARG_DIFF_DST_ITER, "diff_dst_iter");
     }
 
-    ss << ",";
-
-    ss << pd->attr() << ",";
+    ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->cell_kind()
        << " direction:" << dnnl_rnn_direction2str(pd->direction())
        << " activation:" << pd->activation_kind()
@@ -1017,9 +1020,10 @@ std::string init_info_shuffle(const engine_t *e, const pd_t *pd) {
        << pd->desc()->prop_kind << ",";
 
     auto data_md = pd->is_fwd() ? pd->src_md() : pd->diff_src_md();
-    ss << "data_" << data_md << ",";
 
-    ss << pd->attr() << ",";
+    ss << "data_" << data_md;
+
+    ss << "," << pd->attr() << ",";
     ss << "axis:" << pd->axis() << " group:" << pd->group_size() << ",";
     ss << md2dim_str(data_md);
 
@@ -1034,14 +1038,13 @@ std::string init_info_softmax(const engine_t *e, const pd_t *pd) {
 
     auto src_md = pd->is_fwd() ? pd->src_md() : pd->diff_src_md();
     auto dst_md = pd->dst_md();
-    ss << "src_" << src_md << " dst_" << dst_md;
-    if (!pd->is_fwd()) {
-        auto diff_dst_md = pd->diff_dst_md();
-        ss << " diff_dst_" << diff_dst_md;
-    }
-    ss << ",";
+    auto diff_dst_md = pd->diff_dst_md();
 
-    ss << pd->attr() << ",";
+    ss << "src_" << src_md;
+    ss << " dst_" << dst_md;
+    if (diff_dst_md) ss << " diff_dst_" << diff_dst_md;
+
+    ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->alg_kind() << " axis:" << pd->axis() << ",";
     ss << md2dim_str(src_md);
 
@@ -1059,9 +1062,9 @@ std::string init_info_sum(const engine_t *e, const pd_t *pd) {
         ss << "src_" << src_i_md << " ";
     }
     auto dst_md = pd->dst_md();
-    ss << "dst_" << dst_md << ",";
+    ss << "dst_" << dst_md;
 
-    ss << pd->attr() << ",,";
+    ss << "," << pd->attr() << ",,";
     ss << md2dim_str(dst_md);
 
     return ss.str();

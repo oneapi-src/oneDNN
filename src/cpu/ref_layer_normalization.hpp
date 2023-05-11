@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -80,7 +80,7 @@ struct ref_layer_normalization_bwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
-            bool ok = is_bwd()
+            bool ok = !is_fwd()
                     && utils::one_of(src_md()->data_type, f32, bf16, f16)
                     && utils::one_of(diff_dst_md()->data_type, f32, bf16, f16)
                     && utils::one_of(diff_src_md()->data_type, f32, bf16, f16)

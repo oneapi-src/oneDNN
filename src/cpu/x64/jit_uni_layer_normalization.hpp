@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -230,7 +230,7 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_t {
             using namespace data_type;
             const memory_desc_wrapper src_d(src_md());
 
-            const bool ok = is_bwd() && !has_zero_dim_memory()
+            const bool ok = !is_fwd() && !has_zero_dim_memory()
                     && mayiuse(avx2) // sse41 is not supported yet
                     && utils::one_of(src_md()->data_type, f32, bf16, f16)
                     && utils::one_of(diff_dst_md()->data_type, f32, bf16, f16)

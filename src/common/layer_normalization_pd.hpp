@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -80,7 +80,6 @@ struct layer_normalization_pd_t : public primitive_desc_t {
         return utils::one_of(desc_.prop_kind, prop_kind::forward_training,
                 prop_kind::forward_inference);
     }
-    bool is_bwd() const { return !this->is_fwd(); }
     bool is_training() const {
         return desc_.prop_kind == prop_kind::forward_training;
     }

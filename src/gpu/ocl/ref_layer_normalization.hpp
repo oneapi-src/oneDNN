@@ -116,7 +116,7 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
             auto diff_dst_dt = diff_dst_md()->data_type;
             auto diff_src_dt = diff_src_md()->data_type;
 
-            bool ok = is_bwd()
+            bool ok = !is_fwd()
                     && (utils::everyone_is(
                                 f32, src_dt, diff_dst_dt, diff_src_dt)
                             || utils::everyone_is(

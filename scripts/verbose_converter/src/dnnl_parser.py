@@ -28,7 +28,16 @@ class LogParser:
         # implementation(str),
         # prop_kind(str),
         # aux({field(str) : value(str)}),
-        # mds({ arg(str) : { data_type(str), format_kind(str), tag(str), flags(str) }})
+        # mds(
+        #     {
+        #         arg(str): {
+        #             data_type(str),
+        #             format_kind(str),
+        #             tag(str),
+        #             flags(str),
+        #         }
+        #     }
+        # )
         # shapes(str)
         # extensions(str)
         # time(float)
