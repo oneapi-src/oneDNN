@@ -34,6 +34,7 @@ class LogParser:
         #             data_type(str),
         #             format_kind(str),
         #             tag(str),
+        #             strides(str),
         #             flags(str),
         #         }
         #     }
@@ -68,16 +69,27 @@ class LogParser:
             def convert_mds(log_mds):
                 mds = []
                 for md in log_mds.split(" "):
-                    # arg_dt:padding:format_kind:tag:flags
+                    # arg_dt:padding:format_kind:tag:strides:flags
                     fields = md.split(":")
                     arg_dt = fields[0]
                     padding = fields[1]
                     format_kind = fields[2]
                     tag = fields[3]
+
+                    # Add compatibility for v3.1 verbose and below,
+                    # when strides delimeter is absent.
+                    # TODO: remove eventually.
+                    idx = 4
+                    strides = {}
+                    if "f" not in fields[idx] and format_kind != "undef":
+                        strides = fields[4]
+                        idx += 1
+
                     flags = {}
-                    flags["value"] = fields[4]
-                    if len(fields) > 5:
-                        flag_fields = fields[5:]
+                    flags["value"] = fields[idx]
+                    idx += 1
+                    if len(fields) > idx:
+                        flag_fields = fields[idx:]
                         for f in flag_fields:
                             if f[:3] == "s8m":
                                 flags["s8_comp_mask"] = f[3:]
@@ -93,6 +105,7 @@ class LogParser:
                             "padding": padding,
                             "format_kind": format_kind,
                             "tag": tag,
+                            "strides": strides,
                             "flags": flags,
                         }
                     )
