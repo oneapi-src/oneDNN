@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -182,22 +182,6 @@ struct convolution_pd_t : public primitive_desc_t {
     }
     const memory_desc_t *invariant_dst_md() const {
         return is_fwd() ? dst_md() : diff_dst_md();
-    }
-    memory_desc_t *invariant_src_md() {
-        auto *const_this = (const convolution_pd_t *)this;
-        return const_cast<memory_desc_t *>(const_this->invariant_src_md());
-    }
-    memory_desc_t *invariant_wei_md(int index = 0) {
-        auto *const_this = (const convolution_pd_t *)this;
-        return const_cast<memory_desc_t *>(const_this->invariant_wei_md(index));
-    }
-    memory_desc_t *invariant_bia_md() {
-        auto *const_this = (const convolution_pd_t *)this;
-        return const_cast<memory_desc_t *>(const_this->invariant_bia_md());
-    }
-    memory_desc_t *invariant_dst_md() {
-        auto *const_this = (const convolution_pd_t *)this;
-        return const_cast<memory_desc_t *>(const_this->invariant_dst_md());
     }
 
 protected:

@@ -1163,7 +1163,9 @@ private:
 };
 
 status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
-        const engine_t *engine, convolution_pd_t *pd, primitive_attr_t *attr);
+        const engine_t *engine, convolution_pd_t *pd, memory_desc_t &src_md,
+        memory_desc_t &wei_md, memory_desc_t &bia_md, memory_desc_t &dst_md,
+        primitive_attr_t *attr);
 status_t init_cfg(conv_config_t &cfg, const convolution_pd_t *pd);
 tensor_config_t get_tensor_config(const conv_config_t &cfg);
 int estimate_register_count(const conv_config_t &cfg);
