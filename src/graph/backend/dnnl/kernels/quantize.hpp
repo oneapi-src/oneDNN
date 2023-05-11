@@ -82,10 +82,12 @@ public:
 
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_mul_scales);
+        BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
         BACKEND_DNNL_ADD_PASS(pipeline, convert_runtime_mul_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, convert_runtime_zero_points);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_mul_scales_add_zps);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_sub_zps_mul_scales);
+        BACKEND_DNNL_ADD_PASS(pipeline, convert_dynamic_quantize_ops);
         BACKEND_DNNL_ADD_PASS(pipeline, reorder_canonicalization);
         pipeline.reset_visualize_arg(true, false);
 

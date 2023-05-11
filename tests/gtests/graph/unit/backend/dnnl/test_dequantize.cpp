@@ -26,60 +26,67 @@ namespace utils = dnnl::graph::tests::unit::utils;
 
 TEST(Execute, DequantizePerTensor) {
     graph::engine_t *engine = get_engine();
+    std::vector<float> scales = {1.f, 0.1f};
+    std::vector<int64_t> zps = {0, 10};
 
-    graph::op_t dequantize(graph::op_kind::Dequantize);
-    dequantize.set_attr<std::vector<float>>(graph::op_attr::scales, {0.1f});
-    int64_t zps = engine->kind() == graph::engine_kind::gpu ? 0 : 10;
-    dequantize.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zps});
-    dequantize.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
-    dequantize.set_attr<int64_t>(graph::op_attr::axis, 0);
+    for_(const auto &scale : scales)
+    for (const auto &zp : zps) {
+        graph::op_t dequantize(graph::op_kind::Dequantize);
+        dequantize.set_attr<std::vector<float>>(
+                graph::op_attr::scales, {scale});
+        dequantize.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp});
+        dequantize.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+        dequantize.set_attr<int64_t>(graph::op_attr::axis, 0);
 
-    test::vector<uint8_t> src {0, 10, 20, 30};
-    test::vector<float> dst(src.size(), 0);
+        test::vector<uint8_t> src {0, 10, 20, 30};
+        test::vector<float> dst(src.size(), 0);
 
-    // f32 = scales * (int8 - zero_points)
-    test::vector<float> ref_dst = engine->kind() == graph::engine_kind::gpu
-            ? test::vector<float> {0.0, 1.0, 2.0, 3.0}
-            : test::vector<float> {-1.0, 0.0, 1.0, 2.0};
+        // f32 = scales * (int8 - zero_points)
+        test::vector<float> ref_dst = zp == 0
+                ? test::vector<float> {0.0, 10.0, 20.0, 30.0}
+                : test::vector<float> {-10.0, 0.0, 10.0, 20.0};
+        for (size_t i = 0; i < ref_dst.size(); i++)
+            ref_dst[i] *= scale;
+        // prepare input/output logical tensor
+        graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+                0, {1, 2, 2}, graph::data_type::u8);
+        graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+                1, {1, 2, 2}, graph::data_type::f32);
 
-    // prepare input/output logical tensor
-    graph::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 2, 2}, graph::data_type::u8);
-    graph::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(1, {1, 2, 2}, graph::data_type::f32);
+        dequantize.add_input(src_lt);
+        dequantize.add_output(dst_lt);
 
-    dequantize.add_input(src_lt);
-    dequantize.add_output(dst_lt);
+        graph::graph_t g(engine->kind());
+        g.add_op(&dequantize);
+        g.finalize();
 
-    graph::graph_t g(engine->kind());
-    g.add_op(&dequantize);
-    g.finalize();
+        graph::pass::pass_base_ptr apass = get_pass("dequant_pass");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
+        auto part = g.get_partitions()[0];
 
-    graph::pass::pass_base_ptr apass = get_pass("dequant_pass");
-    apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1U);
-    auto part = g.get_partitions()[0];
+        graph::partition_t p;
+        p.init(part);
 
-    graph::partition_t p;
-    p.init(part);
+        graph::compiled_partition_t cp(p);
+        std::vector<const graph::logical_tensor_t *> inputs {&src_lt};
+        std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, engine),
+                graph::status::success);
 
-    graph::compiled_partition_t cp(p);
-    std::vector<const graph::logical_tensor_t *> inputs {&src_lt};
-    std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
-    ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
+        graph::logical_tensor_t lt;
+        cp.query_logical_tensor(dst_lt.id, &lt);
+        ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    graph::logical_tensor_t lt;
-    cp.query_logical_tensor(dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
+        graph::tensor_t src_ts(src_lt, engine, src.data());
+        graph::tensor_t dst_ts(dst_lt, engine, dst.data());
 
-    graph::tensor_t src_ts(src_lt, engine, src.data());
-    graph::tensor_t dst_ts(dst_lt, engine, dst.data());
-
-    graph::stream_t *strm = get_stream();
-    ASSERT_EQ(cp.execute(strm, {src_ts}, {dst_ts}), graph::status::success);
-    strm->wait();
-    for (size_t i = 0; i < dst.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+        graph::stream_t *strm = get_stream();
+        ASSERT_EQ(cp.execute(strm, {src_ts}, {dst_ts}), graph::status::success);
+        strm->wait();
+        for (size_t i = 0; i < dst.size(); ++i) {
+            ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+        }
     }
 }
 
