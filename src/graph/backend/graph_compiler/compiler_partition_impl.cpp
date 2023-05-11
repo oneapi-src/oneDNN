@@ -153,7 +153,7 @@ graph::status_t compiler_partition_impl_t::compile(
         bool is_dynamic = false;
         for (auto &in_lt : inputs) {
             gc::sc_op_ptr in_ret;
-            in_ret = sub_graph.make_compiler_backend_input(in_lt);
+            in_ret = sub_graph.make_compiler_backend_input(in_lt, this->id());
             if (!is_dynamic && sub_graph.is_dynamic()) { is_dynamic = true; }
             inputs_map[in_lt.id] = in_ret;
             sc_inputs.emplace_back(in_ret);

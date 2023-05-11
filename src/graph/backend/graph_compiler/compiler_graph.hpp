@@ -46,7 +46,7 @@ public:
 
     // convert partition's input logical tensor to compiler backend input node
     gc::sc_op_ptr make_compiler_backend_input(
-            const graph::logical_tensor_t &lt);
+            const graph::logical_tensor_t &lt, const size_t &partition_id);
 
     // get compiler backend ops
     const std::vector<gc::sc_op_ptr> get_compiler_backend_ops() { return ops_; }

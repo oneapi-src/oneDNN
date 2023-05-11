@@ -252,10 +252,10 @@ inline gc::sc_data_type_t compiler_graph_impl_t::convert_data_type(
 }
 
 gc::sc_op_ptr compiler_graph_impl_t::make_compiler_backend_input(
-        const graph::logical_tensor_t &in_lt) {
+        const graph::logical_tensor_t &in_lt, const size_t &partition_id) {
     auto lrt = compiler_graph_impl_t::convert_logical_tensor(in_lt);
     auto in_ret = this->make_input({lrt});
-    in_ret->attrs_["temp.tensor_id"] = in_lt.id;
+    in_ret->attrs_["temp.tensor_id"] = (partition_id << 32) + in_lt.id;
     if (in_lt.property == property_type::constant) {
         in_ret->attrs_.set("constant", 1); // set as local_const
     }
