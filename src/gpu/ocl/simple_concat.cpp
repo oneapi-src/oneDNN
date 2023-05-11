@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 #include <algorithm>
+#include <numeric>
 
 #include "gpu/compute/dispatch.hpp"
 #include "gpu/ocl/simple_concat.hpp"
@@ -23,73 +24,284 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-/* Returns dimension indices in (our best guess at) nesting order */
-std::vector<int> get_ordered_dim_idxs(const memory_desc_wrapper &mdw) {
-    const auto ndims = mdw.ndims();
-    std::vector<int> idxs(ndims);
-    for (int i = 0; i < ndims; ++i)
-        idxs[i] = i;
+// For inputs and output that have the same format tag, we can reduce formats to
+// three dimensions: the outer, concat, and inner dimensions.
+// 1. All dimensions interior to the concat dimension, and any blocks of
+//    non-concat dimensions belong to the inner dimension.
+// 2. Anything remaining that is exterior to the concat dimension becomes the
+//    outer dimension.
+// 3. An additional interior block can be extracted from the concat dimension if
+//    the GCD of the concat dimensions of all inputs and the output (AND in the
+//    case of padded concat dimensions, the sizes of the concat dimensions'
+//    zero-pads) is non-unit.
+//
+// E.g., ABC2a2b2c:ABC2a2b2c -> ABC2a2b2c
+//         10x4x12:10x8x12   -> 10x12x12
+// becomes
+//             abc:abc       ->   abc
+//          5x1x96:5x2x96    -> 5x3x96
+// because the 2a block is absorbed into the inner ('c') dimension and there is
+// a block of 4 that can be extracted from the concat ('b') dimension and
+// absorbed into the inner dimension. This includes the 2b block, so the only
+// remaining block is 2c, which can be combined safely into the inner block to
+// get a plain format. Only blocking in the concat dimension matters, so if
+// there is none, we will always get a plain format.
 
-    const auto &strides = mdw.blocking_desc().strides;
-    const auto &sizes = mdw.dims();
-    const auto cmp = [&](int a, int b) {
-        // Dimensions of size 1 have the same stride as the next outer
-        // dimension, so only sorting by strides will not necessarily get the
-        // correct order. In the case of ties, the dim with the larger size gets
-        // sorted second. Permutations of dims of size 1 with the same stride
-        // should not effect the correctness of concat.
-        return strides[a] < strides[b]
-                || (strides[a] == strides[b] && sizes[a] < sizes[b]);
-    };
-    std::sort(idxs.begin(), idxs.end(), cmp);
-    return idxs;
+namespace axis {
+enum normalized_axis_t { outer = 0, concat = 1, inner = 2, ndims = 3 };
 }
 
-enum class striding_t {
-    mismatched, // Formats are incompatible
-    sparse, // Dimensions have additional striding
-    partitioned, // Striding between concat dim and exterior dimensions
-    dense
+class normalization_t {
+    enum class padding_t { none = 0, external, internal };
+
+    enum class striding_t {
+        mismatched, // Formats are incompatible
+        sparse, // Dimensions have additional striding
+        partitioned, // Striding between concat dim and exterior dimensions
+        dense
+    };
+
+public:
+    normalization_t(const memory_desc_t &md, int concat_dim)
+        : ndims_(md.ndims)
+        , concat_dim_(concat_dim)
+        , extern_axis_idx_(ndims_)
+        , data_type_(md.data_type)
+        , blocking_(blocking(md))
+        , chunk_size_(md.padded_dims[concat_dim])
+        , padded_chunk_size_(math::gcd(md.dims[concat_dim], chunk_size_))
+        , axis_order_(ndims_) {
+        const auto &dims = md.padded_dims;
+        const auto &strides = blocking_.strides;
+        auto cmp = [&](int i, int j) {
+            return strides[i] < strides[j]
+                    || (strides[i] == strides[j] && dims[i] < dims[j]);
+        };
+        std::iota(axis_order_.begin(), axis_order_.end(), 0);
+        std::sort(axis_order_.begin(), axis_order_.end(), cmp);
+
+        std::vector<dim_t> blocks(ndims_, 1);
+        for (int i = 0; i < blocking_.inner_nblks; ++i)
+            blocks[blocking_.inner_idxs[i]] *= blocking_.inner_blks[i];
+
+        int i = 0;
+        for (; i < ndims_; ++i) {
+            auto idx = axis_order_[i];
+            if (idx == concat_dim) break;
+            inner_size_ *= dims[idx];
+        }
+
+        for (++i; i < ndims_; ++i) {
+            const auto &idx = axis_order_[i];
+            if (dims[idx] == 1) continue;
+            if (extern_axis_idx_ == ndims_) extern_axis_idx_ = idx;
+            outer_size_ *= dims[idx] / blocks[idx];
+            inner_size_ *= blocks[idx];
+        }
+    }
+
+    bool add_source(const memory_desc_t &md) {
+        if (md.padded_dims[concat_dim_] == 0) return true;
+        if (md.data_type != data_type_) return false;
+        if (md.format_kind != format_kind::blocked) return false;
+
+        auto striding = validate(md);
+        if (!striding_ok(striding)) return false;
+        if (striding != striding_t::dense) can_read_past_concat_dim_ = false;
+
+        auto dim = md.dims[concat_dim_];
+        auto pdim = md.padded_dims[concat_dim_];
+        auto source_chunk = math::gcd(dim, pdim - dim);
+
+        // We can ignore padding if it only occurs on the final non-empty input
+        if (padding_type_ == padding_t::external) {
+            padding_type_ = padding_t::internal;
+            chunk_size_ = padded_chunk_size_;
+        } else if (padding_type_ == padding_t::none && dim != pdim)
+            padding_type_ = padding_t::external;
+
+        if (padding_type_ == padding_t::internal) {
+            chunk_size_ = math::gcd(chunk_size_, source_chunk);
+        } else {
+            chunk_size_ = math::gcd(chunk_size_, pdim);
+            padded_chunk_size_ = math::gcd(padded_chunk_size_, source_chunk);
+        }
+        return true;
+    }
+
+    data_type_t data_type() const { return data_type_; }
+    size_t data_type_size() const { return types::data_type_size(data_type_); }
+
+    dim_t max_write_size() const {
+        dim_t write_size = 1;
+        dim_t rem_chunk_size = chunk_size_;
+        for (int i = blocking_.inner_nblks - 1; i >= 0; --i) {
+            const auto &idx = blocking_.inner_idxs[i];
+            const auto &size = blocking_.inner_blks[i];
+            if (idx == concat_dim_) {
+                if (rem_chunk_size < size)
+                    return rem_chunk_size * write_size * data_type_size();
+                rem_chunk_size /= size;
+            }
+            write_size *= size;
+        }
+        return inner_size_ * chunk_size_ * data_type_size();
+    }
+
+    dim_t max_read_size() const {
+        dim_t size = inner_size_ * chunk_size_ * data_type_size();
+        if (can_read_past_concat_dim_) size *= outer_size_;
+        return size;
+    }
+
+    void operator()(memory_desc_t &) const;
+
+private:
+    static bool striding_ok(striding_t striding) {
+        return striding == striding_t::partitioned
+                || striding == striding_t::dense;
+    }
+
+    striding_t validate(const memory_desc_t &md) const {
+        const auto blkg = blocking(md);
+        if (blkg.inner_nblks != blocking_.inner_nblks)
+            return striding_t::mismatched;
+
+        dim_t exp_stride = 1;
+        std::vector<dim_t> dim_blks(md.ndims, 1);
+        // Check that inner blocking is the same
+        for (int i = 0; i < blkg.inner_nblks; ++i) {
+            const auto idx = blkg.inner_idxs[i];
+            const auto size = blkg.inner_blks[i];
+            if (idx != blocking_.inner_idxs[i]
+                    || size != blocking_.inner_blks[i])
+                return striding_t::mismatched;
+            exp_stride *= size;
+            dim_blks[idx] *= size;
+        }
+
+        // Check that outer dimensions are in the same order and that tensors
+        // are the same shape except for the concat dim
+        bool last_dim_was_concat_dim = false;
+        striding_t striding = striding_t::dense;
+        for (auto idx : axis_order_) {
+            if (blkg.strides[idx] < exp_stride) return striding_t::mismatched;
+            if (blkg.strides[idx] > exp_stride) {
+                if (!last_dim_was_concat_dim) return striding_t::sparse;
+                striding = striding_t::partitioned;
+            }
+            dim_t step = md.padded_dims[idx] / dim_blks[idx];
+            exp_stride = step * blkg.strides[idx];
+            last_dim_was_concat_dim = (idx == concat_dim_);
+        }
+
+        return striding;
+    }
+
+    static blocking_desc_t blocking(const memory_desc_t &md) {
+        auto blkg = md.format_desc.blocking;
+        const auto old_nblks = blkg.inner_nblks;
+        int nblks = 0;
+
+        for (int i = 0; i < old_nblks; ++i) {
+            const auto idx = blkg.inner_idxs[i];
+            const auto size = blkg.inner_blks[i];
+            if (nblks && blkg.inner_idxs[nblks - 1] == idx)
+                blkg.inner_blks[nblks - 1] *= size;
+            else {
+                blkg.inner_idxs[nblks] = idx;
+                blkg.inner_blks[nblks] = size;
+                nblks++;
+            }
+        }
+        blkg.inner_nblks = nblks;
+        return blkg;
+    }
+
+    int ndims_;
+    int concat_dim_;
+    int extern_axis_idx_;
+    data_type_t data_type_;
+    blocking_desc_t blocking_;
+    padding_t padding_type_ = padding_t::none;
+    bool can_read_past_concat_dim_ = true;
+
+    dim_t chunk_size_; // concat-dim elements that can be written simultaneously
+    dim_t padded_chunk_size_; // pessimistic chunk size for internal padding
+    dim_t inner_size_ = 1;
+    dim_t outer_size_ = 1;
+    std::vector<int> axis_order_;
 };
 
-striding_t striding_type(const std::vector<int> &idxs,
-        const memory_desc_wrapper &mdw, int concat_dim) {
-    const auto ndims = mdw.ndims();
+void normalization_t::operator()(memory_desc_t &md) const {
+    auto chunk_size = chunk_size_;
+    auto &blkg = md.format_desc.blocking;
+    auto &dims = md.dims;
+    auto &pdims = md.padded_dims;
+    auto &poff = md.padded_offsets;
+    auto &nblks = blkg.inner_nblks;
+    const auto old_nblks = nblks;
+    const auto old_ndims = md.ndims;
+    dims_t inner_idxs, inner_blks; // temporaries
 
-    // Compute the total size of blocks for each dim to help predict strides
-    std::vector<dim_t> blocks(ndims, 1);
-    const auto &blkg = mdw.blocking_desc();
-    dim_t exp_stride = 1;
-    for (int i = 0; i < blkg.inner_nblks; ++i) {
-        blocks[blkg.inner_idxs[i]] *= blkg.inner_blks[i];
-        exp_stride *= blkg.inner_blks[i];
-    }
+    dims[axis::concat] = utils::div_up(dims[concat_dim_], chunk_size);
+    pdims[axis::concat] = pdims[concat_dim_] / chunk_size;
+    dims[axis::outer] = pdims[axis::outer] = outer_size_;
+    dims[axis::inner] = pdims[axis::inner] = inner_size_ * chunk_size;
+    poff[axis::outer] = poff[axis::concat] = poff[axis::inner] = 0;
+    md.ndims = axis::ndims;
+    nblks = 0;
 
-    // Check that the order specified by idxs matches the src tensor
-    const auto &padded_dims = mdw.padded_dims();
-    bool allow_larger_stride = false;
-    dim_t last_stride = exp_stride;
-    striding_t striding = striding_t::dense;
-    for (auto idx : idxs) {
-        auto stride = blkg.strides[idx];
-        if (stride < last_stride) return striding_t::mismatched;
-        if (stride < exp_stride) return striding_t::sparse;
-        if (stride > exp_stride) {
-            if (!allow_larger_stride) return striding_t::sparse;
-            striding = striding_t::partitioned;
+    auto add_blk = [&](int idx, dim_t size) {
+        if (size == 1) return;
+        if (nblks && inner_idxs[nblks - 1] == idx)
+            inner_blks[nblks - 1] *= size;
+        else {
+            inner_idxs[nblks] = idx;
+            inner_blks[nblks] = size;
+            nblks++;
         }
-        last_stride = stride;
-        exp_stride = stride * (padded_dims[idx] / blocks[idx]);
-        allow_larger_stride = idx == concat_dim;
-    }
-    return striding;
-}
+    };
 
-// Returns true if two sets of data have the same order of axis (i.e. the
-// strides are ordered by the same permutation) and the layout is dense except
-// possibly exterior to the concat dimension.
-bool is_striding_ok(striding_t striding) {
-    return utils::one_of(striding, striding_t::dense, striding_t::partitioned);
+    dim_t stride = 1;
+    // Temporarily store indices and blocks in reverse order so we can combine
+    // blocks where needed without having to know the final block count.
+    for (int i = old_nblks - 1; i >= 0; --i) {
+        dim_t inner_size = blkg.inner_blks[i];
+        dim_t concat_size = 1;
+        stride *= inner_size;
+        if (blkg.inner_idxs[i] == concat_dim_) {
+            if (inner_size > chunk_size) {
+                concat_size = inner_size / chunk_size;
+                inner_size = chunk_size;
+                chunk_size = 1;
+            } else
+                chunk_size /= inner_size;
+        }
+
+        add_blk(axis::inner, inner_size);
+        add_blk(axis::concat, concat_size);
+    }
+
+    // Ignore outermost inner block
+    if (nblks && inner_idxs[nblks - 1] == axis::inner) {
+        stride /= inner_blks[nblks - 1];
+        --nblks;
+    }
+
+    // Copy new indices and blocks in original order.
+    for (int i = 0; i < nblks; ++i) {
+        blkg.inner_idxs[nblks - 1 - i] = inner_idxs[i];
+        blkg.inner_blks[nblks - 1 - i] = inner_blks[i];
+    }
+
+    auto &strides = blkg.strides;
+    const auto concat_stride = strides[concat_dim_] * chunk_size;
+    strides[axis::outer] = extern_axis_idx_ < old_ndims
+            ? strides[extern_axis_idx_]
+            : pdims[axis::inner] * pdims[axis::concat];
+    strides[axis::inner] = stride;
+    strides[axis::concat] = concat_stride;
 }
 
 struct prb_info_t {
@@ -153,126 +365,77 @@ struct prb_info_t {
 static status_t init_conf_common(
         engine_t *engine, concat_conf_t &conf, const concat_pd_t *pd) {
     using namespace utils;
-
-    const memory_desc_wrapper dst_mdw(pd->dst_md());
-    auto ndims = dst_mdw.ndims();
-    auto nelems = dst_mdw.nelems(true);
-    auto data_type_size = dst_mdw.data_type_size();
-
-    if (nelems == 0) return status::unimplemented;
-
-    const auto &blk = dst_mdw.blocking_desc();
+    const memory_desc_t &ref_dst_md = *pd->dst_md();
+    if (ref_dst_md.format_kind != format_kind::blocked)
+        return status::unimplemented;
     const auto concat_dim = pd->concat_dim();
-    // TODO: refactor to avoid duplication in get_ordered_dim_idxs and
-    // is_same_axis_order.
-    dim_t extern_axis = 1;
-    int extern_dim = -1;
-    std::vector<dim_t> blocks(ndims, 1);
-    for (int i = 0; i < blk.inner_nblks; ++i)
-        blocks[blk.inner_idxs[i]] *= blk.inner_blks[i];
-    bool equal_strides_ok
-            = dst_mdw.padded_dims()[concat_dim] / blocks[concat_dim] == 1;
-    for (int i = 0; i < ndims; ++i) {
-        const auto &stride = blk.strides[i];
-        if (stride > blk.strides[concat_dim]
-                || (equal_strides_ok && stride == blk.strides[concat_dim])) {
-            if (extern_dim == -1 || stride < blk.strides[extern_dim])
-                extern_dim = i;
-            extern_axis *= dst_mdw.padded_dims()[i] / blocks[i];
-        }
-    }
 
-    int offset = 0;
-    const auto dst_dim_order = get_ordered_dim_idxs(dst_mdw);
-    const dim_t c_blks = blocks[concat_dim];
-    auto concat_dim_size = dst_mdw.padded_dims()[concat_dim] / c_blks;
-    auto common_factor = concat_dim_size;
-    int nonempty_inputs = 0;
-    bool has_padding = false;
-    bool can_read_past_concat_dim = true;
+    normalization_t normalize(ref_dst_md, concat_dim);
     for (int i = 0; i < pd->n_inputs(); ++i) {
-        const memory_desc_wrapper src_mdw(pd->src_md(i));
-
-        if (src_mdw.padded_dims()[concat_dim] == 0) continue;
-
-        // check concat dim padding -- allow padding in the last nonempty input
-        if (has_padding)
-            return status::unimplemented;
-        else if (src_mdw.padded_dims()[concat_dim]
-                != src_mdw.dims()[concat_dim])
-            has_padding = true;
-
-        if (src_mdw.data_type() != dst_mdw.data_type())
-            return status::unimplemented;
-
-        if (!types::blocking_desc_is_equal(*pd->dst_md(), *pd->src_md(i), true))
-            return status::unimplemented;
-
-        striding_t striding = striding_type(dst_dim_order, src_mdw, concat_dim);
-        if (!is_striding_ok(striding)) return status::unimplemented;
-        if (striding != striding_t::dense) can_read_past_concat_dim = false;
-
-        const auto &src_blk = src_mdw.blocking_desc();
-        const auto step = src_mdw.padded_dims()[concat_dim] / c_blks;
-        common_factor = math::gcd(common_factor, step);
-
-        auto src_extern_dim_size = (extern_dim == -1)
-                ? src_blk.strides[concat_dim] * step
-                : src_blk.strides[extern_dim];
-        conf.src_extern_dim_sizes[nonempty_inputs]
-                = src_extern_dim_size * data_type_size;
-        conf.offset[nonempty_inputs] = offset;
-        nonempty_inputs++;
-        offset += step;
+        const memory_desc_t &src_md = *pd->src_md(i);
+        if (!normalize.add_source(src_md)) return status::unimplemented;
     }
 
-    conf.dst_extern_dim_size = (extern_dim == -1)
-            ? blk.strides[concat_dim] * concat_dim_size
-            : blk.strides[extern_dim];
-    conf.inner_axis = blk.strides[concat_dim];
-    conf.n = nonempty_inputs;
+    memory_desc_t dst_md, src_md;
+    int offset = 0, nonempty_inputs = 0;
+    const auto data_type_size = normalize.data_type_size();
+    for (int i = 0; i < pd->n_inputs(); ++i) {
+        if (pd->src_md(i)->padded_dims[concat_dim] == 0) continue;
+        memcpy(&src_md, pd->src_md(i), sizeof(memory_desc_t));
+        normalize(src_md);
+        const auto &src_blkg = src_md.format_desc.blocking;
+        conf.src_extern_dim_sizes[nonempty_inputs]
+                = src_blkg.strides[axis::outer] * data_type_size;
+        conf.offset[nonempty_inputs] = offset;
+        offset += src_md.dims[axis::concat];
+        nonempty_inputs++;
+    }
+    memcpy(&dst_md, pd->dst_md(), sizeof(memory_desc_t));
+    normalize(dst_md);
+    // TODO: add support for padding
+    if (dst_md.dims[axis::concat] != dst_md.padded_dims[axis::concat])
+        return status::unimplemented;
+    const auto &dst_blkg = dst_md.format_desc.blocking;
+    conf.dst_extern_dim_size = dst_blkg.strides[axis::outer] * data_type_size;
 
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     auto *device_info = compute_engine->device_info();
-
-    for (int i = 0; i < conf.n; ++i)
-        conf.offset[i] /= common_factor;
-    concat_dim_size /= common_factor;
-    conf.inner_axis *= common_factor;
-    dim_t inner_size = conf.inner_axis * data_type_size;
-    dim_t outer_elems = concat_dim_size * extern_axis;
-    dim_t max_read_size
-            = can_read_past_concat_dim ? inner_size * extern_axis : inner_size;
+    dim_t max_write_size = normalize.max_write_size();
+    dim_t max_read_size = normalize.max_read_size();
+    dim_t extern_axis = dst_md.dims[axis::outer];
+    dim_t concat_dim_size = dst_md.dims[axis::concat];
+    dim_t outer_elems = extern_axis * concat_dim_size;
 
     // TODO: add proper scales support
     const bool has_scales = false;
     const int eu_count = device_info->eu_count();
     const int max_sg_size = device_info->max_subgroup_size();
-    const dim_t total_elems = conf.inner_axis * concat_dim_size * extern_axis;
+    const dim_t total_bytes
+            = dst_md.dims[0] * dst_md.dims[1] * dst_md.dims[2] * data_type_size;
     std::vector<prb_info_t> infos;
     for (int simd : {32, 16, 8, 1}) {
         if (simd > max_sg_size) continue;
         if (simd > 1 && !compute_engine->mayiuse_sub_group(simd)) continue;
         for (int bytes : {8, 4, 2, 1}) {
             if (has_scales && bytes < (int)data_type_size) break;
-            if (inner_size % bytes) continue;
-            const dim_t elems = total_elems * data_type_size / bytes;
-            const dim_t max_elems = std::max((dim_t)1, elems / eu_count);
+            if (max_write_size % bytes) continue;
+            const dim_t total_elems = total_bytes / bytes;
+            const dim_t max_elems = std::max((dim_t)1, total_elems / eu_count);
             if (simd > max_elems) continue;
             infos.emplace_back(simd, bytes, max_elems, max_read_size,
-                    inner_size, outer_elems, device_info->gpu_arch());
+                    max_write_size, outer_elems, device_info->gpu_arch());
         }
     }
     if (infos.empty()) return status::unimplemented;
     std::sort(infos.begin(), infos.end());
     const auto &info = infos[0];
 
+    conf.n = nonempty_inputs;
     conf.simd = info.simd;
-    conf.inner_axis = inner_size / info.type_size;
+    conf.inner_axis
+            = dst_blkg.strides[axis::concat] * data_type_size / info.type_size;
     conf.data_type_size = info.type_size;
-    conf.dst_offset0 = dst_mdw.offset0() * data_type_size / info.type_size;
-    conf.dst_extern_dim_size
-            = conf.dst_extern_dim_size * data_type_size / info.type_size;
+    conf.dst_offset0 = dst_md.offset0 * data_type_size / info.type_size;
     conf.block = info.block;
     if (conf.block < conf.inner_axis) {
         conf.gws_d[0] = conf.inner_axis / conf.block * conf.simd;
@@ -284,7 +447,7 @@ static status_t init_conf_common(
     conf.gws_d[2] = concat_dim_size;
 
     // Bound estimates based on limited empirical evidence
-    int coalesced_writes = ((inner_size ^ (inner_size - 1)) >> 1) + 1;
+    int coalesced_writes = ((max_write_size ^ (max_write_size - 1)) >> 1) + 1;
     size_t extern_axis_bound = 256 * 512 * std::min(coalesced_writes, 8);
     if (conf.simd == 1 && conf.gws_d[2] > 64) return status::unimplemented;
     if (conf.simd == 1 && conf.gws_d[1] > extern_axis_bound)
@@ -300,7 +463,8 @@ static status_t init_conf_common(
 
 static status_t init_kernel_ctx_common(
         compute::kernel_ctx_t &kernel_ctx, const concat_conf_t &conf) {
-    kernel_ctx.define_int("DST_EXT_OFFSET", conf.dst_extern_dim_size);
+    kernel_ctx.define_int(
+            "DST_EXT_OFFSET", conf.dst_extern_dim_size / conf.data_type_size);
     for (int i = 0; i < conf.n; ++i) {
         kernel_ctx.define_int(utils::format("SRC%d_EXT_OFFSET", i),
                 conf.src_extern_dim_sizes[i] / conf.data_type_size);
@@ -323,17 +487,19 @@ status_t simple_concat_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
     return init_kernel_ctx_common(kernel_ctx, conf);
 }
-status_t simple_concat_t::execute_concat(const exec_ctx_t &ctx) const {
 
+status_t simple_concat_t::execute_concat(const exec_ctx_t &ctx) const {
     const auto &conf = pd()->conf;
-    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
+    if (conf.n == 0) return status::success;
+    const auto concat_dim = pd()->concat_dim();
 
     compute::kernel_arg_list_t arg_list;
+    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
     arg_list.set(0, dst);
     arg_list.set(1, conf.dst_offset0);
     int next_arg = 2;
     for (int i = 0; i < pd()->n_inputs(); ++i) {
-        if (pd()->src_md(i)->dims[pd()->concat_dim()] == 0) continue;
+        if (pd()->src_md(i)->padded_dims[concat_dim] == 0) continue;
         auto &src = CTX_IN_STORAGE(DNNL_ARG_MULTIPLE_SRC + i);
         arg_list.set(next_arg++, src);
     }
