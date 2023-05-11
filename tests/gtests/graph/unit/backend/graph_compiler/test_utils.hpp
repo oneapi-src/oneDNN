@@ -4970,6 +4970,231 @@ inline void construct_llama_mlp_subgraph(graph::graph_t *agraph,
     }
 }
 
+/* from GPT-J
+[IN0](dtype)  [IN1](dtype) [IN2](dtype)   [IN3](dtype)
+      \            /            |              /
+      mul1      mul2            |             /
+        \       /               |            /
+           add                 to1          /
+            \                  /           /
+                concat1                   /
+                   |                     /
+                permute                 /
+                   \                   /
+                         concat2
+                            |
+                           to2
+                            |
+                           to3
+                            |
+                          quant
+                            |
+                        [OUT0](dtype)
+*/
+inline void add_gptj_concat_subgraph(
+        graph::graph_t *agraph, bool add_quant = false) {
+    std::vector<graph::dim_t> shape0 = {32, 1024, 256};
+    std::vector<graph::dim_t> shape1 = {32, 1024, 256};
+    std::vector<graph::dim_t> shape2 = {32, 1024, 256};
+    std::vector<graph::dim_t> shape3 = {32, 256, 2048};
+    graph::dim_t concat1_axis = 1;
+    std::vector<int64_t> permute_order = {0, 2, 1};
+    graph::dim_t concat2_axis = 1;
+
+    size_t op_idx = 0, logical_tensor_idx = 0;
+    graph::logical_tensor_t in0, in1, in2, in3;
+    in0 = utils::logical_tensor_init(
+            logical_tensor_idx++, shape0, graph::data_type::f32);
+    in1 = utils::logical_tensor_init(
+            logical_tensor_idx++, shape1, graph::data_type::f32);
+    in2 = utils::logical_tensor_init(
+            logical_tensor_idx++, shape2, graph::data_type::bf16);
+    in3 = utils::logical_tensor_init(
+            logical_tensor_idx++, shape3, graph::data_type::f32);
+
+    graph::op_t mul1 {op_idx++, graph::op_kind::Multiply, "mul1"};
+    graph::logical_tensor_t mul1_out = utils::logical_tensor_init(
+            logical_tensor_idx++, shape0, graph::data_type::f32);
+    mul1.add_input(in0);
+    mul1.add_input(in1);
+    mul1.add_output(mul1_out);
+    agraph->add_op(&mul1);
+
+    graph::op_t mul2 {op_idx++, graph::op_kind::Multiply, "mul2"};
+    graph::logical_tensor_t mul2_out = utils::logical_tensor_init(
+            logical_tensor_idx++, shape0, graph::data_type::f32);
+    mul2.add_input(in0);
+    mul2.add_input(in1);
+    mul2.add_output(mul2_out);
+    agraph->add_op(&mul2);
+
+    graph::op_t add_layer {op_idx++, graph::op_kind::Add, "add_layer"};
+    graph::logical_tensor_t add_out = utils::logical_tensor_init(
+            logical_tensor_idx++, shape0, graph::data_type::f32);
+    add_layer.add_input(mul1_out);
+    add_layer.add_input(mul2_out);
+    add_layer.add_output(add_out);
+    agraph->add_op(&add_layer);
+
+    graph::op_t to_layer1 {op_idx++, graph::op_kind::TypeCast, "to_layer1"};
+    graph::logical_tensor_t to1_out = utils::logical_tensor_init(
+            logical_tensor_idx++, shape2, graph::data_type::f32);
+    to_layer1.add_input(in2);
+    to_layer1.add_output(to1_out);
+    agraph->add_op(&to_layer1);
+
+    graph::op_t concat_layer1
+            = {op_idx++, graph::op_kind::Concat, "concat_layer1"};
+    concat_layer1.set_attr<int64_t>(graph::op_attr::axis, concat1_axis);
+    std::vector<graph::dim_t> concat1_out_shape = shape0;
+    concat1_out_shape[concat1_axis] += shape2[concat1_axis];
+    graph::logical_tensor_t concat1_out = utils::logical_tensor_init(
+            logical_tensor_idx++, concat1_out_shape, graph::data_type::f32);
+    concat_layer1.add_input(add_out);
+    concat_layer1.add_input(to1_out);
+    concat_layer1.add_output(concat1_out);
+    agraph->add_op(&concat_layer1);
+
+    graph::op_t permute_layer
+            = {op_idx++, graph::op_kind::StaticTranspose, "permute_layer"};
+    permute_layer.set_attr(graph::op_attr::order, permute_order);
+    std::vector<graph::dim_t> permute_out_shape = concat1_out_shape;
+    for (size_t i = 0; i < permute_order.size(); ++i) {
+        auto axis = permute_order[i];
+        permute_out_shape[i] = concat1_out_shape[axis];
+    }
+    graph::logical_tensor_t permute_out = utils::logical_tensor_init(
+            logical_tensor_idx++, permute_out_shape, graph::data_type::f32);
+    permute_layer.add_input(concat1_out);
+    permute_layer.add_output(permute_out);
+    agraph->add_op(&permute_layer);
+
+    graph::op_t concat_layer2
+            = {op_idx++, graph::op_kind::Concat, "concat_layer2"};
+    concat_layer2.set_attr<int64_t>(graph::op_attr::axis, concat2_axis);
+    std::vector<graph::dim_t> concat2_out_shape = permute_out_shape;
+    concat2_out_shape[concat2_axis] += shape3[concat2_axis];
+    graph::logical_tensor_t concat2_out = utils::logical_tensor_init(
+            logical_tensor_idx++, concat2_out_shape, graph::data_type::f32);
+    concat_layer2.add_input(in3);
+    concat_layer2.add_input(permute_out);
+    concat_layer2.add_output(concat2_out);
+    agraph->add_op(&concat_layer2);
+
+    graph::op_t to_layer2 = {op_idx++, graph::op_kind::TypeCast, "to_layer2"};
+    graph::logical_tensor_t to2_out = utils::logical_tensor_init(
+            logical_tensor_idx++, concat2_out_shape, graph::data_type::bf16);
+    to_layer2.add_input(concat2_out);
+    to_layer2.add_output(to2_out);
+    agraph->add_op(&to_layer2);
+
+    if (add_quant) {
+        graph::op_t to_layer3
+                = {op_idx++, graph::op_kind::TypeCast, "to_layer3"};
+        graph::logical_tensor_t to3_out = utils::logical_tensor_init(
+                logical_tensor_idx++, concat2_out_shape, graph::data_type::f32);
+        to_layer3.add_input(to2_out);
+        to_layer3.add_output(to3_out);
+        agraph->add_op(&to_layer3);
+
+        graph::op_t quant_layer {
+                op_idx++, graph::op_kind::Quantize, "quant_layer"};
+        DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quant_layer);
+        graph::logical_tensor_t quant_out = utils::logical_tensor_init(
+                logical_tensor_idx++, concat2_out_shape, graph::data_type::u8);
+        quant_layer.add_input(to3_out);
+        quant_layer.add_output(quant_out);
+        agraph->add_op(&quant_layer);
+    }
+}
+
+/* from Llama
+[IN0](dtype)  [IN1](dtype) [IN2](dtype)
+      \            /            /
+           add                 /
+            |                 /
+           to1               /
+            \               /
+                concat1
+                   |
+                  to2
+                   |
+                  to3
+                   |
+                 quant
+                   |
+               [OUT0](dtype)
+*/
+inline void add_llama_concat_subgraph(
+        graph::graph_t *agraph, bool add_quant = false) {
+    std::vector<graph::dim_t> shape0 = {32, 1024, 256};
+    std::vector<graph::dim_t> shape1 = {32, 1024, 256};
+    std::vector<graph::dim_t> shape2 = {32, 1024, 256};
+    graph::dim_t concat1_axis = 1;
+
+    size_t op_idx = 0, logical_tensor_idx = 0;
+    graph::logical_tensor_t in0, in1, in2;
+    in0 = utils::logical_tensor_init(
+            logical_tensor_idx++, shape0, graph::data_type::bf16);
+    in1 = utils::logical_tensor_init(
+            logical_tensor_idx++, shape1, graph::data_type::bf16);
+    in2 = utils::logical_tensor_init(
+            logical_tensor_idx++, shape2, graph::data_type::f32);
+
+    graph::op_t add_layer {op_idx++, graph::op_kind::Add, "add_layer"};
+    graph::logical_tensor_t add_out = utils::logical_tensor_init(
+            logical_tensor_idx++, shape0, graph::data_type::bf16);
+    add_layer.add_input(in0);
+    add_layer.add_input(in1);
+    add_layer.add_output(add_out);
+    agraph->add_op(&add_layer);
+
+    graph::op_t to_layer1 {op_idx++, graph::op_kind::TypeCast, "to_layer1"};
+    graph::logical_tensor_t to1_out = utils::logical_tensor_init(
+            logical_tensor_idx++, shape2, graph::data_type::f32);
+    to_layer1.add_input(add_out);
+    to_layer1.add_output(to1_out);
+    agraph->add_op(&to_layer1);
+
+    graph::op_t concat_layer1
+            = {op_idx++, graph::op_kind::Concat, "concat_layer1"};
+    concat_layer1.set_attr<int64_t>(graph::op_attr::axis, concat1_axis);
+    std::vector<graph::dim_t> concat1_out_shape = shape0;
+    concat1_out_shape[concat1_axis] += shape2[concat1_axis];
+    graph::logical_tensor_t concat1_out = utils::logical_tensor_init(
+            logical_tensor_idx++, concat1_out_shape, graph::data_type::f32);
+    concat_layer1.add_input(in2);
+    concat_layer1.add_input(to1_out);
+    concat_layer1.add_output(concat1_out);
+    agraph->add_op(&concat_layer1);
+
+    graph::op_t to_layer2 = {op_idx++, graph::op_kind::TypeCast, "to_layer2"};
+    graph::logical_tensor_t to2_out = utils::logical_tensor_init(
+            logical_tensor_idx++, concat1_out_shape, graph::data_type::bf16);
+    to_layer2.add_input(concat1_out);
+    to_layer2.add_output(to2_out);
+    agraph->add_op(&to_layer2);
+
+    if (add_quant) {
+        graph::op_t to_layer3
+                = {op_idx++, graph::op_kind::TypeCast, "to_layer3"};
+        graph::logical_tensor_t to3_out = utils::logical_tensor_init(
+                logical_tensor_idx++, concat1_out_shape, graph::data_type::f32);
+        to_layer3.add_input(to2_out);
+        to_layer3.add_output(to3_out);
+        agraph->add_op(&to_layer3);
+
+        graph::op_t quant_layer {
+                op_idx++, graph::op_kind::Quantize, "quant_layer"};
+        DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quant_layer);
+        graph::logical_tensor_t quant_out = utils::logical_tensor_init(
+                logical_tensor_idx++, concat1_out_shape, graph::data_type::u8);
+        quant_layer.add_input(to3_out);
+        quant_layer.add_output(quant_out);
+        agraph->add_op(&quant_layer);
+    }
+}
+
 } // namespace utils
 } // namespace compiler
 } // namespace unit

@@ -1193,3 +1193,36 @@ TEST(GCGraphTest, INT8BF16LLAMAMLPCompileExecution_CPU) {
 
     compile_execution_pipeline(agraph, 1);
 }
+
+TEST(GCGraphTest, GptjBf16Concat_CPU) {
+    REQUIRE_AVX512();
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
+    compiler_utils::add_gptj_concat_subgraph(&agraph);
+    agraph.finalize();
+
+    // should hit add_to_concat_permute_concat_to pattern
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, GptjInt8Bf16Concat_CPU) {
+    REQUIRE_AVX512();
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
+    compiler_utils::add_gptj_concat_subgraph(&agraph, true);
+    agraph.finalize();
+
+    // should hit mul_mul_add_concat_permute_concat_quant pattern
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, LlamaInt8Bf16Concat_CPU) {
+    REQUIRE_AVX512();
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
+    compiler_utils::add_llama_concat_subgraph(&agraph, true);
+    agraph.finalize();
+
+    // should hit add_typecast_concat_typecasts_quant pattern
+    compile_execution_pipeline(agraph, 1);
+}

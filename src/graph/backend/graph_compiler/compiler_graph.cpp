@@ -54,7 +54,8 @@ static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
                         "batchnorm_training_backprop"},
                 {op_kind::Maximum, "max"}, {op_kind::LayerNorm, "layernorm"},
                 {op_kind::Select, "select"}, {op_kind::Tanh, "tanh"},
-                {op_kind::ReduceMean, "reduce_mean"}};
+                {op_kind::ReduceMean, "reduce_mean"},
+                {op_kind::Concat, "concat"}};
 
 // we convert all int64[] to int32[] except for allowlist
 static std::unordered_set<graph::op_attr_t> type_conversion_allowlist {

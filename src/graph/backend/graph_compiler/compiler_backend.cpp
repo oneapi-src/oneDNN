@@ -18,6 +18,7 @@
 
 #include "compiler_graph.hpp"
 #include "compiler_partition_impl.hpp"
+#include "patterns/concat_pattern.hpp"
 #include "patterns/conv_pattern.hpp"
 #include "patterns/mha_pattern.hpp"
 #include "patterns/misc_pattern.hpp"
@@ -76,6 +77,7 @@ bool compiler_backend_t::register_passes() {
     REQUIRE_SINGLE_THREAD_END
     REQUIRE_VNNI_AMXINT8_END
     COMPILER_BACKEND_REGISTER_PASSES_CALL(misc_pattern, pass_registry_);
+    COMPILER_BACKEND_REGISTER_PASSES_CALL(concat_patterns, pass_registry_);
     REQUIRE_AVX512_END
     pass_registry_.sort_passes();
     return true;

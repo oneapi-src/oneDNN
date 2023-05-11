@@ -1076,3 +1076,58 @@ TEST(GCPatternTests, INT8MHAPatternAlternative4_CPU) {
     test_pattern_matched(agraph, {"int8_mha_pattern_alternative4"}, 1,
             std::vector<partition_info_t> {{13, 5, 1}});
 }
+
+TEST(GCPatternTests, add_to_concat_permute_concat_to_CPU) {
+    REQUIRE_AVX512();
+    REQUIRE_CPU_ENGINE();
+    graph::graph_t agraph(engine->kind());
+    compiler_utils::add_gptj_concat_subgraph(&agraph);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"add_to_concat_permute_concat_to"}, 1,
+            std::vector<partition_info_t> {{6, 4, 1}});
+}
+
+TEST(GCPatternTests, add_to_concat_permute_CPU) {
+    REQUIRE_AVX512();
+    REQUIRE_CPU_ENGINE();
+    graph::graph_t agraph(engine->kind());
+    compiler_utils::add_gptj_concat_subgraph(&agraph);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"add_to_concat_permute"}, 1,
+            std::vector<partition_info_t> {{4, 3, 1}});
+}
+
+TEST(GCPatternTests, permute_concat_to_CPU) {
+    REQUIRE_AVX512();
+    REQUIRE_CPU_ENGINE();
+    graph::graph_t agraph(engine->kind());
+    compiler_utils::add_gptj_concat_subgraph(&agraph);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"permute_concat_to"}, 1,
+            std::vector<partition_info_t> {{3, 2, 1}});
+}
+
+TEST(GCPatternTests, mul_mul_add_concat_permute_concat_quant_CPU) {
+    REQUIRE_AVX512();
+    REQUIRE_CPU_ENGINE();
+    graph::graph_t agraph(engine->kind());
+    compiler_utils::add_gptj_concat_subgraph(&agraph, true);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"mul_mul_add_concat_permute_concat_quant"}, 1,
+            std::vector<partition_info_t> {{9, 4, 1}});
+}
+
+TEST(GCPatternTests, add_typecast_concat_typecasts_quant_CPU) {
+    REQUIRE_AVX512();
+    REQUIRE_CPU_ENGINE();
+    graph::graph_t agraph(engine->kind());
+    compiler_utils::add_llama_concat_subgraph(&agraph, true);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"add_typecast_concat_typecasts_quant"}, 1,
+            std::vector<partition_info_t> {{6, 3, 1}});
+}

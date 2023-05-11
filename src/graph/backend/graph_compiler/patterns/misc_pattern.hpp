@@ -33,7 +33,9 @@ using FCreatePattern = graph::pass::FCreatePattern;
 COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(misc_pattern)
 
 /*
-(f32/bf16)[IN0]    [IN1](f32/bf16)
+(f32/bf16)[IN0]
+            |
+ TypeCast*[0-1]    [IN1](f32/bf16)
              \     /
              Multiply
                 |
@@ -51,15 +53,20 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, mul_typecast_quantize)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto mul = pgraph->append_op(graph::op_kind::Multiply);
                     mul->append_decision_function(check_if_null_producer);
-
-                    auto prep_subgraph = std::make_shared<pb_graph_t>();
-                    auto typecast = prep_subgraph->append_op(
-                            graph::op_kind::TypeCast);
-                    prep_subgraph->create_input_port(0, typecast, 0);
-                    prep_subgraph->create_output_port(0, typecast, 0);
-
-                    auto prep = pgraph->append_repetition(prep_subgraph, {0, 0},
-                            0, 3, in_edges_t {in_edge(0, mul, 0)});
+                    auto prep = append_single_op_repetition_subgraph(
+                            pgraph, graph::op_kind::TypeCast, mul, 0, 3);
+                    auto quantize = pgraph->append_op(graph::op_kind::Quantize,
+                            in_edges_t {in_edge(0, prep, 0)});
+                    UNUSED(quantize);
+                })
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto cast = pgraph->append_op(graph::op_kind::TypeCast);
+                    cast->append_decision_function(check_if_null_producer);
+                    auto mul = pgraph->append_op(graph::op_kind::Multiply,
+                            in_edges_t {in_edge(0, cast, 0)});
+                    auto prep = append_single_op_repetition_subgraph(
+                            pgraph, graph::op_kind::TypeCast, mul, 0, 3);
                     auto quantize = pgraph->append_op(graph::op_kind::Quantize,
                             in_edges_t {in_edge(0, prep, 0)});
                     UNUSED(quantize);
