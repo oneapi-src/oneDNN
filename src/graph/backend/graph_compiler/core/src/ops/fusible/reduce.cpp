@@ -1039,10 +1039,6 @@ void reduce_compute_op_t::compute_block(context_ptr ctx,
     auto func = [&](const std::vector<expr> &in,
                         std::vector<expr::lvalue_proxy_t> &out) -> stmt {
         indexing indexing_nd = out[0].get().checked_as<indexing>();
-        if (ths->local_mode_) {
-            dst[0]->get_real_tensor()->attr()[attr_keys::must_tensor2var]
-                    = true;
-        }
         auto lanes = indexing_nd->dtype_.lanes_;
         // if keep dims, set reduction axis to 0, else remove the axis from
         // indexing node
@@ -1093,6 +1089,7 @@ void reduce_compute_op_t::compute_block(context_ptr ctx,
 void reduce_compute_op_t::set_reduce_buffer(const tensor &buf) {
     buf->init_value_ = tensor_node::make_tensor_initializer(
             get_init_val_for_reduce(rd_op_, buf->elem_dtype_));
+    if (local_mode_) buf->attr()[attr_keys::must_tensor2var] = true;
 }
 
 reduce_collect_op_t::reduce_collect_op_t(const graph_tensor_ptr &in,

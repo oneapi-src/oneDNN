@@ -39,6 +39,7 @@
 #include <compiler/ir/transform/loop_transform.hpp>
 #include <compiler/ir/transform/pointer_alias_info.hpp>
 #include <compiler/ir/transform/scope_flatten.hpp>
+#include <compiler/ir/transform/tensor2var.hpp>
 #include <compiler/ir/transform/tensor_inplace_info.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
 #include <compiler/ir/visitor.hpp>
@@ -253,11 +254,11 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
 
     /* deal with special ops: set tensor initial value */
     // reduce collect and compute op
-    if (auto collc_op = op->dyn_cast<reduce_impl_op_t>()) {
+    if (auto rd_impl_op = op->dyn_cast<reduce_impl_op_t>()) {
         auto buf = g2b_map_.get(op->get_outputs()[0]);
         COMPILE_ASSERT(buf.isa<tensor>(),
-                "output of reduce_collect_op_t should be tensor type")
-        collc_op->set_reduce_buffer(buf.checked_as<tensor>());
+                "output of reduce_impl op should be tensor type")
+        rd_impl_op->set_reduce_buffer(buf.checked_as<tensor>());
     }
 
     /* infer pre-op inplace */
@@ -682,7 +683,7 @@ expr mxp_buffer_allocator::get_inplaced_buffer(const expr &buf) const {
     return expr();
 }
 
-void mxp_buffer_allocator::query_buffer_inplace() {
+void mxp_buffer_allocator::query_inplace() {
     SC_MODULE_INFO << "Query buffer inplace hint...";
     // step 0: get outer loop
     auto outer_loops = binded_mxp_->get_outer_loops();
@@ -779,7 +780,7 @@ void mxp_buffer_allocator::query_buffer_inplace() {
     }
 }
 
-void mxp_buffer_allocator::validate_buffer() {
+void mxp_buffer_allocator::calibrate_info() {
     // collect cut buffer
     std::unordered_set<expr> cut_buffer_set;
     for (auto iter = inplace_map_.begin(); iter != inplace_map_.end();) {
@@ -845,6 +846,27 @@ void mxp_buffer_allocator::validate_buffer() {
             }
         }
     }
+}
+
+inline bool check_tsr_len_under_resigter_size(
+        size_t tsr_len, uint16_t simd_len, uint16_t max_register_tol = 16) {
+    return (tsr_len % simd_len == 0 && (tsr_len / simd_len) < max_register_tol);
+}
+
+bool mxp_buffer_allocator::validate_tsr2var() const {
+    for (auto &tsr2def : tsr2anch_map_) {
+        auto tsr = tsr2def.first;
+        if (!tsr->attr().has_key(attr_keys::must_tensor2var)) continue;
+        auto shrinked_info = get_shrinked_info(tsr);
+        if (shrinked_info.empty()) continue;
+        auto shape = get_slice_shape(shrinked_info);
+        auto prod = get_dims_product(get_expr_to_dims(shape));
+        auto tsr_simd_len = vectorize_step(binded_mxp_->ctx_,
+                tsr.checked_as<tensor>()->elem_dtype_.type_code_);
+        if (!check_tsr_len_under_resigter_size(prod, tsr_simd_len))
+            return false;
+    }
+    return true;
 }
 
 int mxp_buffer_allocator::use_count(const expr &buffer) const {
@@ -2833,8 +2855,8 @@ void mixed_parti_t::buffer_schedule() {
     buf_alloc_.tensor_initialize();
     buf_alloc_.declare_tensor();
     buf_alloc_.set_shrink_info();
-    buf_alloc_.query_buffer_inplace();
-    buf_alloc_.validate_buffer();
+    buf_alloc_.query_inplace();
+    buf_alloc_.calibrate_info();
 }
 
 bool mixed_parti_t::is_parti_inp(const graph_tensor *gt) const {
@@ -3208,34 +3230,8 @@ bool do_partition(const context_ptr &ctx, sc_graph_t &g,
     return !repartition;
 }
 
-static bool validate_optimized_reduce(
-        const std::shared_ptr<mixed_parti_t> &parti) {
-    for (auto &op : parti->ops) {
-        if (op->is_removed_) continue;
-        if (auto coll = op->dyn_cast<reduce_collect_op_t>()) {
-            if (coll->op_ == reduce_collect_op_t::kind::COPY) {
-                auto gt = coll->get_inputs()[0];
-                COMPILE_ASSERT(gt->producer_owner_->isa<reduce_compute_op_t>(),
-                        "reduce_collect_op is only expected follow "
-                        "reduce_compute_op");
-                COMPILE_ASSERT(parti->buf_alloc_.g2b_map_.haskey(gt),
-                        "Could not found allocated buffer for "
-                                << coll->op_name_)
-                auto buf = parti->buf_alloc_.g2b_map_.get(gt);
-                auto shrinked_info = parti->buf_alloc_.get_shrinked_info(buf);
-                if (shrinked_info.empty()) continue;
-                auto shape = get_slice_shape(shrinked_info);
-                auto prod = get_dims_product(get_expr_to_dims(shape));
-                auto tsr_simd_len = vectorize_step(parti->ctx_,
-                        get_real_tensor(buf)->elem_dtype_.type_code_);
-                constexpr int max_register_tol = 16;
-                if (prod % tsr_simd_len != 0
-                        || (prod / tsr_simd_len) >= max_register_tol)
-                    return false;
-            }
-        }
-    }
-    return true;
+bool mixed_parti_t::validate_optimization() const {
+    return buf_alloc_.validate_tsr2var();
 }
 
 bool mixed_parti_t::can_optimize_outer_loop(bool allow_tensorview) const {
@@ -3354,9 +3350,7 @@ static bool try_optimize_reduce(mixed_parti_t *parti, sc_graph_t &sub_graph,
                     }
                     auto tsr_simd_len = vectorize_step(ctx,
                             rd_op->get_inputs()[0]->details_.dtype_.type_code_);
-                    constexpr int max_register_tol = 16;
-                    if (prod % tsr_simd_len != 0
-                            || (prod / tsr_simd_len) >= max_register_tol)
+                    if (!check_tsr_len_under_resigter_size(prod, tsr_simd_len))
                         continue;
                 }
             }
@@ -3613,7 +3607,7 @@ std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
                 COMPILE_ASSERT(mx_op->parti_list_.size() == 1,
                         "Unexpected partition size found: "
                                 << mx_op->parti_list_.size())
-                if (!validate_optimized_reduce(mx_op->parti_list_[0])) {
+                if (!mx_op->parti_list_[0]->validate_optimization()) {
                     // reset
                     fall_back = true;
                     SC_MODULE_WARN << "invalid optimized reduce detected, "

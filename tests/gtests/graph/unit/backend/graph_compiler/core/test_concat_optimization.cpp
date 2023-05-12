@@ -276,9 +276,9 @@ func main_entry(buffer_0: [f32 * 4UL * 8UL * 16UL * 32UL], buffer_8: [f32 * 4UL 
   // [f32 [4, 8, 128, 32] @ ABCD]
   tensor buffer_7: [f32 * 4UL * 8UL * 128UL * 32UL]
   evaluate{outerloop_4X8X16_partition_add_tanh_8(&buffer_7[0UL, 0UL, 0UL, 0UL], &buffer_7[0UL, 0UL, 16UL, 0UL], buffer_0)}
-  evaluate{sigmoid_0(&buffer_7[0UL, 0UL, 32UL, 0UL], &buffer_7[0UL, 0UL, 0UL, 0UL])}
-  evaluate{relu_0(&buffer_7[0UL, 0UL, 64UL, 0UL], &buffer_7[0UL, 0UL, 0UL, 0UL])}
-  evaluate{add_0(buffer_8, buffer_7, buffer_7)}
+  evaluate{sigmoid_2(&buffer_7[0UL, 0UL, 32UL, 0UL], &buffer_7[0UL, 0UL, 0UL, 0UL])}
+  evaluate{relu_4(&buffer_7[0UL, 0UL, 64UL, 0UL], &buffer_7[0UL, 0UL, 0UL, 0UL])}
+  evaluate{add_6(buffer_8, buffer_7, buffer_7)}
 })";
     ir_compare_test_on_graph(build_sequential_standalone_concats, expected_str);
 }
@@ -406,7 +406,7 @@ func main_entry(buffer_0: [f32 * 4UL * 8UL * 16UL * 32UL], buffer_7: [f32 * 4UL 
   // [f32 [4, 8, 2048, 32] @ ABCD]
   tensor buffer_6: [f32 * 4UL * 8UL * 2048UL * 32UL]
   evaluate{outerloop_4X8_partition_relu_concat_tanh_concat_sigmoid(&buffer_6[0UL, 0UL, 0UL, 0UL], &buffer_6[0UL, 0UL, 1024UL, 0UL], buffer_3)}
-  evaluate{add_0(buffer_7, buffer_6, buffer_6)}
+  evaluate{add_3(buffer_7, buffer_6, buffer_6)}
 })";
     ir_compare_test_on_graph(
             build_sequential_concats_standalone_and_in_one_partition,

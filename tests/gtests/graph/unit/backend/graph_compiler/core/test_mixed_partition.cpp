@@ -438,6 +438,34 @@ TEST(GCCore_graph_mixed_partition_cpp, TestGraphFuseBRGemmPreOpFusion) {
     EXPECT_EQ(fused_op->parti_list_[0]->get_outer_loops().size(), (size_t)3);
 }
 
+TEST(GCCore_graph_mixed_partition_cpp, TestGraphFuseOptimizedReduce2) {
+    sc_graph_t graph;
+
+    thread_num_reset reseter;
+    // set threads envoriment
+    runtime_config_t::get().set_num_threads(56);
+
+    auto input0 = graph.make_input({graph_tensor::make({1024, 1024})});
+    // This reduce op does not satisfy register requirement of `tsr2var`
+    // optimization due to 1024 is larger than max tolerence.
+    auto reduce0 = graph.make("reduce", input0->get_outputs(), {},
+            {{"rd_axis", std::vector<int> {0}}, {"rd_op", 0}});
+    graph.make_output(reduce0->get_outputs());
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    graph_driver_before_fusion(graph, ctx);
+    bool found = false;
+    for (auto &op : graph.ops_) {
+        if (op->op_name_ == "reduce_compute") {
+            auto mod = op->get_func(ctx);
+            // this reduce_compute_op should not be split
+            found = (mod->get_func("reduce_compute_2") != nullptr);
+        }
+    }
+    ASSERT_TRUE(found);
+}
+
 TEST(GCCore_graph_mixed_partition_cpp, TestGraphPartitionRingRiskCheck1) {
     sc_graph_t graph;
 

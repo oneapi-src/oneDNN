@@ -281,6 +281,7 @@ void graph_driver_before_fusion(sc_graph_t &graph, const context_ptr &ctx) {
     tensor_view_transform(graph, ctx);
     graph_simplify(graph, ctx);
     global_reschedule(graph, ctx);
+    partial_reduce_replace(graph, ctx);
     graph_constant_input_folding(graph, ctx);
 }
 

@@ -139,7 +139,8 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx) {
     std::unordered_map<sc_op_ptr, sc_op_ptr> graph2orig_ops
             = {{copied, op->shared_from_this()}};
     // try optimize partition
-    if (try_optimize_parti(parti.get(), g, graph2orig_ops)) {
+    if (!op->attrs_.get_or_else("temp.no_optimize_op", false)
+            && try_optimize_parti(parti.get(), g, graph2orig_ops)) {
         // redo partition
         std::vector<mixed_parti_t::ptr> op2parti(g.ops_.size());
         do_partition(ctx, g, op_dep_matrix_t(g), op2parti);
@@ -150,6 +151,15 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx) {
                 "Only sinlge partition is expected, but got " << res.size());
         // reset new partition
         parti = res[0];
+        // validate optimization
+        if (!parti->validate_optimization()) {
+            // redo without optimization
+            op->attrs_.set("temp.no_optimize_op", true);
+            auto ret = fusible_op_get_func(op, ctx);
+            // remove temp attr
+            op->attrs_.remove("temp.no_optimize_op");
+            return ret;
+        }
     } else {
         parti = std::make_shared<mixed_parti_t>(ctx,
                 std::const_pointer_cast<sc_op>(copied->shared_from_this()),
@@ -157,6 +167,8 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx) {
     }
     auto mx_op = transform_pa_to_mixed_op(ctx, g, parti);
     mx_op->set_owner_graph(&g);
+    // copy logigcal id
+    mx_op->logical_op_id_ = op->logical_op_id_;
     return mx_op->get_func(ctx);
 }
 

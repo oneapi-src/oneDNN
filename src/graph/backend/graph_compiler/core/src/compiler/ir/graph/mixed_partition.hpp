@@ -194,9 +194,11 @@ public:
     // get shrinked info for buffer
     slice_range get_shrinked_info(const expr &buffer) const;
     // query buffer inplace and set hint for IR pass
-    void query_buffer_inplace();
-    // validate buffer information about inplace and shrink
-    void validate_buffer();
+    void query_inplace();
+    // calibrate buffer information about inplace and shrink
+    void calibrate_info();
+    // validate tensor2var buffer whether meet the requirement
+    bool validate_tsr2var() const;
     // count of buffer usage
     int use_count(const expr &buffer) const;
     // concat memory planning related
@@ -440,6 +442,9 @@ struct mixed_parti_t : fusion_partition_t {
 
     // query partition whether contains op from optimized sub graph
     bool is_optimized() const;
+
+    // check optimization whether legal or not
+    bool validate_optimization() const;
 
     // clear all contents of partition object
     void clear();

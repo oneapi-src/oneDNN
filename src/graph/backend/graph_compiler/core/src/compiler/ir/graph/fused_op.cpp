@@ -1641,14 +1641,14 @@ ir_module_ptr mixed_fuse_op_t::get_func(context_ptr ctx) {
         // push return to the end of body
         auto ret = builder::make_returns_unattached(true);
         func->body_.checked_as<stmts>()->seq_.emplace_back(ret);
-        modu = std::make_shared<ir_module_t>(ctx);
-        modu->add_func({func});
-        modu->set_entry_func_idx(0);
         func->name_ = op_name_;
         func->decl_->name_ = op_name_;
         func->name_ += "_" + std::to_string(logical_op_id_);
         func->decl_->name_ += "_" + std::to_string(logical_op_id_);
         schedule_loops(func->body_);
+        modu = std::make_shared<ir_module_t>(ctx);
+        modu->add_func({func});
+        modu->set_entry_func_idx(0);
     }
 
     return modu;
