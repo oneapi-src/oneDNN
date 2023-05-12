@@ -531,3 +531,140 @@ TEST(Graph, SetUserInputsOutputs) {
     ASSERT_EQ(out_lt.dims[0], 2);
     ASSERT_EQ(out_lt.dims[1], 2);
 }
+
+TEST(Graph, NonDAGGraph) {
+    /*
+          mm0 <--
+          |     |
+         relu1  |
+          |     |
+          mm2  /
+          |   /
+         relu3
+    */
+    using namespace dnnl::impl::graph;
+    using namespace dnnl::impl::graph::op_kind;
+    using namespace dnnl::graph::tests::unit::utils;
+
+    op_t mm0(0, op_kind::MatMul, "matmul_op");
+    op_t relu1(1, op_kind::ReLU, "relu_op");
+    op_t mm2(2, op_kind::MatMul, "matmul_op");
+    op_t relu3(3, op_kind::ReLU, "relu_op");
+
+    // prepare logical tensor
+    logical_tensor_t mm0_src = logical_tensor_init(0, {1, 2}, data_type::f32);
+    logical_tensor_t mm0_weight
+            = logical_tensor_init(1, {2, 1}, data_type::f32);
+    logical_tensor_t mm0_dst = logical_tensor_init(2, {1, 1}, data_type::f32);
+    logical_tensor_t relu1_dst = logical_tensor_init(3, {1, 1}, data_type::f32);
+
+    logical_tensor_t mm2_weight
+            = logical_tensor_init(4, {2, 1}, data_type::f32);
+    logical_tensor_t mm2_dst = logical_tensor_init(5, {1, 1}, data_type::f32);
+
+    mm0.add_input(mm0_src);
+    mm0.add_input(mm0_weight);
+    mm0.add_output(mm0_dst);
+    relu1.add_input(mm0_dst);
+    relu1.add_output(relu1_dst);
+    mm2.add_input(relu1_dst);
+    mm2.add_input(mm2_weight);
+    mm2.add_output(mm2_dst);
+    relu3.add_input(mm2_dst);
+    relu3.add_output(mm0_src);
+
+    graph_t g(engine_kind::cpu);
+    ASSERT_EQ(g.add_op(&mm0), status::success);
+    ASSERT_EQ(g.add_op(&relu1), status::success);
+    ASSERT_EQ(g.add_op(&mm2), status::success);
+    ASSERT_EQ(g.add_op(&relu3), status::success);
+
+    status_t status = g.finalize();
+    ASSERT_EQ(status, status::invalid_graph);
+}
+
+TEST(Graph, SingleOpGraph) {
+    /*                __
+        \ /          |   \  /
+         matmul  or  |  matmul
+           |         |____|
+    */
+    using namespace dnnl::impl::graph;
+    using namespace dnnl::impl::graph::op_kind;
+    using namespace dnnl::graph::tests::unit::utils;
+
+    std::vector<status_t> statuses = {status::success, status::invalid_graph};
+    for (const auto &expected_status : statuses) {
+        op_t mm(0, op_kind::MatMul, "matmul_op");
+        // prepare logical tensor
+        logical_tensor_t mm_src
+                = logical_tensor_init(0, {1, 2}, data_type::f32);
+        logical_tensor_t mm_weight
+                = logical_tensor_init(1, {2, 2}, data_type::f32);
+        logical_tensor_t mm_dst
+                = logical_tensor_init(2, {1, 2}, data_type::f32);
+
+        mm.add_input(mm_src);
+        mm.add_input(mm_weight);
+        if (expected_status == status::success) {
+            mm.add_output(mm_dst);
+        } else {
+            mm.add_output(mm_src);
+        }
+
+        graph_t g(engine_kind::cpu);
+        ASSERT_EQ(g.add_op(&mm), status::success);
+
+        status_t status = g.finalize();
+        ASSERT_EQ(status, expected_status);
+    }
+}
+
+TEST(Graph, DAGGraphWithNonDAGGraph) {
+    /*
+        mm0             mm2 <--
+         |     &&        |     |
+        relu1          relu3 __|
+    */
+    using namespace dnnl::impl::graph;
+    using namespace dnnl::impl::graph::op_kind;
+    using namespace dnnl::graph::tests::unit::utils;
+
+    op_t mm0(0, op_kind::MatMul, "matmul_op");
+    op_t relu1(1, op_kind::ReLU, "relu_op");
+    op_t mm2(2, op_kind::MatMul, "matmul_op");
+    op_t relu3(3, op_kind::ReLU, "relu_op");
+
+    // prepare logical tensor
+    logical_tensor_t mm0_src = logical_tensor_init(0, {1, 2}, data_type::f32);
+    logical_tensor_t mm0_weight
+            = logical_tensor_init(1, {2, 1}, data_type::f32);
+    logical_tensor_t mm0_dst = logical_tensor_init(2, {1, 1}, data_type::f32);
+    logical_tensor_t relu1_dst = logical_tensor_init(3, {1, 1}, data_type::f32);
+
+    logical_tensor_t mm2_src = logical_tensor_init(4, {1, 5}, data_type::f32);
+    logical_tensor_t mm2_weight
+            = logical_tensor_init(5, {5, 5}, data_type::f32);
+    logical_tensor_t mm2_dst = logical_tensor_init(6, {1, 5}, data_type::f32);
+
+    mm0.add_input(mm0_src);
+    mm0.add_input(mm0_weight);
+    mm0.add_output(mm0_dst);
+    relu1.add_input(mm0_dst);
+    relu1.add_output(relu1_dst);
+
+    mm2.add_input(mm2_src);
+    mm2.add_input(mm2_weight);
+    mm2.add_output(mm2_dst);
+    relu3.add_input(mm2_dst);
+    relu3.add_output(mm2_src);
+
+    graph_t g(engine_kind::cpu);
+    ASSERT_EQ(g.add_op(&mm0), status::success);
+    ASSERT_EQ(g.add_op(&relu1), status::success);
+    ASSERT_EQ(g.add_op(&mm2), status::success);
+    ASSERT_EQ(g.add_op(&relu3), status::success);
+
+    status_t status = g.finalize();
+    ASSERT_EQ(status, status::invalid_graph);
+}

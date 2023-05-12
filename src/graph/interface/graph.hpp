@@ -263,6 +263,10 @@ public:
     // Finalize the graph after finishing adding ops.
     graph::status_t finalize();
 
+    // Called during finalize(), run some graph analyze passes,
+    // e.g. DAG check.
+    graph::status_t analyze();
+
     // Get the finalization status of the graph.
     bool is_finalized() const { return finalized_; }
 

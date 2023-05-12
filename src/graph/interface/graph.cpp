@@ -28,6 +28,8 @@
 #include "graph/interface/graph.hpp"
 #include "graph/interface/partition.hpp"
 
+#include "graph/utils/pm/dag_check_pass.hpp"
+#include "graph/utils/pm/pass_manager.hpp"
 #include "graph/utils/utils.hpp"
 
 using namespace dnnl::impl::graph;
@@ -264,8 +266,22 @@ status_t dnnl_graph_graph::finalize() {
         }
     }
 
+    // run analysis passes before finalizing the graph
+    status_t ret = analyze();
+    if (ret != status::success) return ret;
+
     finalized_ = true;
     return status::success;
+}
+
+status_t dnnl_graph_graph::analyze() {
+    // run analysis passes before finalizing the graph
+    graph::pass::pass_registry_t analysis_pass_reg;
+    analysis_pass_reg.register_pass(
+            "common", "dag_check_pass", &pass::dag_check_pass_t::create);
+    graph::pass::pass_manager_t pm(analysis_pass_reg);
+    status_t ret = pm.run_passes(*this, "");
+    return ret;
 }
 
 // Deep copy a graph
