@@ -41,10 +41,10 @@ public:
     pass_type type_;
     bool enabled_; // for debug and tuning
     basic_graph_pass_t(pass_func func, const std::string &name,
-            const std::vector<std::string> &requires, pass_type type,
+            const std::vector<std::string> &required, pass_type type,
             bool enabled = true)
         : name_(name)
-        , requires_(requires)
+        , requires_(required)
         , func_(func)
         , type_(type)
         , enabled_(enabled) {}
@@ -53,7 +53,7 @@ public:
 using basic_graph_pass_ptr = std::shared_ptr<basic_graph_pass_t>;
 
 basic_graph_pass_ptr create_graph_pass(const std::string &name, pass_func func,
-        const std::vector<std::string> &requires, pass_type type,
+        const std::vector<std::string> &required, pass_type type,
         bool enabled = true);
 
 // Return: std::vector<std::shared_ptr>, represents all passes run order.

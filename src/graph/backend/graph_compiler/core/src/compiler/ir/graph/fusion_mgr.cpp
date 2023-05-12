@@ -442,6 +442,9 @@ void fusion_manager::do_prepare_fusion_data(fdata_map &fdmap) {
 
 struct buffer_reuse_identity {
     buffer_reuse_identity() = default;
+    buffer_reuse_identity(
+            const sc_data_type_t &dtype, const std::vector<expr> &shapes)
+        : dtype_(dtype), shapes_(shapes) {}
     sc_data_type_t dtype_;
     std::vector<expr> shapes_;
     bool operator==(const buffer_reuse_identity &other) const {
@@ -806,7 +809,7 @@ void fusion_manager::do_declare_tensor(fuse_state_t &fstate) {
             = [&](const expr &tsr, std::vector<expr> &shapes) {
                   auto tsr1 = tsr.checked_as<tensor>();
                   sc_data_type_t dtype = tsr1->elem_dtype_;
-                  auto id = buffer_reuse_identity {dtype, shapes};
+                  buffer_reuse_identity id {dtype, shapes};
                   auto it = buf_cnt_map.find(id);
                   if (it != buf_cnt_map.end()) {
                       it->second.push_back(tsr);

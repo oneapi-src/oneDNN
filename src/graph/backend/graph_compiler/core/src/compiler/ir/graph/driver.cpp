@@ -42,10 +42,10 @@ namespace gc {
 SC_MODULE(graph.driver)
 
 basic_graph_pass_ptr create_graph_pass(const std::string &name,
-        pass_func func_t, const std::vector<std::string> &requires,
+        pass_func func_t, const std::vector<std::string> &required,
         pass_type type, bool enabled) {
     return std::make_shared<basic_graph_pass_t>(
-            func_t, name, requires, type, enabled);
+            func_t, name, required, type, enabled);
 }
 
 static std::tuple<std::vector<basic_graph_pass_ptr>,
