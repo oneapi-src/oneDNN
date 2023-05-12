@@ -140,7 +140,8 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                                    "weight_channel_axis";
                     }
                 }
-                for (auto &child : node->get_outputs()[0]->uses_) {
+                auto uses = node->get_outputs()[0]->uses_;
+                for (auto &child : uses) {
                     auto cur_child = child;
                     auto cur_parent = node;
                     while (cur_child.second

@@ -73,7 +73,7 @@ struct combined_op_dispatch_key_t : public std::vector<op_dispatch_key_t>,
                                     public op_dispatch_key_base_t {
     combined_op_dispatch_key_t() = default;
     combined_op_dispatch_key_t(std::initializer_list<op_dispatch_key_t> keys)
-        : std::vector<op_dispatch_key_t>({keys}) {}
+        : std::vector<op_dispatch_key_t>(keys) {}
     combined_op_dispatch_key_t(std::vector<op_dispatch_key_t> &&keys)
         : std::vector<op_dispatch_key_t>(std::move(keys)) {}
     bool operator==(const combined_op_dispatch_key_t &other) const;

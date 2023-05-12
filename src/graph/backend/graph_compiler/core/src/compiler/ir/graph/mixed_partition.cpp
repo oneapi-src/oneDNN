@@ -3342,6 +3342,7 @@ static bool try_optimize_loop(mixed_parti_t *parti, sc_graph_t &sub_graph) {
         std::unordered_set<sc_op_ptr> reo_op_set;
         auto run_threads = runtime_config_t::get().get_num_threads();
         for (auto &op : ops) {
+            if (op->is_removed_) continue;
             if (op->isa<op_traits::maybe_split_optimized_t>()) {
                 std::vector<int> rd_axis;
                 if (auto rd_op = op->dyn_cast<reduce_op_t>()) {
