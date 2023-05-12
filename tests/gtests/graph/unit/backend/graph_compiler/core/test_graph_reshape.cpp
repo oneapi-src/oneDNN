@@ -363,7 +363,7 @@ TEST(GCCore_graph_reshape_cpp, TestSingleOptimizeMultipleUse) {
 }
 
 TEST(GCCore_graph_reshape_cpp, TestSingleExecution) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     sc_graph_t g;
 
     auto in = g.make_input({graph_tensor::make({112, 197})});

@@ -49,14 +49,14 @@ SC_MODULE(xbyakjit.register_allocation)
 std::atomic<int32_t> temp_index_(0);
 
 void prepare_virtual_reg(reg_allocator_t *allocator, virtual_reg_t *virt_reg,
-        const Xbyak::Reg &phy_reg, sc_data_type_t dtype) {
+        const Xbyak::Reg &phy_reg, sc_data_type_t dtype, bool is_avx512) {
     if (phy_reg.isNone()) {
-        virt_reg->set_type(get_virt_reg_type(dtype));
+        virt_reg->set_type(get_virt_reg_type(dtype, is_avx512));
         virt_reg->set_unassigned();
         virt_reg->add_weight(virt_reg->extra_weight());
     } else {
         auto &slots_map = allocator->slots_map();
-        virt_reg->set_type(get_virt_reg_type(dtype));
+        virt_reg->set_type(get_virt_reg_type(dtype, is_avx512));
         virt_reg->set_designated(slots_map.get_reg_index(phy_reg));
     }
     if (!virt_reg->live_range_.empty()) { allocator->enqueue(virt_reg); }
@@ -166,7 +166,7 @@ private:
             auto &param = params[i];
             auto &virt_reg = GET_VIRTUAL_REG(param);
             auto &initial_loc = func_iface_->param_locs_[i];
-            virt_reg.set_type(get_virt_reg_type(param->dtype_));
+            virt_reg.set_type(get_virt_reg_type(param->dtype_, false));
             if (initial_loc.get_type()
                     == abi_value_location::tag_type::REGISTER) {
                 Xbyak::Reg src_reg = initial_loc.get_register();
@@ -202,8 +202,11 @@ public:
     using xbyak_visitor_t::visit;
 
     pre_allocation_t(reg_allocator_t *allocator,
-            std::map<virtual_reg_t *, expr_c> &virt_reg_map)
-        : allocator_(allocator), virt_reg_map_(virt_reg_map) {}
+            std::map<virtual_reg_t *, expr_c> &virt_reg_map,
+            const runtime::cpu_flags_t &cpu_flags)
+        : allocator_(allocator)
+        , virt_reg_map_(virt_reg_map)
+        , cpu_flags_(cpu_flags) {}
 
     func_c operator()(func_c v) {
         call_analysis_t call_analysis(allocator_, call_index_set_);
@@ -221,7 +224,8 @@ public:
                 if (call_index_set_.enclosed_by(live_range)) {
                     virt_reg.set_preserved();
                 }
-                prepare_virtual_reg(allocator_, &virt_reg, phy_reg, v->dtype_);
+                prepare_virtual_reg(allocator_, &virt_reg, phy_reg, v->dtype_,
+                        cpu_flags_.fAVX512F);
             }
             return v;
         }
@@ -273,7 +277,7 @@ public:
 
     expr_c visit(constant_c v) override {
         auto &virt_reg = GET_VIRTUAL_REG(v);
-        virt_reg.set_type(get_virt_reg_type(v->dtype_));
+        virt_reg.set_type(get_virt_reg_type(v->dtype_, false));
         if (is_x86_simd(v->dtype_) || FORCE_SIMD_ENCODE(v)) {
             virt_reg.set_spilled();
         }
@@ -283,6 +287,7 @@ public:
 private:
     reg_allocator_t *allocator_;
     std::map<virtual_reg_t *, expr_c> &virt_reg_map_;
+    const runtime::cpu_flags_t &cpu_flags_;
     enclose_set_t call_index_set_;
 };
 
@@ -296,8 +301,11 @@ public:
     using xbyak_visitor_t::visit;
 
     spill_resolver_t(const live_range_t &spill_range,
-            std::vector<virtual_reg_t *> &virtual_regs)
-        : spill_range_(spill_range), virtual_regs_(virtual_regs) {}
+            std::vector<virtual_reg_t *> &virtual_regs,
+            const runtime::cpu_flags_t &cpu_flags)
+        : spill_range_(spill_range)
+        , virtual_regs_(virtual_regs)
+        , cpu_flags_(cpu_flags) {}
 
     func_c operator()(func_c v) {
         return xbyak_visitor_t::dispatch(std::move(v));
@@ -373,8 +381,6 @@ public:
     // avoid dispatch into index dependent tensor
     expr_c visit(tensor_c v) override { return v; }
 
-    // TODO(XXX): for_loop_c var spilled and begin/end/step
-    // spilled(non-constant)
     stmt_c visit(for_loop_c v) override {
         // if var spilled, spilled begin/end/step must load
         return resolve_spill(std::move(v));
@@ -683,7 +689,8 @@ private:
         new_var->temp_data() = xbyak_expr_data_t();
         // set virt_reg
         auto &new_virt_reg = GET_VIRTUAL_REG(new_var);
-        new_virt_reg.type_ = get_virt_reg_type(new_var->dtype_);
+        new_virt_reg.type_
+                = get_virt_reg_type(new_var->dtype_, cpu_flags_.fAVX512F);
         new_virt_reg.spill_weight_ = spill_weight_const::infinity;
         new_virt_reg.live_range_ = live_range_t(start, end);
         // add to new virtual_regs
@@ -701,7 +708,8 @@ private:
         new_tensor->temp_data() = xbyak_expr_data_t();
         // set virt_reg
         auto &new_virt_reg = GET_VIRTUAL_REG(new_tensor);
-        new_virt_reg.type_ = get_virt_reg_type(new_tensor->dtype_);
+        new_virt_reg.type_
+                = get_virt_reg_type(new_tensor->dtype_, cpu_flags_.fAVX512F);
         new_virt_reg.spill_weight_ = spill_weight_const::infinity;
         new_virt_reg.live_range_ = live_range_t(start, end);
         // add to new virtual_regs
@@ -751,6 +759,7 @@ private:
 
     const live_range_t &spill_range_;
     std::vector<virtual_reg_t *> &virtual_regs_;
+    const runtime::cpu_flags_t &cpu_flags_;
 
     enum class resolve_dst {
         none,
@@ -770,7 +779,8 @@ private:
 class register_allocation_impl_t : public reg_allocator_t {
 public:
     register_allocation_impl_t(const x86_64::target_profile_t &profile)
-        : reg_allocator_t(profile) {}
+        : reg_allocator_t(profile)
+        , cpu_flags_(profile.target_machine_.cpu_flags_) {}
 
     // Fuction pass for register_allocation_impl
     func_c operator()(func_c v) {
@@ -784,14 +794,14 @@ public:
 
     // Enqueue all virtual regs and prepare for spill insertion
     func_c pre_allocation(func_c v) {
-        pre_allocation_t pre_allocation(this, virt_reg_map_);
+        pre_allocation_t pre_allocation(this, virt_reg_map_, cpu_flags_);
         return pre_allocation(std::move(v));
     }
 
     // Check intrin format and create load/store
     void resolve_spill_impl(const live_range_t &spill_range,
             std::vector<virtual_reg_t *> &virtual_regs) override {
-        spill_resolver_t spill_resolver(spill_range, virtual_regs);
+        spill_resolver_t spill_resolver(spill_range, virtual_regs, cpu_flags_);
         func_ = spill_resolver(std::move(func_));
     }
 
@@ -820,6 +830,7 @@ public:
 private:
     func_c func_;
     std::map<virtual_reg_t *, expr_c> virt_reg_map_;
+    const runtime::cpu_flags_t &cpu_flags_;
 };
 
 func_c register_allocation_t::operator()(func_c v) {

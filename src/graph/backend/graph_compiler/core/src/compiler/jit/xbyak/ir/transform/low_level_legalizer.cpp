@@ -35,6 +35,9 @@ public:
     using ir_visitor_t::dispatch;
     using ir_visitor_t::visit;
 
+    low_level_legalizer_impl_t(const runtime::target_machine_t &target_machine)
+        : cpu_flags_(target_machine.cpu_flags_) {}
+
     expr_c visit(cast_c v) override {
         auto vv = ir_visitor_t::visit(std::move(v)).static_as<cast_c>();
         const auto src_dtype = vv->in_->dtype_;
@@ -107,6 +110,37 @@ public:
         return vv;
     }
 
+    expr_c visit(cmp_c v) override {
+        auto avx_uint_cmp = [this](cmp_c v) -> expr_c {
+            using sc_etype = sc_expr_type;
+            const auto t = v->node_type_;
+            auto l = dispatch(v->l_);
+            auto r = dispatch(v->r_);
+            switch (t) {
+                case sc_etype::cmp_eq: return transform_uint_eq(l, r);
+                case sc_etype::cmp_lt: return transform_uint_lt(l, r);
+                case sc_etype::cmp_le: return transform_uint_le(l, r);
+                case sc_etype::cmp_ne: return transform_uint_ne(l, r);
+                case sc_etype::cmp_ge: return transform_uint_ge(l, r);
+                case sc_etype::cmp_gt: return transform_uint_gt(l, r);
+                default: COMPILE_ASSERT(false, "Invalid compare type: " << t);
+            }
+            return v;
+        };
+        // AVX2 uint have no cmp other than EQ,
+        // TODO(xxx): AVX2 sint have no cmp other than EQ/GT
+        const auto dtype = v->l_->dtype_;
+        if (!cpu_flags_.fAVX512F && dtype.lanes_ > 1) {
+            const auto categ = get_etype_category(dtype);
+            switch (categ) {
+                case type_category::CATE_UINT: return avx_uint_cmp(v);
+                default: break; // No need to transform.
+            }
+        }
+        //
+        return ir_visitor_t::visit(std::move(v));
+    }
+
     using make_unary_f = expr (*)(const expr_c &);
     using make_binary_f = expr (*)(const expr_c &, const expr_c &);
 
@@ -121,11 +155,33 @@ public:
         return builder::make_cast(dst_dtype, //
                 make_reduce(builder::make_cast(type_to_f32, src)));
     }
+
+    // Transform for AVX2 uint compare
+    expr_c transform_uint_eq(const expr_c &l, const expr_c &r) {
+        return builder::make_cmp_eq(l, r);
+    }
+    expr_c transform_uint_ne(const expr_c &l, const expr_c &r) {
+        return builder::make_logic_not(builder::make_cmp_eq(l, r));
+    }
+    expr_c transform_uint_ge(const expr_c &l, const expr_c &r) {
+        return builder::make_cmp_eq(builder::make_max(l, r), l);
+    }
+    expr_c transform_uint_le(const expr_c &l, const expr_c &r) {
+        return transform_uint_ge(r, l);
+    }
+    expr_c transform_uint_gt(const expr_c &l, const expr_c &r) {
+        return builder::make_logic_not(transform_uint_le(l, r));
+    }
+    expr_c transform_uint_lt(const expr_c &l, const expr_c &r) {
+        return transform_uint_gt(r, l);
+    }
+
+private:
+    const runtime::cpu_flags_t &cpu_flags_;
 };
 
 func_c low_level_legalizer_t::operator()(func_c v) {
-    low_level_legalizer_impl_t low_level_legalizer;
-
+    low_level_legalizer_impl_t low_level_legalizer(target_machine_);
     return low_level_legalizer.dispatch(std::move(v));
 }
 

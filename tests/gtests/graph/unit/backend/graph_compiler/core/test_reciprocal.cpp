@@ -33,7 +33,7 @@ using namespace dnnl::impl::graph::gc;
 static bool verbose = false;
 
 static void check_reciprocal(const sc_dims &input_dims) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     sc_graph_t g;
     auto ins = g.make_input({graph_tensor::make(input_dims)});
     auto op = g.make("reciprocal", ins->get_outputs(), {}, {});

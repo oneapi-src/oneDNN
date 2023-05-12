@@ -42,7 +42,7 @@ void check_conv_fwd_correctness(conv_fwd_config_t cfg,
         const sc_dims &input_dims, const sc_dims &weight_dims,
         const sc_dims &stride, const sc_dims &padding, bool fuse_bias = false,
         bool default_cfg = false) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     COMPILE_ASSERT(input_dims.size() == 5,
             "input_dims is expected to be 5D tensor, but got "
                     << input_dims.size() << "D.");
@@ -169,7 +169,7 @@ void check_conv_fwd_correctness(conv_fwd_config_t cfg,
 
 void check_conv_bwd_d_correctness(int N, int K, int C, int D, int H, int W,
         int KD, int R, int S, int stride, int padding) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     sc_graph_t mgr;
     std::vector<sc_op_ptr> fuse_arg_ops;
     sc_dims stride_arr = {stride, stride, stride};
@@ -226,7 +226,7 @@ void check_conv_bwd_d_correctness(int N, int K, int C, int D, int H, int W,
 
 void check_conv_bwd_w_correctness(int N, int K, int C, int D, int H, int W,
         int KD, int R, int S, int stride, int padding) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     sc_graph_t mgr;
     std::vector<sc_op_ptr> fuse_arg_ops;
     sc_dims stride_arr = {stride, stride, stride};

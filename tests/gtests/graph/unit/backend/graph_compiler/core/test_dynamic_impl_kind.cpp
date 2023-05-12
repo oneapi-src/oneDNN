@@ -207,7 +207,7 @@ public:
 };
 
 TEST(GCCore_dynamic_impl_kind_cpp, TestImplKindMatmulCoreExec) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     sc_graph_t g;
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     auto in_a = g.make_input(

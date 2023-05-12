@@ -17,6 +17,7 @@
 #ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_IR_XBYAK_EXPR_HPP
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_IR_XBYAK_EXPR_HPP
 
+#include <string>
 #include <vector>
 
 #include <compiler/ir/sc_expr.hpp>
@@ -39,8 +40,6 @@ namespace xbyak {
 #define GET_PHYSICAL_REG(EXPR) GET_EXPR_DATA(EXPR).physical_reg_
 #define GET_VIRTUAL_REG(EXPR) GET_EXPR_DATA(EXPR).virtual_reg_
 #define GET_LIVE_RANGE(EXPR) GET_EXPR_DATA(EXPR).virtual_reg_.live_range_
-
-#define GET_VIRT_REG_TYPE(EXPR) get_virt_reg_type((EXPR)->dtype_)
 
 struct xbyak_stmt_data_t {
     bool optimized_out_ = false;
@@ -98,6 +97,7 @@ enum class xbyak_intrin_type {
     rsqrt,
     fmadd,
     blend,
+    pshuffle,
     shuffle,
     permute,
     gather,
@@ -167,17 +167,31 @@ std::ostream &operator<<(std::ostream &os, const xbyak_condition t);
  * */
 struct xbyak_intrin_modifier {
     xbyak_condition cond_code_;
+    sc_data_type_t type_hint_;
     expr cond_mask_;
     bool zero_mask_;
     bool enabled_;
     xbyak_intrin_modifier()
         : cond_code_(xbyak_condition::none)
+        , type_hint_(datatypes::undef)
         , zero_mask_(false)
         , enabled_(false) {}
-    xbyak_intrin_modifier(xbyak_condition cond)
-        : cond_code_(cond), zero_mask_(false), enabled_(true) {}
-    xbyak_intrin_modifier(expr cond, bool zero = false)
-        : cond_mask_(cond), zero_mask_(zero), enabled_(true) {}
+    xbyak_intrin_modifier(sc_data_type_t type_hint)
+        : cond_code_(xbyak_condition::none)
+        , type_hint_(type_hint)
+        , zero_mask_(false)
+        , enabled_(true) {}
+    xbyak_intrin_modifier(
+            xbyak_condition cond, sc_data_type_t type_hint = datatypes::undef)
+        : cond_code_(cond)
+        , type_hint_(type_hint)
+        , zero_mask_(false)
+        , enabled_(true) {}
+    xbyak_intrin_modifier(expr mask, bool zero = false)
+        : type_hint_(datatypes::undef)
+        , cond_mask_(mask)
+        , zero_mask_(zero)
+        , enabled_(true) {}
 };
 
 /**
@@ -210,7 +224,8 @@ expr make_xbyak_intrin(sc_data_type_t dtype, const std::vector<expr> &values,
 /**
  * Makes a xbyak reg node
  * */
-expr make_physical_reg(sc_data_type_t dtype, const Xbyak::Reg &reg);
+expr make_physical_reg(sc_data_type_t dtype, const Xbyak::Reg &reg,
+        const std::string &post = "");
 
 } // namespace xbyak
 } // namespace gc

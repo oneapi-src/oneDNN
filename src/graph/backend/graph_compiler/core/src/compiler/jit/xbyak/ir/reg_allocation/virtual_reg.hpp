@@ -197,8 +197,9 @@ struct virtual_reg_t {
     virtual_reg_t(virt_reg_type type) : type_(type) {}
 };
 
-inline virt_reg_type get_virt_reg_type(const sc_data_type_t &t) {
-    if (t.type_code_ == sc_data_etype::BOOLEAN && t.lanes_ > 1) {
+inline virt_reg_type get_virt_reg_type(
+        const sc_data_type_t &t, bool is_avx512) {
+    if (is_avx512 && t.type_code_ == sc_data_etype::BOOLEAN && t.lanes_ > 1) {
         return virt_reg_type::mask_reg;
     } else if (is_x86_simd(t)) {
         return virt_reg_type::fp_reg;

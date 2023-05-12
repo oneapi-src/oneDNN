@@ -44,20 +44,36 @@ public:
     static INLINE vec_f32x8 load_aligned(const float *p) {
         return _mm256_load_ps(p);
     }
-#ifdef __AVX512F__
-    static INLINE vec_f32x8 mask_load(const float *p, __mmask8 mask) {
-        return _mm256_mask_loadu_ps(vec_f32x8(0.f).v, mask, p);
-    }
-#endif
     static INLINE void store(vec_f32x8 v, float *p) {
         _mm256_storeu_ps(p, v.v);
     }
     static INLINE void store_aligned(vec_f32x8 v, float *p) {
         _mm256_store_ps(p, v.v);
     }
+
 #ifdef __AVX512F__
+    static INLINE vec_f32x8 mask_load(const float *p, __mmask8 mask) {
+        return _mm256_mask_loadu_ps(vec_f32x8(0.f).v, mask, p);
+    }
     static INLINE void mask_store(float *p, __mmask8 mask, vec_f32x8 const &a) {
         return _mm256_mask_storeu_ps(p, mask, a.v);
+    }
+#elif __AVX2__
+    static INLINE vec_f32x8 mask_load(const float *p, uint32_t mask) {
+        const __m256i table(_mm256_setr_epi32(1 << 0, 1 << 1, 1 << 2, 1 << 3,
+                1 << 4, 1 << 5, 1 << 6, 1 << 7));
+        __m256i vmask(_mm256_set1_epi32(mask));
+        vmask = _mm256_and_si256(vmask, table);
+        vmask = _mm256_cmpeq_epi32(vmask, table);
+        return _mm256_maskload_ps(p, vmask);
+    }
+    static INLINE void mask_store(float *p, uint32_t mask, vec_f32x8 const &a) {
+        const __m256i table(_mm256_setr_epi32(1 << 0, 1 << 1, 1 << 2, 1 << 3,
+                1 << 4, 1 << 5, 1 << 6, 1 << 7));
+        __m256i vmask(_mm256_set1_epi32(mask));
+        vmask = _mm256_and_si256(vmask, table);
+        vmask = _mm256_cmpeq_epi32(vmask, table);
+        return _mm256_maskstore_ps(p, vmask, a.v);
     }
 #endif
 };
@@ -119,8 +135,28 @@ INLINE vec_f32x8 sc_select(
     return vec_f32x8::load(buf);
 }
 
+INLINE unsigned char operator==(vec_f32x8 const &a, vec_f32x8 const &b) {
+    auto ret = _mm256_cmp_ps(a.v, b.v, _CMP_EQ_OQ);
+    return _mm256_movemask_ps(ret);
+}
+INLINE unsigned char operator!=(vec_f32x8 const &a, vec_f32x8 const &b) {
+    auto ret = _mm256_cmp_ps(a.v, b.v, _CMP_NEQ_OQ);
+    return _mm256_movemask_ps(ret);
+}
+INLINE unsigned char operator>(vec_f32x8 const &a, vec_f32x8 const &b) {
+    auto ret = _mm256_cmp_ps(a.v, b.v, _CMP_GT_OQ);
+    return _mm256_movemask_ps(ret);
+}
+INLINE unsigned char operator<(vec_f32x8 const &a, vec_f32x8 const &b) {
+    auto ret = _mm256_cmp_ps(a.v, b.v, _CMP_LT_OQ);
+    return _mm256_movemask_ps(ret);
+}
 INLINE unsigned char operator>=(vec_f32x8 const &a, vec_f32x8 const &b) {
     auto ret = _mm256_cmp_ps(a.v, b.v, _CMP_GE_OQ);
+    return _mm256_movemask_ps(ret);
+}
+INLINE unsigned char operator<=(vec_f32x8 const &a, vec_f32x8 const &b) {
+    auto ret = _mm256_cmp_ps(a.v, b.v, _CMP_LE_OQ);
     return _mm256_movemask_ps(ret);
 }
 #endif
@@ -153,6 +189,10 @@ INLINE vec_f32x8 sc_sqrt(vec_f32x8 const &a) {
 }
 INLINE vec_f32x8 sc_rsqrt(vec_f32x8 const &a) {
     return _mm256_rsqrt_ps(a.v);
+}
+
+INLINE vec_f32x8 sc_abs(vec_f32x8 const &a) {
+    return _mm256_andnot_ps(_mm256_set1_ps(-0.0f), a.v);
 }
 
 INLINE float sc_reduce_add(vec_f32x8 const &a) {

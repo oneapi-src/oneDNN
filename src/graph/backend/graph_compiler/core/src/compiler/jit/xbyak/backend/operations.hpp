@@ -197,6 +197,24 @@ namespace xbyak {
         (GEN).INS(OP_1.get_xmm(), OP_2.get_xmm(), OP_3.get_operand()); \
     }
 
+#define AVX_X_M_X(GEN, INS, OP_1, OP_2, OP_3) \
+    { \
+        COMPILE_ASSERT(OP_1.is_xyz() && OP_2.is_addr() && OP_3.is_xyz(), \
+                "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2 << ", " \
+                                    << OP_3); \
+        (GEN).INS(OP_1.get_xmm(), OP_2.get_addr(), OP_3.get_xmm()); \
+    }
+
+#define AVX_X_X_XM_X(GEN, INS, OP_1, OP_2, OP_3, OP_4) \
+    { \
+        COMPILE_ASSERT(OP_1.is_xyz() && OP_2.is_xyz() && OP_3.is_x_m() \
+                        && OP_4.is_xyz(), \
+                "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2 << ", " \
+                                    << OP_3 << ", " << OP_4); \
+        (GEN).INS(OP_1.get_xmm(), OP_2.get_xmm(), OP_3.get_operand(), \
+                OP_4.get_xmm()); \
+    }
+
 #define AVX_XM_Y_I(GEN, INS, OP_1, OP_2, OP_3) \
     { \
         COMPILE_ASSERT(OP_1.is_x_m() && OP_2.is_xyz() && OP_3.is_imm(), \
@@ -254,6 +272,19 @@ namespace xbyak {
         } else { \
             COMPILE_ASSERT(false, \
                     "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2); \
+        } \
+    }
+
+#define AVX_XM_X_XM(GEN, INS, OP_1, OP_2, OP_3) \
+    { \
+        /*  */ if (OP_1.is_xyz() && OP_2.is_xyz() && OP_3.is_addr()) { \
+            (GEN).INS(OP_1.get_xmm(), OP_2.get_xmm(), OP_3.get_addr()); \
+        } else if (OP_1.is_addr() && OP_2.is_xyz() && OP_3.is_xyz()) { \
+            (GEN).INS(OP_1.get_addr(), OP_2.get_xmm(), OP_3.get_xmm()); \
+        } else { \
+            COMPILE_ASSERT(false, \
+                    "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2 \
+                                        << ", " << OP_3); \
         } \
     }
 

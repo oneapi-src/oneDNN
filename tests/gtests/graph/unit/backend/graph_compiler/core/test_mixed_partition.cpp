@@ -712,7 +712,7 @@ TEST(GCCore_graph_mixed_partition_cpp, TestaxisBinding2) {
 out1 = x1 * w, out2 = x2 * w
 */
 TEST(GCCore_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy0) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(16);
 
@@ -788,7 +788,7 @@ TEST(GCCore_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy0) {
 out1 = x1 * w1, out2 = x1 * w2
 */
 TEST(GCCore_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy1) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(16);
 
@@ -892,7 +892,7 @@ static ir_module_ptr get_two_consective_mmm(
 }
 
 TEST(GCCore_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy2) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(16);
 
@@ -999,7 +999,7 @@ static ir_module_ptr get_three_consective_mmm(int M, int K1, int K2, int K3,
 }
 
 TEST(GCCore_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy3) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(56);
 
@@ -1098,7 +1098,7 @@ TEST(GCCore_graph_mixed_partition_cpp, SplitOuterMostLoopWithTensorShrink) {
 }
 
 TEST(GCCore_graph_mixed_partition_cpp, ParitialReduceMatmulTensorViewShrink) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(16);
     int M = 256, K = 256, N = 320;
@@ -1431,7 +1431,7 @@ TEST(GCCore_graph_mixed_partition_cpp, TestGraphMarkInplaceHint8) {
 }
 
 TEST(GCCore_graph_mixed_partition_cpp, TestUserDefinedShrintTensor) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     sc_graph_t graph;
     auto ctx = get_test_ctx();
     auto input = graph.make_input({graph_tensor::make({56, 16, 196})});

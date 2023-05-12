@@ -62,7 +62,7 @@ static std::vector<std::unique_ptr<jit_engine_t>> get_engines() {
     ret.emplace_back(utils::make_unique<llvm_jit>());
 #endif
 #if SC_BUILTIN_JIT_ENABLED
-    if (get_default_context()->machine_.cpu_flags_.fAVX512F) {
+    if (get_default_context()->machine_.cpu_flags_.fAVX2) {
         ret.emplace_back(utils::make_unique<xbyak_jit>());
     }
 #endif
@@ -174,6 +174,9 @@ TEST(GCCore_jit_cpp, TestJIT) {
 }
 
 TEST(GCCore_jit_cpp, TestJITCast) {
+    // TODO(longsheng): on sse-only machine:
+    // LLVM ERROR: Do not know how to split this operator's operand!
+    REQUIRE_AVX2();
     ir_builder_t builder;
     auto make_module = [](int lanes) {
         _function_(datatypes::s32, aaa, _arg_("buf", datatypes::f32, {1024}),

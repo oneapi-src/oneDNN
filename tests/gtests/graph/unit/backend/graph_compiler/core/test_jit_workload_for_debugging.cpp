@@ -50,8 +50,9 @@ static map<string, shared_ptr<jit_engine_t>> get_engines() {
     ret["cfake_jit"] = make_shared<cfake_jit>();
 #endif
 #if SC_BUILTIN_JIT_ENABLED
-    if (get_default_context()->machine_.cpu_flags_.fAVX512F)
+    if (get_default_context()->machine_.cpu_flags_.fAVX2) {
         ret["xbyak_jit"] = make_shared<xbyak_jit>();
+    }
 #endif
     return ret;
 }

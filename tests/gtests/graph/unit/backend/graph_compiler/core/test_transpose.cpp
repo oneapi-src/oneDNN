@@ -76,7 +76,7 @@ static std::vector<T> ref_transpose(const std::vector<T> &data,
 
 void transpose_test(const sc_dims &input_dims, const std::vector<int> &order,
         const std::vector<int> &axis) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     sc_graph_t graph;
     auto in = graph_tensor::make(
             input_dims, sc_data_format_t(), datatypes::f32);

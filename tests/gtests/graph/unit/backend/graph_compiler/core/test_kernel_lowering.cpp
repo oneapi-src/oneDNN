@@ -21,6 +21,7 @@
 #include <compiler/ir/transform/cpu/kernel_lower.hpp>
 
 #include <iostream>
+#include "test_utils.hpp"
 #include "gtest/gtest.h"
 
 using namespace dnnl::impl::graph::gc;
@@ -639,6 +640,7 @@ TEST(GCCore_kernel_lowering_cpp, TestBrgemmSharedBdmask) {
 }
 
 TEST(GCCore_kernel_lowering_cpp, TestRangeKernelLowering) {
+    REQUIRE_AVX2();
     auto backend = get_default_context()->flags_.brgemm_backend_;
     if (backend != scflags_t::brgemm_t::dnnl) { GTEST_SKIP(); }
     builder::ir_builder_t builder;

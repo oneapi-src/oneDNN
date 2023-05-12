@@ -92,7 +92,7 @@ TEST(GCCore_graph_horizontal_merge_cpp, TestGraphHorizontalMerge) {
     args.insert(args.end(), outs.begin(), outs.end());
     graph_driver(graph1);
     ir_module_ptr f = lower_graph(get_default_context(), graph1, args);
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     EXPECT_NO_FATAL_FAILURE(
             jit_engine_t::make(get_default_context())->get_entry_func(f));
 }

@@ -68,7 +68,8 @@ sequential_module_pass_t get_xbyak_precodegen_passes(
 
     ret.emplace_back(utils::make_unique<constant_folder_t>());
     ret.emplace_back(module_function_pass_t::make<module_var_resolver_t>());
-    ret.emplace_back(module_function_pass_t::make<low_level_legalizer_t>());
+    ret.emplace_back(
+            module_function_pass_t::make<low_level_legalizer_t>(ctx->machine_));
     ret.emplace_back(module_function_pass_t::make<constant_optimizer_t>());
     ret.emplace_back(
             module_function_pass_t::make<simple_loop_function_motion_t>());
@@ -121,8 +122,8 @@ xbyak_jit::~xbyak_jit() = default;
 
 std::shared_ptr<jit_module> xbyak_jit::make_jit_module(
         const_ir_module_ptr ir_mod, bool generate_wrapper) {
-    COMPILE_ASSERT(ir_mod->ctx_->machine_.cpu_flags_.fAVX512F,
-            "Builtin codegen currently only support AVX512");
+    COMPILE_ASSERT(ir_mod->ctx_->machine_.cpu_flags_.fAVX2,
+            "Builtin codegen currently only support AVX2 and AVX512");
     assert(ir_mod);
     COMPILE_ASSERT(ir_mod->ctx_->flags_.ssa_passes_ == false,
             "SC_SSA_PASSES is redundant for xbyak backend.");

@@ -34,7 +34,7 @@ static const int C = 16, C0 = 16, C1 = 32, C2 = 64; // for concat at axis #2
 static const int D = 32;
 
 TEST(GCCore_concat_op_t_cpp, FourDimsConcatAxis0) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     std::vector<float> input0_data(A0 * B * C * D);
     test_utils::fill_data(&input0_data[0], A0 * B * C * D);
     std::vector<float> input1_data(A1 * B * C * D);
@@ -138,7 +138,7 @@ static std::vector<float> calc_ref_output(std::vector<float> &input0_data,
 }
 
 TEST(GCCore_concat_op_t_cpp, FourDimsConcatAxis2) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     std::vector<float> input0_data(A * B * C0 * D);
     test_utils::fill_data(&input0_data[0], A * B * C0 * D);
     std::vector<float> input1_data(A * B * C1 * D);
@@ -186,7 +186,7 @@ TEST(GCCore_concat_op_t_cpp, FourDimsConcatAxis2) {
 }
 
 TEST(GCCore_concat_op_t_cpp, ConcatManagedMatmulAxis0) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     ctx->flags_.mixed_fusion_ = true;
     builder::ir_builder_t bld;
@@ -264,7 +264,7 @@ TEST(GCCore_concat_op_t_cpp, ConcatManagedMatmulAxis0) {
 }
 
 TEST(GCCore_concat_op_t_cpp, ConcatManagedMatmulAxis1) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     ctx->flags_.mixed_fusion_ = true;
     builder::ir_builder_t bld;
@@ -341,7 +341,7 @@ input ----- conv3x3 relu ------ concat -- output
          -- avg_pool ------
 */
 TEST(GCCore_concat_op_t_cpp, InceptionLikeTopoConv) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(16);
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
@@ -422,7 +422,7 @@ TEST(GCCore_concat_op_t_cpp, InceptionLikeTopoConv) {
 }
 
 TEST(GCCore_concat_op_t_cpp, ConcatPermuteConcat) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(16);
     auto ctx = std::make_shared<context_t>(*get_test_ctx());

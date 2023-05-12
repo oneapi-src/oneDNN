@@ -100,6 +100,13 @@ private:
     //--------------------------------------------------------------------------
     // Member variables
     //--------------------------------------------------------------------------
+    enum class simd_level {
+        sse = 0,
+        avx,
+        avx2,
+        avx512,
+    } simd_level_;
+
     const xbyak_jit &xje_;
 
     /// A pointer to the module that's being lowered.
@@ -107,6 +114,7 @@ private:
     const ir_module_t *p_ir_mod_;
 
     const x86_64::target_profile_t &profile_;
+    const runtime::cpu_flags_t &cpu_flags_;
 
     std::shared_ptr<xbyak_jit_generator> gen_;
     std::unique_ptr<location_manager> location_manager_;
@@ -226,18 +234,16 @@ private:
             const operand &op_rhs, const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_bit_xor(const operand &op_dst, const operand &op_lhs,
             const operand &op_rhs, const x86_64::cpu_data_type &cpu_dtype);
-    void handle_avx_ceil(const operand &op_dst, const operand &op_src,
-            const x86_64::cpu_data_type &cpu_dtype);
-    void handle_avx_floor(const operand &op_dst, const operand &op_src,
-            const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_round(const operand &op_lhs, const operand &op_rhs,
-            const x86_64::cpu_data_type &cpu_dtype);
+            const x86_64::cpu_data_type &cpu_dtype, const int64_t &imm);
     void handle_avx_sqrt(const operand &op_dst, const operand &op_src,
             const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_rsqrt(const operand &op_dst, const operand &op_src,
             const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_fmadd(const operand &op_dst, const operand &op_mul,
             const operand &op_add, const x86_64::cpu_data_type &cpu_dtype);
+    void handle_avx_pshuffle(const operand &op_dst, const operand &op_lhs,
+            const operand &op_rhs, const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_shuffle(const operand &op_dst, const operand &op_lhs,
             const operand &op_rhs, const operand &op_imm,
             const x86_64::cpu_data_type &cpu_dtype);

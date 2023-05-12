@@ -42,7 +42,7 @@
 using namespace dnnl::impl::graph::gc;
 
 TEST(GCCore_pre_padding_test, TestPre_Padding_Standalone) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_default_context());
     ctx->flags_.mixed_fusion_ = true;
     sc_graph_t g;
@@ -76,7 +76,7 @@ TEST(GCCore_pre_padding_test, TestPre_Padding_Standalone) {
 
 TEST(GCCore_pre_padding_test, TestPre_Padding_Graph) {
     REQUIRE_AMX();
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_default_context());
     ctx->flags_.mixed_fusion_ = true;
     sc_graph_t g;
@@ -131,7 +131,7 @@ TEST(GCCore_pre_padding_test, TestPre_Padding_Graph) {
 }
 
 TEST(GCCore_pre_padding_test, TestPre_Padding_Conv_Padding_Reorder) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_default_context());
     ctx->flags_.mixed_fusion_ = true;
     sc_graph_t g;
@@ -203,7 +203,7 @@ TEST(GCCore_pre_padding_test, TestPre_Padding_Conv_Padding_Reorder) {
 }
 
 TEST(GCCore_pre_padding_test, TestPre_Padding_Conv_Padding) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_default_context());
     ctx->flags_.mixed_fusion_ = true;
     sc_graph_t g;
@@ -294,7 +294,7 @@ TEST(GCCore_pre_padding_test, TestPre_Padding_Conv_Padding) {
 }
 
 TEST(GCCore_pre_padding_test, TestPre_Padding_Fuse) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_default_context());
     ctx->flags_.mixed_fusion_ = true;
     sc_graph_t g;

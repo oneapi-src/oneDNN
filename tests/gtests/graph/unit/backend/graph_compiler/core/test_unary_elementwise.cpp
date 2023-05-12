@@ -28,7 +28,7 @@ static float alpha = 0.35f;
 static float thebeta = 1.47f;
 
 TEST(GCCore_unary_elemwise, TestStridedRelu) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     sc_dims input_dims = {128, 64, 56, 56};
     sc_graph_t g;
     auto ins = g.make_input({graph_tensor::make(input_dims)});
@@ -137,7 +137,7 @@ static void check_qnan_log(const sc_dims &input_dims) {
 static std::vector<sc_dims> test_shapes
         = {{16, 63}, {2, 8, 4}, {4, 16, 256, 1024}};
 TEST(GCCore_unary_elementwise_test, TestAbsOp) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     for (auto &shape : test_shapes) {
         check_unary_elementwise<float>("abs", shape, ref_abs);
         check_unary_elementwise<bf16_t>("abs", shape, ref_abs);
@@ -151,7 +151,7 @@ void ref_elu_func(T *out, const T *in, size_t size) {
     func(out, in, size);
 }
 TEST(GCCore_unary_elementwise_test, TestEluOp) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     for (auto &shape : test_shapes) {
         check_unary_elementwise<float>("elu", shape, ref_elu_func);
         check_unary_elementwise<bf16_t>("elu", shape, ref_elu_func);
@@ -165,7 +165,7 @@ void ref_hardswish_func(T *out, const T *in, size_t size) {
     func(out, in, size);
 }
 TEST(GCCore_unary_elementwise_test, TestHardSwishOp) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     for (auto &shape : test_shapes) {
         check_unary_elementwise<float>("hardswish", shape, ref_hardswish_func);
         check_unary_elementwise<bf16_t>("hardswish", shape, ref_hardswish_func);
@@ -173,7 +173,7 @@ TEST(GCCore_unary_elementwise_test, TestHardSwishOp) {
 }
 
 TEST(GCCore_unary_elementwise_test, TestLogOp) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     for (auto &shape : test_shapes) {
         check_unary_elementwise<float>("log", shape, ref_log);
         check_unary_elementwise<bf16_t>("log", shape, ref_log);
@@ -182,7 +182,7 @@ TEST(GCCore_unary_elementwise_test, TestLogOp) {
 }
 
 TEST(GCCore_unary_elementwise_test, TestMishOp) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     for (auto &shape : test_shapes) {
         check_unary_elementwise<float>("mish", shape, ref_mish);
         check_unary_elementwise<bf16_t>("mish", shape, ref_mish);
@@ -196,7 +196,7 @@ void ref_soft_plus_func(T *out, const T *in, size_t size) {
     func(out, in, size);
 }
 TEST(GCCore_unary_elementwise_test, TestSoftPlusOp) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     for (auto &shape : test_shapes) {
         check_unary_elementwise<float>("soft_plus", shape, ref_soft_plus_func);
         check_unary_elementwise<bf16_t>("soft_plus", shape, ref_soft_plus_func);
@@ -204,7 +204,7 @@ TEST(GCCore_unary_elementwise_test, TestSoftPlusOp) {
 }
 
 TEST(GCCore_unary_elementwise_test, TestSquareOp) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     for (auto &shape : test_shapes) {
         check_unary_elementwise<float>("square", shape, ref_square);
         check_unary_elementwise<bf16_t>("square", shape, ref_square);
@@ -218,7 +218,7 @@ void ref_swish_func(T *out, const T *in, size_t size) {
     func(out, in, size);
 }
 TEST(GCCore_unary_elementwise_test, TestSwishOp) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     for (auto &shape : test_shapes) {
         check_unary_elementwise<float>("swish", shape, ref_swish_func);
         check_unary_elementwise<bf16_t>("swish", shape, ref_swish_func);
@@ -226,7 +226,7 @@ TEST(GCCore_unary_elementwise_test, TestSwishOp) {
 }
 
 TEST(GCCore_unary_elementwise_test, TestTanhOp) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     for (auto &shape : test_shapes) {
         check_unary_elementwise<float>("tanh", shape, ref_tanh);
         check_unary_elementwise<bf16_t>("tanh", shape, ref_tanh);
@@ -234,7 +234,7 @@ TEST(GCCore_unary_elementwise_test, TestTanhOp) {
 }
 
 TEST(GCCore_unary_elementwise_test, TestErfOp) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     for (auto &shape : test_shapes) {
         check_unary_elementwise<float>("erf", shape, ref_erf);
         check_unary_elementwise<bf16_t>("erf", shape, ref_erf);
@@ -242,7 +242,8 @@ TEST(GCCore_unary_elementwise_test, TestErfOp) {
 }
 
 TEST(GCCore_unary_elementwise_test, TestPowOp) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2(); // SSE no vgatherdps
+    BUILTIN_REQUIRE_AVX512(); // AVX2 accuracy fail (rsqrt)
     std::vector<float> beta_candidates
             = {thebeta, 0.f, 1.f, 2.f, 3.f, 0.5f, -0.5f, -1.f};
     auto old_beta = thebeta;

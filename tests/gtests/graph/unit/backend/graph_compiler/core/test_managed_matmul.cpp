@@ -172,7 +172,7 @@ void run_mmm_test(const std::shared_ptr<jit_function_t> &fptr, int M, int N,
 static void check_managed_matmul(const managed_gemm_params_t &param,
         const managed_matmul_core_config_t &cfg, bool default_cfg = false,
         bool fuse_sigmoid = false) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     const sc_dims &input_dims = param.input_dims_;
     const sc_dims &weight_dims = param.weight_dims_;
     const sc_dims &out_dims = param.out_dims_;

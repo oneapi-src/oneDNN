@@ -42,7 +42,7 @@ static void do_test_reduce_op(const sc_dims &in_shape,
         int out_size, sc_data_type_t in_dtype,
         const std::function<std::vector<float>(std::vector<float> &)>
                 &ref_func) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     sc_graph_t graph;
     auto input = graph.make_input(
             {graph_tensor::make(in_shape, sc_data_format_t(), in_dtype)});
@@ -324,7 +324,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp13) {
 
 // test reduce on all axis with fusing enabled
 TEST(GCCore_reduce_op_cpp, TestReduceOpFuse) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     sc_graph_t graph;
     sc_dims in_shape = {3, 3, 3, 3};
     auto input_a = graph.make_input(
@@ -570,7 +570,7 @@ static void do_test_last_axis(bool reduce_output, bool input_plain,
 }
 
 TEST(GCCore_reduce_op_cpp, TestPartialReduceAsOutput) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_last_axis(true, true, true, false, out, refout, 0);
@@ -578,7 +578,7 @@ TEST(GCCore_reduce_op_cpp, TestPartialReduceAsOutput) {
 }
 
 TEST(GCCore_reduce_op_cpp, TestPartialReduceAsOutputMixedFuse) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_last_axis(true, true, true, false, out, refout, 0, 16, true);
@@ -586,7 +586,7 @@ TEST(GCCore_reduce_op_cpp, TestPartialReduceAsOutputMixedFuse) {
 }
 
 TEST(GCCore_reduce_op_cpp, TestPartialReduceAsOutputNoKeepDims) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_last_axis(true, true, false, false, out, refout, 0);
@@ -594,7 +594,7 @@ TEST(GCCore_reduce_op_cpp, TestPartialReduceAsOutputNoKeepDims) {
 }
 
 TEST(GCCore_reduce_op_cpp, TestPartialReduceAsOutputAllReduce) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_last_axis(true, true, true, false, out, refout, -1);
@@ -602,7 +602,7 @@ TEST(GCCore_reduce_op_cpp, TestPartialReduceAsOutputAllReduce) {
 }
 
 TEST(GCCore_reduce_op_cpp, TestTwoStageReduceAsOutput) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_last_axis(true, true, true, false, out, refout);
@@ -610,7 +610,7 @@ TEST(GCCore_reduce_op_cpp, TestTwoStageReduceAsOutput) {
 }
 
 TEST(GCCore_reduce_op_cpp, TestTwoStageReduceAsOutputNoKeepDims) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_last_axis(true, true, false, false, out, refout);
@@ -618,7 +618,7 @@ TEST(GCCore_reduce_op_cpp, TestTwoStageReduceAsOutputNoKeepDims) {
 }
 
 TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotOutput) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_last_axis(false, true, true, false, out, refout);
@@ -626,7 +626,7 @@ TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotOutput) {
 }
 
 TEST(GCCore_reduce_op_cpp, TestTwoStageReduceBlockingNotOutput) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_last_axis(false, false, true, false, out, refout);
@@ -634,7 +634,7 @@ TEST(GCCore_reduce_op_cpp, TestTwoStageReduceBlockingNotOutput) {
 }
 
 TEST(GCCore_reduce_op_cpp, TestTwoStageReduceAsOutputNoKeepDimsMean) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_last_axis(true, true, false, true, out, refout);
@@ -737,7 +737,7 @@ static void do_test_not_last_axis(bool reduce_output, bool input_plain,
 }
 
 TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisNotOutput) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_not_last_axis(false, true, true, false, out, refout);
@@ -745,7 +745,7 @@ TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisNotOutput) {
 }
 
 TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutput) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_not_last_axis(true, true, true, false, out, refout);
@@ -753,7 +753,7 @@ TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutput) {
 }
 
 TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutputNoKeepDims) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_not_last_axis(true, true, false, false, out, refout);
@@ -761,7 +761,7 @@ TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutputNoKeepDims) {
 }
 
 TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisBlockingNotOutput) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_not_last_axis(false, false, true, false, out, refout);
@@ -769,7 +769,7 @@ TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisBlockingNotOutput) {
 }
 
 TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutputMean) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_not_last_axis(true, true, true, true, out, refout);
@@ -833,7 +833,7 @@ static void do_no_main_op_single_core(
 }
 
 TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNoMainOp) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_no_main_op_single_core(out, refout);

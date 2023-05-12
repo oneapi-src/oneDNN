@@ -33,7 +33,7 @@ expr dyn_var1 = builder::make_var(datatypes::index, "dyn_var1");
 expr dyn_var2 = builder::make_var(datatypes::index, "dyn_var2");
 
 TEST(GCCore_dyn_tsr_transform_cpp, TestFunctionDefinitionParams) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     builder::ir_builder_t builder;
     _function_(datatypes::index, ccc,
             _arg_("A", datatypes::f32, {dyn_var0, 100}),
@@ -112,7 +112,7 @@ TEST(GCCore_dyn_tsr_transform_cpp, TestFunctionDefinitionParams) {
 }
 
 TEST(GCCore_dyn_tsr_transform_cpp, TestFunctionCaller) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     builder::ir_builder_t builder;
     _function_(datatypes::index, ccc,
             _arg_("A", datatypes::f32, {dyn_var0, 100}),

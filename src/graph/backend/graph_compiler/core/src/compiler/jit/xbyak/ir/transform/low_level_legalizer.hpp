@@ -17,6 +17,7 @@
 #ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_IR_TRANSFORM_LOW_LEVEL_LEGALIZER_HPP
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_IR_TRANSFORM_LOW_LEVEL_LEGALIZER_HPP
 
+#include <compiler/config/context.hpp>
 #include <compiler/ir/function_pass.hpp>
 
 namespace dnnl {
@@ -31,10 +32,12 @@ namespace xbyak {
  * */
 class low_level_legalizer_t : public function_pass_t {
 public:
-    low_level_legalizer_t() = default;
+    low_level_legalizer_t(const runtime::target_machine_t &target_machine)
+        : target_machine_(target_machine) {}
     func_c operator()(func_c v) override;
 
 private:
+    const runtime::target_machine_t &target_machine_;
 };
 
 } // namespace xbyak

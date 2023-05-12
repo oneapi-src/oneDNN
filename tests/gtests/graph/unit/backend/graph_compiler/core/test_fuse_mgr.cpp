@@ -350,7 +350,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerMultiInput) {
 }
 
 TEST(GCCore_fuse_mgr_cpp, TestConcatOP) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput0 = fusion.make<input_op>(make_tsr({100, 200, 10}));
@@ -945,7 +945,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerExp) {
 }
 
 TEST(GCCore_fuse_mgr_cpp, TestSigmoidOP) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     auto check_sigmoid = [&](const int M, const int K) {
         builder::ir_builder_t builder;
         fusion_manager fusion;
@@ -1529,7 +1529,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerCastBF16) {
 }
 
 TEST(GCCore_fuse_mgr_cpp, TestFusionManagerCastU8S8) {
-    BUILTIN_REQUIRE_AVX512();
+    BUILTIN_REQUIRE_AVX512(); // AVX2 no cast instruction
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finputf32tou8
@@ -2413,7 +2413,7 @@ TEST(GCCore_fuse_mgr_cpp, TestReshapeCopyOp) {
 }
 
 TEST(GCCore_fuse_mgr_cpp, TestVecterizedClampOP) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     auto check_clamp = [&](const int M, const int K, bool vectorized,
                                const float clamp_min, const float clamp_max) {
         builder::ir_builder_t builder;
@@ -2596,7 +2596,7 @@ TEST(GCCore_fuse_mgr_cpp, TestTensorHintForBufferSchedule2) {
 }
 
 TEST(GCCore_fuse_mgr_cpp, TestVecterizedRoundOP) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     auto check_round = [&](const int M, const int K) {
         builder::ir_builder_t builder;
         fusion_manager fusion;

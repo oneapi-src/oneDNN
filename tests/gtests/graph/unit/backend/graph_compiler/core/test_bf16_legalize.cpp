@@ -180,7 +180,7 @@ float get_rand() {
 }
 
 TEST(GCCore_bf16legalize_cpp, TestBF16Lower) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     builder::ir_builder_t builder;
     _function_(datatypes::bf16, aaa, _arg_("a", datatypes::bf16),
             _arg_("b", datatypes::bf16)) {

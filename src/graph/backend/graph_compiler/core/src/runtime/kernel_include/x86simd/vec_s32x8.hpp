@@ -42,20 +42,36 @@ public:
     static INLINE vec_s32x8 load_aligned(const int32_t *p) {
         return _mm256_load_si256((const __m256i *)p);
     }
-#ifdef __AVX512F__
-    static INLINE vec_s32x8 mask_load(const int *p, __mmask8 mask) {
-        return _mm256_mask_loadu_epi32(vec_s32x8(0).v, mask, p);
-    }
-#endif
     static INLINE void store(vec_s32x8 v, int32_t *p) {
         _mm256_storeu_si256((__m256i *)p, v.v);
     }
     static INLINE void store_aligned(vec_s32x8 v, int32_t *p) {
         _mm256_store_si256((__m256i *)p, v.v);
     }
+
 #ifdef __AVX512F__
+    static INLINE vec_s32x8 mask_load(const int *p, __mmask8 mask) {
+        return _mm256_mask_loadu_epi32(vec_s32x8(0).v, mask, p);
+    }
     static INLINE void mask_store(int *p, __mmask8 mask, vec_s32x8 const &a) {
         return _mm256_mask_storeu_epi32(p, mask, a.v);
+    }
+#elif __AVX2__
+    static INLINE vec_s32x8 mask_load(const int *p, uint32_t mask) {
+        const __m256i table(_mm256_setr_epi32(1 << 0, 1 << 1, 1 << 2, 1 << 3,
+                1 << 4, 1 << 5, 1 << 6, 1 << 7));
+        __m256i vmask(_mm256_set1_epi32(mask));
+        vmask = _mm256_and_si256(vmask, table);
+        vmask = _mm256_cmpeq_epi32(vmask, table);
+        return _mm256_maskload_epi32(p, vmask);
+    }
+    static INLINE void mask_store(int *p, uint32_t mask, vec_s32x8 const &a) {
+        const __m256i table(_mm256_setr_epi32(1 << 0, 1 << 1, 1 << 2, 1 << 3,
+                1 << 4, 1 << 5, 1 << 6, 1 << 7));
+        __m256i vmask(_mm256_set1_epi32(mask));
+        vmask = _mm256_and_si256(vmask, table);
+        vmask = _mm256_cmpeq_epi32(vmask, table);
+        return _mm256_maskstore_epi32(p, vmask, a.v);
     }
 #endif
 };

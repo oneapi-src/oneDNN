@@ -164,6 +164,7 @@ static handler_table register_handlers() {
 
     REGISTER_INTRIN("AVX_CMP_SET", avx, cmp_set, directed_end_mem, _3A_);
 
+    REGISTER_INTRIN("AVX_PSHUFFLE", avx, pshuffle, directed_end_mem, _3A_);
     REGISTER_INTRIN("AVX_SHUFFLE", avx, shuffle, directed_end_mem, _4A_);
     REGISTER_INTRIN("AVX_PERMUTE", avx, permute, directed_end_mem, _4A_);
     REGISTER_INTRIN("AVX_GATHER", avx, gather, directed_all_reg, _3A_);
@@ -288,8 +289,10 @@ expr make_xbyak_intrin(sc_data_type_t dtype, const std::vector<expr> &values,
     return node;
 }
 
-expr make_physical_reg(sc_data_type_t dtype, const Xbyak::Reg &reg) {
-    expr node = builder::make_var(dtype, std::string("%") + reg.toString());
+expr make_physical_reg(
+        sc_data_type_t dtype, const Xbyak::Reg &reg, const std::string &post) {
+    expr node = builder::make_var(
+            dtype, std::string("%") + reg.toString() + post);
     node->temp_data() = xbyak_expr_data_t(reg);
     return node;
 }

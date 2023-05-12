@@ -39,7 +39,7 @@ using namespace dnnl::impl::graph::gc;
 static void ir_compare_test_on_graph(
         std::function<sc_graph_t(void)> graph_builder,
         std::string &expected_ir) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(16);
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
@@ -70,7 +70,7 @@ static void ir_compare_test_on_graph(
 // All tensor are float. Other dtypes should not use this function.
 static void accuracy_test_on_graph(
         std::function<sc_graph_t(void)> graph_builder) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(56);
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
