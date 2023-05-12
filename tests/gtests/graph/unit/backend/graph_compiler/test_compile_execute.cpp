@@ -954,3 +954,167 @@ TEST(GCGraphTest, INT8MulQuantizeCompileExecution_CPU) {
 
     compile_execution_pipeline(agraph, 1);
 }
+
+TEST(GCGraphTest, FP32GPTMHACompileExecution_CPU) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_gpt_mha_subgraph(&agraph, id_gen, false, false);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, BF16GPTMHACompileExecution_CPU) {
+    REQUIRE_BF16_AMXBF16();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_gpt_mha_subgraph(&agraph, id_gen, true, false);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8FP32GPTMHACompileExecution_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_gpt_mha_subgraph(&agraph, id_gen, false, true);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8BF16GPTMHACompileExecution_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_gpt_mha_subgraph(&agraph, id_gen, true, true);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, FP32LLAMAMHACompileExecution_CPU) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_llama_mha_subgraph(&agraph, id_gen, false, false);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, BF16LLAMAMHACompileExecution_CPU) {
+    REQUIRE_BF16_AMXBF16();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_llama_mha_subgraph(&agraph, id_gen, true, false);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8FP32LLAMAMHACompileExecution_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_llama_mha_subgraph(&agraph, id_gen, false, true);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8BF16LLAMAMHACompileExecution_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_llama_mha_subgraph(&agraph, id_gen, true, true);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, FP32GPTMLPCompileExecution_CPU) {
+    REQUIRE_AVX512();
+    REQUIRE_AMX();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_gpt_mlp_subgraph(&agraph, id_gen, false, false);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, BF16GPTMLPCompileExecution_CPU) {
+    REQUIRE_BF16_AMXBF16();
+    REQUIRE_AMX();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_gpt_mlp_subgraph(&agraph, id_gen, true, false);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8FP32GPTMLPCompileExecution_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_gpt_mlp_subgraph(&agraph, id_gen, false, true);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8BF16GPTMLPCompileExecution_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_gpt_mlp_subgraph(&agraph, id_gen, true, true);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, FP32LLAMAMLPCompileExecution_CPU) {
+    REQUIRE_AVX512();
+    REQUIRE_AMX();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_llama_mlp_subgraph(&agraph, id_gen, false, false);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, BF16LLAMAMLPCompileExecution_CPU) {
+    REQUIRE_BF16_AMXBF16();
+    REQUIRE_AMX();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_llama_mlp_subgraph(&agraph, id_gen, true, false);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8FP32LLAMAMLPCompileExecution_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_llama_mlp_subgraph(&agraph, id_gen, false, true);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8BF16LLAMAMLPCompileExecution_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_llama_mlp_subgraph(&agraph, id_gen, true, true);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}

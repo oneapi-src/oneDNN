@@ -725,3 +725,183 @@ TEST(GCPatternTests, INT8MulQuantizePattern_CPU) {
         ASSERT_EQ(partition_outputs.size(), 1U);
     }
 }
+
+TEST(GCPatternTests, FP32GPTMHAPattern_CPU) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_gpt_mha_subgraph(&agraph, id_gen, false, false);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"fp32_gpt_mha"}, 1,
+            std::vector<partition_info_t> {{8, 7, 1}});
+}
+
+TEST(GCPatternTests, BF16GPTMHAPattern_CPU) {
+    REQUIRE_BF16_AMXBF16();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_gpt_mha_subgraph(&agraph, id_gen, true, false);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"bf16_gpt_mha"}, 1,
+            std::vector<partition_info_t> {{8, 7, 1}});
+}
+
+TEST(GCPatternTests, INT8FP32GPTMHAPattern_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_gpt_mha_subgraph(&agraph, id_gen, false, true);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"int8_gpt_mha"}, 1,
+            std::vector<partition_info_t> {{14, 7, 1}});
+}
+
+TEST(GCPatternTests, INT8BF16GPTMHAPattern_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_gpt_mha_subgraph(&agraph, id_gen, true, true);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"int8_bf16_gpt_mha"}, 1,
+            std::vector<partition_info_t> {{20, 7, 1}});
+}
+
+TEST(GCPatternTests, FP32LLAMAMHAPattern_CPU) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_llama_mha_subgraph(&agraph, id_gen, false, false);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"fp32_llama_mha"}, 1,
+            std::vector<partition_info_t> {{6, 6, 1}});
+}
+
+TEST(GCPatternTests, BF16LLAMAMHAPattern_CPU) {
+    REQUIRE_BF16_AMXBF16();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_llama_mha_subgraph(&agraph, id_gen, true, false);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"bf16_llama_mha"}, 1,
+            std::vector<partition_info_t> {{8, 6, 1}});
+}
+
+TEST(GCPatternTests, INT8FP32LLAMAMHAPattern_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_llama_mha_subgraph(&agraph, id_gen, false, true);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"int8_llama_mha"}, 1,
+            std::vector<partition_info_t> {{11, 6, 1}});
+}
+
+TEST(GCPatternTests, INT8BF16LLAMAMHAPattern_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_llama_mha_subgraph(&agraph, id_gen, true, true);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"int8_bf16_llama_mha"}, 1,
+            std::vector<partition_info_t> {{16, 6, 1}});
+}
+
+TEST(GCPatternTests, FP32GPTMLPPattern_CPU) {
+    REQUIRE_AVX512();
+    REQUIRE_AMX();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_gpt_mlp_subgraph(&agraph, id_gen, false, false);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"fp32_gpt_mlp"}, 1,
+            std::vector<partition_info_t> {{7, 10, 1}});
+}
+
+TEST(GCPatternTests, INT8GPTMLPPattern_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_gpt_mlp_subgraph(&agraph, id_gen, false, true);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"int8_gpt_mlp"}, 1,
+            std::vector<partition_info_t> {{15, 10, 1}});
+}
+
+TEST(GCPatternTests, BF16GPTMLPPattern_CPU) {
+    REQUIRE_BF16_AMXBF16();
+    REQUIRE_AMX();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_gpt_mlp_subgraph(&agraph, id_gen, true, false);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"bf16_gpt_mlp"}, 1,
+            std::vector<partition_info_t> {{7, 10, 1}});
+}
+
+TEST(GCPatternTests, INT8BF16GPTMLPPattern_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_gpt_mlp_subgraph(&agraph, id_gen, true, true);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"int8_bf16_gpt_mlp"}, 1,
+            std::vector<partition_info_t> {{23, 10, 1}});
+}
+
+TEST(GCPatternTests, FP32LLAMAMLPPattern_CPU) {
+    REQUIRE_AVX512();
+    REQUIRE_AMX();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_llama_mlp_subgraph(&agraph, id_gen, false, false);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"fp32_llama_mlp"}, 1,
+            std::vector<partition_info_t> {{21, 10, 1}});
+}
+
+TEST(GCPatternTests, INT8LLAMAMLPPattern_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_llama_mlp_subgraph(&agraph, id_gen, false, true);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"int8_llama_mlp"}, 1,
+            std::vector<partition_info_t> {{32, 10, 1}});
+}
+
+TEST(GCPatternTests, BF16LLAMAMLPPattern_CPU) {
+    REQUIRE_BF16_AMXBF16();
+    REQUIRE_AMX();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_llama_mlp_subgraph(&agraph, id_gen, true, false);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"bf16_llama_mlp"}, 1,
+            std::vector<partition_info_t> {{25, 10, 1}});
+}
+
+TEST(GCPatternTests, INT8BF16LLAMAMLPPattern_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    utils::id_generator id_gen;
+    graph::graph_t agraph;
+    compiler_utils::construct_llama_mlp_subgraph(&agraph, id_gen, true, true);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"int8_bf16_llama_mlp"}, 1,
+            std::vector<partition_info_t> {{47, 10, 1}});
+}

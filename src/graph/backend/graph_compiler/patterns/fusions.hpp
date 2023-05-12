@@ -26,6 +26,11 @@ namespace graph {
 namespace compiler_impl {
 namespace pass {
 
+namespace pm = graph::utils::pm;
+using in_edges_t = pm::in_edges_t;
+using pb_graph_t = pm::pb_graph_t;
+using FCreatePattern = graph::pass::FCreatePattern;
+
 template <graph::data_type_t DTYPE>
 bool check_input_dtype(op_t *op) {
     for (size_t i = 0; i < op->num_inputs(); ++i) {
@@ -99,6 +104,47 @@ bool check_if_null_producer(op_t *op) {
         }
     }
     return null_producer;
+}
+
+pm::pb_node_t *append_single_op_repetition_subgraph(
+        const std::shared_ptr<pb_graph_t> &pgraph, graph::op_kind_t kind,
+        pm::pb_node_t *input, int rep_min = 0, int rep_max = 2) {
+    in_edges_t in_edges;
+    if (input) { in_edges = in_edges_t {in_edge(0, input, 0)}; }
+    auto rep_subgraph = std::make_shared<pb_graph_t>();
+    auto single_op = rep_subgraph->append_op(kind);
+    rep_subgraph->create_input_port(0, single_op, 0);
+    rep_subgraph->create_output_port(0, single_op, 0);
+    auto rep = pgraph->append_repetition(
+            rep_subgraph, {0, 0}, rep_min, rep_max, in_edges);
+    return rep;
+};
+
+pm::pb_node_t *create_dequant_matmul(const std::shared_ptr<pb_graph_t> &pgraph,
+        pm::pb_node_t *input, bool is_bf16 = false, bool is_int8 = false) {
+    in_edges_t in_edges;
+    if (input) { in_edges = in_edges_t {in_edge(0, input, 0)}; }
+    if (is_int8) {
+        auto dequantize_A
+                = pgraph->append_op(graph::op_kind::Dequantize, in_edges);
+        auto dequantize_B = pgraph->append_op(graph::op_kind::Dequantize);
+        if (is_bf16) {
+            auto typecast_A = pgraph->append_op(
+                    graph::op_kind::TypeCast, {in_edge(0, dequantize_A, 0)});
+            auto typecast_B = pgraph->append_op(
+                    graph::op_kind::TypeCast, {in_edge(0, dequantize_B, 0)});
+            in_edges = in_edges_t {
+                    in_edge(0, typecast_A, 0), in_edge(1, typecast_B, 0)};
+        } else {
+            in_edges = in_edges_t {
+                    in_edge(0, dequantize_A, 0), in_edge(1, dequantize_B, 0)};
+        }
+    }
+    auto matmul = pgraph->append_op(graph::op_kind::MatMul, in_edges);
+    matmul->append_decision_function(is_bf16
+                    ? check_input_dtype<graph::data_type::bf16>
+                    : check_input_dtype<graph::data_type::f32>);
+    return matmul;
 }
 
 } // namespace pass
