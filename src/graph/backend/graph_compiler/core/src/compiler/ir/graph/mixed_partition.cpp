@@ -1516,6 +1516,8 @@ static bool check_parti_forked(mixed_parti_t *A, mixed_parti_t *B) {
  * */
 static int check_parti_loop_axis_binding(
         mixed_parti_t *A, mixed_parti_t *B, int check_loop_size) {
+    A = A->get_root();
+    B = B->get_root();
     // skip conv workload until all conv ops implement axis binding infer
     if (A->contain_convolution() || B->contain_convolution()) {
         // limit to at most one outer loop (batch-dimension)
@@ -1523,7 +1525,6 @@ static int check_parti_loop_axis_binding(
     }
     // auto skip when A and B have no dependency
     if (check_parti_forked(A, B)) return check_loop_size;
-    A = A->get_root(), B = B->get_root();
     return A->ax_binder_.align_with(B->ax_binder_, check_loop_size);
 }
 
@@ -1741,6 +1742,14 @@ static bool try_merge_mixed_parti_parallel_inners(
     SC_MODULE_INFO << "parallel merging two partition:";
     SC_MODULE_INFO << pa_to_merge->func_;
     SC_MODULE_INFO << parti_be_merged->func_;
+
+    if (check_parti_dep(pa_to_merge, parti_be_merged) == parti_dep::no_dep) {
+        auto last_for = get_last_loop_in_body(
+                outer_loops_to_merge[merged_loop_size - 1]->body_);
+        if (last_for.defined()) {
+            last_for->attr()[stmt_attr_key::no_post_barrier] = true;
+        }
+    }
 
     // try to add prefetch code
     if (pa_to_merge->ctx_->flags_.prefetch_) {

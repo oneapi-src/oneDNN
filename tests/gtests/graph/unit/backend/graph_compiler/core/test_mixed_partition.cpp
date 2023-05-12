@@ -1739,3 +1739,57 @@ TEST(GCCore_graph_mixed_partition_cpp, TestPrefetchSelected) {
     }
     EXPECT_TRUE(found);
 }
+
+TEST(GCCore_graph_mixed_partition_cpp, ParallelMergeAndNoBarrier) {
+    thread_num_reset reseter;
+    runtime_config_t::get().set_num_threads(16);
+    int M = 256, K1 = 2048, N = 1024;
+
+    sc_graph_t graph;
+    auto input0 = graph.make_input(
+            {graph_tensor::make({M, K1}, sc_data_format_t(format_kinds::MK))});
+    auto weight0 = graph.make_input(
+            {graph_tensor::make({K1, N}, sc_data_format_t(format_kinds::KN))});
+    auto weight1 = graph.make_input(
+            {graph_tensor::make({K1, N}, sc_data_format_t(format_kinds::KN))});
+
+    // mmm0
+    auto mmm0 = graph.make("managed_matmul_core",
+            {input0->get_outputs()[0], weight0->get_outputs()[0]}, {}, {});
+    {
+        ops::managed_matmul_core_config_t cfg = {2, 8, 1, 1, 1, 0};
+        mmm0->dyn_cast<op_traits::configurable_t>()->set_config(
+                reflection::general_object_t::make(cfg));
+    }
+    // mmm1
+    auto mmm1 = graph.make("managed_matmul_core",
+            {input0->get_outputs()[0], weight1->get_outputs()[0]}, {}, {});
+    {
+        ops::managed_matmul_core_config_t cfg = {2, 4, 1, 1, 1, 0};
+        mmm1->dyn_cast<op_traits::configurable_t>()->set_config(
+                reflection::general_object_t::make(cfg));
+    }
+    auto out0 = graph.make_output({mmm0->get_outputs()[0]});
+    graph.make_output({mmm1->get_outputs()[0]});
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    // split outmost and merge inners
+    mixed_partition(graph, ctx);
+    auto mixed_op = get_mixed_op_from_graph(graph);
+    ASSERT_TRUE(mixed_op);
+    auto &body = mixed_op->parti_list_[0]->func_->body_;
+    auto inner_loop = body.cast<stmts>()
+                              .map([](const stmts &v) {
+                                  return v->seq_.at(0).as<for_loop>();
+                              })
+                              .map([](const for_loop &v) {
+                                  return v->body_.as<stmts>()
+                                          ->seq_.at(0)
+                                          .as<for_loop>();
+                              })
+                              .get_or_else(for_loop());
+    ASSERT_TRUE(inner_loop.defined());
+    ASSERT_TRUE(inner_loop->attr().get_or_else(
+            stmt_attr_key::no_post_barrier, false));
+}

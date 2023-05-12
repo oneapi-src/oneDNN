@@ -410,6 +410,11 @@ void work() {
                 transform_loop(
                         v, num_threads, body_lv1->seq_, tid0, false, false);
                 body_lv0->seq_.emplace_back(for_lv1);
+                if (v->attr_
+                        && v->attr_->get_or_else(
+                                stmt_attr_key::no_post_barrier, false)) {
+                    for_lv1->attr()[stmt_attr_key::no_post_barrier] = true;
+                }
                 global_tid_ = expr();
                 top_level_parallel_seq_ = nullptr;
                 cannot_parallel_ = false;
