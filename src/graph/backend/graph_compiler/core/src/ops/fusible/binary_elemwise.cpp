@@ -79,8 +79,10 @@ std::vector<int> binary_elementwise_op_impl_t::infer_broadcast_axis() const {
         for (int64_t j = bc_dims.size() - 1; j >= 0; j--) {
             while (i >= 1) {
                 i--;
-                if (elt_dims.at(i) == bc_dims.at(j) || bc_dims.at(j) == 1) {
+                if (elt_dims.at(i) == bc_dims.at(j)) {
                     common_axis.at(i) = 1;
+                    break;
+                } else if (bc_dims.at(j) == 1) {
                     break;
                 }
             }
@@ -216,10 +218,6 @@ binary_elementwise_op_impl_t::binary_elementwise_op_impl_t(
     }
 
     int bc_idx = get_broadcast_input();
-    int non_bc_idx = bc_idx < 0 ? 0 : 1 - bc_idx;
-
-    info_.outputs_[0]->details_.dtype_
-            = info_.inputs_[non_bc_idx]->details_.dtype_;
 
     attrs_ = attrs;
     plain_bc_axis_ = attrs.get_or_else("bc_axis", std::vector<int> {});
@@ -323,9 +321,6 @@ void binary_elementwise_op_impl_t::query_format(context_ptr ctx,
     auto in1_format = info_.inputs_[1]->details_.get_format();
 
     int bc_input_idx = get_broadcast_input();
-    if (attrs_.has_key(op_attr_key::layout_input_index)) {
-        bc_input_idx = 1 - attrs_.get<int>(op_attr_key::layout_input_index);
-    }
     if (bc_input_idx == -1) {
         // if the shapes are equal, find which side has blocking format.
         if (is_dynamic()) {
@@ -346,6 +341,9 @@ void binary_elementwise_op_impl_t::query_format(context_ptr ctx,
                 bc_input_idx = 0;
             }
         }
+    }
+    if (attrs_.has_key(op_attr_key::layout_input_index)) {
+        bc_input_idx = 1 - attrs_.get<int>(op_attr_key::layout_input_index);
     }
     attrs_.set<int>(op_attr_key::layout_input_index, 1 - bc_input_idx);
 
@@ -940,7 +938,8 @@ void binary_elementwise_op_impl_t::compute_block(context_ptr ctx,
     vx_info_.lanes
             = vectorize_step(ctx, info_.inputs_[0]->details_.dtype_.type_code_);
     bool use_mask = (elt_op_ == elt_operator::DIV
-            || elt_op_ == elt_operator::ADD || elt_op_ == elt_operator::SUB);
+            || elt_op_ == elt_operator::ADD || elt_op_ == elt_operator::SUB
+            || elt_op_ == elt_operator::MAX);
     // use broad-cast
     int bc_input_idx = get_broadcast_input();
     if (bc_input_idx != -1) {

@@ -16,6 +16,7 @@
 
 #include <assert.h>
 
+#include <algorithm>
 #include <memory>
 #include <numeric>
 #include <string>
@@ -33,86 +34,21 @@ namespace impl {
 namespace graph {
 namespace gc {
 
-// Now we only support unidirectional broadcast. We assume one of the three
-// tensors(cond,then,else) is the largest, the remaining two tensors are
-// unidirectional broadcast to the largest one.
-//  (In select spec: 1. then and else are broadcasted to each other; 2. the cond
-//  will be one-way broadcasted to the resulting shape of broadcasted then and
-//  else)
-std::vector<int> select_op_t::infer_broadcast_axis(
-        const int l, const int r) const {
-    int bc_input_idx = get_broadcast_input(l, r);
-    if (bc_input_idx == -1) return {};
-
-    sc_dims lhs_dims, rhs_dims;
-    lhs_dims = get_inputs()[l]->details_.get_plain_dims();
-    rhs_dims = get_inputs()[r]->details_.get_plain_dims();
-
-    sc_dims elt_dims, bc_dims;
-    if (bc_input_idx == r) {
-        elt_dims = lhs_dims;
-        bc_dims = rhs_dims;
-    } else if (bc_input_idx == l) {
-        elt_dims = rhs_dims;
-        bc_dims = lhs_dims;
-    }
-    if (bc_dims.size() == 1 && bc_dims[0] == 1) {
-        return std::vector<int> {-1};
-    }
-    std::vector<int> bc_axis;
-    // broad-cast conditions 1: the shape of lhs and rhs not match
-    if (elt_dims.size() != bc_dims.size()) {
-        std::vector<int> common_axis(elt_dims.size(), 0);
-        // from right to left
-        int64_t i = elt_dims.size();
-        for (int64_t j = bc_dims.size() - 1; j >= 0; j--) {
-            while (i >= 1) {
-                i--;
-                if (elt_dims.at(i) == bc_dims.at(j)) {
-                    common_axis.at(i) = 1;
-                    break;
-                }
-            }
-            if (i == -1) {
-                COMPILE_ASSERT(0,
-                        "illegal elementwise operand found. "
-                                << utils::print_vector(elt_dims) << " , "
-                                << utils::print_vector(bc_dims));
-            }
+std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>
+select_op_t::get_inplace_map() {
+    std::vector<tensor_inplace_info_t> ret;
+    auto &inp = get_inputs();
+    auto &out_dim = get_outputs()[0]->details_.get_plain_dims();
+    auto &out_dtype = get_outputs()[0]->details_.dtype_;
+    for (size_t i = 0; i < inp.size(); i++) {
+        if (inp[i]->details_.get_plain_dims() == out_dim
+                && inp[i]->details_.dtype_ == out_dtype) {
+            ret.emplace_back(tensor_inplace_info_t {
+                    static_cast<int>(i), inplace_kind::ZERO_OFFSET});
         }
-        for (size_t j = 0; j < common_axis.size(); ++j)
-            if (common_axis.at(j) == 1) bc_axis.emplace_back(j);
     }
-    // broad-cast conditions 2: the shape of lhs and rhs match,
-    // but length=1 in dims
-    else {
-        bool double_check_broadcast = false;
-        for (size_t i = 0; i < elt_dims.size(); ++i) {
-            if (elt_dims.at(i) != bc_dims.at(i)) {
-                if (bc_dims.at(i) == 1) {
-                    double_check_broadcast = true;
-                } else if (!is_dynamic_dim(elt_dims.at(i))
-                        && !is_dynamic_dim(bc_dims.at(i))) {
-                    COMPILE_ASSERT(0,
-                            "illegal elementwise operand found: "
-                                    << utils::print_vector(elt_dims) << " , "
-                                    << utils::print_vector(bc_dims));
-                }
-            }
-        }
-        if (double_check_broadcast) {
-            for (size_t i = 0; i < elt_dims.size(); ++i) {
-                if (elt_dims.at(i) == bc_dims.at(i)
-                        || (is_dynamic_dim(elt_dims.at(i))
-                                && is_dynamic_dim(bc_dims.at(i)))) {
-                    bc_axis.emplace_back(i);
-                }
-            }
-            if (bc_axis.empty()) { bc_axis.emplace_back(-1); }
-        } else
-            bc_axis = {};
-    }
-    return bc_axis;
+    if (ret.empty()) { return {}; }
+    return {{0, std::move(ret)}};
 }
 
 static slice_range_list infer_broadcast_slice(slice_range_list known_range_list,
@@ -192,74 +128,118 @@ static bound_axis infer_broadcast_arg_axis_binding(
     return bc_arg_axis_list;
 }
 
+static std::vector<int> fill_auto_broadcast_bc_axis(
+        const sc_dims &input_shape, const sc_dims &output_shape) {
+    if (input_shape.size() == 1 && input_shape[0] == 1) { return {-1}; }
+    // following auto_broadcast semantics
+    const size_t input_rank = input_shape.size();
+    const size_t output_rank = output_shape.size();
+    COMPILE_ASSERT(output_rank >= input_rank,
+            "Incorrect input or output shape for broadcastable op.");
+    const size_t offset = output_rank - input_rank;
+    std::vector<int> bc_axis;
+    for (size_t i = 0; i < input_rank; ++i) {
+        // TODO(yifei): consider whether input_shape[i] != 1 is
+        // necessary here
+        if (input_shape[i] == output_shape[i + offset]) {
+            bc_axis.emplace_back(i + offset);
+        }
+    }
+    if (bc_axis.empty()) { bc_axis.emplace_back(-1); }
+    return bc_axis;
+}
+
 select_op_t::select_op_t(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
     op_name_ = "select";
-    assert(ins.size() == 3);
-    COMPILE_ASSERT(ins[1]->details_.get_plain_dims() == sc_dims {1},
-            "shape of then tensor should be 1 for now");
+    COMPILE_ASSERT(ins.size() == 3, "Select op shall have 3 inputs.");
     info_.inputs_ = ins;
+    std::string auto_broadcast
+            = attrs.get_or_else("auto_broadcast", std::string("numpy"));
+    COMPILE_ASSERT(auto_broadcast == "numpy" || get_max_input() == -1,
+            "Select op's inputs should have the same size when auto_broadcast "
+            "is none.");
     int maxtensor_idx = get_max_input() < 0 ? 1 : get_max_input();
+    const auto &output_shape
+            = info_.inputs_[maxtensor_idx]->details_.get_plain_dims();
     if (outs.empty()) {
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(
                 this, ins[maxtensor_idx]->details_));
+        info_.outputs_[0]->details_.dtype_ = info_.inputs_[1]->details_.dtype_;
     } else {
         info_.outputs_ = outs;
     }
-    COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims()
-                    == info_.inputs_[maxtensor_idx]->details_.get_plain_dims(),
-            "output doesn't have the correct shape");
-
-    info_.outputs_[0]->details_.dtype_ = info_.inputs_[1]->details_.dtype_;
+    COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims() == output_shape,
+            "Select op's output doesn't have the correct shape");
+    COMPILE_ASSERT(info_.outputs_[0]->details_.dtype_
+                    == info_.inputs_[1]->details_.dtype_,
+            "Select op's output doesn't have the correct data type");
 
     attrs_ = attrs;
-    // TODO(shihao): improve the logic of plain_bc_axis to better satisfy
-    // ternary cases
-    plain_bc_axis_ = attrs.get_or_else("bc_axis", std::vector<int> {});
-    if (plain_bc_axis_.empty()) { plain_bc_axis_ = infer_broadcast_axis(0, 2); }
 
-    inplace_ = attrs.get_or_else("inplace", 2);
-    // TODO(shihao): improve the logic of legelize inplace to better satisfy
-    // ternary cases
-    if (inplace_ == 1 && maxtensor_idx != 1) {
-        inplace_ = -1;
-    } else if (inplace_ == 2 && maxtensor_idx != 2) {
-        inplace_ = -1;
+    plain_bc_axis_.reserve(3);
+    for (size_t i = 0; i < info_.inputs_.size(); ++i) {
+        plain_bc_axis_.emplace_back(fill_auto_broadcast_bc_axis(
+                info_.inputs_[i]->details_.get_plain_dims(), output_shape));
     }
-
-    info_.tensor_share_info_ = (inplace_ <= 0)
-            ? std::unordered_map<int, std::vector<int>> {}
-            : std::unordered_map<int, std::vector<int>> {{0, {inplace_}}};
 }
 
-select_op_t::select_op_t(graph_tensor_ptr cond, graph_tensor_ptr then,
-        graph_tensor_ptr els, int inplace)
-    : select_op_t({std::move(cond), std::move(then), std::move(els)}, {},
-            {{"inplace", inplace}}) {
-    inplace_ = inplace;
-}
+select_op_t::select_op_t(
+        graph_tensor_ptr cond, graph_tensor_ptr then, graph_tensor_ptr els)
+    : select_op_t({std::move(cond), std::move(then), std::move(els)}, {}, {}) {}
 
 int select_op_t::get_broadcast_input(const int l, const int r) const {
+    const graph_tensor_ptr &lhs = info_.inputs_[l];
+    const graph_tensor_ptr &rhs = info_.inputs_[r];
     const sc_dims &lhs_dims = info_.inputs_[l]->details_.get_plain_dims();
     const sc_dims &rhs_dims = info_.inputs_[r]->details_.get_plain_dims();
     if (lhs_dims == rhs_dims) {
         return -1;
     } else {
-        auto lhs_dp = get_dims_product(lhs_dims);
-        auto rhs_dp = get_dims_product(rhs_dims);
-        if (lhs_dp == rhs_dp) {
-            COMPILE_ASSERT(lhs_dims.size() != rhs_dims.size(),
-                    "Unexpected dims of bianry elementwise inputs are found: "
-                            << utils::print_vector(lhs_dims) << " and "
-                            << utils::print_vector(rhs_dims))
+        int side_needs_broadcast = -1;
+        bool multi_directional = false;
+        const size_t lhs_rank = lhs_dims.size();
+        const size_t rhs_rank = rhs_dims.size();
+        const size_t max_rank = std::max(lhs_rank, rhs_rank);
+
+        const size_t lhs_offset = max_rank - lhs_rank;
+        const size_t rhs_offset = max_rank - rhs_rank;
+        for (size_t i = 0; i < max_rank; ++i) {
+            sc_dim l = 1, r = 1;
+            if (i >= lhs_offset) l = lhs_dims[i - lhs_offset];
+            if (i >= rhs_offset) r = rhs_dims[i - rhs_offset];
+            if (l == 1 && r != 1) {
+                if (side_needs_broadcast == 1) multi_directional = true;
+                side_needs_broadcast = 0;
+            } else if (l != 1 && r == 1) {
+                if (side_needs_broadcast == 0) multi_directional = true;
+                side_needs_broadcast = 1;
+            }
+        }
+        if (multi_directional) { return -2; }
+        if (side_needs_broadcast == -1) {
+            if (lhs_dims.size() == rhs_dims.size()) {
+                COMPILE_ASSERT(lhs->is_dynamic() && rhs->is_dynamic(),
+                        "Unexpected shape condition in get_broadcast_input.");
+            }
             return lhs_dims.size() > rhs_dims.size() ? r : l;
         } else {
-            return lhs_dp > rhs_dp ? r : l;
+            return side_needs_broadcast ? r : l;
         }
     }
 }
 
-// TODO(shihao): improve the logic to make select more general
+static bool shape_equal(const sc_dims &shape1, const sc_dims &shape2) {
+    if (shape1.size() != shape2.size()) return false;
+    for (size_t i = 0; i < shape1.size(); ++i) {
+        if (!is_dynamic_dim(shape1[i]) && !is_dynamic_dim(shape2[i])
+                && shape1[i] != shape2[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 int select_op_t::get_max_input() const {
     const sc_dims &cond_dims = info_.inputs_[0]->details_.get_plain_dims();
     const sc_dims &then_dims = info_.inputs_[1]->details_.get_plain_dims();
@@ -267,18 +247,23 @@ int select_op_t::get_max_input() const {
     if (cond_dims == then_dims && then_dims == else_dims) {
         return -1;
     } else {
-        auto cond_dp = get_dims_product(cond_dims);
-        auto then_dp = get_dims_product(then_dims);
-        auto else_dp = get_dims_product(else_dims);
-        if (then_dp >= cond_dp && then_dp >= else_dp) {
-            return 1;
-        } else if (else_dp >= then_dp && else_dp >= cond_dp) {
-            return 2;
-        } else {
-            return 0;
+        for (size_t i = 0; i < info_.inputs_.size(); ++i) {
+            bool is_i_max_input = true;
+            for (size_t j = 0; j < info_.inputs_.size(); ++j) {
+                if (i != j) {
+                    int ret = get_broadcast_input(i, j);
+                    if (ret == static_cast<int>(i) || ret == -2) {
+                        // if ret indicates i is broadcast input
+                        is_i_max_input = false;
+                        break;
+                    }
+                }
+            }
+            if (is_i_max_input) { return i; }
         }
     }
-    return 1;
+    COMPILE_ASSERT(0, "Cannot find select op's max input.");
+    return -2;
 }
 
 static sc_data_format_t infer_broadcast_format(
@@ -312,7 +297,7 @@ static sc_data_format_t infer_broadcast_format(
     // smaller side's format code == larger side's format code
     COMPILE_ASSERT(target_lt_format_code.norig_dims()
                     == bc_lt_format_code.norig_dims(),
-            "Unsupported case for binary_elementwise query format.");
+            "Unsupported case for select op's query format.");
     return sc_data_format_t(target_lt.get_format().format_code_, blocks);
 }
 
@@ -320,43 +305,57 @@ void select_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<format_stride_pair>> &supported_ins,
         std::vector<std::vector<format_stride_pair>> &supported_outs) {
     std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
-    auto in0_format = info_.inputs_[0]->details_.get_format();
-    auto in1_format = info_.inputs_[1]->details_.get_format();
-    auto in2_format = info_.inputs_[2]->details_.get_format();
-    COMPILE_ASSERT(info_.inputs_[1]->details_.get_plain_dims().size() == 1
-                    && in1_format == sc_data_format_t(format_kinds::A),
-            "The shape length and format of then lt shall confirm with the "
-            "shape constraint ({1}).");
-
-    int bc_input_idx = get_broadcast_input(0, 2);
-    // todo: not only layout input index 2 is linked with tunable op.
-    attrs_.set<int>(op_attr_key::layout_input_index, 2);
-    if (info_.inputs_[0]->details_.get_plain_dims().size()
-            != info_.inputs_[2]->details_.get_plain_dims().size()) {
-        COMPILE_ASSERT(in0_format == sc_data_format_t(format_kinds::A)
-                        || in2_format == sc_data_format_t(format_kinds::A),
-                "Unsupported format encountered in select query format.");
-        in_formats.push_back({in0_format});
-        in_formats.push_back({in1_format});
-        in_formats.push_back({in2_format});
-        out_formats.push_back({!bc_input_idx ? in2_format : in0_format});
-    } else {
-        if (!bc_input_idx) {
-            auto target_format = infer_broadcast_format(
-                    info_.inputs_[2]->details_, info_.inputs_[0]->details_);
-            in_formats.push_back({target_format});
-            in_formats.push_back({in1_format});
-            in_formats.push_back({in2_format});
-            out_formats.push_back({in2_format});
+    int max_input_idx = get_max_input();
+    if (max_input_idx == -1) {
+        // only consider then and else branch, similar to binary_elementwise
+        if (is_dynamic()) {
+            max_input_idx
+                    = info_.inputs_[1]->details_.get_format_candidates().size()
+                            >= info_.inputs_[2]
+                                       ->details_.get_format_candidates()
+                                       .size()
+                    ? 1
+                    : 2;
         } else {
-            auto target_format = infer_broadcast_format(
-                    info_.inputs_[0]->details_, info_.inputs_[2]->details_);
-            in_formats.push_back({in0_format});
-            in_formats.push_back({in1_format});
-            in_formats.push_back({target_format});
-            out_formats.push_back({in0_format});
+            max_input_idx = 1;
+            if (!info_.inputs_[1]->details_.get_format().is_blocking()
+                    && info_.inputs_[2]->details_.get_format().is_blocking()) {
+                max_input_idx = 2;
+            }
         }
     }
+    if (attrs_.has_key(op_attr_key::layout_input_index)) {
+        max_input_idx = attrs_.get<int>(op_attr_key::layout_input_index);
+    }
+    attrs_.set<int>(op_attr_key::layout_input_index, max_input_idx);
+
+    size_t max_rank
+            = info_.inputs_[max_input_idx]->details_.get_plain_dims().size();
+    auto ref_format = info_.inputs_[max_input_idx]->details_.get_format();
+
+    for (size_t i = 0; i < info_.inputs_.size(); ++i) {
+        size_t input_rank = info_.inputs_[i]->details_.get_plain_dims().size();
+        COMPILE_ASSERT((input_rank == 1
+                               && info_.inputs_[i]->details_.get_plain_dims()
+                                       == sc_dims {1}
+                               && info_.inputs_[i]->details_.get_format()
+                                       == sc_data_format_t(format_kinds::A))
+                        || input_rank == max_rank,
+                "Invalid shape or format encountered in select op's query "
+                "format.");
+        if (static_cast<int>(i) == max_input_idx) {
+            in_formats.push_back({ref_format});
+        } else if (input_rank == 1) {
+            in_formats.push_back({info_.inputs_[i]->details_.get_format()});
+        } else {
+            auto target_format = infer_broadcast_format(
+                    info_.inputs_[max_input_idx]->details_,
+                    info_.inputs_[i]->details_);
+            in_formats.push_back({target_format});
+        }
+    }
+    out_formats.push_back({ref_format});
+
     format_to_dense_format_stride_pair(
             in_formats, out_formats, supported_ins, supported_outs);
 }
@@ -365,23 +364,21 @@ void select_op_t::query_format(context_ptr ctx,
 // slice ranges on inputs and outputs
 void select_op_t::infer_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
-    COMPILE_ASSERT(get_inputs().size() == 3, "select op is expected 3 inputs");
+    COMPILE_ASSERT(
+            get_inputs().size() == 3, "Select op is expected to have 3 inputs");
     // search known ranges from any input of cur fusbile op
     slice_range_map known_ranges_map
             = search_known_slice_ranges(this, fsmap, stat_map);
     if (known_ranges_map.empty()) return;
     auto &outslice = fsmap.get(get_outputs()[0]);
     // if unkown slice ranges exist.
+    int maxtensor_idx = get_max_input();
     if (known_ranges_map.size() < get_inputs().size()) {
-        std::vector<int> known_idx(3, 0);
-        known_idx[0]
-                = known_ranges_map.find(0) != known_ranges_map.end() ? 1 : 0;
-        known_idx[1]
-                = known_ranges_map.find(1) != known_ranges_map.end() ? 1 : 0;
-        known_idx[2]
-                = known_ranges_map.find(2) != known_ranges_map.end() ? 1 : 0;
+        std::vector<int> known_idx(info_.inputs_.size(), 0);
+        for (size_t i = 0; i < info_.inputs_.size(); ++i) {
+            known_idx[i] = (known_ranges_map.find(i) != known_ranges_map.end());
+        }
         // check broadcast
-        int maxtensor_idx = get_max_input();
         if (maxtensor_idx >= 0) {
             if (known_idx[maxtensor_idx] == 1) {
                 for (int i = 0; i < 3; i++) {
@@ -401,25 +398,33 @@ void select_op_t::infer_slice_ranges(
                     }
                 }
             } else {
-                COMPILE_ASSERT(known_idx[0] || known_idx[2],
-                        "input0 and input2 can't both be unknown");
-                COMPILE_ASSERT(maxtensor_idx != 1,
-                        "maxtensor_idx shouldn't be input1");
-                // call get_bc_axis for input[0] && input[2]
-                auto bc_axis = get_bc_axis(maxtensor_idx, 2 - maxtensor_idx);
+                auto it = std::find(known_idx.begin(), known_idx.end(), 1);
+                COMPILE_ASSERT(it != known_idx.end(), "No known idx found.");
+                int known_tensor_idx = std::distance(known_idx.begin(), it);
+                auto bc_axis = get_bc_axis(maxtensor_idx, known_tensor_idx);
                 slice_range_list bc_range_list = infer_broadcast_slice(
-                        known_ranges_map[2 - maxtensor_idx], bc_axis,
+                        known_ranges_map[known_tensor_idx], bc_axis,
                         get_inputs()[maxtensor_idx]
                                 ->details_.get_blocking_dims_expr(
                                         get_owner_graph()));
                 known_ranges_map[maxtensor_idx] = bc_range_list;
-                // deal with input[1]
-                bc_axis = get_bc_axis(2 - maxtensor_idx, 1);
-                bc_range_list = infer_broadcast_slice(
-                        known_ranges_map[2 - maxtensor_idx], bc_axis,
-                        get_inputs()[1]->details_.get_blocking_dims_expr(
-                                get_owner_graph()));
-                known_ranges_map[1] = bc_range_list;
+                known_idx[maxtensor_idx] = 1;
+                // deal with the remaining unkown slice range
+                it = std::find(known_idx.begin(), known_idx.end(), 0);
+                if (it != known_idx.end()) {
+                    int remaining_idx = std::distance(known_idx.begin(), it);
+                    bool keep_dims = get_inputs()[remaining_idx]
+                                             ->details_.get_blocking_dims()
+                                             .size()
+                            == get_inputs()[maxtensor_idx]
+                                       ->details_.get_blocking_dims()
+                                       .size();
+                    bc_axis = get_bc_axis(maxtensor_idx, remaining_idx);
+                    bc_range_list = infer_broadcast_arg_slice(
+                            known_ranges_map[maxtensor_idx], bc_axis,
+                            keep_dims);
+                    known_ranges_map[remaining_idx] = bc_range_list;
+                }
             }
             // set the other unknown slice range by achieved
             // known_ranges_list
@@ -428,15 +433,9 @@ void select_op_t::infer_slice_ranges(
             outslice = known_ranges_map[maxtensor_idx];
             return;
         } else {
-            int known_tensor = -1;
-            for (int i = 0; i < 3; i++) {
-                if (known_idx[i] == 1) {
-                    known_tensor = i;
-                    break;
-                }
-            }
-            COMPILE_ASSERT(
-                    known_tensor >= 0, "At least one slice shall be known.");
+            auto it = std::find(known_idx.begin(), known_idx.end(), 1);
+            COMPILE_ASSERT(it != known_idx.end(), "No known idx found.");
+            int known_tensor = std::distance(known_idx.begin(), it);
             for (int i = 0; i < 3; i++) {
                 if (i != known_tensor) {
                     known_ranges_map[i] = known_ranges_map[known_tensor];
@@ -447,14 +446,12 @@ void select_op_t::infer_slice_ranges(
         set_unknown_slice_ranges(this, known_ranges_map, fsmap, stat_map);
     }
     // set outputs slice range
-    int maxtensor_idx = get_max_input();
-    outslice = known_ranges_map[maxtensor_idx > -1
-                    ? maxtensor_idx
-                    : (inplace_ >= 1 ? inplace_ : 1)];
+    outslice = known_ranges_map[maxtensor_idx > -1 ? maxtensor_idx : 1];
 }
 
 void select_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
-    COMPILE_ASSERT(get_inputs().size() == 3, "select op is expected 3 inputs");
+    COMPILE_ASSERT(
+            get_inputs().size() == 3, "Select op is expected to have 3 inputs");
     // search known axis from any input of cur fusbile op
     auto known_axis_map = search_known_bound_axis(this, bdax_map);
     if (!bdax_map.get(get_outputs()[0]).empty()) return;
@@ -490,31 +487,28 @@ void select_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
                     }
                 }
             } else {
-                COMPILE_ASSERT(known_idx[0] || known_idx[2],
-                        "input0 and input2 can't both be unknown");
-                COMPILE_ASSERT(maxtensor_idx != 1,
-                        "maxtensor_idx shouldn't be input1");
-                // call get_bc_axis for input[0] && input[2]
-                auto bc_axis = get_bc_axis(maxtensor_idx, 2 - maxtensor_idx);
+                auto it = std::find(known_idx.begin(), known_idx.end(), 1);
+                COMPILE_ASSERT(it != known_idx.end(), "No known idx found.");
+                int known_tensor_idx = std::distance(known_idx.begin(), it);
+                auto bc_axis = get_bc_axis(maxtensor_idx, known_tensor_idx);
                 auto bc_axis_list = infer_broadcast_axis_binding(
-                        known_axis_map[2 - maxtensor_idx], bc_axis);
+                        known_axis_map[known_tensor_idx], bc_axis);
                 known_axis_map[maxtensor_idx] = bc_axis_list;
-                // deal with input[1]
-                bc_axis = get_bc_axis(2 - maxtensor_idx, 1);
-                bc_axis_list = infer_broadcast_axis_binding(
-                        known_axis_map[2 - maxtensor_idx], bc_axis);
-                known_axis_map[1] = bc_axis_list;
-            }
-        } else {
-            int known_tensor = -1;
-            for (int i = 0; i < 3; i++) {
-                if (known_idx[i] == 1) {
-                    known_tensor = i;
-                    break;
+                known_idx[maxtensor_idx] = 1;
+                // deal with the remaining unknown binding axis
+                it = std::find(known_idx.begin(), known_idx.end(), 0);
+                if (it != known_idx.end()) {
+                    int remaining_idx = std::distance(known_idx.begin(), it);
+                    bc_axis = get_bc_axis(maxtensor_idx, remaining_idx);
+                    bc_axis_list = infer_broadcast_arg_axis_binding(
+                            known_axis_map[maxtensor_idx], bc_axis);
+                    known_axis_map[remaining_idx] = bc_axis_list;
                 }
             }
-            COMPILE_ASSERT(
-                    known_tensor >= 0, "At least one slice shall be known.");
+        } else {
+            auto it = std::find(known_idx.begin(), known_idx.end(), 1);
+            COMPILE_ASSERT(it != known_idx.end(), "No known idx found.");
+            int known_tensor = std::distance(known_idx.begin(), it);
             for (int i = 0; i < 3; i++) {
                 if (i != known_tensor) {
                     known_axis_map[i] = known_axis_map[known_tensor];
@@ -524,54 +518,76 @@ void select_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
     }
     // set outputs axis binding
     int maxtensor_idx = get_max_input();
-    bdax_map.get(get_outputs()[0]) = known_axis_map[maxtensor_idx > -1
-                    ? maxtensor_idx
-                    : (inplace_ >= 1 ? inplace_ : 1)];
+    bdax_map.get(get_outputs()[0])
+            = known_axis_map[maxtensor_idx > -1 ? maxtensor_idx : 1];
     // set the other unknown axis binding by achieved known_axis_map
     set_unknown_axis_binding(this, known_axis_map, bdax_map);
 }
 
 void select_op_t::pre_binding_axis(bound_axis_map &bdax_map) {}
 
-// l is always the larger side when passing parameters.
 std::vector<int> select_op_t::get_bc_axis(const int l, const int r) const {
-    COMPILE_ASSERT(l == get_max_input() || r == 1,
-            "l should be the larger side when passing parameters");
+    auto lhs_shape = info_.inputs_[l]->details_.get_plain_dims();
+    auto rhs_shape = info_.inputs_[r]->details_.get_plain_dims();
     int bc_input_idx = get_broadcast_input(l, r);
+    COMPILE_ASSERT(bc_input_idx != -2,
+            "get_bc_axis shall be called with uni-directional broadcastable "
+            "inputs.");
     if (bc_input_idx == -1) {
         auto temp = get_inputs()[l]->details_.get_blocking_dims();
-        std::vector<int> blocking_dims;
-        for (size_t i = 0; i < temp.size(); i++) {
-            blocking_dims.emplace_back(i);
-        }
+        std::vector<int> blocking_dims(temp.size());
+        std::iota(blocking_dims.begin(), blocking_dims.end(), 0);
         return blocking_dims;
     }
-    std::vector<int> plain_axis_ = infer_broadcast_axis(l, r);
-    if (plain_axis_ == std::vector<int> {-1}) return plain_axis_;
-    return transform_axis_plain2blocking(info_.inputs_[l], plain_axis_);
+    std::vector<int> plain_axis = bc_input_idx == l
+            ? fill_auto_broadcast_bc_axis(lhs_shape, rhs_shape)
+            : fill_auto_broadcast_bc_axis(rhs_shape, lhs_shape);
+    if (plain_axis == std::vector<int> {-1}) return plain_axis;
+    return transform_axis_plain2blocking(
+            info_.inputs_[bc_input_idx == l ? r : l], plain_axis);
 }
 
 shape_rl_vec select_op_t::get_dynamic_shape_relations() const {
     shape_rl_vec ret;
-    auto &cond_dims = get_inputs()[0]->details_.get_plain_dims();
-    auto &inp2_dims = get_inputs()[2]->details_.get_plain_dims();
-    auto &out_dims = get_outputs()[0]->details_.get_plain_dims();
-    for (size_t i = 0; i < cond_dims.size(); i++) {
-        if (is_dynamic_dim(cond_dims[i])) {
-            ret.emplace_back(cond_dims[i], inp2_dims[i]);
+    auto &out_plain_dims = get_outputs()[0]->details_.get_plain_dims();
+    for (size_t i = 0; i < get_inputs().size(); ++i) {
+        const auto &in_plain_dims = get_inputs()[i]->details_.get_plain_dims();
+        assert(in_plain_dims.size() == out_plain_dims.size()
+                || in_plain_dims.size() == 1);
+    }
+    for (size_t i = 0; i < get_inputs().size(); ++i) {
+        const auto &dims1 = get_inputs()[i]->details_.get_plain_dims();
+        for (size_t j = i + 1; j < get_inputs().size(); ++j) {
+            const auto &dims2 = get_inputs()[j]->details_.get_plain_dims();
+            if (dims1.size() == dims2.size()) {
+                for (size_t idx = 0; idx < dims1.size(); ++idx) {
+                    // maybe broadcast
+                    if ((is_dynamic_dim(dims1[idx])
+                                || is_dynamic_dim(dims2[idx]))
+                            && dims1[idx] != 1 && dims2[idx] != 1) {
+                        ret.emplace_back(dims1[idx], dims2[idx]);
+                    }
+                }
+            }
         }
     }
-    for (size_t i = 0; i < out_dims.size(); i++) {
-        if (is_dynamic_dim(out_dims[i])) {
-            ret.emplace_back(inp2_dims[i], out_dims[i]);
+    for (size_t i = 0; i < out_plain_dims.size(); ++i) {
+        if (is_dynamic_dim(out_plain_dims[i])) {
+            for (size_t j = 0; j < get_inputs().size(); ++j) {
+                const auto &in_plain_dims
+                        = get_inputs()[j]->details_.get_plain_dims();
+                if (i < in_plain_dims.size() && in_plain_dims[i] != 1) {
+                    ret.emplace_back(in_plain_dims[i], out_plain_dims[i]);
+                }
+            }
         }
     }
     return ret;
 }
 
-void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
+void compute_block_select(const std::vector<const tensor_slice *> &src,
         const tensor_slice &dst, sc_op_info_t &info, const int maxtensor_idx,
-        std::vector<int> bc_axis_1, std::vector<int> bc_axis_2,
+        const std::vector<std::vector<int>> &blocking_bc_axis,
         const vectorized_info_t &vx_info, const mask_compute_func_t &compute,
         sc_data_type_t dtype = datatypes::f32, size_t wkld = 0UL) {
     // nested loop vars
@@ -582,8 +598,7 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
     // the indices for the output tensor
     std::vector<expr> dst_idx;
 
-    COMPILE_ASSERT(maxtensor_idx >= 0 && maxtensor_idx != 1,
-            "maxtensor_idx is expected to be 0 or 2")
+    COMPILE_ASSERT(maxtensor_idx >= 0, "maxtensor_idx shall be determined.")
 
     std::vector<int> bc;
     for (int i = 0; i < 3; i++) {
@@ -596,6 +611,8 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
             == in_bc_tsl_1->get_base_dims().size();
     bool keep_dims_2 = in_tsl->get_base_dims().size()
             == in_bc_tsl_2->get_base_dims().size();
+    auto bc_axis_1 = blocking_bc_axis[bc[0]];
+    auto bc_axis_2 = blocking_bc_axis[bc[1]];
     // add output type check, manual downcast
     sc_data_etype out_etype
             = dst.tptr_->dtype_.get_pointer_element().as_etype();
@@ -796,7 +813,6 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
     }
 }
 
-// TODO(shihao): improve the logic to fix cond_dims == then_dims == else_dims
 void select_op_t::compute_block(context_ptr ctx,
         const std::vector<tensor_slice *> &dst,
         const std::vector<const tensor_slice *> &inputs) {
@@ -816,35 +832,27 @@ void select_op_t::compute_block(context_ptr ctx,
             = vectorize_step(ctx, info_.inputs_[1]->details_.dtype_.type_code_);
     // use broad-cast
     int maxtensor_idx = get_max_input();
-    if (maxtensor_idx != -1) {
-        auto func = [&](const std::vector<expr> &ins,
-                            std::vector<expr::lvalue_proxy_t> &outs) -> stmt {
-            return builder::make_assign_unattached(outs[0],
-                    builder::make_select(
-                            ins[0] > make_expr<constant_node>(
-                                    static_cast<uint64_t>(0), ins[0]->dtype_),
-                            ins[1], ins[2]));
-            // Here we use "ins[0] >
-            // make_expr<constant_node>(static_cast<uint64_t>(0),
-            // ins[0]->dtype_)" instead of "ins[0]", because _mm_cmp_epi8_mask
-            // intrinsic is the optimal instruction to cast bool tensor to
-            // bitmap
-        };
-        std::vector<int> bc;
-        for (int i = 0; i < 3; i++) {
-            if (i != maxtensor_idx) { bc.emplace_back(i); }
-        }
-        COMPILE_ASSERT(maxtensor_idx != 1, "maxtensor_idx can't be input1");
-        std::vector<int> bc_axis_1 = get_bc_axis(maxtensor_idx, bc[0]);
-        std::vector<int> bc_axis_2 = get_bc_axis(maxtensor_idx, bc[1]);
-        // reuse broadcast op
-        compute_block_broadcast(inputs, *dst[0], info_, maxtensor_idx,
-                bc_axis_1, bc_axis_2, vx_info_, mask_compute_func_t(func),
-                info_.outputs_[0]->details_.dtype_, wkld);
-    } else {
-        COMPILE_ASSERT(
-                0, "Select op does not support non-broadcast cases for now.");
+    maxtensor_idx = (maxtensor_idx == -1) ? 0 : maxtensor_idx;
+    auto func = [&](const std::vector<expr> &ins,
+                        std::vector<expr::lvalue_proxy_t> &outs) -> stmt {
+        return builder::make_assign_unattached(outs[0],
+                builder::make_select(
+                        ins[0] > make_expr<constant_node>(
+                                static_cast<uint64_t>(0), ins[0]->dtype_),
+                        ins[1], ins[2]));
+        // Here we use "ins[0] >
+        // make_expr<constant_node>(static_cast<uint64_t>(0),
+        // ins[0]->dtype_)" instead of "ins[0]", because _mm_cmp_epi8_mask
+        // intrinsic is the optimal instruction to cast bool tensor to
+        // bitmap
+    };
+    std::vector<std::vector<int>> blocking_bc_axis(info_.inputs_.size());
+    for (size_t i = 0; i < info_.inputs_.size(); i++) {
+        blocking_bc_axis[i] = get_bc_axis(maxtensor_idx, i);
     }
+    compute_block_select(inputs, *dst[0], info_, maxtensor_idx,
+            blocking_bc_axis, vx_info_, mask_compute_func_t(func),
+            info_.outputs_[0]->details_.dtype_, wkld);
 }
 
 // Pure virtual function in fusible_op_t class.

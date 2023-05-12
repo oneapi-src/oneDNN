@@ -31,8 +31,7 @@ static void infer_aligned_shape(const logical_tensor_t &a,
         sc_dims &aligned_shape, std::vector<int> &aligned_axis,
         sc_data_format_t &new_format) {
     assert(a.get_plain_dims().size() > b.get_plain_dims().size());
-    if (plain_bc_axis.size() != b.get_plain_dims().size()
-            || plain_bc_axis == std::vector<int> {-1}) {
+    if (plain_bc_axis.empty() || plain_bc_axis == std::vector<int> {-1}) {
         aligned_shape = sc_dims {};
         aligned_axis = {};
         new_format = sc_data_format_t();
@@ -45,11 +44,40 @@ static void infer_aligned_shape(const logical_tensor_t &a,
         b_format = sc_data_format_t::get_plain_by_dims(
                 b.get_plain_dims().size());
     }
+    // get dimension binding relation of b to plain_bc_axis index
+    std::unordered_map<int, int> bc_axis_bind;
+    int bc_axis_idx = 0;
+    for (size_t i = 0; i < b.get_plain_dims().size(); ++i) {
+        if (b.get_plain_dims()[i] == 1
+                && a.get_plain_dims()[plain_bc_axis[bc_axis_idx]] != 1) {
+            continue;
+        } else if (b.get_plain_dims()[i] != 1
+                && a.get_plain_dims()[plain_bc_axis[bc_axis_idx]] == 1) {
+            COMPILE_ASSERT(0, "Invalid bc_axis found for broadcastable ops.");
+        } else {
+            COMPILE_ASSERT(is_dynamic_dim(b.get_plain_dims()[i])
+                            || is_dynamic_dim(
+                                    a.get_plain_dims()
+                                            [plain_bc_axis[bc_axis_idx]])
+                            || b.get_plain_dims()[i]
+                                    == a.get_plain_dims()
+                                               [plain_bc_axis[bc_axis_idx]],
+                    "Invalid bc_axis found for broadcastable ops.");
+            bc_axis_bind[i] = bc_axis_idx;
+            bc_axis_idx++;
+            if (bc_axis_idx >= static_cast<int>(plain_bc_axis.size())) {
+                break;
+            }
+        }
+    }
+    COMPILE_ASSERT(bc_axis_idx == static_cast<int>(plain_bc_axis.size()),
+            "Invalid bc_axis found for broadcastable ops.");
     // b's new shape --> extend to a's number of dimension
     aligned_shape.resize(a.get_plain_dims().size(), 1);
     // start infer extended shape
-    for (size_t i = 0; i < plain_bc_axis.size(); ++i) {
-        aligned_shape[plain_bc_axis[i]] = b.get_plain_dims()[i];
+    for (const auto &bind : bc_axis_bind) {
+        aligned_shape[plain_bc_axis[bind.second]]
+                = b.get_plain_dims()[bind.first];
     }
     for (size_t i = 0; i < a.get_plain_dims().size(); ++i) {
         if (std::find(plain_bc_axis.begin(), plain_bc_axis.end(), (int)i)
@@ -64,19 +92,26 @@ static void infer_aligned_shape(const logical_tensor_t &a,
     // plain_shape: [3, 5] --> [1, 3, 1, 5]
     // blocking_shape: [5, 3] --> [1, 1, 5, 3]
     // format: BA --> xxDB --> ACDB
-    // plain_shape: [3, 4, 5] --> [3, 1, 4, 5]
-    // blocking_shape: [3, 5, 4] --> [3, 1, 5, 4]
-    // format: X_BA --> X_xCB --> X_ACB
+    // plain_shape: [3, 1, 5] --> [1, 3, 1, 5] ({1, 3})
+    // format: ABC --> xBxD --> ABCD
+    // format: CAB ([5, 3, 1])--> xDBx --> ADBC --> [1, 5, 3, 1]
     std::vector<int> storage_args(
             b_format.format_code_.ndims() + dim_difference, -1);
-    int batch_dim
-            = b.get_plain_dims().size() - b_format.format_code_.norig_dims();
     std::unordered_set<int> axis;
     for (int i = 0; i < b_format.format_code_.ndims(); ++i) {
         int original_axis = b_format.format_code_.get(i);
-        storage_args[i + dim_difference]
-                = plain_bc_axis[original_axis + batch_dim] - batch_dim;
-        axis.insert(storage_args[i + dim_difference]);
+        // original_axis is the axis of the b's plain_dims
+        // if plain_dims[original_axis]
+        // the issue is we don't know whether original_axis is
+        if (bc_axis_bind.find(original_axis) != bc_axis_bind.end()) {
+            storage_args[i + dim_difference]
+                    = plain_bc_axis[bc_axis_bind[original_axis]];
+            axis.insert(storage_args[i + dim_difference]);
+        } else {
+            COMPILE_ASSERT(b.get_plain_dims()[original_axis] == 1,
+                    "Axis not found in bc_axis_bind map's corresponding dim "
+                    "must be 1.");
+        }
     }
 
     int sequential_fill_up = 0;
@@ -146,33 +181,25 @@ void elemwise_dimension_alignment(sc_graph_t &graph, const context_ptr &ctx) {
         } else if (auto select_node = node->dyn_cast<select_op_t>()) {
             COMPILE_ASSERT(select_node->info_.inputs_.size() == 3,
                     "Wrong number of inputs for select_op");
-            const auto &cond = select_node->info_.inputs_[0]->details_;
-            const auto &els = select_node->info_.inputs_[2]->details_;
-            sc_dims shape;
-            std::vector<int> aligned_axis;
-            sc_data_format_t format;
-            if (cond.get_plain_dims().size() < els.get_plain_dims().size()) {
-                infer_aligned_shape(els, cond, select_node->get_plain_bc_axis(),
-                        shape, aligned_axis, format);
-                if (!shape.empty()) {
-                    // insert tensor view
-                    auto ret = graph.make("tensor_view",
-                            {select_node->info_.inputs_[0]}, {},
-                            {{"shape", shape}, {"format", format},
-                                    {"expand_dim", true}});
-                    node->replace_input(0, ret->get_outputs()[0]);
-                }
-            } else if (cond.get_plain_dims().size()
-                    > els.get_plain_dims().size()) {
-                infer_aligned_shape(cond, els, select_node->get_plain_bc_axis(),
-                        shape, aligned_axis, format);
-                if (!shape.empty()) {
-                    // insert tensor view
-                    auto ret = graph.make("tensor_view",
-                            {select_node->info_.inputs_[2]}, {},
-                            {{"shape", shape}, {"format", format},
-                                    {"expand_dim", true}});
-                    node->replace_input(2, ret->get_outputs()[0]);
+            for (size_t i = 0; i < node->get_inputs().size(); ++i) {
+                auto cur_in_lt = node->get_inputs()[i]->details_;
+                auto cur_out_lt = node->get_outputs()[0]->details_;
+                if (cur_in_lt.get_plain_dims().size()
+                        < cur_out_lt.get_plain_dims().size()) {
+                    auto plain_bc_axis = select_node->get_plain_bc_axis()[i];
+                    sc_dims shape;
+                    std::vector<int> aligned_axis;
+                    sc_data_format_t format;
+                    infer_aligned_shape(cur_out_lt, cur_in_lt, plain_bc_axis,
+                            shape, aligned_axis, format);
+                    if (!shape.empty()) {
+                        // insert tensor view
+                        auto ret = graph.make("tensor_view",
+                                {node->info_.inputs_[i]}, {},
+                                {{"shape", shape}, {"format", format},
+                                        {"expand_dim", aligned_axis}});
+                        node->replace_input(i, ret->get_outputs()[0]);
+                    }
                 }
             }
         }

@@ -28,126 +28,91 @@
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <compiler/ir/sc_data_format.hpp>
 #include <compiler/jit/jit.hpp>
+#include <ops/fusible/ternary_elemwise.hpp>
 #include <util/any_map.hpp>
+#include <util/math_utils.hpp>
 #include <util/utils.hpp>
 
 using namespace dnnl::impl::graph::gc;
 
 // select_ref function calculates (cond?then:else)
-template <class T>
-T get_dims_product(const std::vector<T> &dims) {
-    T ret = 1;
-    for (unsigned i = 0; i < dims.size(); ++i) {
-        ret *= dims[i];
-    }
-    assert(ret > 0 && "Overflow or non-constant shape detected");
-    return ret;
-}
-
-static std::vector<int> get_stride_size(const sc_dims &src_dims) {
-    std::vector<int> stride_size(src_dims.size());
-    int product = 1;
-    for (size_t i = 0; i < src_dims.size(); i++) {
-        stride_size[src_dims.size() - 1 - i] = product;
-        product *= src_dims[src_dims.size() - 1 - i];
-    }
-    return stride_size;
-}
-
-static int get_broadcast_input(
-        const sc_dims &lhs_dims, const sc_dims &rhs_dims) {
-    if (lhs_dims == rhs_dims) {
-        return -1;
-    } else {
-        auto lhs_dp = get_dims_product(lhs_dims);
-        auto rhs_dp = get_dims_product(rhs_dims);
-        if (lhs_dp == rhs_dp) {
-            COMPILE_ASSERT(lhs_dims.size() != rhs_dims.size(),
-                    "Unexpected dims of bianry elementwise inputs are found: "
-                            << utils::print_vector(lhs_dims) << " and "
-                            << utils::print_vector(rhs_dims))
-            return lhs_dims.size() > rhs_dims.size() ? 1 : 0;
-        } else {
-            return lhs_dp > rhs_dp ? 1 : 0;
-        }
-    }
-}
-
-static std::vector<int> get_bc_stride_size(
-        const sc_dims &lhs_dims, const sc_dims &rhs_dims) {
-    int bc_input_idx = get_broadcast_input(lhs_dims, rhs_dims);
-    if (bc_input_idx == -1) return {};
-
-    sc_dims elt_dims, bc_dims;
-    if (bc_input_idx == 1) {
-        elt_dims = lhs_dims;
-        bc_dims = rhs_dims;
-    } else if (bc_input_idx == 0) {
-        elt_dims = rhs_dims;
-        bc_dims = lhs_dims;
-    }
-
-    std::vector<int> bc_axis(elt_dims.size(), 0);
-    for (size_t i = 0; i < bc_dims.size(); i++) {
-        if (elt_dims[elt_dims.size() - 1 - i]
-                == bc_dims[bc_dims.size() - 1 - i]) {
-            bc_axis[bc_axis.size() - 1 - i] = 1;
-        }
-    }
-
-    auto stride_size = get_stride_size(bc_dims);
-    int base = elt_dims.size() - bc_dims.size();
-
-    std::vector<int> bc_stride_size(bc_axis.size(), 0);
-    for (size_t i = 0; i < bc_axis.size(); i++) {
-        if (bc_axis[i] == 1) { bc_stride_size[i] = stride_size[i - base]; }
-    }
-    return bc_stride_size;
-}
-
 static void select_ref(const sc_dims &cond_plain_dims,
         const sc_dims &then_plain_dims, const sc_dims &else_plain_dims,
+        const sc_dims &out_plain_dims,
+        const std::vector<std::vector<int>> &ternary_bc_axis,
         test_buffer<uint8_t> &cond, test_buffer<float> &then,
         test_buffer<float> &els, test_buffer<float> &out) {
-    int bc_input_idx = get_broadcast_input(cond_plain_dims, else_plain_dims);
-    sc_dims out_dims;
-    std::vector<int> cond_stride(4, 0);
-    std::vector<int> else_stride(4, 0);
-    std::vector<int> out_stride(4, 0);
-    if (bc_input_idx == 0) {
-        cond_stride = get_bc_stride_size(cond_plain_dims, else_plain_dims);
-        else_stride = get_stride_size(else_plain_dims);
-        out_stride = else_stride;
-        out_dims.assign(else_plain_dims.begin(), else_plain_dims.end());
-    } else if (bc_input_idx == 1) {
-        cond_stride = get_stride_size(cond_plain_dims);
-        else_stride = get_bc_stride_size(cond_plain_dims, else_plain_dims);
-        out_stride = cond_stride;
-        out_dims.assign(cond_plain_dims.begin(), cond_plain_dims.end());
-    } else {
-        cond_stride = get_stride_size(cond_plain_dims);
-        else_stride = get_stride_size(else_plain_dims);
-        out_stride = else_stride;
-        out_dims.assign(else_plain_dims.begin(), else_plain_dims.end());
-    }
+    sc_dims extended_cond_plain_dims(out_plain_dims.size(), 1);
+    sc_dims extended_then_plain_dims(out_plain_dims.size(), 1);
+    sc_dims extended_else_plain_dims(out_plain_dims.size(), 1);
+    auto &cond_plain_axis = ternary_bc_axis[0];
+    auto &then_plain_axis = ternary_bc_axis[1];
+    auto &else_plain_axis = ternary_bc_axis[2];
 
-    for (int i = 0; i < out_dims[0]; i++) {
-        for (int j = 0; j < out_dims[1]; j++) {
-            for (int k = 0; k < out_dims[2]; k++) {
-                for (int l = 0; l < out_dims[3]; l++) {
-                    int out_idx = i * out_stride[0] + j * out_stride[1]
-                            + k * out_stride[2] + l * out_stride[3];
-                    int cond_idx = i * cond_stride[0] + j * cond_stride[1]
-                            + k * cond_stride[2] + l * cond_stride[3];
-                    int else_idx = i * else_stride[0] + j * else_stride[1]
-                            + k * else_stride[2] + l * else_stride[3];
-                    out[out_idx]
-                            = cond[cond_idx] > 0UL ? then[0] : els[else_idx];
-                }
-            }
+    auto get_extended_plain_dims
+            = [&](const std::vector<int> &plain_axis, sc_dims plain_dims,
+                      sc_dims &extended_plain_axis) {
+                  if (plain_axis != std::vector<int> {-1}) {
+                      int offset = out_plain_dims.size() - plain_dims.size();
+                      for (size_t i = 0; i < plain_dims.size(); ++i) {
+                          if (plain_dims[i] == out_plain_dims[i + offset]) {
+                              extended_plain_axis[i + offset] = plain_dims[i];
+                          }
+                      }
+                  }
+              };
+
+    auto flattened_idx_to_ND_idx = [](size_t idx, const sc_dims &strides) {
+        sc_dims ret(strides.size());
+        for (size_t i = 0; i < strides.size(); ++i) {
+            ret[i] = idx / strides[i];
+            idx -= ret[i] * strides[i];
         }
-    }
-    return;
+        return ret;
+    };
+
+    get_extended_plain_dims(
+            cond_plain_axis, cond_plain_dims, extended_cond_plain_dims);
+    get_extended_plain_dims(
+            then_plain_axis, then_plain_dims, extended_then_plain_dims);
+    get_extended_plain_dims(
+            else_plain_axis, else_plain_dims, extended_else_plain_dims);
+
+    sc_dims cond_strides
+            = test_utils::compute_dense_stride(extended_cond_plain_dims);
+    sc_dims then_strides
+            = test_utils::compute_dense_stride(extended_then_plain_dims);
+    sc_dims else_strides
+            = test_utils::compute_dense_stride(extended_else_plain_dims);
+    sc_dims output_strides = test_utils::compute_dense_stride(out_plain_dims);
+
+    const size_t total_size = out.size();
+    utils::parallel_for(0, total_size, 1, [&](int64_t i) {
+        sc_dims output_idx = flattened_idx_to_ND_idx(i, output_strides);
+        sc_dims cond_idx(output_idx.size());
+        sc_dims then_idx(output_idx.size());
+        sc_dims else_idx(output_idx.size());
+        for (size_t d = 0; d < cond_idx.size(); ++d) {
+            cond_idx[d] = extended_cond_plain_dims[d] == 1 ? 0 : output_idx[d];
+        }
+        for (size_t d = 0; d < then_idx.size(); ++d) {
+            then_idx[d] = extended_then_plain_dims[d] == 1 ? 0 : output_idx[d];
+        }
+        for (size_t d = 0; d < else_idx.size(); ++d) {
+            else_idx[d] = extended_else_plain_dims[d] == 1 ? 0 : output_idx[d];
+        }
+        auto prod_cond = math_utils::vector_mul(cond_idx, cond_strides);
+        size_t cond_idx_flattened
+                = std::accumulate(prod_cond.begin(), prod_cond.end(), 0);
+        auto prod_then = math_utils::vector_mul(then_idx, then_strides);
+        size_t then_idx_flattened
+                = std::accumulate(prod_then.begin(), prod_then.end(), 0);
+        auto prod_else = math_utils::vector_mul(else_idx, else_strides);
+        size_t else_idx_flattened
+                = std::accumulate(prod_else.begin(), prod_else.end(), 0);
+        out[i] = cond[cond_idx_flattened] > 0UL ? then[then_idx_flattened]
+                                                : els[else_idx_flattened];
+    });
 }
 
 static void check_select_correctness(const sc_dims &cond_plain_dims,
@@ -187,8 +152,11 @@ static void check_select_correctness(const sc_dims &cond_plain_dims,
     sc_dim cond_size = test_utils::product(cond_plain_dims);
     sc_dim then_size = test_utils::product(then_plain_dims);
     sc_dim else_size = test_utils::product(else_plain_dims);
-    sc_dim out_size = test_utils::product(
-            output->get_inputs()[0]->details_.get_plain_dims());
+    auto out_plain_dims = output->get_inputs()[0]->details_.get_plain_dims();
+    sc_dim out_size = test_utils::product(out_plain_dims);
+
+    auto ternary_bc_axis
+            = dynamic_cast<select_op_t *>(select.get())->get_plain_bc_axis();
 
     auto cond = alloc_array<uint8_t>(cond_size, INIT_RANDOM);
     auto then = alloc_array<float>(then_size, INIT_RANDOM);
@@ -202,8 +170,8 @@ static void check_select_correctness(const sc_dims &cond_plain_dims,
     gargs.emplace_back(out.data());
     fptr->call_generic_default(gargs.data());
 
-    select_ref(cond_plain_dims, then_plain_dims, else_plain_dims, cond, then,
-            els, ref_out);
+    select_ref(cond_plain_dims, then_plain_dims, else_plain_dims,
+            out_plain_dims, ternary_bc_axis, cond, then, els, ref_out);
     test_utils::compare_data<float>(out.data(), ref_out.data(), ref_out.size());
 }
 
@@ -214,7 +182,8 @@ static void check_distill_bert_mha(const sc_dims &feature_plain_dims,
         sc_data_format_t weight_format = sc_data_format_t(),
         sc_data_format_t cond_format = sc_data_format_t(),
         sc_data_format_t then_format = sc_data_format_t(),
-        sc_data_format_t feature2_format = sc_data_format_t()) {
+        sc_data_format_t feature2_format = sc_data_format_t(),
+        bool use_then_as_else = false) {
     BUILTIN_REQUIRE_AVX512();
     sc_graph_t graph;
     auto input = graph.make_input(
@@ -232,10 +201,17 @@ static void check_distill_bert_mha(const sc_dims &feature_plain_dims,
     sc_op_ptr matmul, select, softmax, matmul2, transpose, reorder;
     matmul = graph.make("matmul_core",
             {input->get_outputs()[0], input->get_outputs()[1]}, {}, {});
-    select = graph.make("select",
-            {input->get_outputs()[2], input->get_outputs()[3],
-                    matmul->get_outputs()[0]},
-            {}, {});
+    if (use_then_as_else) {
+        select = graph.make("select",
+                {input->get_outputs()[2], matmul->get_outputs()[0],
+                        input->get_outputs()[3]},
+                {}, {});
+    } else {
+        select = graph.make("select",
+                {input->get_outputs()[2], input->get_outputs()[3],
+                        matmul->get_outputs()[0]},
+                {}, {});
+    }
     softmax = graph.make("softmax", {select->get_outputs()[0]}, {},
             {{"axis", std::vector<int> {3}}});
     matmul2 = graph.make("matmul_core",
@@ -285,59 +261,19 @@ TEST(GCCore_select_test, TestCorrectnessNonBlocking) {
             sc_data_format_t(format_kinds::A),
             sc_data_format_t(format_kinds::ABCD),
             sc_data_format_t(format_kinds::A));
-    check_select_correctness({68}, {2, 128, 16, 68}, {1},
-            sc_data_format_t(format_kinds::A),
-            sc_data_format_t(format_kinds::ACBD),
-            sc_data_format_t(format_kinds::A));
-    check_select_correctness({68}, {2, 128, 16, 68}, {1},
-            sc_data_format_t(format_kinds::A),
-            sc_data_format_t(format_kinds::ACDB),
-            sc_data_format_t(format_kinds::A));
     // 2D + 4D + 1D
     check_select_correctness({16, 68}, {2, 128, 16, 68}, {1},
             sc_data_format_t(format_kinds::AB),
             sc_data_format_t(format_kinds::ABCD),
             sc_data_format_t(format_kinds::A));
     check_select_correctness({16, 68}, {2, 128, 16, 68}, {1},
-            sc_data_format_t(format_kinds::AB),
-            sc_data_format_t(format_kinds::ACBD),
-            sc_data_format_t(format_kinds::A));
-    check_select_correctness({16, 68}, {2, 128, 16, 68}, {1},
-            sc_data_format_t(format_kinds::AB),
-            sc_data_format_t(format_kinds::ACDB),
-            sc_data_format_t(format_kinds::A));
-    check_select_correctness({16, 68}, {2, 128, 16, 68}, {1},
-            sc_data_format_t(format_kinds::BA),
-            sc_data_format_t(format_kinds::ABCD),
-            sc_data_format_t(format_kinds::A));
-    check_select_correctness({16, 68}, {2, 128, 16, 68}, {1},
             sc_data_format_t(format_kinds::BA),
             sc_data_format_t(format_kinds::ACBD),
-            sc_data_format_t(format_kinds::A));
-    check_select_correctness({16, 68}, {2, 128, 16, 68}, {1},
-            sc_data_format_t(format_kinds::BA),
-            sc_data_format_t(format_kinds::ACDB),
             sc_data_format_t(format_kinds::A));
     //  3D + 4D + 1D
     check_select_correctness({128, 16, 68}, {2, 128, 16, 68}, {1},
             sc_data_format_t(format_kinds::ABC),
             sc_data_format_t(format_kinds::ABCD),
-            sc_data_format_t(format_kinds::A));
-    check_select_correctness({128, 16, 68}, {2, 128, 16, 68}, {1},
-            sc_data_format_t(format_kinds::ABC),
-            sc_data_format_t(format_kinds::ACBD),
-            sc_data_format_t(format_kinds::A));
-    check_select_correctness({128, 16, 68}, {2, 128, 16, 68}, {1},
-            sc_data_format_t(format_kinds::ABC),
-            sc_data_format_t(format_kinds::ACDB),
-            sc_data_format_t(format_kinds::A));
-    check_select_correctness({128, 16, 68}, {2, 128, 16, 68}, {1},
-            sc_data_format_t(format_kinds::ACB),
-            sc_data_format_t(format_kinds::ABCD),
-            sc_data_format_t(format_kinds::A));
-    check_select_correctness({128, 16, 68}, {2, 128, 16, 68}, {1},
-            sc_data_format_t(format_kinds::ACB),
-            sc_data_format_t(format_kinds::ACBD),
             sc_data_format_t(format_kinds::A));
     check_select_correctness({128, 16, 68}, {2, 128, 16, 68}, {1},
             sc_data_format_t(format_kinds::ACB),
@@ -352,6 +288,32 @@ TEST(GCCore_select_test, TestCorrectnessNonBlocking) {
             sc_data_format_t(format_kinds::ABCD),
             sc_data_format_t(format_kinds::ACBD),
             sc_data_format_t(format_kinds::A));
+    //  4D + 1D + 4D
+    check_select_correctness({2, 128, 16, 68}, {1}, {2, 128, 16, 68},
+            sc_data_format_t(format_kinds::ACBD),
+            sc_data_format_t(format_kinds::A),
+            sc_data_format_t(format_kinds::ABCD));
+    check_select_correctness({205, 1, 1, 132}, {1}, {205, 12, 132, 132},
+            sc_data_format_t(format_kinds::ABCD),
+            sc_data_format_t(format_kinds::A),
+            sc_data_format_t(format_kinds::ACBD));
+    //  4D + 4D + 4D
+    check_select_correctness({16, 1, 1, 32}, {16, 1, 1, 32}, {16, 1, 1, 32},
+            sc_data_format_t(format_kinds::ABCD),
+            sc_data_format_t(format_kinds::ABCD),
+            sc_data_format_t(format_kinds::ABCD));
+    check_select_correctness({16, 16, 1, 32}, {16, 16, 16, 32}, {16, 1, 16, 32},
+            sc_data_format_t(format_kinds::ABCD),
+            sc_data_format_t(format_kinds::ABCD),
+            sc_data_format_t(format_kinds::ABCD));
+    check_select_correctness({16, 16, 1, 32}, {16, 16, 16, 32}, {16, 1, 16, 32},
+            sc_data_format_t(format_kinds::ABCD),
+            sc_data_format_t(format_kinds::ABCD),
+            sc_data_format_t(format_kinds::ABCD));
+    check_select_correctness({16, 16, 1, 32}, {16, 16, 16, 32}, {16, 1, 16, 32},
+            sc_data_format_t(format_kinds::ABCD),
+            sc_data_format_t(format_kinds::ABCD),
+            sc_data_format_t(format_kinds::ABCD));
 }
 
 TEST(GCCore_select_test, TestCorrectnessSingleSideBlockingThen) {
@@ -431,7 +393,7 @@ TEST(GCCore_select_test, TestCorrectnessBlocking) {
             sc_data_format_t(format_kinds::A));
 }
 
-TEST(GCCore_distill_bert_test, TestCorrectness) {
+TEST(GCCore_distill_bert_test, TestFuntionality) {
     check_distill_bert_mha({205, 12, 132, 64}, {205, 12, 64, 132},
             {205, 1, 1, 132}, {1}, {205, 12, 132, 64},
             sc_data_format_t(format_kinds::ACBD),
@@ -439,4 +401,10 @@ TEST(GCCore_distill_bert_test, TestCorrectness) {
             sc_data_format_t(format_kinds::ABCD),
             sc_data_format_t(format_kinds::A),
             sc_data_format_t(format_kinds::ACBD));
+    check_distill_bert_mha({16, 16, 1, 256}, {16, 16, 256, 48}, {1, 1, 1, 48},
+            {1}, {16, 16, 48, 256}, sc_data_format_t(format_kinds::ACBD),
+            sc_data_format_kind_t(0, 3, 1, 2),
+            sc_data_format_t(format_kinds::ABCD),
+            sc_data_format_t(format_kinds::A),
+            sc_data_format_t(format_kinds::ACBD), true);
 }
