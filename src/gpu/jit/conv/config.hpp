@@ -488,22 +488,6 @@ public:
     static const bwd_d_optimize_kind_t default_value;
 };
 
-// TODO: Remove, use heuristics to determine if it's worth to sacrifice EU
-// utilization for larger SLM size.
-class check_slm_size_param_t : public bool_param_t {
-public:
-    check_slm_size_param_t() : bool_param_t(default_value) {}
-    std::string name() const override { return "check-slm-size"; }
-    std::string short_name() const override { return "c"; }
-    std::string desc() const override {
-        return "Whether to check SLM size to ensure full EU utilization.";
-    }
-    bool is_overridable() const override { return true; }
-    bool is_default() const override { return get() == default_value; }
-
-    static const bool default_value;
-};
-
 class dims_param_t : public map_param_t {
 public:
     std::string name() const override { return "dims"; }
@@ -918,7 +902,6 @@ public:
     name##_param_t &name() { return name##_; }
 
     DECL_PARAM(bwd_d_optimize_kind)
-    DECL_PARAM(check_slm_size)
     DECL_PARAM(fma_kind)
     DECL_PARAM(kernel_grid)
     DECL_PARAM(pad_slm)
@@ -1076,7 +1059,6 @@ private:
 
     INIT_PARAM(bia_layout)
     INIT_PARAM(bwd_d_optimize_kind)
-    INIT_PARAM(check_slm_size)
     INIT_PARAM(dims)
     INIT_PARAM(fma_kind)
     INIT_PARAM(iter_dims)

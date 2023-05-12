@@ -318,7 +318,6 @@ int param_t::sort_key() const {
 
 const bwd_d_optimize_kind_t bwd_d_optimize_kind_param_t::default_value
         = bwd_d_optimize_kind_t::none;
-const bool check_slm_size_param_t::default_value = true;
 const bool pad_slm_param_t::default_value = true;
 
 std::string build_tag(const std::vector<int> &inner_blocks,
