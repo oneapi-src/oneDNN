@@ -783,16 +783,14 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
  * */
 static stmt get_parent_loop_body(stmt anchor) {
     auto node = std::move(anchor);
-    while (node->attr().has_key("builder.parent_node")) {
-        if (node.isa<for_loop>()) {
-            auto ret = node.static_as<for_loop>();
+    auto parent = get_parent_node(node);
+    while (parent.defined()) {
+        if (parent.isa<for_loop>()) {
+            auto ret = parent.static_as<for_loop>();
             return ret->body_;
         }
-        node = get_parent_node(node);
-    }
-    if (node.isa<for_loop>()) {
-        auto ret = node.static_as<for_loop>();
-        return ret->body_;
+        node = parent;
+        parent = get_parent_node(parent);
     }
     return node;
 }
@@ -1364,6 +1362,36 @@ void fusion_manager::create_output_fusion_anchor(expr iter, expr tsr,
     auto s = bld->push_anchor();
     iter_anchor_list_.emplace_back(iter_fuse_anchor_t(s, std::move(iter),
             std::move(tsr), std::move(slice_list), std::move(dispatch_helper)));
+}
+
+void fusion_manager::create_output_fusion_anchor(
+        const std::vector<tensor_slice> &src, int group_id) {
+    auto iter = grouped_anchor_map_.find(group_id);
+    auto bld = builder::get_current_builder();
+    auto s = bld->push_anchor();
+    if (iter != grouped_anchor_map_.end()) {
+        auto &group_anchor = iter->second;
+        auto &es_map = group_anchor.expr_slice_map_;
+        for (auto &src_i : src) {
+            auto tsr = src_i.get_real_tensor();
+            auto slice_iter = es_map.find(tsr);
+            COMPILE_ASSERT(slice_iter != es_map.end(),
+                    "grouped anchor require same tensor for each group")
+            auto &sr_list = slice_iter->second;
+            sr_list.emplace_back(src_i.get_ranges());
+        }
+        group_anchor.anchor_position_->seq_.emplace_back(s);
+    } else {
+        std::unordered_map<expr, slice_range_list> expr_slice_map;
+        for (auto &src_i : src) {
+            expr_slice_map.insert(std::make_pair(src_i.get_real_tensor(),
+                    slice_range_list {src_i.get_ranges()}));
+        }
+        grouped_anchor_map_.insert(std::make_pair(group_id,
+                grouped_fuse_anchor_t(
+                        builder::make_stmts_unattached({s}).checked_as<stmts>(),
+                        std::move(expr_slice_map))));
+    }
 }
 
 std::vector<std::pair<stmts, std::unordered_map<expr, slice_range_list>>>

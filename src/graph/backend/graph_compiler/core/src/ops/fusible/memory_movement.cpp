@@ -174,14 +174,10 @@ static bool check_slice_on_non_concat_axis_equal(
                         && slices[i][j][k].first.isa<constant_c>()
                         && slices[0][j][k].second.isa<constant_c>()
                         && slices[i][j][k].second.isa<constant_c>()) {
-                    auto input0_offset = get_const_as_int(
-                            slices[0][j][k].first.checked_as<constant_c>());
-                    auto inputi_offset = get_const_as_int(
-                            slices[i][j][k].first.checked_as<constant_c>());
-                    auto input0_range = get_const_as_int(
-                            slices[0][j][k].second.checked_as<constant_c>());
-                    auto inputi_range = get_const_as_int(
-                            slices[i][j][k].second.checked_as<constant_c>());
+                    auto input0_offset = get_expr_as_int(slices[0][j][k].first);
+                    auto inputi_offset = get_expr_as_int(slices[i][j][k].first);
+                    auto input0_range = get_expr_as_int(slices[0][j][k].second);
+                    auto inputi_range = get_expr_as_int(slices[i][j][k].second);
                     if (input0_offset != inputi_offset
                             || input0_range != inputi_range) {
                         return false;
@@ -772,9 +768,8 @@ slice_range_list infer_tensor_view_slice(sc_graph_t &graph,
         for (int i = src_dims.size() - 1; i >= 0; i--) {
             if (slice_stop) {
                 // check whether slice is full on last several dims
-                if (get_const_as_int(
-                            known_ranges[i].second.checked_as<constant_c>())
-                        != 1)
+                if (!known_ranges[i].second.isa<constant_c>()
+                        || get_expr_as_int(known_ranges[i].second) != 1)
                     // if tensor_view deals with inconsequence slice, it will
                     // return empty slice range list to tell fusion manager not
                     // to fuse it
@@ -782,17 +777,13 @@ slice_range_list infer_tensor_view_slice(sc_graph_t &graph,
             }
             auto src_expr = src_dims[i];
             if (!(known_ranges[i].first.isa<constant_c>()
-                        && get_const_as_int(
-                                   known_ranges[i]
-                                           .first.checked_as<constant_c>())
-                                == 0
+                        && get_expr_as_int(known_ranges[i].first) == 0
                         && slice_expr_equals(
                                 known_ranges[i].second, src_expr))) {
                 slice_stop = true;
             }
             if (known_ranges[i].second.isa<constant_c>()) {
-                total_len *= get_const_as_int(
-                        known_ranges[i].second.checked_as<constant_c>());
+                total_len *= get_expr_as_int(known_ranges[i].second);
             } else {
                 total_len *= dyn_len;
             }

@@ -17,7 +17,7 @@
 #include "fusion_cost_model.hpp"
 #include <utility>
 #include "fusible_op_utils.hpp"
-#include "fusion_data.hpp"
+#include "fusion_anchor.hpp"
 #include "mixed_partition.hpp"
 
 SC_MODULE(graph.fusion_cost_model);

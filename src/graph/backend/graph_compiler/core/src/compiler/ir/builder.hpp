@@ -1062,9 +1062,10 @@ expr copy_attr(const expr_base &ths, expr &&newexpr);
 stmt copy_attr(const stmt_base_t &ths, stmt &&newstmt);
 func_t copy_attr(const func_base &ths, func_t &&newfunc);
 
-stmt get_parent_node(stmt node);
+stmt get_parent_node(const stmt &node);
 tensor get_real_tensor(const expr &buffer);
 void add_parent_node(const stmt &s, const stmt &ret);
+stmt get_common_parent_node(const stmt &node1, const stmt &node2);
 
 } // namespace gc
 } // namespace graph

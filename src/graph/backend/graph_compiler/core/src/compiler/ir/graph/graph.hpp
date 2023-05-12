@@ -62,6 +62,10 @@ using gt2gt_map = gt_map_t<graph_tensor_ptr>;
 using gt2axis_map = gt_map_t<std::vector<int>>;
 using gt2buf_map = gt_map_t<expr>;
 
+using slice_range = std::vector<std::pair<expr, expr>>;
+using slice_range_list = std::vector<slice_range>;
+using fslice_map = gt_map_t<slice_range_list>;
+
 using bound_axis = std::vector<std::vector<int>>;
 using bound_axis_map = gt_map_t<bound_axis>;
 
@@ -209,9 +213,6 @@ constexpr const char *layer_name = "temp.name";
 // op marked with not_redundant will not be removed in horizontal same op
 // elimination
 constexpr const char *not_redundant = "temp.not_redundant";
-// Fusible op marked inplace_optimized will be directly inplaced and will not
-// call compute_block
-constexpr const char *inplace_optimized = "temp.inplace_optimized";
 // binary/ternary elementwise op layout propagation source input index.
 constexpr const char *layout_input_index = "layout_input_index";
 }; // namespace op_attr_key

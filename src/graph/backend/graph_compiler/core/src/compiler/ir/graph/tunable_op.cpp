@@ -131,21 +131,25 @@ void tunable_op_t::append_mixed_partition(mixed_parti_t *parti) {
             "No suitable anchor found for " << op_name_ << "_"
                                             << logical_op_id_);
     parti->buf_alloc_.allocate_buffer(this);
-    commit_into_anchor(parti);
+    parti->buf_alloc_.update_input_buffer_info(this);
+
+    commit_into_anchor(parti->lookup_anchor_map(this).get());
+    // update output buffer info after inner anchor created
+    parti->buf_alloc_.update_output_buffer_info(this);
 }
 
 void tunable_op_t::search_anchor(mixed_parti_t *parti) {
     search_op_anchor_in_parti(this, parti);
 }
 
-void tunable_op_t::commit_into_anchor(mixed_parti_t *parti) {
+void tunable_op_t::commit_into_anchor(fuse_anchor_map_t *committed_anchor) {
+    auto parti = committed_anchor->get_binded_mxp();
     std::vector<expr> ins, outs;
     std::tie(ins, outs) = parti->buf_alloc_.get_buffer(this);
     // prepare slice
     std::vector<slice_range> ins_slice(get_inputs().size()),
             outs_slice(get_outputs().size());
 
-    auto committed_anchor = parti->lookup_anchor_map(this);
     std::transform(get_inputs().begin(), get_inputs().end(), ins_slice.begin(),
             [&committed_anchor](const graph_tensor_ptr &gt) {
                 auto slice_list = committed_anchor->fsmap_.get(gt);
@@ -191,16 +195,14 @@ void tunable_op_t::commit_into_anchor(mixed_parti_t *parti) {
     for (size_t i = 0; i < outs.size(); i++) {
         def_to_call_map[strd_outs[i].impl] = tptr_outs[i].impl;
     }
-    // commit content id to anchor
-    committed_anchor->append_content(static_cast<sc_op *>(this));
-    parti->buf_alloc_.update_input_buffer_info(this);
     auto func = get_func(parti, strd_ins, strd_outs);
-    // update output buffer info after inner anchor created
-    parti->buf_alloc_.update_output_buffer_info(this);
 
     // replace strided tensor with tensorptr
     mxp_replacer_t(def_to_call_map).replace_func(func);
     committed_anchor->commit_stmt(func->body_);
+
+    // commit content id to anchor
+    committed_anchor->append_content(static_cast<sc_op *>(this));
 }
 
 void tunable_op_t::set_config(const config_ptr &config) {

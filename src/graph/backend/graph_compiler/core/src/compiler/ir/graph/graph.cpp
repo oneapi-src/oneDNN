@@ -167,6 +167,11 @@ bool tensor_slice::is_full() const {
     return full_on_axis(total_axis);
 }
 
+bool tensor_slice::is_const() const {
+    return std::all_of(shape_.begin(), shape_.end(),
+            [](const expr &e) { return do_cast_and_fold(e).isa<constant>(); });
+}
+
 tensor_slice::tensor_slice(const expr &tsr) {
     if (tsr.isa<tensor>()) {
         auto t = tsr.static_as<tensor>();

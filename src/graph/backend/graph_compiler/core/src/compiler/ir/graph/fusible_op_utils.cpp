@@ -165,7 +165,7 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx) {
                 std::const_pointer_cast<sc_op>(copied->shared_from_this()),
                 std::make_shared<op_dep_matrix_t>(g));
     }
-    auto mx_op = transform_pa_to_mixed_op(ctx, g, parti);
+    auto mx_op = parti->transform_to_mixed_op();
     mx_op->set_owner_graph(&g);
     // copy logigcal id
     mx_op->logical_op_id_ = op->logical_op_id_;
@@ -835,9 +835,6 @@ cmp_res cmp_slice_range(const slice_range_list &left_slice_range_list,
             "slice range should be set");
     if (is_dynamic_slice_range_list(left_slice_range_list)
             || is_dynamic_slice_range_list(right_slice_range_list)) {
-        COMPILE_ASSERT(left_slice_range_list.size() == 1
-                        && right_slice_range_list.size() == 1,
-                "left and right slice range size should be 1.");
         auto &left_slice_range = left_slice_range_list[0];
         auto &right_slice_range = right_slice_range_list[0];
         assert(left_slice_range.size() == right_slice_range.size());

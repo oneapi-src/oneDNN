@@ -21,6 +21,8 @@
 #include <algorithm>
 #include <atomic>
 #include <utility>
+#include "passlet/passlet.hpp"
+#include "passlet/structural_analysis.hpp"
 #include "sc_expr.hpp"
 #include "sc_function.hpp"
 #include "sc_stmt.hpp"
@@ -80,19 +82,39 @@ static std::vector<expr> vector_remove_const(const std::vector<expr_c> &v) {
 
 // add ret to parent node of s.
 void add_parent_node(const stmt &s, const stmt &ret) {
-    std::weak_ptr<stmt_base_t> owner = ret.impl;
-    s->attr()["builder.parent_node"] = owner;
+    s->attr()["builder.parent_node"] = passlet::structural_result_t {ret, s};
+}
+
+passlet::structural_result_t *get_parent_struct(const stmt &v) {
+    if (!v->attr_) return nullptr;
+    return v->attr_->get_or_null<passlet::structural_result_t>(
+            "builder.parent_node");
 }
 
 // This function can find the parent node in IR, if the node has no parent
-// node, return itself.
-stmt get_parent_node(stmt node) {
-    if (!node->attr().has_key("builder.parent_node")) return node;
-    stmt parent {node->attr()["builder.parent_node"]
-                         .get<std::weak_ptr<stmt_base_t>>()
-                         .lock()};
-    COMPILE_ASSERT(parent.defined(), "parent node should not be null");
-    return parent;
+// node, return stmt().
+stmt get_parent_node(const stmt &node) {
+    auto stru_res = get_parent_struct(node);
+    if (!stru_res) return stmt();
+    return stru_res->get_parent_node();
+}
+
+stmt get_common_parent_node(const stmt &node1, const stmt &node2) {
+    auto stru_res1 = get_parent_struct(node1),
+         stru_res2 = get_parent_struct(node2);
+    if (!stru_res1 || !stru_res2) return stmt();
+    return stmt {const_cast<stmt_base_t *>(
+            stru_res1->find_shared_parent(
+                    *stru_res2,
+                    [](passlet::passlet_t *ths, const node_base *v)
+                            -> passlet::structural_result_t * {
+                        if (!v->attr_) return nullptr;
+                        return v->attr_
+                                ->get_or_null<passlet::structural_result_t>(
+                                        "builder.parent_node");
+                    },
+                    true, true))
+                         ->shared_from_this()};
 }
 
 tensor get_real_tensor(const expr &buffer) {
@@ -634,6 +656,7 @@ stmt builder_impl_t::pop_scope() {
     for (auto &s : ret.checked_as<stmts>()->seq_) {
         add_parent_node(s, ret);
     }
+    add_parent_node(ret, stmt());
     scopes.pop_back();
     return ret;
 }

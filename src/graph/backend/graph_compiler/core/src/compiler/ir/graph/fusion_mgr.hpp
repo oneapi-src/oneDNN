@@ -163,9 +163,17 @@ public:
     void create_input_fusion_anchor(const std::vector<tensor_slice> &dst,
             const std::vector<tensor_slice> &src = {});
 
+    // iter anchor
     std::vector<iter_fuse_anchor_t> iter_anchor_list_;
+    // create iter anchor
     void create_output_fusion_anchor(expr iter, expr tsr,
             slice_range_list slice_list, stmt dispatch_helper = stmt());
+
+    // grouped anchor
+    std::unordered_map<int, grouped_fuse_anchor_t> grouped_anchor_map_;
+    // create grouped anchor
+    void create_output_fusion_anchor(
+            const std::vector<tensor_slice> &src, int group_id);
 
     // clear anchor and reset their status.
     void clear_anchor();

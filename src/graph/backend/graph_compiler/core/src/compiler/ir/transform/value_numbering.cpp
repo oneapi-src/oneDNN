@@ -247,7 +247,7 @@ class value_numbering_mutator_t : public ssa_visitor_t {
                 if (shared_parent) {
                     if (shared_parent->node_type_ == sc_stmt_type::if_else) {
                         shared_parent = get_vn_result(shared_parent)
-                                                .parent_info_.parent_;
+                                                .parent_info_.get_raw_parent();
                     }
                     // remove old var def from its current parent
                     assert(shared_parent->node_type_ == sc_stmt_type::stmts);
@@ -292,9 +292,9 @@ class value_numbering_mutator_t : public ssa_visitor_t {
                         auto &the_seq = *scope.cur_seq_to_insert_;
                         // get the point in shared parent to insert the def
                         // before
-                        auto insert_before
-                                = get_vn_result(second_level->cur_node_)
-                                          .new_object_;
+                        auto insert_before = get_vn_result(
+                                second_level->get_raw_cur_node())
+                                                     .new_object_;
                         if (!insert_before) {
                             // if old def has not been attached to ancestor stmt
                             // seq
@@ -312,7 +312,7 @@ class value_numbering_mutator_t : public ssa_visitor_t {
                     // insert to alive vars of shared_parent
                     scope.alive_vars_.insert(old_def);
 
-                    old_info.parent_ = shared_parent;
+                    old_info.parent_ = shared_parent->shared_from_this();
                     old_vn_data.finalized_parent_ = nullptr;
 
                     replaced = true;

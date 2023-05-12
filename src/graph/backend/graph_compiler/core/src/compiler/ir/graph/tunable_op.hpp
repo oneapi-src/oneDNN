@@ -74,7 +74,7 @@ public:
 
     void search_anchor(mixed_parti_t *parti) override;
 
-    void commit_into_anchor(mixed_parti_t *parti) override;
+    void commit_into_anchor(fuse_anchor_map_t *committed_anchor) override;
 
     config_ptr_vec get_dynamic_config_candidates(
             const context_ptr &ctx) override;

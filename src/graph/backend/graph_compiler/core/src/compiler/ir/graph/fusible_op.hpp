@@ -29,13 +29,8 @@ namespace impl {
 namespace graph {
 namespace gc {
 
-using slice_range = std::vector<std::pair<expr, expr>>;
-using slice_range_list = std::vector<slice_range>;
-
 struct infer_status_map_t;
 struct tensor_slice;
-
-using fslice_map = gt_map_t<slice_range_list>;
 
 /**
  * A fuser will do actual code injection on the fusion point. It will be managed
@@ -109,7 +104,7 @@ public:
 
     void append_mixed_partition(mixed_parti_t *parti) override;
 
-    void commit_into_anchor(mixed_parti_t *parti) override;
+    void commit_into_anchor(fuse_anchor_map_t *committed_anchor) override;
 
     void infer_binding_axis(bound_axis_map &bdax_map) override {}
 
