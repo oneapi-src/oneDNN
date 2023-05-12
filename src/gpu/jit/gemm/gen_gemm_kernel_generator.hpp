@@ -454,17 +454,19 @@ struct MatrixAddressingStrategy
     uint8_t tileR = 0, tileC = 0; // Desired tiling (0 if none) in registers.
     ScatterSIMD smode
             = ScatterSIMD::Default; // SIMD selection for scattered accesses.
-    unsigned padded : 1; // Allow read/write overruns?
-    unsigned atomic : 1; // Atomic access? (only relevant for C)
-    unsigned address2D : 1; // Use 2D addressing? (media block-style loads)
-    unsigned prefetch : 1; // Prefetch only?
-    unsigned newDP : 1; // Use new dataport messages? (XeHPG+)
-    unsigned dpasw : 1; // DPASW half layout?
-    unsigned noExtraPad : 1; // Avoid extra padding?
+    uint8_t padded : 1; // Allow read/write overruns?
+    uint8_t atomic : 1; // Atomic access? (only relevant for C)
+    uint8_t address2D : 1; // Use 2D addressing? (media block-style loads)
+    uint8_t prefetch : 1; // Prefetch only?
+    uint8_t newDP : 1; // Use new dataport messages? (XeHPG+)
+    uint8_t dpasw : 1; // DPASW half layout?
+    uint8_t noExtraPad : 1; // Avoid extra padding?
+    uint8_t bitfield_padding : 1;
     ngen::CacheSettingsLSC cachingR // Cache policies for LSC reads.
             = ngen::CacheSettingsLSC::Default;
     ngen::CacheSettingsLSC cachingW // Cache policies for LSC writes.
             = ngen::CacheSettingsLSC::Default;
+    uint8_t pad0[1] = {};
 
     MatrixAddressingStrategy()
         : padded(false)
@@ -473,7 +475,8 @@ struct MatrixAddressingStrategy
         , prefetch(false)
         , newDP(false)
         , dpasw(false)
-        , noExtraPad(false) {}
+        , noExtraPad(false)
+        , bitfield_padding(false) {}
 
     void preflight(ngen::HW hw);
     void forceA64();
@@ -790,16 +793,20 @@ struct CommonStrategy {
             = true; // Workaround for HW issue with read suppression after fused sends.
     bool wgInSS
             = false; // Pretend to use barriers so that each WG belongs to 1 SS/DSS.
+    uint8_t pad0[1] = {};
     int GRFs = 128; // # of GRFs to use.
     bool finalFence = false; // Issue global memory fence before EOT.
+    uint8_t pad1[3] = {};
     int pauseCycles
             = 0x0200; // Number of cycles to pause when waiting in a spin-loop.
     bool simulation = false; // For use in simulator?
     bool systolicAvailable = false; // True if systolic array present.
+    uint8_t pad2[2] = {};
     ngen::HW raHW = ngen::HW::
             Unknown; // Pretend to be a different GPU for register allocation purposes.
 
     EmulationStrategy emulate;
+    uint8_t pad3[2] = {};
 
     CommonStrategy() {}
     CommonStrategy(ngen::HW hw, int stepping = 0);
@@ -955,11 +962,13 @@ struct GEMMStrategyPOD : public trivially_hashable_trait_t<GEMMStrategyPOD>,
     bool boustrophedon = false; // Use panel-boustrophedon walk order in C?
     bool persistent = false; // Use persistent thread model?
     bool reverse[2] = {false, false}; // Reverse m/n walk order?
+    uint8_t pad0[3] = {};
     int fmaSIMD = 0; // Vector length for FMA (0 = default = 2 GRFs).
     int kChain = 1; // # of FMAs to chain in k dimension.
     int wg[3] = {0, 0,
             0}; // m/n/k workgroup sizes, 0 if unconstrained. Indexed by LoopType.
     WGType forceWGUpdate = WGDynamic; // Force work group update type.
+    uint8_t pad1[3] = {};
     MatrixAddressingStrategy A, B, C,
             CO; // Strategies for accessing A/B/C/C offsets.
     int ka_load, kb_load; // How much of A/B is loaded at once, in k dimension
@@ -972,6 +981,7 @@ struct GEMMStrategyPOD : public trivially_hashable_trait_t<GEMMStrategyPOD>,
             = false; // Allow descriptor-based k remainder handling for A/B.
     bool slmA = false, slmB = false; // Whether to copy A/B to SLM.
     bool splitCopy = false; // Separate SLM copy and compute threads?
+    uint8_t pad2[2] = {};
     int slmBuffers = 0; // # of A/B SLM buffers, 0 for none.
     int unrollKSLM
             = 0; // k unroll for SLM copies (0 = auto = unroll[LoopK]/slmCopies)
@@ -980,17 +990,21 @@ struct GEMMStrategyPOD : public trivially_hashable_trait_t<GEMMStrategyPOD>,
     bool slmATrans = false,
          slmBTrans
             = false; // Whether A/B SLM data should be completely crosspacked (transposed).
+    uint8_t pad3[2] = {};
     int A_copies = 1,
         B_copies = 1; // # of copies of A/B matrices, for latency absorption
     int slmCopies = 1; // # of copies of loaded A/B matrices for SLM copies.
     bool slmRepackAhead = false; // Repack SLM data ahead of stores?
+    uint8_t pad4[3] = {};
     int optAlignAB
             = 0; // Optional alignment for A/B. If > 0, create two versions of k loop, one for A/B aligned to this value, one not.
     AccessType unalignedAccA,
             unalignedAccB; // Access types to use for A/B on unaligned path.
+    uint8_t pad5[2] = {};
     int ka_prefetch = 0, kb_prefetch = 0; // Chunk size for prefetching A/B.
     int ka_pfStride = 0, kb_pfStride = 0; // k stride between A/B prefetches.
     bool cooperativePF = true; // Enable WG-cooperative A/B prefetches.
+    uint8_t pad6[3] = {};
     int prefetchA = 0, prefetchB = 0,
         prefetchC = 0; // Prefetch distances, in units of unrollK.
     int prefetchAMasked = 0,
@@ -1039,6 +1053,7 @@ struct GEMMStrategyPOD : public trivially_hashable_trait_t<GEMMStrategyPOD>,
     };
     bool jointSplit
             = true; // Use remainder kernel for both m and n dimensions if both are split.
+    uint8_t pad7[3] = {};
     int mSplitThresh = 0,
         nSplitThresh
             = 0; // m/n minimum thresholds for using split remainder handling. 0 means always use split.
@@ -1049,6 +1064,7 @@ struct GEMMStrategyPOD : public trivially_hashable_trait_t<GEMMStrategyPOD>,
             = false; // Check inside kernel if inner loop additions can be done in 32-bit.
     bool delayABInc
             = true; // Delay A/B increment a few outer products in the k loop.
+    uint8_t pad8[3] = {};
     CoopSplit coopA = CoopSplit::
             K; // How to split SLM copies, cooperative prefetches amongst threads in a workgroup
     CoopSplit coopB = CoopSplit::K;
@@ -1066,6 +1082,7 @@ struct GEMMStrategyPOD : public trivially_hashable_trait_t<GEMMStrategyPOD>,
     bool dpasw = false; // Use DPASW for fused EU architectures.
     bool fixedSystolic
             = false; // Use hardcoded systolic inner loop for 32x32 or 32x48 unrolls.
+    uint8_t pad9[3] = {};
     int namedBarriers[2] = {0,
             0}; // # of named barriers in m, n dimensions (0 to use regular barriers).
     bool skewLocalIDs
@@ -1075,6 +1092,7 @@ struct GEMMStrategyPOD : public trivially_hashable_trait_t<GEMMStrategyPOD>,
             = false; // If true, check for beta = 1 and handle specially.
     bool panelCheck = false; // If true, check for out-of-bounds panel reads.
     bool insideSK = false; // Inside a superkernel?
+    uint8_t pad10[3] = {};
 
     GEMMStrategyPOD() {}
     GEMMStrategyPOD(ngen::HW hw, int stepping = 0)
