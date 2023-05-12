@@ -88,6 +88,9 @@ static status_t init_conf_common(lnorm_conf_t &conf,
 
     auto eu_count = compute_engine->device_info()->eu_count();
     auto threads_per_eu = device_info_t::threads_per_eu(gpu_arch, false);
+    auto max_eus_per_wg = device_info_t::max_eus_per_wg(gpu_arch);
+    const int max_ss = utils::div_up(eu_count, max_eus_per_wg);
+    const size_t max_wg_size = compute_engine->device_info()->max_wg_size();
 
     // Vectorized vs Reference heuristics.
     // PVC, FWD:
@@ -153,11 +156,43 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         }
         conf.vect_dt_n = vector_size;
 
+        // Splitting normalized dimension into parts increases HW utilization
+        // and can improve performance for some kinds of short shapes
+        const int num_wgs = conf.across_axis;
+        auto get_ss_utilization = [](const int num_wgs, const int max_ss) {
+            return (float)num_wgs / max_ss;
+        };
+        const int max_num_blocks = gpu_arch >= gpu_arch_t::xe_hpc ? 8 : 16;
+        const int min_num_blocks = 4;
+        const int best_num_blocks = [=]() {
+            int num_blocks = 1;
+            int best_num = num_blocks;
+            float ss_util = get_ss_utilization(num_wgs, max_ss);
+            if (ss_util > 1.0f || c_block > 1) { return best_num; }
+            while (num_blocks <= max_num_blocks) {
+                if (conf.norm_axis
+                                % (conf.sub_group_size * conf.vect_dt_n
+                                        * num_blocks)
+                        == 0) {
+                    best_num = num_blocks;
+                }
+                num_blocks++;
+            }
+            return best_num < min_num_blocks ? 1 : best_num;
+        }();
+        conf.num_norm_blocks = best_num_blocks;
+        conf.norm_block = conf.norm_axis / best_num_blocks;
+        assert(conf.norm_axis % conf.norm_block == 0);
+        assert(conf.norm_block % (conf.sub_group_size * conf.vect_dt_n) == 0);
+
+        const size_t norm_gws = conf.sub_group_size * conf.num_norm_blocks;
+        assert(norm_gws <= max_wg_size);
+
         for (int i = 0; i < 4; i++) {
             int md_hint_idx = nstl::min(i, ndims - 1);
             int dim = (i < ndims - 1) ? dims[i] : 1;
             if (i == ndims - 1) {
-                dim = conf.sub_group_size;
+                dim = norm_gws;
                 conf.dispatch.define_dim(
                         utils::format("X%d", i), md_hint_idx, dim);
                 CHECK(conf.dispatch.vectorize_dim(
@@ -166,7 +201,12 @@ static status_t init_conf_common(lnorm_conf_t &conf,
                 conf.dispatch.define_dim(
                         utils::format("X%d", i), md_hint_idx, dim);
         }
-    } else {
+        conf.dispatch.generate();
+        const size_t tuned_lws[3] = {norm_gws, 1, 1};
+        conf.dispatch.set_lws(tuned_lws);
+
+    } else { // bwd
+
         const int best_sg_size = [&]() {
             int size = desired_sg_size;
             while (size > 1) {
@@ -267,6 +307,8 @@ static status_t init_kernel_ctx_common(
     if (conf.is_fwd) kernel_ctx.add_option("-cl-intel-256-GRF-per-thread");
 
     kernel_ctx.define_int("C", conf.norm_axis);
+    kernel_ctx.define_int("NORM_BLOCK", conf.norm_block);
+    kernel_ctx.define_int("NUM_NORM_BLOCKS", conf.num_norm_blocks);
     kernel_ctx.define_int("N", conf.across_axis);
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("USE_SCALE", conf.use_scale);

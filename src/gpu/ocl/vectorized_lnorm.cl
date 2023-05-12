@@ -22,6 +22,17 @@
 #define STAT_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(STAT, x0, x1, x2, x3, x4, x5)
 
 #define VLEN_C (C / (SUB_GROUP_SIZE * VECT_DT_N))
+#define VLEN_C_BLOCK ((C / NUM_NORM_BLOCKS) / (SUB_GROUP_SIZE * VECT_DT_N))
+#define C_BLOCK (C / NUM_NORM_BLOCKS)
+
+#if (GWS_LWS0_DEFAULT * GWS_LWS1_DEFAULT * GWS_LWS2_DEFAULT) == GWS_SGS_DEFAULT
+#define GROUP_REDUCE_ADD sub_group_reduce_add
+#else
+#define GROUP_REDUCE_ADD work_group_reduce_add
+#endif
+
+#define LOAD_VECT_FLOAT(ptr) \
+    AS_VECT_FLOAT_T(VECT_UINT_READ((const __global uint *)(ptr)))
 
 #if IS_FWD
 #if VECT_DT_N == 1
@@ -33,8 +44,6 @@
         v += acc[i]; \
     }
 #endif
-#define LOAD_VECT_FLOAT(ptr) \
-    AS_VECT_FLOAT_T(VECT_UINT_READ((const __global uint *)(ptr)))
 
 #define STORE_VECT_DATA(ptr, val) \
     VECT_BLOCK_WRITE((__global BLOCK_DATA_T *)(ptr), \
@@ -57,75 +66,71 @@ __kernel void vectorized_lnorm_fwd(__global DATA_T *src, __global float *mean,
     float v_variance = CALCULATE_STATS ? 0 : variance[s_off];
 
     const float rC = 1.f / C;
+    const int c_block_off = (x[NDIMS - 1] / SUB_GROUP_SIZE) * NORM_BLOCK;
 #if USE_SRC_BUFFER
-
     // Key feature of this version is single reading src data, keeping it in
     // v_src buffer and reusing this buffer for stats calculation.
     // Targeted for PVC+.
-    VECT_FLOAT_T v_src[VLEN_C];
-    for (int c = 0; c < VLEN_C; c++) {
-        x[NDIMS - 1] = c * SUB_GROUP_SIZE * VECT_DT_N;
+    VECT_FLOAT_T v_src[VLEN_C_BLOCK];
+    for (int c = 0; c < VLEN_C_BLOCK; c++) {
+        x[NDIMS - 1] = c * SUB_GROUP_SIZE * VECT_DT_N + c_block_off;
         int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
         v_src[c] = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
                 VECT_BLOCK_READ((const __global BLOCK_DATA_T *)&src[src_off])));
     }
 #if CALCULATE_STATS
     VECT_FLOAT_T v_acc = 0;
-    for (int c = 0; c < VLEN_C; c++) {
+    for (int c = 0; c < VLEN_C_BLOCK; c++) {
         v_acc += v_src[c];
     }
     CALC_V_STAT(v_mean, v_acc);
-    v_mean = sub_group_reduce_add(v_mean) * rC;
-
+    v_mean = GROUP_REDUCE_ADD(v_mean) * rC;
     v_acc = 0;
     VECT_FLOAT_T m = 0;
-    for (int c = 0; c < VLEN_C; c++) {
+    for (int c = 0; c < VLEN_C_BLOCK; c++) {
         m = v_src[c] - v_mean;
         v_acc += m * m;
     }
     CALC_V_STAT(v_variance, v_acc);
-    v_variance = sub_group_reduce_add(v_variance) * rC;
-
+    v_variance = GROUP_REDUCE_ADD(v_variance) * rC;
 #endif // CALCULATE_STATS
-
     const float rsqrt_variance = rsqrt(v_variance + eps);
 
-    for (int c = 0; c < VLEN_C; c++) {
+    for (int c = 0; c < VLEN_C_BLOCK; c++) {
         const VECT_FLOAT_T sm
 #if USE_SCALE
-                = LOAD_VECT_FLOAT(&scale[c * SUB_GROUP_SIZE * VECT_DT_N])
+                = LOAD_VECT_FLOAT(
+                          &scale[c * SUB_GROUP_SIZE * VECT_DT_N + c_block_off])
                 * rsqrt_variance;
 #else
                 = rsqrt_variance;
 #endif
         const VECT_FLOAT_T sv
 #if USE_SHIFT
-                = LOAD_VECT_FLOAT(&shift[c * SUB_GROUP_SIZE * VECT_DT_N]);
+                = LOAD_VECT_FLOAT(
+                        &shift[c * SUB_GROUP_SIZE * VECT_DT_N + c_block_off]);
 #else
                 = 0.0f;
 #endif
-        x[NDIMS - 1] = c * SUB_GROUP_SIZE * VECT_DT_N;
+        x[NDIMS - 1] = c * SUB_GROUP_SIZE * VECT_DT_N + c_block_off;
         int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
         VECT_FLOAT_T v_dst = sm * (v_src[c] - v_mean) + sv;
         STORE_VECT_DATA(&dst[dst_off], v_dst);
     }
-
 #else // USE_SRC_BUFFER
-
     // Key feature of this version is only vectorized block read/write
     // without using GRF src buffer.
     // Targeted for ATSM/DG2.
 #if CALCULATE_STATS
     VECT_FLOAT_T v_acc = 0;
-    for (int c = 0; c < C; c += SUB_GROUP_SIZE * VECT_DT_N) {
-        x[NDIMS - 1] = c;
+    for (int c = 0; c < C_BLOCK; c += SUB_GROUP_SIZE * VECT_DT_N) {
+        x[NDIMS - 1] = c + c_block_off;
         int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
         v_acc += CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
                 VECT_BLOCK_READ((const __global BLOCK_DATA_T *)&src[src_off])));
     }
     CALC_V_STAT(v_mean, v_acc);
-    v_mean = sub_group_reduce_add(v_mean) * rC;
-
+    v_mean = GROUP_REDUCE_ADD(v_mean) * rC;
     v_acc = 0;
     VECT_FLOAT_T m = 0;
     for (int c = 0; c < C; c += SUB_GROUP_SIZE * VECT_DT_N) {
@@ -138,36 +143,32 @@ __kernel void vectorized_lnorm_fwd(__global DATA_T *src, __global float *mean,
         v_acc += m * m;
     }
     CALC_V_STAT(v_variance, v_acc);
-    v_variance = sub_group_reduce_add(v_variance) * rC;
-
+    v_variance = GROUP_REDUCE_ADD(v_variance) * rC;
 #endif // CALCULATE_STATS
-
     const float r_sqrt_variance = rsqrt(v_variance + eps);
 
-    for (int c = 0; c < C; c += SUB_GROUP_SIZE * VECT_DT_N) {
+    for (int c = 0; c < C_BLOCK; c += SUB_GROUP_SIZE * VECT_DT_N) {
         const VECT_FLOAT_T sm
 #if USE_SCALE
-                = LOAD_VECT_FLOAT(&scale[c]) * r_sqrt_variance;
+                = LOAD_VECT_FLOAT(&scale[c + c_block_off]) * r_sqrt_variance;
 #else
                 = r_sqrt_variance;
 #endif
         const VECT_FLOAT_T sv
 #if USE_SHIFT
-                = LOAD_VECT_FLOAT(&shift[c]);
+                = LOAD_VECT_FLOAT(&shift[c + c_block_off]);
 #else
                 = 0.0f;
 #endif
-
-        x[NDIMS - 1] = c;
-        int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
-        int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
-        VECT_FLOAT_T v_src = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
+        x[NDIMS - 1] = c + c_block_off;
+        const int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
+        const int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
+        const VECT_FLOAT_T v_src = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
                 VECT_BLOCK_READ((const __global BLOCK_DATA_T *)&src[src_off])));
-        VECT_FLOAT_T v_dst = sm * (v_src - v_mean) + sv;
+        const VECT_FLOAT_T v_dst = sm * (v_src - v_mean) + sv;
 
         STORE_VECT_DATA(&dst[dst_off], v_dst);
     }
-
 #endif // USE_SRC_BUFFER
 
 #if CALCULATE_STATS && SAVE_STATS
@@ -177,7 +178,7 @@ __kernel void vectorized_lnorm_fwd(__global DATA_T *src, __global float *mean,
     }
 #endif
 }
-#endif
+#endif // IS_FWD
 
 #if IS_BWD
 

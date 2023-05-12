@@ -569,6 +569,8 @@ struct lnorm_conf_t {
     int ndims;
     int norm_axis;
     int across_axis;
+    int norm_block;
+    int num_norm_blocks;
 
     memory_desc_info_t src_md_info;
     memory_desc_info_t dst_md_info;
