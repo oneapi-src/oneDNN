@@ -95,7 +95,7 @@ int jit_brgemm_ip_conf_t::get_os_block(
         //
         // For f32 data type our objective is to determine the optimal value
         // of os_block such that the work amount per thread ~ 2
-        if (is_f32_compute) {
+        if (is_f32_compute && jbgp.nb_oc != 0) {
             const bool small_work_amt_per_thread
                     = div_up(jbgp.os, max_os_block) * jbgp.nb_oc
                     < 1.8f * jbgp.nthr;
@@ -300,8 +300,14 @@ static bool is_balanced(int work, int min_work, int nthrs, int goal_nthrs = 0) {
 
 bool jit_brgemm_ip_conf_t::adjust_thread_balance() const {
     const auto &jbgp = *this;
+    const bool is_f32_compute = !jbgp.is_bf32
+            && everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
+    const bool is_avx512 = is_superset(jbgp.isa, avx512_core);
+    const bool is_f32_compute_avx512 = is_f32_compute && is_avx512;
 
-    if (IMPLICATION(jbgp.is_wei_layout_any, !jbgp.is_amx)) return false;
+    const bool skip_thread_balancing = !jbgp.is_amx && !is_f32_compute_avx512;
+    if (IMPLICATION(jbgp.is_wei_layout_any, skip_thread_balancing))
+        return false;
 
     int os_chunks = div_up(jbgp.os, get_os_block(true, false));
 
@@ -311,13 +317,25 @@ bool jit_brgemm_ip_conf_t::adjust_thread_balance() const {
 
     int work_amount = oc_chunks * os_chunks;
 
-    const int min_work = 2; // Minimum work per thread.
-    return !is_balanced(work_amount, min_work, jbgp.nthr, jbgp.nthr / 2);
+    int min_work = 2; // Minimum work per thread.
+    int goal_nthrs = jbgp.nthr / 2;
+
+    // f32 case uses different threshold values.
+    if (is_f32_compute_avx512) {
+        min_work = 3;
+        goal_nthrs = jbgp.nthr;
+    }
+
+    return !is_balanced(work_amount, min_work, jbgp.nthr, goal_nthrs);
 }
 
 int jit_brgemm_ip_conf_t::get_adjusted_oc_block() const {
     const auto &jbgp = *this;
     const bool is_amx_xf16 = jbgp.is_amx && !jbgp.is_bf32;
+    const bool is_f32_compute = !jbgp.is_bf32
+            && everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
+    const bool is_avx512 = is_superset(jbgp.isa, avx512_core);
+    const bool is_f32_compute_avx512 = is_f32_compute && is_avx512;
 
     // we can't change block size on forward and weights update (external)
     // if layout is set by user, for backward data it can be chosen different
@@ -325,17 +343,25 @@ int jit_brgemm_ip_conf_t::get_adjusted_oc_block() const {
     const bool not_adjustable_oc_block_size
             = !jbgp.is_wei_layout_any && jbgp.prop_kind != backward_data;
 
-    if (IMPLICATION(is_amx_xf16 || jbgp.is_bf32, not_adjustable_oc_block_size))
+    const bool try_to_adjust
+            = is_amx_xf16 || jbgp.is_bf32 || is_f32_compute_avx512;
+    if (IMPLICATION(try_to_adjust, not_adjustable_oc_block_size))
         return get_oc_block();
 
     int oc_block = get_oc_block(true);
     if (adjust_thread_balance()) {
-        oc_block = (oc_block > 16) ? oc_block / 2 : oc_block;
+        if (is_f32_compute_avx512) {
+            int n = oc_block / jbgp.simd_w;
+            bool do_adjust = n > 1 && !jbgp.use_small_os_kernels;
+            oc_block = do_adjust ? (n - 1) * jbgp.simd_w : oc_block;
+        } else {
+            oc_block = (oc_block > 16) ? oc_block / 2 : oc_block;
+        }
     }
 
     constexpr int amx_bf16_half_row = 32;
     // ensure that oc_tail <= amx_bf16_half_row (requirement for brgemm kernel)
-    while (jbgp.oc % oc_block > amx_bf16_half_row)
+    while (jbgp.oc % oc_block > amx_bf16_half_row && !is_f32_compute_avx512)
         oc_block /= 2;
     return oc_block;
 }
@@ -635,6 +661,7 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
         int bd_block = brg_desc.bd_block;
 
         if (jbgp.oc_block == 64 && bd_block != 6) jbgp.os_block = 6;
+        if (jbgp.oc_block == 48 && bd_block != 8) jbgp.os_block = 8;
         jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
     }
 
