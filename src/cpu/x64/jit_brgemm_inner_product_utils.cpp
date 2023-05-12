@@ -591,7 +591,7 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
     }
 
     const int nthrs_other = jbgp.nthr / jbgp.nthr_ic_b;
-    const int min_work = 5;
+    const int min_work = 15;
 
     bool balanced = is_balanced(other_work, min_work, nthrs_other);
 
