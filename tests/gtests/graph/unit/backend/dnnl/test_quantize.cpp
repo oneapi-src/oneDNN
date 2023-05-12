@@ -551,3 +551,64 @@ TEST(Execute, DynamicQuantizeNoZpsPerTensor) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
 }
+
+TEST(Execute, QuantizeZeroVolume) {
+    graph::engine_t *engine = get_engine();
+
+    graph::op_t quantize(graph::op_kind::Quantize);
+    quantize.set_attr<std::vector<float>>(graph::op_attr::scales, {0.1f});
+    quantize.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {0});
+    quantize.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+    quantize.set_attr<int64_t>(graph::op_attr::axis, 0);
+
+    test::vector<float> src(0, 0);
+    test::vector<uint8_t> dst(0, 0);
+
+    // prepare input/output logical tensor
+    graph::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {0, 2, 2}, graph::data_type::f32);
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(1,
+            {DNNL_GRAPH_UNKNOWN_DIM, DNNL_GRAPH_UNKNOWN_DIM,
+                    DNNL_GRAPH_UNKNOWN_DIM},
+            {DNNL_GRAPH_UNKNOWN_DIM, DNNL_GRAPH_UNKNOWN_DIM,
+                    DNNL_GRAPH_UNKNOWN_DIM},
+            graph::data_type::u8);
+
+    quantize.add_input(src_lt);
+    quantize.add_output(dst_lt);
+
+    graph::graph_t g(engine->kind());
+    g.add_op(&quantize);
+    g.finalize();
+
+    graph::pass::pass_base_ptr apass = get_pass("quant_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    graph::partition_t p;
+    p.init(part);
+
+    graph::compiled_partition_t cp(p);
+    std::vector<const graph::logical_tensor_t *> inputs {&src_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
+
+    graph::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
+    ASSERT_EQ(lt.dims[0], 0U);
+    ASSERT_EQ(lt.dims[1], 2U);
+    ASSERT_EQ(lt.dims[2], 2U);
+    ASSERT_EQ(lt.layout.strides[0], 4U);
+    ASSERT_EQ(lt.layout.strides[1], 2U);
+    ASSERT_EQ(lt.layout.strides[2], 1U);
+    ASSERT_EQ(graph::logical_tensor_wrapper_t(lt).size(), 0U);
+
+    graph::tensor_t src_ts(src_lt, engine, src.data());
+    graph::tensor_t dst_ts(dst_lt, engine, dst.data());
+
+    graph::stream_t *strm = get_stream();
+    ASSERT_EQ(cp.execute(strm, {src_ts}, {dst_ts}), graph::status::success);
+    strm->wait();
+}
