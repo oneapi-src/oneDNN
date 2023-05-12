@@ -560,20 +560,6 @@ public:
     bool is_default() const override { return false; }
 };
 
-class shrink_tg_dims_param_t : public bool_param_t {
-public:
-    shrink_tg_dims_param_t() : bool_param_t(default_value) {}
-    std::string name() const override { return "shrink-tg-dims"; }
-    std::string short_name() const override { return "stg"; }
-    std::string desc() const override {
-        return "Whether to adjust tile sizes depending on batch size.";
-    }
-    bool is_overridable() const override { return true; }
-    bool is_default() const override { return get() == default_value; }
-
-    static const bool default_value;
-};
-
 class pad_slm_param_t : public bool_param_t {
 public:
     pad_slm_param_t() : bool_param_t(default_value) {}
@@ -937,7 +923,6 @@ public:
     DECL_PARAM(kernel_grid)
     DECL_PARAM(pad_slm)
     DECL_PARAM(prb)
-    DECL_PARAM(shrink_tg_dims)
     DECL_PARAM(thread_group_grid)
     DECL_PARAM2(bia_layout)
     DECL_PARAM2(dims)
@@ -1109,7 +1094,6 @@ private:
     INIT_PARAM(pipeline)
     INIT_PARAM(prb)
     INIT_PARAM(prefetch)
-    INIT_PARAM(shrink_tg_dims)
     INIT_PARAM(slm)
     INIT_PARAM(subtiles)
     INIT_PARAM(thread_group_dims)
