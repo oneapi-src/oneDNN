@@ -179,8 +179,6 @@ struct primitive_desc_t : public c_compatible {
         return &glob_zero_md; \
     }
 
-    DECLARE_MD_STUB(input_md);
-    DECLARE_MD_STUB(output_md);
     DECLARE_MD_STUB(src_md);
     DECLARE_MD_STUB(diff_src_md);
     DECLARE_MD_STUB(dst_md);
