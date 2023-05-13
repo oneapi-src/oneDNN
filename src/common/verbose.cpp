@@ -656,9 +656,9 @@ std::string init_info_binary(const engine_t *e, const pd_t *pd) {
     ss << e << "," << pd->kind() << "," << pd->name() << "," << prop_kind::undef
        << ",";
 
-    auto src0_md = pd->src_md(0);
-    auto src1_md = pd->src_md(1);
-    auto dst_md = pd->dst_md();
+    auto src0_md = pd->invariant_src_md(0);
+    auto src1_md = pd->invariant_src_md(1);
+    auto dst_md = pd->invariant_dst_md();
 
     ss << "src_" << src0_md;
     ss << " src_" << src1_md;
@@ -678,10 +678,10 @@ std::string init_info_concat(const engine_t *e, const pd_t *pd) {
        << ",";
 
     for (int i = 0; i < pd->n_inputs(); ++i) {
-        auto src_i_md = pd->src_md(i);
+        auto src_i_md = pd->invariant_src_md(i);
         ss << "src_" << src_i_md << " ";
     }
-    auto dst_md = pd->dst_md();
+    auto dst_md = pd->invariant_dst_md();
     ss << "dst_" << dst_md;
 
     ss << "," << pd->attr() << ",";
@@ -786,7 +786,7 @@ std::string init_info_layer_normalization(const engine_t *e, const pd_t *pd) {
        << pd->desc()->prop_kind << ",";
 
     auto src_md = pd->src_md();
-    auto dst_md = pd->is_fwd() ? pd->dst_md() : pd->diff_dst_md();
+    auto dst_md = pd->invariant_dst_md();
     auto stats_md = pd->is_fwd() && !pd->stats_are_src() ? pd->dst_md(1)
                                                          : pd->src_md(1);
 
@@ -828,10 +828,10 @@ std::string init_info_matmul(const engine_t *e, const pd_t *pd) {
     ss << e << "," << pd->kind() << "," << pd->name() << "," << prop_kind::undef
        << ",";
 
-    auto src_md = pd->src_md();
-    auto wei_md = pd->weights_md(0);
-    auto bia_md = pd->weights_md(1);
-    auto dst_md = pd->dst_md();
+    auto src_md = pd->invariant_src_md();
+    auto wei_md = pd->invariant_wei_md();
+    auto bia_md = pd->invariant_bia_md();
+    auto dst_md = pd->invariant_dst_md();
 
     auto get_bia_mask = [&bia_md]() {
         auto bia_ndims = bia_md->ndims;
@@ -861,8 +861,8 @@ std::string init_info_pooling(const engine_t *e, const pd_t *pd) {
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
 
-    auto src_md = pd->is_fwd() ? pd->src_md() : pd->diff_src_md();
-    auto dst_md = pd->is_fwd() ? pd->dst_md() : pd->diff_dst_md();
+    auto src_md = pd->invariant_src_md();
+    auto dst_md = pd->invariant_dst_md();
     auto ws_md = pd->workspace_md();
 
     ss << "src_" << src_md;
@@ -913,8 +913,8 @@ std::string init_info_reduction(const engine_t *e, const pd_t *pd) {
     ss << e << "," << pd->kind() << "," << pd->name() << "," << prop_kind::undef
        << ",";
 
-    auto src_md = pd->src_md();
-    auto dst_md = pd->dst_md();
+    auto src_md = pd->invariant_src_md();
+    auto dst_md = pd->invariant_dst_md();
 
     ss << "src_" << src_md;
     ss << " dst_" << dst_md;
@@ -942,8 +942,8 @@ std::string init_info_reorder(const engine_t *e, pd_t *pd) {
     ss << "," << pd->kind() << "," << pd->name() << "," << prop_kind::undef
        << ",";
 
-    auto src_md = pd->src_md();
-    auto dst_md = pd->dst_md();
+    auto src_md = pd->invariant_src_md();
+    auto dst_md = pd->invariant_dst_md();
 
     ss << "src_" << src_md;
     ss << " dst_" << dst_md;
@@ -960,8 +960,8 @@ std::string init_info_resampling(const engine_t *e, const pd_t *pd) {
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
 
-    auto src_md = pd->is_fwd() ? pd->src_md() : pd->diff_src_md();
-    auto dst_md = pd->is_fwd() ? pd->dst_md() : pd->diff_dst_md();
+    auto src_md = pd->invariant_src_md();
+    auto dst_md = pd->invariant_dst_md();
 
     ss << "src_" << src_md;
     ss << " dst_" << dst_md;
@@ -1041,7 +1041,7 @@ std::string init_info_shuffle(const engine_t *e, const pd_t *pd) {
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
 
-    auto data_md = pd->is_fwd() ? pd->src_md() : pd->diff_src_md();
+    auto data_md = pd->invariant_src_md();
 
     ss << "data_" << data_md;
 
@@ -1058,7 +1058,7 @@ std::string init_info_softmax(const engine_t *e, const pd_t *pd) {
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
 
-    auto src_md = pd->is_fwd() ? pd->src_md() : pd->diff_src_md();
+    auto src_md = pd->invariant_src_md();
     auto dst_md = pd->dst_md();
     auto diff_dst_md = pd->diff_dst_md();
 
@@ -1080,10 +1080,10 @@ std::string init_info_sum(const engine_t *e, const pd_t *pd) {
        << ",";
 
     for (int i = 0; i < pd->n_inputs(); ++i) {
-        auto src_i_md = pd->src_md(i);
+        auto src_i_md = pd->invariant_src_md(i);
         ss << "src_" << src_i_md << " ";
     }
-    auto dst_md = pd->dst_md();
+    auto dst_md = pd->invariant_dst_md();
     ss << "dst_" << dst_md;
 
     ss << "," << pd->attr() << ",,";

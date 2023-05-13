@@ -146,25 +146,6 @@ struct deconvolution_pd_t : public primitive_desc_t {
         return s_d.has_zero_dim() || d_d.has_zero_dim();
     }
 
-    const memory_desc_t *invariant_src_md() const {
-        return desc()->prop_kind == prop_kind::backward_data ? diff_src_md()
-                                                             : src_md();
-    }
-    const memory_desc_t *invariant_wei_md(int index = 0) const {
-        return desc()->prop_kind == prop_kind::backward_weights
-                ? diff_weights_md(index)
-                : weights_md(index);
-    }
-    const memory_desc_t *invariant_bia_md() const {
-        return invariant_wei_md(1);
-    }
-    const memory_desc_t *invariant_dst_md() const {
-        return utils::one_of(desc()->prop_kind, prop_kind::forward_inference,
-                       prop_kind::forward_training)
-                ? dst_md()
-                : diff_dst_md();
-    }
-
 protected:
     deconvolution_desc_t desc_;
     const deconvolution_fwd_pd_t *hint_fwd_pd_;

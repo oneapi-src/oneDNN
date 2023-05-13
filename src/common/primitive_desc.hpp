@@ -76,6 +76,13 @@ struct primitive_desc_t : public c_compatible {
 
     virtual const op_desc_t *op_desc() const { return nullptr; }
 
+    prop_kind_t get_prop_kind(status_t *status = nullptr) const {
+        prop_kind_t prop_kind = dnnl_prop_kind_undef;
+        auto st = query(query::prop_kind, 0, &prop_kind);
+        if (status) *status = st;
+        return prop_kind;
+    }
+
     const std::vector<uint8_t> &get_cache_blob_id(engine_t *engine) const {
         return cache_blob_id_.get(engine, this);
     }
@@ -145,6 +152,26 @@ struct primitive_desc_t : public c_compatible {
             case DNNL_ARG_SCRATCHPAD: return scratchpad_md(0);
             default: return &glob_zero_md;
         }
+    }
+
+    virtual const memory_desc_t *invariant_src_md(int index = 0) const {
+        return get_prop_kind() == prop_kind::backward_data ? diff_src_md(index)
+                                                           : src_md(index);
+    }
+    virtual const memory_desc_t *invariant_wei_md(int index = 0) const {
+        return get_prop_kind() == prop_kind::backward_weights
+                ? diff_weights_md(index)
+                : weights_md(index);
+    }
+    virtual const memory_desc_t *invariant_bia_md() const {
+        return invariant_wei_md(1);
+    }
+    virtual const memory_desc_t *invariant_dst_md() const {
+        const auto prop_kind = get_prop_kind();
+        return utils::one_of(prop_kind, prop_kind::backward_data,
+                       prop_kind::backward_weights, prop_kind::backward)
+                ? diff_dst_md()
+                : dst_md();
     }
 
 #define DECLARE_MD_STUB(stub) \
