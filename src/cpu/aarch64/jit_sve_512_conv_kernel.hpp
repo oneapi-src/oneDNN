@@ -102,7 +102,7 @@ private:
     reg64_t reg_prev_wei_addr = x16;
     reg64_t reg_tmp_imm = x17;
 
-    reg64_t reg_out_org = x18; // dst base addr (3d)
+    reg64_t reg_out_org = x27; // dst base addr (3d)
     reg64_t reg_oi_org = x19; // base oi (3d)
     reg64_t aux_reg_ker_d_org = x20;
     reg64_t reg_ker_org = x21; // ker base addr (3d)
@@ -280,7 +280,7 @@ private:
     reg64_t reg_prev_bcast_addr2 = x17;
     reg64_t reg_prev_bcast_addr3 = x21;
     reg64_t reg_tmp_imm = x16;
-    reg64_t reg_tmp_addr = x18;
+    reg64_t reg_tmp_addr = x27;
 
     reg64_t reg_src_prf_org = x19;
     reg64_t reg_src_org = x20;
@@ -475,8 +475,7 @@ private:
 
     reg64_t reg_kd_count_org = x16;
     reg64_t reg_input_d_org = x17;
-    reg64_t reg_output_d_org = x18;
-    reg64_t reg_d_index_org = x19;
+    reg64_t reg_output_d_org = x19;
 
     reg64_t reg_input_org = x24;
     reg64_t reg_kernel_org = x22;

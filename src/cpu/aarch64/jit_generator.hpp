@@ -50,7 +50,8 @@ typedef enum {
 
 // Callee-saved registers
 constexpr Xbyak_aarch64::Operand::Code abi_save_gpr_regs[]
-        = {Xbyak_aarch64::Operand::X19, Xbyak_aarch64::Operand::X20,
+        = {Xbyak_aarch64::Operand::X16, Xbyak_aarch64::Operand::X17,
+                Xbyak_aarch64::Operand::X19, Xbyak_aarch64::Operand::X20,
                 Xbyak_aarch64::Operand::X21, Xbyak_aarch64::Operand::X22,
                 Xbyak_aarch64::Operand::X23, Xbyak_aarch64::Operand::X24,
                 Xbyak_aarch64::Operand::X25, Xbyak_aarch64::Operand::X26,

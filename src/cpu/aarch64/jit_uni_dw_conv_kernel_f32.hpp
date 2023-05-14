@@ -73,7 +73,7 @@ private:
     reg64_t reg_tmp_imm = x15;
     reg64_t reg_kernel_stack = x16;
     reg64_t reg_input_stack = x17;
-    reg64_t reg_output_stack = x18;
+    reg64_t reg_output_stack = x27;
     reg64_t reg_bias_stack = x19;
     reg64_t reg_tmp_addr = x20;
 

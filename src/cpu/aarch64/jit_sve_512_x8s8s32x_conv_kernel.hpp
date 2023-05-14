@@ -110,14 +110,9 @@ private:
     XReg reg_stack = x22; // translator stack register
 
     /* Temporay registers */
-    XReg reg_tmp0_imm = x18; // tmp for add_imm
-    XReg reg_tmp1_imm = x19; // tmp for add_imm
-    XReg reg_tmp2_imm = x20; // tmp for add_imm
-    XReg reg_tmp3_imm = x21; // tmp for add_imm
-    XReg reg_tmp0_adr = x23; // tmp for address value
-    XReg reg_tmp1_adr = x24; // tmp for address value
-    XReg reg_tmp2_adr = x25; // tmp for address value
-    XReg reg_tmp3_adr = x26; // tmp for address value
+    XReg reg_tmp0_imm = x23; // tmp for add_imm
+    XReg reg_tmp1_imm = x24; // tmp for add_imm
+    XReg reg_tmp0_adr = x25; // tmp for address value
 
     const PReg ktail_mask = p2;
     const PReg kblend_mask = p8;
