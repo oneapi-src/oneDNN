@@ -75,10 +75,9 @@ status_t DNNL_API dnnl_graph_allocator_destroy(allocator_t *allocator) {
 status_t DNNL_API dnnl_graph_make_engine_with_allocator(engine_t **engine,
         engine_kind_t kind, size_t index, const allocator_t *alloc) {
     auto ret = dnnl_engine_create(engine, kind, index);
-    if (ret != status::success) return status::invalid_arguments;
+    if (ret != status::success) return ret;
 
-    reinterpret_cast<engine_t *>(*engine)->set_allocator(
-            const_cast<allocator_t *>(alloc));
+    (*engine)->set_allocator(const_cast<allocator_t *>(alloc));
     return status::success;
 }
 
@@ -87,10 +86,9 @@ status_t DNNL_API dnnl_graph_sycl_interop_make_engine_with_allocator(
         const allocator_t *alloc) {
 #ifdef DNNL_WITH_SYCL
     auto ret = dnnl_sycl_interop_engine_create(engine, device, context);
-    if (ret != status::success) return status::invalid_arguments;
+    if (ret != status::success) return ret;
 
-    reinterpret_cast<engine_t *>(*engine)->set_allocator(
-            const_cast<allocator_t *>(alloc));
+    (*engine)->set_allocator(const_cast<allocator_t *>(alloc));
     return status::success;
 #else
     UNUSED(engine);
