@@ -118,6 +118,9 @@
 // When defined, experimental functionality for sparse domain is enabled.
 #cmakedefine DNNL_EXPERIMENTAL_SPARSE
 
+// When defined, graph component is enabled.
+#cmakedefine ONEDNN_BUILD_GRAPH
+
 // List of configurating build controls
 // Workload controls
 #cmakedefine01 BUILD_TRAINING
