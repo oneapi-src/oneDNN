@@ -1628,8 +1628,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
         eor(reg_off_in_, reg_off_in_, reg_off_in_);
         eor(reg_off_out_, reg_off_out_, reg_off_out_);
-        mov(x_ptr_in_off, reg_ptr_in_);
-        mov(x_ptr_out_off, reg_ptr_out_);
+
         if (prb_.src_scale_type == scale_type_t::MANY)
             mov(x_ptr_src_scale_off, reg_ptr_src_scales_);
         if (prb_.dst_scale_type == scale_type_t::MANY)
@@ -1868,10 +1867,6 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         ldr(reg_ptr_in_, ptr(X_TMP_0));
         ldr(reg_ptr_out_, ptr(X_TMP_1));
 
-        mov(x_ptr_in_off, reg_ptr_in_);
-        mov(x_ptr_out_off, reg_ptr_out_);
-        mov(x_ptr_comp_off, reg_ptr_comp_);
-
         if (sveLen) { /* SVE is available. */
             ptrue(p_lsb_256.b, VL32);
             ptrue(p_lsb_128.b, VL16);
@@ -1965,11 +1960,11 @@ private:
     /* Note: x22 - x28 are already used as temporal registgers
        in jit_generator.hpp.
        x_ptr_(in|out|scale|comp)_off keeps (base + offset) address. */
-    XReg x_ptr_in_off = x16;
-    XReg x_ptr_out_off = x18;
-    XReg x_ptr_comp_off = x17;
+    XReg x_ptr_in_off = reg_ptr_in_;
+    XReg x_ptr_out_off = reg_ptr_out_;
+    XReg x_ptr_comp_off = reg_ptr_comp_;
     XReg x_ptr_src_scale_off = x19;
-    XReg x_ptr_dst_scale_off = x12;
+    XReg x_ptr_dst_scale_off = x29;
 
     /* Caution: Chose predicate registers not used by x64's implementation. */
     PReg p_lsb_256 = p7;

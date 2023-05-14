@@ -267,15 +267,7 @@ void jit_sve_512_x8s8s32x_fwd_kernel::store_output(
             auto base = reg_out;
             auto re = get_offset(aux_output_offset);
 
-            auto reg_tmp_adr = ((j % 4) == 0) ? reg_tmp0_adr
-                    : ((j % 4) == 1)          ? reg_tmp1_adr
-                    : ((j % 4) == 2)          ? reg_tmp2_adr
-                                              : reg_tmp3_adr;
-            auto reg_tmp_imm = ((j % 4) == 0) ? reg_tmp0_imm
-                    : ((j % 4) == 1)          ? reg_tmp1_imm
-                    : ((j % 4) == 2)          ? reg_tmp2_imm
-                                              : reg_tmp3_imm;
-            add_imm(reg_tmp_adr, base, re, reg_tmp_imm);
+            add_imm(reg_tmp0_adr, base, re, reg_tmp0_imm);
 
             auto vmm = vmm_out(j, k);
 
@@ -283,16 +275,16 @@ void jit_sve_512_x8s8s32x_fwd_kernel::store_output(
             switch (jcp.dst_dt) {
                 case data_type::f32:
                 case data_type::s32:
-                    st1w(vmm.s, _mask, ptr(reg_tmp_adr));
+                    st1w(vmm.s, _mask, ptr(reg_tmp0_adr));
                     break;
                 case data_type::s8:
                     smin(vmm.s, 127);
                     smax(vmm.s, -128);
-                    st1b(vmm.s, _mask, ptr(reg_tmp_adr));
+                    st1b(vmm.s, _mask, ptr(reg_tmp0_adr));
                     break;
                 case data_type::u8:
                     umin(vmm.s, 255);
-                    st1b(vmm.s, _mask, ptr(reg_tmp_adr));
+                    st1b(vmm.s, _mask, ptr(reg_tmp0_adr));
                     break;
                 default: assert(!"unknown dst_dt");
             }
@@ -567,19 +559,9 @@ void jit_sve_512_x8s8s32x_fwd_kernel::compute_ker(int ur_w, int pad_l,
                                 ld1rw(vmm_inp(jj, nb_oc_block).s, mask_all_one,
                                         ptr(base, static_cast<int32_t>(re)));
                             else {
-                                auto reg_tmp_adr = ((jj % 4) == 0)
-                                        ? reg_tmp0_adr
-                                        : ((jj % 4) == 1) ? reg_tmp1_adr
-                                        : ((jj % 4) == 2) ? reg_tmp2_adr
-                                                          : reg_tmp3_adr;
-                                auto reg_tmp_imm = ((jj % 4) == 0)
-                                        ? reg_tmp0_imm
-                                        : ((jj % 4) == 1) ? reg_tmp1_imm
-                                        : ((jj % 4) == 2) ? reg_tmp2_imm
-                                                          : reg_tmp3_imm;
-                                add_imm(reg_tmp_adr, base, re, reg_tmp_imm);
+                                add_imm(reg_tmp0_adr, base, re, reg_tmp0_imm);
                                 ld1rw(vmm_inp(jj, nb_oc_block).s, mask_all_one,
-                                        ptr(reg_tmp_adr));
+                                        ptr(reg_tmp0_adr));
                             }
                         }
                         if (!jcp.signed_input)
