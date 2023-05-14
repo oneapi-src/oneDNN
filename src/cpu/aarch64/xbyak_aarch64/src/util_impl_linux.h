@@ -252,7 +252,6 @@ private:
         */
         end_ptr = buf;
         while ('\0' != *buf) {
-          printf("%s\n", buf);
           start = strtol(buf, &end_ptr, 10);
           if ('\0' == *end_ptr) {
             sharing_cores += 1;
