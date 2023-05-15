@@ -47,18 +47,24 @@ struct sum_pd_t : public primitive_desc_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(
+            int arg, bool user_input = false) const override {
         int src_index = arg - DNNL_ARG_MULTIPLE_SRC;
         if (src_index >= 0 && src_index < n_inputs()) return src_md(src_index);
-        if (arg == DNNL_ARG_DST) return dst_md(0);
+        if (arg == DNNL_ARG_DST) return dst_md(0, user_input);
         return primitive_desc_t::arg_md(arg);
     }
 
-    const memory_desc_t *src_md(int index = 0) const override {
-        return index < n_inputs() ? &src_mds_[index] : &glob_zero_md;
+    const memory_desc_t *src_md(
+            int index = 0, bool user_input = false) const override {
+        if (index < n_inputs())
+            return user_input ? desc()->src_mds[index] : &src_mds_[index];
+        return &glob_zero_md;
     }
-    const memory_desc_t *dst_md(int index = 0) const override {
-        return index == 0 ? &dst_md_ : &glob_zero_md;
+    const memory_desc_t *dst_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0) return user_input ? desc()->dst_md : &dst_md_;
+        return &glob_zero_md;
     }
     const memory_desc_t *dst_acc_md() const {
         return need_output_reorder() ? &dst_acc_md_ : &dst_md_;

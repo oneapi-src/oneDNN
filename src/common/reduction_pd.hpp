@@ -58,19 +58,24 @@ struct reduction_pd_t : public primitive_desc_t {
         }
     }
 
-    const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(
+            int arg, bool user_input = false) const override {
         switch (arg) {
             case DNNL_ARG_SRC: return src_md(0);
-            case DNNL_ARG_DST: return dst_md(0);
+            case DNNL_ARG_DST: return dst_md(0, user_input);
             default: return primitive_desc_t::arg_md(arg);
         }
     }
 
-    const memory_desc_t *src_md(int index = 0) const override {
-        return index == 0 ? &src_md_ : &glob_zero_md;
+    const memory_desc_t *src_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0) return user_input ? &desc()->src_desc : &src_md_;
+        return &glob_zero_md;
     }
-    const memory_desc_t *dst_md(int index = 0) const override {
-        return index == 0 ? &dst_md_ : &glob_zero_md;
+    const memory_desc_t *dst_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0) return user_input ? &desc()->dst_desc : &dst_md_;
+        return &glob_zero_md;
     }
 
     int n_inputs() const override { return 1 + n_binary_po_inputs(); }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -89,25 +89,33 @@ struct prelu_fwd_pd_t : public prelu_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(
+            int arg, bool user_input = false) const override {
         switch (arg) {
             case DNNL_ARG_SRC: return src_md(0);
             case DNNL_ARG_WEIGHTS: return weights_md(0);
-            case DNNL_ARG_DST: return dst_md(0);
+            case DNNL_ARG_DST: return dst_md(0, user_input);
             default: return prelu_pd_t::arg_md(arg);
         }
     }
 
-    const memory_desc_t *src_md(int index = 0) const override {
-        return index == 0 ? &src_md_ : &glob_zero_md;
+    const memory_desc_t *src_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0) return user_input ? &desc()->src_desc : &src_md_;
+        return &glob_zero_md;
     }
 
-    const memory_desc_t *weights_md(int index = 0) const override {
-        return index == 0 ? &weights_md_ : &glob_zero_md;
+    const memory_desc_t *weights_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0)
+            return user_input ? &desc()->weights_desc : &weights_md_;
+        return &glob_zero_md;
     }
 
-    const memory_desc_t *dst_md(int index = 0) const override {
-        return index == 0 ? &dst_md_ : &glob_zero_md;
+    const memory_desc_t *dst_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0) return user_input ? &desc()->dst_desc : &dst_md_;
+        return &glob_zero_md;
     }
 
     int n_inputs() const override { return 2; }
@@ -145,35 +153,50 @@ struct prelu_bwd_pd_t : public prelu_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(
+            int arg, bool user_input = false) const override {
         switch (arg) {
             case DNNL_ARG_SRC: return src_md(0);
             case DNNL_ARG_WEIGHTS: return weights_md(0);
             case DNNL_ARG_DIFF_SRC: return diff_src_md(0);
-            case DNNL_ARG_DIFF_DST: return diff_dst_md(0);
+            case DNNL_ARG_DIFF_DST: return diff_dst_md(0, user_input);
             case DNNL_ARG_DIFF_WEIGHTS: return diff_weights_md(0);
             default: return prelu_pd_t::arg_md(arg);
         }
     }
 
-    const memory_desc_t *src_md(int index = 0) const override {
-        return index == 0 ? &src_md_ : &glob_zero_md;
+    const memory_desc_t *src_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0) return user_input ? &desc()->src_desc : &src_md_;
+        return &glob_zero_md;
     }
 
-    const memory_desc_t *weights_md(int index = 0) const override {
-        return index == 0 ? &weights_md_ : &glob_zero_md;
+    const memory_desc_t *weights_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0)
+            return user_input ? &desc()->weights_desc : &weights_md_;
+        return &glob_zero_md;
     }
 
-    const memory_desc_t *diff_src_md(int index = 0) const override {
-        return index == 0 ? &diff_src_md_ : &glob_zero_md;
+    const memory_desc_t *diff_src_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0)
+            return user_input ? &desc()->diff_src_desc : &diff_src_md_;
+        return &glob_zero_md;
     }
 
-    const memory_desc_t *diff_dst_md(int index = 0) const override {
-        return index == 0 ? &diff_dst_md_ : &glob_zero_md;
+    const memory_desc_t *diff_dst_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0)
+            return user_input ? &desc()->diff_dst_desc : &diff_dst_md_;
+        return &glob_zero_md;
     }
 
-    const memory_desc_t *diff_weights_md(int index = 0) const override {
-        return index == 0 ? &diff_weights_md_ : &glob_zero_md;
+    const memory_desc_t *diff_weights_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0)
+            return user_input ? &desc()->diff_weights_desc : &diff_weights_md_;
+        return &glob_zero_md;
     }
 
     int n_inputs() const override { return 3; }

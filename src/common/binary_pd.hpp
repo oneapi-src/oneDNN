@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,24 +58,26 @@ struct binary_pd_t : public primitive_desc_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(
+            int arg, bool user_input = false) const override {
         switch (arg) {
             case DNNL_ARG_SRC_0: return src_md(0);
             case DNNL_ARG_SRC_1: return src_md(1);
-            case DNNL_ARG_DST: return dst_md(0);
+            case DNNL_ARG_DST: return dst_md(0, user_input);
             default: return primitive_desc_t::arg_md(arg);
         }
     }
 
-    const memory_desc_t *src_md(int index = 0) const override {
-        if (index == 0)
-            return &src0_md_;
-        else if (index == 1)
-            return &src1_md_;
+    const memory_desc_t *src_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0) return user_input ? &desc()->src_desc[0] : &src0_md_;
+        if (index == 1) return user_input ? &desc()->src_desc[1] : &src1_md_;
         return &glob_zero_md;
     }
-    const memory_desc_t *dst_md(int index = 0) const override {
-        return index == 0 ? &dst_md_ : &glob_zero_md;
+    const memory_desc_t *dst_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0) return user_input ? &desc()->dst_desc : &dst_md_;
+        return &glob_zero_md;
     }
 
     int n_inputs() const override { return 2 + n_binary_po_inputs(); }

@@ -178,19 +178,24 @@ struct pooling_fwd_pd_t : public pooling_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(
+            int arg, bool user_input = false) const override {
         switch (arg) {
             case DNNL_ARG_SRC: return src_md(0);
-            case DNNL_ARG_DST: return dst_md(0);
+            case DNNL_ARG_DST: return dst_md(0, user_input);
             default: return pooling_pd_t::arg_md(arg);
         }
     }
 
-    const memory_desc_t *src_md(int index = 0) const override {
-        return index == 0 ? &src_md_ : &glob_zero_md;
+    const memory_desc_t *src_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0) return user_input ? &desc()->src_desc : &src_md_;
+        return &glob_zero_md;
     }
-    const memory_desc_t *dst_md(int index = 0) const override {
-        return index == 0 ? &dst_md_ : &glob_zero_md;
+    const memory_desc_t *dst_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0) return user_input ? &desc()->dst_desc : &dst_md_;
+        return &glob_zero_md;
     }
     const memory_desc_t *workspace_md(int index = 0) const override {
         return index == 0 && !types::is_zero_md(&ws_md_) ? &ws_md_
@@ -243,19 +248,26 @@ struct pooling_bwd_pd_t : public pooling_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(
+            int arg, bool user_input = false) const override {
         switch (arg) {
             case DNNL_ARG_DIFF_SRC: return diff_src_md(0);
-            case DNNL_ARG_DIFF_DST: return diff_dst_md(0);
+            case DNNL_ARG_DIFF_DST: return diff_dst_md(0, user_input);
             default: return pooling_pd_t::arg_md(arg);
         }
     }
 
-    const memory_desc_t *diff_src_md(int index = 0) const override {
-        return index == 0 ? &diff_src_md_ : &glob_zero_md;
+    const memory_desc_t *diff_src_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0)
+            return user_input ? &desc()->diff_src_desc : &diff_src_md_;
+        return &glob_zero_md;
     }
-    const memory_desc_t *diff_dst_md(int index = 0) const override {
-        return index == 0 ? &diff_dst_md_ : &glob_zero_md;
+    const memory_desc_t *diff_dst_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0)
+            return user_input ? &desc()->diff_dst_desc : &diff_dst_md_;
+        return &glob_zero_md;
     }
     const memory_desc_t *workspace_md(int index = 0) const override {
         return index == 0 && !types::is_zero_md(&ws_md_) ? &ws_md_

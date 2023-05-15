@@ -130,7 +130,8 @@ struct primitive_desc_t : public c_compatible {
         return arg_usage_t::unused;
     }
 
-    virtual const memory_desc_t *arg_md(int arg) const {
+    virtual const memory_desc_t *arg_md(
+            int arg, bool user_input = false) const {
         // Separate binary post-ops sections due to inability to express inside
         // switch statement.
         if (arg >= DNNL_ARG_ATTR_MULTIPLE_POST_OP(0)
@@ -154,7 +155,8 @@ struct primitive_desc_t : public c_compatible {
         }
     }
 
-    virtual const memory_desc_t *invariant_src_md(int index = 0) const {
+    virtual const memory_desc_t *invariant_src_md(
+            int index = 0, bool user_input = false) const {
         return get_prop_kind() == prop_kind::backward_data ? diff_src_md(index)
                                                            : src_md(index);
     }
@@ -175,7 +177,8 @@ struct primitive_desc_t : public c_compatible {
     }
 
 #define DECLARE_MD_STUB(stub) \
-    virtual const memory_desc_t *stub(int idx = 0) const { \
+    virtual const memory_desc_t *stub(int idx = 0, bool user_input = false) \
+            const { \
         return &glob_zero_md; \
     }
 
@@ -185,6 +188,13 @@ struct primitive_desc_t : public c_compatible {
     DECLARE_MD_STUB(diff_dst_md);
     DECLARE_MD_STUB(weights_md);
     DECLARE_MD_STUB(diff_weights_md);
+#undef DECLARE_MD_STUB
+
+#define DECLARE_MD_STUB(stub) \
+    virtual const memory_desc_t *stub(int idx = 0) const { \
+        return &glob_zero_md; \
+    }
+
     DECLARE_MD_STUB(workspace_md);
 #undef DECLARE_MD_STUB
 

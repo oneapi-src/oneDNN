@@ -165,11 +165,12 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(
+            int arg, bool user_input = false) const override {
         switch (arg) {
             case DNNL_ARG_SRC_1: return dst_md(3);
             case DNNL_ARG_SRC: return src_md(0);
-            case DNNL_ARG_DST: return dst_md(0);
+            case DNNL_ARG_DST: return dst_md(0, user_input);
             case DNNL_ARG_MEAN: return stats_is_src() ? src_md(1) : dst_md(1);
             case DNNL_ARG_VARIANCE:
                 return stats_is_src() ? src_md(2) : dst_md(2);
@@ -179,21 +180,24 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
         }
     }
 
-    const memory_desc_t *src_md(int index = 0) const override {
-        if (index == 0) return &src_md_;
+    const memory_desc_t *src_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0) return user_input ? &desc()->src_desc : &src_md_;
         if (stats_is_src() && (index == 1 || index == 2)) return &stat_md_;
         return &glob_zero_md;
     }
 
-    const memory_desc_t *dst_md(int index = 0) const override {
-        if (index == 0) return &dst_md_;
+    const memory_desc_t *dst_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0) return user_input ? &desc()->dst_desc : &dst_md_;
         if (!stats_is_src() && is_training() && (index == 1 || index == 2))
             return &stat_md_;
         if (fuse_norm_add_relu() && index == 3) return &dst_md_;
         return &glob_zero_md;
     }
 
-    const memory_desc_t *weights_md(int index = 0) const override {
+    const memory_desc_t *weights_md(
+            int index = 0, bool user_input = false) const override {
         return index == 0 ? &scaleshift_md_ : &glob_zero_md;
     }
 
@@ -261,7 +265,8 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(
+            int arg, bool user_input = false) const override {
         switch (arg) {
             case DNNL_ARG_SRC: return src_md(0);
             case DNNL_ARG_MEAN: return src_md(1);
@@ -270,29 +275,40 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
             case DNNL_ARG_SHIFT: return weights_md(0);
             case DNNL_ARG_DIFF_SRC_1: return diff_dst_md(1);
             case DNNL_ARG_DIFF_SRC: return diff_src_md(0);
-            case DNNL_ARG_DIFF_DST: return diff_dst_md(0);
+            case DNNL_ARG_DIFF_DST: return diff_dst_md(0, user_input);
             case DNNL_ARG_DIFF_SCALE:
             case DNNL_ARG_DIFF_SHIFT: return diff_weights_md(0);
             default: return batch_normalization_pd_t::arg_md(arg);
         }
     }
 
-    const memory_desc_t *src_md(int index = 0) const override {
-        return index == 0 ? &src_md_ : index <= 2 ? &stat_md_ : &glob_zero_md;
-    }
-    const memory_desc_t *diff_dst_md(int index = 0) const override {
-        if (index == 0) return &diff_dst_md_;
-        if (fuse_norm_add_relu() && index == 1) return &diff_dst_md_;
+    const memory_desc_t *src_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0) return user_input ? &desc()->src_desc : &src_md_;
+        if (index == 1 || index == 2) return &stat_md_;
         return &glob_zero_md;
     }
-    const memory_desc_t *diff_src_md(int index = 0) const override {
-        return index == 0 ? &diff_src_md_ : &glob_zero_md;
+    const memory_desc_t *diff_dst_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0)
+            return user_input ? &desc()->diff_dst_desc : &diff_dst_md_;
+        if (fuse_norm_add_relu() && index == 1)
+            return user_input ? &desc()->diff_dst_desc : &diff_dst_md_;
+        return &glob_zero_md;
+    }
+    const memory_desc_t *diff_src_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0)
+            return user_input ? &desc()->diff_src_desc : &diff_src_md_;
+        return &glob_zero_md;
     }
 
-    const memory_desc_t *weights_md(int index = 0) const override {
+    const memory_desc_t *weights_md(
+            int index = 0, bool user_input = false) const override {
         return index == 0 ? &scaleshift_md_ : &glob_zero_md;
     }
-    const memory_desc_t *diff_weights_md(int index = 0) const override {
+    const memory_desc_t *diff_weights_md(
+            int index = 0, bool user_input = false) const override {
         return index == 0 ? &diff_scaleshift_md_ : &glob_zero_md;
     }
 
