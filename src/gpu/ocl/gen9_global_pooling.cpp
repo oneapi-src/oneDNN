@@ -90,6 +90,13 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
     if (conf.is_backward) {
         conf.dispatch.define_dim("SPATIAL", 2, spatial_dim_padded,
                 conf.global_pool_spatial_chunk);
+        conf.sub_group_size = compute_engine->device_info()->max_subgroup_size(
+                src_mdw.data_type());
+        if (conf.c % conf.sub_group_size != 0) return status::unimplemented;
+        if (!src_mdw.matches_one_of_tag(nwc, nhwc, ndhwc)
+                || !dst_mdw.matches_one_of_tag(nwc, nhwc, ndhwc))
+            return status::unimplemented;
+        CHECK(conf.dispatch.vectorize_dim("C", conf.sub_group_size));
     }
     conf.dispatch.generate();
 

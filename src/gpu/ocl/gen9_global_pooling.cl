@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -83,7 +83,7 @@ KERNEL_ATTR
 __kernel void gen9_global_pooling_bwd(__global DATA_T *diff_src,
         __global int *ws, __global DATA_T *diff_dst) {
     const int mb = GWS_GET_MB();
-    const int c = GWS_GET_C();
+    const int c = GWS_GET_C() + get_sub_group_local_id();
     const int spatial = GWS_GET_SPATIAL();
 
     const bool is_in_padded_area = NEED_ZERO_PADDING && (mb >= MB || c >= C);
@@ -115,8 +115,8 @@ __kernel void gen9_global_pooling_bwd(__global DATA_T *diff_src,
             val_to_write = CONVERT_DATA_T(dst_val_f);
 #endif // ALG_MAX
         }
-        const int src_off = SRC_OFF(mb, c, id, ih, iw);
-        diff_src[src_off] = val_to_write;
+        const int src_off = SRC_OFF(mb, GWS_GET_C(), id, ih, iw);
+        BLOCK_WRITE(&diff_src[src_off], val_to_write);
     }
 }
 #endif // IS_BWD
