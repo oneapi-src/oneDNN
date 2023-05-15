@@ -2248,6 +2248,7 @@ class AddressBase {
 protected:
     uint32_t index;
     AddressModel model;
+    uint8_t pad0[3] = {};
 
     constexpr AddressBase(uint8_t index_, AddressModel model_) : index(index_), model(model_) {}
 
