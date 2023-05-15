@@ -99,9 +99,9 @@ uint32_t get_verbose(int verbosity_flag_hint = verbose_t::none) {
             if (s == "profile")
                 return k |= impl::verbose_t::create_profile
                         | impl::verbose_t::exec_profile;
-            if (s == "compile_profile")
+            if (s == "profile_compile")
                 return k |= impl::verbose_t::create_profile;
-            if (s == "exec_profile") return k |= impl::verbose_t::exec_profile;
+            if (s == "profile_exec") return k |= impl::verbose_t::exec_profile;
 
             // Unknown option is ignored
             // TODO: exit on unsupported or print a message?
