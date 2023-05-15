@@ -47,7 +47,35 @@ namespace graph {
 namespace utils {
 
 static dnnl::impl::setting_t<uint32_t> verbose {0};
-uint32_t get_verbose() {
+
+void print_header(int verbosity_flag_hint = verbose_t::none) {
+    static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
+    if (verbose.get() > 0 && !version_printed.test_and_set()) {
+        printf("onednn_graph_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
+                dnnl_version()->major, dnnl_version()->minor,
+                dnnl_version()->patch, dnnl_version()->hash);
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+        printf("onednn_graph_verbose,info,cpu,runtime:%s,nthr:%d\n",
+                dnnl_runtime2str(dnnl_version()->cpu_runtime),
+                dnnl_get_max_threads());
+        printf("onednn_graph_verbose,info,cpu,isa:%s\n",
+                cpu::platform::get_isa_info());
+#endif
+        printf("onednn_graph_verbose,info,gpu,runtime:%s\n",
+                dnnl_runtime2str(dnnl_version()->gpu_runtime));
+        std::vector<const backend_t *> &backends
+                = backend_registry_t::get_singleton().get_registered_backends();
+        for (size_t i = 0; i < backends.size() - 1; ++i) {
+            backend_t *bkd = const_cast<backend_t *>(backends[i]);
+            printf("onednn_graph_verbose,info,backend,%zu:%s\n", i,
+                    bkd->get_name().c_str());
+        }
+    }
+}
+
+// verbosity flag is a hint on when to print header so that we print
+// header only when something will effectively be logged
+uint32_t get_verbose(int verbosity_flag_hint = verbose_t::none) {
 #if defined(DISABLE_VERBOSE)
     return verbose_t::none;
 #else
@@ -88,43 +116,27 @@ uint32_t get_verbose() {
         // We parse for explicit flags
         verbose.set(val);
     }
-    static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
-    if (verbose.get() > 0 && !version_printed.test_and_set()) {
-        printf("onednn_graph_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
-                dnnl_version()->major, dnnl_version()->minor,
-                dnnl_version()->patch, dnnl_version()->hash);
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-        printf("onednn_graph_verbose,info,cpu,runtime:%s,nthr:%d\n",
-                dnnl_runtime2str(dnnl_version()->cpu_runtime),
-                dnnl_get_max_threads());
-        printf("onednn_graph_verbose,info,cpu,isa:%s\n",
-                cpu::platform::get_isa_info());
-#endif
-        printf("onednn_graph_verbose,info,gpu,runtime:%s\n",
-                dnnl_runtime2str(dnnl_version()->gpu_runtime));
-        std::vector<const backend_t *> &backends
-                = backend_registry_t::get_singleton().get_registered_backends();
-        for (size_t i = 0; i < backends.size() - 1; ++i) {
-            backend_t *bkd = const_cast<backend_t *>(backends[i]);
-            printf("onednn_graph_verbose,info,backend,%zu:%s\n", i,
-                    bkd->get_name().c_str());
-        }
-    }
+
+    print_header(verbosity_flag_hint);
+
     return verbose.get();
 #endif
 }
 
 bool verbose_has_error() {
-    return get_verbose() & impl::verbose_t::error;
+    return get_verbose(impl::verbose_t::error) & impl::verbose_t::error;
 };
 bool verbose_has_create_check() {
-    return get_verbose() & impl::verbose_t::create_check;
+    return get_verbose(impl::verbose_t::create_check)
+            & impl::verbose_t::create_check;
 };
 bool verbose_has_create_profile() {
-    return get_verbose() & impl::verbose_t::create_profile;
+    return get_verbose(impl::verbose_t::create_profile)
+            & impl::verbose_t::create_profile;
 };
 bool verbose_has_exec_profile() {
-    return get_verbose() & impl::verbose_t::exec_profile;
+    return get_verbose(impl::verbose_t::exec_profile)
+            & impl::verbose_t::exec_profile;
 };
 
 #if defined(DISABLE_VERBOSE)
