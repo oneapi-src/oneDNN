@@ -26,3 +26,5 @@
 --reset  --in-shapes=0:1x256x9x9+1:1x1x9x9 --op-attrs=11:axes:1  --case=pattern/bf16/reduction_post_ops_mean_fusion.json
 --reset  --in-shapes=0:64x20x7x7+1:64x20x1x1+2:64x20x1x1+3:1x1x1x1 --op-attrs=11:axes:2x3  --case=pattern/bf16/reduction_post_ops_min_chain_fusion.json
 --reset  --in-shapes=0:64x20x7x7+1:1x20x1x1 --op-attrs=11:axes:2x3  --case=pattern/bf16/reduction_post_ops_sum_chain_fusion.json
+# shuffle
+--reset --in-shapes=0:64x256x56x56 --op-attrs=0:shape:64x256x7x8x56+2:shape:64x256x56x56  --case=pattern/bf16/shuffle_fusion.json
