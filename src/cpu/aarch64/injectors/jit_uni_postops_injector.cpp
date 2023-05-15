@@ -181,7 +181,7 @@ post_ops_ok_args_t::post_ops_ok_args_t(const cpu_isa_t isa,
         const std::vector<post_op_type> &accepted_post_op_types,
         const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
         const bool sum_at_pos_0_only, const bool sum_requires_scale_one,
-        const bool sum_requires_zp_zero,
+        const bool sum_requires_zp_zero, const bool sum_requires_same_params,
         const bcast_set_t &enabled_bcast_strategy)
     : isa(isa)
     , accepted_post_op_types(accepted_post_op_types)
@@ -190,6 +190,7 @@ post_ops_ok_args_t::post_ops_ok_args_t(const cpu_isa_t isa,
     , sum_at_pos_0_only(sum_at_pos_0_only)
     , sum_requires_scale_one(sum_requires_scale_one)
     , sum_requires_zp_zero(sum_requires_zp_zero)
+    , sum_requires_same_params(sum_requires_same_params)
     , enabled_bcast_strategy(enabled_bcast_strategy) {};
 
 bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
@@ -201,8 +202,20 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
     const bool sum_at_pos_0_only = post_ops_ok_args.sum_at_pos_0_only;
     const bool sum_requires_scale_one = post_ops_ok_args.sum_requires_scale_one;
     const bool sum_requires_zp_zero = post_ops_ok_args.sum_requires_zp_zero;
+    const bool sum_requires_same_params
+            = post_ops_ok_args.sum_requires_same_params;
     const auto &enabled_bcast_strategy
             = post_ops_ok_args.enabled_bcast_strategy;
+
+    // Save scale and zero point of first sum postop in order to check that any
+    // subsequent sum postops have the same values. This check is necessary
+    // because there is only one lambda injector.
+    const auto sum_idx = post_ops.find(primitive_kind::sum);
+    const bool with_sum = sum_idx != -1;
+    const auto &entry
+            = with_sum ? post_ops.entry_[sum_idx] : dnnl_post_ops::entry_t();
+    const auto sum_scale = with_sum ? entry.sum.scale : 0;
+    const auto sum_zero_point = with_sum ? entry.sum.zero_point : 0;
 
     const auto is_accepted_postop = [&](const int idx) {
         for (const auto &post_op : accepted_post_op_types) {
@@ -210,6 +223,12 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
             switch (post_op) {
                 case sum:
                     if (entry.is_sum(false, false)) {
+                        if (sum_requires_same_params
+                                && entry.sum.scale != sum_scale)
+                            return false;
+                        if (sum_requires_same_params
+                                && entry.sum.zero_point != sum_zero_point)
+                            return false;
                         if (sum_requires_scale_one && entry.sum.scale != 1)
                             return false;
                         if (sum_requires_zp_zero && entry.sum.zero_point != 0)
