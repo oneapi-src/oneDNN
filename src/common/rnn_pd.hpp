@@ -58,7 +58,8 @@ struct rnn_pd_t : public primitive_desc_t {
         return status::success;
     }
 
-    const memory_desc_t *src_md(int index = 0) const override {
+    const memory_desc_t *src_md(
+            int index = 0, bool user_input = false) const override {
         if (index == 0) return &src_layer_md_;
         if (index == 1 && with_src_iter()) return &src_iter_md_;
         if (index == 2 && with_src_iter_c()) return &src_iter_c_md_;
@@ -75,7 +76,8 @@ struct rnn_pd_t : public primitive_desc_t {
         return glob_zero_md;
     }
 
-    const memory_desc_t *weights_md(int index = 0) const override {
+    const memory_desc_t *weights_md(
+            int index = 0, bool user_input = false) const override {
         if (index == 0) return &weights_layer_md_;
         if (index == 1) return &weights_iter_md_;
 
@@ -92,7 +94,8 @@ struct rnn_pd_t : public primitive_desc_t {
 
         return &glob_zero_md;
     }
-    const memory_desc_t *dst_md(int index = 0) const override {
+    const memory_desc_t *dst_md(
+            int index = 0, bool user_input = false) const override {
         if (index == 0) return &dst_layer_md_;
         if (index == 1 && with_dst_iter()) return &dst_iter_md_;
         if (index == 2 && with_dst_iter_c()) return &dst_iter_c_md_;
@@ -266,7 +269,8 @@ struct rnn_fwd_pd_t : public rnn_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(
+            int arg, bool user_input = false) const override {
         switch (arg) {
             case DNNL_ARG_SRC_LAYER: return src_md(0);
             case DNNL_ARG_AUGRU_ATTENTION: return &const_augru_attention_md();
@@ -370,7 +374,8 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(
+            int arg, bool user_input = false) const override {
         switch (arg) {
             case DNNL_ARG_SRC_LAYER: return src_md(0);
             case DNNL_ARG_AUGRU_ATTENTION: return &const_augru_attention_md();
@@ -412,7 +417,8 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
         }
     }
 
-    const memory_desc_t *diff_src_md(int index = 0) const override {
+    const memory_desc_t *diff_src_md(
+            int index = 0, bool user_input = false) const override {
         if (index == 0) return &diff_src_layer_md_;
         if (index == 1 && with_src_iter()) return &diff_src_iter_md_;
         if (index == 2 && with_src_iter_c()) return &diff_src_iter_c_md_;
@@ -426,7 +432,8 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
         if (with_augru_attention()) return diff_weights_peephole_md_;
         return glob_zero_md;
     }
-    const memory_desc_t *diff_weights_md(int index = 0) const override {
+    const memory_desc_t *diff_weights_md(
+            int index = 0, bool user_input = false) const override {
         if (index == 0) return &diff_weights_layer_md_;
         if (index == 1) return &diff_weights_iter_md_;
 
@@ -443,7 +450,8 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
 
         return &glob_zero_md;
     }
-    const memory_desc_t *diff_dst_md(int index = 0) const override {
+    const memory_desc_t *diff_dst_md(
+            int index = 0, bool user_input = false) const override {
         if (index == 0) return &diff_dst_layer_md_;
         if (index == 1 && with_dst_iter()) return &diff_dst_iter_md_;
         if (index == 2 && with_dst_iter_c()) return &diff_dst_iter_c_md_;

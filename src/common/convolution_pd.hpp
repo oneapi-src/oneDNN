@@ -255,25 +255,32 @@ struct convolution_fwd_pd_t : public convolution_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(
+            int arg, bool user_input = false) const override {
         switch (arg) {
             case DNNL_ARG_SRC: return src_md(0);
             case DNNL_ARG_WEIGHTS: return weights_md(0);
             case DNNL_ARG_BIAS: return weights_md(1);
-            case DNNL_ARG_DST: return dst_md(0);
+            case DNNL_ARG_DST: return dst_md(0, user_input);
             default: return convolution_pd_t::arg_md(arg);
         }
     }
 
-    const memory_desc_t *src_md(int index = 0) const override {
-        return index == 0 ? &src_md_ : &glob_zero_md;
+    const memory_desc_t *src_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0) return user_input ? &desc()->src_desc : &src_md_;
+        return &glob_zero_md;
     }
-    const memory_desc_t *dst_md(int index = 0) const override {
-        return index == 0 ? &dst_md_ : &glob_zero_md;
+    const memory_desc_t *dst_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0) return user_input ? &desc()->dst_desc : &dst_md_;
+        return &glob_zero_md;
     }
-    const memory_desc_t *weights_md(int index = 0) const override {
-        if (index == 0) return &weights_md_;
-        if (index == 1) return &bias_md_;
+    const memory_desc_t *weights_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0)
+            return user_input ? &desc()->weights_desc : &weights_md_;
+        if (index == 1) return user_input ? &desc()->bias_desc : &bias_md_;
         return &glob_zero_md;
     }
 
@@ -327,25 +334,34 @@ struct convolution_bwd_data_pd_t : public convolution_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(
+            int arg, bool user_input = false) const override {
         switch (arg) {
             case DNNL_ARG_DIFF_SRC: return diff_src_md(0);
             case DNNL_ARG_WEIGHTS: return weights_md(0);
             case DNNL_ARG_BIAS: return weights_md(1);
-            case DNNL_ARG_DIFF_DST: return diff_dst_md(0);
+            case DNNL_ARG_DIFF_DST: return diff_dst_md(0, user_input);
             default: return convolution_pd_t::arg_md(arg);
         }
     }
 
-    const memory_desc_t *diff_src_md(int index = 0) const override {
-        return index == 0 ? &diff_src_md_ : &glob_zero_md;
+    const memory_desc_t *diff_src_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0)
+            return user_input ? &desc()->diff_src_desc : &diff_src_md_;
+        return &glob_zero_md;
     }
-    const memory_desc_t *diff_dst_md(int index = 0) const override {
-        return index == 0 ? &diff_dst_md_ : &glob_zero_md;
+    const memory_desc_t *diff_dst_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0)
+            return user_input ? &desc()->diff_dst_desc : &diff_dst_md_;
+        return &glob_zero_md;
     }
-    const memory_desc_t *weights_md(int index = 0) const override {
-        if (index == 0) return &weights_md_;
-        if (index == 1) return &bias_md_;
+    const memory_desc_t *weights_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0)
+            return user_input ? &desc()->weights_desc : &weights_md_;
+        if (index == 1) return user_input ? &desc()->bias_desc : &bias_md_;
         return &glob_zero_md;
     }
 
@@ -401,25 +417,34 @@ struct convolution_bwd_weights_pd_t : public convolution_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(
+            int arg, bool user_input = false) const override {
         switch (arg) {
             case DNNL_ARG_SRC: return src_md(0);
             case DNNL_ARG_DIFF_WEIGHTS: return diff_weights_md(0);
             case DNNL_ARG_DIFF_BIAS: return diff_weights_md(1);
-            case DNNL_ARG_DIFF_DST: return diff_dst_md(0);
+            case DNNL_ARG_DIFF_DST: return diff_dst_md(0, user_input);
             default: return convolution_pd_t::arg_md(arg);
         }
     }
 
-    const memory_desc_t *src_md(int index = 0) const override {
-        return index == 0 ? &src_md_ : &glob_zero_md;
+    const memory_desc_t *src_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0) return user_input ? &desc()->src_desc : &src_md_;
+        return &glob_zero_md;
     }
-    const memory_desc_t *diff_dst_md(int index = 0) const override {
-        return index == 0 ? &diff_dst_md_ : &glob_zero_md;
+    const memory_desc_t *diff_dst_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0)
+            return user_input ? &desc()->diff_dst_desc : &diff_dst_md_;
+        return &glob_zero_md;
     }
-    const memory_desc_t *diff_weights_md(int index = 0) const override {
-        if (index == 0) return &diff_weights_md_;
-        if (index == 1) return &diff_bias_md_;
+    const memory_desc_t *diff_weights_md(
+            int index = 0, bool user_input = false) const override {
+        if (index == 0)
+            return user_input ? &desc()->diff_weights_desc : &diff_weights_md_;
+        if (index == 1)
+            return user_input ? &desc()->diff_bias_desc : &diff_bias_md_;
         return &glob_zero_md;
     }
 

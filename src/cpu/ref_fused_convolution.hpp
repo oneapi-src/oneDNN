@@ -95,19 +95,23 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             return status::success;
         }
 
-        const memory_desc_t *src_md(int index = 0) const override {
-            return op_pds_.front()->src_md(index);
+        const memory_desc_t *src_md(
+                int index = 0, bool user_input = false) const override {
+            return op_pds_.front()->src_md(index, user_input);
         }
 
-        const memory_desc_t *dst_md(int index = 0) const override {
-            return op_pds_.back()->dst_md(index);
+        const memory_desc_t *dst_md(
+                int index = 0, bool user_input = false) const override {
+            return op_pds_.back()->dst_md(index, user_input);
         }
 
-        const memory_desc_t *weights_md(int index = 0) const override {
-            return op_pds_.front()->weights_md(index); // for now
+        const memory_desc_t *weights_md(
+                int index = 0, bool user_input = false) const override {
+            return op_pds_.front()->weights_md(index, user_input); // for now
         }
 
-        const memory_desc_t *arg_md(int arg) const override {
+        const memory_desc_t *arg_md(
+                int arg, bool user_input = false) const override {
             // Binary post-op:
             // format_tag::any should be supported here since output dst_md
             // may be different from the intermediate one and they should be
@@ -137,11 +141,13 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             }
 
             switch (arg) { // for now
+                case DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_SRC:
+                    return op_pds_.front()->dst_md(0, user_input);
                 case DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS:
                     return op_pds_.back()->weights_md(0);
                 case DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS:
                     return op_pds_.back()->weights_md(1);
-                default: return convolution_fwd_pd_t::arg_md(arg);
+                default: return convolution_fwd_pd_t::arg_md(arg, user_input);
             }
         }
 
@@ -154,9 +160,6 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                 return arg_usage_t::input;
 
             if (arg == (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_SRC))
-                return arg_usage_t::input;
-
-            if (arg == (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS))
                 return arg_usage_t::input;
 
             if (arg == (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST))

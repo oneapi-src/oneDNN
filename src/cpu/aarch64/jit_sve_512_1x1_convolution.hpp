@@ -89,9 +89,12 @@ struct jit_sve_512_1x1_convolution_fwd_t : public primitive_t {
             return jcp_.with_dw_conv ? dw_conv_pd_->dst_md(index) : &dst_md_;
         }
 
-        const memory_desc_t *arg_md(int arg) const override {
+        const memory_desc_t *arg_md(
+                int arg, bool user_input = false) const override {
             if (jcp_.with_dw_conv) {
                 switch (arg) {
+                    case DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_SRC:
+                        return cpu_convolution_fwd_pd_t::dst_md(0, user_input);
                     case DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS:
                         return dw_conv_pd_->weights_md(0);
                     case DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS:
@@ -99,7 +102,7 @@ struct jit_sve_512_1x1_convolution_fwd_t : public primitive_t {
                     default: break;
                 }
             }
-            return convolution_fwd_pd_t::arg_md(arg);
+            return convolution_fwd_pd_t::arg_md(arg, user_input);
         }
 
         arg_usage_t arg_usage(int arg) const override {
