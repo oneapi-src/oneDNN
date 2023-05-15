@@ -2064,6 +2064,16 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             return status::unimplemented;
     }
 
+    // TODO: remove this restriction after it's fixed
+    // disabled for ic64ih14oc24oh14kh5ph2n"googlenet_v1:inception_4b/5x5"
+    if (is_superset(isa, avx2_vnni) && jcp.wei_dt == s8
+            && (jcp.src_zero_point || jcp.dst_zero_point)
+            && (jcp.ic == 64 && jcp.oc == 24
+                    && everyone_is(14, jcp.ih, jcp.oh, jcp.iw, jcp.ow)
+                    && everyone_is(5, jcp.kh, jcp.kw)
+                    && everyone_is(2, jcp.t_pad, jcp.l_pad)))
+        return status::unimplemented;
+
     using namespace data_type;
     // ======================= blocking =================================
 
