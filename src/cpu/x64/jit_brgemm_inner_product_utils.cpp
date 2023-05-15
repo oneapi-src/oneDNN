@@ -1619,7 +1619,7 @@ void jit_brgemm_ip_fwd_conf_t::choose_loop_order() {
     // intensity increases more than a threshold.
     float eff_osc_occ = eff(os_span_osc_occ, oc_span_osc_occ, ic_span);
     float eff_occ_osc = eff(os_span_occ_osc, oc_span_occ_osc, ic_span);
-    bool do_occ_osc = eff_occ_osc > 1.2 * eff_osc_occ;
+    bool do_occ_osc = eff_occ_osc > 1.15 * eff_osc_occ;
 
     // Enable occ_osc_... for f32 and with small os-blocks.
     // TODO: Expand to other precisions and other blocks sizes.
