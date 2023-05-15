@@ -717,7 +717,9 @@ void flex_rewrite::input_shape_rewrite(deserialized_graph &dgraph) {
             size_t ndims = lt.shape_.size();
             if (temp_shape.size() != ndims) {
                 BENCHDNN_PRINT(0,
-                        "graph: rewrite: Wrong shape dims for tensor: "
+                        "graph: rewrite: driver does not support changing "
+                        "shape rank currently, please keep same with origin "
+                        "json input for tensor: "
                         "%zd!\n",
                         lt.id_);
                 exit(2);
