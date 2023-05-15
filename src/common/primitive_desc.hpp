@@ -176,6 +176,29 @@ struct primitive_desc_t : public c_compatible {
                 : dst_md();
     }
 
+    virtual format_kind_t invariant_src_user_format_kind(int index = 0) const {
+        return get_prop_kind() == prop_kind::backward_data
+                ? diff_src_md(index, /* user_input = */ true)->format_kind
+                : src_md(index, /* user_input = */ true)->format_kind;
+    }
+    virtual format_kind_t invariant_wei_user_format_kind(int index = 0) const {
+        return get_prop_kind() == prop_kind::backward_weights
+                ? diff_weights_md(index, /* user_input = */ true)->format_kind
+                : weights_md(index, /* user_input = */ true)->format_kind;
+    }
+    virtual format_kind_t invariant_bia_user_format_kind() const {
+        return invariant_wei_user_format_kind(1);
+    }
+    virtual format_kind_t invariant_dst_user_format_kind() const {
+        const auto prop_kind = get_prop_kind();
+        const int default_arg
+                = utils::one_of(prop_kind, prop_kind::backward_data,
+                          prop_kind::backward_weights, prop_kind::backward)
+                ? DNNL_ARG_DIFF_DST
+                : DNNL_ARG_DST;
+        return arg_md(default_arg, /* user_input = */ true)->format_kind;
+    }
+
 #define DECLARE_MD_STUB(stub) \
     virtual const memory_desc_t *stub(int idx = 0, bool user_input = false) \
             const { \
