@@ -130,6 +130,26 @@ TEST(GCPatternTests, FP32MHAPatternAlternative_CPU) {
             std::vector<partition_info_t> {{7, 5, 1}});
 }
 
+TEST(GCPatternTests, INT8FP32MHAPatternAlternative_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    graph::graph_t agraph;
+    compiler_utils::add_MHA_subgraph_alternative(&agraph, false, true);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"int8_mha_pattern_alternative"}, 1,
+            std::vector<partition_info_t> {{13, 5, 1}});
+}
+
+TEST(GCPatternTests, INT8BF16MHAPatternAlternative_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    graph::graph_t agraph;
+    compiler_utils::add_MHA_subgraph_alternative(&agraph, true, true);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"int8_bf16_mha_pattern_alternative"}, 1,
+            std::vector<partition_info_t> {{19, 5, 1}});
+}
+
 // test fp32 MHA pattern (no reshape)
 TEST(GCPatternTests, FP32MHAPatternOptionalReshape_CPU) {
     REQUIRE_AVX512();
@@ -904,4 +924,84 @@ TEST(GCPatternTests, INT8BF16LLAMAMLPPattern_CPU) {
 
     test_pattern_matched(agraph, {"int8_bf16_llama_mlp"}, 1,
             std::vector<partition_info_t> {{47, 10, 1}});
+}
+
+TEST(GCPatternTests, FP32MHAPatternAlternative2_CPU) {
+    REQUIRE_AVX512();
+    graph::graph_t agraph;
+    compiler_utils::add_MHA_subgraph_alternative2(&agraph);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"fp32_mha_pattern_alternative2"}, 1,
+            std::vector<partition_info_t> {{14, 4, 1}});
+}
+
+TEST(GCPatternTests, FAKEINT8MHAPattern_CPU) {
+    REQUIRE_AVX512();
+    graph::graph_t agraph;
+    compiler_utils::add_MHA_subgraph_alternative2(&agraph, true);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"fake_int8_mha_pattern"}, 1,
+            std::vector<partition_info_t> {{15, 5, 1}});
+}
+
+TEST(GCPatternTests, FP32BartMHAPattern_CPU) {
+    REQUIRE_AVX512();
+    graph::graph_t agraph;
+    compiler_utils::add_bart_MHA(&agraph, false, false);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"fp32_mha_pattern_alternative3"}, 1,
+            std::vector<partition_info_t> {{3, 3, 1}});
+}
+
+TEST(GCPatternTests, BF16BartMHAPattern_CPU) {
+    REQUIRE_AMXBF16();
+    graph::graph_t agraph;
+    compiler_utils::add_bart_MHA(&agraph, true, false);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"bf16_mha_pattern_alternative3"}, 1,
+            std::vector<partition_info_t> {{3, 3, 1}});
+}
+
+TEST(GCPatternTests, INT8FP32BartMHAPattern_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    graph::graph_t agraph;
+    compiler_utils::add_bart_MHA(&agraph, false, true);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"int8_mha_pattern_alternative3"}, 1,
+            std::vector<partition_info_t> {{9, 3, 1}});
+}
+
+TEST(GCPatternTests, INT8BF16BartMHAPattern_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    graph::graph_t agraph;
+    compiler_utils::add_bart_MHA(&agraph, true, true);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"int8_bf16_mha_pattern_alternative3"}, 1,
+            std::vector<partition_info_t> {{15, 3, 1}});
+}
+
+TEST(GCPatternTests, FP32MHAPatternAlternative4_CPU) {
+    REQUIRE_AVX512();
+    graph::graph_t agraph;
+    compiler_utils::add_MHA_subgraph_alternative4(&agraph, false);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"fp32_mha_pattern_alternative4"}, 1,
+            std::vector<partition_info_t> {{7, 5, 1}});
+}
+
+TEST(GCPatternTests, INT8MHAPatternAlternative4_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    graph::graph_t agraph;
+    compiler_utils::add_MHA_subgraph_alternative4(&agraph, true);
+    agraph.finalize();
+
+    test_pattern_matched(agraph, {"int8_mha_pattern_alternative4"}, 1,
+            std::vector<partition_info_t> {{13, 5, 1}});
 }
