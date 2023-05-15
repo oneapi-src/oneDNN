@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,6 +27,8 @@ namespace dnnl {
 namespace impl {
 namespace serialization {
 
+void serialize_post_ops(
+        serialization_stream_t &sstream, const post_ops_t &post_ops);
 void serialize_attr(
         serialization_stream_t &sstream, const primitive_attr_t &attr);
 void serialize_md(serialization_stream_t &sstream, const memory_desc_t &md);
