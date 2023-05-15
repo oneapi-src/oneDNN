@@ -139,11 +139,10 @@ enum post_op_type { sum = 0, eltwise, binary };
 struct post_ops_ok_args_t {
     post_ops_ok_args_t(const cpu_isa_t isa,
             const std::vector<post_op_type> &accepted_post_op_types,
-            const post_ops_t &post_ops,
-            const memory_desc_wrapper *dst_d = nullptr,
-            const bool sum_at_pos_0_only = false,
-            const bool sum_requires_scale_one = false,
+            const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
+            const bool sum_at_pos_0_only, const bool sum_requires_scale_one,
             const bool sum_requires_zp_zero = true,
+            const bool sum_requires_same_params = true,
             const bcast_set_t &enabled_bcast_strategy = default_strategies());
 
     const cpu_isa_t isa;
@@ -153,6 +152,7 @@ struct post_ops_ok_args_t {
     const bool sum_at_pos_0_only;
     const bool sum_requires_scale_one;
     const bool sum_requires_zp_zero;
+    const bool sum_requires_same_params;
     const bcast_set_t enabled_bcast_strategy;
 };
 
