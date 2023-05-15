@@ -333,8 +333,10 @@ def convert_tags(mds, prim_kind):
             if md_arg == "b":
                 continue
 
+            if "a" in md["properties"]:
+                tags += f" --{md_arg}tag=any"
             # pass wtag any for cases with compensation
-            if md_arg == "w" and md["flags"]["value"] != "f0":
+            elif md_arg == "w" and md["flags"]["value"] != "f0":
                 tags += f" --{md_arg}tag=any"
             else:
                 md_tag = md["tag"]
@@ -350,8 +352,10 @@ def convert_tags(mds, prim_kind):
             if md_arg == "b":
                 continue
 
+            if "a" in md["properties"]:
+                tags += f" --{md_arg}tag=any"
             # pass wtag any for cases with compensation
-            if md_arg == "w" and md["flags"]["value"] != "f0":
+            elif md_arg == "w" and md["flags"]["value"] != "f0":
                 tags += f" --{md_arg}tag=any"
             else:
                 md_strides = md["strides"]
@@ -372,12 +376,13 @@ def convert_tags(mds, prim_kind):
         for md in mds:
             md_tag = md["tag"]
             md_arg = md["arg"]
-            if md_arg == "src":
-                tags += f"{md_tag}"
-            elif md_arg == "wei":
-                tags += f":{md_tag}"
-            elif md_arg == "dst":
-                tags += f":{md_tag}"
+            if md_arg == "src" or md_arg == "wei" or md_arg == "dst":
+                if md_arg != "src":
+                    tags += f":"
+                if "a" in md["properties"]:
+                    tags += f"any"
+                else:
+                    tags += f"{md_tag}"
             else:
                 tags += f""
         return tags
@@ -391,13 +396,22 @@ def convert_tags(mds, prim_kind):
             md_arg = md["arg"]
             if md_arg == "src":
                 if first_src:
-                    src_tags += f":{md_tag}"
+                    if "a" in md["properties"]:
+                        src_tags += f":any"
+                    else:
+                        src_tags += f":{md_tag}"
                 else:
-                    src_tags += f" --{md_arg[0]}tag={md_tag}"
+                    if "a" in md["properties"]:
+                        src_tags += f" --{md_arg[0]}tag=any"
+                    else:
+                        src_tags += f" --{md_arg[0]}tag={md_tag}"
                     first_src = True
             else:
                 if md_tag != "":
-                    tags += f" --{md_arg[0]}tag={md_tag}"
+                    if "a" in md["properties"]:
+                        tags += f" --{md_arg[0]}tag=any"
+                    else:
+                        tags += f" --{md_arg[0]}tag={md_tag}"
         return src_tags + tags
 
     def convert_tags_prelu(mds):

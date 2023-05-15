@@ -32,6 +32,7 @@ class LogParser:
         #     {
         #         arg(str): {
         #             data_type(str),
+        #             properties(str),
         #             format_kind(str),
         #             tag(str),
         #             strides(str),
@@ -69,10 +70,10 @@ class LogParser:
             def convert_mds(log_mds):
                 mds = []
                 for md in log_mds.split(" "):
-                    # arg_dt:padding:format_kind:tag:strides:flags
+                    # arg_dt:properties:format_kind:tag:strides:flags
                     fields = md.split(":")
                     arg_dt = fields[0]
-                    padding = fields[1]
+                    properties = fields[1]
                     format_kind = fields[2]
                     tag = fields[3]
 
@@ -102,7 +103,7 @@ class LogParser:
                         {
                             "arg": arg,
                             "data_type": data_type,
-                            "padding": padding,
+                            "properties": properties,
                             "format_kind": format_kind,
                             "tag": tag,
                             "strides": strides,

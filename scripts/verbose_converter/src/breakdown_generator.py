@@ -33,7 +33,7 @@ class BreakdownGenerator:
                 md_fields = [
                     "arg",
                     "data_type",
-                    "padding",
+                    "properties",
                     "format_kind",
                     "tag",
                     "strides",
