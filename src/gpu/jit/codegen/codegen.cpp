@@ -593,11 +593,15 @@ private:
                                      : old_save[0].f(0)(8, 8, 1);
         host_->mark(atomic_label);
         host_->emov(8, old_save_region, old_region);
-        auto cmp_mod = 8 | flag | host_->ne | flag;
+        auto ne_mod = 8 | flag | host_->ne | flag;
+        auto eq_mod = 8 | flag | host_->eq | flag;
         host_->add(8, region, old_region, rd.setRegion(4, 4, 1));
         cmpwr.emit(host_, scope, mod | flag, old_region, mem_buf_rd, surf_bti,
                 mem_off_op, old_region);
-        host_->cmp(cmp_mod, old_save_region, old_region);
+        host_->cmp(ne_mod, old_save_region, old_region);
+        // The previous comparison always fails for NaNs so check for NaNs
+        // explictly to prevent an infinite loop.
+        host_->cmp(eq_mod, old_region, old_region);
         host_->while_(8 | flag, atomic_label);
     }
 
