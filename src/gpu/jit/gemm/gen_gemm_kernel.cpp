@@ -100,6 +100,8 @@ status_t gen_gemm_kernel_desc_t::finalize() {
             if (thread_count <= thread_gpu) {
                 strategy_.persistent = false;
                 strategy_.cWalkOrder = WalkOrder::HW2D;
+                strategy_.blocking[LoopM] = 16777216;
+                strategy_.blocking[LoopN] = 16777216;
             }
         }
     }
