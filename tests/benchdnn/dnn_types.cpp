@@ -145,6 +145,11 @@ static int str2arg(const std::string &str) {
     std::string msrc = "msrc";
     if (str.compare(0, msrc.size(), msrc) == 0) {
         const auto &str_index = str.substr(msrc.size());
+        if (str_index.empty() /* TODO: || non-digit string */) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: \'msrc\' argument requires index to be specified.");
+            return BENCHDNN_DNNL_ARG_UNDEF;
+        }
         const auto index = stoul(str_index);
         return DNNL_ARG_MULTIPLE_SRC + index;
     }
@@ -302,8 +307,12 @@ int attr_t::zero_points_t::from_str(const std::string &s) {
 
         auto arg = str2arg(parser::get_substr(subs, subs_pos, ':'));
         if (arg == BENCHDNN_DNNL_ARG_UNDEF || subs_pos == std::string::npos
-                || subs_pos >= subs.size())
+                || subs_pos >= subs.size()) {
+            BENCHDNN_PRINT(0,
+                    "Error: argument name \'%s\' was not recognized.\n",
+                    subs.c_str());
             return FAIL;
+        }
 
         auto policy = str2policy(parser::get_substr(subs, subs_pos, ':'));
         if (policy == POLICY_TOTAL || subs_pos == std::string::npos
@@ -335,8 +344,12 @@ int attr_t::arg_scales_t::from_str(const std::string &s) {
 
         auto arg = str2arg(parser::get_substr(subs, subs_pos, ':'));
         if (arg == BENCHDNN_DNNL_ARG_UNDEF || subs_pos == std::string::npos
-                || subs_pos >= s.size())
+                || subs_pos >= s.size()) {
+            BENCHDNN_PRINT(0,
+                    "Error: argument name \'%s\' was not recognized.\n",
+                    subs.c_str());
             return FAIL;
+        }
 
         arg_scales_t::entry_t arg_scale;
         SAFE(arg_scale.from_str(parser::get_substr(subs, subs_pos, '\0')),
