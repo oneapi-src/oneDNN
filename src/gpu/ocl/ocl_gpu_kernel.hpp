@@ -52,10 +52,13 @@ public:
         return arg_types_;
     }
 
+    void save_output_events() override { save_events_ = true; }
+
 private:
     cl_kernel ocl_kernel_;
     std::vector<gpu::compute::scalar_type_t> arg_types_;
     std::shared_ptr<ocl_gpu_kernel_cache_t> cache_;
+    bool save_events_;
 };
 
 } // namespace ocl

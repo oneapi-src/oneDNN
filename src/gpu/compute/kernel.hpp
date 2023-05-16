@@ -63,6 +63,8 @@ public:
 
     const std::vector<scalar_type_t> &arg_types() const;
 
+    void save_output_events();
+
 private:
     std::shared_ptr<kernel_impl_t> impl_;
 };
@@ -103,6 +105,8 @@ public:
         static const std::vector<scalar_type_t> dummy;
         return dummy;
     }
+
+    virtual void save_output_events() {}
 };
 
 inline status_t kernel_t::parallel_for(stream_t &stream,
@@ -127,6 +131,10 @@ inline status_t kernel_t::get_binary(
 
 inline const std::vector<scalar_type_t> &kernel_t::arg_types() const {
     return impl_->arg_types();
+}
+
+inline void kernel_t::save_output_events() {
+    return impl_->save_output_events();
 }
 
 } // namespace compute

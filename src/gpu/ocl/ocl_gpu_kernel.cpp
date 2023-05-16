@@ -107,7 +107,7 @@ private:
 
 ocl_gpu_kernel_t::ocl_gpu_kernel_t(cl_kernel ocl_kernel,
         const std::vector<gpu::compute::scalar_type_t> &arg_types)
-    : ocl_kernel_(ocl_kernel), arg_types_(arg_types) {
+    : ocl_kernel_(ocl_kernel), arg_types_(arg_types), save_events_(false) {
     OCL_CHECK_V(clRetainKernel(ocl_kernel_));
     cache_ = std::make_shared<ocl_gpu_kernel_cache_t>(ocl_kernel_);
 }
@@ -218,9 +218,10 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
         OCL_CHECK(err);
         ocl_event_t::from(out_dep).events = {event};
     } else {
+        bool save_event = save_events_ || stream.is_profiling_enabled();
         cl_int err = clEnqueueNDRangeKernel(queue, *kernel, ndims, nullptr,
                 range.global_range(), range.local_range(), 0, nullptr,
-                stream.is_profiling_enabled() ? &event.unwrap() : nullptr);
+                save_event ? &event.unwrap() : nullptr);
         OCL_CHECK(err);
     }
 
