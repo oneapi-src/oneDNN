@@ -142,8 +142,9 @@ static int str2arg(const std::string &str) {
         for (const auto &s : arg.second)
             if (str.compare(s) == 0) return arg.first;
     // multiple srcs
-    if (str.compare(0, 3, "msrc")) {
-        const auto &str_index = str.substr(4);
+    std::string msrc = "msrc";
+    if (str.compare(0, msrc.size(), msrc) == 0) {
+        const auto &str_index = str.substr(msrc.size());
         const auto index = stoul(str_index);
         return DNNL_ARG_MULTIPLE_SRC + index;
     }
