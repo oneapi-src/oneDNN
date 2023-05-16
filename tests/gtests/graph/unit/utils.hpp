@@ -56,6 +56,8 @@ static inline dnnl::impl::graph::logical_tensor_t logical_tensor_init(size_t id,
         dnnl::impl::graph::layout_type_t ltype
         = dnnl::impl::graph::layout_type::undef) {
     dnnl::impl::graph::logical_tensor_t val;
+    memset((char *)&val, 0, sizeof(val));
+
     val.id = id;
     val.data_type = dtype;
     val.layout_type = ltype;
@@ -74,6 +76,8 @@ static inline dnnl::impl::graph::logical_tensor_t logical_tensor_init(size_t id,
         dnnl::impl::graph::layout_type_t ltype
         = dnnl::impl::graph::layout_type::strided) {
     dnnl::impl::graph::logical_tensor_t val;
+    memset((char *)&val, 0, sizeof(val));
+
     val.id = id;
     val.data_type = dtype;
     val.ndims = static_cast<int>(dims.size());
@@ -108,6 +112,8 @@ static inline dnnl::impl::graph::logical_tensor_t logical_tensor_init(size_t id,
         std::vector<dnnl::impl::graph::dim_t> strides,
         dnnl::impl::graph::data_type_t dtype) {
     dnnl::impl::graph::logical_tensor_t val;
+    memset((char *)&val, 0, sizeof(val));
+
     val.id = id;
     val.data_type = dtype;
     val.ndims = static_cast<int>(dims.size());
