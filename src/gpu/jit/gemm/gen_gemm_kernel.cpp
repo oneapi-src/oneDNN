@@ -557,7 +557,9 @@ void gen_gemm_kernel_t::init_interface() {
         interface_.newArgument("group_count_m", DataType::ud);
         interface_.newArgument("group_count_n", DataType::ud);
     }
-    if (strategy.cWalkOrder == WalkOrder::Hilbertlike) {
+    if (strategy.cWalkOrder == WalkOrder::SimpleLinear)
+        interface_.newArgument("group_count_recip", DataType::ud);
+    else if (strategy.cWalkOrder == WalkOrder::Hilbertlike) {
         interface_.newArgument("hilbert_vd", DataType::ud);
         interface_.newArgument("hilbert_uvd_recip", DataType::ud);
         interface_.newArgument("hilbert_bail", DataType::ud);
