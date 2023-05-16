@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -149,7 +149,7 @@ void dnnl_graph_allocator::monitor_t::record_deallocate(
     if (is_persist) {
         auto persist_pos = persist_mem_infos_.at(alloc).find(buf);
         persist_mem_[alloc] -= persist_pos->second.size_;
-        persist_mem_infos_[alloc].erase(persist_pos);
+        persist_mem_infos_.at(alloc).erase(persist_pos);
     } else {
         auto tid = std::this_thread::get_id();
         auto temp_pos = temp_mem_infos_[tid][alloc].find(buf);
