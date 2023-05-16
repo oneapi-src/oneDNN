@@ -408,6 +408,12 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
     jbgp.nb_oc = div_up(jbgp.oc, jbgp.oc_block);
     jbgp.nb_oc_blocking = get_nb_oc_blocking();
 
+    // Use single a single chunk in oc dimension in case of a single main block
+    // + tail a block to save bandwidth.
+    if (jbgp.nb_oc == 2 && jbgp.oc % jbgp.oc_block != 0) {
+        jbgp.nb_oc_blocking = jbgp.nb_oc;
+    }
+
     jbgp.os_block = get_os_block(false, false);
     jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
 
