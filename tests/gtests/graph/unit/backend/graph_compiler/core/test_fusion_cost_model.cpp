@@ -28,7 +28,7 @@
 
 using namespace dnnl::impl::graph::gc;
 
-TEST(GCCore_fusion_cost_model_cpp, TestBroadcastOp1) {
+TEST(GCCore_CPU_fusion_cost_model_cpp, TestBroadcastOp1) {
     sc_graph_t graph;
     thread_num_reset reseter;
     // set threads envoriment
@@ -63,7 +63,7 @@ TEST(GCCore_fusion_cost_model_cpp, TestBroadcastOp1) {
     EXPECT_EQ(ss.str(), expected_str);
 }
 
-TEST(GCCore_fusion_cost_model_cpp, TestBroadcastOp2) {
+TEST(GCCore_CPU_fusion_cost_model_cpp, TestBroadcastOp2) {
     sc_graph_t graph;
     thread_num_reset reseter;
     // set threads envoriment
@@ -105,7 +105,7 @@ TEST(GCCore_fusion_cost_model_cpp, TestBroadcastOp2) {
     EXPECT_EQ(ss.str(), expected_str);
 }
 
-TEST(GCCore_fusion_cost_model_cpp, TestFusePreLoadBufferCheck) {
+TEST(GCCore_CPU_fusion_cost_model_cpp, TestFusePreLoadBufferCheck) {
     sc_graph_t graph;
 
     int run_threads = 28;
@@ -153,7 +153,7 @@ TEST(GCCore_fusion_cost_model_cpp, TestFusePreLoadBufferCheck) {
     EXPECT_EQ(ss.str(), expected_str);
 }
 
-TEST(GCCore_fusion_cost_model_cpp, TestVerticalMergeForImageAffine) {
+TEST(GCCore_CPU_fusion_cost_model_cpp, TestVerticalMergeForImageAffine) {
     sc_graph_t graph;
 
     auto get_conv_block_graph = [](int BS) {
@@ -217,7 +217,7 @@ TEST(GCCore_fusion_cost_model_cpp, TestVerticalMergeForImageAffine) {
     EXPECT_EQ(ss.str(), expected_str);
 }
 
-TEST(GCCore_fusion_cost_model_cpp, TestTunableOp) {
+TEST(GCCore_CPU_fusion_cost_model_cpp, TestTunableOp) {
     sc_graph_t graph;
     thread_num_reset reseter;
     // set threads envoriment

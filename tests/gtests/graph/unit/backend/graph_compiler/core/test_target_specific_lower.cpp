@@ -45,7 +45,7 @@ void check(const func_t &aaa, uint64_t contents_size, uint64_t seq_size,
     EXPECT_EQ(retmod->get_func(name), call_n->func_);
 }
 
-TEST(GCCore_target_specific_lower_cpp, TestLowerIntrinsics) {
+TEST(GCCore_CPU_target_specific_lower_cpp, TestLowerIntrinsics) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, aaa, _arg_("A", datatypes::f32, {123, 321})) {
         _bind_(A);
@@ -63,7 +63,7 @@ TEST(GCCore_target_specific_lower_cpp, TestLowerIntrinsics) {
     check(aaa, 5, 5, 4, "_should_inline_exp_f32x16");
 }
 
-TEST(GCCore_target_specific_lower_cpp, TestLowerIntrinsics2) {
+TEST(GCCore_CPU_target_specific_lower_cpp, TestLowerIntrinsics2) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, aaa, _arg_("A", datatypes::f32, {123, 321})) {
         _bind_(A);
@@ -86,7 +86,7 @@ static expr make_const(int64_t v, uint32_t lanes) {
     return make_expr<constant_node>(v, sc_data_type_t::s32(lanes));
 }
 
-TEST(GCCore_target_specific_lower_cpp, TestLowerSaturatedCast) {
+TEST(GCCore_CPU_target_specific_lower_cpp, TestLowerSaturatedCast) {
     builder::ir_builder_t builder;
 
     _function_(datatypes::void_t, aaa) {
@@ -160,7 +160,7 @@ TEST(GCCore_target_specific_lower_cpp, TestLowerSaturatedCast) {
     EXPECT_TRUE(cmper.compare(ret, expected, false));
 }
 
-TEST(GCCore_target_specific_lower_cpp, TestLowerGetTidGid) {
+TEST(GCCore_CPU_target_specific_lower_cpp, TestLowerGetTidGid) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, aaa, _arg_("A", datatypes::f32, {123, 321})) {
         _bind_(A);

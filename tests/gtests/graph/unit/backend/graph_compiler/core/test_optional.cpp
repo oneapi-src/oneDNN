@@ -51,7 +51,7 @@ int BBB::move_cnt = 0;
 
 using namespace optional_test;
 
-TEST(GCCore_optional_cpp, TestOptional) {
+TEST(GCCore_CPU_optional_cpp, TestOptional) {
     // check some_opt and map
     {
         auto v = some_opt(std::unique_ptr<BBB>(new BBB {10}))

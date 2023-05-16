@@ -24,7 +24,7 @@
 
 using namespace dnnl::impl::graph::gc;
 
-TEST(GCCore_scope_flatten_cpp, TestScopeFlatten) {
+TEST(GCCore_CPU_scope_flatten_cpp, TestScopeFlatten) {
     builder::ir_builder_t builder;
     auto mymake = [&]() {
         builder.push_scope();

@@ -31,7 +31,7 @@ using namespace dnnl::impl::graph::gc;
 constexpr auto s32 = datatypes::s32;
 constexpr auto f32 = datatypes::f32;
 constexpr auto idx = datatypes::index;
-TEST(GCCore_licm_transform, TestLICMTransformSingleLoop) {
+TEST(GCCore_CPU_licm_transform, TestLICMTransformSingleLoop) {
     builder::ir_builder_t builder;
     _function_(s32, ccc, _arg_("A", s32, {100}), _arg_("B", s32, {100}),
             _arg_("a", s32)) {
@@ -108,7 +108,7 @@ TEST(GCCore_licm_transform, TestLICMTransformSingleLoop) {
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
 
-TEST(GCCore_licm_transform, TestLICMTransformComplexLoop) {
+TEST(GCCore_CPU_licm_transform, TestLICMTransformComplexLoop) {
     builder::ir_builder_t builder;
     _function_(s32, ccc, _arg_("A", idx, {100, 200, 300}),
             _arg_("B", idx, {100, 200, 300}), _arg_("C", idx, {100, 200, 300}),
@@ -237,7 +237,7 @@ TEST(GCCore_licm_transform, TestLICMTransformComplexLoop) {
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
 
-TEST(GCCore_licm_transform, TestLICMTransformIfNodeHoist) {
+TEST(GCCore_CPU_licm_transform, TestLICMTransformIfNodeHoist) {
     builder::ir_builder_t builder;
     _function_(s32, ccc, _arg_("A", s32, {10000})) {
         _bind_(A);
@@ -421,7 +421,7 @@ TEST(GCCore_licm_transform, TestLICMTransformIfNodeHoist) {
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
 
-TEST(GCCore_licm_transform, TestLICMTransformIndexing) {
+TEST(GCCore_CPU_licm_transform, TestLICMTransformIndexing) {
     builder::ir_builder_t builder;
     _function_(s32, ccc, _arg_("A", datatypes::s32, {10000}),
             _arg_("B", datatypes::s32, {10000})) {
@@ -492,7 +492,7 @@ TEST(GCCore_licm_transform, TestLICMTransformIndexing) {
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
 
-TEST(GCCore_licm_transform, TestLICMTransformLoopWithFuncCall) {
+TEST(GCCore_CPU_licm_transform, TestLICMTransformLoopWithFuncCall) {
     builder::ir_builder_t builder;
     _function_(s32, ccc, _arg_("A", datatypes::f32, {10000}),
             _arg_("B", datatypes::f32, {10000}), _arg_("m", datatypes::index),
@@ -584,7 +584,7 @@ TEST(GCCore_licm_transform, TestLICMTransformLoopWithFuncCall) {
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
 
-TEST(GCCore_licm_transform, TestLICMTransformAliasTensor) {
+TEST(GCCore_CPU_licm_transform, TestLICMTransformAliasTensor) {
     builder::ir_builder_t builder;
     _function_(s32, ccc, _arg_("A", datatypes::s32, {10000}),
             _arg_("B", datatypes::s32, {10000}),

@@ -53,12 +53,12 @@ static void check_reciprocal(const sc_dims &input_dims) {
     test_utils::compare_data(sc_output, ref_output, 1e-4, 1e-5);
 }
 
-TEST(GCCore_reciprocal_test, TestReciprocalOp) {
+TEST(GCCore_CPU_reciprocal_test, TestReciprocalOp) {
     check_reciprocal({32, 64, 48});
     check_reciprocal({1, 12, 128, 128});
 }
 
-TEST(GCCore_reciprocal_test, TestAttentionSubGraph) {
+TEST(GCCore_CPU_reciprocal_test, TestAttentionSubGraph) {
     sc_graph_t g;
     sc_dims output_dims = {12, 128, 128};
     sc_dims input_dims_13 = {12, 128, 128};

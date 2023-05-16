@@ -23,7 +23,7 @@
 #include <ops/fusible/memory_movement.hpp>
 
 using namespace dnnl::impl::graph::gc;
-TEST(GCCore_graph_tensor_view_transform, TestReorderToTransform0) {
+TEST(GCCore_CPU_graph_tensor_view_transform, TestReorderToTransform0) {
     auto graph = sc_graph_t();
     auto inp = graph.make_input(
             {graph_tensor::make({64}, sc_data_format_t(format_kinds::A))});
@@ -44,7 +44,7 @@ TEST(GCCore_graph_tensor_view_transform, TestReorderToTransform0) {
 }
 
 constexpr sc_data_format_kind_t fmtMmKk = sc_data_format_kind_t {0, 0, 1, 1};
-TEST(GCCore_graph_tensor_view_transform, TestReorderToTransform1) {
+TEST(GCCore_CPU_graph_tensor_view_transform, TestReorderToTransform1) {
     auto graph = sc_graph_t();
     auto inp = graph.make_input(
             {graph_tensor::make({64, 128}, sc_data_format_t::MK())});
@@ -79,7 +79,7 @@ constexpr sc_data_format_kind_t fmtAaBbCbc
         = sc_data_format_kind_t {0, 0, 1, 1, 2, 1, 2};
 constexpr sc_data_format_kind_t fmtABCbcb
         = sc_data_format_kind_t {0, 1, 2, 1, 2, 1};
-TEST(GCCore_graph_tensor_view_transform, TestReorderToTransform2) {
+TEST(GCCore_CPU_graph_tensor_view_transform, TestReorderToTransform2) {
     auto graph = sc_graph_t();
     auto inp = graph.make_input({graph_tensor::make(
             {128, 64, 256}, sc_data_format_t(fmtAaBCbbc, {32, 64, 16, 128}))});
@@ -137,7 +137,7 @@ TEST(GCCore_graph_tensor_view_transform, TestReorderToTransform2) {
 }
 
 // Ones at begin of shapes.
-TEST(GCCore_graph_tensor_view_transform, TestReorderToTransform3) {
+TEST(GCCore_CPU_graph_tensor_view_transform, TestReorderToTransform3) {
     auto graph = sc_graph_t();
     auto inp = graph.make_input({graph_tensor::make(
             {128, 256}, sc_data_format_t(format_kinds::KN))});
@@ -189,7 +189,7 @@ TEST(GCCore_graph_tensor_view_transform, TestReorderToTransform3) {
 }
 
 // Ones at middle of shapes.
-TEST(GCCore_graph_tensor_view_transform, TestReorderToTransform4) {
+TEST(GCCore_CPU_graph_tensor_view_transform, TestReorderToTransform4) {
     auto graph = sc_graph_t();
     sc_dims plain_dims = {128, 1, 1, 384};
     auto inp = graph.make_input({graph_tensor::make(
@@ -236,7 +236,7 @@ TEST(GCCore_graph_tensor_view_transform, TestReorderToTransform4) {
 constexpr sc_data_format_kind_t fmtABaCa
         = sc_data_format_kind_t {0, 1, 0, 2, 0};
 // Ones at end of shapes
-TEST(GCCore_graph_tensor_view_transform, TestReorderToTransform5) {
+TEST(GCCore_CPU_graph_tensor_view_transform, TestReorderToTransform5) {
     auto graph = sc_graph_t();
     sc_dims plain_dims = {128, 256, 384};
     auto inp = graph.make_input({graph_tensor::make(
@@ -270,7 +270,7 @@ TEST(GCCore_graph_tensor_view_transform, TestReorderToTransform5) {
 constexpr sc_data_format_kind_t fmtABDC = sc_data_format_kind_t {0, 1, 3, 2};
 constexpr sc_data_format_kind_t fmtADCB = sc_data_format_kind_t {0, 3, 2, 1};
 constexpr sc_data_format_kind_t fmtDABC = sc_data_format_kind_t {3, 0, 1, 2};
-TEST(GCCore_graph_tensor_view_transform, TestReorderToTransform6) {
+TEST(GCCore_CPU_graph_tensor_view_transform, TestReorderToTransform6) {
     auto graph = sc_graph_t();
     sc_dims plain_dims = {128, 1, 1, 384};
     auto inp = graph.make_input({graph_tensor::make(

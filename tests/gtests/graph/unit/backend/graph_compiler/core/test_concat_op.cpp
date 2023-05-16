@@ -33,7 +33,7 @@ static const int B = 8;
 static const int C = 16, C0 = 16, C1 = 32, C2 = 64; // for concat at axis #2
 static const int D = 32;
 
-TEST(GCCore_concat_op_t_cpp, FourDimsConcatAxis0) {
+TEST(GCCore_CPU_concat_op_t_cpp, FourDimsConcatAxis0) {
     REQUIRE_AVX2();
     std::vector<float> input0_data(A0 * B * C * D);
     test_utils::fill_data(&input0_data[0], A0 * B * C * D);
@@ -137,7 +137,7 @@ static std::vector<float> calc_ref_output(std::vector<float> &input0_data,
     return ref_output0_data;
 }
 
-TEST(GCCore_concat_op_t_cpp, FourDimsConcatAxis2) {
+TEST(GCCore_CPU_concat_op_t_cpp, FourDimsConcatAxis2) {
     REQUIRE_AVX2();
     std::vector<float> input0_data(A * B * C0 * D);
     test_utils::fill_data(&input0_data[0], A * B * C0 * D);
@@ -185,7 +185,7 @@ TEST(GCCore_concat_op_t_cpp, FourDimsConcatAxis2) {
     test_utils::compare_data(graph_output0_data, ref_output0_data, 1e-4, 1e-5);
 }
 
-TEST(GCCore_concat_op_t_cpp, ConcatManagedMatmulAxis0) {
+TEST(GCCore_CPU_concat_op_t_cpp, ConcatManagedMatmulAxis0) {
     REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     ctx->flags_.mixed_fusion_ = true;
@@ -263,7 +263,7 @@ TEST(GCCore_concat_op_t_cpp, ConcatManagedMatmulAxis0) {
     test_utils::compare_data(graph_output0_data, ref_output0_data, 1e-4, 1e-5);
 }
 
-TEST(GCCore_concat_op_t_cpp, ConcatManagedMatmulAxis1) {
+TEST(GCCore_CPU_concat_op_t_cpp, ConcatManagedMatmulAxis1) {
     REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     ctx->flags_.mixed_fusion_ = true;
@@ -340,7 +340,7 @@ input ----- conv3x3 relu ------ concat -- output
         \                  /
          -- avg_pool ------
 */
-TEST(GCCore_concat_op_t_cpp, InceptionLikeTopoConv) {
+TEST(GCCore_CPU_concat_op_t_cpp, InceptionLikeTopoConv) {
     REQUIRE_AVX2();
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(16);
@@ -421,7 +421,7 @@ TEST(GCCore_concat_op_t_cpp, InceptionLikeTopoConv) {
     test_utils::compare_data(graph_output0_data, ref_output0_data, 1e-4, 1e-5);
 }
 
-TEST(GCCore_concat_op_t_cpp, ConcatPermuteConcat) {
+TEST(GCCore_CPU_concat_op_t_cpp, ConcatPermuteConcat) {
     REQUIRE_AVX2();
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(16);

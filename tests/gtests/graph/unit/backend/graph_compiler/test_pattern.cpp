@@ -78,7 +78,7 @@ void test_pattern_matched(graph::graph_t &agraph,
 }
 
 // test int8 MHA pattern (optimized graph)
-TEST(GCPatternTests, INT8MHAPattern) {
+TEST(GCPatternTests, INT8MHAPattern_CPU) {
     REQUIRE_VNNI_AMXINT8();
     graph::graph_t agraph;
     compiler_utils::add_MHA_subgraph(&agraph, false, true);
@@ -88,7 +88,7 @@ TEST(GCPatternTests, INT8MHAPattern) {
             std::vector<partition_info_t> {{20, 5, 1}});
 }
 
-TEST(GCPatternTests, INT8MHAPattern2) {
+TEST(GCPatternTests, INT8MHAPattern2_CPU) {
     REQUIRE_VNNI_AMXINT8();
     graph::graph_t agraph;
     compiler_utils::add_MHA_subgraph(&agraph, false, true, true);
@@ -99,7 +99,7 @@ TEST(GCPatternTests, INT8MHAPattern2) {
 }
 
 // test fp32 MHA pattern
-TEST(GCPatternTests, FP32MHAPattern) {
+TEST(GCPatternTests, FP32MHAPattern_CPU) {
     REQUIRE_AVX512();
     graph::graph_t agraph;
     compiler_utils::add_MHA_subgraph(&agraph, false);
@@ -109,7 +109,7 @@ TEST(GCPatternTests, FP32MHAPattern) {
             std::vector<partition_info_t> {{14, 5, 1}});
 }
 
-TEST(GCPatternTests, FP32MHAPattern2) {
+TEST(GCPatternTests, FP32MHAPattern2_CPU) {
     REQUIRE_AVX512();
     graph::graph_t agraph;
     compiler_utils::add_MHA_subgraph(&agraph, false, false, true);
@@ -120,7 +120,7 @@ TEST(GCPatternTests, FP32MHAPattern2) {
 }
 
 // test fp32 MHA pattern alternative
-TEST(GCPatternTests, FP32MHAPatternAlternative) {
+TEST(GCPatternTests, FP32MHAPatternAlternative_CPU) {
     REQUIRE_AVX512();
     graph::graph_t agraph;
     compiler_utils::add_MHA_subgraph_alternative(&agraph, false, false);
@@ -131,7 +131,7 @@ TEST(GCPatternTests, FP32MHAPatternAlternative) {
 }
 
 // test fp32 MHA pattern (no reshape)
-TEST(GCPatternTests, FP32MHAPatternOptionalReshape) {
+TEST(GCPatternTests, FP32MHAPatternOptionalReshape_CPU) {
     REQUIRE_AVX512();
     graph::graph_t agraph;
     utils::construct_f32_MHA(&agraph);
@@ -141,7 +141,7 @@ TEST(GCPatternTests, FP32MHAPatternOptionalReshape) {
             std::vector<partition_info_t> {{13, 5, 1}});
 }
 
-TEST(GCPatternTests, INT8BF16MHAPattern) {
+TEST(GCPatternTests, INT8BF16MHAPattern_CPU) {
     REQUIRE_VNNI_AMXINT8();
     graph::graph_t agraph;
     compiler_utils::add_MHA_subgraph(&agraph, true, true, true);
@@ -152,7 +152,7 @@ TEST(GCPatternTests, INT8BF16MHAPattern) {
 }
 
 // test bf16 MHA pattern
-TEST(GCPatternTests, BF16MHAPattern) {
+TEST(GCPatternTests, BF16MHAPattern_CPU) {
     REQUIRE_AVX512();
     graph::graph_t agraph;
     compiler_utils::add_MHA_subgraph(&agraph, true, false);
@@ -185,7 +185,7 @@ TEST(GCPatternTests, BF16MHAPattern) {
 }
 
 // test bf16 MHA pattern alternative
-TEST(GCPatternTests, BF16MHAPatternAlternative) {
+TEST(GCPatternTests, BF16MHAPatternAlternative_CPU) {
     REQUIRE_AVX512();
     graph::graph_t agraph;
     compiler_utils::add_MHA_subgraph_alternative(&agraph, true, false);
@@ -218,7 +218,7 @@ TEST(GCPatternTests, BF16MHAPatternAlternative) {
 }
 
 // test MHA pattern matcher v2 on graph variations
-TEST(GCPatternTests, INT8MHAPatternVariation1) {
+TEST(GCPatternTests, INT8MHAPatternVariation1_CPU) {
     REQUIRE_VNNI_AMXINT8();
     graph::graph_t agraph;
     compiler_utils::get_int8_MHA_subgraph_varients(&agraph);
@@ -228,7 +228,7 @@ TEST(GCPatternTests, INT8MHAPatternVariation1) {
             std::vector<partition_info_t> {{20, 5, 1}});
 }
 
-TEST(GCPatternTests, INT8MHAPatternVariation2) {
+TEST(GCPatternTests, INT8MHAPatternVariation2_CPU) {
     // replace divide with multiply
     REQUIRE_VNNI_AMXINT8();
     graph::graph_t agraph;
@@ -239,7 +239,7 @@ TEST(GCPatternTests, INT8MHAPatternVariation2) {
             std::vector<partition_info_t> {{20, 5, 1}});
 }
 
-TEST(GCPatternTests, INT8MHAPatternVariation3) {
+TEST(GCPatternTests, INT8MHAPatternVariation3_CPU) {
     // set rescale output as Add's second input
     REQUIRE_VNNI_AMXINT8();
     graph::graph_t agraph;
@@ -254,7 +254,7 @@ TEST(GCPatternTests, INT8MHAPatternVariation3) {
 }
 
 // test fp32 distill_bert MHA pattern
-TEST(GCPatternTests, FP32DistillBertMHAPattern) {
+TEST(GCPatternTests, FP32DistillBertMHAPattern_CPU) {
     REQUIRE_AVX512();
     graph::graph_t agraph;
     compiler_utils::add_distill_bert_MHA(&agraph, false, false);
@@ -265,7 +265,7 @@ TEST(GCPatternTests, FP32DistillBertMHAPattern) {
 }
 
 // test bf16 distill_bert MHA pattern
-TEST(GCPatternTests, BF16DistillBertMHAPattern) {
+TEST(GCPatternTests, BF16DistillBertMHAPattern_CPU) {
     REQUIRE_BF16_AMXBF16();
     graph::graph_t agraph;
     compiler_utils::add_distill_bert_MHA(&agraph, true, false);
@@ -275,7 +275,7 @@ TEST(GCPatternTests, BF16DistillBertMHAPattern) {
             std::vector<partition_info_t> {{6, 5, 1}});
 }
 
-TEST(GCPatternTests, INT8FP32DistillBertMHAPattern) {
+TEST(GCPatternTests, INT8FP32DistillBertMHAPattern_CPU) {
     REQUIRE_VNNI_AMXINT8();
     graph::graph_t agraph;
     compiler_utils::add_distill_bert_MHA(&agraph, false, true);
@@ -286,7 +286,7 @@ TEST(GCPatternTests, INT8FP32DistillBertMHAPattern) {
 }
 
 // test int8-bf16 distill_Bert MHA pattern
-TEST(GCPatternTests, INT8BF16DistillBertMHAPattern) {
+TEST(GCPatternTests, INT8BF16DistillBertMHAPattern_CPU) {
     REQUIRE_VNNI_AMXINT8();
     graph::graph_t agraph;
     compiler_utils::add_distill_bert_MHA(&agraph, true, true);
@@ -296,7 +296,7 @@ TEST(GCPatternTests, INT8BF16DistillBertMHAPattern) {
             std::vector<partition_info_t> {{18, 5, 1}});
 }
 
-TEST(GCPatternTests, FP32DLRMBottom) {
+TEST(GCPatternTests, FP32DLRMBottom_CPU) {
     REQUIRE_AVX512();
     REQUIRE_AMX();
     graph::graph_t agraph;
@@ -308,7 +308,7 @@ TEST(GCPatternTests, FP32DLRMBottom) {
             std::vector<partition_info_t> {{6, 7, 1}});
 }
 
-TEST(GCPatternTests, FP32DLRMTop) {
+TEST(GCPatternTests, FP32DLRMTop_CPU) {
     REQUIRE_AVX512();
     REQUIRE_AMX();
     graph::graph_t agraph;
@@ -322,7 +322,7 @@ TEST(GCPatternTests, FP32DLRMTop) {
             std::vector<partition_info_t> {{10, 11, 1}});
 }
 
-TEST(GCPatternTests, INT8DLRMBottom) {
+TEST(GCPatternTests, INT8DLRMBottom_CPU) {
     REQUIRE_VNNI_AMXINT8();
     graph::graph_t agraph;
     compiler_utils::add_int8_mlp_subgraph(&agraph, 1, 3, {13, 512, 256, 128},
@@ -333,7 +333,7 @@ TEST(GCPatternTests, INT8DLRMBottom) {
             std::vector<partition_info_t> {{15, 7, 1}});
 }
 
-TEST(GCPatternTests, INT8DLRMTop) {
+TEST(GCPatternTests, INT8DLRMTop_CPU) {
     REQUIRE_VNNI_AMXINT8();
     graph::graph_t agraph;
     compiler_utils::add_int8_mlp_subgraph(&agraph, 1, 5,
@@ -346,7 +346,7 @@ TEST(GCPatternTests, INT8DLRMTop) {
             std::vector<partition_info_t> {{25, 11, 1}});
 }
 
-TEST(GCPatternTests, FP32MLPSeparateAdd) {
+TEST(GCPatternTests, FP32MLPSeparateAdd_CPU) {
     REQUIRE_AVX512();
     REQUIRE_AMX();
     graph::graph_t agraph;
@@ -361,7 +361,7 @@ TEST(GCPatternTests, FP32MLPSeparateAdd) {
             std::vector<partition_info_t> {{15, 11, 1}});
 }
 
-TEST(GCPatternTests, FP32MLPNoActivation) {
+TEST(GCPatternTests, FP32MLPNoActivation_CPU) {
     REQUIRE_AVX512();
     REQUIRE_AMX();
     graph::graph_t agraph;
@@ -376,7 +376,7 @@ TEST(GCPatternTests, FP32MLPNoActivation) {
             std::vector<partition_info_t> {{5, 11, 1}});
 }
 
-TEST(GCPatternTests, FP32MLPSeparateAddNoActivation) {
+TEST(GCPatternTests, FP32MLPSeparateAddNoActivation_CPU) {
     REQUIRE_AVX512();
     REQUIRE_AMX();
     graph::graph_t agraph;
@@ -392,7 +392,7 @@ TEST(GCPatternTests, FP32MLPSeparateAddNoActivation) {
             std::vector<partition_info_t> {{10, 11, 1}});
 }
 
-TEST(GCPatternTests, INT8MLPNoActivation) {
+TEST(GCPatternTests, INT8MLPNoActivation_CPU) {
     REQUIRE_VNNI_AMXINT8();
     graph::graph_t agraph;
     compiler_utils::add_int8_mlp_subgraph(&agraph, 1, 5,
@@ -406,7 +406,7 @@ TEST(GCPatternTests, INT8MLPNoActivation) {
             std::vector<partition_info_t> {{20, 11, 1}});
 }
 
-TEST(GCPatternTests, FP32MLPTraining) {
+TEST(GCPatternTests, FP32MLPTraining_CPU) {
     REQUIRE_AVX512();
     REQUIRE_AMX();
     graph::graph_t agraph;
@@ -421,7 +421,7 @@ TEST(GCPatternTests, FP32MLPTraining) {
             std::vector<partition_info_t> {{6, 7, 3}, {13, 7, 3}});
 }
 
-TEST(GCPatternTests, FP32MHATrainingPattern) {
+TEST(GCPatternTests, FP32MHATrainingPattern_CPU) {
     REQUIRE_AVX512();
     graph::graph_t agraph;
     compiler_utils::add_MHA_training_subgraph(&agraph, false);
@@ -432,7 +432,7 @@ TEST(GCPatternTests, FP32MHATrainingPattern) {
             std::vector<partition_info_t> {{8, 6, 3}, {11, 8, 3}});
 }
 
-TEST(GCPatternTests, FP32MHATrainingPattern2) {
+TEST(GCPatternTests, FP32MHATrainingPattern2_CPU) {
     REQUIRE_AVX512();
     graph::graph_t agraph;
     compiler_utils::add_MHA_training_subgraph(&agraph, false, true);
@@ -443,7 +443,7 @@ TEST(GCPatternTests, FP32MHATrainingPattern2) {
             std::vector<partition_info_t> {{9, 7, 3}, {12, 9, 3}});
 }
 
-TEST(GCPatternTests, BF16MHATrainingPattern) {
+TEST(GCPatternTests, BF16MHATrainingPattern_CPU) {
     REQUIRE_BF16_AMXBF16();
     graph::graph_t agraph;
     compiler_utils::add_MHA_training_subgraph(&agraph, true);
@@ -454,7 +454,7 @@ TEST(GCPatternTests, BF16MHATrainingPattern) {
             std::vector<partition_info_t> {{8, 6, 3}, {11, 8, 3}});
 }
 
-TEST(GCPatternTests, BF16MHATrainingPattern2) {
+TEST(GCPatternTests, BF16MHATrainingPattern2_CPU) {
     REQUIRE_BF16_AMXBF16();
     graph::graph_t agraph;
     compiler_utils::add_MHA_training_subgraph(&agraph, true, true);
@@ -465,7 +465,7 @@ TEST(GCPatternTests, BF16MHATrainingPattern2) {
             std::vector<partition_info_t> {{9, 7, 3}, {12, 9, 3}});
 }
 
-TEST(GCPatternTests, FP32IdenticalBottleneckPattern1) {
+TEST(GCPatternTests, FP32IdenticalBottleneckPattern1_CPU) {
     REQUIRE_AVX512();
     REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
@@ -480,7 +480,7 @@ TEST(GCPatternTests, FP32IdenticalBottleneckPattern1) {
             std::vector<partition_info_t> {{5, 5, 1}});
 }
 
-TEST(GCPatternTests, FP32IdenticalBottleneckPattern2) {
+TEST(GCPatternTests, FP32IdenticalBottleneckPattern2_CPU) {
     REQUIRE_AVX512();
     REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
@@ -497,7 +497,7 @@ TEST(GCPatternTests, FP32IdenticalBottleneckPattern2) {
             std::vector<partition_info_t> {{9, 9, 1}});
 }
 
-TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern1) {
+TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern1_CPU) {
     REQUIRE_AVX512();
     REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
@@ -512,7 +512,7 @@ TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern1) {
             std::vector<partition_info_t> {{6, 7, 1}});
 }
 
-TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern2) {
+TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern2_CPU) {
     REQUIRE_AVX512();
     REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
@@ -530,7 +530,7 @@ TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern2) {
             std::vector<partition_info_t> {{10, 11, 1}});
 }
 
-TEST(GCPatternTests, BF16IdenticalBottleneckPattern) {
+TEST(GCPatternTests, BF16IdenticalBottleneckPattern_CPU) {
     REQUIRE_AMXBF16();
     REQUIRE_SINGLE_THREAD();
     utils::id_generator id_gen;
@@ -544,7 +544,7 @@ TEST(GCPatternTests, BF16IdenticalBottleneckPattern) {
             std::vector<partition_info_t> {{7, 7, 1}});
 }
 
-TEST(GCPatternTests, INT8ConvolutionalBottleneckPattern) {
+TEST(GCPatternTests, INT8ConvolutionalBottleneckPattern_CPU) {
     REQUIRE_VNNI_AMXINT8();
     REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
@@ -562,7 +562,7 @@ TEST(GCPatternTests, INT8ConvolutionalBottleneckPattern) {
             std::vector<partition_info_t> {{26, 11, 1}});
 }
 
-TEST(GCPatternTests, BF16ConvolutionalBottleneckPattern) {
+TEST(GCPatternTests, BF16ConvolutionalBottleneckPattern_CPU) {
     REQUIRE_AMXBF16();
     REQUIRE_SINGLE_THREAD();
     utils::id_generator id_gen;
@@ -577,7 +577,7 @@ TEST(GCPatternTests, BF16ConvolutionalBottleneckPattern) {
             std::vector<partition_info_t> {{8, 9, 1}});
 }
 
-TEST(GCPatternTests, FP32ConvolutionalBottleneckTrainingPattern) {
+TEST(GCPatternTests, FP32ConvolutionalBottleneckTrainingPattern_CPU) {
     REQUIRE_AVX512();
     utils::id_generator id_gen;
     graph::graph_t agraph;
@@ -592,7 +592,7 @@ TEST(GCPatternTests, FP32ConvolutionalBottleneckTrainingPattern) {
             2, std::vector<partition_info_t> {{12, 21, 23}, {16, 25, 13}});
 }
 
-TEST(GCPatternTests, FP32IdenticalBottleneckTrainingPattern) {
+TEST(GCPatternTests, FP32IdenticalBottleneckTrainingPattern_CPU) {
     REQUIRE_AVX512();
     utils::id_generator id_gen;
     graph::graph_t agraph;
@@ -607,7 +607,7 @@ TEST(GCPatternTests, FP32IdenticalBottleneckTrainingPattern) {
             2, std::vector<partition_info_t> {{10, 16, 18}, {13, 20, 10}});
 }
 
-TEST(GCPatternTests, FP32MatMulSoftmaxPattern) {
+TEST(GCPatternTests, FP32MatMulSoftmaxPattern_CPU) {
     REQUIRE_AVX512();
     graph::graph_t agraph;
     compiler_utils::add_MHA_subgraph_alternative(&agraph, false, false);
@@ -617,7 +617,7 @@ TEST(GCPatternTests, FP32MatMulSoftmaxPattern) {
             std::vector<partition_info_t> {{4, 4, 1}});
 }
 
-TEST(GCPatternTests, BF16MatMulSoftmaxPattern) {
+TEST(GCPatternTests, BF16MatMulSoftmaxPattern_CPU) {
     REQUIRE_BF16_AMXBF16();
     graph::graph_t agraph;
     compiler_utils::add_MHA_subgraph_alternative(&agraph, true, false);
@@ -627,7 +627,7 @@ TEST(GCPatternTests, BF16MatMulSoftmaxPattern) {
             std::vector<partition_info_t> {{4, 4, 1}});
 }
 
-TEST(GCPatternTests, INT8MatMulSoftmaxPattern) {
+TEST(GCPatternTests, INT8MatMulSoftmaxPattern_CPU) {
     REQUIRE_VNNI_AMXINT8();
     graph::graph_t agraph;
     compiler_utils::add_MHA_subgraph_alternative(&agraph, false, true);
@@ -637,7 +637,7 @@ TEST(GCPatternTests, INT8MatMulSoftmaxPattern) {
             std::vector<partition_info_t> {{7, 4, 1}});
 }
 
-TEST(GCPatternTests, INT8BF16MatMulSoftmaxPattern) {
+TEST(GCPatternTests, INT8BF16MatMulSoftmaxPattern_CPU) {
     REQUIRE_VNNI_AMXINT8();
     graph::graph_t agraph;
     compiler_utils::add_MHA_subgraph_alternative(&agraph, true, true);

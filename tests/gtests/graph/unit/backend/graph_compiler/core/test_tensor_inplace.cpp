@@ -36,7 +36,7 @@ static context_ptr make_ctx() {
     return ret;
 }
 
-TEST(GCCore_tensor_inplace_cpp, TestSimpleSchedule) {
+TEST(GCCore_CPU_tensor_inplace_cpp, TestSimpleSchedule) {
     ir_builder_t bld;
     _function_(datatypes::void_t, aaa, _arg_("A", datatypes::f32, {100}),
             _arg_("B", datatypes::f32, {100}),

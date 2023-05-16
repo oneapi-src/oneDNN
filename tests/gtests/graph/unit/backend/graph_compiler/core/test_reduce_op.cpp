@@ -79,7 +79,7 @@ static void do_test_reduce_op(const sc_dims &in_shape,
     test_utils::compare_data(out_f32, ref_out);
 }
 
-TEST(GCCore_reduce_op_cpp, TestReduceOp1) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp1) {
     const int out_size = 3;
     do_test_reduce_op<float>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
             "reduce_sum", out_size, datatypes::f32,
@@ -96,7 +96,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp1) {
 }
 
 // test reduce on all axis with predefined output tensor
-TEST(GCCore_reduce_op_cpp, TestReduceOp2) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp2) {
     const int out_size = 1;
     do_test_reduce_op<float>(sc_dims({3, 3, 3}), std::vector<int>({0, 1, 2}),
             "reduce_sum", out_size, datatypes::f32,
@@ -110,7 +110,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp2) {
 }
 
 // test reduce on all axis with auto-infered output tensor
-TEST(GCCore_reduce_op_cpp, TestReduceOp3) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp3) {
     const int out_size = 1;
     do_test_reduce_op<float>(sc_dims({3, 3, 3, 3}),
             std::vector<int>({0, 1, 2, 3}), "reduce_sum", out_size,
@@ -140,7 +140,7 @@ static void test_single_mul(int lastdim) {
                 return ref_out;
             });
 }
-TEST(GCCore_reduce_op_cpp, TestReduceOp4) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp4) {
     test_single_mul(3);
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(1);
@@ -165,7 +165,7 @@ static void test_single_max() {
             });
 }
 
-TEST(GCCore_reduce_op_cpp, TestReduceOp5) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp5) {
     test_single_max();
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(1);
@@ -173,7 +173,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp5) {
 }
 
 // test reduce mean
-TEST(GCCore_reduce_op_cpp, TestReduceOp6) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp6) {
     const int out_size = 3;
     do_test_reduce_op<float>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
             "reduce_mean", out_size, datatypes::f32,
@@ -190,7 +190,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp6) {
 }
 
 // test reduce min
-TEST(GCCore_reduce_op_cpp, TestReduceOp7) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp7) {
     const int out_size = 3;
     do_test_reduce_op<float>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
             "reduce_min", out_size, datatypes::f32,
@@ -208,7 +208,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp7) {
 }
 
 // test bf16 reduce max
-TEST(GCCore_reduce_op_cpp, TestReduceOp8) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp8) {
     const int out_size = 3;
     do_test_reduce_op<bf16_t>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
             "reduce_max", out_size, datatypes::bf16,
@@ -227,7 +227,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp8) {
 }
 
 // test bf16 reduce min
-TEST(GCCore_reduce_op_cpp, TestReduceOp9) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp9) {
     const int out_size = 3;
     do_test_reduce_op<bf16_t>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
             "reduce_min", out_size, datatypes::bf16,
@@ -245,7 +245,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp9) {
 }
 
 // test s8 reduce max
-TEST(GCCore_reduce_op_cpp, TestReduceOp10) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp10) {
     REQUIRE_PARALLEL();
     const int out_size = 3;
     do_test_reduce_op<int8_t>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
@@ -265,7 +265,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp10) {
 }
 
 // test s8 reduce min
-TEST(GCCore_reduce_op_cpp, TestReduceOp11) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp11) {
     REQUIRE_PARALLEL();
     const int out_size = 3;
     do_test_reduce_op<int8_t>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
@@ -284,7 +284,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp11) {
 }
 
 // test u8 reduce max
-TEST(GCCore_reduce_op_cpp, TestReduceOp12) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp12) {
     REQUIRE_PARALLEL();
     const int out_size = 3;
     do_test_reduce_op<uint8_t>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
@@ -304,7 +304,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp12) {
 }
 
 // test u8 reduce min
-TEST(GCCore_reduce_op_cpp, TestReduceOp13) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp13) {
     REQUIRE_PARALLEL();
     const int out_size = 3;
     do_test_reduce_op<uint8_t>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
@@ -323,7 +323,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp13) {
 }
 
 // test reduce on all axis with fusing enabled
-TEST(GCCore_reduce_op_cpp, TestReduceOpFuse) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOpFuse) {
     REQUIRE_AVX2();
     sc_graph_t graph;
     sc_dims in_shape = {3, 3, 3, 3};
@@ -569,7 +569,7 @@ static void do_test_last_axis(bool reduce_output, bool input_plain,
     fptr->call_default(out.data(), in_a.data(), in_b.data());
 }
 
-TEST(GCCore_reduce_op_cpp, TestPartialReduceAsOutput) {
+TEST(GCCore_CPU_reduce_op_cpp, TestPartialReduceAsOutput) {
     REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
@@ -577,7 +577,7 @@ TEST(GCCore_reduce_op_cpp, TestPartialReduceAsOutput) {
     test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestPartialReduceAsOutputMixedFuse) {
+TEST(GCCore_CPU_reduce_op_cpp, TestPartialReduceAsOutputMixedFuse) {
     REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
@@ -585,7 +585,7 @@ TEST(GCCore_reduce_op_cpp, TestPartialReduceAsOutputMixedFuse) {
     test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestPartialReduceAsOutputNoKeepDims) {
+TEST(GCCore_CPU_reduce_op_cpp, TestPartialReduceAsOutputNoKeepDims) {
     REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
@@ -593,7 +593,7 @@ TEST(GCCore_reduce_op_cpp, TestPartialReduceAsOutputNoKeepDims) {
     test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestPartialReduceAsOutputAllReduce) {
+TEST(GCCore_CPU_reduce_op_cpp, TestPartialReduceAsOutputAllReduce) {
     REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
@@ -601,7 +601,7 @@ TEST(GCCore_reduce_op_cpp, TestPartialReduceAsOutputAllReduce) {
     test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceAsOutput) {
+TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceAsOutput) {
     REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
@@ -609,7 +609,7 @@ TEST(GCCore_reduce_op_cpp, TestTwoStageReduceAsOutput) {
     test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceAsOutputNoKeepDims) {
+TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceAsOutputNoKeepDims) {
     REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
@@ -617,7 +617,7 @@ TEST(GCCore_reduce_op_cpp, TestTwoStageReduceAsOutputNoKeepDims) {
     test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotOutput) {
+TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNotOutput) {
     REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
@@ -625,7 +625,7 @@ TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotOutput) {
     test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceBlockingNotOutput) {
+TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceBlockingNotOutput) {
     REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
@@ -633,7 +633,7 @@ TEST(GCCore_reduce_op_cpp, TestTwoStageReduceBlockingNotOutput) {
     test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceAsOutputNoKeepDimsMean) {
+TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceAsOutputNoKeepDimsMean) {
     REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
@@ -736,7 +736,7 @@ static void do_test_not_last_axis(bool reduce_output, bool input_plain,
     fptr->call_default(out.data(), in_a.data(), in_b.data());
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisNotOutput) {
+TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNotLastAxisNotOutput) {
     REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
@@ -744,7 +744,7 @@ TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisNotOutput) {
     test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutput) {
+TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutput) {
     REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
@@ -752,7 +752,8 @@ TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutput) {
     test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutputNoKeepDims) {
+TEST(GCCore_CPU_reduce_op_cpp,
+        TestTwoStageReduceNotLastAxisAsOutputNoKeepDims) {
     REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
@@ -760,7 +761,7 @@ TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutputNoKeepDims) {
     test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisBlockingNotOutput) {
+TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNotLastAxisBlockingNotOutput) {
     REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
@@ -768,7 +769,7 @@ TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisBlockingNotOutput) {
     test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutputMean) {
+TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutputMean) {
     REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
@@ -832,7 +833,7 @@ static void do_no_main_op_single_core(
     fptr->call_default(out.data(), in_a.data());
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNoMainOp) {
+TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNoMainOp) {
     REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
@@ -890,7 +891,7 @@ static void do_test_bf16(
     fptr->call_default(out.data(), in_a.data());
 }
 
-TEST(GCCore_reduce_op_cpp, TestPartialBf16) {
+TEST(GCCore_CPU_reduce_op_cpp, TestPartialBf16) {
     REQUIRE_BF16();
     test_buffer<bf16_t> out;
     test_buffer<bf16_t> refout;

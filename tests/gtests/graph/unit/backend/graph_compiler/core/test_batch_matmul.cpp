@@ -237,68 +237,68 @@ const matmul_core_config_t cfg_fwd = {
         4, // K_block
 };
 // f32
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWD1) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWD1) {
     check_batch_matmul({{32, 2, 64, 256}, {32, 2, 256, 128}, {32, 2, 64, 128},
                                sc_data_format_t(format_kinds::ABCD),
                                sc_data_format_t(format_kinds::ABCD)},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWD2) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWD2) {
     check_batch_matmul({{2, 2048, 512}, {2, 512, 4096}, {2, 2048, 4096},
                                sc_data_format_t(format_kinds::ABC),
                                sc_data_format_t(format_kinds::ABC)},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWD3) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWD3) {
     check_batch_matmul({{8, 4, 64, 512}, {8, 4, 512, 32}, {8, 4, 64, 32},
                                sc_data_format_t(format_kinds::ABCD),
                                sc_data_format_t(format_kinds::ABCD)},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWD4) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWD4) {
     check_batch_matmul({{2, 4, 64, 256}, {2, 4, 256, 128}, {2, 4, 64, 128},
                                sc_data_format_t(format_kinds::ABCD),
                                sc_data_format_t(format_kinds::ABCD)},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWD5) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWD5) {
     check_batch_matmul({{2, 256, 64}, {2, 64, 128}, {2, 256, 128},
                                sc_data_format_t(format_kinds::ABC),
                                sc_data_format_t(format_kinds::ABC)},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWD6) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWD6) {
     check_batch_matmul({{32, 2, 64, 256}, {256, 128}, {32, 2, 64, 128},
                                sc_data_format_t(format_kinds::ABCD),
                                sc_data_format_t::KN()},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWD7) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWD7) {
     check_batch_matmul({{32, 2, 64, 256}, {2, 256, 128}, {32, 2, 64, 128},
                                sc_data_format_t(format_kinds::ABCD),
                                sc_data_format_t(format_kinds::ABC)},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWD8) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWD8) {
     check_batch_matmul({{64, 256}, {32, 2, 256, 128}, {32, 2, 64, 128},
                                sc_data_format_t::MK(),
                                sc_data_format_t(format_kinds::ABCD)},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWD9) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWD9) {
     check_batch_matmul({{2, 64, 256}, {32, 2, 256, 128}, {32, 2, 64, 128},
                                sc_data_format_t(format_kinds::ABC),
                                sc_data_format_t(format_kinds::ABCD)},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWD10) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWD10) {
     check_batch_matmul({{2, 2048, 512}, {2, 512, 4096}, {2, 2048, 4096},
                                sc_data_format_t(format_kinds::ABC),
                                sc_data_format_t(format_kinds::ABC),
                                datatypes::f32, datatypes::f32, false},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWD11) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWD11) {
     check_batch_matmul({{8, 4, 64, 512}, {8, 4, 512, 32}, {8, 4, 64, 32},
                                sc_data_format_t(format_kinds::ABCD),
                                sc_data_format_t(format_kinds::ABCD),
@@ -306,7 +306,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemmFWD11) {
             cfg_fwd);
 }
 // s8s8
-TEST(GCCore_batch_matmul_test, TestBatchGemms8s8FWD1) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemms8s8FWD1) {
     REQUIRE_VNNI();
     check_batch_matmul({{2, 256, 64}, {2, 64, 128}, {2, 256, 128},
                                sc_data_format_t(format_kinds::ABC),
@@ -314,7 +314,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemms8s8FWD1) {
                                datatypes::s8, datatypes::s8},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemms8s8FWD2) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemms8s8FWD2) {
     REQUIRE_VNNI();
     check_batch_matmul({{32, 2, 64, 256}, {32, 2, 256, 128}, {32, 2, 64, 128},
                                sc_data_format_t(format_kinds::ABCD),
@@ -322,7 +322,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemms8s8FWD2) {
                                datatypes::s8, datatypes::s8},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemms8s8FWD3) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemms8s8FWD3) {
     REQUIRE_VNNI();
     check_batch_matmul(
             {{32, 2, 64, 256}, {256, 128}, {32, 2, 64, 128},
@@ -330,7 +330,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemms8s8FWD3) {
                     sc_data_format_t::KN(), datatypes::s8, datatypes::s8},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemms8s8FWD4) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemms8s8FWD4) {
     REQUIRE_VNNI();
     check_batch_matmul({{32, 2, 64, 256}, {2, 256, 128}, {32, 2, 64, 128},
                                sc_data_format_t(format_kinds::ABCD),
@@ -338,7 +338,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemms8s8FWD4) {
                                datatypes::s8, datatypes::s8},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemms8s8FWD5) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemms8s8FWD5) {
     REQUIRE_VNNI();
     check_batch_matmul({{64, 256}, {32, 2, 256, 128}, {32, 2, 64, 128},
                                sc_data_format_t::MK(),
@@ -346,7 +346,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemms8s8FWD5) {
                                datatypes::s8, datatypes::s8},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemms8s8FWD6) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemms8s8FWD6) {
     REQUIRE_VNNI();
     check_batch_matmul({{2, 64, 256}, {32, 2, 256, 128}, {32, 2, 64, 128},
                                sc_data_format_t(format_kinds::ABC),
@@ -354,7 +354,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemms8s8FWD6) {
                                datatypes::s8, datatypes::s8},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemms8s8FWD7) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemms8s8FWD7) {
     REQUIRE_VNNI();
     check_batch_matmul({{2, 256, 64}, {2, 64, 128}, {2, 256, 128},
                                sc_data_format_t(format_kinds::ABC),
@@ -362,7 +362,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemms8s8FWD7) {
                                datatypes::s8, datatypes::s8, false},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemms8s8FWD8) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemms8s8FWD8) {
     REQUIRE_VNNI();
     check_batch_matmul({{32, 2, 64, 256}, {32, 2, 256, 128}, {32, 2, 64, 128},
                                sc_data_format_t(format_kinds::ABCD),
@@ -371,7 +371,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemms8s8FWD8) {
             cfg_fwd);
 }
 // u8s8
-TEST(GCCore_batch_matmul_test, TestBatchGemmu8s8FWD1) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmu8s8FWD1) {
     REQUIRE_VNNI();
     check_batch_matmul({{2, 256, 64}, {2, 64, 128}, {2, 256, 128},
                                sc_data_format_t(format_kinds::ABC),
@@ -379,7 +379,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemmu8s8FWD1) {
                                datatypes::u8, datatypes::s8},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemmu8s8FWD2) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmu8s8FWD2) {
     REQUIRE_VNNI();
     check_batch_matmul({{32, 2, 64, 256}, {32, 2, 256, 128}, {32, 2, 64, 128},
                                sc_data_format_t(format_kinds::ABCD),
@@ -387,7 +387,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemmu8s8FWD2) {
                                datatypes::u8, datatypes::s8},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemmu8s8FWD3) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmu8s8FWD3) {
     REQUIRE_VNNI();
     check_batch_matmul(
             {{32, 2, 64, 256}, {256, 128}, {32, 2, 64, 128},
@@ -395,7 +395,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemmu8s8FWD3) {
                     sc_data_format_t::KN(), datatypes::u8, datatypes::s8},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemmu8s8FWD4) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmu8s8FWD4) {
     REQUIRE_VNNI();
     check_batch_matmul({{32, 2, 64, 256}, {2, 256, 128}, {32, 2, 64, 128},
                                sc_data_format_t(format_kinds::ABCD),
@@ -403,7 +403,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemmu8s8FWD4) {
                                datatypes::u8, datatypes::s8},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemmu8s8FWD5) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmu8s8FWD5) {
     REQUIRE_VNNI();
     check_batch_matmul({{64, 256}, {32, 2, 256, 128}, {32, 2, 64, 128},
                                sc_data_format_t::MK(),
@@ -411,7 +411,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemmu8s8FWD5) {
                                datatypes::u8, datatypes::s8},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemmu8s8FWD6) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmu8s8FWD6) {
     REQUIRE_VNNI();
     check_batch_matmul({{2, 64, 256}, {32, 2, 256, 128}, {32, 2, 64, 128},
                                sc_data_format_t(format_kinds::ABC),
@@ -419,7 +419,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemmu8s8FWD6) {
                                datatypes::u8, datatypes::s8},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemmu8s8FWD7) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmu8s8FWD7) {
     REQUIRE_VNNI();
     check_batch_matmul({{2, 256, 64}, {2, 64, 128}, {2, 256, 128},
                                sc_data_format_t(format_kinds::ABC),
@@ -427,7 +427,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemmu8s8FWD7) {
                                datatypes::u8, datatypes::s8, false},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemmu8s8FWD8) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmu8s8FWD8) {
     REQUIRE_VNNI();
     check_batch_matmul({{32, 2, 64, 256}, {32, 2, 256, 128}, {32, 2, 64, 128},
                                sc_data_format_t(format_kinds::ABCD),
@@ -436,7 +436,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemmu8s8FWD8) {
             cfg_fwd);
 }
 // bf16
-TEST(GCCore_batch_matmul_test, TestBatchGemmbf16FWD1) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmbf16FWD1) {
     REQUIRE_VNNI();
     REQUIRE_BF16();
     check_batch_matmul({{2, 256, 64}, {2, 64, 128}, {2, 256, 128},
@@ -445,7 +445,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemmbf16FWD1) {
                                datatypes::bf16, datatypes::bf16},
             cfg_fwd);
 }
-TEST(GCCore_batch_matmul_test, TestBatchGemmbf16FWD2) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmbf16FWD2) {
     REQUIRE_VNNI();
     REQUIRE_BF16();
     check_batch_matmul({{32, 2, 64, 256}, {32, 2, 256, 128}, {32, 2, 64, 128},
@@ -455,20 +455,20 @@ TEST(GCCore_batch_matmul_test, TestBatchGemmbf16FWD2) {
             cfg_fwd);
 }
 // bert case
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWDBERT_QK) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWDBERT_QK) {
     check_batch_matmul({{2, 16, 384, 64}, {2, 16, 64, 384}, {2, 16, 384, 384},
                                sc_data_format_t(), sc_data_format_t()},
             cfg_fwd);
 }
 
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWDBERT_QK2) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWDBERT_QK2) {
     check_batch_matmul({{2, 16, 384, 64}, {2, 16, 64, 384}, {2, 16, 384, 384},
                                sc_data_format_t(), sc_data_format_t(),
                                datatypes::f32, datatypes::f32, false},
             cfg_fwd);
 }
 
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWDBERTs8s8_QK) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWDBERTs8s8_QK) {
     REQUIRE_VNNI();
     check_batch_matmul({{2, 16, 384, 64}, {2, 16, 64, 384}, {2, 16, 384, 384},
                                sc_data_format_t(), sc_data_format_t(),
@@ -476,7 +476,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemmFWDBERTs8s8_QK) {
             cfg_fwd);
 }
 
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWDBERTs8s8_QK2) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWDBERTs8s8_QK2) {
     REQUIRE_VNNI();
     check_batch_matmul({{2, 16, 384, 64}, {2, 16, 64, 384}, {2, 16, 384, 384},
                                sc_data_format_t(), sc_data_format_t(),
@@ -484,7 +484,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemmFWDBERTs8s8_QK2) {
             cfg_fwd);
 }
 
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWDBERTu8s8_QK) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWDBERTu8s8_QK) {
     REQUIRE_VNNI();
     check_batch_matmul({{2, 16, 384, 64}, {2, 16, 64, 384}, {2, 16, 384, 384},
                                sc_data_format_t(), sc_data_format_t(),
@@ -492,7 +492,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemmFWDBERTu8s8_QK) {
             cfg_fwd);
 }
 
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWDBERTu8s8_QK2) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWDBERTu8s8_QK2) {
     REQUIRE_VNNI();
     check_batch_matmul({{2, 16, 384, 64}, {2, 16, 64, 384}, {2, 16, 384, 384},
                                sc_data_format_t(), sc_data_format_t(),
@@ -500,14 +500,14 @@ TEST(GCCore_batch_matmul_test, TestBatchGemmFWDBERTu8s8_QK2) {
             cfg_fwd);
 }
 
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWDBERT_V) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWDBERT_V) {
     check_batch_matmul(
             {{2, 16, 384, 384}, {2, 16, 384, 64}, {2, 16, 384, 64},
                     sc_data_format_t(), sc_data_format_t(format_kinds::ACBD)},
             cfg_fwd);
 }
 
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWDBERT_V2) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWDBERT_V2) {
     check_batch_matmul(
             {{2, 16, 384, 384}, {2, 16, 384, 64}, {2, 16, 384, 64},
                     sc_data_format_t(), sc_data_format_t(format_kinds::ACBD),
@@ -515,7 +515,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemmFWDBERT_V2) {
             cfg_fwd);
 }
 
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWDBERTs8s8_V) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWDBERTs8s8_V) {
     REQUIRE_VNNI();
     check_batch_matmul(
             {{2, 16, 384, 384}, {2, 16, 384, 64}, {2, 16, 384, 64},
@@ -524,7 +524,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemmFWDBERTs8s8_V) {
             cfg_fwd);
 }
 
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWDBERTs8s8_V2) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWDBERTs8s8_V2) {
     REQUIRE_VNNI();
     check_batch_matmul(
             {{2, 16, 384, 384}, {2, 16, 384, 64}, {2, 16, 384, 64},
@@ -533,7 +533,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemmFWDBERTs8s8_V2) {
             cfg_fwd);
 }
 
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWDBERTu8s8_V) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWDBERTu8s8_V) {
     REQUIRE_VNNI();
     check_batch_matmul(
             {{2, 16, 384, 384}, {2, 16, 384, 64}, {2, 16, 384, 64},
@@ -542,7 +542,7 @@ TEST(GCCore_batch_matmul_test, TestBatchGemmFWDBERTu8s8_V) {
             cfg_fwd);
 }
 
-TEST(GCCore_batch_matmul_test, TestBatchGemmFWDBERTu8s8_V2) {
+TEST(GCCore_CPU_batch_matmul_test, TestBatchGemmFWDBERTu8s8_V2) {
     REQUIRE_VNNI();
     check_batch_matmul(
             {{2, 16, 384, 384}, {2, 16, 384, 64}, {2, 16, 384, 64},

@@ -157,15 +157,15 @@ public:
     void view(var_c c) override { history.exprlist.emplace_back(c); }
 };
 
-TEST(GCCore_visitor_cpp, TestVisitorConst) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorConst) {
     simple_type_check<constant>(expr(1));
 }
 
-TEST(GCCore_visitor_cpp, TestVisitorVar) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorVar) {
     simple_type_check<var>(builder::make_var(datatypes::bf16, "a"));
 }
 
-TEST(GCCore_visitor_cpp, TestVisitorCast) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorCast) {
     type_check<expr, visitor_test_base_t, ip_visitor_test_base_t,
             viewer_test_base_t>(builder::make_cast(datatypes::f16, 32), true,
             [](const expr &e) { return expr_v {e.as<cast>()->in_}; });
@@ -203,19 +203,19 @@ void check_visit_in_inherited(expr input) {
             input, false, [](const expr &e) { return expr_v {e}; });
 }
 
-TEST(GCCore_visitor_cpp, TestVisitorBinary) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorBinary) {
     check_visit_in_inherited<binary, add>(expr(12) + expr(13));
 }
 
-TEST(GCCore_visitor_cpp, TestVisitorCmp) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorCmp) {
     check_visit_in_inherited<cmp, cmp_eq>(expr(12) == expr(13));
 }
 
-TEST(GCCore_visitor_cpp, TestVisitorLogic) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorLogic) {
     check_visit_in_inherited<logic, logic_and>(expr(false) && expr(false));
 }
 
-TEST(GCCore_visitor_cpp, TestVisitorBinaries) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorBinaries) {
     expr v1 = 12;
     expr v2 = 13;
     auto check_op_bin = [&](expr (*op)(const expr_c &, const expr_c &)) {
@@ -256,13 +256,13 @@ TEST(GCCore_visitor_cpp, TestVisitorBinaries) {
     check_op_logic(builder::make_logic_or);
 }
 
-TEST(GCCore_visitor_cpp, TestVisitorLogicNot) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorLogicNot) {
     type_check<expr, visitor_test_base_t, ip_visitor_test_base_t,
             viewer_test_base_t>(!expr(false), true,
             [](const expr &e) { return expr_v {e.as<logic_not>()->in_}; });
 }
 
-TEST(GCCore_visitor_cpp, TestVisitorCondition) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorCondition) {
     namespace gc = dnnl::impl::graph::gc;
     type_check<expr, visitor_test_base_t, ip_visitor_test_base_t,
             viewer_test_base_t>(
@@ -297,7 +297,7 @@ TEST(GCCore_visitor_cpp, TestVisitorCondition) {
             });
 }
 
-TEST(GCCore_visitor_cpp, TestVisitorCall) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorCall) {
     builder::ir_builder_t b;
     _decl_func_(datatypes::f32, aaaa, _arg_("c1", datatypes::s32),
             _arg_("c2", datatypes::s32));
@@ -309,7 +309,7 @@ TEST(GCCore_visitor_cpp, TestVisitorCall) {
             });
 }
 
-TEST(GCCore_visitor_cpp, TestVisitorIntrinCall) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorIntrinCall) {
     builder::ir_builder_t b;
     type_check<expr, visitor_test_base_t, ip_visitor_test_base_t,
             viewer_test_base_t>(
@@ -321,7 +321,7 @@ TEST(GCCore_visitor_cpp, TestVisitorIntrinCall) {
             });
 }
 
-TEST(GCCore_visitor_cpp, TestVisitorIndexing) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorIndexing) {
     auto tsr = builder::make_stensor(
             "AAA", std::vector<expr> {100, 200}, {200, 1}, datatypes::s32);
     type_check<expr, visitor_test_base_t, ip_visitor_test_base_t,
@@ -333,7 +333,7 @@ TEST(GCCore_visitor_cpp, TestVisitorIndexing) {
     });
 }
 
-TEST(GCCore_visitor_cpp, TestVisitorTensorPtr) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorTensorPtr) {
     auto tsr = builder::make_stensor(
             "AAA", std::vector<expr> {100, 200}, {200, 1}, datatypes::s32);
     type_check<expr, visitor_test_base_t, ip_visitor_test_base_t,
@@ -346,7 +346,7 @@ TEST(GCCore_visitor_cpp, TestVisitorTensorPtr) {
             });
 }
 
-TEST(GCCore_visitor_cpp, TestVisitorTensor) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorTensor) {
     auto tsr = builder::make_stensor("AAA", std::vector<expr> {100, 200},
             {200, 1}, datatypes::s32, address_space::device);
     type_check<expr, visitor_test_base_t, ip_visitor_test_base_t,
@@ -357,7 +357,7 @@ TEST(GCCore_visitor_cpp, TestVisitorTensor) {
     });
 }
 
-TEST(GCCore_visitor_cpp, TestVisitorAssign) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorAssign) {
     auto tsr = builder::make_stensor(
             "AAA", std::vector<expr> {100, 200}, {200, 1}, datatypes::s32);
     assign asn = make_stmt<assign_node_t>(tsr[{10, 20}].get(), expr(123));
@@ -371,7 +371,7 @@ TEST(GCCore_visitor_cpp, TestVisitorAssign) {
     });
 }
 
-TEST(GCCore_visitor_cpp, TestVisitorStmts) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorStmts) {
     std::vector<stmt> s {make_stmt<evaluate_node_t>(expr(1)),
             make_stmt<evaluate_node_t>(expr(2)),
             make_stmt<evaluate_node_t>(expr(3))};
@@ -385,14 +385,14 @@ TEST(GCCore_visitor_cpp, TestVisitorStmts) {
     });
 }
 
-TEST(GCCore_visitor_cpp, TestVisitorEval) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorEval) {
     stmt asn = make_stmt<evaluate_node_t>(expr(1));
     type_check<stmt, visitor_test_base_t, ip_visitor_test_base_t,
             viewer_test_base_t>(asn, true,
             [](const stmt &e) { return expr_v {e.as<evaluate>()->value_}; });
 }
 
-TEST(GCCore_visitor_cpp, TestVisitorReturn) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorReturn) {
     stmt asn = make_stmt<returns_node_t>(expr(1));
     type_check<stmt, visitor_test_base_t, ip_visitor_test_base_t,
             viewer_test_base_t>(asn, true,
@@ -413,7 +413,7 @@ TEST(GCCore_visitor_cpp, TestVisitorReturn) {
     EXPECT_TRUE(history.exprlist.empty());
 }
 
-TEST(GCCore_visitor_cpp, TestVisitorVarTensorDef) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorVarTensorDef) {
     stmt asn = builder::make_var_tensor_def_unattached(
             builder::make_var(datatypes::f32, "a"));
     type_check<stmt, visitor_test_base_t, ip_visitor_test_base_t,
@@ -429,7 +429,7 @@ TEST(GCCore_visitor_cpp, TestVisitorVarTensorDef) {
     });
 }
 
-TEST(GCCore_visitor_cpp, TestVisitorIfElse) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorIfElse) {
     builder::ir_builder_t bui;
     bui.push_scope();
     _if_(expr(false)) { bui.push_evaluate(12); }
@@ -460,7 +460,7 @@ TEST(GCCore_visitor_cpp, TestVisitorIfElse) {
     });
 }
 
-TEST(GCCore_visitor_cpp, TestVisitorFor) {
+TEST(GCCore_CPU_visitor_cpp, TestVisitorFor) {
     builder::ir_builder_t bui;
     bui.push_scope();
     _for_(i, 0, 100, 1) { bui.push_evaluate(123); }
@@ -474,7 +474,7 @@ TEST(GCCore_visitor_cpp, TestVisitorFor) {
     });
 }
 
-TEST(GCCore_visitor_cpp, TestConsistentVisitor) {
+TEST(GCCore_CPU_visitor_cpp, TestConsistentVisitor) {
     builder::ir_builder_t bui;
     bui.push_scope();
     _var_(AAA, datatypes::f32);

@@ -153,7 +153,7 @@ brgemm::postop_setting_t postop_3(brgemm::bin_op_t(
             ir_nullptr, ir_zero, ir_nullptr, ir_nullptr, ir_nullptr, ir_false, \
             ir_zero_s32, ir_false, ir_false);
 
-TEST(GCCore_kernel_lowering_cpp, TestKernelLowering) {
+TEST(GCCore_CPU_kernel_lowering_cpp, TestKernelLowering) {
     builder::ir_builder_t builder;
     sc_brgemm_attrs_t attrs_0 = {attr_0, attr_1, attr_3};
     sc_brgemm_postops_setting_t postop_set_0 = {postop_0, postop_1, postop_2};
@@ -377,7 +377,7 @@ TEST(GCCore_kernel_lowering_cpp, TestKernelLowering) {
             cmp.compare(m2->get_contents()[0], res->get_contents()[0], false));
 }
 
-TEST(GCCore_kernel_lowering_cpp, TestKernelLoweringNoOptim) {
+TEST(GCCore_CPU_kernel_lowering_cpp, TestKernelLoweringNoOptim) {
     builder::ir_builder_t builder;
     sc_brgemm_attrs_t attrs_0 = {attr_0, attr_1, attr_3};
     sc_brgemm_postops_setting_t postop_set_0 = {postop_0, postop_1, postop_2};
@@ -487,7 +487,7 @@ TEST(GCCore_kernel_lowering_cpp, TestKernelLoweringNoOptim) {
             cmp.compare(m2->get_contents()[0], res->get_contents()[0], false));
 }
 
-TEST(GCCore_kernel_lowering_cpp, TestBrgemmAttrs) {
+TEST(GCCore_CPU_kernel_lowering_cpp, TestBrgemmAttrs) {
     builder::ir_builder_t builder;
     sc_brgemm_attrs_t attrs = {attr_0, attr_1, attr_3};
     sc_brgemm_bd_mask_t bd_mask {1, 0};
@@ -560,7 +560,7 @@ TEST(GCCore_kernel_lowering_cpp, TestBrgemmAttrs) {
     }
 }
 
-TEST(GCCore_kernel_lowering_cpp, TestBrgemmSharedBdmask) {
+TEST(GCCore_CPU_kernel_lowering_cpp, TestBrgemmSharedBdmask) {
     builder::ir_builder_t builder;
     sc_brgemm_attrs_t attrs = {attr_0, attr_1, attr_3};
     sc_brgemm_bd_mask_t bd_mask {1, 1, 0, 0};
@@ -639,7 +639,7 @@ TEST(GCCore_kernel_lowering_cpp, TestBrgemmSharedBdmask) {
     }
 }
 
-TEST(GCCore_kernel_lowering_cpp, TestRangeKernelLowering) {
+TEST(GCCore_CPU_kernel_lowering_cpp, TestRangeKernelLowering) {
     REQUIRE_AVX2();
     auto backend = get_default_context()->flags_.brgemm_backend_;
     if (backend != scflags_t::brgemm_t::dnnl) { GTEST_SKIP(); }

@@ -72,7 +72,7 @@ public:
         return ret;
     }
 };
-TEST(GCCore_dynamic_impl_kind_cpp, TestImplKindManagedMatmulCore) {
+TEST(GCCore_CPU_dynamic_impl_kind_cpp, TestImplKindManagedMatmulCore) {
     sc_graph_t g;
     auto in_a = g.make_input(
             {graph_tensor::make({28, 64}, sc_data_format_t::MK())});
@@ -206,7 +206,7 @@ public:
     }
 };
 
-TEST(GCCore_dynamic_impl_kind_cpp, TestImplKindMatmulCoreExec) {
+TEST(GCCore_CPU_dynamic_impl_kind_cpp, TestImplKindMatmulCoreExec) {
     REQUIRE_AVX2();
     sc_graph_t g;
     auto ctx = std::make_shared<context_t>(*get_test_ctx());

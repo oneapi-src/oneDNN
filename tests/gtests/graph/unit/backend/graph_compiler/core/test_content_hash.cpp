@@ -28,7 +28,7 @@ constant_c mk_const(T v) {
     return expr(v).static_as<constant_c>();
 }
 
-TEST(GCCore_content_hash_cpp, TestContentHashConst) {
+TEST(GCCore_CPU_content_hash_cpp, TestContentHashConst) {
     builder::ir_builder_t builder;
     content_hash_t<constant_c> hasher;
     content_hash_t<std::vector<constant_c>> vhasher;

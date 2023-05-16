@@ -59,7 +59,7 @@ static void set_no_barrier(const char *next_func) {
             = next_func;
 }
 
-TEST(GCCore_parallel_merge, TestMergeOK) {
+TEST(GCCore_CPU_parallel_merge, TestMergeOK) {
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(16);
     builder::ir_builder_t builder;
@@ -130,7 +130,7 @@ TEST(GCCore_parallel_merge, TestMergeOK) {
     EXPECT_TRUE(cmp.compare(mergedf, expected_merged));
 }
 
-TEST(GCCore_parallel_merge, TestMergeThreads) {
+TEST(GCCore_CPU_parallel_merge, TestMergeThreads) {
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(16);
     builder::ir_builder_t builder;
@@ -215,7 +215,7 @@ TEST(GCCore_parallel_merge, TestMergeThreads) {
     EXPECT_TRUE(cmp.compare(mergedf, expected_merged));
 }
 
-TEST(GCCore_parallel_merge, TestMergeFailThreads) {
+TEST(GCCore_CPU_parallel_merge, TestMergeFailThreads) {
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(16);
     builder::ir_builder_t builder;
@@ -243,7 +243,7 @@ TEST(GCCore_parallel_merge, TestMergeFailThreads) {
     EXPECT_TRUE(retmod == irm);
 }
 
-TEST(GCCore_parallel_merge, TestMergeFailComplexBody) {
+TEST(GCCore_CPU_parallel_merge, TestMergeFailComplexBody) {
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(16);
     builder::ir_builder_t builder;
@@ -280,7 +280,7 @@ TEST(GCCore_parallel_merge, TestMergeFailComplexBody) {
     EXPECT_TRUE(retmod == irm);
 }
 
-TEST(GCCore_parallel_merge, TestMergeFailComplexMain) {
+TEST(GCCore_CPU_parallel_merge, TestMergeFailComplexMain) {
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(16);
     builder::ir_builder_t builder;

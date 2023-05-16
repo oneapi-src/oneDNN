@@ -283,7 +283,7 @@ void TEST_IR_OP(MAKE_EXPR_OP make_op, TYPE *out, TYPE *ref,
 /// Test Group 1: functionality & stmt
 /// ==================================
 
-TEST(GCCore_jit_engine_equivalence, TestLocalTensor) {
+TEST(GCCore_CPU_jit_engine_equivalence, TestLocalTensor) {
     ir_builder_t builder;
 
     _function_(datatypes::void_t, foo, _arg_("x_in", datatypes::s32),
@@ -331,7 +331,7 @@ TEST(GCCore_jit_engine_equivalence, TestLocalTensor) {
 
 /// Verifies that the address of a caller-supplied tensor is accurately
 /// passed down to JIT-generated code that accesses that tensor.
-TEST(GCCore_jit_engine_equivalence, TestTensorAddrPassing) {
+TEST(GCCore_CPU_jit_engine_equivalence, TestTensorAddrPassing) {
     ir_builder_t builder;
 
     _function_(datatypes::void_t, foo, _arg_("tensor_in", datatypes::f32, {1}),
@@ -379,7 +379,7 @@ TEST(GCCore_jit_engine_equivalence, TestTensorAddrPassing) {
     }
 }
 
-TEST(GCCore_jit_engine_equivalence, TestSequentialElwiseAdd) {
+TEST(GCCore_CPU_jit_engine_equivalence, TestSequentialElwiseAdd) {
     ir_builder_t builder;
 
     const int d1_size = 2;
@@ -449,7 +449,7 @@ TEST(GCCore_jit_engine_equivalence, TestSequentialElwiseAdd) {
     }
 }
 
-TEST(GCCore_jit_engine_equivalence, TestTrivialGenericWrapper) {
+TEST(GCCore_CPU_jit_engine_equivalence, TestTrivialGenericWrapper) {
     ir_builder_t builder;
     _function_(datatypes::void_t, foo) {}
 
@@ -478,7 +478,7 @@ TEST(GCCore_jit_engine_equivalence, TestTrivialGenericWrapper) {
 // Disabled because the WIP Xbyak backend currently produces only
 // the generic wrapper entry function, not the stronger-typed
 // entry function.
-TEST(GCCore_jit_engine_equivalence, DISABLED_TestSimpleEntryFunction) {
+TEST(GCCore_CPU_jit_engine_equivalence, DISABLED_TestSimpleEntryFunction) {
     ir_builder_t builder;
     _function_(datatypes::s32, foo) { _return_(42); }
 
@@ -508,7 +508,7 @@ TEST(GCCore_jit_engine_equivalence, DISABLED_TestSimpleEntryFunction) {
     }
 }
 
-TEST(GCCore_jit_engine_equivalence, TestFuncAddrNode) {
+TEST(GCCore_CPU_jit_engine_equivalence, TestFuncAddrNode) {
     const void *host_print_int_addr = (void *)(&print_int);
 
     ir_builder_t builder;
@@ -556,7 +556,7 @@ TEST(GCCore_jit_engine_equivalence, TestFuncAddrNode) {
 
 // Verify that a named-for-loop's index variable has the expected
 // sequence of values.
-TEST(GCCore_jit_engine_equivalence, TestNamedForLoop) {
+TEST(GCCore_CPU_jit_engine_equivalence, TestNamedForLoop) {
     constexpr int expected_num_iter = 4;
     const uint64_t expected_idx_values[] = {0, 3, 6, 9};
 
@@ -620,7 +620,7 @@ TEST(GCCore_jit_engine_equivalence, TestNamedForLoop) {
 
 // Verify that an if_else statement flows into the correct branch,
 // and DOES NOT flow into the incorrect branch.
-TEST(GCCore_jit_engine_equivalence, TestIfElse) {
+TEST(GCCore_CPU_jit_engine_equivalence, TestIfElse) {
     uint64_t host_basic_blocks_visited[5];
     const uint64_t host_first_tested_value = 1;
     const uint64_t host_second_tested_value = 1;
@@ -688,7 +688,7 @@ TEST(GCCore_jit_engine_equivalence, TestIfElse) {
     }
 }
 
-TEST(GCCore_jit_engine_equivalence, TestCMPExprSint) {
+TEST(GCCore_CPU_jit_engine_equivalence, TestCMPExprSint) {
     ir_builder_t builder;
 
     const int num_elems = 16;
@@ -786,7 +786,7 @@ TEST(GCCore_jit_engine_equivalence, TestCMPExprSint) {
     }
 }
 
-TEST(GCCore_jit_engine_equivalence, TestCMPExprUint) {
+TEST(GCCore_CPU_jit_engine_equivalence, TestCMPExprUint) {
     ir_builder_t builder;
 
     const int num_elems = 16;
@@ -885,7 +885,7 @@ TEST(GCCore_jit_engine_equivalence, TestCMPExprUint) {
     }
 }
 
-TEST(GCCore_jit_engine_equivalence, TestConstantBroadcast) {
+TEST(GCCore_CPU_jit_engine_equivalence, TestConstantBroadcast) {
     REQUIRE_AVX2();
     ir_builder_t builder;
 
@@ -1004,7 +1004,7 @@ TEST(GCCore_jit_engine_equivalence, TestConstantBroadcast) {
     }
 }
 
-TEST(GCCore_jit_engine_equivalence, TestIntrinsicBroadcast) {
+TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicBroadcast) {
     REQUIRE_AVX2();
     ir_builder_t builder;
 
@@ -1062,7 +1062,7 @@ TEST(GCCore_jit_engine_equivalence, TestIntrinsicBroadcast) {
     }
 }
 
-TEST(GCCore_jit_engine_equivalence, TestIntrinsicGather) {
+TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicGather) {
     REQUIRE_AVX2();
     ir_builder_t builder;
 
@@ -1122,7 +1122,7 @@ TEST(GCCore_jit_engine_equivalence, TestIntrinsicGather) {
     }
 }
 
-TEST(GCCore_jit_engine_equivalence, TestModuleVar) {
+TEST(GCCore_CPU_jit_engine_equivalence, TestModuleVar) {
     ir_builder_t builder;
 
     auto ir_mod = std::make_shared<ir_module_t>(get_default_context());
@@ -1189,7 +1189,7 @@ TEST(GCCore_jit_engine_equivalence, TestModuleVar) {
     }
 }
 
-TEST(GCCore_jit_engine_equivalence, TestSubtract8Args) {
+TEST(GCCore_CPU_jit_engine_equivalence, TestSubtract8Args) {
     ir_builder_t builder;
 
     _function_(datatypes::void_t, foo, _arg_("x1", datatypes::index),
@@ -1236,7 +1236,7 @@ TEST(GCCore_jit_engine_equivalence, TestSubtract8Args) {
     }
 }
 
-TEST(GCCore_jit_engine_equivalence, TestIntrinsicReduceAdd) {
+TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicReduceAdd) {
     REQUIRE_AVX2();
     ir_builder_t builder;
 
@@ -1315,7 +1315,7 @@ TEST(GCCore_jit_engine_equivalence, TestIntrinsicReduceAdd) {
     }
 }
 
-TEST(GCCore_jit_engine_equivalence, TestConstantBF16) {
+TEST(GCCore_CPU_jit_engine_equivalence, TestConstantBF16) {
     REQUIRE_AVX512();
     ir_builder_t builder;
 
@@ -1408,7 +1408,7 @@ TEST(GCCore_jit_engine_equivalence, TestConstantBF16) {
     }
 }
 
-TEST(GCCore_jit_engine_equivalence, TestConstDivModMul) {
+TEST(GCCore_CPU_jit_engine_equivalence, TestConstDivModMul) {
     ir_builder_t builder;
 
     _function_(datatypes::void_t, foo, _arg_("x", datatypes::index),
@@ -1454,7 +1454,7 @@ TEST(GCCore_jit_engine_equivalence, TestConstDivModMul) {
     }
 }
 
-TEST(GCCore_jit_engine_equivalence, TestConstExceed32bit) {
+TEST(GCCore_CPU_jit_engine_equivalence, TestConstExceed32bit) {
     ir_builder_t builder;
 
     _function_(datatypes::void_t, foo, _arg_("result", datatypes::index, {1})) {
@@ -1502,7 +1502,7 @@ TEST(GCCore_jit_engine_equivalence, TestConstExceed32bit) {
 /// Test Group 2: oprations & data type
 /// ===================================
 
-TEST(GCCore_test_jit_engine_equivalence, TestOpCast) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpCast) {
     REQUIRE_AVX512();
     const int num_lanes = get_lanes(sc_data_etype::F32, DATA_LEN_16);
     //-----------------------------
@@ -1606,7 +1606,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestOpCast) {
 #undef REF_CAST_TO_GENERIC
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestOpAdd) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpAdd) {
     REQUIRE_AVX2();
 #define REF_ADD(IN, LANES, I) (IN[0][I] + IN[1][I])
     // data_type: sint_32
@@ -1628,7 +1628,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestOpAdd) {
 #undef REF_ADD
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestOpSub) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpSub) {
     REQUIRE_AVX2();
 #define REF_SUB(IN, LANES, I) (IN[0][I] - IN[1][I])
     // data_type: float_32
@@ -1645,7 +1645,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestOpSub) {
 #undef REF_SUB
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestOpMul) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpMul) {
     REQUIRE_AVX2();
 #define REF_MUL(IN, LANES, I) (IN[0][I] * IN[1][I])
     // data_type: float_32
@@ -1662,7 +1662,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestOpMul) {
 #undef REF_MUL
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestOpDiv) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpDiv) {
     REQUIRE_AVX2();
 #define REF_DIV(IN, LANES, I) (IN[0][I] / IN[1][I])
     // data_type: float_32
@@ -1679,7 +1679,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestOpDiv) {
 #undef REF_DIV
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestOpMod) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpMod) {
     REQUIRE_AVX2();
 #define REF_MOD(IN, LANES, I) (IN[0][I] % IN[1][I])
     // data_type: uint_64
@@ -1690,7 +1690,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestOpMod) {
 #undef REF_MOD
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestOpCmp) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestOpCmp) {
     REQUIRE_AVX2();
     const int num_lanes = get_lanes(sc_data_etype::F32, DATA_LEN_16);
 #define REF_EQ(IN, LANES, I) (IN[0][I] == IN[1][I])
@@ -1731,7 +1731,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestOpCmp) {
 #undef REF_GE
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestIntrinMin) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestIntrinMin) {
     REQUIRE_AVX2();
     const int num_lanes = get_lanes(sc_data_etype::F32, DATA_LEN_16);
 #define REF_MIN(IN, LANES, I) (std::min(IN[0][I], IN[1][I]))
@@ -1742,7 +1742,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestIntrinMin) {
 #undef REF_MIN
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestIntrinMax) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestIntrinMax) {
     REQUIRE_AVX2();
     const int num_lanes = get_lanes(sc_data_etype::F32, DATA_LEN_16);
 #define REF_MAX(IN, LANES, I) (std::max(IN[0][I], IN[1][I]))
@@ -1753,7 +1753,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestIntrinMax) {
 #undef REF_MAX
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestIntrinFloor) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestIntrinFloor) {
     REQUIRE_AVX2();
     const int num_lanes = get_lanes(sc_data_etype::F32, DATA_LEN_16);
 #define REF_FLOOR(IN, LANES, I) (floor(IN[0][I]))
@@ -1764,7 +1764,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestIntrinFloor) {
 #undef REF_FLOOR
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestIntrinCeil) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestIntrinCeil) {
     REQUIRE_AVX2();
     const int num_lanes = get_lanes(sc_data_etype::F32, DATA_LEN_16);
 #define REF_CEIL(IN, LANES, I) (ceil(IN[0][I]))
@@ -1775,7 +1775,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestIntrinCeil) {
 #undef REF_CEIL
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestIntrinExp) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestIntrinExp) {
     REQUIRE_AVX2();
     const int num_lanes = get_lanes(sc_data_etype::F32, DATA_LEN_16);
 #define REF_EXP(IN, LANES, I) (expf(IN[0][I]))
@@ -1786,7 +1786,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestIntrinExp) {
 #undef REF_EXP
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestIntrinLog) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestIntrinLog) {
     REQUIRE_AVX2();
     const int num_lanes = get_lanes(sc_data_etype::F32, DATA_LEN_16);
 #define REF_LOG(IN, LANES, I) (logf(IN[0][I]))
@@ -1797,7 +1797,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestIntrinLog) {
 #undef REF_LOG
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestIntrinFmadd) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestIntrinFmadd) {
     REQUIRE_AVX2();
     const int num_lanes = get_lanes(sc_data_etype::F32, DATA_LEN_16);
 #define REF_FMADD(IN, LANES, I) (IN[0][I] * IN[1][I] + IN[2][I])
@@ -1808,7 +1808,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestIntrinFmadd) {
 #undef REF_FMADD
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestIntrinAbs) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestIntrinAbs) {
     REQUIRE_AVX2();
 #define REF_ABS(IN, LANES, I) (std::abs(IN[0][I]))
     // data_type: sint_8
@@ -1829,7 +1829,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestIntrinAbs) {
 #undef REF_ABS
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestIntrinRound) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestIntrinRound) {
     REQUIRE_AVX2();
     const int num_lanes = get_lanes(sc_data_etype::F32, DATA_LEN_16);
 #define REF_ROUND(IN, LANES, I) (std::rint(IN[0][I]))
@@ -1840,7 +1840,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestIntrinRound) {
 #undef REF_ROUND
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestAVX2MaskMovx4) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestAVX2MaskMovx4) {
     REQUIRE_AVX2();
     const int num_lanes = 4;
     const uint64_t mask_val = 0xf >> 1;
@@ -1858,7 +1858,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestAVX2MaskMovx4) {
 #undef REF_MASK_MOV
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestAVX2MaskMovx8) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestAVX2MaskMovx8) {
     REQUIRE_AVX2();
     const int num_lanes = 8;
     const uint64_t mask_val = 0xff >> 1;
@@ -1876,7 +1876,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestAVX2MaskMovx8) {
 #undef REF_MASK_MOV
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestMaskMovx4) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestMaskMovx4) {
     REQUIRE_AVX512();
     const int num_lanes = 4;
     const uint64_t mask_val = 0xf >> 1;
@@ -1894,7 +1894,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestMaskMovx4) {
 #undef REF_MASK_MOV
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestMaskMovx8) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestMaskMovx8) {
     REQUIRE_AVX512();
     const int num_lanes = 8;
     const uint64_t mask_val = 0xff >> 1;
@@ -1916,7 +1916,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestMaskMovx8) {
 #undef REF_MASK_MOV
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestMaskMovx16) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestMaskMovx16) {
     REQUIRE_AVX512();
     const int num_lanes = 16;
     const uint64_t mask_val = 0xffff >> 1;
@@ -1942,7 +1942,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestMaskMovx16) {
 #undef REF_MASK_MOV
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestMaskMovx32) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestMaskMovx32) {
     REQUIRE_AVX512();
     const int num_lanes = 32;
     const uint64_t mask_val = 0xffffffff >> 1;
@@ -1960,7 +1960,7 @@ TEST(GCCore_test_jit_engine_equivalence, TestMaskMovx32) {
 #undef REF_MASK_MOV
 }
 
-TEST(GCCore_test_jit_engine_equivalence, TestMaskMovx64) {
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestMaskMovx64) {
     REQUIRE_AVX512();
     const int num_lanes = 64;
     const uint64_t mask_val = 0xffffffffffffffff >> 1;

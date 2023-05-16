@@ -63,7 +63,7 @@ using namespace dnnl::impl::graph::gc;
  * */
 // fix-me(brgemm-fuse): recover the following tests when postop is fixed
 #if 0
-TEST(GCCore_graph_reshedule, TestGraphReschedule1) {
+TEST(GCCore_CPU_graph_reshedule, TestGraphReschedule1) {
     auto get_test_graph = []() {
         sc_graph_t mgr;
         auto in_a = mgr.make_input({graph_tensor::make(
@@ -145,7 +145,7 @@ TEST(GCCore_graph_reshedule, TestGraphReschedule1) {
 }
 #endif
 
-TEST(GCCore_graph_reshedule, TestGraphReschedule2) {
+TEST(GCCore_CPU_graph_reshedule, TestGraphReschedule2) {
     thread_num_reset reseter;
     // set threads envoriment
     runtime_config_t::get().set_num_threads(8);
@@ -216,7 +216,7 @@ TEST(GCCore_graph_reshedule, TestGraphReschedule2) {
     }
 }
 
-TEST(GCCore_graph_reshedule, TestGraphReschedule3) {
+TEST(GCCore_CPU_graph_reshedule, TestGraphReschedule3) {
     thread_num_reset reseter;
     // set threads envoriment
     runtime_config_t::get().set_num_threads(8);
@@ -300,7 +300,7 @@ TEST(GCCore_graph_reshedule, TestGraphReschedule3) {
     }
 }
 
-TEST(GCCore_graph_reshedule, TestGraphReschedule4) {
+TEST(GCCore_CPU_graph_reshedule, TestGraphReschedule4) {
     thread_num_reset reseter;
     // set threads envoriment
     runtime_config_t::get().set_num_threads(8);
@@ -378,7 +378,7 @@ TEST(GCCore_graph_reshedule, TestGraphReschedule4) {
     }
 }
 
-TEST(GCCore_graph_reshedule, TestGraphReschedule5) {
+TEST(GCCore_CPU_graph_reshedule, TestGraphReschedule5) {
     thread_num_reset reseter;
     // set threads envoriment
     runtime_config_t::get().set_num_threads(8);

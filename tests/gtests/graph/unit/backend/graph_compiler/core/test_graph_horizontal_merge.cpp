@@ -63,7 +63,7 @@ static sc_graph_t get_graph_to_merge() {
     return graph;
 }
 
-TEST(GCCore_graph_horizontal_merge_cpp, TestGraphHorizontalMerge) {
+TEST(GCCore_CPU_graph_horizontal_merge_cpp, TestGraphHorizontalMerge) {
     sc_graph_t graph = get_graph_to_merge();
     //     layout_propagation(graph);
     horizontal_merge(graph);

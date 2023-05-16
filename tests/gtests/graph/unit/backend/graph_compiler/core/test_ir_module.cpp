@@ -24,7 +24,7 @@
 using namespace dnnl::impl::graph::gc;
 using namespace dnnl::impl::graph::gc::builder;
 
-TEST(GCCore_ir_module_cpp, TestIRModule) {
+TEST(GCCore_CPU_ir_module_cpp, TestIRModule) {
     builder::ir_builder_t builder;
 
     _function_(datatypes::f32, AAA) { _return_(1.0f); }

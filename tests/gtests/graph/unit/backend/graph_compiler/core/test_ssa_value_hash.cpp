@@ -55,7 +55,7 @@ static size_t get_status(const stmt &v) {
     return v->temp_data().get<ssa_hash::viewer_t::result_t>().val_;
 }
 
-TEST(GCCore_ssa_value_hash, TestSSAValueHash) {
+TEST(GCCore_CPU_ssa_value_hash, TestSSAValueHash) {
     builder::ir_builder_t bld;
     _function_(s32, ccc, _arg_("A", s32, {10000}), _arg_("a", s32),
             _arg_("b", s32)) {
@@ -143,7 +143,7 @@ TEST(GCCore_ssa_value_hash, TestSSAValueHash) {
     ASSERT_EQ(get_status(seq.at(40)), last_level);
 }
 
-TEST(GCCore_ssa_value_hash, TestSSAValueHashAdd) {
+TEST(GCCore_CPU_ssa_value_hash, TestSSAValueHashAdd) {
     builder::ir_builder_t bld;
     _function_(s32, ccc, _arg_("A", s32, {10000}), _arg_("a", s32),
             _arg_("b", s32)) {

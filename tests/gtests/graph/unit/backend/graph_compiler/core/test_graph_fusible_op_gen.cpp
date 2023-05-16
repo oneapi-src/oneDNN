@@ -36,7 +36,7 @@
     EXPECT_TRUE(cmper.compare(simp(AAA), simp(BBB), false));
 
 using namespace dnnl::impl::graph::gc;
-TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorAdd) {
+TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorAdd) {
     REQUIRE_PARALLEL();
     sc_graph_t mgr;
     auto ins = mgr.make_input({graph_tensor::make({32, 16, 64}),
@@ -78,7 +78,7 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorAdd) {
     CMP_SIMPLIFIED_IR(addf, bbb);
 }
 
-TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorAdd2) {
+TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorAdd2) {
     REQUIRE_PARALLEL();
     REQUIRE_AVX();
     sc_graph_t mgr;
@@ -126,7 +126,7 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorAdd2) {
     CMP_SIMPLIFIED_IR(addf, bbb);
 }
 
-TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorReorder) {
+TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorReorder) {
     thread_num_reset reseter;
     // set threads envoriment
     runtime_config_t::get().set_num_threads(56);
@@ -173,7 +173,7 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorReorder) {
     EXPECT_TRUE(cmper.compare(reorderf, bbb, false));
 }
 
-TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorReorder2) {
+TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorReorder2) {
     REQUIRE_AVX2();
     sc_graph_t mgr;
     auto ins = mgr.make_input({graph_tensor::make(
@@ -283,7 +283,7 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorReorder2) {
     EXPECT_TRUE(cmper.compare(reorderf2, bbb, false));
 }
 
-TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorReduce) {
+TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorReduce) {
     REQUIRE_PARALLEL();
     sc_graph_t mgr;
     auto ins = mgr.make_input(
@@ -328,7 +328,7 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorReduce) {
     CMP_SIMPLIFIED_IR(reducef, bbb);
 }
 
-TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorReduceBroadcast) {
+TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorReduceBroadcast) {
     auto has_fused_op = [](sc_graph_t &g) {
         for (auto &op : g.ops_) {
             if (op->isa<fused_op_t>()) { return true; }
@@ -387,7 +387,7 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorReduceBroadcast) {
     }
 }
 
-TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorFuse) {
+TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorFuse) {
     REQUIRE_PARALLEL();
     sc_graph_t mgr;
     auto ins = mgr.make_input({graph_tensor::make({32, 16}),
@@ -452,7 +452,7 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorFuse) {
     CMP_SIMPLIFIED_IR(fusedf, bbb);
 }
 
-TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorNoAxisOptim) {
+TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorNoAxisOptim) {
     sc_graph_t mgr;
     auto run_threads = runtime_config_t::get().get_num_threads();
     // This N value will ensure parallel_num > run_threads in any cases
@@ -479,7 +479,7 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorNoAxisOptim) {
             N);
 }
 
-TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorForcedAxisOptim) {
+TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorForcedAxisOptim) {
     REQUIRE_PARALLEL();
     sc_graph_t mgr;
     auto ins = mgr.make_input({graph_tensor::make(
@@ -506,7 +506,7 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorForcedAxisOptim) {
             64);
 }
 
-TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorLoopConflict) {
+TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorLoopConflict) {
     sc_graph_t mgr;
     auto ins = mgr.make_input(
             {graph_tensor::make({32, 32, 64, 64}, sc_data_format_t::NCHW())});
@@ -525,7 +525,7 @@ TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorLoopConflict) {
     EXPECT_EQ(reo->attrs_.get_or_else(op_attr_key::no_fuse, false), true);
 }
 
-TEST(GCCore_fusible_op_gen, TestFusibleOpGeneratorExpMask) {
+TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorExpMask) {
     REQUIRE_PARALLEL();
     REQUIRE_AVX();
     sc_graph_t mgr;

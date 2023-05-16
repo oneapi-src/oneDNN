@@ -25,7 +25,7 @@
 
 using namespace dnnl::impl::graph::gc;
 
-TEST(GCCore_local_tensor_lower, TestLocalTensorLowering) {
+TEST(GCCore_CPU_local_tensor_lower, TestLocalTensorLowering) {
     builder::ir_builder_t builder;
     local_tensor_lowering_cpu_t pass {128};
 
@@ -138,7 +138,7 @@ TEST(GCCore_local_tensor_lower, TestLocalTensorLowering) {
     EXPECT_TRUE(cmper.compare(mod2, expected, false));
 }
 
-TEST(GCCore_local_tensor_lower, TestAlias) {
+TEST(GCCore_CPU_local_tensor_lower, TestAlias) {
     builder::ir_builder_t builder;
     local_tensor_lowering_cpu_t pass {128};
 

@@ -24,7 +24,7 @@
 
 using namespace dnnl::impl::graph::gc;
 
-TEST(GCCore_parallel_workload_dispatch, TestValidateWorkload) {
+TEST(GCCore_CPU_parallel_workload_dispatch, TestValidateWorkload) {
     builder::ir_builder_t builder;
     parallel_workload_dispatcher_t pass(true);
     for_loop lk, lm, lp;
@@ -60,7 +60,7 @@ TEST(GCCore_parallel_workload_dispatch, TestValidateWorkload) {
     EXPECT_EQ(pass.stmt_workload_map_[lj], wkld_j);
 }
 
-TEST(GCCore_parallel_workload_dispatch, TestParallelElimination) {
+TEST(GCCore_CPU_parallel_workload_dispatch, TestParallelElimination) {
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(16);
     builder::ir_builder_t builder;

@@ -69,7 +69,7 @@ static std::vector<std::unique_ptr<jit_engine_t>> get_engines() {
     return ret;
 }
 
-TEST(GCCore_jit_cpp, TestJIT) {
+TEST(GCCore_CPU_jit_cpp, TestJIT) {
     ir_builder_t builder;
     auto m = std::make_shared<ir_module_t>(get_default_context());
     _global_tensor_(m, gtsr, datatypes::f32, 10);
@@ -173,7 +173,7 @@ TEST(GCCore_jit_cpp, TestJIT) {
     }
 }
 
-TEST(GCCore_jit_cpp, TestJITCast) {
+TEST(GCCore_CPU_jit_cpp, TestJITCast) {
     // TODO(longsheng): on sse-only machine:
     // LLVM ERROR: Do not know how to split this operator's operand!
     REQUIRE_AVX2();
@@ -223,7 +223,7 @@ TEST(GCCore_jit_cpp, TestJITCast) {
     }
 }
 
-TEST(GCCore_jit_cpp, TestJITCastToBF16) {
+TEST(GCCore_CPU_jit_cpp, TestJITCastToBF16) {
     REQUIRE_BF16();
     ir_builder_t builder;
     auto make_module = [](int lanes) {
@@ -275,7 +275,7 @@ TEST(GCCore_jit_cpp, TestJITCastToBF16) {
     }
 }
 
-TEST(GCCore_jit_cpp, TestJITParallelFor) {
+TEST(GCCore_CPU_jit_cpp, TestJITParallelFor) {
     ir_builder_t builder;
     _function_(datatypes::s32, aaa, _arg_("ii", datatypes::s32),
             _arg_("jj", datatypes::s32),
@@ -313,7 +313,7 @@ TEST(GCCore_jit_cpp, TestJITParallelFor) {
     }
 }
 
-TEST(GCCore_jit_cpp, TestJITVector) {
+TEST(GCCore_CPU_jit_cpp, TestJITVector) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, aaa, _arg_("A", datatypes::f32, {1024}),
             _arg_("B", datatypes::f32, {1024}),
@@ -395,7 +395,7 @@ TEST(GCCore_jit_cpp, TestJITVector) {
     }
 }
 
-TEST(GCCore_jit_cpp, TestJITVectorShift) {
+TEST(GCCore_CPU_jit_cpp, TestJITVectorShift) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, aaa, _arg_("A", datatypes::s32, {1024}),
             _arg_("B", datatypes::s32, {1024}),
@@ -442,7 +442,7 @@ TEST(GCCore_jit_cpp, TestJITVectorShift) {
     }
 }
 
-TEST(GCCore_jit_cpp, TestJITVectorShuffle) {
+TEST(GCCore_CPU_jit_cpp, TestJITVectorShuffle) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, aaa, _arg_("A", datatypes::f32, {1024}),
             _arg_("B", datatypes::f32, {1024}),
@@ -532,7 +532,7 @@ TEST(GCCore_jit_cpp, TestJITVectorShuffle) {
     }
 }
 
-TEST(GCCore_jit_cpp, TestJITVectorExp) {
+TEST(GCCore_CPU_jit_cpp, TestJITVectorExp) {
     builder::ir_builder_t builder;
     int lanes = get_default_context()->get_max_vector_lanes(sc_data_etype::F32);
     _function_(datatypes::void_t, aaa, _arg_("A", datatypes::f32, {4 * 16}),
@@ -580,7 +580,7 @@ TEST(GCCore_jit_cpp, TestJITVectorExp) {
     }
 }
 
-TEST(GCCore_jit_cpp, TestJITVectorLoad) {
+TEST(GCCore_CPU_jit_cpp, TestJITVectorLoad) {
     builder::ir_builder_t builder;
     {
         int lanes = get_default_context()->get_max_vector_lanes(
@@ -634,7 +634,7 @@ TEST(GCCore_jit_cpp, TestJITVectorLoad) {
 }
 
 #ifdef __AVX512F__
-TEST(GCCore_jit_cpp, TestJITCondition) {
+TEST(GCCore_CPU_jit_cpp, TestJITCondition) {
     builder::ir_builder_t builder;
 
 #define TEST_FUNC( \
@@ -725,7 +725,7 @@ TEST(GCCore_jit_cpp, TestJITCondition) {
     TEST_FUNC(int8_t, 64, datatypes::s8, datatypes::index, test_s8x64)
 }
 
-TEST(GCCore_jit_cpp, TestJITVectorUnpackElemLanes) {
+TEST(GCCore_CPU_jit_cpp, TestJITVectorUnpackElemLanes) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, aaa, _arg_("A", datatypes::u16, {1024}),
             _arg_("B", datatypes::u16, {1024}),
@@ -840,7 +840,7 @@ TEST(GCCore_jit_cpp, TestJITVectorUnpackElemLanes) {
     }
 }
 
-TEST(GCCore_jit_cpp, TestJITVectorBroadcast) {
+TEST(GCCore_CPU_jit_cpp, TestJITVectorBroadcast) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, aaa, _arg_("A", datatypes::u16, {256}),
             _arg_("B", datatypes::u16, {1024})) {
@@ -874,7 +874,7 @@ TEST(GCCore_jit_cpp, TestJITVectorBroadcast) {
 }
 #endif
 
-TEST(GCCore_jit_cpp, TestJITGlobalTensor) {
+TEST(GCCore_CPU_jit_cpp, TestJITGlobalTensor) {
     builder::ir_builder_t builder;
     auto m = std::make_shared<ir_module_t>(get_default_context());
     _global_tensor_(m, gv, datatypes::s32, 2, 2);
@@ -942,7 +942,7 @@ TEST(GCCore_jit_cpp, TestJITGlobalTensor) {
     }
 }
 
-TEST(GCCore_jit_cpp, TestJITDispatchTable) {
+TEST(GCCore_CPU_jit_cpp, TestJITDispatchTable) {
     builder::ir_builder_t builder;
     auto m = std::make_shared<ir_module_t>(get_default_context());
     _function_(datatypes::s32, bbb_0) { _return_(0); }
@@ -1027,7 +1027,7 @@ out & buf2, buf3 & buf2 has no alias, so LLVM can optimize it
 */
 
 #include <compiler/ir/transform/pointer_alias_info.hpp>
-TEST(GCCore_jit_cpp, TestJITLLVMAlias) {
+TEST(GCCore_CPU_jit_cpp, TestJITLLVMAlias) {
     ir_builder_t builder;
     _function_(datatypes::s32, aaa, _arg_("buf", datatypes::s32, {2}),
             _arg_("out", datatypes::s32, {2}),

@@ -22,7 +22,7 @@
 #include "gtest/gtest.h"
 
 using namespace dnnl::impl::graph::gc;
-TEST(GCCore_index_flatten_cpp, TestIndexFlatten) {
+TEST(GCCore_CPU_index_flatten_cpp, TestIndexFlatten) {
     builder::ir_builder_t builder;
     for_loop li, lj, lk, lp;
     auto ir_mod = std::make_shared<ir_module_t>(

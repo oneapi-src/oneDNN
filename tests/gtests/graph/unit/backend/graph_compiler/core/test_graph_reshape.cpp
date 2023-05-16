@@ -25,7 +25,7 @@
 #include <compiler/jit/jit.hpp>
 
 using namespace dnnl::impl::graph::gc;
-TEST(GCCore_graph_reshape_cpp, TestGraphReshapeCreation) {
+TEST(GCCore_CPU_graph_reshape_cpp, TestGraphReshapeCreation) {
     sc_graph_t g;
     graph_tensor_ptr in0, in1;
     auto make_graph = [&](int32_t *values, size_t num_ele) {
@@ -141,7 +141,7 @@ TEST(GCCore_graph_reshape_cpp, TestGraphReshapeCreation) {
     }
 }
 
-TEST(GCCore_graph_reshape_cpp, TestConstOptimize) {
+TEST(GCCore_CPU_graph_reshape_cpp, TestConstOptimize) {
     std::vector<bool> reshape_type {true, false};
     for (auto dynamic_reshape : reshape_type) {
         auto get_graph = [](bool dynamic_reshape) {
@@ -225,7 +225,7 @@ TEST(GCCore_graph_reshape_cpp, TestConstOptimize) {
     }
 }
 
-TEST(GCCore_graph_reshape_cpp, TestSingleOptimize) {
+TEST(GCCore_CPU_graph_reshape_cpp, TestSingleOptimize) {
     std::vector<bool> reshape_type {true, false};
     for (auto dynamic_reshape : reshape_type) {
         auto get_graph = [](bool dynamic_reshape) {
@@ -291,7 +291,7 @@ TEST(GCCore_graph_reshape_cpp, TestSingleOptimize) {
     }
 }
 
-TEST(GCCore_graph_reshape_cpp, TestSingleOptimizeMultipleUse) {
+TEST(GCCore_CPU_graph_reshape_cpp, TestSingleOptimizeMultipleUse) {
     std::vector<bool> reshape_type {true, false};
     for (auto dynamic_reshape : reshape_type) {
         auto get_graph = [](bool dynamic_reshape) {
@@ -362,7 +362,7 @@ TEST(GCCore_graph_reshape_cpp, TestSingleOptimizeMultipleUse) {
     }
 }
 
-TEST(GCCore_graph_reshape_cpp, TestSingleExecution) {
+TEST(GCCore_CPU_graph_reshape_cpp, TestSingleExecution) {
     REQUIRE_AVX2();
     sc_graph_t g;
 

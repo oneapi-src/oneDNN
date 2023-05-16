@@ -30,7 +30,7 @@
 
 using namespace dnnl::impl::graph::gc;
 
-TEST(GCCore_graph_conv_test, TestGraphConvolutionWithBias) {
+TEST(GCCore_CPU_graph_conv_test, TestGraphConvolutionWithBias) {
     REQUIRE_AVX2();
     int N = 64, IC = 16, OC = 64, H = 32, W = 32, R = 1, S = 1;
     sc_dims input_dims {N, IC, H, W};
@@ -68,7 +68,7 @@ TEST(GCCore_graph_conv_test, TestGraphConvolutionWithBias) {
     EXPECT_EQ(ss.str(), expected_graph);
 }
 
-TEST(GCCore_graph_conv_test, TestGraphConvolutionNXCXIO) {
+TEST(GCCore_CPU_graph_conv_test, TestGraphConvolutionNXCXIO) {
     int N = 64, IC = 16, OC = 64, H = 32, W = 32, R = 1, S = 1;
     sc_dims input_dims {N, H, W, IC};
     sc_dims filter_dims {R, S, IC, OC};
@@ -104,7 +104,7 @@ TEST(GCCore_graph_conv_test, TestGraphConvolutionNXCXIO) {
     EXPECT_EQ(ss.str(), expected_graph);
 }
 
-TEST(GCCore_graph_conv_test, TestGraphConvolution7x1) {
+TEST(GCCore_CPU_graph_conv_test, TestGraphConvolution7x1) {
     int N = 112, IC = 128, OC = 128, H = 12, W = 12, R = 7, S = 1;
     sc_dims input_dims {N, H, W, IC};
     sc_dims filter_dims {R, S, IC, OC};
@@ -127,7 +127,7 @@ TEST(GCCore_graph_conv_test, TestGraphConvolution7x1) {
     graph_driver(graph, get_test_ctx());
 }
 
-TEST(GCCore_graph_conv_test, TestGraphConvolutionWithDilation) {
+TEST(GCCore_CPU_graph_conv_test, TestGraphConvolutionWithDilation) {
     int N = 64, IC = 16, OC = 64, H = 32, W = 32, R = 3, S = 3, dilation = 2;
     sc_dims input_dims {N, H, W, IC};
     sc_dims filter_dims {R, S, IC, OC};
@@ -172,7 +172,7 @@ TEST(GCCore_graph_conv_test, TestGraphConvolutionWithDilation) {
             || ss.str() == expected_graph_blocking);
 }
 
-TEST(GCCore_graph_conv_test, TestGraphConvolutionNXCXIODifferentHW) {
+TEST(GCCore_CPU_graph_conv_test, TestGraphConvolutionNXCXIODifferentHW) {
     int N = 64, IC = 16, OC = 64, H = 128, W = 32, R = 1, S = 1;
     sc_dims input_dims {N, H, W, IC};
     sc_dims filter_dims {R, S, IC, OC};
@@ -208,7 +208,7 @@ TEST(GCCore_graph_conv_test, TestGraphConvolutionNXCXIODifferentHW) {
     EXPECT_EQ(ss.str(), expected_graph);
 }
 
-TEST(GCCore_graph_conv_test, TestGraphConvolutionAutoPad) {
+TEST(GCCore_CPU_graph_conv_test, TestGraphConvolutionAutoPad) {
     {
         int N = 64, IC = 16, OC = 64, H = 32, W = 32, R = 3, S = 3;
         sc_dims input_dims {N, H, W, IC};
@@ -279,7 +279,8 @@ TEST(GCCore_graph_conv_test, TestGraphConvolutionAutoPad) {
     }
 }
 
-TEST(GCCore_graph_conv_test, TestGraphConvolutionAutoPadSameUpperStride2x2) {
+TEST(GCCore_CPU_graph_conv_test,
+        TestGraphConvolutionAutoPadSameUpperStride2x2) {
     int N = 1, IC = 1024, OC = 2048, IH = 13, IW = 13, OH = 7, OW = 7, R = 5,
         S = 5;
     sc_dims input_dims {N, IH, IW, IC};
@@ -314,7 +315,7 @@ TEST(GCCore_graph_conv_test, TestGraphConvolutionAutoPadSameUpperStride2x2) {
     }
 }
 
-TEST(GCCore_graph_conv_test, TestGraphConvolutionBwdData) {
+TEST(GCCore_CPU_graph_conv_test, TestGraphConvolutionBwdData) {
     int N = 64, IC = 16, OC = 64, H = 32, W = 32, R = 1, S = 1;
     sc_dims output_delta_dims {N, H, W, OC};
     sc_dims filter_dims {R, S, IC, OC};
@@ -356,7 +357,7 @@ TEST(GCCore_graph_conv_test, TestGraphConvolutionBwdData) {
     }
 }
 
-TEST(GCCore_graph_conv_test, TestGraphConvolutionBwdDataWithInverseWeight) {
+TEST(GCCore_CPU_graph_conv_test, TestGraphConvolutionBwdDataWithInverseWeight) {
     REQUIRE_AMX();
     int N = 8, IC = 64, OC = 64, H = 32, W = 32, R = 3, S = 3;
     auto ctx = get_test_ctx();
@@ -404,7 +405,7 @@ TEST(GCCore_graph_conv_test, TestGraphConvolutionBwdDataWithInverseWeight) {
     ASSERT_TRUE(f);
 }
 
-TEST(GCCore_graph_conv_test, TestGraphConvolutionBwdWeight) {
+TEST(GCCore_CPU_graph_conv_test, TestGraphConvolutionBwdWeight) {
     int N = 64, IC = 16, OC = 64, H = 32, W = 32, R = 1, S = 1;
     sc_dims output_delta_dims {N, H, W, OC};
     sc_dims filter_dims {R, S, IC, OC};

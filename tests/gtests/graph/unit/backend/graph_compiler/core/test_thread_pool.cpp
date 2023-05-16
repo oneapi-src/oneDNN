@@ -36,7 +36,7 @@ using namespace dnnl::impl::graph::gc;
 
 #if SC_CPU_THREADPOOL > 0
 
-TEST(GCCore_thread_pool, TestBarrier) {
+TEST(GCCore_CPU_thread_pool, TestBarrier) {
     dnnl_thread_env();
     runtime::barrier_t bar[2];
     sc_init_barrier(bar, 2, 16);
@@ -73,7 +73,7 @@ TEST(GCCore_thread_pool, TestBarrier) {
     EXPECT_TRUE(result);
 }
 
-TEST(GCCore_thread_pool, TestThreadPool) {
+TEST(GCCore_CPU_thread_pool, TestThreadPool) {
     dnnl_thread_env();
     auto &cfg = runtime_config_t::get();
     std::vector<std::atomic<int>> v(100000);
@@ -135,7 +135,7 @@ TEST(GCCore_thread_pool, TestThreadPool) {
 #endif
 
 #if SC_CPU_THREADPOOL != SC_THREAD_POOL_CUSTOM
-TEST(GCCore_thread_pool, TestThreadNum) {
+TEST(GCCore_CPU_thread_pool, TestThreadNum) {
     dnnl_thread_env();
     auto &cfg = runtime_config_t::get();
     int nthreads

@@ -29,7 +29,7 @@
 
 using namespace dnnl::impl::graph::gc::memory_pool;
 
-TEST(GCCore_test_memorypool, TestMemoryPool) {
+TEST(GCCore_CPU_test_memorypool, TestMemoryPool) {
     // push 10; push large; push 100; push 200; pop 200; pop 100; pop large;
     // push page-200; push 200; pop 200; pop page-200; push 10
     unsigned pagesize = dnnl::impl::graph::gc::runtime::get_os_page_size();
@@ -122,7 +122,7 @@ static void run_alloc_and_free() {
             runtime_config_t::get().get_num_threads(), 1, nullptr);
 };
 
-TEST(GCCore_test_memorypool, TestMemoryPoolRelease) {
+TEST(GCCore_CPU_test_memorypool, TestMemoryPoolRelease) {
     run_alloc_and_free();
     auto stream = runtime::get_default_stream();
     filo_memory_pool_t *thread_p

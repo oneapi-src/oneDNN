@@ -50,7 +50,7 @@ auto get_shape_of_tensor_graph
             std::move(graph), std::vector<sc_op_ptr> {input, output});
 };
 
-TEST(GCCore_shape_of_tensor_test, TestShapeOfTensorWithoutPadding) {
+TEST(GCCore_CPU_shape_of_tensor_test, TestShapeOfTensorWithoutPadding) {
     REQUIRE_AVX2();
     runtime::dynamic_tensor_t in, out;
     sc_dims in_shapes = {16, 32, 1024, 4096}, out_shapes = {0};
@@ -75,7 +75,7 @@ TEST(GCCore_shape_of_tensor_test, TestShapeOfTensorWithoutPadding) {
     }
 }
 
-TEST(GCCore_shape_of_tensor_test, TestShapeOfTensorMatmulPadding) {
+TEST(GCCore_CPU_shape_of_tensor_test, TestShapeOfTensorMatmulPadding) {
     REQUIRE_AVX2();
     runtime::dynamic_tensor_t in, out;
     sc_dims in_shapes = {1, 33, 1024, 97}, out_shapes = {0};

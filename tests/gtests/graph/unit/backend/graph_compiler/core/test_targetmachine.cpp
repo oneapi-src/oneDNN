@@ -20,7 +20,7 @@
 #include <util/utils.hpp>
 
 namespace gc = dnnl::impl::graph::gc;
-TEST(GCCore_targetmachine_cpp, TestTargetMachine) {
+TEST(GCCore_CPU_targetmachine_cpp, TestTargetMachine) {
     // mainly test if we can compile and run the instructions (cpuid)
     {
         gc::runtime::target_machine_t tm

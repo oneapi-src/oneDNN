@@ -28,7 +28,7 @@
 
 using namespace dnnl::impl::graph::gc;
 static constexpr auto s32 = datatypes::s32;
-TEST(GCCore_simple_licm_cpp, TestSimpleLICMTransform) {
+TEST(GCCore_CPU_simple_licm_cpp, TestSimpleLICMTransform) {
     builder::ir_builder_t builder;
     auto dim1 = builder::make_var(s32, "dim1");
     dim1->attr().set(attr_key::const_attr, true);
@@ -94,7 +94,7 @@ TEST(GCCore_simple_licm_cpp, TestSimpleLICMTransform) {
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
 
-TEST(GCCore_simple_licm_cpp, TestSimpleLICMMultiScope) {
+TEST(GCCore_CPU_simple_licm_cpp, TestSimpleLICMMultiScope) {
     builder::ir_builder_t builder;
     auto dim1 = builder::make_var(s32, "dim1");
     dim1->attr().set(attr_key::const_attr, true);
@@ -169,7 +169,7 @@ TEST(GCCore_simple_licm_cpp, TestSimpleLICMMultiScope) {
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
 
-TEST(GCCore_loop_function_motion_cpp, TestPureFunctionMotion) {
+TEST(GCCore_CPU_loop_function_motion_cpp, TestPureFunctionMotion) {
     builder::ir_builder_t builder;
     _function_(s32, ccc, _arg_("A", datatypes::pointer, {10000})) {
         _bind_(A);
@@ -233,7 +233,7 @@ TEST(GCCore_loop_function_motion_cpp, TestPureFunctionMotion) {
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
 
-TEST(GCCore_simple_licm_cpp, TestSimpleLICMVarMotion) {
+TEST(GCCore_CPU_simple_licm_cpp, TestSimpleLICMVarMotion) {
     builder::ir_builder_t builder;
     auto dim1 = builder::make_var(s32, "dim1");
     dim1->attr().set(attr_key::const_attr, true);

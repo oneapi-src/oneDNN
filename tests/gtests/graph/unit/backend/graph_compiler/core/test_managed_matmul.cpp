@@ -304,85 +304,85 @@ const managed_matmul_core_config_t cfg3 = {
 const managed_matmul_core_config_t dummy_cfg = {1, 1, 1, 1, 1, 0};
 
 // f32
-TEST(GCCore_managed_matmul_test, TestMATMUL2D_1) {
+TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_1) {
     check_managed_matmul({{1792, 1792}, {1792, 1792}, {1792, 1792},
                                  datatypes::f32, datatypes::f32, false},
             cfg1);
 }
-TEST(GCCore_managed_matmul_test, TestMATMUL2D_2) {
+TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_2) {
     check_managed_matmul({{1792, 1792}, {1792, 1792}, {1792, 1792},
                                  datatypes::f32, datatypes::f32, false},
             cfg2);
 }
-TEST(GCCore_managed_matmul_test, TestMATMUL2D_3) {
+TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_3) {
     check_managed_matmul({{1792, 1792}, {1792, 1792}, {1792, 1792},
                                  datatypes::f32, datatypes::f32, false},
             cfg3);
 }
-TEST(GCCore_managed_matmul_test, TestMATMUL2D_4) {
+TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_4) {
     check_managed_matmul({{1792, 1792}, {1792, 1792}, {1792, 1792},
                                  datatypes::f32, datatypes::f32, false},
             managed_matmul_core_config_t(), true);
 }
-TEST(GCCore_managed_matmul_test, TestMATMUL2D_5) {
+TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_5) {
     check_managed_matmul({{1792, 1792}, {1792, 1792}, {1792, 1792},
                                  datatypes::f32, datatypes::f32, true},
             cfg1);
 }
-TEST(GCCore_managed_matmul_test, TestMATMUL2D_6) {
+TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_6) {
     check_managed_matmul({{1792, 1792}, {1792, 1792}, {1792, 1792},
                                  datatypes::f32, datatypes::f32, true},
             cfg2);
 }
-TEST(GCCore_managed_matmul_test, TestMATMUL2D_7) {
+TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_7) {
     check_managed_matmul({{1792, 1792}, {1792, 1792}, {1792, 1792},
                                  datatypes::f32, datatypes::f32, true},
             cfg3);
 }
-TEST(GCCore_managed_matmul_test, TestMATMUL2D_8) {
+TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_8) {
     check_managed_matmul({{1792, 1792}, {1792, 1792}, {1792, 1792},
                                  datatypes::f32, datatypes::f32, true},
             managed_matmul_core_config_t(), true);
 }
-TEST(GCCore_managed_matmul_test, TestMATMUL2D_9) {
+TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_9) {
     check_managed_matmul({{1125, 1115}, {1115, 1120}, {1125, 1120},
                                  datatypes::f32, datatypes::f32, false},
             cfg1);
 }
-TEST(GCCore_managed_matmul_test, TestMATMUL2D_10) {
+TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_10) {
     check_managed_matmul({{1125, 1115}, {1115, 1120}, {1125, 1120},
                                  datatypes::f32, datatypes::f32, false},
             cfg2);
 }
-TEST(GCCore_managed_matmul_test, TestMATMUL2D_11) {
+TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_11) {
     check_managed_matmul({{1125, 1115}, {1115, 1120}, {1125, 1120},
                                  datatypes::f32, datatypes::f32, false},
             cfg3);
 }
-TEST(GCCore_managed_matmul_test, TestMATMUL2D_12) {
+TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_12) {
     check_managed_matmul({{1125, 1115}, {1115, 1120}, {1125, 1120},
                                  datatypes::f32, datatypes::f32, false},
             managed_matmul_core_config_t(), true);
 }
-TEST(GCCore_managed_matmul_test, TestMATMUL2D_13) {
+TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_13) {
     REQUIRE_VNNI();
     check_managed_matmul({{2250, 2230}, {2230, 2240}, {2250, 2240},
                                  datatypes::s8, datatypes::s8, false},
             cfg1);
 }
-TEST(GCCore_managed_matmul_test, TestMATMUL2D_14) {
+TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_14) {
     REQUIRE_VNNI();
     check_managed_matmul({{2250, 2230}, {2230, 2240}, {2250, 2240},
                                  datatypes::s8, datatypes::s8, false},
             cfg2);
 }
-TEST(GCCore_managed_matmul_test, TestMATMUL2D_15) {
+TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_15) {
     REQUIRE_VNNI();
     check_managed_matmul({{2250, 2230}, {2230, 2240}, {2250, 2240},
                                  datatypes::s8, datatypes::s8, false},
             cfg3);
 }
-TEST(GCCore_managed_matmul_test, TestMATMUL2D_16) {
+TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_16) {
     REQUIRE_VNNI();
     check_managed_matmul({{2250, 2230}, {2230, 2240}, {2250, 2240},
                                  datatypes::s8, datatypes::s8, false},
@@ -390,23 +390,23 @@ TEST(GCCore_managed_matmul_test, TestMATMUL2D_16) {
 }
 // test iter anchor, currently only mmm that 1) outputs plain format; 2) has
 // post fusion; 3) has splits on K; 4) has imbalance, will use iter anchor
-TEST(GCCore_managed_matmul_test, TestMATMUL2D_FUSED_SIGMOID1) {
+TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_FUSED_SIGMOID1) {
     check_managed_matmul({{912, 1344}, {1344, 912}, {912, 912}, datatypes::f32,
                                  datatypes::f32, false},
             cfg3, false, true);
 }
-TEST(GCCore_managed_matmul_test, TestMATMUL2D_FUSED_SIGMOID2) {
+TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_FUSED_SIGMOID2) {
     check_managed_matmul({{912, 1344}, {1344, 1360}, {912, 1360},
                                  datatypes::f32, datatypes::f32, false},
             cfg3, false, true);
 }
-TEST(GCCore_managed_matmul_test, TestMATMUL2D_FUSED_SIGMOID3) {
+TEST(GCCore_CPU_managed_matmul_test, TestMATMUL2D_FUSED_SIGMOID3) {
     check_managed_matmul({{1136, 912}, {912, 1344}, {1136, 1344},
                                  datatypes::f32, datatypes::f32, false},
             cfg3, false, true);
 }
 
-TEST(GCCore_managed_matmul_test, TestDynamicMATMUL2D_F32) {
+TEST(GCCore_CPU_managed_matmul_test, TestDynamicMATMUL2D_F32) {
     check_managed_matmul({{-1, 1792}, {1792, 1792}, {-1, 1792}, datatypes::f32,
                                  datatypes::f32, false, {1792, 1792},
                                  {1792, 1792}, {1792, 1792}},
@@ -421,7 +421,7 @@ TEST(GCCore_managed_matmul_test, TestDynamicMATMUL2D_F32) {
             dummy_cfg);
 }
 
-TEST(GCCore_managed_matmul_test, TestDynamicMATMUL2D_INT8) {
+TEST(GCCore_CPU_managed_matmul_test, TestDynamicMATMUL2D_INT8) {
     REQUIRE_VNNI();
     check_managed_matmul(
             {{-1, 1792}, {1792, 1792}, {-1, 1792}, datatypes::s8, datatypes::s8,
@@ -437,7 +437,7 @@ TEST(GCCore_managed_matmul_test, TestDynamicMATMUL2D_INT8) {
             dummy_cfg);
 }
 
-TEST(GCCore_managed_matmul_test, TestDynamicMATMUL2D_FUSED_SIGMOID) {
+TEST(GCCore_CPU_managed_matmul_test, TestDynamicMATMUL2D_FUSED_SIGMOID) {
     check_managed_matmul(
             {{-1, 1344}, {1344, 912}, {-1, 912}, datatypes::f32, datatypes::f32,
                     false, {912, 1344}, {1344, 912}, {912, 912}},

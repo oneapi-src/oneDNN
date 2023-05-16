@@ -120,7 +120,7 @@ static void check_format_correctness(const sc_dims &plain_dims,
             == out->details_.get_blocking_dims());
 }
 
-TEST(GCCore_transpose_test, TestQueryFormat) {
+TEST(GCCore_CPU_transpose_test, TestQueryFormat) {
     check_format_correctness({1, 2, 3, 4}, {0, 2, 1, 3},
             sc_data_format_t(sc_data_format_kind_t(0, 3, 1, 2)),
             sc_data_format_t(sc_data_format_kind_t(0, 3, 2, 1)));
@@ -152,7 +152,7 @@ TEST(GCCore_transpose_test, TestQueryFormat) {
                     sc_data_format_kind_t(2, 0, 3, 1, 0, 1, 0), {32, 16, 2}));
 }
 
-TEST(GCCore_transpose_test, TestSingleTranspose) {
+TEST(GCCore_CPU_transpose_test, TestSingleTranspose) {
     transpose_test({4, 8, 16, 32}, {0, 1, 3, 2}, {2, 3});
     transpose_test({4, 8, 16, 32}, {0, 2, 1, 3}, {1, 2});
 }

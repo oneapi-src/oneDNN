@@ -57,7 +57,7 @@ void run_binary() {
     }
 }
 
-TEST(GCCore_test_equals_check, TestEqualsExpr) {
+TEST(GCCore_CPU_test_equals_check, TestEqualsExpr) {
     ir_comparer cmper {};
     // const
     {
@@ -580,7 +580,7 @@ TEST(GCCore_test_equals_check, TestEqualsExpr) {
     }
 }
 
-TEST(GCCore_test_equals_check, TestEqualsAutoReset) {
+TEST(GCCore_CPU_test_equals_check, TestEqualsAutoReset) {
     ir_comparer cmper {};
     auto var1 = make_expr<var_node>(datatypes::f32, "A");
     auto var2 = make_expr<var_node>(datatypes::f32, "B");
@@ -597,7 +597,7 @@ TEST(GCCore_test_equals_check, TestEqualsAutoReset) {
     }
 }
 
-TEST(GCCore_test_equals_check, TestEqualsStmt) {
+TEST(GCCore_CPU_test_equals_check, TestEqualsStmt) {
     ir_comparer cmper {};
     // assign
     auto var1 = make_expr<var_node>(datatypes::f32, "A");
@@ -912,7 +912,7 @@ TEST(GCCore_test_equals_check, TestEqualsStmt) {
     }
 }
 
-TEST(GCCore_test_equals_check, TestEqualsFunction) {
+TEST(GCCore_CPU_test_equals_check, TestEqualsFunction) {
     ir_comparer cmper {};
     auto var1 = make_expr<var_node>(datatypes::f32, "A");
     auto var2 = make_expr<var_node>(datatypes::s32, "B");
@@ -966,7 +966,7 @@ TEST(GCCore_test_equals_check, TestEqualsFunction) {
     cmper.reset();
 }
 
-TEST(GCCore_test_equals_check, TestEqualsComm) {
+TEST(GCCore_CPU_test_equals_check, TestEqualsComm) {
     ir_comparer cmper {true, false, true, false, true};
     ir_comparer cmper2 {true, false, true, false, false};
     auto var1 = make_expr<var_node>(datatypes::f32, "A");

@@ -26,7 +26,7 @@
 
 using namespace dnnl::impl::graph::gc;
 
-TEST(GCCore_ir_simplify, TestSimplify) {
+TEST(GCCore_CPU_ir_simplify, TestSimplify) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, ccc, _arg_("A", datatypes::f32, {10000})) {
         _bind_(A);
@@ -71,7 +71,7 @@ TEST(GCCore_ir_simplify, TestSimplify) {
     EXPECT_TRUE(cmper.compare(out, expected));
 }
 
-TEST(GCCore_ir_simplify, TestVarRename) {
+TEST(GCCore_CPU_ir_simplify, TestVarRename) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, ccc, _arg_("A", datatypes::f32, {10000})) {
         _bind_(A);
@@ -133,7 +133,7 @@ TEST(GCCore_ir_simplify, TestVarRename) {
     EXPECT_TRUE(cmper.compare(out, expected));
 }
 
-TEST(GCCore_ir_simplify, TestLoopVarRename) {
+TEST(GCCore_CPU_ir_simplify, TestLoopVarRename) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, ccc, _arg_("A", datatypes::index, {300})) {
         _bind_(A);
@@ -167,7 +167,7 @@ TEST(GCCore_ir_simplify, TestLoopVarRename) {
     EXPECT_TRUE(cmper.compare(out, expected));
 }
 
-TEST(GCCore_ir_simplify, TestSimplifyLoopEliminateWithConstantFolding) {
+TEST(GCCore_CPU_ir_simplify, TestSimplifyLoopEliminateWithConstantFolding) {
     builder::ir_builder_t builder;
 
     _function_(datatypes::void_t, ccc, _arg_("A", datatypes::f32, {10})) {
@@ -197,7 +197,7 @@ TEST(GCCore_ir_simplify, TestSimplifyLoopEliminateWithConstantFolding) {
     EXPECT_TRUE(cmper.compare(result, expected));
 }
 
-TEST(GCCore_ir_simplify, TestSimplifyLoopEliminate) {
+TEST(GCCore_CPU_ir_simplify, TestSimplifyLoopEliminate) {
     builder::ir_builder_t builder;
 
     _function_(
@@ -324,7 +324,7 @@ TEST(GCCore_ir_simplify, TestSimplifyLoopEliminate) {
             == true);
 }
 
-TEST(GCCore_ir_simplify, TestSimplifyIfAndElseEliminate) {
+TEST(GCCore_CPU_ir_simplify, TestSimplifyIfAndElseEliminate) {
     builder::ir_builder_t builder;
     _function_(
             datatypes::void_t, ccc, _arg_("A", datatypes::f32, {10, 20, 32})) {

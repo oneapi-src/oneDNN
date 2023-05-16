@@ -21,7 +21,7 @@
 
 using namespace dnnl::impl::graph::gc;
 
-TEST(GCCore_cast_cpp, TestCast) {
+TEST(GCCore_CPU_cast_cpp, TestCast) {
     expr a = expr(1) + 2;
     builder::ir_builder_t b;
     b.push_scope();

@@ -49,7 +49,7 @@ static void do_commit(const sc_graph_t &g, const func_t &func,
     parti->transform_to_mixed_op();
 }
 
-TEST(GCCore_fusion_anchor_cpp, TestGroupedFusionAnchor) {
+TEST(GCCore_CPU_fusion_anchor_cpp, TestGroupedFusionAnchor) {
     sc_graph_t g;
     sc_dims input_dims = {20, 35, 32, 16};
     auto finput0 = g.make_input({graph_tensor::make(input_dims)});
@@ -191,7 +191,7 @@ TEST(GCCore_fusion_anchor_cpp, TestGroupedFusionAnchor) {
     EXPECT_TRUE(cmper.compare(aaa, bbb, false));
 }
 
-TEST(GCCore_fusion_anchor_cpp, TestDynamicFusionAnchor) {
+TEST(GCCore_CPU_fusion_anchor_cpp, TestDynamicFusionAnchor) {
     sc_graph_t g;
     sc_dims input_dims = {20, 35, 16};
     auto finput0 = g.make_input({graph_tensor::make(input_dims)});

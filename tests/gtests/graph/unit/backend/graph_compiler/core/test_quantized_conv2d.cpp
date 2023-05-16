@@ -252,67 +252,67 @@ auto single_os_block_cfg = conv_fwd_config_t {64, 64, 1, -1, -1, 33, -1, 1};
 auto single_os_block_cfg1 = conv_fwd_config_t {8, 64, 1, -1, -1, 61, -1, 1};
 auto single_os_block_cfg2 = conv_fwd_config_t {16, 64, 1, -1, -1, 33, -1, 1};
 auto multi_os_block_cfg = conv_fwd_config_t {64, 64, 1, -1, -1, 11, -1, 1};
-TEST(GCCore_qconv2d_u8s8s32_3x3, partial_ow_NCX) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, partial_ow_NCX) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(partial_ow_cfg, 64, 64, 64, 58, 58, 3,
             3, {1, 1}, {0, 0}, false, true, true, false);
 }
-TEST(GCCore_qconv2d_u8s8s32_3x3, partial_ow_NXC) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, partial_ow_NXC) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(partial_ow_cfg, 64, 64, 64, 58, 58, 3,
             3, {1, 1}, {0, 0}, false, true, false, true);
 }
-TEST(GCCore_qconv2d_u8s8s32_3x3, full_ow_NCX) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, full_ow_NCX) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(full_ow_cfg, 64, 64, 64, 58, 58, 3, 3,
             {1, 1}, {0, 0}, false, true, true, false);
 }
-TEST(GCCore_qconv2d_u8s8s32_3x3, full_ow_NXC) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, full_ow_NXC) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(full_ow_cfg, 64, 64, 64, 58, 58, 3, 3,
             {1, 1}, {0, 0}, false, true, false, true);
 }
-TEST(GCCore_qconv2d_u8s8s32_3x3, single_os_block_NCX) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, single_os_block_NCX) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(single_os_block_cfg, 4, 128, 64, 7, 7,
             3, 3, {1, 1}, {0, 0}, false, true, true, false);
 }
-TEST(GCCore_qconv2d_u8s8s32_3x3, single_os_block_NXC) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, single_os_block_NXC) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(single_os_block_cfg, 4, 128, 64, 7, 7,
             3, 3, {1, 1}, {0, 0}, false, true, false, true);
 }
-TEST(GCCore_qconv2d_u8s8s32_3x3, single_os_block_1_NCX) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, single_os_block_1_NCX) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(single_os_block_cfg1, 1, 8, 64, 9, 9,
             3, 3, {1, 1}, {0, 0}, false, true, true, false);
 }
-TEST(GCCore_qconv2d_u8s8s32_3x3, single_os_block_1_NXC) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, single_os_block_1_NXC) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(single_os_block_cfg1, 1, 8, 64, 9, 9,
             3, 3, {1, 1}, {0, 0}, false, true, false, true);
 }
-TEST(GCCore_qconv2d_u8s8s32_3x3, single_os_block_2_NCX) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, single_os_block_2_NCX) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(single_os_block_cfg2, 1, 16, 64, 7, 7,
             3, 3, {1, 1}, {0, 0}, false, true, true, false);
 }
-TEST(GCCore_qconv2d_u8s8s32_3x3, single_os_block_2_NXC) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, single_os_block_2_NXC) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(single_os_block_cfg2, 1, 16, 64, 7, 7,
             3, 3, {1, 1}, {0, 0}, false, true, false, true);
 }
-TEST(GCCore_qconv2d_u8s8s32_3x3, multi_os_block_NCX) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, multi_os_block_NCX) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(multi_os_block_cfg, 4, 128, 64, 7, 7,
             3, 3, {1, 1}, {0, 0}, false, true, true, false);
 }
-TEST(GCCore_qconv2d_u8s8s32_3x3, multi_os_block_NXC) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, multi_os_block_NXC) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(multi_os_block_cfg, 4, 128, 64, 7, 7,
             3, 3, {1, 1}, {0, 0}, false, true, false, true);
 }
-TEST(GCCore_qconv2d, Test_2DConv_3x3_with_dilation_int8) {
+TEST(GCCore_CPU_qconv2d, Test_2DConv_3x3_with_dilation_int8) {
     REQUIRE_AMX();
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(56);
@@ -353,69 +353,69 @@ TEST(GCCore_qconv2d, Test_2DConv_3x3_with_dilation_int8) {
     return;
 }
 
-TEST(GCCore_qconv2d_u8s8s32_1x1, no_padding_1_NCX) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_1x1, no_padding_1_NCX) {
     REQUIRE_VNNI();
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 128, 64, 64, 56, 56, 1, 1,
             {1, 1}, {0, 0}, false, true, true, false);
 }
-TEST(GCCore_qconv2d_u8s8s32_1x1, no_padding_1_NXC) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_1x1, no_padding_1_NXC) {
     REQUIRE_VNNI();
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 128, 64, 64, 56, 56, 1, 1,
             {1, 1}, {0, 0}, false, true, false, true);
 }
-TEST(GCCore_qconv2d_u8s8s32_1x1, no_padding_2_NCX) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_1x1, no_padding_2_NCX) {
     REQUIRE_VNNI();
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 32, 128, 128, 64, 64, 1, 1,
             {1, 2}, {0, 0}, false, true, true, false);
 }
-TEST(GCCore_qconv2d_u8s8s32_1x1, no_padding_2_NXC) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_1x1, no_padding_2_NXC) {
     REQUIRE_VNNI();
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 32, 128, 128, 64, 64, 1, 1,
             {1, 2}, {0, 0}, false, true, false, true);
 }
-TEST(GCCore_qconv2d_u8s8s32_1x1, no_padding_3_NCX) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_1x1, no_padding_3_NCX) {
     REQUIRE_VNNI();
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 32, 256, 128, 64, 64, 1, 1,
             {2, 3}, {0, 0}, false, true, true, false);
 }
-TEST(GCCore_qconv2d_u8s8s32_1x1, no_padding_3_NXC) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_1x1, no_padding_3_NXC) {
     REQUIRE_VNNI();
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 32, 256, 128, 64, 64, 1, 1,
             {2, 3}, {0, 0}, false, true, false, true);
 }
 
-TEST(GCCore_qconv2d_u8s8s32_3x3, no_padding_1_NCX) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, no_padding_1_NCX) {
     REQUIRE_VNNI();
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 128, 64, 64, 56, 56, 3, 3,
             {1, 1}, {0, 0}, false, true, true, false);
 }
-TEST(GCCore_qconv2d_u8s8s32_3x3, no_padding_1_NXC) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, no_padding_1_NXC) {
     REQUIRE_VNNI();
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 128, 64, 64, 56, 56, 3, 3,
             {1, 1}, {0, 0}, false, true, false, true);
 }
-TEST(GCCore_qconv2d_u8s8s32_3x3, no_padding_2_NCX) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, no_padding_2_NCX) {
     REQUIRE_VNNI();
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 32, 128, 128, 64, 64, 3, 3,
             {2, 1}, {0, 0}, false, true, true, false);
 }
-TEST(GCCore_qconv2d_u8s8s32_3x3, no_padding_2_NXC) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, no_padding_2_NXC) {
     REQUIRE_VNNI();
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 32, 128, 128, 64, 64, 3, 3,
             {2, 1}, {0, 0}, false, true, false, true);
 }
-TEST(GCCore_qconv2d_u8s8s32_3x3, no_padding_3_NCX) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, no_padding_3_NCX) {
     REQUIRE_VNNI();
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 32, 256, 128, 64, 64, 3, 3,
             {2, 3}, {0, 0}, false, true, true, false);
 }
-TEST(GCCore_qconv2d_u8s8s32_3x3, no_padding_3_NXC) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, no_padding_3_NXC) {
     REQUIRE_VNNI();
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 32, 256, 128, 64, 64, 3, 3,
             {2, 3}, {0, 0}, false, true, false, true);
 }
 
-TEST(GCCore_qconv2d_u8s8s32_3x3, with_padding_1_NCX) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, with_padding_1_NCX) {
     REQUIRE_VNNI();
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 128, 64, 64, 56, 56, 3, 3,
             {1, 2}, {1, 2}, false, true, true, false);
@@ -424,19 +424,19 @@ TEST(GCCore_qconv2d_u8s8s32_3x3, with_padding_1_NCX) {
 #define conv_padding_support_NXC 0
 
 #if conv_padding_support_NXC
-TEST(GCCore_qconv2d_u8s8s32_3x3, with_padding_1_NXC) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, with_padding_1_NXC) {
     REQUIRE_VNNI();
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 128, 64, 64, 56, 56, 3, 3,
             {1, 2}, {1, 2}, false, true, false, true);
 }
 #endif
-TEST(GCCore_qconv2d_u8s8s32_3x3, with_padding_2_NCX) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, with_padding_2_NCX) {
     REQUIRE_VNNI();
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 32, 256, 128, 64, 64, 3, 3,
             {2, 3}, {1, 0}, false, true, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_qconv2d_u8s8s32_3x3, with_padding_2_NXC) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, with_padding_2_NXC) {
     REQUIRE_VNNI();
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 32, 256, 128, 64, 64, 3, 3,
             {2, 3}, {1, 0}, false, true, false, true);
@@ -444,26 +444,26 @@ TEST(GCCore_qconv2d_u8s8s32_3x3, with_padding_2_NXC) {
 #endif
 // top/middle/bottom padding region, left padding only, no padding, right
 // padding only
-TEST(GCCore_qconv2d_u8s8s32_3x3, with_padding_3_NCX) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, with_padding_3_NCX) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(
             conv_fwd_config_t {1, 4, 1, 1, 1, 1, -1, -1}, 1, 1, 4, 6, 6, 3, 3,
             {1, 1}, {2, 2}, false, true, true, false);
 }
-TEST(GCCore_qconv2d_u8s8s32_3x3, with_padding_3_NXC) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, with_padding_3_NXC) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(
             conv_fwd_config_t {1, 4, 1, 1, 1, 1, -1, -1}, 1, 1, 4, 6, 6, 3, 3,
             {1, 1}, {2, 2}, false, true, false, true);
 }
 // top/middle/bottom padding region, left and right padding
-TEST(GCCore_qconv2d_u8s8s32_3x3, with_padding_4_NCX) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, with_padding_4_NCX) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(
             conv_fwd_config_t {1, 4, 1, 1, 6, 6, -1, -1}, 1, 1, 4, 6, 6, 3, 3,
             {1, 1}, {1, 1}, false, true, true, false);
 }
-TEST(GCCore_qconv2d_u8s8s32_3x3, with_padding_4_NXC) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, with_padding_4_NXC) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(
             conv_fwd_config_t {1, 4, 1, 1, 6, 6, -1, -1}, 1, 1, 4, 6, 6, 3, 3,
@@ -471,60 +471,60 @@ TEST(GCCore_qconv2d_u8s8s32_3x3, with_padding_4_NXC) {
 }
 // top/middle/bottom padding region, left padding only, right padding not being
 // used
-TEST(GCCore_qconv2d_u8s8s32_3x3, with_padding_5_NCX) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, with_padding_5_NCX) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 1, 1, 4, 4, 4, 3, 3, {2, 2},
             {1, 1}, false, true, true, false);
 }
-TEST(GCCore_qconv2d_u8s8s32_3x3, with_padding_5_NXC) {
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, with_padding_5_NXC) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(cfg_fwd, 1, 1, 4, 4, 4, 3, 3, {2, 2},
             {1, 1}, false, true, false, true);
 }
 
-TEST(GCCore_qconv2d_nested_u8s8s32_3x3, rn50_stage1_NCX) {
+TEST(GCCore_CPU_qconv2d_nested_u8s8s32_3x3, rn50_stage1_NCX) {
     REQUIRE_AMX();
     check_netsed_qconv<int8_t, int8_t, int32_t>(nested_conv_fwd_config_t(), 56,
             64, 64, 58, 58, 3, 3, {1, 1}, {0, 0}, false, true, true, false);
 }
 
-TEST(GCCore_qconv2d_nested_u8s8s32_3x3, rn50_stage1_NXC) {
+TEST(GCCore_CPU_qconv2d_nested_u8s8s32_3x3, rn50_stage1_NXC) {
     REQUIRE_AMX();
     check_netsed_qconv<int8_t, int8_t, int32_t>(nested_conv_fwd_config_t(), 56,
             64, 64, 58, 58, 3, 3, {1, 1}, {0, 0}, false, true, false, true);
 }
 
-TEST(GCCore_qconv2d_nested_u8s8s32_3x3, rn50_stage2_NCX) {
+TEST(GCCore_CPU_qconv2d_nested_u8s8s32_3x3, rn50_stage2_NCX) {
     REQUIRE_AMX();
     check_netsed_qconv<int8_t, int8_t, int32_t>(nested_conv_fwd_config_t(), 56,
             128, 128, 30, 30, 3, 3, {1, 1}, {0, 0}, false, true, true, false);
 }
 
-TEST(GCCore_qconv2d_nested_u8s8s32_3x3, rn50_stage2_NXC) {
+TEST(GCCore_CPU_qconv2d_nested_u8s8s32_3x3, rn50_stage2_NXC) {
     REQUIRE_AMX();
     check_netsed_qconv<int8_t, int8_t, int32_t>(nested_conv_fwd_config_t(), 56,
             128, 128, 30, 30, 3, 3, {1, 1}, {0, 0}, false, true, false, true);
 }
 
-TEST(GCCore_qconv2d_nested_u8s8s32_3x3, rn50_stage3_NCX) {
+TEST(GCCore_CPU_qconv2d_nested_u8s8s32_3x3, rn50_stage3_NCX) {
     REQUIRE_AMX();
     check_netsed_qconv<int8_t, int8_t, int32_t>(nested_conv_fwd_config_t(), 56,
             256, 256, 16, 16, 3, 3, {1, 1}, {0, 0}, false, true, true, false);
 }
 
-TEST(GCCore_qconv2d_nested_u8s8s32_3x3, rn50_stage3_NXC) {
+TEST(GCCore_CPU_qconv2d_nested_u8s8s32_3x3, rn50_stage3_NXC) {
     REQUIRE_AMX();
     check_netsed_qconv<int8_t, int8_t, int32_t>(nested_conv_fwd_config_t(), 56,
             256, 256, 16, 16, 3, 3, {1, 1}, {0, 0}, false, true, false, true);
 }
 
-TEST(GCCore_qconv2d_nested_u8s8s32_3x3, rn50_stage4_NCX) {
+TEST(GCCore_CPU_qconv2d_nested_u8s8s32_3x3, rn50_stage4_NCX) {
     REQUIRE_AMX();
     check_netsed_qconv<int8_t, int8_t, int32_t>(nested_conv_fwd_config_t(), 56,
             512, 512, 9, 9, 3, 3, {1, 1}, {0, 0}, false, true, true, false);
 }
 
-TEST(GCCore_qconv2d_nested_u8s8s32_3x3, rn50_stage4_NXC) {
+TEST(GCCore_CPU_qconv2d_nested_u8s8s32_3x3, rn50_stage4_NXC) {
     REQUIRE_AMX();
     check_netsed_qconv<int8_t, int8_t, int32_t>(nested_conv_fwd_config_t(), 56,
             512, 512, 9, 9, 3, 3, {1, 1}, {0, 0}, false, true, false, true);

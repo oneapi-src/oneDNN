@@ -70,7 +70,7 @@ static logical_tensor_t make_tsr(
     return logical_tensor_t(sc_data_format_t(), dims, dtype);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerElemBlock) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerElemBlock) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput = fusion.make<input_op>(make_tsr({100}, datatypes::s32));
@@ -169,7 +169,7 @@ public:
     }
 };
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerBlock) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerBlock) {
     builder::ir_builder_t builder;
     fusion_manager fusion2;
     auto finput = fusion2.make<input_op>(make_tsr({100, 200}, datatypes::s32));
@@ -202,7 +202,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerBlock) {
     EXPECT_TRUE(cmper.compare(aaa, bbb, false));
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerComplex) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerComplex) {
     builder::ir_builder_t builder;
     class testfusion_manager_t : public fusion_manager {
     public:
@@ -320,7 +320,7 @@ public:
     }
 };
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerMultiInput) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerMultiInput) {
     builder::ir_builder_t builder;
     fusion_manager fusion3;
     auto finput0 = fusion3.make<input_op>(make_tsr({100, 200}, datatypes::s32));
@@ -349,7 +349,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerMultiInput) {
     do_commit(fusion3, {aaa->params_[2], aaa->params_[3]}, {});
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestConcatOP) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestConcatOP) {
     REQUIRE_AVX2();
     builder::ir_builder_t builder;
     fusion_manager fusion;
@@ -424,7 +424,7 @@ TEST(GCCore_fuse_mgr_cpp, TestConcatOP) {
     EXPECT_TRUE(cmper.compare(aaa, bbb, false));
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestSplitOP) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestSplitOP) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput = fusion.make<input_op>(make_tsr({100, 200, 10}));
@@ -496,7 +496,7 @@ TEST(GCCore_fuse_mgr_cpp, TestSplitOP) {
 
 #ifdef __AVX512F__
 
-TEST(GCCore_fuse_mgr_cpp, TestLeakyReluOP) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestLeakyReluOP) {
     auto check_leaky_relu = [&](sc_data_type_t type, const int M, const int K,
                                     float alpha) {
         builder::ir_builder_t builder;
@@ -563,7 +563,7 @@ TEST(GCCore_fuse_mgr_cpp, TestLeakyReluOP) {
     check_leaky_relu(datatypes::bf16, 100, 256, 0.5);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestTanhOP) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestTanhOP) {
     auto check_tanh = [&](const int M, const int K) {
         builder::ir_builder_t builder;
         fusion_manager fusion;
@@ -610,7 +610,7 @@ TEST(GCCore_fuse_mgr_cpp, TestTanhOP) {
     check_tanh(100, 256);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestErfOP) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestErfOP) {
     auto check_erf = [&](const int M, const int K) {
         builder::ir_builder_t builder;
         fusion_manager fusion;
@@ -659,7 +659,7 @@ TEST(GCCore_fuse_mgr_cpp, TestErfOP) {
 }
 #endif
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerBroadcast1) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerBroadcast1) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     int bc_block = 64;
@@ -709,7 +709,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerBroadcast1) {
     EXPECT_TRUE(cmper.compare(aaa, bbb, false));
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerBroadcast2) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerBroadcast2) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     int bc_block = 64;
@@ -771,7 +771,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerBroadcast2) {
     EXPECT_TRUE(cmper.compare(aaa, bbb, false));
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerBroadcast3) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerBroadcast3) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     int bc_block = 64;
@@ -820,7 +820,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerBroadcast3) {
     EXPECT_TRUE(cmper.compare(aaa, bbb, false));
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerBroadcast4) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerBroadcast4) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     int bc_block = 64;
@@ -871,7 +871,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerBroadcast4) {
     EXPECT_TRUE(cmper.compare(aaa, bbb, false));
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerVectorizedReLU) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerVectorizedReLU) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput = fusion.make<input_op>(make_tsr({100, 256}));
@@ -909,7 +909,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerVectorizedReLU) {
     CMP_SIMPLIFIED_IR(aaa, bbb);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerExp) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerExp) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput = fusion.make<input_op>(make_tsr({100, 256}));
@@ -944,7 +944,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerExp) {
     CMP_SIMPLIFIED_IR(aaa, bbb);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestSigmoidOP) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestSigmoidOP) {
     REQUIRE_AVX2();
     auto check_sigmoid = [&](const int M, const int K) {
         builder::ir_builder_t builder;
@@ -1002,7 +1002,7 @@ TEST(GCCore_fuse_mgr_cpp, TestSigmoidOP) {
 // #define BENCH_SIGMOID
 
 #ifdef BENCH_SIGMOID
-TEST(GCCore_fuse_mgr_cpp, BenchVectorizedSigmoidOP) {
+TEST(GCCore_CPU_fuse_mgr_cpp, BenchVectorizedSigmoidOP) {
     auto bench_sigmoid = [&](const int M, const int K) {
         builder::ir_builder_t builder;
         fusion_manager fusion;
@@ -1062,7 +1062,7 @@ TEST(GCCore_fuse_mgr_cpp, BenchVectorizedSigmoidOP) {
 //#define BENCH_ROUND
 
 #ifdef BENCH_ROUND
-TEST(GCCore_fuse_mgr_cpp, BenchVectorizedRoundOP) {
+TEST(GCCore_CPU_fuse_mgr_cpp, BenchVectorizedRoundOP) {
     auto bench_round = [&](const int M, const int K) {
         builder::ir_builder_t builder;
         fusion_manager fusion;
@@ -1119,7 +1119,7 @@ TEST(GCCore_fuse_mgr_cpp, BenchVectorizedRoundOP) {
 }
 #endif
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerReduceSum1) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerReduceSum1) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput
@@ -1166,7 +1166,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerReduceSum1) {
     EXPECT_TRUE(cmper.compare(aaa, bbb, false));
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerReduceSum2) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerReduceSum2) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput
@@ -1210,7 +1210,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerReduceSum2) {
     CMP_SIMPLIFIED_IR(aaa, bbb);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerReduceProd) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerReduceProd) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput
@@ -1256,7 +1256,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerReduceProd) {
     EXPECT_TRUE(cmper.compare(aaa, bbb, false));
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerSquaredDiff1) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerSquaredDiff1) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput
@@ -1331,7 +1331,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerSquaredDiff1) {
     CMP_SIMPLIFIED_IR(aaa, bbb);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerSquaredDiff2) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerSquaredDiff2) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput
@@ -1383,7 +1383,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerSquaredDiff2) {
     CMP_SIMPLIFIED_IR(aaa, bbb);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerSquaredRoot1) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerSquaredRoot1) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput
@@ -1425,7 +1425,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerSquaredRoot1) {
     CMP_SIMPLIFIED_IR(aaa, bbb);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerSquaredRoot2) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerSquaredRoot2) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput
@@ -1467,7 +1467,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerSquaredRoot2) {
     CMP_SIMPLIFIED_IR(aaa, bbb);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerCastBF16) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerCastBF16) {
     REQUIRE_AVX512();
     builder::ir_builder_t builder;
     fusion_manager fusion;
@@ -1528,7 +1528,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerCastBF16) {
     }
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerCastU8S8) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerCastU8S8) {
     BUILTIN_REQUIRE_AVX512(); // AVX2 no cast instruction
     builder::ir_builder_t builder;
     fusion_manager fusion;
@@ -1671,7 +1671,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerCastU8S8) {
     }
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerMultiAnchor) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerMultiAnchor) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput
@@ -1778,7 +1778,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerMultiAnchor) {
     CMP_SIMPLIFIED_IR(aaa, bbb);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerMultiAnchorShrink) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerMultiAnchorShrink) {
     sc_graph_t mgr;
     thread_num_reset reseter;
     // set threads envoriment
@@ -1827,7 +1827,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerMultiAnchorShrink) {
     EXPECT_TRUE(dim_eq);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerInnerAnchorElemOp1) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerInnerAnchorElemOp1) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput
@@ -1944,7 +1944,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerInnerAnchorElemOp1) {
 
 // This test shows that Elementwise op will create larger inner anchor when tail
 // computation occurs.
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerInnerAnchorElemOp2) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerInnerAnchorElemOp2) {
     REQUIRE_AVX();
     builder::ir_builder_t builder;
     fusion_manager fusion;
@@ -2107,7 +2107,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerInnerAnchorElemOp2) {
     CMP_SIMPLIFIED_IR(aaa, bbb);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerInnerAnchorReduce1) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerInnerAnchorReduce1) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput
@@ -2207,7 +2207,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerInnerAnchorReduce1) {
 
 // This test shows that reduce op will not generate inner anchor due to
 // performance consideration
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerInnerAnchorReduce2) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerInnerAnchorReduce2) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput
@@ -2321,7 +2321,7 @@ TEST(GCCore_fuse_mgr_cpp, TestFusionManagerInnerAnchorReduce2) {
     CMP_SIMPLIFIED_IR(aaa, bbb);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestBinaryElementwiseOp) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestBinaryElementwiseOp) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput0 = fusion.make<input_op>(make_tsr({100, 200}));
@@ -2375,7 +2375,7 @@ TEST(GCCore_fuse_mgr_cpp, TestBinaryElementwiseOp) {
     CMP_SIMPLIFIED_IR(aaa, bbb);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestReshapeCopyOp) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestReshapeCopyOp) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput0 = fusion.make<input_op>(make_tsr({100, 200}));
@@ -2412,7 +2412,7 @@ TEST(GCCore_fuse_mgr_cpp, TestReshapeCopyOp) {
     EXPECT_TRUE(cmper.compare(aaa, bbb, false));
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestVecterizedClampOP) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestVecterizedClampOP) {
     REQUIRE_AVX2();
     auto check_clamp = [&](const int M, const int K, bool vectorized,
                                const float clamp_min, const float clamp_max) {
@@ -2492,7 +2492,7 @@ public:
     }
 };
 
-TEST(GCCore_fuse_mgr_cpp, TestTensorHintForBufferSchedule1) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestTensorHintForBufferSchedule1) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput0 = fusion.make<input_op>(make_tsr({100, 200}));
@@ -2536,7 +2536,7 @@ TEST(GCCore_fuse_mgr_cpp, TestTensorHintForBufferSchedule1) {
     vis.dispatch(aaa);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestTensorHintForBufferSchedule2) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestTensorHintForBufferSchedule2) {
     // mha training pattern
     builder::ir_builder_t builder;
     fusion_manager fusion;
@@ -2595,7 +2595,7 @@ TEST(GCCore_fuse_mgr_cpp, TestTensorHintForBufferSchedule2) {
     vis.dispatch(aaa);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestVecterizedRoundOP) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestVecterizedRoundOP) {
     REQUIRE_AVX2();
     auto check_round = [&](const int M, const int K) {
         builder::ir_builder_t builder;
@@ -2650,7 +2650,7 @@ TEST(GCCore_fuse_mgr_cpp, TestVecterizedRoundOP) {
 // #define BENCH_CLAMP
 
 #ifdef BENCH_CLAMP
-TEST(GCCore_fuse_mgr_cpp, BenchVectorizedClampOP) {
+TEST(GCCore_CPU_fuse_mgr_cpp, BenchVectorizedClampOP) {
     auto bench_clamp = [&](const int M, const int K, bool vectorized,
                                const float clamp_min, const float clamp_max) {
         builder::ir_builder_t builder;
@@ -2710,7 +2710,7 @@ TEST(GCCore_fuse_mgr_cpp, BenchVectorizedClampOP) {
 
 #endif
 
-TEST(GCCore_fuse_mgr_cpp, TestPreOpFusionUnaryOp) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestPreOpFusionUnaryOp) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     sc_dims arg_dims = {100, 256};
@@ -2769,7 +2769,7 @@ TEST(GCCore_fuse_mgr_cpp, TestPreOpFusionUnaryOp) {
     CMP_SIMPLIFIED_IR(aaa, bbb);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestPreOpFusionBinaryOp) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestPreOpFusionBinaryOp) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     sc_dims arg_dims_1 = {100, 256};
@@ -2830,7 +2830,7 @@ TEST(GCCore_fuse_mgr_cpp, TestPreOpFusionBinaryOp) {
     CMP_SIMPLIFIED_IR(aaa, bbb);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestPreOpFusionBinaryOpWithBroadCast) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestPreOpFusionBinaryOpWithBroadCast) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     sc_dims arg_dims_1 = {100, 256};
@@ -2894,7 +2894,7 @@ TEST(GCCore_fuse_mgr_cpp, TestPreOpFusionBinaryOpWithBroadCast) {
     //     std::cout << cmper;
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestPreOpFusionBroadcastOp) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestPreOpFusionBroadcastOp) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     sc_dims arg_dims_1 = {100, 256};
@@ -2959,7 +2959,7 @@ TEST(GCCore_fuse_mgr_cpp, TestPreOpFusionBroadcastOp) {
     //     std::cout << cmper;
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestPreOpFusionReduceOp) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestPreOpFusionReduceOp) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     auto finput0 = fusion.make<input_op>(make_tsr({16, 16}, datatypes::f32));
@@ -3024,7 +3024,7 @@ TEST(GCCore_fuse_mgr_cpp, TestPreOpFusionReduceOp) {
     EXPECT_TRUE(cmper.compare(aaa, bbb, false));
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestPreOpFusionReduceOpKeepDims) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestPreOpFusionReduceOpKeepDims) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     sc_dims arg_dims_1 = {100, 256};
@@ -3088,7 +3088,7 @@ TEST(GCCore_fuse_mgr_cpp, TestPreOpFusionReduceOpKeepDims) {
     CMP_SIMPLIFIED_IR(aaa, bbb);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestMultiOutputUser) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestMultiOutputUser) {
     builder::ir_builder_t builder;
     fusion_manager fusion;
     sc_dims arg_dims_1 = {100, 256};
@@ -3146,7 +3146,7 @@ TEST(GCCore_fuse_mgr_cpp, TestMultiOutputUser) {
     CMP_SIMPLIFIED_IR(aaa, bbb);
 }
 
-TEST(GCCore_fuse_mgr_cpp, TestFusionManagerDeclareAndShrinkForTensorPtr) {
+TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerDeclareAndShrinkForTensorPtr) {
     sc_graph_t mgr;
     // gemm + exp + reduce fusion pattern
     auto input_A = mgr.make_input({graph_tensor::make({16, 384, 64})});

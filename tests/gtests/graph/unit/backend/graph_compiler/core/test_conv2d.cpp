@@ -347,281 +347,281 @@ void check_conv_correctness_and_tuning_bwd_w(int N, int K, int C, int H, int W,
 }
 
 #define conv_padding_support_NXC 0
-TEST(GCCore_conv1d_fwd_cpp, Test_1DConv_1x1_1_NCX) {
+TEST(GCCore_CPU_conv1d_fwd_cpp, Test_1DConv_1x1_1_NCX) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 1, 16, 16,
             28 * 28, 1, 1, 1, 1, 0, false, false, false, true, true, false);
 }
-TEST(GCCore_conv1d_fwd_cpp, Test_1DConv_1x1_1_NXC) {
+TEST(GCCore_CPU_conv1d_fwd_cpp, Test_1DConv_1x1_1_NXC) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 7, 63 * 8,
             63 * 2, 64 * 64, 1, 1, 1, 1, 0, false, false, false, true, false,
             true);
 }
-TEST(GCCore_conv1d_fwd_cpp, Test_1DConv_1x1_2_NCX) {
+TEST(GCCore_CPU_conv1d_fwd_cpp, Test_1DConv_1x1_2_NCX) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 1, 16, 16,
             28 * 28, 1, 1, 1, 1, 0, false, false, false, true, true, false);
 }
-TEST(GCCore_conv1d_fwd_cpp, Test_1DConv_1x1_2_NXC) {
+TEST(GCCore_CPU_conv1d_fwd_cpp, Test_1DConv_1x1_2_NXC) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 1, 16, 16,
             28 * 28, 1, 1, 1, 1, 0, false, false, false, true, false, true);
 }
-TEST(GCCore_conv1d_fwd_cpp, Test_1DConv_1x1_3_NCX) {
+TEST(GCCore_CPU_conv1d_fwd_cpp, Test_1DConv_1x1_3_NCX) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 28, 16, 16,
             28 * 28, 1, 1, 1, 1, 0, false, false, false, true, true, false);
 }
-TEST(GCCore_conv1d_fwd_cpp, Test_1DConv_1x1_3_NXC) {
+TEST(GCCore_CPU_conv1d_fwd_cpp, Test_1DConv_1x1_3_NXC) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 28, 16, 16,
             28 * 28, 1, 1, 1, 1, 0, false, false, false, true, false, true);
 }
-TEST(GCCore_conv1d_fwd_cpp, Test_1DConv_1x1_4_NCX) {
+TEST(GCCore_CPU_conv1d_fwd_cpp, Test_1DConv_1x1_4_NCX) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 8, 512, 2048, 7,
             7, 1, 1, 1, 0, false, false, false, true, true, false);
 }
-TEST(GCCore_conv1d_fwd_cpp, Test_1DConv_1x1_4_NXC) {
+TEST(GCCore_CPU_conv1d_fwd_cpp, Test_1DConv_1x1_4_NXC) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 8, 512, 2048,
             7 * 7, 1, 1, 1, 1, 0, false, false, false, true, false, true);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_1_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_1_NCX) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 1, 16, 16, 14,
             14, 1, 1, 1, 0, false, false, false, true, true, false);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_1_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_1_NXC) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 1, 16, 16, 14,
             14, 1, 1, 1, 0, false, false, false, true, false, true);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_2_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_2_NCX) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 1, 16, 16, 28,
             28, 3, 3, 1, 0, false, false, false, true, true, false);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_2_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_2_NXC) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 1, 16, 16, 28,
             28, 3, 3, 1, 0, false, false, false, true, false, true);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_3_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_3_NCX) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 1, 16, 16, 28,
             28, 3, 3, 2, 3, false, false, false, true, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_3_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_3_NXC) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 1, 16, 16, 28,
             28, 3, 3, 2, 3, false, false, false, true, false, true);
 }
 #endif
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_4_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_4_NCX) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 1, 16, 16, 28,
             28, 1, 1, {2, 1}, {0, 0}, false, false, false, true, true, false);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_4_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_4_NXC) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 1, 16, 16, 28,
             28, 1, 1, {2, 1}, {0, 0}, false, false, false, true, false, true);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_5_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_5_NCX) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 28, 16, 16, 28,
             28, 3, 3, {1, 1}, {2, 1}, true, true, true, true, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_5_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_5_NXC) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 28, 16, 16, 28,
             28, 3, 3, {1, 1}, {2, 1}, true, true, true, true, false, true);
 }
 #endif
 #ifdef __AVX512F__
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_6_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_6_NCX) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 16, 256, 64, 56,
             56, 1, 1, 1, 0, false, false, false, true, true, false);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_6_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_6_NXC) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 16, 256, 64, 56,
             56, 1, 1, 1, 0, false, false, false, true, false, true);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_7_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_7_NCX) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 16, 512, 128, 28,
             28, 1, 1, 1, 0, false, false, false, true, true, false);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_7_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_7_NXC) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 16, 512, 128, 28,
             28, 1, 1, 1, 0, false, false, false, true, false, true);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_8_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_8_NCX) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 16, 64, 64, 56,
             56, 1, 1, 1, 0, true, true, true, true, true, false);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_8_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_8_NXC) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 16, 64, 64, 56,
             56, 1, 1, 1, 0, true, true, true, true, false, true);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_9_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_9_NCX) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 16, 64, 64, 56,
             56, 1, 1, {1, 1}, {0, 0}, true, true, true, true, true, false);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_9_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_9_NXC) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 16, 64, 64, 56,
             56, 1, 1, {1, 1}, {0, 0}, true, true, true, true, false, true);
 }
 // test asymmetric stride
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_10_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_10_NCX) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 16, 64, 64, 56,
             56, 1, 1, {1, 2}, {0, 0}, true, true, true, true, true, false);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_10_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_10_NXC) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 16, 64, 64, 56,
             56, 1, 1, {1, 2}, {0, 0}, true, true, true, true, false, true);
 }
 // test asymmetric padding
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_11_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_11_NCX) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 16, 64, 64, 56,
             56, 3, 3, {1, 1}, {1, 2}, true, true, true, true, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_11_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_11_NXC) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 16, 64, 64, 56,
             56, 3, 3, {1, 1}, {1, 2}, true, true, true, true, false, true);
 }
 #endif
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_12_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_12_NCX) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 16, 64, 64, 56,
             56, 3, 3, {1, 1}, {1, 0}, true, true, true, true, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_12_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_12_NXC) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 16, 64, 64, 56,
             56, 3, 3, {1, 1}, {1, 0}, true, true, true, true, false, true);
 }
 #endif
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_13_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_13_NCX) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 16, 64, 64, 56,
             56, 3, 3, {1, 1}, {0, 1}, true, true, true, true, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_13_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_13_NXC) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 16, 64, 64, 56,
             56, 3, 3, {1, 1}, {0, 1}, true, true, true, true, false, true);
 }
 #endif
 
 // test asymmetric stride & padding
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_14_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_14_NCX) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 16, 64, 64, 56,
             56, 3, 3, {1, 2}, {2, 1}, true, true, true, true, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_14_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_14_NXC) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 16, 64, 64, 56,
             56, 3, 3, {1, 2}, {2, 1}, true, true, true, true, false, true);
 }
 #endif
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_15_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_15_NCX) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 16, 64, 64, 56,
             56, 3, 3, {1, 2}, {0, 1}, true, true, true, true, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_15_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_15_NXC) {
     check_conv_correctness_and_tuning_fwd(conv_fwd_config_t(), 16, 64, 64, 56,
             56, 3, 3, {1, 2}, {0, 1}, true, true, true, true, false, true);
 }
 #endif
 
 // conv1x1 with given cfg
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_16_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_16_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 28, 128, 64, 56, 56, 1, 1, 1,
             0, false, false, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_16_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_16_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 28, 128, 64, 56, 56, 1, 1, 1,
             0, false, false, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_17_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_17_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 28, 64, 128, 28, 28, 1, 1, 1,
             0, false, false, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_17_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_17_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 28, 64, 128, 28, 28, 1, 1, 1,
             0, false, false, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_18_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_18_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 1, 128, 128, 28, 28, 1, 1, 1,
             0, false, false, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_18_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_18_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 1, 128, 128, 28, 28, 1, 1, 1,
             0, false, false, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_19_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_19_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 28, 128, 128, 56, 56, 1, 1,
             2, 0, false, false, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_19_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_19_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 28, 128, 128, 56, 56, 1, 1,
             2, 0, false, false, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_20_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_20_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 1, 64, 64, 56, 56, 1, 1, 1,
             0, false, false, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_20_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_20_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 1, 64, 64, 56, 56, 1, 1, 1,
             0, false, false, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_21_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_21_NCX) {
     check_conv_correctness_and_tuning_fwd({64, 32, 1, 7, 28, 28, 0, 4}, 28, 128,
             64, 28, 28, 1, 1, 1, 0, false, false, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_21_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_21_NXC) {
     check_conv_correctness_and_tuning_fwd({64, 32, 1, 7, 28, 28, 0, 4}, 28, 128,
             64, 28, 28, 1, 1, 1, 0, false, false, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_22_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_22_NCX) {
     check_conv_correctness_and_tuning_fwd({64, 32, 1, 7, 28, 28, 0, 5}, 28, 128,
             64, 28, 28, 1, 1, 1, 0, false, false, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_1x1_22_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_1x1_22_NXC) {
     check_conv_correctness_and_tuning_fwd({64, 32, 1, 7, 28, 28, 0, 5}, 28, 128,
             64, 28, 28, 1, 1, 1, 0, false, false, false, false, false, true);
 }
 #endif
 
 // conv1x1 with bias
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_1x1_1_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_1x1_1_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 28, 128, 64, 56, 56, 1, 1, 1,
             0, true, false, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_1x1_1_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_1x1_1_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 28, 128, 64, 56, 56, 1, 1, 1,
             0, true, false, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_1x1_2_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_1x1_2_NCX) {
     check_conv_correctness_and_tuning_fwd({3, 1, 1, 4, 4, 4, 1, 1}, 28, 3, 16,
             28, 28, 1, 1, 1, 0, true, false, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_1x1_2_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_1x1_2_NXC) {
     check_conv_correctness_and_tuning_fwd({3, 1, 1, 4, 4, 4, 1, 1}, 28, 3, 16,
             28, 28, 1, 1, 1, 0, true, false, false, false, false, true);
 }
 
 #ifdef __AVX512F__
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_1x1_3_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_1x1_3_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 28, 64, 32, 56, 56, 1, 1, 2,
             0, true, false, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_1x1_3_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_1x1_3_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 28, 64, 32, 56, 56, 1, 1, 2,
             0, true, false, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_1x1_4_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_1x1_4_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 28, 512, 128, 28, 28, 1, 1,
             1, 0, true, false, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_1x1_4_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_1x1_4_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 28, 512, 128, 28, 28, 1, 1,
             1, 0, true, false, false, false, false, true);
 }
 // conv1x1 with bias with given cfg
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_1x1_5_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_1x1_5_NCX) {
     check_conv_correctness_and_tuning_fwd({32, 32, 1, 7, 28, 28, 0, 4}, 28, 64,
             32, 28, 28, 1, 1, 1, 0, true, false, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_1x1_5_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_1x1_5_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd({32, 32, 1, 7, 28, 28, 0, 4}, 28, 64,
             32, 28, 28, 1, 1, 1, 0, true, false, false, false, false, true);
@@ -631,129 +631,129 @@ TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_1x1_5_NXC) {
 #define conv_padding_support_NXC 0
 
 // conv3x3
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_1_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_1_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 28, 28, 3, 3,
             1, 0, false, false, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_1_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_1_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 28, 28, 3, 3,
             1, 0, false, false, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_2_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_2_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 128, 28, 28, 3, 3,
             2, 0, false, false, false, false, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_2_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_2_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 128, 28, 28, 3, 3,
             2, 0, false, false, false, false, false, true);
 }
 #endif
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_3_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_3_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 64, 64, 56, 56, 3, 3,
             1, 1, false, false, false, false, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_3_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_3_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 64, 64, 56, 56, 3, 3,
             1, 1, false, false, false, false, false, true);
 }
 #endif
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_4_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_4_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 128, 64, 14, 14, 3,
             3, 2, 1, false, false, false, false, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_4_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_4_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 128, 64, 14, 14, 3,
             3, 2, 1, false, false, false, false, false, true);
 }
 #endif
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_large_pad) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_large_pad) {
     check_conv_correctness_and_tuning_fwd(
             {16, 17, 1, 1, 1, -1, -1, 3}, 1, 16, 17, 27, 27, 3, 3, 1, 4);
 }
 
 #ifdef __AVX512F__
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_5_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_5_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 64, 128, 14, 14, 3,
             3, 1, 0, false, false, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_5_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_5_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 64, 128, 14, 14, 3,
             3, 1, 0, false, false, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_6_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_6_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 128, 64, 28, 28, 3,
             3, 1, 1, false, false, false, false, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_6_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_6_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 128, 64, 28, 28, 3,
             3, 1, 1, false, false, false, false, false, true);
 }
 #endif
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_7_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_7_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 56, 56, 3, 3,
             1, 1, false, false, false, false, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_7_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_7_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 56, 56, 3, 3,
             1, 1, false, false, false, false, false, true);
 }
 #endif
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_8_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_8_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 64, 128, 14, 14, 3,
             3, 1, 1, false, false, false, false, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_8_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_8_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 64, 128, 14, 14, 3,
             3, 1, 1, false, false, false, false, false, true);
 }
 #endif
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_9_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_9_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 64, 64, 28, 28, 3, 3,
             1, 3, false, false, false, false, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_9_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_9_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 64, 64, 28, 28, 3, 3,
             1, 3, false, false, false, false, false, true);
 }
 #endif
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_10_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_10_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 56, 56, 3, 3,
             2, 2, false, false, false, false, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_10_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_10_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 56, 56, 3, 3,
             2, 2, false, false, false, false, false, true);
 }
 #endif
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_11_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_11_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 28, 28, 3, 3,
             2, 3, false, false, false, false, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_11_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_11_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 28, 28, 3, 3,
             2, 3, false, false, false, false, false, true);
 }
 #endif
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_12_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_12_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 128, 256, 56, 56, 3,
             3, 2, 1, false, false, false, false, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_12_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_12_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 128, 256, 56, 56, 3,
             3, 2, 1, false, false, false, false, false, true);
 }
 #endif
-TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_with_dilation) {
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_with_dilation) {
     std::vector<std::vector<int>> workload_list = {
             // prepadding
             {1, 256, 960, 38, 38, 12, 1, 0}, // deeplabv3_mobilenet
@@ -791,67 +791,67 @@ TEST(GCCore_conv2d_fwd_cpp, Test_2DConv_3x3_with_dilation) {
 #endif
 
 // conv3x3 with bias
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_3x3_1_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_3x3_1_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 56, 56, 3, 3,
             1, 0, true, false, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_3x3_1_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_3x3_1_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 56, 56, 3, 3,
             1, 0, true, false, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_3x3_2_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_3x3_2_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 128, 64, 28, 28, 3,
             3, 1, 1, true, false, false, false, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_3x3_2_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_3x3_2_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 128, 64, 28, 28, 3,
             3, 1, 1, true, false, false, false, false, true);
 }
 #endif
 
 #ifdef __AVX512F__
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_3x3_3_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_3x3_3_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 64, 128, 56, 56, 3,
             3, 1, 0, true, false, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_3x3_3_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_3x3_3_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 64, 128, 56, 56, 3,
             3, 1, 0, true, false, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_3x3_4_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_3x3_4_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 128, 28, 28, 3, 3,
             3, 0, true, false, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_3x3_4_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_3x3_4_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 128, 28, 28, 3, 3,
             3, 0, true, false, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_3x3_5_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_3x3_5_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 56, 56, 3, 3,
             2, 2, true, false, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_3x3_5_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_3x3_5_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 56, 56, 3, 3,
             2, 2, true, false, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_3x3_6_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_3x3_6_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 28, 28, 3, 3,
             2, 3, true, false, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_3x3_6_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_3x3_6_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 28, 28, 3, 3,
             2, 3, true, false, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_3x3_7_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_3x3_7_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 128, 64, 56, 56, 3,
             3, 2, 1, true, false, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_3x3_7_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_cpp, Test_2DConv_3x3_7_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 128, 64, 56, 56, 3,
             3, 2, 1, true, false, false, false, false, true);
@@ -859,121 +859,121 @@ TEST(GCCore_conv2d_fwd_bias_cpp, Test_2DConv_3x3_7_NXC) {
 #endif
 
 // conv with bias/bn/relu
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_1_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_1_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 28, 64, 64, 56, 56, 1, 1, 1,
             0, true, true, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_1_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_1_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 28, 64, 64, 56, 56, 1, 1, 1,
             0, true, true, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_2_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_2_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 64, 64, 56, 56, 3, 3,
             2, 1, true, true, false, false, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_2_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_2_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 64, 64, 56, 56, 3, 3,
             2, 1, true, true, false, false, false, true);
 }
 #endif
 
 #ifdef __AVX512F__
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_3_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_3_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 28, 64, 32, 56, 56, 1, 1, 2,
             0, true, true, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_3_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_3_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 28, 64, 32, 56, 56, 1, 1, 2,
             0, true, true, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_4_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_4_NCX) {
     check_conv_correctness_and_tuning_fwd({3, 1, 1, 4, 4, 4, 1, 1}, 28, 3, 16,
             28, 28, 1, 1, 1, 0, true, true, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_4_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_4_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd({3, 1, 1, 4, 4, 4, 1, 1}, 28, 3, 16,
             28, 28, 1, 1, 1, 0, true, true, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_5_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_5_NCX) {
     check_conv_correctness_and_tuning_fwd({32, 32, 1, 7, 28, 28, 0, 4}, 1, 64,
             32, 28, 28, 1, 1, 1, 0, true, true, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_5_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_5_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd({32, 32, 1, 7, 28, 28, 0, 4}, 1, 64,
             32, 28, 28, 1, 1, 1, 0, true, true, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_6_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_6_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 56, 56, 3, 3,
             1, 0, true, true, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_6_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_6_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 56, 56, 3, 3,
             1, 0, true, true, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_7_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_7_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 64, 64, 28, 28, 3, 3,
             1, 0, true, true, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_7_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_7_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 64, 64, 28, 28, 3, 3,
             1, 0, true, true, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_8_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_8_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 128, 28, 28, 3, 3,
             2, 0, true, true, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_8_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_8_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 128, 28, 28, 3, 3,
             2, 0, true, true, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_9_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_9_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 128, 64, 28, 28, 3,
             3, 1, 1, true, true, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_9_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_9_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 128, 64, 28, 28, 3,
             3, 1, 1, true, true, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_10_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_10_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 56, 56, 3, 3,
             2, 2, true, true, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_10_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_10_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 56, 56, 3, 3,
             2, 2, true, true, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_11_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_11_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 28, 28, 3, 3,
             2, 3, true, true, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_11_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_11_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 28, 28, 3, 3,
             2, 3, true, true, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_12_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_12_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 64, 64, 28, 28, 3, 3,
             1, 3, true, true, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_12_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_12_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 64, 64, 28, 28, 3, 3,
             1, 3, true, true, false, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_13_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_13_NCX) {
     check_conv_correctness_and_tuning_fwd({3, 1, 1, 2, 2, 2, 1, 1}, 28, 3, 16,
             28, 28, 3, 3, 1, 1, true, true, false, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_13_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_13_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd({3, 1, 1, 2, 2, 2, 1, 1}, 28, 3, 16,
             28, 28, 3, 3, 1, 1, true, true, false, false, false, true);
@@ -982,211 +982,211 @@ TEST(GCCore_conv2d_fwd_bias_bn_relu_cpp, Test_2DConv_13_NXC) {
 
 #define conv_padding_support_NXC 0
 // conv with bias/bn/relu/eltwise-add
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_1_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_1_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 28, 128, 128, 56, 56, 1, 1,
             2, 0, true, true, true, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_1_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_1_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 28, 128, 128, 56, 56, 1, 1,
             2, 0, true, true, true, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_2_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_2_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 56, 56, 3, 3,
             1, 0, true, true, true, false, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_2_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_2_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 56, 56, 3, 3,
             1, 0, true, true, true, false, false, true);
 }
 #endif
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_3_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_3_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 128, 64, 56, 56, 3,
             3, 2, 1, true, true, true, false, true, false);
 }
 #if conv_padding_support_NXC
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_3_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_3_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 128, 64, 56, 56, 3,
             3, 2, 1, true, true, true, false, false, true);
 }
 #endif
 
 #ifdef __AVX512F__
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_4_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_4_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 28, 64, 64, 56, 56, 1, 1, 1,
             0, true, true, true, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_4_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_4_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 28, 64, 64, 56, 56, 1, 1, 1,
             0, true, true, true, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_5_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_5_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 1, 64, 64, 56, 56, 1, 1, 1,
             0, true, true, true, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_5_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_5_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd, 1, 64, 64, 56, 56, 1, 1, 1,
             0, true, true, true, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_6_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_6_NCX) {
     check_conv_correctness_and_tuning_fwd({3, 1, 1, 4, 4, 4, 1, 1}, 28, 3, 16,
             28, 28, 1, 1, 1, 0, true, true, true, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_6_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_6_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd({3, 1, 1, 4, 4, 4, 1, 1}, 28, 3, 16,
             28, 28, 1, 1, 1, 0, true, true, true, false, false, true);
 }
 
 // conv3x3 with bias/bn/relu/eltwise-add
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_7_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_7_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 64, 64, 28, 28, 3, 3,
             1, 0, true, true, true, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_7_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_7_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 64, 64, 28, 28, 3, 3,
             1, 0, true, true, true, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_8_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_8_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 128, 28, 28, 3, 3,
             3, 0, true, true, true, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_8_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_8_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 128, 28, 28, 3, 3,
             3, 0, true, true, true, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_9_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_9_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 128, 64, 28, 28, 3,
             3, 1, 1, true, true, true, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_9_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_9_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 128, 64, 28, 28, 3,
             3, 1, 1, true, true, true, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_10_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_10_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 56, 56, 3, 3,
             2, 2, true, true, true, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_10_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_10_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 56, 56, 3, 3,
             2, 2, true, true, true, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_11_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_11_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 28, 28, 3, 3,
             2, 3, true, true, true, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_11_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_11_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 28, 28, 3, 3,
             2, 3, true, true, true, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_12_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_12_NCX) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 64, 64, 28, 28, 3, 3,
             1, 3, true, true, true, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_12_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_12_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 64, 64, 28, 28, 3, 3,
             1, 3, true, true, true, false, false, true);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_13_NCX) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_13_NCX) {
     check_conv_correctness_and_tuning_fwd({3, 1, 1, 2, 2, 2, 1, 1}, 28, 3, 16,
             28, 28, 3, 3, 1, 1, true, true, true, false, true, false);
 }
-TEST(GCCore_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_13_NXC) {
+TEST(GCCore_CPU_conv2d_fwd_bias_bn_relu_eleadd_cpp, Test_2DConv_13_NXC) {
     GTEST_SKIP();
     check_conv_correctness_and_tuning_fwd({3, 1, 1, 2, 2, 2, 1, 1}, 28, 3, 16,
             28, 28, 3, 3, 1, 1, true, true, true, false, false, true);
 }
 #endif
 
-TEST(GCCore_conv2d_bwd_d_cpp, TestCONV2D_1x1_1) {
+TEST(GCCore_CPU_conv2d_bwd_d_cpp, TestCONV2D_1x1_1) {
     check_conv_correctness_and_tuning_bwd_d(28, 256, 128, 28, 28, 1, 1, 1, 0);
 }
-TEST(GCCore_conv2d_bwd_d_cpp, TestCONV2D_1x1_2) {
+TEST(GCCore_CPU_conv2d_bwd_d_cpp, TestCONV2D_1x1_2) {
     check_conv_correctness_and_tuning_bwd_d(28, 256, 128, 28, 28, 1, 1, 2, 0);
 }
-TEST(GCCore_conv2d_bwd_d_cpp, TestCONV2D_1x1_3) {
+TEST(GCCore_CPU_conv2d_bwd_d_cpp, TestCONV2D_1x1_3) {
     check_conv_correctness_and_tuning_bwd_d(28, 256, 128, 112, 112, 1, 1, 1, 1);
 }
-TEST(GCCore_conv2d_bwd_d_cpp, TestCONV2D_1x1_4) {
+TEST(GCCore_CPU_conv2d_bwd_d_cpp, TestCONV2D_1x1_4) {
     check_conv_correctness_and_tuning_bwd_d(28, 64, 64, 56, 56, 1, 1, 1, 2);
 }
 
-TEST(GCCore_conv2d_bwd_d_cpp, TestCONV2D_3x3_1) {
+TEST(GCCore_CPU_conv2d_bwd_d_cpp, TestCONV2D_3x3_1) {
     check_conv_correctness_and_tuning_bwd_d(28, 256, 128, 28, 28, 3, 3, 1, 0);
 }
-TEST(GCCore_conv2d_bwd_d_cpp, TestCONV2D_3x3_2) {
+TEST(GCCore_CPU_conv2d_bwd_d_cpp, TestCONV2D_3x3_2) {
     check_conv_correctness_and_tuning_bwd_d(28, 256, 128, 28, 28, 3, 3, 2, 0);
 }
-TEST(GCCore_conv2d_bwd_d_cpp, TestCONV2D_3x3_3) {
+TEST(GCCore_CPU_conv2d_bwd_d_cpp, TestCONV2D_3x3_3) {
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(28);
     check_conv_correctness_and_tuning_bwd_d(28, 256, 128, 28, 28, 3, 3, 1, 1);
 }
-TEST(GCCore_conv2d_bwd_d_cpp, TestCONV2D_3x3_4) {
+TEST(GCCore_CPU_conv2d_bwd_d_cpp, TestCONV2D_3x3_4) {
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(28);
     check_conv_correctness_and_tuning_bwd_d(28, 64, 64, 28, 28, 3, 3, 2, 1);
 }
 
-TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_1x1_1) {
+TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_1x1_1) {
     check_conv_correctness_and_tuning_bwd_w(28, 256, 128, 28, 28, 1, 1, 1, 0);
 }
-TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_1x1_2) {
+TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_1x1_2) {
     check_conv_correctness_and_tuning_bwd_w(28, 256, 128, 28, 28, 1, 1, 2, 0);
 }
-TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_1x1_3) {
+TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_1x1_3) {
     check_conv_correctness_and_tuning_bwd_w(28, 256, 128, 28, 28, 1, 1, 1, 1);
 }
-TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_1x1_4) {
+TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_1x1_4) {
     check_conv_correctness_and_tuning_bwd_w(28, 64, 64, 56, 56, 1, 1, 1, 2);
 }
-TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_1x1_5) {
+TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_1x1_5) {
     REQUIRE_BF16();
     check_conv_correctness_and_tuning_bwd_w(
             1, 64, 64, 56, 56, 1, 1, 1, 0, datatypes::bf16);
 }
-TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_1x1_6) {
+TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_1x1_6) {
     REQUIRE_BF16();
     check_conv_correctness_and_tuning_bwd_w(
             1, 64, 64, 56, 56, 1, 1, 2, 0, datatypes::bf16);
 }
 
-TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_3x3_1) {
+TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_3x3_1) {
     check_conv_correctness_and_tuning_bwd_w(28, 256, 128, 28, 28, 3, 3, 1, 0);
 }
-TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_3x3_2) {
+TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_3x3_2) {
     check_conv_correctness_and_tuning_bwd_w(28, 256, 128, 28, 28, 3, 3, 2, 0);
 }
-TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_3x3_3) {
+TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_3x3_3) {
     check_conv_correctness_and_tuning_bwd_w(28, 256, 128, 28, 28, 3, 3, 1, 1);
 }
-TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_3x3_4) {
+TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_3x3_4) {
     check_conv_correctness_and_tuning_bwd_w(28, 64, 64, 56, 56, 3, 3, 2, 1);
 }
-TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_3x3_5) {
+TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_3x3_5) {
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(28);
     check_conv_correctness_and_tuning_bwd_w(32, 32, 32, 28, 28, 3, 3, 1, 1);
 }
-TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_3x3_6) {
+TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_3x3_6) {
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(28);
     check_conv_correctness_and_tuning_bwd_w(32, 32, 32, 56, 56, 3, 3, 2, 1);
 }
-TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_3x3_7) {
+TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_3x3_7) {
     REQUIRE_BF16();
     check_conv_correctness_and_tuning_bwd_w(
             1, 64, 64, 56, 56, 3, 3, 1, 1, datatypes::bf16);
 }
-TEST(GCCore_conv2d_bwd_w_cpp, TestCONV2D_3x3_8) {
+TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_3x3_8) {
     REQUIRE_BF16();
     check_conv_correctness_and_tuning_bwd_w(
             1, 64, 64, 56, 56, 3, 3, 2, 1, datatypes::bf16);

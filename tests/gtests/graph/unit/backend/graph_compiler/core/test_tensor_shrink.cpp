@@ -23,7 +23,7 @@
 #include <compiler/ir/transform/tensor_shrink.hpp>
 
 using namespace dnnl::impl::graph::gc;
-TEST(GCCore_tensor_shrink_cpp, TestTensorShrink) {
+TEST(GCCore_CPU_tensor_shrink_cpp, TestTensorShrink) {
     builder::ir_builder_t builder;
     builder.push_scope();
     {
@@ -79,7 +79,7 @@ TEST(GCCore_tensor_shrink_cpp, TestTensorShrink) {
     EXPECT_TRUE(cmper.compare(after_body, expected));
 }
 
-TEST(GCCore_tensor_shrink_cpp, TestTensorShrinkUnroll) {
+TEST(GCCore_CPU_tensor_shrink_cpp, TestTensorShrinkUnroll) {
     builder::ir_builder_t builder;
     for_loop loop;
     builder.push_scope();
@@ -122,7 +122,7 @@ TEST(GCCore_tensor_shrink_cpp, TestTensorShrinkUnroll) {
     EXPECT_TRUE(cmper.compare(after_body, expectedbody));
 }
 
-TEST(GCCore_tensor_shrink_cpp, TestTensorShrinkFail) {
+TEST(GCCore_CPU_tensor_shrink_cpp, TestTensorShrinkFail) {
     builder::ir_builder_t builder;
     builder.push_scope();
     {
@@ -188,7 +188,7 @@ TEST(GCCore_tensor_shrink_cpp, TestTensorShrinkFail) {
     EXPECT_SC_ERROR(pass(body), "And it should be a local tensor");
 }
 
-TEST(GCCore_tensor_shrink_cpp, TestTensorShrinkBRGEMM) {
+TEST(GCCore_CPU_tensor_shrink_cpp, TestTensorShrinkBRGEMM) {
     builder::ir_builder_t builder;
     for_loop loop;
     builder.push_scope();

@@ -23,7 +23,7 @@
 #include <ops/fusible/unary_elemwise.hpp>
 
 using namespace dnnl::impl::graph::gc;
-TEST(GCCore_graph_inplace_transform_cpp, TestInputOutputInplacement1) {
+TEST(GCCore_CPU_graph_inplace_transform_cpp, TestInputOutputInplacement1) {
     auto graph = sc_graph_t();
     auto inp = graph.make_input({graph_tensor::make(
             {2, 64, 128}, sc_data_format_t(format_kinds::ABC))});
@@ -40,7 +40,7 @@ TEST(GCCore_graph_inplace_transform_cpp, TestInputOutputInplacement1) {
     EXPECT_EQ(ss.str(), expected);
 }
 
-TEST(GCCore_graph_inplace_transform_cpp, TestInputOutputInplacement2) {
+TEST(GCCore_CPU_graph_inplace_transform_cpp, TestInputOutputInplacement2) {
     auto graph = sc_graph_t();
     auto inp = graph.make_input({graph_tensor::make(
             {2, 64, 128}, sc_data_format_t(format_kinds::ABC))});
@@ -60,7 +60,7 @@ TEST(GCCore_graph_inplace_transform_cpp, TestInputOutputInplacement2) {
     EXPECT_EQ(ss.str(), expected);
 }
 
-TEST(GCCore_graph_inplace_transform_cpp, TestInputOutputInplacement3) {
+TEST(GCCore_CPU_graph_inplace_transform_cpp, TestInputOutputInplacement3) {
     auto graph = sc_graph_t();
     auto inp = graph.make_input({graph_tensor::make(
             {2, 64, 128}, sc_data_format_t(format_kinds::ABC))});
@@ -102,7 +102,7 @@ TEST(GCCore_graph_inplace_transform_cpp, TestInputOutputInplacement3) {
     EXPECT_EQ(ss.str(), expected);
 }
 
-TEST(GCCore_graph_inplace_transform_cpp, TestMultiOutputInplacement1) {
+TEST(GCCore_CPU_graph_inplace_transform_cpp, TestMultiOutputInplacement1) {
     auto graph = sc_graph_t();
     auto inp = graph.make_input({graph_tensor::make(
             {2, 64, 128}, sc_data_format_t(format_kinds::ABC))});
@@ -125,7 +125,7 @@ TEST(GCCore_graph_inplace_transform_cpp, TestMultiOutputInplacement1) {
     EXPECT_EQ(ss.str(), expected);
 }
 
-TEST(GCCore_graph_inplace_transform_cpp, TestRedudantCopy1) {
+TEST(GCCore_CPU_graph_inplace_transform_cpp, TestRedudantCopy1) {
     auto graph = sc_graph_t();
     auto inp = graph.make_input({graph_tensor::make(
             {2, 64, 128}, sc_data_format_t(format_kinds::ABC))});
@@ -146,7 +146,7 @@ TEST(GCCore_graph_inplace_transform_cpp, TestRedudantCopy1) {
     EXPECT_EQ(ss.str(), expected);
 }
 
-TEST(GCCore_graph_inplace_transform_cpp, TestRedudantCopy2) {
+TEST(GCCore_CPU_graph_inplace_transform_cpp, TestRedudantCopy2) {
     auto graph = sc_graph_t();
     auto inp = graph.make_input({graph_tensor::make(
             {2, 64, 128}, sc_data_format_t(format_kinds::ABC))});
@@ -183,7 +183,7 @@ TEST(GCCore_graph_inplace_transform_cpp, TestRedudantCopy2) {
     EXPECT_EQ(ss.str(), expected);
 }
 
-TEST(GCCore_graph_inplace_transform_cpp, TestRedudantCopy3) {
+TEST(GCCore_CPU_graph_inplace_transform_cpp, TestRedudantCopy3) {
     auto graph = sc_graph_t();
     auto inp = graph.make_input({graph_tensor::make(
             {2, 64, 128}, sc_data_format_t(format_kinds::ABC))});
@@ -232,7 +232,7 @@ TEST(GCCore_graph_inplace_transform_cpp, TestRedudantCopy3) {
     EXPECT_EQ(ss.str(), expected);
 }
 
-TEST(GCCore_graph_inplace_transform_cpp, TestBatchNormNoCopy) {
+TEST(GCCore_CPU_graph_inplace_transform_cpp, TestBatchNormNoCopy) {
     auto graph = sc_graph_t();
     sc_dims input_dims {64, 32, 32, 16};
     int channel_axis = 3;
@@ -268,7 +268,7 @@ TEST(GCCore_graph_inplace_transform_cpp, TestBatchNormNoCopy) {
     EXPECT_EQ(reorder_count, 0);
 }
 
-TEST(GCCore_graph_inplace_transform_cpp, TestBatchNormCopy) {
+TEST(GCCore_CPU_graph_inplace_transform_cpp, TestBatchNormCopy) {
     auto graph = sc_graph_t();
     sc_dims input_dims {64, 32, 32, 16};
     int channel_axis = 3;

@@ -27,7 +27,7 @@
 using namespace dnnl::impl::graph::gc;
 constexpr auto f32 = datatypes::f32;
 
-TEST(GCCore_commit_op, TestCommitOP) {
+TEST(GCCore_CPU_commit_op, TestCommitOP) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, ccc, _arg_("A", f32, {512, 1024}),
             _arg_("B", f32, {32, 128, 16, 16}),

@@ -35,7 +35,7 @@ static context_ptr get_ctx() {
     return ret;
 }
 
-TEST(GCCore_codegenc_cpp, TestCodegenC) {
+TEST(GCCore_CPU_codegenc_cpp, TestCodegenC) {
     REQUIRE_PARALLEL();
     builder::ir_builder_t builder;
     const int shape1 = 128;
@@ -319,7 +319,7 @@ alignas(64) uint8_t aaa_data[40512] = {)";
     EXPECT_TRUE(utils::string_startswith(data_source.str(), expected_data));
 }
 
-TEST(GCCore_codegenc_cpp, TestCodegenCParallelFor) {
+TEST(GCCore_CPU_codegenc_cpp, TestCodegenCParallelFor) {
     REQUIRE_PARALLEL();
     builder::ir_builder_t builder;
     const int shape1 = 128;
@@ -430,7 +430,7 @@ static void aaa0_closure_1_0wrapper(void* __stream, int8_t* __restrict__ __modul
     EXPECT_EQ(ss.str(), expected1);
 }
 
-TEST(GCCore_codegenc_cpp, TestCodegenCVector) {
+TEST(GCCore_CPU_codegenc_cpp, TestCodegenCVector) {
     builder::ir_builder_t builder;
     std::stringstream ss;
     auto cgen = create_c_generator(ss, get_ctx(), true);
@@ -482,7 +482,7 @@ extern "C" void aaa_0wrapper(void* __stream, int8_t* __restrict__ __module_data,
     EXPECT_EQ(ss.str(), expected1);
 }
 
-TEST(GCCore_codegenc_cpp, TestCodegenCGenericVal) {
+TEST(GCCore_CPU_codegenc_cpp, TestCodegenCGenericVal) {
     builder::ir_builder_t builder;
     std::stringstream ss;
     auto cgen = create_c_generator(ss, get_ctx(), false);
@@ -515,7 +515,7 @@ extern "C" int32_t aaa(void* __stream, int8_t* __restrict__ __module_data) noexc
     EXPECT_EQ(ss.str(), expected1);
 }
 
-TEST(GCCore_codegenc_cpp, TestCodegenCCondition) {
+TEST(GCCore_CPU_codegenc_cpp, TestCodegenCCondition) {
     builder::ir_builder_t builder;
     std::stringstream ss;
     auto cgen = create_c_generator(ss, get_ctx(), true);
@@ -553,7 +553,7 @@ extern "C" void bbb_0wrapper(void* __stream, int8_t* __restrict__ __module_data,
     EXPECT_EQ(ss.str(), expected1);
 }
 
-TEST(GCCore_codegenc_cpp, TestCodegenCGlobalTensor) {
+TEST(GCCore_CPU_codegenc_cpp, TestCodegenCGlobalTensor) {
     builder::ir_builder_t builder;
     std::stringstream ss;
     auto m = std::make_shared<ir_module_t>(get_ctx());

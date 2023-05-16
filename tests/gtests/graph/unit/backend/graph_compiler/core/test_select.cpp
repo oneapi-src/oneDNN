@@ -253,7 +253,7 @@ static void check_distill_bert_mha(const sc_dims &feature_plain_dims,
     fptr->call_generic_default(gargs.data());
 }
 
-TEST(GCCore_select_test, TestCorrectnessNonBlocking) {
+TEST(GCCore_CPU_select_test, TestCorrectnessNonBlocking) {
     check_select_correctness({1}, {2, 128, 16, 68}, {1},
             sc_data_format_t(format_kinds::A),
             sc_data_format_t(format_kinds::ABCD),
@@ -318,7 +318,7 @@ TEST(GCCore_select_test, TestCorrectnessNonBlocking) {
             sc_data_format_t(format_kinds::ABCD));
 }
 
-TEST(GCCore_select_test, TestCorrectnessSingleSideBlockingThen) {
+TEST(GCCore_CPU_select_test, TestCorrectnessSingleSideBlockingThen) {
     check_select_correctness({64}, {2, 128, 16, 64}, {1},
             sc_data_format_t(format_kinds::A),
             sc_data_format_t(format_kinds::ABCDcd, {4, 16}),
@@ -357,7 +357,7 @@ TEST(GCCore_select_test, TestCorrectnessSingleSideBlockingThen) {
             sc_data_format_t(format_kinds::A));
 }
 
-TEST(GCCore_select_test, TestCorrectnessSingleSideBlockingCond) {
+TEST(GCCore_CPU_select_test, TestCorrectnessSingleSideBlockingCond) {
     check_select_correctness({16, 64}, {2, 128, 16, 64}, {1},
             sc_data_format_t(format_kinds::ABab, {4, 16}),
             sc_data_format_t(format_kinds::ACBD),
@@ -372,7 +372,7 @@ TEST(GCCore_select_test, TestCorrectnessSingleSideBlockingCond) {
             sc_data_format_t(format_kinds::A));
 }
 
-TEST(GCCore_select_test, TestCorrectnessBlocking) {
+TEST(GCCore_CPU_select_test, TestCorrectnessBlocking) {
     check_select_correctness({16, 64}, {2, 128, 16, 64}, {1},
             sc_data_format_t(format_kinds::ABab, {4, 16}),
             sc_data_format_t(format_kinds::ACBDcd, {4, 16}),
@@ -395,7 +395,7 @@ TEST(GCCore_select_test, TestCorrectnessBlocking) {
             sc_data_format_t(format_kinds::A));
 }
 
-TEST(GCCore_distill_bert_test, TestFuntionality) {
+TEST(GCCore_CPU_distill_bert_test, TestFuntionality) {
     check_distill_bert_mha({205, 12, 132, 64}, {205, 12, 64, 132},
             {205, 1, 1, 132}, {1}, {205, 12, 132, 64},
             sc_data_format_t(format_kinds::ACBD),

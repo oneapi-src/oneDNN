@@ -60,7 +60,7 @@ static constexpr uint64_t ABCD = format_kinds::ABCD;
 static constexpr uint64_t ACBDcd = format_kinds::ACBDcd;
 static constexpr uint64_t ACBDdc = format_kinds::ACBDdc;
 
-TEST(GCCore_runtime_data_format, Benchmark) {
+TEST(GCCore_CPU_runtime_data_format, Benchmark) {
     using namespace runtime;
     struct block_compute {
         static uint64_t call(uint64_t *args, uint64_t v) {
@@ -181,7 +181,7 @@ TEST(GCCore_runtime_data_format, Benchmark) {
 #endif
 }
 
-TEST(GCCore_runtime_data_format, TestDataFormat) {
+TEST(GCCore_CPU_runtime_data_format, TestDataFormat) {
     runtime::dispatch_key a(0);
     a.impl_alg_ = 1;
     a.block_idx1_ = 2;
@@ -195,7 +195,7 @@ TEST(GCCore_runtime_data_format, TestDataFormat) {
     EXPECT_EQ(a.format_kind_, 1234UL);
 }
 
-TEST(GCCore_runtime_data_format, TestDataFormatConvert) {
+TEST(GCCore_CPU_runtime_data_format, TestDataFormatConvert) {
     sc_data_format_t fmt = sc_data_format_t::MKmk(16, 32);
     runtime::dispatch_key rfmt = fmt.to_runtime();
 
@@ -222,7 +222,7 @@ TEST(GCCore_runtime_data_format, TestDataFormatConvert) {
     EXPECT_EQ(rfmt.get_block2(), 3UL);
 }
 
-TEST(GCCore_runtime_data_format, TestDataFormatLinear) {
+TEST(GCCore_CPU_runtime_data_format, TestDataFormatLinear) {
     sc_data_format_t fmt = sc_data_format_t::MKmk(16, 32);
     runtime::dispatch_key rfmt = fmt.to_runtime();
     auto to_idx = [](runtime::dispatch_key v) {
@@ -237,7 +237,7 @@ TEST(GCCore_runtime_data_format, TestDataFormatLinear) {
             0UL);
 }
 
-TEST(GCCore_runtime_data_format, TestDataFormatStaticDispatch) {
+TEST(GCCore_CPU_runtime_data_format, TestDataFormatStaticDispatch) {
     using namespace runtime;
     using format_key1
             = static_dispatch_keys<format_kinds::MKmk, format_kinds::NKkn>;
@@ -262,7 +262,7 @@ TEST(GCCore_runtime_data_format, TestDataFormatStaticDispatch) {
             4UL * 1024 + 2 * 32 + 1 * 16 + 1 * 4 + 0);
 }
 
-TEST(GCCore_runtime_data_format, TestDataFormatDynDispatch) {
+TEST(GCCore_CPU_runtime_data_format, TestDataFormatDynDispatch) {
     using namespace runtime;
     dyn_dispatch_table_t table(
             {
@@ -285,7 +285,7 @@ TEST(GCCore_runtime_data_format, TestDataFormatDynDispatch) {
                     + 1 * 16);
 }
 
-TEST(GCCore_runtime_data_format, TestDataFormatHashDispatch) {
+TEST(GCCore_CPU_runtime_data_format, TestDataFormatHashDispatch) {
     using namespace runtime;
     using namespace format_kinds;
     hash_dispatch_table_t table {3, 256};

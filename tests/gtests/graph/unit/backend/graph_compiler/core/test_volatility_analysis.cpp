@@ -152,7 +152,7 @@ static void check(const func_c &ssa_ccc, bool is_loop,
     ASSERT_EQ(get_status(the_for_body.at(12)), expected_loop_var);
 }
 
-TEST(GCCore_volatility_analysis, TestVolatilityAnalysis) {
+TEST(GCCore_CPU_volatility_analysis, TestVolatilityAnalysis) {
     builder::ir_builder_t bld;
     _function_(s32, ccc, _arg_("A", s32, {10000}), _arg_("a", s32)) {
         _bind_(A, a);

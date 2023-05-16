@@ -272,117 +272,117 @@ void check_conv_bwd_w_correctness(int N, int K, int C, int D, int H, int W,
     test_utils::compare_data(grad_weight, mkldnn_grad_weight, 1e-3, 5e-3);
 }
 
-TEST(GCCore_conv3d_fwd, CONV3D_3x3_1) {
+TEST(GCCore_CPU_conv3d_fwd, CONV3D_3x3_1) {
     check_conv_fwd_correctness<float, float, float>(conv_fwd_config_t(),
             {1, 1, 5, 5, 5}, {1, 1, 3, 3, 3}, {1, 1, 1}, {0, 0, 0}, false,
             true);
 }
 
-TEST(GCCore_conv3d_fwd, CONV3D_3x3_2) {
+TEST(GCCore_CPU_conv3d_fwd, CONV3D_3x3_2) {
     check_conv_fwd_correctness<float, float, float>(conv_fwd_config_t(),
             {16, 64, 56, 56, 56}, {64, 64, 3, 3, 3}, {2, 2, 2}, {0, 0, 0},
             false, true);
 }
 
-TEST(GCCore_conv3d_fwd, CONV3D_3x3_PAD_1) {
+TEST(GCCore_CPU_conv3d_fwd, CONV3D_3x3_PAD_1) {
     check_conv_fwd_correctness<float, float, float>(conv_fwd_config_t(),
             {1, 1, 9, 9, 9}, {1, 1, 3, 3, 3}, {2, 2, 2}, {1, 1, 1}, false,
             true);
 }
 
-TEST(GCCore_conv3d_fwd, CONV3D_3x3_PAD_2) {
+TEST(GCCore_CPU_conv3d_fwd, CONV3D_3x3_PAD_2) {
     check_conv_fwd_correctness<float, float, float>(conv_fwd_config_t(),
             {1, 1, 9, 9, 9}, {1, 1, 3, 3, 3}, {2, 2, 2}, {2, 2, 2}, false,
             true);
 }
 
-TEST(GCCore_conv3d_fwd, CONV3D_3x3_PAD_3) {
+TEST(GCCore_CPU_conv3d_fwd, CONV3D_3x3_PAD_3) {
     check_conv_fwd_correctness<float, float, float>(conv_fwd_config_t(),
             {16, 16, 28, 28, 28}, {16, 16, 3, 3, 3}, {1, 1, 2}, {2, 2, 1},
             false, true);
 }
 
-TEST(GCCore_conv3d_fwd, CONV3D_3x3_PAD_4) {
+TEST(GCCore_CPU_conv3d_fwd, CONV3D_3x3_PAD_4) {
     check_conv_fwd_correctness<float, float, float>(conv_fwd_config_t(),
             {16, 16, 28, 28, 28}, {16, 16, 3, 3, 3}, {2, 1, 2}, {1, 2, 2},
             false, true);
 }
 
-TEST(GCCore_conv3d_fwd, CONV3D_3x3_PAD_5) {
+TEST(GCCore_CPU_conv3d_fwd, CONV3D_3x3_PAD_5) {
     check_conv_fwd_correctness<float, float, float>(conv_fwd_config_t(),
             {1, 1, 5, 5, 5}, {1, 1, 3, 3, 3}, {2, 1, 2}, {3, 4, 4}, false,
             true);
 }
 
-TEST(GCCore_conv3d_fwd, CONV3D_3x3_PAD_6) {
+TEST(GCCore_CPU_conv3d_fwd, CONV3D_3x3_PAD_6) {
     check_conv_fwd_correctness<float, float, float>(conv_fwd_config_t(),
             {16, 16, 28, 28, 28}, {16, 16, 3, 3, 3}, {2, 1, 2}, {3, 4, 4},
             false, true);
 }
 
-TEST(GCCore_conv3d_fwd, QCONV3D_3X3_PAD_1) {
+TEST(GCCore_CPU_conv3d_fwd, QCONV3D_3X3_PAD_1) {
     REQUIRE_AMX();
     check_conv_fwd_correctness<uint8_t, int8_t, int32_t>(conv_fwd_config_t(),
             {1, 4, 5, 5, 5}, {4, 4, 3, 3, 3}, {1, 1, 1}, {1, 1, 1}, false,
             true);
 }
 
-TEST(GCCore_conv3d_fwd, QCONV3D_3X3_PAD_2) {
+TEST(GCCore_CPU_conv3d_fwd, QCONV3D_3X3_PAD_2) {
     REQUIRE_AMX();
     check_conv_fwd_correctness<uint8_t, int8_t, int32_t>(conv_fwd_config_t(),
             {16, 16, 28, 28, 28}, {16, 16, 3, 3, 3}, {2, 2, 2}, {1, 2, 1},
             false, true);
 }
 
-TEST(GCCore_conv3d_fwd, QCONV3D_3X3_PAD_3) {
+TEST(GCCore_CPU_conv3d_fwd, QCONV3D_3X3_PAD_3) {
     REQUIRE_AMX();
     check_conv_fwd_correctness<uint8_t, int8_t, int32_t>(conv_fwd_config_t(),
             {1, 16, 28, 28, 28}, {16, 16, 3, 3, 3}, {1, 1, 2}, {3, 4, 4}, false,
             true);
 }
 
-TEST(GCCore_conv3d_fwd, QCONV3D_3x3_1) {
+TEST(GCCore_CPU_conv3d_fwd, QCONV3D_3x3_1) {
     REQUIRE_VNNI();
     check_conv_fwd_correctness<uint8_t, int8_t, int32_t>(conv_fwd_config_t(),
             {1, 4, 5, 5, 5}, {4, 4, 3, 3, 3}, {1, 1, 1}, {0, 0, 0}, false,
             true);
 }
 
-TEST(GCCore_conv3d_fwd, QCONV3D_3x3_2) {
+TEST(GCCore_CPU_conv3d_fwd, QCONV3D_3x3_2) {
     REQUIRE_VNNI();
     check_conv_fwd_correctness<uint8_t, int8_t, int32_t>(conv_fwd_config_t(),
             {16, 64, 56, 56, 56}, {64, 64, 3, 3, 3}, {2, 2, 2}, {0, 0, 0},
             false, true);
 }
 
-TEST(GCCore_conv3d_bwd_d, CONV3D_1x1_1) {
+TEST(GCCore_CPU_conv3d_bwd_d, CONV3D_1x1_1) {
     check_conv_bwd_d_correctness(1, 4, 8, 2, 5, 5, 1, 1, 1, 1, 0);
 }
 
-TEST(GCCore_conv3d_bwd_d, CONV3D_1x1_2) {
+TEST(GCCore_CPU_conv3d_bwd_d, CONV3D_1x1_2) {
     check_conv_bwd_d_correctness(1, 4, 8, 2, 5, 5, 1, 1, 1, 2, 0);
 }
 
-TEST(GCCore_conv3d_bwd_d, CONV3D_1x1_3) {
+TEST(GCCore_CPU_conv3d_bwd_d, CONV3D_1x1_3) {
     check_conv_bwd_d_correctness(16, 64, 64, 8, 28, 28, 1, 1, 1, 2, 0);
 }
 
-TEST(GCCore_conv3d_bwd_d, CONV3D_1x1_4) {
+TEST(GCCore_CPU_conv3d_bwd_d, CONV3D_1x1_4) {
     check_conv_bwd_d_correctness(16, 64, 64, 8, 28, 28, 1, 1, 1, 1, 1);
 }
 
-TEST(GCCore_conv3d_bwd_w, CONV3D_1x1_1) {
+TEST(GCCore_CPU_conv3d_bwd_w, CONV3D_1x1_1) {
     check_conv_bwd_w_correctness(1, 4, 8, 2, 5, 5, 1, 1, 1, 1, 0);
 }
 
-TEST(GCCore_conv3d_bwd_w, CONV3D_1x1_2) {
+TEST(GCCore_CPU_conv3d_bwd_w, CONV3D_1x1_2) {
     check_conv_bwd_w_correctness(1, 4, 8, 2, 5, 5, 1, 1, 1, 2, 0);
 }
 
-TEST(GCCore_conv3d_bwd_w, CONV3D_1x1_3) {
+TEST(GCCore_CPU_conv3d_bwd_w, CONV3D_1x1_3) {
     check_conv_bwd_w_correctness(16, 64, 64, 8, 28, 28, 1, 1, 1, 2, 0);
 }
 
-TEST(GCCore_conv3d_bwd_w, CONV3D_1x1_4) {
+TEST(GCCore_CPU_conv3d_bwd_w, CONV3D_1x1_4) {
     check_conv_bwd_w_correctness(16, 64, 64, 8, 28, 28, 1, 1, 1, 1, 1);
 }

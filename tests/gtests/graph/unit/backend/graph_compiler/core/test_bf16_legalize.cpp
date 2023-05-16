@@ -109,7 +109,7 @@ void dotest_bf16_promote_assign() {
     EXPECT_TRUE(cmper.compare(ccc, bbb, false));
 }
 
-TEST(GCCore_bf16legalize_cpp, TestBF16Promote) {
+TEST(GCCore_CPU_bf16legalize_cpp, TestBF16Promote) {
     dotest_bf16_promote_binary(builder::make_add);
     dotest_bf16_promote_binary(builder::make_sub);
     dotest_bf16_promote_binary(builder::make_mul);
@@ -126,7 +126,7 @@ TEST(GCCore_bf16legalize_cpp, TestBF16Promote) {
     dotest_bf16_promote_assign();
 }
 
-TEST(GCCore_bf16legalize_cpp, TestBF16CastElimination) {
+TEST(GCCore_CPU_bf16legalize_cpp, TestBF16CastElimination) {
     REQUIRE_AVX();
     builder::ir_builder_t builder;
     ir_comparer cmper(true);
@@ -179,7 +179,7 @@ float get_rand() {
             - 1.0; // NOLINT
 }
 
-TEST(GCCore_bf16legalize_cpp, TestBF16Lower) {
+TEST(GCCore_CPU_bf16legalize_cpp, TestBF16Lower) {
     REQUIRE_AVX2();
     builder::ir_builder_t builder;
     _function_(datatypes::bf16, aaa, _arg_("a", datatypes::bf16),

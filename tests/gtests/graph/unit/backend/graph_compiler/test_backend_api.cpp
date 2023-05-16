@@ -26,7 +26,7 @@ namespace impl = dnnl::impl;
 namespace utils = dnnl::graph::tests::unit::utils;
 namespace compiler_utils = impl::graph::tests::unit::compiler::utils;
 
-TEST(GCBackendApi, GetMemSize) {
+TEST(GCBackendApi, GetMemSize_CPU) {
     graph::logical_tensor_t a, b, c, d, e;
     const std::vector<impl::dim_t> a_dim {1, 4, 3};
     const std::vector<impl::dim_t> b_dim {32, 16, 64, 64};
@@ -59,7 +59,7 @@ TEST(GCBackendApi, GetMemSize) {
     ASSERT_EQ(compiler_backend_ptr.get_mem_size(e), e_mem_res);
 }
 
-TEST(GCBackendApi, CompilerBackendRegistration) {
+TEST(GCBackendApi, CompilerBackendRegistration_CPU) {
     std::vector<const graph::backend_t *> &backends
             = graph::backend_registry_t::get_singleton()
                       .get_registered_backends();
@@ -71,7 +71,7 @@ TEST(GCBackendApi, CompilerBackendRegistration) {
     EXPECT_FLOAT_EQ((*compiler_backend)->get_priority(), 2.0);
 }
 
-TEST(GCBackendApi, TestRewriteOutputLayout) {
+TEST(GCBackendApi, TestRewriteOutputLayout_CPU) {
     REQUIRE_AVX512();
     using namespace impl::graph;
     graph_t agraph;

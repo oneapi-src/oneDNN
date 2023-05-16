@@ -26,7 +26,7 @@
 
 using namespace dnnl::impl::graph::gc;
 using namespace dnnl::impl::graph::gc::builder;
-TEST(GCCore_index2var_cpp, TestIndex2Var) {
+TEST(GCCore_CPU_index2var_cpp, TestIndex2Var) {
     builder::ir_builder_t builder;
     _decl_func_(datatypes::s32, functest);
     _function_(datatypes::s32, aaa, _arg_("A", datatypes::f32, {123, 321}),
@@ -251,7 +251,7 @@ TEST(GCCore_index2var_cpp, TestIndex2Var) {
 }
 
 // a test case which have pointer alias
-TEST(GCCore_index2var_cpp, TestIndex2VarAlias) {
+TEST(GCCore_CPU_index2var_cpp, TestIndex2VarAlias) {
     builder::ir_builder_t builder;
     _function_(datatypes::s32, aaa, _arg_("A", datatypes::f32, {123, 321}),
             _arg_("B", datatypes::f32, {111, 222}),
@@ -322,7 +322,7 @@ TEST(GCCore_index2var_cpp, TestIndex2VarAlias) {
     EXPECT_TRUE(cmp.compare(out, expected, false));
 }
 
-TEST(GCCore_index2var_cpp, TestIndex2VarLoopLift) {
+TEST(GCCore_CPU_index2var_cpp, TestIndex2VarLoopLift) {
     builder::ir_builder_t builder;
     _function_(datatypes::s32, aaa, _arg_("A", datatypes::f32, {123, 321}),
             _arg_("B", datatypes::f32, {111, 222}),

@@ -25,7 +25,7 @@
 
 using namespace dnnl::impl::graph::gc;
 
-TEST(GCCore_dead_func_elimination, TestDFE) {
+TEST(GCCore_CPU_dead_func_elimination, TestDFE) {
     builder::ir_builder_t builder;
     // indirectly referenced
     _function_(datatypes::void_t, eee) {}

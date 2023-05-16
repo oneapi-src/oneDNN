@@ -21,7 +21,8 @@
 #include <compiler/ir/graph/transform/transform.hpp>
 
 using namespace dnnl::impl::graph::gc;
-TEST(GCCore_shape_relationship_binding, TestDynamicShapeRelationshipBinding1) {
+TEST(GCCore_CPU_shape_relationship_binding,
+        TestDynamicShapeRelationshipBinding1) {
     sc_graph_t mgr;
     auto in_a = mgr.make_input({graph_tensor::make({28, -1, -1, -1})});
     auto in_b = mgr.make_input({graph_tensor::make({28, -1, -1, -1})});
@@ -47,7 +48,8 @@ TEST(GCCore_shape_relationship_binding, TestDynamicShapeRelationshipBinding1) {
             out->get_inputs()[0]->details_.get_plain_dims(), expected_out_dims);
 }
 
-TEST(GCCore_shape_relationship_binding, TestDynamicShapeRelationshipBinding2) {
+TEST(GCCore_CPU_shape_relationship_binding,
+        TestDynamicShapeRelationshipBinding2) {
     sc_graph_t mgr;
     auto in_a = mgr.make_input({graph_tensor::make({28, -1, -1, -1})});
     auto in_b = mgr.make_input({graph_tensor::make({28, -1, -1, -1})});
