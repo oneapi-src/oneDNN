@@ -139,16 +139,19 @@ void run_mmm_test(const std::shared_ptr<jit_function_t> &fptr, int M, int N,
         dyn_sc_output.data_ = sc_output.data();
         dyn_sc_output.ndims_ = 2;
         dyn_sc_output.dims_ = const_cast<sc_dim *>(out_dims.data());
+        dyn_sc_output.dyn_mask_ = 0;
         dyn_sc_output.dtype_
                 = uint32_t(sc_data_traits_t<Ctype>::type().type_code_);
         dyn_sc_input.data_ = sc_input.data();
         dyn_sc_input.ndims_ = 2;
         dyn_sc_input.dims_ = const_cast<sc_dim *>(input_dims.data());
+        dyn_sc_input.dyn_mask_ = 1 << 0;
         dyn_sc_input.dtype_
                 = uint32_t(sc_data_traits_t<Atype>::type().type_code_);
         dyn_sc_weight.data_ = sc_weight.data();
         dyn_sc_weight.ndims_ = 2;
         dyn_sc_weight.dims_ = const_cast<sc_dim *>(weight_dims.data());
+        dyn_sc_weight.dyn_mask_ = 0;
         dyn_sc_weight.dtype_
                 = uint32_t(sc_data_traits_t<Btype>::type().type_code_);
         fptr->call_default(&dyn_sc_output, &dyn_sc_input, &dyn_sc_weight);

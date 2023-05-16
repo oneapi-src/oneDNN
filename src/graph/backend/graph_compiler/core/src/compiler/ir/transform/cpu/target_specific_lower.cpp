@@ -851,7 +851,7 @@ static func_t create_erf_func(const ir_module_ptr &mod,
     auto ty_epi_32 = sc_data_type_t::s32(elements);
 
     builder::ir_builder_t builder;
-    if (mod->ctx_->machine_.cpu_flags_.fAVX512F) {
+    if (mod->ctx_->machine_.cpu_flags_.fAVX512F && elements >= 4) {
         std::vector<std::string> erf_const_table_names = {"erf_const_table_0",
                 "erf_const_table_1", "erf_const_table_2", "erf_const_table_3",
                 "erf_const_table_4", "erf_const_table_5"};

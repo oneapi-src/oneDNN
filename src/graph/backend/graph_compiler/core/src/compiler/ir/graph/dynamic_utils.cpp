@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <utility>
 #include "dynamic_dispatch_key.hpp"
+#include "dynamic_lower_info.hpp"
 #include "utils.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/fused_op.hpp>
@@ -522,6 +523,11 @@ int count_dynamic_dims(const sc_dims &in) {
 
 expr divide_and_ceil(const expr &v, const expr &d) {
     return do_cast_and_fold((v + d - 1) / d);
+}
+
+bool is_dyn_specific_graph(sc_graph_t &graph) {
+    if (graph.dyn_info_ && graph.dyn_info_->is_specific_) { return true; }
+    return false;
 }
 } // namespace gc
 } // namespace graph
