@@ -46,6 +46,11 @@ struct sycl_event_t : public gpu::compute::event_t {
         return *utils::downcast<const sycl_event_t *>(&event);
     }
 
+    void append(const gpu::compute::event_t &event) {
+        auto &other = *utils::downcast<const sycl_event_t *>(&event);
+        events.insert(events.end(), other.events.begin(), other.events.end());
+    }
+
     std::vector<::sycl::event> events;
 };
 
@@ -70,6 +75,10 @@ struct sycl_context_t final : public gpu::compute::context_t {
         events_ = sycl_event_t(std::move(event));
     }
     void set_deps(sycl_event_t &&events) { events_ = std::move(events); };
+
+    void append_deps(const gpu::compute::event_t &event) override {
+        events_.append(event);
+    }
 
 private:
     sycl_event_t events_;

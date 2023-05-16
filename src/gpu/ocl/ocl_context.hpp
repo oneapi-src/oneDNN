@@ -48,6 +48,11 @@ struct ocl_event_t final : compute::event_t {
         return *utils::downcast<const ocl_event_t *>(&event);
     }
 
+    void append(const compute::event_t &event) {
+        auto &other = *utils::downcast<const ocl_event_t *>(&event);
+        events.insert(events.end(), other.events.begin(), other.events.end());
+    };
+
     std::vector<ocl_wrapper_t<cl_event>> events;
 };
 
@@ -72,6 +77,10 @@ struct ocl_context_t final : public gpu::compute::context_t {
         events_ = ocl_event_t(std::move(event));
     }
     void set_deps(ocl_event_t &&events) { events_ = std::move(events); };
+
+    void append_deps(const compute::event_t &event) override {
+        events_.append(event);
+    }
 
 private:
     ocl_event_t events_;

@@ -35,6 +35,8 @@ class context_t {
 public:
     virtual event_t &get_deps() = 0;
     virtual const event_t &get_deps() const = 0;
+
+    virtual void append_deps(const compute::event_t &event) = 0;
 };
 
 } // namespace compute
