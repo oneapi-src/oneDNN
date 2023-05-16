@@ -135,6 +135,8 @@ static const std::map<int, std::vector<const char *>> supported_args {
         {DNNL_ARG_SRC_1, {"src1"}},
         {DNNL_ARG_WEIGHTS, {"wei"}},
         {DNNL_ARG_DST, {"dst"}},
+        {DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST, {"attr_post_op_dw_dst"}},
+        {DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS, {"attr_post_op_dw_wei"}},
 };
 
 static int str2arg(const std::string &str) {
@@ -991,8 +993,10 @@ dnnl_primitive_attr_t create_dnnl_attr(
             const auto &e = arg.second;
             // Weights mask differs from primitive to primitive, that's why it
             // is stashed in `attr_args` at primitive creation time.
-            int mask = (arg_name == DNNL_ARG_WEIGHTS
-                               && e.policy != policy_t::COMMON)
+            const bool is_wei_arg = arg_name == DNNL_ARG_WEIGHTS
+                    || arg_name
+                            == (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
+            int mask = (is_wei_arg && e.policy != policy_t::COMMON)
                     ? attr_args.get_mask(arg_name)
                     : e.policy2mask(arg_name);
 
@@ -1033,6 +1037,8 @@ dnnl_primitive_attr_t create_dnnl_attr(
                         e.convolution.dst_dt, e.convolution.kernel,
                         e.convolution.stride, e.convolution.padding));
 
+                // TODO: remove in favor of attr-scales option and update input
+                // files relying on scales in dw post-op string.
                 const auto &wei_scale = e.convolution.wei_scale;
                 int wei_mask = wei_scale.policy2mask(DNNL_ARG_WEIGHTS,
                         dnnl_convolution, /* has_groups = */ true);

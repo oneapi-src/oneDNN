@@ -228,6 +228,14 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         auto wei_mask = prb->has_groups ? 3 : 1;
         attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, wei_mask);
     }
+    auto dw_wei_scale
+            = prb->attr.scales.get(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
+    if (dw_wei_scale.policy == policy_t::PER_OC) {
+        // dw fusion always has groups.
+        auto wei_mask = 3;
+        attr_args.prepare_scales(prb->attr,
+                DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS, wei_mask);
+    }
     const auto dw_bia_dt = prb->dir == FWD_B ? dnnl_f32 : dnnl_data_type_undef;
     attr_args.prepare_dw_post_op(prb->attr, prb->get_dt(WEI), dw_bia_dt);
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
