@@ -2051,19 +2051,18 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         if ((jcp.ic == jcp.oc) && (jcp.ic == 128 || jcp.ic == 256)
                 && (jcp.oh == jcp.ow) && (jcp.oh == 150))
             if (allow_perf_heuristics(jcp)) return status::unimplemented;
-        // disabled for first convolutions excepting 3d
-        const bool is_real_3d = (jcp.ndims == 5
-                && (jcp.id > 1 || jcp.od > 1 || jcp.kd > 1
-                        || jcp.dilate_d > 0));
-
-        if (jcp.ic <= 4 && !is_real_3d
-                && IMPLICATION(with_groups, is_groups_ok(jcp)))
-            if (allow_perf_heuristics(jcp)) return status::unimplemented;
 
         if (jcp.f_pad >= jcp.ext_kd || jcp.t_pad >= jcp.ext_kh
                 || jcp.r_pad >= jcp.ext_kw)
             return status::unimplemented;
     }
+    // disabled for first convolutions excepting 3d
+    const bool is_real_3d = (jcp.ndims == 5
+            && (jcp.id > 1 || jcp.od > 1 || jcp.kd > 1 || jcp.dilate_d > 0));
+
+    if (jcp.ic <= 4 && !is_real_3d
+            && IMPLICATION(with_groups, is_groups_ok(jcp)))
+        if (allow_perf_heuristics(jcp)) return status::unimplemented;
 
     // TODO: remove this restriction after it's fixed
     // disabled for ic64ih14oc24oh14kh5ph2n"googlenet_v1:inception_4b/5x5"
