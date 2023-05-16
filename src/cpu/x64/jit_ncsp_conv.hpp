@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ struct ncsp_convolution_fwd_t : public primitive_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::hint_class *hint_fwd_pd)
             : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd)
+            , bias_po_(with_groups())
             , with_sum_(attr->post_ops_.find(primitive_kind::sum) != -1) {}
 
         ~pd_t() = default;
@@ -64,6 +65,7 @@ struct ncsp_convolution_fwd_t : public primitive_t {
         memory_desc_t nspc_src_md_;
         memory_desc_t nspc_dst_md_;
 
+        const bool bias_po_; // matmul with bias or not (if not, uses postops)
     private:
         bool is_matmul_;
         const bool with_sum_;

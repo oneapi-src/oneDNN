@@ -170,6 +170,11 @@ status_t ncsp_convolution_fwd_t::pd_t::init_convolution(engine_t *engine) {
 status_t ncsp_convolution_fwd_t::pd_t::init_matmul(engine_t *engine) {
     const bool to_matmul = true;
     CHECK(reshape_activations(&matmul_dst_md_, dst_md(0), to_matmul, true));
+
+    // initialize convolution bias as 1d plain tensor
+    if (bias_md_.format_kind == format_kind::any)
+        CHECK(memory_desc_init_by_strides(bias_md_, nullptr));
+
     // For call to matmul:
     // - conv src becomes matmul weights (ie matrix B)
     // - conv weights becomes matmul src (ie matrix A)
@@ -178,17 +183,21 @@ status_t ncsp_convolution_fwd_t::pd_t::init_matmul(engine_t *engine) {
     CHECK(reshape_weights(&matmul_src_md_, weights_md(0), to_matmul));
     if (with_bias()) CHECK(reshape_bias(&matmul_bia_md_, weights_md(1)));
     primitive_desc_iface_t *matmul_pdi;
-    const primitive_attr_t *_attr = attr();
+    primitive_attr_t _attr;
+    post_ops_t _po;
+    if (bias_po_ && with_bias()) {
+        CHECK(_po.append_binary(alg_kind::binary_add, &matmul_bia_md_));
+        CHECK(_attr.set_post_ops(_po));
+    }
     CHECK(dnnl_matmul_primitive_desc_create(&matmul_pdi, engine,
             &matmul_src_md_, &matmul_wei_md_,
-            with_bias() ? &matmul_bia_md_ : nullptr, &matmul_dst_md_, _attr));
+            !bias_po_ && with_bias() ? &matmul_bia_md_ : nullptr,
+            &matmul_dst_md_, &_attr));
     matmul_pd_ = matmul_pdi->impl();
 
     if (weights_md_.format_kind == format_kind::any)
         CHECK(reshape_weights(
                 &weights_md_, matmul_pd_->src_md(), false /*to_matmul*/));
-    if (bias_md_.format_kind == format_kind::any)
-        bias_md_ = *matmul_pd_->weights_md(1);
 
     return status::success;
 }
@@ -349,6 +358,8 @@ status_t ncsp_convolution_fwd_t::execute_matmul(const exec_ctx_t &ctx) const {
     void *conv_src = const_cast<void *>(CTX_IN_MEM(const void *, DNNL_ARG_SRC));
     void *conv_wei
             = const_cast<void *>(CTX_IN_MEM(const void *, DNNL_ARG_WEIGHTS));
+    void *conv_bia
+            = const_cast<void *>(CTX_IN_MEM(const void *, DNNL_ARG_BIAS));
     void *conv_dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
 
     // init matmul src, weights, dst mems from conv weights, src, dst handles
@@ -356,16 +367,24 @@ status_t ncsp_convolution_fwd_t::execute_matmul(const exec_ctx_t &ctx) const {
             memory_flags_t::use_runtime_ptr, conv_wei);
     memory_t matmul_wei(engine, &(pd()->matmul_wei_md_),
             memory_flags_t::use_runtime_ptr, conv_src);
+    memory_t matmul_bia(engine, &(pd()->matmul_bia_md_),
+            memory_flags_t::use_runtime_ptr, conv_bia);
     memory_t matmul_dst(engine, &(pd()->matmul_dst_md_),
             memory_flags_t::use_runtime_ptr, conv_dst);
 
     // execute matmul
     const auto &args = ctx.args();
     exec_args_t matmul_args;
-    matmul_args[DNNL_ARG_SRC] = {&matmul_src, false};
-    matmul_args[DNNL_ARG_WEIGHTS] = {&matmul_wei, false};
-    matmul_args[DNNL_ARG_DST] = {&matmul_dst, true};
-    if (pd()->with_bias()) matmul_args[DNNL_ARG_BIAS] = args.at(DNNL_ARG_BIAS);
+    matmul_args[DNNL_ARG_SRC] = {&matmul_src, true};
+    matmul_args[DNNL_ARG_WEIGHTS] = {&matmul_wei, true};
+    matmul_args[DNNL_ARG_DST] = {&matmul_dst, false};
+    if (pd()->with_bias()) {
+        if (pd()->bias_po_)
+            matmul_args[DNNL_ARG_SRC_1 | DNNL_ARG_ATTR_MULTIPLE_POST_OP(0)]
+                    = {&matmul_bia, true};
+        else
+            matmul_args[DNNL_ARG_BIAS] = args.at(DNNL_ARG_BIAS);
+    }
 
     exec_ctx_t matmul_ctx(ctx, std::move(matmul_args));
 
