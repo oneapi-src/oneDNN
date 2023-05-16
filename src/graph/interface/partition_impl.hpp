@@ -37,7 +37,7 @@
 #include "graph/utils/utils.hpp"
 
 #ifdef DNNL_WITH_SYCL
-#include "sycl/sycl_utils.hpp"
+#include "graph/utils/sycl_check.hpp"
 #endif
 
 namespace std {

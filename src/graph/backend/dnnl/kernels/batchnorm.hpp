@@ -43,7 +43,8 @@
 
 #ifdef DNNL_WITH_SYCL
 #include "oneapi/dnnl/dnnl_sycl.hpp"
-#include "sycl/sycl_utils.hpp"
+
+#include "graph/utils/sycl_check.hpp"
 #endif
 
 namespace dnnl {
