@@ -1710,7 +1710,52 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             && attr.fpmath_mode_ == fpmath_mode::bf16
             && isa == avx512_core_bf16_amx_bf16;
 
+    if (one_of(jcp.src_dt, u8, s8)) {
+        jcp.acc_dt = s32;
+    } else if (one_of(jcp.src_dt, f32, bf16)) {
+        jcp.acc_dt = f32;
+    } else
+        return status::unimplemented;
+
+    jcp.src_dsz = types::data_type_size(jcp.src_dt);
+    jcp.wei_dsz = types::data_type_size(jcp.wei_dt);
+    jcp.dst_dsz = types::data_type_size(jcp.dst_dt);
+    jcp.acc_dsz = types::data_type_size(jcp.acc_dt);
+    jcp.bia_dsz = jcp.with_bias ? types::data_type_size(jcp.bia_dt) : 0;
+
+    jcp.simd_w = cpu_isa_traits<avx512_core>::vlen / jcp.src_dsz;
+    jcp.amx_h = 16;
+    jcp.amx_w = 64 / (jcp.is_bf32 ? types::data_type_size(bf16) : jcp.src_dsz);
+
     brg_blocking_t::last_ic_block_size = data_type_vnni_granularity(jcp.wei_dt);
+    if (one_of(jcp.prop_kind, prop_kind::forward_training,
+                prop_kind::forward_inference)
+            && jcp.ngroups == 1 && jcp.dilate_w == 0 && jcp.kw > 1
+            && jcp.stride_w > 1 && jcp.l_pad <= 0 && jcp.r_pad <= 0
+            && jcp.ic % brg_blocking_t::last_ic_block_size == 0) {
+        // such convolutions are equivalent to
+        // [iw / k][kw / k][stride_w / k][ic * k]
+        const bool pure_1d = (jcp.mb == 1 && jcp.id == 1 && jcp.ih == 1);
+        int w_koef = 1;
+        auto w_koef_max = nstl::min(jcp.kw, nstl::min(jcp.stride_w, jcp.iw));
+        for (int i = 1; i <= w_koef_max; i++) {
+            if (IMPLICATION(!pure_1d, jcp.iw % i == 0)
+                    && IMPLICATION(jcp.ic * i > jcp.simd_w,
+                            (jcp.ic * i) % jcp.simd_w == 0)
+                    && jcp.kw % i == 0 && jcp.stride_w % i == 0)
+                w_koef = i;
+        }
+        if (w_koef > 1) {
+            jcp.ic_without_padding *= w_koef;
+            jcp.ic *= w_koef;
+            jcp.iw /= w_koef;
+            jcp.kw /= w_koef;
+            jcp.stride_w /= w_koef;
+            jcp.ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
+            jcp.r_pad = calculate_end_padding(
+                    jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, jcp.ext_kw);
+        }
+    }
 
     // TODO: optimize depthwise convolutions (for now direct approach is faster)
     const bool is_depthwise
@@ -1756,24 +1801,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (!IMPLICATION(is_f32, isa == avx512_core || jcp.is_bf32))
         return status::unimplemented;
 
-    if (one_of(jcp.src_dt, u8, s8)) {
-        jcp.acc_dt = s32;
-    } else if (one_of(jcp.src_dt, f32, bf16)) {
-        jcp.acc_dt = f32;
-    } else
-        return status::unimplemented;
-
-    jcp.src_dsz = types::data_type_size(jcp.src_dt);
-    jcp.wei_dsz = types::data_type_size(jcp.wei_dt);
-    jcp.dst_dsz = types::data_type_size(jcp.dst_dt);
-    jcp.acc_dsz = types::data_type_size(jcp.acc_dt);
-    jcp.bia_dsz = jcp.with_bias ? types::data_type_size(jcp.bia_dt) : 0;
-
     if (!post_ops_ok(jcp, attr, dst_d)) return status::unimplemented;
-
-    jcp.simd_w = cpu_isa_traits<avx512_core>::vlen / jcp.src_dsz;
-    jcp.amx_h = 16;
-    jcp.amx_w = 64 / (jcp.is_bf32 ? types::data_type_size(bf16) : jcp.src_dsz);
 
     const auto &p = attr.post_ops_;
     jcp.with_sum = p.find(primitive_kind::sum) != -1;
