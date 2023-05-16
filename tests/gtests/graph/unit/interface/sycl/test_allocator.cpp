@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,10 +42,16 @@ TEST(TestAllocator, DefaultSyclAllocator) {
             graph::allocator_t::mem_type_t::persistent, 64};
     void *mem_ptr = alloc.allocate(
             static_cast<size_t>(16), q.get_device(), q.get_context(), attr);
-    ASSERT_NE(mem_ptr, nullptr);
-    sycl::event e;
-    alloc.deallocate(mem_ptr, q.get_device(), q.get_context(), e);
-    alloc.release();
+
+    if (mem_ptr == nullptr) {
+        // release alloc before asserting.
+        alloc.release();
+        ASSERT_NE(mem_ptr, nullptr);
+    } else {
+        sycl::event e;
+        alloc.deallocate(mem_ptr, q.get_device(), q.get_context(), e);
+        alloc.release();
+    }
 }
 
 TEST(TestAllocator, SyclAllocator) {
@@ -69,8 +75,14 @@ TEST(TestAllocator, SyclAllocator) {
 
     auto *mem_ptr = sycl_alloc.allocate(
             static_cast<size_t>(16), sycl_dev, sycl_ctx, alloc_attr);
-    ASSERT_NE(mem_ptr, nullptr);
-    sycl::event e;
-    sycl_alloc.deallocate(mem_ptr, sycl_dev, sycl_ctx, e);
-    sycl_alloc.release();
+
+    if (mem_ptr == nullptr) {
+        // release sycl_alloc before asserting.
+        sycl_alloc.release();
+        ASSERT_NE(mem_ptr, nullptr);
+    } else {
+        sycl::event e;
+        sycl_alloc.deallocate(mem_ptr, sycl_dev, sycl_ctx, e);
+        sycl_alloc.release();
+    }
 }
