@@ -176,6 +176,15 @@ TEST(GCGraphTest, FP32MHACompileExecution4_CPU) {
     compile_execution_pipeline(agraph, 1);
 }
 
+TEST(GCGraphTest, INT8MHACompileExecutionDynamicQuantize_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_MHA_subgraph(
+            &agraph, false, true, false, 128, 384, 16, 1024, true);
+    agraph.finalize();
+    compile_execution_pipeline(agraph, 1);
+}
+
 TEST(GCGraphTest, INT8MHACompileExecutionFake_CPU) {
     REQUIRE_AVX512(); // fake int8, so it only requires avx512
     impl::graph_t agraph;
@@ -219,6 +228,19 @@ TEST(GCGraphTest, INT8BF16MHACompileExecution3_CPU) {
     impl::graph_t agraph;
     compiler_utils::add_MHA_subgraph_alternative(
             &agraph, true, true, impl::op_kind::StaticReshape);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8MLPCompileExecutionDynamicQuantize_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_int8_mlp_subgraph(&agraph, 1, 5,
+            {479, 1024, 1024, 512, 256, 1},
+            {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
+                    impl::op_kind::ReLU, impl::op_kind::Sigmoid},
+            false, true);
     agraph.finalize();
 
     compile_execution_pipeline(agraph, 1);
@@ -869,4 +891,54 @@ TEST(GCGraphTest, BF16ConvolutionalBottleneckTrainingCompileExecution_CPU) {
     agraph.finalize();
 
     compile_execution_pipeline(agraph, 2);
+}
+
+TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionDynamicQuantize_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    REQUIRE_SINGLE_THREAD();
+    REQUIRE_AMX();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_int8_identical_bottleneck_resblock(&agraph,
+            id_gen, {1, 256, 56, 56},
+            {{64, 256, 1, 1}, {64, 64, 3, 3}, {256, 64, 1, 1}},
+            {{1, 1}, {1, 1}, {1, 1}}, {{0, 0}, {1, 1}, {0, 0}}, "NCX", "OIX",
+            true);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest,
+        INT8IdenticalBottleneckCompileExecutionDynamicQuantizeNXC_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    REQUIRE_SINGLE_THREAD();
+    REQUIRE_AMX();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_int8_identical_bottleneck_resblock(&agraph,
+            id_gen, {1, 56, 56, 256},
+            {{1, 1, 256, 64}, {3, 3, 64, 64}, {1, 1, 64, 256}},
+            {{1, 1}, {1, 1}, {1, 1}}, {{0, 0}, {1, 1}, {0, 0}}, "NXC", "XIO",
+            true);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest,
+        INT8ConvolutionalBottleneckCompileExecutionDynamicQuantize_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    REQUIRE_SINGLE_THREAD();
+    REQUIRE_AMX();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_int8_convolutional_bottleneck_resblock(&agraph,
+            id_gen, {1, 64, 56, 56},
+            {{256, 64, 1, 1}, {64, 64, 1, 1}, {64, 64, 3, 3}, {256, 64, 1, 1}},
+            {{2, 2}, {1, 1}, {2, 2}, {1, 1}}, {{0, 0}, {0, 0}, {1, 1}, {0, 0}},
+            "NCX", "OIX", true);
+    agraph.finalize();
+
+    compile_execution_pipeline(agraph, 1);
 }

@@ -84,6 +84,13 @@ namespace utils {
         GTEST_SKIP(); \
         return; \
     }
+#define DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(name) \
+    name.set_attr(op_attr::qtype, std::string("per_tensor")); \
+    name.set_attr(op_attr::axis, (int64_t)0);
+
+#define DEFINE_DEFAULT_PER_CHANNEL_DYN_QUANT_ATTR(name, shape, ax) \
+    name.set_attr(op_attr::qtype, std::string("per_channel")); \
+    name.set_attr(op_attr::axis, (int64_t)ax);
 
 #define DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(name) \
     name.set_attr(graph::op_attr::scales, std::vector<float>({0.12f})); \
@@ -110,7 +117,8 @@ typedef enum {
 // if itex is true, it will put K side's second transpose to matmul_qk
 inline void add_MHA_subgraph(graph::graph_t *agraph, bool use_bf16 = false,
         bool use_int8 = false, bool is_itex = false, int batch_size = 128,
-        int seq_len = 384, int num_head = 16, int head_dim = 1024) {
+        int seq_len = 384, int num_head = 16, int head_dim = 1024,
+        bool dyn_quant = false) {
     size_t logical_tensor_idx = 0;
     size_t op_idx = 0;
     int size_per_head = head_dim / num_head;
@@ -139,6 +147,14 @@ inline void add_MHA_subgraph(graph::graph_t *agraph, bool use_bf16 = false,
             logical_tensor_idx++, QKV_INPUT_SHAPE, graph::data_type::u8);
     value_dequantize_input = utils::logical_tensor_init(
             logical_tensor_idx++, QKV_INPUT_SHAPE, graph::data_type::u8);
+    // dyn quant scale and zp tensor.
+    graph::logical_tensor_t qkv_scale_desc, qkv_zp_desc;
+    if (dyn_quant) {
+        qkv_scale_desc = utils::logical_tensor_init(
+                logical_tensor_idx++, {1}, graph::data_type::f32);
+        qkv_zp_desc = utils::logical_tensor_init(
+                logical_tensor_idx++, {1}, graph::data_type::u8);
+    }
 
     graph::logical_tensor_t query_typecast_input, key_typecast_input,
             value_typecast_input;
@@ -215,6 +231,13 @@ inline void add_MHA_subgraph(graph::graph_t *agraph, bool use_bf16 = false,
     softmax_dequantize_out_cast
             = utils::logical_tensor_init(logical_tensor_idx++,
                     MATMUL_QK_OUTPUT_SHAPE, graph::data_type::bf16);
+    graph::logical_tensor_t out_scale_desc, out_zp_desc;
+    if (dyn_quant) {
+        out_scale_desc = utils::logical_tensor_init(
+                logical_tensor_idx++, {1}, graph::data_type::f32);
+        out_zp_desc = utils::logical_tensor_init(
+                logical_tensor_idx++, {1}, graph::data_type::s8);
+    }
 
     graph::logical_tensor_t matmul_v_out;
     matmul_v_out = utils::logical_tensor_init(
@@ -236,13 +259,25 @@ inline void add_MHA_subgraph(graph::graph_t *agraph, bool use_bf16 = false,
 
     graph::op_t dequantize_query {
             op_idx++, graph::op_kind::Dequantize, "dequantize_query"};
-    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_query);
+    if (dyn_quant) {
+        DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(dequantize_query);
+    } else {
+        DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_query);
+    }
     graph::op_t dequantize_key {
             op_idx++, graph::op_kind::Dequantize, "dequantize_key"};
-    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_key);
+    if (dyn_quant) {
+        DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(dequantize_key);
+    } else {
+        DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_key);
+    }
     graph::op_t dequantize_value {
             op_idx++, graph::op_kind::Dequantize, "dequantize_value"};
-    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_value);
+    if (dyn_quant) {
+        DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(dequantize_value);
+    } else {
+        DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_value);
+    }
     graph::op_t typecast_query {
             op_idx++, graph::op_kind::TypeCast, "typecast_query"};
     graph::op_t typecast_key {
@@ -252,37 +287,33 @@ inline void add_MHA_subgraph(graph::graph_t *agraph, bool use_bf16 = false,
 
     graph::op_t query_reshape {
             op_idx++, graph::op_kind::StaticReshape, "query_reshape"};
-    query_reshape.set_attr(graph::op_attr::shape, QKV_RESHAPED_SHAPE);
-    query_reshape.set_attr(graph::op_attr::special_zero, false);
+    query_reshape.set_attr(op_attr::shape, QKV_RESHAPED_SHAPE);
+    query_reshape.set_attr(op_attr::special_zero, false);
     graph::op_t query_transpose {
             op_idx++, graph::op_kind::StaticTranspose, "query_transpose"};
-    query_transpose.set_attr(
-            graph::op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
+    query_transpose.set_attr(op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
     graph::op_t key_reshape {
             op_idx++, graph::op_kind::StaticReshape, "key_reshape"};
-    key_reshape.set_attr(graph::op_attr::shape, QKV_RESHAPED_SHAPE);
-    key_reshape.set_attr(graph::op_attr::special_zero, false);
+    key_reshape.set_attr(op_attr::shape, QKV_RESHAPED_SHAPE);
+    key_reshape.set_attr(op_attr::special_zero, false);
     graph::op_t key_transpose {
             op_idx++, graph::op_kind::StaticTranspose, "key_transpose"};
-    key_transpose.set_attr(
-            graph::op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
+    key_transpose.set_attr(op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
     graph::op_t key_transpose2 {
             op_idx++, graph::op_kind::StaticTranspose, "key_transpose2"};
-    key_transpose2.set_attr(
-            graph::op_attr::order, std::vector<int64_t> {0, 1, 3, 2});
+    key_transpose2.set_attr(op_attr::order, std::vector<int64_t> {0, 1, 3, 2});
 
     graph::op_t matmul_qk {op_idx++, graph::op_kind::MatMul, "matmul_qk"};
-    if (is_itex) { matmul_qk.set_attr(graph::op_attr::transpose_b, true); }
+    if (is_itex) { matmul_qk.set_attr(op_attr::transpose_b, true); }
 
     graph::op_t fscore_rescale {op_idx++,
             is_itex ? graph::op_kind::Multiply : graph::op_kind::Divide,
             "fscore_rescale"};
-    fscore_rescale.set_attr(
-            graph::op_attr::auto_broadcast, std::string("numpy"));
+    fscore_rescale.set_attr(op_attr::auto_broadcast, std::string("numpy"));
     graph::op_t fscore_add {op_idx++, graph::op_kind::Add, "fscore_add"};
-    fscore_add.set_attr(graph::op_attr::auto_broadcast, std::string("numpy"));
+    fscore_add.set_attr(op_attr::auto_broadcast, std::string("numpy"));
     graph::op_t softmax {op_idx++, graph::op_kind::SoftMax, "softmax"};
-    softmax.set_attr(graph::op_attr::axis, (int64_t)3);
+    softmax.set_attr(op_attr::axis, (int64_t)3);
 
     graph::op_t softmax_cast {
             op_idx++, graph::op_kind::TypeCast, "softmax_cast"};
@@ -290,8 +321,13 @@ inline void add_MHA_subgraph(graph::graph_t *agraph, bool use_bf16 = false,
             op_idx++, graph::op_kind::Quantize, "quantize_softmax"};
     graph::op_t dequantize_softmax {
             op_idx++, graph::op_kind::Dequantize, "dequantize_softmax"};
-    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_softmax);
-    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_softmax);
+    if (dyn_quant) {
+        DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(quantize_softmax);
+        DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(dequantize_softmax);
+    } else {
+        DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_softmax);
+        DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_softmax);
+    }
 
     graph::op_t dequantize_softmax_cast {
             op_idx++, graph::op_kind::TypeCast, "dequantize_softmax_cast"};
@@ -314,14 +350,18 @@ inline void add_MHA_subgraph(graph::graph_t *agraph, bool use_bf16 = false,
             graph::op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
     graph::op_t reshape_output {
             op_idx++, graph::op_kind::StaticReshape, "reshape_output"};
-    reshape_output.set_attr(graph::op_attr::special_zero, false);
-    reshape_output.set_attr(graph::op_attr::shape, QKV_INPUT_SHAPE);
+    reshape_output.set_attr(op_attr::special_zero, false);
+    reshape_output.set_attr(op_attr::shape, QKV_INPUT_SHAPE);
 
     graph::op_t typecast_output {
             op_idx++, graph::op_kind::TypeCast, "typecast_output"};
     graph::op_t quantize_output {
             op_idx++, graph::op_kind::Quantize, "quantize_output"};
-    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_output);
+    if (dyn_quant) {
+        DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(quantize_output);
+    } else {
+        DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_output);
+    }
 
     if (use_int8) {
         dequantize_query.add_input(query_dequantize_input);
@@ -341,6 +381,14 @@ inline void add_MHA_subgraph(graph::graph_t *agraph, bool use_bf16 = false,
             typecast_query.add_output(query_reshape_input);
             typecast_key.add_output(key_reshape_input);
             typecast_value.add_output(value_reshape_input);
+        }
+        if (dyn_quant) {
+            dequantize_query.add_input(qkv_scale_desc);
+            dequantize_query.add_input(qkv_zp_desc);
+            dequantize_key.add_input(qkv_scale_desc);
+            dequantize_key.add_input(qkv_zp_desc);
+            dequantize_value.add_input(qkv_scale_desc);
+            dequantize_value.add_input(qkv_zp_desc);
         }
     }
 
@@ -390,6 +438,12 @@ inline void add_MHA_subgraph(graph::graph_t *agraph, bool use_bf16 = false,
             dequantize_softmax_cast.add_output(softmax_dequantize_out_cast);
             matmul_v.add_input(softmax_dequantize_out_cast);
         }
+        if (dyn_quant) {
+            quantize_softmax.add_input(qkv_scale_desc);
+            quantize_softmax.add_input(qkv_zp_desc);
+            dequantize_softmax.add_input(qkv_scale_desc);
+            dequantize_softmax.add_input(qkv_zp_desc);
+        }
     } else {
         matmul_v.add_input(softmax_out);
     }
@@ -415,6 +469,10 @@ inline void add_MHA_subgraph(graph::graph_t *agraph, bool use_bf16 = false,
             typecast_output.add_input(context_reshape_out);
             typecast_output.add_output(context_cast_out);
             quantize_output.add_input(context_cast_out);
+        }
+        if (dyn_quant) {
+            quantize_output.add_input(out_scale_desc);
+            quantize_output.add_input(out_zp_desc);
         }
     }
 
@@ -1921,11 +1979,11 @@ inline void add_mlp_subgraph(graph::graph_t *agraph, bool use_bf16 = false,
     }
 }
 
-inline void add_int8_mlp_subgraph(graph::graph_t *agraph,
+inline void add_int8_mlp_subgraph(graph_t *agraph,
         std::vector<graph::dim_t> batch_dims = {1, 384}, int layer = 1,
         std::vector<graph::dim_t> hidden_size = {1024, 1024},
-        std::vector<graph::op_kind_t> act_type = {graph::op_kind::ReLU},
-        bool mixed_dtype = false) {
+        std::vector<op_kind_t> act_type = {op_kind::ReLU},
+        bool mixed_dtype = false, bool dyn_quant = false) {
     size_t lt_idx = 0;
     size_t op_idx = 0;
 
@@ -1947,6 +2005,9 @@ inline void add_int8_mlp_subgraph(graph::graph_t *agraph,
                 quant_weight_desc, dequant_weight_desc,
                 casted_dequant_weight_desc, bias_desc, matmul_dst_desc,
                 act_dst_desc;
+        // logical tensors for dynamic quantization.
+        graph::logical_tensor_t input_scale_desc, input_zp_desc,
+                weight_scale_desc;
         casted_input_desc = utils::logical_tensor_init(
                 lt_idx++, layer_input_size, graph::data_type::f32);
         quant_input_desc = utils::logical_tensor_init(
@@ -1969,22 +2030,49 @@ inline void add_int8_mlp_subgraph(graph::graph_t *agraph,
                 = utils::logical_tensor_init(lt_idx++, layer_dst_size, dtype);
         act_dst_desc
                 = utils::logical_tensor_init(lt_idx++, layer_dst_size, dtype);
+        if (dyn_quant) {
+            input_scale_desc = utils::logical_tensor_init(
+                    lt_idx++, {1}, graph::data_type::f32);
+            input_zp_desc = utils::logical_tensor_init(
+                    lt_idx++, {1}, graph::data_type::s32);
+            weight_scale_desc = utils::logical_tensor_init(
+                    lt_idx++, {hidden_size[i + 1]}, graph::data_type::f32);
+        }
         // defining ops of each layer
         std::string layer_suffix = "_layer" + std::to_string(i);
         graph::op_t typecast_input_f32 {op_idx++, graph::op_kind::TypeCast,
                 "typecast_input_f32" + layer_suffix};
-        graph::op_t quant_input {op_idx++, graph::op_kind::Quantize,
+        graph::op_t quant_input {op_idx++,
+                dyn_quant ? graph::op_kind::DynamicQuantize
+                          : graph::op_kind::Quantize,
                 "quantize_input" + layer_suffix};
-        DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quant_input);
-        graph::op_t dequant_input {op_idx++, graph::op_kind::Dequantize,
+        if (dyn_quant) {
+            DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(quant_input);
+        } else {
+            DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quant_input);
+        }
+        graph::op_t dequant_input {op_idx++,
+                dyn_quant ? graph::op_kind::DynamicDequantize
+                          : graph::op_kind::Dequantize,
                 "dequantize_input" + layer_suffix};
-        DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequant_input);
+        if (dyn_quant) {
+            DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(dequant_input);
+        } else {
+            DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequant_input);
+        }
         graph::op_t typecast_input_bf16 {op_idx++, graph::op_kind::TypeCast,
                 "typecast_input_bf16" + layer_suffix};
-        graph::op_t dequant_weight {op_idx++, graph::op_kind::Dequantize,
+        graph::op_t dequant_weight {op_idx++,
+                dyn_quant ? graph::op_kind::DynamicDequantize
+                          : graph::op_kind::Dequantize,
                 "dequantize_weight" + layer_suffix};
-        DEFINE_DEFAULT_PER_CHANNEL_QUANT_ATTR(
-                dequant_weight, hidden_size[i + 1], 1);
+        if (dyn_quant) {
+            DEFINE_DEFAULT_PER_CHANNEL_DYN_QUANT_ATTR(
+                    dequant_weight, hidden_size[i + 1], 1);
+        } else {
+            DEFINE_DEFAULT_PER_CHANNEL_QUANT_ATTR(
+                    dequant_weight, hidden_size[i + 1], 1);
+        }
         graph::op_t typecast_weight_bf16 {op_idx++, graph::op_kind::TypeCast,
                 "typecast_input_bf16" + layer_suffix};
         graph::op_t matmul {
@@ -2011,6 +2099,13 @@ inline void add_int8_mlp_subgraph(graph::graph_t *agraph,
             quant_input.add_input(input_desc);
             matmul.add_input(dequant_input_desc);
             matmul.add_input(dequant_weight_desc);
+        }
+        if (dyn_quant) {
+            quant_input.add_input(input_scale_desc);
+            quant_input.add_input(input_zp_desc);
+            dequant_input.add_input(input_scale_desc);
+            dequant_input.add_input(input_zp_desc);
+            dequant_weight.add_input(weight_scale_desc);
         }
 
         matmul.add_input(bias_desc);
@@ -2049,15 +2144,32 @@ inline void add_int8_mlp_subgraph(graph::graph_t *agraph,
             lt_idx++, layer_input_size, graph::data_type::f32);
     graph::logical_tensor_t casted_dequant_output_desc
             = utils::logical_tensor_init(lt_idx++, layer_input_size, dtype);
+    // defining logical tensors for dynamic quantization.
+    graph::logical_tensor_t output_scale_desc
+            = utils::logical_tensor_init(lt_idx++, {1}, graph::data_type::f32);
+    graph::logical_tensor_t output_zp_desc
+            = utils::logical_tensor_init(lt_idx++, {1}, graph::data_type::s32);
     // defining output layer ops
     graph::op_t typecast_output_f32 {
             op_idx++, graph::op_kind::TypeCast, "typecast_output_f32"};
-    graph::op_t quant_output {
-            op_idx++, graph::op_kind::Quantize, "quantize_output"};
-    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quant_output);
-    graph::op_t dequant_output {
-            op_idx++, graph::op_kind::Dequantize, "dequantize_output"};
-    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequant_output);
+    graph::op_t quant_output {op_idx++,
+            dyn_quant ? graph::op_kind::DynamicQuantize
+                      : graph::op_kind::Quantize,
+            "quantize_output"};
+    if (dyn_quant) {
+        DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(quant_output);
+    } else {
+        DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quant_output);
+    }
+    graph::op_t dequant_output {op_idx++,
+            dyn_quant ? graph::op_kind::DynamicDequantize
+                      : graph::op_kind::Dequantize,
+            "dequantize_output"};
+    if (dyn_quant) {
+        DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(dequant_output);
+    } else {
+        DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequant_output);
+    }
     graph::op_t typecast_output_bf16 {
             op_idx++, graph::op_kind::TypeCast, "typecast_output_bf16"};
     // defining connection between output ops
@@ -2073,6 +2185,12 @@ inline void add_int8_mlp_subgraph(graph::graph_t *agraph,
     } else {
         quant_output.add_input(input_desc);
     }
+    if (dyn_quant) {
+        quant_output.add_input(output_scale_desc);
+        quant_output.add_input(output_zp_desc);
+        dequant_output.add_input(output_scale_desc);
+        dequant_output.add_input(output_zp_desc);
+    }
     // adding ops
     agraph->add_op(&quant_output);
     agraph->add_op(&dequant_output);
@@ -2082,13 +2200,12 @@ inline void add_int8_mlp_subgraph(graph::graph_t *agraph,
     }
 }
 
-inline void add_int8_mlp_subgraph(graph::graph_t *agraph,
-        graph::dim_t batch_size = 1, int layer = 1,
-        std::vector<graph::dim_t> hidden_size = {13, 512},
-        std::vector<graph::op_kind_t> act_type = {graph::op_kind::ReLU},
-        bool mixed_dtype = false) {
+inline void add_int8_mlp_subgraph(graph_t *agraph, graph::dim_t batch_size = 1,
+        int layer = 1, std::vector<graph::dim_t> hidden_size = {13, 512},
+        std::vector<op_kind_t> act_type = {op_kind::ReLU},
+        bool mixed_dtype = false, bool dyn_quant = false) {
     add_int8_mlp_subgraph(agraph, std::vector<graph::dim_t> {batch_size}, layer,
-            hidden_size, act_type, mixed_dtype);
+            hidden_size, act_type, mixed_dtype, dyn_quant);
 }
 
 static bool apply_use_dst(bool use_dst, graph::op_kind_t act_op_kind) {
@@ -2706,6 +2823,134 @@ static std::vector<graph::dim_t> extract_filter_info(
                     shape[ndims - 2], shape[0], shape[ndims - 1]};
 }
 
+inline graph::logical_tensor_t create_dyn_dequantize(
+        utils::id_generator &id_gen, graph_t &agraph,
+        const graph::logical_tensor_t &src, const std::string &qtype,
+        int64_t axis) {
+    graph::op_t dq_op(
+            id_gen.get_id(), graph::op_kind::DynamicDequantize, "dequantize");
+    dq_op.set_attr<std::string>(op_attr::qtype, qtype);
+    dq_op.set_attr<int64_t>(op_attr::axis, axis);
+
+    auto dst = utils::logical_tensor_init(id_gen.get_id(), data_type::f32);
+    graph::logical_tensor_t scale_desc
+            = utils::logical_tensor_init(id_gen.get_id(), {1}, data_type::f32);
+    dq_op.add_input(src);
+    dq_op.add_input(scale_desc);
+    dq_op.add_output(dst);
+    agraph.add_op(&dq_op);
+    return dst;
+}
+
+inline graph::logical_tensor_t create_dyn_quantize(utils::id_generator &id_gen,
+        graph_t &agraph, const graph::logical_tensor_t &src,
+        data_type_t dst_dtype, const std::string &qtype, int64_t axis) {
+    graph::op_t q_op(
+            id_gen.get_id(), graph::op_kind::DynamicQuantize, "quantize");
+    q_op.set_attr<std::string>(op_attr::qtype, qtype);
+    q_op.set_attr<int64_t>(op_attr::axis, axis);
+
+    auto dst = utils::logical_tensor_init(id_gen.get_id(), dst_dtype);
+    graph::logical_tensor_t scale_desc
+            = utils::logical_tensor_init(id_gen.get_id(), {1}, data_type::f32);
+    q_op.add_input(src);
+    q_op.add_input(scale_desc);
+    q_op.add_output(dst);
+    agraph.add_op(&q_op);
+    return dst;
+}
+
+inline graph::logical_tensor_t create_int8_convolution_dyn_quant(
+        utils::id_generator &id_gen, graph_t &agraph,
+        const graph::logical_tensor_t &src, int64_t ic, int64_t ks, int64_t oc,
+        int64_t groups, const dims &strides, const dims &dilations,
+        const dims &pads_begin, const dims &pads_end,
+        const std::string &data_format, const std::string &filter_format,
+        bool with_bias, bool with_bn, float epsilon, bool with_relu,
+        data_type_t dst_dtype, bool is_quantize_dst = true,
+        bool use_biasadd = false, bool is_quantize_wei = false) {
+    assertm(!with_bn, "int8 conv not support bn now");
+
+    auto dq_src = create_dyn_dequantize(id_gen, agraph, src, "per_tensor", 0);
+
+    graph::op_t conv(id_gen.get_id(), graph::op_kind::Convolution, "conv");
+    conv.set_attr<int64_t>(op_attr::groups, groups);
+    conv.set_attr<dims>(op_attr::strides, strides);
+    conv.set_attr<dims>(op_attr::dilations, dilations);
+    conv.set_attr<dims>(op_attr::pads_begin, pads_begin);
+    conv.set_attr<dims>(op_attr::pads_end, pads_end);
+    conv.set_attr<std::string>(op_attr::data_format, data_format);
+    conv.set_attr<std::string>(op_attr::weights_format, filter_format);
+
+    dims wei_shape = (filter_format == "OIX") ? dims {oc, ic / groups, ks, ks}
+                                              : dims {ks, ks, ic / groups, oc};
+
+    graph::logical_tensor_t int8_wei;
+    if (is_quantize_wei) {
+        auto f32_wei = utils::logical_tensor_init(
+                id_gen.get_id(), wei_shape, data_type::f32);
+        f32_wei.property = property_type::constant;
+        int8_wei = create_dyn_quantize(id_gen, agraph, f32_wei, data_type::s8,
+                "per_channel", (filter_format == "OIX") ? 0 : 3);
+    } else {
+        int8_wei = utils::logical_tensor_init(
+                id_gen.get_id(), wei_shape, data_type::s8);
+        int8_wei.property = property_type::constant;
+    }
+
+    auto dq_wei = create_dyn_dequantize(id_gen, agraph, int8_wei, "per_channel",
+            (filter_format == "OIX") ? 0 : 3);
+
+    auto dst = utils::logical_tensor_init(id_gen.get_id(), dq_src.data_type);
+
+    conv.add_input(dq_src);
+    conv.add_input(dq_wei);
+    if (with_bias && !use_biasadd) {
+        auto bias = utils::logical_tensor_init(
+                id_gen.get_id(), dims {oc}, dq_src.data_type);
+        bias.property = property_type::constant;
+        conv.add_input(bias);
+    }
+    conv.add_output(dst);
+    agraph.add_op(&conv);
+
+    if (with_bias && use_biasadd) {
+        graph::op_t biasadd_op(
+                id_gen.get_id(), graph::op_kind::BiasAdd, "biasadd");
+        biasadd_op.set_attr<std::string>(op_attr::data_format, data_format);
+
+        auto biasadd_src = dst;
+        auto bias = utils::logical_tensor_init(
+                id_gen.get_id(), dims {oc}, biasadd_src.data_type);
+        bias.property = property_type::constant;
+
+        dst = utils::logical_tensor_init(
+                id_gen.get_id(), biasadd_src.data_type);
+
+        biasadd_op.add_input(biasadd_src);
+        biasadd_op.add_input(bias);
+        biasadd_op.add_output(dst);
+
+        agraph.add_op(&biasadd_op);
+    }
+
+    if (with_relu) {
+        graph::op_t relu_op(id_gen.get_id(), graph::op_kind::ReLU, "relu");
+        auto relu_src = dst;
+        dst = utils::logical_tensor_init(id_gen.get_id(), dq_src.data_type);
+        relu_op.add_input(relu_src);
+        relu_op.add_output(dst);
+        agraph.add_op(&relu_op);
+    }
+
+    if (is_quantize_dst) {
+        dst = create_dyn_quantize(
+                id_gen, agraph, dst, dst_dtype, "per_tensor", 0);
+    }
+
+    return dst;
+}
+
 // filter_shape in the order of 1x1; 1x1 + 3x3 + 1x1
 // strides and paddings also start with the single conv branch
 inline void construct_convolutional_bottleneck_resblock(graph::graph_t *agraph,
@@ -2780,7 +3025,7 @@ inline void construct_int8_identical_bottleneck_resblock(graph::graph_t *agraph,
         const std::vector<std::vector<int64_t>> &paddings
         = {{0, 0}, {1, 1}, {0, 0}},
         const std::string &data_format = "NCX",
-        const std::string &filter_format = "OIX") {
+        const std::string &filter_format = "OIX", bool dyn_quant = false) {
     float scale_src = 1 / 255.f, scale_out = 1;
     int64_t zp_src = 0, zp_out = 78;
 
@@ -2793,22 +3038,37 @@ inline void construct_int8_identical_bottleneck_resblock(graph::graph_t *agraph,
     }
     auto temp_src = src;
     for (size_t i = 0; i < filter_shapes.size(); ++i) {
-        std::vector<float> scale_wei(filter_infos[i][2], 1 / 127.f);
-        temp_src = utils::create_int8_convolution(id_gen, *agraph, temp_src,
-                filter_infos[i][0], filter_infos[i][1], filter_infos[i][2], 1,
-                strides[i], {1, 1}, paddings[i], paddings[i], data_format,
-                filter_format, true, false, 1e-6f,
-                /*has_relu? */ i < filter_shapes.size() - 1, scale_src, zp_src,
-                scale_out, zp_out, scale_wei, graph::data_type::u8,
-                /*is_quantize_dst? */ i < filter_shapes.size() - 1);
+        if (dyn_quant) {
+            temp_src = create_int8_convolution_dyn_quant(id_gen, *agraph,
+                    temp_src, filter_infos[i][0], filter_infos[i][1],
+                    filter_infos[i][2], 1, strides[i], {1, 1}, paddings[i],
+                    paddings[i], data_format, filter_format, true, false, 1e-6f,
+                    /*has_relu? */ i < filter_shapes.size() - 1,
+                    graph::data_type::u8,
+                    /*is_quantize_dst? */ i < filter_shapes.size() - 1);
+        } else {
+            std::vector<float> scale_wei(filter_infos[i][2], 1 / 127.f);
+            temp_src = utils::create_int8_convolution(id_gen, *agraph, temp_src,
+                    filter_infos[i][0], filter_infos[i][1], filter_infos[i][2],
+                    1, strides[i], {1, 1}, paddings[i], paddings[i],
+                    data_format, filter_format, true, false, 1e-6f,
+                    /*has_relu? */ i < filter_shapes.size() - 1, scale_src,
+                    zp_src, scale_out, zp_out, scale_wei, graph::data_type::u8,
+                    /*is_quantize_dst? */ i < filter_shapes.size() - 1);
+        }
     }
-    auto dq3 = create_dequantize(
-            id_gen, *agraph, src, "per_tensor", {zp_src}, {scale_src}, 0);
+    auto dq3 = dyn_quant
+            ? create_dyn_dequantize(id_gen, *agraph, src, "per_tensor", 0)
+            : create_dequantize(id_gen, *agraph, src, "per_tensor", {zp_src},
+                    {scale_src}, 0);
     auto add0 = create_add(id_gen, *agraph, temp_src, dq3);
     auto relu0 = create_relu(id_gen, *agraph, add0);
-    auto q2 = create_quantize(id_gen, *agraph, relu0, graph::data_type::u8,
-            "per_tensor", std::vector<int64_t> {zp_out},
-            std::vector<float> {scale_out}, 0);
+    auto q2 = dyn_quant
+            ? create_dyn_quantize(id_gen, *agraph, relu0, graph::data_type::u8,
+                    "per_tensor", 0)
+            : create_quantize(id_gen, *agraph, relu0, graph::data_type::u8,
+                    "per_tensor", std::vector<int64_t> {zp_out},
+                    std::vector<float> {scale_out}, 0);
     (void)(q2);
 }
 
@@ -2822,7 +3082,7 @@ inline void construct_int8_convolutional_bottleneck_resblock(
         const std::vector<std::vector<int64_t>> &paddings
         = {{0, 0}, {0, 0}, {1, 1}, {0, 0}},
         const std::string &data_format = "NCX",
-        const std::string &filter_format = "OIX") {
+        const std::string &filter_format = "OIX", bool dyn_quant = false) {
     float scale_src = 1 / 255.f, scale_out = 1;
     int64_t zp_src = 0, zp_out = 78;
     auto src = utils::logical_tensor_init(
@@ -2833,31 +3093,54 @@ inline void construct_int8_convolutional_bottleneck_resblock(
         filter_infos.push_back(extract_filter_info(shape, filter_format));
     }
     std::vector<float> scale_wei(filter_infos[0][2], 1 / 127.f);
-    auto left = utils::create_int8_convolution(id_gen, *agraph, src,
-            filter_infos[0][0], filter_infos[0][1], filter_infos[0][2], 1,
-            strides[0], {1, 1}, paddings[0], paddings[0], data_format,
-            filter_format, true, false, 1e-6f,
-            /*no relu*/ false, scale_src, zp_src, scale_out, zp_out, scale_wei,
-            graph::data_type::u8);
+    graph::logical_tensor_t left;
+    if (dyn_quant) {
+        left = create_int8_convolution_dyn_quant(id_gen, *agraph, src,
+                filter_infos[0][0], filter_infos[0][1], filter_infos[0][2], 1,
+                strides[0], {1, 1}, paddings[0], paddings[0], data_format,
+                filter_format, true, false, 1e-6f, /*no relu*/ false,
+                graph::data_type::u8);
+    } else {
+        left = utils::create_int8_convolution(id_gen, *agraph, src,
+                filter_infos[0][0], filter_infos[0][1], filter_infos[0][2], 1,
+                strides[0], {1, 1}, paddings[0], paddings[0], data_format,
+                filter_format, true, false, 1e-6f, /*no relu*/ false, scale_src,
+                zp_src, scale_out, zp_out, scale_wei, graph::data_type::u8);
+    }
 
     auto right = src;
     for (size_t i = 1; i < filter_shapes.size(); ++i) {
-        scale_wei = std::vector<float>(filter_infos[i][2], 1 / 127.f);
-        right = utils::create_int8_convolution(id_gen, *agraph, right,
-                filter_infos[i][0], filter_infos[i][1], filter_infos[i][2], 1,
-                strides[i], {1, 1}, paddings[i], paddings[i], data_format,
-                filter_format, true, false, 1e-6f,
-                /*has relu*/ i < filter_shapes.size() - 1, scale_src, zp_src,
-                scale_out, zp_out, scale_wei, graph::data_type::u8,
-                /*is_quantize_dst? */ i < filter_shapes.size() - 1);
+        if (dyn_quant) {
+            right = create_int8_convolution_dyn_quant(id_gen, *agraph, right,
+                    filter_infos[i][0], filter_infos[i][1], filter_infos[i][2],
+                    1, strides[i], {1, 1}, paddings[i], paddings[i],
+                    data_format, filter_format, true, false, 1e-6f,
+                    /*has relu*/ i < filter_shapes.size() - 1,
+                    graph::data_type::u8,
+                    /*is_quantize_dst? */ i < filter_shapes.size() - 1);
+        } else {
+            scale_wei = std::vector<float>(filter_infos[i][2], 1 / 127.f);
+            right = utils::create_int8_convolution(id_gen, *agraph, right,
+                    filter_infos[i][0], filter_infos[i][1], filter_infos[i][2],
+                    1, strides[i], {1, 1}, paddings[i], paddings[i],
+                    data_format, filter_format, true, false, 1e-6f,
+                    /*has relu*/ i < filter_shapes.size() - 1, scale_src,
+                    zp_src, scale_out, zp_out, scale_wei, graph::data_type::u8,
+                    /*is_quantize_dst? */ i < filter_shapes.size() - 1);
+        }
     }
-    auto dq3 = create_dequantize(
-            id_gen, *agraph, left, "per_tensor", {zp_src}, {scale_src}, 0);
+    auto dq3 = dyn_quant
+            ? create_dyn_dequantize(id_gen, *agraph, left, "per_tensor", 0)
+            : create_dequantize(id_gen, *agraph, left, "per_tensor", {zp_src},
+                    {scale_src}, 0);
     auto add0 = create_add(id_gen, *agraph, right, dq3);
     auto relu0 = create_relu(id_gen, *agraph, add0);
-    auto q2 = create_quantize(id_gen, *agraph, relu0, graph::data_type::u8,
-            "per_tensor", std::vector<int64_t> {zp_out},
-            std::vector<float> {scale_out}, 0);
+    auto q2 = dyn_quant
+            ? create_dyn_quantize(id_gen, *agraph, relu0, graph::data_type::u8,
+                    "per_tensor", 0)
+            : create_quantize(id_gen, *agraph, relu0, graph::data_type::u8,
+                    "per_tensor", std::vector<int64_t> {zp_out},
+                    std::vector<float> {scale_out}, 0);
     (void)(q2);
 }
 

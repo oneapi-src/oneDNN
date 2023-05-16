@@ -203,15 +203,19 @@ pm::pb_node_t *int8_conv_bias_relu(const std::shared_ptr<pb_graph_t> &pgraph,
     in_edges_t in_edges;
     if (input) { in_edges = in_edges_t {in_edge(0, input, 0)}; }
 
-    pm::pb_op_t *dequant_src
-            = pgraph->append_op(graph::op_kind::Dequantize, in_edges);
+    pm::pb_op_t *dequant_src = pgraph->append_alternation(
+            {graph::op_kind::Dequantize, graph::op_kind::DynamicDequantize},
+            in_edges);
     pm::pb_op_t *dequant_wei;
     if (use_quant_wei) {
-        pm::pb_op_t *quant_wei = pgraph->append_op(graph::op_kind::Quantize);
-        dequant_wei = pgraph->append_op(graph::op_kind::Dequantize,
+        pm::pb_op_t *quant_wei = pgraph->append_alternation(
+                {graph::op_kind::Quantize, graph::op_kind::DynamicQuantize});
+        dequant_wei = pgraph->append_alternation(
+                {graph::op_kind::Dequantize, graph::op_kind::DynamicDequantize},
                 in_edges_t {in_edge(0, quant_wei, 0)});
     } else {
-        dequant_wei = pgraph->append_op(graph::op_kind::Dequantize);
+        dequant_wei = pgraph->append_alternation({graph::op_kind::Dequantize,
+                graph::op_kind::DynamicDequantize});
     }
 
     pm::pb_op_t *conv = pgraph->append_op(graph::op_kind::Convolution,
@@ -232,15 +236,18 @@ pm::pb_node_t *int8_conv_bias_relu(const std::shared_ptr<pb_graph_t> &pgraph,
                 in_edges_t {in_edge(0, optional_biasadd, 0)});
         quant_in_edges = {in_edge(0, relu, 0)};
     }
-    pm::pb_op_t *quant_dst
-            = pgraph->append_op(graph::op_kind::Quantize, quant_in_edges);
+    pm::pb_op_t *quant_dst = pgraph->append_alternation(
+            {graph::op_kind::Quantize, graph::op_kind::DynamicQuantize},
+            quant_in_edges);
     return quant_dst;
 };
 
 std::pair<pm::pb_op_t *, pm::pb_op_t *> int8_conv_bias_relu_subgraph(
         const std::shared_ptr<pb_graph_t> &pgraph) {
-    pm::pb_op_t *dequant_src = pgraph->append_op(graph::op_kind::Dequantize);
-    pm::pb_op_t *dequant_wei = pgraph->append_op(graph::op_kind::Dequantize);
+    pm::pb_op_t *dequant_src = pgraph->append_alternation(
+            {graph::op_kind::Dequantize, graph::op_kind::DynamicDequantize});
+    pm::pb_op_t *dequant_wei = pgraph->append_alternation(
+            {graph::op_kind::Dequantize, graph::op_kind::DynamicDequantize});
 
     pm::pb_op_t *conv = pgraph->append_op(graph::op_kind::Convolution,
             in_edges_t {
@@ -256,8 +263,9 @@ std::pair<pm::pb_op_t *, pm::pb_op_t *> int8_conv_bias_relu_subgraph(
 
     pm::pb_op_t *relu = pgraph->append_op(
             graph::op_kind::ReLU, in_edges_t {in_edge(0, optional_biasadd, 0)});
-    pm::pb_op_t *quant_dst = pgraph->append_op(
-            graph::op_kind::Quantize, in_edges_t {in_edge(0, relu, 0)});
+    pm::pb_op_t *quant_dst = pgraph->append_alternation(
+            {graph::op_kind::Quantize, graph::op_kind::DynamicQuantize},
+            in_edges_t {in_edge(0, relu, 0)});
     return {dequant_src, quant_dst};
 };
 
@@ -289,18 +297,23 @@ pm::pb_node_t *int8_conv_bias_add_relu_flex(
     if (input) { in_edges = in_edges_t {in_edge(0, input, 0)}; }
     if (post_src) { post_src_edges = in_edges_t {in_edge(0, post_src, 0)}; }
 
-    pm::pb_op_t *dequant_src
-            = pgraph->append_op(graph::op_kind::Dequantize, in_edges);
+    pm::pb_op_t *dequant_src = pgraph->append_alternation(
+            {graph::op_kind::Dequantize, graph::op_kind::DynamicDequantize},
+            in_edges);
     pm::pb_op_t *dequant_wei;
     if (use_quant_wei) {
-        pm::pb_op_t *quant_wei = pgraph->append_op(graph::op_kind::Quantize);
-        dequant_wei = pgraph->append_op(graph::op_kind::Dequantize,
+        pm::pb_op_t *quant_wei = pgraph->append_alternation(
+                {graph::op_kind::Quantize, graph::op_kind::DynamicQuantize});
+        dequant_wei = pgraph->append_alternation(
+                {graph::op_kind::Dequantize, graph::op_kind::DynamicDequantize},
                 in_edges_t {in_edge(0, quant_wei, 0)});
     } else {
-        dequant_wei = pgraph->append_op(graph::op_kind::Dequantize);
+        dequant_wei = pgraph->append_alternation({graph::op_kind::Dequantize,
+                graph::op_kind::DynamicDequantize});
     }
-    pm::pb_op_t *dequant_other
-            = pgraph->append_op(graph::op_kind::Dequantize, post_src_edges);
+    pm::pb_op_t *dequant_other = pgraph->append_alternation(
+            {graph::op_kind::Dequantize, graph::op_kind::DynamicDequantize},
+            post_src_edges);
 
     pm::pb_op_t *conv = pgraph->append_op(graph::op_kind::Convolution,
             in_edges_t {
@@ -323,8 +336,9 @@ pm::pb_node_t *int8_conv_bias_add_relu_flex(
     // deal with itex int8 last bottleneck
     if (f32_output) { return relu; }
 
-    pm::pb_op_t *quant_dst = pgraph->append_op(
-            graph::op_kind::Quantize, in_edges_t {in_edge(0, relu, 0)});
+    pm::pb_op_t *quant_dst = pgraph->append_alternation(
+            {graph::op_kind::Quantize, graph::op_kind::DynamicQuantize},
+            in_edges_t {in_edge(0, relu, 0)});
     return quant_dst;
 };
 
@@ -336,18 +350,23 @@ pm::pb_node_t *int8_conv_bias_add_relu(
     if (input) { in_edges = in_edges_t {in_edge(0, input, 0)}; }
     if (post_src) { post_src_edges = in_edges_t {in_edge(0, post_src, 0)}; }
 
-    pm::pb_op_t *dequant_src
-            = pgraph->append_op(graph::op_kind::Dequantize, in_edges);
+    pm::pb_op_t *dequant_src = pgraph->append_alternation(
+            {graph::op_kind::Dequantize, graph::op_kind::DynamicDequantize},
+            in_edges);
     pm::pb_op_t *dequant_wei;
     if (use_quant_wei) {
-        pm::pb_op_t *quant_wei = pgraph->append_op(graph::op_kind::Quantize);
-        dequant_wei = pgraph->append_op(graph::op_kind::Dequantize,
+        pm::pb_op_t *quant_wei = pgraph->append_alternation(
+                {graph::op_kind::Quantize, graph::op_kind::DynamicQuantize});
+        dequant_wei = pgraph->append_alternation(
+                {graph::op_kind::Dequantize, graph::op_kind::DynamicDequantize},
                 in_edges_t {in_edge(0, quant_wei, 0)});
     } else {
-        dequant_wei = pgraph->append_op(graph::op_kind::Dequantize);
+        dequant_wei = pgraph->append_alternation({graph::op_kind::Dequantize,
+                graph::op_kind::DynamicDequantize});
     }
-    pm::pb_op_t *dequant_other
-            = pgraph->append_op(graph::op_kind::Dequantize, post_src_edges);
+    pm::pb_op_t *dequant_other = pgraph->append_alternation(
+            {graph::op_kind::Dequantize, graph::op_kind::DynamicDequantize},
+            post_src_edges);
 
     pm::pb_op_t *conv = pgraph->append_op(graph::op_kind::Convolution,
             in_edges_t {
@@ -372,8 +391,9 @@ pm::pb_node_t *int8_conv_bias_add_relu(
     // deal with itex int8 last bottleneck
     if (f32_output) { return relu; }
 
-    pm::pb_op_t *quant_dst = pgraph->append_op(
-            graph::op_kind::Quantize, in_edges_t {in_edge(0, relu, 0)});
+    pm::pb_op_t *quant_dst = pgraph->append_alternation(
+            {graph::op_kind::Quantize, graph::op_kind::DynamicQuantize},
+            in_edges_t {in_edge(0, relu, 0)});
     return quant_dst;
 };
 

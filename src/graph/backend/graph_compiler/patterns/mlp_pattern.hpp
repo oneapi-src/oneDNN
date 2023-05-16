@@ -39,8 +39,12 @@ std::pair<pm::pb_node_t *, pm::pb_node_t *> single_layer_mlp(
     pm::pb_node_t *layer_input, *layer_output;
     in_edges_t matmul_in_edges;
     if (is_int8) {
-        auto dequantize_input = pgraph->append_op(graph::op_kind::Dequantize);
-        auto dequantize_weight = pgraph->append_op(graph::op_kind::Dequantize);
+        auto dequantize_input
+                = pgraph->append_alternation({graph::op_kind::Dequantize,
+                        graph::op_kind::DynamicDequantize});
+        auto dequantize_weight
+                = pgraph->append_alternation({graph::op_kind::Dequantize,
+                        graph::op_kind::DynamicDequantize});
         if (is_bf16) {
             auto typecast_input = pgraph->append_op(graph::op_kind::TypeCast,
                     {in_edge(0, dequantize_input, 0)});
@@ -88,8 +92,9 @@ std::pair<pm::pb_node_t *, pm::pb_node_t *> single_layer_mlp(
                     graph::op_kind::TypeCast, {in_edge(0, layer_output, 0)});
             layer_output = typecast_output;
         }
-        auto quantize_output = pgraph->append_op(
-                graph::op_kind::Quantize, {in_edge(0, layer_output, 0)});
+        auto quantize_output = pgraph->append_alternation(
+                {graph::op_kind::Quantize, graph::op_kind::DynamicQuantize},
+                {in_edge(0, layer_output, 0)});
         layer_output = quantize_output;
     }
     return std::make_pair(layer_input, layer_output);
@@ -483,10 +488,12 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::quantized_mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_input_layer1
-                            = pgraph->append_op(graph::op_kind::Dequantize);
-                    auto dequantize_weight_layer1
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_input_layer1 = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
+                    auto dequantize_weight_layer1 = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto matmul_layer1 = pgraph->append_op(
                             graph::op_kind::MatMul,
                             {in_edge(0, dequantize_input_layer1, 0),
@@ -497,14 +504,17 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = pgraph->append_op(graph::op_kind::LayerNorm,
                                     {in_edge(0, add_layer1, 0)});
                     // quantize is the second use of layernorm output
-                    auto quantize_output_layer1
-                            = pgraph->append_op(graph::op_kind::Quantize,
-                                    {in_edge(0, layernorm_layer1, 0)});
-                    auto dequantize_input_layer2
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_output_layer1, 0)});
-                    auto dequantize_weight_layer2
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto quantize_output_layer1 = pgraph->append_alternation(
+                            {graph::op_kind::Quantize,
+                                    graph::op_kind::DynamicQuantize},
+                            {in_edge(0, layernorm_layer1, 0)});
+                    auto dequantize_input_layer2 = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize},
+                            {in_edge(0, quantize_output_layer1, 0)});
+                    auto dequantize_weight_layer2 = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto matmul_layer2 = pgraph->append_op(
                             graph::op_kind::MatMul,
                             {in_edge(0, dequantize_input_layer2, 0),
@@ -512,15 +522,18 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto gelu_layer2 = pgraph->append_op(graph::op_kind::GELU,
                             {in_edge(0, matmul_layer2, 0)});
 
-                    auto quantize_output_layer2
-                            = pgraph->append_op(graph::op_kind::Quantize,
-                                    {in_edge(0, gelu_layer2, 0)});
+                    auto quantize_output_layer2 = pgraph->append_alternation(
+                            {graph::op_kind::Quantize,
+                                    graph::op_kind::DynamicQuantize},
+                            {in_edge(0, gelu_layer2, 0)});
 
-                    auto dequantize_input_layer3
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_output_layer2, 0)});
-                    auto dequantize_weight_layer3
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_input_layer3 = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize},
+                            {in_edge(0, quantize_output_layer2, 0)});
+                    auto dequantize_weight_layer3 = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto matmul_layer3 = pgraph->append_op(
                             graph::op_kind::MatMul,
                             {in_edge(0, dequantize_input_layer3, 0),
@@ -534,7 +547,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     layernorm_layer3->allow_external_outputs();
                     auto last_layer = std::make_shared<pb_graph_t>();
                     auto quantize_output_layer3
-                            = last_layer->append_op(graph::op_kind::Quantize);
+                            = last_layer->append_alternation(
+                                    {graph::op_kind::Quantize,
+                                            graph::op_kind::DynamicQuantize});
                     last_layer->create_input_port(0, quantize_output_layer3, 0);
                     last_layer->create_output_port(
                             0, quantize_output_layer3, 0);
@@ -594,13 +609,15 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_kind(graph::partition_kind_t::quantized_mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_input_layer1
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_input_layer1 = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto typecast_input_layer1
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, dequantize_input_layer1, 0)});
-                    auto dequantize_weight_layer1
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_weight_layer1 = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto typecast_weight_layer1
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, dequantize_weight_layer1, 0)});
@@ -616,18 +633,21 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto typecast_output_layer1
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, layernorm_layer1, 0)});
-                    auto quantize_output_layer1
-                            = pgraph->append_op(graph::op_kind::Quantize,
-                                    {in_edge(0, typecast_output_layer1, 0)});
+                    auto quantize_output_layer1 = pgraph->append_alternation(
+                            {graph::op_kind::Quantize,
+                                    graph::op_kind::DynamicQuantize},
+                            {in_edge(0, typecast_output_layer1, 0)});
 
-                    auto dequantize_input_layer2
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_output_layer1, 0)});
+                    auto dequantize_input_layer2 = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize},
+                            {in_edge(0, quantize_output_layer1, 0)});
                     auto typecast_input_layer2
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, dequantize_input_layer2, 0)});
-                    auto dequantize_weight_layer2
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_weight_layer2 = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto typecast_weight_layer2
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, dequantize_weight_layer2, 0)});
@@ -640,18 +660,21 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto typecast_output_layer2
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, gelu_layer2, 0)});
-                    auto quantize_output_layer2
-                            = pgraph->append_op(graph::op_kind::Quantize,
-                                    {in_edge(0, typecast_output_layer2, 0)});
+                    auto quantize_output_layer2 = pgraph->append_alternation(
+                            {graph::op_kind::Quantize,
+                                    graph::op_kind::DynamicQuantize},
+                            {in_edge(0, typecast_output_layer2, 0)});
 
-                    auto dequantize_input_layer3
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_output_layer2, 0)});
+                    auto dequantize_input_layer3 = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize},
+                            {in_edge(0, quantize_output_layer2, 0)});
                     auto typecast_input_layer3
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, dequantize_input_layer3, 0)});
-                    auto dequantize_weight_layer3
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_weight_layer3 = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto typecast_weight_layer3
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, dequantize_weight_layer3, 0)});
@@ -670,7 +693,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto typecast_output_layer3
                             = last_layer->append_op(graph::op_kind::TypeCast);
                     auto quantize_output_layer3
-                            = last_layer->append_op(graph::op_kind::Quantize,
+                            = last_layer->append_alternation(
+                                    {graph::op_kind::Quantize,
+                                            graph::op_kind::DynamicQuantize},
                                     {in_edge(0, typecast_output_layer3, 0)});
                     last_layer->create_input_port(0, typecast_output_layer3, 0);
                     last_layer->create_output_port(

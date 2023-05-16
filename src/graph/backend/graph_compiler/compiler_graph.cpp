@@ -33,6 +33,8 @@ static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
                 {op_kind::Multiply, "mul"}, {op_kind::Divide, "div"},
                 {op_kind::MatMul, "matmul"}, {op_kind::Quantize, "quantize"},
                 {op_kind::Dequantize, "dequantize"},
+                {op_kind::DynamicDequantize, "dynamic_dequantize"},
+                {op_kind::DynamicQuantize, "dynamic_quantize"},
                 {op_kind::StaticReshape, "static_reshape"},
                 {op_kind::StaticTranspose, "transpose"},
                 {op_kind::SoftMax, "softmax"}, {op_kind::Reorder, "reorder"},
