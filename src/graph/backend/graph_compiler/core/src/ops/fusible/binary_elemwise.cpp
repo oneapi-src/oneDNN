@@ -504,7 +504,6 @@ void binary_elementwise_op_impl_t::infer_binding_axis(
                                 std::vector<int> ret(bd_ax.size());
                                 std::transform(bd_ax.begin(), bd_ax.end(),
                                         ret.begin(), [&bc_axis](const int &ax) {
-                                            if (ax == -1) return ax;
                                             COMPILE_ASSERT(
                                                     ax < static_cast<int64_t>(
                                                             bc_axis.size()),
@@ -520,9 +519,9 @@ void binary_elementwise_op_impl_t::infer_binding_axis(
                         for (auto &ax : bd_ax) {
                             auto iter = std::find(
                                     bc_axis.begin(), bc_axis.end(), ax);
-                            ret.emplace_back(iter != bc_axis.end()
-                                            ? iter - bc_axis.begin()
-                                            : -1);
+                            if (iter != bc_axis.end()) {
+                                ret.emplace_back(iter - bc_axis.begin());
+                            }
                         }
                         unknown_axis.emplace_back(ret);
                     }
@@ -570,9 +569,9 @@ void binary_elementwise_op_impl_t::pre_binding_axis(bound_axis_map &bdax_map) {
                         for (auto &ax : bd_ax) {
                             auto iter = std::find(
                                     bc_axis.begin(), bc_axis.end(), ax);
-                            ret.emplace_back(iter != bc_axis.end()
-                                            ? iter - bc_axis.begin()
-                                            : -1);
+                            if (iter != bc_axis.end()) {
+                                ret.emplace_back(iter - bc_axis.begin());
+                            }
                         }
                         inpaxis.emplace_back(ret);
                     }

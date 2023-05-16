@@ -421,9 +421,9 @@ void infer_reduce_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map,
             for (auto &ax : bd_ax) {
                 auto iter
                         = std::find(non_rd_axis.begin(), non_rd_axis.end(), ax);
-                ret.emplace_back(iter != non_rd_axis.end()
-                                ? (iter - non_rd_axis.begin())
-                                : -1);
+                if (iter != non_rd_axis.end()) {
+                    ret.emplace_back(iter - non_rd_axis.begin());
+                }
             }
             out_axis.emplace_back(ret);
         }
@@ -433,9 +433,8 @@ void infer_reduce_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map,
     if (auto red_comp = cur->dyn_cast<reduce_compute_op_t>()) {
         if (red_comp->is_partial_reduce()) {
             for (auto &bd_ax : bdax_map.get(cur->get_outputs()[0])) {
-                for (auto &ax : bd_ax) {
-                    if (ax != -1) ax++;
-                }
+                for (auto &ax : bd_ax)
+                    ax++;
             }
         }
     }
@@ -451,9 +450,8 @@ void pre_reduce_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map,
     if (auto red_comp = cur->dyn_cast<reduce_compute_op_t>()) {
         if (red_comp->is_partial_reduce()) {
             for (auto &bd_ax : outaxis) {
-                for (auto &ax : bd_ax) {
-                    if (ax != -1) ax--;
-                }
+                for (auto &ax : bd_ax)
+                    ax--;
             }
         }
     }
@@ -478,7 +476,7 @@ void pre_reduce_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map,
                 std::vector<int> ret;
                 ret.reserve(bd_ax.size());
                 for (auto &ax : bd_ax) {
-                    ret.emplace_back(ax == -1 ? ax : non_rd_axis[ax]);
+                    ret.emplace_back(non_rd_axis[ax]);
                 }
                 inpaxis.emplace_back(ret);
             }

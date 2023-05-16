@@ -100,10 +100,6 @@ static bound_axis infer_broadcast_axis_binding(
         auto &known_ax = known_axis_list[i];
         for (size_t j = 0; j < known_ax.size(); j++) {
             auto &ax = known_ax[i];
-            if (ax == -1) {
-                bc_axis_list[i].emplace_back(ax);
-                continue;
-            }
             bc_axis_list[i].emplace_back(bc_axis[ax]);
         }
     }
@@ -120,8 +116,6 @@ static bound_axis infer_broadcast_arg_axis_binding(
             if (iter != bc_axis.end()) {
                 auto offset = std::distance(bc_axis.begin(), iter);
                 bc_arg_axis_list[i].emplace_back(offset);
-            } else {
-                bc_arg_axis_list[i].emplace_back(-1);
             }
         }
     }

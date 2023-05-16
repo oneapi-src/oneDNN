@@ -942,7 +942,6 @@ bound_axis infer_tensor_view_binding_axis(const bound_axis &src_axis,
             }
         } else {
             assert(acc_dst_dims.size() != 0);
-            axis.emplace_back(-1);
         }
         tv_axis_map.emplace_back(axis);
     }
@@ -950,19 +949,20 @@ bound_axis infer_tensor_view_binding_axis(const bound_axis &src_axis,
     for (auto &bd_ax : src_axis) {
         std::vector<int> ret;
         for (auto &ax : bd_ax) {
-            if (ax == -1
-                    || expand_dims.end()
-                            != std::find(expand_dims.begin(), expand_dims.end(),
-                                    ax)) {
-                ret.emplace_back(-1);
+            if (expand_dims.end()
+                    != std::find(expand_dims.begin(), expand_dims.end(), ax)) {
+                continue;
             } else {
                 ret.insert(ret.end(), tv_axis_map[ax].begin(),
                         tv_axis_map[ax].end());
             }
         }
-        // remove duplicated axis.
-        std::sort(ret.begin(), ret.end());
-        ret.erase(std::unique(ret.begin(), ret.end()), ret.end());
+        // check if empty to make g++12 happy
+        if (!ret.empty()) {
+            // remove duplicated axis.
+            std::sort(ret.begin(), ret.end());
+            ret.erase(std::unique(ret.begin(), ret.end()), ret.end());
+        }
         dst_axis.emplace_back(ret);
     }
     return dst_axis;
@@ -972,24 +972,12 @@ void tensor_view_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
     auto known_axis_map = search_known_bound_axis(this, bdax_map);
     if (!bdax_map.get(get_outputs()[0]).empty()) return;
     // src
-    auto src_dims = info_.inputs_[0]->details_.get_blocking_dims();
+    auto src_plain_dims = info_.inputs_[0]->details_.get_plain_dims();
     // dst
-    auto shapes = get_shapes();
+    auto dst_plain_dims = info_.outputs_[0]->details_.get_plain_dims();
     auto ths = this;
-    bound_axis known_block_axis(known_axis_map[0].size());
-    std::transform(known_axis_map[0].begin(), known_axis_map[0].end(),
-            known_block_axis.begin(), [&ths](const std::vector<int> &bd_ax) {
-                return transform_axis_plain2blocking(
-                        ths->get_inputs()[0]->details_, bd_ax);
-            });
-    auto blocking_bd_axis = infer_tensor_view_binding_axis(
-            known_block_axis, src_dims, shapes);
-    bound_axis plain_bd_axis(blocking_bd_axis.size());
-    std::transform(blocking_bd_axis.begin(), blocking_bd_axis.end(),
-            plain_bd_axis.begin(), [&ths](const std::vector<int> &bd_ax) {
-                return transform_axis_blocking2plain(
-                        ths->get_outputs()[0]->details_, bd_ax);
-            });
+    auto plain_bd_axis = infer_tensor_view_binding_axis(
+            known_axis_map[0], src_plain_dims, dst_plain_dims);
     bdax_map.get(get_outputs()[0]) = plain_bd_axis;
     set_unknown_axis_binding(this, known_axis_map, bdax_map);
 }
@@ -1003,25 +991,13 @@ void tensor_view_op_t::pre_binding_axis(bound_axis_map &bdax_map) {
 
     if (inpaxis.empty()) {
         // src
-        auto src_dims = input->details_.get_blocking_dims();
+        auto src_plain_dims = info_.inputs_[0]->details_.get_plain_dims();
         // dst
-        auto shapes = get_shapes();
+        auto dst_plain_dims = info_.outputs_[0]->details_.get_plain_dims();
         auto ths = this;
-        bound_axis known_block_axis(outaxis.size());
-        std::transform(outaxis.begin(), outaxis.end(), known_block_axis.begin(),
-                [&ths](const std::vector<int> &bd_ax) {
-                    return transform_axis_plain2blocking(
-                            ths->get_outputs()[0]->details_, bd_ax);
-                });
-        auto blocking_bd_axis
-                = infer_tensor_view_binding_axis(outaxis, shapes, src_dims,
-                        attrs_.get_or_else("expand_dim", std::vector<int> {}));
-        bound_axis plain_bd_axis(blocking_bd_axis.size());
-        std::transform(blocking_bd_axis.begin(), blocking_bd_axis.end(),
-                plain_bd_axis.begin(), [&ths](const std::vector<int> &bd_ax) {
-                    return transform_axis_blocking2plain(
-                            ths->get_inputs()[0]->details_, bd_ax);
-                });
+        auto plain_bd_axis = infer_tensor_view_binding_axis(outaxis,
+                dst_plain_dims, src_plain_dims,
+                attrs_.get_or_else("expand_dim", std::vector<int> {}));
         inpaxis = plain_bd_axis;
         if (auto bd_op
                 = input->producer_owner_

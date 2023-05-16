@@ -766,10 +766,6 @@ std::vector<int> transform_axis_plain2blocking(
     std::vector<int> real_axis;
     auto p2bmp = fmt.format_code_.collect_p2b_mapping();
     for (auto &i : plain_axis) {
-        if (i == -1) {
-            real_axis.emplace_back(-1);
-            continue;
-        }
         std::vector<int> res;
         res.resize(p2bmp[i].size());
         std::transform(p2bmp[i].begin(), p2bmp[i].end(), res.begin(),
@@ -793,10 +789,6 @@ std::vector<int> transform_axis_blocking2plain(
     std::vector<int> plain_axis;
     auto p2bmp = fmt.format_code_.collect_p2b_mapping();
     for (auto &ax : blocking_axis) {
-        if (ax == -1) {
-            plain_axis.emplace_back(-1);
-            continue;
-        }
         for (size_t i = 0; i < p2bmp.size(); i++) {
             auto blk_axis_i = p2bmp[i];
             if (blk_axis_i.end()
@@ -806,10 +798,13 @@ std::vector<int> transform_axis_blocking2plain(
             }
         }
     }
-    // remove duplicated axis.
-    std::sort(plain_axis.begin(), plain_axis.end());
-    plain_axis.erase(std::unique(plain_axis.begin(), plain_axis.end()),
-            plain_axis.end());
+    // check if empty to make g++12 happy
+    if (!plain_axis.empty()) {
+        // remove duplicated axis.
+        std::sort(plain_axis.begin(), plain_axis.end());
+        plain_axis.erase(std::unique(plain_axis.begin(), plain_axis.end()),
+                plain_axis.end());
+    }
     return plain_axis;
 }
 

@@ -1172,11 +1172,6 @@ void infer_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
         for (auto &bd_axis : inp_axis) {
             std::vector<int> ret_w, ret_o;
             for (auto &ax : bd_axis) {
-                if (ax == -1) {
-                    ret_w.emplace_back(ax);
-                    ret_o.emplace_back(ax);
-                    continue;
-                }
                 COMPILE_ASSERT(ax < static_cast<int64_t>(inp_plain_dims.size()),
                         "matmul core input binded axis could not exceed "
                         "plain dims size: "
@@ -1191,8 +1186,6 @@ void infer_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
                                 < static_cast<int64_t>(wei_plain_dims.size())) {
                     ret_w.emplace_back(
                             wei_plain_dims.size() - 1 - distance_from_right);
-                } else {
-                    ret_w.emplace_back(-1);
                 }
                 // bind output axis
                 if (distance_from_right == 1) {
@@ -1200,8 +1193,6 @@ void infer_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
                 } else if (distance_from_right > 1) {
                     ret_o.emplace_back(
                             out_plain_dims.size() - 1 - distance_from_right);
-                } else {
-                    ret_o.emplace_back(-1);
                 }
             }
             wei_axis.emplace_back(ret_w);
@@ -1213,11 +1204,6 @@ void infer_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
         for (auto &bd_axis : wei_axis) {
             std::vector<int> ret_i, ret_o;
             for (auto &ax : bd_axis) {
-                if (ax == -1) {
-                    ret_i.emplace_back(ax);
-                    ret_o.emplace_back(ax);
-                    continue;
-                }
                 COMPILE_ASSERT(ax < static_cast<int64_t>(wei_plain_dims.size()),
                         "matmul core weight binded axis could not exceed "
                         "plain dims size: "
@@ -1232,8 +1218,6 @@ void infer_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
                                 < static_cast<int64_t>(inp_plain_dims.size())) {
                     ret_i.emplace_back(
                             inp_plain_dims.size() - 1 - distance_from_right);
-                } else {
-                    ret_i.emplace_back(-1);
                 }
                 // bind output axis
                 if (distance_from_right == 0) {
@@ -1241,8 +1225,6 @@ void infer_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
                 } else if (distance_from_right > 1) {
                     ret_o.emplace_back(
                             out_plain_dims.size() - 1 - distance_from_right);
-                } else {
-                    ret_o.emplace_back(-1);
                 }
             }
             inp_axis.emplace_back(ret_i);
@@ -1270,10 +1252,6 @@ void pre_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
             for (auto &bd_axis : outaxis) {
                 std::vector<int> ret;
                 for (auto &ax : bd_axis) {
-                    if (ax == -1) {
-                        ret.emplace_back(ax);
-                        continue;
-                    }
                     COMPILE_ASSERT(
                             ax < static_cast<int64_t>(out_plain_dims.size()),
                             "matmul core output binded axis could not exceed "
@@ -1292,8 +1270,6 @@ void pre_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
                                        in_plain_dims.size())) {
                         ret.emplace_back(
                                 in_plain_dims.size() - 1 - distance_from_right);
-                    } else {
-                        ret.emplace_back(-1);
                     }
                 }
                 in_axis.emplace_back(ret);

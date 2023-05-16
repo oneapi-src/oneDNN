@@ -1986,7 +1986,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
     = M_block_size == M_ib_block_size;
 
   mloop->attr()[stmt_attr_key::loop_axis_hint]
-    = bound_axis {{0}, {1}, {-1}, {0}, {1}};
+    = bound_axis {{0}, {1}, {}, {0}, {1}};
   loops = {mloop};
   return true;
 }
