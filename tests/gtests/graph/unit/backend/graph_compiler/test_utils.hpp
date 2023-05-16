@@ -84,6 +84,11 @@ namespace utils {
         GTEST_SKIP(); \
         return; \
     }
+
+#define REQUIRE_CPU_ENGINE() \
+    impl::engine_t *engine = get_engine(); \
+    SKIP_IF(engine->kind() == graph::engine_kind::gpu, "skip on gpu");
+
 #define DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(name) \
     name.set_attr(op_attr::qtype, std::string("per_tensor")); \
     name.set_attr(op_attr::axis, (int64_t)0);

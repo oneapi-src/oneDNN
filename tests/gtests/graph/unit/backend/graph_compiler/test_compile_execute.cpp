@@ -140,7 +140,8 @@ static void compile_execution_pipeline(impl::graph_t &agraph,
 // test fp32 get partition + compile + execution of MHA graph
 TEST(GCGraphTest, FP32MHACompileExecution_CPU) {
     REQUIRE_AVX512();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_subgraph(&agraph, false);
     agraph.finalize();
 
@@ -149,7 +150,8 @@ TEST(GCGraphTest, FP32MHACompileExecution_CPU) {
 
 TEST(GCGraphTest, FP32MHACompileExecution2_CPU) {
     REQUIRE_AVX512();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_subgraph(&agraph, false, false, true);
     agraph.finalize();
 
@@ -158,7 +160,8 @@ TEST(GCGraphTest, FP32MHACompileExecution2_CPU) {
 
 TEST(GCGraphTest, FP32MHACompileExecution3_CPU) {
     REQUIRE_AVX512();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_subgraph_alternative2(&agraph);
     agraph.finalize();
 
@@ -168,7 +171,8 @@ TEST(GCGraphTest, FP32MHACompileExecution3_CPU) {
 // test ITEX pattern ends with StaticReshape
 TEST(GCGraphTest, FP32MHACompileExecution4_CPU) {
     REQUIRE_AVX512();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_subgraph_alternative(
             &agraph, false, false, impl::op_kind::StaticReshape);
     agraph.finalize();
@@ -178,7 +182,8 @@ TEST(GCGraphTest, FP32MHACompileExecution4_CPU) {
 
 TEST(GCGraphTest, INT8MHACompileExecutionDynamicQuantize_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_subgraph(
             &agraph, false, true, false, 128, 384, 16, 1024, true);
     agraph.finalize();
@@ -187,7 +192,8 @@ TEST(GCGraphTest, INT8MHACompileExecutionDynamicQuantize_CPU) {
 
 TEST(GCGraphTest, INT8MHACompileExecutionFake_CPU) {
     REQUIRE_AVX512(); // fake int8, so it only requires avx512
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_subgraph_alternative2(&agraph, true);
     agraph.finalize();
 
@@ -197,7 +203,8 @@ TEST(GCGraphTest, INT8MHACompileExecutionFake_CPU) {
 // test int8 get partition + compile + execution of MHA graph
 TEST(GCGraphTest, INT8MHACompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_subgraph(&agraph, false, true);
     agraph.finalize();
 
@@ -206,7 +213,8 @@ TEST(GCGraphTest, INT8MHACompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8BF16MHACompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_subgraph(&agraph, true, true, false);
     agraph.finalize();
 
@@ -215,7 +223,8 @@ TEST(GCGraphTest, INT8BF16MHACompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8BF16MHACompileExecution2_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_subgraph(&agraph, true, true, true);
     agraph.finalize();
 
@@ -225,7 +234,8 @@ TEST(GCGraphTest, INT8BF16MHACompileExecution2_CPU) {
 // test ITEX pattern ends with StaticReshape
 TEST(GCGraphTest, INT8BF16MHACompileExecution3_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_subgraph_alternative(
             &agraph, true, true, impl::op_kind::StaticReshape);
     agraph.finalize();
@@ -235,7 +245,8 @@ TEST(GCGraphTest, INT8BF16MHACompileExecution3_CPU) {
 
 TEST(GCGraphTest, INT8MLPCompileExecutionDynamicQuantize_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_int8_mlp_subgraph(&agraph, 1, 5,
             {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
@@ -249,7 +260,8 @@ TEST(GCGraphTest, INT8MLPCompileExecutionDynamicQuantize_CPU) {
 // test bf16 get partition + compile + execution of MHA graph
 TEST(GCGraphTest, BF16MHACompileExecution_CPU) {
     REQUIRE_BF16_AMXBF16();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_subgraph(&agraph, true, false);
     agraph.finalize();
 
@@ -261,7 +273,8 @@ TEST(GCGraphTest, BF16MHACompileExecution_CPU) {
 // if infer shape failed, the compilation will also fail
 TEST(GCGraphTest, FP32MHAInfershapeCompileExecution_CPU) {
     REQUIRE_AVX512();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_infer_shape(&agraph);
     agraph.finalize();
 
@@ -274,7 +287,8 @@ TEST(GCGraphTest, FP32MHACompileExecutionMultiThreading_CPU) {
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
     GTEST_SKIP();
 #endif
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_subgraph(&agraph, false);
     agraph.finalize();
 
@@ -299,8 +313,7 @@ TEST(GCGraphTest, FP32MHACompileExecutionMultiThreading_CPU) {
     }
 
     impl::compiled_partition_t cp(p);
-    impl::engine_t &eng = *get_engine();
-    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), impl::status::success);
 
     size_t total_buffer_size = 0;
     for (auto &lt : partition_inputs) {
@@ -320,12 +333,12 @@ TEST(GCGraphTest, FP32MHACompileExecutionMultiThreading_CPU) {
 
         size_t size = 0;
         for (auto &lt : partition_inputs) {
-            impl::tensor_t placeholder(lt, &eng, data.data() + size);
+            impl::tensor_t placeholder(lt, engine, data.data() + size);
             execution_inputs.push_back(placeholder);
             size += compiler_backend_ptr.get_mem_size(lt);
         }
         for (auto &lt : partition_outputs) {
-            impl::tensor_t placeholder(lt, &eng, data.data() + size);
+            impl::tensor_t placeholder(lt, engine, data.data() + size);
             execution_outputs.push_back(placeholder);
             size += compiler_backend_ptr.get_mem_size(lt);
         }
@@ -358,7 +371,8 @@ void release_runtime_memory(runtime::engine_t *engine);
 TEST(GCGraphTest, AllocatorEarlyRelease_CPU) {
     REQUIRE_AVX512();
     dnnl::impl::graph::gc::release_runtime_memory(nullptr);
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_subgraph(&agraph, false);
     agraph.finalize();
 
@@ -426,7 +440,8 @@ TEST(GCGraphTest, AllocatorEarlyRelease_CPU) {
 
 TEST(GCGraphTest, FP32MHAAlternativeCompileExecution_CPU) {
     REQUIRE_AVX512();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_subgraph_alternative(&agraph, false, false);
     agraph.finalize();
 
@@ -435,7 +450,8 @@ TEST(GCGraphTest, FP32MHAAlternativeCompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8FP32MHAAlternativeCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_subgraph_alternative(&agraph, false, true);
     agraph.finalize();
 
@@ -444,7 +460,8 @@ TEST(GCGraphTest, INT8FP32MHAAlternativeCompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8BF16MHAAlternativeCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_subgraph_alternative(&agraph, true, true);
     agraph.finalize();
 
@@ -453,7 +470,8 @@ TEST(GCGraphTest, INT8BF16MHAAlternativeCompileExecution_CPU) {
 
 TEST(GCGraphTest, BF16MHAAlternativeCompileExecution_CPU) {
     REQUIRE_BF16_AMXBF16();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_subgraph_alternative(&agraph, true, false);
     agraph.finalize();
 
@@ -462,7 +480,8 @@ TEST(GCGraphTest, BF16MHAAlternativeCompileExecution_CPU) {
 
 TEST(GCGraphTest, FP32MHAAlternative4CompileExecution_CPU) {
     REQUIRE_AVX512();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_subgraph_alternative4(&agraph, false);
     agraph.finalize();
 
@@ -471,7 +490,8 @@ TEST(GCGraphTest, FP32MHAAlternative4CompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8MHAAlternative4CompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_subgraph_alternative4(&agraph, true);
     agraph.finalize();
 
@@ -480,7 +500,8 @@ TEST(GCGraphTest, INT8MHAAlternative4CompileExecution_CPU) {
 
 TEST(GCGraphTest, FP32BartMHACompileExecution_CPU) {
     REQUIRE_AVX512();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_bart_MHA(&agraph, false, false);
     agraph.finalize();
 
@@ -489,7 +510,8 @@ TEST(GCGraphTest, FP32BartMHACompileExecution_CPU) {
 
 TEST(GCGraphTest, BF16BartMHACompileExecution_CPU) {
     REQUIRE_BF16_AMXBF16();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_bart_MHA(&agraph, true, false);
     agraph.finalize();
 
@@ -498,7 +520,8 @@ TEST(GCGraphTest, BF16BartMHACompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8BartMHACompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_bart_MHA(&agraph, false, true);
     agraph.finalize();
 
@@ -507,7 +530,8 @@ TEST(GCGraphTest, INT8BartMHACompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8BF16BartMHACompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_bart_MHA(&agraph, true, true);
     agraph.finalize();
 
@@ -516,7 +540,8 @@ TEST(GCGraphTest, INT8BF16BartMHACompileExecution_CPU) {
 
 TEST(GCGraphTest, FP32DistillBertMHA_CPU) {
     REQUIRE_AVX512();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_distill_bert_MHA(&agraph, false, false);
     agraph.finalize();
 
@@ -525,7 +550,8 @@ TEST(GCGraphTest, FP32DistillBertMHA_CPU) {
 
 TEST(GCGraphTest, BF16DistillBertMHA_CPU) {
     REQUIRE_BF16_AMXBF16();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_distill_bert_MHA(&agraph, true, false);
     agraph.finalize();
 
@@ -534,7 +560,8 @@ TEST(GCGraphTest, BF16DistillBertMHA_CPU) {
 
 TEST(GCGraphTest, INT8FP32DistillBertMHA_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_distill_bert_MHA(&agraph, false, true);
     agraph.finalize();
 
@@ -543,7 +570,8 @@ TEST(GCGraphTest, INT8FP32DistillBertMHA_CPU) {
 
 TEST(GCGraphTest, INT8BF16DistillBertMHA_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_distill_bert_MHA(&agraph, true, true);
     agraph.finalize();
 
@@ -553,7 +581,8 @@ TEST(GCGraphTest, INT8BF16DistillBertMHA_CPU) {
 TEST(GCGraphTest, FP32MLPCompileExecution_CPU) {
     REQUIRE_AVX512();
     REQUIRE_AMX();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_mlp_subgraph(&agraph, false, 1, 5,
             {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
@@ -565,7 +594,8 @@ TEST(GCGraphTest, FP32MLPCompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8MLPCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_int8_mlp_subgraph(&agraph, 1, 5,
             {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
@@ -577,7 +607,8 @@ TEST(GCGraphTest, INT8MLPCompileExecution_CPU) {
 
 TEST(GCGraphTest, BF16MLPCompileExecution_CPU) {
     REQUIRE_AMXBF16();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_mlp_subgraph(&agraph, true, 1, 5,
             {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
@@ -590,7 +621,8 @@ TEST(GCGraphTest, BF16MLPCompileExecution_CPU) {
 TEST(GCGraphTest, FP32MLPDynamicGraphCompileExecution_CPU) {
     REQUIRE_AVX512();
     REQUIRE_AMX();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_mlp_subgraph(&agraph, false, -1, 5,
             {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
@@ -604,7 +636,8 @@ TEST(GCGraphTest, FP32MLPDynamicGraphCompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8MLPDynamicGraphCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_int8_mlp_subgraph(&agraph, -1, 5,
             {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
@@ -618,7 +651,8 @@ TEST(GCGraphTest, INT8MLPDynamicGraphCompileExecution_CPU) {
 
 TEST(GCGraphTest, BF16MLPDynamicGraphCompileExecution_CPU) {
     REQUIRE_AMXBF16();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_mlp_subgraph(&agraph, true, -1, 5,
             {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
@@ -633,7 +667,8 @@ TEST(GCGraphTest, BF16MLPDynamicGraphCompileExecution_CPU) {
 TEST(GCGraphTest, FP32MLPTrainingGraphCompileExecution_CPU) {
     REQUIRE_AVX512();
     REQUIRE_AMX();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_mlp_training_graph(&agraph, 128, 5,
             {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
@@ -649,7 +684,8 @@ TEST(GCGraphTest, FP32MLPTrainingGraphCompileExecution_CPU) {
 TEST(GCGraphTest, FP32MLPTrainingGraphCompileExecution2_CPU) {
     REQUIRE_AVX512();
     REQUIRE_AMX();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_mlp_training_graph(&agraph, 128, 5,
             {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
@@ -665,7 +701,8 @@ TEST(GCGraphTest, FP32MLPTrainingGraphCompileExecution2_CPU) {
 
 TEST(GCGraphTest, BF16MLPTrainingGraphCompileExecution_CPU) {
     REQUIRE_AMXBF16();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_mlp_training_graph(&agraph, 128, 5,
             {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
@@ -682,7 +719,8 @@ TEST(GCGraphTest, BF16MLPTrainingGraphCompileExecution_CPU) {
 TEST(GCGraphTest, FP32BartMLPResidualCompileExecution_CPU) {
     REQUIRE_AVX512();
     REQUIRE_AMX();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_bart_mlp_residual_subgraph(
             &agraph, false, false, 1, 17);
     agraph.finalize();
@@ -692,7 +730,8 @@ TEST(GCGraphTest, FP32BartMLPResidualCompileExecution_CPU) {
 
 TEST(GCGraphTest, BF16BartMLPResidualCompileExecution_CPU) {
     REQUIRE_AMXBF16();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_bart_mlp_residual_subgraph(&agraph, true, false, 1, 17);
     agraph.finalize();
 
@@ -701,7 +740,8 @@ TEST(GCGraphTest, BF16BartMLPResidualCompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8BartMLPResidualCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_bart_mlp_residual_subgraph(&agraph, false, true, 1, 17);
     agraph.finalize();
 
@@ -710,7 +750,8 @@ TEST(GCGraphTest, INT8BartMLPResidualCompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8BF16BartMLPResidualCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_bart_mlp_residual_subgraph(&agraph, true, true, 1, 17);
     agraph.finalize();
 
@@ -719,7 +760,8 @@ TEST(GCGraphTest, INT8BF16BartMLPResidualCompileExecution_CPU) {
 
 TEST(GCGraphTest, FP32MHATrainingGraphCompileExecution_CPU) {
     REQUIRE_AVX512();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_training_subgraph(&agraph, false);
     agraph.finalize();
 
@@ -728,7 +770,8 @@ TEST(GCGraphTest, FP32MHATrainingGraphCompileExecution_CPU) {
 
 TEST(GCGraphTest, BF16MHATrainingGraphCompileExecution_CPU) {
     REQUIRE_BF16_AMXBF16();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_training_subgraph(&agraph, true);
     agraph.finalize();
 
@@ -737,7 +780,8 @@ TEST(GCGraphTest, BF16MHATrainingGraphCompileExecution_CPU) {
 
 TEST(GCGraphTest, FP32MHATrainingGraphCompileExecution2_CPU) {
     REQUIRE_AVX512();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_training_subgraph(&agraph, false, true);
     agraph.finalize();
 
@@ -746,7 +790,8 @@ TEST(GCGraphTest, FP32MHATrainingGraphCompileExecution2_CPU) {
 
 TEST(GCGraphTest, BF16MHATrainingGraphCompileExecution2_CPU) {
     REQUIRE_BF16_AMXBF16();
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::add_MHA_training_subgraph(&agraph, true, true);
     agraph.finalize();
 
@@ -758,7 +803,8 @@ TEST(GCGraphTest, FP32IdenticalBottleneckCompileExecution_CPU) {
     REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_identical_bottleneck_resblock(&agraph, id_gen,
             {1, 256, 56, 56},
             {{64, 256, 1, 1}, {64, 64, 3, 3}, {256, 64, 1, 1}});
@@ -772,7 +818,8 @@ TEST(GCGraphTest, FP32ConvolutionalBottleneckCompileExecution_CPU) {
     REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_convolutional_bottleneck_resblock(&agraph, id_gen,
             {1, 64, 56, 56},
             {{256, 64, 1, 1}, {64, 64, 1, 1}, {64, 64, 3, 3}, {256, 64, 1, 1}});
@@ -786,7 +833,8 @@ TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecution_CPU) {
     REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_int8_identical_bottleneck_resblock(&agraph,
             id_gen, {1, 256, 56, 56},
             {{64, 256, 1, 1}, {64, 64, 3, 3}, {256, 64, 1, 1}});
@@ -800,7 +848,8 @@ TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionNXC_CPU) {
     REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_int8_identical_bottleneck_resblock(&agraph,
             id_gen, {1, 56, 56, 256},
             {{1, 1, 256, 64}, {3, 3, 64, 64}, {1, 1, 64, 256}},
@@ -815,7 +864,8 @@ TEST(GCGraphTest, INT8ConvolutionalBottleneckCompileExecution_CPU) {
     REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_int8_convolutional_bottleneck_resblock(&agraph,
             id_gen, {1, 64, 56, 56},
             {{256, 64, 1, 1}, {64, 64, 1, 1}, {64, 64, 3, 3}, {256, 64, 1, 1}});
@@ -827,7 +877,8 @@ TEST(GCGraphTest, INT8ConvolutionalBottleneckCompileExecution_CPU) {
 TEST(GCGraphTest, FP32IdenticalBottleneckTrainingCompileExecution_CPU) {
     REQUIRE_AVX512();
     utils::id_generator id_gen;
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_identical_bottleneck_training_subgraph(&agraph,
             id_gen, {1, 56, 56, 256},
             {{1, 1, 256, 64}, {3, 3, 64, 64}, {1, 1, 64, 256}});
@@ -839,7 +890,8 @@ TEST(GCGraphTest, FP32IdenticalBottleneckTrainingCompileExecution_CPU) {
 TEST(GCGraphTest, FP32IdenticalBottleneckTrainingCompileExecutionNCX_CPU) {
     REQUIRE_AVX512();
     utils::id_generator id_gen;
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_identical_bottleneck_training_subgraph(&agraph,
             id_gen, {1, 256, 56, 56},
             {{64, 256, 1, 1}, {64, 64, 3, 3}, {256, 64, 1, 1}}, false, false,
@@ -852,7 +904,8 @@ TEST(GCGraphTest, FP32IdenticalBottleneckTrainingCompileExecutionNCX_CPU) {
 TEST(GCGraphTest, FP32ConvolutionalBottleneckTrainingCompileExecution_CPU) {
     REQUIRE_AVX512();
     utils::id_generator id_gen;
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_convolutional_bottleneck_training_subgraph(
             &agraph, id_gen, {1, 56, 56, 64},
             {{1, 1, 64, 256}, {1, 1, 64, 64}, {3, 3, 64, 64}, {1, 1, 64, 256}});
@@ -864,7 +917,8 @@ TEST(GCGraphTest, FP32ConvolutionalBottleneckTrainingCompileExecution_CPU) {
 TEST(GCGraphTest, BF16IdenticalBottleneckTrainingCompileExecution_CPU) {
     REQUIRE_AMXBF16();
     utils::id_generator id_gen;
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_identical_bottleneck_training_subgraph(&agraph,
             id_gen, {64, 56, 56, 256},
             {{1, 1, 256, 64}, {3, 3, 64, 64}, {1, 1, 64, 256}}, true);
@@ -883,7 +937,8 @@ TEST(GCGraphTest, BF16ConvolutionalBottleneckTrainingCompileExecution_CPU) {
     }
 #endif
     utils::id_generator id_gen;
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_convolutional_bottleneck_training_subgraph(
             &agraph, id_gen, {64, 56, 56, 64},
             {{1, 1, 64, 256}, {1, 1, 64, 64}, {3, 3, 64, 64}, {1, 1, 64, 256}},
@@ -898,7 +953,8 @@ TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionDynamicQuantize_CPU) {
     REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_int8_identical_bottleneck_resblock(&agraph,
             id_gen, {1, 256, 56, 56},
             {{64, 256, 1, 1}, {64, 64, 3, 3}, {256, 64, 1, 1}},
@@ -915,7 +971,8 @@ TEST(GCGraphTest,
     REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_int8_identical_bottleneck_resblock(&agraph,
             id_gen, {1, 56, 56, 256},
             {{1, 1, 256, 64}, {3, 3, 64, 64}, {1, 1, 64, 256}},
@@ -932,7 +989,8 @@ TEST(GCGraphTest,
     REQUIRE_SINGLE_THREAD();
     REQUIRE_AMX();
     utils::id_generator id_gen;
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_int8_convolutional_bottleneck_resblock(&agraph,
             id_gen, {1, 64, 56, 56},
             {{256, 64, 1, 1}, {64, 64, 1, 1}, {64, 64, 3, 3}, {256, 64, 1, 1}},
@@ -947,7 +1005,8 @@ TEST(GCGraphTest,
 TEST(GCGraphTest, INT8MulQuantizeCompileExecution_CPU) {
     REQUIRE_AVX512();
     utils::id_generator id_gen;
-    impl::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_mul_quantize_subgraph(
             &agraph, id_gen, {4, 1, 4096});
     agraph.finalize();
@@ -958,7 +1017,8 @@ TEST(GCGraphTest, INT8MulQuantizeCompileExecution_CPU) {
 TEST(GCGraphTest, FP32GPTMHACompileExecution_CPU) {
     REQUIRE_AVX512();
     utils::id_generator id_gen;
-    graph::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_gpt_mha_subgraph(&agraph, id_gen, false, false);
     agraph.finalize();
 
@@ -968,7 +1028,8 @@ TEST(GCGraphTest, FP32GPTMHACompileExecution_CPU) {
 TEST(GCGraphTest, BF16GPTMHACompileExecution_CPU) {
     REQUIRE_BF16_AMXBF16();
     utils::id_generator id_gen;
-    graph::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_gpt_mha_subgraph(&agraph, id_gen, true, false);
     agraph.finalize();
 
@@ -978,7 +1039,8 @@ TEST(GCGraphTest, BF16GPTMHACompileExecution_CPU) {
 TEST(GCGraphTest, INT8FP32GPTMHACompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
     utils::id_generator id_gen;
-    graph::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_gpt_mha_subgraph(&agraph, id_gen, false, true);
     agraph.finalize();
 
@@ -988,7 +1050,8 @@ TEST(GCGraphTest, INT8FP32GPTMHACompileExecution_CPU) {
 TEST(GCGraphTest, INT8BF16GPTMHACompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
     utils::id_generator id_gen;
-    graph::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_gpt_mha_subgraph(&agraph, id_gen, true, true);
     agraph.finalize();
 
@@ -998,7 +1061,8 @@ TEST(GCGraphTest, INT8BF16GPTMHACompileExecution_CPU) {
 TEST(GCGraphTest, FP32LLAMAMHACompileExecution_CPU) {
     REQUIRE_AVX512();
     utils::id_generator id_gen;
-    graph::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_llama_mha_subgraph(&agraph, id_gen, false, false);
     agraph.finalize();
 
@@ -1008,7 +1072,8 @@ TEST(GCGraphTest, FP32LLAMAMHACompileExecution_CPU) {
 TEST(GCGraphTest, BF16LLAMAMHACompileExecution_CPU) {
     REQUIRE_BF16_AMXBF16();
     utils::id_generator id_gen;
-    graph::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_llama_mha_subgraph(&agraph, id_gen, true, false);
     agraph.finalize();
 
@@ -1018,7 +1083,8 @@ TEST(GCGraphTest, BF16LLAMAMHACompileExecution_CPU) {
 TEST(GCGraphTest, INT8FP32LLAMAMHACompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
     utils::id_generator id_gen;
-    graph::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_llama_mha_subgraph(&agraph, id_gen, false, true);
     agraph.finalize();
 
@@ -1028,7 +1094,8 @@ TEST(GCGraphTest, INT8FP32LLAMAMHACompileExecution_CPU) {
 TEST(GCGraphTest, INT8BF16LLAMAMHACompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
     utils::id_generator id_gen;
-    graph::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_llama_mha_subgraph(&agraph, id_gen, true, true);
     agraph.finalize();
 
@@ -1039,7 +1106,8 @@ TEST(GCGraphTest, FP32GPTMLPCompileExecution_CPU) {
     REQUIRE_AVX512();
     REQUIRE_AMX();
     utils::id_generator id_gen;
-    graph::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_gpt_mlp_subgraph(&agraph, id_gen, false, false);
     agraph.finalize();
 
@@ -1050,7 +1118,8 @@ TEST(GCGraphTest, BF16GPTMLPCompileExecution_CPU) {
     REQUIRE_BF16_AMXBF16();
     REQUIRE_AMX();
     utils::id_generator id_gen;
-    graph::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_gpt_mlp_subgraph(&agraph, id_gen, true, false);
     agraph.finalize();
 
@@ -1060,7 +1129,8 @@ TEST(GCGraphTest, BF16GPTMLPCompileExecution_CPU) {
 TEST(GCGraphTest, INT8FP32GPTMLPCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
     utils::id_generator id_gen;
-    graph::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_gpt_mlp_subgraph(&agraph, id_gen, false, true);
     agraph.finalize();
 
@@ -1070,7 +1140,8 @@ TEST(GCGraphTest, INT8FP32GPTMLPCompileExecution_CPU) {
 TEST(GCGraphTest, INT8BF16GPTMLPCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
     utils::id_generator id_gen;
-    graph::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_gpt_mlp_subgraph(&agraph, id_gen, true, true);
     agraph.finalize();
 
@@ -1081,7 +1152,8 @@ TEST(GCGraphTest, FP32LLAMAMLPCompileExecution_CPU) {
     REQUIRE_AVX512();
     REQUIRE_AMX();
     utils::id_generator id_gen;
-    graph::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_llama_mlp_subgraph(&agraph, id_gen, false, false);
     agraph.finalize();
 
@@ -1092,7 +1164,8 @@ TEST(GCGraphTest, BF16LLAMAMLPCompileExecution_CPU) {
     REQUIRE_BF16_AMXBF16();
     REQUIRE_AMX();
     utils::id_generator id_gen;
-    graph::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_llama_mlp_subgraph(&agraph, id_gen, true, false);
     agraph.finalize();
 
@@ -1102,7 +1175,8 @@ TEST(GCGraphTest, BF16LLAMAMLPCompileExecution_CPU) {
 TEST(GCGraphTest, INT8FP32LLAMAMLPCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
     utils::id_generator id_gen;
-    graph::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_llama_mlp_subgraph(&agraph, id_gen, false, true);
     agraph.finalize();
 
@@ -1112,7 +1186,8 @@ TEST(GCGraphTest, INT8FP32LLAMAMLPCompileExecution_CPU) {
 TEST(GCGraphTest, INT8BF16LLAMAMLPCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
     utils::id_generator id_gen;
-    graph::graph_t agraph;
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
     compiler_utils::construct_llama_mlp_subgraph(&agraph, id_gen, true, true);
     agraph.finalize();
 

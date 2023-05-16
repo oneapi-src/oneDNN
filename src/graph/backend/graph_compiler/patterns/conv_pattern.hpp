@@ -671,6 +671,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(fp32_conv_inference_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, f32_identical_bottleneck)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -680,6 +681,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, f32_convolutional_bottleneck)
         .set_priority(5.5f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -689,6 +691,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, f32_resnet50_stage_1_4_fusion_gc)
         .set_priority(22.f) // high priority to support itex
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -701,6 +704,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, f32_resnet50_stage_2_fusion_gc)
         .set_priority(22.1f) // high priority to support itex
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -714,6 +718,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, f32_resnet50_stage_3_fusion_gc)
         .set_priority(22.2f) // high priority to support itex
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -729,6 +734,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(fp32_conv_training_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, f32_identical_bottleneck_forward)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -739,6 +745,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, f32_convolutional_bottleneck_forward)
         .set_priority(5.5f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -749,6 +756,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, f32_identical_bottleneck_backward_v1)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -759,6 +767,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, f32_convolutional_bottleneck_backward_v1)
         .set_priority(5.5f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -769,6 +778,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, f32_identical_bottleneck_backward_v2)
         .set_priority(4.0f) // set to lower priority as backup
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -779,6 +789,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, f32_convolutional_bottleneck_backward_v2)
         .set_priority(4.5f) // set to lower priority as backup
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -791,6 +802,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(bf16_conv_inference_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_identical_bottleneck)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -800,6 +812,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_convolutional_bottleneck)
         .set_priority(5.5f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -809,6 +822,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_resnet50_stage_1_4_fusion_gc)
         .set_priority(22.f) // high priority to support itex
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -824,6 +838,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_resnet50_stage_2_fusion_gc)
         .set_priority(22.1f) // high priority to support itex
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -839,6 +854,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_resnet50_stage_3_fusion_gc)
         .set_priority(22.2f) // high priority to support itex
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -856,6 +872,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(bf16_conv_training_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_identical_bottleneck_forward)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -866,6 +883,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_convolutional_bottleneck_forward)
         .set_priority(5.5f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -876,6 +894,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_identical_bottleneck_backward_v1)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -886,6 +905,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_convolutional_bottleneck_backward_v1)
         .set_priority(5.5f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -896,6 +916,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_identical_bottleneck_backward_v2)
         .set_priority(4.0f) // set to lower priority as backup
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -906,6 +927,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_convolutional_bottleneck_backward_v2)
         .set_priority(4.5f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -918,6 +940,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(int8_conv_inference_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_identical_bottleneck)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -928,6 +951,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_convolutional_bottleneck)
         .set_priority(5.5f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -937,6 +961,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_resnet50_stage_1_4_fusion_gc)
         .set_priority(22.f) // high priority to support lz models
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -950,6 +975,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_resnet50_stage_2_fusion_gc)
         .set_priority(22.1f) // high priority to support lz models
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -965,6 +991,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_resnet50_stage_3_fusion_gc)
         .set_priority(22.2f) // high priority to support lz models
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -980,6 +1007,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, itex_int8_resnet50_stage_1_fusion_gc)
         .set_priority(22.1f) // high priority to support lz models
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -996,6 +1024,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, itex_int8_resnet50_stage_2_fusion_gc)
         .set_priority(22.2f) // high priority to support lz models
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1013,6 +1042,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, itex_int8_resnet50_stage_3_fusion_gc)
         .set_priority(22.3f) // high priority to support lz models
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1029,6 +1059,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, itex_int8_resnet50_stage_4_fusion_gc)
         .set_priority(22.1f) // high priority to support lz models
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_residual_conv_blocks)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {

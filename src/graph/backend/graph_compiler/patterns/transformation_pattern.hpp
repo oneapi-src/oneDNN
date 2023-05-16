@@ -50,6 +50,12 @@ public:
     }
 
     graph::status_t run(graph::graph_t &agraph) override {
+        // check if current pattern pass can be run on current graph
+        engine_kind_t graph_engine_kind = agraph.get_engine_kind();
+        if (get_engine_kind() != engine_kind::any_engine
+                && get_engine_kind() != graph_engine_kind)
+            return impl::status::success;
+
         std::vector<graph::pass::FCreatePattern> pfuncs
                 = get_attr<graph::pass::FCreatePattern>("FCreatePattern");
         pattern_utils_t pu;

@@ -45,6 +45,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(misc_pattern)
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, mul_typecast_quantize)
         .set_priority(1.f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::misc_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {

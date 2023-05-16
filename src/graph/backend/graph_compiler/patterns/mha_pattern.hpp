@@ -247,6 +247,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(fp32_mha_pattern)
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_mha_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -321,6 +322,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_mha_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mha_pattern_alternative)
         .set_priority(4.5f) // lower priority than non-alternative
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -370,6 +372,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_distill_bert_mha_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -419,6 +422,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mha_forward_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -486,6 +490,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mha_backward_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -592,6 +597,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mha_pattern_alternative2)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -695,6 +701,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fake_int8_mha_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -764,6 +771,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fake_int8_mha_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mha_pattern_alternative3)
         .set_priority(4.4f) // lower priority than mha_pattern_alternative
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -803,6 +811,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_matmul_softmax_fusion)
         .set_priority(4.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -841,6 +850,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mha_pattern_alternative4)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -866,6 +876,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_gpt_mha)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -874,6 +885,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_gpt_mha)
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_llama_mha)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -908,6 +920,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(bf16_mha_pattern)
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_mha_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -982,6 +995,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_mha_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mha_pattern_alternative)
         .set_priority(4.5f) // lower priority than non-alternative
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1031,6 +1045,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_distill_bert_mha_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1080,6 +1095,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mha_forward_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1145,6 +1161,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mha_backward_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1236,6 +1253,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mha_pattern_alternative3)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1264,6 +1282,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_matmul_softmax_fusion)
         .set_priority(4.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1281,6 +1300,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_gpt_mha)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1289,6 +1309,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_gpt_mha)
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_llama_mha)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1331,6 +1352,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(int8_mha_pattern)
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mha_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1448,6 +1470,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mha_pattern)
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_mha_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1561,6 +1584,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_mha_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_mha_pattern_alternative)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1649,6 +1673,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_bf16_mha_pattern_alternative)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1737,6 +1762,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_mha_pattern_alternative3)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1804,6 +1830,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_bf16_mha_pattern_alternative3)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1878,6 +1905,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_matmul_softmax_fusion)
         .set_priority(4.1f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1937,6 +1965,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_bf16_matmul_softmax_fusion)
         .set_priority(4.1f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -2015,6 +2044,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_mha_pattern_alternative4)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -2091,6 +2121,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_distill_bert_mha_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -2167,6 +2198,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_bf16_distill_bert_mha_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -2226,6 +2258,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_gpt_mha)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -2234,6 +2267,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_gpt_mha)
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_gpt_mha)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -2242,6 +2276,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_gpt_mha)
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_llama_mha)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -2250,6 +2285,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_llama_mha)
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_llama_mha)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {

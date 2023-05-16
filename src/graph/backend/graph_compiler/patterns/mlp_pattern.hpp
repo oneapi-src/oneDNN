@@ -413,6 +413,7 @@ repetition unit:
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mlp_forward_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -461,6 +462,7 @@ pattern:
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mlp_backward_pattern)
         .set_priority(5.1f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -550,6 +552,7 @@ pattern:
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mlp_backward_pattern_v2)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -649,6 +652,7 @@ mlp residual graph, having an extra edge from LayerNorm to Add.
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_bart_mlp_residual_pattern)
         .set_priority(5.5f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -678,6 +682,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_gpt_mlp)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -690,6 +695,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_gpt_mlp)
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_llama_mlp)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -717,6 +723,7 @@ repetition unit:
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mlp_pattern)
         .set_priority(6.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -771,6 +778,7 @@ Dequantize      Dequantize
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_bart_mlp_residual_pattern)
         .set_priority(6.5f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -892,6 +900,7 @@ Dequantize    Dequantize
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_bf16_bart_mlp_residual_pattern)
         .set_priority(6.5f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -992,6 +1001,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_gpt_mlp)
         .set_priority(6.5f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1017,6 +1027,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_gpt_mlp_fp32_out)
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_gpt_mlp)
         .set_priority(6.5f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1043,6 +1054,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_llama_mlp)
         .set_priority(6.5f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1051,6 +1063,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_llama_mlp)
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_llama_mlp)
         .set_priority(6.5f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1079,6 +1092,7 @@ repetition unit:
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mlp_forward_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1128,6 +1142,7 @@ pattern:
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mlp_backward_pattern)
         .set_priority(5.1f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1217,6 +1232,7 @@ pattern:
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mlp_backward_pattern_v2)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1315,6 +1331,7 @@ mlp residual graph, having an extra edge from LayerNorm to Add.
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_bart_mlp_residual_pattern)
         .set_priority(5.5f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1344,6 +1361,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_gpt_mlp)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1356,6 +1374,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_gpt_mlp)
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_llama_mlp)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
