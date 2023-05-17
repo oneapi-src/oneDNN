@@ -113,7 +113,6 @@ private:
 
     std::string dir_;
     type_filter_t type_filter_;
-    int_filter_t mb_filter_;
     std::string desc_;
     std::string tag_;
     flags_filter_t flags_filter_;
