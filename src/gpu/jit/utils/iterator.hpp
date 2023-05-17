@@ -57,7 +57,8 @@ public:
             return *this;
         }
 
-        iterator_t(inner_iter_t it, inner_iter_t end, predicate_t predicate)
+        iterator_t(const inner_iter_t &it, const inner_iter_t &end,
+                predicate_t predicate)
             : it_(it), end_(end), predicate_(predicate) {
             if (it_ != end_ && !predicate_(*it_)) operator++();
         }
@@ -118,8 +119,8 @@ public:
             return *this;
         }
 
-        iterator_t(inner_iter_t a_it, inner_iter_t a_end, inner_iter_t b_it,
-                inner_iter_t b_end, cmp_t cmp)
+        iterator_t(const inner_iter_t &a_it, const inner_iter_t &a_end,
+                const inner_iter_t &b_it, const inner_iter_t &b_end, cmp_t cmp)
             : a_it_(a_it)
             , a_end_(a_end)
             , b_it_(b_it)
@@ -169,7 +170,7 @@ public:
         ResultT operator*() const { return transform_(*it_); }
         iterator_t &operator++() { return (++it_, *this); }
 
-        iterator_t(inner_iter_t it, transform_op_t transform)
+        iterator_t(const inner_iter_t &it, transform_op_t transform)
             : it_(it), transform_(transform) {}
 
     private:
@@ -231,11 +232,8 @@ public:
             return tensor_t(dims);
         }
 
-        iterator_t(inner_iter_t it, inner_iter_t end, int ndims)
-            : it_(std::move(it))
-            , end_(std::move(end))
-            , dims_(ndims, 1)
-            , factor_(1) {}
+        iterator_t(const inner_iter_t &it, const inner_iter_t &end, int ndims)
+            : it_(it), end_(end), dims_(ndims, 1), factor_(1) {}
 
     private:
         inner_iter_t it_, end_;
