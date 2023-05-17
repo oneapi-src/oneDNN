@@ -308,13 +308,14 @@ extern "C" void query_format_select_op(void *table, void *out, void *in0,
             = reinterpret_cast<runtime::op_dispatch_tables_t *>(table);
     // query format
     auto &format_table = op_table->format_table_;
-    assert(format_table);
-    uint64_t fmt_keys[3] = {0, 0, *in2_fmt};
-    void *value = format_table->get(fmt_keys, 3);
-    assert(value);
-    *in0_fmt = reinterpret_cast<uint64_t *>(value)[0];
-    *in1_fmt = reinterpret_cast<uint64_t *>(value)[1];
-    *out_fmt = reinterpret_cast<uint64_t *>(value)[3];
+    if (format_table) {
+        uint64_t fmt_keys[3] = {0, 0, *in2_fmt};
+        void *value = format_table->get(fmt_keys, 3);
+        assert(value);
+        *in0_fmt = reinterpret_cast<uint64_t *>(value)[0];
+        *in1_fmt = reinterpret_cast<uint64_t *>(value)[1];
+        *out_fmt = reinterpret_cast<uint64_t *>(value)[3];
+    }
     // query kernel
     auto &kernel_table = op_table->kernel_table_;
     if (kernel_table) {
