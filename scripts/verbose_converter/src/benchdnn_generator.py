@@ -250,14 +250,22 @@ def convert_dts(mds, prim_kind):
     # --dt=SRC_DT[:WEI_DT][:DST_DT]
     def convert_dts_multiple(mds):
         dts = "--dt="
+        has_fused_dw = 0
         for md in mds:
             md_dt = md["data_type"]
             md_arg = md["arg"]
+            if md_arg == "src_fused":
+                has_fused_dw = 1
+            # Fused dw defines dst_dt by src_fused argument
+            # Note: assumes the order in mds is 'src_fused', then 'dst'.
+            if has_fused_dw == 1 and md_arg == "dst":
+                continue
+
             if md_arg == "src":
                 dts += f"{md_dt}"
             elif md_arg == "wei":
                 dts += f":{md_dt}"
-            elif md_arg == "dst":
+            elif md_arg == "dst" or md_arg == "src_fused":
                 dts += f":{md_dt}"
             else:
                 dts += f""
@@ -327,20 +335,30 @@ def convert_tags(mds, prim_kind):
 
     def convert_tags_all(mds):
         tags = ""
+        has_fused_dw = 0
         for md in mds:
-            md_arg = md["arg"][0]
-            # skip bias
-            if md_arg == "b":
+            md_arg = md["arg"]
+            md_arg_abbr = md["arg"][0]
+            if md_arg == "src_fused":
+                has_fused_dw = 1
+                md_arg_abbr = "d"
+
+            # Fused dw defines dst_dt by src_fused argument
+            # Note: assumes the order in mds is 'src_fused', then 'dst'.
+            if has_fused_dw == 1 and md_arg == "dst":
+                continue
+            # skip bias and dw_fused weights
+            if md_arg_abbr == "b" or md_arg == "wei_fused":
                 continue
 
             if "a" in md["properties"]:
-                tags += f" --{md_arg}tag=any"
+                tags += f" --{md_arg_abbr}tag=any"
             # pass wtag any for cases with compensation
-            elif md_arg == "w" and md["flags"]["value"] != "f0":
-                tags += f" --{md_arg}tag=any"
+            elif md_arg_abbr == "w" and md["flags"]["value"] != "f0":
+                tags += f" --{md_arg_abbr}tag=any"
             else:
                 md_tag = md["tag"]
-                tags += f" --{md_arg}tag={md_tag}"
+                tags += f" --{md_arg_abbr}tag={md_tag}"
         return tags
 
     def convert_tags_and_strides(mds):
