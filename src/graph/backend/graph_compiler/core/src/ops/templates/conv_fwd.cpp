@@ -1954,6 +1954,9 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
     && parallel_space_is_enough;
   bool use_var_bs = attrs_.get_or_else("use_var_bs", true);
 
+  // TODO(xxx): fix inverse filter correctness issue when use_var_bs==true
+  if (inverse_filter_) { use_var_bs = false; }
+
   _tensor_(pbuffer, dtype_input, {src_row_tile_size, LDA});
   if (!use_var_bs) {
     // when not using var_bs, define a unified zero-buffer for padding.

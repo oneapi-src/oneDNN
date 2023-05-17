@@ -235,7 +235,8 @@ void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int K,
 }
 
 void check_conv_correctness_and_tuning_bwd_d(int N, int K, int C, int H, int W,
-        int R, int S, int stride, int padding) {
+        int R, int S, int stride, int padding,
+        bool use_inverse_filter = false) {
     REQUIRE_AVX2();
     sc_graph_t mgr;
     std::vector<sc_op_ptr> fuse_arg_ops;
@@ -245,11 +246,24 @@ void check_conv_correctness_and_tuning_bwd_d(int N, int K, int C, int H, int W,
     int Q = (W + 2 * padding - S) / stride + 1;
     auto in_a = mgr.make_input({graph_tensor::make({N, K, P, Q})});
     auto in_weight = mgr.make_input({graph_tensor::make({K, C, R, S})});
-    auto conv_out = mgr.make("conv_bwd_data_core",
-            {in_a->get_outputs()[0], in_weight->get_outputs()[0]},
-            {graph_tensor::make({N, C, H, W})},
-            {{"strides", stride_arr}, {"paddings", padding_arr},
-                    {"dst_shape", sc_dims {N, C, H, W}}});
+    sc_op_ptr conv_out;
+    if (use_inverse_filter) {
+        auto permute_channel
+                = mgr.make("transpose", {in_weight->get_outputs()[0]}, {},
+                        {{"order", std::vector<int> {1, 0, 2, 3}}});
+        conv_out = mgr.make("conv_fwd_core",
+                {in_a->get_outputs()[0], permute_channel->get_outputs()[0]}, {},
+                {{"strides", stride_arr}, {"paddings", padding_arr},
+                        {"dst_shape", sc_dims {N, C, H, W}},
+                        {"inverse_filter", true}});
+    } else {
+        conv_out = mgr.make(
+                use_inverse_filter ? "conv_bwd_data" : "conv_bwd_data_core",
+                {in_a->get_outputs()[0], in_weight->get_outputs()[0]},
+                {graph_tensor::make({N, C, H, W})},
+                {{"strides", stride_arr}, {"paddings", padding_arr},
+                        {"dst_shape", sc_dims {N, C, H, W}}});
+    }
 
     fuse_arg_ops = {in_a, in_weight};
     const sc_op_ptr &final_out = conv_out;
@@ -1134,6 +1148,15 @@ TEST(GCCore_CPU_conv2d_bwd_d_cpp, TestCONV2D_3x3_4) {
     thread_num_reset reseter;
     runtime_config_t::get().set_num_threads(28);
     check_conv_correctness_and_tuning_bwd_d(28, 64, 64, 28, 28, 3, 3, 2, 1);
+}
+TEST(GCCore_CPU_conv2d_bwd_d_cpp, TestCONV2D_3x3_5) {
+    REQUIRE_AMX();
+    thread_num_reset reseter;
+    runtime_config_t::get().set_num_threads(56);
+    check_conv_correctness_and_tuning_bwd_d(
+            1, 64, 64, 56, 56, 3, 3, 1, 1, true);
+    check_conv_correctness_and_tuning_bwd_d(
+            56, 64, 64, 28, 28, 3, 3, 1, 1, true);
 }
 
 TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_1x1_1) {
