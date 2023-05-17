@@ -144,7 +144,7 @@ protected:
 private:
     cl_device_id device_;
     cl_context context_;
-    cl_platform_id platform_;
+    cl_platform_id platform_ = nullptr;
     bool is_user_context_;
 };
 
