@@ -136,7 +136,6 @@ struct ref_eltwise_bwd_t : public gpu_primitive_t {
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         eltwise_conf_t conf;
-        bool use_dense;
     };
 
     status_t init(engine_t *engine) override {
