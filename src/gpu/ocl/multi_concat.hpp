@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,6 +34,8 @@ namespace ocl {
 struct multi_concat_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_concat_pd_t {
+        static constexpr int batch_failure = -1;
+
         using gpu_concat_pd_t::gpu_concat_pd_t;
 
         pd_t(const pd_t &rhs) = default;
@@ -44,11 +46,12 @@ struct multi_concat_t : public gpu_primitive_t {
         int max_batch_size() const {
             if (n_inputs() > 64) return 64;
             if (n_inputs() > 16) return 16;
-            return 0;
+            return batch_failure;
         }
 
         status_t init(engine_t *engine) {
-            bool ok = max_batch_size() != 0 && attr()->has_default_values()
+            bool ok = max_batch_size() != batch_failure
+                    && attr()->has_default_values()
                     && set_default_params() == status::success;
             if (!ok) return status::unimplemented;
 
@@ -109,6 +112,7 @@ struct multi_concat_t : public gpu_primitive_t {
         using namespace memory_tracking::names;
         const auto n = pd()->n_inputs();
         const auto max_batch_size = pd()->max_batch_size();
+        if (max_batch_size == pd_t::batch_failure) return status::runtime_error;
 
         auto execute_concat = [&](const std::shared_ptr<primitive_t> &concat,
                                       int c_num, int n_inputs) {
