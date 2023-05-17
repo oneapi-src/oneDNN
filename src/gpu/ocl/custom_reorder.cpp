@@ -33,10 +33,10 @@ using dimension = struct {
     int idx;
 };
 
-using stride_t = struct {
-    dim_t stride;
-    dim_t size;
-    int idx;
+struct stride_t {
+    dim_t stride = 1;
+    dim_t size = 1;
+    int idx = 0;
 };
 
 // Stride sorter. Smaller stride = inner dim, bigger stride = outer dim.
