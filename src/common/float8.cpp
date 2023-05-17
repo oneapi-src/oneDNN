@@ -19,21 +19,43 @@
 #include "common/bit_cast.hpp"
 #include "common/float16.hpp"
 #include "common/float8.hpp"
+#include "common/utils.hpp"
 
 namespace dnnl {
 namespace impl {
 
+float8_e5m2_t &float8_e5m2_t::operator=(float16_t f) {
+    // we just need to apply rounding
+    uint16_t fraw = f.raw;
+    uint16_t naninf_mask = 0x7c00;
+
+    bool is_special = (fraw & naninf_mask) == naninf_mask;
+    bool is_nan = is_special && (fraw & 0x03ff); // one of the lsb is non zero
+
+    // we always return R ind for Nan input as there is no good
+    // conversion of payload
+    if (is_nan) {
+        raw_bits_ = 0xfe;
+        return *this;
+    }
+
+    // if infinity, we just return it as is
+    if (is_special) {
+        raw_bits_ = fraw >> 8;
+        return *this;
+    }
+
+    // otherwise we just round and return
+    int16_t rounding_nudge = 0x007f + ((fraw & 0x0100) >> 8);
+    fraw = fraw + rounding_nudge;
+    raw_bits_ = fraw >> 8;
+    return *this;
+}
+
 float8_e5m2_t &float8_e5m2_t::operator=(float f) {
-    //TODO(keola): enable more accurate conversion
-    // f8_e5m2 is "bottom" of f16, so convert to f16 and truncate
-    //    bit     : 0        8
-    //    f16     : seeeeemm|mmmmmmmm
-    //    f8_e5m2 : seeeeemm|
     float16_t f16 = f;
-    // bit cast to array of uint8_t values
-    auto iraw = utils::bit_cast<std::array<uint8_t, 2>>(f16);
-    // set raw bits to 2nd (little endian) byte: 1s5e2m
-    raw_bits_ = iraw[1];
+    float8_e5m2_t f8 = f16;
+    raw_bits_ = f8.raw_bits_;
     return *this;
 }
 
@@ -43,25 +65,91 @@ float8_e5m2_t::operator float() const {
     return static_cast<float>(f16);
 }
 
-float8_e4m3_t &float8_e4m3_t::operator=(float f) {
-    //TODO(keola): enable more accurate conversion
-    // f8_e4m3 is nearly a subset of f16, so convert to f16 and truncate
-    //    bit     :        8        0
-    //    f16     : seeeeemm|mmmmmmmm
-    //    f8_e4m3 : seeeemmm|
-    //    bit     :        0
-    float16_t f16 = f;
-    uint16_t u16 = utils::bit_cast<uint16_t>(f16);
-    uint16_t s8 = (u16 & 0x8000) >> 8;
-    uint16_t e16 = (u16 & 0x7c00) >> 10;
-    if (e16 < 8 || 23 < e16) { // if (e8 < 0 || 15 < e8) {
-        raw_bits_ = s8 | 0x7f; // overflow to NAN
+float8_e4m3_t &float8_e4m3_t::operator=(float16_t f) {
+    using namespace utils;
+    // Here the idea is to add a large constant to the float16_t to force the
+    // proper rounding to f8_e4m3 accuracy.
+    int fraw = f.raw;
+
+    // first we extract the sign and make the input positive
+    unsigned int s8 = (fraw & 0x8000) >> 8;
+    fraw = fraw & 0x7fff;
+
+    // we filter out overflow, nan
+    // Note: values in [448;464] round to 448, which is representable
+    // So we overflow above 464
+    if (fraw > 0x5f40) {
+        raw_bits_ = s8 | 0x7f;
         return *this;
     }
-    uint16_t e8 = (e16 - 8 /* = 7 - 15 = e8_bias - e16_bias */) << 3;
-    uint16_t m16 = (u16 & 0x03ff);
-    uint16_t m8 = m16 >> 7;
-    raw_bits_ = s8 | e8 | m8;
+    // we filter out underflow when f <= 2^-10
+    if (fraw <= 0x1400) {
+        raw_bits_ = s8;
+        return *this;
+    }
+
+    // compute the rounding shifter by taking its exponent + 0x1p7
+    // Lucky us, it does not overflow as fraw <= 448.
+    float16_t shifter = (fraw & 0x7c00) + 0x1c00;
+    int is_denorm = shifter < 0x4000; // 0x1.0p1f
+    if (is_denorm) shifter = 0x4000; // 0x1.0p1f
+
+    float16_t rounded = (float16_t(fraw) + shifter) - shifter;
+
+    int e8 = ((rounded.raw & 0x7c00) >> 10) - 8;
+    uint8_t m8 = (rounded.raw & 0x03ff) >> 7;
+
+    // we need to make the implicit f32 mantissa bit explicit for
+    // denorm f8_e4m3
+    if (is_denorm) {
+        m8 = (m8 | 0x00000008) >> (-e8 + 1);
+        e8 = 0;
+    }
+
+    raw_bits_ = s8 | (e8 << 3) | m8;
+    return *this;
+}
+
+float8_e4m3_t &float8_e4m3_t::operator=(float f) {
+    using namespace utils;
+    // Here the idea is to add a large constant to the float to force the
+    // proper rounding to f8_e4m3 accuracy.
+    int fraw = float2int(f);
+
+    // first we extract the sign and make the input positive
+    unsigned int s8 = (fraw & 0x80000000) >> 24;
+    fraw = fraw & 0x7fffffff;
+
+    // we filter out overflow, nan and underflow
+    // Note: values in [448;464] round to 448, which is representable
+    // So we overflow above 464
+    if (fraw > 0x43e80000) {
+        raw_bits_ = s8 | 0x7f;
+        return *this;
+    }
+    if (fraw <= 0x3a800000) {
+        raw_bits_ = s8;
+        return *this;
+    }
+
+    // compute the rounding shifter by taking its exponent + 0x1p20
+    float shifter = int2float((fraw & 0x7f800000) + 0x0a000000);
+    int is_denorm = shifter < 16384.f; //0x1.0p14f
+    if (is_denorm) shifter = 16384.f; //0x1.0p14f
+
+    float rounded = (int2float(fraw) + shifter) - shifter;
+
+    int e8 = ((float2int(rounded) & 0x7f800000) >> 23) - 120;
+    uint8_t m8 = (float2int(rounded) & 0x007fffff) >> 20;
+
+    // we need to make the implicit f32 mantissa bit explicit for
+    // denorm f8_e4m3
+    if (is_denorm) {
+        m8 = (m8 | 0x00000008) >> (-e8 + 1);
+        e8 = 0;
+    }
+
+    raw_bits_ = s8 | (e8 << 3) | m8;
     return *this;
 }
 

@@ -19,6 +19,7 @@
 
 #include <cstdint>
 
+#include "common/float16.hpp"
 #include "oneapi/dnnl/dnnl.h"
 
 namespace dnnl {
@@ -29,8 +30,10 @@ struct float8_e5m2_t {
     float8_e5m2_t() = default;
     constexpr float8_e5m2_t(uint8_t r, bool) : raw_bits_(r) {}
     float8_e5m2_t(float f) { (*this) = f; }
+    float8_e5m2_t(float16_t f) { (*this) = f; }
 
     float8_e5m2_t DNNL_API &operator=(float f);
+    float8_e5m2_t DNNL_API &operator=(float16_t f);
 
     DNNL_API operator float() const;
 
@@ -46,8 +49,10 @@ struct float8_e4m3_t {
     float8_e4m3_t() = default;
     constexpr float8_e4m3_t(uint8_t r, bool) : raw_bits_(r) {}
     float8_e4m3_t(float f) { (*this) = f; }
+    float8_e4m3_t(float16_t f) { (*this) = f; }
 
     float8_e4m3_t DNNL_API &operator=(float f);
+    float8_e4m3_t DNNL_API &operator=(float16_t f);
 
     DNNL_API operator float() const;
 

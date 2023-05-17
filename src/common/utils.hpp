@@ -694,6 +694,10 @@ inline int float2int(float x) {
     return utils::bit_cast<int>(x);
 }
 
+inline float int2float(int x) {
+    return utils::bit_cast<float>(x);
+}
+
 // XXX: Currently SYCL doesn't provide an API to get device UUID but
 // we need to be able to distinguish OpenCL device from Level0 device.
 // As a temporary solution the compound ID will be used for that.
