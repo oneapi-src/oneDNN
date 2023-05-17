@@ -722,7 +722,45 @@ static std::string init_info_convolution(const engine_t *e, const pd_t *pd) {
     if (bia_md)
         ss << " bia_"
            << md2fmt_str(bia_md, pd->invariant_bia_user_format_kind());
-    ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
+
+    // `has_fused_dw` modifies the convolution output in the following way:
+    // * It provides additional src, wei and bia md to show their presence and
+    //   wei format (for convenience, it can't be used directly).
+    // * It makes output spatial dimensions same as input since first conv is
+    //   always 1x1 for such fusion. This is to make a problem benchdnn
+    //   compatible.
+    // * Note: Queried `dst_md` with final dimensions after fusion will reside
+    //   in fused conv pd. The op_desc for it is created on the library side and
+    //   filled with already blocked formats compatible with precedeing 1x1
+    //   convolution. It means that it can't identify if original dst_md was
+    //   created with `format_kind::any` or not. For purposes of re-construction
+    //   of benchdnn line, intermediate "src_fused" is required - it gives an
+    //   info about data type to pass into benchdnn and also whether 1x1 conv
+    //   dst was created with `format_kind::any`.
+    // * Note: DW-post op is the only reason why `arg_md` got `user_input`
+    //   argument and also takes argument. This is due to dw post-op mds can
+    //   be queried only through `arg_md` interface.
+    const bool has_fused_dw
+            = pd->attr()->post_ops_.find(primitive_kind::convolution) >= 0;
+    if (has_fused_dw) {
+        auto src_fused_md = pd->arg_md(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_SRC);
+        auto wei_fused_md
+                = pd->arg_md(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
+        auto bia_fused_md
+                = pd->arg_md(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
+        // User-provided dst memory descriptor.
+        ss << " src_fused_"
+           << md2fmt_str(src_fused_md,
+                      pd->invariant_dst_user_format_kind(
+                              DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_SRC));
+        // Not user-provided memory descriptors.
+        ss << " wei_fused_" << wei_fused_md;
+        ss << " bia_fused_" << bia_fused_md;
+        ss << " dst_" << dst_md;
+    } else {
+        ss << " dst_"
+           << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
+    }
 
     ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->desc()->alg_kind << ",";
@@ -731,13 +769,16 @@ static std::string init_info_convolution(const engine_t *e, const pd_t *pd) {
     ss << "mb" << pd->MB() << "_"
        << "ic" << pd->IC() << "oc" << pd->OC() << "_";
     if (pd->ndims() >= 5)
-        ss << "id" << pd->ID() << "od" << pd->OD() << "kd" << pd->KD() << "sd"
-           << pd->KSD() << "dd" << pd->KDD() << "pd" << pd->padFront() << "_";
+        ss << "id" << pd->ID() << "od" << (has_fused_dw ? pd->ID() : pd->OD())
+           << "kd" << pd->KD() << "sd" << pd->KSD() << "dd" << pd->KDD() << "pd"
+           << pd->padFront() << "_";
     if (pd->ndims() >= 4)
-        ss << "ih" << pd->IH() << "oh" << pd->OH() << "kh" << pd->KH() << "sh"
-           << pd->KSH() << "dh" << pd->KDH() << "ph" << pd->padT() << "_";
-    ss << "iw" << pd->IW() << "ow" << pd->OW() << "kw" << pd->KW() << "sw"
-       << pd->KSW() << "dw" << pd->KDW() << "pw" << pd->padL();
+        ss << "ih" << pd->IH() << "oh" << (has_fused_dw ? pd->IH() : pd->OH())
+           << "kh" << pd->KH() << "sh" << pd->KSH() << "dh" << pd->KDH() << "ph"
+           << pd->padT() << "_";
+    ss << "iw" << pd->IW() << "ow" << (has_fused_dw ? pd->IW() : pd->OW())
+       << "kw" << pd->KW() << "sw" << pd->KSW() << "dw" << pd->KDW() << "pw"
+       << pd->padL();
 
     return ss.str();
 }
