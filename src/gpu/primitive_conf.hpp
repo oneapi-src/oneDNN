@@ -808,8 +808,8 @@ public:
 
 private:
     zero_points_t zps_;
-    dim_t count_;
-    int arg_;
+    dim_t count_ = 0;
+    int arg_ = 0;
 };
 
 struct quantization_t {
