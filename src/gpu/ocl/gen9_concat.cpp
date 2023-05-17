@@ -28,13 +28,16 @@ namespace ocl {
 
 std::pair<int, int> gen9_concat_t::pd_t::calculate_iter_dim_idx_chunk(
         int num_threads) const {
-    if (conf.ndims == 1) return std::make_pair(0, 1);
+    if (conf.ndims <= 1) return std::make_pair(0, 1);
     const auto &dst_dims = conf.dst_md_info.padded_dims;
-    int max_dim_idx = -1;
-    int max_dim = -1;
-    for (int dim_idx = conf.ndims - 1; dim_idx >= 0; dim_idx--) {
-        if (dst_dims[dim_idx] > max_dim && dim_idx != conf.concat_axis) {
-            max_dim = dst_dims[dim_idx];
+    int max_dim_idx = (conf.concat_axis == conf.ndims - 1) ? conf.ndims - 2
+                                                           : conf.ndims - 1;
+    int max_dim = dst_dims[max_dim_idx];
+    for (int dim_idx = max_dim_idx - 1; dim_idx >= 0; dim_idx--) {
+        if (dim_idx == conf.concat_axis) continue;
+        const auto dim = dst_dims[dim_idx];
+        if (dim > max_dim) {
+            max_dim = dim;
             max_dim_idx = dim_idx;
         }
     }
