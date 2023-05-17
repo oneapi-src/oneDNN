@@ -153,7 +153,7 @@ status_t gen9_concat_t::pd_t::init_conf(engine_t *engine) {
                 utils::format("D%d", dim_idx), 0, dim_size, dim_block);
     }
     if (conf.sub_group_size > 1) {
-        conf.dispatch.vectorize_dim("D1", conf.sub_group_size);
+        CHECK(conf.dispatch.vectorize_dim("D1", conf.sub_group_size));
     }
     conf.dispatch.generate();
 
