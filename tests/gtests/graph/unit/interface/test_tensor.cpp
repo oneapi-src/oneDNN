@@ -42,6 +42,12 @@ TEST(Tensor, GetEngine) {
     ASSERT_EQ(tensor.get_engine(), &engine);
 }
 
+#define DESTROY_TENSOR(t) \
+    do { \
+        dnnl_graph_tensor_destroy(t); \
+        t = nullptr; \
+    } while (0);
+
 TEST(Tensor, DnnlGraphTensorCreate) {
     graph::tensor_t *tensor;
     graph::logical_tensor_t lt = utils::logical_tensor_init(
@@ -49,12 +55,13 @@ TEST(Tensor, DnnlGraphTensorCreate) {
     graph::engine_t &engine = *get_engine();
     void *handle = nullptr;
 
-    ASSERT_EQ(dnnl_graph_tensor_create(&tensor, &lt, &engine, handle),
-            graph::status::success);
-    ASSERT_EQ(dnnl_graph_tensor_destroy(tensor), graph::status::success);
+    ASSERT_EQ_SAFE(dnnl_graph_tensor_create(&tensor, &lt, &engine, handle),
+            graph::status::success, DESTROY_TENSOR(tensor));
+    ASSERT_EQ_SAFE(dnnl_graph_tensor_destroy(tensor), graph::status::success,
+            DESTROY_TENSOR(tensor));
 
-    ASSERT_EQ(dnnl_graph_tensor_create(&tensor, nullptr, &engine, handle),
-            graph::status::invalid_arguments);
+    ASSERT_EQ_SAFE(dnnl_graph_tensor_create(&tensor, nullptr, &engine, handle),
+            graph::status::invalid_arguments, DESTROY_TENSOR(tensor));
 }
 
 TEST(Tensor, DnnlGraphTensorSetDataHandle) {
@@ -74,13 +81,14 @@ TEST(Tensor, DnnlGraphTensorGetEngine) {
             0, {1, 2}, graph::data_type::f32, graph::layout_type::strided);
     graph::engine_t &engine = *get_engine();
     void *handle = nullptr;
-    ASSERT_EQ(dnnl_graph_tensor_create(&tensor, &lt, &engine, handle),
-            graph::status::success);
+    ASSERT_EQ_SAFE(dnnl_graph_tensor_create(&tensor, &lt, &engine, handle),
+            graph::status::success, DESTROY_TENSOR(tensor));
     graph::engine_t *ref_engine = nullptr;
-    ASSERT_EQ(dnnl_graph_tensor_get_engine(tensor, nullptr),
-            graph::status::invalid_arguments);
-    ASSERT_EQ(dnnl_graph_tensor_get_engine(tensor, &ref_engine),
-            graph::status::success);
-    ASSERT_EQ(ref_engine, &engine);
-    ASSERT_EQ(dnnl_graph_tensor_destroy(tensor), graph::status::success);
+    ASSERT_EQ_SAFE(dnnl_graph_tensor_get_engine(tensor, nullptr),
+            graph::status::invalid_arguments, DESTROY_TENSOR(tensor));
+    ASSERT_EQ_SAFE(dnnl_graph_tensor_get_engine(tensor, &ref_engine),
+            graph::status::success, DESTROY_TENSOR(tensor));
+    ASSERT_EQ_SAFE(ref_engine, &engine, DESTROY_TENSOR(tensor));
+    ASSERT_EQ_SAFE(dnnl_graph_tensor_destroy(tensor), graph::status::success,
+            DESTROY_TENSOR(tensor));
 }

@@ -51,6 +51,15 @@ namespace utils {
         } \
     } while (0)
 
+#define ASSERT_EQ_SAFE(val1, val2, ...) \
+    do { \
+        auto result = (val1); \
+        if (result != (val2)) { \
+            {__VA_ARGS__} ASSERT_EQ(result, val2); \
+            return; \
+        } \
+    } while (0)
+
 static inline dnnl::impl::graph::logical_tensor_t logical_tensor_init(size_t id,
         dnnl::impl::graph::data_type_t dtype,
         dnnl::impl::graph::layout_type_t ltype
