@@ -22,6 +22,7 @@
 #include <runtime/parallel.hpp>
 #include <util/compiler_macros.hpp>
 #include <util/simple_math.hpp>
+#include <util/utils.hpp>
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
 #include <common/dnnl_thread.hpp>
 #include <oneapi/dnnl/dnnl_threadpool.h>
@@ -116,6 +117,9 @@ static int get_num_threads() {
 }
 
 static void set_num_threads(int num) {
+    static std::unique_ptr<oneapi::tbb::global_control> ctrl;
+    ctrl = utils::make_unique<oneapi::tbb::global_control>(
+            oneapi::tbb::global_control::max_allowed_parallelism, num);
     get_default_threads() = num;
 }
 
