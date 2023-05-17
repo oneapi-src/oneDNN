@@ -214,8 +214,6 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     n_ = n;
     k_ = k;
     eu_count_ = eu_count;
-    a_offset_ = a_offset;
-    b_offset_ = b_offset;
     disable_systolic_ = !has_systolic;
 
     align_a = nstl::max(align_a, int(types::data_type_size(a_type)));
@@ -242,6 +240,8 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         problem_.batchDims = batch_dims;
     }
     if (a_offset || b_offset) problem_.abOffset = ABOffset::Calc;
+    if (a_offset) problem_.aoPtrDims = 0;
+    if (b_offset) problem_.boPtrDims = 0;
 
     if (problem_.Ta.isInteger()) problem_.Ts = Type::f32;
 
@@ -346,8 +346,6 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     n_ = n;
     k_ = k;
     eu_count_ = eu_count;
-    a_offset_ = a_offset;
-    b_offset_ = b_offset;
 
     if (!utils::one_of(hw_, HW::XeHP, HW::XeHPG, HW::XeHPC))
         return status::unimplemented;
@@ -386,6 +384,8 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
         problem_.batchDims = batch_dims;
     }
     if (a_offset || b_offset) problem_.abOffset = ABOffset::Load;
+    if (a_offset) problem_.aoPtrDims = 0;
+    if (b_offset) problem_.boPtrDims = 0;
     if (alpha == 1.0f) problem_.alpha_real = alpha;
     if (beta == 0.0f || beta == 1.0f) problem_.beta_real = beta;
 
@@ -497,13 +497,13 @@ void gen_gemm_kernel_t::init_interface() {
     interface_.newArgument("alpha_real", s_type_ngen);
     interface_.newArgument("beta_real", s_type_ngen);
     if (problem.abOffset != ABOffset::None) {
-        if (!desc()->a_offset_ && !desc()->b_offset_)
+        if (problem.aoPtrDims < 0 && problem.boPtrDims < 0)
             interface_.newArgument("abo", DataType::ud);
         else {
-            if (desc()->a_offset_)
+            if (problem.aoPtrDims >= 0)
                 interface_.newArgument(
                         "ao_ptr", ExternalArgumentType::GlobalPtr);
-            if (desc()->b_offset_)
+            if (problem.boPtrDims >= 0)
                 interface_.newArgument(
                         "bo_ptr", ExternalArgumentType::GlobalPtr);
         }

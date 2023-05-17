@@ -863,6 +863,9 @@ struct GEMMProblem : public CommonProblem {
     MatrixAddressing A, B, C, CO; // Addressing information for matrices.
     bool checkBeta0 = true; // If true, check for beta = 0 and handle specially.
     ABOffset abOffset = ABOffset::None; // A/B offset mode.
+    int aoPtrDims = -1,
+        boPtrDims
+            = -1; // A/B offset dimensionality (-1: none; 0: scalar; 1: vector) -- currently ignored.
     COffset cOffset = COffset::None; // C offset mode.
     BatchMode batch = BatchMode::None; // Batch mode.
     int batchDims = 0; // # of batch dimensions (strided batch only).
@@ -935,6 +938,7 @@ struct GEMMProblem : public CommonProblem {
         s.append(A, B, C, CO);
         s.append(checkBeta0);
         s.append(abOffset);
+        s.append(aoPtrDims, boPtrDims);
         s.append(cOffset);
         s.append(batch);
         s.append(batchDims);

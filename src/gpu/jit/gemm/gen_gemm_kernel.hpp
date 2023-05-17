@@ -106,8 +106,6 @@ protected:
     EvaluateAuxOutput aux_params_;
     CommonDriverInfo driver_info_;
 
-    bool a_offset_ = false, b_offset_ = false;
-
     /* optional information to fine-tune kernel */
     int m_ = -1, n_ = -1, k_ = -1;
     int eu_count_ = -1;
