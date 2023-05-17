@@ -1413,7 +1413,8 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
     const auto &prb = cfg.prb();
     const char *osp_name = cfg.fuse_spatial() ? "osp" : "ow";
     bool is_xe_lp = cfg.hw() <= ngen::HW::XeLP;
-
+    bool is_xe_lpg
+            = cfg.hw() == ngen::HW::XeHPG && !cfg.hw_cfg().systolic_support();
     //set iter block for cases with no m block and large spatial
     if (!cfg.is_ge_xe_hpc() && cfg.src_layout().compute().inner_block(0) == 1
             && prb.mb > 1 && (prb.oh == prb.ow && prb.ow == prb.od)
@@ -1456,7 +1457,8 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
     bh.allow_split({"oc", "ic", "kw"});
 
     //scattered send messages use too much GRF for XeLP
-    if (is_xe_lp && prb.is_dw && prb.g < 32) bh.set_base_iter_block("g", 16);
+    if ((is_xe_lp && prb.is_dw && prb.g < 32) || (is_xe_lpg && prb.is_dw))
+        bh.set_base_iter_block("g", is_xe_lpg && prb.is_f64_conv() ? 8 : 16);
     if (cfg.is_broadcast_oc()) {
         int blk = utils::rnd_up_pow2(prb.oc);
         bh.set_base_iter_block("oc", blk);
@@ -1592,9 +1594,11 @@ void init_bwd_w(conv_config_t &cfg, block_helper_t &bh) {
     bh.set_vector_dim(vectorize_g ? "g" : "oc");
 
     bool is_xe_lp = cfg.hw() <= ngen::HW::XeLP;
+    bool is_xe_lpg
+            = cfg.hw() == ngen::HW::XeHPG && !cfg.hw_cfg().systolic_support();
     int size = (int)types::data_type_size(prb.src_data_type);
     if (size >= 4) {
-        if (is_xe_lp && size > 4) {
+        if ((is_xe_lp || is_xe_lpg) && size > 4) {
             if (vectorize_g)
                 bh.set_base_iter_block("g", 8);
             else

@@ -388,6 +388,8 @@ void block_helper_t::init_bmnk_blocks() {
     bool is_ge_hpc = (hw_cfg_.hw() >= ngen::HW::XeHPC);
     bool is_xe_lp = hw_cfg_.hw() <= ngen::HW::XeLP;
     bool is_gen9 = hw_cfg_.hw() < ngen::HW::XeLP;
+    bool is_xe_lpg
+            = hw_cfg_.hw() == ngen::HW::XeHPG && !hw_cfg_.systolic_support();
     bool reduce_m_block = false;
     if (reduce_m_block_hint_set_) {
         reduce_m_block = reduce_m_block_hint_;
@@ -404,8 +406,9 @@ void block_helper_t::init_bmnk_blocks() {
     switch (fma_kind_) {
         case fma_kind_t::mad: {
             int max_m_iter_dim = prb_max_dim('M', tile_level_t::iter);
-            m_inst_blk = std::min(
-                    is_xe_lp ? std::min(m_dim().base_iter_block(), 8) : 8,
+            m_inst_blk = std::min(is_xe_lp || is_xe_lpg
+                            ? std::min(m_dim().base_iter_block(), 8)
+                            : 8,
                     utils::rnd_down_pow2(max_m_iter_dim));
             auto bn_blk_size
                     = std::min(utils::rnd_up_pow2(bn_dim.size()), vec_size_);
@@ -417,11 +420,12 @@ void block_helper_t::init_bmnk_blocks() {
                                              && m_dim().base_iter_block() == 1)
                     || (is_xe_lp && bn_k_dim_sum >= 32 && is_x8x8s32());
 
-            m_blk = ((!is_xe_lp && is_x8x8s32()) || (is_gen9 && is_f64())
+            m_blk = ((!is_xe_lp && is_x8x8s32())
+                                    || ((is_gen9 || is_xe_lpg) && is_f64())
                                     || use_small_m_block
-                            ? is_gen9 && bn_k_dim_sum >= 48 ? 2
-                                    : is_gen9 && is_f64()   ? 4
-                                                            : 8
+                            ? is_gen9 && bn_k_dim_sum >= 48              ? 2
+                                    : (is_gen9 || is_xe_lpg) && is_f64() ? 4
+                                                                         : 8
                             : 16);
             bool small_m_tg = m_dim().base_iter_block() == 1
                     && hw_cfg_.hw() == ngen::HW::XeHPG
