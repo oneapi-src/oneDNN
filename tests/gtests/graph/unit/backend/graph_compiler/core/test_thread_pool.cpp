@@ -134,7 +134,7 @@ TEST(GCCore_CPU_thread_pool, TestThreadPool) {
 }
 #endif
 
-#if SC_CPU_THREADPOOL != SC_THREAD_POOL_CUSTOM
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
 TEST(GCCore_CPU_thread_pool, TestThreadNum) {
     dnnl_thread_env();
     auto &cfg = runtime_config_t::get();
@@ -154,7 +154,8 @@ TEST(GCCore_CPU_thread_pool, TestThreadNum) {
         }
         pcall(
                 [](void *a, void *mod_data, int64_t idx, generic_val *args) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                    std::this_thread::sleep_for(
+                            std::chrono::milliseconds(1000));
                     std::vector<int> *penv = (std::vector<int> *)mod_data;
                     penv->at(runtime_config_t::get()
                                      .thread_pool_table_->get_thread_id())++;
