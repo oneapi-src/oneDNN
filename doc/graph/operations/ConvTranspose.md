@@ -6,7 +6,7 @@ ConvTranspose {#dev_guide_op_convtranspose}
 ConvTranspose operation performs the same computation as calculating the
 gradient with regard to \src of Convolution operation. To see the difference
 visually, you can go to
-[visualization page](https://github.com/vdumoulin/conv_arithmetic/blob/master/README.md).
+[visualization page](https://github.com/vdumoulin/conv_arithmetic/blob/master/README.md#transposed-convolution-animations).
 
 ## Operation attributes
 

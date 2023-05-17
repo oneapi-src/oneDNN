@@ -3147,6 +3147,7 @@ struct memory : public handle<dnnl_memory_t> {
     ///     used, the memory buffer is a pointer to the actual data. For OpenCL
     ///     it is a cl_mem. It must have at least
     ///     #dnnl::memory::desc::get_size() bytes allocated.
+    /// @param index Memory index to attach the buffer. Defaults to 0.
     void set_data_handle(void *handle, int index = 0) const {
         error::wrap_c_api(dnnl_memory_set_data_handle_v2(get(), handle, index),
                 "could not set native handle of a memory object");
