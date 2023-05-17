@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -97,6 +97,8 @@ status_t dnnl_ocl_interop_engine_get_cache_blob(
 
 status_t dnnl_ocl_interop_engine_get_cache_blob_id(
         cl_device_id device, size_t *size, uint8_t *cache_blob) {
+    if (size == nullptr) return status::invalid_arguments;
+    size_t &id_size = *size;
 
     serialization_stream_t sstream;
 
@@ -130,8 +132,8 @@ status_t dnnl_ocl_interop_engine_get_cache_blob_id(
             device, CL_DRIVER_VERSION, 0, nullptr, &driver_version_size);
     OCL_CHECK(err);
 
-    if (!cache_blob && size) {
-        (*size) = platform_name_size + device_name_size + driver_version_size
+    if (!cache_blob) {
+        id_size = platform_name_size + device_name_size + driver_version_size
                 + sizeof(version->major) + sizeof(version->minor)
                 + sizeof(version->patch) + std::strlen(version->hash);
         return status::success;
@@ -170,9 +172,9 @@ status_t dnnl_ocl_interop_engine_get_cache_blob_id(
     sstream.write(version->hash, std::strlen(version->hash));
 
     // Not enough buffer space for copying cache blob.
-    if (*size != sstream.get_data().size()) return status::invalid_arguments;
+    if (id_size != sstream.get_data().size()) return status::invalid_arguments;
 
-    std::memcpy(cache_blob, sstream.get_data().data(), *size);
+    std::memcpy(cache_blob, sstream.get_data().data(), id_size);
 
     return status::success;
 }
