@@ -13,6 +13,22 @@ In this RFC, we propose to implement an option in oneDNN to align the
 corner pixels. The `align_corners` attribute will upsample the points in the
 destination to (0.0, 0.4, 0.8, 1.2, 1.6, 2.0).
 
+In nearest neighbor resampling, without `align_corners`, we have
+```
+Fh = OW/IW
+dst(n, c, oh, ow) = src(n, c, ih, iw)
+ih = (oh + 0.5)/Fh - 0.5
+```
+
+With align corners, the formula changes to
+```
+Fh = (OW - 1)/(IW - 1)
+dst(n, c, oh, ow) = src(n, c, ih, iw)
+ih = (oh + 0.5 - 0.5)/Fh - 0.5 + 0.5
+```
+
+When vector of factors are given, those will be used instead of `Fh`.
+
 This attribute is present in other frameworks like [pytorch](https://github.com/pytorch/pytorch/blob/3b966a6ce3d39122998a362c2b4cb95e34a79d0b/aten/src/ATen/native/UpSample.h#L34).
 
 ## Proposal
