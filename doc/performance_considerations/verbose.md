@@ -188,18 +188,23 @@ list contains, in order of appearance in the line from left to right:
 * execution time in milliseconds
 
 The information about a particular operation tensors has the following format:
-`tensor_name`_`data_type`::`format_kind`:`format_tag`:`extra_flags`, where:
+`tensor_name`_`data_type`:`properties`:`format_kind`:`format_tag`:`strides`:`extra_flags`,
+where:
 
 1. `tensor_name` is one of the tensors names listed in the
    [Naming Conventions](@ref dev_guide_conventions), and denotes a tensor
-   supported by the corresponding primitive
-2. `data_type`, `format_kind` and `format_tag` denote values from
+   supported by the corresponding primitive.
+2. `properties` denotes if a tensor was created with `format_kind::any` and has
+   padded area or an offset from original memory.
+3. `data_type`, `format_kind` and `format_tag` denote values from
    #dnnl::memory::data_type, #dnnl::memory::format_kind and
-   #dnnl::memory::format_tag respectively. Note, that certain markers may be
+   #dnnl::memory::format_tag respectively. Note that certain markers may be
    missing in some cases, such as `format_tag` for the \weights tensor for
    the Winograd convolution.
-3. `extra_flags` is unspecified information that is intended for development
-    purposes
+4. `strides` denotes stride values in case the memory is not dense. If the
+   memory is dense, the field will be empty.
+5. `extra_flags` is unspecified information that is intended for development
+   purposes.
 
 @note
 When oneDNN verbose mode is enabled with GPU engines, oneDNN adds extra stream
