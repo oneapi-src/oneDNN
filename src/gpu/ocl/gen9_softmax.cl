@@ -262,7 +262,11 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     int sid = get_sub_group_id();
 
     for (int k = 0; k < last_buf; ++k) {
+#if GROUP_SIZE == SUB_GROUP_SIZE
+        int idx = k * SUB_GROUP_SIZE;
+#else
         int idx = HAS_TAIL ? k * SUB_GROUP_SIZE : sid * SUB_GROUP_SIZE;
+#endif
         d[k] = LOAD_FLOAT8(SRC, &src[idx * VECT_SIZE]);
         for (int i = 0; i < VECT_SIZE; ++i) {
             max_ = max(d[k][i], max_);
@@ -334,7 +338,11 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     dst += data_off;
 #if IS_ALIGNED
     for (int k = 0; k < last_buf; ++k) {
+#if GROUP_SIZE == SUB_GROUP_SIZE
+        int idx = k * SUB_GROUP_SIZE;
+#else
         int idx = HAS_TAIL ? k * SUB_GROUP_SIZE : sid * SUB_GROUP_SIZE;
+#endif
 #if LOGSOFTMAX
         d[k] = d[k] - max_ - denom_;
 #else

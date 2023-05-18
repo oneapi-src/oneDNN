@@ -122,10 +122,16 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
                     }
                 }
             } else {
-                group_size = subgroup_size
-                        * utils::div_up(axis_size(), buffer_size);
-                if (!is_blocked && axis_size() % buffer_size != 0) {
+                bool avoid_large_spatial
+                        = (src_md()->dims[0] * src_md()->dims[1] > 128)
+                        && (axis() > 1);
+                if (!is_blocked
+                        && (axis_size() % buffer_size != 0
+                                || avoid_large_spatial)) {
                     group_size = subgroup_size;
+                } else {
+                    group_size = subgroup_size
+                            * utils::div_up(axis_size(), buffer_size);
                 }
                 if (group_size > (size_t)max_lws) return status::unimplemented;
             }
