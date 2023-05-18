@@ -468,8 +468,12 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
             get_gpu_profiling_info(nsecs, cycles);
             reset_gpu_profiling();
 
-            // Profiling should have information to stop the cycle.
-            if (nsecs.empty()) SAFE(FAIL, WARN);
+            // Profiling should have information to report, otherwise, stop.
+            if (nsecs.empty()) {
+                BENCHDNN_PRINT(0, "%s\n",
+                        "WARNING: no counters were found during profiling.");
+                break;
+            }
 
             for (size_t i = 0; i < nsecs.size(); i++) {
                 t.stop(1, (int64_t)cycles[i], nsecs[i] / 1e6);
