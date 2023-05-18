@@ -72,12 +72,12 @@ protected:
     void newArgument(std::string name)                                   { interface_.newArgument<DT>(name); }
     void newArgument(std::string name, DataType type,
                      ExternalArgumentType exttype = ExternalArgumentType::Scalar,
-                     GlobalAccessType access = GlobalAccessType::All)
+                     GlobalAccessType access = GlobalAccessType::Default)
     {
         interface_.newArgument(name, type, exttype, access);
     }
     void newArgument(std::string name, ExternalArgumentType exttype,
-                     GlobalAccessType access = GlobalAccessType::All)
+                     GlobalAccessType access = GlobalAccessType::Default)
     {
         interface_.newArgument(name, exttype, access);
     }

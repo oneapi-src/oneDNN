@@ -434,10 +434,34 @@ void memfence(const InstructionModifier &mod, const RegData &dst, const RegData 
         const uint32_t exdesc = static_cast<int>(SharedFunction::dc0) & 0xF;
         send(8 | mod | NoMask, dst, header, exdesc, 0x219E000);
     } else
-        send(1 | mod | NoMask, SharedFunction::ugm, dst, header, null, 0, 0x214031F);
+        memfence(mod, FenceScopeLSC::GPU, FlushTypeLSC::None, dst, header);
 }
 
-void memfence(const RegData &dst, const RegData &header = GRF(0)) { memfence(InstructionModifier(), dst, header); }
+void memfence(const InstructionModifier &mod, FenceScopeLSC scope, FlushTypeLSC flushing, const RegData &dst, const RegData &header)
+{
+    if (hardware < HW::XeHPG) {
+        memfence(mod, dst, header);
+        return;
+    }
+
+    if (flushing == FlushTypeLSC::None && hardware == HW::XeHPG)
+        flushing = static_cast<FlushTypeLSC>(6);    /* workaround for DG2 bug */
+
+    uint32_t desc = 0x0210011F;
+    desc |= static_cast<uint32_t>(scope) << 9;
+    desc |= static_cast<uint32_t>(flushing) << 12;
+    send(1 | mod | NoMask, SharedFunction::ugm, dst, header, null, 0, desc);
+}
+
+void memfence(const RegData &dst, const RegData &header = GRF(0))
+{
+    memfence(InstructionModifier(), dst, header);
+}
+
+void memfence(FenceScopeLSC scope, FlushTypeLSC flushing, const RegData &dst, const RegData &header = GRF(0))
+{
+    memfence(InstructionModifier(), scope, flushing, dst, header);
+}
 
 // SLM-only memory fence.
 void slmfence(const InstructionModifier &mod, const RegData &dst, const RegData &header = GRF(0))
@@ -456,7 +480,7 @@ void loadlid(int argBytes, int dims = 3, int simd = 8, const GRF &temp = GRF(127
 {
     if (hardware >= HW::XeHP) {
         if (paddedSize < 0)
-            paddedSize = (hardware >= HW::XeHPC) ? 8*16 : 12*16;
+            paddedSize = 12*16;
         const int grfSize = GRF::bytes(hardware);
         const int grfOW = grfSize / 16;
         int simdGRFs = (simd > 16 && grfSize < 64) ? 2 : 1;

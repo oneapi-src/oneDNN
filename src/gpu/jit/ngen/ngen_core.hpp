@@ -302,14 +302,18 @@ enum class DataType : uint8_t {
     vf = 0x4F,
     bf8 = 0x0C,
     tf32 = 0x50,
+    u4 = 0x1C,
+    s4 = 0x1D,
+    u2 = 0x1E,
+    s2 = 0x1F,
     invalid = 0x00
 };
 
 #ifdef NGEN_ASM
 static inline std::ostream &operator<<(std::ostream &str, DataType type)
 {
-    static const char *names[32] = {"ud",   "d",   "uw", "w", "ub", "b", "df", "f", "uq", "q", "hf", "bf", "bf8", "uv", "v", "vf",
-                                    "tf32", "",    "",   "",  "",   "",  "",   "",  "",   "",  "",   "",   "",    "",   "",  ""};
+    static const char *names[32] = {"ud",   "d",   "uw", "w", "ub", "b", "df", "f", "uq", "q", "hf", "bf", "bf8", "uv", "v",  "vf",
+                                    "tf32", "",    "",   "",  "",   "",  "",   "",  "",   "",  "",   "",   "u4",  "s4", "u2", "s2"};
     str << names[static_cast<uint8_t>(type) & 0x1F];
     return str;
 }
@@ -318,10 +322,15 @@ static inline std::ostream &operator<<(std::ostream &str, DataType type)
 static inline constexpr   int getLog2Bytes(DataType type)              { return static_cast<int>(type) >> 5; }
 static inline constexpr   int getBytes(DataType type)                  { return 1 << getLog2Bytes(type); }
 static inline constexpr14 int getDwords(DataType type)                 { return std::max<int>(getBytes(type) >> 2, 1); }
-
+static inline constexpr   int elementsPerByte(DataType type)
+{
+    return (type == DataType::u2 || type == DataType::s2) ? 4 :
+           (type == DataType::u4 || type == DataType::s4) ? 2 : 1;
+}
 static inline constexpr bool isSigned(DataType type)
 {
-    return !(type == DataType::ub || type == DataType::uw || type == DataType::ud || type == DataType::uq);
+    return !(type == DataType::u2 || type == DataType::u4 || type == DataType::ub
+          || type == DataType::uw || type == DataType::ud || type == DataType::uq);
 }
 
 template <typename T> static inline DataType getDataType() { return DataType::invalid; }
@@ -347,6 +356,18 @@ template <> inline DataType getDataType<bfloat8>() { return DataType::bf8; }
 #endif
 #ifdef NGEN_TFLOAT32_TYPE
 template <> inline DataType getDataType<tfloat32>() { return DataType::tf32; }
+#endif
+#ifdef NGEN_UINT4_TYPE
+template <> inline DataType getDataType<uint4>() { return DataType::u4; }
+#endif
+#ifdef NGEN_INT4_TYPE
+template <> inline DataType getDataType<int4>() { return DataType::s4; }
+#endif
+#ifdef NGEN_UINT2_TYPE
+template <> inline DataType getDataType<uint2>() { return DataType::u2; }
+#endif
+#ifdef NGEN_INT2_TYPE
+template <> inline DataType getDataType<int2>() { return DataType::s2; }
 #endif
 
 // Math function codes.
@@ -589,29 +610,30 @@ public:
     constexpr RegData()
         : base(0), arf(0), off(0), mods(0), type(0), indirect(0), _pad1(0), vs(0), width(0), hs(0), _pad2(0), invalid(1) {}
 
-    constexpr int getBase()         const { return base; }
-    constexpr bool isARF()          const { return arf; }
-    constexpr int getARFBase()      const { return base & 0xF; }
-    constexpr ARFType getARFType()  const { return static_cast<ARFType>(base >> 4); }
-    constexpr bool isIndirect()     const { return indirect; }
-    constexpr bool isVxIndirect()   const { return indirect && (vs == 0x7F); }
-    constexpr int getIndirectBase() const { return base >> 4; }
-    constexpr int getIndirectOff()  const { return base & 0xF; }
-    constexpr bool isNull()         const { return isARF() && (getARFType() == ARFType::null); }
-    constexpr bool isInvalid()      const { return invalid; }
-    constexpr bool isValid()        const { return !invalid; }
-    constexpr int getOffset()       const { return off; }
-    constexpr int getByteOffset()   const { return off * getBytes(); }
-    constexpr DataType getType()    const { return static_cast<DataType>(type); }
-    constexpr int getVS()           const { return vs; }
-    constexpr int getWidth()        const { return width; }
-    constexpr int getHS()           const { return hs; }
-    constexpr bool getNeg()         const { return mods & 2; }
-    constexpr bool getAbs()         const { return mods & 1; }
-    constexpr int getMods()         const { return mods; }
-    constexpr int getBytes()        const { return ngen::getBytes(getType()); }
-    constexpr14 int getDwords()     const { return ngen::getDwords(getType()); }
-    constexpr bool isScalar()       const { return hs == 0 && vs == 0 && width == 1; }
+    constexpr int getBase()          const { return base; }
+    constexpr bool isARF()           const { return arf; }
+    constexpr int getARFBase()       const { return base & 0xF; }
+    constexpr ARFType getARFType()   const { return static_cast<ARFType>(base >> 4); }
+    constexpr bool isIndirect()      const { return indirect; }
+    constexpr bool isVxIndirect()    const { return indirect && (vs == 0x7F); }
+    constexpr int getIndirectBase()  const { return base >> 4; }
+    constexpr int getIndirectOff()   const { return base & 0xF; }
+    constexpr bool isNull()          const { return isARF() && (getARFType() == ARFType::null); }
+    constexpr bool isInvalid()       const { return invalid; }
+    constexpr bool isValid()         const { return !invalid; }
+    constexpr int getOffset()        const { return off; }
+    constexpr int getByteOffset()    const { return off * getBytes(); }
+    constexpr int getLogicalOffset() const { return off * elementsPerByte(getType()); }
+    constexpr DataType getType()     const { return static_cast<DataType>(type); }
+    constexpr int getVS()            const { return vs; }
+    constexpr int getWidth()         const { return width; }
+    constexpr int getHS()            const { return hs; }
+    constexpr bool getNeg()          const { return mods & 2; }
+    constexpr bool getAbs()          const { return mods & 1; }
+    constexpr int getMods()          const { return mods; }
+    constexpr int getBytes()         const { return ngen::getBytes(getType()); }
+    constexpr14 int getDwords()      const { return ngen::getDwords(getType()); }
+    constexpr bool isScalar()        const { return hs == 0 && vs == 0 && width == 1; }
 
     constexpr14 RegData &setBase(int base_)                      { base = base_; return *this; }
     constexpr14 RegData &setOffset(int off_)                     { off = off_; return *this; }
@@ -829,6 +851,10 @@ public:
     Subregister    w(int offset = 0) const { return reinterpret(offset, DataType::w);  }
     Subregister   ub(int offset = 0) const { return reinterpret(offset, DataType::ub); }
     Subregister    b(int offset = 0) const { return reinterpret(offset, DataType::b);  }
+    Subregister   u4(int offset = 0) const { return reinterpret(offset >> 1, DataType::u4); }
+    Subregister   s4(int offset = 0) const { return reinterpret(offset >> 1, DataType::s4); }
+    Subregister   u2(int offset = 0) const { return reinterpret(offset >> 2, DataType::u2); }
+    Subregister   s2(int offset = 0) const { return reinterpret(offset >> 2, DataType::s2); }
     Subregister   df(int offset = 0) const { return reinterpret(offset, DataType::df); }
     Subregister    f(int offset = 0) const { return reinterpret(offset, DataType::f);  }
     Subregister   hf(int offset = 0) const { return reinterpret(offset, DataType::hf); }
@@ -867,6 +893,10 @@ public:
     constexpr14 Subregister    w(int offset) const { return sub(offset, DataType::w);  }
     constexpr14 Subregister   ub(int offset) const { return sub(offset, DataType::ub); }
     constexpr14 Subregister    b(int offset) const { return sub(offset, DataType::b);  }
+    constexpr14 Subregister   u4(int offset) const { return sub(offset >> 1, DataType::u4); }
+    constexpr14 Subregister   s4(int offset) const { return sub(offset >> 1, DataType::s4); }
+    constexpr14 Subregister   u2(int offset) const { return sub(offset >> 2, DataType::u2); }
+    constexpr14 Subregister   s2(int offset) const { return sub(offset >> 2, DataType::s2); }
     constexpr14 Subregister   df(int offset) const { return sub(offset, DataType::df); }
     constexpr14 Subregister    f(int offset) const { return sub(offset, DataType::f);  }
     constexpr14 Subregister   hf(int offset) const { return sub(offset, DataType::hf); }
@@ -882,6 +912,10 @@ public:
     constexpr14 Register    w() const { return retype(DataType::w);  }
     constexpr14 Register   ub() const { return retype(DataType::ub); }
     constexpr14 Register    b() const { return retype(DataType::b);  }
+    constexpr14 Register   u4() const { return retype(DataType::u4); }
+    constexpr14 Register   s4() const { return retype(DataType::s4); }
+    constexpr14 Register   u2() const { return retype(DataType::u2); }
+    constexpr14 Register   s2() const { return retype(DataType::s2); }
     constexpr14 Register   df() const { return retype(DataType::df); }
     constexpr14 Register    f() const { return retype(DataType::f);  }
     constexpr14 Register   hf() const { return retype(DataType::hf); }
@@ -919,6 +953,10 @@ public:
     constexpr14 Subregister    w(int offset) const { return sub(offset, DataType::w);  }
     constexpr14 Subregister   ub(int offset) const { return sub(offset, DataType::ub); }
     constexpr14 Subregister    b(int offset) const { return sub(offset, DataType::b);  }
+    constexpr14 Subregister   u4(int offset) const { return sub(offset >> 1, DataType::u4); }
+    constexpr14 Subregister   s4(int offset) const { return sub(offset >> 1, DataType::s4); }
+    constexpr14 Subregister   u2(int offset) const { return sub(offset >> 2, DataType::u2); }
+    constexpr14 Subregister   s2(int offset) const { return sub(offset >> 2, DataType::s2); }
     constexpr14 Subregister   df(int offset) const { return sub(offset, DataType::df); }
     constexpr14 Subregister    f(int offset) const { return sub(offset, DataType::f);  }
     constexpr14 Subregister   hf(int offset) const { return sub(offset, DataType::hf); }
@@ -934,6 +972,10 @@ public:
     constexpr14 GRF    w() const { return retype(DataType::w);  }
     constexpr14 GRF   ub() const { return retype(DataType::ub); }
     constexpr14 GRF    b() const { return retype(DataType::b);  }
+    constexpr14 GRF   u4() const { return retype(DataType::u4); }
+    constexpr14 GRF   s4() const { return retype(DataType::s4); }
+    constexpr14 GRF   u2() const { return retype(DataType::u2); }
+    constexpr14 GRF   s2() const { return retype(DataType::s2); }
     constexpr14 GRF   df() const { return retype(DataType::df); }
     constexpr14 GRF    f() const { return retype(DataType::f);  }
     constexpr14 GRF   hf() const { return retype(DataType::hf); }
@@ -2753,6 +2795,25 @@ enum class CacheSettingsLSC : uint8_t {
     L1S_L3UC  = 5,
     L1S_L3C   = 6,    L1S_L3WB  = 6,
     L1IAR_L3C = 7,    L1WB_L3WB = 7,
+};
+
+enum FenceScopeLSC : uint8_t {
+    ThreadGroup = 0,
+    Subslice = 1,
+    Tile = 2,
+    GPU = 3,
+    AllGPUs = 4,
+    SystemRelease = 5,
+    SystemAcquire = 6
+};
+
+enum FlushTypeLSC : uint8_t {
+    None = 0,
+    Evict = 1,
+    Invalidate = 2,
+    Discard = 3,
+    Clean = 4,
+    FlushL3 = 5,
 };
 
 struct DataSpecLSC {

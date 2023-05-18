@@ -65,7 +65,7 @@ inline void RegData::outputText(std::ostream &str, PrintDetail detail, LabelMana
     if (detail <= PrintDetail::base) return;
 
     if (!isIndirect() && !isNull())
-        str << '.' << getOffset();
+        str << '.' << getLogicalOffset();
 
     if (detail <= PrintDetail::sub_no_type) return;
 
