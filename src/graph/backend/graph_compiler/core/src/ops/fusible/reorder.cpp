@@ -107,6 +107,9 @@ void reorder_op_t::query_format(context_ptr ctx,
         attrs_.set(op_attr_key::break_post_fuse, false);
         if (use_output_loop()) {
             attrs_.set(op_attr_key::break_pre_fuse, true);
+        } else if (check_padding()) {
+            // Use input loop and has padding.
+            attrs_.set(op_attr_key::break_post_fuse, true);
         }
         // has broadcast uses, do not fuse them as their outer loop can not be
         // fused.
