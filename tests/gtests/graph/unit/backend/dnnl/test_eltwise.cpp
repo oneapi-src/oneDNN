@@ -34,7 +34,8 @@ static inline void test_eltwise_common(test::vector<float> &src,
         test::vector<float> &ref_dst, dnnl::impl::graph::dims &dims,
         const graph::op_kind_t op_kind, const std::string &op_name,
         const std::map<dnnl::impl::graph::op_attr_t, attr_data_t> &attrs_data
-        = {}) {
+        = {},
+        bool is_constant_input = false) {
     graph::engine_t *eng = get_engine();
     graph::op_t op(op_kind, op_name);
 
@@ -46,6 +47,7 @@ static inline void test_eltwise_common(test::vector<float> &src,
 
     graph::logical_tensor_t src_lt
             = utils::logical_tensor_init(0, dims, graph::data_type::f32);
+    if (is_constant_input) src_lt.property = graph::property_type::constant;
     graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
             1, dims, graph::data_type::f32, graph::layout_type::any);
 
@@ -106,6 +108,19 @@ static inline void test_eltwise_common(test::vector<float> &src,
 
     cp.execute(strm, {src_ts2}, {dst_ts2});
     strm->wait();
+    if (!is_constant_input) return;
+    // for constant input case, we will check the results of second iteration to
+    // make sure it's properly handled.
+    if (op_kind == graph::op_kind::Log || op_kind == graph::op_kind::GELU
+            || op_kind == graph::op_kind::SoftPlus) {
+        for (size_t i = 0; i < src.size(); ++i) {
+            ASSERT_NEAR(dst2[i], ref_dst[i], 1e-5);
+        }
+    } else {
+        for (size_t i = 0; i < src.size(); ++i) {
+            ASSERT_FLOAT_EQ(dst2[i], ref_dst[i]);
+        }
+    }
 }
 
 TEST(Execute, Abs) {
@@ -115,6 +130,16 @@ TEST(Execute, Abs) {
     dnnl::impl::graph::dims dims {1, 2, 3};
 
     test_eltwise_common(src, ref_dst, dims, graph::op_kind::Abs, "abs");
+}
+
+TEST(Execute, AbsConstantInput) {
+    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
+    test::vector<float> ref_dst {2.0, 1.5, 1.0, 0.5, 0.0, 3.5};
+
+    dnnl::impl::graph::dims dims {1, 2, 3};
+
+    test_eltwise_common(
+            src, ref_dst, dims, graph::op_kind::Abs, "abs", {}, true);
 }
 
 TEST(Execute, Round) {
