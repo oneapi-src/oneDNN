@@ -18,7 +18,6 @@
 --reset  --in-shapes=0:50x64x56x56+1:64x64x1x1+2:64 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_conv_2d_fusion.json
 --reset  --in-shapes=0:2x3x224x224+1:64x3x7x7+2:64 --op-attrs=4:strides:2x2*dilations:1x1*pads_begin:3x3*pads_end:2x2*groups:1 --case=pattern/int8/int8_conv_2d_fusion_2.json
 --reset  --in-shapes=0:50x64x56x56+1:64x64x1x1 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_conv_2d_fwd_i_fusion.json
---reset --in-shapes=0:50x64x56x56+1:64x64x1x1+2:1x1x1x1+3:1x1x1x1+4:1x64x1x1 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_conv_2d_fwd_i_fusion_2.json
 # quantized concat
 --reset  --in-shapes=0:486x256x3x3+1:486x256x3x3  --case=pattern/int8/int8_concat_fusion_2.json
 --reset  --in-shapes=0:1x1024x28x28+1:1x1024x28x28 --op-attrs=3:axis:2 --case=pattern/int8/int8_concat_fusion_2.json
