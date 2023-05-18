@@ -44,11 +44,12 @@ void check_correctness(
     for_(const auto &i_tag : s.tag)
     for_(const auto &i_flags : s.flags)
     for_(const auto &i_mb : s.mb)
+    for_(const auto &i_scales : s.scales)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for_(const auto &i_ctx_init : s.ctx_init)
     for_(const auto &i_ctx_exe : s.ctx_exe)
     for (auto i_inplace : s.inplace) {
-        auto attr = settings_t::get_attr(i_scratchpad_mode);
+        auto attr = settings_t::get_attr(i_scales, i_scratchpad_mode);
 
         const prb_t prb(s.desc, i_mb, i_dir, i_dt, i_tag, i_flags, i_inplace,
                 attr, i_ctx_init, i_ctx_exe, s.check_alg);
@@ -60,6 +61,15 @@ void check_correctness(
 }
 
 int verify_input(const settings_t &s) {
+    for_(const auto &i_scales : s.scales)
+    for (const auto &e : i_scales.scales) {
+        if (e.second.policy != policy_t::COMMON) {
+            BENCHDNN_PRINT(
+                    0, "%s\n", "ERROR: scales support only `common` policy.");
+            return FAIL;
+        }
+    }
+
     static constexpr int n_inputs = 2;
     for (const auto &i_dt : s.dt) {
         if (i_dt.size() != 1 && i_dt.size() != n_inputs) {
@@ -104,6 +114,7 @@ int bench(int argc, char **argv) {
                         "flags", help_flags)
                 || parse_inplace(s.inplace, def.inplace, argv[0])
                 || parse_mb(s.mb, def.mb, argv[0])
+                || parse_attr_scales(s.scales, argv[0])
                 || parse_attr_scratchpad_mode(
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])

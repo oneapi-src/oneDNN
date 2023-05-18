@@ -27,8 +27,19 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
     const dnn_mem_t &sc = args.find(DNNL_ARG_SCALE);
     const dnn_mem_t &sh = args.find(DNNL_ARG_SHIFT);
     const dnn_mem_t &dst = args.find(DNNL_ARG_DST);
+    const dnn_mem_t &src_scale = args.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+    const dnn_mem_t &dst_scale = args.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
 
     float *dst_ptr = (float *)dst;
+
+    const bool has_src_scale = !prb->attr.scales.get(DNNL_ARG_SRC).is_def();
+    const bool has_dst_scale = !prb->attr.scales.get(DNNL_ARG_DST).is_def();
+    assert(IMPLICATION(has_src_scale, src_scale.nelems() == 1));
+    assert(IMPLICATION(has_dst_scale, dst_scale.nelems() == 1));
+
+    const float src_scale_val = has_src_scale ? src_scale.get_elem(0) : 1.f;
+    const float dst_scale_val = has_dst_scale ? dst_scale.get_elem(0) : 1.f;
+    const float output_scale = src_scale_val / dst_scale_val;
 
     const int64_t MB = prb->mb;
     const int64_t G = prb->g;
@@ -56,7 +67,7 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
             float gamma = use_sc ? sc.get_elem(c) : 1.f;
             float beta = use_sh ? sh.get_elem(c) : 0.f;
             float res = gamma * x_hat + beta;
-            dst_ptr[off] = res;
+            dst_ptr[off] = res * output_scale;
         }
     });
 }
