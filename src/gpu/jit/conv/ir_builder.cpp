@@ -725,8 +725,8 @@ void conv_ir_builder_t::build() {
         stmt_ = simplify(stmt_, ir_ctx);
         stmt_ = inject_prefetch_pipeline(stmt_, ir_ctx, cfg_);
     }
-    stmt_ = inject_slm_reorder(
-            stmt_, ir_ctx, cfg_.thread_group_grid(), cfg_.slm());
+    stmt_ = inject_slm_reorder(stmt_, ir_ctx, cfg_.thread_group_grid(),
+            cfg_.slm() || gemm_schedule.with_thread_group_k_slicing());
     stmt_ = lift_buffer_offsets_in_send(stmt_, ir_ctx);
     stmt_ = simplify(stmt_, ir_ctx);
     stmt_ = inject_send(stmt_, ir_ctx);

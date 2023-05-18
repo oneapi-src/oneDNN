@@ -78,8 +78,21 @@ void slm_reduce_builder_t::build() {
 
     // Redistribute the layout to read/reduce all k-axis tiles from every
     // thread.
-    auto local_thr_tile = reg_layout_.split(tg_grid_.sub_grid({dim_}));
+    grid_info_t full_grid = tg_grid_.sub_grid({dim_});
+    grid_info_t split_grid;
+    auto local_thr_tile = reg_layout_.split(full_grid, &split_grid);
     reg_layout_ = reg_layout_.map(tensor_t(local_thr_tile.dims()));
+
+    if (split_grid.elems() != full_grid.elems()) {
+        for (int i = 0; i < full_grid.ndims(); i++) {
+            if (split_grid.dim(i) == full_grid.dim(i)) continue;
+            auto cond = full_grid.idx(i) < split_grid.dim(i);
+            if (reduce_cond_.is_empty())
+                reduce_cond_ = cond;
+            else
+                reduce_cond_ &= cond;
+        }
+    }
 
     std::vector<dim_t> read_dims(ndims + tg_ndims_, 1);
     std::vector<expr_t> read_start(ndims + tg_ndims_);
