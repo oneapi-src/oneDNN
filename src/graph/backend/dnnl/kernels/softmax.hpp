@@ -54,12 +54,17 @@ private:
             = reinterpret_cast<constant_cache_t::key_t>(this);
 
 public:
+    softmax_fwd_t() {
+        if (enabled_constant_cache()) get_global_constant_cache().retain();
+    }
+
     ~softmax_fwd_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
 
         if (enabled_constant_cache()) {
             get_global_constant_cache().remove_if_exist(constant_key_);
+            get_global_constant_cache().release();
         }
     }
 

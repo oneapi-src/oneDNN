@@ -169,10 +169,8 @@ void constant_cache_t::evict(size_t n) {
     }
 }
 
-static constant_cache_t global_cache;
-
 constant_cache_t &get_global_constant_cache() {
-    return global_cache;
+    return *constant_cache_t::get_global_constant_cache();
 }
 
 } // namespace dnnl_impl
