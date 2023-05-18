@@ -354,3 +354,10 @@ ic64ih56oc256oh56kh1ph0n"primitive-cache_dispatch_shape-2"
 --stag=axb --dtag=axb
 --skip-impl=brg,jit:avx,ref
 --attr-post-ops=add:f32:per_oc,prelu:per_oc g4ic16id5oc16od5kd3pd1n"3d_conv:grouped_gemm_conv"
+
+# test int8 brgconv with zp for case with both top and bottom vpad
+--reset
+--skip-impl=ref,x64:gemm
+--cfg=u8s8f32
+--attr-zero-points=src:common:31*+dst:common:15*
+ic64ih14oc24oh14kh5ph2_n"zp_with_top_and_bottom_vpad"
