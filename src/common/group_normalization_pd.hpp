@@ -183,6 +183,21 @@ protected:
         return IMPLICATION(use_scale() || use_shift(),
                 weights_md()->data_type == data_type::f32);
     }
+    bool attr_scales_ok() const {
+        using namespace data_type;
+        const auto &scales = attr()->scales_;
+        const std::vector<int> supported_args({DNNL_ARG_SRC, DNNL_ARG_DST});
+        bool ok = scales.has_default_values(supported_args);
+
+        for (const auto &arg : supported_args) {
+            const auto &sc = scales.get(arg);
+            if (!sc.has_default_values()) {
+                const data_type_t dt = arg_md(arg)->data_type;
+                ok = ok && utils::one_of(dt, s8, u8) && sc.mask_ == 0;
+            }
+        }
+        return ok;
+    }
 };
 
 struct group_normalization_bwd_pd_t : public group_normalization_pd_t {

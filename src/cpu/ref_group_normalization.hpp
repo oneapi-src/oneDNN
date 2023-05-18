@@ -40,6 +40,7 @@ struct ref_group_normalization_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
+            using skip_mask_t = primitive_attr_t::skip_mask_t;
 
             VCHECK_GNORM(is_fwd(), VERBOSE_BAD_PROPKIND);
             VCHECK_GNORM(
@@ -52,8 +53,9 @@ struct ref_group_normalization_fwd_t : public primitive_t {
                             && platform::has_data_type_support(
                                     dst_md()->data_type),
                     VERBOSE_UNSUPPORTED_DT);
-            VCHECK_GNORM(
-                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VCHECK_GNORM(attr()->has_default_values(skip_mask_t::scales_runtime)
+                            && attr_scales_ok(),
+                    VERBOSE_UNSUPPORTED_ATTR);
 
             bool ok = set_default_formats_common();
             if (!ok) return status::unimplemented;

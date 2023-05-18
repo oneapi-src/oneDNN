@@ -53,6 +53,9 @@ status_t ref_group_normalization_fwd_t::execute(const exec_ctx_t &ctx) const {
     auto dst = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DST, status);
     CHECK(status);
 
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
+
     const auto ndims = src_d.ndims();
     const auto N = pd()->MB();
 
@@ -123,6 +126,7 @@ status_t ref_group_normalization_fwd_t::execute(const exec_ctx_t &ctx) const {
 
                 float s = io::load_float_value(src_d.data_type(), src, s_off);
                 float d = sm * (s - v_mean) + sv;
+                d *= src_scales[0] * dst_scales[0];
                 io::store_float_value(dst_d.data_type(), d, dst, d_off);
             }
         }
