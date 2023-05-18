@@ -59,8 +59,8 @@ constructing an operation.
 
 InterpolateBackward operation supports the following data type combinations.
 
-| Src/Diff_dst/Diff_src | Sizes |
-|:----------------------|:------|
-| f32                   | s32   |
-| bf16                  | s32   |
-| f16                   | s32   |
+| Src  | Diff_dst | Diff_src | Sizes |
+|:-----|:---------|:---------|:------|
+| f32  | f32      | f32      | s32   |
+| bf16 | bf16     | bf16     | s32   |
+| f16  | f16      | f16      | s32   |

@@ -1,9 +1,9 @@
-Softmax {#dev_guide_op_softmax}
+SoftMax {#dev_guide_op_softmax}
 ===============================
 
 ## General
 
-Softmax operation applies following formula on every element of \src tensor
+SoftMax operation applies the following formula on every element of \src tensor
 (the variable names follow the standard @ref dev_guide_conventions):
 
 \f[ dst_i = \frac{exp(src_i)}{\sum_{j=1}^{C} exp(src_j)} \f]
@@ -11,9 +11,9 @@ where \f$ C \f$ is a size of tensor along axis dimension.
 
 ## Operation attributes
 
-| Attribute Name                           | Description                                             | Value Type | Supported Values                     | Required or Optional |
-|:-----------------------------------------|:--------------------------------------------------------|:-----------|:-------------------------------------|:---------------------|
-| [axis](@ref dnnl::graph::op::attr::axis) | Represents the axis of which the Softmax is calculated. | s64        | Arbitrary s64 value (`1` in default) | Optional             |
+| Attribute Name                           | Description                                               | Value Type | Supported Values                     | Required or Optional |
+|:-----------------------------------------|:----------------------------------------------------------|:-----------|:-------------------------------------|:---------------------|
+| [axis](@ref dnnl::graph::op::attr::axis) | Represents the axis from which the SoftMax is calculated. | s64        | Arbitrary s64 value (`1` in default) | Optional             |
 
 ## Execution arguments
 
@@ -34,7 +34,7 @@ constructing an operation.
 
 ## Supported data types
 
-Softmax operation supports the following data type combinations.
+SoftMax operation supports the following data type combinations.
 
 | Src  | Dst  |
 |:-----|:-----|

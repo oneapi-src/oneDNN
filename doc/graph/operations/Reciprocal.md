@@ -33,8 +33,8 @@ constructing an operation.
 
 Reciprocal operation supports the following data type combinations.
 
-| Source | Destination |
-|:-------|:------------|
-| f32    | f32         |
-| bf16   | bf16        |
-| f16    | f16         |
+| Src  | Dst  |
+|:-----|:-----|
+| f32  | f32  |
+| bf16 | bf16 |
+| f16  | f16  |

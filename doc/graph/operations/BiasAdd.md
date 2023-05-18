@@ -39,8 +39,8 @@ same as size of channel dimension of `src` tensor.
 
 BiasAdd operation supports the following data type combinations.
 
-| Src  |  Bias  | Dst     |
-|:-----|:-------|:--------|
-| f32  | f32    | f32     |
-| bf16 | bf16   | bf16    |
-| f16  | f16    | f16     |
+| Src  | Bias | Dst  |
+|:-----|:-----|:-----|
+| f32  | f32  | f32  |
+| bf16 | bf16 | bf16 |
+| f16  | f16  | f16  |

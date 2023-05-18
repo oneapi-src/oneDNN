@@ -10,7 +10,7 @@ EluBackward operation computes gradient for Elu operation.
 | Attribute Name                                 | Description                                                                               | Value Type | Supported Values                 | Required or Optional |
 |:-----------------------------------------------|:------------------------------------------------------------------------------------------|:-----------|:---------------------------------|:---------------------|
 | [alpha](@ref dnnl::graph::op::attr::alpha)     | Scale for the negative factor.                                                            | f32        | Arbitrary non-negative f32 value | Required             |
-| [use_dst](@ref dnnl::graph::op::attr::use_dst) | If true, use `diff_src` of Elu operation to calculate the gradient. Otherwise, use `src`. | bool       | `true` (default), `false`        | Optional             |
+| [use_dst](@ref dnnl::graph::op::attr::use_dst) | If true, use `dst` of Elu operation to calculate the gradient. Otherwise, use `src`.      | bool       | `true` (default), `false`        | Optional             |
 
 ## Execution arguments
 
@@ -21,7 +21,7 @@ constructing an operation.
 
 | Index | Argument Name | Required or Optional |
 |:------|:--------------|:---------------------|
-| 0     | `src`         | Required             |
+| 0     | `src` / `dst` | Required             |
 | 1     | `diff_dst`    | Required             |
 
 ### Outputs
@@ -34,8 +34,8 @@ constructing an operation.
 
 EluBackward operation supports the following data type combinations.
 
-| Src  | Diff_dst | Diff_src |
-|:-----|:---------|:---------|
-| f32  | f32      | f32      |
-| f16  | f16      | f16      |
-| bf16 | bf16     | bf16     |
+| Src / Dst | Diff_dst | Diff_src |
+|:----------|:---------|:---------|
+| f32       | f32      | f32      |
+| f16       | f16      | f16      |
+| bf16      | bf16     | bf16     |

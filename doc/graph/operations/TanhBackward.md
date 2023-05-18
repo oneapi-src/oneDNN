@@ -33,8 +33,8 @@ constructing an operation.
 
 TanhBackward operation supports the following data type combinations.
 
-| Src  | Diff_dst | Diff_src |
-|:-----|:---------|:---------|
-| f32  | f32      | f32      |
-| f16  | f16      | f16      |
-| bf16 | bf16     | bf16     |
+| Src / Dst | Diff_dst | Diff_src |
+|:----------|:---------|:---------|
+| f32       | f32      | f32      |
+| f16       | f16      | f16      |
+| bf16      | bf16     | bf16     |

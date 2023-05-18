@@ -25,16 +25,16 @@ constructing an operation.
 
 ### Outputs
 
-Index | Argument Name | Required or Optional
--- | -- | --
-0 | `diff_src` | Required
+| Index | Argument Name | Required or Optional |
+|:------|:--------------|:---------------------|
+| 0     | `diff_src`    | Required             |
 
 ## Supported data types
 
 SigmoidBackward operation supports the following data type combinations.
 
-Src | Diff_dst | Diff_src
--- | -- | --
-f32 | f32 | f32
-f16 | f16 | f16
-bf16 | bf16 | bf16
+| Src / Dst  | Diff_dst | Diff_src |
+|:-----------|:---------|:---------|
+| f32        | f32      | f32      |
+| f16        | f16      | f16      |
+| bf16       | bf16     | bf16     |
