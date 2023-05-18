@@ -838,7 +838,7 @@ public:
         add_defination(xmm1, linkage::local);
         add_defination(xmm2, linkage::local);
         // get mask with all bits is 1
-        uint64_t imm = (1 << (dst->dtype_.lanes_)) - 1;
+        uint64_t imm = (UINT64_C(1) << (dst->dtype_.lanes_)) - 1;
         auto mask = builder::make_constant({imm}, datatypes::u32);
         // get avx512 mask or avx2 mask ymm0
         auto cond = cast_when_mask(std::move(mask), dst->dtype_);

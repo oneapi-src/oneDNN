@@ -261,11 +261,9 @@ void reorder_op_t::collect_shrinked_axis_map(
     auto p2b_map = another_gt->details_.get_format()
                            .format_code_.collect_p2b_mapping();
     std::vector<int> bw_axis;
+    bw_axis.reserve(bw_size);
     for (int i = 0; i < bw_size; i++) {
-        if (i < 0)
-            bw_axis.emplace_back(i);
-        else
-            bw_axis.emplace_back(p2b_map[fmt.format_code_.get(i)].front());
+        bw_axis.emplace_back(p2b_map[fmt.format_code_.get(i)].front());
     }
     record_shrinked_axis(bw_axis_map, another_gt, bw_axis);
 }
@@ -555,6 +553,11 @@ void dispatch_reorder_ranges(slice_range_list &total_ranges_list,
     }
 }
 
+static size_t throw_if_negative(int dim) {
+    if (dim < 0) { throw std::runtime_error("Bad format"); }
+    return dim;
+}
+
 // infer plain format to blocking format generally
 void infer_stride2block_reorder(slice_range_list &input_slice_list,
         sc_data_format_t input_format, sc_data_format_t output_format,
@@ -620,7 +623,8 @@ void infer_stride2block_reorder(slice_range_list &input_slice_list,
             }
         }
 
-        std::vector<slice_range> total_range_list(out_kind.ndims());
+        std::vector<slice_range> total_range_list(
+                throw_if_negative(out_kind.ndims()));
         // collect all blocking slice
         for (auto &mp : block_slice_dict) {
             int plain_pos = mp.first;
@@ -979,8 +983,8 @@ static std::vector<expr> get_reorder_block2plain_indexes(sc_graph_t &graph,
             "format can not be any_t in reorder op, please check it in layout "
             "propagation.");
     size_t base_out_dim = 0;
-    size_t num_plain_dims = format.format_code_.norig_dims();
-    size_t num_format_dims = format.format_code_.ndims();
+    size_t num_plain_dims = throw_if_negative(format.format_code_.norig_dims());
+    size_t num_format_dims = throw_if_negative(format.format_code_.ndims());
     size_t num_out_dims = num_plain_dims;
     std::vector<expr> ret(num_out_dims, 0);
     COMPILE_ASSERT(in_indexes.size() == num_format_dims,
@@ -1060,8 +1064,8 @@ static std::vector<expr> get_reorder_plain2block_indexes(
             "format can not be any in reorder op, please check it in layout "
             "propagation.");
     size_t base_out_dim = 0;
-    size_t num_plain_dims = format.format_code_.norig_dims();
-    size_t num_format_dims = format.format_code_.ndims();
+    size_t num_plain_dims = throw_if_negative(format.format_code_.norig_dims());
+    size_t num_format_dims = throw_if_negative(format.format_code_.ndims());
     size_t num_out_dims = num_format_dims;
     std::vector<expr> ret(num_out_dims, 0);
     COMPILE_ASSERT(in_indexes.size() == num_plain_dims,

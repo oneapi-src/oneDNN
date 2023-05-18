@@ -101,13 +101,13 @@ static void select_ref(const sc_dims &cond_plain_dims,
         for (size_t d = 0; d < else_idx.size(); ++d) {
             else_idx[d] = extended_else_plain_dims[d] == 1 ? 0 : output_idx[d];
         }
-        auto prod_cond = math_utils::vector_mul(cond_idx, cond_strides);
+        auto prod_cond = math_utils::vector_mul(cond_idx, cond_strides, false);
         size_t cond_idx_flattened
                 = std::accumulate(prod_cond.begin(), prod_cond.end(), 0);
-        auto prod_then = math_utils::vector_mul(then_idx, then_strides);
+        auto prod_then = math_utils::vector_mul(then_idx, then_strides, false);
         size_t then_idx_flattened
                 = std::accumulate(prod_then.begin(), prod_then.end(), 0);
-        auto prod_else = math_utils::vector_mul(else_idx, else_strides);
+        auto prod_else = math_utils::vector_mul(else_idx, else_strides, false);
         size_t else_idx_flattened
                 = std::accumulate(prod_else.begin(), prod_else.end(), 0);
         out[i] = cond[cond_idx_flattened] > 0UL ? then[then_idx_flattened]

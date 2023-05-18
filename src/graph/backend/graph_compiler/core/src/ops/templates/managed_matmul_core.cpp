@@ -338,6 +338,7 @@ config_ptr gen_managed_matmul_core_t::get_default_transposed_a_config(
         = (sqrt(pow(2 * sizeofdtypeA * L2_K, 2) + 4 * sizeofdtypeC * L2_size)
             - 2 * sizeofdtypeA * L2_K)
         / (2 * sizeofdtypeC);
+      COMPILE_ASSERT(L2_MN > 0, "Bad L2_MN. Is cache size correctly fetched?");
       cfg.M_sub_block = std::max(1, single_M / L2_MN);
       cfg.N_sub_block = std::max(1, single_N / L2_MN);
     } else {

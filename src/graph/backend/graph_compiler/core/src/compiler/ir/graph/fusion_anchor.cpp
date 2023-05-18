@@ -18,6 +18,7 @@
 #include "fusible_op_utils.hpp"
 #include "mixed_partition.hpp"
 #include "tunable_op.hpp"
+#include <util/optional_find.hpp>
 
 SC_MODULE(graph.fusion_anchor);
 
@@ -100,8 +101,10 @@ bool fuse_anchor_map_t::has_view_of(sc_op *op) {
                 op_anchor = op_anchor->parent_;
             } else
                 break;
-        } else if (op_anchor->content_number_map_.find(this)->second
-                > op_anchor->content_number_map_.find(op)->second) {
+        } else if (*utils::find_map_value(op_anchor->content_number_map_, this)
+                            .get()
+                > *utils::find_map_value(op_anchor->content_number_map_, op)
+                           .get()) {
             return true;
         } else {
             return false;

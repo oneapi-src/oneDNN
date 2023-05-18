@@ -33,6 +33,7 @@
 #include <compiler/ir/transform/cpu/local_tensor_lower.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <runtime/config.hpp>
+#include <util/optional_find.hpp>
 #include <util/utils.hpp>
 
 namespace dnnl {
@@ -693,10 +694,10 @@ void set_unknown_slice_ranges(fusible_op_t *cur,
         if (input->producer_owner_->isa<input_op>()
                 && input->producer_owner_->dyn_cast<input_op>()
                            ->is_arg_input()) {
-            inp_slice = known_ranges_map.find(i)->second;
+            inp_slice = *utils::find_map_value(known_ranges_map, i).get();
         } else {
             if (inp_slice.empty()) {
-                inp_slice = known_ranges_map.find(i)->second;
+                inp_slice = *utils::find_map_value(known_ranges_map, i).get();
                 if (!stat_map.is_recursive_mode()) continue;
                 if (auto inp_op
                         = input->producer_owner_->dyn_cast<fusible_op_t>()) {
@@ -743,7 +744,7 @@ void set_unknown_axis_binding(sc_op *cur,
         auto input = cur->get_inputs()[i];
         auto &inp_axis = bdax_map.get(input);
         if (inp_axis.empty()) {
-            inp_axis = known_axis_map.find(i)->second;
+            inp_axis = *utils::find_map_value(known_axis_map, i).get();
             auto producer = input->producer_owner_;
             if (producer->isa<input_op>()) continue;
             if (auto inp_op = producer->dyn_cast<

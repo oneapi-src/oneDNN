@@ -58,7 +58,7 @@ struct SC_API runtime_config_t {
     bool execution_verbose_ = false;
     bool managed_thread_pool_ = true;
     int verbose_level_ = 0;
-    static runtime_config_t &get();
+    static runtime_config_t &get() noexcept;
 
 private:
     runtime_config_t();

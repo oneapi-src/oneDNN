@@ -121,12 +121,13 @@ typedef enum {
 // if is_itex is false, it is the default setting
 // if itex is true, it will put K side's second transpose to matmul_qk
 inline void add_MHA_subgraph(graph::graph_t *agraph, bool use_bf16 = false,
-        bool use_int8 = false, bool is_itex = false, int batch_size = 128,
-        int seq_len = 384, int num_head = 16, int head_dim = 1024,
+        bool use_int8 = false, bool is_itex = false,
+        graph::dim_t batch_size = 128, graph::dim_t seq_len = 384,
+        graph::dim_t num_head = 16, graph::dim_t head_dim = 1024,
         bool dyn_quant = false) {
     size_t logical_tensor_idx = 0;
     size_t op_idx = 0;
-    int size_per_head = head_dim / num_head;
+    graph::dim_t size_per_head = head_dim / num_head;
     std::vector<graph::dim_t> EXTENDED_ATTENTION_MASK_SHAPE = is_itex
             ? std::vector<graph::dim_t> {batch_size, 1, seq_len, seq_len}
             : std::vector<graph::dim_t> {batch_size, 1, 1, seq_len};
@@ -531,11 +532,11 @@ inline void add_MHA_subgraph(graph::graph_t *agraph, bool use_bf16 = false,
 inline void add_MHA_subgraph_alternative(graph::graph_t *agraph,
         bool use_bf16 = false, bool use_int8 = false,
         graph::op_kind_t output_op_kind = graph::op_kind::Reorder,
-        int batch_size = 128, int seq_len = 384, int num_head = 16,
-        int head_dim = 1024) {
+        graph::dim_t batch_size = 128, graph::dim_t seq_len = 384,
+        graph::dim_t num_head = 16, graph::dim_t head_dim = 1024) {
     size_t logical_tensor_idx = 0;
     size_t op_idx = 0;
-    int size_per_head = head_dim / num_head;
+    graph::dim_t size_per_head = head_dim / num_head;
     std::vector<graph::dim_t> EXTENDED_ATTENTION_MASK_SHAPE {
             batch_size, 1, 1, seq_len};
     std::vector<graph::dim_t> QKV_RESHAPED_SHAPE {
@@ -801,11 +802,12 @@ inline void add_MHA_subgraph_alternative(graph::graph_t *agraph,
 
 // this function can add a simple MHA without intermediate tensor shape
 // aiming for testing infer shape
-inline void add_MHA_infer_shape(graph::graph_t *agraph, int batch_size = 128,
-        int seq_len = 384, int num_head = 16, int head_dim = 1024) {
+inline void add_MHA_infer_shape(graph::graph_t *agraph,
+        graph::dim_t batch_size = 128, graph::dim_t seq_len = 384,
+        graph::dim_t num_head = 16, graph::dim_t head_dim = 1024) {
     size_t logical_tensor_idx = 0;
     size_t op_idx = 0;
-    int size_per_head = head_dim / num_head;
+    graph::dim_t size_per_head = head_dim / num_head;
     std::vector<graph::dim_t> MIXED_LAYER_INPUT_SHAPE {
             batch_size, seq_len, head_dim};
     std::vector<graph::dim_t> EXTENDED_ATTENTION_MASK_SHAPE {
@@ -998,11 +1000,12 @@ inline void get_int8_MHA_subgraph_varients(graph::graph_t *agraph,
         bool use_div = true,
         const std::vector<quantize_position_t> &quantize_positions
         = std::vector<quantize_position_t>(4, RESHAPE_INCLUDED),
-        int add_inport = 0, int batch_size = 128, int seq_len = 384,
-        int num_head = 16, int head_dim = 1024) {
+        graph::dim_t add_inport = 0, graph::dim_t batch_size = 128,
+        graph::dim_t seq_len = 384, graph::dim_t num_head = 16,
+        graph::dim_t head_dim = 1024) {
     size_t logical_tensor_idx = 0;
     size_t op_idx = 0;
-    int size_per_head = head_dim / num_head;
+    graph::dim_t size_per_head = head_dim / num_head;
     std::vector<graph::dim_t> MIXED_LAYER_INPUT_SHAPE {
             batch_size, seq_len, head_dim};
     std::vector<graph::dim_t> EXTENDED_ATTENTION_MASK_SHAPE {
@@ -1346,12 +1349,12 @@ inline void get_int8_MHA_subgraph_varients(graph::graph_t *agraph,
 
 inline void add_MHA_training_subgraph(graph::graph_t *agraph,
         bool use_bf16 = false, bool has_mul_from_select = false,
-        int batch_size = 128, int seq_len = 384, int num_head = 16,
-        int head_dim = 1024) {
+        graph::dim_t batch_size = 128, graph::dim_t seq_len = 384,
+        graph::dim_t num_head = 16, graph::dim_t head_dim = 1024) {
     auto dtype = use_bf16 ? graph::data_type::bf16 : graph::data_type::f32;
     size_t logical_tensor_idx = 0;
     size_t op_idx = 0;
-    int size_per_head = head_dim / num_head;
+    graph::dim_t size_per_head = head_dim / num_head;
 
     std::vector<graph::dim_t> EXTENDED_ATTENTION_MASK_SHAPE {
             batch_size, 1, 1, seq_len};
@@ -1632,11 +1635,11 @@ inline void add_MHA_training_subgraph(graph::graph_t *agraph,
 inline void add_distill_bert_MHA(graph::graph_t *agraph, bool use_bf16 = false,
         bool use_int8 = false,
         graph::op_kind_t output_op_kind = graph::op_kind::Reorder,
-        int batch_size = 224, int seq_len = 128, int num_head = 12,
-        int head_dim = 768) {
+        graph::dim_t batch_size = 224, graph::dim_t seq_len = 128,
+        graph::dim_t num_head = 12, graph::dim_t head_dim = 768) {
     size_t logical_tensor_idx = 0;
     size_t op_idx = 0;
-    int size_per_head = head_dim / num_head;
+    graph::dim_t size_per_head = head_dim / num_head;
     std::vector<graph::dim_t> EXTENDED_ATTENTION_MASK_SHAPE {
             batch_size, 1, 1, seq_len};
     std::vector<graph::dim_t> QKV_RESHAPED_SHAPE {
@@ -1919,8 +1922,8 @@ inline void add_distill_bert_MHA(graph::graph_t *agraph, bool use_bf16 = false,
 }
 
 inline void add_mlp_subgraph(graph::graph_t *agraph, bool use_bf16 = false,
-        int batch_size = 1, int layer = 1,
-        std::vector<int> hidden_size = {13, 512},
+        graph::dim_t batch_size = 1, graph::dim_t layer = 1,
+        std::vector<graph::dim_t> hidden_size = {13, 512},
         std::vector<graph::op_kind_t> act_type = {graph::op_kind::ReLU},
         bool separate_bias_add = false) {
     size_t lt_idx = 0;
@@ -1932,7 +1935,7 @@ inline void add_mlp_subgraph(graph::graph_t *agraph, bool use_bf16 = false,
     graph::logical_tensor_t input
             = utils::logical_tensor_init(lt_idx++, layer_input_size, dtype);
 
-    for (int i = 0; i < layer; ++i) {
+    for (graph::dim_t i = 0; i < layer; ++i) {
         std::vector<graph::dim_t> layer_weight_size {
                 hidden_size[i], hidden_size[i + 1]};
         std::vector<graph::dim_t> layer_bias_size {hidden_size[i + 1]};
@@ -1985,7 +1988,7 @@ inline void add_mlp_subgraph(graph::graph_t *agraph, bool use_bf16 = false,
 }
 
 inline void add_int8_mlp_subgraph(graph_t *agraph,
-        std::vector<graph::dim_t> batch_dims = {1, 384}, int layer = 1,
+        std::vector<graph::dim_t> batch_dims = {1, 384}, graph::dim_t layer = 1,
         std::vector<graph::dim_t> hidden_size = {1024, 1024},
         std::vector<op_kind_t> act_type = {op_kind::ReLU},
         bool mixed_dtype = false, bool dyn_quant = false) {
@@ -1998,7 +2001,7 @@ inline void add_int8_mlp_subgraph(graph_t *agraph,
     graph::logical_tensor_t input_desc
             = utils::logical_tensor_init(lt_idx++, layer_input_size, dtype);
 
-    for (int i = 0; i < layer; ++i) {
+    for (graph::dim_t i = 0; i < layer; ++i) {
         std::vector<graph::dim_t> layer_weight_size {
                 hidden_size[i], hidden_size[i + 1]};
         std::vector<graph::dim_t> layer_bias_size {hidden_size[i + 1]};
@@ -2206,7 +2209,8 @@ inline void add_int8_mlp_subgraph(graph_t *agraph,
 }
 
 inline void add_int8_mlp_subgraph(graph_t *agraph, graph::dim_t batch_size = 1,
-        int layer = 1, std::vector<graph::dim_t> hidden_size = {13, 512},
+        graph::dim_t layer = 1,
+        std::vector<graph::dim_t> hidden_size = {13, 512},
         std::vector<op_kind_t> act_type = {op_kind::ReLU},
         bool mixed_dtype = false, bool dyn_quant = false) {
     add_int8_mlp_subgraph(agraph, std::vector<graph::dim_t> {batch_size}, layer,
@@ -2229,8 +2233,9 @@ act_backprop_type: Activation backprop function op before each matmul
 e.g. {ReLU, Sigmoid} ==> {SigmoidBackprop, ReLUBackprop}
 formula: X_{i+1} = Activation(Z{i}); Z_{i} = X_{i}W_{i} + bias_{i}
 */
-inline void add_mlp_training_graph(graph::graph_t *agraph, int batch_size,
-        int layer, std::vector<int> hidden_size,
+inline void add_mlp_training_graph(graph::graph_t *agraph,
+        graph::dim_t batch_size, graph::dim_t layer,
+        std::vector<graph::dim_t> hidden_size,
         std::vector<graph::op_kind_t> act_type,
         std::vector<graph::op_kind_t> act_backprop_type, bool use_bf16 = false,
         bool use_dst = true, bool weight_transposed = false) {
@@ -2248,7 +2253,7 @@ inline void add_mlp_training_graph(graph::graph_t *agraph, int batch_size,
     x_lts.push_back(input);
 
     // constructing the forward calculations
-    for (int i = 0; i < layer; ++i) {
+    for (graph::dim_t i = 0; i < layer; ++i) {
         std::vector<graph::dim_t> layer_weight_size {
                 hidden_size[i], hidden_size[i + 1]};
         std::vector<graph::dim_t> layer_bias_size {hidden_size[i + 1]};
@@ -2290,7 +2295,7 @@ inline void add_mlp_training_graph(graph::graph_t *agraph, int batch_size,
             lt_idx++, {batch_size, hidden_size[layer]}, dtype);
 
     // constructing backward calculations
-    for (int i = 0; i < layer; ++i) {
+    for (graph::dim_t i = 0; i < layer; ++i) {
         std::vector<graph::dim_t> grad_z_size {
                 batch_size, hidden_size[layer - i]};
         std::vector<graph::dim_t> transposed_grad_z_size {
@@ -2400,11 +2405,12 @@ inline void add_mlp_training_graph(graph::graph_t *agraph, int batch_size,
 }
 
 static inline void add_MHA_subgraph_alternative2(graph::graph_t *agraph,
-        bool has_quantize = false, int batch_size = 64, int seq_len = 384,
-        int num_head = 16, int head_dim = 1024) {
+        bool has_quantize = false, graph::dim_t batch_size = 64,
+        graph::dim_t seq_len = 384, graph::dim_t num_head = 16,
+        graph::dim_t head_dim = 1024) {
     size_t logical_tensor_idx = 0;
     size_t op_idx = 0;
-    int size_per_head = head_dim / num_head;
+    graph::dim_t size_per_head = head_dim / num_head;
     std::vector<graph::dim_t> MIXED_LAYER_INPUT_SHAPE {
             batch_size, seq_len, head_dim};
     std::vector<graph::dim_t> QKV_RESHAPE_SHAPE {
@@ -2637,11 +2643,12 @@ static inline void add_MHA_subgraph_alternative2(graph::graph_t *agraph,
 }
 
 static inline void add_MHA_subgraph_alternative4(graph::graph_t *agraph,
-        bool use_int8 = false, int batch_size = 16, int seq_len = 2048,
-        int num_head = 12, int head_dim = 768) {
+        bool use_int8 = false, graph::dim_t batch_size = 16,
+        graph::dim_t seq_len = 2048, graph::dim_t num_head = 12,
+        graph::dim_t head_dim = 768) {
     size_t logical_tensor_idx = 0;
     size_t op_idx = 0;
-    int size_per_head = head_dim / num_head;
+    graph::dim_t size_per_head = head_dim / num_head;
     std::vector<graph::dim_t> QV_TRANSPOSE_SHAPE {
             batch_size * num_head, seq_len, size_per_head};
     std::vector<graph::dim_t> K_TRANSPOSE_SHAPE {
@@ -3511,12 +3518,13 @@ inline void construct_convolutional_bottleneck_training_subgraph(
 }
 
 inline void add_bart_MHA(graph::graph_t *agraph, bool use_bf16 = false,
-        bool use_int8 = false, int batch_size = 1, int seq_len = 6,
-        int num_head = 12, int head_dim = 768) {
+        bool use_int8 = false, graph::dim_t batch_size = 1,
+        graph::dim_t seq_len = 6, graph::dim_t num_head = 12,
+        graph::dim_t head_dim = 768) {
     size_t logical_tensor_idx = 0;
     size_t op_idx = 0;
-    int batch_dim = batch_size * num_head;
-    int size_per_head = head_dim / num_head;
+    graph::dim_t batch_dim = batch_size * num_head;
+    graph::dim_t size_per_head = head_dim / num_head;
     std::vector<graph::dim_t> QKV_TRANSPOSED_SHAPE {
             batch_dim, seq_len, size_per_head};
     std::vector<graph::dim_t> KEY_TRANSPOSED_SHAPE {
@@ -3713,11 +3721,11 @@ inline void add_bart_MHA(graph::graph_t *agraph, bool use_bf16 = false,
 }
 
 inline void add_bart_mlp_residual_subgraph(graph::graph_t *agraph,
-        bool use_bf16 = false, bool use_int8 = false, int batch_size = 1,
-        int seq_len = 17) {
+        bool use_bf16 = false, bool use_int8 = false,
+        graph::dim_t batch_size = 1, graph::dim_t seq_len = 17) {
     size_t lt_idx = 0;
     size_t op_idx = 0;
-    const int head_dim = 768;
+    const graph::dim_t head_dim = 768;
     auto dtype = use_bf16 ? graph::data_type::bf16 : graph::data_type::f32;
     std::vector<graph::dim_t> input_size_1 {batch_size, seq_len, head_dim};
     std::vector<graph::dim_t> input_size_2 {batch_size, seq_len, head_dim};

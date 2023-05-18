@@ -244,8 +244,7 @@ graph::status_t compiler_partition_impl_t::compile(
         });
         if (status != graph::status::success) return status;
 
-        gc::sc_graph_t &backend_graph_obj
-                = *dynamic_cast<gc::sc_graph_t *>(&sub_graph);
+        gc::sc_graph_t &backend_graph_obj = sub_graph;
         if (!gc::check_graph_connection(backend_graph_obj)) {
             return graph::status::invalid_graph;
         }

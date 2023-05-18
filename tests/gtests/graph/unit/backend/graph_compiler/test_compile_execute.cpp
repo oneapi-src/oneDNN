@@ -367,6 +367,13 @@ void release_runtime_memory(runtime::engine_t *engine);
 } // namespace impl
 } // namespace dnnl
 
+struct engine_releaser_gc_t {
+    impl::engine_t *pengine_;
+    ~engine_releaser_gc_t() {
+        if (pengine_) { dnnl_engine_destroy(pengine_); }
+    }
+};
+
 // test allocator release before compiled partition destruction
 TEST(GCGraphTest, AllocatorEarlyRelease_CPU) {
     REQUIRE_AVX512();
@@ -401,6 +408,7 @@ TEST(GCGraphTest, AllocatorEarlyRelease_CPU) {
     // default allocator of the test engine
     impl::engine_t *pengine = nullptr;
     dnnl_engine_create(&pengine, impl::engine_kind::cpu, 0);
+    engine_releaser_gc_t releaser {pengine};
     ASSERT_TRUE(pengine);
     pengine->set_allocator(allocator);
     impl::engine_t &eng = *pengine;
@@ -435,7 +443,6 @@ TEST(GCGraphTest, AllocatorEarlyRelease_CPU) {
     ASSERT_EQ(cp.execute(&strm, execution_inputs, execution_outputs),
             impl::status::success);
     strm.wait();
-    dnnl_engine_destroy(pengine);
 }
 
 TEST(GCGraphTest, FP32MHAAlternativeCompileExecution_CPU) {

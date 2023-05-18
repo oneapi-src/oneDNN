@@ -768,7 +768,7 @@ tsr_info_t get_or_create_tsr_and_fmt(
     for (size_t i = 0; i < plain_shapes.size(); i++) {
         bld.push_assign(
                 builder::make_indexing(shape_tsr, {i}), plain_shapes[i]);
-        dyn_mask_int |= ((!plain_shapes[i].isa<constant>()) << i);
+        dyn_mask_int |= (uint64_t(!plain_shapes[i].isa<constant>()) << i);
     }
     bld.push_evaluate(builder::make_write_struct(rtsr,
             builder::make_constant({dyn_mask_int}, datatypes::u8),

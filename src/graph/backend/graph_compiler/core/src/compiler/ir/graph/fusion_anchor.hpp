@@ -54,7 +54,7 @@ private:
     // control whether the fusion anchor is output anchor or input, default is
     // output anchor.
     bool is_input_anchor_;
-    mixed_parti_t *binded_mxp_;
+    mixed_parti_t *binded_mxp_ = nullptr;
 
 public:
     friend struct mixed_parti_t;
@@ -181,8 +181,8 @@ public:
      * }
      * */
     bool is_parent_for(const fuse_anchor_map_t *cur) const {
-        if (is_input_anchor_ != cur->is_input_anchor_) return false;
         if (!cur) return false;
+        if (is_input_anchor_ != cur->is_input_anchor_) return false;
         while (cur->parent_) {
             cur = cur->parent_.get();
             if (cur == this) return true;

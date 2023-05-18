@@ -102,8 +102,8 @@ config_ptr gen_nested_conv1x1_backprop_weight_t::get_default_config(
     // For small workload, the A and B shape is not a key problem, but the
     // num_core and num_brgemm is important to performance. Use 2048 to reduce
     // the shape weight on small shape.
-    float new_cost = (1024 + BS * i / num_threads + IC / i)
-      * (num_brgemm + 8 * i) / num_core;
+    float new_cost = (1024 + BS * i / float(num_threads) + IC / float(i))
+      * (num_brgemm + 8 * i) / float(num_core);
     if (new_cost < cost && IC / im_ic_block % i == 0
       && BS / im_bs_block % (num_threads / i) == 0) {
       split_ic = i;

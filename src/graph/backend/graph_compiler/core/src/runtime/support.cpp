@@ -79,7 +79,7 @@ size_t get_os_page_size() {
 }
 } // namespace runtime
 
-runtime_config_t &runtime_config_t::get() {
+runtime_config_t &runtime_config_t::get() noexcept {
     static runtime_config_t cfg {};
     return cfg;
 }

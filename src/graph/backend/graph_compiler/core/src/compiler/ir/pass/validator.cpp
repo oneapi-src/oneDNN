@@ -618,7 +618,7 @@ void validate_impl_t::view(returns_c v) {
         }
     }
     COMPILE_ASSERT_POS(for_loop_levels_ == 0
-                    || (cur_func_->attr_
+                    || (cur_func_ && cur_func_->attr_
                             && cur_func_->attr_->get_or_else(
                                     function_attrs::low_level, false)),
             "Cannot return in a for-loop: " << v);

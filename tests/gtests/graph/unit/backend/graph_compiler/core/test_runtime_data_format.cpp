@@ -245,7 +245,7 @@ TEST(GCCore_CPU_runtime_data_format, TestDataFormatStaticDispatch) {
             format_kinds::NKkn, format_kinds::ABCD>;
     struct block_func {
         static uint64_t call(uint64_t *v, uint64_t num) {
-            return dispatch_key(v[0]).get_linear_index() * 32
+            return dispatch_key(v[0]).get_linear_index() * 32ULL
                     + dispatch_key(v[1]).get_linear_index();
         }
     };
@@ -259,7 +259,7 @@ TEST(GCCore_CPU_runtime_data_format, TestDataFormatStaticDispatch) {
             4UL * 1024 + 1 * 16 + 1 * 4 + 0);
     formats[0] = dispatch_key(uint32_t(format_kinds::MKmk), 48, 16, false);
     EXPECT_EQ(the_table::compute_linear_index(formats, 2),
-            4UL * 1024 + 2 * 32 + 1 * 16 + 1 * 4 + 0);
+            4UL * 1024 + 2 * 32ULL + 1 * 16 + 1 * 4 + 0);
 }
 
 TEST(GCCore_CPU_runtime_data_format, TestDataFormatDynDispatch) {
@@ -271,8 +271,8 @@ TEST(GCCore_CPU_runtime_data_format, TestDataFormatDynDispatch) {
                     {{{MKmk}}},
             },
             [](uint64_t *v, uint64_t num) -> uint64_t {
-                return dispatch_key(v[0]).get_linear_index() * 32 * 32
-                        + dispatch_key(v[1]).get_linear_index() * 32
+                return dispatch_key(v[0]).get_linear_index() * 32ULL * 32
+                        + dispatch_key(v[1]).get_linear_index() * 32ULL
                         + dispatch_key(v[2]).get_linear_index();
             },
             32 * 32 * 32);
@@ -281,8 +281,8 @@ TEST(GCCore_CPU_runtime_data_format, TestDataFormatDynDispatch) {
                     dispatch_key(uint32_t(format_kinds::ABCD), 32, 0, true),
                     dispatch_key(uint32_t(format_kinds::MKmk), 16, 16, true)};
     EXPECT_EQ(table.compute_linear_index(formats, 3),
-            (1UL + 1 * 3 + 0) * 32 * 32 * 32 + 1 * 32 * 32 + (1 * 16 + 1) * 32
-                    + 1 * 16);
+            (1UL + 1 * 3 + 0) * 32ULL * 32 * 32 + 1UL * 32 * 32
+                    + (1 * 16 + 1) * 32ULL + 1 * 16);
 }
 
 TEST(GCCore_CPU_runtime_data_format, TestDataFormatHashDispatch) {

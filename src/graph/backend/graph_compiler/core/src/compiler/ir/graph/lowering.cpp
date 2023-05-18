@@ -599,7 +599,8 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
                                     builder::make_indexing(shape_tsr, {i}),
                                     plain_shapes[i]));
                 }
-                dyn_mask_int |= ((!plain_shapes[i].isa<constant>()) << i);
+                dyn_mask_int
+                        |= (uint64_t(!plain_shapes[i].isa<constant>()) << i);
             }
             gp.func_body->seq_.emplace_back(builder::make_evaluate_unattached(
                     builder::make_write_struct(tsr,

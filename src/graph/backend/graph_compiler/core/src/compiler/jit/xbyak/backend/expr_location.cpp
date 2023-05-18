@@ -142,11 +142,11 @@ std::ostream &operator<<(std::ostream &os, const expr_location &v) {
         } break;
         case expr_location::type::stack_var: {
             os << "[stack_var: %rbp" << std::showpos << v.get_stack_var()
-               << "]";
+               << std::noshowpos << "]";
         } break;
         case expr_location::type::stack_tensor: {
             os << "[stack_tensor: %rbp" << std::showpos << v.get_stack_tensor()
-               << "]";
+               << std::noshowpos << "]";
         } break;
         case expr_location::type::simd_constant: {
             os << "[simd_constant: %rip+.L"

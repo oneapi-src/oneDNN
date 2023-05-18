@@ -53,6 +53,7 @@ static int get_base_input_idx(fusible_op_t *cur) {
             base_idx = select_node->get_max_input();
         }
     }
+    COMPILE_ASSERT(base_idx >= 0, "Bad base idx for fusible_op");
     return base_idx;
 }
 

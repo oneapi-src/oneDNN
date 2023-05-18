@@ -53,9 +53,9 @@ struct compare_sc_op_t {
     }
 };
 
-static void insert_tensor_view_op(sc_graph_t &graph, graph_tensor_ptr in,
+static void insert_tensor_view_op(sc_graph_t &graph, const graph_tensor_ptr &in,
         size_t in_index, const sc_op_ptr &cur_op) {
-    auto ret = graph.make("tensor_view", {std::move(in)}, {},
+    auto ret = graph.make("tensor_view", {in}, {},
             {{"shape", in->details_.get_plain_dims()}});
     cur_op->replace_input(in_index, ret->get_outputs()[0]);
 }

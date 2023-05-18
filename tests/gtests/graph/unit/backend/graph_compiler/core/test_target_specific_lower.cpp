@@ -40,7 +40,9 @@ void check(const func_t &aaa, uint64_t contents_size, uint64_t seq_size,
     auto &body = seq->seq_;
     auto call_n = body[idx].checked_as<assign>()->value_.as<call>();
     ASSERT_TRUE(call_n.defined());
-    EXPECT_EQ(std::dynamic_pointer_cast<func_base>(call_n->func_)->name_, name);
+    auto funct = std::dynamic_pointer_cast<func_base>(call_n->func_);
+    ASSERT_TRUE(funct);
+    EXPECT_EQ(funct->name_, name);
     EXPECT_EQ(call_n->attr().get_or_else("inline_level", 0), 2);
     EXPECT_EQ(retmod->get_func(name), call_n->func_);
 }

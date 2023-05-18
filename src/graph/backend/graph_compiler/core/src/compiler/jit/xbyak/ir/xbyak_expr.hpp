@@ -188,7 +188,8 @@ struct xbyak_intrin_modifier {
         , zero_mask_(false)
         , enabled_(true) {}
     xbyak_intrin_modifier(expr mask, bool zero = false)
-        : type_hint_(datatypes::undef)
+        : cond_code_(xbyak_condition::none)
+        , type_hint_(datatypes::undef)
         , cond_mask_(mask)
         , zero_mask_(zero)
         , enabled_(true) {}
