@@ -853,7 +853,7 @@ status_t generic_reorder_t::pd_t::init_conf(engine_t *engine) {
     }
     if (vect_size != 1) {
         const auto dim_str = utils::format("D%d", vect_dim);
-        conf.dispatch.vectorize_dim(dim_str, vect_size);
+        CHECK(conf.dispatch.vectorize_dim(dim_str, vect_size));
     }
 
     conf.dispatch.generate();
