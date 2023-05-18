@@ -1403,6 +1403,10 @@ status_t expand_convtranspose_scales(std::shared_ptr<subgraph_t> &sg) {
                     || in1.get_kind() != op_kind::dnnl_mul_scales)
                 continue;
 
+            if (in1.has_attr(op_attr::qtype)
+                    && in1.get_attr<std::string>(op_attr::qtype)
+                            == "per_tensor")
+                continue;
             auto dq_wei_scales
                     = in1.get_attr<std::vector<float>>(op_attr::scales);
             int64_t group = op->get_attr<int64_t>(op_attr::groups);
