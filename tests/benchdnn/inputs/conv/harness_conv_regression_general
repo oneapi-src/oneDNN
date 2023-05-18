@@ -337,3 +337,10 @@ g90mb1_ic360oc180_ih12oh16kh1sh1dh1ph2_iw14ow7kw3sw2dw1pw2_n"brgemm_post-op-jit_
 mb1_ic2oc2_ih10oh12kh1sh1dh0ph1_iw7ow7kw1sw1dw0pw0_n"brgemm_post-op-jit_sum-with-zp:1"
 --attr-zero-points=dst:common:2*+src:common:1*
 mb1ic2ih10iw7oc2oh6ow4kh1kw1sh2sw2ph1pw0dh1dw1_n"brgemm_post-op-jit_sum-with-zp:2"
+
+# test int8 brgconv with zp for case with both top and bottom vpad
+--reset
+--skip-impl=ref,x64:gemm
+--cfg=u8s8f32
+--attr-zero-points=src:common:31*+dst:common:15*
+ic64ih14oc24oh14kh5ph2_n"zp_with_top_and_bottom_vpad"
