@@ -46,9 +46,15 @@ private:
     std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
 public:
+    logsoftmax_fwd_t() {
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        res_cache.retain();
+    }
+
     ~logsoftmax_fwd_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
+        res_cache.release();
     }
 
     status_t prepare_inplace_pairs_impl() override {
@@ -198,9 +204,15 @@ private:
     std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
 public:
+    logsoftmax_bwd_t() {
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        res_cache.retain();
+    }
+
     ~logsoftmax_bwd_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
+        res_cache.release();
     }
 
     status_t compile_impl(const dnnl_partition_impl_t *part,

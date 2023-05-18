@@ -57,9 +57,15 @@ private:
     }
 
 public:
+    resampling_fwd_t() {
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        res_cache.retain();
+    }
+
     ~resampling_fwd_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
+        res_cache.release();
     }
 
     status_t compile_impl(const dnnl_partition_impl_t *part,
@@ -219,9 +225,15 @@ private:
     std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
 public:
+    resampling_bwd_t() {
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        res_cache.retain();
+    }
+
     ~resampling_bwd_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
+        res_cache.release();
     }
 
     status_t compile_impl(const dnnl_partition_impl_t *part,

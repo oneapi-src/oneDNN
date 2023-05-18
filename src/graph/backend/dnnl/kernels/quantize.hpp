@@ -54,12 +54,16 @@ private:
 
 public:
     quantize_dequantize_t() {
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        res_cache.retain();
+
         if (enabled_constant_cache()) get_global_constant_cache().retain();
     }
 
     ~quantize_dequantize_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
+        res_cache.release();
 
         if (enabled_constant_cache()) {
             get_global_constant_cache().remove_if_exist(constant_key_);
