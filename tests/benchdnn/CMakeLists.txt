@@ -69,8 +69,13 @@ function(register_benchdnn_test engine driver test_file)
         set(test_mode "R")
     endif()
 
+    set(mode_modifier "")
+    if(${engine} MATCHES "gpu")
+        set(mode_modifier "--mode-modifier=P")
+    endif()
+
     string(REPLACE "test_" "test_benchdnn_" target_name ${test_file})
-    set(cmd "--mode=${test_mode} -v1 --engine=${engine} --${driver} --batch=${test_file}")
+    set(cmd "--mode=${test_mode} ${mode_modifier} -v1 --engine=${engine} --${driver} --batch=${test_file}")
     set(benchdnn_target ${target_name}_${engine})
 
     if(DNNL_BUILD_FOR_CI)
