@@ -1994,7 +1994,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::ldb_loop(int bd_block2, bool is_bdb_tail,
                         if (!check_top_vpad && vpad > 0) continue;
                         if (!check_bottom_vpad && vpad < 0) continue;
                         auto real_vpad = vpad;
-                        if (check_bottom_vpad && brg.bdb_tail) {
+                        if (check_bottom_vpad && brg.bdb_tail && vpad < 0) {
                             if (!is_bdb_tail) {
                                 // for last full block before
                                 // bdb_tail && -vpad greater than bdb_tail
