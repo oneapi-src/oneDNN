@@ -210,9 +210,10 @@ inline graph::utils::pm::repetition_t *optional_bias_add(
 
 inline graph::utils::pm::repetition_t *post_quantized_add(
         const std::shared_ptr<graph::utils::pm::pb_graph_t> &pgraph,
-        graph::utils::pm::pb_node_t *input) {
+        graph::utils::pm::pb_node_t *input, bool check_zps = false) {
     graph::utils::pm::pb_op_t *pdequant_add
             = pgraph->append_op(graph::op_kind::Dequantize);
+    if (check_zps) pdequant_add->append_decision_function(check_zps_values<0>);
     graph::utils::pm::pb_op_t *padd = pgraph->append_op(graph::op_kind::Add,
             graph::utils::pm::in_edges_t {
                     in_edge(0, input, 0), in_edge(1, pdequant_add, 0)});
