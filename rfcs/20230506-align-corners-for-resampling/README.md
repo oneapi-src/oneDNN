@@ -38,14 +38,26 @@ enum class resampling_flags : unsigned {
 
 ``` cpp
 ...
-desc(prop_kind aprop_kind, algorithm aalgorithm, unsigned flags,
-        const memory::desc &src_desc, const memory::desc &dst_desc)
+primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const memory::desc &src_desc,
+                const memory::desc &dst_desc,
+                resampling_flags flags,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
 ...
-desc(prop_kind aprop_kind, algorithm aalgorithm, unsigned flags, 
-        const std::vector<float> &factors, const memory::desc &src_desc)
+primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const std::vector<float> &factors,
+                const memory::desc &src_desc,
+                resampling_flags flags,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
 ...
-desc(prop_kind aprop_kind, algorithm aalgorithm, unsigned flags,
-        const std::vector<float> &factors, const memory::desc &src_desc, const memory::desc &dst_desc)
+primitive_desc(const engine &aengine, prop_kind aprop_kind,
+                algorithm aalgorithm, const std::vector<float> &factors,
+                const memory::desc &src_desc, const memory::desc &dst_desc,
+                resampling_flags flags,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false)
 ...
 ```
 
