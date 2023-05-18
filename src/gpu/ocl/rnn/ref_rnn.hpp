@@ -145,13 +145,13 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         rnn_conf_t conf;
         rnn_offsets_t off;
         rnn_utils::conf_t rnn_conf;
-        data_type_t acc_data_t;
-        data_type_t src_type;
-        data_type_t weights_type;
-        bool is_xe_hpc;
-        int subgroup_size;
-        int max_eus_per_wg;
-        bool use_subgroup_reduction;
+        data_type_t acc_data_t = data_type::undef;
+        data_type_t src_type = data_type::undef;
+        data_type_t weights_type = data_type::undef;
+        bool is_xe_hpc = false;
+        int subgroup_size = 0;
+        int max_eus_per_wg = 0;
+        bool use_subgroup_reduction = false;
 
         std::shared_ptr<primitive_desc_t> gemm_iter_fwd_pd_;
         std::shared_ptr<primitive_desc_t> gemm_iter_fwd_2_pd_;
