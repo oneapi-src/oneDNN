@@ -219,7 +219,7 @@ features on GPU:
 1. ConvTranspose with per_channel output scale
 2. ConvTranspose with per_tensor output scale != 1
 3. ConvTranspose with zero points
-4. Post-sum/binary with zero points
+4. Post-sum with zero points
 5. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
@@ -271,7 +271,7 @@ features on GPU:
 1. ConvTranspose with per_channel output scale
 2. ConvTranspose with per_tensor output scale != 1
 3. ConvTranspose with zero points
-4. Post-sum/binary with zero points
+4. Post-sum with zero points
 5. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
@@ -313,7 +313,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                             = optional_bias_add(pgraph, pconvtranspose, false);
 
                     // dequantize(rhs) -> add
-                    auto prep = post_quantized_add(pgraph, popt_bias);
+                    auto prep = post_quantized_add(
+                            pgraph, popt_bias, /*check_zps*/ true);
 
                     // quantize
                     pm::pb_op_t *pquant_out
