@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -91,9 +91,13 @@ public:
         for (auto &it : cache.data()) {
             std::shared_ptr<T> value = it.second.lock();
             if (value) {
-                std::lock_guard<std::mutex> lock(global_cache_.mutex());
+                std::lock_guard<std::mutex> lock(
+                        global_cache_type_t::get_global_cache()->mutex());
                 std::vector<std::shared_ptr<T>> &thread_instances
-                        = global_cache_.data().find(it.first)->second;
+                        = global_cache_type_t::get_global_cache()
+                                  ->data()
+                                  .find(it.first)
+                                  ->second;
                 auto pos = std::find_if(thread_instances.begin(),
                         thread_instances.end(),
                         [&](std::shared_ptr<T> &ins) -> bool {
@@ -109,9 +113,12 @@ public:
 
     // Remove the cached values for the given key in ALL threads
     void remove_if_exist(const size_t &key) {
-        std::lock_guard<std::mutex> lock(global_cache_.mutex());
-        auto pos = global_cache_.data().find(key);
-        if (pos != global_cache_.data().end()) { pos->second.clear(); }
+        std::lock_guard<std::mutex> lock(
+                global_cache_type_t::get_global_cache()->mutex());
+        auto pos = global_cache_type_t::get_global_cache()->data().find(key);
+        if (pos != global_cache_type_t::get_global_cache()->data().end()) {
+            pos->second.clear();
+        }
     }
 
     // Get the cached value in current thread. If the value is not cached, we
@@ -127,11 +134,16 @@ public:
             // be shared between threads
             std::shared_ptr<T> ins = creator();
             {
-                std::lock_guard<std::mutex> lock(global_cache_.mutex());
-                if (global_cache_.data().count(key)) {
-                    global_cache_.data().at(key).emplace_back(ins);
+                std::lock_guard<std::mutex> lock(
+                        global_cache_type_t::get_global_cache()->mutex());
+                if (global_cache_type_t::get_global_cache()->data().count(
+                            key)) {
+                    global_cache_type_t::get_global_cache()
+                            ->data()
+                            .at(key)
+                            .emplace_back(ins);
                 } else {
-                    global_cache_.data().emplace(
+                    global_cache_type_t::get_global_cache()->data().emplace(
                             key, std::vector<std::shared_ptr<T>> {ins});
                 }
             }
@@ -140,23 +152,51 @@ public:
         }
     }
 
+    // This function increments the reference count
+    void retain() { global_cache_type_t::get_global_cache()->retain(); }
+
+    void release() { global_cache_type_t::get_global_cache()->release(); }
+
 private:
     class global_cache_type_t {
     public:
+        global_cache_type_t() : counter_(1) {}
+        ~global_cache_type_t() = default;
         std::mutex &mutex() { return mutex_; }
         std::unordered_map<size_t, std::vector<std::shared_ptr<T>>> &data() {
             return data_;
         }
 
+        static global_cache_type_t *get_global_cache() {
+            // A global table to store cached values in ALL threads. This global
+            // table takes the ownership of cached values
+            static auto global_cache = std::shared_ptr<global_cache_type_t>(
+                    new global_cache_type_t {},
+                    [](global_cache_type_t *ptr) { return ptr->release(); });
+            return global_cache.get();
+        }
+
+        // This function increments the reference count
+        void retain() { counter_.fetch_add(1, std::memory_order_relaxed); }
+
+        void release() {
+            if (counter_.fetch_sub(1, std::memory_order_relaxed) == 1) {
+                delete this;
+            }
+        }
+
     private:
         std::mutex mutex_;
         std::unordered_map<size_t, std::vector<std::shared_ptr<T>>> data_;
+        std::atomic<int32_t> counter_;
     };
 
     class cache_type_t {
     public:
         cache_type_t(global_cache_type_t &global_cache)
-            : global_cache_ref_(global_cache) {}
+            : global_cache_ref_(global_cache) {
+            global_cache_ref_.retain();
+        }
 
         ~cache_type_t() {
             // Remove the values of this cache that haven't already expired.
@@ -179,6 +219,7 @@ private:
                     thread_instances.erase(pos);
                 }
             }
+            global_cache_ref_.release();
         }
 
         std::unordered_map<size_t, std::weak_ptr<T>> &data() { return data_; }
@@ -191,18 +232,11 @@ private:
     thread_local_cache_t &operator=(const thread_local_cache_t &other) = delete;
 
     static cache_type_t &get_thread_local_cache() {
-        static thread_local cache_type_t cache(global_cache_);
+        static thread_local cache_type_t cache(
+                *global_cache_type_t::get_global_cache());
         return cache;
     }
-
-    // A global table to store cached values in ALL threads. This global table
-    // takes the ownership of cached values
-    static global_cache_type_t global_cache_;
 };
-
-template <typename T>
-typename thread_local_cache_t<T>::global_cache_type_t
-        thread_local_cache_t<T>::global_cache_;
 
 } // namespace dnnl_impl
 } // namespace graph
