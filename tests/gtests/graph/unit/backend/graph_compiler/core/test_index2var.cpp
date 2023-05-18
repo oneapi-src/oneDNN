@@ -476,3 +476,43 @@ TEST(GCCore_CPU_index2var_cpp, TestIndex2VarLoopLift) {
     ir_comparer cmper {true};
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
+
+TEST(GCCore_CPU_index2var_cpp, TestIndex2VarMask) {
+    builder::ir_builder_t builder;
+    _function_(datatypes::f32, aaa, _arg_("A", datatypes::f32, {123, 321}),
+            _arg_("B", datatypes::f32, {111, 222}),
+            _arg_("len", datatypes::s32)) {
+        _bind_(A, B, len);
+        expr mask = builder::make_constant({UINT64_C(16)}, datatypes::u16);
+        A[span_t {{len}, 16, mask}] = B[span_t {{len}, 16}];
+        _var_(a, sc_data_type_t::f32(16));
+        a = A[span_t {{len}, 16, mask}];
+        _return_(builder::make_reduce_add(a));
+    }
+
+    _function_(datatypes::f32, expected, _arg_("A", datatypes::f32, {123, 321}),
+            _arg_("B", datatypes::f32, {111, 222}),
+            _arg_("len", datatypes::s32)) {
+        _bind_(A, B, len);
+        expr mask = builder::make_constant({UINT64_C(16)}, datatypes::u16);
+        _var_init_(cached0, sc_data_type_t::f32(16), (B[span_t {{len}, 16}]));
+        _var_(cached1, sc_data_type_t::f32(16));
+        {
+            // original code: A[{0, 1}] = A[{0, 1}] + 1.0f;
+            // B is read, OK to keep cache of A
+            builder.push_scope();
+            cached1 = builder::make_select(mask, cached0,
+                    builder::make_constant({UINT64_C(0)}, cached0->dtype_));
+            A[span_t {{len}, 16, mask}] = cached1;
+            builder.emit(builder.pop_scope());
+        }
+        _var_(a, sc_data_type_t::f32(16));
+        a = cached1;
+        _return_(builder::make_reduce_add(a));
+    }
+
+    index2var_t f;
+    auto out = f(aaa);
+    ir_comparer cmper {true};
+    EXPECT_TRUE(cmper.compare(out, expected, false));
+}
