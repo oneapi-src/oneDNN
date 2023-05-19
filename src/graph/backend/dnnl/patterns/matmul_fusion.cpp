@@ -395,7 +395,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
 /*
 MatMul: Currently DNNL Backend doesn't support below
 features on GPU:
-1. Reorder with zero points (used in weight u8->s8)
+1. Post-sum with zero points
+2. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
@@ -443,7 +444,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
 /*
 MatMul: Currently DNNL Backend doesn't support below
 features on GPU:
-1. Reorder with zero points (used in weight u8->s8)
+1. Post-sum with zero points
+2. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
@@ -480,7 +482,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     auto popt_bias = optional_bias_add(pgraph, pmatmul, false);
 
                     // dequantize(rhs) -> add
-                    auto prep = post_quantized_add(pgraph, popt_bias);
+                    auto prep = post_quantized_add(
+                            pgraph, popt_bias, /*check_zps*/ true);
 
                     // quantize
                     pgraph->append_op(graph::op_kind::Quantize,
@@ -769,8 +772,11 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
             quant_out
 */
 /*
-MatMul: Currently DNNL Backend doesn't support Reorder with zero points
-(used in weight u8->s8) on GPU, while CPU supports.
+MatMul: Currently DNNL Backend doesn't support below
+features on GPU:
+1. Reorder with zero points (used in weight u8->s8)
+2. Post-sum with zero points
+while CPU supports.
 */
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_bf16_matmul_add_post_ops_fusion_cpu)
@@ -850,10 +856,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
             return std::make_shared<quantized_matmul>();
         });
 
-/*
-MatMul: Currently DNNL Backend doesn't support Reorder with zero points
-(used in weight u8->s8) on GPU, while CPU supports.
-*/
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, int8_bf16_matmul_add_post_ops_fusion_gpu)
         .set_priority(10.5f)
@@ -902,6 +904,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     // post add with dequant->typecast
                     pm::pb_op_t *pdequant_add
                             = pgraph->append_op(graph::op_kind::Dequantize);
+                    pdequant_add->append_decision_function(check_zps_values<0>);
                     pm::pb_op_t *typecast_add
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, pdequant_add, 0)});
