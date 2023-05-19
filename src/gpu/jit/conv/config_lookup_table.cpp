@@ -162,6 +162,9 @@ conv_problem_filter_t::conv_problem_filter_t(const std::string &s) {
 bool conv_problem_filter_t::matches(
         const conv_problem_t &prb, const hw_config_t &hw_cfg) const {
     if (hw_cfg.hw() != hw_) return false;
+    //do not apply for xelpg
+    if (hw_cfg.hw() == ngen::HW::XeHPG && !hw_cfg.systolic_support())
+        return false;
     if (!eus_.matches(hw_cfg.eu_count())) return false;
     if (!matches_dir(prb)) return false;
     if (!type_filter_.matches(
