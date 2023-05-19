@@ -93,8 +93,9 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
         conf.sub_group_size = compute_engine->device_info()->max_subgroup_size(
                 src_mdw.data_type());
         if (conf.c % conf.sub_group_size != 0) return status::unimplemented;
-        if (!src_mdw.matches_one_of_tag(nwc, nhwc, ndhwc)
-                || !dst_mdw.matches_one_of_tag(nwc, nhwc, ndhwc))
+        if ((src_mdw.blocking_desc().strides[1] != 1) || !src_mdw.is_plain()
+                || (dst_mdw.blocking_desc().strides[1] != 1)
+                || !dst_mdw.is_plain())
             return status::unimplemented;
         CHECK(conf.dispatch.vectorize_dim("C", conf.sub_group_size));
     }

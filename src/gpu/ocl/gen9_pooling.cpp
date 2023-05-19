@@ -24,6 +24,7 @@ namespace ocl {
 static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
         const pooling_pd_t *pd, engine_t *engine) {
     using namespace dnnl::impl::format_tag;
+    using namespace dnnl::impl::alg_kind;
 
     const memory_desc_wrapper src_mdw(pd->invariant_src_md());
     const memory_desc_wrapper dst_mdw(pd->invariant_dst_md());
@@ -100,7 +101,9 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
             conf.vect_dt_n /= 2;
         }
         if ((conf.vect_dt_n < 8) && (conf.mb_padded % 4 == 0)) {
-            conf.unroll_mb = true;
+            if (!conf.is_backward || conf.alg != pooling_avg_exclude_padding) {
+                conf.unroll_mb = true;
+            }
         }
         conf.nvect = 1;
         conf.chunks_per_c_block = conf.nvect * conf.vect_dt_n;
