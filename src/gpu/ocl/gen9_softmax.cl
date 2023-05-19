@@ -291,6 +291,7 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     src += data_off;
     int sid = get_sub_group_id();
 
+#if IS_READ_ALIGNED
     for (int k = 0; k < last_buf; ++k) {
 #if GROUP_SIZE == SUB_GROUP_SIZE
         int idx = k * SUB_GROUP_SIZE;
@@ -302,7 +303,6 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
             max_ = max(d[k][i], max_);
         }
     }
-
 #if HAS_TAIL
     {
         int k = last_buf;
@@ -311,6 +311,17 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
                     + get_sub_group_local_id();
             d[k][i] = (off < SOFTMAX_AXIS_SIZE ? COMMON_DATA_TO_X(SRC, src[off])
                                                : -COMMON_DATA_MAX);
+            max_ = max(d[k][i], max_);
+        }
+    }
+#endif
+#else // subgroup block read requires 4-byte alignment
+    for (int k = 0; k < NUM_BUF; ++k) {
+        for (int i = 0; i < VECT_SIZE; ++i) {
+            int off = k * VECT_SIZE * SUB_GROUP_SIZE + i * SUB_GROUP_SIZE
+                    + get_sub_group_local_id();
+            d[k][i] = (off < SOFTMAX_AXIS_SIZE ? DATA_TO_FLOAT(SRC, src[off])
+                                               : -FLT_MAX);
             max_ = max(d[k][i], max_);
         }
     }
@@ -366,7 +377,7 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 #endif
 
     dst += data_off;
-#if IS_ALIGNED
+#if IS_WRITE_ALIGNED
     for (int k = 0; k < last_buf; ++k) {
 #if GROUP_SIZE == SUB_GROUP_SIZE
         int idx = k * SUB_GROUP_SIZE;
@@ -381,7 +392,7 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 
         COMMON_STORE_DATA8(DST, &dst[idx * VECT_SIZE], scale * d[k]);
     }
-#if HAS_TAIL // for tail cases with 16-byte aligned tensor shapes
+#if HAS_TAIL // subgroup block write requires 16-byte alignment
     {
         int k = last_buf;
 #if LOGSOFTMAX
@@ -397,7 +408,7 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
         }
     }
 #endif
-#else // for test-cases not aligned by 16 bytes
+#else // for test-cases not aligned by 16 bytes needed for block write
     for (int k = 0; k < NUM_BUF; k++) {
 #if LOGSOFTMAX
         d[k] = d[k] - max_ - denom_;

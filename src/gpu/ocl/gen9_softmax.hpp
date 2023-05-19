@@ -148,21 +148,30 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
                     * group_size;
             gws[1] = gws[2] = 1;
 
+            //subgroup block read requires the tensor to be 4-byte aligned, and
             //subgroup block write requires the tensor to be 16-byte aligned
-            if (axis_size() % byte_alignment == 0) is_aligned = true;
-
+            if ((axis_size() * types::data_type_size(src_dt))
+                            % byte_alignment_read
+                    == 0)
+                is_read_aligned = true;
+            if ((axis_size() * types::data_type_size(dst_dt))
+                            % byte_alignment_write
+                    == 0)
+                is_write_aligned = true;
             return status::success;
         }
 
         bool is_nhwc = false;
         bool is_blocked = false;
-        bool is_aligned = false;
+        bool is_write_aligned = false;
+        bool is_read_aligned = false;
         size_t gws[3] = {};
         size_t lws[3] = {};
         size_t block[3] = {};
         size_t group_size = 0;
         const int subgroup_size = 16;
-        const int byte_alignment = 16;
+        const int byte_alignment_read = 4;
+        const int byte_alignment_write = 16;
         int thread_reads = 0;
         int thread_buffer = 8;
         int subgroups_repeated = 0;
@@ -192,7 +201,8 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
                                  : pd()->src_md(0)->padded_dims[1]);
         kernel_ctx.define_int("IS_NHWC", pd()->is_nhwc);
         kernel_ctx.define_int("IS_BLOCKED", pd()->is_blocked);
-        kernel_ctx.define_int("IS_ALIGNED", pd()->is_aligned);
+        kernel_ctx.define_int("IS_READ_ALIGNED", pd()->is_read_aligned);
+        kernel_ctx.define_int("IS_WRITE_ALIGNED", pd()->is_write_aligned);
         kernel_ctx.define_int("IS_FWD", 1);
         kernel_ctx.add_option("-cl-std=CL2.0");
         kernel_ctx.define_int("LOGSOFTMAX", pd()->is_logsoftmax());
