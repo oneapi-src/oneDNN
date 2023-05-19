@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,9 +65,8 @@ memory_storage_t *create_scratchpad_memory_storage(
   a concurrent execution
 */
 struct concurrent_scratchpad_t : public scratchpad_t {
-    concurrent_scratchpad_t(engine_t *engine, size_t size) {
+    concurrent_scratchpad_t(engine_t *engine, size_t size) : size_(size) {
         auto *mem_storage = create_scratchpad_memory_storage(engine, size);
-        size_ = size;
         if (mem_storage == nullptr) size_ = 0;
 
         mem_storage_.reset(mem_storage);
