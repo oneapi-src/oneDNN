@@ -166,7 +166,7 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
             if ((K < 4096 || M <= 4) && !is_f32) {
                 N_split_num = num_threads;
             } else {
-                if (K >= N && thread_factors.size() > 2) {
+                if (K > N * 4 && thread_factors.size() > 2) {
                     N_split_num = num_threads / thread_factors.at(1);
                 } else {
                     N_split_num = num_threads;
