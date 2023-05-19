@@ -106,16 +106,17 @@ public:
 
     template <typename T>
     T &&pick_a(T &&src, T &&wei, T &&dst) const {
-        return (is_fwd || is_bwd_w)   ? std::forward<T>(src)
-                : (ab_swap_transpose) ? std::forward<T>(wei)
-                                      : std::forward<T>(dst);
+        return ab_swap_transpose       ? std::forward<T>(wei)
+                : (is_fwd || is_bwd_w) ? std::forward<T>(src)
+                                       : std::forward<T>(dst);
     }
 
     template <typename T>
     T &&pick_b(T &&src, T &&wei, T &&dst) const {
-        return (is_fwd || (is_bwd_d && !ab_swap_transpose))
-                ? std::forward<T>(wei)
-                : std::forward<T>(dst);
+        return ab_swap_transpose
+                ? ((is_fwd) ? std::forward<T>(src) : std::forward<T>(dst))
+                : (is_fwd || is_bwd_d) ? std::forward<T>(wei)
+                                       : std::forward<T>(dst);
     }
 
     template <typename T>

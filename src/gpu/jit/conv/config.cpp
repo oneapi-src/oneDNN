@@ -197,7 +197,10 @@ status_t conv_problem_t::init(
     auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
             conv_pd->attr()->gpu_attr_.get());
     bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
-    ab_swap_transpose = is_bwd_d && ic < 8 && mb >= 8 && is_bwd_d;
+    bool do_ab_transpose = ir_utils::getenv_bool("do_ab_transpose", true);
+    ab_swap_transpose = do_ab_transpose
+            && ((is_bwd_d && ic < 6) || (is_fwd && oc < 6))
+            && !is_dw;
     hw_config_t hw_cfg(engine, large_grf_mode);
 
     CHECK(init_abc_data_types(hw_cfg));
@@ -484,7 +487,8 @@ struct goi_block_t {
     }
 
     static goi_block_t get_default_blocking(type_t type, int vec_size,
-            fma_kind_t fma_kind, bool is_bwd_d, int g, int o, int i) {
+            fma_kind_t fma_kind, bool is_bwd_d, int g, int o, int i,
+            bool ab_transpose = false) {
         int x = o;
         int y = i;
         int g_block = 1;
@@ -503,7 +507,8 @@ struct goi_block_t {
             std::swap(x_block_outer, y_block_outer);
         }
         get_default_blocking(type, vec_size, fma_kind, is_bwd_d, g, x, y,
-                g_block, *x_block, *y_block, *x_block_outer, *y_block_outer);
+                g_block, *x_block, *y_block, *x_block_outer, *y_block_outer,
+                ab_transpose);
         return goi_block_t(fma_kind, is_dw(g, o, i), is_bwd_d, g_block, o_block,
                 i_block, o_block_outer, i_block_outer);
     }
@@ -511,7 +516,7 @@ struct goi_block_t {
     static void get_default_blocking(type_t type, int vec_size,
             fma_kind_t fma_kind, bool is_bwd_d, int g, int x, int y,
             int &g_block, int &x_block, int &y_block, int &x_block_outer,
-            int &y_block_outer) {
+            int &y_block_outer, bool ab_transpose = false) {
         if (is_dw(g, x, y)) {
             g_block = vec_size;
         } else if (fma_kind == fma_kind_t::mad) {
@@ -519,13 +524,17 @@ struct goi_block_t {
             y_block = get_default_block(fma_kind, type, y);
         } else {
             int packed_dword_elems = 4 / type.size();
-            x_block = vec_size;
+            x_block = ab_transpose ? utils::rnd_up_pow2(x) : vec_size;
             y_block = packed_dword_elems;
             // Fixing y outer block helps to avoid extra GRF reorders however
             // in small reduction cases it may result in excessive zero
             // padding. In such cases fused reduction can be used. E.g. in
             // non-1x1 small-ic fwd convolution kw and ic can be fused.
-            if (y * type.size() >= 32) y_block_outer = 8;
+            if (ab_transpose) {
+                y_block *= 8;
+            } else {
+                if (y * type.size() >= 32) y_block_outer = 8;
+            }
         }
     }
 
@@ -627,8 +636,8 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
             dst_compute_type, prb.is_dw, prb.mb, prb.oc, prb.g,
             /*is_output=*/prb.is_fwd);
     auto wei_blk = goi_block_t::get_default_blocking(wei_compute_type,
-            cfg.vec_size(), cfg.fma_kind(), prb.is_bwd_d, prb.g, prb.oc,
-            prb.ic);
+            cfg.vec_size(), cfg.fma_kind(), prb.is_bwd_d, prb.g, prb.oc, prb.ic,
+            prb.ab_swap_transpose);
 
     src_tag = src_blk.tag();
     wei_tag = wei_blk.tag();
@@ -943,9 +952,9 @@ status_t init_vec_size(conv_config_t &cfg) {
     int vec_size = cfg.simd();
     if (cfg.fma_kind() == fma_kind_t::mad) {
         int grf_elems = cfg.grf_size() / prb.acc_data_type_size;
-        int vec_dim = (prb.is_fwd || prb.is_bwd_w)
+        int vec_dim = (prb.is_fwd || prb.is_bwd_w) && !prb.ab_swap_transpose
                 ? prb.oc
-                : (/*prb.ab_swap_transpose ? prb.mb :*/ prb.ic);
+                : (prb.ab_swap_transpose ? prb.mb : prb.ic);
         if (utils::rnd_up(vec_dim, grf_elems) < vec_size) vec_size = grf_elems;
     }
     // SIMD32 produces invalid layouts in bwd_w.
