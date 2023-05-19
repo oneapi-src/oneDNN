@@ -171,17 +171,13 @@ TEST(GCCore_CPU_fusion_cost_model_cpp, TestVerticalMergeForImageAffine) {
         auto conv_data1 = g.make("conv_fwd_core",
                 {input->get_outputs()[0], weight1->get_outputs()[0]}, {},
                 {{"strides", sc_dims {1, 1}}, {"paddings", sc_dims {0, 0}}});
-        auto relu_out1 = g.make("relu", {conv_data1->get_outputs()[0]}, {}, {});
-
-        if (BS == 1) {
-            auto mul0 = g.make("mul",
-                    {relu_out0->get_outputs()[0], relu_out1->get_outputs()[0]},
-                    {}, {});
-            g.make_output(mul0->get_outputs());
-        } else {
-            g.make_output(relu_out0->get_outputs());
-            g.make_output(relu_out1->get_outputs());
-        }
+        // break normal vertical merge
+        auto relu_out1 = g.make("relu", {conv_data1->get_outputs()[0]}, {},
+                {{op_attr_key::break_post_fuse, true}});
+        auto mul0 = g.make("mul",
+                {relu_out0->get_outputs()[0], relu_out1->get_outputs()[0]}, {},
+                {});
+        g.make_output(mul0->get_outputs());
         return g;
     };
 
@@ -197,8 +193,8 @@ TEST(GCCore_CPU_fusion_cost_model_cpp, TestVerticalMergeForImageAffine) {
     std::stringstream ss;
     print_graph(graph, ss, true);
     std::string expected_str
-            = R"(graph(v0: f32[28, 64, 56, 56], v1: f32[128, 64, 1, 1], v2: f32[128, 64, 1, 1]) -> [v3: f32[28, 128, 56, 56], v4: f32[28, 128, 56, 56]] {
-  [v4: f32[28, 128, 56, 56], v3: f32[28, 128, 56, 56]] = outerloop_28_partition_conv_fwd_core_relu_conv_fwd_core_relu(v0, v2, v1)
+            = R"(graph(v0: f32[28, 64, 56, 56], v1: f32[128, 64, 1, 1], v2: f32[128, 64, 1, 1]) -> [v3: f32[28, 128, 56, 56]] {
+  [v3: f32[28, 128, 56, 56]] = outerloop_28_partition_conv_fwd_core_relu_conv_fwd_core_relu_mul(v0, v2, v1)
 }
 )";
     EXPECT_EQ(ss.str(), expected_str);

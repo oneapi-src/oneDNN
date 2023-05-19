@@ -1633,6 +1633,64 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically2) {
     }
 }
 
+TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically3) {
+    sc_graph_t graph;
+
+    thread_num_reset reseter;
+    // set threads envoriment
+    runtime_config_t::get().set_num_threads(8);
+
+    int M, N, K;
+    M = N = 256;
+    K = 64;
+
+    auto input0 = graph.make_input(
+            {graph_tensor::make({M, K}, sc_data_format_t(format_kinds::MN))});
+    auto bias = graph.make_input(
+            {graph_tensor::make({N}, sc_data_format_t(format_kinds::A))});
+    auto weight0 = graph.make_input(
+            {graph_tensor::make({K, N}, sc_data_format_t(format_kinds::KN))});
+    auto weight1 = graph.make_input(
+            {graph_tensor::make({K, N}, sc_data_format_t(format_kinds::KN))});
+
+    ops::matmul_core_config_t cfg = {32, 32, 32};
+    // mm0
+    auto mm0 = graph.make("matmul_core",
+            {input0->get_outputs()[0], weight0->get_outputs()[0]}, {}, {});
+    // set config
+    mm0->dyn_cast<ops::matmul_core_op_t>()->set_config(
+            reflection::general_object_t::make(cfg));
+    mm0 = graph.make("add", {mm0->get_outputs()[0], bias->get_outputs()[0]}, {},
+            {{"bc_axis", std::vector<int> {1}}});
+    // mm1
+    auto mm1 = graph.make("matmul_core",
+            {input0->get_outputs()[0], weight1->get_outputs()[0]}, {}, {});
+    // set config
+    mm1->dyn_cast<ops::matmul_core_op_t>()->set_config(
+            reflection::general_object_t::make(cfg));
+    mm1 = graph.make("add", {mm1->get_outputs()[0], bias->get_outputs()[0]}, {},
+            {{"bc_axis", std::vector<int> {1}}});
+    graph.make_output(mm0->get_outputs());
+    graph.make_output(mm1->get_outputs());
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    ctx->flags_.use_cost_model_ = true;
+    graph_driver(graph, ctx);
+    std::stringstream ss;
+    print_graph(graph, ss, true);
+    // mm0 and mm1 are exactly two forking partitions, as the result, they
+    // should not be merged vertically, due to no benifit expected.
+    std::string expected_str
+            = R"(graph(v0: f32[256, 64], v1: f32[256], v2: f32[64, 256], v3: f32[64, 256]) -> [v4: f32[256, 256], v5: f32[256, 256]] {
+  [v6: f32[1, 256]] = tensor_view(v1)
+  [v5: f32[256, 256]] = outerloop_8X8_partition_matmul_core_add(v0, v3, v6)
+  [v4: f32[256, 256]] = outerloop_8X8_partition_matmul_core_add(v0, v2, v6)
+}
+)";
+    EXPECT_EQ(ss.str(), expected_str);
+}
+
 class test_prefetchable_op : public tunable_op_t,
                              public op_traits::may_prefetch_t {
 public:

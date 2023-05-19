@@ -1490,6 +1490,9 @@ static stmts find_last_parallel_for(const stmts &scope, int64_t &out_index) {
  *            input
  *           /     \
  *      parti A   parti B
+ *         |        |
+ *       output    output
+ * Note that: this is different relationship from no dependency
  * */
 static bool check_parti_forked(mixed_parti_t *A, mixed_parti_t *B) {
     A = A->get_root(), B = B->get_root();
@@ -1523,7 +1526,7 @@ static int check_parti_loop_axis_binding(
         // limit to at most one outer loop (batch-dimension)
         return std::min(1, check_loop_size);
     }
-    // auto skip when A and B have no dependency
+    // auto skip when A and B are forked
     if (check_parti_forked(A, B)) return check_loop_size;
     return A->ax_binder_.align_with(B->ax_binder_, check_loop_size);
 }
@@ -2311,6 +2314,10 @@ static bool try_merge_mixed_parti_vertically(mixed_parti_t *A, mixed_parti_t *B,
 // usually used by crossover dispatcher
 static bool try_merge_mixed_parti_vertically(
         mixed_parti_t *A, mixed_parti_t *B) {
+    A = A->get_root(), B = B->get_root();
+    if (A == B) return false;
+    // if A and B are forked, do not merge them
+    if (check_parti_forked(A, B)) return false;
     // in avoid conflict with parallel merge
     if (A->contain_nested_parallel_for() || B->contain_nested_parallel_for())
         return false;
