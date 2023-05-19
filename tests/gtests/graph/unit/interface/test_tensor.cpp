@@ -45,7 +45,7 @@ TEST(Tensor, GetEngine) {
 #define DESTROY_TENSOR(t) \
     do { \
         dnnl_graph_tensor_destroy(t); \
-        t = nullptr; \
+        (t) = nullptr; \
     } while (0);
 
 TEST(Tensor, DnnlGraphTensorCreate) {
