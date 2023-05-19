@@ -1852,3 +1852,44 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, ParallelMergeAndNoBarrier) {
     ASSERT_TRUE(inner_loop->attr().get_or_else(
             stmt_attr_key::no_post_barrier, false));
 }
+
+TEST(GCCore_CPU_graph_mixed_partition_cpp, ParallelMergeNotAppendInputAnchor) {
+    thread_num_reset reseter;
+    runtime_config_t::get().set_num_threads(4);
+    int M = 256, K = 252, N = 256;
+
+    sc_graph_t graph;
+    auto input0 = graph.make_input({graph_tensor::make(
+            {M, K}, sc_data_format_t(format_kinds::MK), sc_data_type_t::u8())});
+    auto weight0 = graph.make_input({graph_tensor::make(
+            {K, N}, sc_data_format_t(format_kinds::KN), sc_data_type_t::s8())});
+    auto weight1 = graph.make_input({graph_tensor::make(
+            {K, N}, sc_data_format_t(format_kinds::KN), sc_data_type_t::s8())});
+
+    ops::managed_matmul_core_config_t cfg = {4, 1, 1, 1, 1, 0};
+    // mmm0
+    auto mmm0 = graph.make("managed_matmul_core",
+            {input0->get_outputs()[0], weight0->get_outputs()[0]}, {},
+            {{op_attr_key::break_pre_fuse, true}});
+    mmm0->dyn_cast<op_traits::configurable_t>()->set_config(
+            reflection::general_object_t::make(cfg));
+    //  mmm1
+    auto mmm1 = graph.make("managed_matmul_core",
+            {input0->get_outputs()[0], weight1->get_outputs()[0]}, {},
+            {{op_attr_key::break_pre_fuse, true}});
+    mmm1->dyn_cast<op_traits::configurable_t>()->set_config(
+            reflection::general_object_t::make(cfg));
+    graph.make_output({mmm0->get_outputs()[0]});
+    graph.make_output({mmm1->get_outputs()[0]});
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    graph_driver(graph, ctx);
+    auto mixed_op = get_mixed_op_from_graph(graph);
+    // mmm0 and mmm1 both have input anchor, which is under outer loop when
+    // parallel merged. As the result, it could not be straightfowardly append
+    // to target partition fanchor list as inner loop anchor. Otherwise, fusion
+    // partition will finally try to remove an unattached anchor in TIR and
+    // throw assertion error.
+    ASSERT_TRUE(mixed_op);
+}

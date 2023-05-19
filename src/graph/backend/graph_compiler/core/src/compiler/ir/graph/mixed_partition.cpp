@@ -1590,7 +1590,8 @@ static void merge_parti_impl(mixed_parti_t *pa_to_merge,
                     outer_loops_be_merged.begin() + merged_loop_size,
                     [&be_merged_anchor_map, &parti_be_merged](
                             const for_loop &loop) {
-                        return parti_be_merged->get_anchor_inside_loop(loop)
+                        return parti_be_merged->get_anchor_inside_loop(loop,
+                                       be_merged_anchor_map->is_input_anchor())
                                 == be_merged_anchor_map;
                     })) {
             continue;
