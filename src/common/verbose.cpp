@@ -604,8 +604,7 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
 namespace {
 
 template <typename pd_t>
-static std::string init_info_batch_normalization(
-        const engine_t *e, const pd_t *pd) {
+std::string init_info_batch_normalization(const engine_t *e, const pd_t *pd) {
     std::stringstream ss;
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
@@ -624,7 +623,7 @@ static std::string init_info_batch_normalization(
 }
 
 template <typename pd_t>
-static std::string init_info_binary(const engine_t *e, const pd_t *pd) {
+std::string init_info_binary(const engine_t *e, const pd_t *pd) {
     std::stringstream ss;
     ss << e << "," << pd->kind() << "," << pd->name() << "," << prop_kind::undef
        << ",";
@@ -642,7 +641,7 @@ static std::string init_info_binary(const engine_t *e, const pd_t *pd) {
 }
 
 template <typename pd_t>
-static std::string init_info_concat(const engine_t *e, const pd_t *pd) {
+std::string init_info_concat(const engine_t *e, const pd_t *pd) {
     std::stringstream ss;
     ss << e << "," << pd->kind() << "," << pd->name() << "," << prop_kind::undef
        << ",";
@@ -667,7 +666,7 @@ static std::string init_info_concat(const engine_t *e, const pd_t *pd) {
 }
 
 template <typename pd_t>
-static std::string init_info_convolution(const engine_t *e, const pd_t *pd) {
+std::string init_info_convolution(const engine_t *e, const pd_t *pd) {
     std::stringstream ss;
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
@@ -706,12 +705,12 @@ static std::string init_info_convolution(const engine_t *e, const pd_t *pd) {
 }
 
 template <typename pd_t>
-static std::string init_info_deconvolution(const engine_t *e, const pd_t *pd) {
+std::string init_info_deconvolution(const engine_t *e, const pd_t *pd) {
     return init_info_convolution(e, pd);
 }
 
 template <typename pd_t>
-static std::string init_info_eltwise(const engine_t *e, const pd_t *pd) {
+std::string init_info_eltwise(const engine_t *e, const pd_t *pd) {
     std::stringstream ss;
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
@@ -731,7 +730,7 @@ static std::string init_info_eltwise(const engine_t *e, const pd_t *pd) {
 }
 
 template <typename pd_t>
-static std::string init_info_inner_product(const engine_t *e, const pd_t *pd) {
+std::string init_info_inner_product(const engine_t *e, const pd_t *pd) {
     std::stringstream ss;
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
@@ -760,8 +759,7 @@ static std::string init_info_inner_product(const engine_t *e, const pd_t *pd) {
 }
 
 template <typename pd_t>
-static std::string init_info_layer_normalization(
-        const engine_t *e, const pd_t *pd) {
+std::string init_info_layer_normalization(const engine_t *e, const pd_t *pd) {
     std::stringstream ss;
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
@@ -783,7 +781,7 @@ static std::string init_info_layer_normalization(
 }
 
 template <typename pd_t>
-static std::string init_info_lrn(const engine_t *e, const pd_t *pd) {
+std::string init_info_lrn(const engine_t *e, const pd_t *pd) {
     std::stringstream ss;
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
@@ -803,7 +801,7 @@ static std::string init_info_lrn(const engine_t *e, const pd_t *pd) {
 }
 
 template <typename pd_t>
-static std::string init_info_matmul(const engine_t *e, const pd_t *pd) {
+std::string init_info_matmul(const engine_t *e, const pd_t *pd) {
     std::stringstream ss;
     ss << e << "," << pd->kind() << "," << pd->name() << "," << prop_kind::undef
        << ",";
@@ -836,7 +834,7 @@ static std::string init_info_matmul(const engine_t *e, const pd_t *pd) {
 }
 
 template <typename pd_t>
-static std::string init_info_pooling(const engine_t *e, const pd_t *pd) {
+std::string init_info_pooling(const engine_t *e, const pd_t *pd) {
     std::stringstream ss;
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
@@ -866,7 +864,7 @@ static std::string init_info_pooling(const engine_t *e, const pd_t *pd) {
 }
 
 template <typename pd_t>
-static std::string init_info_prelu(const engine_t *e, const pd_t *pd) {
+std::string init_info_prelu(const engine_t *e, const pd_t *pd) {
     std::stringstream ss;
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
@@ -888,7 +886,7 @@ static std::string init_info_prelu(const engine_t *e, const pd_t *pd) {
 }
 
 template <typename pd_t>
-static std::string init_info_reduction(const engine_t *e, const pd_t *pd) {
+std::string init_info_reduction(const engine_t *e, const pd_t *pd) {
     std::stringstream ss;
     ss << e << "," << pd->kind() << "," << pd->name() << "," << prop_kind::undef
        << ",";
@@ -906,7 +904,7 @@ static std::string init_info_reduction(const engine_t *e, const pd_t *pd) {
 }
 
 template <typename pd_t>
-static std::string init_info_reorder(const engine_t *e, pd_t *pd) {
+std::string init_info_reorder(const engine_t *e, pd_t *pd) {
     std::stringstream ss;
 
     const auto src_ek = pd->desc()->src_engine_kind;
@@ -931,7 +929,7 @@ static std::string init_info_reorder(const engine_t *e, pd_t *pd) {
 }
 
 template <typename pd_t>
-static std::string init_info_resampling(const engine_t *e, const pd_t *pd) {
+std::string init_info_resampling(const engine_t *e, const pd_t *pd) {
     std::stringstream ss;
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
@@ -953,7 +951,7 @@ static std::string init_info_resampling(const engine_t *e, const pd_t *pd) {
 }
 
 template <typename pd_t>
-static std::string init_info_rnn(const engine_t *e, const pd_t *pd) {
+std::string init_info_rnn(const engine_t *e, const pd_t *pd) {
     std::stringstream ss;
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
@@ -1013,7 +1011,7 @@ static std::string init_info_rnn(const engine_t *e, const pd_t *pd) {
 }
 
 template <typename pd_t>
-static std::string init_info_shuffle(const engine_t *e, const pd_t *pd) {
+std::string init_info_shuffle(const engine_t *e, const pd_t *pd) {
     std::stringstream ss;
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
@@ -1029,7 +1027,7 @@ static std::string init_info_shuffle(const engine_t *e, const pd_t *pd) {
 }
 
 template <typename pd_t>
-static std::string init_info_softmax(const engine_t *e, const pd_t *pd) {
+std::string init_info_softmax(const engine_t *e, const pd_t *pd) {
     std::stringstream ss;
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
@@ -1051,7 +1049,7 @@ static std::string init_info_softmax(const engine_t *e, const pd_t *pd) {
 }
 
 template <typename pd_t>
-static std::string init_info_sum(const engine_t *e, const pd_t *pd) {
+std::string init_info_sum(const engine_t *e, const pd_t *pd) {
     std::stringstream ss;
     ss << e << "," << pd->kind() << "," << pd->name() << "," << prop_kind::undef
        << ",";
