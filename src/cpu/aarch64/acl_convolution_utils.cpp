@@ -49,11 +49,14 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     if (!is_fwd) return status::unimplemented;
 
     const int ndims = src_d.ndims();
+    const bool is_depthwise = wei_d.ndims() == 5 && wei_d.dims()[1] == 1
+            && wei_d.dims()[2] == 1;
 
-    ACL_CHECK_SUPPORT(ndims != 4, " only supports 2 spatial dimensions");
+    ACL_CHECK_SUPPORT(
+            ndims != 4 && !is_depthwise, " only supports 2 spatial dimensions");
 
     const int with_groups = wei_d.ndims() == src_d.ndims() + 1;
-    ACL_CHECK_SUPPORT(with_groups, " does not support groups");
+    ACL_CHECK_SUPPORT(with_groups && !is_depthwise, " does not support groups");
 
     ACL_CHECK_SUPPORT(!one_of(true,
                               everyone_is(data_type::f32, src_d.data_type(),
@@ -111,7 +114,8 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
 
     acp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
-    if (wei_d.format_kind() != format_kind::any) return status::unimplemented;
+    if (wei_d.format_kind() != format_kind::any && !is_depthwise)
+        return status::unimplemented;
 
     auto src_tag = memory_desc_matches_one_of_tag(
             src_md, format_tag::nhwc, format_tag::nchw);
@@ -141,8 +145,12 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
             || src_tag != dst_tag)
         return status::unimplemented;
 
-    // Set weights to initially be the same as src
-    CHECK(memory_desc_init_by_tag(weights_md, src_tag));
+    if (is_depthwise) {
+        CHECK(memory_desc_init_by_tag(weights_md, format_tag::hwigo));
+    } else {
+        // Set weights to initially be the same as src
+        CHECK(memory_desc_init_by_tag(weights_md, src_tag));
+    }
 
     // Bias is just 1D, set to be the obvious format
     if (acp.with_bias && bias_md.format_kind == format_kind::any)
@@ -170,6 +178,11 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
             1,
             acl_data_type,
             acl_layout);
+    if(is_depthwise) {
+       // We need to set that values are not constant so that we
+       // we can update them in-place in ACL
+      acp.wei_tensor_info.set_are_values_constant(false);
+    }
 
     acp.dst_tensor_info = arm_compute::TensorInfo(
             is_nhwc ? arm_compute::TensorShape(oc, ow, oh, mb) :
@@ -189,6 +202,11 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     // Are we allowed to cast down to bf16 or not?
     acp.fast_math
             = one_of(attr.fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any);
+    if (is_depthwise) {
+        // There is no support for fixed format kernels for depthwise convolution
+        // in ACL so we are going to use weight format that we set up earlier
+        return status::success;
+    }
 
     // WeightFormat::ANY tells ACL we can handle any format
     acp.weights_info = arm_compute::WeightsInfo(
@@ -256,6 +274,7 @@ status_t init_conf_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, const convolution_desc_t &cd,
         const primitive_attr_t &attr) {
+    if (weights_md.ndims != 4) return status::unimplemented;
 
     // General Compute Library checks, memory tags are also set there
     CHECK(acl_init_conf(acp, src_md, weights_md, dst_md, bias_md, cd, attr));
@@ -281,6 +300,7 @@ status_t init_conf_indirect_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, const convolution_desc_t &cd,
         const primitive_attr_t &attr) {
+    if (weights_md.ndims != 4) return status::unimplemented;
 
     // Indirect is slower for small convolution kernels
     if (weights_md.dims[2] == 1 && weights_md.dims[3] == 1)
@@ -311,6 +331,22 @@ status_t init_conf_indirect_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
                                 acp.fast_math,
                                 1, {}, acp.weights_info)));
     // clang-format on
+
+    return status::success;
+}
+
+status_t init_conf_depthwise(acl_conv_conf_t &acp, memory_desc_t &src_md,
+        memory_desc_t &weights_md, memory_desc_t &dst_md,
+        memory_desc_t &bias_md, const convolution_desc_t &cd,
+        const primitive_attr_t &attr) {
+    if (weights_md.ndims != 5) return status::unimplemented;
+
+    CHECK(acl_init_conf(acp, src_md, weights_md, dst_md, bias_md, cd, attr));
+
+    ACL_CHECK_VALID(arm_compute::NEDepthwiseConvolutionLayer::validate(
+            &acp.src_tensor_info, &acp.wei_tensor_info,
+            acp.with_bias ? &acp.bia_tensor_info : nullptr,
+            &acp.dst_tensor_info, acp.padstride_info));
 
     return status::success;
 }
