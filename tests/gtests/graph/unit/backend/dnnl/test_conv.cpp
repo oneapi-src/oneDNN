@@ -3215,7 +3215,9 @@ TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
 
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
-                = get_pass("int8_conv_add_post_ops_fusion");
+                = get_pass(engine->kind() == graph::engine_kind::gpu
+                                ? "int8_conv_add_post_ops_fusion_gpu"
+                                : "int8_conv_add_post_ops_fusion_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -3415,7 +3417,9 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluWithDifferentSrc1AndDstTypeOnGPU) {
 
     // -------------------------case 2----------------------------------
     graph::pass::pass_base_ptr apass
-            = get_pass("int8_conv_add_post_ops_fusion");
+            = get_pass(engine->kind() == graph::engine_kind::gpu
+                            ? "int8_conv_add_post_ops_fusion_gpu"
+                            : "int8_conv_add_post_ops_fusion_cpu");
     ASSERT_NE(apass, nullptr);
 
     apass->run(agraph);
@@ -3619,7 +3623,9 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
 
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
-                = get_pass("int8_conv_add_post_ops_fusion");
+                = get_pass(engine->kind() == graph::engine_kind::gpu
+                                ? "int8_conv_add_post_ops_fusion_gpu"
+                                : "int8_conv_add_post_ops_fusion_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -4157,7 +4163,9 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
         g.finalize();
 
         graph::pass::pass_base_ptr apass1
-                = get_pass("int8_conv_add_post_ops_fusion");
+                = get_pass(engine->kind() == graph::engine_kind::gpu
+                                ? "int8_conv_add_post_ops_fusion_gpu"
+                                : "int8_conv_add_post_ops_fusion_cpu");
         graph::pass::pass_base_ptr apass2
                 = get_pass("int8_conv_post_ops_fusion");
 
@@ -5489,7 +5497,9 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
 
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
-                = get_pass("int8_conv_add_post_ops_fusion");
+                = get_pass(engine->kind() == graph::engine_kind::gpu
+                                ? "int8_conv_add_post_ops_fusion_gpu"
+                                : "int8_conv_add_post_ops_fusion_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -5728,7 +5738,9 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumS8Relu) {
 
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
-                = get_pass("int8_conv_add_post_ops_fusion");
+                = get_pass(engine->kind() == graph::engine_kind::gpu
+                                ? "int8_conv_add_post_ops_fusion_gpu"
+                                : "int8_conv_add_post_ops_fusion_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
