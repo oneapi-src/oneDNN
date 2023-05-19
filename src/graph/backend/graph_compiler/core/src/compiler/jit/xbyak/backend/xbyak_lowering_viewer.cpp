@@ -1462,7 +1462,8 @@ void xbyak_lowering_viewer::handle_avx_add(const operand &op_dst,
         case cpu_data_type::sint_32_x2: {
             XBYAK_GEN(vpaddd, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
         } break;
-        case cpu_data_type::uint_8_x16: {
+        case cpu_data_type::uint_8_x16:
+        case cpu_data_type::sint_8_x16: {
             XBYAK_GEN(vpaddb, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
         } break;
         default:
@@ -2118,12 +2119,32 @@ void xbyak_lowering_viewer::handle_avx_extract_high(const operand &op_dst,
                     op_src, operand(INT64_C(0x01)));
         } break;
         case cpu_data_type::float_32_x8: {
-            XBYAK_GEN(vextractf128, AVX_XM_Y_I, op_dst, //
-                    op_src, operand(INT64_C(0x01)));
+            switch (simd_level_) {
+                case simd_level::avx512: {
+                    assert(cpu_flags_.fAVX512VL);
+                    XBYAK_GEN(vextractf32x4, AVX_XM_Y_I, op_dst, //
+                            op_src, operand(INT64_C(0x01)));
+                } break;
+                case simd_level::avx2: {
+                    XBYAK_GEN(vextractf128, AVX_XM_Y_I, op_dst, //
+                            op_src, operand(INT64_C(0x01)));
+                } break;
+                default: COMPILE_ASSERT(false, FUNC_INFO << "No simd support");
+            }
         } break;
         case cpu_data_type::sint_32_x8: {
-            XBYAK_GEN(vextracti128, AVX_XM_Y_I, op_dst, //
-                    op_src, operand(INT64_C(0x01)));
+            switch (simd_level_) {
+                case simd_level::avx512: {
+                    assert(cpu_flags_.fAVX512VL);
+                    XBYAK_GEN(vextracti32x4, AVX_XM_Y_I, op_dst, //
+                            op_src, operand(INT64_C(0x01)));
+                } break;
+                case simd_level::avx2: {
+                    XBYAK_GEN(vextracti128, AVX_XM_Y_I, op_dst, //
+                            op_src, operand(INT64_C(0x01)));
+                } break;
+                default: COMPILE_ASSERT(false, FUNC_INFO << "No simd support");
+            }
         } break;
         case cpu_data_type::float_32_x4: {
             XBYAK_GEN(vpermilpd, AVX_X_X_XI, op_dst, //

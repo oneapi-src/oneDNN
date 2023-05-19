@@ -51,12 +51,14 @@ std::atomic<int32_t> temp_index_(0);
 void prepare_virtual_reg(reg_allocator_t *allocator, virtual_reg_t *virt_reg,
         const Xbyak::Reg &phy_reg, sc_data_type_t dtype, bool is_avx512) {
     if (phy_reg.isNone()) {
-        virt_reg->set_type(get_virt_reg_type(dtype, is_avx512));
+        virt_reg->set_type(
+                get_virt_reg_type(dtype, is_avx512, virt_reg->force_fp_vex_));
         virt_reg->set_unassigned();
         virt_reg->add_weight(virt_reg->extra_weight());
     } else {
         auto &slots_map = allocator->slots_map();
-        virt_reg->set_type(get_virt_reg_type(dtype, is_avx512));
+        virt_reg->set_type(
+                get_virt_reg_type(dtype, is_avx512, virt_reg->force_fp_vex_));
         virt_reg->set_designated(slots_map.get_reg_index(phy_reg));
     }
     if (!virt_reg->live_range_.empty()) { allocator->enqueue(virt_reg); }
@@ -690,7 +692,7 @@ private:
         // set virt_reg
         auto &new_virt_reg = GET_VIRTUAL_REG(new_var);
         new_virt_reg.type_
-                = get_virt_reg_type(new_var->dtype_, cpu_flags_.fAVX512F);
+                = get_virt_reg_type(new_var->dtype_, cpu_flags_.fAVX512F, true);
         new_virt_reg.spill_weight_ = spill_weight_const::infinity;
         new_virt_reg.live_range_ = live_range_t(start, end);
         // add to new virtual_regs

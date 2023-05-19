@@ -54,7 +54,8 @@ enum class virt_reg_stat {
 
 enum class virt_reg_type {
     gp_reg = 0, // x86 general purpose 64-bit registers
-    fp_reg, // x86 SSE/AVX SIMD registers
+    fp_reg, // x86 AVX/AVX512(0-15/0-31) Extended SIMD registers
+    fp_vex_reg, // x86 SSE/AVX(0-15) SIMD registers
     mask_reg, // x86 AVX512 mask registers
     tile_reg, // x86 AMX tile registers
     NUM_TYPES,
@@ -94,6 +95,8 @@ struct virtual_reg_t {
 
     // need to be preserved across function calls
     bool preserved_ = false;
+    // force fp_reg to only use sse/avx fp_reg_vex XMM0-15
+    bool force_fp_vex_ = false;
 
     spill_weight_t extra_weight() {
         auto range = live_range_.end_ - live_range_.start_;
@@ -106,7 +109,10 @@ struct virtual_reg_t {
         spill_weight_t hint_weight = hint_ != virt_reg_hint::none //
                 ? stmt_index_const::increment * 16
                 : 0;
-        return range_weight + preserve_weight + hint_weight;
+        spill_weight_t fp_reg_weight = force_fp_vex_ //
+                ? stmt_index_const::increment * 64
+                : 0;
+        return range_weight + preserve_weight + hint_weight + fp_reg_weight;
     }
 
     bool intersects(const virtual_reg_t &b) {
@@ -125,6 +131,7 @@ struct virtual_reg_t {
     }
 
     void set_preserved() { preserved_ = true; }
+    void set_force_fp_vex() { force_fp_vex_ = true; }
 
     void set_type(virt_reg_type type) { type_ = type; }
 
@@ -174,12 +181,13 @@ struct virtual_reg_t {
     }
 
     friend std::ostream &operator<<(std::ostream &os, const virtual_reg_t &m) {
-        static const char *type_enum_str[] = {"gp", "fp", "k", "tmm"};
+        static const char *type_enum_str[] = {"gp", "fp", "fpvex", "k", "tmm"};
         static const char *stat_enum_str[] = {"x", "B", "D", "U", "A", "S"};
         static const char *hint_enum_str[] = {"", "h", "H"};
-        os << m.live_range_ << ": " //
-           << m.spill_weight_ << ": " //
-           << m.preserved_ << ": " //
+        os << m.live_range_ << ": SW-" //
+           << m.spill_weight_ << ": CP-" //
+           << m.preserved_ << ": FV-" //
+           << m.force_fp_vex_ << ": " //
            << stat_enum_str[static_cast<int>(m.stat_)]
            << hint_enum_str[static_cast<int>(m.hint_)];
         switch (m.stat_) {
@@ -198,9 +206,11 @@ struct virtual_reg_t {
 };
 
 inline virt_reg_type get_virt_reg_type(
-        const sc_data_type_t &t, bool is_avx512) {
+        const sc_data_type_t &t, bool is_avx512, bool force_fp_vex = false) {
     if (is_avx512 && t.type_code_ == sc_data_etype::BOOLEAN && t.lanes_ > 1) {
         return virt_reg_type::mask_reg;
+    } else if (force_fp_vex && is_x86_simd(t)) {
+        return virt_reg_type::fp_vex_reg;
     } else if (is_x86_simd(t)) {
         return virt_reg_type::fp_reg;
     } else if (t.is_tile()) {

@@ -17,6 +17,7 @@
 #include <utility>
 
 #include <compiler/jit/xbyak/ir/xbyak_visitor.hpp>
+#include <util/array_ref.hpp>
 
 #include "ir_data_initializer.hpp"
 
@@ -58,6 +59,25 @@ public:
         initialize_expr_data(v->var_, current_scope());
         if (v->var_.isa<tensor>()) { update_spill_weight(v->var_, 128); }
         return xbyak_visitor_t::visit(std::move(v));
+    }
+
+    stmt_c visit(assign_c v) override {
+        auto ret = xbyak_visitor_t::visit(std::move(v));
+        assert(ret.isa<assign>());
+        auto vv = ret.static_as<assign_c>();
+        // Set specified xbyak_intrin operand to only use fp_reg_vex
+        if (vv->value_.isa<xbyak_intrin>()) {
+            auto intrin = vv->value_.static_as<xbyak_intrin>();
+            switch (static_cast<xbyak_intrin_type>(intrin->type_)) {
+                // vperm2f128 is an avx only intrinsic
+                case xbyak_intrin_type::permute: {
+                    force_fp_reg_vex({vv->var_});
+                    force_fp_reg_vex(intrin->args_);
+                } break;
+                default: break;
+            }
+        }
+        return vv;
     }
 
     stmt_c visit(for_loop_c v) override {
@@ -102,6 +122,12 @@ private:
     void initialize_stmt_data(const stmt_c &v) {
         if (!v->temp_data().isa<xbyak_stmt_data_t>()) {
             v->temp_data() = xbyak_stmt_data_t(loop_depth());
+        }
+    }
+
+    void force_fp_reg_vex(array_ref<expr> ref) {
+        for (auto &v : ref) {
+            GET_VIRTUAL_REG(v).set_force_fp_vex();
         }
     }
 

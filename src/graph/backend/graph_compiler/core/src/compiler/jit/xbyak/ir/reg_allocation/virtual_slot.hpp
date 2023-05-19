@@ -206,6 +206,16 @@ public:
                         virt_index++;
                     }
                 };
+        auto get_allocatable_fp_vex_regs
+                = [&](const virt_reg_type &reg_type,
+                          const std::vector<Xbyak::Reg> &alloc_regs) {
+                      auto type_index = static_cast<int>(reg_type);
+                      for (size_t i = 0; i < alloc_regs.size(); i++) {
+                          auto idx = get_reg_index(alloc_regs[i]);
+                          allocatable_indexes_[type_index].push_back(idx);
+                      }
+                  };
+
         // Allocatable gp regs to virtual indexes
         get_allocatable_regs(virt_reg_type::gp_reg, profile.alloc_gp_regs_);
         // Allocatable fp regs to virtual indexes
@@ -214,6 +224,9 @@ public:
         get_allocatable_regs(virt_reg_type::mask_reg, profile.alloc_mask_regs_);
         // Allocatable tile regs to virtual indexes
         get_allocatable_regs(virt_reg_type::tile_reg, profile.alloc_tile_regs_);
+        // Allocatable fp_vex regs, without create new virt_index
+        get_allocatable_fp_vex_regs(
+                virt_reg_type::fp_vex_reg, profile.alloc_xmm_vex_regs_);
 
         // Check consitancy
         assert((size_t)virt_index == allocatable_regs_.size());
@@ -256,10 +269,12 @@ public:
     }
 
     virt_reg_index_t get_reg_index(const Xbyak::Reg &reg) {
-        if (xbyak_regs_map_.find(reg) == xbyak_regs_map_.end()) {
+        auto iter = xbyak_regs_map_.find(reg);
+        if (iter == xbyak_regs_map_.end()) {
+            assert(false && "Not valid reg.");
             return virt_reg_const::invalid;
         }
-        return xbyak_regs_map_[reg];
+        return iter->second;
     }
 
     const std::vector<virt_reg_index_t> &get_slots_index(virt_reg_type type) {

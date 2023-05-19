@@ -73,6 +73,7 @@ target_profile_t get_target_profile(
             regs::xmm14,
             regs::xmm15,
     };
+    profile.alloc_xmm_vex_regs_ = profile.alloc_xmm_regs_;
 
     // AVX-512 extended regs
     if (target_machine.cpu_flags_.fAVX512F) {
