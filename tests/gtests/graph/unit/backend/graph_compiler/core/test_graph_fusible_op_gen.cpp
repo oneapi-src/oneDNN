@@ -127,9 +127,7 @@ TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorAdd2) {
 }
 
 TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorReorder) {
-    thread_num_reset reseter;
-    // set threads envoriment
-    runtime_config_t::get().set_num_threads(56);
+    SET_THREADS_OR_SKIP(56);
 
     sc_graph_t mgr;
     auto ins = mgr.make_input(

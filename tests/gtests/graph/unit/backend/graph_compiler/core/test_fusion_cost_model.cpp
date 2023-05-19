@@ -30,9 +30,7 @@ using namespace dnnl::impl::graph::gc;
 
 TEST(GCCore_CPU_fusion_cost_model_cpp, TestBroadcastOp1) {
     sc_graph_t graph;
-    thread_num_reset reseter;
-    // set threads envoriment
-    runtime_config_t::get().set_num_threads(28);
+    SET_THREADS_OR_SKIP(28);
 
     auto input0 = graph.make_input(
             {graph_tensor::make({1, 64}, sc_data_format_t::MK())});
@@ -65,9 +63,7 @@ TEST(GCCore_CPU_fusion_cost_model_cpp, TestBroadcastOp1) {
 
 TEST(GCCore_CPU_fusion_cost_model_cpp, TestBroadcastOp2) {
     sc_graph_t graph;
-    thread_num_reset reseter;
-    // set threads envoriment
-    runtime_config_t::get().set_num_threads(28);
+    SET_THREADS_OR_SKIP(28);
 
     auto input0 = graph.make_input(
             {graph_tensor::make({16, 160}, sc_data_format_t::MKmk(16, 16))});
@@ -109,9 +105,7 @@ TEST(GCCore_CPU_fusion_cost_model_cpp, TestFusePreLoadBufferCheck) {
     sc_graph_t graph;
 
     int run_threads = 28;
-    thread_num_reset reseter;
-    // set threads envoriment
-    runtime_config_t::get().set_num_threads(run_threads);
+    SET_THREADS_OR_SKIP(run_threads);
 
     int BS = run_threads, M = 384, K = 1024, N = 1024;
 
@@ -183,9 +177,8 @@ TEST(GCCore_CPU_fusion_cost_model_cpp, TestVerticalMergeForImageAffine) {
 
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     ctx->flags_.use_cost_model_ = true;
-    thread_num_reset reseter;
     int num_threads = 28;
-    runtime_config_t::get().set_num_threads(num_threads);
+    SET_THREADS_OR_SKIP(num_threads);
 
     // case 1: can be merged
     graph = get_conv_block_graph(num_threads);
@@ -215,9 +208,7 @@ TEST(GCCore_CPU_fusion_cost_model_cpp, TestVerticalMergeForImageAffine) {
 
 TEST(GCCore_CPU_fusion_cost_model_cpp, TestTunableOp) {
     sc_graph_t graph;
-    thread_num_reset reseter;
-    // set threads envoriment
-    runtime_config_t::get().set_num_threads(56);
+    SET_THREADS_OR_SKIP(56);
 
     int BS = 64, M = 64, K = 1024, N = 64;
 

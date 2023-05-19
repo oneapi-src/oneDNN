@@ -82,8 +82,7 @@ TEST(GCCore_CPU_dynamic_impl_kind_cpp, TestImplKindManagedMatmulCore) {
     auto cfg_sz = sizeof(ops::managed_matmul_core_config_t);
     {
         // threads == 1
-        thread_num_reset reseter;
-        runtime_config_t::get().set_num_threads(1);
+        SET_THREADS_OR_SKIP(1);
         auto mmm = g.make<customized_managed_matmul_core_op_t>(
                 std::vector<graph_tensor_ptr> {
                         in_a->get_outputs()[0], in_b->get_outputs()[0]},
@@ -110,8 +109,7 @@ TEST(GCCore_CPU_dynamic_impl_kind_cpp, TestImplKindManagedMatmulCore) {
     }
     {
         // threads == 4
-        thread_num_reset reseter;
-        runtime_config_t::get().set_num_threads(4);
+        SET_THREADS_OR_SKIP(4);
         auto mmm = g.make<customized_managed_matmul_core_op_t>(
                 std::vector<graph_tensor_ptr> {
                         in_a->get_outputs()[0], in_b->get_outputs()[0]},
@@ -139,8 +137,7 @@ TEST(GCCore_CPU_dynamic_impl_kind_cpp, TestImplKindManagedMatmulCore) {
 
     {
         // threads == 56
-        thread_num_reset reseter;
-        runtime_config_t::get().set_num_threads(56);
+        SET_THREADS_OR_SKIP(56);
         auto mmm = g.make<customized_managed_matmul_core_op_t>(
                 std::vector<graph_tensor_ptr> {
                         in_a->get_outputs()[0], in_b->get_outputs()[0]},

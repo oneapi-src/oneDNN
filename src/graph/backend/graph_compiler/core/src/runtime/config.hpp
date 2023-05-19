@@ -51,7 +51,7 @@ struct SC_API runtime_config_t {
     thread_pool_table *thread_pool_table_;
     // if in muti-instance simulation, the number of threads per instance.
     int get_num_threads() { return thread_pool_table_->get_num_threads(); }
-    void set_num_threads(int num) { thread_pool_table_->set_num_threads(num); }
+    bool set_num_threads(int num) const;
     std::string trace_out_path_;
     int trace_initial_cap_ = 4096;
     trace_mode_t trace_mode_ = OFF;

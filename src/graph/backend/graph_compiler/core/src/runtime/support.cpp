@@ -27,6 +27,7 @@
 #include <runtime/os.hpp>
 #include <runtime/parallel.hpp>
 #include <runtime/runtime.hpp>
+#include <util/def.hpp>
 #include <util/os.hpp>
 #include <util/string_utils.hpp>
 #ifdef _WIN32
@@ -82,6 +83,19 @@ size_t get_os_page_size() {
 runtime_config_t &runtime_config_t::get() noexcept {
     static runtime_config_t cfg {};
     return cfg;
+}
+
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+extern int get_max_threadpool_concurrency();
+#define SET_NUM_THREADS_SUCCESS(NUM) ((NUM) <= get_max_threadpool_concurrency())
+#else
+// We are free to set num threads in TBB and OMP
+#define SET_NUM_THREADS_SUCCESS(NUM) true
+#endif
+
+bool runtime_config_t::set_num_threads(int num) const {
+    thread_pool_table_->set_num_threads(num);
+    return SET_NUM_THREADS_SUCCESS(num);
 }
 
 using namespace env_key;

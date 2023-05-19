@@ -60,8 +60,7 @@ static void set_no_barrier(const char *next_func) {
 }
 
 TEST(GCCore_CPU_parallel_merge, TestMergeOK) {
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(16);
+    SET_THREADS_OR_SKIP(16);
     builder::ir_builder_t builder;
 
     auto aaa = get_func("aaa", "A", "B", 16);
@@ -131,8 +130,7 @@ TEST(GCCore_CPU_parallel_merge, TestMergeOK) {
 }
 
 TEST(GCCore_CPU_parallel_merge, TestMergeThreads) {
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(16);
+    SET_THREADS_OR_SKIP(16);
     builder::ir_builder_t builder;
 
     auto aaa1 = get_func("aaa1", "A", "B", 10);
@@ -216,8 +214,7 @@ TEST(GCCore_CPU_parallel_merge, TestMergeThreads) {
 }
 
 TEST(GCCore_CPU_parallel_merge, TestMergeFailThreads) {
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(16);
+    SET_THREADS_OR_SKIP(16);
     builder::ir_builder_t builder;
 
     auto aaa1 = get_func("aaa1", "A", "B", 10);
@@ -244,8 +241,7 @@ TEST(GCCore_CPU_parallel_merge, TestMergeFailThreads) {
 }
 
 TEST(GCCore_CPU_parallel_merge, TestMergeFailComplexBody) {
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(16);
+    SET_THREADS_OR_SKIP(16);
     builder::ir_builder_t builder;
 
     auto aaa1 = get_func("aaa1", "A", "B", 10);
@@ -281,8 +277,7 @@ TEST(GCCore_CPU_parallel_merge, TestMergeFailComplexBody) {
 }
 
 TEST(GCCore_CPU_parallel_merge, TestMergeFailComplexMain) {
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(16);
+    SET_THREADS_OR_SKIP(16);
     builder::ir_builder_t builder;
 
     auto aaa1 = get_func("aaa1", "A", "B", 10);

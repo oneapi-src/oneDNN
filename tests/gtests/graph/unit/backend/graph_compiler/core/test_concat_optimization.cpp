@@ -40,8 +40,7 @@ static void ir_compare_test_on_graph(
         std::function<sc_graph_t(void)> graph_builder,
         std::string &expected_ir) {
     REQUIRE_AVX2();
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(16);
+    SET_THREADS_OR_SKIP(16);
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     ctx->flags_.mixed_fusion_ = true;
     ctx->flags_.concat_optimization_ = true;
@@ -71,8 +70,7 @@ static void ir_compare_test_on_graph(
 static void accuracy_test_on_graph(
         std::function<sc_graph_t(void)> graph_builder) {
     REQUIRE_AVX2();
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(56);
+    SET_THREADS_OR_SKIP(56);
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     ctx->flags_.mixed_fusion_ = true;
     builder::ir_builder_t bld;
@@ -160,8 +158,7 @@ static const int C0 = 16, C1 = 32, C2 = 64;
 static const int D = 32;
 
 TEST(GCCore_CPU_concat_optimization_cpp, MergeConsecutiveConcats) {
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(16);
+    SET_THREADS_OR_SKIP(16);
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     ctx->flags_.mixed_fusion_ = true;
     builder::ir_builder_t bld;

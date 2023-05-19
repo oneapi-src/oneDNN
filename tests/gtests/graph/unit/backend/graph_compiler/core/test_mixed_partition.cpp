@@ -251,9 +251,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphBatchWiseFuse) {
 }
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphHorizontalMerge) {
-    thread_num_reset reseter;
-    // set threads envoriment
-    runtime_config_t::get().set_num_threads(32);
+    SET_THREADS_OR_SKIP(32);
 
     sc_graph_t graph;
     int M = 384, K = 1024, N = 1024;
@@ -319,9 +317,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphRunSingleThreads) {
     auto output = graph.make_output(mul_node->get_outputs());
 
     auto ctx = get_test_ctx();
-    thread_num_reset reseter;
-    // set threads envoriment
-    runtime_config_t::get().set_num_threads(1);
+    SET_THREADS_OR_SKIP(1);
     graph_driver_before_fusion(graph, ctx);
     mixed_partition(graph, ctx);
     std::stringstream ss;
@@ -441,9 +437,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphFuseBRGemmPreOpFusion) {
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphFuseOptimizedReduce2) {
     sc_graph_t graph;
 
-    thread_num_reset reseter;
-    // set threads envoriment
-    runtime_config_t::get().set_num_threads(56);
+    SET_THREADS_OR_SKIP(56);
 
     auto input0 = graph.make_input({graph_tensor::make({1024, 1024})});
     // This reduce op does not satisfy register requirement of `tsr2var`
@@ -469,9 +463,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphFuseOptimizedReduce2) {
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphPartitionRingRiskCheck1) {
     sc_graph_t graph;
 
-    thread_num_reset reseter;
-    // set threads envoriment
-    runtime_config_t::get().set_num_threads(1);
+    SET_THREADS_OR_SKIP(1);
 
     int M, N, K;
     M = N = K = 256;
@@ -563,9 +555,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphBreakOpPreFusion2) {
 
     int BS = 28, C = 64, H = 56, W = 56, K = 64;
 
-    thread_num_reset reseter;
-    // set threads envoriment
-    runtime_config_t::get().set_num_threads(BS);
+    SET_THREADS_OR_SKIP(BS);
 
     auto input0 = graph.make_input({graph_tensor::make({BS, C, H, W})});
     auto weight0 = graph.make_input({graph_tensor::make({K, C, 1, 1})});
@@ -662,9 +652,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestaxisBinding1) {
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestaxisBinding2) {
     sc_graph_t graph;
 
-    thread_num_reset reseter;
-    // set threads envoriment
-    runtime_config_t::get().set_num_threads(2);
+    SET_THREADS_OR_SKIP(2);
 
     int M, N, K;
     M = N = 256;
@@ -713,8 +701,7 @@ out1 = x1 * w, out2 = x2 * w
 */
 TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy0) {
     REQUIRE_AVX2();
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(16);
+    SET_THREADS_OR_SKIP(16);
 
     int M0 = 1024, M1 = 512, K = 2048, N = 256;
 
@@ -789,8 +776,7 @@ out1 = x1 * w1, out2 = x1 * w2
 */
 TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy1) {
     REQUIRE_AVX2();
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(16);
+    SET_THREADS_OR_SKIP(16);
 
     int M = 1024, K = 2048, N = 256;
 
@@ -893,8 +879,7 @@ static ir_module_ptr get_two_consective_mmm(
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy2) {
     REQUIRE_AVX2();
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(16);
+    SET_THREADS_OR_SKIP(16);
 
     int M = 256, K1 = 2048, K2 = 512, K3 = 1024;
     std::vector<float> input0_data(M * K1);
@@ -1000,8 +985,7 @@ static ir_module_ptr get_three_consective_mmm(int M, int K1, int K2, int K3,
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy3) {
     REQUIRE_AVX2();
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(56);
+    SET_THREADS_OR_SKIP(56);
 
     int M = 1024, K1 = 13, K2 = 512, K3 = 256, K4 = 128;
     std::vector<float> input0_data(M * K1);
@@ -1061,8 +1045,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy3) {
 }
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitOuterMostLoopWithTensorShrink) {
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(16);
+    SET_THREADS_OR_SKIP(16);
     int M = 256, K1 = 2048, K2 = 512, N = 1024;
 
     sc_graph_t graph;
@@ -1100,8 +1083,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitOuterMostLoopWithTensorShrink) {
 TEST(GCCore_CPU_graph_mixed_partition_cpp,
         ParitialReduceMatmulTensorViewShrink) {
     REQUIRE_AVX2();
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(16);
+    SET_THREADS_OR_SKIP(16);
     int M = 256, K = 256, N = 320;
 
     sc_graph_t graph;
@@ -1156,8 +1138,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp,
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphMarkInplaceHint1) {
     sc_graph_t graph;
     int batch_size = 56;
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(batch_size);
+    SET_THREADS_OR_SKIP(batch_size);
     auto input0 = graph.make_input({graph_tensor::make(
             {batch_size, 64, 32, 32}, sc_data_format_t::NCHW())});
     auto input1 = graph.make_input({graph_tensor::make(
@@ -1210,8 +1191,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphMarkInplaceHint1) {
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphMarkInplaceHint2) {
     sc_graph_t graph;
     int batch_size = 28;
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(batch_size);
+    SET_THREADS_OR_SKIP(batch_size);
     auto input0 = graph.make_input({graph_tensor::make({batch_size, 64, 32})});
 
     auto relu0 = graph.make("relu", {input0->get_outputs()[0]}, {}, {});
@@ -1255,9 +1235,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphMarkInplaceHint4) {
     sc_graph_t graph;
 
     int run_threads = 28;
-    thread_num_reset reseter;
-    // set threads envoriment
-    runtime_config_t::get().set_num_threads(run_threads);
+    SET_THREADS_OR_SKIP(run_threads);
 
     int BS = run_threads, M = 384, K = 1024, N = 1024;
 
@@ -1307,9 +1285,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphMarkInplaceHint5) {
     sc_graph_t graph;
 
     int run_threads = 28;
-    thread_num_reset reseter;
-    // set threads envoriment
-    runtime_config_t::get().set_num_threads(run_threads);
+    SET_THREADS_OR_SKIP(run_threads);
 
     auto input0 = graph.make_input({graph_tensor::make({28, 100, 200})});
     auto input1 = graph.make_input({graph_tensor::make({28, 200, 100})});
@@ -1339,8 +1315,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphMarkInplaceHint5) {
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphMarkInplaceHint7) {
     sc_graph_t graph;
     int batch_size = 56;
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(batch_size);
+    SET_THREADS_OR_SKIP(batch_size);
     auto input0 = graph.make_input({graph_tensor::make(
             {batch_size, 64, 32, 32}, sc_data_format_t::NCHW())});
     auto input1 = graph.make_input({graph_tensor::make(
@@ -1389,9 +1364,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphMarkInplaceHint7) {
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphMarkInplaceHint8) {
     int run_threads = 28;
-    thread_num_reset reseter;
-    // set threads envoriment
-    runtime_config_t::get().set_num_threads(run_threads);
+    SET_THREADS_OR_SKIP(run_threads);
 
     sc_graph_t graph;
     auto input_shape = sc_dims {28, 16, 56, 56};
@@ -1470,8 +1443,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestInputFusionAnchor1) {
     auto gemm = graph.make("managed_matmul_core",
             {reo0->get_outputs()[0], reo1->get_outputs()[0]}, {}, {});
     graph.make_output(gemm->get_outputs());
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(32);
+    SET_THREADS_OR_SKIP(32);
     ops::managed_matmul_core_config_t cfg = {32, 1, 1, 1, 1, 0};
     for (auto &op : graph.ops_) {
         if (op->op_name_ == "managed_matmul_core") {
@@ -1508,8 +1480,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestInputFusionAnchor2) {
     auto gemm = graph.make("managed_matmul_core",
             {reo0->get_outputs()[0], reo1->get_outputs()[0]}, {}, {});
     graph.make_output(gemm->get_outputs());
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(32);
+    SET_THREADS_OR_SKIP(32);
     ops::managed_matmul_core_config_t cfg = {32, 1, 1, 1, 1, 0};
     for (auto &op : graph.ops_) {
         if (op->op_name_ == "managed_matmul_core") {
@@ -1559,8 +1530,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically1) {
     auto add = graph.make(
             "add", {reo1->get_outputs()[0], reo0->get_outputs()[0]}, {}, {});
     graph.make_output(add->get_outputs());
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(56);
+    SET_THREADS_OR_SKIP(56);
     ops::managed_matmul_core_config_t cfg = {1, 56, 1, 1, 1, 0};
     for (auto &op : graph.ops_) {
         if (op->op_name_ == "managed_matmul_core") {
@@ -1607,8 +1577,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically2) {
     auto add = graph.make(
             "add", {reo0->get_outputs()[0], reo1->get_outputs()[0]}, {}, {});
     graph.make_output(add->get_outputs());
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(56);
+    SET_THREADS_OR_SKIP(56);
     ops::managed_matmul_core_config_t cfg = {1, 56, 1, 1, 1, 0};
     for (auto &op : graph.ops_) {
         if (op->op_name_ == "managed_matmul_core") {
@@ -1636,9 +1605,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically2) {
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically3) {
     sc_graph_t graph;
 
-    thread_num_reset reseter;
-    // set threads envoriment
-    runtime_config_t::get().set_num_threads(8);
+    SET_THREADS_OR_SKIP(8);
 
     int M, N, K;
     M = N = 256;
@@ -1800,8 +1767,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestPrefetchSelected) {
 }
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, ParallelMergeAndNoBarrier) {
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(16);
+    SET_THREADS_OR_SKIP(16);
     int M = 256, K1 = 2048, N = 1024;
 
     sc_graph_t graph;
@@ -1854,8 +1820,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, ParallelMergeAndNoBarrier) {
 }
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, ParallelMergeNotAppendInputAnchor) {
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(4);
+    SET_THREADS_OR_SKIP(4);
     int M = 256, K = 252, N = 256;
 
     sc_graph_t graph;

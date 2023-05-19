@@ -342,8 +342,7 @@ input ----- conv3x3 relu ------ concat -- output
 */
 TEST(GCCore_CPU_concat_op_t_cpp, InceptionLikeTopoConv) {
     REQUIRE_AVX2();
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(16);
+    SET_THREADS_OR_SKIP(16);
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     builder::ir_builder_t bld;
 
@@ -423,8 +422,7 @@ TEST(GCCore_CPU_concat_op_t_cpp, InceptionLikeTopoConv) {
 
 TEST(GCCore_CPU_concat_op_t_cpp, ConcatPermuteConcat) {
     REQUIRE_AVX2();
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(16);
+    SET_THREADS_OR_SKIP(16);
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     ctx->flags_.mixed_fusion_ = true;
 

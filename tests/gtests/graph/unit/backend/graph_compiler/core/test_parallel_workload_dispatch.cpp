@@ -61,8 +61,7 @@ TEST(GCCore_CPU_parallel_workload_dispatch, TestValidateWorkload) {
 }
 
 TEST(GCCore_CPU_parallel_workload_dispatch, TestParallelElimination) {
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(16);
+    SET_THREADS_OR_SKIP(16);
     builder::ir_builder_t builder;
     parallel_workload_dispatcher_t pass;
     _function_(datatypes::void_t, aaa, _arg_("args", datatypes::f32)) {

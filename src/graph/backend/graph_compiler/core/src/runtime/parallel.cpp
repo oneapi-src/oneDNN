@@ -77,7 +77,21 @@ extern "C" void sc_parallel_call_cpu_with_env_impl(
         });
 }
 
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
+int get_max_threadpool_concurrency() {
+    static int v = get_num_threads();
+    return v;
+}
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
+
 static void set_num_threads(int num) {
+    (void)get_max_threadpool_concurrency();
     dnnl_threadpool_interop_set_max_concurrency(num);
 }
 

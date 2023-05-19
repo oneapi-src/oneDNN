@@ -235,7 +235,9 @@ static void check_managed_matmul(const managed_gemm_params_t &param,
     }
     thread_num_reset reseter;
     // reduce the kernel number in ut.
-    if (param.is_dynamic()) { runtime_config_t::get().set_num_threads(14); }
+    if (param.is_dynamic()) {
+        if (!runtime_config_t::get().set_num_threads(14)) { GTEST_SKIP(); };
+    }
     mmm->dyn_cast<op_traits::may_quantize_t>()->is_quantized_ = is_quantized;
     sc_op_ptr output;
     if (fuse_sigmoid) {

@@ -588,6 +588,10 @@ struct thread_num_reset {
         GTEST_SKIP(); \
     }
 
+#define SET_THREADS_OR_SKIP(NUM) \
+    thread_num_reset reseter__; \
+    if (!runtime_config_t::get().set_num_threads(NUM)) { GTEST_SKIP(); }
+
 } // namespace gc
 } // namespace graph
 } // namespace impl

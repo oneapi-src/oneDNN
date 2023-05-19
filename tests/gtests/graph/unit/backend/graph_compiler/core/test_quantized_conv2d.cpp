@@ -314,8 +314,7 @@ TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, multi_os_block_NXC) {
 }
 TEST(GCCore_CPU_qconv2d, Test_2DConv_3x3_with_dilation_int8) {
     REQUIRE_AMX();
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(56);
+    SET_THREADS_OR_SKIP(56);
     std::vector<std::vector<int>> workload_list = {
             // prepadding
             {1, 256, 960, 38, 38, 12, 1, 0}, // deeplabv3_mobilenet

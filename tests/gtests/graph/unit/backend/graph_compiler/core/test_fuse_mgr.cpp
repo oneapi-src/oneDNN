@@ -1780,9 +1780,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerMultiAnchor) {
 
 TEST(GCCore_CPU_fuse_mgr_cpp, TestFusionManagerMultiAnchorShrink) {
     sc_graph_t mgr;
-    thread_num_reset reseter;
-    // set threads envoriment
-    runtime_config_t::get().set_num_threads(56);
+    SET_THREADS_OR_SKIP(56);
 
     // gemm + exp + reduce fusion pattern
     auto x = graph_tensor::make({8192, 256});
