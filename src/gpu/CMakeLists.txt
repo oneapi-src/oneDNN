@@ -56,7 +56,9 @@ set(COMPILER_ALLOWS_ALIAS_ATTRIBUTES_SOURCE
     int main() { return 0; }
 ")
 include(CheckCXXSourceCompiles)
+set(CMAKE_REQUIRED_FLAGS "-Werror")
 check_cxx_source_compiles("${COMPILER_ALLOWS_ALIAS_ATTRIBUTES_SOURCE}" COMPILER_ALLOWS_ALIAS_ATTRIBUTES)
+unset(CMAKE_REQUIRED_FLAGS)
 
 if(${COMPILER_ALLOWS_ALIAS_ATTRIBUTES})
     add_definitions_with_host_compiler(-DDNNL_STATUS_NODISCARD)
