@@ -76,3 +76,29 @@ TEST(ConstantCache, Evict) {
     ASSERT_EQ(cache.set_capacity(3), graph::status::success);
     ASSERT_EQ(cache.set_capacity(0), graph::status::success);
 }
+
+TEST(ConstantCache, RetainAndRelease) {
+    graph::engine_t &engine = *get_engine();
+    auto p_engine_ = dnnl_impl::make_dnnl_engine(engine);
+    auto g_alloc_
+            = static_cast<const graph::allocator_t *>(engine.get_allocator());
+    graph::dnnl_impl::constant_cache_t cache;
+
+    {
+        cache.retain();
+        std::promise<dnnl_impl::constant_cache_t::cached_t> c_promise1;
+        dnnl_impl::constant_cache_t::cached_t c_buffer1
+                = std::make_shared<dnnl_impl::constant_buffer_t>(
+                        1, p_engine_, g_alloc_);
+        c_promise1.set_value(c_buffer1);
+        ASSERT_FALSE(cache.get_or_add(1, c_promise1.get_future()).valid());
+        cache.release();
+    }
+
+    std::promise<dnnl_impl::constant_cache_t::cached_t> c_promise2;
+    dnnl_impl::constant_cache_t::cached_t c_buffer2
+            = std::make_shared<dnnl_impl::constant_buffer_t>(
+                    1, p_engine_, g_alloc_);
+    c_promise2.set_value(c_buffer2);
+    ASSERT_TRUE(cache.get_or_add(1, c_promise2.get_future()).valid());
+}
