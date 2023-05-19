@@ -28,7 +28,11 @@
 
 #include "cpu/jit_utils/jit_utils.hpp"
 
+#if defined(_WIN32) && !defined(__GNUC__)
+#define STRUCT_ALIGN(al, ...) __declspec(align(al)) __VA_ARGS__
+#else
 #define STRUCT_ALIGN(al, ...) __VA_ARGS__ __attribute__((__aligned__(al)))
+#endif
 
 #define DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_name) \
     const char *name() const override { return STRINGIFY(jit_name); } \
