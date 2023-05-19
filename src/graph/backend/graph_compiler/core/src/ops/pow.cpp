@@ -14,6 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 #include "pow.hpp"
+#include <cmath>
 #include <compiler/ir/graph/fusible_op.hpp>
 
 namespace dnnl {
@@ -41,7 +42,7 @@ void pow_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
     outputs = remake_logical_tensors(info_.outputs_);
-    auto pos_beta = std::abs(beta_);
+    auto pos_beta = std::fabs(beta_);
     sc_op_ptr fast_cal_last_op;
     // input
     graph->make_input(inputs);

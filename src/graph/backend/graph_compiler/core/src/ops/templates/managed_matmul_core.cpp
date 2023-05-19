@@ -16,6 +16,7 @@
 
 #include "managed_matmul_core.hpp"
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <string>
 #include "../fusible/memory_movement.hpp"
@@ -215,7 +216,7 @@ config_ptr gen_managed_matmul_core_t::get_default_transposed_a_config(
     } else {
       for (auto i : get_splits(num_threads)) {
         float new_cost
-          = std::abs(float(i * i) / float(num_threads) - float(N) / float(K));
+          = std::fabs(float(i * i) / float(num_threads) - float(N) / float(K));
         if (new_cost < cost) {
           cfg.N_split_num = i;
           cost = new_cost;
@@ -229,7 +230,7 @@ config_ptr gen_managed_matmul_core_t::get_default_transposed_a_config(
     } else {
       for (auto i : get_splits(num_threads)) {
         float new_cost
-          = std::abs(float(i * i) / float(num_threads) - float(M) / float(K));
+          = std::fabs(float(i * i) / float(num_threads) - float(M) / float(K));
         if (new_cost < cost) {
           cfg.M_split_num = i;
           cost = new_cost;
@@ -292,7 +293,7 @@ config_ptr gen_managed_matmul_core_t::get_default_transposed_a_config(
       float new_cost = 0.0;
       if (K <= 4096 || (M <= 512 && N <= 512)) {
         // For small matmul, make M_split_num / N_split_num closer to M / N
-        new_cost = std::abs(num_threads * N - i * i * M * split_k);
+        new_cost = std::fabs(num_threads * N - i * i * M * split_k);
       } else {
         // Cost = Shape_efficient_weight *
         // (workload_balance + divide_N_plenty) / core_utilitizaiton
