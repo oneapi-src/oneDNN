@@ -46,9 +46,7 @@ static void do_test_reduce_op(const sc_dims &in_shape,
     sc_graph_t graph;
     auto input = graph.make_input(
             {graph_tensor::make(in_shape, sc_data_format_t(), in_dtype)});
-    auto reduce = graph.make(reduce_name, {input->get_outputs()[0]},
-            {graph_tensor::make(sc_dims({3}), sc_data_format_t(),
-                    input->get_outputs()[0]->details_.dtype_)},
+    auto reduce = graph.make(reduce_name, {input->get_outputs()[0]}, {},
             {
                     {"rd_axis", rd_axis},
                     {"keep_dims", false},
@@ -322,9 +320,28 @@ TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp13) {
             });
 }
 
+// test all reduce + partial reduce + last reduce
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp14) {
+    const int out_size = 1;
+    thread_num_reset reseter;
+    // set num threads to trigger corner condition
+    runtime_config_t::get().set_num_threads(4);
+    do_test_reduce_op<float>(sc_dims({3, 3, 3, 3}),
+            std::vector<int>({0, 1, 2, 3}), "reduce_sum", out_size,
+            datatypes::f32, [&](std::vector<float> &input) {
+                auto ref_out = std::vector<float>(out_size, 0);
+                ref_out[0] = 0;
+                for (size_t i = 0; i < input.size(); ++i)
+                    ref_out[0] += input[i];
+                return ref_out;
+            });
+}
+
 // test reduce on all axis with fusing enabled
 TEST(GCCore_CPU_reduce_op_cpp, TestReduceOpFuse) {
     REQUIRE_AVX2();
+    // auto skip in avoid of reduce split
+    if (runtime_config_t::get().get_num_threads() < 6) { GTEST_SKIP(); }
     sc_graph_t graph;
     sc_dims in_shape = {3, 3, 3, 3};
     auto input_a = graph.make_input(

@@ -976,14 +976,14 @@ reduce_compute_op_t::reduce_compute_op_t(const graph_tensor_ptr &in,
 
     size_t in_dims = in->details_.get_blocking_dims().size();
     size_t expected_dims = in_dims;
-    if (is_partial_reduce()) {
-        expected_dims++;
-        attrs_[op_attr_key::break_post_fuse] = true;
-    }
     // if no keep dims
     if (!keep_dims_) {
         expected_dims
                 = std::max((size_t)1, (expected_dims - real_rd_axis_.size()));
+    }
+    if (is_partial_reduce()) {
+        expected_dims++;
+        attrs_[op_attr_key::break_post_fuse] = true;
     }
     // if last axis reduction
     if (real_rd_axis_.back() == static_cast<int>(in_dims) - 1) {
