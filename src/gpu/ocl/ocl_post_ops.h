@@ -75,8 +75,9 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
         unroll_for(typeof(out_len + 0) idx = 0; idx < out_len; ++idx) { \
             const int arg0_idx = arg0_len == 1 ? 0 : idx; \
             const int arg1_idx = arg1_len == 1 ? 0 : idx; \
-            res_ptr[idx] = fwd_Xnary(algorithm, convert_float(arg0_ptr[idx]), \
-                    convert_float(arg1_ptr[idx]), alpha, beta, scale); \
+            res_ptr[arg0_len == 1 && arg1_len == 1 ? 0 : idx] = fwd_Xnary( \
+                    po_kind, algorithm, convert_float(arg0_ptr[arg0_idx]), \
+                    convert_float(arg1_ptr[arg1_idx]), alpha, beta, scale); \
         } \
     }
 
