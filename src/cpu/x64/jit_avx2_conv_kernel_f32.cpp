@@ -42,6 +42,13 @@ using namespace dnnl::impl::utils;
 
 using namespace Xbyak;
 
+namespace {
+bool tag_is_flat(format_tag_t tag, format_tag_t ncx, format_tag_t nxc, int ic) {
+    // ncx and nxc are equivalent for single channel
+    return tag == ncx || (tag == nxc && ic == 1);
+}
+} // namespace
+
 jit_avx2_conv_fwd_kernel_f32::jit_avx2_conv_fwd_kernel_f32(
         const jit_conv_conf_t &ajcp, const primitive_attr_t &attr,
         const memory_desc_t &dst_md)
@@ -642,7 +649,7 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
                                     : pick(ndims - 3, Owi8o, Ohwi8o, Odhwi8o);
 
     jcp.src_tag
-            = src_d.matches_one_of_tag(dat_tag_ncx, dat_tag_nxc, dat_tag_nCx8c);
+            = src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_ncx, dat_tag_nCx8c);
     jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag_OIxio, wei_tag_Oxio);
     jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx8c);
 
@@ -702,7 +709,8 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     bool args_ok = true
             && IMPLICATION(flat,
                     jcp.wei_tag == wei_tag_Oxio
-                            && ((jcp.src_tag == dat_tag_ncx
+                            && ((tag_is_flat(jcp.src_tag, dat_tag_ncx,
+                                         dat_tag_nxc, jcp.ic)
                                         && jcp.dst_tag == dat_tag_nCx8c)
                                     || (jcp.src_tag == dat_tag_nxc
                                             && jcp.dst_tag == dat_tag_nxc)))
@@ -1352,7 +1360,7 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
                                     : pick(ndims - 3, Owi8o, Ohwi8o, Odhwi8o);
 
     jcp.src_tag
-            = src_d.matches_one_of_tag(dat_tag_ncx, dat_tag_nxc, dat_tag_nCx8c);
+            = src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_ncx, dat_tag_nCx8c);
     jcp.wei_tag
             = diff_weights_d.matches_one_of_tag(wei_tag_OIxio, wei_tag_Oxio);
     jcp.dst_tag = diff_dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx8c);
@@ -1400,7 +1408,8 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     bool args_ok = true
             && IMPLICATION(flat,
                     jcp.wei_tag == wei_tag_Oxio
-                            && ((jcp.src_tag == dat_tag_ncx
+                            && ((tag_is_flat(jcp.src_tag, dat_tag_ncx,
+                                         dat_tag_nxc, jcp.ic)
                                         && jcp.dst_tag == dat_tag_nCx8c)
                                     || (jcp.src_tag == dat_tag_nxc
                                             && jcp.dst_tag == dat_tag_nxc)))
