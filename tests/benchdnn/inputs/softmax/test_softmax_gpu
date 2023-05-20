@@ -46,6 +46,13 @@
 --stag=abcd --dtag=abcd
 --alg=LOGSOFTMAX --axis=3 64x3x224x224
 
+# tail cases for byte-alignment
+--reset
+--dir=FWD_I
+--stag=abc --dtag=abc
+--sdt=f16,f32,u8
+--axis=2 16x32x129 10x5x389
+
 # f32 precision testing for large tensors
 --reset
 --dir=FWD_D,BWD_D
