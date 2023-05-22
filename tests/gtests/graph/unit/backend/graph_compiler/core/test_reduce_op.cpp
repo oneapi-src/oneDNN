@@ -320,7 +320,6 @@ TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp13) {
 
 // test all reduce + partial reduce + last reduce
 TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp14) {
-    GTEST_SKIP();
     const int out_size = 1;
     // set num threads to trigger corner condition
     SET_THREADS_OR_SKIP(4);
@@ -870,10 +869,11 @@ TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNoMainOp) {
 }
 
 static void do_test_bf16(
-        test_buffer<bf16_t> &out, test_buffer<bf16_t> &refout) {
+        test_buffer<bf16_t> &out, test_buffer<bf16_t> &refout, bool &done) {
     thread_num_reset reseter;
     sc_graph_t graph;
     const int shape = 1024;
+    done = false;
     if (!runtime_config_t::get().set_num_threads(16)) { GTEST_SKIP(); }
     // make sure matmul has last level fusion anchor
     sc_data_format_t fmt1 = sc_data_format_t::MK();
@@ -919,12 +919,14 @@ static void do_test_bf16(
             0, shape, 1, [&](int64_t j) { refout[j] = bf16_t(ref_outf32[j]); });
     if (!runtime_config_t::get().set_num_threads(16)) { GTEST_SKIP(); }
     fptr->call_default(out.data(), in_a.data());
+    done = true;
 }
 
 TEST(GCCore_CPU_reduce_op_cpp, TestPartialBf16) {
     REQUIRE_BF16();
     test_buffer<bf16_t> out;
     test_buffer<bf16_t> refout;
-    do_test_bf16(out, refout);
-    test_utils::compare_data(out, refout);
+    bool done = false;
+    do_test_bf16(out, refout, done);
+    if (done) test_utils::compare_data(out, refout);
 }
