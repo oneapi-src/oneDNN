@@ -1361,10 +1361,8 @@ bool get_pool_alg(const deserialized_op &base_op_ref, ::pool::alg_t &alg) {
 void set_s8u8_for_prb(::pool::prb_t *prb,
         const std::unordered_map<size_t, const std::string> &map_off_to_dt,
         res_t *res) {
-    std::string cfg_str;
-    for (size_t offset = 0; offset < map_off_to_dt.size(); offset++) {
-        prb->dt[offset] = convert_dt(get_data_type(map_off_to_dt.at(offset)));
-    }
+    // since x8f32 is not support by cpu now and generate x8x8 primitive instead
+    prb->dt[0] = prb->dt[1] = convert_dt(get_data_type(map_off_to_dt.at(0)));
 }
 
 } //namespace pool
