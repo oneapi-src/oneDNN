@@ -348,7 +348,7 @@ public:
                                     bool valid = given.data_type
                                             != graph::data_type::undef;
                                     if (must_have_shape) {
-                                        valid = valid && given.ndims > 0;
+                                        valid = valid && given.ndims >= 0;
                                         for (size_t i = 0;
                                                 i < static_cast<size_t>(
                                                         given.ndims);
