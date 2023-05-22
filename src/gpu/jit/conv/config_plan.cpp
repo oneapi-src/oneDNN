@@ -1686,7 +1686,8 @@ public:
             if (status == plan_status_t::success) return status::success;
         }
 
-        if (plan_.slm && !cfg_.slm().is_overridden()) {
+        if ((use_slm(abc_kind_t::a) || use_slm(abc_kind_t::b))
+                && !cfg_.slm().is_overridden()) {
             ir_trace() << "Retry plan initialization without SLM" << std::endl;
             enable_slm(false);
             status = try_init_plan();
