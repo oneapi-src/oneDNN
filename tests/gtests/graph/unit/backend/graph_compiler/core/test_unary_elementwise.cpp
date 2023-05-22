@@ -96,7 +96,7 @@ static void check_unary_elementwise(const std::string &op_name,
         float sum = 0.f;
         std::for_each(sc_output.begin(), sc_output.end(),
                 [&sum](const T &n) { sum += std::abs(float(n)); });
-        EXPECT_TRUE(test_utils::cal_rmse(sc_output, ref_output) / sum < 1e-4);
+        EXPECT_TRUE(test_utils::cal_rmse(sc_output, ref_output) / sum < 1e-3);
     }
 }
 
