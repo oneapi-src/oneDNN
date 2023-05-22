@@ -27,6 +27,9 @@ extern "C" {
 /// @cond DO_NOT_DOCUMENT_THIS
 #include <stddef.h>
 #include <stdint.h>
+
+#include "oneapi/dnnl/dnnl_config.h"
+
 /// @endcond
 
 /// @addtogroup dnnl_api oneDNN API
@@ -178,30 +181,6 @@ typedef const struct dnnl_stream *const_dnnl_stream_t;
 
 /// @addtogroup dnnl_api_service
 /// @{
-
-/// No runtime (disabled)
-#define DNNL_RUNTIME_NONE 0u
-
-/// Sequential runtime (CPU only)
-#define DNNL_RUNTIME_SEQ 1u
-
-/// OpenMP runtime (CPU only)
-#define DNNL_RUNTIME_OMP 2u
-
-/// TBB runtime (CPU only)
-#define DNNL_RUNTIME_TBB 4u
-
-/// Threadpool runtime (CPU only)
-#define DNNL_RUNTIME_THREADPOOL 8u
-
-/// OpenCL runtime
-#define DNNL_RUNTIME_OCL 256u
-
-/// SYCL runtime
-#define DNNL_RUNTIME_SYCL 512u
-
-/// DPC++ runtime
-#define DNNL_RUNTIME_DPCPP DNNL_RUNTIME_SYCL
 
 /// Structure containing version information as per [Semantic
 /// Versioning](https://semver.org)

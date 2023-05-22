@@ -17,8 +17,6 @@
 #ifndef ONEAPI_DNNL_DNNL_CONFIG_H
 #define ONEAPI_DNNL_DNNL_CONFIG_H
 
-#include "oneapi/dnnl/dnnl_common_types.h"
-
 /// @cond DO_NOT_DOCUMENT_THIS
 
 // All symbols shall be internal unless marked as DNNL_API
@@ -56,6 +54,35 @@
 /// @endcond
 
 // clang-format off
+
+/// @addtogroup dnnl_api_service
+/// @{
+
+/// No runtime (disabled)
+#define DNNL_RUNTIME_NONE 0u
+
+/// Sequential runtime (CPU only)
+#define DNNL_RUNTIME_SEQ 1u
+
+/// OpenMP runtime (CPU only)
+#define DNNL_RUNTIME_OMP 2u
+
+/// TBB runtime (CPU only)
+#define DNNL_RUNTIME_TBB 4u
+
+/// Threadpool runtime (CPU only)
+#define DNNL_RUNTIME_THREADPOOL 8u
+
+/// OpenCL runtime
+#define DNNL_RUNTIME_OCL 256u
+
+/// SYCL runtime
+#define DNNL_RUNTIME_SYCL 512u
+
+/// DPC++ runtime
+#define DNNL_RUNTIME_DPCPP DNNL_RUNTIME_SYCL
+
+/// @} dnnl_api_service
 
 // oneDNN CPU threading runtime
 #cmakedefine DNNL_CPU_THREADING_RUNTIME DNNL_RUNTIME_${DNNL_CPU_THREADING_RUNTIME}
