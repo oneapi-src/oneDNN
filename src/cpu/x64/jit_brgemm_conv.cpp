@@ -452,9 +452,6 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
             * ((jcp_.exec_type == exec_trans && jcp_.kh_sets > 1) ? 0 : 1);
     wei_kw_offset = static_cast<dim_t>(wei_dsz) * wei_kw_stride;
 
-    batchsizes.resize(KD * KD * KH * KH);
-    fill(batchsizes.begin(), batchsizes.end(), -1);
-
     if (jcp_.use_uker) {
 
         assert(KD % KD_BLOCK == 0);
@@ -477,15 +474,15 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
                 const auto bs = kd_l * kh_l * jcp_.kw;
                 if (bs <= 0) continue;
 
-                const auto bs_idx = get_bs_idx(kd_s, kd_f, kh_s, kh_f);
-                if (batchsizes[bs_idx] == -1) {
-                    batchsizes[bs_idx] = bs_c;
+                const std::array<int, 4> key = {kd_s, kd_f, kh_s, kh_f};
+                if (batchsizes.find(key) == batchsizes.end()) {
+                    batchsizes.insert({key, bs_c});
                     bs_c++;
                 }
             }
         }
     } else {
-        batchsizes[get_bs_idx(0, KD, 0, KH)] = bs_c;
+        batchsizes.insert({{0, KD, 0, KH}, bs_c});
         bs_c++;
     }
 
@@ -530,11 +527,11 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
                             && jcp_.r_pad == 0))
                 && vM != jcp_.M && vM != jcp_.M_tail)
             continue;
-        for_(int kd_b = 0; kd_b < KD; kd_b++)
-        for_(int kd_e = 1; kd_e <= KD; kd_e++)
-        for_(int kh_b = 0; kh_b < KH; kh_b++)
-        for (int kh_e = 1; kh_e <= KH; kh_e++) {
-            if (batchsizes[get_bs_idx(kd_b, kd_e, kh_b, kh_e)] == -1) continue;
+        for (const auto &key_value_pair : batchsizes) {
+            const int kd_b = key_value_pair.first[0];
+            const int kd_e = key_value_pair.first[1];
+            const int kh_b = key_value_pair.first[2];
+            const int kh_e = key_value_pair.first[3];
             for_(int i_init = i_init_begin; i_init < i_init_end; i_init++)
             for_(int i_N = N_begin; i_N < N_end; i_N++)
             for (int i_K = K_begin; i_K < K_end; i_K++) {
@@ -847,12 +844,11 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
 
     is_amx = brgemm_convolution_utils::is_amx(isa);
 
-    for_(int kd_b = 0; kd_b < KD; kd_b++)
-    for_(int kd_e = 1; kd_e <= KD; kd_e++)
-    for_(int kh_b = 0; kh_b < KH; kh_b++)
-    for (int kh_e = 1; kh_e <= KH; kh_e++) {
-        if (_pd->batchsizes[_pd->get_bs_idx(kd_b, kd_e, kh_b, kh_e)] == -1)
-            continue;
+    for (const auto &key_value_pair : _pd->batchsizes) {
+        const int kd_b = key_value_pair.first[0];
+        const int kd_e = key_value_pair.first[1];
+        const int kh_b = key_value_pair.first[2];
+        const int kh_e = key_value_pair.first[3];
 
         for_(int i_N = N_begin; i_N < N_end; i_N++)
         for_(int i_M = M_begin; i_M < M_end; i_M++)
@@ -896,13 +892,11 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
 
                 auto M = ow_f - ow_s;
                 if (M <= 0) continue;
-                for_(int kd_b = 0; kd_b < KD; kd_b++)
-                for_(int kd_e = 1; kd_e <= KD; kd_e++)
-                for_(int kh_b = 0; kh_b < KH; kh_b++)
-                for (int kh_e = 1; kh_e <= KH; kh_e++) {
-                    if (_pd->batchsizes[_pd->get_bs_idx(kd_b, kd_e, kh_b, kh_e)]
-                            == -1)
-                        continue;
+                for (const auto &key_value_pair : _pd->batchsizes) {
+                    const int kd_b = key_value_pair.first[0];
+                    const int kd_e = key_value_pair.first[1];
+                    const int kh_b = key_value_pair.first[2];
+                    const int kh_e = key_value_pair.first[3];
                     for_(int i_init = 0; i_init < 2; i_init++)
                     for_(int i_N = 0; i_N < 2; i_N++)
                     for (int i_K = 0; i_K < 2; i_K++) {
@@ -938,13 +932,11 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
 
                 auto M = ow_f - ow_s;
                 if (M <= 0) continue;
-                for_(int kd_b = 0; kd_b < KD; kd_b++)
-                for_(int kd_e = 1; kd_e <= KD; kd_e++)
-                for_(int kh_b = 0; kh_b < KH; kh_b++)
-                for (int kh_e = 1; kh_e <= KH; kh_e++) {
-                    if (_pd->batchsizes[_pd->get_bs_idx(kd_b, kd_e, kh_b, kh_e)]
-                            == -1)
-                        continue;
+                for (const auto &key_value_pair : _pd->batchsizes) {
+                    const int kd_b = key_value_pair.first[0];
+                    const int kd_e = key_value_pair.first[1];
+                    const int kh_b = key_value_pair.first[2];
+                    const int kh_e = key_value_pair.first[3];
                     for_(int i_init = 0; i_init < 2; i_init++)
                     for_(int i_N = 0; i_N < 2; i_N++)
                     for (int i_K = 0; i_K < 2; i_K++) {
