@@ -495,3 +495,39 @@ TEST(Graph, SetFpmathMode) {
         ASSERT_EQ(graph2.get_fpmath_mode(), m);
     }
 }
+
+TEST(Graph, SetUserInputsOutputs) {
+    using namespace dnnl::impl::graph;
+    using namespace dnnl::impl::graph::op_kind;
+    using namespace dnnl::graph::tests::unit::utils;
+
+    op_t div(0, op_kind::Divide, "add_op");
+
+    // prepare logical tensor
+    logical_tensor_t src0 = logical_tensor_init(0, data_type::f32);
+    logical_tensor_t src1 = logical_tensor_init(1, data_type::f32);
+    logical_tensor_t dst = logical_tensor_init(2, data_type::f32);
+
+    div.add_input(src0);
+    div.add_input(src1);
+    div.add_output(dst);
+
+    graph_t g(engine_kind::cpu);
+    ASSERT_EQ(g.add_op(&div), status::success);
+    g.finalize();
+
+    logical_tensor_t src0_compile
+            = logical_tensor_init(0, {2, 2}, data_type::f32);
+    logical_tensor_t src1_compile = logical_tensor_init(1, {}, data_type::f32);
+
+    ASSERT_EQ(g.set_user_inputs_outputs({src0_compile, src1_compile}, {dst}),
+            status::success);
+    ASSERT_EQ(g.infer_shape(), status::success);
+    auto out_vals = g.get_output_values();
+    ASSERT_EQ(out_vals.size(), 1U);
+    logical_tensor_t out_lt = out_vals[0]->get_logical_tensor();
+    ASSERT_EQ(out_lt.id, 2U);
+    ASSERT_EQ(out_lt.ndims, 2);
+    ASSERT_EQ(out_lt.dims[0], 2);
+    ASSERT_EQ(out_lt.dims[1], 2);
+}
