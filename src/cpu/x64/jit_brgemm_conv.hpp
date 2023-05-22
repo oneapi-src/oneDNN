@@ -17,6 +17,9 @@
 #ifndef CPU_X64_JIT_BRGEMM_CONV_HPP
 #define CPU_X64_JIT_BRGEMM_CONV_HPP
 
+#include <array>
+#include <unordered_map>
+
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/memory_tracking.hpp"
@@ -73,23 +76,25 @@ struct brgemm_convolution_fwd_t : public primitive_t {
 
         // batch sizes info for unrolled kernels
         int bs_c;
-        std::vector<int> batchsizes;
-
-        inline size_t get_bs_idx(int kd_b, int kd_e, int kh_b, int kh_e) const {
-            assert(0 <= kd_b && kd_b < KD);
-            assert(1 <= kd_e && kd_e < KD + 1);
-            assert(0 <= kh_b && kh_b < KH);
-            assert(1 <= kh_e && kh_e < KH + 1);
-            return (((size_t)kd_b * KD + (kd_e - 1)) * KH + kh_b) * KH + kh_e
-                    - 1;
-        }
+        // need custom hasher to use array as key in unordered_map
+        struct hasher {
+            size_t operator()(const std::array<int, 4> &a) const {
+                size_t seed = 0;
+                for (auto e : a)
+                    seed = hash_combine(seed, e);
+                return seed;
+            }
+        };
+        std::unordered_map<std::array<int, 4>, int, hasher> batchsizes;
 
         inline size_t get_brg_idx(int m, bool do_initialization, bool is_N_tail,
                 bool is_K_tail, int kd_b, int kd_e, int kh_b, int kh_e) const {
-            auto bs_idx = jcp_.use_uker
-                    ? batchsizes[get_bs_idx(kd_b, kd_e, kh_b, kh_e)]
-                    : 0;
-            if (bs_idx < 0) return 0;
+            int bs_idx = 0;
+            if (jcp_.use_uker) {
+                const auto bs = batchsizes.find({kd_b, kd_e, kh_b, kh_e});
+                if (bs == batchsizes.end()) return 0;
+                bs_idx = bs->second;
+            }
             return (((m * bs_c + bs_idx) * 2
                             + static_cast<int>(do_initialization))
                                    * 2
@@ -109,10 +114,11 @@ struct brgemm_convolution_fwd_t : public primitive_t {
             for_(bool i_init : {false, true})
             for_(bool i_N_tail : {N_begin, N_end})
             for_(bool i_K_tail : {K_begin, K_end})
-            for_(int kd_b = 0; kd_b < KD; kd_b++)
-            for_(int kd_e = 1; kd_e <= KD; kd_e++)
-            for_(int kh_b = 0; kh_b < KH; kh_b++)
-            for (int kh_e = 1; kh_e <= KH; kh_e++) {
+            for (const auto &key_value_pair : batchsizes) {
+                const int kd_b = key_value_pair.first[0];
+                const int kd_e = key_value_pair.first[1];
+                const int kh_b = key_value_pair.first[2];
+                const int kh_e = key_value_pair.first[3];
                 const auto brg_idx = get_brg_idx(
                         m, i_init, i_N_tail, i_K_tail, kd_b, kd_e, kh_b, kh_e);
                 if ((*brgemm_descriptors_)[brg_idx]) return brg_idx;
