@@ -86,7 +86,7 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
             body, cfg_.kernel_grid(), builder.local_id(), expr_binding);
     profile.stamp("Bind Variables");
 
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
     profile.stop();
     verify_grf_usage(cfg, body, ra_.get_alloced_regs());
     profile.start();
@@ -99,7 +99,7 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
     generate_epilogue();
     profile.stop("Epilogue");
 
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
     ir_perf_no_trace() << profile << "\n";
 
     ir_trace() << "Actual register usage:           " << ra_.get_peak_regs()

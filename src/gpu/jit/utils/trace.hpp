@@ -28,7 +28,7 @@ class stmt_t;
 class ir_context_t;
 
 // Trace for debugging purposes.
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
 ir_utils::debug_profiler_t &get_trace_profiler();
 inline void trace_start() {
     if (get_verbose(verbose_t::debuginfo) >= ir_utils::LOG_TRACE)
@@ -57,7 +57,7 @@ inline void trace_stop(const char *) {};
 inline void trace_perf() {};
 #endif
 
-#if defined(DNNL_DEVEL_MODE)
+#if defined(DNNL_DEV_MODE)
 void trace_pass(
         const char *pass_name, const stmt_t &stmt, ir_context_t &ir_ctx);
 #else

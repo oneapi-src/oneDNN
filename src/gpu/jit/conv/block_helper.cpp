@@ -342,7 +342,7 @@ void block_helper_t::compute() {
         }
     }
 
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
     for (auto &kv : dims_) {
         auto &d = kv.second;
         const char *tags[] = {"iter", "tg", "loop"};
@@ -397,7 +397,7 @@ void block_helper_t::init_bmnk_blocks() {
     }
     if (is_tf32() && fma_kind_ != fma_kind_t::mad) reduce_m_block = true;
     int eu_thr_mul = (!is_ge_hpc && reduce_m_block) ? 2 : 4;
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
     eu_thr_mul = getenv_int("eu_thr_mul", eu_thr_mul);
 #endif
     auto &bn_dim = (vectorize_by_b() ? b_dim() : n_dim());
@@ -534,7 +534,7 @@ void block_helper_t::init_bmnk_blocks() {
     k_blk = compute_block(k_dim().size(), k_blk, k_dim().base_iter_block());
     bn_blk = compute_block(bn_dim.size(), bn_blk, bn_dim.base_iter_block());
 
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
     m_blk = getenv_int("m_iter_blk", m_blk);
     k_blk = getenv_int("k_iter_blk", k_blk);
     bn_blk = getenv_int("bn_iter_blk", bn_blk);
@@ -648,7 +648,7 @@ void block_helper_t::init_k_blocking() {
         def_k_loop_dim = std::min(100, def_k_loop_dim);
         def_k_loop_dim = std::max(1, def_k_loop_dim);
         int k_loop_dim = def_k_loop_dim;
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
         k_loop_dim = getenv_int("k_loop_dim", k_loop_dim);
 #endif
         k_dim().set_loop_dim(k_loop_dim);
@@ -676,7 +676,7 @@ void block_helper_t::init_k_blocking() {
 }
 
 bool block_helper_t::enable_k_tg_slicing() const {
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
     int env_value = getenv_int("enable_k_tg_slicing", -1);
     if (env_value != -1) return (bool)env_value;
 #endif

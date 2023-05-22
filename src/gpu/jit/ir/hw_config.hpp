@@ -63,7 +63,7 @@ public:
         max_wg_size_ = static_cast<int>(device_info->max_wg_size());
         large_grf_support_ = compute_engine->mayiuse_large_grf_mode();
 
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
         gpu_arch_t old_arch = gpu_arch;
         gpu_arch = ir_utils::getenv_gpu(
                 "gpu_arch", gpu_arch, &eu_count_, &max_wg_size_);

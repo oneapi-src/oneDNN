@@ -24,14 +24,14 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
 ir_utils::debug_profiler_t &get_trace_profiler() {
     static thread_local ir_utils::debug_profiler_t profiler("Trace Profile");
     return profiler;
 }
 #endif
 
-#if defined(DNNL_DEVEL_MODE)
+#if defined(DNNL_DEV_MODE)
 void trace_pass(
         const char *pass_name, const stmt_t &stmt, ir_context_t &ir_ctx) {
     trace_stop(pass_name);

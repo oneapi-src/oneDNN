@@ -27,7 +27,7 @@
 
 #include "cpu/x64/jit_uni_reorder.hpp"
 
-#if defined(DNNL_DEVEL_MODE)
+#if defined(DNNL_DEV_MODE)
 #define DEBUg(...) \
     do { \
         if (get_verbose(verbose_t::debuginfo) >= 5) { __VA_ARGS__ } \

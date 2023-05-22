@@ -55,7 +55,7 @@ public:
         , eu_count_(host->exec_cfg_.hw_cfg().eu_count()) {}
 
     ~ir_to_ngen_t() {
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
         if (bank_conflicts_ > 0)
             ir_warning() << "Found bank conflicts: " << bank_conflicts_
                          << std::endl;
@@ -276,7 +276,7 @@ private:
         return ngen_register_scope_t(host_->ra_);
     }
 
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
     void check_bank_conflicts(const ngen::InstructionModifier &mod,
             const ngen::RegData &_src0, const ngen::RegData &_src1,
             const ngen::RegData &_src2, bool is_dpas = false) {
@@ -761,7 +761,7 @@ private:
 
     std::vector<ngen::Label> loop_end_labels_;
 
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
     int bank_conflicts_ = 0;
     int bundle_conflicts_ = 0;
 #endif

@@ -769,11 +769,11 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
         ir_assert(ctx.saved_block_idx == 0);
         ir_assert(ctx.reg_mask == reg_mask);
 
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
         double search_time = get_msec();
 #endif
         found = search(ctx);
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
         search_time = get_msec() - search_time;
         ir_trace() << "Bank conflict allocation:" << std::endl;
         ir_trace() << "    Search time: " << search_time << " ms" << std::endl;

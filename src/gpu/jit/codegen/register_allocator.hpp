@@ -41,7 +41,7 @@ public:
     reg_allocator_t(ngen::HW hw, const std::string &kernel_name_,
             int warn_flags_ = warn_default)
         : ra(hw) {
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
         kernel_name = kernel_name_;
         warn_flags = warn_flags_;
 #endif
@@ -49,7 +49,7 @@ public:
         MAYBE_UNUSED(warn_flags_);
     }
     ~reg_allocator_t() {
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
         if ((warn_flags & warn_large_grf) && (peak_regs <= 128)
                 && (ra.getRegisterCount() > 128))
             ir_warning() << kernel_name
@@ -133,7 +133,7 @@ public:
 
     void setRegisterCount(int rcount) { ra.setRegisterCount(rcount); }
 
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
     int get_peak_regs() const { return peak_regs; }
     int get_alloced_regs() const { return ra.countAllocedRegisters(); }
 
@@ -150,7 +150,7 @@ public:
 #endif
 
 protected:
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
     void update_peak_grf_usage() {
         if (is_speculate) return;
         int register_count = get_alloced_regs();

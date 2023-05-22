@@ -365,7 +365,7 @@ private:
             compute::compute_stream_t *compute_stream,
             const memory_storage_t &workspace, const cl_ulong ws_offset,
             const int ws_part, const float val, const size_t size) const;
-#if DNNL_DEVEL_MODE
+#if DNNL_DEV_MODE
     status_t ws_print(const exec_ctx_t &ctx, compute::compute_stream_t *s,
             const workspace_t &workspace) const;
     compute::kernel_t ws_print_kernel_;

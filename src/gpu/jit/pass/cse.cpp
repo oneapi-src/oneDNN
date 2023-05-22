@@ -741,7 +741,7 @@ stmt_t eliminate_common_subexprs_impl(const stmt_t &_stmt, cse_context_t &ctx,
     cse_visitor_t visitor(ctx);
     visitor.visit(stmt);
 
-#if !defined(NDEBUG) || defined(DNNL_DEVEL_MODE)
+#if !defined(NDEBUG) || defined(DNNL_DEV_MODE)
     // Verify that collected IR paths are correct (cse_expr_t objects are
     // defined at those paths).
     cse_verifier_t verifier(ctx);

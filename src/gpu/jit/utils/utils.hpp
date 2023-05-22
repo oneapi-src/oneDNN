@@ -34,7 +34,7 @@
 // Uncomment this when aborting on ir_assert is desired:
 // #define IR_ABORT_ON_ERROR
 
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
 #include "common/profiler.hpp"
 #include "common/verbose.hpp"
 #endif
@@ -59,7 +59,7 @@ const int LOG_INFO = 150;
 const int LOG_PERF = 170;
 const int LOG_TRACE = 200;
 
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
 const int LOG_LEVEL = LOG_WARNING;
 #else
 const int LOG_LEVEL = LOG_OFF;
@@ -237,7 +237,7 @@ private:
 // related messages. Usage:
 //     ir_assert(condition) << "Error message" << ...;
 
-#if !defined(NDEBUG) || defined(DNNL_DEVEL_MODE)
+#if !defined(NDEBUG) || defined(DNNL_DEV_MODE)
 #define ir_assert(cond) \
     !(cond) \
             && dnnl::impl::gpu::jit::ir_utils::error_stream_t( \
@@ -260,7 +260,7 @@ public:
     operator bool() const { return true; }
 
     static bool is_enabled() {
-#if defined(DNNL_DEVEL_MODE)
+#if defined(DNNL_DEV_MODE)
         return get_verbose(verbose_t::debuginfo) >= level;
 #else
         return false;
@@ -598,7 +598,7 @@ ValueT get_or_default(const MapContainerT &map, const KeyT &key,
 }
 
 struct debug_profiler_t {
-#ifdef DNNL_DEBUG_MODE
+#ifdef DNNL_DEV_MODE
     debug_profiler_t(std::string profile_name) : profile(profile_name) {};
     void start() { profile.start(); };
     void stamp(const char *name) { profile.stamp(name); };
@@ -617,8 +617,8 @@ private:
     void stop() {};
     void reset() {};
     std::string str() const { return ""; };
-};
 #endif
+};
 
 } // namespace ir_utils
 } // namespace jit

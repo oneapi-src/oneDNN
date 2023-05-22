@@ -37,8 +37,8 @@
 
 #include "cpu/aarch64/jit_generator.hpp"
 
-// #define DNNL_DEVEL_MODE
-#if defined(DNNL_DEVEL_MODE)
+// #define DNNL_DEV_MODE
+#if defined(DNNL_DEV_MODE)
 #define DEBUg(...) \
     do { \
         if (get_verbose(verbose_t::debuginfo) > 1) { __VA_ARGS__ } \

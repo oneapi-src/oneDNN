@@ -29,8 +29,8 @@
 
 #include "cpu/aarch64/jit_uni_reorder.hpp"
 
-// #define DNNL_DEVEL_MODE
-#if defined(DNNL_DEVEL_MODE)
+// #define DNNL_DEV_MODE
+#if defined(DNNL_DEV_MODE)
 #define DEBUg(...) \
     do { \
         __VA_ARGS__ \

@@ -45,7 +45,7 @@ recommend using `ONEDNN_VERBOSE=all`, unless message printing overhead
 becomes noticeable.
 
 `debuginfo` information is available only if the library is built with
-`ONEDNN_DEVEL_MODE=ON`.
+`ONEDNN_DEV_MODE=ON`.
 
 
 oneDNN supports the following legacy settings:

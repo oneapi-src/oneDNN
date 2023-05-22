@@ -94,7 +94,7 @@ compute::kernel_t make_kernel(
     }
 #undef CASE
 
-#ifdef DNNL_DEVEL_MODE
+#ifdef DNNL_DEV_MODE
     gpu_gen_t actual_arch = ngen::HW::Unknown;
     switch (device_info->gpu_arch()) {
         case gpu_arch_t::gen9: actual_arch = gpu_gen9; break;

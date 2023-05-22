@@ -29,7 +29,7 @@
 #include "gpu/jit/utils/ngen_proxy.hpp"
 #include "gpu/jit/utils/utils.hpp"
 
-#if !defined(NDEBUG) || defined(DNNL_DEVEL_MODE)
+#if !defined(NDEBUG) || defined(DNNL_DEV_MODE)
 #define SANITY_CHECK 1
 #endif
 
