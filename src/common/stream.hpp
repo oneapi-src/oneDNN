@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,6 +49,20 @@ struct dnnl_stream : public dnnl::impl::c_compatible {
 
     virtual void before_exec_hook() {}
     virtual void after_exec_hook() {}
+
+    virtual dnnl::impl::status_t reset_profiling() {
+        return dnnl::impl::status::unimplemented;
+    }
+
+    virtual dnnl::impl::status_t get_profiling_data(
+            dnnl::impl::profiling_data_kind_t data_kind, int *num_entries,
+            uint64_t *data) const {
+        return dnnl::impl::status::unimplemented;
+    }
+
+    bool is_profiling_enabled() const {
+        return (flags() & dnnl::impl::stream_flags::profiling);
+    }
 
     virtual dnnl::impl::status_t zero_pad(const dnnl::impl::memory_t *memory,
             const dnnl::impl::exec_ctx_t &ctx);

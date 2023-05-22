@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -329,6 +329,10 @@ struct stream : public handle<dnnl_stream_t> {
         out_of_order = dnnl_stream_out_of_order,
         /// Default stream configuration.
         default_flags = dnnl_stream_default_flags,
+#ifdef DNNL_EXPERIMENTAL_PROFILING
+        /// Enables profiling capabilities.
+        profiling = dnnl_stream_profiling,
+#endif
     };
 
     /// Constructs an empty stream. An empty stream cannot be used in any

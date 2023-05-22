@@ -25,9 +25,8 @@
 #include "common/utils.hpp"
 #include "gpu/compute/compute_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-#include "gpu/profile.hpp"
 #include "gpu/sycl/sycl_gpu_engine.hpp"
-#include "sycl/profile.hpp"
+#include "sycl/profiler.hpp"
 #include "sycl/sycl_context.hpp"
 #include "sycl/sycl_memory_storage.hpp"
 
@@ -82,6 +81,21 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
     }
 
     void before_exec_hook() override;
+    void after_exec_hook() override;
+
+    status_t reset_profiling() override {
+        if (!is_profiling_enabled()) return status::invalid_arguments;
+        profiler_->reset();
+        return status::success;
+    }
+
+    status_t get_profiling_data(profiling_data_kind_t data_kind,
+            int *num_entries, uint64_t *data) const override {
+        if (!is_profiling_enabled()) return status::invalid_arguments;
+        return profiler_->get_info(data_kind, num_entries, data);
+    }
+
+    gpu::compute::profiler_t &profiler() { return *profiler_; }
 
     ::sycl::queue &queue() { return *queue_; }
 
@@ -203,7 +217,13 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                 cgh.copy(acc_src, acc_dst);
             });
         }
-        if (gpu::is_profiling_enabled()) register_profile_event(e);
+
+        if (is_profiling_enabled()) {
+            auto sycl_event = utils::make_unique<sycl_event_t>(
+                    std::vector<::sycl::event> {e});
+            profiler_->register_event(std::move(sycl_event));
+        }
+
         sycl_event_t::from(out_dep).events = {e};
 
         return status::success;
@@ -242,7 +262,13 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                 cgh.fill(acc_dst, pattern);
             });
         }
-        if (gpu::is_profiling_enabled()) register_profile_event(out_event);
+
+        if (is_profiling_enabled()) {
+            auto sycl_event = utils::make_unique<sycl_event_t>(
+                    std::vector<::sycl::event> {out_event});
+            profiler_->register_event(std::move(sycl_event));
+        }
+
         sycl_event_t::from(out_dep).events = {out_event};
         return status::success;
     }
@@ -293,10 +319,15 @@ protected:
     static status_t init_flags(unsigned *flags, ::sycl::queue &queue) {
         *flags = queue.is_in_order() ? stream_flags::in_order
                                      : stream_flags::out_of_order;
+
+        if (queue.has_property<::sycl::property::queue::enable_profiling>())
+            *flags |= stream_flags::profiling;
+
         return status::success;
     }
 
     std::unique_ptr<::sycl::queue> queue_;
+    std::unique_ptr<gpu::compute::profiler_t> profiler_;
     mutable utils::thread_local_storage_t<sycl_context_t> ctx_;
 
     // XXX: this is a temporary solution to make sycl_memory_arg_t

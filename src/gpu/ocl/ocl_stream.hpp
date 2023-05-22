@@ -27,6 +27,7 @@
 #include "gpu/ocl/ocl_context.hpp"
 #include "gpu/ocl/ocl_engine.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/ocl/profiler.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -73,6 +74,18 @@ struct ocl_stream_t : public compute::compute_stream_t {
     void before_exec_hook() override;
     void after_exec_hook() override;
 
+    status_t reset_profiling() override {
+        if (!is_profiling_enabled()) return status::invalid_arguments;
+        profiler_->reset();
+        return status::success;
+    }
+
+    status_t get_profiling_data(profiling_data_kind_t data_kind,
+            int *num_entries, uint64_t *data) const override {
+        if (!is_profiling_enabled()) return status::invalid_arguments;
+        return profiler_->get_info(data_kind, num_entries, data);
+    }
+
     cl_command_queue queue() const { return queue_; }
 
     const mdapi_helper_t &mdapi_helper() const { return *mdapi_helper_; }
@@ -106,6 +119,8 @@ struct ocl_stream_t : public compute::compute_stream_t {
         return deps[0];
     }
 
+    compute::profiler_t &profiler() { return *profiler_; }
+
 private:
     ocl_stream_t(engine_t *engine, unsigned flags)
         : compute_stream_t(engine, flags), queue_(nullptr) {}
@@ -124,6 +139,9 @@ private:
                 ? stream_flags::out_of_order
                 : stream_flags::in_order;
 
+        if (props & CL_QUEUE_PROFILING_ENABLE)
+            *flags |= stream_flags::profiling;
+
         return status::success;
     }
 
@@ -132,6 +150,7 @@ private:
 
     cl_command_queue queue_;
     std::unique_ptr<mdapi_helper_t> mdapi_helper_;
+    std::unique_ptr<compute::profiler_t> profiler_;
     mutable utils::thread_local_storage_t<ocl_context_t> ctx_;
 };
 

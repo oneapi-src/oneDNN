@@ -188,6 +188,10 @@ option(DNNL_EXPERIMENTAL_SPARSE
     independetly from DNNL_EXPERIMENTAL."
     OFF) # disabled by default
 
+option(DNNL_EXPERIMENTAL_PROFILING
+    "Enable experimental profiling capabilities. This option works independently
+    from DNNL_EXPERIMENTAL."
+    OFF) # disabled by default
 
 option(ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_BACKEND
     "builds oneDNN Graph API graph-compiler backend" OFF)

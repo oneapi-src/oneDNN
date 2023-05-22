@@ -65,12 +65,27 @@ int execute_and_wait(const std::vector<dnnl::graph::compiled_partition> &cp_v,
     return OK;
 }
 
+inline dnnl::stream::flags get_profiling_flags() {
+#ifdef DNNL_EXPERIMENTAL_PROFILING
+    return dnnl::stream::flags::profiling;
+#else
+    return static_cast<dnnl::stream::flags>(
+            dnnl::impl::stream_flags::profiling);
+#endif
+}
+
 inline int measure_perf_aggregate(timer::timer_t &t,
         std::vector<perf_function_t> &perf_func_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &inputs_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v) {
     const int max_batch_times = 10000;
-    cpp_stream_t stream {get_graph_engine()};
+    // Nvidia/AMD don't support profiling.
+    const bool use_profiling = is_gpu() && !is_nvidia_gpu() && !is_amd_gpu();
+    const dnnl::stream::flags flags = use_profiling
+            ? dnnl::stream::flags::default_flags | get_profiling_flags()
+            : dnnl::stream::flags::default_flags;
+    cpp_stream_t stream {get_graph_engine(), flags};
+
     // Warm-up run, this is not measured due to possibility the associated
     // kernel has not been built and skews the results.
     auto sz = perf_func_v.size();
@@ -83,10 +98,8 @@ inline int measure_perf_aggregate(timer::timer_t &t,
             = fix_times_per_prb ? fix_times_per_prb : min_times_per_prb;
 
     t.reset();
-    reset_gpu_profiling();
+    reset_gpu_profiling(((dnnl::stream)stream).get());
 
-    // Nvidia/AMD don't support profiling.
-    bool use_profiling = is_gpu() && !is_nvidia_gpu() && !is_amd_gpu();
     bool is_first_loop = true;
     while (true) {
         for_(size_t i = 0; i < sz; i++)
@@ -99,8 +112,8 @@ inline int measure_perf_aggregate(timer::timer_t &t,
         if (use_profiling) {
             std::vector<uint64_t> nsecs;
             std::vector<uint64_t> cycles;
-            get_gpu_profiling_info(nsecs, cycles);
-            reset_gpu_profiling();
+            get_gpu_profiling_info(((dnnl::stream)stream).get(), nsecs, cycles);
+            reset_gpu_profiling(((dnnl::stream)stream).get());
 
             // Profiling should have information to stop the cycle.
             if (nsecs.empty()) SAFE(FAIL, WARN);
@@ -134,7 +147,12 @@ inline int measure_perf_individual(timer::timer_t &t,
         std::vector<perf_function_t> &perf_func_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &inputs_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v) {
-    cpp_stream_t stream {get_graph_engine()};
+    const bool use_profiling = is_gpu() && !is_nvidia_gpu() && !is_amd_gpu();
+    const dnnl::stream::flags flags = use_profiling
+            ? dnnl::stream::flags::default_flags | get_profiling_flags()
+            : dnnl::stream::flags::default_flags;
+    cpp_stream_t stream {get_graph_engine(), flags};
+
     t.reset();
     while (true) {
         auto sz = perf_func_v.size();
@@ -154,14 +172,11 @@ int measure_perf(timer::timer_t &t, std::vector<perf_function_t> &perf_func_v,
     if (has_bench_mode_bit(mode_bit_t::perf)) {
         // enable GPU profiling, Nvidia/AMD dose not support profiling.
         int ret = OK;
-        bool use_profiling = is_gpu() && !is_nvidia_gpu() && !is_amd_gpu();
-        if (use_profiling) enable_gpu_profiling();
         if (is_cpu() && !is_sycl_engine()) {
             ret = measure_perf_individual(t, perf_func_v, inputs_v, outputs_v);
         } else {
             ret = measure_perf_aggregate(t, perf_func_v, inputs_v, outputs_v);
         }
-        if (use_profiling) disable_gpu_profiling();
         return ret;
     } else {
         return OK;
@@ -1340,7 +1355,8 @@ int get_prim_arg_name_from_graph_op_input_offset(
     }
 }
 
-cpp_stream_t::cpp_stream_t(const dnnl::engine &eng, void *interop_obj) {
+cpp_stream_t::cpp_stream_t(
+        const dnnl::engine &eng, dnnl::stream::flags flags, void *interop_obj) {
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
     if (eng.get_kind() == dnnl::engine::kind::cpu) {
         auto tp = static_cast<dnnl::threadpool_interop::threadpool_iface *>(
@@ -1350,7 +1366,7 @@ cpp_stream_t::cpp_stream_t(const dnnl::engine &eng, void *interop_obj) {
         return;
     }
 #endif
-    stream_ = dnnl::stream {eng};
+    stream_ = dnnl::stream {eng, flags};
 }
 
 cpp_engine_t::cpp_engine_t() {

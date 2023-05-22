@@ -148,6 +148,9 @@
 // When defined, graph component is enabled.
 #cmakedefine ONEDNN_BUILD_GRAPH
 
+// When defined, experimental profiling capabilities are enabled.
+#cmakedefine DNNL_EXPERIMENTAL_PROFILING
+
 // List of configurating build controls
 // Workload controls
 #cmakedefine01 BUILD_TRAINING

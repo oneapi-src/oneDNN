@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,34 +14,26 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_PROFILE_HPP
-#define GPU_PROFILE_HPP
-
-#include <unordered_map>
+#ifndef GPU_OCL_PROFILER_HPP
+#define GPU_OCL_PROFILER_HPP
 
 #include "common/c_types_map.hpp"
+#include "gpu/compute/profiler.hpp"
+#include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace ocl {
 
-enum class profile_mode_t : int {
-    sum = 0,
-    min = 1,
+struct ocl_profiler_t : public compute::profiler_t {
+    ocl_profiler_t(const stream_t *stream) : profiler_t(stream) {}
+
+    status_t get_info(profiling_data_kind_t data_kind, int *num_entries,
+            uint64_t *data) const override;
 };
 
-struct profile_entry_t {
-    uint64_t nsec = 0;
-    double freq = 0;
-    int kernel_count = 0;
-};
-
-bool is_profiling_enabled();
-
-status_t get_profile_info_impl(
-        const std::unordered_map<uint64_t, profile_entry_t> &entries,
-        uint64_t *nsecs, uint64_t *cycles);
-
+} // namespace ocl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -167,6 +167,10 @@ typedef enum {
     dnnl_stream_out_of_order = 0x2U,
     /// Default stream configuration.
     dnnl_stream_default_flags = dnnl_stream_in_order,
+#ifdef DNNL_EXPERIMENTAL_PROFILING
+    /// Enables profiling capabilities.
+    dnnl_stream_profiling = 0x4U,
+#endif
 } dnnl_stream_flags_t;
 
 /// @struct dnnl_stream

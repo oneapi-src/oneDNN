@@ -264,7 +264,9 @@ void change_format_to_ncx(First &first, Rest &...rest) {
 }
 
 struct cpp_stream_t {
-    cpp_stream_t(const dnnl::engine &eng, void *interop_obj = nullptr);
+    cpp_stream_t(const dnnl::engine &eng,
+            dnnl::stream::flags flags = dnnl::stream::flags::default_flags,
+            void *interop_obj = nullptr);
     void wait() { stream_.wait(); }
     operator dnnl::stream &() { return stream_; }
 
