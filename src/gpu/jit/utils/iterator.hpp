@@ -59,7 +59,7 @@ public:
 
         iterator_t(const inner_iter_t &it, const inner_iter_t &end,
                 predicate_t predicate)
-            : it_(it), end_(end), predicate_(predicate) {
+            : it_(it), end_(end), predicate_(std::move(predicate)) {
             if (it_ != end_ && !predicate_(*it_)) operator++();
         }
 
@@ -72,7 +72,9 @@ public:
     iterator_t end() const { return {end_, end_, predicate_}; }
 
     filter_t(const IterT &it, predicate_t predicate)
-        : begin_(it.begin()), end_(it.end()), predicate_(predicate) {}
+        : begin_(it.begin())
+        , end_(it.end())
+        , predicate_(std::move(predicate)) {}
 
 private:
     inner_iter_t begin_, end_;
@@ -81,7 +83,7 @@ private:
 
 template <typename IterT, typename FnT>
 filter_t<IterT> filter(const IterT &iter, FnT predicate) {
-    return {iter, predicate};
+    return {iter, std::move(predicate)};
 }
 
 // Given two iterators of the same type, creates an iterator whose value is a
@@ -125,7 +127,7 @@ public:
             , a_end_(a_end)
             , b_it_(b_it)
             , b_end_(b_end)
-            , cmp_(cmp) {}
+            , cmp_(std::move(cmp)) {}
 
     private:
         inner_iter_t a_it_, a_end_;
@@ -143,7 +145,7 @@ public:
         , a_end_(a.end())
         , b_begin_(b.begin())
         , b_end_(b.end())
-        , cmp_(cmp) {}
+        , cmp_(std::move(cmp)) {}
 
 private:
     inner_iter_t a_begin_, a_end_;
@@ -153,7 +155,7 @@ private:
 
 template <typename IterT, typename FnT>
 merge_t<IterT> merge(const IterT &a, const IterT &b, FnT cmp) {
-    return {a, b, cmp};
+    return {a, b, std::move(cmp)};
 }
 
 template <typename ResultT, typename IterT>
@@ -171,7 +173,7 @@ public:
         iterator_t &operator++() { return (++it_, *this); }
 
         iterator_t(const inner_iter_t &it, transform_op_t transform)
-            : it_(it), transform_(transform) {}
+            : it_(it), transform_(std::move(transform)) {}
 
     private:
         inner_iter_t it_;
@@ -184,7 +186,7 @@ public:
     transform_t(const IterT &iterable, transform_op_t transform)
         : begin_(iterable.begin())
         , end_(iterable.end())
-        , transform_(transform) {}
+        , transform_(std::move(transform)) {}
 
 private:
     inner_iter_t begin_, end_;
@@ -195,7 +197,7 @@ template <typename IterT, typename FnT,
         typename ResultT
         = decltype(std::declval<FnT>()(*(std::declval<const IterT>().begin())))>
 transform_t<ResultT, IterT> transform(IterT &&iter, FnT transform) {
-    return {iter, transform};
+    return {iter, std::move(transform)};
 }
 
 template <typename IterT>
