@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -298,5 +298,123 @@ TEST_F(ocl_stream_test_cpp_t, out_of_order_queue) {
     TEST_OCL_CHECK(clReleaseEvent(eltwise_event));
     TEST_OCL_CHECK(clReleaseCommandQueue(ocl_queue));
 }
+
+#ifdef DNNL_EXPERIMENTAL_PROFILING
+TEST_F(ocl_stream_test_cpp_t, TestProfilingAPIUserQueue) {
+    SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
+            "OpenCL GPU devices not found.");
+
+    memory::dims dims = {2, 3, 4, 5};
+    memory::desc md(dims, memory::data_type::f32, memory::format_tag::nchw);
+
+    auto eltwise_pd = eltwise_forward::primitive_desc(
+            eng, prop_kind::forward, algorithm::eltwise_relu, md, md, 0.0f);
+    auto eltwise = eltwise_forward(eltwise_pd);
+    auto mem = memory(md, eng);
+
+    cl_int err;
+#ifdef CL_VERSION_2_0
+    cl_queue_properties properties[]
+            = {CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE, 0};
+    cl_command_queue ocl_queue = clCreateCommandQueueWithProperties(
+            ocl_ctx, ocl_dev, properties, &err);
+#else
+    cl_command_queue_properties properties = CL_QUEUE_PROFILING_ENABLE;
+    cl_command_queue ocl_queue
+            = clCreateCommandQueue(ocl_ctx, ocl_dev, properties, &err);
+#endif
+
+    TEST_OCL_CHECK(err);
+
+    auto stream = ocl_interop::make_stream(eng, ocl_queue);
+    TEST_OCL_CHECK(clReleaseCommandQueue(ocl_queue));
+
+    // Reset profiler's state.
+    ASSERT_NO_THROW(reset_profiling(stream));
+
+    eltwise.execute(stream, {{DNNL_ARG_SRC, mem}, {DNNL_ARG_DST, mem}});
+    stream.wait();
+
+    // Query profiling data.
+    std::vector<uint64_t> nsec;
+    ASSERT_NO_THROW(
+            nsec = get_profiling_data(stream, profiling_data_kind::time));
+    ASSERT_FALSE(nsec.empty());
+
+    // Reset profiler's state.
+    ASSERT_NO_THROW(reset_profiling(stream));
+    // Test that the profiler's state was reset.
+    ASSERT_NO_THROW(
+            nsec = get_profiling_data(stream, profiling_data_kind::time));
+    ASSERT_TRUE(nsec.empty());
+}
+
+TEST_F(ocl_stream_test_cpp_t, TestProfilingAPILibraryQueue) {
+    SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
+            "OpenCL GPU devices not found.");
+
+    memory::dims dims = {2, 3, 4, 5};
+    memory::desc md(dims, memory::data_type::f32, memory::format_tag::nchw);
+
+    auto eltwise_pd = eltwise_forward::primitive_desc(
+            eng, prop_kind::forward, algorithm::eltwise_relu, md, md, 0.0f);
+    auto eltwise = eltwise_forward(eltwise_pd);
+    auto mem = memory(md, eng);
+
+    auto stream = dnnl::stream(eng, stream::flags::profiling);
+
+    // Reset profiler's state.
+    ASSERT_NO_THROW(reset_profiling(stream));
+
+    eltwise.execute(stream, {{DNNL_ARG_SRC, mem}, {DNNL_ARG_DST, mem}});
+    stream.wait();
+
+    // Query profiling data.
+    std::vector<uint64_t> nsec;
+    ASSERT_NO_THROW(
+            nsec = get_profiling_data(stream, profiling_data_kind::time));
+    ASSERT_FALSE(nsec.empty());
+
+    // Reset profiler's state.
+    ASSERT_NO_THROW(reset_profiling(stream));
+    // Test that the profiler's state was reset.
+    ASSERT_NO_THROW(
+            nsec = get_profiling_data(stream, profiling_data_kind::time));
+    ASSERT_TRUE(nsec.empty());
+}
+
+TEST_F(ocl_stream_test_cpp_t, TestProfilingAPIOutOfOrderQueue) {
+    SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
+            "OpenCL GPU devices not found.");
+    cl_int err;
+#ifdef CL_VERSION_2_0
+    cl_queue_properties properties[] = {CL_QUEUE_PROPERTIES,
+            CL_QUEUE_PROFILING_ENABLE | CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE,
+            0};
+    cl_command_queue ocl_queue = clCreateCommandQueueWithProperties(
+            ocl_ctx, ocl_dev, properties, &err);
+#else
+    cl_command_queue_properties properties = CL_QUEUE_PROFILING_ENABLE
+            | CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    cl_command_queue ocl_queue
+            = clCreateCommandQueue(ocl_ctx, ocl_dev, properties, &err);
+#endif
+    TEST_OCL_CHECK(err);
+
+    // Create stream with a user provided queue.
+    ASSERT_ANY_THROW(auto stream = ocl_interop::make_stream(eng, ocl_queue));
+    TEST_OCL_CHECK(clReleaseCommandQueue(ocl_queue));
+    // Create a stream with a library provided queue.
+    ASSERT_ANY_THROW(
+            auto stream = dnnl::stream(eng,
+                    stream::flags::out_of_order | stream ::flags::profiling));
+}
+
+TEST_F(ocl_stream_test_cpp_t, TestProfilingAPICPU) {
+    auto eng = engine(engine::kind::cpu, 0);
+    ASSERT_ANY_THROW(auto stream = dnnl::stream(eng, stream::flags::profiling));
+}
+
+#endif
 
 } // namespace dnnl

@@ -3354,6 +3354,45 @@ dnnl_cpu_isa_hints_t DNNL_API dnnl_get_cpu_isa_hints(void);
 
 /// @} dnnl_api_service
 
+#ifdef DNNL_EXPERIMENTAL_PROFILING
+
+/// @addtogroup dnnl_api_profiling Profiling
+/// @{
+
+/// Resets a profiler's state.
+///
+/// @param stream Stream associated with the profiler.
+///
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_reset_profiling(dnnl_stream_t stream);
+
+/// Queries profiling data. The profiling data accumulates for each primitive
+/// execution. The @p num_entries will be equal to the number of executions
+/// since the last `dnnl_reset_profiling` call. In order to query the
+/// @p num_entries the @p data parameter should be NULL. When @p data is NULL
+/// then the @p data_kind parameter is ignored.
+///
+/// The profiling data can be reset by calling #dnnl_reset_profiling.
+///
+/// @note
+///     It is required to wait for all submitted primitives to complete
+///     using #dnnl_stream_wait prior to querying profiling data.
+///
+/// @param stream Stream that was used for executing a primitive that
+/// is being profiled.
+/// @param data_kind Profiling data kind to query.
+/// @param num_entries Number of profiling data entries.
+/// @param data Profiling data.
+///
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_query_profiling_data(dnnl_stream_t stream,
+        dnnl_profiling_data_kind_t data_kind, int *num_entries, uint64_t *data);
+
+/// @} dnnl_api_profiling
+#endif
+
 /// @addtogroup dnnl_api_blas
 /// @{
 

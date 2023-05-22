@@ -18,10 +18,9 @@
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-#include "gpu/profile.hpp"
+#include "gpu/ocl/profiler.hpp"
 #include "gpu/zero_pad_struct.h"
 #include "sycl/level_zero_utils.hpp"
-#include "sycl/profile.hpp"
 #include "sycl/sycl_c_types_map.hpp"
 #include "sycl/sycl_stream.hpp"
 #include "sycl/sycl_utils.hpp"
@@ -135,7 +134,12 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
         }
     });
 
-    if (gpu::is_profiling_enabled()) register_profile_event(event);
+    if (stream.is_profiling_enabled()) {
+        auto sycl_event = utils::make_unique<sycl_event_t>(
+                std::vector<::sycl::event> {event});
+        sycl_stream->profiler().register_event(std::move(sycl_event));
+    }
+
     sycl_event_t::from(out_dep).events = {event};
     return status::success;
 }

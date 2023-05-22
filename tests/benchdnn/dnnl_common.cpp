@@ -45,14 +45,6 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
-        || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-extern "C" dnnl_status_t dnnl_impl_gpu_set_profiling(int flag);
-extern "C" dnnl_status_t dnnl_impl_gpu_reset_profiling();
-extern "C" dnnl_status_t dnnl_impl_gpu_get_profile_info(
-        int *num_entries, uint64_t *nsecs, uint64_t *cycles);
-#endif
-
 int check_pd_cache(const_dnnl_primitive_desc_t pd, res_t *res) {
     // Disable this check for threadpool. A threadpool is always defined in
     // validation infrastructure but creates primitives in a separate
@@ -383,43 +375,44 @@ int execute_and_wait(dnnl_primitive_t prim, const args_t &args, res_t *res) {
     return execute_and_wait(exec_func, engine, args, res);
 }
 
-void enable_gpu_profiling() {
+void reset_gpu_profiling(dnnl_stream_t stream) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
         || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-    DNN_SAFE_V(dnnl_impl_gpu_set_profiling(1));
+    DNN_SAFE_V(dnnl_reset_profiling(stream));
 #endif
 }
 
-void disable_gpu_profiling() {
+void get_gpu_profiling_info(dnnl_stream_t stream, std::vector<uint64_t> &nsecs,
+        std::vector<uint64_t> &cycles) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
         || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-    DNN_SAFE_V(dnnl_impl_gpu_reset_profiling());
-    DNN_SAFE_V(dnnl_impl_gpu_set_profiling(0));
-#endif
-}
+    dnnl_profiling_data_kind_t undef_kind {};
+    dnnl_profiling_data_kind_t time_kind {};
 
-void reset_gpu_profiling() {
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
-        || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-    DNN_SAFE_V(dnnl_impl_gpu_reset_profiling());
+    // This is an internal data kind.
+    dnnl_profiling_data_kind_t cycles_kind
+            = dnnl::impl::profiling_data_kind::cycles;
+#ifndef DNNL_EXPERIMENTAL_PROFILING
+    undef_kind = 0;
+    time_kind = 1;
+#else
+    undef_kind = dnnl_profiling_data_kind_undef;
+    time_kind = dnnl_profiling_data_kind_time;
 #endif
-}
 
-void get_gpu_profiling_info(
-        std::vector<uint64_t> &nsecs, std::vector<uint64_t> &cycles) {
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
-        || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
     int num_entries = 0;
-    DNN_SAFE_V(dnnl_impl_gpu_get_profile_info(&num_entries, nullptr, nullptr));
+    DNN_SAFE_V(dnnl_query_profiling_data(
+            stream, undef_kind, &num_entries, nullptr));
     nsecs.resize(num_entries);
     cycles.resize(num_entries);
-    DNN_SAFE_V(dnnl_impl_gpu_get_profile_info(
-            &num_entries, nsecs.data(), cycles.data()));
+    DNN_SAFE_V(dnnl_query_profiling_data(
+            stream, time_kind, &num_entries, nsecs.data()));
+    DNN_SAFE_V(dnnl_query_profiling_data(
+            stream, cycles_kind, &num_entries, cycles.data()));
 #endif
 }
 
 void finalize() {
-    reset_gpu_profiling();
     finalize_tbb();
 }
 
@@ -451,7 +444,7 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
             = fix_times_per_prb ? fix_times_per_prb : min_times_per_prb;
 
     t.reset();
-    reset_gpu_profiling();
+    reset_gpu_profiling(stream);
 
     // Nvidia/AMD don't support profiling.
     bool use_profiling = is_gpu() && !is_nvidia_gpu() && !is_amd_gpu();
@@ -465,8 +458,8 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
         if (use_profiling) {
             std::vector<uint64_t> nsecs;
             std::vector<uint64_t> cycles;
-            get_gpu_profiling_info(nsecs, cycles);
-            reset_gpu_profiling();
+            get_gpu_profiling_info(stream, nsecs, cycles);
+            reset_gpu_profiling(stream);
 
             // Profiling should have information to report, otherwise, stop.
             if (nsecs.empty()) {
@@ -505,11 +498,19 @@ int measure_perf(const thr_ctx_t &ctx, res_t *res, perf_function_t &perf_func,
         args_t &args) {
     if (!has_bench_mode_bit(mode_bit_t::perf)) return OK;
 
-    // GPU profiling need enabled before stream constructions, as the command
-    // queue needs profiling enabled.
-    if (is_gpu()) enable_gpu_profiling();
     const auto &engine = get_test_engine();
-    stream_t stream(engine, ctx.get_interop_obj());
+    dnnl_stream_flags_t profiling_flags {};
+#ifdef DNNL_EXPERIMENTAL_PROFILING
+    profiling_flags = dnnl_stream_profiling;
+#else
+    profiling_flags = static_cast<dnnl_stream_flags_t>(
+            dnnl::impl::stream_flags::profiling);
+#endif
+    const dnnl_stream_flags_t flags = is_gpu()
+            ? static_cast<dnnl_stream_flags_t>(
+                    dnnl_stream_default_flags | profiling_flags)
+            : dnnl_stream_default_flags;
+    stream_t stream(engine, flags, ctx.get_interop_obj());
     std::vector<dnnl_exec_arg_t> dnnl_args;
     execute_unmap_args(args, dnnl_args);
 
@@ -526,7 +527,6 @@ int measure_perf(const thr_ctx_t &ctx, res_t *res, perf_function_t &perf_func,
                 ctx, measure_perf_aggregate, t, stream, perf_func, dnnl_args);
     }
 
-    if (is_gpu()) disable_gpu_profiling();
     if (ret != OK) res->state = FAILED;
     execute_map_args(args);
 
@@ -1246,7 +1246,8 @@ engine_t::~engine_t() {
     if (is_owner_) DNN_SAFE_V(dnnl_engine_destroy(engine_));
 }
 
-stream_t::stream_t(dnnl_engine_t engine, void *interop_obj) {
+stream_t::stream_t(
+        dnnl_engine_t engine, dnnl_stream_flags_t flags, void *interop_obj) {
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
     if (is_cpu(engine)) {
         auto tp = static_cast<dnnl::threadpool_interop::threadpool_iface *>(
@@ -1256,7 +1257,7 @@ stream_t::stream_t(dnnl_engine_t engine, void *interop_obj) {
         return;
     }
 #endif
-    DNN_SAFE_V(dnnl_stream_create(&stream_, engine, dnnl_stream_default_flags));
+    DNN_SAFE_V(dnnl_stream_create(&stream_, engine, flags));
 }
 
 stream_t::~stream_t() {

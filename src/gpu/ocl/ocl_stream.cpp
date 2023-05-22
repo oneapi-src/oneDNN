@@ -23,8 +23,7 @@
 #include "common/verbose.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-#include "gpu/ocl/profile.hpp"
-#include "gpu/profile.hpp"
+#include "gpu/ocl/profiler.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -33,6 +32,7 @@ namespace ocl {
 
 status_t ocl_stream_t::init() {
     if (is_profiling_enabled()) {
+        profiler_ = utils::make_unique<ocl_profiler_t>(this);
         mdapi_helper_ = utils::make_unique<mdapi_helper_t>();
     }
     // Restore queue on successful exit, otherwise queue may be released
@@ -67,7 +67,7 @@ status_t ocl_stream_t::init() {
     }
     queue_ = queue;
 
-    if (gpu::is_profiling_enabled()) {
+    if (is_profiling_enabled()) {
         cl_command_queue_properties props;
         OCL_CHECK(clGetCommandQueueInfo(
                 queue_, CL_QUEUE_PROPERTIES, sizeof(props), &props, nullptr));
@@ -93,31 +93,25 @@ cl_command_queue ocl_stream_t::create_queue(
 
     const bool is_out_of_order = (flags() & stream_flags::out_of_order);
     if (is_out_of_order) assert(!is_profiling_enabled());
+
+    cl_command_queue_properties queue_props {};
+    if (is_profiling_enabled()) queue_props |= CL_QUEUE_PROFILING_ENABLE;
+    if (is_out_of_order) queue_props |= CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
 #ifdef CL_VERSION_2_0
-    cl_queue_properties profiling_props[]
-            = {CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE, 0};
-    cl_queue_properties out_of_order_props[]
-            = {CL_QUEUE_PROPERTIES, CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE, 0};
-    return clCreateCommandQueueWithProperties(ctx, dev,
-            is_profiling_enabled()    ? profiling_props
-                    : is_out_of_order ? out_of_order_props
-                                      : nullptr,
-            err);
+    cl_queue_properties props[] = {CL_QUEUE_PROPERTIES, queue_props, 0};
+    return clCreateCommandQueueWithProperties(ctx, dev, props, err);
 #else
-    return clCreateCommandQueue(ctx, dev,
-            is_profiling_enabled()    ? CL_QUEUE_PROFILING_ENABLE
-                    : is_out_of_order ? CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE
-                                      : 0,
-            err);
+    return clCreateCommandQueue(ctx, dev, queue_props, err);
 #endif
 }
 
 void ocl_stream_t::before_exec_hook() {
-    if (is_profiling_enabled()) notify_before_exec();
+    if (is_profiling_enabled()) profiler_->start_profiling();
 }
 
 void ocl_stream_t::after_exec_hook() {
     ocl_ctx().set_deps(ocl_event_t());
+    if (is_profiling_enabled()) profiler_->stop_profiling();
 }
 
 status_t ocl_stream_t::copy(const memory_storage_t &src,
@@ -251,7 +245,12 @@ status_t ocl_stream_t::copy(const memory_storage_t &src,
         return status::success;
     }
 
-    if (is_profiling_enabled()) register_profile_event(out_event, this);
+    if (is_profiling_enabled()) {
+        auto ocl_event = utils::make_unique<ocl_event_t>(
+                std::vector<ocl_wrapper_t<cl_event>> {out_event});
+        profiler_->register_event(std::move(ocl_event));
+    }
+
     if (flags() & stream_flags::out_of_order)
         ocl_event_t::from(out_dep).events = {out_event};
 
@@ -294,7 +293,12 @@ status_t ocl_stream_t::fill(const memory_storage_t &dst, uint8_t pattern,
         OCL_CHECK(err);
     }
 
-    if (is_profiling_enabled()) register_profile_event(out_event, this);
+    if (is_profiling_enabled()) {
+        auto ocl_event = utils::make_unique<ocl_event_t>(
+                std::vector<ocl_wrapper_t<cl_event>> {out_event});
+        profiler_->register_event(std::move(ocl_event));
+    }
+
     if (flags() & stream_flags::out_of_order)
         ocl_event_t::from(out_dep).events = {out_event};
 

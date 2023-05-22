@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,6 +39,11 @@ status_t dnnl_stream_create(
         stream_t **stream, engine_t *engine, unsigned flags) {
     bool args_ok = !utils::any_null(stream, engine);
     if (!args_ok) return invalid_arguments;
+
+    if (engine->kind() != engine_kind::gpu
+            && (flags & stream_flags::profiling)) {
+        return status::unimplemented;
+    }
 
     return engine->create_stream(stream, flags);
 }

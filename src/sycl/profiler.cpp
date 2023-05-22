@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,67 +15,50 @@
 *******************************************************************************/
 
 #include <atomic>
+#include <limits>
 #include <mutex>
+#include <utility>
 #include <vector>
+#include <unordered_map>
 
-#include "sycl/profile.hpp"
+#include "sycl/profiler.hpp"
 
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
-#include "gpu/profile.hpp"
-
-using namespace dnnl::impl::sycl;
+#include "sycl/sycl_stream.hpp"
+#include "sycl/sycl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace sycl {
 
-struct profile_event_t {
-    profile_event_t(const ::sycl::event &event, uint64_t stamp)
-        : event(event), stamp(stamp) {}
-
-    ::sycl::event event;
-    uint64_t stamp;
-};
-
-static std::vector<profile_event_t> events;
-static std::atomic<uint64_t> stamp(0);
-
-void notify_before_exec() {
-    stamp++;
-}
-
-void register_profile_event(const ::sycl::event &event) {
-    static std::mutex mutex;
-    std::lock_guard<std::mutex> lock(mutex);
-    events.emplace_back(event, stamp);
-}
-
-status_t get_profile_info(int *num_entries, uint64_t *nsecs, uint64_t *cycles) {
+status_t sycl_profiler_t::get_info(profiling_data_kind_t data_kind,
+        int *num_entries, uint64_t *data) const {
     using namespace ::sycl::info;
-    if (!num_entries || !!nsecs != !!cycles) return status::invalid_arguments;
-    if (!nsecs && !cycles) {
+    if (!num_entries) return status::invalid_arguments;
+    if (!data) {
         std::unordered_set<uint64_t> seen;
-        for (auto &ev : events)
+        for (auto &ev : events_)
             seen.insert(ev.stamp);
         *num_entries = (int)seen.size();
         return status::success;
     }
-    std::unordered_map<uint64_t, gpu::profile_entry_t> stamp2entry;
-    for (auto &ev : events) {
+
+    std::unordered_map<uint64_t, profiler_t::entry_t> stamp2entry;
+    for (auto &ev : events_) {
+        const sycl_event_t &sycl_event
+                = *utils::downcast<sycl_event_t *>(ev.event.get());
+        assert(sycl_event.size() == 1);
         auto beg
-                = ev.event.get_profiling_info<event_profiling::command_start>();
-        auto end = ev.event.get_profiling_info<event_profiling::command_end>();
+                = sycl_event[0]
+                          .get_profiling_info<event_profiling::command_start>();
+        auto end = sycl_event[0]
+                           .get_profiling_info<event_profiling::command_end>();
         auto &entry = stamp2entry[ev.stamp];
         entry.nsec += (end - beg);
         entry.kernel_count++;
     }
-    return gpu::get_profile_info_impl(stamp2entry, nsecs, cycles);
-}
-
-status_t reset_profiling() {
-    events.clear();
-    return status::success;
+    return profiler_t::get_info_impl(stamp2entry, data_kind, data);
 }
 
 } // namespace sycl

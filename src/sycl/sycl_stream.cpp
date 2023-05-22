@@ -18,8 +18,7 @@
 
 #include "common/verbose.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-#include "gpu/profile.hpp"
-#include "sycl/profile.hpp"
+#include "sycl/profiler.hpp"
 #include "sycl/sycl_engine.hpp"
 
 #include <map>
@@ -35,6 +34,9 @@ status_t sycl_stream_t::init() {
             && (flags() & stream_flags::out_of_order) == 0)
         return status::invalid_arguments;
 
+    if (is_profiling_enabled())
+        profiler_ = utils::make_unique<sycl_profiler_t>(this);
+
     auto &sycl_engine = *utils::downcast<sycl_engine_base_t *>(engine());
     auto &sycl_ctx = sycl_engine.context();
     auto &sycl_dev = sycl_engine.device();
@@ -42,7 +44,7 @@ status_t sycl_stream_t::init() {
     // If queue_ is not set then construct it
     if (!queue_) {
         ::sycl::property_list props;
-        if (gpu::is_profiling_enabled() && sycl_dev.is_gpu()) {
+        if (is_profiling_enabled() && sycl_dev.is_gpu()) {
             props = (flags() & stream_flags::in_order)
                     ? ::sycl::property_list {::sycl::property::queue::
                                                      in_order {},
@@ -70,8 +72,7 @@ status_t sycl_stream_t::init() {
         if (!args_ok) return status::invalid_arguments;
     }
 
-    if (gpu::is_profiling_enabled() && sycl_dev.is_gpu()
-            && !queue_->is_in_order()) {
+    if (is_profiling_enabled() && sycl_dev.is_gpu() && !queue_->is_in_order()) {
         VERROR(dpcpp,
                 "DPC++ kernel profiling is not supported with out-of-order "
                 "queues");
@@ -82,7 +83,11 @@ status_t sycl_stream_t::init() {
 }
 
 void sycl_stream_t::before_exec_hook() {
-    if (gpu::is_profiling_enabled()) notify_before_exec();
+    if (is_profiling_enabled()) profiler_->start_profiling();
+}
+
+void sycl_stream_t::after_exec_hook() {
+    if (is_profiling_enabled()) profiler_->stop_profiling();
 }
 
 } // namespace sycl

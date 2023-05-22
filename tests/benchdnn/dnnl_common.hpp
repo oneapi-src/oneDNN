@@ -72,6 +72,16 @@
         if (status__ != dnnl_success) { return status__; } \
     } while (0)
 
+#ifndef DNNL_EXPERIMENTAL_PROFILING
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
+        || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+using dnnl_profiling_data_kind_t = int;
+extern "C" dnnl_status_t dnnl_reset_profiling(dnnl_stream_t stream);
+extern "C" dnnl_status_t dnnl_query_profiling_data(dnnl_stream_t stream,
+        dnnl_profiling_data_kind_t data_kind, int *num_entries, uint64_t *data);
+#endif
+#endif
+
 int check_pd_cache(const_dnnl_primitive_desc_t pd, res_t *res);
 int check_primitive_cache(dnnl_primitive_t p, res_t *res);
 
@@ -232,7 +242,9 @@ private:
 };
 
 struct stream_t {
-    stream_t(dnnl_engine_t engine, void *interop_obj = nullptr);
+    stream_t(dnnl_engine_t engine,
+            dnnl_stream_flags_t flags = dnnl_stream_default_flags,
+            void *interop_obj = nullptr);
     ~stream_t();
     operator dnnl_stream_t() const { return stream_; }
 
@@ -672,14 +684,12 @@ int execute_and_wait(perf_function_t &exec_func, const dnnl_engine_t &engine,
 int execute_and_wait(
         dnnl_primitive_t prim, const args_t &args, res_t *res = nullptr);
 
-void reset_gpu_profiling();
-void enable_gpu_profiling();
-void disable_gpu_profiling();
+void reset_gpu_profiling(dnnl_stream_t stream);
 
 void finalize();
 
-void get_gpu_profiling_info(
-        std::vector<uint64_t> &nsecs, std::vector<uint64_t> &cycles);
+void get_gpu_profiling_info(dnnl_stream_t stream, std::vector<uint64_t> &nsecs,
+        std::vector<uint64_t> &cycles);
 int measure_perf(const thr_ctx_t &ctx, res_t *res, perf_function_t &perf_func,
         args_t &args);
 int measure_perf(

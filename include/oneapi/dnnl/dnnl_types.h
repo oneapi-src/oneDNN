@@ -71,6 +71,17 @@ typedef enum {
 } dnnl_sparse_encoding_t;
 #endif
 
+#ifdef DNNL_EXPERIMENTAL_PROFILING
+/// Profiling data kind.
+typedef enum {
+    /// Undefined profiling data kind.
+    dnnl_profiling_data_kind_undef = 0,
+    /// Data kind to query an execution time in nanoseconds.
+    dnnl_profiling_data_kind_time,
+} dnnl_profiling_data_kind_t;
+
+#endif
+
 /// Memory format tag specification.
 ///
 /// oneDNN formats describe physical data layout. The physical layout

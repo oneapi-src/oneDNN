@@ -207,6 +207,24 @@ const format_kind_t wino = internal_only_start;
 const format_kind_t rnn_packed = (format_kind_t)(internal_only_start + 1);
 } // namespace format_kind
 
+#ifdef DNNL_EXPERIMENTAL_PROFILING
+using profiling_data_kind_t = dnnl_profiling_data_kind_t;
+namespace profiling_data_kind {
+const profiling_data_kind_t undef = dnnl_profiling_data_kind_undef;
+const profiling_data_kind_t time = dnnl_profiling_data_kind_time;
+#else
+using profiling_data_kind_t = int;
+namespace profiling_data_kind {
+const profiling_data_kind_t undef = 0;
+const profiling_data_kind_t time = 1;
+#endif
+// Internal only data kinds.
+const profiling_data_kind_t internal_only_start
+        = (profiling_data_kind_t)(1 << 8);
+const profiling_data_kind_t cycles
+        = (profiling_data_kind_t)(internal_only_start + 1);
+} // namespace profiling_data_kind
+
 using format_tag_t = dnnl_format_tag_t;
 namespace format_tag {
 const format_tag_t undef = dnnl_format_tag_undef;
@@ -1872,6 +1890,11 @@ namespace stream_flags {
 const stream_flags_t in_order = dnnl_stream_in_order;
 const stream_flags_t out_of_order = dnnl_stream_out_of_order;
 const stream_flags_t default_flags = dnnl_stream_default_flags;
+#ifdef DNNL_EXPERIMENTAL_PROFILING
+const stream_flags_t profiling = dnnl_stream_profiling;
+#else
+const stream_flags_t profiling = static_cast<stream_flags_t>(0x4U);
+#endif
 } // namespace stream_flags
 using stream_t = dnnl_stream;
 

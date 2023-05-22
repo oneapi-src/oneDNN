@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,18 +14,25 @@
 * limitations under the License.
 *******************************************************************************/
 
+#ifndef SYCL_PROFILER_HPP
+#define SYCL_PROFILER_HPP
+
 #include "common/c_types_map.hpp"
-#include "sycl/sycl_utils.hpp"
+#include "gpu/compute/profiler.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace sycl {
 
-void notify_before_exec();
-void register_profile_event(const ::sycl::event &event);
-status_t get_profile_info(int *num_entries, uint64_t *nsecs, uint64_t *cycles);
-status_t reset_profiling();
+struct sycl_profiler_t : public gpu::compute::profiler_t {
+    sycl_profiler_t(const stream_t *stream) : profiler_t(stream) {}
+
+    status_t get_info(profiling_data_kind_t data_kind, int *num_entries,
+            uint64_t *data) const override;
+};
 
 } // namespace sycl
 } // namespace impl
 } // namespace dnnl
+
+#endif

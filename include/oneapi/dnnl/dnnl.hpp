@@ -12830,6 +12830,64 @@ inline cpu_isa_hints get_cpu_isa_hints() {
 
 /// @} dnnl_api_service
 
+#ifdef DNNL_EXPERIMENTAL_PROFILING
+/// @addtogroup dnnl_api_profiling Profiling
+/// @{
+
+/// Profiling data kind.
+enum class profiling_data_kind {
+    /// Undefined profiling data kind.
+    undef = dnnl_profiling_data_kind_undef,
+    /// Data kind to query an execution time in nanoseconds.
+    time = dnnl_profiling_data_kind_time,
+};
+
+/// Resets a profiler's state.
+///
+/// @param stream Stream associated with the profiler.
+inline void reset_profiling(stream &stream) {
+    error::wrap_c_api(
+            dnnl_reset_profiling(stream.get()), "could not reset profiling");
+}
+
+/// Returns requested profiling data. The profiling data accumulates for each
+/// primitive execution. The size of the vector will be equal to the number
+/// of executions since the last `dnnl::reset_profiling` call.
+///
+/// The profiling data can be reset by calling #dnnl::reset_profiling.
+///
+/// @note
+///     It is required to wait for all submitted primitives to complete
+///     using #dnnl::stream::wait prior to querying profiling data.
+///
+/// @param stream Stream that was used for executing a primitive that
+///     is being profiled.
+/// @param data_kind Profiling data kind to query.
+///
+/// @returns A vector with the requested profiling data.
+inline std::vector<uint64_t> get_profiling_data(
+        stream &stream, profiling_data_kind data_kind) {
+    int num_entries = 0;
+    error::wrap_c_api(
+            dnnl_query_profiling_data(stream.get(),
+                    static_cast<dnnl_profiling_data_kind_t>(data_kind),
+                    &num_entries, nullptr),
+            "could not get number of entries for profiling data");
+
+    if (num_entries == 0) return {};
+
+    std::vector<uint64_t> data(num_entries);
+    error::wrap_c_api(
+            dnnl_query_profiling_data(stream.get(),
+                    static_cast<dnnl_profiling_data_kind_t>(data_kind),
+                    &num_entries, data.data()),
+            "could not get profiling data");
+    return data;
+}
+
+/// @} dnnl_api_profiling
+#endif
+
 /// @addtogroup dnnl_api_primitive_cache Primitive Cache
 ///
 /// A set of functions that provide primitive cache control.
