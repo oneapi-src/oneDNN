@@ -520,10 +520,10 @@ layout_t view_t::create_pseudo_vlayout(
         if (tb_is_outermost) {
             // Use innermost dimension with maximum remaining size for first
             // block
-            int max_idx = tinfo.nvargs() - 1;
-            int max_vidx = tinfo.vidx(max_idx);
-            int max_vdim = rem_vdims[max_vidx];
-            for (int i = tinfo.nvargs() - 2; i >= 0; i--) {
+            int max_idx = -1;
+            int max_vidx = -1;
+            int max_vdim = 1;
+            for (int i = tinfo.nvargs() - 1; i >= 0; i--) {
                 int vidx = tinfo.vidx(i);
                 if (rem_vdims[vidx] > max_vdim) {
                     max_idx = i;
