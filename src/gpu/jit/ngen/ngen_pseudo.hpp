@@ -444,7 +444,7 @@ void memfence(const InstructionModifier &mod, FenceScopeLSC scope, FlushTypeLSC 
         return;
     }
 
-    if (flushing == FlushTypeLSC::None && hardware == HW::XeHPG)
+    if (flushing == FlushTypeLSC::None && hardware == HW::XeHPG && scope > FenceScopeLSC::Subslice)
         flushing = static_cast<FlushTypeLSC>(6);    /* workaround for DG2 bug */
 
     uint32_t desc = 0x0210011F;
