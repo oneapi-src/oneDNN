@@ -160,7 +160,6 @@ struct multi_po_reorder_sum : public gpu_primitive_t {
 
         auto dst = ctx.args().at(DNNL_ARG_DST);
         memory_arg_t dst_acc = {p_temp_dst_acc.get(), false};
-        exec_args_t r_args;
 
         auto has_bin = [](const post_ops_t &po) {
             bool retn = false;
@@ -169,6 +168,7 @@ struct multi_po_reorder_sum : public gpu_primitive_t {
             return retn;
         };
         for (int r = 0, s = 0; r < int(reorders_.size()); r++) {
+            exec_args_t r_args;
             const bool final_reorder = r == int(reorders_.size()) - 1;
             const auto &post_ops = reorders_[r]->pd()->attr()->post_ops_;
             if (final_reorder) dst_acc = {p_temp_dst_acc.get(), true};
