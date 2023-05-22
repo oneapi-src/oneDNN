@@ -65,7 +65,7 @@ extern "C" void sc_parallel_call_cpu_with_env_impl(
     int nthr = adjust_num_threads(
             std::min(get_num_threads(), dnnl_get_current_num_threads()),
             num_jobs);
-    if (nthr)
+    if (nthr) {
         dnnl::impl::parallel(nthr, [&](int ithr, int nthr) {
             runtime::thread_local_buffer_t::tls_buffer_.additional_
                     ->linear_thread_id_
@@ -75,6 +75,9 @@ extern "C" void sc_parallel_call_cpu_with_env_impl(
             };
             for_nd(ithr, nthr, num_jobs, f);
         });
+    }
+    runtime::thread_local_buffer_t::tls_buffer_.additional_->linear_thread_id_
+            = 0;
 }
 
 namespace dnnl {
