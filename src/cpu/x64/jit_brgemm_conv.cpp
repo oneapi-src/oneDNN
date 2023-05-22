@@ -48,18 +48,27 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init_batch(int icc,
         int ic_block_s, int iid_b, int iih_b, int iiw_b,
         const dim_t *const __restrict kw_top_vpads,
         const dim_t *const __restrict kw_bottom_vpads, int kd_b, int kd_e,
-        int kh_b, int kh_e, int kw_b, int kw_e, int k_l,
+        int kh_b, int kh_e, int kw_b, int kw_e, int &k_l,
         brgemm_batch_element_t *brg_batch) const {
     const char *ptrA {nullptr};
     const char *ptrB {nullptr};
     const auto &jcp = jcp_;
 
+    assert(IMPLICATION(jcp.exec_type == exec_relo, kw_b == 0));
+    assert(IMPLICATION(jcp.relo_type == relo_whi, kh_b == 0));
+
+    kh_e = jcp.kh_sets > 1 ? kh_b + 1 : kh_e;
+    kw_e = jcp.kw_sets > 1 ? kw_b + 1 : kw_e;
+
+    k_l = (kd_e - kd_b) * (kh_e - kh_b) * (kw_e - kw_b);
+    if (k_l == 0) return;
+
     const int icb = icc * jcp.nb_ic_blocking;
-    const int ic = icb * jcp.ic_block;
+    const int wei_ic_base = icb * jcp.ic_block;
 
     for (int i_icb = 0; i_icb < n_ic_blocks; i_icb++) {
         const auto ic_off = (ic_block_s + i_icb) * jcp.ic_block;
-        const auto wei_ic = ic + ic_off;
+        const auto wei_ic = wei_ic_base + ic_off;
         const auto n_icb_off = i_icb * k_l;
         const auto src_base_shift = (jcp.exec_type == exec_trans)
                 ? (jcp.copy_block_only ? 0 : (i_icb * pbuf_d_sz))
@@ -122,12 +131,12 @@ inline void brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::get_A_B(int icc,
         int iih_b, int iiw_b, int kd_b, int kh_b, const void *&ptrA,
         const void *&ptrB) const {
     const int icb = icc * jcp_.nb_ic_blocking;
-    const int ic = icb * jcp_.ic_block;
+    const int wei_ic_base = icb * jcp_.ic_block;
 
     // for brgemm_static_offs we need only base A_addr and B_addr
     const auto ic_off = ic_block_s * jcp_.ic_block;
-    const auto wei_ic = ic + ic_off;
-    const auto src_base_shift = (jcp_.exec_type == exec_trans) ? 0 : ic_off;
+    const auto wei_ic = wei_ic_base + ic_off;
+    const auto src_base_shift = one_of(jcp_.exec_type, exec_trans) ? 0 : ic_off;
     const auto src_base_ic = src_base + src_base_shift * src_dsz;
     const auto wei_base_ic = wei_base + wei_ic * wei_ic_offset;
 
@@ -207,33 +216,21 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
 
     std::vector<brgemm_batch_element_t> stoffs;
     if (jcp_.brg_type == brgemm_static_offs) {
-        const auto KH_SETS = jcp_.kh_sets;
-        const auto KW_SETS = jcp_.kw_sets;
-
-        assert(jcp_.exec_type == exec_trans);
+        assert(one_of(jcp_.exec_type, exec_trans, exec_base));
         const auto kd_f = nstl::min(kd_e, kd_b + KD_BLOCK);
         const auto kh_f = nstl::min(kh_e, kh_b + KH_BLOCK);
-        const auto k_l = (kd_f - kd_b) * (KH_SETS > 1 ? 1 : (kh_f - kh_b))
-                * (KW_SETS > 1 ? 1 : KW);
 
         assert(jcp_.nb_ic % jcp_.nb_ic_blocking == 0);
         const auto nb_ic_blocks = jcp_.nb_ic_blocking;
 
-        if (k_l > 0) {
+        stoffs.resize(jcp_.max_batch + 1);
+        int k_l {0};
 
-            const auto kh_ee = KH_SETS > 1 ? kh_b + 1 : kh_f;
-            const auto kw_e = KW_SETS > 1 ? 1 : KW;
+        init_batch(0, nullptr, nullptr, nb_ic_blocks, 0, 0, 0, 0, nullptr,
+                nullptr, kd_b, kd_f, kh_b, kh_f, 0, KW, k_l, stoffs.data());
 
-            stoffs.resize(jcp_.max_batch + 1);
-
-            init_batch(0, nullptr, nullptr, nb_ic_blocks, 0, 0, 0, 0, nullptr,
-                    nullptr, kd_b, kd_f, kh_b, kh_ee, 0, kw_e, k_l,
-                    stoffs.data());
-
-        } else {
-            // if k_l is 0 then it means the batchsize is 0
-            return status::success;
-        }
+        // if k_l is 0 then it means the batchsize is 0
+        if (k_l == 0) return status::success;
     }
 
     const auto kd_l = nstl::min(KD_BLOCK, kd_e - kd_b);
@@ -1757,7 +1754,6 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
     const auto call_brgemm = [&](int brg_idx, int ic_block_s, int n_ic_blocks,
                                      int comp_ker_offs, bool do_postops,
                                      bool do_only_comp) {
-        assert(k_l > 0 && "invalid batch range");
         const auto brg_ker = brgemm_kernels_[brg_idx];
         brgemm_palettes_.maybe_tile_configure(is_amx, btc.cur_brg_idx, brg_idx);
 
@@ -1771,6 +1767,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
             _pd->init_batch(btc.icc, src_base, wei_base, n_ic_blocks,
                     ic_block_s, iid, iih, iiw_b, nullptr, nullptr, kd_b, kd_e,
                     kh_b, kh_e, kw_b, kw_e, k_l, btc.brg_batch);
+            if (k_l <= 0) return;
         }
 
         call_brgemm_kernel(btc, brg_ker, k_l * n_ic_blocks, ptr_C, ptr_D,
@@ -1792,7 +1789,6 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
                 && btc.icc == (_pd->ic_chunks - 1);
         if (ow_e - ow_b <= 0 && !do_init && !do_postwork) return;
 
-        k_l = (kd_e - kd_b) * (kh_e - kh_b) * (kw_e - kw_b);
         iiw_b = ow_b * SW - LP;
         ptr_D = dst_base
                 + dst_dsz
@@ -1805,7 +1801,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
         const auto ow_l = ow_e - ow_b;
         assert(0 <= ow_l && ow_l <= jcp.ow_block);
 
-        if (ow_l > 0 && k_l > 0) {
+        if (ow_l > 0) {
             const auto comp_ker_offs = get_comp_offset(
                     btc.g, btc.ocb, ow_b, kd_s, kd_f, kh_s, kh_f, kw_b, kw_e);
 
@@ -1936,15 +1932,12 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
             && oh_l <= jcp.oh_block);
 
     const auto ker_i = (jcp.is_os_blocking ? oh_l * ow_l : ow_l) - 1;
-    const auto kw_e = jcp.kw_sets > 1 ? 1 : KW;
 
     const auto call_brgemm = [&](int brg_idx, int ic_block_s, int n_ic_blocks,
                                      bool do_postops) {
-        assert(k_l > 0 && "invalid batch range");
         const auto brg_ker = brgemm_kernels_[brg_idx];
         brgemm_palettes_.maybe_tile_configure(is_amx, btc.cur_brg_idx, brg_idx);
 
-        const auto kh_ee = jcp.kh_sets > 1 ? kh_b + 1 : kh_e;
         const auto pbuf_base = btc.inp_buffer
                 + src_dsz
                         * ((jcp.copy_block_only ? 0
@@ -1960,7 +1953,8 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
         } else {
             _pd->init_batch(btc.icc, pbuf_base, wei_base, n_ic_blocks,
                     ic_block_s, iid_b, iih_b, iiw_b, nullptr, nullptr, kd_b,
-                    kd_e, kh_b, kh_ee, 0, kw_e, k_l, btc.brg_batch);
+                    kd_e, kh_b, kh_e, 0, KW, k_l, btc.brg_batch);
+            if (k_l <= 0) return;
         }
 
         call_brgemm_kernel(btc, brg_ker, k_l * n_ic_blocks, ptr_C, ptr_D,
@@ -1973,9 +1967,6 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
                 && btc.icc == (_pd->ic_chunks - 1) && kd_e == kd_f
                 && kh_e == kh_f;
         if (ow_e - ow_b <= 0 && !do_init && !do_postwork) return;
-
-        k_l = (kd_e - kd_b) * (jcp.kh_sets > 1 ? 1 : (kh_e - kh_b))
-                * (jcp.kw_sets > 1 ? 1 : KW);
 
         int kernel_idx[2][2];
         kernel_idx[false][false] = _pd->get_brg_idx(
@@ -2063,6 +2054,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
         _pd->init_batch(btc.icc, src_base, wei_base, n_ic_blocks, ic_block_s,
                 iid, iih, iiw_b, kw_top_vpads, kw_bottom_vpads, kd_b, kd_e,
                 kh_b, kh_e, 0, KW, k_l, btc.brg_batch);
+        if (k_l <= 0) return;
 
         call_brgemm_kernel(btc, brg_ker, k_l * n_ic_blocks, ptr_C, ptr_D,
                 bias_w, g_oc, do_postops, comp_ker_offs, false);
@@ -2076,7 +2068,6 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
 
         if (ow_e - ow_b <= 0 && !do_init && !do_postwork) return;
 
-        k_l = (kd_e - kd_b) * (kh_e - kh_b) * KW;
         int kernel_idx[2][2];
         kernel_idx[false][false] = _pd->get_brg_idx(
                 ker_i, false, is_oc_tail, false, kd_s, kd_f, kh_s, kh_f);

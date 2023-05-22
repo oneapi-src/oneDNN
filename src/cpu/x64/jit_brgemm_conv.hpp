@@ -141,7 +141,7 @@ struct brgemm_convolution_fwd_t : public primitive_t {
                 int n_ic_blocks, int ic_block_s, int iid_b, int iih_b,
                 int iiw_b, const dim_t *const __restrict kw_top_vpads,
                 const dim_t *const __restrict kw_bottom_vpads, int kd_b,
-                int kd_e, int kh_b, int kh_e, int kw_b, int kw_e, int k_l,
+                int kd_e, int kh_b, int kh_e, int kw_b, int kw_e, int &k_l,
                 brgemm_batch_element_t *brg_batch) const;
 
         void get_A_B(int icc, const char *src_base, const char *wei_base,
