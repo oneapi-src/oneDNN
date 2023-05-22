@@ -287,6 +287,16 @@ inline PipeMask allPipes(HW hw)
     return mask;
 }
 
+// Get the execution data type for an instruction.
+template <typename Instruction>
+inline unsigned execType(const Instruction &insn)
+{
+    auto execDT = insn.dstTypecode();
+    if (insn.src0Typecode() == 0b1011)
+        execDT = 0b1011;
+    return execDT;
+}
+
 // Get the execution pipe for an instruction.
 template <typename Instruction>
 inline GeneralizedPipe getPipe(HW hw, const Instruction &insn, bool checkOOO = true)
@@ -297,7 +307,7 @@ inline GeneralizedPipe getPipe(HW hw, const Instruction &insn, bool checkOOO = t
         return GeneralizedPipe();
 
     // Check OOO instructions.
-    if (trackedByToken(hw, op, insn.dstTypecode())) {
+    if (trackedByToken(hw, op, execType(insn))) {
         if (!checkOOO)
             return GeneralizedPipe();
         switch (op) {
@@ -1503,7 +1513,7 @@ inline void analyze(HW hw, int tokens, Program &program, BasicBlock &bb, int pha
             bb.producers.removeByTokenMask(1 << tokenInfo.token, true);
             preconsumeTokenSrc |= (1 << tokenInfo.token);
             preconsumeTokenDst |= (1 << tokenInfo.token);
-        } else if (trackedByToken(hw, insn.opcode(), insn.dstTypecode())) {
+        } else if (trackedByToken(hw, insn.opcode(), execType(insn))) {
             generated.token = tokenInfo.token = tokenInfo.tokenTBD;
             tokenInfo.tokenSrc = tokenInfo.tokenDst = true;
         }
@@ -1567,7 +1577,7 @@ inline void analyze(HW hw, int tokens, Program &program, BasicBlock &bb, int pha
             }
 
             // Check if we need to assign an SBID to this instruction.
-            bool assignSBID = (phase == 1) && trackedByToken(hw, insn.opcode(), insn.dstTypecode()) && (tokenInfo.token == tokenInfo.tokenTBD) && !insn.atomic();
+            bool assignSBID = (phase == 1) && trackedByToken(hw, insn.opcode(), execType(insn)) && (tokenInfo.token == tokenInfo.tokenTBD) && !insn.atomic();
 
             // Analyze operands.
             for (int srcN = 2; srcN >= -1; srcN--) {
