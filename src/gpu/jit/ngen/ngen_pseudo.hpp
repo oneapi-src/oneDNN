@@ -575,9 +575,11 @@ void epilogue(int GRFCount, bool hasSLM, const RegData &r0_info)
     switch (hardware) {
         case HW::XeLP:
         case HW::XeHP:
-        case HW::XeHPG:
             doMemFence = true;
             doSLMFence = true;
+            setAccToZero = true;
+            break;
+        case HW::XeHPG:
             setAccToZero = true;
             break;
         default: break;
