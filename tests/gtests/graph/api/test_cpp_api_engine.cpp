@@ -16,19 +16,20 @@
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
-#include "test_api_common.hpp"
 #include "gtest/gtest.h"
 
-TEST(APIEngine, DefaultEngineAllocator) {
-    using namespace dnnl::graph;
-    using dt = logical_tensor::data_type;
-    using lt = logical_tensor::layout_type;
+#include "test_allocator.hpp"
+#include "test_api_common.hpp"
 
-    SKIP_IF(DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
-                    || DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL,
-            "Skip the case when CPU runtime is NONE or SYCL");
+using namespace dnnl::graph;
+using dt = logical_tensor::data_type;
+using lt = logical_tensor::layout_type;
 
-    graph g(engine::kind::cpu);
+// construct a partition with single convolution op and execute it with a given
+// engine.
+void execute_single_conv(const dnnl::engine &eng) {
+    const engine::kind ek = eng.get_kind();
+    graph g(ek);
 
     const std::vector<int64_t> src_dims = {1, 10, 10, 3};
     const std::vector<int64_t> wei_dims = {3, 3, 3, 3};
@@ -54,9 +55,6 @@ TEST(APIEngine, DefaultEngineAllocator) {
 
     auto parts = g.get_partitions();
 
-    // use the native engine to compile and execute a graph partition. The
-    // native engine should contain a default allocator.
-    engine eng = engine(engine::kind::cpu, 0);
     auto cp = parts[0].compile({src, wei}, {dst}, eng);
 
     stream str = stream(eng);
@@ -73,4 +71,33 @@ TEST(APIEngine, DefaultEngineAllocator) {
 
     cp.execute(str, {ts_src, ts_wei}, {ts_dst});
     str.wait();
+}
+
+TEST(APIEngine, DefaultEngineAllocator) {
+    SKIP_IF(DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
+                    || DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL,
+            "Skip the case when CPU runtime is NONE or SYCL");
+
+    // use the native engine to compile and execute a graph partition. The
+    // native engine should contain a default allocator.
+    engine eng = engine(engine::kind::cpu, 0);
+    execute_single_conv(eng);
+}
+
+static dnnl::engine create_cpu_engine() {
+    allocator alloc {
+            dnnl::graph::testing::allocate, dnnl::graph::testing::deallocate};
+    engine eng = make_engine_with_allocator(engine::kind::cpu, 0, alloc);
+    return eng;
+}
+
+TEST(APIEngine, UserAllocator) {
+    SKIP_IF(DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
+                    || DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL,
+            "Skip the case when CPU runtime is NONE or SYCL");
+
+    // use a local allocator to create engine. The allocator object will be
+    // invalidated when exiting this function.
+    engine eng = create_cpu_engine();
+    execute_single_conv(eng);
 }
