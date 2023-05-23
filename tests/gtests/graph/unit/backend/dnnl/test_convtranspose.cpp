@@ -1094,7 +1094,7 @@ TEST(ExecuteSubgraphInt8, GroupConvTransposePerTensorScale) {
     std::default_random_engine generator(7);
     std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
     std::generate(src_s8_data.begin(), src_s8_data.end(),
-            [&]() { return static_cast<uint8_t>(s8_distribution(generator)); });
+            [&]() { return static_cast<int8_t>(s8_distribution(generator)); });
     std::generate(weight_s8_data.begin(), weight_s8_data.end(),
             [&]() { return static_cast<int8_t>(s8_distribution(generator)); });
 
