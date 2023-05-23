@@ -978,9 +978,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::generate() {
 
     if (jcp.is_depthwise) {
         bool is_zero_point = jcp.src_zero_point || jcp.dst_zero_point;
-        // dst zero point and dst scale reuse the same register
-        int idx = jcp.max_regs_ur - 1
-                + nstl::max(2 * is_zero_point, static_cast<int>(jcp.dst_scale));
+        int idx = jcp.max_regs_ur - 1 + 2 * is_zero_point;
         if (!jcp.is_resrc_depthwise) zmm_src = Zmm(++idx);
         if (!jcp.has_vnni) zmm_tmp = Zmm(++idx);
         if (jcp.is_fast_depthwise) zmm_permute = Zmm(++idx);
@@ -989,8 +987,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::generate() {
         // and/or saturation, we increment by one more
         if (jcp.signed_input || jcp.need_saturation) ++idx;
 
-        assert(IMPLICATION(!jcp.dst_scale && !is_zero_point
-                        && jcp.dst_dt != data_type::bf16,
+        assert(IMPLICATION(!is_zero_point && jcp.dst_dt != data_type::bf16,
                 idx == ker_dw_reg_base_idx));
     }
     if (!jcp.is_depthwise && (!jcp.has_vnni)) {
@@ -1503,7 +1500,6 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     // TODO: re-implement so that the JIT Kernel uses the least amount of
     // registers. Currently, there are issues because of compile and run time
     // definitions.
-    if (jcp.dst_scale) jcp.max_regs_ur = 26;
     if (jcp.src_zero_point || jcp.dst_zero_point) jcp.max_regs_ur = 25;
 
     auto set_or_check_wei_format = [&]() {
