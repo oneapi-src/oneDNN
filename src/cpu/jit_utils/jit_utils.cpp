@@ -47,16 +47,19 @@ namespace jit_utils {
 
 // TODO (rsdubtso): support prefix for code dumps
 
+#define DUMP_BASE_FNAME "dnnl_dump_cpu_"
+#define DUMP_EXT_FNAME ".bin"
+#define MAX_FNAME_LEN 256
+#define MAX_CODENAME_LEN \
+    (MAX_FNAME_LEN - sizeof(DUMP_BASE_FNAME) - sizeof(DUMP_EXT_FNAME))
+
 void dump_jit_code(const void *code, size_t code_size, const char *code_name) {
 #if DNNL_ENABLE_JIT_DUMP
     if (code && get_jit_dump()) {
-        static int counter = 0;
-#define MAX_FNAME_LEN 256
         char fname[MAX_FNAME_LEN + 1];
         // TODO (Roma): support prefix for code / linux perf dumps
-        snprintf(fname, MAX_FNAME_LEN, "dnnl_dump_cpu_%s.%d.bin", code_name,
-                counter);
-        counter++;
+        snprintf(fname, MAX_FNAME_LEN, DUMP_BASE_FNAME "%s" DUMP_EXT_FNAME,
+                code_name);
 
         FILE *fp = fopen(fname, "wb+");
         // Failure to dump code is not fatal
@@ -66,7 +69,6 @@ void dump_jit_code(const void *code, size_t code_size, const char *code_name) {
             fclose(fp);
         }
     }
-#undef MAX_FNAME_LEN
 #else
     UNUSED(code);
     UNUSED(code_size);
@@ -127,11 +129,20 @@ void register_jit_code(const void *code, size_t code_size,
     // consists of lock and unlock code
 #if DNNL_ENABLE_JIT_PROFILING || DNNL_ENABLE_JIT_DUMP
     static std::mutex m;
+    static int unique_id = 0;
+
     std::lock_guard<std::mutex> guard(m);
 
-    dump_jit_code(code, code_size, code_name);
+    char unique_code_name[MAX_CODENAME_LEN + 1];
+    snprintf(unique_code_name, MAX_CODENAME_LEN, "%s.%d", code_name,
+            unique_id++);
+
+    dump_jit_code(code, code_size, unique_code_name);
+    // VTune Profiler does not need a unique name, because it uses
+    // unique method_id
     register_jit_code_vtune(code, code_size, code_name, source_file_name);
-    register_jit_code_linux_perf(code, code_size, code_name, source_file_name);
+    register_jit_code_linux_perf(
+            code, code_size, unique_code_name, source_file_name);
 #else
     UNUSED(code);
     UNUSED(code_size);
@@ -139,6 +150,11 @@ void register_jit_code(const void *code, size_t code_size,
     UNUSED(source_file_name);
 #endif
 }
+
+#undef DUMP_BASE_FNAME
+#undef DUMP_EXT_FNAME
+#undef MAX_FNAME_LEN
+#undef MAX_CODENAME_LEN
 
 } // namespace jit_utils
 } // namespace cpu
