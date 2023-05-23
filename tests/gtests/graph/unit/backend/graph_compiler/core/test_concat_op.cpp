@@ -449,7 +449,7 @@ TEST(GCCore_CPU_concat_op_t_cpp, ConcatPermuteConcat) {
     // permute3 output: (N, D, 2*L) @ACB
     auto concat4 = graph0.make("concat",
             {permute3->get_outputs()[0], in3->get_outputs()[0]}, {},
-            {{"axis", 1}});
+            {{"axis", 2}}); // Note: axis = 2 in plain format
     // concat4 output: (N, 2*D, 2*L) @ACB
     auto out = graph0.make_output(concat4->get_outputs());
     // output: (N, 2*L, 2*D) @ABC
