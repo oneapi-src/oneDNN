@@ -28,6 +28,7 @@
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <compiler/ir/transform/buffer_schedule.hpp>
 #include <compiler/ir/transform/simplify.hpp>
+#include <compiler/ir/viewer.hpp>
 #include <compiler/jit/jit.hpp>
 #include <ops/fusible/padding.hpp>
 #include <ops/managed_matmul_core.hpp>

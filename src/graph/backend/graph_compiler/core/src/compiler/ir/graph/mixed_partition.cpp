@@ -2331,7 +2331,13 @@ static bool try_merge_mixed_parti_vertically(
 static bool try_merge_mixed_parti_with_joint_op(const mixed_parti_t::ptr &A,
         const mixed_parti_t::ptr &B, const sc_op_ptr &joint_op) {
     mixed_parti_t *default_lhs, *default_rhs;
-    if (joint_op->isa<tunable_op_t>() || A->contain_tunable_op()) {
+    // If no dependence, first execute the partition with more tunable ops
+    if (joint_op->isa<tunable_op_t>()
+            || (A->contain_tunable_op()
+                    && (!B->contain_tunable_op()
+                            || (B->count_op_with_type<tunable_op_t>()
+                                    > A->count_op_with_type<
+                                            tunable_op_t>())))) {
         default_lhs = B.get();
         default_rhs = A.get();
     } else {
