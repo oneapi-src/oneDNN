@@ -210,10 +210,17 @@ status_t brgemm_deconvolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     }
 
     if (weights_md_.format_kind == format_kind::any) {
-        if (has_strides_)
+        if (has_strides_) {
             CHECK(weights_axes_permutation(
                     &weights_md_, conv_pd_->weights_md(), with_groups()));
-        else
+            const bool is_signed_input = src_type == s8;
+            const bool scale_adjust_required = is_signed_input
+                    && !isa_has_s8s8(isa) && !isa_has_int8_vnni(isa);
+            // Set flags after weights_axes_permutation call,
+            // because this function expects flags to be zero
+            if (scale_adjust_required)
+                weights_md_.extra.flags = 0 | memory_extra_flags::scale_adjust;
+        } else
             weights_md_ = *conv_pd_->weights_md();
     }
     if (src_md_.format_kind == format_kind::any) {

@@ -1515,7 +1515,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.has_int8_vnni = isa_has_int8_vnni(jcp.isa);
 
     if (!IMPLICATION(jcp.wei_dt == s8,
-                is_superset(jcp.isa, avx512_core_vnni)
+                is_superset(jcp.isa, avx512_core)
                         || one_of(jcp.isa, avx2_vnni, avx2_vnni_2)))
         return status::unimplemented;
 
@@ -1573,14 +1573,6 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                     attr.zero_points_.common(
                             is_deconv ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC));
     if (!params_ok) return status::unimplemented;
-
-    if (is_deconv) {
-        const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
-        const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
-        jcp.with_scales = !src_scales.has_default_values()
-                || !wei_scales.has_default_values();
-        jcp.is_ic_scale = wei_scales.mask_ != 0;
-    }
 
     jcp.nthr = nthreads;
     jcp.kh_sets = 1;
@@ -1965,6 +1957,24 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.inp_buffer_mask_size = rnd_up(static_cast<dim_t>(jcp.nb_id) * jcp.nb_ih
                     * jcp.nb_iw * jcp.ngroups * jcp.nb_oc,
             P4K);
+
+    const bool scale_adjust_required
+            = jcp.s8s8_compensation_required && !jcp.has_int8_vnni;
+
+    if (scale_adjust_required) weights_md.extra.scale_adjust = 0.5f;
+
+    jcp.scale_adjust_factor = (scale_adjust_required)
+            ? 1 / weights_md.extra.scale_adjust
+            : 1.0f;
+
+    if (is_deconv) {
+        const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
+        const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
+        jcp.with_scales = !src_scales.has_default_values()
+                || !wei_scales.has_default_values()
+                || jcp.scale_adjust_factor != 1.0f;
+        jcp.is_ic_scale = wei_scales.mask_ != 0;
+    }
 
     // Calculate the comp along with the computation inside brgemm kernel when
     // output size is small to get optimal perf
