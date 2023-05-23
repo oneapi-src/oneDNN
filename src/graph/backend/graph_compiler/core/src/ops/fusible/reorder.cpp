@@ -1775,6 +1775,8 @@ static bool can_be_fast_transpose(const context_ptr &ctx,
             && !dtype.is_etype(sc_data_etype::BF16)) {
         return false;
     }
+
+    bool is_bf16 = dtype == datatypes::bf16;
     inp_a_axis.clear();
     inp_b_axis.clear();
     out_a_axis.clear();
@@ -1855,8 +1857,7 @@ static bool can_be_fast_transpose(const context_ptr &ctx,
         if (out_x % inp_x != 0 || out_y % inp_y != 0) { return false; }
     }
     auto satisfy_dim_lanes = [&]() {
-        int trans_lanes1
-                = dtype == datatypes::bf16 ? trans_lanes_bf16 : trans_lanes;
+        int trans_lanes1 = is_bf16 ? trans_lanes_bf16 : trans_lanes;
         int trans_lanes2 = trans_lanes;
         return plain_dims[inp_b_idx] % trans_lanes2 == 0
                 && plain_dims[out_a_idx] % trans_lanes1 == 0
@@ -1876,6 +1877,28 @@ static bool can_be_fast_transpose(const context_ptr &ctx,
                         % trans_lanes1
                 == 0;
     };
+    auto meet_bf16kernel_require = [&](int threshold) {
+        int total = threshold;
+        return get_expr_as_int(src.shape_[inp_a_axis[inp_a_axis.size() - 1]])
+                        * get_expr_as_int(
+                                src.shape_[inp_b_axis[inp_b_axis.size() - 1]])
+                >= total
+                && get_expr_as_int(
+                           dst.shape_[out_a_axis[out_a_axis.size() - 1]])
+                        * get_expr_as_int(
+                                dst.shape_[out_b_axis[out_b_axis.size() - 1]])
+                >= total;
+    };
+    // Currently bf16 calculation needs to be larger than
+    // the number of elements threshold, otherwise the performance may
+    // regression.
+    int bf16_threshold = trans_lanes * trans_lanes_bf16 / 2;
+    if (is_bf16
+            && (dynamic_no_padding
+                    || (!is_dynamic
+                            && !meet_bf16kernel_require(bf16_threshold)))) {
+        return false;
+    }
     // currently does not support tensor slice with padding.
     if (!whole_buffer_reorder(src) && (is_dynamic || !satisfy_dim_lanes())) {
         return false;
@@ -2406,7 +2429,6 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
     out_k_axis.emplace_back(out_k2_pos);
     inp_n_axis.emplace_back(in_N_pos);
     inp_k_axis.emplace_back(in_K_pos);
-
     // VNNI reorder kernel shape is 4x16 for u8/s8 and 4x8 for bf16.
     if (!is_padding) {
         if (get_expr_as_int(dst.shape_[out_k2_pos]) != (is_bf16 ? 2 : 4))
