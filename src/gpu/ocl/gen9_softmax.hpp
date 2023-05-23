@@ -68,7 +68,9 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
                     && IMPLICATION(utils::one_of(f16, src_dt, dst_dt),
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16))
-                    && IMPLICATION(src_md()->data_type == data_type::f64,
+                    && IMPLICATION(
+                            utils::one_of(data_type::f64, dst_md()->data_type,
+                                    src_md()->data_type),
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp64))
                     && attr()->has_default_values(skip_mask_t::scales_runtime)
@@ -252,7 +254,9 @@ struct gen9_softmax_bwd_t : public gpu_primitive_t {
                     && utils::one_of(diff_src_d.data_type(), f64, f32, bf16)
                     && utils::one_of(diff_dst_d.data_type(), f64, f32, bf16)
                     && compute_engine->mayiuse_sub_group(subgroup_size)
-                    && IMPLICATION(src_md()->data_type == data_type::f64,
+                    && IMPLICATION(utils::one_of(data_type::f64,
+                                           diff_dst_md()->data_type,
+                                           diff_src_md()->data_type),
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp64))
                     && attr()->has_default_values()
