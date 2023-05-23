@@ -278,6 +278,58 @@ TEST(Compile, MatmulMatmulBf16Bf16Bf16) {
     ASSERT_EQ(p1.compile(&cp1, inputs1, outputs1, eng), graph::status::success);
 }
 
+TEST(Compile, MatmulBlocked) {
+    graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul");
+
+    graph::engine_t *eng = get_engine();
+    static auto isa = dnnl_get_effective_cpu_isa();
+    SKIP_IF((isa < dnnl_cpu_isa_avx512_core)
+                    && eng->kind() == graph::engine_kind::cpu,
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
+    // prepare logical tensor
+    graph::logical_tensor_t src = utils::logical_tensor_init(
+            0, {24576, 1024}, graph::data_type::bf16);
+    graph::logical_tensor_t weight = utils::logical_tensor_init(
+            1, {1024, 4096}, graph::data_type::bf16);
+    graph::logical_tensor_t dst = utils::logical_tensor_init(
+            2, {24576, 4096}, graph::data_type::bf16, graph::layout_type::any);
+
+    // simulate user given block src
+    dnnl::memory::desc src_md({24576, 1024}, dnnl::memory::data_type::bf16,
+            dnnl::memory::format_tag::AB48a16b);
+    auto &backend_ptr = graph::dnnl_impl::dnnl_backend::get_singleton();
+    graph::utils::optional_t<size_t> layout_id
+            = backend_ptr.set_mem_desc(src_md);
+    src.layout.layout_id = graph::backend_registry_t::encode_layout_id(
+            layout_id.value(), backend_ptr.get_id());
+    src.layout_type = graph::layout_type::opaque;
+
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_output(dst);
+    graph::graph_t g(eng->kind());
+    g.add_op(&matmul_op);
+    g.finalize();
+
+    graph::pass::pass_base_ptr apass = get_pass("matmul_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto parts = g.get_partitions();
+
+    // compile
+    graph::partition_t p;
+    p.init(parts[0]);
+    graph::compiled_partition_t cp(p);
+    std::vector<const graph::logical_tensor_t *> inputs {&src, &weight};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
+
+    graph::logical_tensor_t opaque_lt;
+    cp.query_logical_tensor(2, &opaque_lt);
+    ASSERT_EQ(opaque_lt.layout_type, graph::layout_type::strided);
+}
+
 TEST(Execute, MatmulNdx1d) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
