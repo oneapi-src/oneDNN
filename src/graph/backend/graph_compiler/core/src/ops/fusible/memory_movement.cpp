@@ -215,6 +215,15 @@ concat_op_t::concat_op_t(const std::vector<graph_tensor_ptr> &ins,
         ori_format_ = sc_data_format_t::get_plain_by_dims(
                 (int)info_.inputs_[0]->details_.get_plain_dims().size());
     }
+
+    // here axis_ is in plain format (because it is copied from llga bridge)
+    // we need to transform it to blocking format
+    std::vector<int> blocking_axes
+            = ori_format_.format_code_.collect_p2b_mapping()[axis_];
+    COMPILE_ASSERT(
+            blocking_axes.size() == 1, "The concat axis should not be blocked");
+    axis_ = blocking_axes[0];
+
     if (outs.empty()) {
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this));
         info_.outputs_[0]->details_.dtype_ = info_.inputs_[0]->details_.dtype_;

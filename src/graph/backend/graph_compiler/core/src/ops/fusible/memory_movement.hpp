@@ -57,6 +57,7 @@ public:
     }
 
 protected:
+    // axis_ is with respect to blocking format.
     int64_t axis_;
     // To make sense, the axis_ should be combined with a fixed format.
     sc_data_format_t ori_format_;
