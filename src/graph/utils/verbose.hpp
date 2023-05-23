@@ -84,7 +84,10 @@ namespace utils {
 // responsibility of the caller do check those (it should happen
 // anyway to condition collecting stamp/duration)
 #define VPROFGRAPH(stamp, logtype, logsubtype, info, duration) \
-    { VFORMATGRAPH(stamp, logtype, logsubtype, "%s,%g", info, duration); }
+    { \
+        VFORMATGRAPH(stamp, logtype, logsubtype, "%s,%g", info, duration); \
+        fflush(stdout); \
+    }
 
 struct partition_info_t {
     partition_info_t() = default;
