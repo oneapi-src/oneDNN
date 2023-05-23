@@ -120,7 +120,9 @@ protected:
 template <typename T>
 struct serialized_t : public serialized_data_t {
     // T deserialize() { return T::deserialize(*this); }
-    bool operator==(const serialized_t &other) { return data == other.data; }
+    bool operator==(const serialized_t &other) const {
+        return data == other.data;
+    }
 };
 
 struct deserializer_t {
