@@ -17,6 +17,7 @@
 #ifndef BACKEND_GRAPH_COMPILER_TEST_UTILS_HPP
 #define BACKEND_GRAPH_COMPILER_TEST_UTILS_HPP
 
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -4892,6 +4893,9 @@ inline void construct_llama_mlp_subgraph(graph::graph_t *agraph,
                     }
                     return false;
                 });
+        if (matmul_lhs_iter == ops.end() || matmul_rhs_iter == ops.end()) {
+            throw std::runtime_error("Cannot find op with specific id");
+        }
         graph::op_t *matmul_lhs = (*matmul_lhs_iter).get();
         graph::op_t *matmul_rhs = (*matmul_rhs_iter).get();
         graph::op_t quantize_common {
