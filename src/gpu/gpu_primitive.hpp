@@ -180,8 +180,11 @@ struct gpu_primitive_t : public primitive_t {
     status_t create_kernels(engine_t *engine,
             std::vector<compute::kernel_t> &kernels,
             const std::vector<const char *> &kernel_names, const T &params) {
+        auto arch = utils::downcast<compute::compute_engine_t *>(engine)
+                            ->device_info()
+                            ->gpu_arch();
         return create_kernels(
-                engine, kernels, kernel_names, trivial_key_t<T>(params));
+                engine, kernels, kernel_names, trivial_key_t<T>(params, arch));
     }
     template <typename T>
     status_t create_kernels(engine_t *engine,

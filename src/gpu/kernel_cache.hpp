@@ -35,13 +35,14 @@ namespace gpu {
 template <typename T>
 struct trivial_key_t : public T {
     trivial_key_t() = default;
-    trivial_key_t(const T &t) : T(t) {}
+    trivial_key_t(const T &t, compute::gpu_arch_t arch) : T(t), arch_(arch) {}
     bool operator==(const trivial_key_t &other) const {
-        return this->serialize() == other.serialize();
+        return this->serialize() == other.serialize()
+                && this->arch_ == other.arch_;
     }
     size_t hash() const {
         assert(validate());
-        return T::serialize().hash();
+        return hash_combine(T::serialize().hash(), static_cast<int>(arch_));
     }
     bool validate() const {
         // TODO: implement actual validation logic. Requires some extra work as
@@ -53,6 +54,9 @@ struct trivial_key_t : public T {
         // else
         return true;
     }
+
+private:
+    compute::gpu_arch_t arch_;
 };
 
 // GPU specific abstract interface for kernel_cache::value_impl_t
