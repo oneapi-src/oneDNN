@@ -43,6 +43,7 @@ creation will instruct the library to enable profiling capabilities for the stre
 ```c
 typedef enum {
     /* ... */
+    
     /// Enables profiling capabilities.
     dnnl_stream_profiling = 0x4U,
 } dnnl_stream_flags_t;
@@ -53,6 +54,7 @@ struct stream {
 /* ... */
     enum class flags : unsigned {
         /* ... */
+        
         /// Enables profiling capabilities.
         profiling = dnnl_stream_profiling,
     };
@@ -73,8 +75,10 @@ dnnl_status_t dnnl_reset_profiling(dnnl_stream_t stream);
 
 #### C++
 ```cpp
-/// @copydoc dnnl_reset_profiling()
-status reset_profiling(stream &stream);
+/// Resets a profiler's state.
+///
+/// @param stream Stream associated with the profiler.
+inline void reset_profiling(stream &stream);
 ```
 
 The API to query profiling data.
