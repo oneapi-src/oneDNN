@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -113,7 +113,7 @@ private:
     const Vmm vmm_zp_comp = vmm_zp_one;
     const Vmm vmm_zp_dw_tmp = vmm_zp_one;
     /* dst scale */
-    const Vmm vmm_dst_scale = Vmm(5);
+    const Vmm vmm_dst_scale = Vmm(0);
 
     /* used in compute_ker (but set during prepare_output) */
     const Vmm vmm_shift = Vmm(1); // only for signed input
