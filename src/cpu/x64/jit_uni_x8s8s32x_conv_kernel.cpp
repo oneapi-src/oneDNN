@@ -905,16 +905,14 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::generate() {
 
     if (jcp.is_depthwise) {
         const bool is_zero_point = jcp.src_zero_point || jcp.dst_zero_point;
-        // dst zero point and dst scale reuse the same register
-        int idx = ker_max_reg + 1 - jcp.max_regs_ur
-                - nstl::max(2 * is_zero_point, static_cast<int>(jcp.dst_scale));
+        int idx = ker_max_reg + 1 - jcp.max_regs_ur - 2 * is_zero_point;
         if (!jcp.is_resrc_depthwise) vmm_dw_src = Vmm(--idx);
         if (!jcp.has_vnni) vmm_dw_tmp = Vmm(--idx);
         if (jcp.signed_input) {
             --idx; // due to extra register used for compensations
         }
-        assert(IMPLICATION(!jcp.dst_scale && !is_zero_point,
-                idx == ker_max_reg - ker_dw_reg_base_idx));
+        assert(IMPLICATION(
+                !is_zero_point, idx == ker_max_reg - ker_dw_reg_base_idx));
     }
 
     if (!jcp.is_depthwise && (!jcp.has_vnni)) {
@@ -1364,7 +1362,6 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
         jcp.max_regs_ur = jcp.has_vnni ? 15 - jcp.signed_input : 12;
     }
 
-    if (jcp.dst_scale) jcp.max_regs_ur = 10;
     if (jcp.src_zero_point || jcp.dst_zero_point) jcp.max_regs_ur = 9;
 
     auto set_or_check_wei_format = [&]() {
