@@ -117,7 +117,10 @@ struct const_expr_value {
 // responsibility of the caller do check those (it should happen
 // anyway to condition collecting stamp/duration)
 #define VPROF(stamp, logtype, logsubtype, info, duration) \
-    { VFORMAT(stamp, logtype, logsubtype, "%s,%g", info, duration); }
+    { \
+        VFORMAT(stamp, logtype, logsubtype, "%s,%g", info, duration); \
+        fflush(stdout); \
+    }
 
 struct verbose_t {
     enum flag_kind : int {
