@@ -1984,6 +1984,90 @@ void jit_copy_f16_t::generate() {
     postamble();
 }
 
+void jit_brgemm_relo_copy_to_wbuffer_t::generate() {
+
+    const bool is_bf16 = jcp.wei_dt == data_type::bf16;
+
+    // required for use of VPERMB instruction
+    assert(IMPLICATION(!is_bf16, cpu().has(Xbyak::util::Cpu::tAVX512_VBMI)));
+    assert(jcp.amx_w * jcp.wei_dsz == 64);
+    assert(jcp.oc_block == 16);
+
+    preamble();
+
+    mov(reg_src, ptr[param1 + GET_OFF(src)]);
+    mov(reg_dst, ptr[param1 + GET_OFF(dst)]);
+
+    // load permute indices from data section
+    Label permute_index_table;
+    mov(reg_tmp, permute_index_table);
+    if (is_bf16)
+        vmovdqu16(zmm_idx, ptr[reg_tmp]);
+    else
+        vmovdqu8(zmm_idx, ptr[reg_tmp]);
+
+    const int vnni_width = is_bf16 ? 2 : 4;
+    const int r = jcp.kh * jcp.kw * jcp.ic_without_padding;
+    const int nb_r = div_up(r, vnni_width);
+    const int rtail = (r % vnni_width) * jcp.oc_block;
+    if (rtail > 0) {
+        uint64_t mask = (UINT64_C(1) << rtail) - 1;
+        mov(reg_tmp, mask);
+        kmovq(kmask_load, reg_tmp);
+    }
+    const int nb_z = rnd_up(nb_r, jcp.ic_block);
+    if (nb_r < nb_z) vpxord(zmm_zero, zmm_zero, zmm_zero);
+
+    const int tile_size = jcp.amx_w * jcp.oc_block * jcp.wei_dsz;
+    const int ocb_src_step = r * jcp.oc_block * jcp.wei_dsz;
+    const int ocb_dst_step = rnd_up(ocb_src_step, tile_size);
+
+    // reorder from ~Owhi16o -> ~OR16oVr with r := whi and V := vnni_width
+    for (int g = 0; g < jcp.ngroups; g++) {
+        for (int ocb = 0; ocb < jcp.nb_oc; ocb++) {
+            int offset = 0;
+            int rb = 0;
+            for (; rb < nb_r; offset += 64, rb++) {
+                auto zmm_src_tmp = (rtail > 0 && rb == nb_r - 1)
+                        ? zmm_src | kmask_load | T_z
+                        : zmm_src;
+                if (is_bf16) {
+                    vmovdqu16(zmm_src_tmp, ptr[reg_src + offset]);
+                    vpermw(zmm_dst, zmm_idx, zmm_src);
+                    vmovdqu16(ptr[reg_dst + offset], zmm_dst);
+                } else {
+                    vmovdqu8(zmm_src_tmp, ptr[reg_src + offset]);
+                    vpermb(zmm_dst, zmm_idx, zmm_src);
+                    vmovdqu8(ptr[reg_dst + offset], zmm_dst);
+                }
+            }
+            for (; rb < nb_z; offset += 64, rb++) {
+                if (is_bf16)
+                    vmovdqu16(ptr[reg_dst + offset], zmm_zero);
+                else
+                    vmovdqu8(ptr[reg_dst + offset], zmm_zero);
+            }
+            add(reg_src, ocb_src_step);
+            add(reg_dst, ocb_dst_step);
+        }
+    }
+
+    postamble();
+
+    align(64);
+    L(permute_index_table);
+    const uint8_t no = 16; // 16o
+    for (uint8_t o = 0; o < no; ++o) {
+        for (uint8_t r = 0; r < vnni_width; r++) {
+            const uint8_t index = o + r * no;
+            if (is_bf16)
+                dw(index);
+            else
+                db(index);
+        }
+    }
+}
+
 struct jit_brgemm_trans_wei_f32_t : public jit_brgemm_trans_wei_t,
                                     public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_trans_wei_f32_t)

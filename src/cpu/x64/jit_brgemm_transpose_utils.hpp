@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -175,6 +175,38 @@ struct jit_brgemm_trans_wei_t {
     virtual ~jit_brgemm_trans_wei_t() {}
 
     const jit_brgemm_primitive_conf_t *conf_;
+};
+
+struct jit_brgemm_relo_copy_to_wbuffer_t : public jit_generator {
+    struct ctx_t {
+        const void *src;
+        void *dst;
+    };
+
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_relo_copy_to_wbuffer_t)
+
+    using reg64_t = Xbyak::Reg64;
+
+    jit_brgemm_relo_copy_to_wbuffer_t(const jit_brgemm_conv_conf_t &ajcp)
+        : jit_generator(
+                jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
+        , jcp(ajcp) {}
+
+private:
+    jit_brgemm_conv_conf_t jcp;
+
+    const reg64_t reg_src = rax;
+    const reg64_t reg_dst = rbx;
+    const reg64_t reg_tmp = rdx;
+
+    const Xbyak::Opmask kmask_load = k2;
+
+    const Xbyak::Zmm zmm_src = zmm0;
+    const Xbyak::Zmm zmm_dst = zmm1;
+    const Xbyak::Zmm zmm_zero = zmm2;
+    const Xbyak::Zmm zmm_idx = zmm3;
+
+    void generate() override;
 };
 
 struct jit_amx_ip_trans_diff_wei {
