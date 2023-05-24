@@ -335,11 +335,12 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
         block_k = nstl::max<dim_t>(k, 1);
 
         if (k_parallel_global && beta != 1.0f
-                && (k > k0 * nocopy_info()->wg[2])) {
+                && (k > dim_t(k0) * nocopy_info()->wg[2])) {
             status = launch_nocopy(ctx, compute_stream, a, b, c, ao, bo, *co,
                     po_count, po_srcs, off_a0, off_b0, off_c0, int32_t(off_co0),
                     po_offsets0, lda, ldb, ldc, m, n, 0, 1, 1.0f, beta, 0,
                     false, swapab, true);
+            if (status) return status;
             beta = 1.0f;
         }
     }

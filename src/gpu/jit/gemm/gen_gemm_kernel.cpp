@@ -91,7 +91,7 @@ status_t gen_gemm_kernel_desc_t::finalize() {
         int wg_tile_m = strategy_.wg[LoopM] * strategy_.unroll[LoopM];
         int wg_tile_n = strategy_.wg[LoopN] * strategy_.unroll[LoopN];
         if (wg_tile_m > 0 && wg_tile_n > 0) {
-            dim_t thread_count = utils::div_up(m_, wg_tile_m)
+            dim_t thread_count = dim_t(utils::div_up(m_, wg_tile_m))
                     * utils::div_up(n_, wg_tile_n) * strategy_.wg[LoopM]
                     * strategy_.wg[LoopN] * std::max(strategy_.wg[LoopK], 1);
             dim_t thread_gpu = eu_count_
@@ -189,6 +189,7 @@ status_t gen_gemm_kernel_desc_t::transfer_post_ops(
             MatrixAddressing atype;
             atype.layout = trans ? MatrixLayout::T : MatrixLayout::N;
             atype.crosspack = 1;
+            atype.packSize = 0;
             atype.setAlignment(T.size());
 
             problem_.binary.push_back(atype);
@@ -431,8 +432,11 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     EvaluateParams eval_params;
 
     eval_params.sizes = match_params.sizes;
+    eval_params.alpha = alpha;
     eval_params.beta = beta;
     eval_params.euCount = eu_count;
+    eval_params.postOps = (post_ops.len() > 0);
+    eval_params.cConvert = (acc_type != c_type);
 
     entry_ = select(gemm_catalog, match_params, eval_params, aux_params_);
 

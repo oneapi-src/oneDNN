@@ -264,6 +264,8 @@ MatchParams::MatchParams(ngen::HW hw, const GEMMProblem &problem) {
     }
 
     if (problem.abOffset != ABOffset::None) *tagPtr++ = ReqABOffset;
+
+    sizes.batch = sizes.m = sizes.n = sizes.k = 0;
 }
 
 } // namespace jit

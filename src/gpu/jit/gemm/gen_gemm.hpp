@@ -389,7 +389,7 @@ struct gen_gemm_t : public gpu_gemm_t {
         bool swap_ab_ = false;
         bool a_zp_ = false, b_zp_ = false;
 
-        const compute::device_info_t *dev_info_;
+        const compute::device_info_t *dev_info_ = nullptr;
         compute::gpu_arch_t arch_ = compute::gpu_arch_t::unknown;
 
         kernel_desc_t kernel_desc_;
