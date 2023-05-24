@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -225,9 +225,9 @@ TEST_F(c_api_memory_test_t, TestZeroPadBoom) {
 
     void *p = malloc(dnnl_memory_desc_get_size(&md));
     ASSERT_TRUE(p != nullptr);
-    ASSERT_TRUE(dnnl_success == dnnl_memory_set_data_handle(m, p)); // Boom
+    EXPECT_TRUE(dnnl_success == dnnl_memory_set_data_handle(m, p)); // Boom
 
-    ASSERT_TRUE(dnnl_success == dnnl_memory_destroy(m));
+    EXPECT_TRUE(dnnl_success == dnnl_memory_destroy(m));
     free(p);
 
     ASSERT_TRUE(dnnl_success == dnnl_engine_destroy(e));
