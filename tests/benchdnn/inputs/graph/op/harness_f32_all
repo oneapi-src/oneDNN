@@ -229,6 +229,7 @@
 --reset  --in-shapes=0:2x17x7x14 --op-attrs=0:sizes:6x12 --case=op/f32/interpolate_2d.json
 # reorder
 --reset  --in-shapes=0:2x64x3x3  --case=op/f32/typecast.json
+--reset  --in-shapes=0:0x32x32x32 --case=op/f32/reorder.json
 --reset  --in-shapes=0:2x64x3x3  --case=op/f32/reorder_2.json
 --reset  --in-shapes=0:2x64x3x3  --case=op/f32/reorder_3.json
 # pool
