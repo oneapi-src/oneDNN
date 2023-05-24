@@ -67,6 +67,7 @@ inline static size_t size_of(data_type_t dtype) {
         case data_type::u8: return 1U;
         case data_type::f16:
         case data_type::bf16: return 2U;
+        case data_type::boolean: return sizeof(bool);
         default: return 0;
     }
 }
