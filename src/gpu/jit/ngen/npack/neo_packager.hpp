@@ -49,6 +49,7 @@ inline void findDeviceBinary(const std::vector<uint8_t> &binary, const SElf64Sec
                              const SProgramBinaryHeader **pheaderOut, int *sectionsAfterBinaryOut)
 {
     auto elf_binary = binary.data();
+    auto elf_size = binary.size();
 
     // Read ELF
     auto *eheader = (const SElf64Header *)elf_binary;
@@ -61,6 +62,9 @@ inline void findDeviceBinary(const std::vector<uint8_t> &binary, const SElf64Sec
     auto sheader = (const SElf64SectionHeader *)(elf_binary + eheader->SectionHeadersOffset);
     bool found_dev_binary = false;
     int sections_after_binary;
+
+    if ((const uint8_t *) (sheader + eheader->NumSectionHeaderEntries) > (elf_binary + elf_size))
+        throw bad_elf();
 
     for (int entry = 0; entry < eheader->NumSectionHeaderEntries; entry++, sheader++) {
         if (sheader->Type == OPENCL_DEV_BINARY_TYPE) {
@@ -113,6 +117,8 @@ inline void replaceKernel(std::vector<uint8_t> &binary, const std::vector<uint8_
     size_t start_xsum = (const unsigned char *)(kheader + 1) - elf_binary;
     size_t end_xsum = start_xsum + kheader->KernelNameSize + kheader->KernelHeapSize + heap_plus_patches;
 
+    if (end_xsum > elf_size)
+        throw bad_binary_section();
     if (neo_hash(elf_binary + start_xsum, end_xsum - start_xsum) != kheader->CheckSum)
         throw invalid_checksum();
 
