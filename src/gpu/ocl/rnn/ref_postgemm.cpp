@@ -33,16 +33,25 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
     arg_list.append(dir);
     arg_list.append(lay);
     arg_list.append(iter);
-    arg_list.append(workspace.ws());
     arg_list.append(scratch_gates);
     arg_list.append(bias);
     arg_list.append(pd()->desc()->alpha);
     // for test mode
     arg_list.append(tm_scales ? *tm_scales : memory_storage_t::empty_storage());
-    arg_list.append(workspace.states());
-    arg_list.append(workspace.c_states());
-    arg_list.append(workspace.gates());
-    arg_list.append(workspace.grid_comp());
+
+    auto states_t_l = workspace.states(lay + 1, dir, iter + 1);
+    arg_list.append(rnn_utils::get_storage(states_t_l));
+
+    auto c_states_t_l = workspace.c_states(lay + 1, dir, iter + 1);
+    auto c_states_tm1_l = workspace.c_states(lay + 1, dir, iter);
+    arg_list.append(rnn_utils::get_storage(c_states_t_l));
+    arg_list.append(rnn_utils::get_storage(c_states_tm1_l));
+
+    auto gates = workspace.gates(lay, dir, iter);
+    arg_list.append(rnn_utils::get_storage(gates));
+
+    auto ws_grid = workspace.grid_comp(lay, dir, iter);
+    arg_list.append(rnn_utils::get_storage(ws_grid));
 
     arg_list.append(pd()->rnn_conf.tm_cscale);
     if (aprop != dnnl_forward) { arg_list.append(scratch_diff_states); }
@@ -63,16 +72,25 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
     arg_list.append(dir);
     arg_list.append(lay);
     arg_list.append(iter);
-    arg_list.append(workspace.ws());
     arg_list.append(scratch_gates);
     arg_list.append(bias);
     arg_list.append(pd()->desc()->alpha);
     // for test mode
     arg_list.append(tm_scales ? *tm_scales : memory_storage_t::empty_storage());
-    arg_list.append(workspace.states());
-    arg_list.append(workspace.c_states());
-    arg_list.append(workspace.gates());
-    arg_list.append(workspace.grid_comp());
+
+    auto states_t_l = workspace.states(lay + 1, dir, iter + 1);
+    arg_list.append(rnn_utils::get_storage(states_t_l));
+
+    auto c_states_t_l = workspace.c_states(lay + 1, dir, iter + 1);
+    auto c_states_tm1_l = workspace.c_states(lay + 1, dir, iter);
+    arg_list.append(rnn_utils::get_storage(c_states_t_l));
+    arg_list.append(rnn_utils::get_storage(c_states_tm1_l));
+
+    auto gates = workspace.gates(lay, dir, iter);
+    arg_list.append(rnn_utils::get_storage(gates));
+
+    auto ws_grid = workspace.grid_comp(lay, dir, iter);
+    arg_list.append(rnn_utils::get_storage(ws_grid));
 
     arg_list.append(pd()->rnn_conf.tm_cscale);
     if (aprop != dnnl_forward) { arg_list.append(scratch_diff_states); }
@@ -92,7 +110,6 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise_u8s8)) {
     arg_list.append(dir);
     arg_list.append(lay);
     arg_list.append(iter);
-    arg_list.append(workspace.ws());
     arg_list.append(scratch_gates);
     arg_list.append(scales ? *scales : memory_storage_t::empty_storage());
     arg_list.append(bias);
@@ -101,9 +118,18 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise_u8s8)) {
     arg_list.append(data_scale);
     // for test mode
     arg_list.append(tm_scales ? *tm_scales : memory_storage_t::empty_storage());
-    arg_list.append(workspace.states());
-    arg_list.append(workspace.c_states());
-    arg_list.append(workspace.gates());
+
+    auto states_t1_l = workspace.states(lay + 1, dir, iter + 1);
+    arg_list.append(rnn_utils::get_storage(states_t1_l));
+
+    auto c_states_t_l = workspace.c_states(lay + 1, dir, iter + 1);
+    auto c_states_tm1_l = workspace.c_states(lay + 1, dir, iter);
+    arg_list.append(rnn_utils::get_storage(c_states_t_l));
+    arg_list.append(rnn_utils::get_storage(c_states_tm1_l));
+
+    auto gates = workspace.gates(lay, dir, iter);
+    arg_list.append(rnn_utils::get_storage(gates));
+
     arg_list.append(workspace.bias());
 
     arg_list.append(pd()->rnn_conf.tm_cscale);
@@ -124,17 +150,31 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
     arg_list.append(dir);
     arg_list.append(lay);
     arg_list.append(iter);
-    arg_list.append(workspace.ws());
     arg_list.append(scratch_gates);
     arg_list.append(bias);
     arg_list.append(pd()->desc()->alpha);
     // for test mode
     arg_list.append(tm_scales ? *tm_scales : memory_storage_t::empty_storage());
-    arg_list.append(workspace.states());
-    arg_list.append(workspace.c_states());
-    arg_list.append(workspace.gates());
-    arg_list.append(workspace.grid_comp());
 
+    auto states_t1_l = workspace.states(lay + 1, dir, iter + 1);
+    auto states_tm1_l = workspace.states(lay + 1, dir, iter);
+    arg_list.append(rnn_utils::get_storage(
+            aprop == prop_kind::forward ? states_t1_l : states_tm1_l));
+
+    auto c_states_t_l = workspace.c_states(lay + 1, dir, iter + 1);
+    auto c_states_tm1_l = workspace.c_states(lay + 1, dir, iter);
+    arg_list.append(rnn_utils::get_storage(c_states_t_l));
+    arg_list.append(rnn_utils::get_storage(c_states_tm1_l));
+
+    auto gates = workspace.gates(lay, dir, iter);
+    arg_list.append(rnn_utils::get_storage(gates));
+
+    auto ws_grid = workspace.grid_comp(lay, dir, iter);
+    arg_list.append(rnn_utils::get_storage(ws_grid));
+
+    if (aprop == dnnl_forward) {
+        arg_list.append(rnn_utils::get_storage(states_tm1_l));
+    }
     arg_list.append(scratch_cell);
     if (aprop != dnnl_forward) { arg_list.append(scratch_diff_states); }
     return parallel_for(ctx, nd_range, kernel, arg_list);
@@ -154,16 +194,30 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
     arg_list.append(dir);
     arg_list.append(lay);
     arg_list.append(iter);
-    arg_list.append(workspace.ws());
     arg_list.append(scratch_gates);
     arg_list.append(bias);
     arg_list.append(pd()->desc()->alpha);
     arg_list.append(tm_scales ? *tm_scales : memory_storage_t::empty_storage());
-    arg_list.append(workspace.states());
-    arg_list.append(workspace.c_states());
-    arg_list.append(workspace.gates());
-    arg_list.append(workspace.grid_comp());
 
+    auto states_t1_l = workspace.states(lay + 1, dir, iter + 1);
+    auto states_tm1_l = workspace.states(lay + 1, dir, iter);
+    arg_list.append(rnn_utils::get_storage(
+            aprop == prop_kind::forward ? states_t1_l : states_tm1_l));
+
+    auto c_states_t_l = workspace.c_states(lay + 1, dir, iter + 1);
+    auto c_states_tm1_l = workspace.c_states(lay + 1, dir, iter);
+    arg_list.append(rnn_utils::get_storage(c_states_t_l));
+    arg_list.append(rnn_utils::get_storage(c_states_tm1_l));
+
+    auto gates = workspace.gates(lay, dir, iter);
+    arg_list.append(rnn_utils::get_storage(gates));
+
+    auto ws_grid = workspace.grid_comp(lay, dir, iter);
+    arg_list.append(rnn_utils::get_storage(ws_grid));
+
+    if (aprop == dnnl_forward) {
+        arg_list.append(rnn_utils::get_storage(states_tm1_l));
+    }
     arg_list.append(part);
     if (aprop != dnnl_forward) {
         arg_list.append(scratch_cell);

@@ -60,9 +60,11 @@ enum gemm_kind_t {
 
 struct workspace_t {
     using mst = memory_storage_t;
-    workspace_t(
-            const mst &ws, const rnn_conf_t &rnn, const rnn_utils::conf_t &conf)
+    workspace_t(const mst &ws, const rnn_conf_t &rnn,
+            const rnn_utils::conf_t &conf, const rnn_offsets_t &off)
         : ws_(ws)
+        , rnn_(rnn)
+        , conf_(conf)
         , gates_(conf.ws_gates_size > 0 ? ws.get_sub_storage(
                          rnn.ws_gates_offset, conf.ws_gates_size)
                                         : nullptr)
@@ -79,21 +81,69 @@ struct workspace_t {
                              rnn.ws_grid_comp_offset, conf.ws_grid_comp_size)
                                                 : nullptr) {}
 
+    cl_ulong calc_off_ws_state(int i0, int i1, int i2, int i3, int i4) const {
+        return OFF5(i0, conf_.n_layer + 1, i1, conf_.n_dir, i2,
+                conf_.n_iter + 1, i3, conf_.mb, i4, conf_.states_ws_ld);
+    }
+
+    cl_ulong calc_off_ws_gates(
+            int i0, int i1, int i2, int i3, int i4, int i5) const {
+        return i0 * conf_.n_dir * conf_.n_iter * conf_.mb * conf_.gates_ws_ld
+                + i1 * conf_.n_iter * conf_.mb * conf_.gates_ws_ld
+                + i2 * conf_.mb * conf_.gates_ws_ld + i3 * conf_.gates_ws_ld
+                + i4 * conf_.dhc + i5;
+    }
+
+    cl_ulong calc_off_ws_grid_offset(
+            int i0, int i1, int i2, int i3, int i4) const {
+        return OFF5(i0, conf_.n_layer + 1, i1, conf_.n_dir, i2,
+                conf_.n_iter + 1, i3, conf_.mb, i4, conf_.dhc);
+    }
+
     const mst &ws() const { return ws_; }
-    const mst &gates() const { return gates_ ? *gates_ : mst::empty_storage(); }
-    const mst &states() const {
-        return states_ ? *states_ : mst::empty_storage();
+    const mst &gates() const { return rnn_utils::get_storage(gates_); }
+    const mst &states() const { return rnn_utils::get_storage(states_); }
+
+    std::unique_ptr<mst> states(int layer, int dir, int time) const {
+        if (!states_) return nullptr;
+        auto off_ = calc_off_ws_state(layer, dir, time, 0, 0)
+                * types::data_type_size(rnn_.src_dt);
+        return states_->get_sub_storage(off_, conf_.ws_states_cell_size);
     }
-    const mst &c_states() const {
-        return c_states_ ? *c_states_ : mst::empty_storage();
+
+    std::unique_ptr<mst> c_states(int layer, int dir, int time) const {
+        if (!c_states_) return nullptr;
+        // conf_.aux_data_type is float for all datatypes except f16
+        // so can be used for lstm_elemwise_u8s8 case as well
+        auto off_ = calc_off_ws_state(layer, dir, time, 0, 0)
+                * types::data_type_size(conf_.aux_data_type);
+        return c_states_->get_sub_storage(off_, conf_.ws_c_states_cell_size);
     }
-    const mst &bias() const { return bias_ ? *bias_ : mst::empty_storage(); }
-    const mst &grid_comp() const {
-        return grid_comp_ ? *grid_comp_ : mst::empty_storage();
+
+    std::unique_ptr<mst> gates(int layer, int dir, int time) const {
+        if (!gates_) return nullptr;
+
+        auto off_ = calc_off_ws_gates(layer, dir, time, 0, 0, 0)
+                * types::data_type_size(conf_.aux_data_type);
+        return gates_->get_sub_storage(off_, conf_.ws_gates_cell_size);
     }
+
+    std::unique_ptr<mst> grid_comp(int layer, int dir, int time) const {
+        if (!grid_comp_) return nullptr;
+
+        auto off_ = calc_off_ws_grid_offset(layer, dir, time, 0, 0)
+                * types::data_type_size(conf_.aux_data_type);
+        return grid_comp_->get_sub_storage(off_, conf_.ws_per_cell);
+    }
+
+    const mst &c_states() const { return rnn_utils::get_storage(c_states_); }
+    const mst &bias() const { return rnn_utils::get_storage(bias_); }
+    const mst &grid_comp() const { return rnn_utils::get_storage(grid_comp_); }
 
 private:
     const mst &ws_;
+    const rnn_conf_t &rnn_;
+    const rnn_utils::conf_t &conf_;
     std::unique_ptr<mst> gates_;
     std::unique_ptr<mst> states_;
     std::unique_ptr<mst> c_states_;

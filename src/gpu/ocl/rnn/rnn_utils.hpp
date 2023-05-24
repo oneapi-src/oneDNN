@@ -172,6 +172,7 @@ struct conf_t {
     int tm_ngates;
 
     // Size of workspace for each tensor in bytes
+    size_t ws_states_cell_size, ws_c_states_cell_size, ws_gates_cell_size;
     size_t ws_gates_size, ws_states_size, ws_c_states_size,
             scratch_diff_states_size, scratch_cell_size, scratch_dhG1_size,
             ws_grid_comp_size, ws_per_cell, ws_bias_size;
@@ -244,6 +245,7 @@ void get_scratchpad_and_workspace_sizes(
 status_t set_expected_desc(
         conf_t &rnn, memory_desc_t &weights_md, bool is_iter);
 status_t set_good_strides(int ld_, memory_desc_t &weights_md, format_tag_t tag);
+memory_storage_t &get_storage(const std::unique_ptr<memory_storage_t> &storage);
 } // namespace rnn_utils
 
 } // namespace ocl

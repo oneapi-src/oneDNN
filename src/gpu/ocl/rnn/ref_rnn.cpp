@@ -1426,7 +1426,8 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
                     ? CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE)
                     : CTX_IN_STORAGE(DNNL_ARG_WORKSPACE)
                                        : *scratchpad;
-    auto workspace = workspace_t(workspace_, pd()->conf, pd()->rnn_conf);
+    const auto &workspace
+            = workspace_t(workspace_, pd()->conf, pd()->rnn_conf, pd()->off);
 
     auto scratchpad_gates
             = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_gates);

@@ -250,21 +250,25 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
 
     bool is_lstm = rd.cell_kind == dnnl_vanilla_lstm;
 
+    rnn.ws_states_cell_size = rnn.mb * rnn.states_ws_ld * rnn.ws_states_elsz;
     rnn.ws_states_size = (size_t)(rnn.n_layer + 1) * rnn.n_dir
-            * (rnn.n_iter + 1) * rnn.mb * rnn.states_ws_ld * rnn.ws_states_elsz;
+            * (rnn.n_iter + 1) * rnn.ws_states_cell_size;
 
     // we do not need a good ld for iter_c as it is not involved in GEMM
     // for now reverting it back to what it was originally
     // TODO: seprate diff_c_offsets from diff-states & seprate h- and c- off
+    rnn.ws_c_states_cell_size
+            = is_lstm ? rnn.mb * rnn.states_ws_ld * aux_elsz : (size_t)0;
     rnn.ws_c_states_size = is_lstm ? (size_t)(rnn.n_layer + 1) * rnn.n_dir
-                    * (rnn.n_iter + 1) * rnn.mb * rnn.states_ws_ld * aux_elsz
+                    * (rnn.n_iter + 1) * rnn.ws_c_states_cell_size
                                    : (size_t)0;
     rnn.scratch_diff_states_size = !rnn.is_fwd ? (size_t)(rnn.n_layer + 1)
                     * rnn.n_dir * (rnn.n_states + 1) * (rnn.n_iter + 1) * rnn.mb
                     * rnn.scratch_diff_states_ld * aux_elsz
                                                : (size_t)0;
-    rnn.ws_gates_size = (size_t)rnn.n_layer * rnn.n_dir * rnn.n_iter * rnn.mb
-            * rnn.gates_ws_ld * aux_elsz;
+    rnn.ws_gates_cell_size = rnn.mb * rnn.gates_ws_ld * aux_elsz;
+    rnn.ws_gates_size = (size_t)rnn.n_layer * rnn.n_dir * rnn.n_iter
+            * rnn.ws_gates_cell_size;
     rnn.n_iter_scratch_gates
             = (rnn.merge_gemm_layer || rnn.merge_gemm_iter) ? rnn.n_iter : 1;
     rnn.scratch_gates_size = (size_t)rnn.n_iter_scratch_gates * rnn.gates_nld
@@ -518,6 +522,11 @@ status_t rnn_utils::set_expected_desc(
         weights_md.extra.compensation_mask = 27; // ldigo 11011;
     }
     return status::success;
+}
+
+memory_storage_t &rnn_utils::get_storage(
+        const std::unique_ptr<memory_storage_t> &storage) {
+    return storage ? *storage : memory_storage_t::empty_storage();
 }
 
 } // namespace ocl
