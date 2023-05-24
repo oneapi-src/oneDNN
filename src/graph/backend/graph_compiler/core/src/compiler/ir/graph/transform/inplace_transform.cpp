@@ -102,7 +102,8 @@ void invalid_inplacement_detection(sc_graph_t &graph) {
             // if linked to input, then all output needs copy, else one output
             // could directly use the buffer.
             int insert_num = inp_count > 0 ? out_count : out_count - 1;
-            for (auto &customer_use : cur_node->get_outputs()[0]->uses_) {
+            auto uses = cur_node->get_outputs()[0]->uses_;
+            for (auto &customer_use : uses) {
                 if (insert_num == 0) { break; }
                 auto customer = customer_use.second.lock();
                 int out_idx = customer_use.first;
@@ -128,7 +129,8 @@ void redundant_copy_elimination(sc_graph_t &graph) {
         if (is_copy_reorder(cur_node) || cur_node->isa<output_op>()) { return; }
         size_t inp_count = 0, out_count = 0, direct_out_count = 0;
         if (has_linked_input(cur_node)) { inp_count++; }
-        for (auto &customer_use : cur_node->get_outputs()[0]->uses_) {
+        auto uses = cur_node->get_outputs()[0]->uses_;
+        for (auto &customer_use : uses) {
             auto customer = customer_use.second.lock();
             int out_idx = customer_use.first;
             auto status = has_linked_output_and_modify_copy(out_idx, customer);
@@ -145,7 +147,8 @@ void redundant_copy_elimination(sc_graph_t &graph) {
                 || (inp_count == 0 && out_count >= 2
                         && direct_out_count == 0)) {
             int delete_num = 1;
-            for (auto &customer_use : cur_node->get_outputs()[0]->uses_) {
+            auto uses = cur_node->get_outputs()[0]->uses_;
+            for (auto &customer_use : uses) {
                 if (delete_num == 0) { break; }
                 auto customer = customer_use.second.lock();
                 int out_idx = customer_use.first;
