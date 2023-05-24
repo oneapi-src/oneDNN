@@ -277,3 +277,28 @@ TEST(APILogicalTensor, GetStridesWithError) {
         ASSERT_THROW(lt.get_strides(), dnnl::error);
     }
 }
+
+TEST(APILogicalTensor, LogicalTensorSize) {
+    using logical_tensor = dnnl::graph::logical_tensor;
+    using data_type = logical_tensor::data_type;
+    using layout_type = logical_tensor::layout_type;
+
+    const size_t id = 123;
+    const logical_tensor::dims shape = {3, 4};
+    const size_t num_elem = 3 * 4;
+
+    logical_tensor lt_1 {id, data_type::boolean, shape, layout_type::strided};
+    ASSERT_EQ(lt_1.get_id(), id);
+    ASSERT_EQ(lt_1.get_data_type(), data_type::boolean);
+    ASSERT_EQ(lt_1.get_mem_size(), num_elem * sizeof(bool));
+
+    logical_tensor lt_2 {id, data_type::f32, shape, layout_type::strided};
+    ASSERT_EQ(lt_2.get_id(), id);
+    ASSERT_EQ(lt_2.get_data_type(), data_type::f32);
+    ASSERT_EQ(lt_2.get_mem_size(), num_elem * sizeof(float));
+
+    logical_tensor lt_3 {id, data_type::s8, shape, layout_type::strided};
+    ASSERT_EQ(lt_3.get_id(), id);
+    ASSERT_EQ(lt_3.get_data_type(), data_type::s8);
+    ASSERT_EQ(lt_3.get_mem_size(), num_elem * sizeof(int8_t));
+}
