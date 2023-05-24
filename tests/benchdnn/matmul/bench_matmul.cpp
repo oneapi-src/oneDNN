@@ -97,12 +97,14 @@ int verify_input(const settings_t &s, const settings_t &def) {
     }
 
     for (const auto &i_strides : s.strides) {
-        if (i_strides.size() != 1 && i_strides.size() != n_inputs) {
+        if (i_strides.size() != n_inputs) {
+            std::stringstream ss;
+            ss << i_strides;
             fprintf(stderr,
-                    "ERROR: matmul driver: `strides` option expects either a "
-                    "single input or three inputs in SRC, WEI, DST order. "
-                    "Current size is: \"%ld\"\n",
-                    (long)i_strides.size()),
+                    "ERROR: matmul driver: `strides` option expects three "
+                    "inputs in format `[SRC]:[WEI]:[DST]` (two colons must "
+                    "present). Current input is: \"%s\"\n",
+                    ss.str().c_str()),
                     fflush(stderr);
             SAFE_V(FAIL);
         }
