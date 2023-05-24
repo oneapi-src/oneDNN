@@ -13,7 +13,7 @@ In this RFC, we propose to implement an option in oneDNN to align the
 corner pixels. The `align_corners` attribute will upsample the points in the
 destination to (0.0, 0.4, 0.8, 1.2, 1.6, 2.0).
 
-In nearest neighbor resampling, without `align_corners`, we have
+In linear resampling, without `align_corners`, we have
 ```
 Fh = OW/IW
 dst(n, c, oh, ow) = src(n, c, ih, iw)
@@ -102,8 +102,6 @@ typedef enum {
     dnnl_resampling_nearest = 0x2fff0,
     /// Linear Resampling Method
     dnnl_resampling_linear = 0x2fff1,
-    /// Nearest Neighbor Resampling Method with Align Corners
-    dnnl_resampling_nearest_align_corners = 0x2fff2,
     /// Linear Resampling Method with Align Corners
     dnnl_resampling_linear_align_corners = 0x2fff3,
     ...
