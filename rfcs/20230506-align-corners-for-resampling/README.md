@@ -33,6 +33,8 @@ This attribute is present in other frameworks like [pytorch](https://github.com/
 
 ## Proposal
 
+### Option 1
+
 We propose adding resampling flags in the descriptor constructor
 as currently there are no flags for the resampling primitive.
 
@@ -80,8 +82,40 @@ primitive_desc(const engine &aengine, prop_kind aprop_kind,
 Pros:
 - The possibility of using this information for each algorithm we support.
 - Possibility to add additional flags for the resampling primitive in the future.
+  For eg: `half_pixel_centers=False` flag.
 
 Cons:
 - API change for resampling primitive.
 - In case of using C API to avoid ABI break we need to add another version of 
   init function(similar to pooling primitive - version v1 and v2).
+
+
+### Option 2
+
+In this option we would add a new resampling primitive.
+
+``` cpp
+/// Flags for resampling primitive.
+typedef enum {
+    ...
+    /// Nearest Neighbor Resampling Method
+    dnnl_resampling_nearest = 0x2fff0,
+    /// Linear Resampling Method
+    dnnl_resampling_linear = 0x2fff1,
+    /// Nearest Neighbor Resampling Method with Align Corners
+    dnnl_resampling_nearest_align_corners = 0x2fff2,
+    /// Linear Resampling Method with Align Corners
+    dnnl_resampling_linear_align_corners = 0x2fff3,
+    ...
+} dnnl_alg_kind_t;
+```
+
+Pros:
+- No API change for resampling primitive
+
+Cons:
+- Adding more flags will lead to a combinatorial explosion of algorithms
+
+### Recommendation
+I would recommend Option 1 as the flag approach would enable adding more
+flags to resampling primitives in the future.
