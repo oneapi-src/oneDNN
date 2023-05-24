@@ -340,7 +340,10 @@ matmul_executable_t::desc_t matmul_executable_t::create_desc(
                         && is_format(src, dnnl::memory::format_tag::acbd))
                     || ((src.get_ndims() == 2 || src.get_ndims() == 3)
                             && p_engine.get_kind() == dnnl::engine::kind::gpu));
-    if (!use_strided_src) { src = to_format_any(src); }
+    // convert src memory desc to any when:
+    // 1) not the situation mentioned above
+    // 2) the given md is blocked and convert to queried layout is necessary
+    if (!use_strided_src || !is_plain(src)) { src = to_format_any(src); }
     auto wei = make_dnnl_memory_desc(
             op->get_input_value(1)->get_logical_tensor());
     // For non-constant weight, create primitive desc with strided layout when:
