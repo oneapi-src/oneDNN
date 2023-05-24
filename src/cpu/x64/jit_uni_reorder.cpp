@@ -64,6 +64,10 @@ namespace x64 {
 
 namespace tr {
 
+static bool is_direct_copy(const prb_t &prb) {
+    return prb.ndims == 1 && prb.nodes[0].is == 1 && prb.nodes[0].os == 1;
+}
+
 static bool prb_has_small_strides(const prb_t &prb) {
     constexpr ptrdiff_t max_stride = (1LL << 31) - 1;
     for (int d = 0; d < prb.ndims; ++d) {
@@ -181,8 +185,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                         mayiuse(avx512_core) || mayiuse(avx2_vnni_2))
                 && IMPLICATION(utils::one_of(f16, p.itype, p.otype),
                         mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2))
-                && prb_has_small_strides(p);
-
+                && IMPLICATION(!is_direct_copy(p), prb_has_small_strides(p));
         return ok;
     }
 
@@ -1960,12 +1963,9 @@ static void prb_block_for_cache(tr::prb_t &prb) {
             // asymmetric_comp is executed.
             && IMPLICATION(prb.req_asymmetric_comp, !prb.is_tail_present);
 
-    const bool is_direct_copy
-            = prb.ndims == 1 && prb.nodes[0].is == 1 && prb.nodes[0].os == 1;
-
     const bool cache_blocking_needed
             = stride_cache_friendly || requires_inner_blocking;
-    if (!cache_blocking_needed || is_direct_copy) return;
+    if (!cache_blocking_needed || is_direct_copy(prb)) return;
 
     int unit_input_stride_idx = -1;
     for (auto idx = 0; idx < prb.ndims; ++idx) {
@@ -2050,12 +2050,9 @@ static void prb_thread_kernel_balance(
     // where FC and VC are fixed and variable costs respectively.
     // Though for now, the below heuristic seems to be good enough
     // Note: direct copy needs only as many kernels as nthr.
-    const bool is_direct_copy
-            = prb.ndims == 1 && prb.nodes[0].is == 1 && prb.nodes[0].os == 1;
-
-    const size_t size_drv_thr = is_direct_copy ? nthr
-            : (nthr > 1)                       ? 16 * nthr
-                                               : 1;
+    const size_t size_drv_thr = is_direct_copy(prb) ? nthr
+            : (nthr > 1)                            ? 16 * nthr
+                                                    : 1;
 
     /* size_drv_min is the minimal size for the parallel
      * driver required for good parallelization */
