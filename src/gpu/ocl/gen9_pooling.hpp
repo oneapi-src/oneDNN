@@ -67,6 +67,7 @@ struct gen9_pooling_fwd_t : public gpu_primitive_t {
                     && post_ops_with_binary_ok(attr(), dst_md()->data_type)
                     && attr_.set_default_formats(dst_md(0)) == status::success
                     && !is_dilated()
+                    && !utils::one_of(f64, src_data_t, dst_data_t)
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups)
                     && IMPLICATION(src_data_t == f16,
@@ -138,6 +139,8 @@ struct gen9_pooling_bwd_t : public gpu_primitive_t {
                             || utils::everyone_is(data_type::bf16,
                                     diff_dst_md()->data_type,
                                     diff_src_md()->data_type))
+                    && !utils::one_of(data_type::f64, diff_src_md()->data_type,
+                            diff_dst_md()->data_type)
                     && attr()->has_default_values() && !is_dilated()
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups);

@@ -51,6 +51,9 @@ struct ref_pooling_fwd_t : public gpu_primitive_t {
 
             const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
 
+            const auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine);
+
             bool ok = set_default_params() == status::success
                     && utils::one_of(desc()->prop_kind, forward_training,
                             forward_inference)
@@ -73,6 +76,9 @@ struct ref_pooling_fwd_t : public gpu_primitive_t {
                     && IMPLICATION(utils::one_of(src_data_t, s8, u8)
                                     && dst_data_t != f32,
                             acc_data_t == s32)
+                    && IMPLICATION(utils::one_of(f64, src_data_t, dst_data_t),
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp64))
                     && attr()->has_default_values(attr_skip_mask)
                     && post_ops_with_binary_ok(attr(), dst_md()->data_type, 5)
                     && attr_.set_default_formats(dst_md(0)) == status::success;
@@ -144,8 +150,7 @@ struct ref_pooling_bwd_t : public gpu_primitive_t {
                                         diff_dst_md()->data_type,
                                         diff_src_md()->data_type)
                                     && compute_engine->mayiuse(
-                                            compute::device_ext_t::khr_fp64)
-                                    && attr()->post_ops_.has_default_values()))
+                                            compute::device_ext_t::khr_fp64)))
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
