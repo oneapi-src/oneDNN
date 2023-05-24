@@ -46,6 +46,8 @@ struct gen9_global_pooling_fwd_t : public gpu_primitive_t {
             using namespace data_type;
             using namespace prop_kind;
             using namespace alg_kind;
+            auto src_data_t = src_md()->data_type;
+            auto dst_data_t = dst_md()->data_type;
 
             bool ok = set_default_params() == status::success
                     && utils::one_of(desc()->prop_kind, forward_training,
@@ -53,6 +55,7 @@ struct gen9_global_pooling_fwd_t : public gpu_primitive_t {
                     && utils::one_of(desc()->alg_kind, pooling_max,
                             pooling_avg_include_padding,
                             pooling_avg_exclude_padding)
+                    && !utils::one_of(f64, src_data_t, dst_data_t)
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
@@ -147,6 +150,9 @@ struct gen9_global_pooling_bwd_t : public gpu_primitive_t {
             using namespace prop_kind;
             using namespace alg_kind;
 
+            auto diff_dst_dt = diff_dst_md()->data_type;
+            auto diff_src_dt = diff_src_md()->data_type;
+
             bool ok = set_default_params() == status::success
                     && utils::one_of(desc()->prop_kind, backward_data)
                     && utils::one_of(desc()->alg_kind, pooling_max,
@@ -158,6 +164,7 @@ struct gen9_global_pooling_bwd_t : public gpu_primitive_t {
                             || utils::everyone_is(data_type::bf16,
                                     diff_dst_md()->data_type,
                                     diff_src_md()->data_type))
+                    && !utils::one_of(data_type::f64, diff_src_dt, diff_dst_dt)
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
