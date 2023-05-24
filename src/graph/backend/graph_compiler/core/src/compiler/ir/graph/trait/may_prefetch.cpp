@@ -66,12 +66,15 @@ func_t may_prefetch_t::generate_prefetcher_and_set_idle(const context_ptr &ctx,
     new_ins.reserve(ins.size());
     // remake the vars and tensors
     remake_args_visitor_t vis;
-    sc_data_type_t type_trigger = is_global ? datatypes::s32 : datatypes::index;
+    sc_data_type_t type_trigger = datatypes::s32;
     vis.args_.emplace_back(builder::make_tensor("state", {1}, type_trigger));
     vis.args_.emplace_back(builder::make_var(type_trigger, "expected"));
-    if (is_global) {
-        vis.args_.emplace_back(builder::make_var(datatypes::s32, "tid"));
-    }
+    // the tid in func arg. It may not be valid (-1), we need to check it and
+    // reassign the real tid if necessary
+    auto tid_in_arg = builder::make_var(datatypes::s32, "tid");
+    vis.args_.emplace_back(tid_in_arg);
+    size_t tid_in_arg_idx = vis.args_.size() - 1;
+
     size_t num_standard_args = vis.args_.size();
     vis.old_args_.emplace_back();
 
@@ -118,12 +121,14 @@ func_t may_prefetch_t::generate_prefetcher_and_set_idle(const context_ptr &ctx,
     // call the user func to generate the func body
     builder::ir_builder_t builder;
     builder.push_scope();
-    if (!is_global) {
-        auto thevar = builder::make_var(datatypes::s32, "tid");
-        builder.push_var_tensor_def(
-                thevar, linkage::local, builtin::get_thread_id_func()());
-        generator_args.emplace_back(thevar);
-    }
+
+    // the real tid
+    auto realtid = builder::make_var(datatypes::s32, "realtid");
+    builder.push_var_tensor_def(realtid, linkage::local,
+            builder::make_select(tid_in_arg < 0,
+                    builtin::get_thread_id_func()(), tid_in_arg));
+    generator_args[tid_in_arg_idx] = realtid;
+
     std::vector<expr> args_ins;
     for (auto &t : new_ins) {
         COMPILE_ASSERT(t.is_full(),

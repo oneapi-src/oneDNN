@@ -1,25 +1,68 @@
-#bert.inf.fp16.pt.mb64_pvc
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --dir=FWD_D --stag=abcd --dtag=abcd --axis=3 64x16x384x384n"bert.inf.fp16.pt.mb64_pvc*24"
-#bert.inf.fp16.tf.mb64_pvc
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --dir=FWD_D --stag=abcd --dtag=abcd --axis=3 64x16x384x384n"bert.inf.fp16.tf.mb64_pvc*24"
-#bert.inf.fp32.pt.mb64_pvc
---reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=FWD_D --stag=abcd --dtag=abcd --axis=3 64x16x384x384n"bert.inf.fp32.pt.mb64_pvc*24"
-#bert.tr.bf16.tf.mb32
---reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=FWD_D --stag=abcd --dtag=abcd --axis=3 32x12x128x128n"bert.tr.bf16.tf.mb32*12"
-#bert.tr.fp32.tf.mb128_pvc
---reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=FWD_D --stag=abcd --dtag=abcd --axis=3 128x12x128x128n"bert.tr.fp32.tf.mb128_pvc*24"
-#cosmictagger.tr.bf16.pt.mb4
---reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=FWD_D --stag=acdb --dtag=acdb --axis=1 --alg=softmax_accurate 4x3x640x1024n"cosmictagger.tr.bf16.pt.mb4*3"
-#cosmictagger.tr.fp32.pt.mb4
---reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=FWD_D --stag=acdb --dtag=acdb --axis=1 --alg=softmax_accurate 4x3x640x1024n"cosmictagger.tr.fp32.pt.mb4*3"
-#pointnet-atlas.tr.fp32.pt.mb4
---reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=FWD_D --stag=acb --dtag=acb --axis=2 --alg=softmax_accurate 4x3x15000n"pointnet-atlas.tr.fp32.pt.mb4*2"
---reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=FWD_D --stag=acb --dtag=acb --axis=0 --alg=softmax_accurate 4x3x15000n"pointnet-atlas.tr.fp32.pt.mb4*2"
---reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=FWD_D --stag=acb --dtag=acb --axis=2 --alg=softmax_accurate 2x3x15000n"pointnet-atlas.tr.fp32.pt.mb4*1"
---reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=FWD_D --stag=acb --dtag=acb --axis=0 --alg=softmax_accurate 2x3x15000n"pointnet-atlas.tr.fp32.pt.mb4*1"
-#pointnet.tr.fp32.pt.mb16
---reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=FWD_D --stag=acb --dtag=acb --axis=1 --alg=softmax_accurate 16x5x15000n"pointnet.tr.fp32.pt.mb16*1"
-#resnet-50.inf.int8.tf.mb1024
---reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=FWD_D --stag=ab --dtag=ab --axis=1 --alg=softmax_accurate 1024x1001n"resnet-50.inf.int8.tf.mb1024*1"
-#maskrcnn.inf.fp16.ov.mb1
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --dir=FWD_D --stag=abc --dtag=abc --axis=2 --alg=softmax_accurate 1x1000x91n"maskrcnn.inf.fp16.ov.mb1*1"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax --axis=3 --ddt=f16 --dtag=abcd --dtag= 64x16x384x384n"*24"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=3 --sdt=f16 --ddt=f16 --stag=abcd --dtag=abcd 64x16x384x384n"*24"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax --axis=3 --ddt=f32 --dtag=abcd --dtag= 64x16x384x384n"*24"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f32 --ddt=f32 --stag=ab --dtag=ab 1024x1001n"*1"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax --axis=3 --ddt=f32 --dtag=abcd --dtag= 32x12x128x128n"*12"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax --axis=3 --ddt=f32 --dtag=abcd --dtag= 128x12x128x128n"*24"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f32 --ddt=f32 --stag=acdb --dtag=acdb 4x3x640x1024n"*3"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f32 --ddt=f32 --stag=acdb --dtag=acdb 4x3x640x1024n"*3"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=bf16 --ddt=bf16 --stag=ab --dtag=ab 1024x2n"*14"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=bf16 --ddt=bf16 --stag=ab --dtag=ab 1024x8n"*14"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f32 --ddt=f32 --stag=ab --dtag=ab 1024x2n"*8"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f32 --ddt=f32 --stag=ab --dtag=ab 1024x8n"*8"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f32 --ddt=f32 --stag=ab --dtag=ab 867x2n"*2"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f32 --ddt=f32 --stag=ab --dtag=ab 867x8n"*2"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=0 --sdt=f32 --ddt=f32 --stag=acb --dtag=acb 2x3x15000n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=0 --sdt=f32 --ddt=f32 --stag=acb --dtag=acb 4x3x15000n"*2"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=2 --sdt=f32 --ddt=f32 --stag=acb --dtag=acb 2x3x15000n"*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=2 --sdt=f32 --ddt=f32 --stag=acb --dtag=acb 4x3x15000n"*2"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f32 --ddt=f32 --stag=acb --dtag=acb 16x5x15000n"*1"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=3 --sdt=f16 --ddt=f16 --stag=abcd --dtag=abcd 1x12x128x128n"*12"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f32 --ddt=f32 --stag=ab --dtag=ab 1x2n"*1"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=3 --sdt=f16 --ddt=f16 --stag=abcd --dtag=abcd 64x16x384x384n"*24"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f32 --ddt=f32 --stag=ab --dtag=ab 256x1001n"*1"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f32 --ddt=f32 --stag=ab --dtag=ab 1024x1001n"*1"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f32 --ddt=f32 --stag=ab --dtag=ab 256x1001n"*1"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f16 --ddt=f16 --stag=ab --dtag=ab 128x1000n"*50"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f16 --ddt=f16 --stag=ab --dtag=ab 128x1000n"*50"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f16 --ddt=f16 --stag=ab --dtag=ab 128x1000n"*50"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=2 --sdt=f16 --ddt=f16 --stag=abc --dtag=abc 1x1000x91n"*1"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=2 --sdt=f16 --ddt=f16 --stag=abc --dtag=abc 16x1000x91n"*1"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=3 --sdt=f16 --ddt=f16 --stag=abcd --dtag=abcd 1x8x1024x1024n"*10"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=3 --sdt=f16 --ddt=f16 --stag=abcd --dtag=abcd 1x8x1024x77n"*10"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=3 --sdt=f16 --ddt=f16 --stag=abcd --dtag=abcd 1x8x256x256n"*10"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=3 --sdt=f16 --ddt=f16 --stag=abcd --dtag=abcd 1x8x256x77n"*10"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=3 --sdt=f16 --ddt=f16 --stag=abcd --dtag=abcd 1x8x4096x4096n"*10"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=3 --sdt=f16 --ddt=f16 --stag=abcd --dtag=abcd 1x8x4096x77n"*10"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=3 --sdt=f16 --ddt=f16 --stag=abcd --dtag=abcd 1x8x64x64n"*2"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=3 --sdt=f16 --ddt=f16 --stag=abcd --dtag=abcd 1x8x64x77n"*2"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f16 --ddt=f16 --stag=ab --dtag=ab 5000x2n"*400"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f32 --ddt=f32 --stag=ab --dtag=ab 5000x2n"*400"
+#
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f16 --ddt=f16 --stag=ab --dtag=ab 5000x2n"*2"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --alg=softmax_accurate --axis=1 --sdt=f16 --ddt=f16 --stag=ab --dtag=ab 5000x8n"*2"

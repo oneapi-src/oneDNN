@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -209,7 +209,10 @@ struct jit_uni_x8s8s32x_fwd_kernel {
         }
     }
 
-    status_t create_kernel() { return kernel_->create_kernel(); }
+    status_t create_kernel() {
+        if (kernel_) return kernel_->create_kernel();
+        return status::out_of_memory;
+    }
 
     ~jit_uni_x8s8s32x_fwd_kernel() { delete kernel_; }
 

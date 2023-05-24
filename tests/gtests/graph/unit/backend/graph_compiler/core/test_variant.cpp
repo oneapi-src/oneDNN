@@ -27,7 +27,7 @@ struct vtest_AAA {
 };
 int vtest_AAA::num_dtor = 0;
 
-TEST(GCCore_variant_cpp, TestVarient) {
+TEST(GCCore_CPU_variant_cpp, TestVarient) {
     using the_var = variant<std::string, int, float, vtest_AAA>;
     the_var a;
     vtest_AAA mystruct;
@@ -113,7 +113,7 @@ struct vtest_DDD : public vtest_BBB {
     vtest_DDD() { val = 3; }
 };
 
-TEST(GCCore_variant_cpp, TestVarientAs) {
+TEST(GCCore_CPU_variant_cpp, TestVarientAs) {
     using the_var = variant<vtest_Base, vtest_BBB, vtest_CCC, vtest_DDD, int>;
     {
         the_var a {vtest_DDD {}};

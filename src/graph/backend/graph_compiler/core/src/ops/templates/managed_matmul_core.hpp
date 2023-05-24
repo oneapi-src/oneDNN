@@ -77,6 +77,9 @@ public:
     return {in_tensors_[1].get_plain_dims().begin() + get_b_batch_dims().size(),
       in_tensors_[1].get_plain_dims().end()};
   };
+  bool is_dynamic() const {
+    return in_tensors_[0].is_dynamic() || in_tensors_[1].is_dynamic();
+  }
 
   sc_data_type_t get_A_dtype() const { return in_tensors_[0].dtype_; }
   sc_data_type_t get_B_dtype() const { return in_tensors_[1].dtype_; }
@@ -87,14 +90,15 @@ public:
     const std::vector<expr> &outputs,
     std::vector<for_loop> &loops) const override;
 
-  void single_thread_matmul_call(const logical_tensor_t &ta,
+  void single_thread_matmul_call(sc_graph_t &graph, const logical_tensor_t &ta,
     const logical_tensor_t &tb, const logical_tensor_t &tc,
     const managed_matmul_core_config_t &config, const expr &M, const expr &N,
     const expr &K, const expr &m_idx, const expr &n_idx, const expr &k_idx,
     const expr &A, const expr &B, const expr &C, int dtype_block,
     fusion_manager *fusion, const expr &m_s, const expr &n_s,
     std::vector<int> &M_anchor_info, std::vector<int> &N_anchor_info,
-    bool is_partial = false, const expr &k_s = 0) const;
+    bool is_partial = false, const expr &k_s = expr(), bool is_dynamic = false,
+    const expr &N_block_size_expr = expr()) const;
 
   void single_thread_reorder_matmul_call(context_ptr ctx,
     const logical_tensor_t &ta, const logical_tensor_t &tb,
@@ -104,7 +108,7 @@ public:
     int dtype_block, fusion_manager *fusion, const expr &m_s, const expr &n_s,
     std::vector<int> &M_anchor_info, std::vector<int> &N_anchor_info,
     std::vector<int> &K_anchor_info, bool is_partial = false,
-    const expr &k_s = 0) const;
+    const expr &k_s = expr()) const;
 
   void generate_prefetcher_body_for_tensor(const context_ptr &ctx,
     const managed_matmul_core_config_t &config,

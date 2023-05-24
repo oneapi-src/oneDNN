@@ -25,6 +25,7 @@
 #include "graph.hpp"
 #include "pass/pass.hpp"
 #include "visitor.hpp"
+#include <compiler/ir/attr_keys.hpp>
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
@@ -45,7 +46,7 @@
 #include <compiler/ir/transform/tensor_inplace_info.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/reduce.hpp>
-#include <ops/fusible/ternary_elemwise.hpp>
+#include <ops/managed_matmul_core.hpp>
 #include <ops/matmul_core.hpp>
 #include <ops/reshape.hpp>
 #include <runtime/config.hpp>
@@ -324,47 +325,6 @@ std::string get_tensor_name(graph_tensor *t, sc_op *linked_output) {
 }
 } // namespace graph
 
-expr call_op_dynamic_query_function(
-        const sc_op_ptr &op, const std::vector<expr> &args) {
-    if (op->isa<ops::matmul_core_op_t>()) {
-        assert(args.size() == 13 || args.size() == 14);
-        return builtin::call_matmul_core_query_format(args[0], args[1], args[2],
-                args[3], args[4], args[5], args[6], args[7], args[8], args[9],
-                args[10], args[11], args[12],
-                args.size() == 13 ? get_ir_null() : args[13]);
-    } else if (op->isa<unary_elementwise_op_t>()) {
-        assert(args.size() == 7);
-        return builtin::call_unary_fusible_op_query_format(
-                args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
-    } else if (op->isa<binary_elementwise_op_t>()) {
-        assert(args.size() == 9);
-        return builtin::call_binary_fusible_op_query_format(args[0], args[1],
-                args[2], args[3], args[4], args[5], args[6], args[7], args[8]);
-    } else if (op->isa<reorder_op_t>()) {
-        assert(args.size() == 7 || args.size() == 8);
-        return builtin::call_reorder_op_query_format(args[0], args[1], args[2],
-                args[3], args[4], args[5], args[6],
-                args.size() == 7 ? get_ir_null() : args[7]);
-    } else if (op->isa<reduce_op_t>()) {
-        assert(args.size() == 7);
-        return builtin::call_reduce_op_query_format(
-                args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
-    } else if (op->isa<tensor_view_op_t>()) {
-        assert(args.size() == 7);
-        return builtin::call_tensor_view_op_query_format(
-                args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
-    } else if (op->isa<select_op_t>()) {
-        assert(args.size() == 11);
-        return builtin::call_select_op_query_format(args[0], args[1], args[2],
-                args[3], args[4], args[5], args[6], args[7], args[8], args[9],
-                args[10]);
-    } else {
-        COMPILE_ASSERT(
-                false, "unsupported op query function: " << op->op_name_);
-    }
-    return expr();
-}
-
 class tv_tsr_replacer_t : public ir_copier_impl_t {
 public:
     using ir_copier_impl_t::dispatch;
@@ -639,7 +599,8 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
                                     builder::make_indexing(shape_tsr, {i}),
                                     plain_shapes[i]));
                 }
-                dyn_mask_int |= ((!plain_shapes[i].isa<constant>()) << i);
+                dyn_mask_int
+                        |= (uint64_t(!plain_shapes[i].isa<constant>()) << i);
             }
             gp.func_body->seq_.emplace_back(builder::make_evaluate_unattached(
                     builder::make_write_struct(tsr,
@@ -1097,6 +1058,42 @@ static void add_func_doc_string(const func_t &f) {
     f->attr()["comments"] = std::move(comments);
 }
 
+// check if an op can be marked no_post_barrier
+stmt_base_t *has_no_dep_with_prev(const sc_op_ptr &node,
+        const op_dep_matrix_t &dep_mat,
+        const std::vector<std::pair<sc_op_ptr, stmt>> &op_execution_log) {
+    // mark no_post_barrier on eveluate-call
+    if (op_execution_log.empty()) { return nullptr; }
+    auto itr = op_execution_log.rbegin();
+    for (; itr != op_execution_log.rend(); ++itr) {
+        if (!itr->second.defined()) continue;
+        if (dep_mat.lookup(node, itr->first) != 0) { return nullptr; }
+        break;
+    }
+    if (itr == op_execution_log.rend()) { return nullptr; }
+    // itr now points to the previously executed op
+    auto ret = itr->second.get();
+    // search from the previous executed op to find if the current op depends on
+    // any of the op in the no_post_barrier section
+    for (itr = itr + 1; itr != op_execution_log.rend(); ++itr) {
+        if (!itr->second.defined()) continue;
+        // if the prev op is already marked no_dep, need to continue to check to
+        // ensure all consequent ops with no_dep does not depend on each other
+        if (itr->second->attr_
+                && itr->second->attr_->has_key(attr_keys::no_post_barrier)) {
+            // if current op does not depend on the previous op
+            if (dep_mat.lookup(node, itr->first) == 0) {
+                continue;
+            } else {
+                return nullptr;
+            }
+        } else {
+            return ret;
+        }
+    }
+    return ret;
+}
+
 ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
         const std::vector<sc_op_ptr> &args, bool mark_as_main) {
     auto timer = SC_SCOPED_TIMER_INFO("graph.driver.time.lowering", "");
@@ -1139,6 +1136,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     std::unordered_set<expr> dyn_var_set;
     // record the node, index is op id.
     std::vector<bool> query_visited(graph.ops_.size(), false);
+    op_dep_matrix_t dep_mat {graph};
     std::vector<std::pair<sc_op_ptr, stmt>> op_execution_log;
     int num_ops = 0;
     vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
@@ -1291,6 +1289,11 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                         builder::make_evaluate_unattached(kernel_call));
                 if (const_type == const_kind::not_const) {
                     executed_in_main_body = true;
+                    if (auto marked_stmt = has_no_dep_with_prev(
+                                node, dep_mat, op_execution_log)) {
+                        marked_stmt->attr()[attr_keys::no_post_barrier]
+                                = callee_name;
+                    }
                     op_execution_log.emplace_back(
                             node, target_body->seq_.back());
                     num_ops++;
@@ -1376,6 +1379,24 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
             = use_managed_thread_pool;
     if (graph_name != default_graph_name) {
         ret_mod->attr_[ir_module_t::attr_key_t::NAME] = graph_name;
+    }
+
+    if (ctx->flags_.graph_default_private_) {
+        for (auto &f : ret_mod->get_contents()) {
+            f->attr()[function_attrs::private_] = true;
+        }
+
+        ret_mod->get_entry_func()->attr().remove(function_attrs::private_);
+        for (auto &table : ret_mod->get_op_table_map()) {
+            for (auto &kv : table.second->kernel_table_) {
+                if (kv.second.already_compiled()) {
+                    if (auto f
+                            = ret_mod->get_func(kv.second.name_or_postfix_)) {
+                        f->attr().remove(function_attrs::private_);
+                    }
+                }
+            }
+        }
     }
     return ret_mod;
 }

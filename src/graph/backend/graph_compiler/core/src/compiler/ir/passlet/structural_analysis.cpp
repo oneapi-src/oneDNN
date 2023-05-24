@@ -17,6 +17,7 @@
 #include "structural_analysis.hpp"
 #include <functional>
 #include <utility>
+#include <util/weakptr_utils.hpp>
 
 namespace dnnl {
 namespace impl {
@@ -31,15 +32,35 @@ void structural_analysis_t::view(const stmt_c &v, pass_phase phase) {
     }
     cur_parent_.pop_back();
     auto cur = get_result(v.get());
-    cur->parent_ = cur_parent_.back();
-    cur->cur_node_ = v.get();
+    cur->parent_ = cur_parent_.back() ? cur_parent_.back()->shared_from_this()
+                                      : nullptr;
+    cur->cur_node_ = v.impl;
+}
+
+const stmt_base_t *structural_result_t::get_raw_parent() const {
+    return utils::get_raw_from_weakptr(parent_);
+}
+
+const stmt_base_t *structural_result_t::get_raw_cur_node() const {
+    return utils::get_raw_from_weakptr(cur_node_);
+}
+
+stmt structural_result_t::get_parent_node() const {
+    auto parent_raw = utils::get_raw_from_weakptr(parent_);
+    return parent_raw
+            ? stmt {const_cast<stmt_base_t *>(parent_raw)->shared_from_this()}
+            : stmt();
+}
+
+void structural_result_t::reset_parent_node(const stmt_c &parent) {
+    parent_ = parent.impl;
 }
 
 bool structural_result_t::is_parent_of(const structural_result_t &other,
         const typed_addresser_t &addresser, bool allow_across_for,
         bool allow_across_if,
         const structural_result_t **out_second_level_parent) const {
-    const stmt_base_t *cur = other.cur_node_;
+    const stmt_base_t *cur = other.get_raw_cur_node();
     const structural_result_t *cur_info = &other;
     if (out_second_level_parent) { *out_second_level_parent = nullptr; }
     for (;;) {
@@ -51,7 +72,7 @@ bool structural_result_t::is_parent_of(const structural_result_t &other,
         if (!allow_across_if) {
             if (cur->node_type_ == sc_stmt_type::if_else) { return false; }
         }
-        cur = cur_info->parent_;
+        cur = cur_info->get_raw_parent();
         if (!cur) { return false; }
         cur_info = addresser(nullptr, cur);
     }
@@ -60,7 +81,7 @@ bool structural_result_t::is_parent_of(const structural_result_t &other,
 const stmt_base_t *structural_result_t::find_shared_parent(
         const structural_result_t &other, const typed_addresser_t &addresser,
         bool allow_across_for, bool allow_across_if) const {
-    const stmt_base_t *cur = cur_node_;
+    const stmt_base_t *cur = get_raw_cur_node();
     const structural_result_t *cur_info = this;
     for (;;) {
         if (cur_info->is_parent_of(
@@ -73,7 +94,7 @@ const stmt_base_t *structural_result_t::find_shared_parent(
         if (!allow_across_if) {
             if (cur->node_type_ == sc_stmt_type::if_else) { return nullptr; }
         }
-        cur = cur_info->parent_;
+        cur = cur_info->get_raw_parent();
         if (!cur) { return nullptr; }
         cur_info = addresser(nullptr, cur);
     }

@@ -139,8 +139,28 @@ enum : int {
     ParamS_Fr1, // FMA count at which frequency stops dropping.
     ParamSCount,
 
+    // Model 'E' parameters
+    ParamE_C0 = 0, // Constant overhead per partial wave, constant coefficient
+    ParamE_C1, // Constant overhead per partial wave, linear coefficient
+    ParamE_Ck0, // Per-wgK overhead per partial wave, constant coefficient
+    ParamE_Ck1, // Per-wgK overhead per partial wave, linear coefficient
+    ParamE_Cb0, // Fused beta overhead per partial wave, constant coefficient
+    ParamE_Cb1, // Fused beta overhead per partial wave, linear coefficient
+    ParamE_Ma, // A per-element load cost
+    ParamE_Mb, // B per-element load cost
+    ParamE_Mc, // C per-element update cost (store/atomic add only)
+    ParamE_Mcu, // C per-element update cost (load + store)
+    ParamE_Ef, // Peak efficiency, full waves
+    ParamE_Ep0, // Peak efficiency, partial wave, constant coefficient
+    ParamE_Ep1, // Peak efficiency, partial wave, linear coefficient
+    ParamE_Em, // Load balancing weight factor (0 = ignore load balancing, 1 = full weight for load balancing term)
+    ParamE_Fp, // Max sustained frequency ratio nominal freq/actual freq.
+    ParamE_Fr0, // FMA count at which frequency starts dropping.
+    ParamE_Fr1, // FMA count at which frequency stops dropping.
+    ParamECount,
+
     // Maximum possible parameter count
-    MaxParamCount = ParamSCount,
+    MaxParamCount = ParamECount,
 };
 
 struct Model {

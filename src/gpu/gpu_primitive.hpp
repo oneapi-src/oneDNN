@@ -31,6 +31,7 @@
 #include "gpu/compute/compute.hpp"
 #include "gpu/gemm/gpu_gemm_exec_types.hpp"
 #include "gpu/gpu_resource.hpp"
+#include "gpu/kernel_cache.hpp"
 
 #define CTX_GPU_RES_STORAGE(arg) \
     (*(ctx.get_resource_mapper() \
@@ -85,6 +86,7 @@ struct gpu_primitive_t : public primitive_t {
     status_t get_cache_blob_size(
             engine_t *engine, size_t *size) const override {
         if (!size) return status::invalid_arguments;
+        if (version_ != -1) (*size) += sizeof(version_);
         // Query binary size for each created kernel.
         for (const auto &cb : compute_blocks()) {
             if (!cb) continue;
@@ -109,6 +111,8 @@ struct gpu_primitive_t : public primitive_t {
 
     status_t get_cache_blob(
             engine_t *engine, cache_blob_t &blob) const override {
+        if (version_ != -1)
+            CHECK(blob.add_value((const uint8_t *)&version_, sizeof(version_)));
         for (const auto &cb : compute_blocks()) {
             if (!cb) continue;
 
@@ -172,6 +176,41 @@ struct gpu_primitive_t : public primitive_t {
         return status;
     }
 
+    template <typename T>
+    status_t create_kernels(engine_t *engine,
+            std::vector<compute::kernel_t> &kernels,
+            const std::vector<const char *> &kernel_names, const T &params) {
+        return create_kernels(
+                engine, kernels, kernel_names, trivial_key_t<T>(params));
+    }
+    template <typename T>
+    status_t create_kernels(engine_t *engine,
+            std::vector<compute::kernel_t> &kernels,
+            const std::vector<const char *> &kernel_names,
+            const trivial_key_t<T> &params) {
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine);
+        if (cache_blob())
+            return compute_engine->create_kernels_from_cache_blob(
+                    cache_blob(), kernels, kernel_names);
+
+        gpu_kernel_key_t key(params);
+        CHECK(key.get_kernels(engine, kernels, kernel_names));
+
+        register_kernels(kernels);
+
+        return status::success;
+    }
+
+    template <typename T>
+    status_t create_kernel(engine_t *engine, compute::kernel_t &kernel,
+            const char *kernel_name, const T &params) {
+        std::vector<compute::kernel_t> kernels(1);
+        CHECK(create_kernels(engine, kernels, {kernel_name}, params));
+        kernel = kernels[0];
+        return status::success;
+    }
+
     status_t create_nested_primitive(std::shared_ptr<primitive_t> &primitive,
             const std::shared_ptr<primitive_desc_t> &pd, engine_t *engine) {
         CHECK(pd->create_primitive(primitive, engine, cache_blob()));
@@ -180,6 +219,10 @@ struct gpu_primitive_t : public primitive_t {
     }
 
 protected:
+    int32_t version() const { return version_; }
+
+    void set_version(int32_t version) { version_ = version; }
+
     void register_primitive(const primitive_t *primitive) {
         registered_compute_blocks_.emplace_back(primitive);
     }
@@ -229,6 +272,13 @@ private:
     }
 
     std::vector<compute_block_t> registered_compute_blocks_;
+
+    // Persistent cache versioning is not used by default. To enable versioning
+    // the primitive should:
+    // 1) Set the version via set_version() in case of non-cached initialization
+    // 2) Retrieve the version from the cache blob and set it via set_version()
+    //    in case of cached initialization
+    int32_t version_ = -1;
 };
 
 } // namespace gpu

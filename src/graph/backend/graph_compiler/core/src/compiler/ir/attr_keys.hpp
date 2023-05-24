@@ -26,6 +26,10 @@ namespace attr_keys {
 // bool. Default false. Applied on local tensors. If true, the tensor must be
 // allocated using runtime memory allocator instead of the native stack
 constexpr const char *runtime_stack_alloc = "runtime_stack_alloc";
+// string. The name of the next function to call. Applied on evaluate-call
+// nodes. If true, the next op to be called has no dependency on the current op.
+// It can be merged with the previous op to remove the barrier.
+constexpr const char *no_post_barrier = "no_post_barrier";
 } // namespace attr_keys
 
 } // namespace gc

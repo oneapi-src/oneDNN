@@ -22,6 +22,7 @@
 #include <runtime/parallel.hpp>
 #include <util/compiler_macros.hpp>
 #include <util/simple_math.hpp>
+#include <util/utils.hpp>
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
 #include <common/dnnl_thread.hpp>
 #include <oneapi/dnnl/dnnl_threadpool.h>
@@ -76,7 +77,21 @@ extern "C" void sc_parallel_call_cpu_with_env_impl(
         });
 }
 
+namespace dnnl {
+namespace impl {
+namespace graph {
+namespace gc {
+int get_max_threadpool_concurrency() {
+    static int v = get_num_threads();
+    return v;
+}
+} // namespace gc
+} // namespace graph
+} // namespace impl
+} // namespace dnnl
+
 static void set_num_threads(int num) {
+    (void)get_max_threadpool_concurrency();
     dnnl_threadpool_interop_set_max_concurrency(num);
 }
 
@@ -116,6 +131,9 @@ static int get_num_threads() {
 }
 
 static void set_num_threads(int num) {
+    static std::unique_ptr<oneapi::tbb::global_control> ctrl;
+    ctrl = utils::make_unique<oneapi::tbb::global_control>(
+            oneapi::tbb::global_control::max_allowed_parallelism, num);
     get_default_threads() = num;
 }
 

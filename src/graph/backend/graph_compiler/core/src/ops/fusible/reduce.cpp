@@ -421,9 +421,9 @@ void infer_reduce_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map,
             for (auto &ax : bd_ax) {
                 auto iter
                         = std::find(non_rd_axis.begin(), non_rd_axis.end(), ax);
-                ret.emplace_back(iter != non_rd_axis.end()
-                                ? (iter - non_rd_axis.begin())
-                                : -1);
+                if (iter != non_rd_axis.end()) {
+                    ret.emplace_back(iter - non_rd_axis.begin());
+                }
             }
             out_axis.emplace_back(ret);
         }
@@ -433,9 +433,8 @@ void infer_reduce_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map,
     if (auto red_comp = cur->dyn_cast<reduce_compute_op_t>()) {
         if (red_comp->is_partial_reduce()) {
             for (auto &bd_ax : bdax_map.get(cur->get_outputs()[0])) {
-                for (auto &ax : bd_ax) {
-                    if (ax != -1) ax++;
-                }
+                for (auto &ax : bd_ax)
+                    ax++;
             }
         }
     }
@@ -451,9 +450,8 @@ void pre_reduce_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map,
     if (auto red_comp = cur->dyn_cast<reduce_compute_op_t>()) {
         if (red_comp->is_partial_reduce()) {
             for (auto &bd_ax : outaxis) {
-                for (auto &ax : bd_ax) {
-                    if (ax != -1) ax--;
-                }
+                for (auto &ax : bd_ax)
+                    ax--;
             }
         }
     }
@@ -478,7 +476,7 @@ void pre_reduce_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map,
                 std::vector<int> ret;
                 ret.reserve(bd_ax.size());
                 for (auto &ax : bd_ax) {
-                    ret.emplace_back(ax == -1 ? ax : non_rd_axis[ax]);
+                    ret.emplace_back(non_rd_axis[ax]);
                 }
                 inpaxis.emplace_back(ret);
             }
@@ -874,11 +872,6 @@ graph_tensor_ptr reduce_op_t::split_op(
                 rd_op_, keep_dims_,
                 last_axis ? reduce_collect_op_t::LAST_AXIS_COLLECT
                           : reduce_collect_op_t::NOOP);
-        // keep last anchor in avoid of partition break for below scenario:
-        // input + output + reduce + reduce_compute + reduce_collect
-        if (ctx->flags_.mixed_fusion_ && graph.ops_.size() == 5) {
-            first->attrs_.set("temp.keep_last_anchor", true);
-        }
     }
     if (is_bf16) {
         auto out_tsr = second_out->copy();
@@ -983,14 +976,14 @@ reduce_compute_op_t::reduce_compute_op_t(const graph_tensor_ptr &in,
 
     size_t in_dims = in->details_.get_blocking_dims().size();
     size_t expected_dims = in_dims;
-    if (is_partial_reduce()) {
-        expected_dims++;
-        attrs_[op_attr_key::break_post_fuse] = true;
-    }
     // if no keep dims
     if (!keep_dims_) {
         expected_dims
                 = std::max((size_t)1, (expected_dims - real_rd_axis_.size()));
+    }
+    if (is_partial_reduce()) {
+        expected_dims++;
+        attrs_[op_attr_key::break_post_fuse] = true;
     }
     // if last axis reduction
     if (real_rd_axis_.back() == static_cast<int>(in_dims) - 1) {
@@ -1044,10 +1037,6 @@ void reduce_compute_op_t::compute_block(context_ptr ctx,
     auto func = [&](const std::vector<expr> &in,
                         std::vector<expr::lvalue_proxy_t> &out) -> stmt {
         indexing indexing_nd = out[0].get().checked_as<indexing>();
-        if (ths->local_mode_) {
-            dst[0]->get_real_tensor()->attr()[attr_keys::must_tensor2var]
-                    = true;
-        }
         auto lanes = indexing_nd->dtype_.lanes_;
         // if keep dims, set reduction axis to 0, else remove the axis from
         // indexing node
@@ -1098,6 +1087,7 @@ void reduce_compute_op_t::compute_block(context_ptr ctx,
 void reduce_compute_op_t::set_reduce_buffer(const tensor &buf) {
     buf->init_value_ = tensor_node::make_tensor_initializer(
             get_init_val_for_reduce(rd_op_, buf->elem_dtype_));
+    if (local_mode_) buf->attr()[attr_keys::must_tensor2var] = true;
 }
 
 reduce_collect_op_t::reduce_collect_op_t(const graph_tensor_ptr &in,

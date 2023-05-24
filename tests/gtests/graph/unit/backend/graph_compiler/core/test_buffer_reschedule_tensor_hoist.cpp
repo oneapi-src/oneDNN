@@ -32,7 +32,7 @@
 
 using namespace dnnl::impl::graph::gc;
 
-TEST(GCCore_buffer_reschedule_tensor_hoist_cpp,
+TEST(GCCore_CPU_buffer_reschedule_tensor_hoist_cpp,
         TestHoistTensorOutOfParallel_Levels1) {
     auto ctx = get_test_ctx();
     builder::ir_builder_t bld;
@@ -67,7 +67,7 @@ TEST(GCCore_buffer_reschedule_tensor_hoist_cpp,
     EXPECT_TRUE(cmper.compare(out, expected));
 }
 
-TEST(GCCore_buffer_reschedule_tensor_hoist_cpp,
+TEST(GCCore_CPU_buffer_reschedule_tensor_hoist_cpp,
         TestHoistTensorOutOfParallel_Levels2) {
     auto ctx = get_test_ctx();
     builder::ir_builder_t bld;
@@ -117,7 +117,7 @@ TEST(GCCore_buffer_reschedule_tensor_hoist_cpp,
     EXPECT_TRUE(cmper.compare(out, expected));
 }
 
-TEST(GCCore_buffer_reschedule_tensor_hoist_cpp,
+TEST(GCCore_CPU_buffer_reschedule_tensor_hoist_cpp,
         TestHoistTensorOutOfParallel_Levels_InitTensorD) {
     auto ctx = get_test_ctx();
     builder::ir_builder_t bld;
@@ -166,7 +166,7 @@ TEST(GCCore_buffer_reschedule_tensor_hoist_cpp,
     EXPECT_TRUE(cmper.compare(out, expected));
 }
 
-TEST(GCCore_buffer_reschedule_tensor_hoist_cpp,
+TEST(GCCore_CPU_buffer_reschedule_tensor_hoist_cpp,
         TestHoistTensorOutOfParallel_Levels2_Parallel) {
     auto ctx = get_test_ctx();
     builder::ir_builder_t bld;

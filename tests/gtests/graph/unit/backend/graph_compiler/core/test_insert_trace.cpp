@@ -34,7 +34,7 @@ extern int get_last_trace_func_id();
 } // namespace impl
 } // namespace dnnl
 
-TEST(GCCore_insert_trace, TestInsertTrace) {
+TEST(GCCore_CPU_insert_trace, TestInsertTrace) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, ccc1, _arg_("A", datatypes::f32, {10000})) {
         _bind_(A);

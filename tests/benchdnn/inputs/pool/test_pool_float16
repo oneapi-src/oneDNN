@@ -2,7 +2,7 @@
 --reset
 --mb=2
 
---cfg=f16
+--dt=f16
 --alg=max,avg_np,avg_p
 # Training
 --tag=abx,axb

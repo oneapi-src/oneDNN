@@ -32,6 +32,14 @@ bool is_uninitialized_weakptr(const std::weak_ptr<T> &weak) {
 }
 
 template <typename T>
+static T *get_raw_from_weakptr(const std::weak_ptr<T> &wptr) {
+    if (is_uninitialized_weakptr(wptr)) return nullptr;
+    auto raw = wptr.lock();
+    assert(raw);
+    return raw.get();
+}
+
+template <typename T>
 struct weakptr_hashset_t {
     using impl_t = std::unordered_map<T *, std::weak_ptr<T>>;
     impl_t impl_;

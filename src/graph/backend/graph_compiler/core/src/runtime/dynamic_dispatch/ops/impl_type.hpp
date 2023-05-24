@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#include <stdint.h>
 
 #ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_OPS_IMPL_TYPE_HPP
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_OPS_IMPL_TYPE_HPP
 
+#include <stdint.h>
 namespace dnnl {
 namespace impl {
 namespace graph {

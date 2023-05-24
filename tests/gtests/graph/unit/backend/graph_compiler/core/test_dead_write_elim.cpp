@@ -65,7 +65,7 @@ static void check_dep(const std::shared_ptr<stmt_base_t> &ptr,
 }
 
 #define SAVE(v) v = get_builder_top();
-TEST(GCCore_dependency_analyzer, TestDependency) {
+TEST(GCCore_CPU_dependency_analyzer, TestDependency) {
     builder::ir_builder_t builder;
     std::shared_ptr<stmt_base_t> b_eq_3, c_eq_3, c_eq_4, c_eq_5, bc_eq_ab,
             bc_eq_2, c_eq_bb, ab_eq_3, if_else_s, c_eq_ab, t_eq_ai, ai_eq_t,
@@ -131,7 +131,7 @@ TEST(GCCore_dependency_analyzer, TestDependency) {
     check_dep(ai_eq_t, {}, {loop_i, t_eq_ai});
 }
 
-TEST(GCCore_dead_write_elimination, TestDWE) {
+TEST(GCCore_CPU_dead_write_elimination, TestDWE) {
     builder::ir_builder_t builder;
     auto mod = std::make_shared<ir_module_t>(get_default_context());
     _global_tensor_(mod, G, datatypes::f32, 100);
@@ -211,7 +211,7 @@ TEST(GCCore_dead_write_elimination, TestDWE) {
     EXPECT_TRUE(cmper.compare(out, expected));
 }
 
-TEST(GCCore_dead_write_elimination, TestDWELoopIndependent) {
+TEST(GCCore_CPU_dead_write_elimination, TestDWELoopIndependent) {
     builder::ir_builder_t builder;
     _function_(datatypes::f32, ccc, _arg_("A", datatypes::f32, {10000})) {
         _bind_(A);

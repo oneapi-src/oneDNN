@@ -71,6 +71,9 @@ struct tensor_slice {
 
     // is_full
     bool is_full() const;
+
+    // is_const
+    bool is_const() const;
 };
 
 } // namespace gc

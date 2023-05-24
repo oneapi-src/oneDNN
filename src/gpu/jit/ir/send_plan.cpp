@@ -474,14 +474,15 @@ public:
     void set_base(const expr_t &base) {
         base_ = base;
         int factor = get_max_const_factor(base_, constraint_set_t());
-        int max_block = math::gcd(
-                math::gcd(factor, a_ * tdim_.block()), b_ * tdim_.block());
+        factor = math::gcd(factor, a_ * tdim_.block());
+        factor = math::gcd(factor, b_ * tdim_.block());
+        if (factor % tdim_.block() != 0)
+            factor = math::gcd(factor, tdim_.block());
 
-        if (tdim_.block() < max_block) {
-            ir_assert(max_block % tdim_.block() == 0);
-            a_ = a_ * tdim_.block() / max_block;
-            b_ = b_ * tdim_.block() / max_block;
-            tdim_ = tdim_.with_block(max_block);
+        if (factor != tdim_.block()) {
+            a_ = a_ * tdim_.block() / factor;
+            b_ = b_ * tdim_.block() / factor;
+            tdim_ = tdim_.with_block(factor);
         }
 
         if (tdim_.block() != 1) base_ /= tdim_.block();
@@ -609,6 +610,7 @@ struct send_2d_params_t {
     // Reduce the number of messages by increasing count per
     // message.
     void try_promote_count() {
+        if (vnni_factor != 1) return;
         while (c * 2 <= max_count()) {
             if (w_rcount % 2 != 0) break;
             c *= 2;
@@ -723,20 +725,42 @@ struct send_2d_params_t {
 
     layout_t reg_layout(int grf_size, int ndims, const type_t &mem_type) const {
         layout_t l(type, 0, std::vector<dim_t>(ndims, 1));
+        dim_t cur_stride = 1;
+        enum class pad_kind_t {
+            none,
+            dim_pow2,
+            stride_grf,
+        };
+        auto add_block = [&](int dim_idx, dim_t block,
+                                 pad_kind_t pad = pad_kind_t::none) {
+            l = l.add_outer_block(dim_idx, block, cur_stride);
+            dim_t stride = cur_stride * block;
+            switch (pad) {
+                case pad_kind_t::dim_pow2:
+                    stride = cur_stride * utils::rnd_up_pow2(block);
+                    break;
+                case pad_kind_t::stride_grf:
+                    stride = utils::rnd_up(stride, grf_size / type.size());
+                    break;
+                case pad_kind_t::none: break;
+                default: ir_error_not_expected();
+            }
+            cur_stride = stride;
+        };
         if (transpose) {
-            l = l.add_outer_block(h_vidx, h);
-            l = l.add_outer_block(w_vidx, w);
+            add_block(h_vidx, h, pad_kind_t::dim_pow2);
+            add_block(w_vidx, w, pad_kind_t::stride_grf);
         } else if (vnni) {
             int h_inner = 4 / type.size();
             int h_outer = ir_utils::safe_divide(h, h_inner);
-            l = l.add_outer_block(h_vidx, h_inner);
-            l = l.add_outer_block(w_vidx, w);
-            l = l.add_outer_block(h_vidx, h_outer);
+            add_block(h_vidx, h_inner);
+            add_block(w_vidx, w, pad_kind_t::dim_pow2);
+            add_block(h_vidx, h_outer, pad_kind_t::stride_grf);
         } else {
-            l = l.add_outer_block(w_vidx, w);
-            l = l.add_outer_block(h_vidx, h);
+            add_block(w_vidx, w, pad_kind_t::dim_pow2);
+            add_block(h_vidx, h, pad_kind_t::stride_grf);
         }
-        l = l.add_outer_block(vnni_factor > 1 ? h_vidx : w_vidx, c);
+        add_block(vnni_factor > 1 ? h_vidx : w_vidx, c);
         l = l.add_outer_block_and_pad(w_vidx, w_rcount, grf_size);
         l = l.add_outer_block_and_pad(h_vidx, h_rcount, grf_size);
         if (type != mem_type) l = l.reinterpret(mem_type);
@@ -1051,12 +1075,12 @@ struct send_group_t {
         return type;
     }
 
-    send_group_t split(const split_bounds_t &bounds, int subtile_idx) const {
+    send_group_t split(
+            const split_bounds_t &bounds, int subtile_idx, bool is_g1b1) const {
         if (!is_block()) return send_group_t();
 
         int factor = bounds.factor();
-        int nblocks = (int)blocks.size();
-        if (nblocks == 1) {
+        if (is_g1b1) {
             if (type_size % factor != 0) return send_group_t();
             int new_type_size = type_size / factor;
             int grf_size = ngen::GRF::bytes(hw);
@@ -1715,7 +1739,9 @@ private:
         int x_align = align;
         if (!x_mod.is_divisible(x_align) != 0)
             return fail_2d("Unsupported x alignment: ", x_mod);
-        ir_assert(params_.w % align == 0);
+        if (params_.w % align != 0)
+            return fail_2d(
+                    "Unsupported width/alignment combination: ", params_.w);
 
         return true;
     }
@@ -1950,11 +1976,13 @@ public:
     stmt_t create_stmt(const expr_t &mem_buf, const expr_t &reg_buf,
             int subtile_idx) const override {
         stmt_t ret;
+        bool is_g1b1 = (send_groups_.size() == 1)
+                && (send_groups_[0].blocks.size() == 1);
         for (auto &_g : send_groups_) {
             auto g = (split_factor_ == 1)
                     ? _g
                     : _g.split(split_bounds_t(reg_layout(), split_factor_),
-                            subtile_idx);
+                            subtile_idx, is_g1b1);
             ir_assert(!g.is_empty());
             bool try_legacy = send_params().try_legacy
                     && (g.hw < ngen::HW::XeHPC) && g.is_block();
@@ -2007,12 +2035,12 @@ public:
         if (factor == 1) return true;
         // XXX: For now handle block messages only.
         if (!is_block()) return false;
-        bool is_single_block = (send_groups_.size() == 1)
+        bool is_g1b1 = (send_groups_.size() == 1)
                 && (send_groups_[0].blocks.size() == 1);
-        if (is_single_block) {
+        if (is_g1b1) {
             // Try split.
             auto g = send_groups_[0].split(
-                    split_bounds_t(reg_layout(), factor), 0);
+                    split_bounds_t(reg_layout(), factor), 0, is_g1b1);
             if (!g.is_empty()) return true;
         }
 
@@ -2103,7 +2131,7 @@ private:
 
     static std::vector<stmt_t> try_legacy_send(const std::vector<stmt_t> &calls,
             const std::vector<send_info_t> &infos) {
-        ir_assert(!calls.empty());
+        if (calls.empty()) return calls;
         ir_assert(calls.size() == infos.size());
         int nmsgs = (int)calls.size();
         std::vector<bool> can_fuse(nmsgs + 1, true);

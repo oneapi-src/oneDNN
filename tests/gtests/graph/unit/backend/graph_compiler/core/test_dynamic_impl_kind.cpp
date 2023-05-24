@@ -29,8 +29,50 @@
 #include <ops/templates/matmul_core.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 using namespace dnnl::impl::graph::gc;
-
-TEST(GCCore_dynamic_impl_kind_cpp, TestImplKindManagedMatmulCore) {
+class customized_managed_matmul_core_op_t
+    : public ops::managed_matmul_core_op_t {
+public:
+    using inner_config = ops::managed_matmul_core_config_t;
+    customized_managed_matmul_core_op_t(
+            const std::vector<graph_tensor_ptr> &producer_lt,
+            const std::vector<graph_tensor_ptr> &consumer_lt,
+            const any_map_t &attrs)
+        : ops::managed_matmul_core_op_t(producer_lt, consumer_lt, attrs) {
+        op_name_ = "customized_managed_matmul_core";
+    }
+    std::vector<config_ptr> get_dynamic_config_candidates(
+            const context_ptr &ctx) override {
+        config_ptr_vec ret;
+        int num_threads = runtime_config_t::get().get_num_threads();
+        auto M_split_candidates = utils::get_factors(num_threads);
+        auto N_split_candidates = utils::get_factors(num_threads);
+        std::vector<int> MNK_sub_candidates = {1, 2, 8};
+        for (auto &M_split_num : M_split_candidates) {
+            for (auto &N_split_num : N_split_candidates) {
+                if (num_threads % (M_split_num * N_split_num)) { continue; }
+                for (auto &M_sub_block : MNK_sub_candidates) {
+                    for (auto &N_sub_block : MNK_sub_candidates) {
+                        for (auto &K_sub_block : MNK_sub_candidates) {
+                            auto gcfg = reflection::general_object_t::make<
+                                    inner_config>();
+                            inner_config &cfg
+                                    = *gcfg.unchecked_get_as<inner_config>();
+                            cfg.M_split_num = M_split_num;
+                            cfg.N_split_num = N_split_num;
+                            cfg.M_sub_block = M_sub_block;
+                            cfg.N_sub_block = N_sub_block;
+                            cfg.K_sub_block = K_sub_block;
+                            cfg.im_loop_order = 0;
+                            ret.emplace_back(std::move(gcfg));
+                        }
+                    }
+                }
+            }
+        }
+        return ret;
+    }
+};
+TEST(GCCore_CPU_dynamic_impl_kind_cpp, TestImplKindManagedMatmulCore) {
     sc_graph_t g;
     auto in_a = g.make_input(
             {graph_tensor::make({28, 64}, sc_data_format_t::MK())});
@@ -40,11 +82,12 @@ TEST(GCCore_dynamic_impl_kind_cpp, TestImplKindManagedMatmulCore) {
     auto cfg_sz = sizeof(ops::managed_matmul_core_config_t);
     {
         // threads == 1
-        thread_num_reset reseter;
-        runtime_config_t::get().set_num_threads(1);
-        auto mmm = g.make("managed_matmul_core",
-                {in_a->get_outputs()[0], in_b->get_outputs()[0]},
-                {graph_tensor::make({28, 32})}, {});
+        SET_THREADS_OR_SKIP(1);
+        auto mmm = g.make<customized_managed_matmul_core_op_t>(
+                std::vector<graph_tensor_ptr> {
+                        in_a->get_outputs()[0], in_b->get_outputs()[0]},
+                std::vector<graph_tensor_ptr> {graph_tensor::make({28, 32})},
+                any_map_t());
         auto tun_mmm = mmm->dyn_cast<tunable_op_t>();
         auto configs = tun_mmm->get_dynamic_config_candidates(ctx);
         EXPECT_EQ(configs.size(), UINT64_C(1) * 1 * 3 * 3 * 3);
@@ -57,20 +100,21 @@ TEST(GCCore_dynamic_impl_kind_cpp, TestImplKindManagedMatmulCore) {
         auto cfg2 = configs[5]
                             .unchecked_get_as<
                                     ops::managed_matmul_core_config_t>();
-        ops::managed_matmul_core_config_t expect0 {1, 1, 1, 1, 1, 1};
-        ops::managed_matmul_core_config_t expect1 {1, 1, 1, 2, 1, 1};
-        ops::managed_matmul_core_config_t expect2 {1, 1, 1, 2, 8, 1};
+        ops::managed_matmul_core_config_t expect0 {1, 1, 1, 1, 1, 0};
+        ops::managed_matmul_core_config_t expect1 {1, 1, 1, 2, 1, 0};
+        ops::managed_matmul_core_config_t expect2 {1, 1, 1, 2, 8, 0};
         EXPECT_TRUE(!memcmp(cfg0, &expect0, cfg_sz));
         EXPECT_TRUE(!memcmp(cfg1, &expect1, cfg_sz));
         EXPECT_TRUE(!memcmp(cfg2, &expect2, cfg_sz));
     }
     {
         // threads == 4
-        thread_num_reset reseter;
-        runtime_config_t::get().set_num_threads(4);
-        auto mmm = g.make("managed_matmul_core",
-                {in_a->get_outputs()[0], in_b->get_outputs()[0]},
-                {graph_tensor::make({28, 32})}, {});
+        SET_THREADS_OR_SKIP(4);
+        auto mmm = g.make<customized_managed_matmul_core_op_t>(
+                std::vector<graph_tensor_ptr> {
+                        in_a->get_outputs()[0], in_b->get_outputs()[0]},
+                std::vector<graph_tensor_ptr> {graph_tensor::make({28, 32})},
+                any_map_t());
         auto tun_mmm = mmm->dyn_cast<tunable_op_t>();
         auto configs = tun_mmm->get_dynamic_config_candidates(ctx);
         EXPECT_EQ(configs.size(), UINT64_C(6) * 3 * 3 * 3);
@@ -83,9 +127,9 @@ TEST(GCCore_dynamic_impl_kind_cpp, TestImplKindManagedMatmulCore) {
         auto cfg2 = configs[50]
                             .unchecked_get_as<
                                     ops::managed_matmul_core_config_t>();
-        ops::managed_matmul_core_config_t expect0 {1, 2, 1, 1, 1, 1};
-        ops::managed_matmul_core_config_t expect1 {1, 2, 2, 8, 8, 1};
-        ops::managed_matmul_core_config_t expect2 {1, 2, 8, 2, 8, 1};
+        ops::managed_matmul_core_config_t expect0 {1, 2, 1, 1, 1, 0};
+        ops::managed_matmul_core_config_t expect1 {1, 2, 2, 8, 8, 0};
+        ops::managed_matmul_core_config_t expect2 {1, 2, 8, 2, 8, 0};
         EXPECT_TRUE(!memcmp(cfg0, &expect0, cfg_sz));
         EXPECT_TRUE(!memcmp(cfg1, &expect1, cfg_sz));
         EXPECT_TRUE(!memcmp(cfg2, &expect2, cfg_sz));
@@ -93,18 +137,19 @@ TEST(GCCore_dynamic_impl_kind_cpp, TestImplKindManagedMatmulCore) {
 
     {
         // threads == 56
-        thread_num_reset reseter;
-        runtime_config_t::get().set_num_threads(56);
-        auto mmm = g.make("managed_matmul_core",
-                {in_a->get_outputs()[0], in_b->get_outputs()[0]},
-                {graph_tensor::make({28, 32})}, {});
+        SET_THREADS_OR_SKIP(56);
+        auto mmm = g.make<customized_managed_matmul_core_op_t>(
+                std::vector<graph_tensor_ptr> {
+                        in_a->get_outputs()[0], in_b->get_outputs()[0]},
+                std::vector<graph_tensor_ptr> {graph_tensor::make({28, 32})},
+                any_map_t());
         auto tun_mmm = mmm->dyn_cast<tunable_op_t>();
         auto configs = tun_mmm->get_dynamic_config_candidates(ctx);
         EXPECT_EQ(configs.size(), UINT64_C(30) * 3 * 3 * 3);
         auto cfg0 = configs[808]
                             .unchecked_get_as<
                                     ops::managed_matmul_core_config_t>();
-        ops::managed_matmul_core_config_t expect0 {56, 1, 8, 8, 2, 1};
+        ops::managed_matmul_core_config_t expect0 {56, 1, 8, 8, 2, 0};
         EXPECT_TRUE(!memcmp(cfg0, &expect0, cfg_sz));
     }
 }
@@ -158,8 +203,8 @@ public:
     }
 };
 
-TEST(GCCore_dynamic_impl_kind_cpp, TestImplKindMatmulCoreExec) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_dynamic_impl_kind_cpp, TestImplKindMatmulCoreExec) {
+    REQUIRE_AVX2();
     sc_graph_t g;
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     auto in_a = g.make_input(

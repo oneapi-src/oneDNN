@@ -1872,10 +1872,16 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (jcp.wei_plain)
         CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
 
+    brg_blocking_t::last_ic_block_size
+            = (jcp.wei_dt == f16 && isa == avx512_core_fp16)
+            ? 1
+            : data_type_vnni_granularity(jcp.wei_dt);
+
     if (one_of(jcp.prop_kind, prop_kind::forward_training,
                 prop_kind::forward_inference)
             && jcp.ngroups == 1 && jcp.dilate_w == 0 && jcp.kw > 1
-            && jcp.stride_w > 1 && jcp.l_pad <= 0 && jcp.r_pad <= 0) {
+            && jcp.stride_w > 1 && jcp.l_pad <= 0 && jcp.r_pad <= 0
+            && jcp.ic % brg_blocking_t::last_ic_block_size == 0) {
         // such convolutions are equivalent to
         // [iw / k][kw / k][stride_w / k][ic * k]
         const bool pure_1d = (jcp.mb == 1 && jcp.id == 1 && jcp.ih == 1);
@@ -1899,11 +1905,6 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                     jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, jcp.ext_kw);
         }
     }
-
-    brg_blocking_t::last_ic_block_size
-            = (jcp.wei_dt == f16 && isa == avx512_core_fp16)
-            ? 1
-            : data_type_vnni_granularity(jcp.wei_dt);
 
     // TODO: optimize depthwise convolutions (for now direct approach is faster)
     const bool is_depthwise
@@ -2050,19 +2051,18 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         if ((jcp.ic == jcp.oc) && (jcp.ic == 128 || jcp.ic == 256)
                 && (jcp.oh == jcp.ow) && (jcp.oh == 150))
             if (allow_perf_heuristics(jcp)) return status::unimplemented;
-        // disabled for first convolutions excepting 3d
-        const bool is_real_3d = (jcp.ndims == 5
-                && (jcp.id > 1 || jcp.od > 1 || jcp.kd > 1
-                        || jcp.dilate_d > 0));
-
-        if (jcp.ic <= 4 && !is_real_3d
-                && IMPLICATION(with_groups, is_groups_ok(jcp)))
-            if (allow_perf_heuristics(jcp)) return status::unimplemented;
 
         if (jcp.f_pad >= jcp.ext_kd || jcp.t_pad >= jcp.ext_kh
                 || jcp.r_pad >= jcp.ext_kw)
             return status::unimplemented;
     }
+    // disabled for first convolutions excepting 3d
+    const bool is_real_3d = (jcp.ndims == 5
+            && (jcp.id > 1 || jcp.od > 1 || jcp.kd > 1 || jcp.dilate_d > 0));
+
+    if (jcp.ic <= 4 && !is_real_3d
+            && IMPLICATION(with_groups, is_groups_ok(jcp)))
+        if (allow_perf_heuristics(jcp)) return status::unimplemented;
 
     using namespace data_type;
     // ======================= blocking =================================

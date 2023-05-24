@@ -14,12 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include <cstring>
-
-#include <float.h>
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <random>
+#include <vector>
 
 #include "oneapi/dnnl/dnnl.h"
 
@@ -39,13 +37,13 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
     auto src_d = dnn_mem_t::init_md(
-            prb->ndims, prb->src_dims().data(), prb->cfg[SRC].dt, prb->stag);
+            prb->ndims, prb->src_dims().data(), prb->get_dt(SRC), prb->stag);
     auto wei_d = dnn_mem_t::init_md(
-            prb->ndims, prb->wei_dims().data(), prb->cfg[WEI].dt, prb->wtag);
+            prb->ndims, prb->wei_dims().data(), prb->get_dt(WEI), prb->wtag);
     auto bia_d = dnn_mem_t::init_md(
-            1, prb->bia_dims().data(), prb->cfg[BIA].dt, tag::any);
+            1, prb->bia_dims().data(), prb->get_dt(BIA), tag::any);
     auto dst_d = dnn_mem_t::init_md(
-            2, prb->dst_dims().data(), prb->cfg[DST].dt, prb->dtag);
+            2, prb->dst_dims().data(), prb->get_dt(DST), prb->dtag);
 
     attr_args_t attr_args;
     attr_args.prepare_post_ops_mds(prb->attr, 2, prb->dst_dims().data());
@@ -97,7 +95,7 @@ int init_prim_ref(
     // modifying prb in place.
     auto cpu_attr = prb->attr;
     update_cpu_ref_attrs(cpu_attr);
-    prb_t prb_cpu {*prb, prb->mb, prb->dir, conf_f32, tag::abx, tag::abx,
+    prb_t prb_cpu {*prb, prb->mb, prb->dir, {dnnl_f32}, tag::abx, tag::abx,
             tag::abx, cpu_attr, prb->ctx_init, prb->ctx_exe};
 
     init_pd_args_t<prb_t> init_pd_args(
@@ -120,62 +118,32 @@ int init_prim_ref(
     return OK;
 }
 
-int fill_src(
+int check_reorder_presence(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const size_t nelems = mem_fp.nelems();
-    if (nelems == 0) return OK;
+    if (!is_cpu()) return OK;
 
-    const auto &c = prb->get_dt_conf(SRC);
-    const int range = c.f_max - c.f_min + 1;
-    const float sparsity
-            = (!has_bench_mode_bit(mode_bit_t::corr) || prb->ic < 5)
-            ? 1.f
-            : c.f_sparsity;
+    dnnl_data_type_t dt_check = dnnl_s8;
+#if defined(DNNL_AARCH64) && (DNNL_AARCH64 == 1)
+    /* Note for x64:
+    Both data types of src and weight are s8, oneDNN addds 128 to one of the s8
+    input to make it of type u8 instead, as explained in
+    https://oneapi-src.github.io/oneDNN/dev_guide_int8_computations.html or
+    doc/advanced/int8_computations.md
+    It is because `VPDPBUSD` instruction uses the combination of s8 and u8 as
+    input.
 
-    benchdnn_parallel_nd(prb->mb, prb->ic, prb->id, prb->ih, prb->iw,
-            [&](int64_t mb, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
-                const int gen
-                        = 101 * id + 103 * ih + 107 * iw + 109 * mb + 113 * ic;
-                const bool non_base = flip_coin(gen, sparsity);
-                const float value
-                        = non_base ? c.f_min + gen * 1 % range : c.f_base;
-                ((float *)mem_fp)[src_off_f(prb, mb, ic, id, ih, iw)]
-                        = round_to_nearest_representable(mem_dt.dt(), value);
-            });
+    Note for AArch64:
+    Because dot product instructions of AArch64 "SDOT" receives s8 input
+    for both src and weight, the addition (and its counterpart of subtraction)
+    is not required for AArch64.
+    */
+    if (res->impl_name.find("jit", 0) == 0) dt_check = dnnl_u8;
+#endif
 
-    SAFE(mem_dt.reorder(mem_fp), WARN);
-
-    return OK;
-}
-
-int fill_wei(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const size_t nelems = mem_fp.nelems();
-    if (nelems == 0) return OK;
-
-    const auto &c = prb->get_dt_conf(WEI);
-    const int range = c.f_max - c.f_min + 1;
-    const float sparsity
-            = (!has_bench_mode_bit(mode_bit_t::corr) || prb->ic < 5)
-            ? 1.f
-            : c.f_sparsity;
-
-    benchdnn_parallel_nd(prb->oc, prb->ic, prb->id, prb->ih, prb->iw,
-            [&](int64_t oc, int64_t ic, int64_t kd, int64_t kh, int64_t kw) {
-                const int gen = 127 * kd + 131 * kh + 137 * kw + 139 * oc
-                        + 149 * ic + 7;
-                const bool non_base = flip_coin(gen, sparsity);
-                const float value
-                        = non_base ? c.f_min + gen * 1 % range : c.f_base;
-                ((float *)mem_fp)[wei_off_f(prb, oc, ic, kd, kh, kw)]
-                        = round_to_nearest_representable(mem_dt.dt(), value);
-            });
-
-    SAFE(mem_dt.reorder(mem_fp), WARN);
-
-    const bool s8_s8
-            = prb->cfg[WEI].dt == dnnl_s8 && prb->cfg[SRC].dt == dnnl_s8;
-    if (s8_s8 && is_cpu()) {
+    const bool wei_x8x8
+            = prb->get_dt(WEI) == dnnl_s8 && prb->get_dt(SRC) == dt_check;
+    const bool is_def_zp = prb->attr.zero_points.is_def(DNNL_ARG_SRC);
+    if (wei_x8x8 || !is_def_zp) {
         // Check that s8 -> s8_comp exists in the library since users may have
         // already quantized data.
         dnn_mem_t mem_fp_s8(mem_fp.md_, dnnl_s8, tag::abx, get_cpu_engine());
@@ -190,83 +158,94 @@ int fill_wei(
     return OK;
 }
 
-int fill_bia(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const size_t nelems = mem_fp.nelems();
+int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
+        dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
+    const auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
 
-    const auto &c = prb->get_dt_conf(BIA);
-    const int range = c.f_max - c.f_min + 1;
+    cfg_t::density_args_t density_args;
+    density_args.data_kind = kind;
+    density_args.n_acc = prb->count_n_acc();
+    const auto density = cfg.get_density(density_args);
 
-    for (size_t i = 0; i < nelems; ++i) {
-        const int gen = (int)(151 * i + 11);
-        const bool non_base = flip_coin(gen, c.f_sparsity);
-        const float value = non_base ? c.f_min + gen * 1 % range : c.f_base;
-        ((float *)mem_fp)[i]
-                = round_to_nearest_representable(mem_dt.dt(), value);
-    }
+    /* Do fixed partitioning to have same filling for any number of threads */
+    const int64_t n_chunks = 16;
+    const int64_t chunk_size = div_up(nelems, n_chunks);
 
-    SAFE(mem_dt.reorder(mem_fp), WARN);
+    benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
+        int64_t idx_start = idx_chunk * chunk_size;
+        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
+        // Note: we use a different seed for each chunk to avoid
+        // repeating patterns. We could use discard(idx_start) too but
+        // it has a complexity in O(idx_start). We also add 1 to avoid
+        // seeding with 0.
+        std::minstd_rand int_seed(kind * nelems + idx_start + 1);
+        int_seed.discard(1);
+        std::minstd_rand b_seed(kind * nelems + idx_start + 1);
+        b_seed.discard(10);
 
-    return OK;
-}
+        std::uniform_int_distribution<> gen(
+                cfg.get_range_min(kind), cfg.get_range_max(kind));
+        std::bernoulli_distribution b_dist(density);
 
-int fill_dst(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const size_t nelems = mem_fp.nelems();
-    if (nelems == 0) return OK;
+        // make sure the first element is positive
+        if (idx_start == 0) {
+            float val = 0;
+            while (val <= 0)
+                val = gen(int_seed);
+            mem_fp.set_elem(
+                    0, round_to_nearest_representable(cfg.get_dt(kind), val));
+            idx_start += 1;
+        }
 
-    const auto &c = prb->get_dt_conf(DST);
-    const int range = c.f_max - c.f_min + 1;
-
-    benchdnn_parallel_nd(prb->mb, prb->oc, [&](int64_t mb, int64_t oc) {
-        const int gen = 173 * mb + 179 * oc;
-        const bool non_base = flip_coin(gen, c.f_sparsity);
-        const float value = non_base ? c.f_min + gen * 1 % range : c.f_base;
-
-        ((float *)mem_fp)[dst_off_f(prb, mb, oc)]
-                = round_to_nearest_representable(mem_dt.dt(), value);
+        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
+            bool is_one = density == 1.f ? true : b_dist(b_seed);
+            float val = is_one * gen(int_seed);
+            mem_fp.set_elem(
+                    idx, round_to_nearest_representable(cfg.get_dt(kind), val));
+        }
     });
 
+    const bool swap_dt
+            = kind == DST && cfg.get_orig_dt(kind) != cfg.get_dt(kind);
+    if (swap_dt) mem_dt.set_dt(cfg.get_dt(kind));
     SAFE(mem_dt.reorder(mem_fp), WARN);
+    if (swap_dt) mem_dt.set_dt(cfg.get_orig_dt(kind));
+
+    if (kind == WEI)
+        SAFE(check_reorder_presence(prb, mem_dt, mem_fp, res), WARN);
 
     return OK;
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_data_type(
-            {prb->cfg[SRC].dt, prb->cfg[WEI].dt, prb->cfg[DST].dt}, prb->dir,
+            {prb->get_dt(SRC), prb->get_dt(WEI), prb->get_dt(DST)}, prb->dir,
             res);
+    skip_unimplemented_sum_po(prb->attr, res, dnnl_inner_product,
+            prb->get_dt(SRC), prb->get_dt(DST));
 
     if (is_cpu()) {
-
         auto is_dt_f16_or_f32 = [&](dnnl_data_type_t dt) {
             return dt == dnnl_f16 || dt == dnnl_f32;
         };
 
-        if (!IMPLICATION(prb->cfg[SRC].dt == dnnl_f16
-                            || prb->cfg[WEI].dt == dnnl_f16
-                            || prb->cfg[DST].dt == dnnl_f16,
-                    is_dt_f16_or_f32(prb->cfg[SRC].dt)
-                            && is_dt_f16_or_f32(prb->cfg[WEI].dt)
-                            && is_dt_f16_or_f32(prb->cfg[DST].dt))) {
+        if (!IMPLICATION(prb->get_dt(SRC) == dnnl_f16
+                            || prb->get_dt(WEI) == dnnl_f16
+                            || prb->get_dt(DST) == dnnl_f16,
+                    is_dt_f16_or_f32(prb->get_dt(SRC))
+                            && is_dt_f16_or_f32(prb->get_dt(WEI))
+                            && is_dt_f16_or_f32(prb->get_dt(DST)))) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         }
     }
-
-    skip_unimplemented_sum_po(prb->attr, res, dnnl_inner_product,
-            prb->get_dt_conf(SRC).dt, prb->get_dt_conf(DST).dt);
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {}
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
-    cmp.set_threshold(prb->cfg[DST].eps);
-
-    // TODO: why so bad filling?
-    const float zero_trust_percent = kind == WEI || kind == BIA ? 90.f : 80.f;
-    cmp.set_zero_trust_percent(zero_trust_percent);
+    cmp.set_threshold(0.f);
 }
 
 std::vector<int> supported_exec_args(dir_t dir) {
@@ -300,6 +279,9 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
     const auto &ref_engine = get_cpu_engine();
 
+    // Move cfg out of filling since its creation is not free.
+    cfg_t cfg(prb, {SRC, WEI, BIA, DST});
+
     for (auto &entry : mem_map) {
         const int exec_arg = entry.first;
         auto &mem = entry.second; // `mem` is modified by filler (reorder).
@@ -310,21 +292,21 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
         switch (exec_arg) {
             case DNNL_ARG_SRC:
-                SAFE(fill_src(prb, mem, ref_mem, res), WARN);
+                SAFE(fill_data(SRC, prb, cfg, mem, ref_mem, res), WARN);
                 break;
             case DNNL_ARG_WEIGHTS:
-                SAFE(fill_wei(prb, mem, ref_mem, res), WARN);
+                SAFE(fill_data(WEI, prb, cfg, mem, ref_mem, res), WARN);
                 break;
             case DNNL_ARG_BIAS:
-                SAFE(fill_bia(prb, mem, ref_mem, res), WARN);
+                SAFE(fill_data(BIA, prb, cfg, mem, ref_mem, res), WARN);
                 break;
             case DNNL_ARG_DST:
                 if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM)
                         >= 0)
-                    SAFE(fill_dst(prb, mem, ref_mem, res), WARN);
+                    SAFE(fill_data(DST, prb, cfg, mem, ref_mem, res), WARN);
                 break;
             case DNNL_ARG_DIFF_DST:
-                SAFE(fill_dst(prb, mem, ref_mem, res), WARN);
+                SAFE(fill_data(DST, prb, cfg, mem, ref_mem, res), WARN);
                 break;
             case DNNL_ARG_SCRATCHPAD:
                 // Reference CPU impl may need a different size for scratchpad.

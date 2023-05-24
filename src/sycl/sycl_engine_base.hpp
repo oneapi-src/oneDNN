@@ -63,6 +63,118 @@ public:
     status_t create_stream(stream_t **stream, unsigned flags) override;
     status_t create_stream(stream_t **stream, ::sycl::queue &queue);
 
+    status_t create_compiled_bundle(gpu::compute::compiled_bundle_t &generator,
+            const std::vector<const char *> &kernel_names,
+            const gpu::compute::kernel_ctx_t &kernel_ctx) const override {
+        if (kind() != engine_kind::gpu) {
+            assert(!"not expected");
+            return status::invalid_arguments;
+        }
+
+        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t, engine_deleter_t>
+                ocl_engine;
+        auto status = create_ocl_engine(&ocl_engine);
+        if (status != status::success) return status;
+        return ocl_engine->create_compiled_bundle(
+                generator, kernel_names, kernel_ctx);
+    }
+
+    status_t create_compiled_kernel(gpu::compute::compiled_kernel_t &generator,
+            gpu::jit::jit_generator_base &jitter) const override {
+        if (kind() != engine_kind::gpu) {
+            assert(!"not expected");
+            return status::invalid_arguments;
+        }
+
+        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t, engine_deleter_t>
+                ocl_engine;
+        auto status = create_ocl_engine(&ocl_engine);
+        if (status != status::success) return status;
+        return ocl_engine->create_compiled_kernel(generator, jitter);
+    }
+
+    status_t convert_to_sycl(std::vector<gpu::compute::kernel_t> &kernels,
+            const std::vector<gpu::compute::kernel_t> &ocl_kernels,
+            const std::vector<const char *> &kernel_names,
+            gpu::ocl::ocl_gpu_engine_t *ocl_engine) const {
+        kernels = std::vector<gpu::compute::kernel_t>(kernel_names.size());
+        for (size_t i = 0; i < ocl_kernels.size(); ++i) {
+            if (!ocl_kernels[i]) continue;
+            auto *k = utils::downcast<gpu::ocl::ocl_gpu_kernel_t *>(
+                    ocl_kernels[i].impl());
+            gpu::compute::binary_t binary;
+            CHECK(k->get_binary(ocl_engine, binary));
+            std::unique_ptr<::sycl::kernel> sycl_kernel;
+            CHECK(compat::make_kernel(
+                    sycl_kernel, this, binary, kernel_names[i]));
+
+            kernels[i] = gpu::compute::kernel_t(
+                    new gpu::sycl::sycl_interop_gpu_kernel_t(
+                            *sycl_kernel, k->arg_types()));
+        }
+        return status::success;
+    }
+
+    status_t create_kernels_from_bundle(
+            std::vector<gpu::compute::kernel_t> &kernels,
+            const std::vector<const char *> &kernel_names,
+            const gpu::compute::compiled_bundle_t &generator) const override {
+        if (kind() != engine_kind::gpu) {
+            assert(!"not expected");
+            return status::invalid_arguments;
+        }
+
+        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t, engine_deleter_t>
+                ocl_engine;
+        auto status = create_ocl_engine(&ocl_engine);
+        if (status != status::success) return status;
+
+        std::vector<gpu::compute::kernel_t> ocl_kernels;
+        ocl_engine->create_kernels_from_bundle(
+                ocl_kernels, kernel_names, generator);
+
+        CHECK(convert_to_sycl(
+                kernels, ocl_kernels, kernel_names, ocl_engine.get()));
+        return status::success;
+    }
+
+    status_t create_kernel_from_binary(gpu::compute::kernel_t &kernel,
+            const gpu::compute::binary_t &binary,
+            const char *kernel_name) const override {
+        gpu::ocl::dump_kernel_binary(binary, kernel_name);
+
+        std::vector<gpu::compute::scalar_type_t> arg_types;
+
+        std::unique_ptr<::sycl::kernel> sycl_kernel;
+        CHECK(compat::make_kernel(sycl_kernel, this, binary, kernel_name));
+
+        kernel = gpu::compute::kernel_t(
+                new gpu::sycl::sycl_interop_gpu_kernel_t(
+                        *sycl_kernel, arg_types));
+        return status::success;
+    }
+
+    status_t create_kernels_from_cache_blob(cache_blob_t cache_blob,
+            std::vector<gpu::compute::kernel_t> &kernels,
+            const std::vector<const char *> &kernel_names) const override {
+        if (kind() != engine_kind::gpu) {
+            assert(!"not expected");
+            return status::invalid_arguments;
+        }
+
+        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t, engine_deleter_t>
+                ocl_engine;
+        auto status = create_ocl_engine(&ocl_engine);
+        if (status != status::success) return status;
+
+        std::vector<gpu::compute::kernel_t> ocl_kernels;
+        CHECK(ocl_engine->create_kernels_from_cache_blob(
+                cache_blob, ocl_kernels, kernel_names));
+        CHECK(convert_to_sycl(
+                kernels, ocl_kernels, kernel_names, ocl_engine.get()));
+        return status::success;
+    }
+
     status_t create_kernel(gpu::compute::kernel_t *kernel,
             gpu::jit::jit_generator_base *jitter,
             cache_blob_t cache_blob) const override {
@@ -82,18 +194,7 @@ public:
 
         gpu::compute::binary_t binary = jitter->get_binary(
                 ocl_engine->context(), ocl_engine->device());
-
-        gpu::ocl::dump_kernel_binary(binary, kernel_name);
-
-        std::vector<gpu::compute::scalar_type_t> arg_types;
-
-        std::unique_ptr<::sycl::kernel> sycl_kernel;
-        CHECK(compat::make_kernel(sycl_kernel, this, binary, kernel_name));
-
-        *kernel = gpu::compute::kernel_t(
-                new gpu::sycl::sycl_interop_gpu_kernel_t(
-                        *sycl_kernel, arg_types));
-        return status::success;
+        return create_kernel_from_binary(*kernel, binary, kernel_name);
     }
 
     status_t create_kernels(std::vector<gpu::compute::kernel_t> *kernels,
@@ -114,21 +215,8 @@ public:
         std::vector<gpu::compute::kernel_t> ocl_kernels;
         CHECK(ocl_engine->create_kernels(
                 &ocl_kernels, kernel_names, kernel_ctx, cache_blob));
-        *kernels = std::vector<gpu::compute::kernel_t>(kernel_names.size());
-        for (size_t i = 0; i < ocl_kernels.size(); ++i) {
-            if (!ocl_kernels[i]) continue;
-            auto *k = utils::downcast<gpu::ocl::ocl_gpu_kernel_t *>(
-                    ocl_kernels[i].impl());
-            gpu::compute::binary_t binary;
-            CHECK(k->get_binary(ocl_engine.get(), binary));
-            std::unique_ptr<::sycl::kernel> sycl_kernel;
-            CHECK(compat::make_kernel(
-                    sycl_kernel, this, binary, kernel_names[i]));
-
-            (*kernels)[i] = gpu::compute::kernel_t(
-                    new gpu::sycl::sycl_interop_gpu_kernel_t(
-                            *sycl_kernel, k->arg_types()));
-        }
+        CHECK(convert_to_sycl(
+                *kernels, ocl_kernels, kernel_names, ocl_engine.get()));
         return status::success;
     }
 

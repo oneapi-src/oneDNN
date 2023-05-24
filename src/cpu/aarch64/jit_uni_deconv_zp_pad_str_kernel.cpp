@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
-* Copyright 2022 FUJITSU LIMITED
+* Copyright 2021-2023 Intel Corporation
+* Copyright 2022-2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -127,7 +127,7 @@ template <cpu_isa_t isa>
 uint32_t jit_uni_deconv_zp_pad_str_kernel_t<isa>::get_next_vmm_idx() {
     static constexpr int max_v_regs = cpu_isa_traits<isa>::n_vregs;
 
-    const ZReg vmm {static_cast<uint>(current_vmm_++)};
+    const ZReg vmm {static_cast<unsigned int>(current_vmm_++)};
 
     if (current_vmm_ == max_v_regs) current_vmm_ = number_reserved_vmms_;
 

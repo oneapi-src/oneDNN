@@ -91,6 +91,7 @@ enum class partition_kind_t {
     quantized_mlp = 21,
     residual_conv_blocks = 22,
     quantized_residual_conv_blocks = 23,
+    concat_fusion_memory_optim = 24,
 };
 
 using engine_kind_t = dnnl_engine_kind_t;

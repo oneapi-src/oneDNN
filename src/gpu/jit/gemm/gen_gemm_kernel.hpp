@@ -27,6 +27,7 @@
 #include "gpu/jit/gemm/kernel_evaluator.hpp"
 #include "gpu/jit/jit_generator_base.hpp"
 #include "gpu/jit/utils/ngen_type_bridge.hpp"
+#include "gpu/kernel_cache.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -60,6 +61,17 @@ struct gen_gemm_kernel_desc_t {
         }
     }
 
+    status_t create_generator(
+            engine_t *engine, compute::compiled_kernel_t &generator) const;
+
+    serialized_t<gen_gemm_kernel_desc_t> serialize() const {
+        serialized_t<gen_gemm_kernel_desc_t> s {};
+        problem_.serialize(s);
+        strategy_.serialize(s);
+        return s;
+    }
+    compute::gpu_arch_t arch() const { return arch_; }
+
 protected:
     static Type convert_dnnl_to_kernel_type(data_type_t type) {
         switch (type) {
@@ -88,13 +100,11 @@ protected:
     compute::gpu_arch_t arch_;
     ngen::HW hw_ = ngen::HW::Unknown;
     int stepping_ = 0;
-    GEMMProblem problem_;
-    GEMMStrategy strategy_;
+    GEMMProblem problem_ = {};
+    GEMMStrategy strategy_ = {};
     const kcatalog::Entry *entry_ = nullptr;
     EvaluateAuxOutput aux_params_;
     CommonDriverInfo driver_info_;
-
-    bool a_offset_ = false, b_offset_ = false;
 
     /* optional information to fine-tune kernel */
     int m_ = -1, n_ = -1, k_ = -1;

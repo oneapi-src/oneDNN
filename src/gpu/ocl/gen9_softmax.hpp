@@ -63,15 +63,19 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
                     && !memory_desc_ndims_ok(src_md(), dst_md())
                     && axis() == src_d.ndims() - 1
                     && (src_d.is_plain() || is_blocked || is_nhwc)
-                    && utils::one_of(src_dt, f32, f16, bf16, u8, s8)
-                    && utils::one_of(dst_dt, f32, f16, bf16, u8, s8)
+                    && utils::one_of(src_dt, f64, f32, f16, bf16, u8, s8)
+                    && utils::one_of(dst_dt, f64, f32, f16, bf16, u8, s8)
                     && IMPLICATION(utils::one_of(f16, src_dt, dst_dt),
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16))
+                    && IMPLICATION(src_md()->data_type == data_type::f64,
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp64))
                     && attr()->has_default_values(skip_mask_t::scales_runtime)
                     && attr_scales_ok()
                     && set_default_formats() == status::success
                     && compute_engine->mayiuse_sub_group(subgroup_size);
+
             if (!ok) return status::unimplemented;
 
             if (is_blocked && src_md()->dims[1] % subgroup_size != 0) {
@@ -122,10 +126,16 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
                     }
                 }
             } else {
-                group_size = subgroup_size
-                        * utils::div_up(axis_size(), buffer_size);
-                if (!is_blocked && axis_size() % buffer_size != 0) {
+                bool avoid_large_spatial
+                        = (src_md()->dims[0] * src_md()->dims[1] > 128)
+                        && (axis() > 1);
+                if (!is_blocked
+                        && (axis_size() % buffer_size != 0
+                                || avoid_large_spatial)) {
                     group_size = subgroup_size;
+                } else {
+                    group_size = subgroup_size
+                            * utils::div_up(axis_size(), buffer_size);
                 }
                 if (group_size > (size_t)max_lws) return status::unimplemented;
             }
@@ -239,9 +249,12 @@ struct gen9_softmax_bwd_t : public gpu_primitive_t {
                     && !memory_desc_ndims_ok(
                             dst_md(), diff_src_md(), diff_dst_md())
                     && axis() == diff_src_d.ndims() - 1
-                    && utils::one_of(diff_src_d.data_type(), f32, bf16)
-                    && utils::one_of(diff_dst_d.data_type(), f32, bf16)
+                    && utils::one_of(diff_src_d.data_type(), f64, f32, bf16)
+                    && utils::one_of(diff_dst_d.data_type(), f64, f32, bf16)
                     && compute_engine->mayiuse_sub_group(subgroup_size)
+                    && IMPLICATION(src_md()->data_type == data_type::f64,
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp64))
                     && attr()->has_default_values()
                     && set_default_formats() == status::success
                     && diff_dst_d.data_type() == dst_d.data_type();

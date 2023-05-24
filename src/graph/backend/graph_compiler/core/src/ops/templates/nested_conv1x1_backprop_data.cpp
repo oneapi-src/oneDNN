@@ -146,8 +146,8 @@ config_ptr gen_nested_conv1x1_backprop_data_t::get_default_config(
     // For small workload, the A and B shape is not a key problem, but the
     // num_core and num_brgemm is important to performance. Use 2048 to reduce
     // the shape weight on small shape.
-    float new_cost = (1024 + BS * i / num_threads + OS / i)
-      * (num_brgemm + 8 * i) / num_core;
+    float new_cost = (1024 + BS * i / float(num_threads) + OS / float(i))
+      * (num_brgemm + 8 * i) / float(num_core);
     if (new_cost < cost) {
       split_s = i;
       cost = new_cost;
@@ -317,7 +317,7 @@ void gen_nested_conv1x1_backprop_data_t::
       ori_W = static_cast<int>(ta.get_plain_dims()[ndims_ - 1]),
       ori_S = ori_H * ori_W, ori_IC = static_cast<int>(tb.get_plain_dims()[1]),
       ori_OC = static_cast<int>(tb.get_plain_dims()[0]);
-  _var_init_(tid, datatypes::s32, builtin::get_thread_id_func()());
+  _var_init_(tid, datatypes::s32, builder::make_get_group_thread_id(-1));
 
   _for_(o_bs, 0, BS_sub_block) {
     _for_(o_s, 0, S_sub_block) {

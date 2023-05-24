@@ -42,10 +42,10 @@ namespace gc {
 SC_MODULE(graph.driver)
 
 basic_graph_pass_ptr create_graph_pass(const std::string &name,
-        pass_func func_t, const std::vector<std::string> &requires,
+        pass_func func_t, const std::vector<std::string> &required,
         pass_type type, bool enabled) {
     return std::make_shared<basic_graph_pass_t>(
-            func_t, name, requires, type, enabled);
+            func_t, name, required, type, enabled);
 }
 
 static std::tuple<std::vector<basic_graph_pass_ptr>,
@@ -259,6 +259,30 @@ void graph_driver(
     if (poutcfg) { orig_graph = copy_graph(graph); }
     graph_driver(graph, ctx, pincfg, poutcfg, batch_size, repeat, real_timeout,
             ptun_creator);
+}
+
+void graph_driver_before_fusion(sc_graph_t &graph, const context_ptr &ctx) {
+    analysis_quantized(graph, ctx);
+    graph_inline(graph, ctx);
+    constant_optimization(graph, ctx);
+    quantize::quantize_info_propagation(graph, ctx);
+
+    quantize::graph_reschedule(graph, ctx);
+    quantize::quantize_inline(graph, ctx);
+
+    elemwise_bcast_swap(graph, ctx);
+    shape_relationship_binding(graph, ctx);
+    permute_propagation(graph, ctx);
+
+    quantize::calculate_op_compensation(graph, ctx);
+    elemwise_dimension_alignment(graph, ctx);
+    layout_propagation(graph, ctx);
+
+    tensor_view_transform(graph, ctx);
+    graph_simplify(graph, ctx);
+    global_reschedule(graph, ctx);
+    partial_reduce_replace(graph, ctx);
+    graph_constant_input_folding(graph, ctx);
 }
 
 } // namespace gc

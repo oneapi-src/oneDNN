@@ -18,6 +18,7 @@
 #include <set>
 #include <vector>
 #include "dynamic_dispatch_key.hpp"
+#include "dynamic_lower_info.hpp"
 #include "dynamic_utils.hpp"
 #include <compiler/ir/graph/fused_op.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
@@ -251,9 +252,11 @@ void combined_dispatch_key_set_t::internal_construct(
     }
     // no need to dispatch
     if (num_keys == 0) { return; }
+    bool is_specific = false;
     if (!inputs.empty()) {
         op_link_relations = get_op_layout_link_relationships(
                 inputs, dispatch_sets, modified_inp);
+        is_specific = is_dyn_specific_graph(inputs[0]->get_owner_graph());
     }
     COMPILE_ASSERT(validate_dispatch_key_sets(dispatch_sets, inputs),
             "Wrong dispatch key sets, could not construct combined "
@@ -266,13 +269,7 @@ void combined_dispatch_key_set_t::internal_construct(
                 dispatch_sets, inputs, 0, len_key, linked_reorder_impl);
     }
     COMPILE_ASSERT(!set_.empty(), "Empty linked combined dispatch key set!");
-    if (set_.size() > DISPATCH_KEY_MAX_THRESHOLD) {
-        SC_MODULE_WARN << "Number of dispatch key set " << set_.size()
-                       << " has exceeded threshold "
-                       << DISPATCH_KEY_MAX_THRESHOLD;
-    }
-    COMPILE_ASSERT(!set_.empty(), "Empty linked combined dispatch key set!");
-    if (set_.size() > DISPATCH_KEY_MAX_THRESHOLD) {
+    if (!is_specific && set_.size() > DISPATCH_KEY_MAX_THRESHOLD) {
         SC_MODULE_WARN << "Number of dispatch key set " << set_.size()
                        << " has exceeded threshold "
                        << DISPATCH_KEY_MAX_THRESHOLD;

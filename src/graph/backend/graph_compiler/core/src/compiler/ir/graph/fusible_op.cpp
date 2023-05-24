@@ -41,19 +41,25 @@ namespace impl {
 namespace graph {
 namespace gc {
 
-ir_module_ptr fusible_op_t::get_func(context_ptr ctx) {
-    if (ctx->flags_.mixed_fusion_) return fusible_op_get_func(this, ctx);
+static int get_base_input_idx(fusible_op_t *cur) {
     int base_idx = 0;
-    if (auto binary_node = this->dyn_cast<binary_elementwise_op_t>()) {
+    if (auto binary_node = cur->dyn_cast<binary_elementwise_op_t>()) {
         // if bc side (smaller side) is the lhs, we need to set base_idx to 1
         if (!binary_node->get_broadcast_input()) { base_idx = 1; }
     }
-    if (auto select_node = this->dyn_cast<select_op_t>()) {
+    if (auto select_node = cur->dyn_cast<select_op_t>()) {
         // we need to set base_idx to the max input
         if (select_node->get_max_input() != -1) {
             base_idx = select_node->get_max_input();
         }
     }
+    COMPILE_ASSERT(base_idx >= 0, "Bad base idx for fusible_op");
+    return base_idx;
+}
+
+ir_module_ptr fusible_op_t::get_func(context_ptr ctx) {
+    if (ctx->flags_.mixed_fusion_) return fusible_op_get_func(this, ctx);
+    int base_idx = get_base_input_idx(this);
     outer_loop_generator_t gen(base_idx);
     return fusible_op_get_func(this, gen, ctx, true);
 }
@@ -66,17 +72,7 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
     builder::ir_builder_t bld;
     bld.push_scope();
     std::vector<for_loop> loops;
-    int base_idx = 0;
-    if (auto binary_node = this->dyn_cast<binary_elementwise_op_t>()) {
-        // if bc side (smaller side) is the lhs, we need to set base_idx to 1
-        if (!binary_node->get_broadcast_input()) { base_idx = 1; }
-    }
-    if (auto select_node = this->dyn_cast<select_op_t>()) {
-        // we need to set base_idx to the max input
-        if (select_node->get_max_input() != -1) {
-            base_idx = select_node->get_max_input();
-        }
-    }
+    // select loop mode
     bool use_output_mode = false;
     if (auto reo_op = this->dyn_cast<reorder_op_t>()) {
         // for padding reorder, it maybe prefer to select input loop
@@ -92,10 +88,11 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
             }
         }
     }
+    // set base idx
+    int base_idx = use_output_mode ? 0 : get_base_input_idx(this);
     outer_loop_generator_t gen(base_idx, use_output_mode);
-    if (attrs_.has_key(mixed_partition_hint::sub_graph_ptr)) {
-        fmgr.bind_graph(
-                attrs_.get<sc_graph_t *>(mixed_partition_hint::sub_graph_ptr));
+    if (attrs_.get_or_else(mixed_partition_hint::optimized_outer_loop, false)) {
+        fmgr.bind_graph(&get_owner_graph());
     }
     bool status = gen.generate(parti->ctx_, nullptr, &fmgr, ins, outs, loops);
 
@@ -122,7 +119,8 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
             iter = parti->fanchors_.erase(iter);
         }
         // check whether need to keep last anchor
-        if (!attrs_.get_or_else("temp.keep_last_anchor", false)) {
+        if (!get_owner_graph().attrs_.get_or_else(
+                    mixed_partition_hint::single_op_graph, false)) {
             // remove last anchor
             parti->clear_fanchor(parti->fanchors_.back());
             parti->fanchors_.pop_back();
@@ -175,58 +173,49 @@ void fusible_op_t::append_mixed_partition(mixed_parti_t *parti) {
     if (!parti->empty()) {
         parti->buf_alloc_.allocate_buffer(this);
         parti->buf_alloc_.update_input_buffer_info(this);
-    }
 
-    if (!parti->empty() && !this->isa<movement_op_t>()) {
-        int base_idx = 0;
-        if (auto binary_node = this->dyn_cast<binary_elementwise_op_t>()) {
-            // if bc side (smaller side) is the lhs, we need to set base_idx to
-            // 1
-            if (!binary_node->get_broadcast_input()) { base_idx = 1; }
-        }
-        if (auto select_node = this->dyn_cast<select_op_t>()) {
-            // we need to set base_idx to the max input
-            if (select_node->get_max_input() != -1) {
-                base_idx = select_node->get_max_input();
-            }
-        }
-        auto base_gt = get_inputs()[base_idx];
-        auto committed_anchor = parti->lookup_anchor_map(this);
-        auto &fsmap = committed_anchor->fsmap_;
-        auto slice_list = fsmap.get(base_gt);
-        if (slice_list.size() == 1) {
-            builder::ir_builder_t bld;
-            bld.push_scope();
-            anchor_loop_generator_t gen(base_gt, committed_anchor);
-            // create_inner_anchor
-            auto inner_anchor = gen.create_inner_anchor();
-            parti->append_fusion_anchor(inner_anchor);
-            auto inner_ss = bld.pop_scope().checked_as<stmts>();
-            // search inner anchor again
-            search_anchor(parti);
-            if (committed_anchor != parti->lookup_anchor_map(this)) {
-                committed_anchor->commit_stmts(inner_ss);
-            } else {
-                // erase unused inner anchor
-                parti->fanchors_.erase(
-                        parti->fanchors_.end() - inner_anchor.size(),
-                        parti->fanchors_.end());
+        if (!this->isa<movement_op_t>()) {
+            int base_idx = get_base_input_idx(this);
+            auto committed_anchor = parti->lookup_anchor_map(this);
+            auto &fsmap = committed_anchor->fsmap_;
+            auto base_gt = get_inputs()[base_idx];
+            if (fsmap.get(base_gt).size() == 1) {
+                builder::ir_builder_t bld;
+                bld.push_scope();
+                anchor_loop_generator_t gen(base_gt, committed_anchor);
+                // create_inner_anchor
+                auto inner_anchor = gen.create_inner_anchor();
+                parti->append_fusion_anchor(inner_anchor);
+                auto inner_ss = bld.pop_scope().checked_as<stmts>();
+                // search inner anchor again
+                search_anchor(parti);
+                if (committed_anchor != parti->lookup_anchor_map(this)) {
+                    committed_anchor->commit_stmts(inner_ss);
+                } else {
+                    // erase unused inner anchor
+                    parti->fanchors_.erase(
+                            parti->fanchors_.end() - inner_anchor.size(),
+                            parti->fanchors_.end());
+                }
             }
         }
     }
     // update output buffer info after inner anchor created
     parti->buf_alloc_.update_output_buffer_info(this);
 
-    if (attrs_.get_or_else(op_attr_key::inplace_optimized, false)) { return; }
+    if (attrs_.get_or_else(mixed_partition_hint::inplace_optimized_op, false)) {
+        return;
+    }
 
-    commit_into_anchor(parti);
+    commit_into_anchor(parti->lookup_anchor_map(this).get());
 }
 
 void fusible_op_t::search_anchor(mixed_parti_t *parti) {
     search_op_anchor_in_parti(this, parti);
 }
 
-void fusible_op_t::commit_into_anchor(mixed_parti_t *parti) {
+void fusible_op_t::commit_into_anchor(fuse_anchor_map_t *committed_anchor) {
+    auto parti = committed_anchor->get_binded_mxp();
     std::vector<expr> in_tsrs, out_tsrs;
     std::tie(in_tsrs, out_tsrs) = parti->buf_alloc_.get_buffer(this);
     std::vector<std::vector<tensor_slice>> inputs(in_tsrs.size()),
@@ -247,7 +236,6 @@ void fusible_op_t::commit_into_anchor(mixed_parti_t *parti) {
         }
         return multi_tsl;
     };
-    auto committed_anchor = parti->lookup_anchor_map(this);
     std::transform(get_inputs().begin(), get_inputs().end(), in_tsrs.begin(),
             inputs.begin(),
             [&wrap_tsr2tsl_, &committed_anchor](
@@ -320,7 +308,11 @@ size_t fusible_op_t::compute_workload(const std::vector<shape_dtype_pair> &ins,
 size_t fusible_op_t::compute_fusible_workload(const context_ptr &ctx,
         const std::vector<tensor_slice *> &dst,
         const std::vector<const tensor_slice *> &inputs) {
-    if (is_dynamic()) { return memory_access_threshold_per_thread; }
+    if (is_dynamic()
+            || std::any_of(inputs.begin(), inputs.end(),
+                    [](const tensor_slice *inp) { return !inp->is_const(); })) {
+        return memory_access_threshold_per_thread;
+    }
     std::vector<shape_dtype_pair> wkld_ins, wkld_outs;
     wkld_ins.resize(inputs.size());
     wkld_outs.resize(dst.size());

@@ -77,6 +77,10 @@ The following common options are supported:
   When using batch files, no difference will be observed because batch file
   starts a new cycle underneath, and a scratchpad value will be propagated.
 
+* `--repeats-per-prb=N` -- Specifies the number of times to repeat testing of
+  the problem. The default is `1`. This option may help to reproduce sporadic
+  failures.
+
 * `--reset` -- Instructs the driver to reset DRIVER-OPTIONS (not
   COMMON-OPTIONS!) to their default values. The only exception is
   `--perf-template` option which will not be reset.

@@ -44,8 +44,8 @@ different and auto-broadcasting is allowed if `auto_broadcast` attributes is
 
 Divide operation supports the following data type combinations.
 
-| Source0/1 | Destination |
-|:----------|:------------|
-| f32       | f32         |
-| bf16      | bf16        |
-| f16       | f16         |
+| Src_0 / Src_1 | Dst  |
+|:--------------|:-----|
+| f32           | f32  |
+| bf16          | bf16 |
+| f16           | f16  |

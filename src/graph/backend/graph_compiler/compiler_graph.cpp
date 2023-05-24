@@ -31,8 +31,11 @@ namespace compiler_impl {
 static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
         compiler_backend_op {{op_kind::Add, "add"}, {op_kind::Subtract, "sub"},
                 {op_kind::Multiply, "mul"}, {op_kind::Divide, "div"},
-                {op_kind::MatMul, "matmul"}, {op_kind::Quantize, "quantize"},
+                {op_kind::Pow, "pow"}, {op_kind::MatMul, "matmul"},
+                {op_kind::Quantize, "quantize"},
                 {op_kind::Dequantize, "dequantize"},
+                {op_kind::DynamicDequantize, "dynamic_dequantize"},
+                {op_kind::DynamicQuantize, "dynamic_quantize"},
                 {op_kind::StaticReshape, "static_reshape"},
                 {op_kind::StaticTranspose, "transpose"},
                 {op_kind::SoftMax, "softmax"}, {op_kind::Reorder, "reorder"},
@@ -41,7 +44,7 @@ static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
                 {op_kind::ReLUBackward, "relu_backprop"},
                 {op_kind::SigmoidBackward, "sigmoid_backprop"},
                 {op_kind::GELUBackward, "gelu_backprop"},
-                {op_kind::ReduceSum, "reduce"}, {op_kind::BiasAdd, "add"},
+                {op_kind::ReduceSum, "reduce_sum"}, {op_kind::BiasAdd, "add"},
                 {op_kind::Convolution, "conv_fwd"},
                 {op_kind::ConvolutionBackwardData, "conv_bwd_data"},
                 {op_kind::ConvolutionBackwardWeights, "conv_bwd_weight"},
@@ -50,7 +53,9 @@ static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
                 {op_kind::BatchNormTrainingBackward,
                         "batchnorm_training_backprop"},
                 {op_kind::Maximum, "max"}, {op_kind::LayerNorm, "layernorm"},
-                {op_kind::Select, "select"}};
+                {op_kind::Select, "select"}, {op_kind::Tanh, "tanh"},
+                {op_kind::ReduceMean, "reduce_mean"},
+                {op_kind::Concat, "concat"}};
 
 // we convert all int64[] to int32[] except for allowlist
 static std::unordered_set<graph::op_attr_t> type_conversion_allowlist {
@@ -163,7 +168,8 @@ gc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
                 convert_data_type(aop->get_output_value(0)
                                           ->get_logical_tensor()
                                           .data_type));
-    } else if (aop->get_kind() == op_kind::ReduceSum) {
+    } else if (aop->get_kind() == op_kind::ReduceSum
+            || aop->get_kind() == op_kind::ReduceMean) {
         assert(attrs.find(graph::op_attr::axes) != attrs.end());
         std::vector<int64_t> axes
                 = attrs[graph::op_attr::axes].get<std::vector<int64_t>>();
@@ -173,7 +179,6 @@ gc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
                     return convert_axis(axis, input_dim);
                 });
         backend_attrs.set("rd_axis", rd_axis);
-        backend_attrs.set("rd_op", 0);
         if (attrs.find(graph::op_attr::keep_dims) != attrs.end()) {
             backend_attrs.set(
                     "keep_dims", attrs[graph::op_attr::keep_dims].get<bool>());
@@ -250,10 +255,10 @@ inline gc::sc_data_type_t compiler_graph_impl_t::convert_data_type(
 }
 
 gc::sc_op_ptr compiler_graph_impl_t::make_compiler_backend_input(
-        const graph::logical_tensor_t &in_lt) {
+        const graph::logical_tensor_t &in_lt, const size_t &partition_id) {
     auto lrt = compiler_graph_impl_t::convert_logical_tensor(in_lt);
     auto in_ret = this->make_input({lrt});
-    in_ret->attrs_["temp.tensor_id"] = in_lt.id;
+    in_ret->attrs_["temp.tensor_id"] = (partition_id << 32) + in_lt.id;
     if (in_lt.property == property_type::constant) {
         in_ret->attrs_.set("constant", 1); // set as local_const
     }

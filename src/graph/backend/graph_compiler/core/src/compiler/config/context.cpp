@@ -167,6 +167,10 @@ context_ptr get_default_context() {
 
         flags.jit_kind_ = jit;
         jit_engine_t::set_target_machine(jit, flags, tm);
+        reset_cpu_flags_by_dnnl_envs(tm);
+        tm.brgemm_use_amx_ = tm.cpu_flags_.fAVX512AMXTILE
+                && (tm.cpu_flags_.fAVX512AMXBF16
+                        || tm.cpu_flags_.fAVX512AMXINT8);
         set_runtime_target_machine(tm);
         std::string tracep = utils::getenv_string(env_names[SC_TRACE]);
         if (!tracep.empty() && tracep != "0") {
@@ -187,11 +191,6 @@ context_ptr get_default_context() {
             flags.tensor_inplace_ = false;
         }
 
-        reset_cpu_flags_by_dnnl_envs(tm);
-        flags.brgemm_use_amx_ = tm.cpu_flags_.fAVX512AMXTILE
-                && (tm.cpu_flags_.fAVX512AMXBF16
-                        || tm.cpu_flags_.fAVX512AMXINT8);
-
         return std::make_shared<context_t>(flags, std::move(tm));
     }();
     return v;
@@ -202,10 +201,7 @@ uint16_t context_t::get_max_vector_lanes(sc_data_etype etype) const {
 }
 
 bool context_t::use_amx() const {
-    return machine_.cpu_flags_.fAVX512AMXTILE
-            && (machine_.cpu_flags_.fAVX512AMXBF16
-                    || machine_.cpu_flags_.fAVX512AMXINT8)
-            && flags_.brgemm_use_amx_;
+    return machine_.use_amx();
 }
 
 context_t::context_t(const scflags_t &flags,

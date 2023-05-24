@@ -21,14 +21,11 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "fusible_op.hpp"
 #include "graph_map.hpp"
 #include "tensor_slice.hpp"
-#include <compiler/ir/builder.hpp>
 #include <compiler/ir/sc_expr.hpp>
 #include <unordered_map>
 #include <unordered_set>
-#include <util/variant.hpp>
 
 namespace dnnl {
 namespace impl {
@@ -193,6 +190,7 @@ struct fuse_state_t {
     fuse_state_t() = default;
 };
 
+// common fusion anchor
 struct fuse_anchor_t {
     stmts anchor_position_;
     std::pair<std::vector<tensor_slice>, std::vector<tensor_slice>>
@@ -204,6 +202,7 @@ struct fuse_anchor_t {
         : anchor_position_(std::move(pos)), anchor_slice_(std::move(slice)) {};
 };
 
+// iterated fusion anchor
 struct iter_fuse_anchor_t {
     stmts anchor_position_;
     expr iter_;
@@ -218,352 +217,17 @@ struct iter_fuse_anchor_t {
         , tsr_(tsr)
         , slice_list_(slice_list)
         , dispatch_helper_(dispatch_helper) {}
-    bool defined() const { return anchor_position_.defined(); }
 };
 
-using anchor_content_t = variant<sc_op *, fuse_anchor_map_t *>;
-struct op_or_fuse_anchor_map_hasher {
-    size_t operator()(const anchor_content_t &v) const {
-        return std::hash<void *>()(v.cast<void *>());
-    }
-};
-
-struct op_or_fuse_anchor_map_cmper {
-    bool operator()(
-            const anchor_content_t &v, const anchor_content_t &v2) const {
-        return v.cast<void *>() == v2.cast<void *>();
-    }
-};
-
-struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
-private:
-    // control whether the fusion anchor is output anchor or input, default is
-    // output anchor.
-    bool is_input_anchor_;
-    mixed_parti_t *binded_mxp_;
-
-public:
-    friend struct mixed_parti_t;
+// grouped fusion anchor
+struct grouped_fuse_anchor_t {
     stmts anchor_position_;
-    fslice_map fsmap_;
-
-    // parent anchor
-    std::shared_ptr<fuse_anchor_map_t> parent_;
-
-    /* Updated when inferring */
-    // blocked graph tensor set, the reason why not use empty gt for judgement
-    // is to distinguish non-visited gt and visited-but-failed gt
-    std::unordered_set<graph_tensor_ptr> blocked_gt_set_;
-    // borrowed fanchor map, must be the parent for current anchor
-    std::unordered_map<graph_tensor_ptr, std::shared_ptr<fuse_anchor_map_t>>
-            borrowed_fanchor_map_;
-
-    /* Updated when committing */
-    // content-to-number mapping under current fusion anchor scope, includes
-    // either op and anchor
-    std::unordered_map<anchor_content_t, size_t, op_or_fuse_anchor_map_hasher,
-            op_or_fuse_anchor_map_cmper>
-            content_number_map_;
-
-    fuse_anchor_map_t() = default;
-    fuse_anchor_map_t(stmts pos, const fslice_map &fsmap,
-            const std::shared_ptr<fuse_anchor_map_t> &parent = nullptr,
-            bool is_input_anchor = false)
-        : is_input_anchor_(is_input_anchor)
-        , anchor_position_(std::move(pos))
-        , fsmap_(std::move(fsmap))
-        , parent_(parent) {
-        if (parent) { parent_->append_content(this); }
-    };
-    bool defined() const { return anchor_position_.defined(); }
-
-    bool is_input_anchor() const { return is_input_anchor_; };
-
-    // commit `stmt` to anchor and bind parent node to commited anchor
-    virtual void commit_stmt(stmt &s) {
-        add_parent_node(s, anchor_position_);
-        anchor_position_->seq_.emplace_back(s);
-    }
-
-    // commit `stmts` to anchor and bind parent node to commited anchor
-    virtual void commit_stmts(stmts &ss) {
-        for (auto &s : ss->seq_) {
-            commit_stmt(s);
-        }
-    }
-
-    // get all contents inside fusion anchor
-    std::vector<anchor_content_t> get_contents() const {
-        std::vector<anchor_content_t> ret;
-        for (auto &mp : content_number_map_) {
-            ret.emplace_back(mp.first);
-        }
-        return ret;
-    }
-
-    // append list of contents by the given number id
-    void append_contents(
-            std::vector<anchor_content_t> contents, size_t num_id) {
-        for (auto &content : contents) {
-            content_number_map_.insert(std::make_pair(content, num_id));
-        }
-    }
-
-    // append content including either fusion anchor or sc op
-    void append_content(anchor_content_t content) {
-        std::vector<anchor_content_t> contents;
-        // if content is fusion anchor, need to append all of its contents
-        if (auto fanchor = content.as_or_null<fuse_anchor_map_t *>()) {
-            contents = (*fanchor)->get_contents();
-        }
-        contents.emplace_back(content);
-        append_contents(contents, content_number_map_.size());
-
-        // recursively attach to parent anchor
-        auto root = this;
-        while (root->parent_) {
-            auto num_id = root->parent_->content_number_map_[root];
-            root = root->parent_.get();
-            root->append_contents(contents, num_id);
-        }
-    }
-
-    void attach_parent_anchor(const std::shared_ptr<fuse_anchor_map_t> &parent,
-            const std::shared_ptr<fuse_anchor_map_t> &repl_parent) {
-        if (!parent) return;
-        auto root = this;
-        while (root->parent_ && (root->parent_ != repl_parent)) {
-            COMPILE_ASSERT(root != root->parent_.get(),
-                    "Ring parent anchor relationship found");
-            root = root->parent_.get();
-        }
-        if (root == parent.get()) return;
-        root->parent_ = parent;
-        parent->append_content(root);
-    }
-
-    fuse_anchor_map_t *get_root() const {
-        auto root = this;
-        while (root->parent_) {
-            COMPILE_ASSERT(root != root->parent_.get(),
-                    "Ring parent anchor relationship found");
-            root = root->parent_.get();
-        }
-        return const_cast<fuse_anchor_map_t *>(root);
-    }
-
-    void merge(const std::shared_ptr<fuse_anchor_map_t> &other) {
-        fsmap_.datamap_.insert(
-                other->fsmap_.datamap_.begin(), other->fsmap_.datamap_.end());
-        blocked_gt_set_.insert(
-                other->blocked_gt_set_.begin(), other->blocked_gt_set_.end());
-        borrowed_fanchor_map_.insert(other->borrowed_fanchor_map_.begin(),
-                other->borrowed_fanchor_map_.end());
-        auto contents_size = content_number_map_.size();
-        for (auto &cont_numb_pair : other->content_number_map_) {
-            content_number_map_.insert(std::make_pair(cont_numb_pair.first,
-                    cont_numb_pair.second + contents_size));
-        }
-    }
-
-    template <typename T>
-    bool isa() const {
-        static_assert(is_base_of_t<fuse_anchor_map_t, T>::value,
-                "T is not a subclass of fuse_anchor_map.");
-        return dynamic_cast<const T *>(this);
-    }
-
-    template <typename T>
-    T *dyn_cast() {
-        return dynamic_cast<T *>(this);
-    }
-
-    virtual ~fuse_anchor_map_t() = default;
-
-    // This function will find the nearest parent 'for_loop' node for fusion
-    // anchor
-    stmt get_parent_loop() const {
-        stmt node = anchor_position_;
-        while (node->attr().has_key("builder.parent_node")) {
-            if (node.isa<for_loop>()) { return node; }
-            node = get_parent_node(node);
-        }
-        return node;
-    }
-    // This function will return parent body scope
-    stmts get_parent_scope() const {
-        auto loop = get_parent_loop();
-        return loop.isa<for_loop>()
-                ? loop.static_as<for_loop>()->body_.checked_as<stmts>()
-                : loop.checked_as<stmts>();
-    }
-
-    /**
-     * What is parent relationship between anchor A and B
-     * { // anchor A
-     *    for(){
-     *      //
-     *      { // anchor B
-     *      }
-     *    }
-     * }
-     * */
-    bool is_parent_for(const fuse_anchor_map_t *cur) const {
-        if (is_input_anchor_ != cur->is_input_anchor_) return false;
-        if (!cur) return false;
-        while (cur->parent_) {
-            cur = cur->parent_.get();
-            if (cur == this) return true;
-        }
-        return false;
-    }
-
-    bool is_parent_for(const std::shared_ptr<fuse_anchor_map_t> &cur) const {
-        return is_parent_for(cur.get());
-    }
-
-    /**
-     * What is sibling relationship between anchor A and B
-     * for(){
-     *    for(){
-     *      //
-     *      { // anchor A
-     *      }
-     *    }
-     *    { // anchor B
-     *    }
-     * }
-     * */
-    bool is_sibling_for(const fuse_anchor_map_t *other) const {
-        if (is_input_anchor_ != other->is_input_anchor_) return false;
-        if (is_parent_for(other)) return false;
-        auto this_loop = get_parent_loop();
-        auto other_loop = other->get_parent_loop();
-
-        while (other_loop->attr().has_key("builder.parent_node")) {
-            other_loop = get_parent_node(other_loop);
-            if (this_loop.ptr_same(other_loop)) { return true; }
-        }
-        return false;
-    }
-
-    bool is_sibling_for(const std::shared_ptr<fuse_anchor_map_t> &other) const {
-        return is_sibling_for(other.get());
-    }
-
-    /**
-     * What is cousin relationship between anchor A and B
-     * for(){
-     *    for(){
-     *      //
-     *      { // anchor A
-     *      }
-     *    }
-     *    for(){
-     *      //
-     *      { // anchor B
-     *      }
-     *    }
-     * }
-     * */
-    bool is_cousin_for(const fuse_anchor_map_t *cur) const {
-        if (is_input_anchor_ != cur->is_input_anchor_) return false;
-        return !(this->is_parent_for(cur) || cur->is_parent_for(this)
-                       || this->is_sibling_for(cur)
-                       || cur->is_sibling_for(this))
-                && (cur->get_root() == this->get_root());
-    }
-
-    bool is_cousin_for(const std::shared_ptr<fuse_anchor_map_t> &cur) const {
-        return is_cousin_for(cur.get());
-    }
-
-    // check this anchor whether has view of given op
-    bool has_view_of(sc_op *op);
-
-    bool check_input_for_op(
-            const sc_op *op, std::unordered_set<graph_tensor_ptr> &known_gt);
-
-    bool validate_input_for_op(const sc_op *op,
-            const std::unordered_set<graph_tensor_ptr> &known_gt);
-
-    void forbid_op(const sc_op *op,
-            const std::unordered_set<graph_tensor_ptr> &known_gt);
-
-    bool check_dep_for_op(const sc_op *op);
-};
-
-using fuse_anchor_map_ptr = std::shared_ptr<fuse_anchor_map_t>;
-
-/**
- * iter_anchor represents irregular slice range which is binded with loop iter.
- * @param iter_: loop var
- * @param cached_iter_anchor_: real multi anchor used to commit code
- * */
-struct fuse_iter_anchor_map_t : fuse_anchor_map_t {
-private:
-    // iterated var
-    expr iter_;
-    size_t iter_size_;
-    std::vector<stmts> cached_iter_anchor_;
-    stmt dispatch_helper_;
-    size_t iter_cnt_;
-
-public:
-    fuse_iter_anchor_map_t(expr iter_var, stmts pos, const fslice_map &fsmap,
-            size_t iter_size, stmt dispatch_helper = stmt(),
-            const fuse_anchor_map_ptr &parent = nullptr,
-            bool is_input_anchor = false)
-        : fuse_anchor_map_t(pos, fsmap, parent, is_input_anchor)
-        , iter_(std::move(iter_var))
-        , iter_size_(iter_size)
-        , dispatch_helper_(std::move(dispatch_helper)) {
-        iter_cnt_ = 0;
-        cached_iter_anchor_.reserve(iter_size_);
-    }
-
-    // iter anchor special inner-build `commit_`
-    void commit_(stmt s) {
-        if (cached_iter_anchor_.empty()) {
-            if (dispatch_helper_.isa<stmts>()) {
-                anchor_position_->seq_.insert(anchor_position_->seq_.end(),
-                        dispatch_helper_.static_as<stmts>()->seq_.begin(),
-                        dispatch_helper_.static_as<stmts>()->seq_.end());
-            } else {
-                anchor_position_->seq_.emplace_back(dispatch_helper_);
-            }
-        }
-        // create cached_iter_anchor_ if necessary
-        if (cached_iter_anchor_.size() < iter_size_) {
-            stmts ss = s.isa<stmts>()
-                    ? s.static_as<stmts>()
-                    : builder::make_stmts_unattached({s}).checked_as<stmts>();
-            anchor_position_->seq_.emplace_back(
-                    make_stmt<if_else_node_t>(iter_ == iter_cnt_, ss, stmt()));
-            cached_iter_anchor_.emplace_back(ss);
-        }
-        // commit into cached_iter_anchor_
-        else {
-            auto cached_anchor = cached_iter_anchor_.at(iter_cnt_);
-            if (s.isa<stmts>()) {
-                cached_anchor->seq_.insert(cached_anchor->seq_.end(),
-                        s.static_as<stmts>()->seq_.begin(),
-                        s.static_as<stmts>()->seq_.end());
-            } else {
-                cached_anchor->seq_.emplace_back(s);
-            }
-        }
-        iter_cnt_++;
-        if (iter_cnt_ == iter_size_) iter_cnt_ = 0;
-    }
-
-    // override commit `stmt` to anchor
-    void commit_stmt(stmt &s) override { commit_(s); }
-
-    // override commit `stmts` to anchor
-    void commit_stmts(stmts &ss) override { commit_(ss); }
-
-    const size_t get_iter_size() const { return iter_size_; }
+    std::unordered_map<expr, slice_range_list> expr_slice_map_;
+    grouped_fuse_anchor_t() = default;
+    grouped_fuse_anchor_t(stmts pos,
+            std::unordered_map<expr, slice_range_list> expr_slice_map)
+        : anchor_position_(std::move(pos))
+        , expr_slice_map_(std::move(expr_slice_map)) {};
 };
 
 } // namespace gc

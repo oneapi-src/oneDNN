@@ -38,7 +38,7 @@ static context_ptr make_ctx() {
 }
 static context_ptr cur_ctx = make_ctx();
 
-TEST(GCCore_buffer_schedule_cpp, TestSimpleSchedule) {
+TEST(GCCore_CPU_buffer_schedule_cpp, TestSimpleSchedule) {
     ir_builder_t bld;
     bld.push_scope();
     _tensor_(external, datatypes::f32, {100});
@@ -211,7 +211,7 @@ TEST(GCCore_buffer_schedule_cpp, TestSimpleSchedule) {
     EXPECT_TRUE(cmper.compare(sch(body), body_aggresive));
 }
 
-TEST(GCCore_buffer_schedule_cpp, TestFuncSchedule) {
+TEST(GCCore_CPU_buffer_schedule_cpp, TestFuncSchedule) {
     ir_builder_t bld;
     bld.push_scope();
 
@@ -305,7 +305,7 @@ TEST(GCCore_buffer_schedule_cpp, TestFuncSchedule) {
     EXPECT_TRUE(cmper.compare(sch(body), body2));
 }
 
-TEST(GCCore_buffer_schedule_cpp, TestScope) {
+TEST(GCCore_CPU_buffer_schedule_cpp, TestScope) {
     ir_builder_t bld;
     bld.push_scope();
     {
@@ -328,7 +328,7 @@ TEST(GCCore_buffer_schedule_cpp, TestScope) {
     EXPECT_TRUE(sch(body).ptr_same(body));
 }
 
-TEST(GCCore_buffer_schedule_cpp, TestThreadLocal) {
+TEST(GCCore_CPU_buffer_schedule_cpp, TestThreadLocal) {
     ir_builder_t bld;
     bld.push_scope();
     {
@@ -464,7 +464,7 @@ TEST(GCCore_buffer_schedule_cpp, TestThreadLocal) {
     EXPECT_TRUE(cmper.compare(result, expected, false));
 }
 
-TEST(GCCore_buffer_schedule_cpp, TestFor) {
+TEST(GCCore_CPU_buffer_schedule_cpp, TestFor) {
     ir_builder_t bld;
     bld.push_scope();
     {
@@ -485,7 +485,7 @@ TEST(GCCore_buffer_schedule_cpp, TestFor) {
     EXPECT_TRUE(sch(body).ptr_same(body));
 }
 
-TEST(GCCore_buffer_schedule_cpp, TestArgBuff) {
+TEST(GCCore_CPU_buffer_schedule_cpp, TestArgBuff) {
     ir_builder_t bld;
 
     _function_(datatypes::void_t, aaa, _arg_("a", datatypes::f32, {100})) {
@@ -523,7 +523,7 @@ TEST(GCCore_buffer_schedule_cpp, TestArgBuff) {
     EXPECT_TRUE(sch(aaa2) == aaa2);
 }
 
-TEST(GCCore_buffer_schedule_cpp, TestDeadWriteEliminate) {
+TEST(GCCore_CPU_buffer_schedule_cpp, TestDeadWriteEliminate) {
     ir_builder_t bld;
     _function_(datatypes::void_t, aaa, _arg_("a", datatypes::f32, {100}),
             _arg_("b", datatypes::f32, {100})) {
@@ -570,7 +570,7 @@ TEST(GCCore_buffer_schedule_cpp, TestDeadWriteEliminate) {
     EXPECT_TRUE(cmper.compare(sch(aaa), aaa_check));
 }
 
-TEST(GCCore_buffer_schedule_cpp, TestDeadWriteDiffScope) {
+TEST(GCCore_CPU_buffer_schedule_cpp, TestDeadWriteDiffScope) {
     ir_builder_t bld;
     _function_(datatypes::void_t, aaa, _arg_("a", datatypes::f32, {100}),
             _arg_("b", datatypes::f32, {100})) {
@@ -617,7 +617,7 @@ TEST(GCCore_buffer_schedule_cpp, TestDeadWriteDiffScope) {
     EXPECT_TRUE(cmper.compare(sch(aaa), expected));
 }
 
-TEST(GCCore_buffer_schedule_cpp, TestRecursive) {
+TEST(GCCore_CPU_buffer_schedule_cpp, TestRecursive) {
     // test the case that a->b, b->c, d->c
     // a should reuse c instead of b
     ir_builder_t bld;
@@ -656,7 +656,7 @@ TEST(GCCore_buffer_schedule_cpp, TestRecursive) {
     EXPECT_TRUE(cmper.compare(sch(body), body2));
 }
 
-TEST(GCCore_buffer_schedule_cpp, TestListBrgemm) {
+TEST(GCCore_CPU_buffer_schedule_cpp, TestListBrgemm) {
     ir_builder_t bld;
     bld.push_scope();
     {
@@ -743,7 +743,7 @@ TEST(GCCore_buffer_schedule_cpp, TestListBrgemm) {
     EXPECT_TRUE(cmper.compare(expected, expected, false));
 }
 
-TEST(GCCore_buffer_schedule_cpp, TestForScope) {
+TEST(GCCore_CPU_buffer_schedule_cpp, TestForScope) {
     ir_builder_t bld;
     bld.push_scope();
     {
@@ -794,7 +794,7 @@ TEST(GCCore_buffer_schedule_cpp, TestForScope) {
     EXPECT_TRUE(cmper.compare(expected, expected, false));
 }
 
-TEST(GCCore_buffer_schedule_cpp, TestTempBufferInplace) {
+TEST(GCCore_CPU_buffer_schedule_cpp, TestTempBufferInplace) {
     ir_builder_t bld;
 
     _function_(
@@ -840,7 +840,7 @@ TEST(GCCore_buffer_schedule_cpp, TestTempBufferInplace) {
     EXPECT_TRUE(cmper.compare(pass(main_entry), expected, false));
 }
 
-TEST(GCCore_buffer_schedule_cpp, TestAlreadyScheduled) {
+TEST(GCCore_CPU_buffer_schedule_cpp, TestAlreadyScheduled) {
     ir_builder_t bld;
 
     _function_(
@@ -908,7 +908,7 @@ TEST(GCCore_buffer_schedule_cpp, TestAlreadyScheduled) {
     EXPECT_TRUE(cmper.compare(pass(main_entry), expected, false));
 }
 
-TEST(GCCore_buffer_schedule_cpp, TestInplaceOutputArg) {
+TEST(GCCore_CPU_buffer_schedule_cpp, TestInplaceOutputArg) {
     ir_builder_t bld;
     _function_(datatypes::void_t, main_entry,
             _arg_("out", datatypes::f32, {100})) {

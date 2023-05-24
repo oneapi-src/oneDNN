@@ -71,7 +71,7 @@ struct live_range_t {
     }
 
     friend std::ostream &operator<<(std::ostream &os, const live_range_t &m) {
-        return os << "[" << m.start_ << ", " << m.end_ << ")";
+        return os << "[" << m.start_ << ", " << m.end_ << "]";
     }
 };
 

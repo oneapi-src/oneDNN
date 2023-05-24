@@ -110,3 +110,26 @@ TEST(ThreadLocalCache, Clear) {
             key2, []() { return std::make_shared<test_resource_t>(20); });
     ASSERT_NO_THROW(cache.clear());
 }
+
+TEST(ThreadLocalCache, RetainAndRelease) {
+    auto func = []() {
+        thread_local_cache_t<test_resource_t> cache;
+        cache.retain();
+        cache.clear();
+
+        ASSERT_EQ(cache.size(), 0U);
+
+        size_t key1 = 1U;
+        test_resource_t *resource_ptr1 = cache.get_or_add(
+                key1, []() { return std::make_shared<test_resource_t>(10); });
+
+        ASSERT_TRUE(cache.has_resource(key1));
+        ASSERT_EQ(resource_ptr1->data_, 10U);
+        ASSERT_EQ(cache.size(), 1U);
+        cache.release();
+    };
+
+    std::thread t1(func);
+    func();
+    t1.join();
+}

@@ -9,8 +9,12 @@ where *ip-knobs* are:
 
  - `--dir={FWD_B [default], FWD_D, FWD_I, BWD_D, BWD_W, BWD_WB}`
             -- dnnl_prop_kind_t. Refer to [direction](knobs_dir.md) for details.
- - `--cfg={f32 [default], ...}` -- refer to ``Configurations`` in
-            [convolution driver](driver_conv.md).
+ - `--dt={f32:f32:f32 [default], ...}` -- source, weights and destination data
+            types. Interface supports broadcasting, when a single input is
+            provided, e.g., `--dt=f32`, and the value will be applied for all
+            tensors. Refer to [data types](knobs_dt.md) for details.
+ - `--cfg={f32 [default], ...}` -- Deprecated setting. Refer to
+            ``Configurations`` in [convolution driver](driver_conv.md).
  - `--stag={any [default], ...}` -- physical src memory layout.
             Refer to [tags](knobs_tag.md) for details.
  - `--wtag={any [default], ...}` -- physical wei memory layout.
@@ -37,10 +41,6 @@ and *ip-desc* is a problem descriptor. The canonical form is:
     mbX_icXidXihXiwX_ocX_nS
 ```
 Refer to [descriptor](knobs_desc.md) for details.
-
-## Essence of Testing
-TBA.
-
 
 ## Examples
 

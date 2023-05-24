@@ -37,6 +37,14 @@
 --batch=set_0d
 --batch=shapes_2d
 
+# f32 precison test for large tensor
+--reset
+--dir=FWD_D,BWD_D
+--alg=SOFTMAX,LOGSOFTMAX
+--sdt=f32
+--axis=0
+--batch=shapes_large
+
 --batch=test_softmax_bfloat16
 
 --batch=test_softmax_float16

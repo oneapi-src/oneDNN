@@ -25,7 +25,7 @@
 
 using namespace dnnl::impl::graph::gc;
 using namespace dnnl::impl::graph::gc::builder;
-TEST(GCCore_func_inline_cpp, TestInlineAt) {
+TEST(GCCore_CPU_func_inline_cpp, TestInlineAt) {
     builder::ir_builder_t builder;
 
     _function_(datatypes::s32, aaa, _arg_("A", datatypes::f32, {123, 321}),
@@ -90,7 +90,7 @@ TEST(GCCore_func_inline_cpp, TestInlineAt) {
     EXPECT_TRUE(cmp.compare(f, reference));
 }
 
-TEST(GCCore_func_inline_cpp, TestInlineTensor) {
+TEST(GCCore_CPU_func_inline_cpp, TestInlineTensor) {
     builder::ir_builder_t builder;
 
     _function_(datatypes::void_t, aaa, _arg_("A", datatypes::f32, {100, 200})) {
@@ -131,7 +131,7 @@ TEST(GCCore_func_inline_cpp, TestInlineTensor) {
     EXPECT_TRUE(cmp.compare(inl(mainfunc), expected, false));
 }
 
-TEST(GCCore_func_inline_cpp, TestInlineFailure) {
+TEST(GCCore_CPU_func_inline_cpp, TestInlineFailure) {
     builder::ir_builder_t builder;
 
     _function_(datatypes::s32, aaa) {
@@ -157,7 +157,7 @@ TEST(GCCore_func_inline_cpp, TestInlineFailure) {
             "The function to inline returns a value, but ret_var_ is");
 }
 
-TEST(GCCore_func_inline_cpp, TestInlineSingleExpr) {
+TEST(GCCore_CPU_func_inline_cpp, TestInlineSingleExpr) {
     builder::ir_builder_t builder;
 
     _function_(datatypes::s32, add1, _arg_("v", datatypes::s32)) {
@@ -180,7 +180,7 @@ TEST(GCCore_func_inline_cpp, TestInlineSingleExpr) {
     EXPECT_TRUE(cmp.compare(bbb, expected));
 }
 
-TEST(GCCore_func_inline_cpp, TestInlineNestedSimple) {
+TEST(GCCore_CPU_func_inline_cpp, TestInlineNestedSimple) {
     builder::ir_builder_t builder;
 
     _function_(datatypes::s32, add1, _arg_("v", datatypes::s32)) {
@@ -208,7 +208,7 @@ TEST(GCCore_func_inline_cpp, TestInlineNestedSimple) {
     EXPECT_TRUE(cmp.compare(bbb, expected));
 }
 
-TEST(GCCore_func_inline_cpp, TestInlineNested) {
+TEST(GCCore_CPU_func_inline_cpp, TestInlineNested) {
     builder::ir_builder_t builder;
 
     _function_(datatypes::s32, add1, _arg_("v", datatypes::s32)) {
@@ -257,7 +257,7 @@ TEST(GCCore_func_inline_cpp, TestInlineNested) {
     EXPECT_TRUE(cmp.compare(bbb, expected, false));
 }
 
-TEST(GCCore_func_inline_cpp, TestInlineNestedExceed) {
+TEST(GCCore_CPU_func_inline_cpp, TestInlineNestedExceed) {
     builder::ir_builder_t builder;
 
     _function_(datatypes::s32, add1, _arg_("v", datatypes::s32)) {}

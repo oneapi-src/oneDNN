@@ -43,8 +43,8 @@ provided. If neither provided, the input `gamma` will be ignored.
 BatchNormTrainingBackward operation supports the following data type
 combinations.
 
-| Src / Diff_dst / Dst | Mean / Variance / Gamma / Diff_gamma / Diff_beta |
-|:---------------------|:-------------------------------------------------|
-| f32                  | f32                                              |
-| bf16                 | f32, bf16                                        |
-| f16                  | f32                                              |
+| Src / Diff_dst / Diff_src | Mean / Variance / Gamma / Diff_gamma / Diff_beta |
+|:--------------------------|:-------------------------------------------------|
+| f32                       | f32                                              |
+| bf16                      | f32, bf16                                        |
+| f16                       | f32                                              |

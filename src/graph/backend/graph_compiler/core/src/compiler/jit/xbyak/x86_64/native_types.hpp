@@ -85,10 +85,12 @@ namespace x86_64 {
 
 enum class cpu_data_type {
     uint_8,
+    uint_8_x8,
     uint_8_x16,
     uint_8_x32,
     uint_8_x64,
     sint_8,
+    sint_8_x8,
     sint_8_x16,
     sint_8_x32,
     sint_8_x64,
@@ -98,6 +100,7 @@ enum class cpu_data_type {
     uint_16_x16,
     uint_16_x32,
     uint_32,
+    uint_32_x2,
     uint_32_x4,
     uint_32_x8,
     uint_32_x16,
@@ -112,6 +115,7 @@ enum class cpu_data_type {
     float_32_x4,
     float_32_x8,
     float_32_x16,
+    mask_x4,
     mask_x8,
     mask_x16,
     mask_x32,

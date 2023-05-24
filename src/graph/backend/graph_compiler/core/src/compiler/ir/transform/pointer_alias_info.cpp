@@ -36,6 +36,14 @@ bool tensor_alias_identity_t::has_no_alias() const {
     return true;
 }
 
+bool tensor_alias_identity_t::is_alias_of(
+        tensor_alias_identity_t *other) const {
+    for (auto &v : alias_cliques_) {
+        if (v->set_.has(other->shared_from_this())) { return true; }
+    }
+    return false;
+}
+
 void tensor_alias_identity_t::add_to_clique(
         const std::shared_ptr<alias_set_t> &v) {
     v->set_.insert(shared_from_this());

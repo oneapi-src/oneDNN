@@ -157,16 +157,17 @@ is enabled:
     * OpenCL driver (with kernel language support for OpenCL C 2.0 or later)
       with Intel subgroups and USM extensions support
 * SYCL runtime requires
-    * [Intel oneAPI DPC++/C++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler)
+    * [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html)
     * OpenCL runtime library (OpenCL version 1.2 or later)
     * [oneAPI Level Zero](https://github.com/oneapi-src/level-zero)
 * SYCL runtime with NVIDIA GPU support requires
-    * [oneAPI DPC++/C++ Compiler](https://github.com/intel/llvm)
+    * [oneAPI DPC++ Compiler with support for CUDA](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#build-dpc-toolchain-with-support-for-nvidia-cuda)
+      or [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html) with [NVIDIA plugin](https://developer.codeplay.com/products/oneapi/nvidia/home)
     * NVIDIA CUDA\* driver
     * cuBLAS 10.1 or later
     * cuDNN 7.6 or later
 * SYCL runtime with AMD GPU support requires
-    * [oneAPI DPC++/C++ Compiler](https://github.com/intel/llvm)
+    * [oneAPI DPC++ Compiler with support for HIP AMD](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#build-dpc-toolchain-with-support-for-hip-amd)
     * [AMD ROCm](https://github.com/RadeonOpenCompute/ROCm), version 5.3 or later
     * [MIOpen](https://github.com/ROCmSoftwarePlatform/MIOpen), version 2.18 or later (optional if AMD ROCm includes the required version of MIOpen)
     * [rocBLAS](https://github.com/ROCmSoftwarePlatform/rocBLAS), version 2.45.0 or later (optional if AMD ROCm includes the required version of rocBLAS)

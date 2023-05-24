@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@
 #include "oneapi/dnnl/dnnl.hpp"
 
 #ifdef DNNL_WITH_SYCL
-#include "sycl/sycl_utils.hpp"
+#include "graph/utils/sycl_check.hpp"
 #endif
 
 namespace dnnl {

@@ -445,7 +445,7 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
     // Warm-up run, this is not measured due to possibility the associated
     // kernel has not been built and skews the results.
     DNN_SAFE(perf_func(stream, dnnl_args), WARN);
-    DNN_SAFE(dnnl_stream_wait(stream), WARN);
+    DNN_SAFE(dnnl_stream_wait(stream), CRIT);
 
     int cur_batch_times
             = fix_times_per_prb ? fix_times_per_prb : min_times_per_prb;
@@ -460,7 +460,7 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
         for (int i = 0; i < cur_batch_times; i++) {
             DNN_SAFE(perf_func(stream, dnnl_args), WARN);
         }
-        DNN_SAFE(dnnl_stream_wait(stream), WARN);
+        DNN_SAFE(dnnl_stream_wait(stream), CRIT);
 
         if (use_profiling) {
             std::vector<uint64_t> nsecs;
@@ -468,8 +468,12 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
             get_gpu_profiling_info(nsecs, cycles);
             reset_gpu_profiling();
 
-            // Profiling should have information to stop the cycle.
-            if (nsecs.empty()) SAFE(FAIL, WARN);
+            // Profiling should have information to report, otherwise, stop.
+            if (nsecs.empty()) {
+                BENCHDNN_PRINT(0, "%s\n",
+                        "WARNING: no counters were found during profiling.");
+                break;
+            }
 
             for (size_t i = 0; i < nsecs.size(); i++) {
                 t.stop(1, (int64_t)cycles[i], nsecs[i] / 1e6);

@@ -32,8 +32,9 @@ namespace graph {
 namespace gc {
 
 SC_DECL_PASS_INFO(dead_write_eliminator,
-        SC_PASS_DEPENDS_ON(validator, index2var), // need to remove redundant
-        // memory store for index2var
+        SC_PASS_DEPENDS_ON(validator, index2var, tensor_inplace),
+        // need to remove redundant memory store for index2var
+        // need pointer alias info
         SC_PASS_REQUIRE_STATE(CONST_FOLDED, IR_SIMPLIFIED),
         SC_PASS_REQUIRE_NOT_STATE(), SC_PASS_SET_STATE(),
         SC_PASS_UNSET_STATE(IR_SIMPLIFIED));

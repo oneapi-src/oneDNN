@@ -213,9 +213,9 @@ struct SC_INTERNAL_API compiler_configs_t {
     bool xbyak_jit_pause_after_codegen_ = false;
     bool diagnose_ = false;
     bool printer_print_address_ = false;
-    bool print_pass_time_;
-    bool print_pass_result_;
-    bool jit_profile_;
+    bool print_pass_time_ = false;
+    bool print_pass_result_ = false;
+    bool jit_profile_ = false;
 
     static compiler_configs_t &get();
     static const std::string &get_temp_dir_path();

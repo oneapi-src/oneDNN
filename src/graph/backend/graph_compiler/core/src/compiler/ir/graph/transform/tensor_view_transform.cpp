@@ -230,7 +230,8 @@ void convert_to_tensor_view(sc_graph_t &graph, const context_ptr &ctx) {
     int reorder2tv = graph.attrs_.get_or_else("temp.reorder2tv", 1);
     vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (node->isa<reorder_op_t>() && reorder2tv
-                && should_transform_reorder(node)) {
+                && should_transform_reorder(node)
+                && !node->attrs_.get_or_else("actually_copy", false)) {
             auto tensor_view_out = node->get_outputs()[0]->copy();
             tensor_view_out->producer_owner_ = nullptr;
             auto view = graph.make("tensor_view", node->get_inputs(),

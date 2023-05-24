@@ -101,6 +101,8 @@ struct SC_INTERNAL_API target_machine_t {
         cpu,
     } device_type_;
     cpu_flags_t cpu_flags_;
+    // move it here as it influnces both compiler and runtime.
+    bool brgemm_use_amx_ = false;
     target_machine_t(
             type device_type, std::unique_ptr<machine_flags_t> device_flags);
     // if is device, returns device_flags, else, return cpu_flags_t
@@ -111,11 +113,13 @@ struct SC_INTERNAL_API target_machine_t {
         device_type_ = other.device_type_;
         cpu_flags_ = other.cpu_flags_;
         device_flags_ = std::move(other.device_flags_);
+        brgemm_use_amx_ = other.brgemm_use_amx_;
         return *this;
     }
     target_machine_t &operator=(const target_machine_t &other);
 
     static void set_simd_length_and_max_cpu_threads(cpu_flags_t &tm);
+    bool use_amx() const;
 
 private:
     std::unique_ptr<machine_flags_t> device_flags_;

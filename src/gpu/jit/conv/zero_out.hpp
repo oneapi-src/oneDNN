@@ -52,7 +52,7 @@ public:
         use_a64 = (hw == ngen::HW::XeHPC);
 
         auto ptr = getArgument(arg_names[0]);
-        auto surf = Surface(getArgumentSurface(arg_names[0]));
+        auto surf = Surface(getArgumentSurfaceIfExists(arg_names[0]));
         auto size = getArgument(arg_names[1]);
         auto global_id = ra_.template alloc_sub<uint32_t>();
         auto off0 = ra_.template alloc_sub<uint32_t>();

@@ -278,6 +278,7 @@ public:
             case intrin_type::ceil:
             case intrin_type::exp:
             case intrin_type::log:
+            case intrin_type::erf:
             case intrin_type::gather:
             case intrin_type::sqrt:
             case intrin_type::rsqrt:

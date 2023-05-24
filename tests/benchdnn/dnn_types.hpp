@@ -78,6 +78,7 @@ enum data_kind_t {
     WEI,
     BIA,
     DST,
+    DIFF_DST,
     ACC,
     // bnorm, lnorm
     SRC_1,

@@ -104,7 +104,7 @@
     (::dnnl::impl::graph::gc::get_default_context() \
                     ->machine_.cpu_flags_.fAVX512AMXTILE \
             && ::dnnl::impl::graph::gc::get_default_context() \
-                       ->flags_.brgemm_use_amx_)
+                       ->machine_.brgemm_use_amx_)
 
 #define REQUIRE_AMX() \
     if (!IS_AMX_AVAILABLE()) { GTEST_SKIP(); }
@@ -587,6 +587,10 @@ struct thread_num_reset {
             <= 1) { \
         GTEST_SKIP(); \
     }
+
+#define SET_THREADS_OR_SKIP(NUM) \
+    thread_num_reset reseter__; \
+    if (!runtime_config_t::get().set_num_threads(NUM)) { GTEST_SKIP(); }
 
 } // namespace gc
 } // namespace graph

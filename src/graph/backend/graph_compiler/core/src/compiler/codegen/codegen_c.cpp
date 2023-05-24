@@ -1035,7 +1035,6 @@ static func_c do_generate_c(func_c f, std::ostream &source,
     vis.is_offline_ = is_offline;
     vis.dispatch(f);
     source << '\n' << '\n';
-    if (!f->body_.defined()) return f;
     return f;
 }
 

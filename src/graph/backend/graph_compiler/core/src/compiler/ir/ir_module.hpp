@@ -91,6 +91,7 @@ public:
         entry_func_idx_ = entry_func_idx;
     }
 
+    int get_entry_func_idx() const { return entry_func_idx_; }
     void set_entry_func_idx(int entry_func_idx) {
         COMPILE_ASSERT(entry_func_idx == -1
                         || (entry_func_idx >= 0
@@ -165,6 +166,12 @@ public:
     std::shared_ptr<ir_module_t> copy() const;
     // deep copies the module
     std::shared_ptr<ir_module_t> deep_copy() const;
+
+    // copies the module and remove the specified funcs by mask. A function will
+    // be copied to the returned IR module only if it is get_contents()[i] and
+    // mask[i] is true.
+    std::shared_ptr<ir_module_t> copy_and_remove_funcs(
+            const std::vector<bool> &mask) const;
 
     /**
      * Creates an IR module from a list of functions. Finds the direct and

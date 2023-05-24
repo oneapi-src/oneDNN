@@ -90,7 +90,7 @@ config_ptr gen_nested_convNXN_bwd_weight_t::get_default_config(
             : std::numeric_limits<float>::max(); // reset cost if max_threads
                                                  // increase
           max_threads_utillized = bs_threads * ic_threads * oc_threads;
-          float avg = (num_BS_block + num_IC_block + num_OC_block) / 3;
+          float avg = float(num_BS_block + num_IC_block + num_OC_block) / 3;
           float cur_cost = (num_BS_block - avg) * (num_BS_block - avg)
             + (num_IC_block - avg) * (num_IC_block - avg)
             + (num_OC_block - avg) * (num_OC_block - avg);

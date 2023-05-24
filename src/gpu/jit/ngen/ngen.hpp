@@ -2291,8 +2291,8 @@ void BinaryCodeGenerator<hw>::opDpas(Opcode op, DataType defaultType, const Inst
     i.dpas.rcount = rcount - 1;
     i.dpas.sdepth = utils::log2(sdepth);
 
-    // i.dpas.src1SubBytePrecision = 0;     // TODO: 0 -> (none), 1 -> u4/s4, 2 -> u2/s2
-    // i.dpas.src2SubBytePrecision = 0;
+    i.dpas.src1SubBytePrecision = encodeSubBytePrecision12(src1.getType());
+    i.dpas.src2SubBytePrecision = encodeSubBytePrecision12(src2.getType());
 
     i.ternary.cmod = static_cast<int>(mod.getCMod());
 

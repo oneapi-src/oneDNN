@@ -344,6 +344,7 @@ void validate_impl_t::view(intrin_call_c v) {
         case intrin_type::ceil:
         case intrin_type::exp:
         case intrin_type::log:
+        case intrin_type::erf:
         case intrin_type::sqrt:
         case intrin_type::rsqrt:
             validate_type(v);
@@ -617,7 +618,7 @@ void validate_impl_t::view(returns_c v) {
         }
     }
     COMPILE_ASSERT_POS(for_loop_levels_ == 0
-                    || (cur_func_->attr_
+                    || (cur_func_ && cur_func_->attr_
                             && cur_func_->attr_->get_or_else(
                                     function_attrs::low_level, false)),
             "Cannot return in a for-loop: " << v);

@@ -107,6 +107,8 @@ private:
     std::string engine_kind_;
     std::string version_;
     std::string fpmath_mode_;
+    std::vector<size_t> input_ports_;
+    std::vector<size_t> output_ports_;
 
     std::map<size_t, std::vector<deserialized_op>> in_lt_2_ops_;
     std::map<size_t, deserialized_op> out_lt_2_op_;

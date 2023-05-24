@@ -25,7 +25,7 @@
 
 using namespace dnnl::impl::graph::gc;
 
-TEST(GCCore_module_globals_resolver_t, TestGlobalTensorExtract) {
+TEST(GCCore_CPU_module_globals_resolver_t, TestGlobalTensorExtract) {
     builder::ir_builder_t builder;
     module_globals_resolver_t pass {};
     ir_module_ptr mod = std::make_shared<ir_module_t>(get_default_context());

@@ -17,6 +17,7 @@
 #ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_PASSLET_STRUCTURAL_ANALYSIS_HPP
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_PASSLET_STRUCTURAL_ANALYSIS_HPP
 
+#include <memory>
 #include <vector>
 #include "passlet.hpp"
 
@@ -28,14 +29,27 @@ namespace passlet {
 struct structural_result_t {
     using typed_addresser_t
             = typed_passlet<structural_result_t>::typed_addresser_t;
-    const stmt_base_t *parent_;
-    const stmt_base_t *cur_node_;
+    std::weak_ptr<const stmt_base_t> parent_;
+    std::weak_ptr<const stmt_base_t> cur_node_;
+
+    structural_result_t() = default;
+
+    structural_result_t(const stmt_c &parent, const stmt_c &cur_node)
+        : parent_(parent.impl), cur_node_(cur_node.impl) {}
 
     bool is_parent_of(const structural_result_t &other,
             const typed_addresser_t &addresser, bool allow_across_for,
             bool allow_across_if,
             const structural_result_t **out_second_level_parent
             = nullptr) const;
+
+    stmt get_parent_node() const;
+
+    void reset_parent_node(const stmt_c &parent);
+
+    const stmt_base_t *get_raw_parent() const;
+    const stmt_base_t *get_raw_cur_node() const;
+
     const stmt_base_t *find_shared_parent(const structural_result_t &other,
             const typed_addresser_t &addresser, bool allow_across_for,
             bool allow_across_if) const;

@@ -25,7 +25,7 @@
 
 using namespace dnnl::impl::graph::gc;
 
-TEST(GCCore_printer_cpp, TestTrackPosPrinter) {
+TEST(GCCore_CPU_printer_cpp, TestTrackPosPrinter) {
     builder::ir_builder_t builder;
     const int shape1 = 128;
     for_loop li, lj, lk, lp;

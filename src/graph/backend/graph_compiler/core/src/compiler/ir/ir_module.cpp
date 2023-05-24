@@ -149,6 +149,26 @@ ir_module_ptr ir_module_t::copy() const {
     return std::make_shared<ir_module_t>(*this);
 }
 
+ir_module_ptr ir_module_t::copy_and_remove_funcs(
+        const std::vector<bool> &mask) const {
+    auto ret = std::make_shared<ir_module_t>(*this);
+    auto entry_func = ret->entry_func_idx_;
+    ret->entry_func_idx_ = -1;
+    ret->symbols_ = {};
+    std::vector<func_t> newcontents;
+    for (size_t old_id = 0; old_id < ret->contents_.size(); old_id++) {
+        if (mask.at(old_id)) {
+            auto new_id = newcontents.size();
+            auto the_func = ret->contents_[old_id];
+            newcontents.emplace_back(the_func);
+            ret->symbols_[the_func->name_] = new_id;
+            if ((int)old_id == entry_func) { ret->entry_func_idx_ = new_id; }
+        }
+    }
+    ret->contents_ = std::move(newcontents);
+    return ret;
+}
+
 ir_module_ptr ir_module_t::deep_copy() const {
     auto ret = copy();
     std::unordered_map<expr_c, expr> replacer;

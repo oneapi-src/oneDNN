@@ -623,7 +623,8 @@ int dnn_mem_t::initialize(
     if (handle_info.is_allocate()) {
         if (!has_bench_mode_modifier(mode_modifier_t::no_host_memory)) map();
 
-        for (int i = 0; i < (int)mapped_ptrs_.size(); i++) {
+        const int nhandles = query_md_num_handles(md_);
+        for (int i = 0; i < nhandles; i++) {
 #ifdef DNNL_EXPERIMENTAL_SPARSE
             size_t sz = dnnl_memory_desc_get_size_v2(md_, i);
 #else

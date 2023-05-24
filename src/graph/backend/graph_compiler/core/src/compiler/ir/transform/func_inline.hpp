@@ -45,7 +45,7 @@ public:
      *      Otherwise, null
      * */
     expr_c inline_at(call_c c, std::vector<stmt> &seq, size_t insert_idx,
-            const std::vector<define> &module_vars = std::vector<define>());
+            const const_ir_module_ptr &modu = nullptr);
     SC_DECL_PASS_INFO_FUNC();
 };
 

@@ -245,7 +245,7 @@ void change_weight_u8_to_s8(sc_graph_t &mgr, const context_ptr &ctx) {
                 bool need_s8 = false;
                 for (auto cld : node->get_outputs()[0]->uses_) {
                     while (!cld.second->isa<output_op>()
-                            && cld.second->get_inputs().size() == 1
+                            && !cld.second->isa<tunable_op_t>()
                             && cld.second->get_outputs().size() == 1) {
                         cld = cld.second->get_outputs()[0]->uses_[0];
                     }

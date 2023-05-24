@@ -1860,6 +1860,8 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::compute_vector_range(
 template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::compute_vector_range(
         const injector_utils::vmm_index_set_t &vmm_idxs) {
+
+    if (vmm_idxs.empty()) return;
     const auto &start_idx_it = vmm_idxs.begin();
     const auto &end_idx_it = vmm_idxs.end();
     assert(*start_idx_it < *vmm_idxs.rbegin() + 1

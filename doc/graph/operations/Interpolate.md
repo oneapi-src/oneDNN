@@ -58,8 +58,8 @@ from sizes or calculated from `scales` attribute.
 
 Interpolate operation supports the following data type combinations.
 
-| Src/Dst | Sizes |
-|:--------|:------|
-| f32     | s32   |
-| bf16    | s32   |
-| f16     | s3    |
+| Src  | Dst  | Sizes |
+|:-----|:-----|:------|
+| f32  | f32  | s32   |
+| bf16 | bf16 | s32   |
+| f16  | f16  | s32   |

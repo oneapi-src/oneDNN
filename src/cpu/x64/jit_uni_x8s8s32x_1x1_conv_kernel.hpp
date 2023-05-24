@@ -146,7 +146,10 @@ struct jit_uni_x8s8s32x_1x1_conv_kernel {
         }
     }
 
-    status_t create_kernel() { return kernel_->create_kernel(); }
+    status_t create_kernel() {
+        if (kernel_) return kernel_->create_kernel();
+        return status::out_of_memory;
+    }
 
     ~jit_uni_x8s8s32x_1x1_conv_kernel() { delete kernel_; }
 

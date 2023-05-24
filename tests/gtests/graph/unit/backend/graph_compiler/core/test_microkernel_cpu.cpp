@@ -29,7 +29,7 @@ using namespace dnnl::impl::graph::gc;
 using namespace dnnl::impl::graph::gc::test_utils;
 using namespace dnnl::impl::graph::gc::brgemm;
 
-TEST(GCCore_microkernel_cpu_cpp, TestBrgemmOnednnF32) {
+TEST(GCCore_CPU_microkernel_cpu_cpp, TestBrgemmOnednnF32) {
     REQUIRE_AVX512();
     const int M = 32;
     const int N = 64;
@@ -49,7 +49,7 @@ TEST(GCCore_microkernel_cpu_cpp, TestBrgemmOnednnF32) {
     }
 }
 
-TEST(GCCore_microkernel_cpu_cpp, TestBrgemmOnednnBF16) {
+TEST(GCCore_CPU_microkernel_cpu_cpp, TestBrgemmOnednnBF16) {
     REQUIRE_BF16();
     const int M = 32;
     const int N = 64;
@@ -88,7 +88,7 @@ TEST(GCCore_microkernel_cpu_cpp, TestBrgemmOnednnBF16) {
     }
 }
 
-TEST(GCCore_microkernel_cpu_cpp, TestBrgemmOnednnS8S8) {
+TEST(GCCore_CPU_microkernel_cpu_cpp, TestBrgemmOnednnS8S8) {
     REQUIRE_VNNI();
     const int M = 32;
     const int N = 64;
@@ -128,7 +128,7 @@ TEST(GCCore_microkernel_cpu_cpp, TestBrgemmOnednnS8S8) {
     }
 }
 
-TEST(GCCore_microkernel_cpu_cpp, TestBrgemmOnednnU8S8) {
+TEST(GCCore_CPU_microkernel_cpu_cpp, TestBrgemmOnednnU8S8) {
     REQUIRE_VNNI();
     const int M = 32;
     const int N = 64;
@@ -163,7 +163,7 @@ TEST(GCCore_microkernel_cpu_cpp, TestBrgemmOnednnU8S8) {
 
 // fix-me(brgemm-fuse): recover the following tests when postop is fixed
 #if 0
-TEST(GCCore_microkernel_cpu_cpp, TestBrgemmOnednnPostOpCombined) {
+TEST(GCCore_CPU_microkernel_cpu_cpp, TestBrgemmOnednnPostOpCombined) {
     REQUIRE_VNNI();
     const int M = 32;
     const int N = 64;
@@ -266,7 +266,7 @@ TEST(GCCore_microkernel_cpu_cpp, TestBrgemmOnednnPostOpCombined) {
 }
 #endif
 
-TEST(GCCore_microkernel_cpu_cpp, TestBrgemmOnednnAttrs) {
+TEST(GCCore_CPU_microkernel_cpu_cpp, TestBrgemmOnednnAttrs) {
     // bd mask is only supported when
     // use_uker=true
     // bd_mask_level>0
@@ -319,7 +319,7 @@ TEST(GCCore_microkernel_cpu_cpp, TestBrgemmOnednnAttrs) {
     }
 }
 
-TEST(GCCore_microkernel_cpu_cpp, TestBrgemmOnednnRange) {
+TEST(GCCore_CPU_microkernel_cpu_cpp, TestBrgemmOnednnRange) {
     REQUIRE_VNNI();
     const int M = 32;
     const int N = 64;

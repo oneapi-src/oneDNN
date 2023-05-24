@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -445,4 +445,96 @@ TEST(Execute, Int8ReorderAdd) {
     for (size_t i = 0; i < int8_src.size(); ++i) {
         ASSERT_EQ(int8_dst[i], ref_dst[i]);
     }
+}
+
+TEST(Compile, ReorderBlockLayoutInput) {
+    using dims = graph::dnnl_impl::dims;
+
+    /*    | 
+        conv 
+          | [block layout] 
+        typecast 
+          | 
+        quantize 
+     */
+    graph::op_t conv(0, graph::op_kind::Convolution, "convolution");
+    graph::op_t tcdata_op {1, graph::op_kind::TypeCast, "typecast_data"};
+    graph::op_t qout_op(2, graph::op_kind::Quantize, "qdout_op");
+
+    qout_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+    qout_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {1});
+    qout_op.set_attr<std::vector<float>>(graph::op_attr::scales, {0.1f});
+    qout_op.set_attr<int64_t>(graph::op_attr::axis, 1);
+
+    conv.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
+    conv.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});
+    conv.set_attr<dims>(graph::op_attr::pads_begin, dims {0, 0});
+    conv.set_attr<dims>(graph::op_attr::pads_end, dims {0, 0});
+    conv.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv.set_attr<std::string>(graph::op_attr::weights_format, "OIX");
+
+    graph::engine_t *eng = get_engine();
+    SKIP_IF(eng->kind() == graph::engine_kind::cpu,
+            "Skip the tests for cpu engine.");
+
+    graph::logical_tensor_t src = utils::logical_tensor_init(
+            0, {8, 3, 224, 224}, graph::data_type::bf16);
+    graph::logical_tensor_t weight = utils::logical_tensor_init(
+            1, {16, 3, 3, 3}, graph::data_type::bf16);
+    graph::logical_tensor_t dst0 = utils::logical_tensor_init(2,
+            {8, 16, 222, 222}, graph::data_type::bf16, graph::layout_type::any);
+    graph::logical_tensor_t dst1 = utils::logical_tensor_init(3,
+            {8, 16, 222, 222}, graph::data_type::f32, graph::layout_type::any);
+    graph::logical_tensor_t dst2 = utils::logical_tensor_init(4,
+            {8, 16, 222, 222}, graph::data_type::s8, graph::layout_type::any);
+
+    conv.add_input(src);
+    conv.add_input(weight);
+    conv.add_output(dst0);
+    tcdata_op.add_input(dst0);
+    tcdata_op.add_output(dst1);
+    qout_op.add_input(dst1);
+    qout_op.add_output(dst2);
+
+    graph::graph_t g(eng->kind());
+    ASSERT_EQ(g.add_op(&conv), graph::status::success);
+    ASSERT_EQ(g.add_op(&tcdata_op), graph::status::success);
+    ASSERT_EQ(g.add_op(&qout_op), graph::status::success);
+    g.finalize();
+
+    graph::pass::pass_base_ptr apass1 = get_pass("conv_pass");
+    graph::pass::pass_base_ptr apass2 = get_pass("typecast_pass");
+    graph::pass::pass_base_ptr apass3 = get_pass("quant_pass");
+
+    apass1->run(g);
+    apass2->run(g);
+    apass3->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 3U);
+    auto parts = g.get_partitions();
+
+    // compile
+    graph::partition_t p0;
+    p0.init(parts[0]);
+    graph::compiled_partition_t cp0(p0);
+    std::vector<const graph::logical_tensor_t *> inputs0 {&src, &weight};
+    std::vector<const graph::logical_tensor_t *> outputs0 {&dst0};
+    ASSERT_EQ(p0.compile(&cp0, inputs0, outputs0, eng), graph::status::success);
+
+    graph::partition_t p1;
+    p1.init(parts[1]);
+    graph::compiled_partition_t cp1(p1);
+    graph::logical_tensor_t opaque_lt;
+    cp0.query_logical_tensor(2, &opaque_lt);
+    std::vector<const graph::logical_tensor_t *> inputs1 {&opaque_lt};
+    std::vector<const graph::logical_tensor_t *> outputs1 {&dst1};
+    ASSERT_EQ(p1.compile(&cp1, inputs1, outputs1, eng), graph::status::success);
+
+    graph::partition_t p2;
+    p2.init(parts[2]);
+    graph::compiled_partition_t cp2(p2);
+    cp1.query_logical_tensor(3, &opaque_lt);
+    std::vector<const graph::logical_tensor_t *> inputs2 {&opaque_lt};
+    std::vector<const graph::logical_tensor_t *> outputs2 {&dst2};
+    ASSERT_EQ(p2.compile(&cp2, inputs2, outputs2, eng), graph::status::success);
 }

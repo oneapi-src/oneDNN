@@ -140,8 +140,8 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                                    "weight_channel_axis";
                     }
                 }
-                auto uses = node->get_outputs()[0]->uses_;
-                for (auto &child : uses) {
+                auto tunable_op_consumers = node->get_outputs()[0]->uses_;
+                for (auto &child : tunable_op_consumers) {
                     auto cur_child = child;
                     auto cur_parent = node;
                     while (cur_child.second
@@ -158,6 +158,21 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                                 = cur_child.second->get_outputs()[0]->uses_[0];
                         cur_parent->get_outputs()[0]->details_.dtype_.type_code_
                                 = sc_data_etype::S32;
+                        if (cur_parent->get_outputs()[0]->uses_.size() > 1) {
+                            break;
+                        }
+                    }
+                    auto cur_parent_uses = cur_parent == node
+                            ? std::vector<
+                                    std::pair<int, sc_op_weak_ptr_t>> {child}
+                            : cur_parent->get_outputs()[0]->uses_;
+                    // TODO(yifei): overcome the constraints here
+                    for (const auto &use : cur_parent_uses) {
+                        COMPILE_ASSERT(!use.second->dyn_cast<
+                                               op_traits::may_quantize_t>(),
+                                "may_quantize op with multiple consumers "
+                                "shouldn't have any of may_quantize "
+                                "consumers.");
                     }
                     sc_op_ptr dequantize_node;
                     if (is_dyn_quan) {
@@ -227,8 +242,10 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                                 std::vector<graph_tensor_ptr> {},
                                 {{"dtype", datatypes::bf16}});
                     }
-                    cur_child.second->replace_input(
-                            cur_child.first, dequantize_node->get_outputs()[0]);
+                    for (const auto &use : cur_parent_uses) {
+                        use.second->replace_input(
+                                use.first, dequantize_node->get_outputs()[0]);
+                    }
                     vis->update_state_for_visited(dequantize_node);
                 }
             } else {

@@ -28,83 +28,49 @@
 
 namespace pool {
 
-/* cfgs definition
- * arrays: SRC, UNUSED, UNUSED, DST
- * params: {data_type, min, max, f_min, f_max, eps}
- */
+cfg_t::cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds) {
+    output_data_kind_ = (prb->dir & FLAG_FWD) ? DST : SRC;
+    for (const auto kind : kinds) {
+        auto orig_data_type = prb->get_dt(kind);
+        auto data_type = deduce_cfg_data_type(orig_data_type, prb->attr, kind);
+        cfg_entry_.emplace(kind,
+                cfg_entry_t {
+                        kind, orig_data_type, data_type, get_cfg_map(kind)});
+    }
 
-// though integers are expected, eps is needed to cover division error
-const dt_conf_t conf_entry_f32
-        = {dnnl_f32, -FLT_MAX, FLT_MAX, -2048, 2048, 5e-7};
-const dt_conf_t conf_entry_s32 = {dnnl_s32, INT_MIN, INT_MAX, -2048, 2048, 0.};
-const dt_conf_t conf_entry_s8
-        = {dnnl_s8, INT8_MIN, INT8_MAX, INT8_MIN, INT8_MAX, 0.};
-const dt_conf_t conf_entry_u8 = {dnnl_u8, 0, UINT8_MAX, 0, UINT8_MAX, 0.};
+    // Keep values for average algorithms positive to prevent cancellation err.
+    if (prb->alg != alg_t::max) {
+        set_range_min(SRC, 0);
+        set_range_min(DST, 0);
+    }
 
-const float16_t flt16_max = dnnl::impl::nstl::numeric_limits<float16_t>::max();
-const dt_conf_t conf_entry_f16
-        = {dnnl_f16, -flt16_max, flt16_max, -32, 32, 2e-2};
-
-#define BFLT16_MAX 3.38953138925153547590470800371487866880e+38F
-/* Although integers are expected, eps is needed to cover
- * for the division error */
-const dt_conf_t conf_entry_bf16
-        = {dnnl_bf16, -BFLT16_MAX, BFLT16_MAX, -32, 32, 5e-2};
-#undef BFLT16_MAX
-
-// Configurations with same SRC and DST datatypes
-const _dt_conf_t conf_f32 = {conf_entry_f32, {}, {}, conf_entry_f32};
-const _dt_conf_t conf_f64 = {conf_entry_f32, {}, {}, conf_entry_f32};
-const _dt_conf_t conf_s32 = {conf_entry_s32, {}, {}, conf_entry_s32};
-const _dt_conf_t conf_f16 = {conf_entry_f16, {}, {}, conf_entry_f16};
-const _dt_conf_t conf_bf16 = {conf_entry_bf16, {}, {}, conf_entry_bf16};
-const _dt_conf_t conf_s8 = {conf_entry_s8, {}, {}, conf_entry_s8};
-const _dt_conf_t conf_u8 = {conf_entry_u8, {}, {}, conf_entry_u8};
-
-// Configurations with different SRC and DST datatypes
-const _dt_conf_t conf_s8u8 {conf_entry_s8, {}, {}, conf_entry_u8};
-const _dt_conf_t conf_u8s8 {conf_entry_u8, {}, {}, conf_entry_s8};
-const _dt_conf_t conf_s8f32 {conf_entry_s8, {}, {}, conf_entry_f32};
-const _dt_conf_t conf_f32s8 {conf_entry_f32, {}, {}, conf_entry_s8};
-const _dt_conf_t conf_u8f32 {conf_entry_u8, {}, {}, conf_entry_f32};
-const _dt_conf_t conf_f32u8 {conf_entry_f32, {}, {}, conf_entry_u8};
-const _dt_conf_t conf_s8f16 {conf_entry_s8, {}, {}, conf_entry_f16};
-const _dt_conf_t conf_f16s8 {conf_entry_f16, {}, {}, conf_entry_s8};
-const _dt_conf_t conf_u8f16 {conf_entry_u8, {}, {}, conf_entry_f16};
-const _dt_conf_t conf_f16u8 {conf_entry_f16, {}, {}, conf_entry_u8};
-
-const dt_conf_t *str2cfg(const char *str) {
-#define CASE(cfg) \
-    if (!strcasecmp(STRINGIFY(cfg), str)) return CONCAT2(conf_, cfg)
-    CASE(f32);
-    CASE(f64);
-    CASE(s32);
-    CASE(f16);
-    CASE(bf16);
-    CASE(s8);
-    CASE(u8);
-    CASE(s8u8);
-    CASE(u8s8);
-    CASE(s8f32);
-    CASE(f32s8);
-    CASE(u8f32);
-    CASE(f32u8);
-    CASE(s8f16);
-    CASE(f16s8);
-    CASE(u8f16);
-    CASE(f16u8);
-
-#undef CASE
-    []() {
-        SAFE(FAIL, CRIT);
-        return 0;
-    }();
-    return (const dt_conf_t *)1;
+    BENCHDNN_PRINT(6, "%s SRC_%s=[%d;%d]\n", "[FILL_CFG]",
+            dt2str(this->get_dt(SRC)), get_range_min(SRC), get_range_max(SRC));
 }
 
-std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg) {
-#define CASE(_cfg) \
-    if (cfg == CONCAT2(conf_, _cfg)) return s << STRINGIFY(_cfg)
+cfg_t::cfg_entry_t::cfg_map_t cfg_t::get_cfg_map(data_kind_t kind) const {
+    static const cfg_t::cfg_entry_t::cfg_map_t cfg_map = {
+            {{dnnl_f64}, {-2048, 2048}},
+            {{dnnl_f32}, {-2048, 2048}},
+            {{dnnl_s32}, {-2048, 2048}},
+            {{dnnl_bf16}, {-32, 32}},
+            {{dnnl_f16}, {-32, 32}},
+            {{dnnl_s8}, {INT8_MIN, INT8_MAX}},
+            {{dnnl_u8}, {0, UINT8_MAX}},
+    };
+
+    switch (kind) {
+        case SRC: return cfg_map;
+        case DST: return cfg_map;
+        default: assert(!"unsupported data kind"); break;
+    }
+    static cfg_t::cfg_entry_t::cfg_map_t dummy;
+    return dummy;
+}
+
+std::string str2cfg(const char *str) {
+#define CASE(cfg) \
+    if (!strcasecmp(STRINGIFY(cfg), str)) return str
     CASE(f32);
     CASE(f64);
     CASE(s32);
@@ -123,8 +89,53 @@ std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg) {
     CASE(u8f16);
     CASE(f16u8);
 #undef CASE
-    SAFE_V(FAIL);
-    return s;
+    BENCHDNN_PRINT(0, "Config name \'%s\' is not supported.\n", str);
+    SAFE_V(CRIT);
+    return std::string();
+}
+
+int handle_legacy_cfg(
+        std::vector<dnnl_data_type_t> &dt, const std::string &cfg) {
+    if (cfg == "f32")
+        dt = {dnnl_f32};
+    else if (cfg == "f64")
+        dt = {dnnl_f64};
+    else if (cfg == "s32")
+        dt = {dnnl_s32};
+    else if (cfg == "f16")
+        dt = {dnnl_f16};
+    else if (cfg == "bf16")
+        dt = {dnnl_bf16};
+    else if (cfg == "s8")
+        dt = {dnnl_s8};
+    else if (cfg == "u8")
+        dt = {dnnl_u8};
+    else if (cfg == "u8s8")
+        dt = {dnnl_u8, dnnl_s8};
+    else if (cfg == "s8u8")
+        dt = {dnnl_s8, dnnl_u8};
+    else if (cfg == "u8f32")
+        dt = {dnnl_u8, dnnl_f32};
+    else if (cfg == "f32u8")
+        dt = {dnnl_f32, dnnl_u8};
+    else if (cfg == "s8f32")
+        dt = {dnnl_s8, dnnl_f32};
+    else if (cfg == "f32s8")
+        dt = {dnnl_f32, dnnl_s8};
+    else if (cfg == "u8f16")
+        dt = {dnnl_u8, dnnl_f16};
+    else if (cfg == "f16u8")
+        dt = {dnnl_f16, dnnl_u8};
+    else if (cfg == "s8f16")
+        dt = {dnnl_s8, dnnl_f16};
+    else if (cfg == "f16s8")
+        dt = {dnnl_f16, dnnl_s8};
+    else {
+        BENCHDNN_PRINT(0, "Error: Config name \'%s\' is not supported.\n",
+                cfg.c_str());
+        return FAIL;
+    }
+    return OK;
 }
 
 } // namespace pool

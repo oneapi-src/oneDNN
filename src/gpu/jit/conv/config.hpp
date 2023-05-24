@@ -329,6 +329,8 @@ private:
 class grid_param_t : public value_param_t<grid_info_t> {
 public:
     using value_param_t::value_param_t;
+
+    bool is_overridable() const override { return false; }
 };
 
 inline std::unordered_map<std::string, int> to_map(const std::string &s) {
@@ -384,8 +386,9 @@ public:
 
     void set(const value_t &value) { map_ = value; }
 
-    std::string str() const {
+    std::string str() const override {
         std::ostringstream oss;
+        oss << short_name() << "=";
         for (auto &kv : map_) {
             oss << kv.first << kv.second;
         }
@@ -401,8 +404,11 @@ private:
 // Parameters for kernel generation.
 
 class bia_layout_param_t : public layout_param_t {
+public:
     std::string name() const override { return "bia"; }
     std::string desc() const override { return "Bias layout."; }
+    bool is_overridable() const override { return true; }
+    bool is_default() const override { return false; }
 };
 
 class bwd_d_optimize_strided_param_t : public bool_param_t {
@@ -412,6 +418,7 @@ public:
     std::string desc() const override {
         return "Apply special optimization for strided BWD_D convolution.";
     }
+    bool is_overridable() const override { return false; }
 };
 
 class bwd_d_optimize_unstrided_param_t : public bool_param_t {
@@ -421,6 +428,7 @@ public:
     std::string desc() const override {
         return "Apply special optimization for unstrided BWD_D convolution.";
     }
+    bool is_overridable() const override { return false; }
 };
 
 class bwd_d_optimize_strided_iw_param_t : public bool_param_t {
@@ -431,47 +439,65 @@ public:
         return "Apply special optimization for strided BWD_D convolution (iw "
                "dimension).";
     }
+    bool is_overridable() const override { return false; }
 };
 
 // TODO: Remove, use heuristics to determine if it's worth to sacrifice EU
 // utilization for larger SLM size.
 class check_slm_size_param_t : public bool_param_t {
 public:
-    check_slm_size_param_t() : bool_param_t(true) {}
+    check_slm_size_param_t() : bool_param_t(default_value) {}
     std::string name() const override { return "check-slm-size"; }
     std::string short_name() const override { return "c"; }
     std::string desc() const override {
         return "Whether to check SLM size to ensure full EU utilization.";
     }
+    bool is_overridable() const override { return true; }
+    bool is_default() const override { return get() == default_value; }
+
+    static const bool default_value;
 };
 
 class dims_param_t : public map_param_t {
 public:
     std::string name() const override { return "dims"; }
     std::string desc() const override { return "Problem dimensions."; }
+    bool is_overridable() const override { return false; }
 };
 
 class fma_kind_param_t : public value_param_t<fma_kind_t> {
 public:
-    using value_param_t::value_param_t;
+    fma_kind_param_t() : value_param_t(fma_kind_t::unknown) {}
 
     std::string name() const override { return "fma"; }
     std::string desc() const override { return "FMA kind."; }
+    bool is_overridable() const override { return true; }
+    bool is_default() const override { return false; }
 
     void set_from_str(const std::string &s) override {
         value_ = fma_kind::from_string(s);
+    }
+
+    std::string str() const override {
+        std::ostringstream oss;
+        oss << short_name() << "=" << fma_kind::to_string(value_);
+        return oss.str();
     }
 };
 
 class fuse_spatial_param_t : public bool_param_t {
 public:
-    fuse_spatial_param_t() : bool_param_t(false) {}
+    fuse_spatial_param_t() : bool_param_t(default_value) {}
     std::string name() const override { return "fuse-spatial"; }
     std::string short_name() const override { return "fsp"; }
     std::string desc() const override {
         return "Whether to apply blocking to fused spatial (otherwise only `w` "
                "is blocked).";
     }
+    bool is_overridable() const override { return true; }
+    bool is_default() const override { return get() == default_value; }
+
+    static const bool default_value;
 };
 
 class hint_param_t : public value_param_t<conv_hint_t> {
@@ -480,6 +506,7 @@ public:
 
     std::string name() const override { return "hint"; }
     std::string desc() const override { return "Configuration hint."; }
+    bool is_overridable() const override { return false; }
 };
 
 // TODO: Remove, use internal logic.
@@ -492,6 +519,7 @@ public:
     std::string desc() const override {
         return "Whether to move send mask initialization out of compute loop.";
     }
+    bool is_overridable() const override { return false; }
 };
 
 class kernel_grid_param_t : public grid_param_t {
@@ -500,6 +528,7 @@ public:
     std::string desc() const override {
         return "Number of thread groups across dimensions (kernel grid).";
     }
+    bool is_overridable() const override { return false; }
 };
 
 class iter_dims_param_t : public map_param_t {
@@ -509,6 +538,8 @@ public:
     std::string desc() const override {
         return "Iteration-level dimension blocks.";
     }
+    bool is_overridable() const override { return true; }
+    bool is_default() const override { return false; }
 };
 
 class loop_dims_param_t : public dims_param_t {
@@ -516,16 +547,22 @@ public:
     std::string name() const override { return "loop"; }
     std::string short_name() const override { return "l"; }
     std::string desc() const override { return "Loop-level dimension blocks."; }
+    bool is_overridable() const override { return true; }
+    bool is_default() const override { return false; }
 };
 
 class shrink_tg_dims_param_t : public bool_param_t {
 public:
-    shrink_tg_dims_param_t() : bool_param_t(false) {}
+    shrink_tg_dims_param_t() : bool_param_t(default_value) {}
     std::string name() const override { return "shrink-tg-dims"; }
     std::string short_name() const override { return "stg"; }
     std::string desc() const override {
         return "Whether to adjust tile sizes depending on batch size.";
     }
+    bool is_overridable() const override { return true; }
+    bool is_default() const override { return get() == default_value; }
+
+    static const bool default_value;
 };
 
 class ow_kw_grf_cache_param_t : public bool_param_t {
@@ -535,15 +572,20 @@ public:
     std::string desc() const override {
         return "Whether to use GRF cache to reuse source for ow/kw pairs";
     }
+    bool is_overridable() const override { return false; }
 };
 
 class pad_slm_param_t : public bool_param_t {
 public:
-    pad_slm_param_t() : bool_param_t(true) {}
+    pad_slm_param_t() : bool_param_t(default_value) {}
     std::string name() const override { return "pad-slm"; }
     std::string desc() const override {
         return "Whether to pad SLM layout to avoid bank conflicts.";
     }
+    bool is_overridable() const override { return true; }
+    bool is_default() const override { return get() == default_value; }
+
+    static const bool default_value;
 };
 
 class padded_dims_param_t : public map_param_t {
@@ -553,6 +595,7 @@ public:
         return "Padded dimensions (rounded-up for blocks and to comply with "
                "required zero padding in output layouts) .";
     }
+    bool is_overridable() const override { return false; }
 };
 
 class pipeline_param_t : public param_t {
@@ -560,6 +603,8 @@ public:
     std::string name() const override { return "pipeline"; }
     std::string short_name() const override { return "P"; }
     std::string desc() const override { return "General pipeline parameters."; }
+    bool is_overridable() const override { return true; }
+    bool is_default() const override { return false; }
 
     bool do_unroll() const { return do_unroll_; }
     bool reuse_headers() const { return reuse_headers_; }
@@ -581,6 +626,14 @@ public:
         reuse_headers_ = reuse_headers;
     }
 
+    std::string str() const override {
+        std::ostringstream oss;
+        oss << short_name() << "=";
+        if (do_unroll_) oss << "u";
+        if (reuse_headers_) oss << "r";
+        return oss.str();
+    }
+
 private:
     bool do_unroll_ = false;
     bool reuse_headers_ = false;
@@ -592,6 +645,7 @@ public:
 
     std::string name() const override { return "prb"; }
     std::string desc() const override { return "Convolution problem."; }
+    bool is_overridable() const override { return false; }
 
     void set_pd(const convolution_pd_t *pd) {
         value_.conv_pd = pd;
@@ -604,6 +658,8 @@ public:
     std::string name() const override { return "prefetch"; }
     std::string short_name() const override { return "p"; }
     std::string desc() const override { return "Parameters for prefetching."; }
+    bool is_overridable() const override { return true; }
+    bool is_default() const override { return bufs_ == 0; }
 
     int bufs() const { return bufs_; }
     bool a() const { return a_; }
@@ -637,16 +693,19 @@ public:
         }
     }
 
-    void set(int bufs) {
+    void set(int bufs, bool a, bool b) {
         bufs_ = bufs;
-        if (bufs_ > 0) {
-            a_ = true;
-            b_ = true;
-        }
+        a_ = a;
+        b_ = b;
     }
 
-    void set_a(bool a) { a_ = a; }
-    void set_b(bool b) { b_ = b; }
+    std::string str() const override {
+        std::ostringstream oss;
+        oss << short_name() << "=";
+        oss << "x" << bufs_;
+        if (a_ != b_) oss << "." << (a_ ? "a" : "b");
+        return oss.str();
+    }
 
 private:
     int bufs_ = 0;
@@ -666,6 +725,7 @@ public:
         return "Whether to use the optimal NHWC setup relying on 2D block "
                "messages.";
     }
+    bool is_overridable() const override { return false; }
 };
 
 class slm_param_t : public param_t {
@@ -673,6 +733,8 @@ public:
     std::string name() const override { return "slm"; }
     std::string short_name() const override { return "s"; }
     std::string desc() const override { return "SLM buffering parameters."; }
+    bool is_overridable() const override { return true; }
+    bool is_default() const override { return bufs_ == 0; }
 
     int bufs() const { return bufs_; }
     int gmem_bufs() const { return gmem_bufs_; }
@@ -683,8 +745,17 @@ public:
     operator bool() const { return bufs() > 0; }
 
     void set_from_str(const std::string &s) override {
+        a_ = false;
+        b_ = false;
+        bool ab_set = false;
         auto parts = ir_utils::split(s, ".");
         for (auto &p : parts) {
+            if (utils::one_of(p, "a", "b", "ab", "ba")) {
+                ab_set = true;
+                a_ = p.find("a") != std::string::npos;
+                b_ = p.find("b") != std::string::npos;
+                continue;
+            }
             ir_assert(p.size() >= 2) << p;
             char name = p[0];
             int value = std::stoi(p.substr(1));
@@ -695,7 +766,7 @@ public:
                 default: ir_error_not_expected() << p;
             }
         }
-        if (bufs_ > 0) {
+        if (!ab_set && bufs_ > 0) {
             a_ = true;
             b_ = true;
         }
@@ -710,6 +781,16 @@ public:
 
     void set_bufs(int bufs) { bufs_ = bufs; }
     void set_gmem_bufs(int gmem_bufs) { gmem_bufs_ = gmem_bufs; }
+
+    std::string str() const override {
+        std::ostringstream oss;
+        oss << short_name() << "=";
+        oss << "x" << bufs_;
+        oss << ".g" << gmem_bufs_;
+        if (sync_version_ != -1) oss << ".v" << sync_version_;
+        if (a_ != b_) oss << "." << (a_ ? "a" : "b");
+        return oss.str();
+    }
 
 private:
     // Number of SLM buffers to use (0, 1, 2 or 3).
@@ -750,6 +831,8 @@ public:
     std::string name() const override { return "subtiles"; }
     std::string short_name() const override { return "S"; }
     std::string desc() const override { return "Sub-iteration blocking."; }
+    bool is_overridable() const override { return true; }
+    bool is_default() const override { return (a_ == 1) && (b_ == 1); }
 
     int a() const { return a_; }
     int b() const { return b_; }
@@ -776,6 +859,14 @@ public:
     void set_a(int a) { a_ = a; }
     void set_b(int b) { b_ = b; }
 
+    std::string str() const override {
+        std::ostringstream oss;
+        oss << short_name() << "=";
+        if (a_ != 1) oss << "a" << a_;
+        if (b_ != 1) oss << "b" << b_;
+        return oss.str();
+    }
+
 private:
     int a_ = 1;
     int b_ = 1;
@@ -785,6 +876,7 @@ class thread_group_grid_param_t : public grid_param_t {
 public:
     std::string name() const override { return "tg-grid"; }
     std::string desc() const override { return "Thread group grid."; }
+    bool is_overridable() const override { return false; }
 };
 
 class thread_group_dims_param_t : public map_param_t {
@@ -794,6 +886,8 @@ public:
     std::string desc() const override {
         return "Thread group-level dimension blocks.";
     }
+    bool is_overridable() const override { return true; }
+    bool is_default() const override { return false; }
 };
 
 class unroll_param_t : public map_param_t {
@@ -803,11 +897,15 @@ public:
     std::string desc() const override {
         return "Per-dimension unroll factors.";
     }
+    bool is_overridable() const override { return true; }
+    bool is_default() const override { return is_empty(); }
 };
 
 class wei_layout_param_t : public layout_param_t {
     std::string name() const override { return "wei"; }
     std::string desc() const override { return "Weights layout."; }
+    bool is_overridable() const override { return true; }
+    bool is_default() const override { return false; }
 };
 
 namespace constants {
@@ -1027,8 +1125,9 @@ private:
 
 #define INIT_PARAM(name) \
     name##_param_t name##_; \
-    param_init_t name##_init_ = register_param( \
-            [](prim_config_t *c) { return &((conv_config_t *)c)->name##_; });
+    param_init_t name##_init_ = register_param([](const prim_config_t *c) { \
+        return &((const conv_config_t *)c)->name##_; \
+    });
 
     INIT_PARAM(bia_layout)
     INIT_PARAM(bwd_d_optimize_strided)

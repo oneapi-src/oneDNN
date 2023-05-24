@@ -148,7 +148,6 @@ if(ONEDNN_BUILD_GRAPH)
             "workload selection with ONEDNN_ENABLE_WORKLOAD=TRAINING.")
     endif()
 
-    add_definitions_with_host_compiler(-DBUILD_GRAPH)
     if(ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_BACKEND)
         add_definitions_with_host_compiler(-DDNNL_ENABLE_COMPILER_BACKEND)
     endif()

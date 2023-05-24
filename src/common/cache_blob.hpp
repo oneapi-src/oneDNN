@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,6 +54,23 @@ struct cache_blob_impl_t {
         return status::success;
     }
 
+    status_t add_value(const uint8_t *value_ptr, size_t size) {
+        if (!value_ptr) { return status::invalid_arguments; }
+        if (pos_ + size > size_) { return status::invalid_arguments; }
+
+        std::memcpy(data_ + pos_, value_ptr, size);
+        pos_ += size;
+        return status::success;
+    }
+
+    status_t get_value(uint8_t *value_ptr, size_t size) {
+        if (!value_ptr) { return status::invalid_arguments; }
+        if (pos_ >= size_) { return status::invalid_arguments; }
+        std::memcpy(value_ptr, data_ + pos_, size);
+        pos_ += size;
+        return status::success;
+    }
+
 private:
     size_t pos_;
     uint8_t *data_;
@@ -73,6 +90,16 @@ struct cache_blob_t {
     status_t get_binary(const uint8_t **binary, size_t *binary_size) {
         if (!impl_) return status::runtime_error;
         return impl_->get_binary(binary, binary_size);
+    }
+
+    status_t add_value(const uint8_t *value_ptr, size_t size) {
+        if (!impl_) return status::runtime_error;
+        return impl_->add_value(value_ptr, size);
+    }
+
+    status_t get_value(uint8_t *value_ptr, size_t size) {
+        if (!impl_) return status::runtime_error;
+        return impl_->get_value(value_ptr, size);
     }
 
     explicit operator bool() const { return bool(impl_); }

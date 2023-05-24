@@ -28,7 +28,7 @@
 
 using namespace dnnl::impl::graph::gc;
 using namespace dnnl::impl::graph::gc::builder;
-TEST(GCCore_ir_builder_cpp, TestIRBuilder) {
+TEST(GCCore_CPU_ir_builder_cpp, TestIRBuilder) {
     ir_builder_t builder;
     auto callee = make_func("some_func", {}, stmt(), datatypes::f32);
     builder.push_scope();
@@ -126,7 +126,7 @@ TEST(GCCore_ir_builder_cpp, TestIRBuilder) {
     }
 }
 
-TEST(GCCore_ir_builder_cpp, TestEasyBuilder) {
+TEST(GCCore_CPU_ir_builder_cpp, TestEasyBuilder) {
     builder::ir_builder_t builder;
     for_loop loop;
     _function_(datatypes::f32, aaa, _arg_("ii", datatypes::s32),
@@ -235,7 +235,7 @@ TEST(GCCore_ir_builder_cpp, TestEasyBuilder) {
     EXPECT_TRUE(cmper.same_);
 }
 
-TEST(GCCore_ir_builder_cpp, TestEasyBuilderNestedLoops) {
+TEST(GCCore_CPU_ir_builder_cpp, TestEasyBuilderNestedLoops) {
     ir_builder_t builder;
     builder.push_scope();
     _tensor_(buf2, datatypes::s32, {100, 200});
@@ -261,7 +261,7 @@ TEST(GCCore_ir_builder_cpp, TestEasyBuilderNestedLoops) {
     EXPECT_TRUE(a->equals(b, cmper));
 }
 
-TEST(GCCore_ir_builder_cpp, TestLValue) {
+TEST(GCCore_CPU_ir_builder_cpp, TestLValue) {
     builder::ir_builder_t builder;
     builder.push_scope();
     _var_(a, datatypes::s32);
@@ -290,7 +290,7 @@ TEST(GCCore_ir_builder_cpp, TestLValue) {
     EXPECT_TRUE(cmp.compare(s, exp));
 }
 
-TEST(GCCore_ir_builder_cpp, TestArgs) {
+TEST(GCCore_CPU_ir_builder_cpp, TestArgs) {
     builder::ir_builder_t builder;
     std::vector<expr> args = {builder::make_var(datatypes::bf16, "A"),
             builder::make_var(datatypes::bf16, "B")};

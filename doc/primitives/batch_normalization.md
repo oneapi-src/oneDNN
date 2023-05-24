@@ -86,7 +86,7 @@ The backward propagation computes
 \f$\diffgamma(c)^*\f$, and \f$\diffbeta(c)^*\f$
 based on
 \f$\diffdst(n, c, h, w)\f$, \f$\src(n, c, h, w)\f$, \f$\mu(c)\f$,
-\f$\sigma^2(c)\f$, \f$\gamma(c) ^*\f$, and \f$\beta(c) ^*\f$.
+\f$\sigma^2(c)\f$, and \f$\gamma(c) ^*\f$.
 
 The tensors marked with an asterisk are used only when the primitive is
 configured to use \f$\gamma(c)\f$ and \f$\beta(c)\f$ (i.e.,
@@ -106,7 +106,7 @@ requires different inputs and outputs.  For clarity, a summary is shown below.
 | #dnnl_use_shift                                              | *Inputs*: \src, \f$\beta\f$ <br><br> *Outputs*: \dst                                                               | *Inputs*: \src, \f$\beta\f$ <br><br> *Outputs*: \dst, \f$\mu\f$, \f$\sigma^2\f$                                                                                                          | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\beta\f$ <br><br> *Outputs*: \diffsrc, \f$\diffbeta\f$                                                                                | Not supported                                                                                                    |
 | #dnnl_use_global_stats \| #dnnl_use_scale \| #dnnl_use_shift | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \dst                      | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \dst                                                                                            | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \diffsrc, \f$\diffgamma\f$, \f$\diffbeta\f$                                                | Not supported                                                                                                    |
 | `flags` \| #dnnl_fuse_norm_relu                              | *Inputs*: same as with `flags` <br><br> *Outputs*: same as with `flags`                                            | *Inputs*: same as with `flags` <br><br> *Outputs*: same as with `flags`, [Workspace](@ref dev_guide_inference_and_training_aspects_workspace)                                            | *Inputs*: same as with `flags`, [Workspace](@ref dev_guide_inference_and_training_aspects_workspace) <br><br> *Outputs*: same as with `flags`                                                 | Same as for #dnnl_backward if `flags` do not contain #dnnl_use_scale or #dnnl_use_shift; not supported otherwise |
-| `flags` \| #dnnl_fuse_norm_add_relu                          | *Inputs*: same as with `flags` and \f$\src_1\f$ for fused binary addition <br><br> *Outputs*: same as with `flags` | *Inputs*: same as with `flags` and \f$\src_1\f$ for fused binary addition <br><br> *Outputs*: same as with `flags`, [Workspace](@ref dev_guide_inference_and_training_aspects_workspace) | *Inputs*: same as with `flags`, [Workspace](@ref dev_guide_inference_and_training_aspects_workspace) <br><br> *Outputs*: same as with `flags` and \f$\diff_src_1\f$ for fused binary addition | Same as for #dnnl_backward if `flags` do not contain #dnnl_use_scale or #dnnl_use_shift; not supported otherwise |
+| `flags` \| #dnnl_fuse_norm_add_relu                          | *Inputs*: same as with `flags` and \f$\src_1\f$ for fused binary addition <br><br> *Outputs*: same as with `flags` | *Inputs*: same as with `flags` and \f$\src_1\f$ for fused binary addition <br><br> *Outputs*: same as with `flags`, [Workspace](@ref dev_guide_inference_and_training_aspects_workspace) | *Inputs*: same as with `flags`, [Workspace](@ref dev_guide_inference_and_training_aspects_workspace) <br><br> *Outputs*: same as with `flags` and \f$\diffsrc_1\f$ for fused binary addition | Same as for #dnnl_backward if `flags` do not contain #dnnl_use_scale or #dnnl_use_shift; not supported otherwise |
 
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
@@ -123,7 +123,7 @@ argument index as specified by the following table.
 | workspace                 | DNNL_ARG_WORKSPACE       |
 | \diffdst                  | DNNL_ARG_DIFF_DST        |
 | \diffsrc                  | DNNL_ARG_DIFF_SRC        |
-| \f$\diff_src_1\f$         | DNNL_ARG_DIFF_SRC_1      |
+| \f$\diffsrc_1\f$          | DNNL_ARG_DIFF_SRC_1      |
 | \f$\diffgamma\f$          | DNNL_ARG_DIFF_SCALE      |
 | \f$\diffbeta\f$           | DNNL_ARG_DIFF_SHIFT      |
 
@@ -153,17 +153,17 @@ argument index as specified by the following table.
    binary addition and ReLU activation (#dnnl_fuse_norm_add_relu).
    In this case:
    - on the forward propagation the primitive has one additional input,
-     `src_1`, that should have memory descriptor equal to primitive `dst_desc`
-     memory descriptor.
+     \f$\src_1\f$, that should have memory descriptor equal to primitive
+     `dst_desc` memory descriptor.
    - on the backward propagation the primitive has one additional output,
-     `diff_src_1`, that should have memory descriptor equal to primitive
+     \f$\diffsrc_1\f$, that should have memory descriptor equal to primitive
      `diff_dst_desc` memory descriptor.
 
 5. As mentioned above, the batch normalization primitive can be fused with
    ReLU activation (#dnnl_fuse_norm_relu) or binary addition and ReLU activation
-   (#dnnl_fuse_norm_add_relu) even in the training mode. In this case, on the forward
-   propagation the primitive has one additional output, `workspace`, that
-   should be passed during the backward propagation.
+   (#dnnl_fuse_norm_add_relu) even in the training mode. In this case, on the
+   forward propagation the primitive has one additional output, `workspace`,
+   that should be passed during the backward propagation.
 
 ### Data Type Support
 
@@ -244,8 +244,8 @@ correctly. Hence, in case of training one should use the #dnnl_fuse_norm_relu or
 
 ## Performance Tips
 
-1. For backward propagation, use the same memory format for `src`, `diff_dst`,
-   and `diff_src` (the format of the `diff_dst` and `diff_src` are always the
+1. For backward propagation, use the same memory format for \src, \diffdst,
+   and \diffsrc (the format of the \diffdst and \diffsrc are always the
    same because of the API). Different formats are functionally supported but
    lead to highly suboptimal performance.
 

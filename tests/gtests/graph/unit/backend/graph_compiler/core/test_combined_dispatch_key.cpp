@@ -23,13 +23,13 @@
 
 using namespace dnnl::impl::graph::gc;
 
-TEST(GCCore_combined_dispatch_key_cpp, TestCombinedKeyEmptyInput) {
+TEST(GCCore_CPU_combined_dispatch_key_cpp, TestCombinedKeyEmptyInput) {
     combined_dispatch_key_set_t combined_set(
             (std::vector<std::shared_ptr<dispatch_key_set_base_t>>()));
     EXPECT_EQ(combined_set.size(), UINT64_C(0));
 }
 
-TEST(GCCore_combined_dispatch_key_cpp, TestCombinedKeyOneInput) {
+TEST(GCCore_CPU_combined_dispatch_key_cpp, TestCombinedKeyOneInput) {
     auto in_set = std::make_shared<dispatch_key_set_t>();
     in_set->set_ = dispatch_key_set_t::inner_set_t {
             op_dispatch_key_t(std::vector<sc_data_format_t> {
@@ -54,7 +54,7 @@ TEST(GCCore_combined_dispatch_key_cpp, TestCombinedKeyOneInput) {
     EXPECT_EQ(combined_set.set_, expected);
 }
 
-TEST(GCCore_combined_dispatch_key_cpp, TestCombinedKeyMultiInput) {
+TEST(GCCore_CPU_combined_dispatch_key_cpp, TestCombinedKeyMultiInput) {
     auto in_set1 = std::make_shared<dispatch_key_set_t>();
     auto in_set2 = std::make_shared<dispatch_key_set_t>();
     in_set1->set_ = dispatch_key_set_t::inner_set_t {
@@ -129,7 +129,7 @@ TEST(GCCore_combined_dispatch_key_cpp, TestCombinedKeyMultiInput) {
     EXPECT_EQ(combined_set.set_, expected);
 }
 
-TEST(GCCore_combined_dispatch_key_cpp, TestCombinedKeyGraphLinked) {
+TEST(GCCore_CPU_combined_dispatch_key_cpp, TestCombinedKeyGraphLinked) {
     auto in_set1 = std::make_shared<dispatch_key_set_t>(); // data reorder
     auto in_set2 = std::make_shared<dispatch_key_set_t>(); // weight_reorder
     auto in_set3 = std::make_shared<dispatch_key_set_t>(); // matmul1
@@ -231,7 +231,7 @@ TEST(GCCore_combined_dispatch_key_cpp, TestCombinedKeyGraphLinked) {
     EXPECT_EQ(combined_set.size(), UINT64_C(4));
 }
 
-TEST(GCCore_combined_dispatch_key_cpp, TestCombinedKeyGraphLinked2) {
+TEST(GCCore_CPU_combined_dispatch_key_cpp, TestCombinedKeyGraphLinked2) {
     auto in_set1 = std::make_shared<dispatch_key_set_t>(); // data reorder
     auto in_set2 = std::make_shared<dispatch_key_set_t>(); // weight_reorder
     auto in_set3 = std::make_shared<dispatch_key_set_t>(); // matmul1
@@ -287,7 +287,7 @@ TEST(GCCore_combined_dispatch_key_cpp, TestCombinedKeyGraphLinked2) {
     EXPECT_EQ(combined_set.size(), UINT64_C(3));
 }
 
-TEST(GCCore_combined_dispatch_key_cpp, TestCombinedKeyGraphCheck) {
+TEST(GCCore_CPU_combined_dispatch_key_cpp, TestCombinedKeyGraphCheck) {
     auto in_set1 = std::make_shared<dispatch_key_set_t>(); // reorder 1
     auto in_set2 = std::make_shared<dispatch_key_set_t>(); // reorder 2
 

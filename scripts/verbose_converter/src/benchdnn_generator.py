@@ -199,23 +199,6 @@ def convert_dts(mds, prim_kind):
         dt = dts[0]
         return f"--dt={dt}"
 
-    def convert_dts_cfg(mds):
-        cfg = "--cfg="
-        mds_strip = mds
-        # bias is not part of cfg
-        mds_strip = [md for md in mds_strip if "bia" not in md["arg"]]
-        # ws is not part of cfg
-        mds_strip = [md for md in mds_strip if "ws" not in md["arg"]]
-        common_dt = everyone_is([md["data_type"] for md in mds_strip])
-        if common_dt and mds_strip[0]["data_type"] in ["f32", "f16"]:
-            cfg += mds_strip[0]["data_type"]
-        else:
-            args = ["src", "wei", "dst"]
-            for md in mds_strip:
-                if md["arg"] in args:
-                    cfg += md["data_type"]
-        return cfg
-
     def convert_dts_cfg_rnn(mds):
         cfg = "--cfg="
         args = ["src_iter", "src_iter_c", "src_layer", "dst_iter", "dst_layer", "bias"]
@@ -243,10 +226,6 @@ def convert_dts(mds, prim_kind):
                             continue
                         cfg += md["data_type"]
         return cfg
-
-    def convert_dts_cfg_pool(mds):
-        cfg = mds[0]["data_type"]
-        return f"--cfg={cfg}"
 
     def convert_dts_all(mds):
         dts = ""
@@ -318,11 +297,11 @@ def convert_dts(mds, prim_kind):
         "convolution": convert_dts_multiple,
         "deconvolution": convert_dts_multiple,
         "eltwise": convert_dts_common,
-        "inner_product": convert_dts_cfg,
+        "inner_product": convert_dts_multiple,
         "layer_normalization": convert_dts_multiple,
         "lrn": convert_dts_common,
         "matmul": convert_dts_with_bias,
-        "pooling": convert_dts_cfg_pool,
+        "pooling": convert_dts_multiple,
         "prelu": convert_dts_prelu,
         "reduction": convert_dts_all,
         "reorder": convert_dts_all,

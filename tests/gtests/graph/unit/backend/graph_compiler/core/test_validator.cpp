@@ -25,7 +25,7 @@
 using namespace dnnl::impl::graph::gc;
 using namespace dnnl::impl::graph::gc::builder;
 
-TEST(GCCore_validator_cpp, TestValidatorBinaryTensor) {
+TEST(GCCore_CPU_validator_cpp, TestValidatorBinaryTensor) {
     validator_t vali;
     ir_builder_t builder;
     builder.push_scope();
@@ -38,7 +38,7 @@ TEST(GCCore_validator_cpp, TestValidatorBinaryTensor) {
     vali(tensor_ptr(b, {100UL}));
 }
 
-TEST(GCCore_validator_cpp, TestValidatorBinaryBaseTest) {
+TEST(GCCore_CPU_validator_cpp, TestValidatorBinaryBaseTest) {
     validator_t vali;
     ir_builder_t builder;
     builder.push_scope();
@@ -68,7 +68,7 @@ TEST(GCCore_validator_cpp, TestValidatorBinaryBaseTest) {
     vali(c % 10);
 }
 
-TEST(GCCore_validator_cpp, TestCmp) {
+TEST(GCCore_CPU_validator_cpp, TestCmp) {
     validator_t vali;
     expr tmp = expr(1) == expr(2);
     tmp->dtype_ = datatypes::s32;
@@ -84,7 +84,7 @@ TEST(GCCore_validator_cpp, TestCmp) {
     vali(expr(12) <= expr(14));
 }
 
-TEST(GCCore_validator_cpp, TestIntrinsics) {
+TEST(GCCore_CPU_validator_cpp, TestIntrinsics) {
     validator_t vali;
     auto a = make_min(1, 2.5f);
     EXPECT_SC_ERROR(vali(a), "Invalid type: met undef/void/zero-length vector");
@@ -143,7 +143,7 @@ TEST(GCCore_validator_cpp, TestIntrinsics) {
     vali(a);
 }
 
-TEST(GCCore_validator_cpp, TestLogic) {
+TEST(GCCore_CPU_validator_cpp, TestLogic) {
     validator_t vali;
     expr tmp = expr(true) || expr(false);
     tmp->dtype_ = datatypes::s32;
@@ -155,7 +155,7 @@ TEST(GCCore_validator_cpp, TestLogic) {
     vali(expr(true) || expr(false));
 }
 
-TEST(GCCore_validator_cpp, TestLogicNot) {
+TEST(GCCore_CPU_validator_cpp, TestLogicNot) {
     validator_t vali;
     logic_not tmp = make_logic_not(expr(true)).as<logic_not>();
     tmp->dtype_ = datatypes::s32;
@@ -167,7 +167,7 @@ TEST(GCCore_validator_cpp, TestLogicNot) {
     vali(!expr(true));
 }
 
-TEST(GCCore_validator_cpp, TestSelect) {
+TEST(GCCore_CPU_validator_cpp, TestSelect) {
     validator_t vali;
     dnnl::impl::graph::gc::select tmp
             = make_select(expr(1), expr(1), expr(0))
@@ -188,7 +188,7 @@ TEST(GCCore_validator_cpp, TestSelect) {
     vali(!expr(true));
 }
 
-TEST(GCCore_validator_cpp, TestIndexing) {
+TEST(GCCore_CPU_validator_cpp, TestIndexing) {
     validator_t vali;
     expr tsr = make_tensor("aaa", {100}, datatypes::f32);
     expr tmp = tsr[12];
@@ -219,7 +219,7 @@ TEST(GCCore_validator_cpp, TestIndexing) {
     vali(tsr2[{10UL, 20UL}]);
 }
 
-TEST(GCCore_validator_cpp, TestCall) {
+TEST(GCCore_CPU_validator_cpp, TestCall) {
     validator_t vali;
     ir_builder_t builder;
     _decl_func_(datatypes::undef, AAA, _arg_("len", datatypes::s32),
@@ -241,7 +241,7 @@ TEST(GCCore_validator_cpp, TestCall) {
     vali(AAA(1, 2.0f));
 }
 
-TEST(GCCore_validator_cpp, TestTensor) {
+TEST(GCCore_CPU_validator_cpp, TestTensor) {
     validator_t vali;
     ir_builder_t builder;
     builder.push_scope();
@@ -263,7 +263,7 @@ TEST(GCCore_validator_cpp, TestTensor) {
             "having the same dtype. Current dimemsion: 2");
 }
 
-TEST(GCCore_validator_cpp, TestVar) {
+TEST(GCCore_CPU_validator_cpp, TestVar) {
     validator_t vali;
     ir_builder_t builder;
     builder.push_scope();
@@ -271,7 +271,7 @@ TEST(GCCore_validator_cpp, TestVar) {
     EXPECT_SC_ERROR(vali(v), "Invalid type: met undef/void");
 }
 
-TEST(GCCore_validator_cpp, TestVarTensorDef) {
+TEST(GCCore_CPU_validator_cpp, TestVarTensorDef) {
     validator_t vali;
     ir_builder_t builder;
     EXPECT_SC_ERROR(vali(builder::make_var_tensor_def_unattached(expr(1))),
@@ -286,7 +286,7 @@ TEST(GCCore_validator_cpp, TestVarTensorDef) {
             "The init val of tensor should come from dynamic");
 }
 
-TEST(GCCore_validator_cpp, TestAssign) {
+TEST(GCCore_CPU_validator_cpp, TestAssign) {
     validator_t vali;
     ir_builder_t builder;
     builder.push_scope();
@@ -298,7 +298,7 @@ TEST(GCCore_validator_cpp, TestAssign) {
             "and s32");
 }
 
-TEST(GCCore_validator_cpp, TestReturnAndFunc) {
+TEST(GCCore_CPU_validator_cpp, TestReturnAndFunc) {
     validator_t vali;
     {
         ir_builder_t builder;
@@ -341,7 +341,7 @@ TEST(GCCore_validator_cpp, TestReturnAndFunc) {
     }
 }
 
-TEST(GCCore_validator_cpp, TestIf) {
+TEST(GCCore_CPU_validator_cpp, TestIf) {
     ir_builder_t builder;
     validator_t vali;
     builder.push_scope();
@@ -351,7 +351,7 @@ TEST(GCCore_validator_cpp, TestIf) {
             "If-else node expects an boolean expr as the condition, got ");
 }
 
-TEST(GCCore_validator_cpp, TestFor) {
+TEST(GCCore_CPU_validator_cpp, TestFor) {
     ir_builder_t builder;
     validator_t vali;
     builder.push_scope();
@@ -380,7 +380,7 @@ TEST(GCCore_validator_cpp, TestFor) {
             "s32");
 }
 
-TEST(GCCore_validator_cpp, TestVarDefCheck) {
+TEST(GCCore_CPU_validator_cpp, TestVarDefCheck) {
     ir_builder_t builder;
     {
         validator_t vali;

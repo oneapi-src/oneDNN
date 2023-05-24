@@ -113,8 +113,7 @@ public:
                             builder::make_indexing(shape_tsr, i),
                             plain_dims[i]));
                 }
-                dyn_mask_int |= static_cast<uint64_t>(
-                        (!plain_dims[i].isa<constant>()) << i);
+                dyn_mask_int |= (uint64_t(!plain_dims[i].isa<constant>()) << i);
             }
             def_stmts.push_back(builder::make_var_tensor_def_unattached(
                     dyn_mask, linkage::local,

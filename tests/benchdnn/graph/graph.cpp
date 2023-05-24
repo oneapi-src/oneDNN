@@ -313,7 +313,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         c_partitions[i].execute(strm, input_ts, output_ts);
         strm.wait();
-        if (res) res->state = EXECUTED;
+        res->state = EXECUTED;
 
         if (has_bench_mode_bit(mode_bit_t::corr)) {
             ref_partition.check_partition_correctness(res);

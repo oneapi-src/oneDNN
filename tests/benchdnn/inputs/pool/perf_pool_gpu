@@ -2,7 +2,7 @@
 --reset
 --mb=1
 
---cfg=f32,s8
+--dt=f32,s8
 --dir=FWD_I
 --alg=max,avg_np,avg_p
 --tag=axb,aBx16b
@@ -13,7 +13,7 @@
 --reset
 --mb=16,32,64
 
---cfg=f32,s8
+--dt=f32,s8
 --dir=FWD_I
 --alg=max,avg_np,avg_p
 --tag=axb,ABx16a16b
@@ -24,7 +24,7 @@
 --reset 
 --mb=16,32,64
 
---cfg=f32
+--dt=f32
 --dir=FWD_D,BWD_D
 --alg=max,avg_np,avg_p
 --tag=axb,ABx16a16b

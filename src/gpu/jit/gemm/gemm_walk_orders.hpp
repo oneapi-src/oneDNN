@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,6 +25,10 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
+inline uint32_t uint32_reciprocal(uint32_t x) {
+    return (uint32_t)utils::div_up(uint64_t(0x100000000) << math::ilog2q(x), x);
+}
+
 inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
         int &argn, const size_t (&lws)[3], size_t (&gws)[3], int32_t m,
         int32_t n, bool disable_hilbert, const CommonDriverInfo &info,
@@ -47,7 +51,11 @@ inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
     arg_list.set(argn++, groups_m);
     arg_list.set(argn++, groups_n);
 
-    if (info.isHilbert()) {
+    if (info.isSimpleLinear()) {
+        uint32_t gcmn_recip
+                = uint32_reciprocal(info.isMNK() ? groups_m : groups_n);
+        arg_list.set(argn++, gcmn_recip);
+    } else if (info.isHilbert()) {
         uint32_t vd = 0, uvd = 0;
         double ratio = double(groups_n) / double(groups_m);
         if (ratio >= 1) {
@@ -59,9 +67,7 @@ inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
             vd |= 0xFFFF0000u;
         }
 
-        int shift = std::floor(std::log2(uvd));
-        uint32_t uvd_recip
-                = uint32_t(utils::div_up(0x100000000ull << shift, uvd));
+        uint32_t uvd_recip = uint32_reciprocal(uvd);
         uint32_t bail = disable_hilbert ? 512 : 1;
 
         arg_list.set(argn++, vd);

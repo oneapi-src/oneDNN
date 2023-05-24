@@ -79,6 +79,16 @@ __kernel void gen9_global_pooling_fwd(
 #endif // IS_FWD
 
 #if IS_BWD
+
+#if DT_BF16
+#define DST_BLOCK_WRITE(dst, val) \
+    BLOCK_WRITE((__global ushort *)(dst), as_ushort(val))
+#endif // DT_BF16
+#if DT_F32
+#define DST_BLOCK_WRITE(dst, val) \
+    BLOCK_WRITE((__global uint *)(dst), as_uint(val))
+#endif // DT_F32
+
 KERNEL_ATTR
 __kernel void gen9_global_pooling_bwd(__global DATA_T *diff_src,
         __global int *ws, __global DATA_T *diff_dst) {
@@ -116,7 +126,7 @@ __kernel void gen9_global_pooling_bwd(__global DATA_T *diff_src,
 #endif // ALG_MAX
         }
         const int src_off = SRC_OFF(mb, GWS_GET_C(), id, ih, iw);
-        BLOCK_WRITE(&diff_src[src_off], val_to_write);
+        DST_BLOCK_WRITE(&diff_src[src_off], val_to_write);
     }
 }
 #endif // IS_BWD

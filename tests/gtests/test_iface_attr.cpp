@@ -595,8 +595,8 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, InnerProdBlockedWeights) {
     engine e {engine_kind, 0};
 
     std::vector<memory::format_tag> blocked_weights_tags {
-            memory::format_tag::OIhw16i64o, memory::format_tag::OIhw16i32o,
-            memory::format_tag::OIhw16i16o};
+            memory::format_tag::OIhw16i64o, memory::format_tag::OIhw16i48o,
+            memory::format_tag::OIhw16i32o, memory::format_tag::OIhw16i16o};
 
     for (const auto &weights_tag : blocked_weights_tags) {
         memory::desc src_md {{1024, 512, 1, 1}, memory::data_type::f32,

@@ -21,7 +21,7 @@
 #include <compiler/ir/graph/transform/transform.hpp>
 
 using namespace dnnl::impl::graph::gc;
-TEST(GCCore_elemwise_bcast_swap, TestElemwiseBcastSwap) {
+TEST(GCCore_CPU_elemwise_bcast_swap, TestElemwiseBcastSwap) {
     sc_graph_t mgr;
     auto in_a = mgr.make_input({graph_tensor::make({28, 64, 16, 16})});
     auto in_b = mgr.make_input({graph_tensor::make({28, 64, 16, 16})});
@@ -60,7 +60,7 @@ TEST(GCCore_elemwise_bcast_swap, TestElemwiseBcastSwap) {
 }
 
 // should not swap if parent is also bcast
-TEST(GCCore_elemwise_bcast_swap, TestFailParentBCast) {
+TEST(GCCore_CPU_elemwise_bcast_swap, TestFailParentBCast) {
     auto make_graph = []() {
         sc_graph_t mgr;
         auto in_a = mgr.make_input({graph_tensor::make({28, 64, 16, 16})});

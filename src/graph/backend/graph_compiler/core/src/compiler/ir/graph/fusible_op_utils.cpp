@@ -33,6 +33,7 @@
 #include <compiler/ir/transform/cpu/local_tensor_lower.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <runtime/config.hpp>
+#include <util/optional_find.hpp>
 #include <util/utils.hpp>
 
 namespace dnnl {
@@ -131,6 +132,7 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx) {
     COMPILE_ASSERT(copied->get_outputs().size() == 1,
             "Currently only support 1 output only");
     g.make_output(outs);
+    g.attrs_.set(mixed_partition_hint::single_op_graph, true);
     // create dummy parti
     auto parti = std::make_shared<mixed_parti_t>(ctx,
             std::const_pointer_cast<sc_op>(op->shared_from_this()), nullptr);
@@ -138,7 +140,8 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx) {
     std::unordered_map<sc_op_ptr, sc_op_ptr> graph2orig_ops
             = {{copied, op->shared_from_this()}};
     // try optimize partition
-    if (try_optimize_parti(parti.get(), g, graph2orig_ops)) {
+    if (!op->attrs_.get_or_else("temp.no_optimize_op", false)
+            && try_optimize_parti(parti.get(), g, graph2orig_ops)) {
         // redo partition
         std::vector<mixed_parti_t::ptr> op2parti(g.ops_.size());
         do_partition(ctx, g, op_dep_matrix_t(g), op2parti);
@@ -149,13 +152,24 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx) {
                 "Only sinlge partition is expected, but got " << res.size());
         // reset new partition
         parti = res[0];
+        // validate optimization
+        if (!parti->validate_optimization()) {
+            // redo without optimization
+            op->attrs_.set("temp.no_optimize_op", true);
+            auto ret = fusible_op_get_func(op, ctx);
+            // remove temp attr
+            op->attrs_.remove("temp.no_optimize_op");
+            return ret;
+        }
     } else {
         parti = std::make_shared<mixed_parti_t>(ctx,
                 std::const_pointer_cast<sc_op>(copied->shared_from_this()),
                 std::make_shared<op_dep_matrix_t>(g));
     }
-    auto mx_op = transform_pa_to_mixed_op(ctx, g, parti);
+    auto mx_op = parti->transform_to_mixed_op();
     mx_op->set_owner_graph(&g);
+    // copy logigcal id
+    mx_op->logical_op_id_ = op->logical_op_id_;
     return mx_op->get_func(ctx);
 }
 
@@ -680,10 +694,10 @@ void set_unknown_slice_ranges(fusible_op_t *cur,
         if (input->producer_owner_->isa<input_op>()
                 && input->producer_owner_->dyn_cast<input_op>()
                            ->is_arg_input()) {
-            inp_slice = known_ranges_map.find(i)->second;
+            inp_slice = *utils::find_map_value(known_ranges_map, i).get();
         } else {
             if (inp_slice.empty()) {
-                inp_slice = known_ranges_map.find(i)->second;
+                inp_slice = *utils::find_map_value(known_ranges_map, i).get();
                 if (!stat_map.is_recursive_mode()) continue;
                 if (auto inp_op
                         = input->producer_owner_->dyn_cast<fusible_op_t>()) {
@@ -730,7 +744,7 @@ void set_unknown_axis_binding(sc_op *cur,
         auto input = cur->get_inputs()[i];
         auto &inp_axis = bdax_map.get(input);
         if (inp_axis.empty()) {
-            inp_axis = known_axis_map.find(i)->second;
+            inp_axis = *utils::find_map_value(known_axis_map, i).get();
             auto producer = input->producer_owner_;
             if (producer->isa<input_op>()) continue;
             if (auto inp_op = producer->dyn_cast<
@@ -753,10 +767,6 @@ std::vector<int> transform_axis_plain2blocking(
     std::vector<int> real_axis;
     auto p2bmp = fmt.format_code_.collect_p2b_mapping();
     for (auto &i : plain_axis) {
-        if (i == -1) {
-            real_axis.emplace_back(-1);
-            continue;
-        }
         std::vector<int> res;
         res.resize(p2bmp[i].size());
         std::transform(p2bmp[i].begin(), p2bmp[i].end(), res.begin(),
@@ -780,10 +790,6 @@ std::vector<int> transform_axis_blocking2plain(
     std::vector<int> plain_axis;
     auto p2bmp = fmt.format_code_.collect_p2b_mapping();
     for (auto &ax : blocking_axis) {
-        if (ax == -1) {
-            plain_axis.emplace_back(-1);
-            continue;
-        }
         for (size_t i = 0; i < p2bmp.size(); i++) {
             auto blk_axis_i = p2bmp[i];
             if (blk_axis_i.end()
@@ -793,10 +799,13 @@ std::vector<int> transform_axis_blocking2plain(
             }
         }
     }
-    // remove duplicated axis.
-    std::sort(plain_axis.begin(), plain_axis.end());
-    plain_axis.erase(std::unique(plain_axis.begin(), plain_axis.end()),
-            plain_axis.end());
+    // check if empty to make g++12 happy
+    if (!plain_axis.empty()) {
+        // remove duplicated axis.
+        std::sort(plain_axis.begin(), plain_axis.end());
+        plain_axis.erase(std::unique(plain_axis.begin(), plain_axis.end()),
+                plain_axis.end());
+    }
     return plain_axis;
 }
 
@@ -822,9 +831,6 @@ cmp_res cmp_slice_range(const slice_range_list &left_slice_range_list,
             "slice range should be set");
     if (is_dynamic_slice_range_list(left_slice_range_list)
             || is_dynamic_slice_range_list(right_slice_range_list)) {
-        COMPILE_ASSERT(left_slice_range_list.size() == 1
-                        && right_slice_range_list.size() == 1,
-                "left and right slice range size should be 1.");
         auto &left_slice_range = left_slice_range_list[0];
         auto &right_slice_range = right_slice_range_list[0];
         assert(left_slice_range.size() == right_slice_range.size());

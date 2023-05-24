@@ -768,7 +768,7 @@ tsr_info_t get_or_create_tsr_and_fmt(
     for (size_t i = 0; i < plain_shapes.size(); i++) {
         bld.push_assign(
                 builder::make_indexing(shape_tsr, {i}), plain_shapes[i]);
-        dyn_mask_int |= ((!plain_shapes[i].isa<constant>()) << i);
+        dyn_mask_int |= (uint64_t(!plain_shapes[i].isa<constant>()) << i);
     }
     bld.push_evaluate(builder::make_write_struct(rtsr,
             builder::make_constant({dyn_mask_int}, datatypes::u8),
@@ -1505,7 +1505,7 @@ ir_module_ptr horizontal_fused_op_t::get_func(context_ptr ctx) {
         op_out_args.insert(
                 op_out_args.end(), op_in_args.begin(), op_in_args.end());
         auto callf = make_expr<call_node>(f, op_out_args);
-        inliner.inline_at(callf, bld.get_current_scope().body, 0, global_vars);
+        inliner.inline_at(callf, bld.get_current_scope().body, 0, mod_to_merge);
     }
     bld.push_returns(true);
     func->body_ = bld.pop_scope();
@@ -1641,14 +1641,14 @@ ir_module_ptr mixed_fuse_op_t::get_func(context_ptr ctx) {
         // push return to the end of body
         auto ret = builder::make_returns_unattached(true);
         func->body_.checked_as<stmts>()->seq_.emplace_back(ret);
-        modu = std::make_shared<ir_module_t>(ctx);
-        modu->add_func({func});
-        modu->set_entry_func_idx(0);
         func->name_ = op_name_;
         func->decl_->name_ = op_name_;
         func->name_ += "_" + std::to_string(logical_op_id_);
         func->decl_->name_ += "_" + std::to_string(logical_op_id_);
         schedule_loops(func->body_);
+        modu = std::make_shared<ir_module_t>(ctx);
+        modu->add_func({func});
+        modu->set_entry_func_idx(0);
     }
 
     return modu;
@@ -1715,7 +1715,10 @@ static op_traits::may_prefetch_t *find_prefetch_op(const sc_graph_t &graph) {
                     graph, [&found_op](op_visitor_t *vis, const sc_op_ptr &op) {
                         if (found_op) { return; }
                         if (op->isa<tunable_op_t>()
-                                && op->isa<op_traits::may_prefetch_t>()) {
+                                && op->isa<op_traits::may_prefetch_t>()
+                                && op->attrs_.get_or_else(
+                                        mixed_partition_hint::first_prefetch_op,
+                                        false)) {
                             for (auto &ins : op->get_inputs()) {
                                 if (ins->producer_owner_->isa<input_op>()) {
                                     found_op = op->dyn_cast<
@@ -1959,6 +1962,12 @@ struct inplace_recursion_context_t {
                 || producer->isa<unary_elementwise_op_t>();
         bool can_be_free = producer->isa<tensor_view_op_t>();
         good_op = good_op && (must_zero_offset || can_be_free);
+        if (must_zero_offset) {
+            good_op = good_op
+                    && !producer->dyn_cast<op_traits::may_inplace_t>()
+                                ->get_inplace_map()
+                                .empty();
+        }
         auto &inputs = producer->get_inputs();
         for (size_t input_idx = 0; input_idx < inputs.size(); input_idx++) {
             auto &intsr = inputs[input_idx];
@@ -2222,7 +2231,7 @@ ir_module_ptr batchwise_fused_op_t::get_func(context_ptr ctx) {
     auto the_call = builder::make_call(sub_modu->get_entry_func(), args)
                             .checked_as<call>();
     inliner.inline_at(the_call, cur.checked_as<stmts>()->seq_,
-            cur.checked_as<stmts>()->seq_.size(), sub_vars);
+            cur.checked_as<stmts>()->seq_.size(), sub_modu);
     gen_copy_strided_tsr_ir(cur, strided_out_tsr_map, loop_vars, false);
     // std::cout << cur << "\n";
     std::reverse_copy(bw_dims_.begin(), bw_dims_.end(), loop_ranges.begin());

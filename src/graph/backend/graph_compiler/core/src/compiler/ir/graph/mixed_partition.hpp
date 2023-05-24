@@ -21,9 +21,8 @@
 #include <utility>
 #include <vector>
 #include "fused_op.hpp"
-#include "fusible_op.hpp"
+#include "fusion_anchor.hpp"
 #include "fusion_cost_model.hpp"
-#include "fusion_data.hpp"
 #include "fusion_mgr.hpp"
 #include "visitor.hpp"
 #include <compiler/ir/transform/static_memory_planner.hpp>
@@ -44,12 +43,20 @@ namespace mixed_partition_hint {
 constexpr const char *parti = "partition";
 // Boolean: is cut buffer hint
 constexpr const char *cut_buffer = "cut_buffer";
-// the pointer: sub graph address
-constexpr const char *sub_graph_ptr = "sub_graph_ptr";
 // Boolean: dont inplace hint
 constexpr const char *no_inplace = "no_inplace";
-// Boolean: is retried graph
-constexpr const char *optimized_graph = "optimized_graph";
+// Boolean: is optimized sub graph
+constexpr const char *optimized_sub_graph = "optimized_sub_graph";
+// Boolean: can optimize outer loop
+constexpr const char *optimized_outer_loop = "optimized_outer_loop";
+// Boolean: is single op graph
+constexpr const char *single_op_graph = "single_op_graph";
+// Boolean: is begining op of pre-op fuse
+constexpr const char *pre_fuse_begin_op = "pre_fuse_begin_op";
+// Boolean: whether directly inplaced and would not call `compute_block`
+constexpr const char *inplace_optimized_op = "inplace_optimized_op";
+// Boolean: is the first op for prefetching
+constexpr const char *first_prefetch_op = "first_prefetch_op";
 } // namespace mixed_partition_hint
 
 // different fusion policies prepared for dynamic shape, policies will be JIT
@@ -141,7 +148,7 @@ public:
 
     memory_optim::inplace_info_map inplace_map_; // inplace map
 
-    const mixed_parti_t *get_binded_mxp() const { return binded_mxp_; }
+    mixed_parti_t *const get_binded_mxp() const { return binded_mxp_; }
     // support inplace logic, allocate buffer including either tensor or
     // tensorptr
     void allocate_buffer(sc_op *op);
@@ -151,7 +158,8 @@ public:
     // get inplaced buffer
     expr get_inplaced_buffer(const expr &buf) const;
     // get allocated buffer
-    std::tuple<std::vector<expr>, std::vector<expr>> get_buffer(sc_op *op);
+    std::tuple<std::vector<expr>, std::vector<expr>> get_buffer(
+            sc_op *op) const;
     // update input buffer info
     void update_input_buffer_info(sc_op *op);
     // update output buffer info
@@ -188,9 +196,11 @@ public:
     // get shrinked info for buffer
     slice_range get_shrinked_info(const expr &buffer) const;
     // query buffer inplace and set hint for IR pass
-    void query_buffer_inplace();
-    // validate buffer information about inplace and shrink
-    void validate_buffer();
+    void query_inplace();
+    // calibrate buffer information about inplace and shrink
+    void calibrate_info();
+    // validate tensor2var buffer whether meet the requirement
+    bool validate_tsr2var() const;
     // count of buffer usage
     int use_count(const expr &buffer) const;
     // concat memory planning related
@@ -303,6 +313,9 @@ struct mixed_parti_t : fusion_partition_t {
     mixed_parti_t(const context_ptr &ctx, const sc_op_ptr &op,
             const dep_mat_ptr &dep_m);
 
+    mixed_parti_t(const context_ptr &ctx, const func_t &func,
+            const fusion_anchor_mgr_t &fmgr, const dep_mat_ptr &dep_m);
+
     bool is_ok_to_add(sc_op *op);
 
     void add(const sc_op_ptr &op);
@@ -339,7 +352,7 @@ struct mixed_parti_t : fusion_partition_t {
     void try_split_outermost_loop_on_num_threads(int64_t num_groups);
 
     // query if partition can optimize its loop order
-    bool can_optimize_loop_order_for_parti(bool allow_tensorview = false) const;
+    bool can_optimize_outer_loop(bool allow_tensorview = false) const;
 
     // return op whether in op_anchor_map_
     bool ready_for_op(sc_op *op) const;
@@ -429,6 +442,15 @@ struct mixed_parti_t : fusion_partition_t {
     // query partition whether contains only elementwise op
     bool contain_elemwise_op_only() const;
 
+    // query partition whether contains only one op
+    bool is_single_op_parti() const;
+
+    // query partition whether contains op from optimized sub graph
+    bool is_optimized() const;
+
+    // check optimization whether legal or not
+    bool validate_optimization() const;
+
     // clear all contents of partition object
     void clear();
 
@@ -440,6 +462,15 @@ struct mixed_parti_t : fusion_partition_t {
     expr get_fusion_policy_condition() const {
         return cost_->get_fusion_policy_condition();
     }
+
+    sc_graph_t &get_host_graph() const {
+        COMPILE_ASSERT(
+                !committed_ops_.empty(), "No op contained in current partition")
+        return committed_ops_[0]->get_owner_graph();
+    }
+
+    // transform partition to mixed fuse op
+    std::shared_ptr<mixed_fuse_op_t> transform_to_mixed_op();
 };
 
 enum class parti_merge_kind : int {
@@ -448,6 +479,7 @@ enum class parti_merge_kind : int {
     parallel = 2,
 };
 
+// This is a bridge function
 void extract_anchor_from_fmgr_to_parti(fusion_manager *fmgr,
         mixed_parti_t *parti, std::vector<expr> ir_tsrs,
         std::vector<graph_tensor_ptr> gtsrs,
@@ -486,8 +518,9 @@ bool do_partition(const context_ptr &ctx, sc_graph_t &g,
         std::vector<mixed_parti_t::ptr> &op_2_partition);
 
 // judge the given graph whether is second time retried graph
-inline bool is_optimized_graph(sc_graph_t &g) {
-    return g.attrs_.get_or_else(mixed_partition_hint::optimized_graph, false);
+inline bool is_optimized_sub_graph(sc_graph_t &g) {
+    return g.attrs_.get_or_else(
+            mixed_partition_hint::optimized_sub_graph, false);
 }
 
 bool concat_memory_planning_on_graph(sc_graph_t &graph);
@@ -495,16 +528,6 @@ bool concat_memory_planning_on_graph(sc_graph_t &graph);
 // try optimize partition, such as reduce_op optimization
 bool try_optimize_parti(mixed_parti_t *parti, sc_graph_t &sub_graph,
         const std::unordered_map<sc_op_ptr, sc_op_ptr> &graph2orig_ops = {});
-
-/** transform the given partition to one mixed op
- * @param ctx the context pointer
- * @param g the original whole graph
- * @param partition the mixed partition which belongs to graph g
- * @return the mixed op generated by partition
- * */
-std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
-        const context_ptr &ctx, sc_graph_t &g,
-        const std::shared_ptr<mixed_parti_t> &partition);
 
 // get single mixed op from the graph
 mixed_fuse_op_t *get_mixed_op_from_graph(sc_graph_t &graph);

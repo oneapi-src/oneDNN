@@ -34,11 +34,25 @@ public:
     virtual std::string name() const = 0;
     virtual std::string short_name() const { return name(); }
     virtual std::string desc() const = 0;
-
-    virtual bool accept_key(const std::string &key) const {
-        return key == short_name();
+    virtual bool is_overridable() const = 0;
+    virtual std::vector<std::string> accepted_keys() const {
+        return std::vector<std::string>({short_name()});
+    }
+    bool accepts_key(const std::string &key) const {
+        auto keys = accepted_keys();
+        auto it = std::find(keys.begin(), keys.end(), key);
+        return it != keys.end();
     }
 
+    virtual bool is_default() const {
+        ir_error_not_expected() << name();
+        return false;
+    }
+    virtual bool is_default(const std::string &key) const {
+        if (key == short_name()) return is_default();
+        ir_error_not_expected();
+        return false;
+    }
     virtual void set_from_str(const std::string &s) { ir_error_not_expected(); }
     virtual void set_from_str(
             const std::string &key, const std::string &value) {
@@ -61,6 +75,16 @@ public:
     }
     bool is_env_overridden(const std::string &key) const {
         return is_overridden_impl(key, /*only_env=*/true);
+    }
+    int sort_key() const;
+    virtual std::string str() const {
+        ir_error_not_expected();
+        return std::string();
+    }
+    virtual std::string str(const std::string &key) const {
+        if (key == short_name()) return str();
+        ir_error_not_expected();
+        return std::string();
     }
 
 private:
@@ -106,6 +130,12 @@ public:
     void set_from_str(const std::string &s) override {
         value_ = ir_utils::to_bool(s);
     }
+
+    std::string str() const override {
+        std::ostringstream oss;
+        oss << short_name() << "=" << (int)value_;
+        return oss.str();
+    }
 };
 
 class int_param_t : public value_param_t<int> {
@@ -113,6 +143,12 @@ public:
     using value_param_t::value_param_t;
 
     void set_from_str(const std::string &s) override { value_ = std::stoi(s); }
+
+    std::string str() const override {
+        std::ostringstream oss;
+        oss << short_name() << "=" << value_;
+        return oss.str();
+    }
 };
 
 class layout_param_t : public param_t {
@@ -124,23 +160,23 @@ public:
         return compute_unnormalized_;
     }
 
-    const std::string &user_unnormalized_overridden_tag() const {
-        return user_unnormalized_overridden_tag_;
+    const std::string &user_unnormalized_tag() const {
+        return user_unnormalized_tag_;
     }
-    const std::string &compute_unnormalized_overridden_tag() const {
-        return compute_unnormalized_overridden_tag_;
+    const std::string &compute_unnormalized_tag() const {
+        return compute_unnormalized_tag_;
     }
 
     void set_from_str(const std::string &s) override {
         auto parts = ir_utils::split(s, ".");
         switch ((int)parts.size()) {
             case 1:
-                compute_unnormalized_overridden_tag_ = parts[0];
-                user_unnormalized_overridden_tag_ = parts[0];
+                compute_unnormalized_tag_ = parts[0];
+                user_unnormalized_tag_ = parts[0];
                 break;
             case 2:
-                compute_unnormalized_overridden_tag_ = parts[0];
-                user_unnormalized_overridden_tag_ = parts[1];
+                compute_unnormalized_tag_ = parts[0];
+                user_unnormalized_tag_ = parts[1];
                 break;
             default: ir_error_not_expected();
         }
@@ -148,9 +184,22 @@ public:
 
     void set_user(const layout_t &l) { user_ = l; }
     void set_compute(const layout_t &l) { compute_ = l; }
-    void set_user_unnormalized(const layout_t &l) { user_unnormalized_ = l; }
-    void set_compute_unnormalized(const layout_t &l) {
+    void set_user_unnormalized(const layout_t &l, const std::string &tag) {
+        user_unnormalized_ = l;
+        user_unnormalized_tag_ = tag;
+    }
+    void set_compute_unnormalized(const layout_t &l, const std::string &tag) {
         compute_unnormalized_ = l;
+        compute_unnormalized_tag_ = tag;
+    }
+
+    std::string str() const override {
+        std::ostringstream oss;
+        oss << short_name() << "=";
+        oss << compute_unnormalized_tag_;
+        if (user_unnormalized_tag_ != compute_unnormalized_tag_)
+            oss << "." << user_unnormalized_tag_;
+        return oss.str();
     }
 
 private:
@@ -158,24 +207,27 @@ private:
     layout_t compute_;
     layout_t user_unnormalized_;
     layout_t compute_unnormalized_;
-    std::string user_unnormalized_overridden_tag_;
-    std::string compute_unnormalized_overridden_tag_;
+    std::string user_unnormalized_tag_;
+    std::string compute_unnormalized_tag_;
 };
 
 class src_layout_param_t : public layout_param_t {
 public:
     std::string name() const override { return "src"; }
     std::string desc() const override { return "Source layout."; }
+    bool is_overridable() const override { return true; }
+    bool is_default() const override { return false; }
 };
 
 class dst_layout_param_t : public layout_param_t {
     std::string name() const override { return "dst"; }
     std::string desc() const override { return "Destination layout."; }
+    bool is_overridable() const override { return true; }
+    bool is_default() const override { return false; }
 };
 
 class exec_cfg_param_t : public value_param_t<exec_config_t> {
 public:
-    using value_param_t::accept_key;
     using value_param_t::is_overridden;
     using value_param_t::value_param_t;
 
@@ -184,11 +236,19 @@ public:
         return "Execution config (hardware config, number of registers, SIMD, "
                "etc).";
     }
-
-    bool accept_key(const std::string &key) const override {
-        if (key == "simd") return true;
-        if (key == "vec") return true;
+    bool is_overridable() const override { return true; }
+    bool is_default(const std::string &key) const override {
+        if (key == "simd") return false;
+        if (key == "vec") return value_.vec_size() == value_.simd();
+        ir_error_not_expected() << key;
         return false;
+    }
+
+    std::vector<std::string> accepted_keys() const override {
+        std::vector<std::string> ret;
+        ret.push_back("simd");
+        ret.push_back("vec");
+        return ret;
     }
 
     void set_from_str(
@@ -201,6 +261,16 @@ public:
             ir_error_not_expected() << key;
         }
     }
+
+    std::string str(const std::string &key) const override {
+        std::ostringstream oss;
+        if (key == "simd") {
+            oss << "simd=" << value_.simd();
+        } else if (key == "vec") {
+            if (!is_default("vec")) oss << "vec=" << value_.vec_size();
+        }
+        return oss.str();
+    }
 };
 
 class prim_config_t {
@@ -209,10 +279,7 @@ public:
     virtual std::string str() const = 0;
 
     void override_set(const std::string &s, bool is_env) {
-        std::vector<param_t *> params;
-        params.reserve(get_params_.size());
-        for (auto &gp : get_params_)
-            params.emplace_back(gp(this));
+        auto params = get_all_params();
         auto parts = ir_utils::split(s);
         for (auto &p : parts) {
             if (p.empty()) continue;
@@ -222,7 +289,7 @@ public:
             auto &value = sub_parts[1];
             bool found = false;
             for (auto *p : params) {
-                if (p->accept_key(key)) {
+                if (p->accepts_key(key)) {
                     ir_info() << "Override " << p->name() << ": " << key << "="
                               << value << std::endl;
                     p->override_set(key, value, is_env);
@@ -260,19 +327,60 @@ public:
 #undef DECL_PARAM2
 
 protected:
-    std::vector<std::function<param_t *(prim_config_t *)>> get_params_;
+    std::vector<std::function<const param_t *(const prim_config_t *)>>
+            get_params_;
     zero_points_config_t zp_cfg_;
 
     struct param_init_t {};
-    param_init_t register_param(std::function<param_t *(prim_config_t *)> f) {
+    param_init_t register_param(
+            std::function<const param_t *(const prim_config_t *)> f) {
         get_params_.emplace_back(std::move(f));
         return param_init_t();
     }
 
+    std::vector<param_t *> get_all_params(bool do_sort = false) {
+        auto *this_const = const_cast<const prim_config_t *>(this);
+        std::vector<param_t *> ret;
+        for (auto *p : this_const->get_all_params(do_sort)) {
+            ret.push_back(const_cast<param_t *>(p));
+        }
+        return ret;
+    }
+
+    std::vector<const param_t *> get_all_params(bool do_sort = false) const {
+        std::vector<const param_t *> ret;
+        for (auto &gp : get_params_)
+            ret.push_back(gp(this));
+        if (do_sort) {
+            std::sort(ret.begin(), ret.end(),
+                    [](const param_t *a, const param_t *b) {
+                        return a->sort_key() < b->sort_key();
+                    });
+        }
+        return ret;
+    }
+
+    std::string get_config_line() const {
+        std::ostringstream oss;
+        auto params = get_all_params(/*do_sort=*/true);
+        bool is_first = true;
+        for (auto *p : params) {
+            if (!p->is_overridable()) continue;
+            auto keys = p->accepted_keys();
+            for (auto &k : keys) {
+                if (p->is_default(k)) continue;
+                if (!is_first) oss << " ";
+                oss << p->str(k);
+                is_first = false;
+            }
+        }
+        return oss.str();
+    }
+
 #define INIT_PARAM(name) \
     name##_param_t name##_; \
-    param_init_t name##_init_ \
-            = register_param([](prim_config_t *c) { return &c->name##_; });
+    param_init_t name##_init_ = register_param( \
+            [](const prim_config_t *c) { return &c->name##_; });
     INIT_PARAM(exec_cfg)
     INIT_PARAM(src_layout)
     INIT_PARAM(dst_layout)

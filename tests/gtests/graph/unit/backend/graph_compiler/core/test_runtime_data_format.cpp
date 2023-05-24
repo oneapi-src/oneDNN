@@ -60,7 +60,7 @@ static constexpr uint64_t ABCD = format_kinds::ABCD;
 static constexpr uint64_t ACBDcd = format_kinds::ACBDcd;
 static constexpr uint64_t ACBDdc = format_kinds::ACBDdc;
 
-TEST(GCCore_runtime_data_format, Benchmark) {
+TEST(GCCore_CPU_runtime_data_format, Benchmark) {
     using namespace runtime;
     struct block_compute {
         static uint64_t call(uint64_t *args, uint64_t v) {
@@ -181,7 +181,7 @@ TEST(GCCore_runtime_data_format, Benchmark) {
 #endif
 }
 
-TEST(GCCore_runtime_data_format, TestDataFormat) {
+TEST(GCCore_CPU_runtime_data_format, TestDataFormat) {
     runtime::dispatch_key a(0);
     a.impl_alg_ = 1;
     a.block_idx1_ = 2;
@@ -195,7 +195,7 @@ TEST(GCCore_runtime_data_format, TestDataFormat) {
     EXPECT_EQ(a.format_kind_, 1234UL);
 }
 
-TEST(GCCore_runtime_data_format, TestDataFormatConvert) {
+TEST(GCCore_CPU_runtime_data_format, TestDataFormatConvert) {
     sc_data_format_t fmt = sc_data_format_t::MKmk(16, 32);
     runtime::dispatch_key rfmt = fmt.to_runtime();
 
@@ -222,7 +222,7 @@ TEST(GCCore_runtime_data_format, TestDataFormatConvert) {
     EXPECT_EQ(rfmt.get_block2(), 3UL);
 }
 
-TEST(GCCore_runtime_data_format, TestDataFormatLinear) {
+TEST(GCCore_CPU_runtime_data_format, TestDataFormatLinear) {
     sc_data_format_t fmt = sc_data_format_t::MKmk(16, 32);
     runtime::dispatch_key rfmt = fmt.to_runtime();
     auto to_idx = [](runtime::dispatch_key v) {
@@ -237,7 +237,7 @@ TEST(GCCore_runtime_data_format, TestDataFormatLinear) {
             0UL);
 }
 
-TEST(GCCore_runtime_data_format, TestDataFormatStaticDispatch) {
+TEST(GCCore_CPU_runtime_data_format, TestDataFormatStaticDispatch) {
     using namespace runtime;
     using format_key1
             = static_dispatch_keys<format_kinds::MKmk, format_kinds::NKkn>;
@@ -245,7 +245,7 @@ TEST(GCCore_runtime_data_format, TestDataFormatStaticDispatch) {
             format_kinds::NKkn, format_kinds::ABCD>;
     struct block_func {
         static uint64_t call(uint64_t *v, uint64_t num) {
-            return dispatch_key(v[0]).get_linear_index() * 32
+            return dispatch_key(v[0]).get_linear_index() * 32ULL
                     + dispatch_key(v[1]).get_linear_index();
         }
     };
@@ -259,10 +259,10 @@ TEST(GCCore_runtime_data_format, TestDataFormatStaticDispatch) {
             4UL * 1024 + 1 * 16 + 1 * 4 + 0);
     formats[0] = dispatch_key(uint32_t(format_kinds::MKmk), 48, 16, false);
     EXPECT_EQ(the_table::compute_linear_index(formats, 2),
-            4UL * 1024 + 2 * 32 + 1 * 16 + 1 * 4 + 0);
+            4UL * 1024 + 2 * 32ULL + 1 * 16 + 1 * 4 + 0);
 }
 
-TEST(GCCore_runtime_data_format, TestDataFormatDynDispatch) {
+TEST(GCCore_CPU_runtime_data_format, TestDataFormatDynDispatch) {
     using namespace runtime;
     dyn_dispatch_table_t table(
             {
@@ -271,8 +271,8 @@ TEST(GCCore_runtime_data_format, TestDataFormatDynDispatch) {
                     {{{MKmk}}},
             },
             [](uint64_t *v, uint64_t num) -> uint64_t {
-                return dispatch_key(v[0]).get_linear_index() * 32 * 32
-                        + dispatch_key(v[1]).get_linear_index() * 32
+                return dispatch_key(v[0]).get_linear_index() * 32ULL * 32
+                        + dispatch_key(v[1]).get_linear_index() * 32ULL
                         + dispatch_key(v[2]).get_linear_index();
             },
             32 * 32 * 32);
@@ -281,11 +281,11 @@ TEST(GCCore_runtime_data_format, TestDataFormatDynDispatch) {
                     dispatch_key(uint32_t(format_kinds::ABCD), 32, 0, true),
                     dispatch_key(uint32_t(format_kinds::MKmk), 16, 16, true)};
     EXPECT_EQ(table.compute_linear_index(formats, 3),
-            (1UL + 1 * 3 + 0) * 32 * 32 * 32 + 1 * 32 * 32 + (1 * 16 + 1) * 32
-                    + 1 * 16);
+            (1UL + 1 * 3 + 0) * 32ULL * 32 * 32 + 1UL * 32 * 32
+                    + (1 * 16 + 1) * 32ULL + 1 * 16);
 }
 
-TEST(GCCore_runtime_data_format, TestDataFormatHashDispatch) {
+TEST(GCCore_CPU_runtime_data_format, TestDataFormatHashDispatch) {
     using namespace runtime;
     using namespace format_kinds;
     hash_dispatch_table_t table {3, 256};

@@ -74,7 +74,7 @@ public:
         auto src4 = getArgument("src4");
         auto src5 = getArgument("src5");
         auto src_ptr = getArgument("src_ptr");
-        auto ok_surface = Surface(getArgumentSurface("ok"));
+        auto ok_surface = Surface(getArgumentSurfaceIfExists("ok"));
 
         auto data = r30;
         auto data2 = r31;

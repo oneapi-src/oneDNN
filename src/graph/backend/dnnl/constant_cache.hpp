@@ -78,9 +78,18 @@ struct constant_cache_t {
     using cached_t = std::shared_ptr<constant_buffer_t>;
     using value_t = std::shared_future<cached_t>;
 
-    constant_cache_t() {
+    constant_cache_t() : counter_(1) {
         constant_map_ = impl::utils::make_unique<
                 std::unordered_map<key_t, timed_entry_t>>();
+    }
+
+    // This function increments the reference count
+    void retain() { counter_.fetch_add(1, std::memory_order_relaxed); }
+
+    void release() {
+        if (counter_.fetch_sub(1, std::memory_order_relaxed) == 1) {
+            delete this;
+        }
     }
 
     ~constant_cache_t() {
@@ -149,6 +158,13 @@ struct constant_cache_t {
 #endif
     }
 
+    static constant_cache_t *get_global_constant_cache() {
+        static auto global_cache
+                = std::shared_ptr<constant_cache_t>(new constant_cache_t {},
+                        [](constant_cache_t *ptr) { return ptr->release(); });
+        return global_cache.get();
+    }
+
     status_t set_capacity(size_t capacity);
     size_t get_capacity();
     value_t get_or_add(const key_t &key, const value_t &value);
@@ -189,6 +205,8 @@ private:
     std::unique_ptr<std::unordered_map<key_t, timed_entry_t>> constant_map_;
     impl::utils::rw_mutex_t rw_mutex_;
     size_t capacity_ = std::numeric_limits<size_t>::max();
+
+    std::atomic<int32_t> counter_;
 };
 
 constant_cache_t &get_global_constant_cache();

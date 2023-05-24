@@ -36,7 +36,7 @@ using namespace dnnl::impl::graph::gc;
 
 #if SC_CPU_THREADPOOL > 0
 
-TEST(GCCore_thread_pool, TestBarrier) {
+TEST(GCCore_CPU_thread_pool, TestBarrier) {
     dnnl_thread_env();
     runtime::barrier_t bar[2];
     sc_init_barrier(bar, 2, 16);
@@ -73,7 +73,7 @@ TEST(GCCore_thread_pool, TestBarrier) {
     EXPECT_TRUE(result);
 }
 
-TEST(GCCore_thread_pool, TestThreadPool) {
+TEST(GCCore_CPU_thread_pool, TestThreadPool) {
     dnnl_thread_env();
     auto &cfg = runtime_config_t::get();
     std::vector<std::atomic<int>> v(100000);
@@ -134,8 +134,8 @@ TEST(GCCore_thread_pool, TestThreadPool) {
 }
 #endif
 
-#if SC_CPU_THREADPOOL != SC_THREAD_POOL_CUSTOM
-TEST(GCCore_thread_pool, TestThreadNum) {
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
+TEST(GCCore_CPU_thread_pool, TestThreadNum) {
     dnnl_thread_env();
     auto &cfg = runtime_config_t::get();
     int nthreads
@@ -154,7 +154,8 @@ TEST(GCCore_thread_pool, TestThreadNum) {
         }
         pcall(
                 [](void *a, void *mod_data, int64_t idx, generic_val *args) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                    std::this_thread::sleep_for(
+                            std::chrono::milliseconds(1000));
                     std::vector<int> *penv = (std::vector<int> *)mod_data;
                     penv->at(runtime_config_t::get()
                                      .thread_pool_table_->get_thread_id())++;

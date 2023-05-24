@@ -1527,16 +1527,6 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
                     K_num_block / oc_split * config.K_block}})});
           }
         }
-        if (fusion) {
-          fusion->create_output_fusion_anchor({tensor_slice(output,
-            blocking_output_
-              ? slice_range {{n, 1},
-                {outer_k * K_num_block / oc_split, K_num_block / oc_split},
-                {0, oh_}, {0, ow_}, {0, config.K_block}}
-              : slice_range {{n, 1}, {0, oh_}, {0, ow_},
-                {outer_k * K_num_block / oc_split * config.K_block,
-                  K_num_block / oc_split * config.K_block}})});
-        }
       }
       if (fusion) {
         fusion->create_output_fusion_anchor({tensor_slice(output,
@@ -1964,6 +1954,9 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
     && parallel_space_is_enough;
   bool use_var_bs = attrs_.get_or_else("use_var_bs", true);
 
+  // TODO(xxx): fix inverse filter correctness issue when use_var_bs==true
+  if (inverse_filter_) { use_var_bs = false; }
+
   _tensor_(pbuffer, dtype_input, {src_row_tile_size, LDA});
   if (!use_var_bs) {
     // when not using var_bs, define a unified zero-buffer for padding.
@@ -2002,7 +1995,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
             p_o = outer_var;
           }
           _named_for_(ld, d_o, 0, od_ / config.tile_d) {
-            _var_init_(tid, datatypes::s32, builtin::get_thread_id_func()());
+            _var_init_(
+              tid, datatypes::s32, builder::make_get_group_thread_id(-1));
             _tensor_(A_list, datatypes::pointer, {kd_ * kh_ * kw_});
             _tensor_(B_list, datatypes::pointer, {kd_ * kh_ * kw_});
             _var_(prev_indices, datatypes::u32);

@@ -532,6 +532,22 @@ public:
      * it will throw an exception
      * */
     size_t hash() const;
+
+    // a static version for get_or_else. It also returns defaultv when v is null
+    template <typename T>
+    inline static const T fetch_or_else(
+            const any_map_t *v, const std::string &k, const T &defaultv) {
+        if (!v) { return defaultv; }
+        return v->get_or_else(k, defaultv);
+    }
+
+    // a static version for get_or_null. It also returns null when v is null
+    template <typename T>
+    inline static const T *fetch_or_null(
+            const any_map_t *v, const std::string &k) {
+        if (!v) { return nullptr; }
+        return v->get_or_null<T>(k);
+    }
 };
 
 } // namespace gc

@@ -45,8 +45,8 @@ except for the dimension specified by `axis` attribute.
 
 Concat operation supports the following data type combinations.
 
-| Src | Dst   |
-|:-----|:-----|
-| f32  | f32  |
-| f16  | f16  |
-| bf16 | bf16 |
+| Src_i | Dst  |
+|:------|:-----|
+| f32   | f32  |
+| f16   | f16  |
+| bf16  | bf16 |

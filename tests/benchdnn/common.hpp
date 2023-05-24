@@ -115,6 +115,8 @@ extern double default_max_ms_per_prb; // default max time spend per prb in ms
 extern int min_times_per_prb; // min number of runs per prb
 extern int fix_times_per_prb; // if non-zero run prb that many times
 extern int default_fix_times_per_prb; // 0, rely on time criterion
+extern int repeats_per_prb; // test repeats per prb
+extern int default_repeats_per_prb; // default test repeats per prb
 
 extern bool fast_ref_gpu;
 extern bool allow_enum_tags_only;

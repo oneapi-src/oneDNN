@@ -83,6 +83,143 @@ pm::alternation_t *create_alternative_mul_subgraph(
     return mul_subgraph;
 }
 
+pm::pb_node_t *append_optional_typecast_quantize(
+        const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_node_t *input,
+        bool is_bf16 = false) {
+    auto subgraph = std::make_shared<pb_graph_t>();
+    in_edges_t in_edges;
+    pm::pb_node_t *subgraph_in_node;
+    if (is_bf16) {
+        auto typecast_output = subgraph->append_op(graph::op_kind::TypeCast);
+        in_edges = in_edges_t {in_edge(0, typecast_output, 0)};
+        subgraph_in_node = typecast_output;
+    }
+    auto quantize = subgraph->append_op(graph::op_kind::Quantize, in_edges);
+    if (!is_bf16) { subgraph_in_node = quantize; }
+    subgraph->create_input_port(0, subgraph_in_node, 0);
+    subgraph->create_output_port(0, quantize, 0);
+    auto output = pgraph->append_optional(subgraph, {in_edge(0, input, 0)});
+    return output;
+}
+
+/*
+ [query]    [key]
+      \     /
+[cond] MatMul [mask]
+     \   |   /
+       Select   [scale]
+            \   /
+             Div   [add in]
+               \   /
+                Add
+                 |
+               Softmax   [value]
+                    \     /
+                     MatMul
+                       |
+                StaticTranspose
+                       |
+                    Reorder
+                       |
+                    [output]
+*/
+void create_gpt_mha(
+        const std::shared_ptr<pb_graph_t> &pgraph, bool is_bf16, bool is_int8) {
+    auto matmul_qk = create_dequant_matmul(pgraph, nullptr, is_bf16, is_int8);
+    auto select = pgraph->append_op(
+            graph::op_kind::Select, {in_edge(1, matmul_qk, 0)});
+    auto div = pgraph->append_op(
+            graph::op_kind::Divide, {in_edge(0, select, 0)});
+    auto add = pgraph->append_op(graph::op_kind::Add, {in_edge(0, div, 0)});
+    auto softmax
+            = pgraph->append_op(graph::op_kind::SoftMax, {in_edge(0, add, 0)});
+
+    pm::pb_node_t *matmul_v_input = softmax;
+
+    if (is_bf16) {
+        auto extra_casts = append_single_op_repetition_subgraph(
+                pgraph, graph::op_kind::TypeCast, softmax, 0, 4);
+        matmul_v_input = extra_casts;
+    }
+
+    if (is_int8) {
+        auto quantize_softmax = pgraph->append_op(
+                graph::op_kind::Quantize, {in_edge(0, matmul_v_input, 0)});
+        matmul_v_input = quantize_softmax;
+    }
+
+    auto matmul_v
+            = create_dequant_matmul(pgraph, matmul_v_input, is_bf16, is_int8);
+    auto transpose_output = pgraph->append_op(
+            graph::op_kind::StaticTranspose, {in_edge(0, matmul_v, 0)});
+    auto reorder_output = pgraph->append_alternation(
+            {graph::op_kind::Reorder, graph::op_kind::StaticReshape},
+            {in_edge(0, transpose_output, 0)});
+    if (is_int8) {
+        append_optional_typecast_quantize(pgraph, reorder_output, is_bf16);
+    }
+}
+
+/*
+ [Query]    [Key]
+      \     /
+       MatMul  [fscore scale]
+         \    /
+           Div
+            |
+        TypeCast*[0-1]  [add in]
+                  \     /
+                    Add
+                     |
+                TypeCast*[0-1]  [max in]
+                          \     /
+                          Maximum
+                             |
+                        TypeCast*[0-1]
+                             |
+                          Softmax
+                             |
+                        TypeCast*[0-1] [Value]
+                                  \     /
+                                   MatMul
+                                     |
+                                  [output]
+*/
+void create_llama_mha(
+        const std::shared_ptr<pb_graph_t> &pgraph, bool is_bf16, bool is_int8) {
+    auto matmul_qk = create_dequant_matmul(pgraph, nullptr, is_bf16, is_int8);
+    auto div = pgraph->append_op(
+            graph::op_kind::Divide, {in_edge(0, matmul_qk, 0)});
+    auto extra_cast1 = append_single_op_repetition_subgraph(
+            pgraph, graph::op_kind::TypeCast, div, 0, 2);
+    auto add = pgraph->append_op(
+            graph::op_kind::Add, {in_edge(0, extra_cast1, 0)});
+    auto extra_cast2 = append_single_op_repetition_subgraph(
+            pgraph, graph::op_kind::TypeCast, add, 0, 2);
+    auto max = pgraph->append_op(
+            graph::op_kind::Maximum, {in_edge(0, extra_cast2, 0)});
+    auto extra_cast3 = append_single_op_repetition_subgraph(
+            pgraph, graph::op_kind::TypeCast, max, 0, 2);
+    auto softmax = pgraph->append_op(
+            graph::op_kind::SoftMax, {in_edge(0, extra_cast3, 0)});
+    auto extra_cast4 = append_single_op_repetition_subgraph(
+            pgraph, graph::op_kind::TypeCast, softmax, 0, 3);
+
+    pm::pb_node_t *matmul_v_input = extra_cast4;
+    if (is_int8) {
+        auto quantize_softmax = pgraph->append_op(
+                graph::op_kind::Quantize, {in_edge(0, extra_cast4, 0)});
+        matmul_v_input = quantize_softmax;
+    }
+
+    auto matmul_v
+            = create_dequant_matmul(pgraph, matmul_v_input, is_bf16, is_int8);
+    if (is_int8) {
+        append_optional_typecast_quantize(pgraph, matmul_v, is_bf16);
+    }
+    UNUSED(matmul_v);
+}
+
 COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(fp32_mha_pattern)
 // fp32 MHA pattern
 /*
@@ -110,6 +247,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(fp32_mha_pattern)
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_mha_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -184,6 +322,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_mha_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mha_pattern_alternative)
         .set_priority(4.5f) // lower priority than non-alternative
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -233,12 +372,13 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_distill_bert_mha_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
-                            check_input_dtype<impl::data_type::f32>);
+                            check_input_dtype<graph::data_type::f32>);
                     auto select = pgraph->append_op(
                             graph::op_kind::Select, {in_edge(2, matmul_qk, 0)});
                     select->append_decision_function(check_select);
@@ -247,7 +387,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto matmul_v = pgraph->append_op(
                             graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
                     matmul_v->append_decision_function(
-                            check_input_dtype<impl::data_type::f32>);
+                            check_input_dtype<graph::data_type::f32>);
                     auto transpose
                             = pgraph->append_op(graph::op_kind::StaticTranspose,
                                     {in_edge(0, matmul_v, 0)});
@@ -282,6 +422,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mha_forward_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -349,6 +490,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mha_backward_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -455,6 +597,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mha_pattern_alternative2)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -477,7 +620,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             {in_edge(0, query_transpose, 0),
                                     in_edge(1, mul, 0)});
                     matmul_qk->append_decision_function(
-                            check_input_dtype<impl::data_type::f32>);
+                            check_input_dtype<graph::data_type::f32>);
 
                     auto fscore_add = pgraph->append_op(
                             graph::op_kind::Add, {in_edge(0, matmul_qk, 0)});
@@ -558,6 +701,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fake_int8_mha_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -576,11 +720,14 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fake_int8_mha_pattern)
                             {in_edge(0, query_transpose, 0),
                                     in_edge(1, key_transpose, 0)});
 
-                    auto fquantize = pgraph->append_op(graph::op_kind::Quantize,
+                    auto fquantize = pgraph->append_alternation(
+                            {graph::op_kind::Quantize,
+                                    graph::op_kind::DynamicQuantize},
                             {in_edge(0, matmul_qk, 0)});
-                    auto fdequantize
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, fquantize, 0)});
+                    auto fdequantize = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize},
+                            {in_edge(0, fquantize, 0)});
                     auto radd = pgraph->append_op(
                             graph::op_kind::Add, {in_edge(0, fdequantize, 0)});
                     auto rmultiply = pgraph->append_op(
@@ -624,12 +771,13 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fake_int8_mha_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mha_pattern_alternative3)
         .set_priority(4.4f) // lower priority than mha_pattern_alternative
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
-                            check_input_dtype<impl::data_type::f32>);
+                            check_input_dtype<graph::data_type::f32>);
                     auto optional_postops_subgraph
                             = std::make_shared<pb_graph_t>();
                     auto scale = optional_postops_subgraph->append_alternation(
@@ -663,12 +811,13 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_matmul_softmax_fusion)
         .set_priority(4.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
-                            check_input_dtype<impl::data_type::f32>);
+                            check_input_dtype<graph::data_type::f32>);
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
                             {in_edge(0, matmul_qk, 0)});
@@ -701,12 +850,13 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mha_pattern_alternative4)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
-                            check_input_dtype<impl::data_type::f32>);
+                            check_input_dtype<graph::data_type::f32>);
                     auto reshape1
                             = pgraph->append_op(graph::op_kind::StaticReshape,
                                     {in_edge(0, matmul_qk, 0)});
@@ -722,6 +872,24 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 
                     pgraph->append_op(
                             graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
+                });
+
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_gpt_mha)
+        .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
+        .set_kind(graph::partition_kind_t::mha)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    create_gpt_mha(pgraph, false, false);
+                });
+
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_llama_mha)
+        .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
+        .set_kind(graph::partition_kind_t::mha)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    create_llama_mha(pgraph, false, false);
                 });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
@@ -752,6 +920,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(bf16_mha_pattern)
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_mha_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -826,6 +995,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_mha_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mha_pattern_alternative)
         .set_priority(4.5f) // lower priority than non-alternative
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -875,12 +1045,13 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_distill_bert_mha_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
-                            check_input_dtype<impl::data_type::bf16>);
+                            check_input_dtype<graph::data_type::bf16>);
                     auto select = pgraph->append_op(
                             graph::op_kind::Select, {in_edge(2, matmul_qk, 0)});
                     select->append_decision_function(check_select);
@@ -889,7 +1060,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto matmul_v = pgraph->append_op(
                             graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
                     matmul_v->append_decision_function(
-                            check_input_dtype<impl::data_type::bf16>);
+                            check_input_dtype<graph::data_type::bf16>);
                     auto transpose
                             = pgraph->append_op(graph::op_kind::StaticTranspose,
                                     {in_edge(0, matmul_v, 0)});
@@ -924,6 +1095,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mha_forward_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -989,6 +1161,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mha_backward_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1080,6 +1253,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mha_pattern_alternative3)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1108,12 +1282,13 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_matmul_softmax_fusion)
         .set_priority(4.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
-                            check_input_dtype<impl::data_type::bf16>);
+                            check_input_dtype<graph::data_type::bf16>);
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
                             {in_edge(0, matmul_qk, 0)});
@@ -1121,6 +1296,24 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             graph::op_kind::Add, {in_edge(0, fscore_scale, 0)});
                     pgraph->append_op(graph::op_kind::SoftMax,
                             {in_edge(0, fscore_add, 0)});
+                });
+
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_gpt_mha)
+        .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
+        .set_kind(graph::partition_kind_t::mha)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    create_gpt_mha(pgraph, true, false);
+                });
+
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_llama_mha)
+        .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
+        .set_kind(graph::partition_kind_t::mha)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    create_llama_mha(pgraph, true, false);
                 });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
@@ -1159,15 +1352,19 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(int8_mha_pattern)
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mha_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query
-                            = pgraph->append_op(graph::op_kind::Dequantize);
-                    auto dequantize_key
-                            = pgraph->append_op(graph::op_kind::Dequantize);
-                    auto dequantize_value
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_query = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
+                    auto dequantize_key = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
+                    auto dequantize_value = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto query_reshape
                             = pgraph->append_op(graph::op_kind::StaticReshape,
                                     {in_edge(0, dequantize_query, 0)});
@@ -1190,11 +1387,14 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mha_pattern)
                             graph::op_kind::Add, {in_edge(0, fscore_scale, 0)});
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
                             {in_edge(0, fscore_add, 0)});
-                    auto quantize_softmax = pgraph->append_op(
-                            graph::op_kind::Quantize, {in_edge(0, softmax, 0)});
-                    auto dequantize_softmax
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_softmax, 0)});
+                    auto quantize_softmax = pgraph->append_alternation(
+                            {graph::op_kind::Quantize,
+                                    graph::op_kind::DynamicQuantize},
+                            {in_edge(0, softmax, 0)});
+                    auto dequantize_softmax = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize},
+                            {in_edge(0, quantize_softmax, 0)});
                     auto value_reshape
                             = pgraph->append_op(graph::op_kind::StaticReshape,
                                     {in_edge(0, dequantize_value, 0)});
@@ -1222,7 +1422,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mha_pattern)
                     auto reshape_output
                             = pgraph->append_optional(optional_reshape_subgraph,
                                     {in_edge(0, transpose_output, 0)});
-                    pgraph->append_op(graph::op_kind::Quantize,
+                    pgraph->append_alternation(
+                            {graph::op_kind::Quantize,
+                                    graph::op_kind::DynamicQuantize},
                             {in_edge(0, reshape_output, 0)});
                 });
 
@@ -1268,11 +1470,13 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mha_pattern)
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_mha_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_query = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto typecast_query
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, dequantize_query, 0)});
@@ -1283,8 +1487,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_mha_pattern)
                             = create_append_transpose_repetition_subgraph(
                                     pgraph, query_reshape, 1, 3);
 
-                    auto dequantize_key
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_key = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto typecast_key
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, dequantize_key, 0)});
@@ -1306,18 +1511,21 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_mha_pattern)
                             {in_edge(0, fscore_add, 0)});
                     auto typecast_softmax = pgraph->append_op(
                             graph::op_kind::TypeCast, {in_edge(0, softmax, 0)});
-                    auto quantize_softmax
-                            = pgraph->append_op(graph::op_kind::Quantize,
-                                    {in_edge(0, typecast_softmax, 0)});
-                    auto dequantize_softmax
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_softmax, 0)});
+                    auto quantize_softmax = pgraph->append_alternation(
+                            {graph::op_kind::Quantize,
+                                    graph::op_kind::DynamicQuantize},
+                            {in_edge(0, typecast_softmax, 0)});
+                    auto dequantize_softmax = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize},
+                            {in_edge(0, quantize_softmax, 0)});
                     auto typecast_softmax_bf16
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, dequantize_softmax, 0)});
 
-                    auto dequantize_value
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_value = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto typecast_value
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, dequantize_value, 0)});
@@ -1340,7 +1548,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_mha_pattern)
                     auto typecast_output
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, reshape_output, 0)});
-                    pgraph->append_op(graph::op_kind::Quantize,
+                    pgraph->append_alternation(
+                            {graph::op_kind::Quantize,
+                                    graph::op_kind::DynamicQuantize},
                             {in_edge(0, typecast_output, 0)});
                 });
 
@@ -1374,14 +1584,17 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_mha_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_mha_pattern_alternative)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_query = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
 
-                    auto dequantize_key
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_key = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
 
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_query, 0),
@@ -1393,14 +1606,18 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             graph::op_kind::Add, {in_edge(0, fscore_scale, 0)});
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
                             {in_edge(0, fscore_add, 0)});
-                    auto quantize_softmax = pgraph->append_op(
-                            graph::op_kind::Quantize, {in_edge(0, softmax, 0)});
-                    auto dequantize_softmax
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_softmax, 0)});
+                    auto quantize_softmax = pgraph->append_alternation(
+                            {graph::op_kind::Quantize,
+                                    graph::op_kind::DynamicQuantize},
+                            {in_edge(0, softmax, 0)});
+                    auto dequantize_softmax = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize},
+                            {in_edge(0, quantize_softmax, 0)});
 
-                    auto dequantize_value
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_value = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_softmax, 0),
                                     in_edge(1, dequantize_value, 0)});
@@ -1412,7 +1629,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             {graph::op_kind::Reorder,
                                     graph::op_kind::StaticReshape},
                             {in_edge(0, transpose_output, 0)});
-                    pgraph->append_op(graph::op_kind::Quantize,
+                    pgraph->append_alternation(
+                            {graph::op_kind::Quantize,
+                                    graph::op_kind::DynamicQuantize},
                             {in_edge(0, reshape_reorder_output, 0)});
                 });
 
@@ -1454,17 +1673,20 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_bf16_mha_pattern_alternative)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_query = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto cast_query
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, dequantize_query, 0)});
 
-                    auto dequantize_key
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_key = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto cast_key = pgraph->append_op(graph::op_kind::TypeCast,
                             {in_edge(0, dequantize_key, 0)});
 
@@ -1480,18 +1702,21 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             {in_edge(0, fscore_add, 0)});
                     auto cast_softmax_fp32 = pgraph->append_op(
                             graph::op_kind::TypeCast, {in_edge(0, softmax, 0)});
-                    auto quantize_softmax
-                            = pgraph->append_op(graph::op_kind::Quantize,
-                                    {in_edge(0, cast_softmax_fp32, 0)});
-                    auto dequantize_softmax
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_softmax, 0)});
+                    auto quantize_softmax = pgraph->append_alternation(
+                            {graph::op_kind::Quantize,
+                                    graph::op_kind::DynamicQuantize},
+                            {in_edge(0, cast_softmax_fp32, 0)});
+                    auto dequantize_softmax = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize},
+                            {in_edge(0, quantize_softmax, 0)});
                     auto cast_softmax
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, dequantize_softmax, 0)});
 
-                    auto dequantize_value
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_value = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto cast_value
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, dequantize_value, 0)});
@@ -1509,7 +1734,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto cast_output_fp32
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, reshape_reorder_output, 0)});
-                    pgraph->append_op(graph::op_kind::Quantize,
+                    pgraph->append_alternation(
+                            {graph::op_kind::Quantize,
+                                    graph::op_kind::DynamicQuantize},
                             {in_edge(0, cast_output_fp32, 0)});
                 });
 
@@ -1535,32 +1762,41 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_mha_pattern_alternative3)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query
-                            = pgraph->append_op(graph::op_kind::Dequantize);
-                    auto dequantize_key
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_query = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
+                    auto dequantize_key = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
 
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_query, 0),
                                     in_edge(1, dequantize_key, 0)});
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
                             {in_edge(0, matmul_qk, 0)});
-                    auto quantize_softmax = pgraph->append_op(
-                            graph::op_kind::Quantize, {in_edge(0, softmax, 0)});
-                    auto dequantize_softmax
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_softmax, 0)});
+                    auto quantize_softmax = pgraph->append_alternation(
+                            {graph::op_kind::Quantize,
+                                    graph::op_kind::DynamicQuantize},
+                            {in_edge(0, softmax, 0)});
+                    auto dequantize_softmax = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize},
+                            {in_edge(0, quantize_softmax, 0)});
 
-                    auto dequantize_value
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_value = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
 
                     auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_softmax, 0),
                                     in_edge(1, dequantize_value, 0)});
-                    pgraph->append_op(graph::op_kind::Quantize,
+                    pgraph->append_alternation(
+                            {graph::op_kind::Quantize,
+                                    graph::op_kind::DynamicQuantize},
                             {in_edge(0, matmul_v, 0)});
                 });
 
@@ -1594,17 +1830,20 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_bf16_mha_pattern_alternative3)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_query = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto cast_query
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, dequantize_query, 0)});
 
-                    auto dequantize_key
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_key = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto cast_key = pgraph->append_op(graph::op_kind::TypeCast,
                             {in_edge(0, dequantize_key, 0)});
 
@@ -1615,18 +1854,21 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             {in_edge(0, matmul_qk, 0)});
                     auto cast_softmax_fp32 = pgraph->append_op(
                             graph::op_kind::TypeCast, {in_edge(0, softmax, 0)});
-                    auto quantize_softmax
-                            = pgraph->append_op(graph::op_kind::Quantize,
-                                    {in_edge(0, cast_softmax_fp32, 0)});
-                    auto dequantize_softmax
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_softmax, 0)});
+                    auto quantize_softmax = pgraph->append_alternation(
+                            {graph::op_kind::Quantize,
+                                    graph::op_kind::DynamicQuantize},
+                            {in_edge(0, cast_softmax_fp32, 0)});
+                    auto dequantize_softmax = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize},
+                            {in_edge(0, quantize_softmax, 0)});
                     auto cast_softmax
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, dequantize_softmax, 0)});
 
-                    auto dequantize_value
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_value = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto cast_value
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, dequantize_value, 0)});
@@ -1637,7 +1879,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto cast_output
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, matmul_v, 0)});
-                    pgraph->append_op(graph::op_kind::Quantize,
+                    pgraph->append_alternation(
+                            {graph::op_kind::Quantize,
+                                    graph::op_kind::DynamicQuantize},
                             {in_edge(0, cast_output, 0)});
                 });
 
@@ -1661,14 +1905,17 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_matmul_softmax_fusion)
         .set_priority(4.1f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_query = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
 
-                    auto dequantize_key
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_key = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_query, 0),
                                     in_edge(1, dequantize_key, 0)});
@@ -1683,8 +1930,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto optional_quantize_subgraph
                             = std::make_shared<pb_graph_t>();
                     auto optional_quantize
-                            = optional_quantize_subgraph->append_op(
-                                    graph::op_kind::Quantize);
+                            = optional_quantize_subgraph->append_alternation(
+                                    {graph::op_kind::Quantize,
+                                            graph::op_kind::DynamicQuantize});
                     optional_quantize_subgraph->create_input_port(
                             0, optional_quantize, 0);
                     optional_quantize_subgraph->create_output_port(
@@ -1717,17 +1965,20 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_bf16_matmul_softmax_fusion)
         .set_priority(4.1f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_query = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto cast_query
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     {in_edge(0, dequantize_query, 0)});
 
-                    auto dequantize_key
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_key = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto cast_key = pgraph->append_op(graph::op_kind::TypeCast,
                             {in_edge(0, dequantize_key, 0)});
 
@@ -1748,8 +1999,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             = optional_output_subgraph->append_op(
                                     graph::op_kind::TypeCast);
                     auto optional_quantize
-                            = optional_output_subgraph->append_op(
-                                    graph::op_kind::Quantize,
+                            = optional_output_subgraph->append_alternation(
+                                    {graph::op_kind::Quantize,
+                                            graph::op_kind::DynamicQuantize},
                                     {in_edge(0, optional_typecast, 0)});
 
                     optional_output_subgraph->create_input_port(
@@ -1792,13 +2044,16 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_mha_pattern_alternative4)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query
-                            = pgraph->append_op(graph::op_kind::Dequantize);
-                    auto dequantize_key
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto dequantize_query = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
+                    auto dequantize_key = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
 
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_query, 0),
@@ -1815,17 +2070,23 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     {in_edge(0, fscore_max, 0)});
                     auto softmax = pgraph->append_op(
                             graph::op_kind::SoftMax, {in_edge(0, reshape2, 0)});
-                    auto quantize_softmax = pgraph->append_op(
-                            graph::op_kind::Quantize, {in_edge(0, softmax, 0)});
-                    auto dequantize_softmax
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    {in_edge(0, quantize_softmax, 0)});
-                    auto dequantize_value
-                            = pgraph->append_op(graph::op_kind::Dequantize);
+                    auto quantize_softmax = pgraph->append_alternation(
+                            {graph::op_kind::Quantize,
+                                    graph::op_kind::DynamicQuantize},
+                            {in_edge(0, softmax, 0)});
+                    auto dequantize_softmax = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize},
+                            {in_edge(0, quantize_softmax, 0)});
+                    auto dequantize_value = pgraph->append_alternation(
+                            {graph::op_kind::Dequantize,
+                                    graph::op_kind::DynamicDequantize});
                     auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_softmax, 0),
                                     in_edge(1, dequantize_value, 0)});
-                    pgraph->append_op(graph::op_kind::Quantize,
+                    pgraph->append_alternation(
+                            {graph::op_kind::Quantize,
+                                    graph::op_kind::DynamicQuantize},
                             {in_edge(0, matmul_v, 0)});
                 });
 
@@ -1860,6 +2121,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_distill_bert_mha_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1936,6 +2198,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_bf16_distill_bert_mha_pattern)
         .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
         .set_kind(graph::partition_kind_t::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1991,6 +2254,42 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     {in_edge(0, reshape_reorder_output, 0)});
                     pgraph->append_op(graph::op_kind::Quantize,
                             {in_edge(0, cast_output_fp32, 0)});
+                });
+
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_gpt_mha)
+        .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
+        .set_kind(graph::partition_kind_t::quantized_mha)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    create_gpt_mha(pgraph, false, true);
+                });
+
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_gpt_mha)
+        .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
+        .set_kind(graph::partition_kind_t::quantized_mha)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    create_gpt_mha(pgraph, true, true);
+                });
+
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_llama_mha)
+        .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
+        .set_kind(graph::partition_kind_t::quantized_mha)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    create_llama_mha(pgraph, false, true);
+                });
+
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_llama_mha)
+        .set_priority(5.0f)
+        .set_engine_kind(graph::engine_kind::cpu)
+        .set_kind(graph::partition_kind_t::quantized_mha)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    create_llama_mha(pgraph, true, true);
                 });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 

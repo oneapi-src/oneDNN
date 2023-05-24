@@ -43,7 +43,8 @@
 
 #ifdef DNNL_WITH_SYCL
 #include "oneapi/dnnl/dnnl_sycl.hpp"
-#include "sycl/sycl_utils.hpp"
+
+#include "graph/utils/sycl_check.hpp"
 #endif
 
 namespace dnnl {
@@ -63,11 +64,21 @@ private:
             = reinterpret_cast<constant_cache_t::key_t>(this);
 
 public:
+    batchnorm_fwd_t() {
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        res_cache.retain();
+
+        if (enabled_constant_cache()) get_global_constant_cache().retain();
+    }
+
     ~batchnorm_fwd_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
+        res_cache.release();
+
         if (enabled_constant_cache()) {
             get_global_constant_cache().remove_if_exist(constant_key_);
+            get_global_constant_cache().release();
         }
     }
 
@@ -315,9 +326,15 @@ private:
     std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
 public:
+    batchnorm_bwd_t() {
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        res_cache.retain();
+    }
+
     ~batchnorm_bwd_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
+        res_cache.release();
     }
 
     status_t compile_impl(const dnnl_partition_impl_t *part,

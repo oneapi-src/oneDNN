@@ -153,7 +153,7 @@ graph::status_t compiler_partition_impl_t::compile(
         bool is_dynamic = false;
         for (auto &in_lt : inputs) {
             gc::sc_op_ptr in_ret;
-            in_ret = sub_graph.make_compiler_backend_input(in_lt);
+            in_ret = sub_graph.make_compiler_backend_input(in_lt, this->id());
             if (!is_dynamic && sub_graph.is_dynamic()) { is_dynamic = true; }
             inputs_map[in_lt.id] = in_ret;
             sc_inputs.emplace_back(in_ret);
@@ -244,8 +244,7 @@ graph::status_t compiler_partition_impl_t::compile(
         });
         if (status != graph::status::success) return status;
 
-        gc::sc_graph_t &backend_graph_obj
-                = *dynamic_cast<gc::sc_graph_t *>(&sub_graph);
+        gc::sc_graph_t &backend_graph_obj = sub_graph;
         if (!gc::check_graph_connection(backend_graph_obj)) {
             return graph::status::invalid_graph;
         }
@@ -277,7 +276,7 @@ graph::status_t compiler_partition_impl_t::compile(
 
         ctx->engine_ = static_cast<gc::runtime::engine_t *>(graph_engine.get());
 
-        gc::graph_driver(backend_graph_obj, 28, 10, ctx);
+        gc::graph_driver(backend_graph_obj, ctx);
 
         std::vector<gc::sc_op_ptr> args;
         for (auto &out_lt : outputs) {

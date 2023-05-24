@@ -84,7 +84,7 @@ private:
     reg64_t reg_bcast_loop_work = x17;
 
     /* Temporay registers */
-    reg64_t reg_tmp_imm = x18; // tmp for add_imm
+    reg64_t reg_tmp_imm = x27; // tmp for add_imm
     reg64_t reg_tmp_ofs = x19; // tmp reg to calc bwd wei offset in out_load
 
     reg64_t reg_load_dim_tail_mask = aux_reg_load_data;

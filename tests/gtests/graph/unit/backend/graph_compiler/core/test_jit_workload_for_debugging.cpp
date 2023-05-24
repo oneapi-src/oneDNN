@@ -50,8 +50,9 @@ static map<string, shared_ptr<jit_engine_t>> get_engines() {
     ret["cfake_jit"] = make_shared<cfake_jit>();
 #endif
 #if SC_BUILTIN_JIT_ENABLED
-    if (get_default_context()->machine_.cpu_flags_.fAVX512F)
+    if (get_default_context()->machine_.cpu_flags_.fAVX2) {
         ret["xbyak_jit"] = make_shared<xbyak_jit>();
+    }
 #endif
     return ret;
 }
@@ -60,7 +61,7 @@ static map<string, shared_ptr<jit_engine_t>> test_jit_engines = get_engines();
 
 //===========================================================================
 
-TEST(GCCore_jit_workload_for_debugging, TestAssignConstToTensorElem) {
+TEST(GCCore_CPU_jit_workload_for_debugging, TestAssignConstToTensorElem) {
     SKIP_BOUNDARY_CHECK();
     ir_builder_t builder;
 
@@ -111,7 +112,7 @@ TEST(GCCore_jit_workload_for_debugging, TestAssignConstToTensorElem) {
     }
 }
 
-TEST(GCCore_jit_workload_for_debugging, TestAssignS32ConstToVar) {
+TEST(GCCore_CPU_jit_workload_for_debugging, TestAssignS32ConstToVar) {
     ir_builder_t builder;
 
     // Has no observable behavior; just used to generate object code snippets
@@ -153,7 +154,7 @@ TEST(GCCore_jit_workload_for_debugging, TestAssignS32ConstToVar) {
     }
 }
 
-TEST(GCCore_jit_workload_for_debugging, TestAssignS32VarToVar) {
+TEST(GCCore_CPU_jit_workload_for_debugging, TestAssignS32VarToVar) {
     ir_builder_t builder;
 
     // Has no observable behavior; just used to generate object code snippets
@@ -197,7 +198,7 @@ TEST(GCCore_jit_workload_for_debugging, TestAssignS32VarToVar) {
     }
 }
 
-TEST(GCCore_jit_workload_for_debugging, TestIndexingRvalue) {
+TEST(GCCore_CPU_jit_workload_for_debugging, TestIndexingRvalue) {
     ir_builder_t builder;
 
     // Has no observable behavior; just used to generate object code snippets
@@ -253,7 +254,7 @@ TEST(GCCore_jit_workload_for_debugging, TestIndexingRvalue) {
     }
 }
 
-TEST(GCCore_jit_workload_for_debugging, TestOneReturnF32) {
+TEST(GCCore_CPU_jit_workload_for_debugging, TestOneReturnF32) {
     ir_builder_t builder;
 
     _function_(datatypes::f32, foo) { _return_(42.0f); }
@@ -293,7 +294,7 @@ TEST(GCCore_jit_workload_for_debugging, TestOneReturnF32) {
     }
 }
 
-TEST(GCCore_jit_workload_for_debugging, TestOneReturnU64) {
+TEST(GCCore_CPU_jit_workload_for_debugging, TestOneReturnU64) {
     ir_builder_t builder;
 
     _function_(datatypes::index, foo) { _return_(uint64_t(42)); }
@@ -334,7 +335,7 @@ TEST(GCCore_jit_workload_for_debugging, TestOneReturnU64) {
 }
 
 // Disabled until Xbyak JIT engine has the necessary support for u8.
-TEST(GCCore_jit_workload_for_debugging, DISABLED_TestOneReturnU8) {
+TEST(GCCore_CPU_jit_workload_for_debugging, DISABLED_TestOneReturnU8) {
     ir_builder_t builder;
 
     _function_(datatypes::u8, foo) {
@@ -376,7 +377,7 @@ TEST(GCCore_jit_workload_for_debugging, DISABLED_TestOneReturnU8) {
     }
 }
 
-TEST(GCCore_jit_workload_for_debugging, TestOneReturnS32) {
+TEST(GCCore_CPU_jit_workload_for_debugging, TestOneReturnS32) {
     ir_builder_t builder;
 
     _function_(datatypes::s32, foo) { _return_(-42); }
@@ -418,7 +419,7 @@ TEST(GCCore_jit_workload_for_debugging, TestOneReturnS32) {
 
 // Disabled until Xbyak-jit-engine supports the if/else branch used by the
 // test function 'foo'.
-TEST(GCCore_jit_workload_for_debugging, TestMultiReturnS32) {
+TEST(GCCore_CPU_jit_workload_for_debugging, TestMultiReturnS32) {
     const uint64_t branch_selector_a = 0;
     const uint64_t branch_selector_b = 1;
 
@@ -507,7 +508,7 @@ TEST(GCCore_jit_workload_for_debugging, TestMultiReturnS32) {
 // To confirm that the specified function (`print_int`) was
 // actually called successfully, examine the gtest stdout for
 // confirmation that the value '42' was actually printed.
-TEST(GCCore_jit_workload_for_debugging, TestCallExternal) {
+TEST(GCCore_CPU_jit_workload_for_debugging, TestCallExternal) {
     ir_builder_t builder;
 
     _function_(datatypes::void_t, foo) {
@@ -542,7 +543,7 @@ TEST(GCCore_jit_workload_for_debugging, TestCallExternal) {
     }
 }
 
-TEST(GCCore_jit_workload_for_debugging, TestCallIntegerStackArgs) {
+TEST(GCCore_CPU_jit_workload_for_debugging, TestCallIntegerStackArgs) {
     ir_builder_t builder;
 
     _function_(datatypes::void_t, foo, _arg_("result", datatypes::s32, {1}),
@@ -599,7 +600,7 @@ TEST(GCCore_jit_workload_for_debugging, TestCallIntegerStackArgs) {
     }
 }
 
-TEST(GCCore_jit_workload_for_debugging, TestDeadFuncCallReturnValue) {
+TEST(GCCore_CPU_jit_workload_for_debugging, TestDeadFuncCallReturnValue) {
     ir_builder_t builder;
 
     // TODO(xxx): add case for dead return value but still need call happen

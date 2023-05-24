@@ -249,7 +249,18 @@ public:
     // Full size of payload GRF buffer for this message. Buffer may be strided
     // and/or require GRF boundary round-up.
     int payload_size() const {
-        if (is_2d()) return utils::rnd_up(access_size(), grf_size());
+        if (is_2d()) {
+            auto &info = block_2d_info;
+            int w = info.width;
+            int h = info.height;
+            int c = info.count;
+            if (info.transpose) {
+                h = utils::rnd_up_pow2(h);
+            } else {
+                w = utils::rnd_up_pow2(w);
+            }
+            return utils::rnd_up(type.size() * w * h, grf_size()) * c;
+        }
         int sz = payload_type_stride() * slots;
         return utils::rnd_up(sz, grf_size());
     }

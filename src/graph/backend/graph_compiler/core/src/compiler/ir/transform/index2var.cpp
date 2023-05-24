@@ -39,9 +39,10 @@ namespace gc {
 
 SC_DECL_PASS_INFO(index2var,
         SC_PASS_DEPENDS_ON(constant_folder, ir_simplifier, validator,
-                index_flattener, parallel_workload_dispatcher),
+                index_flattener, parallel_workload_dispatcher, tensor_inplace),
         SC_PASS_REQUIRE_STATE(FUNC_INLINED), SC_PASS_REQUIRE_NOT_STATE(),
         SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE(IR_SIMPLIFIED));
+// it requires tensor_inplace for pointer alias info
 
 // the visitor to find the mutable dependencies in the indices of indexing
 // nodes. e.g., for A[i+j], it will find i and j as dependencies. Note that if
@@ -765,6 +766,11 @@ class indexing2var_impl_t : public ir_visitor_t {
             // cache creation may fail due to there is a call/indexing in
             // the indices
             if (out_cache) {
+                auto mask = v->var_.static_as<indexing_c>()->mask_;
+                if (mask.defined()) {
+                    rhs = builder::make_select(mask, rhs,
+                            builder::make_constant({UINT64_C(0)}, rhs->dtype_));
+                }
                 // if successfully created a cache for the indexing
                 auto ret = builder::make_stmts_unattached(
                         {builder::make_assign_unattached(lhs, rhs)});

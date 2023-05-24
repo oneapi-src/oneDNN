@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,59 +29,68 @@ namespace utils = dnnl::graph::tests::unit::utils;
 TEST(Execute, QuantizePerTensor) {
     graph::engine_t *engine = get_engine();
 
-    graph::op_t quantize(graph::op_kind::Quantize);
-    quantize.set_attr<std::vector<float>>(graph::op_attr::scales, {0.1f});
-    int64_t zps = engine->kind() == graph::engine_kind::gpu ? 0 : 10;
-    quantize.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zps});
-    quantize.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
-    quantize.set_attr<int64_t>(graph::op_attr::axis, 0);
+    std::vector<float> scales = {1.f, 0.1f};
+    std::vector<int64_t> zps = {0, 10};
 
-    test::vector<float> src {1.0, 0.0, 1.0, 2.0};
-    test::vector<uint8_t> dst(src.size(), 0);
+    for_(const auto &scale : scales)
+    for (const auto &zp : zps) {
+        graph::op_t quantize(graph::op_kind::Quantize);
+        quantize.set_attr<std::vector<float>>(graph::op_attr::scales, {scale});
+        quantize.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp});
+        quantize.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+        quantize.set_attr<int64_t>(graph::op_attr::axis, 0);
 
-    // int8 = f32 / scales + zero_points
-    test::vector<uint8_t> ref_dst = engine->kind() == graph::engine_kind::gpu
-            ? test::vector<uint8_t> {10, 0, 10, 20}
-            : test::vector<uint8_t> {20, 10, 20, 30};
+        test::vector<float> src {1.0, 0.0, 1.0, 2.0};
+        test::vector<uint8_t> dst(src.size(), 0);
 
-    // prepare input/output logical tensor
-    graph::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 2, 2}, graph::data_type::f32);
-    graph::logical_tensor_t dst_lt
-            = utils::logical_tensor_init(1, {1, 2, 2}, graph::data_type::u8);
+        // int8 = f32 / scales + zero_points
+        test::vector<uint8_t> ref_dst = scale == 1.f
+                ? test::vector<uint8_t> {1, 0, 1, 2}
+                : test::vector<uint8_t> {10, 0, 10, 20};
 
-    quantize.add_input(src_lt);
-    quantize.add_output(dst_lt);
+        for (size_t i = 0; i < dst.size(); ++i)
+            ref_dst[i] += zp;
 
-    graph::graph_t g(engine->kind());
-    g.add_op(&quantize);
-    g.finalize();
+        // prepare input/output logical tensor
+        graph::logical_tensor_t src_lt = utils::logical_tensor_init(
+                0, {1, 2, 2}, graph::data_type::f32);
+        graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+                1, {1, 2, 2}, graph::data_type::u8);
 
-    graph::pass::pass_base_ptr apass = get_pass("quant_pass");
-    apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1U);
-    auto part = g.get_partitions()[0];
+        quantize.add_input(src_lt);
+        quantize.add_output(dst_lt);
 
-    graph::partition_t p;
-    p.init(part);
+        graph::graph_t g(engine->kind());
+        g.add_op(&quantize);
+        g.finalize();
 
-    graph::compiled_partition_t cp(p);
-    std::vector<const graph::logical_tensor_t *> inputs {&src_lt};
-    std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
-    ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
+        graph::pass::pass_base_ptr apass = get_pass("quant_pass");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
+        auto part = g.get_partitions()[0];
 
-    graph::logical_tensor_t lt;
-    cp.query_logical_tensor(dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
+        graph::partition_t p;
+        p.init(part);
 
-    graph::tensor_t src_ts(src_lt, engine, src.data());
-    graph::tensor_t dst_ts(dst_lt, engine, dst.data());
+        graph::compiled_partition_t cp(p);
+        std::vector<const graph::logical_tensor_t *> inputs {&src_lt};
+        std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, engine),
+                graph::status::success);
 
-    graph::stream_t *strm = get_stream();
-    ASSERT_EQ(cp.execute(strm, {src_ts}, {dst_ts}), graph::status::success);
-    strm->wait();
-    for (size_t i = 0; i < dst.size(); ++i) {
-        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+        graph::logical_tensor_t lt;
+        cp.query_logical_tensor(dst_lt.id, &lt);
+        ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
+
+        graph::tensor_t src_ts(src_lt, engine, src.data());
+        graph::tensor_t dst_ts(dst_lt, engine, dst.data());
+
+        graph::stream_t *strm = get_stream();
+        ASSERT_EQ(cp.execute(strm, {src_ts}, {dst_ts}), graph::status::success);
+        strm->wait();
+        for (size_t i = 0; i < dst.size(); ++i) {
+            ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+        }
     }
 }
 

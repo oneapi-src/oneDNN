@@ -27,7 +27,7 @@
 using namespace dnnl::impl::graph::gc;
 constexpr auto s32 = datatypes::s32;
 
-TEST(GCCore_ssa_transform, TestSSATransform) {
+TEST(GCCore_CPU_ssa_transform, TestSSATransform) {
     builder::ir_builder_t builder;
     func_t print_int_f = builder::make_func("print_int",
             {builder::make_var(s32, "v")}, stmt(), datatypes::void_t);
@@ -138,7 +138,7 @@ TEST(GCCore_ssa_transform, TestSSATransform) {
     EXPECT_TRUE(cmper.compare(out, get_expected(true), false));
 }
 
-TEST(GCCore_ssa_transform, TestSSATransformIfElse) {
+TEST(GCCore_CPU_ssa_transform, TestSSATransformIfElse) {
     builder::ir_builder_t builder;
     _function_(s32, ccc, _arg_("A", s32, {10000}), _arg_("a", s32)) {
         _bind_(A, a);
@@ -185,7 +185,7 @@ TEST(GCCore_ssa_transform, TestSSATransformIfElse) {
     EXPECT_TRUE(cmper.compare(out, expected));
 }
 
-TEST(GCCore_ssa_transform, TestSSATransformForLoop) {
+TEST(GCCore_CPU_ssa_transform, TestSSATransformForLoop) {
     builder::ir_builder_t builder;
     _function_(s32, ccc, _arg_("A", s32, {10000}), _arg_("a", s32)) {
         _bind_(A, a);
@@ -247,7 +247,7 @@ TEST(GCCore_ssa_transform, TestSSATransformForLoop) {
 }
 
 // test for nested if+for
-TEST(GCCore_ssa_transform, TestSSATransformForLoop2) {
+TEST(GCCore_CPU_ssa_transform, TestSSATransformForLoop2) {
     builder::ir_builder_t builder;
     _function_(s32, ccc, _arg_("A", s32, {10000}), _arg_("a", s32)) {
         _bind_(A, a);
@@ -308,7 +308,7 @@ TEST(GCCore_ssa_transform, TestSSATransformForLoop2) {
 }
 
 // test for nested if+for
-TEST(GCCore_ssa_transform, TestSSATransformGCReferenced) {
+TEST(GCCore_CPU_ssa_transform, TestSSATransformGCReferenced) {
     builder::ir_builder_t builder;
     _function_(s32, ccc, _arg_("A", s32, {10000}), _arg_("a", s32)) {
         _bind_(A, a);
@@ -330,7 +330,7 @@ TEST(GCCore_ssa_transform, TestSSATransformGCReferenced) {
     ASSERT_TRUE(cmper.compare(out, expected));
 }
 
-TEST(GCCore_ssa_transform, TestSameVarCompare) {
+TEST(GCCore_CPU_ssa_transform, TestSameVarCompare) {
     builder::ir_builder_t builder;
     // Same named var should be renamed by simpilfier
     // However, ssa_transform need to tell apart different var node
@@ -371,7 +371,7 @@ TEST(GCCore_ssa_transform, TestSameVarCompare) {
     EXPECT_TRUE(cmper.compare(out, expected));
 }
 
-TEST(GCCore_ssa_transform, TestMultiLevelForPHI) {
+TEST(GCCore_CPU_ssa_transform, TestMultiLevelForPHI) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, ccc, _arg_("A", datatypes::index, {300})) {
         _bind_(A);

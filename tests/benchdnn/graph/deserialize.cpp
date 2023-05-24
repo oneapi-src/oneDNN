@@ -245,6 +245,8 @@ void deserialized_graph::load(const std::string &pass_config_json) {
     helper.declare_field("version", &version_);
     helper.declare_field("engine_kind", &engine_kind_);
     helper.declare_field("fpmath_mode", &fpmath_mode_);
+    helper.declare_field("input_ports", &input_ports_);
+    helper.declare_field("output_ports", &output_ports_);
     helper.read_fields(&read);
 
     if (ops_.empty()) {

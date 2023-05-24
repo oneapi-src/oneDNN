@@ -49,8 +49,8 @@ constructing an operation.
 | 2     | `src_1`       | Required             |
 
 @note All input shapes should match and no broadcasting is allowed if the
-`auto_broadcast` attribute is set to `none`, or can be broadcasted according to the 
-broadcasting rules mentioned above if `auto_broadcast` attribute set to `numpy`.
+`auto_broadcast` attribute is set to `none`, or can be broadcasted according to the
+broadcasting rules mentioned above if `auto_broadcast` attribute is set to `numpy`.
 
 ### Outputs
 
@@ -62,8 +62,8 @@ broadcasting rules mentioned above if `auto_broadcast` attribute set to `numpy`.
 
 Select operation supports the following data type combinations.
 
-| Cond    | Src_0 | Src_1 | Dst  |
-|:--------|:------|:------|:-----|
-| boolean | f32   | f32   | f32  |
-| boolean | bf16  | bf16  | bf16 |
-| boolean | f16   | f16   | f16  |
+| Cond    | Src_0 / Src_1 | Dst  |
+|:--------|:--------------|:-----|
+| boolean | f32           | f32  |
+| boolean | bf16          | bf16 |
+| boolean | f16           | f16  |

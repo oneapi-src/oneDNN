@@ -46,7 +46,7 @@ public:
     }
 };
 
-TEST(GCCore_node_uniquify_cpp, TestNodeUniquify) {
+TEST(GCCore_CPU_node_uniquify_cpp, TestNodeUniquify) {
     builder::ir_builder_t builder;
     expr temp;
     for_loop lo;

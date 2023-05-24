@@ -51,7 +51,7 @@ public:
 #endif
 
 enum class ExternalArgumentType { Scalar, GlobalPtr, LocalPtr, Hidden };
-enum class GlobalAccessType { None = 0, Stateless = 1, Surface = 2, All = 3 };
+enum class GlobalAccessType { None = 0, Stateless = 1, Surface = 2, All = 3, Default = 4 };
 
 static inline GlobalAccessType operator|(GlobalAccessType access1, GlobalAccessType access2)
 {
@@ -72,8 +72,8 @@ public:
 
     template <typename DT>
     inline void newArgument(std::string name)           { newArgument(name, getDataType<DT>()); }
-    inline void newArgument(std::string name, DataType type, ExternalArgumentType exttype = ExternalArgumentType::Scalar, GlobalAccessType access = GlobalAccessType::All);
-    inline void newArgument(std::string name, ExternalArgumentType exttype, GlobalAccessType access = GlobalAccessType::All);
+    inline void newArgument(std::string name, DataType type, ExternalArgumentType exttype = ExternalArgumentType::Scalar, GlobalAccessType access = GlobalAccessType::Default);
+    inline void newArgument(std::string name, ExternalArgumentType exttype, GlobalAccessType access = GlobalAccessType::Default);
 
     inline Subregister getArgument(const std::string &name) const;
     inline Subregister getArgumentIfExists(const std::string &name) const;
@@ -179,6 +179,7 @@ protected:
     inline int getCrossthreadBytes() const;
     int grfsPerLID() const { return (simd > 16 && GRF::bytes(hw) < 64) ? 2 : 1; }
 
+    static inline GlobalAccessType defaultGlobalAccess(HW hw);
     static inline int defaultInlineGRFs(HW hw);
 };
 
@@ -188,6 +189,8 @@ void InterfaceHandler::newArgument(std::string name, DataType type, ExternalArgu
 {
     if (exttype != ExternalArgumentType::GlobalPtr)
         access = GlobalAccessType::None;
+    if (access == GlobalAccessType::Default)
+        access = defaultGlobalAccess(hw);
     assignments.push_back({name, type, exttype, access, Subregister{}, noSurface, nextArgIndex++});
 }
 
@@ -486,6 +489,12 @@ int InterfaceHandler::getCrossthreadGRFs() const
     if (!finalized) throw interface_not_finalized();
 #endif
     return crossthreadGRFs;
+}
+
+GlobalAccessType InterfaceHandler::defaultGlobalAccess(HW hw)
+{
+    if (hw >= HW::XeHPC) return GlobalAccessType::Stateless;
+    return GlobalAccessType::All;
 }
 
 int InterfaceHandler::defaultInlineGRFs(HW hw)

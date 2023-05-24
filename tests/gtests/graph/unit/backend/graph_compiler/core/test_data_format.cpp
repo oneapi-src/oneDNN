@@ -29,7 +29,7 @@ static std::vector<int> get_format_as_vec(sc_data_format_kind_t k) {
     return ret;
 }
 
-TEST(GCCore_data_format_cpp, TestFormatKind) {
+TEST(GCCore_CPU_data_format_cpp, TestFormatKind) {
     auto fmt = format_kinds::ABCD;
     EXPECT_EQ(fmt.ndims(), 4);
     EXPECT_EQ(fmt.norig_dims(), 4);
@@ -50,12 +50,12 @@ static std::string fmt2str(const sc_data_format_t &v) {
     return ss.str();
 }
 
-TEST(GCCore_data_format_cpp, TestFormatPrint) {
+TEST(GCCore_CPU_data_format_cpp, TestFormatPrint) {
     auto fmt = sc_data_format_t::NCHWc(16);
     EXPECT_EQ(fmt2str(fmt), "ABCD16b");
 }
 
-TEST(GCCore_data_format_cpp, TestFormatGetShape) {
+TEST(GCCore_CPU_data_format_cpp, TestFormatGetShape) {
     // reorder, no blocking
     sc_dims plain, blocking;
     plain = {1, 2, 3, 4};

@@ -49,6 +49,43 @@ public:
     }
 };
 
+using inplace_hint_t
+        = std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>;
+
+static void filter_and_sync_inplace_hint(const func_t &f) {
+    if (!f->attr_) { return; }
+    auto hint_in_def = f->attr_->get_or_null<inplace_hint_t>(
+            function_attrs::inplace_hint);
+    if (!hint_in_def) { return; }
+    auto &params = f->decl_->params_;
+    // the alias id is the in-place result selected by
+    // buffer_scheduler_t, try to use it to filter the
+    // inplace_hint
+    for (auto itrkv = hint_in_def->begin(); itrkv != hint_in_def->end();) {
+        auto out_arg_idx = itrkv->first;
+        auto &hints = itrkv->second;
+        if (auto out_alias_id
+                = alias_info::get_alias_info(*params.at(out_arg_idx))) {
+            for (auto itr_in = hints.begin(); itr_in != hints.end();) {
+                auto in_arg_idx = itr_in->used_arg_idx_;
+                if (auto in_alias_id
+                        = alias_info::get_alias_info(*params.at(in_arg_idx))) {
+                    if (out_alias_id->is_alias_of(in_alias_id)) {
+                        // if tensors are alias, the inplace happens. continue
+                        ++itr_in;
+                        continue;
+                    }
+                }
+                itr_in = hints.erase(itr_in);
+            }
+            ++itrkv;
+        } else {
+            itrkv = hint_in_def->erase(itrkv);
+        }
+    }
+    f->decl_->attr()[function_attrs::inplace_hint] = *hint_in_def;
+}
+
 const_ir_module_ptr tensor_inplace_t::operator()(const_ir_module_ptr f) {
     auto ret = std::make_shared<ir_module_t>(*f);
     auto main_entry = f->get_entry_func();
@@ -80,11 +117,8 @@ const_ir_module_ptr tensor_inplace_t::operator()(const_ir_module_ptr f) {
                 auto func_def = f->get_func(funct->name_);
                 if (func_def && func_def->attr_) {
                     if (auto hint
-                            = func_def->attr_
-                                      ->get_or_null<std::vector<std::pair<int,
-                                              std::vector<
-                                                      tensor_inplace_info_t>>>>(
-                                              function_attrs::inplace_hint)) {
+                            = func_def->attr_->get_or_null<inplace_hint_t>(
+                                    function_attrs::inplace_hint)) {
                         funct->attr()[function_attrs::inplace_hint] = *hint;
                     }
                 }
@@ -100,13 +134,14 @@ const_ir_module_ptr tensor_inplace_t::operator()(const_ir_module_ptr f) {
                 // if the callee func is decl
                 auto func_def = f->get_func(funct->name_);
                 if (func_def) {
+                    filter_and_sync_inplace_hint(func_def);
                     for (size_t arg_id = 0; arg_id < funct->params_.size();
                             arg_id++) {
                         auto &arg_in_decl = funct->params_[arg_id];
                         auto &arg_in_def = func_def->params_.at(arg_id);
-                        if (arg_in_decl->attr_
-                                && arg_in_decl->attr_->has_key(
-                                        attr_keys::pointer_alias)) {
+                        if (auto alias_id
+                                = alias_info::get_alias_info(*arg_in_decl)) {
+                            // sync the alias info
                             arg_in_def->attr()[attr_keys::pointer_alias]
                                     = arg_in_decl->attr_->get_any(
                                             attr_keys::pointer_alias);
@@ -115,7 +150,8 @@ const_ir_module_ptr tensor_inplace_t::operator()(const_ir_module_ptr f) {
                 }
             }
         }
-        entry_f = std::const_pointer_cast<func_base>(new_func);
+        // drop the new_func instead of replacing it with entry_f. Because
+        // parallel_merge pass needs to run before buffer scheduling
     }
 
     return ret;

@@ -32,7 +32,7 @@ constexpr auto s32 = datatypes::s32;
 constexpr auto f32 = datatypes::f32;
 constexpr auto f32x16 = sc_data_type_t::f32(16);
 
-TEST(GCCore_test_intrinsics_combine, TestFmaddCombine) {
+TEST(GCCore_CPU_test_intrinsics_combine, TestFmaddCombine) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, ccc, _arg_("A", f32, {10000}),
             _arg_("B", f32, {10000}), _arg_("C", f32, {10000}),
@@ -108,7 +108,7 @@ TEST(GCCore_test_intrinsics_combine, TestFmaddCombine) {
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
 
-TEST(GCCore_test_intrinsics_combine, TestFmaddCombineLoop) {
+TEST(GCCore_CPU_test_intrinsics_combine, TestFmaddCombineLoop) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, ccc, _arg_("A", f32, {10000}),
             _arg_("B", f32, {10000}), _arg_("C", f32, {10000}),
@@ -148,7 +148,7 @@ TEST(GCCore_test_intrinsics_combine, TestFmaddCombineLoop) {
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
 
-TEST(GCCore_test_intrinsics_combine, TestBroadcastCombine) {
+TEST(GCCore_CPU_test_intrinsics_combine, TestBroadcastCombine) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, ccc, _arg_("A", f32, {10000}),
             _arg_("B", f32, {10000}), _arg_("C", f32, {10000}),

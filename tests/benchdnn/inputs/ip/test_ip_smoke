@@ -9,7 +9,7 @@
 # Training
 ## Forward
 --dir=FWD_B
---cfg=f32,bf16bf16bf16
+--dt=f32,bf16
 --attr-post-ops=,linear:2:1
 --batch=shapes_ci
 ## Backward
@@ -21,13 +21,13 @@
 --dir=FWD_I
 --attr-post-ops=,linear:2:1
 
---cfg=f16
+--dt=f16
 --batch=shapes_ci
 
---cfg=s8s8f32
+--dt=s8:s8:f32
 --attr-scales=src:common:0.25*+wei:per_oc:5*+dst:common:2*
 --batch=shapes_ci
 
---cfg=u8s8s32
+--dt=u8:s8:s32
 --attr-scales=src:common:0.25*+wei:per_oc:5*
 --batch=shapes_ci

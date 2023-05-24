@@ -1,15 +1,15 @@
-SoftmaxBackward {#dev_guide_op_softmaxbackward}
+SoftMaxBackward {#dev_guide_op_softmaxbackward}
 ===============================================
 
 ## General
 
-SoftmaxBackward operation computes gradient for Softmax.
+SoftMaxBackward operation computes gradient for SoftMax.
 
 ## Operation attributes
 
-| Attribute Name                           | Description                                             | Value Type | Supported Values                     | Required or Optional |
-|:-----------------------------------------|:--------------------------------------------------------|:-----------|:-------------------------------------|:---------------------|
-| [axis](@ref dnnl::graph::op::attr::axis) | Represents the axis of which the Softmax is calculated. | s64        | Arbitrary s64 value (`1` in default) | Optional             |
+| Attribute Name                           | Description                                               | Value Type | Supported Values                     | Required or Optional |
+|:-----------------------------------------|:----------------------------------------------------------|:-----------|:-------------------------------------|:---------------------|
+| [axis](@ref dnnl::graph::op::attr::axis) | Represents the axis from which the SoftMax is calculated. | s64        | Arbitrary s64 value (`1` in default) | Optional             |
 
 ## Execution arguments
 
@@ -21,7 +21,7 @@ constructing an operation.
 | Index | Argument Name | Required or Optional |
 |:------|---------------|----------------------|
 | 0     | `diff_dst`    | Required             |
-| 1     | `src`         | Required             |
+| 1     | `dst`         | Required             |
 
 ### Outputs
 
@@ -31,9 +31,9 @@ constructing an operation.
 
 ## Supported data types
 
-SoftmaxBackward operation supports the following data type combinations.
+SoftMaxBackward operation supports the following data type combinations.
 
-| Src  | Diff_dst | Diff_src |
+| Dst  | Diff_dst | Diff_src |
 |:-----|:---------|:---------|
 | f32  | f32      | f32      |
 | bf16 | bf16     | bf16     |

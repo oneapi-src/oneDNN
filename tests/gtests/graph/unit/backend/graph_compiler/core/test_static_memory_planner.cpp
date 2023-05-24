@@ -20,7 +20,7 @@
 #include "gtest/gtest.h"
 
 using namespace dnnl::impl::graph::gc;
-TEST(GCCore_static_memory_planner, TestStaticMemoryPlanning) {
+TEST(GCCore_CPU_static_memory_planner, TestStaticMemoryPlanning) {
     /*
     {0}                   {160}               {280}                 {450}
     |           0         |           1        |          2          |
@@ -49,7 +49,7 @@ TEST(GCCore_static_memory_planner, TestStaticMemoryPlanning) {
     EXPECT_EQ(out, expected_out);
 }
 
-TEST(GCCore_static_memory_planner, TestStaticMemoryPlanningInplace) {
+TEST(GCCore_CPU_static_memory_planner, TestStaticMemoryPlanningInplace) {
     using inplace_outdata
             = std::unordered_map<uintptr_t, std::vector<uintptr_t>>;
     using inplace_data = std::unordered_map<uintptr_t,

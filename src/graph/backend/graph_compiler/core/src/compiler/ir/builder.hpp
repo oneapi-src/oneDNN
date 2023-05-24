@@ -392,6 +392,13 @@ expr make_exp(const expr_c &v);
 expr make_log(const expr_c &v);
 
 /**
+ * Makes a erf node
+ * @param v the input value
+ * @return the created node
+ * */
+expr make_erf(const expr_c &v);
+
+/**
  * Makes an sqrt node
  * @param v the input value
  * @return the created node
@@ -568,6 +575,15 @@ expr make_permute(const expr_c &v_a, const expr_c &v_b, const int &v_c);
 expr make_gather(const expr_c &addr, const expr_c &indices);
 
 /**
+ * Makes a permutex2var node
+ * @param v_a the first input value
+ * @param v_b the second input value
+ * @param v_c the third input value
+ * @return the created node
+ * */
+expr make_permutex2var(const expr_c &v_a, const expr_c &v_b, const expr_c &v_c);
+
+/**
  * Makes a cmp_eq (==) node
  * @param left left hand side
  * @param right right hand side
@@ -698,6 +714,14 @@ expr make_write_struct(const expr_c &dyn_tsr, const expr_c &in,
  * @return the created node
  * */
 expr make_get_group_id(uint64_t par_for_level_id);
+
+/**
+ * Makes a node to get thread id in group. Specifying the (-1) group will return
+ * the global thread id
+ * @param par_for_level_id the level of parallel for
+ * @return the created node
+ * */
+expr make_get_group_thread_id(int par_for_level_id);
 
 /**
  * Makes a logic_not (!) node
@@ -1038,9 +1062,10 @@ expr copy_attr(const expr_base &ths, expr &&newexpr);
 stmt copy_attr(const stmt_base_t &ths, stmt &&newstmt);
 func_t copy_attr(const func_base &ths, func_t &&newfunc);
 
-stmt get_parent_node(stmt node);
+stmt get_parent_node(const stmt &node);
 tensor get_real_tensor(const expr &buffer);
 void add_parent_node(const stmt &s, const stmt &ret);
+stmt get_common_parent_node(const stmt &node1, const stmt &node2);
 
 } // namespace gc
 } // namespace graph

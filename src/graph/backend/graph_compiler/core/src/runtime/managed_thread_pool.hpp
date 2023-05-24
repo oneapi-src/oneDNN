@@ -26,8 +26,8 @@ namespace gc {
 
 namespace runtime {
 struct thread_manager {
-    using idle_func_t = uint64_t (*)(std::atomic<int> *remaining,
-            int expected_remain, int tid, void *args);
+    using idle_func_t = uint64_t (*)(std::atomic<int32_t> *remaining,
+            int32_t expected_remain, int32_t tid, void *args);
     struct thread_pool_state {
         struct task_type {
             void (*pfunc)(void *, void *, int64_t, generic_val *);

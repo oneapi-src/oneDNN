@@ -104,7 +104,7 @@ struct cache_t {
                 // The key_t may contains pointers that should reside within the
                 // stored object. Therefore the pointers in the key may need
                 // updated.
-                update_entry(key, *cv.value);
+                update_entry(key, cv.get_value());
                 return cv;
             }
         }
@@ -170,9 +170,7 @@ struct lru_cache_t final : public cache_t<K, O, C, key_merge> {
             // and remove those that are not affected e.g. native CPU.
             for (auto it = cache_mapper().begin();
                     it != cache_mapper().end();) {
-                const auto &engine_id = it->first.engine_id_;
-                if (engine_id.kind() == engine_kind::cpu
-                        && is_native_runtime(engine_id.runtime_kind())) {
+                if (!it->first.has_runtime_dependencies()) {
                     it = cache_mapper().erase(it);
                 } else {
                     ++it;
@@ -278,7 +276,7 @@ protected:
 
         const auto &value = it->second.value_;
         // If the entry is not invalidated
-        if (value.get().value) { return; }
+        if (value.get().is_empty()) { return; }
 
         // Remove the invalidated entry
         cache_mapper().erase(it);

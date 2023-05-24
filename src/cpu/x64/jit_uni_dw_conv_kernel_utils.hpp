@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,7 +42,10 @@ struct jit_uni_dw_conv_fwd_kernel {
         ker_ = new jit_kernel_t(ajcp, dst_md);
     }
 
-    status_t create_kernel() { return ker_->create_kernel(); }
+    status_t create_kernel() {
+        if (ker_) return ker_->create_kernel();
+        return status::out_of_memory;
+    }
     ~jit_uni_dw_conv_fwd_kernel() { delete ker_; }
 
     static status_t init_conf(jit_conv_conf_t &jcp,
@@ -73,7 +76,10 @@ struct jit_uni_dw_conv_bwd_data_kernel {
         ker_ = new jit_kernel_t(ajcp);
     }
 
-    status_t create_kernel() { return ker_->create_kernel(); }
+    status_t create_kernel() {
+        if (ker_) return ker_->create_kernel();
+        return status::out_of_memory;
+    }
     ~jit_uni_dw_conv_bwd_data_kernel() { delete ker_; }
 
     static status_t init_conf(jit_conv_conf_t &jcp,
@@ -103,7 +109,10 @@ struct jit_uni_dw_conv_bwd_weights_kernel {
         ker_ = new jit_kernel_t(ajcp);
     }
 
-    status_t create_kernel() { return ker_->create_kernel(); }
+    status_t create_kernel() {
+        if (ker_) return ker_->create_kernel();
+        return status::out_of_memory;
+    }
 
     ~jit_uni_dw_conv_bwd_weights_kernel() { delete ker_; }
 

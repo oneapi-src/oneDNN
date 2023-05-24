@@ -23,9 +23,11 @@
 #include <unordered_map>
 
 #include <compiler/dimensions.hpp>
+#include <compiler/ir/sc_expr.hpp>
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
 #include <util/def.hpp>
 #include <util/reflection.hpp>
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -153,6 +155,8 @@ void update_graph_format_by_key(const std::shared_ptr<context_t> &ctx,
         const combined_op_dispatch_key_t &key, int &key_idx,
         size_t node_input_offset, size_t graph_input_offset,
         const std::shared_ptr<sc_op> &modified_inp = nullptr);
+expr call_op_dynamic_query_function(
+        const std::shared_ptr<sc_op> &op, const std::vector<expr> &args);
 int count_dynamic_dims(const sc_dims &in);
 
 namespace runtime {

@@ -20,6 +20,8 @@
 #include <utility>
 #include "matmul_core.hpp"
 #include "templates/managed_matmul_core.hpp"
+#include "templates/utils.hpp"
+#include <compiler/ir/graph/dynamic_dispatch_key.hpp>
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/graph_map.hpp>
@@ -27,6 +29,7 @@
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/utils.hpp>
 #include <runtime/config.hpp>
+#include <unordered_set>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 
@@ -35,17 +38,6 @@ namespace impl {
 namespace graph {
 namespace gc {
 namespace ops {
-
-template <typename T>
-static std::vector<T> merge_vec(
-        const std::vector<T> &a, const std::vector<T> &b) {
-    std::vector<T> result(a);
-    for (auto it : b) {
-        result.push_back(it);
-    }
-    return result;
-}
-
 static sc_data_type_t infer_out_dtype(
         const std::vector<graph_tensor_ptr> &ins) {
     if (ins.at(0)->details_.dtype_ == datatypes::u8
@@ -75,9 +67,11 @@ managed_matmul_core_op_t::managed_matmul_core_op_t(
     } else {
         COMPILE_ASSERT(
                 info_.outputs_.size() == 1, "matmul_core expects 1 output");
-        COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims()
-                        == expected_out_shape,
-                "Bad out dims");
+        if (!is_dynamic()) {
+            COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims()
+                            == expected_out_shape,
+                    "Bad out dims");
+        }
     }
     // record padded_K of input A for matmul_core
     attrs_["temp.padded_A_K"] = std::make_shared<VConst>();
@@ -112,6 +106,10 @@ body_generator_ptr managed_matmul_core_op_t::create_generator() {
             graph::extract_detail_from_tensors(get_inputs()),
             graph::extract_detail_from_tensors(get_outputs()));
     mat_gen->bwise_fusion_ = attrs_.get_or_else(op_attr_key::bwise_fuse, false);
+    auto mat_ptr = static_cast<gen_managed_matmul_core_t *>(mat_gen.get());
+    if (iim_block_ != -1) { mat_ptr->iim_block_ = iim_block_; }
+    if (iin_block_ != -1) { mat_ptr->iin_block_ = iin_block_; }
+    if (iik_block_ != -1) { mat_ptr->iik_block_ = iik_block_; }
     return std::move(mat_gen);
 }
 
@@ -142,6 +140,7 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
     const sc_dim K = A_dims.back();
     const sc_dim N = B_dims.back();
 
+    bool dynamic = is_dynamic();
     in_formats.reserve(2);
     sc_data_type_t A_dtype = info_.inputs_[0]->details_.dtype_;
     sc_data_type_t B_dtype = info_.inputs_[1]->details_.dtype_;
@@ -153,7 +152,7 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
     int iin_block = gen->iin_block_;
     int iik_block = gen->iik_block_;
     if (!config_data_) {
-        if (attrs_.get_or_else("transposed_a", false)) {
+        if (!dynamic && attrs_.get_or_else("transposed_a", false)) {
             config_data_ = gen->get_default_transposed_a_config(ctx);
         } else {
             config_data_ = create_generator()->get_default_config(ctx);
@@ -196,72 +195,190 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
                 && !info_.inputs_[1]->producer_owner_->get_inputs().empty();
     }
 
-    if (A_dims.size() == 2) {
-        if (A_dtype == datatypes::bf16 && A_format == sc_data_format_t::NK()) {
-            in_formats.push_back({sc_data_format_t::NK()});
-        } else {
-            if (constant_A || A_format.is_blocking() || M % iim_block
-                    || K % iik_block) {
-                in_formats.push_back(
-                        {sc_data_format_t::MKmk(iim_block, iik_block)});
-            } else {
-                in_formats.push_back({sc_data_format_t::MK()});
+    std::vector<int> blk_candidates = get_dynamic_block_candidates();
+    std::vector<int> m_blk_candidates = get_dynamic_batch_block_candidates();
+    bool transposed_a = attrs_.get_or_else("transposed_a", false);
+    bool transposed_b = attrs_.get_or_else("transposed_b", false);
+    sc_data_format_t ret_A_format, ret_B_format, ret_C_format;
+    auto cur_format_set = std::unordered_set<std::vector<sc_data_format_t>>();
+    auto cur_dispatch_key_set = dispatch_key_set_t();
+    std::vector<bool> is_padding = {false, true};
+    std::vector<bool> is_output_plain = {false, true};
+    bool first = true;
+    for (auto &m_b : m_blk_candidates) { // M
+        for (auto &n_b : blk_candidates) { // N
+            for (auto &k_b : blk_candidates) { // K
+                for (auto A_isp : is_padding) { // A is_padding
+                    for (auto B_isp : is_padding) { // B is_padding
+                        if (is_dynamic_dim(M)) { iim_block = m_b; }
+                        if (is_dynamic_dim(N)) { iin_block = n_b; }
+                        if (is_dynamic_dim(K)) { iik_block = k_b; }
+                        if (A_dims.size() == 2) {
+                            if (!dynamic && A_dtype == datatypes::bf16
+                                    && A_format == sc_data_format_t::NK()) {
+                                in_formats.push_back({sc_data_format_t::NK()});
+                            } else {
+                                if (constant_A
+                                        || (!dynamic && A_format.is_blocking())
+                                        || A_isp
+                                        || (!is_dynamic_dim(M) && M % iim_block)
+                                        || (!is_dynamic_dim(K)
+                                                && K % iik_block)) {
+                                    ret_A_format = sc_data_format_t::MKmk(
+                                            iim_block, iik_block);
+                                } else {
+                                    ret_A_format = sc_data_format_t::MK();
+                                }
+                                if (dynamic && A_format.is_blocking()) {
+                                    ret_A_format = A_format;
+                                    iim_block = transposed_a
+                                            ? A_format.blocks_[1]
+                                            : A_format.blocks_[0];
+                                    iik_block = transposed_a
+                                            ? A_format.blocks_[0]
+                                            : A_format.blocks_[1];
+                                }
+                                if (!dynamic) {
+                                    in_formats.push_back({ret_A_format});
+                                }
+                            }
+                        } else {
+                            COMPILE_ASSERT(0,
+                                    "managed_matmul_core only supports 2d "
+                                    "yet");
+                        }
+                        if (B_dims.size() == 2) {
+                            if (utils::is_one_of(B_dtype, datatypes::u8,
+                                        datatypes::s8)) {
+                                ret_B_format = sc_data_format_t::NKkn4k(
+                                        iik_block, iin_block);
+                            } else if (B_dtype == datatypes::bf16) {
+                                // do vnni reorder in template for
+                                // transposed matmul
+                                bool special_b
+                                        = B_format == sc_data_format_t::NK();
+                                if (!dynamic
+                                        && ((B_format == sc_data_format_t::MK()
+                                                    && attrs_.get_or_else(
+                                                            "transposed"
+                                                            "_a",
+                                                            false))
+                                                || (special_b
+                                                        && attrs_.get_or_else(
+                                                                "transposed"
+                                                                "_b",
+                                                                false)
+                                                        && M <= 512
+                                                        && K < 4096))) {
+                                    // do pre-op fusion for NK -> NKkn2k
+                                    // only when shapes are small.
+                                    ret_B_format = B_format;
+                                } else {
+                                    ret_B_format = sc_data_format_t::NKkn2k(
+                                            iik_block, iin_block);
+                                }
+                            } else {
+                                if (constant_B || B_isp
+                                        || (!dynamic && B_format.is_blocking())
+                                        || (!is_dynamic_dim(K) && K % iik_block)
+                                        || (!is_dynamic_dim(N)
+                                                && N % iin_block)) {
+                                    ret_B_format = sc_data_format_t::NKkn(
+                                            iik_block, iin_block);
+                                } else {
+                                    ret_B_format = sc_data_format_t::KN();
+                                }
+                            }
+                            if (!dynamic) {
+                                in_formats.push_back({ret_B_format});
+                            }
+                        } else {
+                            COMPILE_ASSERT(0,
+                                    "managed_matmul_core only supports 2d "
+                                    "yet");
+                        }
+                        if (constant_B || dynamic
+                                || (!is_dynamic_dim(M) && M % iim_block)
+                                || (!is_dynamic_dim(N) && N % iin_block)) {
+                            ret_C_format = sc_data_format_t(
+                                    sc_data_format_kind_t::
+                                            get_2dblocking_by_dims(
+                                                    C_dims.size(), false),
+                                    {iim_block, iin_block});
+                            if (!dynamic) {
+                                out_formats.push_back({ret_C_format});
+                            }
+                        } else {
+                            if (attrs_.get_or_else("transposed_b", false)) {
+                                out_formats.push_back(
+                                        {sc_data_format_t::get_plain_by_dims(
+                                                C_dims.size())});
+                            } else {
+                                sc_data_format_t out_fmt1(
+                                        sc_data_format_kind_t::
+                                                get_2dblocking_by_dims(
+                                                        C_dims.size(), false),
+                                        {iim_block, iin_block});
+                                auto out_fmt2
+                                        = sc_data_format_t::get_plain_by_dims(
+                                                C_dims.size());
+                                out_formats.push_back({out_fmt1, out_fmt2});
+                                in_formats[0].push_back(in_formats[0][0]);
+                                in_formats[1].push_back(in_formats[1][0]);
+                            }
+                        }
+                        std::vector<sc_data_format_t> ret_formats
+                                = {ret_A_format, ret_B_format, ret_C_format};
+                        if (dynamic) {
+                            std::vector<std::vector<sc_dim>> var_block
+                                    = {{iim_block, iik_block},
+                                            {iik_block, iin_block},
+                                            {iim_block, iin_block}};
+                            op_dispatch_key_t ret_key(var_block, ret_formats);
+                            cur_dispatch_key_set.set_.insert(ret_key);
+                            if (cur_format_set.find(ret_formats)
+                                    == cur_format_set.end()) {
+                                if (in_formats.empty()) {
+                                    in_formats.resize(2);
+                                }
+                                if (out_formats.empty()) {
+                                    out_formats.resize(1);
+                                }
+                                in_formats[0].emplace_back(ret_A_format);
+                                in_formats[1].emplace_back(ret_B_format);
+                                out_formats[0].emplace_back(ret_C_format);
+                                cur_format_set.insert(ret_formats);
+                            }
+                            if (first) {
+                                // reset default cfg to first candidate in
+                                // dynamic for try mode in fuse op pass.
+                                iim_block_ = iim_block;
+                                iin_block_ = iin_block;
+                                iik_block_ = iik_block;
+                                first = false;
+                            }
+                        }
+                        // break is B padding loop if it is static
+                        if (!is_dynamic_dim(K) && !is_dynamic_dim(N)) { break; }
+                    }
+                    // break is A padding loop if it is static
+                    if (!is_dynamic_dim(M) && !is_dynamic_dim(K)) { break; }
+                }
+                // break the k loop if it is static
+                if (!dynamic) { break; }
             }
+            // break the n loop if it is static
+            if (!dynamic) { break; }
         }
-    } else {
-        COMPILE_ASSERT(0, "managed_matmul_core only supports 2d yet");
+        // break the m loop if it is static
+        if (!dynamic) { break; }
     }
-    if (B_dims.size() == 2) {
-        if (utils::is_one_of(B_dtype, datatypes::u8, datatypes::s8)) {
-            in_formats.push_back(
-                    {sc_data_format_t::NKkn4k(iik_block, iin_block)});
-        } else if (B_dtype == datatypes::bf16) {
-            // do vnni reorder in template for transposed matmul
-            if ((B_format == sc_data_format_t::MK()
-                        && attrs_.get_or_else("transposed_a", false))
-                    || (B_format == sc_data_format_t::NK()
-                            && attrs_.get_or_else("transposed_b", false)
-                            && M <= 512 && K < 4096)) {
-                // do pre-op fusion for NK -> NKkn2k only when shapes are small.
-                in_formats.push_back({B_format});
-            } else {
-                in_formats.push_back(
-                        {sc_data_format_t::NKkn2k(iik_block, iin_block)});
-            }
-        } else {
-            if (constant_B || B_format.is_blocking() || K % iik_block
-                    || N % iin_block) {
-                in_formats.push_back(
-                        {sc_data_format_t::NKkn(iik_block, iin_block)});
-            } else {
-                in_formats.push_back({sc_data_format_t::KN()});
-            }
-        }
-    } else {
-        COMPILE_ASSERT(0, "managed_matmul_core only supports 2d yet");
+    if (dynamic) {
+        auto &dispatch_key_set = get_dispatch_key_set();
+        dispatch_key_set->get_inner_set().insert(
+                cur_dispatch_key_set.set_.begin(),
+                cur_dispatch_key_set.set_.end());
     }
-    if (constant_B || M % iim_block || N % iin_block) {
-        out_formats.push_back(
-                {sc_data_format_t(sc_data_format_kind_t::get_2dblocking_by_dims(
-                                          C_dims.size(), false),
-                        {iim_block, iin_block})});
-    } else {
-        if (attrs_.get_or_else("transposed_b", false)) {
-            out_formats.push_back(
-                    {sc_data_format_t::get_plain_by_dims(C_dims.size())});
-        } else {
-            out_formats.push_back(
-                    {sc_data_format_t(
-                             sc_data_format_kind_t::get_2dblocking_by_dims(
-                                     C_dims.size(), false),
-                             {iim_block, iin_block}),
-                            sc_data_format_t::get_plain_by_dims(
-                                    C_dims.size())});
-            in_formats[0].push_back(in_formats[0][0]);
-            in_formats[1].push_back(in_formats[1][0]);
-        }
-    }
-
     // To calculate padded K of input A
     auto pad_K_num = utils::divide_and_ceil(
             info_.inputs_[0]->details_.get_plain_dims().back(), iik_block);
@@ -271,14 +388,34 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
             in_formats, out_formats, supported_ins, supported_outs);
 }
 
+void managed_matmul_core_op_t::set_config_by_key(
+        const op_dispatch_key_t &key, const context_ptr &ctx) {
+    config_data_ = dyn_config_candidates_[key.impl_];
+    iim_block_ = key.var_block_[0][0];
+    iin_block_ = key.var_block_[1][1];
+    iik_block_ = key.var_block_[0][1];
+}
+
+sc_op_ptr managed_matmul_core_op_t::copy(
+        const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, sc_graph_t &mgr) {
+    auto ret = tunable_op_t::copy(ins, outs, mgr);
+    auto mmm = ret->dyn_cast<managed_matmul_core_op_t>();
+    mmm->iim_block_ = iim_block_;
+    mmm->iin_block_ = iin_block_;
+    mmm->iik_block_ = iik_block_;
+    return ret;
+}
+
 sc_op_ptr managed_matmul_core_op_t::do_compensations(
         sc_graph_t &mgr, const context_ptr &ctx) {
     need_compensation_ = false;
-    // whether we need special compensation for microkernel.
+    // whether we need special compensation for
+    // microkernel.
     bool s8s8_compensation = ctx->machine_.cpu_flags_.fAVX512VNNI
             && info_.inputs_[0]->details_.dtype_ == datatypes::s8
-            && (!ctx->flags_.brgemm_use_amx_
-                    || (ctx->flags_.brgemm_use_amx_
+            && (!ctx->machine_.brgemm_use_amx_
+                    || (ctx->machine_.brgemm_use_amx_
                             && !ctx->machine_.cpu_flags_.fAVX512AMXINT8));
 
     auto cur_node = shared_from_this();
@@ -486,7 +623,8 @@ sc_op_ptr managed_matmul_core_op_t::get_constant_compensation(sc_graph_t &mgr) {
     }
     COMPILE_ASSERT(
             data_zero_points.size() == 1 && weight_zero_points.size() == 1,
-            "matmul_core does not support per channel data/weight zero points "
+            "matmul_core does not support per channel "
+            "data/weight zero points "
             "compensation yet");
 
     auto K_orig = info_.inputs_[0]->details_.get_plain_dims().at(
@@ -494,7 +632,8 @@ sc_op_ptr managed_matmul_core_op_t::get_constant_compensation(sc_graph_t &mgr) {
 
     int K = static_cast<int>(K_orig);
     COMPILE_ASSERT(attrs_.has_key("temp.padded_A_K"),
-            "No related VConst set, which maybe cause correctness error")
+            "No related VConst set, which maybe cause "
+            "correctness error")
     auto constant_node = mgr.make("constant", {}, {},
             {{"values",
                      std::make_shared<static_data_t>(std::vector<int> {
@@ -503,7 +642,9 @@ sc_op_ptr managed_matmul_core_op_t::get_constant_compensation(sc_graph_t &mgr) {
                     {"format", sc_data_format_t()},
                     {"temp.val/var",
                             data_zero_points[0] * weight_zero_points[0]},
-                    {"temp.var", attrs_["temp.padded_A_K"]}});
+                    {"temp.var",
+                            attrs_["temp.padded_A_"
+                                   "K"]}});
     return constant_node;
 }
 
@@ -525,8 +666,10 @@ sc_dims managed_matmul_core_op_t::get_bwise_fuse_shrink_dims() {
          inp_p2b_map = inp_fmt.format_code_.collect_p2b_mapping();
 
     COMPILE_ASSERT(out_p2b_map.size() >= 2,
-            "Matmul core output should at least have MN dimension")
-    // validate input according shrinked output graph tensor
+            "Matmul core output should at least have "
+            "MN dimension")
+    // validate input according shrinked output graph
+    // tensor
     int cnt = 0;
     for (; cnt < bs_size; cnt++) {
         auto plain_pos = out_fmt.format_code_.get(cnt);

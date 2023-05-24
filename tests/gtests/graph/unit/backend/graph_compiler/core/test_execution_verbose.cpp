@@ -59,8 +59,8 @@ static map<string, shared_ptr<jit_engine_t>> test_jit_engines {
 #endif
 };
 
-TEST(GCCore_test_execution_verbose, TestTimer) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_test_execution_verbose, TestTimer) {
+    REQUIRE_AVX2();
     sc_graph_t g;
     auto ins = g.make_input(
             {graph_tensor::make({2, 2}), graph_tensor::make({2, 2})});

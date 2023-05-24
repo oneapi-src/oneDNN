@@ -107,7 +107,7 @@ struct prb_info_t {
         int best_messages = subgroup_messages(simd, 1, type_size);
         const dim_t inner_elems = inner_size / type_size;
         for (int i = 1; i < simd * 32; ++i) {
-            dim_t block_size = i * type_size;
+            dim_t block_size = i * (dim_t)type_size;
             if (block_size > max_block_size(hw)) break;
             if (block_size > max_read_size) break;
             if (i > max_elems) break;

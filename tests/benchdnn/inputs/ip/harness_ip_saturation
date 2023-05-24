@@ -1,5 +1,5 @@
 --reset
 --dir=FWD_D
---cfg=u8s8s32,u8s8s8,u8s8u8
+--dt=u8:s8:s32,u8:s8:s8,u8:s8:u8
 --attr-scales=wei:common:4294967295*
 ic16oc16ih1

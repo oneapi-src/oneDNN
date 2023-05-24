@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,6 +23,18 @@
 #define DST_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(DST, x0, x1, x2, x3, x4, x5)
 #define SRC0_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(SRC0, x0, x1, x2, x3, x4, x5)
 #define SRC1_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(SRC1, x0, x1, x2, x3, x4, x5)
+
+#if SRC1_DT_BF16
+#define SRC1_TO_FLOAT cvt_bf16_to_f32
+#else
+#define SRC1_TO_FLOAT CONVERT_FLOAT_T
+#endif
+
+#if SRC0_DT_BF16
+#define SRC0_TO_FLOAT cvt_bf16_to_f32
+#else
+#define SRC0_TO_FLOAT CONVERT_FLOAT_T
+#endif
 
 #if SRC0_DT_S8
 #define SRC0_BLOCK_READ(src) \

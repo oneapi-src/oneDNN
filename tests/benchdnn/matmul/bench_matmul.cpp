@@ -96,6 +96,18 @@ int verify_input(const settings_t &s, const settings_t &def) {
         }
     }
 
+    for (const auto &i_strides : s.strides) {
+        if (i_strides.size() != 1 && i_strides.size() != n_inputs) {
+            fprintf(stderr,
+                    "ERROR: matmul driver: `strides` option expects either a "
+                    "single input or three inputs in SRC, WEI, DST order. "
+                    "Current size is: \"%ld\"\n",
+                    (long)i_strides.size()),
+                    fflush(stderr);
+            SAFE_V(FAIL);
+        }
+    }
+
     for_(const auto &i_strides : s.strides)
     for_(const auto &i_stag : s.stag)
     for_(const auto &i_wtag : s.wtag)

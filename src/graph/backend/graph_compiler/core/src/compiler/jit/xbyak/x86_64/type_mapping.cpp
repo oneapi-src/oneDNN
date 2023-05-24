@@ -68,7 +68,7 @@ cpu_data_type get_cpu_data_type(sc_data_type_t t) {
         }
     } else if (t.lanes_ == 4) {
         switch (e) {
-            case sc_data_etype::BOOLEAN: return cpu_data_type::mask_x8;
+            case sc_data_etype::BOOLEAN: return cpu_data_type::mask_x4;
             case sc_data_etype::BF16: return cpu_data_type::uint_16_x4;
             case sc_data_etype::U16: return cpu_data_type::uint_16_x4;
             case sc_data_etype::U32: return cpu_data_type::uint_32_x4;
@@ -80,6 +80,8 @@ cpu_data_type get_cpu_data_type(sc_data_type_t t) {
     } else if (t.lanes_ == 8) {
         switch (e) {
             case sc_data_etype::BOOLEAN: return cpu_data_type::mask_x8;
+            case sc_data_etype::U8: return cpu_data_type::uint_8_x8;
+            case sc_data_etype::S8: return cpu_data_type::sint_8_x8;
             case sc_data_etype::BF16: return cpu_data_type::uint_16_x8;
             case sc_data_etype::U16: return cpu_data_type::uint_16_x8;
             case sc_data_etype::U32: return cpu_data_type::uint_32_x8;

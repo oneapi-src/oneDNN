@@ -26,7 +26,7 @@
 #include <util/any_map.hpp>
 
 using namespace dnnl::impl::graph::gc;
-TEST(GCCore_loop_transform_cpp, TestLoopTransform) {
+TEST(GCCore_CPU_loop_transform_cpp, TestLoopTransform) {
     builder::ir_builder_t builder;
 
     for_loop li, lj, lk, lp;
@@ -86,7 +86,7 @@ TEST(GCCore_loop_transform_cpp, TestLoopTransform) {
     EXPECT_TRUE(aaa->equals(bbb, cmper));
 }
 
-TEST(GCCore_loop_transform_cpp, LoopTransformSplit) {
+TEST(GCCore_CPU_loop_transform_cpp, LoopTransformSplit) {
     builder::ir_builder_t builder;
     builder.push_scope();
     for_loop li, lj;
@@ -125,7 +125,7 @@ TEST(GCCore_loop_transform_cpp, LoopTransformSplit) {
             "for i ");
 }
 
-TEST(GCCore_loop_transform_cpp, LoopTransformFuse) {
+TEST(GCCore_CPU_loop_transform_cpp, LoopTransformFuse) {
     builder::ir_builder_t builder;
     builder.push_scope();
     for_loop li, lj, lk, lp;
@@ -145,7 +145,7 @@ TEST(GCCore_loop_transform_cpp, LoopTransformFuse) {
     EXPECT_SC_ERROR(li->fuse(lj), "Transforming an invalid for-loop: ax");
 }
 
-TEST(GCCore_loop_transform_cpp, LoopTransformReorder) {
+TEST(GCCore_CPU_loop_transform_cpp, LoopTransformReorder) {
     builder::ir_builder_t builder;
     builder.push_scope();
     for_loop li, lj, lk, lp, lg;
@@ -176,7 +176,7 @@ TEST(GCCore_loop_transform_cpp, LoopTransformReorder) {
             "Cannot find the for-loop to replace in the parent stmt");
 }
 
-TEST(GCCore_loop_transform_cpp, LoopTransformReorderTwoLoops) {
+TEST(GCCore_CPU_loop_transform_cpp, LoopTransformReorderTwoLoops) {
     builder::ir_builder_t builder;
     builder.push_scope();
     for_loop li, lj;
@@ -198,7 +198,7 @@ TEST(GCCore_loop_transform_cpp, LoopTransformReorderTwoLoops) {
     EXPECT_TRUE(body->equals(builder.pop_scope(), cmper));
 }
 
-TEST(GCCore_loop_transform_cpp, LoopTransformMergeGood) {
+TEST(GCCore_CPU_loop_transform_cpp, LoopTransformMergeGood) {
     builder::ir_builder_t builder;
     builder.push_scope();
     for_loop li, lj;
@@ -221,7 +221,7 @@ TEST(GCCore_loop_transform_cpp, LoopTransformMergeGood) {
     EXPECT_TRUE(body->equals(builder.pop_scope(), cmper));
 }
 
-TEST(GCCore_loop_transform_cpp, LoopTransformMergeDeath) {
+TEST(GCCore_CPU_loop_transform_cpp, LoopTransformMergeDeath) {
     builder::ir_builder_t builder;
     for_loop li, lj;
     stmt body;
@@ -259,7 +259,7 @@ TEST(GCCore_loop_transform_cpp, LoopTransformMergeDeath) {
             "Invalid for-loop. It has been fused or merged");
 }
 
-TEST(GCCore_loop_transform_cpp, LoopTransformMergeMultiGood) {
+TEST(GCCore_CPU_loop_transform_cpp, LoopTransformMergeMultiGood) {
     builder::ir_builder_t builder;
     for_loop li, lj;
     stmt body;
@@ -302,7 +302,7 @@ TEST(GCCore_loop_transform_cpp, LoopTransformMergeMultiGood) {
     EXPECT_TRUE(body->equals(builder.pop_scope(), cmper));
 }
 
-TEST(GCCore_loop_transform_cpp, LoopTransformMergeAll) {
+TEST(GCCore_CPU_loop_transform_cpp, LoopTransformMergeAll) {
     builder::ir_builder_t builder;
     builder.push_scope();
     for_loop li, lj;
@@ -340,7 +340,7 @@ TEST(GCCore_loop_transform_cpp, LoopTransformMergeAll) {
     EXPECT_TRUE(body->equals(builder.pop_scope(), cmper));
 }
 
-TEST(GCCore_loop_transform_cpp, LoopMergeRecursivePass) {
+TEST(GCCore_CPU_loop_transform_cpp, LoopMergeRecursivePass) {
     builder::ir_builder_t builder;
     for_loop li[3];
     builder.push_scope();
@@ -382,7 +382,7 @@ TEST(GCCore_loop_transform_cpp, LoopMergeRecursivePass) {
     // std::cout << cmper << std::endl;
 }
 
-TEST(GCCore_loop_transform_cpp, LoopMergePass) {
+TEST(GCCore_CPU_loop_transform_cpp, LoopMergePass) {
     builder::ir_builder_t builder;
     for_loop li[3];
     builder.push_scope();
@@ -438,7 +438,7 @@ TEST(GCCore_loop_transform_cpp, LoopMergePass) {
     EXPECT_TRUE(out->equals(body, cmper));
 }
 
-TEST(GCCore_loop_transform_cpp, LoopMergeWithExprPass) {
+TEST(GCCore_CPU_loop_transform_cpp, LoopMergeWithExprPass) {
     builder::ir_builder_t builder;
     for_loop li[4];
     builder.push_scope();
@@ -480,7 +480,7 @@ TEST(GCCore_loop_transform_cpp, LoopMergeWithExprPass) {
     // std::cout << cmper << std::endl;
 }
 
-TEST(GCCore_loop_transform_cpp, LoopUnrollPass) {
+TEST(GCCore_CPU_loop_transform_cpp, LoopUnrollPass) {
     builder::ir_builder_t builder;
     for_loop li, li2, lj, lj1;
     builder.push_scope();
@@ -542,7 +542,7 @@ TEST(GCCore_loop_transform_cpp, LoopUnrollPass) {
     EXPECT_TRUE(cmper.compare(expected, out, false));
 }
 
-TEST(GCCore_loop_transform_cpp, Unroll) {
+TEST(GCCore_CPU_loop_transform_cpp, Unroll) {
     builder::ir_builder_t builder;
     for_loop lo1, lo2, lo3, lo4;
     for_loop lr1, lr2, lr3, lr4;
@@ -649,7 +649,7 @@ TEST(GCCore_loop_transform_cpp, Unroll) {
     EXPECT_TRUE(cmp.compare(body, expected, false));
 }
 
-TEST(GCCore_loop_transform_cpp, UnrollBad) {
+TEST(GCCore_CPU_loop_transform_cpp, UnrollBad) {
     builder::ir_builder_t builder;
     builder.push_scope();
     for_loop lo1, lo2;
@@ -670,7 +670,7 @@ TEST(GCCore_loop_transform_cpp, UnrollBad) {
             lo1->unroll(2), "Only allow local variables in unroll, got:");
 }
 
-TEST(GCCore_loop_transform_cpp, SerialMerge) {
+TEST(GCCore_CPU_loop_transform_cpp, SerialMerge) {
     builder::ir_builder_t builder;
     for_loop lo1, lo2;
     builder.push_scope();

@@ -127,7 +127,7 @@ INLINE vec_s32x16 operator<<(vec_s32x16 const &a, vec_s32x16 const &b) {
     return _mm512_sllv_epi32(a.v, b.v);
 }
 INLINE vec_s32x16 operator>>(vec_s32x16 const &a, vec_s32x16 const &b) {
-    return _mm512_srlv_epi32(a.v, b.v);
+    return _mm512_srav_epi32(a.v, b.v);
 }
 
 // operator /

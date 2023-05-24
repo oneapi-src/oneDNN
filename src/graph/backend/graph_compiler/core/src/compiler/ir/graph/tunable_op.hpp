@@ -74,12 +74,14 @@ public:
 
     void search_anchor(mixed_parti_t *parti) override;
 
-    void commit_into_anchor(mixed_parti_t *parti) override;
+    void commit_into_anchor(fuse_anchor_map_t *committed_anchor) override;
 
     config_ptr_vec get_dynamic_config_candidates(
             const context_ptr &ctx) override;
     impl_kind_map convert_config_candidates_to_impl_map(
             const config_ptr_vec &configs) override;
+    std::vector<int> get_impl_dispatch_candidates(
+            const context_ptr &ctx) override;
 
     virtual body_generator_ptr create_generator() = 0;
 

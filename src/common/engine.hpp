@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,6 +30,10 @@
 #include "primitive_desc.hpp"
 #include "utils.hpp"
 
+#ifdef ONEDNN_BUILD_GRAPH
+#include "graph/interface/allocator.hpp"
+#endif
+
 /** \brief An abstraction of an execution unit with shared resources
  *
  * Responsibilities:
@@ -42,8 +46,16 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
         : kind_(kind)
         , runtime_kind_(runtime_kind)
         , index_(index)
-        , allocator_(nullptr) // no default allocator
-        , counter_(1) {}
+#ifdef ONEDNN_BUILD_GRAPH
+        , allocator_(nullptr)
+#endif
+        , counter_(1) {
+#ifdef ONEDNN_BUILD_GRAPH
+        // set the default allocator. Used by graph implementation.
+        allocator_.reset(dnnl::impl::graph::allocator_t::create(),
+                [](dnnl::impl::graph::allocator_t *a) { a->release(); });
+#endif
+    }
 
     /** get kind of the current engine */
     dnnl::impl::engine_kind_t kind() const { return kind_; }
@@ -119,9 +131,14 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
 
     virtual bool mayiuse_f16_accumulator_with_f16() const { return false; }
 
+#ifdef ONEDNN_BUILD_GRAPH
     /** only used in graph implementation **/
-    void *get_allocator() const { return allocator_; };
-    void set_allocator(void *allocator) { allocator_ = allocator; }
+    void *get_allocator() const { return allocator_.get(); };
+    void set_allocator(dnnl::impl::graph::allocator_t *alloc) {
+        allocator_.reset(dnnl::impl::graph::allocator_t::create(alloc),
+                [](dnnl::impl::graph::allocator_t *a) { a->release(); });
+    }
+#endif
 
     void retain() { counter_++; }
 
@@ -134,8 +151,10 @@ protected:
     dnnl::impl::runtime_kind_t runtime_kind_;
     size_t index_;
 
+#ifdef ONEDNN_BUILD_GRAPH
     /** only used in graph implementation **/
-    void *allocator_;
+    std::shared_ptr<dnnl::impl::graph::allocator_t> allocator_ {nullptr};
+#endif
 
     virtual ~dnnl_engine() = default;
 

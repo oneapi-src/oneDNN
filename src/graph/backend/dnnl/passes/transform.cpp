@@ -1403,6 +1403,10 @@ status_t expand_convtranspose_scales(std::shared_ptr<subgraph_t> &sg) {
                     || in1.get_kind() != op_kind::dnnl_mul_scales)
                 continue;
 
+            if (in1.has_attr(op_attr::qtype)
+                    && in1.get_attr<std::string>(op_attr::qtype)
+                            == "per_tensor")
+                continue;
             auto dq_wei_scales
                     = in1.get_attr<std::vector<float>>(op_attr::scales);
             int64_t group = op->get_attr<int64_t>(op_attr::groups);
@@ -3258,6 +3262,13 @@ status_t remove_quant_data_with_no_effect(std::shared_ptr<subgraph_t> &sg) {
         if (cur_op->get_kind() == op_kind::dnnl_mul_scales
                 || cur_op->get_kind() == op_kind::dnnl_add_zps
                 || cur_op->get_kind() == op_kind::dnnl_sub_zps) {
+            bool dync_quantization
+                    = cur_op->has_attr(op_attr::with_runtime_scales)
+                    && cur_op->get_attr<bool>(op_attr::with_runtime_scales);
+            if (dync_quantization) continue;
+            dync_quantization = cur_op->has_attr(op_attr::with_runtime_zps)
+                    && cur_op->get_attr<bool>(op_attr::with_runtime_zps);
+            if (dync_quantization) continue;
             quant_data_ops.emplace_back(cur_op);
         }
     }
@@ -3289,9 +3300,18 @@ status_t remove_quant_data_with_no_effect(std::shared_ptr<subgraph_t> &sg) {
             value_ptr quant_data_out_val = quant_data_op->get_output_value(0);
             value_ptr quant_data_in_val = quant_data_op->get_input_value(0);
             if (is_dequantize(quant_data_op)) {
-                assertm(!quant_data_out_val->get_consumers().empty(),
-                        "dequantize op should have successor op");
-                rewriter.fuse_op_to_successor(quant_data_op);
+                if (!quant_data_out_val->get_consumers().empty())
+                    rewriter.fuse_op_to_successor(quant_data_op);
+                else if (quant_data_in_val->has_producer()) {
+                    quant_data_in_val->get_producer().connect_output(
+                            quant_data_in_val->get_offset(),
+                            quant_data_out_val);
+                    rewriter.to_remove(quant_data_op);
+                } else {
+                    op_ptr tc_op
+                            = std::make_shared<op_t>(op_kind::dnnl_reorder);
+                    rewriter.replace_op(quant_data_op, tc_op);
+                }
             } else {
                 if (quant_data_in_val->has_producer()) {
                     quant_data_in_val->get_producer().connect_output(

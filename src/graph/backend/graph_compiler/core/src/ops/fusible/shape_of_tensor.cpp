@@ -23,7 +23,7 @@
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/utils.hpp>
-#include <runtime/dynamic_dispatch/utils.hpp>
+#include <runtime/dynamic_dispatch/ops/config.hpp>
 namespace dnnl {
 namespace impl {
 namespace graph {

@@ -89,9 +89,11 @@
 --dt=f32,bf16
 --dir=FWD_D,BWD_DW      --flags=A,CHA,GCHA        --batch=shapes_topologies_small
 
-# Test layers of some key GPU DL Frameworks
+# Test layers of some key and ext GPU DL Frameworks
 --reset
 --batch=option_set_fwks_key_gpu
+--reset
+--batch=option_set_fwks_ext_gpu
 
 # Test relu non-zero alpha
 --reset

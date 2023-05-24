@@ -14,6 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include "exception_util.hpp"
+#include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/ir_comparer.hpp>
 #include <compiler/ir/transform/cpu/target_specific_lower.hpp>
@@ -38,12 +40,14 @@ void check(const func_t &aaa, uint64_t contents_size, uint64_t seq_size,
     auto &body = seq->seq_;
     auto call_n = body[idx].checked_as<assign>()->value_.as<call>();
     ASSERT_TRUE(call_n.defined());
-    EXPECT_EQ(std::dynamic_pointer_cast<func_base>(call_n->func_)->name_, name);
+    auto funct = std::dynamic_pointer_cast<func_base>(call_n->func_);
+    ASSERT_TRUE(funct);
+    EXPECT_EQ(funct->name_, name);
     EXPECT_EQ(call_n->attr().get_or_else("inline_level", 0), 2);
     EXPECT_EQ(retmod->get_func(name), call_n->func_);
 }
 
-TEST(GCCore_target_specific_lower_cpp, TestLowerIntrinsics) {
+TEST(GCCore_CPU_target_specific_lower_cpp, TestLowerIntrinsics) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, aaa, _arg_("A", datatypes::f32, {123, 321})) {
         _bind_(A);
@@ -61,7 +65,7 @@ TEST(GCCore_target_specific_lower_cpp, TestLowerIntrinsics) {
     check(aaa, 5, 5, 4, "_should_inline_exp_f32x16");
 }
 
-TEST(GCCore_target_specific_lower_cpp, TestLowerIntrinsics2) {
+TEST(GCCore_CPU_target_specific_lower_cpp, TestLowerIntrinsics2) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, aaa, _arg_("A", datatypes::f32, {123, 321})) {
         _bind_(A);
@@ -84,7 +88,7 @@ static expr make_const(int64_t v, uint32_t lanes) {
     return make_expr<constant_node>(v, sc_data_type_t::s32(lanes));
 }
 
-TEST(GCCore_target_specific_lower_cpp, TestLowerSaturatedCast) {
+TEST(GCCore_CPU_target_specific_lower_cpp, TestLowerSaturatedCast) {
     builder::ir_builder_t builder;
 
     _function_(datatypes::void_t, aaa) {
@@ -156,4 +160,35 @@ TEST(GCCore_target_specific_lower_cpp, TestLowerSaturatedCast) {
     }
     ir_comparer cmper {true};
     EXPECT_TRUE(cmper.compare(ret, expected, false));
+}
+
+TEST(GCCore_CPU_target_specific_lower_cpp, TestLowerGetTidGid) {
+    builder::ir_builder_t builder;
+    _function_(datatypes::void_t, aaa, _arg_("A", datatypes::f32, {123, 321})) {
+        _bind_(A);
+        A[0] = builder::make_get_group_thread_id(-1);
+    }
+    _function_(datatypes::void_t, expected,
+            _arg_("A", datatypes::f32, {123, 321})) {
+        _bind_(A);
+        A[0] = builtin::get_thread_id_func()();
+    }
+    target_specific_lowering_cpu_t pass {get_default_context()};
+    auto ret = pass(ir_module_t::from_entry_func(get_default_context(), aaa));
+    ir_comparer cmper {true};
+    EXPECT_TRUE(cmper.compare(ret->get_entry_func(), expected, false));
+
+    _function_(datatypes::void_t, ccc, _arg_("A", datatypes::f32, {123, 321})) {
+        _bind_(A);
+        A[0] = builder::make_get_group_thread_id(0);
+    }
+    auto cccmod = ir_module_t::from_entry_func(get_default_context(), ccc);
+    EXPECT_SC_ERROR(pass(cccmod), "get_group_thread_id");
+
+    _function_(datatypes::void_t, ddd, _arg_("A", datatypes::f32, {123, 321})) {
+        _bind_(A);
+        A[0] = builder::make_get_group_id(0);
+    }
+    auto ddddmod = ir_module_t::from_entry_func(get_default_context(), ddd);
+    EXPECT_SC_ERROR(pass(ddddmod), "get_group_id");
 }

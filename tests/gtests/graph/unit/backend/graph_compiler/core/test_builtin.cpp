@@ -24,7 +24,7 @@
 
 using namespace dnnl::impl::graph::gc;
 
-TEST(GCCore_builtin_cpp, TestBrgemmOnednn) {
+TEST(GCCore_CPU_builtin_cpp, TestBrgemmOnednn) {
     REQUIRE_AVX512();
     builder::ir_builder_t builder;
     const int M = 32;

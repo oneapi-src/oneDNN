@@ -63,6 +63,8 @@
 g1ic16iw5oc16ow5kw1pw0
 
 
-# Test layers of some key GPU DL Frameworks
+# Test layers of some key and ext GPU DL Frameworks
 --reset
 --batch=option_set_fwks_key_gpu
+--reset
+--batch=option_set_fwks_ext_gpu

@@ -116,6 +116,16 @@ int str2desc(desc_t *desc, const char *str) {
     return OK;
 }
 
+dnnl_data_type_t prb_t::get_dt(data_kind_t data_kind) const {
+    switch (data_kind) {
+        case SRC: return src_dt();
+        case WEI: return wei_dt();
+        case BIA: return bia_dt();
+        case DST: return dst_dt();
+        default: assert(!"unexpected data_kind"); return dnnl_data_type_undef;
+    }
+}
+
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     bool print_d = true, print_h = true, print_w = true;
     print_dhw(print_d, print_h, print_w, d.ndims, {d.id}, {d.ih}, {d.iw});
@@ -140,8 +150,12 @@ std::string prb_t::set_repro_line() {
     dump_global_params(s);
     settings_t def;
 
+    bool has_default_dts = true;
+    for (const auto &i_dt : dt)
+        has_default_dts = has_default_dts && i_dt == dnnl_f32;
+
     if (canonical || dir != def.dir[0]) s << "--dir=" << dir << " ";
-    if (canonical || cfg != def.cfg[0]) s << "--cfg=" << cfg << " ";
+    if (canonical || !has_default_dts) s << "--dt=" << dt << " ";
     if (canonical || stag != def.stag[0]) s << "--stag=" << stag << " ";
     if (canonical || wtag != def.wtag[0]) s << "--wtag=" << wtag << " ";
     if (canonical || dtag != def.dtag[0]) s << "--dtag=" << dtag << " ";

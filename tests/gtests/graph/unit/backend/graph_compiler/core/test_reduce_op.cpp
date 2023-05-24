@@ -42,13 +42,11 @@ static void do_test_reduce_op(const sc_dims &in_shape,
         int out_size, sc_data_type_t in_dtype,
         const std::function<std::vector<float>(std::vector<float> &)>
                 &ref_func) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     sc_graph_t graph;
     auto input = graph.make_input(
             {graph_tensor::make(in_shape, sc_data_format_t(), in_dtype)});
-    auto reduce = graph.make(reduce_name, {input->get_outputs()[0]},
-            {graph_tensor::make(sc_dims({3}), sc_data_format_t(),
-                    input->get_outputs()[0]->details_.dtype_)},
+    auto reduce = graph.make(reduce_name, {input->get_outputs()[0]}, {},
             {
                     {"rd_axis", rd_axis},
                     {"keep_dims", false},
@@ -79,7 +77,7 @@ static void do_test_reduce_op(const sc_dims &in_shape,
     test_utils::compare_data(out_f32, ref_out);
 }
 
-TEST(GCCore_reduce_op_cpp, TestReduceOp1) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp1) {
     const int out_size = 3;
     do_test_reduce_op<float>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
             "reduce_sum", out_size, datatypes::f32,
@@ -96,7 +94,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp1) {
 }
 
 // test reduce on all axis with predefined output tensor
-TEST(GCCore_reduce_op_cpp, TestReduceOp2) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp2) {
     const int out_size = 1;
     do_test_reduce_op<float>(sc_dims({3, 3, 3}), std::vector<int>({0, 1, 2}),
             "reduce_sum", out_size, datatypes::f32,
@@ -110,7 +108,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp2) {
 }
 
 // test reduce on all axis with auto-infered output tensor
-TEST(GCCore_reduce_op_cpp, TestReduceOp3) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp3) {
     const int out_size = 1;
     do_test_reduce_op<float>(sc_dims({3, 3, 3, 3}),
             std::vector<int>({0, 1, 2, 3}), "reduce_sum", out_size,
@@ -140,10 +138,9 @@ static void test_single_mul(int lastdim) {
                 return ref_out;
             });
 }
-TEST(GCCore_reduce_op_cpp, TestReduceOp4) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp4) {
     test_single_mul(3);
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(1);
+    SET_THREADS_OR_SKIP(1);
     test_single_mul(256);
 }
 
@@ -165,15 +162,14 @@ static void test_single_max() {
             });
 }
 
-TEST(GCCore_reduce_op_cpp, TestReduceOp5) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp5) {
     test_single_max();
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(1);
+    SET_THREADS_OR_SKIP(1);
     test_single_max();
 }
 
 // test reduce mean
-TEST(GCCore_reduce_op_cpp, TestReduceOp6) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp6) {
     const int out_size = 3;
     do_test_reduce_op<float>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
             "reduce_mean", out_size, datatypes::f32,
@@ -190,7 +186,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp6) {
 }
 
 // test reduce min
-TEST(GCCore_reduce_op_cpp, TestReduceOp7) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp7) {
     const int out_size = 3;
     do_test_reduce_op<float>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
             "reduce_min", out_size, datatypes::f32,
@@ -208,7 +204,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp7) {
 }
 
 // test bf16 reduce max
-TEST(GCCore_reduce_op_cpp, TestReduceOp8) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp8) {
     const int out_size = 3;
     do_test_reduce_op<bf16_t>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
             "reduce_max", out_size, datatypes::bf16,
@@ -227,7 +223,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp8) {
 }
 
 // test bf16 reduce min
-TEST(GCCore_reduce_op_cpp, TestReduceOp9) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp9) {
     const int out_size = 3;
     do_test_reduce_op<bf16_t>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
             "reduce_min", out_size, datatypes::bf16,
@@ -245,7 +241,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp9) {
 }
 
 // test s8 reduce max
-TEST(GCCore_reduce_op_cpp, TestReduceOp10) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp10) {
     REQUIRE_PARALLEL();
     const int out_size = 3;
     do_test_reduce_op<int8_t>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
@@ -265,7 +261,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp10) {
 }
 
 // test s8 reduce min
-TEST(GCCore_reduce_op_cpp, TestReduceOp11) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp11) {
     REQUIRE_PARALLEL();
     const int out_size = 3;
     do_test_reduce_op<int8_t>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
@@ -284,7 +280,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp11) {
 }
 
 // test u8 reduce max
-TEST(GCCore_reduce_op_cpp, TestReduceOp12) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp12) {
     REQUIRE_PARALLEL();
     const int out_size = 3;
     do_test_reduce_op<uint8_t>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
@@ -304,7 +300,7 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp12) {
 }
 
 // test u8 reduce min
-TEST(GCCore_reduce_op_cpp, TestReduceOp13) {
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp13) {
     REQUIRE_PARALLEL();
     const int out_size = 3;
     do_test_reduce_op<uint8_t>(sc_dims({3, 3, 3}), std::vector<int>({1, 2}),
@@ -322,9 +318,28 @@ TEST(GCCore_reduce_op_cpp, TestReduceOp13) {
             });
 }
 
+// test all reduce + partial reduce + last reduce
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp14) {
+    GTEST_SKIP();
+    const int out_size = 1;
+    // set num threads to trigger corner condition
+    SET_THREADS_OR_SKIP(4);
+    do_test_reduce_op<float>(sc_dims({3, 3, 3, 3}),
+            std::vector<int>({0, 1, 2, 3}), "reduce_sum", out_size,
+            datatypes::f32, [&](std::vector<float> &input) {
+                auto ref_out = std::vector<float>(out_size, 0);
+                ref_out[0] = 0;
+                for (size_t i = 0; i < input.size(); ++i)
+                    ref_out[0] += input[i];
+                return ref_out;
+            });
+}
+
 // test reduce on all axis with fusing enabled
-TEST(GCCore_reduce_op_cpp, TestReduceOpFuse) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_reduce_op_cpp, TestReduceOpFuse) {
+    REQUIRE_AVX2();
+    // auto skip in avoid of reduce split
+    if (runtime_config_t::get().get_num_threads() < 6) { GTEST_SKIP(); }
     sc_graph_t graph;
     sc_dims in_shape = {3, 3, 3, 3};
     auto input_a = graph.make_input(
@@ -428,15 +443,15 @@ public:
     }
 };
 // test gemm+relu+reduce+add. Reduction on K axis for MK
-static void do_test_last_axis(bool reduce_output, bool input_plain,
+static void do_test_last_axis(bool &done, bool reduce_output, bool input_plain,
         bool keep_dims, bool mean, test_buffer<float> &out,
         test_buffer<float> &refout, int rd_axis = 1, int num_threads = 16,
         bool use_mixed_fuse = false) {
-    thread_num_reset reseter;
-    sc_graph_t graph;
+    done = false;
     const int shape = 1024;
-    runtime_config_t::get().set_num_threads(
-            num_threads); // make sure matmul has last level fusion anchor
+    sc_graph_t graph;
+    SET_THREADS_OR_SKIP(num_threads);
+    // make sure matmul has last level fusion anchor
     sc_data_format_t fmt1 = input_plain ? sc_data_format_t::MK()
                                         : sc_data_format_t::MKmk(32, 32);
     sc_data_format_t fmt2 = sc_data_format_t::MK();
@@ -499,7 +514,9 @@ static void do_test_last_axis(bool reduce_output, bool input_plain,
     }
 
     auto fptr = jit_engine_t::make(get_test_ctx())->get_entry_func(f, true);
-    runtime_config_t::get().set_num_threads(reseter.old_);
+    if (!runtime_config_t::get().set_num_threads(reseter__.old_)) {
+        GTEST_SKIP();
+    }
 
     auto in_a = alloc_array<float>(shape * shape);
     auto &fmt = input_a->get_outputs()[0]->details_.get_format();
@@ -565,80 +582,90 @@ static void do_test_last_axis(bool reduce_output, bool input_plain,
         refout = std::move(ref_tmp);
     }
 
-    runtime_config_t::get().set_num_threads(num_threads);
+    if (!runtime_config_t::get().set_num_threads(num_threads)) { GTEST_SKIP(); }
     fptr->call_default(out.data(), in_a.data(), in_b.data());
+    done = true;
 }
 
-TEST(GCCore_reduce_op_cpp, TestPartialReduceAsOutput) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_reduce_op_cpp, TestPartialReduceAsOutput) {
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
-    do_test_last_axis(true, true, true, false, out, refout, 0);
-    test_utils::compare_data(out, refout);
+    bool done = false;
+    do_test_last_axis(done, true, true, true, false, out, refout, 0);
+    if (done) test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestPartialReduceAsOutputMixedFuse) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_reduce_op_cpp, TestPartialReduceAsOutputMixedFuse) {
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
-    do_test_last_axis(true, true, true, false, out, refout, 0, 16, true);
-    test_utils::compare_data(out, refout);
+    bool done = false;
+    do_test_last_axis(done, true, true, true, false, out, refout, 0, 16, true);
+    if (done) test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestPartialReduceAsOutputNoKeepDims) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_reduce_op_cpp, TestPartialReduceAsOutputNoKeepDims) {
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
-    do_test_last_axis(true, true, false, false, out, refout, 0);
-    test_utils::compare_data(out, refout);
+    bool done = false;
+    do_test_last_axis(done, true, true, false, false, out, refout, 0);
+    if (done) test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestPartialReduceAsOutputAllReduce) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_reduce_op_cpp, TestPartialReduceAsOutputAllReduce) {
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
-    do_test_last_axis(true, true, true, false, out, refout, -1);
-    test_utils::compare_data(out, refout);
+    bool done = false;
+    do_test_last_axis(done, true, true, true, false, out, refout, -1);
+    if (done) test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceAsOutput) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceAsOutput) {
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
-    do_test_last_axis(true, true, true, false, out, refout);
-    test_utils::compare_data(out, refout);
+    bool done = false;
+    do_test_last_axis(done, true, true, true, false, out, refout);
+    if (done) test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceAsOutputNoKeepDims) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceAsOutputNoKeepDims) {
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
-    do_test_last_axis(true, true, false, false, out, refout);
-    test_utils::compare_data(out, refout);
+    bool done = false;
+    do_test_last_axis(done, true, true, false, false, out, refout);
+    if (done) test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotOutput) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNotOutput) {
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
-    do_test_last_axis(false, true, true, false, out, refout);
-    test_utils::compare_data(out, refout);
+    bool done = false;
+    do_test_last_axis(done, false, true, true, false, out, refout);
+    if (done) test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceBlockingNotOutput) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceBlockingNotOutput) {
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
-    do_test_last_axis(false, false, true, false, out, refout);
-    test_utils::compare_data(out, refout);
+    bool done = false;
+    do_test_last_axis(done, false, false, true, false, out, refout);
+    if (done) test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceAsOutputNoKeepDimsMean) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceAsOutputNoKeepDimsMean) {
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
-    do_test_last_axis(true, true, false, true, out, refout);
-    test_utils::compare_data(out, refout);
+    bool done = false;
+    do_test_last_axis(done, true, true, false, true, out, refout);
+    if (done) test_utils::compare_data(out, refout);
 }
 
 // test bmm+relu+reduce+add. Reduction on M axis for B_MN
@@ -736,40 +763,41 @@ static void do_test_not_last_axis(bool reduce_output, bool input_plain,
     fptr->call_default(out.data(), in_a.data(), in_b.data());
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisNotOutput) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNotLastAxisNotOutput) {
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_not_last_axis(false, true, true, false, out, refout);
     test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutput) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutput) {
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_not_last_axis(true, true, true, false, out, refout);
     test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutputNoKeepDims) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_reduce_op_cpp,
+        TestTwoStageReduceNotLastAxisAsOutputNoKeepDims) {
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_not_last_axis(true, true, false, false, out, refout);
     test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisBlockingNotOutput) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNotLastAxisBlockingNotOutput) {
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_not_last_axis(false, false, true, false, out, refout);
     test_utils::compare_data(out, refout);
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutputMean) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutputMean) {
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_not_last_axis(true, true, true, true, out, refout);
@@ -781,8 +809,8 @@ static void do_no_main_op_single_core(
     thread_num_reset reseter;
     sc_graph_t graph;
     const int shape = 1024;
-    runtime_config_t::get().set_num_threads(
-            1); // make sure matmul has last level fusion anchor
+    if (!runtime_config_t::get().set_num_threads(1)) { GTEST_SKIP(); }
+    // make sure matmul has last level fusion anchor
     sc_data_format_t fmt1 = sc_data_format_t::MK();
     std::vector<int> rdax {0};
     auto input_a = graph.make_input({graph_tensor::make({shape, shape}, fmt1)});
@@ -806,8 +834,9 @@ static void do_no_main_op_single_core(
     ASSERT_TRUE(thefunc);
 
     auto fptr = jit_engine_t::make(get_test_ctx())->get_entry_func(f, true);
-    runtime_config_t::get().set_num_threads(reseter.old_);
-
+    if (!runtime_config_t::get().set_num_threads(reseter.old_)) {
+        GTEST_SKIP();
+    }
     auto in_a = alloc_array<float>(shape * shape);
     size_t out_size = shape;
 
@@ -828,12 +857,12 @@ static void do_no_main_op_single_core(
 
     refout = std::move(ref_tmp);
 
-    runtime_config_t::get().set_num_threads(1);
+    if (!runtime_config_t::get().set_num_threads(1)) { GTEST_SKIP(); }
     fptr->call_default(out.data(), in_a.data());
 }
 
-TEST(GCCore_reduce_op_cpp, TestTwoStageReduceNoMainOp) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNoMainOp) {
+    REQUIRE_AVX2();
     test_buffer<float> out;
     test_buffer<float> refout;
     do_no_main_op_single_core(out, refout);
@@ -845,8 +874,8 @@ static void do_test_bf16(
     thread_num_reset reseter;
     sc_graph_t graph;
     const int shape = 1024;
-    runtime_config_t::get().set_num_threads(
-            16); // make sure matmul has last level fusion anchor
+    if (!runtime_config_t::get().set_num_threads(16)) { GTEST_SKIP(); }
+    // make sure matmul has last level fusion anchor
     sc_data_format_t fmt1 = sc_data_format_t::MK();
     auto input_a = graph.make_input(
             {graph_tensor::make({shape, shape}, fmt1, datatypes::bf16)});
@@ -872,7 +901,9 @@ static void do_test_bf16(
     ASSERT_TRUE(thefunc);
 
     auto fptr = jit_engine_t::make(get_test_ctx())->get_entry_func(f, true);
-    runtime_config_t::get().set_num_threads(reseter.old_);
+    if (!runtime_config_t::get().set_num_threads(reseter.old_)) {
+        GTEST_SKIP();
+    }
 
     auto in_a = alloc_array<bf16_t>(shape * shape);
     out = alloc_array<bf16_t>(shape, INIT_NOOP);
@@ -886,11 +917,11 @@ static void do_test_bf16(
     });
     utils::parallel_for(
             0, shape, 1, [&](int64_t j) { refout[j] = bf16_t(ref_outf32[j]); });
-    runtime_config_t::get().set_num_threads(16);
+    if (!runtime_config_t::get().set_num_threads(16)) { GTEST_SKIP(); }
     fptr->call_default(out.data(), in_a.data());
 }
 
-TEST(GCCore_reduce_op_cpp, TestPartialBf16) {
+TEST(GCCore_CPU_reduce_op_cpp, TestPartialBf16) {
     REQUIRE_BF16();
     test_buffer<bf16_t> out;
     test_buffer<bf16_t> refout;

@@ -256,6 +256,11 @@ struct sc_data_traits_t<uint8_t> {
     static constexpr sc_data_type_t type() { return datatypes::u8; }
 };
 
+struct bf16_t;
+template <>
+struct sc_data_traits_t<bf16_t> {
+    static constexpr sc_data_type_t type() { return datatypes::bf16; }
+};
 } // namespace gc
 } // namespace graph
 } // namespace impl

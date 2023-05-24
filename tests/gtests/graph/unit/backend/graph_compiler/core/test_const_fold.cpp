@@ -27,7 +27,7 @@
 
 using namespace dnnl::impl::graph::gc;
 
-TEST(GCCore_const_fold_cpp, TestConstCompute) {
+TEST(GCCore_CPU_const_fold_cpp, TestConstCompute) {
     constant_folder_t f;
     var va = make_expr<var_node>(datatypes::s32, "a");
 #define MAKE_TEST(op, a, b) \
@@ -126,7 +126,7 @@ TEST(GCCore_const_fold_cpp, TestConstCompute) {
     tmp = (exp); \
     EXPECT_TRUE(f(tmp).ptr_same(tmp))
 
-TEST(GCCore_const_fold_cpp, TestConstFoldRotation) {
+TEST(GCCore_CPU_const_fold_cpp, TestConstFoldRotation) {
     var va = make_expr<var_node>(datatypes::s32, "a");
     var vb = make_expr<var_node>(datatypes::boolean, "b");
     constant_folder_t f {false};
@@ -154,7 +154,7 @@ TEST(GCCore_const_fold_cpp, TestConstFoldRotation) {
     EXPECT_TRUE(cmper.compare(f((va + 4) + (va - 2)), va + va + 2));
 }
 
-TEST(GCCore_const_fold_cpp, TestConstFoldSpecialConst) {
+TEST(GCCore_CPU_const_fold_cpp, TestConstFoldSpecialConst) {
     var va = make_expr<var_node>(datatypes::s32, "a");
     var fa = make_expr<var_node>(datatypes::f32, "fa");
     var vb = make_expr<var_node>(datatypes::boolean, "b");
@@ -221,7 +221,7 @@ TEST(GCCore_const_fold_cpp, TestConstFoldSpecialConst) {
     EXPECT_TRUE(cmper.compare(f(vax % one_i), zero_i));
 }
 
-TEST(GCCore_const_fold_cpp, TestConstFoldSpecialExpr) {
+TEST(GCCore_CPU_const_fold_cpp, TestConstFoldSpecialExpr) {
     var va = make_expr<var_node>(datatypes::s32, "a");
     var fa = make_expr<var_node>(datatypes::f32, "fa");
     var vb = make_expr<var_node>(datatypes::boolean, "b");
@@ -258,7 +258,7 @@ TEST(GCCore_const_fold_cpp, TestConstFoldSpecialExpr) {
     EXPECT_TRUE(cmper.compare(f(fa == fa), expr(true)));
 }
 
-TEST(GCCore_const_fold_cpp, TestConstFoldFmadd) {
+TEST(GCCore_CPU_const_fold_cpp, TestConstFoldFmadd) {
 #define ADD(a, b) builder::make_add(a, b)
 #define MUL(a, b) builder::make_mul(a, b)
 #define FMADD(a, b, c) builder::make_fmadd(a, b, c)
@@ -285,7 +285,7 @@ TEST(GCCore_const_fold_cpp, TestConstFoldFmadd) {
 #undef FMADD
 }
 
-TEST(GCCore_const_fold_cpp, TestCanonialize) {
+TEST(GCCore_CPU_const_fold_cpp, TestCanonialize) {
     var a = make_expr<var_node>(datatypes::s32, "a");
     var b = make_expr<var_node>(datatypes::s32, "b");
     var c = make_expr<var_node>(datatypes::s32, "c");
@@ -334,7 +334,7 @@ TEST(GCCore_const_fold_cpp, TestCanonialize) {
                         ->equals(tsr[10] + tsr[((b - a) + 10)]));
 }
 
-TEST(GCCore_const_fold_cpp, TestConstFoldMutiLevel) {
+TEST(GCCore_CPU_const_fold_cpp, TestConstFoldMutiLevel) {
     var a = make_expr<var_node>(datatypes::s32, "a");
     var b = make_expr<var_node>(datatypes::s32, "b");
     var c = make_expr<var_node>(datatypes::s32, "c");
@@ -360,7 +360,7 @@ TEST(GCCore_const_fold_cpp, TestConstFoldMutiLevel) {
 }
 
 static const uint32_t lanes = 4;
-TEST(GCCore_const_fold_cpp, TestConstVectorCompute) {
+TEST(GCCore_CPU_const_fold_cpp, TestConstVectorCompute) {
     constant_folder_t f;
 
     auto make_constf = [](std::initializer_list<float> v,
@@ -444,7 +444,7 @@ TEST(GCCore_const_fold_cpp, TestConstVectorCompute) {
                     ->equals(make_constf({1.0f}, sc_data_type_t::bf16(lanes))));
 }
 
-TEST(GCCore_const_fold_cpp, TestConstFoldwithPolynomialExpansion) {
+TEST(GCCore_CPU_const_fold_cpp, TestConstFoldwithPolynomialExpansion) {
     var va = make_expr<var_node>(datatypes::s32, "a");
     var vb = make_expr<var_node>(datatypes::s32, "b");
     var vd = make_expr<var_node>(datatypes::s32, "d");
@@ -458,7 +458,7 @@ TEST(GCCore_const_fold_cpp, TestConstFoldwithPolynomialExpansion) {
             va * expr(600) + vb * expr(600) + vd * expr(30)));
 }
 
-TEST(GCCore_const_fold_cpp, TestConstFoldSuccessiveDiv) {
+TEST(GCCore_CPU_const_fold_cpp, TestConstFoldSuccessiveDiv) {
     var va = make_expr<var_node>(datatypes::s32, "a");
     var fa = make_expr<var_node>(datatypes::f32, "fa");
     var ua = make_expr<var_node>(datatypes::index, "ua");
@@ -476,7 +476,7 @@ TEST(GCCore_const_fold_cpp, TestConstFoldSuccessiveDiv) {
 
 #define U64(c) UINT64_C(c)
 
-TEST(GCCore_const_fold_cpp, TestConstFoldRange) {
+TEST(GCCore_CPU_const_fold_cpp, TestConstFoldRange) {
     builder::ir_builder_t bld;
     _function_(datatypes::void_t, aaa) {
         _var_(a, datatypes::index);
@@ -531,7 +531,7 @@ TEST(GCCore_const_fold_cpp, TestConstFoldRange) {
     EXPECT_TRUE(cmper.compare(f(aaa), expected, false));
 }
 
-TEST(GCCore_const_fold_cpp, TestConstFoldRangeGEGT) {
+TEST(GCCore_CPU_const_fold_cpp, TestConstFoldRangeGEGT) {
     builder::ir_builder_t bld;
     _function_(datatypes::void_t, aaa) {
         _var_(p, datatypes::s32);
@@ -559,7 +559,7 @@ TEST(GCCore_const_fold_cpp, TestConstFoldRangeGEGT) {
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
 
-TEST(GCCore_const_fold_cpp, TestConstFoldElseBlock) {
+TEST(GCCore_CPU_const_fold_cpp, TestConstFoldElseBlock) {
     builder::ir_builder_t bld;
     _function_(datatypes::void_t, aaa) {
         _var_(p, datatypes::s32);

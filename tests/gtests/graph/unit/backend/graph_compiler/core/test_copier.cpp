@@ -177,7 +177,7 @@ void check(func_t v) {
 
 using namespace copier_test;
 
-TEST(GCCore_copier_cpp, TestCopierExpr) {
+TEST(GCCore_CPU_copier_cpp, TestCopierExpr) {
     expr a = 1;
     check(a);
     check(make_cast(datatypes::f32, 1));
@@ -230,7 +230,7 @@ TEST(GCCore_copier_cpp, TestCopierExpr) {
     EXPECT_EQ(result->dtype_, datatypes::f32);
 }
 
-TEST(GCCore_copier_cpp, TestCopierStmt) {
+TEST(GCCore_CPU_copier_cpp, TestCopierStmt) {
     ir_builder_t bld;
     bld.push_scope();
     _var_(a, datatypes::f32);
@@ -260,7 +260,7 @@ TEST(GCCore_copier_cpp, TestCopierStmt) {
     check(bld.get_current_scope().body.back());
 }
 
-TEST(GCCore_copier_cpp, TestCopierVar) {
+TEST(GCCore_CPU_copier_cpp, TestCopierVar) {
     auto v = builder::make_var(datatypes::f32, "abc");
     auto vmapped = builder::make_var(datatypes::f32, "vvv");
     check(v);
@@ -270,7 +270,7 @@ TEST(GCCore_copier_cpp, TestCopierVar) {
     EXPECT_TRUE(copied.checked_as<add>()->l_.ptr_same(vmapped));
 }
 
-TEST(GCCore_copier_cpp, TestCopierTensor) {
+TEST(GCCore_CPU_copier_cpp, TestCopierTensor) {
     auto v = builder::make_tensor("abc", {1, 2, 3}, datatypes::f32);
     auto vmapped = builder::make_tensor("ccc", {1, 2, 3}, datatypes::f32);
     check(v);
@@ -280,7 +280,7 @@ TEST(GCCore_copier_cpp, TestCopierTensor) {
     EXPECT_TRUE(copied.checked_as<indexing>()->ptr_.ptr_same(vmapped));
 }
 
-TEST(GCCore_copier_cpp, TestCopierFunc) {
+TEST(GCCore_CPU_copier_cpp, TestCopierFunc) {
     ir_builder_t bld;
     _function_(datatypes::f32, AAA, _arg_("a", datatypes::f32),
             _arg_("A", datatypes::f32, {100, 100})) {

@@ -27,7 +27,7 @@
 
 using namespace dnnl::impl::graph::gc;
 
-TEST(GCCore_closurize_cpp, TestSingleCore) {
+TEST(GCCore_CPU_closurize_cpp, TestSingleCore) {
     builder::ir_builder_t builder;
     _function_(datatypes::void_t, tester) {
         _tensor_(t, datatypes::f32, {100});
@@ -47,7 +47,7 @@ TEST(GCCore_closurize_cpp, TestSingleCore) {
     ASSERT_TRUE(cmper.compare(func, expected));
 }
 
-TEST(GCCore_closurize_cpp, TestClosurizeCPU) {
+TEST(GCCore_CPU_closurize_cpp, TestClosurizeCPU) {
     builder::ir_builder_t builder;
     auto m = std::make_shared<ir_module_t>(get_default_context());
     _global_var_(m, gv, datatypes::s32, 1);
@@ -141,7 +141,7 @@ static optional<uint64_t> get_parallel_call_flag(const func_t f, int idx = 0) {
             .map([](const constant &v) { return v->get_index(); });
 }
 
-TEST(GCCore_closurize_cpp, TestClosurizeCPURemoveBarrier) {
+TEST(GCCore_CPU_closurize_cpp, TestClosurizeCPURemoveBarrier) {
     builder::ir_builder_t builder;
     if (!runtime_config_t::get().managed_thread_pool_) { GTEST_SKIP(); }
     _function_(datatypes::boolean, aaa) {
@@ -196,7 +196,7 @@ TEST(GCCore_closurize_cpp, TestClosurizeCPURemoveBarrier) {
     }
 }
 
-TEST(GCCore_closurize_cpp, TestClosurizeCPURemoveBarrierPinMemory) {
+TEST(GCCore_CPU_closurize_cpp, TestClosurizeCPURemoveBarrierPinMemory) {
     builder::ir_builder_t builder;
     if (!runtime_config_t::get().managed_thread_pool_) { GTEST_SKIP(); }
     {

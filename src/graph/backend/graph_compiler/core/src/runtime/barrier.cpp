@@ -53,7 +53,7 @@ extern "C" SC_API void sc_arrive_at_barrier(gc::runtime::barrier_t *b,
                 make_trace(1, 0);
                 return;
             }
-            auto ret = idle_func(&b->rounds_, cur_round + 1, idle_args);
+            auto ret = idle_func(&b->rounds_, cur_round + 1, -1, idle_args);
             count = ret & 0xffffffff;
         }
         while (cur_round == b->rounds_.load()) {
@@ -62,6 +62,9 @@ extern "C" SC_API void sc_arrive_at_barrier(gc::runtime::barrier_t *b,
     }
     make_trace(1, count);
 }
+
+static_assert(sizeof(gc::runtime::barrier_t) == 64,
+        "size of barrier_t should be 64-byte");
 
 extern "C" SC_API void sc_init_barrier(
         gc::runtime::barrier_t *b, int num_barriers, uint64_t thread_count) {

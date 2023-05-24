@@ -253,8 +253,8 @@ std::string conv_problem_t::desc_str(bool print_mb) const {
     std::vector<int> xdef = {1, 1, 1, 1, 0, 0};
     bool has_d = !ir_utils::is_equal(xd, xdef);
     bool has_h = !ir_utils::is_equal(xh, xdef);
-    bool is_square = ir_utils::is_equal(xh, xw);
-    bool is_cubic = is_square && ir_utils::is_equal(xd, xh);
+    bool is_square = !has_d && ir_utils::is_equal(xh, xw);
+    bool is_cubic = ir_utils::is_equal(xd, xh) && ir_utils::is_equal(xd, xw);
     bool print_d = has_d;
     bool print_h = has_h && !is_cubic;
     bool print_w = !is_cubic && !is_square;
@@ -281,6 +281,28 @@ std::string conv_problem_t::desc_str(bool print_mb) const {
     return oss.str();
 }
 
+int param_t::sort_key() const {
+    static const char *ordered_params[] = {
+            "exec-cfg",
+            "fma",
+            "l",
+            "T",
+            "i",
+            "P",
+            "p",
+            "s",
+            "src",
+            "wei",
+            "dst",
+            "bia",
+            nullptr,
+    };
+    for (const char **p = ordered_params; *p; p++) {
+        if (short_name() == *p) return p - ordered_params;
+    }
+    return (int)(sizeof(ordered_params) / sizeof(ordered_params[0]));
+}
+
 int get_default_max_tg_size(const hw_config_t &hw_cfg, int regs, int simd) {
     const compute::gpu_arch_t arch = convert_ngen_arch_to_dnnl(hw_cfg.hw());
     const int max_eus_per_wg = compute::device_info_t::max_eus_per_wg(arch);
@@ -296,6 +318,11 @@ int get_default_max_tg_size(const hw_config_t &hw_cfg, int regs, int simd) {
     return std::min(max_eus_per_wg * utils::rnd_down_pow2(threads_per_eu),
             static_cast<int>(hw_cfg.max_wg_size() / wg_per_thr));
 }
+
+const bool check_slm_size_param_t::default_value = true;
+const bool fuse_spatial_param_t::default_value = false;
+const bool shrink_tg_dims_param_t::default_value = false;
+const bool pad_slm_param_t::default_value = true;
 
 std::string build_tag(const std::vector<int> &inner_blocks,
         const std::vector<int> &outer_blocks, const std::vector<char> &letters,
@@ -784,16 +811,16 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
     auto &dst = cfg.dst_layout();
     auto &bia = cfg.bia_layout();
     if (src.is_overridden()) {
-        src_tag = src.compute_unnormalized_overridden_tag();
-        user_src_tag = src.compute_unnormalized_overridden_tag();
+        src_tag = src.compute_unnormalized_tag();
+        user_src_tag = src.user_unnormalized_tag();
     }
     if (wei.is_overridden()) {
-        wei_tag = wei.compute_unnormalized_overridden_tag();
-        user_wei_tag = wei.compute_unnormalized_overridden_tag();
+        wei_tag = wei.compute_unnormalized_tag();
+        user_wei_tag = wei.user_unnormalized_tag();
     }
     if (dst.is_overridden()) {
-        dst_tag = dst.compute_unnormalized_overridden_tag();
-        user_dst_tag = dst.compute_unnormalized_overridden_tag();
+        dst_tag = dst.compute_unnormalized_tag();
+        user_dst_tag = dst.user_unnormalized_tag();
     }
 
     // Select user layouts.
@@ -826,14 +853,14 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
             bia_layout = bia_layout.retype(type_t::f32());
     }
 
-    src.set_compute_unnormalized(src_layout);
-    src.set_user_unnormalized(user_src_layout);
-    wei.set_compute_unnormalized(wei_layout);
-    wei.set_user_unnormalized(user_wei_layout);
-    dst.set_compute_unnormalized(dst_layout);
-    dst.set_user_unnormalized(user_dst_layout);
-    bia.set_compute_unnormalized(bia_layout);
-    bia.set_user_unnormalized(user_bia_layout);
+    src.set_compute_unnormalized(src_layout, src_tag);
+    src.set_user_unnormalized(user_src_layout, user_src_tag);
+    wei.set_compute_unnormalized(wei_layout, wei_tag);
+    wei.set_user_unnormalized(user_wei_layout, user_wei_tag);
+    dst.set_compute_unnormalized(dst_layout, dst_tag);
+    dst.set_user_unnormalized(user_dst_layout, user_dst_tag);
+    bia.set_compute_unnormalized(bia_layout, "a");
+    bia.set_user_unnormalized(user_bia_layout, "a");
 
     // Normalize layouts: add group dimension for all layouts and reduce/fuse
     // spatial dimensions when applicable.
@@ -1107,7 +1134,6 @@ void init_pipeline(conv_config_t &cfg) {
 
     const auto &prb = cfg.prb();
     bool do_unroll = true;
-    bool reuse_headers = false;
     if (prb.is_fwd) {
         const int max_unroll = cfg.hw() <= ngen::HW::XeLP ? 4 : 9;
         if (prb.ksp > max_unroll) do_unroll = false;
@@ -1131,8 +1157,7 @@ void init_pipeline(conv_config_t &cfg) {
     if (utils::one_of(cfg.fma_kind(), fma_kind_t::mad, fma_kind_t::dp4a)
             && (cfg.hw() >= ngen::HW::XeHPG || prb.mb != 1))
         do_unroll = false;
-    if (reuse_headers) do_unroll = false;
-    cfg.pipeline().set(do_unroll, reuse_headers);
+    cfg.pipeline().set(do_unroll, /*reuse_headers=*/false);
 }
 
 void init_send_2d_nhwc(conv_config_t &cfg) {
@@ -1867,11 +1892,8 @@ void init_prefetch(conv_config_t &cfg) {
 
     if (!enable_a && !enable_b) return;
 
-    cfg.prefetch().set_a(enable_a);
-    cfg.prefetch().set_b(enable_b);
-
     int bufs = cfg.prb().is_f32_conv() ? 2 : 3;
-    cfg.prefetch().set(bufs);
+    cfg.prefetch().set(bufs, enable_a, enable_b);
 }
 
 void init_subtiles(conv_config_t &cfg) {
@@ -2148,6 +2170,7 @@ std::string conv_config_t::str() const {
     oss << "  Reuse headers:              " << to_string(pipeline().reuse_headers()) << std::endl;
     oss << "  Subtiles:                   " << "A: " << subtiles().a() << ", B: " << subtiles().b() << std::endl;
     oss << "  Estimated GRF usage:        " << estimated_peak_regs << std::endl;
+    oss << "  Configuration line:         " << get_config_line() << std::endl;
     // clang-format on
     return oss.str();
 }

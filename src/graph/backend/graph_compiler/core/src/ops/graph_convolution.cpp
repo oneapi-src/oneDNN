@@ -362,9 +362,7 @@ void conv_bwd_data_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
         // conv_fwd_core is NCHW (x) KCRS
         // conv_bwd's semantic shall be NKHW (x) CKRS
         auto permute_channel = graph->make("transpose", {filter}, {},
-                {{"order",
-                        is_3D ? std::vector<int> {1, 0, 2, 3, 4}
-                              : std::vector<int> {1, 0, 2, 3}}});
+                {{"order", std::vector<int> {1, 0, 2, 3}}});
         filter = permute_channel->get_outputs()[0];
         attrs.set("inverse_filter", true);
         conv = graph->make("conv_fwd_core", {output_delta, filter}, {}, attrs);

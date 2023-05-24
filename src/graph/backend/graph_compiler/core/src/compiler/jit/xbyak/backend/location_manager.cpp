@@ -45,7 +45,10 @@ using namespace xbyak::x86_64;
 
 location_manager::location_manager(stack_frame_model &sf_model,
         Xbyak::CodeGenerator &gen, const x86_64::target_profile_t &profile)
-    : sf_model_(sf_model), gen_(gen), profile_(profile) {
+    : sf_model_(sf_model)
+    , gen_(gen)
+    , profile_(profile)
+    , cpu_flags_(profile.target_machine_.cpu_flags_) {
     // Current target virtual reg mapping
     virtual_slots_map_ = std::make_shared<virtual_slots_map_t>(profile_);
 }
@@ -129,7 +132,10 @@ int64_t location_manager::stack_push(
             gen_.vmovss(gen_.dword[gen_.rsp], to_xmm(reg));
         } break;
         // simd 64-bit/ 8-byte
+        case cpu_data_type::uint_8_x8:
+        case cpu_data_type::sint_8_x8:
         case cpu_data_type::uint_16_x4:
+        case cpu_data_type::uint_32_x2:
         case cpu_data_type::sint_32_x2:
         case cpu_data_type::float_32_x2: {
             gen_.sub(gen_.rsp, slot_size);
@@ -166,6 +172,7 @@ int64_t location_manager::stack_push(
             gen_.vmovups(gen_.zword[gen_.rsp], to_zmm(reg));
         } break;
         // not supported
+        case cpu_data_type::mask_x4:
         case cpu_data_type::mask_x8:
         case cpu_data_type::mask_x16:
         case cpu_data_type::mask_x32:
@@ -252,7 +259,10 @@ int64_t location_manager::stack_pop(
             gen_.add(gen_.rsp, slot_size);
         } break;
         // simd 64-bit/ 8-byte
+        case cpu_data_type::uint_8_x8:
+        case cpu_data_type::sint_8_x8:
         case cpu_data_type::uint_16_x4:
+        case cpu_data_type::uint_32_x2:
         case cpu_data_type::sint_32_x2:
         case cpu_data_type::float_32_x2: {
             auto reg_xmm = to_xmm(reg);
@@ -293,6 +303,7 @@ int64_t location_manager::stack_pop(
             gen_.add(gen_.rsp, slot_size);
         } break;
         // not supported
+        case cpu_data_type::mask_x4:
         case cpu_data_type::mask_x8:
         case cpu_data_type::mask_x16:
         case cpu_data_type::mask_x32:
@@ -855,6 +866,36 @@ operand location_manager::get_operand_sib(
             + loc_disp.get_imm()]);
 }
 
+operand location_manager::get_operand_avx_mask(
+        const operand &op, const x86_64::cpu_data_type &cpu_dtype) {
+    // TODO(xxx): redesign this in the future, now only type 32bit mask
+    // avx/avx2 mask require mask same size as data
+    // but currently mask type is all bool vec, we just use ymm to store
+    // and cast to xmm/ymm after, see location_manager::convert_virtual_reg
+    switch (cpu_dtype) {
+        // simd 32-bit/ 4-byte
+        case cpu_data_type::float_32: return op;
+        // simd 128-bit/ 16-byte
+        case cpu_data_type::uint_32_x4:
+        case cpu_data_type::sint_32_x4:
+        case cpu_data_type::float_32_x4: {
+            assert(op.is_xyz());
+            return operand(to_xmm(op.get_reg()));
+        }
+        // simd 256-bit/ 32-byte
+        case cpu_data_type::uint_32_x8:
+        case cpu_data_type::sint_32_x8:
+        case cpu_data_type::float_32_x8: {
+            assert(op.is_xyz());
+            return operand(to_ymm(op.get_reg()));
+        }
+        // No support for other types
+        default:
+            COMPILE_ASSERT(false, "Invalid avx mask cpu dtype: " << cpu_dtype);
+    }
+    return op;
+}
+
 //==============================================================================
 // MISC. interface
 //==============================================================================
@@ -921,7 +962,10 @@ const Xbyak::AddressFrame *location_manager::get_address_frame(
         // simd 32-bit/ 4-byte
         case cpu_data_type::float_32: return &(gen_.dword);
         // simd 64-bit/ 8-byte
+        case cpu_data_type::uint_8_x8: return &(gen_.qword);
+        case cpu_data_type::sint_8_x8: return &(gen_.qword);
         case cpu_data_type::uint_16_x4: return &(gen_.qword);
+        case cpu_data_type::uint_32_x2: return &(gen_.qword);
         case cpu_data_type::sint_32_x2: return &(gen_.qword);
         case cpu_data_type::float_32_x2: return &(gen_.qword);
         // simd 128-bit/ 16-byte
@@ -946,6 +990,7 @@ const Xbyak::AddressFrame *location_manager::get_address_frame(
         case cpu_data_type::sint_32_x16: return &(gen_.zword);
         case cpu_data_type::float_32_x16: return &(gen_.zword);
         // not supported
+        case cpu_data_type::mask_x4:
         case cpu_data_type::mask_x8:
         case cpu_data_type::mask_x16:
         case cpu_data_type::mask_x32:
@@ -1310,7 +1355,10 @@ expr_location location_manager::convert_virtual_reg(const expr_c &v) {
             return expr_location::make_reg(to_xmm(reg), cpu_dtype);
         }
         // simd 64-bit/ 8-byte
+        case cpu_data_type::uint_8_x8:
+        case cpu_data_type::sint_8_x8:
         case cpu_data_type::uint_16_x4:
+        case cpu_data_type::uint_32_x2:
         case cpu_data_type::sint_32_x2:
         case cpu_data_type::float_32_x2: {
             return expr_location::make_reg(to_xmm(reg), cpu_dtype);
@@ -1343,11 +1391,17 @@ expr_location location_manager::convert_virtual_reg(const expr_c &v) {
             return expr_location::make_reg(to_zmm(reg), cpu_dtype);
         }
         // simd mask
+        case cpu_data_type::mask_x4:
         case cpu_data_type::mask_x8:
         case cpu_data_type::mask_x16:
         case cpu_data_type::mask_x32:
         case cpu_data_type::mask_x64: {
-            return expr_location::make_reg(to_mask(reg), cpu_dtype);
+            // TODO(xxx): redesign type mapping for bool vec
+            if (cpu_flags_.fAVX512F) {
+                return expr_location::make_reg(to_mask(reg), cpu_dtype);
+            } else {
+                return expr_location::make_reg(to_ymm(reg), cpu_dtype);
+            }
         }
         // not supported
         case cpu_data_type::void_t: {

@@ -32,7 +32,7 @@
 using namespace dnnl::impl::graph::gc;
 using namespace dnnl::impl::graph::gc::builder;
 
-TEST(GCCore_graph_batchwise_merge_cpp, TestGraphBatchWiseMultiLevel) {
+TEST(GCCore_CPU_graph_batchwise_merge_cpp, TestGraphBatchWiseMultiLevel) {
     sc_graph_t graph;
     auto input_A = graph.make_input({graph_tensor::make({16, 32, 384, 1024})});
     auto input_B = graph.make_input({graph_tensor::make({16, 32, 384, 1024})});
@@ -98,7 +98,7 @@ TEST(GCCore_graph_batchwise_merge_cpp, TestGraphBatchWiseMultiLevel) {
     EXPECT_EQ(ss.str(), expected_str);
 }
 
-TEST(GCCore_graph_batchwise_merge_cpp, TestGraphBatchWiseAggresiveShrink) {
+TEST(GCCore_CPU_graph_batchwise_merge_cpp, TestGraphBatchWiseAggresiveShrink) {
     sc_graph_t graph;
     auto input_A = graph.make_input({graph_tensor::make({64, 16, 384, 64})});
     auto input_B = graph.make_input({graph_tensor::make({64, 16, 64, 384})});

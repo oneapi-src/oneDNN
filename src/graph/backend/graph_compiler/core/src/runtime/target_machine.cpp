@@ -52,7 +52,9 @@ target_machine_t::target_machine_t(
     : device_type_(device_type), device_flags_(std::move(device_flags)) {}
 
 target_machine_t::target_machine_t(const target_machine_t &other)
-    : device_type_(other.device_type_), cpu_flags_(other.cpu_flags_) {}
+    : device_type_(other.device_type_)
+    , cpu_flags_(other.cpu_flags_)
+    , brgemm_use_amx_(other.brgemm_use_amx_) {}
 
 target_machine_t &target_machine_t::operator=(const target_machine_t &other) {
     device_type_ = other.device_type_;
@@ -87,6 +89,11 @@ void target_machine_t::set_simd_length_and_max_cpu_threads(cpu_flags_t &flg) {
         flg.max_simd_bits = 0;
 }
 
+bool target_machine_t::use_amx() const {
+    return cpu_flags_.fAVX512AMXTILE
+            && (cpu_flags_.fAVX512AMXBF16 || cpu_flags_.fAVX512AMXINT8);
+}
+
 uint32_t machine_flags_t::get_max_vector_lanes(sc_data_etype etype) const {
     return max_simd_bits / 8 / utils::get_sizeof_etype(etype);
 }
@@ -107,6 +114,8 @@ target_machine_t get_native_target_machine() {
     int info[4];
     cpuid(info, 0, 0);
     int nIds = info[0];
+    int vendor = info[2];
+    auto vendor_int = 0x6c65746e; //"ntel"
 
     cpuid(info, 0x80000000, 0);
     unsigned nExIds = info[0];
@@ -189,10 +198,11 @@ target_machine_t get_native_target_machine() {
     tm.cpu_flags_.family = family;
     tm.cpu_flags_.model = model;
     tm.cpu_flags_.step = step;
+    auto leaf = (vendor_int == vendor) ? 0x00000004 : 0x8000001D;
     for (int i = 0; tm.cpu_flags_.dataCacheLevels_
             < runtime::cpu_flags_t::maxNumberCacheLevels;
             i++) {
-        cpuid(info, 0x00000004, i);
+        cpuid(info, leaf, i);
         tm.cpu_flags_.dataCacheSize_[tm.cpu_flags_.dataCacheLevels_]
                 = (extractBit(info[1], 22, 31) + 1)
                 * (extractBit(info[1], 12, 21) + 1)

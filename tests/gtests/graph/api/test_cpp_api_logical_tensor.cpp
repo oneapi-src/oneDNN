@@ -224,6 +224,8 @@ TEST(APILogicalTensor, CreateWith0Dims) {
 TEST(APILogicalTensor, GetDimsWithError) {
     using logical_tensor = dnnl::graph::logical_tensor;
     dnnl_graph_logical_tensor_t c_lt;
+    memset((char *)&c_lt, 0, sizeof(c_lt));
+
     c_lt.id = 0;
     c_lt.ndims = -1;
     logical_tensor lt(c_lt);
@@ -233,6 +235,8 @@ TEST(APILogicalTensor, GetDimsWithError) {
 TEST(APILogicalTensor, GetLayoutIdWithError) {
     using logical_tensor = dnnl::graph::logical_tensor;
     dnnl_graph_logical_tensor_t c_lt;
+    memset((char *)&c_lt, 0, sizeof(c_lt));
+
     c_lt.id = 0;
     c_lt.ndims = -1;
     c_lt.data_type = dnnl_f16;
@@ -247,6 +251,8 @@ TEST(APILogicalTensor, GetStridesWithError) {
     using logical_tensor = dnnl::graph::logical_tensor;
     {
         dnnl_graph_logical_tensor_t c_lt;
+        memset((char *)&c_lt, 0, sizeof(c_lt));
+
         c_lt.id = 0;
         c_lt.ndims = -1;
         c_lt.data_type = dnnl_f16;
@@ -259,6 +265,8 @@ TEST(APILogicalTensor, GetStridesWithError) {
     }
     {
         dnnl_graph_logical_tensor_t c_lt;
+        memset((char *)&c_lt, 0, sizeof(c_lt));
+
         c_lt.id = 0;
         c_lt.ndims = -1;
         c_lt.data_type = dnnl_f16;

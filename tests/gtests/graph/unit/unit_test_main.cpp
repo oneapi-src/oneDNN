@@ -60,6 +60,14 @@ int main(int argc, char *argv[]) {
 #endif
     (void)(::testing::GTEST_FLAG(death_test_style) = "threadsafe");
     ::testing::InitGoogleTest(&argc, argv);
+    std::string filter_str = ::testing::GTEST_FLAG(filter);
+    if (get_test_engine_kind() == graph::engine_kind::cpu) {
+        // Exclude non-CPU tests
+        ::testing::GTEST_FLAG(filter) = filter_str + ":-*_GPU*";
+    } else if (get_test_engine_kind() == graph::engine_kind::gpu) {
+        // Exclude non-GPU tests
+        ::testing::GTEST_FLAG(filter) = filter_str + ":-*_CPU*";
+    }
     result = RUN_ALL_TESTS();
 
     return result;

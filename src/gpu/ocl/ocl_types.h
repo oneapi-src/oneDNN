@@ -162,6 +162,11 @@
 #define AS_DATA4_T as_double4
 #define AS_DATA8_T as_double8
 
+#define AS_ULONG as_ulong
+#define AS_ULONG2 as_ulong2
+#define AS_ULONG4 as_ulong4
+#define AS_ULONG8 as_ulong8
+
 #elif DT_F16 == 1
 
 #define DATA_T half
@@ -1414,6 +1419,8 @@
 #define SRC_DT_ALIAS BFLOAT
 #elif SRC_DT_F32 == 1
 #define SRC_DT_ALIAS FLOAT
+#elif SRC_DT_F64 == 1
+#define SRC_DT_ALIAS DOUBLE
 #endif
 
 #if DST_DT_U8 == 1
@@ -1426,6 +1433,8 @@
 #define DST_DT_ALIAS BFLOAT
 #elif DST_DT_F32 == 1
 #define DST_DT_ALIAS FLOAT
+#elif DST_DT_F64 == 1
+#define DST_DT_ALIAS DOUBLE
 #endif
 
 #define ALIAS(prefix) CONCAT2(prefix, _DT_ALIAS)
@@ -1440,6 +1449,7 @@
 #define BLOCK1_ALIAS UCHAR
 #define BLOCK2_ALIAS USHORT
 #define BLOCK4_ALIAS UINT
+#define BLOCK8_ALIAS ULONG
 #define BLOCK_ALIAS(prefix) CONCAT3(BLOCK, SIZEOF(ALIAS(prefix)), _ALIAS)
 
 #define SIZEOF_UCHAR 1
@@ -1447,17 +1457,22 @@
 #define SIZEOF_BFLOAT 2
 #define SIZEOF_HALF 2
 #define SIZEOF_FLOAT 4
+#define SIZEOF_DOUBLE 8
 #define SIZEOF(alias) CONCAT2(SIZEOF_, alias)
 
 #define READ_UCHAR8 intel_sub_group_block_read_uc8
 #define READ_USHORT8 intel_sub_group_block_read_us8
 #define READ_UINT8 intel_sub_group_block_read8
+#define READ_ULONG8 intel_sub_group_block_read_ul8
+
 #define READ_BLOCK8(prefix, ptr) READ_BLOCK_N(prefix, 8)(ptr)
 #define READ_BLOCK_N(prefix, n) CONCAT3(READ_, BLOCK_ALIAS(prefix), n)
 
 #define WRITE_UCHAR8 intel_sub_group_block_write_uc8
 #define WRITE_USHORT8 intel_sub_group_block_write_us8
 #define WRITE_UINT8 intel_sub_group_block_write8
+#define WRITE_ULONG8 intel_sub_group_block_write_ul8
+
 #define WRITE_BLOCK8(prefix, ptr, val) WRITE_BLOCK_N(prefix, 8)(ptr, val)
 #define WRITE_BLOCK_N(prefix, n) CONCAT3(WRITE_, BLOCK_ALIAS(prefix), n)
 
@@ -1469,6 +1484,7 @@
 #define AS_FLOAT8 as_float8
 #define AS_INT8 as_int8
 #define AS_UINT8 as_uint8
+#define AS_DOUBLE8 as_double8
 
 #define BLOCK_TO_DATA8(prefix, val) BLOCK_TO_DATA_N(prefix, 8)(val)
 #define BLOCK_TO_DATA_N(prefix, n) CONCAT3(AS_, ALIAS(prefix), n)
@@ -1488,8 +1504,15 @@
 
 #define HALF_TO_FLOAT1 convert_float
 #define HALF_TO_FLOAT8 convert_float8
+
+#define HALF_TO_DOUBLE1 convert_double
+#define HALF_TO_DOUBLE8 convert_double8
+
 #define FLOAT_TO_HALF1 convert_half
 #define FLOAT_TO_HALF8 convert_half8
+
+#define BFLOAT_TO_DOUBLE1 cvt_bf16_to_f64
+#define BFLOAT_TO_DOUBLE8 cvt_bf16_to_f64
 
 #define BFLOAT_TO_FLOAT1 cvt_bf16_to_f32
 #define BFLOAT_TO_FLOAT8 cvt_bf16_to_f32
@@ -1499,10 +1522,27 @@
 #define FLOAT_TO_FLOAT1 convert_float
 #define FLOAT_TO_FLOAT8 convert_float8
 
+#define FLOAT_TO_DOUBLE1 convert_double
+#define FLOAT_TO_DOUBLE8 convert_double8
+
+#define DOUBLE_TO_DOUBLE1 convert_double
+#define DOUBLE_TO_DOUBLE8 convert_double8
+
+#define DOUBLE_TO_FLOAT1 convert_float
+#define DOUBLE_TO_FLOAT8 convert_float8
+
 #define DATA_TO_FLOAT(prefix, val) DATA_TO_FLOAT_N(prefix, 1)(val)
 #define DATA_TO_FLOAT8(prefix, val) DATA_TO_FLOAT_N(prefix, 8)(val)
 #define DATA_TO_FLOAT_N(prefix, n) CONCAT3(ALIAS(prefix), _TO_FLOAT, n)
 
+#define DATA_TO_DOUBLE(prefix, val) DATA_TO_DOUBLE_N(prefix, 1)(val)
+#define DATA_TO_DOUBLE8(prefix, val) DATA_TO_DOUBLE_N(prefix, 8)(val)
+#define DATA_TO_DOUBLE_N(prefix, n) CONCAT3(ALIAS(prefix), _TO_DOUBLE, n)
+
 #define FLOAT_TO_DATA(prefix, val) FLOAT_TO_DATA_N(prefix, 1)(val)
 #define FLOAT_TO_DATA8(prefix, val) FLOAT_TO_DATA_N(prefix, 8)(val)
 #define FLOAT_TO_DATA_N(prefix, n) CONCAT3(FLOAT_TO_, ALIAS(prefix), n)
+
+#define DOUBLE_TO_DATA(prefix, val) DOUBLE_TO_DATA_N(prefix, 1)(val)
+#define DOUBLE_TO_DATA8(prefix, val) DOUBLE_TO_DATA_N(prefix, 8)(val)
+#define DOUBLE_TO_DATA_N(prefix, n) CONCAT3(DOUBLE_TO_, ALIAS(prefix), n)

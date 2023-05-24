@@ -24,7 +24,7 @@
 
 using namespace dnnl::impl::graph::gc;
 
-TEST(GCCore_parallel_workload_dispatch, TestValidateWorkload) {
+TEST(GCCore_CPU_parallel_workload_dispatch, TestValidateWorkload) {
     builder::ir_builder_t builder;
     parallel_workload_dispatcher_t pass(true);
     for_loop lk, lm, lp;
@@ -60,9 +60,8 @@ TEST(GCCore_parallel_workload_dispatch, TestValidateWorkload) {
     EXPECT_EQ(pass.stmt_workload_map_[lj], wkld_j);
 }
 
-TEST(GCCore_parallel_workload_dispatch, TestParallelElimination) {
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(16);
+TEST(GCCore_CPU_parallel_workload_dispatch, TestParallelElimination) {
+    SET_THREADS_OR_SKIP(16);
     builder::ir_builder_t builder;
     parallel_workload_dispatcher_t pass;
     _function_(datatypes::void_t, aaa, _arg_("args", datatypes::f32)) {
@@ -75,6 +74,8 @@ TEST(GCCore_parallel_workload_dispatch, TestParallelElimination) {
             _for_(k, 0, 256, 1) { builder.emit(assign_stmt); }
         }
         _for_(i, 0, 1024, 1, for_type::PARALLEL) {
+            _var_(a, datatypes::s32);
+            a = builder::make_get_group_thread_id(-1);
             _for_(j, 0, 16, 16) {
                 _for_(k, 0, 512, 1) { builder.emit(assign_stmt); }
             }
@@ -99,6 +100,8 @@ TEST(GCCore_parallel_workload_dispatch, TestParallelElimination) {
             _var_init_(start, datatypes::index, tid * UINT64_C(64));
             _var_init_(end, datatypes::index, start + UINT64_C(64));
             _for_(i, start, end, 1) {
+                _var_(a, datatypes::s32);
+                a = builder::make_cast(datatypes::s32, tid);
                 _for_(j, 0, 16, 16) {
                     _for_(k, 0, 512, 1) { builder.emit(assign_stmt); }
                 }

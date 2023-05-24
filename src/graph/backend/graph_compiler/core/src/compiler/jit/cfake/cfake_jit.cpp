@@ -124,7 +124,7 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
     std::vector<std::string> discretionary_options;
     if (options_group.empty() || (options_group == "default")) {
         discretionary_options
-                = std::vector<std::string> {"-march=native", "-w"};
+                = std::vector<std::string> {"-march=native", "-mno-mmx", "-w"};
         assert(opt_level_ >= 0 && opt_level_ <= 3);
         discretionary_options.emplace_back("-O");
         discretionary_options.back() += std::to_string(opt_level_);

@@ -25,7 +25,7 @@
 #include <compiler/ir/transform/tensor_init.hpp>
 
 using namespace dnnl::impl::graph::gc;
-TEST(GCCore_tensor_init_cpp, TestTensorInit) {
+TEST(GCCore_CPU_tensor_init_cpp, TestTensorInit) {
     REQUIRE_PARALLEL();
     REQUIRE_AVX();
     builder::ir_builder_t builder;

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -129,6 +129,23 @@ status_t constant_propagation(std::shared_ptr<subgraph_t> &sg) {
 
         if (ret != status::success) return ret;
     } while (changed);
+
+    // Special handle for constant external output. we will always re-compute
+    // the partition when the external output is constant. This fix is mainly
+    // for functionality purpose. For best performance, we suggest two ways:
+    // - Do constant folding in FWK side
+    // - Fuse the constant output op to subsequent partition to make the
+    //   constant lt internal.
+    auto sg_outs = sg->get_output_values();
+    for (auto &out : sg_outs) {
+        if (ltw(out->get_logical_tensor()).property_type()
+                != property_type::constant)
+            continue;
+        // ignore the constant property
+        out->set_property(property_type::variable);
+        out->get_producer().set_attr<bool>(op_attr::is_constant, false);
+    }
+
     return status::success;
 }
 

@@ -194,7 +194,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             // global k-parallel kernels don't support post-ops.
             // use global k-parallel kernels only with f32 accumulation
-            bool k_parallel_global = kernel_desc_.driver_info()->kParallel;
+            bool k_parallel_global = kernel_desc_.driver_info()->kParallel();
             bool with_eltwise = (post_ops_.find(eltwise) != -1);
 
             ok &= IMPLICATION(k_parallel_global,
@@ -400,13 +400,10 @@ struct gen_gemm_t : public gpu_gemm_t {
     status_t init(engine_t *engine) override { return init_nocopy(engine); }
 
     status_t init_nocopy(engine_t *engine) {
-        using kernel_t = gen_gemm_kernel_t;
         using namespace data_type;
 
         auto kd = pd()->kernel_desc();
-        kernel_t kernel(*kd);
-
-        CHECK(create_kernel(engine, &nocopy_kernel_, &kernel));
+        CHECK(create_kernel(engine, nocopy_kernel_, "gemm_kernel", *kd));
 
         scalar_type_ = kd->scalar_type();
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -129,36 +129,11 @@ void serialize_md(serialization_stream_t &sstream, const memory_desc_t &md) {
     }
 }
 
-void serialize_attr(
-        serialization_stream_t &sstream, const primitive_attr_t &attr) {
-    // scratchpad_mode
-    sstream.write(&attr.scratchpad_mode_);
-    // fpmath_mode
-    sstream.write(&attr.fpmath_mode_);
-
-    if (!attr.output_scales_.has_default_values()) {
-        // output_scales: mask
-        sstream.write(&attr.output_scales_.mask_);
-    } else if (!attr.scales_.has_default_values()) {
-        // go through scales for all arguments
-        for (const auto &p : attr.scales_.scales_) {
-            sstream.write(&p.first);
-            sstream.write(&p.second.mask_);
-        }
-    }
-    // zero_points
-    for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST})
-        if (!attr.zero_points_.has_default_values(arg)) {
-            // zero_points: arg
-            sstream.write(&arg);
-            int mask = 0;
-            attr.zero_points_.get(arg, &mask);
-            // zero_points: mask
-            sstream.write(&mask);
-        }
+void serialize_post_ops(
+        serialization_stream_t &sstream, const post_ops_t &post_ops) {
     // post_ops: entry[:]
-    for (int i = 0; i < attr.post_ops_.len(); i++) {
-        const auto &entry = attr.post_ops_.entry_[i];
+    for (int i = 0; i < post_ops.len(); i++) {
+        const auto &entry = post_ops.entry_[i];
         switch (entry.kind) {
             case primitive_kind::eltwise:
                 sstream.write(&entry.eltwise.alg);
@@ -187,6 +162,38 @@ void serialize_attr(
             default: assert(!"unknown post_op");
         }
     }
+}
+
+void serialize_attr(
+        serialization_stream_t &sstream, const primitive_attr_t &attr) {
+    // scratchpad_mode
+    sstream.write(&attr.scratchpad_mode_);
+    // fpmath_mode
+    sstream.write(&attr.fpmath_mode_);
+
+    if (!attr.output_scales_.has_default_values()) {
+        // output_scales: mask
+        sstream.write(&attr.output_scales_.mask_);
+    } else if (!attr.scales_.has_default_values()) {
+        // go through scales for all arguments
+        for (const auto &p : attr.scales_.scales_) {
+            sstream.write(&p.first);
+            sstream.write(&p.second.mask_);
+        }
+    }
+    // zero_points
+    for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST})
+        if (!attr.zero_points_.has_default_values(arg)) {
+            // zero_points: arg
+            sstream.write(&arg);
+            int mask = 0;
+            attr.zero_points_.get(arg, &mask);
+            // zero_points: mask
+            sstream.write(&mask);
+        }
+
+    serialize_post_ops(sstream, attr.post_ops_);
+
     // rnn_data_qparams: scale, shift
     sstream.write(&attr.rnn_data_qparams_.scale_);
     sstream.write(&attr.rnn_data_qparams_.shift_);

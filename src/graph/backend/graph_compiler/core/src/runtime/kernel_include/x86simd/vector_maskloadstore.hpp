@@ -17,6 +17,7 @@
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_KERNEL_INCLUDE_X86SIMD_VECTOR_MASKLOADSTORE_HPP
 #include "common.hpp"
 
+#ifdef __AVX__
 INLINE vec_f32x8 mask_load(const float *p, vec_s32x8 mask) {
     return _mm256_maskload_ps(p, mask.v);
 }
@@ -29,4 +30,5 @@ INLINE void mask_store(float *p, vec_s32x8 mask, vec_f32x8 const &a) {
 INLINE void mask_store(float *p, vec_s32x4 mask, vec_f32x4 const &a) {
     _mm_maskstore_ps(p, mask.v, a.v);
 }
+#endif
 #endif

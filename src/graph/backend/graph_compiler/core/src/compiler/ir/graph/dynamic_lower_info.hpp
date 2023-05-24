@@ -30,6 +30,8 @@ struct dynamic_lower_info_t {
     sc_dim cur_dynamic_placeholder_ = init_placeholder;
     // dynamic sc_dim => expr(uint64_t) map, we maitain one map for one graph.
     std::unordered_map<sc_dim, expr> dim2expr_map_;
+    // Is specific sub graph for parallel compilation.
+    bool is_specific_ = false;
 
     const sc_dim &get_cur_dynamic_placeholder() const {
         return cur_dynamic_placeholder_;
@@ -50,6 +52,8 @@ struct dynamic_lower_info_t {
     }
 };
 using dyn_lower_info_ptr = std::shared_ptr<dynamic_lower_info_t>;
+class sc_graph_t;
+bool is_dyn_specific_graph(sc_graph_t &);
 } // namespace gc
 } // namespace graph
 } // namespace impl

@@ -43,6 +43,8 @@
 #include <util/simple_math.hpp>
 #include <util/utils.hpp>
 
+SC_MODULE(ops.convolution);
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -928,7 +930,7 @@ body_generator_ptr conv_bwd_data_core_op_t::create_generator() {
                     graph::extract_detail_from_tensors(get_inputs()),
                     graph::extract_detail_from_tensors(get_outputs()));
         } else {
-            SC_WARN << "Fall-back to non-nested conv1x1 backprop data.";
+            SC_MODULE_WARN << "Fall-back to non-nested conv1x1 backprop data.";
             return utils::make_unique<gen_conv1x1_backprop_data_t>(this, stride,
                     pads_begin,
                     graph::extract_detail_from_tensors(get_inputs()),
@@ -941,7 +943,7 @@ body_generator_ptr conv_bwd_data_core_op_t::create_generator() {
                     graph::extract_detail_from_tensors(get_inputs()),
                     graph::extract_detail_from_tensors(get_outputs()));
         } else {
-            SC_WARN << "Fall-back to non-nested convNxN backprop data.";
+            SC_MODULE_WARN << "Fall-back to non-nested convNxN backprop data.";
             return utils::make_unique<gen_convNxN_backprop_data>(this, stride,
                     pads_begin,
                     graph::extract_detail_from_tensors(get_inputs()),
@@ -1132,7 +1134,8 @@ body_generator_ptr conv_bwd_weight_core_op_t::create_generator() {
                     graph::extract_detail_from_tensors(get_inputs()),
                     graph::extract_detail_from_tensors(get_outputs()));
         } else {
-            SC_WARN << "Fall-back to non-nested conv1x1 backprop weight.";
+            SC_MODULE_WARN
+                    << "Fall-back to non-nested conv1x1 backprop weight.";
             // tested for reduce on ALL
             int block_size = 64;
             if (weight_shape[0] * weight_shape[1] * input_dims[0]
@@ -1160,7 +1163,7 @@ body_generator_ptr conv_bwd_weight_core_op_t::create_generator() {
                     graph::extract_detail_from_tensors(get_inputs()),
                     graph::extract_detail_from_tensors(get_outputs()));
         }
-        SC_WARN << "Fall-back to non-nested convNxN backprop weight.";
+        SC_MODULE_WARN << "Fall-back to non-nested convNxN backprop weight.";
         return utils::make_unique<gen_convNxN_backprop_weight>(this, stride,
                 pads_begin, graph::extract_detail_from_tensors(get_inputs()),
                 graph::extract_detail_from_tensors(get_outputs()),

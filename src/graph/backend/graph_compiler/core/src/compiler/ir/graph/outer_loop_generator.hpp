@@ -18,8 +18,7 @@
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_OUTER_LOOP_GENERATOR_HPP
 #include <memory>
 #include <vector>
-#include "fusible_op.hpp"
-#include "fusion_data.hpp"
+#include "fusion_anchor.hpp"
 #include "graph.hpp"
 #include <ops/body_generator.hpp>
 

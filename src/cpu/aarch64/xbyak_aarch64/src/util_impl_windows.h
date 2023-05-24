@@ -41,6 +41,7 @@ class CpuInfoWindows : public CpuInfo {
 public:
   CpuInfoWindows() {
     init();
+    setHwCap();
     setCacheHierarchy();
     setImplementer();
   }
@@ -97,6 +98,13 @@ private:
     numCores_[0] = numCores_[1];
 
     setLastDataCacheLevel();
+  }
+
+  void setHwCap() {
+    if (IsProcessorFeaturePresent(PF_ARM_V8_INSTRUCTIONS_AVAILABLE))
+      type_ |= (Type)XBYAK_AARCH64_HWCAP_ADVSIMD;
+    if (IsProcessorFeaturePresent(PF_ARM_V81_ATOMIC_INSTRUCTIONS_AVAILABLE))
+      type_ |= (Type)XBYAK_AARCH64_HWCAP_ATOMIC;
   }
 };
 

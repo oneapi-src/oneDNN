@@ -14,6 +14,13 @@ Nvidia GPUs. The stream in Nvidia backend for oneDNN defines an out-of-order
 SYCL queue by default. Similar to the existing oneDNN API, user can specify an
 in-order queue when creating a stream if needed.
 
+## Pre-requisites
+* [oneAPI DPC++ Compiler with support for CUDA](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#build-dpc-toolchain-with-support-for-nvidia-cuda)
+or [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html#gs.xvbgvc) with [NVIDIA plugin](https://developer.codeplay.com/products/oneapi/nvidia/home)
+* NVIDIA CUDA\* driver
+* cuBLAS 10.1 or later
+* cuDNN 7.6 or later
+
 ## Build command
 
 ```bash

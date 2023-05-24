@@ -112,7 +112,7 @@ typedef std::vector<int> (*loop_sort_rule_func)(
  * parallelism which means some op may break fusion. Default is false.
  * */
 static bool axis_can_be_sort(sc_graph_t &graph, bool forced = false) {
-    bool res = is_optimized_graph(graph)
+    bool res = is_optimized_sub_graph(graph)
             || std::all_of(graph.ops_.begin(), graph.ops_.end(),
                     [&forced](const sc_op_ptr &op) {
                         if (op->isa<reorder_op_t>()
@@ -276,7 +276,9 @@ bool outer_loop_generator_t::generate(context_ptr ctx, const void *config,
                                 + 1 << " output(s) for outer_loop_generator_t");
     }
     // If loop conflict found, return.
-    if (detect_loop_conflict(fusion)) return false;
+    if (!is_optimized_sub_graph(fusion->get_graph())
+            && detect_loop_conflict(fusion))
+        return false;
     tensor base_tsr = (use_output_mode_ ? outputs[base_tsr_idx_]
                                         : inputs[base_tsr_idx_])
                               .as<tensor>();

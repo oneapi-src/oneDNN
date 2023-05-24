@@ -29,6 +29,10 @@
 
 #include "npack/neo_packager.hpp"
 
+#ifndef CL_DEVICE_IP_VERSION_INTEL
+#define CL_DEVICE_IP_VERSION_INTEL 0x4250
+#endif
+
 namespace ngen {
 
 
@@ -245,6 +249,16 @@ void OpenCLCodeGenerator<hw>::detectHWInfo(cl_context context, cl_device_id devi
     const char *dummyCL = "kernel void _ngen_hw_detect(){}";
     const char *dummyOptions = "";
 
+    // Try CL_DEVICE_IP_VERSION_INTEL query first.
+    cl_uint ipVersion = 0;      /* should be cl_version, but older CL/cl.h may not define cl_version */
+    if (clGetDeviceInfo(device, CL_DEVICE_IP_VERSION_INTEL, sizeof(ipVersion), &ipVersion, nullptr) == CL_SUCCESS) {
+        outProduct = npack::decodeHWIPVersion(ipVersion);
+        outHW = getCore(outProduct.family);
+        if (outProduct.family != ProductFamily::Unknown)
+            return;
+    }
+
+    // If it fails, compile a test program and extract the HW information from it.
     auto binary = detail::getOpenCLCProgramBinary(context, device, dummyCL, dummyOptions);
 
     ELFCodeGenerator<hw>::getBinaryHWInfo(binary, outHW, outProduct);

@@ -52,7 +52,7 @@ struct tensor_alias_identity_t
     void add_to_clique(const std::shared_ptr<alias_set_t> &v);
     bool has_no_alias() const;
     tensor_alias_identity_t() = default;
-
+    bool is_alias_of(tensor_alias_identity_t *) const;
     std::vector<std::shared_ptr<alias_set_t>> alias_cliques_;
 };
 

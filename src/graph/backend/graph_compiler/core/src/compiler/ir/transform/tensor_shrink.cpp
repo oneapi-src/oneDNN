@@ -77,45 +77,38 @@ static constexpr const char *temp_shrink_tag = "tensor_shrinker.def";
  * be updated as well. For output[A,C,D,B] and its partial result [a,c,d,b], the
  * old LDC=D*stride_w will be updated into LDC=d*stride_w.
  * */
-bool check_brgemm_LDX(
-        std::vector<expr> &args, const expr &buffer, int LD_arg_idx) {
-    COMPILE_ASSERT(static_cast<uint64_t>(LD_arg_idx) < args.size(),
-            "arg idx should not exceed args length, but got "
-                    << args.size() << " args with LDX idx: " << LD_arg_idx);
+bool check_brgemm_LDX(const expr &buffer, expr &LDX_e) {
     COMPILE_ASSERT(buffer.isa<tensor>() || buffer.isa<tensorptr>(),
             "tensor or tensorptr is expected for the buffer of brgemm");
     auto tsr = get_real_tensor(buffer);
     if (is_tensor_and_should_shrink(tsr)) {
         auto &shrink_info = tsr->attr_->get<tensor_shrinker_t::shrink_info_t>(
                 tensor_shrinker_attrs::should_shrink);
-        auto ld_arg_const
-                = constant_folder_t()(auto_caster_t()(args[LD_arg_idx]));
+        auto LDX_c = constant_folder_t()(auto_caster_t()(LDX_e));
         COMPILE_ASSERT(shrink_info.shape_.size() == tsr->dims_.size(),
                 "Bad number of dimensions for indexing access");
-        COMPILE_ASSERT(ld_arg_const.isa<constant>(),
-                "Constant LDX is expected, but got " << ld_arg_const);
-        int64_t LDX = get_expr_as_int(ld_arg_const);
+        COMPILE_ASSERT(LDX_c.isa<constant>(),
+                "Constant LDX is expected, but got " << LDX_c);
+        int64_t LDX = get_expr_as_int(LDX_c);
         int64_t acc_orig = 1, acc_shrink = 1;
         // for conv_bwd_data stride_w > 1 cases
-        args[LD_arg_idx]->attr();
-        if (args[LD_arg_idx]->attr_->get_or_else("plain_init", false)) {
+        LDX_e->attr();
+        if (LDX_e->attr_->get_or_else("plain_init", false)) {
             acc_shrink = get_expr_as_int(shrink_info.shape_.back());
-            args[LD_arg_idx]
-                    = make_expr<constant_node>(acc_shrink, datatypes::s32);
+            LDX_e = make_expr<constant_node>(acc_shrink, datatypes::s32);
             return true;
         }
-        if (args[LD_arg_idx]->attr_->get_or_else("stride_w", 1) > 1) {
-            auto N_axis = args[LD_arg_idx]->attr_->get_or_else(
+        if (LDX_e->attr_->get_or_else("stride_w", 1) > 1) {
+            auto N_axis = LDX_e->attr_->get_or_else(
                     "N_axis", std::vector<size_t> {});
             // plain
             if (N_axis.size() == 1) {
                 COMPILE_ASSERT(N_axis[0] == tsr->dims_.size() - 1,
                         "currently only supports N is the last axis in plain "
                         "brgemm");
-                acc_shrink = args[LD_arg_idx]->attr_->get<int>("stride_w")
+                acc_shrink = LDX_e->attr_->get<int>("stride_w")
                         * get_expr_as_int(shrink_info.shape_.back());
-                args[LD_arg_idx]
-                        = make_expr<constant_node>(acc_shrink, datatypes::s32);
+                LDX_e = make_expr<constant_node>(acc_shrink, datatypes::s32);
                 return true;
             }
             // blocking
@@ -127,7 +120,7 @@ bool check_brgemm_LDX(
                     if (acc_shrink == acc_orig)
                         return false;
                     else {
-                        args[LD_arg_idx] = make_expr<constant_node>(
+                        LDX_e = make_expr<constant_node>(
                                 acc_shrink, datatypes::s32);
                         return true;
                     }
@@ -143,7 +136,7 @@ bool check_brgemm_LDX(
                     if (acc_shrink == acc_orig)
                         return false;
                     else {
-                        args[LD_arg_idx] = make_expr<constant_node>(
+                        LDX_e = make_expr<constant_node>(
                                 acc_shrink, datatypes::s32);
                         return true;
                     }
@@ -231,8 +224,8 @@ public:
             for (auto &check_pair : check_LDX_list) {
                 // need to check old args v, due to some of `attr` maybe removed
                 // in new args.
-                if (check_brgemm_LDX(args_cpy, v->args_[check_pair.first],
-                            check_pair.second)) {
+                if (check_brgemm_LDX(v->args_[check_pair.first],
+                            args_cpy[check_pair.second])) {
                     changed = true;
                 }
             }
@@ -343,8 +336,8 @@ public:
                 for (auto &check_pair : check_LDX_list) {
                     // need to check old_args's buffer to get the correct
                     // "should_shrink" logic
-                    if (check_brgemm_LDX(args_cpy, old_args[check_pair.first],
-                                check_pair.second)) {
+                    if (check_brgemm_LDX(old_args[check_pair.first],
+                                args_cpy[check_pair.second])) {
                         changed = true;
                     }
                 }

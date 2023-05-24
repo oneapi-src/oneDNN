@@ -53,7 +53,6 @@ struct scflags_t {
     bool tensor2var_ = true;
     bool print_ir_ = false;
     bool ssa_passes_ = false;
-    bool brgemm_use_amx_ = false;
     bool prefetch_ = true;
     bool mixed_fusion_ = true;
     bool use_cost_model_ = true;
@@ -62,6 +61,7 @@ struct scflags_t {
     // dnnl
     bool jit_support_amx_intrinsics_ = false;
     bool concat_optimization_ = true;
+    bool graph_default_private_ = true;
 };
 
 struct context_t {

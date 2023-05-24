@@ -393,6 +393,11 @@ sc_dims sc_data_format_t::get_blocking_shapes(
     return ret;
 }
 
+static size_t throw_if_negative(int dim) {
+    if (dim < 0) { throw std::runtime_error("Bad format"); }
+    return dim;
+}
+
 std::vector<expr> get_blocking_shapes_expr(sc_graph_t &g,
         const sc_dims &plain_shapes, const sc_data_format_t &format) {
     if (plain_shapes.empty()) { return std::vector<expr>(); }
@@ -402,8 +407,8 @@ std::vector<expr> get_blocking_shapes_expr(sc_graph_t &g,
     }
     std::vector<expr> ret;
     size_t base_out_dim = 0;
-    size_t num_plain_dims = format.format_code_.norig_dims();
-    size_t num_format_dims = format.format_code_.ndims();
+    size_t num_plain_dims = throw_if_negative(format.format_code_.norig_dims());
+    size_t num_format_dims = throw_if_negative(format.format_code_.ndims());
     size_t num_out_dims = num_format_dims;
     ret.reserve(num_out_dims);
     COMPILE_ASSERT(plain_shapes.size() == num_plain_dims,

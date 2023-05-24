@@ -111,6 +111,7 @@ const char *data_kind2str(data_kind_t kind) {
         case WEI: return "WEI";
         case BIA: return "BIA";
         case DST: return "DST";
+        case DIFF_DST: return "DIFF_DST";
         case ACC: return "ACC";
         case MEAN: return "MEAN";
         case VAR: return "VAR";
@@ -134,6 +135,8 @@ static const std::map<int, std::vector<const char *>> supported_args {
         {DNNL_ARG_SRC_1, {"src1"}},
         {DNNL_ARG_WEIGHTS, {"wei"}},
         {DNNL_ARG_DST, {"dst"}},
+        {DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST, {"attr_post_op_dw_dst"}},
+        {DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS, {"attr_post_op_dw_wei"}},
 };
 
 static int str2arg(const std::string &str) {
@@ -141,8 +144,14 @@ static int str2arg(const std::string &str) {
         for (const auto &s : arg.second)
             if (str.compare(s) == 0) return arg.first;
     // multiple srcs
-    if (str.compare(0, 3, "msrc")) {
-        const auto &str_index = str.substr(4);
+    std::string msrc = "msrc";
+    if (str.compare(0, msrc.size(), msrc) == 0) {
+        const auto &str_index = str.substr(msrc.size());
+        if (str_index.empty() /* TODO: || non-digit string */) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: \'msrc\' argument requires index to be specified.");
+            return BENCHDNN_DNNL_ARG_UNDEF;
+        }
         const auto index = stoul(str_index);
         return DNNL_ARG_MULTIPLE_SRC + index;
     }
@@ -300,8 +309,12 @@ int attr_t::zero_points_t::from_str(const std::string &s) {
 
         auto arg = str2arg(parser::get_substr(subs, subs_pos, ':'));
         if (arg == BENCHDNN_DNNL_ARG_UNDEF || subs_pos == std::string::npos
-                || subs_pos >= subs.size())
+                || subs_pos >= subs.size()) {
+            BENCHDNN_PRINT(0,
+                    "Error: argument name \'%s\' was not recognized.\n",
+                    subs.c_str());
             return FAIL;
+        }
 
         auto policy = str2policy(parser::get_substr(subs, subs_pos, ':'));
         if (policy == POLICY_TOTAL || subs_pos == std::string::npos
@@ -333,8 +346,12 @@ int attr_t::arg_scales_t::from_str(const std::string &s) {
 
         auto arg = str2arg(parser::get_substr(subs, subs_pos, ':'));
         if (arg == BENCHDNN_DNNL_ARG_UNDEF || subs_pos == std::string::npos
-                || subs_pos >= s.size())
+                || subs_pos >= s.size()) {
+            BENCHDNN_PRINT(0,
+                    "Error: argument name \'%s\' was not recognized.\n",
+                    subs.c_str());
             return FAIL;
+        }
 
         arg_scales_t::entry_t arg_scale;
         SAFE(arg_scale.from_str(parser::get_substr(subs, subs_pos, '\0')),
@@ -976,8 +993,10 @@ dnnl_primitive_attr_t create_dnnl_attr(
             const auto &e = arg.second;
             // Weights mask differs from primitive to primitive, that's why it
             // is stashed in `attr_args` at primitive creation time.
-            int mask = (arg_name == DNNL_ARG_WEIGHTS
-                               && e.policy != policy_t::COMMON)
+            const bool is_wei_arg = arg_name == DNNL_ARG_WEIGHTS
+                    || arg_name
+                            == (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
+            int mask = (is_wei_arg && e.policy != policy_t::COMMON)
                     ? attr_args.get_mask(arg_name)
                     : e.policy2mask(arg_name);
 
@@ -1018,6 +1037,8 @@ dnnl_primitive_attr_t create_dnnl_attr(
                         e.convolution.dst_dt, e.convolution.kernel,
                         e.convolution.stride, e.convolution.padding));
 
+                // TODO: remove in favor of attr-scales option and update input
+                // files relying on scales in dw post-op string.
                 const auto &wei_scale = e.convolution.wei_scale;
                 int wei_mask = wei_scale.policy2mask(DNNL_ARG_WEIGHTS,
                         dnnl_convolution, /* has_groups = */ true);

@@ -27,7 +27,7 @@
 #include <compiler/jit/jit.hpp>
 #include <ops/fusible/shape_of_tensor.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
-#include <runtime/dynamic_dispatch/utils.hpp>
+#include <runtime/dynamic_dispatch/ops/config.hpp>
 #include <runtime/runtime.hpp>
 #include <util/any_map.hpp>
 
@@ -50,8 +50,8 @@ auto get_shape_of_tensor_graph
             std::move(graph), std::vector<sc_op_ptr> {input, output});
 };
 
-TEST(GCCore_shape_of_tensor_test, TestShapeOfTensorWithoutPadding) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_shape_of_tensor_test, TestShapeOfTensorWithoutPadding) {
+    REQUIRE_AVX2();
     runtime::dynamic_tensor_t in, out;
     sc_dims in_shapes = {16, 32, 1024, 4096}, out_shapes = {0};
     in.dims_ = in_shapes.data();
@@ -75,8 +75,8 @@ TEST(GCCore_shape_of_tensor_test, TestShapeOfTensorWithoutPadding) {
     }
 }
 
-TEST(GCCore_shape_of_tensor_test, TestShapeOfTensorMatmulPadding) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_shape_of_tensor_test, TestShapeOfTensorMatmulPadding) {
+    REQUIRE_AVX2();
     runtime::dynamic_tensor_t in, out;
     sc_dims in_shapes = {1, 33, 1024, 97}, out_shapes = {0};
     in.dims_ = in_shapes.data();

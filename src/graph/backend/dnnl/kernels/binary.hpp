@@ -75,9 +75,15 @@ private:
     }
 
 public:
+    binary_t() {
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        res_cache.retain();
+    }
+
     ~binary_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
+        res_cache.release();
     }
 
     status_t compile_impl(const dnnl_partition_impl_t *part,

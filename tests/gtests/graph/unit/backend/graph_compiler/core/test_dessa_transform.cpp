@@ -28,7 +28,7 @@
 using namespace dnnl::impl::graph::gc;
 constexpr auto s32 = datatypes::s32;
 
-TEST(GCCore_dessa_transform, TestDeSSATransform) {
+TEST(GCCore_CPU_dessa_transform, TestDeSSATransform) {
     builder::ir_builder_t builder;
     func_t print_int_f = builder::make_func("print_int",
             {builder::make_var(s32, "v")}, stmt(), datatypes::void_t);
@@ -75,7 +75,7 @@ TEST(GCCore_dessa_transform, TestDeSSATransform) {
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
 
-TEST(GCCore_dessa_transform, TestDeSSATransformForLostCopy) {
+TEST(GCCore_CPU_dessa_transform, TestDeSSATransformForLostCopy) {
     builder::ir_builder_t builder;
     _function_(s32, ccc, _arg_("A", s32, {10000}), _arg_("a", s32)) {
         _bind_(A, a);
@@ -119,7 +119,7 @@ TEST(GCCore_dessa_transform, TestDeSSATransformForLostCopy) {
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
 
-TEST(GCCore_dessa_transform, TestDeSSATransformForNoRedundantCopy) {
+TEST(GCCore_CPU_dessa_transform, TestDeSSATransformForNoRedundantCopy) {
     builder::ir_builder_t builder;
     _function_(s32, ccc, _arg_("A", s32, {10000}), _arg_("a", s32)) {
         _bind_(A, a);
@@ -169,7 +169,7 @@ TEST(GCCore_dessa_transform, TestDeSSATransformForNoRedundantCopy) {
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
 
-TEST(GCCore_dessa_transform, TestDeSSATransformForSwapProblem) {
+TEST(GCCore_CPU_dessa_transform, TestDeSSATransformForSwapProblem) {
     builder::ir_builder_t builder;
     _function_(s32, ccc, _arg_("A", s32, {10000}), _arg_("a", s32)) {
         _bind_(A, a);

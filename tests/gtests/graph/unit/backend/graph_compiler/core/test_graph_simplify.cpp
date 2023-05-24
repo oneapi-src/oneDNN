@@ -24,7 +24,7 @@
 #include <ops/fusible/unary_elemwise.hpp>
 
 using namespace dnnl::impl::graph::gc;
-TEST(GCCore_graph_simplify_cpp, TestSameOpElimination) {
+TEST(GCCore_CPU_graph_simplify_cpp, TestSameOpElimination) {
     auto graph = sc_graph_t();
     auto data = graph.make_input({graph_tensor::make(
             {2, 64, 128}, sc_data_format_t(format_kinds::ABC))});
@@ -72,7 +72,7 @@ TEST(GCCore_graph_simplify_cpp, TestSameOpElimination) {
     EXPECT_EQ(relu_count, 1);
 }
 
-TEST(GCCore_graph_simplify_cpp, TestTensorViewElimination) {
+TEST(GCCore_CPU_graph_simplify_cpp, TestTensorViewElimination) {
     sc_dims in_plain_dims {128, 64, 256};
     sc_dims inter_plain_dims0 {128, 64, 32, 8};
     sc_dims inter_plain_dims1 {32, 128, 64, 8};
@@ -122,7 +122,7 @@ TEST(GCCore_graph_simplify_cpp, TestTensorViewElimination) {
             sc_data_format_t(format_kinds::BA));
 }
 
-TEST(GCCore_graph_simplify_cpp, TestBinaryOpElimination) {
+TEST(GCCore_CPU_graph_simplify_cpp, TestBinaryOpElimination) {
     sc_dims in_plain_dims {128, 64, 256};
 
     auto graph = sc_graph_t();
@@ -158,7 +158,7 @@ TEST(GCCore_graph_simplify_cpp, TestBinaryOpElimination) {
     EXPECT_TRUE(std::find(ops.begin(), ops.end(), two) != ops.end());
 }
 
-TEST(GCCore_graph_simplify_cpp, TestGraphConstantFoldingF32) {
+TEST(GCCore_CPU_graph_simplify_cpp, TestGraphConstantFoldingF32) {
     sc_dims in_plain_dims {128, 64, 256};
     auto graph = sc_graph_t();
     auto inp = graph.make_input({graph_tensor::make(in_plain_dims)});
@@ -213,7 +213,7 @@ TEST(GCCore_graph_simplify_cpp, TestGraphConstantFoldingF32) {
     EXPECT_EQ(ss.str(), expected);
 }
 
-TEST(GCCore_graph_simplify_cpp, TestGraphConstantFoldingS32) {
+TEST(GCCore_CPU_graph_simplify_cpp, TestGraphConstantFoldingS32) {
     sc_dims in_plain_dims {128, 64, 256};
     auto graph = sc_graph_t();
     auto inp = graph.make_input({graph_tensor::make(
@@ -269,7 +269,7 @@ TEST(GCCore_graph_simplify_cpp, TestGraphConstantFoldingS32) {
     EXPECT_EQ(ss.str(), expected);
 }
 
-TEST(GCCore_graph_simplify_cpp, TestGraphConstantFoldingRecursiveStop) {
+TEST(GCCore_CPU_graph_simplify_cpp, TestGraphConstantFoldingRecursiveStop) {
     sc_dims in_plain_dims {128, 64, 256};
     auto graph = sc_graph_t();
     auto inp = graph.make_input({graph_tensor::make(
@@ -308,7 +308,7 @@ TEST(GCCore_graph_simplify_cpp, TestGraphConstantFoldingRecursiveStop) {
     EXPECT_EQ(ss.str(), expected);
 }
 
-TEST(GCCore_graph_simplify_cpp, TestGraphConstantFoldingMultiOutput) {
+TEST(GCCore_CPU_graph_simplify_cpp, TestGraphConstantFoldingMultiOutput) {
     sc_dims in_plain_dims {128, 64, 256};
     auto graph = sc_graph_t();
     auto inp = graph.make_input({graph_tensor::make(
@@ -352,7 +352,7 @@ TEST(GCCore_graph_simplify_cpp, TestGraphConstantFoldingMultiOutput) {
     EXPECT_EQ(ss.str(), expected);
 }
 
-TEST(GCCore_graph_simplify_cpp, TestGraphPushReluBackNegative) {
+TEST(GCCore_CPU_graph_simplify_cpp, TestGraphPushReluBackNegative) {
     sc_dims in_plain_dims {128, 64, 256};
     auto graph = sc_graph_t();
     auto inp = graph.make_input({graph_tensor::make(

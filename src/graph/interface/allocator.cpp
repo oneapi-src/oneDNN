@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -75,10 +75,9 @@ status_t DNNL_API dnnl_graph_allocator_destroy(allocator_t *allocator) {
 status_t DNNL_API dnnl_graph_make_engine_with_allocator(engine_t **engine,
         engine_kind_t kind, size_t index, const allocator_t *alloc) {
     auto ret = dnnl_engine_create(engine, kind, index);
-    if (ret != status::success) return status::invalid_arguments;
+    if (ret != status::success) return ret;
 
-    reinterpret_cast<engine_t *>(*engine)->set_allocator(
-            const_cast<allocator_t *>(alloc));
+    (*engine)->set_allocator(const_cast<allocator_t *>(alloc));
     return status::success;
 }
 
@@ -87,10 +86,9 @@ status_t DNNL_API dnnl_graph_sycl_interop_make_engine_with_allocator(
         const allocator_t *alloc) {
 #ifdef DNNL_WITH_SYCL
     auto ret = dnnl_sycl_interop_engine_create(engine, device, context);
-    if (ret != status::success) return status::invalid_arguments;
+    if (ret != status::success) return ret;
 
-    reinterpret_cast<engine_t *>(*engine)->set_allocator(
-            const_cast<allocator_t *>(alloc));
+    (*engine)->set_allocator(const_cast<allocator_t *>(alloc));
     return status::success;
 #else
     UNUSED(engine);
@@ -149,7 +147,7 @@ void dnnl_graph_allocator::monitor_t::record_deallocate(
     if (is_persist) {
         auto persist_pos = persist_mem_infos_.at(alloc).find(buf);
         persist_mem_[alloc] -= persist_pos->second.size_;
-        persist_mem_infos_[alloc].erase(persist_pos);
+        persist_mem_infos_.at(alloc).erase(persist_pos);
     } else {
         auto tid = std::this_thread::get_id();
         auto temp_pos = temp_mem_infos_[tid][alloc].find(buf);

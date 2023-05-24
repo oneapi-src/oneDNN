@@ -29,13 +29,8 @@ namespace impl {
 namespace graph {
 namespace gc {
 
-using slice_range = std::vector<std::pair<expr, expr>>;
-using slice_range_list = std::vector<slice_range>;
-
 struct infer_status_map_t;
 struct tensor_slice;
-
-using fslice_map = gt_map_t<slice_range_list>;
 
 /**
  * A fuser will do actual code injection on the fusion point. It will be managed
@@ -109,7 +104,7 @@ public:
 
     void append_mixed_partition(mixed_parti_t *parti) override;
 
-    void commit_into_anchor(mixed_parti_t *parti) override;
+    void commit_into_anchor(fuse_anchor_map_t *committed_anchor) override;
 
     void infer_binding_axis(bound_axis_map &bdax_map) override {}
 
@@ -219,13 +214,13 @@ public:
     constant_op_t(const std::shared_ptr<static_data_t> v, sc_data_type_t dtype,
             const sc_dims &plain_dims,
             const sc_data_format_t &format = sc_data_format_t());
-    std::shared_ptr<static_data_t> get_constant_values() {
+    std::shared_ptr<static_data_t> get_constant_values() const {
         return const_values_;
     }
-    sc_data_type_t get_constant_dtype() {
+    sc_data_type_t get_constant_dtype() const {
         return info_.outputs_[0]->details_.dtype_;
     }
-    const sc_dims &get_constant_plain_dims() {
+    const sc_dims &get_constant_plain_dims() const {
         return info_.outputs_[0]->details_.get_plain_dims();
     }
     const sc_data_format_t &get_constant_format() {
@@ -263,6 +258,13 @@ class binary_elementwise_op_t : public fusible_op_t,
                                 public op_traits::auto_copyable_with_trait_t<
                                         op_traits::brgemm_fusion_acceptable_t> {
 };
+
+inline bool is_broadcast_op(const sc_op *op) {
+    return (op->isa<op_traits::may_broadcast_t>()
+            && op->dyn_cast<const op_traits::may_broadcast_t>()
+                            ->get_broadcast_input()
+                    != -1);
+}
 
 class unary_elementwise_op_t : public fusible_op_t,
                                public op_traits::may_inplace_t,

@@ -41,7 +41,7 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
 
     uint32_t flags = 0;
     bool k_parallel
-            = (nocopy_info()->kParallel || nocopy_info()->kParallelLocal);
+            = (nocopy_info()->kParallel() || nocopy_info()->kParallelLocal());
 
     auto problem = pd()->kernel_desc()->problem();
 
@@ -114,8 +114,7 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
 
     if (pd()->batch_dims() >= 2) {
         auto batchSize1 = uint32_t(pd()->desc()->c_desc.dims[1]);
-        uint32_t recipBatchSize1 = (uint32_t)utils::div_up(
-                uint64_t(0x100000000) << math::ilog2q(batchSize1), batchSize1);
+        uint32_t recipBatchSize1 = uint32_reciprocal(batchSize1);
         arg_list.set(argn++, stride_a1);
         arg_list.set(argn++, stride_b1);
         arg_list.set(argn++, stride_c1);
@@ -210,8 +209,8 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto alpha = pd()->alpha();
     auto beta = pd()->beta();
 
-    bool k_parallel_global = nocopy_info()->kParallel;
-    bool k_parallel_local = nocopy_info()->kParallelLocal;
+    bool k_parallel_global = nocopy_info()->kParallel();
+    bool k_parallel_local = nocopy_info()->kParallelLocal();
 
     auto &a = swapab ? GEMM_CTX_ARG_STORAGE(a) : GEMM_CTX_ARG_STORAGE(b);
     auto &b = swapab ? GEMM_CTX_ARG_STORAGE(b) : GEMM_CTX_ARG_STORAGE(a);

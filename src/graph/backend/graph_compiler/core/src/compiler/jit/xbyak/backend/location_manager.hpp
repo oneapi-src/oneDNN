@@ -127,6 +127,9 @@ public:
     // get operand addr of SIB structured for amx load/store
     operand get_operand_sib(
             const expr_c &base, const expr_c &indx, const expr_c &disp);
+    // get operand for avx mask reg
+    operand get_operand_avx_mask(
+            const operand &op, const x86_64::cpu_data_type &cpu_dtype);
 
     //--------------------------------------------------------------------------
     // MISC. interface
@@ -198,6 +201,7 @@ private:
     stack_frame_model &sf_model_;
     Xbyak::CodeGenerator &gen_;
     const x86_64::target_profile_t &profile_;
+    const runtime::cpu_flags_t &cpu_flags_;
 
     std::shared_ptr<virtual_slots_map_t> virtual_slots_map_;
 

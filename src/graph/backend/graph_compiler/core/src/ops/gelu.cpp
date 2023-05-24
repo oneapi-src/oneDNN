@@ -14,6 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 #include "gelu.hpp"
+#include <string>
 #include <compiler/ir/graph/fusible_op.hpp>
 
 namespace dnnl {
@@ -54,50 +55,99 @@ void gelu_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     std::vector<graph_tensor_ptr> inputs, outputs;
     inputs = remake_logical_tensors(info_.inputs_);
     outputs = remake_logical_tensors(info_.outputs_);
-
-    // input
-    graph->make_input(inputs);
-    bool is_bf16
-            = info_.inputs_[0]->details_.dtype_.is_etype(sc_data_etype::BF16);
-    sc_op_ptr sqrt_2_over_pi, fitting_const, one, half;
-    sqrt_2_over_pi = graph->make<constant_op_t>(
-            std::make_shared<static_data_t>(std::vector<float> {0.79788458f}),
-            datatypes::f32, sc_dims {1});
-    fitting_const = graph->make<constant_op_t>(
-            std::make_shared<static_data_t>(std::vector<float> {0.044715f}),
-            datatypes::f32, sc_dims {1});
-    one = graph->make<constant_op_t>(
-            std::make_shared<static_data_t>(std::vector<float> {1.0f}),
-            datatypes::f32, sc_dims {1});
-    half = graph->make<constant_op_t>(
-            std::make_shared<static_data_t>(std::vector<float> {0.5f}),
-            datatypes::f32, sc_dims {1});
-    graph_tensor_ptr inputs0 = inputs[0];
-    if (is_bf16) {
-        auto cast0 = graph->make(
-                "cast", {inputs[0]}, {}, {{"dtype", datatypes::f32}});
-        inputs0 = cast0->get_outputs()[0];
+    if (attrs_.get_or_else("gelu_type", std::string("erf")) == "tanh") {
+        // tanh impl
+        // input
+        graph->make_input(inputs);
+        bool is_bf16 = info_.inputs_[0]->details_.dtype_.is_etype(
+                sc_data_etype::BF16);
+        sc_op_ptr sqrt_2_over_pi, fitting_const, one, half;
+        sqrt_2_over_pi = graph->make<constant_op_t>(
+                std::make_shared<static_data_t>(
+                        std::vector<float> {0.79788458f}),
+                datatypes::f32, sc_dims {1});
+        fitting_const = graph->make<constant_op_t>(
+                std::make_shared<static_data_t>(std::vector<float> {0.044715f}),
+                datatypes::f32, sc_dims {1});
+        one = graph->make<constant_op_t>(
+                std::make_shared<static_data_t>(std::vector<float> {1.0f}),
+                datatypes::f32, sc_dims {1});
+        half = graph->make<constant_op_t>(
+                std::make_shared<static_data_t>(std::vector<float> {0.5f}),
+                datatypes::f32, sc_dims {1});
+        graph_tensor_ptr inputs0 = inputs[0];
+        if (is_bf16) {
+            auto cast0 = graph->make(
+                    "cast", {inputs[0]}, {}, {{"dtype", datatypes::f32}});
+            inputs0 = cast0->get_outputs()[0];
+        }
+        auto mul0 = graph->make("mul", {inputs0, inputs0}, {}, {});
+        auto mul1 = graph->make("mul",
+                {mul0->get_outputs()[0], fitting_const->get_outputs()[0]}, {},
+                {});
+        auto add0 = graph->make(
+                "add", {mul1->get_outputs()[0], one->get_outputs()[0]}, {}, {});
+        auto mul2
+                = graph->make("mul", {add0->get_outputs()[0], inputs0}, {}, {});
+        auto mul3 = graph->make("mul",
+                {mul2->get_outputs()[0], sqrt_2_over_pi->get_outputs()[0]}, {},
+                {});
+        auto tanh0 = graph->make("tanh", {mul3->get_outputs()[0]}, {}, {});
+        auto add1 = graph->make("add",
+                {tanh0->get_outputs()[0], one->get_outputs()[0]}, {}, {});
+        auto mul4
+                = graph->make("mul", {inputs0, add1->get_outputs()[0]}, {}, {});
+        auto mul5 = graph->make("mul",
+                {mul4->get_outputs()[0], half->get_outputs()[0]}, {}, {});
+        if (is_bf16) {
+            mul5 = graph->make("cast", mul5->get_outputs(), {},
+                    {{"dtype", datatypes::bf16}});
+        }
+        // output
+        graph->make_output(mul5->get_outputs());
+    } else {
+        // erf impl
+        // input
+        graph->make_input(inputs);
+        bool is_bf16 = info_.inputs_[0]->details_.dtype_.is_etype(
+                sc_data_etype::BF16);
+        sc_op_ptr one_over_sqrt_2, one, half;
+        union {
+            float v;
+            int v2;
+        } caster;
+        caster.v2 = 0x3f3504f3;
+        one_over_sqrt_2 = graph->make<constant_op_t>(
+                std::make_shared<static_data_t>(std::vector<float> {caster.v}),
+                datatypes::f32, sc_dims {1});
+        one = graph->make<constant_op_t>(
+                std::make_shared<static_data_t>(std::vector<float> {1.0f}),
+                datatypes::f32, sc_dims {1});
+        half = graph->make<constant_op_t>(
+                std::make_shared<static_data_t>(std::vector<float> {0.5f}),
+                datatypes::f32, sc_dims {1});
+        graph_tensor_ptr inputs0 = inputs[0];
+        if (is_bf16) {
+            auto cast0 = graph->make(
+                    "cast", {inputs[0]}, {}, {{"dtype", datatypes::f32}});
+            inputs0 = cast0->get_outputs()[0];
+        }
+        auto mul0 = graph->make(
+                "mul", {inputs0, one_over_sqrt_2->get_outputs()[0]}, {}, {});
+        auto erf0 = graph->make("erf", {mul0->get_outputs()[0]}, {}, {});
+        auto add0 = graph->make(
+                "add", {erf0->get_outputs()[0], one->get_outputs()[0]}, {}, {});
+        auto mul1
+                = graph->make("mul", {add0->get_outputs()[0], inputs0}, {}, {});
+        auto mul2 = graph->make("mul",
+                {mul1->get_outputs()[0], half->get_outputs()[0]}, {}, {});
+        if (is_bf16) {
+            mul2 = graph->make("cast", mul2->get_outputs(), {},
+                    {{"dtype", datatypes::bf16}});
+        }
+        // output
+        graph->make_output(mul2->get_outputs());
     }
-    auto mul0 = graph->make("mul", {inputs0, inputs0}, {}, {});
-    auto mul1 = graph->make("mul",
-            {mul0->get_outputs()[0], fitting_const->get_outputs()[0]}, {}, {});
-    auto add0 = graph->make(
-            "add", {mul1->get_outputs()[0], one->get_outputs()[0]}, {}, {});
-    auto mul2 = graph->make("mul", {add0->get_outputs()[0], inputs0}, {}, {});
-    auto mul3 = graph->make("mul",
-            {mul2->get_outputs()[0], sqrt_2_over_pi->get_outputs()[0]}, {}, {});
-    auto tanh0 = graph->make("tanh", {mul3->get_outputs()[0]}, {}, {});
-    auto add1 = graph->make(
-            "add", {tanh0->get_outputs()[0], one->get_outputs()[0]}, {}, {});
-    auto mul4 = graph->make("mul", {inputs0, add1->get_outputs()[0]}, {}, {});
-    auto mul5 = graph->make(
-            "mul", {mul4->get_outputs()[0], half->get_outputs()[0]}, {}, {});
-    if (is_bf16) {
-        mul5 = graph->make(
-                "cast", mul5->get_outputs(), {}, {{"dtype", datatypes::bf16}});
-    }
-    // output
-    graph->make_output(mul5->get_outputs());
 }
 
 void gelu_backprop_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {

@@ -35,6 +35,12 @@ namespace jit {
 ;
 #undef _CATALOG_
 
+status_t gen_gemm_kernel_desc_t::create_generator(
+        engine_t *engine, compute::compiled_kernel_t &generator) const {
+    gen_gemm_kernel_t kd(*this);
+    return compute::compiled_kernel_t::create(generator, engine, kd);
+}
+
 status_t gen_gemm_kernel_desc_t::finalize() {
     // Update problem alignments to match catalog entry.
     if (!isPacked(problem_.A.layout)) {
@@ -91,9 +97,12 @@ status_t gen_gemm_kernel_desc_t::finalize() {
             dim_t thread_gpu = eu_count_
                     * compute::device_info_t::threads_per_eu(
                             arch_, strategy_.GRFs > 128);
-            if (thread_count <= thread_gpu)
-                strategy_.persistent = strategy_.hilbertOrder
-                        = strategy_.boustrophedon = false;
+            if (thread_count <= thread_gpu) {
+                strategy_.persistent = false;
+                strategy_.cWalkOrder = WalkOrder::HW2D;
+                strategy_.blocking[LoopM] = 16777216;
+                strategy_.blocking[LoopN] = 16777216;
+            }
         }
     }
 
@@ -208,8 +217,6 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     n_ = n;
     k_ = k;
     eu_count_ = eu_count;
-    a_offset_ = a_offset;
-    b_offset_ = b_offset;
     disable_systolic_ = !has_systolic;
 
     align_a = nstl::max(align_a, int(types::data_type_size(a_type)));
@@ -236,6 +243,8 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         problem_.batchDims = batch_dims;
     }
     if (a_offset || b_offset) problem_.abOffset = ABOffset::Calc;
+    if (a_offset) problem_.aoPtrDims = 0;
+    if (b_offset) problem_.boPtrDims = 0;
 
     if (problem_.Ta.isInteger()) problem_.Ts = Type::f32;
 
@@ -296,7 +305,10 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     EvaluateParams eval_params;
 
     eval_params.sizes = match_params[0].sizes;
-    eval_params.beta = (post_ops.len() > 0) ? 0.0f : beta;
+    eval_params.alpha = alpha;
+    eval_params.beta = beta;
+    eval_params.postOps = (post_ops.len() > 0);
+    eval_params.cConvert = (acc_type != c_type);
     eval_params.euCount = eu_count;
 
     entry_ = select(
@@ -340,8 +352,6 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     n_ = n;
     k_ = k;
     eu_count_ = eu_count;
-    a_offset_ = a_offset;
-    b_offset_ = b_offset;
 
     if (!utils::one_of(hw_, HW::XeHP, HW::XeHPG, HW::XeHPC))
         return status::unimplemented;
@@ -380,6 +390,8 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
         problem_.batchDims = batch_dims;
     }
     if (a_offset || b_offset) problem_.abOffset = ABOffset::Load;
+    if (a_offset) problem_.aoPtrDims = 0;
+    if (b_offset) problem_.boPtrDims = 0;
     if (alpha == 1.0f) problem_.alpha_real = alpha;
     if (beta == 0.0f || beta == 1.0f) problem_.beta_real = beta;
 
@@ -491,13 +503,13 @@ void gen_gemm_kernel_t::init_interface() {
     interface_.newArgument("alpha_real", s_type_ngen);
     interface_.newArgument("beta_real", s_type_ngen);
     if (problem.abOffset != ABOffset::None) {
-        if (!desc()->a_offset_ && !desc()->b_offset_)
+        if (problem.aoPtrDims < 0 && problem.boPtrDims < 0)
             interface_.newArgument("abo", DataType::ud);
         else {
-            if (desc()->a_offset_)
+            if (problem.aoPtrDims >= 0)
                 interface_.newArgument(
                         "ao_ptr", ExternalArgumentType::GlobalPtr);
-            if (desc()->b_offset_)
+            if (problem.boPtrDims >= 0)
                 interface_.newArgument(
                         "bo_ptr", ExternalArgumentType::GlobalPtr);
         }
@@ -547,11 +559,13 @@ void gen_gemm_kernel_t::init_interface() {
         interface_.newArgument("group_count_m", DataType::ud);
         interface_.newArgument("group_count_n", DataType::ud);
     }
-    if (strategy.hilbertOrder) {
+    if (strategy.cWalkOrder == WalkOrder::SimpleLinear)
+        interface_.newArgument("group_count_recip", DataType::ud);
+    else if (strategy.cWalkOrder == WalkOrder::Hilbertlike) {
         interface_.newArgument("hilbert_vd", DataType::ud);
         interface_.newArgument("hilbert_uvd_recip", DataType::ud);
         interface_.newArgument("hilbert_bail", DataType::ud);
-    } else if (strategy.boustrophedon) {
+    } else if (strategy.cWalkOrder == WalkOrder::Boustrophedon) {
         interface_.newArgument("bslice", DataType::d);
         interface_.newArgument("bthresh", DataType::d);
     }

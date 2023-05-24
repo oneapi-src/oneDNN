@@ -61,8 +61,8 @@ public:
 
         for (int i = 0; i < original_esize; i += esize) {
             fixup(op, mod, dst, src);
-            shift_offset(dst, esize);
-            shift_offset(src, esize);
+            shift_offset(dst, esize * dst.getHS());
+            shift_offset(src, esize * src.getHS());
         }
     }
 

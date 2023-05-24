@@ -2081,6 +2081,10 @@ int jit_brgemm_trans_wei_f32_t::get_oc_block() {
         case OIw16i64o:
         case OIhw16i64o:
         case OIdhw16i64o: return 64;
+        case OI16i48o:
+        case OIw16i48o:
+        case OIhw16i48o:
+        case OIdhw16i48o: return 48;
         case OI16i32o:
         case OIw16i32o:
         case OIhw16i32o:

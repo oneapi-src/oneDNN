@@ -39,9 +39,8 @@ using namespace dnnl::impl::graph::gc;
 static void ir_compare_test_on_graph(
         std::function<sc_graph_t(void)> graph_builder,
         std::string &expected_ir) {
-    BUILTIN_REQUIRE_AVX512();
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(16);
+    REQUIRE_AVX2();
+    SET_THREADS_OR_SKIP(16);
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     ctx->flags_.mixed_fusion_ = true;
     ctx->flags_.concat_optimization_ = true;
@@ -70,9 +69,8 @@ static void ir_compare_test_on_graph(
 // All tensor are float. Other dtypes should not use this function.
 static void accuracy_test_on_graph(
         std::function<sc_graph_t(void)> graph_builder) {
-    BUILTIN_REQUIRE_AVX512();
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(56);
+    REQUIRE_AVX2();
+    SET_THREADS_OR_SKIP(56);
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     ctx->flags_.mixed_fusion_ = true;
     builder::ir_builder_t bld;
@@ -159,9 +157,8 @@ static const int B = 8;
 static const int C0 = 16, C1 = 32, C2 = 64;
 static const int D = 32;
 
-TEST(GCCore_concat_optimization_cpp, MergeConsecutiveConcats) {
-    thread_num_reset reseter;
-    runtime_config_t::get().set_num_threads(16);
+TEST(GCCore_CPU_concat_optimization_cpp, MergeConsecutiveConcats) {
+    SET_THREADS_OR_SKIP(16);
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     ctx->flags_.mixed_fusion_ = true;
     builder::ir_builder_t bld;
@@ -265,7 +262,7 @@ static sc_graph_t build_sequential_standalone_concats() {
     return graph0;
 }
 
-TEST(GCCore_concat_optimization_cpp, SequentialStandaloneConcats) {
+TEST(GCCore_CPU_concat_optimization_cpp, SequentialStandaloneConcats) {
     accuracy_test_on_graph(build_sequential_standalone_concats);
     std::string expected_str = R"(/**
  * main_entry
@@ -276,9 +273,9 @@ func main_entry(buffer_0: [f32 * 4UL * 8UL * 16UL * 32UL], buffer_8: [f32 * 4UL 
   // [f32 [4, 8, 128, 32] @ ABCD]
   tensor buffer_7: [f32 * 4UL * 8UL * 128UL * 32UL]
   evaluate{outerloop_4X8X16_partition_add_tanh_8(&buffer_7[0UL, 0UL, 0UL, 0UL], &buffer_7[0UL, 0UL, 16UL, 0UL], buffer_0)}
-  evaluate{sigmoid_0(&buffer_7[0UL, 0UL, 32UL, 0UL], &buffer_7[0UL, 0UL, 0UL, 0UL])}
-  evaluate{relu_0(&buffer_7[0UL, 0UL, 64UL, 0UL], &buffer_7[0UL, 0UL, 0UL, 0UL])}
-  evaluate{add_0(buffer_8, buffer_7, buffer_7)}
+  evaluate{sigmoid_2(&buffer_7[0UL, 0UL, 32UL, 0UL], &buffer_7[0UL, 0UL, 0UL, 0UL])}
+  evaluate{relu_4(&buffer_7[0UL, 0UL, 64UL, 0UL], &buffer_7[0UL, 0UL, 0UL, 0UL])}
+  evaluate{add_6(buffer_8, buffer_7, buffer_7)}
 })";
     ir_compare_test_on_graph(build_sequential_standalone_concats, expected_str);
 }
@@ -315,7 +312,7 @@ static sc_graph_t build_sequential_concats_in_one_partition() {
     return graph0;
 }
 
-TEST(GCCore_concat_optimization_cpp, SequentialConcatsInOnePartition) {
+TEST(GCCore_CPU_concat_optimization_cpp, SequentialConcatsInOnePartition) {
     accuracy_test_on_graph(build_sequential_concats_in_one_partition);
     // The added new buffer arguemnt is wrapped into inlined function
     // illustrated below
@@ -389,7 +386,7 @@ static sc_graph_t build_sequential_concats_standalone_and_in_one_partition() {
     return graph0;
 }
 
-TEST(GCCore_concat_optimization_cpp,
+TEST(GCCore_CPU_concat_optimization_cpp,
         SequentialStandaloneAndInOnePartitionConcats) {
     accuracy_test_on_graph(
             build_sequential_concats_standalone_and_in_one_partition);
@@ -406,7 +403,7 @@ func main_entry(buffer_0: [f32 * 4UL * 8UL * 16UL * 32UL], buffer_7: [f32 * 4UL 
   // [f32 [4, 8, 2048, 32] @ ABCD]
   tensor buffer_6: [f32 * 4UL * 8UL * 2048UL * 32UL]
   evaluate{outerloop_4X8_partition_relu_concat_tanh_concat_sigmoid(&buffer_6[0UL, 0UL, 0UL, 0UL], &buffer_6[0UL, 0UL, 1024UL, 0UL], buffer_3)}
-  evaluate{add_0(buffer_7, buffer_6, buffer_6)}
+  evaluate{add_3(buffer_7, buffer_6, buffer_6)}
 })";
     ir_compare_test_on_graph(
             build_sequential_concats_standalone_and_in_one_partition,
@@ -431,7 +428,7 @@ static sc_graph_t build_reduce_reduce_concat() {
     return graph0;
 }
 
-TEST(GCCore_concat_optimization_cpp, ReduceReduceConcat) {
+TEST(GCCore_CPU_concat_optimization_cpp, ReduceReduceConcat) {
     // In this case, reduce0 is a standalone op, reduce1 and concat are in one
     // partition. So the concat operation of reduce0's output is remained, the
     // concat operation of reduce1's output is deleted.
@@ -455,7 +452,7 @@ static sc_graph_t build_tensorview_add_concat() {
     return graph0;
 }
 
-TEST(GCCore_concat_optimization_cpp, TensorviewAddConcat) {
+TEST(GCCore_CPU_concat_optimization_cpp, TensorviewAddConcat) {
     accuracy_test_on_graph(build_tensorview_add_concat);
 
     std::string expected_str = R"(/**
@@ -495,7 +492,7 @@ static sc_graph_t build_inception_block_with_adds() {
     return graph0;
 }
 
-TEST(GCCore_concat_optimization_cpp, InceptionLikeTopoAdd) {
+TEST(GCCore_CPU_concat_optimization_cpp, InceptionLikeTopoAdd) {
     // In this case, all the parent ops of concat op are in the same partition,
     // so all the concat operations are deleted.
     accuracy_test_on_graph(build_inception_block_with_adds);
@@ -574,7 +571,7 @@ static sc_graph_t build_inception_block() {
     return graph0;
 }
 
-TEST(GCCore_concat_optimization_cpp, InceptionLikeTopoConv) {
+TEST(GCCore_CPU_concat_optimization_cpp, InceptionLikeTopoConv) {
     accuracy_test_on_graph(build_inception_block);
 }
 
@@ -712,7 +709,7 @@ static sc_graph_t build_densenet() {
     return graph;
 }
 
-TEST(GCCore_concat_optimization_cpp, Densenet) {
+TEST(GCCore_CPU_concat_optimization_cpp, Densenet) {
     accuracy_test_on_graph(build_densenet);
 }
 
@@ -755,7 +752,7 @@ static sc_graph_t build_gptj_subgraph() {
     return graph0;
 }
 
-TEST(GCCore_concat_optimization_cpp, GPTJ) {
+TEST(GCCore_CPU_concat_optimization_cpp, GPTJ) {
     REQUIRE_BF16();
     accuracy_test_on_graph(build_gptj_subgraph);
 }

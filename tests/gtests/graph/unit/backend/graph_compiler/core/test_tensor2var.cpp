@@ -25,7 +25,7 @@
 
 using namespace dnnl::impl::graph::gc;
 using namespace dnnl::impl::graph::gc::builder;
-TEST(GCCore_tensor2var_cpp, TestTensor2Var) {
+TEST(GCCore_CPU_tensor2var_cpp, TestTensor2Var) {
     builder::ir_builder_t builder;
     _function_(datatypes::s32, aaa, _arg_("A", datatypes::f32, {123}),
             _arg_("B", datatypes::f32, {122}), _arg_("len", datatypes::s32)) {

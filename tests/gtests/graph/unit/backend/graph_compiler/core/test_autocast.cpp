@@ -25,7 +25,7 @@
 using namespace dnnl::impl::graph::gc;
 using namespace dnnl::impl::graph::gc::builder;
 
-TEST(GCCore_auto_cast_cpp, TestAutoCastBinary) {
+TEST(GCCore_CPU_auto_cast_cpp, TestAutoCastBinary) {
     builder::ir_builder_t builder;
     builder.push_scope();
     ir_comparer cmp(false, true, true);
@@ -107,7 +107,7 @@ TEST(GCCore_auto_cast_cpp, TestAutoCastBinary) {
                     "hidden", false));
 }
 
-TEST(GCCore_auto_cast_cpp, TestAutoCastCall) {
+TEST(GCCore_CPU_auto_cast_cpp, TestAutoCastCall) {
     builder::ir_builder_t builder;
     builder.push_scope();
     ir_comparer cmp(false, true, true);
@@ -118,7 +118,7 @@ TEST(GCCore_auto_cast_cpp, TestAutoCastCall) {
             abc(make_cast(datatypes::f32, 1), make_cast(datatypes::index, 1))));
 }
 
-TEST(GCCore_auto_cast_cpp, TestAutoCastFor) {
+TEST(GCCore_CPU_auto_cast_cpp, TestAutoCastFor) {
     builder::ir_builder_t builder;
     builder.push_scope();
     ir_comparer cmp(false, true, false);
@@ -138,7 +138,7 @@ TEST(GCCore_auto_cast_cpp, TestAutoCastFor) {
     EXPECT_TRUE(cmp.compare(after, expected));
 }
 
-TEST(GCCore_auto_cast_cpp, TestAutoCastIndexing) {
+TEST(GCCore_CPU_auto_cast_cpp, TestAutoCastIndexing) {
     builder::ir_builder_t builder;
     builder.push_scope();
     ir_comparer cmp(false, true, false);

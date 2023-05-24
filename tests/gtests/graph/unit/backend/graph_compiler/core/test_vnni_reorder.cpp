@@ -256,12 +256,12 @@ void test_simple_instructions(
     test_utils::compare_data(reorder_op_out, ref_out);
 }
 
-TEST(GCCore_vnni_reorder_test, TestSimpleInstructions1) {
+TEST(GCCore_CPU_vnni_reorder_test, TestSimpleInstructions1) {
     REQUIRE_AVX512VBMI()
     test_simple_instructions(64, 128, 4, 2, 16, 16, 4);
 }
 
-TEST(GCCore_vnni_reorder_test, TestSimpleInstructions2) {
+TEST(GCCore_CPU_vnni_reorder_test, TestSimpleInstructions2) {
     REQUIRE_AVX512VBMI()
     test_simple_instructions(1024, 512, 8, 4, 32, 128, 4);
 }
@@ -365,7 +365,7 @@ static void check(const sc_dims &inputdims, const sc_data_format_t &infmt,
     EXPECT_EQ(is_vnni_reorder_triggered(f), is_vnni_reorder);
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose1) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose1) {
     REQUIRE_AVX512()
     check<uint8_t>({128, 64}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn4k(16 * 4, 16), sc_data_type_t::u8(), true,
@@ -374,7 +374,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose1) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose2) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose2) {
     REQUIRE_AVX512()
     check<uint8_t>({64, 384}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn4k(8 * 4, 32), sc_data_type_t::u8(), true,
@@ -383,7 +383,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose2) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose3) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose3) {
     REQUIRE_AVX512()
     check<uint8_t>({1024, 4096}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn4k(32 * 4, 64), sc_data_type_t::u8(), true,
@@ -392,7 +392,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose3) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose4) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose4) {
     REQUIRE_AVX512()
     check<bf16_t>({128, 64}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn2k(16 * 2, 16), sc_data_type_t::bf16(), true,
@@ -401,7 +401,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose4) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose5) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose5) {
     REQUIRE_AVX512()
     check<bf16_t>({64, 384}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn2k(8 * 2, 32), sc_data_type_t::bf16(), true,
@@ -410,7 +410,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose5) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose6) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose6) {
     REQUIRE_AVX512()
     check<bf16_t>({1024, 4096}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn2k(32 * 2, 64), sc_data_type_t::bf16(), true,
@@ -419,7 +419,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose6) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose7) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose7) {
     REQUIRE_AVX512()
     check<uint8_t>({32, 16}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn4k(4 * 4, 8), sc_data_type_t::u8(), true,
@@ -428,7 +428,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose7) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose8) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose8) {
     REQUIRE_AVX512()
     check<uint8_t>({128, 16, 32}, sc_data_format_t(format_kinds::ABC),
             ABCcb4c(4 * 4, 8), sc_data_type_t::u8(), true, false,
@@ -437,7 +437,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose8) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose9) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose9) {
     REQUIRE_AVX512()
     check<bf16_t>({64, 384}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn2k(8 * 2, 32), sc_data_type_t::bf16(), true,
@@ -446,7 +446,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose9) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose10) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose10) {
     REQUIRE_AVX512()
     check<int8_t>({16, 16}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn4k(4 * 4, 16), sc_data_type_t::u8(), true,
@@ -455,7 +455,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose10) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder1) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder1) {
     REQUIRE_AVX512VBMI()
     check<int8_t>({16, 16}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(4 * 4, 16), sc_data_type_t::s8(), true,
@@ -464,7 +464,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder1) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder2) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder2) {
     REQUIRE_AVX512VBMI()
     check<uint8_t>({16, 64}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(16, 16), sc_data_type_t::u8(), true, false,
@@ -473,7 +473,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder2) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder3) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder3) {
     REQUIRE_AVX512VBMI()
     check<uint8_t>({64, 64}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(16, 16), sc_data_type_t::u8(), true, true,
@@ -482,7 +482,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder3) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder4) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder4) {
     REQUIRE_AVX512VBMI()
     check<uint8_t>({4, 16}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(4, 16), sc_data_type_t::u8(), true, false,
@@ -491,7 +491,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder4) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder5) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder5) {
     REQUIRE_AVX512VBMI()
     check<uint8_t>({64, 384}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(16, 32), sc_data_type_t::u8(), true, true,
@@ -500,7 +500,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder5) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder6) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder6) {
     REQUIRE_AVX512VBMI()
     check<uint8_t>({1024, 4096}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(128, 64), sc_data_type_t::u8(), true,
@@ -509,7 +509,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder6) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder7) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder7) {
     REQUIRE_AVX512VBMI()
     check<bf16_t>({4, 8}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn2k(4, 8), sc_data_type_t::bf16(), true, true,
@@ -518,7 +518,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder7) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder8) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder8) {
     REQUIRE_AVX512VBMI()
     check<bf16_t>({16, 16}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn2k(16, 16), sc_data_type_t::bf16(), true,
@@ -527,7 +527,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder8) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder9) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder9) {
     REQUIRE_AVX512VBMI()
     check<bf16_t>({64, 384}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn2k(16, 32), sc_data_type_t::bf16(), true,
@@ -536,7 +536,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder9) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder10) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder10) {
     REQUIRE_AVX512VBMI()
     check<bf16_t>({1024, 4096}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn2k(64, 64), sc_data_type_t::bf16(), true,
@@ -545,7 +545,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder10) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorderPadding1) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderPadding1) {
     REQUIRE_AVX512VBMI()
     check<uint8_t>({63, 64}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(16, 16), sc_data_type_t::u8(), true, false,
@@ -554,7 +554,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorderPadding1) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorderPadding2) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderPadding2) {
     REQUIRE_AVX512VBMI()
     check<uint8_t>({479, 1024}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(64, 64), sc_data_type_t::u8(), true, false,
@@ -563,7 +563,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorderPadding2) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorderPadding3) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderPadding3) {
     REQUIRE_AVX512VBMI()
     check<bf16_t>({63, 64}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn2k(16, 16), sc_data_type_t::bf16(), true,
@@ -572,7 +572,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorderPadding3) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorderPadding4) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderPadding4) {
     REQUIRE_AVX512VBMI()
     check<bf16_t>({479, 1024}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn2k(64, 64), sc_data_type_t::bf16(), true,
@@ -582,7 +582,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorderPadding4) {
 }
 
 // not vnni reorder
-TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose11) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose11) {
     REQUIRE_AVX512()
     check<uint8_t>({256, 128}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn4k(1 * 4, 8), sc_data_type_t::u8(), false,
@@ -592,7 +592,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose11) {
 }
 
 // not vnni reorder
-TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose12) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose12) {
     REQUIRE_AVX512()
     check<uint8_t>({64, 64, 3, 3}, sc_data_format_t::KCRS(),
             sc_data_format_t::KCRSck4c(32, 32), sc_data_type_t::u8(), false,
@@ -601,7 +601,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose12) {
             });
 } // ABCD->ABCDba4
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder13) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder13) {
     REQUIRE_AVX512VBMI()
     check<bf16_t>({28, 12, 128, 64}, sc_data_format_t(format_kinds::ACBD),
             ABCDcd2c(64, 64), sc_data_type_t::bf16(), true, true,
@@ -612,7 +612,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder13) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder14) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder14) {
     REQUIRE_AVX512VBMI()
     check<bf16_t>({1, 1, 384, 64}, sc_data_format_t(format_kinds::ACBD),
             ABCDcd2c(64, 64), sc_data_type_t::bf16(), true, false,
@@ -621,7 +621,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder14) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder15) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder15) {
     REQUIRE_AVX512VBMI()
     check<bf16_t>({1, 16, 384, 64}, sc_data_format_t(format_kinds::ACBD),
             ABCDcd2c(64, 64), sc_data_type_t::bf16(), true, true,
@@ -631,7 +631,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder15) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder16) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder16) {
     REQUIRE_AVX512VBMI()
     check<bf16_t>({1, 1, 16, 16}, sc_data_format_t(ABCD), ABDCcd2c(16, 16),
             sc_data_type_t::bf16(), true, false,
@@ -640,7 +640,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder16) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose17) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose17) {
     REQUIRE_AVX512VBMI()
     check<bf16_t>({1, 1, 64, 384}, sc_data_format_t(ABDC), ABCDcd2c(64, 64),
             sc_data_type_t::bf16(), true, true, [](test_buffer<bf16_t> &input) {
@@ -648,7 +648,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose17) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder18) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder18) {
     REQUIRE_AVX512VBMI()
     check<uint8_t>({768, 2304}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(256, 256), sc_data_type_t::s8(), true,
@@ -656,7 +656,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder18) {
                 return KN2NKkn(input, 9, 3, 256, 256, 768, 2304, 4);
             });
 }
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder19) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder19) {
     REQUIRE_AVX512VBMI()
     check<uint8_t>({768, 2304}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(256, 18), sc_data_type_t::s8(), false,
@@ -665,7 +665,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder19) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder20) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder20) {
     REQUIRE_AVX512VBMI()
     check<bf16_t>({13, 512}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn2k(18, 32), sc_data_type_t::bf16(), false,
@@ -674,7 +674,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder20) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder21) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder21) {
     REQUIRE_AVX512VBMI()
     check<bf16_t>({1, 12, 15, 64}, format_kinds::ACBD, ABDCcd2c(64, 64),
             sc_data_type_t::bf16(), true, false,
@@ -684,7 +684,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder21) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder22) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder22) {
     REQUIRE_AVX512VBMI()
     check<uint8_t>({64, 15}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(16, 32), sc_data_type_t::u8(), true, false,
@@ -693,7 +693,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder22) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder23) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder23) {
     REQUIRE_AVX512VBMI()
     check<uint8_t>({64, 64, 1, 1}, sc_data_format_t::KCRS(),
             sc_data_format_t::KCRSck4c(32, 32), sc_data_type_t::u8(), true,
@@ -702,7 +702,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder23) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder25) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder25) {
     REQUIRE_AVX512()
     check<uint8_t>({64, 64, 2, 1}, sc_data_format_t::KCRS(),
             sc_data_format_t::KCRSck4c(32, 32), sc_data_type_t::u8(), false,
@@ -711,7 +711,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder25) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder26) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder26) {
     REQUIRE_AVX512VBMI()
     check<bf16_t>({16, 128, 1}, sc_data_format_t(format_kinds::ABC),
             ABCba2bc(16, 16, 1), sc_data_type_t::bf16(), true, true,
@@ -720,7 +720,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder26) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder27) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder27) {
     REQUIRE_AVX512()
     check<bf16_t>({16, 128, 8}, sc_data_format_t(format_kinds::ABC),
             ABCba2bc(16, 16, 8), sc_data_type_t::bf16(), false, true,
@@ -729,7 +729,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder27) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder28) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder28) {
     REQUIRE_AVX512VBMI()
     check<bf16_t>({16, 128, 1}, sc_data_format_t(format_kinds::ABC),
             sc_data_format_t(ABCabc, {16, 2, 1}), sc_data_type_t::bf16(), true,
@@ -738,7 +738,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder28) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder29) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder29) {
     REQUIRE_AVX512VBMI()
     check<bf16_t>({16, 128, 16}, sc_data_format_t(format_kinds::ABC),
             sc_data_format_t(ABCabc, {16, 4, 2}), sc_data_type_t::bf16(), true,
@@ -747,7 +747,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder29) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorder30) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder30) {
     REQUIRE_AVX512()
     check<bf16_t>({16, 128, 16}, sc_data_format_t(format_kinds::ABC),
             sc_data_format_t(ABCabc, {16, 4, 4}), sc_data_type_t::bf16(), false,
@@ -756,7 +756,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorder30) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose22) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose22) {
     REQUIRE_AVX512VBMI()
     check<bf16_t>({1, 12, 64, 15},
             sc_data_format_t(sc_data_format_kind_t {0, 3, 1, 2}),
@@ -767,7 +767,7 @@ TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose22) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestVNNIReorderTranspose23) {
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose23) {
     REQUIRE_AVX512VBMI()
     check<bf16_t>({1, 12, 64, 16},
             sc_data_format_t(sc_data_format_kind_t {0, 3, 1, 2}),
@@ -800,7 +800,7 @@ static void check_fuse_add(const sc_dims &inputdims,
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestUInt8VNNIReorderTransposeFuseAdd1) {
+TEST(GCCore_CPU_vnni_reorder_test, TestUInt8VNNIReorderTransposeFuseAdd1) {
     REQUIRE_AVX512()
     check_fuse_add<uint8_t>({128, 64}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn4k(16 * 4, 16), sc_data_type_t::u8(), true,
@@ -812,7 +812,7 @@ TEST(GCCore_vnni_reorder_test, TestUInt8VNNIReorderTransposeFuseAdd1) {
             });
 }
 
-TEST(GCCore_vnni_reorder_test, TestUInt8VNNIReorderTransposeFuseAdd2) {
+TEST(GCCore_CPU_vnni_reorder_test, TestUInt8VNNIReorderTransposeFuseAdd2) {
     REQUIRE_AVX512()
 
     check_fuse_add<uint8_t>({64, 384}, sc_data_format_t::NK(),

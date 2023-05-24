@@ -153,14 +153,16 @@ int measure_perf(timer::timer_t &t, std::vector<perf_function_t> &perf_func_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v) {
     if (has_bench_mode_bit(mode_bit_t::perf)) {
         // enable GPU profiling, Nvidia/AMD dose not support profiling.
+        int ret = OK;
         bool use_profiling = is_gpu() && !is_nvidia_gpu() && !is_amd_gpu();
         if (use_profiling) enable_gpu_profiling();
         if (is_cpu() && !is_sycl_engine()) {
-            return measure_perf_individual(t, perf_func_v, inputs_v, outputs_v);
+            ret = measure_perf_individual(t, perf_func_v, inputs_v, outputs_v);
         } else {
-            return measure_perf_aggregate(t, perf_func_v, inputs_v, outputs_v);
+            ret = measure_perf_aggregate(t, perf_func_v, inputs_v, outputs_v);
         }
         if (use_profiling) disable_gpu_profiling();
+        return ret;
     } else {
         return OK;
     }

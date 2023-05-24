@@ -225,6 +225,46 @@ inline void getBinaryHWInfo(const std::vector<uint8_t> &binary, HW &outHW, Produ
     }
 }
 
+inline ngen::Product decodeHWIPVersion(uint32_t rawVersion)
+{
+    struct HWIPVersion {
+        union {
+            uint32_t raw;
+            struct{
+                uint32_t revision : 6;
+                uint32_t reserved : 8;
+                uint32_t release : 8;
+                uint32_t architecture : 10;
+            };
+        };
+    } version;
+
+    ngen::Product outProduct = {ngen::ProductFamily::Unknown, 0};
+
+    version.raw = rawVersion;
+    switch (version.architecture) {
+        case 9:  outProduct.family = ngen::ProductFamily::GenericGen9; break;
+        case 11: outProduct.family = ngen::ProductFamily::GenericGen11; break;
+        case 12:
+            if (version.release <= 10)
+                outProduct.family = ngen::ProductFamily::GenericGen12LP;
+            else if (version.release == 50)
+                outProduct.family = ngen::ProductFamily::GenericXeHP;
+            else if (version.release > 50 && version.release <= 59)
+                outProduct.family = ngen::ProductFamily::DG2;
+            else if (version.release == 60)
+                outProduct.family = ngen::ProductFamily::PVC;
+            else if (version.release >= 70 && version.release <= 71)
+                outProduct.family = ngen::ProductFamily::MTL;
+            break;
+        default: outProduct.family = ngen::ProductFamily::Unknown; break;
+    }
+
+    if (outProduct.family != ngen::ProductFamily::Unknown)
+        outProduct.stepping = version.revision;
+
+    return outProduct;
+}
 
 } /* namespace npack */
 } /* namespace ngen */

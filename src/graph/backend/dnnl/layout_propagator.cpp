@@ -1146,9 +1146,26 @@ status_t layout_propagator_for_reorder(op_ptr &op, const dnnl::engine &p_engine,
                 "the dnnl_reorder op's input and output layout must be known "
                 "if it changes layout");
 
-        in_lt.data_type = ltw(out_lt).data_type();
+        // for logical tensor with opaque layout, make_dnnl_memory_desc
+        // cannot help manually modify the logical tensor. The previously
+        // created memory will be quired according to logic tensor id.
+        // So data_type of quired memory may be not same as the logical tensor.
+        // We used to be able to change the data type manually in oneDNN
+        // v2.7, but we can't modify the data type in this way anymore
+        // since v3.0.
         auto out_md = make_dnnl_memory_desc(in_lt);
-        status = fill_layout_info(dst, out_md);
+        if (in_lt.data_type != out_lt.data_type) {
+            auto format_tag = get_format_tag_str(out_md);
+            const auto &dims = out_md.get_dims();
+            dnnl_memory_desc_t tmp_md;
+            dnnl_memory_desc_create_with_string_tag(&tmp_md,
+                    static_cast<int>(dims.size()), dims.data(),
+                    static_cast<dnnl_data_type_t>(out_lt.data_type),
+                    format_tag.data());
+            status = fill_layout_info(dst, tmp_md);
+        } else {
+            status = fill_layout_info(dst, out_md);
+        }
     } else if (!ltw(out_lt).is_any() && ltw(in_lt).is_any()) {
         assertm(!op->has_attr(op_attr::change_layout)
                         || !op->get_attr<bool>(op_attr::change_layout),

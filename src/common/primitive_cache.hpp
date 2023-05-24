@@ -34,6 +34,8 @@ struct primitive_cache_iface_t {
         result_t() : status(status::success) {};
         result_t(std::shared_ptr<primitive_t> p, status_t s)
             : value(std::move(p)), status(s) {}
+        bool is_empty() const { return value == nullptr; }
+        primitive_t &get_value() const { return *value; }
         std::shared_ptr<primitive_t> value;
         status_t status;
     };

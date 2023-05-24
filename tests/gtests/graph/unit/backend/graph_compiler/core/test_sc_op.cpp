@@ -200,7 +200,7 @@ public:
 
 } // namespace llga_fake
 
-TEST(GCCore_sc_op_test, add_template_op) {
+TEST(GCCore_CPU_sc_op_test, add_template_op) {
     // using namespace llga_fake;
     llga_fake::node conv(0, "conv0", llga_fake::op_kind_t::kconv);
     llga_fake::logical_tensor_t conv_src {0, 4,
@@ -327,7 +327,7 @@ TEST(GCCore_sc_op_test, add_template_op) {
     }
 }
 
-TEST(GCCore_sc_op_test, add_fusible_op) {
+TEST(GCCore_CPU_sc_op_test, add_fusible_op) {
     sc_graph_t opmg;
     std::unordered_map<std::string, any_t> transpose_attrs;
     auto transpose_in1
@@ -352,7 +352,7 @@ TEST(GCCore_sc_op_test, add_fusible_op) {
 #if 0
 // TODO(xxx): we should check the result instead of check IR. we may generate
 // optimial IR.
-TEST(GCCore_sc_op_test, check_get_func) {
+TEST(GCCore_CPU_sc_op_test, check_get_func) {
     sc_graph_t opmg;
     auto conv_src = std::make_shared<logical_tensor_t>(nullptr,
             sc_data_format_t(), sc_dims {28, 64, 16, 16},

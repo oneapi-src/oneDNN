@@ -174,14 +174,10 @@ static bool check_slice_on_non_concat_axis_equal(
                         && slices[i][j][k].first.isa<constant_c>()
                         && slices[0][j][k].second.isa<constant_c>()
                         && slices[i][j][k].second.isa<constant_c>()) {
-                    auto input0_offset = get_const_as_int(
-                            slices[0][j][k].first.checked_as<constant_c>());
-                    auto inputi_offset = get_const_as_int(
-                            slices[i][j][k].first.checked_as<constant_c>());
-                    auto input0_range = get_const_as_int(
-                            slices[0][j][k].second.checked_as<constant_c>());
-                    auto inputi_range = get_const_as_int(
-                            slices[i][j][k].second.checked_as<constant_c>());
+                    auto input0_offset = get_expr_as_int(slices[0][j][k].first);
+                    auto inputi_offset = get_expr_as_int(slices[i][j][k].first);
+                    auto input0_range = get_expr_as_int(slices[0][j][k].second);
+                    auto inputi_range = get_expr_as_int(slices[i][j][k].second);
                     if (input0_offset != inputi_offset
                             || input0_range != inputi_range) {
                         return false;
@@ -772,9 +768,8 @@ slice_range_list infer_tensor_view_slice(sc_graph_t &graph,
         for (int i = src_dims.size() - 1; i >= 0; i--) {
             if (slice_stop) {
                 // check whether slice is full on last several dims
-                if (get_const_as_int(
-                            known_ranges[i].second.checked_as<constant_c>())
-                        != 1)
+                if (!known_ranges[i].second.isa<constant_c>()
+                        || get_expr_as_int(known_ranges[i].second) != 1)
                     // if tensor_view deals with inconsequence slice, it will
                     // return empty slice range list to tell fusion manager not
                     // to fuse it
@@ -782,17 +777,13 @@ slice_range_list infer_tensor_view_slice(sc_graph_t &graph,
             }
             auto src_expr = src_dims[i];
             if (!(known_ranges[i].first.isa<constant_c>()
-                        && get_const_as_int(
-                                   known_ranges[i]
-                                           .first.checked_as<constant_c>())
-                                == 0
+                        && get_expr_as_int(known_ranges[i].first) == 0
                         && slice_expr_equals(
                                 known_ranges[i].second, src_expr))) {
                 slice_stop = true;
             }
             if (known_ranges[i].second.isa<constant_c>()) {
-                total_len *= get_const_as_int(
-                        known_ranges[i].second.checked_as<constant_c>());
+                total_len *= get_expr_as_int(known_ranges[i].second);
             } else {
                 total_len *= dyn_len;
             }
@@ -937,21 +928,19 @@ bound_axis infer_tensor_view_binding_axis(const bound_axis &src_axis,
                 return tmp_acc;
             });
     // compare src and dst
-    int j = 0;
+    size_t j = 0;
+    assert(!acc_dst_dims.empty());
     for (size_t i = 0; i < acc_src_dims.size(); i++) {
         std::vector<int> axis;
-        if ((size_t)j < acc_dst_dims.size()) {
-            while (true) {
-                axis.emplace_back(j);
-                if (acc_src_dims[i] <= acc_dst_dims[j]) {
-                    if (acc_src_dims[i] == acc_dst_dims[j]) { j++; }
-                    break;
+        while (j < acc_dst_dims.size()) {
+            axis.emplace_back(j);
+            if (std::abs(acc_src_dims[i]) <= std::abs(acc_dst_dims[j])) {
+                if (std::abs(acc_src_dims[i]) == std::abs(acc_dst_dims[j])) {
+                    j++;
                 }
-                j++;
+                break;
             }
-        } else {
-            assert(acc_dst_dims.size() != 0);
-            axis.emplace_back(-1);
+            j++;
         }
         tv_axis_map.emplace_back(axis);
     }
@@ -959,19 +948,20 @@ bound_axis infer_tensor_view_binding_axis(const bound_axis &src_axis,
     for (auto &bd_ax : src_axis) {
         std::vector<int> ret;
         for (auto &ax : bd_ax) {
-            if (ax == -1
-                    || expand_dims.end()
-                            != std::find(expand_dims.begin(), expand_dims.end(),
-                                    ax)) {
-                ret.emplace_back(-1);
+            if (expand_dims.end()
+                    != std::find(expand_dims.begin(), expand_dims.end(), ax)) {
+                continue;
             } else {
                 ret.insert(ret.end(), tv_axis_map[ax].begin(),
                         tv_axis_map[ax].end());
             }
         }
-        // remove duplicated axis.
-        std::sort(ret.begin(), ret.end());
-        ret.erase(std::unique(ret.begin(), ret.end()), ret.end());
+        // check if empty to make g++12 happy
+        if (!ret.empty()) {
+            // remove duplicated axis.
+            std::sort(ret.begin(), ret.end());
+            ret.erase(std::unique(ret.begin(), ret.end()), ret.end());
+        }
         dst_axis.emplace_back(ret);
     }
     return dst_axis;
@@ -981,24 +971,12 @@ void tensor_view_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
     auto known_axis_map = search_known_bound_axis(this, bdax_map);
     if (!bdax_map.get(get_outputs()[0]).empty()) return;
     // src
-    auto src_dims = info_.inputs_[0]->details_.get_blocking_dims();
+    auto src_plain_dims = info_.inputs_[0]->details_.get_plain_dims();
     // dst
-    auto shapes = get_shapes();
+    auto dst_plain_dims = info_.outputs_[0]->details_.get_plain_dims();
     auto ths = this;
-    bound_axis known_block_axis(known_axis_map[0].size());
-    std::transform(known_axis_map[0].begin(), known_axis_map[0].end(),
-            known_block_axis.begin(), [&ths](const std::vector<int> &bd_ax) {
-                return transform_axis_plain2blocking(
-                        ths->get_inputs()[0]->details_, bd_ax);
-            });
-    auto blocking_bd_axis = infer_tensor_view_binding_axis(
-            known_block_axis, src_dims, shapes);
-    bound_axis plain_bd_axis(blocking_bd_axis.size());
-    std::transform(blocking_bd_axis.begin(), blocking_bd_axis.end(),
-            plain_bd_axis.begin(), [&ths](const std::vector<int> &bd_ax) {
-                return transform_axis_blocking2plain(
-                        ths->get_outputs()[0]->details_, bd_ax);
-            });
+    auto plain_bd_axis = infer_tensor_view_binding_axis(
+            known_axis_map[0], src_plain_dims, dst_plain_dims);
     bdax_map.get(get_outputs()[0]) = plain_bd_axis;
     set_unknown_axis_binding(this, known_axis_map, bdax_map);
 }
@@ -1012,25 +990,13 @@ void tensor_view_op_t::pre_binding_axis(bound_axis_map &bdax_map) {
 
     if (inpaxis.empty()) {
         // src
-        auto src_dims = input->details_.get_blocking_dims();
+        auto src_plain_dims = info_.inputs_[0]->details_.get_plain_dims();
         // dst
-        auto shapes = get_shapes();
+        auto dst_plain_dims = info_.outputs_[0]->details_.get_plain_dims();
         auto ths = this;
-        bound_axis known_block_axis(outaxis.size());
-        std::transform(outaxis.begin(), outaxis.end(), known_block_axis.begin(),
-                [&ths](const std::vector<int> &bd_ax) {
-                    return transform_axis_plain2blocking(
-                            ths->get_outputs()[0]->details_, bd_ax);
-                });
-        auto blocking_bd_axis
-                = infer_tensor_view_binding_axis(outaxis, shapes, src_dims,
-                        attrs_.get_or_else("expand_dim", std::vector<int> {}));
-        bound_axis plain_bd_axis(blocking_bd_axis.size());
-        std::transform(blocking_bd_axis.begin(), blocking_bd_axis.end(),
-                plain_bd_axis.begin(), [&ths](const std::vector<int> &bd_ax) {
-                    return transform_axis_blocking2plain(
-                            ths->get_inputs()[0]->details_, bd_ax);
-                });
+        auto plain_bd_axis = infer_tensor_view_binding_axis(outaxis,
+                dst_plain_dims, src_plain_dims,
+                attrs_.get_or_else("expand_dim", std::vector<int> {}));
         inpaxis = plain_bd_axis;
         if (auto bd_op
                 = input->producer_owner_
@@ -1109,6 +1075,17 @@ void reshape_op_t::pre_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {}
 void reshape_op_t::infer_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
+    slice_range_map known_ranges_map
+            = search_known_slice_ranges(this, fsmap, stat_map);
+    if (known_ranges_map.empty()) return;
+    if (known_ranges_map[0].size() != 1) return;
+    auto blocking_dims = info_.inputs_[0]->details_.get_blocking_dims();
+    std::vector<int> axis(blocking_dims.size());
+    std::iota(axis.begin(), axis.end(), 0);
+    if (!slice_full_on_axis(blocking_dims, known_ranges_map[0][0], axis)) {
+        stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+        return;
+    }
     // fake infer slice
     std::vector<std::pair<expr, expr>> ranges;
     auto &shapes = info_.outputs_[0]->details_.get_plain_dims();

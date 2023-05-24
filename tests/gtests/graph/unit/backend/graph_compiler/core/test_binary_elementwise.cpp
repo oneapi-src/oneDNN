@@ -60,7 +60,7 @@ static void check_broadcast_correctness(const sc_dims &lhs_plain_dims,
         const sc_dims &rhs_plain_dims,
         sc_data_format_t lhs_format = sc_data_format_t(),
         sc_data_format_t rhs_format = sc_data_format_t()) {
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     sc_graph_t graph;
     auto input = graph.make_input({std::make_shared<graph_tensor>(nullptr,
                                            lhs_format.to_plain(),
@@ -98,7 +98,7 @@ static void check_broadcast_correctness(const sc_dims &lhs_plain_dims,
     test_utils::compare_data<float>(out.data(), ref_out.data(), ref_out.size());
 }
 
-TEST(GCCore_binary_elementwise_test, TestCorrectnessNonBlocking) {
+TEST(GCCore_CPU_binary_elementwise_test, TestCorrectnessNonBlocking) {
     // 4D + 1D
     check_broadcast_correctness({2, 3, 5, 7}, {1},
             sc_data_format_t(sc_data_format_kind_t(0, 1, 3, 2)),
@@ -175,7 +175,7 @@ TEST(GCCore_binary_elementwise_test, TestCorrectnessNonBlocking) {
             sc_data_format_t(sc_data_format_kind_t(0, 1, 2, 3)));
 }
 
-TEST(GCCore_binary_elementwise_test, TestCorrectnessSingleSideBlockingLHS) {
+TEST(GCCore_CPU_binary_elementwise_test, TestCorrectnessSingleSideBlockingLHS) {
     // lhs blocking
     check_broadcast_correctness({1, 128, 16, 64}, {1},
             sc_data_format_t(format_kinds::ACBDcd, {4, 16}),
@@ -209,7 +209,7 @@ TEST(GCCore_binary_elementwise_test, TestCorrectnessSingleSideBlockingLHS) {
             sc_data_format_t(format_kinds::AB));
 }
 
-TEST(GCCore_binary_elementwise_test, TestCorrectnessSingleSideBlockingRHS) {
+TEST(GCCore_CPU_binary_elementwise_test, TestCorrectnessSingleSideBlockingRHS) {
     // rhs blocking
     check_broadcast_correctness({1, 128, 16, 64}, {16, 64},
             sc_data_format_t(format_kinds::ACBD),
@@ -225,7 +225,7 @@ TEST(GCCore_binary_elementwise_test, TestCorrectnessSingleSideBlockingRHS) {
             sc_data_format_t(sc_data_format_kind_t(1, 0, 1, 0), {16, 4}));
 }
 
-TEST(GCCore_binary_elementwise_test, TestCorrectnessBlocking) {
+TEST(GCCore_CPU_binary_elementwise_test, TestCorrectnessBlocking) {
     check_broadcast_correctness({1, 128, 16, 64}, {16, 64},
             sc_data_format_t(format_kinds::ACBDcd, {4, 16}),
             sc_data_format_t(format_kinds::ABab, {4, 16}));
@@ -291,9 +291,8 @@ static void check_binary_elementwise(const std::string &op_name,
 
 static std::vector<sc_dims> test_shapes
         = {{16, 63}, {2, 8, 4}, {4, 16, 256, 1024}};
-
-TEST(GCCore_binary_elementwise_test, TestPReluOp) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_binary_elementwise_test, TestPReluOp) {
+    REQUIRE_AVX2();
     for (auto &shape : test_shapes) {
         check_binary_elementwise<float>("prelu", shape, ref_prelu);
         check_binary_elementwise<bf16_t>("prelu", shape, ref_prelu);

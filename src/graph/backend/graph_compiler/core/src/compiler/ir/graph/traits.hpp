@@ -33,6 +33,7 @@ namespace gc {
 class fusion_manager;
 struct brgemm_fusion_register;
 struct mixed_parti_t;
+struct fuse_anchor_map_t;
 
 namespace op_traits {
 struct may_broadcast_t : public virtual op_base_trait_t {
@@ -229,7 +230,7 @@ struct mixed_partition_acceptable : public virtual op_base_trait_t {
     virtual void search_anchor(mixed_parti_t *parti) = 0;
 
     // commit current op into given partition
-    virtual void commit_into_anchor(mixed_parti_t *parti) = 0;
+    virtual void commit_into_anchor(fuse_anchor_map_t *committed_anchor) = 0;
 
     // infer binding axis from inputs to outputs
     virtual void infer_binding_axis(bound_axis_map &bdax_map) = 0;

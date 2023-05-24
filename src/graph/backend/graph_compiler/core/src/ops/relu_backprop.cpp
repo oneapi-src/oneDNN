@@ -48,16 +48,9 @@ void relu_backprop_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     // if "use_dst" is true, inputs0 is the result of forward, which is
     // relu(x). otherwise, inputs0 is the src of forward
 
-    sc_op_ptr select_one, mul;
-    if (attrs_.get_or_else("use_dst", true)) {
-        select_one = graph->make("select_one", {inputs[0]}, {}, {});
-        mul = graph->make(
-                "mul", {inputs[1], select_one->get_outputs()[0]}, {}, {});
-    } else {
-        select_one = graph->make("select_one", {inputs[0]}, {}, {});
-        mul = graph->make(
-                "mul", {inputs[1], select_one->get_outputs()[0]}, {}, {});
-    }
+    sc_op_ptr select_one = graph->make("select_one", {inputs[0]}, {}, {});
+    sc_op_ptr mul = graph->make(
+            "mul", {inputs[1], select_one->get_outputs()[0]}, {}, {});
 
     // output
     graph->make_output(mul->get_outputs());

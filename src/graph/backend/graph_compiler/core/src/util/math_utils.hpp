@@ -26,8 +26,8 @@ namespace gc {
 namespace math_utils {
 
 template <class T>
-std::vector<T> vector_mul(
-        const std::vector<T> &inputs1, const std::vector<T> &inputs2) {
+std::vector<T> vector_mul(const std::vector<T> &inputs1,
+        const std::vector<T> &inputs2, bool parallel = true) {
     assert(inputs1.size() == inputs2.size() || inputs1.size() == 1UL
             || inputs2.size() == 1UL);
     size_t outsize = std::max(inputs1.size(), inputs2.size());
@@ -46,7 +46,13 @@ std::vector<T> vector_mul(
         }
         outputs[iter] = input1 * input2;
     };
-    utils::parallel(func, 0, outsize);
+    if (parallel) {
+        utils::parallel(func, 0, outsize);
+    } else {
+        for (uint64_t i = 0; i < outsize; i++) {
+            func(i, outsize);
+        }
+    }
     return outputs;
 }
 

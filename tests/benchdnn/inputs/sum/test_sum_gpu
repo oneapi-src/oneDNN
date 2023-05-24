@@ -53,7 +53,8 @@
 --dtag=AB48a16b
 512x1024
 
-
-# Test layers of some key GPU DL Frameworks
+# Test layers of some key and ext GPU DL Frameworks
 --reset
 --batch=option_set_fwks_key_gpu
+--reset
+--batch=option_set_fwks_ext_gpu

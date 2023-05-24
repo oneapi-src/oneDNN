@@ -143,7 +143,8 @@ if(SC_LLVM_ENABLED)
     message(STATUS "LLVM backend is ON. version ${SC_LLVM_VERSION}")
     add_definitions_with_host_compiler("-DSC_LLVM_BACKEND=${SC_LLVM_VERSION}")
     set_property(GLOBAL APPEND PROPERTY GRAPH_COMPILER_DEFINITIONS -DSC_LLVM_BACKEND=${SC_LLVM_VERSION})
-    include_directories_with_host_compiler(${SC_LLVM_INCLUDE_PATH}) # include LLVM headers
+    file(TO_CMAKE_PATH "${SC_LLVM_INCLUDE_PATH}" SC_LLVM_INCLUDE_PATH_CMAKE) # to convert "\" to cmake style "/" in windows path
+    include_directories_with_host_compiler(${SC_LLVM_INCLUDE_PATH_CMAKE}) # include LLVM headers
 endif()
 ####################
 # Compiling objlib

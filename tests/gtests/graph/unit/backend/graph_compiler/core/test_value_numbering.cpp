@@ -31,7 +31,7 @@ using namespace dnnl::impl::graph::gc;
 
 static constexpr auto s32 = datatypes::s32;
 
-TEST(GCCore_value_numbering, TestValueNumbering) {
+TEST(GCCore_CPU_value_numbering, TestValueNumbering) {
     builder::ir_builder_t bld;
     _function_(s32, ccc, _arg_("A", s32, {10000}), _arg_("a", s32),
             _arg_("b", s32)) {
@@ -86,7 +86,7 @@ TEST(GCCore_value_numbering, TestValueNumbering) {
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
 
-TEST(GCCore_value_numbering, TestValueNumberingScopes) {
+TEST(GCCore_CPU_value_numbering, TestValueNumberingScopes) {
     builder::ir_builder_t bld;
     _function_(s32, ccc, _arg_("A", s32, {10000}), _arg_("a", s32),
             _arg_("b", s32)) {
@@ -158,7 +158,7 @@ TEST(GCCore_value_numbering, TestValueNumberingScopes) {
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
 
-TEST(GCCore_value_numbering, TestValueNumberingScopes2) {
+TEST(GCCore_CPU_value_numbering, TestValueNumberingScopes2) {
     builder::ir_builder_t bld;
     _function_(s32, ccc, _arg_("A", s32, {10000}), _arg_("a", s32),
             _arg_("b", s32)) {
@@ -200,7 +200,7 @@ TEST(GCCore_value_numbering, TestValueNumberingScopes2) {
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
 
-TEST(GCCore_value_numbering, TestValueNumberingFor) {
+TEST(GCCore_CPU_value_numbering, TestValueNumberingFor) {
     builder::ir_builder_t bld;
     _function_(s32, ccc, _arg_("A", s32, {10000}), _arg_("a", s32),
             _arg_("b", s32)) {
@@ -261,7 +261,7 @@ TEST(GCCore_value_numbering, TestValueNumberingFor) {
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
 
-TEST(GCCore_value_numbering, TestValueNumberingFuncCall) {
+TEST(GCCore_CPU_value_numbering, TestValueNumberingFuncCall) {
     builder::ir_builder_t bld;
     _function_(s32, normal_func) { _return_(0); }
     _function_(s32, ccc, _arg_("A", s32, {10000})) {

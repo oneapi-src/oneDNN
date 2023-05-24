@@ -230,7 +230,10 @@ struct jit_avx512_core_bf16_fwd_kernel {
         }
     }
 
-    status_t create_kernel() { return kernel_->create_kernel(); }
+    status_t create_kernel() {
+        if (kernel_) return kernel_->create_kernel();
+        return status::out_of_memory;
+    }
 
     ~jit_avx512_core_bf16_fwd_kernel() { delete kernel_; }
 
@@ -442,7 +445,10 @@ struct jit_avx512_core_bf16_bwd_data_kernel {
         }
     }
 
-    status_t create_kernel() { return kernel_->create_kernel(); }
+    status_t create_kernel() {
+        if (kernel_) return kernel_->create_kernel();
+        return status::out_of_memory;
+    }
 
     ~jit_avx512_core_bf16_bwd_data_kernel() { delete kernel_; }
 

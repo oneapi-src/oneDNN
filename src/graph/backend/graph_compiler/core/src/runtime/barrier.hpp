@@ -27,15 +27,15 @@ namespace gc {
 namespace runtime {
 
 struct barrier_t {
-    alignas(64) std::atomic<int64_t> pending_;
-    std::atomic<uint64_t> rounds_;
+    alignas(64) std::atomic<int32_t> pending_;
+    std::atomic<int32_t> rounds_;
     uint64_t total_;
     // pad barrier to size of cacheline to avoid false sharing
-    char padding_[64 - 4 * sizeof(uint64_t)];
+    char padding_[64 - 4 * sizeof(int32_t)];
 };
 
-typedef uint64_t (*barrier_idle_func)(
-        std::atomic<uint64_t> *remaining, uint64_t expected_remain, void *args);
+typedef uint64_t (*barrier_idle_func)(std::atomic<int32_t> *remaining,
+        int32_t expected_remain, int32_t tid, void *args);
 
 } // namespace runtime
 } // namespace gc

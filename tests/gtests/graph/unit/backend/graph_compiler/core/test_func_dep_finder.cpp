@@ -22,7 +22,7 @@
 #include "gtest/gtest.h"
 
 using namespace dnnl::impl::graph::gc;
-TEST(GCCore_func_dep_finder_cpp, TestFuncDepFinder) {
+TEST(GCCore_CPU_func_dep_finder_cpp, TestFuncDepFinder) {
     builder::ir_builder_t builder;
     _decl_func_(datatypes::void_t, bbb, _arg_("A", datatypes::f32, {100, 100}),
             _arg_("len", datatypes::s32), _arg_("tsr", datatypes::pointer));

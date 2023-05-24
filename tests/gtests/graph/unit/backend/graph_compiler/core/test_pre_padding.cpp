@@ -41,8 +41,8 @@
 
 using namespace dnnl::impl::graph::gc;
 
-TEST(GCCore_pre_padding_test, TestPre_Padding_Standalone) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Standalone) {
+    REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_default_context());
     ctx->flags_.mixed_fusion_ = true;
     sc_graph_t g;
@@ -74,9 +74,9 @@ TEST(GCCore_pre_padding_test, TestPre_Padding_Standalone) {
     test_utils::compare_data(sc_output, ref_output, 1e-4, 1e-5);
 }
 
-TEST(GCCore_pre_padding_test, TestPre_Padding_Graph) {
+TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Graph) {
     REQUIRE_AMX();
-    BUILTIN_REQUIRE_AVX512();
+    REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_default_context());
     ctx->flags_.mixed_fusion_ = true;
     sc_graph_t g;
@@ -130,8 +130,8 @@ TEST(GCCore_pre_padding_test, TestPre_Padding_Graph) {
     EXPECT_TRUE(ss.str().find("padding") != std::string::npos);
 }
 
-TEST(GCCore_pre_padding_test, TestPre_Padding_Conv_Padding_Reorder) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Conv_Padding_Reorder) {
+    REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_default_context());
     ctx->flags_.mixed_fusion_ = true;
     sc_graph_t g;
@@ -202,8 +202,8 @@ TEST(GCCore_pre_padding_test, TestPre_Padding_Conv_Padding_Reorder) {
     test_utils::compare_data(sc_output, ref_output, 1e-3, 1e-3);
 }
 
-TEST(GCCore_pre_padding_test, TestPre_Padding_Conv_Padding) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Conv_Padding) {
+    REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_default_context());
     ctx->flags_.mixed_fusion_ = true;
     sc_graph_t g;
@@ -293,8 +293,8 @@ TEST(GCCore_pre_padding_test, TestPre_Padding_Conv_Padding) {
     test_utils::compare_data(sc_output, ref_output, 1e-3, 1e-3);
 }
 
-TEST(GCCore_pre_padding_test, TestPre_Padding_Fuse) {
-    BUILTIN_REQUIRE_AVX512();
+TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Fuse) {
+    REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_default_context());
     ctx->flags_.mixed_fusion_ = true;
     sc_graph_t g;

@@ -445,6 +445,7 @@ target triple = "x86_64-pc-linux-gnu"
 ; Function Attrs: nounwind
 define void @aaa(i8* %__stream_arg, i8* noalias nocapture nonnull %__module_data_arg, float* noalias nocapture nonnull %A_arg, float* noalias nocapture nonnull %B_arg, float* noalias nocapture nonnull %C_arg, i32* noalias nocapture nonnull %D_arg) #0 {
 entry:
+  %A_val = alloca <8 x float>, align 32
   %i = alloca i64, align 8
   store i64 0, i64* %i, align 8
   br label %for_check
@@ -471,7 +472,6 @@ for_body:                                         ; preds = %for_check
   %8 = getelementptr float, float* %C_arg, i64 %i_v3
   %9 = bitcast float* %8 to <8 x float>*
   store <8 x float> <float 2.000000e+00, float 2.000000e+00, float 2.000000e+00, float 2.000000e+00, float 2.000000e+00, float 2.000000e+00, float 2.000000e+00, float 2.000000e+00>, <8 x float>* %9, align 1
-  %A_val = alloca <8 x float>, align 32
   %i_v4 = load i64, i64* %i, align 8
   %10 = getelementptr float, float* %A_arg, i64 %i_v4
   %11 = bitcast float* %10 to <8 x float>*

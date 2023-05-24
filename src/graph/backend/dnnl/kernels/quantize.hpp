@@ -53,12 +53,21 @@ private:
             = reinterpret_cast<constant_cache_t::key_t>(this);
 
 public:
+    quantize_dequantize_t() {
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        res_cache.retain();
+
+        if (enabled_constant_cache()) get_global_constant_cache().retain();
+    }
+
     ~quantize_dequantize_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
+        res_cache.release();
 
         if (enabled_constant_cache()) {
             get_global_constant_cache().remove_if_exist(constant_key_);
+            get_global_constant_cache().release();
         }
     }
 
@@ -82,10 +91,12 @@ public:
 
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_mul_scales);
+        BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
         BACKEND_DNNL_ADD_PASS(pipeline, convert_runtime_mul_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, convert_runtime_zero_points);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_mul_scales_add_zps);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_sub_zps_mul_scales);
+        BACKEND_DNNL_ADD_PASS(pipeline, convert_dynamic_quantize_ops);
         BACKEND_DNNL_ADD_PASS(pipeline, reorder_canonicalization);
         pipeline.reset_visualize_arg(true, false);
 
