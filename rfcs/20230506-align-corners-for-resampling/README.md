@@ -88,6 +88,8 @@ Cons:
 - API change for resampling primitive.
 - In case of using C API to avoid ABI break we need to add another version of 
   init function(similar to pooling primitive - version v1 and v2).
+- Need to check for combinations that we do not support.
+  For eg: `align_corners=True` and nearest neighbor.
 
 
 ### Option 2
