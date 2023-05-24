@@ -372,8 +372,9 @@ std::string locate_file(const std::string &fname) {
         if (n_paths >= max_paths) {
             BENCHDNN_PRINT(0, "%s%d\n",
                     "Warning: Number of searched paths exceeded ", max_paths);
+        } else {
+            search_paths[n_paths++] = std::move(fdir);
         }
-        search_paths[n_paths++] = std::move(fdir);
     }
 
     std::ifstream ifs(fname);
@@ -406,7 +407,8 @@ std::string locate_file(const std::string &fname) {
             fullname += fname;
             ifs.open(fullname);
             if (ifs.is_open()) {
-                search_paths[n_paths++] = std::move(fdir);
+                if (n_paths < max_paths)
+                    search_paths[n_paths++] = std::move(fdir);
                 BENCHDNN_PRINT(50, "file used: %s\n", fullname.c_str());
                 ifs.close();
                 return fullname;
