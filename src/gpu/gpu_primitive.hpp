@@ -191,6 +191,7 @@ struct gpu_primitive_t : public primitive_t {
             std::vector<compute::kernel_t> &kernels,
             const std::vector<const char *> &kernel_names,
             const trivial_key_t<T> &params) {
+        if (!params.is_valid()) return status::runtime_error;
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
         if (cache_blob())

@@ -48,6 +48,9 @@ struct gen9_eltwise_jit_params_t {
         return names;
     }
 
+#if __cplusplus >= 202002L
+    bool operator==(const gen9_eltwise_jit_params_t &) const = default;
+#endif
     serialized_t<gen9_eltwise_jit_params_t> serialize() const {
         serialized_t<gen9_eltwise_jit_params_t> s {};
         // Explicitly maintain zero padding to keep the implementation simple and
@@ -56,7 +59,7 @@ struct gen9_eltwise_jit_params_t {
         return s;
     }
 
-    gen9_eltwise_jit_params_t deserialize(
+    static gen9_eltwise_jit_params_t deserialize(
             const serialized_t<gen9_eltwise_jit_params_t> &s) {
         gen9_eltwise_jit_params_t t {};
         deserializer_t d(s);

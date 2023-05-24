@@ -118,10 +118,22 @@ struct xe_systolic_gemm_copy_kernel_t {
         return (arch == compute::gpu_arch_t::xe_hpc) ? 16 : 8;
     }
 
+#if __cplusplus >= 202002L
+    bool operator==(const xe_systolic_gemm_copy_kernel_t &) const = default;
+#endif
+
     serialized_t<xe_systolic_gemm_copy_kernel_t> serialize() const {
         serialized_t<xe_systolic_gemm_copy_kernel_t> s;
         s.append(*this);
         return s;
+    }
+
+    static xe_systolic_gemm_copy_kernel_t deserialize(
+            const serialized_t<xe_systolic_gemm_copy_kernel_t> &s) {
+        xe_systolic_gemm_copy_kernel_t t {};
+        deserializer_t d(s);
+        d.pop(t);
+        return t;
     }
 
 private:

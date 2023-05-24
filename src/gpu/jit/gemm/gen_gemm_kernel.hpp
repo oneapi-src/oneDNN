@@ -168,6 +168,29 @@ protected:
 };
 
 } // namespace jit
+
+template <>
+struct trivial_key_validator_t<jit::gen_gemm_kernel_desc_t> {
+    static bool is_valid(const jit::gen_gemm_kernel_desc_t &) { return true; }
+};
+
+template <>
+struct trivial_key_validator_t<jit::gen_gemm_nocopy_kernel_desc_t> {
+    static bool is_valid(const jit::gen_gemm_nocopy_kernel_desc_t &derived) {
+        return trivial_key_validator_t<jit::gen_gemm_kernel_desc_t>::is_valid(
+                derived);
+    }
+};
+
+template <>
+struct trivial_key_validator_t<jit::gen_gemm_xe_systolic_kernel_desc_t> {
+    static bool is_valid(
+            const jit::gen_gemm_xe_systolic_kernel_desc_t &derived) {
+        return trivial_key_validator_t<jit::gen_gemm_kernel_desc_t>::is_valid(
+                derived);
+    }
+};
+
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

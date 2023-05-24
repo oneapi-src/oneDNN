@@ -30,6 +30,23 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 
+template <typename T>
+struct trivial_key_validator_t {
+    static bool is_valid(const T &t) {
+        // Runtime validation only occurs in C++20 as default comparisons
+        // significantly improves the reliability of this check.
+        static_assert(
+                std::is_same<T, decltype(T::deserialize(t.serialize()))>::value,
+                "serialization and deserialization must be supported for "
+                "validation in C++20 builds");
+#if __cplusplus >= 202002L
+        return t == T::deserialize(t.serialize());
+#else
+        return true;
+#endif
+    }
+};
+
 // Helper structure to generate a hashing interface for a gpu_key_impl_t from a
 // trivial structure.
 template <typename T>
@@ -41,18 +58,12 @@ struct trivial_key_t : public T {
                 && this->arch_ == other.arch_;
     }
     size_t hash() const {
-        assert(validate());
         return hash_combine(T::serialize().hash(), static_cast<int>(arch_));
     }
-    bool validate() const {
-        // TODO: implement actual validation logic. Requires some extra work as
-        // constexpr deserialization or constexpr operator== are required to
-        // prevent missed input check.
 
-        // if (!serialized_data_t::is_trivially_serialized<T>::value)
-        //     return *this == T::deserialize(T::serialize());
-        // else
-        return true;
+    bool is_valid() const {
+        const T *base = this;
+        return trivial_key_validator_t<T>::is_valid(*base);
     }
 
 private:
