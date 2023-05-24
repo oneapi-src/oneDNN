@@ -26,6 +26,7 @@ namespace gpu {
 namespace jit {
 
 inline uint32_t uint32_reciprocal(uint32_t x) {
+    if (x == 0) return 0;
     return (uint32_t)utils::div_up(uint64_t(0x100000000) << math::ilog2q(x), x);
 }
 
