@@ -126,7 +126,6 @@ struct prb_t : public prb_dims_t {
     std::vector<flag_t> oflag;
     cross_engine_t cross_engine;
     unsigned runtime_dim_mask;
-    int32_t *src_zp, *dst_zp;
 
     bool is_reorder_with_compensation(flag_bit_t flag) const;
     dims_t get_compensation_dims(flag_bit_t flag) const;
