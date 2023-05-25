@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021 Intel Corporation
+# Copyright 2021-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -65,6 +65,21 @@ else()
     endforeach()
 endif()
 message(STATUS "Enabled primitive GPU ISA: ${DNNL_ENABLE_PRIMITIVE_GPU_ISA}")
+
+if (ONEDNN_ENABLE_GEMM_KERNELS_ISA STREQUAL "ALL")
+    set(BUILD_GEMM_KERNELS_ALL TRUE)
+elseif (ONEDNN_ENABLE_GEMM_KERNELS_ISA STREQUAL "NONE")
+    set(BUILD_GEMM_KERNELS_NONE TRUE)
+else()
+    foreach(isa ${ONEDNN_ENABLE_GEMM_KERNELS_ISA})
+        string(TOUPPER ${isa} uisa)
+        if(NOT "${uisa}" MATCHES "^(SSE41|AVX2|AVX512)$")
+            message(FATAL_ERROR "Unsupported primitive CPU ISA: ${uisa}")
+        endif()
+        set(BUILD_GEMM_${uisa} TRUE)
+    endforeach()
+endif()
+message(STATUS "Enabled GeMM kernels ISA: ${ONEDNN_ENABLE_GEMM_KERNELS_ISA}")
 
 # When certain primitives or primitive ISA are switched off, some functions may
 # become unused which is expected. Switch off warning for unused functions in

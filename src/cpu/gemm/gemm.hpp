@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 * Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,6 +28,19 @@
 
 #if DNNL_X64
 #include "cpu/x64/cpu_isa_traits.hpp"
+
+// Kernels ISA section for configuring knobs.
+#define __BUILD_GEMM_AMX BUILD_GEMM_KERNELS_ALL
+#define __BUILD_GEMM_AVX512 __BUILD_GEMM_AMX || BUILD_GEMM_AVX512
+#define __BUILD_GEMM_AVX2 __BUILD_GEMM_AVX512 || BUILD_GEMM_AVX2
+#define __BUILD_GEMM_SSE41 __BUILD_GEMM_AVX2 || BUILD_GEMM_SSE41
+#define __BUILD_GEMM_NONE BUILD_GEMM_KERNELS_NONE
+#else
+#define __BUILD_GEMM_AMX 0
+#define __BUILD_GEMM_AVX512 0
+#define __BUILD_GEMM_AVX2 0
+#define __BUILD_GEMM_SSE41 0
+#define __BUILD_GEMM_NONE 0
 #endif
 
 #if DNNL_AARCH64

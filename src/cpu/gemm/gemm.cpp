@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 * Copyright 2022 IBM Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -134,13 +134,14 @@ dnnl_status_t extended_sgemm(const char *transa, const char *transb,
     }
 #endif
 
-#if DNNL_X64
+#if DNNL_X64 && !__BUILD_GEMM_NONE
     if (mayiuse(sse41)) {
         float *dummy_ao = nullptr;
         float *dummy_bo = nullptr;
-        return gemm_driver(transa, transb, bias ? "C" : nullptr, M, N, K, alpha,
-                A, lda, dummy_ao, B, ldb, dummy_bo, beta, C, ldc, bias,
+        auto status = gemm_driver(transa, transb, bias ? "C" : nullptr, M, N, K,
+                alpha, A, lda, dummy_ao, B, ldb, dummy_bo, beta, C, ldc, bias,
                 force_jit_nocopy_gemm);
+        if (status == status::success) return status;
     }
 #endif
 
@@ -201,10 +202,12 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
             LDA, ao, B, LDB, bo, beta, C, LDC, co);
     if (status == dnnl_success) return status;
 
-#if DNNL_X64
-    if (mayiuse(sse41))
-        return gemm_driver(transa, transb, offsetc, M, N, K, alpha, A, LDA, ao,
-                B, LDB, bo, beta, C, LDC, co, false);
+#if DNNL_X64 && !__BUILD_GEMM_NONE
+    if (mayiuse(sse41)) {
+        auto status = gemm_driver(transa, transb, offsetc, M, N, K, alpha, A,
+                LDA, ao, B, LDB, bo, beta, C, LDC, co, false);
+        if (status == status::success) return status;
+    }
 #elif DNNL_PPC64
 #ifdef __MMA__
     int ATflag = (*transa == 'T') || (*transa == 't');
@@ -237,18 +240,23 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
 
     if (*M == 0 || *N == 0 || *K == 0) return dnnl_success;
 
-#if DNNL_X64
+#if DNNL_X64 && !__BUILD_GEMM_NONE
     bool use_jit = mayiuse(avx512_core);
     bool use_s8u8 = true
             && utils::everyone_is(0, *ao, *bo) // so far a requirement
             && IMPLICATION(USE_MKL_IGEMM == 0, mayiuse(sse41));
 
-    if (use_jit)
-        return gemm_driver(transa, transb, offsetc, M, N, K, alpha, A, LDA, ao,
-                B, LDB, bo, beta, C, LDC, co, false);
-    else if (use_s8u8)
-        return simple_gemm_s8s8s32(transa, transb, offsetc, M, N, K, alpha, A,
-                LDA, ao, B, LDB, bo, beta, C, LDC, co);
+    if (use_jit) {
+        auto status = gemm_driver(transa, transb, offsetc, M, N, K, alpha, A,
+                LDA, ao, B, LDB, bo, beta, C, LDC, co, false);
+        if (status == status::success) return status;
+    }
+
+    if (use_s8u8) {
+        auto status = simple_gemm_s8s8s32(transa, transb, offsetc, M, N, K,
+                alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
+        if (status == status::success) return status;
+    }
 #endif
 
 #if DNNL_PPC64
@@ -285,16 +293,18 @@ dnnl_status_t gemm_bf16bf16f32(const char *transa, const char *transb,
             ldb, C, ldc, alpha, beta, false);
     if (status != dnnl_success) return status;
 
-#if DNNL_X64
+#if DNNL_X64 && !__BUILD_GEMM_NONE
     char *dummyOffsetC = nullptr;
     bfloat16_t *dummy_ao = nullptr;
     bfloat16_t *dummy_bo = nullptr;
     float *dummy_co = nullptr;
 
-    if (mayiuse(avx512_core))
-        return gemm_driver(transa, transb, dummyOffsetC, M, N, K, alpha,
+    if (mayiuse(avx512_core)) {
+        auto status = gemm_driver(transa, transb, dummyOffsetC, M, N, K, alpha,
                 (const bfloat16_t *)A, lda, dummy_ao, (const bfloat16_t *)B,
                 ldb, dummy_bo, beta, (float *)C, ldc, dummy_co, false);
+        if (status == status::success) return status;
+    }
 #elif DNNL_PPC64
 #if defined(USE_CBLAS) && defined(BLAS_HAS_SBGEMM) && defined(__MMA__)
     bool trA = *transa == 't' || *transa == 'T';

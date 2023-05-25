@@ -29,6 +29,7 @@
 #include "cpu/platform.hpp"
 
 #include "cpu/gemm/f32/gemm_utils_f32.hpp"
+#include "cpu/gemm/gemm.hpp"
 #include "cpu/gemm/gemm_msan_unpoison.hpp"
 
 #include "cpu/x64/jit_generator.hpp"
@@ -1657,21 +1658,29 @@ static dnnl_status_t call_no_copy_sgemm(
         int nthrs, gemm_info_t<a_type, b_type, c_type> *arg) {
 
     if (arg->packing == pack_type::none) {
+#if __BUILD_GEMM_AVX2
         auto transa_char = (arg->transa != do_trans) ? "N" : "T";
         auto transb_char = (arg->transb != do_trans) ? "N" : "T";
+#endif
 
-        if (mayiuse(avx512_core))
+        if (mayiuse(avx512_core)) {
+#if __BUILD_GEMM_AVX512
             return jit_avx512_common_gemm_f32(nthrs, transa_char, transb_char,
                     &arg->m, &arg->n, &arg->k, &arg->alpha, (float *)arg->a,
                     &arg->lda, (float *)arg->b, &arg->ldb, &arg->beta,
                     (float *)arg->c, &arg->ldc, (float *)arg->co);
-        else
+#endif
+        } else {
+#if __BUILD_GEMM_AVX2
             return jit_avx_gemm_f32(nthrs, transa_char, transb_char, &arg->m,
                     &arg->n, &arg->k, &arg->alpha, (float *)arg->a, &arg->lda,
                     (float *)arg->b, &arg->ldb, &arg->beta, (float *)arg->c,
                     &arg->ldc, (float *)arg->co);
+#endif
+        }
     } else
         return pack_no_copy(arg);
+    return status::unimplemented;
 }
 
 template <typename a_type, typename b_type, typename c_type>
@@ -1687,12 +1696,14 @@ static dnnl_status_t gemm_threading_driver(
 
     if ((arg->m <= 0) || (arg->n <= 0)) return dnnl_success;
 
+#if __BUILD_GEMM_AVX512
     if (!is_a_packed && !is_b_packed && jump_to_gemv_s8x8s32(arg))
         return dnnl_success;
 
     if (!is_a_packed && !is_b_packed
             && jump_to_gemm_smalln_tn(arg) == dnnl_success)
         return dnnl_success;
+#endif
 
     if (!is_a_packed && !is_b_packed && jump_to_gemv(arg) == dnnl_success)
         return dnnl_success;
@@ -1927,6 +1938,7 @@ static dnnl_status_t gemm_threading_driver(
                         assert(arg->packing == pack_type::none);
 
                         if (mayiuse(avx512_core)) {
+#if __BUILD_GEMM_AVX512
                             thread_arg[ithr].result = avx512_common_gemm_f32::
                                     sgemm_nocopy_driver(
                                             arg->transa == no_trans ? "N" : "T",
@@ -1935,7 +1947,9 @@ static dnnl_status_t gemm_threading_driver(
                                             arg->lda, (float *)b, arg->ldb,
                                             &beta_eff, (float *)c_eff, ldc_eff,
                                             nullptr);
+#endif
                         } else {
+#if __BUILD_GEMM_AVX2
                             thread_arg[ithr].result
                                     = avx_gemm_f32::sgemm_nocopy_driver(
                                             arg->transa == no_trans ? "N" : "T",
@@ -1944,6 +1958,7 @@ static dnnl_status_t gemm_threading_driver(
                                             arg->lda, (float *)b, arg->ldb,
                                             &beta_eff, (float *)c_eff, ldc_eff,
                                             nullptr);
+#endif
                         }
                         break;
                 }

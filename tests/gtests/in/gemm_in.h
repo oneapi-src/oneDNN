@@ -128,6 +128,7 @@ CPU_INST_TEST_CASE(TestGEMM_stkmem,
         test_params {'n', 'n', 2, 16, 256, 1.0f, 0.0f, 256, 16, 16});
 
 #if defined(FP32) || defined(BF16BF16F32)
+#if !BUILD_GEMM_KERNELS_NONE
 INST_TEST_CASE(TestGEMM_packed,
         test_params {'t', 'n', 3, 2, 1, 1.0, 0.0, 2, 5, 8, {}, {false, true},
                 true, dnnl_invalid_arguments},
@@ -198,6 +199,7 @@ INST_TEST_CASE(TestGEMM_packed,
         make_test_params_pack({false, true}, 't', 'n', 200, 300, 8000, 1.0f,
                 3.0f, 200, 300, 300));
 #endif
+#endif
 
 #elif defined(BF16BF16BF16)
 
@@ -254,6 +256,7 @@ constexpr test_igemm_params fix_no_offsets = {'F', false, false, false};
 constexpr test_igemm_params col_no_offsets = {'C', false, false, false};
 constexpr test_igemm_params row_no_offsets = {'R', false, false, false};
 
+#if !BUILD_GEMM_KERNELS_NONE
 INST_TEST_CASE(TestGEMM_expected_failures,
         test_params {'t', 'n', 3, 2, 1, 1.0, 0.0, 2, 5, 8, {}, {}, true,
                 dnnl_invalid_arguments},
@@ -290,6 +293,7 @@ INST_TEST_CASE(TestGEMM_expected_failures,
                 true, dnnl_invalid_arguments},
         test_params {'n', 'd', 3, 2, 1, 1.0, 0.0, 3, 3, 3, {}, {false, true},
                 true, dnnl_invalid_arguments});
+#endif
 
 CPU_INST_TEST_CASE(TestGEMM_stkmem,
         test_params {'n', 'n', 10, 4000, 2, 1.0, 0.0, 2, 4000, 4000,
@@ -733,6 +737,7 @@ CPU_INST_TEST_CASE(TestGEMV_kblocking,
         test_params {'t', 'n', 1, 550, 7000, 1.0f, 1.0f, 7000, 550, 550,
                 fix_no_offsets});
 
+#if !BUILD_GEMM_KERNELS_NONE
 CPU_INST_TEST_CASE(TestGEMM_packed,
         make_test_params_pack({false, true}, 'N', 'n', 30, 20, 10, 1.0f, 1.0f,
                 60, 50, 80, fix_use_oc),
@@ -830,6 +835,7 @@ CPU_INST_TEST_CASE(TestGEMM_packed,
         make_test_params_pack({false, true}, 'n', 'T', 1, 200, 200, 1.0f, 0.0f,
                 200, 200, 200, fix_no_offsets));
 #endif
+#endif
 
 CPU_INST_TEST_CASE(TestGEMM_heavy,
         test_params {'n', 'n', 3000, 3000, 3000, 1.0, 0.0, 3000, 3000, 3000,
@@ -841,6 +847,7 @@ CPU_INST_TEST_CASE(TestGEMM_heavy,
         test_params {'t', 't', 3000, 3000, 3000, 1.0, 0.0, 3000, 3000, 3000,
                 fix_use_oc});
 
+#if !BUILD_GEMM_KERNELS_NONE
 CPU_INST_TEST_CASE(TestGEMM_packed_heavy,
         make_test_params_pack({false, true}, 'n', 'n', 3000, 3000, 3000, 1.0f,
                 0.0f, 3000, 3000, 3000, fix_use_oc),
@@ -874,5 +881,5 @@ CPU_INST_TEST_CASE(TestGEMM_packed_heavy,
                 3.0f, 8000, 8000, 200, row_use_oc),
         make_test_params_pack({false, true}, 't', 'n', 200, 300, 8000, 1.0f,
                 0.0f, 200, 300, 300, col_use_oc));
-
+#endif
 #endif

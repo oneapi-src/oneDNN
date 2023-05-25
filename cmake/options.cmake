@@ -150,6 +150,16 @@ set(DNNL_ENABLE_PRIMITIVE_GPU_ISA "ALL" CACHE STRING
     - <ISA_NAME>;<ISA_NAME>;... Includes only selected ISA to be enabled.
       Possible values are: GEN9, GEN11, XELP, XEHP, XEHPG, XEHPC.")
 
+set(ONEDNN_ENABLE_GEMM_KERNELS_ISA "ALL" CACHE STRING
+    "Specifies an ISA set of GeMM kernels residing in x64/gemm folder to be
+    available at build time. Valid values:
+    - ALL (the default). Includes all ISA kernels to be enabled.
+    - NONE. Removes all kernels and interfaces.
+    - <ISA_NAME>. Enables all ISA up to ISA_NAME included.
+      Possible value are: SSE41, AVX2, AVX512. The linear order is
+      SSE41 < AVX2 < AVX512 < AMX (or ALL). It means that if user selects, e.g.
+      AVX2 ISA, SSE41 kernels will also present at build time.")
+
 # =============
 # Optimizations
 # =============

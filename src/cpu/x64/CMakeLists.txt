@@ -60,6 +60,35 @@ else()
         PROPERTIES COMPILE_FLAGS "${OPT_LEVEL}")
 endif()
 
+# Discard GeMM kernel files when requested
+if(ONEDNN_ENABLE_GEMM_KERNELS_ISA MATCHES "^(AVX512|AVX2|SSE41|NONE)$")
+    file(GLOB_RECURSE SOURCES_AMX ${CMAKE_CURRENT_SOURCE_DIR}/gemm/jit*amx*)
+    foreach(amx_file ${SOURCES_AMX})
+        list(REMOVE_ITEM SOURCES "${amx_file}")
+    endforeach()
+endif()
+
+if(ONEDNN_ENABLE_GEMM_KERNELS_ISA MATCHES "^(AVX2|SSE41|NONE)$")
+    file(GLOB_RECURSE SOURCES_AVX512 ${CMAKE_CURRENT_SOURCE_DIR}/gemm/jit*avx512*)
+    foreach(avx512_file ${SOURCES_AVX512})
+        list(REMOVE_ITEM SOURCES "${avx512_file}")
+    endforeach()
+endif()
+
+if(ONEDNN_ENABLE_GEMM_KERNELS_ISA MATCHES "^(SSE41|NONE)$")
+    file(GLOB_RECURSE SOURCES_AVX ${CMAKE_CURRENT_SOURCE_DIR}/gemm/jit*avx*)
+    foreach(avx_file ${SOURCES_AVX})
+        list(REMOVE_ITEM SOURCES "${avx_file}")
+    endforeach()
+endif()
+
+if(ONEDNN_ENABLE_GEMM_KERNELS_ISA MATCHES "^(NONE)$")
+    file(GLOB_RECURSE SOURCES_SSE41 ${CMAKE_CURRENT_SOURCE_DIR}/gemm/*)
+    foreach(sse41_file ${SOURCES_SSE41})
+        list(REMOVE_ITEM SOURCES "${sse41_file}")
+    endforeach()
+endif()
+
 set(OBJ_LIB ${LIB_PACKAGE_NAME}_cpu_x64)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS

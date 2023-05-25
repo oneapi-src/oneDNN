@@ -24,6 +24,7 @@ oneDNN supports the following build-time options.
 | ONEDNN_ENABLE_PRIMITIVE         | **ALL**, PRIMITIVE_NAME                    | Specifies a set of functionality to be available based on primitives                            |
 | ONEDNN_ENABLE_PRIMITIVE_CPU_ISA | **ALL**, CPU_ISA_NAME                      | Specifies a set of functionality to be available for CPU backend based on CPU ISA               |
 | ONEDNN_ENABLE_PRIMITIVE_GPU_ISA | **ALL**, GPU_ISA_NAME                      | Specifies a set of functionality to be available for GPU backend based on GPU ISA               |
+| ONEDNN_ENABLE_GEMM_KERNELS_ISA  | **ALL**, NONE, ISA_NAME                    | Specifies a set of functionality to be available for GeMM kernels for CPU backend based on ISA  |
 | ONEDNN_EXPERIMENTAL             | ON, **OFF**                                | Enables [experimental features](@ref dev_guide_experimental)                                    |
 | ONEDNN_VERBOSE                  | **ON**, OFF                                | Enables [verbose mode](@ref dev_guide_verbose)                                                  |
 | ONEDNN_DEV_MODE                 | ON, **OFF**                                | Enables internal tracing and `debuginfo` logging in verbose output (for oneDNN developers)      |
@@ -108,6 +109,17 @@ generation based implementations. OpenCL based kernels and implementations will
 always be available. Example that enables XeLP and XeHP set:
 ```
 -DONEDNN_ENABLE_PRIMITIVE_GPU_ISA=XELP;XEHP
+```
+
+#### ONEDNN_ENABLE_GEMM_KERNELS_ISA
+This option supports several values: `ALL` (the default) which enables all
+ISA kernels from x64/gemm folder, `NONE` which disables all kernels and removes
+correspondent interfaces, or one of `SSE41`, `AVX2`, and `AVX512`. Values are
+linearly ordered as `SSE41` < `AVX2` < `AVX512`. When specified, selected ISA
+and all ISA that are "smaller" will be available. Example that leaves SSE41 and
+AVX2 sets, but removes AVX512 and AMX kernels:
+```
+-DONEDNN_ENABLE_GEMM_KERNELS_ISA=AVX2
 ```
 
 ## CPU Options

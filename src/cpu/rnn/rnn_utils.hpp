@@ -873,7 +873,7 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 
     rnn.diff_weights_overwrite = rd.flags & rnn_flags::diff_weights_overwrite;
 
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL || BUILD_GEMM_KERNELS_NONE
     // XXX: Threadpool runtime may use different number of threads at execute
     // and create stages. GEMM packed API is not aware of number of threads as
     // of now. In order to synchronize all layers, GEMM pack API should be

@@ -191,4 +191,10 @@
 #cmakedefine01 BUILD_XEHP
 #cmakedefine01 BUILD_XEHPG
 #cmakedefine01 BUILD_XEHPC
+// GeMM kernels ISA controls
+#cmakedefine01 BUILD_GEMM_KERNELS_ALL
+#cmakedefine01 BUILD_GEMM_KERNELS_NONE
+#cmakedefine01 BUILD_GEMM_SSE41
+#cmakedefine01 BUILD_GEMM_AVX2
+#cmakedefine01 BUILD_GEMM_AVX512
 #endif
