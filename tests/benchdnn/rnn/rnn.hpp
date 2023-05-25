@@ -371,9 +371,9 @@ struct prb_t : public desc_t {
         repro = set_repro_line(); // must be last in ctor to collect right info
     }
     ~prb_t() {
-        if (wei_scales) zfree(wei_scales);
-        if (wei_proj_scales) zfree(wei_proj_scales);
-        if (linear_scales) zfree(linear_scales);
+        zfree(wei_scales);
+        zfree(wei_proj_scales);
+        zfree(linear_scales);
     }
 
     float get_wei_scale(int idx) const {
