@@ -173,9 +173,6 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
             beta, LDA, LDB, LDC, M, N, K, strides);
 
     if (M <= 0 || N <= 0 || K <= 0) return status::invalid_arguments;
-    bool ldx_check = (brg->is_row_major()) ? (LDA < K)
-                                           : (LDA < M || LDB < K || LDC < M);
-    if (ldx_check) return status::invalid_arguments;
 
     if (utils::everyone_is(
                 false, brg->is_int8, brg->is_bf16, brg->is_f32, brg->is_f16))
