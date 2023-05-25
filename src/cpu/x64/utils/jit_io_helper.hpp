@@ -247,6 +247,27 @@ private:
             storage_;
 };
 
+template <>
+void jit_io_helper_t<Xbyak::Zmm>::emu_gather(const Xbyak::Reg64 &src_reg,
+        const Xbyak::Zmm &indices_vmm, const Xbyak::Zmm &dst_vmm,
+        const bool tail);
+template <>
+void jit_io_helper_t<Xbyak::Ymm>::emu_gather(const Xbyak::Reg64 &src_reg,
+        const Xbyak::Ymm &indices_vmm, const Xbyak::Ymm &dst_vmm,
+        const bool tail);
+template <>
+void jit_io_helper_t<Xbyak::Xmm>::emu_gather(const Xbyak::Reg64 &src_reg,
+        const Xbyak::Xmm &indices_vmm, const Xbyak::Xmm &dst_vmm,
+        const bool tail);
+
+extern template class jit_io_helper_t<Xbyak::Zmm>;
+extern template class jit_io_helper_t<Xbyak::Ymm>;
+extern template class jit_io_helper_t<Xbyak::Xmm>;
+
+extern template class jit_io_multi_dt_helper_t<Xbyak::Zmm>;
+extern template class jit_io_multi_dt_helper_t<Xbyak::Ymm>;
+extern template class jit_io_multi_dt_helper_t<Xbyak::Xmm>;
+
 } // namespace io
 } // namespace x64
 } // namespace cpu
