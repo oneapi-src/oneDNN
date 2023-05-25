@@ -1721,7 +1721,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
     const auto call_brgemm = [&](int brg_idx, int ic_block_s, int n_ic_blocks,
                                      int comp_ker_offs, bool do_postops,
                                      bool do_only_comp) {
-        if (k_l <= 0) return;
+        assert(k_l > 0 && "invalid batch range");
         const auto brg_ker = brgemm_kernels_[brg_idx];
         brgemm_palettes_.maybe_tile_configure(is_amx, btc.cur_brg_idx, brg_idx);
 
@@ -1897,7 +1897,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
 
     const auto call_brgemm = [&](int brg_idx, int ic_block_s, int n_ic_blocks,
                                      bool do_postops) {
-        if (k_l <= 0) return;
+        assert(k_l > 0 && "invalid batch range");
         const auto brg_ker = brgemm_kernels_[brg_idx];
         brgemm_palettes_.maybe_tile_configure(is_amx, btc.cur_brg_idx, brg_idx);
 
@@ -2011,6 +2011,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
 
     const auto call_brgemm = [&](int brg_idx, int ic_block_s, int n_ic_blocks,
                                      int comp_ker_offs, bool do_postops) {
+        assert(k_l > 0 && "invalid batch range");
         const auto brg_ker = brgemm_kernels_[brg_idx];
 
         brgemm_palettes_.maybe_tile_configure(is_amx, btc.cur_brg_idx, brg_idx);
