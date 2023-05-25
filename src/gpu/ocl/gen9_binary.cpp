@@ -213,6 +213,18 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
     } else if (is_mixed_layout) {
         conf.nvect = 1;
         int block_size = 16;
+        bool size_check = true;
+        if (dst_d.matches_tag(aBc16b) && dst_d.dims()[2] % 16 != 0) {
+            size_check = false;
+        } else if (dst_d.matches_tag(aBcd16b)
+                && (dst_d.dims()[3] % 16 != 0 || dst_d.dims()[2] % 16 != 0)) {
+            size_check = false;
+        } else if (dst_d.matches_tag(aBcde16b)
+                && (dst_d.dims()[4] % 16 != 0 || dst_d.dims()[3] % 16 != 0
+                        || dst_d.dims()[2] % 16 != 0)) {
+            size_check = false;
+        }
+        if (!size_check) return status::unimplemented;
         for (int i = 0; i < MAX_NDIMS; ++i) {
             int dim = i < ndims ? dst_d.dims()[i] : 1;
             if (i == 1) {
