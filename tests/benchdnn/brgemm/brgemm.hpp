@@ -113,10 +113,10 @@ struct prb_t : public prb_vdims_t {
         repro = set_repro_line(); // must be last in ctor to collect right info
     }
     ~prb_t() {
-        if (scales) zfree(scales);
-        if (dst_scales) zfree(dst_scales);
-        if (src_zp) zfree(src_zp);
-        if (dst_zp) zfree(dst_zp);
+        zfree(scales);
+        zfree(dst_scales);
+        zfree(src_zp);
+        zfree(dst_zp);
     }
 
     int m, n, k;

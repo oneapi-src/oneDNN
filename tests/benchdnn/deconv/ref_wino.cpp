@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -283,9 +283,9 @@ int init_scratchpad(const prb_t *prb, scratchpad_t &sp) {
 }
 
 void free_scratchpad(scratchpad_t *sp) {
-    if (sp->_u_ptr != nullptr) zfree(sp->_u_ptr);
-    if (sp->_v_ptr != nullptr) zfree(sp->_v_ptr);
-    if (sp->_m_ptr != nullptr) zfree(sp->_m_ptr);
+    zfree(sp->_u_ptr);
+    zfree(sp->_v_ptr);
+    zfree(sp->_m_ptr);
 }
 
 void compute_wino_ref_fwd(const prb_t *prb, const args_t &args) {

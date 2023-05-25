@@ -236,7 +236,9 @@ void *zmalloc(size_t size, size_t align) {
     return rc == 0 ? ptr : nullptr;
 }
 
+// zfree behavior is aligned with UNIX free().
 void zfree(void *ptr) {
+    if (!ptr) return;
 #ifdef BENCHDNN_MEMORY_CHECK
     if (has_bench_mode_bit(mode_bit_t::corr)) {
         zfree_protect(ptr);
