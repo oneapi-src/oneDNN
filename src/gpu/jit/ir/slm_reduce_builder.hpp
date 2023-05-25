@@ -80,7 +80,7 @@ private:
     layout_t reg_layout_;
     tensor_t thr_tile_;
 
-    int dim_;
+    int dim_ = -1;
 
     expr_t tmp_reg_buf_;
     int tmp_reg_buf_size_ = 0;
@@ -88,7 +88,7 @@ private:
     expr_t slm_buf_;
     int slm_buf_size_ = 0;
 
-    int tg_ndims_;
+    int tg_ndims_ = 0;
 
     stmt_t store_stmt_;
     stmt_t load_stmt_;

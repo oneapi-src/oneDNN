@@ -433,7 +433,7 @@ struct block_t {
     bool is_empty() const { return dim_idx == -1; }
 
     int dim_idx = -1; // Dimension index.
-    dim_t block; // Block size.
+    dim_t block = 0; // Block size.
     stride_t stride; // Stride between elements of the block.
 };
 
