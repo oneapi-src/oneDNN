@@ -392,6 +392,14 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             auto t2 = tmp2.subregister(t2_offset, dst_type);
 
             if (esize == 1) {
+                if (hw == ngen::HW::Gen9) {
+                    auto t1_f = tmp1.subregister(0, ngen::DataType::f);
+                    plan(mov, 1, t1_f, s);
+                    host->rnde(1, t1_f, t1_f);
+                    auto t2_h = tmp2.subregister(t1_offset, ngen::DataType::hf);
+                    plan(mov, 1, t2_h, t1_f);
+                    s = t2_h;
+                }
                 plan(mov, 2 | host->sat, t1(tmp_stride), s);
                 plan(mov, 1, d, t1);
                 continue;
@@ -399,11 +407,28 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
 
             // Operands are already dword aligned as required by F-pipe
             if (dst_stride_bytes >= tmp_stride_bytes) {
-                plan(mov, esize | host->sat, d(dst_stride), s(src_stride));
+                if (hw != ngen::HW::Gen9) {
+                    plan(mov, esize | host->sat, d(dst_stride), s(src_stride));
+                } else {
+                    ir_assert(dst_stride_bytes % tmp_stride_bytes == 0);
+                    auto d_f = dst.format(i * ngen::getBytes(ngen::DataType::f),
+                            ngen::DataType::f, esize,
+                            dst_stride_bytes / tmp_stride_bytes);
+                    plan(mov, esize, d_f, s(src_stride));
+                    host->rnde(esize, d_f, d_f);
+                    plan(mov, esize | host->sat, d(dst_stride), d_f);
+                }
                 continue;
             }
 
-            plan(mov, esize | host->sat, t1(tmp_stride), s(src_stride));
+            if (hw != ngen::HW::Gen9) {
+                plan(mov, esize | host->sat, t1(tmp_stride), s(src_stride));
+            } else {
+                auto t1_f = tmp1.format(t1_offset, ngen::DataType::f, esize);
+                plan(mov, esize, t1_f, s(src_stride));
+                host->rnde(esize, t1_f, t1_f);
+                plan(mov, esize | host->sat, t1(tmp_stride), t1_f);
+            }
             if (t1_offset != t2_offset)
                 plan(mov, esize, t2(tmp_stride), t1(tmp_stride));
             else
@@ -544,7 +569,6 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         if (dst_d || dst_f) ir_assert(dst_stride_bytes == 4);
         if (src_d || src_f) ir_assert(src_stride_bytes == 4);
         if (dst_b) ir_assert(utils::one_of(dst_stride_bytes, 1, 4, 8));
-        if (src_b) ir_assert(utils::one_of(src_stride_bytes, 1, 4, 8));
         int step = get_step();
         const int step_size = step * (int)sizeof(uint32_t);
         const int nregs = 1 + utils::div_up(step_size, grf_size);
@@ -638,8 +662,18 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     // allowed then fix regioning by switching to integer pipe which has
     // less limitations.
     if (src_xf || dst_xf) {
+        // forcing floats if on Gen9, for RNDE only works with floats there
+        auto real_type_size = (src_xf && !src_f && hw == ngen::HW::Gen9)
+                ? ngen::getBytes(ngen::DataType::f)
+                : dst_type_size;
+
+        bool local_src_f = src_f;
+        bool local_src_hf = src_hf;
+        bool local_src_bf = src_bf;
+        auto local_src_type = src_type;
+
         int step = get_step();
-        auto tmp_regs = utils::div_up(step * dst_type_size, grf_size);
+        auto tmp_regs = utils::div_up(step * real_type_size, grf_size);
         auto tmp = lex_scope.alloc_reg_buf_data(tmp_regs);
         for (int i = 0; i < width; i += step) {
             step = std::min(step, width - i);
@@ -652,9 +686,24 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     esize, dst_stride);
             auto d_old = d;
 
-            if (src_f && hw == ngen::HW::Gen9) host->rnde(esize, s, s);
+            if (hw == ngen::HW::Gen9) {
+                auto t = tmp.format(0, ngen::DataType::f, esize);
+                if (src_f)
+                    host->rnde(esize, t, s);
+                else if (src_xf) {
+                    plan(mov, esize, t, s);
+                    host->rnde(esize, t, t);
+                }
+                if (src_xf) {
+                    s = t;
+                    local_src_f = true;
+                    local_src_hf = local_src_bf = false;
+                    local_src_type = ngen::DataType::f;
+                }
+            }
             bool do_d0_align = false;
             if (esize > 1 && dst_bf) {
+                ir_assert(hw != ngen::HW::Gen9); // not gonna happen on Gen9
                 bool d_0_aligned = (d.byte_offset() == 0);
                 bool d_half_grf_aligned = (d.byte_offset() == grf_size / 2);
                 if (!d_0_aligned && (!d_half_grf_aligned || dst_stride != 1)) {
@@ -665,27 +714,28 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
 
             bool do_align = false;
             if (esize > 1 && s.hs() != 0) {
-                if ((src_f && dst_hf) || (dst_f && src_hf)) {
+                if ((local_src_f && dst_hf) || (dst_f && local_src_hf)) {
                     if (s.byte_offset() != d.byte_offset()) do_align = true;
                 } else if (s.offset() != d.offset())
                     do_align = true;
             }
             if (do_align) {
-                bool s_half_grf_aligned = (src_hf || src_bf)
+                bool s_half_grf_aligned = (local_src_hf || local_src_bf)
                         && utils::one_of(s.byte_offset(), 0, grf_size / 2);
                 bool d_half_grf_aligned = (dst_hf || dst_bf)
                         && utils::one_of(d.byte_offset(), 0, grf_size / 2);
                 if (dst_f && d.offset() == 0 && s_half_grf_aligned)
                     do_align = false;
-                if (src_f && s.offset() == 0 && d_half_grf_aligned)
+                if (local_src_f && s.offset() == 0 && d_half_grf_aligned)
                     do_align = false;
             }
 
             if (do_align) {
-                auto i_type = to_ngen(type_t::u(ngen::getBytes(src_type) * 8));
+                auto i_type = to_ngen(
+                        type_t::u(ngen::getBytes(local_src_type) * 8));
                 s = s.reinterpret(i_type);
                 align_src_dst_offset(host, scope, esize, d, s);
-                s = s.reinterpret(src_type);
+                s = s.reinterpret(local_src_type);
             }
             plan(mov, esize, d, s);
 

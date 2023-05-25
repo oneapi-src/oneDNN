@@ -514,7 +514,7 @@ private:
         auto &buf = op_buf.reg_buf_data();
         int size = send_func.payload_size();
         bool is_dense = buf.is_dense(size);
-        if (is_dense) return buf.reg_data();
+        if (is_dense) return ngen::GRF(buf.base());
 
         if (send_func.is_load() || send_func.is_load_2d()) {
             ir_error_not_expected()

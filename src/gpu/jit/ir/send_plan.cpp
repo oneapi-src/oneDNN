@@ -1123,33 +1123,6 @@ struct send_group_t {
     std::vector<send_block_t> blocks;
 };
 
-void init_scattered_params(const hw_config_t &hw_cfg,
-        const send_params_t &send_params, int inner_bytes, int total_bytes,
-        int *slot_size, int *slot_stride, int *max_slots = nullptr) {
-    bool is_slm = (send_params.send_address == send_address_t::slm);
-
-    //SLM qword not supported; issue with qword store if slots < 8
-    if (hw_cfg.hw() <= ngen::HW::XeLP
-            && (is_slm
-                    || (send_params.send_op == send_op_t::store
-                            && inner_bytes >= 8 && total_bytes % 64 != 0)))
-        *slot_size = ir_utils::max_divisor(inner_bytes, {1, 2, 4});
-    else
-        *slot_size = ir_utils::max_divisor(inner_bytes, {1, 2, 4, 8});
-    // XXX: Do not allow type promotion with sub-dword slots as the resulting
-    // GRF layout will be strided in the middle and may trigger unsupported
-    // reorders. Once reorder is robust enough, this check should be removed.
-    int type_size = send_params.mem_type.size();
-    if (type_size < *slot_size && *slot_size < 4) *slot_size = type_size;
-
-    // atomic_fadd messages imply direct type match.
-    if (send_params.send_op == send_op_t::atomic_fadd) {
-        *slot_size = send_params.mem_type.size();
-    }
-    if (slot_stride) *slot_stride = std::max(4, *slot_size);
-    if (max_slots) *max_slots = get_max_slots(hw_cfg.hw(), send_params);
-}
-
 class mod_info_t {
 public:
     mod_info_t() = default;
@@ -1297,7 +1270,55 @@ public:
         return tdims_[0];
     }
 
+    int init_scattered_params(const send_params_t &send_params, int inner_bytes,
+            int total_bytes) const {
+        // atomic_fadd messages imply direct type match
+        if (send_params.send_op == send_op_t::atomic_fadd)
+            return send_params.mem_type.size();
+
+        const bool is_hw_xelp_or_below = (hw() <= ngen::HW::XeLP);
+        const bool is_slm = (send_params.send_address == send_address_t::slm);
+        const bool is_store = (send_params.send_op == send_op_t::store);
+        const bool is_dangling = (inner_bytes >= 8 && total_bytes % 64 != 0);
+        int slot_size;
+
+        //SLM qword not supported; issue with qword store if slots < 8
+        if (is_hw_xelp_or_below && (is_slm || (is_store && is_dangling)))
+            slot_size = ir_utils::max_divisor(inner_bytes, {1, 2, 4});
+        else
+            slot_size = ir_utils::max_divisor(inner_bytes, {1, 2, 4, 8});
+
+        // XXX: Prohibit type promotion with sub-dword slots as the resulting
+        // GRF layout will be strided in the middle and may trigger unsupported
+        // reorders. Once reorder is robust enough, this check is to be removed
+        const int type_size = send_params.mem_type.size();
+        if (type_size < slot_size && slot_size < 4) slot_size = type_size;
+
+        // GPUs <= XeLP dislike scattered store offsets not aligned by slot; it
+        // is crucial to make slot_size small enough to become a layout divisor
+        if (is_hw_xelp_or_below && is_store) {
+            const int align = get_block_alignment_bytes(inner_idx());
+            slot_size = std::min(
+                    slot_size, ir_utils::max_divisor(align, {1, 2, 4, 8}));
+        }
+        return slot_size;
+    }
+
 private:
+    int get_block_alignment_bytes(int inner_idx) const {
+        if (inner_idx < 0) return 1;
+        // Get base address.
+        const auto &tlayout = view().tlayout();
+        int align = mod_info().get_modulus(tlayout, mod_info().vmods()).n();
+        // Get outer strides.
+        for (int i = inner_idx; i < vlayout().nblocks(); i++) {
+            auto &b = vlayout().blocks()[i];
+            int stride_bytes = dim_t(b.stride) * vlayout().type().size();
+            align = math::gcd(align, stride_bytes);
+        }
+        return align;
+    }
+
     void init_tdims() {
         for (int i = 0; i < view_.ntdims(); i++) {
             tdims_.emplace_back(i, view_.tdim(i), view_);
@@ -1341,29 +1362,15 @@ private:
 
     send_2d_params_t try_init_2d() const;
 
-    bool block_alignment_ok(
-            const layout_t &layout, int inner_idx, int inner_bytes) const {
-        int align = std::min(32, ir_utils::max_pow2_divisor(inner_bytes));
-        if (hw_cfg_.hw() >= ngen::HW::XeHPC) align = 8;
-
-        // Check base address.
-        auto base_mod
-                = mod_info_.get_modulus(view().tlayout(), mod_info_.vmods());
-        if (!base_mod.is_divisible(align) != 0) return false;
-
-        // Check outer strides.
-        for (int i = inner_idx; i < layout.nblocks(); i++) {
-            auto &b = layout.blocks()[i];
-            dim_t stride_bytes = (dim_t)b.stride * layout.type().size();
-            if (stride_bytes % align != 0) return false;
-        }
-        return true;
-    }
-
-    bool can_use_block(const layout_t &vlayout, int inner_idx, int inner_bytes,
-            int total_bytes, const send_params_t &send_params) const {
+    bool can_use_block(int inner_idx, int inner_bytes, int total_bytes,
+            const send_params_t &send_params) const {
         if (send_params.send_op == send_op_t::atomic_fadd) return false;
-        if (!block_alignment_ok(vlayout, inner_idx, inner_bytes)) return false;
+
+        const auto align = (hw_cfg_.hw() < ngen::HW::XeHPC)
+                ? std::min(32, ir_utils::max_pow2_divisor(inner_bytes))
+                : 8;
+        if (get_block_alignment_bytes(inner_idx) % align != 0) return false;
+
         if (inner_bytes % hw_cfg_.grf_size() == 0) return true;
 
         int oword_size = 16;
@@ -1395,8 +1402,7 @@ private:
         for (int i = 0; i < inner_idx_; i++) {
             inner_bytes *= (int)blocks[i].block;
         }
-        if (can_use_block(vlayout_, inner_idx_, inner_bytes, total_bytes,
-                    send_params_)) {
+        if (can_use_block(inner_idx_, inner_bytes, total_bytes, send_params_)) {
             send_kind_ = send_kind_t::block;
         } else {
             send_kind_ = send_kind_t::scattered;
@@ -1463,14 +1469,12 @@ private:
             inner_bytes *= (int)blocks[i].block;
         }
 
-        int slot_size;
-        int max_slots;
-        int slot_stride;
         int total_bytes = vlayout_.elems() * type_size;
-        init_scattered_params(hw_cfg_, send_params_, inner_bytes, total_bytes,
-                &slot_size, &slot_stride, &max_slots);
-        reg_bytes_per_elem = (slot_stride / slot_size) * type_size;
+        int slot_size
+                = init_scattered_params(send_params_, inner_bytes, total_bytes);
+        reg_bytes_per_elem = std::max(1, 4 / slot_size) * type_size;
 
+        int max_slots = get_max_slots(hw_cfg_.hw(), send_params_);
         int inner_slots = ir_utils::safe_divide(inner_bytes, slot_size);
         int slots = inner_slots;
         int best_idx = layout.nblocks() - 1;
@@ -2468,16 +2472,15 @@ send_group_t init_block(
 send_group_t init_scattered(const view_info_t &info,
         const send_params_t &send_params, view_iterator_t &it,
         layout_t &reg_layout) {
-    int slot_size;
-    int slot_stride;
     auto &vlayout = info.vlayout();
     auto &blocks = vlayout.blocks();
     int type_size = vlayout.type().size();
-    init_scattered_params(info.hw_cfg(), send_params, it.inner_bytes(),
-            vlayout.elems() * type_size, &slot_size, &slot_stride);
+    int slot_size = info.init_scattered_params(
+            send_params, it.inner_bytes(), vlayout.elems() * type_size);
+    int slot_stride = std::max(4, slot_size);
     int inner_slots = ir_utils::safe_divide(it.inner_bytes(), slot_size);
 
-    ir_assert(slot_size % type_size == 0);
+    ir_assert((slot_size % type_size == 0) || (slot_stride == slot_size));
 
     send_group_t ret;
     ret.hw = info.hw();

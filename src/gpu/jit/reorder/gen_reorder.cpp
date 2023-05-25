@@ -65,17 +65,20 @@ status_t gen_reorder_t::pd_t::init(
                 && (!zp_cfg.do_dst_compensation
                         || zp_cfg.is_common_dst_zero_point);
     };
+    auto is_bf16_or_f32 = [](data_type_t dt) {
+        return utils::one_of(dt, data_type::bf16, data_type::f32);
+    };
+    bool has_native_bf16 = device_info->gpu_arch() > compute::gpu_arch_t::xe_lp;
     auto skip_mask = dnnl_primitive_attr::skip_mask_t::post_ops
             | dnnl_primitive_attr::skip_mask_t::zero_points_runtime
             | dnnl_primitive_attr::skip_mask_t::scales_runtime;
     bool ok = src_engine == dst_engine && src_engine->kind() == engine_kind::gpu
-            && device_info->gpu_arch() > compute::gpu_arch_t::xe_lp
             && IMPLICATION(src_dt == data_type::f16 || dst_dt == data_type::f16,
                     compute_engine->mayiuse(compute::device_ext_t::khr_fp16))
             && IMPLICATION(src_dt == data_type::bf16,
-                    utils::one_of(dst_dt, data_type::bf16, data_type::f32))
+                    has_native_bf16 && is_bf16_or_f32(dst_dt))
             && IMPLICATION(dst_dt == data_type::bf16,
-                    utils::one_of(src_dt, data_type::bf16, data_type::f32))
+                    has_native_bf16 && is_bf16_or_f32(src_dt))
             && IMPLICATION(src_dt == data_type::f64 || dst_dt == data_type::f64,
                     compute_engine->mayiuse(compute::device_ext_t::khr_fp64))
             && attr()->has_default_values(skip_mask) && extra_ok()
