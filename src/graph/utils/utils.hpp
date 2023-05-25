@@ -59,19 +59,6 @@ using namespace dnnl::impl::utils;
 #define DEBUG_PRINT_ERROR(message)
 #endif
 
-inline static size_t size_of(data_type_t dtype) {
-    switch (dtype) {
-        case data_type::f32:
-        case data_type::s32: return 4U;
-        case data_type::s8:
-        case data_type::u8: return 1U;
-        case data_type::f16:
-        case data_type::bf16: return 2U;
-        case data_type::boolean: return sizeof(bool);
-        default: return 0;
-    }
-}
-
 inline static size_t prod(const std::vector<dim_t> &shape) {
     if (shape.empty()) return 0;
 
@@ -79,11 +66,6 @@ inline static size_t prod(const std::vector<dim_t> &shape) {
             shape.begin(), shape.end(), size_t(1), std::multiplies<dim_t>()));
 
     return p;
-}
-
-inline static size_t size_of(
-        const std::vector<dim_t> &shape, data_type_t dtype) {
-    return prod(shape) * size_of(dtype);
 }
 
 template <typename T>

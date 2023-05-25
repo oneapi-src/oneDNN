@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+#include "common/type_helpers.hpp"
 
 #include "graph/interface/c_types_map.hpp"
 
@@ -153,7 +155,7 @@ struct logical_tensor_wrapper_t {
     }
 
     // return the size of data type
-    size_t data_type_size() const { return utils::size_of(data_type()); }
+    size_t data_type_size() const { return types::data_type_size(data_type()); }
 
     // get memory size in byte
     size_t size() const;
