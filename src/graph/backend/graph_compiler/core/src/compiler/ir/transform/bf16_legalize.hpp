@@ -35,10 +35,14 @@ class bf16_promote_impl_t : public ir_visitor_t {
 public:
     using ir_visitor_t::dispatch;
     using ir_visitor_t::visit;
+    context_ptr ctx_;
+    bf16_promote_impl_t(context_ptr ctx = get_default_context())
+        : ctx_(std::move(ctx)) {}
     std::tuple<expr_c, expr_c> docast(
             const expr &orig_a, const expr &orig_b, bool *is_bfloat16);
     expr_c visit(binary_c v) final;
     expr_c visit(cmp_c v) final;
+    expr_c visit(select_c v) final;
     expr_c visit(intrin_call_c v) final;
 };
 

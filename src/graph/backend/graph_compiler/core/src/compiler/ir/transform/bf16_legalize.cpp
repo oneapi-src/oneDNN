@@ -106,6 +106,27 @@ expr_c bf16_promote_impl_t::visit(cmp_c v) {
     }
 }
 
+expr_c bf16_promote_impl_t::visit(select_c v) {
+    if (v->l_->dtype_.is_etype(sc_data_etype::BF16)
+            && v->l_->dtype_.lanes_
+                    > ctx_->get_max_vector_lanes(sc_data_etype::F32)) {
+        return v;
+    }
+    expr_c a, b;
+    bool is_bfloat16 = false;
+    std::tie(a, b) = docast(v->l_, v->r_, &is_bfloat16);
+    auto cond = dispatch(v->cond_);
+    bool changed = !a.ptr_same(v->l_) || !b.ptr_same(v->r_)
+            || !cond.ptr_same(v->cond_) || is_bfloat16;
+    if (changed) {
+        return copy_attr(*v,
+                builder::make_cast(sc_data_type_t::bf16(v->l_->dtype_.lanes_),
+                        builder::make_select(cond, a, b)));
+    } else {
+        return v;
+    }
+}
+
 expr_c bf16_promote_impl_t::visit(intrin_call_c v) {
     std::vector<expr> args;
     bool is_bfloat16 = false;
@@ -360,19 +381,19 @@ stmt_c bf16_cast_elimination_impl_t::visit(returns_c v) {
 }
 
 func_c bf16_legalizer_t::operator()(func_c f) {
-    bf16_promote_impl_t promote_pass;
+    bf16_promote_impl_t promote_pass(ctx_);
     f = promote_pass.dispatch(f);
     return f;
 }
 
 stmt_c bf16_legalizer_t::operator()(stmt_c f) {
-    bf16_promote_impl_t promote_pass;
+    bf16_promote_impl_t promote_pass(ctx_);
     f = promote_pass.dispatch(f);
     return f;
 }
 
 expr_c bf16_legalizer_t::operator()(expr_c f) {
-    bf16_promote_impl_t promote_pass;
+    bf16_promote_impl_t promote_pass(ctx_);
     f = promote_pass.dispatch(f);
     return f;
 }

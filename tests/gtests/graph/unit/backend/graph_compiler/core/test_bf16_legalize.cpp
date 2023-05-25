@@ -109,6 +109,29 @@ void dotest_bf16_promote_assign() {
     EXPECT_TRUE(cmper.compare(ccc, bbb, false));
 }
 
+void dotest_bf16_promote_select() {
+    builder::ir_builder_t bld;
+    stmt aaa, bbb;
+    ir_comparer cmper(true);
+    bld.push_scope();
+    // fake dtype of condition.
+    builder::make_var(DBF16, "c") = builder::make_select(
+            builder::make_var(DBF16, "cond"), builder::make_var(DBF16, "a"),
+            builder::make_var(DBF16, "b"));
+    aaa = bld.pop_scope();
+
+    bld.push_scope();
+    builder::make_var(DBF16, "c")
+            = BF16(builder::make_select(builder::make_var(DBF16, "cond"),
+                    F32(builder::make_var(DBF16, "a")),
+                    F32(builder::make_var(DBF16, "b"))));
+    bbb = bld.pop_scope();
+
+    bf16_promote_impl_t pass;
+    auto ccc = pass.dispatch(aaa);
+    EXPECT_TRUE(cmper.compare(ccc, bbb, false));
+}
+
 TEST(GCCore_CPU_bf16legalize_cpp, TestBF16Promote) {
     dotest_bf16_promote_binary(builder::make_add);
     dotest_bf16_promote_binary(builder::make_sub);
@@ -124,6 +147,7 @@ TEST(GCCore_CPU_bf16legalize_cpp, TestBF16Promote) {
     dotest_bf16_promote_binary(builder::make_min);
     dotest_bf16_promote_single(builder::make_abs);
     dotest_bf16_promote_assign();
+    dotest_bf16_promote_select();
 }
 
 TEST(GCCore_CPU_bf16legalize_cpp, TestBF16CastElimination) {
