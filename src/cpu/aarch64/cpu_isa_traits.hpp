@@ -66,7 +66,6 @@ enum cpu_isa_bit_t : unsigned {
     sve_256_bit = 1u << 2,
     sve_384_bit = 1u << 3,
     sve_512_bit = 1u << 4,
-    bf16_bit = 1u << 5
 };
 
 enum cpu_isa_t : unsigned {
@@ -76,7 +75,6 @@ enum cpu_isa_t : unsigned {
     sve_256 = sve_256_bit | sve_128,
     sve_384 = sve_384_bit | sve_256,
     sve_512 = sve_512_bit | sve_384,
-    feat_bf16 = ebf16_bit,
     isa_all = ~0u,
 };
 
@@ -199,7 +197,6 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
         case sve_512:
             return cpu().has(XBYAK_AARCH64_HWCAP_SVE)
                     && cpu().getSveLen() >= SVE_512;
-        case feat_bf16: return getauxval(AT_HWCAP2) & (1UL << 14);
         case isa_undef: return true;
         case isa_all: return false;
     }
@@ -215,10 +212,9 @@ static inline bool mayiuse_atomic() {
     return cpu().isAtomicSupported();
 }
 
-inline bool isa_has_bf16(cpu_isa_t isa) {
-    return false;
-}
-
+static inline bool mayiuse_bf16() {
+    using namespace Xbyak_aarch64::util;
+    return cpu().isBf16Supported();
 } // namespace
 
 /* whatever is required to generate string literals... */
