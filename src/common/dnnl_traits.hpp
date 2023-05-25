@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -70,6 +70,10 @@ template <>
 struct prec_traits<data_type::u8> {
     typedef uint8_t type;
 };
+template <>
+struct prec_traits<data_type::boolean> {
+    typedef bool type;
+};
 
 template <>
 struct data_traits<float16_t> {
@@ -94,6 +98,10 @@ struct data_traits<int8_t> {
 template <>
 struct data_traits<uint8_t> {
     static constexpr data_type_t data_type = data_type::u8;
+};
+template <>
+struct data_traits<bool> {
+    static constexpr data_type_t data_type = data_type::boolean;
 };
 
 template <>

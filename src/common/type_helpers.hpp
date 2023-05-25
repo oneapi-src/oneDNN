@@ -91,6 +91,7 @@ inline size_t data_type_size(data_type_t data_type) {
         case s32: return sizeof(prec_traits<s32>::type);
         case s8: return sizeof(prec_traits<s8>::type);
         case u8: return sizeof(prec_traits<u8>::type);
+        case boolean: return sizeof(prec_traits<boolean>::type);
         case data_type::undef:
         default: assert(!"unknown data_type");
     }
