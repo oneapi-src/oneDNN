@@ -263,8 +263,9 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
                     * rnn.n_dir * (rnn.n_states + 1) * (rnn.n_iter + 1) * rnn.mb
                     * rnn.scratch_diff_states_ld * aux_elsz
                                                : (size_t)0;
-    rnn.ws_gates_size = (size_t)rnn.n_layer * rnn.n_dir * rnn.n_iter * rnn.mb
-            * rnn.gates_ws_ld * aux_elsz;
+    rnn.ws_gates_size = rnn.is_training ? (size_t)rnn.n_layer * rnn.n_dir
+                    * rnn.n_iter * rnn.mb * rnn.gates_ws_ld * aux_elsz
+                                        : 0;
     rnn.n_iter_scratch_gates
             = (rnn.merge_gemm_layer || rnn.merge_gemm_iter) ? rnn.n_iter : 1;
     rnn.scratch_gates_size = (size_t)rnn.n_iter_scratch_gates * rnn.gates_nld
