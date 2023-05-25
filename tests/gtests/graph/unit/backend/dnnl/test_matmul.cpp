@@ -3256,7 +3256,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddAddBF16U8s8bf16) {
     graph::op_t tc_bias_op(5, graph::op_kind::TypeCast, "typecast_bias");
 
     graph::op_t biasadd_op(6, graph::op_kind::BiasAdd, "biasadd_op");
-    // matmul bias shoule add to the last dim
+    // matmul bias should add to the last dim
     biasadd_op.set_attr<std::string>(graph::op_attr::data_format, "NXC");
 
     graph::op_t add_op(7, graph::op_kind::Add, "add_op");
@@ -3567,7 +3567,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddU8s8u8MixBf16) {
     graph::op_t tc_bias_op(5, graph::op_kind::TypeCast, "typecast_bias");
 
     graph::op_t biasadd_op(6, graph::op_kind::BiasAdd, "biasadd_op");
-    // matmul bias shoule add to the last dim
+    // matmul bias should add to the last dim
     biasadd_op.set_attr<std::string>(graph::op_attr::data_format, "NXC");
 
     graph::op_t tcdst_op {7, graph::op_kind::TypeCast, "typecast_dst"};
@@ -3893,7 +3893,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddGeluU8s8u8MixBf16) {
     graph::op_t tc_bias_op(5, graph::op_kind::TypeCast, "typecast_bias");
 
     graph::op_t biasadd_op(6, graph::op_kind::BiasAdd, "biasadd_op");
-    // matmul bias shoule add to the last dim
+    // matmul bias should add to the last dim
     biasadd_op.set_attr<std::string>(graph::op_attr::data_format, "NXC");
 
     graph::op_t gelu_op {7, graph::op_kind::GELU, "gelu_op"};

@@ -69,7 +69,7 @@ inline arg_indices_t dummy_arg_indices_getter(
         const op_t *op, fusion_info_mgr_t &mgr) {
     UNUSED(op);
     UNUSED(mgr);
-    assertm(false, "dummy getter shoule never be called");
+    assertm(false, "dummy getter should never be called");
     return arg_indices_t {};
 }
 
@@ -105,7 +105,7 @@ inline std::shared_ptr<op_executable_t> dummy_executable_creator(
     UNUSED(p_engine);
     UNUSED(mgr);
     UNUSED(pd_cache);
-    assertm(false, "dummy executable creator shoule never be called");
+    assertm(false, "dummy executable creator should never be called");
     return {};
 }
 

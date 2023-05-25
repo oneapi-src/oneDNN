@@ -36,7 +36,7 @@ TEST(OpExecutableDeathTest, DummyArgIndicesGetter) {
     dnnl_impl::fusion_info_mgr_t mgr;
 #ifndef NDEBUG
     EXPECT_DEATH(dnnl_impl::dummy_arg_indices_getter(&op, mgr),
-            "dummy getter shoule never be called");
+            "dummy getter should never be called");
 #endif
 }
 
@@ -47,5 +47,5 @@ TEST(OpExecutableDeathTest, DummyExecutableCreator) {
     auto op = std::make_shared<graph::op_t>(0, graph::op_kind::Wildcard, "op");
     EXPECT_DEBUG_DEATH(
             dnnl_impl::dummy_executable_creator(op, p_engine, mgr, pd_cache),
-            "dummy executable creator shoule never be called");
+            "dummy executable creator should never be called");
 }
