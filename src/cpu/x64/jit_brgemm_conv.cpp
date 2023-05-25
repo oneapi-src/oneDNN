@@ -1754,21 +1754,21 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
         const auto ow_l = ow_e - ow_b;
         assert(0 <= ow_l && ow_l <= jcp.ow_block);
 
-        const auto comp_ker_offs = get_comp_offset(
-                btc.g, btc.ocb, ow_b, kd_s, kd_f, kh_s, kh_f, kw_b, kw_e);
-
-        const auto ker_i = ow_l - 1;
-        int kernel_idx[2][2];
-        kernel_idx[false][false] = _pd->get_brg_idx(
-                ker_i, false, is_oc_tail, false, kd_s, kd_f, kh_s, kh_f);
-        kernel_idx[true][false] = _pd->get_brg_idx(
-                ker_i, true, is_oc_tail, false, kd_s, kd_f, kh_s, kh_f);
-        kernel_idx[false][true] = _pd->get_brg_idx(
-                ker_i, false, is_oc_tail, true, kd_s, kd_f, kh_s, kh_f);
-        kernel_idx[true][true] = _pd->get_brg_idx(
-                ker_i, true, is_oc_tail, true, kd_s, kd_f, kh_s, kh_f);
-
         if (ow_l > 0 && k_l > 0) {
+            const auto comp_ker_offs = get_comp_offset(
+                    btc.g, btc.ocb, ow_b, kd_s, kd_f, kh_s, kh_f, kw_b, kw_e);
+
+            const auto ker_i = ow_l - 1;
+            int kernel_idx[2][2];
+            kernel_idx[false][false] = _pd->get_brg_idx(
+                    ker_i, false, is_oc_tail, false, kd_s, kd_f, kh_s, kh_f);
+            kernel_idx[true][false] = _pd->get_brg_idx(
+                    ker_i, true, is_oc_tail, false, kd_s, kd_f, kh_s, kh_f);
+            kernel_idx[false][true] = _pd->get_brg_idx(
+                    ker_i, false, is_oc_tail, true, kd_s, kd_f, kh_s, kh_f);
+            kernel_idx[true][true] = _pd->get_brg_idx(
+                    ker_i, true, is_oc_tail, true, kd_s, kd_f, kh_s, kh_f);
+
             if (nb_ic_b > 0) {
                 const auto brg_idx = kernel_idx[do_init][false];
                 call_brgemm(brg_idx, 0, nb_ic_b, comp_ker_offs,
