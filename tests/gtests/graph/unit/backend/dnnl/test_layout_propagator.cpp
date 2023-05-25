@@ -83,45 +83,41 @@ TEST(LayoutPropagatorDeathTest, LayoutPropagatorForSum) {
     dnnl::engine p_engine = dnnl_impl::make_dnnl_engine(eng);
     dnnl_impl::fusion_info_mgr_t mgr;
     dnnl_impl::pd_cache_t pd_cache;
-    {
-        auto op = std::make_shared<graph::op_t>(
-                0, graph::op_kind::Wildcard, "op");
-        auto lt_in = utils::logical_tensor_init(
-                1, {1, 2}, graph::data_type::f32, graph::layout_type::strided);
-        auto lt_out = utils::logical_tensor_init(
-                2, {1, 2}, graph::data_type::f32, graph::layout_type::any);
+    auto op = std::make_shared<graph::op_t>(0, graph::op_kind::Wildcard, "op");
+    auto lt_in = utils::logical_tensor_init(
+            1, {1, 2}, graph::data_type::f32, graph::layout_type::strided);
+    auto lt_out = utils::logical_tensor_init(
+            2, {1, 2}, graph::data_type::f32, graph::layout_type::any);
 
-        op->add_input(lt_in);
-        op->add_output(lt_out);
-        auto sg = std::make_shared<dnnl_impl::subgraph_t>(
-                std::vector<std::shared_ptr<graph::op_t>> {op}, p_engine,
-                graph::fpmath_mode::any, false, false);
-        dnnl_impl::subgraph_rewriter_t rewriter {sg};
-        ASSERT_EQ(layout_propagator_for_sum(
-                          op, p_engine, mgr, pd_cache, rewriter),
-                graph::status::success);
-    }
+    op->add_input(lt_in);
+    op->add_output(lt_out);
+    auto sg = std::make_shared<dnnl_impl::subgraph_t>(
+            std::vector<std::shared_ptr<graph::op_t>> {op}, p_engine,
+            graph::fpmath_mode::any, false, false);
+    dnnl_impl::subgraph_rewriter_t rewriter {sg};
+    ASSERT_EQ(layout_propagator_for_sum(op, p_engine, mgr, pd_cache, rewriter),
+            graph::status::success);
+}
 
-    {
-        auto op = std::make_shared<graph::op_t>(
-                0, graph::op_kind::Wildcard, "op");
-        auto lt_in = utils::logical_tensor_init(
-                0, {1, 2}, graph::data_type::f32, graph::layout_type::any);
-        auto lt_out = utils::logical_tensor_init(
-                1, {1, 2}, graph::data_type::f32, graph::layout_type::strided);
+TEST(LayoutPropagatorDeathTest, LayoutPropagatorForSumFail) {
+    dnnl::engine p_engine;
+    dnnl_impl::fusion_info_mgr_t mgr;
+    dnnl_impl::pd_cache_t pd_cache;
+    auto op = std::make_shared<graph::op_t>(0, graph::op_kind::Wildcard, "op");
+    auto lt_in = utils::logical_tensor_init(
+            0, {1, 2}, graph::data_type::f32, graph::layout_type::any);
+    auto lt_out = utils::logical_tensor_init(
+            1, {1, 2}, graph::data_type::f32, graph::layout_type::strided);
 
-        op->add_input(lt_in);
-        op->add_output(lt_out);
-        auto sg = std::make_shared<dnnl_impl::subgraph_t>(
-                std::vector<std::shared_ptr<graph::op_t>> {op}, p_engine,
-                graph::fpmath_mode::any, false, false);
-        dnnl_impl::subgraph_rewriter_t rewriter {sg};
+    op->add_input(lt_in);
+    op->add_output(lt_out);
+    std::shared_ptr<dnnl_impl::subgraph_t> sg;
+    dnnl_impl::subgraph_rewriter_t rewriter {sg};
 #ifndef NDEBUG
-        ASSERT_DEATH(layout_propagator_for_sum(
-                             op, p_engine, mgr, pd_cache, rewriter),
-                "input format of sum primitive cannot be any.");
+    EXPECT_DEATH(
+            layout_propagator_for_sum(op, p_engine, mgr, pd_cache, rewriter),
+            "input format of sum primitive cannot be any.");
 #endif
-    }
 }
 
 TEST(LayoutPropagatorDeathTest, LayoutPropagatorForSubZps) {

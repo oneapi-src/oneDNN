@@ -41,15 +41,11 @@ TEST(OpExecutableDeathTest, DummyArgIndicesGetter) {
 }
 
 TEST(OpExecutableDeathTest, DummyExecutableCreator) {
-    graph::engine_t &eng = *get_engine();
-    dnnl::engine p_engine = dnnl_impl::make_dnnl_engine(eng);
+    dnnl::engine p_engine;
     dnnl_impl::fusion_info_mgr_t mgr;
     dnnl_impl::pd_cache_t pd_cache;
-
     auto op = std::make_shared<graph::op_t>(0, graph::op_kind::Wildcard, "op");
-#ifndef NDEBUG
-    EXPECT_DEATH(
+    EXPECT_DEBUG_DEATH(
             dnnl_impl::dummy_executable_creator(op, p_engine, mgr, pd_cache),
             "dummy executable creator shoule never be called");
-#endif
 }
