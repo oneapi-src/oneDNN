@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <cassert>
+#include <type_traits>
 
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/utils/jit_io_helper.hpp"
@@ -553,16 +554,13 @@ void jit_io_helper_t<Vmm>::load(const Xbyak::Address &src_addr,
     }
 }
 
-template <>
-void jit_io_helper_t<Xbyak::Zmm>::load_byte_by_byte(
-        const Xbyak::Address &src_addr, const Xbyak::Zmm &dst_vmm,
-        const int load_size) {
-    assert("Load byte by byte is not supported for Zmms.");
-}
-
 template <typename Vmm>
 void jit_io_helper_t<Vmm>::load_byte_by_byte(const Xbyak::Address &src_addr,
         const Vmm &dst_vmm, const int load_size) {
+    static constexpr bool is_zmm = std::is_same<Vmm, Xbyak::Zmm>::value;
+    UNUSED(is_zmm);
+    assert(!is_zmm && "Load byte by byte is not supported for Zmms.");
+
     host_->uni_vxorps(dst_vmm, dst_vmm, dst_vmm);
     host_->load_data(data_type_, dst_vmm, src_addr, load_size);
 
@@ -706,15 +704,13 @@ void jit_io_helper_t<Vmm>::saturate(const Vmm &vmm) {
     host_->uni_vcvtps2dq(vmm, vmm);
 }
 
-template <>
-void jit_io_helper_t<Xbyak::Zmm>::store_byte_by_byte(const Xbyak::Zmm &src_zmm,
-        const Xbyak::Address &dst_addr, const int store_size) {
-    assert("Store byte by byte is not supported for Zmms.");
-}
-
 template <typename Vmm>
 void jit_io_helper_t<Vmm>::store_byte_by_byte(const Vmm &src_vmm,
         const Xbyak::Address &dst_addr, const int store_size) {
+    static constexpr bool is_zmm = std::is_same<Vmm, Xbyak::Zmm>::value;
+    UNUSED(is_zmm);
+    assert(!is_zmm && "Store byte by byte is not supported for Zmms.");
+
     const bool is_i8 = utils::one_of(data_type_, data_type::s8, data_type::u8);
     const bool is_xf16
             = utils::one_of(data_type_, data_type::bf16, data_type::f16);
