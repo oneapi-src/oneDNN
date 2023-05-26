@@ -92,7 +92,10 @@ struct brgemm_convolution_fwd_t : public primitive_t {
             int bs_idx = 0;
             if (jcp_.use_uker) {
                 const auto bs = batchsizes.find({kd_b, kd_e, kh_b, kh_e});
-                if (bs == batchsizes.end()) return 0;
+                if (bs == batchsizes.end()) {
+                    assert(!"unregistered batch size");
+                    return 0;
+                }
                 bs_idx = bs->second;
             }
             return (((m * bs_c + bs_idx) * 2
