@@ -28,7 +28,7 @@ namespace graph = dnnl::impl::graph;
 namespace dnnl_impl = graph::dnnl_impl;
 
 TEST(ConstantCache, SetGetCapacity) {
-    graph::dnnl_impl::constant_cache_t cache;
+    auto &cache = dnnl_impl::get_global_constant_cache();
     ASSERT_EQ(cache.set_capacity(11), graph::status::success);
     ASSERT_EQ(cache.get_capacity(), 11U);
 }
@@ -37,7 +37,7 @@ TEST(ConstantCache, GetOrAddEmpty) {
     using key_t = graph::dnnl_impl::constant_cache_t::key_t;
     using value_t = graph::dnnl_impl::constant_cache_t::value_t;
 
-    graph::dnnl_impl::constant_cache_t cache;
+    auto &cache = dnnl_impl::get_global_constant_cache();
     ASSERT_EQ(cache.set_capacity(0), graph::status::success);
     ASSERT_FALSE(cache.get_or_add(key_t(), value_t()).valid());
 }
@@ -48,7 +48,7 @@ TEST(ConstantCache, Evict) {
     auto g_alloc_
             = static_cast<const graph::allocator_t *>(engine.get_allocator());
 
-    graph::dnnl_impl::constant_cache_t cache;
+    auto &cache = dnnl_impl::get_global_constant_cache();
     ASSERT_EQ(cache.set_capacity(0), graph::status::success);
     ASSERT_EQ(cache.set_capacity(5), graph::status::success);
 
@@ -82,7 +82,8 @@ TEST(ConstantCache, RetainAndRelease) {
     auto p_engine_ = dnnl_impl::make_dnnl_engine(engine);
     auto g_alloc_
             = static_cast<const graph::allocator_t *>(engine.get_allocator());
-    graph::dnnl_impl::constant_cache_t cache;
+    auto &cache = dnnl_impl::get_global_constant_cache();
+    ASSERT_EQ(cache.set_capacity(1024), graph::status::success);
 
     {
         cache.retain();
