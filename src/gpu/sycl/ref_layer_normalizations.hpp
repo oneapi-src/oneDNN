@@ -100,7 +100,7 @@ struct ref_layer_normalization_bwd_t : public sycl_gpu_primitive_t {
             const memory_desc_wrapper diff_dst_d(diff_dst_md(0));
             const memory_desc_wrapper var_d(src_md(2));
 
-            const bool ok = is_bwd()
+            const bool ok = !is_fwd()
                     && (src_md(0)->format_desc.blocking.inner_nblks == 0)
                     && (diff_dst_md(0)->format_desc.blocking.inner_nblks == 0)
                     && utils::one_of(src_md(0)->data_type, f32, bf16)
