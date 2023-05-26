@@ -63,6 +63,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bn_fusion)
                             check_qtype_equal_to_per_tensor);
                     pdequant_data->append_decision_function(
                             check_zps_values<0>);
+                    pdequant_data->append_decision_function(
+                            check_input_dtype<impl::data_type::s8>);
 
                     auto bn = pgraph->append_op(
                             graph::op_kind::BatchNormInference,
@@ -86,6 +88,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bn_fusion)
                     pquant_data->append_decision_function(
                             check_qtype_equal_to_per_tensor);
                     pquant_data->append_decision_function(check_zps_values<0>);
+                    pquant_data->append_decision_function(
+                            check_output_dtype<impl::data_type::s8>);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<batchnorm_fwd_t>();

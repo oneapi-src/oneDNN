@@ -14594,3 +14594,96 @@ TEST(PassSystem, EltwiseFusionWithInternalInputs) {
         ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2U);
     }
 }
+
+TEST(Pass, BatchNormReluU8Unfuse) {
+    using dims = graph::dnnl_impl::dims;
+    namespace utils = dnnl::graph::tests::unit::utils;
+
+    std::vector<std::pair<graph::data_type_t, graph::data_type_t>> vec {
+            {graph::data_type::u8, graph::data_type::s8},
+            {graph::data_type::u8, graph::data_type::u8},
+            {graph::data_type::s8, graph::data_type::u8},
+    };
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales_src = {2.1f};
+    std::vector<float> scales_out = {3.1f};
+
+    // Tensor dimensions.
+    const graph::dim_t N = 1, // batch size
+            IC = 256, // channels
+            IH = 14, // tensor height
+            IW = 14; // tensor width
+    // Source (src) and destination (dst) tensors dimensions.
+    dims src_dims = {N, IH, IW, IC};
+    // Scale/shift tensor dimensions.
+    dims scale_dims = {IC};
+    dims shift_dims = {IC};
+    dims mean_dims = {IC};
+    dims variance_dims = {IC};
+
+    for (auto &&par : vec) {
+        graph::op_t bn_op(0, graph::op_kind::BatchNormInference, "batchnorm");
+        bn_op.set_attr<float>(graph::op_attr::epsilon, 0.01f);
+        bn_op.set_attr<std::string>(graph::op_attr::data_format, "NXC");
+
+        graph::op_t dequant {1, graph::op_kind::Dequantize, "dequant"};
+        dequant.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+        dequant.set_attr(graph::op_attr::scales, scales_src);
+        dequant.set_attr(graph::op_attr::zps, zps);
+
+        graph::op_t quant {2, graph::op_kind::Quantize, "quant"};
+        quant.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+        quant.set_attr(graph::op_attr::scales, scales_out);
+        quant.set_attr(graph::op_attr::zps, zps);
+
+        graph::op_t relu_op(3, graph::op_kind::ReLU, "relu");
+
+        // prepare logical tensor
+        graph::logical_tensor_t src_int8
+                = utils::logical_tensor_init(0, src_dims, par.first);
+        graph::logical_tensor_t src_f32 = utils::logical_tensor_init(
+                1, src_dims, graph::data_type::f32);
+        graph::logical_tensor_t scale = utils::logical_tensor_init(
+                2, scale_dims, graph::data_type::f32);
+        graph::logical_tensor_t shift = utils::logical_tensor_init(
+                3, shift_dims, graph::data_type::f32);
+        graph::logical_tensor_t mean = utils::logical_tensor_init(
+                4, mean_dims, graph::data_type::f32);
+        graph::logical_tensor_t variance = utils::logical_tensor_init(
+                5, variance_dims, graph::data_type::f32);
+        graph::logical_tensor_t dst = utils::logical_tensor_init(
+                6, src_dims, graph::data_type::f32);
+        graph::logical_tensor_t relu_dst = utils::logical_tensor_init(
+                7, src_dims, graph::data_type::f32);
+        graph::logical_tensor_t dst_int8_out
+                = utils::logical_tensor_init(8, src_dims, par.second);
+
+        scale.property = graph::property_type::constant;
+        shift.property = graph::property_type::constant;
+        mean.property = graph::property_type::constant;
+        variance.property = graph::property_type::constant;
+
+        dequant.add_input(src_int8);
+        dequant.add_output(src_f32);
+        bn_op.add_input(src_f32);
+        bn_op.add_input(scale);
+        bn_op.add_input(shift);
+        bn_op.add_input(mean);
+        bn_op.add_input(variance);
+        bn_op.add_output(dst);
+        relu_op.add_input(dst);
+        relu_op.add_output(relu_dst);
+        quant.add_input(relu_dst);
+        quant.add_output(dst_int8_out);
+
+        graph::graph_t g;
+        EXPECT_EQ(g.add_op(&dequant), graph::status::success);
+        EXPECT_EQ(g.add_op(&bn_op), graph::status::success);
+        EXPECT_EQ(g.add_op(&relu_op), graph::status::success);
+        EXPECT_EQ(g.add_op(&quant), graph::status::success);
+        g.finalize();
+        graph::pass::pass_base_ptr apass = get_pass("int8_bn_fusion");
+        apass->run(g);
+        EXPECT_NE(g.get_num_partitions(), 1U);
+    }
+}
