@@ -94,6 +94,15 @@ struct primitive_desc_t : public c_compatible {
                 && arg == (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | src_mnemonic));
     }
 
+    virtual bool has_runtime_dims_or_strides() const {
+        return memory_desc_wrapper(invariant_src_md())
+                       .has_runtime_dims_or_strides()
+                || memory_desc_wrapper(invariant_wei_md())
+                           .has_runtime_dims_or_strides()
+                || memory_desc_wrapper(invariant_dst_md())
+                           .has_runtime_dims_or_strides();
+    };
+
     enum class arg_usage_t { unused, input, output };
     virtual arg_usage_t arg_usage(int arg) const {
         using types::is_zero_md;
