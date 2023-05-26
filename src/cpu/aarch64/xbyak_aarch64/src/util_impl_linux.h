@@ -39,6 +39,13 @@
 #include <asm/hwcap.h>
 #endif
 
+/* Linux kernel used in Ubuntu 20.04 does not have HWCAP2_BF16 definition. */
+#ifdef AT_HWCAP2
+#ifndef HWCAP2_BF16
+#define HWCAP2_BF16 (1UL << 14)
+#endif
+#endif
+
 namespace Xbyak_aarch64 {
 namespace util {
 #define XBYAK_AARCH64_ERROR_ fprintf(stderr, "%s, %d, Error occurrs during read cache infomation.\n", __FILE__, __LINE__);
@@ -383,7 +390,7 @@ private:
   }
 
   void setHwCap() {
-    unsigned long hwcap = getauxval(AT_HWCAP);
+    const unsigned long hwcap = getauxval(AT_HWCAP);
     if (hwcap & HWCAP_ATOMICS)
       type_ |= (Type)XBYAK_AARCH64_HWCAP_ATOMIC;
 
@@ -391,8 +398,10 @@ private:
       type_ |= (Type)XBYAK_AARCH64_HWCAP_FP;
     if (hwcap & HWCAP_ASIMD)
       type_ |= (Type)XBYAK_AARCH64_HWCAP_ADVSIMD;
-#ifdef HWCAP2_BF16
-    if (hwcap & HWCAP2_BF16)
+
+#ifdef AT_HWCAP2
+    const unsigned long hwcap2 = getauxval(AT_HWCAP2);
+    if (hwcap2 & HWCAP2_BF16)
       type_ |= (Type)XBYAK_AARCH64_HWCAP_BF16;
 #endif
 
