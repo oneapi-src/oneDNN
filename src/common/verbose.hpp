@@ -204,6 +204,12 @@ std::string md2dim_str(
 std::string rt_dims2fmt_str(primitive_kind_t prim_kind,
         const memory_desc_t *src_md, const memory_desc_t *wei_md,
         const memory_desc_t *dst_md);
+// Returns a verbose string of all supported by a primitive memory descriptors.
+// Can be called externally to provide info about actual tag and stride values
+// of runtime dimensions.
+std::string rt_mds2str(primitive_kind_t prim_kind, const memory_desc_t *src_md,
+        const memory_desc_t *wei_md, const memory_desc_t *bia_md,
+        const memory_desc_t *dst_md);
 
 } // namespace impl
 } // namespace dnnl

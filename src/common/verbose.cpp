@@ -891,6 +891,34 @@ std::string init_info_lrn(const engine_t *e, const pd_t *pd) {
     return ss.str();
 }
 
+std::string mds2str_matmul(const memory_desc_t *src_md,
+        format_kind_t src_user_format_kind, const memory_desc_t *wei_md,
+        format_kind_t wei_user_format_kind, const memory_desc_t *bia_md,
+        format_kind_t bia_user_format_kind, const memory_desc_t *dst_md,
+        format_kind_t dst_user_format_kind) {
+    std::string s;
+    auto get_bia_mask = [&bia_md]() {
+        auto bia_ndims = bia_md->ndims;
+        auto bia_dims = bia_md->dims;
+        int mask = 0;
+        for (int d = bia_ndims - 1; d >= 0; --d) {
+            mask += bia_dims[d] != 1 ? 1 << d : 0;
+        }
+        return mask;
+    };
+
+    std::stringstream ss;
+    ss << "src_" << md2fmt_str(src_md, src_user_format_kind);
+    ss << " wei_" << md2fmt_str(wei_md, wei_user_format_kind);
+    if (!memory_desc_wrapper(bia_md).is_zero()) {
+        ss << " bia_" << md2fmt_str(bia_md, bia_user_format_kind);
+        ss << "_mask" << get_bia_mask();
+    }
+    ss << " dst_" << md2fmt_str(dst_md, dst_user_format_kind);
+    s = ss.str();
+    return s;
+}
+
 std::string dims2fmt_str_matmul(
         const memory_desc_t *src_md, const memory_desc_t *wei_md) {
     return md2dim_str(src_md) + ":" + md2dim_str(wei_md);
@@ -907,25 +935,10 @@ std::string init_info_matmul(const engine_t *e, const pd_t *pd) {
     auto bia_md = pd->invariant_bia_md();
     auto dst_md = pd->invariant_dst_md();
 
-    auto get_bia_mask = [&bia_md]() {
-        auto bia_ndims = bia_md->ndims;
-        auto bia_dims = bia_md->dims;
-        int mask = 0;
-        for (int d = bia_ndims - 1; d >= 0; --d) {
-            mask += bia_dims[d] != 1 ? 1 << d : 0;
-        }
-        return mask;
-    };
-
-    ss << "src_" << md2fmt_str(src_md, pd->invariant_src_user_format_kind());
-    ss << " wei_" << md2fmt_str(wei_md, pd->invariant_wei_user_format_kind());
-    if (pd->with_bias()) {
-        ss << " bia_"
-           << md2fmt_str(bia_md, pd->invariant_bia_user_format_kind());
-        ss << "_mask" << get_bia_mask();
-    }
-    ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
-
+    ss << mds2str_matmul(src_md, pd->invariant_src_user_format_kind(), wei_md,
+            pd->invariant_wei_user_format_kind(), bia_md,
+            pd->invariant_bia_user_format_kind(), dst_md,
+            pd->invariant_dst_user_format_kind());
     ss << "," << pd->attr() << ",,";
     ss << dims2fmt_str_matmul(src_md, wei_md);
 
@@ -1004,6 +1017,15 @@ std::string init_info_reduction(const engine_t *e, const pd_t *pd) {
     return ss.str();
 }
 
+std::string mds2str_reorder(const memory_desc_t *src_md,
+        format_kind_t src_user_format_kind, const memory_desc_t *dst_md,
+        format_kind_t dst_user_format_kind) {
+    std::string s;
+    s += "src_" + md2fmt_str(src_md, src_user_format_kind);
+    s += " dst_" + md2fmt_str(dst_md, dst_user_format_kind);
+    return s;
+}
+
 std::string dims2fmt_str_reorder(const memory_desc_t *src_md) {
     return md2dim_str(src_md);
 }
@@ -1026,9 +1048,8 @@ std::string init_info_reorder(const engine_t *e, pd_t *pd) {
     auto src_md = pd->invariant_src_md();
     auto dst_md = pd->invariant_dst_md();
 
-    ss << "src_" << md2fmt_str(src_md, pd->invariant_src_user_format_kind());
-    ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
-
+    ss << mds2str_reorder(src_md, pd->invariant_src_user_format_kind(), dst_md,
+            pd->invariant_dst_user_format_kind());
     ss << "," << pd->attr() << ",,";
     ss << dims2fmt_str_reorder(src_md);
 
@@ -1176,6 +1197,45 @@ std::string init_info_sum(const engine_t *e, const pd_t *pd) {
 }
 
 } // namespace
+
+std::string rt_mds2str(primitive_kind_t prim_kind, const memory_desc_t *src_md,
+        const memory_desc_t *wei_md, const memory_desc_t *bia_md,
+        const memory_desc_t *dst_md) {
+    // Note: pass format_kind::undef since runtime dims-ed mds can't have
+    // format_kind::any at any stage.
+    std::string s;
+    switch ((int)prim_kind) {
+        case primitive_kind::matmul:
+            s = mds2str_matmul(src_md, format_kind::undef, wei_md,
+                    format_kind::undef, bia_md, format_kind::undef, dst_md,
+                    format_kind::undef);
+            break;
+        case primitive_kind::reorder:
+            s = mds2str_reorder(
+                    src_md, format_kind::undef, dst_md, format_kind::undef);
+            break;
+
+        case primitive_kind::batch_normalization:
+        case primitive_kind::binary:
+        case primitive_kind::concat:
+        case primitive_kind::convolution:
+        case primitive_kind::deconvolution:
+        case primitive_kind::eltwise:
+        case primitive_kind::inner_product:
+        case primitive_kind::layer_normalization:
+        case primitive_kind::lrn:
+        case primitive_kind::pooling:
+        case primitive_kind::prelu:
+        case primitive_kind::reduction:
+        case primitive_kind::resampling:
+        case primitive_kind::rnn:
+        case primitive_kind::shuffle:
+        case primitive_kind::softmax:
+        case primitive_kind::sum: assert(!"unsupported primitive kind"); break;
+        default: assert(!"unknown primitive kind");
+    }
+    return s;
+}
 
 std::string rt_dims2fmt_str(primitive_kind_t prim_kind,
         const memory_desc_t *src_md, const memory_desc_t *wei_md,
