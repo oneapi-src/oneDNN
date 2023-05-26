@@ -71,6 +71,7 @@ struct gemm_pd_t : public primitive_desc_t {
             int index = 0, bool user_input = false) const override {
         return index == 0 ? &desc_.c_desc : &glob_zero_md;
     }
+    bool with_bias() const { return desc_.bias_desc.ndims != 0; }
 
     int n_inputs() const override { return 2; }
     int n_outputs() const override { return 1; }
