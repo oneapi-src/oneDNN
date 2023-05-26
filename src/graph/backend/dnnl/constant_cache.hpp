@@ -78,11 +78,6 @@ struct constant_cache_t {
     using cached_t = std::shared_ptr<constant_buffer_t>;
     using value_t = std::shared_future<cached_t>;
 
-    constant_cache_t() : counter_(1) {
-        constant_map_ = impl::utils::make_unique<
-                std::unordered_map<key_t, timed_entry_t>>();
-    }
-
     // This function increments the reference count
     void retain() { counter_.fetch_add(1, std::memory_order_relaxed); }
 
@@ -171,6 +166,11 @@ struct constant_cache_t {
     void remove_if_exist(const key_t &key);
 
 private:
+    constant_cache_t() : counter_(1) {
+        constant_map_ = impl::utils::make_unique<
+                std::unordered_map<key_t, timed_entry_t>>();
+    }
+
     void evict(size_t n);
     value_t get(const key_t &key);
     void add(const key_t &key, const value_t &constant);
