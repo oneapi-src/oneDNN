@@ -586,19 +586,11 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                 is_B_trans ? transpose::trans : transpose::notrans, ldb));
         CHECK(create_2d_desc(&c_md, n, m, c_dt, transpose::notrans, ldc));
 
-        auto gemm_desc = create_gemm_desc(
-                &a_md, &b_md, &c_md, &glob_zero_md, c_dt, engine);
-
         primitive_attr_t attr;
         CHECK(attr.post_ops_.append_sum(beta));
         CHECK(attr.set_fpmath_mode(fpmath_mode));
-        primitive_desc_iterator_t it(
-                engine, (op_desc_t *)&gemm_desc, &attr, nullptr);
-        if (!it.is_initialized()) return status::out_of_memory;
-
-        gemm_pd = *(++it);
-        if (!gemm_pd) return status::unimplemented;
-        return status::success;
+        return dnnl::impl::create_gemm_pd(gemm_pd, engine, &a_md, &b_md, &c_md,
+                &glob_zero_md, c_dt, &attr);
     };
 
     int batch = rnn_conf.mb;
