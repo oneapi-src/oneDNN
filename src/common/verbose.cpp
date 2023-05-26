@@ -891,6 +891,11 @@ std::string init_info_lrn(const engine_t *e, const pd_t *pd) {
     return ss.str();
 }
 
+std::string dims2fmt_str_matmul(
+        const memory_desc_t *src_md, const memory_desc_t *wei_md) {
+    return md2dim_str(src_md) + ":" + md2dim_str(wei_md);
+}
+
 template <typename pd_t>
 std::string init_info_matmul(const engine_t *e, const pd_t *pd) {
     std::stringstream ss;
@@ -922,8 +927,7 @@ std::string init_info_matmul(const engine_t *e, const pd_t *pd) {
     ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
 
     ss << "," << pd->attr() << ",,";
-
-    ss << md2dim_str(src_md) << ":" << md2dim_str(wei_md);
+    ss << dims2fmt_str_matmul(src_md, wei_md);
 
     return ss.str();
 }
@@ -1000,6 +1004,10 @@ std::string init_info_reduction(const engine_t *e, const pd_t *pd) {
     return ss.str();
 }
 
+std::string dims2fmt_str_reorder(const memory_desc_t *src_md) {
+    return md2dim_str(src_md);
+}
+
 template <typename pd_t>
 std::string init_info_reorder(const engine_t *e, pd_t *pd) {
     std::stringstream ss;
@@ -1022,7 +1030,7 @@ std::string init_info_reorder(const engine_t *e, pd_t *pd) {
     ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
 
     ss << "," << pd->attr() << ",,";
-    ss << md2dim_str(dst_md);
+    ss << dims2fmt_str_reorder(src_md);
 
     return ss.str();
 }
@@ -1168,6 +1176,38 @@ std::string init_info_sum(const engine_t *e, const pd_t *pd) {
 }
 
 } // namespace
+
+std::string rt_dims2fmt_str(primitive_kind_t prim_kind,
+        const memory_desc_t *src_md, const memory_desc_t *wei_md,
+        const memory_desc_t *dst_md) {
+    std::string s;
+    switch ((int)prim_kind) {
+        case primitive_kind::matmul:
+            s = dims2fmt_str_matmul(src_md, wei_md);
+            break;
+        case primitive_kind::reorder: s = dims2fmt_str_reorder(src_md); break;
+
+        case primitive_kind::batch_normalization:
+        case primitive_kind::binary:
+        case primitive_kind::concat:
+        case primitive_kind::convolution:
+        case primitive_kind::deconvolution:
+        case primitive_kind::eltwise:
+        case primitive_kind::inner_product:
+        case primitive_kind::layer_normalization:
+        case primitive_kind::lrn:
+        case primitive_kind::pooling:
+        case primitive_kind::prelu:
+        case primitive_kind::reduction:
+        case primitive_kind::resampling:
+        case primitive_kind::rnn:
+        case primitive_kind::shuffle:
+        case primitive_kind::softmax:
+        case primitive_kind::sum: assert(!"unsupported primitive kind"); break;
+        default: assert(!"unknown primitive kind");
+    }
+    return s;
+}
 
 void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
     if (is_initialized_) return;
