@@ -21,6 +21,7 @@ conv,test_conv_ci
 deconv,test_deconv_ci
 eltwise,test_eltwise_ci
 ip,test_ip_ci
+gnorm,test_gnorm_ci
 lnorm,test_lnorm_ci
 lrn,test_lrn_ci
 matmul,test_matmul_ci

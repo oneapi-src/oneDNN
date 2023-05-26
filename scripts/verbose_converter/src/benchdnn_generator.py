@@ -49,6 +49,7 @@ def convert_driver(prop_kind):
         "convolution": "conv",
         "deconvolution": "deconv",
         "eltwise": "eltwise",
+        "group_normalization": "gnorm",
         "inner_product": "ip",
         "layer_normalization": "lnorm",
         "lrn": "lrn",
@@ -114,7 +115,11 @@ def convert_aux(entry):
         elif pk == "concat":
             axis = entry["aux"]["axis"]
             return f"--axis={axis}"
-        elif pk in ["batch_normalization", "layer_normalization"]:
+        elif pk in [
+            "batch_normalization",
+            "layer_normalization",
+            "group_normalization",
+        ]:
             flags = entry["aux"]["flags"]
             return f"--flags={flags}"
         elif pk == "lrn":
@@ -320,6 +325,7 @@ def convert_dts(mds, prim_kind):
         "deconvolution": convert_dts_multiple,
         "eltwise": convert_dts_common,
         "inner_product": convert_dts_multiple,
+        "group_normalization": convert_dts_multiple,
         "layer_normalization": convert_dts_multiple,
         "lrn": convert_dts_common,
         "matmul": convert_dts_with_bias,
@@ -485,6 +491,7 @@ def convert_tags(mds, prim_kind):
         "deconvolution": convert_tags_all,
         "eltwise": convert_tags_common,
         "inner_product": convert_tags_all,
+        "group_normalization": convert_tags_multiple,
         "layer_normalization": convert_tags_lnorm,
         "lrn": convert_tags_common,
         "matmul": convert_tags_and_strides,
