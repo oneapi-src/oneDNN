@@ -864,9 +864,9 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
     for (int i_M = M_begin; i_M < M_end; i_M++) {
         // init "init" and "po" kernels for cases then we never call brgemm kernels
         // e.g. for d/h padded and dilated filter areas
-        const bool filter_in_padding = jcp.f_pad > EXT_KD
-                || jcp.back_pad > EXT_KD || jcp.t_pad > EXT_KH
-                || jcp.b_pad > EXT_KH;
+        const bool filter_in_padding = jcp.f_pad >= EXT_KD
+                || jcp.back_pad >= EXT_KD || jcp.t_pad >= EXT_KH
+                || jcp.b_pad >= EXT_KH;
         // note: overly simplistic condition. Ideally, the condition would
         // only detect cases where there is strictly no overlap between the
         // input and filter.
