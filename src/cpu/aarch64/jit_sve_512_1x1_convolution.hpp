@@ -85,8 +85,11 @@ struct jit_sve_512_1x1_convolution_fwd_t : public primitive_t {
             return status::success;
         }
 
-        const memory_desc_t *dst_md(int index = 0) const override {
-            return jcp_.with_dw_conv ? dw_conv_pd_->dst_md(index) : &dst_md_;
+        const memory_desc_t *dst_md(
+                int index = 0, bool user_input = false) const override {
+            return jcp_.with_dw_conv
+                    ? dw_conv_pd_->dst_md(index, user_input)
+                    : cpu_convolution_fwd_pd_t::dst_md(index, user_input);
         }
 
         const memory_desc_t *arg_md(
