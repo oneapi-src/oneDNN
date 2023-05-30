@@ -251,7 +251,7 @@ TEST(GCCore_CPU_jit_cpp, TestJITCastToBF16) {
                 auto compiler_flags = c_jit_ptr->get_compiler_flags();
                 if (!compiler_flags.fAVX512BF16
                         || !compiler_flags.fAVX512AMXBF16) {
-                    GTEST_SKIP();
+                    continue;
                 }
             }
 #endif
