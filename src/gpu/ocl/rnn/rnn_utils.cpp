@@ -374,11 +374,11 @@ void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, int dir, int lay,
             wei_layer_off_ptr, n_layer, n_dir, rnn.n_parts_weights_layer);
 
     grid_wei_lay_offset = off_weights_lay(lay, dir, 0);
-    grid_ws_lay_offset = (cl_ulong)(ws_states_offset_
+    grid_ws_lay_offset = (ws_states_offset_
             + OFF4(lay, n_layer + 1, dir, n_dir, 1, rnn.n_iter + 1, 0,
                       rnn.mb * rnn.states_ws_ld)
                     * types::data_type_size(src_t));
-    grid_ws_iter_offset = (cl_ulong)(ws_states_offset_
+    grid_ws_iter_offset = (ws_states_offset_
             + OFF4(lay + 1, rnn.n_layers + 1, dir, rnn.n_dir, 0, rnn.n_iter + 1,
                       0, rnn.mb * rnn.states_ws_ld)
                     * types::data_type_size(src_t));
@@ -402,15 +402,14 @@ void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, int iter, int dir,
     }
 
     cell_scratch_offset = (rnn.merge_gemm_iter || rnn.merge_gemm_layer)
-            ? (cl_ulong)(
-                    OFF2(iter, n_iter, 0, rnn.gates_nld * rnn.scratch_gates_ld)
+            ? (OFF2(iter, n_iter, 0, rnn.gates_nld * rnn.scratch_gates_ld)
                     * rnn.scratch_gates_elsz)
             : (size_t)0;
-    cell_ws_iter_offset = (cl_ulong)(ws_states_offset_
+    cell_ws_iter_offset = (ws_states_offset_
             + OFF4(lay + 1, n_layers + 1, dir, n_dir, iter, n_iter + 1, 0,
                       batch * rnn.states_ws_ld)
                     * types::data_type_size(src_t));
-    cell_ws_lay_offset = (cl_ulong)(ws_states_offset_
+    cell_ws_lay_offset = (ws_states_offset_
             + OFF4(lay, n_layers + 1, dir, n_dir, iter + 1, n_iter + 1, 0,
                       batch * rnn.states_ws_ld)
                     * types::data_type_size(src_t));
@@ -426,7 +425,7 @@ void rnn_utils::set_gru_offsets_part2(const conf_t &rnn, int iter, int dir,
             wei_iter_off_ptr, rnn.n_layer, rnn.n_dir, rnn.n_parts_weights_iter);
     cell_wei_iter_offset = off_weights_iter(lay, dir, 1);
     cell_scratch_offset += 2 * rnn.dhc * rnn.scratch_gates_elsz;
-    cell_ws_iter_offset = (cl_ulong)(ws_states_offset_
+    cell_ws_iter_offset = (ws_states_offset_
             + OFF4(lay + 1, rnn.n_layers + 1, dir, rnn.n_dir, iter + 1,
                       rnn.n_iter + 1, 0, rnn.mb * rnn.states_ws_ld)
                     * types::data_type_size(src_t));

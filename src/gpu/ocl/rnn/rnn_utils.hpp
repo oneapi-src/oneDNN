@@ -23,15 +23,19 @@
 #include "common/memory_desc_wrapper.hpp"
 
 #define OFF6(i0, d0, i1, d1, i2, d2, i3, d3, i4, d4, i5, d5) \
-    ((((((i0) * (d1) + (i1)) * (d2) + (i2)) * (d3) + (i3)) * (d4) + (i4)) \
-                    * (d5) \
+    ((((((static_cast<size_t>(i0)) * (d1) + (i1)) * (d2) + (i2)) * (d3) \
+              + (i3)) * (d4) \
+             + (i4)) * (d5) \
             + (i5))
 #define OFF5(i0, d0, i1, d1, i2, d2, i3, d3, i4, d4) \
-    (((((i0) * (d1) + (i1)) * (d2) + (i2)) * (d3) + (i3)) * (d4) + (i4))
+    (((((static_cast<size_t>(i0)) * (d1) + (i1)) * (d2) + (i2)) * (d3) + (i3)) \
+                    * (d4) \
+            + (i4))
 #define OFF4(i0, d0, i1, d1, i2, d2, i3, d3) \
-    ((((i0) * (d1) + (i1)) * (d2) + (i2)) * (d3) + (i3))
-#define OFF3(i0, d0, i1, d1, i2, d2) (((i0) * (d1) + (i1)) * (d2) + (i2))
-#define OFF2(i0, d0, i1, d1) ((i0) * (d1) + (i1))
+    ((((static_cast<size_t>(i0)) * (d1) + (i1)) * (d2) + (i2)) * (d3) + (i3))
+#define OFF3(i0, d0, i1, d1, i2, d2) \
+    (((static_cast<size_t>(i0)) * (d1) + (i1)) * (d2) + (i2))
+#define OFF2(i0, d0, i1, d1) ((static_cast<size_t>(i0)) * (d1) + (i1))
 
 #define elemwise_sig(f) \
     status_t f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
