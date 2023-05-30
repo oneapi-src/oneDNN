@@ -716,6 +716,15 @@ public:
         }
     }
 
+    llvm::Type *get_llvm_bf16_native_type(unsigned lanes) {
+#if SC_LLVM_BACKEND > 15
+        // llvm 16's bf16 casting intrinsic uses bf16 instead of i16
+        return VectorType::get(builder_.getBFloatTy(), lanes, false);
+#else
+        return get_type(sc_data_type_t::bf16(lanes));
+#endif
+    }
+
     void view(cast_c v) override {
         auto cate_out = get_etype_category_nothrow(v->dtype_.type_code_);
         auto cate_in = get_etype_category_nothrow(v->in_->dtype_.type_code_);
@@ -733,9 +742,7 @@ public:
                     Value *vec = builder_.CreateVectorSplat(4, in_v);
                     vec = builder_.CreateIntrinsic(
                             Intrinsic::x86_avx512bf16_mask_cvtneps2bf16_128, {},
-                            {vec,
-                                    UndefValue::get(
-                                            get_type(sc_data_type_t::bf16(8))),
+                            {vec, UndefValue::get(get_llvm_bf16_native_type(8)),
                                     /*mask*/
                                     builder_.CreateVectorSplat(
                                             4, builder_.getInt1(true))});
@@ -747,7 +754,7 @@ public:
                             Intrinsic::x86_avx512bf16_mask_cvtneps2bf16_128, {},
                             {in_v,
                                     UndefValue::get(
-                                            get_type(sc_data_type_t::bf16(8))),
+                                            get_llvm_bf16_native_type(8)),
                                     /*mask*/
                                     builder_.CreateVectorSplat(
                                             4, builder_.getInt1(true))});
@@ -774,6 +781,10 @@ public:
                     ss << "Unsupport cast lanes " << v->in_->dtype_.lanes_;
                     throw std::runtime_error(ss.str());
             }
+#if SC_LLVM_BACKEND > 15
+            // llvm 16's bf16 casting intrinsic returns bf16 instead of i16
+            current_val_ = builder_.CreateBitCast(current_val_, outtype);
+#endif
             return;
 #else
             throw std::runtime_error(
