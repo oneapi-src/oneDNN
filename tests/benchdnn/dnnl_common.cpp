@@ -910,24 +910,35 @@ static int check_total_size(
     const double benchdnn_cpu_limit = capacity_factor * cpu_max_capacity;
     assert(benchdnn_device_limit > 0 && benchdnn_cpu_limit > 0);
 
-    const bool fits_device_ram = is_gpu()
-            ? (check_mem_size_args.total_size_device <= benchdnn_device_limit)
-                    && std::all_of(check_mem_size_args.sizes.cbegin(),
-                            check_mem_size_args.sizes.cend(),
-                            [&](size_t s) {
-                                return s < gpu_max_alloc_capacity;
-                            })
-            : true;
-    if (!fits_device_ram) {
-        BENCHDNN_PRINT(
-                2, "%s\n", "benchdnn: not enough device RAM for a problem.");
-        res->state = SKIPPED;
-        res->reason = NOT_ENOUGH_RAM;
-    }
-
     auto GB = [](double bytes) { return bytes / powf(2, 30); };
 
     if (is_gpu()) {
+        const bool fits_device_ram = check_mem_size_args.total_size_device
+                <= benchdnn_device_limit;
+        if (!fits_device_ram) {
+            BENCHDNN_PRINT(2, "%s\n",
+                    "benchdnn: not enough device RAM for a problem.");
+            res->state = SKIPPED;
+            res->reason = NOT_ENOUGH_RAM;
+        }
+
+        const bool all_allocation_fit_limit = std::all_of(
+                check_mem_size_args.sizes.cbegin(),
+                check_mem_size_args.sizes.cend(), [&](size_t s) {
+                    const bool fit = s < gpu_max_alloc_capacity;
+                    if (!fit) {
+                        BENCHDNN_PRINT(2,
+                                "benchdnn: allocation of size %g GB doesn't "
+                                "fit allocation limit of %g GB.\n",
+                                GB(s), GB(gpu_max_alloc_capacity));
+                    }
+                    return fit;
+                });
+        if (!all_allocation_fit_limit) {
+            res->state = SKIPPED;
+            res->reason = NOT_ENOUGH_RAM;
+        }
+
         BENCHDNN_PRINT((!fits_device_ram ? 2 : 6),
                 "Requested: %g GB, benchdnn device limit: %g GB, device RAM "
                 "capacity: %g GB, gpu_max_alloc: %g GB\n",
