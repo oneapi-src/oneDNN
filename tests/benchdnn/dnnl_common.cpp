@@ -825,19 +825,12 @@ static size_t get_cpu_ram_size() {
 #endif
 
 static int get_gpu_ram_sizes(size_t &ram_size, size_t &max_alloc_size) {
+    if (!is_gpu()) return OK;
     if (ram_size > 0 && max_alloc_size > 0) return OK;
 
-    // XXX: create a tmp engine to query what we need.
-    // It will be removed in the future as part of switching back
-    // to the global engine.
-    engine_t eng_tmp(engine_tgt_kind);
-    dnnl::engine eng(eng_tmp, true);
-    if (eng.get_kind() != dnnl::engine::kind::gpu) return OK;
-
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    auto eng = dnnl::engine(get_test_engine(), true);
     cl_int status = CL_SUCCESS;
-    // Get single device attached to the engine.
-    engine_t engine_tgt(engine_tgt_kind);
     cl_device_id ocl_device = dnnl::ocl_interop::get_device(eng);
 
     cl_ulong ram_sz = 0;
@@ -854,6 +847,7 @@ static int get_gpu_ram_sizes(size_t &ram_size, size_t &max_alloc_size) {
     max_alloc_size = (size_t)max_alloc_sz;
     return OK;
 #elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
+    auto eng = dnnl::engine(get_test_engine(), true);
     auto sycl_dev = dnnl::sycl_interop::get_device(eng);
     ram_size = (size_t)sycl_dev
                        .get_info<::sycl::info::device::global_mem_size>();
