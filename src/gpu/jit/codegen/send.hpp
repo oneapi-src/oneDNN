@@ -198,7 +198,7 @@ private:
                 ir_error_not_expected();
             }
         } else if (send_.is_a64()) {
-            *lsc_spec |= get_cache_settings(send_);
+            *lsc_spec |= get_cache_settings(send_, host->exec_cfg_.hw_cfg());
             if (send_.is_load() || send_.is_prefetch()) {
                 host->load.ugm(mod, data, *lsc_spec, host->A64, header);
             } else if (send_.is_store()) {
@@ -227,7 +227,7 @@ private:
         if (info.vnni) data_spec |= host->vnni;
         if (info.transpose) data_spec |= host->transpose;
         ngen::block_2d spec(data_spec, info.width, info.height, info.count);
-        spec |= get_cache_settings(send_);
+        spec |= get_cache_settings(send_, host->exec_cfg_.hw_cfg());
         if (send_.is_load_2d() || send_.is_prefetch_2d()) {
             host->load(mod, data, spec, host->A64, header);
         } else if (send_.is_store_2d()) {

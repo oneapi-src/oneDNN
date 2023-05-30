@@ -185,7 +185,8 @@ std::vector<func_t> send_t::get_all(ngen::HW hw, send_op_t op,
     return ret;
 }
 
-ngen::CacheSettingsLSC get_cache_settings(const send_t &send) {
+ngen::CacheSettingsLSC get_cache_settings(
+        const send_t &send, const hw_config_t &hw_cfg) {
     auto ret = ngen::CacheSettingsLSC::Default;
     bool is_load = send.is_load() || send.is_load_2d();
     bool is_store = send.is_store() || send.is_store_2d();
@@ -194,7 +195,9 @@ ngen::CacheSettingsLSC get_cache_settings(const send_t &send) {
         case send_cache_hint_t::undef:
             switch (send.hw) {
                 case ngen::HW::XeHPG:
-                    if (is_store) ret = ngen::CacheSettingsLSC::L1WB_L3WB;
+                    // Use default cache policy on xelpg to avoid suspected driver issue.
+                    if (is_store && hw_cfg.systolic_support())
+                        ret = ngen::CacheSettingsLSC::L1WB_L3WB;
                     break;
                 case ngen::HW::XeHPC:
                     if (is_store) {

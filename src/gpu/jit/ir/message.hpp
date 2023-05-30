@@ -379,7 +379,8 @@ private:
     }
 };
 
-ngen::CacheSettingsLSC get_cache_settings(const send_t &send);
+ngen::CacheSettingsLSC get_cache_settings(
+        const send_t &send, const hw_config_t &hw_cfg);
 
 class memory_walker_t;
 class layout_walker_t;
