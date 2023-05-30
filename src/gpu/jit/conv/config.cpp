@@ -1032,19 +1032,20 @@ bool post_op_layouts_ok(const conv_problem_t &prb) {
     auto *pd = prb.conv_pd;
     auto *attr = pd->attr();
 
+    auto &output_md = prb.c_md();
     for (int i = 0; i < attr->post_ops_.len(); i++) {
         auto &po = attr->post_ops_.entry_[i];
         if (po.is_binary() || po.is_prelu()) {
             int mask = po.is_prelu()
                     ? po.prelu.mask
-                    : utils::get_dims_mask(pd->invariant_dst_md()->dims,
+                    : utils::get_dims_mask(output_md.dims,
                             po.binary.src1_desc.dims, prb.ndims, true);
             // These cases don't have message-related limitations.
             if ((mask & (1 << 1)) == 0 || mask == (1 << 1)) continue;
-            auto rhs_layout = po.is_prelu() ? layout_t(type_t::f32(), 0,
-                                      get_prelu_weights_dims(po.prelu.mask,
-                                              *pd->invariant_dst_md()))
-                                            : layout_t(po.binary.src1_desc);
+            auto rhs_layout = po.is_prelu()
+                    ? layout_t(type_t::f32(), 0,
+                            get_prelu_weights_dims(po.prelu.mask, output_md))
+                    : layout_t(po.binary.src1_desc);
             // No blocks means it's a scalar, can be always loaded.
             if (rhs_layout.blocks().empty()) return true;
 
