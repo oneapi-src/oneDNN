@@ -9,11 +9,11 @@ benchdnn.
 
 
 However, it is hard to correlate verbose output to the overall
-application execution. Vtune in general does a better job at that as
-it contains call stack and nested task information.
+application execution. Linux Perf and Vtune in general do a better job
+at that as they contain call stack and nested task information.
 
-So currently, users are left to run Vtune for profiling their whole
-application, and try to map primitive execution calls in the Vtune
+So currently, users are left to run profilers on their whole
+application, and try to map primitive execution calls in the profiler
 trace to the oneDNN verbose output. This is tedious and error prone.
 
 Furthermore, Vtune integration is enabled by default whereas oneDNN
@@ -38,3 +38,9 @@ from Vtune trace, the user will get each primitives grouped by
 primitive kind task, then within each of these groups they will get
 the list of primitives effectively executed as shown in verbose trace
 (so unique primitive descriptor).
+
+As an extra step, we can also align jit dump output names to align
+with kernel name calls, that users of JIT_DUMP functionality can know
+which binary was called in which primitive execution.  Here, when
+registering jit kernel to the profiler (VTune/Linux prof), we will
+have to pass the binary filename.
