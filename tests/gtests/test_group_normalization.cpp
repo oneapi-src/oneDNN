@@ -390,10 +390,7 @@ INSTANTIATE_TEST_SUITE_P(Test_GroupNormalization_EF, group_normalization_test_t,
                 // Data type for src is not specified
                 tp {dt::undef, dt::f32, dt::undef, tag::nchw, tag::nchw,
                         tag::undef, {2, 2, 128, 256}, 1, true,
-                        dnnl_invalid_arguments},
-                // Different data types are not supported
-                tp {dt::f32, dt::bf16, dt::f32, tag::nchw, tag::nchw, tag::nchw,
-                        {2, 2, 128, 256}, 2, true, dnnl_unimplemented}));
+                        dnnl_invalid_arguments}));
 
 static auto all_cases = [](memory::data_type src_dt, memory::data_type dst_dt,
                                 memory::data_type diff_src_dt) {
@@ -435,8 +432,16 @@ INST_TEST_CASE(
         GroupNormalizationSimpleF32, all_cases, EXPAND_DTS(f32, f32, f32));
 INST_TEST_CASE(
         GroupNormalizationSimpleBF16, all_cases, EXPAND_DTS(bf16, bf16, bf16));
+INST_TEST_CASE(GroupNormalizationSimpleF32BF16, all_cases,
+        EXPAND_DTS(f32, bf16, bf16));
 INST_TEST_CASE(
         GroupNormalizationSimpleF16, all_cases, EXPAND_DTS(f16, f16, undef));
 INST_TEST_CASE(
+        GroupNormalizationSimpleF16F32, all_cases, EXPAND_DTS(f16, f32, undef));
+INST_TEST_CASE(
         GroupNormalizationSimpleS8, all_cases, EXPAND_DTS(s8, s8, undef));
+INST_TEST_CASE(
+        GroupNormalizationSimpleF32S8, all_cases, EXPAND_DTS(f32, s8, undef));
+INST_TEST_CASE(
+        GroupNormalizationSimpleS8F32, all_cases, EXPAND_DTS(s8, f32, undef));
 } // namespace dnnl
