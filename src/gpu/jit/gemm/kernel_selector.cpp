@@ -205,7 +205,7 @@ const kcatalog::Entry *upper_bound(
     return upper_lower_bound<true>(catalog, selector);
 }
 
-MatchParams::MatchParams(ngen::HW hw, const GEMMProblem &problem) {
+MatchParamsBase::MatchParamsBase(ngen::HW hw, const GEMMProblem &problem) {
     using namespace kcatalog;
 
     switch (hw) {

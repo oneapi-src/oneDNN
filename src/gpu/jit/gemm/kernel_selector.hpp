@@ -30,7 +30,7 @@ namespace gpu {
 namespace jit {
 
 // Basic kernel selection API.
-struct MatchParams {
+struct MatchParamsBase {
     kcatalog::Selector selector;
     SizeParams sizes;
     char precisionCExt = 0;
@@ -40,11 +40,38 @@ struct MatchParams {
     kcatalog::string tags, lateTags;
     int unroll[2] = {0, 0};
 
-    MatchParams() {}
-    MatchParams(ngen::HW hw, const GEMMProblem &problem);
+    MatchParamsBase() {}
+    MatchParamsBase(ngen::HW hw, const GEMMProblem &problem);
 
-private:
+protected:
     std::array<char, 32> temp;
+};
+
+struct MatchParams : public MatchParamsBase {
+    MatchParams() : MatchParamsBase() {}
+    MatchParams(ngen::HW hw, const GEMMProblem &problem)
+        : MatchParamsBase(hw, problem) {}
+
+    MatchParams(const MatchParams &other) { *this = other; }
+    MatchParams &operator=(const MatchParams &other) {
+        static_cast<MatchParamsBase &>(*this) = other;
+
+        auto transfer = [&](const char *&value) {
+            auto offset = size_t(value - other.temp.data());
+            if (offset < sizeof(temp)) value = temp.data() + offset;
+        };
+
+        transfer(selector.precisions[0]);
+        transfer(selector.precisions[1]);
+        transfer(selector.precisions[2]);
+        transfer(selector.layouts[0]);
+        transfer(selector.layouts[1]);
+        transfer(selector.layouts[2]);
+        transfer(tags);
+        transfer(lateTags);
+
+        return *this;
+    }
 };
 
 const kcatalog::Entry *select(const kcatalog::Catalog &catalog,
