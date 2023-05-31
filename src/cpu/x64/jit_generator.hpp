@@ -53,6 +53,14 @@
         return ret; \
     }
 
+// If assertions are broken during code generation, then set an Xbyak error.
+// Warning: this may cause kernel creation failure, so use wisely!
+#define JIT_ASSERT(condition) \
+    do { \
+        assert(condition); \
+        if (!(condition)) XBYAK_THROW(Xbyak::ERR_INTERNAL); \
+    } while (false)
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
