@@ -117,7 +117,16 @@ class LogParser:
                 if log_aux == "":
                     return aux
                 for log_aux_l in log_aux.split(" "):
-                    field, value = log_aux_l.split(":")
+                    # Handle strings like NAME:VAL1[:VAL2[:VAL3...]]
+                    res = log_aux_l.split(":")
+                    field = res[0]
+                    value = ""
+                    last_idx = len(res) - 1
+                    for i in range(1, last_idx):
+                        val_i = res[i]
+                        value += f"{val_i}:"
+                    val_n = res[last_idx]
+                    value += f"{val_n}"
                     aux[field] = value
                 return aux
 
