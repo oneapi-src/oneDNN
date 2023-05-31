@@ -26,13 +26,31 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
+static void fill_data(
+        test::vector<float> &buffer, dnnl::impl::data_type_t dtype) {
+    if (dtype == dnnl::impl::data_type::u8) {
+        uint8_t *ptr = reinterpret_cast<uint8_t *>(buffer.data());
+        std::generate(ptr, ptr + buffer.size(),
+                [&]() { return static_cast<uint8_t>(2.f); });
+    } else if (dtype == dnnl::impl::data_type::s8) {
+        int8_t *ptr = reinterpret_cast<int8_t *>(buffer.data());
+        std::generate(ptr, ptr + buffer.size(),
+                [&]() { return static_cast<int8_t>(2.f); });
+    } else if (dtype == dnnl::impl::data_type::f32) {
+        std::generate(buffer.begin(), buffer.end(), [&]() { return 0.5f; });
+    } else {
+        throw std::runtime_error("unsupported data types");
+    }
+}
+
 TEST(Execute, Int8Resnet50Stage2Block) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 
     utils::id_generator id_gen;
     graph::graph_t g(eng->kind());
-    utils::construct_int8_resnet50_stage2_block(&g, id_gen, 3);
+    utils::construct_int8_resnet50_stage2_block(
+            &g, id_gen, 3, false, false, 1.2f, 1, 0);
     g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 72U);
@@ -67,26 +85,37 @@ TEST(Execute, Int8Resnet50Stage2Block) {
 
     using ltw = graph::logical_tensor_wrapper_t;
 
-    std::vector<test::vector<float>> inputs_data, outputs_data;
-    std::vector<graph::tensor_t> inputs_ts, outputs_ts;
+    std::vector<test::vector<float>> inputs_data;
+    std::vector<test::vector<uint8_t>> outputs_data, ref_outputs_data;
+    std::vector<graph::tensor_t> inputs_ts, outputs_ts, ref_outputs_ts;
 
     for (auto &lt : inputs) {
         inputs_data.emplace_back(
                 test::vector<float>(utils::product(ltw(lt).vdims())));
+        fill_data(inputs_data.back(), ltw(lt).data_type());
         inputs_ts.emplace_back(*lt, eng, inputs_data.back().data());
     }
 
     for (auto &lt : outputs) {
         graph::logical_tensor_t compiled_output;
         cp.query_logical_tensor(lt->id, &compiled_output);
-        outputs_data.emplace_back(test::vector<float>(
-                utils::product(ltw(compiled_output).vdims())));
+        auto size = utils::product(ltw(compiled_output).vdims());
+        outputs_data.emplace_back(test::vector<uint8_t>(size));
         outputs_ts.emplace_back(
                 compiled_output, eng, outputs_data.back().data());
+        ref_outputs_data.emplace_back(test::vector<uint8_t>(size));
+        ref_outputs_ts.emplace_back(
+                compiled_output, eng, ref_outputs_data.back().data());
     }
+
+    ASSERT_EQ(run_graph(g, inputs_ts, ref_outputs_ts, *eng, *strm),
+            graph::status::success);
 
     ASSERT_EQ(cp.execute(strm, inputs_ts, outputs_ts), graph::status::success);
     strm->wait();
+
+    ASSERT_TRUE(allclose(outputs_data[0], ref_outputs_data[0], /*rtol*/ 0.01f,
+            /*atol*/ 1.f));
 }
 
 TEST(Execute, Int8Resnet50Stage2BlockWithZeroZps) {
@@ -132,26 +161,37 @@ TEST(Execute, Int8Resnet50Stage2BlockWithZeroZps) {
 
     using ltw = graph::logical_tensor_wrapper_t;
 
-    std::vector<test::vector<float>> inputs_data, outputs_data;
-    std::vector<graph::tensor_t> inputs_ts, outputs_ts;
+    std::vector<test::vector<float>> inputs_data;
+    std::vector<test::vector<uint8_t>> outputs_data, ref_outputs_data;
+    std::vector<graph::tensor_t> inputs_ts, outputs_ts, ref_outputs_ts;
 
     for (auto &lt : inputs) {
         inputs_data.emplace_back(
                 test::vector<float>(utils::product(ltw(lt).vdims())));
+        fill_data(inputs_data.back(), ltw(lt).data_type());
         inputs_ts.emplace_back(*lt, eng, inputs_data.back().data());
     }
 
     for (auto &lt : outputs) {
         graph::logical_tensor_t compiled_output;
         cp.query_logical_tensor(lt->id, &compiled_output);
-        outputs_data.emplace_back(test::vector<float>(
-                utils::product(ltw(compiled_output).vdims())));
+        auto size = utils::product(ltw(compiled_output).vdims());
+        outputs_data.emplace_back(test::vector<uint8_t>(size));
         outputs_ts.emplace_back(
                 compiled_output, eng, outputs_data.back().data());
+        ref_outputs_data.emplace_back(test::vector<uint8_t>(size));
+        ref_outputs_ts.emplace_back(
+                compiled_output, eng, ref_outputs_data.back().data());
     }
+
+    ASSERT_EQ(run_graph(g, inputs_ts, ref_outputs_ts, *eng, *strm),
+            graph::status::success);
 
     ASSERT_EQ(cp.execute(strm, inputs_ts, outputs_ts), graph::status::success);
     strm->wait();
+
+    ASSERT_TRUE(allclose(outputs_data[0], ref_outputs_data[0], /*rtol*/ 0.01f,
+            /*atol*/ 1.f));
 }
 
 TEST(Execute, Int8Resnet50Stage2BlockWithQuantWei) {
@@ -259,29 +299,39 @@ TEST(Execute, F32Resnet50Stage2Block) {
 
     using ltw = graph::logical_tensor_wrapper_t;
 
-    std::vector<test::vector<float>> inputs_data, outputs_data;
-    std::vector<graph::tensor_t> inputs_ts, outputs_ts;
+    std::vector<test::vector<float>> inputs_data;
+    std::vector<test::vector<float>> outputs_data, ref_outputs_data;
+    std::vector<graph::tensor_t> inputs_ts, outputs_ts, ref_outputs_ts;
 
     for (auto &lt : inputs) {
         inputs_data.emplace_back(
                 test::vector<float>(utils::product(ltw(lt).vdims())));
+        fill_data(inputs_data.back(), ltw(lt).data_type());
         inputs_ts.emplace_back(*lt, eng, inputs_data.back().data());
     }
 
     for (auto &lt : outputs) {
         graph::logical_tensor_t compiled_output;
         cp.query_logical_tensor(lt->id, &compiled_output);
-        outputs_data.emplace_back(test::vector<float>(
-                utils::product(ltw(compiled_output).vdims())));
+        auto size = utils::product(ltw(compiled_output).vdims());
+        outputs_data.emplace_back(test::vector<float>(size));
         outputs_ts.emplace_back(
                 compiled_output, eng, outputs_data.back().data());
+        ref_outputs_data.emplace_back(test::vector<float>(size));
+        ref_outputs_ts.emplace_back(
+                compiled_output, eng, ref_outputs_data.back().data());
     }
 
-    std::cout << "----------------iter 1----------------\n";
+    ASSERT_EQ(run_graph(g, inputs_ts, ref_outputs_ts, *eng, *strm),
+            graph::status::success);
+
     ASSERT_EQ(cp.execute(strm, inputs_ts, outputs_ts), graph::status::success);
-    std::cout << "----------------iter 2----------------\n";
+    // execute another iteration to test constant cache hit
     ASSERT_EQ(cp.execute(strm, inputs_ts, outputs_ts), graph::status::success);
     strm->wait();
+
+    ASSERT_TRUE(allclose(outputs_data[0], ref_outputs_data[0], /*rtol*/ 1e-5f,
+            /*atol*/ 1e-5f));
 }
 
 TEST(Execute, ItexInt8Resnet50Stage2Block) {
