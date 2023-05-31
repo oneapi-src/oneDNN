@@ -20,6 +20,7 @@
 #include "gtest/gtest.h"
 #include <compiler/ir/graph/driver.hpp>
 #include <compiler/ir/graph/fused_op.hpp>
+#include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/mixed_partition.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <ops/matmul_core.hpp>
@@ -35,12 +36,12 @@ TEST(GCCore_CPU_fusion_cost_model_cpp, TestBroadcastOp1) {
     auto input0 = graph.make_input(
             {graph_tensor::make({1, 64}, sc_data_format_t::MK())});
     auto input1 = graph.make_input(
-            {graph_tensor::make({512, 64}, sc_data_format_t::MKmk(16, 16))});
+            {graph_tensor::make({32, 64}, sc_data_format_t::MKmk(16, 16))});
 
     auto reo_node = graph.make("reorder", {input0->get_outputs()[0]}, {},
             {{"out_format", sc_data_format_t::MKmk(1, 16)}});
-    // mul op could not be added into reorder partition due to mul has more loop
-    // parallelism than reorder.
+    // mul op still can be added into reorder partition although mul has more
+    // loop parallelism than reorder, because it is small op workload
     auto mul_node = graph.make("mul",
             {reo_node->get_outputs()[0], input1->get_outputs()[0]}, {}, {});
 
@@ -53,9 +54,8 @@ TEST(GCCore_CPU_fusion_cost_model_cpp, TestBroadcastOp1) {
     std::stringstream ss;
     print_graph(graph, ss, true);
     std::string expected_str
-            = R"(graph(v0: f32[1, 64], v1: f32[32, 4, 16, 16]) -> [v2: f32[32, 4, 16, 16]] {
-  [v3: f32[1, 4, 1, 16]] = reorder(v0)
-  [v2: f32[32, 4, 16, 16]] = mul(v3, v1)
+            = R"(graph(v0: f32[1, 64], v1: f32[2, 4, 16, 16]) -> [v2: f32[2, 4, 16, 16]] {
+  [v2: f32[2, 4, 16, 16]] = outerloop_1X4X1_partition_reorder_mul(v0, v1)
 }
 )";
     EXPECT_EQ(ss.str(), expected_str);
@@ -63,12 +63,17 @@ TEST(GCCore_CPU_fusion_cost_model_cpp, TestBroadcastOp1) {
 
 TEST(GCCore_CPU_fusion_cost_model_cpp, TestBroadcastOp2) {
     sc_graph_t graph;
-    SET_THREADS_OR_SKIP(28);
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
 
+    SET_THREADS_OR_SKIP(28);
+    if (vectorize_step(ctx, sc_data_etype::F32) > 16) { GTEST_SKIP(); }
+
+    // build N more than small op workload threshold
+    int N = (mixed_partition_hint::small_op_workload_threshold / 2 + 1) * 16;
     auto input0 = graph.make_input(
-            {graph_tensor::make({16, 160}, sc_data_format_t::MKmk(16, 16))});
+            {graph_tensor::make({16, N}, sc_data_format_t::MKmk(16, 16))});
     auto input1 = graph.make_input(
-            {graph_tensor::make({16, 160}, sc_data_format_t::MKmk(16, 16))});
+            {graph_tensor::make({16, N}, sc_data_format_t::MKmk(16, 16))});
 
     auto red_node = graph.make("reduce", {input0->get_outputs()[0]}, {},
             {{"rd_axis", std::vector<int> {1}}, {"rd_op", 0}});
@@ -80,7 +85,6 @@ TEST(GCCore_CPU_fusion_cost_model_cpp, TestBroadcastOp2) {
 
     auto output0 = graph.make_output(relu_node->get_outputs());
 
-    auto ctx = std::make_shared<context_t>(*get_test_ctx());
     // turn on cost model
     ctx->flags_.use_cost_model_ = true;
     mixed_partition(graph, ctx);
@@ -94,8 +98,8 @@ TEST(GCCore_CPU_fusion_cost_model_cpp, TestBroadcastOp2) {
     // multi_partitions prefix means it finally contains more than one
     // partition: `reduce_compute+reduce_collect` and `mul+relu`
     std::string expected_str
-            = R"(graph(v0: f32[1, 10, 16, 16], v1: f32[1, 10, 16, 16]) -> [v2: f32[1, 10, 16, 16]] {
-  [v2: f32[1, 10, 16, 16]] = multi_partitions_mul_relu_reduce_compute_reduce_collect(v0, v1)
+            = R"(graph(v0: f32[1, 845, 16, 16], v1: f32[1, 845, 16, 16]) -> [v2: f32[1, 845, 16, 16]] {
+  [v2: f32[1, 845, 16, 16]] = multi_partitions_mul_relu_reduce_compute_reduce_collect(v0, v1)
 }
 )";
     EXPECT_EQ(ss.str(), expected_str);

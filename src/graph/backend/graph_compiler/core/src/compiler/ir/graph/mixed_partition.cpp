@@ -2850,6 +2850,15 @@ float mixed_parti_t::evaluate_perf() {
     return cost_->evaluate();
 }
 
+bool mixed_parti_t::is_small_workload() const {
+    if (merged_to) { return get_root()->is_small_workload(); }
+    if (committed_ops_.size() != 1) return false;
+    auto single_op = committed_ops_[0].get();
+    auto committed_anchor = lookup_anchor_map(single_op);
+    COMPILE_ASSERT(committed_anchor, "No committed anchor found")
+    return committed_anchor->is_small_op_workload(single_op);
+}
+
 std::vector<mixed_parti_t::ptr> collect_parti_set(
         const std::vector<mixed_parti_t::ptr> &op_2_partition,
         bool ignore_const) {
@@ -3135,26 +3144,56 @@ bool mixed_parti_t::can_optimize_outer_loop(bool allow_tensorview) const {
     }
     return !is_optimized()
             && contain_op_with_type<op_traits::maybe_split_optimized_t>()
-            && std::all_of(ops.begin(), ops.end(), [&](const sc_op_ptr &op) {
-                   if (op->isa<movement_op_t>()) {
-                       if (op->isa<tensor_view_op_t>() && allow_tensorview) {
-                           return is_parti_out(op->get_outputs()[0])
-                                   || is_parti_inp(op->get_inputs()[0]);
-                       } else if (op->isa<reorder_op_t>()) {
-                           return op->attrs_.get_or_else(
-                                   op_attr_key::no_fuse, false);
-                       } else {
-                           return false;
-                       }
+            && std::all_of(ops.begin(), ops.end(),
+                    [&](const sc_op_ptr &op) {
+                        if (op->isa<movement_op_t>()) {
+                            if (op->isa<tensor_view_op_t>()
+                                    && allow_tensorview) {
+                                return is_parti_out(op->get_outputs()[0])
+                                        || is_parti_inp(op->get_inputs()[0]);
+                            } else if (op->isa<reorder_op_t>()) {
+                                return op->attrs_.get_or_else(
+                                        op_attr_key::no_fuse, false);
+                            } else {
+                                return false;
+                            }
+                        } else {
+                            return op->isa<unary_elementwise_op_t>()
+                                    || op->isa<binary_elementwise_op_t>()
+                                    || op->isa<reduce_op_t>()
+                                    || op->isa<reduce_collect_op_t>()
+                                    || (op->isa<reduce_compute_op_t>()
+                                            && !op->stc_cast<
+                                                          reduce_compute_op_t>()
+                                                        ->is_partial_reduce());
+                        }
+                    })
+            && std::any_of(ops.begin(), ops.end(), [&](const sc_op_ptr &op) {
+                   std::vector<int> rd_axis;
+                   if (auto rd_op = op->dyn_cast<reduce_op_t>()) {
+                       rd_axis = rd_op->get_rd_axis();
+                   } else if (auto rd_op
+                           = op->dyn_cast<reduce_compute_op_t>()) {
+                       rd_axis = rd_op->get_rd_axis();
                    } else {
-                       return op->isa<unary_elementwise_op_t>()
-                               || op->isa<binary_elementwise_op_t>()
-                               || op->isa<reduce_op_t>()
-                               || op->isa<reduce_collect_op_t>()
-                               || (op->isa<reduce_compute_op_t>()
-                                       && !op->stc_cast<reduce_compute_op_t>()
-                                                   ->is_partial_reduce());
+                       return false;
                    }
+                   std::sort(rd_axis.begin(), rd_axis.end());
+                   int cur = (op->get_inputs()[0]
+                                      ->details_.get_blocking_dims()
+                                      .size()
+                           - rd_axis.size());
+                   /** E.g
+                    * - reduce input dims: [32,64,16,16]
+                    * - rd_axis: [2,3]
+                    *  It is unecessary to optimize outer loop for this kind
+                    * of reduce op
+                    * */
+                   for (auto &ax : rd_axis) {
+                       if (ax != cur) return true;
+                       cur++;
+                   }
+                   return false;
                });
 }
 

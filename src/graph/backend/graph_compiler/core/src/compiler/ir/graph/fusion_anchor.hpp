@@ -244,7 +244,10 @@ public:
         return !(this->is_parent_for(cur) || cur->is_parent_for(this)
                        || this->is_sibling_for(cur)
                        || cur->is_sibling_for(this))
-                && (cur->get_root() == this->get_root());
+                && (cur->get_root() == this->get_root()
+                        || get_common_parent_node(
+                                anchor_position_, cur->anchor_position_)
+                                   .defined());
     }
 
     bool is_cousin_for(const std::shared_ptr<fuse_anchor_map_t> &cur) const {
@@ -283,6 +286,9 @@ public:
 
     // check the depedency for the given op in current anchor
     bool check_dep_for_op(const sc_op *op);
+
+    // query op committed into current fusion anchor whether is small workload
+    bool is_small_op_workload(const sc_op *op);
 };
 
 using fuse_anchor_map_ptr = std::shared_ptr<fuse_anchor_map_t>;
