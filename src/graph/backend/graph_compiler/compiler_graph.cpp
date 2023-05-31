@@ -61,7 +61,7 @@ static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
 static std::unordered_set<graph::op_attr_t> type_conversion_allowlist {
         graph::op_attr::strides, graph::op_attr::pads_begin,
         graph::op_attr::pads_end, graph::op_attr::weights_shape,
-        graph::op_attr::dst_shape};
+        graph::op_attr::dst_shape, graph::op_attr::dilations};
 
 gc::any_map_t compiler_graph_impl_t::convert_op_attrs(
         const std::unordered_map<graph::op_attr_t,

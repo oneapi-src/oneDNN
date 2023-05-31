@@ -381,7 +381,6 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             check_input_dtype<graph::data_type::f32>);
                     auto select = pgraph->append_op(
                             graph::op_kind::Select, {in_edge(2, matmul_qk, 0)});
-                    select->append_decision_function(check_select);
                     auto softmax = pgraph->append_op(
                             graph::op_kind::SoftMax, {in_edge(0, select, 0)});
                     auto matmul_v = pgraph->append_op(
@@ -1054,7 +1053,6 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             check_input_dtype<graph::data_type::bf16>);
                     auto select = pgraph->append_op(
                             graph::op_kind::Select, {in_edge(2, matmul_qk, 0)});
-                    select->append_decision_function(check_select);
                     auto softmax = pgraph->append_op(
                             graph::op_kind::SoftMax, {in_edge(0, select, 0)});
                     auto matmul_v = pgraph->append_op(
@@ -2135,7 +2133,6 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     in_edge(1, dequantize_key, 0)});
                     auto fscore_select = pgraph->append_op(
                             graph::op_kind::Select, {in_edge(2, matmul_qk, 0)});
-                    fscore_select->append_decision_function(check_select);
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
                             {in_edge(0, fscore_select, 0)});
                     auto quantize_softmax = pgraph->append_op(
@@ -2218,7 +2215,6 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     in_edge(1, cast_key, 0)});
                     auto fscore_select = pgraph->append_op(
                             graph::op_kind::Select, {in_edge(2, matmul_qk, 0)});
-                    fscore_select->append_decision_function(check_select);
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
                             {in_edge(0, fscore_select, 0)});
                     auto cast_softmax_fp32 = pgraph->append_op(
