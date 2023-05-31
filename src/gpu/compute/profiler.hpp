@@ -29,7 +29,8 @@ namespace gpu {
 namespace compute {
 
 struct profiler_t {
-    profiler_t(const stream_t *stream) : stream_(stream) {}
+    profiler_t(const stream_t *stream, int stamp = 0)
+        : stamp_(stamp), stream_(stream) {}
     virtual ~profiler_t() = default;
 
     struct entry_t {
