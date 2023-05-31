@@ -23,6 +23,7 @@
 #include "cpu/platform.hpp"
 #include "cpu/x64/brgemm/brgemm.hpp"
 #include "cpu/x64/brgemm/brgemm_types.hpp"
+#include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
@@ -1754,7 +1755,8 @@ void jit_brgemm_amx_uker_base_t::maybe_pre_process_data(brgemm_iteration_t &bi,
     if (buf_offt) add(reg_buf, buf_offt);
     mov(reg_bf32_stride, zmm_width_in_bytes);
 
-    assert(t1.getIdx() >= 0 && t1.getIdx() < 16);
+    const int max_tiles = amx::get_max_tiles(amx::get_target_palette());
+    assert(t1.getIdx() >= 0 && t1.getIdx() < max_tiles);
     const auto num_rows = palette_.rows[t1.getIdx()];
     const auto num_col_bytes = palette_.cols[t1.getIdx()];
     if (is_A) {
