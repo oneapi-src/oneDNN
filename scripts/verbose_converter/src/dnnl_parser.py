@@ -81,7 +81,7 @@ class LogParser:
                     # when strides delimeter is absent.
                     # TODO: remove eventually.
                     idx = 4
-                    strides = {}
+                    strides = ""
                     if "f" not in fields[idx] and format_kind != "undef":
                         strides = fields[4]
                         idx += 1
