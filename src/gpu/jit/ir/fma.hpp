@@ -37,6 +37,15 @@ enum class fma_kind_t {
     unknown,
 };
 
+inline bool is_dp_fma(fma_kind_t kind) {
+    switch (kind) {
+        case fma_kind_t::dp4a:
+        case fma_kind_t::dpas:
+        case fma_kind_t::dpasw: return true;
+        default: return false;
+    }
+}
+
 namespace fma_kind {
 
 std::string to_string(fma_kind_t val);

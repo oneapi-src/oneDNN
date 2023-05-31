@@ -970,10 +970,7 @@ public:
 
     int vec_size() const { return exec_cfg().vec_size(); }
 
-    bool is_dp_fma() const {
-        return utils::one_of(fma_kind(), fma_kind_t::dpas, fma_kind_t::dpasw,
-                fma_kind_t::dp4a);
-    }
+    bool is_dp_fma() const { return jit::is_dp_fma(fma_kind()); }
 
     bool is_dpas_or_dpasw_fma() const {
         return utils::one_of(fma_kind(), fma_kind_t::dpas, fma_kind_t::dpasw);

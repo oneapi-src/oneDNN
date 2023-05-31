@@ -389,9 +389,7 @@ int pick_block(int dim, int b0, int b1 = 0, int b2 = 0) {
 }
 
 int get_default_block(fma_kind_t fma, const type_t &type, int elems) {
-    bool is_dp = utils::one_of(
-            fma, fma_kind_t::dp4a, fma_kind_t::dpas, fma_kind_t::dpasw);
-    if (is_dp) {
+    if (is_dp_fma(fma)) {
         if (is_small(type, elems)) {
             int packed_dword_elems = 4 / type.size();
             return std::max(utils::rnd_up_pow2(elems), packed_dword_elems);
