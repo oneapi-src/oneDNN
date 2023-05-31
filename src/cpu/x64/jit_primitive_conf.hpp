@@ -751,7 +751,8 @@ struct jit_brgemm_conv_conf_t {
     int amx_buf_size_per_thread;
 
     bool wei_plain;
-    bool is_ic_padded, is_oc_padded;
+    bool is_rd_padded_to_block {false}, is_rd_padded_to_vnni {false},
+            is_oc_padded;
     int kw_sets, kh_sets;
     bool copy_block_only;
     bool amx_tile_load_xx;
@@ -788,6 +789,7 @@ struct jit_brgemm_conv_conf_t {
     int typesize_out;
     bool tr_ocb_chunk = false;
     bool tr_icb_chunk = false;
+    int vnni_block {1};
 };
 
 struct jit_shuffle_conf_t {
