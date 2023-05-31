@@ -533,7 +533,14 @@ status_t brgemm_kernel_create(
         }
     }
     if (!(*brg_kernel)) return status::unimplemented;
-    return (*brg_kernel)->create_kernel();
+    status_t st = (*brg_kernel)->create_kernel();
+    if (st != status::success) {
+        // `brg_kernel` points to a pointer to kernel class created by `new`.
+        // If kernel creation failed, release this resource before returning.
+        delete *brg_kernel;
+        return st;
+    }
+    return status::success;
 }
 
 status_t brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel) {

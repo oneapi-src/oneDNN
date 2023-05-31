@@ -74,11 +74,7 @@ status_t brgemm_kernel_container_t::insert(int idx, const brgemm_t *brg) {
     const auto brgemm_it = brgemm_map_.find(brg);
     if (brgemm_it == brgemm_map_.end()) {
         brgemm_kernel_t *brg_kernel = nullptr;
-        status_t s = brgemm_kernel_create(&brg_kernel, *brg);
-        if (s != status::success) {
-            delete brg_kernel;
-            return s;
-        }
+        CHECK(brgemm_kernel_create(&brg_kernel, *brg));
         std::shared_ptr<brgemm_kernel_t> sptr(brg_kernel);
         lock_write();
         const auto kernel_ret = set_.insert(sptr);
