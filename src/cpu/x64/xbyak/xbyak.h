@@ -655,6 +655,7 @@ public:
 		if (kind_ == REG) {
 			if (isExt8bit()) {
 				static const char *tbl[4] = { "spl", "bpl", "sil", "dil" };
+				if (idx < 4 || idx > 7) XBYAK_THROW_RET(ERR_INTERNAL, 0);
 				return tbl[idx - 4];
 			}
 			static const char *tbl[4][16] = {
@@ -663,14 +664,17 @@ public:
 				{ "eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi", "r8d", "r9d", "r10d",  "r11d", "r12d", "r13d", "r14d", "r15d" },
 				{ "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi", "r8", "r9", "r10",  "r11", "r12", "r13", "r14", "r15" },
 			};
+			if (idx > 15) XBYAK_THROW_RET(ERR_INTERNAL, 0);
 			return tbl[bit_ == 8 ? 0 : bit_ == 16 ? 1 : bit_ == 32 ? 2 : 3][idx];
 		} else if (isOPMASK()) {
 			static const char *tbl[8] = { "k0", "k1", "k2", "k3", "k4", "k5", "k6", "k7" };
+			if (idx > 7) XBYAK_THROW_RET(ERR_INTERNAL, 0);
 			return tbl[idx];
 		} else if (isTMM()) {
 			static const char *tbl[8] = {
 				"tmm0", "tmm1", "tmm2", "tmm3", "tmm4", "tmm5", "tmm6", "tmm7"
 			};
+			if (idx > 7) XBYAK_THROW_RET(ERR_INTERNAL, 0);
 			return tbl[idx];
 		} else if (isZMM()) {
 			static const char *tbl[32] = {
@@ -692,12 +696,15 @@ public:
 			return tbl[idx];
 		} else if (isMMX()) {
 			static const char *tbl[8] = { "mm0", "mm1", "mm2", "mm3", "mm4", "mm5", "mm6", "mm7" };
+			if (idx > 7) XBYAK_THROW_RET(ERR_INTERNAL, 0);
 			return tbl[idx];
 		} else if (isFPU()) {
 			static const char *tbl[8] = { "st0", "st1", "st2", "st3", "st4", "st5", "st6", "st7" };
+			if (idx > 7) XBYAK_THROW_RET(ERR_INTERNAL, 0);
 			return tbl[idx];
 		} else if (isBNDREG()) {
 			static const char *tbl[4] = { "bnd0", "bnd1", "bnd2", "bnd3" };
+			if (idx > 3) XBYAK_THROW_RET(ERR_INTERNAL, 0);
 			return tbl[idx];
 		}
 		XBYAK_THROW_RET(ERR_INTERNAL, 0);
