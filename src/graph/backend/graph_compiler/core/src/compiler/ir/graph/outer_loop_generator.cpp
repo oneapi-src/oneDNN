@@ -183,9 +183,10 @@ static std::vector<int> move_reduce_axis_to_inner(
             return;
         }
         std::sort(reduce_axis.begin(), reduce_axis.end());
-        COMPILE_ASSERT(reduce_axis.back() < static_cast<int>(in_axis.size()),
-                "Reduce op needs its outer loop to be dedicated generated "
-                "for it");
+        if (reduce_axis.back() >= static_cast<int>(in_axis.size())) {
+            can_move = false;
+            return;
+        }
         auto shape = node->get_inputs()[0]->details_.get_blocking_dims();
         int parallel_num = 1;
         for (int i = 0; i < *reduce_axis.begin(); i++) {

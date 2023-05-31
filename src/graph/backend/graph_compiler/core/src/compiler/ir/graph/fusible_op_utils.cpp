@@ -1014,9 +1014,12 @@ bool slice_full_on_axis(const sc_dims &dim, const slice_range &ranges,
         auto first = do_cast_and_fold(ranges[ax].first);
         auto second = do_cast_and_fold(ranges[ax].second);
         // slice range length should equal to dims
-        if (second.isa<constant>()
-                && get_const_as_int(second.checked_as<constant>()) != dim[ax]) {
-            return false;
+        if (second.isa<constant>()) {
+            if (get_const_as_int(second.checked_as<constant>()) != dim[ax]) {
+                return false;
+            } else if (dim[ax] == 1) {
+                continue;
+            }
         }
         if (!first.isa<constant>()) {
             if (first->node_type_ == sc_expr_type::mul) {

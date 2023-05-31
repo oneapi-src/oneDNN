@@ -844,10 +844,8 @@ slice_range_list infer_tensor_view_slice(sc_graph_t &graph,
             }
         }
         std::reverse(reshape_ranges.begin(), reshape_ranges.end());
-        constant_folder_t f;
-        auto_caster_t ca;
         for (auto &r : reshape_ranges) {
-            r.first = ca(r.first).remove_const();
+            r.first = do_cast_and_fold(r.first);
         }
         reshape_ranges.insert(reshape_ranges.end(), consistent_tv_slice.begin(),
                 consistent_tv_slice.end());

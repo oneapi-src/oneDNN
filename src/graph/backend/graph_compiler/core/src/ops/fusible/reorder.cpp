@@ -346,13 +346,10 @@ slice_range get_block2plain_ranges(const expr &block_num_start,
         int block_num_length_int
                 = get_const_as_int(block_num_length.checked_as<constant_c>());
         for (int i = 0; i < block_num_length_int; i++) {
-            constant_folder_t f;
-            auto_caster_t ca;
-            auto plain_range
-                    = std::make_pair(f(ca((block_num_start + expr(i)) * blocks
-                                               + block_size_start))
-                                             .remove_const(),
-                            block_size_length);
+            auto plain_range = std::make_pair(
+                    do_cast_and_fold((block_num_start + expr(i)) * blocks
+                            + block_size_start),
+                    block_size_length);
             plain_range_list.emplace_back(plain_range);
         }
     }
@@ -739,12 +736,33 @@ void infer_reorder_slice(slice_range_list &input_slice_list,
         SC_MODULE_WARN << ss.str();
         throw tuner_recoverable_exception_t(ss.str());
     }
-    constant_folder_t f;
-    auto_caster_t ca;
     for (auto &reorder_range : output_slice_list) {
         for (auto &r : reorder_range) {
-            r.first = ca(r.first).remove_const();
+            r.first = do_cast_and_fold(r.first);
         }
+    }
+}
+
+void infer_padding_reorder_slice(slice_range_list &input_slice_list,
+        const sc_dims &input_dims, const sc_dims &output_dims,
+        slice_range_list &output_slice_list) {
+    sc_dims inp_lead_dims = {input_dims.begin(), input_dims.end() - 1};
+    sc_dims out_lead_dims = {output_dims.begin(), output_dims.end() - 1};
+    // current, we can only infer padding reorder with last dim padded. E.g.
+    // [1,16,1,1,32] ====> [1,16,1,1,48]
+    if (inp_lead_dims != out_lead_dims) return;
+    output_slice_list = input_slice_list;
+    int inp_rank = input_dims.size();
+    for (size_t i = 0; i < input_slice_list.size(); i++) {
+        if (!slice_full_on_axis(
+                    input_dims, input_slice_list[i], {inp_rank - 1})) {
+            // could not infer this case, clear and return
+            output_slice_list = {};
+            return;
+        }
+        // set new full range on output slice
+        output_slice_list[i].back()
+                = std::make_pair(expr(0), dim2unsigned(output_dims.back()));
     }
 }
 
@@ -852,8 +870,14 @@ void reorder_op_t::infer_slice_ranges(
     slice_range_list reorder_ranges_list;
     // infer reorder slice only makes sense for non-padding cases in new fusion
     // mgr
-    if (is_dynamic() || !check_padding()) {
+    if (!check_padding() || is_dynamic()) {
         infer_reorder_slice(input_slice_list, input_format, output_format,
+                reorder_ranges_list);
+    } else {
+        // infer padding reorder
+        infer_padding_reorder_slice(input_slice_list,
+                get_inputs()[0]->details_.get_blocking_dims(),
+                get_outputs()[0]->details_.get_blocking_dims(),
                 reorder_ranges_list);
     }
 
