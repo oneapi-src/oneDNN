@@ -225,9 +225,11 @@ static void check_distill_bert_mha(const sc_dims &feature_plain_dims,
                     {"internal", true}});
 
     auto output = graph.make_output(reorder->get_outputs());
-    graph_driver(graph, get_test_ctx());
-    ir_module_ptr mod = lower_graph(get_test_ctx(), graph, {input, output});
-    auto fptr = jit_engine_t::make(get_test_ctx())->get_entry_func(mod, true);
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    graph_driver(graph, ctx);
+    ir_module_ptr mod = lower_graph(ctx, graph, {input, output});
+    auto fptr = jit_engine_t::make(ctx)->get_entry_func(mod, true);
     std::vector<generic_val> gargs;
     sc_dim feature_size = test_utils::product(feature_plain_dims);
     sc_dim weight_size = test_utils::product(weight_plain_dims);
@@ -405,6 +407,20 @@ TEST(GCCore_CPU_distill_bert_test, TestFuntionality) {
             sc_data_format_t(format_kinds::ACBD));
     check_distill_bert_mha({16, 16, 1, 256}, {16, 16, 256, 48}, {1, 1, 1, 48},
             {1}, {16, 16, 48, 256}, sc_data_format_t(format_kinds::ACBD),
+            sc_data_format_kind_t(0, 3, 1, 2),
+            sc_data_format_t(format_kinds::ABCD),
+            sc_data_format_t(format_kinds::A),
+            sc_data_format_t(format_kinds::ACBD), true);
+    check_distill_bert_mha({16, 16, 1, 256}, {16, 16, 256, 48},
+            {16, 16, 256, 48}, {1}, {16, 16, 48, 256},
+            sc_data_format_t(format_kinds::ACBD),
+            sc_data_format_kind_t(0, 3, 1, 2),
+            sc_data_format_t(format_kinds::ABCD),
+            sc_data_format_t(format_kinds::A),
+            sc_data_format_t(format_kinds::ACBD));
+    check_distill_bert_mha({16, 16, 1, 256}, {16, 16, 256, 48},
+            {16, 16, 256, 48}, {1}, {16, 16, 48, 256},
+            sc_data_format_t(format_kinds::ACBD),
             sc_data_format_kind_t(0, 3, 1, 2),
             sc_data_format_t(format_kinds::ABCD),
             sc_data_format_t(format_kinds::A),

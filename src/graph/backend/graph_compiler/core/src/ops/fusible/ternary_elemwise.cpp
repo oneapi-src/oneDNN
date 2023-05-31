@@ -471,11 +471,13 @@ void select_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
                         if (keep_dims) {
                             known_axis_map[i] = known_axis_map[maxtensor_idx];
                         } else {
-                            auto bc_axis = get_bc_axis(maxtensor_idx, i);
-                            auto bc_arg_axis_list
-                                    = infer_broadcast_arg_axis_binding(
-                                            known_axis_map[maxtensor_idx],
-                                            bc_axis);
+                            COMPILE_ASSERT(
+                                    get_inputs()[i]->details_.get_plain_dims()
+                                            == sc_dims {1},
+                                    "Select op's infer binding axis "
+                                    "encountered unaligned input shapes.");
+                            bound_axis bc_arg_axis_list(
+                                    known_axis_map[maxtensor_idx].size());
                             known_axis_map[i] = bc_arg_axis_list;
                         }
                     }
@@ -484,19 +486,60 @@ void select_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
                 auto it = std::find(known_idx.begin(), known_idx.end(), 1);
                 COMPILE_ASSERT(it != known_idx.end(), "No known idx found.");
                 int known_tensor_idx = std::distance(known_idx.begin(), it);
-                auto bc_axis = get_bc_axis(maxtensor_idx, known_tensor_idx);
-                auto bc_axis_list = infer_broadcast_axis_binding(
-                        known_axis_map[known_tensor_idx], bc_axis);
-                known_axis_map[maxtensor_idx] = bc_axis_list;
+                bool keep_dims = get_inputs()[known_tensor_idx]
+                                         ->details_.get_blocking_dims()
+                                         .size()
+                        == get_inputs()[maxtensor_idx]
+                                   ->details_.get_blocking_dims()
+                                   .size();
+                if (keep_dims) {
+                    known_axis_map[maxtensor_idx]
+                            = known_axis_map[known_tensor_idx];
+                } else {
+                    COMPILE_ASSERT(get_inputs()[known_tensor_idx]
+                                            ->details_.get_plain_dims()
+                                    == sc_dims {1},
+                            "Select op's infer binding axis encountered "
+                            "unaligned input shapes.");
+                    auto plain_bc_axis = fill_auto_broadcast_bc_axis(
+                            get_inputs()[known_tensor_idx]
+                                    ->details_.get_plain_dims(),
+                            get_inputs()[maxtensor_idx]
+                                    ->details_.get_plain_dims());
+                    if (plain_bc_axis == std::vector<int> {-1}) {
+                        plain_bc_axis[0] = get_inputs()[maxtensor_idx]
+                                                   ->details_.get_plain_dims()
+                                                   .size()
+                                - 1;
+                    }
+                    auto bc_axis_list = infer_broadcast_axis_binding(
+                            known_axis_map[known_tensor_idx], plain_bc_axis);
+                    known_axis_map[maxtensor_idx] = bc_axis_list;
+                }
                 known_idx[maxtensor_idx] = 1;
                 // deal with the remaining unknown binding axis
                 it = std::find(known_idx.begin(), known_idx.end(), 0);
                 if (it != known_idx.end()) {
                     int remaining_idx = std::distance(known_idx.begin(), it);
-                    bc_axis = get_bc_axis(maxtensor_idx, remaining_idx);
-                    bc_axis_list = infer_broadcast_arg_axis_binding(
-                            known_axis_map[maxtensor_idx], bc_axis);
-                    known_axis_map[remaining_idx] = bc_axis_list;
+                    bool keep_dims = get_inputs()[remaining_idx]
+                                             ->details_.get_blocking_dims()
+                                             .size()
+                            == get_inputs()[maxtensor_idx]
+                                       ->details_.get_blocking_dims()
+                                       .size();
+                    if (keep_dims) {
+                        known_axis_map[remaining_idx]
+                                = known_axis_map[maxtensor_idx];
+                    } else {
+                        COMPILE_ASSERT(get_inputs()[remaining_idx]
+                                                ->details_.get_plain_dims()
+                                        == sc_dims {1},
+                                "Select op's infer binding axis encountered "
+                                "unaligned input shapes.");
+                        bound_axis bc_arg_axis_list(
+                                known_axis_map[maxtensor_idx].size());
+                        known_axis_map[remaining_idx] = bc_arg_axis_list;
+                    }
                 }
             }
         } else {

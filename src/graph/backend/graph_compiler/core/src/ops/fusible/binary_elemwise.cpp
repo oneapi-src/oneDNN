@@ -499,6 +499,12 @@ void binary_elementwise_op_impl_t::infer_binding_axis(
                 bound_axis known_axis = known_axis_map[1 - unknown_idx],
                            unknown_axis(known_axis.size());
                 if (unknown_idx != bc_input_idx) {
+                    if (bc_axis == std::vector<int> {-1}) {
+                        bc_axis[0] = get_inputs()[1 - bc_input_idx]
+                                             ->details_.get_plain_dims()
+                                             .size()
+                                - 1;
+                    }
                     std::transform(known_axis.begin(), known_axis.end(),
                             unknown_axis.begin(),
                             [&bc_axis](const std::vector<int> &bd_ax) {
