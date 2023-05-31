@@ -322,7 +322,7 @@ status_t ocl_gpu_engine_t::create_kernels_from_cache_blob(
         cache_blob_t cache_blob, std::vector<compute::kernel_t> &kernels,
         const std::vector<const char *> &kernel_names) const {
     return create_ocl_kernel_from_cache_blob(
-            this, cache_blob, kernel_names, &kernels);
+            this, std::move(cache_blob), kernel_names, &kernels);
 }
 
 status_t ocl_gpu_engine_t::create_kernel(compute::kernel_t *kernel,
