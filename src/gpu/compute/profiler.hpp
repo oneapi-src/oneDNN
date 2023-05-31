@@ -56,7 +56,9 @@ struct profiler_t {
 
     void reset() {
         events_.clear();
+        m_.lock();
         stamp_ = 0;
+        m_.unlock();
     }
 
     void start_profiling() {
@@ -86,7 +88,7 @@ protected:
         return status::success;
     }
 
-    std::mutex m_;
+    std::recursive_mutex m_;
     std::vector<registered_event_t> events_;
     uint64_t stamp_;
     const stream_t *stream_;
