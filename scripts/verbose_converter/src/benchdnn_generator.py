@@ -175,6 +175,20 @@ def convert_aux(entry):
             return f"--alg={alg} --axis={axis}"
         elif pk == "pooling":
             return f"--alg={alg}"
+        elif pk == "matmul":
+            runtime_dims_masks = (
+                entry["aux"]["runtime_dims_masks"]
+                if entry["aux"].get("runtime_dims_masks") != None
+                else ""
+            )
+            return f"--runtime_dims_masks={runtime_dims_masks}"
+        elif pk == "reorder":
+            runtime_dim_mask = (
+                entry["aux"]["runtime-dim-mask"]
+                if entry["aux"].get("runtime-dim-mask") != None
+                else ""
+            )
+            return f"--runtime-dim-mask={runtime_dim_mask}"
         else:
             alg = alg_remove_primitive(alg)
             if alg != "":

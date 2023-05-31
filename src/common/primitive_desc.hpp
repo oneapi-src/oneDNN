@@ -93,12 +93,12 @@ struct primitive_desc_t : public c_compatible {
         }
         auto mds_len = info_str.find_first_of(',', pos) - pos;
         // Ask verbose to provide information about memory descriptors and dims.
-        auto mds_updated = mds2str(kind(), src_md, wei_md, bia_md, dst_md);
+        auto mds_updated = rt_mds2str(kind(), src_md, wei_md, bia_md, dst_md);
         info_str.replace(pos, mds_len, mds_updated);
 
         // Dims are always last in the line. Check position after mds replaced.
         auto dims_start_pos = info_str.find_last_of(',') + 1;
-        auto dims_updated = dims2fmt_str(kind(), src_md, wei_md, dst_md);
+        auto dims_updated = rt_dims2fmt_str(kind(), src_md, wei_md, dst_md);
         info_str.replace(dims_start_pos, std::string::npos, dims_updated);
 
         return info_str;

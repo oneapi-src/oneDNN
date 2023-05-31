@@ -459,6 +459,14 @@ std::ostream &operator<<(std::ostream &ss, const scales_t &oscale) {
 }
 
 namespace {
+int get_runtime_mask(const memory_desc_t *md) {
+    int mask = 0;
+    for (int d = md->ndims - 1; d >= 0; --d) {
+        mask += md->dims[d] == DNNL_RUNTIME_DIM_VAL ? 1 << d : 0;
+    }
+    return mask;
+}
+
 int get_arg_index(int arg) {
     if (arg & DNNL_ARG_MULTIPLE_SRC) return arg - DNNL_ARG_MULTIPLE_SRC;
     switch (arg) {
@@ -939,8 +947,13 @@ std::string init_info_matmul(const engine_t *e, const pd_t *pd) {
             pd->invariant_wei_user_format_kind(), bia_md,
             pd->invariant_bia_user_format_kind(), dst_md,
             pd->invariant_dst_user_format_kind());
-    ss << "," << pd->attr() << ",,";
-    ss << dims2fmt_str_matmul(src_md, wei_md);
+    ss << "," << pd->attr() << ",";
+
+    if (pd->has_runtime_dims_or_strides()) {
+        ss << "runtime_dims_masks:" << get_runtime_mask(src_md) << ":"
+           << get_runtime_mask(wei_md);
+    }
+    ss << "," << dims2fmt_str_matmul(src_md, wei_md);
 
     return ss.str();
 }
@@ -1050,8 +1063,12 @@ std::string init_info_reorder(const engine_t *e, pd_t *pd) {
 
     ss << mds2str_reorder(src_md, pd->invariant_src_user_format_kind(), dst_md,
             pd->invariant_dst_user_format_kind());
-    ss << "," << pd->attr() << ",,";
-    ss << dims2fmt_str_reorder(src_md);
+    ss << "," << pd->attr() << ",";
+
+    if (pd->has_runtime_dims_or_strides()) {
+        ss << "runtime-dim-mask:" << get_runtime_mask(src_md);
+    }
+    ss << "," << dims2fmt_str_reorder(src_md);
 
     return ss.str();
 }

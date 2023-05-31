@@ -45,9 +45,8 @@ def convert_dir_benchdnn2verbose(dir):
 def filter_verbose(benchdnn_verbose, driver):
     v = ""
     benchdnn_prop_kind = None
-    benchdnn_with_rt_dims = False
 
-    for test_case in benchdnn_verbose.split("INITIALIZED"):
+    for test_case in benchdnn_verbose.split("__REPRO"):
         for l in test_case.split("\n"):
             # Parse header
             if l.find("create: ") != -1:
@@ -61,16 +60,6 @@ def filter_verbose(benchdnn_verbose, driver):
                     )
                 else:
                     benchdnn_prop_kind = None
-                # detect runtime dims
-                rt_mask = "--runtime_dims_masks="
-                rt_mask_start = l.find(rt_mask)
-                if rt_mask_start != -1:
-                    rt_mask_end = l.find(" ", rt_mask_start)
-                    benchdnn_rt_dims = l[rt_mask_start + len(rt_mask) : rt_mask_end]
-                    if benchdnn_rt_dims != "0:0":
-                        benchdnn_with_rt_dims = True
-                else:
-                    benchdnn_with_rt_dims = False
             else:
                 # detect driver
                 l_s = l.split(",")
@@ -83,9 +72,6 @@ def filter_verbose(benchdnn_verbose, driver):
                         and verbose_prop_kind != benchdnn_prop_kind
                     ):
                         continue
-                    # filter out cases with runtime dims
-                    if benchdnn_with_rt_dims:
-                        continue
                     # found primitive creation for the test case
                     # remove time
                     l_wo_time = "".join(f + "," for f in l.split(",")[0:-1])[0:-1]
@@ -97,9 +83,22 @@ def filter_verbose(benchdnn_verbose, driver):
 def generate_verbose(path_to_benchdnn, driver, batch):
     benchdnn_exe = path_to_benchdnn + "/benchdnn"
     sub_env = os.environ.copy()
-    sub_env["ONEDNN_VERBOSE"] = "2"
     sub_env["ONEDNN_PRIMITIVE_CACHE_CAPACITY"] = "0"
-    sub_args = [benchdnn_exe, f"--{driver}", f"--mode=I", f"-v1", f"--batch={batch}"]
+
+    # Runtime dimension require execution verbose output
+    sub_env["ONEDNN_VERBOSE"] = "2"
+    benchdnn_mode = "I"
+    if driver == "matmul" or driver == "reorder":
+        sub_env["ONEDNN_VERBOSE"] = "1"
+        benchdnn_mode = "R"
+
+    sub_args = [
+        benchdnn_exe,
+        f"--{driver}",
+        f"--mode={benchdnn_mode}",
+        f"-v1",
+        f"--batch={batch}",
+    ]
     try:
         sub = subprocess.run(sub_args, capture_output=True, text=True, env=sub_env)
     except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
