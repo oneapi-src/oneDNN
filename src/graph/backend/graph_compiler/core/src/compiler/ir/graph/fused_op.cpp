@@ -1962,12 +1962,9 @@ struct inplace_recursion_context_t {
                 || producer->isa<unary_elementwise_op_t>();
         bool can_be_free = producer->isa<tensor_view_op_t>();
         good_op = good_op && (must_zero_offset || can_be_free);
-        if (must_zero_offset) {
-            good_op = good_op
-                    && !producer->dyn_cast<op_traits::may_inplace_t>()
-                                ->get_inplace_map()
-                                .empty();
-        }
+        // we allow cast ops in the dependency chain, even if the size of dtype
+        // is not the same. Here we only check the logical dependency instead of
+        // memory position
         auto &inputs = producer->get_inputs();
         for (size_t input_idx = 0; input_idx < inputs.size(); input_idx++) {
             auto &intsr = inputs[input_idx];
@@ -2011,10 +2008,12 @@ mixed_fuse_op_t::get_inplace_map() {
     auto in_ops = sub_graph_.get_input_ops();
     // create a map from input tensors to its index
     std::unordered_map<graph_tensor_ptr, int> tsr_2_index;
+    std::vector<graph_tensor_ptr> index_2_tsr;
     for (auto &in : in_ops) {
         for (auto &tsr : in->get_outputs()) {
             auto idx = tsr_2_index.size();
             tsr_2_index[tsr] = idx;
+            index_2_tsr.emplace_back(tsr);
         }
     }
     inplace_recursion_context_t ctx {tsr_2_index};
@@ -2041,9 +2040,18 @@ mixed_fuse_op_t::get_inplace_map() {
                     if ((*rec_ret)[i]
                             == inplace_recursion_context_t::
                                     ZERO_OFFSET_INPLACE) {
-                        can_inplace.emplace_back(
-                                tensor_inplace_info_t {static_cast<int>(i),
-                                        inplace_kind::ZERO_OFFSET});
+                        // zero offset means that the output->input dependency
+                        // chain contains elementwise ops. We need to ensure
+                        // that each memory position of the output strictly
+                        // depend on the same memory position of the input
+                        if (utils::get_sizeof_type(
+                                    index_2_tsr.at(i)->details_.dtype_)
+                                == utils::get_sizeof_type(
+                                        outtsr->details_.dtype_)) {
+                            can_inplace.emplace_back(
+                                    tensor_inplace_info_t {static_cast<int>(i),
+                                            inplace_kind::ZERO_OFFSET});
+                        }
                     } else if ((*rec_ret)[i]
                             == inplace_recursion_context_t::FREE_INPLACE) {
                         can_inplace.emplace_back(tensor_inplace_info_t {
