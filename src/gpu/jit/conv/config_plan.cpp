@@ -400,6 +400,7 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     // continue calls in the outer loops.
     switch (cfg_.bwd_d_optimize_kind()) {
         case bwd_d_optimize_kind_t::none:
+        case bwd_d_optimize_kind_t::skip_out_of_bound_w:
             if (prb_.sd != 1) od_mask &= (od % prb_.sd == 0);
             if (prb_.sh != 1) oh_mask &= (oh % prb_.sh == 0);
             if (prb_.sw != 1) ow_mask &= (ow % prb_.sw == 0);
@@ -1601,6 +1602,7 @@ enum class plan_status_t {
     invalid_layout,
     invalid_send,
     out_of_registers,
+    invalid_slm_k_slicing,
 };
 
 bool is_layout_error(plan_status_t status) {
@@ -1681,11 +1683,6 @@ private:
 
         ir_trace() << plan_ << std::endl;
         cfg_.set_plan(plan_ptr_);
-
-        // Propagate plan parameters to config.
-        bool do_unroll = cfg_.pipeline().do_unroll();
-        if (plan_.reuse_headers) do_unroll = false;
-        cfg_.pipeline().set(do_unroll, plan_.reuse_headers);
     }
 
     plan_status_t try_init_plan() {
@@ -1723,13 +1720,13 @@ private:
 
         plan_status_t status;
 
-        status = try_drop_prefetch(plan, bound);
-        if (status == plan_status_t::success) return plan_status_t::success;
-
         status = try_apply_ab_split(plan, bound);
         if (status == plan_status_t::success) return plan_status_t::success;
 
         status = try_reuse_headers(plan, bound);
+        if (status == plan_status_t::success) return plan_status_t::success;
+
+        status = try_drop_prefetch(plan, bound);
         if (status == plan_status_t::success) return plan_status_t::success;
 
         return plan_status_t::out_of_registers;
@@ -1798,11 +1795,6 @@ private:
         if (cfg_.hw() < ngen::HW::XeHPC) return false;
         if (!cfg_.is_dpas_or_dpasw_fma()) return false;
         if (is_a && !prb.is_bwd_d && is_small_ic(prb) && cfg_.is_dp_fma())
-            return false;
-        auto &tg = cfg_.thread_group_grid();
-        if (prb.is_bwd_w
-                && (!cfg_.pipeline().do_unroll()
-                        && (tg[1] == 1 || tg[0] >= tg[1])))
             return false;
         return true;
     }
@@ -1973,6 +1965,45 @@ private:
         return plan_status_t::success;
     }
 
+    // Verifies that SLM loads after k-slicing are at GRF granularity.
+    plan_status_t verify_slm_k_slicing() const {
+        bmnk_dim_helper_t h(cfg_);
+        int k_tg = h.thread_group_dim('k');
+        if (k_tg == 1) return plan_status_t::success;
+
+        auto l = plan_.fma.c_prb_layout;
+        int ndims = l.ndims();
+        auto blocks = l.blocks();
+        l = layout_t(l.type(), ndims + 1, l.offset(), blocks);
+        l = l.add_outer_block(ndims, k_tg);
+        int outer = 1;
+        auto rem_dims = l.dims();
+        for (int i = (int)blocks.size() - 1; i >= 0; i--) {
+            auto &b = blocks[i];
+            for (dim_t j = 2; j <= b.block; j++) {
+                if (b.block % j != 0) continue;
+                if (outer * j > k_tg) break;
+                if (outer * j == k_tg || j == b.block) {
+                    rem_dims[b.dim_idx] /= j;
+                    outer *= j;
+                    break;
+                }
+            }
+        }
+        if (outer != k_tg) return plan_status_t::invalid_slm_k_slicing;
+        auto l_sub = l.map(tensor_t(rem_dims));
+        int bytes = l_sub.type().size();
+        stride_t stride = 1;
+        for (auto &b : l_sub.blocks()) {
+            if (b.stride != stride) break;
+            bytes *= (int)b.block;
+            stride *= b.block;
+        }
+        if (bytes % plan_.grf_size() != 0)
+            return plan_status_t::invalid_slm_k_slicing;
+        return plan_status_t::success;
+    }
+
     plan_status_t fixup_k_blocks_order(layout_t &a, layout_t &b) const {
         auto &bmnk_mapper = gemm_schedule_.bmnk_mapper();
         object_map_t<expr_t, int> k_vars;
@@ -2128,6 +2159,7 @@ private:
         plan.m_blk = m_blk;
         plan.n_blk = n_blk;
         plan.k_blk = k_blk;
+        PLAN_CHECK(verify_slm_k_slicing());
         return plan_status_t::success;
     }
 

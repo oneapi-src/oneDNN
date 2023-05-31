@@ -139,13 +139,13 @@ type_t to_dst_type(const std::string &type_cfg, prop_t prop = prop_t::fwd) {
 struct hw_config_t {
     static constexpr int default_eus = 512;
 
-    int eus = default_eus;
+    hw_t hw = hw_t::undef;
+    fma_t fma = fma_t::undef;
+    int eus = 0;
     float freq = 0;
     int eus_per_sublice = 0;
     int ops_per_clock = 0;
     int threads_per_eu = 0;
-    hw_t hw = hw_t::undef;
-    fma_t fma = fma_t::undef;
 
     hw_config_t() = default;
 

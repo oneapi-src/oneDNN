@@ -268,6 +268,12 @@ public:
         if (!kernel_body.is_empty()) {
             int slm_size = alloc_manager_t(kernel_body)
                                    .total_size(alloc_kind_t::slm);
+            int max_slm_size = compute::device_info_t::max_slm_size_per_tg(
+                    convert_ngen_arch_to_dnnl(hw), regs_ > 128);
+            if (slm_size > max_slm_size) {
+                // TODO: Use status code for this check.
+                ir_except_not_implemented("SLM size limit is exceeded.");
+            }
             requireSLM(slm_size);
         }
 

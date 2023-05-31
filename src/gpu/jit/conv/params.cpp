@@ -215,6 +215,7 @@ void conv_params_t::apply_to(conv_config_t &cfg) const {
     if (!cfg.thread_group_dims().is_overridden())
         cfg.thread_group_dims().set(blocking_.thread_group());
     if (!cfg.iter_dims().is_overridden()) cfg.iter_dims().set(blocking_.iter());
+    cfg.set_params_id(id_);
 }
 
 void conv_params_t::serialize(std::ostream &out) const {

@@ -29,6 +29,7 @@
 
 #include "gpu/jit/conv/config.hpp"
 #include "gpu/jit/conv/conv_kernel.hpp"
+#include "gpu/jit/conv/tiler.hpp"
 #include "gpu/jit/conv/zero_out.hpp"
 
 namespace dnnl {
@@ -61,21 +62,8 @@ public:
             CHECK(prb.init(engine, pd));
 
             pd->data = std::make_shared<conv_pd_data_t>();
-            memory_desc_t &src_md
-                    = *(const_cast<memory_desc_t *>(pd->invariant_src_md()));
-            memory_desc_t &wei_md
-                    = *(const_cast<memory_desc_t *>(pd->invariant_wei_md()));
-            memory_desc_t &bia_md
-                    = *(const_cast<memory_desc_t *>(pd->invariant_bia_md()));
-            memory_desc_t &dst_md
-                    = *(const_cast<memory_desc_t *>(pd->invariant_dst_md()));
-            CHECK(init_pd_time_cfg(prb, pd->data->pd_cfg, engine, pd, src_md,
-                    wei_md, bia_md, dst_md, &pd->attr_));
-
-            // XXX: This is to be removed once we'll be able to properly handle
-            // out-of-registers cases during primitive creation.
-            auto tmp_cfg = pd->data->pd_cfg;
-            CHECK(init_cfg(tmp_cfg, pd));
+            CHECK(init_pd_time_cfg(
+                    prb, pd->data->pd_cfg, engine, pd, &pd->attr_));
 
             pd->data->tensor_cfg = get_tensor_config(pd->data->pd_cfg);
             pd->data->kernel_infos.reserve(max_kernels);
@@ -94,82 +82,104 @@ public:
 
     template <typename T>
     status_t init(T *primitive, engine_t *engine) {
-        try {
-            auto &data = *primitive->pd()->data;
-            auto &tensor_cfg = data.tensor_cfg;
-            auto cfg = data.pd_cfg;
-            CHECK(init_cfg(cfg, primitive->pd()));
+        auto &data = *primitive->pd()->data;
+        auto &tensor_cfg = data.tensor_cfg;
+        auto tiler = std::make_shared<conv_tiler_t>(data.pd_cfg);
 
-            ir_info() << "Configuration:" << std::endl;
-            ir_info() << cfg;
-
-            init_nd_ranges(primitive, cfg);
-
-            auto &kernel_infos = data.kernel_infos;
-            for (int i = 0; i < int(kernel_infos.size()); i++) {
-                auto &info = kernel_infos[i];
-                switch (info.id()) {
-                    case kernel_id_t::convolution:
-                        try {
-                            kernels_.push_back(make_kernel<conv_kernel_t>(
-                                    primitive, engine, cfg, info));
-                        } catch (const ngen::out_of_registers_exception &e) {
-                            if (cfg.regs() < 256
-                                    && cfg.hw_cfg().large_grf_support()) {
-                                ir_warning()
-                                        << "Failed to generate kernel with "
-                                           "default register mode, attempting "
-                                           "again with large_grf_mode "
-                                           "enabled\n";
-                                kernels_.push_back(make_kernel<conv_kernel_t>(
-                                        primitive, engine, cfg, info,
-                                        grf_mode_t::large));
-                            } else {
-                                throw e;
-                            }
-                        }
-                        break;
-                    case kernel_id_t::pre_reorder: {
-                        reorder_config_t reorder_cfg(cfg.exec_cfg(),
-                                tensor_cfg.user_layout(info.arg_name(1)),
-                                tensor_cfg.compute_layout(info.arg_name(1)));
-                        kernels_.push_back(make_kernel<reorder_kernel_t>(
-                                primitive, engine, reorder_cfg, "conv_reorder",
-                                info, cfg.is_dpas_or_dpasw_fma(),
-                                grf_mode_t::matches));
-                        break;
-                    }
-                    case kernel_id_t::post_reorder: {
-                        reorder_config_t reorder_cfg(cfg.exec_cfg(),
-                                tensor_cfg.compute_layout(info.arg_name(0)),
-                                tensor_cfg.user_layout(info.arg_name(0)));
-                        kernels_.push_back(make_kernel<reorder_kernel_t>(
-                                primitive, engine, reorder_cfg, "conv_reorder",
-                                info, cfg.is_dpas_or_dpasw_fma(),
-                                grf_mode_t::matches));
-                        break;
-                    }
-                    case kernel_id_t::zero_out:
-                        if (can_skip_zero_out(info, cfg)) {
-                            kernels_.emplace_back();
-                            continue;
-                        }
-                        kernels_.push_back(make_kernel<zero_out_kernel_t>(
-                                primitive, engine, cfg.exec_cfg(), info,
-                                cfg.is_dpas_or_dpasw_fma(),
-                                grf_mode_t::matches));
-                        break;
-                    default: ir_error_not_expected();
-                }
-                if (!kernels_[i]) return status::runtime_error;
-            }
-        } catch (std::runtime_error &err) {
-            // If verbose is enabled, print the primitive case and rethrow the
-            // exception.
-            VERROR(gpu, "%s,%s", primitive->pd()->info(engine), err.what());
-            return status::runtime_error;
+        if (primitive->cache_blob()) {
+            int32_t version;
+            CHECK(primitive->cache_blob().get_value(
+                    (uint8_t *)&version, sizeof(version)));
+            primitive->set_version(version);
         }
 
+        bool ok = false;
+        int max_tries = 100;
+        for (int try_iter = 0; try_iter < max_tries; try_iter++) {
+            try {
+                cfg_ = data.pd_cfg;
+                cfg_.set_pd(
+                        static_cast<const convolution_pd_t *>(primitive->pd()));
+                cfg_.set_tiler(tiler);
+                CHECK(init_cfg(cfg_, primitive));
+
+                if (primitive->cache_blob() && try_iter != primitive->version())
+                    continue;
+                if (!tiler->is_grf_limit_ok(cfg_)) continue;
+
+                ir_info() << "Configuration:" << std::endl;
+                ir_info() << cfg_;
+
+                init_nd_ranges(primitive, cfg_);
+
+                auto &kernel_infos = data.kernel_infos;
+                for (int i = 0; i < int(kernel_infos.size()); i++) {
+                    auto &info = kernel_infos[i];
+                    switch (info.id()) {
+                        case kernel_id_t::convolution: {
+                            grf_mode_t grf_mode = (cfg_.regs() == 256)
+                                    ? grf_mode_t::large
+                                    : grf_mode_t::small;
+                            kernels_.push_back(make_kernel<conv_kernel_t>(
+                                    primitive, engine, cfg_, info, grf_mode));
+                            break;
+                        }
+                        case kernel_id_t::pre_reorder: {
+                            reorder_config_t reorder_cfg(cfg_.exec_cfg(),
+                                    tensor_cfg.user_layout(info.arg_name(1)),
+                                    tensor_cfg.compute_layout(
+                                            info.arg_name(1)));
+                            kernels_.push_back(
+                                    make_kernel<reorder_kernel_t>(primitive,
+                                            engine, reorder_cfg, "conv_reorder",
+                                            info, cfg_.is_dpas_or_dpasw_fma(),
+                                            grf_mode_t::matches));
+                            break;
+                        }
+                        case kernel_id_t::post_reorder: {
+                            reorder_config_t reorder_cfg(cfg_.exec_cfg(),
+                                    tensor_cfg.compute_layout(info.arg_name(0)),
+                                    tensor_cfg.user_layout(info.arg_name(0)));
+                            kernels_.push_back(
+                                    make_kernel<reorder_kernel_t>(primitive,
+                                            engine, reorder_cfg, "conv_reorder",
+                                            info, cfg_.is_dpas_or_dpasw_fma(),
+                                            grf_mode_t::matches));
+                            break;
+                        }
+                        case kernel_id_t::zero_out:
+                            if (can_skip_zero_out(info, cfg_)) {
+                                kernels_.emplace_back();
+                                continue;
+                            }
+                            kernels_.push_back(make_kernel<zero_out_kernel_t>(
+                                    primitive, engine, cfg_.exec_cfg(), info,
+                                    cfg_.is_dpas_or_dpasw_fma(),
+                                    grf_mode_t::matches));
+                            break;
+                        default: ir_error_not_expected();
+                    }
+                    if (!kernels_[i]) return status::runtime_error;
+                }
+                ok = true;
+                primitive->set_version(try_iter);
+                break;
+            } catch (ngen::out_of_registers_exception &err) {
+                if (handle_exception(
+                            err, primitive, engine, try_iter, max_tries))
+                    return status::runtime_error;
+                tiler->notify_out_of_registers(cfg_);
+                continue;
+            } catch (std::runtime_error &err) {
+                if (handle_exception(
+                            err, primitive, engine, try_iter, max_tries))
+                    return status::runtime_error;
+                continue;
+            }
+        }
+        if (!ok) return status::runtime_error;
+
+        conv_tiler_t::after_create_hook(cfg_);
         return status::success;
     }
 
@@ -192,6 +202,8 @@ public:
     status_t execute(const T *primitive, const exec_ctx_t &ctx) const {
         auto &data = *primitive->pd()->data;
         auto &kernel_infos = data.kernel_infos;
+
+        conv_tiler_t::before_exec_hook(cfg_, ctx.stream());
 
         int max_stage = 100;
         int nsubmitted = 0;
@@ -347,8 +359,17 @@ private:
         return false;
     }
 
+    template <typename ExceptionT, typename T>
+    static bool handle_exception(const ExceptionT &err, T *primitive,
+            engine_t *engine, int iter, int max_iters) {
+        if (iter + 1 < max_iters) return false;
+        VERROR(gpu, "%s,%s", primitive->pd()->info(engine), err.what());
+        return true;
+    }
+
     std::vector<compute::kernel_t> kernels_;
     std::vector<compute::nd_range_t> nd_ranges_;
+    conv_config_t cfg_;
 };
 
 status_t gen_convolution_fwd_t::pd_t::init(engine_t *engine) {

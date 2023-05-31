@@ -28,7 +28,6 @@
 #include "common/type_helpers.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/compute/compute_engine.hpp"
-#include "gpu/jit/conv/block_helper.hpp"
 #include "gpu/jit/conv/key.hpp"
 #include "gpu/jit/conv/params.hpp"
 #include "gpu/jit/ir/config.hpp"
@@ -263,29 +262,6 @@ private:
 };
 
 bool is_small_ic(const conv_problem_t &prb);
-
-class conv_hint_t {
-public:
-    conv_hint_t() = default;
-    conv_hint_t(int def_max_tg_size) : def_max_tg_size_(def_max_tg_size) {}
-
-    int max_tg_size() const {
-        if (max_tg_size_ != 0) return max_tg_size_;
-        return def_max_tg_size_;
-    }
-
-    bool max_tg_overridden() const { return max_tg_overridden_; }
-
-    void set_max_tg_size(int value) {
-        max_tg_overridden_ = max_tg_size_ != 0;
-        max_tg_size_ = value;
-    }
-
-private:
-    int max_tg_size_ = 0;
-    int def_max_tg_size_ = 0;
-    bool max_tg_overridden_ = false;
-};
 
 class conv_arg_helper_t {
 public:
@@ -555,43 +531,6 @@ public:
     }
 };
 
-class fuse_spatial_param_t : public bool_param_t {
-public:
-    fuse_spatial_param_t() : bool_param_t(default_value) {}
-    std::string name() const override { return "fuse-spatial"; }
-    std::string short_name() const override { return "fsp"; }
-    std::string desc() const override {
-        return "Whether to apply blocking to fused spatial (otherwise only `w` "
-               "is blocked).";
-    }
-    bool is_overridable() const override { return true; }
-    bool is_default() const override { return get() == default_value; }
-
-    static const bool default_value;
-};
-
-class hint_param_t : public value_param_t<conv_hint_t> {
-public:
-    using value_param_t::value_param_t;
-
-    std::string name() const override { return "hint"; }
-    std::string desc() const override { return "Configuration hint."; }
-    bool is_overridable() const override { return false; }
-};
-
-// TODO: Remove, use internal logic.
-class hoist_masks_from_compute_loop_param_t : public bool_param_t {
-public:
-    hoist_masks_from_compute_loop_param_t() : bool_param_t(false) {}
-    std::string name() const override {
-        return "hoist-masks-from-compute-loop";
-    }
-    std::string desc() const override {
-        return "Whether to move send mask initialization out of compute loop.";
-    }
-    bool is_overridable() const override { return false; }
-};
-
 class kernel_grid_param_t : public grid_param_t {
 public:
     std::string name() const override { return "kernel-grid"; }
@@ -773,19 +712,6 @@ private:
     bool a_ = false;
     // Whether prefetch for B is enabled.
     bool b_ = false;
-};
-
-// TODO: Remove this parameter and enable 2D block messages based on the
-// generation flow.
-class send_2d_nhwc_param_t : public bool_param_t {
-public:
-    send_2d_nhwc_param_t() : bool_param_t(false) {}
-    std::string name() const override { return "2d-send-nhwc"; }
-    std::string desc() const override {
-        return "Whether to use the optimal NHWC setup relying on 2D block "
-               "messages.";
-    }
-    bool is_overridable() const override { return false; }
 };
 
 class slm_param_t : public param_t {
@@ -978,6 +904,7 @@ static const int reserved_regs_default = 16;
 } // namespace constants
 
 struct conv_plan_t;
+class conv_tiler_t;
 
 class conv_config_t : public prim_config_t {
 public:
@@ -1007,13 +934,9 @@ public:
     DECL_PARAM(bwd_d_optimize_kind)
     DECL_PARAM(check_slm_size)
     DECL_PARAM(fma_kind)
-    DECL_PARAM(fuse_spatial)
-    DECL_PARAM(hint)
-    DECL_PARAM(hoist_masks_from_compute_loop)
     DECL_PARAM(kernel_grid)
     DECL_PARAM(pad_slm)
     DECL_PARAM(prb)
-    DECL_PARAM(send_2d_nhwc)
     DECL_PARAM(shrink_tg_dims)
     DECL_PARAM(thread_group_grid)
     DECL_PARAM2(bia_layout)
@@ -1031,9 +954,6 @@ public:
 
 #undef DECL_PARAM
 #undef DECL_PARAM2
-
-    send_pattern_t a_load_pattern;
-    send_pattern_t b_load_pattern;
 
     std::string str() const override;
 
@@ -1081,11 +1001,6 @@ public:
     int simd() const { return exec_cfg().simd(); }
 
     int vec_size() const { return exec_cfg().vec_size(); }
-
-    bool is_g_mad() const {
-        return fma_kind() == fma_kind_t::mad && prb().g > 1 && prb().ic < 4
-                && prb().oc < 4 && prb().mb < 8 && !prb().is_dw;
-    }
 
     bool is_broadcast_oc() const {
         return prb().is_fwd && fma_kind() == fma_kind_t::mad
@@ -1135,6 +1050,8 @@ public:
         return ret;
     }
 
+    bool fuse_spatial() const { return false; }
+
     void set_pd(const convolution_pd_t *pd) { prb_.set_pd(pd); }
 
     void set_regs(int regs) {
@@ -1155,6 +1072,13 @@ public:
         set_exec_cfg(tmp);
     }
 
+    void set_params_id(int id);
+    conv_params_t params() const;
+
+    void set_tiler(const std::shared_ptr<conv_tiler_t> &tiler);
+    const conv_tiler_t &tiler() const;
+    conv_tiler_t &tiler();
+
     void set_plan(const std::shared_ptr<conv_plan_t> &plan);
     const conv_plan_t &plan() const;
 
@@ -1163,6 +1087,8 @@ public:
 
 private:
     std::shared_ptr<conv_plan_t> plan_;
+    std::shared_ptr<conv_tiler_t> tiler_;
+    int params_id_ = -1;
 
 #define INIT_PARAM(name) \
     name##_param_t name##_; \
@@ -1175,9 +1101,6 @@ private:
     INIT_PARAM(check_slm_size)
     INIT_PARAM(dims)
     INIT_PARAM(fma_kind)
-    INIT_PARAM(fuse_spatial)
-    INIT_PARAM(hint)
-    INIT_PARAM(hoist_masks_from_compute_loop)
     INIT_PARAM(iter_dims)
     INIT_PARAM(kernel_grid)
     INIT_PARAM(loop_dims)
@@ -1186,7 +1109,6 @@ private:
     INIT_PARAM(pipeline)
     INIT_PARAM(prb)
     INIT_PARAM(prefetch)
-    INIT_PARAM(send_2d_nhwc)
     INIT_PARAM(shrink_tg_dims)
     INIT_PARAM(slm)
     INIT_PARAM(subtiles)
@@ -1300,15 +1222,13 @@ private:
 };
 
 status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
-        const engine_t *engine, convolution_pd_t *pd, memory_desc_t &src_md,
-        memory_desc_t &wei_md, memory_desc_t &bia_md, memory_desc_t &dst_md,
-        primitive_attr_t *attr);
-status_t init_cfg(conv_config_t &cfg, const convolution_pd_t *pd);
+        const engine_t *engine, convolution_pd_t *pd, primitive_attr_t *attr);
+status_t init_cfg(conv_config_t &cfg, const primitive_t *prim);
+int slm_bufs_hint(const conv_problem_t &prb, int m_tg, int n_tg,
+        bool do_src_zp_compensation, bool enable_a, bool enable_b,
+        bool do_unroll);
 tensor_config_t get_tensor_config(const conv_config_t &cfg);
 int estimate_register_count(const conv_config_t &cfg);
-bool can_use_a_2d_send(const conv_config_t &cfg);
-bool can_use_b_2d_send(const conv_config_t &cfg);
-bool matches_tag(const memory_desc_t &md, const std::string &tag);
 const char **get_kernel_grid_conv_dims(const conv_problem_t &prb, int idx);
 const char **get_thread_group_grid_conv_dims(
         const conv_problem_t &prb, int idx);

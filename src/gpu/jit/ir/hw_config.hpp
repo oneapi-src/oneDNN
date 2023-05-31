@@ -118,10 +118,9 @@ public:
     void set_simd(int simd) { simd_ = simd; }
     void set_vec_size(int vec_size) { vec_size_ = vec_size; }
 
-    std::string str(int max_tg_size) const {
+    std::string str() const {
         std::ostringstream oss;
         oss << hw_cfg_.str();
-        oss << ", max TG: " << max_tg_size;
         oss << ", SIMD: " << simd();
         if (vec_size() != simd()) oss << " (" << vec_size() << ")";
         oss << ", regs: " << regs();

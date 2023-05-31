@@ -44,6 +44,18 @@ type_t to_type(data_type_t dt) {
     return type_t::undef;
 }
 
+hw_t to_hw(ngen::HW hw) {
+    switch (hw) {
+        case ngen::HW::Gen9:
+        case ngen::HW::XeLP:
+        case ngen::HW::XeHP:
+        case ngen::HW::XeHPG: return hw_t::xehpg;
+        case ngen::HW::XeHPC: return hw_t::xehpc;
+        default: ir_error_not_expected() << "Unknown HW: " << to_string(hw);
+    }
+    return hw_t::undef;
+}
+
 fma_t to_fma(fma_kind_t fma) {
     switch (fma) {
         case fma_kind_t::mad: return fma_t::mad;
@@ -57,6 +69,13 @@ fma_t to_fma(fma_kind_t fma) {
     return fma_t::undef;
 }
 
+hw_config_t to_hw_config(const conv_config_t &cfg) {
+    auto &prb = cfg.prb();
+    auto &hw_cfg = cfg.hw_cfg();
+    return hw_config_t(to_hw(cfg.hw()), to_fma(cfg.fma_kind()),
+            to_type(prb.a_data_type), hw_cfg.eu_count());
+}
+
 conv_sample_t to_conv_sample(
         const conv_config_t &cfg, const conv_params_t &params) {
     auto &prb = cfg.prb();
@@ -65,7 +84,7 @@ conv_sample_t to_conv_sample(
                            : (prb.is_bwd_d ? prop_t::bwd_d : prop_t::bwd_w));
     ret.src_type = to_type(prb.a_data_type);
     ret.dst_type = to_type(prb.c_data_type);
-    ret.hw_cfg = hw_config_t(hw_t::xehpc, to_fma(cfg.fma_kind()), ret.src_type);
+    ret.hw_cfg = to_hw_config(cfg);
 
     auto &blk = params.blocking();
     auto shape = get_conv_shape(cfg, /*pad=*/false);
