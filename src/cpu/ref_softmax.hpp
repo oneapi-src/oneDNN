@@ -162,6 +162,8 @@ struct ref_softmax_bwd_t : public primitive_t {
             using namespace data_type;
             bool ok = !is_fwd()
                     && utils::one_of(dst_md()->data_type, f32, bf16, f16)
+                    && utils::one_of(diff_dst_md()->data_type, f32, bf16, f16)
+                    && utils::one_of(diff_src_md()->data_type, f32, bf16, f16)
                     && platform::has_data_type_support(dst_md()->data_type)
                     && platform::has_data_type_support(diff_dst_md()->data_type)
                     && platform::has_data_type_support(diff_src_md()->data_type)
