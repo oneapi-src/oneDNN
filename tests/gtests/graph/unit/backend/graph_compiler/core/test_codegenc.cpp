@@ -126,7 +126,6 @@ extern "C" void bbb(float* __restrict__ A, int32_t len, void* tsr) noexcept __at
  * @param 2
 */
 extern "C" void aaa(void* __stream, int8_t* __restrict__ __module_data, float* __restrict__ A, float* __restrict__ B, float* __restrict__ C, int32_t len) noexcept __attribute__((nonnull (2,3,4,5)));
-extern "C" void ddd(void* __stream, int8_t* __restrict__ __module_data, int32_t len) noexcept __attribute__((nonnull (2)));
 void* (*sc_aligned_malloc_fptr)(void* stream, uint64_t size) noexcept __attribute__((returns_nonnull))  /*__attribute__((malloc))*/;
 void (*sc_aligned_free_fptr)(void* stream, void* ptr) noexcept;
 extern "C" float ginit() noexcept;
@@ -142,7 +141,6 @@ extern "C" int32_t ccc(void* __stream, int8_t* __restrict__ __module_data, float
     bbb(A, len, &A[100UL]);
   }
   aaa(__stream, __module_data, A, A, A, len);
-  ddd(__stream, __module_data, 0);
   void* bbb;
   ((void(*)(void*, int8_t*, int32_t))bbb)(__stream, __module_data, 2);
   return 12;
@@ -192,7 +190,6 @@ extern "C" void aaa_0wrapper(void* __stream, int8_t* __restrict__ __module_data,
 }
 
 extern "C" void ddd_0wrapper(void* __stream, int8_t* __restrict__ __module_data, generic_val* __restrict__ args) noexcept{
-  ddd(__stream, __module_data, args[0UL].v_int32_t);
 }
 
 extern "C" void __sc_init___0wrapper(void* __stream, int8_t* __restrict__ __module_data, generic_val* __restrict__ args) noexcept{
@@ -217,7 +214,6 @@ static void bbb(float* __restrict__ A, int32_t len, void* tsr) noexcept __attrib
  * @param 2
 */
 static void aaa(void* __stream, int8_t* __restrict__ __module_data, float* __restrict__ A, float* __restrict__ B, float* __restrict__ C, int32_t len) noexcept __attribute__((nonnull (2,3,4,5)));
-static void ddd(void* __stream, int8_t* __restrict__ __module_data, int32_t len) noexcept __attribute__((nonnull (2)));
 extern "C" void* sc_aligned_malloc(void* stream, uint64_t size) noexcept __attribute__((returns_nonnull))  __attribute__((malloc));
 extern "C" void sc_aligned_free(void* stream, void* ptr) noexcept;
 static float ginit() noexcept;
@@ -233,7 +229,6 @@ static int32_t ccc(void* __stream, int8_t* __restrict__ __module_data, float* __
     bbb(A, len, &A[100UL]);
   }
   aaa(__stream, __module_data, A, A, A, len);
-  ddd(__stream, __module_data, 0);
   void* bbb;
   ((void(*)(void*, int8_t*, int32_t))bbb)(__stream, __module_data, 2);
   return 12;
@@ -283,7 +278,6 @@ extern "C" void aaa_0wrapper(void* __stream, int8_t* __restrict__ __module_data,
 }
 
 static void ddd_0wrapper(void* __stream, int8_t* __restrict__ __module_data, generic_val* __restrict__ args) noexcept{
-  ddd(__stream, __module_data, args[0UL].v_int32_t);
 }
 
 )";

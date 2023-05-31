@@ -71,7 +71,6 @@ for_cont3:                                        ; preds = %for_check1
 for_cont:                                         ; preds = %for_check
   %len_v4 = load i32, i32* %len, align 4
   call void @aaa(i8* %__stream_arg, i8* %__module_data_arg, float* %A_arg, float* %A_arg, float* %A_arg, i32 %len_v4)
-  call void @ddd(i8* %__stream_arg, i8* %__module_data_arg, i32 0)
   ret i32 12
 }
 
@@ -184,18 +183,18 @@ for_cont:                                         ; preds = %for_check
 }
 
 ; Function Attrs: nounwind
+declare noalias i8* @sc_aligned_malloc(i8*, i64) #1
+
+; Function Attrs: nounwind
+declare void @sc_aligned_free(i8*, i8*) #1
+
+; Function Attrs: nounwind
 define void @ddd(i8* %__stream_arg, i8* noalias nocapture nonnull %__module_data_arg, i32 %len_arg) #0 {
 entry:
   %len = alloca i32, align 4
   store i32 %len_arg, i32* %len, align 4
   ret void
 }
-
-; Function Attrs: nounwind
-declare noalias i8* @sc_aligned_malloc(i8*, i64) #1
-
-; Function Attrs: nounwind
-declare void @sc_aligned_free(i8*, i8*) #1
 
 ; Function Attrs: nounwind
 define void @__sc_init__(i8* %__stream_arg, i8* noalias nocapture nonnull %__module_data_arg) #0 {
