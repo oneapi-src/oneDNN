@@ -28,6 +28,7 @@
 #include <compiler/ir/graph/fusion_mgr.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
+#include <runtime/dynamic_dispatch/ops/impl_type.hpp>
 #include <unordered_map>
 #include <util/utils.hpp>
 
@@ -724,6 +725,7 @@ void compute_block_broadcast(sc_graph_t &graph,
 
     COMPILE_ASSERT(bc_input_idx == 0 || bc_input_idx == 1,
             "bc_input_idx is expected to be 0 or 1")
+    bool is_blocking_shape = is_op_input_blocking_shape(info);
     const tensor_slice *in_tsl = src[1 - bc_input_idx],
                        *in_bc_tsl = src[bc_input_idx];
     bool keep_dims = in_tsl->get_base_dims().size()
@@ -795,7 +797,10 @@ void compute_block_broadcast(sc_graph_t &graph,
             // if the shape is 1, we don't use mask to process.
             bool is_last_dim_1
                     = tail.isa<constant>() && tail_int == 1 && floor_int == 0;
-            bool has_tail = (!tail.isa<constant>() || tail_int);
+            // In the dynamic scene, when the input shapes are blocking, there
+            // is no tail.
+            bool has_tail = ((!tail.isa<constant>() && !is_blocking_shape)
+                    || tail_int);
             indexing_from_diff_cond(is_last_dim_1, has_tail, dst, dst_idx,
                     lanes, indexed_target, slice_len, iter_vars.at(i));
             indexing_from_diff_cond(is_last_dim_1, has_tail, *in_tsl, in_idx,
@@ -936,9 +941,10 @@ void binary_elementwise_op_impl_t::compute_block(context_ptr ctx,
     }
     vx_info_.lanes
             = vectorize_step(ctx, info_.inputs_[0]->details_.dtype_.type_code_);
-    bool use_mask = (elt_op_ == elt_operator::DIV
-            || elt_op_ == elt_operator::ADD || elt_op_ == elt_operator::SUB
-            || elt_op_ == elt_operator::MAX);
+    bool use_mask = attrs_.get_or_else(op_attr_key::use_padded_mask, true);
+    if (get_owner_graph().is_dynamic()) {
+        use_mask &= info_.cur_impl_ != impl_kind_t::no_padding;
+    }
     // use broad-cast
     int bc_input_idx = get_broadcast_input();
     if (bc_input_idx != -1) {
