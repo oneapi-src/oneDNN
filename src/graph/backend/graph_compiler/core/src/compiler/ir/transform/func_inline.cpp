@@ -119,12 +119,27 @@ public:
     const_ir_module_ptr modu_ = nullptr;
     func_inliner_impl_t(const const_ir_module_ptr &modu = nullptr)
         : modu_(modu) {}
+
+    bool is_func_marked_inline(node_base *callee) {
+        if (auto f = dynamic_cast<func_base *>(callee)) {
+            if (modu_) {
+                if (auto real_f = modu_->get_func(f->name_)) {
+                    return any_map_t::fetch_or_else(
+                                   real_f->attr_.get(), "inline_level", -1)
+                            == 2;
+                }
+            }
+        }
+        return false;
+    }
     expr_c visit(call_c v) override {
         bool is_parallel_call = bool(!v->para_attr_.empty());
+        auto callee = v->func_;
         auto ret = ir_visitor_t::visit(std::move(v));
-        if (!is_parallel_call && ret->attr_
-                && ret->attr_->has_key("inline_level")
-                && ret->attr_->get<int>("inline_level") == 2) {
+        if (!is_parallel_call
+                && (any_map_t::fetch_or_else(ret->attr_.get(), "inline_level",
+                            -1) == 2
+                        || is_func_marked_inline(callee.get()))) {
             if (modu_) {
                 return inline_at(ret.checked_as<call>(), modu_);
             } else {
@@ -291,8 +306,35 @@ expr_c func_inliner_t::inline_at(call_c c, std::vector<stmt> &seq,
     return impl.inline_at(std::move(c), modu);
 }
 
+static func_t get_callee(const stmt &s) {
+    return s.cast<evaluate>()
+            .flat_map([](const evaluate &v) { return v->value_.cast<call>(); })
+            .map([](const call &v) {
+                return std::dynamic_pointer_cast<func_base>(v->func_);
+            })
+            .get_or_else(nullptr);
+}
+
+// check if the function is simple enough to inline. Currently, we consider a
+// function which only have eval-call as a simply function.
+static bool is_simple_func(const func_t &f) {
+    if (!f->body_.defined()) { return false; }
+    for (auto &s : f->body_.checked_as<stmts>()->seq_) {
+        if (!get_callee(s)) { return false; }
+    }
+    return true;
+}
+
 const_ir_module_ptr func_inliner_t::operator()(const_ir_module_ptr f) {
     func_inliner_impl_t impl(f);
+    auto mainf = f->get_entry_func();
+    for (auto &fu : f->get_contents()) {
+        if (fu != mainf && is_simple_func(fu)) {
+            fu->attr()["inline_level"] = 2;
+            fu->decl_->attr()["inline_level"] = 2;
+        }
+    }
+
     return dispatch_module_on_visitor(&impl, f);
 }
 
