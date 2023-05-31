@@ -87,9 +87,9 @@ struct slm_plan_t : public base_plan_t {
     layout_t b_layout;
     send_plan_t a_g2s_load;
     send_plan_t b_g2s_load;
-    tensor_t b_reduce_tile;
-    layout_t b_reduce_layout;
-    reduce_plan_t b_reduce;
+    tensor_t x_reduce_tile;
+    layout_t x_reduce_layout;
+    reduce_plan_t x_reduce;
     reorder_plan_t a_reorder;
     reorder_plan_t b_reorder;
     send_plan_t a_g2s_store;
@@ -98,7 +98,7 @@ struct slm_plan_t : public base_plan_t {
     grid_info_t b_grid;
 
     slm_plan_t(ngen::HW hw)
-        : base_plan_t(hw), b_reduce(hw), a_reorder(hw), b_reorder(hw) {}
+        : base_plan_t(hw), x_reduce(hw), a_reorder(hw), b_reorder(hw) {}
 
     explicit operator bool() const { return has_a() || has_b(); }
     bool has_a() const { return (bool)a_g2s_load; }
@@ -131,9 +131,9 @@ struct prefetch_plan_t : public base_plan_t {
 struct x2r_plan_t : public base_plan_t {
     send_plan_t a_load;
     send_plan_t b_load;
-    tensor_t b_reduce_tile;
-    layout_t b_reduce_layout;
-    reduce_plan_t b_reduce;
+    tensor_t x_reduce_tile;
+    layout_t x_reduce_layout;
+    reduce_plan_t x_reduce;
     reorder_plan_t a_reorder;
     reorder_plan_t b_reorder;
     layout_t a_layout;
@@ -142,7 +142,7 @@ struct x2r_plan_t : public base_plan_t {
     int split_factor = 1;
 
     x2r_plan_t(ngen::HW hw)
-        : base_plan_t(hw), b_reduce(hw), a_reorder(hw), b_reorder(hw) {}
+        : base_plan_t(hw), x_reduce(hw), a_reorder(hw), b_reorder(hw) {}
 
     bool can_split(abc_kind_t abc, int factor) const;
     void set_split(abc_kind_t abc = abc_kind_t::undef, int factor = 1);
@@ -227,11 +227,11 @@ struct conv_plan_t : public base_plan_t {
     conv_plan_t(ngen::HW hw)
         : base_plan_t(hw), slm(hw), prefetch(hw), x2r(hw), fma(hw), zp(hw) {}
 
-    const tensor_t &b_reduce_tile() const {
-        if (!x2r.b_reduce_tile.is_empty()) return x2r.b_reduce_tile;
-        if (!slm.b_reduce_tile.is_empty()) return slm.b_reduce_tile;
+    const tensor_t &x_reduce_tile() const {
+        if (!x2r.x_reduce_tile.is_empty()) return x2r.x_reduce_tile;
+        if (!slm.x_reduce_tile.is_empty()) return slm.x_reduce_tile;
         ir_error_not_expected();
-        return x2r.b_reduce_tile;
+        return x2r.x_reduce_tile;
     }
 
     bool can_split(abc_kind_t abc, int factor) const;

@@ -626,13 +626,23 @@ void init_bwd_w(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     }
 
     // Initialize GEMM schedule.
-    gemm_schedule.set_a_view(src_view);
-    gemm_schedule.set_b_view(dst_view);
+    if (prb_.ab_swap_transpose) {
+        gemm_schedule.set_a_view(dst_view);
+        gemm_schedule.set_b_view(src_view);
+    }else{
+        gemm_schedule.set_a_view(src_view);
+        gemm_schedule.set_b_view(dst_view);
+    }
     gemm_schedule.set_c_view(wei_view);
     gemm_schedule.set_b_vars({g});
-    gemm_schedule.set_m_vars({ic, kw});
-    gemm_schedule.set_n_vars({oc});
-    gemm_schedule.set_k_vars({mb, od, oh, ow});
+    if (prb_.ab_swap_transpose) {
+        gemm_schedule.set_m_vars({oc});
+        gemm_schedule.set_n_vars({ic, kw});
+    }else{
+        gemm_schedule.set_m_vars({ic, kw});
+        gemm_schedule.set_n_vars({oc});
+    }
+        gemm_schedule.set_k_vars({mb, od, oh, ow});
 
     gemm_schedule.for_each_var([&](const expr_t &var) {
         int bound
@@ -656,12 +666,19 @@ void init_bwd_w(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     auto g_mb_grid_idx
             = gemm_schedule.fuse({g_tile.grid_idx(), mb_tile.grid_idx()});
 
-    gemm_schedule.bind(oc_tile.grid_idx(), cfg_.kernel_grid().idx(0));
-    gemm_schedule.bind(osp_ksp_ic_grid_idx, cfg_.kernel_grid().idx(1));
-    gemm_schedule.bind(g_mb_grid_idx, cfg_.kernel_grid().idx(2));
-
-    gemm_schedule.bind(oc_tile.tg_idx(), cfg_.thread_group_grid().idx(0));
-    gemm_schedule.bind(ic_tile.tg_idx(), cfg_.thread_group_grid().idx(1));
+    if (prb_.ab_swap_transpose) {
+        gemm_schedule.bind(osp_ksp_ic_grid_idx, cfg_.kernel_grid().idx(0));
+        gemm_schedule.bind(g_mb_grid_idx, cfg_.kernel_grid().idx(1));
+        gemm_schedule.bind(oc_tile.grid_idx(), cfg_.kernel_grid().idx(2));
+        gemm_schedule.bind(ic_tile.tg_idx(), cfg_.thread_group_grid().idx(0));
+        gemm_schedule.bind(oc_tile.tg_idx(), cfg_.thread_group_grid().idx(1));
+    }else{
+        gemm_schedule.bind(oc_tile.grid_idx(), cfg_.kernel_grid().idx(0));
+        gemm_schedule.bind(osp_ksp_ic_grid_idx, cfg_.kernel_grid().idx(1));
+        gemm_schedule.bind(g_mb_grid_idx, cfg_.kernel_grid().idx(2));
+        gemm_schedule.bind(oc_tile.tg_idx(), cfg_.thread_group_grid().idx(0));
+        gemm_schedule.bind(ic_tile.tg_idx(), cfg_.thread_group_grid().idx(1));
+    }
 
     gemm_schedule.reorder({od_tile.loop_idx(), oh_tile.loop_idx(),
             ow_tile.loop_idx(), mb_tile.loop_idx()});
@@ -790,7 +807,7 @@ std::string slm_plan_t::str() const {
         if (b_reorder) oss << b_reorder.str("b_reorder") << std::endl;
         oss << b_g2s_store.str("b_g2s_store") << std::endl;
     }
-    if (b_reduce) { oss << b_reduce.str("b_reduce") << std::endl; }
+    if (x_reduce) { oss << x_reduce.str("x_reduce") << std::endl; }
     return add_indent("slm_plan", oss.str());
 }
 
@@ -811,7 +828,7 @@ bool x2r_plan_t::can_split(abc_kind_t abc, int factor) const {
     int dim_idx = layout.blocks().back().dim_idx;
     if (reorder && !reorder.src.has_outer_block(factor, dim_idx)) return false;
     if (!load.can_split(factor)) return false;
-    if (abc == abc_kind_t::b && !b_reduce.can_split(factor)) return false;
+    if (!x_reduce.can_split(factor)) return false;
     return true;
 }
 
@@ -822,7 +839,7 @@ void x2r_plan_t::set_split(abc_kind_t abc, int factor) {
     a_reorder.set_split(1);
     b_load.set_split(1);
     b_reorder.set_split(1);
-    b_reduce.set_split(1);
+    x_reduce.set_split(1);
     split_abc = abc;
     split_factor = factor;
     switch (abc) {
@@ -833,7 +850,7 @@ void x2r_plan_t::set_split(abc_kind_t abc, int factor) {
         case abc_kind_t::b:
             b_load.set_split(factor);
             b_reorder.set_split(factor);
-            b_reduce.set_split(factor);
+            x_reduce.set_split(factor);
             break;
         default: break;
     }
@@ -849,7 +866,7 @@ int x2r_plan_t::estimate_regs(bool reuse_headers) const {
     ret += utils::div_up(b_size, grf_size());
     ret += a_load.estimate_regs(/*with_buffer=*/false, reuse_headers);
     ret += b_load.estimate_regs(/*with_buffer=*/false, reuse_headers);
-    ret += b_reduce.estimate_regs();
+    ret += x_reduce.estimate_regs();
     ret += a_reorder.estimate_regs();
     ret += b_reorder.estimate_regs();
     return ret;
@@ -859,7 +876,7 @@ std::string x2r_plan_t::str() const {
     std::ostringstream oss;
     oss << a_load.str("a_load") << std::endl;
     oss << b_load.str("b_load") << std::endl;
-    if (b_reduce) oss << b_reduce.str("b_reduce") << std::endl;
+    if (x_reduce) oss << x_reduce.str("x_reduce") << std::endl;
     if (a_reorder) oss << a_reorder.str("a_reorder") << std::endl;
     if (b_reorder) oss << b_reorder.str("b_reorder") << std::endl;
     oss << "a_layout: " << a_layout << std::endl;
@@ -1010,8 +1027,8 @@ grf_usage_t conv_plan_t::grf_usage() const {
 
     int out_buf_regs = 0;
     out_buf_regs += utils::div_up(fma.c_layout.size(), grf_size());
-    out_buf_regs += utils::div_up(slm.b_reduce.dst_buf_size(), grf_size());
-    out_buf_regs += utils::div_up(x2r.b_reduce.dst_buf_size(), grf_size());
+    out_buf_regs += utils::div_up(slm.x_reduce.dst_buf_size(), grf_size());
+    out_buf_regs += utils::div_up(x2r.x_reduce.dst_buf_size(), grf_size());
 
     int gmem_load_buf_regs = 0;
     gmem_load_buf_regs += slm.a_g2s_load.estimate_regs(
@@ -1450,7 +1467,7 @@ struct reduce_mask_t {
 
 bool do_reduce(const conv_config_t &cfg, abc_kind_t abc) {
     auto &prb = cfg.prb();
-    return (abc == abc_kind_t::b) && prb.is_bwd_w && prb.with_bias;
+    return ((abc == abc_kind_t::b && !prb.ab_swap_transpose) || (abc == abc_kind_t::a && prb.ab_swap_transpose)) && prb.is_bwd_w && prb.with_bias;
 }
 
 reduce_mask_t reduce_mask(const conv_config_t &cfg, abc_kind_t abc) {
@@ -1975,11 +1992,12 @@ private:
     plan_status_t init_slm_plan(slm_plan_t &plan) const {
         PLAN_CHECK(init_x_slm_plan(abc_kind_t::a, gemm_schedule_.a_tg_view(),
                 plan.a_layout, plan.a_grid, plan.a_g2s_load, plan.a_g2s_store,
-                plan.a_reorder));
+                plan.a_reorder, reduce_mask(cfg_, abc_kind_t::a),
+                &plan.x_reduce, &plan.x_reduce_tile));
         PLAN_CHECK(init_x_slm_plan(abc_kind_t::b, gemm_schedule_.b_tg_view(),
                 plan.b_layout, plan.b_grid, plan.b_g2s_load, plan.b_g2s_store,
                 plan.b_reorder, reduce_mask(cfg_, abc_kind_t::b),
-                &plan.b_reduce, &plan.b_reduce_tile));
+                &plan.x_reduce, &plan.x_reduce_tile));
         return plan_status_t::success;
     }
 
@@ -2179,12 +2197,13 @@ private:
         PLAN_CHECK(init_x_g2r_plan(abc_kind_t::a, slm.has_a(),
                 gemm_schedule_.a_tg_view(), gemm_schedule_.a_thr_tile(),
                 gemm_schedule_.a_thr_tile(/*is_relative=*/false), plan.a_load,
-                plan.a_reorder, plan.a_layout));
+                plan.a_reorder, plan.a_layout, reduce_mask(cfg_, abc_kind_t::a),
+                &plan.x_reduce, &plan.x_reduce_tile));
         PLAN_CHECK(init_x_g2r_plan(abc_kind_t::b, slm.has_b(),
                 gemm_schedule_.b_tg_view(), gemm_schedule_.b_thr_tile(),
                 gemm_schedule_.b_thr_tile(/*is_relative=*/false), plan.b_load,
                 plan.b_reorder, plan.b_layout, reduce_mask(cfg_, abc_kind_t::b),
-                &plan.b_reduce, &plan.b_reduce_tile));
+                &plan.x_reduce, &plan.x_reduce_tile));
         PLAN_CHECK(verify_2d());
         PLAN_CHECK(fixup_k_blocks_order(plan.a_layout, plan.b_layout));
         return plan_status_t::success;

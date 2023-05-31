@@ -192,7 +192,7 @@ public:
     void set_ap_buf(const expr_t &buf) { ap_buf_ = buf; }
     void set_bp_buf(const expr_t &buf) { bp_buf_ = buf; }
     void set_cp_buf(const expr_t &buf) { cp_buf_ = buf; }
-    void set_b_reduce_buf(const expr_t &buf) { b_reduce_buf_ = buf; }
+    void set_x_reduce_buf(const expr_t &buf) { x_reduce_buf_ = buf; }
 
     int ab_slm_size() const { return plan_.slm.slm_size(); }
 
@@ -200,10 +200,10 @@ public:
         auto c_entry = buf_mgr_.find("c");
         auto ret = stmt_group_t::make(stmt_label_t::c_zero_out(),
                 funcs::zero_out(c_entry.buf, c_entry.size));
-        auto b_reduce_entry = buf_mgr_.find("b_reduce", /*allow_empty=*/true);
-        if (!b_reduce_entry.is_empty()) {
+        auto x_reduce_entry = buf_mgr_.find("x_reduce", /*allow_empty=*/true);
+        if (!x_reduce_entry.is_empty()) {
             ret = ret.append(
-                    funcs::zero_out(b_reduce_entry.buf, b_reduce_entry.size));
+                    funcs::zero_out(x_reduce_entry.buf, x_reduce_entry.size));
         }
         return ret;
     }
@@ -237,14 +237,14 @@ public:
 
     const stmt_t &c_store_stmt() const { return c_store_stmt_; }
 
-    const stmt_t &b_reduced_store_stmt() const { return b_reduce_store_stmt_; }
+    const stmt_t &x_reduced_store_stmt() const { return x_reduce_store_stmt_; }
 
     void build() {
         build_g2s();
         build_prefetch();
         build_x2r_mul();
         build_c_store();
-        build_b_reduce_store();
+        build_x_reduce_store();
 
         // Replace dpas by dpasw when applicable.
         if (cfg_.fma_kind() == fma_kind_t::dpasw) {
@@ -271,19 +271,19 @@ private:
 
     static bool is_out_alloc_buf(const expr_t &buf) {
         auto &buf_name = buf.as<var_t>().name;
-        return utils::one_of(buf_name, "b_reduce", "c");
+        return utils::one_of(buf_name, "x_reduce", "c");
     }
 
     void build_g2s() {
         auto &slm = plan_.slm;
         if (slm.has_a()) {
             build_g2s_x("a", ap_buf_, buf_mgr_.get("a_slm"), slm.a_g2s_load,
-                    layout_t(), reduce_plan_t(), slm.a_reorder, slm.a_g2s_store,
-                    slm.a_grid);
+                    slm.x_reduce_layout, slm.x_reduce, slm.a_reorder,
+                    slm.a_g2s_store, slm.a_grid);
         }
         if (slm.has_b()) {
             build_g2s_x("b", bp_buf_, buf_mgr_.get("b_slm"), slm.b_g2s_load,
-                    slm.b_reduce_layout, slm.b_reduce, slm.b_reorder,
+                    slm.x_reduce_layout, slm.x_reduce, slm.b_reorder,
                     slm.b_g2s_store, slm.b_grid);
         }
     }
@@ -296,7 +296,7 @@ private:
         auto g2s_buf = buf_mgr_.get(prefix + "_g2s", g2s_load.reg_buf_size());
         auto load = g2s_load.create_stmt(mem_buf, g2s_buf);
         auto reduce_buf = g2s_reduce
-                ? buf_mgr_.get("b_reduce", g2s_reduce.dst_buf_size())
+                ? buf_mgr_.get("x_reduce", g2s_reduce.dst_buf_size())
                 : expr_t();
         auto store_buf = g2s_reorder
                 ? buf_mgr_.get("g2s_tmp", g2s_store.reg_buf_size())
@@ -307,7 +307,11 @@ private:
         if (g2s_reorder) {
             g2s_buf = buf_mgr_.get(prefix + "_g2s", g2s_reorder.src.size());
         }
-        auto reduce = g2s_reduce.create_stmt(g2s_buf, reduce_buf);
+        bool do_reduce = ((cfg_.prb().ab_swap_transpose && prefix == "a")
+                || (!cfg_.prb().ab_swap_transpose && prefix == "b"));
+        auto reduce = do_reduce
+                ? g2s_reduce.create_stmt(g2s_buf, reduce_buf)
+                : reduce_plan_t().create_stmt(g2s_buf, expr_t());
         auto reorder = g2s_reorder.create_stmt(g2s_buf, store_buf);
         auto store = g2s_store.create_stmt(slm_buf, store_buf);
         store = reduce.append(reorder).append(store);
@@ -354,9 +358,9 @@ private:
         auto bx_buf = plan_.slm.has_b() ? buf_mgr_.get("b_slm") : bp_buf_;
         stmt_t g2r_load_stmt;
         stmt_t s2r_load_stmt;
-        build_x2r_x("a", ax_buf, subtile_idx, x2r.a_load, reduce_plan_t(),
+        build_x2r_x("a", ax_buf, subtile_idx, x2r.a_load, x2r.x_reduce,
                 x2r.a_reorder, x2r.a_buf_size(), g2r_load_stmt, s2r_load_stmt);
-        build_x2r_x("b", bx_buf, subtile_idx, x2r.b_load, x2r.b_reduce,
+        build_x2r_x("b", bx_buf, subtile_idx, x2r.b_load, x2r.x_reduce,
                 x2r.b_reorder, x2r.b_buf_size(), g2r_load_stmt, s2r_load_stmt);
         g2r_load_stmt = stmt_group_t::make(
                 stmt_label_t::g2r_load(subtile_idx), g2r_load_stmt);
@@ -410,10 +414,14 @@ private:
             reg_buf = buf_mgr_.get(prefix, x2r_load.reg_buf_size());
         }
         auto reduce_buf = x2r_reduce
-                ? buf_mgr_.get("b_reduce", x2r_reduce.dst_buf_size())
+                ? buf_mgr_.get("x_reduce", x2r_reduce.dst_buf_size())
                 : expr_t();
         auto load = x2r_load.create_stmt(x_buf, load_buf, subtile_idx);
-        auto reduce = x2r_reduce.create_stmt(load_buf, reduce_buf);
+        bool do_reduce = ((cfg_.prb().ab_swap_transpose && prefix == "a")
+                || (!cfg_.prb().ab_swap_transpose && prefix == "b"));
+        auto reduce = do_reduce
+                ? x2r_reduce.create_stmt(load_buf, reduce_buf)
+                : reduce_plan_t().create_stmt(reg_buf, expr_t());
         auto reorder = x2r_reorder.create_stmt(load_buf, reg_buf);
         auto &load_stmt = x2r_load.send_params().is_slm() ? s2r_load_stmt
                                                           : g2r_load_stmt;
@@ -500,7 +508,7 @@ private:
         c_store_stmt_ = c_store_stmt_.append(stmt);
     }
 
-    expr_t get_b_reduce_store_condition() {
+    expr_t get_x_reduce_store_condition() {
         auto &gemm_schedule = plan_.gemm_schedule;
         auto &c_view = gemm_schedule.c_view();
         auto &kd = c_view.vvar("kd");
@@ -522,20 +530,20 @@ private:
         return cond;
     }
 
-    void build_b_reduce_store() {
+    void build_x_reduce_store() {
         auto &gemm_schedule = plan_.gemm_schedule;
         bool use_atomic
                 = gemm_schedule.with_kernel_grid_k_slicing() || cfg_.slm().b();
-        auto b_reduce_buf = buf_mgr_.find("b_reduce", /*allow_empty=*/true).buf;
-        if (b_reduce_buf.is_empty()) return;
-        auto b_reduce_view
-                = plan_.bia_view.create_sub_view(plan_.b_reduce_tile());
-        auto r2g = make_access_builder(ir_ctx_, b_reduce_view, b_reduce_buf_,
-                b_reduce_buf,
+        auto x_reduce_buf = buf_mgr_.find("x_reduce", /*allow_empty=*/true).buf;
+        if (x_reduce_buf.is_empty()) return;
+        auto x_reduce_view
+                = plan_.bia_view.create_sub_view(plan_.x_reduce_tile());
+        auto r2g = make_access_builder(ir_ctx_, x_reduce_view, x_reduce_buf_,
+                x_reduce_buf,
                 use_atomic ? send_op_t::atomic_fadd : send_op_t::store,
                 send_address_t::a64);
-        auto cond = get_b_reduce_store_condition();
-        b_reduce_store_stmt_ = if_t::make(cond, r2g.stmt());
+        auto cond = get_x_reduce_store_condition();
+        x_reduce_store_stmt_ = if_t::make(cond, r2g.stmt());
     }
 
     std::vector<func_t> create_fma_funcs(const fma_plan_t &fma) const {
@@ -605,14 +613,14 @@ private:
     stmt_t prefetch_stmt_;
     stmt_t x2r_mul_stmt_;
     stmt_t c_store_stmt_;
-    stmt_t b_reduce_store_stmt_;
+    stmt_t x_reduce_store_stmt_;
 
     buffer_manager_t buf_mgr_;
 
     expr_t ap_buf_;
     expr_t bp_buf_;
     expr_t cp_buf_;
-    expr_t b_reduce_buf_;
+    expr_t x_reduce_buf_;
 };
 
 class compute_loop_label_injector_t : public ir_mutator_t {
@@ -665,15 +673,15 @@ void conv_ir_builder_t::build() {
     view_t c_view;
     view_t bp_reduced_view;
 
-    expr_t ap_buf = kernel_info_.find_arg(
-            prb.ab_swap_transpose ? "wei" : (prb.is_bwd_d ? "dst" : "src"));
+    expr_t ap_buf = kernel_info_.find_arg(prb.ab_swap_transpose
+                    ? (prb.is_bwd_w ? "dst" : "wei")
+                    : (prb.is_bwd_d ? "dst" : "src"));
     expr_t bp_buf = kernel_info_.find_arg(
-            (prb.is_bwd_w || (prb.is_bwd_d && prb.ab_swap_transpose))
-                    ? "dst"
-                    : (prb.ab_swap_transpose ? "src" : "wei"));
+            (prb.ab_swap_transpose ? (prb.is_bwd_d ? "dst" : "src")
+                                   : (prb.is_bwd_w ? "dst" : "wei")));
     expr_t cp_buf = kernel_info_.find_arg(
             prb.is_fwd ? "dst" : (prb.is_bwd_d ? "src" : "wei"));
-    expr_t b_reduced_mem_buf
+    expr_t x_reduced_mem_buf
             = kernel_info_.find_arg("bia", /*allow_empty=*/true);
     expr_t b_reduction_condition;
 
@@ -684,7 +692,7 @@ void conv_ir_builder_t::build() {
     cb.set_ap_buf(ap_buf);
     cb.set_bp_buf(bp_buf);
     cb.set_cp_buf(cp_buf);
-    cb.set_b_reduce_buf(b_reduced_mem_buf);
+    cb.set_x_reduce_buf(x_reduced_mem_buf);
     cb.build();
 
     trace_stamp("Compute Builder");
@@ -703,7 +711,7 @@ void conv_ir_builder_t::build() {
     loop_stmt = cb.inject_compute_alloc_stmts(loop_stmt);
 
     stmt_t c_store_stmt;
-    c_store_stmt = c_store_stmt.append(cb.b_reduced_store_stmt());
+    c_store_stmt = c_store_stmt.append(cb.x_reduced_store_stmt());
     c_store_stmt = c_store_stmt.append(cb.c_store_stmt());
     c_store_stmt = stmt_group_t::make(stmt_label_t::c_store(), c_store_stmt);
 

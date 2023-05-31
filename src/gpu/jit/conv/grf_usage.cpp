@@ -252,7 +252,7 @@ private:
         if (is_invalid_) return;
         ir_assert(is_buffer(buf));
         auto &name = buf.as<var_t>().name;
-        if (name.find("b_reduce") == 0) {
+        if (name.find("x_reduce") == 0) {
             set_label(buf, grf_usage_label_t::out_buf);
         } else if (name.find("zp_") == 0 || name.find("src_zp") == 0) {
             set_label(buf, grf_usage_label_t::zero_points);
@@ -264,7 +264,7 @@ private:
         auto &name = buf.as<var_t>().name;
         if (name.find("zp_") == 0) return true;
         if (name.find("src_zp") == 0) return true;
-        if (name.find("b_reduce")) return true;
+        if (name.find("x_reduce")) return true;
         return false;
     }
 
