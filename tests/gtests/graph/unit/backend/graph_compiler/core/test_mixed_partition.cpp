@@ -361,7 +361,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp,
     EXPECT_EQ(ss.str(), expected_str);
 }
 
-TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphSpecialReorder) {
+TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphOptimizedReorder) {
     REQUIRE_AVX2();
     sc_graph_t graph;
 
@@ -387,6 +387,37 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphSpecialReorder) {
     std::string expected_str
             = R"(graph(v0: f32[10, 64, 32, 32], v1: f32[10, 64, 32, 32]) -> [v2: f32[10, 2, 32, 32, 32]] {
   [v2: f32[10, 2, 32, 32, 32]] = outerloop_10_partition_mul_reorder(v0, v1)
+}
+)";
+    EXPECT_EQ(ss.str(), expected_str);
+}
+
+TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphLastDimPaddedReorder) {
+    REQUIRE_AVX2();
+    sc_graph_t graph;
+
+    auto input0 = graph.make_input(
+            {graph_tensor::make({32, 31}, sc_data_format_t::MKmk(4, 48))});
+    auto input1 = graph.make_input(
+            {graph_tensor::make({32, 31}, sc_data_format_t::MKmk(4, 32))});
+
+    auto relu_node = graph.make("relu", {input0->get_outputs()[0]}, {}, {});
+    // This reorder is speical reoder case with last dim padded and would not
+    // break following `mul` fusion
+    auto reo_node = graph.make("reorder", {relu_node->get_outputs()[0]}, {},
+            {{"out_format", sc_data_format_t::MKmk(4, 32)}});
+    auto mul_node = graph.make("mul",
+            {reo_node->get_outputs()[0], input1->get_outputs()[0]}, {}, {});
+
+    auto output0 = graph.make_output(mul_node->get_outputs());
+
+    auto ctx = get_test_ctx();
+    mixed_partition(graph, ctx);
+    std::stringstream ss;
+    print_graph(graph, ss, true);
+    std::string expected_str
+            = R"(graph(v0: f32[8, 1, 4, 48], v1: f32[8, 1, 4, 32]) -> [v2: f32[8, 1, 4, 32]] {
+  [v2: f32[8, 1, 4, 32]] = outerloop_8X1X4_partition_relu_reorder_mul(v0, v1)
 }
 )";
     EXPECT_EQ(ss.str(), expected_str);
