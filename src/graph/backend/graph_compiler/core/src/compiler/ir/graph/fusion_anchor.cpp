@@ -180,11 +180,11 @@ bool fuse_anchor_map_t::validate_input_for_op(
                     cur = cur->parent_.get();
                     // if input is ready on cur anchor, its input slice range
                     // should not be empty
-                    if ((!(dep_op->isa<tunable_op_t>()
-                                 && parti->is_parti_inp(dep_inp))
-                                && !cur->fsmap_.hasvalue(dep_inp))
-                            || !cur->fsmap_.hasvalue(gt))
+                    if (!cur->fsmap_.hasvalue(gt)
+                            || (!parti->is_parti_inp(dep_inp)
+                                    && !cur->fsmap_.hasvalue(dep_inp))) {
                         continue;
+                    }
                     slice_range_list cur_slice = cur->fsmap_.get(gt);
                     auto res = cmp_slice_range(inferred_slice, cur_slice);
                     if (res != cmp_res::l_larger_r) {
@@ -236,6 +236,40 @@ bool fuse_anchor_map_t::check_input_for_op(
         }
     }
     return !(input_blocked || known_gt.empty());
+}
+
+bool fuse_anchor_map_t::is_small_op_workload(const sc_op *op) {
+    if (op->is_dynamic() || !op->isa<fusible_op_t>()) return false;
+    auto fusible_op = op->dyn_cast<const fusible_op_t>();
+    // collect inputs and outputs
+    auto gt_list = fusible_op->get_inputs();
+    gt_list.insert(gt_list.end(), fusible_op->get_outputs().begin(),
+            fusible_op->get_outputs().end());
+    // zero-init workload value
+    size_t wkld = 0;
+    // count of avaliable computation
+    size_t computed_count = 0;
+    // SigMa workload computation
+    for (auto &gt : gt_list) {
+        // if slice info is not found
+        if (!fsmap_.hasvalue(gt)) continue;
+        auto &slice_list = fsmap_.get(gt);
+        // if unexpected cases found, directly return threshold
+        if (is_dynamic_slice_range_list(slice_list) || slice_list.size() != 1)
+            return false;
+        auto slice_shape = get_expr_to_dims(get_slice_shape(slice_list[0]));
+        // compute workload: tensor shrink shape / dtype step
+        wkld += utils::divide_and_ceil(get_dims_product(slice_shape),
+                vectorize_step(get_binded_mxp()->ctx_,
+                        gt->details_.dtype_.type_code_));
+        computed_count++;
+    };
+    COMPILE_ASSERT(computed_count, "No workload computed")
+    // roughly compute if necessary
+    if (computed_count != gt_list.size()) {
+        wkld = wkld / computed_count * gt_list.size();
+    }
+    return wkld < mixed_partition_hint::small_op_workload_threshold;
 }
 
 void fuse_iter_anchor_map_t::commit(const stmt &s) {

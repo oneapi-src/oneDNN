@@ -103,12 +103,19 @@ bool static_fusion_cost_model_t::make_decision_for_parti(
             = evaluate_loop_parallel_balance(merged_outer_loop);
     if (merged_loop_parallelism < ths_loop_parallelism
             || merged_loop_parallelism < other_loop_parallelism) {
-        SC_MODULE_INFO << "rejects to merge two "
-                          "partition: "
-                       << binded_mxp_->func_->name_ << " and "
-                       << parti->func_->name_
-                       << " from perspective of loop parallelism";
-        return false;
+        // evalute workload size
+        if (!evaluate_loop_parallel_balance(merged_outer_loop, true)
+                || ((merged_loop_parallelism < ths_loop_parallelism)
+                        && !binded_mxp_->is_small_workload())
+                || ((merged_loop_parallelism < other_loop_parallelism)
+                        && !parti->is_small_workload())) {
+            SC_MODULE_INFO << "rejects to merge two "
+                              "partition: "
+                           << binded_mxp_->func_->name_ << " and "
+                           << parti->func_->name_
+                           << " from perspective of loop parallelism";
+            return false;
+        }
     }
 
     /* cache efficiency */
@@ -175,7 +182,10 @@ bool static_fusion_cost_model_t::make_decision_for_op(
                         binded_mxp_->get_outer_loops(), true)) {
             // if new parti created by op owning more loop parallelism, reject
             // to fuse it
-            if (standalone_parallel > fanchor_loop_parallelism) { ret = false; }
+            if (standalone_parallel > fanchor_loop_parallelism
+                    && !fanchor->is_small_op_workload(op)) {
+                ret = false;
+            }
         } else if (!ret
                 && evaluate_loop_parallel_balance(
                         binded_mxp_->get_outer_loops(fanchor), true)) {

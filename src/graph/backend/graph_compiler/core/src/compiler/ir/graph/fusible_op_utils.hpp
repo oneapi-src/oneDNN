@@ -152,6 +152,8 @@ void create_fusible_output_anchor(stmt &parent, const tensor_slice &dst,
 cmp_res cmp_slice_range(const slice_range_list &left_slice_range_list,
         const slice_range_list &right_slice_range_list);
 
+bool is_dynamic_slice_range_list(const slice_range_list &in_slice_range_list);
+
 // workload penalty coefficient for transpose/reorder measured by
 // for(i, 0, 128){
 //     for(j, 0, 256){

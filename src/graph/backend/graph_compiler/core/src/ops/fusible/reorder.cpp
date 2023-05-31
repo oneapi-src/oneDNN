@@ -895,12 +895,6 @@ void reorder_op_t::pre_slice_ranges(
                         && !check_required_slice(get_outputs()[0],
                                 known_ranges_list, len_from_last))) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-        } else {
-            // set input slice for anchor check
-            fsmap.get(get_inputs()[0])
-                    = slice_range_list {gen_slice_by_dims_expr(
-                            get_inputs()[0]->details_.get_blocking_dims_expr(
-                                    get_owner_graph()))};
         }
         return;
     }
