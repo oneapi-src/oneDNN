@@ -1024,9 +1024,11 @@ stmt_t access_builder_t::create_send_stmt(
     return ret;
 }
 
+static const int any_block = 0;
+
 send_2d_hint_t get_send_2d_hint(send_op_t send_op, const type_t &_type,
-        bool vnni, bool transpose, int w_tile, int h_tile, int w_blk = 0,
-        int h_blk = 0) {
+        bool vnni, bool transpose, int w_tile, int h_tile,
+        int w_blk = any_block, int h_blk = any_block) {
     auto type = _type;
 
     ir_assert(!(vnni && transpose)) << "VNNI with transpose is not supported.";
@@ -1064,22 +1066,32 @@ send_2d_hint_t get_send_2d_hint(send_op_t send_op, const type_t &_type,
     int h_min = (vnni ? (4 / type.size()) : 1);
     int h_max = (is_load_or_prefetch ? 32 : 8);
 
-    if (w_blk > 0 && (w_blk < w_min || w_blk > w_max)) return send_2d_hint_t();
-    if (h_blk > 0 && (h_blk < h_min || h_blk > h_max)) return send_2d_hint_t();
+    if (w_blk != any_block && (w_blk < w_min || w_blk > w_max))
+        return send_2d_hint_t();
+    if (h_blk != any_block && (h_blk < h_min || h_blk > h_max))
+        return send_2d_hint_t();
 
     auto find_block = [&](int dim, int min, int max) {
         for (int b = max; b >= min; b--) {
             if (dim % b == 0) return b;
         }
-        return 0;
+        return -1;
     };
 
-    if (w_blk == 0) w_blk = find_block(w_tile, w_min, w_max);
-    if (h_blk == 0) h_blk = find_block(h_tile, h_min, h_max);
-    if (w_blk == 0 || h_blk == 0) return send_2d_hint_t();
+    if (w_blk == any_block) w_blk = find_block(w_tile, w_min, w_max);
+    if (h_blk == any_block) h_blk = find_block(h_tile, h_min, h_max);
+    if (w_blk == -1 || h_blk == -1) return send_2d_hint_t();
 
-    if (vnni && h_blk > 0) h_blk = find_block(h_tile, h_blk, h_max);
-    if (transpose && w_blk > 0) w_blk = find_block(w_tile, w_blk, w_max);
+    if (vnni) {
+        // TODO: Remove.
+        ir_assert(h_blk > 0);
+        h_blk = find_block(h_tile, h_blk, h_max);
+    }
+    if (transpose && w_blk > 0) {
+        // TODO: Remove.
+        ir_assert(w_blk > 0);
+        w_blk = find_block(w_tile, w_blk, w_max);
+    }
 
     send_2d_hint_t hint;
     hint.type = type;
@@ -1140,7 +1152,7 @@ send_2d_hint_t get_send_2d_hint(const exec_config_t &exec_cfg,
         // src2, NxK: 16a16b -> 16a16b            ()
         bool is_dpas_src1 = (abc_kind == abc_kind_t::b);
         int m_blk = exec_cfg.simd();
-        int n_blk = 0;
+        int n_blk = any_block;
         int mn_blk = (is_dpas_src1 ? m_blk : n_blk);
         int k_blk = 32 / view.type().size();
         bool is_b0_k = (bmnk_mapper.bmnk_kind(abc_kind, b0.dim_idx)
@@ -1149,8 +1161,8 @@ send_2d_hint_t get_send_2d_hint(const exec_config_t &exec_cfg,
         bool transpose = (is_dpas_src1 == is_b0_k);
         int b0_blk = is_b0_k ? k_blk : mn_blk;
         int b1_blk = !is_b0_k ? k_blk : mn_blk;
-        if (b0_blk != 0 && b0.block % b0_blk != 0) return hint;
-        if (b1_blk != 0 && b1.block % b1_blk != 0) return hint;
+        if (b0_blk != any_block && b0.block % b0_blk != 0) return hint;
+        if (b1_blk != any_block && b1.block % b1_blk != 0) return hint;
         hint = get_send_2d_hint(send_op, view.type(), vnni, transpose, b0.block,
                 b1.block, b0_blk, b1_blk);
     } else {
