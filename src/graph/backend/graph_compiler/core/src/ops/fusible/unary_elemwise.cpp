@@ -24,6 +24,7 @@
 #include <compiler/ir/graph/brgemm_fusion.hpp>
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
+#include <runtime/dynamic_dispatch/ops/impl_type.hpp>
 #include <runtime/microkernel/cpu/brgemm_alg_kind.hpp>
 #include <util/utils.hpp>
 
@@ -81,8 +82,11 @@ void unary_elementwise_op_impl_t::compute_block(context_ptr ctx,
                         std::vector<expr::lvalue_proxy_t> &out) -> stmt {
         return builder::make_assign_unattached(out[0], compute_element(in[0]));
     };
-    // Currenly only support for exp
-    bool use_mask = op_name_ == "exp";
+    // default use mask
+    bool use_mask = attrs_.get_or_else(op_attr_key::use_padded_mask, true);
+    if (get_owner_graph().is_dynamic()) {
+        use_mask &= info_.cur_impl_ != impl_kind_t::no_padding;
+    }
     compute_vectorized_op(get_owner_graph(), inputs, *dst[0], info_, vx_info_,
             mask_compute_func_t(func), mask_compute_func_t(func), attrs_, wkld,
             use_mask);

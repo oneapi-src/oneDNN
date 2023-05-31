@@ -54,6 +54,13 @@ bool check_graph_config(
  * */
 SC_INTERNAL_API void graph_constant_input_folding(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+/**
+ * Mark the elementwise op with padded input/output could use output mask(not
+ * mask load/store) or not. The op could use mask when its direct uses have
+ * reduce or memory movement semantics.
+ */
+SC_INTERNAL_API void padded_mask_mark(
+        sc_graph_t &graph, const context_ptr &ctx);
 
 /**
  * Compares the graphs.

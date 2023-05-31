@@ -215,6 +215,9 @@ constexpr const char *layer_name = "temp.name";
 constexpr const char *not_redundant = "temp.not_redundant";
 // binary/ternary elementwise op layout propagation source input index.
 constexpr const char *layout_input_index = "layout_input_index";
+// Could use mask select to process output for reduce, matmul or other memory
+// movement op.
+constexpr const char *use_padded_mask = "use_padded_mask";
 }; // namespace op_attr_key
 
 class sc_graph_t;

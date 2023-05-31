@@ -593,7 +593,7 @@ void compute_block_select(const std::vector<const tensor_slice *> &src,
     std::vector<expr> dst_idx;
 
     COMPILE_ASSERT(maxtensor_idx >= 0, "maxtensor_idx shall be determined.")
-
+    bool is_blocking_shape = is_op_input_blocking_shape(info);
     std::vector<int> bc;
     for (int i = 0; i < 3; i++) {
         if (i != maxtensor_idx) { bc.emplace_back(i); }
@@ -664,7 +664,9 @@ void compute_block_select(const std::vector<const tensor_slice *> &src,
                 stmt mask_def;
                 expr mask;
                 bld->push_scope();
-                if (!tail.isa<constant>() || tail_int) {
+                // In the dynamic scene, when the input shapes are blocking,
+                // there is no tail.
+                if ((!tail.isa<constant>() && !is_blocking_shape) || tail_int) {
                     auto last_axis_offset
                             = cast_to_s32(last_axis - iter_vars.at(i));
                     // mask = min(max(0, last_dim_len -

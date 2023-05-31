@@ -402,6 +402,14 @@ std::vector<sc_op_ptr> get_graph_inner_dispatch_ops(
     return ret;
 }
 
+static int find_padding_impl(const combined_op_dispatch_key_t &key) {
+    for (auto &cur_key : key) {
+        // reorder
+        if (cur_key.in_out_formats_.size() == 2) { return cur_key.impl_; }
+    }
+    return impl_kind_t::normal;
+}
+
 void update_graph_format_by_key(const context_ptr &ctx,
         const sc_op_ptr &fused_op, sc_graph_t &graph,
         const combined_op_dispatch_key_t &key, int &key_idx,
@@ -409,6 +417,7 @@ void update_graph_format_by_key(const context_ptr &ctx,
         const sc_op_ptr &modified_inp) {
     auto &node_inputs = fused_op->get_inputs();
     std::vector<bool> visited(graph.ops_.size(), false);
+    int padding_impl = find_padding_impl(key);
     // currently we store dispatch key of tunable op and reorder only in
     // fused op.
     auto update_format = [&](const sc_op_ptr &node) {
@@ -438,6 +447,9 @@ void update_graph_format_by_key(const context_ptr &ctx,
                             - 1]);
             // update impl alg
             node->info_.cur_impl_ = cur_key.impl_;
+        } else if (node->isa<unary_elementwise_op_t>()
+                || node->isa<binary_elementwise_op_t>()) {
+            node->info_.cur_impl_ = padding_impl;
         }
     };
     visit_fused_graph_by_query_order(graph, update_format);

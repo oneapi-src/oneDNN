@@ -129,6 +129,8 @@ create_default_graph_flow(const context_ptr &ctx) {
             graph_constant_input_folding, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("inplace_transform",
             inplace_transform, {}, pass_type::post_tune, true));
+    post_tune_passes.push_back(create_graph_pass("padded_mask_mark",
+            padded_mask_mark, {}, pass_type::post_tune, true));
     if (!ctx->flags_.mixed_fusion_) {
         post_tune_passes.push_back(create_graph_pass("batchwise_merge",
                 batchwise_merge, {}, pass_type::post_tune, true));

@@ -101,6 +101,7 @@ struct mask_compute_func_t {
 
 using fusion_compute_func_t = std::function<stmt(
         const std::vector<expr> &, std::vector<expr::lvalue_proxy_t> &)>;
+bool is_op_input_blocking_shape(const sc_op_info_t &info);
 
 void compute_vectorized_op(sc_graph_t &graph,
         const std::vector<const tensor_slice *> &src, const tensor_slice &dst,

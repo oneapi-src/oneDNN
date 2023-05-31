@@ -434,6 +434,14 @@ expr indexing_from_diff_cond(const bool is_last_dim_1, const bool has_tail,
     return res_idx;
 }
 
+// Whether all the input shapes are blocking formats.
+bool is_op_input_blocking_shape(const sc_op_info_t &info) {
+    return std::all_of(info.inputs_.begin(), info.inputs_.end(),
+            [](const graph_tensor_ptr &in) {
+                return in->details_.get_format().is_blocking();
+            });
+}
+
 void compute_vectorized_op(sc_graph_t &graph,
         const std::vector<const tensor_slice *> &src, const tensor_slice &dst,
         sc_op_info_t &info, const vectorized_info_t &vx_info,
@@ -448,6 +456,7 @@ void compute_vectorized_op(sc_graph_t &graph,
     int graph_input_size = info.inputs_.size();
     bool dense_stride = std::all_of(info.inputs_.begin(), info.inputs_.end(),
             [](const graph_tensor_ptr &in) { return in->details_.is_dense(); });
+    bool is_blocking_shape = is_op_input_blocking_shape(info);
     // nested loop vars
     std::vector<expr> iter_vars;
     // the indices for multiple inputs. First dim: the input, Second dim:
@@ -522,7 +531,10 @@ void compute_vectorized_op(sc_graph_t &graph,
                 // if the shape is 1, we don't use mask to process.
                 bool is_last_dim_1 = tail.isa<constant>() && tail_int == 1
                         && floor_int == 0;
-                bool has_tail = !tail.isa<constant>() || tail_int;
+                // In the dynamic scene, when the input shapes are blocking,
+                // there is no tail.
+                bool has_tail = ((!tail.isa<constant>() && !is_blocking_shape)
+                        || tail_int);
                 indexing_from_diff_cond(is_last_dim_1, has_tail, dst,
                         dst_idx_floor, lanes, indexed_target_floor, slice_len,
                         iter_vars.at(i));
