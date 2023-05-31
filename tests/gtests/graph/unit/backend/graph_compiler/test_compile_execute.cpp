@@ -190,6 +190,36 @@ TEST(GCGraphTest, INT8MHACompileExecutionDynamicQuantize_CPU) {
     compile_execution_pipeline(agraph, 1);
 }
 
+TEST(GCGraphTest, INT8BF16MHACompileExecutionDynamicQuantize_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
+    compiler_utils::add_MHA_subgraph(
+            &agraph, true, true, false, 128, 384, 16, 1024, true);
+    agraph.finalize();
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8MHACompileExecutionDynamicQuantize2_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
+    compiler_utils::add_MHA_subgraph_alternative(&agraph, false, true,
+            impl::op_kind::Reorder, 128, 384, 16, 1024, true);
+    agraph.finalize();
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8BF16MHACompileExecutionDynamicQuantize2_CPU) {
+    REQUIRE_VNNI_AMXINT8();
+    REQUIRE_CPU_ENGINE();
+    impl::graph_t agraph(engine->kind());
+    compiler_utils::add_MHA_subgraph_alternative(&agraph, true, true,
+            impl::op_kind::Reorder, 128, 384, 16, 1024, true);
+    agraph.finalize();
+    compile_execution_pipeline(agraph, 1);
+}
+
 TEST(GCGraphTest, INT8MHACompileExecutionFake_CPU) {
     REQUIRE_AVX512(); // fake int8, so it only requires avx512
     REQUIRE_CPU_ENGINE();

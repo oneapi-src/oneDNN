@@ -204,10 +204,14 @@ static void check_and_set_mixed_dtype(const sc_op_ptr &cast_node) {
     assert(cast_node->isa<cast_op_t>());
     auto &attrs = cast_node->attrs_;
     // if after tunable op
-    if (attrs.has_key(attr_keys::data_scales)) {
-        assert(attrs.has_key(attr_keys::weight_scales)
-                && !attrs.has_key(attr_keys::scales));
-    } else if (attrs.has_key(attr_keys::scales)) {
+    if (attrs.has_key(attr_keys::data_scales)
+            || attrs.has_key(attr_keys::dyn_data_scales)) {
+        assert((attrs.has_key(attr_keys::weight_scales)
+                       || attrs.has_key(attr_keys::dyn_weight_scales))
+                && !(attrs.has_key(attr_keys::scales)
+                        || attrs.has_key(attr_keys::dyn_scales)));
+    } else if (attrs.has_key(attr_keys::scales)
+            || attrs.has_key(attr_keys::dyn_scales)) {
         assert(attrs.get<sc_data_type_t>(attr_keys::quan_dtype)
                 == datatypes::bf16);
         attrs.set(attr_keys::mixed_dtype, true);
