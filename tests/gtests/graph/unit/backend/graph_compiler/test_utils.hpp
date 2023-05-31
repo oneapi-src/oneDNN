@@ -264,22 +264,28 @@ inline void add_MHA_subgraph(graph::graph_t *agraph, bool use_bf16 = false,
     context_quantize_out = utils::logical_tensor_init(
             logical_tensor_idx++, QKV_INPUT_SHAPE, graph::data_type::u8);
 
-    graph::op_t dequantize_query {
-            op_idx++, graph::op_kind::Dequantize, "dequantize_query"};
+    graph::op_t dequantize_query {op_idx++,
+            dyn_quant ? graph::op_kind::DynamicDequantize
+                      : graph::op_kind::Dequantize,
+            "dequantize_query"};
     if (dyn_quant) {
         DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(dequantize_query);
     } else {
         DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_query);
     }
-    graph::op_t dequantize_key {
-            op_idx++, graph::op_kind::Dequantize, "dequantize_key"};
+    graph::op_t dequantize_key {op_idx++,
+            dyn_quant ? graph::op_kind::DynamicDequantize
+                      : graph::op_kind::Dequantize,
+            "dequantize_key"};
     if (dyn_quant) {
         DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(dequantize_key);
     } else {
         DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_key);
     }
-    graph::op_t dequantize_value {
-            op_idx++, graph::op_kind::Dequantize, "dequantize_value"};
+    graph::op_t dequantize_value {op_idx++,
+            dyn_quant ? graph::op_kind::DynamicDequantize
+                      : graph::op_kind::Dequantize,
+            "dequantize_value"};
     if (dyn_quant) {
         DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(dequantize_value);
     } else {
@@ -324,10 +330,14 @@ inline void add_MHA_subgraph(graph::graph_t *agraph, bool use_bf16 = false,
 
     graph::op_t softmax_cast {
             op_idx++, graph::op_kind::TypeCast, "softmax_cast"};
-    graph::op_t quantize_softmax {
-            op_idx++, graph::op_kind::Quantize, "quantize_softmax"};
-    graph::op_t dequantize_softmax {
-            op_idx++, graph::op_kind::Dequantize, "dequantize_softmax"};
+    graph::op_t quantize_softmax {op_idx++,
+            dyn_quant ? graph::op_kind::DynamicQuantize
+                      : graph::op_kind::Quantize,
+            "quantize_softmax"};
+    graph::op_t dequantize_softmax {op_idx++,
+            dyn_quant ? graph::op_kind::DynamicDequantize
+                      : graph::op_kind::Dequantize,
+            "dequantize_softmax"};
     if (dyn_quant) {
         DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(quantize_softmax);
         DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(dequantize_softmax);
@@ -362,8 +372,10 @@ inline void add_MHA_subgraph(graph::graph_t *agraph, bool use_bf16 = false,
 
     graph::op_t typecast_output {
             op_idx++, graph::op_kind::TypeCast, "typecast_output"};
-    graph::op_t quantize_output {
-            op_idx++, graph::op_kind::Quantize, "quantize_output"};
+    graph::op_t quantize_output {op_idx++,
+            dyn_quant ? graph::op_kind::DynamicQuantize
+                      : graph::op_kind::Quantize,
+            "quantize_output"};
     if (dyn_quant) {
         DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(quantize_output);
     } else {
@@ -534,7 +546,8 @@ inline void add_MHA_subgraph_alternative(graph::graph_t *agraph,
         bool use_bf16 = false, bool use_int8 = false,
         graph::op_kind_t output_op_kind = graph::op_kind::Reorder,
         graph::dim_t batch_size = 128, graph::dim_t seq_len = 384,
-        graph::dim_t num_head = 16, graph::dim_t head_dim = 1024) {
+        graph::dim_t num_head = 16, graph::dim_t head_dim = 1024,
+        bool dyn_quant = false) {
     size_t logical_tensor_idx = 0;
     size_t op_idx = 0;
     graph::dim_t size_per_head = head_dim / num_head;
@@ -563,6 +576,15 @@ inline void add_MHA_subgraph_alternative(graph::graph_t *agraph,
             logical_tensor_idx++, KEY_TRANSPOSED_SHAPE, graph::data_type::u8);
     value_dequantize_input = utils::logical_tensor_init(
             logical_tensor_idx++, QKV_TRANSPOSED_SHAPE, graph::data_type::u8);
+
+    // dyn quant scale and zp tensor.
+    graph::logical_tensor_t qkv_scale_desc, qkv_zp_desc;
+    if (dyn_quant) {
+        qkv_scale_desc = utils::logical_tensor_init(
+                logical_tensor_idx++, {1}, graph::data_type::f32);
+        qkv_zp_desc = utils::logical_tensor_init(
+                logical_tensor_idx++, {1}, graph::data_type::s32);
+    }
 
     graph::logical_tensor_t query_typecast_input, key_typecast_input,
             value_typecast_input;
@@ -635,15 +657,33 @@ inline void add_MHA_subgraph_alternative(graph::graph_t *agraph,
     context_quantize_out = utils::logical_tensor_init(
             logical_tensor_idx++, graph::data_type::u8);
 
-    graph::op_t dequantize_query {
-            op_idx++, graph::op_kind::Dequantize, "dequantize_query"};
-    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_query);
-    graph::op_t dequantize_key {
-            op_idx++, graph::op_kind::Dequantize, "dequantize_key"};
-    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_key);
-    graph::op_t dequantize_value {
-            op_idx++, graph::op_kind::Dequantize, "dequantize_value"};
-    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_value);
+    graph::op_t dequantize_query {op_idx++,
+            dyn_quant ? graph::op_kind::DynamicDequantize
+                      : graph::op_kind::Dequantize,
+            "dequantize_query"};
+    if (dyn_quant) {
+        DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(dequantize_query);
+    } else {
+        DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_query);
+    }
+    graph::op_t dequantize_key {op_idx++,
+            dyn_quant ? graph::op_kind::DynamicDequantize
+                      : graph::op_kind::Dequantize,
+            "dequantize_key"};
+    if (dyn_quant) {
+        DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(dequantize_key);
+    } else {
+        DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_key);
+    }
+    graph::op_t dequantize_value {op_idx++,
+            dyn_quant ? graph::op_kind::DynamicDequantize
+                      : graph::op_kind::Dequantize,
+            "dequantize_value"};
+    if (dyn_quant) {
+        DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(dequantize_value);
+    } else {
+        DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_value);
+    }
     graph::op_t typecast_query {
             op_idx++, graph::op_kind::TypeCast, "typecast_query"};
     graph::op_t typecast_key {
@@ -662,12 +702,24 @@ inline void add_MHA_subgraph_alternative(graph::graph_t *agraph,
 
     graph::op_t softmax_cast {
             op_idx++, graph::op_kind::TypeCast, "softmax_cast"};
-    graph::op_t quantize_softmax {
-            op_idx++, graph::op_kind::Quantize, "quantize_softmax"};
-    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_softmax);
-    graph::op_t dequantize_softmax {
-            op_idx++, graph::op_kind::Dequantize, "dequantize_softmax"};
-    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_softmax);
+    graph::op_t quantize_softmax {op_idx++,
+            dyn_quant ? graph::op_kind::DynamicQuantize
+                      : graph::op_kind::Quantize,
+            "quantize_softmax"};
+    if (dyn_quant) {
+        DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(quantize_softmax);
+    } else {
+        DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_softmax);
+    }
+    graph::op_t dequantize_softmax {op_idx++,
+            dyn_quant ? graph::op_kind::DynamicDequantize
+                      : graph::op_kind::Dequantize,
+            "dequantize_softmax"};
+    if (dyn_quant) {
+        DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(dequantize_softmax);
+    } else {
+        DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(dequantize_softmax);
+    }
 
     graph::op_t dequantize_softmax_cast {
             op_idx++, graph::op_kind::TypeCast, "dequantize_softmax_cast"};
@@ -690,9 +742,15 @@ inline void add_MHA_subgraph_alternative(graph::graph_t *agraph,
 
     graph::op_t typecast_output {
             op_idx++, graph::op_kind::TypeCast, "typecast_output"};
-    graph::op_t quantize_output {
-            op_idx++, graph::op_kind::Quantize, "quantize_output"};
-    DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_output);
+    graph::op_t quantize_output {op_idx++,
+            dyn_quant ? graph::op_kind::DynamicQuantize
+                      : graph::op_kind::Quantize,
+            "quantize_output"};
+    if (dyn_quant) {
+        DEFINE_DEFAULT_PER_TENSOR_DYN_QUANT_ATTR(quantize_output);
+    } else {
+        DEFINE_DEFAULT_PER_TENSOR_QUANT_ATTR(quantize_output);
+    }
 
     if (use_int8) {
         dequantize_query.add_input(query_dequantize_input);
@@ -712,6 +770,14 @@ inline void add_MHA_subgraph_alternative(graph::graph_t *agraph,
             typecast_query.add_output(query_matmul_input);
             typecast_key.add_output(key_matmul_input);
             typecast_value.add_output(value_matmul_input);
+        }
+        if (dyn_quant) {
+            dequantize_query.add_input(qkv_scale_desc);
+            dequantize_query.add_input(qkv_zp_desc);
+            dequantize_key.add_input(qkv_scale_desc);
+            dequantize_key.add_input(qkv_zp_desc);
+            dequantize_value.add_input(qkv_scale_desc);
+            dequantize_value.add_input(qkv_zp_desc);
         }
     }
 
@@ -743,6 +809,12 @@ inline void add_MHA_subgraph_alternative(graph::graph_t *agraph,
             dequantize_softmax_cast.add_output(softmax_dequantize_out_cast);
             matmul_v.add_input(softmax_dequantize_out_cast);
         }
+        if (dyn_quant) {
+            quantize_softmax.add_input(qkv_scale_desc);
+            quantize_softmax.add_input(qkv_zp_desc);
+            dequantize_softmax.add_input(qkv_scale_desc);
+            dequantize_softmax.add_input(qkv_zp_desc);
+        }
     } else {
         matmul_v.add_input(softmax_out);
     }
@@ -763,6 +835,10 @@ inline void add_MHA_subgraph_alternative(graph::graph_t *agraph,
             typecast_output.add_input(context_final_out);
             typecast_output.add_output(context_cast_out);
             quantize_output.add_input(context_cast_out);
+        }
+        if (dyn_quant) {
+            quantize_output.add_input(qkv_scale_desc);
+            quantize_output.add_input(qkv_zp_desc);
         }
     }
 
