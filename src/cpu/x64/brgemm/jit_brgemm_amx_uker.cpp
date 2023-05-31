@@ -1756,7 +1756,7 @@ void jit_brgemm_amx_uker_base_t::maybe_pre_process_data(brgemm_iteration_t &bi,
     mov(reg_bf32_stride, zmm_width_in_bytes);
 
     const int max_tiles = amx::get_max_tiles(amx::get_target_palette());
-    assert(t1.getIdx() >= 0 && t1.getIdx() < max_tiles);
+    JIT_ASSERT(t1.getIdx() >= 0 && t1.getIdx() < max_tiles);
     const auto num_rows = palette_.rows[t1.getIdx()];
     const auto num_col_bytes = palette_.cols[t1.getIdx()];
     if (is_A) {
