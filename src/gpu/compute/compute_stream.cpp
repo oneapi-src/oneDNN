@@ -14,8 +14,10 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include "gpu/compute/compute_stream.hpp"
+#include "common/compiler_workarounds.hpp"
+
 #include "gpu/compute/compute_engine.hpp"
+#include "gpu/compute/compute_stream.hpp"
 #include "gpu/gpu_primitive.hpp"
 
 namespace dnnl {
