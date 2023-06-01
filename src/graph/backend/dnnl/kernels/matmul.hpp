@@ -48,7 +48,7 @@ namespace dnnl_impl {
 template <bool quantized>
 struct matmul_t : public kernel_base_t {
 private:
-    allocator_t *g_alloc_;
+    allocator_t *g_alloc_ = nullptr;
 
     std::shared_ptr<subgraph_t> subgraph_;
     memory_planner_t memory_planner_;

@@ -40,7 +40,7 @@ namespace dnnl_impl {
 struct logsoftmax_fwd_t : public kernel_base_t {
 private:
     dnnl::engine p_engine_;
-    allocator_t *g_alloc_;
+    allocator_t *g_alloc_ = nullptr;
     std::shared_ptr<subgraph_t> subgraph_;
     memory_planner_t memory_planner_;
     std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
@@ -196,7 +196,7 @@ public:
 struct logsoftmax_bwd_t : public kernel_base_t {
 private:
     dnnl::engine p_engine_;
-    allocator_t *g_alloc_;
+    allocator_t *g_alloc_ = nullptr;
 
     std::shared_ptr<subgraph_t> subgraph_;
     memory_planner_t memory_planner_;

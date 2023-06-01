@@ -54,7 +54,7 @@ namespace dnnl_impl {
 
 struct batchnorm_fwd_t : public kernel_base_t {
 private:
-    allocator_t *g_alloc_;
+    allocator_t *g_alloc_ = nullptr;
 
     std::shared_ptr<subgraph_t> subgraph_;
     memory_planner_t memory_planner_;
@@ -318,7 +318,7 @@ public:
 struct batchnorm_bwd_t : public kernel_base_t {
 private:
     dnnl::engine p_engine_;
-    allocator_t *g_alloc_;
+    allocator_t *g_alloc_ = nullptr;
 
     std::shared_ptr<subgraph_t> subgraph_;
     memory_planner_t memory_planner_;
