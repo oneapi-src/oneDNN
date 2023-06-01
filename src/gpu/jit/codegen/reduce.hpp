@@ -115,7 +115,8 @@ private:
         layout_t::align_layouts(a, b);
 
         ir_assert(!a.blocks().empty());
-        ir_assert(!b.blocks().empty());
+        // Allow trivial tile for scalar dst.
+        if (b.blocks().empty()) { return tensor_t(dst_layout_.dims()); }
 
         auto &a0 = a.blocks()[0];
         auto &b0 = b.blocks()[0];
