@@ -241,10 +241,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
             if (off % prb_.n(dim_id)) break;
 
-            i_off += -prb_.n(dim_id) * prb_.is(dim_id);
-            o_off += -prb_.n(dim_id) * prb_.os(dim_id);
-            s_off += -prb_.n(dim_id) * prb_.ss(dim_id);
-            c_off += -prb_.n(dim_id) * prb_.cs(dim_id);
+            i_off -= prb_.n(dim_id) * prb_.is(dim_id);
+            o_off -= prb_.n(dim_id) * prb_.os(dim_id);
+            s_off -= prb_.n(dim_id) * prb_.ss(dim_id);
+            c_off -= prb_.n(dim_id) * prb_.cs(dim_id);
 
             off /= prb_.n(dim_id);
 
@@ -442,8 +442,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     bool can_do_tr8x8() {
         using namespace data_type;
 
-        static constexpr int desirable_node_size = 8;
-        static constexpr int desirable_stride = 1;
+        static constexpr size_t desirable_node_size = 8;
+        static constexpr ptrdiff_t desirable_stride = 1;
 
         // This processing is relied on swaping two innermost dimension.
         // Therefore, input stride in second node and output stride in first node
@@ -1328,7 +1328,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             const int curr_node_id = nfu + (jit_loop - 1);
             const int parent_node_id = prb_.nodes[curr_node_id].parent_node_id;
             const int tail_size = prb_.tail(curr_node_id) / unroll_factor;
-            const int node_size = prb_.n(curr_node_id) / unroll_factor;
+            const auto node_size = prb_.n(curr_node_id) / unroll_factor;
             const Reg64 reg_loop_cnt = reg_cnt[jit_loop - 1];
             const bool curr_node_has_tail = prb_.tail(curr_node_id) != 0;
             Label loop, if_no_tail, if_end;

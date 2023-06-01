@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -77,31 +77,31 @@ struct prb_t {
         return false;
     }
 
-    int tail(int d) const {
+    size_t tail(int d) const {
         assert(d < ndims);
-        return static_cast<int>(nodes[d].tail_size);
+        return nodes[d].tail_size;
     }
 
-    int n(int d) const {
+    size_t n(int d) const {
         assert(d < ndims);
-        return static_cast<int>(nodes[d].n);
-    }
-    int is(int d) const {
-        assert(d < ndims);
-        return static_cast<int>(nodes[d].is);
-    }
-    int os(int d) const {
-        assert(d < ndims);
-        return static_cast<int>(nodes[d].os);
-    }
-    int ss(int d) const {
-        assert(d < ndims);
-        return static_cast<int>(nodes[d].ss);
+        return nodes[d].n;
     }
 
-    int cs(int d) const {
+    ptrdiff_t is(int d) const {
         assert(d < ndims);
-        return static_cast<int>(nodes[d].cs);
+        return nodes[d].is;
+    }
+    ptrdiff_t os(int d) const {
+        assert(d < ndims);
+        return nodes[d].os;
+    }
+    ptrdiff_t ss(int d) const {
+        assert(d < ndims);
+        return nodes[d].ss;
+    }
+    ptrdiff_t cs(int d) const {
+        assert(d < ndims);
+        return nodes[d].cs;
     }
 
     data_type_t itype;
