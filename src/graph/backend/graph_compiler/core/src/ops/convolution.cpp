@@ -669,6 +669,13 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
     auto &pads_begin = attrs_.has_key("pads_begin")
             ? attrs_.get<sc_dims>("pads_begin")
             : attrs_.get<sc_dims>("paddings");
+    auto &pads_end = attrs_.has_key("pads_end")
+            ? attrs_.get<sc_dims>("pads_end")
+            : attrs_.get<sc_dims>("paddings");
+    bool has_pad = std::any_of(pads_begin.begin(), pads_begin.end(),
+                           [](sc_dim p) { return p > 0; })
+            || std::any_of(pads_end.begin(), pads_end.end(),
+                    [](sc_dim d) { return d > 0; });
     bool is_weight_constant
             = info_.inputs_[1]->producer_owner_->isa<constant_op_t>()
             || info_.inputs_[1]->producer_owner_->attrs_.get_or_else(
@@ -686,8 +693,8 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
         channel_last_support = is_1x1
                 || (ops::is_amx_dtype(ctx, src_dtype)
                         && (kh - 1) * dilation_dims[1] + 1
-                                < input_plain_dims[input_plain_dims.size()
-                                        - 2]);
+                                < input_plain_dims[input_plain_dims.size() - 2])
+                || (has_pad && attrs_.get_or_else("inverse_filter", false));
     }
 
     std::string test_format;
