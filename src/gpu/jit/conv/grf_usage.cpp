@@ -73,15 +73,15 @@ std::string grf_buf_usage_t::str() const {
 
 std::string grf_usage_t::str() const {
     std::vector<std::string> headers = {"Label", "Regs"};
-    ir_utils::table_t table("GRF usage (registers):", headers);
+    ir_utils::table_t table("GRF usage", headers);
     int total = 0;
     for (auto label : all_grf_usage_labels()) {
         int regs = regs_.at(label);
         if (regs == 0) continue;
-        table << "  " + to_string(label) << regs << std::endl;
+        table << to_string(label) << regs << std::endl;
         total += regs;
     }
-    table << "  Total" << total << std::endl;
+    table << "Total" << total << std::endl;
     std::ostringstream oss;
     oss << table << std::endl;
     oss << buf_usage_;
@@ -336,19 +336,19 @@ void compare(const grf_usage_t &est_usage, const grf_usage_t &ir_usage,
         const ir_usage_analyzer_t &analyzer) {
     std::vector<std::string> headers
             = {"Label", "Estimated regs", "IR regs", "Status"};
-    ir_utils::table_t table("Compare GRF usage:", headers);
+    ir_utils::table_t table("GRF usage", headers);
     int est_total = 0;
     int ir_total = 0;
     for (auto label : all_grf_usage_labels()) {
         int est_regs = est_usage.get(label);
         int ir_regs = ir_usage.get(label);
-        table << "  " + to_string(label) << est_regs << ir_regs;
+        table << to_string(label) << est_regs << ir_regs;
         table << (ir_regs > est_regs ? "FAIL" : "");
         table << std::endl;
         est_total += est_regs;
         ir_total += ir_regs;
     }
-    table << "  Total" << est_total << ir_total;
+    table << "Total" << est_total << ir_total;
     table << (ir_total > est_total ? "FAIL" : "");
     table << std::endl;
     ir_trace() << table << std::endl;

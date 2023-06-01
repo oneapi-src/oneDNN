@@ -382,6 +382,9 @@ inline std::ostream &operator<<(std::ostream &out, const std::vector<T> &v) {
     return out;
 }
 
+// Helper class to pretty-print tables.
+// Each operator<<() call corresponds to one cell/header. std::endl or '/n'
+// moves to the next row.
 class table_t {
 public:
     table_t(const std::string &title, const std::vector<std::string> &header)
@@ -424,15 +427,23 @@ public:
                 widths[i] = std::max(widths[i], r[i].length());
             }
         }
-        auto print = [&](std::ostream &out, size_t idx, const std::string &s) {
-            int w = (int)widths[idx] + 2;
+        auto print = [&](std::ostream &out, size_t idx, const std::string &s,
+                             char pad = ' ') {
+            int w = (int)widths[idx];
+            if (idx == 0) out << "|" << pad;
             out << std::setw(w);
-            out << (idx > 0 ? std::right : std::left);
+            out << std::left;
             out << s;
+            out << pad << "|";
+            if (idx != n - 1) out << pad;
         };
-        oss << title_ << std::endl;
+        oss << "=== " << title_ << std::endl;
         for (size_t i = 0; i < n; i++) {
             print(oss, i, header_[i]);
+        }
+        oss << std::endl;
+        for (size_t i = 0; i < n; i++) {
+            print(oss, i, std::string(widths[i], '-'), '-');
         }
         oss << std::endl;
         for (auto &r : rows_) {
