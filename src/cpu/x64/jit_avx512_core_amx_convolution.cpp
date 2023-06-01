@@ -378,10 +378,10 @@ jit_avx512_core_amx_convolution_fwd_t::execute_forward_reduced_lowering(
 
                 p.acc_s32 = wsp + ithr * jcp.wsp_buffer_size;
 
-                if (req_zero_point_buffer
+                assert(limit_idx < limit_size);
+                if (req_zero_point_buffer && limit_idx < limit_size
                         && (size_t)oh >= jcp.h_blk_limits[limit_idx])
                     limit_idx++;
-                assert(limit_idx < 6);
                 p.ohb = limit_idx;
                 p.last_h = (oh + oh_step <= oh_e);
                 const int zp_owb = nstl::min(jcp.l_pad_blk, owb)
