@@ -1376,7 +1376,10 @@ status_t rnn_brgemm_t<prop_kind::backward>::init_kernels(
             }
         }
     } else {
+        assert(rnn.diff_wei_brgemm.global_transpose);
+
         jit_brgemm_primitive_conf_t trans_conf;
+        trans_conf.isa = rnn.brgemm_isa;
         trans_conf.prop_kind = dnnl_backward_weights;
         trans_conf.src_dt = src_type;
         static constexpr int blk_size = 16;
@@ -1384,8 +1387,9 @@ status_t rnn_brgemm_t<prop_kind::backward>::init_kernels(
         trans_conf.ic_block = blk_size; // src's cols block size
         trans_conf.M = 0;
         const auto rnd_up_size = (src_type == data_type::bf16 ? 2 : 1);
-        trans_conf.LDA
-                = utils::rnd_up(rnn.mb, rnd_up_size); // dst's leading dim
+        const auto os_padded = utils::rnd_up(rnn.mb, rnd_up_size);
+        trans_conf.os = os_padded;
+        trans_conf.LDA = os_padded; // dst's leading dim
         trans_conf.K_tail = rnn.mb % blk_size; // src's rows tail
 
         const int LDA_iter[]
