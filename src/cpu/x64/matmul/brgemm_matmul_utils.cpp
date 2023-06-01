@@ -273,8 +273,15 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_tags(memory_desc_t &A_md,
                 VERBOSE_UNSUPPORTED_TAG);
         bgmmc.dst_tag = desired_C_tag;
     } else {
-        bgmmc.dst_tag = memory_desc_matches_one_of_tag(
-                C_md, plain_tensor_layout_tag, acbd);
+        const memory_desc_wrapper C_mdw(C_md);
+        // If one of dims is `1` then `ba` is identical to `ab`.
+        format_tag_t allowed_transposed_tensor_layout_tag
+                = C_mdw.ndims() == 2 && C_mdw.count_non_unit_dims(1)
+                ? ba
+                : plain_tensor_layout_tag;
+        bgmmc.dst_tag
+                = memory_desc_matches_one_of_tag(C_md, plain_tensor_layout_tag,
+                        allowed_transposed_tensor_layout_tag, acbd);
     }
 
     if (one_of(format_tag::undef, bgmmc.src_tag, bgmmc.dst_tag))
