@@ -143,9 +143,18 @@ status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
     if (!check_attr_post_ops()) return status::unimplemented;
     const bool sum_po_via_gemm_beta
             = should_gemm_execute_sum_po(params_, dst_md()->data_type);
+
+    const memory_desc_wrapper src_d(src_md());
+    const memory_desc_wrapper weights_d(weights_md());
+    const memory_desc_wrapper dst_d(dst_md());
+    matmul_helper_t helper(src_d, weights_d, dst_d);
+
     // set state
-    params_.dst_is_acc_
-            = IMPLICATION(attr()->post_ops_.find(primitive_kind::sum) != -1,
+    // `C_is_abx` limitation comes from `extended_sgemm`.
+    const bool C_is_abx = helper.ldc() >= helper.N()
+            && helper.ldc() != DNNL_RUNTIME_DIM_VAL;
+    params_.dst_is_acc_ = C_is_abx
+            && IMPLICATION(attr()->post_ops_.find(primitive_kind::sum) != -1,
                     sum_po_via_gemm_beta);
 
     if (sum_po_via_gemm_beta) {
