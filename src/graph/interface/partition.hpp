@@ -161,6 +161,12 @@ public:
     }
 
     const std::vector<graph::inplace_pair_t> &get_inplace_pairs() const {
+        static std::vector<graph::inplace_pair_t> empty = {};
+        if (!pimpl_) {
+            assertm(false, "pimpl_ is nullptr");
+            return empty;
+        }
+
         return pimpl_->get_inplace_pairs();
     }
 
