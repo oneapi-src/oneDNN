@@ -117,7 +117,7 @@ public:
             bool is_memory_sensitive = false);
 
 private:
-    bool enabled_;
+    bool enabled_ = false;
     std::function<std::string(const value_t *)> mem_info_func_;
 #ifdef DNNL_ENABLE_GRAPH_DUMP
     size_t partition_id_;
