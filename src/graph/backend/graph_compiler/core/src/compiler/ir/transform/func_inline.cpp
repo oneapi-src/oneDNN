@@ -225,15 +225,14 @@ public:
 
     expr_c inline_at(call_c site, const const_ir_module_ptr &modu = nullptr) {
         auto the_func = std::dynamic_pointer_cast<func_base>(site->func_);
-        // if the callee is a declaration, found its function body in modu.
-        if (!the_func
-                || !(the_func->body_.defined()
-                        || (modu && modu->get_func(the_func->name_)))) {
-            return site;
+        // if the callee is a declaration, find its function body in modu.
+        if (!the_func) { return site; }
+        if (modu) {
+            if (auto real_func = modu->get_func(the_func->name_)) {
+                the_func = real_func;
+            }
         }
-        the_func = !the_func->body_.defined() && modu
-                ? modu->get_func(the_func->name_)
-                : the_func;
+        if (!the_func->body_.defined()) { return site; }
         recursions++;
         COMPILE_ASSERT(recursions < 20, "Reached max inline recursion depth");
 

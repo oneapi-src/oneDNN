@@ -59,7 +59,6 @@ TEST(GCCore_CPU_func_inline_cpp, TestInlineAt) {
     func_inliner_t inliner;
     the_assign->value_
             = inliner.inline_at(callnode, body->seq_, 1).remove_const();
-    // std::cout << mainfunc;
 
     _function_(datatypes::s32, reference,
             _arg_("A1", datatypes::f32, {123, 321}),
@@ -108,7 +107,6 @@ TEST(GCCore_CPU_func_inline_cpp, TestInlineTensor) {
                 with_attr(aaa(tensor_ptr(A, {100, 200})), "inline_level", 2));
     }
     func_inliner_t inl;
-    // std::cout << inl(mainfunc);
 
     _function_(
             datatypes::s32, expected, _arg_("A1", datatypes::f32, {200, 400})) {
@@ -280,4 +278,43 @@ TEST(GCCore_CPU_func_inline_cpp, TestInlineNestedExceed) {
     EXPECT_SC_ERROR(inliner(add1), "Reached max inline recursion depth");
     // clear the body, or there is a loop in shared_ptr
     add1->body_.checked_as<stmts>()->seq_.clear();
+}
+
+TEST(GCCore_CPU_func_inline_cpp, TestInlineCorrectDecl) {
+    builder::ir_builder_t builder;
+
+    _function_(datatypes::s32, add1, _arg_("v", datatypes::s32)) {
+        _bind_(v);
+        _return_(v + 1);
+    }
+
+    func_t add2;
+    {
+        _function_(datatypes::s32, add1, _arg_("v", datatypes::s32)) {
+            _bind_(v);
+            _return_(v + 2);
+        }
+        add2 = add1;
+    }
+
+    _function_(datatypes::s32, sub1, _arg_("v", datatypes::s32)) {
+        _bind_(v);
+        _return_(with_attr(add1(v), "inline_level", 2) - 1);
+    }
+    auto mod = std::make_shared<ir_module_t>(
+            get_default_context(), std::vector<func_t> {sub1});
+    mod->add_func({add1});
+    // simulate a pass that changes add1 to add2, without changing the reference
+    // in sub1
+    mod->get_contents()[1] = add2;
+    func_inliner_t inliner;
+
+    _function_(datatypes::s32, expected, _arg_("v", datatypes::s32)) {
+        _bind_(v);
+        _return_(v + 2 - 1);
+    }
+
+    auto bbb = inliner(mod);
+    ir_comparer cmp;
+    EXPECT_TRUE(cmp.compare(bbb->get_contents()[0], expected));
 }
