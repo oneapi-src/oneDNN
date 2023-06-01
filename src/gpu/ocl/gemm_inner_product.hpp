@@ -131,6 +131,11 @@ struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T(gemm_pd_->name(), gemm_inner_product_bwd_data_t);
 
+        constexpr bool has_type(data_type_t v) const {
+            return utils::one_of(v, weights_md()->data_type,
+                    diff_src_md()->data_type, diff_dst_md()->data_type);
+        }
+
         status_t init(engine_t *engine) {
             using namespace prop_kind;
             using namespace data_type;
@@ -140,9 +145,9 @@ struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
             bool ok = this->desc()->prop_kind == backward_data
                     && set_default_params() == status::success
                     && !has_zero_dim_memory()
-                    && utils::one_of(weights_md()->data_type, f32, bf16)
-                    && utils::one_of(diff_src_md()->data_type, f32, bf16)
-                    && utils::one_of(diff_dst_md()->data_type, f32, bf16)
+                    && (!(has_type(f16) && has_type(bf16)))
+                    && utils::one_of(diff_src_md()->data_type, f32, bf16, f16)
+                    && utils::one_of(diff_dst_md()->data_type, f32, bf16, f16)
                     && attr()->has_default_values()
                     && dense_consistency_check(
                             diff_src_md(), weights_md(), diff_dst_md())
@@ -203,18 +208,24 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T(gemm_pd_->name(), gemm_inner_product_bwd_weights_t);
 
+        constexpr bool has_type(data_type_t v) const {
+            return utils::one_of(v, diff_weights_md()->data_type,
+                    src_md()->data_type, diff_dst_md()->data_type);
+        }
+
         status_t init(engine_t *engine) {
             using namespace prop_kind;
             using namespace data_type;
 
             assert(engine->kind() == engine_kind::gpu);
-
             bool ok = this->desc()->prop_kind == backward_weights
                     && set_default_params() == status::success
                     && !has_zero_dim_memory()
-                    && utils::one_of(diff_weights_md()->data_type, f32, bf16)
-                    && utils::one_of(src_md()->data_type, f32, bf16)
-                    && utils::one_of(diff_dst_md()->data_type, f32, bf16)
+                    && (!(has_type(f16) && has_type(bf16)))
+                    && utils::one_of(
+                            diff_weights_md()->data_type, f32, bf16, f16)
+                    && utils::one_of(src_md()->data_type, f32, bf16, f16)
+                    && utils::one_of(diff_dst_md()->data_type, f32, bf16, f16)
                     && attr()->has_default_values()
                     && dense_consistency_check(
                             src_md(), diff_weights_md(), diff_dst_md())

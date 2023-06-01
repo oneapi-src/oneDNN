@@ -40,6 +40,13 @@
 
 # f16
 --reset
+--dt=f16
+--dir=FWD_B,BWD_D,BWD_WB
+--batch=shapes_1d
+
+
+# f16
+--reset
 --mb=0,2
 --dt=f16,f16:f16:s8,f16:f16:u8
 --dir=FWD_B,FWD_D
@@ -60,6 +67,21 @@
 --dir=BWD_WB
 --dt=bf16:f32:bf16
 --batch=shapes_1d
+
+# f16 + f32
+
+--dir=FWD_B
+--dt=f16:f16:f32
+--batch=shapes_1d
+
+--dir=BWD_D
+--dt=f32:f16:f16
+--batch=shapes_1d
+
+--dir=BWD_WB
+--dt=f16:f32:f16
+--batch=shapes_1d
+
 
 # bf16 + post_ops
 --mb=0

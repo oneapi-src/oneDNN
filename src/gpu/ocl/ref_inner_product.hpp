@@ -145,6 +145,10 @@ struct ref_inner_product_bwd_data_t : public gpu_primitive_t {
                     && this->set_default_params() == status::success
                     && utils::one_of(true,
                             expect_data_types(
+                                    f16, f16, data_type::undef, f16, f32),
+                            expect_data_types(
+                                    f32, f16, data_type::undef, f16, f32),
+                            expect_data_types(
                                     bf16, bf16, data_type::undef, bf16, f32),
                             expect_data_types(
                                     f32, bf16, data_type::undef, bf16, f32),
@@ -203,6 +207,8 @@ struct ref_inner_product_bwd_weights_t : public gpu_primitive_t {
                             this->desc()->prop_kind, backward, backward_weights)
                     && this->set_default_params() == status::success
                     && utils::one_of(true,
+                            expect_data_types(f16, f16, f16, f16, f32),
+                            expect_data_types(f16, f32, f32, f16, f32),
                             expect_data_types(bf16, bf16, bf16, bf16, f32),
                             expect_data_types(bf16, f32, f32, bf16, f32),
                             expect_data_types(f32, f32, f32, f32, f32))
