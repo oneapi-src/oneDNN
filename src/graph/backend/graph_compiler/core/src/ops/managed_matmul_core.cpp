@@ -205,6 +205,11 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
     std::vector<bool> is_padding = {false, true};
     std::vector<bool> is_output_plain = {false, true};
     bool first = true;
+    // consider ND*2D case, A_format is penetrated, which is always blocking
+    auto p2bmp_a = A_format.format_code_.collect_p2b_mapping();
+    // consider 2D*ND case, B_format is penetrated, which is always blocking
+    auto p2bmp_b = B_format.format_code_.collect_p2b_mapping();
+
     for (auto &m_b : m_blk_candidates) { // M
         for (auto &n_b : blk_candidates) { // N
             for (auto &k_b : blk_candidates) { // K
@@ -219,7 +224,9 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
                                 in_formats.push_back({sc_data_format_t::NK()});
                             } else {
                                 if (constant_A
-                                        || (!dynamic && A_format.is_blocking())
+                                        || (!dynamic && A_format.is_blocking()
+                                                && p2bmp_a.at(0).size() > 1
+                                                && p2bmp_a.at(1).size() > 1)
                                         || A_isp
                                         || (!is_dynamic_dim(M) && M % iim_block)
                                         || (!is_dynamic_dim(K)
@@ -229,7 +236,9 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
                                 } else {
                                     ret_A_format = sc_data_format_t::MK();
                                 }
-                                if (dynamic && A_format.is_blocking()) {
+                                if (dynamic && A_format.is_blocking()
+                                        && p2bmp_a.at(0).size() > 1
+                                        && p2bmp_a.at(1).size() > 1) {
                                     ret_A_format = A_format;
                                     iim_block = transposed_a
                                             ? A_format.blocks_[1]
@@ -279,7 +288,9 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
                                 }
                             } else {
                                 if (constant_B || B_isp
-                                        || (!dynamic && B_format.is_blocking())
+                                        || (!dynamic && B_format.is_blocking()
+                                                && p2bmp_b.at(0).size() > 1
+                                                && p2bmp_b.at(1).size() > 1)
                                         || (!is_dynamic_dim(K) && K % iik_block)
                                         || (!is_dynamic_dim(N)
                                                 && N % iin_block)) {
