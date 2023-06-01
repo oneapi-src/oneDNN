@@ -202,7 +202,7 @@ private:
             sectionHeaders[1].name = offsetof(StringTable, snStrTable);
             sectionHeaders[1].type = SectionHeader::Type::StringTable;
             sectionHeaders[1].offset = offsetof(ZebinELF, stringTable);
-            sectionHeaders[1].size = sizeof(stringTable) + szKernelName;
+            sectionHeaders[1].size = sizeof(stringTable);
 
             sectionHeaders[2].name = offsetof(StringTable, snMetadata);
             sectionHeaders[2].type = SectionHeader::Type::ZeInfo;
@@ -342,7 +342,7 @@ std::vector<uint8_t> ELFCodeGenerator<hw>::getBinary(const std::vector<uint8_t> 
     metadata = interface_.generateZeInfo();
 
     // Construct ELF.
-    size_t szKernelName = interface_.getExternalName().length() + 1;
+    size_t szKernelName = interface_.getExternalName().length();
     size_t szELF = ZebinELF::align(sizeof(ZebinELF) + szKernelName);
     size_t szMetadata = ZebinELF::align(metadata.size());
     size_t szKernel = ZebinELF::align(kernel.size());
