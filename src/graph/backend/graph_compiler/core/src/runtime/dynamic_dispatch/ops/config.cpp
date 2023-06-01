@@ -179,13 +179,26 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
             auto split_idx = 0;
             if (is_int8) {
                 if (K >= 4096 && N >= 4096 && M <= 4) {
-                    auto split_idx = 1;
+                    auto split_idx_init = 1;
+                    split_idx = split_idx_init;
+                    cost = std::numeric_limits<float>::max();
                     if (N >= K) {
-                        split_idx = possible_splits.size() > 3 ? 2 : 1;
+                        split_idx_init = possible_splits.size() > 3 ? 2 : 1;
                     } else if (K >= 4 * N) {
-                        split_idx = possible_splits.size() > 4 ? 3 : 1;
+                        split_idx_init = possible_splits.size() > 4 ? 3 : 1;
                     }
-                    N_split_num = num_threads / possible_splits.at(split_idx);
+                    float split_ratio = N >= K ? 3. : (K >= 4 * N ? 1. : 0.);
+                    for (auto i = split_idx_init;
+                            i < static_cast<int>(possible_splits.size()); i++) {
+                        float new_cost = num_threads / possible_splits.at(i)
+                                        / possible_splits.at(i)
+                                - split_ratio;
+                        if (new_cost >= 0 && new_cost < cost
+                                && split_ratio != 0.) {
+                            cost = new_cost;
+                            split_idx = i;
+                        }
+                    }
                 } else {
                     split_idx = K >= 4096
                             ? (N < 2 * K ? (
@@ -194,8 +207,8 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
                                                : 1)
                                          : (K >= 4096 ? 1 : 0))
                             : 0;
-                    N_split_num = num_threads / possible_splits.at(split_idx);
                 }
+                N_split_num = num_threads / possible_splits.at(split_idx);
             } else {
                 // works well on bf16, needs to be further discussed for f32
                 if (K >= 4096) {
