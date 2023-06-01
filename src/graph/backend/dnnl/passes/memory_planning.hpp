@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -194,7 +194,8 @@ public:
         auto mid = free_.lower_bound(size);
         auto end = free_.upper_bound(size * match_range_);
         // search for buffers larger than requested
-        for (auto it = mid; it != end; ++it) {
+        auto it = mid;
+        if (it != end) {
             buffer_info_t *e = it->second;
             // Use exact matching strategy
             e->max_bytes_ = std::max(size, e->max_bytes_);
@@ -203,7 +204,7 @@ public:
             return e->id_;
         }
         // then search for buffers smaller than requested space
-        for (auto it = mid; it != begin;) {
+        if (it != begin) {
             --it;
             buffer_info_t *e = it->second;
             // Use exact matching strategy
