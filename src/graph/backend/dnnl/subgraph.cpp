@@ -363,6 +363,8 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
 }
 
 void subgraph_rewriter_t::run() {
+    if (!subgraph_) return;
+
     std::vector<op_ptr> &mutable_ops = subgraph_->get_mutable_ops();
 
     // first remove and then insert to minimize the memory re-allocation
