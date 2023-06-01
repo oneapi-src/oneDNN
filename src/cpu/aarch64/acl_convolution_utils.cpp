@@ -107,6 +107,10 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     const int r_pad = std::max(static_cast<int>(cd.padding[1][1]), 0);
     const int b_pad = std::max(static_cast<int>(cd.padding[1][0]), 0);
 
+    if (is_depthwise
+            && (t_pad >= kh || b_pad >= kh || l_pad >= kw || r_pad >= kw))
+        return status::unimplemented;
+
     acp.padstride_info = arm_compute::PadStrideInfo(stride_w, stride_h,
             static_cast<unsigned int>(l_pad), static_cast<unsigned int>(r_pad),
             static_cast<unsigned int>(t_pad), static_cast<unsigned int>(b_pad),
@@ -157,6 +161,7 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
         CHECK(memory_desc_init_by_tag(bias_md, format_tag::x));
 
     bool is_nhwc = src_tag == format_tag::nhwc;
+    if (!is_nhwc && is_depthwise) { return status::unimplemented; }
     // The layouts have to match (although we may later modify the weights)
     const auto acl_layout = is_nhwc ? arm_compute::DataLayout::NHWC
                                     : arm_compute::DataLayout::NCHW;
