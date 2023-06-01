@@ -191,6 +191,19 @@ public:
             kernel_creator = large_partition_kernel_creator;
         }
 
+        // Dispatch to fake kernel if one of the output dimensions is zero.
+        const std::vector<std::shared_ptr<op_t>> &fused_op = part->get_ops();
+        auto agraph = graph_t(fused_op, get_engine_kind(), get_fpmath_mode());
+        agraph.set_user_inputs_outputs(inputs, outputs);
+        agraph.infer_shape();
+        for (const auto &val : agraph.get_output_values()) {
+            if (logical_tensor_wrapper_t(val->get_logical_tensor())
+                            .has_zero_dim()) {
+                kernel_creator = dummy_kernel_creator;
+                break;
+            }
+        }
+
         kernel_ptr kernel = kernel_creator();
         if (!kernel) return status::unimplemented;
 

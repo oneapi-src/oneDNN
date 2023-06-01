@@ -94,6 +94,10 @@ graph::utils::optional_t<memory::desc> dnnl_backend::get_mem_desc(
 kernel_ptr large_partition_kernel_creator() {
     return std::make_shared<larger_partition_kernel_t>();
 }
+
+kernel_ptr dummy_kernel_creator() {
+    return std::make_shared<dummy_kernel_t>();
+}
 } // namespace dnnl_impl
 
 // This function should be called by backend_registry_t
