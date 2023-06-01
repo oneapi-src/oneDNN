@@ -270,7 +270,11 @@ public:
         auto it_a = attr_a.find(attr_name);
         auto it_b = attr_b.find(attr_name);
 
-        return it_b == attr_b.end() ? false : (it_a->second == it_b->second);
+        const bool same = (it_a == attr_b.end() || it_b == attr_b.end())
+                ? false
+                : (it_a->second == it_b->second);
+
+        return same;
     }
 
     bool has_same_attr_values(const dnnl_graph_op &op_b,
