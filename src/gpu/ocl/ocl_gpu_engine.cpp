@@ -305,7 +305,8 @@ status_t ocl_gpu_engine_t::create_kernel_from_binary(compute::kernel_t &kernel,
             program, this->device(), this->context(), binary));
 
     cl_int err;
-    auto ocl_kernel = clCreateKernel(program, kernel_name, &err);
+    auto ocl_kernel
+            = make_ocl_wrapper(clCreateKernel(program, kernel_name, &err));
     OCL_CHECK(err);
 
     std::vector<gpu::compute::scalar_type_t> arg_types;
