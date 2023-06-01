@@ -1054,10 +1054,10 @@ private:
 class bmnk_dim_helper_t {
 public:
     bmnk_dim_helper_t(const conv_config_t &cfg) {
-        gemm_iter_ = to_gemm(cfg.iter_dims().get(), cfg.prb().prop_kind()),
+        gemm_iter_ = to_gemm(cfg.iter_dims().get(), cfg.prb().prop_kind(), cfg.prb().ab_swap_transpose),
         gemm_thread_group_
-                = to_gemm(cfg.thread_group_dims().get(), cfg.prb().prop_kind());
-        gemm_loop_ = to_gemm(cfg.loop_dims().get(), cfg.prb().prop_kind());
+                = to_gemm(cfg.thread_group_dims().get(), cfg.prb().prop_kind(), cfg.prb().ab_swap_transpose);
+        gemm_loop_ = to_gemm(cfg.loop_dims().get(), cfg.prb().prop_kind(), cfg.prb().ab_swap_transpose);
     }
 
     int iter_dim(gemm_dim_t d) const { return gemm_iter_.at(d, 1); }

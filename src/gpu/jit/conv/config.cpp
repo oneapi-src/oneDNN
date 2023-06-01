@@ -198,9 +198,7 @@ status_t conv_problem_t::init(
             conv_pd->attr()->gpu_attr_.get());
     bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
     bool do_ab_transpose = ir_utils::getenv_bool("do_ab_transpose", true);
-    ab_swap_transpose = do_ab_transpose
-            && (((is_bwd_d) && ic < 6) || ((is_fwd || is_bwd_w) && oc < 6))
-            && !is_dw; 
+    ab_swap_transpose = do_ab_transpose && !with_groups && (((is_bwd_d) && ic < 6) || ((is_fwd || is_bwd_w) && oc < 6 ));
     hw_config_t hw_cfg(engine, large_grf_mode);
 
     CHECK(init_abc_data_types(hw_cfg));

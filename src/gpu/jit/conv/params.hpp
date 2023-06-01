@@ -272,8 +272,8 @@ private:
 using gemm_tile_t = tile_generic_t<gemm_dim_t>;
 using conv_tile_t = tile_generic_t<conv_dim_t>;
 
-gemm_dim_t to_gemm(const conv_dim_t &d, prop_kind_t prop);
-gemm_tile_t to_gemm(const conv_tile_t &t, prop_kind_t prop);
+gemm_dim_t to_gemm(const conv_dim_t &d, prop_kind_t prop, bool is_transpose);
+gemm_tile_t to_gemm(const conv_tile_t &t, prop_kind_t prop, bool is_transpose);
 
 class blocking_t {
 public:

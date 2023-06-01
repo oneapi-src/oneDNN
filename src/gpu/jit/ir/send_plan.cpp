@@ -1614,7 +1614,6 @@ public:
         params_.type = vlayout.type();
         if (hint.type != params_.type)
             return fail_2d("Retyping is not supported.");
-        //ir_assert(hint.type == params_.type) << "Retyping is not supported.";
 
         layout_2d_wrapper_t lw(vlayout);
 
