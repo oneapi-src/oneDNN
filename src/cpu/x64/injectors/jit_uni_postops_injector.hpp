@@ -46,12 +46,6 @@ namespace injector {
 using lambda_jit_injectors_t
         = std::map<dnnl_primitive_kind_t, std::function<void()>>;
 
-struct post_ops_ok_args_t;
-/*
- * Checks if postops injection for given args is supported.
- */
-bool is_supported(const post_ops_ok_args_t &post_ops_ok_args);
-
 /*
  * Main mechanism of handling various post-ops types. It utilizes internally
  * specialized injectors to generate post-ops code to host primitive. Random

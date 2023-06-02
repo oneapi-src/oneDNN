@@ -22,29 +22,6 @@ namespace cpu {
 namespace x64 {
 namespace injector {
 
-bool is_supported(const post_ops_ok_args_t &post_ops_ok_args) {
-    const cpu_isa_t isa = post_ops_ok_args.isa;
-    const post_ops_t &post_ops = post_ops_ok_args.post_ops;
-    const memory_desc_wrapper *dst_d = post_ops_ok_args.dst_d;
-    const auto &enabled_bcast_strategy
-            = post_ops_ok_args.enabled_bcast_strategy;
-
-    for (const auto &post_op : post_ops.entry_) {
-        if (post_op.is_eltwise()) {
-            const auto res
-                    = eltwise_injector::is_supported(isa, post_op.eltwise.alg);
-            if (!res) return false;
-        } else if (post_op.is_like_binary()) {
-            const auto src1_desc
-                    = binary_injector::get_src1_desc(post_op, *dst_d);
-            const auto res = binary_injector::is_supported(
-                    isa, src1_desc, *dst_d, enabled_bcast_strategy);
-            if (!res) return false;
-        }
-    }
-    return true;
-}
-
 template <cpu_isa_t isa, typename Vmm>
 jit_uni_postops_injector_t<isa, Vmm>::jit_uni_postops_injector_t(
         jit_generator *host, const post_ops_t &post_ops,
