@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -570,11 +570,7 @@ struct xbyak_gemm_t : public jit_generator {
                 add(AO1, LDA);
             }
 
-            if (!isTransB) {
-                vbroadcastss(ymm2, ptr[BO1 + (0 - OFFSET) * SIZE]);
-            } else {
-                vbroadcastss(ymm2, ptr[BO1 + (0 - OFFSET) * SIZE]);
-            }
+            vbroadcastss(ymm2, ptr[BO1 + (0 - OFFSET) * SIZE]);
             fmareg = (i % 2 == 0) ? reg00 : reg12;
             fma(useFma, ymm0, ymm2, fmareg);
             if (unroll_m >= 16) {
@@ -598,9 +594,6 @@ struct xbyak_gemm_t : public jit_generator {
 
             if (unroll_n >= 3) {
                 if (!isTransB) {
-                    if (i == 2) {
-                        prefetcht0(ptr[BO1 + LDB * 2 + PREFETCHSIZEB * SIZE]);
-                    }
                     vbroadcastss(
                             ymm2, ptr[BO1 + LDB * 2 + (0 - OFFSET) * SIZE]);
                 } else {
@@ -724,11 +717,7 @@ struct xbyak_gemm_t : public jit_generator {
             add(AO1, LDA);
         }
 
-        if (!isTransB) {
-            vbroadcastss(ymm2, ptr[BO1 + (0 - OFFSET) * SIZE]);
-        } else {
-            vbroadcastss(ymm2, ptr[BO1 + (0 - OFFSET) * SIZE]);
-        }
+        vbroadcastss(ymm2, ptr[BO1 + (0 - OFFSET) * SIZE]);
         fma(useFma, ymm0, ymm2, reg00);
         if (unroll_m >= 16) { fma(useFma, ymm1, ymm2, reg06); }
 
