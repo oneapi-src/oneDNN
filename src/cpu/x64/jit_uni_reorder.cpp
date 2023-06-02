@@ -65,7 +65,19 @@ namespace x64 {
 namespace tr {
 
 static bool is_direct_copy(const prb_t &prb) {
-    return prb.ndims == 1 && prb.nodes[0].is == 1 && prb.nodes[0].os == 1;
+    // Note: io_helper has an implicit conversion to f32 which is incorrect for
+    // s32->s32. Disabling it for now as a direct copy path.
+    const bool is_s32
+            = utils::everyone_is(data_type::s32, prb.itype, prb.otype);
+    const bool no_scale = utils::everyone_is(
+            scale_type_t::NONE, prb.src_scale_type, prb.dst_scale_type);
+    const bool no_zp
+            = utils::everyone_is(false, prb.req_src_zp, prb.req_dst_zp);
+    const bool no_comp = utils::everyone_is(
+            false, prb.req_s8s8_comp, prb.req_asymmetric_comp);
+    return prb.ndims == 1 && prb.nodes[0].is == 1 && prb.nodes[0].os == 1
+            && !is_s32 && !prb.is_tail_present && no_scale && no_zp && no_comp
+            && prb.beta == 0.f;
 }
 
 static bool prb_has_small_strides(const prb_t &prb) {
@@ -490,20 +502,11 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         const int len_tail = len_unroll % simd_w;
         const bool is_i8 = utils::one_of(s8, prb_.itype, prb_.otype)
                 || utils::one_of(u8, prb_.itype, prb_.otype);
-        const bool is_s32 = utils::everyone_is(s32, prb_.itype, prb_.otype);
 
-        static constexpr int desirable_stride = 1;
-        const bool can_do = prb_.ndims == 1
-                // XXX: io_helper has an implicit conversion to f32 which is
-                //  incorrect for s32->s32. Disabling it for now.
-                && !is_s32
-                && utils::everyone_is(desirable_stride, prb_.os(0), prb_.is(0))
+        // TODO: make a standalone jit:direct_copy implementation.
+        const bool can_do = is_direct_copy(prb_)
                 // s8u8 with AVX should be used with XMM vreg.
-                && IMPLICATION(is_i8 && isa_ == avx, !is_ymm)
-                && !prb_.is_tail_present && !compensation_needed_
-                && prb_.src_scale_type == scale_type_t::NONE
-                && prb_.dst_scale_type == scale_type_t::NONE && !prb_.req_src_zp
-                && !prb_.req_dst_zp && prb_.beta == 0.f;
+                && IMPLICATION(is_i8 && isa_ == avx, !is_ymm);
         if (!can_do) return false;
 
         const int tail_opmask_idx = 2;
