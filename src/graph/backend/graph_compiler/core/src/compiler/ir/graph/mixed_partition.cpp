@@ -2852,10 +2852,16 @@ float mixed_parti_t::evaluate_perf() {
 
 bool mixed_parti_t::is_small_workload() const {
     if (merged_to) { return get_root()->is_small_workload(); }
+    // skip partition owning more than one ops
     if (committed_ops_.size() != 1) return false;
+    // get sinlge op
     auto single_op = committed_ops_[0].get();
+    // skip tunable op
+    if (single_op->isa<tunable_op_t>()) return false;
+    // get committed anchor
     auto committed_anchor = lookup_anchor_map(single_op);
     COMPILE_ASSERT(committed_anchor, "No committed anchor found")
+    // query small op workload
     return committed_anchor->is_small_op_workload(single_op);
 }
 
