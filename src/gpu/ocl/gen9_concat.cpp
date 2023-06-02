@@ -72,6 +72,8 @@ bool gen9_concat_t::pd_t::can_use_sub_group_size(
     const int c_idx = 1;
     const memory_desc_wrapper dst_mdw(pd->dst_md());
     const bool is_dst_blocked = dst_mdw.blocking_desc().inner_nblks > 0;
+    const int max_sub_group_size
+            = compute_engine->device_info()->max_subgroup_size();
     bool is_concat_axis_aligned = true;
     bool layouts_compatible = is_dst_blocked
             ? get_dim_block(dst_mdw, c_idx) % sub_group_size == 0
@@ -89,6 +91,7 @@ bool gen9_concat_t::pd_t::can_use_sub_group_size(
         }
     }
     return is_concat_axis_aligned && layouts_compatible
+            && sub_group_size <= max_sub_group_size
             && compute_engine->mayiuse_sub_group(sub_group_size);
 }
 
@@ -96,7 +99,7 @@ int gen9_concat_t::pd_t::calculate_sub_group_size(
         const compute::compute_engine_t *compute_engine) {
     // Subgroups are used only for concatenation over C dimension
     if (conf.concat_axis != 1) return 1;
-    for (int sub_group_size : {16, 8}) {
+    for (int sub_group_size : {32, 16, 8}) {
         if (can_use_sub_group_size(compute_engine, sub_group_size)) {
             return sub_group_size;
         }
