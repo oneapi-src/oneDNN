@@ -386,8 +386,8 @@ TEST(GCCore_CPU_graph_conv_test, TestGraphConvolutionBwdDataWithInverseWeight) {
             = R"(graph(v0: f32[8, 32, 32, 64], v1: f32[3, 3, 64, 64]) -> [v2: f32[8, 32, 32, 64]] {
   [v3: f32[3, 3, 64, 64]] = tensor_view(v1)
   [v4: f32[1, 1, 3, 3, 64, 64]] = reorder(v3)
-  [v5: f32[8, 1, 32, 32, 64]] = tensor_view(v0)
-  [v6: f32[8, 1, 32, 32, 64]] = conv_fwd_core(v5, v4)
+  [v5: f32[8, 32, 32, 64]] = tensor_view(v0)
+  [v6: f32[8, 32, 32, 64]] = conv_fwd_core(v5, v4)
   [v2: f32[8, 32, 32, 64]] = tensor_view(v6)
 }
 )";
