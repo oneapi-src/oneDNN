@@ -938,9 +938,9 @@ static inline bool nocopy_checker_avx2(const int nthr, const int transa,
     // Crude threshold to nocopy kernels if copy overhead is significant.
     if (1.0 / m + 1.0 / n >= FORCE_NOCOPY_THRESH) { return true; }
 
-    if (m <= 378 && n <= 378 && k >= nthr * 378) return false;
-
-    if (m >= nthr * 378 && k >= nthr * 378) return false;
+    const dim_t LIMIT = 378;
+    if (m <= LIMIT && n <= LIMIT && k >= nthr * LIMIT) return false;
+    if (m >= nthr * LIMIT && k >= nthr * LIMIT) return false;
 
     if (transb == no_trans) {
         if (m <= MN_NOCOPY_AVX2 && n <= MN_NOCOPY_AVX2) return true;
@@ -1012,9 +1012,9 @@ static inline bool nocopy_checker_avx512(int nthr, const int transa,
         if (use_copy_based) return false;
     }
 
-    if (m <= 378 && n <= 378 && k >= nthr * 378) return false;
-
-    if (m >= nthr * 378 && k >= nthr * 378) return false;
+    const dim_t LIMIT = 378;
+    if (m <= LIMIT && n <= LIMIT && k >= nthr * LIMIT) return false;
+    if (m >= nthr * LIMIT && k >= nthr * LIMIT) return false;
 
     if (transb == no_trans) {
         if (m <= nthr * MN_NOTRANSB_PER_THR) return true;
