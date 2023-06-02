@@ -77,8 +77,14 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
     auto thread_factors = utils::get_factors(num_threads);
     float cost = std::numeric_limits<float>::max();
     int split_n = 1;
-    bool is_special_fm
-            = tm.cpu_flags_.family == 6 && tm.cpu_flags_.model == 143;
+    // spr, emr, gnr
+    bool is_seg = tm.cpu_flags_.family == 6
+            && (tm.cpu_flags_.model == 143 || tm.cpu_flags_.model == 207
+                    || tm.cpu_flags_.model == 182);
+    // skx, clx, cpx, icx
+    bool is_scpi = tm.cpu_flags_.family == 6
+            && (tm.cpu_flags_.model == 106 || tm.cpu_flags_.model == 108
+                    || tm.cpu_flags_.model == 85);
     auto cal_cost = [&](int i) {
         int num_M_block
                 = utils::divide_and_ceil(M / iim_block, num_threads / i);
@@ -95,7 +101,7 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
         float new_cost;
         float sew = 1024 + M * i / num_threads + N / i;
         if ((K >= 1024 && is_int8 && !tm.use_amx())
-                || (K >= 512 && is_f32 && !is_special_fm)) {
+                || (K >= 512 && is_f32 && is_scpi)) {
             // Cost += empty_cores, making M_split_num * N_split_num closer to
             // num_threads
             float empty_cores = num_threads - i * (num_threads / i);
@@ -157,8 +163,8 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
         // smaller N/Ks
         M_split_num = num_threads;
         N_split_num = 1;
-    } else if ((M == iim_block && is_special_fm)
-            || (M == iim_block && !is_special_fm && num_threads <= 4)) {
+    } else if ((M == iim_block && is_seg)
+            || (M == iim_block && is_scpi && num_threads <= 4)) {
         M_split_num = 1;
         if (num_threads <= 4) {
             // magic number = 4096, needs to be further discussed for pretty big
@@ -247,7 +253,7 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
                 N_split_num = N_split_num / possible_splits[1];
             }
         }
-    } else if (is_f32 && !is_special_fm && M <= 256 && N >= 256 && K >= 512) {
+    } else if (is_f32 && is_scpi && M <= 256 && N >= 256 && K >= 512) {
         // f32 special case
         // for small M, consider giving splits on big K
         if (K >= 1024 && K >= 2 * N && thread_factors.size() > 3) {
@@ -290,7 +296,7 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
     int single_K_threshold
             = (single_M * single_N * sizeofdtypeA < L2_size ? 2048 : 4096)
             / sizeofdtypeA;
-    if (is_f32 && !is_special_fm && num_threads / M_split_num / N_split_num <= 2
+    if (is_f32 && is_scpi && num_threads / M_split_num / N_split_num <= 2
             && M >= 128) {
         // if no split is given on K axis, bigger K_sub_block is required
         single_K_threshold /= 4;
