@@ -77,7 +77,7 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
             return status::success;
         }
 
-        bool dst_is_acc_;
+        bool dst_is_acc_ = false;
 
     protected:
         void init_scratchpad() {
@@ -162,7 +162,7 @@ struct gemm_bf16_inner_product_bwd_data_t : public primitive_t {
             return status::success;
         }
 
-        bool diff_src_is_acc_;
+        bool diff_src_is_acc_ = false;
 
     private:
         void init_scratchpad() {
@@ -227,8 +227,8 @@ struct gemm_bf16_inner_product_bwd_weights_t : public primitive_t {
             return status::success;
         }
 
-        bool diff_wei_is_acc_;
-        int bias_reduction_nthr_;
+        bool diff_wei_is_acc_ = false;
+        int bias_reduction_nthr_ = 1;
         static const dim_t bias_blksize = 32;
 
         void get_bias_partitioning(
