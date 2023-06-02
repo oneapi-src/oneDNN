@@ -396,13 +396,20 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
   int64_t M_block_default = 64;
   int64_t N_block_default = 64;
   int64_t K_block_default = 64;
-  // if true, run on spr.
-  bool is_special_fm = get_default_context()->machine_.cpu_flags_.family == 6
-    && get_default_context()->machine_.cpu_flags_.model == 143;
+  // if true, run on spr, emr, gnr
+  bool is_seg = get_default_context()->machine_.cpu_flags_.family == 6
+    && (get_default_context()->machine_.cpu_flags_.model == 143
+      || get_default_context()->machine_.cpu_flags_.model == 207
+      || get_default_context()->machine_.cpu_flags_.model == 182);
+  // if true, run on skx, clx, cpx, icx
+  bool is_scpi = get_default_context()->machine_.cpu_flags_.family == 6
+    && (get_default_context()->machine_.cpu_flags_.model == 106
+      || get_default_context()->machine_.cpu_flags_.model == 108
+      || get_default_context()->machine_.cpu_flags_.model == 85);
   bool is_dynamic = is_dynamic_dim(plain_M) || is_dynamic_dim(plain_N)
     || is_dynamic_dim(plain_K);
   if (is_f32) {
-    if (is_special_fm) {
+    if (is_seg) {
       // prefer small blocks
       M_block_default = 16;
       N_block_default = 16;
@@ -429,7 +436,7 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
   if (!is_dynamic) {
     if (plain_N <= 512 && plain_K <= 512) {
       iim_block_ = std::max(
-        (is_f32 && !is_special_fm && plain_M >= 64 && plain_M <= 128
+        (is_f32 && is_scpi && plain_M >= 64 && plain_M <= 128
           && (plain_N >= 256 || plain_K >= 256))
           ? (int64_t)8
           : (int64_t)4,
@@ -446,14 +453,23 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
   } else if (!is_dynamic_dim(plain_N)) {
     iin_block_ = get_matmul_dyn_cfg_single(plain_N);
   }
-  // f32 small M with small even K prefers padding iik_block to align 16
-  // int8 perfers padding iik_block_ to algin 16 when M <=2048
   if (!is_dynamic) {
-    if (((is_f32 && plain_K < 16 && plain_K % 2 == 0 && !is_dynamic_dim(plain_M)
-           && plain_M <= 128)
-          || (is_int8 && !is_dynamic_dim(plain_M) && plain_M < 2048))
-      && !is_special_fm) {
-      iik_block_ = 16;
+    if (is_f32) {
+      // f32 small M with small even K prefers padding iik_block to align 16
+      if (plain_K < 16 && plain_K % 2 == 0 && plain_M <= 128 && is_scpi) {
+        iik_block_ = 16;
+      } else {
+        iik_block_
+          = suggest_aligned_block(plain_K, K_block_default, is_f32 ? 1 : 4, 16);
+      }
+    } else if (is_int8) {
+      // vnni-int8 perfers padding iik_block_ to algin 16 when M <=2048
+      if (plain_M < 2048 && !get_default_context()->use_amx()) {
+        iik_block_ = 16;
+      } else {
+        iik_block_
+          = suggest_aligned_block(plain_K, K_block_default, is_f32 ? 1 : 4, 16);
+      }
     } else {
       iik_block_
         = suggest_aligned_block(plain_K, K_block_default, is_f32 ? 1 : 4, 16);
