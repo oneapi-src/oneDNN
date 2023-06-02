@@ -137,6 +137,40 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, permute_concat_to)
                             graph::op_kind::TypeCast, concat_layer, 0, 3);
                 });
 
+/* from GPT-J int8-bf16
+[IN0](dtype) [IN1](dtype)
+    |             |
+    |          permute
+     \            /
+         concat
+           |
+           to
+           |
+        quantize
+           |
+        [OUT0](dtype)
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        compiler, permute_concat_to_quantize)
+        .set_priority(5.6f)
+        .set_engine_kind(engine_kind::cpu)
+        .set_kind(graph::partition_kind_t::concat_fusion_memory_optim)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto permute_layer = pgraph->append_op(
+                            graph::op_kind::StaticTranspose);
+                    permute_layer->allow_external_outputs();
+                    auto concat_layer
+                            = pgraph->append_op(graph::op_kind::Concat,
+                                    {in_edge(1, permute_layer, 0)});
+                    concat_layer->allow_external_outputs();
+                    auto typecast_rep = append_single_op_repetition_subgraph(
+                            pgraph, graph::op_kind::TypeCast, concat_layer, 0,
+                            3);
+                    pgraph->append_op(graph::op_kind::Quantize,
+                            {in_edge(0, typecast_rep, 0)});
+                });
+
 /* from GPT-J int8_bf16
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
@@ -213,6 +247,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, concat_quant)
                     auto concat_layer
                             = pgraph->append_op(graph::op_kind::Concat);
                     concat_layer->allow_external_outputs();
+                    concat_layer->append_decision_function(
+                            check_if_null_producer);
                     auto typecast_rep = append_single_op_repetition_subgraph(
                             pgraph, graph::op_kind::TypeCast, concat_layer, 0,
                             3);
