@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -121,6 +121,13 @@ const dnnl::impl::primitive_attr_t *dnnl_primitive_desc::attr() const {
 
 const char *dnnl_primitive_desc::info() const {
     return impl()->info(engine_);
+}
+
+std::string dnnl_primitive_desc::info_with_runtime_dims(
+        const memory_desc_t *src_md, const memory_desc_t *wei_md,
+        const memory_desc_t *bia_md, const memory_desc_t *dst_md) const {
+    return impl()->info_with_runtime_dims(
+            engine_, src_md, wei_md, bia_md, dst_md);
 }
 
 dnnl::impl::engine_t *dnnl_primitive_desc::src_engine() const {

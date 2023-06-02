@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,6 +54,10 @@ struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
     dnnl::impl::status_t init();
     dnnl::impl::status_t next_impl();
     const char *info() const;
+    std::string info_with_runtime_dims(const dnnl::impl::memory_desc_t *src_md,
+            const dnnl::impl::memory_desc_t *wei_md,
+            const dnnl::impl::memory_desc_t *bia_md,
+            const dnnl::impl::memory_desc_t *dst_md) const;
     dnnl::impl::engine_t *engine() const;
     const dnnl::impl::primitive_attr_t *attr() const;
     virtual dnnl::impl::engine_t *scratchpad_engine() const;

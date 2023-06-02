@@ -98,8 +98,30 @@ status_t primitive_execute(
         status = stream->enqueue_primitive(primitive_iface, ctx);
         stream->wait();
         double duration_ms = get_msec() - start_ms;
-        VPROF(start_ms, exec, VERBOSE_profile, primitive_iface->pd()->info(),
-                duration_ms);
+        if (primitive_iface->pd()->impl()->has_runtime_dims_or_strides()) {
+            // Take out mds from `ctx` here to avoid primitive_desc dependency
+            // on `exec_ctx_t` type.
+            // TODO: invariant arg names for training?
+            const auto pd_src_md
+                    = primitive_iface->pd()->impl()->invariant_src_md();
+            const auto src_md = ctx.memory_mdw(DNNL_ARG_SRC, pd_src_md).md_;
+            const auto pd_wei_md
+                    = primitive_iface->pd()->impl()->invariant_wei_md();
+            const auto wei_md = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd_wei_md).md_;
+            const auto pd_bia_md
+                    = primitive_iface->pd()->impl()->invariant_bia_md();
+            const auto bia_md = ctx.memory_mdw(DNNL_ARG_BIAS, pd_bia_md).md_;
+            const auto pd_dst_md
+                    = primitive_iface->pd()->impl()->invariant_dst_md();
+            const auto dst_md = ctx.memory_mdw(DNNL_ARG_DST, pd_dst_md).md_;
+
+            std::string info = primitive_iface->pd()->info_with_runtime_dims(
+                    src_md, wei_md, bia_md, dst_md);
+            VPROF(start_ms, exec, VERBOSE_profile, info.c_str(), duration_ms);
+        } else {
+            VPROF(start_ms, exec, VERBOSE_profile,
+                    primitive_iface->pd()->info(), duration_ms);
+        }
     } else {
         status = stream->enqueue_primitive(primitive_iface, ctx);
     }

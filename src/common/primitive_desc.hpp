@@ -67,6 +67,43 @@ struct primitive_desc_t : public c_compatible {
         return info_.c_str();
     }
 
+    // Returns `info` string with actual md tags and non-dense strides and dims
+    // if runtime dimensions were requested.
+    // Note: doesn't use `pd_info_t` object since it's prohibited to change the
+    // state of primitive desc at `execute` time.
+    std::string info_with_runtime_dims(engine_t *engine,
+            const memory_desc_t *src_md, const memory_desc_t *wei_md,
+            const memory_desc_t *bia_md, const memory_desc_t *dst_md) {
+        std::string info_str = info(engine);
+
+        // Matmul and reorder are the only primitives supporting runtime dims.
+        // Any extension of primitive list will require verbose extension for
+        // `mds2str` and `dims2fmt_str`.
+        if (!utils::one_of(
+                    kind(), primitive_kind::matmul, primitive_kind::reorder))
+            return info_str;
+
+        assert(has_runtime_dims_or_strides() && "Runtime dims are expected.");
+
+        // Relying on the order of mds and dims in `info()` dump.
+        size_t pos = 0;
+        static constexpr int mds_order_in_info = 4; // Starting from 0th.
+        for (int i = 0; i < mds_order_in_info; i++) {
+            pos = info_str.find_first_of(',', pos) + 1;
+        }
+        auto mds_len = info_str.find_first_of(',', pos) - pos;
+        // Ask verbose to provide information about memory descriptors and dims.
+        auto mds_updated = mds2str(kind(), src_md, wei_md, bia_md, dst_md);
+        info_str.replace(pos, mds_len, mds_updated);
+
+        // Dims are always last in the line. Check position after mds replaced.
+        auto dims_start_pos = info_str.find_last_of(',') + 1;
+        auto dims_updated = dims2fmt_str(kind(), src_md, wei_md, dst_md);
+        info_str.replace(dims_start_pos, std::string::npos, dims_updated);
+
+        return info_str;
+    }
+
     memory_tracking::registry_t &scratchpad_registry() {
         return scratchpad_registry_;
     }
