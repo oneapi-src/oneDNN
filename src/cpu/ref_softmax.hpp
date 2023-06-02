@@ -102,7 +102,7 @@ struct ref_softmax_fwd_t : public primitive_t {
             }
         }
         bool post_ops_ok() const {
-            return attr()->post_ops_.find(primitive_kind::sum) == -1;
+            return ref_post_ops_t::primitive_kind_ok(attr()->post_ops_);
         }
     };
 

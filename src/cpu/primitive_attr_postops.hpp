@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -70,6 +70,11 @@ struct ref_post_ops_t {
     virtual ~ref_post_ops_t() = default;
 
     status_t execute(float &res, const args_t &args = args_t()) const;
+
+    static bool primitive_kind_ok(const post_ops_t &po) {
+        using namespace primitive_kind;
+        return po.has_default_values({binary, eltwise, prelu, sum});
+    }
 
 private:
     const post_ops_t &po_;

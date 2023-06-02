@@ -64,8 +64,6 @@ struct gemm_convolution_fwd_t : public primitive_t {
     protected:
         bool post_ops_ok() const {
             auto const &po = attr()->post_ops_;
-            auto is_eltwise
-                    = [&](int idx) { return po.entry_[idx].is_eltwise(); };
             auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(); };
             auto is_binary
                     = [&](int idx) { return po.entry_[idx].is_binary(); };
@@ -81,10 +79,11 @@ struct gemm_convolution_fwd_t : public primitive_t {
                 return ok;
             };
 
+            if (!ref_post_ops_t::primitive_kind_ok(attr()->post_ops_))
+                return false;
+
             for (int idx = 0; idx < po.len(); idx++) {
-                bool ok = utils::one_of(true, is_sum(idx), is_binary(idx),
-                                  is_eltwise(idx), is_prelu(idx))
-                        && IMPLICATION(is_sum(idx), idx == 0)
+                bool ok = IMPLICATION(is_sum(idx), idx == 0)
                         && IMPLICATION(is_binary(idx) || is_prelu(idx),
                                 is_binary_or_prelu_supported(idx));
                 if (!ok) return false;

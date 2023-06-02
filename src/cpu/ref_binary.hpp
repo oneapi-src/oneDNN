@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,6 +52,7 @@ struct ref_binary_t : public primitive_t {
                             sm::post_ops | sm::scales_runtime)
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             check_scales_mask())
+                    && ref_post_ops_t::primitive_kind_ok(attr()->post_ops_)
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 

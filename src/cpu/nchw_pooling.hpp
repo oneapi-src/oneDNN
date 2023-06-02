@@ -55,6 +55,7 @@ struct nchw_pooling_fwd_t : public primitive_t {
                     && !has_zero_dim_memory() && !is_dilated()
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops, d_type)
+                    && ref_post_ops_t::primitive_kind_ok(attr()->post_ops_)
                     && set_default_params() == status::success
                     && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
                     && memory_desc_matches_tag(*dst_md(), desired_fmt_tag)

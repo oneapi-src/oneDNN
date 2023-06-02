@@ -62,6 +62,7 @@ struct ref_inner_product_fwd_t : public primitive_t {
                             smask_t::post_ops | smask_t::sum_dt)
                     && attr()->post_ops_.check_sum_consistency(dst_type,
                             /* is_int8 */ false)
+                    && ref_post_ops_t::primitive_kind_ok(attr()->post_ops_)
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             return ok ? status::success : status::unimplemented;
         }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ struct ref_reduction_t : public primitive_t {
                     && platform::has_data_type_support(dst_type)
                     && set_default_params() == status::success
                     && attr()->has_default_values(sm::post_ops)
+                    && ref_post_ops_t::primitive_kind_ok(attr()->post_ops_)
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 

@@ -61,6 +61,7 @@ struct ref_inner_product_int8_fwd_t : public primitive_t {
                     && attr()->post_ops_.check_sum_consistency(dst_type,
                             /* is_int8 */ true)
                     && attr_scales_ok()
+                    && ref_post_ops_t::primitive_kind_ok(attr()->post_ops_)
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             return ok ? status::success : status::unimplemented;
         }

@@ -49,6 +49,7 @@ struct ref_pooling_fwd_t : public primitive_t {
                             data_type, src_md()->data_type, dst_md()->data_type)
                     && desc()->accum_data_type == acc_type
                     && attr()->has_default_values(sm::post_ops)
+                    && ref_post_ops_t::primitive_kind_ok(attr()->post_ops_)
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 

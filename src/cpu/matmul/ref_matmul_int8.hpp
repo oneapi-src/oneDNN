@@ -58,6 +58,7 @@ struct ref_matmul_int8_t : public primitive_t {
                             dst_type)
                     && attr_.post_ops_.check_sum_consistency(dst_type,
                             /* is_int8 */ true)
+                    && ref_post_ops_t::primitive_kind_ok(attr()->post_ops_)
                     && attr_scales_ok() && attr_zero_points_ok()
                     && set_default_formats()
                     && attr_.set_default_formats(dst_md(0)) == status::success;
