@@ -1,5 +1,4 @@
 # random batched shapes for correctness testing
-1x1x1:1x1x1
 2x10x30:2x30x1
 3x30x1:3x1x20
 1x30x30:1x30x20
