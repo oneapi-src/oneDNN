@@ -564,7 +564,23 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
 
     bool defined() const;
     int len() const { return (int)entry_.size(); }
-    bool has_default_values() const { return len() == 0; }
+    bool has_default_values(
+            const std::vector<dnnl::impl::primitive_kind_t> &skip_pk
+            = {}) const {
+        if (len() == 0) return true;
+
+        for (const auto &e : entry_) {
+            bool skip = false;
+            for (const auto &pk : skip_pk)
+                if (e.kind == pk) {
+                    skip = true;
+                    break;
+                }
+            if (skip) continue;
+            return false;
+        }
+        return true;
+    }
 
     dnnl::impl::status_t set_default_formats(
             const dnnl::impl::memory_desc_t *dst_md);
