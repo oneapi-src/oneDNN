@@ -47,11 +47,10 @@ std::pair<int, int> gen9_concat_t::pd_t::calculate_iter_dim_idx_chunk(
     const int min_threads = num_threads * 4;
     dim_t iter_dim_chunk = std::min(dst_dims[iter_dim_idx], max_iter_dim_chunk);
     const auto get_num_threads = [&]() {
-        return ceil(static_cast<float>(all_elems)
-                / (iter_dim_chunk * conf.sub_group_size));
+        return utils::div_up(all_elems, iter_dim_chunk * conf.sub_group_size);
     };
     while (get_num_threads() < min_threads && iter_dim_chunk > 1) {
-        iter_dim_chunk = ceil(iter_dim_chunk / 2.0f);
+        iter_dim_chunk = utils::div_up(iter_dim_chunk, 2);
     }
     return std::make_pair(iter_dim_idx, iter_dim_chunk);
 }
@@ -80,7 +79,7 @@ bool gen9_concat_t::pd_t::can_use_sub_group_size(
     for (int i = 0; i < conf.n; ++i) {
         const memory_desc_wrapper src_mdw(pd->src_md(i));
         is_concat_axis_aligned = is_concat_axis_aligned
-                && src_mdw.md_->dims[conf.concat_axis] % sub_group_size == 0;
+                && src_mdw.dims()[conf.concat_axis] % sub_group_size == 0;
         if (is_dst_blocked) {
             layouts_compatible = layouts_compatible
                     && get_dim_block(src_mdw, c_idx) % sub_group_size == 0;
@@ -109,7 +108,7 @@ status_t gen9_concat_t::pd_t::init_conf(engine_t *engine) {
     const concat_pd_t *pd = this;
 
     const memory_desc_wrapper dst_mdw(pd->dst_md());
-    const auto dst_dims = dst_mdw.md_->padded_dims;
+    const auto dst_dims = dst_mdw.padded_dims();
 
     conf.dst_md_info = memory_desc_info_t::create(dst_mdw);
     conf.dst_type = dst_mdw.data_type();
@@ -126,7 +125,7 @@ status_t gen9_concat_t::pd_t::init_conf(engine_t *engine) {
     conf.scales_mask = 0;
     for (int i = 0; i < conf.n; ++i) {
         const memory_desc_wrapper src_mdw(pd->src_md(i));
-        concat_axis_end += src_mdw.md_->dims[conf.concat_axis];
+        concat_axis_end += src_mdw.dims()[conf.concat_axis];
         conf.offset[i] = concat_axis_end;
         conf.src_md_infos[i] = memory_desc_info_t::create(pd->src_md(i));
         conf.scale_src[i] = scales_query_t(
