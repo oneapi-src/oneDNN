@@ -47,7 +47,8 @@ def filter_verbose(benchdnn_verbose, driver):
     benchdnn_prop_kind = None
 
     for test_case in benchdnn_verbose.split("__REPRO"):
-        for l in test_case.split("\n"):
+        verbose_lines = test_case.split("\n")
+        for idx, l in enumerate(verbose_lines, start=1):
             # Parse header
             if l.find("create: ") != -1:
                 # detect prop kind in benchdnn log
@@ -72,6 +73,10 @@ def filter_verbose(benchdnn_verbose, driver):
                         and verbose_prop_kind != benchdnn_prop_kind
                     ):
                         continue
+                    # Filter out fill reorders. Only the last one is actual.
+                    if d == "reorder" and idx != len(verbose_lines):
+                        continue
+
                     # found primitive creation for the test case
                     # remove time
                     l_wo_time = "".join(f + "," for f in l.split(",")[0:-1])[0:-1]
