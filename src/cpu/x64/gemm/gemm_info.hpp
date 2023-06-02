@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ struct gemm_info_t {
     dim_t bn_small_k, bk_traditional, blocking_small_k;
 
     // Gemv parameters
-    int swap;
+    int swap = false;
 
     using copy_a_fptr_t = void (*)(const dim_t *m, const dim_t *n,
             const a_t *src, const dim_t *ldsrc, const float *alpha, a_t *dst,
