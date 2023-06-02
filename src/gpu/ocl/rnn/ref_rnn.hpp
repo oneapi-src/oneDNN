@@ -324,13 +324,16 @@ private:
             const memory_storage_t &bias) const;
     status_t copy_init_layer(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream, bool lr, bool rl,
-            int n_iter, int batch, int slc, const memory_storage_t &ws_states,
+            int n_iter, int batch, int slc, int dhc, int n_layer, int n_dir,
+            int n_states, int states_ws_ld, int scratch_diff_states_ld,
+            const memory_storage_t &ws_states,
             const memory_storage_t &scratch_diff_states,
             const memory_storage_t &input,
             const memory_storage_t &diff_dst_layer) const;
     status_t copy_init_iter(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
-            int batch, int sic, int dhc, const workspace_t &ws,
+            int batch, int sic, int dhc, int n_iter, int n_states,
+            int states_ws_ld, int scratch_diff_states_ld, const workspace_t &ws,
             const memory_storage_t &scratch_diff_states,
             const memory_storage_t &firstit_states,
             const memory_storage_t &firstit_c_states,
@@ -339,7 +342,8 @@ private:
             const float scale, const bool quantize) const;
     status_t copy_res_layer(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream, bool lr, bool rl,
-            int n_iter, int batch, int slc, int dlc,
+            int n_iter, int batch, int slc, int dhc, int n_layer, int n_dir,
+            int n_states, int states_ws_ld, int scratch_diff_states_ld,
             const memory_storage_t &scratch_diff_states,
             const memory_storage_t &dst_last_layer,
             const memory_storage_t &diff_src_layer,
@@ -347,7 +351,8 @@ private:
             const float scale, const bool dequantize) const;
     status_t copy_res_iter(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
-            int batch, int sic, int dhc,
+            int batch, int sic, int dhc, int n_iter, int n_states,
+            int states_ws_ld, int scratch_diff_states_ld,
             const memory_storage_t &scratch_diff_states,
             const memory_storage_t &dst_last_iter,
             const memory_storage_t &dst_last_iter_c,

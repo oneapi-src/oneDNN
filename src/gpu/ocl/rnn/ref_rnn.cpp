@@ -228,20 +228,6 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("SUM", dnnl_bidirectional_sum);
     kernel_ctx.define_int("DIRECTION_KIND", conf.direction_kind);
 
-    kernel_ctx.define_int("BATCH", conf.batch);
-    kernel_ctx.define_int("N_DIR", conf.n_dir);
-    kernel_ctx.define_int("N_LAYER", conf.n_layer);
-    kernel_ctx.define_int("N_ITER", conf.n_iter);
-    kernel_ctx.define_int("N_ITER_SCRATCH_GATES", conf.n_iter_scratch_gates);
-    kernel_ctx.define_int("N_GATES", conf.n_gates);
-    kernel_ctx.define_int("N_BIAS", conf.n_bias);
-    kernel_ctx.define_int("N_STATES", conf.n_states);
-
-    kernel_ctx.define_int("SLC", conf.slc);
-    kernel_ctx.define_int("SIC", conf.sic);
-    kernel_ctx.define_int("DHC", conf.dhc);
-    kernel_ctx.define_int("WIC", conf.wic);
-
     kernel_ctx.define_int("N_PARTS_WEI_ST", conf.n_parts_weights_iter);
     kernel_ctx.define_int("N_PARTS_WEI_I", conf.n_parts_weights_layer);
 
@@ -286,12 +272,6 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
         def_offsets(off.diff_bias_off, kernel_ctx, "DIFF_BIAS",
                 conf.diff_bias_ndims);
     }
-
-    kernel_ctx.define_int("STATES_WS_LD", conf.states_ws_ld);
-    kernel_ctx.define_int("GATES_WS_LD", conf.gates_ws_ld);
-    kernel_ctx.define_int(
-            "SCRATCH_DIFF_STATES_LD", conf.scratch_diff_states_ld);
-    kernel_ctx.define_int("SCRATCH_GATES_LD", conf.scratch_gates_ld);
 
     if (conf.src_dt == data_type::f16) {
         kernel_ctx.set_data_type(data_type::f16);
@@ -1065,6 +1045,11 @@ status_t _ref_rnn_common_t<aprop>::gates_reduction(const exec_ctx_t &ctx,
     arg_list.append(diff_bias);
     arg_list.append(scratch_gates);
     arg_list.append(scratch_cell);
+    arg_list.append(pd()->rnn_conf.scratch_gates_ld);
+    arg_list.append(batch);
+    arg_list.append(dhc);
+    arg_list.append(pd()->rnn_conf.n_gates);
+    arg_list.append(pd()->rnn_conf.n_iter_scratch_gates);
 
     auto nd_range = pd()->use_subgroup_reduction
             ? get_nd_range({pd()->subgroup_size, dhc, n_bias})
@@ -1169,6 +1154,10 @@ status_t _ref_rnn_common_t<aprop>::bias_prepare(const exec_ctx_t &ctx,
     arg_list.append(wei_layer);
     arg_list.append(wei_iter);
     arg_list.append(bias);
+    arg_list.append(dhc);
+    arg_list.append(n_layer);
+    arg_list.append(n_dir);
+    arg_list.append(n_bias);
     arg_list.append(data_shift);
     arg_list.append(data_scale);
 
@@ -1179,8 +1168,10 @@ status_t _ref_rnn_common_t<aprop>::bias_prepare(const exec_ctx_t &ctx,
 
 template <prop_kind_t aprop>
 status_t _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
-        compute::compute_stream_t *compute_stream, bool lr, bool rl, int n_iter,
-        int batch, int slc, const memory_storage_t &ws_states,
+        compute::compute_stream_t *compute_stream, bool lr, bool rl, int batch,
+        int dhc, int slc, int n_iter, int n_layer, int n_dir, int n_states,
+        int states_ws_ld, int scratch_diff_states_ld,
+        const memory_storage_t &ws_states,
         const memory_storage_t &scratch_diff_states,
         const memory_storage_t &input,
         const memory_storage_t &diff_dst_layer) const {
@@ -1193,6 +1184,16 @@ status_t _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         arg_list.append((cl_int)lr);
         arg_list.append((cl_int)rl);
 
+        arg_list.append(batch);
+        arg_list.append(dhc);
+        arg_list.append(slc);
+        arg_list.append(n_iter);
+        arg_list.append(n_layer);
+        arg_list.append(n_dir);
+        arg_list.append(n_states);
+        arg_list.append(states_ws_ld);
+        arg_list.append(scratch_diff_states_ld);
+
         return parallel_for(ctx,
                 compute::nd_range_t(get_nd_range({slc, batch, n_iter})),
                 copy_init_layer_kernel_, arg_list);
@@ -1204,6 +1205,16 @@ status_t _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         arg_list.append((cl_int)0);
         arg_list.append((cl_int)0);
 
+        arg_list.append(batch);
+        arg_list.append(dhc);
+        arg_list.append(slc);
+        arg_list.append(n_iter);
+        arg_list.append(n_layer);
+        arg_list.append(n_dir);
+        arg_list.append(n_states);
+        arg_list.append(states_ws_ld);
+        arg_list.append(scratch_diff_states_ld);
+
         return parallel_for(ctx,
                 compute::nd_range_t(get_nd_range({batch, n_iter})),
                 copy_init_layer_kernel_, arg_list);
@@ -1212,8 +1223,9 @@ status_t _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
 
 template <prop_kind_t aprop>
 status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
-        compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
-        int batch, int sic, int dhc, const workspace_t &ws,
+        compute::compute_stream_t *compute_stream, int batch, int dhc, int sic,
+        int n_iter, int n_layer, int n_dir, int n_states, int states_ws_ld,
+        int scratch_diff_states_ld, const workspace_t &ws,
         const memory_storage_t &scratch_diff_states,
         const memory_storage_t &firstit_states,
         const memory_storage_t &firstit_c_states,
@@ -1229,6 +1241,17 @@ status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         arg_list.append(firstit_states);
         arg_list.append(firstit_c_states);
         arg_list.append(scratch_diff_states);
+
+        arg_list.append(batch);
+        arg_list.append(dhc);
+        arg_list.append(sic);
+        arg_list.append(n_iter);
+        arg_list.append(n_layer);
+        arg_list.append(n_dir);
+        arg_list.append(n_states);
+        arg_list.append(states_ws_ld);
+        arg_list.append(scratch_diff_states_ld);
+
         arg_list.append(shift);
         arg_list.append(scale);
         arg_list.append((int)quantize);
@@ -1242,6 +1265,17 @@ status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         arg_list.append(diff_dst_iter);
         arg_list.append(diff_dst_iter_c);
         arg_list.append(scratch_diff_states);
+
+        arg_list.append(batch);
+        arg_list.append(dhc);
+        arg_list.append(sic);
+        arg_list.append(n_iter);
+        arg_list.append(n_layer);
+        arg_list.append(n_dir);
+        arg_list.append(n_states);
+        arg_list.append(states_ws_ld);
+        arg_list.append(scratch_diff_states_ld);
+
         return parallel_for(ctx,
                 compute::nd_range_t({dhc, batch, n_layer * n_dir}),
                 copy_init_iter_kernel_, arg_list);
@@ -1250,8 +1284,9 @@ status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
 
 template <prop_kind_t aprop>
 status_t _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
-        compute::compute_stream_t *compute_stream, bool lr, bool rl, int n_iter,
-        int batch, int slc, int dhc,
+        compute::compute_stream_t *compute_stream, bool lr, bool rl, int batch,
+        int dhc, int slc, int n_iter, int n_layer, int n_dir, int n_states,
+        int states_ws_ld, int scratch_diff_states_ld,
         const memory_storage_t &scratch_diff_states,
         const memory_storage_t &dst_last_layer,
         const memory_storage_t &diff_src_layer,
@@ -1265,6 +1300,17 @@ status_t _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         arg_list.append(scratch_diff_states);
         arg_list.append((cl_int)lr);
         arg_list.append((cl_int)rl);
+
+        arg_list.append(batch);
+        arg_list.append(dhc);
+        arg_list.append(slc);
+        arg_list.append(n_iter);
+        arg_list.append(n_layer);
+        arg_list.append(n_dir);
+        arg_list.append(n_states);
+        arg_list.append(states_ws_ld);
+        arg_list.append(scratch_diff_states_ld);
+
         arg_list.append(shift);
         arg_list.append(scale);
         arg_list.append((int)dequantize);
@@ -1277,6 +1323,17 @@ status_t _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         arg_list.append(scratch_diff_states);
         arg_list.append((cl_int)lr);
         arg_list.append((cl_int)rl);
+
+        arg_list.append(batch);
+        arg_list.append(dhc);
+        arg_list.append(slc);
+        arg_list.append(n_iter);
+        arg_list.append(n_layer);
+        arg_list.append(n_dir);
+        arg_list.append(n_states);
+        arg_list.append(states_ws_ld);
+        arg_list.append(scratch_diff_states_ld);
+
         return parallel_for(ctx, get_nd_range({slc, batch, n_iter}),
                 copy_res_layer_kernel_, arg_list);
     }
@@ -1284,9 +1341,9 @@ status_t _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
 
 template <prop_kind_t aprop>
 status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
-        compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
-        int batch, int sic, int dhc,
-        const memory_storage_t &scratch_diff_states,
+        compute::compute_stream_t *compute_stream, int batch, int dhc, int sic,
+        int n_iter, int n_layer, int n_dir, int n_states, int states_ws_ld,
+        int scratch_diff_states_ld, const memory_storage_t &scratch_diff_states,
         const memory_storage_t &dst_last_iter,
         const memory_storage_t &dst_last_iter_c,
         const memory_storage_t &diff_src_iter,
@@ -1300,6 +1357,17 @@ status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         arg_list.append(dst_last_iter);
         arg_list.append(dst_last_iter_c);
         arg_list.append(scratch_diff_states);
+
+        arg_list.append(batch);
+        arg_list.append(dhc);
+        arg_list.append(sic);
+        arg_list.append(n_iter);
+        arg_list.append(n_layer);
+        arg_list.append(n_dir);
+        arg_list.append(n_states);
+        arg_list.append(states_ws_ld);
+        arg_list.append(scratch_diff_states_ld);
+
         arg_list.append(shift);
         arg_list.append(scale);
         arg_list.append((int)dequantize);
@@ -1314,6 +1382,17 @@ status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         arg_list.append(diff_src_iter);
         arg_list.append(diff_src_iter_c);
         arg_list.append(scratch_diff_states);
+
+        arg_list.append(batch);
+        arg_list.append(dhc);
+        arg_list.append(sic);
+        arg_list.append(n_iter);
+        arg_list.append(n_layer);
+        arg_list.append(n_dir);
+        arg_list.append(n_states);
+        arg_list.append(states_ws_ld);
+        arg_list.append(scratch_diff_states_ld);
+
         return parallel_for(ctx,
                 compute::nd_range_t({max_d, batch, n_layer * n_dir}),
                 copy_res_iter_kernel_, arg_list);
@@ -1346,6 +1425,17 @@ status_t _ref_rnn_common_t<aprop>::ws_print(const exec_ctx_t &ctx,
     arg_list.append(workspace_.c_states());
     arg_list.append(workspace_.bias());
     arg_list.append(workspace_.grid_comp());
+
+    arg_list.append(pd()->conf.batch);
+    arg_list.append(pd()->conf.n_layer);
+    arg_list.append(pd()->conf.n_dir);
+    arg_list.append(pd()->conf.n_iter);
+    arg_list.append(pd()->conf.n_bias);
+    arg_list.append(pd()->conf.dhc);
+    arg_list.append(pd()->conf.n_gates);
+    arg_list.append(pd()->conf.states_ws_ld);
+    arg_list.append(pd()->conf.gates_ws_ld);
+    arg_list.append(pd()->conf.wic);
 
     auto nd_range = compute::nd_range_t({1});
 
@@ -1387,6 +1477,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     int n_layer = rnn.n_layer;
     int n_dir = rnn.n_dir;
+    int n_states = rnn.n_states;
     int n_iter = rnn.n_iter;
     int n_gates = rnn.n_gates;
     int n_bias = rnn.n_bias;
@@ -1470,9 +1561,9 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
         DPRINT("  n_iter          = %d\n", n_iter);
         DPRINT("  n_gates         = %d\n", n_gates);
         DPRINT("  n_bias          = %d\n", n_bias);
-        DPRINT("  n_states        = %d\n", rnn.n_states);
-        DPRINT("  n_weights_layer = %d\n", rnn_pd->SLC());
-        DPRINT("  n_weights_iter  = %d\n", rnn_pd->SIC());
+        DPRINT("  n_states        = %d\n", n_states);
+        DPRINT("  n_weights_layer = %ld\n", rnn_pd->SLC());
+        DPRINT("  n_weights_iter  = %ld\n", rnn_pd->SIC());
         DPRINT("  batch           = %d\n", batch);
         DPRINT("  slc             = %d\n", slc);
         DPRINT("  sic             = %d\n", sic);
@@ -1559,12 +1650,14 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     float scale = (pd()->attr()->rnn_data_qparams_.scale_);
 
     // we first need to copy the initial states and input into ws
-    CHECK(copy_init_layer(ctx, compute_stream, is_lr, is_rl, n_iter, batch, slc,
-            workspace.states(), scratch_diff_states, src_layer_native_,
-            diff_dst_layer_native_));
+    CHECK(copy_init_layer(ctx, compute_stream, is_lr, is_rl, batch, dhc, slc,
+            n_iter, n_layer, n_dir, n_states, rnn.states_ws_ld,
+            rnn.scratch_diff_states_ld, workspace.states(), scratch_diff_states,
+            src_layer_native_, diff_dst_layer_native_));
     const bool quantize = pd()->with_src_iter()
             && pd()->src_md(1)->data_type == data_type::f32 && rnn.is_int8;
-    CHECK(copy_init_iter(ctx, compute_stream, n_layer, n_dir, batch, sic, dhc,
+    CHECK(copy_init_iter(ctx, compute_stream, batch, dhc, sic, n_iter, n_layer,
+            n_dir, n_states, rnn.states_ws_ld, rnn.scratch_diff_states_ld,
             workspace, scratch_diff_states, src_iter_native_,
             src_c_iter_native_, diff_dst_iter_native_, diff_dst_iter_c_native_,
             shift, scale, quantize));
@@ -1591,13 +1684,15 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     const bool dequantize_l
             = pd()->dst_md(0)->data_type == data_type::f32 && rnn.is_int8;
-    CHECK(copy_res_layer(ctx, compute_stream, is_lr, is_rl, n_iter, batch, slc,
-            dhc, scratch_diff_states, dst_last_layer_native_,
-            diff_src_layer_native_, workspace.states(), shift, scale,
-            dequantize_l));
+    CHECK(copy_res_layer(ctx, compute_stream, is_lr, is_rl, batch, dhc, slc,
+            n_iter, n_layer, n_dir, n_states, rnn.states_ws_ld,
+            rnn.scratch_diff_states_ld, scratch_diff_states,
+            dst_last_layer_native_, diff_src_layer_native_, workspace.states(),
+            shift, scale, dequantize_l));
     const bool dequantize_i = pd()->with_dst_iter()
             && pd()->dst_md(1)->data_type == data_type::f32 && rnn.is_int8;
-    CHECK(copy_res_iter(ctx, compute_stream, n_layer, n_dir, batch, sic, dhc,
+    CHECK(copy_res_iter(ctx, compute_stream, batch, dhc, sic, n_iter, n_layer,
+            n_dir, n_states, rnn.states_ws_ld, rnn.scratch_diff_states_ld,
             scratch_diff_states, dst_last_iter_native_, dst_last_iter_c_native_,
             diff_src_iter_native_, diff_src_iter_c_native_, workspace, shift,
             scale, dequantize_i));

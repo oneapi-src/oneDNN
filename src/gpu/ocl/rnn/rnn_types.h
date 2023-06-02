@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,50 +54,6 @@
     ((((i0) * (D1) + (i1)) * (D2) + (i2)) * (D3) + (i3))
 #define OFF3(i0, D0, i1, D1, i2, D2) (((i0) * (D1) + (i1)) * (D2) + (i2))
 #define OFF2(i0, D0, i1, D1) ((i0) * (D1) + (i1))
-
-// used for the both H- and C-states
-#define OFF_WS_STATE(i0, i1, i2, i3, i4) \
-    OFF5((i0), N_LAYER + 1, (i1), N_DIR, (i2), N_ITER + 1, (i3), BATCH, (i4), \
-            STATES_WS_LD)
-
-#define OFF_SCRATCH_DIFF_STATES(i0, i1, i2, i3, i4, i5) \
-    OFF6((i0), N_LAYER + 1, (i1), N_DIR, (i2), N_STATES + 1, (i3), N_ITER + 1, \
-            (i4), BATCH, (i5), SCRATCH_DIFF_STATES_LD)
-
-// cannot be presented by OFF6 due to leading dimension across two dims
-#define OFF_WS_GATES(i0, i1, i2, i3, i4, i5) \
-    (i0) * N_DIR *N_ITER *BATCH *GATES_WS_LD + (i1)*N_ITER *BATCH *GATES_WS_LD \
-            + (i2)*BATCH *GATES_WS_LD + (i3)*GATES_WS_LD + (i4)*DHC + (i5)
-
-// grid offset for lbr GRU, LD = DHC
-#define OFF_WS_GRID_OFFSET(i0, i1, i2, i3, i4) \
-    OFF5((i0), N_LAYER + 1, (i1), N_DIR, (i2), N_ITER + 1, (i3), BATCH, (i4), \
-            DHC)
-
-#if N_ITER_SCRATCH_GATES == 1
-// if no merge gemm, scratch_gates contain data for single cell,
-// so we ignore iter dim
-#define OFF_SCRATCH_MEM(i0, i1, i2, i3) \
-    (i1) * SCRATCH_GATES_LD + (i2)*DHC + (i3)
-#else
-#define OFF_SCRATCH_MEM(i0, i1, i2, i3) \
-    (i0) * BATCH *SCRATCH_GATES_LD + (i1)*SCRATCH_GATES_LD + (i2)*DHC + (i3)
-#endif
-
-#define OFF_WS_BIAS(i0, i1, i2, i3) \
-    OFF4((i0), N_LAYER, (i1), N_DIR, (i2), N_BIAS, (i3), DHC)
-
-// for cell - shorter forms
-
-#define CELL_WS_GATES(i3, i4, i5) OFF_WS_GATES(0, 0, 0, i3, i4, i5)
-#define CELL_WS_STATE(i4, i5) OFF_WS_STATE(0, 0, 0, i4, i5)
-#define CELL_SCRATCH_MEM(i1, i2, i3) OFF_SCRATCH_MEM(0, i1, i2, i3)
-#define CELL_SCRATCH_DIFF_STATES(i2, i4, i5) \
-    OFF_SCRATCH_DIFF_STATES(0, 0, i2, 0, i4, i5)
-#define CELL_WS_GRID_COMP(i3, i4) OFF_WS_GRID_OFFSET(0, 0, 0, i3, i4)
-#define OFF_KER_BIAS(i0, i1) OFF2((i0), N_GATES, (i1), DHC)
-#define OFF_SCRATCH_DHG1(i0, i1) OFF2((i0), BATCH, (i1), SCRATCH_DIFF_STATES_LD)
-#define OFF_SCRATCH_CELL(i0, i1) OFF2((i0), BATCH, (i1), STATES_WS_LD)
 
 #define SRC_L_OFF(x0, x1, x2) \
     (((x0) % SRC_L_B0) * SRC_L_SB0 + ((x0) / SRC_L_B0) * SRC_L_S0 \

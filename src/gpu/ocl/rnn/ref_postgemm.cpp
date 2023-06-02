@@ -53,6 +53,22 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
     auto ws_grid = workspace.grid_comp(lay, dir, iter);
     arg_list.append(rnn_utils::get_storage(ws_grid));
 
+    arg_list.append(pd()->rnn_conf.states_ws_ld);
+    arg_list.append(pd()->rnn_conf.gates_ws_ld);
+    arg_list.append(pd()->rnn_conf.scratch_gates_ld);
+
+    arg_list.append(batch);
+    arg_list.append(dhc);
+    arg_list.append(pd()->rnn_conf.n_layer);
+    arg_list.append(pd()->rnn_conf.n_gates);
+    arg_list.append(pd()->rnn_conf.n_iter_scratch_gates);
+    if (aprop != dnnl_forward) {
+        arg_list.append(pd()->rnn_conf.n_dir);
+        arg_list.append(pd()->rnn_conf.n_states);
+        arg_list.append(pd()->rnn_conf.n_iter);
+        arg_list.append(pd()->rnn_conf.scratch_diff_states_ld);
+    }
+
     arg_list.append(pd()->rnn_conf.tm_cscale);
     if (aprop != dnnl_forward) { arg_list.append(scratch_diff_states); }
     return parallel_for(ctx, nd_range, kernel, arg_list);
@@ -91,6 +107,21 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
 
     auto ws_grid = workspace.grid_comp(lay, dir, iter);
     arg_list.append(rnn_utils::get_storage(ws_grid));
+
+    arg_list.append(pd()->rnn_conf.states_ws_ld);
+    arg_list.append(pd()->rnn_conf.gates_ws_ld);
+    arg_list.append(pd()->rnn_conf.scratch_gates_ld);
+    arg_list.append(batch);
+    arg_list.append(dhc);
+    arg_list.append(pd()->rnn_conf.n_layer);
+    arg_list.append(pd()->rnn_conf.n_gates);
+    arg_list.append(pd()->rnn_conf.n_iter_scratch_gates);
+    if (aprop != dnnl_forward) {
+        arg_list.append(pd()->rnn_conf.n_dir);
+        arg_list.append(pd()->rnn_conf.n_states);
+        arg_list.append(pd()->rnn_conf.n_iter);
+        arg_list.append(pd()->rnn_conf.scratch_diff_states_ld);
+    }
 
     arg_list.append(pd()->rnn_conf.tm_cscale);
     if (aprop != dnnl_forward) { arg_list.append(scratch_diff_states); }
@@ -132,6 +163,14 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise_u8s8)) {
 
     arg_list.append(workspace.bias());
 
+    arg_list.append(pd()->rnn_conf.states_ws_ld);
+    arg_list.append(pd()->rnn_conf.scratch_gates_ld);
+    arg_list.append(batch);
+    arg_list.append(dhc);
+    arg_list.append(pd()->rnn_conf.n_layer);
+    arg_list.append(pd()->rnn_conf.n_dir);
+    arg_list.append(pd()->rnn_conf.n_bias);
+    arg_list.append(pd()->rnn_conf.n_iter_scratch_gates);
     arg_list.append(pd()->rnn_conf.tm_cscale);
     return parallel_for(ctx, nd_range, elemwise_fwd_kernel_, arg_list);
 }
@@ -170,7 +209,22 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
     arg_list.append(rnn_utils::get_storage(gates));
 
     auto ws_grid = workspace.grid_comp(lay, dir, iter);
+
     arg_list.append(rnn_utils::get_storage(ws_grid));
+    arg_list.append(pd()->rnn_conf.states_ws_ld);
+    arg_list.append(pd()->rnn_conf.gates_ws_ld);
+    arg_list.append(pd()->rnn_conf.scratch_gates_ld);
+    arg_list.append(batch);
+    arg_list.append(dhc);
+    arg_list.append(pd()->rnn_conf.n_layer);
+    arg_list.append(pd()->rnn_conf.n_gates);
+    arg_list.append(pd()->rnn_conf.n_iter_scratch_gates);
+    if (aprop != dnnl_forward) {
+        arg_list.append(pd()->rnn_conf.n_dir);
+        arg_list.append(pd()->rnn_conf.n_states);
+        arg_list.append(pd()->rnn_conf.n_iter);
+        arg_list.append(pd()->rnn_conf.scratch_diff_states_ld);
+    }
 
     if (aprop == dnnl_forward) {
         arg_list.append(rnn_utils::get_storage(states_tm1_l));
@@ -213,7 +267,22 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
     arg_list.append(rnn_utils::get_storage(gates));
 
     auto ws_grid = workspace.grid_comp(lay, dir, iter);
+
     arg_list.append(rnn_utils::get_storage(ws_grid));
+    arg_list.append(pd()->rnn_conf.states_ws_ld);
+    arg_list.append(pd()->rnn_conf.gates_ws_ld);
+    arg_list.append(pd()->rnn_conf.scratch_gates_ld);
+    arg_list.append(batch);
+    arg_list.append(dhc);
+    arg_list.append(pd()->rnn_conf.n_layer);
+    arg_list.append(pd()->rnn_conf.n_gates);
+    arg_list.append(pd()->rnn_conf.n_iter_scratch_gates);
+    if (aprop != dnnl_forward) {
+        arg_list.append(pd()->rnn_conf.n_dir);
+        arg_list.append(pd()->rnn_conf.n_states);
+        arg_list.append(pd()->rnn_conf.n_iter);
+        arg_list.append(pd()->rnn_conf.scratch_diff_states_ld);
+    }
 
     if (aprop == dnnl_forward) {
         arg_list.append(rnn_utils::get_storage(states_tm1_l));
