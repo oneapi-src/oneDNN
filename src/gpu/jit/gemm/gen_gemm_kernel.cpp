@@ -76,6 +76,7 @@ status_t gen_gemm_kernel_desc_t::finalize() {
         if (k_ <= k_min) {
             strategy_.kParallel = false;
             strategy_.C.atomic = false;
+            strategy_.CO.atomic = false;
         }
     }
 
