@@ -464,7 +464,15 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::create_kernels() {
                             = ((i_side == 0) ? (iw_s - iw_str)
                                              : (iw_str + M - iw_f))
                             / SW;
-                    add_po_kernels(i_N, init_bcast_dim, po_bcast_dim);
+                    // TODO: this condition is a workaround and should be
+                    // integrated with po_bcast_dim calculation or moved to
+                    // a separate place where kernels that have
+                    // init_bcast_dim == po_bcast_dim are created
+                    if (init_bcast_dim > 0 && po_bcast_dim == 0
+                            && (need_postwork || jcp.use_buffer))
+                        add_po_kernels(i_N, init_bcast_dim, init_bcast_dim);
+                    else
+                        add_po_kernels(i_N, init_bcast_dim, po_bcast_dim);
                 }
             }
         };
