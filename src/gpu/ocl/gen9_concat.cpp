@@ -141,6 +141,10 @@ status_t gen9_concat_t::pd_t::init_conf(engine_t *engine) {
             = calculate_iter_dim_idx_chunk(
                     compute_engine->device_info()->hw_threads());
 
+    int sg_chunk = conf.iter_dim_chunk * conf.sub_group_size;
+    dim_t chunks = dst_mdw.nelems(true) / sg_chunk;
+    if (chunks > (1u << 15) && conf.sub_group_size == 1)
+        return status::unimplemented;
     if (dst_mdw.blocking_desc().inner_nblks == 0
             && (conf.sub_group_size == 1
                     || (conf.ndims > 2 && conf.iter_dim_chunk == 1))) {
