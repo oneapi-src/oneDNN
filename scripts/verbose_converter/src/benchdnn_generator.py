@@ -577,9 +577,14 @@ def extract_attr(attrs, type):
     return attrs[start_idx:end_idx]
 
 
-def convert_scale_policy(value):
-    # 4 is used by batched matmul
-    masks = {0: "common", 1: "per_oc", 2: "per_oc", 3: "per_oc", 4: "per_oc"}
+def convert_scale_policy(value, prim_kind):
+    if prim_kind == "reorder":
+        masks = {0: "common", 1: "per_dim_0", 2: "per_dim_1", 3: "per_dim_01"}
+    else:
+        # 4 is used by batched matmul
+        # TODO: split further
+        masks = {0: "common", 1: "per_oc", 2: "per_oc", 3: "per_oc", 4: "per_oc"}
+
     mask = masks.get(int(value))
     if mask:
         return mask
@@ -597,7 +602,7 @@ def convert_zp_policy(value):
     return "per_tensor"
 
 
-def convert_post_ops(post_ops):
+def convert_post_ops(post_ops, prim_kind):
     def convert_binary_post_op(post_op):
         masks = {0: "common", 2: "per_oc"}
         mask = masks.get(int(post_op["mask"]))
@@ -611,7 +616,7 @@ def convert_post_ops(post_ops):
         return po
 
     def convert_dw_post_op(post_op):
-        policy = convert_scale_policy(post_op["scales"]["mask"])
+        policy = convert_scale_policy(post_op["scales"]["mask"], prim_kind)
         po = (
             post_op["alg"]
             + ":"
@@ -651,7 +656,7 @@ def convert_post_ops(post_ops):
     def convert_prelu_post_op(post_op):
         benchdnn_p_op = post_op["alg"]
         if post_op["mask"] != 0:
-            policy = convert_scale_policy(post_op["mask"])
+            policy = convert_scale_policy(post_op["mask"], prim_kind)
             benchdnn_p_op += ":" + policy
         return benchdnn_p_op
 
@@ -675,16 +680,18 @@ def convert_post_ops(post_ops):
     return benchdnn_postops
 
 
-def convert_scales(scales):
+def convert_scales(scales, prim_kind):
     res = []
     for arg in scales.keys():
         s = scales[arg]
-        benchdnn_scale = arg + ":" + convert_scale_policy(s["mask"]) + ":0.5*"
+        benchdnn_scale = (
+            arg + ":" + convert_scale_policy(s["mask"], prim_kind) + ":0.5*"
+        )
         res.append(benchdnn_scale)
     return "+".join(res)
 
 
-def convert_zero_points(zero_points):
+def convert_zero_points(zero_points, prim_kind):
     res = []
     for arg in zero_points.keys():
         zp = zero_points[arg]
@@ -693,15 +700,15 @@ def convert_zero_points(zero_points):
     return "+".join(res)
 
 
-def convert_scratchpad_mode(scratchpad_mode):
+def convert_scratchpad_mode(scratchpad_mode, prim_kind):
     return scratchpad_mode
 
 
-def convert_fpmath_mode(fpmath_mode):
+def convert_fpmath_mode(fpmath_mode, prim_kind):
     return fpmath_mode
 
 
-def convert_attrs(exts):
+def convert_attrs(exts, prim_kind):
     converters = {
         "attr-post-ops": convert_post_ops,
         "attr-scales": convert_scales,
@@ -716,7 +723,7 @@ def convert_attrs(exts):
         if attr != None:
             if benchdnn_attrs != "":
                 benchdnn_attrs += " "
-            benchdnn_attrs += f"--{e}=" + converters[e](attr)
+            benchdnn_attrs += f"--{e}=" + converters[e](attr, prim_kind)
     return benchdnn_attrs
 
 
@@ -757,7 +764,7 @@ class InputGenerator:
             case += " " + convert_dts(entry["mds"], entry["prim_kind"])
             case += " " + convert_tags(entry["mds"], entry["prim_kind"])
             case += " " + convert_flags(entry["mds"], entry["prim_kind"])
-            case += " " + convert_attrs(entry["exts"])
+            case += " " + convert_attrs(entry["exts"], entry["prim_kind"])
             case += " " + convert_shapes(entry["shapes"], entry["prim_kind"])
             return case
 
