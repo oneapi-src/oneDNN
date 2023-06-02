@@ -35,6 +35,8 @@
 using namespace dnnl::impl::graph::gc;
 
 static bool verbose = false;
+static const float the_atol = 1e-5;
+static const float the_rtol = 1e-4;
 
 template <typename Dtype>
 static void do_test_reduce_op(const sc_dims &in_shape,
@@ -74,7 +76,7 @@ static void do_test_reduce_op(const sc_dims &in_shape,
         std::cout << out_f32[0] << " " << out_f32[1] << " " << out_f32[2] << " "
                   << std::endl;
     }
-    test_utils::compare_data(out_f32, ref_out);
+    test_utils::compare_data(out_f32, ref_out, the_rtol, the_atol);
 }
 
 TEST(GCCore_CPU_reduce_op_cpp, TestReduceOp1) {
@@ -402,7 +404,7 @@ TEST(GCCore_CPU_reduce_op_cpp, TestReduceOpFuse) {
         std::cout << out[0] << std::endl;
         std::cout << ref_out[0] << std::endl;
     }
-    test_utils::compare_data(out, ref_out);
+    test_utils::compare_data(out, ref_out, the_rtol, the_atol);
 }
 
 class reduce_checker : public ir_viewer_t {
@@ -592,7 +594,7 @@ TEST(GCCore_CPU_reduce_op_cpp, TestPartialReduceAsOutput) {
     test_buffer<float> refout;
     bool done = false;
     do_test_last_axis(done, true, true, true, false, out, refout, 0);
-    if (done) test_utils::compare_data(out, refout);
+    if (done) test_utils::compare_data(out, refout, the_rtol, the_atol);
 }
 
 TEST(GCCore_CPU_reduce_op_cpp, TestPartialReduceAsOutputMixedFuse) {
@@ -601,7 +603,7 @@ TEST(GCCore_CPU_reduce_op_cpp, TestPartialReduceAsOutputMixedFuse) {
     test_buffer<float> refout;
     bool done = false;
     do_test_last_axis(done, true, true, true, false, out, refout, 0, 16, true);
-    if (done) test_utils::compare_data(out, refout);
+    if (done) test_utils::compare_data(out, refout, the_rtol, the_atol);
 }
 
 TEST(GCCore_CPU_reduce_op_cpp, TestPartialReduceAsOutputNoKeepDims) {
@@ -610,7 +612,7 @@ TEST(GCCore_CPU_reduce_op_cpp, TestPartialReduceAsOutputNoKeepDims) {
     test_buffer<float> refout;
     bool done = false;
     do_test_last_axis(done, true, true, false, false, out, refout, 0);
-    if (done) test_utils::compare_data(out, refout);
+    if (done) test_utils::compare_data(out, refout, the_rtol, the_atol);
 }
 
 TEST(GCCore_CPU_reduce_op_cpp, TestPartialReduceAsOutputAllReduce) {
@@ -619,7 +621,7 @@ TEST(GCCore_CPU_reduce_op_cpp, TestPartialReduceAsOutputAllReduce) {
     test_buffer<float> refout;
     bool done = false;
     do_test_last_axis(done, true, true, true, false, out, refout, -1);
-    if (done) test_utils::compare_data(out, refout);
+    if (done) test_utils::compare_data(out, refout, the_rtol, the_atol);
 }
 
 TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceAsOutput) {
@@ -628,7 +630,7 @@ TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceAsOutput) {
     test_buffer<float> refout;
     bool done = false;
     do_test_last_axis(done, true, true, true, false, out, refout);
-    if (done) test_utils::compare_data(out, refout);
+    if (done) test_utils::compare_data(out, refout, the_rtol, the_atol);
 }
 
 TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceAsOutputNoKeepDims) {
@@ -637,7 +639,7 @@ TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceAsOutputNoKeepDims) {
     test_buffer<float> refout;
     bool done = false;
     do_test_last_axis(done, true, true, false, false, out, refout);
-    if (done) test_utils::compare_data(out, refout);
+    if (done) test_utils::compare_data(out, refout, the_rtol, the_atol);
 }
 
 TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNotOutput) {
@@ -646,7 +648,7 @@ TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNotOutput) {
     test_buffer<float> refout;
     bool done = false;
     do_test_last_axis(done, false, true, true, false, out, refout);
-    if (done) test_utils::compare_data(out, refout);
+    if (done) test_utils::compare_data(out, refout, the_rtol, the_atol);
 }
 
 TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceBlockingNotOutput) {
@@ -655,7 +657,7 @@ TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceBlockingNotOutput) {
     test_buffer<float> refout;
     bool done = false;
     do_test_last_axis(done, false, false, true, false, out, refout);
-    if (done) test_utils::compare_data(out, refout);
+    if (done) test_utils::compare_data(out, refout, the_rtol, the_atol);
 }
 
 TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceAsOutputNoKeepDimsMean) {
@@ -664,7 +666,7 @@ TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceAsOutputNoKeepDimsMean) {
     test_buffer<float> refout;
     bool done = false;
     do_test_last_axis(done, true, true, false, true, out, refout);
-    if (done) test_utils::compare_data(out, refout);
+    if (done) test_utils::compare_data(out, refout, the_rtol, the_atol);
 }
 
 // test bmm+relu+reduce+add. Reduction on M axis for B_MN
@@ -767,7 +769,7 @@ TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNotLastAxisNotOutput) {
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_not_last_axis(false, true, true, false, out, refout);
-    test_utils::compare_data(out, refout);
+    test_utils::compare_data(out, refout, the_rtol, the_atol);
 }
 
 TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutput) {
@@ -775,7 +777,7 @@ TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutput) {
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_not_last_axis(true, true, true, false, out, refout);
-    test_utils::compare_data(out, refout);
+    test_utils::compare_data(out, refout, the_rtol, the_atol);
 }
 
 TEST(GCCore_CPU_reduce_op_cpp,
@@ -784,7 +786,7 @@ TEST(GCCore_CPU_reduce_op_cpp,
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_not_last_axis(true, true, false, false, out, refout);
-    test_utils::compare_data(out, refout);
+    test_utils::compare_data(out, refout, the_rtol, the_atol);
 }
 
 TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNotLastAxisBlockingNotOutput) {
@@ -792,7 +794,7 @@ TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNotLastAxisBlockingNotOutput) {
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_not_last_axis(false, false, true, false, out, refout);
-    test_utils::compare_data(out, refout);
+    test_utils::compare_data(out, refout, the_rtol, the_atol);
 }
 
 TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutputMean) {
@@ -800,7 +802,7 @@ TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNotLastAxisAsOutputMean) {
     test_buffer<float> out;
     test_buffer<float> refout;
     do_test_not_last_axis(true, true, true, true, out, refout);
-    test_utils::compare_data(out, refout);
+    test_utils::compare_data(out, refout, the_rtol, the_atol);
 }
 
 static void do_no_main_op_single_core(
@@ -865,7 +867,7 @@ TEST(GCCore_CPU_reduce_op_cpp, TestTwoStageReduceNoMainOp) {
     test_buffer<float> out;
     test_buffer<float> refout;
     do_no_main_op_single_core(out, refout);
-    test_utils::compare_data(out, refout);
+    test_utils::compare_data(out, refout, the_rtol, the_atol);
 }
 
 static void do_test_bf16(
@@ -928,5 +930,5 @@ TEST(GCCore_CPU_reduce_op_cpp, TestPartialBf16) {
     test_buffer<bf16_t> refout;
     bool done = false;
     do_test_bf16(out, refout, done);
-    if (done) test_utils::compare_data(out, refout);
+    if (done) test_utils::compare_data(out, refout, the_rtol, the_atol);
 }
