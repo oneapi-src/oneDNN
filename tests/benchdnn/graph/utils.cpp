@@ -1359,6 +1359,18 @@ int get_prim_arg_name_from_graph_op_input_offset(
     }
 }
 
+dnnl::graph::logical_tensor::layout_type str2layout(
+        const std::string &layout_type) {
+    if (layout_type == "strided")
+        return dnnl::graph::logical_tensor::layout_type::strided;
+    else if (layout_type == "any")
+        return dnnl::graph::logical_tensor::layout_type::any;
+    else if (layout_type == "opaque")
+        return dnnl::graph::logical_tensor::layout_type::opaque;
+    else
+        return dnnl::graph::logical_tensor::layout_type::undef;
+}
+
 cpp_stream_t::cpp_stream_t(
         const dnnl::engine &eng, dnnl::stream::flags flags, void *interop_obj) {
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL

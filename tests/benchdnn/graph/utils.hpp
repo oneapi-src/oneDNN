@@ -43,6 +43,8 @@
 
 namespace graph {
 
+struct deserialized_lt;
+
 #define GRAPH_SWITCH_TYPE(type_enum, type_key, ...) \
     switch (type_enum) { \
         case dnnl::graph::logical_tensor::data_type::f32: { \
@@ -223,6 +225,13 @@ int get_prim_arg_name_from_graph_op_output_offset(
 // get primitive's arg name according to graph op's input offset
 int get_prim_arg_name_from_graph_op_input_offset(
         dnnl::graph::op::kind op_kind, int input_offset, bool use_dst = false);
+
+/// Get logical tensor layout type based on string
+///
+/// @param layout_type a string of layout type from deserialized
+/// logical tensor
+dnnl::graph::logical_tensor::layout_type str2layout(
+        const std::string &layout_type);
 
 // TODO: remove fill_buffer?
 // fill the memory according to the given value
