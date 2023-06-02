@@ -183,38 +183,13 @@ enum class dnnl_driver_t {
 
 dnnl_driver_t opkind2driver(const dnnl::graph::op::kind &kind);
 
-// permute functions
-dnnl::memory::desc permute_NXC2NCX(const dnnl::memory::desc &adesc);
-dnnl::memory::desc permute_NCX2NXC(const dnnl::memory::desc &adesc);
-dnnl::memory::desc permute_OIX2XIO(const dnnl::memory::desc &adesc);
-dnnl::memory::desc permute_XIO2OIX(const dnnl::memory::desc &adesc);
-dnnl::memory::desc permute_OIX2XOI(const dnnl::memory::desc &adesc);
-dnnl::memory::desc permute_IOX2OIX(const dnnl::memory::desc &adesc);
-dnnl::memory::desc permute_XOI2OIX(const dnnl::memory::desc &adesc);
-dnnl::memory::desc permute_OIX2IOX(const dnnl::memory::desc &adesc);
-
-// permute vector of transpose
-std::vector<int64_t> get_transpose_permutation_vec(int ndims);
-// permute md using above permute functions
-void permute_md(dnn_mem_t &mem,
-        dnnl::memory::desc (*permute_func)(const dnnl::memory::desc &));
 // permute md based on permutation
 void permute_md(dnn_mem_t &mem, std::vector<int64_t> permutation);
 
-// reshape functions
-// reshape from [G, O/G, I/G, X] to [O, I/G, X] for conv, or
-// reshape from [G, O/G, I/G, X] to [O/G, I, X] for deconv
-dnnl::memory::desc reshape_GOIX2OIX(
-        const dnnl::memory::desc &adesc, int64_t groups, bool is_convtranspose);
-// reshape from [O, I/G, X] to [G, O/G, I/G, X] for conv, or
-// reshape from [O/G, I, X] to [G, O/G, I/G, X] for deconv
-dnnl::memory::desc reshape_OIX2GOIX(
-        const dnnl::memory::desc &adesc, int64_t groups, bool is_convtranspose);
-// reshape md based on reshape functions
-void reshape_md(dnn_mem_t &mem,
-        dnnl::memory::desc (*reshape_func)(
-                const dnnl::memory::desc &, int64_t, bool),
-        int64_t groups, bool is_convtranspose);
+void reshape_md(dnn_mem_t &mem, const dnnl::memory::dims &reshaped_dims);
+
+void reshape_md(dnn_mem_t &mem, const dnnl::memory::dims &reshaped_dims,
+        const dnnl::memory::dims &reshaped_strides);
 
 // check whether the logical tensor is in NXC format
 bool is_nxc_lt_arg(const std::string &kind, const int exec_arg);

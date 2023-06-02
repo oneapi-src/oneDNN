@@ -742,145 +742,6 @@ void change_format_to_ncx(dims_t &dims) {
     dims.erase(dims.end() - 1);
 }
 
-// permute the NXC format adesc to NCX format
-/// \note
-/// The logical axes will be permuted in the following manner:
-/// for (i = 0; i < ndims(); i++)
-///     new_desc.dims()[permutation[i]] = dims()[i];
-/// if we want to permute nhwc to nchw, we need:
-///     permutation[0] = 0
-///     permutation[1] = 2
-///     permutation[2] = 3
-///     permutation[3] = 1
-dnnl::memory::desc permute_NXC2NCX(const dnnl::memory::desc &adesc) {
-    assert(adesc.get_ndims() > 2);
-    int count = 0;
-    std::vector<int> axes(adesc.get_ndims());
-    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
-    axes.push_back(axes[1]);
-    axes.erase(axes.begin() + 1);
-    dnnl::memory::desc ret = adesc.permute_axes(axes);
-    return ret;
-}
-
-dnnl::memory::desc permute_NCX2NXC(const dnnl::memory::desc &adesc) {
-    assert(adesc.get_ndims() > 2);
-    int count = 0;
-    std::vector<int> axes(adesc.get_ndims());
-    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
-    axes.insert(axes.begin() + 1, axes.back());
-    axes.pop_back();
-    dnnl::memory::desc ret = adesc.permute_axes(axes);
-    return ret;
-}
-
-// permute the XIO format adesc to OIX format
-/// \note
-/// The logical axes will be permuted in the following manner:
-/// for (i = 0; i < ndims(); i++)
-///     new_desc.dims()[permutation[i]] = dims()[i];
-/// if we want to permute hwio to oihw, we need:
-///     permutation[0] = 2
-///     permutation[1] = 3
-///     permutation[2] = 1
-///     permutation[3] = 0
-dnnl::memory::desc permute_XIO2OIX(const dnnl::memory::desc &adesc) {
-    assert(adesc.get_ndims() > 2);
-    int count = 0;
-    std::vector<int> axes(adesc.get_ndims());
-    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
-    axes.push_back(axes[1]);
-    axes.push_back(axes[0]);
-    axes.erase(axes.begin());
-    axes.erase(axes.begin());
-    return adesc.permute_axes(axes);
-}
-
-// permute the OIX format adesc to XIO format
-/// \note
-/// The logical axes will be permuted in the following manner:
-/// for (i = 0; i < ndims(); i++)
-///     new_desc.dims()[permutation[i]] = dims()[i];
-/// if we want to permute oihw to hwio, we need:
-///     permutation[0] = 3
-///     permutation[1] = 2
-///     permutation[2] = 0
-///     permutation[3] = 1
-dnnl::memory::desc permute_OIX2XIO(const dnnl::memory::desc &adesc) {
-    int count = 0;
-    std::vector<int> axes(adesc.get_ndims());
-    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
-    axes.insert(axes.begin(), axes[axes.size() - 2]);
-    axes.insert(axes.begin(), axes[axes.size() - 1]);
-    axes.pop_back();
-    axes.pop_back();
-    return adesc.permute_axes(axes);
-}
-
-dnnl::memory::desc permute_IOX2OIX(const dnnl::memory::desc &adesc) {
-    int count = 0;
-    std::vector<int> axes(adesc.get_ndims());
-    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
-    std::swap(axes[0], axes[1]);
-
-    return adesc.permute_axes(axes);
-}
-
-dnnl::memory::desc permute_OIX2IOX(const dnnl::memory::desc &adesc) {
-    int count = 0;
-    std::vector<int> axes(adesc.get_ndims());
-    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
-    std::swap(axes[0], axes[1]);
-
-    return adesc.permute_axes(axes);
-}
-
-dnnl::memory::desc permute_XOI2OIX(const dnnl::memory::desc &adesc) {
-    int count = 0;
-    std::vector<int> axes(adesc.get_ndims());
-    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
-    axes.push_back(axes[0]);
-    axes.push_back(axes[1]);
-    axes.erase(axes.begin());
-    axes.erase(axes.begin());
-
-    return adesc.permute_axes(axes);
-}
-
-dnnl::memory::desc permute_OIX2XOI(const dnnl::memory::desc &adesc) {
-    int count = 0;
-    std::vector<int> axes(adesc.get_ndims());
-    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
-    axes.insert(axes.begin(), axes[axes.size() - 1]);
-    axes.insert(axes.begin(), axes[axes.size() - 2]);
-    axes.pop_back();
-    axes.pop_back();
-
-    return adesc.permute_axes(axes);
-}
-
-// transpose happens on the last 2 dims
-std::vector<int64_t> get_transpose_permutation_vec(int ndims) {
-    int count = 0;
-    std::vector<int64_t> permutation(ndims);
-    std::generate(permutation.begin(), permutation.end(),
-            [&count]() { return count++; });
-    std::swap(permutation[ndims - 1], permutation[ndims - 2]);
-    return permutation;
-}
-
-void permute_md(dnn_mem_t &mem,
-        dnnl::memory::desc (*permute_func)(const dnnl::memory::desc &)) {
-    dnnl::memory::desc md(clone_md(mem.md_));
-    dnnl::memory::desc permuted_md = permute_func(md);
-    // Dirty hack to replace md with another one.
-    // TODO: replace it with a better solution.
-    auto st = dnnl_memory_desc_destroy(mem.md_);
-    (void)st;
-    assert(st == dnnl_success);
-    mem.md_ = clone_md(permuted_md.get());
-}
-
 void permute_md(dnn_mem_t &mem, std::vector<int64_t> permutation) {
     std::vector<int> axes(permutation.size(), -1);
     for (int i = 0; i < static_cast<int>(permutation.size()); i++) {
@@ -895,68 +756,22 @@ void permute_md(dnn_mem_t &mem, std::vector<int64_t> permutation) {
     assert(st == dnnl_success);
     mem.md_ = clone_md(permuted_md.get());
 }
+void reshape_md(dnn_mem_t &mem, const dnnl::memory::dims &reshaped_dims,
+        const dnnl::memory::dims &reshaped_strides) {
 
-dnnl::memory::desc reshape_GOIX2OIX(const dnnl::memory::desc &adesc,
-        int64_t groups, bool is_convtranspose) {
-    dnnl::memory::dims dims = adesc.get_dims();
-    if (is_convtranspose) {
-        // from [G, O/G, I/G, X] to [G, I/G, O/G, X]
-        std::vector<int> axes(dims.size());
-        std::iota(axes.begin(), axes.end(), 0);
-        std::swap(axes[1], axes[2]);
-        dnnl::memory::desc permuted_md = adesc.permute_axes(axes);
-        // from [G, I/G, O/G, X] to [I, O/G, X]
-        dnnl::memory::dims permuted_dims = permuted_md.get_dims();
-        permuted_dims[0] = groups * permuted_dims[1];
-        permuted_dims.erase(permuted_dims.begin() + 1);
-        dnnl::memory::desc reshaped_md = permuted_md.reshape(permuted_dims);
-        // from [I, O/G, X] to [O/G, I, X]
-        dnnl::memory::dims reshaped_dims = reshaped_md.get_dims();
-        std::vector<int> reshaped_axes(reshaped_dims.size());
-        std::iota(reshaped_axes.begin(), reshaped_axes.end(), 0);
-        std::swap(reshaped_axes[0], reshaped_axes[1]);
-        return reshaped_md.permute_axes(reshaped_axes);
-    } else {
-        // from [G, O/G, I/G, X] to [O, I/G, X]
-        dims[0] = groups * dims[1];
-        dims.erase(dims.begin() + 1);
-        return adesc.reshape(dims);
-    }
+    const auto data_type = static_cast<dnnl::memory::data_type>(mem.dt());
+    dnnl::memory::desc md(reshaped_dims, data_type, reshaped_strides);
+    // Dirty hack to replace md with another one.
+    // TODO: replace it with a better solution.
+    auto st = dnnl_memory_desc_destroy(mem.md_);
+    (void)st;
+    assert(st == dnnl_success);
+    mem.md_ = clone_md(md.get());
 }
 
-dnnl::memory::desc reshape_OIX2GOIX(const dnnl::memory::desc &adesc,
-        int64_t groups, bool is_convtranspose) {
-    dnnl::memory::dims dims = adesc.get_dims();
-    if (is_convtranspose) {
-        // from [O/G, I, X] to [I, O/G, X]
-        std::vector<int> axes(dims.size());
-        std::iota(axes.begin(), axes.end(), 0);
-        std::swap(axes[0], axes[1]);
-        dnnl::memory::desc permuted_md = adesc.permute_axes(axes);
-        // from [I, O/G, X] to [G, I/G, O/G, X]
-        dnnl::memory::dims permuted_dims = permuted_md.get_dims();
-        permuted_dims[0] = permuted_dims[0] / groups;
-        permuted_dims.insert(permuted_dims.begin(), groups);
-        dnnl::memory::desc reshaped_md = permuted_md.reshape(permuted_dims);
-        // from [G, I/G, O/G, X] to [G, O/G, I/G, X]
-        std::vector<int> reshaped_axes(permuted_dims.size());
-        std::iota(reshaped_axes.begin(), reshaped_axes.end(), 0);
-        std::swap(reshaped_axes[1], reshaped_axes[2]);
-        return reshaped_md.permute_axes(reshaped_axes);
-    } else {
-        // from [O, I/G, X] to [G, O/G, I/G, X]
-        dims[0] = dims[0] / groups;
-        dims.insert(dims.begin(), groups);
-        return adesc.reshape(dims);
-    }
-}
-
-void reshape_md(dnn_mem_t &mem,
-        dnnl::memory::desc (*reshape_func)(
-                const dnnl::memory::desc &, int64_t, bool),
-        int64_t groups, bool is_convtranspose) {
+void reshape_md(dnn_mem_t &mem, const dnnl::memory::dims &reshaped_dims) {
     dnnl::memory::desc md(clone_md(mem.md_));
-    dnnl::memory::desc reshaped_md = reshape_func(md, groups, is_convtranspose);
+    dnnl::memory::desc reshaped_md = md.reshape(reshaped_dims);
     // Dirty hack to replace md with another one.
     // TODO: replace it with a better solution.
     auto st = dnnl_memory_desc_destroy(mem.md_);

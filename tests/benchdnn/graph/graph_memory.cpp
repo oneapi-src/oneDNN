@@ -96,6 +96,7 @@ dnnl::graph::tensor dnn_graph_mem_t::make_graph_tensor(
 }
 
 const dnn_mem_t &dnn_graph_mem_t::reorder_back_mem() {
+    if (use_graph_shape_) { reshape_md(mem_, graph_dims_, graph_strides_); }
     return mem_;
 }
 

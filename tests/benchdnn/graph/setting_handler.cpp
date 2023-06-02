@@ -105,16 +105,22 @@ void assign_shape_val(int64_t &c, int64_t &w, int64_t &h, int64_t &d,
     d = has_d ? ncx_shape[2] : 1;
 };
 
-bool get_driver_tag(const deserialized_op &base_op_ref, std::string &tag,
-        bool from_output = false) {
-    logical_tensor::dims strides = from_output ? base_op_ref.out_lts_[0].stride_
-                                               : base_op_ref.in_lts_[0].stride_;
+bool get_driver_tag_by_idx(const deserialized_op &base_op_ref, std::string &tag,
+        int idx = 0, bool from_output = false) {
+    logical_tensor::dims strides = from_output
+            ? base_op_ref.out_lts_[idx].stride_
+            : base_op_ref.in_lts_[idx].stride_;
     if (base_op_ref.has_NXC_format()) {
         // convert the strides to data_format = NCX
         change_format_to_ncx(strides);
     }
     tag = strides2memory_tag(strides.size(), strides, true);
     return true;
+}
+
+bool get_driver_tag(const deserialized_op &base_op_ref, std::string &tag,
+        bool from_output = false) {
+    return get_driver_tag_by_idx(base_op_ref, tag, 0, from_output);
 }
 
 bool get_driver_stag_and_dtag(const deserialized_op &base_op_ref,
@@ -134,7 +140,9 @@ bool get_driver_axis(const deserialized_op &base_op_ref, int &axis) {
 }
 
 bool get_prb_dims(const deserialized_op &base_op_ref, prb_dims_t &prb_dims) {
-    prb_dims.dims = base_op_ref.in_lts_.front().shape_;
+    bool from_output = base_op_ref.kind_ == "StaticTranspose" ? true : false;
+    prb_dims.dims = from_output ? base_op_ref.out_lts_.front().shape_
+                                : base_op_ref.in_lts_.front().shape_;
     prb_dims.ndims = static_cast<int>(prb_dims.dims.size());
     return true;
 }
@@ -1432,9 +1440,10 @@ bool get_prelu_sdt(const deserialized_op &base_op_ref,
 
 bool get_prelu_stag(
         const deserialized_op &base_op_ref, ::prelu::settings_t &op_setting) {
-    std::string tag;
-    get_driver_tag(base_op_ref, tag);
-    op_setting.stag = {{tag, tag}};
+    std::string tag0, tag1;
+    get_driver_tag_by_idx(base_op_ref, tag0);
+    get_driver_tag_by_idx(base_op_ref, tag1, 1);
+    op_setting.stag = {{tag0, tag1}};
     return true;
 }
 
@@ -1574,7 +1583,28 @@ bool get_reorder_dt(const deserialized_op &base_op_ref, dnnl_data_type_t &sdt,
 bool get_reorder_stag_and_dtag(const deserialized_op &base_op_ref,
         std::string &stag, std::string &dtag) {
     bool ret = get_driver_stag_and_dtag(base_op_ref, stag, dtag);
-    if (ret && (base_op_ref.kind_ == "Reorder")) {
+    if (!ret) return false;
+    if (base_op_ref.kind_ == "Reorder") {
+        ret = get_driver_tag(base_op_ref, dtag, true);
+    } else if (base_op_ref.kind_ == "StaticReshape") {
+        // StaticReshape needs to have abx tag for output
+        // StaticReshape: src_lt_strides -> [reorder] -> dense_src_lt_strides
+        //                -> [reshape_md] -> dst_lt_strides
+        ret = get_driver_tag(base_op_ref, stag);
+        dtag = "abx";
+    } else if (base_op_ref.kind_ == "StaticTranspose") {
+        // StaticTranspose: src_lt_strides -> [permute_md] ->permuted_src_lt_strides
+        //                  -> [reorder] -> dst_lt_strides
+        logical_tensor::dims input_strides = base_op_ref.in_lts_[0].stride_;
+        std::vector<int64_t> order;
+        bool has_order = base_op_ref.get_attr_s64_vector(order, "order");
+        if (!has_order) return false;
+        logical_tensor::dims permuted_strides(input_strides.size());
+        for (size_t d = 0; d < input_strides.size(); ++d) {
+            permuted_strides[d] = input_strides[order[d]];
+        }
+        stag = strides2memory_tag(
+                permuted_strides.size(), permuted_strides, true);
         ret = get_driver_tag(base_op_ref, dtag, true);
     }
     return ret;
