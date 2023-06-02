@@ -748,11 +748,13 @@ void brg_blocking_t::select_ic_block() {
 status_t brg_blocking_t::estimate_brgemm_ur() {
     // Simple simulation of brgemm_desc init
     if (sp_block <= 0) return status::invalid_arguments;
-    LDA = is_rtus
-            ? (ic_block)
-            : (kh_sets > 1 ? kh_sets : 1) * (kw_sets > 1 ? kw_sets : stride_w)
+    LDA = is_rtus ? (ic_block)
+                  : (kh_sets > 1 ? kh_sets : 1) * stride_w
                     * (exec_type == exec_trans ? ic_block
                                                : ngroups * ic_without_padding);
+    bool reduce_kw = (ow == 1);
+    if (reduce_kw) { LDA *= ext_kw; }
+
     LDB = wei_plain ? oc_without_padding : oc_block;
     LDC = use_buffer ? oc_block : oc_without_padding;
 
@@ -765,7 +767,8 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
     M_tail = brgM_tail = sp % sp_block;
     if (is_os_blocking) {
         if (!is_1x1) M_tail = (oh * ow) % sp_block;
-        oskip = ((ext_kw - 1) / stride_w) * stride_h + (stride_h - 1) * ow;
+        oskip = (((reduce_kw ? 1 : ext_kw) - 1) / stride_w) * stride_h
+                + (stride_h - 1) * ow;
 
         brgM = M + oskip * (div_up(M, ow) - 1);
         brgM_tail = M_tail + oskip * div_up(M_tail, ow);
@@ -2143,6 +2146,13 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                 && jcp.ow > 50 /*TODO: reinvestigate this heuristic */;
         try_exec_trans = !try_exec_base;
     }
+    // Try to use os_blocking for cases with ow and kw == 1
+    // TODO: maybe extend this approach for other cases with small kw and ow
+    if (is_superset(isa, avx512_core) && jcp.od == 1 && jcp.kw == 1
+            && jcp.ow == 1) {
+        try_exec_vpad = false;
+        try_exec_trans = true;
+    }
 
     bool must_exec_vpad = false;
 
@@ -2171,12 +2181,12 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         if (jcp.loop_order == loop_ndhwgc) { jcp.copy_block_only = true; }
 
         jcp.is_ic_padded = one_of(jcp.wei_dt, bf16, f16, s8)
-                && jcp.ic * jcp.kw_sets > ic_padded_block;
+                && jcp.ic * jcp.kw_sets > jcp.ic_block;
+        jcp.is_os_blocking = jcp.f_pad < jcp.kd && jcp.back_pad < jcp.kd
+                && jcp.t_pad < jcp.kh && jcp.b_pad < jcp.kh
+                && jcp.r_pad < jcp.kw && jcp.l_pad < jcp.kw;
 
         if (is_amx(isa) && (/* heuristic*/ jcp.kw_sets == 1 && jcp.ow < 256)) {
-            jcp.is_os_blocking = jcp.f_pad < jcp.kd && jcp.back_pad < jcp.kd
-                    && jcp.t_pad < jcp.kh && jcp.b_pad < jcp.kh
-                    && jcp.r_pad < jcp.kw && jcp.l_pad < jcp.kw;
             jcp.use_M_mask = jcp.is_os_blocking ? 2 : 0;
             jcp.use_uker = true;
             jcp.use_interleave_stores = true;
@@ -2192,6 +2202,12 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             const auto C_ds = jcp.acc_dsz * bd_blocking * ld_blocking;
             if (A_ds + B_ds + C_ds > brg_blocking_t::L1)
                 jcp.amx_tile_load_xx = true;
+        }
+        if (!jcp.use_uker) {
+            // M_mask is not supported in non-uker so os_blocking possible for
+            // shapes restricted by some ow/kw/stride_w/stride_h
+            jcp.is_os_blocking = (jcp.is_os_blocking && jcp.stride_h == 1
+                    && (jcp.ow == 1 || jcp.ext_kw <= jcp.stride_w));
         }
 
         try_exec_type_res = try_exec_type();
