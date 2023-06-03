@@ -188,8 +188,8 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
 
             kernel_ctx.define_int("WITH_BIAS", pd()->with_bias());
 
-            CHECK(def_attr_info(
-                    kernel_ctx, pd()->attr_info_, pd()->attr()->post_ops_));
+            CHECK(def_attr_info(kernel_ctx, pd()->attr_info_,
+                    pd()->attr()->post_ops_, pd()->dst_md()->dims));
 
             CHECK(create_kernel(engine, &post_process_kernel_,
                     "gemm_post_ops_inner_product", kernel_ctx));

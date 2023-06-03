@@ -114,7 +114,7 @@ static status_t init_conf_common(inner_product_conf_t &conf, offsets_t &off,
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         const inner_product_conf_t &conf, const offsets_t &off,
-        const post_ops_t &post_ops) {
+        const primitive_desc_t &pd) {
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("MB", conf.mb);
     kernel_ctx.define_int("OC", conf.oc);
@@ -139,7 +139,8 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     else if (conf.is_backward_weights)
         kernel_ctx.define_int("IS_BWD_W", 1);
 
-    CHECK(def_attr_info(kernel_ctx, conf.attr_info, post_ops));
+    CHECK(def_attr_info(kernel_ctx, conf.attr_info, pd.attr()->post_ops_,
+            pd.dst_md()->dims));
 
     def_offsets(off.src_off, kernel_ctx, "SRC", conf.src_ndims);
     def_offsets(off.wei_off, kernel_ctx, "WEI", conf.wei_ndims);
@@ -167,7 +168,7 @@ status_t ref_inner_product_fwd_t::pd_t::init_conf(engine_t *engine) {
 
 status_t ref_inner_product_fwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, off, attr()->post_ops_);
+    return init_kernel_ctx_common(kernel_ctx, conf, off, *this);
 }
 
 status_t ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
@@ -211,7 +212,7 @@ status_t ref_inner_product_bwd_data_t::pd_t::init_conf(engine_t *engine) {
 
 status_t ref_inner_product_bwd_data_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, off, attr()->post_ops_);
+    return init_kernel_ctx_common(kernel_ctx, conf, off, *this);
 }
 
 status_t ref_inner_product_bwd_data_t::execute_backward_data(
@@ -243,7 +244,7 @@ status_t ref_inner_product_bwd_weights_t::pd_t::init_conf(engine_t *engine) {
 
 status_t ref_inner_product_bwd_weights_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, off, attr()->post_ops_);
+    return init_kernel_ctx_common(kernel_ctx, conf, off, *this);
 }
 
 status_t ref_inner_product_bwd_weights_t::execute_backward_weights(

@@ -87,7 +87,8 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         kernel_ctx.define_int("IS_FWD", 1);
     }
 
-    CHECK(def_attr_info(kernel_ctx, conf.attr_info, post_ops));
+    CHECK(def_attr_info(
+            kernel_ctx, conf.attr_info, post_ops, conf.data_md_info.dims));
     def_dispatch(kernel_ctx, conf.dispatch);
 
     return status::success;

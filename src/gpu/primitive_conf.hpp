@@ -1290,8 +1290,9 @@ inline bool post_ops_with_binary_ok(const primitive_attr_t *attr,
     return is_po_ok;
 }
 
+constexpr int prelu_max_ndims = 5;
 inline status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
-        const post_ops_t &post_ops, const dnnl_dims_t *dst_dims) {
+        const post_ops_t &post_ops, const dim_t *dst_dims) {
     const int po_nop_id = 0;
     const int po_binary_id = 1;
     const int po_eltwise_id = 2;
@@ -1340,11 +1341,11 @@ inline status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
                 weight_dims[0] = 1;
                 weights_tag = format_tag_t::dnnl_a;
             } else {
-                // prelu weights are assumed to be upto 5 dims
-                for (int d = 0; d < 5; ++d) {
+                // prelu weights are assumed to be up to prelu_max_ndims dims
+                for (int d = 0; d < prelu_max_ndims; ++d) {
                     if (((e.prelu.mask >> d) & 0x1) == 1) {
                         weight_ndims = d + 1;
-                        weight_dims[d] = (*dst_dims)[d];
+                        weight_dims[d] = dst_dims[d];
                     } else {
                         weight_dims[d] = 1;
                     }
@@ -1513,9 +1514,9 @@ inline bool post_ops_preserves_zeroes(
     return preserve_zeroes;
 }
 
-inline status_t def_attr_info(compute::kernel_ctx_t &kernel_ctx,
+inline status_t def_attr_info_impl(compute::kernel_ctx_t &kernel_ctx,
         const attr_info_t &attr_info, const post_ops_t &post_ops,
-        const dnnl_dims_t *dst_dims = nullptr) {
+        const dim_t *dst_dims) {
     assert(attr_info.initialized);
 
     kernel_ctx.define_int("WITH_POST_OP", post_ops.len() > 0);
@@ -1555,6 +1556,16 @@ inline status_t def_attr_info(compute::kernel_ctx_t &kernel_ctx,
     def_eltwise_alg_kinds(kernel_ctx);
 
     return def_post_ops_cfg(kernel_ctx, post_ops, dst_dims);
+}
+
+// Helper to make sure fixed size array is large enough
+template <int size>
+inline status_t def_attr_info(compute::kernel_ctx_t &kernel_ctx,
+        const attr_info_t &attr_info, const post_ops_t &post_ops,
+        const dim_t (&dst_dims)[size]) {
+    static_assert(size >= prelu_max_ndims,
+            "Insufficient dims to support prelu post ops");
+    return def_attr_info_impl(kernel_ctx, attr_info, post_ops, dst_dims);
 }
 
 inline void def_dispatch(compute::kernel_ctx_t &kernel_ctx,

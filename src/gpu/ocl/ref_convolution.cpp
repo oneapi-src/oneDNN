@@ -167,7 +167,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         else
             dst_dims[d] = 1;
     }
-    CHECK(def_attr_info(kernel_ctx, conf.attr_info, post_ops, &dst_dims));
+    CHECK(def_attr_info(kernel_ctx, conf.attr_info, post_ops, dst_dims));
     return status::success;
 }
 

@@ -541,7 +541,8 @@ status_t combined_reduction_t::pd_t::init_kernel_ctx(
     if (status != status_t::dnnl_success) return status;
 
     // Set post-op macros
-    CHECK(def_attr_info(kernel_ctx, conf.attr_info, attr()->post_ops_));
+    CHECK(def_attr_info(
+            kernel_ctx, conf.attr_info, attr()->post_ops_, dst_md()->dims));
     if (attr()->post_ops_.len() > 0) {
         if (phase.is_final) {
             // Can only do this for the final phase, since it overwrites def_data_type for DST
