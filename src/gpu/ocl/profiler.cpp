@@ -62,7 +62,8 @@ status_t ocl_profiler_t::get_info(profiling_data_kind_t data_kind,
                 CL_PROFILING_COMMAND_START, sizeof(beg), &beg, nullptr));
         OCL_CHECK(clGetEventProfilingInfo(ocl_event[0].get(),
                 CL_PROFILING_COMMAND_END, sizeof(end), &end, nullptr));
-        entry.nsec += (end - beg);
+        entry.min_nsec = std::min(entry.min_nsec, beg);
+        entry.max_nsec = std::max(entry.max_nsec, end);
         entry.freq += ocl_stream->mdapi_helper().get_freq(ocl_event[0]);
         entry.kernel_count++;
     }

@@ -33,9 +33,12 @@ struct profiler_t {
     virtual ~profiler_t() = default;
 
     struct entry_t {
-        uint64_t nsec = 0;
+        uint64_t min_nsec = std::numeric_limits<uint64_t>::max();
+        uint64_t max_nsec = 0;
         double freq = 0;
         int kernel_count = 0;
+
+        uint64_t get_nsec() const { return max_nsec - min_nsec; }
     };
 
     struct registered_event_t {
@@ -72,10 +75,10 @@ protected:
         for (auto &kv : stamp2entry) {
             auto &e = kv.second;
             switch ((int)data_kind) {
-                case profiling_data_kind::time: data[idx] = e.nsec; break;
+                case profiling_data_kind::time: data[idx] = e.get_nsec(); break;
                 case profiling_data_kind::cycles: {
                     double freq = e.freq / e.kernel_count;
-                    data[idx] = freq * e.nsec / 1e9;
+                    data[idx] = freq * e.get_nsec() / 1e9;
                     break;
                 }
                 default: assert(!"unexpected data kind");
