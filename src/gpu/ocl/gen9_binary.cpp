@@ -306,7 +306,8 @@ status_t gen9_binary_t::pd_t::init_kernel_ctx(
     def_memory_desc_info(kernel_ctx, conf.src1_md_info, "SRC1");
     def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
 
-    CHECK(def_attr_info(kernel_ctx, conf.attr_info, attr()->post_ops_));
+    CHECK(def_attr_info(kernel_ctx, conf.attr_info, attr()->post_ops_,
+            conf.dst_md_info.dims));
 
     def_dispatch(kernel_ctx, conf.dispatch);
 

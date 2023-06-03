@@ -370,7 +370,7 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_kernel_ctx(
     dst_dims[3] = conf.ndims > 4 ? conf.oh : conf.ow;
     dst_dims[4] = conf.ow;
     CHECK(def_attr_info(
-            kernel_ctx, conf.attr_info, attr()->post_ops_, &dst_dims));
+            kernel_ctx, conf.attr_info, attr()->post_ops_, dst_dims));
 
     return status::success;
 }

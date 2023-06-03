@@ -106,7 +106,8 @@ status_t ref_resampling_fwd_t::pd_t::init_kernel_ctx(
     def_data_type(kernel_ctx, dst_md()->data_type, "DST");
 
     // Set post-op variables
-    CHECK(def_attr_info(kernel_ctx, conf.attr_info, attr()->post_ops_));
+    CHECK(def_attr_info(
+            kernel_ctx, conf.attr_info, attr()->post_ops_, dst_md()->dims));
 
     return status;
 }
