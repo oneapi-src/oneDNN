@@ -253,14 +253,16 @@ private:
     void handle_avx_gather(const operand &op_dst, const operand &op_ptr,
             const operand &op_idx, const operand &op_msk,
             const x86_64::cpu_data_type &cpu_dtype);
+    void handle_avx_insert(const operand &op_dst, const operand &op_b,
+            const operand &op_imm, const operand &op_elem_bits);
     void handle_avx_permutex2var(const operand &op_dst, const operand &op_idx,
             const operand &op_src, const x86_64::cpu_data_type &cpu_dtype);
+    void handle_avx_permutexvar(const operand &op_dst, const operand &op_idx,
+            const operand &op_src, const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_unpack_low(const operand &op_dst, const operand &op_lhs,
-            const operand &op_rhs, const operand &op_imm,
-            const x86_64::cpu_data_type &cpu_dtype);
+            const operand &op_rhs, const operand &op_imm);
     void handle_avx_unpack_high(const operand &op_dst, const operand &op_lhs,
-            const operand &op_rhs, const operand &op_imm,
-            const x86_64::cpu_data_type &cpu_dtype);
+            const operand &op_rhs, const operand &op_imm);
     void handle_avx_extract_low(const operand &op_dst, const operand &op_src,
             const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_extract_high(const operand &op_dst, const operand &op_src,

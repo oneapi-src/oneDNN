@@ -782,25 +782,38 @@ void xbyak_lowering_viewer::handle_avx_intrisic(const expr_c &dst,
             auto op_idx = GET_OPERAND(args[1]);
             handle_avx_gather(op_dst, op_ptr, op_idx, op_msk, cpu_dtype);
         } break;
+        case xbyak_intrin_type::insert: {
+            auto op_dst = GET_OPERAND(dst);
+            auto op_b = GET_OPERAND(args[0]);
+            auto op_imm = GET_OPERAND(args[1]);
+            auto op_elem_bits = GET_OPERAND(args[2]);
+            handle_avx_insert(op_dst, op_b, op_imm, op_elem_bits);
+        } break;
         case xbyak_intrin_type::permutex2var: {
             auto op_dst = GET_OPERAND(dst);
             auto op_idx = GET_OPERAND(args[0]);
             auto op_src = GET_OPERAND(args[1]);
             handle_avx_permutex2var(op_dst, op_idx, op_src, cpu_dtype);
         } break;
+        case xbyak_intrin_type::permutexvar: {
+            auto op_dst = GET_OPERAND(dst);
+            auto op_idx = GET_OPERAND(args[0]);
+            auto op_src = GET_OPERAND(args[1]);
+            handle_avx_permutexvar(op_dst, op_idx, op_src, cpu_dtype);
+        } break;
         case xbyak_intrin_type::unpack_low: {
             auto op_dst = GET_OPERAND(dst);
             auto op_lhs = GET_OPERAND(args[0]);
             auto op_rhs = GET_OPERAND(args[1]);
             auto op_imm = GET_OPERAND(args[2]);
-            handle_avx_unpack_low(op_dst, op_lhs, op_rhs, op_imm, cpu_dtype);
+            handle_avx_unpack_low(op_dst, op_lhs, op_rhs, op_imm);
         } break;
         case xbyak_intrin_type::unpack_high: {
             auto op_dst = GET_OPERAND(dst);
             auto op_lhs = GET_OPERAND(args[0]);
             auto op_rhs = GET_OPERAND(args[1]);
             auto op_imm = GET_OPERAND(args[2]);
-            handle_avx_unpack_high(op_dst, op_lhs, op_rhs, op_imm, cpu_dtype);
+            handle_avx_unpack_high(op_dst, op_lhs, op_rhs, op_imm);
         } break;
         case xbyak_intrin_type::extract_low: {
             const auto in_dtype = get_cpu_data_type(modifier.type_hint_);
@@ -1973,6 +1986,7 @@ void xbyak_lowering_viewer::handle_avx_permute(const operand &op_dst,
         const operand &op_lhs, const operand &op_rhs, const operand &op_imm,
         const x86_64::cpu_data_type &cpu_dtype) {
     switch (cpu_dtype) {
+        case cpu_data_type::uint_16_x16:
         case cpu_data_type::float_32_x8: {
             assert(op_imm.get_imm() == 32 || op_imm.get_imm() == 49);
             XBYAK_GEN(vperm2f128, AVX_Y_Y_XM_I, op_dst, op_lhs, op_rhs, op_imm);
@@ -2024,62 +2038,70 @@ void xbyak_lowering_viewer::handle_avx_gather(const operand &op_dst,
     }
 }
 
-void xbyak_lowering_viewer::handle_avx_unpack_low(const operand &op_dst,
-        const operand &op_lhs, const operand &op_rhs, const operand &op_imm,
-        const x86_64::cpu_data_type &cpu_dtype) {
-    switch (cpu_dtype) {
-        case cpu_data_type::uint_16_x32: {
-            assert(cpu_flags_.fAVX512F);
-            switch (op_imm.get_imm()) {
-                case 16: {
-                    XBYAK_GEN(vpunpcklwd, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
-                } break;
-                case 32: {
-                    XBYAK_GEN(vpunpckldq, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
-                } break;
-                case 64: {
-                    XBYAK_GEN(vpunpcklqdq, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
-                } break;
-                default:
-                    COMPILE_ASSERT(false,
-                            FUNC_INFO << "Invalid lanes: " << op_imm.get_imm());
-            }
+void xbyak_lowering_viewer::handle_avx_insert(const operand &op_dst,
+        const operand &op_b, const operand &op_imm,
+        const operand &op_elem_bits) {
+    assert(cpu_flags_.fAVX512F);
+    auto elem_bits = op_elem_bits.get_imm();
+    switch (elem_bits) {
+        case 128: {
+            assert(cpu_flags_.fAVX512VL);
+            XBYAK_GEN(vinserti32x4, AVX_Y_Y_XM_I, op_dst, op_dst, op_b, op_imm);
         } break;
-        case cpu_data_type::float_32_x8: {
-            XBYAK_GEN(vunpcklps, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
+        case 256: {
+            assert(cpu_flags_.fAVX512DQ);
+            XBYAK_GEN(vinserti32x8, AVX_Z_Z_XM_I, op_dst, op_dst, op_b, op_imm);
         } break;
         default:
-            COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);
+            COMPILE_ASSERT(
+                    false, FUNC_INFO << "Invalid elem_bits: " << elem_bits);
+    }
+}
+
+void xbyak_lowering_viewer::handle_avx_unpack_low(const operand &op_dst,
+        const operand &op_lhs, const operand &op_rhs, const operand &op_imm) {
+    auto elem_bits = op_imm.get_imm();
+    // Generate code for avx unpacklow
+    switch (elem_bits) {
+        case 8: {
+            XBYAK_GEN(vpunpcklbw, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
+        } break;
+        case 16: {
+            XBYAK_GEN(vpunpcklwd, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
+        } break;
+        case 32: {
+            XBYAK_GEN(vpunpckldq, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
+        } break;
+        case 64: {
+            XBYAK_GEN(vpunpcklqdq, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
+        } break;
+        default:
+            COMPILE_ASSERT(
+                    false, FUNC_INFO << "Invalid elem_bits: " << elem_bits);
     }
 }
 
 void xbyak_lowering_viewer::handle_avx_unpack_high(const operand &op_dst,
-        const operand &op_lhs, const operand &op_rhs, const operand &op_imm,
-        const x86_64::cpu_data_type &cpu_dtype) {
-    switch (cpu_dtype) {
-        case cpu_data_type::uint_16_x32: {
-            assert(cpu_flags_.fAVX512F);
-            switch (op_imm.get_imm()) {
-                case 16: {
-                    XBYAK_GEN(vpunpckhwd, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
-                } break;
-                case 32: {
-                    XBYAK_GEN(vpunpckhdq, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
-                } break;
-                case 64: {
-                    XBYAK_GEN(vpunpckhqdq, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
-                } break;
-                default:
-                    COMPILE_ASSERT(false,
-                            FUNC_INFO << "Invalid lanes: " << op_imm.get_imm());
-            }
+        const operand &op_lhs, const operand &op_rhs, const operand &op_imm) {
+    auto elem_bits = op_imm.get_imm();
+    // Generate code for avx unpackhigh
+    switch (elem_bits) {
+        case 8: {
+            XBYAK_GEN(vpunpckhbw, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
         } break;
-        case cpu_data_type::float_32_x8: {
-            XBYAK_GEN(vunpckhps, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
+        case 16: {
+            XBYAK_GEN(vpunpckhwd, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
+        } break;
+        case 32: {
+            XBYAK_GEN(vpunpckhdq, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
+        } break;
+        case 64: {
+            XBYAK_GEN(vpunpckhqdq, AVX_X_X_XM, op_dst, op_lhs, op_rhs);
         } break;
         default:
-            COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);
-    }
+            COMPILE_ASSERT(
+                    false, FUNC_INFO << "Invalid elem_bits: " << elem_bits);
+    };
 }
 
 void xbyak_lowering_viewer::handle_avx_extract_low(const operand &op_dst,
@@ -2102,7 +2124,7 @@ void xbyak_lowering_viewer::handle_avx_extract_low(const operand &op_dst,
         } break;
         default:
             COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);
-    }
+    };
 }
 
 void xbyak_lowering_viewer::handle_avx_extract_high(const operand &op_dst,
@@ -2178,6 +2200,25 @@ void xbyak_lowering_viewer::handle_avx_permutex2var(const operand &op_dst,
         } break;
         case cpu_data_type::uint_8_x16: {
             XBYAK_GEN(vpermt2b, AVX_X_X_XM, op_dst, op_idx, op_src);
+        } break;
+        default:
+            COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);
+    }
+}
+
+void xbyak_lowering_viewer::handle_avx_permutexvar(const operand &op_dst,
+        const operand &op_idx, const operand &op_src,
+        const x86_64::cpu_data_type &cpu_dtype) {
+    assert(cpu_flags_.fAVX512VL);
+    switch (cpu_dtype) {
+        case cpu_data_type::uint_8_x64:
+        case cpu_data_type::sint_8_x64: {
+            assert(cpu_flags_.fAVX512VBMI);
+            XBYAK_GEN(vpermb, AVX_X_X_XM, op_dst, op_idx, op_src);
+        } break;
+        case cpu_data_type::uint_16_x32: {
+            assert(cpu_flags_.fAVX512BW);
+            XBYAK_GEN(vpermw, AVX_X_X_XM, op_dst, op_idx, op_src);
         } break;
         default:
             COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);

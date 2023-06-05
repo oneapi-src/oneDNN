@@ -16,6 +16,7 @@
 
 #include <assert.h>
 
+#include <limits>
 #include <utility>
 #include "compiler/ir/builtin.hpp"
 #include "memory_movement.hpp"
@@ -2322,13 +2323,15 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
         const sc_dims &plain_dims, const sc_data_format_t &input_format,
         const sc_data_format_t &output_format, const tensor_slice &src,
         const tensor_slice &dst, const sc_data_type_t &dtype,
-        bool &is_vnni_reorder, bool is_dynamic, bool dynamic_no_padding) {
+        bool &is_vnni_reorder, bool is_dynamic, bool dynamic_no_padding,
+        bool &use_x16step) {
     // VNNI reorder only support NK2NKknk-liked format.
     // Last axis should be 2 if dytpe is bf16 and 4 if dytpe is u8/s8
     // eg. 384N 64K -> 12N 4K 8k 32n 2k
     //     384N 64K -> 12N 2K 8k 32n 4k
     //     128A 16B 32C -> 128A 2B 2C 4c 8b 4c
     // dynamic cases can't check in current condition
+    if (!ctx->machine_.cpu_flags_.fAVX2) { return false; }
     auto input_blocking_dims
             = sc_data_format_t::get_blocking_shapes(plain_dims, input_format);
     auto output_blocking_dims
@@ -2340,10 +2343,7 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
             || (is_dynamic && !dynamic_no_padding)) {
         is_padding = true;
     }
-    if (!(ctx->machine_.cpu_flags_.fAVX512F
-                || ctx->machine_.cpu_flags_.fAVX512VBMI)) {
-        return false;
-    }
+
     if (input_format.is_blocking()) return false;
     bool is_bf16 = dtype.as_etype() == sc_data_etype::BF16;
     inp_n_axis.clear();
@@ -2455,9 +2455,15 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
             if (get_expr_as_int(dst.shape_[out_n_pos]) % 4 != 0) return false;
             if (get_expr_as_int(dst.shape_[out_k_pos]) % 4 != 0) return false;
         } else {
-            if (get_expr_as_int(dst.shape_[out_n_pos]) % (is_bf16 ? 8 : 16)
-                    != 0)
+            if (get_expr_as_int(dst.shape_[out_n_pos]) % 16 == 0) {
+                use_x16step = true;
+            } else if (get_expr_as_int(dst.shape_[out_n_pos])
+                            % (is_bf16 ? 8 : 16)
+                    == 0) {
+                use_x16step = false;
+            } else {
                 return false;
+            }
 
             if ((get_expr_as_int(dst.shape_[out_k_pos])
                         * get_expr_as_int(dst.shape_[out_k2_pos]))
@@ -2471,9 +2477,14 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
             if (output_blocking_dims[out_n_pos] % 4 != 0) return false;
             if (output_blocking_dims[out_k_pos] % 4 != 0) return false;
         } else {
-            if (output_blocking_dims[out_n_pos] % (is_bf16 ? 8 : 16) != 0)
+            if (output_blocking_dims[out_n_pos] % 16 == 0) {
+                use_x16step = true;
+            } else if (output_blocking_dims[out_n_pos] % (is_bf16 ? 8 : 16)
+                    == 0) {
+                use_x16step = false;
+            } else {
                 return false;
-
+            }
             if (output_blocking_dims[out_k_pos]
                             * output_blocking_dims[out_k2_pos] % 4
                     != 0)
@@ -2481,186 +2492,129 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
         }
     }
 
-    // new VNNI transpose currently only avaiable on spr
-    if ((!ctx->machine_.cpu_flags_.fAVX512VBMI) && is_vnni_reorder)
-        return false;
     return true;
-}
-
-static void do_vnni_reorder_avx512f(std::vector<stmt_c> &cur_list,
-        std::vector<expr> &rows, sc_data_type_t &rows_dtype) {
-    // reorder on a kernel of 4x16(u8/s8) or 4x8(bf16)
-    // registers to perform reorder, should reinterpret data to f32 due to
-    // intrinsic limitation
-    auto xmm0 = builder::make_var(sc_data_type_t::f32(4), std::string("xmm0"));
-    auto xmm1 = builder::make_var(sc_data_type_t::f32(4), std::string("xmm1"));
-    auto xmm2 = builder::make_var(sc_data_type_t::f32(4), std::string("xmm2"));
-    auto xmm3 = builder::make_var(sc_data_type_t::f32(4), std::string("xmm3"));
-    auto xmm_tmp
-            = builder::make_var(sc_data_type_t::f32(4), std::string("xmm_tmp"));
-    cur_list.emplace_back(builder::make_var_tensor_def_unattached(xmm0));
-    cur_list.emplace_back(builder::make_var_tensor_def_unattached(xmm1));
-    cur_list.emplace_back(builder::make_var_tensor_def_unattached(xmm2));
-    cur_list.emplace_back(builder::make_var_tensor_def_unattached(xmm3));
-    cur_list.emplace_back(builder::make_var_tensor_def_unattached(xmm_tmp));
-
-    // permutex2var selector
-#define MAKE_IDX_U32(name, v0, v1, v2, v3) \
-    auto idx##name = make_expr<constant_node>( \
-            std::vector<union_val> { \
-                    UINT64_C(v0), UINT64_C(v1), UINT64_C(v2), UINT64_C(v3)}, \
-            sc_data_type_t::u32(4));
-    MAKE_IDX_U32(0, 0x00000000, 0x00000004, 0x00000002, 0x00000006)
-    MAKE_IDX_U32(1, 0x00000001, 0x00000005, 0x00000003, 0x00000007)
-    MAKE_IDX_U32(2, 0x00000000, 0x00000001, 0x00000004, 0x00000005)
-    MAKE_IDX_U32(3, 0x00000002, 0x00000003, 0x00000006, 0x00000007)
-
-    stmt assign;
-#define MAKE_ASSIGN_F32(dst, src) \
-    assign = builder::make_assign_unattached(dst, src); \
-    cur_list.emplace_back(assign);
-#define MKAE_INTERPRET_F32(dst, src, attr) \
-    MAKE_ASSIGN_F32(dst, \
-            make_expr<intrin_call_node>( \
-                    intrin_type::reinterpret, std::vector<expr> {src}, attr));
-
-    any_map_t reinterpret_attr;
-    reinterpret_attr[intrin_attr::out_dtype] = sc_data_type_t::f32(4);
-    MKAE_INTERPRET_F32(xmm0, rows[0].remove_const(), reinterpret_attr)
-    MKAE_INTERPRET_F32(xmm1, rows[1].remove_const(), reinterpret_attr)
-    MKAE_INTERPRET_F32(xmm2, rows[2].remove_const(), reinterpret_attr)
-    MKAE_INTERPRET_F32(xmm3, rows[3].remove_const(), reinterpret_attr)
-    any_map_t permute_attr;
-#define MAKE_PERMUTE_F32(dst, a, idx, b) \
-    MAKE_ASSIGN_F32(dst, \
-            make_expr<intrin_call_node>(intrin_type::permutex2var, \
-                    std::vector<expr> {a, idx, b}, permute_attr))
-    // do permute in any two pairs of register
-    MAKE_ASSIGN_F32(xmm_tmp, xmm0)
-    MAKE_PERMUTE_F32(xmm0, xmm_tmp, idx0, xmm1)
-    MAKE_PERMUTE_F32(xmm1, xmm_tmp, idx1, xmm1)
-    MAKE_ASSIGN_F32(xmm_tmp, xmm2)
-    MAKE_PERMUTE_F32(xmm2, xmm_tmp, idx0, xmm3)
-    MAKE_PERMUTE_F32(xmm3, xmm_tmp, idx1, xmm3)
-    MAKE_ASSIGN_F32(xmm_tmp, xmm0)
-    MAKE_PERMUTE_F32(xmm0, xmm_tmp, idx2, xmm2)
-    MAKE_PERMUTE_F32(xmm2, xmm_tmp, idx3, xmm2)
-    MAKE_ASSIGN_F32(xmm_tmp, xmm1)
-    MAKE_PERMUTE_F32(xmm1, xmm_tmp, idx2, xmm3)
-    MAKE_PERMUTE_F32(xmm3, xmm_tmp, idx3, xmm3)
-
-    reinterpret_attr[intrin_attr::out_dtype] = rows_dtype;
-    MKAE_INTERPRET_F32(rows[0], xmm0, reinterpret_attr)
-    MKAE_INTERPRET_F32(rows[1], xmm1, reinterpret_attr)
-    MKAE_INTERPRET_F32(rows[2], xmm2, reinterpret_attr)
-    MKAE_INTERPRET_F32(rows[3], xmm3, reinterpret_attr)
 }
 
 static void do_vnni_reorder(std::vector<stmt_c> &cur_list,
         std::vector<expr> &rows, sc_data_type_t &rows_dtype,
-        const bool is_vnni_reorder) {
+        const bool is_vnni_reorder, const int bf16_step) {
     bool is_bf16 = rows_dtype.type_code_ == sc_data_etype::BF16;
+    bool is_u8 = rows_dtype.type_code_ == sc_data_etype::U8;
     // reorder on a kernel of 4x16(u8/s8) or 4x8(bf16)
-    // registers to perform reorder, should reinterpret data to f32 due to
+    // registers to perform reorder, should reinterpret data to u8 due to
     // intrinsic limitation
-    auto xmm0 = builder::make_var(sc_data_type_t::u8(16), std::string("xmm0"));
-    auto xmm1 = builder::make_var(sc_data_type_t::u8(16), std::string("xmm1"));
-    auto xmm2 = builder::make_var(sc_data_type_t::u8(16), std::string("xmm2"));
-    auto xmm3 = builder::make_var(sc_data_type_t::u8(16), std::string("xmm3"));
-    auto xmm_tmp
-            = builder::make_var(sc_data_type_t::u8(16), std::string("xmm_tmp"));
-    cur_list.emplace_back(builder::make_var_tensor_def_unattached(xmm0));
-    cur_list.emplace_back(builder::make_var_tensor_def_unattached(xmm1));
-    cur_list.emplace_back(builder::make_var_tensor_def_unattached(xmm2));
-    cur_list.emplace_back(builder::make_var_tensor_def_unattached(xmm3));
-    cur_list.emplace_back(builder::make_var_tensor_def_unattached(xmm_tmp));
-
-    expr idx0, idx1, idx2, idx3;
     any_map_t reinterpret_attr;
-    reinterpret_attr[intrin_attr::out_dtype] = sc_data_type_t::u8(16);
-    // permutex2var selector
-#define MAKE_IDX(name, v0, v1, v2, v3) \
-    idx##name = make_expr<intrin_call_node>(intrin_type::reinterpret, \
-            std::vector<expr> {make_expr<constant_node>( \
-                    std::vector<union_val> {UINT64_C(v0), UINT64_C(v1), \
-                            UINT64_C(v2), UINT64_C(v3)}, \
-                    sc_data_type_t::u32(4))}, \
-            reinterpret_attr);
-    if (!is_vnni_reorder) { // vnni
-        MAKE_IDX(0, 0x03020100, 0x13121110, 0x0B0A0908, 0x1B1A1918)
-        MAKE_IDX(1, 0x07060504, 0x17161514, 0x0F0E0D0C, 0x1F1E1D1C)
-        MAKE_IDX(2, 0x03020100, 0x07060504, 0x13121110, 0x17161514)
-        MAKE_IDX(3, 0x0B0A0908, 0x0F0E0D0C, 0x1B1A1918, 0X1F1E1D1C)
-    } else if (is_bf16) {
-        // vnni transpose bf16
-        MAKE_IDX(0, 0x11100100, 0x13120302, 0x15140504, 0x17160706)
-        MAKE_IDX(1, 0x19180908, 0x1B1A0B0A, 0x1D1C0D0C, 0x1F1E0F0E)
-
-    } else { // vnni transpose u8/s8
-        MAKE_IDX(0, 0x11011000, 0x13031202, 0x15051404, 0x17071606)
-        MAKE_IDX(1, 0x19091808, 0x1B0B1A0A, 0x1D0D1C0C, 0x1F0F1E0E)
-        MAKE_IDX(2, 0x11100100, 0x13120302, 0x15140504, 0x17160706)
-        MAKE_IDX(3, 0x19180908, 0x1B1A0B0A, 0x1D1C0D0C, 0x1F1E0F0E)
-    }
+    expr xmm0, xmm1, xmm2, xmm3, xmm_tmp;
+#define PARAM(X) X
+#define MAKE_VAR(name, type) \
+    PARAM(name) = builder::make_var(sc_data_type_t::type, std::string(#name)); \
+    cur_list.emplace_back(builder::make_var_tensor_def_unattached(name));
 
     stmt assign;
 #define MAKE_ASSIGN(dst, src) \
     assign = builder::make_assign_unattached(dst, src); \
     cur_list.emplace_back(assign);
-#define MKAE_INTERPRET(dst, src, attr) \
+
+#define MAKE_INTERPRET(dst, src, attr) \
     MAKE_ASSIGN(dst, \
             make_expr<intrin_call_node>( \
                     intrin_type::reinterpret, std::vector<expr> {src}, attr));
 
-    reinterpret_attr[intrin_attr::out_dtype] = sc_data_type_t::u8(16);
-    MKAE_INTERPRET(xmm0, rows[0].remove_const(), reinterpret_attr)
-    MKAE_INTERPRET(xmm1, rows[1].remove_const(), reinterpret_attr)
-    MKAE_INTERPRET(xmm2, rows[2].remove_const(), reinterpret_attr)
-    MKAE_INTERPRET(xmm3, rows[3].remove_const(), reinterpret_attr)
+#define MAKE_UNPACK_HIGH(dst, src1, src2, elem_bit) \
+    MAKE_ASSIGN(dst, builder::make_unpack_high(src1, src2, elem_bit))
 
-    any_map_t permute_attr;
-#define MAKE_PERMUTE(dst, a, idx, b) \
-    MAKE_ASSIGN(dst, \
-            make_expr<intrin_call_node>(intrin_type::permutex2var, \
-                    std::vector<expr> {a, idx, b}, permute_attr))
-    // do permute in any two pairs of register
-    if (is_vnni_reorder && is_bf16) {
-        MAKE_ASSIGN(xmm_tmp, xmm0)
-        MAKE_PERMUTE(xmm0, xmm_tmp, idx0, xmm1)
-        MAKE_PERMUTE(xmm1, xmm_tmp, idx1, xmm1)
+#define MAKE_UNPACK_LOW(dst, src1, src2, elem_bit) \
+    MAKE_ASSIGN(dst, builder::make_unpack_low(src1, src2, elem_bit))
 
-        MAKE_ASSIGN(xmm_tmp, xmm2)
-        MAKE_PERMUTE(xmm2, xmm_tmp, idx0, xmm3)
-        MAKE_PERMUTE(xmm3, xmm_tmp, idx1, xmm3)
-    } else {
-        MAKE_ASSIGN(xmm_tmp, xmm0)
-        MAKE_PERMUTE(xmm0, xmm_tmp, idx0, xmm1)
-        MAKE_PERMUTE(xmm1, xmm_tmp, idx1, xmm1)
+#define MAKE_PERMUTE(dst, src1, src2, imm) \
+    MAKE_ASSIGN(dst, builder::make_permute(src1, src2, imm))
 
-        MAKE_ASSIGN(xmm_tmp, xmm2)
-        MAKE_PERMUTE(xmm2, xmm_tmp, idx0, xmm3)
-        MAKE_PERMUTE(xmm3, xmm_tmp, idx1, xmm3)
-
-        MAKE_ASSIGN(xmm_tmp, xmm0)
-        MAKE_PERMUTE(xmm0, xmm_tmp, idx2, xmm2)
-        MAKE_PERMUTE(xmm2, xmm_tmp, idx3, xmm2)
-
-        MAKE_ASSIGN(xmm_tmp, xmm1)
-        MAKE_PERMUTE(xmm1, xmm_tmp, idx2, xmm3)
-        MAKE_PERMUTE(xmm3, xmm_tmp, idx3, xmm3)
-        if (is_vnni_reorder) {
-            MAKE_ASSIGN(xmm_tmp, xmm1)
-            MAKE_ASSIGN(xmm1, xmm2)
-            MAKE_ASSIGN(xmm2, xmm_tmp)
+    if (!is_vnni_reorder) {
+        MAKE_VAR(xmm0, u32(4))
+        MAKE_VAR(xmm1, u32(4))
+        MAKE_VAR(xmm2, u32(4))
+        MAKE_VAR(xmm3, u32(4))
+        reinterpret_attr[intrin_attr::out_dtype] = sc_data_type_t::u32(4);
+        MAKE_INTERPRET(xmm0, rows[0].remove_const(), reinterpret_attr)
+        MAKE_INTERPRET(xmm1, rows[1].remove_const(), reinterpret_attr)
+        MAKE_INTERPRET(xmm2, rows[2].remove_const(), reinterpret_attr)
+        MAKE_INTERPRET(xmm3, rows[3].remove_const(), reinterpret_attr)
+        expr xmm_tmp0, xmm_tmp1, xmm_tmp2, xmm_tmp3, xmm_tmp4, xmm_tmp5;
+        MAKE_VAR(xmm_tmp0, u32(4))
+        MAKE_VAR(xmm_tmp1, index(2))
+        MAKE_VAR(xmm_tmp2, index(2))
+        MAKE_VAR(xmm_tmp3, index(2))
+        MAKE_VAR(xmm_tmp4, index(2))
+        MAKE_VAR(xmm_tmp5, index(2))
+        MAKE_UNPACK_LOW(xmm_tmp0, xmm0, xmm1, 32)
+        MAKE_UNPACK_HIGH(xmm1, xmm0, xmm1, 32)
+        MAKE_ASSIGN(xmm0, xmm_tmp0)
+        MAKE_UNPACK_LOW(xmm_tmp0, xmm2, xmm3, 32)
+        MAKE_UNPACK_HIGH(xmm3, xmm2, xmm3, 32)
+        reinterpret_attr[intrin_attr::out_dtype] = sc_data_type_t::index(2);
+        MAKE_INTERPRET(xmm_tmp1, xmm0, reinterpret_attr)
+        MAKE_INTERPRET(xmm_tmp2, xmm1, reinterpret_attr)
+        MAKE_INTERPRET(xmm_tmp3, xmm_tmp0, reinterpret_attr)
+        MAKE_INTERPRET(xmm_tmp4, xmm3, reinterpret_attr)
+        MAKE_UNPACK_LOW(xmm_tmp5, xmm_tmp1, xmm_tmp3, 64)
+        MAKE_UNPACK_HIGH(xmm_tmp3, xmm_tmp1, xmm_tmp3, 64)
+        MAKE_ASSIGN(xmm_tmp1, xmm_tmp5)
+        MAKE_UNPACK_LOW(xmm_tmp5, xmm_tmp2, xmm_tmp4, 64)
+        MAKE_UNPACK_HIGH(xmm_tmp4, xmm_tmp2, xmm_tmp4, 64)
+        reinterpret_attr[intrin_attr::out_dtype] = rows_dtype;
+        MAKE_INTERPRET(rows[0], xmm_tmp1, reinterpret_attr)
+        MAKE_INTERPRET(rows[1], xmm_tmp3, reinterpret_attr)
+        MAKE_INTERPRET(rows[2], xmm_tmp5, reinterpret_attr)
+        MAKE_INTERPRET(rows[3], xmm_tmp4, reinterpret_attr)
+        return;
+    } else if (is_bf16) {
+        if (bf16_step == 16) {
+            MAKE_VAR(xmm0, bf16(bf16_step))
+            MAKE_VAR(xmm1, bf16(bf16_step))
+            MAKE_UNPACK_LOW(xmm0, rows[0], rows[1], 16)
+            MAKE_UNPACK_HIGH(rows[1], rows[0], rows[1], 16)
+            MAKE_UNPACK_LOW(xmm1, rows[2], rows[3], 16)
+            MAKE_UNPACK_HIGH(rows[3], rows[2], rows[3], 16)
+            MAKE_PERMUTE(rows[0], xmm0, rows[1], 0x20)
+            MAKE_PERMUTE(rows[1], xmm0, rows[1], 0x31)
+            MAKE_PERMUTE(rows[2], xmm1, rows[3], 0x20)
+            MAKE_PERMUTE(rows[3], xmm1, rows[3], 0x31)
+        } else {
+            MAKE_VAR(xmm0, bf16(8))
+            MAKE_VAR(xmm1, bf16(8))
+            MAKE_UNPACK_LOW(xmm0, rows[0], rows[1], 16)
+            MAKE_UNPACK_HIGH(rows[1], rows[0], rows[1], 16)
+            MAKE_UNPACK_LOW(xmm1, rows[2], rows[3], 16)
+            MAKE_UNPACK_HIGH(rows[3], rows[2], rows[3], 16)
+            MAKE_ASSIGN(rows[0], xmm0)
+            MAKE_ASSIGN(rows[2], xmm1)
         }
+    } else {
+        if (is_u8) {
+            MAKE_VAR(xmm0, u8(16))
+            MAKE_VAR(xmm1, u8(16))
+            MAKE_VAR(xmm2, u8(16))
+            MAKE_VAR(xmm3, u8(16))
+        } else {
+            MAKE_VAR(xmm0, s8(16))
+            MAKE_VAR(xmm1, s8(16))
+            MAKE_VAR(xmm2, s8(16))
+            MAKE_VAR(xmm3, s8(16))
+        }
+        MAKE_UNPACK_LOW(xmm0, rows[0], rows[2], 8)
+        MAKE_UNPACK_HIGH(rows[2], rows[0], rows[2], 8)
+        MAKE_UNPACK_LOW(xmm1, rows[1], rows[3], 8)
+        MAKE_UNPACK_HIGH(rows[3], rows[1], rows[3], 8)
+        MAKE_UNPACK_LOW(rows[0], xmm0, xmm1, 8)
+        MAKE_UNPACK_HIGH(xmm2, xmm0, xmm1, 8)
+        MAKE_UNPACK_LOW(xmm3, rows[2], rows[3], 8)
+        MAKE_UNPACK_HIGH(rows[3], rows[2], rows[3], 8)
+        MAKE_ASSIGN(rows[1], xmm2)
+        MAKE_ASSIGN(rows[2], xmm3)
     }
-
-    reinterpret_attr[intrin_attr::out_dtype] = rows_dtype;
-    MKAE_INTERPRET(rows[0], xmm0, reinterpret_attr)
-    MKAE_INTERPRET(rows[1], xmm1, reinterpret_attr)
-    MKAE_INTERPRET(rows[2], xmm2, reinterpret_attr)
-    MKAE_INTERPRET(rows[3], xmm3, reinterpret_attr)
 }
+
+// Keep this flag to test insert kernel performance in the future.
 
 static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         const tensor_slice &src, tensor_slice &dst,
@@ -2670,8 +2624,10 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         std::vector<int> &inp_n_axis, std::vector<int> &inp_k_axis,
         std::vector<int> &out_n_axis, std::vector<int> &out_k_axis,
         size_t wkld = 0UL, const bool &is_vnni_reorder = false,
-        bool is_dynamic = false, bool dynamic_no_padding = false) {
+        bool is_dynamic = false, bool dynamic_no_padding = false,
+        bool use_x16step = false) {
     bool is_bf16 = dtype.as_etype() == sc_data_etype::BF16;
+    bool is_u8 = dtype.as_etype() == sc_data_etype::U8;
     auto input = src.get_real_tensor();
     auto output = dst.get_real_tensor();
     int step = 4;
@@ -2704,17 +2660,58 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
             || (is_dynamic && !dynamic_no_padding)) {
         is_padding = true;
     }
+    int u8_step = 16, bf16_step = use_x16step ? 16 : 8;
 
-    std::vector<expr> rows(4);
+    std::vector<expr> rows(step);
     std::vector<expr> iter_vars;
     std::vector<stmt_c> cur_list;
     auto rows_dtype = dtype;
-    rows_dtype.lanes_ = is_bf16 ? 8 : 16;
-    for (auto i = 0; i < 4; i++) {
-        rows[i] = builder::make_var(rows_dtype,
-                "row" + std::to_string(i + 1) + fusion_create_var_idx());
-        // skip bf16 elimination pass on rows. Otherwise it will be promote to
-        // f32.
+    if (use_x16step) {
+        rows_dtype.lanes_ = 16;
+    } else {
+        rows_dtype.lanes_ = is_bf16 ? 8 : 16;
+    }
+
+#define PARAM(X) X
+#define MAKE_VAR_ASSIGN_VNNI(name, type, alias) \
+    PARAM(name) = builder::make_var(sc_data_type_t::type, \
+            #alias + std::string("_vnni_reorder_") + std::to_string(i + 1) \
+                    + fusion_create_var_idx());
+
+    auto func_bf16_forloop_step = [&](int step,
+                                          std::vector<expr> &tmp_out_indexes,
+                                          int loop_step) {
+        switch (step) {
+            case 1:
+                tmp_out_indexes[out_n_axis[1]] = tmp_out_indexes[out_n_axis[1]]
+                        + static_cast<uint64_t>(loop_step);
+                break;
+            case 2:
+                tmp_out_indexes[out_k_axis[1]] = tmp_out_indexes[out_k_axis[1]]
+                        + static_cast<uint64_t>(1);
+                break;
+            case 3:
+                tmp_out_indexes[out_k_axis[1]] = tmp_out_indexes[out_k_axis[1]]
+                        + static_cast<uint64_t>(1);
+                tmp_out_indexes[out_n_axis[1]] = tmp_out_indexes[out_n_axis[1]]
+                        + static_cast<uint64_t>(loop_step);
+                break;
+        }
+    };
+
+    for (auto i = 0; i < step; i++) {
+        if (is_bf16) {
+            MAKE_VAR_ASSIGN_VNNI(rows[i], bf16(bf16_step), row)
+        } else {
+            if (is_u8) {
+                MAKE_VAR_ASSIGN_VNNI(rows[i], u8(u8_step), row)
+            } else {
+                MAKE_VAR_ASSIGN_VNNI(rows[i], s8(u8_step), row)
+            }
+        }
+
+        // skip bf16 elimination pass on rows. Otherwise it will be promote
+        // to f32.
         rows[i]->attr()["can_promote_to_f32"] = false;
         cur_list.emplace_back(builder::make_var_tensor_def_unattached(rows[i]));
     }
@@ -2743,57 +2740,42 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
                 tmp_in_indexes[inp_k_axis[0]] = tmp_in_indexes[inp_k_axis[0]]
                         + static_cast<uint64_t>(i);
             }
-            auto assign = builder::make_assign_unattached(rows[i],
+            stmt assign = builder::make_assign_unattached(rows[i],
                     // here, use src.tptr instead of input is aimed to
                     // avoid input is tensor_view_op. Otherwise, it will
                     // throw illegal exception in tensor_shrink
-                    builder::make_indexing(
-                            src.tptr_, tmp_in_indexes, is_bf16 ? 8 : 16));
+                    builder::make_indexing(src.tptr_, tmp_in_indexes,
+                            is_bf16 ? bf16_step : u8_step));
+
             assign->attr()[op_traits::workload_computable_t::workload_number]
                     = wkld;
             cur_list.emplace_back(assign);
         }
-
-        if (ctx->machine_.cpu_flags_.fAVX512VBMI) {
-            do_vnni_reorder(cur_list, rows, rows_dtype, is_vnni_reorder);
-        } else {
-            do_vnni_reorder_avx512f(cur_list, rows, rows_dtype);
-        }
+        do_vnni_reorder(cur_list, rows, rows_dtype, is_vnni_reorder, bf16_step);
 
         for (int i = 0; i < step; i++) {
             auto tmp_out_indexes = out_indexes;
             if (!is_vnni_reorder) { // vnni transpose
                 tmp_out_indexes[out_k_axis[1]] = tmp_out_indexes[out_k_axis[1]]
                         + static_cast<uint64_t>(i);
-            } else if (is_bf16) { // vnni reorder + transpose bf16
-                switch (i) {
-                    case 1:
-                        tmp_out_indexes[out_n_axis[1]]
-                                = tmp_out_indexes[out_n_axis[1]]
-                                + static_cast<uint64_t>(4);
-                        break;
-                    case 2:
-                        tmp_out_indexes[out_k_axis[1]]
-                                = tmp_out_indexes[out_k_axis[1]]
-                                + static_cast<uint64_t>(1);
-                        break;
-                    case 3:
-                        tmp_out_indexes[out_n_axis[1]]
-                                = tmp_out_indexes[out_n_axis[1]]
-                                + static_cast<uint64_t>(4);
-                        tmp_out_indexes[out_k_axis[1]]
-                                = tmp_out_indexes[out_k_axis[1]]
-                                + static_cast<uint64_t>(1);
-                        break;
+            } else {
+                if (is_bf16) {
+                    if (use_x16step) {
+                        func_bf16_forloop_step(i, tmp_out_indexes, 8);
+                    } else {
+                        func_bf16_forloop_step(i, tmp_out_indexes, 4);
+                    }
+                } else {
+                    tmp_out_indexes[out_n_axis[1]]
+                            = tmp_out_indexes[out_n_axis[1]]
+                            + static_cast<uint64_t>(i) * 4;
                 }
-
-            } else { // vnni reorder + transpose
-                tmp_out_indexes[out_n_axis[1]] = tmp_out_indexes[out_n_axis[1]]
-                        + static_cast<uint64_t>(i) * 4;
             }
-            auto assign = builder::make_assign_unattached(
-                    builder::make_indexing(
-                            output, tmp_out_indexes, is_bf16 ? 8 : 16),
+            stmt assign;
+
+            assign = builder::make_assign_unattached(
+                    builder::make_indexing(output, tmp_out_indexes,
+                            is_bf16 ? bf16_step : u8_step),
                     rows[i]);
             cur_list.emplace_back(assign);
         }
@@ -2816,7 +2798,7 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
                 if (i == inp_k_axis[0]) {
                     cur_step = 4;
                 } else if (i == inp_n_axis[0]) {
-                    cur_step = is_bf16 ? 8 : 16;
+                    cur_step = is_bf16 ? bf16_step : u8_step;
                 }
             }
             body = cur.isa<stmts>() ? cur
@@ -2860,7 +2842,7 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
             }
             expr mask;
             stmt mask_def;
-            int real_step = is_bf16 ? 8 : 16;
+            int real_step = is_bf16 ? bf16_step : u8_step;
             if (is_padding) {
                 int tmp_in_last_dim
                         = is_vnni_reorder ? inp_n_axis[0] : inp_k_axis[0];
@@ -2897,58 +2879,40 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
             }
 
             // here, we use input is to fix the out-of-bound exception.
-            // Using tptr will make the address calculation wrong in some
-            // cases (479x1024..).
+            // Using tptr will make the address calculation wrong in
+            // some cases (479x1024..).
             auto assign = builder::make_assign_unattached(rows[i],
-                    builder::make_indexing(
-                            input, tmp_in_indexes, is_bf16 ? 8 : 16, mask));
+                    builder::make_indexing(input, tmp_in_indexes,
+                            is_bf16 ? bf16_step : u8_step, mask));
             assign->attr()[op_traits::workload_computable_t::workload_number]
                     = wkld;
             cur_list.emplace_back(assign);
         }
 
-        // vnni reorder/transpose verctorized calculation on register
-        if (ctx->machine_.cpu_flags_.fAVX512VBMI) {
-            do_vnni_reorder(cur_list, rows, rows_dtype, is_vnni_reorder);
-        } else {
-            do_vnni_reorder_avx512f(cur_list, rows, rows_dtype);
-        }
+        do_vnni_reorder(cur_list, rows, rows_dtype, is_vnni_reorder, bf16_step);
+
         // store data from register
         for (int i = 0; i < step; i++) {
             auto tmp_out_indexes = out_indexes;
             if (!is_vnni_reorder) { // vnni transpose
                 tmp_out_indexes[out_k_axis[1]] = tmp_out_indexes[out_k_axis[1]]
                         + static_cast<uint64_t>(i);
-            } else if (is_bf16) { // vnni reorder + transpose bf16
-                switch (i) {
-                    case 1:
-                        tmp_out_indexes[out_n_axis[1]]
-                                = tmp_out_indexes[out_n_axis[1]]
-                                + static_cast<uint64_t>(4);
-                        break;
-                    case 2:
-                        tmp_out_indexes[out_k_axis[1]]
-                                = tmp_out_indexes[out_k_axis[1]]
-                                + static_cast<uint64_t>(1);
-                        break;
-                    case 3:
-                        tmp_out_indexes[out_n_axis[1]]
-                                = tmp_out_indexes[out_n_axis[1]]
-                                + static_cast<uint64_t>(4);
-                        tmp_out_indexes[out_k_axis[1]]
-                                = tmp_out_indexes[out_k_axis[1]]
-                                + static_cast<uint64_t>(1);
-                        break;
+            } else {
+                if (is_bf16) {
+                    if (use_x16step) {
+                        func_bf16_forloop_step(i, tmp_out_indexes, 8);
+                    } else {
+                        func_bf16_forloop_step(i, tmp_out_indexes, 4);
+                    }
+                } else {
+                    tmp_out_indexes[out_n_axis[1]]
+                            = tmp_out_indexes[out_n_axis[1]]
+                            + static_cast<uint64_t>(i) * 4;
                 }
-
-            } else { // vnni reorder + transpose
-                tmp_out_indexes[out_n_axis[1]] = tmp_out_indexes[out_n_axis[1]]
-                        + static_cast<uint64_t>(i) * 4;
             }
-
-            auto assign = builder::make_assign_unattached(
-                    builder::make_indexing(
-                            output, tmp_out_indexes, is_bf16 ? 8 : 16),
+            stmt assign = builder::make_assign_unattached(
+                    builder::make_indexing(output, tmp_out_indexes,
+                            is_bf16 ? bf16_step : u8_step),
                     rows[i]);
             cur_list.emplace_back(assign);
         }
@@ -2975,9 +2939,9 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
                 }
             } else { // vnni reorder
                 if (i == out_n_axis[1]) {
-                    cur_step = is_bf16 ? 8 : 16;
-                } else if ((is_bf16 && i == out_k_axis[1])
-                        || i == out_k_axis[2]) {
+                    cur_step = is_bf16 ? bf16_step : u8_step;
+                } else if (i == out_k_axis[2]
+                        || (is_bf16 && i == out_k_axis[1])) {
                     cur_step = is_bf16 ? 2 : 4;
                 }
             }
@@ -3007,17 +2971,17 @@ void compute_reorder_block(sc_graph_t &graph, const context_ptr &ctx,
                     << ".");
 
     std::vector<int> inp_a_axis, inp_b_axis, out_a_axis, out_b_axis;
-    bool is_vnni_reorder = false;
+    bool is_vnni_reorder = false, vnni_usex16step = false;
     bool dynamic_no_padding = impl_alg & impl_kind_t::no_padding;
     if (!is_innermost_dim_strided
             && can_be_vnni_reorder(ctx, inp_a_axis, inp_b_axis, out_a_axis,
                     out_b_axis, plain_dims, input_format, output_format, src,
-                    dst, dtype, is_vnni_reorder, is_dynamic,
-                    dynamic_no_padding)) {
+                    dst, dtype, is_vnni_reorder, is_dynamic, dynamic_no_padding,
+                    vnni_usex16step)) {
         compute_vnni_reorder(graph, ctx, src, dst, input_format, output_format,
                 dtype, plain_dims, output_loop, attrs, inp_a_axis, inp_b_axis,
                 out_a_axis, out_b_axis, wkld, is_vnni_reorder, is_dynamic,
-                dynamic_no_padding);
+                dynamic_no_padding, vnni_usex16step);
     } else if (!is_innermost_dim_strided
             && can_be_fast_transpose(ctx, inp_a_axis, inp_b_axis, out_a_axis,
                     out_b_axis, plain_dims, input_format, output_format, src,
@@ -3126,20 +3090,20 @@ bool reorder_op_t::support_output_loop() const {
             std::string("dummy_out"), output_blocking_shapes_expr, dtype); \
     auto src = tensor_slice(toy_inp_tsr), dst = tensor_slice(toy_out_tsr); \
     std::vector<int> inp_a_axis, inp_b_axis, out_a_axis, out_b_axis; \
-    bool is_vnni_reorder = false;
+    bool is_vnni_reorder = false; \
+    bool vnni_usex16step = false;
 
 bool reorder_op_t::support_optimized_kernel(const context_ptr &ctx) const {
     INIT_REORDER_OP_INFO()
-    return !is_innermost_dim_strided
-            && (can_be_fast_transpose(ctx, inp_a_axis, inp_b_axis, out_a_axis,
-                        out_b_axis, plain_dims_, input_format, output_format,
-                        src, dst, dtype, is_dynamic(),
-                        info_.cur_impl_ & impl_kind_t::no_padding)
-                    || can_be_vnni_reorder(ctx, inp_a_axis, inp_b_axis,
-                            out_a_axis, out_b_axis, plain_dims_, input_format,
-                            output_format, src, dst, dtype, is_vnni_reorder,
-                            is_dynamic(),
-                            info_.cur_impl_ & impl_kind_t::no_padding));
+    return (!is_innermost_dim_strided
+                   && can_be_fast_transpose(ctx, inp_a_axis, inp_b_axis,
+                           out_a_axis, out_b_axis, plain_dims_, input_format,
+                           output_format, src, dst, dtype, is_dynamic(),
+                           info_.cur_impl_ & impl_kind_t::no_padding))
+            || can_be_vnni_reorder(ctx, inp_a_axis, inp_b_axis, out_a_axis,
+                    out_b_axis, plain_dims_, input_format, output_format, src,
+                    dst, dtype, is_vnni_reorder, is_dynamic(),
+                    info_.cur_impl_ & impl_kind_t::no_padding, vnni_usex16step);
 }
 
 bool reorder_op_t::meet_vnni_reorder_require(const context_ptr &ctx) const {
@@ -3148,7 +3112,7 @@ bool reorder_op_t::meet_vnni_reorder_require(const context_ptr &ctx) const {
             && can_be_vnni_reorder(ctx, inp_a_axis, inp_b_axis, out_a_axis,
                     out_b_axis, plain_dims_, input_format, output_format, src,
                     dst, dtype, is_vnni_reorder, is_dynamic(),
-                    info_.cur_impl_ & impl_kind_t::no_padding);
+                    info_.cur_impl_ & impl_kind_t::no_padding, vnni_usex16step);
 }
 
 void reorder_op_t::compute_block(context_ptr ctx,

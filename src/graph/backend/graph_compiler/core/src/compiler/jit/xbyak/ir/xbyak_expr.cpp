@@ -167,6 +167,7 @@ static handler_table register_handlers() {
     REGISTER_INTRIN("AVX_PSHUFFLE", avx, pshuffle, directed_end_mem, _3A_);
     REGISTER_INTRIN("AVX_SHUFFLE", avx, shuffle, directed_end_mem, _4A_);
     REGISTER_INTRIN("AVX_PERMUTE", avx, permute, directed_end_mem, _4A_);
+    REGISTER_INTRIN("AVX_INSERT", avx, insert, directed_end_mem, _4A_);
     REGISTER_INTRIN("AVX_GATHER", avx, gather, directed_all_reg, _3A_);
 
     REGISTER_INTRIN("AVX_BROADCAST", avx, broadcast, directed_end_mem, _2A_);
@@ -182,6 +183,8 @@ static handler_table register_handlers() {
 
     REGISTER_INTRIN(
             "AVX_PERMUTEX2VAR", avx, permutex2var, directed_end_mem, _3A_);
+    REGISTER_INTRIN(
+            "AVX_PERMUTEXVAR", avx, permutexvar, directed_end_mem, _3A_);
 
     // Finalize table
     return intrin_handlers;

@@ -136,7 +136,62 @@ INLINE vec_u16x32::vec_u16x32(
         vec_u16x8 const &x, int mask, vec_u16x32 const &src) {
     v = _mm512_mask_broadcast_i32x4(src.v, mask, x.v);
 }
+#ifdef __AVX512DQ__
+INLINE vec_u16x32 sc_insert(
+        vec_u16x32 const &a, vec_u16x16 const &b, const int imm) {
+    if (imm) {
+        return _mm512_inserti32x8(a.v, b.v, 1);
+    } else { // imm = 0
+        return _mm512_inserti32x8(a.v, b.v, 0);
+    }
+}
+INLINE vec_s8x64 sc_insert(
+        vec_s8x64 const &a, vec_s8x32 const &b, const int imm) {
+    if (imm) {
+        return _mm512_inserti32x8(a.v, b.v, 1);
+    } else { // imm = 0
+        return _mm512_inserti32x8(a.v, b.v, 0);
+    }
+}
 
+INLINE vec_u8x64 sc_insert(
+        vec_u8x64 const &a, vec_u8x32 const &b, const int imm) {
+    if (imm) {
+        return _mm512_inserti32x8(a.v, b.v, 1);
+    } else { // imm = 0
+        return _mm512_inserti32x8(a.v, b.v, 0);
+    }
+}
+#endif
+#ifdef __AVX512VL__
+INLINE vec_s8x32 sc_insert(
+        vec_s8x32 const &a, vec_s8x16 const &b, const int imm) {
+    if (imm) {
+        return _mm256_inserti32x4(a.v, b.v, 1);
+    } else { // imm = 0
+        return _mm256_inserti32x4(a.v, b.v, 0);
+    }
+}
+INLINE vec_u8x32 sc_insert(
+        vec_u8x32 const &a, vec_u8x16 const &b, const int imm) {
+    if (imm) {
+        return _mm256_inserti32x4(a.v, b.v, 1);
+    } else { // imm = 0
+        return _mm256_inserti32x4(a.v, b.v, 0);
+    }
+}
+#endif
+#ifdef __AVX512VBMI__
+INLINE vec_u8x64 sc_permutexvar(vec_u8x64 const &a, vec_u8x64 const &b) {
+    return _mm512_permutexvar_epi8(a.v, b.v);
+}
+INLINE vec_s8x64 sc_permutexvar(vec_s8x64 const &a, vec_s8x64 const &b) {
+    return _mm512_permutexvar_epi8(a.v, b.v);
+}
+INLINE vec_u16x32 sc_permutexvar(vec_u16x32 const &a, vec_u16x32 const &b) {
+    return _mm512_permutexvar_epi16(a.v, b.v);
+}
+#endif
 template <>
 INLINE vec_s32x16 sc_round_and_cast(const vec_f32x16 &x) {
     return _mm512_cvtps_epi32(x.v);

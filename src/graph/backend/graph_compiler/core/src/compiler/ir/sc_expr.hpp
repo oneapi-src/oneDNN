@@ -1359,6 +1359,8 @@ enum class intrin_type {
     shl, // shift left
     shr, // shift right
     permutex2var,
+    permutexvar,
+    insert, // insert the value into dst at the location specified
     gather, // gather elements from memory.
     read_struct, // read field from a struct
     write_struct, // write a field to a struct

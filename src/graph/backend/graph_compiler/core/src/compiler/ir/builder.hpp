@@ -565,6 +565,43 @@ expr make_shuffle(const expr_c &v_a, const expr_c &v_b, const int &v_c);
 expr make_permute(const expr_c &v_a, const expr_c &v_b, const int &v_c);
 
 /**
+ * Makes an permutexvar node
+ * Using the corresponding bit in idx to Shuffle v.
+ * eg:
+
+ * _mm512_permutexvar_epi8
+ * FOR j := 0 to 63
+ *  i := j*8
+ *  id := idx[i+5:i]*8
+ *   dst[i+7:i] := a[id+7:id]
+ * ENDFOR
+
+ * @param idx the correspoding index
+ * @param v the input value
+ * @return the created node
+ * */
+expr make_permutexvar(const expr_c &idx, const expr_c &v);
+
+/**
+ * Insert the value into dst at the location specified by imm.
+ *
+ * ep: _mm512_inserti32x8
+ * Operation
+ * dst[511:0] := a[511:0]
+ * CASE imm8[0] OF
+ * 0: dst[255:0] := b[255:0]
+ * 1: dst[511:256] := b[255:0]
+ * ESAC
+ * dst[MAX:512] := 0
+
+ * @param v_a the first input value
+ * @param v_b the second input value
+ * @param imm the location specified value, 0 or 1
+ * @return the created node
+ * */
+expr make_insert(const expr_c &v_a, const expr_c &v_b, int imm, int elem_bits);
+
+/**
  * Makes an gather node
  * Gather elements from memory.
  * dst = __mm512{*(addr + indices[0]), *(addr + indices[1]), ...}

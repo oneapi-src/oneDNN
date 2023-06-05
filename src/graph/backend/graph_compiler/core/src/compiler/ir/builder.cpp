@@ -487,6 +487,18 @@ expr make_permutex2var(
             any_map_t());
 }
 
+expr make_permutexvar(const expr_c &idx, const expr_c &v) {
+    return make_expr<intrin_call_node>(intrin_type::permutexvar,
+            std::vector<expr> {idx.remove_const(), v.remove_const()},
+            any_map_t());
+}
+
+expr make_insert(const expr_c &v_a, const expr_c &v_b, int imm, int elem_bits) {
+    return make_expr<intrin_call_node>(intrin_type::insert,
+            std::vector<expr> {v_a.remove_const(), v_b.remove_const()},
+            any_map_t {{"insert_imm", imm}, {"elem_bits", elem_bits}});
+}
+
 expr make_read_struct(const expr_c &in, const std::string &struct_name,
         const int &field_name) {
     return make_expr<intrin_call_node>(intrin_type::read_struct,

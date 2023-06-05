@@ -18,6 +18,7 @@
 #include <immintrin.h>
 #include <stdint.h>
 #include "common.hpp"
+#include "util/assert.hpp"
 class vec_u32x16;
 class vec_f32x16;
 class vec_u16x16 {
@@ -140,4 +141,17 @@ INLINE vec_u16x16 sc_max(vec_u16x16 const &a, vec_u16x16 const &b) {
 INLINE vec_u16x16 sc_min(vec_u16x16 const &a, vec_u16x16 const &b) {
     return _mm256_min_epu16(a.v, b.v);
 }
+INLINE vec_u16x16 sc_unpack_low(
+        vec_u16x16 const &a, vec_u16x16 const &b, int lanes) {
+    return _mm256_unpacklo_epi16(a.v, b.v);
+}
+INLINE vec_u16x16 sc_unpack_high(
+        vec_u16x16 const &a, vec_u16x16 const &b, int lanes) {
+    return _mm256_unpackhi_epi16(a.v, b.v);
+}
+
+#define PARAM(X) X
+#define sc_permute_vec_u16x16(a, b, imm) \
+    _mm256_permute2f128_si256(PARAM(a).v, PARAM(b).v, imm);
+
 #endif

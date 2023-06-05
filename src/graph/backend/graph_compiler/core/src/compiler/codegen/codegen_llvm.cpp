@@ -1566,26 +1566,112 @@ public:
                                 false, "Unimplement datatype for permute2var");
                 }
             } break;
+            case intrin_type::permutexvar: {
+                COMPILE_ASSERT(v->args_.size() == 2,
+                        "need two args in permutexvar instructions.");
+                auto inval1 = generate_expr(v->args_[0]);
+                auto inval2 = generate_expr(v->args_[1]);
+                switch (v->args_[1]->dtype_.type_code_) {
+                    case sc_data_etype::BF16: {
+                        current_val_ = builder_.CreateIntrinsic(
+                                Intrinsic::x86_avx512_permvar_hi_512, {},
+                                {inval2, inval1});
+                    } break;
+                    case sc_data_etype::S8:
+                    case sc_data_etype::U8: {
+                        current_val_ = builder_.CreateIntrinsic(
+                                Intrinsic::x86_avx512_permvar_qi_512, {},
+                                {inval2, inval1});
+                    } break;
+                    default: {
+                        COMPILE_ASSERT(false,
+                                "Currently, we don't support "
+                                "\"" << v->args_[1]->dtype_
+                                     << "\"");
+                    } break;
+                }
+            } break;
             case intrin_type::unpack_high:
             case intrin_type::unpack_low: {
-                assert(v->args_.size() == 2);
-                COMPILE_ASSERT(v->dtype_.is_etype(sc_data_etype::BF16)
-                                || v->dtype_.is_etype(sc_data_etype::U16)
-                                || v->dtype_.is_etype(sc_data_etype::F32),
-                        "Expecting u16/bf16/f32 for unpack: " << v);
+                COMPILE_ASSERT(v->args_.size() == 2,
+                        "Expecting size of args = 2, but get "
+                                << v->args_.size());
                 auto inval1 = generate_expr(v->args_[0]);
                 auto inval2 = generate_expr(v->args_[1]);
                 auto elem_bits = v->intrin_attrs_->get<int>("elem_bits");
                 std::vector<shuffle_idx_t> hi_array, lo_array;
-                if (v->dtype_.lanes_ == 8) {
-                    // todo: currently only support f32
-                    assert(elem_bits == 32);
-                    hi_array = std::vector<shuffle_idx_t> {
-                            2, 10, 2 + 1, 10 + 1, 6, 14, 6 + 1, 14 + 1};
-                    lo_array = std::vector<shuffle_idx_t> {
-                            0, 8, 0 + 1, 8 + 1, 4, 12, 4 + 1, 12 + 1};
+                if (v->dtype_.lanes_ == 2) {
+                    COMPILE_ASSERT(elem_bits == 64,
+                            "Expecting elem_bits = 64, but get " << elem_bits);
+                    hi_array = std::vector<shuffle_idx_t> {1, 2 + 1};
+                    lo_array.resize(2);
+                    std::transform(hi_array.begin(), hi_array.end(),
+                            lo_array.begin(),
+                            [](shuffle_idx_t x) { return x - 1; });
+                } else if (v->dtype_.lanes_ == 4) {
+                    COMPILE_ASSERT(elem_bits == 32,
+                            "Expecting elem_bits = 32, but get " << elem_bits);
+                    hi_array = std::vector<shuffle_idx_t> {2, 4 + 2, 3, 4 + 3};
+                    lo_array.resize(4);
+                    std::transform(hi_array.begin(), hi_array.end(),
+                            lo_array.begin(),
+                            [](shuffle_idx_t x) { return x - 2; });
+                } else if (v->dtype_.lanes_ == 16) {
+                    switch (elem_bits) {
+                        case 8: {
+                            hi_array = std::vector<shuffle_idx_t> {8, 16 + 8, 9,
+                                    16 + 9, 10, 16 + 10, 11, 16 + 11, 12,
+                                    16 + 12, 13, 16 + 13, 14, 16 + 14, 15,
+                                    16 + 15};
+                            lo_array.resize(16);
+                            std::transform(hi_array.begin(), hi_array.end(),
+                                    lo_array.begin(),
+                                    [](shuffle_idx_t x) { return x - 8; });
+                        } break;
+                        case 16: {
+                            hi_array = std::vector<shuffle_idx_t> {4, 16 + 4, 5,
+                                    16 + 5, 6, 16 + 6, 7, 16 + 7, 12, 16 + 12,
+                                    13, 16 + 13, 14, 16 + 14, 15, 16 + 15};
+                            lo_array.resize(16);
+                            std::transform(hi_array.begin(), hi_array.end(),
+                                    lo_array.begin(),
+                                    [](shuffle_idx_t x) { return x - 4; });
+                        } break;
+                        default: {
+                            COMPILE_ASSERT(false,
+                                    "Currently lanes = 16, elem_bit only "
+                                    "support 8 and 16, but get "
+                                            << elem_bits);
+                        } break;
+                    }
+
+                } else if (v->dtype_.lanes_ == 8) {
+                    switch (elem_bits) {
+                        case 16:
+                            hi_array = std::vector<shuffle_idx_t> {
+                                    4, 8 + 4, 5, 8 + 5, 6, 8 + 6, 7, 8 + 7};
+                            lo_array.resize(8);
+                            std::transform(hi_array.begin(), hi_array.end(),
+                                    lo_array.begin(),
+                                    [](shuffle_idx_t x) { return x - 4; });
+                            break;
+                        case 32:
+                            hi_array = std::vector<shuffle_idx_t> {
+                                    2, 10, 2 + 1, 10 + 1, 6, 14, 6 + 1, 14 + 1};
+                            lo_array = std::vector<shuffle_idx_t> {
+                                    0, 8, 0 + 1, 8 + 1, 4, 12, 4 + 1, 12 + 1};
+                            break;
+                        default: {
+                            COMPILE_ASSERT(false,
+                                    "Currently lanes = 8, elem_bit only "
+                                    "support 32 and 16, but get "
+                                            << elem_bits);
+                        } break;
+                    }
                 } else {
-                    assert(v->dtype_.lanes_ == 32);
+                    COMPILE_ASSERT(v->dtype_.lanes_ == 32,
+                            "Currently only support lanes = 32, but get"
+                                    << v->dtype_.lanes_);
                     switch (elem_bits) {
                         case 16:
                             hi_array = std::vector<shuffle_idx_t> {4, 36, 4 + 1,
@@ -1623,6 +1709,12 @@ public:
                                     lo_array.begin(),
                                     [](shuffle_idx_t x) { return x - 4; });
                             break;
+                        default: {
+                            COMPILE_ASSERT(false,
+                                    "Currently lanes = 8, elem_bit only "
+                                    "support 64,32 and 16, but get "
+                                            << elem_bits);
+                        } break;
                     }
                 }
                 ArrayRef<shuffle_idx_t> arr
@@ -1655,39 +1747,46 @@ public:
             } break;
             case intrin_type::permute: {
                 assert(v->args_.size() == 2);
-                COMPILE_ASSERT(v->dtype_.lanes_ == 8,
-                        "Expecting 8-lane for permute: " << v);
-                auto inval1 = generate_expr(v->args_[0]);
-                auto inval2 = generate_expr(v->args_[1]);
-                auto imm8 = v->intrin_attrs_->get<int>("permute_imm");
-                shuffle_idx_t array[8];
-                auto low_idx = 0, high_idx = 0;
-                switch (imm8 % 4) {
-                    case 0: break;
-                    case 1: low_idx += 4; break;
-                    case 2: low_idx += 8; break;
-                    case 3: low_idx += 12; break;
-                    default: break;
-                }
-                array[0] = low_idx;
-                array[1] = low_idx + 1;
-                array[2] = low_idx + 2;
-                array[3] = low_idx + 3;
-                switch ((imm8 >> 4) % 4) {
-                    case 0: break;
-                    case 1: high_idx += 4; break;
-                    case 2: high_idx += 8; break;
-                    case 3: high_idx += 12; break;
-                    default: break;
-                }
-                array[4] = high_idx;
-                array[5] = high_idx + 1;
-                array[6] = high_idx + 2;
-                array[7] = high_idx + 3;
-                current_val_
-                        = builder_.CreateShuffleVector(inval1, inval2, array);
-            } break;
 
+                auto imm8 = v->intrin_attrs_->get<int>("permute_imm");
+                auto val0 = generate_expr(v->args_[0]);
+                auto val1 = generate_expr(v->args_[1]);
+
+                unsigned numelts = v->args_[0]->dtype_.lanes_;
+
+                // This takes a very simple approach since there are two
+                // lanes and a shuffle can have 2 inputs. So we reserve the
+                // first input for the first lane and the second input for
+                // the second lane. This may result in duplicate sources,
+                // but this can be dealt with in the backend.
+
+                Value *outops[2];
+                int indices[16];
+                for (unsigned l = 0; l != 2; ++l) {
+                    // Determine the source for this lane.
+                    if (imm8 & (1 << ((l * 4) + 3)))
+                        outops[l] = llvm::ConstantAggregateZero::get(
+                                val0->getType());
+                    else if (imm8 & (1 << ((l * 4) + 1)))
+                        outops[l] = val1;
+                    else
+                        outops[l] = val0;
+
+                    for (unsigned i = 0; i != numelts / 2; ++i) {
+                        // Start with ith element of the source for this
+                        // lane.
+                        unsigned idx = (l * numelts) + i;
+                        // If bit 0 of the immediate half is set, switch to
+                        // the high half of the source.
+                        if (imm8 & (1 << (l * 4))) idx += numelts / 2;
+                        indices[(l * (numelts / 2)) + i] = idx;
+                    }
+                }
+
+                current_val_ = builder_.CreateShuffleVector(outops[0],
+                        outops[1], ArrayRef<shuffle_idx_t>(indices, numelts),
+                        "vperm");
+            } break;
             case intrin_type::prefetch: {
                 assert(v->args_.size() == 1);
                 auto locality = v->intrin_attrs_->get<int>("locality");
@@ -1757,6 +1856,36 @@ public:
                                         << v->dtype_.lanes_);
                         break;
                 }
+            } break;
+            case intrin_type::insert: {
+                auto val0 = generate_expr(v->args_[0]);
+                auto val1 = generate_expr(v->args_[1]);
+                unsigned index = v->intrin_attrs_->get<int>("insert_imm");
+                const unsigned elem_bits
+                        = v->intrin_attrs_->get<int>("elem_bits");
+                auto lanes = v->args_[0]->dtype_.lanes_;
+                auto type_code = v->args_[0]->dtype_.type_code_;
+                unsigned dst_num_elts = lanes, src_num_elts = lanes / 2;
+                unsigned subvectors = dst_num_elts / src_num_elts;
+                index &= subvectors - 1;
+                index *= src_num_elts;
+                std::vector<shuffle_idx_t> indices(dst_num_elts);
+                for (unsigned i = 0; i != dst_num_elts; ++i) {
+                    indices[i] = (i >= src_num_elts)
+                            ? src_num_elts + (i % src_num_elts)
+                            : i;
+                }
+                Value *op1
+                        = builder_.CreateShuffleVector(val1, indices, "widen");
+                for (unsigned i = 0; i != dst_num_elts; ++i) {
+                    if (i >= index && i < (index + src_num_elts)) {
+                        indices[i] = (i - index) + dst_num_elts;
+                    } else {
+                        indices[i] = i;
+                    }
+                }
+                current_val_ = builder_.CreateShuffleVector(
+                        val0, op1, indices, "insert");
             } break;
             default: {
                 std::stringstream ss;

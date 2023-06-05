@@ -160,6 +160,8 @@ void codegen_c_vis::print_type(sc_data_type_t dtype) {
             case sc_data_type_t::u32(8): *os << "vec_u32x8"; break;
             case sc_data_type_t::u32(16): *os << "vec_u32x16"; break;
 
+            case sc_data_type_t::index(2): *os << "vec_u64x2"; break;
+
             case sc_data_type_t::u16(8): *os << "vec_u16x8"; break;
             case sc_data_type_t::u16(16): *os << "vec_u16x16"; break;
             case sc_data_type_t::u16(32): *os << "vec_u16x32"; break;
@@ -475,7 +477,9 @@ void codegen_c_vis::view(intrin_call_c v) {
             *os << ')';
             break;
         case intrin_type::shuffle:
-            *os << "sc_shuffle(";
+            *os << "sc_shuffle_";
+            print_type(v->dtype_);
+            *os << "(";
             dispatch(v->args_[0]);
             *os << ", ";
             dispatch(v->args_[1]);
@@ -484,7 +488,9 @@ void codegen_c_vis::view(intrin_call_c v) {
             *os << ')';
             break;
         case intrin_type::permute:
-            *os << "sc_permute(";
+            *os << "sc_permute_";
+            print_type(v->dtype_);
+            *os << "(";
             dispatch(v->args_[0]);
             *os << ", ";
             dispatch(v->args_[1]);
@@ -577,6 +583,18 @@ void codegen_c_vis::view(intrin_call_c v) {
             break;
         case intrin_type::permutex2var:
             trinary_func_codegen_c(v->args_, "sc_permutex2var");
+            break;
+        case intrin_type::permutexvar:
+            binary_func_codegen_c(v->args_, "sc_permutexvar");
+            break;
+        case intrin_type::insert:
+            *os << "sc_insert(";
+            dispatch(v->args_[0]);
+            *os << ", ";
+            dispatch(v->args_[1]);
+            *os << ", ";
+            *os << v->intrin_attrs_->get<int>("insert_imm");
+            *os << ')';
             break;
         default: assert(0 && "Unknown intrinsic!"); break;
     }

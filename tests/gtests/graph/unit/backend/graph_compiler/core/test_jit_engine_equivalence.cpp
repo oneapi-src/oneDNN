@@ -1122,6 +1122,68 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicGather) {
     }
 }
 
+TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicpermute2) {
+    REQUIRE_AVX512();
+    ir_builder_t builder;
+
+    const int simd_lanes = 16;
+    const int num_elems = simd_lanes;
+    _function_(datatypes::void_t, foo,
+            _arg_("tensor_out1", datatypes::u16, {num_elems}),
+            _arg_("tensor_out2", datatypes::u16, {num_elems}),
+            _arg_("tensor_src1", datatypes::u16, {num_elems}),
+            _arg_("tensor_src2", datatypes::u16, {num_elems})) {
+        _bind_(tensor_out1, tensor_out2, tensor_src1, tensor_src2);
+        tensor_out1[span_t({0}, simd_lanes)]
+                = make_permute(tensor_src1[span_t({0}, simd_lanes)],
+                        tensor_src2[span_t({0}, simd_lanes)], 0x20);
+        tensor_out2[span_t({0}, simd_lanes)]
+                = make_permute(tensor_src1[span_t({0}, simd_lanes)],
+                        tensor_src2[span_t({0}, simd_lanes)], 0x31);
+    }
+
+    ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
+            get_default_context(), vector<func_t> {foo}, 0);
+
+    for (auto &kv : test_jit_engines) {
+        ostringstream err_context;
+        const string &je_name = kv.first;
+        err_context << "jit_engine_t class '" << je_name << "'";
+        SCOPED_TRACE(err_context.str());
+
+        shared_ptr<jit_engine_t> je = kv.second;
+        EXPECT_NE(je, nullptr);
+        if (!je) { continue; }
+
+        shared_ptr<jit_module> jm = je->make_jit_module(ir_mod, true);
+        EXPECT_NE(jm, nullptr);
+
+        shared_ptr<jit_function_t> j_foo = jm->get_function("foo");
+
+        EXPECT_NE(j_foo, nullptr);
+        if (!j_foo) { continue; }
+
+        uint16_t host_tensor_out1[num_elems] = {0};
+        uint16_t host_tensor_out2[num_elems] = {0};
+        uint16_t host_tensor_src1[num_elems] = DATASET_I1;
+        uint16_t host_tensor_src2[num_elems] = DATASET_I2;
+        const uint16_t expected_result1[num_elems]
+                = {1, 2, 3, 4, 5, 6, 7, 8, 16, 15, 14, 13, 12, 11, 10, 9};
+        const uint16_t expected_result2[num_elems]
+                = {9, 10, 11, 12, 13, 14, 15, 16, 8, 7, 6, 5, 4, 3, 2, 1};
+
+        generic_val generic_args[] = {&host_tensor_out1, &host_tensor_out2,
+                &host_tensor_src1, &host_tensor_src2};
+
+        j_foo->call_generic_default(generic_args);
+
+        for (int i = 0; i < num_elems; ++i) {
+            EXPECT_EQ(host_tensor_out1[i], expected_result1[i]);
+            EXPECT_EQ(host_tensor_out2[i], expected_result2[i]);
+        }
+    }
+}
+
 TEST(GCCore_CPU_jit_engine_equivalence, TestModuleVar) {
     ir_builder_t builder;
 
@@ -1313,6 +1375,245 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicReduceAdd) {
         EXPECT_EQ(host_out, expected_out);
         EXPECT_EQ(host_int32_out, expected_int32_out);
     }
+}
+
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestUnpackHighLow) {
+    REQUIRE_AVX2();
+    const int klen = 32;
+    ir_builder_t builder;
+    const int data_len = 8;
+    const int data_len_1 = 16;
+
+    _function_(datatypes::void_t, foo, _arg_("x", datatypes::bf16, {data_len}),
+            _arg_("y", datatypes::bf16, {data_len}),
+            _arg_("k", datatypes::bf16, {data_len}),
+            _arg_("z", datatypes::bf16, {data_len}),
+            _arg_("result", datatypes::bf16, {data_len * 2}),
+            _arg_("x_1", datatypes::u8, {data_len_1}),
+            _arg_("y_1", datatypes::u8, {data_len_1}),
+            _arg_("result_1", datatypes::u8, {32})) {
+        _bind_(x, y, k, z, result, x_1, y_1, result_1);
+        result[span_t({0}, data_len)] = builder::make_unpack_low(
+                x[span_t({0}, data_len)], y[span_t({0}, data_len)], 16);
+        result[span_t({8}, data_len)] = builder::make_unpack_high(
+                x[span_t({0}, data_len)], y[span_t({0}, data_len)], 16);
+        result[span_t({16}, data_len)] = builder::make_unpack_low(
+                k[span_t({0}, data_len)], z[span_t({0}, data_len)], 16);
+        result[span_t({24}, data_len)] = builder::make_unpack_high(
+                k[span_t({0}, data_len)], z[span_t({0}, data_len)], 16);
+        result_1[span_t({0}, data_len_1)] = builder::make_unpack_low(
+                x_1[span_t({0}, data_len_1)], y_1[span_t({0}, data_len_1)], 8);
+        result_1[span_t({16}, data_len_1)] = builder::make_unpack_high(
+                x_1[span_t({0}, data_len_1)], y_1[span_t({0}, data_len_1)], 8);
+    }
+
+    ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
+            get_default_context(), vector<func_t> {foo}, 0);
+
+    uint16_t x[8] = {1, 3, 5, 7, 9, 11, 13, 15};
+    uint16_t y[8] = {2, 4, 6, 8, 10, 12, 14, 16};
+    uint16_t k[8] = {17, 19, 21, 23, 25, 27, 29, 31};
+    uint16_t z[8] = {18, 20, 22, 24, 26, 28, 30, 32};
+    uint8_t x_1[16]
+            = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31};
+    uint8_t y_1[16]
+            = {2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32};
+    uint16_t result[klen] = {0};
+    uint16_t expected_result[klen] = {0};
+    uint8_t result_1[klen] = {0};
+    for (int i = 0; i < klen; i++) {
+        expected_result[i] = i + 1;
+    }
+
+    generic_val generic_args[] = {x, y, k, z, &result, x_1, y_1, &result_1};
+
+    for (auto &kv : test_jit_engines) {
+        const string &je_name = kv.first;
+
+        ostringstream err_context;
+        err_context << "jit_engine_t class '" << je_name << "'";
+        SCOPED_TRACE(err_context.str());
+
+        shared_ptr<jit_engine_t> je = kv.second;
+        EXPECT_NE(je, nullptr);
+        if (!je) { continue; }
+
+        shared_ptr<jit_module> jm = je->make_jit_module(ir_mod, true);
+        EXPECT_NE(jm, nullptr);
+
+        shared_ptr<jit_function_t> jf = jm->get_function("foo");
+
+        EXPECT_NE(jf, nullptr);
+        if (!jf) { continue; }
+
+        jf->call_generic_default(generic_args);
+        for (int i = 0; i < klen; i++) {
+            EXPECT_EQ(result[i], expected_result[i]);
+            EXPECT_EQ(result_1[i], expected_result[i]);
+        }
+    }
+}
+
+TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicPermutexvar) {
+    REQUIRE_AVX512VBMI();
+    ir_builder_t builder;
+
+    any_map_t reinterpret_attr;
+    expr idx0;
+#define MAKE_IDX_NEW(name, v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, \
+        v12, v13, v14, v15) \
+    idx##name = make_expr<intrin_call_node>(intrin_type::reinterpret, \
+            std::vector<expr> {make_expr<constant_node>( \
+                    std::vector<union_val> {UINT64_C(v0), UINT64_C(v1), \
+                            UINT64_C(v2), UINT64_C(v3), UINT64_C(v4), \
+                            UINT64_C(v5), UINT64_C(v6), UINT64_C(v7), \
+                            UINT64_C(v8), UINT64_C(v9), UINT64_C(v10), \
+                            UINT64_C(v11), UINT64_C(v12), UINT64_C(v13), \
+                            UINT64_C(v14), UINT64_C(v15)}, \
+                    sc_data_type_t::u32(16))}, \
+            reinterpret_attr);
+    const int simd_lanes = 64;
+
+    _function_(datatypes::void_t, foo,
+            _arg_("tensor_in", datatypes::u8, {simd_lanes}), ) {
+        _bind_(tensor_in);
+        _var_(local_temp, sc_data_type_t::u8(64));
+        local_temp = tensor_in[span_t({0}, simd_lanes)];
+        reinterpret_attr[intrin_attr::out_dtype] = sc_data_type_t::u8(64);
+        MAKE_IDX_NEW(0, 0x30201000, 0x31211101, 0x32221202, 0x33231303,
+                0x34241404, 0x35251505, 0x36261606, 0x37271707, 0x38281808,
+                0x39291909, 0x3a2a1a0a, 0x3b2b1b0b, 0x3c2c1c0c, 0x3d2d1d0d,
+                0x3e2e1e0e, 0x3f2f1f0f)
+        tensor_in[span_t({0}, simd_lanes)] = make_permutexvar(idx0, local_temp);
+    }
+
+    ir_module_ptr ir_mod = std::make_shared<ir_module_t>(
+            get_default_context(), vector<func_t> {foo}, 0);
+
+    for (auto &kv : test_jit_engines) {
+        ostringstream err_context;
+        const string &je_name = kv.first;
+        err_context << "jit_engine_t class '" << je_name << "'";
+        SCOPED_TRACE(err_context.str());
+
+        shared_ptr<jit_engine_t> je = kv.second;
+        EXPECT_NE(je, nullptr);
+        if (!je) { continue; }
+
+        shared_ptr<jit_module> jm = je->make_jit_module(ir_mod, true);
+        EXPECT_NE(jm, nullptr);
+
+        shared_ptr<jit_function_t> j_foo = jm->get_function("foo");
+
+        EXPECT_NE(j_foo, nullptr);
+        if (!j_foo) { continue; }
+        int rows = 4, cols = 16;
+        int init = 1;
+        uint8_t host_in[simd_lanes] = {0};
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                host_in[i * cols + j] = init++;
+            }
+        }
+        uint8_t expected_out[simd_lanes] = {1, 17, 33, 49, 2, 18, 34, 50, 3, 19,
+                35, 51, 4, 20, 36, 52, 5, 21, 37, 53, 6, 22, 38, 54, 7, 23, 39,
+                55, 8, 24, 40, 56, 9, 25, 41, 57, 10, 26, 42, 58, 11, 27, 43,
+                59, 12, 28, 44, 60, 13, 29, 45, 61, 14, 30, 46, 62, 15, 31, 47,
+                63, 16, 32, 48, 64};
+
+        generic_val generic_args[] = {&host_in};
+
+        j_foo->call_generic_default(generic_args);
+        for (int i = 0; i < simd_lanes; i++) {
+            EXPECT_EQ(host_in[i], expected_out[i]);
+        }
+    }
+}
+
+TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicInsert) {
+    REQUIRE_AVX512();
+    ir_builder_t builder;
+    const int simd_lanes = 32;
+    const int imm0 = 0;
+    const int imm1 = 1;
+    int test_number = 1;
+#define SET_INPUT_DATA(type) \
+    type host_in_1[simd_lanes] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, \
+            14, 15, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; \
+    type host_in_2[simd_lanes / 2] \
+            = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}; \
+    const type expected_out_1[simd_lanes] \
+            = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 0, 1, 2, \
+                    3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}; \
+    const type expected_out_0[simd_lanes] \
+            = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0, 0, 0, \
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+#define FUNC_TEST(func_name, type, imm, elem_bits) \
+    _function_(datatypes::void_t, func_name, \
+            _arg_("tensor_in_1", datatypes::type, {simd_lanes}), \
+            _arg_("tensor_in_2", datatypes::type, {simd_lanes / 2}), ) { \
+        _bind_(tensor_in_1, tensor_in_2); \
+        _var_(local_temp_1, sc_data_type_t::type(simd_lanes)); \
+        local_temp_1->attr()["can_promote_to_f32"] = false; \
+        _var_(local_temp_2, sc_data_type_t::type(simd_lanes / 2)); \
+        local_temp_2->attr()["can_promote_to_f32"] = false; \
+        local_temp_1 = tensor_in_1[span_t({0}, simd_lanes)]; \
+        local_temp_2 = tensor_in_2[span_t({0}, simd_lanes / 2)]; \
+        tensor_in_1[span_t({0}, simd_lanes)] \
+                = make_insert(local_temp_1, local_temp_2, imm, elem_bits); \
+    }
+    ir_module_ptr ir_mod;
+#define TEST_CASE(imm, type, elem_bits) \
+    FUNC_TEST(foo, type, imm, elem_bits) \
+    ir_mod = std::make_shared<ir_module_t>( \
+            get_default_context(), vector<func_t> {foo}, 0);
+
+#define CONDITION_TEST(test_number, type, elem_bits) \
+    if (test_number & 1) { \
+        TEST_CASE(imm1, type, elem_bits) \
+    } else { \
+        TEST_CASE(imm0, type, elem_bits) \
+    }
+
+#define TEST_BODY() \
+    ostringstream err_context; \
+    const string &je_name = kv.first; \
+    err_context << "jit_engine_t class '" << je_name << "'"; \
+    SCOPED_TRACE(err_context.str()); \
+    shared_ptr<jit_engine_t> je = kv.second; \
+    EXPECT_NE(je, nullptr); \
+    if (!je) { continue; } \
+    shared_ptr<jit_module> jm = je->make_jit_module(ir_mod, true); \
+    EXPECT_NE(jm, nullptr); \
+    shared_ptr<jit_function_t> j_foo = jm->get_function("foo"); \
+    EXPECT_NE(j_foo, nullptr); \
+    if (!j_foo) { continue; } \
+    generic_val generic_args[] = { \
+            &host_in_1, \
+            &host_in_2, \
+    }; \
+    j_foo->call_generic_default(generic_args); \
+    for (int i = 0; i < simd_lanes; i++) { \
+        if (test_number & 1) { \
+            EXPECT_EQ(host_in_1[i], expected_out_1[i]); \
+        } else { \
+            EXPECT_EQ(host_in_1[i], expected_out_0[i]); \
+        } \
+    } \
+    test_number++;
+
+#define DO_TEST(type, ctype, elem_bits) \
+    for (auto &kv : test_jit_engines) { \
+        SET_INPUT_DATA(ctype) \
+        CONDITION_TEST(test_number, type, elem_bits) \
+        TEST_BODY() \
+    }
+
+    DO_TEST(u8, uint8_t, 128) // insert imm = 1
+    DO_TEST(u8, uint8_t, 128) // insert imm = 0
+    DO_TEST(bf16, uint16_t, 256) // insert imm = 1
+    DO_TEST(bf16, uint16_t, 256) // insert imm = 0
 }
 
 TEST(GCCore_CPU_jit_engine_equivalence, TestConstantBF16) {

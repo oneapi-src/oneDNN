@@ -147,6 +147,7 @@ int64_t location_manager::stack_push(
         case cpu_data_type::uint_16_x8:
         case cpu_data_type::uint_32_x4:
         case cpu_data_type::sint_32_x4:
+        case cpu_data_type::uint_64_x2:
         case cpu_data_type::float_32_x4: {
             gen_.sub(gen_.rsp, slot_size);
             gen_.vmovups(gen_.xword[gen_.rsp], to_xmm(reg));
@@ -275,6 +276,7 @@ int64_t location_manager::stack_pop(
         case cpu_data_type::uint_16_x8:
         case cpu_data_type::uint_32_x4:
         case cpu_data_type::sint_32_x4:
+        case cpu_data_type::uint_64_x2:
         case cpu_data_type::float_32_x4: {
             auto reg_xmm = to_xmm(reg);
             gen_.vmovups(reg_xmm, gen_.xword[gen_.rsp]);
@@ -974,6 +976,7 @@ const Xbyak::AddressFrame *location_manager::get_address_frame(
         case cpu_data_type::uint_16_x8: return &(gen_.xword);
         case cpu_data_type::uint_32_x4: return &(gen_.xword);
         case cpu_data_type::sint_32_x4: return &(gen_.xword);
+        case cpu_data_type::uint_64_x2: return &(gen_.xword);
         case cpu_data_type::float_32_x4: return &(gen_.xword);
         // simd 256-bit/ 32-byte
         case cpu_data_type::uint_8_x32: return &(gen_.yword);
@@ -1369,6 +1372,7 @@ expr_location location_manager::convert_virtual_reg(const expr_c &v) {
         case cpu_data_type::uint_16_x8:
         case cpu_data_type::uint_32_x4:
         case cpu_data_type::sint_32_x4:
+        case cpu_data_type::uint_64_x2:
         case cpu_data_type::float_32_x4: {
             return expr_location::make_reg(to_xmm(reg), cpu_dtype);
         }

@@ -111,100 +111,55 @@ void test_simple_instructions(
         int in_N, int in_K, int N, int K, int k, int n, int k2) {
     ir_builder_t builder;
     _function_(datatypes::void_t, aaa,
-            _arg_("in0", datatypes::u8, {in_N, in_K}),
-            _arg_("out0", datatypes::u8, {N, K, k, n, k2})) {
+            _arg_("in0", datatypes::u8, {in_K, in_N}),
+            _arg_("out0", datatypes::u8, {N, K, k / k2, n, k2})) {
         _bind_(in0, out0);
-        _for_(i, 0, in_K / 16) { // in_K / 16
-            _for_(j, 0, in_N / 4) { // in_N / 4
+        // using input for loop
+        _for_(i, 0, in_K, 4) {
+            _for_(j, 0, in_N, 16) {
                 _var_(zmm0, sc_data_type_t::u8(16));
                 _var_(zmm1, sc_data_type_t::u8(16));
                 _var_(zmm2, sc_data_type_t::u8(16));
                 _var_(zmm3, sc_data_type_t::u8(16));
-                _var_(idx0, sc_data_type_t::u8(16));
-                _var_(idx1, sc_data_type_t::u8(16));
-                _var_(idx2, sc_data_type_t::u8(16));
-                _var_(idx3, sc_data_type_t::u8(16));
-                zmm0 = in0[span_t({4 * j, i * 16}, 16)];
-                zmm1 = in0[span_t({4 * j + 1, i * 16}, 16)];
-                zmm2 = in0[span_t({4 * j + 2, i * 16}, 16)];
-                zmm3 = in0[span_t({4 * j + 3, i * 16}, 16)];
+                _var_(zmmx, sc_data_type_t::u8(16));
+
+                zmm0 = in0[span_t({i + 0, j}, 16)];
+                zmm1 = in0[span_t({i + 1, j}, 16)];
+                zmm2 = in0[span_t({i + 2, j}, 16)];
+                zmm3 = in0[span_t({i + 3, j}, 16)];
 
                 any_map_t reinterpret_attr;
                 reinterpret_attr[intrin_attr::out_dtype]
                         = sc_data_type_t::u8(16);
-                // permutex2var selector
-#define MAKE_IDX(name, v0, v1, v2, v3) \
-    idx##name = make_expr<intrin_call_node>(intrin_type::reinterpret, \
-            std::vector<expr> {make_expr<constant_node>( \
-                    std::vector<union_val> {UINT64_C(v0), UINT64_C(v1), \
-                            UINT64_C(v2), UINT64_C(v3)}, \
-                    sc_data_type_t::u32(4))}, \
-            reinterpret_attr);
-                MAKE_IDX(0, 0x03020100, 0x13121110, 0x0B0A0908, 0x1B1A1918)
-                MAKE_IDX(1, 0x07060504, 0x17161514, 0x0F0E0D0C, 0x1F1E1D1C)
-                MAKE_IDX(2, 0x03020100, 0x07060504, 0x13121110, 0x17161514)
-                MAKE_IDX(3, 0x0B0A0908, 0x0F0E0D0C, 0x1B1A1918, 0X1F1E1D1C)
 
-                auto zmm0_f32x4
+                zmmx = make_unpack_low(zmm0, zmm2, 8);
+                zmm2 = make_unpack_high(zmm0, zmm2, 8);
+                zmm0 = zmmx;
+                zmmx = make_unpack_low(zmm1, zmm3, 8);
+                zmm3 = make_unpack_high(zmm1, zmm3, 8);
+                zmm1 = zmmx;
+                zmmx = make_unpack_low(zmm0, zmm1, 8);
+                zmm1 = make_unpack_high(zmm0, zmm1, 8);
+                zmm0 = zmmx;
+                zmmx = make_unpack_low(zmm2, zmm3, 8);
+                zmm3 = make_unpack_high(zmm2, zmm3, 8);
+                zmm2 = zmmx;
+                out0[span_t(
+                        {j / n, i / k, (i % k) / k2, (j % n + 0), (i % k) % k2},
+                        16)]
                         = make_reinterpret(zmm0, sc_data_type_t::u8(16));
-                auto zmm1_f32x4
+                out0[span_t(
+                        {j / n, i / k, (i % k) / k2, (j % n + 4), (i % k) % k2},
+                        16)]
                         = make_reinterpret(zmm1, sc_data_type_t::u8(16));
-                auto zmm2_f32x4
+                out0[span_t(
+                        {j / n, i / k, (i % k) / k2, (j % n + 8), (i % k) % k2},
+                        16)]
                         = make_reinterpret(zmm2, sc_data_type_t::u8(16));
-                auto zmm3_f32x4
+                out0[span_t({j / n, i / k, (i % k) / k2, (j % n + 12),
+                                    (i % k) % k2},
+                        16)]
                         = make_reinterpret(zmm3, sc_data_type_t::u8(16));
-                any_map_t attr;
-                auto zmmx = zmm0_f32x4;
-                zmm0_f32x4 = make_expr<intrin_call_node>(
-                        intrin_type::permutex2var,
-                        std::vector<expr> {zmmx, idx0, zmm1_f32x4}, attr);
-                zmm1_f32x4 = make_expr<intrin_call_node>(
-                        intrin_type::permutex2var,
-                        std::vector<expr> {zmmx, idx1, zmm1_f32x4}, attr);
-                zmmx = zmm2_f32x4;
-                zmm2_f32x4 = make_expr<intrin_call_node>(
-                        intrin_type::permutex2var,
-                        std::vector<expr> {zmmx, idx0, zmm3_f32x4}, attr);
-                zmm3_f32x4 = make_expr<intrin_call_node>(
-                        intrin_type::permutex2var,
-                        std::vector<expr> {zmmx, idx1, zmm3_f32x4}, attr);
-                zmmx = zmm0_f32x4;
-                zmm0_f32x4 = make_expr<intrin_call_node>(
-                        intrin_type::permutex2var,
-                        std::vector<expr> {zmmx, idx2, zmm2_f32x4}, attr);
-                zmm2_f32x4 = make_expr<intrin_call_node>(
-                        intrin_type::permutex2var,
-                        std::vector<expr> {zmmx, idx3, zmm2_f32x4}, attr);
-                zmmx = zmm1_f32x4;
-                zmm1_f32x4 = make_expr<intrin_call_node>(
-                        intrin_type::permutex2var,
-                        std::vector<expr> {zmmx, idx2, zmm3_f32x4}, attr);
-                zmm3_f32x4 = make_expr<intrin_call_node>(
-                        intrin_type::permutex2var,
-                        std::vector<expr> {zmmx, idx3, zmm3_f32x4}, attr);
-                _var_(x, sc_data_type_t::index(1));
-                _var_(y, sc_data_type_t::index(1));
-                x = 4 * j;
-                y = 16 * i;
-                out0[span_t(
-                        {x / n, y / k / k2, y % (k * k2) / k2, x % n, y % k2},
-                        16)]
-                        = make_reinterpret(zmm0_f32x4, sc_data_type_t::u8(16));
-                y = 16 * i + 1 * 4;
-                out0[span_t(
-                        {x / n, y / k / k2, y % (k * k2) / k2, x % n, y % k2},
-                        16)]
-                        = make_reinterpret(zmm1_f32x4, sc_data_type_t::u8(16));
-                y = 16 * i + 2 * 4;
-                out0[span_t(
-                        {x / n, y / k / k2, y % (k * k2) / k2, x % n, y % k2},
-                        16)]
-                        = make_reinterpret(zmm2_f32x4, sc_data_type_t::u8(16));
-                y = 16 * i + 3 * 4;
-                out0[span_t(
-                        {x / n, y / k / k2, y % (k * k2) / k2, x % n, y % k2},
-                        16)]
-                        = make_reinterpret(zmm3_f32x4, sc_data_type_t::u8(16));
             }
         }
     }
@@ -218,14 +173,14 @@ void test_simple_instructions(
 
     if (!ut_use_random_data) {
         for (size_t i = 0; i < in.size(); i++) {
-            in[i] = uint8_t(i / 4 % 256);
+            in[i] = uint8_t(i % 256);
         }
     }
 
     if (verbose) {
         for (size_t i = 0; i < in.size(); i++) {
             std::cout << int(in[i]) << " ";
-            if ((i + 1) % 64 == 0) std::cout << std::endl;
+            if ((i + 1) % in_K == 0) std::cout << std::endl;
         }
         std::cout << std::endl << std::endl;
     }
@@ -237,12 +192,16 @@ void test_simple_instructions(
 
     fptr->call_default(in.data(), out.data());
 
-    ref_out = NK2NKknk(in, N, K, k, n, k2);
-
+    ref_out = KN2NKkn(in, N, K, k, n, in_K, in_N, k2);
     if (verbose) {
         for (size_t i = 0; i < ref_out.size(); i++) {
             std::cout << int(ref_out[i]) << " ";
-            if ((i + 1) % 64 == 0) std::cout << std::endl;
+            if ((i + 1) % in_K == 0) std::cout << std::endl;
+        }
+        std::cout << std::endl;
+        for (size_t i = 0; i < out.size(); i++) {
+            std::cout << int(out[i]) << " ";
+            if ((i + 1) % in_K == 0) std::cout << std::endl;
         }
         std::cout << std::endl;
     }
@@ -250,28 +209,30 @@ void test_simple_instructions(
     test_utils::compare_data(out.data(), ref_out.data(), in_N * in_K);
 
     compute_reorder_op(reorder_op_out, in, sc_dims({in_K, in_N}),
-            sc_data_format_t::NK(), sc_data_format_t::NKkn4k(k * k2, n),
+            sc_data_format_t::KN(), sc_data_format_t::NKkn4k(k, n),
             sc_data_type_t::u8());
 
     test_utils::compare_data(reorder_op_out, ref_out);
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestSimpleInstructions1) {
-    REQUIRE_AVX512VBMI()
-    test_simple_instructions(64, 128, 4, 2, 16, 16, 4);
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
+    test_simple_instructions(64, 16, 4, 1, 16, 16, 4);
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestSimpleInstructions2) {
-    REQUIRE_AVX512VBMI()
-    test_simple_instructions(1024, 512, 8, 4, 32, 128, 4);
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
+    test_simple_instructions(1024, 512, 8, 4, 128, 128, 4);
 }
 
 bool is_vnni_reorder_triggered(ir_module_ptr ir) {
-    // vnni fast reorder should contain permutex2var intrinsic in IR.
+    // vnni fast reorder should contain unpack intrinsic in IR.
     // Some of the unit tests in this file is NOT vnni reorder.
     std::stringstream ss;
     ss << ir;
-    return ss.str().find("permutex2var") != std::string::npos;
+    return ss.str().find("_vnni_reorder_") != std::string::npos;
 }
 
 template <typename T>
@@ -284,7 +245,6 @@ static void check(const sc_dims &inputdims, const sc_data_format_t &infmt,
         = nullptr,
         std::function<void(std::vector<generic_val> &)> args_func = nullptr,
         bool fuse = true) {
-    bool is_bf16 = dtype.as_etype() == sc_data_etype::BF16;
     sc_graph_t g;
     auto ins = g.make_input({graph_tensor::make(inputdims, infmt, dtype)});
     auto op = g.make("reorder", ins->get_outputs(), {},
@@ -309,7 +269,7 @@ static void check(const sc_dims &inputdims, const sc_data_format_t &infmt,
 
     if (!ut_use_random_data) {
         for (size_t i = 0; i < input.size(); i++) {
-            input[i] = T(i / (is_bf16 ? 2 : 4) % 256);
+            input[i] = T(i % 256);
         }
     }
 
@@ -343,21 +303,21 @@ static void check(const sc_dims &inputdims, const sc_data_format_t &infmt,
         std::cout << "input:" << std::endl;
         for (size_t i = 0; i < input.size(); i++) {
             std::cout << int(input[i]) << " ";
-            if ((i + 1) % 64 == 0) std::cout << std::endl;
+            if ((i + 1) % 16 == 0) std::cout << std::endl;
         }
         std::cout << std::endl << std::endl;
 
         std::cout << "ref_output:" << std::endl;
         for (size_t i = 0; i < ref_output.size(); i++) {
             std::cout << int(ref_output[i]) << " ";
-            if ((i + 1) % 64 == 0) std::cout << std::endl;
+            if ((i + 1) % 16 == 0) std::cout << std::endl;
         }
         std::cout << std::endl << std::endl;
 
         std::cout << "sc_output:" << std::endl;
         for (size_t i = 0; i < sc_output.size(); i++) {
             std::cout << int(sc_output[i]) << " ";
-            if ((i + 1) % 64 == 0) std::cout << std::endl;
+            if ((i + 1) % 16 == 0) std::cout << std::endl;
         }
         std::cout << std::endl << std::endl;
     }
@@ -366,7 +326,8 @@ static void check(const sc_dims &inputdims, const sc_data_format_t &infmt,
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose1) {
-    REQUIRE_AVX512()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<uint8_t>({128, 64}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn4k(16 * 4, 16), sc_data_type_t::u8(), true,
             false, [](test_buffer<uint8_t> &input) {
@@ -375,7 +336,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose1) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose2) {
-    REQUIRE_AVX512()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<uint8_t>({64, 384}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn4k(8 * 4, 32), sc_data_type_t::u8(), true,
             true, [](test_buffer<uint8_t> &input) {
@@ -384,7 +346,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose2) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose3) {
-    REQUIRE_AVX512()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<uint8_t>({1024, 4096}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn4k(32 * 4, 64), sc_data_type_t::u8(), true,
             false, [](test_buffer<uint8_t> &input) {
@@ -393,7 +356,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose3) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose4) {
-    REQUIRE_AVX512()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({128, 64}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn2k(16 * 2, 16), sc_data_type_t::bf16(), true,
             true, [](test_buffer<bf16_t> &input) {
@@ -402,7 +366,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose4) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose5) {
-    REQUIRE_AVX512()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({64, 384}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn2k(8 * 2, 32), sc_data_type_t::bf16(), true,
             false, [](test_buffer<bf16_t> &input) {
@@ -411,7 +376,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose5) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose6) {
-    REQUIRE_AVX512()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({1024, 4096}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn2k(32 * 2, 64), sc_data_type_t::bf16(), true,
             false, [](test_buffer<bf16_t> &input) {
@@ -420,7 +386,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose6) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose7) {
-    REQUIRE_AVX512()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<uint8_t>({32, 16}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn4k(4 * 4, 8), sc_data_type_t::u8(), true,
             true, [](test_buffer<uint8_t> &input) {
@@ -429,7 +396,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose7) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose8) {
-    REQUIRE_AVX512()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<uint8_t>({128, 16, 32}, sc_data_format_t(format_kinds::ABC),
             ABCcb4c(4 * 4, 8), sc_data_type_t::u8(), true, false,
             [](test_buffer<uint8_t> &input) {
@@ -438,7 +406,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose8) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose9) {
-    REQUIRE_AVX512()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({64, 384}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn2k(8 * 2, 32), sc_data_type_t::bf16(), true,
             true, [](test_buffer<bf16_t> &input) {
@@ -447,7 +416,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose9) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose10) {
-    REQUIRE_AVX512()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<int8_t>({16, 16}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn4k(4 * 4, 16), sc_data_type_t::u8(), true,
             false, [](test_buffer<int8_t> &input) {
@@ -456,7 +426,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose10) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder1) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<int8_t>({16, 16}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(4 * 4, 16), sc_data_type_t::s8(), true,
             true, [](test_buffer<int8_t> &input) {
@@ -465,7 +436,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder1) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder2) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<uint8_t>({16, 64}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(16, 16), sc_data_type_t::u8(), true, false,
             [](test_buffer<uint8_t> &input) {
@@ -474,7 +446,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder2) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder3) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<uint8_t>({64, 64}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(16, 16), sc_data_type_t::u8(), true, true,
             [](test_buffer<uint8_t> &input) {
@@ -483,7 +456,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder3) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder4) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<uint8_t>({4, 16}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(4, 16), sc_data_type_t::u8(), true, false,
             [](test_buffer<uint8_t> &input) {
@@ -492,7 +466,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder4) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder5) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<uint8_t>({64, 384}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(16, 32), sc_data_type_t::u8(), true, true,
             [](test_buffer<uint8_t> &input) {
@@ -501,7 +476,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder5) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder6) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<uint8_t>({1024, 4096}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(128, 64), sc_data_type_t::u8(), true,
             false, [](test_buffer<uint8_t> &input) {
@@ -510,7 +486,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder6) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder7) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({4, 8}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn2k(4, 8), sc_data_type_t::bf16(), true, true,
             [](test_buffer<bf16_t> &input) {
@@ -519,7 +496,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder7) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder8) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({16, 16}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn2k(16, 16), sc_data_type_t::bf16(), true,
             false, [](test_buffer<bf16_t> &input) {
@@ -528,7 +506,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder8) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder9) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({64, 384}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn2k(16, 32), sc_data_type_t::bf16(), true,
             true, [](test_buffer<bf16_t> &input) {
@@ -537,7 +516,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder9) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder10) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({1024, 4096}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn2k(64, 64), sc_data_type_t::bf16(), true,
             false, [](test_buffer<bf16_t> &input) {
@@ -546,7 +526,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder10) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderPadding1) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<uint8_t>({63, 64}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(16, 16), sc_data_type_t::u8(), true, false,
             [](test_buffer<uint8_t> &input) {
@@ -555,7 +536,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderPadding1) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderPadding2) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<uint8_t>({479, 1024}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(64, 64), sc_data_type_t::u8(), true, false,
             [](test_buffer<uint8_t> &input) {
@@ -564,7 +546,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderPadding2) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderPadding3) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({63, 64}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn2k(16, 16), sc_data_type_t::bf16(), true,
             false, [](test_buffer<bf16_t> &input) {
@@ -573,7 +556,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderPadding3) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderPadding4) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({479, 1024}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn2k(64, 64), sc_data_type_t::bf16(), true,
             false, [](test_buffer<bf16_t> &input) {
@@ -583,7 +567,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderPadding4) {
 
 // not vnni reorder
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose11) {
-    REQUIRE_AVX512()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<uint8_t>({256, 128}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn4k(1 * 4, 8), sc_data_type_t::u8(), false,
             true, [](test_buffer<uint8_t> &input) {
@@ -593,7 +578,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose11) {
 
 // not vnni reorder
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose12) {
-    REQUIRE_AVX512()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<uint8_t>({64, 64, 3, 3}, sc_data_format_t::KCRS(),
             sc_data_format_t::KCRSck4c(32, 32), sc_data_type_t::u8(), false,
             false, [](test_buffer<uint8_t> &input) {
@@ -602,7 +588,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose12) {
 } // ABCD->ABCDba4
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder13) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({28, 12, 128, 64}, sc_data_format_t(format_kinds::ACBD),
             ABCDcd2c(64, 64), sc_data_type_t::bf16(), true, true,
             [](test_buffer<bf16_t> &input) {
@@ -613,7 +600,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder13) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder14) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({1, 1, 384, 64}, sc_data_format_t(format_kinds::ACBD),
             ABCDcd2c(64, 64), sc_data_type_t::bf16(), true, false,
             [](test_buffer<bf16_t> &input) {
@@ -622,7 +610,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder14) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder15) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({1, 16, 384, 64}, sc_data_format_t(format_kinds::ACBD),
             ABCDcd2c(64, 64), sc_data_type_t::bf16(), true, true,
             [](test_buffer<bf16_t> &input) {
@@ -632,7 +621,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder15) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder16) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({1, 1, 16, 16}, sc_data_format_t(ABCD), ABDCcd2c(16, 16),
             sc_data_type_t::bf16(), true, false,
             [](test_buffer<bf16_t> &input) {
@@ -641,7 +631,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder16) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose17) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({1, 1, 64, 384}, sc_data_format_t(ABDC), ABCDcd2c(64, 64),
             sc_data_type_t::bf16(), true, true, [](test_buffer<bf16_t> &input) {
                 return ABDC2ABCDcd(input, 1, 1, 1, 6, 64, 64, 1, 1, 384, 64, 2);
@@ -649,7 +640,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose17) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder18) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<uint8_t>({768, 2304}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(256, 256), sc_data_type_t::s8(), true,
             false, [](test_buffer<uint8_t> &input) {
@@ -657,7 +649,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder18) {
             });
 }
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder19) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<uint8_t>({768, 2304}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(256, 18), sc_data_type_t::s8(), false,
             false, [](test_buffer<uint8_t> &input) {
@@ -666,7 +659,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder19) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder20) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({13, 512}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn2k(18, 32), sc_data_type_t::bf16(), false,
             false, [](test_buffer<bf16_t> &input) {
@@ -675,7 +669,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder20) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder21) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({1, 12, 15, 64}, format_kinds::ACBD, ABDCcd2c(64, 64),
             sc_data_type_t::bf16(), true, false,
             [](test_buffer<bf16_t> &input) {
@@ -685,7 +680,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder21) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder22) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<uint8_t>({64, 15}, sc_data_format_t::KN(),
             sc_data_format_t::NKkn4k(16, 32), sc_data_type_t::u8(), true, false,
             [](test_buffer<uint8_t> &input) {
@@ -694,7 +690,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder22) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder23) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<uint8_t>({64, 64, 1, 1}, sc_data_format_t::KCRS(),
             sc_data_format_t::KCRSck4c(32, 32), sc_data_type_t::u8(), true,
             false, [](test_buffer<uint8_t> &input) {
@@ -703,7 +700,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder23) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder25) {
-    REQUIRE_AVX512()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<uint8_t>({64, 64, 2, 1}, sc_data_format_t::KCRS(),
             sc_data_format_t::KCRSck4c(32, 32), sc_data_type_t::u8(), false,
             false, [](test_buffer<uint8_t> &input) {
@@ -712,7 +710,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder25) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder26) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({16, 128, 1}, sc_data_format_t(format_kinds::ABC),
             ABCba2bc(16, 16, 1), sc_data_type_t::bf16(), true, true,
             [](test_buffer<bf16_t> &input) {
@@ -721,7 +720,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder26) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder27) {
-    REQUIRE_AVX512()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({16, 128, 8}, sc_data_format_t(format_kinds::ABC),
             ABCba2bc(16, 16, 8), sc_data_type_t::bf16(), false, true,
             [](test_buffer<bf16_t> &input) {
@@ -730,7 +730,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder27) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder28) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({16, 128, 1}, sc_data_format_t(format_kinds::ABC),
             sc_data_format_t(ABCabc, {16, 2, 1}), sc_data_type_t::bf16(), true,
             true, [](test_buffer<bf16_t> &input) {
@@ -739,7 +740,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder28) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder29) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({16, 128, 16}, sc_data_format_t(format_kinds::ABC),
             sc_data_format_t(ABCabc, {16, 4, 2}), sc_data_type_t::bf16(), true,
             true, [](test_buffer<bf16_t> &input) {
@@ -748,7 +750,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder29) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder30) {
-    REQUIRE_AVX512()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({16, 128, 16}, sc_data_format_t(format_kinds::ABC),
             sc_data_format_t(ABCabc, {16, 4, 4}), sc_data_type_t::bf16(), false,
             true, [](test_buffer<bf16_t> &input) {
@@ -757,7 +760,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorder30) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose22) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({1, 12, 64, 15},
             sc_data_format_t(sc_data_format_kind_t {0, 3, 1, 2}),
             ABDCcd2c(64, 16), sc_data_type_t::bf16(), true, false,
@@ -768,7 +772,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose22) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderTranspose23) {
-    REQUIRE_AVX512VBMI()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check<bf16_t>({1, 12, 64, 16},
             sc_data_format_t(sc_data_format_kind_t {0, 3, 1, 2}),
             ABDCcd2c(64, 16), sc_data_type_t::bf16(), true, false,
@@ -801,7 +806,8 @@ static void check_fuse_add(const sc_dims &inputdims,
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestUInt8VNNIReorderTransposeFuseAdd1) {
-    REQUIRE_AVX512()
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check_fuse_add<uint8_t>({128, 64}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn4k(16 * 4, 16), sc_data_type_t::u8(), true,
             [](test_buffer<uint8_t> &input, test_buffer<uint8_t> &eltadd) {
@@ -813,8 +819,8 @@ TEST(GCCore_CPU_vnni_reorder_test, TestUInt8VNNIReorderTransposeFuseAdd1) {
 }
 
 TEST(GCCore_CPU_vnni_reorder_test, TestUInt8VNNIReorderTransposeFuseAdd2) {
-    REQUIRE_AVX512()
-
+    REQUIRE_AVX2()
+    BUILTIN_REQUIRE_AVX512()
     check_fuse_add<uint8_t>({64, 384}, sc_data_format_t::NK(),
             sc_data_format_t::NKkn4k(8 * 2, 32), sc_data_type_t::u8(), true,
             [](test_buffer<uint8_t> &input, test_buffer<uint8_t> &eltadd) {

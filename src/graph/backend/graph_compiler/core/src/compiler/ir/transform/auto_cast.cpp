@@ -293,6 +293,8 @@ public:
             case intrin_type::permute:
             case intrin_type::broadcast:
             case intrin_type::permutex2var:
+            case intrin_type::permutexvar:
+            case intrin_type::insert:
                 // do nothing
                 break;
             case intrin_type::brgemm:

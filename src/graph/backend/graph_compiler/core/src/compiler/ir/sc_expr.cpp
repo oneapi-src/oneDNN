@@ -122,6 +122,8 @@ ostream &operator<<(ostream &os, intrin_type val) {
         HANDLE_CASE(shl)
         HANDLE_CASE(shr)
         HANDLE_CASE(permutex2var)
+        HANDLE_CASE(permutexvar)
+        HANDLE_CASE(insert)
         HANDLE_CASE(load_const_mem)
         HANDLE_CASE(brgemm)
         HANDLE_CASE(list_brgemm)

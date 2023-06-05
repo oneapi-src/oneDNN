@@ -243,6 +243,16 @@ namespace xbyak {
                 OP_4.get_imm()); \
     }
 
+#define AVX_Z_Z_XM_I(GEN, INS, OP_1, OP_2, OP_3, OP_4) \
+    { \
+        COMPILE_ASSERT(OP_1.is_xyz() && OP_2.is_xyz() && OP_3.is_x_m() \
+                        && OP_4.is_imm(), \
+                "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2 << ", " \
+                                    << OP_3 << ", " << OP_4); \
+        (GEN).INS(OP_1.get_zmm(), OP_2.get_zmm(), OP_3.get_operand(), \
+                OP_4.get_imm()); \
+    }
+
 #define AVX_XM_Z_I(GEN, INS, OP_1, OP_2, OP_3) \
     { \
         COMPILE_ASSERT(OP_1.is_x_m() && OP_2.is_xyz() && OP_3.is_imm(), \

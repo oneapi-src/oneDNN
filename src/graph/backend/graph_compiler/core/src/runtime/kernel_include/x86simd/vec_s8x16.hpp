@@ -131,6 +131,16 @@ INLINE vec_s8x16 sc_select(
 
 // operator /
 
+INLINE vec_s8x16 sc_unpack_low(
+        vec_s8x16 const &a, vec_s8x16 const &b, int lanes) {
+    return _mm_unpacklo_epi8(a.v, b.v);
+}
+
+INLINE vec_s8x16 sc_unpack_high(
+        vec_s8x16 const &a, vec_s8x16 const &b, int lanes) {
+    return _mm_unpackhi_epi8(a.v, b.v);
+}
+
 INLINE vec_s8x16 sc_max(vec_s8x16 const &a, vec_s8x16 const &b) {
     return _mm_max_epi8(a.v, b.v);
 }

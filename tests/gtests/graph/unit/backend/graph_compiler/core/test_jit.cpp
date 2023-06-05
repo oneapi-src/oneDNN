@@ -449,8 +449,9 @@ TEST(GCCore_CPU_jit_cpp, TestJITVectorShuffle) {
             _arg_("C", datatypes::f32, {1024}),
             _arg_("D", datatypes::f32, {1024}),
             _arg_("E", datatypes::f32, {1024}),
-            _arg_("F", datatypes::f32, {1024})) {
-        _bind_(A, B, C, D, E, F);
+            _arg_("F", datatypes::f32, {1024}),
+            _arg_("H", datatypes::f32, {1024})) {
+        _bind_(A, B, C, D, E, F, H);
         _for_(i, 0, 1024, 8) {
             C[span_t({i}, 8)] = builder::make_unpack_high(
                     A[span_t({i}, 8)], B[span_t({i}, 8)]);
@@ -460,6 +461,8 @@ TEST(GCCore_CPU_jit_cpp, TestJITVectorShuffle) {
                     A[span_t({i}, 8)], B[span_t({i}, 8)], 68);
             F[span_t({i}, 8)] = builder::make_permute(
                     A[span_t({i}, 8)], B[span_t({i}, 8)], 32);
+            H[span_t({i}, 8)] = builder::make_permute(
+                    A[span_t({i}, 8)], B[span_t({i}, 8)], 0x31);
         }
     }
 
@@ -487,10 +490,12 @@ TEST(GCCore_CPU_jit_cpp, TestJITVectorShuffle) {
         std::vector<float> D(1024);
         std::vector<float> E(1024);
         std::vector<float> F(1024);
+        std::vector<float> H(1024);
+
         auto A = getA();
         auto B = getB();
-        fptr->call<void>(
-                A.data(), B.data(), C.data(), D.data(), E.data(), F.data());
+        fptr->call<void>(A.data(), B.data(), C.data(), D.data(), E.data(),
+                F.data(), H.data());
         for (int i = 0; i < 1024; i += 8) {
             EXPECT_NEAR(C[i + 0], A[i + 2], 1e-5);
             EXPECT_NEAR(C[i + 1], B[i + 2], 1e-5);
@@ -528,6 +533,15 @@ TEST(GCCore_CPU_jit_cpp, TestJITVectorShuffle) {
             EXPECT_NEAR(F[i + 5], B[i + 1], 1e-5);
             EXPECT_NEAR(F[i + 6], B[i + 2], 1e-5);
             EXPECT_NEAR(F[i + 7], B[i + 3], 1e-5);
+            // 0x31
+            EXPECT_NEAR(H[i + 0], A[i + 4], 1e-5);
+            EXPECT_NEAR(H[i + 1], A[i + 5], 1e-5);
+            EXPECT_NEAR(H[i + 2], A[i + 6], 1e-5);
+            EXPECT_NEAR(H[i + 3], A[i + 7], 1e-5);
+            EXPECT_NEAR(H[i + 4], B[i + 4], 1e-5);
+            EXPECT_NEAR(H[i + 5], B[i + 5], 1e-5);
+            EXPECT_NEAR(H[i + 6], B[i + 6], 1e-5);
+            EXPECT_NEAR(H[i + 7], B[i + 7], 1e-5);
         }
     }
 }

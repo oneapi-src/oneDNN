@@ -1796,8 +1796,8 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestPrefetchSelected) {
                     graph_tensor::make({128, 128}, sc_data_format_t::MK())},
             {graph_tensor::make({128, 128}, sc_data_format_t::MK())}, {}};
 
-    // prefetch op returns {0,1}, and only 1 is input. Input 1 of the op maps to
-    // the input 0 of the graph
+    // prefetch op returns {0,1}, and only 1 is input. Input 1 of the op
+    // maps to the input 0 of the graph
     EXPECT_EQ(tester.query_prefetch(ctx, true, {}), std::vector<int>({0}));
 
     tester.generate_prefetcher_body_for_tensor(ctx, {}, {}, {0});

@@ -323,6 +323,17 @@ public:
                         dst->dtype_, //
                         transform_disabled("gather"), transform_gather());
             } break;
+            case intrin_type::insert: {
+                auto imm = intrin->intrin_attrs_->get<int>("insert_imm");
+                auto elem_bits = intrin->intrin_attrs_->get<int>("elem_bits");
+                transform(dst,
+                        {intrin->args_[0], intrin->args_[1],
+                                builder::make_constant(imm),
+                                builder::make_constant(elem_bits)},
+                        dst->dtype_, //
+                        transform_disabled("insert"),
+                        transform_5a_to_4a(xbyak_intrin_type::insert));
+            } break;
             case intrin_type::int_and: {
                 transform(dst, {intrin->args_[0], intrin->args_[1]},
                         dst->dtype_, //
@@ -353,6 +364,12 @@ public:
                         dst->dtype_, //
                         transform_disabled("permutex2var"),
                         transform_4a_to_3a(xbyak_intrin_type::permutex2var));
+            } break;
+            case intrin_type::permutexvar: {
+                transform(dst, {intrin->args_[0], intrin->args_[1]},
+                        dst->dtype_, //
+                        transform_disabled("permutexvar"),
+                        transform_intrin(xbyak_intrin_type::permutexvar));
             } break;
             case intrin_type::saturated_cast: {
                 transform(dst, {intrin->args_[0]},
@@ -586,6 +603,14 @@ public:
         };
     }
 
+    transform_func transform_5a_to_4a(xbyak_intrin_type intrin) {
+        return [this, intrin](const expr &dst, array_ref<expr> src,
+                       sc_data_type_t dtype, xbyak_intrin_isa isa) {
+            transform_5a_to_4a(
+                    dst, src[0], src[1], src[2], src[3], intrin, isa);
+        };
+    }
+
     transform_func transform_x86_mul() {
         return [this](const expr &dst, array_ref<expr> src,
                        sc_data_type_t dtype, xbyak_intrin_isa isa) {
@@ -672,6 +697,15 @@ public:
         add_assignment(dst, a);
         // dst = 3a(b, c)
         transform_intrin(dst, {b, c}, intrin, isa);
+    }
+
+    void transform_5a_to_4a(const expr &dst, const expr &a, const expr &b,
+            const expr &c, const expr &d, xbyak_intrin_type intrin,
+            xbyak_intrin_isa isa) {
+        // dst = src1
+        add_assignment(dst, a);
+        // dst = 4a(b, c, d)
+        transform_intrin(dst, {b, c, d}, intrin, isa);
     }
 
     void transform_x86_mul(const expr &dst, const expr &lhs, const expr &rhs) {

@@ -230,6 +230,22 @@ struct permutex2var_handler_t : public trinary_intrinsic_handler_t {
     permutex2var_handler_t() : trinary_intrinsic_handler_t("permutex2var") {}
 };
 
+struct permutexvar_handler_t : public binary_intrinsic_handler_t {
+    void on_initialize(intrin_call_node &node) override {
+        COMPILE_ASSERT(node.args_.size() == 2, "Expecting 2 args.");
+        node.dtype_ = node.args_[0]->dtype_;
+    }
+    permutexvar_handler_t() : binary_intrinsic_handler_t("permutexvar") {}
+};
+
+struct insert_handler_t : public trinary_intrinsic_handler_t {
+    void on_initialize(intrin_call_node &node) override {
+        assert(node.args_.size() == 2);
+        node.dtype_ = node.args_[0]->dtype_;
+    }
+    insert_handler_t() : trinary_intrinsic_handler_t("insert") {}
+};
+
 struct gather_handler_t : public binary_intrinsic_handler_t {
     gather_handler_t() : binary_intrinsic_handler_t("gather") {}
     void on_initialize(intrin_call_node &node) override {
@@ -499,6 +515,8 @@ static std::unique_ptr<intrinsic_handler_t> handlers[] = {
         utils::make_unique<shl_handler_t>(),
         utils::make_unique<shr_handler_t>(),
         utils::make_unique<permutex2var_handler_t>(),
+        utils::make_unique<permutexvar_handler_t>(),
+        utils::make_unique<insert_handler_t>(),
         utils::make_unique<gather_handler_t>(),
         utils::make_unique<read_struct_handler_t>(),
         utils::make_unique<write_struct_handler_t>(),
