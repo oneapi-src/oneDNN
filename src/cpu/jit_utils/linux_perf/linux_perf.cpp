@@ -92,15 +92,14 @@ private:
     }
 
     void finalize() {
+        if (failed_) return;
         close_file();
         delete_marker();
     }
 
     bool fail() {
-        if (!failed_) {
-            finalize();
-            failed_ = true;
-        }
+        finalize();
+        failed_ = true;
         return false;
     }
 
