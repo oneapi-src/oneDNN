@@ -352,7 +352,14 @@ public:
 
     template <typename F>
     void for_each(const F &f) const {
-        for (auto &kv : cse_exprs_)
+        auto sorted_exprs = sort_var_map(cse_exprs_,
+                [](const std::pair<expr_t, cse_expr_t> &a,
+                        const std::pair<expr_t, cse_expr_t> &b) {
+                    auto &a_var = a.second.cse_var.as<var_t>();
+                    auto &b_var = b.second.cse_var.as<var_t>();
+                    return a_var.name < b_var.name;
+                });
+        for (auto &kv : sorted_exprs)
             f(kv.first);
     }
 

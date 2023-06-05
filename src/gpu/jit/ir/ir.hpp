@@ -18,6 +18,7 @@
 #define GPU_JIT_IR_IR_HPP
 
 #include <algorithm>
+#include <map>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -96,7 +97,7 @@ public:
     buffer_manager_t(ir_context_t &ir_ctx) : ir_ctx_(&ir_ctx) {}
 
     ir_context_t &ir_ctx() const { return *ir_ctx_; }
-    std::unordered_map<std::string, entry_t> &entries() { return entries_; }
+    std::map<std::string, entry_t> &entries() { return entries_; }
 
     expr_t get(const std::string &name, int size = 0) {
         size = utils::rnd_up(size, ir_ctx_->grf_size());
@@ -159,7 +160,7 @@ private:
     static bool default_filter(const expr_t &) { return true; }
 
     ir_context_t *ir_ctx_ = nullptr;
-    std::unordered_map<std::string, entry_t> entries_;
+    std::map<std::string, entry_t> entries_;
 };
 
 class alloc_updater_t : public ir_mutator_t {
@@ -319,6 +320,29 @@ std::vector<expr_t> split_by_and(const expr_t &e);
 
 template <typename T>
 std::vector<object_t> find_objects(const object_t &root);
+
+template <typename KeyT, typename ValueT, typename HashT, typename EqualT,
+        typename CompareT>
+std::vector<std::pair<KeyT, ValueT>> sort_var_map(
+        const std::unordered_map<KeyT, ValueT, HashT, EqualT> &map,
+        const CompareT &compare) {
+    std::vector<std::pair<KeyT, ValueT>> ret;
+    for (auto &kv : map)
+        ret.emplace_back(kv);
+    std::sort(ret.begin(), ret.end(), compare);
+    return ret;
+}
+
+template <typename KeyT, typename HashT, typename EqualT>
+std::vector<std::pair<KeyT, expr_t>> sort_var_map_by_value(
+        const std::unordered_map<KeyT, expr_t, HashT, EqualT> &map) {
+    return sort_var_map(map,
+            [](const std::pair<KeyT, expr_t> &a,
+                    const std::pair<KeyT, expr_t> &b) {
+                return a.second.template as<var_t>().name
+                        < b.second.template as<var_t>().name;
+            });
+}
 
 class alloc_manager_t {
 public:
