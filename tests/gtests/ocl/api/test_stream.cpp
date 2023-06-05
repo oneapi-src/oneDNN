@@ -410,10 +410,12 @@ TEST_F(ocl_stream_test_cpp_t, TestProfilingAPIOutOfOrderQueue) {
                     stream::flags::out_of_order | stream ::flags::profiling));
 }
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 TEST_F(ocl_stream_test_cpp_t, TestProfilingAPICPU) {
     auto eng = engine(engine::kind::cpu, 0);
     ASSERT_ANY_THROW(auto stream = dnnl::stream(eng, stream::flags::profiling));
 }
+#endif
 
 #endif
 
