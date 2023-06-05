@@ -79,6 +79,9 @@ struct const_expr_value {
     } while (0)
 
 // Logging info
+#ifdef _WIN32
+#define VINFO((apitype, logtype, logsubtype, component, msg, ...)
+#else
 #define VINFO(apitype, logtype, logsubtype, component, msg, ...) \
     do { \
         if (dnnl::impl::get_verbose(verbose_t::logtype##_##logsubtype)) \
@@ -86,6 +89,7 @@ struct const_expr_value {
                     #component "," msg ",%s:%d", ##__VA_ARGS__, __FILENAME__, \
                     __LINE__); \
     } while (0)
+#endif
 
 // Macro for boolean checks
 #define VCONDCHECK( \
