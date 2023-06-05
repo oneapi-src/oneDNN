@@ -46,6 +46,7 @@ struct reorder_plan_t : public base_plan_t {
     bool can_split(int factor) const;
     void set_split(int factor = 1);
     stmt_t create_stmt(const expr_t &src_buf, const expr_t &dst_buf) const;
+    int src_buf_size() const;
     int estimate_regs() const;
 
     std::string str(const std::string &tag = "reorder") const {
