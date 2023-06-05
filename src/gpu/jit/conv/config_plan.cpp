@@ -696,6 +696,11 @@ stmt_t reorder_plan_t::create_stmt(
     return stmt;
 }
 
+int reorder_plan_t::src_buf_size() const {
+    int src_size = utils::div_up(src.size(), split_factor);
+    return src_size;
+}
+
 int reorder_plan_t::estimate_regs() const {
     if (!*this) return 0;
 
