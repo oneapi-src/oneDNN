@@ -41,7 +41,13 @@ stmt_t inject_external_var_let(const stmt_t &_stmt, ir_context_t &ir_ctx) {
     external_var_visitor_t v;
     v.visit(stmt);
 
-    for (auto &var : v.external_vars)
+    std::vector<expr_t> external_vars(
+            v.external_vars.begin(), v.external_vars.end());
+    std::sort(external_vars.begin(), external_vars.end(),
+            [&](const expr_t &a, const expr_t &b) {
+                return a.as<var_t>().name < b.as<var_t>().name;
+            });
+    for (auto &var : external_vars)
         stmt = let_t::make(var, {}, stmt);
 
     trace_pass("inject_external_var_let", stmt, ir_ctx);

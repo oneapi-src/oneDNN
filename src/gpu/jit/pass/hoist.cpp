@@ -430,14 +430,14 @@ private:
             }
         }
         if (and_ops.size() < mask_exprs.size()) {
-            for (auto &kv : mask_exprs) {
+            for (auto &kv : sort_var_map_by_value(mask_exprs)) {
                 s = let_t::make(kv.second, cast(kv.first, kv.second.type()), s);
             }
-            for (auto &kv : and_ops) {
+            for (auto &kv : sort_var_map_by_value(and_ops)) {
                 s = let_t::make(kv.second, cast(kv.first, kv.second.type()), s);
             }
         } else {
-            for (auto &kv : hoisted_masks_)
+            for (auto &kv : sort_var_map_by_value(hoisted_masks_))
                 s = let_t::make(kv.second, cast(kv.first, kv.second.type()), s);
         }
 
