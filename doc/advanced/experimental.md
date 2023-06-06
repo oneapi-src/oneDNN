@@ -193,6 +193,7 @@ user-provided queue.
 #### Limitations
 
 * Only GPU engines with OpenCL and SYCL runtimes are supported
+* Only Intel vendor is supported for SYCL runtime
 * Out-of-order queue is not supported
 
 ### ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_BACKEND
