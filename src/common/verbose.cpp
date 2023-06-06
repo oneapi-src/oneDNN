@@ -119,7 +119,7 @@ void print_header() {
 }
 
 // hint parameter is the kind of verbose we are querying for
-int get_verbose(verbose_t::flag_kind verbosity_kind) {
+uint32_t get_verbose(verbose_t::flag_kind verbosity_kind) {
 #if defined(DISABLE_VERBOSE)
     return verbose_t::none;
 #else

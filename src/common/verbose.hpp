@@ -123,7 +123,7 @@ struct const_expr_value {
     }
 
 struct verbose_t {
-    enum flag_kind : int {
+    enum flag_kind : uint32_t {
         // we reserve the 24 lower bits for user info
         none = 0,
         // We reserve bits 0,1 to maintain backward compatibility support
@@ -138,14 +138,14 @@ struct verbose_t {
         // the upper 8 bits are reserved for devinfo levels
         debuginfo = 1 << 24,
         //
-        all = -1,
+        all = (uint32_t)-1,
     };
 
-    static int make_debuginfo(int level) { return level << 24; }
-    static int get_debuginfo(int flag) { return flag >> 24; }
+    static uint32_t make_debuginfo(uint32_t level) { return level << 24; }
+    static uint32_t get_debuginfo(uint32_t flag) { return flag >> 24; }
 };
 
-int get_verbose(verbose_t::flag_kind kind = verbose_t::none);
+uint32_t get_verbose(verbose_t::flag_kind kind = verbose_t::none);
 
 bool get_verbose_timestamp();
 
