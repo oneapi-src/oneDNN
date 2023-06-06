@@ -92,7 +92,6 @@ cl_command_queue ocl_stream_t::create_queue(
     }
 
     const bool is_out_of_order = (flags() & stream_flags::out_of_order);
-    if (is_out_of_order) assert(!is_profiling_enabled());
 
     cl_command_queue_properties queue_props {};
     if (is_profiling_enabled()) queue_props |= CL_QUEUE_PROFILING_ENABLE;
