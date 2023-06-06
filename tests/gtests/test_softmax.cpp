@@ -124,7 +124,7 @@ protected:
         SKIP_IF_HIP(p.axis != 1, "Unsupported axis for HIP");
 
         catch_expected_failures(
-                [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+                [&]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
     bool cuda_check_format_tag(memory::format_tag tag) {
         return (tag != memory::format_tag::aBcd8b

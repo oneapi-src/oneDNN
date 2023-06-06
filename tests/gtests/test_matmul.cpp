@@ -121,7 +121,7 @@ protected:
                 "Per dimensional scaling is not supported for HIP");
 
         catch_expected_failures(
-                [=]() { Test(); }, p.expect_to_fail, p.expected_status, false);
+                [&]() { Test(); }, p.expect_to_fail, p.expected_status, false);
     }
 
     // use `force_no_rt = true` when create final memory

@@ -99,7 +99,7 @@ protected:
                 "algorithm");
 
         catch_expected_failures(
-                [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+                [&]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
 
     void Test() {

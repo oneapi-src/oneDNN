@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -652,7 +652,7 @@ protected:
                 "CPU does not support bf16bf16bf16 GEMM.");
 
         catch_expected_failures(
-                [=]() { Test(); }, p.expect_to_fail, p.expected_status, false);
+                [&]() { Test(); }, p.expect_to_fail, p.expected_status, false);
     }
     void Test() {
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL

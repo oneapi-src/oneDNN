@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -232,7 +232,7 @@ protected:
                 "Unsupported format tag");
 
         catch_expected_failures(
-                [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+                [&]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
 
     void Test() {

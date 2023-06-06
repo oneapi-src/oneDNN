@@ -89,7 +89,7 @@ protected:
                 "Unsupported cuda format tag/ data type");
 
         catch_expected_failures(
-                [=]() {
+                [&]() {
                     engine eng = get_test_engine();
                     RunTest(eng, eng);
                 },

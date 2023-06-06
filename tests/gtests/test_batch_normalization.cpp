@@ -91,7 +91,7 @@ protected:
                 "destination");
 
         catch_expected_failures(
-                [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+                [&]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
 
     void Forward(prop_kind pk, normalization_flags flags) {

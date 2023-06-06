@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -76,7 +76,7 @@ protected:
         SKIP_IF_HIP(!hip_check_format_tag(p.dst_format),
                 "Unsupported destination format tag");
         catch_expected_failures(
-                [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+                [&]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
 
     bool cuda_check_data_types_combination(

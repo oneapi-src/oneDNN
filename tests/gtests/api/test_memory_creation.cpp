@@ -102,7 +102,7 @@ protected:
 
 TEST_P(memory_creation_test_t, TestsMemoryCreation) {
     SKIP_IF(eng.get(true) == nullptr, "Engine is not supported");
-    catch_expected_failures([=]() { Test(); },
+    catch_expected_failures([&]() { Test(); },
             p.expected_status != dnnl_success, p.expected_status);
 }
 

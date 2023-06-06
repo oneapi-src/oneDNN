@@ -178,7 +178,7 @@ protected:
                 "DNNL only supports relu w/ slope=0 for integers");
 
         catch_expected_failures(
-                [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+                [&]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
 
     bool cuda_check_format_tags(memory::format_tag tag, memory::data_type dt) {

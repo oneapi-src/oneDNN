@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -122,10 +122,10 @@ protected:
 };
 TEST_P(reshape_test_t, TestsReshape) {
     params_t p = ::testing::TestWithParam<decltype(p)>::GetParam();
-    catch_expected_failures([=]() { Test(p.in.md, p.out.md); },
+    catch_expected_failures([&]() { Test(p.in.md, p.out.md); },
             p.expected_status != dnnl_success, p.expected_status);
     if (p.test_direction == UNI_DIRECTION) return;
-    catch_expected_failures([=]() { Test(p.out.md, p.in.md); },
+    catch_expected_failures([&]() { Test(p.out.md, p.in.md); },
             p.expected_status != dnnl_success, p.expected_status);
 }
 
@@ -225,14 +225,14 @@ protected:
 };
 TEST_P(permute_axes_test_t, TestsPermuteAxes) {
     params_t p = ::testing::TestWithParam<decltype(p)>::GetParam();
-    catch_expected_failures([=]() { Test(p.in.md, p.out.md, p.perm); },
+    catch_expected_failures([&]() { Test(p.in.md, p.out.md, p.perm); },
             p.expected_status != dnnl_success, p.expected_status);
     if (p.test_direction == UNI_DIRECTION) return;
 
     std::vector<int> inv_perm(p.perm.size());
     for (int i = 0; i < (int)p.perm.size(); ++i)
         inv_perm[p.perm[i]] = i;
-    catch_expected_failures([=]() { Test(p.out.md, p.in.md, inv_perm); },
+    catch_expected_failures([&]() { Test(p.out.md, p.in.md, inv_perm); },
             p.expected_status != dnnl_success, p.expected_status);
 }
 
