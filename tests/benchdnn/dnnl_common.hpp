@@ -237,11 +237,23 @@ int check_caches(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw,
         const prb_t *prb, res_t *res) {
     if (!primw) return OK;
 
-    const_dnnl_primitive_desc_t pd = query_pd(primw);
-    SAFE(create_in_thr_ctx(prb->ctx_init, check_pd_cache, pd, res), WARN);
-    // Check primitive is picked up from the cache if applicable.
-    SAFE(create_in_thr_ctx(prb->ctx_init, check_primitive_cache, primw, res),
-            WARN);
+    // Under assumption of a limited cache capacity, which is usually the case,
+    // any check that rely on primitive (descriptor) resides in cache fails for
+    // parallel creation modifier. There's no guarantee in a general case that
+    // primitive stays in cache till the the moment the check happens. Even with
+    // primitive saving a state of picked from cache or not, there's a time gap
+    // between creation of two same primitives over different engines where
+    // first instance could be evicted. This approach may work under assumption
+    // of infinite cache though.
+    if (!has_bench_mode_modifier(mode_modifier_t::par_create)) {
+        const_dnnl_primitive_desc_t pd = query_pd(primw);
+        SAFE(create_in_thr_ctx(prb->ctx_init, check_pd_cache, pd, res), WARN);
+        // Check primitive is picked up from the cache if applicable.
+        SAFE(create_in_thr_ctx(
+                     prb->ctx_init, check_primitive_cache, primw, res),
+                WARN);
+    }
+
     // Check primitive is picked up from the persistent cache if applicable.
     // Note: primw get re-written here to put a primitive from cache blob, if
     // GPU backend is OCL.

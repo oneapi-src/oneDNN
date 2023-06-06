@@ -51,8 +51,12 @@ struct task_executor_t {
             benchdnn_parallel_nd(
                     tasks_.size(), [&](int i) { tasks_[i].create(); });
 
+        // Check caches first to avoid filling cache with service reorders.
         for (auto &t : tasks_) {
             t.check_cache();
+        }
+
+        for (auto &t : tasks_) {
             t.exec();
         }
 
