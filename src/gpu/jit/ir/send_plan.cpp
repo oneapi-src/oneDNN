@@ -1427,7 +1427,8 @@ private:
                 inner_idx = eb.first;
                 if (factor == 1) return layout;
                 inner_idx++;
-                return layout.split_block(eb, factor, b.block / factor);
+                if (factor != b.block)
+                    return layout.split_block(eb, factor, b.block / factor);
             }
             stride *= b.block;
             dims[b.dim_idx] *= b.block;
