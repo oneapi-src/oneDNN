@@ -114,9 +114,7 @@ private:
     bool check_valid_bf16_out() const;
 
     // find the partition leading op based on input lts
-    bool get_leading_op_group(
-            std::list<std::reference_wrapper<const deserialized_op>>
-                    &leading_ops_group);
+    bool get_leading_op_group(op_ref_list_t &leading_ops_group);
 
     void get_leading_op_input_offset_to_dt_map(
             const deserialized_op &leading_op,
@@ -136,11 +134,9 @@ private:
 
     // Objects below are constructed.
     // OPs in the partition, which is Topo ordered
-    std::list<std::reference_wrapper<const deserialized_op>> partition_ops_ref_;
+    op_ref_list_t partition_ops_ref_;
     // map of input logical tensor id to its consumer ops
-    std::unordered_map<size_t,
-            std::list<std::reference_wrapper<const deserialized_op>>>
-            in_lt_2_ops_;
+    std::unordered_map<size_t, op_ref_list_t> in_lt_2_ops_;
     // map of output logical tensor id to its producer op
     std::unordered_map<size_t, std::reference_wrapper<const deserialized_op>>
             out_lt_2_op_;
@@ -157,7 +153,7 @@ private:
 
     // Objects below are modified during run()
     // reference primitives for a single partition
-    std::unordered_map<int, graph_link_t> ref_prims_;
+    ref_prims_t ref_prims_;
 
     // partition output tensors wrapped in args_t
     // used for later correctness check

@@ -76,6 +76,8 @@ inline const prb_t *prb_wrapper_base_t::get() const {
 using graph_link_t = std::tuple<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>,
         dnn_mem_map_t, dnn_mem_map_t, args_t, args_t,
         std::shared_ptr<prb_wrapper_base_t>>;
+using ref_prims_t = std::unordered_map<int, graph_link_t>;
+using op_ref_list_t = std::list<std::reference_wrapper<const deserialized_op>>;
 
 template <bool B>
 using req = typename std::enable_if<B, bool>::type;
@@ -180,8 +182,8 @@ int output_md_process(
 
 template <typename prb_t, typename init_pd_func_t,
         typename supported_exec_args_func_t, typename setup_cmp_func_t>
-int init_prim(std::unordered_map<int, graph_link_t> &ref_prims,
-        const deserialized_op &base_op_ref, const init_pd_func_t &init_pd,
+int init_prim(ref_prims_t &ref_prims, const deserialized_op &base_op_ref,
+        const init_pd_func_t &init_pd,
         const supported_exec_args_func_t &supported_exec_args,
         const setup_cmp_func_t &setup_cmp, const std::shared_ptr<prb_t> pprb,
         const engine_t &ref_eng, res_t *res) {
@@ -250,9 +252,13 @@ int init_prim(std::unordered_map<int, graph_link_t> &ref_prims,
     return OK;
 }
 
+// TODO: ref_prims cannot be constant here, which is a known issue.
+// ref_prims needs modifying here as pre and post operations are needed
+// for StaticReshape and StaticTranspose during execution stage.
+// The issue may be solved by the fake tensor feature in the future. 
 template <typename prb_t>
-int execute_prim(std::unordered_map<int, graph_link_t> &ref_prims,
-        const deserialized_op &base_op_ref, const prb_t *prb, res_t *res) {
+int execute_prim(ref_prims_t &ref_prims, const deserialized_op &base_op_ref,
+        const prb_t *prb, res_t *res) {
     int op_id = static_cast<int>(base_op_ref.id_);
     auto &prim = std::get<0>(ref_prims[op_id]);
     auto &mems = std::get<1>(ref_prims[op_id]);
@@ -272,9 +278,9 @@ int execute_prim(std::unordered_map<int, graph_link_t> &ref_prims,
 }
 
 template <typename prb_t>
-void check_correctness(std::unordered_map<int, graph_link_t> &ref_prims,
-        size_t op_id, const args_t &args, const args_t &ref_args,
-        const prb_t *prb, bool has_eltwise, bool output_has_nans, res_t *res) {
+void check_correctness(ref_prims_t &ref_prims, size_t op_id, const args_t &args,
+        const args_t &ref_args, const prb_t *prb, bool has_eltwise,
+        bool output_has_nans, res_t *res) {
     // `args` contain only output tensors from graph execution.
     for (int idx = 0; idx < args.size(); ++idx) {
         check_zero_padding(args.dnn_mem(idx), args.arg(idx), res);

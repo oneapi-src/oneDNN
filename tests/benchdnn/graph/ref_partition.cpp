@@ -108,9 +108,7 @@ ref_partition_t::ref_partition_t(const deserialized_graph &dg,
 bool get_consumer_leading_op(
         std::reference_wrapper<const deserialized_op> &leading_op,
         int &leading_op_in_offset,
-        std::unordered_map<size_t,
-                std::list<std::reference_wrapper<const deserialized_op>>>
-                &in_lt_2_ops) {
+        std::unordered_map<size_t, op_ref_list_t> &in_lt_2_ops) {
     // find leading OP; dq->[tc]->leading_op
     while (leading_op.get().kind_ == "Dequantize"
             || leading_op.get().kind_ == "TypeCast") {
@@ -134,9 +132,7 @@ bool get_consumer_leading_op(
 }
 
 // find the partition leading op based on input lts
-bool ref_partition_t::get_leading_op_group(
-        std::list<std::reference_wrapper<const deserialized_op>>
-                &leading_ops_group) {
+bool ref_partition_t::get_leading_op_group(op_ref_list_t &leading_ops_group) {
 
     std::unordered_set<size_t> leading_op_ids {};
     const std::unordered_set<std::string> quantized_op {"Convolution",
@@ -559,7 +555,7 @@ void ref_partition_t::handle_special_case_bf16(res_t *res) {
 }
 
 void ref_partition_t::handle_special_case_int8(res_t *res) {
-    std::list<std::reference_wrapper<const deserialized_op>> leading_ops_group;
+    op_ref_list_t leading_ops_group;
     is_quantized_ = get_leading_op_group(leading_ops_group);
     if (!is_quantized_) return;
 
