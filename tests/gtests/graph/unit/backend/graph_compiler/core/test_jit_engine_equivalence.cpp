@@ -1379,7 +1379,7 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicReduceAdd) {
 
 TEST(GCCore_CPU_test_jit_engine_equivalence, TestUnpackHighLow) {
     REQUIRE_AVX2();
-    const int klen = 32;
+    const int array_len = 32;
     ir_builder_t builder;
     const int data_len = 8;
     const int data_len_1 = 16;
@@ -1388,10 +1388,10 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestUnpackHighLow) {
             _arg_("y", datatypes::bf16, {data_len}),
             _arg_("k", datatypes::bf16, {data_len}),
             _arg_("z", datatypes::bf16, {data_len}),
-            _arg_("result", datatypes::bf16, {data_len * 2}),
+            _arg_("result", datatypes::bf16, {array_len}),
             _arg_("x_1", datatypes::u8, {data_len_1}),
             _arg_("y_1", datatypes::u8, {data_len_1}),
-            _arg_("result_1", datatypes::u8, {32})) {
+            _arg_("result_1", datatypes::u8, {array_len})) {
         _bind_(x, y, k, z, result, x_1, y_1, result_1);
         result[span_t({0}, data_len)] = builder::make_unpack_low(
                 x[span_t({0}, data_len)], y[span_t({0}, data_len)], 16);
@@ -1418,10 +1418,10 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestUnpackHighLow) {
             = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31};
     uint8_t y_1[16]
             = {2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32};
-    uint16_t result[klen] = {0};
-    uint16_t expected_result[klen] = {0};
-    uint8_t result_1[klen] = {0};
-    for (int i = 0; i < klen; i++) {
+    uint16_t result[array_len] = {0};
+    uint16_t expected_result[array_len] = {0};
+    uint8_t result_1[array_len] = {0};
+    for (int i = 0; i < array_len; i++) {
         expected_result[i] = i + 1;
     }
 
@@ -1447,7 +1447,7 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestUnpackHighLow) {
         if (!jf) { continue; }
 
         jf->call_generic_default(generic_args);
-        for (int i = 0; i < klen; i++) {
+        for (int i = 0; i < array_len; i++) {
             EXPECT_EQ(result[i], expected_result[i]);
             EXPECT_EQ(result_1[i], expected_result[i]);
         }
