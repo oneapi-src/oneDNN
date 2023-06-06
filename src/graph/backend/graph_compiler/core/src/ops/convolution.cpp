@@ -1049,6 +1049,16 @@ conv_bwd_weight_core_op_t::conv_bwd_weight_core_op_t(
         }
         attrs_.set<std::string>("auto_pad", "none");
     }
+    const auto &pads_begin = attrs_.has_key("pads_begin")
+            ? attrs_.get<sc_dims>("pads_begin")
+            : attrs_.get<sc_dims>("paddings");
+    const auto &pads_end = attrs_.has_key("pads_end")
+            ? attrs_.get<sc_dims>("pads_end")
+            : attrs_.get<sc_dims>("paddings");
+    bool has_pad = std::any_of(pads_begin.begin(), pads_begin.end(),
+                           [](sc_dim p) { return p > 0; })
+            || std::any_of(pads_end.begin(), pads_end.end(),
+                    [](sc_dim p) { return p > 0; });
 
     if (info_.outputs_.empty()) {
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(

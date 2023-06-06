@@ -257,8 +257,7 @@ void check_conv_correctness_and_tuning_bwd_d(int N, int K, int C, int H, int W,
                         {"dst_shape", sc_dims {N, C, H, W}},
                         {"inverse_filter", true}});
     } else {
-        conv_out = mgr.make(
-                use_inverse_filter ? "conv_bwd_data" : "conv_bwd_data_core",
+        conv_out = mgr.make("conv_bwd_data_core",
                 {in_a->get_outputs()[0], in_weight->get_outputs()[0]},
                 {graph_tensor::make({N, C, H, W})},
                 {{"strides", stride_arr}, {"paddings", padding_arr},
@@ -1154,6 +1153,8 @@ TEST(GCCore_CPU_conv2d_bwd_d_cpp, TestCONV2D_3x3_5) {
             1, 64, 64, 56, 56, 3, 3, 1, 1, true);
     check_conv_correctness_and_tuning_bwd_d(
             56, 64, 64, 28, 28, 3, 3, 1, 1, true);
+    check_conv_correctness_and_tuning_bwd_d(
+            56, 65, 121, 28, 28, 3, 3, 1, 1, true);
 }
 
 TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_1x1_1) {

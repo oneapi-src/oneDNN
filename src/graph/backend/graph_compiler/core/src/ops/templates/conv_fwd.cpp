@@ -293,8 +293,8 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   }
   validate_conv_fwd_default_config(ctx, cfg);
   if (inverse_filter_) {
-    cfg.C_block = 64;
-    cfg.K_block = 64;
+    cfg.C_block = ic_ % 64 == 0 ? 64 : ic_;
+    cfg.K_block = oc_ % 64 == 0 ? 64 : oc_;
     cfg.tile_d = 1;
     cfg.tile_p = 1;
     cfg.tile_q = ow_;
