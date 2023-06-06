@@ -444,10 +444,11 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
             = fix_times_per_prb ? fix_times_per_prb : min_times_per_prb;
 
     t.reset();
-    reset_gpu_profiling(stream);
 
     // Nvidia/AMD don't support profiling.
-    bool use_profiling = is_gpu() && !is_nvidia_gpu() && !is_amd_gpu();
+    const bool use_profiling = is_gpu() && !is_nvidia_gpu() && !is_amd_gpu();
+    if (use_profiling) reset_gpu_profiling(stream);
+
     bool is_first_loop = true;
     while (true) {
         for (int i = 0; i < cur_batch_times; i++) {
@@ -500,13 +501,14 @@ int measure_perf(const thr_ctx_t &ctx, res_t *res, perf_function_t &perf_func,
 
     const auto &engine = get_test_engine();
     dnnl_stream_flags_t profiling_flags {};
+    const bool use_profiling = is_gpu() && !is_nvidia_gpu() && !is_amd_gpu();
 #ifdef DNNL_EXPERIMENTAL_PROFILING
     profiling_flags = dnnl_stream_profiling;
 #else
     profiling_flags = static_cast<dnnl_stream_flags_t>(
             dnnl::impl::stream_flags::profiling);
 #endif
-    const dnnl_stream_flags_t flags = is_gpu()
+    const dnnl_stream_flags_t flags = use_profiling
             ? static_cast<dnnl_stream_flags_t>(
                     dnnl_stream_default_flags | profiling_flags)
             : dnnl_stream_default_flags;
