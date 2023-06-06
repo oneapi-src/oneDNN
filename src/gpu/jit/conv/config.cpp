@@ -984,7 +984,7 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_config_t &hw_cfg) {
                 return false;
             else if (po.eltwise.alg == alg_kind::eltwise_tanh
                     && hw_cfg.hw() == ngen::HW::XeHPG
-                    && hw_cfg.eu_count() <= 128)
+                    && hw_cfg.systolic_support() && hw_cfg.eu_count() <= 128)
                 // Workaround for hard to reproduce issue in end to end
                 // workloads. It is unclear what the actual issue is as the
                 // kernel always works correctly in benchdnn.
