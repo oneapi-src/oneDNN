@@ -140,10 +140,6 @@ Benchdnn can be used to test the sparse matmul as follows:
 For the case above, the number of non-zero elements for the source tensor is
 calculated as max(4 * 1000000 * (1 - 0.99)), 1).
 
-@warning
-- Enabling experimental features does not guarantee that the library will utilize them
-- Enabling experimental features might change the accuracy of oneDNN primitives
-
 #### Limitations
 * This functionality is not supported for SYCL and OpenCL runtimes
 * The interoperability API for sparse memory is not provided
@@ -200,3 +196,7 @@ user-provided queue.
 This option extends the coverage scope of the graph API to cover larger fusion
 patterns apart from primitive patterns. Refer to
 [Graph Compiler](@ref dev_guide_graph_compiler) for more details.
+
+@warning
+- Enabling some experimental features does not guarantee that the library will utilize them
+- Enabling some experimental features might change the accuracy of oneDNN primitives
