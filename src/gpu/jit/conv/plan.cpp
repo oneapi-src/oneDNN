@@ -1918,10 +1918,13 @@ private:
     }
 
     bool use_slm(abc_kind_t abc) const {
+        auto &prb = cfg_.prb();
         bool is_a = (abc == abc_kind_t::a);
         if (cfg_.slm().is_overridden()) {
             return is_a ? cfg_.slm().a() : cfg_.slm().b();
         }
+
+        if (prb.is_bwd_w && prb.with_bias && prb.ab_swap_transpose) return false;
 
         if (!allow_slm_) return false;
         if (cfg_.hw() >= ngen::HW::XeHPC) return false;
