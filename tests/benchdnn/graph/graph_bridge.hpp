@@ -24,22 +24,11 @@
 #include <type_traits>
 #include <unordered_map>
 
+#include "graph_memory.hpp"
 #include "setting_handler.hpp"
 #include "utils/compare.hpp"
 #include "utils/settings.hpp"
 namespace graph {
-
-// TODO: the proposal is to extend the link with tensor memories. There are two
-// rationale:
-// 1. This will allow to remove input_md_process calls along the way for each
-//    test case with the price of some memory increase.
-// 2. It reduces ref_partition state by removing `partition_in_out_mems_` and
-//    `partition_output_args_`. It also removes a necessity to remember that
-//    those objects exist just to prolong memory life time since ref_prims_
-//    object will own them till the end.
-// 3. This will force to have a separate abstraction that will sort out
-//    functionality of reorders from dnn_mem_t with its handle to tensor and
-//    back.
 
 // prb_wrapper_base_t & prb_wrapper_t are defined to wrap prb objection because
 // C++ 11 does not support template member variable and there is no common base type
@@ -128,57 +117,12 @@ const std::unordered_set<std::string> &get_special_backward_op_kind_set();
 // Get map from DNNL_ARG to data_kind
 const std::unordered_map<size_t, data_kind_t> &get_dnnl_arg_2_data_kind_map();
 
-// Apart from oneDNN memory tag, oneDNN Graph has op attributes `data_format`
-// (NXC/NCX) and `weights_format`(OIX/IOX/XOI/XIO) to indicate the order of
-// dimensions.
-//
-// For example, tensor with shape [1,4,4,3] and NXC data_format means
-// batch_size=1, spacial_dims=4x4, channel_dim=3. This semantic info is
-// necessary for some scenarios, i.e. per_channel quantization.
-//
-// As the order of dimensions in oneDNN memory descriptor is always NC[D[H[W]]],
-// to align with oneDNN, the memory descriptor of oneDNN Graph should be
-// permuted to NCX for primitive creating and executing.
-//
-// In this case, memory permutation is introduced to avoid memory copy between
-// graph and primitive paths, and ensure the memory is in NCX format for
-// primitive creating and executing.
-//
-// `input_md_process` function is designed to be called after the
-// initialization and before the execution of primitives to permute the
-// memories of input logical tensors. It takes:
-// * Memory references, will permute the desciptors based on op kind and format
-// * Reference of the deseralized graph op
-// * Flag that indicates whether it's in init stage or not
-// * A pointer to a `res_t` structure to update validation status.
-//
-// For op with NXC format, the function does:
-// 1. is_init = true:
-//      1.1 for NXC ops, permute the input memory descriptor after primitive
-//      init for that graph can acquire the memory in proper format
-//      1.2 for some op, first reshape weight from GOIX to OIX, then permute
-//      weight for XIO/XOI/IOX cases
-//      1.3 exchange last two dims for matmul if the transpose attribute is true
-// 2. is_init = false:
-//      2.1 restore the input memory descriptor from NXC to NCX before primitive
-//      execution for correctness
-//      2.2 for some op, first permute weight to OIX for XIO/XOI/IOX cases,
-//      then reshape weight format to GOIX
-//      2.3 exchange last two dims for matmul if the transpose attribute is true
-int input_md_process(dnn_mem_map_t &mems, const deserialized_op &base_op_ref,
-        const bool is_init, res_t *res);
-
-// `output_md_process` function acts same as `input_md_process` but for output
-// tensors.
-//
-// For op with NXC format, the function does:
-// 1. permute the output memory descriptor to NXC after primitive execution, in
-// order that following ops in graph can acquire the memory in correct format.
-// 2. for grouped ops, reshape output logical tesnor from GOIX to OIX
-// 3. permute weight for XIO/XOI/IOX cases
-// 4. for staticTranspose cases, reshape output according to order attribute
-int output_md_process(
-        dnn_mem_map_t &mems, const deserialized_op &base_op_ref, res_t *res);
+int init_graph_memory_args(const dnn_mem_map_t &mems,
+        partition_mem_map_t &graph_mem_map,
+        const std::vector<size_t> &partition_in_ids,
+        const std::vector<size_t> &partition_out_ids,
+        const deserialized_op &base_op_ref, const bool is_leading_op,
+        res_t *res);
 
 template <typename prb_t, typename init_pd_func_t,
         typename supported_exec_args_func_t, typename setup_cmp_func_t>
@@ -242,10 +186,6 @@ int init_prim(ref_prims_t &ref_prims, const deserialized_op &base_op_ref,
     // Initialize reference memories and fill the library memories.
     SAFE(init_ref_memory_args(ref_mems, mems, prim, prb, res, prb->dir), WARN);
 
-    // Permute memory descriptors of input logical tensors to NCX format
-    SAFE(input_md_process(mems, base_op_ref, /* is_init_stage = */ true, res),
-            WARN);
-
     std::get<3>(ref_prims[op_id]) = args_t(mems);
     std::get<4>(ref_prims[op_id]) = args_t(ref_mems);
 
@@ -255,24 +195,16 @@ int init_prim(ref_prims_t &ref_prims, const deserialized_op &base_op_ref,
 // TODO: ref_prims cannot be constant here, which is a known issue.
 // ref_prims needs modifying here as pre and post operations are needed
 // for StaticReshape and StaticTranspose during execution stage.
-// The issue may be solved by the fake tensor feature in the future. 
+// The issue may be solved by the fake tensor feature in the future.
 template <typename prb_t>
 int execute_prim(ref_prims_t &ref_prims, const deserialized_op &base_op_ref,
         const prb_t *prb, res_t *res) {
     int op_id = static_cast<int>(base_op_ref.id_);
     auto &prim = std::get<0>(ref_prims[op_id]);
-    auto &mems = std::get<1>(ref_prims[op_id]);
     auto &args = std::get<3>(ref_prims[op_id]);
-
-    // restore the memory for NXC cases
-    SAFE(input_md_process(mems, base_op_ref, /* is_init_stage = */ false, res),
-            WARN);
 
     // Execute a primitive.
     SAFE(execute_and_wait(prim, args, res), WARN);
-
-    // process output logical tensor md for the following ops
-    SAFE(output_md_process(mems, base_op_ref, res), WARN);
 
     return OK;
 }

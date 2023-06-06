@@ -89,6 +89,8 @@ private:
     dnnl::memory::dims graph_strides_;
 };
 
+using partition_mem_map_t = std::unordered_map<size_t, dnn_graph_mem_t>;
+
 } // namespace graph
 
 #endif

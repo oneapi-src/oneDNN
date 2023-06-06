@@ -15,8 +15,45 @@
 *******************************************************************************/
 
 #include "graph_bridge.hpp"
+#include "graph_memory.hpp"
+
+namespace {
+
+bool use_graph_lt_shape_for_mem(
+        const graph::deserialized_op &base_op_ref, int arg) {
+    const auto &op_kind = base_op_ref.kind_;
+
+    if (base_op_ref.has_NXC_format() && graph::is_nxc_lt_arg(op_kind, arg))
+        return true;
+
+    bool t_a = false, t_b = false;
+    bool has_t_a = base_op_ref.get_attr_bool(t_a, "transpose_a");
+    bool has_t_b = base_op_ref.get_attr_bool(t_b, "transpose_b");
+    if ((has_t_a && t_a && arg == DNNL_ARG_SRC)
+            || (has_t_b && t_b && arg == DNNL_ARG_WEIGHTS))
+        return true;
+
+    int64_t groups;
+    bool has_group = base_op_ref.get_attr_s64(groups, "groups");
+    std::string f_fmt;
+    bool has_w_format = base_op_ref.get_attr_string(f_fmt, "weights_format");
+    if (op_kind == "Convolution" || op_kind == "ConvolutionBackwardData"
+            || op_kind == "ConvTranspose"
+            || op_kind == "ConvTransposeBackwardData") {
+        if (((has_group && groups > 1) || (has_w_format && f_fmt != "OIX"))
+                && arg == DNNL_ARG_WEIGHTS)
+            return true;
+    }
+
+    if (op_kind == "StaticReshape") { return true; }
+
+    return false;
+}
+
+} // namespace
 
 namespace graph {
+
 const std::unordered_set<std::string> &get_special_backward_op_kind_set() {
     static const std::unordered_set<std::string> set_ = {
             // bnorm backward
@@ -61,199 +98,74 @@ const std::unordered_map<size_t, data_kind_t> &get_dnnl_arg_2_data_kind_map() {
     return map_;
 }
 
-int input_md_process(dnn_mem_map_t &mems, const deserialized_op &base_op_ref,
-        const bool is_init_stage, res_t *res) {
+int init_graph_memory_args(const dnn_mem_map_t &mems,
+        partition_mem_map_t &graph_mem_map,
+        const std::vector<size_t> &partition_in_ids,
+        const std::vector<size_t> &partition_out_ids,
+        const deserialized_op &base_op_ref, const bool is_leading_op,
+        res_t *res) {
 
-    // Mapping from the op kind to a vector that indicates which input logical
-    // tensor needs memory permutation
-    static const std::unordered_map<std::string, std::vector<int>>
-            op_2_input_offset_for_NXC_permute = {
-                    {"AvgPool", {0}},
-                    {"AvgPoolBackward", {0}},
-                    {"BatchNormInference", {0}},
-                    {"BatchNormForwardTraining", {0}},
-                    {"BiasAddBackward", {0}},
-                    {"Interpolate", {0}},
-                    {"MaxPool", {0}},
-                    {"Convolution", {0}},
-                    {"ConvolutionBackwardData", {0}},
-                    {"ConvTranspose", {0}},
-                    {"ConvTransposeBackwardData", {0}},
-                    {"BatchNormTrainingBackward", {0, 1}},
-                    {"BiasAdd", {0, 1}},
-                    {"InterpolateBackward", {0, 1}},
-                    {"MaxPoolBackward", {0, 1}},
-                    {"ConvolutionBackwardWeights", {0, 1}},
-                    {"ConvTransposeBackwardWeights", {0, 1}},
-                    {"PReLU", {0, 1}},
-                    {"PReLUBackward", {0, 1, 2}},
-            };
+    for (size_t in_idx = 0; in_idx < base_op_ref.in_lts_.size(); ++in_idx) {
+        int in_arg = get_prim_arg_name_from_graph_op_input_offset(
+                opstr2kind(base_op_ref.kind_), static_cast<int>(in_idx),
+                eltwise::get_flag_use_dst_for_bwd_compute(base_op_ref));
+        if (in_arg == -1) return res->state = FAILED, FAIL;
 
-    using permute_func_t = dnnl::memory::desc (*)(const dnnl::memory::desc &);
-    using reshape_func_t
-            = dnnl::memory::desc (*)(const dnnl::memory::desc &, int64_t, bool);
-    permute_func_t permute_NCX_func
-            = is_init_stage ? permute_NCX2NXC : permute_NXC2NCX;
-    permute_func_t permute_OIX_func;
-    static const std::unordered_map<std::string, permute_func_t>
-            str_2_permute_OIX_func = {
-                    {"permute_OIX2XOI", permute_OIX2XOI},
-                    {"permute_OIX2XIO", permute_OIX2XIO},
-                    {"permute_OIX2IOX", permute_OIX2IOX},
-                    {"permute_XOI2OIX", permute_XOI2OIX},
-                    {"permute_XIO2OIX", permute_XIO2OIX},
-                    {"permute_IOX2OIX", permute_IOX2OIX},
-            };
-    reshape_func_t reshape_group_func
-            = is_init_stage ? reshape_GOIX2OIX : reshape_OIX2GOIX;
+        const auto iter = mems.find(in_arg);
+        if (iter == mems.end()) {
+            BENCHDNN_PRINT(
+                    0, "Fail: cannot find primitive memory for arg %d", in_arg);
+            return res->state = FAILED, FAIL;
+        }
+        const auto &mem = iter->second;
+        const auto &in_lt = base_op_ref.in_lts_[in_idx];
+        bool is_par_input = std::find(partition_in_ids.begin(),
+                                    partition_in_ids.end(), in_lt.id_)
+                != partition_in_ids.end();
 
-    const auto &op_kind = base_op_ref.kind_;
-    // For primitive init stage, permute data from NCX to NXC if the op has
-    // data_format = NXC
-    if (base_op_ref.has_NXC_format()) {
-        for (auto offset : op_2_input_offset_for_NXC_permute.at(op_kind)) {
-            int prim_arg_name = get_prim_arg_name_from_graph_op_input_offset(
-                    opstr2kind(op_kind), offset);
-            if (prim_arg_name == -1) return FAIL;
-            permute_md(mems[prim_arg_name], permute_NCX_func);
+        if (is_par_input) {
+            bool should_use_graph_shape
+                    = use_graph_lt_shape_for_mem(base_op_ref, in_arg);
+            graph_mem_map.emplace(in_lt.id_,
+                    dnn_graph_mem_t(mem, in_lt, should_use_graph_shape,
+                            /* is_op_input = */ true));
+            if (!is_leading_op) graph_mem_map.at(in_lt.id_).unmap_mem();
         }
     }
 
-    // Exchange last 2 dims for matmul op on graph side if transpose=true
-    bool t_a = false, t_b = false;
-    bool has_t_a = base_op_ref.get_attr_bool(t_a, "transpose_a");
-    bool has_t_b = base_op_ref.get_attr_bool(t_b, "transpose_b");
-    if (has_t_a && t_a) {
-        int prim_arg_name = get_prim_arg_name_from_graph_op_input_offset(
-                opstr2kind(op_kind), 0);
-        if (prim_arg_name == -1) return FAIL;
-        auto permutation
-                = get_transpose_permutation_vec(mems[prim_arg_name].ndims());
-        permute_md(mems[prim_arg_name], permutation);
-    }
-    if (has_t_b && t_b) {
-        int prim_arg_name = get_prim_arg_name_from_graph_op_input_offset(
-                opstr2kind(op_kind), 1);
-        if (prim_arg_name == -1) return FAIL;
-        auto permutation
-                = get_transpose_permutation_vec(mems[prim_arg_name].ndims());
-        permute_md(mems[prim_arg_name], permutation);
-    }
+    for (size_t out_idx = 0; out_idx < base_op_ref.out_lts_.size(); ++out_idx) {
+        int out_arg = get_prim_arg_name_from_graph_op_output_offset(
+                opstr2kind(base_op_ref.kind_), out_idx);
+        if (out_arg == -1) return res->state = FAILED, FAIL;
 
-    // If init_stage:
-    //     first reshape weight from GOIX to OIX, then permute weight from OIX
-    //     to XIO/XOI/IOX if filter_format = XIO/XOI/IOX
-    // If execute_stage:
-    //     first permute weight from XIO/XOI/IOX to OIX if
-    //     filter_format = XIO/XOI/IOX then reshape weight from OIX to GOIX
-    int64_t groups;
-    bool has_group = base_op_ref.get_attr_s64(groups, "groups");
-    std::string f_fmt;
-    bool has_f_fmt = base_op_ref.get_attr_string(f_fmt, "weights_format");
-    if (op_kind == "Convolution" || op_kind == "ConvolutionBackwardData"
-            || op_kind == "ConvTranspose"
-            || op_kind == "ConvTransposeBackwardData") {
-        int prim_arg_name = get_prim_arg_name_from_graph_op_input_offset(
-                opstr2kind(op_kind), 1);
-        if (prim_arg_name == -1) return FAIL;
-        bool is_convtranspose = (op_kind == "ConvTranspose"
-                || op_kind == "ConvTransposeBackwardData");
-        if (is_init_stage) { // Init stage
-            if (has_group && groups > 1) {
-                reshape_md(mems[prim_arg_name], reshape_group_func, groups,
-                        is_convtranspose);
+        const auto &out_lt = base_op_ref.out_lts_[out_idx];
+        bool is_par_output = std::find(partition_out_ids.begin(),
+                                     partition_out_ids.end(), out_lt.id_)
+                != partition_out_ids.end();
+
+        if (is_par_output && out_arg != 0) {
+            const auto iter = mems.find(out_arg);
+            if (iter == mems.end()) {
+                BENCHDNN_PRINT(0,
+                        "Fail: cannot find primitive memory for arg %d",
+                        out_arg);
+                return res->state = FAILED, FAIL;
             }
-            if (has_f_fmt && f_fmt != "OIX") {
-                permute_OIX_func
-                        = str_2_permute_OIX_func.at("permute_OIX2" + f_fmt);
-                permute_md(mems[prim_arg_name], permute_OIX_func);
-            }
-        } else { // Execute_stage
-            if (has_f_fmt && f_fmt != "OIX") {
-                permute_OIX_func = str_2_permute_OIX_func.at(
-                        "permute_" + f_fmt + "2OIX");
-                permute_md(mems[prim_arg_name], permute_OIX_func);
-            }
-            if (has_group && groups > 1) {
-                reshape_md(mems[prim_arg_name], reshape_group_func, groups,
-                        is_convtranspose);
-            }
+            const auto &mem = iter->second;
+            bool should_use_graph_shape
+                    = use_graph_lt_shape_for_mem(base_op_ref, out_arg);
+            graph_mem_map.emplace(out_lt.id_,
+                    dnn_graph_mem_t(mem, out_lt, should_use_graph_shape,
+                            /* is op input */ false));
+            if (!is_leading_op) graph_mem_map.at(out_lt.id_).unmap_mem();
+
+        } else if (is_par_output && out_arg == 0) {
+            graph_mem_map.emplace(out_lt.id_,
+                    dnn_graph_mem_t({}, out_lt,
+                            /* should use graph shape= */ false,
+                            /* is op input */ false,
+                            /* is fake output */ true));
         }
-    }
-
-    return OK;
-}
-
-int output_md_process(
-        dnn_mem_map_t &mems, const deserialized_op &base_op_ref, res_t *res) {
-
-    using permute_func_t = dnnl::memory::desc (*)(const dnnl::memory::desc &);
-    permute_func_t permute_OIX_func;
-    static const std::unordered_map<std::string, permute_func_t>
-            str_2_permute_OIX_func = {
-                    {"permute_OIX2XOI", permute_OIX2XOI},
-                    {"permute_OIX2XIO", permute_OIX2XIO},
-                    {"permute_OIX2IOX", permute_OIX2IOX},
-            };
-
-    const auto &op_kind = base_op_ref.kind_;
-    // Permute result from NCX to NXC if data_format = NXC
-    std::string f_fmt, d_fmt;
-    bool has_d_fmt = base_op_ref.get_attr_string(d_fmt, "data_format");
-    bool has_f_fmt = base_op_ref.get_attr_string(f_fmt, "weights_format");
-    if (has_d_fmt && d_fmt == "NXC") {
-        if (op_kind != "ConvolutionBackwardWeights"
-                && op_kind != "ConvTransposeBackwardWeights") {
-            int prim_arg_name = get_prim_arg_name_from_graph_op_output_offset(
-                    opstr2kind(op_kind), 0);
-            if (prim_arg_name == -1) return FAIL;
-            permute_md(mems[prim_arg_name], permute_NCX2NXC);
-        }
-        if (op_kind == "PReLUBackward") {
-            int prim_arg_name = get_prim_arg_name_from_graph_op_output_offset(
-                    opstr2kind(op_kind), 1);
-            if (prim_arg_name == -1) return FAIL;
-            permute_md(mems[prim_arg_name], permute_NCX2NXC);
-        }
-    }
-
-    // Reshape output from GOIX to OIX
-    int64_t groups;
-    bool has_group = base_op_ref.get_attr_s64(groups, "groups");
-    if (has_group && groups > 1) {
-        int prim_arg_name = get_prim_arg_name_from_graph_op_output_offset(
-                opstr2kind(op_kind), 0);
-        if (prim_arg_name == -1) return FAIL;
-        if (op_kind == "ConvTransposeBackwardWeights") {
-            reshape_md(mems[prim_arg_name], reshape_GOIX2OIX, groups,
-                    /* is_convtranspose = */ true);
-        } else if (op_kind == "ConvolutionBackwardWeights") {
-            reshape_md(mems[prim_arg_name], reshape_GOIX2OIX, groups,
-                    /* is_convtranspose = */ false);
-        }
-    }
-
-    // Permute result from OIX to XIO/XOI/IOX if filter_format = XIO/XOI/IOX
-    if (has_f_fmt && f_fmt != "OIX") {
-        if (op_kind == "ConvolutionBackwardWeights"
-                || op_kind == "ConvTransposeBackwardWeights") {
-            int prim_arg_name = get_prim_arg_name_from_graph_op_output_offset(
-                    opstr2kind(op_kind), 0);
-            if (prim_arg_name == -1) return FAIL;
-            permute_OIX_func
-                    = str_2_permute_OIX_func.at("permute_OIX2" + f_fmt);
-            permute_md(mems[prim_arg_name], permute_OIX_func);
-        }
-    }
-
-    // Permute output md according to the order (StaticTranspose case)
-    std::vector<int64_t> order;
-    bool has_order = base_op_ref.get_attr_s64_vector(order, "order");
-    if (has_order) {
-        int prim_arg_name = get_prim_arg_name_from_graph_op_output_offset(
-                opstr2kind(op_kind), 0);
-        if (prim_arg_name == -1) return FAIL;
-        permute_md(mems[prim_arg_name], order);
     }
 
     return OK;

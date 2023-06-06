@@ -36,24 +36,23 @@ public:
             const std::vector<dnnl::graph::logical_tensor> &outs);
 
     // run partition in ref path, one by one ref primitive
-    void run(std::vector<dnnl::graph::tensor> &input_ts,
-            std::vector<dnnl::graph::tensor> &output_ts, res_t *res);
-
-    // fill primitive memory data to partition input/output tensors,
-    // so that the execution results of ref_partition and partition can be
-    // comparable
-    void init_graph_mem(std::vector<dnnl::graph::tensor> &input_ts,
-            std::vector<dnnl::graph::tensor> &output_ts,
-            const deserialized_op &cur_op, res_t *res);
+    void run(partition_mem_map_t &partition_mem_map, res_t *res);
 
     // ref execution and cmp
-    void check_partition_correctness(res_t *res);
+    void check_partition_correctness(
+            partition_mem_map_t &partition_mem_map, res_t *res);
 
     // link previous primitive's args to current primitive
     void link_args(const deserialized_op &cur_op, res_t *res);
 
     // copy current primitive's args to previous primitive
-    void reverse_link_args(const deserialized_op &cur_op, res_t *res);
+    void reverse_link_args(const deserialized_op &cur_op,
+            partition_mem_map_t &graph_mem_map, res_t *res);
+
+    // get the reference of ops of the partition
+    const op_ref_list_t &get_partition_ops() const {
+        return partition_ops_ref_;
+    }
 
 protected:
     template <typename setting_t, typename prb_t, typename init_pd_func_t,
@@ -63,7 +62,8 @@ protected:
             const supported_exec_args_func_t &supported_exec_args,
             const setup_cmp_func_t &setup_cmp,
             const std::unordered_map<size_t, const std::string> &map_off_to_dt,
-            const engine_t &ref_eng, res_t *res) {
+            partition_mem_map_t &graph_mem_map, const engine_t &ref_eng,
+            res_t *res) {
         setting_t op_setting = get_setting<setting_t>(
                 cur_op, bf16_to_f32_rewrite_lt_id_, res);
         if (res->state == INVALID_ARGUMENTS) return;
@@ -72,8 +72,20 @@ protected:
         prb_t *prb = pprb.get();
 
         set_prb_cfg<prb_t>(prb, map_off_to_dt, res);
+
+        std::vector<size_t> par_in_and_leading_ids(
+                partition_in_ids_.begin(), partition_in_ids_.end());
+        for (const auto &lt : cur_op.in_lts_)
+            par_in_and_leading_ids.emplace_back(lt.id_);
+
         init_prim<prb_t>(ref_prims_, cur_op, init_pd, supported_exec_args,
                 setup_cmp, pprb, ref_eng, res);
+
+        int op_id = static_cast<int>(cur_op.id_);
+        auto &mems = std::get<1>(ref_prims_[op_id]);
+        init_graph_memory_args(mems, graph_mem_map, par_in_and_leading_ids,
+                partition_out_ids_, cur_op, true, res);
+        if (res->state == FAILED) return;
     }
 
     template <typename setting_t, typename prb_t, typename init_pd_func_t,
@@ -81,9 +93,8 @@ protected:
     void handle_op(const deserialized_op &cur_op, const init_pd_func_t &init_pd,
             const supported_exec_args_func_t &supported_exec_args,
             const setup_cmp_func_t &setup_cmp,
-            std::vector<dnnl::graph::tensor> &input_ts,
-            std::vector<dnnl::graph::tensor> &output_ts,
-            const engine_t &ref_eng, res_t *res) {
+            partition_mem_map_t &graph_mem_map, const engine_t &ref_eng,
+            res_t *res) {
         setting_t op_setting = get_setting<setting_t>(
                 cur_op, bf16_to_f32_rewrite_lt_id_, res);
         if (res->state == INVALID_ARGUMENTS) return;
@@ -95,14 +106,22 @@ protected:
                 setup_cmp, pprb, ref_eng, res);
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return;
 
+        // prepare graph memory
+        // 1. init tensors based on primitive memories
+        // 2. maintain input and output tensors of the partition
+        int op_id = static_cast<int>(cur_op.id_);
+        auto &mems = std::get<1>(ref_prims_[op_id]);
+        init_graph_memory_args(mems, graph_mem_map, partition_in_ids_,
+                partition_out_ids_, cur_op, false, res);
+        if (res->state == FAILED) return;
+
         if (cur_op.kind_ == "Dequantize" && is_quantized_) {
-            // move leading driver primitive's input memory to the current
-            // primitive input
-            reverse_link_args(cur_op, res);
+            // move leading driver primitive's input memory to the
+            // current primitive input
+            reverse_link_args(cur_op, graph_mem_map, res);
         }
 
         link_args(cur_op, res);
-        init_graph_mem(input_ts, output_ts, cur_op, res);
         execute_prim(ref_prims_, cur_op, prb, res);
     }
 
@@ -127,7 +146,8 @@ private:
 
     // int8 cases:special processing of data filling to prevent accumulate
     // overflow
-    void handle_special_case_int8(res_t *res);
+    void handle_special_case_int8(
+            partition_mem_map_t &partition_mem_map, res_t *res);
 
     // Engine used to run correctness ref path for testing.
     const engine_t &get_ref_engine() const;
@@ -154,14 +174,6 @@ private:
     // Objects below are modified during run()
     // reference primitives for a single partition
     ref_prims_t ref_prims_;
-
-    // partition output tensors wrapped in args_t
-    // used for later correctness check
-    args_t partition_output_args_;
-
-    // save the copied primitive mems here to avoid early free
-    std::unordered_map<size_t, std::shared_ptr<dnn_mem_t>>
-            partition_in_out_mems_;
 };
 
 } // namespace graph

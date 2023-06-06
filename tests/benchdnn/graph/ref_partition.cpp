@@ -32,23 +32,23 @@ public:
     case dnnl_driver_t::driver: { \
         handle_leading_op<::driver::settings_t, ::driver::prb_t>(leading_op, \
                 ::driver::init_pd, ::driver::supported_exec_args, \
-                ::driver::setup_cmp, map_off_to_dt, ref_eng, res); \
+                ::driver::setup_cmp, map_off_to_dt, partition_mem_map, \
+                ref_eng, res); \
     } break
 
 #define CASE_HANDLE_OP(driver) \
     case dnnl_driver_t::driver: { \
         handle_op<::driver::settings_t, ::driver::prb_t>(par_op_ref, \
                 ::driver::init_pd, ::driver::supported_exec_args, \
-                ::driver::setup_cmp, input_ts, output_ts, ref_eng, res); \
+                ::driver::setup_cmp, partition_mem_map, ref_eng, res); \
     } break
 
 #define CASE_CORRECTNESS_CHECK(driver) \
     case dnnl_driver_t::driver: { \
         const ::driver::prb_t *prb \
                 = std::get<5>(ref_prims_[op_id])->get<::driver::prb_t>(); \
-        check_correctness<::driver::prb_t>(ref_prims_, op_id, \
-                partition_output_args_, ref_args, prb, has_eltwise, \
-                output_has_nans, res); \
+        check_correctness<::driver::prb_t>(ref_prims_, op_id, output_args, \
+                ref_args, prb, has_eltwise, output_has_nans, res); \
     } break
 
 // ops support bf16 in f32 out.
@@ -141,6 +141,7 @@ bool ref_partition_t::get_leading_op_group(op_ref_list_t &leading_ops_group) {
 
     for (auto in_id : partition_in_ids_) {
         const auto iter = in_lt_2_ops_.find(in_id);
+
         if (iter != in_lt_2_ops_.end()) {
             auto &leading_op = iter->second.front();
 
@@ -162,6 +163,8 @@ bool ref_partition_t::get_leading_op_group(op_ref_list_t &leading_ops_group) {
             leading_op_ids.emplace(leading_op.get().id_);
         }
     }
+
+    if (leading_ops_group.size() == 0) return false;
     return true;
 }
 
@@ -198,11 +201,10 @@ void ref_partition_t::get_leading_op_input_offset_to_dt_map(
     }
 }
 
-void ref_partition_t::run(std::vector<dnnl::graph::tensor> &input_ts,
-        std::vector<dnnl::graph::tensor> &output_ts, res_t *res) {
+void ref_partition_t::run(partition_mem_map_t &partition_mem_map, res_t *res) {
 
     handle_special_case_bf16(res);
-    handle_special_case_int8(res);
+    handle_special_case_int8(partition_mem_map, res);
 
     for (const auto &par_op_ref : partition_ops_ref_) {
         const auto op_driver
@@ -239,15 +241,6 @@ void ref_partition_t::link_args(const deserialized_op &cur_op, res_t *res) {
                 opstr2kind(cur_op.kind_), cur_op_in_offset,
                 eltwise::get_flag_use_dst_for_bwd_compute(cur_op));
 
-        // find if current logical tensor is the input of the partition
-        // and also the input of other preceding ops
-        auto iter0 = partition_in_out_mems_.find(cur_op_in_lt.id_);
-        if (iter0 != partition_in_out_mems_.end()) {
-            std::shared_ptr<dnn_mem_t> in_mem_ptr = iter0->second;
-            std::get<3>(ref_prims_[cur_op_id])
-                    .replace(cur_op_in_arg, in_mem_ptr.get());
-            continue;
-        }
         // find if current logical tensor is produced by
         // other ops inside the partition
         auto iter = out_lt_2_op_.find(cur_op_in_lt.id_);
@@ -276,8 +269,8 @@ void ref_partition_t::link_args(const deserialized_op &cur_op, res_t *res) {
     }
 }
 
-void ref_partition_t::reverse_link_args(
-        const deserialized_op &cur_op, res_t *res) {
+void ref_partition_t::reverse_link_args(const deserialized_op &cur_op,
+        partition_mem_map_t &graph_mem_map, res_t *res) {
     std::reference_wrapper<const deserialized_op> leading_op = std::ref(cur_op);
     int leading_op_in_offset = 0;
 
@@ -286,6 +279,8 @@ void ref_partition_t::reverse_link_args(
     if (!st) return;
 
     int leading_op_id = static_cast<int>(leading_op.get().id_);
+    size_t leading_op_in_lt_id
+            = leading_op.get().in_lts_[leading_op_in_offset].id_;
     int leading_op_in_arg = get_prim_arg_name_from_graph_op_input_offset(
             opstr2kind(leading_op.get().kind_), leading_op_in_offset,
             eltwise::get_flag_use_dst_for_bwd_compute(cur_op));
@@ -294,9 +289,17 @@ void ref_partition_t::reverse_link_args(
     const dnn_mem_t &leading_op_ref_input_mem
             = std::get<4>(ref_prims_[leading_op_id]).find(leading_op_in_arg);
 
+    if (graph_mem_map.find(leading_op_in_lt_id) == graph_mem_map.end()) {
+        res->state = FAILED;
+        return;
+    }
+    const dnn_graph_mem_t &leading_op_graph_input_mem
+            = graph_mem_map.at(leading_op_in_lt_id);
+
     // only need to update dq src
     int cur_op_in_arg = DNNL_ARG_SRC;
     int cur_op_id = static_cast<int>(cur_op.id_);
+    size_t cur_op_in_lt_id = cur_op.in_lts_.front().id_;
 
     // move leading op's input mem to current op's input mem
     auto &mems = std::get<1>(ref_prims_[cur_op_id]);
@@ -319,100 +322,40 @@ void ref_partition_t::reverse_link_args(
     auto &ref_mem_map = std::get<4>(ref_prims_[cur_op_id]);
     ref_mem_map.clear();
     ref_mem_map = args_t(ref_mems);
+
+    // Update graph mem
+    if (graph_mem_map.find(cur_op_in_lt_id) == graph_mem_map.end()) {
+        res->state = FAILED;
+        return;
+    }
+    graph_mem_map.at(cur_op_in_lt_id).map_mem();
+    graph_mem_map.erase(cur_op_in_lt_id);
+    graph_mem_map.emplace(cur_op_in_lt_id,
+            std::move(
+                    const_cast<dnn_graph_mem_t &>(leading_op_graph_input_mem)));
+    graph_mem_map.at(cur_op_in_lt_id).unmap_mem();
 }
 
-void ref_partition_t::init_graph_mem(std::vector<dnnl::graph::tensor> &input_ts,
-        std::vector<dnnl::graph::tensor> &output_ts,
-        const deserialized_op &cur_op, res_t *res) {
-    std::vector<size_t> cur_op_in_ids;
-    std::vector<size_t> cur_op_out_ids;
-    for (const auto &cur_op_in_lt : cur_op.in_lts_) {
-        cur_op_in_ids.emplace_back(cur_op_in_lt.id_);
-    }
-    for (const auto &cur_op_out_lt : cur_op.out_lts_) {
-        cur_op_out_ids.emplace_back(cur_op_out_lt.id_);
-    }
-
-    // find if cur_op's input is partition's input
-    for (size_t in_idx = 0; in_idx < input_ts.size(); ++in_idx) {
-        // current input tensor has already been filled
-        if (partition_in_out_mems_.find(partition_in_ids_[in_idx])
-                != partition_in_out_mems_.end())
-            continue;
-        auto iter = std::find(cur_op_in_ids.begin(), cur_op_in_ids.end(),
-                partition_in_ids_[in_idx]);
-        // partition_in_ids[in_idx] is not the input of cur_op
-        if (iter == cur_op_in_ids.end()) continue;
-        // partition_in_ids[in_idx] is the input of cur_op
-        int cur_op_in_idx = iter - cur_op_in_ids.begin();
-
-        int prim_in_arg_idx = get_prim_arg_name_from_graph_op_input_offset(
-                opstr2kind(cur_op.kind_), cur_op_in_idx,
-                eltwise::get_flag_use_dst_for_bwd_compute(cur_op));
-        dnnl_data_type_t dtype = static_cast<dnnl_data_type_t>(
-                cur_op.in_lts_[cur_op_in_idx].get_data_type());
-        std::string mtag = strides2memory_tag(
-                cur_op.in_lts_[cur_op_in_idx].shape_.size(),
-                cur_op.in_lts_[cur_op_in_idx].stride_);
-
-        int cur_op_id = static_cast<int>(cur_op.id_);
-        std::shared_ptr<dnn_mem_t> par_in_mem_ptr = std::make_shared<dnn_mem_t>(
-                std::get<3>(ref_prims_[cur_op_id]).find(prim_in_arg_idx), dtype,
-                mtag, ::get_test_engine());
-        input_ts[in_idx].set_data_handle(static_cast<void *>(*par_in_mem_ptr));
-
-        // save the shared_ptr here to avoid early free
-        partition_in_out_mems_[partition_in_ids_[in_idx]] = par_in_mem_ptr;
-    }
-
-    // find if cur_op's output is partition's output
-    for (size_t out_idx = 0; out_idx < output_ts.size(); ++out_idx) {
-        auto iter = std::find(cur_op_out_ids.begin(), cur_op_out_ids.end(),
-                partition_out_ids_[out_idx]);
-        // partition_out_ids[out_idx] is not the output of cur_op
-        if (iter == cur_op_out_ids.end()) continue;
-        // partition_out_ids[out_idx] is the output of cur_op
-        size_t cur_op_out_idx = iter - cur_op_out_ids.begin();
-
-        int prim_out_arg_idx = get_prim_arg_name_from_graph_op_output_offset(
-                opstr2kind(cur_op.kind_), cur_op_out_idx);
-        if (prim_out_arg_idx == 0) continue; // unsupported case
-        // create output dnn_mem using information from out_lt
-        dnnl_data_type_t dtype = static_cast<dnnl_data_type_t>(
-                cur_op.out_lts_[cur_op_out_idx].get_data_type());
-        std::string mtag = strides2memory_tag(
-                cur_op.out_lts_[cur_op_out_idx].shape_.size(),
-                cur_op.out_lts_[cur_op_out_idx].stride_);
-        // dims
-        dnnl_dims_t dims;
-        std::copy(cur_op.out_lts_[cur_op_out_idx].shape_.begin(),
-                cur_op.out_lts_[cur_op_out_idx].shape_.end(), dims);
-        int ndims = static_cast<int>(
-                cur_op.out_lts_[cur_op_out_idx].shape_.size());
-        // create dnn_mem_t
-        std::shared_ptr<dnn_mem_t> par_out_mem_ptr
-                = std::make_shared<dnn_mem_t>(
-                        ndims, dims, dtype, mtag, ::get_test_engine());
-        // get data handle and set to partition output tensor
-        void *data_handle;
-        dnnl_memory_get_data_handle(par_out_mem_ptr->m_, &data_handle);
-        output_ts[out_idx].set_data_handle(data_handle);
-        // the created dnn_mem_t is mapped (to host), need to unmap (to device)
-        partition_output_args_.set(prim_out_arg_idx, *par_out_mem_ptr);
-        partition_output_args_.find(prim_out_arg_idx).unmap();
-        // save the shared_ptr here to avoid early free
-        partition_in_out_mems_[partition_out_ids_[out_idx]] = par_out_mem_ptr;
-    }
-}
-
-void ref_partition_t::check_partition_correctness(res_t *res) {
+void ref_partition_t::check_partition_correctness(
+        partition_mem_map_t &partition_mem_map, res_t *res) {
 
     const auto &last_op_ref = partition_ops_ref_.back();
     int op_id = static_cast<int>(last_op_ref.get().id_);
     const auto &ref_args = std::get<3>(ref_prims_[op_id]);
-    // map the partition output mem to host
-    for (int i = 0; i < partition_output_args_.size(); ++i) {
-        partition_output_args_.dnn_mem(i).map();
+
+    // get the args that need comparing
+    args_t output_args;
+    for (size_t out_idx = 0; out_idx < last_op_ref.get().out_lts_.size();
+            ++out_idx) {
+        int out_arg = get_prim_arg_name_from_graph_op_output_offset(
+                opstr2kind(last_op_ref.get().kind_), out_idx);
+        if (out_arg == 0) continue; // unsupported case
+
+        size_t out_lt_id = last_op_ref.get().out_lts_[out_idx].id_;
+        auto &graph_mem = partition_mem_map.at(out_lt_id);
+        const auto &par_out_mem = graph_mem.reorder_back_mem();
+        graph_mem.map_mem();
+        output_args.set(out_arg, par_out_mem);
     }
 
     // traverse partition ops to check flags used in compare
@@ -554,7 +497,8 @@ void ref_partition_t::handle_special_case_bf16(res_t *res) {
     }
 }
 
-void ref_partition_t::handle_special_case_int8(res_t *res) {
+void ref_partition_t::handle_special_case_int8(
+        partition_mem_map_t &partition_mem_map, res_t *res) {
     op_ref_list_t leading_ops_group;
     is_quantized_ = get_leading_op_group(leading_ops_group);
     if (!is_quantized_) return;
@@ -566,6 +510,7 @@ void ref_partition_t::handle_special_case_int8(res_t *res) {
         get_leading_op_input_offset_to_dt_map(leading_op.get(), map_off_to_dt);
         const auto op_driver
                 = opkind2driver(opstr2kind(leading_op.get().kind_));
+
         switch (op_driver) {
             CASE_HANDLE_LEADING_OP(conv);
             CASE_HANDLE_LEADING_OP(pool);

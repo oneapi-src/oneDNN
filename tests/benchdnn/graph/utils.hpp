@@ -216,6 +216,9 @@ void reshape_md(dnn_mem_t &mem,
                 const dnnl::memory::desc &, int64_t, bool),
         int64_t groups, bool is_convtranspose);
 
+// check whether the logical tensor is in NXC format
+bool is_nxc_lt_arg(const std::string &kind, const int exec_arg);
+
 // get primitive's arg name according to graph op's output offset
 // i.e. If BatchNormForwardTraining's 2-nd output is ReLU's 1-st input
 //      the output offset of 2 needs to be mapped to primitive's

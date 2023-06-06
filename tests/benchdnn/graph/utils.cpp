@@ -614,6 +614,46 @@ dnnl_driver_t opkind2driver(const dnnl::graph::op::kind &kind) {
     }
 }
 
+bool is_nxc_lt_arg(const std::string &kind, const int exec_arg) {
+    // Mapping from the op kind to a set that indicates which input arg needs
+    // reorder
+    static const std::unordered_map<std::string, std::unordered_set<int>>
+            input_arg_for_reorder = {
+                    {"AvgPool", {DNNL_ARG_SRC}},
+                    {"AvgPoolBackward", {DNNL_ARG_DIFF_DST}},
+                    {"BatchNormInference", {DNNL_ARG_SRC}},
+                    {"BatchNormForwardTraining", {DNNL_ARG_SRC}},
+                    {"BiasAddBackward", {DNNL_ARG_SRC}},
+                    {"Interpolate", {DNNL_ARG_SRC}},
+                    {"MaxPool", {DNNL_ARG_SRC}},
+                    {"Convolution", {DNNL_ARG_SRC}},
+                    {"ConvolutionBackwardData", {DNNL_ARG_DIFF_DST}},
+                    {"ConvTranspose", {DNNL_ARG_SRC}},
+                    {"ConvTransposeBackwardData", {DNNL_ARG_DIFF_DST}},
+                    {"BatchNormTrainingBackward",
+                            {DNNL_ARG_SRC, DNNL_ARG_DIFF_DST}},
+                    {"BiasAdd", {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1}},
+                    {"InterpolateBackward", {DNNL_ARG_DIFF_DST}},
+                    {"MaxPoolBackward", {DNNL_ARG_SRC, DNNL_ARG_DIFF_DST}},
+                    {"ConvolutionBackwardWeights",
+                            {DNNL_ARG_SRC, DNNL_ARG_DIFF_DST}},
+                    {"ConvTransposeBackwardWeights",
+                            {DNNL_ARG_SRC, DNNL_ARG_DIFF_DST}},
+                    {"PReLU", {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS}},
+                    {"PReLUBackward",
+                            {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS,
+                                    DNNL_ARG_DIFF_DST}},
+            };
+
+    const auto iter = input_arg_for_reorder.find(kind);
+    if (iter != input_arg_for_reorder.end()) {
+        const auto &args_to_reorder = iter->second;
+        return args_to_reorder.find(exec_arg) != args_to_reorder.end();
+    } else {
+        return false;
+    }
+}
+
 std::string strides2memory_tag(const size_t ndims,
         const dnnl::graph::logical_tensor::dims &strides, bool use_x_tag) {
     if (ndims == 0) return use_x_tag ? "abx" : "a";
