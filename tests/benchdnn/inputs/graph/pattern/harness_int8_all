@@ -65,6 +65,7 @@
 --reset  --in-shapes=0:2x17x5x5+1:17x16x3x3+2:2x16x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
 --reset  --in-shapes=0:2x17x5x5+1:17x3x3x3+2:2x3x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
 --reset --in-shapes=0:2x20x5x5+1:20x4x3x3+2:16+3:1x1x1x1 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:4 --case=pattern/int8/int8_convtranspose_post_ops_add_fusion.json
+--reset --in-shapes=0:2x16x8x8+1:16x17x3x3+2:17+3:2x17x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:3x3*pads_end:2x2*groups:1+8209:zps:4 --case=pattern/int8/int8_convtranspose_post_ops_add_fusion.json
 --reset --in-shapes=0:2x16x5x5+1:16x5x3x3+2:20+3:2x20x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:4 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion_2.json
 # bnorm
 --reset --in-shapes=0:1x56x56x64+2:64+3:64+4:64+5:64 --op-attrs=1:data_format:NXC --case=pattern/int8/int8_bnorm_relu_fusion.json
