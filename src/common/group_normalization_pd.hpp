@@ -22,6 +22,11 @@
 #include "c_types_map.hpp"
 #include "primitive_desc.hpp"
 
+#define VDISPATCH_GNORM(cond, msg, ...) \
+    VCONDCHECK(create, dispatch, group_normalization, (cond), \
+            status::unimplemented, "%s," msg, this->info(engine), \
+            ##__VA_ARGS__)
+
 namespace dnnl {
 namespace impl {
 

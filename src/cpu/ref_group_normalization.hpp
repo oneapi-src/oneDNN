@@ -22,11 +22,6 @@
 
 #include "cpu/cpu_group_normalization_pd.hpp"
 
-#define VCHECK_GNORM(cond, msg, ...) \
-    VCONDCHECK(create, dispatch, group_normalization, (cond), \
-            status::unimplemented, "%s," msg, this->info(engine), \
-            ##__VA_ARGS__)
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -42,23 +37,24 @@ struct ref_group_normalization_fwd_t : public primitive_t {
             using namespace data_type;
             using skip_mask_t = primitive_attr_t::skip_mask_t;
 
-            VCHECK_GNORM(is_fwd(), VERBOSE_BAD_PROPKIND);
-            VCHECK_GNORM(
+            VDISPATCH_GNORM(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_GNORM(
                     utils::one_of(src_md()->data_type, f32, bf16, f16, s8, u8)
                             && platform::has_data_type_support(
                                     src_md()->data_type),
                     VERBOSE_UNSUPPORTED_DT);
-            VCHECK_GNORM(
+            VDISPATCH_GNORM(
                     utils::one_of(dst_md()->data_type, f32, bf16, f16, s8, u8)
                             && platform::has_data_type_support(
                                     dst_md()->data_type),
                     VERBOSE_UNSUPPORTED_DT);
-            VCHECK_GNORM(attr()->has_default_values(skip_mask_t::scales_runtime)
+            VDISPATCH_GNORM(
+                    attr()->has_default_values(skip_mask_t::scales_runtime)
                             && attr_scales_ok(),
                     VERBOSE_UNSUPPORTED_ATTR);
 
-            bool ok = set_default_formats_common();
-            if (!ok) return status::unimplemented;
+            VDISPATCH_GNORM(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
 
             return status::success;
         }
@@ -82,28 +78,28 @@ struct ref_group_normalization_bwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
 
-            VCHECK_GNORM(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_GNORM(!is_fwd(), VERBOSE_BAD_PROPKIND);
 
-            VCHECK_GNORM(
+            VDISPATCH_GNORM(
                     utils::one_of(src_md()->data_type, f32, bf16, f16, s8, u8)
                             && platform::has_data_type_support(
                                     src_md()->data_type),
                     VERBOSE_UNSUPPORTED_DT);
-            VCHECK_GNORM(utils::one_of(diff_dst_md()->data_type, f32, bf16, f16,
-                                 s8, u8)
+            VDISPATCH_GNORM(utils::one_of(diff_dst_md()->data_type, f32, bf16,
+                                    f16, s8, u8)
                             && platform::has_data_type_support(
                                     diff_dst_md()->data_type),
                     VERBOSE_UNSUPPORTED_DT);
-            VCHECK_GNORM(utils::one_of(diff_src_md()->data_type, f32, bf16, f16,
-                                 s8, u8)
+            VDISPATCH_GNORM(utils::one_of(diff_src_md()->data_type, f32, bf16,
+                                    f16, s8, u8)
                             && platform::has_data_type_support(
                                     diff_src_md()->data_type),
                     VERBOSE_UNSUPPORTED_DT);
-            VCHECK_GNORM(
+            VDISPATCH_GNORM(
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
-            bool ok = set_default_formats_common();
-            if (!ok) return status::unimplemented;
+            VDISPATCH_GNORM(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
 
             return status::success;
         }
