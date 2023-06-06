@@ -1192,9 +1192,16 @@ binary_executable_t::desc_t binary_executable_t::create_desc(
             op->get_input_value(0)->get_logical_tensor());
     auto src1 = make_dnnl_memory_desc(
             op->get_input_value(1)->get_logical_tensor());
-    auto dst = make_dnnl_memory_desc(
+    auto tmp_dst = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
-    dst = to_format_any(dst);
+
+    // For binary, if we set dst memory tag any, it will deduce strange format
+    // for dst when src0 shape is 1x1x1x1, such as cdab. It will cause binary
+    // performance poor, and the post matmul pattern performance is poor.
+    // So we force dst format to src0 format.
+    auto format_tag = get_format_tag(src0);
+    memory::desc dst = memory::desc(
+            tmp_dst.get_dims(), tmp_dst.get_data_type(), format_tag);
 
     const algorithm algo = static_cast<dnnl::algorithm>(
             op->get_attr<int64_t>(op_attr::alg_kind));
