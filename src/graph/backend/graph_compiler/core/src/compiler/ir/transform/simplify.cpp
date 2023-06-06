@@ -30,7 +30,8 @@ namespace impl {
 namespace graph {
 namespace gc {
 
-SC_DECL_PASS_INFO(ir_simplifier, SC_PASS_DEPENDS_ON(validator, constant_folder),
+SC_DECL_PASS_INFO(ir_simplifier,
+        SC_PASS_DEPENDS_ON(validator, constant_folder, loop_merger),
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
         SC_PASS_SET_STATE(IR_SIMPLIFIED), SC_PASS_UNSET_STATE());
 
