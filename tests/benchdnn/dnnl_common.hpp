@@ -367,7 +367,24 @@ void skip_unimplemented_sum_po(const attr_t &attr, res_t *res,
 void skip_invalid_inplace(res_t *res, dnnl_data_type_t sdt,
         dnnl_data_type_t ddt, const std::string &stag, const std::string &dtag);
 void skip_unimplemented_arg_scale(const attr_t &attr, res_t *res);
-int check_caches(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw, res_t *res);
+
+template <typename prb_t>
+int check_caches(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw,
+        const prb_t *prb, res_t *res) {
+    if (!primw) return OK;
+
+    const_dnnl_primitive_desc_t pd = query_pd(primw);
+    SAFE(create_in_thr_ctx(prb->ctx_init, check_pd_cache, pd, res), WARN);
+    // Check primitive is picked up from the cache if applicable.
+    SAFE(create_in_thr_ctx(prb->ctx_init, check_primitive_cache, primw, res),
+            WARN);
+    // Check primitive is picked up from the persistent cache if applicable.
+    // Note: primw get re-written here to put a primitive from cache blob, if
+    // GPU backend is OCL.
+    SAFE(test_persistent_cache_api(primw, res), WARN);
+
+    return OK;
+}
 
 // `check_dnnl_status` function is called to validate the result of primitive
 // descriptor creation. Based on the status, it produces additional checks:

@@ -52,7 +52,8 @@ struct rnn_task_t {
     int check_cache() {
         if (!has_bench_mode_bit(mode_bit_t::corr)) return OK;
 
-        return check_cache_func_(*v_prim_, &res_);
+        const prb_t *prb = prb_.get();
+        return check_cache_func_(*v_prim_, prb, &res_);
     }
 
     int exec() {

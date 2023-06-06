@@ -623,8 +623,8 @@ int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
 int check_cacheit(
         std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
-        res_t *res) {
-    SAFE(check_caches(v_prim[0], res), WARN);
+        const prb_t *prb, res_t *res) {
+    SAFE(check_caches(v_prim[0], prb, res), WARN);
     // Don't check caches for CPU prim as the reference.
     return OK;
 }

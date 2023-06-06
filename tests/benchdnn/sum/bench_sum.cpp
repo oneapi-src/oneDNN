@@ -29,7 +29,8 @@ using create_func_t = std::function<int(
         std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &, const prb_t *,
         res_t *)>;
 using check_cache_func_t = std::function<int(
-        std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &, res_t *)>;
+        std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &, const prb_t *,
+        res_t *)>;
 using do_func_t = std::function<int(
         const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &,
         const prb_t *, res_t *)>;

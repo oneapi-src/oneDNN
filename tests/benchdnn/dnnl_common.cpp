@@ -696,21 +696,6 @@ int check_same_pd(const dnnl_primitive_desc_t &pd_no_attr, res_t *res) {
     return FAIL;
 }
 
-int check_caches(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw, res_t *res) {
-    if (!primw) return OK;
-
-    // Check primitive descriptor is picked up from the cache if applicable.
-    SAFE(check_pd_cache(query_pd(primw), res), WARN);
-    // Check primitive is picked up from the cache if applicable.
-    SAFE(check_primitive_cache(primw, res), WARN);
-    // Check primitive is picked up from the persistent cache if applicable.
-    // Note: primw get re-written here to put a primitive from cache blob, if
-    // GPU backend is OCL.
-    SAFE(test_persistent_cache_api(primw, res), WARN);
-
-    return OK;
-}
-
 bool is_cpu(const dnnl_engine_t &engine) {
     return query_engine_kind(engine) == dnnl_cpu;
 }

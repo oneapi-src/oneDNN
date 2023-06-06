@@ -58,7 +58,8 @@ struct task_t {
         if (!has_bench_mode_bit(mode_bit_t::corr)) return OK;
         if (res_.state != INITIALIZED) return OK;
 
-        return check_cache_func_(*v_prim_, &res_);
+        const prb_t *prb = &prb_;
+        return check_cache_func_(*v_prim_, prb, &res_);
     }
 
     int exec() {

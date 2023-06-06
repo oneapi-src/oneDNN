@@ -283,8 +283,8 @@ int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
 int check_cacheit(
         std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
-        res_t *res) {
-    return check_caches(v_prim[0], res);
+        const prb_t *prb, res_t *res) {
+    return check_caches(v_prim[0], prb, res);
 }
 
 int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
