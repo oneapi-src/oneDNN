@@ -31,6 +31,8 @@
 #define VERBOSE_external ":external"
 
 // verbose messages
+#define VERBOSE_PROFILING_UNSUPPORTED "profiling capabilities are not supported"
+
 #define VERBOSE_NULL_ARG "one of the mandatory arguments is nullptr"
 #define VERBOSE_BAD_ENGINE_KIND "bad engine kind"
 #define VERBOSE_BAD_ALGORITHM "bad algorithm"

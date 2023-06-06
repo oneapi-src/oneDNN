@@ -15,10 +15,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
+#include "common/verbose.hpp"
+
 #include "gpu/nvidia/sycl_cuda_compat.hpp"
 #include "gpu/nvidia/sycl_cuda_engine.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
+#include "gpu/nvidia/sycl_cuda_stream.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -59,6 +61,9 @@ status_t sycl_cuda_stream_t::init() {
     if ((flags() & stream_flags::in_order) == 0
             && (flags() & stream_flags::out_of_order) == 0)
         return status::invalid_arguments;
+
+    VCONDCHECK(create, check, stream, is_profiling_enabled() == false,
+            status::unimplemented, VERBOSE_PROFILING_UNSUPPORTED);
 
     // If queue_ is not set then construct it
     auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine());
