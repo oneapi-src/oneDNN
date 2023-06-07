@@ -386,7 +386,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
 
             auto s = src.subregister(i, esize, src_stride_bytes);
             auto d = dst.subregister(i, esize, dst_stride_bytes);
-            const int t1_offset = s.getByteOffset();
+            const int t1_offset = (esize == 1) ? 0 : s.getByteOffset();
             const int t2_offset = (d.getOffset() % 16) * tmp_stride_bytes;
             auto t1 = tmp1.subregister(t1_offset, dst_type);
             auto t2 = tmp2.subregister(t2_offset, dst_type);
