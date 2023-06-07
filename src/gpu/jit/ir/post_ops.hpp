@@ -71,25 +71,20 @@ struct zero_points_config_t {
     }
 };
 
-enum class post_load_op_kind_t {
-    none,
-    inv,
-};
-
 class post_op_tensor_info_t {
 public:
     post_op_tensor_info_t() = default;
 
     post_op_tensor_info_t(bool is_input, bool is_output, const view_t &view,
             const expr_t &buf, uint32_t mask, const expr_t &op_var,
-            post_load_op_kind_t post_load_op)
+            const expr_t &compute_expr)
         : is_input_(is_input)
         , is_output_(is_output)
         , view_(view)
         , buf_(buf)
         , mask_(mask)
         , op_var_(op_var)
-        , post_load_op_(post_load_op) {
+        , compute_expr_(compute_expr) {
         if (op_var_.is_empty())
             op_var_ = var_t::make(type_t::f32(), make_op_var_name(buf));
     }
@@ -108,7 +103,9 @@ public:
 
     const expr_t &op_var() const { return op_var_; }
 
-    post_load_op_kind_t post_load_op() const { return post_load_op_; }
+    const expr_t &compute_expr() const { return compute_expr_; }
+
+    bool needs_compute() const { return !compute_expr().is_empty(); }
 
     post_op_tensor_info_t create_sub_tensor(const tensor_t &tile) const {
         auto ret = *this;
@@ -141,7 +138,7 @@ private:
     expr_t buf_;
     uint32_t mask_;
     expr_t op_var_;
-    post_load_op_kind_t post_load_op_ = post_load_op_kind_t::none;
+    expr_t compute_expr_;
 };
 
 class post_op_view_mapper_t {
@@ -285,24 +282,20 @@ private:
     }
 
     const expr_t &add_input_tensor(const view_t &view, const expr_t &buf,
-            post_load_op_kind_t post_load_op = post_load_op_kind_t::none) {
+            const expr_t &compute_expr = expr_t()) {
         return add_tensor(/*is_input=*/true, /*is_output=*/false, view, buf,
-                expr_t(), post_load_op);
-    }
-
-    const expr_t &add_output_tensor(const view_t &view, const expr_t &buf) {
-        return add_tensor(
-                /*is_input=*/false, /*is_output=*/true, view, buf, expr_t());
+                expr_t(), compute_expr);
     }
 
     const expr_t &add_tensor(bool is_input, bool is_output, const view_t &view,
             const expr_t &buf, const expr_t &op_var,
-            post_load_op_kind_t post_load_op = post_load_op_kind_t::none) {
+            const expr_t &compute_expr = expr_t()) {
         ir_assert(cp_ndims() == view.nvdims());
-        uint32_t mask
-                = (buf.is_empty() ? ~(1u << cp_ndims()) : compute_mask(view));
+        uint32_t mask = (buf.is_empty() && compute_expr.is_empty()
+                        ? ~(1u << cp_ndims())
+                        : compute_mask(view));
         tensor_infos_.emplace_back(
-                is_input, is_output, view, buf, mask, op_var, post_load_op);
+                is_input, is_output, view, buf, mask, op_var, compute_expr);
         return tensor_infos_.back().op_var();
     }
 

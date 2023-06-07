@@ -167,6 +167,10 @@ public:
         return ret;
     }
 
+    bool is_f32_scalar() const {
+        return mem_view().type().is_f32() && mem_view().velems() == 1;
+    }
+
     bool needs_load() const {
         if (!info_.is_input()) return false;
         if (!mem_buf().type().is_ptr()) return false;
@@ -191,6 +195,10 @@ public:
         }
         return false;
     }
+
+    bool needs_compute() const { return info_.needs_compute(); }
+
+    const expr_t &compute_expr() const { return info_.compute_expr(); }
 
     bool is_broadcast_dim(int dim_idx) const {
         ir_assert(dim_idx >= 0 && dim_idx < mem_view().nvdims());
@@ -292,28 +300,25 @@ public:
         return ret;
     }
 
-    stmt_t build_post_load_op_stmt() {
-        switch (info_.post_load_op()) {
-            case post_load_op_kind_t::inv: {
-                int elems = reg_layout_.elems();
-                auto &type = reg_layout_.type();
-                stmt_t ret;
-                int max_step = 2 * ir_ctx_->grf_size() / type.size();
-                for (int i = 0; i < elems;) {
-                    int step = std::min(max_step, elems - i);
-                    int off = i * type.size();
-                    auto l = load_t::make(type.with_elems(step), reg_buf_, off);
-                    auto s = store_t::make(reg_buf_, off,
-                            shuffle_t::make_broadcast(1.0f, step) / l);
-                    ret = ret.append(s);
-                    i += step;
-                }
-                return ret;
+    stmt_t build_compute_stmt(const std::vector<post_op_tensor_t> &tensors) {
+        ir_assert(needs_compute());
+        ir_assert(is_f32_scalar()) << "Only f32 scalars are supported.";
+        reg_layout_ = mem_view().create_pseudo_vlayout();
+        auto e = compute_expr();
+        tensor_t tile(std::vector<dim_t>(reg_layout_.ndims(), 1));
+        for (auto &t : tensors) {
+            if (contains_object(e, t.op_var())) {
+                ir_assert(t.is_f32_scalar())
+                        << "All tensors in the compute expression must be f32 "
+                           "scalars.";
+                ir_assert(t.do_preload()) << "All tensors in the compute "
+                                             "expression must be preloaded.";
+                e = substitute(e, t.op_var(), t.load_expr(tile, 0));
             }
-            case post_load_op_kind_t::none: return stmt_t();
-            default: ir_error_not_expected();
         }
-        return stmt_t();
+        reg_buf_ = make_tmp_reg_buffer();
+        register_buffer(reg_buf_, reg_layout_.size());
+        return store_t::make(reg_buf_, 0, e);
     }
 
     stmt_t build_zero_out_stmt() const {
@@ -408,6 +413,7 @@ private:
             auto *ptr = mem_buf().as_ptr<ptr_t>();
             if (ptr) var = ptr->base.as_ptr<var_t>();
         }
+        if (!var && needs_compute()) var = op_var().as_ptr<var_t>();
         ir_assert(var) << "Can't extract variable from buffer: " << mem_buf();
         auto &name = var->name;
         return ir_ctx_->create_tmp_var(type_t::byte_ptr(), "tmp_" + name);
@@ -707,7 +713,8 @@ public:
         for (auto &po_tensor_info : post_op_ctx_.post_op_tensor_infos()) {
             post_op_tensor_t po_tensor(ir_ctx_, po_tensor_info);
             po_tensor = po_tensor.create_sub_tensor(thr_tile);
-            if (po_tensor_info.buf().is_empty()) {
+            if (po_tensor_info.buf().is_empty()
+                    && !po_tensor_info.needs_compute()) {
                 // C tensor.
                 ir_assert(c_po_idx_ == -1);
                 c_po_idx_ = tensor_idx;
@@ -832,9 +839,10 @@ private:
             stmt_ = stmt_.append(t.build_convert_stmt());
         }
 
-        // Generate post-load statements.
+        // Generate compute statements for virtual tensors.
         for (auto &t : post_op_tensors_) {
-            stmt_ = stmt_.append(t.build_post_load_op_stmt());
+            if (!t.needs_compute()) continue;
+            stmt_ = stmt_.append(t.build_compute_stmt(post_op_tensors_));
         }
 
         // Initialize buffers for output post-op tensors.

@@ -35,8 +35,12 @@ post_op_context_t::post_op_context_t(const primitive_attr_t &attr,
     expr_t src_scales(1.0f);
     expr_t wei_scales(1.0f);
     expr_t dst_scales(1.0f);
+    expr_t src_wei_scales(1.0f);
+    expr_t inv_dst_scales(1.0f);
     if (po_vm_.can_use_scales() && !attr.scales_.has_default_values()) {
         auto scale_args = get_scale_args();
+        int src_scales_mask = 0;
+        int wei_scales_mask = 0;
         for (int i = 0; i < (int)scale_args.size(); i++) {
             auto buf = kernel_info.find_arg(
                     scale_args[i].first, /*allow_empty=*/true);
@@ -49,8 +53,8 @@ post_op_context_t::post_op_context_t(const primitive_attr_t &attr,
                 case DNNL_ARG_SRC:
                     ir_assert(mask == 0);
                     view = po_vm_.create_view(type_t::f32(), mask);
-                    src_scales = add_input_tensor(
-                            view, buf, post_load_op_kind_t::none);
+                    src_scales = add_input_tensor(view, buf);
+                    src_scales_mask = mask;
                     break;
                 case DNNL_ARG_WEIGHTS:
                     // Convert o/i weights mask to src/dst.
@@ -59,16 +63,34 @@ post_op_context_t::post_op_context_t(const primitive_attr_t &attr,
                     ir_assert(utils::one_of(mask, 0, 1, 3));
                     view = po_vm_.create_view(
                             type_t::f32(), (mask) ? 1 << 1 : 0);
-                    wei_scales = add_input_tensor(
-                            view, buf, post_load_op_kind_t::none);
+                    wei_scales = add_input_tensor(view, buf);
+                    wei_scales_mask = mask;
                     break;
                 case DNNL_ARG_DST: // Invert dst scales right after load.
                     ir_assert(mask == 0);
                     view = po_vm_.create_view(type_t::f32(), mask);
-                    dst_scales = add_input_tensor(
-                            view, buf, post_load_op_kind_t::inv);
+                    dst_scales = add_input_tensor(view, buf);
                     break;
             }
+        }
+        // Use virtual tensors for scalar scales airthmetic:
+        // - For src/wei scales: pre-multiply them to avoid extra multiplications
+        // - For dst scales: compute inverse right after load
+        if ((!is_one(src_scales) || !is_one(wei_scales))
+                && utils::everyone_is(0, src_scales_mask, wei_scales_mask)) {
+            src_wei_scales = add_tensor(/*is_input=*/false,
+                    /*is_output=*/false, po_vm_.create_view(type_t::f32(), 0),
+                    expr_t(), var_t::make(type_t::f32(), "src_wei_scales"),
+                    src_scales * wei_scales);
+            src_scales = expr_t(1.0f);
+            wei_scales = expr_t(1.0f);
+        }
+        if (!is_one(dst_scales)) {
+            inv_dst_scales = add_tensor(/*is_input=*/false,
+                    /*is_output=*/false, po_vm_.create_view(type_t::f32(), 0),
+                    expr_t(), var_t::make(type_t::f32(), "inv_dst_scales"),
+                    expr_t(1.0f) / dst_scales);
+            dst_scales = expr_t(1.0f);
         }
     }
 
@@ -89,7 +111,10 @@ post_op_context_t::post_op_context_t(const primitive_attr_t &attr,
     }
 
     // Handle input and weights scales.
-    if (!is_one(src_scales) || !is_one(wei_scales)) {
+    if (!is_one(src_wei_scales)) {
+        auto c_scaled = c * src_wei_scales;
+        post_ops_.emplace_back(c, c_scaled);
+    } else if (!is_one(src_scales) || !is_one(dst_scales)) {
         auto c_scaled = c * src_scales * wei_scales;
         post_ops_.emplace_back(c, c_scaled);
     }
@@ -139,8 +164,8 @@ post_op_context_t::post_op_context_t(const primitive_attr_t &attr,
     }
 
     // Handle dst scale.
-    if (!is_one(dst_scales)) {
-        auto c_scaled = c * dst_scales;
+    if (!is_one(inv_dst_scales)) {
+        auto c_scaled = c * inv_dst_scales;
         post_ops_.emplace_back(c, c_scaled);
     }
 
