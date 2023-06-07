@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,18 +33,24 @@ void print_verbose_header(engine_kind_t kind) {
         factory.engine_create(&eng_ptr, i);
         std::unique_ptr<sycl_engine_base_t, engine_deleter_t> eng;
         eng.reset(utils::downcast<sycl_engine_base_t *>(eng_ptr));
-        auto *dev_info = eng ? eng->device_info() : nullptr;
+        try {
+            auto *dev_info = eng ? eng->device_info() : nullptr;
 
-        auto s_engine_kind = (kind == engine_kind::cpu ? "cpu" : "gpu");
-        auto s_backend = eng ? to_string(eng->backend()) : "unknown";
-        auto s_name = dev_info ? dev_info->name() : "unknown";
-        auto s_ver = dev_info ? dev_info->runtime_version().str() : "unknown";
+            auto s_engine_kind = (kind == engine_kind::cpu ? "cpu" : "gpu");
+            auto s_backend = eng ? to_string(eng->backend()) : "unknown";
+            auto s_name = dev_info ? dev_info->name() : "unknown";
+            auto s_ver
+                    = dev_info ? dev_info->runtime_version().str() : "unknown";
 
-        printf("onednn_verbose,info,%s,engine,%d,backend:%s,name:%s,driver_"
-               "version:%s,binary_kernels:%s\n",
-                s_engine_kind, (int)i, s_backend.c_str(), s_name.c_str(),
-                s_ver.c_str(),
-                dev_info->mayiuse_ngen_kernels() ? "enabled" : "disabled");
+            printf("onednn_verbose,info,%s,engine,%d,backend:%s,name:%s,driver_"
+                   "version:%s,binary_kernels:%s\n",
+                    s_engine_kind, (int)i, s_backend.c_str(), s_name.c_str(),
+                    s_ver.c_str(),
+                    dev_info->mayiuse_ngen_kernels() ? "enabled" : "disabled");
+        } catch (...) {
+            VERROR(dpcpp, VERBOSE_INVALID_DEVICE_ENV,
+                    dnnl_engine_kind2str(engine_kind::gpu), i);
+        }
     }
 }
 

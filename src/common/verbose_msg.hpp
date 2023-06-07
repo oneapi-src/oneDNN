@@ -33,6 +33,7 @@
 
 // verbose messages
 #define VERBOSE_PROFILING_UNSUPPORTED "profiling capabilities are not supported"
+#define VERBOSE_INVALID_DEVICE_ENV "invalid %s device in environment: index %zu"
 #define VERBOSE_INVALID_ENGINE_KIND "no %s device is available"
 #define VERBOSE_INVALID_ENGINE_IDX \
     "%zu %s devices are available but %zu was queried"

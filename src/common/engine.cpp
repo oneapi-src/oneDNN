@@ -84,14 +84,21 @@ status_t dnnl_engine_create(
     using namespace dnnl::impl;
     if (engine == nullptr) return invalid_arguments;
 
-    auto ef = get_engine_factory(kind, get_default_runtime(kind));
-    VCONDCHECK(create, check, engine, ef != nullptr, invalid_arguments,
-            VERBOSE_INVALID_ENGINE_KIND, dnnl_engine_kind2str(kind));
-    VCONDCHECK(create, check, engine, index < ef->count(), invalid_arguments,
-            VERBOSE_INVALID_ENGINE_IDX, ef->count(), dnnl_engine_kind2str(kind),
-            index);
+    // engine_factory creation can fail with an exception
+    try {
+        auto ef = get_engine_factory(kind, get_default_runtime(kind));
+        VCONDCHECK(create, check, engine, ef != nullptr, invalid_arguments,
+                VERBOSE_INVALID_ENGINE_KIND, dnnl_engine_kind2str(kind));
+        VCONDCHECK(create, check, engine, index < ef->count(),
+                invalid_arguments, VERBOSE_INVALID_ENGINE_IDX, ef->count(),
+                dnnl_engine_kind2str(kind), index);
 
-    return ef->engine_create(engine, index);
+        return ef->engine_create(engine, index);
+    } catch (...) {
+        VERROR(runtime, VERBOSE_INVALID_DEVICE_ENV, dnnl_engine_kind2str(kind),
+                index);
+        return runtime_error;
+    }
 }
 
 status_t dnnl_engine_get_kind(engine_t *engine, engine_kind_t *kind) {

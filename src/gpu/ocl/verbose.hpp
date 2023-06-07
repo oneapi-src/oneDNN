@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,15 +34,22 @@ void print_verbose_header() {
         factory.engine_create(&eng_ptr, i);
         std::unique_ptr<ocl_gpu_engine_t, engine_deleter_t> eng;
         eng.reset(utils::downcast<ocl_gpu_engine_t *>(eng_ptr));
-        auto *dev_info = eng ? eng->device_info() : nullptr;
+        try {
+            auto *dev_info = eng ? eng->device_info() : nullptr;
 
-        auto s_name = dev_info ? dev_info->name() : "unknown";
-        auto s_ver = dev_info ? dev_info->runtime_version().str() : "unknown";
+            auto s_name = dev_info ? dev_info->name() : "unknown";
+            auto s_ver
+                    = dev_info ? dev_info->runtime_version().str() : "unknown";
 
-        printf("onednn_verbose,info,gpu,engine,%d,name:%s,driver_version:%s,"
-               "binary_kernels:%s\n",
-                (int)i, s_name.c_str(), s_ver.c_str(),
-                dev_info->mayiuse_ngen_kernels() ? "enabled" : "disabled");
+            printf("onednn_verbose,info,gpu,engine,%d,name:%s,driver_version:%"
+                   "s,"
+                   "binary_kernels:%s\n",
+                    (int)i, s_name.c_str(), s_ver.c_str(),
+                    dev_info->mayiuse_ngen_kernels() ? "enabled" : "disabled");
+        } catch (...) {
+            VERROR(ocl, VERBOSE_INVALID_DEVICE_ENV,
+                    dnnl_engine_kind2str(engine_kind::gpu), i);
+        }
     }
 }
 
