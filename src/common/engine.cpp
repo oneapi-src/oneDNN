@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,7 +85,11 @@ status_t dnnl_engine_create(
     if (engine == nullptr) return invalid_arguments;
 
     auto ef = get_engine_factory(kind, get_default_runtime(kind));
-    if (ef == nullptr || index >= ef->count()) return invalid_arguments;
+    VCONDCHECK(create, check, engine, ef != nullptr, invalid_arguments,
+            VERBOSE_INVALID_ENGINE_KIND, dnnl_engine_kind2str(kind));
+    VCONDCHECK(create, check, engine, index < ef->count(), invalid_arguments,
+            VERBOSE_INVALID_ENGINE_IDX, ef->count(), dnnl_engine_kind2str(kind),
+            index);
 
     return ef->engine_create(engine, index);
 }
