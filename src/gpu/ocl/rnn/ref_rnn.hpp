@@ -164,10 +164,10 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         std::shared_ptr<primitive_desc_t> gemm_diff_wei_iter_2_pd_;
 
     private:
-        void init_scratchpad(size_t scratchpad_sz) {
+        void init_scratchpad(size_t workspace_size) {
             using namespace memory_tracking::names;
             auto scratchpad = this->scratchpad_registry().registrar();
-            scratchpad.book(key_rnn_space, scratchpad_sz, 1,
+            scratchpad.book(key_rnn_space, workspace_size, 1,
                     OCL_BUFFER_ALIGNMENT, 4096);
             scratchpad.book(key_rnn_gates, rnn_conf.scratch_gates_size, 1,
                     OCL_BUFFER_ALIGNMENT, 4096);
@@ -347,10 +347,6 @@ private:
     cl_ulong ws_c_states_offset_;
     cl_ulong ws_grid_comp_offset_;
     cl_ulong ws_bias_offset_;
-    cl_ulong scratch_dhG1_offset_;
-    cl_ulong scratch_cell_offset_;
-    cl_ulong scratch_gates_offset_;
-    cl_ulong scratch_diff_states_offset_;
 
     // ptrs for storing weight offsets which are pre-calculated in
     // in grid execution as weights_*_assing_func

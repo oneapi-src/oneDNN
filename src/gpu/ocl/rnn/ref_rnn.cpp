@@ -176,12 +176,9 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
             gpu::set_offsets(diff_dst_iter_c_d, off.diff_dst_iter_c_off);
     }
 
-    rnn_utils::set_offsets(rnn, conf.ws_gates_offset, conf.ws_states_offset,
-            conf.ws_c_state_offset, conf.ws_grid_comp_offset,
-            conf.ws_bias_offset, conf.scratch_diff_states_offset,
-            conf.scratch_cell_offset, conf.scratch_dhG1_offset,
-            conf.scratch_gates_offset, conf.scratchpad_size,
-            conf.workspace_size);
+    rnn_utils::set_workspace_offsets(rnn, conf.ws_gates_offset,
+            conf.ws_states_offset, conf.ws_c_state_offset,
+            conf.ws_grid_comp_offset, conf.ws_bias_offset);
 
     conf.cell_kind = rnn_pd->cell_kind();
     conf.activation_kind = rnn_pd->activation_kind();
@@ -571,12 +568,11 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
             this->weights_md(1), this->diff_weights_md(0),
             this->diff_weights_md(1));
 
-    size_t scratchpad_sz {0}, ws_sz {0};
-    get_scratchpad_and_workspace_sizes(rnn_conf, scratchpad_sz, ws_sz);
+    size_t workspace_size = get_workspace_size(rnn_conf);
 
     // initialize the workspace_pd if needed
     if (rnn_conf.use_workspace) {
-        dims_t ws_dims = {(dim_t)ws_sz};
+        dims_t ws_dims = {(dim_t)workspace_size};
         CHECK(memory_desc_init_by_tag(
                 this->ws_md_, 1, ws_dims, data_type::u8, x));
     }
@@ -702,7 +698,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
         default: assert(!"unknown prop_kind"); return status::invalid_arguments;
     }
 
-    init_scratchpad(scratchpad_sz);
+    init_scratchpad(rnn_conf.use_workspace ? 0 : workspace_size);
     return status::success;
 }
 
@@ -742,12 +738,9 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
 
     grid_computation = &class_name::linear_execution;
 
-    size_t scratchpad_size, workspace_size;
-    rnn_utils::set_offsets(pd()->rnn_conf, ws_gates_offset_, ws_states_offset_,
-            ws_c_states_offset_, ws_grid_comp_offset_, ws_bias_offset_,
-            scratch_diff_states_offset_, scratch_cell_offset_,
-            scratch_dhG1_offset_, scratch_gates_offset_, scratchpad_size,
-            workspace_size);
+    rnn_utils::set_workspace_offsets(pd()->rnn_conf, ws_gates_offset_,
+            ws_states_offset_, ws_c_states_offset_, ws_grid_comp_offset_,
+            ws_bias_offset_);
     int max_nparts = (pd()->cell_kind() == alg_kind::vanilla_gru) ? 2 : 1;
     int wei_offsets_iter_sz = pd()->L() * pd()->D() * max_nparts;
     int wei_offsets_layer_sz = pd()->L() * pd()->D();
@@ -891,10 +884,6 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
     bool is_vanilla_gru = this->pd()->rnn_conf.is_vanilla_gru;
     bool is_training = !this->pd()->rnn_conf.is_fwd;
 
-    memory_t *workspace = (aprop == prop_kind::forward)
-            ? ctx.output(DNNL_ARG_WORKSPACE)
-            : ctx.input(DNNL_ARG_WORKSPACE);
-
     memory_t *weights {nullptr};
 
     // These memory storages provide a mechanism to reuse existing memory
@@ -902,7 +891,7 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
     std::unique_ptr<memory_storage_t> gemm_A_;
     std::unique_ptr<memory_storage_t> gemm_B_;
     std::unique_ptr<memory_storage_t> gemm_C_;
-    std::unique_ptr<memory_storage_t> scratchpad;
+    std::unique_ptr<memory_storage_t> workspace;
     std::unique_ptr<memory_storage_t> scratchpad_gates;
     std::unique_ptr<memory_storage_t> scratchpad_cell;
     std::unique_ptr<memory_storage_t> scratchpad_dhG1;
@@ -912,9 +901,13 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
             = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_gates);
 
     if (pd()->rnn_conf.use_workspace) {
-        scratchpad = workspace->memory_storage()->clone();
+        workspace = ((aprop == prop_kind::forward)
+                        ? ctx.output(DNNL_ARG_WORKSPACE)
+                        : ctx.input(DNNL_ARG_WORKSPACE))
+                            ->memory_storage()
+                            ->clone();
     } else {
-        scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
+        workspace = ctx.get_scratchpad_grantor().get_memory_storage(
                 key_rnn_space);
     }
 
@@ -941,7 +934,7 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
                     ? ctx.input(DNNL_ARG_WEIGHTS_LAYER)
                     : ctx.input(DNNL_ARG_WEIGHTS_ITER);
             gemm_A_ = weights->memory_storage()->clone();
-            gemm_B_ = scratchpad->clone();
+            gemm_B_ = workspace->clone();
             if (is_lbr && gemm_kind == gemm_iter_fwd) {
                 gemm_C_ = scratchpad_cell->clone();
             } else {
@@ -973,7 +966,7 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
             } else {
                 gemm_A_ = scratchpad_gates->clone();
             }
-            gemm_B_ = scratchpad->clone();
+            gemm_B_ = workspace->clone();
             gemm_C_ = weights->memory_storage()->clone();
             break;
         case gemm_diff_wei_iter_2:
@@ -1420,12 +1413,12 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     auto &diff_dst_iter_native_ = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST_ITER);
     auto &diff_dst_iter_c_native_ = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST_ITER_C);
 
-    auto scratchpad
+    auto scratch_workspace
             = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_space);
     auto &workspace_ = rnn.is_training ? is_fwd
                     ? CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE)
                     : CTX_IN_STORAGE(DNNL_ARG_WORKSPACE)
-                                       : *scratchpad;
+                                       : *scratch_workspace;
     auto workspace = workspace_t(workspace_, pd()->conf, pd()->rnn_conf);
 
     auto scratchpad_gates
