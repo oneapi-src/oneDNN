@@ -239,24 +239,23 @@ void logical_tensor_t::internal_update() {
     if (strides_.empty()) {
         strides_ = compute_dense_stride(dims_);
     } else {
-        COMPILE_ASSERT(check_stride_validity(is_dynamic_, dims_, strides_),
+        COMPILE_ASSERT(check_stride_validity(is_dynamic(), dims_, strides_),
                 "Specified strides value invalid or not consistent with "
                 "real(blocking) dims.")
     }
 }
 
-void logical_tensor_t::dynamic_update() {
-    is_dynamic_ = !std::all_of(plain_dims_.begin(), plain_dims_.end(),
+bool logical_tensor_t::is_dynamic() const {
+    return !std::all_of(plain_dims_.begin(), plain_dims_.end(),
             [](const sc_dim &dim) { return !is_dynamic_dim(dim); });
 }
 
 // sets the logical dims in plain format
 void logical_tensor_t::set_plain_dims(const sc_dims &plain_dims) {
-    COMPILE_ASSERT(is_dynamic_ || is_dense(),
+    COMPILE_ASSERT(is_dynamic() || is_dense(),
             "Forbid update format on a strided tensor.");
     strides_.clear();
     plain_dims_ = plain_dims;
-    dynamic_update();
     internal_update();
 }
 
@@ -278,7 +277,7 @@ void logical_tensor_t::set_format(const sc_data_format_t &newv) {
 }
 
 void logical_tensor_t::set_strides(const sc_dims &strides) {
-    COMPILE_ASSERT(check_stride_validity(is_dynamic_, dims_, strides),
+    COMPILE_ASSERT(check_stride_validity(is_dynamic(), dims_, strides),
             "Specified strides value invalid or not consistent with "
             "real(blocking) dims.")
     strides_ = strides;
@@ -320,7 +319,7 @@ size_t logical_tensor_t::get_blocking_byte_size() const {
 
 bool logical_tensor_t::is_dense() {
     if (strides_.empty()) { return true; }
-    if (is_dynamic_) { return true; }
+    if (is_dynamic()) { return true; }
     assert(strides_.size() == dims_.size());
     if (strides_.back() != 1) { return false; }
     for (int i = dims_.size() - 2; i >= 0; --i) {
@@ -330,8 +329,8 @@ bool logical_tensor_t::is_dense() {
 }
 
 std::vector<expr> logical_tensor_t::get_strides_expr(sc_graph_t &g) const {
-    return is_dynamic_ ? dims_to_dense_stride(get_blocking_dims_expr(g))
-                       : g.dims_to_expr(get_strides());
+    return is_dynamic() ? dims_to_dense_stride(get_blocking_dims_expr(g))
+                        : g.dims_to_expr(get_strides());
 }
 
 sc_dims logical_tensor_t::compute_dense_stride(const sc_dims &dims) {
@@ -350,7 +349,6 @@ void logical_tensor_t::to_string(std::ostream &os) {
 size_t logical_tensor_t::hash() const {
     size_t seed = 0;
     hash_combine(seed, static_cast<uint64_t>(dtype_));
-    hash_combine(seed, static_cast<uint64_t>(is_dynamic_));
     hash_combine(seed, plain_dims_);
     hash_combine(seed, dims_);
     hash_combine(seed, strides_);
