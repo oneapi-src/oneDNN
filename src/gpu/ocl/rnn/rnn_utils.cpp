@@ -307,12 +307,10 @@ int rnn_utils::get_good_ld(int arch_ld, int dim, int sizeof_dt) {
     return (ld % 256 == 0) ? ld + arch_ld / sizeof_dt : ld;
 }
 
-void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
-        size_t &ws_states_offset, size_t &ws_c_states_offset,
-        size_t &ws_grid_comp_offset, size_t &ws_bias_offset,
-        size_t &scratch_diff_states_offset, size_t &scratch_cell_offset,
-        size_t &scratch_dhG1_offset, size_t &scratch_gates_offset,
-        size_t &scratchpad_size, size_t &workspace_size) {
+size_t rnn_utils::set_workspace_offsets(const conf_t &rnn,
+        size_t &ws_gates_offset, size_t &ws_states_offset,
+        size_t &ws_c_states_offset, size_t &ws_grid_comp_offset,
+        size_t &ws_bias_offset) {
 
     const size_t page_size = 4096;
     size_t current_offset = 0;
@@ -331,35 +329,16 @@ void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
     register_space(ws_c_states);
     register_space(ws_grid_comp);
 
-    workspace_size = rnn.use_workspace ? current_offset : 0;
-
-    // Optional scratchpads
-    // Assumes the scratchpad base pointer is page aligned.
-    // If use_workspace, the following goes to scratchpad alone,
-    // otherwise, all goes to scratchpad and continue incrementing offset
-    current_offset = rnn.use_workspace ? 0 : current_offset;
-
-    register_space(scratch_gates);
-    register_space(scratch_cell);
-    register_space(scratch_diff_states);
-    register_space(scratch_dhG1);
-
     ws_bias_offset = 0;
     if (rnn.copy_bias) { register_space(ws_bias); }
-
-    scratchpad_size = current_offset;
+    return current_offset;
 }
 
-void rnn_utils::get_scratchpad_and_workspace_sizes(
-        const conf_t &rnn, size_t &scratchpad_size, size_t &workspace_size) {
+size_t rnn_utils::get_workspace_size(const conf_t &rnn) {
     size_t ws_gates_offset, ws_states_offset, ws_c_states_offset,
-            scratch_diff_states_offset, ws_grid_comp_offset,
-            scratch_cell_offset, scratch_dhG1_offset, ws_bias_offset,
-            sratch_gates_offset;
-    set_offsets(rnn, ws_gates_offset, ws_states_offset, ws_c_states_offset,
-            ws_grid_comp_offset, ws_bias_offset, scratch_diff_states_offset,
-            scratch_cell_offset, scratch_dhG1_offset, sratch_gates_offset,
-            scratchpad_size, workspace_size);
+            ws_grid_comp_offset, ws_bias_offset;
+    return set_workspace_offsets(rnn, ws_gates_offset, ws_states_offset,
+            ws_c_states_offset, ws_grid_comp_offset, ws_bias_offset);
 }
 
 void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, int dir, int lay,

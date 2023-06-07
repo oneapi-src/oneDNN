@@ -215,12 +215,9 @@ void set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &weights_iter_d,
         const memory_desc_wrapper &diff_weights_layer_d,
         const memory_desc_wrapper &diff_weights_iter_d);
-void set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
+size_t set_workspace_offsets(const conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_h_state_offset, size_t &ws_c_state_offset,
-        size_t &ws_grid_comp_offset, size_t &ws_bias_offset,
-        size_t &scratch_diff_states_offset, size_t &scratch_cell_offset,
-        size_t &scratch_dhG1_offset, size_t &scratch_gates_offset,
-        size_t &scratchpad_size, size_t &workspace_size);
+        size_t &ws_grid_comp_onfset, size_t &ws_bias_offset);
 void set_gru_offsets_part2(const conf_t &rnn, int iter, int dir, int lay,
         data_type_t src_t, size_t *wei_iter_off_ptr,
         const size_t &ws_states_offset_, size_t &cell_wei_iter_offset,
@@ -244,8 +241,7 @@ void set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir, int lay,
 void set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir, int lay,
         size_t &cell_diff_wei_iter_off, size_t &cell_diff_wei_lay_off,
         size_t &cell_scr_diff_lay_off);
-void get_scratchpad_and_workspace_sizes(
-        const conf_t &rnn, size_t &scratchpad_size, size_t &workspace_size);
+size_t get_workspace_size(const conf_t &rnn);
 status_t set_expected_desc(
         conf_t &rnn, memory_desc_t &weights_md, bool is_iter);
 status_t set_good_strides(int ld_, memory_desc_t &weights_md, format_tag_t tag);
