@@ -92,12 +92,14 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
                 conf.global_pool_spatial_chunk);
         conf.sub_group_size = compute_engine->device_info()->max_subgroup_size(
                 src_mdw.data_type());
-        if (conf.c % conf.sub_group_size != 0) return status::unimplemented;
+        if (conf.c % conf.sub_group_size != 0) conf.vectorize = false;
         if ((src_mdw.blocking_desc().strides[1] != 1) || !src_mdw.is_plain()
                 || (dst_mdw.blocking_desc().strides[1] != 1)
                 || !dst_mdw.is_plain())
-            return status::unimplemented;
-        CHECK(conf.dispatch.vectorize_dim("C", conf.sub_group_size));
+            conf.vectorize = false;
+        if (conf.vectorize) {
+            CHECK(conf.dispatch.vectorize_dim("C", conf.sub_group_size));
+        }
     }
     conf.dispatch.generate();
 
@@ -123,6 +125,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("IS_TRAINING", conf.is_training);
     kernel_ctx.define_int("IS_BWD", conf.is_backward);
     kernel_ctx.define_int("IS_FWD", !conf.is_backward);
+    kernel_ctx.define_int("IS_VECTORIZED", conf.vectorize);
 
     kernel_ctx.define_int("ALG_MAX", (conf.alg == pooling_max));
     kernel_ctx.define_int(

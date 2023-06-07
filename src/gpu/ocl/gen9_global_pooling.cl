@@ -93,7 +93,11 @@ KERNEL_ATTR
 __kernel void gen9_global_pooling_bwd(__global DATA_T *diff_src,
         __global int *ws, __global DATA_T *diff_dst) {
     const int mb = GWS_GET_MB();
+#if IS_VECTORIZED
     const int c = GWS_GET_C() + get_sub_group_local_id();
+#else
+    const int c = GWS_GET_C();
+#endif
     const int spatial = GWS_GET_SPATIAL();
 
     const bool is_in_padded_area = NEED_ZERO_PADDING && (mb >= MB || c >= C);
@@ -126,7 +130,11 @@ __kernel void gen9_global_pooling_bwd(__global DATA_T *diff_src,
 #endif // ALG_MAX
         }
         const int src_off = SRC_OFF(mb, GWS_GET_C(), id, ih, iw);
+#if IS_VECTORIZED
         DST_BLOCK_WRITE(&diff_src[src_off], val_to_write);
+#else
+        diff_src[src_off] = val_to_write;
+#endif
     }
 }
 #endif // IS_BWD
