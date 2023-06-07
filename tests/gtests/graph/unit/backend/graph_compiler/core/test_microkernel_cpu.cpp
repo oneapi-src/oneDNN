@@ -364,3 +364,30 @@ TEST(GCCore_CPU_microkernel_cpu_cpp, TestBrgemmOnednnRange) {
         EXPECT_TRUE(std::abs(qC_list[i] - refC[i]) < 1e-4);
     }
 }
+
+template <typename dtype>
+static bool check_brgemm_init(const int &M, const int &LDC, const int M1) {
+    const int buf_size = M * LDC;
+    const int N = LDC / 2;
+    auto buf = alloc_array<dtype>(buf_size);
+    auto ref = buf.copy();
+    for (int i = 0; i < M1; ++i) {
+        for (int j = 0; j < N; ++j) {
+            auto idx = i * LDC + j;
+            ref[idx] = (dtype)0;
+        }
+    }
+
+    auto sc_dtype = sc_data_traits_t<dtype>::type();
+    dnnl_brgemm_init(&buf[0], M1, N, LDC, sc_dtype, 0);
+
+    return (memcmp(&buf[0], &ref[0], M * LDC * sizeof(dtype)) == 0);
+}
+
+TEST(GCCore_CPU_microkernel_cpu_cpp, TestBRGEMMInit) {
+    const int M = 16;
+    const int LDC = 64;
+    EXPECT_TRUE(check_brgemm_init<int8_t>(M, LDC, 3));
+    EXPECT_TRUE(check_brgemm_init<bf16_t>(M, LDC, 5));
+    EXPECT_TRUE(check_brgemm_init<float>(M, LDC, 6));
+}

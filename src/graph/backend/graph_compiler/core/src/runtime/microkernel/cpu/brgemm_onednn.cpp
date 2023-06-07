@@ -880,9 +880,11 @@ SC_API void dnnl_brgemm_list_call_postops(brgemm_kernel_info *brg_desc,
     if (!amx_exclusive && brg_desc->is_amx_) { amx_tile_release(); }
 }
 
+SC_API int dnnl_brgemm_init(
+        void *C, int M, int N, int LDC, int dtypeC, float value) {
 #define BRGEMM_DTYPE_INIT(dtype) \
     if (LDC == N) { \
-        memset(C, (dtype)value, M *N *get_dtype_sizeof(dtypeC)); \
+        memset(C, (dtype)value, M *N *dtype_size); \
     } else { \
         for (int i = 0; i < M; ++i) { \
             for (int j = 0; j < N; ++j) { \
@@ -890,15 +892,16 @@ SC_API void dnnl_brgemm_list_call_postops(brgemm_kernel_info *brg_desc,
             } \
         } \
     }
-
-SC_API int dnnl_brgemm_init(
-        void *C, int M, int N, int LDC, int dtypeC, float value) {
-    if (get_dtype_sizeof(dtypeC) == 1) {
+    auto dtype_size = get_dtype_sizeof(dtypeC);
+    if (dtype_size == 1) {
         BRGEMM_DTYPE_INIT(uint8_t);
+    } else if (dtype_size == 2) {
+        BRGEMM_DTYPE_INIT(uint16_t);
     } else {
         BRGEMM_DTYPE_INIT(int32_t);
     }
     return 0;
+#undef BRGEMM_DTYPE_INIT
 }
 
 SC_API int dnnl_brgemm_init_update(const void *A, const void *B, void *C,
