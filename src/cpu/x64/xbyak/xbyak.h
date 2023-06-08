@@ -68,7 +68,7 @@
 #endif
 
 // for debug trace in GCC
-#if !defined(NDEBUG) && defined(__GNUC__)
+#if !defined(NDEBUG) && defined(__GNUC__) && !(defined(__ANDROID__) || defined(ANDROID))
 #include <execinfo.h>
 #include <map>
 #include <sstream>
@@ -2753,7 +2753,7 @@ public:
 		opModRM(*p1, *p2, (p1->isREG() && p2->isREG() && (p1->getBit() == p2->getBit())), p2->isMEM(), 0x86 | (p1->isBit(8) ? 0 : 1));
 	}
 
-#if !defined(NDEBUG) && defined(__GNUC__)
+#if !defined(NDEBUG) && defined(__GNUC__) && !(defined(__ANDROID__) || defined(ANDROID))
 	std::map<size_t, std::string> debug_traces;
 	void debug_trace() {
 		static bool enable_trace = std::getenv("ONEDNN_JIT_DUMP") && atoi(std::getenv("ONEDNN_JIT_DUMP")) != 0;
