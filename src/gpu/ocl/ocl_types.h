@@ -640,6 +640,10 @@
 #define SRC_TO_REF(x) cvt_bf16_to_f32(x)
 #define SRC_TO_REF8(x) cvt_bf16_to_f32(x)
 #define REF_TO_SRC(x) cvt_f32_to_bf16(x)
+#elif SRC_DT_F16
+#define SRC_TO_REF(x) convert_float(x)
+#define SRC_TO_REF8(x) convert_float8(x)
+#define REF_TO_SRC(x) convert_half(x)
 #else
 #define SRC_TO_REF(x) (x)
 #define SRC_TO_REF8(x) (x)

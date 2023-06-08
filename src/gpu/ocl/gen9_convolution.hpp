@@ -151,6 +151,7 @@ struct gen9_convolution_bwd_data_t : public gpu_primitive_t {
             assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
+            auto diff_src_data_t = this->desc()->diff_src_desc.data_type;
 
             bool ok = set_default_alg_kind(alg_kind::convolution_direct)
                     && this->desc()->prop_kind == backward_data
@@ -168,6 +169,12 @@ struct gen9_convolution_bwd_data_t : public gpu_primitive_t {
                                     && this->desc()->diff_dst_desc.data_type
                                             == f16,
                             this->desc()->bias_desc.data_type == f16)
+                    && IMPLICATION(diff_src_data_t == f16,
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp16)
+                                    && compute_engine->mayiuse(
+                                            compute::device_ext_t::
+                                                    intel_subgroups_short))
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups)
                     && !has_zero_dim_memory() && attr()->has_default_values();
@@ -237,6 +244,8 @@ struct gen9_convolution_bwd_weights_t : public gpu_primitive_t {
             assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
+            auto src_data_t = this->desc()->src_desc.data_type;
+            auto diff_dst_data_t = this->desc()->diff_dst_desc.data_type;
 
             bool ok = set_default_alg_kind(alg_kind::convolution_direct)
                     && this->desc()->prop_kind == backward_weights
@@ -249,7 +258,15 @@ struct gen9_convolution_bwd_weights_t : public gpu_primitive_t {
                             compute::device_ext_t::intel_subgroups)
                     && compute_engine->mayiuse(
                             compute::device_ext_t::khr_int64_base_atomics)
-                    && !has_zero_dim_memory() && attr()->has_default_values();
+                    && !has_zero_dim_memory() && attr()->has_default_values()
+                    && IMPLICATION(src_data_t == f16 || diff_dst_data_t == f16,
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp16)
+                                    && compute_engine->mayiuse(
+                                            compute::device_ext_t::
+                                                    intel_subgroups_short))
+                    && IMPLICATION(this->with_bias() && diff_dst_data_t == f16,
+                            this->desc()->bias_desc.data_type == f16);
             if (!ok) return status::unimplemented;
 
             CHECK(init_conf(engine));
@@ -259,7 +276,12 @@ struct gen9_convolution_bwd_weights_t : public gpu_primitive_t {
             if (!IMPLICATION(utils::one_of(bf16,
                                      this->desc()->diff_weights_desc.data_type,
                                      this->desc()->src_desc.data_type,
-                                     this->desc()->diff_dst_desc.data_type),
+                                     this->desc()->diff_dst_desc.data_type)
+                                || utils::one_of(f16,
+                                        this->desc()
+                                                ->diff_weights_desc.data_type,
+                                        this->desc()->src_desc.data_type,
+                                        this->desc()->diff_dst_desc.data_type),
                         conf.ver == ver_1stconv))
                 return status::unimplemented;
 

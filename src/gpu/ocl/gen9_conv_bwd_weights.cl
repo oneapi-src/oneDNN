@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,6 +38,11 @@
     as_ushort(intel_sub_group_block_read_us((__global ushort *)ptr))
 #define BLOCK_READ_DST8(ptr) \
     as_ushort8(intel_sub_group_block_read_us8((__global ushort *)ptr))
+#elif DST_DT_F16
+#define BLOCK_READ_DST(ptr) \
+    as_half(intel_sub_group_block_read_us((__global ushort *)ptr))
+#define BLOCK_READ_DST8(ptr) \
+    as_half8(intel_sub_group_block_read_us8((__global ushort *)ptr))
 #endif
 
 #if BWD_WEIGHTS == 1

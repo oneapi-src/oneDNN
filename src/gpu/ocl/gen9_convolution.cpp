@@ -970,7 +970,8 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_conf(engine_t *engine) {
             conf.src_tag, conf.wei_tag, conf.dst_tag);
     if (!ok) return status::unimplemented;
     if (is_1stconv && !is_nhwc) {
-        if (data_type::bf16 == conf.weights_data_type) {
+        if (utils::one_of(
+                    conf.weights_data_type, data_type::bf16, data_type::f16)) {
             conf.reorder_wei = true;
             auto temp_wei_md = *diff_weights_md();
             temp_wei_md.data_type = data_type::f32;
@@ -982,7 +983,9 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_conf(engine_t *engine) {
                     diff_weights_md(), &r_attr));
         }
 
-        if (conf.with_bias && data_type::bf16 == conf.bias_data_type) {
+        if (conf.with_bias
+                && utils::one_of(
+                        conf.bias_data_type, data_type::bf16, data_type::f16)) {
             conf.reorder_bias = true;
             auto temp_bias_md = *diff_weights_md(1);
             temp_bias_md.data_type = data_type::f32;
