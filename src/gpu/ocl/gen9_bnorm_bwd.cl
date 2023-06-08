@@ -300,7 +300,7 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
     const float diff_beta = MAYBE_LAST_IC_LOAD_FLOAT_1x16(diff_shift, c);
 #else
     const float diff_beta = MAYBE_LAST_IC_LOAD_FLOAT_1x16(
-            diff_shift, IC + REDUCE_STAT_NBLOCKS * IC + c);
+            diff_shift, IC16 + REDUCE_STAT_NBLOCKS * IC16 + c);
 #endif // #if DIFF_SHIFT == 1
 #endif // #if CALCULATE_DIFF_STATS == 1
 
