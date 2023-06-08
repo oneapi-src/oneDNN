@@ -231,7 +231,7 @@ __kernel void gen9_reduce_stats(__global float *temp_reduce,
 #if DIFF_SHIFT == 1
             diff_shift[c] = diff_beta;
 #else
-            diff_shift[IC + IC * REDUCE_STAT_NBLOCKS + c] = diff_beta;
+            diff_shift[IC16 + IC16 * REDUCE_STAT_NBLOCKS + c] = diff_beta;
 #endif // #if DIFF_SHIFT == 1
         }
     }
