@@ -87,9 +87,9 @@ void unary_elementwise_op_impl_t::compute_block(context_ptr ctx,
     if (get_owner_graph().is_dynamic()) {
         use_mask &= info_.cur_impl_ != impl_kind_t::no_padding;
     }
-    compute_vectorized_op(get_owner_graph(), inputs, *dst[0], info_, vx_info_,
-            mask_compute_func_t(func), mask_compute_func_t(func), attrs_, wkld,
-            use_mask);
+    compute_vectorized_op(ctx, get_owner_graph(), inputs, *dst[0], info_,
+            vx_info_, mask_compute_func_t(func), mask_compute_func_t(func),
+            attrs_, wkld, use_mask);
 }
 
 void unary_elementwise_op_impl_t::prepare_fusion_data(fdata_map &fdmap) {

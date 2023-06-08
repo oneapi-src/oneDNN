@@ -622,11 +622,14 @@ shape_rl_vec select_op_t::get_dynamic_shape_relations() const {
     return ret;
 }
 
-void compute_block_select(const std::vector<const tensor_slice *> &src,
-        const tensor_slice &dst, sc_op_info_t &info, const int maxtensor_idx,
+void compute_block_select(const context_ptr &ctx,
+        const std::vector<const tensor_slice *> &src, const tensor_slice &dst,
+        sc_op_info_t &info, const int maxtensor_idx,
         const std::vector<std::vector<int>> &blocking_bc_axis,
         const vectorized_info_t &vx_info, const mask_compute_func_t &compute,
         sc_data_type_t dtype = datatypes::f32, size_t wkld = 0UL) {
+    bool use_vectorize = false;
+    vec_backend_require(ctx, use_vectorize);
     // nested loop vars
     std::vector<expr> iter_vars;
     // the indices for multiple inputs. First dim: the input, Second dim: the
@@ -678,7 +681,12 @@ void compute_block_select(const std::vector<const tensor_slice *> &src,
     // For empty bc_axis
     if (in_bc_idx_1.empty()) in_bc_idx_1 = {0};
     if (in_bc_idx_2.empty()) in_bc_idx_2 = {0};
-
+    std::vector<expr> in_idx_tail = in_idx, in_bc_idx_1_tail = in_bc_idx_1,
+                      in_bc_idx_2_tail = in_bc_idx_2, dst_idx_tail = dst_idx;
+    auto tail_var = builder::make_var(
+            datatypes::index, std::string("_fuseiter") + fusion_create_idx());
+    in_idx_tail[vx_info.axis] = tail_var;
+    dst_idx_tail[vx_info.axis] = tail_var;
     expr indexed_target;
     expr indexed_input;
     auto bld = builder::get_current_builder();
@@ -691,49 +699,46 @@ void compute_block_select(const std::vector<const tensor_slice *> &src,
     int tail_int = 0;
     if (floor.isa<constant>()) { floor_int = get_expr_as_int(floor); }
     if (tail.isa<constant>()) { tail_int = get_expr_as_int(tail); }
-    expr last_axis = slice_len;
     std::vector<stmt> tcur;
     stmt cur;
-
+    int vec_len = vx_info.lanes;
+    bool tail_threshold = tail.isa<constant>() && tail_int <= 1;
+    bool use_scalar = !use_vectorize || tail_threshold || lanes == 1;
+    auto find_bc_input_index = [&](bool tail_threshold,
+                                       tensor_slice const *in_bc_tsl,
+                                       std::vector<expr> const &in_bc_idx,
+                                       std::vector<int> &bc_axis,
+                                       expr &indexed_bc_input, expr &mask) {
+        // IF last dim is included in bc_axis_1.
+        if (bc_axis.back() == static_cast<int64_t>(vx_info.axis)) {
+            indexed_bc_input = builder::make_indexing(in_bc_tsl->tptr_,
+                    in_bc_idx, tail_threshold ? 1 : vx_info.lanes, mask);
+        }
+        // IF last dim is excluded in bc_axis_1.
+        else {
+            if (!tail_threshold) {
+                indexed_bc_input = builder::make_broadcast(
+                        builder::make_indexing(in_bc_tsl->tptr_, in_bc_idx),
+                        static_cast<int>(vx_info.lanes));
+            } else {
+                indexed_bc_input
+                        = builder::make_indexing(in_bc_tsl->tptr_, in_bc_idx);
+            }
+        }
+    };
     // recover schedule loop
     for (int i = static_cast<int>(dst.get_shape().size() - 1); i >= 0; i--) {
         stmt body;
         // move broadcast op to body
         if (static_cast<int>(dst.get_shape().size()) == vx_info.axis + 1
                 && i == vx_info.axis) {
-            if ((!floor.isa<constant>() || floor_int)
-                    || (!tail.isa<constant>() || tail_int)) {
-                int vec_len = vx_info.lanes;
-                stmt mask_def;
+            if ((!floor.isa<constant>() || floor_int)) {
                 expr mask;
                 bld->push_scope();
-                // In the dynamic scene, when the input shapes are blocking,
-                // there is no tail.
-                if ((!tail.isa<constant>() && !is_blocking_shape) || tail_int) {
-                    auto last_axis_offset
-                            = cast_to_s32(last_axis - iter_vars.at(i));
-                    // mask = min(max(0, last_dim_len -
-                    // last_dim_idx),real_step) To choose [0 ~
-                    // step] mask
-                    auto cur_step = builder::make_min(
-                            builder::make_max(builder::make_constant(0),
-                                    last_axis_offset),
-                            vec_len);
-                    auto cur_step_var = builder::make_var(
-                            sc_data_type_t::s32(1), "cur_step_var");
-                    auto cur_step_var_assign
-                            = builder::make_var_tensor_def_unattached(
-                                    cur_step_var, linkage::local, cur_step);
-                    bld->emit(cur_step_var_assign);
-                    // mask = other_dims_condition ? mask : 0;
-                    mask = generate_mask_var_by_step(
-                            mask_def, cur_step_var, vec_len);
-                    bld->emit(mask_def);
-                }
                 expr indexed_target = builder::make_indexing(
-                        dst.tptr_, dst_idx, vx_info.lanes, mask);
+                        dst.tptr_, dst_idx, vx_info.lanes);
                 expr indexed_input = builder::make_indexing(
-                        in_tsl->tptr_, in_idx, vx_info.lanes, mask);
+                        in_tsl->tptr_, in_idx, vx_info.lanes);
 
                 if (!in_tsl->tptr_->dtype_.get_pointer_element().is_etype(
                             out_etype)) {
@@ -744,32 +749,12 @@ void compute_block_select(const std::vector<const tensor_slice *> &src,
                 }
 
                 expr indexed_bc_input_1, indexed_bc_input_2;
-                // IF last dim is included in bc_axis_1.
-                if (bc_axis_1.back() == static_cast<int64_t>(vx_info.axis)) {
-                    indexed_bc_input_1
-                            = builder::make_indexing(in_bc_tsl_1->tptr_,
-                                    in_bc_idx_1, vx_info.lanes, mask);
-                }
-                // IF last dim is excluded in bc_axis_1.
-                else {
-                    indexed_bc_input_1 = builder::make_broadcast(
-                            builder::make_indexing(
-                                    in_bc_tsl_1->tptr_, in_bc_idx_1),
-                            static_cast<int>(vx_info.lanes));
-                }
-                // IF last dim is excluded in bc_axis_2.
-                if (bc_axis_2.back() == static_cast<int64_t>(vx_info.axis)) {
-                    indexed_bc_input_2
-                            = builder::make_indexing(in_bc_tsl_2->tptr_,
-                                    in_bc_idx_2, vx_info.lanes, mask);
-                }
-                // IF last dim is excluded in bc_axis_2.
-                else {
-                    indexed_bc_input_2 = builder::make_broadcast(
-                            builder::make_indexing(
-                                    in_bc_tsl_2->tptr_, in_bc_idx_2),
-                            static_cast<int>(vx_info.lanes));
-                }
+
+                find_bc_input_index(false, in_bc_tsl_1, in_bc_idx_1, bc_axis_1,
+                        indexed_bc_input_1, mask);
+                find_bc_input_index(false, in_bc_tsl_2, in_bc_idx_2, bc_axis_2,
+                        indexed_bc_input_2, mask);
+
                 std::vector<expr::lvalue_proxy_t> target_vec {
                         expr::lvalue_proxy_t(indexed_target, false)};
                 std::vector<expr> inputs(3);
@@ -788,8 +773,63 @@ void compute_block_select(const std::vector<const tensor_slice *> &src,
                         = wkld;
                 bld->emit(cur);
                 cur = make_stmt<for_loop_node_t>(iter_vars.at(i), expr(0),
-                        last_axis, expr(int(vx_info.lanes)), bld->pop_scope(),
+                        expr(floor), expr(int(vx_info.lanes)), bld->pop_scope(),
                         true, for_type::NORMAL);
+                tcur.emplace_back(cur);
+            }
+            if ((!tail.isa<constant>() && !is_blocking_shape) || tail_int) {
+                auto func_tail_var_pos = [&](std::vector<expr> &in_bc_idx,
+                                                 std::vector<int> &bc_axis,
+                                                 bool keep_dims,
+                                                 expr &tail_var) {
+                    auto res_it = std::find(
+                            bc_axis.begin(), bc_axis.end(), vx_info.axis);
+                    if (res_it != bc_axis.end()) {
+                        in_bc_idx[keep_dims ? vx_info.axis
+                                            : (res_it - bc_axis.begin())]
+                                = tail_var;
+                    }
+                };
+                func_tail_var_pos(
+                        in_bc_idx_1_tail, bc_axis_1, keep_dims_1, tail_var);
+                func_tail_var_pos(
+                        in_bc_idx_2_tail, bc_axis_2, keep_dims_2, tail_var);
+                expr mask;
+                if (!use_scalar) {
+                    mask = last_dim_generate_mask(
+                            tail_var, floor, slice_len, lanes, true);
+                }
+                expr indexed_bc_input_1_tail, indexed_bc_input_2_tail;
+                find_bc_input_index(use_scalar, in_bc_tsl_1, in_bc_idx_1_tail,
+                        bc_axis_1, indexed_bc_input_1_tail, mask);
+                find_bc_input_index(use_scalar, in_bc_tsl_2, in_bc_idx_2_tail,
+                        bc_axis_2, indexed_bc_input_2_tail, mask);
+
+                expr indexed_target_tail = builder::make_indexing(
+                        dst.tptr_, dst_idx_tail, use_scalar ? 1 : lanes, mask);
+                expr indexed_input_tail = builder::make_indexing(in_tsl->tptr_,
+                        in_idx_tail, use_scalar ? 1 : lanes, mask);
+                std::vector<expr::lvalue_proxy_t> target_vec_tail {
+                        expr::lvalue_proxy_t(indexed_target_tail, false)};
+                bld->push_scope();
+                std::vector<expr> inputs_tail(3);
+                if (maxtensor_idx == 0) {
+                    inputs_tail = {indexed_input_tail, indexed_bc_input_1_tail,
+                            indexed_bc_input_2_tail};
+                } else if (maxtensor_idx == 1) {
+                    inputs_tail = {indexed_bc_input_1_tail, indexed_input_tail,
+                            indexed_bc_input_2_tail};
+                } else {
+                    inputs_tail = {indexed_bc_input_1_tail,
+                            indexed_bc_input_2_tail, indexed_input_tail};
+                }
+                cur = compute(inputs_tail, target_vec_tail);
+                cur->attr()[op_traits::workload_computable_t::workload_number]
+                        = wkld;
+                bld->emit(cur);
+                cur = make_stmt<for_loop_node_t>(tail_var, expr(floor),
+                        slice_len, use_scalar ? expr(1) : lanes,
+                        bld->pop_scope(), true, for_type::NORMAL);
                 tcur.emplace_back(cur);
             }
         } else {
@@ -889,7 +929,7 @@ void select_op_t::compute_block(context_ptr ctx,
     for (size_t i = 0; i < info_.inputs_.size(); i++) {
         blocking_bc_axis[i] = get_bc_axis(maxtensor_idx, i);
     }
-    compute_block_select(inputs, *dst[0], info_, maxtensor_idx,
+    compute_block_select(ctx, inputs, *dst[0], info_, maxtensor_idx,
             blocking_bc_axis, vx_info_, mask_compute_func_t(func),
             info_.outputs_[0]->details_.dtype_, wkld);
 }

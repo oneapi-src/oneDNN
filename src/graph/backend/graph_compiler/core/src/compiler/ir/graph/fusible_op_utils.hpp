@@ -103,7 +103,7 @@ using fusion_compute_func_t = std::function<stmt(
         const std::vector<expr> &, std::vector<expr::lvalue_proxy_t> &)>;
 bool is_op_input_blocking_shape(const sc_op_info_t &info);
 
-void compute_vectorized_op(sc_graph_t &graph,
+void compute_vectorized_op(const context_ptr &ctx, sc_graph_t &graph,
         const std::vector<const tensor_slice *> &src, const tensor_slice &dst,
         sc_op_info_t &info, const vectorized_info_t &vx_info,
         const mask_compute_func_t &compute_lanes,
@@ -122,7 +122,11 @@ expr calculate_mask_cur_step(
 expr indexing_from_diff_cond(const bool is_last_dim_1, const bool has_tail,
         const tensor_slice &input, std::vector<expr> &input_idx,
         const int32_t lanes, expr &res_idx, const expr &axis_len,
-        const expr &iter_var);
+        const expr &iter_var, const expr &floor, bool just_tail_part = false);
+expr last_dim_generate_mask(const expr &iter_var, const expr &floor,
+        expr const &last_dim_len, int const &lanes,
+        bool just_tail_part = false);
+void vec_backend_require(const context_ptr &ctx, bool &use_vectorized);
 void compute_mask_and_generate_condition(sc_graph_t &graph,
         const std::vector<const tensor_slice *> &src, const sc_dims &plain_dims,
         sc_data_format_t format, const std::vector<expr> &iter_vars, int lanes,
@@ -160,14 +164,14 @@ bool is_dynamic_slice_range_list(const slice_range_list &in_slice_range_list);
 //         B[j, i] = A[i, j];
 //     }
 // }
-// TODO(xxx): currently we mark this penalty on op, we will add loop analysis
-// pass for tensor sequential access analysis in future
+// TODO(xxx): currently we mark this penalty on op, we will add loop
+// analysis pass for tensor sequential access analysis in future
 static constexpr size_t workload_penalty_coefficient = 16UL;
 
 float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops,
         bool check_use_full_threads = false);
-// return static loop parallelism coefficient to satisfy the parallelism and the
-// related condition expr.
+// return static loop parallelism coefficient to satisfy the parallelism and
+// the related condition expr.
 float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops,
         expr &cond, bool check_use_full_threads = false);
 expr cast_to_s32(const expr &in);

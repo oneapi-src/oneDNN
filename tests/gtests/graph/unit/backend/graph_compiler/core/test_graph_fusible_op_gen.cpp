@@ -81,6 +81,7 @@ TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorAdd) {
 TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorAdd2) {
     REQUIRE_PARALLEL();
     REQUIRE_AVX();
+    bool is_builtin = is_builtin_test_ctx();
     sc_graph_t mgr;
     auto ins = mgr.make_input(
             {graph_tensor::make({1030}), graph_tensor::make({1030})});
@@ -98,29 +99,39 @@ TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorAdd2) {
         auto ip0 = builder::tensor_ptr(in0, {0}, {}, true);
         auto ip1 = builder::tensor_ptr(in1, {0}, {}, true);
         auto iter = builder::make_var(datatypes::index, "iter");
-        auto last_axis_offset = builder::make_cast(datatypes::s32, expr(1030UL))
-                - builder::make_cast(datatypes::s32, (iter));
-        // mask = min(max(0, last_dim_len -
-        // last_dim_idx),real_step) To choose [0 ~
-        // step] mask
-        auto cur_step = builder::make_min(
-                builder::make_max(builder::make_constant(0), last_axis_offset),
-                simd_len);
+        auto iter1 = builder::make_var(datatypes::index, "iter1");
+        auto iter2 = builder::make_var(datatypes::index, "iter2");
 
-        auto loop = builder::make_for_loop_unattached(iter, 0, UINT64_C(1030),
+        auto mask = last_dim_generate_mask(
+                iter, expr(1024UL), 1030, simd_len, true);
+
+        auto loop = builder::make_for_loop_unattached(iter, 0, UINT64_C(1024),
                 simd_len,
                 builder::make_stmts_unattached({builder::make_assign_unattached(
-                        op[span_t({iter}, simd_len,
-                                generate_mask_by_step_directly(
-                                        cur_step, simd_len))],
-                        ip0[span_t({iter}, simd_len,
-                                generate_mask_by_step_directly(
-                                        cur_step, simd_len))]
-                                + ip1[span_t({iter}, simd_len,
-                                        generate_mask_by_step_directly(
-                                                cur_step, simd_len))])}),
+                        op[span_t({iter}, simd_len)],
+                        ip0[span_t({iter}, simd_len)]
+                                + ip1[span_t({iter}, simd_len)])}),
                 true, for_type::PARALLEL);
+        auto loop1 = builder::make_for_loop_unattached(iter1, expr(1024UL),
+                UINT64_C(1030), simd_len,
+                builder::make_stmts_unattached({builder::make_assign_unattached(
+                        op[span_t({iter1}, simd_len, mask)],
+                        ip0[span_t({iter1}, simd_len, mask)]
+                                + ip1[span_t({iter1}, simd_len, mask)])}),
+                true, for_type::PARALLEL);
+        auto loop2 = builder::make_for_loop_unattached(iter2, expr(1024UL),
+                UINT64_C(1030), 1,
+                builder::make_stmts_unattached({builder::make_assign_unattached(
+                        op[span_t({iter2}, 1)],
+                        ip0[span_t({iter2}, 1)] + ip1[span_t({iter2}, 1)])}),
+                true, for_type::NORMAL);
         builder.emit(loop);
+        if (is_builtin) {
+            builder.emit(loop1);
+        } else {
+            builder.emit(loop2);
+        }
+
         _return_(true);
     }
     CMP_SIMPLIFIED_IR(addf, bbb);

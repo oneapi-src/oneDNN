@@ -1050,7 +1050,9 @@ public:
                 auto bit_len = utils::get_sizeof_type(v->mask_->dtype_) * 8;
                 if (v->dtype_.lanes_ != bit_len) {
                     COMPILE_ASSERT(v->dtype_.lanes_ == 4,
-                            "Currently only 8bit -> 4bit is supported.");
+                            "Currently only 8bit -> 4bit is supported, but get "
+                                    << v->dtype_
+                                    << " lanes = " << v->dtype_.lanes_);
                     mask = convert_mask(v->mask_, true);
                 } else {
                     mask = convert_mask(v->mask_);

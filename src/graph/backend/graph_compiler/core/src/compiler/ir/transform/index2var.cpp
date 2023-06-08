@@ -768,8 +768,16 @@ class indexing2var_impl_t : public ir_visitor_t {
             if (out_cache) {
                 auto mask = v->var_.static_as<indexing_c>()->mask_;
                 if (mask.defined()) {
-                    rhs = builder::make_select(mask, rhs,
-                            builder::make_constant({UINT64_C(0)}, rhs->dtype_));
+                    if (mask.isa<constant>()) {
+                        rhs = get_expr_as_int(mask) > 0
+                                ? rhs
+                                : builder::make_constant(
+                                        {UINT64_C(0)}, rhs->dtype_);
+                    } else {
+                        rhs = builder::make_select(mask, rhs,
+                                builder::make_constant(
+                                        {UINT64_C(0)}, rhs->dtype_));
+                    }
                 }
                 // if successfully created a cache for the indexing
                 auto ret = builder::make_stmts_unattached(

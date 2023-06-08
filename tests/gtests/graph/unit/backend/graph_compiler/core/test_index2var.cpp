@@ -501,8 +501,8 @@ TEST(GCCore_CPU_index2var_cpp, TestIndex2VarMask) {
             // original code: A[{0, 1}] = A[{0, 1}] + 1.0f;
             // B is read, OK to keep cache of A
             builder.push_scope();
-            cached1 = builder::make_select(mask, cached0,
-                    builder::make_constant({UINT64_C(0)}, cached0->dtype_));
+            // mask > 0 is true, index2var will use cached0.
+            cached1 = cached0;
             A[span_t {{len}, 16, mask}] = cached1;
             builder.emit(builder.pop_scope());
         }

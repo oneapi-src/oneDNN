@@ -613,17 +613,25 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
     }
     // need mask
     expr mask_directly;
+    auto slice_len = src[0]->get_shape().back();
     int lanes = static_cast<int>(vx_info.lanes);
-    if (last_dim == 1) {
+    auto floor = do_cast_and_fold(slice_len / lanes * lanes);
+    auto tail = do_cast_and_fold(slice_len % lanes);
+    int floor_int = 0;
+    int tail_int = 0;
+    if (floor.isa<constant>()) {
+        floor_int = get_expr_as_int(floor);
+        tail_int = get_expr_as_int(tail);
+        COMPILE_ASSERT((floor_int + tail_int), "Don't support shape len = 0.");
+    }
+    bool is_lastdim_meet_require
+            = tail.isa<constant>() && tail_int == 1 && floor_int == 0;
+    if (is_lastdim_meet_require) {
         lanes = 1;
     } else if (last_dim % lanes) {
         if (rd_op == reduce_operator::add) {
-            auto cur_step = builder::make_min(
-                    builder::make_max(cast_to_s32(src[0]->get_shape().back())
-                                    - cast_to_s32(src_idx.back()),
-                            0),
-                    lanes);
-            mask_directly = generate_mask_by_step_directly(cur_step, lanes);
+            mask_directly = last_dim_generate_mask(
+                    src_idx.back(), floor, slice_len, lanes);
         } else {
             lanes = 1;
         }
@@ -1079,9 +1087,9 @@ void reduce_compute_op_t::compute_block(context_ptr ctx,
         return builder::make_assign_unattached(indexing_nd, result);
     };
 
-    compute_vectorized_op(get_owner_graph(), inputs, *dst[0], info_, vx_info_,
-            mask_compute_func_t(func), mask_compute_func_t(func), attrs_, wkld,
-            false, inputs[0], /*unroll*/ local_mode_);
+    compute_vectorized_op(ctx, get_owner_graph(), inputs, *dst[0], info_,
+            vx_info_, mask_compute_func_t(func), mask_compute_func_t(func),
+            attrs_, wkld, false, inputs[0], /*unroll*/ local_mode_);
 }
 
 void reduce_compute_op_t::set_reduce_buffer(const tensor &buf) {
@@ -1162,7 +1170,7 @@ void reduce_collect_op_t::compute_block(context_ptr ctx,
             return builder::make_assign_unattached(
                     out[0], get_binary_by_reduce_op(rd_op_)(out[0], in[0]));
         };
-        compute_vectorized_op(get_owner_graph(), inputs, *dst[0], info_,
+        compute_vectorized_op(ctx, get_owner_graph(), inputs, *dst[0], info_,
                 vx_info_, mask_compute_func_t(func), mask_compute_func_t(func),
                 attrs_, 0, false, dst[0], /*unroll*/ true);
     } else if (op_ == LAST_AXIS_COLLECT) {
@@ -1187,7 +1195,7 @@ void reduce_collect_op_t::compute_block(context_ptr ctx,
             return builder::make_assign_unattached(out[0], result);
         };
 
-        compute_vectorized_op(get_owner_graph(), inputs, *dst[0], info_,
+        compute_vectorized_op(ctx, get_owner_graph(), inputs, *dst[0], info_,
                 vx_info_, mask_compute_func_t(func), mask_compute_func_t(func),
                 attrs_, 0, false, dst[0]);
     } else {

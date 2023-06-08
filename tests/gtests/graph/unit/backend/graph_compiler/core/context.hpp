@@ -31,6 +31,19 @@ inline dnnl::impl::graph::gc::context_ptr get_test_ctx() {
     return ctx;
 }
 
+inline bool is_builtin_test_ctx() {
+    namespace gc = dnnl::impl::graph::gc;
+#if SC_BUILTIN_JIT_ENABLED
+    if (get_test_ctx()->flags_.jit_kind_ == gc::jit_kind::xbyak) {
+        return true;
+    } else {
+        return false;
+    }
+#else
+    return false;
+#endif
+}
+
 inline dnnl::impl::graph::gc::context_ptr get_test_ctx_without_amx() {
     namespace gc = dnnl::impl::graph::gc;
     // forcibly disable fAVX512AMXTILE
