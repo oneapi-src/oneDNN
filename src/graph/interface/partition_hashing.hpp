@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,6 +27,8 @@
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
+#include "common/engine_id.hpp"
+
 #include "graph/interface/c_types_map.hpp"
 #include "graph/interface/logical_tensor.hpp"
 #include "graph/interface/op.hpp"
@@ -50,23 +52,27 @@ inline std::vector<op_t *> get_raw_ptrs(
 } // namespace
 
 struct key_t {
-    key_t(size_t partition_id, engine_kind_t engine_kind,
+    key_t(size_t partition_id, const impl::engine_t *engine,
             const std::vector<std::shared_ptr<op_t>> &ops,
             const std::vector<const logical_tensor_t *> &ins,
             const std::vector<const logical_tensor_t *> &outs);
-    key_t(const partition_t *partition,
+    key_t(const partition_t *partition, const impl::engine_t *engine,
             const std::vector<const logical_tensor_t *> &ins,
             const std::vector<const logical_tensor_t *> &outs);
 
     bool operator==(const key_t &other) const;
     const std::thread::id &thread_id() const { return thread_id_; }
+    bool has_runtime_dependencies() const {
+        return !(engine_id_.kind() == engine_kind::cpu
+                && impl::is_native_runtime(engine_id_.runtime_kind()));
+    }
 
     mutable size_t partition_id_;
     mutable std::vector<op_t *> ops_;
     mutable std::vector<logical_tensor_t> ins_;
     mutable std::vector<logical_tensor_t> outs_;
     int nthread_;
-    engine_kind_t engine_kind_;
+    impl::engine_id_t engine_id_;
 
 private:
     // Thread ID is not used as part of the key, it's only used to get
@@ -146,8 +152,7 @@ struct hash<dnnl::impl::graph::partition_hashing::key_t> {
         // Compute hash for partition_id_, nthread_, engine_kind_
         seed = dnnl::impl::hash_combine(seed, key.partition_id_);
         seed = dnnl::impl::hash_combine(seed, key.nthread_);
-        seed = dnnl::impl::hash_combine(
-                seed, static_cast<size_t>(key.engine_kind_));
+        seed = dnnl::impl::hash_combine(seed, key.engine_id_.hash());
 
         // Combine hash for op_kinds & attributes with the computed hash
         seed = get_array_hash(seed, key.ops_.data(), key.ops_.size());

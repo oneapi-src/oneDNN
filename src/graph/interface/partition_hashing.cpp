@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,14 +26,14 @@ namespace impl {
 namespace graph {
 namespace partition_hashing {
 
-key_t::key_t(size_t partition_id, engine_kind_t engine_kind,
+key_t::key_t(size_t partition_id, const impl::engine_t *engine,
         const std::vector<std::shared_ptr<op_t>> &ops,
         const std::vector<const logical_tensor_t *> &ins,
         const std::vector<const logical_tensor_t *> &outs)
     : partition_id_(partition_id)
     , ops_(get_raw_ptrs(ops))
     , nthread_(dnnl_get_max_threads())
-    , engine_kind_(engine_kind)
+    , engine_id_(engine->engine_id())
     , thread_id_(std::this_thread::get_id()) {
     ins_.reserve(ins.size());
     outs_.reserve(outs.size());
@@ -45,11 +45,10 @@ key_t::key_t(size_t partition_id, engine_kind_t engine_kind,
     }
 }
 
-key_t::key_t(const partition_t *partition,
+key_t::key_t(const partition_t *partition, const impl::engine_t *engine,
         const std::vector<const logical_tensor_t *> &ins,
         const std::vector<const logical_tensor_t *> &outs)
-    : key_t(partition->id(), partition->get_engine_kind(), partition->get_ops(),
-            ins, outs) {}
+    : key_t(partition->id(), engine, partition->get_ops(), ins, outs) {}
 
 bool key_t::operator==(const key_t &rhs) const {
     if (this == &rhs) return true;
@@ -64,7 +63,7 @@ bool key_t::operator==(const key_t &rhs) const {
     bool ret = true && lhs_num_ops == rhs_num_ops && lhs_num_ins == rhs_num_ins
             && lhs_num_outs == rhs_num_outs
             && partition_id_ == rhs.partition_id_ && nthread_ == rhs.nthread_
-            && engine_kind_ == rhs.engine_kind_;
+            && engine_id_ == rhs.engine_id_;
     if (!ret) return false;
 
     for (size_t i = 0; i < lhs_num_ops; ++i) {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@
 #include "graph/interface/c_types_map.hpp"
 #include "graph/interface/partition_hashing.hpp"
 
+#include "common/cache_utils.hpp"
 #include "common/rw_mutex.hpp"
 
 namespace dnnl {
@@ -36,88 +37,40 @@ namespace graph {
 
 struct compiled_partition_cache_t {
     struct cache_value_t {
-        std::shared_ptr<compiled_partition_t> compiled_partition;
+        bool is_empty() const { return value == nullptr; }
+        compiled_partition_t &get_value() const { return *value; }
+        std::shared_ptr<compiled_partition_t> value;
         status_t status;
     };
     using key_t = partition_hashing::key_t;
+    using result_t = cache_value_t;
     using value_t = std::shared_future<cache_value_t>;
+    using create_func_t = result_t (&)(void *);
+    using create_func_ptr_t = result_t (*)(void *);
 
-    virtual ~compiled_partition_cache_t() = default;
+    compiled_partition_cache_t(int capacity) : cache_(capacity) {}
 
-    virtual status_t set_capacity(int capacity) = 0;
-    virtual int get_capacity() const = 0;
+    ~compiled_partition_cache_t() = default;
 
-    virtual value_t get_or_add(const key_t &key, const value_t &value) = 0;
-    virtual void remove_if_invalidated(const key_t &key) = 0;
-    virtual void update_entry(const key_t &key, const partition_t *partition,
-            const std::vector<const logical_tensor_t *> &ins,
-            const std::vector<const logical_tensor_t *> &outs)
-            = 0;
+    status_t set_capacity(int capacity) {
+        return cache_.set_capacity(capacity);
+    }
+    int get_capacity() const { return cache_.get_capacity(); }
+    int get_size() const { return cache_.get_size(); }
 
-    virtual int get_size() const = 0;
-
-    virtual const partition_t *get_partition(const key_t &key) = 0;
-
-protected:
-    static impl::utils::rw_mutex_t &rw_mutex() {
-        static impl::utils::rw_mutex_t mutex;
-        return mutex;
+    result_t get_or_create(
+            const key_t &key, create_func_t create, void *create_context) {
+        return cache_.get_or_create(key, create, create_context);
     }
 
-    void lock_read() { rw_mutex().lock_read(); }
-    void lock_write() { rw_mutex().lock_write(); }
-    void unlock_read() { rw_mutex().unlock_read(); }
-    void unlock_write() { rw_mutex().unlock_write(); }
-};
-
-// The cache uses LRU replacement policy
-struct lru_compiled_partition_cache_t : public compiled_partition_cache_t {
-    lru_compiled_partition_cache_t(int capacity) : capacity_(capacity) {
-        cache_mapper_ = utils::make_unique<
-                std::unordered_map<key_t, timed_entry_t>>();
-    }
-
-    ~lru_compiled_partition_cache_t() override;
-
-    status_t set_capacity(int capacity) override;
-    int get_capacity() const override;
-
-    value_t get_or_add(const key_t &key, const value_t &value) override;
-    void remove_if_invalidated(const key_t &key) override;
-    void update_entry(const key_t &key, const partition_t *partition,
-            const std::vector<const logical_tensor_t *> &ins,
-            const std::vector<const logical_tensor_t *> &outs) override;
-
-    int get_size() const override;
-
-    const partition_t *get_partition(const key_t &key) override;
+    const partition_t *get_partition(const key_t &key);
 
 private:
-    void evict(size_t n);
-    void add(const key_t &key, const value_t &value);
-    value_t get(const key_t &key);
-
-    size_t capacity_;
-    struct timed_entry_t {
-        value_t value_;
-        std::atomic<size_t> timestamp_;
-        timed_entry_t(const value_t &value, size_t timestamp)
-            : value_(value), timestamp_(timestamp) {}
-    };
-
-    std::unordered_map<key_t, timed_entry_t> &cache_mapper() {
-        return *cache_mapper_;
-    }
-
-    const std::unordered_map<key_t, timed_entry_t> &cache_mapper() const {
-        return *cache_mapper_;
-    }
-
-    // Each entry in the cache has a corresponding key and timestamp.
-    // NOTE: pairs that contain atomics cannot be stored in an unordered_map *as
-    // an element*, since it invokes the copy constructor of std::atomic, which
-    // is deleted.
-    std::unique_ptr<std::unordered_map<key_t, timed_entry_t>> cache_mapper_;
+    // No need to set key_merge here since update_entry function is not need in
+    // partition cache
+    utils::lru_cache_t<key_t, compiled_partition_t, result_t,
+            /* key_merge */ nullptr>
+            cache_;
 };
 
 compiled_partition_cache_t &compiled_partition_cache();

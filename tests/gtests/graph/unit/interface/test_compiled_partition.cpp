@@ -184,11 +184,10 @@ TEST(LruCompiledPartitionCache, Method) {
 
 #ifndef DNNL_GRAPH_DISABLE_COMPILED_PARTITION_CACHE
     graph::partition_hashing::key_t key {
-            par.id(), eng.kind(), {elt}, inputs, outputs};
+            par.id(), &eng, {elt}, inputs, outputs};
     auto &cache_mapper = graph::compiled_partition_cache();
     ASSERT_NO_THROW(cache_mapper.get_partition(key));
 
-    ASSERT_NO_THROW(cache_mapper.update_entry(key, &par, inputs, outputs));
 #endif
 }
 

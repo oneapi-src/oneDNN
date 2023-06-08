@@ -28,7 +28,7 @@ namespace graph = dnnl::impl::graph;
 TEST(PartitionHashing, ThreadId) {
     graph::engine_t &engine = *get_engine();
     size_t id = 10056;
-    graph::partition_hashing::key_t key {id, engine.kind(), {}, {}, {}};
+    graph::partition_hashing::key_t key {id, &engine, {}, {}, {}};
     ASSERT_EQ(std::this_thread::get_id(), key.thread_id());
 }
 

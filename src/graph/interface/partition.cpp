@@ -591,7 +591,7 @@ status_t dnnl_graph_partition::compile(compiled_partition_t *cp,
         agraph.set_user_inputs_outputs(tmp_inputs, tmp_outputs);
         agraph.infer_shape();
         // hash logical tensors to generate unique filename
-        partition_hashing::key_t key(this, inputs, outputs);
+        partition_hashing::key_t key(this, aengine, inputs, outputs);
         size_t seed = 0;
         seed = partition_hashing::get_unordered_array_hash(seed, key.ins_);
         seed = partition_hashing::get_unordered_array_hash(seed, key.outs_);
@@ -627,73 +627,37 @@ status_t dnnl_graph_partition::compile(
         const engine_t *aengine) const {
     namespace partition_hashing = partition_hashing;
     auto &global_compiled_partition_cache = compiled_partition_cache();
-    partition_hashing::key_t key(this, inputs, outputs);
+    partition_hashing::key_t key(this, aengine, inputs, outputs);
 
-    std::promise<compiled_partition_cache_t::cache_value_t> cp_promise;
-    // Try to get the shared future from the cache, if it's missing then
-    // a shared future with no shared state is returned and the passed
-    // shared future is added, otherwise a valid shared future is returned
-    // and no insertion is performed.
-    auto cp_future = global_compiled_partition_cache.get_or_add(
-            key, cp_promise.get_future());
+    struct create_context_t {
+        const partition_t *partition;
+        std::vector<const logical_tensor_t *> &inputs;
+        std::vector<const logical_tensor_t *> &outputs;
+        const engine_t *engine;
+        bool is_create_called;
+    };
+    create_context_t context {this, inputs, outputs, aengine, false};
 
-    bool is_from_cache = cp_future.valid();
+    compiled_partition_cache_t::create_func_ptr_t create = [](void *context) {
+        auto &c = *static_cast<create_context_t *>(context);
+        c.is_create_called = true;
+        std::shared_ptr<compiled_partition_t> cp
+                = std::make_shared<compiled_partition_t>(*c.partition);
+        status_t status
+                = (c.partition)
+                          ->compile(cp.get(), c.inputs, c.outputs, c.engine);
+        return compiled_partition_cache_t::result_t {std::move(cp), status};
+    };
 
-    status_t status = status::success;
-    std::shared_ptr<compiled_partition_t> cp;
+    auto result = global_compiled_partition_cache.get_or_create(
+            key, *create, &context);
+    if (result.status != status::success) return result.status;
 
-    if (is_from_cache) {
-        // The requested compiled partition is present in the cache or is being
-        // created by another thread.
-        cp = cp_future.get().compiled_partition;
-        if (!cp) return cp_future.get().status;
-        compiled_partition.first->init(cp->pimpl_);
-    } else {
-        // The requested compiled partition is NOT present in the cache
-        // therefore we have to create it and notify the waiting threads once
-        // the creation is done.
-        status = this->compile(
-                compiled_partition.first, inputs, outputs, aengine);
-        if (status != status::success) {
-            // Communicate an error
-            cp_promise.set_value({nullptr, status});
-            // Remove the shared future from the cache because it's
-            // invalidated. An invalidated shared future is the one that
-            // stores a nullptr.
-            global_compiled_partition_cache.remove_if_invalidated(key);
-            return status;
-        } else {
-            // Store the created compiled partition in the shared future
-            // and notify the waiting threads.
-            std::shared_ptr<compiled_partition_t> new_cp(
-                    new compiled_partition_t(*this));
-            new_cp->init(compiled_partition.first->pimpl_);
-            assertm(new_cp->is_initialized(),
-                    "Compiled partition is not initialized.");
-            cp_promise.set_value({new_cp, status});
+    compiled_partition.first->init(result.value->pimpl_);
+    // cp is from cache if the create func is not called
+    compiled_partition.second = !context.is_create_called;
 
-            // According to the doc of primitive cache, it says:
-            //
-            //   The key_t contains pointers to op_desc and attr objects
-            //   that reside in pd. When primitive_t is created it copies
-            //   the pd and hence contains a copy. Since the created
-            //   primitive_t is stored in the cache with the corresponding
-            //   key, the key must contain pointers to op_desc and attr that
-            //   reside in the copied pd in the primitive_t. Therefore the
-            //   pointers in the key, which has already been put into the
-            //   cache, must be updated.
-            //
-            // In the scenario of compiled partition cache, pointers the
-            // key_t contains only engage the op_t, which are derived from
-            // the shared_ptr<op_t> of a partition. As the shared_ptr<op_t>
-            // also resides in a partition impl in cached compiled partition,
-            // it's not necessary to update the key_t.
-            //// global_compiled_partition_cache.update_entry(
-            ////         key, &(new_cp->src_partition()), inputs, outputs);
-        }
-    }
-    compiled_partition.second = is_from_cache;
-    return status;
+    return result.status;
 }
 
 status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,
