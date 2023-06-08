@@ -55,7 +55,8 @@ status_t sycl_profiler_t::get_info(profiling_data_kind_t data_kind,
         auto end = sycl_event[0]
                            .get_profiling_info<event_profiling::command_end>();
         auto &entry = stamp2entry[ev.stamp];
-        entry.nsec += (end - beg);
+        entry.min_nsec = std::min(entry.min_nsec, beg);
+        entry.max_nsec = std::max(entry.max_nsec, end);
         entry.kernel_count++;
     }
     return profiler_t::get_info_impl(stamp2entry, data_kind, data);
