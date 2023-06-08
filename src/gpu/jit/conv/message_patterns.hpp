@@ -129,7 +129,7 @@ struct conv_stride_layout_t : public stride_layout_t<conv_dim_t> {
                 else
                     ir_error_not_expected();
             } else {
-                ir_error_not_implemented();
+                ir_error_not_expected();
             }
             return prb.a_md();
         }();

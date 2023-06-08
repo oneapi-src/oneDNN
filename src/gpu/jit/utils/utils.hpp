@@ -252,7 +252,7 @@ private:
 #endif
 
 #define ir_error_not_expected() ir_assert(false) << "Not expected. "
-#define ir_error_not_implemented() ir_assert(false) << "Not implemented. "
+#define ir_except_not_implemented(msg) throw std::runtime_error(msg)
 
 template <int level>
 class logger_t {
