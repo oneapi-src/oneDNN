@@ -249,6 +249,17 @@ install(EXPORT ${LIB_EXPORT_NAME}
     NAMESPACE ${LIB_NAMESPACE}
     DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 
+# Apply a workaround to CMake config file to make it work with symlinks.
+# The patched config file is only used in oneAPI binary distribution.
+if(UNIX AND DNNL_INSTALL_MODE STREQUAL "BUNDLE_V2")
+    install(CODE "file(READ \"${CMAKE_INSTALL_PREFIX}/${LIB_CONFIG_INSTALL_DIR}/${LIB_PACKAGE_NAME}-targets.cmake\" TARGETS_CONTENT)")
+    install(CODE "string(REPLACE
+                         \"get_filename_component(_IMPORT_PREFIX \\\"\\\${CMAKE_CURRENT_LIST_FILE}\\\" PATH)\"
+                         \"get_filename_component(_IMPORT_PREFIX \\\"\\\${CMAKE_CURRENT_LIST_FILE}\\\" REALPATH)\nget_filename_component(_IMPORT_PREFIX \\\"\\\${_IMPORT_PREFIX}\\\" PATH)\"
+                         TARGETS_CONTENT \${TARGETS_CONTENT})")
+    install(CODE "file(WRITE \"${CMAKE_INSTALL_PREFIX}/${LIB_CONFIG_INSTALL_DIR}/dnnl-targets.cmake\" \${TARGETS_CONTENT})")
+endif()
+
 # Install custom find modules for transitive dependencies
 if(DNNL_CPU_THREADING_RUNTIME STREQUAL "TBB")
     if(WIN32)
