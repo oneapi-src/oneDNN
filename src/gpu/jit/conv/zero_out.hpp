@@ -47,9 +47,8 @@ public:
         }
 
         int simd_size = getSIMD();
-        bool use_a64 = false;
         // XXX: Stateful messages don't work on XeHPC.
-        use_a64 = (hw == ngen::HW::XeHPC);
+        bool use_a64 = (hw >= ngen::HW::XeHPC);
 
         auto ptr = getArgument(arg_names[0]);
         auto surf = Surface(getArgumentSurfaceIfExists(arg_names[0]));
@@ -105,7 +104,10 @@ public:
             if (use_a64) {
                 auto h_a64
                         = get_subregister(hw, ngen::DataType::uq, ptr_vec, i);
-                store(16 | f0[0], ngen::scattered_byte(), A64, h_a64, zero[0]);
+                std::unique_ptr<ngen::DataSpecLSC> lsc_spec;
+                lsc_spec = utils::make_unique<ngen::DataSpecLSC>(
+                        ngen::scattered(ngen::DataSizeLSC::D8U32, 1));
+                store.ugm(16 | f0[0], *lsc_spec, A64, h_a64, zero[0]);
             } else {
                 auto h_bts = off_sub_vec;
                 store(16 | f0[0], ngen::scattered_byte(), surf, h_bts, zero[0]);
