@@ -329,7 +329,16 @@ struct primitive_desc_t : public c_compatible {
             engine_t *engine,
             const cache_blob_t &cache_blob = cache_blob_t()) const {
         std::pair<std::shared_ptr<primitive_t>, bool> p;
-        CHECK(create_primitive(p, engine, cache_blob));
+        if (get_verbose(verbose_t::debuginfo) >= 1) {
+            double start_ms = get_msec();
+            CHECK(create_primitive(p, engine, cache_blob));
+            double duration_ms = get_msec() - start_ms;
+            const char *str = p.second ? ":cache_hit" : ":cache_miss";
+            if (cache_blob) str = ":from_cache_blob";
+            VPROF(start_ms, create_nested, str, info(engine), duration_ms);
+        } else {
+            CHECK(create_primitive(p, engine, cache_blob));
+        }
         primitive = p.first;
         return status::success;
     }

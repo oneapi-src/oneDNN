@@ -21,6 +21,7 @@
 // log type strings
 #define VERBOSE_error "error"
 #define VERBOSE_create "create"
+#define VERBOSE_create_nested "create_nested"
 #define VERBOSE_exec "exec"
 
 // log subtypes strings

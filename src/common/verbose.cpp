@@ -1200,8 +1200,12 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
             CASE(shuffle);
             CASE(softmax);
             CASE(sum);
-            case primitive_kind::zero_pad: break;
-            default: assert(!"unknown primitive kind");
+            case primitive_kind::zero_pad:
+              str_ = "zero_pad, unknown info";
+              break;
+            default:
+              str_ = "unknown primitive info";
+              assert(!"unknown primitive kind");
         }
 #undef CASE
         // clang-format on
