@@ -77,6 +77,8 @@ static void insert_reorder_op(sc_graph_t &graph, reorder_map_t &reorder_map,
                     out_format_stride.first, out_format_stride.second);
             ret->attrs_.set("out_format", out_format_stride.first);
             ret->attrs_.set("out_stride", out_format_stride.second);
+            // update fuse attr for latest format
+            ret->stc_cast<reorder_op_t>()->update_fuse_attr();
             // map reorder's in/out
             if (is_graph_dynamic && is_key_valid) {
                 auto &dynamic_formats

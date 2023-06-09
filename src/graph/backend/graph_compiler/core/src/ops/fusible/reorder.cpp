@@ -151,11 +151,8 @@ reorder_op_t::reorder_op_t(const std::vector<graph_tensor_ptr> &ins,
             "input format " << info_.inputs_[0]->details_.get_format()
                             << " can not convert to "
                             << info_.outputs_[0]->details_.get_format() << ".");
-    if (!is_dynamic()) {
-        if (use_output_loop()) {
-            attrs_.set(op_attr_key::break_pre_fuse, true);
-        }
-    }
+
+    update_fuse_attr();
     // currently we don't fuse reorder in dynamic as it should query next op.
     if (is_dynamic()) {
         if (info_.inputs_[0]->details_.get_format().is_blocking()
@@ -169,6 +166,18 @@ reorder_op_t::reorder_op_t(graph_tensor_ptr v, sc_data_format_t input_format,
         sc_data_format_t output_format)
     : reorder_op_t(
             {std::move(v)}, {}, any_map_t {{"out_format", output_format}}) {}
+
+// Update fuse attr of reorder in time once format is modified.
+void reorder_op_t::update_fuse_attr() {
+    // For safety, we only deal with static senario temporarily
+    if (!is_dynamic()) {
+        // reset attr firstly
+        attrs_.set(op_attr_key::break_pre_fuse, false);
+        if (use_output_loop()) {
+            attrs_.set(op_attr_key::break_pre_fuse, true);
+        }
+    }
+}
 
 void reorder_op_t::prepare_fusion_data(fdata_map &fdmap) {
     auto &in_detail0 = fdmap.get(info_.inputs_[0]);

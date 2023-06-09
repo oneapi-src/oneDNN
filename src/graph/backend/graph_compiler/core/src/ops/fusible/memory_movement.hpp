@@ -207,6 +207,7 @@ public:
             const std::vector<shape_dtype_pair> &) override;
     std::vector<int> get_impl_dispatch_candidates(
             const context_ptr &ctx) override;
+    void update_fuse_attr();
     bool check_padding() const;
     bool use_output_loop() const;
     bool support_output_loop() const;
