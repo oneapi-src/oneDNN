@@ -40,7 +40,7 @@ on Intel CPUs and GPUs. Deep learning practitioners should use one of the
 
 Binary distribution of this software is available in:
 * [Anaconda](https://anaconda.org/conda-forge/onednn)
-* [Intel oneAPI](https://software.intel.com/en-us/oneapi/onednn)
+* [Intel oneAPI](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onednn.html)
 
 The packages do not include library dependencies and these need to be resolved
 in the application at build time. See the
@@ -139,8 +139,8 @@ The following additional requirements apply:
 [Threading Building Blocks (TBB)](https://www.threadingbuildingblocks.org/)
 2017 or later.
 * SYCL runtime requires
-  * [Intel oneAPI DPC++/C++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler)
-  * [Threading Building Blocks (TBB)](https://www.threadingbuildingblocks.org/)
+  * [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html)
+  * [Threading Building Blocks (TBB)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onetbb.html)
 
 Some implementations rely on OpenMP 4.0 SIMD extensions. For the best
 performance results on Intel Architecture Processors we recommend using the
@@ -241,26 +241,26 @@ Runtime-specific dependencies:
 CPU engine was validated on RedHat\* Enterprise Linux 7 with
 * GNU Compiler Collection 4.8, 5.4, 6.1, 7.2, 8.1, and 9.1
 * Clang\* 3.8.1, 7.1, 8.0, and 9.0
-* [Intel oneAPI DPC++/C++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) 2022.1
+* [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html) 2022.1
 
 on Windows Server\* 2016 with
 * Microsoft Visual Studio 2019 and 2022
-* [Intel oneAPI DPC++/C++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) 2022.1
+* [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html) 2022.1
 
 on macOS 11 (Big Sur) with
 * Apple LLVM version 13.0
-* [Intel oneAPI DPC++/C++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) 2022.1
+* [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html) 2022.1
 
 GPU engine was validated on Ubuntu\* 20.04 with
 * GNU Compiler Collection 7.2, 8.1, and 9.1
 * Clang 3.8.1, 7.1, 8.0, and 9.0
-* [Intel oneAPI DPC++/C++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) 2022.1
+* [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html) 2022.1
 * [Intel Software for General Purpose GPU capabilities](https://dgpu-docs.intel.com/index.html)
 latest stable version available at the time of release
 
 on Windows Server 2019 with
 * Microsoft Visual Studio 2019 and 2022
-* [Intel oneAPI DPC++/C++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) 2022.1
+* [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html) 2022.1
 * [Intel Graphics - Windows 10 DCH Drivers](https://www.intel.com/content/www/us/en/download/19344/intel-graphics-windows-dch-drivers.html)
 * [Intel Arc Graphics Windows DCH Driver](https://www.intel.com/content/www/us/en/download/726609/intel-arc-graphics-windows-dch-driver.html)
 latest stable version available at the time of release
