@@ -3235,7 +3235,7 @@ dnnl_status_t DNNL_API dnnl_set_jit_dump(int enable);
 /// @sa @ref dev_guide_profilers
 ///
 /// @param flags Profiling flags that can contain the following bits:
-///     - @ref DNNL_JIT_PROFILE_VTUNE -- integration with VTune Amplifier
+///     - @ref DNNL_JIT_PROFILE_VTUNE -- integration with VTune Profiler
 ///         (on by default)
 ///     - @ref DNNL_JIT_PROFILE_LINUX_JITDUMP -- produce Linux-specific
 ///         jit-pid.dump output (off by default). The location of the output

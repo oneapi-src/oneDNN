@@ -210,14 +210,14 @@ set(ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_CPU_JIT "builtin" CACHE STRING
 # when linking object files built from C and C++ sources.
 option(DNNL_ENABLE_JIT_PROFILING
     "Enable registration of oneDNN kernels that are generated at
-    runtime with VTune Amplifier (on by default). Without the
-    registrations, VTune Amplifier would report data collected inside
+    runtime with VTune Profiler (on by default). Without the
+    registrations, VTune Profiler would report data collected inside
     the kernels as `outside any known module`."
     ON)
 
 option(DNNL_ENABLE_ITT_TASKS
     "Enable ITT Tasks tagging feature and tag all primitive execution 
-    (on by default). VTune Amplifier can group profiling results based 
+    (on by default). VTune Profiler can group profiling results based 
     on those ITT tasks and show corresponding timeline information."
     ON)
 

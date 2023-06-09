@@ -2663,7 +2663,7 @@ typedef enum {
 /// Disable profiling completely
 #define DNNL_JIT_PROFILE_NONE 0u
 
-/// Enable VTune Amplifier integration
+/// Enable VTune Profiler integration
 #define DNNL_JIT_PROFILE_VTUNE 1u
 
 /// Enable Linux perf integration via perfmap files

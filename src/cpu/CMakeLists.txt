@@ -51,7 +51,7 @@ endif()
 if(NOT DNNL_ENABLE_JIT_PROFILING)
     # XXX: the profiling interface will still be built and present
     add_definitions_with_host_compiler(-DDNNL_ENABLE_JIT_PROFILING=0)
-    # Don't enable support for linux_perf and VTune Amplifier
+    # Don't enable support for linux_perf and VTune Profiler
     if((DNNL_TARGET_ARCH STREQUAL "X64") OR (DNNL_TARGET_ARCH STREQUAL "AARCH64"))
         list(REMOVE_ITEM SOURCES_EXTRA
             "${CMAKE_CURRENT_SOURCE_DIR}/jit_utils/jitprofiling/jitprofiling.c"
