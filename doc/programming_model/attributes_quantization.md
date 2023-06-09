@@ -9,7 +9,7 @@ Some primitives in the library support input/output tensors with the INT8
 reduced precision inference on the compatible hardware.
 
 Related materials:
-- [Lower Numerical Precision Deep Learning Inference and Training](https://software.intel.com/content/www/us/en/develop/articles/lower-numerical-precision-deep-learning-inference-and-training)
+- [Lower Numerical Precision Deep Learning Inference and Training](https://www.intel.com/content/dam/develop/external/us/en/documents/lower-numerical-precision-deep-learning-jan2018-754765.pdf)
 - An example with annotations: @ref dev_guide_inference_int8
 
 ## Quantization Model

@@ -36,7 +36,7 @@ Use any disassembler to view the code. For example:
 - `xed -64 -ir file.bin`
 
 [XED](https://github.com/intelxed/xed) is a decoder tool available as part as
-[Intel Software Development Emulator (Intel SDE)](https://software.intel.com/content/www/us/en/develop/articles/intel-software-development-emulator).
+[Intel Software Development Emulator (Intel SDE)](https://www.intel.com/content/www/us/en/developer/articles/tool/software-development-emulator.html).
 
 ## Example (GPU)
 
@@ -58,4 +58,4 @@ Use Intel GPU ISA disassembler to disassemble a kernel:
 
 Links:
 - [Building an Intel GPU ISA Disassembler](https://github.com/intel/opencl-intercept-layer/blob/master/docs/kernel_isa_gpu.md#building-an-intel-gpu-isa-disassembler)
-- [Introduction to GEN Assembly](https://software.intel.com/content/www/us/en/develop/articles/introduction-to-gen-assembly.html)
+- [Introduction to GEN Assembly](https://www.intel.com/content/www/us/en/developer/articles/technical/introduction-to-gen-assembly.html)

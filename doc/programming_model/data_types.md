@@ -13,7 +13,7 @@ operations which take bool as inputs and/or outputs data type.
 | Data type | Description                                                                                                                                                                   |
 |:----------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | f32       | [IEEE single precision floating-point](https://en.wikipedia.org/wiki/Single-precision_floating-point_format#IEEE_754_single-precision_binary_floating-point_format:_binary32) |
-| bf16      | [non-IEEE 16-bit floating-point](https://software.intel.com/content/www/us/en/develop/download/bfloat16-hardware-numerics-definition.html)                                    |
+| bf16      | [non-IEEE 16-bit floating-point](https://www.intel.com/content/dam/develop/external/us/en/documents/bf16-hardware-numerics-definition-white-paper.pdf)                                    |
 | f16       | [IEEE half precision floating-point](https://en.wikipedia.org/wiki/Half-precision_floating-point_format#IEEE_754_half-precision_binary_floating-point_format:_binary16)       |
 | s8/u8     | signed/unsigned 8-bit integer                                                                                                                                                 |
 | f64       | [IEEE double precision floating-point](https://en.wikipedia.org/wiki/Double-precision_floating-point_format#IEEE_754_double-precision_binary_floating-point_format:_binary64) |

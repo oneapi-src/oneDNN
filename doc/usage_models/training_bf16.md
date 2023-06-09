@@ -20,13 +20,13 @@ data type, `f16`. Compared directly to `f16`, which has a 5-bit exponent and a
 @img{img_bf16_diagram.png,Diagram depicting the bit-wise layout of f32\, bf16\, and f16 floating point data types.,80%,}
 
 More details of the bfloat16 data type can be found at
-[Intel's site](https://software.intel.com/sites/default/files/managed/40/8b/bf16-hardware-numerics-definition-white-paper.pdf)
+[Intel's site](https://www.intel.com/content/dam/develop/external/us/en/documents/bf16-hardware-numerics-definition-white-paper.pdf)
 and [TensorFlow's documentation](https://cloud.google.com/tpu/docs/bfloat16).
 
 One of the advantages of using `bf16` versus `f32` is reduced memory
 footprint and, hence, increased memory access throughput.  Additionally, when
 executing on hardware that supports
-[Intel DL Boost bfloat16 instructions](https://software.intel.com/sites/default/files/managed/c5/15/architecture-instruction-set-extensions-programming-reference.pdf),
+[Intel DL Boost bfloat16 instructions](https://www.intel.com/content/dam/develop/external/us/en/documents/architecture-instruction-set-extensions-programming-reference.pdf),
 `bf16` may offer an increase in computational throughput.
 
 ## bfloat16 Support

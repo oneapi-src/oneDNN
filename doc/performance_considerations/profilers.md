@@ -212,7 +212,7 @@ Front-End Bound:Front-End Latency:ICache Misses:Self
 
 ~~~
 
-See more examples in the [VTune Amplifier User Guide](https://software.intel.com/content/www/us/en/develop/documentation/vtune-help/top/introduction/tutorials-and-samples.html)
+See more examples in the [Intel VTune Profiler User Guide](https://www.intel.com/content/www/us/en/docs/vtune-profiler/user-guide/current/tutorials-and-samples.html)
 
 
 ## Example: Profiling with Linux Perf
