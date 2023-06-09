@@ -1772,6 +1772,9 @@ private:
         if (!cfg_.is_dpas_or_dpasw_fma()) return false;
         if (is_a && !prb.is_bwd_d && is_small_ic(prb) && cfg_.is_dp_fma())
             return false;
+        bmnk_dim_helper_t h(cfg_);
+        int k_tg = h.thread_group_dim('k');
+        if (k_tg != 1) return false;
         return true;
     }
 
