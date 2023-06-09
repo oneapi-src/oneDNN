@@ -49,18 +49,18 @@ update.
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
-| Primitive input/output      | Execution argument index                                                  |
-|-----------------------------|---------------------------------------------------------------------------|
-| \src                        | DNNL_ARG_SRC                                                              |
-| \weights                    | DNNL_ARG_WEIGHTS                                                          |
-| \bias                       | DNNL_ARG_BIAS                                                             |
-| \dst                        | DNNL_ARG_DST                                                              |
-| \diffsrc                    | DNNL_ARG_DIFF_SRC                                                         |
-| \diffweights                | DNNL_ARG_DIFF_WEIGHTS                                                     |
-| \diffbias                   | DNNL_ARG_DIFF_BIAS                                                        |
-| \diffdst                    | DNNL_ARG_DIFF_DST                                                         |
-| \f$\text{binary post-op}\f$ | DNNL_ARG_ATTR_MULTIPLE_POST_OP(binary_post_op_position) \| DNNL_ARG_SRC_1 |
-
+| Primitive input/output      | Execution argument index                                                   |
+|-----------------------------|----------------------------------------------------------------------------|
+| \src                        | DNNL_ARG_SRC                                                               |
+| \weights                    | DNNL_ARG_WEIGHTS                                                           |
+| \bias                       | DNNL_ARG_BIAS                                                              |
+| \dst                        | DNNL_ARG_DST                                                               |
+| \diffsrc                    | DNNL_ARG_DIFF_SRC                                                          |
+| \diffweights                | DNNL_ARG_DIFF_WEIGHTS                                                      |
+| \diffbias                   | DNNL_ARG_DIFF_BIAS                                                         |
+| \diffdst                    | DNNL_ARG_DIFF_DST                                                          |
+| \f$\text{binary post-op}\f$ | DNNL_ARG_ATTR_MULTIPLE_POST_OP(binary_post_op_position) \| DNNL_ARG_SRC_1  |
+| \f$\text{prelu post-op}\f$  | DNNL_ARG_ATTR_MULTIPLE_POST_OP(prelu_post_op_position) \| DNNL_ARG_WEIGHTS |
 
 ## Implementation Details
 
@@ -129,6 +129,7 @@ The following post-ops are supported by inner product primitives:
 | forward     | post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)       | Applies an @ref dnnl_api_eltwise operation to the result                      |                                     |
 | forward     | post-op   | [Sum](@ref dnnl::post_ops::append_sum)               | Adds the operation result to the destination tensor instead of overwriting it |                                     |
 | forward     | post-op   | [Binary](@ref dnnl::post_ops::append_binary)         | Applies a @ref dnnl_api_binary operation to the result                        | General binary post-op restrictions |
+| forward     | post-op   | [Prelu](@ref dnnl::post_ops::append_prelu)           | Applies an @ref dnnl_api_prelu operation to the result                        |                                     |
 
 The following masks are supported by the primitive:
 - 0, which applies one scale value to an entire tensor, and
