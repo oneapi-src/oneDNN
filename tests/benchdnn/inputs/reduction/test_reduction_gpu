@@ -1,59 +1,21 @@
+# Basic configurations
 --reset
 --batch=harness_reduction_f32
 --batch=harness_reduction_bf16
 --batch=harness_reduction_f16
 --batch=harness_reduction_i8
 
-# gen9 reduction kernel
+# Different layouts
 --reset
+--sdt=bf16,f32 --ddt=f32
+--p=2 --eps=1
+--alg=sum,mul,norm_lp_max
 
-# test different layouts with all shapes
---sdt=f32
---ddt=f32
---p=1 --eps=0
---alg=sum
-
---stag=aBx16b,aBx32b,ABx16a16b,ABx32a32b
---dtag=aBx16b,aBx32b,ABx16a16b,ABx32a32b
+--stag=axb,aBx8b,aBx16b,aBx32b,ABx32a32b
+--dtag=axb,aBx8b,aBx16b,aBx32b,ABx32a32b
 --batch=shapes_gpu_all
 
-# test algorithms with different datatypes
---stag=aBx16b
---dtag=aBx16b
---p=1 --eps=0
---alg=sum,mul,max,min,mean
-
---sdt=f32 --ddt=f32 --batch=shapes_gpu_small_set
---sdt=f16 --ddt=f16 --batch=shapes_gpu_small_set
---sdt=bf16 --ddt=bf16 --batch=shapes_gpu_small_set
---sdt=u8 --ddt=u8 --batch=shapes_gpu_small_set
---sdt=s8 --ddt=s8 --batch=shapes_gpu_small_set
-
---stag=aBx16b
---dtag=aBx16b
---p=1,2 --eps=0.5
---alg=norm_lp_max,norm_lp_sum,norm_lp_power_p_max,norm_lp_power_p_sum
-
---sdt=f32 --ddt=f32 --batch=shapes_gpu_small_set
---sdt=f16 --ddt=f16 --batch=shapes_gpu_small_set
---sdt=bf16 --ddt=bf16 --batch=shapes_gpu_small_set
-
-# test different src and dst datatypes
---stag=aBx16b
---dtag=aBx16b
-
---sdt=f32,f16,bf16,u8,s8
---ddt=f32,f16,bf16,u8,s8
---p=1 --eps=0
---alg=sum
---batch=shapes_gpu_small_set
-
---sdt=f32,f16,bf16
---ddt=f32,f16,bf16
---p=1,2 --eps=0.5
---alg=norm_lp_sum
---batch=shapes_gpu_small_set
-
+# Per-tensor post-op
 --reset
 --sdt=f32
 --ddt=f32
@@ -65,8 +27,15 @@
 3x3x4x3:3x1x4x3
 7x6x9x2:7x6x9x1
 
+# Large accumulation chain
+--reset
+--sdt=bf16,f16,f32
+--ddt=f32
+--alg=sum,mean
+
+14745600:1
+10000000x15:1x15
+
 # Test layers of some key and ext GPU DL Frameworks
---reset
---batch=option_set_fwks_key_gpu
---reset
---batch=option_set_fwks_ext_gpu
+--reset --batch=option_set_fwks_key_gpu
+--reset --batch=option_set_fwks_ext_gpu
