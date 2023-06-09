@@ -1,4 +1,5 @@
 /******************************************************************************
+* Copyright 2023 Intel Corporation
 * Copyright 2023 KNS Group LLC (YADRO)
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -107,7 +108,7 @@ void MaxPooling(const float *src, float *dst, const dim_t batch,
 
 template <data_type_t d_type>
 riscv_nchw_pooling_fwd_t<d_type>::riscv_nchw_pooling_fwd_t(const pd_t *apd)
-    : primitive_t(apd), ref_post_ops_(pd()->attr()->post_ops_) {}
+    : primitive_t(apd) {}
 
 template <>
 status_t riscv_nchw_pooling_fwd_t<data_type::f32>::execute_forward(

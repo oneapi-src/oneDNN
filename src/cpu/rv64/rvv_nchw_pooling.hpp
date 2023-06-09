@@ -1,20 +1,5 @@
-/*******************************************************************************
-* Copyright 2023 Intel Corporation
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*******************************************************************************/
-
 /******************************************************************************
+* Copyright 2023 Intel Corporation
 * Copyright 2023 KNS Group LLC (YADRO)
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,7 +19,6 @@
 #define RV64_NCHW_POOLING_HPP
 
 #include "cpu/cpu_pooling_pd.hpp"
-#include "cpu/primitive_attr_postops.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -64,14 +48,12 @@ struct riscv_nchw_pooling_fwd_t : public primitive_t {
                             d_type, src_md()->data_type, dst_md()->data_type)
                     && platform::has_data_type_support(d_type)
                     && !has_zero_dim_memory() && !is_dilated()
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops, d_type)
-                    && ref_post_ops_t::primitive_kind_ok(attr()->post_ops_)
+                    && attr()->has_default_values()
                     && set_default_params() == status::success
                     && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
                     && memory_desc_matches_tag(*dst_md(), desired_fmt_tag)
                     && attr_.set_default_formats(dst_md(0)) == status::success
-                    && attr()->post_ops_.len() == 0 && !is_training
+                    && !is_training
                     && KW() < riscv_nchw_pooling_fwd_t<
                                d_type>::max_kernel_width;
 
@@ -94,7 +76,6 @@ struct riscv_nchw_pooling_fwd_t : public primitive_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    const ref_post_ops_t ref_post_ops_;
 };
 
 } // namespace rv64
