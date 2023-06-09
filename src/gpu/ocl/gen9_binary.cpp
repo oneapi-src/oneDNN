@@ -95,6 +95,7 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
     conf.mb_block = 0;
     conf.is_src1_broadcast = check_layout_constraints(src_md(1));
     conf.is_src0_blocked = false;
+    conf.has_tail = 0;
 
     for (int i = 0; i < MAX_NDIMS; ++i) {
         // Kernel doesn't support src0 broadcast
@@ -240,22 +241,36 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
             }
         }
     } else if (conf.is_plain_layout) {
+
         if (!src0_d.matches_tag(dst_tag) || !src1_d.matches_tag(dst_tag)) {
             return status::unimplemented;
         }
 
-        if (dst_md()->dims[dst_md()->ndims - 1] % 16 != 0)
-            return status::unimplemented;
+        const int subgroup_size = 16;
+        int rem = (dst_d.dims()[ndims - 1]) % subgroup_size;
+        if (rem) { conf.has_tail = 1; }
+        conf.nvect = subgroup_size;
+        bool all_dims_broadcast = true;
 
-        conf.nvect = 16;
-        while ((dst_d.dims()[ndims - 1] / 16) % conf.nvect != 0) {
+        for (int i = 0; i < ndims; i++) {
+            if (src1_d.dims()[i] != 1) all_dims_broadcast = false;
+        }
+
+        if (rem && !all_dims_broadcast) { return status::unimplemented; }
+
+        int rounded_last_dim = rem
+                ? utils::rnd_up(dst_d.dims()[ndims - 1], subgroup_size)
+                : dst_d.dims()[ndims - 1];
+
+        while ((rounded_last_dim / 16) % conf.nvect != 0) {
             --conf.nvect;
         }
 
-        int mixed_dim = 1;
-        for (int i = 0; i < ndims; ++i) {
+        dim_t mixed_dim = rounded_last_dim;
+        for (int i = 0; i < (ndims - 1); ++i) {
             mixed_dim *= dst_d.dims()[i];
         }
+
         conf.dispatch.define_dim("MIXED_DIM", 0, mixed_dim, conf.nvect);
         CHECK(conf.dispatch.vectorize_dim("MIXED_DIM", 16));
     } else {
@@ -287,6 +302,7 @@ status_t gen9_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("IS_EQ", conf.is_eq);
     kernel_ctx.define_int("IS_NE", conf.is_ne);
     kernel_ctx.define_int("MB_BLOCK", conf.mb_block);
+    kernel_ctx.define_int("HAS_TAIL", conf.has_tail);
     kernel_ctx.define_int("SAME_SRC_DT", conf.same_src_dt);
     kernel_ctx.define_int("IS_SRC1_BROADCAST", conf.is_src1_broadcast);
     kernel_ctx.define_int("IS_SRC0_BLOCKED", conf.is_src0_blocked);

@@ -564,6 +564,7 @@ struct binary_conf_t {
     bool is_tensor_op;
     compute::dispatch_t dispatch;
     int mb_block;
+    int has_tail;
     int dim0[MAX_NDIMS];
     int src0_bcast_dims[MAX_NDIMS];
     int src1_bcast_dims[MAX_NDIMS];
