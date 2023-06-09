@@ -103,7 +103,7 @@ enum { OCL_BUFFER_ALIGNMENT = 128 };
 
 #define MAYBE_REPORT_OCL_ERROR(s) \
     do { \
-        VERROR(ocl, "errcode %d", int(s)); \
+        VERROR(ocl, "errcode %d,%s:%d", int(s), __FILENAME__, __LINE__); \
     } while (0)
 
 #define OCL_CHECK_V(x) \
