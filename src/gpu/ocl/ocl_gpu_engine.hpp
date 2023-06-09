@@ -133,6 +133,10 @@ public:
     }
 
 protected:
+    status_t build_program_from_source(ocl_wrapper_t<cl_program> &program,
+            const char *code_string,
+            const compute::kernel_ctx_t &kernel_ctx) const;
+
     ~ocl_gpu_engine_t() override {
         if (device_) { clReleaseDevice(device_); }
         if (context_) { clReleaseContext(context_); }

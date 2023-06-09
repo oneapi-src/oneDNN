@@ -200,9 +200,8 @@ inline status_t preprocess_headers(
 
 } // namespace
 
-status_t ocl_gpu_engine_t::create_binary_from_ocl_source(
-        compute::binary_t &binary,
-        const std::vector<const char *> &kernel_names, const char *code_string,
+status_t ocl_gpu_engine_t::build_program_from_source(
+        ocl_wrapper_t<cl_program> &program, const char *code_string,
         const compute::kernel_ctx_t &kernel_ctx) const {
     std::string options = kernel_ctx.options();
 
@@ -222,15 +221,26 @@ status_t ocl_gpu_engine_t::create_binary_from_ocl_source(
     std::string pp_code_str = pp_code.str();
     const char *pp_code_str_ptr = pp_code_str.c_str();
 
-    auto program = make_ocl_wrapper(clCreateProgramWithSource(
+    debugdump_processed_source(pp_code_str, options);
+
+    program = make_ocl_wrapper(clCreateProgramWithSource(
             context(), 1, &pp_code_str_ptr, nullptr, &err));
     OCL_CHECK(err);
 
-    cl_device_id dev = device();
+    auto dev = device();
     err = clBuildProgram(program, 1, &dev, options.c_str(), nullptr, nullptr);
     OCL_CHECK(maybe_print_debug_info(err, program, dev));
+    return status::success;
+}
 
-    CHECK(get_ocl_program_binary(program, dev, binary));
+status_t ocl_gpu_engine_t::create_binary_from_ocl_source(
+        compute::binary_t &binary,
+        const std::vector<const char *> &kernel_names, const char *code_string,
+        const compute::kernel_ctx_t &kernel_ctx) const {
+    ocl_wrapper_t<cl_program> program;
+    CHECK(build_program_from_source(program, code_string, kernel_ctx));
+
+    CHECK(get_ocl_program_binary(program, device(), binary));
     return status::success;
 }
 
@@ -369,33 +379,8 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
         std::vector<compute::kernel_t> *kernels,
         const std::vector<const char *> &kernel_names, const char *code_string,
         const compute::kernel_ctx_t &kernel_ctx) const {
-    std::string options = kernel_ctx.options();
-
-    // XXX: Update options by adding macros for OpenCL extensions that are not
-    // handled properly by the OpenCL runtime
-    auto *dev_info
-            = utils::downcast<const ocl_gpu_device_info_t *>(device_info());
-    options += " " + dev_info->get_cl_ext_options();
-
-    cl_int err;
-    std::stringstream pp_code;
-    // The `cl_cache` requires using `clBuildProgram`. Unfortunately, unlike
-    // `clCompileProgram` `clBuildProgram` doesn't take headers. Because of
-    // that, a manual preprocessing of `include` header directives in the
-    // OpenCL kernels is required.
-    CHECK(preprocess_headers(pp_code, code_string));
-    std::string pp_code_str = pp_code.str();
-    const char *pp_code_str_ptr = pp_code_str.c_str();
-
-    debugdump_processed_source(pp_code_str, options);
-
-    auto program = make_ocl_wrapper(clCreateProgramWithSource(
-            context(), 1, &pp_code_str_ptr, nullptr, &err));
-    OCL_CHECK(err);
-
-    cl_device_id dev = device();
-    err = clBuildProgram(program, 1, &dev, options.c_str(), nullptr, nullptr);
-    OCL_CHECK(maybe_print_debug_info(err, program, dev));
+    ocl_wrapper_t<cl_program> program;
+    CHECK(build_program_from_source(program, code_string, kernel_ctx));
 
     *kernels = std::vector<compute::kernel_t>(kernel_names.size());
     for (size_t i = 0; i < kernel_names.size(); ++i) {
