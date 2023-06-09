@@ -1285,6 +1285,7 @@ inline bool post_ops_with_binary_ok(const primitive_attr_t *attr,
     }
 
     if (p.len() > MAX_POST_OPS_SUPPORTED) is_po_ok = false;
+    if (dst_dt == dnnl_f64 && !p.has_default_values()) is_po_ok = false;
 
     return is_po_ok;
 }

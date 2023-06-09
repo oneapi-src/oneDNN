@@ -54,7 +54,7 @@
 # basic post op tests
 --reset
 --dir=FWD_I
---dt=f32,s32,f16,bf16,u8,s8,f64
+--dt=f32,s32,f16,bf16,u8,s8
 --alg=max,avg_np,avg_p
 --attr-post-ops=add:s32:per_oc+sub:s8:per_tensor,add:f32+linear:-0.5:1.5
 --mb=2
