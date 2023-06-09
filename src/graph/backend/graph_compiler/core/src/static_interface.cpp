@@ -62,6 +62,9 @@
     F(square); \
     F(swish); \
     F(prelu); \
+    F(hardsigmoid); \
+    F(clamp); \
+    F(leaky_relu); \
     F(duplicate);
 
 #define DECL_INIT(NAME) extern volatile bool __help_dummy_##NAME;

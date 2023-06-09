@@ -410,8 +410,8 @@ expr clamp_op_t::compute_element(expr in) {
     auto dtype = in->dtype_;
     COMPILE_ASSERT(dtype.type_code_ == sc_data_etype::F32,
             "clamp_op_t currently only supports fp32");
-    float clamp_min = attrs_.get<float>("clamp_min");
-    float clamp_max = attrs_.get<float>("clamp_max");
+    float clamp_min = attrs_.get<float>("min");
+    float clamp_max = attrs_.get<float>("max");
     return builder::make_max(
             builder::make_min(in, make_expr<constant_node>(clamp_max, dtype)),
             make_expr<constant_node>(clamp_min, dtype));
@@ -491,6 +491,14 @@ expr swish_op_t::compute_element(expr in) {
     return in * compute_sigmoid(f_sigmoid_in);
 }
 
+expr hardsigmoid_op_t::compute_element(expr in) {
+    DEFINE_ALPHA_AND_BETA_BASED_ON_DTYPE("hardsigmoid");
+    auto f_one = make_expr<constant_node>(1.f, dtype);
+    auto f_zero = make_expr<constant_node>(0.f, dtype);
+    return builder::make_max(f_zero,
+            builder::make_min(f_one, builder::make_fmadd(in, f_alpha, f_beta)));
+}
+
 OP_REGISTER(sigmoid_op_t, sigmoid)
 OP_REGISTER(exp_op_t, exp)
 OP_REGISTER(erf_op_t, erf)
@@ -511,6 +519,7 @@ OP_REGISTER(mish_op_t, mish)
 OP_REGISTER(soft_plus_op_t, soft_plus)
 OP_REGISTER(square_op_t, square)
 OP_REGISTER(swish_op_t, swish)
+OP_REGISTER(hardsigmoid_op_t, hardsigmoid)
 
 } // namespace gc
 } // namespace graph

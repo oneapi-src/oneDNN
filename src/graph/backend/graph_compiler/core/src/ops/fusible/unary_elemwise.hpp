@@ -251,8 +251,8 @@ public:
     clamp_op_t(graph_tensor_ptr v, float clamp_min = 0.0, float clamp_max = 1.0)
         : unary_elementwise_op_impl_t(std::move(v), "clamp") {
         alg_kind_ = brgemm::eltwise_clip;
-        attrs_.set("clamp_min", clamp_min);
-        attrs_.set("clamp_max", clamp_max);
+        attrs_.set("min", clamp_min);
+        attrs_.set("max", clamp_max);
     };
 };
 
@@ -388,6 +388,24 @@ public:
         alg_kind_ = brgemm::eltwise_swish;
     };
     float alpha_;
+};
+
+class hardsigmoid_op_t : public unary_elementwise_op_impl_t {
+public:
+    DECLARE_COMPUTE_ELEMENT();
+
+    hardsigmoid_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
+        : unary_elementwise_op_impl_t("hardsigmoid", ins, outs, attrs) {
+        alpha_ = attrs.get<float>("alpha");
+        beta_ = attrs.get<float>("beta");
+    }
+    hardsigmoid_op_t(graph_tensor_ptr v, float alpha = 1.f, float beta = 0.f)
+        : unary_elementwise_op_impl_t(std::move(v), "hardsigmoid")
+        , alpha_(alpha)
+        , beta_(beta) {};
+    float alpha_;
+    float beta_;
 };
 
 } // namespace gc
