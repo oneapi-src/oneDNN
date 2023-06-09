@@ -4,7 +4,7 @@ Profiling oneDNN Performance {#dev_guide_profilers}
 oneDNN uses JIT (just-in-time) code generation based on the primitive parameters
 and instruction set supported by the system. In order to correctly attribute
 performance event information, profilers must be notified about address ranges
-containing JIT-ed code. oneDNN supports two profilers: VTune(TM) Amplifier and
+containing JIT-ed code. oneDNN supports two profilers: VTune(TM) Profiler and
 Linux perf.
 
 ## Build-Time Controls
@@ -23,7 +23,7 @@ variable can be used to manage integration with performance profilers.
 
 | Environment Variable | Value | Description                                                            | x64             | AArch64         |
 |:---------------------|:------|:-----------------------------------------------------------------------|:----------------|:----------------|
-| ONEDNN_JIT_PROFILE   | 1     | Enables VTune Amplifier integration                                    | **x** (default) | N/A             |
+| ONEDNN_JIT_PROFILE   | 1     | Enables VTune Profiler integration                                     | **x** (default) | N/A             |
 | ^                    | 2     | Enables basic Linux perf integration                                   | x               | **x** (default) |
 | ^                    | 6     | Enables Linux perf integration with JIT dump output                    | x               | x               |
 | ^                    | 14    | Enables Linux perf integration with JIT dump output and TSC timestamps | x               | N/A             |
@@ -33,7 +33,7 @@ a combination of flags accepted by the @ref dnnl_set_jit_profiling_flags
 function.
 
 The default setting of the profiling flags is to enable integration with
-VTune Amplifier; therefore it does not require any additional setup and works
+VTune Profiler; therefore it does not require any additional setup and works
 out of the box. Code integrating oneDNN may override this behavior.
 
 This feature can also be managed at run-time with the following functions:
@@ -42,7 +42,7 @@ This feature can also be managed at run-time with the following functions:
 
 Function settings take precedence over environment variables.
 
-### Features for VTune Amplifier
+### Features for VTune Profiler
 
 #### ITT Tagging for Primitive Execution
 
@@ -51,8 +51,8 @@ performance information on the level of a oneDNN primitive. This feature is
 supported on both CPU and GPU.
 
 ITT tagging in oneDNN during primitive execution provides more information
-from VTune Amplifier for the items below.
-1. Get the primitives timeline chart from VTune Amplifier, and identify
+from VTune Profiler for the items below.
+1. Get the primitives timeline chart from VTune Profiler, and identify
 potential performance issues.
 2. Get platform information such as an L1/L2 cache miss or level of FP
    vectorization on the primitive level.
@@ -78,7 +78,7 @@ variable can be used to enable different level of ITT tagging.
 | ^                     | 1               | ITT events are only triggered in master thread      |
 | ^                     | **2** (default) | **ITT events are triggered in all OMP/TBB threads** |
 
-## Example: Profiling with VTune Amplifier
+## Example: Profiling with VTune Profiler
 
 For this section, it is assumed that the performance profiling environment is
 already set up.
@@ -89,7 +89,7 @@ Collect profiling data:
 
 ~~~sh
 $ amplxe-cl -collect hotspots -q -no-summary -knob sampling-mode=hw -r dnnl-vtune ./benchdnn --mode=P --conv --batch=inputs/conv/shapes_alexnet
-amplxe: Warning: To enable hardware event-base sampling, VTune Amplifier has disabled the NMI watchdog timer.
+amplxe: Warning: To enable hardware event-base sampling, VTune Profiler has disabled the NMI watchdog timer.
 The watchdog timer will be re-enabled after collection completes.
 Output template: perf,%engine%,%impl%,%name%,%prb%,%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%
 perf,cpu,jit:avx512_common,"alexnet:conv1",--conv g1mb256ic3ih227oc96oh55kh11sh4ph0n"alexnet:conv1",53.9726,0,17.4285,3096.81,22.5851,2389.74
@@ -144,7 +144,7 @@ Collect profiling data:
 
 ~~~sh
 $ amplxe-cl -collect uarch-exploration -knob sampling-interval=1 -data-limit=2000  -q -no-summary -r dnnl-vtune-ue ./benchdnn --mode=P --conv --batch=inputs/conv/shapes_alexnet
-amplxe: Warning: To enable hardware event-base sampling, VTune Amplifier has disabled the NMI watchdog timer. The watchdog timer will be re-enabled after collection completes.
+amplxe: Warning: To enable hardware event-base sampling, VTune Profiler has disabled the NMI watchdog timer. The watchdog timer will be re-enabled after collection completes.
 Output template: perf,%engine%,%impl%,%name%,%prb%,%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%
 perf,cpu,jit:avx512_common,"alexnet:conv1",--conv g1mb256ic3ih227oc96oh55kh11sh4ph0n"alexnet:conv1",53.9726,0,17.2344,3131.68,24.1246,2237.24
 perf,cpu,jit:avx512_common,"alexnet:conv2",--conv g2mb256ic96ih27oc256oh27kh5ph2n"alexnet:conv2",104.696,0,20.2988,5157.74,22.6731,4617.63
@@ -212,7 +212,7 @@ Front-End Bound:Front-End Latency:ICache Misses:Self
 
 ~~~
 
-See more examples in the [Intel VTune Profiler User Guide](https://www.intel.com/content/www/us/en/docs/vtune-profiler/user-guide/current/tutorials-and-samples.html)
+See more examples in the [VTune Profiler User Guide](https://www.intel.com/content/www/us/en/docs/vtune-profiler/user-guide/current/tutorials-and-samples.html)
 
 
 ## Example: Profiling with Linux Perf
