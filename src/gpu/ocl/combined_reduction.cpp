@@ -273,12 +273,12 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
         is_dim_reduced[i] = false;
     }
 
-    // Zero padding is not supported when dim is reduced
+    // dst zero padding is not supported when dim is reduced
     // Or when doing an LP/P alg (not zero-preserving)
     const blocking_desc_t &dst_blk = dst_mdw.blocking_desc();
     using namespace alg_kind;
     for (int i = 0; i < dst_blk.inner_nblks; i++) {
-        // Needs zero padding
+        // Needs dst zero padding
         if (dst_mdw.padded_dims()[dst_blk.inner_idxs[i]]
                 != dst_mdw.dims()[dst_blk.inner_idxs[i]]) {
             // non-zero-preserving alg
@@ -294,6 +294,20 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
             if (is_dim_reduced[dst_blk.inner_idxs[i]]) {
                 return status::unimplemented;
             }
+        }
+    }
+
+    // src zero padding on reduced dims only supported for
+    // algs that aren't affected by zeros (mean is ok, since we count div specially)
+    const blocking_desc_t &src_blk = src_mdw.blocking_desc();
+    for (int i = 0; i < src_blk.inner_nblks; i++) {
+        // Has src zero-padding
+        if (src_mdw.padded_dims()[src_blk.inner_idxs[i]]
+                != src_mdw.dims()[src_blk.inner_idxs[i]]) {
+            if (is_dim_reduced[src_blk.inner_idxs[i]]
+                    && utils::one_of(desc()->alg_kind, reduction_min,
+                            reduction_max, reduction_mul))
+                return status::unimplemented;
         }
     }
 
