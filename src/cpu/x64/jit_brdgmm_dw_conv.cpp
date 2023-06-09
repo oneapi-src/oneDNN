@@ -132,28 +132,38 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     const memory_desc_wrapper bias_d(&bias_md_);
 
     const int ndims = src_d.ndims();
-    // Currently this kernel only supports 2D convolutions.
-    if (ndims != 4) return status::unimplemented;
+    const bool is_3d = ndims == 5;
+    // Currently this kernel only supports 2D and 3D convolutions.
+    if (!utils::one_of(ndims, 4, 5)) return status::unimplemented;
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
     if (!with_groups) return status::unimplemented;
     // dilations are not supported
-    if (cd.dilates[0] != 0 || cd.dilates[1] != 0) return status::unimplemented;
+    if (cd.dilates[0] != 0 || cd.dilates[1] != 0
+            || (is_3d && cd.dilates[2] != 0))
+        return status::unimplemented;
 
     jcp = zero<decltype(jcp)>();
     jcp.ngroups = weights_d.dims()[0];
     jcp.mb = src_d.dims()[0];
     jcp.oc = dst_d.dims()[1] / jcp.ngroups;
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
-    jcp.ih = src_d.dims()[2];
-    jcp.iw = src_d.dims()[3];
-    jcp.oh = dst_d.dims()[2];
-    jcp.ow = dst_d.dims()[3];
-    jcp.kh = weights_d.dims()[3];
-    jcp.kw = weights_d.dims()[4];
-    jcp.t_pad = cd.padding[0][0];
-    jcp.l_pad = cd.padding[0][1];
-    jcp.stride_h = cd.strides[0];
-    jcp.stride_w = cd.strides[1];
+    jcp.id = is_3d ? src_d.dims()[2] : 1;
+    jcp.ih = src_d.dims()[ndims - 2];
+    jcp.iw = src_d.dims()[ndims - 1];
+    jcp.od = is_3d ? dst_d.dims()[2] : 1;
+    jcp.oh = dst_d.dims()[ndims - 2];
+    jcp.ow = dst_d.dims()[ndims - 1];
+    jcp.kd = is_3d ? weights_d.dims()[3] : 1;
+    jcp.kh = weights_d.dims()[ndims - 1];
+    jcp.kw = weights_d.dims()[ndims];
+    jcp.f_pad = is_3d ? cd.padding[0][0] : 0;
+    jcp.t_pad = cd.padding[0][is_3d];
+    jcp.l_pad = cd.padding[0][is_3d + 1];
+    jcp.stride_d = is_3d ? cd.strides[0] : 1;
+    jcp.stride_h = cd.strides[is_3d];
+    jcp.stride_w = cd.strides[is_3d + 1];
+    jcp.back_pad = calculate_end_padding(
+            jcp.f_pad, jcp.od, jcp.id, jcp.stride_d, jcp.kd);
     jcp.b_pad = calculate_end_padding(
             jcp.t_pad, jcp.oh, jcp.ih, jcp.stride_h, jcp.kh);
     jcp.r_pad = calculate_end_padding(
@@ -166,9 +176,9 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
 
     if (!(everyone_is(1, jcp.ic, jcp.oc))) return status::unimplemented;
 
-    const auto def_data_tag = format_tag::nhwc;
-    const bool any_eligible = (cd.prop_kind == prop_kind::forward_inference
-            || is_int8 || is_f16 || (isa == avx2_vnni_2 && is_bf16));
+    const auto def_data_tag = is_3d ? format_tag::ndhwc : format_tag::nhwc;
+    const bool any_eligible = (cd.prop_kind == prop_kind::forward_inference)
+            || is_3d || is_int8 || is_f16 || (isa == avx2_vnni_2 && is_bf16);
     CHECK(init_tag(src_md_, src_d, def_data_tag, any_eligible));
     CHECK(init_tag(dst_md_, dst_d, def_data_tag, any_eligible));
 
@@ -204,9 +214,9 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     // strd is only feasible for 1D (i.e., height dim is one)
     // and if there are no tails (for calculating matrix_B strides).
     // Since, we cannot always predict the blocking is 8 or 16.
-    if (jcp.kh == 1 && jcp.ngroups % 16 == 0) {
+    if (jcp.kd == 1 && jcp.kh == 1 && jcp.ngroups % 16 == 0) {
         jcp.batch_kind = brgemm_strd;
-    } else if ((jcp.mb * jcp.oh) % jcp.nthr != 0) {
+    } else if ((jcp.mb * jcp.od * jcp.oh) % jcp.nthr != 0) {
         jcp.batch_kind = brgemm_offs;
     } else {
         jcp.batch_kind = brgemm_addr;
@@ -215,7 +225,7 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     // to avoid cache concurrent access from different threads
     size_t sc_size = sizeof(brgemm_batch_element_t);
     jcp.adjusted_batch_size
-            = div_up(rnd_up(jcp.kh * jcp.kw * sc_size, 4096), sc_size);
+            = div_up(rnd_up(jcp.kd * jcp.kh * jcp.kw * sc_size, 4096), sc_size);
     CHECK(init_brdgmm_conf());
     CHECK(init_scratchpad());
     if (jcp.with_scale) {
@@ -229,6 +239,7 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
 status_t brdgmm_dw_convolution_fwd_t::pd_t::init_brdgmm_conf() {
 
     auto &jcp = jcp_;
+    const bool is_3d = ndims() == 5;
 
     auto init_bcp = [&](int &idx, const int M, const int N) {
         const float alpha = 1.f;
@@ -238,7 +249,7 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init_brdgmm_conf() {
         const int LDD = jcp.ngroups;
 
         brgemm_attr_t brg_attr;
-        brg_attr.max_bs = jcp.kw * jcp.kh;
+        brg_attr.max_bs = jcp.kw * jcp.kh * jcp.kd;
         brg_attr.max_top_vpad = nstl::max(0, jcp.l_pad);
         brg_attr.max_bottom_vpad = nstl::max(0, jcp.r_pad);
         brg_attr.max_top_bpad = nstl::max(0, jcp.t_pad);
@@ -271,8 +282,11 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init_brdgmm_conf() {
     jcp.ch_block = bcp_0.ld_block;
     jcp.nb_ch = div_up(jcp.ngroups, jcp.ch_block);
 
-    const auto wei_tag
-            = jcp.ch_block == 16 ? format_tag::hwioG16g : format_tag::hwioG8g;
+    const auto wei_tag = is_3d   ? (jcp.ch_block == 16 ? format_tag::dhwioG16g
+                                                       : format_tag::dhwioG8g)
+            : jcp.ch_block == 16 ? format_tag::hwioG16g
+                                 : format_tag::hwioG8g;
+
     const memory_desc_wrapper weights_d(&weights_md_);
     CHECK(init_tag(weights_md_, weights_d, wei_tag, true));
 
@@ -302,10 +316,10 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init_brdgmm_conf() {
         weights_md_.extra.asymm_compensation_mask = 0x1;
     }
 
-    if ((jcp.mb * jcp.oh) % jcp.nthr != 0) {
+    if ((jcp.mb * jcp.od * jcp.oh) % jcp.nthr != 0) {
         // determine ow_block
         {
-            const size_t work_amount = jcp.mb * jcp.oh * jcp.ow;
+            const size_t work_amount = jcp.mb * jcp.od * jcp.oh * jcp.ow;
             if (work_amount % jcp.nthr == 0) {
                 const size_t work_per_thr = div_up(work_amount, jcp.nthr);
                 const size_t ow_tail_block
@@ -327,7 +341,8 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init_brdgmm_conf() {
 
         // determine nb_ch_block
         {
-            const size_t work_amount = jcp.mb * jcp.nb_ch * jcp.oh * jcp.nb_ow;
+            const size_t work_amount
+                    = jcp.mb * jcp.nb_ch * jcp.od * jcp.oh * jcp.nb_ow;
             if (work_amount % jcp.nthr == 0) {
                 const size_t work_per_thr = div_up(work_amount, jcp.nthr);
                 const size_t ch_tail_block = work_per_thr % jcp.nb_ch;
@@ -446,26 +461,31 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
     const int chb_step = jcp.nb_ch_blocking;
     const int chb_work = div_up(jcp.ngroups, chb_step);
     const int ow_step = jcp.ow_block;
-    const int work_amount = jcp.mb * jcp.oh * jcp.nb_ow * chb_work;
+    const int work_amount = jcp.mb * jcp.od * jcp.oh * jcp.nb_ow * chb_work;
     const bool requires_batch_pad
             = jcp.s8s8_compensation_required || jcp.src_zero_point;
 
     const size_t src_ch_stride = jcp.src_dsz;
     const size_t src_w_stride = jcp.ngroups * jcp.src_dsz;
     const size_t src_h_stride = jcp.ngroups * jcp.iw * jcp.src_dsz;
-    const size_t src_mb_stride = jcp.ngroups * jcp.iw * jcp.ih * jcp.src_dsz;
+    const size_t src_d_stride = jcp.ngroups * jcp.ih * jcp.iw * jcp.src_dsz;
+    const size_t src_mb_stride
+            = jcp.ngroups * jcp.id * jcp.ih * jcp.iw * jcp.src_dsz;
     const size_t wei_ch_stride = jcp.wei_dsz;
     const size_t wei_w_stride = rnd_up(jcp.ngroups, jcp.ch_block) * jcp.wei_dsz;
     const size_t wei_h_stride = wei_w_stride * jcp.kw;
+    const size_t wei_d_stride = wei_h_stride * jcp.kh;
     const size_t dst_ch_stride = jcp.dst_dsz;
     const size_t dst_w_stride = jcp.ngroups * jcp.dst_dsz;
     const size_t dst_h_stride = jcp.ngroups * jcp.ow * jcp.dst_dsz;
-    const size_t dst_mb_stride = jcp.ngroups * jcp.ow * jcp.oh * jcp.dst_dsz;
+    const size_t dst_d_stride = jcp.ngroups * jcp.oh * jcp.ow * jcp.dst_dsz;
+    const size_t dst_mb_stride
+            = jcp.ngroups * jcp.od * jcp.oh * jcp.ow * jcp.dst_dsz;
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
-        int n {0}, chb {0}, oh {0}, owb {0};
+        int n {0}, chb {0}, od {0}, oh {0}, owb {0};
 
         auto iwork = start;
         brgemm_batch_element_t *const __restrict brg_batch = brg_batch_global
@@ -478,15 +498,15 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
         post_ops_data.data_C_ptr_ = dst;
 
         while (iwork < end) {
-            nd_iterator_init(iwork, n, jcp.mb, oh, jcp.oh, owb, jcp.nb_ow, chb,
-                    chb_work);
+            nd_iterator_init(iwork, n, jcp.mb, od, jcp.od, oh, jcp.oh, owb,
+                    jcp.nb_ow, chb, chb_work);
             const bool is_m_tail = jcp.ow_tail != 0 && (owb + 1 == jcp.nb_ow);
             const bool is_n_tail = jcp.chb_tail != 0 && (chb + 1 == chb_work);
             if (is_m_tail && chb != 0) {
                 // the tail ow_block is not split btw threads to reduce the
                 // number of kernels.
-                utils::nd_iterator_jump(iwork, end, n, jcp.mb, oh, jcp.oh, owb,
-                        jcp.nb_ow, chb, chb_work);
+                utils::nd_iterator_jump(iwork, end, n, jcp.mb, od, jcp.od, oh,
+                        jcp.oh, owb, jcp.nb_ow, chb, chb_work);
                 continue;
             }
 
@@ -520,46 +540,51 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
             auto *ptr_A = src;
             auto *ptr_B = weights;
             int bs = 0;
-            for (int kh = 0; kh < jcp.kh; ++kh) {
+            for_(int kd = 0; kd < jcp.kd; ++kd)
+            for_(int kh = 0; kh < jcp.kh; ++kh)
+            for (int kw = 0; kw < jcp.kw; ++kw) {
 
+                const int id = od * jcp.stride_d - jcp.f_pad + kd;
                 const int ih = oh * jcp.stride_h - jcp.t_pad + kh;
-                if (!requires_batch_pad && (ih < 0 || ih >= jcp.ih)) continue;
+                const bool padded_bs
+                        = (id < 0 || id >= jcp.id || ih < 0 || ih >= jcp.ih);
+                if (!requires_batch_pad && padded_bs) continue;
 
-                for (int kw = 0; kw < jcp.kw; ++kw) {
-                    const int iw_s = ow * jcp.stride_w - jcp.l_pad + kw;
-                    const int ow_e
-                            = nstl::min(jcp.ow, ow + cur_n_owb * jcp.ow_block)
-                            - 1;
-                    const int iw_e = ow_e * jcp.stride_w - jcp.l_pad + kw;
+                const int iw_s = ow * jcp.stride_w - jcp.l_pad + kw;
+                const int ow_e
+                        = nstl::min(jcp.ow, ow + cur_n_owb * jcp.ow_block) - 1;
+                const int iw_e = ow_e * jcp.stride_w - jcp.l_pad + kw;
 
-                    auto &batch = brg_batch[bs];
-                    batch.has_s8s8_comp_batch_pad = ih < 0 || ih >= jcp.ih;
-                    batch.vvpad.top = nstl::max(0, div_up(-iw_s, jcp.stride_w));
-                    batch.vvpad.bottom = nstl::max<dim_t>(
-                            0, div_up(iw_e - (jcp.iw - 1), jcp.stride_w));
+                auto &batch = brg_batch[bs];
+                batch.has_s8s8_comp_batch_pad = padded_bs;
+                batch.vvpad.top = nstl::max(0, div_up(-iw_s, jcp.stride_w));
+                batch.vvpad.bottom = nstl::max<dim_t>(
+                        0, div_up(iw_e - (jcp.iw - 1), jcp.stride_w));
 
-                    const dim_t offs_A = n * src_mb_stride + ih * src_h_stride
-                            + iw_s * src_w_stride + ch * src_ch_stride;
-                    const dim_t offs_B = kh * wei_h_stride + kw * wei_w_stride
-                            + ch * wei_ch_stride;
-                    if (jcp.batch_kind == brgemm_offs) {
-                        batch.offset.A = offs_A;
-                        batch.offset.B = offs_B;
-                    } else if (jcp.batch_kind == brgemm_addr) {
-                        batch.ptr.A = src + offs_A;
-                        batch.ptr.B = weights + offs_B;
-                    } else {
-                        assert(jcp.batch_kind == brgemm_strd);
-                        if (bs == 0) {
-                            ptr_A = src + offs_A;
-                            ptr_B = weights + offs_B;
-                        }
+                const dim_t offs_A = n * src_mb_stride + id * src_d_stride
+                        + ih * src_h_stride + iw_s * src_w_stride
+                        + ch * src_ch_stride;
+                const dim_t offs_B = kd * wei_d_stride + kh * wei_h_stride
+                        + kw * wei_w_stride + ch * wei_ch_stride;
+                if (jcp.batch_kind == brgemm_offs) {
+                    batch.offset.A = offs_A;
+                    batch.offset.B = offs_B;
+                } else if (jcp.batch_kind == brgemm_addr) {
+                    batch.ptr.A = src + offs_A;
+                    batch.ptr.B = weights + offs_B;
+                } else {
+                    assert(jcp.batch_kind == brgemm_strd);
+                    if (bs == 0) {
+                        ptr_A = src + offs_A;
+                        ptr_B = weights + offs_B;
                     }
-                    ++bs;
                 }
+                ++bs;
             }
-            auto ptr_C = dst + n * dst_mb_stride + oh * dst_h_stride
-                    + ow * dst_w_stride + ch * dst_ch_stride;
+
+            auto ptr_C = dst + n * dst_mb_stride + od * dst_d_stride
+                    + oh * dst_h_stride + ow * dst_w_stride
+                    + ch * dst_ch_stride;
             const int rem_chb_work = chb_work - chb;
             int chb_loop_work = is_m_tail || (chb == 0 && rem_work >= chb_work)
                     ? 1 // Compute entire chb_work in single jit call

@@ -621,10 +621,10 @@ struct jit_brdgmm_conv_conf_t {
 
     int nthr;
     int mb, ngroups, ic, oc;
-    int ih, iw, oh, ow;
-    int l_pad, r_pad, t_pad, b_pad;
-    int kh, kw;
-    int stride_h, stride_w;
+    int id, ih, iw, od, oh, ow;
+    int f_pad, back_pad, l_pad, r_pad, t_pad, b_pad;
+    int kd, kh, kw;
+    int stride_d, stride_h, stride_w;
     int nb_ch, ch_block, chb_tail;
     int nb_ch_blocking;
     int ow_block, ow_tail, nb_ow;
