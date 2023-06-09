@@ -1418,10 +1418,7 @@ status_t init_cfg(conv_config_t &cfg, const primitive_t *prim) {
 }
 
 int conv_config_t::reserved_regs() const {
-    int ret = constants::reserved_regs_default;
-    // XXX: Workaround for incorrect register estimation.
-    if (prb().is_bwd_w && prb().mb % 16 != 0) ret += 4;
-    return ret;
+    return constants::reserved_regs_default;
 }
 
 int conv_config_t::pad_block(const std::string &name) const {
