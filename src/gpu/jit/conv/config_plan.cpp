@@ -2098,7 +2098,11 @@ private:
         auto &a_type = a_layout.type();
         auto &b_type = b_layout.type();
         auto c_type = get_default_accumulation_type(a_type, b_type);
-        if (fma_kind == fma_kind_t::mad && a_type.is_f16() && b_type.is_f16()) {
+        // Require f32 acc for most f16 training.
+        bool force_f32_acc = cfg_.prb().is_bwd_w && cfg_.hw() > ngen::HW::XeLP
+                && !cfg_.prb().is_dw;
+        if (fma_kind == fma_kind_t::mad && a_type.is_f16() && b_type.is_f16()
+                && !force_f32_acc) {
             // FIXME: f16 must use f32 accumulator according to documentation.
             c_type = type_t::f16();
         }

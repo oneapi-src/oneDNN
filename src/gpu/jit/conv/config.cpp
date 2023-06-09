@@ -840,9 +840,9 @@ status_t init_tensor_layouts(conv_config_t &cfg, memory_desc_t &src_md,
     auto bia_layout = user_bia_layout;
 
     if (prb.is_bwd_w) {
-        if (prb.wei_data_type == data_type::bf16)
+        if (utils::one_of(prb.wei_data_type, data_type::bf16, data_type::f16))
             wei_layout = wei_layout.retype(type_t::f32());
-        if (prb.bia_data_type == data_type::bf16)
+        if (utils::one_of(prb.bia_data_type, data_type::bf16, data_type::f16))
             bia_layout = bia_layout.retype(type_t::f32());
     }
 
@@ -905,8 +905,8 @@ bool data_types_ok(const conv_problem_t &prb, const hw_config_t &hw_cfg) {
         bool ok = true;
         data_type_t default_acc_type
                 = src == data_type::f64 ? data_type::f64 : data_type::f32;
-        ok &= utils::one_of(
-                src, data_type::bf16, data_type::f32, data_type::f64);
+        ok &= utils::one_of(src, data_type::bf16, data_type::f16,
+                data_type::f32, data_type::f64);
         ok &= (dst == src);
         ok &= utils::one_of(wei, src, default_acc_type);
 
