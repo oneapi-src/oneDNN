@@ -60,7 +60,6 @@ features on GPU:
 1. ConvTranspose with per_channel output scale
 2. ConvTranspose with per_tensor output scale != 1
 3. ConvTranspose with zero points
-5. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
@@ -84,6 +83,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     pm::pb_op_t *dequant_weight
                             = pgraph->append_op(graph::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, popt, 0)});
+                    // Currently oneDNN ConvTranspose primitive only supports s8 weight
+                    dequant_weight->append_decision_function(
+                            check_input_dtype<graph::data_type::s8>);
 
                     pm::pb_op_t *pconvtranspose
                             = pgraph->append_op(graph::op_kind::ConvTranspose,
@@ -125,7 +127,6 @@ features on GPU:
 1. ConvTranspose with per_channel output scale
 2. ConvTranspose with per_tensor output scale != 1
 3. ConvTranspose with zero points
-5. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
@@ -220,7 +221,6 @@ features on GPU:
 2. ConvTranspose with per_tensor output scale != 1
 3. ConvTranspose with zero points
 4. Post-sum with zero points
-5. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
@@ -244,6 +244,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     pm::pb_op_t *dequant_weight
                             = pgraph->append_op(graph::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, popt, 0)});
+                    // Currently oneDNN ConvTranspose primitive only supports s8 weight
+                    dequant_weight->append_decision_function(
+                            check_input_dtype<graph::data_type::s8>);
 
                     pm::pb_op_t *pconvtranspose
                             = pgraph->append_op(graph::op_kind::ConvTranspose,
@@ -272,7 +275,6 @@ features on GPU:
 2. ConvTranspose with per_tensor output scale != 1
 3. ConvTranspose with zero points
 4. Post-sum with zero points
-5. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(

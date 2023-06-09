@@ -4345,10 +4345,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasU8s8u8MixBf16) {
         ASSERT_EQ(g.add_op(&qout_op), graph::status::success);
         g.finalize();
 
-        graph::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_conv_bias_fusion_gpu"
-                                : "int8_conv_bias_fusion_cpu");
+        graph::pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -4539,10 +4536,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddU8s8u8MixBf16) {
         ASSERT_EQ(g.add_op(&qout_op), graph::status::success);
         g.finalize();
 
-        graph::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_conv_bias_fusion_gpu"
-                                : "int8_conv_bias_fusion_cpu");
+        graph::pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -4716,10 +4710,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasGeluU8s8u8MixBf16) {
         ASSERT_EQ(g.add_op(&qout_op), graph::status::success);
         g.finalize();
 
-        graph::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_conv_bias_fusion_gpu"
-                                : "int8_conv_bias_fusion_cpu");
+        graph::pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -4918,10 +4909,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddGeluU8s8u8MixBf16) {
         ASSERT_EQ(g.add_op(&qout_op), graph::status::success);
         g.finalize();
 
-        graph::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "int8_conv_bias_fusion_gpu"
-                                : "int8_conv_bias_fusion_cpu");
+        graph::pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];

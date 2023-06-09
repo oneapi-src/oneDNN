@@ -101,6 +101,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     pm::pb_op_t *dequant_weight
                             = pgraph->append_op(graph::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, popt, 0)});
+                    // Currently oneDNN convolution primitive only supports s8 weight
+                    dequant_weight->append_decision_function(
+                            check_input_dtype<graph::data_type::s8>);
 
                     pm::pb_op_t *pconv
                             = pgraph->append_op(graph::op_kind::Convolution,
@@ -142,6 +145,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     pm::pb_op_t *dequant_weight
                             = pgraph->append_op(graph::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, popt, 0)});
+                    // Currently oneDNN convolution primitive only supports s8 weight
+                    dequant_weight->append_decision_function(
+                            check_input_dtype<graph::data_type::s8>);
 
                     pm::pb_op_t *pconv
                             = pgraph->append_op(graph::op_kind::Convolution,
@@ -182,6 +188,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_conv_post_ops_fusion)
                     pm::pb_op_t *dequant_weight
                             = pgraph->append_op(graph::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, popt, 0)});
+                    // Currently oneDNN convolution primitive only supports s8 weight
+                    dequant_weight->append_decision_function(
+                            check_input_dtype<graph::data_type::s8>);
 
                     pm::pb_op_t *pconv
                             = pgraph->append_op(graph::op_kind::Convolution,
@@ -236,83 +245,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_conv_post_ops_fusion)
             quant_out
                 |
 */
-/*
-Conv: Currently DNNL Backend doesn't support below
-features on GPU:
-1. Reorder with zero points (used in weight u8->s8)
-while CPU supports.
-*/
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_conv_bias_fusion_cpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_conv_bias_fusion)
         .set_priority(10.5f)
-        .set_engine_kind(engine_kind::cpu)
-        .set_kind(partition_kind_t::quantized_convolution_post_ops)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op_t *dequant_data
-                            = pgraph->append_op(graph::op_kind::Dequantize);
-
-                    // Optional quant_weight
-                    auto popt_graph = std::make_shared<pb_graph_t>();
-                    pm::pb_op_t *pquant
-                            = popt_graph->append_op(graph::op_kind::Quantize);
-                    popt_graph->create_input_port(0, pquant, 0);
-                    popt_graph->create_output_port(0, pquant, 0);
-                    auto popt = pgraph->append_optional(popt_graph);
-
-                    pm::pb_op_t *dequant_weight
-                            = pgraph->append_op(graph::op_kind::Dequantize,
-                                    in_edges_t {in_edge(0, popt, 0)});
-
-                    pm::pb_op_t *typecast_data
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_data, 0)});
-                    typecast_data->append_decision_function(
-                            check_output_dtype<graph::data_type::bf16>);
-
-                    pm::pb_op_t *typecast_weight
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_weight, 0)});
-                    typecast_weight->append_decision_function(
-                            check_output_dtype<graph::data_type::bf16>);
-                    pm::pb_op_t *convolution
-                            = pgraph->append_op(graph::op_kind::Convolution,
-                                    in_edges_t {in_edge(0, typecast_data, 0),
-                                            in_edge(1, typecast_weight, 0)});
-
-                    // Optional bias_add
-                    auto popt_bias
-                            = optional_bias_add(pgraph, convolution, true);
-
-                    // optional GELU
-                    auto popt_gelu_graph = std::make_shared<pb_graph_t>();
-                    pm::pb_op_t *gelu
-                            = popt_gelu_graph->append_op(graph::op_kind::GELU);
-                    popt_gelu_graph->create_input_port(0, gelu, 0);
-                    popt_gelu_graph->create_output_port(0, gelu, 0);
-                    auto popt_gelu = pgraph->append_optional(popt_gelu_graph,
-                            in_edges_t {in_edge(0, popt_bias, 0)});
-
-                    pm::pb_op_t *typecast_gelu
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, popt_gelu, 0)});
-                    typecast_gelu->append_decision_function(
-                            check_input_dtype<graph::data_type::bf16>);
-                    pgraph->append_op(graph::op_kind::Quantize,
-                            in_edges_t {in_edge(0, typecast_gelu, 0)});
-                })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<quantized_conv>();
-        });
-
-/*
-Conv: Currently DNNL Backend doesn't support below
-features on GPU:
-1. Reorder with zero points (used in weight u8->s8)
-while CPU supports.
-*/
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_conv_bias_fusion_gpu)
-        .set_priority(10.5f)
-        .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind_t::quantized_convolution_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {

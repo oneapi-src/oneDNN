@@ -10762,7 +10762,7 @@ TEST(Pass, MixInt8AndBf16ConvolutionBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion");
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -10954,7 +10954,7 @@ TEST(Pass, MixInt8AndBf16ConvolutionBiasGelu) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion");
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
