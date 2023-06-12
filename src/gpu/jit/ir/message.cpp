@@ -1163,6 +1163,7 @@ send_2d_hint_t get_send_2d_hint(const exec_config_t &exec_cfg,
         int b1_blk = !is_b0_k ? k_blk : mn_blk;
         if (b0_blk != any_block && b0.block % b0_blk != 0) return hint;
         if (b1_blk != any_block && b1.block % b1_blk != 0) return hint;
+        if (vnni && transpose) return hint;
         hint = get_send_2d_hint(send_op, view.type(), vnni, transpose, b0.block,
                 b1.block, b0_blk, b1_blk);
     } else {
