@@ -1082,6 +1082,10 @@ int slm_bufs_hint(const conv_problem_t &prb, int m_tg, int n_tg,
         bool do_unroll);
 tensor_config_t get_tensor_config(const conv_config_t &cfg);
 int estimate_register_count(const conv_config_t &cfg);
+const conv_tile_t *get_transpose_kernel_grid_conv_dims(
+        const conv_problem_t &prb, int idx);
+const conv_tile_t *get_transpose_thread_group_grid_conv_dims(
+        const conv_problem_t &prb, int idx);
 const conv_tile_t *get_kernel_grid_conv_dims(
         const conv_problem_t &prb, int idx);
 const conv_tile_t *get_thread_group_grid_conv_dims(

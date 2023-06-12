@@ -199,7 +199,7 @@ status_t conv_problem_t::init(
     bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
     using sm = primitive_attr_t::skip_mask_t;
     auto attr_skip_mask = sm::zero_points_runtime;
-    bool do_ab_transpose = ir_utils::getenv_bool("do_ab_transpose", true);
+    bool do_ab_transpose = gpu_utils::dev_getenv("do_ab_transpose", true);
     bool any_zp = !attr->has_default_values(attr_skip_mask);
     ab_swap_transpose = !any_zp && do_ab_transpose && !with_groups
             && (((is_bwd_d) && ic < 6) || ((is_fwd || is_bwd_w) && oc < 6));
@@ -1192,6 +1192,32 @@ const conv_tile_t *get_kernel_grid_conv_dims(
     return nullptr;
 }
 
+const conv_tile_t *get_transpose_kernel_grid_conv_dims(
+        const conv_problem_t &prb, int idx) {
+    static const conv_tile_t fwd_0({conv_dims::mb});
+    static const conv_tile_t fwd_1({conv_dims::oc});
+    static const conv_tile_t fwd_2(
+            {conv_dims::g, conv_dims::od, conv_dims::oh, conv_dims::ow});
+    static const conv_tile_t bwd_d_0({conv_dims::mb});
+    static const conv_tile_t bwd_d_1({conv_dims::ic});
+    static const conv_tile_t bwd_d_2(
+            {conv_dims::g, conv_dims::id, conv_dims::ih, conv_dims::iw});
+    static const conv_tile_t bwd_w_0(
+            {conv_dims::ic, conv_dims::kd, conv_dims::kh, conv_dims::kw,
+                    conv_dims::od, conv_dims::oh, conv_dims::ow});
+    static const conv_tile_t bwd_w_1({conv_dims::g, conv_dims::mb});
+    static const conv_tile_t bwd_w_2({conv_dims::oc});
+    static const conv_tile_t *fwd[] = {&fwd_0, &fwd_1, &fwd_2};
+    static const conv_tile_t *bwd_d[] = {&bwd_d_0, &bwd_d_1, &bwd_d_2};
+    static const conv_tile_t *bwd_w[] = {&bwd_w_0, &bwd_w_1, &bwd_w_2};
+    ir_assert(idx >= 0 && idx < 3);
+    if (prb.is_fwd) return fwd[idx];
+    if (prb.is_bwd_d) return bwd_d[idx];
+    if (prb.is_bwd_w) return bwd_w[idx];
+    ir_error_not_expected();
+    return nullptr;
+}
+
 const conv_tile_t *get_thread_group_grid_conv_dims(
         const conv_problem_t &prb, int idx) {
     static const conv_tile_t fwd_0({conv_dims::oc});
@@ -1202,6 +1228,28 @@ const conv_tile_t *get_thread_group_grid_conv_dims(
     static const conv_tile_t bwd_d_2({conv_dims::oc});
     static const conv_tile_t bwd_w_0({conv_dims::oc});
     static const conv_tile_t bwd_w_1({conv_dims::ic});
+    static const conv_tile_t bwd_w_2;
+    static const conv_tile_t *fwd[] = {&fwd_0, &fwd_1, &fwd_2};
+    static const conv_tile_t *bwd_d[] = {&bwd_d_0, &bwd_d_1, &bwd_d_2};
+    static const conv_tile_t *bwd_w[] = {&bwd_w_0, &bwd_w_1, &bwd_w_2};
+    ir_assert(idx >= 0 && idx < 3);
+    if (prb.is_fwd) return fwd[idx];
+    if (prb.is_bwd_d) return bwd_d[idx];
+    if (prb.is_bwd_w) return bwd_w[idx];
+    ir_error_not_expected();
+    return nullptr;
+}
+
+const conv_tile_t *get_transpose_thread_group_grid_conv_dims(
+        const conv_problem_t &prb, int idx) {
+    static const conv_tile_t fwd_0({conv_dims::mb, conv_dims::ow});
+    static const conv_tile_t fwd_1({conv_dims::oc});
+    static const conv_tile_t fwd_2({conv_dims::ic});
+    static const conv_tile_t bwd_d_0({conv_dims::mb, conv_dims::iw});
+    static const conv_tile_t bwd_d_1({conv_dims::ic});
+    static const conv_tile_t bwd_d_2({conv_dims::oc});
+    static const conv_tile_t bwd_w_0({conv_dims::ic});
+    static const conv_tile_t bwd_w_1({conv_dims::oc});
     static const conv_tile_t bwd_w_2;
     static const conv_tile_t *fwd[] = {&fwd_0, &fwd_1, &fwd_2};
     static const conv_tile_t *bwd_d[] = {&bwd_d_0, &bwd_d_1, &bwd_d_2};
@@ -1241,7 +1289,9 @@ void init_kernel_grid(conv_config_t &cfg) {
     const int grid_ndims = 3;
     std::vector<int> dims = {1, 1, 1};
     for (int i = 0; i < grid_ndims; i++) {
-        auto *tile = get_kernel_grid_conv_dims(prb, i);
+        auto *tile = prb.ab_swap_transpose
+                ? get_transpose_kernel_grid_conv_dims(prb, i)
+                : get_kernel_grid_conv_dims(prb, i);
         for (auto d : *tile)
             dims[i] *= get(d);
     }
@@ -1257,7 +1307,9 @@ void init_thread_group_grid(conv_config_t &cfg) {
     const int grid_ndims = 3;
     std::vector<int> dims = {1, 1, 1};
     for (int i = 0; i < grid_ndims; i++) {
-        auto *tile = get_thread_group_grid_conv_dims(prb, i);
+        auto *tile = prb.ab_swap_transpose
+                ? get_transpose_thread_group_grid_conv_dims(prb, i)
+                : get_thread_group_grid_conv_dims(prb, i);
         for (auto d : *tile)
             dims[i] *= get(d);
     }
