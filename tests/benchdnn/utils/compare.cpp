@@ -207,6 +207,7 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     // Atomics to be updated in parallel section, non-atomics - in sequential.
     std::atomic<bool> all_ok(true);
     std::atomic<int64_t> zeros(0);
+    std::atomic<float> max_rdiff(0), max_diff(0);
     int64_t n_errors = 0;
     volatile bool from_parallel = true;
     const bool need_dump = verbose >= 99;
@@ -289,8 +290,12 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
                 }
             }
         }
-        // Update zero stats for mistrust testing.
+        // Update compare stats.
         if (from_parallel && fabsf(args.got) == 0) zeros++;
+        if (from_parallel && verbose >= 6) {
+            max_rdiff = MAX2(max_rdiff.load(), args.rel_diff);
+            max_diff = MAX2(max_diff.load(), args.diff);
+        }
 
         if (!ok && all_ok) all_ok = false;
         if (!ok && !from_parallel) n_errors++;
@@ -328,8 +333,11 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             && nelems >= 10)
         res->state = MISTRUSTED;
 
+    BENCHDNN_PRINT(6, "[COMPARE_STATS]%s: max_diff:%8g max_rdiff:%8g\n",
+            get_kind_str().c_str(), max_diff.load(), max_rdiff.load());
+
     BENCHDNN_PRINT((res->state == MISTRUSTED ? 2 : 6),
-            "[TRUST_STATS]%s: z:%2.0f%% (>%2.0f%%) (z: %ld, total: %ld)\n",
+            "[COMPARE_TRUST]%s: z:%2.0f%% (>%2.0f%%) (z: %ld, total: %ld)\n",
             get_kind_str().c_str(), zeros_percent, zero_trust_percent,
             (long)zeros.load(), (long)nelems);
 
