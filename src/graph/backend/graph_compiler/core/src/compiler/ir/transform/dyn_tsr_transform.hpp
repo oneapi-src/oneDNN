@@ -24,6 +24,7 @@ namespace gc {
 namespace attr_keys {
 constexpr const char *plain_dims = "pass.plain_dims";
 constexpr const char *always_trans = "pass.always_trans";
+constexpr const char *forbid_trans = "pass.forbid_trans";
 } // namespace attr_keys
 /**
  * Do dynamic tensor transform, tensor_node=>dynamic_tensor(void pointer in IR,

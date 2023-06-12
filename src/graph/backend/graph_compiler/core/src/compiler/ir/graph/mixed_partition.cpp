@@ -29,6 +29,7 @@
 #include <compiler/ir/transform/buffer_schedule.hpp>
 #include <compiler/ir/transform/concat_memory_planning.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
+#include <compiler/ir/transform/dyn_tsr_transform.hpp>
 #include <compiler/ir/transform/index_flatten.hpp>
 #include <compiler/ir/transform/loop_transform.hpp>
 #include <compiler/ir/transform/pointer_alias_info.hpp>
@@ -2451,6 +2452,9 @@ void mixed_parti_t::add(const sc_op_ptr &op) {
     SC_MODULE_INFO << "================  adding op: " << op->op_name_ << "_"
                    << op->logical_op_id_ << " to partition: " << func_->name_
                    << " ================";
+    if (op->need_dynamic_internal_query()) {
+        dyn_inter_ = std::make_shared<mixed_dyn_internal_info_t>(ctx_);
+    }
     auto mixed_op = op->dyn_cast<op_traits::mixed_partition_acceptable>();
     mixed_op->append_mixed_partition(this);
     func_->name_ += "_" + op->op_name_ + std::to_string(op->logical_op_id_);
@@ -3593,17 +3597,44 @@ std::shared_ptr<mixed_fuse_op_t> mixed_parti_t::transform_to_mixed_op() {
     graph::mark_read_or_write_buffers(arg_ins, true);
     graph::mark_read_or_write_buffers(arg_out, false);
     // build up final func name and param
-    std::vector<expr> args = arg_out;
+    std::vector<expr> args = arg_out, buffer_args;
     args.insert(args.end(), arg_ins.begin(), arg_ins.end());
-    std::for_each(args.begin(), args.end(), [](const expr &arg) {
+    std::for_each(args.begin(), args.end(), [&g](const expr &arg) {
         COMPILE_ASSERT(arg.isa<tensor>(),
                 "Only tensor node is expected for function argument, but "
                 "got " << arg)
         arg->attr()[mixed_partition_hint::cut_buffer] = true;
+        if (g.is_dynamic()
+                || g.attrs_.get_or_else("temp.parent_graph_dynamic", false)) {
+            arg->attr()[attr_keys::always_trans] = true;
+        }
     });
+    if (dyn_inter_) {
+        buffer_args = args;
+        args.emplace_back(dyn_inter_->inter_funcs_param_);
+    }
     func_->params_ = args;
     func_->decl_->params_ = args;
-
+    if (dyn_inter_) {
+        assert(dyn_inter_->inter_call_.defined());
+        // replace output buffer of single core/internal func.
+        auto reset_args = [&buffer_args](std::vector<expr> &target_args,
+                                  const std::vector<expr> &extra_args) {
+            target_args = buffer_args;
+            target_args.insert(
+                    target_args.end(), extra_args.begin(), extra_args.end());
+        };
+        reset_args(dyn_inter_->inter_call_->args_,
+                dyn_inter_->inter_call_extra_args_);
+        reset_args(dyn_inter_->inter_func_->params_,
+                dyn_inter_->inter_func_extra_args_);
+        dyn_inter_->inter_func_->decl_->params_
+                = dyn_inter_->inter_func_->params_;
+        reset_args(dyn_inter_->single_core_func_->params_,
+                dyn_inter_->single_core_func_extra_args_);
+        dyn_inter_->single_core_func_->decl_->params_
+                = dyn_inter_->single_core_func_->params_;
+    }
     // buffer schedule: declare, set shrink info, tensor initilize and query
     // inplace
     buffer_schedule();

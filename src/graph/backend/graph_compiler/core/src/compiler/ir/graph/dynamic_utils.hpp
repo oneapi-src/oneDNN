@@ -67,21 +67,23 @@ struct op_dispatch_tables_t {
         std::shared_ptr<sc_op> op_;
         std::string name_or_postfix_;
         std::shared_ptr<context_t> ctx_;
+        bool internal_;
         // only valid when `!already_compiled()`. Lower the partial
         // specialization to TIR
         std::shared_ptr<ir_module_t> lower();
         /**
          * op_func_info which indicates that the partial specialization is not
-         * compiled or lowered yet
+         * compiled or lowered yet, internal means the internal functions of op.
          */
         op_func_info(const std::shared_ptr<sc_graph_t> &graph,
                 const std::shared_ptr<sc_op> &op,
                 const std::string &name_or_postfix,
-                const std::shared_ptr<context_t> &ctx)
+                const std::shared_ptr<context_t> &ctx, bool internal = false)
             : graph_(graph)
             , op_(op)
             , name_or_postfix_(name_or_postfix)
-            , ctx_(ctx) {}
+            , ctx_(ctx)
+            , internal_(internal) {}
         /**
          * op_func_info which indicates that the partial specialization is
          * already lowered to TIR in the current IR module
@@ -157,6 +159,16 @@ void update_graph_format_by_key(const std::shared_ptr<context_t> &ctx,
         const std::shared_ptr<sc_op> &modified_inp = nullptr);
 expr call_op_dynamic_query_function(
         const std::shared_ptr<sc_op> &op, const std::vector<expr> &args);
+void create_internal_dispatch_funcs_by_node(
+        const std::shared_ptr<context_t> &ctx,
+        std::shared_ptr<ir_module_t> &ret_mod, const std::string &table_name,
+        const std::shared_ptr<sc_op> &node);
+void create_dispatch_funcs_by_keys(const std::shared_ptr<context_t> &ctx,
+        std::shared_ptr<ir_module_t> &ret_mod, const std::string &table_name,
+        const std::shared_ptr<sc_op> &node, const op_dispatch_key_base_t *key,
+        expr &op_dispatch_kernel, int &dyn_idx, bool internal);
+int get_num_of_internal_funcs(const std::shared_ptr<sc_op> &node);
+int get_num_of_internal_funcs(const sc_graph_t &graph);
 int count_dynamic_dims(const sc_dims &in);
 
 namespace runtime {

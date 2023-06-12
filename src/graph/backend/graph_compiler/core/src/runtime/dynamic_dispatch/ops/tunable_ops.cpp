@@ -17,6 +17,7 @@
 #include "config.hpp"
 #include "impl_type.hpp"
 #include "util.hpp"
+#include <runtime/config.hpp>
 #include <runtime/data_type.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
@@ -34,8 +35,8 @@ static int check_and_set_matmul_core_impl(
         runtime::dispatch_key *weight_fmt_st, runtime::dispatch_key *out_fmt_st,
         runtime::dynamic_tensor_t *data_dyn_tsr,
         runtime::dynamic_tensor_t *weight_dyn_tsr,
-        runtime::dynamic_tensor_t *out_dyn_tsr, int M_blk, int N_blk,
-        int K_blk) {
+        runtime::dynamic_tensor_t *out_dyn_tsr, int M_blk, int N_blk, int K_blk,
+        int &internal_impl) {
     // query impl kind here. default return normal impl kind.
     auto &impl_kind_table = op_table->impl_kind_table_;
     if (impl_kind_table) {
@@ -59,8 +60,8 @@ static int check_and_set_managed_matmul_core_impl(
         runtime::dispatch_key *weight_fmt_st, runtime::dispatch_key *out_fmt_st,
         runtime::dynamic_tensor_t *data_dyn_tsr,
         runtime::dynamic_tensor_t *weight_dyn_tsr,
-        runtime::dynamic_tensor_t *out_dyn_tsr, int M_blk, int N_blk,
-        int K_blk) {
+        runtime::dynamic_tensor_t *out_dyn_tsr, int M_blk, int N_blk, int K_blk,
+        int &internal_impl) {
     // query impl kind here.
     auto &impl_kind_table = op_table->impl_kind_table_;
     assert(impl_kind_table);
@@ -90,11 +91,11 @@ static int check_and_set_managed_matmul_core_impl(
             static_cast<uint64_t>(im_loop_order)};
     void *value = impl_kind_table->get(keys, 6);
     assert(value);
-    int impl = *reinterpret_cast<int *>(value);
-    data_fmt_st->set_impl_alg(impl);
-    weight_fmt_st->set_impl_alg(impl);
-    out_fmt_st->set_impl_alg(impl);
-    return impl;
+    internal_impl = *reinterpret_cast<int *>(value);
+    const int num_threads = runtime_config_t::get().get_num_threads();
+    const int K_split_num = num_threads / M_split_num / N_split_num;
+    if (K_split_num > 1) { return mmm_impl_kind_t::is_partial; }
+    return mmm_impl_kind_t::full_k;
 }
 
 extern "C" void infer_shape_matmul_op(void *out, void *data, void *weight) {
@@ -122,13 +123,14 @@ extern "C" void infer_shape_matmul_op(void *out, void *data, void *weight) {
 typedef int (*impl_set_func)(runtime::op_dispatch_tables_t *,
         runtime::dispatch_key *, runtime::dispatch_key *,
         runtime::dispatch_key *, runtime::dynamic_tensor_t *,
-        runtime::dynamic_tensor_t *, runtime::dynamic_tensor_t *, int, int,
-        int);
+        runtime::dynamic_tensor_t *, runtime::dynamic_tensor_t *, int, int, int,
+        int &);
 extern "C" void query_format_matmul_common_process(void *table, void *out,
         void *data, void *weight, void *ori_data, void *ori_weight,
         uint64_t *out_fmt, uint64_t *data_fmt, uint64_t *weight_fmt,
         uint64_t *ori_data_fmt, uint64_t *ori_weight_fmt, uint64_t *out_size,
-        void *kernel, int *impl_alg, impl_set_func impl_func) {
+        void *kernel, int *impl_alg, impl_set_func impl_func,
+        bool is_mmm = false) {
     // update output shape and mask.
     runtime::dynamic_tensor_t *out_dyn_tsr
             = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
@@ -244,9 +246,12 @@ extern "C" void query_format_matmul_common_process(void *table, void *out,
     uint64_t cp_out_fmt = *out_fmt;
     auto *out_fmt_st = reinterpret_cast<runtime::dispatch_key *>(&cp_out_fmt);
     auto &kernel_table = op_table->kernel_table_;
-    if (kernel_table) {
-        impl_func(op_table, data_fmt_st, weight_fmt_st, out_fmt_st,
-                data_dyn_tsr, weight_dyn_tsr, out_dyn_tsr, M_blk, N_blk, K_blk);
+    int internal_impl;
+    int impl = impl_func(op_table, data_fmt_st, weight_fmt_st, out_fmt_st,
+            data_dyn_tsr, weight_dyn_tsr, out_dyn_tsr, M_blk, N_blk, K_blk,
+            internal_impl);
+    if (!impl_alg) {
+        // single op query.
         uint64_t keys[3] = {cp_data_fmt, cp_weight_fmt, cp_out_fmt};
         void *func = runtime::run_query_and_wait(
                 op_table->kernel_dispatch_func_, kernel_table.get(), keys, 3);
@@ -255,9 +260,20 @@ extern "C" void query_format_matmul_common_process(void *table, void *out,
         weight_fmt_st->reset_blocks_and_impl();
         *reinterpret_cast<void **>(kernel) = func;
     } else {
-        assert(impl_alg);
-        *impl_alg = impl_func(op_table, data_fmt_st, weight_fmt_st, out_fmt_st,
-                data_dyn_tsr, weight_dyn_tsr, out_dyn_tsr, M_blk, N_blk, K_blk);
+        *impl_alg = impl;
+    }
+    // impl func
+    if (is_mmm) {
+        assert(kernel_table);
+        runtime::dispatch_key impl_fmt_st
+                = runtime::get_impl_dispatch_key(internal_impl);
+        uint64_t keys[3] = {impl_fmt_st, impl_fmt_st, impl_fmt_st};
+        void *func = runtime::run_query_and_wait(
+                op_table->kernel_dispatch_func_, kernel_table.get(), keys, 3);
+        assert(func);
+        *(reinterpret_cast<void **>(kernel)
+                + static_cast<int>(impl_alg == nullptr))
+                = func;
     }
     // avoid internal status change in multi thread case.
     *data_fmt = cp_data_fmt;
@@ -286,7 +302,7 @@ extern "C" void query_format_managed_matmul_core_op(void *table, void *out,
     query_format_matmul_common_process(table, out, data, weight, ori_data,
             ori_weight, out_fmt, data_fmt, weight_fmt, ori_data_fmt,
             ori_weight_fmt, out_size, kernel, impl_alg,
-            check_and_set_managed_matmul_core_impl);
+            check_and_set_managed_matmul_core_impl, true);
 }
 } // namespace gc
 } // namespace graph

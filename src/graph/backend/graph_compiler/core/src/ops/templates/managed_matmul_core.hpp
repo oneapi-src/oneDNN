@@ -43,6 +43,7 @@ public:
   int iim_block_;
   int iin_block_;
   int iik_block_;
+  bool is_partial_; // for dynamic combined impl kind. Unused in static.
   struct op_params_t {
     static constexpr int in_A = 0;
     static constexpr int in_B = 1;
@@ -90,6 +91,12 @@ public:
     const std::vector<expr> &outputs,
     std::vector<for_loop> &loops) const override;
 
+  func_t get_single_core_func(context_ptr ctx,
+    const managed_matmul_core_config_t &config, fusion_manager *fusion,
+    const std::vector<expr> &inputs, const std::vector<expr> &outputs,
+    std::vector<for_loop> &loops) const override;
+  std::vector<expr> get_extra_args_from_func(const func_t &f) const override;
+
   void single_thread_matmul_call(sc_graph_t &graph, const logical_tensor_t &ta,
     const logical_tensor_t &tb, const logical_tensor_t &tc,
     const managed_matmul_core_config_t &config, const expr &M, const expr &N,
@@ -109,6 +116,12 @@ public:
     std::vector<int> &M_anchor_info, std::vector<int> &N_anchor_info,
     std::vector<int> &K_anchor_info, bool is_partial = false,
     const expr &k_s = expr()) const;
+
+  void dynamic_single_thread_matmul_call(
+    const managed_matmul_core_config_t &config,
+    const std::vector<expr> &buffer_args, const expr &m_s, const expr &n_s,
+    const expr &k_s, int K_split_num, expr &iim_block, expr &iin_block,
+    expr &iik_block) const;
 
   void generate_prefetcher_body_for_tensor(const context_ptr &ctx,
     const managed_matmul_core_config_t &config,

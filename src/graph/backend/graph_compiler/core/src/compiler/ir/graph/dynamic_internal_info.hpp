@@ -13,26 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-
-#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_DEAD_FUNC_ELIMINATE_HPP
-#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_DEAD_FUNC_ELIMINATE_HPP
-
-#include <utility>
-#include "../module_pass.hpp"
-
+#ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_DYNAMIC_INTERNAL_INFO_HPP
+#define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_DYNAMIC_INTERNAL_INFO_HPP
+#include <memory>
+#include <string>
+#include <vector>
+#include <compiler/ir/graph/tensor_detail.hpp>
 namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-namespace attr_keys {
-constexpr const char *keep_func = "pass.keep_func";
-}
-class dead_func_eliminate_t : public module_pass_t {
-public:
-    const_ir_module_ptr operator()(const_ir_module_ptr f) override;
-    SC_DECL_PASS_INFO_FUNC();
+struct dyn_internal_info_t {
+    // Internal function could be generated from a fused partition. Here we
+    // record final arguments for function decl and call.
+    std::vector<logical_tensor_t> parti_in_ltsrs_;
+    std::vector<logical_tensor_t> parti_out_ltsrs_;
+    // Inner(fused op) dispatch table name in fused op.
+    std::string dispatch_table_name_;
 };
-
+using dyn_internal_info_ptr = std::shared_ptr<dyn_internal_info_t>;
 } // namespace gc
 } // namespace graph
 } // namespace impl

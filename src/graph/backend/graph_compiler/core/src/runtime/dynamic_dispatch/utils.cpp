@@ -68,6 +68,12 @@ uint64_t calculate_blocking_dims(void *placeholder, uint64_t *format) {
     }
     return size;
 }
+
+dispatch_key get_impl_dispatch_key(int impl) {
+    dispatch_key ret(0);
+    ret.set_impl_alg(impl);
+    return ret;
+}
 } // namespace runtime
 } // namespace gc
 } // namespace graph

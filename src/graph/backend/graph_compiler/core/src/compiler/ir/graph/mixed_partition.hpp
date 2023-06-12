@@ -254,6 +254,31 @@ struct outerloop_axis_binder {
     }
 };
 
+struct mixed_dyn_internal_info_t {
+    // The module records internal functions usually contains repeat
+    // calculations which could be reused like single core brgemm. One partition
+    // could hold multiple ops who have internal functions.
+    ir_module_ptr mod_;
+    // extra parameter for internal func dispatch, a tensor of pointer.
+    expr inter_funcs_param_;
+    // internal call node of internal func.
+    call inter_call_;
+    // internal func node.
+    func_t inter_func_;
+    // single core func.
+    func_t single_core_func_;
+    // extra args for inter call
+    std::vector<expr> inter_call_extra_args_;
+    // extra args for inter func
+    std::vector<expr> inter_func_extra_args_;
+    // extra args of single core func
+    std::vector<expr> single_core_func_extra_args_;
+    // number of functions in partition.
+    int num_func_ = 0;
+    mixed_dyn_internal_info_t(const context_ptr &ctx)
+        : mod_(std::make_shared<ir_module_t>(ctx)) {}
+};
+using mixed_dyn_internal_info_ptr = std::shared_ptr<mixed_dyn_internal_info_t>;
 struct mixed_parti_t : fusion_partition_t {
     /* related to Graph */
     // different from ops_ in base class, it records the sequence of committed
@@ -281,7 +306,8 @@ struct mixed_parti_t : fusion_partition_t {
 
     // Cost Model
     fusion_cost_model_ptr cost_;
-
+    // mixed fusion dyn internal info
+    mixed_dyn_internal_info_ptr dyn_inter_;
     using ptr = std::shared_ptr<mixed_parti_t>;
 
     // append fusion anchor

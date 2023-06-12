@@ -29,11 +29,13 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
+#include <compiler/ir/graph/dynamic_internal_info.hpp>
 #include <compiler/ir/graph/dynamic_lower_info.hpp>
 #include <compiler/ir/graph/dynamic_utils.hpp>
 #include <compiler/ir/graph/fused_op.hpp>
 #include <compiler/ir/graph/pass/graph_constant_cache.hpp>
 #include <compiler/ir/graph/trait/may_prefetch.hpp>
+#include <compiler/ir/graph/utils.hpp>
 #include <compiler/ir/ir_utils.hpp>
 #include <compiler/ir/pass/ir_copy_internal.hpp>
 #include <compiler/ir/transform/buffer_schedule.hpp>
@@ -402,7 +404,7 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
     } else {
         if (type == info_etype_t::real_tensor
                 && itr->second.tensor_.defined()) {
-            if (gp.is_graph_dynamic) {
+            if (gp.graph.is_dynamic()) {
                 itr->second.tensor_->attr().set(attr_keys::always_trans, true);
             }
             return itr->second.tensor_;
@@ -456,7 +458,7 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
         if (is_arg || const_type != const_kind::not_const) {
             itr->second.placeholder_ = tsr;
         }
-        if (gp.is_graph_dynamic) {
+        if (gp.graph.is_dynamic()) {
             tsr->attr().set(attr_keys::always_trans, true);
         }
         // this tensor is an input to a standalone concat op
@@ -529,7 +531,7 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
                         auto const_value = const_node->get_constant_values();
                         tsr.checked_as<tensor>()->init_value_ = const_value;
                     }
-                    if (gp.is_graph_dynamic) {
+                    if (gp.graph.is_dynamic()) {
                         tsr->attr().set(attr_keys::always_trans, true);
                     }
                     itr->second.tensor_ = tsr;
@@ -743,8 +745,11 @@ expr create_op_query_func(const context_ptr &ctx, general_lower_params_t &gp,
         auto table_ptr = table_it != table_map.end()
                 ? table_it->second
                 : std::make_shared<op_dispatch_tables_t>();
-        dyn_ker_ptr = builder::make_tensor(
-                func_name, {UINT64_C(1)}, datatypes::pointer);
+        int internal_func_num = get_num_of_internal_funcs(node);
+        // kernel pointer vector the first is outer function.
+        dyn_ker_ptr = builder::make_tensor(func_name,
+                {static_cast<uint64_t>(1 + internal_func_num)},
+                datatypes::index);
         std::vector<expr> query_func_args;
         query_func_args.emplace_back(table_var);
         query_func_args.insert(
@@ -789,12 +794,10 @@ expr create_op_query_func(const context_ptr &ctx, general_lower_params_t &gp,
                 builder::make_var_tensor_def_unattached(dyn_ker_ptr));
         target_body->seq_.emplace_back(
                 builder::make_evaluate_unattached(query_call));
-        op_dispatch_kernel[node->logical_op_id_]
-                = builder::make_indexing(dyn_ker_ptr, 0);
+        op_dispatch_kernel[node->logical_op_id_] = builder::make_reinterpret(
+                builder::make_indexing(dyn_ker_ptr, 0), datatypes::pointer);
         op_dispatch_kernel[node->logical_op_id_]->attr().set(
                 attr_keys::no_index2var, true);
-        op_dispatch_kernel[node->logical_op_id_]->attr().set(
-                attr_keys::always_trans, true);
     }
     return dyn_ker_ptr;
 }
@@ -878,33 +881,6 @@ void create_op_tensors(general_lower_params_t &gp, std::vector<expr> &ins,
             }
         }
     }
-}
-
-static void create_dispatch_funcs_by_keys(const context_ptr &ctx,
-        ir_module_ptr &ret_mod, const std::string &table_name,
-        const sc_op_ptr &node, const op_dispatch_key_base_t *key,
-        std::vector<expr> &op_dispatch_kernel, int &dyn_idx) {
-    auto cur_table = ret_mod->get_op_table_map()[table_name];
-    assert(cur_table);
-    bool should_compile_later = false;
-    if (!should_compile_later) {
-        // we compile the first format specialization in main module
-        key->set_op_dispatch_key(node, ctx);
-        auto mod = node->get_func(ctx);
-        auto func = mod->get_entry_func();
-        func->attr().set(attr_keys::always_trans, true);
-        func->name_ += "_" + std::to_string(dyn_idx);
-        func->decl_->name_ = func->name_;
-        if (!dyn_idx) {
-            // mark the first function as prototype.
-            op_dispatch_kernel[node->logical_op_id_]->attr().set(
-                    "prototype", func);
-        }
-        ret_mod->merge(*mod);
-        add_dispatch_symbol_to_kernel_table(cur_table, key,
-                op_dispatch_tables_t::op_func_info {func->name_});
-    }
-    dyn_idx++;
 }
 
 static std::string get_dispatch_callee_name(const expr &kernel) {
@@ -1139,6 +1115,16 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     op_dep_matrix_t dep_mat {graph};
     std::vector<std::pair<sc_op_ptr, stmt>> op_execution_log;
     int num_ops = 0;
+    // internal function related
+    bool need_extra_internal_func_arg
+            = !mark_as_main && graph.need_dynamic_internal_query();
+    int total_num_of_internal_funcs = get_num_of_internal_funcs(graph);
+    expr extra_internal_func_arg = builder::make_tensor("extra_internal_funcs",
+            {total_num_of_internal_funcs}, datatypes::index);
+    extra_internal_func_arg->attr()["temp.comments"] = std::string(
+            "Extra tensor arg contains pointer to internal funcs");
+    int cur_internal_idx = 0;
+
     vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         std::vector<expr> ins, outs;
         // special kinds of Ops that we need to take care of
@@ -1218,18 +1204,38 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                 expr kernel_call;
                 std::string callee_name;
                 if (is_graph_dynamic && can_op_be_dispatched(node)) {
+                    auto &base_kernel = op_dispatch_kernel[node->logical_op_id_]
+                                                .checked_as<intrin_call>()
+                                                ->args_[0];
                     assert(is_graph_dynamic);
-                    assert(op_dispatch_kernel[node->logical_op_id_].defined());
-                    callee_name = get_dispatch_callee_name(
-                            op_dispatch_kernel[node->logical_op_id_]);
+                    assert(base_kernel.defined());
+                    callee_name = get_dispatch_callee_name(base_kernel);
                     std::string table_name = callee_name + "_table";
                     int dyn_idx = 0;
+
                     node->get_dispatch_key_set()->for_each_key_process(
                             std::bind(create_dispatch_funcs_by_keys, ctx,
                                     std::ref(ret_mod), table_name, node,
                                     std::placeholders::_1,
-                                    std::ref(op_dispatch_kernel),
-                                    std::ref(dyn_idx)));
+                                    std::ref(op_dispatch_kernel
+                                                    [node->logical_op_id_]),
+                                    std::ref(dyn_idx), /*internal*/ false));
+                    if (node->need_dynamic_internal_query()) {
+                        node->info_.internal_info_->parti_in_ltsrs_
+                                = graph::extract_detail_from_tensors(
+                                        node->get_inputs());
+                        node->info_.internal_info_->parti_out_ltsrs_
+                                = graph::extract_detail_from_tensors(
+                                        node->get_outputs());
+                        create_internal_dispatch_funcs_by_node(
+                                ctx, ret_mod, table_name, node);
+                        assert(base_kernel.isa<indexing>());
+                        auto ker_tsr = base_kernel.static_as<indexing>()->ptr_;
+                        // index 0 is the outer dispatch kernel, elements from
+                        // index 1 are the internal dispatch kernels.
+                        exprargs.emplace_back(
+                                builder::tensor_ptr(ker_tsr, {1}));
+                    }
                     kernel_call = make_expr<call_node>(
                             op_dispatch_kernel[node->logical_op_id_], exprargs);
                 } else {
@@ -1263,11 +1269,13 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                     }
                     ret_mod->merge(*mod);
                     auto callee = mod->get_entry_func();
-                    if (graph.is_dynamic()) {
-                        // don't use is_graph_dynamic here.
-                        callee->attr().set(attr_keys::always_trans, true);
-                        callee->decl_->attr().set(
-                                attr_keys::always_trans, true);
+                    if (need_extra_internal_func_arg
+                            && node->need_dynamic_internal_query()) {
+                        int cur_internal_funcs
+                                = get_num_of_internal_funcs(node);
+                        exprargs.emplace_back(builder::tensor_ptr(
+                                extra_internal_func_arg, {cur_internal_idx}));
+                        cur_internal_idx += cur_internal_funcs;
                     }
                     callee_name = callee->name_;
                     kernel_call = builder::make_call(callee, exprargs);
@@ -1334,6 +1342,10 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                         << new_param.size()
                         << ", param.size()=" << params.size() << ".");
         params = std::move(new_param);
+    }
+    if (need_extra_internal_func_arg) {
+        assert(cur_internal_idx == total_num_of_internal_funcs);
+        params.emplace_back(extra_internal_func_arg);
     }
     if (!init_body->seq_.empty()) {
         expr is_init_var = ret_mod->make_global_var(datatypes::boolean,

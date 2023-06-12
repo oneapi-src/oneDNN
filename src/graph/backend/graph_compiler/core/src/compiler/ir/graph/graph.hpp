@@ -74,8 +74,7 @@ using shape_rl_vec = std::vector<std::pair<sc_dim, sc_dim>>;
 
 struct dispatch_key_set_base_t;
 using dispatch_set_ptr = std::shared_ptr<dispatch_key_set_base_t>;
-class impl_kind_converter_base_t;
-using impl_kind_converter_ptr = std::shared_ptr<impl_kind_converter_base_t>;
+struct dyn_internal_info_t;
 /** VConst struct record possible varible in constant value, e.g.
  *
  *   const int a = k * b;
@@ -178,7 +177,8 @@ struct sc_op_info_t {
     // prepared for dynamic dispatch during lowering and is created during
     // layout propagation.
     dispatch_set_ptr dispatch_key_set_;
-    impl_kind_converter_ptr impl_converter_;
+    // Extra info for op who could be internal queried.
+    std::shared_ptr<dyn_internal_info_t> internal_info_;
     // current used impl type
     int cur_impl_ = 0;
 };
@@ -250,6 +250,13 @@ public:
 
     virtual const dispatch_set_ptr &get_dispatch_key_set() const;
     virtual dispatch_set_ptr &get_dispatch_key_set();
+    // internal query disaptch keys, mainly for impl kind.
+    virtual dispatch_set_ptr get_internal_dispatch_key_set(
+            const context_ptr &ctx);
+    // call impl_func if return true, create the internal info.
+    bool need_dynamic_internal_query();
+    // if the op needs internal query, default false.
+    virtual bool need_dynamic_internal_query_impl() const { return false; }
     void copy_dispatch_key_set_from_op(const sc_op_ptr &other);
     /**
      * Repalces an input logical tensor
@@ -375,6 +382,9 @@ public:
 
     virtual bool is_valid(const context_ptr &ctx) { return true; }
     virtual ir_module_ptr get_func(context_ptr ctx) = 0;
+    virtual ir_module_ptr get_internal_func(const context_ptr &ctx) {
+        throw std::runtime_error("Unimplement.");
+    }
 
     virtual void query_format(context_ptr ctx,
             std::vector<std::vector<format_stride_pair>> &supported_ins,
@@ -495,6 +505,8 @@ public:
     }
     // Get external dynamic vars existed in inputs/outputs.
     std::unordered_set<sc_dim> get_external_dynamic_vars();
+    // Judge if the ops in graph need dynamic internal query
+    bool need_dynamic_internal_query();
     // output op
     std::shared_ptr<sc_op> make_output(
             const std::vector<graph_tensor_ptr> &inputs,

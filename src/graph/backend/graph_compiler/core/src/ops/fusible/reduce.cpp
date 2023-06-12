@@ -971,8 +971,10 @@ graph_tensor_ptr reduce_compute_op_t::split_op(
 
 sc_op_ptr reduce_compute_op_t::copy(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, sc_graph_t &mgr) {
-    return mgr.make<reduce_compute_op_t>(ins.at(0), outs.at(0), real_rd_axis_,
-            rd_op_, keep_dims_, local_mode_);
+    auto ret = mgr.make<reduce_compute_op_t>(ins.at(0), outs.at(0),
+            real_rd_axis_, rd_op_, keep_dims_, local_mode_);
+    ret->copy_dispatch_key_set_from_op(shared_from_this());
+    return ret;
 }
 
 reduce_compute_op_t::reduce_compute_op_t(const graph_tensor_ptr &in,
@@ -1120,8 +1122,10 @@ void reduce_collect_op_t::set_reduce_buffer(const tensor &buf) {
 
 sc_op_ptr reduce_collect_op_t::copy(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, sc_graph_t &mgr) {
-    return mgr.make<reduce_collect_op_t>(
+    auto ret = mgr.make<reduce_collect_op_t>(
             ins.at(0), outs.at(0), real_rd_axis_, rd_op_, keep_dims_, op_);
+    ret->copy_dispatch_key_set_from_op(shared_from_this());
+    return ret;
 }
 
 void reduce_collect_op_t::infer_slice_ranges(

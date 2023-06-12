@@ -102,9 +102,8 @@ public:
         ret[0] = current_rtl_ctx;
         ret[1] = current_base;
         if (the_expr.defined()) {
-            auto new_expr = the_expr->remake();
-            new_expr->attr_->set("prototype", itr->second->decl_);
-            return copy_attr(*v, make_expr<call_node>(new_expr, ret));
+            the_expr->attr_->set("prototype", itr->second->decl_);
+            return copy_attr(*v, make_expr<call_node>(the_expr, ret));
         }
         return copy_attr(*v, builder::make_call(itr->second->decl_, ret));
     }

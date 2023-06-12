@@ -114,6 +114,12 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, outer_loop_generator_t &gen,
 ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx) {
     sc_graph_t g;
     g.sync_dynamic_info_with_graph(op->get_owner_graph());
+    if (op->get_owner_graph().attrs_.get_or_else("temp.force_static", false)) {
+        g.attrs_.set("temp.force_static", true);
+    }
+    if (op->get_owner_graph().is_dynamic()) {
+        g.attrs_.set("temp.parent_graph_dynamic", true);
+    }
     std::vector<graph_tensor_ptr> ins;
     std::vector<graph_tensor_ptr> outs;
     for (auto &in : op->get_inputs()) {

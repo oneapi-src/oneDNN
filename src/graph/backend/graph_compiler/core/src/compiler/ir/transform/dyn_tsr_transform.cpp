@@ -170,6 +170,9 @@ public:
         }
     }
     expr_c visit(call_c v) override {
+        if (v->func_->attr().get_or_else(attr_keys::forbid_trans, false)) {
+            return v;
+        }
         std::vector<expr> new_args(v->args_.begin(), v->args_.end());
         bool changed = false;
         func_t the_func = std::dynamic_pointer_cast<func_base>(v->func_);
@@ -271,6 +274,10 @@ public:
     }
 
     func_c dispatch(func_c v) override {
+        if (std::const_pointer_cast<func_base>(v)->attr().get_or_else(
+                    attr_keys::forbid_trans, false)) {
+            return v;
+        }
         tsr_replace_map_.clear();
         bool all_const = true;
         std::vector<expr> new_params;
@@ -284,6 +291,10 @@ public:
         for (auto &p : v->params_) {
             if (p.isa<tensor>()) {
                 auto old_tsr = p.static_as<tensor>();
+                if (old_tsr->name_ == "partial_out") {
+                    int a = 1;
+                    int b = 2;
+                }
                 std::vector<std::pair<size_t, expr>> shape_vars;
                 bool cur_const = true;
                 auto plain_dims
@@ -413,10 +424,8 @@ public:
             func_t proto_func = v->get_prototype();
             auto it = func_decl_replace_map_.find(proto_func->name_);
             if (it != func_decl_replace_map_.end()) {
-                auto new_func = std::dynamic_pointer_cast<expr_base>(v->func_)
-                                        ->remake();
-                new_func->attr().set("prototype", it->second);
-                return copy_attr(*v, make_expr<call_node>(new_func, v->args_));
+                v->func_->attr().set("prototype", it->second);
+                return copy_attr(*v, make_expr<call_node>(v->func_, v->args_));
             }
         }
         return v;

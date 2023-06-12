@@ -16,6 +16,7 @@
 
 #include "managed_matmul_core.hpp"
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <limits>
 #include <string>
@@ -24,7 +25,12 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
+#include <compiler/ir/graph/dynamic_internal_info.hpp>
 #include <compiler/ir/graph/fusion_mgr.hpp>
+#include <compiler/ir/graph/utils.hpp>
+#include <compiler/ir/pass/ir_copy.hpp>
+#include <compiler/ir/transform/dyn_tsr_transform.hpp>
+#include <compiler/ir/transform/index2var.hpp>
 #include <compiler/ir/transform/loop_transform.hpp>
 #include <compiler/ir/transform/scope_flatten.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
@@ -44,7 +50,6 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-
 using ops::managed_matmul_core_config_t;
 // clang-format off
 SC_CLASS(managed_matmul_core_config_t)
@@ -983,6 +988,27 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
   }
 }
 
+void gen_managed_matmul_core_t::dynamic_single_thread_matmul_call(
+  const managed_matmul_core_config_t &config,
+  const std::vector<expr> &buffer_args, const expr &m_s, const expr &n_s,
+  const expr &k_s, int K_split_num, expr &iim_block, expr &iin_block,
+  expr &iik_block) const {
+  COMPILE_ASSERT(single_core_func_param_.defined(),
+    "Single core function parameter should be defined first!");
+  auto bld = builder::get_current_builder();
+  std::vector<expr> extra_args {static_cast<uint64_t>(config.M_split_num),
+    static_cast<uint64_t>(config.N_split_num),
+    static_cast<uint64_t>(K_split_num),
+    static_cast<uint64_t>(config.M_sub_block),
+    static_cast<uint64_t>(config.N_sub_block),
+    static_cast<uint64_t>(config.K_sub_block), m_s, n_s, k_s, iim_block,
+    iin_block, iik_block};
+  extra_args.insert(extra_args.begin(), buffer_args.begin(), buffer_args.end());
+  auto single_core_call
+    = make_expr<call_node>(single_core_func_param_, extra_args);
+  bld->push_evaluate(single_core_call);
+}
+
 void gen_managed_matmul_core_t::single_thread_matmul_call(sc_graph_t &graph,
   const logical_tensor_t &ta, const logical_tensor_t &tb,
   const logical_tensor_t &tc, const managed_matmul_core_config_t &config,
@@ -1251,6 +1277,233 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(sc_graph_t &graph,
   }
 }
 
+std::vector<expr> gen_managed_matmul_core_t::get_extra_args_from_func(
+  const func_t &f) const {
+  return std::vector<expr>(f->params_.begin() + 3, f->params_.end());
+}
+
+func_t gen_managed_matmul_core_t::get_single_core_func(context_ptr ctx,
+  const managed_matmul_core_config_t &config, fusion_manager *fusion,
+  const std::vector<expr> &inputs, const std::vector<expr> &outputs,
+  std::vector<for_loop> &loops) const {
+  auto &graph = owner_->get_owner_graph();
+  auto &ta = in_tensors_[0];
+  auto &tb = in_tensors_[1];
+  auto &tc = out_tensors_[0];
+  int ori_M = static_cast<int>(ta.get_plain_dims()[0]),
+      ori_K = static_cast<int>(ta.get_plain_dims()[1]),
+      ori_N = static_cast<int>(tb.get_plain_dims()[1]);
+  int dtype_block = 1;
+  auto B_dtype = get_B_dtype();
+  if (B_dtype == datatypes::bf16) {
+    dtype_block = 2;
+  } else if (utils::is_one_of(B_dtype, datatypes::u8, datatypes::s8)) {
+    dtype_block = 4;
+  }
+  ir_builder_t bld;
+  static std::atomic<int> func_idx = {0};
+  expr partial_C;
+  _function_(datatypes::boolean, managed_matmul_single_core, {outputs[0]},
+    {inputs[0]}, {inputs[1]}, _arg_("M_split_num", datatypes::index),
+    _arg_("N_split_num", datatypes::index),
+    _arg_("K_split_num", datatypes::index),
+    _arg_("M_sub_block", datatypes::index),
+    _arg_("N_sub_block", datatypes::index),
+    _arg_("K_sub_block", datatypes::index), _arg_("m_s", datatypes::index),
+    _arg_("n_s", datatypes::index), _arg_("k_s", datatypes::index),
+    _arg_("iim_block", datatypes::s32, {1}),
+    _arg_("iin_block", datatypes::s32, {1}),
+    _arg_("iik_block", datatypes::s32, {1})) {
+    _bind_(C, A, B, M_split_num, N_split_num, K_split_num, M_sub_block,
+      N_sub_block, K_sub_block, m_s, n_s, k_s, iim_block, iin_block, iik_block);
+    expr m_idx_, n_idx_, k_idx_, K_single_thr_size_, X_bigger_num;
+    auto M = divide_and_ceil(graph.dim_to_expr(ori_M), iim_block_) * iim_block_;
+    auto N = divide_and_ceil(graph.dim_to_expr(ori_N), iin_block_) * iin_block_;
+    auto K = divide_and_ceil(graph.dim_to_expr(ori_K), iik_block_) * iik_block_;
+    // Postpone calculation time of M_single_thr_size/N_single_thr_size and
+    // m_idx/n_idx.
+    iim_block[0] = iim_block_;
+    iin_block[0] = iin_block_;
+    iik_block[0] = iik_block_;
+    expr tid = builtin::get_thread_id_func()();
+    k_idx_ = 0;
+    K_single_thr_size_ = get_balance211_length(
+      K / iik_block_, K_split_num, k_s, k_idx_, X_bigger_num);
+    K_single_thr_size_ = K_single_thr_size_ * iik_block_;
+    k_idx_ = k_idx_ * iik_block_;
+    expr M_block_size_expr
+      = divide_and_ceil(M / iim_block_, M_split_num) * iim_block_;
+    expr N_block_size_expr
+      = divide_and_ceil(N / iin_block_, N_split_num) * iin_block_;
+    for_loop o_im_n, im_k, im_m, im_n;
+    auto K_real_split = builder::make_min(divide_and_ceil(ori_K, iik_block_),
+      runtime_config_t::get().get_num_threads() / M_split_num / N_split_num);
+    _if_(m_s < divide_and_ceil(M, iim_block_)
+      && n_s < divide_and_ceil(N, iin_block_)
+      && k_s < divide_and_ceil(K, iik_block_)) {
+      _var_init_(M_single_thr_size, datatypes::index,
+        get_balance211_length(
+          M / iim_block_, M_split_num, m_s, m_idx_, X_bigger_num)
+          * iim_block_);
+      _var_init_(m_idx, datatypes::index, m_idx_ * iim_block_);
+
+      _var_init_(N_single_thr_size, datatypes::index,
+        get_balance211_length(
+          N / iin_block_, N_split_num, n_s, n_idx_, X_bigger_num)
+          * iin_block_);
+      _var_init_(n_idx, datatypes::index, n_idx_ * iin_block_);
+      _var_init_(K_single_thr_size, datatypes::index,
+        !is_partial_
+          ? do_cast_and_fold(divide_and_ceil(K, iik_block_) * iik_block_)
+          : K_single_thr_size_);
+      _for_(m_b, 0, M_sub_block) {
+        _named_for_(o_im_n, n_b, 0, N_sub_block) {
+          expr m_b_idx, n_b_idx, k_b_idx, m_b_bigger_num, n_b_bigger_num,
+            k_b_bigger_num;
+          _var_init_(m_o_end, datatypes::index,
+            get_balance211_length(M_single_thr_size / iim_block_, M_sub_block,
+              m_b, m_b_idx, m_b_bigger_num));
+          _var_init_(n_o_end, datatypes::index,
+            get_balance211_length(N_single_thr_size / iin_block_, N_sub_block,
+              n_b, n_b_idx, n_b_bigger_num));
+          auto partial_c_shape
+            = std::vector<expr> {K_real_split, M_block_size_expr / iim_block_,
+              N_block_size_expr / iin_block_, iim_block_, iin_block_};
+          partial_C = copy_attr(*(C.get()),
+            builder::make_tensor(
+              "partial_out", partial_c_shape, out_tensors_[0].dtype_));
+          partial_C->attr().set(attr_keys::plain_dims,
+            std::vector<expr> {graph.dim_to_expr(ori_M),
+              graph.dim_to_expr(ori_N), graph.dim_to_expr(ori_K)});
+          auto C_tptr = is_partial_ ? partial_C : C;
+          stmts place_holder
+            = builder::make_stmts_unattached({}).checked_as<stmts>();
+          place_holder->attr()[tensor_shrinker_attrs::tensor_for_placerholder]
+            = std::weak_ptr<expr_base>(C.get().impl);
+          bld.emit(place_holder);
+          _named_for_(im_k, k_b, 0, K_sub_block) {
+            _var_init_(bs, datatypes::index,
+              builder::make_cast(datatypes::index,
+                get_balance211_length(K_single_thr_size / iik_block_,
+                  K_sub_block, k_b, k_b_idx, k_b_bigger_num)));
+            _var_init_(
+              k_start_idx, datatypes::index, k_idx_ + k_b_idx * iik_block_);
+            // general matmul_core loops
+            _named_for_(im_m, m_o, 0, m_o_end) {
+              _named_for_(im_n, n_o, 0, n_o_end) {
+                // rolling M and N
+                _var_init_(m_start_idx, datatypes::index,
+                  m_idx + m_b_idx * iim_block_
+                    + ((m_o + tid) % m_o_end) * iim_block_);
+                _var_init_(n_start_idx, datatypes::index,
+                  n_idx + n_b_idx * iin_block_
+                    + ((n_o + tid) % n_o_end) * iin_block_);
+                std::vector<expr> aidx
+                  = ta.get_format() == sc_data_format_t::MK()
+                  ? std::vector<expr> {m_start_idx, k_start_idx}
+                  : std::vector<expr> {
+                    m_start_idx / iim_block_, k_start_idx / iik_block_, 0, 0};
+                std::vector<expr> bidx = dtype_block > 1
+                  ? std::vector<expr> {n_start_idx / iin_block_,
+                    k_start_idx / iik_block_, 0, 0, 0}
+                  : (!tb.get_format().is_blocking()
+                      ? std::vector<expr> {k_start_idx, n_start_idx}
+                      : std::vector<expr> {n_start_idx / iin_block_,
+                        k_start_idx / iik_block_, 0, 0});
+                std::vector<expr> partial_cidx, full_cidx;
+                partial_cidx = !tc.get_format().is_blocking()
+                  ? std::vector<expr> {m_b_idx * iim_block_
+                      + ((m_o + tid) % m_o_end) * iim_block_,
+                    n_b_idx * iin_block_ + ((n_o + tid) % n_o_end) * iin_block_}
+                  : std::vector<expr> {m_b_idx + (m_o + tid) % m_o_end,
+                    n_b_idx + (n_o + tid) % n_o_end, 0, 0};
+                partial_cidx.insert(partial_cidx.begin(), k_s);
+                full_cidx = !tc.get_format().is_blocking()
+                  ? std::vector<expr> {m_start_idx, n_start_idx}
+                  : std::vector<expr> {
+                    m_start_idx / iim_block_, n_start_idx / iin_block_, 0, 0};
+                auto partial_C_ptr = tensor_ptr(C_tptr, partial_cidx);
+                auto full_C_ptr = tensor_ptr(C_tptr, full_cidx);
+                expr LDA = ta.get_format() == sc_data_format_t::MK()
+                  ? graph.dim_to_expr(ori_K)
+                  : expr(iik_block_);
+                expr LDB = !tb.get_format().is_blocking()
+                  ? graph.dim_to_expr(ori_N)
+                  : expr(iin_block_);
+                expr partial_LDC = !tc.get_format().is_blocking()
+                  ? do_cast_and_fold(
+                    divide_and_ceil(N / iin_block_, N_split_num) * iin_block_)
+                  : iin_block_;
+                expr full_LDC = !tc.get_format().is_blocking()
+                  ? graph.dim_to_expr(ori_N)
+                  : iin_block_;
+                expr stride_a = ta.get_format() == sc_data_format_t::MK()
+                  ? iik_block_
+                  : iim_block_ * iik_block_;
+                expr stride_b = !tb.get_format().is_blocking()
+                  ? iik_block_ * graph.dim_to_expr(ori_N)
+                  : iik_block_ * iin_block_;
+                _if_(k_b == 0) {
+                  if (is_partial_) {
+                    builtin::brgemm_init_update(tensor_ptr(A, aidx),
+                      tensor_ptr(B, bidx), partial_C_ptr, bs, iim_block_,
+                      iin_block_, iik_block_, LDA, LDB, partial_LDC, stride_a,
+                      stride_b, ta.dtype_, tb.dtype_);
+                  } else {
+                    builtin::brgemm_init_update(tensor_ptr(A, aidx),
+                      tensor_ptr(B, bidx), full_C_ptr, bs, iim_block_,
+                      iin_block_, iik_block_, LDA, LDB, full_LDC, stride_a,
+                      stride_b, ta.dtype_, tb.dtype_);
+                  }
+                }
+                _else_ {
+                  if (is_partial_) {
+                    builtin::brgemm_update(tensor_ptr(A, aidx),
+                      tensor_ptr(B, bidx), partial_C_ptr, bs, iim_block_,
+                      iin_block_, iik_block_, LDA, LDB, partial_LDC, stride_a,
+                      stride_b, ta.dtype_, tb.dtype_);
+                  } else {
+                    builtin::brgemm_update(tensor_ptr(A, aidx),
+                      tensor_ptr(B, bidx), full_C_ptr, bs, iim_block_,
+                      iin_block_, iik_block_, LDA, LDB, full_LDC, stride_a,
+                      stride_b, ta.dtype_, tb.dtype_);
+                  }
+                }
+                if (fusion && !is_partial_) {
+                  _if_(k_b == K_sub_block - 1) {
+                    fusion->create_output_fusion_anchor({tensor_slice(C,
+                      !tc.get_format().is_blocking()
+                        ? std::vector<std::pair<expr, expr>> {{m_start_idx,
+                                                                expr(
+                                                                  iim_block_)},
+                          {n_start_idx, expr(iin_block_)}}
+                        : std::vector<std::pair<expr, expr>> {
+                          {m_start_idx / iim_block_, 1},
+                          {n_start_idx / iin_block_, 1}, {0, expr(iim_block_)},
+                          {0, expr(iin_block_)}})});
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    // todo: K_sub_block partial or not may need combinated with format
+    // dispatch(outer dispatch key) to dispatch.(inner impl in format dispatch
+    // key not impl internal dispatch key.); Find the fusion strategy with
+    // K_sub_block > 1.
+    _return_(true);
+  }
+  if (is_partial_) {
+    managed_matmul_single_core->params_[0] = partial_C;
+    managed_matmul_single_core->decl_->params_[0] = partial_C;
+  }
+  managed_matmul_single_core->name_ += "_" + std::to_string(func_idx++);
+  managed_matmul_single_core->decl_->name_ = managed_matmul_single_core->name_;
+  return managed_matmul_single_core;
+}
+
 /**
  * For each single thread we may deal with different size of matmuls
  * For either axis, we have following candidates:
@@ -1355,15 +1608,22 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
                    N_anchor_info = {N_blk_num, N_block_size, N_ib_block_size},
                    K_anchor_info = {K_blk_num, K_block_size, K_ib_block_size};
   for_loop mloop;
-  expr M_real_split = do_cast_and_fold(
-    builder::make_min(divide_and_ceil(M_expr, iim_block_), M_split_num));
-  expr N_real_split = do_cast_and_fold(
-    builder::make_min(divide_and_ceil(N_expr, iin_block_), N_split_num));
-  expr K_real_split = do_cast_and_fold(
-    builder::make_min(divide_and_ceil(K_expr, iik_block_), K_split_num));
+  expr M_real_split = is_dynamic
+    ? M_split_num
+    : do_cast_and_fold(
+      builder::make_min(divide_and_ceil(M_expr, iim_block_), M_split_num));
+  expr N_real_split = is_dynamic
+    ? N_split_num
+    : do_cast_and_fold(
+      builder::make_min(divide_and_ceil(N_expr, iin_block_), N_split_num));
+  expr K_real_split = is_dynamic
+    ? K_split_num
+    : do_cast_and_fold(
+      builder::make_min(divide_and_ceil(K_expr, iik_block_), K_split_num));
 
   if (K_split_num == 1) {
     expr m_idx, n_idx, M_single_thr_size, N_single_thr_size, X_bigger_num;
+    expr iim_block_tsr, iin_block_tsr, iik_block_tsr;
     _named_for_(
       mloop, m_s, 0, M_real_split, 1, for_type::PARALLEL, M_split_num) {
       _for_(n_s, 0, N_real_split, 1, for_type::PARALLEL, N_split_num) {
@@ -1446,6 +1706,13 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
               }
               A = A_trans_tensor;
             }
+          } else {
+            _tensor_(iim_block_tmp, datatypes::s32, {1});
+            _tensor_(iin_block_tmp, datatypes::s32, {1});
+            _tensor_(iik_block_tmp, datatypes::s32, {1});
+            iim_block_tsr = iim_block_tmp;
+            iin_block_tsr = iin_block_tmp;
+            iik_block_tsr = iik_block_tmp;
           }
           if (!is_dynamic
             && utils::is_one_of(in_tensors_[1].get_format(),
@@ -1456,12 +1723,18 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
               N_single_thr_size, (int)utils::rnd_up(K, iik_block_), m_idx,
               n_idx, k_s, A, B, C, dtype_block, fusion, m_s, n_s, M_anchor_info,
               N_anchor_info, K_anchor_info, false, k_s);
-          } else {
+          } else if (!is_dynamic) {
             single_thread_matmul_call(graph, in_tensors_[0], in_tensors_[1],
               out_tensors_[0], config, M_single_thr_size, N_single_thr_size,
               (int)utils::rnd_up(K, iik_block_), m_idx, n_idx, k_s, A, B, C,
               dtype_block, fusion, m_s, n_s, M_anchor_info, N_anchor_info,
               false, expr(), is_dynamic, N_block_size_expr);
+          } else {
+            assert(owner_->info_.internal_info_);
+            auto buffer_args = outputs;
+            buffer_args.insert(buffer_args.end(), inputs.begin(), inputs.end());
+            dynamic_single_thread_matmul_call(config, buffer_args, m_s, n_s,
+              k_s, K_split_num, iim_block_tsr, iin_block_tsr, iik_block_tsr);
           }
         }
         if (fusion && !is_dynamic) {
@@ -1606,15 +1879,29 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
       ? std::vector<expr> {K_real_split, M_block_size_expr / iim_block_,
         N_block_size_expr / iin_block_, iim_block_, iin_block_}
       : std::vector<expr> {K_real_split, M_block_size_expr, N_block_size_expr};
+    if (is_dynamic) {
+      out_tmp_buf_shape_expr = std::vector<expr> {K_real_split,
+        divide_and_ceil(M_expr, M_split_num) * 2,
+        divide_and_ceil(N_expr, N_split_num) * 2};
+    };
     auto out_dtype = utils::is_one_of(A_dtype, datatypes::u8, datatypes::s8)
       ? datatypes::s32
       : datatypes::f32;
     expr m_idx, n_idx, k_idx, M_single_thr_size, N_single_thr_size,
       X_bigger_num;
+    // for single core func query
+    expr iim_block_tsr, iin_block_tsr, iik_block_tsr;
+    expr iim_block = iim_block_, iin_block = iin_block_, iik_block = iik_block_;
     _named_for_(
       mloop, m_s, 0, M_real_split, 1, for_type::PARALLEL, M_split_num) {
       _for_(n_s, 0, N_real_split, 1, for_type::PARALLEL, N_split_num) {
         _tensor_(out_tmp_buf, out_dtype, out_tmp_buf_shape_expr);
+        // fake plain dims to pass down.
+        out_tmp_buf->attr().set(attr_keys::plain_dims,
+          std::vector<expr> {
+            graph.dim_to_expr(in_tensors_[0].get_plain_dims()[0]),
+            graph.dim_to_expr(in_tensors_[1].get_plain_dims()[1]),
+            graph.dim_to_expr(in_tensors_[0].get_plain_dims()[1])});
         M_single_thr_size = get_balance211_length(
           M_expr / iim_block_, M_split_num, m_s, m_idx, X_bigger_num);
         M_single_thr_size = M_single_thr_size * iim_block_;
@@ -1624,7 +1911,20 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           N_expr / iin_block_, N_split_num, n_s, n_idx, X_bigger_num);
         N_single_thr_size = N_single_thr_size * iin_block_;
         n_idx = n_idx * iin_block_;
-
+        if (is_dynamic) {
+          _tensor_(iim_block_tmp, datatypes::s32, {1});
+          _tensor_(iin_block_tmp, datatypes::s32, {1});
+          _tensor_(iik_block_tmp, datatypes::s32, {1});
+          iim_block_tsr = iim_block_tmp;
+          iin_block_tsr = iin_block_tmp;
+          iik_block_tsr = iik_block_tmp;
+          iim_block = iim_block_tmp[0];
+          iin_block = iin_block_tmp[0];
+          iik_block = iik_block_tmp[0];
+          iim_block->attr().set(attr_keys::no_index2var, true);
+          iin_block->attr().set(attr_keys::no_index2var, true);
+          iik_block->attr().set(attr_keys::no_index2var, true);
+        }
         _for_(k_s, 0, K_real_split, 1, for_type::PARALLEL, K_split_num) {
           expr K_single_thr_size;
           if (!is_dynamic && K_block_size == K_ib_block_size) {
@@ -1793,55 +2093,118 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
               N_single_thr_size, K_single_thr_size, m_idx, n_idx, k_idx, A, B,
               out_tmp_buf, dtype_block, fusion, m_s, n_s, M_anchor_info,
               N_anchor_info, K_anchor_info, true, k_s);
-          } else {
+          } else if (!is_dynamic) {
             single_thread_matmul_call(graph, in_tensors_[0], in_tensors_[1],
               out_tensors_[0], config, M_single_thr_size, N_single_thr_size,
               K_single_thr_size, m_idx, n_idx, k_idx, A, B, out_tmp_buf,
               dtype_block, fusion, m_s, n_s, M_anchor_info, N_anchor_info, true,
               k_s, is_dynamic, N_block_size_expr);
+          } else {
+            assert(owner_->info_.internal_info_);
+            auto buffer_args = outputs;
+            buffer_args.insert(buffer_args.end(), inputs.begin(), inputs.end());
+            buffer_args[0] = out_tmp_buf;
+            buffer_args[0]->attr().set(attr_keys::always_trans, true);
+            dynamic_single_thread_matmul_call(config, buffer_args, m_s, n_s,
+              k_s, K_split_num, iim_block_tsr, iin_block_tsr, iik_block_tsr);
           }
         }
         // do reduce here
         for_loop rm, rn;
         int lanes = 1;
-        if (iin_block_ / 16 && iin_block_ % 16 == 0) {
+        if (is_dynamic || (iin_block_ / 16 && iin_block_ % 16 == 0)) {
           lanes = vectorize_step(ctx, get_C_dtype().type_code_, 16);
         }
+        if (is_dynamic) {
+          M_expr = divide_and_ceil(
+                     graph.dim_to_expr(in_tensors_[0].get_plain_dims()[0]),
+                     iim_block)
+            * iim_block;
+          N_expr = divide_and_ceil(
+                     graph.dim_to_expr(in_tensors_[1].get_plain_dims()[1]),
+                     iin_block)
+            * iin_block;
+          K_expr = divide_and_ceil(
+                     graph.dim_to_expr(in_tensors_[0].get_plain_dims()[1]),
+                     iik_block)
+            * iik_block;
+          M_single_thr_size = get_balance211_length(
+            M_expr / iim_block, M_split_num, m_s, m_idx, X_bigger_num);
+          M_single_thr_size = M_single_thr_size * iim_block;
+          m_idx = m_idx * iim_block;
+          N_single_thr_size = get_balance211_length(
+            N_expr / iin_block, N_split_num, n_s, n_idx, X_bigger_num);
+          N_single_thr_size = N_single_thr_size * iin_block;
+          n_idx = n_idx * iin_block;
+          M_block_size_expr
+            = divide_and_ceil(M_expr / iim_block, M_split_num) * iim_block;
+          N_block_size_expr
+            = divide_and_ceil(N_expr / iin_block, N_split_num) * iin_block;
+        }
         expr M_single_thr_num_block
-          = divide_and_ceil(M_single_thr_size, iim_block_);
+          = divide_and_ceil(M_single_thr_size, iim_block);
         expr N_single_thr_num_block
-          = divide_and_ceil(N_single_thr_size, iin_block_);
+          = divide_and_ceil(N_single_thr_size, iin_block);
         if (out_tensors_[0].get_format().is_blocking()) {
           trace_guard_t tg(ctx, "blocking_post_reduce");
           for_loop reduce_loop;
           _named_for_(reduce_loop, lm_ln, 0,
             M_single_thr_num_block * N_single_thr_num_block, 1,
             for_type::PARALLEL, K_split_num) { //
-            expr lm = lm_ln / N_single_thr_num_block;
-            expr ln = lm_ln % N_single_thr_num_block;
+            _var_init_(lm, datatypes::index, lm_ln / N_single_thr_num_block);
+            _var_init_(ln, datatypes::index, lm_ln % N_single_thr_num_block);
+            _var_init_(m_idx_1, datatypes::index, m_idx / iim_block);
+            _var_init_(n_idx_1, datatypes::index, n_idx / iin_block);
+            expr real_C = C, real_out_tmp_buf = out_tmp_buf;
+            if (is_dynamic) {
+              real_C = tensor_ptr(C,
+                std::vector<expr>(C.checked_as<tensor>()->dims_.size(), 0),
+                {divide_and_ceil(M_expr, iim_block),
+                  divide_and_ceil(N_expr, iin_block), iim_block, iin_block});
+              real_out_tmp_buf = tensor_ptr(out_tmp_buf,
+                std::vector<expr>(
+                  out_tmp_buf.get().checked_as<tensor>()->dims_.size(), 0),
+                {K_real_split, M_block_size_expr / iim_block,
+                  N_block_size_expr / iin_block, iim_block, iin_block});
+            }
             builtin::mem_zero(
-              tensor_ptr(
-                C, {m_idx / iim_block_ + lm, n_idx / iin_block_ + ln, 0, 0}),
-              iim_block_ * iin_block_, out_dtype);
+              tensor_ptr(real_C, {m_idx_1 + lm, n_idx_1 + ln, 0, 0}),
+              iim_block * iin_block, out_dtype);
             _for_(lks, 0, K_real_split, 1) {
-              _for_(lmo, 0, iim_block_) {
-                _for_(lno, 0, iin_block_, lanes) {
-                  C[span_t({m_idx / iim_block_ + lm, n_idx / iin_block_ + ln,
-                             lmo, lno},
-                    lanes)]
-                    = builder::make_add(
-                      C[span_t({m_idx / iim_block_ + lm,
-                                 n_idx / iin_block_ + ln, lmo, lno},
-                        lanes)],
-                      out_tmp_buf[span_t({lks, lm, ln, lmo, lno}, lanes)]);
+              if (!is_dynamic) {
+                _for_(lmo, 0, iim_block) {
+                  _for_(lno, 0, iin_block, lanes) {
+                    C[span_t({m_idx / iim_block + lm, n_idx / iin_block + ln,
+                               lmo, lno},
+                      lanes)]
+                      = builder::make_add(
+                        C[span_t({m_idx / iim_block + lm,
+                                   n_idx / iin_block + ln, lmo, lno},
+                          lanes)],
+                        out_tmp_buf[span_t({lks, lm, ln, lmo, lno}, lanes)]);
+                  }
+                }
+              } else {
+                _if_(lks < divide_and_ceil(K_expr, iik_block)) {
+                  _for_(lmo, 0, iim_block) {
+                    _for_(lno, 0, iin_block, lanes) {
+                      real_C[span_t(
+                        {m_idx_1 + lm, n_idx_1 + ln, lmo, lno}, lanes)]
+                        = builder::make_add(
+                          real_C[span_t(
+                            {m_idx_1 + lm, n_idx_1 + ln, lmo, lno}, lanes)],
+                          real_out_tmp_buf[span_t(
+                            {lks, lm, ln, lmo, lno}, lanes)]);
+                    }
+                  }
                 }
               }
             }
-            if (fusion) {
+            if (fusion && !is_dynamic) {
               fusion->create_output_fusion_anchor({tensor_slice(C,
-                {{m_idx / expr(iim_block_) + lm, 1},
-                  {n_idx / expr(iin_block_) + ln, 1}, {0, expr(iim_block_)},
-                  {0, expr(iin_block_)}})});
+                {{m_idx / expr(iim_block) + lm, 1},
+                  {n_idx / expr(iin_block) + ln, 1}, {0, expr(iim_block)},
+                  {0, expr(iin_block)}})});
             }
           }
           reduce_loop->attr()["dont_prefetch"] = true;
@@ -1856,9 +2219,18 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             expr lm = lm_ln / N_single_thr_size;
             expr ln = lm_ln % N_single_thr_size;
             _for_(lks, 0, K_real_split, 1) {
-              C[span_t({m_idx + lm, n_idx + ln}, lanes)]
-                = builder::make_add(C[span_t({m_idx + lm, n_idx + ln}, lanes)],
+              if (!is_dynamic) {
+                C[span_t({m_idx + lm, n_idx + ln}, lanes)] = builder::make_add(
+                  C[span_t({m_idx + lm, n_idx + ln}, lanes)],
                   out_tmp_buf[span_t({lks, lm, ln}, lanes)]);
+              } else {
+                _if_(lks < divide_and_ceil(K_expr, iik_block)) {
+                  C[span_t({m_idx + lm, n_idx + ln}, lanes)]
+                    = builder::make_add(
+                      C[span_t({m_idx + lm, n_idx + ln}, lanes)],
+                      out_tmp_buf[span_t({lks, lm, ln}, lanes)]);
+                }
+              }
             }
           }
           if (fusion && !is_dynamic) {

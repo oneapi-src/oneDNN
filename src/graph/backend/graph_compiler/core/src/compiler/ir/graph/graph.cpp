@@ -22,6 +22,7 @@
 #include "dynamic_lower_info.hpp"
 #include "visitor.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/graph/dynamic_internal_info.hpp>
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/fusion_data.hpp>
@@ -78,7 +79,9 @@ sc_op_ptr op_traits::auto_copyable_t::copy(
         const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, sc_graph_t &mgr) {
     auto ths = dynamic_cast<sc_op *>(this);
-    return mgr.make(ths->op_name_, ins, outs, ths->attrs_);
+    auto ret = mgr.make(ths->op_name_, ins, outs, ths->attrs_);
+    ret->copy_dispatch_key_set_from_op(ths->shared_from_this());
+    return ret;
 }
 
 std::vector<graph_tensor_ptr> copy_logical_tsr(
@@ -447,6 +450,11 @@ dispatch_set_ptr &sc_op::get_dispatch_key_set() {
     return info_.dispatch_key_set_;
 }
 
+dispatch_set_ptr sc_op::get_internal_dispatch_key_set(const context_ptr &ctx) {
+    throw std::runtime_error(
+            "Internal dispatch key set should be implemented by concrete op.");
+}
+
 void sc_op::copy_dispatch_key_set_from_op(const sc_op_ptr &other) {
     if (other->info_.dispatch_key_set_) {
         info_.dispatch_key_set_ = other->info_.dispatch_key_set_->copy();
@@ -764,6 +772,20 @@ std::unordered_set<sc_dim> sc_graph_t::get_external_dynamic_vars() {
     return ext_vars;
 }
 
+bool sc_graph_t::need_dynamic_internal_query() {
+    return !std::all_of(ops_.begin(), ops_.end(), [](const sc_op_ptr &op) {
+        return !op->need_dynamic_internal_query();
+    });
+}
+
+bool sc_op::need_dynamic_internal_query() {
+    bool ret = need_dynamic_internal_query_impl();
+    if (ret && !info_.internal_info_) {
+        info_.internal_info_ = std::make_shared<dyn_internal_info_t>();
+    }
+    return ret;
+}
+
 bool sc_op::compare_contents(const sc_op *other) const {
     if (op_name_ != other->op_name_) { return false; }
     int numattrs = 0, othernumattrs = 0;
@@ -864,6 +886,7 @@ expr tensor_detail_to_ir_tensor(sc_graph_t &graph, const std::string &name,
             nullptr);
     tsr->attr().set(
             attr_keys::plain_dims, graph.dims_to_expr(tsrd.get_plain_dims()));
+    if (graph.is_dynamic()) { tsr->attr().set(attr_keys::always_trans, true); }
     return tsr;
 }
 

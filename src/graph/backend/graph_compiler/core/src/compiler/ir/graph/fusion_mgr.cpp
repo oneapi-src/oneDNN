@@ -84,7 +84,6 @@ fusion_mgr_ptr fusion_manager::copy() const {
                 new_node = node->dyn_cast<op_traits::copyable_t>()->copy(ins,
                         copy_logical_tsr(node->get_outputs()),
                         new_fmgr->get_graph());
-                new_node->copy_dispatch_key_set_from_op(node);
                 new_node->info_.cur_impl_ = node->info_.cur_impl_;
             }
         }

@@ -253,8 +253,6 @@ static std::vector<graph_tensor_ptr> copy_partition_to_fmgr(sc_graph_t &g,
         auto copyable = op->dyn_cast<op_traits::copyable_t>();
         assert(copyable);
         auto copied = copyable->copy(fmgr_in, fmgr_out, fmgr->get_graph());
-        // manual copy the dispatch key set here.
-        copied->copy_dispatch_key_set_from_op(op);
         copied->attrs_[attr_key_orig_op] = op;
 
         // build the fused op name
@@ -393,8 +391,6 @@ static sc_op_ptr check_partition_with_base_op(sc_graph_t &g,
                 copy_logical_tsr(op->get_inputs()));
         auto copy_of_main_op = copyable->copy(dummy_inop->get_outputs(),
                 copy_logical_tsr(op->get_outputs()), copied_op_graph);
-        // manual copy the dispatch key set here.
-        copy_of_main_op->copy_dispatch_key_set_from_op(op);
         for (size_t i = 0; i < op->get_inputs().size(); i++) {
             orig_2_fmgr_graph[op->get_inputs()[i]]
                     = dummy_inop->get_outputs()[i];

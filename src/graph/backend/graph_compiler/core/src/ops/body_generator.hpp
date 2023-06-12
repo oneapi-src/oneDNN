@@ -47,6 +47,8 @@ struct body_generator_base_t {
     sc_op *owner_;
     std::vector<logical_tensor_t> in_tensors_;
     std::vector<logical_tensor_t> out_tensors_;
+    // extra parameter for internal func pointer.
+    expr single_core_func_param_;
     /**
      * simply judge the config is valid or not, then we needn't to generate
      * others in graph
@@ -64,12 +66,26 @@ struct body_generator_base_t {
      * @param inputs the input args of the Op
      * @param outputs the output tensors of the Op
      * @param loops the for-loops to be later scheduled by schedule_loops()
+     * dispatch.
      * @return generate status, e.g. success.
      * */
     virtual bool generate(context_ptr ctx, const void *config,
             fusion_manager *fusion, const std::vector<expr> &inputs,
             const std::vector<expr> &outputs,
             std::vector<for_loop> &loops) const = 0;
+    /**
+     * Get the single core calculation function e.g. wrapped brgemm.
+     */
+    virtual func_t get_single_core_func(context_ptr ctx, const void *config,
+            fusion_manager *fusion, const std::vector<expr> &inputs,
+            const std::vector<expr> &outputs,
+            std::vector<for_loop> &loops) const {
+        return nullptr;
+    }
+
+    virtual std::vector<expr> get_extra_args_from_func(const func_t &f) const {
+        throw std::runtime_error("Unimplemented");
+    }
 
     virtual float get_gflop() const = 0;
 
@@ -79,6 +95,10 @@ struct body_generator_base_t {
 
     sc_data_type_t get_out_dtypes(size_t idx) const {
         return out_tensors_.at(idx).dtype_;
+    }
+
+    void set_single_core_func_param(const expr &single_core_func_param) {
+        single_core_func_param_ = single_core_func_param;
     }
 
     //   std::vector<sc_data_type_t> infer_out_dtypes() const {
@@ -148,6 +168,22 @@ struct body_generator_t : public body_generator_base_t {
             std::vector<for_loop> &loops) const override {
         return generate(ctx, *reinterpret_cast<const TConfig *>(config), fusion,
                 inputs, outputs, loops);
+    }
+
+    virtual func_t get_single_core_func(context_ptr ctx, const TConfig &config,
+            fusion_manager *fusion, const std::vector<expr> &inputs,
+            const std::vector<expr> &outputs,
+            std::vector<for_loop> &loops) const {
+        return nullptr;
+    }
+
+    func_t get_single_core_func(context_ptr ctx, const void *config,
+            fusion_manager *fusion, const std::vector<expr> &inputs,
+            const std::vector<expr> &outputs,
+            std::vector<for_loop> &loops) const override {
+        return get_single_core_func(ctx,
+                *reinterpret_cast<const TConfig *>(config), fusion, inputs,
+                outputs, loops);
     }
 
     virtual void schedule_loops(context_ptr ctx, const TConfig &config,

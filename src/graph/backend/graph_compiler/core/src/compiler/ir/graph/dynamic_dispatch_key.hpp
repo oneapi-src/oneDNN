@@ -52,6 +52,8 @@ struct op_dispatch_key_t : public op_dispatch_key_base_t {
     // a vector of input/output formats, order is input 0,1,..., output 0,1,...
     std::vector<sc_data_format_t> in_out_formats_;
     // the op can be dispatched as padding or not.
+    // todo(cuij): find if the field could be deleted if we complete query by
+    // juxtaposed. If we don't need query of combination any more.
     int impl_ = impl_kind_t::normal;
     op_dispatch_key_t() = default;
     virtual ~op_dispatch_key_t() {}
@@ -69,24 +71,49 @@ struct op_dispatch_key_t : public op_dispatch_key_base_t {
     convert_to_runtime_format_vec() const override;
 };
 
-struct combined_op_dispatch_key_t : public std::vector<op_dispatch_key_t>,
-                                    public op_dispatch_key_base_t {
-    combined_op_dispatch_key_t() = default;
-    combined_op_dispatch_key_t(std::initializer_list<op_dispatch_key_t> keys)
-        : std::vector<op_dispatch_key_t>(keys) {}
-    combined_op_dispatch_key_t(std::vector<op_dispatch_key_t> &&keys)
-        : std::vector<op_dispatch_key_t>(std::move(keys)) {}
-    bool operator==(const combined_op_dispatch_key_t &other) const;
-    bool operator!=(const combined_op_dispatch_key_t &other) const;
+struct impl_op_dispatch_key_t : public op_dispatch_key_base_t {
+    int impl_ = impl_kind_t::normal;
+    int repeat_;
+    virtual ~impl_op_dispatch_key_t() {}
+    // impl kernel dispatch uses same table of outer kernel dispatch, so set
+    // repeat here to match the number of outer kernel keys.
+    impl_op_dispatch_key_t(int impl, int repeat)
+        : impl_(impl), repeat_(repeat) {}
     void set_op_dispatch_key(const std::shared_ptr<sc_op> &node,
             const std::shared_ptr<context_t> &ctx) const override;
     std::vector<runtime::dispatch_key>
     convert_to_runtime_format_vec() const override;
 };
 
+struct combined_op_dispatch_key_t : public op_dispatch_key_base_t {
+    combined_op_dispatch_key_t() = default;
+    combined_op_dispatch_key_t(std::initializer_list<op_dispatch_key_t> keys)
+        : keys_(std::move(keys)) {}
+    combined_op_dispatch_key_t(std::vector<op_dispatch_key_t> &&keys)
+        : keys_(std::move(keys)) {}
+    bool operator==(const combined_op_dispatch_key_t &other) const;
+    bool operator!=(const combined_op_dispatch_key_t &other) const;
+    op_dispatch_key_t &operator[](size_t i) { return keys_[i]; }
+    const op_dispatch_key_t &operator[](size_t i) const { return keys_[i]; }
+
+    size_t size() const { return keys_.size(); }
+    void set_op_dispatch_key(const std::shared_ptr<sc_op> &node,
+            const std::shared_ptr<context_t> &ctx) const override;
+    std::vector<runtime::dispatch_key>
+    convert_to_runtime_format_vec() const override;
+    // explict op_dispatch_key_t here, not impl_op_dispatch_key_t because it
+    // could not be combined.
+    std::vector<op_dispatch_key_t> keys_;
+};
+
 struct dispatch_key_cmper_t {
     bool operator()(
             const op_dispatch_key_t &key0, const op_dispatch_key_t &key1) const;
+};
+
+struct impl_dispatch_key_cmper_t {
+    bool operator()(const impl_op_dispatch_key_t &key0,
+            const impl_op_dispatch_key_t &key1) const;
 };
 
 struct combined_dispatch_key_cmper_t {
@@ -116,6 +143,20 @@ struct dispatch_key_set_t : public dispatch_key_set_base_t {
             const std::function<void(const op_dispatch_key_base_t *)> &callback)
             override;
     inner_set_t &get_inner_set() override;
+    std::shared_ptr<dispatch_key_set_base_t> copy() const override;
+    inner_set_t set_;
+};
+
+struct impl_dispatch_key_set_t : public dispatch_key_set_base_t {
+    using inner_set_t
+            = std::set<impl_op_dispatch_key_t, impl_dispatch_key_cmper_t>;
+    impl_dispatch_key_set_t() = default;
+    impl_dispatch_key_set_t(const inner_set_t &set) : set_(set) {}
+    size_t size() const override { return set_.size(); }
+    void for_each_key_process(
+            const std::function<void(const op_dispatch_key_base_t *)> &callback)
+            override;
+    std::set<op_dispatch_key_t, dispatch_key_cmper_t> &get_inner_set() override;
     std::shared_ptr<dispatch_key_set_base_t> copy() const override;
     inner_set_t set_;
 };

@@ -22,12 +22,14 @@
 #include "templates/managed_matmul_core.hpp"
 #include "templates/utils.hpp"
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
+#include <compiler/ir/graph/dynamic_internal_info.hpp>
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/graph_map.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/utils.hpp>
+#include <compiler/ir/transform/dead_func_eliminate.hpp>
 #include <runtime/config.hpp>
 #include <unordered_set>
 #include <util/reflection.hpp>
@@ -110,6 +112,9 @@ body_generator_ptr managed_matmul_core_op_t::create_generator() {
     if (iim_block_ != -1) { mat_ptr->iim_block_ = iim_block_; }
     if (iin_block_ != -1) { mat_ptr->iin_block_ = iin_block_; }
     if (iik_block_ != -1) { mat_ptr->iik_block_ = iik_block_; }
+    if (is_dynamic()) {
+        mat_ptr->is_partial_ = static_cast<bool>(info_.cur_impl_);
+    }
     return std::move(mat_gen);
 }
 
@@ -401,10 +406,73 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
 
 void managed_matmul_core_op_t::set_config_by_key(
         const op_dispatch_key_t &key, const context_ptr &ctx) {
-    config_data_ = dyn_config_candidates_[key.impl_];
     iim_block_ = key.var_block_[0][0];
     iin_block_ = key.var_block_[1][1];
     iik_block_ = key.var_block_[0][1];
+}
+
+void managed_matmul_core_op_t::set_internal_config_by_key(
+        const impl_op_dispatch_key_t &key, const context_ptr &ctx) {
+    config_data_ = dyn_config_candidates_[key.impl_];
+    auto mmm_config = config_data_.get_as<managed_matmul_core_config_t>();
+    if (mmm_config->M_split_num * mmm_config->N_split_num
+            < runtime_config_t::get().get_num_threads()) {
+        info_.cur_impl_ = mmm_impl_kind_t::is_partial;
+    } else {
+        info_.cur_impl_ = mmm_impl_kind_t::full_k;
+    }
+}
+
+ir_module_ptr managed_matmul_core_op_t::get_internal_func(
+        const context_ptr &ctx) {
+    assert(is_dynamic());
+    if (!need_dynamic_internal_query()) { return nullptr; }
+    auto ret = std::make_shared<ir_module_t>(ctx);
+    auto gen_ptr = create_generator();
+    std::vector<expr> ins;
+    std::vector<expr> outs;
+    auto func = graph::create_func_decl_for_op(this, ins, outs);
+    COMPILE_ASSERT(!info_.internal_info_->parti_in_ltsrs_.empty()
+                    && !info_.internal_info_->parti_out_ltsrs_.empty(),
+            "Need in/out buffer args first");
+    const auto &out_details = info_.cur_impl_ == mmm_impl_kind_t::is_partial
+            ? graph::extract_detail_from_tensors(get_outputs())
+            : info_.internal_info_->parti_out_ltsrs_;
+    const auto &in_details = info_.cur_impl_ == mmm_impl_kind_t::is_partial
+            ? graph::extract_detail_from_tensors(get_inputs())
+            : info_.internal_info_->parti_in_ltsrs_;
+    auto pouts = graph::tensor_detail_to_ir_tensor(
+            get_owner_graph(), "__outs_", out_details);
+    auto pins = graph::tensor_detail_to_ir_tensor(
+            get_owner_graph(), "__ins_", in_details);
+    auto buffer_args = pouts;
+    buffer_args.insert(buffer_args.end(), pins.begin(), pins.end());
+    func->params_ = buffer_args;
+    func->params_.emplace_back(
+            builder::make_var(datatypes::pointer, "single_core_func"));
+    builder::ir_builder_t bld;
+    bld.push_scope();
+    std::vector<for_loop> loops;
+    gen_ptr->set_single_core_func_param(func->params_.back());
+    func_t single_core_func = gen_ptr->get_single_core_func(
+            ctx, config_data_.data_.get(), nullptr, pins, pouts, loops);
+    single_core_func->body_ = builder::make_returns_unattached(true);
+    single_core_func->attr().set(attr_keys::keep_func, true);
+    auto extra_args = gen_ptr->get_extra_args_from_func(single_core_func);
+    single_core_func->params_ = buffer_args;
+    single_core_func->params_.insert(single_core_func->params_.end(),
+            extra_args.begin(), extra_args.end());
+    func->params_.back()->attr().set("prototype", single_core_func);
+    bool status = gen_ptr->generate(
+            ctx, config_data_.data_.get(), nullptr, pins, pouts, loops);
+    assert(status);
+    bld.push_returns(true);
+    auto body = bld.pop_scope();
+    gen_ptr->schedule_loops(ctx, config_data_.data_.get(), body, loops);
+    func->body_ = std::move(body);
+    ret->add_func({func, single_core_func});
+    ret->set_entry_func_idx(0);
+    return ret;
 }
 
 sc_op_ptr managed_matmul_core_op_t::copy(
@@ -666,6 +734,10 @@ shape_rl_vec managed_matmul_core_op_t::get_dynamic_shape_relations() const {
             get_outputs()[0]->details_.get_plain_dims());
 }
 
+bool managed_matmul_core_op_t::need_dynamic_internal_query_impl() const {
+    return is_dynamic();
+}
+
 sc_dims managed_matmul_core_op_t::get_bwise_fuse_shrink_dims() {
     // Currently fordbid N-axis fuse, skip check weight
     auto out_fmt = info_.outputs_[0]->details_.get_format(),
@@ -799,6 +871,21 @@ void managed_matmul_core_op_t::pre_binding_axis(bound_axis_map &bdax_map) {
     pre_matmul_binding_axis(this, bdax_map);
 }
 
+std::vector<int> managed_matmul_core_op_t::get_impl_dispatch_candidates(
+        const context_ptr &ctx) {
+    return std::vector<int> {
+            mmm_impl_kind_t::full_k, mmm_impl_kind_t::is_partial};
+}
+
+dispatch_set_ptr managed_matmul_core_op_t::get_internal_dispatch_key_set(
+        const context_ptr &ctx) {
+    auto ret = std::make_shared<impl_dispatch_key_set_t>();
+    auto impls = get_dynamic_impl_dispatch_candidates(this, ctx);
+    for (auto &impl : impls) {
+        ret->set_.insert(impl_op_dispatch_key_t(impl, 3));
+    }
+    return ret;
+}
 } // namespace ops
 OP_REGISTER(ops::managed_matmul_core_op_t, managed_matmul_core)
 } // namespace gc

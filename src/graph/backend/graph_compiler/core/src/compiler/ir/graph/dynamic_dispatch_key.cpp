@@ -18,6 +18,7 @@
 #include <set>
 #include <vector>
 #include "dynamic_dispatch_key.hpp"
+#include "dynamic_internal_info.hpp"
 #include "dynamic_lower_info.hpp"
 #include "dynamic_utils.hpp"
 #include <compiler/ir/graph/fused_op.hpp>
@@ -81,10 +82,26 @@ op_dispatch_key_t::convert_to_runtime_format_vec() const {
     return outs;
 }
 
+void impl_op_dispatch_key_t::set_op_dispatch_key(
+        const sc_op_ptr &node, const context_ptr &ctx) const {
+    if (auto tun_node = node->dyn_cast<tunable_op_t>()) {
+        tun_node->set_internal_config_by_key(*this, ctx);
+    } else {
+        throw std::runtime_error("Unimplement");
+    }
+}
+
+std::vector<runtime::dispatch_key>
+impl_op_dispatch_key_t::convert_to_runtime_format_vec() const {
+    std::vector<runtime::dispatch_key> outs(
+            repeat_, runtime::dispatch_key(UINT64_C(0), 0, 0, impl_, false));
+    return outs;
+}
+
 std::vector<runtime::dispatch_key>
 combined_op_dispatch_key_t::convert_to_runtime_format_vec() const {
     std::vector<runtime::dispatch_key> ret;
-    for (auto &key : *this) {
+    for (auto &key : keys_) {
         auto v = key.convert_to_runtime_format_vec();
         ret.insert(ret.end(), v.begin(), v.end());
     }
@@ -93,8 +110,7 @@ combined_op_dispatch_key_t::convert_to_runtime_format_vec() const {
 
 bool combined_op_dispatch_key_t::operator==(
         const combined_op_dispatch_key_t &other) const {
-    return static_cast<std::vector<op_dispatch_key_t>>(*this)
-            == static_cast<std::vector<op_dispatch_key_t>>(other);
+    return keys_ == other.keys_;
 }
 
 bool combined_op_dispatch_key_t::operator!=(
@@ -138,6 +154,13 @@ bool dispatch_key_cmper_t::operator()(
             }
         }
     }
+    // equal
+    return false;
+}
+
+bool impl_dispatch_key_cmper_t::operator()(const impl_op_dispatch_key_t &key0,
+        const impl_op_dispatch_key_t &key1) const {
+    if (key0.impl_ != key1.impl_) { return key0.impl_ < key1.impl_; }
     // equal
     return false;
 }
@@ -197,11 +220,11 @@ void recursive_construct(combined_dispatch_key_set_t::inner_set_t &set,
             }
         }
         if (!is_valid) { continue; }
-        cur_combined_key.emplace_back(cur_key);
+        cur_combined_key.keys_.emplace_back(cur_key);
         recursive_construct(set, cur_combined_key, op_link_relations,
                 dispatch_sets, inputs, cur_op_idx + 1, len_key,
                 linked_reorder_impl);
-        cur_combined_key.pop_back();
+        cur_combined_key.keys_.pop_back();
     }
 }
 
@@ -262,7 +285,7 @@ void combined_dispatch_key_set_t::internal_construct(
             "Wrong dispatch key sets, could not construct combined "
             "dispatch key.");
     combined_op_dispatch_key_t cur_combined_key;
-    cur_combined_key.reserve(len_key);
+    cur_combined_key.keys_.reserve(len_key);
     auto reorder_impl_candidates = get_default_impl_dispatch_candidates();
     for (auto &linked_reorder_impl : reorder_impl_candidates) {
         recursive_construct(set_, cur_combined_key, op_link_relations,
@@ -302,6 +325,23 @@ dispatch_key_set_t::get_inner_set() {
 
 dispatch_set_ptr dispatch_key_set_t::copy() const {
     return std::make_shared<dispatch_key_set_t>(set_);
+}
+
+void impl_dispatch_key_set_t::for_each_key_process(
+        const std::function<void(const op_dispatch_key_base_t *)> &callback) {
+    for (auto &key : set_) {
+        callback(&key);
+    }
+}
+
+std::set<op_dispatch_key_t, dispatch_key_cmper_t> &
+impl_dispatch_key_set_t::get_inner_set() {
+    throw std::runtime_error(
+            "Impl disaptch key set can not get its inner set.");
+}
+
+dispatch_set_ptr impl_dispatch_key_set_t::copy() const {
+    return std::make_shared<impl_dispatch_key_set_t>(set_);
 }
 
 void combined_dispatch_key_set_t::for_each_key_process(

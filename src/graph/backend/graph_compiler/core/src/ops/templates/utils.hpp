@@ -187,7 +187,7 @@ inline static std::vector<int> get_sub_blocks(const int X, int factor = 2) {
 
 inline expr get_balance211_length(
   const expr &n, const expr &team, const expr &idx, expr &n_start, expr &T1) {
-  assert(get_expr_as_int(team) >= 1);
+  assert(team.isa<var>() || get_expr_as_int(team) >= 1);
   expr n1 = divide_and_ceil(n, team);
   expr n2 = do_cast_and_fold(n1 - 1);
   T1 = do_cast_and_fold(n - n2 * team);
