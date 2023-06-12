@@ -463,6 +463,20 @@ SC_INTERNAL_API func_t _decl_func(const std::string &name, sc_data_type_t dtype,
             ->push_var_tensor_def(NAME, linkage::local);
 
 /**
+ * Defines a variable within the current scope with specified name
+ * arguments:
+ *  NAME: the name of the variable, should not be quoted
+ *  VAR_NAME: the name of the tir variable, should be quoted
+ *  DTYPE: sc_data_type_t of the variable
+ * */
+#define _named_var_(NAME, VAR_NAME, DTYPE) \
+    ::dnnl::impl::graph::gc::expr::lvalue_proxy_t NAME( \
+            ::dnnl::impl::graph::gc::builder::make_var(DTYPE, VAR_NAME), \
+            false); \
+    ::dnnl::impl::graph::gc::builder::get_current_builder() \
+            ->push_var_tensor_def(NAME, linkage::local);
+
+/**
  * Defines a variable within the current scope
  * arguments:
  *  NAME: the name of the variable, should not be quoted

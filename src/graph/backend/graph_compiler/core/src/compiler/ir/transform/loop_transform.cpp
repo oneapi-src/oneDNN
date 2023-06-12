@@ -742,6 +742,36 @@ std::vector<for_loop> collect_nested_loops(stmt body) {
     return ret;
 }
 
+static size_t collect_all_loops_helper(
+        std::vector<for_loop> &ret, const stmt &body) {
+    size_t collected = 0;
+    if (body.isa<stmts>()) {
+        for (auto &smt : body.static_as<stmts>()->seq_) {
+            collected += collect_all_loops_helper(ret, smt);
+        }
+    } else if (body.isa<for_loop>()) {
+        auto loop = body.static_as<for_loop>();
+        ret.push_back(loop);
+        collected++;
+        collected += collect_all_loops_helper(ret, loop->body_);
+    } else if (body.isa<if_else>()) {
+        auto cond = body.static_as<if_else>();
+        if (cond->then_case_.defined()) {
+            collected += collect_all_loops_helper(ret, cond->then_case_);
+        }
+        if (cond->else_case_.defined()) {
+            collected += collect_all_loops_helper(ret, cond->else_case_);
+        }
+    }
+    return collected;
+}
+
+std::vector<for_loop> collect_all_loops(const stmt &body) {
+    std::vector<for_loop> ret;
+    collect_all_loops_helper(ret, body);
+    return ret;
+}
+
 } // namespace gc
 } // namespace graph
 } // namespace impl
