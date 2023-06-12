@@ -582,15 +582,13 @@ std::string maybe_fixup_1st_conv_wei_tag(
     return tag;
 }
 
-void maybe_set_plain_weights(const conv_config_t &cfg,
-        const std::string &src_tag, const std::string &dst_tag,
+void maybe_set_plain_weights(const conv_config_t &cfg, bool src_dst_axb,
         const std::string &user_wei_req, std::string &wei_tag,
         std::string &user_wei_tag) {
     auto &prb = cfg.prb();
     // For XeHPC+ with nhwc activations always use hwio weights for
     // consistency for user-facing layouts.
-    if (cfg.hw() >= ngen::HW::XeHPC
-            && utils::everyone_is("axb", src_tag, dst_tag)) {
+    if (cfg.hw() >= ngen::HW::XeHPC && src_dst_axb) {
         bool channels_ok = (prb.ic % 16 == 0 && prb.oc % 16 == 0);
         if (prb.g == 1 && channels_ok) {
             // Use plain compute layout for weights, normally they are
@@ -628,14 +626,6 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
 
     wei_tag = maybe_fixup_1st_conv_wei_tag(cfg, wei_tag);
 
-    // Align weights layout between forward/backward by data to eliminate
-    // user-side reorder.
-    auto fwd_wei_blk = goi_block_t::get_default_blocking(wei_compute_type,
-            cfg.vec_size(), cfg.fma_kind(), /*is_bwd_d=*/false, prb.g, prb.oc,
-            prb.ic);
-    auto fwd_wei_tag = fwd_wei_blk.tag();
-    if (fwd_wei_tag != wei_tag) user_wei_tag = fwd_wei_tag;
-
     // Handle nhwc case.
     auto user_src_req = get_plain_user_tag(prb, src_md, /*is_wei=*/false);
     auto user_wei_req = get_plain_user_tag(prb, wei_md, /*is_wei=*/true);
@@ -664,7 +654,7 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
     }
 
     maybe_set_plain_weights(
-            cfg, src_tag, dst_tag, user_wei_req, wei_tag, user_wei_tag);
+            cfg, src_axb && dst_axb, user_wei_req, wei_tag, user_wei_tag);
 
     if (user_src_tag.empty()) user_src_tag = src_tag;
     if (user_wei_tag.empty()) user_wei_tag = wei_tag;
