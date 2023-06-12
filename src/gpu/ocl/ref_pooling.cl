@@ -198,6 +198,11 @@ __kernel void ref_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
     const int iw = GWS_GET_IW();
 
     ACC_DATA_T s = 0;
+    int denom = 1;
+#if ALG_AVG_P
+    denom = KD * KH * KW;
+#endif
+
     for (int kd = 0; kd < KD; ++kd) {
         int _od = id + PD - kd * (DD + 1);
         if (_od % SD != 0) continue;
@@ -228,11 +233,7 @@ __kernel void ref_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
                 if (w_kd != kd || w_kh != kh || w_kw != kw) continue;
 #endif
 
-#if ALG_MAX
-                const int denom = 1;
-#elif ALG_AVG_P
-                const int denom = KD * KH * KW;
-#elif ALG_AVG_NP
+#if ALG_AVG_NP
                 const int id_start = od * SD - PD;
                 const int ih_start = oh * SH - PH;
                 const int iw_start = ow * SW - PW;
@@ -253,18 +254,28 @@ __kernel void ref_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
                 const int iw_end_excluded
                         = iw_end > IW ? (iw_end - IW - 1) / (DW + 1) + 1 : 0;
 
-                const int denom = (KD - id_start_excluded - id_end_excluded)
+                denom = (KD - id_start_excluded - id_end_excluded)
                         * (KH - ih_start_excluded - ih_end_excluded)
                         * (KW - iw_start_excluded - iw_end_excluded);
 #endif
 #if DT_F64
                 s += diff_dst[dst_off] / denom;
 #else
+#if ALG_MAX || ALG_AVG_P
+                s += DATA_TO_REF(diff_dst[dst_off]);
+#elif ALG_AVG_NP
                 s += DATA_TO_REF(diff_dst[dst_off]) / denom;
+#endif
 #endif
             }
         }
     }
+
+// Divide before storing for better accuracy.
+#if ALG_MAX || ALG_AVG_P
+    s /= denom;
+#endif
+
     uint diff_src_offset = SRC_OFF(mb, oc, id, ih, iw);
     diff_src[diff_src_offset] = CONVERT_DATA_T(s);
 }
