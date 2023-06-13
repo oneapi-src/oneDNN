@@ -35,22 +35,21 @@
 #include "common/type_helpers.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
 
-#ifdef DNNL_DEV_MODE
+static inline bool is_ws_print_enabled() {
+    return get_verbose_dev_mode(dnnl::impl::verbose_t::debuginfo) >= 5;
+}
+
 #define DPRINT(fmt, ...) \
     do { \
-        if (get_verbose(verbose_t::debuginfo) >= 2) { \
+        if (get_verbose_dev_mode(verbose_t::debuginfo) >= 2) { \
             printf(fmt, __VA_ARGS__); \
             fflush(nullptr); \
         } \
     } while (0)
 #define WS_PRINT(c, s, w) \
     do { \
-        if (get_verbose(verbose_t::debuginfo) >= 3) { ws_print(c, s, w); } \
+        if (is_ws_print_enabled()) { ws_print(c, s, w); } \
     } while (0)
-#else
-#define DPRINT(fmt, ...)
-#define WS_PRINT(c, s, w)
-#endif
 
 namespace dnnl {
 namespace impl {
@@ -295,9 +294,8 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("COPY_BIAS", conf.copy_bias);
     kernel_ctx.define_int("WEI_QPARAM_MASK", conf.wei_qparam_mask);
     kernel_ctx.define_int("IS_TESTMODE", conf.is_testmode);
-#ifdef DNNL_DEV_MODE
-    kernel_ctx.define_int("DEBUGPRINT", get_verbose(verbose_t::debuginfo) >= 5);
-#endif
+    if (is_ws_print_enabled()) kernel_ctx.define_int("DEBUGPRINT", true);
+
     return status::success;
 }
 
@@ -734,21 +732,14 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
             pd()->subgroup_size, pd()->use_subgroup_reduction);
     CHECK(status);
 
-    std::vector<const char *> kernel_names
-            = { "ref_rnn_bias_prepare",
-                  "ref_rnn_copy_init_layer",
-                  "ref_rnn_copy_init_iter",
-                  "ref_rnn_copy_res_layer",
-                  "ref_rnn_copy_res_iter",
-                  "ref_rnn_ws_set",
-                  "ref_rnn_elemwise_fwd",
-                  "ref_rnn_elemwise_bwd",
-                  "ref_rnn_gates_reduction"
-#if DNNL_DEV_MODE
-                  ,
-                  "ref_rnn_ws_print"
-#endif
-              };
+    std::vector<const char *> kernel_names = {"ref_rnn_bias_prepare",
+            "ref_rnn_copy_init_layer", "ref_rnn_copy_init_iter",
+            "ref_rnn_copy_res_layer", "ref_rnn_copy_res_iter", "ref_rnn_ws_set",
+            "ref_rnn_elemwise_fwd", "ref_rnn_elemwise_bwd",
+            "ref_rnn_gates_reduction"};
+    if (is_ws_print_enabled()) {
+        kernel_names.emplace_back("ref_rnn_ws_print");
+    }
 
     std::vector<compute::kernel_t> kernels;
     status = create_kernels(engine, &kernels, kernel_names, kernel_ctx);
@@ -763,9 +754,7 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
     elemwise_fwd_kernel_ = kernels[6];
     elemwise_bwd_kernel_ = kernels[7];
     gates_reduction_kernel_ = kernels[8];
-#if DNNL_DEV_MODE
-    ws_print_kernel_ = kernels[9];
-#endif
+    if (is_ws_print_enabled()) ws_print_kernel_ = kernels[9];
 
     bool gemm_ok = true;
 
@@ -1406,11 +1395,14 @@ status_t _ref_rnn_common_t<aprop>::ws_set(const exec_ctx_t &ctx,
     return parallel_for(ctx, nd_range, ws_set_kernel_, arg_list);
 }
 
-#if DNNL_DEV_MODE
 template <prop_kind_t aprop>
 status_t _ref_rnn_common_t<aprop>::ws_print(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream,
         const workspace_t &workspace_) const {
+    // This is only for use in DNNL_DEV_MODE
+    assert(is_dev_mode());
+    if (!is_dev_mode()) return status::runtime_error;
+
     compute::kernel_arg_list_t arg_list;
     arg_list.append(workspace_.gates());
     arg_list.append(workspace_.states());
@@ -1433,7 +1425,6 @@ status_t _ref_rnn_common_t<aprop>::ws_print(const exec_ctx_t &ctx,
 
     return parallel_for(ctx, nd_range, ws_print_kernel_, arg_list);
 }
-#endif
 
 template <prop_kind_t aprop>
 weights_assign_sig((_ref_rnn_common_t<aprop>::assign_weights)) {
@@ -1544,47 +1535,35 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
             = CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS_ITER);
     auto &diff_bias_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS);
 
-    auto prints = [=](void) {
-        DPRINT("\n%s\n", "+++++++++++++++");
-        DPRINT(" aprop = %d\n", (int)aprop);
-        DPRINT("%s\n", "+++++++++++++++");
-        DPRINT("  n_layer         = %d\n", n_layer);
-        DPRINT("  n_dir           = %d\n", n_dir);
-        DPRINT("  n_iter          = %d\n", n_iter);
-        DPRINT("  n_gates         = %d\n", n_gates);
-        DPRINT("  n_bias          = %d\n", n_bias);
-        DPRINT("  n_states        = %d\n", n_states);
-        DPRINT("  n_weights_layer = %ld\n", rnn_pd->SLC());
-        DPRINT("  n_weights_iter  = %ld\n", rnn_pd->SIC());
-        DPRINT("  batch           = %d\n", batch);
-        DPRINT("  slc             = %d\n", slc);
-        DPRINT("  sic             = %d\n", sic);
-        DPRINT("  dhc             = %d\n", dhc);
-        DPRINT("  dlc             = %d\n", dlc);
-        DPRINT("%s\n", "+++++++++++++++");
-        DPRINT("  is_fwd          = %s\n", is_fwd ? "yes" : "no");
-        DPRINT("  is_vanilla_gru  = %s\n", is_vanilla_gru ? "yes" : "no");
-        DPRINT("  use_workspace   = %s\n", rnn.use_workspace ? "yes" : "no");
-        DPRINT("%s\n", "+++++++++++++++");
-        DPRINT("  with_src_iter   = %s\n",
-                rnn_pd->with_src_iter() ? "yes" : "no");
-        DPRINT("  with_src_iter_c = %s\n",
-                rnn_pd->with_src_iter_c() ? "yes" : "no");
-        DPRINT("  with_bias       = %s\n", rnn_pd->with_bias() ? "yes" : "no");
-        DPRINT("  with_dst_iter   = %s\n",
-                rnn_pd->with_dst_iter() ? "yes" : "no");
-        DPRINT("  with_dst_iter_c = %s\n",
-                rnn_pd->with_dst_iter_c() ? "yes" : "no");
-        DPRINT("%s\n", "+++++++++++++++");
-    };
-
-#if DNNL_DEV_MODE
-    prints();
-#else
-    UNUSED(dlc);
-    UNUSED(is_vanilla_gru);
-    UNUSED(prints);
-#endif
+    DPRINT("\n%s\n", "+++++++++++++++");
+    DPRINT(" aprop = %d\n", (int)aprop);
+    DPRINT("%s\n", "+++++++++++++++");
+    DPRINT("  n_layer         = %d\n", n_layer);
+    DPRINT("  n_dir           = %d\n", n_dir);
+    DPRINT("  n_iter          = %d\n", n_iter);
+    DPRINT("  n_gates         = %d\n", n_gates);
+    DPRINT("  n_bias          = %d\n", n_bias);
+    DPRINT("  n_states        = %d\n", n_states);
+    DPRINT("  n_weights_layer = %lld\n", (long long)rnn_pd->SLC());
+    DPRINT("  n_weights_iter  = %lld\n", (long long)rnn_pd->SIC());
+    DPRINT("  batch           = %d\n", batch);
+    DPRINT("  slc             = %d\n", slc);
+    DPRINT("  sic             = %d\n", sic);
+    DPRINT("  dhc             = %d\n", dhc);
+    DPRINT("  dlc             = %d\n", dlc);
+    DPRINT("%s\n", "+++++++++++++++");
+    DPRINT("  is_fwd          = %s\n", is_fwd ? "yes" : "no");
+    DPRINT("  is_vanilla_gru  = %s\n", is_vanilla_gru ? "yes" : "no");
+    DPRINT("  use_workspace   = %s\n", rnn.use_workspace ? "yes" : "no");
+    DPRINT("%s\n", "+++++++++++++++");
+    DPRINT("  with_src_iter   = %s\n", rnn_pd->with_src_iter() ? "yes" : "no");
+    DPRINT("  with_src_iter_c = %s\n",
+            rnn_pd->with_src_iter_c() ? "yes" : "no");
+    DPRINT("  with_bias       = %s\n", rnn_pd->with_bias() ? "yes" : "no");
+    DPRINT("  with_dst_iter   = %s\n", rnn_pd->with_dst_iter() ? "yes" : "no");
+    DPRINT("  with_dst_iter_c = %s\n",
+            rnn_pd->with_dst_iter_c() ? "yes" : "no");
+    DPRINT("%s\n", "+++++++++++++++");
 
 #if WS_NAN_FILLING
     if (rnn.is_fwd) {
