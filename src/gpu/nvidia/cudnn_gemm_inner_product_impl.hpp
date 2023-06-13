@@ -76,11 +76,6 @@ struct cudnn_gemm_inner_product_fwd_impl_t
     cudnnTensorDescriptor_t y_acc_desc_;
     bool need_reorder_;
 
-    bool ip_using_scratchpad() const override { return (use_acc_dst_ > 0); }
-    virtual bool need_to_transform_filter() const override {
-        return need_reorder_;
-    }
-
     virtual status_t init(engine_t *, inner_product_pd_t *pd, bool with_relu,
             bool with_eltwise, bool with_sum, bool need_reorder) override {
         need_reorder_ = need_reorder;
@@ -279,10 +274,6 @@ struct cudnn_gemm_inner_product_bwd_data_impl_t
       public cudnn_conv_filter_adjustment_base_t {
     bool need_reorder_;
 
-    virtual bool need_to_transform_filter() const override {
-        return need_reorder_;
-    }
-
     virtual status_t init(engine_t *, inner_product_pd_t *pd,
             bool /*with_relu*/, bool /*with_eltwise*/, bool /*with_sum */,
             bool need_reorder) override {
@@ -352,10 +343,6 @@ struct cudnn_gemm_inner_product_bwd_weights_impl_t
     cudnnReduceTensorDescriptor_t reduceTensorDesc_ = nullptr;
     bool wie_tr_;
     bool need_reorder_;
-
-    virtual bool need_to_transform_filter() const override {
-        return need_reorder_;
-    }
 
     virtual ~cudnn_gemm_inner_product_bwd_weights_impl_t() {
         if (reduceTensorDesc_) {
