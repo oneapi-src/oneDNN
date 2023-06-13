@@ -270,7 +270,7 @@ public:
         auto it_a = attr_a.find(attr_name);
         auto it_b = attr_b.find(attr_name);
 
-        const bool same = (it_a == attr_b.end() || it_b == attr_b.end())
+        const bool same = (it_a == attr_a.end() || it_b == attr_b.end())
                 ? false
                 : (it_a->second == it_b->second);
 
