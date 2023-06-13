@@ -66,6 +66,7 @@ SC_INTERNAL_API void tensor_view_transform(
 
 SC_INTERNAL_API void flatten_conv(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+
 SC_INTERNAL_API
 void graph_simplify(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
@@ -90,7 +91,11 @@ SC_INTERNAL_API void shape_relationship_binding(
 
 SC_INTERNAL_API void merge_concats(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+
 SC_INTERNAL_API void graph_concat_memory_planning(
+        sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+
+SC_INTERNAL_API void rl_conv_weight_transform(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
 namespace quantize {

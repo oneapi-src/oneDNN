@@ -498,7 +498,7 @@ tensor_view_op_t::tensor_view_op_t(const std::vector<graph_tensor_ptr> &ins,
     auto cache_input_format = ins[0]->details_.get_format();
     attrs_ = attrs;
     auto shapes = attrs_.get<sc_dims>("shape");
-    auto format = attrs.get_or_else("format", sc_data_format_t());
+    auto format = attrs_.get_or_else("format", sc_data_format_t());
     int total_shape1 = 1, total_shape2 = 1, total_shape3 = 1;
     for (auto &dim : sc_data_format_t::get_padded_plain_shapes(
                  ins[0]->details_.get_blocking_dims(), cache_input_format)) {

@@ -394,11 +394,16 @@ graph_tensor_ptr graph_tensor::copy() {
     return std::make_shared<graph_tensor>(producer_owner_, details_);
 }
 
-void sc_op::replace_input(size_t index, const graph_tensor_ptr &new_input) {
-    assert(index < info_.inputs_.size());
-    assert(new_input->details_.is_dynamic()
-            || get_dims_product(info_.inputs_[index]->details_.get_plain_dims())
-                    == get_dims_product(new_input->details_.get_plain_dims()));
+void sc_op::replace_input(size_t index, const graph_tensor_ptr &new_input,
+        const bool skip_shape_check) {
+    if (!skip_shape_check) {
+        assert(index < info_.inputs_.size());
+        assert(new_input->details_.is_dynamic()
+                || get_dims_product(
+                           info_.inputs_[index]->details_.get_plain_dims())
+                        == get_dims_product(
+                                new_input->details_.get_plain_dims()));
+    }
     info_.inputs_[index]->detach_use(shared_from_this(), index);
     info_.inputs_[index] = new_input;
     new_input->attach_use(shared_from_this(), index);

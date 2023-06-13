@@ -24,6 +24,7 @@
 #include "templates/convNxN_backprop_weight.hpp"
 #include "templates/conv_bwd.hpp"
 #include "templates/conv_fwd.hpp"
+#include "templates/conv_rl.hpp"
 #include "templates/nested_conv1x1_backprop_data.hpp"
 #include "templates/nested_conv1x1_backprop_weight.hpp"
 #include "templates/nested_convNxN_backprop_data.hpp"
@@ -83,6 +84,10 @@ void conv_fwd_core_op_t::infer_slice_ranges(
             const nested_conv_fwd_config_t &tcfg
                     = *config_data_.get_as<nested_conv_fwd_config_t>();
             tile_p = tcfg.im_h_block;
+        } else if (attrs_.get_or_else("use_rl", false)) {
+            const conv_fwd_rl_config_t &tcfg
+                    = *config_data_.get_as<conv_fwd_rl_config_t>();
+            tile_p = tcfg.brgemm_m;
         } else {
             const conv_fwd_config_t &tcfg
                     = *config_data_.get_as<conv_fwd_config_t>();
@@ -301,15 +306,19 @@ sc_dims conv_fwd_core_op_t::infer_out_dims(sc_graph_t &owner_graph,
     int ndims = input_dims.size();
     const bool is_1d = (ndims == 3);
     const bool is_3d = (ndims == 5);
+    sc_dims wei_dims = weight_dims;
     COMPILE_ASSERT(
             utils::is_one_of(static_cast<int>(input_dims.size()), 3, 4, 5),
             "wrong input dims, expected to be 3D, 4D or 5D input, but got "
                     << input_dims.size() << "D.");
-    COMPILE_ASSERT(
-            utils::is_one_of(static_cast<int>(weight_dims.size()), 3, 4, 5)
-                    && (weight_dims.size() == input_dims.size()),
+    if (attrs.get_or_else("use_rl", false)) {
+        wei_dims = attrs.get<sc_dims>("origin_wei_plain_dims");
+    }
+
+    COMPILE_ASSERT(utils::is_one_of(static_cast<int>(wei_dims.size()), 3, 4, 5)
+                    && (wei_dims.size() == input_dims.size()),
             "wrong weight dims, only support 4D or 5D weights, but got "
-                    << weight_dims.size() << "D.");
+                    << wei_dims.size() << "D.");
     COMPILE_ASSERT(
             is_3d ? utils::is_one_of(static_cast<int>(pads_begin.size()), 1, 3)
                     : is_1d ? utils::is_one_of(
@@ -370,15 +379,15 @@ sc_dims conv_fwd_core_op_t::infer_out_dims(sc_graph_t &owner_graph,
     };
     sc_dims out_dims(ndims);
     out_dims[0] = input_dims[0];
-    out_dims[1] = weight_dims[0];
+    out_dims[1] = wei_dims[0];
     for (int i = 2; i < ndims; ++i) {
-        if (is_dynamic_dim(input_dims[i]) || is_dynamic_dim(weight_dims[i])
+        if (is_dynamic_dim(input_dims[i]) || is_dynamic_dim(wei_dims[i])
                 || is_dynamic_dim(pads_begin_dims[i - 2])
                 || is_dynamic_dim(pads_end_dims[i - 2])
                 || is_dynamic_dim(stride_dims[i - 2])) {
             out_dims[i] = owner_graph.get_next_dynamic_placeholder();
         } else {
-            out_dims[i] = calc_out_shapes(input_dims[i], weight_dims[i],
+            out_dims[i] = calc_out_shapes(input_dims[i], wei_dims[i],
                     pads_begin_dims[i - 2], pads_end_dims[i - 2],
                     stride_dims[i - 2], dilation_dims[i - 2]);
         }
@@ -601,20 +610,25 @@ body_generator_ptr conv_fwd_core_op_t::create_generator() {
             "Current conv_fwd generator logic only supports symmetric "
             "padding.");
 
+#define CREATE_GENERATOR(type) \
+    utils::make_unique<type>(this, stride, dilations, pads_begin, \
+            graph::extract_detail_from_tensors(get_inputs()), \
+            graph::extract_detail_from_tensors(get_outputs()))
     if (use_nested_conv_fwd_generator()) {
-        return utils::make_unique<gen_nested_conv_fwd_t>(this, stride,
-                dilations, pads_begin,
+        return CREATE_GENERATOR(gen_nested_conv_fwd_t);
+    } else if (attrs_.get_or_else("use_rl", false)) {
+        return utils::make_unique<gen_conv_fwd_rl_t>(this, stride, dilations,
+                pads_begin, pads_end,
                 graph::extract_detail_from_tensors(get_inputs()),
                 graph::extract_detail_from_tensors(get_outputs()));
     } else {
-        auto ret = utils::make_unique<gen_conv_fwd_t>(this, stride, dilations,
-                pads_begin, graph::extract_detail_from_tensors(get_inputs()),
-                graph::extract_detail_from_tensors(get_outputs()));
+        auto ret = CREATE_GENERATOR(gen_conv_fwd_t);
         if (attrs_.get_or_else("inverse_filter", false)) {
             ret->inverse_filter_ = true;
         }
         return std::move(ret);
     }
+#undef CREATE_GENERATOR
 }
 
 float conv_fwd_core_op_t::get_gflop() {
@@ -630,6 +644,7 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
             "conv expects 2 inputs, but got " << info_.inputs_.size()
                                               << " inputs.");
     ndims_ = info_.inputs_[0]->details_.get_plain_dims().size();
+    auto use_rl = attrs_.get_or_else("use_rl", false);
 
     // nested os blocking conv 3x3 works when use_amx is true
     if (!ctx->use_amx()) { attrs_.set("use_nested", false); }
@@ -645,6 +660,11 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
         in_formats.reserve(2);
         C_block = tcfg.im_ic_block;
         K_block = tcfg.im_oc_block;
+    } else if (use_rl) {
+        const conv_fwd_rl_config_t &tcfg
+                = *config_data_.get_as<conv_fwd_rl_config_t>();
+        in_formats.reserve(2);
+        K_block = tcfg.brgemm_n;
     } else {
         const conv_fwd_config_t &tcfg
                 = *config_data_.get_as<conv_fwd_config_t>();
@@ -686,8 +706,10 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
     auto weight_plain_dims = info_.inputs_[1]->details_.get_plain_dims();
     auto input_plain_dims = info_.inputs_[0]->details_.get_plain_dims();
     bool channel_last_support = false;
+    auto kh = weight_plain_dims[ndims_ - 2];
+    auto kw = weight_plain_dims[ndims_ - 1];
+    auto ic = weight_plain_dims[1];
     if (!is_1d) {
-        auto kh = weight_plain_dims[ndims_ - 2];
         auto is_1x1 = std::all_of(weight_plain_dims.begin() + 2,
                 weight_plain_dims.end(), [](int x) { return x == 1; });
         channel_last_support = is_1x1
@@ -706,7 +728,7 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
     bool force_blocking = test_format == "NCHWc" || test_format == "NCDHWc"
             || test_format == "NCSc";
     bool use_channel_last = (channel_last_support && !force_blocking)
-            || (channel_last_support && force_channel_last);
+            || (channel_last_support && force_channel_last) || use_rl;
     // data layout
     if (use_channel_last) {
         in_formats.push_back({is_3d ? sc_data_format_t::NDHWC()
@@ -719,24 +741,42 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
     }
 
     // weight layout
-    if (utils::is_one_of(src_dtype, datatypes::u8, datatypes::s8)
-            && wei_dtype == datatypes::s8) {
-        in_formats.push_back({is_3d
-                        ? sc_data_format_t::KCDRSck4c(C_block, K_block)
-                        : is_1d
-                        ? sc_data_format_t::KCSck4c(C_block, K_block)
-                        : sc_data_format_t::KCRSck4c(C_block, K_block)});
-    } else if (src_dtype == datatypes::bf16 && wei_dtype == datatypes::bf16) {
-        in_formats.push_back({is_3d
-                        ? sc_data_format_t::KCDRSck2c(C_block, K_block)
-                        : is_1d
-                        ? sc_data_format_t::KCSck2c(C_block, K_block)
-                        : sc_data_format_t::KCRSck2c(C_block, K_block)});
+    if (use_rl) {
+        int brgemm_k = attrs_.get<int>("brgemm_k");
+        int brgemm_n = K_block;
+        if (utils::is_one_of(src_dtype, datatypes::u8, datatypes::s8)
+                && wei_dtype == datatypes::s8) {
+            in_formats.push_back(
+                    {sc_data_format_t::KNkn4k(brgemm_k, brgemm_n)});
+        } else if (src_dtype == datatypes::bf16
+                && wei_dtype == datatypes::bf16) {
+            in_formats.push_back(
+                    {sc_data_format_t::KNkn2k(brgemm_k, brgemm_n)});
+        } else {
+            COMPILE_ASSERT(0, "Invalid datatype for reduce lowering!");
+        }
     } else {
-        in_formats.push_back({is_3d
-                        ? sc_data_format_t::KCDRSck(C_block, K_block)
-                        : is_1d ? sc_data_format_t::KCSck(C_block, K_block)
-                                : sc_data_format_t::KCRSck(C_block, K_block)});
+        if (utils::is_one_of(src_dtype, datatypes::u8, datatypes::s8)
+                && wei_dtype == datatypes::s8) {
+            in_formats.push_back({is_3d
+                            ? sc_data_format_t::KCDRSck4c(C_block, K_block)
+                            : is_1d
+                            ? sc_data_format_t::KCSck4c(C_block, K_block)
+                            : sc_data_format_t::KCRSck4c(C_block, K_block)});
+        } else if (src_dtype == datatypes::bf16
+                && wei_dtype == datatypes::bf16) {
+            in_formats.push_back({is_3d
+                            ? sc_data_format_t::KCDRSck2c(C_block, K_block)
+                            : is_1d
+                            ? sc_data_format_t::KCSck2c(C_block, K_block)
+                            : sc_data_format_t::KCRSck2c(C_block, K_block)});
+        } else {
+            in_formats.push_back({is_3d
+                            ? sc_data_format_t::KCDRSck(C_block, K_block)
+                            : is_1d
+                            ? sc_data_format_t::KCSck(C_block, K_block)
+                            : sc_data_format_t::KCRSck(C_block, K_block)});
+        }
     }
     if (use_channel_last) {
         out_formats.push_back({is_3d ? sc_data_format_t::NDHWC()

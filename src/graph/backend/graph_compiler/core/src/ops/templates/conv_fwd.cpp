@@ -364,22 +364,21 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
   auto weight_plain_dims = get_weight_plain_dims();
   auto out_plain_dims = get_output_plain_dims();
   if (owner) { attrs_ = owner->attrs_; }
-  COMPILE_ASSERT(
-    utils::is_one_of(static_cast<int>(input_plain_dims.size()), 3, 4, 5),
-    "Wrong input dims, expected to be 3D, 4D or 5D input, but got "
-      << input_plain_dims.size() << "D.");
+  ndims_ = input_plain_dims.size();
+  COMPILE_ASSERT(utils::is_one_of(static_cast<int>(ndims_), 3, 4, 5),
+    "Wrong input dims, expected to be 3D, 4D or 5D input, but got " << ndims_
+                                                                    << "D.");
   COMPILE_ASSERT(
     utils::is_one_of(static_cast<int>(weight_plain_dims.size()), 3, 4, 5)
-      && (weight_plain_dims.size() == input_plain_dims.size()),
+      && (weight_plain_dims.size() == ndims_),
     "Wrong weight dims, only support 3D, 4D or 5D weights, but got "
       << weight_plain_dims.size() << "D.");
   COMPILE_ASSERT(
     utils::is_one_of(static_cast<int>(out_plain_dims.size()), 3, 4, 5)
-      && (out_plain_dims.size() == input_plain_dims.size()),
+      && (out_plain_dims.size() == ndims_),
     "Wrong output dims, only support 3D, 4D or 5D weights, but got "
       << out_plain_dims.size() << "D.");
 
-  ndims_ = input_plain_dims.size();
   is_3d_ = (ndims_ == 5);
   is_1d_ = (ndims_ == 3);
 

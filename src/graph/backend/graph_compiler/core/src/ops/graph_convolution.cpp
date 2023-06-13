@@ -219,11 +219,6 @@ void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     }
 
     conv = graph->make("conv_fwd_core", {input, filter}, {}, attrs);
-    if (is_bf16) {
-        conv = graph->make(
-                "cast", conv->get_outputs(), {}, {{"dtype", datatypes::bf16}});
-    }
-
     if (data_format == "NXC") {
         // conv_fwd_core's output is with NCX plain shape
         // need to permute NCX to NXC
@@ -234,6 +229,11 @@ void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                         {"out_format",
                                 is_3D ? sc_data_format_t::NDHWC()
                                       : sc_data_format_t::NHWC()}});
+    }
+
+    if (is_bf16) {
+        conv = graph->make(
+                "cast", conv->get_outputs(), {}, {{"dtype", datatypes::bf16}});
     }
 
     // add bias

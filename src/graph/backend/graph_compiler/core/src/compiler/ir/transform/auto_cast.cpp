@@ -198,7 +198,7 @@ public:
         changed |= dispatch_expr_vector(v->idx_, newidx);
         int max_priori = -100;
         sc_data_type_t target_type;
-        // first find max priotity
+        // first find max priority
         for (auto &idx : newidx) {
             int priori = get_casting_priority(idx->dtype_);
             if (priori > max_priori) {
@@ -206,18 +206,23 @@ public:
                 target_type = idx->dtype_;
             }
         }
+
         std::vector<expr_c> newidx_c;
         newidx_c.reserve(newidx.size());
-        // second pass: cast to max priori dtype
+        // second pass: cast to max priority dtype
         for (auto &idx : newidx) {
             expr_c idx_c = idx;
             changed |= cast_to(idx_c, target_type, v);
             newidx_c.emplace_back(std::move(idx_c));
         }
+
+        auto new_mask = v->mask_.defined() ? dispatch(v->mask_) : expr_c();
+        changed |= !new_mask.ptr_same(v->mask_);
+
         if (changed) {
             return copy_attr(*v,
                     builder::make_indexing(
-                            ptr, newidx_c, v->dtype_.lanes_, v->mask_));
+                            ptr, newidx_c, v->dtype_.lanes_, new_mask));
         } else {
             return std::move(v);
         }

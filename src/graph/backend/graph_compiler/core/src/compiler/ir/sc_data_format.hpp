@@ -156,6 +156,7 @@ SC_DEF_FMT(BA, 1, 0)
 SC_DEF_FMT(ABC, 0, 1, 2)
 SC_DEF_FMT(ABCD, 0, 1, 2, 3)
 SC_DEF_FMT(ABCDE, 0, 1, 2, 3, 4)
+SC_DEF_FMT(CDBA, 2, 3, 1, 0)
 
 // channel last format
 SC_DEF_FMT(ACB, 0, 2, 1)
@@ -195,6 +196,7 @@ SC_DEF_FMT(CKRSkck, 1, 0, 2, 3, 0, 1, 0)
 SC_DEF_FMT(CKDRSkck, 1, 0, 2, 3, 4, 0, 1, 0)
 SC_DEF_FMT(NKknk, 1, 0, 0, 1, 0)
 SC_DEF_FMT(BNKknk, 1, 0, 0, 1, 0)
+SC_DEF_FMT(KNknk, 0, 1, 0, 1, 0)
 
 // used for bertBMM
 SC_DEF_FMT(ACBD, 0, 2, 1, 3)
@@ -309,6 +311,12 @@ struct SC_API sc_data_format_t {
     }
     constexpr static inline sc_data_format_t NKkn4k(int k, int n) {
         return sc_data_format_t(format_kinds::NKknk, {k, n, 4});
+    }
+    constexpr static inline sc_data_format_t KNkn4k(int k, int n) {
+        return sc_data_format_t(format_kinds::KNknk, {k, n, 4});
+    }
+    constexpr static inline sc_data_format_t KNkn2k(int k, int n) {
+        return sc_data_format_t(format_kinds::KNknk, {k, n, 2});
     }
     constexpr static inline sc_data_format_t NCDHW() {
         return sc_data_format_t(format_kinds::NCDHW);

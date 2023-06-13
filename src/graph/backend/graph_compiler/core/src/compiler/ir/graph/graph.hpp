@@ -262,8 +262,11 @@ public:
      * Repalces an input logical tensor
      * @param index the index within get_inputs()
      * @param new_input the new logical tensor
+     * @param skip_shape_check whether to check new shape vs original shape, for
+     * padding op the shape could be different
      * */
-    void replace_input(size_t index, const graph_tensor_ptr &new_input);
+    void replace_input(size_t index, const graph_tensor_ptr &new_input,
+            const bool skip_shape_check = false);
 
     // Replaces the current Op in the graph using another Op. All other Ops
     // using the output tensors of current Op will use the corresponding tensors

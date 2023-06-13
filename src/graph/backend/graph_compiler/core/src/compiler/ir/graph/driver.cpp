@@ -66,6 +66,9 @@ create_default_graph_flow(const context_ptr &ctx) {
     pre_tune_passes.push_back(create_graph_pass("quantized_graph_reschedule",
             quantize::graph_reschedule, {}, pass_type::pre_tune, true));
     if (ctx->flags_.mixed_fusion_) {
+        // should be executed after graph reschedule, and before quantize_inline
+        pre_tune_passes.push_back(create_graph_pass("rl_conv_weight_transform",
+                rl_conv_weight_transform, {}, pass_type::pre_tune, true));
         pre_tune_passes.push_back(create_graph_pass("const_folding",
                 graph_constant_input_folding, {}, pass_type::pre_tune, true));
         pre_tune_passes.push_back(create_graph_pass(

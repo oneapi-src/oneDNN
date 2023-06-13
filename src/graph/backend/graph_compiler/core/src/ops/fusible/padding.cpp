@@ -33,8 +33,9 @@ padding_op_t::padding_op_t(const std::vector<graph_tensor_ptr> &ins,
     COMPILE_ASSERT(ins.size() == 1, "padding expects 1 input");
     const int ndims = ins[0]->details_.get_plain_dims().size();
 
-    COMPILE_ASSERT(utils::is_one_of(static_cast<int>(ndims), 4, 5),
-            "wrong input dims, expected to be 4D or 5D input, but got "
+    // extend for arbitrary dims?
+    COMPILE_ASSERT(utils::is_one_of(static_cast<int>(ndims), 2, 4, 5),
+            "wrong input dims, expected to be 2D, 4D or 5D input, but got "
                     << ins.size() << "D.");
 
     info_.inputs_ = ins;
@@ -46,17 +47,22 @@ padding_op_t::padding_op_t(const std::vector<graph_tensor_ptr> &ins,
     auto &pads_begin = attrs_.get<sc_dims>("pads_begin");
     auto &pads_end = attrs_.get<sc_dims>("pads_end");
 
-    COMPILE_ASSERT(pads_begin == pads_end,
-            "Current padding op only supports symmetric padding.");
+    if (ndims == 2) {
+        COMPILE_ASSERT(static_cast<int>(pads_begin.size()) == 1,
+                "wrong padding dims, 2D input, but got" << pads_begin.size()
+                                                        << "D paddings.");
+    } else {
+        COMPILE_ASSERT(pads_begin == pads_end,
+                "Current padding op only supports symmetric padding.");
 
-    if (pads_begin.size() == 1) {
-        pads_begin = sc_dims(ndims - 2, pads_begin[0]);
-        pads_end = sc_dims(ndims - 2, pads_end[0]);
+        if (pads_begin.size() == 1) {
+            pads_begin = sc_dims(ndims - 2, pads_begin[0]);
+            pads_end = sc_dims(ndims - 2, pads_end[0]);
+        }
+        COMPILE_ASSERT((ndims - 2) == static_cast<int>(pads_begin.size()),
+                "wrong padding dims, " << ndims - 2 << "D input, but got"
+                                       << pads_begin.size() << "D paddings.");
     }
-
-    COMPILE_ASSERT((ndims - 2) == static_cast<int>(pads_begin.size()),
-            "wrong padding dims, " << ndims - 2 << "D input, but got"
-                                   << pads_begin.size() << "D paddings.");
 
     sc_dims expected_out_shape = infer_out_dims(
             info_.inputs_[0]->details_.get_plain_dims(), pads_begin, pads_end);
@@ -83,8 +89,13 @@ sc_dims padding_op_t::infer_out_dims(const sc_dims &input_dims,
         const sc_dims &pads_begin, const sc_dims &pads_end) {
     int ndims = input_dims.size();
     auto out_dims = input_dims;
-    for (int i = 2; i < ndims; i++) {
-        out_dims[i] += pads_begin[i - 2] + pads_end[i - 2];
+    if (ndims == 2) {
+        // Note, pads on the the first dim for 2D.
+        out_dims[0] += pads_begin[0] + pads_end[0];
+    } else {
+        for (int i = 2; i < ndims; i++) {
+            out_dims[i] += pads_begin[i - 2] + pads_end[i - 2];
+        }
     }
     return out_dims;
 }
@@ -133,9 +144,11 @@ void padding_op_t::infer_slice_ranges(
     const auto &pads_begin = attrs_.get<sc_dims>("pads_begin");
     const auto &pads_end = attrs_.get<sc_dims>("pads_end");
     // if format is channel_last, the spatial_dims_offset should set to 1
-    size_t spatial_dims_offset
-            = info_.outputs_[0]->details_.get_format().is_channel_last() ? 1
-                                                                         : 2;
+    // Note, pads on the the first dim for 2D.
+    size_t spatial_dims_offset = ndims == 2
+            ? 0
+            : (info_.outputs_[0]->details_.get_format().is_channel_last() ? 1
+                                                                          : 2);
     for (size_t i = 0; i < slice_size; i++) {
         ranges_list[i] = known_ranges_map[0][i];
         for (size_t j = 0; j < pads_begin.size(); ++j) {
@@ -209,9 +222,11 @@ size_t padding_op_t::compute_workload(const std::vector<shape_dtype_pair> &ins,
 
 std::vector<int> padding_op_t::get_real_padding_axis() {
     const int padding_dims_size = attrs_.get<sc_dims>("pads_begin").size();
-    const int offset
-            = info_.outputs_[0]->details_.get_format().is_channel_last() ? 1
-                                                                         : 2;
+    const size_t ndims = info_.inputs_[0]->details_.get_plain_dims().size();
+
+    const int offset = (ndims == 2)                                        ? 0
+            : (info_.outputs_[0]->details_.get_format().is_channel_last()) ? 1
+                                                                           : 2;
     std::vector<int> padding_axis(padding_dims_size, 0);
     for (int i = 0; i < padding_dims_size; i++) {
         padding_axis[i] = i + offset;
@@ -226,10 +241,12 @@ stmt padding_op_t::get_zero_out_stmt(
 
     COMPILE_ASSERT(range_list.size() <= 1, "Multi-slice is not expected")
 
+    auto input_plain_dims = get_inputs()[0]->details_.get_plain_dims();
+    int plain_ndims_ = input_plain_dims.size();
     // Support 4d or 5d output blocking format, e.g NCHW, NHWc, NCHWc
     // Todo (xurui) add support for output with D dim, such as NCDHWc
-    COMPILE_ASSERT(get_inputs()[0]->details_.get_plain_dims().size() == 4,
-            "padding op input was expected to be 4D");
+    COMPILE_ASSERT(utils::is_one_of(static_cast<int>(plain_ndims_), 2, 4),
+            "padding op input was expected to be 2D or 4D");
 
     auto out_dtype = out->dtype_.is_pointer()
             ? out->dtype_.get_pointer_element()
@@ -240,95 +257,116 @@ stmt padding_op_t::get_zero_out_stmt(
                                  : tensor_slice(out, std::move(range));
 
     int N = get_expr_as_int(out_tsl.get_shape()[0]);
-
     auto real_padding_axis = get_real_padding_axis();
-
-    auto is_channel_last
-            = get_outputs()[0]->details_.get_format().is_channel_last();
-
-    // All the format will be treated as NKHWc
-    const int K = is_channel_last ? 1 : get_expr_as_int(out_tsl.get_shape()[1]);
-
-    int c = 1;
-    auto ndims = out->dims_.size();
-    auto is_4d_out = ndims == 4;
-
-    for (size_t i = real_padding_axis.back() + 1; i < ndims; i++) {
-        c *= get_expr_as_int(out->dims_[i]);
-    }
-
     const auto pads_begin = attrs_.get<sc_dims>("pads_begin");
     const auto pads_end = attrs_.get<sc_dims>("pads_end");
-
-    // input plain format must be NCHW in conv_fwd_core
-    auto input_plain_dims = get_inputs()[0]->details_.get_plain_dims();
-    int plain_ndims_ = input_plain_dims.size();
-    int w = input_plain_dims[plain_ndims_ - 1] + pads_begin[1] + pads_end[1];
-    int oh_ = input_plain_dims[plain_ndims_ - 2];
-    int ow_ = input_plain_dims[plain_ndims_ - 1];
-    int ph1_ = pads_begin[0], ph2_ = pads_end[0];
-    int pw1_ = pads_begin[1], pw2_ = pads_end[1];
-
     auto out_tptr = out_tsl.tptr_;
 
-    for_loop ln, lk;
-    builder::ir_builder_t bld;
-    bld.push_scope();
-    _named_for_(ln, pad_n, 0, N, 1, for_type::PARALLEL) {
-        _named_for_(lk, pad_k, 0, K) {
-            auto ptr = is_4d_out
-                    ? (is_channel_last ? builder::tensor_ptr(
-                               out_tptr, {pad_n, 0, 0, 0})
-                                       : builder::tensor_ptr(
-                                               out_tptr, {pad_n, pad_k, 0, 0}))
-                    : builder::tensor_ptr(out_tptr, {pad_n, pad_k, 0, 0, 0});
-            builtin::mem_zero(ptr, ph1_ * w * c, out_dtype);
+    if (plain_ndims_ == 2) {
+        // Note: padding on the first dim (km) for 2D.
+        int km = N;
+        int nm = get_expr_as_int(out_tsl.get_shape()[1]);
+        int pt = static_cast<int>(pads_begin[0]);
+        int pb = static_cast<int>(pads_end[0]);
 
-            _for_(p1, 0, oh_) {
+        builder::ir_builder_t bld;
+        bld.push_scope();
+        if (pt > 0) {
+            builtin::mem_zero(
+                    builder::tensor_ptr(out_tptr, {0, 0}), pt * nm, out_dtype);
+        }
+        if (pb > 0) {
+            builtin::mem_zero(builder::tensor_ptr(out_tptr, {km - pb, 0}),
+                    pb * nm, out_dtype);
+        }
+        auto ret = bld.pop_scope();
+        return ret;
+    } else {
+        auto is_channel_last
+                = get_outputs()[0]->details_.get_format().is_channel_last();
+
+        // All the format will be treated as NKHWc
+        const int K
+                = is_channel_last ? 1 : get_expr_as_int(out_tsl.get_shape()[1]);
+
+        int c = 1;
+        auto ndims = out->dims_.size();
+        auto is_4d_out = ndims == 4;
+
+        for (size_t i = real_padding_axis.back() + 1; i < ndims; i++) {
+            c *= get_expr_as_int(out->dims_[i]);
+        }
+
+        // input plain format must be NCHW in conv_fwd_core
+        int w = input_plain_dims[plain_ndims_ - 1] + pads_begin[1]
+                + pads_end[1];
+        int oh_ = input_plain_dims[plain_ndims_ - 2];
+        int ow_ = input_plain_dims[plain_ndims_ - 1];
+        int ph1_ = pads_begin[0], ph2_ = pads_end[0];
+        int pw1_ = pads_begin[1], pw2_ = pads_end[1];
+
+        for_loop ln, lk;
+        builder::ir_builder_t bld;
+        bld.push_scope();
+        _named_for_(ln, pad_n, 0, N, 1, for_type::PARALLEL) {
+            _named_for_(lk, pad_k, 0, K) {
+                auto ptr = is_4d_out
+                        ? (is_channel_last ? builder::tensor_ptr(
+                                   out_tptr, {pad_n, 0, 0, 0})
+                                           : builder::tensor_ptr(out_tptr,
+                                                   {pad_n, pad_k, 0, 0}))
+                        : builder::tensor_ptr(
+                                out_tptr, {pad_n, pad_k, 0, 0, 0});
+                builtin::mem_zero(ptr, ph1_ * w * c, out_dtype);
+
+                _for_(p1, 0, oh_) {
+                    builtin::mem_zero(
+                            is_4d_out ? (is_channel_last
+                                            ? builder::tensor_ptr(out_tptr,
+                                                    {pad_n, p1 + ph1_, 0, 0})
+                                            : builder::tensor_ptr(out_tptr,
+                                                    {pad_n, pad_k, p1 + ph1_,
+                                                            0}))
+                                      : builder::tensor_ptr(out_tptr,
+                                              {pad_n, pad_k, p1 + ph1_, 0, 0}),
+
+                            pw1_ * c, out_dtype);
+
+                    builtin::mem_zero(
+                            is_4d_out ? (is_channel_last
+                                            ? builder::tensor_ptr(out_tptr,
+                                                    {pad_n, p1 + ph1_,
+                                                            ow_ + pw1_, 0})
+                                            : builder::tensor_ptr(out_tptr,
+                                                    {
+                                                            pad_n,
+                                                            pad_k,
+                                                            p1 + ph1_,
+                                                            ow_ + pw1_,
+                                                    }))
+                                      : builder::tensor_ptr(out_tptr,
+                                              {pad_n, pad_k, p1 + ph1_,
+                                                      ow_ + pw1_, 0}),
+
+                            pw2_ * c, out_dtype);
+                }
+
                 builtin::mem_zero(
                         is_4d_out ? (is_channel_last
                                         ? builder::tensor_ptr(out_tptr,
-                                                {pad_n, p1 + ph1_, 0, 0})
+                                                {pad_n, ph1_ + oh_, 0, 0})
                                         : builder::tensor_ptr(out_tptr,
-                                                {pad_n, pad_k, p1 + ph1_, 0}))
+                                                {pad_n, pad_k, ph1_ + oh_, 0}))
                                   : builder::tensor_ptr(out_tptr,
-                                          {pad_n, pad_k, p1 + ph1_, 0, 0}),
-
-                        pw1_ * c, out_dtype);
-
-                builtin::mem_zero(
-                        is_4d_out ? (
-                                is_channel_last ? builder::tensor_ptr(out_tptr,
-                                        {pad_n, p1 + ph1_, ow_ + pw1_, 0})
-                                                : builder::tensor_ptr(out_tptr,
-                                                        {
-                                                                pad_n,
-                                                                pad_k,
-                                                                p1 + ph1_,
-                                                                ow_ + pw1_,
-                                                        }))
-                                  : builder::tensor_ptr(out_tptr,
-                                          {pad_n, pad_k, p1 + ph1_, ow_ + pw1_,
-                                                  0}),
-
-                        pw2_ * c, out_dtype);
+                                          {pad_n, pad_k, ph1_ + oh_, 0, 0}),
+                        ph2_ * w * c, out_dtype);
             }
-
-            builtin::mem_zero(
-                    is_4d_out ? (is_channel_last
-                                    ? builder::tensor_ptr(
-                                            out_tptr, {pad_n, ph1_ + oh_, 0, 0})
-                                    : builder::tensor_ptr(out_tptr,
-                                            {pad_n, pad_k, ph1_ + oh_, 0}))
-                              : builder::tensor_ptr(out_tptr,
-                                      {pad_n, pad_k, ph1_ + oh_, 0, 0}),
-                    ph2_ * w * c, out_dtype);
         }
+        auto ret = bld.pop_scope();
+        return ret;
     }
-
-    auto ret = bld.pop_scope();
-    return ret;
 }
+
 std::vector<expr> padding_op_t::get_padding_offsets_exprs() {
     COMPILE_ASSERT(attrs_.has_key("pads_begin"),
             "padding op shall have pads_begin attribute")
