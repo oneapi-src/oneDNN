@@ -71,6 +71,7 @@ enum class xbyak_intrin_type {
     call_arg = 0, // special intrin to represent call arg location (reg/stack)
     sign_ext, // special intrin to represent CWD/CDQ/CQO/XOR before div/idiv
     mask_mov, // special intrin to represent avx512 zero masked move
+    mov_mask, // special intrin for avx move mask 8/32
     test, // special intrin to represent x86 bool logical compare
     cmov, // conditional move
     movd, // reinterpret dword f32 <-> int32

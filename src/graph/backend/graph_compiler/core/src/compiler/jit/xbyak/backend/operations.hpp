@@ -123,6 +123,13 @@ namespace xbyak {
  * AVX Instruction Format
  */
 
+#define AVX_R64_X(GEN, INS, OP_1, OP_2) \
+    { \
+        COMPILE_ASSERT(OP_1.is_reg() && OP_2.is_xyz(), \
+                "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2); \
+        (GEN).INS(OP_1.get_reg64(), OP_2.get_xmm()); \
+    }
+
 #define AVX_R32_XM(GEN, INS, OP_1, OP_2) \
     { \
         COMPILE_ASSERT(OP_1.is_reg() && OP_2.is_x_m(), \

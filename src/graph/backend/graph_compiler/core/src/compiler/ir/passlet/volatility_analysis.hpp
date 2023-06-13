@@ -82,6 +82,21 @@ inline bool non_volatile_expr(const expr_base *s) {
             return false;
             break;
         }
+        case sc_expr_type::low_level_intrin: {
+            auto intrin = static_cast<const low_level_intrin_node *>(s);
+            switch (intrin->kind_) {
+                case low_level_intrin_kind::x86_general:
+                    switch (intrin->type_) {
+                        case x86_intrin_type::avx_broadcast_idx:
+                        case x86_intrin_type::avx_mask_cast:
+                        case x86_intrin_type::avx_compare: return true; break;
+                        default: break;
+                    }
+                default: break;
+            }
+            return false;
+            break;
+        }
         default:
             if (dynamic_cast<const binary_node *>(s)) { return true; }
             if (dynamic_cast<const logic_node *>(s)) { return true; }

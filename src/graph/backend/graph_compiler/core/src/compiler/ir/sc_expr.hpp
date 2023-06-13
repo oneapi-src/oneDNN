@@ -1476,6 +1476,8 @@ SC_DEFINE_EXPR_NODE_PTR(func_addr)
 namespace x86_intrin_type {
 enum x86_intrin_type_t {
     avx_broadcast_idx = 0,
+    avx_mask_cast,
+    avx_compare,
     NUM_INTRINSICS,
 };
 } // namespace x86_intrin_type

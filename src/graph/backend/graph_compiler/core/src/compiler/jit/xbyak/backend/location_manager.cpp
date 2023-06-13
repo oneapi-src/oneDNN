@@ -868,36 +868,6 @@ operand location_manager::get_operand_sib(
             + loc_disp.get_imm()]);
 }
 
-operand location_manager::get_operand_avx_mask(
-        const operand &op, const x86_64::cpu_data_type &cpu_dtype) {
-    // TODO(xxx): redesign this in the future, now only type 32bit mask
-    // avx/avx2 mask require mask same size as data
-    // but currently mask type is all bool vec, we just use ymm to store
-    // and cast to xmm/ymm after, see location_manager::convert_virtual_reg
-    switch (cpu_dtype) {
-        // simd 32-bit/ 4-byte
-        case cpu_data_type::float_32: return op;
-        // simd 128-bit/ 16-byte
-        case cpu_data_type::uint_32_x4:
-        case cpu_data_type::sint_32_x4:
-        case cpu_data_type::float_32_x4: {
-            assert(op.is_xyz());
-            return operand(to_xmm(op.get_reg()));
-        }
-        // simd 256-bit/ 32-byte
-        case cpu_data_type::uint_32_x8:
-        case cpu_data_type::sint_32_x8:
-        case cpu_data_type::float_32_x8: {
-            assert(op.is_xyz());
-            return operand(to_ymm(op.get_reg()));
-        }
-        // No support for other types
-        default:
-            COMPILE_ASSERT(false, "Invalid avx mask cpu dtype: " << cpu_dtype);
-    }
-    return op;
-}
-
 //==============================================================================
 // MISC. interface
 //==============================================================================
@@ -1400,11 +1370,10 @@ expr_location location_manager::convert_virtual_reg(const expr_c &v) {
         case cpu_data_type::mask_x16:
         case cpu_data_type::mask_x32:
         case cpu_data_type::mask_x64: {
-            // TODO(xxx): redesign type mapping for bool vec
             if (cpu_flags_.fAVX512F) {
                 return expr_location::make_reg(to_mask(reg), cpu_dtype);
             } else {
-                return expr_location::make_reg(to_ymm(reg), cpu_dtype);
+                return expr_location::make_reg(to_reg64(reg), cpu_dtype);
             }
         }
         // not supported

@@ -36,26 +36,14 @@ public:
     using ir_visitor_t::visit;
 
     low_level_legalizer_impl_t(const runtime::target_machine_t &target_machine)
-        : cpu_flags_(target_machine.cpu_flags_) {}
+        : max_f32_lanes_(target_machine.get_device_flags().get_max_vector_lanes(
+                sc_data_etype::F32)) {}
 
     expr_c visit(cast_c v) override {
-        auto vv = ir_visitor_t::visit(std::move(v)).static_as<cast_c>();
-        const auto src_dtype = vv->in_->dtype_;
-        const auto dst_dtype = vv->dtype_;
-        const auto is_f32_int8_cast = [](const sc_data_type_t &type_dst,
-                                              const sc_data_type_t &type_src) {
-            return (type_dst.type_code_ == sc_data_etype::U8
-                           || type_dst.type_code_ == sc_data_etype::S8)
-                    && type_src.type_code_ == sc_data_etype::F32;
-        };
-        if (is_f32_int8_cast(dst_dtype, src_dtype)
-                || is_f32_int8_cast(src_dtype, dst_dtype)) {
-            // int8 to f32 must cast to s32 first
-            return builder::make_cast(dst_dtype,
-                    builder::make_cast(
-                            sc_data_type_t::s32(src_dtype.lanes_), vv->in_));
-        }
-        return vv;
+        auto ret = ir_visitor_t::visit(std::move(v));
+        assert(ret.isa<cast>());
+        auto vv = ret.static_as<cast_c>();
+        return transform_f32_cast(vv->dtype_, vv->in_);
     }
 
     stmt_c visit(assign_c v) override {
@@ -73,6 +61,9 @@ public:
     expr_c visit(intrin_call_c v) override {
         auto vv = ir_visitor_t::visit(std::move(v)).static_as<intrin_call_c>();
         auto dst_dtype = vv->dtype_;
+        // TODO(longsheng): reduce no need to cast to f32
+        auto can_cast_to_f32 = !dst_dtype.is_etype(sc_data_etype::F32)
+                && (dst_dtype.lanes_ <= max_f32_lanes_);
         switch (vv->type_) {
             case intrin_type::abs: {
                 // float and bf16
@@ -89,15 +80,27 @@ public:
                 }
             } break;
             case intrin_type::reduce_add: {
-                if (!dst_dtype.is_etype(sc_data_etype::F32)) {
+                if (can_cast_to_f32) {
                     return transform_reduce(
                             vv->args_[0], dst_dtype, &builder::make_reduce_add);
                 }
             } break;
             case intrin_type::reduce_mul: {
-                if (!dst_dtype.is_etype(sc_data_etype::F32)) {
+                if (can_cast_to_f32) {
                     return transform_reduce(
                             vv->args_[0], dst_dtype, &builder::make_reduce_mul);
+                }
+            } break;
+            case intrin_type::reduce_min: {
+                if (can_cast_to_f32) {
+                    return transform_reduce(
+                            vv->args_[0], dst_dtype, &builder::make_reduce_min);
+                }
+            } break;
+            case intrin_type::reduce_max: {
+                if (can_cast_to_f32) {
+                    return transform_reduce(
+                            vv->args_[0], dst_dtype, &builder::make_reduce_max);
                 }
             } break;
             case intrin_type::gather: {
@@ -108,37 +111,6 @@ public:
             default: break;
         }
         return vv;
-    }
-
-    expr_c visit(cmp_c v) override {
-        auto avx_uint_cmp = [this](cmp_c v) -> expr_c {
-            using sc_etype = sc_expr_type;
-            const auto t = v->node_type_;
-            auto l = dispatch(v->l_);
-            auto r = dispatch(v->r_);
-            switch (t) {
-                case sc_etype::cmp_eq: return transform_uint_eq(l, r);
-                case sc_etype::cmp_lt: return transform_uint_lt(l, r);
-                case sc_etype::cmp_le: return transform_uint_le(l, r);
-                case sc_etype::cmp_ne: return transform_uint_ne(l, r);
-                case sc_etype::cmp_ge: return transform_uint_ge(l, r);
-                case sc_etype::cmp_gt: return transform_uint_gt(l, r);
-                default: COMPILE_ASSERT(false, "Invalid compare type: " << t);
-            }
-            return v;
-        };
-        // AVX2 uint have no cmp other than EQ,
-        // TODO(xxx): AVX2 sint have no cmp other than EQ/GT
-        const auto dtype = v->l_->dtype_;
-        if (!cpu_flags_.fAVX512F && dtype.lanes_ > 1) {
-            const auto categ = get_etype_category(dtype);
-            switch (categ) {
-                case type_category::CATE_UINT: return avx_uint_cmp(v);
-                default: break; // No need to transform.
-            }
-        }
-        //
-        return ir_visitor_t::visit(std::move(v));
     }
 
     using make_unary_f = expr (*)(const expr_c &);
@@ -152,32 +124,31 @@ public:
     expr_c transform_reduce(const expr &src, sc_data_type_t dst_dtype,
             make_unary_f make_reduce) {
         auto type_to_f32 = sc_data_type_t::f32(src->dtype_.lanes_);
-        return builder::make_cast(dst_dtype, //
-                make_reduce(builder::make_cast(type_to_f32, src)));
+        return transform_f32_cast(dst_dtype, //
+                make_reduce(transform_f32_cast(type_to_f32, src)));
     }
 
-    // Transform for AVX2 uint compare
-    expr_c transform_uint_eq(const expr_c &l, const expr_c &r) {
-        return builder::make_cmp_eq(l, r);
-    }
-    expr_c transform_uint_ne(const expr_c &l, const expr_c &r) {
-        return builder::make_logic_not(builder::make_cmp_eq(l, r));
-    }
-    expr_c transform_uint_ge(const expr_c &l, const expr_c &r) {
-        return builder::make_cmp_eq(builder::make_max(l, r), l);
-    }
-    expr_c transform_uint_le(const expr_c &l, const expr_c &r) {
-        return transform_uint_ge(r, l);
-    }
-    expr_c transform_uint_gt(const expr_c &l, const expr_c &r) {
-        return builder::make_logic_not(transform_uint_le(l, r));
-    }
-    expr_c transform_uint_lt(const expr_c &l, const expr_c &r) {
-        return transform_uint_gt(r, l);
+    expr_c transform_f32_cast(sc_data_type_t dst_dtype, const expr &src) {
+        const auto src_dtype = src->dtype_;
+        const auto is_f32_int8_cast = [](const sc_data_type_t &type_dst,
+                                              const sc_data_type_t &type_src) {
+            return (type_dst.type_code_ == sc_data_etype::U8
+                           || type_dst.type_code_ == sc_data_etype::S8)
+                    && type_src.type_code_ == sc_data_etype::F32;
+        };
+        if (is_f32_int8_cast(dst_dtype, src_dtype)
+                || is_f32_int8_cast(src_dtype, dst_dtype)) {
+            // int8 to f32 must cast to s32 first
+            return builder::make_cast(dst_dtype,
+                    builder::make_cast(
+                            sc_data_type_t::s32(src_dtype.lanes_), src));
+        } else {
+            return builder::make_cast(dst_dtype, src);
+        }
     }
 
 private:
-    const runtime::cpu_flags_t &cpu_flags_;
+    const uint16_t max_f32_lanes_;
 };
 
 func_c low_level_legalizer_t::operator()(func_c v) {

@@ -276,6 +276,8 @@ private:
     void handle_avx_mask_mov(const operand &op_dst, const operand &op_src,
             const operand &op_cond, const x86_64::cpu_data_type &cpu_dtype,
             bool zero);
+    void handle_avx_mov_mask(const operand &op_dst, const operand &op_src,
+            const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_cmov(const operand &op_dst, const operand &op_src,
             const xbyak_condition &code,
             const x86_64::cpu_data_type &cpu_dtype);

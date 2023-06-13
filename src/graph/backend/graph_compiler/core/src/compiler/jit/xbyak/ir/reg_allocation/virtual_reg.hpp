@@ -207,8 +207,8 @@ struct virtual_reg_t {
 
 inline virt_reg_type get_virt_reg_type(
         const sc_data_type_t &t, bool is_avx512, bool force_fp_vex = false) {
-    if (is_avx512 && t.type_code_ == sc_data_etype::BOOLEAN && t.lanes_ > 1) {
-        return virt_reg_type::mask_reg;
+    if (t.type_code_ == sc_data_etype::BOOLEAN && t.lanes_ > 1) {
+        return is_avx512 ? virt_reg_type::mask_reg : virt_reg_type::gp_reg;
     } else if (force_fp_vex && is_x86_simd(t)) {
         return virt_reg_type::fp_vex_reg;
     } else if (is_x86_simd(t)) {

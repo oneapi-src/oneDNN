@@ -142,7 +142,7 @@ public:
                 transform(dst, {log->in_, builder::make_constant(UINT64_C(1))},
                         dst->dtype_, //
                         transform_3a_to_2a(xbyak_intrin_type::bit_xor),
-                        transform_mask_logic_not());
+                        transform_disabled("logic_not"));
             } break;
             case sc_expr_type::select: {
                 auto sel = val.static_as<select>();
@@ -411,6 +411,22 @@ public:
                         get_const_as_int(lanes.static_as<constant>()));
                 transform_broadcast(dst, arg, arg->dtype_);
             } break;
+            case x86_intrin_type::avx_mask_cast: {
+                assert(intrin->args_.size() == 1);
+                transform_avx_mask_cast(dst, intrin->args_[0]);
+            } break;
+            case x86_intrin_type::avx_compare: {
+                assert(intrin->args_.size() == 3);
+                assert(intrin->args_[2].isa<constant_c>());
+                auto c = intrin->args_[2].static_as<constant_c>();
+                auto code = static_cast<xbyak_condition>(c->value_[0].u64);
+                add_assignment(dst,
+                        make_xbyak_intrin(dst->dtype_,
+                                {intrin->args_[0], intrin->args_[1]},
+                                xbyak_intrin_type::cmp_set,
+                                xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(code, dst->dtype_)));
+            } break;
             default:
                 COMPILE_ASSERT(false, "Unknown low level intrinsic!");
                 break;
@@ -653,13 +669,6 @@ public:
         };
     }
 
-    transform_func transform_mask_logic_not() {
-        return [this](const expr &dst, array_ref<expr> src,
-                       sc_data_type_t dtype, xbyak_intrin_isa isa) {
-            transform_mask_logic_not(dst, src[0]);
-        };
-    }
-
     // -----------------
     // Transform helpers
     // -----------------
@@ -865,17 +874,27 @@ public:
     }
 
     void transform_gather(const expr &dst, const expr &src, const expr &idx) {
+        auto get_gather_mask = [this](expr mask, sc_data_type_t dst_type) {
+            if (cpu_flags_.fAVX512F) {
+                return cast_when_mask(std::move(mask), dst_type);
+            } else {
+                auto xmm0 = make_physical_reg(dst_type, x86_64::regs::xmm0);
+                add_defination(xmm0, linkage::local);
+                transform_avx_mask_cast(xmm0, mask);
+                return xmm0;
+            }
+        };
         assert(dst->dtype_.lanes_ > 1);
+        // get mask with all bits is 1
+        uint64_t imm = (UINT64_C(1) << (dst->dtype_.lanes_)) - 1;
+        auto mask = builder::make_constant({imm}, datatypes::u32);
+        // get avx512 mask or avx2 mask ymm0
+        auto cond = get_gather_mask(std::move(mask), dst->dtype_);
         // make sure dst and idx use different xmm reg
         auto xmm1 = make_physical_reg(idx->dtype_, x86_64::regs::xmm1);
         auto xmm2 = make_physical_reg(dst->dtype_, x86_64::regs::xmm2);
         add_defination(xmm1, linkage::local);
         add_defination(xmm2, linkage::local);
-        // get mask with all bits is 1
-        uint64_t imm = (UINT64_C(1) << (dst->dtype_.lanes_)) - 1;
-        auto mask = builder::make_constant({imm}, datatypes::u32);
-        // get avx512 mask or avx2 mask ymm0
-        auto cond = cast_when_mask(std::move(mask), dst->dtype_);
         // transform gather intrin
         add_assignment(xmm1, idx);
         add_assignment(xmm2,
@@ -894,16 +913,38 @@ public:
                         xbyak_intrin_modifier(src_type)));
     }
 
-    void transform_mask_logic_not(const expr &dst, const expr &src) {
-        // transform AVX2 mask logic not
-        // TODO(xxx): redesign bool vec
-        assert(!cpu_flags_.fAVX512F);
-        auto type = sc_data_type_t(sc_data_etype::U32, 8);
-        auto ones = builder::make_constant({INT64_C(-1)}, type);
-        add_assignment(dst,
-                make_xbyak_intrin(dst->dtype_, {src, ones},
-                        xbyak_intrin_type::bit_xor, xbyak_intrin_isa::avx,
-                        xbyak_intrin_modifier(type)));
+    void transform_avx_mask_cast(const expr &dst, const expr &src) {
+        assert(!cpu_flags_.fAVX512F && cpu_flags_.fAVX2);
+        // avx mask cast can cast scalar to xmm, or xmm to scalar
+        const auto is_scalar_mask = [](const expr &v) {
+            auto type_lane = v->dtype_.lanes_;
+            auto type_code = v->dtype_.type_code_;
+            auto type_size = utils::get_sizeof_etype(type_code);
+            return (type_lane == 1
+                           && utils::is_one_of((int)type_size, 1, 2, 4, 8))
+                    || type_code == sc_data_etype::BOOLEAN;
+        };
+        //
+        if (is_scalar_mask(src)) {
+            auto dtype = dst->dtype_;
+            // TODO(longsheng): optimize imm mask
+            auto tmp = load_when_imm(src, "__msk_tmp_var");
+            switch (utils::get_sizeof_etype(dtype.type_code_)) {
+                case 1: cast_mask8_avx2(dst, tmp, dtype); break;
+                case 2: cast_mask16_avx2(dst, tmp, dtype); break;
+                case 4: cast_mask32_avx2(dst, tmp, dtype); break;
+                default:
+                    COMPILE_ASSERT(false, "Not supported base type: " << dtype);
+            }
+        } else if (is_scalar_mask(dst)) {
+            add_assignment(dst,
+                    make_xbyak_intrin(dst->dtype_, {src}, //
+                            xbyak_intrin_type::mov_mask, //
+                            xbyak_intrin_isa::avx, //
+                            xbyak_intrin_modifier(src->dtype_)));
+        } else {
+            COMPILE_ASSERT(false, "Invalid avx_mask_cast!");
+        }
     }
 
     // --------------
@@ -931,30 +972,15 @@ public:
     // If simd cond is not mask type, cast to mask
     expr cast_when_mask(expr cond, sc_data_type_t dtype) {
         auto lanes = dtype.lanes_;
-        if (cond->dtype_ != sc_data_type_t::boolean(lanes)) {
+        if (cpu_flags_.fAVX512F
+                && cond->dtype_ != sc_data_type_t::boolean(lanes)) {
             auto tmp = load_when_imm(cond, "__msk_tmp_var");
-            if (cpu_flags_.fAVX512F) {
-                auto mask = builder::make_var(
-                        sc_data_type_t::boolean(lanes), "__mmask");
-                add_defination(mask, linkage::local);
-                add_assignment(mask,
-                        builder::make_cast(
-                                sc_data_type_t::boolean(lanes), tmp));
-                return mask;
-            } else {
-                auto mask = make_physical_reg(sc_data_type_t::boolean(lanes),
-                        x86_64::regs::xmm0, "_mask");
-                add_defination(mask, linkage::local);
-                switch (utils::get_sizeof_etype(dtype.type_code_)) {
-                    case 1: cast_mask8_avx2(mask, tmp, dtype); break;
-                    case 2: cast_mask16_avx2(mask, tmp, dtype); break;
-                    case 4: cast_mask32_avx2(mask, tmp, dtype); break;
-                    default:
-                        COMPILE_ASSERT(
-                                false, "Not supported base type: " << dtype);
-                }
-                return mask;
-            }
+            auto mask = builder::make_var(
+                    sc_data_type_t::boolean(lanes), "__mmask");
+            add_defination(mask, linkage::local);
+            add_assignment(mask,
+                    builder::make_cast(sc_data_type_t::boolean(lanes), tmp));
+            return mask;
         }
         return cond;
     }

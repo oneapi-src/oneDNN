@@ -518,7 +518,8 @@ protected:
                 resolve_dst_ = resolve_dst::store;
                 assert(v->args_.size() > 0);
                 auto n = v->args_.size() - 1;
-                if (n > 0 && is_imm(v->args_.back())) { n = n - 1; }
+                auto imm_last = n > 0 && is_imm(v->args_.back());
+                if (cpu_flags_.fAVX512F && imm_last) { n = n - 1; }
                 if (spilled_args_sum(v->args_, n) > 0) { return resolve(); }
             } break;
             case xbyak_intrin_format::directed_dst_mem: {

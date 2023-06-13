@@ -418,6 +418,24 @@ struct avx_broadcast_idx_handler_t : public x86_intrinsic_handler_t {
         : x86_intrinsic_handler_t("avx_broadcast_idx") {}
 };
 
+struct avx_mask_cast_handler_t : public x86_intrinsic_handler_t {
+    void on_initialize(low_level_intrin_node &node) override {
+        assert(node.args_.size() == 1);
+        node.dtype_ = node.intrin_attrs_->get<sc_data_type_t>("dtype");
+    }
+    avx_mask_cast_handler_t() : x86_intrinsic_handler_t("avx_mask_cast") {}
+};
+
+struct avx_compare_handler_t : public x86_intrinsic_handler_t {
+    void on_initialize(low_level_intrin_node &node) override {
+        assert(node.args_.size() == 3);
+        assert(node.args_[2].isa<constant>());
+        assert(node.args_[0]->dtype_ == node.args_[1]->dtype_);
+        node.dtype_ = node.args_[0]->dtype_;
+    }
+    avx_compare_handler_t() : x86_intrinsic_handler_t("avx_compare") {}
+};
+
 namespace brgemm_args {
 sc_data_type_t arg_types[NUM_FULL_ARGS_STRIDE] = {
         datatypes::pointer, // A (overloaded)
@@ -541,6 +559,8 @@ intrinsic_handler_t &get_intrinsic_handler(intrin_type intrin) {
 
 static std::unique_ptr<x86_intrinsic_handler_t> x86_handlers[] = {
         utils::make_unique<avx_broadcast_idx_handler_t>(),
+        utils::make_unique<avx_mask_cast_handler_t>(),
+        utils::make_unique<avx_compare_handler_t>(),
 };
 x86_intrinsic_handler_t &get_x86_intrinsic_handler(int64_t intrin) {
     return *x86_handlers[intrin];
