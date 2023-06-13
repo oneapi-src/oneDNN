@@ -72,6 +72,9 @@ status_t sycl_cuda_stream_t::init() {
     if (!queue_) {
         auto &sycl_ctx = sycl_engine.context();
         auto &sycl_dev = sycl_engine.device();
+        // Use `::sycl::property_list {::sycl::property::queue::in_order {}}` as
+        // third argument in `::sycl::queue` ctor to convert a queue into
+        // in-order one.
         queue_.reset(new ::sycl::queue(sycl_ctx, sycl_dev));
     } else {
         auto sycl_dev = queue().get_device();
