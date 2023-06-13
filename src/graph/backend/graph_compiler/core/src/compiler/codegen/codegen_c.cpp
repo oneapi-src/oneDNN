@@ -161,6 +161,8 @@ void codegen_c_vis::print_type(sc_data_type_t dtype) {
             case sc_data_type_t::u32(16): *os << "vec_u32x16"; break;
 
             case sc_data_type_t::index(2): *os << "vec_u64x2"; break;
+            case sc_data_type_t::index(4): *os << "vec_u64x4"; break;
+            case sc_data_type_t::index(8): *os << "vec_u64x8"; break;
 
             case sc_data_type_t::u16(8): *os << "vec_u16x8"; break;
             case sc_data_type_t::u16(16): *os << "vec_u16x16"; break;
@@ -479,6 +481,9 @@ void codegen_c_vis::view(intrin_call_c v) {
         case intrin_type::shuffle:
             *os << "sc_shuffle_";
             print_type(v->dtype_);
+            *os << "_";
+            *os << v->intrin_attrs_->get<int>("type_bits");
+            *os << "bits";
             *os << "(";
             dispatch(v->args_[0]);
             *os << ", ";

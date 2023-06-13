@@ -532,9 +532,11 @@ expr make_unpack_high(const expr_c &v_a, const expr_c &v_b, int elem_bits = 32);
  * @param v_a the first input value
  * @param v_b the second input value
  * @param v_c the third input value
+ * @param type_bits the number of bits of the data type you want to shuffle
  * @return the created node
  * */
-expr make_shuffle(const expr_c &v_a, const expr_c &v_b, const int &v_c);
+expr make_shuffle(const expr_c &v_a, const expr_c &v_b, const int &v_c,
+        const int &type_bits);
 
 /**
  * Makes an permute node
@@ -560,9 +562,11 @@ expr make_shuffle(const expr_c &v_a, const expr_c &v_b, const int &v_c);
  * @param v_a the first input value
  * @param v_b the second input value
  * @param v_c the third input value
+ * @param type_bits the number of bits of the data type you want to permute
  * @return the created node
  * */
-expr make_permute(const expr_c &v_a, const expr_c &v_b, const int &v_c);
+expr make_permute(const expr_c &v_a, const expr_c &v_b, const int &v_c,
+        const int &type_bits = 128);
 
 /**
  * Makes an permutexvar node

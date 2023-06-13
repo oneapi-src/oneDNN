@@ -1136,10 +1136,10 @@ TEST(GCCore_CPU_jit_engine_equivalence, TestIntrinsicpermute2) {
         _bind_(tensor_out1, tensor_out2, tensor_src1, tensor_src2);
         tensor_out1[span_t({0}, simd_lanes)]
                 = make_permute(tensor_src1[span_t({0}, simd_lanes)],
-                        tensor_src2[span_t({0}, simd_lanes)], 0x20);
+                        tensor_src2[span_t({0}, simd_lanes)], 0x20, 128);
         tensor_out2[span_t({0}, simd_lanes)]
                 = make_permute(tensor_src1[span_t({0}, simd_lanes)],
-                        tensor_src2[span_t({0}, simd_lanes)], 0x31);
+                        tensor_src2[span_t({0}, simd_lanes)], 0x31, 128);
     }
 
     ir_module_ptr ir_mod = std::make_shared<ir_module_t>(

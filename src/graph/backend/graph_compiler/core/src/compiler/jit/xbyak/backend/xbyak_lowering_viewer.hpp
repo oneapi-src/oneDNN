@@ -246,7 +246,7 @@ private:
             const operand &op_rhs, const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_shuffle(const operand &op_dst, const operand &op_lhs,
             const operand &op_rhs, const operand &op_imm,
-            const x86_64::cpu_data_type &cpu_dtype);
+            const operand &op_bits);
     void handle_avx_permute(const operand &op_dst, const operand &op_lhs,
             const operand &op_rhs, const operand &op_imm,
             const x86_64::cpu_data_type &cpu_dtype);

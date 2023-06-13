@@ -302,9 +302,12 @@ public:
             } break;
             case intrin_type::shuffle: {
                 auto imm = intrin->intrin_attrs_->get<int>("shuffle_imm");
+                auto type_bits = intrin->intrin_attrs_->get<int>("type_bits");
+
                 transform(dst,
                         {intrin->args_[0], intrin->args_[1],
-                                builder::make_constant(imm)},
+                                builder::make_constant(imm),
+                                builder::make_constant(type_bits)},
                         dst->dtype_, //
                         transform_disabled("shuffle"),
                         transform_intrin(xbyak_intrin_type::shuffle));

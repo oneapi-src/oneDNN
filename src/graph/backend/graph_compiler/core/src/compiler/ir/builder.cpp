@@ -461,16 +461,18 @@ expr make_unpack_high(const expr_c &v_a, const expr_c &v_b, int elem_bits) {
             any_map_t {{"elem_bits", elem_bits}});
 }
 
-expr make_shuffle(const expr_c &v_a, const expr_c &v_b, const int &v_c) {
+expr make_shuffle(const expr_c &v_a, const expr_c &v_b, const int &v_c,
+        const int &type_bits) {
     return make_expr<intrin_call_node>(intrin_type::shuffle,
             std::vector<expr> {v_a.remove_const(), v_b.remove_const()},
-            any_map_t {{"shuffle_imm", v_c}});
+            any_map_t {{"shuffle_imm", v_c}, {"type_bits", type_bits}});
 }
 
-expr make_permute(const expr_c &v_a, const expr_c &v_b, const int &v_c) {
+expr make_permute(const expr_c &v_a, const expr_c &v_b, const int &v_c,
+        const int &type_bits) {
     return make_expr<intrin_call_node>(intrin_type::permute,
             std::vector<expr> {v_a.remove_const(), v_b.remove_const()},
-            any_map_t {{"permute_imm", v_c}});
+            any_map_t {{"permute_imm", v_c}, {"type_bits", type_bits}});
 }
 
 expr make_gather(const expr_c &addr, const expr_c &indices) {

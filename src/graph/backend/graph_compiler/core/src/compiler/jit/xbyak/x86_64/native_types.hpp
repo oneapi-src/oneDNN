@@ -111,6 +111,8 @@ enum class cpu_data_type {
     sint_32_x16,
     uint_64,
     uint_64_x2,
+    uint_64_x4,
+    uint_64_x8,
     float_32,
     float_32_x2,
     float_32_x4,

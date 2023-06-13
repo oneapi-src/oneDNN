@@ -150,8 +150,12 @@ INLINE vec_u16x16 sc_unpack_high(
     return _mm256_unpackhi_epi16(a.v, b.v);
 }
 
-#define PARAM(X) X
+#define PARAM_U16X16(X) X.v
 #define sc_permute_vec_u16x16(a, b, imm) \
-    _mm256_permute2f128_si256(PARAM(a).v, PARAM(b).v, imm);
+    _mm256_permute2f128_si256(PARAM_U16X16(a), PARAM_U16X16(b), imm);
+#define sc_shuffle_vec_u16x16_128bits(a, b, imm8) \
+    _mm256_castps_si256( \
+            _mm256_shuffle_f32x4(_mm256_castsi256_ps(PARAM_U16X16(a)), \
+                    _mm256_castsi256_ps(PARAM_U16X16(b)), imm8));
 
 #endif

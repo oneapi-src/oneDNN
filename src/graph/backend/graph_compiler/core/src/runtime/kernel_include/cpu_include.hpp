@@ -40,6 +40,7 @@
 #include "x86simd/vec_s8x64.hpp"
 #include "x86simd/vec_u16x32.hpp"
 #include "x86simd/vec_u32x16.hpp"
+#include "x86simd/vec_u64x8.hpp"
 #include "x86simd/vec_u8x64.hpp"
 #endif
 
@@ -49,6 +50,7 @@
 #include "x86simd/vec_s8x32.hpp"
 #include "x86simd/vec_u16x16.hpp"
 #include "x86simd/vec_u32x8.hpp"
+#include "x86simd/vec_u64x4.hpp"
 #include "x86simd/vec_u8x32.hpp"
 #endif
 

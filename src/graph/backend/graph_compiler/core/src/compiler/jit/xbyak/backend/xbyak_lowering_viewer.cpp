@@ -762,7 +762,8 @@ void xbyak_lowering_viewer::handle_avx_intrisic(const expr_c &dst,
             auto op_lhs = GET_OPERAND(args[0]);
             auto op_rhs = GET_OPERAND(args[1]);
             auto op_imm = GET_OPERAND(args[2]);
-            handle_avx_shuffle(op_dst, op_lhs, op_rhs, op_imm, cpu_dtype);
+            auto op_type_bits = GET_OPERAND(args[3]);
+            handle_avx_shuffle(op_dst, op_lhs, op_rhs, op_imm, op_type_bits);
         } break;
         case xbyak_intrin_type::permute: {
             auto op_dst = GET_OPERAND(dst);
@@ -929,7 +930,10 @@ void xbyak_lowering_viewer::handle_assign(
         case cpu_data_type::uint_32_x16:
         case cpu_data_type::sint_32_x4:
         case cpu_data_type::sint_32_x8:
-        case cpu_data_type::sint_32_x16: {
+        case cpu_data_type::sint_32_x16:
+        case x86_64::cpu_data_type::uint_64_x2:
+        case x86_64::cpu_data_type::uint_64_x4:
+        case x86_64::cpu_data_type::uint_64_x8: {
             handle_avx_movps(lhs_op, rhs_op);
         } break;
         case cpu_data_type::float_32_x4:
@@ -1980,14 +1984,48 @@ void xbyak_lowering_viewer::handle_avx_pshuffle(const operand &op_dst,
 
 void xbyak_lowering_viewer::handle_avx_shuffle(const operand &op_dst,
         const operand &op_lhs, const operand &op_rhs, const operand &op_imm,
-        const x86_64::cpu_data_type &cpu_dtype) {
-    switch (cpu_dtype) {
-        case cpu_data_type::float_32_x8: {
-            assert(op_imm.get_imm() == 68 || op_imm.get_imm() == 238);
-            XBYAK_GEN(vshufps, AVX_X_X_XM_I, op_dst, op_lhs, op_rhs, op_imm);
-        } break;
-        default:
-            COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);
+        const operand &op_bits) {
+    // Currently we assume that similar instructions do not use masks, and these
+    // instructions only need to pay attention to how many bits are operated. So
+    // we only need to use bits to choose instructions.
+    auto type_bits = op_bits.get_imm();
+
+    // Generate code for avx shuffle
+    auto gen_avx_shuffle = [&]() {
+        assert(cpu_flags_.fAVX);
+        switch (type_bits) {
+            case 32: {
+                XBYAK_GEN(
+                        vshufps, AVX_X_X_XM_I, op_dst, op_lhs, op_rhs, op_imm);
+            } break;
+            default:
+                COMPILE_ASSERT(
+                        false, FUNC_INFO << "Invalid type_bits: " << type_bits);
+        }
+    };
+    // Generate code for avx512 shuffle
+    auto gen_avx512_shuffle = [&]() {
+        assert(cpu_flags_.fAVX512F);
+        switch (type_bits) {
+            case 32: {
+                XBYAK_GEN(
+                        vshufps, AVX_X_X_XM_I, op_dst, op_lhs, op_rhs, op_imm);
+            } break;
+            case 128: {
+                XBYAK_GEN(vshuff32x4, AVX_Y_Y_XM_I, op_dst, op_lhs, op_rhs,
+                        op_imm);
+            } break;
+            default:
+                COMPILE_ASSERT(
+                        false, FUNC_INFO << "Invalid type_bits: " << type_bits);
+        }
+    };
+    // Generate shuffle
+    switch (simd_level_) {
+        case simd_level::avx512: gen_avx512_shuffle(); break;
+        case simd_level::avx2:
+        case simd_level::avx: gen_avx_shuffle(); break;
+        default: assert(false && "Unreachable");
     }
 }
 
@@ -2051,6 +2089,9 @@ void xbyak_lowering_viewer::handle_avx_insert(const operand &op_dst,
         const operand &op_b, const operand &op_imm,
         const operand &op_elem_bits) {
     assert(cpu_flags_.fAVX512F);
+    // Currently we assume that similar instructions do not use masks, and these
+    // instructions only need to pay attention to how many bits are operated. So
+    // we only need to use bits to choose instructions.
     auto elem_bits = op_elem_bits.get_imm();
     switch (elem_bits) {
         case 128: {

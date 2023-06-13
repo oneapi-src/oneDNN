@@ -23,6 +23,7 @@
 
 #include "codegen_llvm.hpp"
 #include "precodegen_passes.hpp"
+#include "util/utils.hpp"
 #include <compiler/ir/pass/printer.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/module_globals_resolve.hpp>
@@ -1600,152 +1601,310 @@ public:
                                 << v->args_.size());
                 auto inval1 = generate_expr(v->args_[0]);
                 auto inval2 = generate_expr(v->args_[1]);
+                Value *tmp1;
+                Value *tmp2;
                 auto elem_bits = v->intrin_attrs_->get<int>("elem_bits");
                 std::vector<shuffle_idx_t> hi_array, lo_array;
-                if (v->dtype_.lanes_ == 2) {
-                    COMPILE_ASSERT(elem_bits == 64,
-                            "Expecting elem_bits = 64, but get " << elem_bits);
-                    hi_array = std::vector<shuffle_idx_t> {1, 2 + 1};
-                    lo_array.resize(2);
-                    std::transform(hi_array.begin(), hi_array.end(),
-                            lo_array.begin(),
-                            [](shuffle_idx_t x) { return x - 1; });
-                } else if (v->dtype_.lanes_ == 4) {
-                    COMPILE_ASSERT(elem_bits == 32,
-                            "Expecting elem_bits = 32, but get " << elem_bits);
-                    hi_array = std::vector<shuffle_idx_t> {2, 4 + 2, 3, 4 + 3};
-                    lo_array.resize(4);
-                    std::transform(hi_array.begin(), hi_array.end(),
-                            lo_array.begin(),
-                            [](shuffle_idx_t x) { return x - 2; });
-                } else if (v->dtype_.lanes_ == 16) {
-                    switch (elem_bits) {
-                        case 8: {
-                            hi_array = std::vector<shuffle_idx_t> {8, 16 + 8, 9,
-                                    16 + 9, 10, 16 + 10, 11, 16 + 11, 12,
-                                    16 + 12, 13, 16 + 13, 14, 16 + 14, 15,
-                                    16 + 15};
-                            lo_array.resize(16);
-                            std::transform(hi_array.begin(), hi_array.end(),
-                                    lo_array.begin(),
-                                    [](shuffle_idx_t x) { return x - 8; });
-                        } break;
-                        case 16: {
-                            hi_array = std::vector<shuffle_idx_t> {4, 16 + 4, 5,
-                                    16 + 5, 6, 16 + 6, 7, 16 + 7, 12, 16 + 12,
-                                    13, 16 + 13, 14, 16 + 14, 15, 16 + 15};
-                            lo_array.resize(16);
-                            std::transform(hi_array.begin(), hi_array.end(),
-                                    lo_array.begin(),
-                                    [](shuffle_idx_t x) { return x - 4; });
-                        } break;
-                        default: {
-                            COMPILE_ASSERT(false,
-                                    "Currently lanes = 16, elem_bit only "
-                                    "support 8 and 16, but get "
-                                            << elem_bits);
-                        } break;
-                    }
-
-                } else if (v->dtype_.lanes_ == 8) {
-                    switch (elem_bits) {
-                        case 16:
-                            hi_array = std::vector<shuffle_idx_t> {
-                                    4, 8 + 4, 5, 8 + 5, 6, 8 + 6, 7, 8 + 7};
-                            lo_array.resize(8);
-                            std::transform(hi_array.begin(), hi_array.end(),
-                                    lo_array.begin(),
-                                    [](shuffle_idx_t x) { return x - 4; });
-                            break;
-                        case 32:
-                            hi_array = std::vector<shuffle_idx_t> {
-                                    2, 10, 2 + 1, 10 + 1, 6, 14, 6 + 1, 14 + 1};
-                            lo_array = std::vector<shuffle_idx_t> {
-                                    0, 8, 0 + 1, 8 + 1, 4, 12, 4 + 1, 12 + 1};
-                            break;
-                        default: {
-                            COMPILE_ASSERT(false,
-                                    "Currently lanes = 8, elem_bit only "
-                                    "support 32 and 16, but get "
-                                            << elem_bits);
-                        } break;
-                    }
-                } else {
-                    COMPILE_ASSERT(v->dtype_.lanes_ == 32,
-                            "Currently only support lanes = 32, but get"
-                                    << v->dtype_.lanes_);
-                    switch (elem_bits) {
-                        case 16:
-                            hi_array = std::vector<shuffle_idx_t> {4, 36, 4 + 1,
-                                    36 + 1, 4 + 2, 36 + 2, 4 + 3, 36 + 3, 12,
-                                    44, 12 + 1, 44 + 1, 12 + 2, 44 + 2, 12 + 3,
-                                    44 + 3, 20, 52, 20 + 1, 52 + 1, 20 + 2,
-                                    52 + 2, 20 + 3, 52 + 3, 28, 60, 28 + 1,
-                                    60 + 1, 28 + 2, 60 + 2, 28 + 3, 60 + 3};
-                            lo_array.resize(32);
-                            std::transform(hi_array.begin(), hi_array.end(),
-                                    lo_array.begin(),
-                                    [](shuffle_idx_t x) { return x - 4; });
-                            break;
-                        case 32:
-                            hi_array = std::vector<shuffle_idx_t> {4, 4 + 1, 36,
-                                    36 + 1, 4 + 2, 4 + 3, 36 + 2, 36 + 3, 12,
-                                    12 + 1, 44, 44 + 1, 12 + 2, 12 + 3, 44 + 2,
-                                    44 + 3, 20, 20 + 1, 52, 52 + 1, 20 + 2,
-                                    20 + 3, 52 + 2, 52 + 3, 28, 28 + 1, 60,
-                                    60 + 1, 28 + 2, 28 + 3, 60 + 2, 60 + 3};
-                            lo_array.resize(32);
-                            std::transform(hi_array.begin(), hi_array.end(),
-                                    lo_array.begin(),
-                                    [](shuffle_idx_t x) { return x - 4; });
-                            break;
-                        case 64:
-                            hi_array = std::vector<shuffle_idx_t> {4, 4 + 1,
-                                    4 + 2, 4 + 3, 36, 36 + 1, 36 + 2, 36 + 3,
-                                    12, 12 + 1, 12 + 2, 12 + 3, 44, 44 + 1,
-                                    44 + 2, 44 + 3, 20, 20 + 1, 20 + 2, 20 + 3,
-                                    52, 52 + 1, 52 + 2, 52 + 3, 28, 28 + 1,
-                                    28 + 2, 28 + 3, 60, 60 + 1, 60 + 2, 60 + 3};
-                            lo_array.resize(32);
-                            std::transform(hi_array.begin(), hi_array.end(),
-                                    lo_array.begin(),
-                                    [](shuffle_idx_t x) { return x - 4; });
-                            break;
-                        default: {
-                            COMPILE_ASSERT(false,
-                                    "Currently lanes = 8, elem_bit only "
-                                    "support 64,32 and 16, but get "
-                                            << elem_bits);
-                        } break;
-                    }
+                const int type_bits = utils::get_sizeof_type(v->dtype_) * 8;
+                // We should unpack according to the number of the avx data type
+                // bits.
+                switch (type_bits) {
+                    case 128: {
+                        switch (elem_bits) {
+                            case 8: {
+                                auto target_type
+                                        = get_type(sc_data_type_t::u8(16));
+                                tmp1 = builder_.CreateBitCast(
+                                        inval1, target_type);
+                                tmp2 = builder_.CreateBitCast(
+                                        inval2, target_type);
+                                hi_array = std::vector<shuffle_idx_t> {8,
+                                        16 + 8, 9, 16 + 9, 10, 16 + 10, 11,
+                                        16 + 11, 12, 16 + 12, 13, 16 + 13, 14,
+                                        16 + 14, 15, 16 + 15};
+                                lo_array.resize(16);
+                                std::transform(hi_array.begin(), hi_array.end(),
+                                        lo_array.begin(),
+                                        [](shuffle_idx_t x) { return x - 8; });
+                            } break;
+                            case 16: {
+                                auto target_type
+                                        = get_type(sc_data_type_t::u16(8));
+                                tmp1 = builder_.CreateBitCast(
+                                        inval1, target_type);
+                                tmp2 = builder_.CreateBitCast(
+                                        inval2, target_type);
+                                hi_array = std::vector<shuffle_idx_t> {
+                                        4, 8 + 4, 5, 8 + 5, 6, 8 + 6, 7, 8 + 7};
+                                lo_array.resize(8);
+                                std::transform(hi_array.begin(), hi_array.end(),
+                                        lo_array.begin(),
+                                        [](shuffle_idx_t x) { return x - 4; });
+                            } break;
+                            case 32: {
+                                auto target_type
+                                        = get_type(sc_data_type_t::u32(4));
+                                tmp1 = builder_.CreateBitCast(
+                                        inval1, target_type);
+                                tmp2 = builder_.CreateBitCast(
+                                        inval2, target_type);
+                                hi_array = std::vector<shuffle_idx_t> {
+                                        2, 4 + 2, 3, 4 + 3};
+                                lo_array.resize(4);
+                                std::transform(hi_array.begin(), hi_array.end(),
+                                        lo_array.begin(),
+                                        [](shuffle_idx_t x) { return x - 2; });
+                            } break;
+                            case 64: {
+                                auto target_type
+                                        = get_type(sc_data_type_t::index(2));
+                                tmp1 = builder_.CreateBitCast(
+                                        inval1, target_type);
+                                tmp2 = builder_.CreateBitCast(
+                                        inval2, target_type);
+                                hi_array
+                                        = std::vector<shuffle_idx_t> {1, 2 + 1};
+                                lo_array.resize(2);
+                                std::transform(hi_array.begin(), hi_array.end(),
+                                        lo_array.begin(),
+                                        [](shuffle_idx_t x) { return x - 1; });
+                            } break;
+                            default: {
+                                COMPILE_ASSERT(false,
+                                        "Only support 8, 16, 32 and 64 bits");
+                            };
+                        };
+                    } break;
+                    case 256: {
+                        switch (elem_bits) {
+                            case 8: {
+                                auto target_type
+                                        = get_type(sc_data_type_t::u8(32));
+                                tmp1 = builder_.CreateBitCast(
+                                        inval1, target_type);
+                                tmp2 = builder_.CreateBitCast(
+                                        inval2, target_type);
+                                hi_array = std::vector<shuffle_idx_t> {8,
+                                        32 + 8, 9, 32 + 9, 10, 32 + 10, 11,
+                                        32 + 11, 12, 32 + 12, 13, 32 + 13, 14,
+                                        32 + 14, 15, 32 + 15, 24, 32 + 24, 25,
+                                        32 + 25, 26, 32 + 26, 27, 32 + 27, 28,
+                                        32 + 28, 29, 32 + 29, 30, 32 + 30, 31,
+                                        32 + 31};
+                                lo_array.resize(32);
+                                std::transform(hi_array.begin(), hi_array.end(),
+                                        lo_array.begin(),
+                                        [](shuffle_idx_t x) { return x - 8; });
+                            } break;
+                            case 16: {
+                                auto target_type
+                                        = get_type(sc_data_type_t::u16(16));
+                                tmp1 = builder_.CreateBitCast(
+                                        inval1, target_type);
+                                tmp2 = builder_.CreateBitCast(
+                                        inval2, target_type);
+                                hi_array = std::vector<shuffle_idx_t> {4,
+                                        16 + 4, 5, 16 + 5, 6, 16 + 6, 7, 16 + 7,
+                                        12, 16 + 12, 13, 16 + 13, 14, 16 + 14,
+                                        15, 16 + 15};
+                                lo_array.resize(16);
+                                std::transform(hi_array.begin(), hi_array.end(),
+                                        lo_array.begin(),
+                                        [](shuffle_idx_t x) { return x - 4; });
+                            } break;
+                            case 32: {
+                                auto target_type
+                                        = get_type(sc_data_type_t::u32(8));
+                                tmp1 = builder_.CreateBitCast(
+                                        inval1, target_type);
+                                tmp2 = builder_.CreateBitCast(
+                                        inval2, target_type);
+                                hi_array = std::vector<shuffle_idx_t> {
+                                        2, 8 + 2, 3, 8 + 3, 6, 8 + 6, 7, 8 + 7};
+                                lo_array.resize(8);
+                                std::transform(hi_array.begin(), hi_array.end(),
+                                        lo_array.begin(),
+                                        [](shuffle_idx_t x) { return x - 2; });
+                            } break;
+                            case 64: {
+                                auto target_type
+                                        = get_type(sc_data_type_t::index(4));
+                                tmp1 = builder_.CreateBitCast(
+                                        inval1, target_type);
+                                tmp2 = builder_.CreateBitCast(
+                                        inval2, target_type);
+                                hi_array = std::vector<shuffle_idx_t> {
+                                        1, 4 + 1, 3, 4 + 3};
+                                lo_array.resize(4);
+                                std::transform(hi_array.begin(), hi_array.end(),
+                                        lo_array.begin(),
+                                        [](shuffle_idx_t x) { return x - 1; });
+                            } break;
+                            default: {
+                                COMPILE_ASSERT(false,
+                                        "Only support 8, 16, 32 and 64 bits");
+                            } break;
+                        }
+                    } break;
+                    case 512: {
+                        switch (elem_bits) {
+                            case 8: {
+                                auto target_type
+                                        = get_type(sc_data_type_t::u8(64));
+                                tmp1 = builder_.CreateBitCast(
+                                        inval1, target_type);
+                                tmp2 = builder_.CreateBitCast(
+                                        inval2, target_type);
+                                hi_array = std::vector<shuffle_idx_t> {8,
+                                        64 + 8, 9, 64 + 9, 10, 64 + 10, 11,
+                                        64 + 11, 12, 64 + 12, 13, 64 + 13, 14,
+                                        64 + 14, 15, 64 + 15, 24, 64 + 24, 25,
+                                        64 + 25, 26, 64 + 26, 27, 64 + 27, 28,
+                                        64 + 28, 29, 64 + 29, 30, 64 + 30, 31,
+                                        64 + 31, 40, 64 + 40, 41, 64 + 41, 42,
+                                        64 + 42, 43, 64 + 43, 44, 64 + 44, 45,
+                                        64 + 45, 46, 64 + 46, 47, 64 + 47, 56,
+                                        64 + 56, 57, 64 + 57, 58, 64 + 58, 59,
+                                        64 + 59, 60, 64 + 60, 61, 64 + 61, 62,
+                                        64 + 62, 63, 64 + 63};
+                                lo_array.resize(64);
+                                std::transform(hi_array.begin(), hi_array.end(),
+                                        lo_array.begin(),
+                                        [](shuffle_idx_t x) { return x - 8; });
+                            } break;
+                            case 16: {
+                                auto target_type
+                                        = get_type(sc_data_type_t::u16(32));
+                                tmp1 = builder_.CreateBitCast(
+                                        inval1, target_type);
+                                tmp2 = builder_.CreateBitCast(
+                                        inval2, target_type);
+                                hi_array = std::vector<shuffle_idx_t> {4,
+                                        32 + 4, 5, 32 + 5, 6, 32 + 6, 7, 32 + 7,
+                                        12, 32 + 12, 13, 32 + 13, 14, 32 + 14,
+                                        15, 32 + 15, 20, 32 + 20, 21, 32 + 21,
+                                        22, 32 + 22, 23, 32 + 23, 28, 32 + 28,
+                                        29, 32 + 29, 30, 32 + 30, 31, 32 + 31};
+                                lo_array.resize(32);
+                                std::transform(hi_array.begin(), hi_array.end(),
+                                        lo_array.begin(),
+                                        [](shuffle_idx_t x) { return x - 4; });
+                            } break;
+                            case 32: {
+                                auto target_type
+                                        = get_type(sc_data_type_t::u32(16));
+                                tmp1 = builder_.CreateBitCast(
+                                        inval1, target_type);
+                                tmp2 = builder_.CreateBitCast(
+                                        inval2, target_type);
+                                hi_array = std::vector<shuffle_idx_t> {2, 18, 3,
+                                        19, 2 + 4, 18 + 4, 3 + 4, 19 + 4, 2 + 8,
+                                        18 + 8, 3 + 8, 19 + 8, 2 + 12, 18 + 12,
+                                        3 + 12, 19 + 12};
+                                lo_array.resize(16);
+                                std::transform(hi_array.begin(), hi_array.end(),
+                                        lo_array.begin(),
+                                        [](shuffle_idx_t x) { return x - 2; });
+                            } break;
+                            case 64: {
+                                auto target_type
+                                        = get_type(sc_data_type_t::index(8));
+                                tmp1 = builder_.CreateBitCast(
+                                        inval1, target_type);
+                                tmp2 = builder_.CreateBitCast(
+                                        inval2, target_type);
+                                hi_array = std::vector<shuffle_idx_t> {1, 9,
+                                        1 + 2, 9 + 2, 1 + 4, 9 + 4, 1 + 6,
+                                        9 + 6};
+                                lo_array.resize(8);
+                                std::transform(hi_array.begin(), hi_array.end(),
+                                        lo_array.begin(),
+                                        [](shuffle_idx_t x) { return x - 1; });
+                            } break;
+                            default: {
+                                COMPILE_ASSERT(false,
+                                        "Only support 8, 16, 32 and 64 bits");
+                            } break;
+                        }
+                    } break;
+                    default: {
+                        COMPILE_ASSERT(
+                                false, "Invalid simd bits: " << type_bits);
+                    } break;
                 }
                 ArrayRef<shuffle_idx_t> arr
                         = v->type_ == intrin_type::unpack_high ? hi_array
                                                                : lo_array;
-                current_val_
-                        = builder_.CreateShuffleVector(inval1, inval2, arr);
+                auto res = builder_.CreateShuffleVector(tmp1, tmp2, arr);
+                current_val_ = builder_.CreateBitCast(res, get_type(v->dtype_));
             } break;
             case intrin_type::shuffle: {
-                assert(v->args_.size() == 2);
-                COMPILE_ASSERT(v->dtype_.lanes_ == 8,
-                        "Expecting 8-lane for shuffle: " << v);
+                COMPILE_ASSERT(v->args_.size() == 2,
+                        "args size must be 2, but get " << v->args_.size());
                 auto inval1 = generate_expr(v->args_[0]);
                 auto inval2 = generate_expr(v->args_[1]);
                 auto imm8 = v->intrin_attrs_->get<int>("shuffle_imm");
-                shuffle_idx_t array[8];
-                for (int i = 0; i <= 6; i += 2) {
-                    auto arr_idx = i / 2;
-                    auto val_idx = (imm8 >> i) % 4;
-                    if (i >= 4) {
-                        array[arr_idx] = val_idx + 8;
-                        array[arr_idx + 4] = val_idx + 8 + 4;
-                    } else {
-                        array[arr_idx] = val_idx;
-                        array[arr_idx + 4] = val_idx + 4;
-                    }
-                }
-                current_val_
-                        = builder_.CreateShuffleVector(inval1, inval2, array);
+                auto type_bits = v->intrin_attrs_->get<int>("type_bits");
+                switch (type_bits) {
+                    case 32: {
+                        unsigned num_elts = v->args_[0]->dtype_.lanes_;
+                        unsigned num_lanes
+                                = utils::get_sizeof_type(v->args_[0]->dtype_)
+                                * 8 / 128;
+                        unsigned num_lanes_elts = num_elts / num_lanes;
+
+                        // Splat the 8-bits of immediate 4 times to help the
+                        // loop wrap around.
+                        imm8 = (imm8 & 0xff) * 0x01010101;
+
+                        std::vector<shuffle_idx_t> indices(num_elts);
+                        for (unsigned l = 0; l != num_elts;
+                                l += num_lanes_elts) {
+                            for (unsigned i = 0; i != num_lanes_elts; ++i) {
+                                unsigned index = imm8 % num_lanes_elts;
+                                imm8 /= num_lanes_elts;
+                                if (i >= (num_lanes_elts / 2))
+                                    index += num_elts;
+                                indices[l + i] = l + index;
+                            }
+                        }
+
+                        current_val_ = builder_.CreateShuffleVector(
+                                inval1, inval2, indices, "shuf32");
+                    } break;
+                    case 128: {
+                        unsigned num_elts = v->args_[0]->dtype_.lanes_;
+                        unsigned num_lanes
+                                = utils::get_sizeof_type(v->args_[0]->dtype_)
+                                                * 8
+                                        == 512
+                                ? 4
+                                : 2;
+                        unsigned num_lanes_elts = num_elts / num_lanes;
+
+                        std::vector<shuffle_idx_t> indices(num_elts);
+                        for (unsigned l = 0; l != num_elts;
+                                l += num_lanes_elts) {
+                            unsigned index
+                                    = (imm8 % num_lanes) * num_lanes_elts;
+                            imm8 /= num_lanes; // Discard the bits we just used.
+                            if (l >= (num_elts / 2))
+                                index += num_elts; // Switch to other source.
+                            for (unsigned i = 0; i != num_lanes_elts; ++i) {
+                                indices[l + i] = index + i;
+                            }
+                        }
+
+                        current_val_ = builder_.CreateShuffleVector(
+                                inval1, inval2, indices, "shuf128");
+                    } break;
+                    default: {
+                        COMPILE_ASSERT(false,
+                                "Curerntly only support type_bits 32 and 128, "
+                                "but get "
+                                        << type_bits);
+                    } break;
+                };
             } break;
             case intrin_type::permute: {
                 assert(v->args_.size() == 2);

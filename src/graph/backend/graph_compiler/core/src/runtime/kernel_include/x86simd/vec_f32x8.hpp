@@ -17,7 +17,6 @@
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_KERNEL_INCLUDE_X86SIMD_VEC_F32X8_HPP
 #include <immintrin.h>
 #include <stdint.h>
-#include "util/assert.hpp"
 #ifndef __AVX512F__
 #include <cmath>
 #endif
@@ -206,18 +205,30 @@ INLINE float sc_reduce_add(vec_f32x8 const &a) {
 
 INLINE vec_f32x8 sc_unpack_low(
         vec_f32x8 const &a, vec_f32x8 const &b, int elem_step) {
-    return _mm256_unpacklo_ps(a.v, b.v);
+    if (elem_step == 32) {
+        return _mm256_unpacklo_ps(a.v, b.v);
+    } else { // elem_step == 64
+        return _mm256_castpd_ps(_mm256_unpacklo_pd(
+                _mm256_castps_pd(a.v), _mm256_castps_pd(b.v)));
+    }
 }
 
 INLINE vec_f32x8 sc_unpack_high(
         vec_f32x8 const &a, vec_f32x8 const &b, int elem_step) {
-    return _mm256_unpackhi_ps(a.v, b.v);
+    if (elem_step == 32) {
+        return _mm256_unpackhi_ps(a.v, b.v);
+    } else { // elem_step == 64
+        return _mm256_castpd_ps(_mm256_unpackhi_pd(
+                _mm256_castps_pd(a.v), _mm256_castps_pd(b.v)));
+    }
 }
 
 #define PARAM_F32X8(X) X.v
 #define sc_permute_vec_f32x8(a, b, imm8) \
     _mm256_permute2f128_ps(PARAM_F32X8(a), PARAM_F32X8(b), imm8);
-#define sc_shuffle_vec_f32x8(a, b, imm8) \
+#define sc_shuffle_vec_f32x8_128bits(a, b, imm8) \
+    _mm256_shuffle_f32x4(PARAM_F32X8(a), PARAM_F32X8(b), imm8);
+#define sc_shuffle_vec_f32x8_32bits(a, b, imm8) \
     _mm256_shuffle_ps(PARAM_F32X8(a), PARAM_F32X8(b), imm8);
 
 INLINE vec_f32x8 sc_exp(vec_f32x8 const &a) {
