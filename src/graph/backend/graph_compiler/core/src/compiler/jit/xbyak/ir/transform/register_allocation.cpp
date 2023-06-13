@@ -499,6 +499,11 @@ protected:
             v->args_[i] = insert_load(std::move(v->args_[i]), cur_index_);
             return v;
         };
+        // cond_mask for intrin must be reg
+        auto &mask = v->modifier_.cond_mask_;
+        if (mask.defined() && is_spilled(mask)) {
+            mask = insert_load(std::move(mask), cur_index_);
+        }
         // resolve differnet format
         switch (v->format_) {
             case xbyak_intrin_format::undefined: {

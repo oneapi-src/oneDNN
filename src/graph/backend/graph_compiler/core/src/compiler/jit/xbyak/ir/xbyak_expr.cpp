@@ -131,7 +131,7 @@ static handler_table register_handlers() {
     //---------------
     // mask_mov: special case xbyak_format in resolve_spill
     REGISTER_INTRIN("AVX_MASK_MOV", avx, mask_mov, undefined, _2A_);
-    REGISTER_INTRIN("AVX_MOV_MASK", avx, mov_mask, undefined, _2A_);
+    REGISTER_INTRIN("AVX_MOV_MASK", avx, mov_mask, directed_all_reg, _2A_);
 
     REGISTER_INTRIN("AVX_CMOV", avx, cmov, directed_dst_mem, _2A_);
     REGISTER_INTRIN("AVX_MOVD", avx, movd, directed_dst_mem, _2A_);
