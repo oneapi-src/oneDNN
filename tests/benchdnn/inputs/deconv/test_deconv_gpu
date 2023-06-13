@@ -43,9 +43,9 @@
 
 #run backward without post ops
 --attr-post-ops=
---dt=bf16 --dir=BWD_D,BWD_WB --batch=set_all
---dt=f32:bf16:bf16 --dir=BWD_D --batch=set_all
---dt=bf16:f32:bf16 --dir=BWD_WB --batch=set_all
+--dt=bf16,f16 --dir=BWD_D,BWD_WB --batch=set_all
+--dt=f32:bf16:bf16,f32:f16:f16 --dir=BWD_D --batch=set_all
+--dt=bf16:f32:bf16,f16:f32:f16 --dir=BWD_WB --batch=set_all
 
 # int8
 --reset

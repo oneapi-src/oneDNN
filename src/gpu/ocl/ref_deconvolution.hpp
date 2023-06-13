@@ -147,6 +147,11 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
                                         desc()->weights_desc.data_type)
                                     && utils::one_of(desc()->dst_desc.data_type,
                                             data_type::f32, data_type::bf16))
+                            || (utils::everyone_is(data_type::f16,
+                                        desc()->src_desc.data_type,
+                                        desc()->weights_desc.data_type)
+                                    && utils::one_of(desc()->dst_desc.data_type,
+                                            data_type::f32, data_type::f16))
                             || (desc()->weights_desc.data_type == data_type::s8
                                     && utils::one_of(desc()->src_desc.data_type,
                                             data_type::u8, data_type::s8)
@@ -267,11 +272,15 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
                                     desc()->diff_src_desc.data_type,
                                     desc()->weights_desc.data_type,
                                     desc()->diff_dst_desc.data_type))
+                            || utils::everyone_is(data_type::f16,
+                                    desc()->weights_desc.data_type,
+                                    desc()->diff_dst_desc.data_type)
                             || utils::everyone_is(data_type::bf16,
                                     desc()->weights_desc.data_type,
                                     desc()->diff_dst_desc.data_type))
                     && utils::one_of(desc()->diff_src_desc.data_type,
-                            data_type::bf16, data_type::f32, data_type::f64)
+                            data_type::bf16, data_type::f16, data_type::f32,
+                            data_type::f64)
                     && desc()->alg_kind == alg_kind::deconvolution_direct
                     && attr()->has_default_values();
 
@@ -364,6 +373,9 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
                                     desc()->src_desc.data_type,
                                     desc()->diff_weights_desc.data_type,
                                     desc()->diff_dst_desc.data_type)
+                            || utils::everyone_is(data_type::f16,
+                                    desc()->diff_dst_desc.data_type,
+                                    desc()->src_desc.data_type)
                             || utils::everyone_is(data_type::bf16,
                                     desc()->diff_dst_desc.data_type,
                                     desc()->src_desc.data_type))
@@ -371,7 +383,8 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
                             desc()->alg_kind, alg_kind::deconvolution_direct)
                     && attr()->has_default_values()
                     && utils::one_of(desc()->diff_weights_desc.data_type,
-                            data_type::bf16, data_type::f32, data_type::f64);
+                            data_type::bf16, data_type::f16, data_type::f32,
+                            data_type::f64);
             if (ok) {
                 CHECK(init_convolution(engine));
                 if (diff_weights_md_.format_kind == format_kind::any)
