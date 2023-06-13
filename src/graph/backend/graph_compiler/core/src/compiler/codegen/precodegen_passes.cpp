@@ -70,8 +70,7 @@ sequential_module_pass_t get_default_precodegen_passes(
     if (gen_wrapper) {
         ret.emplace_back(utils::make_unique<interface_generalizer_t>());
     }
-    ret.emplace_back(utils::make_unique<module_function_pass_t>(
-            utils::make_unique<tensor_shrinker_t>()));
+    ret.emplace_back(utils::make_unique<tensor_shrinker_t>());
     if (ctx->flags_.concat_optimization_) {
         ret.emplace_back(utils::make_unique<concat_memory_planning_t>());
     }

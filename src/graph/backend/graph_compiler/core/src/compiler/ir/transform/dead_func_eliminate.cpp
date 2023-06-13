@@ -15,6 +15,7 @@
  *******************************************************************************/
 #include "dead_func_eliminate.hpp"
 #include <memory>
+#include <string>
 #include <vector>
 #include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/pass_id.hpp>

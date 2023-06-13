@@ -152,6 +152,11 @@ public:
     }
 
     template <typename T>
+    T *stc_cast() {
+        return static_cast<T *>(this);
+    }
+
+    template <typename T>
     T *dyn_cast() {
         return dynamic_cast<T *>(this);
     }

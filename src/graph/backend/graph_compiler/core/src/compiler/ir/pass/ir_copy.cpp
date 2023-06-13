@@ -56,9 +56,30 @@ bool ir_copier_impl_t::find_and_return(const expr_c &v) {
     }
 }
 
+bool ir_copier_impl_t::find_and_return(const stmt_c &s) {
+    if (!stmt_replace_map_) { return false; }
+    auto itr = stmt_replace_map_->find(s);
+    if (itr != stmt_replace_map_->end()) {
+        returned_stmt_ = itr->second;
+        if (!returned_stmt_.defined()) { return false; }
+        return true;
+    }
+    return false;
+}
+
 ir_copier_impl_t::ir_copier_impl_t(
         std::unordered_map<expr_c, expr> &replace_map, bool create_var_tensor)
-    : replace_map_(replace_map), create_var_tensor_(create_var_tensor) {}
+    : replace_map_(replace_map)
+    , stmt_replace_map_(nullptr)
+    , create_var_tensor_(create_var_tensor) {}
+
+ir_copier_impl_t::ir_copier_impl_t(
+        std::unordered_map<expr_c, expr> &replace_map,
+        std::unordered_map<stmt_c, stmt> *stmt_replace_map,
+        bool create_var_tensor)
+    : replace_map_(replace_map)
+    , stmt_replace_map_(stmt_replace_map)
+    , create_var_tensor_(create_var_tensor) {}
 
 void ir_copier_impl_t::view(constant_c v) {
     returned_expr_ = make_expr<constant_node>(v->value_, v->dtype_);
@@ -263,11 +284,20 @@ void ir_copier_impl_t::view(for_loop_c v) {
             copy(v->body_), v->incremental_, v->kind_, v->num_threads_);
 }
 
+stmt_c ir_copier_impl_t::dispatch(stmt_c s) {
+    if (find_and_return(s)) { return s; }
+    ir_viewer_t::dispatch(s);
+    if (stmt_replace_map_) { (*stmt_replace_map_)[s] = returned_stmt_; }
+    return s;
+}
+
 func_c ir_copier_impl_t::dispatch(func_c v) {
     std::vector<expr> params;
     params.reserve(v->params_.size());
     for (auto &i : v->params_) {
-        params.emplace_back(copy(i));
+        auto new_param = copy(i);
+        if (new_param.isa<tensor>()) { update_shrink_info(i, new_param); }
+        params.emplace_back(new_param);
     }
     auto body = v->body_.defined() ? copy(v->body_) : stmt();
     returned_func_ = builder::make_func(v->name_, params, body, v->ret_type_);
@@ -283,17 +313,17 @@ func_t ir_copier_impl_t::copy(const func_c &f) {
 }
 
 stmt_c ir_copier_t::operator()(const stmt_c &s) {
-    ir_copier_impl_t vis(replace_map_, create_var_tensor_);
+    ir_copier_impl_t vis(replace_map_, stmt_replace_map_, create_var_tensor_);
     return vis.copy(s);
 }
 
 expr_c ir_copier_t::operator()(const expr_c &s) {
-    ir_copier_impl_t vis(replace_map_, create_var_tensor_);
+    ir_copier_impl_t vis(replace_map_, stmt_replace_map_, create_var_tensor_);
     return vis.copy(s);
 }
 
 func_c ir_copier_t::operator()(func_c s) {
-    ir_copier_impl_t vis(replace_map_, create_var_tensor_);
+    ir_copier_impl_t vis(replace_map_, stmt_replace_map_, create_var_tensor_);
     return vis.copy(s);
 }
 

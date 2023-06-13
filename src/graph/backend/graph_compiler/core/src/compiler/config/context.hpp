@@ -48,7 +48,7 @@ struct scflags_t {
     bool dead_write_elimination_ = true;
     int buffer_schedule_ = 3; // 0 off, 1 whole reuse, 2 size first, 3 hot first
     brgemm_t brgemm_backend_ = brgemm_t::dnnl;
-    int kernel_optim_ = 1; // 0 off, 1 runtime-oriented opt,
+    int kernel_optim_ = 1; // 0 off, 1 external-runtime-oriented opt,
     bool index2var_ = true;
     bool tensor2var_ = true;
     bool print_ir_ = false;

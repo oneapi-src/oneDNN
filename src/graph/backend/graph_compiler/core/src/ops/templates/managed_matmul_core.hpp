@@ -97,14 +97,15 @@ public:
     std::vector<for_loop> &loops) const override;
   std::vector<expr> get_extra_args_from_func(const func_t &f) const override;
 
-  void single_thread_matmul_call(sc_graph_t &graph, const logical_tensor_t &ta,
-    const logical_tensor_t &tb, const logical_tensor_t &tc,
-    const managed_matmul_core_config_t &config, const expr &M, const expr &N,
-    const expr &K, const expr &m_idx, const expr &n_idx, const expr &k_idx,
-    const expr &A, const expr &B, const expr &C, int dtype_block,
-    fusion_manager *fusion, const expr &m_s, const expr &n_s,
-    std::vector<int> &M_anchor_info, std::vector<int> &N_anchor_info,
-    bool is_partial = false, const expr &k_s = expr(), bool is_dynamic = false,
+  void single_thread_matmul_call(const context_ptr &ctx, sc_graph_t &graph,
+    const logical_tensor_t &ta, const logical_tensor_t &tb,
+    const logical_tensor_t &tc, const managed_matmul_core_config_t &config,
+    const expr &M, const expr &N, const expr &K, const expr &m_idx,
+    const expr &n_idx, const expr &k_idx, const expr &A, const expr &B,
+    const expr &C, int dtype_block, fusion_manager *fusion, const expr &m_s,
+    const expr &n_s, std::vector<int> &M_anchor_info,
+    std::vector<int> &N_anchor_info, bool is_partial = false,
+    const expr &k_s = expr(), bool is_dynamic = false,
     const expr &N_block_size_expr = expr()) const;
 
   void single_thread_reorder_matmul_call(context_ptr ctx,

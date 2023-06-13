@@ -298,13 +298,15 @@ public:
                 // do nothing
                 break;
             case intrin_type::brgemm:
-                COMPILE_ASSERT(
-                        newargs.size() == brgemm_args::NUM_FULL_ARGS_STRIDE,
-                        "Wrong number of arguments for brgemm, expected "
+                COMPILE_ASSERT(v->check_brgemm_arg_size(
+                                       brgemm_args::NUM_FULL_ARGS_STRIDE),
+                        "Wrong number of arguments for brgemm, expected equal "
+                        "or larger than "
                                 << brgemm_args::NUM_FULL_ARGS_STRIDE
                                 << ", but got " << newargs.size() << ".");
                 // the A, B, C are overloaded arguments
-                for (unsigned i = brgemm_args::C + 1; i < newargs.size(); i++) {
+                for (unsigned i = brgemm_args::C + 1;
+                        i < brgemm_args::NUM_FULL_ARGS_STRIDE; i++) {
                     // cast newargs[i] to the expected types
                     expr_c v = newargs[i];
                     // specific process for brgemm, as its runtime kernel is too
@@ -317,12 +319,13 @@ public:
                 }
                 break;
             case intrin_type::list_brgemm:
-                COMPILE_ASSERT(
-                        newargs.size() == brgemm_args::NUM_FULL_ARGS_LIST,
+                COMPILE_ASSERT(v->check_brgemm_arg_size(
+                                       brgemm_args::NUM_FULL_ARGS_LIST),
                         "Wrong number of arguments for list brgemm, expected "
+                        "equal or larger then "
                                 << brgemm_args::NUM_FULL_ARGS_LIST
                                 << ", but got " << newargs.size() << ".");
-                for (unsigned i = 0; i < newargs.size(); i++) {
+                for (unsigned i = 0; i < brgemm_args::NUM_FULL_ARGS_LIST; i++) {
                     // cast newargs[i] to the expected types
                     expr_c v = newargs[i];
                     changed |= cast_to(v, brgemm_args::list_arg_types[i], v);

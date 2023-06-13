@@ -901,7 +901,8 @@ slice_range mxp_buffer_allocator::get_shrinked_info(const expr &buffer) const {
     auto anchor = get_real_anchor_for_buffer(buffer);
     if (!anchor) return {};
     COMPILE_ASSERT(b2g_map_.find(buffer) != b2g_map_.end(),
-            "Could not find " << buffer << " b2g map")
+            "Could not find " << buffer << " b2g map");
+    slice_range ret;
     auto range_list = anchor->fsmap_.get(b2g_map_.find(buffer)->second);
     if (range_list.size() != 1) {
         if (range_list.empty()
@@ -909,14 +910,16 @@ slice_range mxp_buffer_allocator::get_shrinked_info(const expr &buffer) const {
                         || anchor->isa<fuse_grouped_anchor_map_t>()))
             return {};
         else
-            return *std::max_element(range_list.begin(), range_list.end(),
+            ret = *std::max_element(range_list.begin(), range_list.end(),
                     [&](const slice_range &A, const slice_range &B) {
                         return cmp_slice_range({A}, {B}) == cmp_res::l_less_r;
                     });
 
     } else {
-        return range_list[0];
+        ret = range_list[0];
     }
+
+    return ret;
 }
 
 void mxp_buffer_allocator::declare_tensor() const {
@@ -2495,7 +2498,7 @@ std::vector<fuse_anchor_map_ptr> mixed_parti_t::lookup_sub_anchor_map(
 void mixed_parti_t::clear_fanchor(fuse_anchor_map_ptr &fanchor) {
     stmt anchor = fanchor->anchor_position_;
     COMPILE_ASSERT(anchor.checked_as<stmts>()->seq_.empty(),
-            "Could not remove this fanchor, because it is not empty")
+            "Could not remove this fanchor, because it is not empty");
     stmt parent = get_parent_node(anchor);
     auto ss_parent = parent.checked_as<stmts>();
     // clear empty if_node outside iter anchor if necessary

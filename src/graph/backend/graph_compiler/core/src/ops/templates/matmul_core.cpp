@@ -748,10 +748,10 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
             fidx2, fidx3);
 
           // todo: this is for s8s8 vnni compensation
-          builtin::brgemm_init_update_allow_fusion(tensor_ptr(A, aidx),
-            tensor_ptr(B, bidx), tensor_ptr(C, cidx), K_num_blocks, M_block,
-            N_block, K_block, LDA, LDB, LDC, stride_a, stride_b, A_dtype,
-            B_dtype);
+          auto eval = builtin::brgemm_init_update_allow_fusion(
+            tensor_ptr(A, aidx), tensor_ptr(B, bidx), tensor_ptr(C, cidx),
+            K_num_blocks, M_block, N_block, K_block, LDA, LDB, LDC, stride_a,
+            stride_b, A_dtype, B_dtype);
 
           // this is the gemm output
           if (fusion) {
@@ -794,7 +794,7 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
         if (!out_tensors_[0].get_format().is_blocking()) {
           LDC = graph.dim_to_expr(in_tensors_[1].get_plain_dims().back());
         }
-        builtin::brgemm_init_update_allow_fusion(
+        auto eval = builtin::brgemm_init_update_allow_fusion(
           tensor_ptr(A,
             !in_tensors_[0].get_format().is_blocking()
               ? std::vector<expr> {m_o * M_block, 0}

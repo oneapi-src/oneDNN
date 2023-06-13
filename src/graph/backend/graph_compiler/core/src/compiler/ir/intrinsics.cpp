@@ -348,7 +348,7 @@ struct write_struct_handler_t : public binary_intrinsic_handler_t {
 struct brgemm_handler_t : public intrinsic_handler_t {
     size_t arg_cnt_;
     void on_initialize(intrin_call_node &node) override {
-        assert(node.args_.size() == arg_cnt_);
+        assert(node.check_brgemm_arg_size(arg_cnt_));
         node.dtype_ = datatypes::void_t;
     }
     brgemm_handler_t(size_t arg_cnt, const char *name)

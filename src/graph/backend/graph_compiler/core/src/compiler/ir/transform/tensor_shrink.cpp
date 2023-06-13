@@ -13,7 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
+
 #include "tensor_shrink.hpp"
+#include <string>
 #include <utility>
 #include <vector>
 #include "../ir_comparer.hpp"
@@ -24,6 +26,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/transform/concat_memory_planning.hpp>
+#include <compiler/ir/util_module_passes.hpp>
 #include <unordered_map>
 #include <util/any_map.hpp>
 
@@ -160,6 +163,8 @@ public:
 
     std::unordered_map<expr, expr> replace_map;
 
+    shrinker_impl_t(const_ir_module_ptr mod = nullptr) : mod_(std::move(mod)) {}
+
     stmt_c visit(define_c v) override {
         expr var = v->var_;
         if (var->attr_
@@ -208,33 +213,35 @@ public:
     }
 
     expr_c visit(intrin_call_c v) override {
+        if (v->type_ != intrin_type::brgemm
+                && v->type_ != intrin_type::list_brgemm) {
+            return ir_visitor_t::visit(v).checked_as<intrin_call_c>();
+        }
         auto intrin = ir_visitor_t::visit(v).checked_as<intrin_call_c>();
-        if (v->type_ == intrin_type::brgemm
-                || v->type_ == intrin_type::list_brgemm) {
-            // new args
-            auto args_cpy = intrin->args_;
-            std::vector<std::pair<int, int>> check_LDX_list = {
-                    // // Input fusion
-                    // {brgemm_args::A, brgemm_args::LDA},
-                    // {brgemm_args::B, brgemm_args::LDB},
-                    // Output fusion
-                    {brgemm_args::C, brgemm_args::LDC},
-            };
-            bool changed = false;
-            for (auto &check_pair : check_LDX_list) {
-                // need to check old args v, due to some of `attr` maybe removed
-                // in new args.
-                if (check_brgemm_LDX(v->args_[check_pair.first],
-                            args_cpy[check_pair.second])) {
-                    changed = true;
-                }
-            }
-            if (changed) {
-                return copy_attr(*intrin,
-                        make_expr<intrin_call_node>(intrin->type_, args_cpy,
-                                *intrin->intrin_attrs_));
+        // new args
+        auto args_cpy = intrin->args_;
+        std::vector<std::pair<int, int>> check_LDX_list = {
+                // // Input fusion
+                // {brgemm_args::A, brgemm_args::LDA},
+                // {brgemm_args::B, brgemm_args::LDB},
+                // Output fusion
+                {brgemm_args::C, brgemm_args::LDC},
+        };
+        bool changed = false;
+        for (auto &check_pair : check_LDX_list) {
+            // need to check old args v, due to some of `attr` maybe removed
+            // in new args.
+            if (check_brgemm_LDX(v->args_[check_pair.first],
+                        args_cpy[check_pair.second])) {
+                changed = true;
             }
         }
+        if (changed) {
+            return copy_attr(*intrin,
+                    make_expr<intrin_call_node>(
+                            intrin->type_, args_cpy, *intrin->intrin_attrs_));
+        }
+
         return intrin;
     }
 
@@ -314,14 +321,16 @@ public:
     }
 
     stmt_c visit(evaluate_c v) override {
-        auto old_call_node = v->value_.static_as<call>();
-        auto old_args = old_call_node->args_;
+        std::vector<expr> old_args;
+        if (v->value_.isa<call>()) {
+            auto old_call_node = v->value_.static_as<call>();
+            old_args = old_call_node->args_;
+        }
         auto evaluate = ir_visitor_t::visit(v).checked_as<evaluate_c>();
         // after this visit(v) the c->args_[0] has been shrinked
         // so old_args rather than new args_cpy can be used to
         // judge whether we "should_shrink"
-        bool is_call
-                = evaluate->value_.defined() && evaluate->value_.isa<call>();
+        bool is_call = evaluate->value_.isa<call>();
         if (is_call) {
             auto c = evaluate->value_.static_as<call>();
             auto func = std::dynamic_pointer_cast<func_base>(c->func_);
@@ -403,12 +412,22 @@ public:
         }
         return ir_visitor_t::visit(std::move(s));
     }
+
+private:
+    // ir module context, nullable
+    const_ir_module_ptr mod_;
 };
+
+const_ir_module_ptr tensor_shrinker_t::operator()(const_ir_module_ptr f) {
+    shrinker_impl_t impl(f);
+    return dispatch_module_on_visitor(&impl, f);
+}
 
 func_c tensor_shrinker_t::operator()(func_c f) {
     shrinker_impl_t impl;
-    return impl.dispatch(f);
+    return impl.dispatch(std::move(f));
 }
+
 stmt_c tensor_shrinker_t::operator()(stmt_c f) {
     shrinker_impl_t impl;
     return impl.dispatch(std::move(f));

@@ -668,6 +668,14 @@ bool intrin_call_node::equals(expr_c v, ir_comparer &ctx) const {
     RETURN(ctx.expr_arr_equals(args_, other->args_));
 }
 
+bool intrin_call_node::check_brgemm_arg_size(size_t expected_size) const {
+    if (type_ != intrin_type::brgemm && type_ != intrin_type::list_brgemm) {
+        return true;
+    }
+
+    return args_.size() == expected_size;
+}
+
 expr func_addr_node::remake() const {
     return copy_attr(*this, make_expr<func_addr_node>(func_));
 }

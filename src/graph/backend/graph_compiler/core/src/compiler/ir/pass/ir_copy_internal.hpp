@@ -42,10 +42,13 @@ namespace gc {
  * check if the old var/tensor node is in the map. If so, it will use the new IR
  * node in the map as the new copied IR node. Also, if a var/tensor node is
  * copied, the copier will put the old-new mapping in the replace_map_.
+ * @param stmt_replace_map_, optional in and out parameter. Similar to
+ * replace_map_ but holds the mapping from old stmt to new stmt.
  * */
 class ir_copier_impl_t : public ir_viewer_t {
 protected:
     std::unordered_map<expr_c, expr> &replace_map_;
+    std::unordered_map<stmt_c, stmt> *stmt_replace_map_;
 
     // the returned IR pointers after calling dispatch(...).
     // Should not read them directly
@@ -69,10 +72,17 @@ protected:
      * @return true if `v` is in the replace map
      * */
     bool find_and_return(const expr_c &v);
+    /**
+     * Finds a stmt in the replace map, similar to above method
+     * */
+    bool find_and_return(const stmt_c &s);
     void update_shrink_info(const expr_c &v, const expr &ret);
 
 public:
     ir_copier_impl_t(std::unordered_map<expr_c, expr> &replace_map,
+            bool create_var_tensor = true);
+    ir_copier_impl_t(std::unordered_map<expr_c, expr> &replace_map,
+            std::unordered_map<stmt_c, stmt> *stmt_replace_map,
             bool create_var_tensor = true);
 
     using ir_viewer_t::dispatch;
@@ -100,6 +110,7 @@ public:
     func_t copy(const func_c &v);
 
     func_c dispatch(func_c e) override;
+    stmt_c dispatch(stmt_c s) override;
     void view(constant_c v) override;
     void view(var_c v) override;
     void view(cast_c v) override;

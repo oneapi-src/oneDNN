@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 #include "builder.hpp"
+#include <runtime/logging.hpp>
 #include <util/utils.hpp>
 
 namespace dnnl {
@@ -316,6 +317,12 @@ struct SC_INTERNAL_API if_simulator_t {
 
     if_simulator_t(if_iterator_t &other) = delete;
     ~if_simulator_t() {
+        if (!true_block_.defined() || !false_block_.defined()) {
+            SC_WARN << "Cannot generate if statements due to undefined "
+                       "true_block/false_block for if_simulator, could be "
+                       "caused by early destruction from assertion failure";
+            return;
+        }
         stmt false_block = false_block_.checked_as<stmts>()->seq_.empty()
                 ? stmt()
                 : false_block_;

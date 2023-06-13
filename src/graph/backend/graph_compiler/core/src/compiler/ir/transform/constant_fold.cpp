@@ -1588,8 +1588,6 @@ public:
         return v;
     }
 
-    // expr_c visit(cast_c v) override {
-    // }
     expr_c visit(cast_c v) override {
         auto in = fold_range_dispatch(v->in_);
         bool changed = !in.ptr_same(v->in_);

@@ -22,7 +22,9 @@
 #include <vector>
 #include "brgemm_fusion.hpp"
 #include "fusible_op.hpp"
+#include "fusion_anchor.hpp"
 #include "fusion_data.hpp"
+#include <compiler/ir/sc_expr.hpp>
 #include <runtime/microkernel/cpu/brgemm_common.hpp>
 #include <unordered_map>
 #include <util/utils.hpp>

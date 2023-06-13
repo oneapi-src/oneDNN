@@ -18,7 +18,7 @@
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_TENSOR_SHRINK_HPP
 
 #include <vector>
-#include "../function_pass.hpp"
+#include "../module_pass.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -41,7 +41,7 @@ constexpr const char *tensor_for_placerholder = "tsr4placeholder";
  * "should_shrink" attr. The accesses on original tensor `A[idx]` should be
  * mapped to the accesses on the shrinked tensor `shrinked_A[idx - base]`
  * */
-class tensor_shrinker_t : public function_pass_t {
+class tensor_shrinker_t : public module_pass_t {
 public:
     struct shrink_info_t {
         std::vector<expr> base_;
@@ -51,7 +51,8 @@ public:
         // moved
         stmts move_def_;
     };
-    func_c operator()(func_c f) override;
+    const_ir_module_ptr operator()(const_ir_module_ptr f) override;
+    func_c operator()(func_c f);
     stmt_c operator()(stmt_c f);
     SC_DECL_PASS_INFO_FUNC();
 };

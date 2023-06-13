@@ -488,7 +488,7 @@ void validate_impl_t::view(intrin_call_c v) {
             COMPILE_ASSERT_POS(v->dtype_ == datatypes::void_t,
                     "brgemm should return void");
             COMPILE_ASSERT_POS(
-                    v->args_.size() == brgemm_args::NUM_FULL_ARGS_STRIDE,
+                    v->check_brgemm_arg_size(brgemm_args::NUM_FULL_ARGS_STRIDE),
                     "Wrong number of arguments for brgemm");
             auto &extras = v->intrin_attrs_->get<brgemm_args::extra_args_t>(
                     intrin_attr::brgemm_extras);
@@ -521,13 +521,14 @@ void validate_impl_t::view(intrin_call_c v) {
                            << "-th argument of brgemm does not match. "
                               "Expecting"
                            << tsr_dtype_C << " Got" << v->args_[2]->dtype_);
-            for (unsigned i = brgemm_args::C + 1; i < v->args_.size(); i++) {
+            for (unsigned i = brgemm_args::C + 1;
+                    i < brgemm_args::NUM_FULL_ARGS_STRIDE; i++) {
                 COMPILE_ASSERT_POS(
                         v->args_[i]->dtype_ == brgemm_args::arg_types[i],
                         "The " << i
                                << "-th argument of brgemm does not match. "
                                   "Expecting"
-                               << brgemm_args::arg_types[i] << " Got"
+                               << brgemm_args::arg_types[i] << " Got "
                                << v->args_[i]->dtype_);
             }
             break;
@@ -536,7 +537,7 @@ void validate_impl_t::view(intrin_call_c v) {
             COMPILE_ASSERT_POS(v->dtype_ == datatypes::void_t,
                     "list_brgemm should return void");
             COMPILE_ASSERT_POS(
-                    v->args_.size() == brgemm_args::NUM_FULL_ARGS_LIST,
+                    v->check_brgemm_arg_size(brgemm_args::NUM_FULL_ARGS_LIST),
                     "Wrong number of arguments for list_brgemm");
 
             auto &extras = v->intrin_attrs_->get<brgemm_args::extra_args_t>(
@@ -555,7 +556,7 @@ void validate_impl_t::view(intrin_call_c v) {
                         "list_BRGEMM currently only support fp32, got: " << v);
             }
 
-            for (unsigned i = 0; i < v->args_.size(); i++) {
+            for (unsigned i = 0; i < brgemm_args::NUM_FULL_ARGS_LIST; i++) {
                 COMPILE_ASSERT_POS(
                         v->args_[i]->dtype_ == brgemm_args::list_arg_types[i],
                         "The " << i

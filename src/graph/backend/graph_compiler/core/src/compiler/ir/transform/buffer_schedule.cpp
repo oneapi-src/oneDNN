@@ -681,11 +681,11 @@ public:
             // now tick_ is the tick when the last parameter is calculated. set
             // the tick for referenced tensors
             assert((v->type_ == intrin_type::brgemm
-                           && v->args_.size()
-                                   == brgemm_args::NUM_FULL_ARGS_STRIDE)
+                           && v->check_brgemm_arg_size(
+                                   brgemm_args::NUM_FULL_ARGS_STRIDE))
                     || (v->type_ == intrin_type::list_brgemm
-                            && v->args_.size()
-                                    == brgemm_args::NUM_FULL_ARGS_LIST));
+                            && v->check_brgemm_arg_size(
+                                    brgemm_args::NUM_FULL_ARGS_LIST)));
             for (int i = 0; i < brgemm_args::C + 1; i++) {
                 auto &p = v->args_[i];
                 tensor_c tsr = get_base_tensor_of(p);

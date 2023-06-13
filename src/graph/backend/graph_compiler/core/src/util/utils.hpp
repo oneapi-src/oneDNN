@@ -80,6 +80,13 @@ void bind_vector_to_args(const std::vector<T> &v, T2 &out1, Args &...args) {
     bind_vector_to_args<idx + 1>(v, args...);
 }
 
+template <typename T, typename T2>
+void bind_vector_to_args(const std::vector<T> &v, std::vector<T2> &out) {
+    for (size_t idx = 0; idx < v.size(); idx++) {
+        bind_assigner_t<T2, T>::assign(out[idx], v[idx]);
+    }
+}
+
 template <typename T>
 void args_to_vector(std::vector<T> &v) {}
 

@@ -1421,6 +1421,9 @@ public:
 
     expr remake() const override;
     bool equals(expr_c other, ir_comparer &ctx) const override;
+    // check if size of brgemm args is valid
+    // return `true` if intrinsic not brgemm
+    bool check_brgemm_arg_size(size_t expected_size) const;
 };
 SC_DEFINE_EXPR_NODE_PTR(intrin_call)
 
