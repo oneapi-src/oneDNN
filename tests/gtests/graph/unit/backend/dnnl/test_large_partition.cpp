@@ -99,7 +99,8 @@ TEST(Execute, Int8Resnet50Stage2Block) {
     for (auto &lt : outputs) {
         graph::logical_tensor_t compiled_output;
         cp.query_logical_tensor(lt->id, &compiled_output);
-        auto size = utils::product(ltw(compiled_output).vdims());
+        const std::vector<int64_t> dims = ltw(compiled_output).vdims();
+        auto size = utils::product(dims);
         outputs_data.emplace_back(test::vector<uint8_t>(size));
         outputs_ts.emplace_back(
                 compiled_output, eng, outputs_data.back().data());
@@ -175,7 +176,8 @@ TEST(Execute, Int8Resnet50Stage2BlockWithZeroZps) {
     for (auto &lt : outputs) {
         graph::logical_tensor_t compiled_output;
         cp.query_logical_tensor(lt->id, &compiled_output);
-        auto size = utils::product(ltw(compiled_output).vdims());
+        const std::vector<int64_t> dims = ltw(compiled_output).vdims();
+        auto size = utils::product(dims);
         outputs_data.emplace_back(test::vector<uint8_t>(size));
         outputs_ts.emplace_back(
                 compiled_output, eng, outputs_data.back().data());
@@ -313,7 +315,8 @@ TEST(Execute, F32Resnet50Stage2Block) {
     for (auto &lt : outputs) {
         graph::logical_tensor_t compiled_output;
         cp.query_logical_tensor(lt->id, &compiled_output);
-        auto size = utils::product(ltw(compiled_output).vdims());
+        const std::vector<int64_t> dims = ltw(compiled_output).vdims();
+        auto size = utils::product(dims);
         outputs_data.emplace_back(test::vector<float>(size));
         outputs_ts.emplace_back(
                 compiled_output, eng, outputs_data.back().data());
