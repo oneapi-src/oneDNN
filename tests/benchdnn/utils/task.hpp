@@ -46,8 +46,7 @@ struct task_t {
 
         v_prim_ = std::make_shared<
                 std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>>>();
-        const prb_t *prb = &prb_;
-        SAFE(create_func_(*v_prim_, prb, &res_), WARN);
+        SAFE(create_func_(*v_prim_, &prb_, &res_), WARN);
         return OK;
     }
 
@@ -58,15 +57,13 @@ struct task_t {
         if (!has_bench_mode_bit(mode_bit_t::corr)) return OK;
         if (res_.state != INITIALIZED) return OK;
 
-        const prb_t *prb = &prb_;
-        return check_cache_func_(*v_prim_, prb, &res_);
+        return check_cache_func_(*v_prim_, &prb_, &res_);
     }
 
     int exec() {
         BENCHDNN_PRINT(1, "run: %s\n", prb_.str());
         if (res_.state == INITIALIZED && bench_mode != bench_mode_t::init) {
-            const prb_t *prb = &prb_;
-            do_func_(*v_prim_, prb, &res_);
+            do_func_(*v_prim_, &prb_, &res_);
         }
 
         return report();
