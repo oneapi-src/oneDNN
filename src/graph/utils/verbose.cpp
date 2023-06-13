@@ -48,10 +48,9 @@ namespace utils {
 
 static dnnl::impl::setting_t<uint32_t> verbose {0};
 
-void print_header(int verbosity_flag_hint = verbose_t::none) {
+void print_header() {
     static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
-    if ((verbose.get() & verbosity_flag_hint)
-            && !version_printed.test_and_set()) {
+    if (!version_printed.test_and_set()) {
         printf("onednn_graph_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
                 dnnl_version()->major, dnnl_version()->minor,
                 dnnl_version()->patch, dnnl_version()->hash);
@@ -76,7 +75,7 @@ void print_header(int verbosity_flag_hint = verbose_t::none) {
 
 // verbosity flag is a hint on when to print header so that we print
 // header only when something will effectively be logged
-uint32_t get_verbose(int verbosity_flag_hint = verbose_t::none) {
+uint32_t get_graph_verbose(impl::verbose_t::flag_kind verbosity_kind) {
 #if defined(DISABLE_VERBOSE)
     return verbose_t::none;
 #else
@@ -118,27 +117,12 @@ uint32_t get_verbose(int verbosity_flag_hint = verbose_t::none) {
         verbose.set(val);
     }
 
-    print_header(verbosity_flag_hint);
+    int result = verbose.get() & verbosity_kind;
+    if (result) print_header();
 
-    return verbose.get();
+    return result;
 #endif
 }
-
-bool verbose_has_error() {
-    return get_verbose(impl::verbose_t::error) & impl::verbose_t::error;
-};
-bool verbose_has_create_check() {
-    return get_verbose(impl::verbose_t::create_check)
-            & impl::verbose_t::create_check;
-};
-bool verbose_has_create_profile() {
-    return get_verbose(impl::verbose_t::create_profile)
-            & impl::verbose_t::create_profile;
-};
-bool verbose_has_exec_profile() {
-    return get_verbose(impl::verbose_t::exec_profile)
-            & impl::verbose_t::exec_profile;
-};
 
 #if defined(DISABLE_VERBOSE)
 void partition_info_t::init(

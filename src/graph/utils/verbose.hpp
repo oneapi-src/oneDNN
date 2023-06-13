@@ -22,6 +22,8 @@
 #include <mutex>
 #include <string>
 
+#include "common/verbose.hpp"
+
 #include "graph/interface/c_types_map.hpp"
 
 namespace dnnl {
@@ -45,7 +47,7 @@ namespace utils {
 // Logging info
 #define VINFOGRAPH(logtype, logsubtype, component, msg, ...) \
     do { \
-        if (utils::verbose_has_##logtype##_##logsubtype()) \
+        if (utils::get_graph_verbose(impl::verbose_t::logtype##_##logsubtype)) \
             VFORMATGRAPH(get_msec(), logtype, VERBOSE_##logsubtype, \
                     #component "," msg ",%s:%d", ##__VA_ARGS__, __FILENAME__, \
                     __LINE__); \
@@ -72,7 +74,7 @@ namespace utils {
 // Special syntactic sugar for error, plus flush of the output stream
 #define VERRORGRAPH(component, msg, ...) \
     do { \
-        if (verbose_has_error()) { \
+        if (utils::get_graph_verbose(impl::verbose_t::error)) { \
             VFORMATGRAPH( \
                     get_msec(), error, "", #component "," msg, ##__VA_ARGS__); \
         } \
@@ -88,6 +90,9 @@ namespace utils {
         VFORMATGRAPH(stamp, logtype, logsubtype, "%s,%g", info, duration); \
         fflush(stdout); \
     }
+
+uint32_t get_graph_verbose(
+        impl::verbose_t::flag_kind kind = impl::verbose_t::none);
 
 struct partition_info_t {
     partition_info_t() = default;
@@ -115,11 +120,6 @@ private:
 
     std::once_flag initialization_flag_;
 };
-
-bool verbose_has_error();
-bool verbose_has_create_check();
-bool verbose_has_create_profile();
-bool verbose_has_exec_profile();
 
 } // namespace utils
 } // namespace graph

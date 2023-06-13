@@ -22,7 +22,9 @@
 namespace utils = dnnl::impl::graph::utils;
 
 TEST(Verbose, GetVerbose) {
-    ASSERT_NO_THROW(utils::verbose_has_error());
-    ASSERT_NO_THROW(utils::verbose_has_exec_profile());
-    ASSERT_NO_THROW(utils::verbose_has_create_profile());
+    ASSERT_NO_THROW(utils::get_graph_verbose(dnnl::impl::verbose_t::error));
+    ASSERT_NO_THROW(
+            utils::get_graph_verbose(dnnl::impl::verbose_t::exec_profile));
+    ASSERT_NO_THROW(
+            utils::get_graph_verbose(dnnl::impl::verbose_t::create_profile));
 }
