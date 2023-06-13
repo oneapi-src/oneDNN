@@ -56,7 +56,8 @@ struct cudnn_softmax_fwd_t : public primitive_t {
                     && set_default_formats() == status::success
                     && src_d.is_plain() && dst_d.is_plain() && dst_d == src_d
                     && IMPLICATION(!attr()->scales_.has_default_values(),
-                            check_scales_mask());
+                            check_scales_mask()
+                                    && dst_d.data_type() != data_type::s8);
             if (!ok) return status::unimplemented;
 
             softmax_impl_.reset(new cudnn_softmax_fwd_impl_t());
