@@ -66,8 +66,7 @@ public:
 
 #ifdef DNNL_DEV_MODE
         gpu_arch_t old_arch = gpu_arch;
-        gpu_arch = ir_utils::getenv_gpu(
-                "gpu_arch", gpu_arch, &eu_count_, &max_wg_size_);
+        gpu_arch = dev_getenv("gpu_arch", gpu_arch, &eu_count_, &max_wg_size_);
         if (old_arch != gpu_arch)
             large_grf_support_ = gpu_arch >= compute::gpu_arch_t::xe_hp;
 #endif

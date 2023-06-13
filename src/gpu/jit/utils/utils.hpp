@@ -30,6 +30,7 @@
 
 #include "common/utils.hpp"
 #include "gpu/compute/device_info.hpp"
+#include "gpu/getenv_utils.hpp"
 
 // Uncomment this when aborting on ir_assert is desired:
 // #define IR_ABORT_ON_ERROR
@@ -455,47 +456,6 @@ private:
 
     std::vector<std::string> cur_row_;
 };
-
-inline bool getenv_bool(const char *s, bool def) {
-    return getenv_int(s, def ? 1 : 0) == 1;
-}
-
-inline std::string getenv_str(const char *s, const std::string &def) {
-    char buf[1024];
-    int ret = getenv(s, buf, sizeof(buf));
-    if (ret > 0) return buf;
-    return def;
-}
-
-// Input is a comma separate list containing gpu_arch and optionally eu_count.
-inline compute::gpu_arch_t getenv_gpu(const char *s, compute::gpu_arch_t arch,
-        int *eu_count = nullptr, int *max_wg_size = nullptr) {
-    char buf[1024];
-    int ret = getenv(s, buf, sizeof(buf));
-    if (ret > 0) {
-        char *arch_str = buf, *eu_str = nullptr;
-        for (int i = 0; i < ret; i++) {
-            if (buf[i] == ',') {
-                buf[i] = 0;
-                if (i < ret - 1) { eu_str = &buf[i + 1]; }
-                break;
-            }
-        }
-        arch = compute::str2gpu_arch(arch_str);
-        if (eu_count && eu_str) { *eu_count = atoi(eu_str); }
-        if (max_wg_size) {
-            // Assume maximum wg size is basically the number of threads
-            // available in a subslice with simd_size 16
-            const int max_eus_per_wg
-                    = compute::device_info_t::max_eus_per_wg(arch);
-            const int simd_size = 16;
-            const int thr_per_eu = utils::rnd_down_pow2(
-                    compute::device_info_t::threads_per_eu(arch));
-            *max_wg_size = simd_size * max_eus_per_wg * thr_per_eu;
-        }
-    }
-    return arch;
-}
 
 inline std::string to_string(bool b) {
     return b ? "True" : "False";

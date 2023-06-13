@@ -995,16 +995,14 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_config_t &hw_cfg) {
 }
 
 void maybe_override_from_lookup_table(conv_config_t &cfg) {
-#ifdef DNNL_DEV_MODE
-    if (!ir_utils::getenv_bool("lookup", true)) return;
-#endif
+    if (!dev_getenv("lookup", true)) return;
     static conv_config_lookup_table_t table;
     auto *s_params = table.find(cfg);
     if (s_params) cfg.override_set(s_params, /*is_env=*/false);
 }
 
 void maybe_override_from_env(conv_config_t &cfg) {
-    auto cfg_env = ir_utils::getenv_str("cfg", "");
+    auto cfg_env = dev_getenv("cfg", std::string());
     if (cfg_env.empty()) return;
     cfg.override_set(cfg_env, /*is_env=*/true);
 }

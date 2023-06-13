@@ -187,11 +187,7 @@ private:
 
             // TODO: bf16 and f16 currently perform worse than tf32, this is
             // likely due to an extra reorder required on the b buffer.
-            bool use_matching_fpmath = false;
-#ifdef DNNL_DEV_MODE
-            use_matching_fpmath = ir_utils::getenv_bool(
-                    "use_matching_fpmath", use_matching_fpmath);
-#endif
+            bool use_matching_fpmath = dev_getenv("use_matching_fpmath", false);
             if (use_matching_fpmath
                     && attr->mayidownconvert(data_type::f32, data_type::bf16)
                     && fma_kind::get_supported_kind(hw_cfg, data_type::bf16,
