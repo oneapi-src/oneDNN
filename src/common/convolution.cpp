@@ -34,6 +34,10 @@ using namespace dnnl::impl::types;
     VCONDCHECK(create, check, convolution, (cond), status::invalid_arguments, \
             msg, ##__VA_ARGS__)
 
+#define VCHECK_CONV_UNIMPL(cond, msg, ...) \
+    VCONDCHECK(create, check, convolution, (cond), status::unimplemented, msg, \
+            ##__VA_ARGS__)
+
 namespace dnnl {
 namespace impl {
 status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
@@ -140,6 +144,76 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
     *conv_desc = cd;
     return success;
 }
+
+status_t conv_attr_check(const convolution_desc_t &desc, const engine_t *engine,
+        const primitive_attr_t *attr) {
+    using smask_t = primitive_attr_t::skip_mask_t;
+
+    if (attr == nullptr) return status::success;
+    if (attr->has_default_values()) return status::success;
+
+    // Check attributes
+    if (utils::one_of(desc.prop_kind, prop_kind::forward_inference,
+                prop_kind::forward_training)) {
+        const data_type_t src_dt = desc.src_desc.data_type;
+        const data_type_t dst_dt = desc.dst_desc.data_type;
+
+        auto fwd_attr_mask = smask_t::post_ops | smask_t::sum_dt;
+
+        const bool is_int8
+                = utils::one_of(src_dt, data_type::s8, data_type::u8);
+        if (is_int8)
+            fwd_attr_mask
+                    |= smask_t::scales_runtime | smask_t::zero_points_runtime;
+
+        VCHECK_CONV_UNIMPL(attr->has_default_values(fwd_attr_mask, dst_dt),
+                VERBOSE_UNSUPPORTED_ATTR);
+
+        // Check scales
+        if (!attr->scales_.has_default_values()) {
+            const auto &sc = attr->scales_;
+            const int mask_src = sc.get(DNNL_ARG_SRC).mask_;
+            const int mask_wei = sc.get(DNNL_ARG_WEIGHTS).mask_;
+            const int mask_dst = sc.get(DNNL_ARG_DST).mask_;
+            const bool with_groups
+                    = desc.src_desc.ndims != desc.weights_desc.ndims;
+            VCHECK_CONV_UNIMPL(utils::everyone_is(0, mask_src, mask_dst)
+                            && utils::one_of(mask_wei, 0, with_groups ? 3 : 1),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+        }
+
+        // Check zero points
+        if (!attr->zero_points_.has_default_values()) {
+            const auto &zp = attr->zero_points_;
+            int mask_src = 0, mask_dst = 0;
+            zp.get(DNNL_ARG_SRC, &mask_src);
+            zp.get(DNNL_ARG_DST, &mask_dst);
+
+            VCHECK_CONV_UNIMPL(zp.has_default_values(DNNL_ARG_WEIGHTS)
+                            && (mask_src == 0 || mask_src == 1 << 1)
+                            && (mask_dst == 0 || mask_dst == 1 << 1),
+                    VERBOSE_UNSUPPORTED_ZP_CFG);
+        }
+
+        // Check post-ops
+        if (!attr->post_ops_.has_default_values()) {
+            const auto &po = attr->post_ops_;
+            using namespace primitive_kind;
+            VCHECK_CONV_UNIMPL(po.has_default_values({binary, eltwise, prelu,
+                                       sum, convolution}),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+
+            // Check sum
+            VCHECK_CONV_UNIMPL(po.check_sum_consistency(dst_dt, is_int8, true),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+        }
+    } else {
+        VCHECK_CONV_UNIMPL(false, VERBOSE_UNSUPPORTED_ATTR);
+    }
+
+    return status::success;
+}
+
 } // namespace impl
 } // namespace dnnl
 
@@ -157,6 +231,7 @@ status_t dnnl_convolution_forward_primitive_desc_create(
     CHECK(dnnl::impl::conv_desc_init(&conv_desc, prop_kind, alg_kind, src_desc,
             weights_desc, bias_desc, dst_desc, strides, dilates, padding_l,
             padding_r));
+    CHECK(dnnl::impl::conv_attr_check(conv_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&conv_desc, nullptr, attr);
 }
@@ -173,6 +248,7 @@ status_t dnnl_convolution_backward_data_primitive_desc_create(
     CHECK(dnnl::impl::conv_desc_init(&conv_desc, backward_data, alg_kind,
             diff_src_desc, weights_desc, nullptr, diff_dst_desc, strides,
             dilates, padding_l, padding_r));
+    CHECK(dnnl::impl::conv_attr_check(conv_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&conv_desc, hint_fwd_pd, attr);
 }
@@ -190,6 +266,7 @@ status_t dnnl_convolution_backward_weights_primitive_desc_create(
     CHECK(dnnl::impl::conv_desc_init(&conv_desc, backward_weights, alg_kind,
             src_desc, diff_weights_desc, diff_bias_desc, diff_dst_desc, strides,
             dilates, padding_l, padding_r));
+    CHECK(dnnl::impl::conv_attr_check(conv_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&conv_desc, hint_fwd_pd, attr);
 }
