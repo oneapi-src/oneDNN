@@ -158,6 +158,13 @@ inline const T *any_cast(const any_t *v) {
 
 template <typename T>
 inline T any_cast(any_t &v) {
+
+#if defined(__GNUC__) && __GNUC__ >= 12
+// https://gcc.gnu.org/bugzilla/show_bug.cgi?id=104657
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#endif
+
     using nonref = typename std::remove_reference<T>::type;
     auto val = any_cast<nonref>(&v);
     if (val) {
@@ -167,6 +174,10 @@ inline T any_cast(any_t &v) {
     } else {
         throw bad_any_cast_t {};
     }
+
+#if defined(__GNUC__) && __GNUC__ >= 12
+#pragma GCC diagnostic pop
+#endif
 }
 
 template <typename T>
