@@ -126,9 +126,9 @@ ref_rnn_copy_init_layer(__global WS_STATE_DATA_T *dst_base,
         int lr, int rl, int batch, int dhc, int slc, int n_iter, int n_layer,
         int n_dir, int n_states, int states_ws_ld, int scratch_diff_states_ld,
 #if IS_FWD
-        int src_l_s0
+        int it_stride
 #else
-        int diff_dst_l_s0, int diff_dst_l_s1
+        int it_stride, int b_stride
 #endif
 ) {
 
@@ -141,7 +141,7 @@ ref_rnn_copy_init_layer(__global WS_STATE_DATA_T *dst_base,
 
     __global WS_STATE_DATA_T *dst;
     __global WS_STATE_DATA_T *src = (__global WS_STATE_DATA_T *)src_base
-            + src_l_off(src_l_s0, it) + b * slc + c;
+            + src_l_off(it_stride, it) + b * slc + c;
 
     if (lr) {
         dst = dst_base
@@ -167,7 +167,7 @@ ref_rnn_copy_init_layer(__global WS_STATE_DATA_T *dst_base,
 
 #if DIRECTION_KIND == CONCAT
     __global DIFF_DATA_T *src = (__global DIFF_DATA_T *)src_base
-            + diff_dst_l_off(diff_dst_l_s0, diff_dst_l_s1, it, b);
+            + diff_dst_l_off(it_stride, b_stride, it, b);
     dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
             scratch_diff_states_ld, n_layer, 0, n_states, it, b, s)]
             = src[s];
@@ -177,7 +177,7 @@ ref_rnn_copy_init_layer(__global WS_STATE_DATA_T *dst_base,
             = src[dhc + s];
 #elif DIRECTION_KIND == SUM
     __global DIFF_DATA_T *src = (__global DIFF_DATA_T *)src_base
-            + diff_dst_l_off(diff_dst_l_s0, diff_dst_l_s1, it, b);
+            + diff_dst_l_off(it_stride, b_stride, it, b);
     dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
             scratch_diff_states_ld, n_layer, 0, n_states, it, b, s)]
             = src[s];
@@ -187,13 +187,13 @@ ref_rnn_copy_init_layer(__global WS_STATE_DATA_T *dst_base,
             = src[s];
 #elif DIRECTION_KIND == L2R
     __global DIFF_DATA_T *src = (__global DIFF_DATA_T *)src_base
-            + diff_dst_l_off(diff_dst_l_s0, diff_dst_l_s1, it, b);
+            + diff_dst_l_off(it_stride, b_stride, it, b);
     dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
             scratch_diff_states_ld, n_layer, 0, n_states, it, b, s)]
             = src[s];
 #elif DIRECTION_KIND == R2L
     __global DIFF_DATA_T *src = (__global DIFF_DATA_T *)src_base
-            + diff_dst_l_off(diff_dst_l_s0, diff_dst_l_s1, n_iter - it - 1, b);
+            + diff_dst_l_off(it_stride, b_stride, n_iter - it - 1, b);
     dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
             scratch_diff_states_ld, n_layer, 0, n_states, it, b, s)]
             = src[s];
@@ -209,20 +209,18 @@ __kernel void ref_rnn_copy_init_iter(__global WS_STATE_DATA_T *dst_base,
         int batch, int dhc, int sic, int n_iter, int n_layer, int n_dir,
         int n_states, int states_ws_ld, int scratch_diff_states_ld,
 #if IS_FWD
-        int src_i_s0, int src_i_s1, int src_i_s2, int src_i_s3
+        int lay_stride, int dir_stride, int b_stride, int s_stride
 #if WITH_SRC_ITER_C
         ,
-        int src_i_c_s0, int src_i_c_s1, int src_i_c_s2, int src_i_c_s3
+        int lay_c_stride, int dir_c_stride, int b_c_stride, int s_c_stride
 #endif // WITH_SRC_ITER_C
         ,
         const float shift, const float scale, const int quantize
 #else // BWD
-        int diff_dst_i_s0, int diff_dst_i_s1, int diff_dst_i_s2,
-        int diff_dst_i_s3
+        int lay_stride, int dir_stride, int b_stride, int s_stride
 #if WITH_DST_ITER_C
         ,
-        int diff_dst_i_c_s0, int diff_dst_i_c_s1, int diff_dst_i_c_s2,
-        int diff_dst_i_c_s3
+        int lay_c_stride, int dir_c_stride, int b_c_stride, int s_c_stride
 #endif // WITH_DST_ITER_C
 #endif // IS_FWD
 ) {
@@ -238,7 +236,7 @@ __kernel void ref_rnn_copy_init_iter(__global WS_STATE_DATA_T *dst_base,
 
     if (s < sic) {
         int src_i_offset = src_i_off(
-                src_i_s0, src_i_s1, src_i_s2, src_i_s3, lay, dir, b, s);
+                lay_stride, dir_stride, b_stride, s_stride, lay, dir, b, s);
         dst[off_ws_state(n_layer, n_dir, n_iter, batch, states_ws_ld, lay + 1,
                 dir, 0, b, s)]
                 = src_base
@@ -252,8 +250,8 @@ __kernel void ref_rnn_copy_init_iter(__global WS_STATE_DATA_T *dst_base,
     if (s < dhc)
         dst_c[off_ws_state(n_layer, n_dir, n_iter, batch, states_ws_ld, lay + 1,
                 dir, 0, b, s)]
-                = src_c_base ? src_c[src_i_c_off(src_i_c_s0, src_i_c_s1,
-                          src_i_c_s2, src_i_c_s3, lay, dir, b, s)]
+                = src_c_base ? src_c[src_i_c_off(lay_c_stride, dir_c_stride,
+                          b_c_stride, s_c_stride, lay, dir, b, s)]
                              : TO_WS_STATE(0.0f);
 #endif
 
@@ -265,18 +263,17 @@ __kernel void ref_rnn_copy_init_iter(__global WS_STATE_DATA_T *dst_base,
     if (s < dhc)
         dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
                 scratch_diff_states_ld, lay, dir, 0, n_iter, b, s)]
-                = src_base ? src[diff_dst_i_off(diff_dst_i_s0, diff_dst_i_s1,
-                          diff_dst_i_s2, diff_dst_i_s3, lay, dir, b, s)]
+                = src_base ? src[diff_dst_i_off(lay_stride, dir_stride,
+                          b_stride, s_stride, lay, dir, b, s)]
                            : 0.0f;
 #if WITH_DST_ITER_C
     __global DIFF_DATA_T *src_c = (__global DIFF_DATA_T *)(src_c_base);
     if (s < dhc)
         dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
                 scratch_diff_states_ld, lay, dir, 1, n_iter, b, s)]
-                = src_c_base
-                ? src_c[diff_dst_i_c_off(diff_dst_i_c_s0, diff_dst_i_c_s1,
-                        diff_dst_i_c_s2, diff_dst_i_c_s3, lay, dir, b, s)]
-                : 0.0f;
+                = src_c_base ? src_c[diff_dst_i_c_off(lay_c_stride,
+                          dir_c_stride, b_c_stride, s_c_stride, lay, dir, b, s)]
+                             : 0.0f;
 #endif
 #endif
 }
@@ -287,10 +284,10 @@ ref_rnn_copy_res_layer(__global WS_STATE_DATA_T *src_base,
         int rl, int batch, int dhc, int slc, int n_iter, int n_layer, int n_dir,
         int n_states, int states_ws_ld, int scratch_diff_states_ld,
 #if IS_FWD
-        int dst_l_s0, int dst_l_s1, int dst_l_s2, const float shift,
+        int it_stride, int b_stride, int s_stride, const float shift,
         const float scale, const int dequantize
 #else
-        int diff_src_l_s0, int diff_src_l_s1, int diff_src_l_s2
+        int it_stride, int b_stride, int s_stride
 #endif
 ) {
 
@@ -305,7 +302,7 @@ ref_rnn_copy_res_layer(__global WS_STATE_DATA_T *src_base,
     int dir = 0;
     if (lr) {
         bool dequantize_at_copy = dequantize && DIRECTION_KIND != SUM;
-        dst[dst_l_off(dst_l_s0, dst_l_s1, dst_l_s2, it, b, dir * dhc + s)]
+        dst[dst_l_off(it_stride, b_stride, s_stride, it, b, dir * dhc + s)]
                 = dequantize_at_copy
                 ? TO_DST(((float)src[off_ws_state(n_layer, n_dir, n_iter, batch,
                                   states_ws_ld, n_layer, dir, it + 1, b, s)]
@@ -320,30 +317,30 @@ ref_rnn_copy_res_layer(__global WS_STATE_DATA_T *src_base,
         if (dequantize) {
             float val = (float)src[off_ws_state(n_layer, n_dir, n_iter, batch,
                                 states_ws_ld, n_layer, dir, n_iter - it, b, s)]
-                    + dst[dst_l_off(dst_l_s0, dst_l_s1, dst_l_s2, it, b, s)];
+                    + dst[dst_l_off(it_stride, b_stride, s_stride, it, b, s)];
             val = min(max(val, 0.f), 255.f);
-            dst[dst_l_off(dst_l_s0, dst_l_s1, dst_l_s2, it, b, s)]
+            dst[dst_l_off(it_stride, b_stride, s_stride, it, b, s)]
                     = TO_DST((val - 2 * shift) / scale);
         } else {
 #if defined(SRC_DT_U8) && defined(DST_DT_U8)
-            dst[dst_l_off(dst_l_s0, dst_l_s1, dst_l_s2, it, b, s)]
+            dst[dst_l_off(it_stride, b_stride, s_stride, it, b, s)]
                     = convert_uchar_sat(
                             convert_short(src[off_ws_state(n_layer, n_dir,
                                     n_iter, batch, states_ws_ld, n_layer, dir,
                                     n_iter - it, b, s)])
                             + convert_short(dst[dst_l_off(
-                                    dst_l_s0, dst_l_s1, dst_l_s2, it, b, s)]));
+                                    it_stride, b_stride, s_stride, it, b, s)]));
 #else
             ACC_DATA_T temp_src = DST_TO_REF(
-                    dst[dst_l_off(dst_l_s0, dst_l_s1, dst_l_s2, it, b, s)]);
+                    dst[dst_l_off(it_stride, b_stride, s_stride, it, b, s)]);
             temp_src += DST_TO_REF(src[off_ws_state(n_layer, n_dir, n_iter,
                     batch, states_ws_ld, n_layer, dir, n_iter - it, b, s)]);
-            dst[dst_l_off(dst_l_s0, dst_l_s1, dst_l_s2, it, b, s)]
+            dst[dst_l_off(it_stride, b_stride, s_stride, it, b, s)]
                     = REF_TO_DST(temp_src);
 #endif
         }
 #else
-        dst[dst_l_off(dst_l_s0, dst_l_s1, dst_l_s2, it, b, dir * dhc + s)]
+        dst[dst_l_off(it_stride, b_stride, s_stride, it, b, dir * dhc + s)]
                 = dequantize
                 ? TO_DST(
                         ((float)src[off_ws_state(n_layer, n_dir, n_iter, batch,
@@ -373,8 +370,7 @@ ref_rnn_copy_res_layer(__global WS_STATE_DATA_T *src_base,
                 batch, scratch_diff_states_ld, 0, 1, n_states, n_iter - 1 - it,
                 b, s)];
     }
-    dst[diff_src_l_off(diff_src_l_s0, diff_src_l_s1, diff_src_l_s2, iter, b,
-            dir * slc + s)]
+    dst[diff_src_l_off(it_stride, b_stride, s_stride, iter, b, dir * slc + s)]
             = res;
 #endif
 }
@@ -385,20 +381,18 @@ __kernel void ref_rnn_copy_res_iter(__global WS_STATE_DATA_T *src_base,
         int batch, int dhc, int sic, int n_iter, int n_layer, int n_dir,
         int n_states, int states_ws_ld, int scratch_diff_states_ld,
 #if IS_FWD
-        int dst_i_s0, int dst_i_s1, int dst_i_s2, int dst_i_s3
+        int lay_stride, int dir_stride, int b_stride, int s_stride
 #if WITH_DST_ITER_C
         ,
-        int dst_i_c_s0, int dst_i_c_s1, int dst_i_c_s2, int dst_i_c_s3
+        int lay_c_stride, int dir_c_stride, int b_c_stride, int s_c_stride
 #endif // WITH_DST_ITER_C
         ,
         const float shift, const float scale, const int dequantize
 #else // BWD
-        int diff_src_i_s0, int diff_src_i_s1, int diff_src_i_s2,
-        int diff_src_i_s3
+        int lay_stride, int dir_stride, int b_stride, int s_stride
 #if WITH_SRC_ITER_C
         ,
-        int diff_src_i_c_s0, int diff_src_i_c_s1, int diff_src_i_c_s2,
-        int diff_src_i_c_s3
+        int lay_c_stride, int dir_c_stride, int b_c_stride, int s_c_stride
 #endif // WITH_SRC_ITER_C
 #endif
 ) {
@@ -413,7 +407,8 @@ __kernel void ref_rnn_copy_res_iter(__global WS_STATE_DATA_T *src_base,
     __global OUTPUT_DATA_T *dst = (__global OUTPUT_DATA_T *)(dst_base);
 
     if (dst_base && s < dhc) {
-        dst[dst_i_off(dst_i_s0, dst_i_s1, dst_i_s2, dst_i_s3, lay, dir, b, s)]
+        dst[dst_i_off(
+                lay_stride, dir_stride, b_stride, s_stride, lay, dir, b, s)]
                 = dequantize
                 ? TO_OUTPUT(
                         ((float)src[off_ws_state(n_layer, n_dir, n_iter, batch,
@@ -427,8 +422,8 @@ __kernel void ref_rnn_copy_res_iter(__global WS_STATE_DATA_T *src_base,
     __global AUX_DATA_T *src_c = src_c_base;
     __global AUX_DATA_T *dst_c = (__global AUX_DATA_T *)(dst_c_base);
     if (dst_c_base && s < dhc) {
-        dst_c[dst_i_c_off(
-                dst_i_c_s0, dst_i_c_s1, dst_i_c_s2, dst_i_c_s3, lay, dir, b, s)]
+        dst_c[dst_i_c_off(lay_c_stride, dir_c_stride, b_c_stride, s_c_stride,
+                lay, dir, b, s)]
                 = src_c[off_ws_state(n_layer, n_dir, n_iter, batch,
                         states_ws_ld, lay + 1, dir, n_iter, b, s)];
     }
@@ -440,15 +435,15 @@ __kernel void ref_rnn_copy_res_iter(__global WS_STATE_DATA_T *src_base,
     __global DIFF_DATA_T *dst = (__global DIFF_DATA_T *)(dst_base);
     __global DIFF_DATA_T *dst_c = (__global DIFF_DATA_T *)(dst_c_base);
     if (dst_base && s < sic) {
-        dst[diff_src_i_off(diff_src_i_s0, diff_src_i_s1, diff_src_i_s2,
-                diff_src_i_s3, lay, dir, b, s)]
+        dst[diff_src_i_off(
+                lay_stride, dir_stride, b_stride, s_stride, lay, dir, b, s)]
                 = src[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter,
                         batch, scratch_diff_states_ld, lay, dir, 0, 0, b, s)];
     }
 #if WITH_SRC_ITER_C
     if (dst_base && s < dhc) {
-        dst_c[diff_src_i_c_off(diff_src_i_c_s0, diff_src_i_c_s1,
-                diff_src_i_c_s2, diff_src_i_c_s3, lay, dir, b, s)]
+        dst_c[diff_src_i_c_off(lay_c_stride, dir_c_stride, b_c_stride,
+                s_c_stride, lay, dir, b, s)]
                 = src[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter,
                         batch, scratch_diff_states_ld, lay, dir, 1, 0, b, s)];
     }
@@ -580,8 +575,8 @@ __kernel void ref_rnn_bias_prepare(__global float *ws_bias,
         __global float *scales, __global char *wei_layer,
         __global char *wei_iter, __global float *bias, int dhc, int n_layer,
         int n_dir, int n_bias, float data_shift, float data_scale, int wei_l_s0,
-        int wei_l_d0, int wei_i_s0, int wei_i_d0, int bias_s0, int bias_s1,
-        int bias_s2, int bias_s3) {
+        int wei_l_d0, int wei_i_s0, int wei_i_d0, int lay_stride,
+        int dir_stride, int nbias_stride, int dhc_stride) {
 #if COPY_BIAS
 
     const int dhc_ = get_global_id(0);
@@ -608,8 +603,8 @@ __kernel void ref_rnn_bias_prepare(__global float *ws_bias,
     const float comp = wei_layer_comp[off] + wei_iter_comp[off];
     ws_bias[off_ws_bias(
             n_layer, n_dir, n_bias, dhc, layer_, dir_, nbias_, dhc_)]
-            = bias[bias_off(bias_s0, bias_s1, bias_s2, bias_s3, layer_, dir_,
-                      nbias_, dhc_)]
+            = bias[bias_off(lay_stride, dir_stride, nbias_stride, dhc_stride,
+                      layer_, dir_, nbias_, dhc_)]
             - comp * data_shift / (wei_scale * data_scale);
 
 #endif
@@ -694,7 +689,7 @@ ref_rnn_elemwise_fwd(int dir, int lay, int iter, __global char *scr_gates,
         __global AUX_DATA_T *ws_gates, __global AUX_DATA_T *ws_grid,
         int states_ws_ld, int gates_ws_ld, int scratch_gates_ld, int batch,
         int dhc, int n_layer, int n_gates, int n_iter_scratch_gates,
-        int bias_s0, int bias_s1, int bias_s2, int bias_s3,
+        int bias_lay_stride, int bias_dir_stride, int bias_s2, int bias_s3,
 #if CELL_KIND == VANILLA_LSTM || CELL_KIND == VANILLA_RNN
         float tm_cscale
 #elif CELL_KIND == LBR_GRU
@@ -709,7 +704,8 @@ ref_rnn_elemwise_fwd(int dir, int lay, int iter, __global char *scr_gates,
     if (j >= dhc || i >= batch) return;
 
     const __global AUX_DATA_T *bias = bias_base
-            + bias_off(bias_s0, bias_s1, bias_s2, bias_s3, lay, dir, 0, 0);
+            + bias_off(bias_lay_stride, bias_dir_stride, bias_s2, bias_s3, lay,
+                    dir, 0, 0);
     __global AUX_DATA_T *scratch_gates = (__global AUX_DATA_T *)(scr_gates)
             + off_scratch_mem_iter(
                     n_iter_scratch_gates, batch, scratch_gates_ld, dhc, iter);
