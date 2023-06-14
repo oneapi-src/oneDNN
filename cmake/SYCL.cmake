@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2022 Intel Corporation
+# Copyright 2019-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ endif()
 if(WIN32 AND CMAKE_BASE_NAME STREQUAL "clang++")
     # TODO: we can drop this workaround once an open-source release
     # for Windows has a fix for the issue.
-    foreach(sycl_lib_version 6 "")
+    foreach(sycl_lib_version 7 6 "")
         if(UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
             set(SYCL_LIBRARY_NAME "sycl${sycl_lib_version}d")
         else()
