@@ -64,7 +64,10 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
     arg_list.append(pd()->rnn_conf.n_layer);
     arg_list.append(pd()->rnn_conf.n_gates);
     arg_list.append(pd()->rnn_conf.n_iter_scratch_gates);
-    if (aprop != dnnl_forward) {
+    if (aprop == dnnl_forward) {
+        rnn_utils::append_strides(
+                arg_list, pd()->off.bias_off, 4, pd()->conf.bias_ndims);
+    } else {
         arg_list.append(pd()->rnn_conf.n_dir);
         arg_list.append(pd()->rnn_conf.n_states);
         arg_list.append(pd()->rnn_conf.n_iter);
@@ -123,7 +126,10 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
     arg_list.append(pd()->rnn_conf.n_layer);
     arg_list.append(pd()->rnn_conf.n_gates);
     arg_list.append(pd()->rnn_conf.n_iter_scratch_gates);
-    if (aprop != dnnl_forward) {
+    if (aprop == dnnl_forward) {
+        rnn_utils::append_strides(
+                arg_list, pd()->off.bias_off, 4, pd()->conf.bias_ndims);
+    } else {
         arg_list.append(pd()->rnn_conf.n_dir);
         arg_list.append(pd()->rnn_conf.n_states);
         arg_list.append(pd()->rnn_conf.n_iter);
@@ -233,7 +239,10 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
     arg_list.append(pd()->rnn_conf.n_layer);
     arg_list.append(pd()->rnn_conf.n_gates);
     arg_list.append(pd()->rnn_conf.n_iter_scratch_gates);
-    if (aprop != dnnl_forward) {
+    if (aprop == dnnl_forward) {
+        rnn_utils::append_strides(
+                arg_list, pd()->off.bias_off, 4, pd()->conf.bias_ndims);
+    } else {
         arg_list.append(pd()->rnn_conf.n_dir);
         arg_list.append(pd()->rnn_conf.n_states);
         arg_list.append(pd()->rnn_conf.n_iter);
@@ -296,7 +305,10 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
     arg_list.append(pd()->rnn_conf.n_layer);
     arg_list.append(pd()->rnn_conf.n_gates);
     arg_list.append(pd()->rnn_conf.n_iter_scratch_gates);
-    if (aprop != dnnl_forward) {
+    if (aprop == dnnl_forward) {
+        rnn_utils::append_strides(
+                arg_list, pd()->off.bias_off, 4, pd()->conf.bias_ndims);
+    } else {
         arg_list.append(pd()->rnn_conf.n_dir);
         arg_list.append(pd()->rnn_conf.n_states);
         arg_list.append(pd()->rnn_conf.n_iter);

@@ -1140,6 +1140,17 @@ inline void def_offsets(const dim_t offs[4][MAX_NDIMS],
     }
 }
 
+inline void def_block_offsets(const dim_t offs[4][MAX_NDIMS],
+        compute::kernel_ctx_t &kernel_ctx, const char *str, const int ndims) {
+
+    for (int d = 0; d < MAX_NDIMS; d++) {
+        kernel_ctx.define_int(
+                utils::format("%s_B%d", str, d), (d < ndims) ? offs[0][d] : 1);
+        kernel_ctx.define_int(
+                utils::format("%s_SB%d", str, d), (d < ndims) ? offs[2][d] : 0);
+    }
+}
+
 inline void def_data_type(
         compute::kernel_ctx_t &kernel_ctx, data_type_t dt, const char *str) {
     switch (dt) {

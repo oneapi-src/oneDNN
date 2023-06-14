@@ -242,43 +242,47 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
 
     kernel_ctx.define_int("SUBGROUP_SIZE", subgroup_size);
 
-    def_offsets(off.src_layer_off, kernel_ctx, "SRC_L", conf.src_layer_ndims);
-    def_offsets(off.src_iter_off, kernel_ctx, "SRC_I", conf.src_iter_ndims);
+    def_block_offsets(
+            off.src_layer_off, kernel_ctx, "SRC_L", conf.src_layer_ndims);
+    def_block_offsets(
+            off.src_iter_off, kernel_ctx, "SRC_I", conf.src_iter_ndims);
     if (conf.with_src_iter_c)
-        def_offsets(off.src_iter_c_off, kernel_ctx, "SRC_I_C",
+        def_block_offsets(off.src_iter_c_off, kernel_ctx, "SRC_I_C",
                 conf.src_iter_c_ndims);
-    def_offsets(off.weights_layer_off, kernel_ctx, "WEI_L",
+    def_block_offsets(off.weights_layer_off, kernel_ctx, "WEI_L",
             conf.weights_layer_ndims);
-    def_offsets(
+    def_block_offsets(
             off.weights_iter_off, kernel_ctx, "WEI_I", conf.weights_iter_ndims);
-    def_offsets(off.dst_layer_off, kernel_ctx, "DST_L", conf.dst_layer_ndims);
-    def_offsets(off.dst_iter_off, kernel_ctx, "DST_I", conf.dst_iter_ndims);
+    def_block_offsets(
+            off.dst_layer_off, kernel_ctx, "DST_L", conf.dst_layer_ndims);
+    def_block_offsets(
+            off.dst_iter_off, kernel_ctx, "DST_I", conf.dst_iter_ndims);
     if (conf.with_dst_iter_c)
-        def_offsets(off.dst_iter_c_off, kernel_ctx, "DST_I_C",
+        def_block_offsets(off.dst_iter_c_off, kernel_ctx, "DST_I_C",
                 conf.dst_iter_c_ndims);
-    def_offsets(off.bias_off, kernel_ctx, "BIAS", conf.bias_ndims);
+    def_block_offsets(off.bias_off, kernel_ctx, "BIAS", conf.bias_ndims);
     kernel_ctx.define_int("N_BIAS", conf.n_bias);
 
     if (!conf.is_fwd) {
-        def_offsets(off.diff_src_layer_off, kernel_ctx, "DIFF_SRC_L",
+        def_block_offsets(off.diff_src_layer_off, kernel_ctx, "DIFF_SRC_L",
                 conf.diff_src_layer_ndims);
-        def_offsets(off.diff_src_iter_off, kernel_ctx, "DIFF_SRC_I",
+        def_block_offsets(off.diff_src_iter_off, kernel_ctx, "DIFF_SRC_I",
                 conf.diff_src_iter_ndims);
         if (conf.with_src_iter_c)
-            def_offsets(off.diff_src_iter_c_off, kernel_ctx, "DIFF_SRC_I_C",
-                    conf.diff_src_iter_c_ndims);
-        def_offsets(off.diff_weights_layer_off, kernel_ctx, "DIFF_WEI_L",
+            def_block_offsets(off.diff_src_iter_c_off, kernel_ctx,
+                    "DIFF_SRC_I_C", conf.diff_src_iter_c_ndims);
+        def_block_offsets(off.diff_weights_layer_off, kernel_ctx, "DIFF_WEI_L",
                 conf.diff_weights_layer_ndims);
-        def_offsets(off.diff_weights_iter_off, kernel_ctx, "DIFF_WEI_I",
+        def_block_offsets(off.diff_weights_iter_off, kernel_ctx, "DIFF_WEI_I",
                 conf.diff_weights_iter_ndims);
-        def_offsets(off.diff_dst_layer_off, kernel_ctx, "DIFF_DST_L",
+        def_block_offsets(off.diff_dst_layer_off, kernel_ctx, "DIFF_DST_L",
                 conf.diff_dst_layer_ndims);
-        def_offsets(off.diff_dst_iter_off, kernel_ctx, "DIFF_DST_I",
+        def_block_offsets(off.diff_dst_iter_off, kernel_ctx, "DIFF_DST_I",
                 conf.diff_dst_iter_ndims);
         if (conf.with_dst_iter_c)
-            def_offsets(off.diff_dst_iter_c_off, kernel_ctx, "DIFF_DST_I_C",
-                    conf.diff_dst_iter_c_ndims);
-        def_offsets(off.diff_bias_off, kernel_ctx, "DIFF_BIAS",
+            def_block_offsets(off.diff_dst_iter_c_off, kernel_ctx,
+                    "DIFF_DST_I_C", conf.diff_dst_iter_c_ndims);
+        def_block_offsets(off.diff_bias_off, kernel_ctx, "DIFF_BIAS",
                 conf.diff_bias_ndims);
     }
 
@@ -1168,6 +1172,17 @@ status_t _ref_rnn_common_t<aprop>::bias_prepare(const exec_ctx_t &ctx,
     arg_list.append(data_shift);
     arg_list.append(data_scale);
 
+    int wei_l_s0 = pd()->off.weights_layer_off[1][0];
+    int wei_l_d0 = pd()->off.weights_layer_off[3][0];
+    int wei_i_s0 = pd()->off.weights_iter_off[1][0];
+    int wei_i_d0 = pd()->off.weights_iter_off[3][0];
+    arg_list.append(wei_l_s0);
+    arg_list.append(wei_l_d0);
+    arg_list.append(wei_i_s0);
+    arg_list.append(wei_i_d0);
+    rnn_utils::append_strides(
+            arg_list, pd()->off.bias_off, 4, pd()->conf.bias_ndims);
+
     return parallel_for(ctx,
             compute::nd_range_t({dhc, n_bias, n_layer * n_dir}),
             bias_prepare_kernel_, arg_list);
@@ -1200,6 +1215,8 @@ status_t _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         arg_list.append(n_states);
         arg_list.append(states_ws_ld);
         arg_list.append(scratch_diff_states_ld);
+        rnn_utils::append_strides(arg_list, pd()->off.src_layer_off, 1,
+                pd()->conf.src_layer_ndims);
 
         return parallel_for(ctx,
                 compute::nd_range_t(get_nd_range({slc, batch, n_iter})),
@@ -1221,6 +1238,8 @@ status_t _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         arg_list.append(n_states);
         arg_list.append(states_ws_ld);
         arg_list.append(scratch_diff_states_ld);
+        rnn_utils::append_strides(arg_list, pd()->off.diff_dst_layer_off, 2,
+                pd()->conf.diff_dst_layer_ndims);
 
         return parallel_for(ctx,
                 compute::nd_range_t(get_nd_range({dhc, batch, n_iter})),
@@ -1259,6 +1278,12 @@ status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         arg_list.append(states_ws_ld);
         arg_list.append(scratch_diff_states_ld);
 
+        rnn_utils::append_strides(
+                arg_list, pd()->off.src_iter_off, 4, pd()->conf.src_iter_ndims);
+        if (pd()->conf.with_src_iter_c)
+            rnn_utils::append_strides(arg_list, pd()->off.src_iter_c_off, 4,
+                    pd()->conf.src_iter_c_ndims);
+
         arg_list.append(shift);
         arg_list.append(scale);
         arg_list.append((int)quantize);
@@ -1282,6 +1307,12 @@ status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         arg_list.append(n_states);
         arg_list.append(states_ws_ld);
         arg_list.append(scratch_diff_states_ld);
+
+        rnn_utils::append_strides(arg_list, pd()->off.diff_dst_iter_off, 4,
+                pd()->conf.diff_dst_iter_ndims);
+        if (pd()->conf.with_dst_iter_c)
+            rnn_utils::append_strides(arg_list, pd()->off.diff_dst_iter_c_off,
+                    4, pd()->conf.diff_dst_iter_c_ndims);
 
         return parallel_for(ctx,
                 compute::nd_range_t({dhc, batch, n_layer * n_dir}),
@@ -1318,6 +1349,9 @@ status_t _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         arg_list.append(states_ws_ld);
         arg_list.append(scratch_diff_states_ld);
 
+        rnn_utils::append_strides(arg_list, pd()->off.dst_layer_off, 3,
+                pd()->conf.dst_layer_ndims);
+
         arg_list.append(shift);
         arg_list.append(scale);
         arg_list.append((int)dequantize);
@@ -1340,6 +1374,8 @@ status_t _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         arg_list.append(n_states);
         arg_list.append(states_ws_ld);
         arg_list.append(scratch_diff_states_ld);
+        rnn_utils::append_strides(arg_list, pd()->off.diff_src_layer_off, 3,
+                pd()->conf.diff_src_layer_ndims);
 
         return parallel_for(ctx, get_nd_range({slc, batch, n_iter}),
                 copy_res_layer_kernel_, arg_list);
@@ -1375,6 +1411,12 @@ status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         arg_list.append(states_ws_ld);
         arg_list.append(scratch_diff_states_ld);
 
+        rnn_utils::append_strides(
+                arg_list, pd()->off.dst_iter_off, 4, pd()->conf.dst_iter_ndims);
+        if (pd()->conf.with_dst_iter_c)
+            rnn_utils::append_strides(arg_list, pd()->off.dst_iter_c_off, 4,
+                    pd()->conf.dst_iter_c_ndims);
+
         arg_list.append(shift);
         arg_list.append(scale);
         arg_list.append((int)dequantize);
@@ -1399,6 +1441,12 @@ status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         arg_list.append(n_states);
         arg_list.append(states_ws_ld);
         arg_list.append(scratch_diff_states_ld);
+
+        rnn_utils::append_strides(arg_list, pd()->off.diff_src_iter_off, 4,
+                pd()->conf.diff_src_iter_ndims);
+        if (pd()->conf.with_src_iter_c)
+            rnn_utils::append_strides(arg_list, pd()->off.diff_src_iter_c_off,
+                    4, pd()->conf.diff_src_iter_c_ndims);
 
         return parallel_for(ctx,
                 compute::nd_range_t({max_d, batch, n_layer * n_dir}),

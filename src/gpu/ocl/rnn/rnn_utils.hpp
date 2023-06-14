@@ -21,6 +21,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
+#include "gpu/primitive_conf.hpp"
 
 #define OFF6(i0, d0, i1, d1, i2, d2, i3, d3, i4, d4, i5, d5) \
     ((((((static_cast<size_t>(i0)) * (d1) + (i1)) * (d2) + (i2)) * (d3) \
@@ -246,6 +247,12 @@ status_t set_expected_desc(
         conf_t &rnn, memory_desc_t &weights_md, bool is_iter);
 status_t set_good_strides(int ld_, memory_desc_t &weights_md, format_tag_t tag);
 memory_storage_t &get_storage(const std::unique_ptr<memory_storage_t> &storage);
+inline void append_strides(compute::kernel_arg_list_t &arg_list,
+        const dim_t offs[4][MAX_NDIMS], int ocl_nparams, int ndims) {
+    for (int d = 0; d < ocl_nparams; d++) {
+        arg_list.append((d < ndims) ? (cl_int)offs[1][d] : 0);
+    }
+}
 } // namespace rnn_utils
 
 } // namespace ocl
