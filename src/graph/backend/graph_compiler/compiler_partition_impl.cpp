@@ -39,13 +39,7 @@ namespace impl {
 namespace graph {
 namespace compiler_impl {
 
-static std::unordered_map<
-        std::shared_ptr<graph::compiler_impl::compiler_graph_engine_t>, int>
-        partition_count_map;
-static std::unordered_map<const graph::engine_t *,
-        std::shared_ptr<graph::compiler_impl::compiler_graph_engine_t>>
-        engine_map;
-static std::mutex global_mutex;
+static const auto engine_ref_data_ptr = std::make_shared<engine_ref_data>();
 
 graph::status_t compiler_partition_impl_t::infer_shape(
         std::vector<const graph::logical_tensor_t *> &inputs,
@@ -148,7 +142,8 @@ graph::status_t compiler_partition_impl_t::compile(
         std::vector<gc::sc_op_ptr> sc_inputs;
         compiler_graph_impl_t sub_graph;
         size_t id = 0;
-        std::vector<size_t> out_lt_ids(outputs.size());
+        std::vector<size_t> out_lt_ids;
+        out_lt_ids.reserve(outputs.size());
         sc_inputs.reserve(inputs.size());
         bool is_dynamic = false;
         for (auto &in_lt : inputs) {
@@ -257,15 +252,15 @@ graph::status_t compiler_partition_impl_t::compile(
         ctx = gc::get_default_context();
         std::shared_ptr<compiler_graph_engine_t> graph_engine;
         {
-            std::lock_guard<std::mutex> lock(global_mutex);
-            auto iter = engine_map.find(aengine);
-            if (iter != engine_map.end()) {
+            std::lock_guard<std::mutex> lock(engine_ref_data_ptr->global_mutex);
+            auto iter = engine_ref_data_ptr->engine_map.find(aengine);
+            if (iter != engine_ref_data_ptr->engine_map.end()) {
                 graph_engine = iter->second;
             } else {
                 graph_engine = std::make_shared<compiler_graph_engine_t>(
                         &graph_engine_vtable,
                         static_cast<allocator_t *>(aengine->get_allocator()));
-                engine_map[aengine] = graph_engine;
+                engine_ref_data_ptr->engine_map[aengine] = graph_engine;
             }
         }
         // check engine
@@ -306,7 +301,8 @@ graph::status_t compiler_partition_impl_t::compile(
                 = gc::jit_engine_t::make(ctx)->get_entry_func(ir_mod, true);
         auto pimpl = std::make_shared<compiler_compiled_partition_impl_t>(
                 *aengine, inputs, outputs, fptr, graph_engine,
-                std::move(dyn_inputs), std::move(dyn_outputs));
+                std::move(dyn_inputs), std::move(dyn_outputs),
+                engine_ref_data_ptr);
         compiled_partition->init(pimpl);
         return res;
     } catch (...) { return graph::status::unimplemented; }
@@ -336,27 +332,30 @@ compiler_compiled_partition_impl_t::compiler_compiled_partition_impl_t(
         const std::shared_ptr<graph::compiler_impl::compiler_graph_engine_t>
                 &graph_engine,
         std::vector<gc::runtime::dynamic_tensor_t> &&dyn_inputs,
-        std::vector<gc::runtime::dynamic_tensor_t> &&dyn_outputs)
+        std::vector<gc::runtime::dynamic_tensor_t> &&dyn_outputs,
+        const std::shared_ptr<engine_ref_data> &engine_ref_data_ptr)
     : graph::compiled_partition_impl_t(engine, inputs, outputs, {})
     , jit_func_(jit_func)
     , graph_engine_(graph_engine)
     , dyn_inputs_(std::move(dyn_inputs))
-    , dyn_outputs_(std::move(dyn_outputs)) {
-    std::lock_guard<std::mutex> lock(global_mutex);
-    partition_count_map[graph_engine_]++;
+    , dyn_outputs_(std::move(dyn_outputs))
+    , engine_ref_data_ptr_(engine_ref_data_ptr) {
+    std::lock_guard<std::mutex> lock(engine_ref_data_ptr_->global_mutex);
+    engine_ref_data_ptr_->partition_count_map[graph_engine_]++;
     graph_engine_->allocator_->retain();
 }
 
 compiler_compiled_partition_impl_t::~compiler_compiled_partition_impl_t() {
-    std::lock_guard<std::mutex> lock(global_mutex);
-    auto itr = partition_count_map.find(graph_engine_);
-    if (itr != partition_count_map.end()) {
+    std::lock_guard<std::mutex> lock(engine_ref_data_ptr_->global_mutex);
+    auto itr = engine_ref_data_ptr_->partition_count_map.find(graph_engine_);
+    if (itr != engine_ref_data_ptr_->partition_count_map.end()) {
         itr->second--;
         if (itr->second == 0) {
             gc::release_runtime_memory(graph_engine_.get());
-            for (auto iter = engine_map.begin(); iter != engine_map.end();) {
+            for (auto iter = engine_ref_data_ptr_->engine_map.begin();
+                    iter != engine_ref_data_ptr_->engine_map.end();) {
                 if (iter->second == graph_engine_) {
-                    iter = engine_map.erase(iter);
+                    iter = engine_ref_data_ptr_->engine_map.erase(iter);
                 } else {
                     ++iter;
                 }
