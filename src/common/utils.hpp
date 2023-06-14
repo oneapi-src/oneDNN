@@ -647,6 +647,15 @@ inline void msan_unpoison(void *ptr, size_t size) {
 #endif
 }
 
+// Helper to avoid #ifdefs for DNNL_DEV_MODE related code
+static constexpr bool is_dev_mode() {
+#ifdef DNNL_DEV_MODE
+    return true;
+#else
+    return false;
+#endif
+}
+
 // std::optional? std::maybe? std::whatever
 template <typename T>
 struct setting_t {

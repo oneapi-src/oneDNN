@@ -147,6 +147,12 @@ struct verbose_t {
 
 uint32_t get_verbose(verbose_t::flag_kind kind = verbose_t::none);
 
+// Helper to avoid #ifdefs for DNNL_DEV_MODE related logging
+static inline uint32_t get_verbose_dev_mode(
+        verbose_t::flag_kind kind = verbose_t::none) {
+    return is_dev_mode() ? get_verbose(kind) : 0;
+}
+
 bool get_verbose_timestamp();
 
 /// A container for primitive desc verbose string.
