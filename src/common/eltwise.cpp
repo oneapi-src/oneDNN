@@ -35,6 +35,10 @@ using namespace dnnl::impl::types;
     VCONDCHECK(create, check, eltwise, (cond), status::invalid_arguments, msg, \
             ##__VA_ARGS__);
 
+#define VCHECK_ELTWISE_IMPL(cond, msg, ...) \
+    VCONDCHECK(create, check, eltwise, (cond), status::unimplemented, msg, \
+            ##__VA_ARGS__);
+
 namespace {
 status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
         alg_kind_t alg_kind, const memory_desc_t *src_desc,
@@ -107,6 +111,37 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
 }
 } // namespace
 
+status_t eltwise_attr_check(const eltwise_desc_t &desc, const engine_t *engine,
+        const primitive_attr_t *attr) {
+    using smask_t = primitive_attr_t::skip_mask_t;
+
+    if (attr == nullptr) return status::success;
+    if (attr->has_default_values()) return status::success;
+
+    // Check attributes
+    if (utils::one_of(desc.prop_kind, prop_kind::forward_inference,
+                prop_kind::forward_training)) {
+        const data_type_t dst_dt = desc.dst_desc.data_type;
+
+        auto fwd_attr_mask = smask_t::post_ops;
+
+        VCHECK_ELTWISE_IMPL(attr->has_default_values(fwd_attr_mask, dst_dt),
+                VERBOSE_UNSUPPORTED_ATTR);
+
+        // Check post-ops
+        if (!attr->post_ops_.has_default_values()) {
+            const auto &po = attr->post_ops_;
+            using namespace primitive_kind;
+            VCHECK_ELTWISE_IMPL(po.has_default_values({binary}),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+        }
+    } else {
+        VCHECK_ELTWISE_IMPL(false, VERBOSE_UNSUPPORTED_ATTR);
+    }
+
+    return status::success;
+}
+
 status_t dnnl_eltwise_forward_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
@@ -118,6 +153,7 @@ status_t dnnl_eltwise_forward_primitive_desc_create(
     auto eltwise_desc = eltwise_desc_t();
     CHECK(eltwise_desc_init(&eltwise_desc, prop_kind, alg_kind, src_desc,
             dst_desc, nullptr, nullptr, alpha, beta));
+    CHECK(eltwise_attr_check(eltwise_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&eltwise_desc, nullptr, attr);
 }
@@ -132,6 +168,7 @@ status_t dnnl_eltwise_backward_primitive_desc_create(
     auto eltwise_desc = eltwise_desc_t();
     CHECK(eltwise_desc_init(&eltwise_desc, backward_data, alg_kind, data_desc,
             data_desc, diff_src_desc, diff_dst_desc, alpha, beta));
+    CHECK(eltwise_attr_check(eltwise_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&eltwise_desc, hint_fwd_pd, attr);
 }
