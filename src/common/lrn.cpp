@@ -34,6 +34,10 @@ using namespace dnnl::impl::types;
     VCONDCHECK(create, check, lrn, (cond), status::invalid_arguments, msg, \
             ##__VA_ARGS__)
 
+#define VCHECK_LRN_UNIMPL(cond, msg, ...) \
+    VCONDCHECK(create, check, lrn, (cond), status::unimplemented, msg, \
+            ##__VA_ARGS__)
+
 namespace {
 status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
         alg_kind_t alg_kind, const memory_desc_t *src_desc,
@@ -108,6 +112,18 @@ status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
     *lrn_desc = ld;
     return success;
 }
+
+status_t lrn_attr_check(const lrn_desc_t &desc, const engine_t *engine,
+        const primitive_attr_t *attr) {
+
+    if (attr == nullptr) return status::success;
+
+    // Check attributes
+    VCHECK_LRN_UNIMPL(attr->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+
+    return status::success;
+}
+
 } // namespace
 
 status_t dnnl_lrn_forward_primitive_desc_create(
@@ -122,6 +138,7 @@ status_t dnnl_lrn_forward_primitive_desc_create(
     auto lrn_desc = lrn_desc_t();
     CHECK(lrn_desc_init(&lrn_desc, prop_kind, alg_kind, src_desc, dst_desc,
             nullptr, nullptr, local_size, alpha, beta, k));
+    CHECK(lrn_attr_check(lrn_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&lrn_desc, nullptr, attr);
 }
@@ -137,6 +154,7 @@ status_t dnnl_lrn_backward_primitive_desc_create(
     auto lrn_desc = lrn_desc_t();
     CHECK(lrn_desc_init(&lrn_desc, backward_data, alg_kind, src_desc, nullptr,
             diff_src_desc, diff_dst_desc, local_size, alpha, beta, k));
+    CHECK(lrn_attr_check(lrn_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&lrn_desc, hint_fwd_pd, attr);
 }
