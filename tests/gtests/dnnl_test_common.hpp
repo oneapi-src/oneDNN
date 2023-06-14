@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -848,6 +848,7 @@ struct allows_attr_t {
     bool po_sum;
     bool po_eltwise;
     bool po_binary;
+    bool po_prelu;
     bool zp;
     bool scales;
 };
@@ -902,6 +903,19 @@ void test_fwd_pd_attr_po_binary(const engine &eng, bool supports_po_binary,
 }
 
 template <typename pd_t, typename... prim_params_t>
+void test_fwd_pd_attr_po_prelu(const engine &eng, bool supports_po_prelu,
+        const prim_params_t &...prim_params) {
+    dnnl::post_ops ops_prelu;
+    ops_prelu.append_prelu(0);
+    dnnl::primitive_attr attr_po_prelu;
+    attr_po_prelu.set_post_ops(ops_prelu);
+    if (supports_po_prelu)
+        EXPECT_NO_THROW(pd_t pd(eng, prim_params..., attr_po_prelu));
+    else
+        EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., attr_po_prelu));
+}
+
+template <typename pd_t, typename... prim_params_t>
 void test_fwd_pd_attr_zp(const engine &eng, bool supports_zero_point,
         const prim_params_t &...prim_params) {
     dnnl::primitive_attr attr_zp;
@@ -952,6 +966,7 @@ void test_fwd_pd_constructors(const pd_t &pd, const allows_attr_t &aa,
     test_fwd_pd_attr_po_sum<pd_t>(eng, aa.po_sum, prim_params...);
     test_fwd_pd_attr_po_eltwise<pd_t>(eng, aa.po_eltwise, prim_params...);
     test_fwd_pd_attr_po_binary<pd_t>(eng, aa.po_binary, prim_params...);
+    test_fwd_pd_attr_po_prelu<pd_t>(eng, aa.po_prelu, prim_params...);
     test_fwd_pd_attr_zp<pd_t>(eng, aa.zp, prim_params...);
     test_fwd_pd_attr_scales<pd_t>(eng, aa.scales, prim_params...);
     // check allow empty, should not throw
