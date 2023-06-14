@@ -33,6 +33,10 @@ using namespace dnnl::impl::types;
     VCONDCHECK(create, check, lnorm, (cond), status::invalid_arguments, msg, \
             ##__VA_ARGS__);
 
+#define VCHECK_LNORM_UNIMPL(cond, msg, ...) \
+    VCONDCHECK(create, check, lnorm, (cond), status::unimplemented, msg, \
+            ##__VA_ARGS__);
+
 namespace {
 status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
         prop_kind_t prop_kind, const memory_desc_t *src_desc,
@@ -134,6 +138,45 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
     *lnorm_desc = ld;
     return success;
 }
+
+status_t layer_normalization_attr_check(const layer_normalization_desc_t &desc,
+        const engine_t *engine, const primitive_attr_t *attr) {
+    using smask_t = primitive_attr_t::skip_mask_t;
+
+    if (attr == nullptr) return status::success;
+    if (attr->has_default_values()) return status::success;
+
+    // Check attributes
+    if (utils::one_of(desc.prop_kind, prop_kind::forward_inference,
+                prop_kind::forward_training)) {
+        const data_type_t src_dt = desc.src_desc.data_type;
+        const data_type_t dst_dt = desc.dst_desc.data_type;
+
+        auto fwd_attr_mask = smask_t::none;
+
+        const bool is_int8 = utils::one_of(src_dt, data_type::s8, data_type::u8)
+                || utils::one_of(dst_dt, data_type::s8, data_type::u8);
+        if (is_int8) fwd_attr_mask |= smask_t::scales_runtime;
+
+        VCHECK_LNORM_UNIMPL(attr->has_default_values(fwd_attr_mask, dst_dt),
+                VERBOSE_UNSUPPORTED_ATTR);
+
+        // Check scales
+        if (!attr->scales_.has_default_values()) {
+            const auto &sc = attr->scales_;
+            const int mask_src = sc.get(DNNL_ARG_SRC).mask_;
+            const int mask_dst = sc.get(DNNL_ARG_DST).mask_;
+
+            VCHECK_LNORM_UNIMPL(utils::everyone_is(0, mask_src, mask_dst),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+        }
+    } else {
+        VCHECK_LNORM_UNIMPL(false, VERBOSE_UNSUPPORTED_ATTR);
+    }
+
+    return status::success;
+}
+
 } // namespace
 
 status_t dnnl_layer_normalization_forward_primitive_desc_create(
@@ -147,6 +190,7 @@ status_t dnnl_layer_normalization_forward_primitive_desc_create(
     auto lnorm_desc = layer_normalization_desc_t();
     CHECK(lnorm_desc_init(&lnorm_desc, prop_kind, src_desc, dst_desc, stat_desc,
             nullptr, nullptr, epsilon, flags));
+    CHECK(layer_normalization_attr_check(lnorm_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&lnorm_desc, nullptr, attr);
 }
@@ -163,6 +207,7 @@ status_t dnnl_layer_normalization_backward_primitive_desc_create(
     auto lnorm_desc = layer_normalization_desc_t();
     CHECK(lnorm_desc_init(&lnorm_desc, prop_kind, src_desc, nullptr, stat_desc,
             diff_src_desc, diff_dst_desc, epsilon, flags));
+    CHECK(layer_normalization_attr_check(lnorm_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&lnorm_desc, hint_fwd_pd, attr);
 }
