@@ -34,6 +34,10 @@ using namespace dnnl::impl::types;
     VCONDCHECK(create, check, pooling, (cond), status::invalid_arguments, msg, \
             ##__VA_ARGS__);
 
+#define VCHECK_POOLING_IMPL(cond, msg, ...) \
+    VCONDCHECK(create, check, pooling, (cond), status::unimplemented, msg, \
+            ##__VA_ARGS__);
+
 namespace {
 status_t pooling_desc_init(pooling_desc_t *pool_desc, prop_kind_t prop_kind,
         alg_kind_t alg_kind, const memory_desc_t *src_desc,
@@ -125,6 +129,38 @@ status_t pooling_desc_init(pooling_desc_t *pool_desc, prop_kind_t prop_kind,
     *pool_desc = pd;
     return success;
 }
+
+status_t pooling_attr_check(const pooling_desc_t &desc, const engine_t *engine,
+        const primitive_attr_t *attr) {
+    using smask_t = primitive_attr_t::skip_mask_t;
+
+    if (attr == nullptr) return status::success;
+    if (attr->has_default_values()) return status::success;
+
+    // Check attributes
+    if (utils::one_of(desc.prop_kind, prop_kind::forward_inference,
+                prop_kind::forward_training)) {
+        const data_type_t dst_dt = desc.dst_desc.data_type;
+
+        auto fwd_attr_mask = smask_t::post_ops;
+
+        VCHECK_POOLING_IMPL(attr->has_default_values(fwd_attr_mask, dst_dt),
+                VERBOSE_UNSUPPORTED_ATTR);
+
+        // Check post-ops
+        if (!attr->post_ops_.has_default_values()) {
+            const auto &po = attr->post_ops_;
+            using namespace primitive_kind;
+            VCHECK_POOLING_IMPL(po.has_default_values({binary, eltwise}),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+        }
+    } else {
+        VCHECK_POOLING_IMPL(false, VERBOSE_UNSUPPORTED_ATTR);
+    }
+
+    return status::success;
+}
+
 } // namespace
 
 dnnl_status_t dnnl_pooling_forward_primitive_desc_create(
@@ -141,6 +177,7 @@ dnnl_status_t dnnl_pooling_forward_primitive_desc_create(
     auto pool_desc = pooling_desc_t();
     CHECK(pooling_desc_init(&pool_desc, prop_kind, alg_kind, src_desc, dst_desc,
             strides, kernel, dilation, padding_l, padding_r));
+    CHECK(pooling_attr_check(pool_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&pool_desc, nullptr, attr);
 }
@@ -157,6 +194,7 @@ dnnl_status_t dnnl_pooling_backward_primitive_desc_create(
     CHECK(pooling_desc_init(&pool_desc, prop_kind::backward_data, alg_kind,
             diff_src_desc, diff_dst_desc, strides, kernel, dilation, padding_l,
             padding_r));
+    CHECK(pooling_attr_check(pool_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&pool_desc, hint_fwd_pd, attr);
 }
