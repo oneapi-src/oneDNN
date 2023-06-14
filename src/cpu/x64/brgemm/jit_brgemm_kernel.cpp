@@ -1309,16 +1309,21 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators(int bd_block2,
             brg.dt_d != brg.dt_c, brg.req_s8s8_compensation, has_zero_points,
             brg.with_dst_scales);
     const bool need_to_apply_alpha_beta = brg.beta != 0.f || brg.alpha != 1.f;
+    const bool need_generate_zp_a_compensation
+            = brg.is_int8 && (brg.req_s8s8_compensation || has_zero_points);
 
     maybe_set_avx_mask(is_ld_tail);
 
     if (brg.is_tmm) {
-        if (need_to_apply_alpha_beta || are_post_ops_applicable)
+        if (need_to_apply_alpha_beta || are_post_ops_applicable
+                || need_generate_zp_a_compensation)
             mov(reg_stride_ld_block, brg.ld_block * brg.typesize_C);
         else
             mov(reg_stride_ld_block, brg.LDC * brg.typesize_C);
 
-        auto store_accumulators_amx = [&](const bool apply_post_ops) {
+        auto store_accumulators_amx = [&](const bool apply_post_ops,
+                                              const bool apply_zp_a_compensation
+                                              = false) {
             mov(reg_buf, ptr[rsp + reg_buf_offs_]);
             for (int bdb = 0; bdb < bd_block2; bdb++) {
                 int adj_bd_block = (brg.is_M_tail && is_bdb_tail)
@@ -1326,7 +1331,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators(int bd_block2,
                         : brg.bd_block;
                 for (int ldb = 0; ldb < ld_block2; ldb++) {
                     int idx = (is_ld_tail) ? brg.ld_block2 : ldb;
-                    if (need_to_apply_alpha_beta || are_post_ops_applicable) {
+                    if (need_to_apply_alpha_beta || are_post_ops_applicable
+                            || apply_zp_a_compensation) {
                         if (skip_accumulation) {
                             for (int bd = 0; bd < adj_bd_block; bd++) {
                                 auto vreg_acc = accm(1, bd, 0);
@@ -1347,7 +1353,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators(int bd_block2,
                             }
                         }
 
-                        if (apply_post_ops && brg.is_int8 && has_zero_points) {
+                        if (apply_zp_a_compensation) {
                             apply_compensation(adj_bd_block, 1, is_ld_tail);
                         }
 
@@ -1406,22 +1412,44 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators(int bd_block2,
 
         Label label_done;
         if (are_post_ops_applicable) {
-            Label label_store_without_post_ops;
+            Label label_skip_post_ops;
             mov(reg_do_post_ops, ptr[rsp + reg_do_post_ops_offs_]);
             cmp(reg_do_post_ops, 0);
-            jz(label_store_without_post_ops, T_NEAR);
+            jz(label_skip_post_ops, T_NEAR);
+            if (need_generate_zp_a_compensation) {
+                Label label_skip_zp_comp_with_postops;
+                mov(reg_do_comp, ptr[rsp + reg_do_comp_offs_]);
+                cmp(reg_do_comp, 0);
+                jz(label_skip_zp_comp_with_postops, T_NEAR);
+                store_accumulators_amx(true, true);
+                jmp(label_done, T_NEAR);
 
+                L_aligned(label_skip_zp_comp_with_postops);
+            }
             store_accumulators_amx(true);
+
             jmp(label_done, T_NEAR);
 
-            L_aligned(label_store_without_post_ops);
+            L_aligned(label_skip_post_ops);
         }
+
+        if (need_generate_zp_a_compensation) {
+            Label label_skip_zp_comp;
+            mov(reg_do_comp, ptr[rsp + reg_do_comp_offs_]);
+            cmp(reg_do_comp, 0);
+            jz(label_skip_zp_comp, T_NEAR);
+            store_accumulators_amx(false, true);
+            jmp(label_done, T_NEAR);
+
+            L_aligned(label_skip_zp_comp);
+        }
+
         store_accumulators_amx(false);
         L_aligned(label_done);
     } else {
         int bd_block = (is_bdb_tail) ? brg.bdb_tail : brg.bd_block;
 
-        if (brg.is_int8 && (brg.req_s8s8_compensation || has_zero_points)) {
+        if (need_generate_zp_a_compensation) {
             Label label_store_without_comp;
             mov(reg_do_comp, ptr[rsp + reg_do_comp_offs_]);
             cmp(reg_do_comp, 0);
