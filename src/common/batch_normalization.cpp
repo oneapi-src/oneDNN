@@ -34,6 +34,10 @@ using namespace dnnl::impl::types;
     VCONDCHECK(create, check, bnorm, (cond), status::invalid_arguments, msg, \
             ##__VA_ARGS__);
 
+#define VCHECK_BNORM_UNIMPL(cond, msg, ...) \
+    VCONDCHECK(create, check, bnorm, (cond), status::unimplemented, msg, \
+            ##__VA_ARGS__);
+
 namespace {
 status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
         prop_kind_t prop_kind, const memory_desc_t *src_desc,
@@ -121,6 +125,38 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
     *bnrm_desc = bd;
     return success;
 }
+
+status_t batch_normalization_attr_check(const batch_normalization_desc_t &desc,
+        const engine_t *engine, const primitive_attr_t *attr) {
+    using smask_t = primitive_attr_t::skip_mask_t;
+
+    if (attr == nullptr) return status::success;
+    if (attr->has_default_values()) return status::success;
+
+    if (utils::one_of(desc.prop_kind, prop_kind::forward_inference,
+                prop_kind::forward_training)) {
+        // Check attributes
+        const data_type_t dst_dt = desc.dst_desc.data_type;
+
+        auto attr_mask = smask_t::post_ops;
+
+        VCHECK_BNORM_UNIMPL(attr->has_default_values(attr_mask, dst_dt),
+                VERBOSE_UNSUPPORTED_ATTR);
+
+        // Check post-ops
+        if (!attr->post_ops_.has_default_values()) {
+            const auto &po = attr->post_ops_;
+            using namespace primitive_kind;
+            VCHECK_BNORM_UNIMPL(po.has_default_values({eltwise}),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+        }
+    } else {
+        VCHECK_BNORM_UNIMPL(false, VERBOSE_UNSUPPORTED_ATTR);
+    }
+
+    return status::success;
+}
+
 } // namespace
 
 status_t dnnl_batch_normalization_forward_primitive_desc_create(
@@ -134,6 +170,7 @@ status_t dnnl_batch_normalization_forward_primitive_desc_create(
     auto bnrm_desc = batch_normalization_desc_t();
     CHECK(bnrm_desc_init(&bnrm_desc, prop_kind, src_desc, dst_desc, nullptr,
             nullptr, epsilon, flags));
+    CHECK(batch_normalization_attr_check(bnrm_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&bnrm_desc, nullptr, attr);
 }
@@ -150,6 +187,7 @@ status_t dnnl_batch_normalization_backward_primitive_desc_create(
     auto bnrm_desc = batch_normalization_desc_t();
     CHECK(bnrm_desc_init(&bnrm_desc, prop_kind, src_desc, nullptr,
             diff_src_desc, diff_dst_desc, epsilon, flags));
+    CHECK(batch_normalization_attr_check(bnrm_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&bnrm_desc, hint_fwd_pd, attr);
 }
