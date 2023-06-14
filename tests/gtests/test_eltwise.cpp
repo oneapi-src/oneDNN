@@ -112,8 +112,6 @@ protected:
         auto strm = make_stream(eng);
 
         auto aa = allows_attr_t {false};
-        aa.po_sum = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
-        aa.po_eltwise = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
         aa.po_binary = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
 
         auto src_md = memory::desc(p.dims, p.src_dt, p.src_tag);
