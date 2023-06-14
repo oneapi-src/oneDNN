@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -163,7 +163,7 @@ protected:
                         out_md.get()->extra = i_extra;
 
                         catch_expected_failures(
-                                [=]() { TestFormat(in_md, out_md); }, false,
+                                [&]() { TestFormat(in_md, out_md); }, false,
                                 dnnl_success);
                     }
                 }

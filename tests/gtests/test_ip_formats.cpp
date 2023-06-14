@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -133,7 +133,7 @@ protected:
                     ASSERT_TRUE(dst_md);
 
                     catch_expected_failures(
-                            [=]() {
+                            [&]() {
                                 TestFormat(src_md, wei_md, dst_md, i_cfg);
                             },
                             false, dnnl_success);
