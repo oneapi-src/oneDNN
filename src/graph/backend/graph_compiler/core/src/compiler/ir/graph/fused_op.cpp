@@ -962,11 +962,13 @@ void create_query_function_by_graph(general_fused_params_t &gp,
             set_original_tensor_and_format_for_tunables(gp, node_before_in1,
                     ori_ins, ori_in_fmts, ori_in1, ori_in_fmt1);
             add_global_table_var(gp, table_name, table_ptr, table_var);
+            auto internal_kernel = op->need_dynamic_internal_query()
+                    ? builder::tensor_ptr(kernel, {cur_internal_idx})
+                    : make_expr<constant_node>(UINT64_C(0), datatypes::pointer);
             std::vector<expr> args = {table_var, op_outs[0].tensor_,
                     op_ins[0].tensor_, op_ins[1].tensor_, ori_in0, ori_in1,
                     op_outs[0].format_, op_ins[0].format_, op_ins[1].format_,
-                    ori_in_fmt0, ori_in_fmt1, op_outs[0].size_,
-                    builder::tensor_ptr(kernel, {cur_internal_idx}),
+                    ori_in_fmt0, ori_in_fmt1, op_outs[0].size_, internal_kernel,
                     builder::tensor_ptr(combined_algs, {cur_combined_op_idx})};
             bld.push_evaluate(call_op_dynamic_query_function(op, args));
             initialize_dispatch_table_with_op(ctx, op, table_ptr);
