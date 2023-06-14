@@ -33,6 +33,10 @@ using namespace dnnl::impl::types;
     VCONDCHECK(create, check, ip, (cond), status::invalid_arguments, msg, \
             ##__VA_ARGS__)
 
+#define VCHECK_IP_UNIMPL(cond, msg, ...) \
+    VCONDCHECK(create, check, ip, (cond), status::unimplemented, msg, \
+            ##__VA_ARGS__)
+
 namespace dnnl {
 namespace impl {
 status_t ip_desc_init(inner_product_desc_t *ip_desc, prop_kind_t prop_kind,
@@ -99,6 +103,60 @@ status_t ip_desc_init(inner_product_desc_t *ip_desc, prop_kind_t prop_kind,
     *ip_desc = id;
     return success;
 }
+
+status_t ip_attr_check(const inner_product_desc_t &desc, const engine_t *engine,
+        const primitive_attr_t *attr) {
+    using smask_t = primitive_attr_t::skip_mask_t;
+
+    if (attr == nullptr) return status::success;
+    if (attr->has_default_values()) return status::success;
+
+    // Check attributes
+    if (utils::one_of(desc.prop_kind, prop_kind::forward_inference,
+                prop_kind::forward_training)) {
+        const data_type_t src_dt = desc.src_desc.data_type;
+        const data_type_t dst_dt = desc.dst_desc.data_type;
+
+        auto fwd_attr_mask = smask_t::post_ops | smask_t::sum_dt;
+
+        const bool is_int8
+                = utils::one_of(src_dt, data_type::s8, data_type::u8);
+        if (is_int8) fwd_attr_mask |= smask_t::scales_runtime;
+
+        VCHECK_IP_UNIMPL(attr->has_default_values(fwd_attr_mask, dst_dt),
+                VERBOSE_UNSUPPORTED_ATTR);
+
+        // Check scales
+        if (!attr->scales_.has_default_values()) {
+            const auto &sc = attr->scales_;
+            const int mask_src = sc.get(DNNL_ARG_SRC).mask_;
+            const int mask_wei = sc.get(DNNL_ARG_WEIGHTS).mask_;
+            const int mask_dst = sc.get(DNNL_ARG_DST).mask_;
+
+            VCHECK_IP_UNIMPL(utils::everyone_is(0, mask_src, mask_dst)
+                            && utils::one_of(mask_wei, 0, 1),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+        }
+
+        // Check post-ops
+        if (!attr->post_ops_.has_default_values()) {
+            const auto &po = attr->post_ops_;
+            using namespace primitive_kind;
+            VCHECK_IP_UNIMPL(
+                    po.has_default_values({binary, eltwise, prelu, sum}),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+
+            // Check sum
+            VCHECK_IP_UNIMPL(po.check_sum_consistency(dst_dt, is_int8, true),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+        }
+    } else {
+        VCHECK_IP_UNIMPL(false, VERBOSE_UNSUPPORTED_ATTR);
+    }
+
+    return status::success;
+}
+
 } // namespace impl
 } // namespace dnnl
 
@@ -113,6 +171,7 @@ status_t dnnl_inner_product_forward_primitive_desc_create(
     auto ip_desc = inner_product_desc_t();
     CHECK(ip_desc_init(
             &ip_desc, prop_kind, src_desc, weights_desc, bias_desc, dst_desc));
+    CHECK(ip_attr_check(ip_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&ip_desc, nullptr, attr);
 }
@@ -127,6 +186,7 @@ status_t dnnl_inner_product_backward_data_primitive_desc_create(
     auto ip_desc = inner_product_desc_t();
     CHECK(ip_desc_init(&ip_desc, backward_data, diff_src_desc, weights_desc,
             nullptr, diff_dst_desc));
+    CHECK(ip_attr_check(ip_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&ip_desc, hint_fwd_pd, attr);
 }
@@ -141,6 +201,7 @@ status_t dnnl_inner_product_backward_weights_primitive_desc_create(
     auto ip_desc = inner_product_desc_t();
     CHECK(ip_desc_init(&ip_desc, backward_weights, src_desc, diff_weights_desc,
             diff_bias_desc, diff_dst_desc));
+    CHECK(ip_attr_check(ip_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&ip_desc, hint_fwd_pd, attr);
 }
