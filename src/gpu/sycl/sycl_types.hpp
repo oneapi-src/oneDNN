@@ -52,7 +52,8 @@ namespace sycl {
 
 template <::sycl::access_mode mode>
 struct sycl_memory_arg_t {
-    using acc_t = ::sycl::accessor<uint8_t, 1, mode>;
+    using acc_dt = uint8_t;
+    using acc_t = ::sycl::accessor<acc_dt, 1, mode>;
     static sycl_memory_arg_t<mode> create_empty(const acc_t &dummy_acc) {
         sycl_memory_arg_t<mode> arg(nullptr, dummy_acc);
         arg.empty_ = true;
@@ -64,7 +65,19 @@ struct sycl_memory_arg_t {
     sycl_memory_arg_t(const acc_t &acc)
         : empty_(false), usm_(nullptr), acc_(acc) {}
     // This method must be called only from inside a kernel.
-    void *get_pointer() const { return usm_ ? usm_ : acc_.get_pointer().get(); }
+    void *get_pointer() const {
+        if (usm_) return usm_;
+
+        // The compiler has changed `get_pointer()` API therefore we have to
+        // handle both old and new versions of the API to avoid breaking user's
+        // applications that use older compiler versions.
+        if constexpr (std::is_same_v<decltype(acc_.get_pointer()),
+                              std::add_pointer_t<typename acc_t::value_type>>) {
+            return const_cast<acc_dt *>(acc_.get_pointer());
+        } else {
+            return acc_.get_pointer().get();
+        }
+    }
 
     bool empty() const { return empty_; }
 
