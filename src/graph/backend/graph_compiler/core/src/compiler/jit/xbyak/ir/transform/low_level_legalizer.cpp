@@ -39,6 +39,11 @@ public:
         : max_f32_lanes_(target_machine.get_device_flags().get_max_vector_lanes(
                 sc_data_etype::F32)) {}
 
+    expr_c visit(tensor_c v) override {
+        // avoid dispatch into for loop index dependent tensor
+        return v;
+    }
+
     expr_c visit(cast_c v) override {
         auto ret = ir_visitor_t::visit(std::move(v));
         assert(ret.isa<cast>());
