@@ -881,6 +881,13 @@ void jit_io_helper_t<Vmm>::broadcast(
     }
 }
 
+// Has to live here, otherwise gcc483 and gcc540 will report an error:
+// `undefined reference to
+// 'dnnl::impl::cpu::x64::io::jit_io_multi_dt_helper_t<Xbyak::Xmm>::
+//     jit_io_multi_dt_helper_t()'`
+template <typename Vmm>
+jit_io_multi_dt_helper_t<Vmm>::jit_io_multi_dt_helper_t() = default;
+
 template <typename Vmm>
 jit_io_multi_dt_helper_t<Vmm>::jit_io_multi_dt_helper_t(jit_generator *host,
         const cpu_isa_t &isa, const data_types_t &data_types,

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -221,7 +221,7 @@ public:
     using data_types_t = std::unordered_set<data_type_t, std::hash<int>>;
     using saturation_map_t = std::map<data_type_t, io_saturation_conf_t>;
 
-    jit_io_multi_dt_helper_t() = default;
+    jit_io_multi_dt_helper_t();
     jit_io_multi_dt_helper_t(jit_generator *host, const cpu_isa_t &isa,
             const data_types_t &data_types, const io_conf_t &io_conf,
             const utils::optional_t<io_tail_conf_t> &tail_conf = utils::nullopt,
@@ -230,7 +230,7 @@ public:
             const saturation_map_t &saturation_confs = saturation_map_t {},
             const utils::optional_t<io_gather_conf_t> &gather_conf
             = utils::nullopt);
-    ~jit_io_multi_dt_helper_t();
+    virtual ~jit_io_multi_dt_helper_t();
     void prepare_tail_mask();
     void prepare_full_mask();
     void init_saturate_f32(const data_types_t &store_data_types);
