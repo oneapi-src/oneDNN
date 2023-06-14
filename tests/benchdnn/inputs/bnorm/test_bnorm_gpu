@@ -54,14 +54,14 @@
 
 --reset
 --mb=1
---dt=f32,bf16
+--dt=f32,bf16,f16
 --tag=axb,aBx16b
 --dir=BWD_D,BWD_W,BWD_WB,BWD_DW     --flags=             --batch=shapes_topologies_small
 --dir=BWD_W,BWD_WB,BWD_DW           --flags=CHR,GCH,H,CH --batch=shapes_topologies_small
 
 --reset
 --mb=32
---dt=f32,bf16
+--dt=f32,bf16,f16
 --tag=axb,ABx16a16b,ABx32a16b
 --dir=BWD_D,BWD_W,BWD_WB,BWD_DW     --flags=        --batch=shapes_topologies_small
 --dir=BWD_W,BWD_WB,BWD_DW           --flags=CHR,GCH,CH --batch=shapes_topologies_small
@@ -86,7 +86,7 @@
 --mb=2
 --dt=s8
 --dir=FWD_I             --flags=GCHA             --batch=shapes_topologies_small
---dt=f32,bf16
+--dt=f32,bf16,f16
 --dir=FWD_D,BWD_DW      --flags=A,CHA,GCHA        --batch=shapes_topologies_small
 
 # Test layers of some key and ext GPU DL Frameworks
@@ -98,7 +98,7 @@
 # Test relu non-zero alpha
 --reset
 --mb=2
---dt=f32,bf16
+--dt=f32,bf16,f16
 --tag=acdb
 --dir=FWD_I        --flags=CH        --attr-post-ops=relu:0.05  --batch=shapes_topologies_small
 

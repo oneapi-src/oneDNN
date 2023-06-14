@@ -42,6 +42,8 @@ struct vectorized_lnorm_fwd_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine);
             auto src_data_t = src_md()->data_type;
             auto dst_data_t = dst_md()->data_type;
 
@@ -49,6 +51,9 @@ struct vectorized_lnorm_fwd_t : public gpu_primitive_t {
                     && (utils::everyone_is(f16, src_data_t, dst_data_t)
                             || utils::everyone_is(bf16, src_data_t, dst_data_t)
                             || utils::everyone_is(f32, src_data_t, dst_data_t))
+                    && IMPLICATION(f16 == src_data_t,
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp16))
                     && !memory_desc_ndims_ok(src_md(), dst_md(), stat_md())
                     && stat_md()->data_type == f32
                     && check_scale_shift_data_type()
@@ -101,6 +106,8 @@ struct vectorized_lnorm_bwd_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine);
 
             auto src_dt = src_md()->data_type;
             auto diff_dst_dt = diff_dst_md()->data_type;
@@ -110,7 +117,12 @@ struct vectorized_lnorm_bwd_t : public gpu_primitive_t {
                     && (utils::everyone_is(
                                 f32, src_dt, diff_dst_dt, diff_src_dt)
                             || utils::everyone_is(
-                                    bf16, src_dt, diff_dst_dt, diff_src_dt))
+                                    bf16, src_dt, diff_dst_dt, diff_src_dt)
+                            || utils::everyone_is(
+                                    f16, src_dt, diff_dst_dt, diff_src_dt))
+                    && IMPLICATION(f16 == src_dt,
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp16))
                     && stat_md()->data_type == f32
                     && check_scale_shift_data_type()
                     && attr()->has_default_values()

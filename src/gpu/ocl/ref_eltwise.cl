@@ -77,7 +77,7 @@ __kernel void ref_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
 
 #else // #if IS_FWD
 
-#if DT_F32 == 1 || DT_BF16 == 1
+#if DT_F32 == 1 || DT_BF16 == 1 || DT_F16 == 1
 
 __kernel void ref_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
         __global DATA_T *diff_dst, float alpha, float beta) {

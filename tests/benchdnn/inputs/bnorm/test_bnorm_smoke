@@ -6,7 +6,7 @@
 
 # training
 --dir=FWD_D,BWD_DW
---dt=f32,bf16
+--dt=f32,bf16,f16
 --flags=,G,CHR
 --batch=shapes_ci
 ## no scale or shift support for backward_data

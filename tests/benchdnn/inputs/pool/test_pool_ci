@@ -3,7 +3,7 @@
 
 --alg=max,avg_np,avg_p
 # Training
---dt=f32,bf16
+--dt=f32,bf16,f16
 --dir=FWD_D,BWD_D
 --tag=abx,axb
 --batch=shapes_basic

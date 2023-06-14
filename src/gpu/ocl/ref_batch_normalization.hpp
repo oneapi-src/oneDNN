@@ -53,6 +53,9 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
 
             bool ok = is_fwd()
                     && utils::one_of(src_md()->data_type, f32, bf16, f16, s8)
+                    && IMPLICATION(f16 == src_md()->data_type,
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp16))
                     && src_md()->data_type == dst_md()->data_type
                     && IMPLICATION(src_md()->data_type == s8,
                             !is_training() && stats_is_src())
@@ -146,8 +149,14 @@ struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine);
 
-            bool ok = !is_fwd() && utils::one_of(src_md()->data_type, f32, bf16)
+            bool ok = !is_fwd()
+                    && utils::one_of(src_md()->data_type, f32, bf16, f16)
+                    && IMPLICATION(f16 == src_md()->data_type,
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp16))
                     && src_md()->data_type == diff_src_md()->data_type
                     && diff_src_md()->data_type == diff_dst_md()->data_type
                     && check_scale_shift_data_type()

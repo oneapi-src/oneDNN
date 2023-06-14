@@ -174,7 +174,8 @@ struct ref_lrn_bwd_t : public gpu_primitive_t {
             assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
-            bool ok = !is_fwd() && utils::one_of(src_md()->data_type, f32, bf16)
+            bool ok = !is_fwd()
+                    && utils::one_of(src_md()->data_type, f32, bf16, f16)
                     && utils::everyone_is(src_md()->data_type,
                             diff_src_md()->data_type, diff_dst_md()->data_type)
                     && attr()->has_default_values()
@@ -184,7 +185,8 @@ struct ref_lrn_bwd_t : public gpu_primitive_t {
             if (!ok) return status::unimplemented;
 
             ws_md_ = *src_md();
-            if (ws_md_.data_type == data_type::bf16)
+            if (utils::one_of(
+                        ws_md_.data_type, data_type::bf16, data_type::f16))
                 ws_md_.data_type = data_type::f32;
             if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
 

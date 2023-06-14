@@ -136,12 +136,21 @@ struct gen9_pooling_bwd_t : public gpu_primitive_t {
                     && (utils::everyone_is(data_type::f32,
                                 diff_dst_md()->data_type,
                                 diff_src_md()->data_type)
+                            || utils::everyone_is(data_type::f16,
+                                    diff_dst_md()->data_type,
+                                    diff_src_md()->data_type)
                             || utils::everyone_is(data_type::bf16,
                                     diff_dst_md()->data_type,
                                     diff_src_md()->data_type))
                     && !utils::one_of(data_type::f64, diff_src_md()->data_type,
                             diff_dst_md()->data_type)
                     && attr()->has_default_values() && !is_dilated()
+                    && IMPLICATION(diff_src_md()->data_type == data_type::f16,
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp16)
+                                    && compute_engine->mayiuse(
+                                            compute::device_ext_t::
+                                                    intel_subgroups_short))
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups);
             if (!ok) return status::unimplemented;

@@ -60,7 +60,7 @@ struct ref_pooling_fwd_t : public gpu_primitive_t {
                     && utils::one_of(desc()->alg_kind, pooling_max,
                             pooling_avg_include_padding,
                             pooling_avg_exclude_padding)
-                    && IMPLICATION(utils::one_of(src_data_t, f16, s8, u8, s32),
+                    && IMPLICATION(utils::one_of(src_data_t, s8, u8, s32),
                             desc()->prop_kind == forward_inference)
                     && IMPLICATION(src_data_t != dst_data_t,
                             desc()->prop_kind == forward_inference)
@@ -76,6 +76,9 @@ struct ref_pooling_fwd_t : public gpu_primitive_t {
                     && IMPLICATION(utils::one_of(src_data_t, s8, u8)
                                     && dst_data_t != f32,
                             acc_data_t == s32)
+                    && IMPLICATION(utils::one_of(f16, src_data_t, dst_data_t),
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp16))
                     && IMPLICATION(utils::one_of(f64, src_data_t, dst_data_t),
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp64))
@@ -146,6 +149,11 @@ struct ref_pooling_bwd_t : public gpu_primitive_t {
                             || utils::everyone_is(data_type::bf16,
                                     diff_dst_md()->data_type,
                                     diff_src_md()->data_type)
+                            || (utils::everyone_is(data_type::f16,
+                                        diff_dst_md()->data_type,
+                                        diff_src_md()->data_type)
+                                    && compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp16))
                             || (utils::everyone_is(data_type::f64,
                                         diff_dst_md()->data_type,
                                         diff_src_md()->data_type)

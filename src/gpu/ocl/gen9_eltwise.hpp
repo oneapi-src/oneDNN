@@ -149,11 +149,14 @@ struct gen9_eltwise_bwd_t : public gpu_primitive_t {
             using namespace alg_kind;
             bool ok = !is_fwd()
                     && utils::one_of(data_md()->data_type, data_type::f32,
-                            data_type::bf16, data_type::f64)
+                            data_type::bf16, data_type::f16, data_type::f64)
                     && utils::everyone_is(data_md()->data_type,
                             diff_src_md()->data_type, diff_dst_md()->data_type)
                     && set_default_formats_common()
                     && attr()->has_default_values()
+                    && IMPLICATION(data_md()->data_type == data_type::f16,
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp16))
                     && IMPLICATION(data_md()->data_type == data_type::f64,
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp64))

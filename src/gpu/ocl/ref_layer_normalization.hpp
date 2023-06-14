@@ -121,6 +121,8 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
                                 f32, src_dt, diff_dst_dt, diff_src_dt)
                             || utils::everyone_is(
                                     bf16, src_dt, diff_dst_dt, diff_src_dt)
+                            || utils::everyone_is(
+                                    f16, src_dt, diff_dst_dt, diff_src_dt)
                             || (utils::everyone_is(
                                         f64, src_dt, diff_dst_dt, diff_src_dt)
                                     && compute_engine->mayiuse(
