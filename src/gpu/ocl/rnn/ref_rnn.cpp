@@ -1183,7 +1183,7 @@ status_t _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         arg_list.append(scratch_diff_states_ld);
 
         return parallel_for(ctx,
-                compute::nd_range_t(get_nd_range({batch, n_iter})),
+                compute::nd_range_t(get_nd_range({dhc, batch, n_iter})),
                 copy_init_layer_kernel_, arg_list);
     }
 }

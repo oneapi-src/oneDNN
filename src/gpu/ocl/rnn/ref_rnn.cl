@@ -230,52 +230,45 @@ ref_rnn_copy_init_layer(__global WS_STATE_DATA_T *dst_base,
 
 #else // BWD
 
-    const int it = get_global_id(1);
-    const int b = get_global_id(0);
-    if (b >= batch || it >= n_iter) return;
+    const int it = get_global_id(2);
+    const int b = get_global_id(1);
+    const int s = get_global_id(0);
+    if (s >= dhc || b >= batch || it >= n_iter) return;
 
     __global DIFF_DATA_T *dst = (__global DIFF_DATA_T *)scratch_diff_states;
 
 #if DIRECTION_KIND == CONCAT
     __global DIFF_DATA_T *src
             = (__global DIFF_DATA_T *)src_base + DIFF_DST_L_OFF(it, b, 0);
-    for (int s = 0; s < dhc; s++) {
-        dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
-                scratch_diff_states_ld, n_layer, 0, n_states, it, b, s)]
-                = src[s];
-        dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
-                scratch_diff_states_ld, n_layer, 1, n_states, n_iter - it - 1,
-                b, s)]
-                = src[dhc + s];
-    }
+    dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
+            scratch_diff_states_ld, n_layer, 0, n_states, it, b, s)]
+            = src[s];
+    dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
+            scratch_diff_states_ld, n_layer, 1, n_states, n_iter - it - 1, b,
+            s)]
+            = src[dhc + s];
 #elif DIRECTION_KIND == SUM
     __global DIFF_DATA_T *src
             = (__global DIFF_DATA_T *)src_base + DIFF_DST_L_OFF(it, b, 0);
-    for (int s = 0; s < dhc; s++) {
-        dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
-                scratch_diff_states_ld, n_layer, 0, n_states, it, b, s)]
-                = src[s];
-        dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
-                scratch_diff_states_ld, n_layer, 1, n_states, n_iter - it - 1,
-                b, s)]
-                = src[s];
-    }
+    dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
+            scratch_diff_states_ld, n_layer, 0, n_states, it, b, s)]
+            = src[s];
+    dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
+            scratch_diff_states_ld, n_layer, 1, n_states, n_iter - it - 1, b,
+            s)]
+            = src[s];
 #elif DIRECTION_KIND == L2R
     __global DIFF_DATA_T *src
             = (__global DIFF_DATA_T *)src_base + DIFF_DST_L_OFF(it, b, 0);
-    for (int s = 0; s < dhc; s++) {
-        dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
-                scratch_diff_states_ld, n_layer, 0, n_states, it, b, s)]
-                = src[s];
-    }
+    dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
+            scratch_diff_states_ld, n_layer, 0, n_states, it, b, s)]
+            = src[s];
 #elif DIRECTION_KIND == R2L
     __global DIFF_DATA_T *src = (__global DIFF_DATA_T *)src_base
             + DIFF_DST_L_OFF(n_iter - it - 1, b, 0);
-    for (int s = 0; s < dhc; s++) {
-        dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
-                scratch_diff_states_ld, n_layer, 0, n_states, it, b, s)]
-                = src[s];
-    }
+    dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
+            scratch_diff_states_ld, n_layer, 0, n_states, it, b, s)]
+            = src[s];
 #else
 #error "Unsupported direction_kind"
 #endif
