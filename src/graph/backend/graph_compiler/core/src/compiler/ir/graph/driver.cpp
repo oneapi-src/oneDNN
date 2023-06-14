@@ -128,8 +128,9 @@ create_default_graph_flow(const context_ptr &ctx) {
         post_tune_passes.push_back(create_graph_pass("horizontal_merge",
                 horizontal_merge, {}, pass_type::post_tune, true));
     }
-    post_tune_passes.push_back(create_graph_pass("const_folding",
-            graph_constant_input_folding, {}, pass_type::post_tune, true));
+    post_tune_passes.push_back(create_graph_pass("const_folding_and_share",
+            graph_constant_input_folding_and_share_constants, {},
+            pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("inplace_transform",
             inplace_transform, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("padded_mask_mark",

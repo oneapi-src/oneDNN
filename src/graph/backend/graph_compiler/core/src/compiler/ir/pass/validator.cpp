@@ -19,6 +19,7 @@
 #include <vector>
 #include "../intrinsics.hpp"
 #include "../viewer.hpp"
+#include <compiler/ir/attr_keys.hpp>
 #include <compiler/ir/pass/printer.hpp>
 #include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/tir_pos_trace.hpp>
@@ -675,7 +676,10 @@ void validate_impl_t::check_var_tensor_def(
         auto &init = v->var_.static_as<tensor>()->init_value_;
         COMPILE_ASSERT_POS(init == nullptr
                         || init == tensor_node::get_zero_tensor_initializer()
-                        || init->size_ == sizeof(union_val),
+                        || init->size_ == sizeof(union_val)
+                        || (v->var_->attr_
+                                && v->var_->attr_->has_key(
+                                        attr_keys::shared_const)),
                 "The tensor defined in function cannot have init value: " << v);
     }
 }

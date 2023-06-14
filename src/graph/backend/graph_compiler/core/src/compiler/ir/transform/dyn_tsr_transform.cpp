@@ -47,8 +47,8 @@ public:
     // dyn var has been defined in function;
     std::unordered_set<expr> var_defined_in_func_;
     // old tsr => new dyn tsr defined in func param, used for call node inside
-    // function.
-    std::unordered_map<expr, expr> tsr_replace_map_;
+    // function. Vector is used for different scope.
+    std::vector<std::unordered_map<expr, expr>> tsr_replace_map_;
     // for second pass callee func decl replacement
     std::unordered_map<std::string, func_t> func_decl_replace_map_;
     // def stmts to insert before call node
@@ -152,8 +152,8 @@ public:
                     bool changed = dispatch_expr_vector(v->args_, new_args);
                     // only consider first arg.
                     auto &arg = v->args_[0];
-                    auto it = tsr_replace_map_.find(arg);
-                    if (it != tsr_replace_map_.end()) {
+                    auto it = tsr_replace_map_.back().find(arg);
+                    if (it != tsr_replace_map_.back().end()) {
                         new_args[0] = it->second;
                         changed = true;
                     }
@@ -188,8 +188,8 @@ public:
                                 attr_keys::always_trans, false));
         for (size_t i = 0; i < v->args_.size(); i++) {
             auto &arg = v->args_[i];
-            auto it = tsr_replace_map_.find(arg);
-            if (it != tsr_replace_map_.end()) {
+            auto it = tsr_replace_map_.back().find(arg);
+            if (it != tsr_replace_map_.back().end()) {
                 new_args[i] = it->second;
                 changed = true;
             } else if (arg.isa<tensor>()) {
@@ -207,7 +207,8 @@ public:
                 if (should_trans) {
                     auto dyn_tsr
                             = create_dyn_tsr_from_tensor(tsr_arg, def_stmts_);
-                    tsr_replace_map_.insert(std::make_pair(arg, dyn_tsr));
+                    tsr_replace_map_.back().insert(
+                            std::make_pair(arg, dyn_tsr));
                     new_args[i] = dyn_tsr;
                     changed = true;
                 }
@@ -226,7 +227,8 @@ public:
                 if (should_trans) {
                     auto dyn_tsr
                             = create_dyn_tsr_from_tensor(tsr_arg, def_stmts_);
-                    tsr_replace_map_.insert(std::make_pair(arg, dyn_tsr));
+                    tsr_replace_map_.back().insert(
+                            std::make_pair(arg, dyn_tsr));
                     new_args[i] = dyn_tsr;
                     changed = true;
                 }
@@ -242,6 +244,7 @@ public:
         return v;
     }
     stmt_c visit(stmts_c v) override {
+        tsr_replace_map_.emplace_back(tsr_replace_map_.back());
         bool changed = false;
         std::vector<stmt_c> seq;
         seq.reserve(v->seq_.size());
@@ -257,6 +260,7 @@ public:
             if (!n.ptr_same(st)) { changed = true; }
             seq.emplace_back(std::move(n));
         }
+        tsr_replace_map_.pop_back();
         if (changed) {
             return copy_attr(*v, builder::make_stmts_unattached(seq));
         }
@@ -279,6 +283,7 @@ public:
             return v;
         }
         tsr_replace_map_.clear();
+        tsr_replace_map_.emplace_back();
         bool all_const = true;
         std::vector<expr> new_params;
         // base and shape define stmts insert to front of body.
@@ -319,15 +324,15 @@ public:
                 }
                 if (!cur_const) {
                     expr dyn_tsr;
-                    auto it = tsr_replace_map_.find(old_tsr);
-                    if (it != tsr_replace_map_.end()) {
+                    auto it = tsr_replace_map_.back().find(old_tsr);
+                    if (it != tsr_replace_map_.back().end()) {
                         dyn_tsr = it->second;
                     } else {
                         dyn_tsr = builder::make_tensor(
                                 std::string("dyn_") + old_tsr->name_,
                                 {sizeof(runtime::dynamic_tensor_t)},
                                 datatypes::u8);
-                        tsr_replace_map_.insert(
+                        tsr_replace_map_.back().insert(
                                 std::make_pair(old_tsr, dyn_tsr));
                     }
                     new_params.push_back(dyn_tsr);

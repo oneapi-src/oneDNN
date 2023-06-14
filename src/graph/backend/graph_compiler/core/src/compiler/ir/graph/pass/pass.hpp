@@ -55,6 +55,13 @@ bool check_graph_config(
 SC_INTERNAL_API void graph_constant_input_folding(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 /**
+ * Do the same as graph_constant_input_folding, except that it also try to share
+ * the constant buffer with other graphs. This pass should be put after all
+ * other graph_constant_input_folding
+ * */
+SC_INTERNAL_API void graph_constant_input_folding_and_share_constants(
+        sc_graph_t &mgr, const context_ptr &ctx);
+/**
  * Mark the elementwise op with padded input/output could use output mask(not
  * mask load/store) or not. The op could use mask when its direct uses have
  * reduce or memory movement semantics.

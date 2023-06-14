@@ -16,12 +16,15 @@
 
 #include <iostream>
 #include "gtest/gtest.h"
+#include <compiler/ir/attr_keys.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
+#include <compiler/ir/graph/pass/graph_constant_cache.hpp>
 #include <compiler/ir/ir_comparer.hpp>
 #include <compiler/ir/transform/cpu/closurize.hpp>
 #include <compiler/ir/transform/module_globals_resolve.hpp>
 #include <runtime/config.hpp>
+#include <runtime/const_cache_wrapper.hpp>
 
 using namespace dnnl::impl::graph::gc;
 
@@ -116,4 +119,142 @@ TEST(GCCore_CPU_module_globals_resolver_t, TestGlobalTensorExtract) {
     ASSERT_EQ(memcmp(loaded.data_.data_, globals.data_.data_,
                       loaded.initialized_size_),
             0);
+}
+
+TEST(GCCore_CPU_module_globals_resolver_t, TestGlobalSharedTensor) {
+    auto dummy_buffer = std::make_shared<int>();
+    // compile-time const buffer
+    auto base1 = std::make_shared<runtime::const_cache_proxy>(
+            dummy_buffer, dummy_buffer.get(), 128, false);
+    auto dummy_buffer2 = std::make_shared<int>();
+    auto base2 = std::make_shared<runtime::const_cache_proxy>(
+            dummy_buffer2, dummy_buffer2.get(), 128, true);
+    auto dummy_buffer3 = std::make_shared<int>();
+    auto base3 = std::make_shared<runtime::const_cache_proxy>(
+            dummy_buffer3, dummy_buffer3.get(), 128, true);
+
+    auto graph_tsr1
+            = std::make_shared<cached_const_graph_tensor>(nullptr, 64, nullptr);
+    graph_tsr1->buf_base_ = base1;
+    graph_tsr1->offset_ = 0;
+    auto graph_tsr2
+            = std::make_shared<cached_const_graph_tensor>(nullptr, 64, nullptr);
+    graph_tsr2->buf_base_ = base1;
+    graph_tsr2->offset_ = 64;
+
+    auto graph_tsr3
+            = std::make_shared<cached_const_graph_tensor>(nullptr, 64, nullptr);
+    graph_tsr3->buf_base_ = base2;
+    graph_tsr3->offset_ = 0;
+    auto graph_tsr4
+            = std::make_shared<cached_const_graph_tensor>(nullptr, 64, nullptr);
+    graph_tsr4->buf_base_ = base2;
+    graph_tsr4->offset_ = 64;
+
+    auto graph_tsr5
+            = std::make_shared<cached_const_graph_tensor>(nullptr, 64, nullptr);
+    graph_tsr5->buf_base_ = base3;
+    graph_tsr5->offset_ = 64;
+
+    builder::ir_builder_t builder;
+    module_globals_resolver_t pass {};
+    _function_(datatypes::void_t, aaa, _arg_("args", datatypes::f32)) {
+        _bind_(args);
+        args = 1.0f;
+        _tensor_(__is_init, datatypes::s32, 1);
+        builder.get_current_scope()
+                .body.back()
+                ->attr()[attr_keys::is_shared_const_init_stmt]
+                = true;
+        __is_init[0] = 1;
+        builder.get_current_scope()
+                .body.back()
+                ->attr()[attr_keys::is_shared_const_init_stmt]
+                = true;
+
+        _tensor_(A, datatypes::f32, 16);
+        A->attr()[attr_keys::shared_const] = graph_tsr1;
+        _tensor_(B, datatypes::f32, 16);
+        B->attr()[attr_keys::shared_const] = graph_tsr2;
+        _tensor_(C, datatypes::f32, 16);
+        C->attr()[attr_keys::shared_const] = graph_tsr3;
+        _tensor_(D, datatypes::f32, 16);
+        D->attr()[attr_keys::shared_const] = graph_tsr4;
+        _tensor_(E, datatypes::f32, 16);
+        E->attr()[attr_keys::shared_const] = graph_tsr5;
+    }
+    auto mod = ir_module_t::from_entry_func(get_default_context(), aaa);
+
+    auto out_mod = pass(mod);
+    _function_(datatypes::void_t, expected, _arg_("stream", datatypes::pointer),
+            _arg_("mod_data", datatypes::s8, {0UL}),
+            _arg_("args", datatypes::f32)) {
+        _bind_(stream, moddata, args);
+        _tensor_(handles, datatypes::index, UINT64_C(3));
+        builder.get_current_scope().body.back().checked_as<define>()->init_
+                = builder::tensor_ptr(moddata, {0UL});
+        args = 1.0f;
+        _tensor_(__is_init, datatypes::s32, 1);
+        __is_init[0] = 1;
+
+        _tensor_(base0, datatypes::u8, UINT64_C(128));
+        _tensor_(base1, datatypes::u8, UINT64_C(128));
+        _tensor_(base2, datatypes::u8, UINT64_C(128));
+
+        _tensor_(A, datatypes::f32, 16);
+        builder.get_current_scope().body.back().checked_as<define>()->init_
+                = builder::tensor_ptr(base0, {0UL});
+        _tensor_(B, datatypes::f32, 16);
+        builder.get_current_scope().body.back().checked_as<define>()->init_
+                = builder::tensor_ptr(base0, {64UL});
+        _tensor_(C, datatypes::f32, 16);
+        builder.get_current_scope().body.back().checked_as<define>()->init_
+                = builder::tensor_ptr(base1, {0UL});
+        _tensor_(D, datatypes::f32, 16);
+        builder.get_current_scope().body.back().checked_as<define>()->init_
+                = builder::tensor_ptr(base1, {64UL});
+        _tensor_(E, datatypes::f32, 16);
+        builder.get_current_scope().body.back().checked_as<define>()->init_
+                = builder::tensor_ptr(base2, {64UL});
+    }
+
+    ir_comparer cmper {true};
+    ASSERT_TRUE(cmper.compare(out_mod->get_entry_func(), expected, true));
+    auto &globals = *out_mod->attr_.get<std::shared_ptr<statics_table_t>>(
+            ir_module_t::attr_key_t::MODULE_DATA_BUFFERS);
+    EXPECT_EQ(globals.impl_.size(), 1UL);
+    auto handles_buf = (void **)globals.get_or_null("__shared_const_handle");
+    ASSERT_TRUE(handles_buf);
+    // const buffer, directly use buffer ptr
+    EXPECT_EQ(handles_buf[0], dummy_buffer.get());
+    // lazy const buffer, use buffer proxy
+    EXPECT_EQ(handles_buf[1], base2.get());
+    // lazy const buffer, use buffer proxy
+    EXPECT_EQ(handles_buf[2], base3.get());
+
+    auto &body = out_mod->get_entry_func()->body_.checked_as<stmts>()->seq_;
+    auto is_ok = [&body](int index, size_t expected,
+                         cached_const_graph_tensor *shared) {
+        return body.at(index)
+                .cast<define>()
+                .filter([expected, shared](const define &v) {
+                    auto pshared = any_map_t::fetch_or_null<
+                            std::shared_ptr<cached_const_graph_tensor>>(
+                            v->var_->attr_.get(), attr_keys::shared_const);
+                    if (!pshared) { return false; }
+                    return any_map_t::fetch_or_else(v->var_->attr_.get(),
+                                   attr_keys::shared_const_base_idx,
+                                   size_t(10000))
+                            == expected
+                            && pshared->get() == shared;
+                })
+                .has_value();
+    };
+    // check shared_const_base_idx attr
+    EXPECT_TRUE(is_ok(4, 0, graph_tsr1.get()));
+    EXPECT_TRUE(is_ok(5, 1, graph_tsr3.get()));
+    EXPECT_TRUE(is_ok(6, 2, graph_tsr5.get()));
+    // prevent unregistering the buffer to graph API cache manager
+    base2->is_lazy_ = false;
+    base3->is_lazy_ = false;
 }

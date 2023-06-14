@@ -20,12 +20,14 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <compiler/ir/attr_keys.hpp>
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/pass/graph_constant_cache.hpp>
 #include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/transform/cpu/closurize.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <runtime/config.hpp>
+#include <runtime/const_cache_wrapper.hpp>
 #include <unordered_map>
 #include <util/any_map.hpp>
 
@@ -47,6 +49,8 @@ static bool is_expr_nullptr(const expr &e) {
     return false;
 }
 
+static const char *shared_const_handle_name = "__shared_const_handle";
+
 class module_globals_resolver_impl_t : public ir_visitor_t {
 public:
     using ir_visitor_t::dispatch;
@@ -58,6 +62,7 @@ public:
     // change the global symbol to a local variable
     std::vector<expr> global_symbol_local_def_;
     std::unordered_map<expr_c, expr> global_symbol_replace_map_;
+    std::vector<expr> shared_const_base_tsr_;
 
     expr_c visit(call_c v) override {
         func_t the_func = std::dynamic_pointer_cast<func_base>(v->func_);
@@ -146,6 +151,27 @@ public:
         return ir_visitor_t::visit(v);
     }
 
+    stmt_c visit(define_c v) override {
+        if (!v->init_.defined()) {
+            if (auto buf = any_map_t::fetch_or_else<
+                        std::shared_ptr<cached_const_graph_tensor>>(
+                        v->var_->attr_.get(), attr_keys::shared_const,
+                        nullptr)) {
+                auto idx = v->attr_->get<size_t>("shared_const_handle_idx");
+                auto newvar = dispatch(v->var_);
+                COMPILE_ASSERT(!v->init_.defined(),
+                        "Bad shared const tensor with init");
+                return copy_attr(*v,
+                        builder::make_var_tensor_def_unattached(newvar,
+                                linkage::local,
+                                builder::tensor_ptr(
+                                        shared_const_base_tsr_.at(idx),
+                                        {buf->offset_})));
+            }
+        }
+        return ir_visitor_t::visit(v);
+    }
+
     // converts the global vars used in function to local vars defined in
     // top-level scope
     stmt_c visit(stmts_c v) override {
@@ -177,7 +203,46 @@ public:
                 seq.emplace_back(builder::make_var_tensor_def_unattached(
                         v, linkage::local, init));
             }
-            seq.insert(seq.end(), ret->seq_.begin(), ret->seq_.end());
+            auto old_seq_size = seq.size();
+            if (shared_const_base_tsr_.empty()) {
+                seq.insert(seq.end(), ret->seq_.begin(), ret->seq_.end());
+            } else {
+                // insert shared_const_base_tsr definition after definition and
+                // initialization of is_init
+                bool found_init = false;
+                bool shared_const_base_inserted = false;
+                for (auto &olds : ret->seq_) {
+                    if (!shared_const_base_inserted) {
+                        if (any_map_t::fetch_or_else(olds->attr_.get(),
+                                    attr_keys::is_shared_const_init_stmt,
+                                    false)) {
+                            found_init = true;
+                        } else {
+                            if (found_init) {
+                                for (auto &tsr : shared_const_base_tsr_) {
+                                    // the function name is too long for clang
+                                    // format to break
+                                    // clang-format off
+                                    seq.emplace_back(
+                                        builder::make_var_tensor_def_unattached(
+                                                            tsr,
+                                                            linkage::local));
+                                    // clang-format on
+                                }
+                                shared_const_base_inserted = true;
+                            }
+                        }
+                    }
+                    seq.emplace_back(olds);
+                }
+                if (!shared_const_base_inserted) {
+                    for (auto &tsr : shared_const_base_tsr_) {
+                        seq.insert(seq.begin() + old_seq_size,
+                                builder::make_var_tensor_def_unattached(
+                                        tsr, linkage::local));
+                    }
+                }
+            }
             return copy_attr(*v, builder::make_stmts_unattached(seq));
         } else {
             return ir_visitor_t::visit(v);
@@ -201,23 +266,80 @@ static size_t get_tensor_size(const tensor &tsr, const define &def) {
 
 static size_t update_allocated_size(
         const tensor &tsr, size_t size, size_t allocated_size) {
-    if (tsr->attr_) {
-        if (auto data = tsr->attr_->get_or_null<
-                        std::shared_ptr<cached_const_graph_tensor>>(
-                    "shared_const")) {
-            tsr->attr()[attr_keys::module_global_offset] = data->get()->buf_;
-            return allocated_size;
-        }
-    }
     if (size >= 64) { allocated_size = align_to_64(allocated_size); }
     tsr->attr()[attr_keys::module_global_offset] = allocated_size;
     allocated_size += size;
     return allocated_size;
 }
 
+/**
+ * shared const tensors are special local tensors. We collect all shared const
+ * tensors in main-entry and assign a "handle" for each of the shared const
+ * tensors. The handles are pointers to runtime::const_cache_proxy. To keep them
+ * alive, we put them in statics_table_t in the final jit_module
+ * */
+static std::vector<void *> process_shared_const_tensors(const ir_module_ptr &m,
+        std::vector<std::shared_ptr<cached_const_graph_tensor>> &out_graph_tsr,
+        std::vector<expr> &out_base_tsr) {
+    auto mainf = m->get_entry_func();
+    if (!mainf) { return {}; }
+    std::vector<void *> collected_base;
+    auto &seq = mainf->body_.checked_as<stmts>()->seq_;
+    for (auto &s : seq) {
+        // if the stmt is a define node with cached_const_graph_tensor
+        if (auto const_graph_tsr
+                = s.cast<define_c>()
+                          .flat_map([](const define_c &v) {
+                              return v->var_.cast<tensor>();
+                          })
+                          .map([](const tensor &v) {
+                              return any_map_t::fetch_or_else<std::shared_ptr<
+                                      cached_const_graph_tensor>>(
+                                      v->attr_.get(), attr_keys::shared_const,
+                                      nullptr);
+                          })
+                          .get_or_else(nullptr)) {
+            out_graph_tsr.emplace_back(const_graph_tsr);
+            const auto &base = const_graph_tsr->buf_base_;
+            // collect the list of the buffer handle used. If the buffer is not
+            // lazy, then it will be never evicted. We can directly use the
+            // buffer pointer instead of the handle
+            void *handle = (base->is_lazy_) ? base.get()
+                                            : base->get_buffer_if_not_lazy();
+            auto itr = std::find(
+                    collected_base.begin(), collected_base.end(), handle);
+            if (itr != collected_base.end()) {
+                s->attr()["shared_const_handle_idx"]
+                        = static_cast<size_t>(itr - collected_base.begin());
+            } else {
+                out_base_tsr.emplace_back(
+                        builder::make_tensor("__shared_const_base_"
+                                        + std::to_string(collected_base.size()),
+                                {base->size_}, datatypes::u8));
+                collected_base.emplace_back(handle);
+                out_base_tsr.back()->attr()[attr_keys::shared_const_base_idx]
+                        = static_cast<size_t>(collected_base.size() - 1);
+                out_base_tsr.back()->attr()[attr_keys::shared_const]
+                        = const_graph_tsr;
+                s->attr()["shared_const_handle_idx"]
+                        = static_cast<size_t>(collected_base.size() - 1);
+            }
+        }
+    }
+    if (!collected_base.empty()) {
+        auto tsr = m->make_global_tensor(datatypes::index,
+                shared_const_handle_name, {uint64_t(collected_base.size())});
+    }
+    return collected_base;
+}
+
 const_ir_module_ptr module_globals_resolver_t::operator()(
         const_ir_module_ptr m) {
     auto ret = std::make_shared<ir_module_t>(*m);
+    std::vector<std::shared_ptr<cached_const_graph_tensor>> out_graph_tsr;
+    std::vector<expr> shared_const_base_tsr;
+    auto base_cache_tsr = process_shared_const_tensors(
+            ret, out_graph_tsr, shared_const_base_tsr);
     // first, plan the memory layout for the static buffer to be used in an IR
     // module:
     // ------------
@@ -271,6 +393,7 @@ const_ir_module_ptr module_globals_resolver_t::operator()(
             = std::make_shared<statics_table_t>(
                     aligned_buffer_t(allocated_size, m->ctx_->engine_));
     sym_table->initialized_size_ = init_size;
+    sym_table->shared_tensors_ = std::move(out_graph_tsr);
     for (auto &def : ret->get_module_vars()) {
         auto &anyoffset
                 = def->var_->attr().get_any(attr_keys::module_global_offset);
@@ -287,6 +410,16 @@ const_ir_module_ptr module_globals_resolver_t::operator()(
                             tsr->init_value_->data_, tsr->init_value_->size_);
                 }
             }
+        }
+    }
+    // fill the shared_const_handles
+    if (!base_cache_tsr.empty()) {
+        if (auto handles = sym_table->get_or_null(shared_const_handle_name)) {
+            memcpy(handles, base_cache_tsr.data(),
+                    sizeof(base_cache_tsr[0]) * base_cache_tsr.size());
+        } else {
+            throw std::runtime_error(
+                    "Cannot find the shared_const_handle in module data");
         }
     }
     uintptr_t baseptr = (uintptr_t)sym_table->data_.data_;
@@ -343,6 +476,15 @@ const_ir_module_ptr module_globals_resolver_t::operator()(
             continue;
         }
         module_globals_resolver_impl_t impl;
+        if ((int)i == ret->get_entry_func_idx()) {
+            impl.shared_const_base_tsr_ = std::move(shared_const_base_tsr);
+            // if it is main func, make sure shared_const_handle is used
+            auto handle_tsr
+                    = ret->get_var_def_from_symbol(shared_const_handle_name);
+            if (handle_tsr.defined()) {
+                impl.get_or_create_new_var(handle_tsr->var_);
+            }
+        }
         impl.absolute_base_ = is_static_global ? baseptr : 0;
         impl.map = &replace_map;
         auto funcp = replace_map[funcs[i]->name_];

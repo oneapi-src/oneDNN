@@ -17,10 +17,13 @@
 #include <iostream>
 #include <utility>
 #include "gtest/gtest.h"
+#include <compiler/ir/attr_keys.hpp>
 #include <compiler/ir/easy_build.hpp>
+#include <compiler/ir/graph/pass/graph_constant_cache.hpp>
 #include <compiler/ir/ir_comparer.hpp>
 #include <compiler/ir/transform/cpu/local_tensor_lower.hpp>
 #include <compiler/ir/transform/pointer_alias_info.hpp>
+#include <runtime/const_cache_wrapper.hpp>
 #include <util/any_map.hpp>
 
 using namespace dnnl::impl::graph::gc;
@@ -136,6 +139,98 @@ TEST(GCCore_CPU_local_tensor_lower, TestLocalTensorLowering) {
     }
     ir_comparer cmper {true};
     EXPECT_TRUE(cmper.compare(mod2, expected, false));
+}
+
+TEST(GCCore_CPU_local_tensor_lower, TestSharedConst) {
+    builder::ir_builder_t builder;
+    local_tensor_lowering_cpu_t pass {128};
+
+    auto dummy_buffer = std::make_shared<int>();
+    // compile-time const buffer
+    auto base1 = std::make_shared<runtime::const_cache_proxy>(
+            dummy_buffer, dummy_buffer.get(), 32, false);
+    auto dummy_buffer2 = std::make_shared<int>();
+    auto base2 = std::make_shared<runtime::const_cache_proxy>(
+            dummy_buffer2, dummy_buffer2.get(), 256, true);
+
+    auto graph_tsr1
+            = std::make_shared<cached_const_graph_tensor>(nullptr, 32, nullptr);
+    graph_tsr1->buf_base_ = base1;
+    graph_tsr1->offset_ = 0;
+
+    auto graph_tsr2 = std::make_shared<cached_const_graph_tensor>(
+            nullptr, 256, nullptr);
+    graph_tsr2->buf_base_ = base2;
+    graph_tsr2->offset_ = 0;
+
+    _function_(datatypes::void_t, aaa, _arg_("stream", datatypes::pointer),
+            _arg_("mod_data", datatypes::s8, {0UL}),
+            _arg_("args", datatypes::f32)) {
+        _bind_(stream, moddata, args);
+        _tensor_(__shared_const_handle, datatypes::index, UINT64_C(2));
+        builder.get_current_scope().body.back().checked_as<define>()->init_
+                = builder::tensor_ptr(moddata, {0UL});
+        args = 1.0f;
+        _tensor_(__is_init, datatypes::s32, 1);
+        __is_init[0] = 1;
+
+        _tensor_(normal, datatypes::u8, UINT64_C(256));
+        _tensor_(base0, datatypes::u8, UINT64_C(32));
+        auto &attr1 = builder.get_current_scope()
+                              .body.back()
+                              .checked_as<define>()
+                              ->var_->attr();
+        attr1[attr_keys::shared_const] = graph_tsr1;
+        attr1[attr_keys::shared_const_base_idx] = size_t(0);
+        _tensor_(base1, datatypes::u8, UINT64_C(256));
+        auto &attr2 = builder.get_current_scope()
+                              .body.back()
+                              .checked_as<define>()
+                              ->var_->attr();
+        attr2[attr_keys::shared_const] = graph_tsr2;
+        attr2[attr_keys::shared_const_base_idx] = size_t(1);
+        _tensor_(normal2, datatypes::u8, UINT64_C(256));
+    }
+
+    auto out = pass(aaa);
+
+    _function_(datatypes::void_t, expected, _arg_("stream", datatypes::pointer),
+            _arg_("mod_data", datatypes::s8, {0UL}),
+            _arg_("args", datatypes::f32)) {
+        _bind_(stream, moddata, args);
+        _tensor_(__shared_const_handle, datatypes::index, UINT64_C(2));
+        builder.get_current_scope().body.back().checked_as<define>()->init_
+                = builder::tensor_ptr(moddata, {0UL});
+        args = 1.0f;
+        _tensor_(__is_init, datatypes::s32, 1);
+        __is_init[0] = 1;
+
+        _tensor_(normal, datatypes::u8, UINT64_C(256));
+        builder.get_current_scope().body.back().checked_as<define>()->init_
+                = get_cpu_temp_malloc_func(false)(stream.get(), UINT64_C(256));
+        _tensor_(base0, datatypes::u8, UINT64_C(32));
+        builder.get_current_scope().body.back().checked_as<define>()->init_
+                = builder::make_reinterpret(
+                        __shared_const_handle[UINT64_C(0)], datatypes::pointer);
+        _tensor_(base1, datatypes::u8, UINT64_C(256));
+        builder.get_current_scope().body.back().checked_as<define>()->init_
+                = get_acquire_const_cache_func()(stream,
+                        __shared_const_handle[UINT64_C(1)], UINT64_C(256),
+                        __is_init);
+        _tensor_(normal2, datatypes::u8, UINT64_C(256));
+        builder.get_current_scope().body.back().checked_as<define>()->init_
+                = get_cpu_temp_malloc_func(false)(stream.get(), UINT64_C(256));
+        _evaluate_call_(get_cpu_temp_free_func(false), stream, normal2);
+        _evaluate_call_(get_release_const_cache_func(), stream,
+                __shared_const_handle[UINT64_C(1)], base1);
+        _evaluate_call_(get_cpu_temp_free_func(false), stream, normal);
+    }
+
+    ir_comparer cmper {true};
+    EXPECT_TRUE(cmper.compare(out, expected, false));
+    // prevent unregistering the buffer to graph API cache manager
+    base2->is_lazy_ = false;
+    base1->is_lazy_ = false;
 }
 
 TEST(GCCore_CPU_local_tensor_lower, TestAlias) {

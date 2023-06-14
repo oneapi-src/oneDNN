@@ -23,6 +23,7 @@
 #include <math.h>
 #include <runtime/barrier.hpp>
 #include <runtime/config.hpp>
+#include <runtime/const_cache_wrapper.hpp>
 #include <runtime/dynamic_dispatch/op_func_decl.hpp>
 #include <runtime/dynamic_dispatch/ops/config.hpp>
 #include <runtime/managed_thread_pool_exports.hpp>
@@ -65,6 +66,8 @@ const std::unordered_map<std::string, void *> &get_runtime_function_map() {
             {"sc_global_aligned_free", (void *)sc_global_aligned_free},
             {"sc_thread_aligned_malloc", (void *)sc_thread_aligned_malloc},
             {"sc_thread_aligned_free", (void *)sc_thread_aligned_free},
+            {"sc_acquire_const_cache", (void *)sc_acquire_const_cache},
+            {"sc_release_const_cache", (void *)sc_release_const_cache},
             {"sc_aligned_malloc", (void *)sc_aligned_malloc},
             {"sc_aligned_free", (void *)sc_aligned_free},
             {"sc_make_trace", (void *)sc_make_trace},

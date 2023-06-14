@@ -52,6 +52,7 @@
 #include <ops/matmul_core.hpp>
 #include <ops/reshape.hpp>
 #include <runtime/config.hpp>
+#include <runtime/const_cache_wrapper.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -346,7 +347,13 @@ public:
 static void add_def_comments(const stmt &def_node, graph_tensor *t) {
     std::stringstream ss;
     t->details_.to_string(ss);
-    def_node->attr()["comments"] = std::vector<std::string> {ss.str()};
+    if (auto old_comments
+            = def_node->attr().get_or_null<std::vector<std::string>>(
+                    "comments")) {
+        old_comments->emplace_back(ss.str());
+    } else {
+        def_node->attr()["comments"] = std::vector<std::string> {ss.str()};
+    }
 }
 
 enum op_kinds : int {
@@ -367,7 +374,13 @@ struct general_lower_params_t {
     int &tensor_counter;
     int &global_tensor_counter;
     bool is_graph_dynamic;
+    // the number of lazy initialzied constant tensors in shared const cache
+    size_t num_lazy_init_shared_const_tsr_;
+    // the number of compile-time initialzied constant tensors in shared const
+    // cache
+    size_t num_inited_shared_const_tsr_;
     std::unordered_set<sc_dim> external_dyn_vars;
+    std::vector<expr> &shared_consts;
 };
 
 expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
@@ -509,21 +522,42 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
                                            ownerop->get_outputs().end(), t)
                                 - ownerop->get_outputs().begin();
                         cached = cache->at(idx);
+                        if (cached->buf_base_->is_lazy_) {
+                            gp.num_lazy_init_shared_const_tsr_++;
+                        } else {
+                            gp.num_inited_shared_const_tsr_++;
+                        }
                         std::stringstream ss;
                         ss << "shared_const_" << gp.global_tensor_counter++;
                         folded_name = ss.str();
+                        tsr.static_as<tensor>()->name_ = folded_name;
                     } else {
                         folded_name = "folded_const_"
                                 + std::to_string(gp.global_tensor_counter++);
+                        tsr = copy_attr(*tsr,
+                                gp.ret_mod->make_global_stensor(
+                                        tsr.checked_as<tensor>()->elem_dtype_,
+                                        folded_name,
+                                        tsr.checked_as<tensor>()->dims_,
+                                        tsr.checked_as<tensor>()->strides_,
+                                        linkage::private_global, &def_node));
                     }
-                    tsr = copy_attr(*tsr,
-                            gp.ret_mod->make_global_stensor(
-                                    tsr.checked_as<tensor>()->elem_dtype_,
-                                    folded_name,
-                                    tsr.checked_as<tensor>()->dims_,
-                                    tsr.checked_as<tensor>()->strides_,
-                                    linkage::private_global, &def_node));
-                    if (cached) { tsr->attr()["shared_const"] = cached; }
+                    if (cached) {
+                        tsr->attr()[attr_keys::shared_const] = cached;
+                        // const cached tensors are lowered to "local tensors"
+                        // with special marks
+                        def_node = builder::make_var_tensor_def_unattached(tsr);
+                        def_node->attr()["comments"]
+                                = std::vector<std::string> {
+                                        "The tensor is cached in global "
+                                        "constant cache"};
+                        // they are not real local tensors, don't schedule
+                        // buffers
+                        def_node->attr()[attr_keys::tsr_dont_buf_sched] = true;
+                        gp.func_body->seq_.insert(
+                                gp.func_body->seq_.begin(), def_node);
+                        gp.shared_consts.emplace_back(tsr);
+                    }
                     // global tensor does not need cached dynamic var
                     tsr->attr_->set("temp.dyn_placeholder", expr());
                     if (auto const_node
@@ -1105,9 +1139,13 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     }
     bool is_graph_dynamic = graph.is_dynamic()
             && !graph.attrs_.get_or_else("temp.force_static", false);
+    // the shared constant tensors. They need to be passed to the init_globals()
+    // func
+    std::vector<expr> shared_consts;
     general_lower_params_t gp {ret_mod, ltsr_rtsr, graph, func_body, init_body,
             tensor_counter, global_tensor_counter, is_graph_dynamic,
-            external_dyn_vars};
+            /*num_lazy_init_const_tsr*/ 0, /*num_inited_shared_const_tsr_*/ 0,
+            external_dyn_vars, shared_consts};
     // the set of dynamic var defined in func body.(dynamic reshape)
     std::unordered_set<expr> dyn_var_set;
     // record the node, index is op id.
@@ -1348,22 +1386,77 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
         params.emplace_back(extra_internal_func_arg);
     }
     if (!init_body->seq_.empty()) {
-        expr is_init_var = ret_mod->make_global_var(datatypes::boolean,
-                "is_init", linkage::private_global,
-                graph.attrs_.get_or_else("folded_input", false));
-        init_body->seq_.emplace_back(
-                builder::make_assign_unattached(is_init_var, true));
-        func_t init_func = builder::make_func(
-                "__init_const_globals", params, init_body, datatypes::void_t);
+        expr is_init_var;
+        const size_t share_const_is_init_num_stmts = 2;
+        std::vector<stmt> to_insert;
+        if (gp.num_lazy_init_shared_const_tsr_ == 0) {
+            // if there are no lazy inited buffer in shared const
+            is_init_var = ret_mod->make_global_var(datatypes::boolean,
+                    "is_init", linkage::private_global,
+                    graph.attrs_.get_or_else("folded_input", false));
+            init_body->seq_.emplace_back(
+                    builder::make_assign_unattached(is_init_var, true));
+        } else {
+            // need special __is_init local tensor for lazy inited buffer
+            auto is_init_tensor
+                    = builder::make_tensor("__is_init", {1}, datatypes::s32);
+            is_init_tensor->attr()[attr_keys::is_init_for_const_cache] = true;
+            is_init_tensor->attr()[attr_keys::no_index2var] = true;
+            to_insert.emplace_back(
+                    builder::make_var_tensor_def_unattached(is_init_tensor));
+            to_insert.back()->attr()["comments"] = std::vector<std::string> {
+                    "the element of it is auto-filled based on states of "
+                    "shared_const tensors"};
+            to_insert.back()->attr()[attr_keys::is_shared_const_init_stmt]
+                    = true;
+            to_insert.emplace_back(
+                    builder::make_assign_unattached(is_init_tensor[0], 1));
+            to_insert.back()->attr()[attr_keys::is_shared_const_init_stmt]
+                    = true;
+            is_init_var = (is_init_tensor[0] != 0);
+            assert(share_const_is_init_num_stmts == to_insert.size());
+            func_body->seq_.insert(func_body->seq_.begin(), to_insert.begin(),
+                    to_insert.end());
+        }
+        auto params_for_init = params;
+        params_for_init.insert(params_for_init.end(), shared_consts.begin(),
+                shared_consts.end());
+        func_t init_func = builder::make_func("__init_const_globals",
+                params_for_init, init_body, datatypes::void_t);
         init_func->attr()[function_attrs::private_] = true;
         ret_mod->add_func({init_func});
         stmt const_init = builder::make_if_else_unattached(
                 builder::make_logic_not(is_init_var),
                 builder::make_stmts_unattached(
-                        {builder::make_evaluate_unattached(
-                                builder::make_call(init_func, params))}),
+                        {builder::make_evaluate_unattached(builder::make_call(
+                                init_func, params_for_init))}),
                 stmts());
-        func_body->seq_.insert(func_body->seq_.begin(), const_init);
+        // insert the stmt "if (!is_init) {__init_const_globals(...);}"
+        if (gp.num_inited_shared_const_tsr_ + gp.num_lazy_init_shared_const_tsr_
+                == 0) {
+            // if there are no shared const buffers
+            func_body->seq_.insert(func_body->seq_.begin(), const_init);
+        } else {
+            // find the first position in the body after the definition of
+            // shared consts
+            for (auto itr = func_body->seq_.begin() + to_insert.size();;
+                    itr++) {
+                if (itr == func_body->seq_.end()
+                        || !(*itr).cast<define_c>()
+                                    .map([](const define_c &v) {
+                                        return v->var_.as<tensor>();
+                                    })
+                                    .filter([](const tensor &v) {
+                                        return v->attr_
+                                                && v->attr_->has_key(attr_keys::
+                                                                shared_const);
+                                    })
+                                    .has_value()) {
+                    func_body->seq_.insert(itr, const_init);
+                    break;
+                }
+            }
+        }
     }
     func->params_ = std::move(params);
     func->decl_->params_ = func->params_;

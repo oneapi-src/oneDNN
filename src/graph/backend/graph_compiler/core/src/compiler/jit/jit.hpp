@@ -114,7 +114,6 @@ public:
     size_t module_id_;
     // whether to use managed thread pool
     bool managed_thread_pool_;
-    std::vector<std::shared_ptr<cached_const_graph_tensor>> shared_globals_;
     jit_module(bool managed_thread_pool);
     jit_module(statics_table_t &&globals, bool managed_thread_pool);
     virtual void *get_address_of_symbol(const std::string &name) = 0;

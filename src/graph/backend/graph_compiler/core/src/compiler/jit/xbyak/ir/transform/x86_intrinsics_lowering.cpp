@@ -75,6 +75,17 @@ public:
         if (v->var_.isa<var>() && v->init_.defined()) {
             add_defination(v->var_, v->linkage_);
             x86_intrinsics_transform(v->var_, v->init_);
+        } else if (v->var_.isa<tensor>()
+                && v->init_.cast<intrin_call>()
+                           .filter([](const intrin_call &v) {
+                               return v->type_ == intrin_type::reinterpret
+                                       && v->args_.at(0)->dtype_
+                                       == datatypes::index;
+                           })
+                           .has_value()) {
+            // handle tensor A[...] = reintepret(...)
+            auto intri = v->init_.static_as<intrin_call>();
+            add_defination(v->var_, v->linkage_, intri->args_[0]);
         }
         return std::move(v);
     }
@@ -1130,9 +1141,9 @@ public:
         transform_seq_.emplace_back(make_stmt<evaluate_node_t>(value));
     }
 
-    void add_defination(const expr &var, linkage link) {
-        transform_seq_.emplace_back(
-                make_stmt<define_node_t>(var, link, expr()));
+    void add_defination(
+            const expr &var, linkage link, const expr &init = expr()) {
+        transform_seq_.emplace_back(make_stmt<define_node_t>(var, link, init));
     }
 
     bool convert_x86_operation(const sc_data_type_t &dtype) {

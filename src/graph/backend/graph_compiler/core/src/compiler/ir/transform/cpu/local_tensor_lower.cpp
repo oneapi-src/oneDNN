@@ -20,11 +20,13 @@
 #include <vector>
 #include <compiler/ir/attr_keys.hpp>
 #include <compiler/ir/easy_build.hpp>
+#include <compiler/ir/graph/pass/graph_constant_cache.hpp>
 #include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/buffer_schedule.hpp>
 #include <compiler/ir/transform/pointer_alias_info.hpp>
 #include <compiler/ir/visitor.hpp>
+#include <runtime/const_cache_wrapper.hpp>
 #include <unordered_map>
 #include <unordered_set>
 #include <util/utils.hpp>
@@ -44,6 +46,25 @@ SC_DECL_PASS_INFO(local_tensor_lowering_cpu,
 static func_t set_noalias_function(func_t f) {
     f->attr()[function_attrs::no_alias] = true;
     return f;
+}
+
+func_t get_acquire_const_cache_func() {
+    static func_t f_global = set_noalias_function(
+            builder::_decl_func("sc_acquire_const_cache", datatypes::pointer,
+                    {_arg_("stream", datatypes::pointer),
+                            _arg_("cacheptr", datatypes::index),
+                            _arg_("size", datatypes::index),
+                            _arg_("outinited", datatypes::s32, {1})}));
+    return f_global;
+}
+
+func_t get_release_const_cache_func() {
+    static func_t f_global
+            = builder::_decl_func("sc_release_const_cache", datatypes::void_t,
+                    {_arg_("stream", datatypes::pointer),
+                            _arg_("cacheptr", datatypes::index),
+                            _arg_("ptr", datatypes::pointer)});
+    return f_global;
 }
 
 func_t get_cpu_temp_malloc_func(bool is_thread_local) {
@@ -105,6 +126,8 @@ struct tensor_trace_t {
 
 } // namespace local_tsr_lower
 
+static const char *shared_const_handle_name = "__shared_const_handle";
+
 using namespace local_tsr_lower;
 
 class tensor_lower_impl_t : public ir_visitor_t {
@@ -121,6 +144,8 @@ public:
     std::vector<expr> scheduled_tensors_;
     // tenosr -> hoisted base tensor in outer loop
     std::unordered_map<expr, expr> hoisted_tensor_map_;
+    expr shared_const_handles, tsr_is_init;
+
     // not interested in expr
     expr_c dispatch(expr_c v) override { return v; }
 
@@ -132,11 +157,16 @@ public:
     }
 
     stmt_c visit(define_c v) override {
-        if (!v->var_.isa<tensor>() || v->linkage_ != linkage::local) {
-            return v;
+        if (!v->var_.isa<tensor>()) { return v; }
+        if (v->linkage_ == linkage::local
+                && v->var_.static_as<tensor>()->name_
+                        == shared_const_handle_name) {
+            shared_const_handles = v->var_;
         }
+        if (v->linkage_ != linkage::local) { return v; }
         // only interested in local tensors
         auto tsr = v->var_.static_as<tensor>();
+        if (tsr->name_ == "__is_init") { tsr_is_init = tsr; }
         if (v->init_.defined()) {
             if (v->init_.isa<tensorptr>()) {
                 auto tptr = v->init_.static_as<tensorptr>();
@@ -187,12 +217,15 @@ public:
 
         bool is_const = true;
         const auto &dim = tsr->dims_[0];
+        auto shared_cached_buffer = any_map_t::fetch_or_else<
+                std::shared_ptr<cached_const_graph_tensor>>(
+                v->var_->attr_.get(), attr_keys::shared_const, nullptr);
         if (!dim.isa<constant>()) {
             is_const = false;
         } else {
             sz *= get_const_as_int(dim.static_as<constant>());
         }
-        if (is_const && sz <= threshold_
+        if (is_const && sz <= threshold_ && !shared_cached_buffer
                 && /*and the tensor is not marked runtime_stack_alloc*/
                 !(tsr->attr_
                         && tsr->attr_->get_or_else(
@@ -204,12 +237,33 @@ public:
                 ? expr(sz)
                 : auto_caster_t()(tsr->dims_[0]
                         * utils::get_sizeof_type(tsr->elem_dtype_));
-
-        bool thread_loca = tsr->attr_
-                && tsr->attr_->get_or_else("is_thread_buffer", false);
-        // a large local tensor/dynamic tensor
-        expr initv = builder::make_call(get_cpu_temp_malloc_func(thread_loca),
-                {cur_rtl_ctx_, alloc_size});
+        expr initv;
+        if (shared_cached_buffer) {
+            // handle special local tensors: shared cached const
+            auto handle_idx = any_map_t::fetch_or_null<size_t>(
+                    v->var_->attr_.get(), attr_keys::shared_const_base_idx);
+            COMPILE_ASSERT(handle_idx, "Expecting attr shared_const_base_idx");
+            COMPILE_ASSERT(shared_const_handles.defined(),
+                    "Expecting shared_const_handles defined");
+            if (shared_cached_buffer->buf_base_->is_lazy_) {
+                COMPILE_ASSERT(
+                        tsr_is_init.defined(), "Expecting __is_init defined");
+                initv = builder::make_call(get_acquire_const_cache_func(),
+                        {cur_rtl_ctx_,
+                                shared_const_handles[uint64_t(*handle_idx)],
+                                alloc_size, tsr_is_init});
+            } else {
+                initv = builder::make_reinterpret(
+                        shared_const_handles[uint64_t(*handle_idx)],
+                        datatypes::pointer);
+            }
+        } else {
+            bool thread_loca = tsr->attr_
+                    && tsr->attr_->get_or_else("is_thread_buffer", false);
+            // a large local tensor/dynamic tensor
+            initv = builder::make_call(get_cpu_temp_malloc_func(thread_loca),
+                    {cur_rtl_ctx_, alloc_size});
+        }
         defined_tsr_.back().emplace_back(tsr);
         return copy_attr(*v,
                 builder::make_var_tensor_def_unattached(
@@ -226,12 +280,39 @@ public:
             bool is_ret = !seq.empty() && seq.back().isa<returns>();
             for (auto itr = current_scope.rbegin(); itr != current_scope.rend();
                     ++itr) {
-                bool thread_loca = (*itr)->attr_
-                        && (*itr)->attr_->get_or_else(
-                                "is_thread_buffer", false);
-                stmt the_call = builder::make_evaluate_unattached(
-                        builder::make_call(get_cpu_temp_free_func(thread_loca),
-                                {cur_rtl_ctx_, *itr}));
+                stmt the_call;
+                if (auto cached_buffer = any_map_t::fetch_or_else<
+                            std::shared_ptr<cached_const_graph_tensor>>(
+                            (*itr)->attr_.get(), attr_keys::shared_const,
+                            nullptr)) {
+                    auto handle_idx = any_map_t::fetch_or_null<size_t>(
+                            (*itr)->attr_.get(),
+                            attr_keys::shared_const_base_idx);
+                    COMPILE_ASSERT(
+                            handle_idx, "Expecting attr shared_const_base_idx");
+                    COMPILE_ASSERT(shared_const_handles.defined(),
+                            "Expecting shared_const_handles defined");
+                    if (cached_buffer->buf_base_->is_lazy_) {
+                        the_call = builder::make_evaluate_unattached(
+                                builder::make_call(
+                                        get_release_const_cache_func(),
+                                        {cur_rtl_ctx_,
+                                                shared_const_handles[uint64_t(
+                                                        *handle_idx)],
+                                                *itr}));
+                    } else {
+                        // compile-time constants, do not need to call release
+                        continue;
+                    }
+                } else {
+                    bool thread_loca = (*itr)->attr_
+                            && (*itr)->attr_->get_or_else(
+                                    "is_thread_buffer", false);
+                    the_call = builder::make_evaluate_unattached(
+                            builder::make_call(
+                                    get_cpu_temp_free_func(thread_loca),
+                                    {cur_rtl_ctx_, *itr}));
+                }
                 if ((*itr)->attr_
                         && (*itr)->attr_->get_or_else(
                                 "temp.may_inplace", false)) {
