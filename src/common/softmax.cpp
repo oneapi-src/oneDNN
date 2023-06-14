@@ -34,6 +34,10 @@ using namespace dnnl::impl::types;
     VCONDCHECK(create, check, softmax, (cond), status::invalid_arguments, msg, \
             ##__VA_ARGS__);
 
+#define VCHECK_SOFTMAX_UNIMPL(cond, msg, ...) \
+    VCONDCHECK(create, check, softmax, (cond), status::unimplemented, msg, \
+            ##__VA_ARGS__);
+
 namespace {
 status_t softmax_desc_init(softmax_desc_t *softmax_desc, prop_kind_t prop_kind,
         alg_kind_t alg_kind, const memory_desc_t *src_desc,
@@ -85,6 +89,47 @@ status_t softmax_desc_init(softmax_desc_t *softmax_desc, prop_kind_t prop_kind,
     *softmax_desc = sd;
     return success;
 }
+
+status_t softmax_attr_check(const softmax_desc_t &desc, const engine_t *engine,
+        const primitive_attr_t *attr) {
+    using smask_t = primitive_attr_t::skip_mask_t;
+
+    if (attr == nullptr) return status::success;
+    if (attr->has_default_values()) return status::success;
+
+    // Check attributes
+    if (utils::one_of(desc.prop_kind, prop_kind::forward_inference,
+                prop_kind::forward_training)) {
+        const data_type_t dst_dt = desc.dst_desc.data_type;
+
+        auto fwd_attr_mask = smask_t::post_ops | smask_t::scales_runtime;
+
+        VCHECK_SOFTMAX_UNIMPL(attr->has_default_values(fwd_attr_mask, dst_dt),
+                VERBOSE_UNSUPPORTED_ATTR);
+
+        if (!attr->scales_.has_default_values()) {
+            const auto &sc = attr->scales_;
+            const int mask_src = sc.get(DNNL_ARG_SRC).mask_;
+            const int mask_dst = sc.get(DNNL_ARG_DST).mask_;
+
+            VCHECK_SOFTMAX_UNIMPL(utils::everyone_is(0, mask_src, mask_dst),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+        }
+
+        // Check post-ops
+        if (!attr->post_ops_.has_default_values()) {
+            const auto &po = attr->post_ops_;
+            using namespace primitive_kind;
+            VCHECK_SOFTMAX_UNIMPL(po.has_default_values({binary, eltwise}),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+        }
+    } else {
+        VCHECK_SOFTMAX_UNIMPL(false, VERBOSE_UNSUPPORTED_ATTR);
+    }
+
+    return status::success;
+}
+
 } // namespace
 
 status_t dnnl_softmax_forward_primitive_desc_create(
@@ -98,6 +143,7 @@ status_t dnnl_softmax_forward_primitive_desc_create(
     auto softmax_desc = softmax_desc_t();
     CHECK(softmax_desc_init(&softmax_desc, prop_kind, alg_kind, src_desc,
             dst_desc, nullptr, nullptr, axis));
+    CHECK(softmax_attr_check(softmax_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&softmax_desc, nullptr, attr);
 }
@@ -112,6 +158,7 @@ status_t dnnl_softmax_backward_primitive_desc_create(
     auto softmax_desc = softmax_desc_t();
     CHECK(softmax_desc_init(&softmax_desc, prop_kind::backward_data, alg_kind,
             nullptr, dst_desc, diff_src_desc, diff_dst_desc, axis));
+    CHECK(softmax_attr_check(softmax_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&softmax_desc, hint_fwd_pd, attr);
 }
