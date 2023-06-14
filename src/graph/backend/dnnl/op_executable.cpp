@@ -1199,9 +1199,15 @@ binary_executable_t::desc_t binary_executable_t::create_desc(
     // for dst when src0 shape is 1x1x1x1, such as cdab. It will cause binary
     // performance poor, and the post matmul pattern performance is poor.
     // So we force dst format to src0 format.
-    auto format_tag = get_format_tag(src0);
-    memory::desc dst = memory::desc(
-            tmp_dst.get_dims(), tmp_dst.get_data_type(), format_tag);
+    auto format_tag = get_format_tag_str(src0);
+    const auto &dims = tmp_dst.get_dims();
+    const auto &dtype = tmp_dst.get_data_type();
+    dnnl_memory_desc_t dst_c;
+    dnnl_memory_desc_create_with_string_tag(&dst_c,
+            static_cast<int>(dims.size()), dims.data(),
+            static_cast<dnnl_data_type_t>(dtype), format_tag.data());
+    dnnl::memory::desc dst;
+    dst.reset(dst_c);
 
     const algorithm algo = static_cast<dnnl::algorithm>(
             op->get_attr<int64_t>(op_attr::alg_kind));
