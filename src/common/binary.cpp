@@ -34,6 +34,54 @@ using namespace dnnl::impl::types;
     VCONDCHECK(create, check, binary, (cond), status::invalid_arguments, msg, \
             ##__VA_ARGS__);
 
+#define VCHECK_BINARY_UNIMPL(cond, msg, ...) \
+    VCONDCHECK(create, check, binary, (cond), status::unimplemented, msg, \
+            ##__VA_ARGS__);
+
+status_t binary_attr_check(const binary_desc_t &desc, const engine_t *engine,
+        const primitive_attr_t *attr) {
+    using smask_t = primitive_attr_t::skip_mask_t;
+
+    if (attr == nullptr) return status::success;
+    if (attr->has_default_values()) return status::success;
+
+    // Check attributes
+    const data_type_t dst_dt = desc.dst_desc.data_type;
+
+    auto attr_mask = smask_t::post_ops | smask_t::scales_runtime;
+
+    VCHECK_BINARY_UNIMPL(attr->has_default_values(attr_mask, dst_dt),
+            VERBOSE_UNSUPPORTED_ATTR);
+
+    // Check scales
+    if (!attr->scales_.has_default_values()) {
+        VCHECK_BINARY_UNIMPL(attr->scales_.has_default_values(
+                                     {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1}),
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
+
+        const auto &sc = attr->scales_;
+        const int mask_src_0 = sc.get(DNNL_ARG_SRC_0).mask_;
+        const int mask_src_1 = sc.get(DNNL_ARG_SRC_1).mask_;
+
+        VCHECK_BINARY_UNIMPL(utils::everyone_is(0, mask_src_0, mask_src_1),
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
+    }
+
+    // Check post-ops
+    if (!attr->post_ops_.has_default_values()) {
+        const auto &po = attr->post_ops_;
+        using namespace primitive_kind;
+        VCHECK_BINARY_UNIMPL(po.has_default_values({binary, eltwise, sum}),
+                VERBOSE_UNSUPPORTED_POSTOP);
+
+        // Check sum
+        VCHECK_BINARY_UNIMPL(po.check_sum_consistency(dst_dt, false, true),
+                VERBOSE_UNSUPPORTED_POSTOP);
+    }
+
+    return status::success;
+}
+
 status_t dnnl_binary_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         alg_kind_t alg_kind, const memory_desc_t *src0_md,
@@ -85,6 +133,7 @@ status_t dnnl_binary_primitive_desc_create(
                 VERBOSE_INCONSISTENT_DIM, "src1", d, "dst", d);
     }
 
+    CHECK(binary_attr_check(bod, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&bod, nullptr, attr);
 }
