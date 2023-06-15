@@ -110,6 +110,9 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
             jbgp.with_bias, jbgp.with_scales, jbgp.with_eltwise,
             jbgp.with_binary, jbgp.acc_dt != jbgp.dst_dt,
             jbgp.req_s8s8_compensation, jbgp.with_dst_scales);
+    const bool can_use_dst_as_acc_buffer
+            = jbgp.acc_dt == jbgp.dst_dt && !jbgp.with_sum;
+    const int acc_buffer_idx_shift = can_use_dst_as_acc_buffer;
 
     size_t offset = types::data_type_size(jbgp.wei_dt)
             * (weights_d.size() - weights_d.additional_buffer_size());
@@ -147,8 +150,10 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
         const int oc = cur_ocb * jbgp.oc_block;
         const size_t dst_off = get_blk_off(dst_d, jbgp.dst_dt, n, oc);
 
-        const bool use_c_buffer = (jbgp.with_sum)
-                || (jbgp.use_buffer && (jbgp.nthr_ic_b == 1 || ithr_ic > 0));
+        const bool force_use_dst_as_acc_buffer = can_use_dst_as_acc_buffer
+                && jbgp.nthr_ic_b > 1 && ithr_ic == 0;
+        const bool use_c_buffer
+                = jbgp.use_buffer && !force_use_dst_as_acc_buffer;
 
         char *c_buffer = nullptr;
         if (use_c_buffer) {
@@ -157,8 +162,7 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
             size_t c_buf_walk = 0;
 
             if (jbgp.nthr_ic_b > 1) {
-                c_buf_idx = ithr_ic - 1;
-                c_buf_idx += jbgp.acc_dt != jbgp.dst_dt || jbgp.with_sum;
+                c_buf_idx = ithr_ic - acc_buffer_idx_shift;
                 c_buf_nrows = jbgp.mb;
 
                 // NOTE: This trick only works because the leading dimension of
@@ -490,11 +494,13 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
             assert(jbgp.nthr_ic_b > 1);
             int os = osb * jbgp.os_block;
             int oc = ocb * jbgp.oc_block;
-            const size_t dst_off = get_blk_off(dst_d, jbgp.dst_dt, os, oc);
+            // use accumulation data type size for buffer offset computation
+            const size_t dst_off = get_blk_off(dst_d, jbgp.acc_dt, os, oc);
             if (ithr_ic == 0) return dst_off;
             assert(ithr_ic > 0);
-            const size_t ic_buf_idx = jbgp.with_sum ? ithr_ic : ithr_ic - 1;
-            return dst_off + (ic_buf_idx * jbgp.mb * jbgp.LDC * acc_dt_size);
+            // shift buffer idx if dst is used as accumulation buffer
+            const int ic_buf_idx = ithr_ic - acc_buffer_idx_shift;
+            return dst_off + (acc_dt_size * jbgp.mb * jbgp.LDC * ic_buf_idx);
         };
 
         parallel(num_threads, [&](const int ithr, const int nthr) {
@@ -528,7 +534,9 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                     const int cur_oc_chunk_size
                             = nstl::min(jbgp.LDC, ocb_e * jbgp.oc_block)
                             - ocb_s * jbgp.oc_block;
-                    char *dst_reduced = (jbgp.with_sum ? c_buffer_global : dst)
+                    char *dst_reduced
+                            = (can_use_dst_as_acc_buffer ? dst
+                                                         : c_buffer_global)
                             + get_dst_reduced_off(0, osb, ocb_s);
                     const size_t os_offset = jbgp.LDC * acc_dt_size;
                     for (int ic_buf = 0; ic_buf < nthr_ic - 1; ++ic_buf) {
@@ -560,8 +568,10 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                                     : nullptr;
                             auto ptr_D = dst
                                     + get_blk_off(dst_d, jbgp.dst_dt, os, oc);
-                            auto ptr_C = (jbgp.with_sum ? c_buffer_global : dst)
-                                    + get_dst_reduced_off(0, osb, ocb);
+                            auto ptr_C = can_use_dst_as_acc_buffer
+                                    ? ptr_D
+                                    : c_buffer_global
+                                            + get_dst_reduced_off(0, osb, ocb);
 
                             char *wsp_tile = is_amx ? wsp_tile_base
                                             + ithr * jbgp.amx_buf_size_per_thread

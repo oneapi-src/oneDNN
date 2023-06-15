@@ -108,13 +108,8 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                 CHECK(brgemm_desc_set_postops(
                         &brg, attr(), &dst_md_, LDD, jbgp_.bia_dt));
 
-                if (are_post_ops_applicable && jbgp_.nthr_ic_b > 1) {
-                    brgemm_attr_t brgattr;
-                    brgattr.generate_skip_accumulation = true;
-                    CHECK(brgemm_desc_set_attr(&brg, brgattr));
-                }
+                brgemm_attr_t brgattr;
                 if (jbgp_.is_amx) {
-                    brgemm_attr_t brgattr;
                     brgattr.max_bs = bs;
                     brgattr.wary_tail_read = false;
                     brgattr.hint_expected_A_size = jbgp_.mb * jbgp_.ic;
@@ -125,12 +120,17 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                     brgattr.use_interleave_stores = jbgp_.use_interleave_stores;
                     brgattr.hint_prefetching = jbgp_.hint_prefetching;
                     brgattr.fpmath_mode = attr()->fpmath_mode_;
+                }
+                if (are_post_ops_applicable && jbgp_.nthr_ic_b > 1) {
+                    brgattr.generate_skip_accumulation = true;
+                }
 
-                    CHECK(brgemm_desc_set_attr(&brg, brgattr));
+                CHECK(brgemm_desc_set_attr(&brg, brgattr));
+
+                if (jbgp_.is_amx)
                     jbgp_.amx_buf_size_per_thread
                             = nstl::max(brg.get_wsp_buffer_size(),
                                     jbgp_.amx_buf_size_per_thread);
-                }
             }
 
             auto scratchpad = scratchpad_registry().registrar();

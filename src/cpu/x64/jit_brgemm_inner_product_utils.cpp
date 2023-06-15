@@ -487,15 +487,32 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
     const int max_nb_ic_blocking = nstl::min(64, jbgp.nb_ic);
     const int min_ic_chunks = jbgp.nb_ic / max_nb_ic_blocking;
 
+    // Use parallel IC reduction for xf16 if we have:
+    //  * Very large input channels.
+    //  * Number of threads > 1.
+    //  * AMX isa
+    //  * Low amount of parallelism on os/oc dimensions compared to ic dimension
+    //    with high level of thread imbalance
+    //  * Single chunk wrt os dimension
+    bool small_dst_chunk_size = jbgp.oc_block * jbgp.nb_oc_blocking
+                    * jbgp.os_block * jbgp.nb_os_blocking
+            <= 1024;
+    bool low_parallelism_level = os_chunks == 1 && small_dst_chunk_size
+            && !is_balanced(other_work, 2, jbgp.nthr, jbgp.nthr / 2);
+    bool use_parallel_ic_reduction_for_bf16
+            = is_amx_xf16 && jbgp.ic > 4 * 1024 && low_parallelism_level;
+    bool low_work_amount = other_work < 2 * min_ic_chunks * jbgp.nthr;
+
     // Use parallel IC reduction for f32 if we have:
     //  * Very large input channels.
     //  * Low amount of parallelism on os/oc dimensions compared to ic dimension.
     //  * Number of threads > 1.
     //  * Not a "gigantic shape" since it already has a lot of parallelism
     //    in os and oc dimensions w/o enabling IC parallelism.
-    bool low_work_amount = other_work < 2 * min_ic_chunks * jbgp.nthr;
-    bool use_parallel_ic_reduction = is_f32_compute && jbgp.ic > 1024
+    bool use_parallel_ic_reduction_for_f32 = is_f32_compute && jbgp.ic > 1024
             && low_work_amount && jbgp.nthr > 1 && !is_gigantic_shape;
+    bool use_parallel_ic_reduction = use_parallel_ic_reduction_for_f32
+            || use_parallel_ic_reduction_for_bf16;
 
     // For os > 256, compute all os blocks as a single chunk when performing
     // IC reduction. Note that this condition is empirical
@@ -523,7 +540,11 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
         int reduce_work = int(0.5f * num_min_chunk_sz * jbgp.nb_os
                 + (float)num_min_chunk_sz / jbgp.nb_oc + 0.5f);
         const int max_nthr_ic_b = nstl::min(
-                nstl::min(jbgp.nb_ic >= 1024 ? 8 : 4, num_min_chunk_sz),
+                nstl::min(
+                        jbgp.nb_ic >= 1024 || use_parallel_ic_reduction_for_bf16
+                                ? 8
+                                : 4,
+                        num_min_chunk_sz),
                 jbgp.nthr);
 
         // Don't sacrifice reduction threads if other dimension will
@@ -1430,7 +1451,7 @@ void jit_brgemm_ip_fwd_conf_t::init_scratchpad(
 
         if (jbgp.nthr_ic_b > 1) {
             const bool need_extra_buffer
-                    = (jbgp.dst_dt == f32 && jbgp.with_sum);
+                    = IMPLICATION(jbgp.dst_dt == jbgp.acc_dt, jbgp.with_sum);
             int n_reduction_buffers = jbgp.nthr_ic_b - !need_extra_buffer;
             nbuffers = n_reduction_buffers;
             nrows = jbgp.os;
