@@ -30,6 +30,9 @@ using namespace dnnl::impl::alg_kind;
     VCONDCHECK(create, check, reduction, (cond), status::invalid_arguments, \
             msg, ##__VA_ARGS__);
 
+#define VCHECK_RED_UNIMPL(cond, msg, ...) \
+    VCONDCHECK(create, check, reduction, (cond), status::unimplemented, msg, \
+            ##__VA_ARGS__);
 namespace dnnl {
 namespace impl {
 
@@ -96,6 +99,36 @@ status_t reduction_desc_init(reduction_desc_t *reduction_desc,
     return success;
 }
 
+status_t reduction_attr_check(const reduction_desc_t &desc,
+        const engine_t *engine, const primitive_attr_t *attr) {
+    using smask_t = primitive_attr_t::skip_mask_t;
+
+    if (attr == nullptr) return status::success;
+    if (attr->has_default_values()) return status::success;
+
+    // Check attributes
+    const data_type_t dst_dt = desc.dst_desc.data_type;
+
+    auto attr_mask = smask_t::post_ops;
+
+    VCHECK_RED_UNIMPL(attr->has_default_values(attr_mask, dst_dt),
+            VERBOSE_UNSUPPORTED_ATTR);
+
+    // Check post-ops
+    if (!attr->post_ops_.has_default_values()) {
+        const auto &po = attr->post_ops_;
+        using namespace primitive_kind;
+        VCHECK_RED_UNIMPL(po.has_default_values({binary, eltwise, sum}),
+                VERBOSE_UNSUPPORTED_POSTOP);
+
+        // Check sum
+        VCHECK_RED_UNIMPL(po.check_sum_consistency(dst_dt, false, true),
+                VERBOSE_UNSUPPORTED_POSTOP);
+    }
+
+    return status::success;
+}
+
 } // namespace impl
 } // namespace dnnl
 
@@ -108,6 +141,7 @@ dnnl_status_t dnnl_reduction_primitive_desc_create(
     auto reduction_desc = reduction_desc_t();
     CHECK(reduction_desc_init(
             &reduction_desc, alg_kind, src_desc, dst_desc, p, eps));
+    CHECK(reduction_attr_check(reduction_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&reduction_desc, nullptr, attr);
 }
