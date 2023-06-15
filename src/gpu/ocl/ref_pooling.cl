@@ -197,7 +197,7 @@ __kernel void ref_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
     const int ih = GWS_GET_IH();
     const int iw = GWS_GET_IW();
 
-    ACC_DATA_T s = 0;
+    DEF_ACC_DATA_T s = 0;
     int denom = 1;
 #if ALG_AVG_P
     denom = KD * KH * KW;
@@ -258,14 +258,10 @@ __kernel void ref_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
                         * (KH - ih_start_excluded - ih_end_excluded)
                         * (KW - iw_start_excluded - iw_end_excluded);
 #endif
-#if DT_F64
-                s += diff_dst[dst_off] / denom;
-#else
 #if ALG_MAX || ALG_AVG_P
-                s += DATA_TO_REF(diff_dst[dst_off]);
+                s += TO_DEF_ACC_DATA_T(diff_dst[dst_off]);
 #elif ALG_AVG_NP
-                s += DATA_TO_REF(diff_dst[dst_off]) / denom;
-#endif
+                s += TO_DEF_ACC_DATA_T(diff_dst[dst_off]) / denom;
 #endif
             }
         }
