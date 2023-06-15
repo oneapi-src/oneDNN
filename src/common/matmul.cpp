@@ -32,6 +32,81 @@ using namespace dnnl::impl::types;
     VCONDCHECK(create, check, matmul, (cond), status::invalid_arguments, msg, \
             ##__VA_ARGS__);
 
+#define VCHECK_MATMUL_UNIMPL(cond, msg, ...) \
+    VCONDCHECK(create, check, matmul, (cond), status::unimplemented, msg, \
+            ##__VA_ARGS__);
+
+namespace {
+status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
+        const primitive_attr_t *attr) {
+    using smask_t = primitive_attr_t::skip_mask_t;
+
+    if (attr == nullptr) return status::success;
+    if (attr->has_default_values()) return status::success;
+
+    // Check attributes
+    const data_type_t src_dt = desc.src_desc.data_type;
+    const data_type_t dst_dt = desc.dst_desc.data_type;
+
+    // Matmul supports scales for floating point data types
+    auto attr_mask
+            = smask_t::post_ops | smask_t::sum_dt | smask_t::scales_runtime;
+
+    const bool is_int8 = utils::one_of(src_dt, data_type::s8, data_type::u8);
+    if (is_int8) attr_mask |= smask_t::zero_points_runtime;
+
+    VCHECK_MATMUL_UNIMPL(attr->has_default_values(attr_mask, dst_dt),
+            VERBOSE_UNSUPPORTED_ATTR);
+
+    // Check scales
+    if (!attr->scales_.has_default_values()) {
+        const auto &sc = attr->scales_;
+        const int mask_src = sc.get(DNNL_ARG_SRC).mask_;
+        const int mask_wei = sc.get(DNNL_ARG_WEIGHTS).mask_;
+        const int mask_dst = sc.get(DNNL_ARG_DST).mask_;
+
+        VCHECK_MATMUL_UNIMPL(utils::everyone_is(0, mask_src, mask_dst)
+                        && utils::one_of(mask_wei, 0,
+                                1 << (desc.weights_desc.ndims - 1)),
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
+    }
+
+    // Check zero points
+    if (!attr->zero_points_.has_default_values()) {
+        const auto &zp = attr->zero_points_;
+        int mask_src = 0, mask_wei = 0, mask_dst = 0;
+        zp.get(DNNL_ARG_SRC, &mask_src);
+        zp.get(DNNL_ARG_WEIGHTS, &mask_wei);
+        zp.get(DNNL_ARG_DST, &mask_dst);
+
+        VCHECK_MATMUL_UNIMPL(mask_wei == 0
+                        && (mask_src == 0
+                                || (desc.src_desc.ndims == 2
+                                        && mask_src == 1 << 1))
+                        && (mask_dst == 0
+                                || (desc.dst_desc.ndims == 2
+                                        && mask_dst == 1 << 1)),
+                VERBOSE_UNSUPPORTED_ZP_CFG);
+    }
+
+    // Check post-ops
+    if (!attr->post_ops_.has_default_values()) {
+        const auto &po = attr->post_ops_;
+        using namespace primitive_kind;
+        VCHECK_MATMUL_UNIMPL(
+                po.has_default_values({binary, eltwise, prelu, sum}),
+                VERBOSE_UNSUPPORTED_POSTOP);
+
+        // Check sum
+        VCHECK_MATMUL_UNIMPL(po.check_sum_consistency(dst_dt, is_int8, true),
+                VERBOSE_UNSUPPORTED_POSTOP);
+    }
+
+    return status::success;
+}
+
+} // namespace
+
 status_t dnnl_matmul_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         const memory_desc_t *src_md, const memory_desc_t *weights_md,
@@ -111,7 +186,7 @@ status_t dnnl_matmul_primitive_desc_create(
             weights_md->data_type, dst_md->data_type, prop_kind::forward);
     VCHECK_MATMUL(op_d.accum_data_type != data_type::undef,
             VERBOSE_INVALID_DATATYPE, "accumulation");
-
+    CHECK(matmul_attr_check(op_d, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&op_d, nullptr, attr);
 }
