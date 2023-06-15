@@ -155,12 +155,24 @@ void tile_generic_t<KeyT>::deserialize(std::istream &in) {
 template class tile_generic_t<gemm_dim_t>;
 template class tile_generic_t<conv_dim_t>;
 
-gemm_dim_t to_gemm(const conv_dim_t &d, prop_kind_t prop) {
+gemm_dim_t to_gemm(const conv_dim_t &d, prop_kind_t prop, bool is_transpose) {
     bool is_fwd = (prop == prop_kind::forward);
     bool is_bwd_d = (prop == prop_kind::backward_data);
     bool is_bwd_w = (prop == prop_kind::backward_weights);
+    auto transpose_gemm = [](const gemm_dim_t &d) {
+        if (d == gemm_dims::m) return gemm_dims::n;
+        if (d == gemm_dims::n) return gemm_dims::m;
+        if (d == gemm_dims::k) return gemm_dims::k;
+        ir_error_not_expected();
+        return gemm_dim_t();
+    };
     auto pick = [&](const gemm_dim_t &fwd, const gemm_dim_t &bwd_d,
                         const gemm_dim_t &bwd_w) {
+        if (is_transpose) {
+            if (is_fwd) return transpose_gemm(fwd);
+            if (is_bwd_d) return transpose_gemm(bwd_d);
+            if (is_bwd_w) return transpose_gemm(bwd_w);
+        }
         if (is_fwd) return fwd;
         if (is_bwd_d) return bwd_d;
         if (is_bwd_w) return bwd_w;
@@ -192,10 +204,10 @@ gemm_dim_t to_gemm(const conv_dim_t &d, prop_kind_t prop) {
     return gemm_dim_t();
 }
 
-gemm_tile_t to_gemm(const conv_tile_t &t, prop_kind_t prop) {
+gemm_tile_t to_gemm(const conv_tile_t &t, prop_kind_t prop, bool is_transpose) {
     gemm_tile_t ret;
     for (auto d : t) {
-        auto gemm_d = to_gemm(d, prop);
+        auto gemm_d = to_gemm(d, prop, is_transpose);
         if (!ret.has(gemm_d)) ret[gemm_d] = 1;
         ret[gemm_d] *= t[d];
     }

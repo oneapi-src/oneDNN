@@ -503,6 +503,7 @@ struct conv_sample_t {
                 break;
             default: ir_assert(false);
         }
+        if (transpose) std::swap(m, n);
     }
 
     // Initializes missing dimensions to one.

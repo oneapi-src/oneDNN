@@ -106,18 +106,17 @@ public:
 
     template <typename T>
     T &&pick_a(T &&src, T &&wei, T &&dst) const {
-        return ab_swap_transpose
-                ? (is_bwd_w ? std::forward<T>(dst) : std::forward<T>(wei))
-                : (is_fwd || is_bwd_w) ? std::forward<T>(src)
-                                       : std::forward<T>(dst);
+        return std::forward<T>(ab_swap_transpose ? (is_bwd_w ? dst : wei)
+                        : (is_fwd || is_bwd_w)   ? src
+                                                 : dst);
     }
 
     template <typename T>
     T &&pick_b(T &&src, T &&wei, T &&dst) const {
-        return ab_swap_transpose ? ((is_fwd || is_bwd_w) ? std::forward<T>(src)
-                                                         : std::forward<T>(dst))
-                : (is_fwd || is_bwd_d) ? std::forward<T>(wei)
-                                       : std::forward<T>(dst);
+        return std::forward<T>(ab_swap_transpose
+                        ? ((is_fwd || is_bwd_w) ? src : dst)
+                        : (is_fwd || is_bwd_d) ? wei
+                                               : dst);
     }
 
     template <typename T>
@@ -148,7 +147,7 @@ public:
     bool with_groups;
     bool with_sum;
     bool is_dw;
-    bool ab_swap_transpose;
+    bool ab_swap_transpose = false;
 
     int ndims;
     int mb; // Batch size.
@@ -248,6 +247,35 @@ private:
     bool with_sum_post_op() {
         auto &post_ops = attr->post_ops_;
         return post_ops.find(primitive_kind::sum) != -1;
+    }
+
+    void init_transpose(const hw_config_t &hw_cfg) {
+        using sm = primitive_attr_t::skip_mask_t;
+        auto attr_skip_mask = sm::post_ops | sm::sum_dt | sm::scales_runtime;
+        bool allow_ab_transpose
+                = gpu_utils::dev_getenv("allow_ab_transpose", true);
+        bool any_zp = !attr->has_default_values(attr_skip_mask);
+        bool any_f64
+                = utils::one_of(data_type::f64, src_data_type, dst_data_type);
+        if (!allow_ab_transpose || any_zp || any_f64 || with_groups) {
+            ab_swap_transpose = false;
+            return;
+        }
+        int max_sp = (hw_cfg.hw() >= ngen::HW::XeHPC) ? 1240 : 512;
+        bool do_ic_swap = ((is_fwd || is_bwd_w) && oc < 6);
+        bool do_oc_swap = ((is_bwd_d) && ic < 6);
+        bool allow_bwd_w = !is_bwd_w
+                || ((src_data_type != data_type::f32
+                            || fpmath_mode == dnnl_fpmath_mode_tf32)
+                        && osp % 8 == 0);
+        bool allow_bwd_d
+                = !is_bwd_d || (src_data_type == data_type::f32 && osp == isp);
+        bool allow_fwd = !is_fwd
+                || (dst_data_type != data_type::f32
+                        && dst_data_type != data_type::f64 && mb <= 8
+                        && ih != iw && iw <= max_sp);
+        ab_swap_transpose = allow_fwd && allow_bwd_d && allow_bwd_w
+                && (do_oc_swap || do_ic_swap);
     }
 };
 
@@ -1054,10 +1082,12 @@ private:
 class bmnk_dim_helper_t {
 public:
     bmnk_dim_helper_t(const conv_config_t &cfg) {
-        gemm_iter_ = to_gemm(cfg.iter_dims().get(), cfg.prb().prop_kind(), cfg.prb().ab_swap_transpose),
-        gemm_thread_group_
-                = to_gemm(cfg.thread_group_dims().get(), cfg.prb().prop_kind(), cfg.prb().ab_swap_transpose);
-        gemm_loop_ = to_gemm(cfg.loop_dims().get(), cfg.prb().prop_kind(), cfg.prb().ab_swap_transpose);
+        gemm_iter_ = to_gemm(cfg.iter_dims().get(), cfg.prb().prop_kind(),
+                cfg.prb().ab_swap_transpose),
+        gemm_thread_group_ = to_gemm(cfg.thread_group_dims().get(),
+                cfg.prb().prop_kind(), cfg.prb().ab_swap_transpose);
+        gemm_loop_ = to_gemm(cfg.loop_dims().get(), cfg.prb().prop_kind(),
+                cfg.prb().ab_swap_transpose);
     }
 
     int iter_dim(gemm_dim_t d) const { return gemm_iter_.at(d, 1); }

@@ -1192,6 +1192,7 @@ struct fma_context_t {
         bool is_mad = (fma == fma_kind_t::mad);
         bool is_dpas = is_dp_fma(fma);
         bool is_a = (abc == abc_kind_t::a);
+        bool is_b = (abc == abc_kind_t::b);
         auto type = (is_a ? a_type : b_type);
         int type_size = type.size();
 
@@ -1223,12 +1224,8 @@ struct fma_context_t {
         }
 
         if (is_mad) {
-            bool force_swap = ir_utils::getenv_bool("force_swap", false) && is_b;
-            bool do_swap = ir_utils::getenv_bool("do_swap", true) && is_b;
             // swap b blocks for axb layouts when a inner dim is required by transpose
-            if (force_swap
-                    || (do_swap && is_b && fma_cfg.ab_swap_transpose_
-                            && !other_layout.is_empty())) {
+            if (is_b && ab_swap_transpose_) {
                 if (layout.blocks().size() > 1) {
                     std::vector<block_t> blocks;
                     int new_inner_stride = 1;
@@ -1341,6 +1338,7 @@ struct fma_context_t {
     type_t a_type;
     type_t b_type;
     bool is_src1_broadcast;
+    bool ab_swap_transpose_;
     fma_layout_hint_t a_layout_hint;
     fma_layout_hint_t b_layout_hint;
 };
@@ -1924,7 +1922,8 @@ private:
             return is_a ? cfg_.slm().a() : cfg_.slm().b();
         }
 
-        if (prb.is_bwd_w && prb.with_bias && prb.ab_swap_transpose) return false;
+        if (prb.is_bwd_w && prb.with_bias && prb.ab_swap_transpose)
+            return false;
 
         if (!allow_slm_) return false;
         if (cfg_.hw() >= ngen::HW::XeHPC) return false;
@@ -2051,7 +2050,7 @@ private:
         auto params = get_send_params(cfg_.exec_cfg(), send_op_t::load,
                 send_address_t::a64, cfg_.fma_kind(), abc, load_view,
                 gemm_schedule_,
-                /*allow_2d_load=*/ true);
+                /*allow_2d_load=*/true);
         load = create_send_plan(cfg_.exec_cfg(), load_view, params);
 
         auto reg_layout = load.reg_layout();
@@ -2073,8 +2072,6 @@ private:
                 abc, gemm_schedule_.bmnk_mapper(), reg_layout);
         auto &src = reg_layout;
         auto &dst = layout;
-        bool do_swap = ir_utils::getenv_bool("do_swap", true);
-        if(do_swap)
         reorder = create_reorder_plan(cfg_.hw(), src, dst);
         return plan_status_t::success;
     }
@@ -2263,7 +2260,6 @@ private:
                     return plan_status_t::invalid_fma_layout;
                 }
                 break;
-            }
             default: ir_error_not_expected();
         }
 

@@ -197,15 +197,10 @@ status_t conv_problem_t::init(
     auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
             conv_pd->attr()->gpu_attr_.get());
     bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
-    using sm = primitive_attr_t::skip_mask_t;
-    auto attr_skip_mask = sm::zero_points_runtime;
-    bool do_ab_transpose = gpu_utils::dev_getenv("do_ab_transpose", true);
-    bool any_zp = !attr->has_default_values(attr_skip_mask);
-    ab_swap_transpose = !any_zp && do_ab_transpose && !with_groups
-            && (((is_bwd_d) && ic < 6) || ((is_fwd || is_bwd_w) && oc < 6));
 
     hw_config_t hw_cfg(engine, large_grf_mode);
 
+    init_transpose(hw_cfg);
     CHECK(init_abc_data_types(hw_cfg));
     CHECK(init_acc_data_type());
 
@@ -491,7 +486,7 @@ struct goi_block_t {
 
     static goi_block_t get_default_blocking(type_t type, int vec_size,
             fma_kind_t fma_kind, bool is_bwd_d, int g, int o, int i,
-            bool ab_transpose = false) {
+            bool ab_transpose) {
         int x = o;
         int y = i;
         int g_block = 1;
@@ -523,7 +518,8 @@ struct goi_block_t {
         if (is_dw(g, x, y)) {
             g_block = vec_size;
         } else if (fma_kind == fma_kind_t::mad) {
-            x_block = vec_size;
+            x_block = (ab_transpose && is_bwd_d) ? utils::rnd_up_pow2(x)
+                                                 : vec_size;
             y_block = get_default_block(fma_kind, type, y);
         } else {
             int packed_dword_elems = 4 / type.size();
@@ -587,6 +583,7 @@ std::string maybe_fixup_1st_conv_wei_tag(
 
     if (!cfg.is_dp_fma()) return tag;
     if (!is_small_ic(prb) || prb.is_dw) return tag;
+    if (prb.ab_swap_transpose) return tag;
     if (!prb.is_fwd) return tag;
 
     // Use OhwIXoYi weights for small-channel forward convolution to ensure
@@ -955,9 +952,9 @@ status_t init_vec_size(conv_config_t &cfg) {
     int vec_size = cfg.simd();
     if (cfg.fma_kind() == fma_kind_t::mad) {
         int grf_elems = cfg.grf_size() / prb.acc_data_type_size;
-        int vec_dim = (prb.is_fwd || prb.is_bwd_w) && !prb.ab_swap_transpose
-                ? prb.oc
-                : (prb.ab_swap_transpose ? prb.mb : prb.ic);
+        int vec_dim = prb.ab_swap_transpose
+                ? ((prb.is_bwd_w) ? prb.ic : prb.mb)
+                : ((prb.is_fwd || prb.is_bwd_w) ? prb.oc : prb.ic);
         if (utils::rnd_up(vec_dim, grf_elems) < vec_size) vec_size = grf_elems;
     }
     // SIMD32 produces invalid layouts in bwd_w.
