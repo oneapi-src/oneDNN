@@ -33,6 +33,10 @@ using namespace dnnl::impl::types;
     VCONDCHECK(create, check, shuffle, (cond), status::invalid_arguments, msg, \
             ##__VA_ARGS__);
 
+#define VCHECK_SHUFFLE_UNIMPL(cond, msg, ...) \
+    VCONDCHECK(create, check, shuffle, (cond), status::unimplemented, msg, \
+            ##__VA_ARGS__);
+
 namespace {
 status_t shuffle_desc_init(shuffle_desc_t *shuffle_desc, prop_kind_t prop_kind,
         const memory_desc_t *src_desc, const memory_desc_t *dst_desc, int axis,
@@ -75,6 +79,18 @@ status_t shuffle_desc_init(shuffle_desc_t *shuffle_desc, prop_kind_t prop_kind,
     *shuffle_desc = sd;
     return success;
 }
+
+status_t shuffle_attr_check(const shuffle_desc_t &desc, const engine_t *engine,
+        const primitive_attr_t *attr) {
+
+    if (attr == nullptr) return status::success;
+
+    // Check attributes
+    VCHECK_SHUFFLE_UNIMPL(attr->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+
+    return status::success;
+}
+
 } // namespace
 
 dnnl_status_t dnnl_shuffle_forward_primitive_desc_create(
@@ -88,6 +104,7 @@ dnnl_status_t dnnl_shuffle_forward_primitive_desc_create(
     auto shuffle_desc = shuffle_desc_t();
     CHECK(shuffle_desc_init(
             &shuffle_desc, prop_kind, src_desc, dst_desc, axis, group_size));
+    CHECK(shuffle_attr_check(shuffle_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&shuffle_desc, nullptr, attr);
 }
@@ -101,6 +118,7 @@ dnnl_status_t dnnl_shuffle_backward_primitive_desc_create(
     auto shuffle_desc = shuffle_desc_t();
     CHECK(shuffle_desc_init(&shuffle_desc, backward_data, diff_src_desc,
             diff_dst_desc, axis, group_size));
+    CHECK(shuffle_attr_check(shuffle_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&shuffle_desc, hint_fwd_pd, attr);
 }
