@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,6 +30,14 @@ using namespace dnnl::impl::utils;
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::types;
+
+#define VCHECK_PRELU(cond, msg, ...) \
+    VCONDCHECK(create, check, prelu, (cond), status::invalid_arguments, msg, \
+            ##__VA_ARGS__)
+
+#define VCHECK_PRELU_UNIMPL(cond, msg, ...) \
+    VCONDCHECK(create, check, prelu, (cond), status::unimplemented, msg, \
+            ##__VA_ARGS__)
 
 namespace {
 status_t prelu_desc_init(prelu_desc_t *prelu_desc, prop_kind_t prop_kind,
@@ -94,6 +102,18 @@ status_t prelu_desc_init(prelu_desc_t *prelu_desc, prop_kind_t prop_kind,
     *prelu_desc = pd;
     return success;
 }
+
+status_t prelu_attr_check(const prelu_desc_t &desc, const engine_t *engine,
+        const primitive_attr_t *attr) {
+
+    if (attr == nullptr) return status::success;
+
+    // Check attributes
+    VCHECK_PRELU_UNIMPL(attr->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+
+    return status::success;
+}
+
 } // namespace
 
 status_t dnnl_prelu_forward_primitive_desc_create(
@@ -108,7 +128,7 @@ status_t dnnl_prelu_forward_primitive_desc_create(
     auto prelu_desc = prelu_desc_t();
     CHECK(prelu_desc_init(&prelu_desc, prop_kind, src_desc, weights_desc,
             dst_desc, nullptr, nullptr, nullptr));
-
+    CHECK(prelu_attr_check(prelu_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&prelu_desc, nullptr, attr);
 }
@@ -125,7 +145,7 @@ status_t dnnl_prelu_backward_primitive_desc_create(
     auto prelu_desc = prelu_desc_t();
     CHECK(prelu_desc_init(&prelu_desc, backward, src_desc, weights_desc,
             nullptr, diff_src_desc, diff_weights_desc, diff_dst_desc));
-
+    CHECK(prelu_attr_check(prelu_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&prelu_desc, hint_fwd_pd, attr);
 }
