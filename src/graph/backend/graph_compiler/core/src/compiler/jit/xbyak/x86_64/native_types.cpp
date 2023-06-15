@@ -61,6 +61,9 @@ const cpu_data_type_table &get_cpu_data_types() {
         { cpu_data_type::sint_32_x8   ,   32 ,        32 ,        32 ,          32 ,        32 ,          32 , avk::SSEUPx15_SSE },  // NOLINT
         { cpu_data_type::sint_32_x16  ,   64 ,        64 ,        64 ,          64 ,        64 ,          64 , avk::SSEUPx15_SSE },  // NOLINT
         { cpu_data_type::uint_64      ,    8 ,         8 ,         1 ,          16 ,         8 ,           8 , avk::INTEGER      },  // NOLINT
+        { cpu_data_type::uint_64_x2   ,   16 ,        16 ,        16 ,          16 ,        16 ,          16 , avk::SSEUPx15_SSE },  // NOLINT
+        { cpu_data_type::uint_64_x4   ,   32 ,        32 ,        32 ,          32 ,        32 ,          32 , avk::SSEUPx15_SSE },  // NOLINT
+        { cpu_data_type::uint_64_x8   ,   64 ,        64 ,        64 ,          64 ,        64 ,          64 , avk::SSEUPx15_SSE },  // NOLINT
         { cpu_data_type::float_32     ,    4 ,         4 ,         1 ,          16 ,         8 ,           8 , avk::SSE          },  // NOLINT
         { cpu_data_type::float_32_x2  ,    8 ,         8 ,         8 ,          16 ,        16 ,          16 , avk::SSEUPx15_SSE },  // NOLINT
         { cpu_data_type::float_32_x4  ,   16 ,        16 ,        16 ,          16 ,        16 ,          16 , avk::SSEUPx15_SSE },  // NOLINT
