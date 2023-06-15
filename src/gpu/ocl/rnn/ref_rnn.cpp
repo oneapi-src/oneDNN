@@ -1172,14 +1172,11 @@ status_t _ref_rnn_common_t<aprop>::bias_prepare(const exec_ctx_t &ctx,
     arg_list.append(data_shift);
     arg_list.append(data_scale);
 
-    int wei_l_s0 = pd()->off.weights_layer_off[1][0];
-    int wei_l_d0 = pd()->off.weights_layer_off[3][0];
-    int wei_i_s0 = pd()->off.weights_iter_off[1][0];
-    int wei_i_d0 = pd()->off.weights_iter_off[3][0];
-    arg_list.append(wei_l_s0);
-    arg_list.append(wei_l_d0);
-    arg_list.append(wei_i_s0);
-    arg_list.append(wei_i_d0);
+    constexpr int stride_idx = 1, dim_idx = 3;
+    arg_list.append(pd()->off.weights_layer_off[stride_idx][0]);
+    arg_list.append(pd()->off.weights_layer_off[dim_idx][0]);
+    arg_list.append(pd()->off.weights_iter_off[stride_idx][0]);
+    arg_list.append(pd()->off.weights_iter_off[dim_idx][0]);
     rnn_utils::append_strides(
             arg_list, pd()->off.bias_off, 4, pd()->conf.bias_ndims);
 

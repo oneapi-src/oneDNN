@@ -44,6 +44,13 @@
 #define OFFTYPE ulong
 #define TO_WS_STATE(x) TO_SRC(x)
 
+typedef struct param4 {
+    int s0;
+    int s1;
+    int s2;
+    int s3;
+} param4;
+
 #define OFF6(i0, D0, i1, D1, i2, D2, i3, D3, i4, D4, i5, D5) \
     ((((((i0) * (D1) + (i1)) * (D2) + (i2)) * (D3) + (i3)) * (D4) + (i4)) \
                     * (D5) \
@@ -133,130 +140,116 @@ int cell_scratch_diff_states(int n_iter, int batch, int scratch_diff_states_ld,
     return (((i2 * (n_iter + 1)) * batch + i4) * scratch_diff_states_ld + i5);
 }
 
-int bias_off(int bias_s0, int bias_s1, int bias_s2, int bias_s3, int x0, int x1,
-        int x2, int x3) {
-    return ((x0 % BIAS_B0) * BIAS_SB0 + (x0 / BIAS_B0) * bias_s0
-            + (x1 % BIAS_B1) * BIAS_SB1 + (x1 / BIAS_B1) * bias_s1
-            + (x2 % BIAS_B2) * BIAS_SB2 + (x2 / BIAS_B2) * bias_s2
-            + (x3 % BIAS_B3) * BIAS_SB3 + (x3 / BIAS_B3) * bias_s3);
+int bias_off(param4 bias, int x0, int x1, int x2, int x3) {
+    return ((x0 % BIAS_B0) * BIAS_SB0 + (x0 / BIAS_B0) * bias.s0
+            + (x1 % BIAS_B1) * BIAS_SB1 + (x1 / BIAS_B1) * bias.s1
+            + (x2 % BIAS_B2) * BIAS_SB2 + (x2 / BIAS_B2) * bias.s2
+            + (x3 % BIAS_B3) * BIAS_SB3 + (x3 / BIAS_B3) * bias.s3);
 }
 int src_l_off(int src_l_s0, int iter) {
     return ((iter % SRC_L_B0) * SRC_L_SB0 + (iter / SRC_L_B0) * src_l_s0);
 }
-int src_i_off(int src_i_s0, int src_i_s1, int src_i_s2, int src_i_s3, int x0,
-        int x1, int x2, int x3) {
-    return ((x0 % SRC_I_B0) * SRC_I_SB0 + (x0 / SRC_I_B0) * src_i_s0
-            + (x1 % SRC_I_B1) * SRC_I_SB1 + (x1 / SRC_I_B1) * src_i_s1
-            + (x2 % SRC_I_B2) * SRC_I_SB2 + (x2 / SRC_I_B2) * src_i_s2
-            + (x3 % SRC_I_B3) * SRC_I_SB3 + (x3 / SRC_I_B3) * src_i_s3);
+int src_i_off(param4 src_i, int x0, int x1, int x2, int x3) {
+    return ((x0 % SRC_I_B0) * SRC_I_SB0 + (x0 / SRC_I_B0) * src_i.s0
+            + (x1 % SRC_I_B1) * SRC_I_SB1 + (x1 / SRC_I_B1) * src_i.s1
+            + (x2 % SRC_I_B2) * SRC_I_SB2 + (x2 / SRC_I_B2) * src_i.s2
+            + (x3 % SRC_I_B3) * SRC_I_SB3 + (x3 / SRC_I_B3) * src_i.s3);
 }
 #if WITH_SRC_ITER_C
-int src_i_c_off(int src_i_c_s0, int src_i_c_s1, int src_i_c_s2, int src_i_c_s3,
-        int x0, int x1, int x2, int x3) {
-    return ((x0 % SRC_I_C_B0) * SRC_I_C_SB0 + (x0 / SRC_I_C_B0) * src_i_c_s0
-            + (x1 % SRC_I_C_B1) * SRC_I_C_SB1 + (x1 / SRC_I_C_B1) * src_i_c_s1
-            + (x2 % SRC_I_C_B2) * SRC_I_C_SB2 + (x2 / SRC_I_C_B2) * src_i_c_s2
-            + (x3 % SRC_I_C_B3) * SRC_I_C_SB3 + (x3 / SRC_I_C_B3) * src_i_c_s3);
+int src_i_c_off(param4 src_i_c, int x0, int x1, int x2, int x3) {
+    return ((x0 % SRC_I_C_B0) * SRC_I_C_SB0 + (x0 / SRC_I_C_B0) * src_i_c.s0
+            + (x1 % SRC_I_C_B1) * SRC_I_C_SB1 + (x1 / SRC_I_C_B1) * src_i_c.s1
+            + (x2 % SRC_I_C_B2) * SRC_I_C_SB2 + (x2 / SRC_I_C_B2) * src_i_c.s2
+            + (x3 % SRC_I_C_B3) * SRC_I_C_SB3 + (x3 / SRC_I_C_B3) * src_i_c.s3);
 }
 #endif
-int dst_l_off(
-        int dst_l_s0, int dst_l_s1, int dst_l_s2, int x0, int x1, int x2) {
-    return ((x0 % DST_L_B0) * DST_L_SB0 + (x0 / DST_L_B0) * dst_l_s0
-            + (x1 % DST_L_B1) * DST_L_SB1 + (x1 / DST_L_B1) * dst_l_s1
-            + (x2 % DST_L_B2) * DST_L_SB2 + (x2 / DST_L_B2) * dst_l_s2);
+int dst_l_off(param4 dst_l, int x0, int x1, int x2) {
+    return ((x0 % DST_L_B0) * DST_L_SB0 + (x0 / DST_L_B0) * dst_l.s0
+            + (x1 % DST_L_B1) * DST_L_SB1 + (x1 / DST_L_B1) * dst_l.s1
+            + (x2 % DST_L_B2) * DST_L_SB2 + (x2 / DST_L_B2) * dst_l.s2);
 }
-int dst_i_off(int dst_i_s0, int dst_i_s1, int dst_i_s2, int dst_i_s3, int x0,
-        int x1, int x2, int x3) {
-    return ((x0 % DST_I_B0) * DST_I_SB0 + (x0 / DST_I_B0) * dst_i_s0
-            + (x1 % DST_I_B1) * DST_I_SB1 + (x1 / DST_I_B1) * dst_i_s1
-            + (x2 % DST_I_B2) * DST_I_SB2 + (x2 / DST_I_B2) * dst_i_s2
-            + (x3 % DST_I_B3) * DST_I_SB3 + (x3 / DST_I_B3) * dst_i_s3);
+int dst_i_off(param4 dst_i, int x0, int x1, int x2, int x3) {
+    return ((x0 % DST_I_B0) * DST_I_SB0 + (x0 / DST_I_B0) * dst_i.s0
+            + (x1 % DST_I_B1) * DST_I_SB1 + (x1 / DST_I_B1) * dst_i.s1
+            + (x2 % DST_I_B2) * DST_I_SB2 + (x2 / DST_I_B2) * dst_i.s2
+            + (x3 % DST_I_B3) * DST_I_SB3 + (x3 / DST_I_B3) * dst_i.s3);
 }
 #if WITH_DST_ITER_C
-int dst_i_c_off(int dst_i_c_s0, int dst_i_c_s1, int dst_i_c_s2, int dst_i_c_s3,
-        int x0, int x1, int x2, int x3) {
-    return ((x0 % DST_I_C_B0) * DST_I_C_SB0 + (x0 / DST_I_C_B0) * dst_i_c_s0
-            + (x1 % DST_I_C_B1) * DST_I_C_SB1 + (x1 / DST_I_C_B1) * dst_i_c_s1
-            + (x2 % DST_I_C_B2) * DST_I_C_SB2 + (x2 / DST_I_C_B2) * dst_i_c_s2
-            + (x3 % DST_I_C_B3) * DST_I_C_SB3 + (x3 / DST_I_C_B3) * dst_i_c_s3);
+int dst_i_c_off(param4 dst_i_c, int x0, int x1, int x2, int x3) {
+    return ((x0 % DST_I_C_B0) * DST_I_C_SB0 + (x0 / DST_I_C_B0) * dst_i_c.s0
+            + (x1 % DST_I_C_B1) * DST_I_C_SB1 + (x1 / DST_I_C_B1) * dst_i_c.s1
+            + (x2 % DST_I_C_B2) * DST_I_C_SB2 + (x2 / DST_I_C_B2) * dst_i_c.s2
+            + (x3 % DST_I_C_B3) * DST_I_C_SB3 + (x3 / DST_I_C_B3) * dst_i_c.s3);
 }
 #endif
 #if !IS_FWD
-int diff_src_l_off(int diff_src_l_s0, int diff_src_l_s1, int diff_src_l_s2,
-        int x0, int x1, int x2) {
+int diff_src_l_off(param4 diff_src_l, int x0, int x1, int x2) {
     return ((x0 % DIFF_SRC_L_B0) * DIFF_SRC_L_SB0
-            + (x0 / DIFF_SRC_L_B0) * diff_src_l_s0
+            + (x0 / DIFF_SRC_L_B0) * diff_src_l.s0
             + (x1 % DIFF_SRC_L_B1) * DIFF_SRC_L_SB1
-            + (x1 / DIFF_SRC_L_B1) * diff_src_l_s1
+            + (x1 / DIFF_SRC_L_B1) * diff_src_l.s1
             + (x2 % DIFF_SRC_L_B2) * DIFF_SRC_L_SB2
-            + (x2 / DIFF_SRC_L_B2) * diff_src_l_s2);
+            + (x2 / DIFF_SRC_L_B2) * diff_src_l.s2);
 }
-int diff_dst_l_off(int diff_dst_l_s0, int diff_dst_l_s1, int iter, int batch) {
+int diff_dst_l_off(param4 diff_dst_l, int iter, int batch) {
     return ((iter % DIFF_DST_L_B0) * DIFF_DST_L_SB0
-            + (iter / DIFF_DST_L_B0) * diff_dst_l_s0
+            + (iter / DIFF_DST_L_B0) * diff_dst_l.s0
             + (batch % DIFF_DST_L_B1) * DIFF_DST_L_SB1
-            + (batch / DIFF_DST_L_B1) * diff_dst_l_s1);
+            + (batch / DIFF_DST_L_B1) * diff_dst_l.s1);
 }
-int diff_src_i_off(int diff_src_i_s0, int diff_src_i_s1, int diff_src_i_s2,
-        int diff_src_i_s3, int x0, int x1, int x2, int x3) {
+int diff_src_i_off(param4 diff_src_i, int x0, int x1, int x2, int x3) {
     return ((x0 % DIFF_SRC_I_B0) * DIFF_SRC_I_SB0
-            + (x0 / DIFF_SRC_I_B0) * diff_src_i_s0
+            + (x0 / DIFF_SRC_I_B0) * diff_src_i.s0
             + (x1 % DIFF_SRC_I_B1) * DIFF_SRC_I_SB1
-            + (x1 / DIFF_SRC_I_B1) * diff_src_i_s1
+            + (x1 / DIFF_SRC_I_B1) * diff_src_i.s1
             + (x2 % DIFF_SRC_I_B2) * DIFF_SRC_I_SB2
-            + (x2 / DIFF_SRC_I_B2) * diff_src_i_s2
+            + (x2 / DIFF_SRC_I_B2) * diff_src_i.s2
             + (x3 % DIFF_SRC_I_B3) * DIFF_SRC_I_SB3
-            + (x3 / DIFF_SRC_I_B3) * diff_src_i_s3);
+            + (x3 / DIFF_SRC_I_B3) * diff_src_i.s3);
 }
-int diff_dst_i_off(int diff_dst_i_s0, int diff_dst_i_s1, int diff_dst_i_s2,
-        int diff_dst_i_s3, int x0, int x1, int x2, int x3) {
+int diff_dst_i_off(param4 diff_dst_i, int x0, int x1, int x2, int x3) {
     return ((x0 % DIFF_DST_I_B0) * DIFF_DST_I_SB0
-            + (x0 / DIFF_DST_I_B0) * diff_dst_i_s0
+            + (x0 / DIFF_DST_I_B0) * diff_dst_i.s0
             + (x1 % DIFF_DST_I_B1) * DIFF_DST_I_SB1
-            + (x1 / DIFF_DST_I_B1) * diff_dst_i_s1
+            + (x1 / DIFF_DST_I_B1) * diff_dst_i.s1
             + (x2 % DIFF_DST_I_B2) * DIFF_DST_I_SB2
-            + (x2 / DIFF_DST_I_B2) * diff_dst_i_s2
+            + (x2 / DIFF_DST_I_B2) * diff_dst_i.s2
             + (x3 % DIFF_DST_I_B3) * DIFF_DST_I_SB3
-            + (x3 / DIFF_DST_I_B3) * diff_dst_i_s3);
+            + (x3 / DIFF_DST_I_B3) * diff_dst_i.s3);
 }
 #if WITH_SRC_ITER_C
-int diff_src_i_c_off(int diff_src_i_c_s0, int diff_src_i_c_s1,
-        int diff_src_i_c_s2, int diff_src_i_c_s3, int x0, int x1, int x2,
-        int x3) {
+int diff_src_i_c_off(param4 diff_src_i_c, int x0, int x1, int x2, int x3) {
     return ((x0 % DIFF_SRC_I_C_B0) * DIFF_SRC_I_C_SB0
-            + (x0 / DIFF_SRC_I_C_B0) * diff_src_i_c_s0
+            + (x0 / DIFF_SRC_I_C_B0) * diff_src_i_c.s0
             + (x1 % DIFF_SRC_I_C_B1) * DIFF_SRC_I_C_SB1
-            + (x1 / DIFF_SRC_I_C_B1) * diff_src_i_c_s1
+            + (x1 / DIFF_SRC_I_C_B1) * diff_src_i_c.s1
             + (x2 % DIFF_SRC_I_C_B2) * DIFF_SRC_I_C_SB2
-            + (x2 / DIFF_SRC_I_C_B2) * diff_src_i_c_s2
+            + (x2 / DIFF_SRC_I_C_B2) * diff_src_i_c.s2
             + (x3 % DIFF_SRC_I_C_B3) * DIFF_SRC_I_C_SB3
-            + (x3 / DIFF_SRC_I_C_B3) * diff_src_i_c_s3);
+            + (x3 / DIFF_SRC_I_C_B3) * diff_src_i_c.s3);
 }
 #endif
 #if WITH_DST_ITER_C
-int diff_dst_i_c_off(int diff_dst_i_c_s0, int diff_dst_i_c_s1,
-        int diff_dst_i_c_s2, int diff_dst_i_c_s3, int x0, int x1, int x2,
-        int x3) {
+int diff_dst_i_c_off(param4 diff_dst_i_c, int x0, int x1, int x2, int x3) {
     return ((x0 % DIFF_DST_I_C_B0) * DIFF_DST_I_C_SB0
-            + (x0 / DIFF_DST_I_C_B0) * diff_dst_i_c_s0
+            + (x0 / DIFF_DST_I_C_B0) * diff_dst_i_c.s0
             + (x1 % DIFF_DST_I_C_B1) * DIFF_DST_I_C_SB1
-            + (x1 / DIFF_DST_I_C_B1) * diff_dst_i_c_s1
+            + (x1 / DIFF_DST_I_C_B1) * diff_dst_i_c.s1
             + (x2 % DIFF_DST_I_C_B2) * DIFF_DST_I_C_SB2
-            + (x2 / DIFF_DST_I_C_B2) * diff_dst_i_c_s2
+            + (x2 / DIFF_DST_I_C_B2) * diff_dst_i_c.s2
             + (x3 % DIFF_DST_I_C_B3) * DIFF_DST_I_C_SB3
-            + (x3 / DIFF_DST_I_C_B3) * diff_dst_i_c_s3);
+            + (x3 / DIFF_DST_I_C_B3) * diff_dst_i_c.s3);
 }
 #endif
-int diff_bias_off(int diff_bias_s0, int diff_bias_s1, int diff_bias_s2,
-        int diff_bias_s3, int x0, int x1, int x2, int x3) {
+int diff_bias_off(param4 diff_bias, int x0, int x1, int x2, int x3) {
     return ((x0 % DIFF_BIAS_B0) * DIFF_BIAS_SB0
-            + (x0 / DIFF_BIAS_B0) * diff_bias_s0
+            + (x0 / DIFF_BIAS_B0) * diff_bias.s0
             + (x1 % DIFF_BIAS_B1) * DIFF_BIAS_SB1
-            + (x1 / DIFF_BIAS_B1) * diff_bias_s1
+            + (x1 / DIFF_BIAS_B1) * diff_bias.s1
             + (x2 % DIFF_BIAS_B2) * DIFF_BIAS_SB2
-            + (x2 / DIFF_BIAS_B2) * diff_bias_s2
+            + (x2 / DIFF_BIAS_B2) * diff_bias.s2
             + (x3 % DIFF_BIAS_B3) * DIFF_BIAS_SB3
-            + (x3 / DIFF_BIAS_B3) * diff_bias_s3);
+            + (x3 / DIFF_BIAS_B3) * diff_bias.s3);
 }
 #endif // !IS_FWD
 #endif
