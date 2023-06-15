@@ -37,6 +37,10 @@ using namespace dnnl::impl::status;
     VCONDCHECK(create, check, sum, (cond), status::invalid_arguments, msg, \
             ##__VA_ARGS__);
 
+#define VCHECK_SUM_UNIMPL(cond, msg, ...) \
+    VCONDCHECK(create, check, sum, (cond), status::unimplemented, msg, \
+            ##__VA_ARGS__);
+
 namespace dnnl {
 namespace impl {
 
@@ -49,6 +53,7 @@ status_t sum_primitive_desc_create(primitive_desc_iface_t **sum_pd_iface,
             VERBOSE_NULL_ARG);
 
     if (attr == nullptr) attr = &default_attr();
+    VCHECK_SUM_UNIMPL(attr->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
     const int ndims = src_mds[0]->ndims;
     const dims_t &dims = src_mds[0]->dims;
