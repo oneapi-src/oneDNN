@@ -31,6 +31,10 @@
     VCONDCHECK(create, check, rnn, (cond), status::invalid_arguments, msg, \
             ##__VA_ARGS__);
 
+#define VCONDCHECK_RNN_UNIMPL(cond, msg, ...) \
+    VCONDCHECK(create, check, rnn, (cond), status::unimplemented, msg, \
+            ##__VA_ARGS__);
+
 namespace dnnl {
 namespace impl {
 namespace rnn {
@@ -512,6 +516,58 @@ status_t rnn_common_bwd_desc_init(rnn_desc_t *rnn_desc, prop_kind_t prop_kind,
     return success;
 }
 
+status_t rnn_attr_check(const rnn_desc_t &desc, const engine_t *engine,
+        const primitive_attr_t *attr) {
+    using smask_t = primitive_attr_t::skip_mask_t;
+
+    if (attr == nullptr) return status::success;
+    if (attr->has_default_values()) return status::success;
+
+    primitive_attr_t::skip_mask_t attr_mask
+            = primitive_attr_t::skip_mask_t::rnn_tparams;
+    // Check attributes
+    if (utils::one_of(desc.prop_kind, prop_kind::forward_inference,
+                prop_kind::forward_training)) {
+        const data_type_t wei_layer_dt = desc.weights_layer_desc.data_type;
+
+        const bool is_int8 = wei_layer_dt == data_type::s8;
+        if (is_int8
+                && one_of(desc.cell_kind, alg_kind::vanilla_lstm,
+                        alg_kind::vanilla_gru))
+            attr_mask |= smask_t::rnn_data_qparams
+                    | smask_t::rnn_weights_qparams
+                    | smask_t::rnn_weights_projection_qparams;
+
+        VCONDCHECK_RNN_UNIMPL(
+                attr->has_default_values(attr_mask), VERBOSE_UNSUPPORTED_ATTR);
+
+        // Check weights scales
+        if (!attr->rnn_weights_qparams_.has_default_values()) {
+            const auto &sc = attr->rnn_weights_qparams_;
+            const int mask = sc.mask_;
+
+            switch (desc.weights_layer_desc.ndims) {
+                case 5:
+                    VCONDCHECK_RNN_UNIMPL(utils::one_of(mask, 0, 24),
+                            VERBOSE_UNSUPPORTED_SCALES_CFG);
+                    break;
+                case 4:
+                    VCONDCHECK_RNN_UNIMPL(utils::one_of(mask, 0, 8),
+                            VERBOSE_UNSUPPORTED_SCALES_CFG);
+                    break;
+                default:
+                    VCONDCHECK_RNN_UNIMPL(
+                            mask == 0, VERBOSE_UNSUPPORTED_SCALES_CFG);
+            }
+        }
+    } else {
+        VCONDCHECK_RNN_UNIMPL(
+                attr->has_default_values(attr_mask), VERBOSE_UNSUPPORTED_ATTR);
+    }
+
+    return status::success;
+}
+
 } // namespace
 
 /* Public C Api */
@@ -532,6 +588,7 @@ status_t dnnl_vanilla_rnn_forward_primitive_desc_create(
             weights_layer_desc, weights_iter_desc, nullptr, nullptr, bias_desc,
             dst_layer_desc, dst_iter_desc, nullptr, flags, activation, alpha,
             beta));
+    CHECK(rnn_attr_check(rnn_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&rnn_desc, nullptr, attr);
 }
@@ -556,6 +613,7 @@ status_t dnnl_lstm_forward_primitive_desc_create(
             weights_layer_desc, weights_iter_desc, weights_peephole_desc,
             weights_projection_desc, bias_desc, dst_layer_desc, dst_iter_desc,
             dst_iter_c_desc, flags));
+    CHECK(rnn_attr_check(rnn_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&rnn_desc, nullptr, attr);
 }
@@ -574,6 +632,7 @@ status_t dnnl_gru_forward_primitive_desc_create(
             direction, src_layer_desc, src_iter_desc, nullptr, nullptr,
             weights_layer_desc, weights_iter_desc, nullptr, nullptr, bias_desc,
             dst_layer_desc, dst_iter_desc, nullptr, flags));
+    CHECK(rnn_attr_check(rnn_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&rnn_desc, nullptr, attr);
 }
@@ -592,6 +651,7 @@ status_t dnnl_lbr_gru_forward_primitive_desc_create(
             direction, src_layer_desc, src_iter_desc, nullptr, nullptr,
             weights_layer_desc, weights_iter_desc, nullptr, nullptr, bias_desc,
             dst_layer_desc, dst_iter_desc, nullptr, flags));
+    CHECK(rnn_attr_check(rnn_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&rnn_desc, nullptr, attr);
 }
@@ -611,6 +671,7 @@ status_t dnnl_augru_forward_primitive_desc_create(
             direction, src_layer_desc, src_iter_desc, nullptr, attention_desc,
             weights_layer_desc, weights_iter_desc, nullptr, nullptr, bias_desc,
             dst_layer_desc, dst_iter_desc, nullptr, flags));
+    CHECK(rnn_attr_check(rnn_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&rnn_desc, nullptr, attr);
 }
@@ -630,6 +691,7 @@ status_t dnnl_lbr_augru_forward_primitive_desc_create(
             direction, src_layer_desc, src_iter_desc, nullptr, attention_desc,
             weights_layer_desc, weights_iter_desc, nullptr, nullptr, bias_desc,
             dst_layer_desc, dst_iter_desc, nullptr, flags));
+    CHECK(rnn_attr_check(rnn_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&rnn_desc, nullptr, attr);
 }
@@ -661,6 +723,7 @@ status_t dnnl_vanilla_rnn_backward_primitive_desc_create(
             diff_weights_iter_desc, nullptr, nullptr, diff_bias_desc,
             diff_dst_layer_desc, diff_dst_iter_desc, nullptr, flags, activation,
             alpha, beta));
+    CHECK(rnn_attr_check(rnn_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&rnn_desc, hint_fwd_pd, attr);
 }
@@ -701,6 +764,7 @@ status_t dnnl_lstm_backward_primitive_desc_create(
             diff_weights_iter_desc, diff_weights_peephole_desc,
             diff_weights_projection_desc, diff_bias_desc, diff_dst_layer_desc,
             diff_dst_iter_desc, diff_dst_iter_c_desc, flags));
+    CHECK(rnn_attr_check(rnn_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&rnn_desc, hint_fwd_pd, attr);
 }
@@ -730,6 +794,7 @@ status_t dnnl_gru_backward_primitive_desc_create(
             diff_src_iter_desc, nullptr, nullptr, diff_weights_layer_desc,
             diff_weights_iter_desc, nullptr, nullptr, diff_bias_desc,
             diff_dst_layer_desc, diff_dst_iter_desc, nullptr, flags));
+    CHECK(rnn_attr_check(rnn_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&rnn_desc, hint_fwd_pd, attr);
 }
@@ -759,6 +824,7 @@ status_t dnnl_lbr_gru_backward_primitive_desc_create(
             diff_src_iter_desc, nullptr, nullptr, diff_weights_layer_desc,
             diff_weights_iter_desc, nullptr, nullptr, diff_bias_desc,
             diff_dst_layer_desc, diff_dst_iter_desc, nullptr, flags));
+    CHECK(rnn_attr_check(rnn_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&rnn_desc, hint_fwd_pd, attr);
 }
@@ -791,6 +857,7 @@ status_t dnnl_augru_backward_primitive_desc_create(
             diff_weights_layer_desc, diff_weights_iter_desc, nullptr, nullptr,
             diff_bias_desc, diff_dst_layer_desc, diff_dst_iter_desc, nullptr,
             flags));
+    CHECK(rnn_attr_check(rnn_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&rnn_desc, hint_fwd_pd, attr);
 }
@@ -823,6 +890,7 @@ status_t dnnl_lbr_augru_backward_primitive_desc_create(
             diff_weights_layer_desc, diff_weights_iter_desc, nullptr, nullptr,
             diff_bias_desc, diff_dst_layer_desc, diff_dst_iter_desc, nullptr,
             flags));
+    CHECK(rnn_attr_check(rnn_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&rnn_desc, hint_fwd_pd, attr);
 }
