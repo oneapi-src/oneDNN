@@ -34,6 +34,10 @@ using namespace dnnl::impl::types;
     VCONDCHECK(create, check, resampling, (cond), status::invalid_arguments, \
             msg, ##__VA_ARGS__);
 
+#define VCHECK_RS_UNIMPL(cond, msg, ...) \
+    VCONDCHECK(create, check, resampling, (cond), status::unimplemented, msg, \
+            ##__VA_ARGS__);
+
 namespace {
 status_t resampling_desc_init(resampling_desc_t *resampling_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind, const float *factors,
@@ -95,6 +99,42 @@ status_t resampling_desc_init(resampling_desc_t *resampling_desc,
     *resampling_desc = rd;
     return success;
 }
+
+status_t resampling_attr_check(const resampling_desc_t &desc,
+        const engine_t *engine, const primitive_attr_t *attr) {
+    using smask_t = primitive_attr_t::skip_mask_t;
+
+    if (attr == nullptr) return status::success;
+    if (attr->has_default_values()) return status::success;
+
+    if (one_of(desc.prop_kind, prop_kind::forward_inference,
+                prop_kind::forward_training)) {
+        // Check attributes
+        const data_type_t dst_dt = desc.dst_desc.data_type;
+
+        auto attr_mask = smask_t::post_ops;
+
+        VCHECK_RS_UNIMPL(attr->has_default_values(attr_mask, dst_dt),
+                VERBOSE_UNSUPPORTED_ATTR);
+
+        // Check post-ops
+        if (!attr->post_ops_.has_default_values()) {
+            const auto &po = attr->post_ops_;
+            using namespace primitive_kind;
+            VCHECK_RS_UNIMPL(po.has_default_values({binary, eltwise, sum}),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+
+            // Check sum
+            VCHECK_RS_UNIMPL(po.check_sum_consistency(dst_dt, false, true),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+        }
+    } else {
+        VCHECK_RS_UNIMPL(false, VERBOSE_UNSUPPORTED_ATTR);
+    }
+
+    return status::success;
+}
+
 } // namespace
 
 status_t dnnl_resampling_forward_primitive_desc_create(
@@ -108,6 +148,7 @@ status_t dnnl_resampling_forward_primitive_desc_create(
     auto resampling_desc = resampling_desc_t();
     CHECK(resampling_desc_init(&resampling_desc, prop_kind, alg_kind, factors,
             src_desc, dst_desc));
+    CHECK(resampling_attr_check(resampling_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&resampling_desc, nullptr, attr);
 }
@@ -122,6 +163,7 @@ status_t dnnl_resampling_backward_primitive_desc_create(
     auto resampling_desc = resampling_desc_t();
     CHECK(resampling_desc_init(&resampling_desc, backward_data, alg_kind,
             factors, diff_src_desc, diff_dst_desc));
+    CHECK(resampling_attr_check(resampling_desc, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,
             (const op_desc_t *)&resampling_desc, hint_fwd_pd, attr);
 }
