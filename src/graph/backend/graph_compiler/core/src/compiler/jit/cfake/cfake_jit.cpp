@@ -62,12 +62,12 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
     throw std::runtime_error("make_jit_module().");
 }
 
-void *cfake_jit_module_t::get_address_of_symbol(const std::string &name) {
+void *cfake_jit_module_code_t::get_address_of_symbol(const std::string &name) {
     // fix-me: (win32)
     throw std::runtime_error("get_address_of_symbol().");
 }
 
-cfake_jit_module_t::~cfake_jit_module_t() {
+cfake_jit_module_code_t::~cfake_jit_module_code_t() {
     // fix-me: (win32)
     throw std::runtime_error("~cfake_jit_module()");
 }
@@ -188,9 +188,10 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
         os << "Error when fork: " << utils::get_error_msg(fork_errno);
         throw std::runtime_error(os.str());
     }
-    return std::shared_ptr<cfake_jit_module_t>(new cfake_jit_module_t(
-            compiled_module, inpath, outpath, std::move(globals),
-            has_generic_wrapper, managed_thread_pool));
+    std::shared_ptr<cfake_jit_module_code_t> code(
+            new cfake_jit_module_code_t(compiled_module, inpath, outpath,
+                    has_generic_wrapper, managed_thread_pool));
+    return std::make_shared<jit_module>(std::move(globals), code);
 }
 
 statics_table_t cfake_jit::codegen_to_cpp(std::ostream &os,
@@ -256,17 +257,15 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
 
     auto ret = make_jit_module(inpath, outpath, std::move(attr_table),
             generate_wrapper, managed_thread_pool);
-    ret->postprocess(new_mod);
+    ret->code_->postprocess(new_mod, ret->globals_);
     return ret;
 }
 
-void *cfake_jit_module_t::get_address_of_symbol(const std::string &name) {
-    void *global_var = globals_.get_or_null(name);
-    if (global_var) { return global_var; }
+void *cfake_jit_module_code_t::get_address_of_symbol(const std::string &name) {
     return dlsym(module_, name.c_str());
 }
 
-cfake_jit_module_t::~cfake_jit_module_t() {
+cfake_jit_module_code_t::~cfake_jit_module_code_t() {
     if (module_) {
         dlclose(module_);
 
@@ -279,21 +278,11 @@ cfake_jit_module_t::~cfake_jit_module_t() {
 
 #endif
 
-std::shared_ptr<jit_function_t> cfake_jit_module_t::get_function(
-        const std::string &name) {
+void *cfake_jit_module_code_t::get_function(
+        const std::string &name, void *&wrapper) {
     void *fun = get_address_of_symbol(name);
-    void *wrapper = get_address_of_symbol(name + "_0wrapper");
-    if (fun || wrapper) {
-        if (runtime_config_t::get().execution_verbose_) {
-            return general_jit_function_t::make(shared_from_this(), fun,
-                    wrapper, name, managed_thread_pool_);
-        } else {
-            return general_jit_function_t::make(shared_from_this(), fun,
-                    wrapper, std::string(), managed_thread_pool_);
-        }
-    } else {
-        return nullptr;
-    }
+    wrapper = get_address_of_symbol(name + "_0wrapper");
+    return fun;
 }
 
 template <typename T, typename TF>

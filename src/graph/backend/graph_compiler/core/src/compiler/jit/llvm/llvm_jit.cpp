@@ -160,11 +160,10 @@ std::shared_ptr<jit_module> llvm_jit::make_jit_module(
     auto init_func = reinterpret_cast<init_func_t>(
             resolve_llvm_symbol(engine, "__sc_init__"));
     if (init_func) { init_func(nullptr, attr_table.data_.data_); }
-    auto ret = std::make_shared<llvm_jit_module>(
+    auto ret = std::make_shared<llvm_jit_module_code>(
             std::unique_ptr<llvm::ExecutionEngine>(engine), std::move(llvm_ctx),
-            std::move(attr_table), std::move(outlisteners), use_managed_tp,
-            source_path);
-    ret->postprocess(new_mod);
+            std::move(outlisteners), use_managed_tp, source_path);
+    ret->postprocess(new_mod, attr_table);
 
     if (copied_ir_module) {
         std::stringstream of;
@@ -189,25 +188,26 @@ std::shared_ptr<jit_module> llvm_jit::make_jit_module(
                 of, context_, generate_wrapper, &optional_dump);
         auto new_mod = gen(copied_ir_module);
     }
-    return ret;
+    return std::make_shared<jit_module>(std::move(attr_table), ret);
 }
 
-llvm_jit_module::llvm_jit_module(std::unique_ptr<llvm::ExecutionEngine> engine,
-        std::unique_ptr<llvm::LLVMContext> llvm_ctx, statics_table_t &&globals,
+llvm_jit_module_code::llvm_jit_module_code(
+        std::unique_ptr<llvm::ExecutionEngine> engine,
+        std::unique_ptr<llvm::LLVMContext> llvm_ctx,
         std::shared_ptr<llvm_jit_listeners> &&listeners,
         bool managed_thread_pool, const std::string &source_path)
-    : jit_module(std::move(globals), managed_thread_pool)
+    : jit_module_code(managed_thread_pool)
     , listeners_(std::move(listeners))
     , llvm_ctx_(std::move(llvm_ctx))
     , engine_(std::move(engine))
     , source_path_(source_path) {}
 
-std::vector<std::string> llvm_jit_module::get_temp_filenames() const {
+std::vector<std::string> llvm_jit_module_code::get_temp_filenames() const {
     if (source_path_.empty()) { return {}; }
     return {source_path_};
 }
 
-llvm_jit_module::~llvm_jit_module() {
+llvm_jit_module_code::~llvm_jit_module_code() {
     if (!source_path_.empty()) { remove(source_path_.c_str()); }
 }
 
@@ -220,27 +220,14 @@ static void *resolve_llvm_symbol(
 #endif
 }
 
-void *llvm_jit_module::get_address_of_symbol(const std::string &name) {
-    void *global_var = globals_.get_or_null(name);
-    if (global_var) { return global_var; }
-
+void *llvm_jit_module_code::get_address_of_symbol(const std::string &name) {
     return resolve_llvm_symbol(engine_.get(), name);
 }
-std::shared_ptr<jit_function_t> llvm_jit_module::get_function(
-        const std::string &name) {
+void *llvm_jit_module_code::get_function(
+        const std::string &name, void *&wrapper) {
     void *fun = resolve_llvm_symbol(engine_.get(), name);
-    void *wrapper = resolve_llvm_symbol(engine_.get(), name + "_0wrapper");
-    if (fun || wrapper) {
-        if (runtime_config_t::get().execution_verbose_) {
-            return general_jit_function_t::make(shared_from_this(), fun,
-                    wrapper, name, managed_thread_pool_);
-        } else {
-            return general_jit_function_t::make(shared_from_this(), fun,
-                    wrapper, std::string(), managed_thread_pool_);
-        }
-    } else {
-        return nullptr;
-    }
+    wrapper = resolve_llvm_symbol(engine_.get(), name + "_0wrapper");
+    return fun;
 }
 
 } // namespace gc

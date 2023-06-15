@@ -122,7 +122,7 @@ void rl_conv_weight_transform(sc_graph_t &graph, const context_ptr &ctx) {
             auto kw = weight_plain_dims[ndims - 1];
             auto ic = data_plain_dims[1];
             auto &stride = op->attrs_.get<sc_dims>("strides");
-            auto sw = stride.size() > 0 ? stride[1] : stride[0];
+            auto sw = !stride.empty() ? stride[1] : stride[0];
             int num_brgemm_k = 1;
             int brgemm_k = 1;
             int extra_padding = 0;

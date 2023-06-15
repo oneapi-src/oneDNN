@@ -32,7 +32,7 @@ namespace impl {
 namespace graph {
 namespace gc {
 
-class jit_module;
+struct jit_module;
 
 // A jitted function that can be called in a module
 class SC_API jit_function_t {
@@ -102,10 +102,9 @@ public:
 
 struct cached_const_graph_tensor;
 
-// The result of compiling an ir_module_t
-class SC_INTERNAL_API jit_module {
+// The executable code of compiling an ir_module_t
+class SC_INTERNAL_API jit_module_code {
 public:
-    statics_table_t globals_;
     // runtime op table for dynamic shape/format infer and dispatch.
     runtime::dispatch_table_map_t op_tables_;
     // brgemm range handle vec
@@ -114,27 +113,46 @@ public:
     size_t module_id_;
     // whether to use managed thread pool
     bool managed_thread_pool_;
-    jit_module(bool managed_thread_pool);
-    jit_module(statics_table_t &&globals, bool managed_thread_pool);
+    jit_module_code(bool managed_thread_pool);
     virtual void *get_address_of_symbol(const std::string &name) = 0;
-    virtual std::shared_ptr<jit_function_t> get_function(
-            const std::string &name)
-            = 0;
+    virtual void *get_function(const std::string &name, void *&wrapperfunc) = 0;
     /// This method only exists to help with debugging.
     virtual std::vector<std::string> get_temp_filenames() const {
         return std::vector<std::string>();
     }
 
-    virtual ~jit_module() = default;
-    void postprocess(const const_ir_module_ptr &ir_mod);
+    virtual ~jit_module_code() = default;
+    void postprocess(
+            const const_ir_module_ptr &ir_mod, statics_table_t &globals);
 
 protected:
     // update runtime data with same lifetime as jit module like kerenl
     // values of op_tables_ with address of specific function and brgemm range
     // handlers. call the self-update function after jit module is created.
-    virtual void update_runtime_data(const const_ir_module_ptr &ir_mod);
+    virtual void update_runtime_data(
+            const const_ir_module_ptr &ir_mod, statics_table_t &globals);
     // child function in update_runtime_data.
-    void update_op_dispatch_table(const const_ir_module_ptr &ir_mod);
+    void update_op_dispatch_table(
+            const const_ir_module_ptr &ir_mod, statics_table_t &globals);
+};
+
+struct SC_INTERNAL_API jit_module
+    : public std::enable_shared_from_this<jit_module> {
+    statics_table_t globals_;
+    std::shared_ptr<jit_module_code> code_;
+    jit_module(statics_table_t &&data,
+            const std::shared_ptr<jit_module_code> &code)
+        : globals_(std::move(data)), code_(code) {}
+    // this constructor is reserved for legacy code
+    jit_module() = default;
+    virtual void *get_address_of_symbol(const std::string &name);
+    virtual std::shared_ptr<jit_function_t> get_function(
+            const std::string &name);
+    /// This method only exists to help with debugging.
+    virtual std::vector<std::string> get_temp_filenames() const {
+        return code_->get_temp_filenames();
+    }
+    virtual ~jit_module() = default;
 };
 
 class SC_INTERNAL_API general_jit_function_t : public jit_function_t {

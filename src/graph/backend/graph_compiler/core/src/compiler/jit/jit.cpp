@@ -114,17 +114,15 @@ void jit_engine_t::set_target_machine(
 
 static std::atomic<size_t> module_id {0};
 
-jit_module::jit_module(bool managed_thread_pool)
+jit_module_code::jit_module_code(bool managed_thread_pool)
     : module_id_(module_id++), managed_thread_pool_(managed_thread_pool) {}
-jit_module::jit_module(statics_table_t &&globals, bool managed_thread_pool)
-    : globals_(std::move(globals))
-    , module_id_(module_id++)
-    , managed_thread_pool_(managed_thread_pool) {}
 
-void jit_module::postprocess(const const_ir_module_ptr &ir_mod) {
-    update_runtime_data(ir_mod);
+void jit_module_code::postprocess(
+        const const_ir_module_ptr &ir_mod, statics_table_t &globals) {
+    update_runtime_data(ir_mod, globals);
 }
-void jit_module::update_op_dispatch_table(const const_ir_module_ptr &ir_mod) {
+void jit_module_code::update_op_dispatch_table(
+        const const_ir_module_ptr &ir_mod, statics_table_t &globals) {
     constexpr size_t capacity_coefficient = 2;
     auto compiler_tables = ir_mod->get_op_table_map();
     if (compiler_tables.empty()) { return; }
@@ -205,20 +203,43 @@ void jit_module::update_op_dispatch_table(const const_ir_module_ptr &ir_mod) {
         runtime_table->op_info_ = compiler_op_info;
         // update global table vars' pointer
         auto var_name = kv.first;
-        void **value = reinterpret_cast<void **>(globals_.get(var_name));
+        void **value = reinterpret_cast<void **>(globals.get(var_name));
         *value = runtime_table.get();
         ret[var_name] = std::move(runtime_table);
     }
     op_tables_ = std::move(ret);
 }
 
-void jit_module::update_runtime_data(const const_ir_module_ptr &ir_mod) {
+void jit_module_code::update_runtime_data(
+        const const_ir_module_ptr &ir_mod, statics_table_t &globals) {
     // update op dispatch table
-    update_op_dispatch_table(ir_mod);
+    update_op_dispatch_table(ir_mod, globals);
     // update brgemm range handler.
     auto brg_handles = ir_mod->get_brg_range_handle_vec();
     brg_handles_.insert(
             brg_handles_.end(), brg_handles.begin(), brg_handles.end());
+}
+
+void *jit_module::get_address_of_symbol(const std::string &name) {
+    void *global_var = globals_.get_or_null(name);
+    if (global_var) { return global_var; }
+    return code_->get_address_of_symbol(name);
+}
+std::shared_ptr<jit_function_t> jit_module::get_function(
+        const std::string &name) {
+    void *wrapper = nullptr;
+    auto func = code_->get_function(name, wrapper);
+    if (func || wrapper) {
+        if (runtime_config_t::get().execution_verbose_) {
+            return general_jit_function_t::make(shared_from_this(), func,
+                    wrapper, name, code_->managed_thread_pool_);
+        } else {
+            return general_jit_function_t::make(shared_from_this(), func,
+                    wrapper, std::string(), code_->managed_thread_pool_);
+        }
+    } else {
+        return nullptr;
+    }
 }
 
 template <bool execution_verbose>
@@ -236,7 +257,8 @@ struct jit_timer_t<true> {
                                       duration_cast<nanoseconds>(dur).count())
                     / 1e6;
             printf("Entry point: %s@%zu. Time elapsed: %lf ms\n",
-                    ths->fname_.c_str(), ths->module_->module_id_, duration);
+                    ths->fname_.c_str(), ths->module_->code_->module_id_,
+                    duration);
         }
     };
     utils::scoped_timer<callback_t> timer_;

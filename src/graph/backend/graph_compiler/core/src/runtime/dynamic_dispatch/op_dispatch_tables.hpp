@@ -29,7 +29,7 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
-class jit_module;
+struct jit_module;
 
 namespace runtime {
 struct op_dispatch_tables_t {

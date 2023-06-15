@@ -1064,31 +1064,7 @@ TEST(GCCore_CPU_jit_cpp, TestJITGlobalTensor) {
     for (auto &engine : engines) {
         SCOPED_TRACE(std::string("Testing ") + get_engine_name(engine));
         auto jitmod = engine->make_jit_module(m, false);
-        statics_table_t *pglobals = nullptr;
-#if SC_BUILTIN_JIT_ENABLED
-        if (auto jmod = dynamic_cast<xbyak_jit_module *>(jitmod.get())) {
-            pglobals = &jmod->globals_;
-        }
-#else
-        if (false) {
-            // make compiler happy
-        }
-#endif
-#if SC_CFAKE_JIT_ENABLED
-        else if (auto jmod = dynamic_cast<cfake_jit_module_t *>(jitmod.get())) {
-            pglobals = &jmod->globals_;
-        }
-#else
-        if (false) {
-            // make compiler happy
-        }
-#endif
-#if defined(SC_LLVM_BACKEND)
-        else if (auto jmod = dynamic_cast<llvm_jit_module *>(jitmod.get())) {
-            pglobals = &jmod->globals_;
-        }
-#endif
-        ASSERT_TRUE(pglobals);
+        statics_table_t *pglobals = &jitmod->globals_;
         auto &globals = *pglobals;
         void *entry = globals.get_or_null("gv");
         ASSERT_NE(entry, nullptr);
@@ -1144,8 +1120,8 @@ TEST(GCCore_CPU_jit_cpp, TestJITDispatchTable) {
     auto engines = get_engines();
     for (auto &engine : engines) {
         auto jitm = engine->make_jit_module(m, false);
-        auto bbb_runtime_table = jitm->op_tables_["bbb_table"];
-        auto ccc_runtime_table = jitm->op_tables_["ccc_table"];
+        auto bbb_runtime_table = jitm->code_->op_tables_["bbb_table"];
+        auto ccc_runtime_table = jitm->code_->op_tables_["ccc_table"];
         EXPECT_TRUE(bbb_runtime_table->kernel_dispatch_func_);
         auto runtime_format = uint64_t(sc_data_format_t::MK().to_runtime());
         EXPECT_TRUE(bbb_runtime_table->kernel_table_->get(&runtime_format, 1));

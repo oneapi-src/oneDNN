@@ -32,32 +32,29 @@ namespace graph {
 namespace gc {
 
 class cfake_jit;
-class SC_INTERNAL_API cfake_jit_module_t
-    : public jit_module,
-      public std::enable_shared_from_this<cfake_jit_module_t> {
+class SC_INTERNAL_API cfake_jit_module_code_t : public jit_module_code {
     friend cfake_jit;
     void *module_;
     std::string path_;
     std::string src_path_;
-    cfake_jit_module_t(void *module, const std::string &src_path,
-            const std::string &path, statics_table_t &&globals,
-            bool has_generic_wrapper, bool managed_thread_pool)
-        : jit_module(std::move(globals), managed_thread_pool)
+    cfake_jit_module_code_t(void *module, const std::string &src_path,
+            const std::string &path, bool has_generic_wrapper,
+            bool managed_thread_pool)
+        : jit_module_code(managed_thread_pool)
         , module_(module)
         , path_(path)
         , src_path_(src_path) {}
-    cfake_jit_module_t(cfake_jit_module_t &&other) = delete;
-    cfake_jit_module_t(const cfake_jit_module_t &other) = delete;
+    cfake_jit_module_code_t(cfake_jit_module_code_t &&other) = delete;
+    cfake_jit_module_code_t(const cfake_jit_module_code_t &other) = delete;
 
 public:
-    ~cfake_jit_module_t() override;
+    ~cfake_jit_module_code_t() override;
     std::vector<std::string> get_temp_filenames() const override {
         return {path_, src_path_};
     }
 
     void *get_address_of_symbol(const std::string &name) override;
-    std::shared_ptr<jit_function_t> get_function(
-            const std::string &name) override;
+    void *get_function(const std::string &name, void *&wrapperfunc) override;
 };
 
 struct c_generator_optional_out_t;

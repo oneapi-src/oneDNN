@@ -37,16 +37,13 @@ namespace gc {
 
 class llvm_jit;
 struct llvm_jit_listeners;
-class SC_INTERNAL_API llvm_jit_module
-    : public jit_module,
-      public std::enable_shared_from_this<llvm_jit_module> {
-    llvm_jit_module(llvm_jit_module &&other) = delete;
-    llvm_jit_module(const llvm_jit_module &other) = delete;
+class SC_INTERNAL_API llvm_jit_module_code : public jit_module_code {
+    llvm_jit_module_code(llvm_jit_module_code &&other) = delete;
+    llvm_jit_module_code(const llvm_jit_module_code &other) = delete;
 
 public:
-    llvm_jit_module(std::unique_ptr<llvm::ExecutionEngine> engine,
+    llvm_jit_module_code(std::unique_ptr<llvm::ExecutionEngine> engine,
             std::unique_ptr<llvm::LLVMContext> llvm_ctx,
-            statics_table_t &&globals,
             std::shared_ptr<llvm_jit_listeners> &&listeners,
             bool managed_thread_pool, const std::string &source_path);
     // listeners_ reference will be destructed after engine_, to make sure
@@ -55,11 +52,10 @@ public:
     std::unique_ptr<llvm::LLVMContext> llvm_ctx_;
     std::unique_ptr<llvm::ExecutionEngine> engine_;
     std::string source_path_;
-    ~llvm_jit_module();
+    ~llvm_jit_module_code();
 
     void *get_address_of_symbol(const std::string &name) override;
-    std::shared_ptr<jit_function_t> get_function(
-            const std::string &name) override;
+    void *get_function(const std::string &name, void *&wrapper) override;
 
     std::vector<std::string> get_temp_filenames() const override;
 };
