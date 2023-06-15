@@ -187,6 +187,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
 
         const size_t norm_gws = conf.sub_group_size * conf.num_norm_blocks;
         assert(norm_gws <= max_wg_size);
+        MAYBE_UNUSED(max_wg_size);
 
         for (int i = 0; i < 4; i++) {
             int md_hint_idx = nstl::min(i, ndims - 1);
