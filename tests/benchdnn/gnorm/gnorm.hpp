@@ -140,6 +140,8 @@ struct prb_t : public desc_t {
     bool use_sc() const { return flags & USE_SCALE; }
     bool use_sh() const { return flags & USE_SHIFT; }
 
+    int64_t get_c_start(int64_t _g) const { return _g * this->ic / this->g; }
+
     // Used to construct memory desc when dimensions are runtime since such mds
     // can't be used directly from query and memory objects can't be constructed.
     benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const {

@@ -79,8 +79,6 @@ static int prepare_fwd(const prb_t *prb, const dnn_mem_t &src,
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
 
-    auto get_c_start = [&prb](int64_t g) { return g * prb->ic / prb->g; };
-
     if ((alg == ALG_0 || alg == ALG_1) && !is_integral_dt(prb->dt[0])) {
         const int64_t flex_mask = (1 << flex_bits) - 1;
 
@@ -99,7 +97,8 @@ static int prepare_fwd(const prb_t *prb, const dnn_mem_t &src,
                     : 0.25f * (1 << ((mb * prb->g + g) % 7));
             float v = 0; /* current variance */
 
-            for (int c = get_c_start(g); c < get_c_start(g + 1); ++c) {
+            for (int c = prb->get_c_start(g); c < prb->get_c_start(g + 1);
+                    ++c) {
                 int64_t l_base = (mb * prb->g + g) * prb->ic / prb->g * prb->id
                                 * prb->ih * prb->iw
                         + c * prb->id * prb->ih * prb->iw * 239
@@ -162,7 +161,8 @@ static int prepare_fwd(const prb_t *prb, const dnn_mem_t &src,
                     = val_coeff * 0.25f * (1 << int_dist(int_seed));
             float v = 0; /* current variance */
 
-            for (int c = get_c_start(g); c < get_c_start(g + 1); ++c) {
+            for (int c = prb->get_c_start(g); c < prb->get_c_start(g + 1);
+                    ++c) {
                 int64_t off = data_off(prb, mb, c, 0, 0, 0);
                 float *s = (float *)src + off;
 
@@ -246,8 +246,6 @@ static int prepare_bwd(const prb_t *prb, const dnn_mem_t &src,
         }
     }
 
-    auto get_c_start = [&prb](int64_t g) { return g * prb->ic / prb->g; };
-
     const auto SP = prb->id * prb->ih * prb->iw;
     const auto CSP = prb->ic * SP;
 
@@ -280,7 +278,8 @@ static int prepare_bwd(const prb_t *prb, const dnn_mem_t &src,
         const float v = 0.25f * (1 << (stat_dist(int_seed) * 2));
         var.set_elem(stat_off, v - prb->eps);
 
-        for (int64_t c = get_c_start(g); c < get_c_start(g + 1); ++c) {
+        for (int64_t c = prb->get_c_start(g); c < prb->get_c_start(g + 1);
+                ++c) {
             for (int64_t sp = 0; sp < SP; ++sp) {
 
                 int64_t data_off = n * CSP + c * SP + sp;

@@ -43,14 +43,11 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
 
     const int64_t MB = prb->mb;
     const int64_t G = prb->g;
-    const int64_t C = prb->ic;
     const int64_t D = prb->id;
     const int64_t H = prb->ih;
     const int64_t W = prb->iw;
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
-
-    auto get_c_start = [&G, &C](int64_t g) { return g * C / G; };
 
     benchdnn_parallel_nd(MB, G, [&](int64_t n, int64_t g) {
         float smean = mean.get_elem(n * G + g);
@@ -58,7 +55,7 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
         float sqrt_var = sqrtf(svar + prb->eps);
         float rcp_denom = 1.f / sqrt_var;
 
-        for_(int64_t c = get_c_start(g); c < get_c_start(g + 1); ++c)
+        for_(int64_t c = prb->get_c_start(g); c < prb->get_c_start(g + 1); ++c)
         for_(int64_t d = 0; d < D; ++d)
         for_(int64_t h = 0; h < H; ++h)
         for (int64_t w = 0; w < W; ++w) {
