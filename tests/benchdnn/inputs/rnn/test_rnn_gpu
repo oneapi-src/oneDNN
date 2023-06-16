@@ -44,7 +44,7 @@
 --alg=VANILLA_LSTM
 --direction=left2right,right2left,concat,sum
 --prop=FWD_I
---trivial-strides=true
+--trivial-strides=false,true
 --mb=1,3,4
 
 --cfg=u8u8u8f32,u8u8u8u8     --scaling=common --batch=shapes_small
