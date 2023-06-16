@@ -50,6 +50,9 @@ bool allow_perf_heuristics(const jit_brgemm_conv_conf_t &jcp) {
     // Disable performance heuristics for plain weights as there are no other
     // optimized implementations.
     if (jcp.wei_plain) return false;
+    // Disable performance heuristics for f16 as there are no other
+    // optimized implementations.
+    if (jcp.wei_dt == f16) return false;
     return true;
 }
 } // namespace
