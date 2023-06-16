@@ -1096,8 +1096,10 @@ private:
         if (slm_size == 0) return true;
 
         auto &exec_cfg = cfg_.exec_cfg();
+        int tg_size = ctx.b_tg * ctx.m_tg * ctx.n_tg * ctx.k_tg;
         int max_slm_size = compute::device_info_t::max_slm_size_per_tg(
-                convert_ngen_arch_to_dnnl(cfg_.hw()), exec_cfg.regs() > 128);
+                convert_ngen_arch_to_dnnl(cfg_.hw()), tg_size,
+                exec_cfg.regs() > 128);
         if (slm_size > max_slm_size) return false;
 
         return true;

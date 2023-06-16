@@ -228,11 +228,13 @@ public:
     friend class send_impl_t;
 
     ir_kernel_t(const std::string &kernel_name, const exec_config_t &exec_cfg,
-            const kernel_info_t &kernel_info, bool require_dpas,
+            const kernel_info_t &kernel_info,
+            const compute::nd_range_t &nd_range, bool require_dpas,
             grf_mode_t grf_mode = grf_mode_t::any)
         : kernel_name_(kernel_name)
         , exec_cfg_(exec_cfg)
         , kernel_info_(kernel_info)
+        , nd_range_(nd_range)
         , require_dpas_(require_dpas)
         , regs_((grf_mode == grf_mode_t::large)             ? 256
                           : (grf_mode == grf_mode_t::small) ? 128
@@ -269,7 +271,8 @@ public:
             int slm_size = alloc_manager_t(kernel_body)
                                    .total_size(alloc_kind_t::slm);
             int max_slm_size = compute::device_info_t::max_slm_size_per_tg(
-                    convert_ngen_arch_to_dnnl(hw), regs_ > 128);
+                    convert_ngen_arch_to_dnnl(hw), thread_group_size(),
+                    regs_ > 128);
             if (slm_size > max_slm_size) {
                 // TODO: Use status code for this check.
                 ir_except_not_implemented("SLM size limit is exceeded.");
@@ -895,9 +898,19 @@ protected:
         return false;
     }
 
+    int thread_group_size() const {
+        int local_size = 1;
+        ir_assert(nd_range_.local_range());
+        for (int i = 0; i < (int)nd_range_.ndims(); i++) {
+            local_size *= (int)nd_range_.local_range()[i];
+        }
+        return ir_utils::safe_divide(local_size, exec_cfg_.simd());
+    }
+
     std::string kernel_name_;
     exec_config_t exec_cfg_;
     kernel_info_t kernel_info_;
+    compute::nd_range_t nd_range_;
     bool require_dpas_;
     bool require_signal_header_ = false;
     int regs_;

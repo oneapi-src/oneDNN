@@ -121,7 +121,8 @@ public:
                                     ? grf_mode_t::large
                                     : grf_mode_t::small;
                             kernels_.push_back(make_kernel<conv_kernel_t>(
-                                    primitive, engine, cfg_, info, grf_mode));
+                                    primitive, engine, cfg_, info,
+                                    nd_ranges_[i], grf_mode));
                             break;
                         }
                         case kernel_id_t::pre_reorder: {

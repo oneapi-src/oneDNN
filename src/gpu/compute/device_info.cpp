@@ -136,9 +136,21 @@ int device_info_t::max_slm_size(gpu_arch_t gpu_arch) {
     return slm_size;
 }
 
+int device_info_t::max_slm_size_per_tg(gpu_arch_t gpu_arch) {
+    switch (gpu_arch) {
+        case gpu::compute::gpu_arch_t::xe_hp:
+        case gpu::compute::gpu_arch_t::xe_hpg: return (1 << 16);
+        default: return max_slm_size(gpu_arch);
+    }
+}
+
 int device_info_t::max_slm_size_per_tg(
-        gpu_arch_t gpu_arch, bool large_grf_mode) {
-    return max_slm_size(gpu_arch) / threads_per_eu(gpu_arch, large_grf_mode);
+        gpu_arch_t gpu_arch, int tg_size, bool large_grf_mode) {
+    int eus_per_ss = max_eus_per_wg(gpu_arch);
+    int tgs_per_ss
+            = eus_per_ss * threads_per_eu(gpu_arch, large_grf_mode) / tg_size;
+    int slm_per_tg = max_slm_size(gpu_arch) / tgs_per_ss;
+    return std::min(max_slm_size_per_tg(gpu_arch), slm_per_tg);
 }
 
 int device_info_t::slm_memory_bank_count(gpu_arch_t gpu_arch) {

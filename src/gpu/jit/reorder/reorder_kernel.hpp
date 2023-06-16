@@ -43,7 +43,7 @@ public:
             bool require_dpas, grf_mode_t grf_mode,
             const primitive_desc_t *pd = nullptr)
         : ir_kernel_t<hw>(kernel_name, cfg.exec_cfg(), kernel_info,
-                require_dpas, grf_mode) {
+                kernel_info.nd_range(), require_dpas, grf_mode) {
         const primitive_attr_t *attr = (pd) ? pd->attr() : nullptr;
         const memory_desc_t *dst_md = (pd) ? pd->dst_md() : nullptr;
         reorder_ir_builder_t builder(cfg, kernel_info, attr, dst_md);
