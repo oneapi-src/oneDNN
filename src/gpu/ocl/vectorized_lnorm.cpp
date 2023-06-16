@@ -191,7 +191,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
 
         for (int i = 0; i < 4; i++) {
             int md_hint_idx = nstl::min(i, ndims - 1);
-            int dim = (i < ndims - 1) ? dims[i] : 1;
+            size_t dim = (i < ndims - 1) ? dims[i] : 1;
             if (i == ndims - 1) {
                 dim = norm_gws;
                 conf.dispatch.define_dim(
