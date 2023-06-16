@@ -168,7 +168,6 @@ struct conf_t {
     int weights_iter_ld, weights_iter_nld;
     int diff_weights_iter_ld, diff_weights_iter_nld;
     int states_nld, states_ws_ld, scratch_diff_states_ld;
-    int weights_iter_compensation_size, weights_layer_compensation_size;
     bool is_fwd, is_training, is_lbr, is_int8, is_testmode, is_vanilla_gru;
     bool use_workspace;
 
