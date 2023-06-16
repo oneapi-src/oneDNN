@@ -479,6 +479,23 @@ status_t gen9_convolution_fwd_t::pd_t::init_kernel_ctx(
     return status::success;
 }
 
+bool gen9_convolution_fwd_t::pd_t::post_ops_ok(
+        const compute::device_info_t *device_info) const {
+    // XXX: tanh post-op is not supported by jit:ir on XeHPG 128 EU, and Gen9
+    // kernel has functional issues so skip this implementation to reach the
+    // reference.
+    bool is_xehpg_128eu
+            = (device_info->gpu_arch() == compute::gpu_arch_t::xe_hpg
+                    && device_info->eu_count() <= 128);
+    if (!is_xehpg_128eu) return true;
+
+    for (int i = 0; i < attr()->post_ops_.len(); i++) {
+        auto &po = attr()->post_ops_.entry_[i];
+        if (po.eltwise.alg == alg_kind::eltwise_tanh) return false;
+    }
+    return true;
+}
+
 status_t gen9_convolution_bwd_data_t::pd_t::init_conf(engine_t *engine) {
     using namespace dnnl::impl::format_tag;
     using namespace data_type;

@@ -76,6 +76,7 @@ struct gen9_convolution_fwd_t : public gpu_primitive_t {
                                                     intel_subgroups_short))
                     && !has_zero_dim_memory()
                     && attr()->has_default_values(attr_skip_mask, dst_data_t)
+                    && post_ops_ok(compute_engine->device_info())
                     && post_ops_with_binary_ok(attr(), dst_md()->data_type);
             if (!ok) return status::unimplemented;
 
@@ -95,6 +96,7 @@ struct gen9_convolution_fwd_t : public gpu_primitive_t {
 
         status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+        bool post_ops_ok(const compute::device_info_t *device_info) const;
 
         conv_conf_t conf;
     };
