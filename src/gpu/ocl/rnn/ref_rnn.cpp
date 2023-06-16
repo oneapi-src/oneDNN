@@ -506,6 +506,31 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     init_rnn_conf(rnn_conf, *this->desc(), this->src_md(0), this->src_md(1),
             this->weights_md(0), this->weights_md(1), this->dst_md(0),
             is_xe_hpc);
+
+    if (rnn_conf.is_int8) {
+        auto has_trivial_strides = [](const memory_desc_wrapper &md) {
+            return md.is_dense(true);
+        };
+        VCONDCHECK(create, dispatch, rnn,
+                has_trivial_strides(this->desc()->src_layer_desc),
+                status::unimplemented, VERBOSE_NONTRIVIAL_STRIDE);
+        VCONDCHECK(create, dispatch, rnn,
+                has_trivial_strides(this->desc()->src_iter_desc),
+                status::unimplemented, VERBOSE_NONTRIVIAL_STRIDE);
+        VCONDCHECK(create, dispatch, rnn,
+                has_trivial_strides(this->desc()->src_iter_c_desc),
+                status::unimplemented, VERBOSE_NONTRIVIAL_STRIDE);
+        VCONDCHECK(create, dispatch, rnn,
+                has_trivial_strides(this->desc()->dst_layer_desc),
+                status::unimplemented, VERBOSE_NONTRIVIAL_STRIDE);
+        VCONDCHECK(create, dispatch, rnn,
+                has_trivial_strides(this->desc()->dst_iter_desc),
+                status::unimplemented, VERBOSE_NONTRIVIAL_STRIDE);
+        VCONDCHECK(create, dispatch, rnn,
+                has_trivial_strides(this->desc()->dst_iter_c_desc),
+                status::unimplemented, VERBOSE_NONTRIVIAL_STRIDE);
+    }
+
     init_test_mode(rnn_conf, *this->attr());
 
     // Check that only supported attr have been passed.
