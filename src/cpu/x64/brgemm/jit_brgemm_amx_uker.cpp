@@ -770,6 +770,8 @@ void jit_brgemm_amx_uker_base_t::read_params() {
 }
 
 void jit_brgemm_amx_uker_base_t::load_accumulators(brgemm_iteration_t &bi) {
+    if (bi.skip_accumulation) return;
+
     size_t ils_shift = 0;
     if (may_load_accumulators_) {
         mov(reg_stride_ld_block, LDC_size_);
@@ -1176,7 +1178,7 @@ void jit_brgemm_amx_uker_base_t::process_output_range(
         const auto c_offset = C_offset(bi, bdb, bd, bi.ldi->pos(ldb));
         const auto ptr_C = EVEX_compress_addr(reg_C, c_offset);
 
-        if (need_to_apply_alpha_beta_)
+        if (need_to_apply_alpha_beta_ || bi.skip_accumulation)
             apply_alpha_beta_to_vector(
                     zmm.getIdx(), ptr_C, bi.ldi->is_tail(ldb));
 
