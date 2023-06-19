@@ -548,12 +548,12 @@ TEST(Execute, F32Mha) {
     graph::stream_t *strm = get_stream();
 
     graph::graph_t g(eng->kind());
-    utils::construct_dnnl_f32_MHA(&g);
+    utils::construct_dnnl_float_MHA(&g);
     g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 7U);
 
-    graph::pass::pass_base_ptr apass = get_pass("f32_MHA_fusion");
+    graph::pass::pass_base_ptr apass = get_pass("float_MHA_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -587,8 +587,10 @@ TEST(Execute, F32Mha) {
     std::vector<graph::tensor_t> inputs_ts, outputs_ts;
 
     for (auto &lt : inputs) {
+        // set all the input value to 1.f, then the value after softmax should
+        // be 1.f/seq_len, and the final output should be 1.f
         inputs_data.emplace_back(
-                test::vector<float>(utils::product(ltw(lt).vdims())));
+                test::vector<float>(utils::product(ltw(lt).vdims()), 1.f));
         inputs_ts.emplace_back(*lt, eng, inputs_data.back().data());
     }
 
@@ -603,6 +605,106 @@ TEST(Execute, F32Mha) {
 
     ASSERT_EQ(cp.execute(strm, inputs_ts, outputs_ts), graph::status::success);
     strm->wait();
+
+    // correctness check
+    for (size_t i = 0; i < outputs_data[0].size(); i++) {
+        ASSERT_LT(std::fabs(outputs_data[0][i] - 1.f), 1e-5);
+    }
+}
+
+namespace {
+union bit32_t {
+    float f32;
+    uint32_t u32;
+};
+
+uint16_t f32_to_bf16(float f32_val) {
+    bit32_t bit32;
+    bit32.f32 = f32_val;
+    return bit32.u32 >> 16;
+}
+
+float bf16_to_f32(uint16_t bf16_val) {
+    bit32_t bit32;
+    bit32.u32 = bf16_val << 16;
+    return bit32.f32;
+}
+} // namespace
+
+TEST(Execute, Bf16Mha) {
+    graph::engine_t *eng = get_engine();
+    graph::stream_t *strm = get_stream();
+
+    SKIP_IF(eng->kind() == graph::engine_kind::gpu, "skip on gpu");
+
+    static auto isa = dnnl_get_effective_cpu_isa();
+    SKIP_IF((isa < dnnl_cpu_isa_avx512_core)
+                    && eng->kind() == graph::engine_kind::cpu,
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
+    graph::graph_t g(eng->kind());
+    utils::construct_dnnl_float_MHA(&g, dnnl::impl::data_type::bf16);
+    g.finalize();
+
+    ASSERT_EQ(g.get_ops().size(), 7U);
+
+    graph::pass::pass_base_ptr apass = get_pass("float_MHA_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    graph::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+
+    std::vector<const graph::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        // set output to be strided
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, graph::layout_type::strided);
+        outputs.emplace_back(&lt);
+    }
+
+    graph::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
+
+    using ltw = graph::logical_tensor_wrapper_t;
+
+    std::vector<test::vector<uint16_t>> inputs_data, outputs_data;
+    std::vector<graph::tensor_t> inputs_ts, outputs_ts;
+
+    for (auto &lt : inputs) {
+        // set all the input value to 1.f, then the value after softmax should
+        // be 1.f/seq_len, and the final output should be 1.f
+        inputs_data.emplace_back(test::vector<uint16_t>(
+                utils::product(ltw(lt).vdims()), f32_to_bf16(1.f)));
+        inputs_ts.emplace_back(*lt, eng, inputs_data.back().data());
+    }
+
+    for (auto &lt : outputs) {
+        graph::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt->id, &compiled_output);
+        outputs_data.emplace_back(test::vector<uint16_t>(
+                utils::product(ltw(compiled_output).vdims())));
+        outputs_ts.emplace_back(
+                compiled_output, eng, outputs_data.back().data());
+    }
+
+    ASSERT_EQ(cp.execute(strm, inputs_ts, outputs_ts), graph::status::success);
+    strm->wait();
+
+    // correctness check
+    for (size_t i = 0; i < outputs_data[0].size(); i++) {
+        ASSERT_LT(std::fabs(bf16_to_f32(outputs_data[0][i]) - 1.f), 1e-5);
+    }
 }
 
 TEST(Execute, Int8Bf16Mha) {

@@ -889,9 +889,9 @@ inline void construct_f32_MHA(dnnl::impl::graph::graph_t *agraph,
     agraph->add_op(&transpose_output);
 }
 
-inline void construct_dnnl_f32_MHA(dnnl::impl::graph::graph_t *agraph,
-        int batch_size = 1, int seq_len = 384, int num_head = 16,
-        int head_dim = 1024) {
+inline void construct_dnnl_float_MHA(dnnl::impl::graph::graph_t *agraph,
+        impl::data_type_t dtype = impl::data_type::f32, int batch_size = 1,
+        int seq_len = 384, int num_head = 16, int head_dim = 1024) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::graph::tests;
 
@@ -912,39 +912,39 @@ inline void construct_dnnl_f32_MHA(dnnl::impl::graph::graph_t *agraph,
     size_t lt_id = 0;
 
     auto attention_mask_flt = unit::utils::logical_tensor_init(
-            lt_id++, EXTENDED_ATTENTION_MASK_SHAPE, data_type::f32);
+            lt_id++, EXTENDED_ATTENTION_MASK_SHAPE, dtype);
 
     auto query_input = unit::utils::logical_tensor_init(
-            lt_id++, QKV_TRANSPOSED_SHAPE, data_type::f32);
+            lt_id++, QKV_TRANSPOSED_SHAPE, dtype);
 
     auto key_input = unit::utils::logical_tensor_init(
-            lt_id++, KEY_TRANSPOSED_SHAPE, data_type::f32);
+            lt_id++, KEY_TRANSPOSED_SHAPE, dtype);
 
     auto matmul_qk_out = unit::utils::logical_tensor_init(
-            lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::f32);
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, dtype);
 
-    auto fscore_scale = unit::utils::logical_tensor_init(
-            lt_id++, CONST_SHAPE, data_type::f32);
+    auto fscore_scale
+            = unit::utils::logical_tensor_init(lt_id++, CONST_SHAPE, dtype);
     fscore_scale.property = property_type::constant;
     auto fscore_div_out = unit::utils::logical_tensor_init(
-            lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::f32);
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, dtype);
 
     auto fscore_add_out = unit::utils::logical_tensor_init(
-            lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::f32);
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, dtype);
     auto softmax_out = unit::utils::logical_tensor_init(
-            lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::f32);
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, dtype);
 
     auto value_input = unit::utils::logical_tensor_init(
-            lt_id++, QKV_TRANSPOSED_SHAPE, data_type::f32);
+            lt_id++, QKV_TRANSPOSED_SHAPE, dtype);
 
     auto matmul_v_out = unit::utils::logical_tensor_init(
-            lt_id++, MATMUL_V_OUTPUT_SHAPE, data_type::f32);
+            lt_id++, MATMUL_V_OUTPUT_SHAPE, dtype);
 
     auto context_transpose_out = unit::utils::logical_tensor_init(
-            lt_id++, QKV_RESHAPED_SHAPE, data_type::f32);
+            lt_id++, QKV_RESHAPED_SHAPE, dtype);
 
     auto context_reshape_out = unit::utils::logical_tensor_init(
-            lt_id++, QKV_RESHAPED_SHAPE, data_type::f32);
+            lt_id++, QKV_RESHAPED_SHAPE, dtype);
 
     op_t matmul_qk {0, op_kind::MatMul, "matmul_qk"};
 

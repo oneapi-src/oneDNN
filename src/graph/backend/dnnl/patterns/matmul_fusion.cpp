@@ -1291,14 +1291,12 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_MHA_fusion)
             return std::make_shared<larger_partition_kernel_t>();
         });
 
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, f32_MHA_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_MHA_fusion)
         .set_priority(21.0f)
         .set_kind(partition_kind_t::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
-                    matmul_qk->append_decision_function(
-                            check_input_dtype<impl::data_type::f32>);
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
                             {in_edge(0, matmul_qk, 0)});
@@ -1308,8 +1306,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, f32_MHA_fusion)
                             {in_edge(0, fscore_add, 0)});
                     auto matmul_v = pgraph->append_op(
                             graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
-                    matmul_v->append_decision_function(
-                            check_input_dtype<impl::data_type::f32>);
                     auto transpose_output
                             = pgraph->append_op(graph::op_kind::StaticTranspose,
                                     {in_edge(0, matmul_v, 0)});

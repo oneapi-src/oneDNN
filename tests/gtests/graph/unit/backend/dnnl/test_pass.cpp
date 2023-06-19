@@ -12624,11 +12624,11 @@ TEST(Pass, Int8MhaFusion) {
 
 TEST(Pass, F32MhaFusion) {
     dnnl::impl::graph::graph_t agraph;
-    dnnl::graph::tests::unit::utils::construct_dnnl_f32_MHA(&agraph);
+    dnnl::graph::tests::unit::utils::construct_dnnl_float_MHA(&agraph);
     agraph.finalize();
     ASSERT_EQ(agraph.get_ops().size(), 7U);
 
-    dnnl::impl::graph::pass::pass_base_ptr apass = get_pass("f32_MHA_fusion");
+    dnnl::impl::graph::pass::pass_base_ptr apass = get_pass("float_MHA_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 }
