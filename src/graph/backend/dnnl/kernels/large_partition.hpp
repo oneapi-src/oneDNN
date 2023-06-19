@@ -101,6 +101,8 @@ public:
         // lowered subgraph. We need to improve them.
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_concat);
 
+        BACKEND_DNNL_ADD_PASS(
+                pipeline, lift_up_weight_reshape_for_depthwiseconv);
         BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
         // Fusion and canonicalization passes begin
         BACKEND_DNNL_ADD_PASS(pipeline, lift_up_typecast);

@@ -3403,6 +3403,60 @@ impl::status_t lift_up_quantize(std::shared_ptr<subgraph_t> &sg) {
     return infer_shape(sg);
 }
 
+impl::status_t lift_up_weight_reshape_for_depthwiseconv(
+        std::shared_ptr<subgraph_t> &sg) {
+    std::unordered_map<op_t *, std::vector<op_t *>> to_be_swapped;
+    for (auto &op : sg->get_ops()) {
+        if (op->get_kind() != op_kind::dnnl_convolution) continue;
+
+        // check the current op is depthwiseconv
+        const auto groups = op->get_attr<int64_t>(op_attr::groups);
+        const size_t wei_offset = 1;
+        const auto wei_dims
+                = ltw(op->get_input_value(wei_offset)->get_logical_tensor())
+                          .vdims();
+        const auto wei_format = (op->has_attr(op_attr::weights_format))
+                ? op->get_attr<std::string>(op_attr::weights_format)
+                : "XIO";
+        const int64_t ndims = wei_dims.size();
+        const int64_t outchannel
+                = (wei_format == "OIX") ? wei_dims[0] : wei_dims[ndims - 1];
+        const int64_t inputchannel
+                = (wei_format == "OIX") ? wei_dims[1] : wei_dims[ndims - 2];
+        if (outchannel % groups != 0 || inputchannel != 1) continue;
+
+        if (!op->get_input_value(1)->has_producer()) break;
+        op_t *reshape_op = op->get_input_op(1);
+        if (reshape_op->get_kind() != op_kind::dnnl_reshape) continue;
+        op_t *producer = reshape_op;
+        while (true) {
+            if (!producer->get_input_value(0)->has_producer()) break;
+            producer = producer->get_input_op(0);
+            if (!impl::utils::one_of(producer->get_kind(),
+                        op_kind::dnnl_add_zps, op_kind::dnnl_sub_zps,
+                        op_kind::dnnl_mul_scales))
+                break;
+            if (wei_format == "XIO") {
+                producer->set_attr<int64_t>(op_attr::axis, ndims - 1);
+            }
+            if (to_be_swapped.count(reshape_op))
+                to_be_swapped[reshape_op].emplace_back(producer);
+            else
+                to_be_swapped[reshape_op] = {producer};
+        }
+    }
+
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &pair : to_be_swapped) {
+        op_t *baseop = pair.first;
+        for (auto swaped : pair.second)
+            rewriter.swap_neighboring_reshape_ops(
+                    swaped->shared_from_this(), baseop->shared_from_this());
+    }
+
+    return infer_shape(sg);
+}
+
 impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg) {
     std::vector<op_ptr> transpose_ops;
     for (auto &cur_op : sg->get_ops()) {

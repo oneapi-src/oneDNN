@@ -226,6 +226,9 @@ public:
     void swap_neighboring_si_ops(const std::shared_ptr<op_t> &producer,
             const std::shared_ptr<op_t> &consumer);
 
+    void swap_neighboring_reshape_ops(const std::shared_ptr<op_t> &producer,
+            const std::shared_ptr<op_t> &consumer);
+
 private:
     bool is_to_be_removed(const std::shared_ptr<op_t> &op) const;
 

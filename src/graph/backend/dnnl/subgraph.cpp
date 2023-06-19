@@ -537,6 +537,35 @@ void subgraph_rewriter_t::swap_neighboring_si_ops(
     producer->connect_input(0, new_val);
 }
 
+// it is similar to "swap_neighboring_si_ops".The difference is that the
+// data_type of new_val is same as producer_dst's data_type.
+void subgraph_rewriter_t::swap_neighboring_reshape_ops(
+        const std::shared_ptr<op_t> &producer,
+        const std::shared_ptr<op_t> &consumer) {
+    assertm(producer->num_inputs() == 1,
+            "only support swap single input operators.");
+    assertm(consumer->num_inputs() == 1,
+            "only support swap single input operators.");
+    assertm(consumer->get_input_value(0)->has_producer()
+                    && consumer->get_input_value(0)->get_offset() == 0
+                    && consumer->get_input_op(0) == producer.get(),
+            "only support swap neighboring operators.");
+    auto producer_src = producer->get_input_value(0);
+    auto producer_dst = producer->get_output_value(0);
+
+    producer_src->remove_consumer(*producer, 0);
+    consumer->connect_input(0, producer_src);
+
+    auto consumer_dst = consumer->get_output_value(0);
+    producer->connect_output(0, consumer_dst);
+
+    logical_tensor_t new_lt = empty_logical_tensor_with_default_id();
+    auto new_val = std::make_shared<value_t>(*consumer, 0, new_lt, true);
+    new_val->set_data_type(producer_dst->get_logical_tensor().data_type);
+    consumer->connect_output(0, new_val);
+    producer->connect_input(0, new_val);
+}
+
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl

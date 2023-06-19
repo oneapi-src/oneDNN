@@ -309,6 +309,88 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_conv_bias_fusion)
         });
 
 /*
+                     staticreshape
+                           |
+                      quant_weight
+                           |
+                     dequant_weight
+        |                  |
+   dequant_data      staticreshape
+        \_____       _____/
+               conv
+                |
+              [bias]*
+                |           
+                |        
+                |                   
+        [ Abs/Clamp/Elu/Exp/GELU/HardSwish/Log/Sigmoid/SoftPlus/
+          Pow/ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/Maximum/Minimum/
+          Divide/Subtract]*[0,3]
+                |
+            [quant_out]*
+                | 
+*/
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
+        dnnl, int8_depthwise_conv_reshape_post_ops_fusion)
+        .set_priority(10.6f)
+        .set_kind(partition_kind_t::quantized_convolution_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op_t *dequant_data
+                            = pgraph->append_op(graph::op_kind::Dequantize);
+
+                    pm::pb_op_t *weight_reshape1
+                            = pgraph->append_op(graph::op_kind::StaticReshape);
+
+                    pm::pb_op_t *quant_weight = pgraph->append_op(
+                            graph::op_kind::Quantize,
+                            in_edges_t {in_edge(0, weight_reshape1, 0)});
+
+                    pm::pb_op_t *dequant_weight
+                            = pgraph->append_op(graph::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, quant_weight, 0)});
+                    dequant_weight->append_decision_function(
+                            check_input_dtype<graph::data_type::s8>);
+                    pm::pb_op_t *weight_reshape2
+                            = pgraph->append_op(graph::op_kind::StaticReshape,
+                                    in_edges_t {in_edge(0, dequant_weight, 0)});
+
+                    pm::pb_op_t *pconv
+                            = pgraph->append_op(graph::op_kind::Convolution,
+                                    in_edges_t {
+                                            in_edge(0, dequant_data, 0),
+                                            in_edge(1, weight_reshape2, 0),
+                                    });
+                    // Optional bias_add
+                    auto popt_bias = optional_bias_add(pgraph, pconv, false);
+
+                    // post ops
+                    auto postop_graph = std::make_shared<pb_graph_t>();
+                    pm::pb_op_t *pop = postop_graph->append_alternation(
+                            get_unary_binary_ops());
+                    pop->allow_internal_inputs();
+                    postop_graph->create_input_port(0, pop, 0);
+                    postop_graph->create_input_port(1, pop, 1);
+                    postop_graph->create_output_port(0, pop, 0);
+
+                    auto prep = pgraph->append_repetition(postop_graph, {0, 0},
+                            0, MAX_REPETITION,
+                            in_edges_t {in_edge(0, popt_bias, 0)});
+
+                    // Optional quant_out
+                    auto popt_qout_graph = std::make_shared<pb_graph_t>();
+                    pm::pb_op_t *pquant_out = popt_qout_graph->append_op(
+                            graph::op_kind::Quantize);
+                    popt_qout_graph->create_input_port(0, pquant_out, 0);
+                    popt_qout_graph->create_output_port(0, pquant_out, 0);
+                    pgraph->append_optional(
+                            popt_qout_graph, in_edges_t {in_edge(0, prep, 0)});
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_conv>();
+        });
+
+/*
                     [quant_weight]*
         |                  |
    dequant_data     dequant_weight

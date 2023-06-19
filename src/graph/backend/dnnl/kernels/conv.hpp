@@ -281,6 +281,8 @@ public:
         if (!quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, insert_bn_folding);
         } else {
+            BACKEND_DNNL_ADD_PASS(
+                    pipeline, lift_up_weight_reshape_for_depthwiseconv);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_matmul_or_conv);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_add);
             BACKEND_DNNL_ADD_PASS(

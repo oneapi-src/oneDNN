@@ -184,6 +184,11 @@ impl::status_t lift_up_quantize(std::shared_ptr<subgraph_t> &sg);
 // have the opportunity to be fused into computation operators
 impl::status_t lift_up_typecast(std::shared_ptr<subgraph_t> &sg);
 
+// This pass will move reshape before Quantize and Dequantize for depthwiseconv.
+// So that it can have the opportunity to be fused into computation operators
+impl::status_t lift_up_weight_reshape_for_depthwiseconv(
+        std::shared_ptr<subgraph_t> &sg);
+
 // This pass will compute matmul with the dst layout of following transpose if
 // the operator after transpose need a dense layout
 impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg);
