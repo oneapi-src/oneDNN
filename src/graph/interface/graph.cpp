@@ -29,6 +29,7 @@
 #include "graph/interface/partition.hpp"
 
 #include "graph/utils/pm/dag_check_pass.hpp"
+#include "graph/utils/pm/op_depth_check_pass.hpp"
 #include "graph/utils/pm/pass_manager.hpp"
 #include "graph/utils/utils.hpp"
 
@@ -279,6 +280,8 @@ status_t dnnl_graph_graph::analyze() {
     graph::pass::pass_registry_t analysis_pass_reg;
     analysis_pass_reg.register_pass(
             "common", "dag_check_pass", &pass::dag_check_pass_t::create);
+    analysis_pass_reg.register_pass("common", "graph_op_depth_check_pass",
+            &graph::utils::pm::graph_op_depth_check_pass_t::create);
     graph::pass::pass_manager_t pm(analysis_pass_reg);
     status_t ret = pm.run_passes(*this, "");
     return ret;

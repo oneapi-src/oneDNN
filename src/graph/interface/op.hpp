@@ -337,6 +337,7 @@ public:
             CASE(matched);
             CASE(backend);
             CASE(partition_id);
+            CASE(op_depth);
             default: return "undefined_attr";
         }
 #undef CASE
@@ -484,6 +485,7 @@ public:
                             std::make_pair(attr2str(v.first), v.second));
                 });
 
+        copied_attrs.erase("op_depth");
         copied_attrs.erase("matched");
         writer->write_keyvalue("attrs", copied_attrs);
         writer->write_keyvalue("inputs", get_input_values());
