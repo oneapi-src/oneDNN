@@ -14687,3 +14687,60 @@ TEST(Pass, BatchNormReluU8Unfuse) {
         EXPECT_NE(g.get_num_partitions(), 1U);
     }
 }
+
+TEST(Pass, FuseMatmulSwish) {
+    const std::vector<std::string> seqs_1 {"first", "second"};
+    const std::vector<std::string> seqs_2 {"left", "right"};
+    for (auto seq_1 : seqs_1)
+        for (auto seq_2 : seqs_2) {
+            graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul");
+            graph::op_t sigmoid_op(1, graph::op_kind::Sigmoid, "sigmoid");
+            graph::op_t multi_op(2, graph::op_kind::Multiply, "multiply");
+
+            // prepare logical tensor
+            std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
+
+            matmul_op.add_input(lt_vec[0]);
+            matmul_op.add_input(lt_vec[1]);
+            matmul_op.add_output(lt_vec[2]);
+            sigmoid_op.add_input(lt_vec[2]);
+            sigmoid_op.add_output(lt_vec[3]);
+            if (seq_1 == "first") {
+                multi_op.add_input(lt_vec[2]);
+                multi_op.add_input(lt_vec[3]);
+            } else {
+                multi_op.add_input(lt_vec[3]);
+                multi_op.add_input(lt_vec[2]);
+            }
+
+            multi_op.add_output(lt_vec[4]);
+
+            graph::graph_t agraph;
+            agraph.add_op(&matmul_op);
+
+            if (seq_2 == "left") {
+                agraph.add_op(&sigmoid_op);
+                agraph.add_op(&multi_op);
+            } else {
+                agraph.add_op(&multi_op);
+                agraph.add_op(&sigmoid_op);
+            }
+
+            agraph.finalize();
+
+            graph::pass::pass_base_ptr apass
+                    = get_pass("matmul_post_ops_chain_fusion");
+            apass->run(agraph);
+            ASSERT_EQ(agraph.get_num_partitions(), 1U);
+            ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 3U);
+            ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
+                    graph::partition_kind_t::matmul_post_ops);
+
+            ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
+            ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
+            ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1U);
+
+            ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
+            ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
+        }
+}

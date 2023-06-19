@@ -2485,3 +2485,127 @@ TEST(PatternMatcher, GraphRun) {
     graph::graph_t agraph;
     ASSERT_EQ(a.run(agraph), graph::status::success);
 }
+
+TEST(PatternMatcher, RepConvReluWithMultiConsumers) {
+    // pattern:
+    //   conv
+    //     |
+    //   relu
+    //     |____________
+    //     |            |
+    //     |      [conv-> relu]*[0,3)
+    auto pgraph = std::make_shared<pb_graph_t>();
+    auto pconv = pgraph->append_op(graph::op_kind::Convolution);
+    auto prelu = pgraph->append_op(
+            graph::op_kind::ReLU, in_edges_t {in_edge(0, pconv, 0)});
+    auto prep_subgraph = std::make_shared<pb_graph_t>();
+    auto prconv = prep_subgraph->append_op(graph::op_kind::Convolution);
+    auto prrelu = prep_subgraph->append_op(
+            graph::op_kind::ReLU, in_edges_t {in_edge(0, prconv, 0)});
+    prelu->allow_external_outputs();
+    prep_subgraph->create_input_port(IN0, prconv, IN0);
+    prep_subgraph->create_output_port(OUT0, prrelu, OUT0);
+    pgraph->append_repetition(
+            prep_subgraph, {0, 0}, 0, 3, in_edges_t {in_edge(0, prelu, 0)});
+
+    // graph:
+    // the single conv is the 1st consumer
+    // while the conv on the "main branch" is the 2nd consumer
+    //   conv
+    //     |
+    //   relu
+    //     |________________
+    //     |                |
+    // (external output)  conv
+    //   conv               |
+    //     |              relu
+    //     |                |
+    graph::graph_t agraph;
+
+    id_generator id_gen;
+
+    int64_t ic = 8, oc = 8, ks = 1;
+    std::vector<int64_t> src_shape {1, ic, 12, 12};
+
+    auto src = logical_tensor_init(
+            id_gen.get_id(), src_shape, graph::data_type::f32);
+
+    auto conv0 = create_convolution(id_gen, agraph, src, ic, ks, oc, 1, {1, 1},
+            {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", false, false, 1e-6f,
+            /*with relu*/ true, /*with biasadd*/ false);
+    // the order of consumer depends on the order of adding ops
+    create_convolution(id_gen, agraph, conv0, ic, ks, oc, 1, {1, 1}, {1, 1},
+            {0, 0}, {0, 0}, "NCX", "OIX", false, false, 1e-6f,
+            /*with relu*/ false, /*with biasadd*/ false);
+    create_convolution(id_gen, agraph, conv0, ic, ks, oc, 1, {1, 1}, {1, 1},
+            {0, 0}, {0, 0}, "NCX", "OIX", false, false, 1e-6f,
+            /*with relu*/ true, /*with biasadd*/ false);
+
+    agraph.finalize();
+
+    ASSERT_EQ(agraph.get_ops().size(), 5U);
+
+    std::vector<op_t *> fusion_ops;
+    EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), pgraph, fusion_ops));
+    ASSERT_EQ(fusion_ops.size(), 4U);
+}
+
+TEST(PatternMatcher, RepConvReluWithMultiConsumersCase2) {
+    /*pattern:  
+                 |
+           [conv-> relu]*[0,3)
+            /    |
+           |     |
+     (allow external output)
+    */
+    auto pgraph = std::make_shared<pb_graph_t>();
+    auto prep_subgraph = std::make_shared<pb_graph_t>();
+    auto prconv = prep_subgraph->append_op(graph::op_kind::Convolution);
+    auto prrelu = prep_subgraph->append_op(
+            graph::op_kind::ReLU, in_edges_t {in_edge(0, prconv, 0)});
+    prrelu->allow_external_outputs();
+    prep_subgraph->create_input_port(IN0, prconv, IN0);
+    prep_subgraph->create_output_port(OUT0, prrelu, OUT0);
+    pgraph->append_repetition(prep_subgraph, {0, 0}, 0, 3);
+
+    // graph:
+    // the single conv is the 1st consumer
+    // while the conv on the "main branch" is the 2nd consumer
+    //   conv
+    //     |
+    //   relu
+    //     |________________
+    //     |                |
+    // (external output)  conv
+    //   conv               |
+    //     |              relu
+    //     |                |
+    graph::graph_t agraph;
+
+    id_generator id_gen;
+
+    int64_t ic = 8, oc = 8, ks = 1;
+    std::vector<int64_t> src_shape {1, ic, 12, 12};
+
+    auto src = logical_tensor_init(
+            id_gen.get_id(), src_shape, graph::data_type::f32);
+
+    auto conv0 = create_convolution(id_gen, agraph, src, ic, ks, oc, 1, {1, 1},
+            {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", false, false, 1e-6f,
+            /*with relu*/ true, /*with biasadd*/ false);
+    // the order of consumer depends on the order of adding ops
+    create_convolution(id_gen, agraph, conv0, ic, ks, oc, 1, {1, 1}, {1, 1},
+            {0, 0}, {0, 0}, "NCX", "OIX", false, false, 1e-6f,
+            /*with relu*/ false, /*with biasadd*/ false);
+    create_convolution(id_gen, agraph, conv0, ic, ks, oc, 1, {1, 1}, {1, 1},
+            {0, 0}, {0, 0}, "NCX", "OIX", false, false, 1e-6f,
+            /*with relu*/ true, /*with biasadd*/ false);
+
+    agraph.finalize();
+
+    ASSERT_EQ(agraph.get_ops().size(), 5U);
+
+    std::vector<op_t *> fusion_ops;
+    EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), pgraph, fusion_ops));
+    ASSERT_EQ(fusion_ops.size(), 4U);
+}

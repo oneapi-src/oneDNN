@@ -120,6 +120,7 @@ static inline dnnl::impl::graph::status_t run_graph(
                 graph::op_t single_op(op->get_kind());
                 single_op.merge_attributes(op->get_attributes());
                 single_op.remove_attr(graph::op_attr::matched);
+                single_op.remove_attr(graph::op_attr::op_depth);
                 single_op.set_partition(nullptr);
                 for (size_t i = 0; i < op->num_inputs(); i++) {
                     single_op.add_input(
