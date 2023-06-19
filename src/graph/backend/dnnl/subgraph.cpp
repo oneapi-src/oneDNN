@@ -288,9 +288,11 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
         const auto &actual_attrs = op->get_attributes();
         for (const auto &elem : actual_attrs) {
             // The matched_pattern attr is added by pattern matcher, we skip
-            // it. The with_sum attr will be removed later, we skip it.
+            // it. The with_sum attr will be removed later, we skip it. The
+            // op_depth attr is internal for pattern matcher, we skip it.
             bool skip = elem.first == op_attr::matched
-                    || elem.first == op_attr::with_sum;
+                    || elem.first == op_attr::with_sum
+                    || elem.first == op_attr::op_depth;
             if (!skip && expected_attrs.count(elem.first) == 0) {
 #ifndef NDEBUG
                 if (op_t::attr2str(elem.first).compare("undefined_attr")) {

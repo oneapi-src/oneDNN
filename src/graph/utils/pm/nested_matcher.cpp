@@ -312,10 +312,12 @@ bool node_outputs_matcher_t::match_op_consumers() {
     std::shared_ptr<value_t> op_out_value
             = op_->get_output_value(current_node_oport_);
 
+    std::vector<value_t::consumer_t> sorted_consumers;
+    sorted_consumers = sort_op_consumers(op_out_value);
     std::unordered_set<size_t> node_oport_matched_cons;
 
-    for (size_t j = 0; j < op_out_value->get_consumers().size(); j++) {
-        auto op_consumer = op_out_value->get_consumers()[j];
+    for (size_t j = 0; j < sorted_consumers.size(); j++) {
+        auto op_consumer = sorted_consumers[j];
         op_t *out_op = &(op_consumer.get_op());
         bool consumer_matched = false;
 
@@ -458,6 +460,23 @@ bool resolve_node(const binding_t &bind_arg, match_context_t *ctx,
         default: break;
     }
     return success;
+}
+
+std::vector<value_t::consumer_t> sort_op_consumers(
+        std::shared_ptr<value_t> &op_out_value) {
+    auto &cons = op_out_value->get_consumers();
+    std::vector<value_t::consumer_t> sorted_consumers;
+    if (cons.empty()) return cons;
+    for (size_t i = 0; i < cons.size(); i++) {
+        sorted_consumers.push_back(cons[i]);
+    }
+    std::sort(sorted_consumers.begin(), sorted_consumers.end(),
+            [&](value_t::consumer_t con_1, value_t::consumer_t con_2) {
+                return con_1.get_op().get_attr<int64_t>(op_attr::op_depth)
+                        > con_2.get_op().get_attr<int64_t>(op_attr::op_depth);
+            });
+
+    return sorted_consumers;
 }
 
 bool match_pattern(op_t *first_op, const std::shared_ptr<pb_graph_t> &pattern,
@@ -743,12 +762,15 @@ bool repetition_matcher_t::prepare_next_matching_round(
         oport_t oport = pmap_.first;
         op_t *current_op = local_cached_ctx.out_port_map.at(oport).first;
         if (oport >= current_op->num_outputs()) return true;
-        auto cons = current_op->get_output_value(oport)->get_consumers();
-        if (cons.empty()) return true;
-        if (cons.size() == 1) {
-            op_t *next_op = &(cons[0].get_op());
+        std::shared_ptr<value_t> op_out_value
+                = current_op->get_output_value(oport);
+        std::vector<value_t::consumer_t> sorted_consumers;
+        sorted_consumers = sort_op_consumers(op_out_value);
+        if (sorted_consumers.empty()) return true;
+        if (sorted_consumers.size() == 1) {
+            op_t *next_op = &(sorted_consumers[0].get_op());
             single_iter_bind_.bind_op = next_op;
-            single_iter_bind_.bind_op_port = cons[0].get_offset();
+            single_iter_bind_.bind_op_port = sorted_consumers[0].get_offset();
         } else {
             // More than 1 consumers. In this case, needs to check
             // if the last node of previous match accepts external
@@ -763,7 +785,7 @@ bool repetition_matcher_t::prepare_next_matching_round(
             pb_op_t *start_pb_op = updated_op_map_[start_op];
             op_t *next_op = nullptr;
             size_t next_op_iport = 0;
-            for (auto &con : cons) {
+            for (auto &con : sorted_consumers) {
                 if (match_node_attributes(&con.get_op(), start_pb_op)) {
                     next_op = &(con.get_op());
                     next_op_iport = con.get_offset();

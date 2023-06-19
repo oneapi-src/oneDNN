@@ -189,6 +189,14 @@ bool match_repetition(const binding_t &b, match_context_t *context,
         std::unordered_map<op_t *, pb_op_t *> &matched_op_map);
 
 //
+// Based on op_depth, rearrange consumers in order of depth.
+// Put consumer with larger depth the first place so that
+// it is possible to meet more ops and match larger or more patterns.
+//
+std::vector<value_t::consumer_t> sort_op_consumers(
+        std::shared_ptr<value_t> &op_out_value);
+
+//
 // Entry point of pattern matching.
 // Find a match given a graph op (first_op) from an input graph
 // and a pre-defined pattern.
