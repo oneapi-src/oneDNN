@@ -135,7 +135,7 @@ TEST(GCCore_CPU_graph_batchwise_merge_cpp, TestGraphBatchWiseAggresiveShrink) {
     if (parallelism_check(bwise_prod)) {
         expected_str
                 = R"(graph(v0: f32[64, 16, 384, 64], v1: f32[64, 16, 64, 384], v2: f32[64, 16, 384, 64], v3: f32[64, 1, 1, 384]) -> [v4: f32[64, 16, 384, 64]] {
-  [v4: f32[64, 16, 384, 64]] = batchwise_64X16_fused_matmul_core_add_tensor_view_exp_reduce_reciprocal_mul_tensor_view_matmul_core(v0, v1, v3, v2)
+  [v4: f32[64, 16, 384, 64]] = batchwise_64X16_fused_matmul_core_add_tensor_view_reduce_sub_exp_reduce_reciprocal_mul_tensor_view_matmul_core(v0, v1, v3, v2)
 }
 )";
     } else {

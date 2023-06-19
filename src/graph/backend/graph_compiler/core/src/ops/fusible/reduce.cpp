@@ -839,7 +839,8 @@ graph_tensor_ptr reduce_op_t::split_op(
     auto second_out = get_outputs()[0]->copy();
     second_out->producer_owner_ = nullptr;
 
-    bool is_bf16 = get_inputs()[0]->details_.dtype_ == datatypes::bf16;
+    bool is_bf16 = get_inputs()[0]->details_.dtype_ == datatypes::bf16
+            && rd_op_ != reduce_operator::max && rd_op_ != reduce_operator::min;
     if (is_bf16) {
         first_out->details_.dtype_ = datatypes::f32;
         second_out->details_.dtype_ = datatypes::f32;

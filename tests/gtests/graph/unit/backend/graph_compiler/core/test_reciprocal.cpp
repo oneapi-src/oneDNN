@@ -97,10 +97,12 @@ TEST(GCCore_CPU_reciprocal_test, TestAttentionSubGraph) {
   [v4: f32[12, 128, 1]] = reciprocal(v1)
   [v5: f32[12, 128, 128]] = mul(v0, v4)
   [v6: f32[12, 128, 128]] = add(v5, v2)
-  [v7: f32[12, 128, 128]] = exp(v6)
-  [v8: f32[12, 128, 1]] = reduce(v7)
-  [v9: f32[12, 128, 1]] = reciprocal(v8)
-  [v3: f32[12, 128, 128]] = mul(v7, v9)
+  [v7: f32[12, 128, 1]] = reduce(v6)
+  [v8: f32[12, 128, 128]] = sub(v6, v7)
+  [v9: f32[12, 128, 128]] = exp(v8)
+  [v10: f32[12, 128, 1]] = reduce(v9)
+  [v11: f32[12, 128, 1]] = reciprocal(v10)
+  [v3: f32[12, 128, 128]] = mul(v9, v11)
 }
 )";
     EXPECT_EQ(ss.str(), expected_str);

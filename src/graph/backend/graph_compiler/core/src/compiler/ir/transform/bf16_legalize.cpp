@@ -208,7 +208,9 @@ expr_c bf16_promote_impl_t::visit(intrin_call_c v) {
     changed = changed || is_bfloat16;
     if (changed) {
         if (is_bfloat16) {
-            if (v->type_ == intrin_type::reduce_add) {
+            if (utils::is_one_of(v->type_, intrin_type::reduce_add,
+                        intrin_type::reduce_mul, intrin_type::reduce_max,
+                        intrin_type::reduce_min)) {
                 return copy_attr(*v,
                         builder::make_cast(sc_data_type_t::bf16(),
                                 builder::remake_intrin_call(v, args)));

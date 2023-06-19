@@ -44,8 +44,12 @@ void softmax_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
 
     // input
     graph->make_input(inputs);
+    // x - max(x)
+    auto fmax = graph->make("reduce", {inputs[0]}, {},
+            {{"need_mean", false}, {"rd_axis", axis}, {"rd_op", 2}});
+    auto fsub = graph->make("sub", {inputs[0], fmax->get_outputs()[0]}, {}, {});
     // exp(x)
-    auto fexp = graph->make("exp", {inputs[0]}, {}, {});
+    auto fexp = graph->make("exp", {fsub->get_outputs()[0]}, {}, {});
 
     // sum(exp(x))
     auto freduce = graph->make("reduce", {fexp->get_outputs()[0]}, {},
