@@ -51,7 +51,7 @@ struct trivial_key_validator_t {
 // trivial structure.
 template <typename T>
 struct trivial_key_t : public T {
-    trivial_key_t() = default;
+    trivial_key_t() = delete;
     trivial_key_t(const T &t, compute::gpu_arch_t arch) : T(t), arch_(arch) {}
     bool operator==(const trivial_key_t &other) const {
         return this->serialize() == other.serialize()

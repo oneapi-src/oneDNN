@@ -434,8 +434,7 @@ status_t xe_hp_systolic_gemm_t::init(engine_t *engine) {
             if (clear_sum && !pd()->with_ab_zero_points()) continue;
             if (!copy_b ? pd()->packed_a() : pd()->packed_b()) continue;
 
-            using copy_kernel_params_t
-                    = trivial_key_t<ocl::xe_systolic_gemm_copy_kernel_t>;
+            using copy_kernel_params_t = ocl::xe_systolic_gemm_copy_kernel_t;
             compute::kernel_ctx_t kernel_ctx;
 
             auto trans
