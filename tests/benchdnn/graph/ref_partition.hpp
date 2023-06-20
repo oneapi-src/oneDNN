@@ -80,6 +80,7 @@ protected:
 
         init_prim<prb_t>(ref_prims_, cur_op, init_pd, supported_exec_args,
                 setup_cmp, pprb, ref_eng, res);
+        if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return;
 
         int op_id = static_cast<int>(cur_op.id_);
         auto &mems = std::get<1>(ref_prims_[op_id]);
