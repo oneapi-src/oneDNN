@@ -30,6 +30,7 @@
 #include <ops/templates/conv_fwd.hpp>
 #include <ops/templates/conv_rl.hpp>
 #include <ops/templates/nested_conv_fwd.hpp>
+#include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <runtime/runtime.hpp>
 #include <util/any_map.hpp>
 #include <util/reflection.hpp>
@@ -240,6 +241,144 @@ void check_netsed_qconv(nested_conv_fwd_config_t cfg, int N, int K, int C,
             padding_h, padding_w, &plain_input[0], &plain_weight[0],
             &plain_bias[0], &plain_output[0], fuse_bias ? dir_t::FWD_B : FWD_I);
 
+    bool correctness = equal(sc_output, plain_output, 1e-3);
+    if (!correctness) {
+        std::cout << "Check correctness FAIL." << std::endl;
+        print_output(sc_output, plain_output, 100);
+        check_sum(sc_output, plain_output);
+    }
+    EXPECT_TRUE(correctness);
+}
+
+template <typename src_type, typename wei_type, typename dst_type>
+void check_dynamic_netsed_qconv(nested_conv_fwd_config_t cfg, int N, int K,
+        int C, int H, int W, int R, int S, const sc_dims &stride,
+        const sc_dims &padding, bool fuse_bias = false,
+        bool default_cfg = false, bool force_blocking = false,
+        bool force_channel_last = false, int real_N = -1, int real_H = -1,
+        int real_W = -1) {
+    int stride_h = stride[0], stride_w = stride[0];
+    if (stride.size() == 2) { stride_w = stride[1]; }
+    int padding_h = padding[0], padding_w = padding[0];
+    if (padding.size() == 2) { padding_w = padding[1]; }
+    bool is_dynamic = N < 0 || H < 0 || W < 0;
+
+    sc_graph_t g;
+    auto src_dtype = sc_data_traits_t<src_type>::type();
+    auto wei_dtype = sc_data_traits_t<wei_type>::type();
+    auto g_data = g.make_input({make_tensor({N, C, H, W}, src_dtype)});
+    auto g_weight = g.make_input({make_tensor({K, C, R, S}, wei_dtype)});
+    auto g_conv_out = g.make("conv_fwd_core",
+            {g_data->get_outputs()[0], g_weight->get_outputs()[0]}, {},
+            {{"strides", stride}, {"paddings", padding}, {"no_fuse", false}});
+    COMPILE_ASSERT(!force_blocking || !force_channel_last,
+            "only one of force_blocking and force_channel_last allowed");
+    if (force_blocking) {
+        g_conv_out->attrs_.set("temp.test_format", "NCHWc");
+    } else if (force_channel_last) {
+        g_conv_out->attrs_.set("temp.test_format", "NHWC");
+    }
+    auto tunop = g_conv_out->template dyn_cast<tunable_op_t>();
+
+    auto gen = tunop->create_generator();
+    auto conv_gen = (ops::gen_nested_conv_fwd_t *)gen.get();
+    int D = 0, P = 0, Q = 0;
+    std::tie(D, P, Q) = conv_gen->get_output_shape();
+    reflection::shared_general_object_t cfgptr;
+    cfgptr = gen->get_default_config(get_test_ctx());
+    cfg = *(nested_conv_fwd_config_t *)cfgptr.get();
+    tunop->set_config(cfgptr);
+    tunop->get_inputs()[0]->details_.set_format(sc_data_format_t::NHWC());
+    tunop->get_inputs()[1]->details_.set_format(
+            sc_data_format_t::KCRSck4c(cfg.im_ic_block, cfg.im_oc_block));
+    tunop->get_outputs()[0]->details_.set_format(sc_data_format_t::NHWC());
+
+    std::vector<sc_op_ptr> args = {g_data, g_weight};
+    sc_op_ptr final_out = g_conv_out;
+    auto bc_axis = std::vector<int> {1};
+    if (fuse_bias) {
+        auto g_bias = g.make_input({make_tensor({K}, datatypes::f32)});
+        final_out = g.make("add",
+                {final_out->get_outputs()[0], g_bias->get_outputs()[0]}, {},
+                {{"bc_axis", bc_axis}});
+        args.emplace_back(g_bias);
+    }
+    auto g_out = g.make_output(final_out->get_outputs());
+    args.insert(args.begin(), g_out);
+    g.attrs_[sc_graph_t::attr_key_t::is_output_plain] = false;
+    g.attrs_[sc_graph_t::attr_key_t::is_input_plain] = false;
+
+    graph_driver(g, get_test_ctx());
+    auto f = lower_graph(get_test_ctx(), g, args);
+    auto fptr = jit_engine_t::make(get_test_ctx())->get_entry_func(f, true);
+
+    if (is_dynamic) {
+        if (is_dynamic_dim(N)) {
+            assert(real_N > 0);
+            N = real_N;
+        }
+        if (is_dynamic_dim(H)) {
+            assert(real_H > 0);
+            H = real_H;
+        }
+        if (is_dynamic_dim(W)) {
+            assert(real_W > 0);
+            W = real_W;
+        }
+        P = (H + padding_h * 2 - R) / stride_h + 1;
+        Q = (W + padding_w * 2 - S) / stride_w + 1;
+    }
+
+    auto output = alloc_array<dst_type>(N * K * P * Q, INIT_NOOP);
+    auto input = alloc_array<src_type>(N * C * H * W);
+    auto weight = alloc_array<wei_type>(K * C * R * S);
+    auto bias = alloc_array<float>(K);
+
+    sc_dims out_dims = sc_dims {N, K, P, Q};
+    sc_dims in_a_dims = sc_dims {N, C, H, W};
+    sc_dims in_weight_dims = sc_dims {K, C, R, S};
+    sc_dims in_postop_dims = sc_dims {K};
+
+    // Define dynamic tensor
+    runtime::dynamic_tensor_t dyn_output(&output[0], &out_dims[0],
+            out_dims.size(), uint32_t(sc_data_traits_t<dst_type>::type()), 0);
+    runtime::dynamic_tensor_t dyn_input(&input[0], &in_a_dims[0],
+            in_a_dims.size(), uint32_t(sc_data_traits_t<src_type>::type()), 0);
+    runtime::dynamic_tensor_t dyn_weight(&weight[0], &in_weight_dims[0],
+            in_weight_dims.size(), uint32_t(sc_data_traits_t<wei_type>::type()),
+            0);
+    runtime::dynamic_tensor_t dyn_bias(&bias[0], &in_postop_dims[0],
+            in_postop_dims.size(), uint32_t(datatypes::f32), 0);
+
+    std::vector<void *> sc_args = is_dynamic
+            ? std::vector<void *> {&dyn_output, &dyn_input, &dyn_weight}
+            : std::vector<void *> {&output[0], &input[0], &weight[0]};
+    std::vector<generic_val> generic_args;
+    for (unsigned i = 0; i < sc_args.size(); i++)
+        generic_args.emplace_back(sc_args.at(i));
+    if (fuse_bias) {
+        if (is_dynamic)
+            generic_args.emplace_back(&dyn_bias);
+        else
+            generic_args.emplace_back(&bias[0]);
+    }
+    fptr->call_generic_default(generic_args.data());
+
+    auto sc_output
+            = any2NCHW(g_conv_out->get_outputs()[0]->details_.get_format(),
+                    output, N, K, P, Q, cfg.im_oc_block);
+
+    auto plain_input = any2NCHW(g_data->get_outputs()[0]->details_.get_format(),
+            input, N, C, H, W, cfg.im_ic_block);
+    auto plain_weight = KCRSckc2KCRS(weight, K / cfg.im_oc_block,
+            C / cfg.im_ic_block, R, S, cfg.im_ic_block / 4, cfg.im_oc_block);
+
+    test_buffer<float> plain_bias = std::move(bias);
+    auto plain_output = alloc_array<dst_type>(N * K * P * Q, INIT_ZERO);
+
+    compute_ref_direct_fwd(N, 1, K, C, H, W, P, Q, R, S, stride_h, stride_w,
+            padding_h, padding_w, &plain_input[0], &plain_weight[0],
+            &plain_bias[0], &plain_output[0], fuse_bias ? dir_t::FWD_B : FWD_I);
     bool correctness = equal(sc_output, plain_output, 1e-3);
     if (!correctness) {
         std::cout << "Check correctness FAIL." << std::endl;
@@ -621,6 +760,35 @@ TEST(GCCore_CPU_qconv2d_nested_u8s8s32_3x3, rn50_stage4_NXC) {
             512, 512, 9, 9, 3, 3, {1, 1}, {0, 0}, false, true, false, true);
 }
 
+TEST(GCCore_CPU_qconv2d_nested_u8s8s32_1x1, rn50_stage4_NXC) {
+    REQUIRE_AMX();
+    check_netsed_qconv<uint8_t, int8_t, int32_t>(nested_conv_fwd_config_t(), 56,
+            512, 512, 56, 56, 1, 1, {1, 1}, {0, 0}, false, true, false, true);
+}
+
+TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_1x1, ut1) {
+    REQUIRE_AMX();
+    check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
+            nested_conv_fwd_config_t(), -1, 512, 512, -1, -1, 1, 1, {1, 1},
+            {0, 0}, false, true, false, true, /*real_N*/ 1, /*real_H*/ 56,
+            /*real_W*/ 56);
+}
+
+TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_1x1, ut2) {
+    REQUIRE_AMX();
+    check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
+            nested_conv_fwd_config_t(), -1, 512, 512, -1, -1, 1, 1, {1, 1},
+            {0, 0}, false, true, false, true, /*real_N*/ 1, /*real_H*/ 55,
+            /*real_W*/ 55);
+}
+
+TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_1x1, ut3) {
+    REQUIRE_AMX();
+    check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
+            nested_conv_fwd_config_t(), -1, 512, 512, -1, -1, 1, 1, {1, 1},
+            {0, 0}, false, true, false, true, /*real_N*/ 1, /*real_H*/ 67,
+            /*real_W*/ 67);
+}
 /* rl conv with padding */
 TEST(GCCore_CPU_qconv2d_u8s8s32_rl, padding_1) {
     // single real_pr
@@ -652,8 +820,8 @@ TEST(GCCore_CPU_qconv2d_u8s8s32_rl, padding_5) {
     check_rl_qconv<uint8_t, int8_t, int32_t>(conv_fwd_rl_config_t {1, 1}, 1, 1,
             4, 6, 6, 3, 3, {1, 1}, {1, 1}, {1, 1}, false, true);
 }
-// top/middle/bottom padding region, left padding only, right padding not being
-// used
+// top/middle/bottom padding region, left padding only, right padding not
+// being used
 TEST(GCCore_CPU_qconv2d_u8s8s32_rl, padding_6) {
     REQUIRE_AMX();
     check_rl_qconv<uint8_t, int8_t, int32_t>(conv_fwd_rl_config_t {1, 1}, 1, 1,

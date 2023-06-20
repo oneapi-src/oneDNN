@@ -38,6 +38,11 @@ public:
 
     avx2_legalizer_impl_t() = default;
 
+    expr_c visit(tensor_c v) override {
+        // avoid dispatch into for loop index dependent tensor
+        return v;
+    }
+
     expr_c visit(cmp_c v) override {
         auto vv = ir_visitor_t::visit(std::move(v)).dyn_as<cmp_c>();
         assert(vv.defined());

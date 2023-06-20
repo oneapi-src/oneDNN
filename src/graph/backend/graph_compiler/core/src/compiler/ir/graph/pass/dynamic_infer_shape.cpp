@@ -19,6 +19,7 @@
 #include "../visitor.hpp"
 #include "pass.hpp"
 #include <compiler/ir/graph/quantization/quantize_op.hpp>
+#include <ops/convolution.hpp>
 #include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/reduce.hpp>
@@ -101,6 +102,28 @@ SC_API void dynamic_infer_shape_by_graph(sc_graph_t &graph,
                     auto *weight = get_or_create_dyn_tsr(node->get_inputs()[1]);
                     auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
                     infer_shape_matmul_op(out, data, weight);
+                    print_shapes(node->op_name_, out);
+                } else if (node->isa<conv_fwd_core_op_t>()) {
+                    auto *data = get_or_create_dyn_tsr(node->get_inputs()[0]);
+                    auto *weight = get_or_create_dyn_tsr(node->get_inputs()[1]);
+                    auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
+                    auto &stride = node->attrs_.get<sc_dims>("strides");
+                    auto dilations = get_dilations(node->attrs_);
+                    auto &pads_begin = node->attrs_.has_key("pads_begin")
+                            ? node->attrs_.get<sc_dims>("pads_begin")
+                            : node->attrs_.get<sc_dims>("paddings");
+                    auto &pads_end = node->attrs_.has_key("pads_end")
+                            ? node->attrs_.get<sc_dims>("pads_end")
+                            : node->attrs_.get<sc_dims>("paddings");
+                    auto dyn_conv_info = data->ndims_ == 4
+                            ? dyn_conv_fwd_runtime_info_t(stride[0], stride[1],
+                                    pads_begin[0], pads_begin[1], pads_end[0],
+                                    pads_end[1])
+                            : dyn_conv_fwd_runtime_info_t(stride[0], stride[1],
+                                    stride[2], pads_begin[0], pads_begin[1],
+                                    pads_begin[2], pads_end[0], pads_end[1],
+                                    pads_end[2]);
+                    infer_shape_conv_fwd_op(out, data, weight, dyn_conv_info);
                     print_shapes(node->op_name_, out);
                 } else if (node->isa<unary_elementwise_op_t>()
                         || node->isa<reorder_op_t>()

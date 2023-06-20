@@ -14,6 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 #include <stdint.h>
+#include <runtime/dynamic_dispatch/ops/runtime_op_info.hpp>
 
 #ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_OP_FUNC_DECL_HPP
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_OP_FUNC_DECL_HPP
@@ -25,6 +26,8 @@ namespace gc {
 
 extern "C" {
 SC_API void infer_shape_matmul_op(void *out, void *data, void *weight);
+SC_API void infer_shape_conv_fwd_op(void *out, void *data, void *weight,
+        dyn_conv_fwd_runtime_info_t &op_info);
 SC_API void infer_shape_unary_fusible_op(void *out, void *in);
 SC_API void infer_shape_binary_fusible_op(void *out, void *in0, void *in1);
 SC_API void infer_shape_reduce_op(
@@ -40,6 +43,9 @@ SC_API void query_format_matmul_core_op(void *table, void *out, void *data,
         uint64_t *weight_fmt, uint64_t *out_size, void *kernel, int *impl_alg);
 SC_API void query_format_managed_matmul_core_op(void *table, void *out,
         void *data, void *weight, uint64_t *out_fmt, uint64_t *data_fmt,
+        uint64_t *weight_fmt, uint64_t *out_size, void *kernel, int *impl_alg);
+SC_API void query_format_conv_fwd_core_op(void *table, void *out, void *data,
+        void *weight, uint64_t *out_fmt, uint64_t *data_fmt,
         uint64_t *weight_fmt, uint64_t *out_size, void *kernel, int *impl_alg);
 SC_API void query_format_unary_fusible_op(void *table, void *out, void *in,
         uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel);

@@ -62,6 +62,11 @@ struct nested_conv_fwd_config_t {
     , pack_input(pack_input) {}
 };
 
+void generate_brgemm(const expr &im_s_block, int im_ic_block, int im_oc_block,
+  int ic_block, const expr &o_ic, int ic_num_block_pt, const expr &A_list,
+  const expr &B_list, const expr &out_tensor, const expr &LDA, const expr &LDC,
+  const sc_data_type_t &in_type, const sc_data_type_t &wei_type);
+
 class gen_nested_conv_fwd_t
   : public body_generator_t<nested_conv_fwd_config_t> {
 public:
@@ -82,6 +87,10 @@ public:
     std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs);
 
   float get_gflop() const override;
+
+  bool is_dynamic() const {
+    return in_tensors_[0].is_dynamic() || in_tensors_[1].is_dynamic();
+  }
 
   const sc_dims &get_input_plain_dims() const {
     return in_tensors_[0].get_plain_dims();
@@ -110,6 +119,10 @@ public:
     fusion_manager *fusion, const std::vector<expr> &inputs,
     const std::vector<expr> &outputs,
     std::vector<for_loop> &loops) const override;
+  config_ptr_vec get_dynamic_config_candidates(
+    const context_ptr &ctx) const override;
+  std::vector<uint64_t> convert_config_to_keys(
+    const config_ptr &configs) const override;
   config_ptr get_default_config(context_ptr ctx) const override;
 
   void schedule_loops(context_ptr ctx, const nested_conv_fwd_config_t &config,
@@ -124,11 +137,11 @@ public:
     const int kpack = 1, const bool use_os_blocking = false, \
               const bool pack_rows = false, const expr &os_acc_size = expr(), \
               const std::vector<char> &os_mask = std::vector<char>()
-
   void compute_1x1_pack_input_nested(CONV_ARG_LIST) const;
   void compute_1x1_no_pack_input_nested(CONV_ARG_LIST) const;
   void compute_conv_no_padding_nested(CONV_ARG_LIST) const;
   void compute_conv_no_padding_os_blocking_nested(CONV_ARG_LIST) const;
+  void dynamic_compute_1x1_pack_input_nested(CONV_ARG_LIST) const;
 #undef CONV_ARG_LIST
 
   size_t ndims_ = 0;

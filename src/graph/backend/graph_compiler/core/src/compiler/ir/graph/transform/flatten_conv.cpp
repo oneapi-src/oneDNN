@@ -96,6 +96,8 @@ void conv1d_flatten(sc_graph_t &graph, const context_ptr &ctx) {
         if (auto op = node->dyn_cast<ops::conv_fwd_core_op_t>()) {
             auto data_plain_shape
                     = op->get_inputs()[0]->details_.get_plain_dims();
+            // do not support dynamic shape
+            if (op->get_inputs()[0]->is_dynamic()) return;
             auto data_origin_shape
                     = op->get_inputs()[0]->details_.get_blocking_dims();
             auto weight_origin_shape

@@ -157,7 +157,8 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
     // we must infer_out_dims even when pad_type is SAME_UPPER or
     // SAME_LOWER, because output shape will be different from inputs shape
     // when stride > 1
-    auto expected_out_shape = infer_out_dims(get_owner_graph(), input_dims,
+    auto expected_out_shape = infer_out_dims(
+            info_.inputs_[0]->producer_owner_->get_owner_graph(), input_dims,
             filter_dims, pads_begin, pads_end, strides, dilations, data_format,
             filter_format);
     auto expected_out_dtype
@@ -167,6 +168,8 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this,
                 sc_data_format_t(), expected_out_shape, expected_out_dtype));
     } else {
+        // skip check when is dynamic
+        if (is_dynamic()) return;
         COMPILE_ASSERT(
                 info_.outputs_.size() == 1, "convolution expects 1 output.");
         COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims()

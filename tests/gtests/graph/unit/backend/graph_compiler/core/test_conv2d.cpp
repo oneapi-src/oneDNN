@@ -21,6 +21,7 @@
 #include <compiler/ir/graph/driver.hpp>
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/lowering.hpp>
+#include <compiler/ir/graph/pass/pass.hpp>
 #include <compiler/ir/graph/transform/transform.hpp>
 #include <compiler/jit/jit.hpp>
 #include <ops/convolution.hpp>
@@ -28,12 +29,15 @@
 #include <ops/templates/conv1x1_backprop_weight.hpp>
 #include <ops/templates/conv_bwd.hpp>
 #include <ops/templates/conv_fwd.hpp>
+#include <ops/templates/nested_conv_fwd.hpp>
+#include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <util/any_map.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 using namespace dnnl::impl::graph::gc;
 
 using conv_fwd_config_t = ops::conv_fwd_config_t;
+using nested_conv_fwd_config_t = ops::nested_conv_fwd_config_t;
 using conv_bwd_data_config_t = ops::conv_bwd_data_config_t;
 
 const conv_fwd_config_t cfg_fwd = {
@@ -75,6 +79,7 @@ void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int K,
 
     sc_graph_t mgr;
     std::vector<sc_op_ptr> fuse_arg_ops;
+
     auto in_a = mgr.make_input({graph_tensor::make({N, C, H, W})});
     auto in_weight = mgr.make_input({graph_tensor::make({K, C, R, S})});
     auto conv_out = mgr.make("conv_fwd_core",
@@ -357,6 +362,202 @@ void check_conv_correctness_and_tuning_bwd_w(int N, int K, int C, int H, int W,
     } else {
         test_utils::compare_data(grad_weight, mkldnn_grad_weight, 1e-3f, 5e-3f);
     }
+}
+
+void check_conv_correctness_and_tuning_fwd(int N, int K, int C, int H, int W,
+        int R, int S, sc_dims stride, sc_dims padding, bool fuse_bias = false,
+        bool fuse_bn_relu = false, bool fuse_eleadd = false, int real_N = -1,
+        int real_H = -1, int real_W = -1) {
+    int stride_h = stride[0], stride_w = stride[0];
+    if (stride.size() > 1) { stride_w = stride[1]; }
+    int padding_h = padding[0], padding_w = padding[0];
+    if (padding.size() > 1) { padding_w = padding[1]; }
+    bool is_dynamic = N < 0 || H < 0 || W < 0;
+
+    sc_graph_t mgr;
+    std::vector<sc_op_ptr> fuse_arg_ops;
+    auto in_a = mgr.make_input({graph_tensor::make({N, C, H, W})});
+    auto in_weight = mgr.make_input({graph_tensor::make({K, C, R, S})});
+    auto conv_out = mgr.make("conv_fwd_core",
+            {in_a->get_outputs()[0], in_weight->get_outputs()[0]}, {},
+            {{"strides", stride}, {"paddings", padding}, {"no_fuse", false}});
+
+    conv_out->attrs_.set<std::string>("temp.test_format", "NHWC");
+    auto tunop = conv_out->dyn_cast<tunable_op_t>();
+    int D = 0, P = 0, Q = 0;
+
+    auto gen = tunop->create_generator();
+    auto conv_gen = (ops::gen_nested_conv_fwd_t *)gen.get();
+    std::tie(D, P, Q) = conv_gen->get_output_shape();
+    reflection::shared_general_object_t cfgptr;
+    cfgptr = gen->get_default_config(get_test_ctx());
+    nested_conv_fwd_config_t cfg = *(nested_conv_fwd_config_t *)cfgptr.get();
+    tunop->set_config(cfgptr);
+    tunop->get_inputs()[0]->details_.set_format(sc_data_format_t::NHWC());
+    tunop->get_inputs()[1]->details_.set_format(
+            sc_data_format_t::KCRSck(cfg.im_ic_block, cfg.im_oc_block));
+    tunop->get_outputs()[0]->details_.set_format(sc_data_format_t::NHWC());
+
+    fuse_arg_ops = {in_a, in_weight};
+    sc_op_ptr final_out = conv_out;
+    auto bc_axis = std::vector<int> {1};
+    if (fuse_bias) {
+        auto bias_in = mgr.make_input({graph_tensor::make({K})});
+        final_out = mgr.make("add",
+                {final_out->get_outputs()[0], bias_in->get_outputs()[0]}, {},
+                {{"bc_axis", bc_axis}});
+        fuse_arg_ops.emplace_back(bias_in);
+    }
+    if (fuse_bn_relu) {
+        auto fbn_mul = mgr.make_input({graph_tensor::make({K})});
+        auto fbn_add = mgr.make_input({graph_tensor::make({K})});
+        final_out = mgr.make("mul",
+                {final_out->get_outputs()[0], fbn_mul->get_outputs()[0]}, {},
+                {{"bc_axis", bc_axis}});
+        final_out = mgr.make("add",
+                {final_out->get_outputs()[0], fbn_add->get_outputs()[0]}, {},
+                {{"bc_axis", bc_axis}});
+        final_out = mgr.make("relu", {final_out->get_outputs()[0]}, {}, {});
+        fuse_arg_ops.emplace_back(fbn_mul);
+        fuse_arg_ops.emplace_back(fbn_add);
+    }
+    sc_op_ptr ele_add_in;
+    if (fuse_eleadd) {
+        ele_add_in = mgr.make_input({std::make_shared<graph_tensor>(
+                nullptr, conv_out->get_outputs()[0]->details_)});
+        final_out = mgr.make("add",
+                {final_out->get_outputs()[0], ele_add_in->get_outputs()[0]}, {},
+                {});
+        fuse_arg_ops.emplace_back(ele_add_in);
+    }
+    auto out = mgr.make_output(final_out->get_outputs());
+    fuse_arg_ops.insert(fuse_arg_ops.begin(), out);
+
+    mgr.attrs_.set(sc_graph_t::attr_key_t::is_input_plain, false);
+    mgr.attrs_.set(sc_graph_t::attr_key_t::is_output_plain, false);
+
+    graph_driver(mgr);
+    auto f = lower_graph(get_default_context(), mgr, fuse_arg_ops);
+    if (verbose) { std::cout << f; }
+
+    auto fptr = jit_engine_t::make(get_default_context())
+                        ->get_entry_func(f, true);
+    uint8_t in_mask = 0;
+    if (is_dynamic) {
+        if (is_dynamic_dim(N)) {
+            assert(real_N > 0);
+            N = real_N;
+            in_mask |= 1 << 3;
+        }
+        if (is_dynamic_dim(H)) {
+            assert(real_H > 0);
+            H = real_H;
+            in_mask |= 1 << 1;
+        }
+        if (is_dynamic_dim(W)) {
+            assert(real_W > 0);
+            W = real_W;
+            in_mask |= 1 << 0;
+        }
+        P = (H + padding_h * 2 - R) / stride_h + 1;
+        Q = (W + padding_w * 2 - S) / stride_w + 1;
+    }
+
+    sc_dims out_dims = sc_dims {N, K, P, Q};
+    sc_dims in_a_dims = sc_dims {N, C, H, W};
+    sc_dims in_weight_dims = sc_dims {K, C, R, S};
+    sc_dims in_postop_dims = sc_dims {K};
+    auto output = alloc_array<float>(
+            N * K / cfg.im_oc_block * P * Q * cfg.im_oc_block, INIT_NOOP);
+    auto input = alloc_array<float>(
+            N * C / cfg.im_ic_block * H * W * cfg.im_ic_block);
+    auto weight = alloc_array<float>(K / cfg.im_oc_block * C / cfg.im_ic_block
+            * R * S * cfg.im_ic_block * cfg.im_oc_block);
+    auto ele_add = alloc_array<float>(
+            N * K / cfg.im_oc_block * P * Q * cfg.im_oc_block);
+    auto bias = alloc_array<float>(K);
+    auto bn_mul = alloc_array<float>(K);
+    auto bn_add = alloc_array<float>(K);
+
+    // Define dynamic tensor
+    runtime::dynamic_tensor_t dyn_output(&output[0], &out_dims[0],
+            out_dims.size(), uint32_t(sc_data_etype::F32), 0);
+    runtime::dynamic_tensor_t dyn_input(&input[0], &in_a_dims[0],
+            in_a_dims.size(), uint32_t(sc_data_etype::F32), in_mask);
+    runtime::dynamic_tensor_t dyn_weight(&weight[0], &in_weight_dims[0],
+            in_weight_dims.size(), uint32_t(sc_data_etype::F32), 0);
+    runtime::dynamic_tensor_t dyn_bias(&bias[0], &in_postop_dims[0],
+            in_postop_dims.size(), uint32_t(sc_data_etype::F32), 0);
+    runtime::dynamic_tensor_t dyn_bn_mul(&bn_mul[0], &in_postop_dims[0],
+            in_postop_dims.size(), uint32_t(sc_data_etype::F32), 0);
+    runtime::dynamic_tensor_t dyn_bn_add(&bn_add[0], &in_postop_dims[0],
+            in_postop_dims.size(), uint32_t(sc_data_etype::F32), 0);
+    runtime::dynamic_tensor_t dyn_ele_add(&ele_add[0], &out_dims[0],
+            out_dims.size(), uint32_t(sc_data_etype::F32), 0);
+
+    std::vector<void *> sc_args = is_dynamic
+            ? std::vector<void *> {&dyn_output, &dyn_input, &dyn_weight}
+            : std::vector<void *> {&output[0], &input[0], &weight[0]};
+
+    if (fuse_bias) {
+        if (is_dynamic)
+            sc_args.emplace_back(&dyn_bias);
+        else
+            sc_args.emplace_back(&bias[0]);
+    }
+    if (fuse_bn_relu) {
+        if (is_dynamic) {
+            sc_args.emplace_back(&dyn_bn_mul);
+            sc_args.emplace_back(&dyn_bn_add);
+        } else {
+            sc_args.emplace_back(&bn_mul[0]);
+            sc_args.emplace_back(&bn_add[0]);
+        }
+    }
+    if (fuse_eleadd) {
+        // TODO(xxx): use in-place: just let output arg point to eleadd
+        if (is_dynamic)
+            sc_args.emplace_back(&dyn_ele_add);
+        else
+            sc_args.emplace_back(&ele_add[0]);
+    }
+    std::vector<generic_val> generic_args;
+    for (unsigned i = 0; i < sc_args.size(); i++)
+        generic_args.emplace_back(sc_args.at(i));
+    fptr->call_generic_default(generic_args.data());
+    auto output_format = out->get_inputs().at(0)->details_.get_format();
+    test_buffer<float> sc_output
+            = any2NCHW(output_format, output, N, K, P, Q, cfg.im_oc_block);
+
+    auto in_a_format = in_a->get_outputs()[0]->details_.get_format();
+    auto mkldnn_input
+            = any2NCHW(in_a_format, input, N, C, H, W, cfg.im_ic_block);
+    auto mkldnn_weight = KCRSck2KCRS(weight, K / cfg.im_oc_block,
+            C / cfg.im_ic_block, R, S, cfg.im_ic_block, cfg.im_oc_block);
+    auto mkldnn_ele_add
+            = any2NCHW(output_format, ele_add, N, K, P, Q, cfg.im_oc_block);
+
+    auto mkldnn_bias = std::move(bias);
+    auto mkldnn_mul = std::move(bn_mul);
+    auto mkldnn_add = std::move(bn_add);
+
+    test_buffer<float> mkldnn_output(N * K * P * Q);
+
+    compute_ref_direct_fwd(N, 1, K, C, H, W, P, Q, R, S, stride_h, stride_w,
+            padding_h, padding_w, &mkldnn_input[0], &mkldnn_weight[0],
+            &mkldnn_bias[0], &mkldnn_output[0],
+            fuse_bias ? dir_t::FWD_B : FWD_I, &mkldnn_mul[0], &mkldnn_add[0],
+            fuse_bn_relu);
+    if (fuse_eleadd)
+        compute_elementwise_ref_direct_fwd(
+                &mkldnn_output[0], &mkldnn_ele_add[0], {N, K, P, Q});
+    bool correctness = equal(sc_output, mkldnn_output, 1e-3);
+    if (!correctness) {
+        std::cout << "Check correctness FAIL." << std::endl;
+        print_output(sc_output, mkldnn_output, 100);
+        check_sum(sc_output, mkldnn_output);
+    }
+    EXPECT_TRUE(correctness);
 }
 
 #define conv_padding_support_NXC 0
@@ -1209,4 +1410,181 @@ TEST(GCCore_CPU_conv2d_bwd_w_cpp, TestCONV2D_3x3_8) {
     REQUIRE_BF16();
     check_conv_correctness_and_tuning_bwd_w(
             1, 64, 64, 56, 56, 3, 3, 2, 1, datatypes::bf16);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_1_NXC) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, 56, 56, 1, 1, {1, 1},
+            {0, 0}, false, false, false,
+            /*real_N*/ 1, /*real_H*/ 56, /*real_W*/ 56);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_1_NXC_fuse_bias) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, 56, 56, 1, 1, {1, 1},
+            {0, 0}, true, false, false,
+            /*real_N*/ 1, /*real_H*/ 56, /*real_W*/ 56);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_1_NXC_fuse_bn_relu) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, 56, 56, 1, 1, {1, 1},
+            {0, 0}, true, true, false,
+            /*real_N*/ 1, /*real_H*/ 56, /*real_W*/ 56);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_1_NXC_fuse_eleadd) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, 56, 56, 1, 1, {1, 1},
+            {0, 0}, true, true, true,
+            /*real_N*/ 1, /*real_H*/ 56, /*real_W*/ 56);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_2_NXC) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, -1, -1, 1, 1, {1, 1},
+            {0, 0}, false, false, false,
+            /*real_N*/ 1, /*real_H*/ 56, /*real_W*/ 56);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_2_NXC_fuse) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, -1, -1, 1, 1, {1, 1},
+            {0, 0}, true, true, true,
+            /*real_N*/ 1, /*real_H*/ 56, /*real_W*/ 56);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_3_NXC) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, -1, -1, 1, 1, {1, 1},
+            {0, 0}, false, false, false,
+            /*real_N*/ 1, /*real_H*/ 55, /*real_W*/ 55);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_3_NXC_fuse) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, -1, -1, 1, 1, {1, 1},
+            {0, 0}, true, true, true,
+            /*real_N*/ 1, /*real_H*/ 55, /*real_W*/ 55);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_4_NXC) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, -1, -1, 1, 1, {1, 1},
+            {0, 0}, false, false, false,
+            /*real_N*/ 1, /*real_H*/ 67, /*real_W*/ 67);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_4_NXC_fuse) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, -1, -1, 1, 1, {1, 1},
+            {0, 0}, true, true, true,
+            /*real_N*/ 1, /*real_H*/ 67, /*real_W*/ 67);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_5_NXC) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, 12, 12, 1, 1, {1, 1},
+            {0, 0}, false, false, false,
+            /*real_N*/ 1, /*real_H*/ 12, /*real_W*/ 12);
+    check_conv_correctness_and_tuning_fwd(1, 256, 64, -1, 12, 1, 1, {1, 1},
+            {0, 0}, false, false, false,
+            /*real_N*/ 1, /*real_H*/ 12, /*real_W*/ 12);
+    check_conv_correctness_and_tuning_fwd(1, 256, 64, 12, -1, 1, 1, {1, 1},
+            {0, 0}, false, false, false,
+            /*real_N*/ 1, /*real_H*/ 12, /*real_W*/ 12);
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, -1, -1, 1, 1, {1, 1},
+            {0, 0}, false, false, false,
+            /*real_N*/ 1, /*real_H*/ 12, /*real_W*/ 12);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_5_NXC_fuse) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, -1, -1, 1, 1, {1, 1},
+            {0, 0}, true, true, true,
+            /*real_N*/ 1, /*real_H*/ 12, /*real_W*/ 12);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_6_NXC) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, -1, -1, 1, 1, {1, 1},
+            {0, 0}, false, false, false,
+            /*real_N*/ 1, /*real_H*/ 2, /*real_W*/ 2);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_6_NXC_fuse) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, -1, -1, 1, 1, {1, 1},
+            {0, 0}, true, true, true,
+            /*real_N*/ 1, /*real_H*/ 2, /*real_W*/ 2);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_7_NXC) {
+    check_conv_correctness_and_tuning_fwd(-1, 1024, 256, -1, -1, 1, 1, {1, 1},
+            {0, 0}, false, false, false,
+            /*real_N*/ 1, /*real_H*/ 2, /*real_W*/ 2);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_7_NXC_fuse) {
+    check_conv_correctness_and_tuning_fwd(-1, 1024, 256, -1, -1, 1, 1, {1, 1},
+            {0, 0}, true, true, true,
+            /*real_N*/ 1, /*real_H*/ 2, /*real_W*/ 2);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_1_NXC_stride2) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, 56, 56, 1, 1, {2, 2},
+            {0, 0}, false, false, false,
+            /*real_N*/ 1, /*real_H*/ 56, /*real_W*/ 56);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_1_NXC_stride2_fuse) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, 56, 56, 1, 1, {2, 2},
+            {0, 0}, true, true, true,
+            /*real_N*/ 1, /*real_H*/ 56, /*real_W*/ 56);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_2_NXC_stride2) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, -1, -1, 1, 1, {2, 2},
+            {0, 0}, false, false, false,
+            /*real_N*/ 1, /*real_H*/ 56, /*real_W*/ 56);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_2_NXC_stride2_fuse) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, -1, -1, 1, 1, {2, 2},
+            {0, 0}, true, true, true,
+            /*real_N*/ 1, /*real_H*/ 56, /*real_W*/ 56);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_3_NXC_stride2) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, 55, 55, 1, 1, {2, 2},
+            {0, 0}, false, false, false,
+            /*real_N*/ 1, /*real_H*/ 55, /*real_W*/ 55);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_3_NXC_stride2_fuse) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, 55, 55, 1, 1, {2, 2},
+            {0, 0}, true, true, true,
+            /*real_N*/ 1, /*real_H*/ 55, /*real_W*/ 55);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_4_NXC_stride2) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, -1, -1, 1, 1, {2, 2},
+            {0, 0}, false, false, false,
+            /*real_N*/ 1, /*real_H*/ 67, /*real_W*/ 67);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_4_NXC_stride2_fuse) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, -1, -1, 1, 1, {2, 2},
+            {0, 0}, true, true, true,
+            /*real_N*/ 1, /*real_H*/ 67, /*real_W*/ 67);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_5_NXC_stride2) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, -1, -1, 1, 1, {2, 2},
+            {0, 0}, false, false, false,
+            /*real_N*/ 1, /*real_H*/ 12, /*real_W*/ 12);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_5_NXC_stride2_fuse) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, -1, -1, 1, 1, {2, 2},
+            {0, 0}, true, true, true,
+            /*real_N*/ 1, /*real_H*/ 12, /*real_W*/ 12);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_6_NXC_stride2) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, -1, -1, 1, 1, {2, 2},
+            {0, 0}, false, false, false,
+            /*real_N*/ 1, /*real_H*/ 2, /*real_W*/ 2);
+}
+
+TEST(GCCore_CPU_dynamic_conv2d_fwd_cpp, TestConv2D_1x1_6_NXC_stride2_fuse) {
+    check_conv_correctness_and_tuning_fwd(-1, 256, 64, -1, -1, 1, 1, {2, 2},
+            {0, 0}, true, true, true,
+            /*real_N*/ 1, /*real_H*/ 2, /*real_W*/ 2);
 }

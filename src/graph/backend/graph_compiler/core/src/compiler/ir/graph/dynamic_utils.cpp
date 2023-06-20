@@ -28,6 +28,7 @@
 #include <compiler/ir/sc_data_format.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/dyn_tsr_transform.hpp>
+#include <ops/convolution.hpp>
 #include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/reduce.hpp>
@@ -490,6 +491,12 @@ expr call_op_dynamic_query_function(
     } else if (op->isa<ops::managed_matmul_core_op_t>()) {
         assert(args.size() == 13 || args.size() == 14);
         return builtin::call_managed_matmul_core_query_format(args[0], args[1],
+                args[2], args[3], args[4], args[5], args[6], args[7], args[8],
+                args[9], args[10], args[11], args[12],
+                args.size() == 13 ? get_ir_null() : args[13]);
+    } else if (op->isa<ops::conv_fwd_core_op_t>()) {
+        assert(args.size() == 13 || args.size() == 14);
+        return builtin::call_conv_fwd_core_query_format(args[0], args[1],
                 args[2], args[3], args[4], args[5], args[6], args[7], args[8],
                 args[9], args[10], args[11], args[12],
                 args.size() == 13 ? get_ir_null() : args[13]);

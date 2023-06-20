@@ -68,7 +68,7 @@ op_dispatch_key_t::convert_to_runtime_format_vec() const {
     assert(var_block_empty || var_block_.size() == in_out_formats_.size());
     for (size_t i = 0; i < in_out_formats_.size(); i++) {
         sc_dim block0 = 0, block1 = 0;
-        if (!var_block_empty) {
+        if (!var_block_empty && !var_block_[i].empty()) {
             block0 = var_block_[i][0];
             block1 = var_block_[i][1];
         } else {

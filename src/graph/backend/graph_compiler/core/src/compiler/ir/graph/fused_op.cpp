@@ -43,6 +43,7 @@
 #include <compiler/ir/transform/scope_flatten.hpp>
 #include <compiler/ir/transform/tensor2var.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
+#include <ops/convolution.hpp>
 #include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/reduce.hpp>
@@ -951,7 +952,8 @@ void create_query_function_by_graph(general_fused_params_t &gp,
             op_ins[i] = get_or_create_tsr_and_fmt(gp, op->get_inputs()[i]);
         }
         if (op->isa<ops::matmul_core_op_t>()
-                || op->isa<ops::managed_matmul_core_op_t>()) {
+                || op->isa<ops::managed_matmul_core_op_t>()
+                || op->isa<ops::conv_fwd_core_op_t>()) {
             auto table_ptr = std::make_shared<op_dispatch_tables_t>();
             // create origin tsr and dispatch key for tunable ops
             expr ori_in0, ori_in1, ori_in_fmt0, ori_in_fmt1;
@@ -1146,7 +1148,8 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
     }
     if (!main_op_.empty()) {
         auto op = main_op_.ops_[1];
-        if (op->isa<ops::matmul_core_op_t>()) {
+        if (op->isa<ops::matmul_core_op_t>()
+                || op->isa<ops::conv_fwd_core_op_t>()) {
             auto table_ptr = std::make_shared<op_dispatch_tables_t>();
             expr in0 = ins[0], in1 = ins[1];
             expr in_fmt0 = in_fmts[0], in_fmt1 = in_fmts[1];
@@ -1161,7 +1164,7 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
             auto rhs = get_or_create_tsr_and_fmt(
                     gp, inp_op_in_mgr[0]->get_outputs()[0]);
             visited[op->get_inputs()[0]] = true;
-            visited[op->get_inputs()[0]] = true;
+            visited[op->get_inputs()[1]] = true;
             visited[inp_op_in_mgr[0]->get_outputs()[0]] = true;
             out_rtsr = rhs.tensor_;
             out_fmt = rhs.format_;
@@ -1171,10 +1174,20 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
             expr dummy_kernel = gp.exprs.dummy_kernel;
             auto &cur_combined_key_idx = gp.cur_combined_key_idx;
             auto &cur_combined_op_idx = gp.cur_combined_op_idx;
-            bld.push_evaluate(builtin::call_matmul_core_query_format(table_var,
-                    out_rtsr, in0, in1, ori_in0, ori_in1, out_fmt, in_fmt0,
-                    in_fmt1, ori_in_fmt0, ori_in_fmt1, out_size, dummy_kernel,
-                    builder::tensor_ptr(combined_algs, {cur_combined_op_idx})));
+            bld.push_evaluate(op->isa<ops::matmul_core_op_t>()
+                            ? builtin::call_matmul_core_query_format(table_var,
+                                    out_rtsr, in0, in1, ori_in0, ori_in1,
+                                    out_fmt, in_fmt0, in_fmt1, ori_in_fmt0,
+                                    ori_in_fmt1, out_size, dummy_kernel,
+                                    builder::tensor_ptr(combined_algs,
+                                            {cur_combined_op_idx}))
+                            : builtin::call_conv_fwd_core_query_format(
+                                    table_var, out_rtsr, in0, in1, ori_in0,
+                                    ori_in1, out_fmt, in_fmt0, in_fmt1,
+                                    ori_in_fmt0, ori_in_fmt1, out_size,
+                                    dummy_kernel,
+                                    builder::tensor_ptr(combined_algs,
+                                            {cur_combined_op_idx})));
             initialize_format_table_with_op(op, table_ptr);
             initialize_impl_kind_table_with_op(gp.modu->ctx_, op, table_ptr);
             // set combined tensor
@@ -1190,7 +1203,8 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
             each_op_num_keys[cur_combined_op_idx] = 3;
             cur_combined_op_idx++;
         } else {
-            COMPILE_ASSERT(false, "Currently dynamic only support matmul op.");
+            COMPILE_ASSERT(
+                    false, "Currently dynamic only support matmul / conv op.");
         }
     }
     // create query functions of valid ops inside graph and final query

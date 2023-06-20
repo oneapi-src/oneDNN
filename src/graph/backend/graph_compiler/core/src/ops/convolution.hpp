@@ -21,7 +21,7 @@
 #include <compiler/ir/graph/graph_op.hpp>
 #include <compiler/ir/graph/traits.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
-
+#include <ops/templates/nested_conv_fwd.hpp>
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -81,8 +81,22 @@ public:
     void infer_slice_ranges(
             fslice_map &fsmap, infer_status_map_t &stat_map) override;
 
+    void set_config_by_key(
+            const op_dispatch_key_t &key, const context_ptr &ctx) override;
+    virtual sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins, // NOLINT
+            const std::vector<graph_tensor_ptr> &outs,
+            sc_graph_t &mgr) override;
+    std::vector<int> get_impl_dispatch_candidates(
+            const context_ptr &ctx) override;
+    shape_rl_vec get_dynamic_shape_relations() const override;
+    static shape_rl_vec get_shape_relations_impl(const sc_dims &data_plain_dims,
+            const sc_dims &weight_plain_dims, const sc_dims &out_plain_dims,
+            const any_map_t &attrs);
+    reflection::shared_general_object_t get_dynamic_runtime_info() override;
+
 private:
     int ndims_ = 0;
+    nested_conv_fwd_config_t dynamic_conv_param {};
 };
 
 class SC_INTERNAL_API conv_bwd_data_core_op_t : public tunable_op_t {

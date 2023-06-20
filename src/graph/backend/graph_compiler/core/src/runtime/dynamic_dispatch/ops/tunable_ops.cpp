@@ -17,10 +17,13 @@
 #include "config.hpp"
 #include "impl_type.hpp"
 #include "util.hpp"
+#include <ops/templates/nested_conv_fwd.hpp>
+#include <ops/templates/utils.hpp>
 #include <runtime/config.hpp>
 #include <runtime/data_type.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
+#include <runtime/dynamic_dispatch/ops/runtime_op_info.hpp>
 #include <runtime/dynamic_dispatch/utils.hpp>
 #include <runtime/target_machine.hpp>
 #include <util/utils.hpp>
@@ -274,6 +277,289 @@ extern "C" void query_format_matmul_common_process(void *table, void *out,
         *(reinterpret_cast<void **>(kernel)
                 + static_cast<int>(impl_alg == nullptr))
                 = func;
+    }
+    // avoid internal status change in multi thread case.
+    *data_fmt = cp_data_fmt;
+    *weight_fmt = cp_weight_fmt;
+
+    // query inplace
+    *out_size = calculate_blocking_dims(out_dyn_tsr, out_fmt);
+}
+
+static int check_and_set_conv_fwd_impl(runtime::op_dispatch_tables_t *op_table,
+        runtime::dispatch_key *data_fmt_st,
+        runtime::dispatch_key *weight_fmt_st, runtime::dispatch_key *out_fmt_st,
+        int N, int P, int Q, int K, int C, bool is_bf16, bool dyn_bs,
+        bool dyn_h, bool dyn_w) {
+    // query impl kind here. default return normal impl kind.
+    int impl = impl_kind_t::normal;
+    auto &impl_kind_table = op_table->impl_kind_table_;
+    int num_threads = runtime_config_t::get().get_num_threads();
+    int k_blk = weight_fmt_st->block1_;
+    int max_thr = 1;
+    size_t num_threads_candidates = 4;
+    std::vector<int> threads_candidates = ops::get_splits(num_threads);
+    std::vector<int> h_threads_ = {};
+    for (size_t i = 0; i < num_threads_candidates; ++i) {
+        h_threads_.push_back(
+                threads_candidates.size() > i && P > threads_candidates[i]
+                        ? threads_candidates[i]
+                        : max_thr);
+        max_thr = std::max(max_thr, h_threads_[i]);
+    }
+
+    std::vector<int> oc_threads_ = {1, 4, 8};
+    if (impl_kind_table) {
+        int h_threads = 1;
+        int oc_threads = 1;
+        int im_w_blk = 64;
+        int im_h_blk = 1;
+        // large channel size, split oc first
+        if (N < num_threads) {
+            if (K >= 512) {
+                oc_threads = *(std::find_if(oc_threads_.rbegin(),
+                        oc_threads_.rend(), [&](int split) {
+                            return split == 1
+                                    || (K / k_blk % split == 0
+                                            && num_threads % split == 0);
+                        }));
+            }
+            num_threads /= oc_threads;
+
+            if (N == 1) {
+                h_threads = num_threads;
+            } else {
+                for (int i = h_threads_.size() - 1; i >= 0; --i) {
+                    if (P > (2 ^ (i + 2))) {
+                        h_threads = std::max(h_threads,
+                                num_threads % h_threads_[3] == 0 ? h_threads_[3]
+                                                                 : 1);
+                    }
+                }
+            }
+            num_threads = runtime_config_t::get().get_num_threads();
+            if (num_threads < 5 && N == 1) {
+                if ((K >= 512) && K % num_threads == 0) {
+                    oc_threads = num_threads;
+                    h_threads = 1;
+                } else {
+                    h_threads = P / num_threads >= 2 ? num_threads : 1;
+                    oc_threads = 1;
+                }
+            }
+        }
+
+        im_w_blk = dyn_w ? 64 : std::min(Q, 64);
+        if (P % h_threads == 0 && num_threads <= 4) {
+            if (Q <= 16)
+                im_h_blk = P / h_threads % 4 == 0 ? 4
+                        : P / h_threads % 2 == 0  ? 2
+                                                  : 1;
+            else if (Q <= 32)
+                im_h_blk = P / h_threads % 2 == 0 && P % h_threads == 0 ? 2 : 1;
+        }
+
+        uint64_t keys[4] = {static_cast<uint64_t>(h_threads),
+                static_cast<uint64_t>(oc_threads),
+                static_cast<uint64_t>(im_h_blk),
+                static_cast<uint64_t>(im_w_blk)};
+        void *value = impl_kind_table->get(keys, 4);
+        assert(value);
+        impl = *reinterpret_cast<int *>(value);
+        data_fmt_st->set_impl_alg(impl);
+        weight_fmt_st->set_impl_alg(impl);
+        out_fmt_st->set_impl_alg(impl);
+    }
+
+    return impl;
+}
+
+extern "C" void infer_shape_conv_fwd_op(void *out, void *data, void *weight,
+        dyn_conv_fwd_runtime_info_t &op_info) {
+    runtime::dynamic_tensor_t *out_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
+    runtime::dynamic_tensor_t *data_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(data);
+    runtime::dynamic_tensor_t *weight_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(weight);
+    int data_ndims = data_dyn_tsr->ndims_;
+    int weight_ndims = weight_dyn_tsr->ndims_;
+    int &out_ndims = out_dyn_tsr->ndims_;
+
+    out_dyn_tsr->ndims_ = data_ndims;
+
+    int64_t OC = weight_ndims == 4 ? weight_dyn_tsr->dims_[0]
+                                   : weight_dyn_tsr->dims_[0]
+                    * weight_dyn_tsr->dims_[weight_ndims - 1];
+
+    int64_t *data_dims = data_dyn_tsr->dims_;
+    out_dyn_tsr->dims_[0] = data_dims[0];
+
+    int strides[3] = {op_info.stride_d, op_info.stride_h, op_info.stride_w};
+    int pads_begin[3] = {
+            op_info.pads_begin_d, op_info.pads_begin_h, op_info.pads_begin_w};
+    int pads_end[3]
+            = {op_info.pads_end_d, op_info.pads_end_h, op_info.pads_end_w};
+
+    //  P = (H + padding_h * 2 - R) / stride_h + 1;
+    //  Q = (W + padding_w * 2 - S) / stride_w + 1;
+    int offset = data_ndims == 5 ? -2 : -1;
+    for (int i = 2; i < out_ndims; i++) {
+        out_dyn_tsr->dims_[i]
+                = (data_dims[i] + pads_begin[i + offset] + pads_end[i + offset]
+                          - weight_dyn_tsr->dims_[i])
+                        / strides[i + offset]
+                + 1;
+    }
+    out_dyn_tsr->dims_[1] = OC;
+}
+
+extern "C" void query_format_conv_fwd_core_op(void *table, void *out,
+        void *data, void *weight, void *ori_data, void *ori_weight,
+        uint64_t *out_fmt, uint64_t *data_fmt, uint64_t *weight_fmt,
+        uint64_t *ori_data_fmt, uint64_t *ori_weight_fmt, uint64_t *out_size,
+        void *kernel, int *impl_alg) {
+    // update output shape and mask.
+    runtime::dynamic_tensor_t *out_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
+    runtime::dynamic_tensor_t *data_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(data);
+    runtime::dynamic_tensor_t *weight_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(weight);
+    runtime::dynamic_tensor_t *ori_data_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(ori_data);
+    runtime::dynamic_tensor_t *ori_weight_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(ori_weight);
+    runtime::deep_copy_dynamic_tensor(data_dyn_tsr, ori_data_dyn_tsr);
+    runtime::deep_copy_dynamic_tensor(weight_dyn_tsr, ori_weight_dyn_tsr);
+
+    int data_ndims = data_dyn_tsr->ndims_;
+    int weight_ndims = weight_dyn_tsr->ndims_;
+    int &out_ndims = out_dyn_tsr->ndims_;
+
+    int64_t BS = data_dyn_tsr->dims_[0];
+    int64_t IC = data_dyn_tsr->dims_[1];
+    int64_t IH = data_dyn_tsr->dims_[data_ndims - 2];
+    int64_t IW = data_dyn_tsr->dims_[data_ndims - 1];
+
+    int64_t OC = weight_ndims == 4 ? weight_dyn_tsr->dims_[0]
+                                   : weight_dyn_tsr->dims_[0]
+                    * weight_dyn_tsr->dims_[weight_ndims - 1];
+    int64_t IC1 = weight_ndims == 4 ? weight_dyn_tsr->dims_[1]
+                                    : weight_dyn_tsr->dims_[1]
+                    * weight_dyn_tsr->dims_[weight_ndims - 2];
+    assert(IC == IC1);
+    // infer shape
+    runtime::op_dispatch_tables_t *op_table
+            = reinterpret_cast<runtime::op_dispatch_tables_t *>(table);
+    dyn_conv_fwd_runtime_info_t info
+            = *op_table->op_info_
+                       .unchecked_get_as<dyn_conv_fwd_runtime_info_t>();
+    infer_shape_conv_fwd_op(out, data, weight, info);
+
+    int64_t OH = weight_ndims == 4 ? out_dyn_tsr->dims_[data_ndims - 2]
+                                   : out_dyn_tsr->dims_[data_ndims - 3];
+    int64_t OW = weight_ndims == 4 ? out_dyn_tsr->dims_[data_ndims - 1]
+                                   : out_dyn_tsr->dims_[data_ndims - 2];
+    // bs mask
+    uint8_t bs_mask = (data_dyn_tsr->dyn_mask_ & (1 << (data_ndims - 1)))
+            | ~(1 << (data_ndims - 1));
+    out_dyn_tsr->dyn_mask_ &= bs_mask;
+    // ih mask
+    uint8_t ih_mask = (data_dyn_tsr->dyn_mask_ & (1 << 1)) | ~(1 << 1);
+    out_dyn_tsr->dyn_mask_ &= ih_mask;
+    // iw mask
+    uint8_t iw_mask = (data_dyn_tsr->dyn_mask_ & 1) | ~(1 << 1);
+    out_dyn_tsr->dyn_mask_ &= ih_mask;
+    // update dyn_mask
+    out_dyn_tsr->dyn_mask_
+            = data_dyn_tsr->dyn_mask_ | weight_dyn_tsr->dyn_mask_;
+    // query format
+    bool is_BS_dynamic = data_dyn_tsr->dyn_mask_ & 1;
+    bool is_IH_dynamic = data_dyn_tsr->dyn_mask_ & (1 << 2);
+    bool is_IW_dynamic = data_dyn_tsr->dyn_mask_ & (1 << 3);
+    auto cp_data_fmt = *ori_data_fmt;
+    auto cp_weight_fmt = *ori_weight_fmt;
+    auto data_fmt_st = reinterpret_cast<runtime::dispatch_key *>(&cp_data_fmt);
+    auto weight_fmt_st
+            = reinterpret_cast<runtime::dispatch_key *>(&cp_weight_fmt);
+    int a = weight_fmt_st->get(0);
+
+    // 4. according to the dynamic dim and dynamic var to get the dispatch
+    // key (blocking size)
+    auto default_block = 128;
+    int k_block = utils::get_blocks(OC, 1, default_block).back();
+    int c_block = utils::get_blocks(IC, 1, default_block).back();
+
+    auto &format_table = op_table->format_table_;
+    if (data_fmt_st->is_plain()) {
+        int n_aix = data_fmt_st->get(0);
+        int c_axis = data_fmt_st->get(1);
+        int h_axis = data_fmt_st->get(data_ndims - 2);
+        int w_axis = data_fmt_st->get(data_ndims - 1);
+        data_fmt_st->set(0, n_aix);
+        data_fmt_st->set(data_ndims - 1, c_axis);
+        data_fmt_st->set(data_ndims - 3, h_axis);
+        data_fmt_st->set(data_ndims - 2, w_axis);
+        if (data_ndims == 5) {
+            int d_axis = data_fmt_st->get(data_ndims - 3);
+            data_fmt_st->set(data_ndims - 4, d_axis);
+        }
+        data_fmt_st->is_plain_ = 0;
+    }
+    data_fmt_st->impl_alg_ = 0;
+    if (weight_ndims == 4) {
+        bool is_vnni = weight_dyn_tsr->dtype_ == uint32_t(sc_data_etype::U8)
+                || weight_dyn_tsr->dtype_ == uint32_t(sc_data_etype::S8)
+                || weight_dyn_tsr->dtype_ == uint32_t(sc_data_etype::BF16);
+        if (weight_fmt_st->ndims() == weight_ndims) {
+            weight_fmt_st->set_block1(c_block);
+            weight_fmt_st->set_block2(k_block);
+            if (!weight_fmt_st->is_plain()) {
+                for (int i = 0; i < weight_ndims; i++) {
+                    weight_fmt_st->set(i, i);
+                }
+            }
+            int c_axis = weight_fmt_st->get(1);
+            int k_axis = weight_fmt_st->get(0);
+            weight_fmt_st->set(0, k_axis);
+            weight_fmt_st->set(1, c_axis);
+            weight_fmt_st->set(weight_ndims, c_axis);
+            weight_fmt_st->set(weight_ndims + 1, k_axis);
+            if (is_vnni) { weight_fmt_st->set(weight_ndims + 2, c_axis); }
+            weight_fmt_st->is_plain_ = 0;
+        } else {
+            assert((!is_vnni && weight_fmt_st->ndims() == weight_ndims + 2)
+                    || (is_vnni && weight_fmt_st->ndims() == weight_ndims + 3));
+            // reuse last blocking.
+        }
+    }
+    weight_fmt_st->impl_alg_ = 0;
+    uint64_t fmt_keys[2] = {cp_data_fmt, cp_weight_fmt};
+    void *value = format_table->get(fmt_keys, 2);
+    assert(value);
+    *out_fmt = reinterpret_cast<uint64_t *>(value)[0];
+    // query kernel, need determine the impl alg first.
+    uint64_t cp_out_fmt = *out_fmt;
+    auto *out_fmt_st = reinterpret_cast<runtime::dispatch_key *>(&cp_out_fmt);
+    auto &kernel_table = op_table->kernel_table_;
+    bool is_bf16 = weight_dyn_tsr->dtype_ == uint32_t(sc_data_etype::BF16);
+    if (kernel_table) {
+        check_and_set_conv_fwd_impl(op_table, data_fmt_st, weight_fmt_st,
+                out_fmt_st, BS, OH, OW, OC, IC, is_bf16, is_BS_dynamic,
+                is_IH_dynamic, is_IW_dynamic);
+        uint64_t keys[3] = {cp_data_fmt, cp_weight_fmt, cp_out_fmt};
+        void *func = runtime::run_query_and_wait(
+                op_table->kernel_dispatch_func_, kernel_table.get(), keys, 3);
+        assert(func);
+        data_fmt_st->reset_blocks_and_impl();
+        weight_fmt_st->reset_blocks_and_impl();
+        *reinterpret_cast<void **>(kernel) = func;
+    } else {
+        assert(impl_alg);
+        *impl_alg = check_and_set_conv_fwd_impl(op_table, data_fmt_st,
+                weight_fmt_st, out_fmt_st, BS, OH, OW, OC, IC, is_bf16,
+                is_BS_dynamic, is_IH_dynamic, is_IW_dynamic);
     }
     // avoid internal status change in multi thread case.
     *data_fmt = cp_data_fmt;
