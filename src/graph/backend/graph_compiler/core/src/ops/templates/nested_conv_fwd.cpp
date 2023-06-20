@@ -1105,35 +1105,33 @@ void gen_nested_conv_fwd_t::dynamic_compute_1x1_pack_input_nested(
                             }
                           } // check i_oc
                         } // i_oc
-                        if (fusion && oc_block * oc_used_threads == oc_
-                          && !is_dynamic_dim(oh_)
-                          && get_expr_as_int(h_block)
-                              * get_expr_as_int(oh_used_threads)
-                            == oh_) {
-                          expr anchor_h
-                            = (ph * h_num_block_pt * h_block / im_h_block
-                                + o_h * h_block / im_h_block)
-                            * im_h_block;
-                          expr anchor_c = poc * oc_num_block_pt * oc_block
-                            + o_oc * oc_block;
-                          fusion->create_output_fusion_anchor(
-                            {tensor_slice(output,
-                              {{n, 1UL}, {anchor_h, h_block}, {0, ow_expr_},
-                                {anchor_c, oc_block}})});
+                        if (fusion && oc_block * oc_used_threads == oc_) {
+                          _if_(h_block * oh_used_threads == oh_expr_) {
+                            expr anchor_h
+                              = (ph * h_num_block_pt * h_block / im_h_block
+                                  + o_h * h_block / im_h_block)
+                              * im_h_block;
+                            expr anchor_c = poc * oc_num_block_pt * oc_block
+                              + o_oc * oc_block;
+                            fusion->create_output_fusion_anchor(
+                              {tensor_slice(output,
+                                {{n, 1UL}, {anchor_h, h_block}, {0, ow_expr_},
+                                  {anchor_c, oc_block}})});
+                          }
                         }
                       } // check innermost
                     } // o_ic
                   } // o_oc
                 } // o_w
-                if (fusion && oc_block * oc_used_threads == oc_
-                  && !is_dynamic_dim(oh_)
-                  && get_expr_as_int(h_block) * get_expr_as_int(oh_used_threads)
-                    == oh_) {
-                  expr anchor_h = ph * h_num_block_pt * h_block + o_h * h_block;
-                  expr anchor_c = poc * oc_num_block_pt * oc_block;
-                  fusion->create_output_fusion_anchor({tensor_slice(output,
-                    {{pbs, 1UL}, {anchor_h, h_block}, {0, ow_expr_},
-                      {anchor_c, oc_num_block_pt * oc_block}})});
+                if (fusion && oc_block * oc_used_threads == oc_) {
+                  _if_(h_block * oh_used_threads == oh_expr_) {
+                    expr anchor_h
+                      = ph * h_num_block_pt * h_block + o_h * h_block;
+                    expr anchor_c = poc * oc_num_block_pt * oc_block;
+                    fusion->create_output_fusion_anchor({tensor_slice(output,
+                      {{pbs, 1UL}, {anchor_h, h_block}, {0, ow_expr_},
+                        {anchor_c, oc_num_block_pt * oc_block}})});
+                  }
                 }
               } // o_h
             } // check single core
