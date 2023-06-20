@@ -317,6 +317,11 @@ status_t init_conf_indirect_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
     if (dnnl_get_max_threads() < 28 && !acp.fast_math)
         return status::unimplemented;
 
+    // Restricts the conv operation to just one post-op when the src/wei/dst
+    // data type is fp16
+    if (attr.post_ops_.len() > 1 && dst_md.data_type == data_type::f16)
+        return status::unimplemented;
+
     // If we do not need to pad input channels for fast math mode then it would
     // be faster to run convolution with im2row instead of using indirect kernel
     int block_by = arm_compute::block_by(acp.weights_info.weight_format());
