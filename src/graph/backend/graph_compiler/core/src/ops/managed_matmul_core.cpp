@@ -232,10 +232,8 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
                                         || (!dynamic && A_format.is_blocking()
                                                 && p2bmp_a.at(0).size() > 1
                                                 && p2bmp_a.at(1).size() > 1)
-                                        || A_isp
-                                        || (!is_dynamic_dim(M) && M % iim_block)
-                                        || (!is_dynamic_dim(K)
-                                                && K % iik_block)) {
+                                        || A_isp || (!dynamic && M % iim_block)
+                                        || (!dynamic && K % iik_block)) {
                                     ret_A_format = sc_data_format_t::MKmk(
                                             iim_block, iik_block);
                                 } else {
@@ -313,9 +311,8 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
                                     "managed_matmul_core only supports 2d "
                                     "yet");
                         }
-                        if (constant_B || dynamic
-                                || (!is_dynamic_dim(M) && M % iim_block)
-                                || (!is_dynamic_dim(N) && N % iin_block)) {
+                        if (constant_B || dynamic || M % iim_block
+                                || N % iin_block) {
                             ret_C_format = sc_data_format_t(
                                     sc_data_format_kind_t::
                                             get_2dblocking_by_dims(

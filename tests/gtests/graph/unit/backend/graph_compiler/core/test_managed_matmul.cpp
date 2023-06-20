@@ -413,9 +413,9 @@ TEST(GCCore_CPU_managed_matmul_test, TestDynamicMATMUL2D_F32) {
                                  datatypes::f32, false, {1792, 1792},
                                  {1792, 1792}, {1792, 1792}},
             dummy_cfg);
-    check_managed_matmul({{-1, 1115}, {1115, 1120}, {-1, 1120}, datatypes::f32,
+    check_managed_matmul({{-1, 1115}, {1115, 1122}, {-1, 1122}, datatypes::f32,
                                  datatypes::f32, false, {1125, 1115},
-                                 {1115, 1120}, {1125, 1120}},
+                                 {1115, 1122}, {1125, 1122}},
             dummy_cfg);
     check_managed_matmul({{-1, 2230}, {2230, 2240}, {-1, 2240}, datatypes::f32,
                                  datatypes::f32, false, {2250, 2230},
@@ -430,8 +430,8 @@ TEST(GCCore_CPU_managed_matmul_test, TestDynamicMATMUL2D_INT8) {
                     false, {1792, 1792}, {1792, 1792}, {1792, 1792}},
             dummy_cfg);
     check_managed_matmul(
-            {{-1, 1115}, {1115, 1120}, {-1, 1120}, datatypes::s8, datatypes::s8,
-                    false, {1125, 1115}, {1115, 1120}, {1125, 1120}},
+            {{-1, 1115}, {1115, 1122}, {-1, 1122}, datatypes::s8, datatypes::s8,
+                    false, {1125, 1115}, {1115, 1122}, {1125, 1122}},
             dummy_cfg);
     check_managed_matmul(
             {{-1, 2230}, {2230, 2240}, {-1, 2240}, datatypes::s8, datatypes::s8,
@@ -441,8 +441,8 @@ TEST(GCCore_CPU_managed_matmul_test, TestDynamicMATMUL2D_INT8) {
 
 TEST(GCCore_CPU_managed_matmul_test, TestDynamicMATMUL2D_FUSED_SIGMOID) {
     check_managed_matmul(
-            {{-1, 1344}, {1344, 912}, {-1, 912}, datatypes::f32, datatypes::f32,
-                    false, {912, 1344}, {1344, 912}, {912, 912}},
+            {{-1, 1344}, {1344, 913}, {-1, 913}, datatypes::f32, datatypes::f32,
+                    false, {913, 1344}, {1344, 913}, {913, 913}},
             dummy_cfg, false, true);
     check_managed_matmul({{-1, 1344}, {1344, 1360}, {-1, 1360}, datatypes::f32,
                                  datatypes::f32, false, {912, 1344},

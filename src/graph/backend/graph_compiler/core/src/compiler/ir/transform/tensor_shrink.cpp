@@ -96,6 +96,9 @@ bool check_brgemm_LDX(const expr &buffer, expr &LDX_e) {
         int64_t acc_orig = 1, acc_shrink = 1;
         // for conv_bwd_data stride_w > 1 cases
         LDX_e->attr();
+        if (LDX_e->attr_->get_or_else("skip_shrink_check", false)) {
+            return false;
+        }
         if (LDX_e->attr_->get_or_else("plain_init", false)) {
             acc_shrink = get_expr_as_int(shrink_info.shape_.back());
             LDX_e = make_expr<constant_node>(acc_shrink, datatypes::s32);
