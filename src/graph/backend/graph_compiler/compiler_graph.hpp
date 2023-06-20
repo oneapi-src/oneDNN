@@ -58,12 +58,18 @@ public:
     gc::any_map_t convert_op_attrs(const std::unordered_map<graph::op_attr_t,
             graph::utils::attribute_value_t> &attrs);
 
+    // set graph partition kind from compiled partition.
+    void set_partition_kind(partition_kind_t pkind);
+
     // convert onednn graph logical tensor to backend graph tensor
     static gc::graph_tensor_ptr convert_logical_tensor(
             const graph::logical_tensor_t &lt);
 
     // return whether an op is supported by compiler backend or not
     static bool is_supported_op(op_kind_t name);
+
+private:
+    partition_kind_t pkind_;
 };
 
 } // namespace compiler_impl

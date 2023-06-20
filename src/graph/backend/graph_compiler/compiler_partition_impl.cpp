@@ -146,6 +146,7 @@ graph::status_t compiler_partition_impl_t::compile(
         out_lt_ids.reserve(outputs.size());
         sc_inputs.reserve(inputs.size());
         bool is_dynamic = false;
+        sub_graph.set_partition_kind(get_kind());
         for (auto &in_lt : inputs) {
             gc::sc_op_ptr in_ret;
             in_ret = sub_graph.make_compiler_backend_input(in_lt, this->id());

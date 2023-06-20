@@ -145,6 +145,10 @@ gc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
                                           ->get_logical_tensor()
                                           .data_type));
     } else if (aop->get_kind() == op_kind::SoftMax) {
+        // quantized mha inference doesn't need unify its input at first.
+        if (pkind_ == partition_kind_t::quantized_mha) {
+            backend_attrs.set("numerically_stable", false);
+        }
         backend_attrs.set("axis",
                 std::vector<int>(1,
                         convert_axis(attrs[graph::op_attr::axis].get<int64_t>(),
@@ -267,6 +271,10 @@ gc::sc_op_ptr compiler_graph_impl_t::make_compiler_backend_input(
 
 bool compiler_graph_impl_t::is_supported_op(op_kind_t name) {
     return compiler_backend_op.find(name) != compiler_backend_op.end();
+}
+
+void compiler_graph_impl_t::set_partition_kind(partition_kind_t pkind) {
+    pkind_ = pkind;
 }
 
 } // namespace compiler_impl
