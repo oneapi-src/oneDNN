@@ -19,13 +19,27 @@ set(DNNL_CPU_RUNTIME "@DNNL_CPU_RUNTIME@")
 set(DNNL_CPU_THREADING_RUNTIME "@DNNL_CPU_THREADING_RUNTIME@")
 set(DNNL_GPU_RUNTIME "@DNNL_GPU_RUNTIME@")
 
+if(DNNL_CPU_THREADING_RUNTIME STREQUAL "TBB")
+    # Try to find TBB using a TBB-provided CMake config file.
+    find_package(TBB QUIET COMPONENTS tbb)
+    # If the previous `find_package` call failed then try to
+    # use a TBB CMake config file that is maintained by oneDNN.
+    # The reason the previous call may fail is that TBB package is
+    # very old and doesn't provide a CMake config file.
+    if(NOT TBB_FOUND)
+        message(STATUS "TBB-provided CMake config either failed or was not found. Trying to use a custom one.")
+        # Use a custom find module for transitive dependencies
+        set(DNNL_ORIGINAL_CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH})
+        list(INSERT CMAKE_MODULE_PATH 0 ${PACKAGE_PREFIX_DIR}/@LIB_CONFIG_INSTALL_DIR@)
+        find_package(TBB REQUIRED COMPONENTS tbb)
+        # Reverting the CMAKE_MODULE_PATH to its original state
+        set(CMAKE_MODULE_PATH ${DNNL_ORIGINAL_CMAKE_MODULE_PATH})
+    endif()
+endif()
+
 # Use a custom find module for transitive dependencies
 set(DNNL_ORIGINAL_CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH})
 list(INSERT CMAKE_MODULE_PATH 0 ${PACKAGE_PREFIX_DIR}/@LIB_CONFIG_INSTALL_DIR@)
-
-if(DNNL_CPU_THREADING_RUNTIME STREQUAL "TBB")
-    find_package(TBB REQUIRED COMPONENTS tbb)
-endif()
 
 if(DNNL_GPU_RUNTIME STREQUAL "OCL")
     find_package(OpenCL REQUIRED)
