@@ -64,6 +64,50 @@ SC_CLASS_END();
 
 namespace ops {
 
+bool gen_managed_matmul_core_t::is_valid_config(
+  const context_ptr &ctx, const managed_matmul_core_config_t &config) const {
+  auto num_threads = runtime_config_t::get().get_num_threads();
+  if (config.M_split_num * config.N_split_num > num_threads) { return false; }
+  if (config.M_sub_block <= 0 || config.N_sub_block <= 0
+    || config.K_sub_block <= 0) {
+    return false;
+  }
+  const int M = static_cast<int>(
+    utils::rnd_up(in_tensors_[0].get_plain_dims()[0], iim_block_));
+  const int K = static_cast<int>(
+    utils::rnd_up(in_tensors_[0].get_plain_dims()[1], iik_block_));
+  const int N = static_cast<int>(
+    utils::rnd_up(in_tensors_[1].get_plain_dims()[1], iin_block_));
+  int M_block_size
+    = utils::divide_and_ceil(M / iim_block_, config.M_split_num) * iim_block_;
+  int M_ib_block_size = M / iim_block_ / config.M_split_num * iim_block_;
+  int N_block_size
+    = utils::divide_and_ceil(N / iin_block_, config.N_split_num) * iin_block_;
+  int N_ib_block_size = N / iin_block_ / config.N_split_num * iin_block_;
+  int K_block_size = utils::divide_and_ceil(K / iik_block_,
+                       num_threads / config.N_split_num / config.M_split_num)
+    * iik_block_;
+  int K_ib_block_size = K / iik_block_
+    / (num_threads / config.N_split_num / config.M_split_num) * iik_block_;
+  if (M_ib_block_size == 0) { M_ib_block_size = M_block_size; }
+  if (N_ib_block_size == 0) { N_ib_block_size = N_block_size; }
+  if (K_ib_block_size == 0) { K_ib_block_size = K_block_size; }
+
+  if (M_block_size / iim_block_ < config.M_sub_block
+    || M_ib_block_size / iim_block_ < config.M_sub_block) {
+    return false;
+  }
+  if (N_block_size / iin_block_ < config.N_sub_block
+    || N_ib_block_size / iin_block_ < config.N_sub_block) {
+    return false;
+  }
+  if (K_block_size / iik_block_ < config.K_sub_block
+    || K_ib_block_size / iik_block_ < config.K_sub_block) {
+    return false;
+  }
+  return true;
+}
+
 bool is_prefetch_debug_mode() {
   auto &cfg = runtime_config_t::get();
   if (cfg.trace_mode_ == 1

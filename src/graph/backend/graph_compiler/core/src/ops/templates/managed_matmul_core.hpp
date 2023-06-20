@@ -132,6 +132,8 @@ public:
   bool is_okay_to_prefetch(
     const managed_matmul_core_config_t &config, bool is_global);
 
+  bool is_valid_config(const context_ptr &ctx,
+    const managed_matmul_core_config_t &config) const override;
   config_ptr_vec get_dynamic_config_candidates(
     const context_ptr &ctx) const override;
   std::vector<uint64_t> convert_config_to_keys(
