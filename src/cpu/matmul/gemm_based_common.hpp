@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,6 +40,10 @@ struct params_t {
     // indicates if output scales from attributes are applied
     // by gemm (alpha parameter) or post-op kernel (pp_kernel_)
     bool gemm_applies_output_scales_ = false;
+
+    // indicates if sum to be fused into a gemm call. If `false`, invalidates
+    // `gemm_beta_` argument.
+    bool skip_sum_ = false;
 
     // sum post-op scaling factor that is fused into gemm
     float gemm_beta_ = 0.f;

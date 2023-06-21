@@ -71,15 +71,12 @@ struct gemm_f32_matmul_t : public primitive_t {
                 }
             }
 
-            const bool skip_sum = should_skip_sum_po(
-                    pd()->dst_md()
-                            ->data_type); // sum can be done by gemm itself
             CHECK(safe_ptr_assign(pp_kernel_,
                     inner_product_utils::pp_kernel_t::create(pd()->N(), mb,
                             pd()->ldc(), &pd()->params().pp_attr_,
                             pd()->desc()->bias_desc.data_type,
                             pd()->desc()->accum_data_type, pd()->dst_md(),
-                            skip_sum)));
+                            pd()->params().skip_sum_)));
             return pp_kernel_->create_kernel();
         }
 
@@ -103,7 +100,6 @@ struct gemm_f32_matmul_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_ref(const exec_ctx_t &ctx) const;
-    bool should_skip_sum_po(data_type_t dst_dt) const noexcept;
 
     std::unique_ptr<inner_product_utils::pp_kernel_t> pp_kernel_;
 };

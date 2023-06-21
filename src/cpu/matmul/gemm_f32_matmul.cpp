@@ -81,17 +81,6 @@ status_t gemm_f32_matmul_t::pd_t::init(engine_t *engine) {
     return status::success;
 }
 
-static bool should_gemm_execute_sum_po(
-        const gemm_based::params_t &params, data_type_t dst_dt) noexcept {
-    const auto &po = params.pp_attr_.post_ops_;
-    static constexpr int sum_idx = 0;
-    return po.len() > 0 && po.contain(primitive_kind::sum, sum_idx)
-            && params.gemm_applies_output_scales_
-            && po.entry_[sum_idx].sum.zero_point == 0
-            && utils::one_of(
-                    po.entry_[sum_idx].sum.dt, dst_dt, data_type::undef);
-}
-
 status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
     auto check_attr_scales = [&]() -> bool {
         bool ok = attr_scales_ok();
@@ -130,7 +119,6 @@ status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
     // check basic attributes
     if (!check_attr_scales()) return status::unimplemented;
 
-    // set state
     CHECK(params_.pp_attr_.copy_from(*attr()));
     params_.gemm_applies_output_scales_
             = attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ == 0 && !with_bias();
@@ -139,17 +127,20 @@ status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
         params_.pp_attr_.scales_.reset(DNNL_ARG_WEIGHTS);
     }
 
-    // check post-ops
     if (!check_attr_post_ops()) return status::unimplemented;
-    const bool sum_po_via_gemm_beta
-            = should_gemm_execute_sum_po(params_, dst_md()->data_type);
 
-    const memory_desc_wrapper src_d(src_md());
-    const memory_desc_wrapper weights_d(weights_md());
-    const memory_desc_wrapper dst_d(dst_md());
-    matmul_helper_t helper(src_d, weights_d, dst_d);
+    const auto &po = params_.pp_attr_.post_ops_;
+    static constexpr int sum_idx = 0;
 
-    // set state
+    const bool sum_po_via_gemm_beta = po.len() > 0
+            && po.contain(primitive_kind::sum, sum_idx)
+            && params_.gemm_applies_output_scales_
+            && po.entry_[sum_idx].sum.zero_point == 0
+            && utils::one_of(po.entry_[sum_idx].sum.dt, dst_md()->data_type,
+                    data_type::undef);
+
+    matmul_helper_t helper(src_md(), weights_md(), dst_md());
+
     // `C_is_abx` limitation comes from `extended_sgemm`.
     const bool C_is_abx = helper.ldc() >= helper.N()
             && helper.ldc() != DNNL_RUNTIME_DIM_VAL;
@@ -158,21 +149,15 @@ status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
                     sum_po_via_gemm_beta);
 
     if (sum_po_via_gemm_beta) {
-        // set state
-        const auto &po = params_.pp_attr_.post_ops_;
-        static constexpr int sum_idx = 0;
-        params_.gemm_beta_ = po.entry_[sum_idx].sum.scale;
+        params_.skip_sum_ = params_.dst_is_acc_;
+        params_.gemm_beta_
+                = params_.skip_sum_ ? po.entry_[sum_idx].sum.scale : 0.f;
     }
 
-    // set state
     params_.has_pp_kernel_ = !params_.dst_is_acc_ || with_bias()
             || !params_.pp_attr_.has_default_values();
 
     return status::success;
-}
-
-bool gemm_f32_matmul_t::should_skip_sum_po(data_type_t dst_dt) const noexcept {
-    return should_gemm_execute_sum_po(pd()->params(), dst_dt);
 }
 
 status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
