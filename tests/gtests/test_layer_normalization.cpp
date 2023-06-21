@@ -121,6 +121,24 @@ protected:
 
     void Forward(prop_kind pk,
             normalization_flags flags = normalization_flags::none) {
+        // layer normalization specific types and values
+        using pd_t = layer_normalization_forward::primitive_desc;
+
+        lnorm_fwd_pd = pd_t(eng, pk, *src_md, *dst_md, *stat_d, epsilon, flags);
+        lnorm_fwd_pd
+                = pd_t(lnorm_fwd_pd.get()); // test construction from a C pd
+        bool is_int8 = impl::utils::one_of(src_md->get_data_type(),
+                               memory::data_type::s8, memory::data_type::u8)
+                || impl::utils::one_of(dst_md->get_data_type(),
+                        memory::data_type::s8, memory::data_type::u8);
+
+        auto aa = allows_attr_t {false};
+        if (is_int8) aa.scales = true;
+
+        // test all pd ctors
+        test_fwd_pd_constructors<pd_t>(lnorm_fwd_pd, aa, pk, *src_md, *dst_md,
+                *stat_d, epsilon, flags);
+
         fwd_iface_test_stat_any(pk, flags);
 
         bool useScale = (bool)(flags & normalization_flags::use_scale);
@@ -128,11 +146,6 @@ protected:
         bool useGlobalStats
                 = (bool)(flags & normalization_flags::use_global_stats);
         bool isTraining = pk == prop_kind::forward_training;
-
-        lnorm_fwd_pd = layer_normalization_forward::primitive_desc(
-                eng, pk, *src_md, *dst_md, *stat_d, epsilon, flags);
-        lnorm_fwd_pd = layer_normalization_forward::primitive_desc(
-                lnorm_fwd_pd.get()); // test construction from a C pd
 
         ASSERT_TRUE(lnorm_fwd_pd.query_md(query::exec_arg_md, DNNL_ARG_SRC)
                 == lnorm_fwd_pd.src_desc());
