@@ -36,6 +36,9 @@ using namespace dnnl::impl::status;
     VCONDCHECK(create, check, concat, (cond), status::invalid_arguments, msg, \
             ##__VA_ARGS__);
 
+#define VCHECK_CONCAT_UNIMPL(cond, msg, ...) \
+    VCONDCHECK(create, check, concat, (cond), status::unimplemented, msg, \
+            ##__VA_ARGS__);
 namespace dnnl {
 namespace impl {
 
@@ -44,7 +47,18 @@ status_t concat_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
         const memory_desc_t *const *src_mds, const primitive_attr_t *attr) {
     VCHECK_CONCAT(!any_null(src_mds) && n > 0, VERBOSE_NULL_ARG);
 
-    if (attr == nullptr) attr = &default_attr();
+    if (attr == nullptr)
+        attr = &default_attr();
+    else {
+        using smask_t = primitive_attr_t::skip_mask_t;
+        VCHECK_CONCAT_UNIMPL(attr->has_default_values(smask_t::scales_runtime),
+                VERBOSE_UNSUPPORTED_ATTR);
+        const auto &scales = attr->scales_;
+        if (!scales.has_default_values())
+            for (const auto &s : scales.scales_)
+                VCHECK_CONCAT_UNIMPL(
+                        s.second.mask_ == 0, VERBOSE_UNSUPPORTED_SCALES_CFG);
+    }
 
     const int ndims = src_mds[0]->ndims;
     const dims_t &dims = src_mds[0]->dims;
