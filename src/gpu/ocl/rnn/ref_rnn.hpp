@@ -197,7 +197,6 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         data_type_t src_type = data_type::undef;
         data_type_t weights_type = data_type::undef;
         bool is_xe_hpc = false;
-        int subgroup_size = 0;
         int max_eus_per_wg = 0;
         primitive_attr_t ocl_attr;
 
@@ -280,7 +279,7 @@ private:
 
     compute::nd_range_t get_nd_range(std::vector<int> gws) const {
         // Try to schedule one local thread per eu
-        int subgroup_size = pd()->subgroup_size;
+        int subgroup_size = pd()->conf.subgroup_size;
         int lws_max = pd()->max_eus_per_wg * subgroup_size;
         std::vector<int> lws;
         lws.reserve(gws.size());

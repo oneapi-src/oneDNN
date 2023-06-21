@@ -420,6 +420,7 @@ struct inner_product_conf_t {
 
 // RNN
 struct rnn_conf_t {
+    int subgroup_size;
     int cell_kind;
     int activation_kind;
     int direction_kind;

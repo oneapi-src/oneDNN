@@ -68,7 +68,8 @@ using namespace dnnl::impl::memory_tracking::names;
 #define AOC array_offset_calculator
 
 static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
-        const rnn_utils::conf_t &rnn, const memory_desc_wrapper &src_layer_d,
+        const rnn_utils::conf_t &rnn, const compute::device_info_t &device_info,
+        const memory_desc_wrapper &src_layer_d,
         const memory_desc_wrapper &src_iter_d,
         const memory_desc_wrapper &src_iter_c_d,
         const memory_desc_wrapper &weights_layer_d,
@@ -166,11 +167,24 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
     conf.wei_qparam_mask = rnn_pd->attr()->rnn_weights_qparams_.mask_;
     conf.is_testmode = rnn.is_testmode;
 
+    conf.subgroup_size = device_info.max_subgroup_size();
+    auto max_elemwise_threads
+            = utils::div_up(rnn.mb * rnn.dhc, conf.subgroup_size);
+    auto max_elemwise_threads_per_eu
+            = utils::div_up(max_elemwise_threads, device_info.eu_count());
+    auto preferred_threads_per_eu = 4;
+    conf.elemwise_bwd_batch_block = dev_getenv("bwd_batch_block",
+            std::min(8,
+                    utils::rnd_up_pow2(max_elemwise_threads_per_eu
+                            / preferred_threads_per_eu)));
+    conf.need_bias_atomic_reduce
+            = !conf.is_fwd && conf.elemwise_bwd_batch_block < rnn.mb;
+
     return status::success;
 }
 
 static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
-        const rnn_conf_t &conf, const rnn_offsets_t &off, int subgroup_size) {
+        const rnn_conf_t &conf, const rnn_offsets_t &off) {
 
     kernel_ctx.add_option("-cl-std=CL2.0");
 
@@ -208,7 +222,7 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("SUM", dnnl_bidirectional_sum);
     kernel_ctx.define_int("DIRECTION_KIND", conf.direction_kind);
 
-    kernel_ctx.define_int("SUBGROUP_SIZE", subgroup_size);
+    kernel_ctx.define_int("SUBGROUP_SIZE", conf.subgroup_size);
 
     def_block_offsets(
             off.src_layer_off, kernel_ctx, "SRC_L", conf.src_layer_ndims);
@@ -280,29 +294,31 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
 
 template <prop_kind_t aprop>
 inline status_t init_conf(rnn_conf_t &conf, const rnn_utils::conf_t &rnn,
-        const rnn_pd_t *rnn_pd, rnn_offsets_t &off) {
+        const rnn_pd_t *rnn_pd, const compute::device_info_t &device_info,
+        rnn_offsets_t &off) {
 
     const memory_desc_wrapper fakedesc = rnn_pd->src_md(0);
-    return init_conf(conf, rnn_pd, rnn, rnn_pd->src_md(0), rnn_pd->src_md(1),
-            rnn_pd->src_md(2), rnn_pd->weights_md(0), rnn_pd->weights_md(1),
-            rnn_pd->weights_md(2), rnn_pd->dst_md(0), rnn_pd->dst_md(1),
-            rnn_pd->dst_md(2), fakedesc, fakedesc, fakedesc, fakedesc, fakedesc,
-            fakedesc, fakedesc, fakedesc, fakedesc, rnn_pd->workspace_md(0),
-            off);
+    return init_conf(conf, rnn_pd, rnn, device_info, rnn_pd->src_md(0),
+            rnn_pd->src_md(1), rnn_pd->src_md(2), rnn_pd->weights_md(0),
+            rnn_pd->weights_md(1), rnn_pd->weights_md(2), rnn_pd->dst_md(0),
+            rnn_pd->dst_md(1), rnn_pd->dst_md(2), fakedesc, fakedesc, fakedesc,
+            fakedesc, fakedesc, fakedesc, fakedesc, fakedesc, fakedesc,
+            rnn_pd->workspace_md(0), off);
 }
 
 template <>
 inline status_t init_conf<prop_kind::backward>(rnn_conf_t &conf,
         const rnn_utils::conf_t &rnn, const rnn_pd_t *rnn_pd,
-        rnn_offsets_t &off) {
-    return init_conf(conf, rnn_pd, rnn, rnn_pd->src_md(0), rnn_pd->src_md(1),
-            rnn_pd->src_md(2), rnn_pd->weights_md(0), rnn_pd->weights_md(1),
-            rnn_pd->weights_md(2), rnn_pd->dst_md(0), rnn_pd->dst_md(1),
-            rnn_pd->dst_md(2), rnn_pd->diff_src_md(0), rnn_pd->diff_src_md(1),
-            rnn_pd->diff_src_md(2), rnn_pd->diff_weights_md(0),
-            rnn_pd->diff_weights_md(1), rnn_pd->diff_weights_md(2),
-            rnn_pd->diff_dst_md(0), rnn_pd->diff_dst_md(1),
-            rnn_pd->diff_dst_md(2), rnn_pd->workspace_md(0), off);
+        const compute::device_info_t &device_info, rnn_offsets_t &off) {
+    return init_conf(conf, rnn_pd, rnn, device_info, rnn_pd->src_md(0),
+            rnn_pd->src_md(1), rnn_pd->src_md(2), rnn_pd->weights_md(0),
+            rnn_pd->weights_md(1), rnn_pd->weights_md(2), rnn_pd->dst_md(0),
+            rnn_pd->dst_md(1), rnn_pd->dst_md(2), rnn_pd->diff_src_md(0),
+            rnn_pd->diff_src_md(1), rnn_pd->diff_src_md(2),
+            rnn_pd->diff_weights_md(0), rnn_pd->diff_weights_md(1),
+            rnn_pd->diff_weights_md(2), rnn_pd->diff_dst_md(0),
+            rnn_pd->diff_dst_md(1), rnn_pd->diff_dst_md(2),
+            rnn_pd->workspace_md(0), off);
 }
 
 template <>
@@ -413,10 +429,10 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     auto *compute_engine
             = utils::downcast<const compute::compute_engine_t *>(engine);
 
+    const compute::device_info_t &device_info
+            = *(compute_engine->device_info());
     is_xe_hpc = compute_engine->is_xe_hpc();
-    subgroup_size = compute_engine->device_info()->max_subgroup_size();
-    max_eus_per_wg = compute_engine->device_info()->max_eus_per_wg();
-    auto eu_count = compute_engine->device_info()->eu_count();
+    max_eus_per_wg = device_info.max_eus_per_wg();
 
     const alg_kind_t cell_kind = this->desc()->cell_kind;
 
@@ -569,7 +585,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
 
     rnn_conf.acc_data_type = acc_data_t;
     rnn_conf.acc_data_type_elsz = (int)types::data_type_size(acc_data_t);
-    status_t status = init_conf<aprop>(conf, rnn_conf, this, this->off);
+    status_t status
+            = init_conf<aprop>(conf, rnn_conf, this, device_info, this->off);
     if (status != status::success) { return status; }
 
     int batch = rnn_conf.mb;
@@ -579,17 +596,6 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     int dhc = rnn_conf.dhc;
 
     auto fpmath_mode = this->attr()->fpmath_mode_;
-
-    auto max_elemwise_threads = utils::div_up(batch * dhc, subgroup_size);
-    auto max_elemwise_threads_per_eu
-            = utils::div_up(max_elemwise_threads, eu_count);
-    auto preferred_threads_per_eu = 4;
-    conf.elemwise_bwd_batch_block = dev_getenv("bwd_batch_block",
-            std::min(8,
-                    utils::rnd_up_pow2(max_elemwise_threads_per_eu
-                            / preferred_threads_per_eu)));
-    conf.need_bias_atomic_reduce
-            = !conf.is_fwd && conf.elemwise_bwd_batch_block < batch;
 
     // The inputs of create_gemm_pd describe a gemm in column major.
     // Below, we have to transpose the a and b descriptor to describe
@@ -757,8 +763,7 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
             = (size_t *)malloc(sizeof(size_t) * wei_offsets_iter_sz, 64);
 
     compute::kernel_ctx_t kernel_ctx(&pd()->ocl_attr);
-    status_t status = init_kernel_ctx(
-            kernel_ctx, pd()->conf, pd()->off, pd()->subgroup_size);
+    status_t status = init_kernel_ctx(kernel_ctx, pd()->conf, pd()->off);
     CHECK(status);
 
     std::vector<const char *> kernel_names = {"ref_rnn_bias_prepare",
