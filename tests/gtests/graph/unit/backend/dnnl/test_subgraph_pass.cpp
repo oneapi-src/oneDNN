@@ -329,6 +329,128 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
     ASSERT_EQ(post_ops.size(), 1U);
 }
 
+TEST(SubgraphPass, Conv2dNxcPlainDst) {
+    using dims = graph::dnnl_impl::dims;
+    graph::engine_t *engine = get_engine();
+    dnnl::engine p_eng
+            = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*engine);
+
+    int64_t in_channel = 512, out_channel = 2048;
+    int64_t kernel_size = 1;
+    std::vector<int64_t> src_shape {1024, 7, 7, in_channel};
+    std::vector<int64_t> weight_shape {
+            kernel_size, kernel_size, in_channel, out_channel};
+    std::vector<int64_t> dst_shape {1024, 7, 7, out_channel};
+
+    graph::op_t dqdata_node(0, graph::op_kind::Dequantize, "dqdata_node");
+    dqdata_node.set_attr<std::string>(op_attr::qtype, "per_tensor");
+    dqdata_node.set_attr<std::vector<int64_t>>(op_attr::zps, {0});
+    dqdata_node.set_attr<std::vector<float>>(op_attr::scales, {1 / 255.f});
+    dqdata_node.set_attr<int64_t>(op_attr::axis, 0);
+    graph::op_t dqweight_node(1, graph::op_kind::Dequantize, "dqweight_node");
+    dqweight_node.set_attr<std::string>(op_attr::qtype, "per_tensor");
+    dqweight_node.set_attr<std::vector<int64_t>>(op_attr::zps, {0});
+    dqweight_node.set_attr<std::vector<float>>(op_attr::scales, {1 / 255.f});
+    dqweight_node.set_attr<int64_t>(op_attr::axis, 0);
+    graph::op_t conv_node(2, graph::op_kind::Convolution, "conv_node");
+    conv_node.set_attr<dims>(op_attr::strides, dims(2, 1));
+    conv_node.set_attr<dims>(op_attr::dilations, dims(2, 1));
+    conv_node.set_attr<dims>(op_attr::pads_begin, dims(2, 0));
+    conv_node.set_attr<dims>(op_attr::pads_end, dims(2, 0));
+    conv_node.set_attr<int64_t>(op_attr::groups, (int64_t)1);
+    conv_node.set_attr<std::string>(op_attr::data_format, "NXC");
+    conv_node.set_attr<std::string>(op_attr::weights_format, "XIO");
+    graph::op_t qout_node(3, graph::op_kind::Quantize, "qout_node");
+    qout_node.set_attr<std::string>(op_attr::qtype, "per_tensor");
+    qout_node.set_attr<std::vector<int64_t>>(op_attr::zps, {0});
+    qout_node.set_attr<std::vector<float>>(op_attr::scales, {1 / 255.f});
+    qout_node.set_attr<int64_t>(op_attr::axis, 0);
+
+    // prepare logical tensor
+    auto src_u8 = logical_tensor_init(0, src_shape, graph::data_type::u8);
+    auto src_f32_dq = logical_tensor_init(1, src_shape, graph::data_type::f32);
+    auto weight_s8 = logical_tensor_init(2, weight_shape, graph::data_type::s8);
+    auto weight_f32_dq
+            = logical_tensor_init(3, weight_shape, graph::data_type::f32);
+    auto dst_f32 = logical_tensor_init(4, dst_shape, graph::data_type::f32);
+    auto dst_u8 = logical_tensor_init(5, dst_shape, graph::data_type::u8);
+
+    dqdata_node.add_input(src_u8);
+    dqdata_node.add_output(src_f32_dq);
+    dqweight_node.add_input(weight_s8);
+    dqweight_node.add_output(weight_f32_dq);
+    conv_node.add_input(src_f32_dq);
+    conv_node.add_input(weight_f32_dq);
+    conv_node.add_output(dst_f32);
+    qout_node.add_input(dst_f32);
+    qout_node.add_output(dst_u8);
+
+    graph::graph_t agraph(engine->kind());
+    agraph.add_op(&dqdata_node);
+    agraph.add_op(&dqweight_node);
+    agraph.add_op(&conv_node);
+    agraph.add_op(&qout_node);
+    agraph.finalize();
+
+    graph::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1U);
+
+    std::vector<graph::logical_tensor_t> lt_ins {src_u8, weight_s8};
+    std::vector<graph::logical_tensor_t> lt_outs {dst_u8};
+
+    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
+            agraph.get_partitions()[0]->get_ops(), p_eng, fpmath_mode::strict,
+            true, true);
+    ASSERT_EQ(subgraph->get_ops().size(), 4U);
+
+    ASSERT_EQ(dnnl_impl::set_given_inputs_outputs(subgraph, lt_ins, lt_outs),
+            graph::status::success);
+    ASSERT_EQ(dnnl_impl::lower_down(subgraph), graph::status::success);
+    dnnl_impl::subgraph_validator_t validator;
+    validator.run(subgraph); // validate and set default param
+    ASSERT_EQ(dnnl_impl::infer_shape(subgraph), graph::status::success);
+    ASSERT_EQ(dnnl_impl::remove_quant_data_with_no_effect(subgraph),
+            graph::status::success);
+    ASSERT_EQ(dnnl_impl::convert_to_runtime_src_scales(subgraph),
+            graph::status::success);
+    ASSERT_EQ(dnnl_impl::fuse_src_scales(subgraph), graph::status::success);
+    ASSERT_EQ(dnnl_impl::convert_to_runtime_src_zero_points(subgraph),
+            graph::status::success);
+    ASSERT_EQ(
+            dnnl_impl::fuse_src_zero_points(subgraph), graph::status::success);
+    ASSERT_EQ(dnnl_impl::convert_to_runtime_dst_scales(subgraph),
+            graph::status::success);
+    ASSERT_EQ(dnnl_impl::fuse_dst_scales(subgraph), graph::status::success);
+    ASSERT_EQ(dnnl_impl::convert_to_runtime_dst_zero_points(subgraph),
+            graph::status::success);
+    ASSERT_EQ(
+            dnnl_impl::fuse_dst_zero_points(subgraph), graph::status::success);
+    ASSERT_EQ(dnnl_impl::insert_permute_for_conv_or_deconv(subgraph),
+            graph::status::success);
+    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), graph::status::success);
+    ASSERT_EQ(dnnl_impl::infer_shape(subgraph), graph::status::success);
+
+    for (const auto &op : subgraph->get_ops()) {
+        ASSERT_TRUE(dnnl::impl::utils::one_of(op->get_kind(),
+                dnnl_impl::op_kind::dnnl_permute,
+                dnnl_impl::op_kind::dnnl_reorder,
+                dnnl_impl::op_kind::dnnl_convolution,
+                dnnl_impl::op_kind::dnnl_mul_scales,
+                dnnl_impl::op_kind::dnnl_constant_scales,
+                dnnl_impl::op_kind::dnnl_constant_zps));
+    }
+
+    for (auto &cur_op : subgraph->get_ops()) {
+        if (cur_op->get_kind() == dnnl_impl::op_kind::dnnl_convolution) {
+            const auto &dst_lt
+                    = cur_op->get_output_value(0)->get_logical_tensor();
+            const auto &mdesc = dnnl_impl::make_dnnl_memory_desc(dst_lt);
+            ASSERT_TRUE(dnnl_impl::is_plain(mdesc));
+        }
+    }
+}
+
 TEST(SubgraphPass, Int8ConvSumRelu) {
     /*
                    | (f32, constant)
