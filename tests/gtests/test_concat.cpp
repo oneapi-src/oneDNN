@@ -120,6 +120,9 @@ protected:
         concat_test_params_t p
                 = ::testing::TestWithParam<concat_test_params_t>::GetParam();
 
+        // concat specific types and values
+        using pd_t = concat::primitive_desc;
+
         int src_dim_sum = 0;
         for (size_t i = 0; i < p.srcs_cds.size(); i++) {
             for (size_t dim = 0; dim < p.dst_cds.size(); dim++) {
@@ -147,10 +150,16 @@ protected:
         }
 
         auto dst_desc = memory::desc(p.dst_cds, data_type, p.dst_format);
-        auto concat_pd = concat::primitive_desc(
+        auto concat_pd = pd_t(
                 eng, dst_desc, static_cast<int>(p.concat_dimension), srcs_md);
         // test construction from a C pd
-        concat_pd = concat::primitive_desc(concat_pd.get());
+        concat_pd = pd_t(concat_pd.get());
+
+        auto aa = allows_attr_t {false};
+        aa.scales = true;
+
+        test_fwd_pd_constructors<pd_t>(concat_pd, aa, dst_desc,
+                static_cast<int>(p.concat_dimension), srcs_md);
 
         ASSERT_TRUE(concat_pd.query_md(query::exec_arg_md, DNNL_ARG_DST)
                 == concat_pd.dst_desc());
