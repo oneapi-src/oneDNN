@@ -29,10 +29,6 @@
 #include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
 #include "cpu/x64/matmul/brgemm_matmul.hpp"
 
-#define VDISPATCH_MATMUL(cond, msg, ...) \
-    VCONDCHECK(create, dispatch, matmul, (cond), status::unimplemented, \
-            "%s," msg, this->info(engine), ##__VA_ARGS__)
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
