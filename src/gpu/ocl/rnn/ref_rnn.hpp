@@ -64,19 +64,19 @@ struct workspace_t {
         , rnn_(rnn)
         , conf_(conf)
         , gates_(conf.ws_gates_size > 0 ? ws.get_sub_storage(
-                         rnn.ws_gates_offset, conf.ws_gates_size)
+                         conf.ws_gates_offset, conf.ws_gates_size)
                                         : nullptr)
         , states_(conf.ws_states_size > 0 ? ws.get_sub_storage(
-                          rnn.ws_states_offset, conf.ws_states_size)
+                          conf.ws_states_offset, conf.ws_states_size)
                                           : nullptr)
         , c_states_(conf.ws_c_states_size > 0 ? ws.get_sub_storage(
-                            rnn.ws_c_state_offset, conf.ws_c_states_size)
+                            conf.ws_c_state_offset, conf.ws_c_states_size)
                                               : nullptr)
         , bias_(conf.ws_bias_size > 0 ? ws.get_sub_storage(
-                        rnn.ws_bias_offset, conf.ws_bias_size)
+                        conf.ws_bias_offset, conf.ws_bias_size)
                                       : nullptr)
         , grid_comp_(conf.ws_grid_comp_size > 0 ? ws.get_sub_storage(
-                             rnn.ws_grid_comp_offset, conf.ws_grid_comp_size)
+                             conf.ws_grid_comp_offset, conf.ws_grid_comp_size)
                                                 : nullptr) {}
 
     cl_ulong calc_off_ws_state(int i0, int i1, int i2, int i3, int i4) const {

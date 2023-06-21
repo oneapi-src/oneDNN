@@ -182,6 +182,12 @@ struct conf_t {
             scratch_diff_states_size, scratch_cell_size, scratch_dhG1_size,
             ws_grid_comp_size, ws_per_cell, ws_bias_size;
 
+    size_t ws_gates_offset;
+    size_t ws_states_offset;
+    size_t ws_grid_comp_offset;
+    size_t ws_c_state_offset;
+    size_t ws_bias_offset;
+
     bool merge_gemm_iter, merge_gemm_layer, use_gemm, use_layer_packed_gemm,
             use_iter_packed_gemm;
 

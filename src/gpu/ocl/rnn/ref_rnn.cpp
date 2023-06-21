@@ -177,10 +177,6 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
             gpu::set_offsets(diff_dst_iter_c_d, off.diff_dst_iter_c_off);
     }
 
-    rnn_utils::set_workspace_offsets(rnn, conf.ws_gates_offset,
-            conf.ws_states_offset, conf.ws_c_state_offset,
-            conf.ws_grid_comp_offset, conf.ws_bias_offset);
-
     conf.cell_kind = rnn_pd->cell_kind();
     conf.activation_kind = rnn_pd->activation_kind();
     conf.direction_kind = rnn_pd->direction();

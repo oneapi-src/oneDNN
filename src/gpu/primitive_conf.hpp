@@ -480,17 +480,6 @@ struct rnn_conf_t {
 
     int elemwise_bwd_batch_block;
     bool need_bias_atomic_reduce;
-
-    size_t ws_gates_offset;
-    size_t ws_states_offset;
-    size_t ws_grid_comp_offset;
-    size_t ws_h_state_offset;
-    size_t ws_c_state_offset;
-    size_t ws_bias_offset;
-    size_t scratch_dhG1_offset;
-    size_t scratch_gates_offset;
-    size_t scratch_cell_offset;
-    size_t scratch_diff_states_offset;
 };
 
 struct rnn_reorder_conf_t {
