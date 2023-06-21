@@ -112,6 +112,7 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.slc = weights_layer_d.dims()[2];
     rnn.dhc = weights_layer_d.dims()[4];
     rnn.dlc = dst_layer_d.dims()[2];
+    rnn.wic = nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dhc));
 
     rnn.gates_ld = rnn.dhc * rnn.n_gates;
     rnn.gates_nld = rnn.mb;

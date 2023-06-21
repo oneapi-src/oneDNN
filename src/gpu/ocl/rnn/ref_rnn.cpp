@@ -109,12 +109,6 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
     conf.n_states = rnn.n_states;
     conf.n_weights_input = weights_layer_d.dims()[2];
     conf.n_weights_state = weights_iter_d.dims()[2];
-    conf.batch = rnn.mb;
-    conf.slc = rnn.slc;
-    conf.sic = rnn.sic;
-    conf.dhc = rnn.dhc;
-    conf.dlc = rnn.dlc;
-    conf.wic = nstl::max(conf.slc, nstl::max(conf.sic, conf.dhc));
 
     conf.n_parts_weights_iter = rnn.n_parts_weights_iter;
     conf.n_parts_weights_layer = rnn.n_parts_weights_layer;
@@ -214,7 +208,7 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int(
             "ELEMWISE_BWD_BATCH_BLOCK", conf.elemwise_bwd_batch_block);
     kernel_ctx.define_int("NEED_BIAS_ATOMIC_REDUCE",
-            !conf.is_fwd && conf.elemwise_bwd_batch_block < conf.batch);
+            !conf.is_fwd && conf.need_bias_atomic_reduce);
     kernel_ctx.define_int("VANILLA_RNN", alg_kind::vanilla_rnn);
     kernel_ctx.define_int("VANILLA_LSTM", alg_kind::vanilla_lstm);
     kernel_ctx.define_int("VANILLA_GRU", alg_kind::vanilla_gru);
@@ -620,6 +614,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
             std::min(8,
                     utils::rnd_up_pow2(max_elemwise_threads_per_eu
                             / preferred_threads_per_eu)));
+    conf.need_bias_atomic_reduce
+            = !conf.is_fwd && conf.elemwise_bwd_batch_block < batch;
 
     // The inputs of create_gemm_pd describe a gemm in column major.
     // Below, we have to transpose the a and b descriptor to describe
@@ -1481,16 +1477,16 @@ status_t _ref_rnn_common_t<aprop>::ws_print(const exec_ctx_t &ctx,
     arg_list.append(workspace_.bias());
     arg_list.append(workspace_.grid_comp());
 
-    arg_list.append(pd()->conf.batch);
+    arg_list.append(pd()->rnn_conf.mb);
     arg_list.append(pd()->conf.n_layer);
     arg_list.append(pd()->conf.n_dir);
     arg_list.append(pd()->conf.n_iter);
     arg_list.append(pd()->conf.n_bias);
-    arg_list.append(pd()->conf.dhc);
+    arg_list.append(pd()->rnn_conf.dhc);
     arg_list.append(pd()->conf.n_gates);
     arg_list.append(pd()->conf.states_ws_ld);
     arg_list.append(pd()->conf.gates_ws_ld);
-    arg_list.append(pd()->conf.wic);
+    arg_list.append(pd()->rnn_conf.wic);
 
     auto nd_range = compute::nd_range_t({1});
 

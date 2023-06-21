@@ -148,7 +148,7 @@ struct conf_t {
     data_type_conf_t dt_conf;
     int n_layer, n_iter, n_dir, n_gates, n_states;
     int mb;
-    int slc, sic, dhc, dlc;
+    int slc, sic, dhc, dlc, wic;
 
     int gates_ld, gates_nld, gates_ws_ld, arch_ld;
 

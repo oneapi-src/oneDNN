@@ -454,12 +454,6 @@ struct rnn_conf_t {
     int n_states;
     int n_weights_input;
     int n_weights_state;
-    int batch;
-    int slc;
-    int sic;
-    int dhc;
-    int dlc;
-    int wic;
     int arch_ld;
     int n_parts_weights_iter, n_parts_weights_layer;
     int src_layer_ndims;
@@ -485,6 +479,7 @@ struct rnn_conf_t {
     int wei_qparam_mask;
 
     int elemwise_bwd_batch_block;
+    bool need_bias_atomic_reduce;
 
     size_t ws_gates_offset;
     size_t ws_states_offset;
