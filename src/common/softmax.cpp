@@ -100,9 +100,14 @@ status_t softmax_attr_check(const softmax_desc_t &desc, const engine_t *engine,
     // Check attributes
     if (utils::one_of(desc.prop_kind, prop_kind::forward_inference,
                 prop_kind::forward_training)) {
+        const data_type_t src_dt = desc.src_desc.data_type;
         const data_type_t dst_dt = desc.dst_desc.data_type;
 
-        auto fwd_attr_mask = smask_t::post_ops | smask_t::scales_runtime;
+        auto fwd_attr_mask = smask_t::post_ops;
+
+        const bool is_int8 = utils::one_of(src_dt, data_type::s8, data_type::u8)
+                || utils::one_of(dst_dt, data_type::s8, data_type::u8);
+        if (is_int8) fwd_attr_mask |= smask_t::scales_runtime;
 
         VCHECK_SOFTMAX_UNIMPL(attr->has_default_values(fwd_attr_mask, dst_dt),
                 VERBOSE_UNSUPPORTED_ATTR);
