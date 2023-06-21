@@ -231,7 +231,8 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             = attr.post_ops.eltwise_index() != -1 || has_eltwise_post_op_;
     const bool output_has_nans = op_output_has_nans_
             || eltwise::eltwise_alg_returns_nan_or_inf(attr)
-            || got_mem.dt() == dnnl_f16;
+            || got_mem.dt() == dnnl_f16 || got_mem.dt() == dnnl_f8_e5m2
+            || got_mem.dt() == dnnl_f8_e4m3;
     const bool has_exp_eltwise
             = attr.post_ops.find(attr_t::post_ops_t::kind_t::EXP) >= 0;
     const bool has_dst_scale = !attr.scales.get(DNNL_ARG_DST).is_def();
