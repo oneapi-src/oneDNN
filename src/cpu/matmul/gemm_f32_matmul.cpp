@@ -48,40 +48,6 @@ status_t gemm_f32_matmul_t::pd_t::init(engine_t *engine) {
                 || (weights_md(1)->data_type == f32 && is_bias_1xN());
     };
 
-    bool ok = is_dense_data() && !has_zero_dim_memory()
-            && src_md()->data_type == src_type
-            && weights_md()->data_type == weights_type
-            && desc()->accum_data_type == acc_type
-            && dst_md()->data_type == dst_type && check_bias()
-            && attr()->has_default_values(
-                    primitive_attr_t::skip_mask_t::scales_runtime
-                            | primitive_attr_t::skip_mask_t::post_ops
-                            | primitive_attr_t::skip_mask_t::sum_dt,
-                    dst_type)
-            && attr()->post_ops_.check_sum_consistency(dst_type,
-                    /* is_int8 */ false)
-            && set_default_formats()
-            && attr_.set_default_formats(dst_md(0)) == status::success
-            && gemm_based::check_gemm_compatible_formats(*this);
-
-    if (!ok) return status::unimplemented;
-
-    if (!has_runtime_dims_or_strides())
-        params_.use_single_gemm_call_optimization_
-                = matmul_helper_t(src_md(), weights_md(), dst_md())
-                          .use_single_gemm_call_optimization(attr()->post_ops_);
-
-    CHECK(check_and_configure_attributes());
-
-    nthr_ = dnnl_get_max_threads();
-    gemm_based::book_acc_scratchpad(*this, params_, sizeof(acc_data_t), nthr_);
-    auto scratchpad = scratchpad_registry().registrar();
-    book_precomputed_scales(scratchpad, attr()->scales_, N());
-
-    return status::success;
-}
-
-status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
     auto check_attr_scales = [&]() -> bool {
         bool ok = attr_scales_ok();
         if (!attr()->scales_.get(DNNL_ARG_SRC).has_default_values()
@@ -116,8 +82,49 @@ status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
                                 *this));
     };
 
-    // check basic attributes
-    if (!check_attr_scales()) return status::unimplemented;
+    const bool problem_dt_correct = src_md()->data_type == src_type
+            && weights_md()->data_type == weights_type
+            && desc()->accum_data_type == acc_type
+            && dst_md()->data_type == dst_type;
+
+    VDISPATCH_MATMUL(is_dense_data(), VERBOSE_NONTRIVIAL_STRIDE);
+    VDISPATCH_MATMUL(problem_dt_correct, VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_MATMUL(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+    VDISPATCH_MATMUL(attr()->has_default_values(
+                             primitive_attr_t::skip_mask_t::scales_runtime
+                                     | primitive_attr_t::skip_mask_t::post_ops
+                                     | primitive_attr_t::skip_mask_t::sum_dt,
+                             dst_type),
+            VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_MATMUL(attr()->post_ops_.check_sum_consistency(dst_type,
+                             /* is_int8 */ false),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_MATMUL(check_attr_scales(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+    VDISPATCH_MATMUL(check_attr_post_ops(), VERBOSE_UNSUPPORTED_POSTOP);
+    VDISPATCH_MATMUL(check_bias(), VERBOSE_UNSUPPORTED_BIAS_CFG);
+    VDISPATCH_MATMUL(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_MATMUL(gemm_based::check_gemm_compatible_formats(*this),
+            "Incompatible format");
+
+    bool po_format_ok = attr_.set_default_formats(dst_md(0)) == status::success;
+    VDISPATCH_MATMUL(po_format_ok, VERBOSE_UNSUPPORTED_TAG);
+
+    CHECK(configure_attributes());
+
+    nthr_ = dnnl_get_max_threads();
+    gemm_based::book_acc_scratchpad(*this, params_, sizeof(acc_data_t), nthr_);
+    auto scratchpad = scratchpad_registry().registrar();
+    book_precomputed_scales(scratchpad, attr()->scales_, N());
+
+    return status::success;
+}
+
+status_t gemm_f32_matmul_t::pd_t::configure_attributes() {
+    matmul_helper_t helper(src_md(), weights_md(), dst_md());
+
+    if (!has_runtime_dims_or_strides())
+        params_.use_single_gemm_call_optimization_
+                = helper.use_single_gemm_call_optimization(attr()->post_ops_);
 
     CHECK(params_.pp_attr_.copy_from(*attr()));
     params_.gemm_applies_output_scales_
@@ -126,8 +133,6 @@ status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
         params_.pp_attr_.scales_.reset(DNNL_ARG_SRC);
         params_.pp_attr_.scales_.reset(DNNL_ARG_WEIGHTS);
     }
-
-    if (!check_attr_post_ops()) return status::unimplemented;
 
     const auto &po = params_.pp_attr_.post_ops_;
     static constexpr int sum_idx = 0;
@@ -138,8 +143,6 @@ status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
             && po.entry_[sum_idx].sum.zero_point == 0
             && utils::one_of(po.entry_[sum_idx].sum.dt, dst_md()->data_type,
                     data_type::undef);
-
-    matmul_helper_t helper(src_md(), weights_md(), dst_md());
 
     // `C_is_abx` limitation comes from `extended_sgemm`.
     const bool C_is_abx = helper.ldc() >= helper.N()

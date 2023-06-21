@@ -45,7 +45,7 @@ struct gemm_f32_matmul_t : public primitive_t {
         int nthr_; // To not exceed the limit in execute used for set up.
 
     private:
-        status_t check_and_configure_attributes();
+        status_t configure_attributes();
         gemm_based::params_t params_;
     };
 
