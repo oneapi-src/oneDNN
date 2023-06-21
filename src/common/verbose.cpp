@@ -595,8 +595,15 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
                     for (int d = 0; d < md.ndims; ++d)
                         mask += md.dims[d] != 1 ? (1 << d) : 0;
                     ss << delim << eb.alg << ":" << md.data_type << ":" << mask;
-                    if (!memory_desc_wrapper(md).count_non_unit_dims(1))
-                        ss << ":" << md2fmt_tag_str(&md);
+                    const memory_desc_wrapper mdw(md);
+                    switch (mdw.format_kind()) {
+                        case format_kind::blocked:
+                            if (!mdw.count_non_unit_dims(1))
+                                ss << ":" << md2fmt_tag_str(&md);
+                            break;
+                        case format_kind::any: ss << ":any"; break;
+                        default: assert(!"unsupported format_kind");
+                    }
                 } break;
                 case primitive_kind::prelu: {
                     const auto &ep = e.prelu;
