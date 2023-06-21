@@ -258,6 +258,9 @@ protected:
     }
 
     void Test() {
+        // pooling specific types and values
+        using pd_t = pooling_forward::primitive_desc;
+
         ASSERT_TRUE(p.aprop_kind == prop_kind::forward_training
                 || p.aprop_kind == prop_kind::forward_inference);
         auto eng = get_test_engine();
@@ -307,11 +310,20 @@ protected:
         }
 
         memory p_src, p_dst;
-        auto pool_prim_desc = pooling_forward::primitive_desc(eng, p.aprop_kind,
-                p.aalgorithm, p_src_desc, p_dst_desc, strides, ker, dilation,
-                pad_l, pad_r);
-        // test construction from a C pd
-        pool_prim_desc = pooling_forward::primitive_desc(pool_prim_desc.get());
+        auto pool_prim_desc = pd_t(eng, p.aprop_kind, p.aalgorithm, p_src_desc,
+                p_dst_desc, strides, ker, dilation, pad_l, pad_r);
+        // test all pd ctors
+        allows_attr_t aa {false};
+        if (!(is_nvidia_gpu(eng) || is_amd_gpu(eng))) {
+            aa.po_eltwise = true;
+            aa.po_binary = true;
+        }
+        // XXX: NVidia and AMD GPU support is sparse, attributes are not
+        // supported consistently across all shapes
+        if (!is_nvidia_gpu(eng) && !is_amd_gpu(eng))
+            test_fwd_pd_constructors<pd_t>(pool_prim_desc, aa, p.aprop_kind,
+                    p.aalgorithm, p_src_desc, p_dst_desc, strides, ker,
+                    dilation, pad_l, pad_r);
         check_prim_desc(pool_prim_desc);
 
         if (p.src_format != memory::format_tag::any) {

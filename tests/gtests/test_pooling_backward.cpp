@@ -205,6 +205,10 @@ protected:
     }
 
     void Backward() {
+        // pooling specific types and values
+        using pd_t = pooling_backward::primitive_desc;
+        using hint_pd_t = pooling_forward::primitive_desc;
+
         auto diff_src = test::make_memory(*src_desc, eng);
         auto diff_dst = test::make_memory(*dst_desc, eng);
 
@@ -215,11 +219,13 @@ protected:
         check_zero_tail<data_t>(1, diff_dst);
         check_zero_tail<data_t>(1, diff_src);
 
-        auto pool_bwd_prim_desc = pooling_backward::primitive_desc(eng,
-                p.aalgorithm, *src_desc, *dst_desc, strides, ker, dilation,
-                pad_l, pad_r, pool_prim_desc);
-        pool_bwd_prim_desc = pooling_backward::primitive_desc(
-                pool_bwd_prim_desc.get()); // test construction from a C pd
+        auto pool_bwd_prim_desc = pd_t(eng, p.aalgorithm, *src_desc, *dst_desc,
+                strides, ker, dilation, pad_l, pad_r, pool_prim_desc);
+        // test all pd ctors
+        allows_attr_t aa {false}; // doesn't support anything
+        test_bwd_pd_constructors<pd_t, hint_pd_t>(pool_bwd_prim_desc,
+                pool_prim_desc, aa, p.aalgorithm, *src_desc, *dst_desc, strides,
+                ker, dilation, pad_l, pad_r);
         check_prim_desc(pool_bwd_prim_desc);
 
         pooling_backward(pool_bwd_prim_desc)
