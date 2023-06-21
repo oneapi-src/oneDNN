@@ -167,6 +167,9 @@ protected:
         sum_test_params p
                 = ::testing::TestWithParam<sum_test_params>::GetParam();
 
+        // sum specific types and values
+        using pd_t = sum::primitive_desc;
+
         const auto num_srcs = p.srcs_format.size();
 
         auto eng = get_test_engine();
@@ -184,17 +187,25 @@ protected:
         sum::primitive_desc sum_pd;
 
         if (p.is_output_omitted) {
-            ASSERT_NO_THROW(
-                    sum_pd = sum::primitive_desc(eng, p.scale, srcs_md));
+            ASSERT_NO_THROW(sum_pd = pd_t(eng, p.scale, srcs_md));
         } else {
             auto dst_desc = memory::desc(p.dims, dst_data_type, p.dst_format);
-            sum_pd = sum::primitive_desc(eng, dst_desc, p.scale, srcs_md);
+            sum_pd = pd_t(eng, dst_desc, p.scale, srcs_md);
 
             ASSERT_EQ(sum_pd.dst_desc().get_ndims(), dst_desc.get_ndims());
         }
         dst = test::make_memory(sum_pd.dst_desc(), eng);
-        // test construction from a C pd
-        sum_pd = sum::primitive_desc(sum_pd.get());
+
+        // test all pd ctors
+        auto aa = allows_attr_t {false};
+        if (p.is_output_omitted)
+            test_fwd_pd_constructors<pd_t>(sum_pd, aa, p.scale, srcs_md);
+        else {
+            auto dst_desc = memory::desc(p.dims, dst_data_type, p.dst_format);
+            test_fwd_pd_constructors<pd_t>(
+                    sum_pd, aa, dst_desc, p.scale, srcs_md);
+        }
+
         for (size_t i = 0; i < num_srcs; i++) {
             if (p.srcs_format[i] != memory::format_tag::any) {
                 ASSERT_TRUE(srcs_md[(int)i] == sum_pd.src_desc((int)i));
