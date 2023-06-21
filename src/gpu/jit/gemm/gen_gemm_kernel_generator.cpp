@@ -14088,21 +14088,18 @@ template <HW hw>
 void gemm_kernel_generator_t<hw>::gemmABPrefetchAddrSetup(
         const GEMMProblem &problem, const GEMMStrategy &strategy,
         GEMMState &state, bool doA, bool doB) {
-    auto &A_params = state.A_params;
-    auto &Ap_params = state.Ap_params;
-    auto &B_params = state.B_params;
-    auto &Bp_params = state.Bp_params;
-
     if (doA && strategy.cooperativePF && strategy.prefetchA) {
         Subregister offAp;
-        gemmCalcWorkshareAOffset(offAp, Ap_params.offR, Ap_params.offC,
-                problem.A, strategy.A_prefetch, state.ma_prefetch,
-                state.ka_prefetch, problem, strategy, state);
+        auto &A_offR = state.A_params.offR, &Ap_offR = state.Ap_params.offR;
+        auto &A_offC = state.A_params.offC, &Ap_offC = state.Ap_params.offC;
+        gemmCalcWorkshareAOffset(offAp, Ap_offR, Ap_offC, problem.A,
+                strategy.A_prefetch, state.ma_prefetch, state.ka_prefetch,
+                problem, strategy, state);
         if (strategy.A_prefetch.address2D) {
-            if (A_params.offR.isValid())
-                add(1, Ap_params.offR, Ap_params.offR, A_params.offR);
-            if (A_params.offC.isValid())
-                add(1, Ap_params.offC, Ap_params.offC, A_params.offC);
+            if (A_offR.isValid() && A_offR != Ap_offR)
+                add(1, Ap_offR, Ap_offR, A_offR);
+            if (A_offC.isValid() && A_offC != Ap_offC)
+                add(1, Ap_offC, Ap_offC, A_offC);
         } else {
             auto inEffAp = state.effAp;
             if (state.effA == state.effAp)
@@ -14114,14 +14111,16 @@ void gemm_kernel_generator_t<hw>::gemmABPrefetchAddrSetup(
 
     if (doB && strategy.cooperativePF && strategy.prefetchB) {
         Subregister offBp;
-        gemmCalcWorkshareBOffset(offBp, Bp_params.offR, Bp_params.offC,
-                problem.B, strategy.B_prefetch, state.kb_prefetch,
-                state.nb_prefetch, problem, strategy, state);
+        auto &B_offR = state.B_params.offR, &Bp_offR = state.Bp_params.offR;
+        auto &B_offC = state.B_params.offC, &Bp_offC = state.Bp_params.offC;
+        gemmCalcWorkshareBOffset(offBp, Bp_offR, Bp_offC, problem.B,
+                strategy.B_prefetch, state.kb_prefetch, state.nb_prefetch,
+                problem, strategy, state);
         if (strategy.B_prefetch.address2D) {
-            if (B_params.offR.isValid())
-                add(1, Bp_params.offR, Bp_params.offR, B_params.offR);
-            if (B_params.offC.isValid())
-                add(1, Bp_params.offC, Bp_params.offC, B_params.offC);
+            if (B_offR.isValid() && B_offR != Bp_offR)
+                add(1, Bp_offR, Bp_offR, B_offR);
+            if (B_offC.isValid() && B_offC != Bp_offC)
+                add(1, Bp_offC, Bp_offC, B_offC);
         } else {
             auto inEffBp = state.effBp;
             if (state.effB == state.effBp)
@@ -19410,6 +19409,7 @@ CommonDriverInfo gemm_kernel_generator_t<hw>::driverInfo(
         info.flags |= FlagAltFusedBeta;
     if (useAutoAtomic(hw, problem, strategy, true))
         info.flags |= FlagAutoAtomic;
+    if (strategy.shrinkWGK) info.flags |= FlagShrinkWGK;
     info.slm = int(gemmSLMSize(problem, strategy));
     info.perKSLM = int(gemmPerKSLMSize(problem, strategy));
     info.alignment[0] = problem.A.alignment;

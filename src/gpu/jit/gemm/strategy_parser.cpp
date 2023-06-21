@@ -333,6 +333,8 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
                 strategy.CO.base = AddressBase::createA64(true);
         } else if (mod == "kr")
             strategy.kParallelLocal = true;
+        else if (mod == "akr")
+            strategy.kParallelLocal = strategy.shrinkWGK = true;
         else if (mod == "fb")
             strategy.fuseBeta = true;
         else if (mod == "fp")

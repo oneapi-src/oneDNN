@@ -73,6 +73,8 @@ enum DriverInfoFlags : uint32_t {
     = 0x80, // GEMM kernel uses alternate fused beta scaling + atomics logic.
     FlagAutoAtomic
     = 0x100, // GEMM kernel may use atomic C accesses automatically for beta = 1.
+    FlagShrinkWGK
+    = 0x200, // With local k-parallelization, automatically shrink wgK to fit dispatch to GPU.
 };
 
 // Driver information, shared by all kernel types.
@@ -137,6 +139,7 @@ struct CommonDriverInfo {
     bool needsTempC() const { return flags & FlagTempC; }
     bool altFusedBeta() const { return flags & FlagAltFusedBeta; }
     bool mayUseAutoAtomic() const { return flags & FlagAutoAtomic; }
+    bool shrinkWGK() const { return flags & FlagShrinkWGK; }
 
     int wgTile(LoopType l) const { return unroll[l] * wg[l]; }
     int kPadding() const {

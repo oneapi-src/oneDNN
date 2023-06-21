@@ -1061,6 +1061,8 @@ struct GEMMStrategyPOD : public CommonStrategy {
             = false; // If true, generate k-parallelized kernel using global memory reduction.
     bool kParallelLocal
             = false; // If true, generate k-parallelized kernel using local memory reduction.
+    bool shrinkWGK
+            = false; //   Shrink wgK automatically to try to fit dispatch in 1 wave?
     bool kParallelVariable
             = false; // If true, generate kernel that uses variable k-parallelization for load balancing.
     bool fuseBeta
@@ -1069,7 +1071,6 @@ struct GEMMStrategyPOD : public CommonStrategy {
             = false; //   Fuse post-operations into kernel? (kParallel/kParallelVariable, requires linear ordering)
     bool altFusedBeta
             = false; //   Enable alternate beta fusion implementation? (requires sequential dispatch)
-    uint8_t pad7 = {};
     int kPadding
             = 0; //   Pad k dimension when load balancing (kParallelVariable)
     bool doubleWA
