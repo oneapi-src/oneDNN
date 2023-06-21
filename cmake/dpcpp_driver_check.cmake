@@ -32,7 +32,7 @@ include(CheckCXXSourceCompiles)
 function(CHECK_COMPILER_DRIVER)
     # Check if the CXX compiler supports `-fsycl` flag.
     if(NOT WIN32)
-    CHECK_CXX_COMPILER_FLAG(-fsycl SYCL_FLAG_SUPPORTED)
+        CHECK_CXX_COMPILER_FLAG(-fsycl SYCL_FLAG_SUPPORTED)
         if(NOT SYCL_FLAG_SUPPORTED)
             message(FATAL_ERROR "${CMAKE_CXX_COMPILER_ID} doesn't support -fsycl flag.")
         endif()
