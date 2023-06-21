@@ -443,15 +443,7 @@ struct rnn_conf_t {
     data_type_t output_dt;
     data_type_t diff_dt;
 
-    int n_layer;
-    int n_dir;
-    int n_iter;
-    int n_iter_scratch_gates;
-    int n_gates;
     int n_bias;
-    int n_states;
-    int n_weights_input;
-    int n_weights_state;
     int arch_ld;
     int src_layer_ndims;
     int src_iter_ndims;

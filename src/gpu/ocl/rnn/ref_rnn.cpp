@@ -100,15 +100,7 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
     conf.dst_dt = rnn.dst_data_type;
 
     conf.is_fwd = rnn.is_fwd;
-    conf.n_layer = rnn.n_layer;
-    conf.n_dir = rnn.n_dir;
-    conf.n_iter = rnn.n_iter;
-    conf.n_iter_scratch_gates = rnn.n_iter_scratch_gates;
-    conf.n_gates = rnn.n_gates;
     conf.n_bias = rnn.n_bias;
-    conf.n_states = rnn.n_states;
-    conf.n_weights_input = weights_layer_d.dims()[2];
-    conf.n_weights_state = weights_iter_d.dims()[2];
 
     conf.with_bias = rnn_pd->with_bias();
     conf.with_src_iter = rnn_pd->with_src_iter();
@@ -826,10 +818,12 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
                                     ? create_nested_primitive(gemm_iter_bwd_2_,
                                             pd()->gemm_iter_bwd_2_pd_, engine)
                                     : status::success,
-                            pd()->rnn_conf.is_vanilla_gru ? create_nested_primitive(
-                                    gemm_diff_wei_iter_2_,
-                                    pd()->gemm_diff_wei_iter_2_pd_, engine)
-                                                      : status::success);
+                            pd()->rnn_conf.is_vanilla_gru
+                                    ? create_nested_primitive(
+                                            gemm_diff_wei_iter_2_,
+                                            pd()->gemm_diff_wei_iter_2_pd_,
+                                            engine)
+                                    : status::success);
             break;
         default: assert(!"unknown prop_kind"); return status::invalid_arguments;
     }
@@ -1465,12 +1459,12 @@ status_t _ref_rnn_common_t<aprop>::ws_print(const exec_ctx_t &ctx,
     arg_list.append(workspace_.grid_comp());
 
     arg_list.append(pd()->rnn_conf.mb);
-    arg_list.append(pd()->conf.n_layer);
-    arg_list.append(pd()->conf.n_dir);
-    arg_list.append(pd()->conf.n_iter);
-    arg_list.append(pd()->conf.n_bias);
+    arg_list.append(pd()->rnn_conf.n_layer);
+    arg_list.append(pd()->rnn_conf.n_dir);
+    arg_list.append(pd()->rnn_conf.n_iter);
+    arg_list.append(pd()->rnn_conf.n_bias);
     arg_list.append(pd()->rnn_conf.dhc);
-    arg_list.append(pd()->conf.n_gates);
+    arg_list.append(pd()->rnn_conf.n_gates);
     arg_list.append(pd()->conf.states_ws_ld);
     arg_list.append(pd()->conf.gates_ws_ld);
     arg_list.append(pd()->rnn_conf.wic);
