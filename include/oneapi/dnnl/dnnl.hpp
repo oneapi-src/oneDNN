@@ -4876,10 +4876,15 @@ struct sum : public primitive {
         /// @param srcs Vector of source memory descriptors.
         /// @param attr Primitive attributes to use. Attributes are optional
         ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
         primitive_desc(const engine &aengine, const memory::desc &dst,
                 const std::vector<float> &scales,
                 const std::vector<memory::desc> &srcs,
-                const primitive_attr &attr = default_attr()) {
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false) {
             validate_container_size(scales,
                     "counts of scales and sources are not equal",
                     (int)srcs.size(), (int)srcs.size());
@@ -4887,13 +4892,14 @@ struct sum : public primitive {
             auto c_api_srcs = convert_to_c(srcs);
 
             dnnl_primitive_desc_t result;
-            error::wrap_c_api(
-                    dnnl_sum_primitive_desc_create(&result, aengine.get(),
-                            dst.get(), (int)c_api_srcs.size(), scales.data(),
-                            c_api_srcs.data(), attr.get()),
-                    "could not create a primitive descriptor for a sum "
-                    "primitive");
-            reset(result);
+            dnnl_status_t status = dnnl_sum_primitive_desc_create(&result,
+                    aengine.get(), dst.get(), (int)c_api_srcs.size(),
+                    scales.data(), c_api_srcs.data(), attr.get());
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a sum "
+                        "primitive");
+            reset(status == dnnl_success ? result : dnnl_primitive_desc_t());
         }
 
         /// Constructs a primitive descriptor for a sum primitive.
@@ -4907,22 +4913,28 @@ struct sum : public primitive {
         /// @param srcs Vector of source memory descriptors.
         /// @param attr Primitive attributes to use. Attributes are optional
         ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
         primitive_desc(const engine &aengine, const std::vector<float> &scales,
                 const std::vector<memory::desc> &srcs,
-                const primitive_attr &attr = default_attr()) {
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false) {
             validate_container_size(scales,
                     "counts of scales and sources are not equal",
                     (int)srcs.size(), (int)srcs.size());
 
             auto c_api_srcs = convert_to_c(srcs);
             dnnl_primitive_desc_t result;
-            error::wrap_c_api(
-                    dnnl_sum_primitive_desc_create(&result, aengine.get(),
-                            nullptr, (int)c_api_srcs.size(), scales.data(),
-                            c_api_srcs.data(), attr.get()),
-                    "could not create a primitive descriptor for a sum "
-                    "primitive");
-            reset(result);
+            dnnl_status_t status = dnnl_sum_primitive_desc_create(&result,
+                    aengine.get(), nullptr, (int)c_api_srcs.size(),
+                    scales.data(), c_api_srcs.data(), attr.get());
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a sum "
+                        "primitive");
+            reset(status == dnnl_success ? result : dnnl_primitive_desc_t());
         }
 
         /// Constructs a primitive descriptor for sum primitive from a C API
