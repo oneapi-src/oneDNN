@@ -222,6 +222,9 @@ protected:
         matmul_test_params_t p
                 = ::testing::TestWithParam<matmul_test_params_t>::GetParam();
 
+        // matmul specific types and values
+        using pd_t = matmul::primitive_desc;
+
         auto eng = get_test_engine();
         auto strm = make_stream(eng);
 
@@ -254,8 +257,20 @@ protected:
         create_attr(p, attr, zero_points_src_m, zero_points_weights_m,
                 zero_points_dst_m, eng);
 
-        auto matmul_pd = matmul::primitive_desc(
-                eng, src_md, weights_md, bia_md, dst_md, attr);
+        auto matmul_pd = pd_t(eng, src_md, weights_md, bia_md, dst_md, attr);
+
+        auto aa = allows_attr_t {false};
+        aa.po_binary = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+        aa.po_eltwise = true;
+        aa.po_prelu = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+        aa.po_sum = true;
+        aa.scales = true;
+        bool is_int8 = impl::utils::one_of(src_md.get_data_type(),
+                memory::data_type::s8, memory::data_type::u8);
+        if (is_int8) aa.zp = true;
+
+        test_fwd_pd_constructors<pd_t>(
+                matmul_pd, aa, src_md, weights_md, bia_md, dst_md);
 
         ASSERT_TRUE(matmul_pd.query_md(query::exec_arg_md, DNNL_ARG_SRC)
                 == matmul_pd.src_desc());
