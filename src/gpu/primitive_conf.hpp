@@ -444,7 +444,6 @@ struct rnn_conf_t {
     data_type_t diff_dt;
 
     int n_bias;
-    int arch_ld;
     int src_layer_ndims;
     int src_iter_ndims;
     int src_iter_c_ndims;
@@ -463,7 +462,6 @@ struct rnn_conf_t {
     int diff_dst_iter_ndims;
     int diff_dst_iter_c_ndims;
     int diff_bias_ndims;
-    int states_ws_ld, gates_ws_ld, scratch_diff_states_ld, scratch_gates_ld;
 
     int wei_qparam_mask;
 

@@ -111,11 +111,6 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
     conf.is_int8 = rnn.is_int8;
     conf.is_training = rnn.is_training;
 
-    conf.states_ws_ld = rnn.states_ws_ld;
-    conf.scratch_diff_states_ld = rnn.scratch_diff_states_ld;
-    conf.gates_ws_ld = rnn.gates_ws_ld;
-    conf.scratch_gates_ld = rnn.scratch_gates_ld;
-
     conf.src_layer_ndims = src_layer_d.ndims();
     conf.src_iter_ndims = src_iter_d.ndims();
     if (conf.with_src_iter_c) conf.src_iter_c_ndims = src_iter_c_d.ndims();
@@ -1465,8 +1460,8 @@ status_t _ref_rnn_common_t<aprop>::ws_print(const exec_ctx_t &ctx,
     arg_list.append(pd()->rnn_conf.n_bias);
     arg_list.append(pd()->rnn_conf.dhc);
     arg_list.append(pd()->rnn_conf.n_gates);
-    arg_list.append(pd()->conf.states_ws_ld);
-    arg_list.append(pd()->conf.gates_ws_ld);
+    arg_list.append(pd()->rnn_conf.states_ws_ld);
+    arg_list.append(pd()->rnn_conf.gates_ws_ld);
     arg_list.append(pd()->rnn_conf.wic);
 
     auto nd_range = compute::nd_range_t({1});
