@@ -428,8 +428,6 @@ struct rnn_conf_t {
     bool with_src_iter_c;
     bool with_dst_iter;
     bool with_dst_iter_c;
-    bool is_lbr;
-    bool is_vanilla_gru;
     bool is_fwd;
     bool copy_bias;
     bool is_int8;
@@ -455,7 +453,6 @@ struct rnn_conf_t {
     int n_weights_input;
     int n_weights_state;
     int arch_ld;
-    int n_parts_weights_iter, n_parts_weights_layer;
     int src_layer_ndims;
     int src_iter_ndims;
     int src_iter_c_ndims;

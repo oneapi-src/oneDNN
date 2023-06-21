@@ -110,16 +110,11 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
     conf.n_weights_input = weights_layer_d.dims()[2];
     conf.n_weights_state = weights_iter_d.dims()[2];
 
-    conf.n_parts_weights_iter = rnn.n_parts_weights_iter;
-    conf.n_parts_weights_layer = rnn.n_parts_weights_layer;
-
     conf.with_bias = rnn_pd->with_bias();
     conf.with_src_iter = rnn_pd->with_src_iter();
     conf.with_src_iter_c = rnn_pd->with_src_iter_c();
     conf.with_dst_iter = rnn_pd->with_dst_iter();
     conf.with_dst_iter_c = rnn_pd->with_dst_iter_c();
-    conf.is_lbr = rnn.is_lbr;
-    conf.is_vanilla_gru = rnn.is_vanilla_gru;
     conf.copy_bias = rnn.copy_bias;
     conf.is_int8 = rnn.is_int8;
     conf.is_training = rnn.is_training;
@@ -199,7 +194,6 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("WITH_SRC_ITER_C", conf.with_src_iter_c);
     kernel_ctx.define_int("WITH_DST_ITER", conf.with_dst_iter);
     kernel_ctx.define_int("WITH_DST_ITER_C", conf.with_dst_iter_c);
-    kernel_ctx.define_int("IS_LBR", conf.is_lbr);
 
     kernel_ctx.define_int(
             "ELEMWISE_BWD_BATCH_BLOCK", conf.elemwise_bwd_batch_block);
@@ -226,9 +220,6 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("CONCAT", dnnl_bidirectional_concat);
     kernel_ctx.define_int("SUM", dnnl_bidirectional_sum);
     kernel_ctx.define_int("DIRECTION_KIND", conf.direction_kind);
-
-    kernel_ctx.define_int("N_PARTS_WEI_ST", conf.n_parts_weights_iter);
-    kernel_ctx.define_int("N_PARTS_WEI_I", conf.n_parts_weights_layer);
 
     kernel_ctx.define_int("SUBGROUP_SIZE", subgroup_size);
 
@@ -815,7 +806,7 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
                                     pd()->gemm_layer_fwd_pd_, engine),
                             create_nested_primitive(gemm_iter_fwd_,
                                     pd()->gemm_iter_fwd_pd_, engine),
-                            pd()->conf.is_vanilla_gru
+                            pd()->rnn_conf.is_vanilla_gru
                                     ? create_nested_primitive(gemm_iter_fwd_2_,
                                             pd()->gemm_iter_fwd_2_pd_, engine)
                                     : status::success);
@@ -831,11 +822,11 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
                                     pd()->gemm_diff_wei_layer_pd_, engine),
                             create_nested_primitive(gemm_diff_wei_iter_,
                                     pd()->gemm_diff_wei_iter_pd_, engine),
-                            pd()->conf.is_vanilla_gru
+                            pd()->rnn_conf.is_vanilla_gru
                                     ? create_nested_primitive(gemm_iter_bwd_2_,
                                             pd()->gemm_iter_bwd_2_pd_, engine)
                                     : status::success,
-                            pd()->conf.is_vanilla_gru ? create_nested_primitive(
+                            pd()->rnn_conf.is_vanilla_gru ? create_nested_primitive(
                                     gemm_diff_wei_iter_2_,
                                     pd()->gemm_diff_wei_iter_2_pd_, engine)
                                                       : status::success);

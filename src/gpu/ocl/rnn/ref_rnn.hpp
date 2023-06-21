@@ -233,7 +233,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
                             gemm_iter_fwd_pd_->scratchpad_registry());
                     scratchpad.book(key_gemm_layer_fwd,
                             gemm_layer_fwd_pd_->scratchpad_registry());
-                    if (conf.is_vanilla_gru)
+                    if (rnn_conf.is_vanilla_gru)
                         scratchpad.book(key_gemm_iter_fwd_2,
                                 gemm_iter_fwd_2_pd_->scratchpad_registry());
                     break;
@@ -246,7 +246,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
                             gemm_diff_wei_layer_pd_->scratchpad_registry());
                     scratchpad.book(key_gemm_diff_wei_iter,
                             gemm_diff_wei_iter_pd_->scratchpad_registry());
-                    if (conf.is_vanilla_gru) {
+                    if (rnn_conf.is_vanilla_gru) {
                         scratchpad.book(key_gemm_iter_bwd_2,
                                 gemm_iter_bwd_2_pd_->scratchpad_registry());
                         scratchpad.book(key_gemm_diff_wei_iter_2,
