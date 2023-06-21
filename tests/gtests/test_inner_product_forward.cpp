@@ -132,6 +132,10 @@ protected:
     void Test() {
         auto p = ::testing::TestWithParam<inprod_test_params_t>::GetParam();
         test_inner_product_descr_t ipd = p.test_ipd;
+
+        // ip specific types and values
+        using pd_t = inner_product_forward::primitive_desc;
+
         bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
         if (p.ndims == 5) has_spatial = has_spatial || ipd.kd > 1;
         bool with_bias = p.bias_format != memory::format_tag::undef;
@@ -165,13 +169,19 @@ protected:
         auto ip_dst_desc = create_md({ipd.mb, ipd.oc}, data_type, p.dst_format);
 
         auto ip_primitive_desc = with_bias
-                ? inner_product_forward::primitive_desc(eng, p.aprop_kind,
-                        ip_src_desc, ip_weights_desc, ip_bias_desc, ip_dst_desc)
-                : inner_product_forward::primitive_desc(eng, p.aprop_kind,
-                        ip_src_desc, ip_weights_desc, ip_dst_desc);
+                ? pd_t(eng, p.aprop_kind, ip_src_desc, ip_weights_desc,
+                        ip_bias_desc, ip_dst_desc)
+                : pd_t(eng, p.aprop_kind, ip_src_desc, ip_weights_desc,
+                        ip_dst_desc);
 
-        ip_primitive_desc = inner_product_forward::primitive_desc(
-                ip_primitive_desc.get()); // test construction from a C pd
+        auto aa = allows_attr_t {false};
+        aa.po_binary = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+        aa.po_eltwise = true;
+        aa.po_prelu = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+        aa.po_sum = true;
+
+        test_fwd_pd_constructors<pd_t>(ip_primitive_desc, aa, p.aprop_kind,
+                ip_src_desc, ip_weights_desc, ip_bias_desc, ip_dst_desc);
 
         auto ip_src = test::make_memory(ip_primitive_desc.src_desc(), eng);
         auto ip_weights

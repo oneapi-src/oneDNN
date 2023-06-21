@@ -171,6 +171,10 @@ protected:
         auto p = ::testing::TestWithParam<inprod_test_params_t>::GetParam();
         test_inner_product_descr_t ipd = p.test_ipd;
 
+        // ip specific types and values
+        using pd_t = inner_product_backward_weights::primitive_desc;
+        using hint_pd_t = inner_product_forward::primitive_desc;
+
         bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
         if (p.ndims == 5) has_spatial = has_spatial || ipd.kd > 1;
 
@@ -220,8 +224,10 @@ protected:
                         ip_src_desc, ip_diff_weights_desc, ip_diff_dst_desc,
                         ip_fwd_pdesc);
 
-        ip_primitive_desc = inner_product_backward_weights::primitive_desc(
-                ip_primitive_desc.get()); // test construction from a C pd
+        allows_attr_t aa {false}; // doesn't support anything
+        test_bwd_pd_constructors<pd_t, hint_pd_t>(ip_primitive_desc,
+                ip_fwd_pdesc, aa, ip_src_desc, ip_diff_weights_desc,
+                ip_diff_dst_desc);
 
         auto ip_src = test::make_memory(ip_primitive_desc.src_desc(), eng);
         auto ip_diff_dst

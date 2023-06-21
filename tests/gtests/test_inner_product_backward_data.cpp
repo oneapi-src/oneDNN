@@ -135,6 +135,11 @@ protected:
     void Test() {
         auto p = ::testing::TestWithParam<inprod_test_params_t>::GetParam();
         test_inner_product_descr_t ipd = p.test_ipd;
+
+        // ip specific types and values
+        using pd_t = inner_product_backward_data::primitive_desc;
+        using hint_pd_t = inner_product_forward::primitive_desc;
+
         bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
         if (p.ndims == 5) has_spatial = has_spatial || ipd.kd > 1;
 
@@ -166,17 +171,17 @@ protected:
                 = create_md({ipd.mb, ipd.oc}, data_type, p.diff_dst_format);
 
         // Create inner product forward (hint for backward)
-        auto ip_fwd_pdesc
-                = inner_product_forward::primitive_desc(eng, prop_kind::forward,
-                        ip_diff_src_desc, ip_weights_desc, ip_diff_dst_desc);
+        auto ip_fwd_pdesc = hint_pd_t(eng, prop_kind::forward, ip_diff_src_desc,
+                ip_weights_desc, ip_diff_dst_desc);
 
         // Create inner product backward
-        auto ip_primitive_desc = inner_product_backward_data::primitive_desc(
-                eng, ip_diff_src_desc, ip_weights_desc, ip_diff_dst_desc,
-                ip_fwd_pdesc);
+        auto ip_primitive_desc = pd_t(eng, ip_diff_src_desc, ip_weights_desc,
+                ip_diff_dst_desc, ip_fwd_pdesc);
 
-        ip_primitive_desc = inner_product_backward_data::primitive_desc(
-                ip_primitive_desc.get()); // test construction from a C pd
+        allows_attr_t aa {false}; // doesn't support anything
+        test_bwd_pd_constructors<pd_t, hint_pd_t>(ip_primitive_desc,
+                ip_fwd_pdesc, aa, ip_diff_src_desc, ip_weights_desc,
+                ip_diff_dst_desc);
 
         auto ip_diff_src
                 = test::make_memory(ip_primitive_desc.diff_src_desc(), eng);
