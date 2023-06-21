@@ -4928,7 +4928,7 @@ struct sum : public primitive {
         /// Constructs a primitive descriptor for sum primitive from a C API
         /// primitive descriptor which must have a matching kind.
         ///
-        /// @param pd C API primitive descriptor for reorder primitive.
+        /// @param pd C API primitive descriptor for sum primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : primitive_desc_base(pd, dnnl::primitive::kind::sum) {}
 
