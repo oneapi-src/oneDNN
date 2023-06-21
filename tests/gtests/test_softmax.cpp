@@ -150,7 +150,14 @@ protected:
             aa.po_eltwise = true;
             aa.po_binary = true;
         }
-        if (!(is_nvidia_gpu(eng) || is_amd_gpu(eng))) { aa.scales = true; }
+
+        bool is_int8 = impl::utils::one_of(p.src_dt, memory::data_type::s8,
+                               memory::data_type::u8)
+                || impl::utils::one_of(
+                        p.dst_dt, memory::data_type::s8, memory::data_type::u8);
+
+        if (is_int8 && !(is_nvidia_gpu(eng) || is_amd_gpu(eng)))
+            aa.scales = true;
 
         // To validate backward on valid tag::any settings reuse dst tag.
         const bool src_bwd_any = !is_fwd(p.aprop_kind) && p.src_tag == tag::any;
