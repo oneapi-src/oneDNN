@@ -131,7 +131,7 @@ struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T(gemm_pd_->name(), gemm_inner_product_bwd_data_t);
 
-        constexpr bool has_type(data_type_t v) const {
+        bool has_type(data_type_t v) const {
             return utils::one_of(v, weights_md()->data_type,
                     diff_src_md()->data_type, diff_dst_md()->data_type);
         }
