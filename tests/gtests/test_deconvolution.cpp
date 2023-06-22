@@ -272,6 +272,10 @@ protected:
         auto aprop_kind = prop_kind::forward;
         deconvolution_test_params_t p = ::testing::TestWithParam<
                 deconvolution_test_params_t>::GetParam();
+
+        // deconvolution specific types and values
+        using pd_t = deconvolution_forward::primitive_desc;
+
         auto conv_src = test_memory(*con_src_desc, eng);
         auto conv_dst = src;
         test_convolution_sizes_t dd = p.sizes;
@@ -286,16 +290,34 @@ protected:
         auto weights_tr = test::make_memory(*con_weights_desc, eng);
         transpose_wei<data_t>(dd, weights->get(), weights_tr);
         auto deconv_primitive_desc = with_bias
-                ? deconvolution_forward::primitive_desc(eng, aprop_kind,
-                        algorithm::deconvolution_direct, *dec_src_desc,
-                        *dec_weights_desc, *dec_bias_desc, *dec_dst_desc,
-                        strides, padL, padR)
-                : deconvolution_forward::primitive_desc(eng, aprop_kind,
-                        algorithm::deconvolution_direct, *dec_src_desc,
-                        *dec_weights_desc, *dec_dst_desc, strides, padL, padR);
+                ? pd_t(eng, aprop_kind, algorithm::deconvolution_direct,
+                        *dec_src_desc, *dec_weights_desc, *dec_bias_desc,
+                        *dec_dst_desc, strides, padL, padR)
+                : pd_t(eng, aprop_kind, algorithm::deconvolution_direct,
+                        *dec_src_desc, *dec_weights_desc, *dec_dst_desc,
+                        strides, padL, padR);
 
-        deconv_primitive_desc = deconvolution_forward::primitive_desc(
-                deconv_primitive_desc.get()); // test construction from a C pd
+        auto aa = allows_attr_t {false};
+        aa.po_binary = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+        aa.po_eltwise = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+        aa.po_prelu = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+        aa.po_sum = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+
+        bool is_int8 = impl::utils::one_of(dec_src_desc->get_data_type(),
+                memory::data_type::s8, memory::data_type::u8);
+        if (is_int8) {
+            aa.scales = true;
+            aa.zp = true;
+        }
+        if (with_bias)
+            test_fwd_pd_constructors<pd_t>(deconv_primitive_desc, aa,
+                    aprop_kind, algorithm::deconvolution_direct, *dec_src_desc,
+                    *dec_weights_desc, *dec_bias_desc, *dec_dst_desc, strides,
+                    padL, padR);
+        else
+            test_fwd_pd_constructors<pd_t>(deconv_primitive_desc, aa,
+                    aprop_kind, algorithm::deconvolution_direct, *dec_src_desc,
+                    *dec_weights_desc, *dec_dst_desc, strides, padL, padR);
 
         ASSERT_TRUE(
                 deconv_primitive_desc.query_md(query::exec_arg_md, DNNL_ARG_SRC)
@@ -352,6 +374,10 @@ protected:
     void BackwardData() {
         auto p = ::testing::TestWithParam<
                 deconvolution_test_params_t>::GetParam();
+        // deconv specific types and values
+        using pd_t = deconvolution_backward_data::primitive_desc;
+        using hint_pd_t = deconvolution_forward::primitive_desc;
+
         auto conv_src = dst;
         auto conv_dst = test_memory(*con_dst_desc, eng);
         test_convolution_sizes_t dd = p.sizes;
@@ -363,20 +389,20 @@ protected:
         auto weights_tr = test::make_memory(*con_weights_desc, eng);
         transpose_wei<data_t>(dd, weights->get(), weights_tr);
 
-        auto deconv_primitive_desc = deconvolution_forward::primitive_desc(eng,
-                prop_kind::forward_training, algorithm::deconvolution_direct,
-                *dec_src_desc, *dec_weights_desc, *dec_dst_desc, strides, padL,
-                padR);
+        auto deconv_primitive_desc = hint_pd_t(eng, prop_kind::forward_training,
+                algorithm::deconvolution_direct, *dec_src_desc,
+                *dec_weights_desc, *dec_dst_desc, strides, padL, padR);
 
         auto deconv_bwd_data_primitive_desc
-                = deconvolution_backward_data::primitive_desc(eng,
-                        algorithm::deconvolution_direct, *dec_src_desc,
+                = pd_t(eng, algorithm::deconvolution_direct, *dec_src_desc,
                         *dec_weights_desc, *dec_dst_desc, strides, padL, padR,
                         deconv_primitive_desc);
-        deconv_bwd_data_primitive_desc
-                = deconvolution_backward_data::primitive_desc(
-                        deconv_bwd_data_primitive_desc
-                                .get()); // test construction from a C pd
+
+        auto aa = allows_attr_t {false};
+        test_bwd_pd_constructors<pd_t, hint_pd_t>(
+                deconv_bwd_data_primitive_desc, deconv_primitive_desc, aa,
+                algorithm::deconvolution_direct, *dec_src_desc,
+                *dec_weights_desc, *dec_dst_desc, strides, padL, padR);
 
         ASSERT_TRUE(deconv_bwd_data_primitive_desc.query_md(
                             query::exec_arg_md, DNNL_ARG_DIFF_SRC)
@@ -421,6 +447,11 @@ protected:
     void BackwardWeights() {
         auto p = ::testing::TestWithParam<
                 deconvolution_test_params_t>::GetParam();
+
+        // deconv specific types and values
+        using pd_t = deconvolution_backward_weights::primitive_desc;
+        using hint_pd_t = deconvolution_forward::primitive_desc;
+
         auto conv_src = dst;
         auto conv_dst = src;
         auto conv_weights = test::make_memory(*con_weights_desc, eng);
@@ -430,16 +461,22 @@ protected:
 
         fill_data<data_t>(dst->get_size() / sizeof(data_t), dst->get());
 
-        auto deconv_primitive_desc = deconvolution_forward::primitive_desc(eng,
-                prop_kind::forward_training, algorithm::deconvolution_direct,
-                *dec_src_desc, *dec_weights_desc, *dec_bias_desc, *dec_dst_desc,
+        auto deconv_primitive_desc = hint_pd_t(eng, prop_kind::forward_training,
+                algorithm::deconvolution_direct, *dec_src_desc,
+                *dec_weights_desc, *dec_bias_desc, *dec_dst_desc,
                 {dd.strh, dd.strw}, {dd.padh, dd.padw}, padR);
 
         auto deconv_bwd_weights_primitive_desc
-                = deconvolution_backward_weights::primitive_desc(eng,
-                        algorithm::deconvolution_direct, *dec_src_desc,
+                = pd_t(eng, algorithm::deconvolution_direct, *dec_src_desc,
                         *dec_weights_desc, *dec_bias_desc, *dec_dst_desc,
                         strides, padL, padR, deconv_primitive_desc);
+
+        auto aa = allows_attr_t {false};
+        test_bwd_pd_constructors<pd_t, hint_pd_t>(
+                deconv_bwd_weights_primitive_desc, deconv_primitive_desc, aa,
+                algorithm::deconvolution_direct, *dec_src_desc,
+                *dec_weights_desc, *dec_bias_desc, *dec_dst_desc, strides, padL,
+                padR);
 
         ASSERT_TRUE(deconv_bwd_weights_primitive_desc.query_md(
                             query::exec_arg_md, DNNL_ARG_SRC)
@@ -476,8 +513,7 @@ protected:
                 padR);
 
         deconv_bwd_weights_primitive_desc
-                = deconvolution_backward_weights::primitive_desc(
-                        deconv_bwd_weights_primitive_desc
+                = pd_t(deconv_bwd_weights_primitive_desc
                                 .get()); // test construction from a C pd
 
         auto conv_bwd_weights_primitive_desc
