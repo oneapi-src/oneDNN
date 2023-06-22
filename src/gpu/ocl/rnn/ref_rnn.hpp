@@ -58,10 +58,10 @@ enum gemm_kind_t {
 
 struct workspace_t {
     using mst = memory_storage_t;
-    workspace_t(const mst &ws, const rnn_conf_t &rnn,
+    workspace_t(const mst &ws, const rnn_utils::ocl_conf_t &ocl_conf,
             const rnn_utils::conf_t &conf, const rnn_offsets_t &off)
         : ws_(ws)
-        , rnn_(rnn)
+        , ocl_conf_(ocl_conf)
         , conf_(conf)
         , gates_(conf.ws_gates_size > 0 ? ws.get_sub_storage(
                          conf.ws_gates_offset, conf.ws_gates_size)
@@ -105,7 +105,7 @@ struct workspace_t {
     std::unique_ptr<mst> states(int layer, int dir, int time) const {
         if (!states_) return nullptr;
         auto off_ = calc_off_ws_state(layer, dir, time, 0, 0)
-                * types::data_type_size(rnn_.src_dt);
+                * types::data_type_size(ocl_conf_.src_dt);
         return states_->get_sub_storage(off_, conf_.ws_states_cell_size);
     }
 
@@ -140,7 +140,7 @@ struct workspace_t {
 
 private:
     const mst &ws_;
-    const rnn_conf_t &rnn_;
+    const rnn_utils::ocl_conf_t &ocl_conf_;
     const rnn_utils::conf_t &conf_;
     std::unique_ptr<mst> gates_;
     std::unique_ptr<mst> states_;
@@ -190,7 +190,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
 
         status_t set_default_params();
 
-        rnn_conf_t conf;
+        rnn_utils::ocl_conf_t ocl_conf;
         rnn_offsets_t off;
         rnn_utils::conf_t rnn_conf;
         data_type_t acc_data_t = data_type::undef;
@@ -278,7 +278,7 @@ private:
 
     compute::nd_range_t get_nd_range(std::vector<int> gws) const {
         // Try to schedule one local thread per eu
-        int subgroup_size = pd()->conf.subgroup_size;
+        int subgroup_size = pd()->ocl_conf.subgroup_size;
         int lws_max = pd()->max_eus_per_wg * subgroup_size;
         std::vector<int> lws;
         lws.reserve(gws.size());

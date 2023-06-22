@@ -143,6 +143,82 @@ enum ws_part_t {
     bias
 };
 
+struct ocl_conf_t {
+    int threads_per_eu;
+    int subgroup_size;
+    int cell_kind;
+    int activation_kind;
+    int direction_kind;
+    bool with_bias;
+    bool with_src_iter;
+    bool with_src_iter_c;
+    bool with_dst_iter;
+    bool with_dst_iter_c;
+    bool is_fwd;
+    bool copy_bias;
+    bool is_int8;
+    bool is_testmode;
+    bool is_training;
+    data_type_t src_dt;
+    data_type_t wei_dt;
+    data_type_t bia_dt;
+    data_type_t dst_dt;
+    data_type_t acc_dt;
+    data_type_t aux_dt;
+    data_type_t input_dt;
+    data_type_t output_dt;
+    data_type_t diff_dt;
+
+    int n_bias;
+    int src_layer_ndims;
+    int src_iter_ndims;
+    int src_iter_c_ndims;
+    int weights_layer_ndims;
+    int weights_iter_ndims;
+    int dst_layer_ndims;
+    int dst_iter_ndims;
+    int dst_iter_c_ndims;
+    int bias_ndims;
+    int diff_src_layer_ndims;
+    int diff_src_iter_ndims;
+    int diff_src_iter_c_ndims;
+    int diff_weights_layer_ndims;
+    int diff_weights_iter_ndims;
+    int diff_dst_layer_ndims;
+    int diff_dst_iter_ndims;
+    int diff_dst_iter_c_ndims;
+    int diff_bias_ndims;
+
+    struct inner_layouts_t {
+        block_layout_t src_layer;
+        block_layout_t src_iter;
+        block_layout_t src_iter_c;
+        block_layout_t weights_layer;
+        block_layout_t weights_iter;
+        block_layout_t bias;
+        block_layout_t dst_layer;
+        block_layout_t dst_iter;
+        block_layout_t dst_iter_c;
+        block_layout_t diff_src_layer;
+        block_layout_t diff_src_iter;
+        block_layout_t diff_src_iter_c;
+        block_layout_t diff_weights_layer;
+        block_layout_t diff_weights_iter;
+        block_layout_t diff_bias;
+        block_layout_t diff_dst_layer;
+        block_layout_t diff_dst_iter;
+        block_layout_t diff_dst_iter_c;
+        block_layout_t ws;
+    };
+
+    inner_layouts_t inner_layouts;
+
+    int wei_qparam_mask;
+
+    int elemwise_bwd_batch_block;
+    bool need_bias_atomic_reduce;
+};
+
 struct conf_t {
     execution_direction_t exec_dir;
     data_type_conf_t dt_conf;

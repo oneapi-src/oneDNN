@@ -29,7 +29,7 @@ using namespace rnn_utils;
 template <prop_kind_t aprop>
 cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
     const conf_t &rnn = this->pd()->rnn_conf;
-    const rnn_conf_t &conf = this->pd()->conf;
+    const ocl_conf_t &ocl_conf = this->pd()->ocl_conf;
     data_type_t src_t = this->pd()->src_type;
 
     cl_ulong cell_scratch_offset, cell_ws_iter_offset, cell_ws_lay_offset,
@@ -84,7 +84,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
 
         // 1. calculate dG2, dG1, and part of dht-1
         CHECK((this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
-                conf.elemwise_bwd_batch_block, workspace, scratch_gates,
+                ocl_conf.elemwise_bwd_batch_block, workspace, scratch_gates,
                 scratch_cell, scratch_diff_states, scratch_dhG1, bias,
                 tm_scales, diff_bias, PART_ONE));
 
@@ -97,7 +97,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
         // 3. calculate dG1^ and part of dht-1
         // hg1 needs to be bf16 as it is used as gemm output
         CHECK((this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
-                conf.elemwise_bwd_batch_block, workspace, scratch_gates,
+                ocl_conf.elemwise_bwd_batch_block, workspace, scratch_gates,
                 scratch_cell, scratch_diff_states, scratch_dhG1, bias,
                 tm_scales, diff_bias, PART_TWO));
 

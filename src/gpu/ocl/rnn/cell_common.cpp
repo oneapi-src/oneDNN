@@ -29,7 +29,7 @@ using namespace rnn_utils;
 template <prop_kind_t aprop>
 cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
     const conf_t &rnn = this->pd()->rnn_conf;
-    const rnn_conf_t &conf = this->pd()->conf;
+    const ocl_conf_t &ocl_conf = this->pd()->ocl_conf;
     data_type_t src_t = this->pd()->src_type;
 
     cl_ulong cell_scratch_offset, cell_ws_iter_offset, cell_ws_lay_offset,
@@ -63,7 +63,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
                 cell_scr_diff_iter_off);
 
         CHECK((this->*elemwise_common)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
-                conf.elemwise_bwd_batch_block, workspace, scratch_gates,
+                ocl_conf.elemwise_bwd_batch_block, workspace, scratch_gates,
                 scratch_diff_states, scales, bias, tm_scales, diff_bias));
 
         CHECK(gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
