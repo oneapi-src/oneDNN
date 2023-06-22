@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ class sycl_usm_memory_storage_t : public sycl_memory_storage_base_t {
 public:
     using sycl_memory_storage_base_t::sycl_memory_storage_base_t;
 
-    void *usm_ptr() const { return usm_ptr_.get(); }
+    uint8_t *usm_ptr() const { return static_cast<uint8_t *>(usm_ptr_.get()); }
 
     memory_kind_t memory_kind() const override { return memory_kind::usm; }
 
