@@ -48,6 +48,7 @@ def filter_verbose(benchdnn_verbose, driver):
 
     for test_case in benchdnn_verbose.split("__REPRO"):
         verbose_lines = test_case.split("\n")
+        # `start` with `1` as there's a leftover from previous REPRO line.
         for idx, l in enumerate(verbose_lines, start=1):
             # Parse header
             if l.find("create: ") != -1:
@@ -74,7 +75,9 @@ def filter_verbose(benchdnn_verbose, driver):
                     ):
                         continue
                     # Filter out fill reorders. Only the last one is actual.
-                    if d == "reorder" and idx != len(verbose_lines):
+                    # `len - 1` due to status piece left in `verbose_lines` as
+                    # a product of split by `__REPRO`.
+                    if d == "reorder" and idx != len(verbose_lines) - 1:
                         continue
 
                     # found primitive creation for the test case
