@@ -22,6 +22,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
 #include "gpu/primitive_conf.hpp"
+#include "gpu/serialization.hpp"
 
 #define OFF6(i0, d0, i1, d1, i2, d2, i3, d3, i4, d4, i5, d5) \
     ((((((static_cast<size_t>(i0)) * (d1) + (i1)) * (d2) + (i2)) * (d3) \
@@ -108,6 +109,10 @@
             const memory_storage_t &w_, int ld, int nld, data_type_t wei_t) \
             const
 
+static inline bool is_ws_print_enabled() {
+    return get_verbose_dev_mode(dnnl::impl::verbose_t::debuginfo) >= 5;
+}
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -144,34 +149,77 @@ enum ws_part_t {
 };
 
 struct ocl_conf_t {
-    int threads_per_eu;
-    int subgroup_size;
-    int cell_kind;
-    int activation_kind;
-    int direction_kind;
-    bool with_bias;
-    bool with_src_iter;
-    bool with_src_iter_c;
-    bool with_dst_iter;
-    bool with_dst_iter_c;
-    bool is_fwd;
-    bool copy_bias;
-    bool is_int8;
-    bool is_testmode;
-    bool is_training;
-    data_type_t src_dt;
-    data_type_t wei_dt;
-    data_type_t bia_dt;
-    data_type_t dst_dt;
-    data_type_t acc_dt;
-    data_type_t aux_dt;
-    data_type_t input_dt;
-    data_type_t output_dt;
-    data_type_t diff_dt;
+    status_t create_generator(
+            engine_t *engine, compute::compiled_bundle_t &generator) const {
 
-    int n_bias;
+        compute::kernel_ctx_t kernel_ctx;
+        CHECK(init_kernel_ctx(kernel_ctx));
+        auto status = compute::compiled_bundle_t::create(
+                generator, engine, get_kernel_names(), kernel_ctx);
+        return status;
+    }
+    const std::vector<const char *> &get_kernel_names() const {
+        if (!is_ws_print_enabled()) {
+            static const std::vector<const char *> names
+                    = {"ref_rnn_bias_prepare", "ref_rnn_copy_init_layer",
+                            "ref_rnn_copy_init_iter", "ref_rnn_copy_res_layer",
+                            "ref_rnn_copy_res_iter", "ref_rnn_ws_set",
+                            "ref_rnn_elemwise_fwd", "ref_rnn_elemwise_bwd"};
+            return names;
+        } else {
+            static const std::vector<const char *> names
+                    = {"ref_rnn_bias_prepare", "ref_rnn_copy_init_layer",
+                            "ref_rnn_copy_init_iter", "ref_rnn_copy_res_layer",
+                            "ref_rnn_copy_res_iter", "ref_rnn_ws_set",
+                            "ref_rnn_elemwise_fwd", "ref_rnn_elemwise_bwd",
+                            "ref_rnn_ws_print"};
+            return names;
+        }
+    }
+
+#if __cplusplus >= 202002L
+    bool operator==(const ocl_conf_t &) const = default;
+#endif
+    serialized_t<ocl_conf_t> serialize() const {
+        static_assert(
+                serialized_data_t::is_trivially_serialized<ocl_conf_t>::value,
+                "ocl_conf_t is expected to be trivially serialized");
+        serialized_t<ocl_conf_t> s {};
+        // Explicitly maintain zero padding to keep the implementation simple and
+        // robust
+        s.append(*this);
+        return s;
+    }
+
+    static ocl_conf_t deserialize(const serialized_t<ocl_conf_t> &s) {
+        ocl_conf_t t {};
+        deserializer_t d(s);
+        d.pop(t);
+        return t;
+    }
+
+    status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+
+    int threads_per_eu = 0;
+    int subgroup_size = 0;
+    int cell_kind = 0;
+    int activation_kind = 0;
+    int direction_kind = 0;
+
+    data_type_t src_dt = data_type::undef;
+    data_type_t wei_dt = data_type::undef;
+    data_type_t bia_dt = data_type::undef;
+    data_type_t dst_dt = data_type::undef;
+    data_type_t acc_dt = data_type::undef;
+    data_type_t aux_dt = data_type::undef;
+    data_type_t input_dt = data_type::undef;
+    data_type_t output_dt = data_type::undef;
+    data_type_t diff_dt = data_type::undef;
 
     struct inner_layouts_t {
+#if __cplusplus >= 202002L
+        bool operator==(const inner_layouts_t &) const = default;
+#endif
         block_layout_t src_layer;
         block_layout_t src_iter;
         block_layout_t src_iter_c;
@@ -190,15 +238,27 @@ struct ocl_conf_t {
         block_layout_t diff_dst_layer;
         block_layout_t diff_dst_iter;
         block_layout_t diff_dst_iter_c;
-        block_layout_t ws;
     };
 
-    inner_layouts_t inner_layouts;
+    inner_layouts_t inner_layouts = {};
 
-    int wei_qparam_mask;
+    int n_bias = 0;
 
-    int elemwise_bwd_batch_block;
-    bool need_bias_atomic_reduce;
+    int wei_qparam_mask = 0;
+
+    int elemwise_bwd_batch_block = 0;
+    bool need_bias_atomic_reduce = false;
+    bool with_bias = false;
+    bool with_src_iter = false;
+    bool with_src_iter_c = false;
+    bool with_dst_iter = false;
+    bool with_dst_iter_c = false;
+    bool is_fwd = false;
+    bool copy_bias = false;
+    bool is_int8 = false;
+    bool is_testmode = false;
+    bool is_training = false;
+    uint8_t pad0[1] = {};
 };
 
 struct conf_t {

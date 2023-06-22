@@ -245,6 +245,10 @@ struct block_t {
 };
 
 struct block_layout_t {
+#if __cplusplus >= 202002L
+    bool operator==(const block_layout_t &) const = default;
+#endif
+
     std::array<block_t, MAX_NDIMS> blocks;
 };
 

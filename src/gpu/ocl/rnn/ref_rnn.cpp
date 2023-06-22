@@ -37,10 +37,6 @@
 #include "gpu/getenv_utils.hpp"
 #include "gpu/gpu_primitive_attr.hpp"
 
-static inline bool is_ws_print_enabled() {
-    return get_verbose_dev_mode(dnnl::impl::verbose_t::debuginfo) >= 5;
-}
-
 #define DPRINT(fmt, ...) \
     do { \
         if (get_verbose_dev_mode(verbose_t::debuginfo) >= 2) { \
@@ -198,39 +194,36 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
     return status::success;
 }
 
-static status_t init_kernel_ctx(
-        compute::kernel_ctx_t &kernel_ctx, const rnn_utils::ocl_conf_t &conf) {
+status_t ocl_conf_t::init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const {
 
     // Fwd operations are not well optimized for larger grf mode
     primitive_attr_t ocl_attr;
-    if (!conf.is_fwd)
-        CHECK(ocl_attr.set_gpu_attr(gpu_primitive_attr_t(conf.threads_per_eu)));
+    if (!is_fwd)
+        CHECK(ocl_attr.set_gpu_attr(gpu_primitive_attr_t(threads_per_eu)));
     kernel_ctx = compute::kernel_ctx_t(&ocl_attr);
 
     kernel_ctx.add_option("-cl-std=CL2.0");
 
-    kernel_ctx.define_int("IS_FWD", conf.is_fwd);
-    kernel_ctx.define_int("IS_TRAINING", conf.is_training);
-    kernel_ctx.define_int("WITH_BIAS", conf.with_bias);
-    kernel_ctx.define_int("WITH_SRC_ITER", conf.with_src_iter);
-    kernel_ctx.define_int("WITH_SRC_ITER_C", conf.with_src_iter_c);
-    kernel_ctx.define_int("WITH_DST_ITER", conf.with_dst_iter);
-    kernel_ctx.define_int("WITH_DST_ITER_C", conf.with_dst_iter_c);
+    kernel_ctx.define_int("IS_FWD", is_fwd);
+    kernel_ctx.define_int("IS_TRAINING", is_training);
+    kernel_ctx.define_int("WITH_BIAS", with_bias);
+    kernel_ctx.define_int("WITH_SRC_ITER", with_src_iter);
+    kernel_ctx.define_int("WITH_SRC_ITER_C", with_src_iter_c);
+    kernel_ctx.define_int("WITH_DST_ITER", with_dst_iter);
+    kernel_ctx.define_int("WITH_DST_ITER_C", with_dst_iter_c);
 
-    kernel_ctx.define_int(
-            "ELEMWISE_BWD_BATCH_BLOCK", conf.elemwise_bwd_batch_block);
-    kernel_ctx.define_int("NEED_BIAS_ATOMIC_REDUCE",
-            !conf.is_fwd && conf.need_bias_atomic_reduce);
+    kernel_ctx.define_int("ELEMWISE_BWD_BATCH_BLOCK", elemwise_bwd_batch_block);
+    kernel_ctx.define_int("NEED_BIAS_ATOMIC_REDUCE", need_bias_atomic_reduce);
     kernel_ctx.define_int("VANILLA_RNN", alg_kind::vanilla_rnn);
     kernel_ctx.define_int("VANILLA_LSTM", alg_kind::vanilla_lstm);
     kernel_ctx.define_int("VANILLA_GRU", alg_kind::vanilla_gru);
     kernel_ctx.define_int("LBR_GRU", alg_kind::lbr_gru);
-    kernel_ctx.define_int("CELL_KIND", conf.cell_kind);
+    kernel_ctx.define_int("CELL_KIND", cell_kind);
 
     kernel_ctx.define_int("ELTWISE_RELU", alg_kind::eltwise_relu);
     kernel_ctx.define_int("ELTWISE_TANH", alg_kind::eltwise_tanh);
     kernel_ctx.define_int("ELTWISE_LOGISTIC", alg_kind::eltwise_logistic);
-    kernel_ctx.define_int("ACTIVATION_KIND", conf.activation_kind);
+    kernel_ctx.define_int("ACTIVATION_KIND", activation_kind);
 
     kernel_ctx.define_int("WS_GATES", rnn_utils::gates);
     kernel_ctx.define_int("WS_STATES", rnn_utils::states);
@@ -241,66 +234,65 @@ static status_t init_kernel_ctx(
     kernel_ctx.define_int("R2L", dnnl_unidirectional_right2left);
     kernel_ctx.define_int("CONCAT", dnnl_bidirectional_concat);
     kernel_ctx.define_int("SUM", dnnl_bidirectional_sum);
-    kernel_ctx.define_int("DIRECTION_KIND", conf.direction_kind);
+    kernel_ctx.define_int("DIRECTION_KIND", direction_kind);
 
-    kernel_ctx.define_int("SUBGROUP_SIZE", conf.subgroup_size);
+    kernel_ctx.define_int("SUBGROUP_SIZE", subgroup_size);
 
-    def_block_offsets(conf.inner_layouts.src_layer, kernel_ctx, "SRC_L");
-    def_block_offsets(conf.inner_layouts.src_iter, kernel_ctx, "SRC_I");
-    if (conf.with_src_iter_c) {
-        def_block_offsets(conf.inner_layouts.src_iter_c, kernel_ctx, "SRC_I_C");
+    def_block_offsets(inner_layouts.src_layer, kernel_ctx, "SRC_L");
+    def_block_offsets(inner_layouts.src_iter, kernel_ctx, "SRC_I");
+    if (with_src_iter_c) {
+        def_block_offsets(inner_layouts.src_iter_c, kernel_ctx, "SRC_I_C");
     }
-    def_block_offsets(conf.inner_layouts.weights_layer, kernel_ctx, "WEI_L");
-    def_block_offsets(conf.inner_layouts.weights_iter, kernel_ctx, "WEI_I");
-    def_block_offsets(conf.inner_layouts.dst_layer, kernel_ctx, "DST_L");
-    def_block_offsets(conf.inner_layouts.dst_iter, kernel_ctx, "DST_I");
-    if (conf.with_dst_iter_c)
-        def_block_offsets(conf.inner_layouts.dst_iter_c, kernel_ctx, "DST_I_C");
-    def_block_offsets(conf.inner_layouts.bias, kernel_ctx, "BIAS");
-    kernel_ctx.define_int("N_BIAS", conf.n_bias);
+    def_block_offsets(inner_layouts.weights_layer, kernel_ctx, "WEI_L");
+    def_block_offsets(inner_layouts.weights_iter, kernel_ctx, "WEI_I");
+    def_block_offsets(inner_layouts.dst_layer, kernel_ctx, "DST_L");
+    def_block_offsets(inner_layouts.dst_iter, kernel_ctx, "DST_I");
+    if (with_dst_iter_c)
+        def_block_offsets(inner_layouts.dst_iter_c, kernel_ctx, "DST_I_C");
+    def_block_offsets(inner_layouts.bias, kernel_ctx, "BIAS");
+    kernel_ctx.define_int("N_BIAS", n_bias);
 
-    if (!conf.is_fwd) {
+    if (!is_fwd) {
         def_block_offsets(
-                conf.inner_layouts.diff_src_layer, kernel_ctx, "DIFF_SRC_L");
+                inner_layouts.diff_src_layer, kernel_ctx, "DIFF_SRC_L");
         def_block_offsets(
-                conf.inner_layouts.diff_src_iter, kernel_ctx, "DIFF_SRC_I");
-        if (conf.with_src_iter_c)
-            def_block_offsets(conf.inner_layouts.diff_src_iter_c, kernel_ctx,
-                    "DIFF_SRC_I_C");
-        def_block_offsets(conf.inner_layouts.diff_weights_layer, kernel_ctx,
-                "DIFF_WEI_L");
+                inner_layouts.diff_src_iter, kernel_ctx, "DIFF_SRC_I");
+        if (with_src_iter_c)
+            def_block_offsets(
+                    inner_layouts.diff_src_iter_c, kernel_ctx, "DIFF_SRC_I_C");
         def_block_offsets(
-                conf.inner_layouts.diff_weights_iter, kernel_ctx, "DIFF_WEI_I");
+                inner_layouts.diff_weights_layer, kernel_ctx, "DIFF_WEI_L");
         def_block_offsets(
-                conf.inner_layouts.diff_dst_layer, kernel_ctx, "DIFF_DST_L");
+                inner_layouts.diff_weights_iter, kernel_ctx, "DIFF_WEI_I");
         def_block_offsets(
-                conf.inner_layouts.diff_dst_iter, kernel_ctx, "DIFF_DST_I");
-        if (conf.with_dst_iter_c)
-            def_block_offsets(conf.inner_layouts.diff_dst_iter_c, kernel_ctx,
-                    "DIFF_DST_I_C");
+                inner_layouts.diff_dst_layer, kernel_ctx, "DIFF_DST_L");
         def_block_offsets(
-                conf.inner_layouts.diff_bias, kernel_ctx, "DIFF_BIAS");
+                inner_layouts.diff_dst_iter, kernel_ctx, "DIFF_DST_I");
+        if (with_dst_iter_c)
+            def_block_offsets(
+                    inner_layouts.diff_dst_iter_c, kernel_ctx, "DIFF_DST_I_C");
+        def_block_offsets(inner_layouts.diff_bias, kernel_ctx, "DIFF_BIAS");
     }
 
-    if (conf.src_dt == data_type::f16) {
+    if (src_dt == data_type::f16) {
         kernel_ctx.set_data_type(data_type::f16);
     } else
         kernel_ctx.set_data_type(data_type::f32);
 
-    def_data_type(kernel_ctx, conf.src_dt, "WS_STATE");
-    def_data_type(kernel_ctx, conf.src_dt, "SRC");
-    def_data_type(kernel_ctx, conf.wei_dt, "WEI");
-    def_data_type(kernel_ctx, conf.acc_dt, "ACC");
-    def_data_type(kernel_ctx, conf.aux_dt, "AUX");
-    def_data_type(kernel_ctx, conf.dst_dt, "DST");
-    def_data_type(kernel_ctx, conf.input_dt, "INPUT");
-    def_data_type(kernel_ctx, conf.output_dt, "OUTPUT");
-    def_data_type(kernel_ctx, conf.diff_dt, "DIFF");
+    def_data_type(kernel_ctx, src_dt, "WS_STATE");
+    def_data_type(kernel_ctx, src_dt, "SRC");
+    def_data_type(kernel_ctx, wei_dt, "WEI");
+    def_data_type(kernel_ctx, acc_dt, "ACC");
+    def_data_type(kernel_ctx, aux_dt, "AUX");
+    def_data_type(kernel_ctx, dst_dt, "DST");
+    def_data_type(kernel_ctx, input_dt, "INPUT");
+    def_data_type(kernel_ctx, output_dt, "OUTPUT");
+    def_data_type(kernel_ctx, diff_dt, "DIFF");
 
-    kernel_ctx.define_int("IS_INT8", conf.is_int8);
-    kernel_ctx.define_int("COPY_BIAS", conf.copy_bias);
-    kernel_ctx.define_int("WEI_QPARAM_MASK", conf.wei_qparam_mask);
-    kernel_ctx.define_int("IS_TESTMODE", conf.is_testmode);
+    kernel_ctx.define_int("IS_INT8", is_int8);
+    kernel_ctx.define_int("COPY_BIAS", copy_bias);
+    kernel_ctx.define_int("WEI_QPARAM_MASK", wei_qparam_mask);
+    kernel_ctx.define_int("IS_TESTMODE", is_testmode);
     if (is_ws_print_enabled()) kernel_ctx.define_int("DEBUGPRINT", true);
 
     return status::success;
@@ -773,21 +765,9 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
     wei_iter_offset_ptr
             = (size_t *)malloc(sizeof(size_t) * wei_offsets_iter_sz, 64);
 
-    compute::kernel_ctx_t kernel_ctx;
-    status_t status = init_kernel_ctx(kernel_ctx, pd()->ocl_conf);
-    CHECK(status);
-
-    std::vector<const char *> kernel_names = {"ref_rnn_bias_prepare",
-            "ref_rnn_copy_init_layer", "ref_rnn_copy_init_iter",
-            "ref_rnn_copy_res_layer", "ref_rnn_copy_res_iter", "ref_rnn_ws_set",
-            "ref_rnn_elemwise_fwd", "ref_rnn_elemwise_bwd"};
-    if (is_ws_print_enabled()) {
-        kernel_names.emplace_back("ref_rnn_ws_print");
-    }
-
     std::vector<compute::kernel_t> kernels;
-    status = create_kernels(engine, &kernels, kernel_names, kernel_ctx);
-    CHECK(status);
+    auto kernel_names = pd()->ocl_conf.get_kernel_names();
+    CHECK(create_kernels(engine, kernels, kernel_names, pd()->ocl_conf));
 
     bias_prepare_kernel_ = kernels[0];
     copy_init_layer_kernel_ = kernels[1];
