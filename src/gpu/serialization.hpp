@@ -17,6 +17,9 @@
 #ifndef GPU_SERIALIZATION_HPP
 #define GPU_SERIALIZATION_HPP
 
+#include <iomanip>
+#include <sstream>
+
 #include "common/serialization.hpp"
 
 namespace dnnl {
@@ -101,6 +104,14 @@ struct serialized_data_t {
     }
 
     size_t hash() { return hash_range(data.data(), data.size()); };
+    std::string str() {
+        std::ostringstream oss;
+        oss << std::hex << std::setfill('0') << std::setw(2);
+        for (auto c : data) {
+            oss << static_cast<uint32_t>(c);
+        }
+        return oss.str();
+    }
 
 protected:
     std::vector<uint8_t> data;
