@@ -248,6 +248,8 @@ struct block_layout_t {
     std::array<block_t, MAX_NDIMS> blocks;
 };
 
+using strides_t = std::array<dim_t, MAX_NDIMS>;
+
 struct offsets_t {
     dim_t src_off[4][MAX_NDIMS];
     dim_t wei_off[4][MAX_NDIMS];
@@ -255,25 +257,27 @@ struct offsets_t {
 };
 
 struct rnn_offsets_t {
-    dim_t src_layer_off[4][MAX_NDIMS];
-    dim_t src_iter_off[4][MAX_NDIMS];
-    dim_t src_iter_c_off[4][MAX_NDIMS];
-    dim_t weights_layer_off[4][MAX_NDIMS];
-    dim_t weights_iter_off[4][MAX_NDIMS];
-    dim_t bias_off[4][MAX_NDIMS];
-    dim_t dst_layer_off[4][MAX_NDIMS];
-    dim_t dst_iter_off[4][MAX_NDIMS];
-    dim_t dst_iter_c_off[4][MAX_NDIMS];
-    dim_t diff_src_layer_off[4][MAX_NDIMS];
-    dim_t diff_src_iter_off[4][MAX_NDIMS];
-    dim_t diff_src_iter_c_off[4][MAX_NDIMS];
-    dim_t diff_weights_layer_off[4][MAX_NDIMS];
-    dim_t diff_weights_iter_off[4][MAX_NDIMS];
-    dim_t diff_bias_off[4][MAX_NDIMS];
-    dim_t diff_dst_layer_off[4][MAX_NDIMS];
-    dim_t diff_dst_iter_off[4][MAX_NDIMS];
-    dim_t diff_dst_iter_c_off[4][MAX_NDIMS];
-    dim_t ws_off[4][MAX_NDIMS];
+    strides_t src_layer;
+    strides_t src_iter;
+    strides_t src_iter_c;
+    strides_t weights_layer;
+    strides_t weights_iter;
+    dim_t weights_layer_comp_off;
+    dim_t weights_iter_comp_off;
+    strides_t bias;
+    strides_t dst_layer;
+    strides_t dst_iter;
+    strides_t dst_iter_c;
+    strides_t diff_src_layer;
+    strides_t diff_src_iter;
+    strides_t diff_src_iter_c;
+    strides_t diff_weights_layer;
+    strides_t diff_weights_iter;
+    strides_t diff_bias;
+    strides_t diff_dst_layer;
+    strides_t diff_dst_iter;
+    strides_t diff_dst_iter_c;
+    strides_t ws;
 };
 
 // Convolution
@@ -1061,6 +1065,14 @@ inline void set_offsets(
         offs[2][d] = strides_compat[1][d];
         offs[3][d] = dims[d];
     }
+}
+
+inline strides_t get_outer_strides(const memory_desc_wrapper &md) {
+    strides_t ret;
+    for (int d = 0; d < MAX_NDIMS; ++d) {
+        ret[d] = (d < md.ndims()) ? md.strides()[d] : 0;
+    }
+    return ret;
 }
 
 inline block_layout_t get_inner_layout(const memory_desc_wrapper &md) {

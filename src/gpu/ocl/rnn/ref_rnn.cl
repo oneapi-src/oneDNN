@@ -571,9 +571,9 @@ __kernel void ref_rnn_ws_print(__global ACC_DATA_T *gates_base,
 __kernel void ref_rnn_bias_prepare(__global float *ws_bias,
         __global float *scales, __global char *wei_layer,
         __global char *wei_iter, __global float *bias, int dhc, int n_layer,
-        int n_dir, int n_bias, float data_shift, float data_scale, int wei_l_s0,
-        int wei_l_d0, int wei_i_s0, int wei_i_d0, int lay_stride,
-        int dir_stride, int nbias_stride, int dhc_stride) {
+        int n_dir, int n_bias, float data_shift, float data_scale,
+        int wei_l_comp_off, int wei_i_comp_off, int lay_stride, int dir_stride,
+        int nbias_stride, int dhc_stride) {
 #if COPY_BIAS
 
     const int dhc_ = get_global_id(0);
@@ -588,11 +588,11 @@ __kernel void ref_rnn_bias_prepare(__global float *ws_bias,
 #else
             = scales[0];
 #endif
-    __global char *temp = (__global char *)(wei_iter + wei_i_d0 * wei_i_s0);
+    __global char *temp = (__global char *)(wei_iter + wei_i_comp_off);
     __global float *wei_iter_comp
             = (__global float *)(((unsigned long)temp + (sizeof(float) - 1))
                     & -sizeof(float));
-    temp = (__global char *)(wei_layer + wei_l_d0 * wei_l_s0);
+    temp = (__global char *)(wei_layer + wei_l_comp_off);
     __global float *wei_layer_comp
             = (__global float *)(((unsigned long)temp + (sizeof(float) - 1))
                     & -sizeof(float));

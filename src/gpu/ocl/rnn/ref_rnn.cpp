@@ -113,82 +113,62 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
     ocl_conf.is_int8 = rnn.is_int8;
     ocl_conf.is_training = rnn.is_training;
 
-    ocl_conf.src_layer_ndims = src_layer_d.ndims();
-    ocl_conf.src_iter_ndims = src_iter_d.ndims();
-    if (ocl_conf.with_src_iter_c)
-        ocl_conf.src_iter_c_ndims = src_iter_c_d.ndims();
-    ocl_conf.weights_layer_ndims = weights_layer_d.ndims();
-    ocl_conf.weights_iter_ndims = weights_iter_d.ndims();
-    ocl_conf.dst_layer_ndims = dst_layer_d.ndims();
-    ocl_conf.dst_iter_ndims = dst_iter_d.ndims();
-    if (ocl_conf.with_dst_iter_c)
-        ocl_conf.dst_iter_c_ndims = dst_iter_c_d.ndims();
-    ocl_conf.bias_ndims = bias_d.ndims();
-
-    gpu::set_offsets(src_layer_d, off.src_layer_off);
+    off.src_layer = gpu::get_outer_strides(src_layer_d);
     ocl_conf.inner_layouts.src_layer = gpu::get_inner_layout(src_layer_d);
-    gpu::set_offsets(src_iter_d, off.src_iter_off);
+    off.src_iter = gpu::get_outer_strides(src_iter_d);
     ocl_conf.inner_layouts.src_iter = gpu::get_inner_layout(src_iter_d);
     if (ocl_conf.with_src_iter_c) {
-        gpu::set_offsets(src_iter_c_d, off.src_iter_c_off);
+        off.src_iter_c = gpu::get_outer_strides(src_iter_c_d);
         ocl_conf.inner_layouts.src_iter_c = gpu::get_inner_layout(src_iter_c_d);
     }
-    gpu::set_offsets(weights_layer_d, off.weights_layer_off);
+    off.weights_layer = gpu::get_outer_strides(weights_layer_d);
     ocl_conf.inner_layouts.weights_layer
             = gpu::get_inner_layout(weights_layer_d);
-    gpu::set_offsets(weights_iter_d, off.weights_iter_off);
+    off.weights_layer_comp_off
+            = weights_layer_d.dims()[0] * weights_layer_d.strides()[0];
+    off.weights_iter = gpu::get_outer_strides(weights_iter_d);
     ocl_conf.inner_layouts.weights_iter = gpu::get_inner_layout(weights_iter_d);
-    gpu::set_offsets(bias_d, off.bias_off);
+    off.weights_iter_comp_off
+            = weights_iter_d.dims()[0] * weights_iter_d.strides()[0];
+    off.bias = gpu::get_outer_strides(bias_d);
     ocl_conf.inner_layouts.bias = gpu::get_inner_layout(bias_d);
-    gpu::set_offsets(dst_layer_d, off.dst_layer_off);
+    off.dst_layer = gpu::get_outer_strides(dst_layer_d);
     ocl_conf.inner_layouts.dst_layer = gpu::get_inner_layout(dst_layer_d);
-    gpu::set_offsets(dst_iter_d, off.dst_iter_off);
+    off.dst_iter = gpu::get_outer_strides(dst_iter_d);
     ocl_conf.inner_layouts.dst_iter = gpu::get_inner_layout(dst_iter_d);
     if (ocl_conf.with_dst_iter_c) {
-        gpu::set_offsets(dst_iter_c_d, off.dst_iter_c_off);
+        off.dst_iter_c = gpu::get_outer_strides(dst_iter_c_d);
         ocl_conf.inner_layouts.dst_iter_c = gpu::get_inner_layout(dst_iter_c_d);
     }
 
     if (!ocl_conf.is_fwd) {
-        ocl_conf.diff_src_layer_ndims = diff_src_layer_d.ndims();
-        ocl_conf.diff_src_iter_ndims = diff_src_iter_d.ndims();
-        if (ocl_conf.with_src_iter_c)
-            ocl_conf.diff_src_iter_c_ndims = diff_src_iter_c_d.ndims();
-        ocl_conf.diff_weights_layer_ndims = diff_weights_layer_d.ndims();
-        ocl_conf.diff_weights_iter_ndims = diff_weights_iter_d.ndims();
-        ocl_conf.diff_dst_layer_ndims = diff_dst_layer_d.ndims();
-        ocl_conf.diff_dst_iter_ndims = diff_dst_iter_d.ndims();
-        if (ocl_conf.with_dst_iter_c)
-            ocl_conf.diff_dst_iter_c_ndims = diff_dst_iter_c_d.ndims();
-        ocl_conf.diff_bias_ndims = diff_bias_d.ndims();
-
-        gpu::set_offsets(diff_src_layer_d, off.diff_src_layer_off);
+        off.diff_src_layer = gpu::get_outer_strides(diff_src_layer_d);
         ocl_conf.inner_layouts.diff_src_layer
                 = gpu::get_inner_layout(diff_src_layer_d);
-        gpu::set_offsets(diff_src_iter_d, off.diff_src_iter_off);
+        off.diff_src_iter = gpu::get_outer_strides(diff_src_iter_d);
         ocl_conf.inner_layouts.diff_src_iter
                 = gpu::get_inner_layout(diff_src_iter_d);
         if (ocl_conf.with_src_iter_c) {
-            gpu::set_offsets(diff_src_iter_c_d, off.diff_src_iter_c_off);
+            off.diff_src_iter_c = gpu::get_outer_strides(diff_src_iter_c_d);
             ocl_conf.inner_layouts.diff_src_iter_c
                     = gpu::get_inner_layout(diff_src_iter_c_d);
         }
-        gpu::set_offsets(diff_weights_layer_d, off.diff_weights_layer_off);
+        off.diff_weights_layer = gpu::get_outer_strides(diff_weights_layer_d);
         ocl_conf.inner_layouts.diff_weights_layer
                 = gpu::get_inner_layout(diff_weights_layer_d);
-        gpu::set_offsets(diff_weights_iter_d, off.diff_weights_iter_off);
+        off.diff_weights_iter = gpu::get_outer_strides(diff_weights_iter_d);
         ocl_conf.inner_layouts.diff_weights_iter
                 = gpu::get_inner_layout(diff_weights_iter_d);
-        gpu::set_offsets(diff_bias_d, off.diff_bias_off);
+        off.diff_bias = gpu::get_outer_strides(diff_bias_d);
         ocl_conf.inner_layouts.diff_bias = gpu::get_inner_layout(diff_bias_d);
-        gpu::set_offsets(diff_dst_layer_d, off.diff_dst_layer_off);
+        off.diff_dst_layer = gpu::get_outer_strides(diff_dst_layer_d);
         ocl_conf.inner_layouts.diff_dst_layer
                 = gpu::get_inner_layout(diff_dst_layer_d);
-        gpu::set_offsets(diff_dst_iter_d, off.diff_dst_iter_off);
+        off.diff_dst_iter = gpu::get_outer_strides(diff_dst_iter_d);
         ocl_conf.inner_layouts.diff_dst_iter
                 = gpu::get_inner_layout(diff_dst_iter_d);
         if (ocl_conf.with_dst_iter_c) {
-            gpu::set_offsets(diff_dst_iter_c_d, off.diff_dst_iter_c_off);
+            off.diff_dst_iter_c = gpu::get_outer_strides(diff_dst_iter_c_d);
             ocl_conf.inner_layouts.diff_dst_iter_c
                     = gpu::get_inner_layout(diff_dst_iter_c_d);
         }
@@ -1180,13 +1160,9 @@ status_t _ref_rnn_common_t<aprop>::bias_prepare(const exec_ctx_t &ctx,
     arg_list.append(data_shift);
     arg_list.append(data_scale);
 
-    constexpr int stride_idx = 1, dim_idx = 3;
-    arg_list.append(pd()->off.weights_layer_off[stride_idx][0]);
-    arg_list.append(pd()->off.weights_layer_off[dim_idx][0]);
-    arg_list.append(pd()->off.weights_iter_off[stride_idx][0]);
-    arg_list.append(pd()->off.weights_iter_off[dim_idx][0]);
-    rnn_utils::append_strides(
-            arg_list, pd()->off.bias_off, 4, pd()->ocl_conf.bias_ndims);
+    arg_list.append((cl_int)pd()->off.weights_layer_comp_off);
+    arg_list.append((cl_int)pd()->off.weights_iter_comp_off);
+    rnn_utils::append_strides(arg_list, pd()->off.bias, 4);
 
     return parallel_for(ctx,
             compute::nd_range_t({dhc, n_bias, n_layer * n_dir}),
@@ -1220,8 +1196,7 @@ status_t _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         arg_list.append(n_states);
         arg_list.append(states_ws_ld);
         arg_list.append(scratch_diff_states_ld);
-        rnn_utils::append_strides(arg_list, pd()->off.src_layer_off, 1,
-                pd()->ocl_conf.src_layer_ndims);
+        rnn_utils::append_strides(arg_list, pd()->off.src_layer, 1);
 
         return parallel_for(ctx,
                 compute::nd_range_t(get_nd_range({slc, batch, n_iter})),
@@ -1243,8 +1218,7 @@ status_t _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         arg_list.append(n_states);
         arg_list.append(states_ws_ld);
         arg_list.append(scratch_diff_states_ld);
-        rnn_utils::append_strides(arg_list, pd()->off.diff_dst_layer_off, 2,
-                pd()->ocl_conf.diff_dst_layer_ndims);
+        rnn_utils::append_strides(arg_list, pd()->off.diff_dst_layer, 2);
 
         return parallel_for(ctx,
                 compute::nd_range_t(get_nd_range({dhc, batch, n_iter})),
@@ -1283,11 +1257,9 @@ status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         arg_list.append(states_ws_ld);
         arg_list.append(scratch_diff_states_ld);
 
-        rnn_utils::append_strides(arg_list, pd()->off.src_iter_off, 4,
-                pd()->ocl_conf.src_iter_ndims);
+        rnn_utils::append_strides(arg_list, pd()->off.src_iter, 4);
         if (pd()->ocl_conf.with_src_iter_c)
-            rnn_utils::append_strides(arg_list, pd()->off.src_iter_c_off, 4,
-                    pd()->ocl_conf.src_iter_c_ndims);
+            rnn_utils::append_strides(arg_list, pd()->off.src_iter_c, 4);
 
         arg_list.append(shift);
         arg_list.append(scale);
@@ -1313,11 +1285,9 @@ status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         arg_list.append(states_ws_ld);
         arg_list.append(scratch_diff_states_ld);
 
-        rnn_utils::append_strides(arg_list, pd()->off.diff_dst_iter_off, 4,
-                pd()->ocl_conf.diff_dst_iter_ndims);
+        rnn_utils::append_strides(arg_list, pd()->off.diff_dst_iter, 4);
         if (pd()->ocl_conf.with_dst_iter_c)
-            rnn_utils::append_strides(arg_list, pd()->off.diff_dst_iter_c_off,
-                    4, pd()->ocl_conf.diff_dst_iter_c_ndims);
+            rnn_utils::append_strides(arg_list, pd()->off.diff_dst_iter_c, 4);
 
         return parallel_for(ctx,
                 compute::nd_range_t({dhc, batch, n_layer * n_dir}),
@@ -1354,8 +1324,7 @@ status_t _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         arg_list.append(states_ws_ld);
         arg_list.append(scratch_diff_states_ld);
 
-        rnn_utils::append_strides(arg_list, pd()->off.dst_layer_off, 3,
-                pd()->ocl_conf.dst_layer_ndims);
+        rnn_utils::append_strides(arg_list, pd()->off.dst_layer, 3);
 
         arg_list.append(shift);
         arg_list.append(scale);
@@ -1379,8 +1348,7 @@ status_t _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         arg_list.append(n_states);
         arg_list.append(states_ws_ld);
         arg_list.append(scratch_diff_states_ld);
-        rnn_utils::append_strides(arg_list, pd()->off.diff_src_layer_off, 3,
-                pd()->ocl_conf.diff_src_layer_ndims);
+        rnn_utils::append_strides(arg_list, pd()->off.diff_src_layer, 3);
 
         return parallel_for(ctx, get_nd_range({slc, batch, n_iter}),
                 copy_res_layer_kernel_, arg_list);
@@ -1416,11 +1384,9 @@ status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         arg_list.append(states_ws_ld);
         arg_list.append(scratch_diff_states_ld);
 
-        rnn_utils::append_strides(arg_list, pd()->off.dst_iter_off, 4,
-                pd()->ocl_conf.dst_iter_ndims);
+        rnn_utils::append_strides(arg_list, pd()->off.dst_iter, 4);
         if (pd()->ocl_conf.with_dst_iter_c)
-            rnn_utils::append_strides(arg_list, pd()->off.dst_iter_c_off, 4,
-                    pd()->ocl_conf.dst_iter_c_ndims);
+            rnn_utils::append_strides(arg_list, pd()->off.dst_iter_c, 4);
 
         arg_list.append(shift);
         arg_list.append(scale);
@@ -1447,11 +1413,9 @@ status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         arg_list.append(states_ws_ld);
         arg_list.append(scratch_diff_states_ld);
 
-        rnn_utils::append_strides(arg_list, pd()->off.diff_src_iter_off, 4,
-                pd()->ocl_conf.diff_src_iter_ndims);
+        rnn_utils::append_strides(arg_list, pd()->off.diff_src_iter, 4);
         if (pd()->ocl_conf.with_src_iter_c)
-            rnn_utils::append_strides(arg_list, pd()->off.diff_src_iter_c_off,
-                    4, pd()->ocl_conf.diff_src_iter_c_ndims);
+            rnn_utils::append_strides(arg_list, pd()->off.diff_src_iter_c, 4);
 
         return parallel_for(ctx,
                 compute::nd_range_t({max_d, batch, n_layer * n_dir}),

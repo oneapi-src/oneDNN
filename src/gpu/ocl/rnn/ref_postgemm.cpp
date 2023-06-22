@@ -65,8 +65,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
     arg_list.append(pd()->rnn_conf.n_gates);
     arg_list.append(pd()->rnn_conf.n_iter_scratch_gates);
     if (aprop == dnnl_forward) {
-        rnn_utils::append_strides(
-                arg_list, pd()->off.bias_off, 4, pd()->ocl_conf.bias_ndims);
+        rnn_utils::append_strides(arg_list, pd()->off.bias, 4);
     } else {
         arg_list.append(pd()->rnn_conf.n_dir);
         arg_list.append(pd()->rnn_conf.n_states);
@@ -78,8 +77,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
     if (aprop != dnnl_forward) {
         arg_list.append(scratch_diff_states);
         arg_list.append(diff_bias);
-        rnn_utils::append_strides(arg_list, pd()->off.diff_bias_off, 4,
-                pd()->ocl_conf.diff_bias_ndims);
+        rnn_utils::append_strides(arg_list, pd()->off.diff_bias, 4);
     }
     return parallel_for(ctx, nd_range, kernel, arg_list);
 }
@@ -129,8 +127,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
     arg_list.append(pd()->rnn_conf.n_gates);
     arg_list.append(pd()->rnn_conf.n_iter_scratch_gates);
     if (aprop == dnnl_forward) {
-        rnn_utils::append_strides(
-                arg_list, pd()->off.bias_off, 4, pd()->ocl_conf.bias_ndims);
+        rnn_utils::append_strides(arg_list, pd()->off.bias, 4);
     } else {
         arg_list.append(pd()->rnn_conf.n_dir);
         arg_list.append(pd()->rnn_conf.n_states);
@@ -142,8 +139,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
     if (aprop != dnnl_forward) {
         arg_list.append(scratch_diff_states);
         arg_list.append(diff_bias);
-        rnn_utils::append_strides(arg_list, pd()->off.diff_bias_off, 4,
-                pd()->ocl_conf.diff_bias_ndims);
+        rnn_utils::append_strides(arg_list, pd()->off.diff_bias, 4);
     }
     return parallel_for(ctx, nd_range, kernel, arg_list);
 }
@@ -244,8 +240,7 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
     arg_list.append(pd()->rnn_conf.n_gates);
     arg_list.append(pd()->rnn_conf.n_iter_scratch_gates);
     if (aprop == dnnl_forward) {
-        rnn_utils::append_strides(
-                arg_list, pd()->off.bias_off, 4, pd()->ocl_conf.bias_ndims);
+        rnn_utils::append_strides(arg_list, pd()->off.bias, 4);
     } else {
         arg_list.append(pd()->rnn_conf.n_dir);
         arg_list.append(pd()->rnn_conf.n_states);
@@ -260,8 +255,7 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
     if (aprop != dnnl_forward) {
         arg_list.append(scratch_diff_states);
         arg_list.append(diff_bias);
-        rnn_utils::append_strides(arg_list, pd()->off.diff_bias_off, 4,
-                pd()->ocl_conf.diff_bias_ndims);
+        rnn_utils::append_strides(arg_list, pd()->off.diff_bias, 4);
     }
     return parallel_for(ctx, nd_range, kernel, arg_list);
 }
@@ -312,8 +306,7 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
     arg_list.append(pd()->rnn_conf.n_gates);
     arg_list.append(pd()->rnn_conf.n_iter_scratch_gates);
     if (aprop == dnnl_forward) {
-        rnn_utils::append_strides(
-                arg_list, pd()->off.bias_off, 4, pd()->ocl_conf.bias_ndims);
+        rnn_utils::append_strides(arg_list, pd()->off.bias, 4);
     } else {
         arg_list.append(pd()->rnn_conf.n_dir);
         arg_list.append(pd()->rnn_conf.n_states);
@@ -330,8 +323,7 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
         arg_list.append(scratch_dhG1);
         arg_list.append(scratch_diff_states);
         arg_list.append(diff_bias);
-        rnn_utils::append_strides(arg_list, pd()->off.diff_bias_off, 4,
-                pd()->ocl_conf.diff_bias_ndims);
+        rnn_utils::append_strides(arg_list, pd()->off.diff_bias, 4);
     }
     return parallel_for(ctx, nd_range, kernel, arg_list);
 }

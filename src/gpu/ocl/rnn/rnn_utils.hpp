@@ -170,24 +170,6 @@ struct ocl_conf_t {
     data_type_t diff_dt;
 
     int n_bias;
-    int src_layer_ndims;
-    int src_iter_ndims;
-    int src_iter_c_ndims;
-    int weights_layer_ndims;
-    int weights_iter_ndims;
-    int dst_layer_ndims;
-    int dst_iter_ndims;
-    int dst_iter_c_ndims;
-    int bias_ndims;
-    int diff_src_layer_ndims;
-    int diff_src_iter_ndims;
-    int diff_src_iter_c_ndims;
-    int diff_weights_layer_ndims;
-    int diff_weights_iter_ndims;
-    int diff_dst_layer_ndims;
-    int diff_dst_iter_ndims;
-    int diff_dst_iter_c_ndims;
-    int diff_bias_ndims;
 
     struct inner_layouts_t {
         block_layout_t src_layer;
@@ -336,6 +318,15 @@ inline void append_strides(compute::kernel_arg_list_t &arg_list,
         arg_list.append((d < ndims) ? (cl_int)offs[1][d] : 0);
     }
 }
+
+inline void append_strides(compute::kernel_arg_list_t &arg_list,
+        const strides_t &strides, int ocl_nparams) {
+    for (int d = 0; d < ocl_nparams; d++) {
+        assert(strides[d] < INT_MAX);
+        arg_list.append((cl_int)strides[d]);
+    }
+}
+
 } // namespace rnn_utils
 
 } // namespace ocl
