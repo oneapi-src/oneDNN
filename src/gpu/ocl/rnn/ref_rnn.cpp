@@ -197,6 +197,7 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
     conf.wei_qparam_mask = rnn_pd->attr()->rnn_weights_qparams_.mask_;
     conf.is_testmode = rnn.is_testmode;
 
+    conf.threads_per_eu = 0; // Currently unset, to be set later
     conf.subgroup_size = device_info.max_subgroup_size();
     auto max_elemwise_threads
             = utils::div_up(rnn.mb * rnn.dhc, conf.subgroup_size);
@@ -215,6 +216,12 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
 
 static status_t init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx, const rnn_conf_t &conf) {
+
+    // Fwd operations are not well optimized for larger grf mode
+    primitive_attr_t ocl_attr;
+    if (!conf.is_fwd)
+        CHECK(ocl_attr.set_gpu_attr(gpu_primitive_attr_t(conf.threads_per_eu)));
+    kernel_ctx = compute::kernel_ctx_t(&ocl_attr);
 
     kernel_ctx.add_option("-cl-std=CL2.0");
 
@@ -623,7 +630,6 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     // The inputs of create_gemm_pd describe a gemm in column major.
     // Below, we have to transpose the a and b descriptor to describe
     // the GEMM as a row major problem.
-    int threads_per_eu = 0;
     auto create_gemm_pd
             = [&](std::shared_ptr<primitive_desc_t> &gemm_pd, int m, int n,
                       int k, int lda, int ldb, int ldc, data_type_t a_dt,
@@ -640,13 +646,13 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
         CHECK(attr.set_fpmath_mode(fpmath_mode));
         status_t status = dnnl::impl::create_gemm_pd(gemm_pd, engine, &a_md,
                 &b_md, &c_md, &glob_zero_md, c_dt, &attr);
-        if (threads_per_eu == 0)
-            CHECK(gemm_pd->query(
-                    query::preferred_gpu_threads_per_eu, 0, &threads_per_eu));
+        if (conf.threads_per_eu == 0)
+            CHECK(gemm_pd->query(query::preferred_gpu_threads_per_eu, 0,
+                    &conf.threads_per_eu));
         else if (get_verbose_dev_mode(verbose_t::debuginfo) > 1) {
             auto t = 0;
             CHECK(gemm_pd->query(query::preferred_gpu_threads_per_eu, 0, &t));
-            if (t != threads_per_eu)
+            if (t != conf.threads_per_eu)
                 printf("[WARNING] GEMM grf modes are inconsistent");
         }
         return status;
@@ -730,9 +736,6 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
         default: assert(!"unknown prop_kind"); return status::invalid_arguments;
     }
 
-    // Fwd operations are not well optimized for larger grf mode
-    if (!rnn_conf.is_fwd)
-        CHECK(ocl_attr.set_gpu_attr(gpu_primitive_attr_t(threads_per_eu)));
     init_scratchpad(rnn_conf.use_workspace ? 0 : workspace_size);
     return status::success;
 }
@@ -785,7 +788,7 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
     wei_iter_offset_ptr
             = (size_t *)malloc(sizeof(size_t) * wei_offsets_iter_sz, 64);
 
-    compute::kernel_ctx_t kernel_ctx(&pd()->ocl_attr);
+    compute::kernel_ctx_t kernel_ctx;
     status_t status = init_kernel_ctx(kernel_ctx, pd()->conf);
     CHECK(status);
 

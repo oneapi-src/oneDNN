@@ -438,6 +438,7 @@ struct inner_product_conf_t {
 
 // RNN
 struct rnn_conf_t {
+    int threads_per_eu;
     int subgroup_size;
     int cell_kind;
     int activation_kind;
