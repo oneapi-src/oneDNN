@@ -88,7 +88,10 @@ struct ref_sycl_eltwise_fwd_t : public sycl_gpu_primitive_t {
                     return false;
                 }
             }
-            return attr()->post_ops_.len() <= sycl_post_ops_t::max_post_ops;
+            return attr()->post_ops_.len() <= sycl_post_ops_t::max_post_ops
+                    && attr()->post_ops_.has_default_values(
+                            {primitive_kind::eltwise, primitive_kind::binary,
+                                    primitive_kind::sum});
         }
     };
 
