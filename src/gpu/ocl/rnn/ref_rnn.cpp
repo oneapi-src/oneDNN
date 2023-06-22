@@ -123,16 +123,27 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
     conf.bias_ndims = bias_d.ndims();
 
     gpu::set_offsets(src_layer_d, off.src_layer_off);
+    conf.inner_layouts.src_layer = gpu::get_inner_layout(src_layer_d);
     gpu::set_offsets(src_iter_d, off.src_iter_off);
-    if (conf.with_src_iter_c)
+    conf.inner_layouts.src_iter = gpu::get_inner_layout(src_iter_d);
+    if (conf.with_src_iter_c) {
         gpu::set_offsets(src_iter_c_d, off.src_iter_c_off);
+        conf.inner_layouts.src_iter_c = gpu::get_inner_layout(src_iter_c_d);
+    }
     gpu::set_offsets(weights_layer_d, off.weights_layer_off);
+    conf.inner_layouts.weights_layer = gpu::get_inner_layout(weights_layer_d);
     gpu::set_offsets(weights_iter_d, off.weights_iter_off);
+    conf.inner_layouts.weights_iter = gpu::get_inner_layout(weights_iter_d);
     gpu::set_offsets(bias_d, off.bias_off);
+    conf.inner_layouts.bias = gpu::get_inner_layout(bias_d);
     gpu::set_offsets(dst_layer_d, off.dst_layer_off);
+    conf.inner_layouts.dst_layer = gpu::get_inner_layout(dst_layer_d);
     gpu::set_offsets(dst_iter_d, off.dst_iter_off);
-    if (conf.with_dst_iter_c)
+    conf.inner_layouts.dst_iter = gpu::get_inner_layout(dst_iter_d);
+    if (conf.with_dst_iter_c) {
         gpu::set_offsets(dst_iter_c_d, off.dst_iter_c_off);
+        conf.inner_layouts.dst_iter_c = gpu::get_inner_layout(dst_iter_c_d);
+    }
 
     if (!conf.is_fwd) {
         conf.diff_src_layer_ndims = diff_src_layer_d.ndims();
@@ -148,16 +159,35 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
         conf.diff_bias_ndims = diff_bias_d.ndims();
 
         gpu::set_offsets(diff_src_layer_d, off.diff_src_layer_off);
+        conf.inner_layouts.diff_src_layer
+                = gpu::get_inner_layout(diff_src_layer_d);
         gpu::set_offsets(diff_src_iter_d, off.diff_src_iter_off);
-        if (conf.with_src_iter_c)
+        conf.inner_layouts.diff_src_iter
+                = gpu::get_inner_layout(diff_src_iter_d);
+        if (conf.with_src_iter_c) {
             gpu::set_offsets(diff_src_iter_c_d, off.diff_src_iter_c_off);
+            conf.inner_layouts.diff_src_iter_c
+                    = gpu::get_inner_layout(diff_src_iter_c_d);
+        }
         gpu::set_offsets(diff_weights_layer_d, off.diff_weights_layer_off);
+        conf.inner_layouts.diff_weights_layer
+                = gpu::get_inner_layout(diff_weights_layer_d);
         gpu::set_offsets(diff_weights_iter_d, off.diff_weights_iter_off);
+        conf.inner_layouts.diff_weights_iter
+                = gpu::get_inner_layout(diff_weights_iter_d);
         gpu::set_offsets(diff_bias_d, off.diff_bias_off);
+        conf.inner_layouts.diff_bias = gpu::get_inner_layout(diff_bias_d);
         gpu::set_offsets(diff_dst_layer_d, off.diff_dst_layer_off);
+        conf.inner_layouts.diff_dst_layer
+                = gpu::get_inner_layout(diff_dst_layer_d);
         gpu::set_offsets(diff_dst_iter_d, off.diff_dst_iter_off);
-        if (conf.with_dst_iter_c)
+        conf.inner_layouts.diff_dst_iter
+                = gpu::get_inner_layout(diff_dst_iter_d);
+        if (conf.with_dst_iter_c) {
             gpu::set_offsets(diff_dst_iter_c_d, off.diff_dst_iter_c_off);
+            conf.inner_layouts.diff_dst_iter_c
+                    = gpu::get_inner_layout(diff_dst_iter_c_d);
+        }
     }
 
     conf.cell_kind = rnn_pd->cell_kind();
@@ -183,8 +213,8 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
     return status::success;
 }
 
-static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
-        const rnn_conf_t &conf, const rnn_offsets_t &off) {
+static status_t init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx, const rnn_conf_t &conf) {
 
     kernel_ctx.add_option("-cl-std=CL2.0");
 
@@ -224,48 +254,41 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
 
     kernel_ctx.define_int("SUBGROUP_SIZE", conf.subgroup_size);
 
-    def_block_offsets(
-            off.src_layer_off, kernel_ctx, "SRC_L", conf.src_layer_ndims);
-    def_block_offsets(
-            off.src_iter_off, kernel_ctx, "SRC_I", conf.src_iter_ndims);
-    if (conf.with_src_iter_c)
-        def_block_offsets(off.src_iter_c_off, kernel_ctx, "SRC_I_C",
-                conf.src_iter_c_ndims);
-    def_block_offsets(off.weights_layer_off, kernel_ctx, "WEI_L",
-            conf.weights_layer_ndims);
-    def_block_offsets(
-            off.weights_iter_off, kernel_ctx, "WEI_I", conf.weights_iter_ndims);
-    def_block_offsets(
-            off.dst_layer_off, kernel_ctx, "DST_L", conf.dst_layer_ndims);
-    def_block_offsets(
-            off.dst_iter_off, kernel_ctx, "DST_I", conf.dst_iter_ndims);
+    def_block_offsets(conf.inner_layouts.src_layer, kernel_ctx, "SRC_L");
+    def_block_offsets(conf.inner_layouts.src_iter, kernel_ctx, "SRC_I");
+    if (conf.with_src_iter_c) {
+        def_block_offsets(conf.inner_layouts.src_iter_c, kernel_ctx, "SRC_I_C");
+    }
+    def_block_offsets(conf.inner_layouts.weights_layer, kernel_ctx, "WEI_L");
+    def_block_offsets(conf.inner_layouts.weights_iter, kernel_ctx, "WEI_I");
+    def_block_offsets(conf.inner_layouts.dst_layer, kernel_ctx, "DST_L");
+    def_block_offsets(conf.inner_layouts.dst_iter, kernel_ctx, "DST_I");
     if (conf.with_dst_iter_c)
-        def_block_offsets(off.dst_iter_c_off, kernel_ctx, "DST_I_C",
-                conf.dst_iter_c_ndims);
-    def_block_offsets(off.bias_off, kernel_ctx, "BIAS", conf.bias_ndims);
+        def_block_offsets(conf.inner_layouts.dst_iter_c, kernel_ctx, "DST_I_C");
+    def_block_offsets(conf.inner_layouts.bias, kernel_ctx, "BIAS");
     kernel_ctx.define_int("N_BIAS", conf.n_bias);
 
     if (!conf.is_fwd) {
-        def_block_offsets(off.diff_src_layer_off, kernel_ctx, "DIFF_SRC_L",
-                conf.diff_src_layer_ndims);
-        def_block_offsets(off.diff_src_iter_off, kernel_ctx, "DIFF_SRC_I",
-                conf.diff_src_iter_ndims);
+        def_block_offsets(
+                conf.inner_layouts.diff_src_layer, kernel_ctx, "DIFF_SRC_L");
+        def_block_offsets(
+                conf.inner_layouts.diff_src_iter, kernel_ctx, "DIFF_SRC_I");
         if (conf.with_src_iter_c)
-            def_block_offsets(off.diff_src_iter_c_off, kernel_ctx,
-                    "DIFF_SRC_I_C", conf.diff_src_iter_c_ndims);
-        def_block_offsets(off.diff_weights_layer_off, kernel_ctx, "DIFF_WEI_L",
-                conf.diff_weights_layer_ndims);
-        def_block_offsets(off.diff_weights_iter_off, kernel_ctx, "DIFF_WEI_I",
-                conf.diff_weights_iter_ndims);
-        def_block_offsets(off.diff_dst_layer_off, kernel_ctx, "DIFF_DST_L",
-                conf.diff_dst_layer_ndims);
-        def_block_offsets(off.diff_dst_iter_off, kernel_ctx, "DIFF_DST_I",
-                conf.diff_dst_iter_ndims);
+            def_block_offsets(conf.inner_layouts.diff_src_iter_c, kernel_ctx,
+                    "DIFF_SRC_I_C");
+        def_block_offsets(conf.inner_layouts.diff_weights_layer, kernel_ctx,
+                "DIFF_WEI_L");
+        def_block_offsets(
+                conf.inner_layouts.diff_weights_iter, kernel_ctx, "DIFF_WEI_I");
+        def_block_offsets(
+                conf.inner_layouts.diff_dst_layer, kernel_ctx, "DIFF_DST_L");
+        def_block_offsets(
+                conf.inner_layouts.diff_dst_iter, kernel_ctx, "DIFF_DST_I");
         if (conf.with_dst_iter_c)
-            def_block_offsets(off.diff_dst_iter_c_off, kernel_ctx,
-                    "DIFF_DST_I_C", conf.diff_dst_iter_c_ndims);
-        def_block_offsets(off.diff_bias_off, kernel_ctx, "DIFF_BIAS",
-                conf.diff_bias_ndims);
+            def_block_offsets(conf.inner_layouts.diff_dst_iter_c, kernel_ctx,
+                    "DIFF_DST_I_C");
+        def_block_offsets(
+                conf.inner_layouts.diff_bias, kernel_ctx, "DIFF_BIAS");
     }
 
     if (conf.src_dt == data_type::f16) {
@@ -763,7 +786,7 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
             = (size_t *)malloc(sizeof(size_t) * wei_offsets_iter_sz, 64);
 
     compute::kernel_ctx_t kernel_ctx(&pd()->ocl_attr);
-    status_t status = init_kernel_ctx(kernel_ctx, pd()->conf, pd()->off);
+    status_t status = init_kernel_ctx(kernel_ctx, pd()->conf);
     CHECK(status);
 
     std::vector<const char *> kernel_names = {"ref_rnn_bias_prepare",

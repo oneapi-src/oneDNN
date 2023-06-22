@@ -230,6 +230,24 @@ struct attr_info_t {
     bool with_per_oc_dst_zpoints;
 };
 
+struct block_t {
+    static constexpr int unknown = -1;
+    block_t() : id(unknown), size(unknown), stride(unknown) {}
+    block_t(dim_t id, dim_t size, dim_t stride)
+        : id(id), size(size), stride(stride) {}
+#if __cplusplus >= 202002L
+    bool operator==(const block_t &) const = default;
+#endif
+
+    dim_t id;
+    dim_t size;
+    dim_t stride; // Stride between elements within the block
+};
+
+struct block_layout_t {
+    std::array<block_t, MAX_NDIMS> blocks;
+};
+
 struct offsets_t {
     dim_t src_off[4][MAX_NDIMS];
     dim_t wei_off[4][MAX_NDIMS];
@@ -463,6 +481,30 @@ struct rnn_conf_t {
     int diff_dst_iter_ndims;
     int diff_dst_iter_c_ndims;
     int diff_bias_ndims;
+
+    struct inner_layouts_t {
+        block_layout_t src_layer;
+        block_layout_t src_iter;
+        block_layout_t src_iter_c;
+        block_layout_t weights_layer;
+        block_layout_t weights_iter;
+        block_layout_t bias;
+        block_layout_t dst_layer;
+        block_layout_t dst_iter;
+        block_layout_t dst_iter_c;
+        block_layout_t diff_src_layer;
+        block_layout_t diff_src_iter;
+        block_layout_t diff_src_iter_c;
+        block_layout_t diff_weights_layer;
+        block_layout_t diff_weights_iter;
+        block_layout_t diff_bias;
+        block_layout_t diff_dst_layer;
+        block_layout_t diff_dst_iter;
+        block_layout_t diff_dst_iter_c;
+        block_layout_t ws;
+    };
+
+    inner_layouts_t inner_layouts;
 
     int wei_qparam_mask;
 
@@ -1097,6 +1139,23 @@ inline void set_offsets(
     }
 }
 
+inline block_layout_t get_inner_layout(const memory_desc_wrapper &md) {
+    dim_t block_dims[DNNL_MAX_NDIMS];
+    dim_t strides_compat[2][DNNL_MAX_NDIMS];
+
+    md.compute_blocks(block_dims);
+    md.compute_strides_compat(strides_compat);
+
+    block_layout_t ret;
+    for (int d = 0; d < MAX_NDIMS; ++d) {
+        if (d < md.ndims())
+            ret.blocks[d] = block_t(d, block_dims[d], strides_compat[1][d]);
+        else
+            ret.blocks[d] = block_t(d, 1, 0);
+    }
+    return ret;
+}
+
 inline void def_offsets(const dim_t offs[4][MAX_NDIMS],
         compute::kernel_ctx_t &kernel_ctx, const char *str, const int ndims) {
 
@@ -1112,14 +1171,12 @@ inline void def_offsets(const dim_t offs[4][MAX_NDIMS],
     }
 }
 
-inline void def_block_offsets(const dim_t offs[4][MAX_NDIMS],
-        compute::kernel_ctx_t &kernel_ctx, const char *str, const int ndims) {
+inline void def_block_offsets(const block_layout_t &layout,
+        compute::kernel_ctx_t &kernel_ctx, const char *str) {
 
-    for (int d = 0; d < MAX_NDIMS; d++) {
-        kernel_ctx.define_int(
-                utils::format("%s_B%d", str, d), (d < ndims) ? offs[0][d] : 1);
-        kernel_ctx.define_int(
-                utils::format("%s_SB%d", str, d), (d < ndims) ? offs[2][d] : 0);
+    for (auto &b : layout.blocks) {
+        kernel_ctx.define_int(utils::format("%s_B%d", str, b.id), b.size);
+        kernel_ctx.define_int(utils::format("%s_SB%d", str, b.id), b.stride);
     }
 }
 
