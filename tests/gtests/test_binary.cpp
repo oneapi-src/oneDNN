@@ -150,9 +150,12 @@ protected:
             // regular pd ctor
             pd = pd_t(eng, p.aalgorithm, desc_A, desc_B, desc_C);
             // test all pd ctors
-            if (!has_zero_dim)
-                test_fwd_pd_constructors<pd_t>(
-                        pd, aa, p.aalgorithm, desc_A, desc_B, desc_C);
+            // XXX: NVidia and AMD GPU support is sparse, attributes are not
+            // supported consistently across all shapes
+            if (!is_nvidia_gpu(eng) && !is_amd_gpu(eng))
+                if (!has_zero_dim)
+                    test_fwd_pd_constructors<pd_t>(
+                            pd, aa, p.aalgorithm, desc_A, desc_B, desc_C);
             // test non-md query interfaces
             ASSERT_EQ(pd.get_algorithm(), p.aalgorithm);
 
