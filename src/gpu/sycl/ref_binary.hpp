@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -94,10 +94,8 @@ struct ref_binary_t : public sycl_gpu_primitive_t {
             }
             // Binary, prelu and dw conv post-ops are not supported.
             return attr()->post_ops_.len() <= sycl_post_ops_t::max_post_ops
-                    && attr()->post_ops_.find(primitive_kind::binary) == -1
-                    && attr()->post_ops_.find(primitive_kind::prelu) == -1
-                    && attr()->post_ops_.find(primitive_kind::convolution)
-                    == -1;
+                    && attr()->post_ops_.has_default_values(
+                            {primitive_kind::eltwise});
         }
 
         static bool check_data_types(const memory_desc_wrapper &src0,
