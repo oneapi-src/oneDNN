@@ -269,6 +269,7 @@ int fill_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_data_type({prb->dt}, prb->dir, res);
     skip_unimplemented_sum_po(prb->attr, res, dnnl_eltwise, prb->dt);
+    skip_unimplemented_prelu_po(prb->attr, res, dnnl_eltwise);
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {

@@ -189,6 +189,7 @@ int fill_data_bwd(data_kind_t data_kind, const prb_t *prb, dnn_mem_t &mem_dt,
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_data_type({prb->sdt, prb->ddt}, prb->dir, res);
     skip_unimplemented_sum_po(prb->attr, res, dnnl_softmax, prb->sdt);
+    skip_unimplemented_prelu_po(prb->attr, res, dnnl_softmax);
 
     if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) != -1) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;

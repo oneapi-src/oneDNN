@@ -728,6 +728,7 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
     dir_t dir = str2dir(prop2str(prb.prop));
     skip_unimplemented_data_type({prb.cfg[SRC_LAYER].dt}, dir, res);
     skip_unimplemented_sum_po(prb.attr, res, dnnl_rnn, prb.cfg[SRC_LAYER].dt);
+    skip_unimplemented_prelu_po(prb.attr, res, dnnl_rnn);
 
 #if !defined(DNNL_X64) || DNNL_X64 == 0 \
         || DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL

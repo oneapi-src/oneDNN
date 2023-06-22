@@ -653,6 +653,23 @@ void skip_unimplemented_sum_po(const attr_t &attr, res_t *res,
     }
 }
 
+void skip_unimplemented_prelu_po(
+        const attr_t &attr, res_t *res, dnnl_primitive_kind_t pkind) {
+    const auto &po = attr.post_ops;
+    if (po.is_def()) return;
+
+    const int first_prelu_idx = po.find(attr_t::post_ops_t::PRELU);
+    if (first_prelu_idx == -1) return;
+
+    switch (pkind) {
+        case dnnl_convolution:
+        case dnnl_deconvolution:
+        case dnnl_inner_product:
+        case dnnl_matmul: return; break;
+        default: res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED; break;
+    }
+}
+
 void skip_unimplemented_arg_scale(const attr_t &attr, res_t *res) {
     for (const auto &arg_s : attr.scales.scales) {
         if (arg_s.second.policy != policy_t::COMMON) {

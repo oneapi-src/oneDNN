@@ -227,6 +227,7 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             prb->dir, res);
     skip_unimplemented_sum_po(
             prb->attr, res, dnnl_gemm, prb->src_dt(), prb->dst_dt());
+    skip_unimplemented_prelu_po(prb->attr, res, dnnl_gemm);
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {

@@ -130,6 +130,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_data_type(prb->sdt, FWD_D, res);
     skip_unimplemented_sum_po(prb->attr, res, dnnl_prelu, prb->sdt[0]);
+    skip_unimplemented_prelu_po(prb->attr, res, dnnl_prelu);
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {}

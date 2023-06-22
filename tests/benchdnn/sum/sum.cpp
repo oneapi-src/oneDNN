@@ -84,6 +84,7 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     dts.push_back(prb->ddt);
     skip_unimplemented_data_type(dts, prb->dir, res);
     skip_unimplemented_sum_po(prb->attr, res, dnnl_sum, prb->sdt[0]);
+    skip_unimplemented_prelu_po(prb->attr, res, dnnl_sum);
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {

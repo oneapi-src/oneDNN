@@ -192,6 +192,7 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     const auto ddt = prb->ddt;
     skip_unimplemented_data_type({sdt, ddt}, prb->dir, res);
     skip_unimplemented_sum_po(prb->attr, res, dnnl_reorder, sdt);
+    skip_unimplemented_prelu_po(prb->attr, res, dnnl_reorder);
 
     bool scales_ok = true;
 #if !defined(DNNL_X64) || DNNL_X64 == 0

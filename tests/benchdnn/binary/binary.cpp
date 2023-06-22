@@ -88,6 +88,7 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     std::vector<dnnl_data_type_t> dts = {prb->sdt[0], prb->sdt[1], prb->ddt};
     skip_unimplemented_data_type(dts, prb->dir, res);
     skip_unimplemented_arg_scale(prb->attr, res);
+    skip_unimplemented_prelu_po(prb->attr, res, dnnl_binary);
 
     // N.B: Adding this for gpu as cfg is not supported in POST-OPS
     if (is_gpu()) {
