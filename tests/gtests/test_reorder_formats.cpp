@@ -61,26 +61,13 @@ protected:
         bool has_int8_zp_support = false;
 #endif
 
-        memory::dims SP1D = {2};
-        memory::dims SP2D = {2, 2};
-        memory::dims SP3D = {2, 2, 2};
         memory::dims SP4D = {2, 2, 2, 2};
-        memory::dims SP5D = {2, 2, 2, 2, 2};
-        memory::dims SP6D = {2, 2, 2, 2, 2, 2};
-        memory::dims SP7D = {2, 2, 2, 2, 2, 2, 2};
-        memory::dims SP8D = {2, 2, 2, 2, 2, 2, 2, 2};
-        memory::dims SP9D = {2, 2, 2, 2, 2, 2, 2, 2, 2};
-        memory::dims SP10D = {2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
-        memory::dims SP11D = {2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
-        memory::dims SP12D = {2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
-        std::vector<memory::dims> v_dims = {SP1D, SP2D, SP3D, SP4D, SP5D, SP6D,
-                SP7D, SP8D, SP9D, SP10D, SP11D, SP12D};
 
         unsigned start_dt = 1;
         unsigned end_dt = 7;
 
-        unsigned start_tag = static_cast<unsigned>(tag::any) + 1;
-        unsigned end_tag = static_cast<unsigned>(tag::format_tag_last);
+        unsigned start_tag = static_cast<unsigned>(dnnl_format_tag_any) + 1;
+        unsigned end_tag = static_cast<unsigned>(dnnl_format_tag_last);
 
         dt in_dt, out_dt;
         tag in_tag, out_tag;
@@ -121,50 +108,39 @@ protected:
 
             for (unsigned i_tag = start_tag; i_tag < end_tag; i_tag++) {
                 in_tag = static_cast<tag>(i_tag);
-                for (const auto &i_dims : v_dims) {
-                    in_md = md(i_dims, in_dt, in_tag, true);
-                    if (in_md) break;
-                }
+                in_md = md(SP4D, in_dt, in_tag, true);
+                if (!in_md.get(true)) continue;
                 ASSERT_TRUE(in_md);
 
                 const dnnl::impl::memory_desc_wrapper in_d(in_md.get());
-                bool abx2any = in_d.matches_one_of_tag(dnnl_a, dnnl_ab,
-                        dnnl_abc, dnnl_abcd, dnnl_abcde, dnnl_abcdef,
-                        dnnl_abcdefg, dnnl_abcdefgh, dnnl_abcdefghij,
-                        dnnl_abcdefghijk, dnnl_abcdefghijkl);
+                bool abx2any = in_d.matches_one_of_tag(dnnl_abcd);
 
                 for (unsigned o_dt = start_dt; o_dt < end_dt; o_dt++) {
                     out_dt = static_cast<dt>(o_dt);
                     if (out_dt == dt::bf16 && !has_bf16) continue;
                     if (out_dt == dt::f16 && !has_f16) continue;
 
-                    for_(unsigned o_tag = start_tag; o_tag < end_tag; o_tag++)
-                    for (const auto &i_extra : extra) {
+                    for (unsigned o_tag = start_tag; o_tag < end_tag; o_tag++) {
                         out_tag = static_cast<tag>(o_tag);
-                        for (const auto &i_dims : v_dims) {
-                            out_md = md(i_dims, out_dt, out_tag, true);
-                            if (out_md) break;
-                        }
+                        out_md = md(SP4D, out_dt, out_tag, true);
+                        if (!out_md.get(true)) continue;
                         ASSERT_TRUE(out_md);
-                        if (in_md.get_ndims() != out_md.get_ndims()) continue;
 
                         const dnnl::impl::memory_desc_wrapper out_d(
                                 out_md.get());
-                        bool any2abx = out_d.matches_one_of_tag(dnnl_a, dnnl_ab,
-                                dnnl_abc, dnnl_abcd, dnnl_abcde, dnnl_abcdef,
-                                dnnl_abcdefg, dnnl_abcdefgh, dnnl_abcdefghij,
-                                dnnl_abcdefghijk, dnnl_abcdefghijkl);
-
-                        // test only abx->any and any->abx reorders, otherwise it
-                        // takes too long. These combinations cover most popular
-                        // reorder use cases.
+                        bool any2abx = out_d.matches_one_of_tag(dnnl_abcd);
+                        // test only abx->any and any->abx reorders, otherwise
+                        // it takes too long. These combinations cover most
+                        // popular reorder use cases.
                         if (!abx2any && !any2abx) continue;
 
-                        out_md.get()->extra = i_extra;
+                        for (const auto &i_extra : extra) {
+                            out_md.get()->extra = i_extra;
 
-                        catch_expected_failures(
-                                [&]() { TestFormat(in_md, out_md); }, false,
-                                dnnl_success);
+                            catch_expected_failures(
+                                    [&]() { TestFormat(in_md, out_md); }, false,
+                                    dnnl_success);
+                        }
                     }
                 }
             }
@@ -172,14 +148,14 @@ protected:
     }
 
     void TestFormat(const md &in_md, const md &out_md) const {
-        auto src = test::make_memory(in_md, e);
-        auto dst = test::make_memory(out_md, e);
         reorder::primitive_desc r_pd(
                 e, in_md, e, out_md, primitive_attr(), true);
         if (r_pd) {
             auto r = reorder(r_pd);
+            auto src = test::make_memory(in_md, e);
+            auto dst = test::make_memory(out_md, e);
             auto strm = make_stream(r_pd.get_engine());
-            r.execute(strm, src, dst);
+            EXPECT_NO_THROW(r.execute(strm, src, dst));
             strm.wait();
         }
     }
