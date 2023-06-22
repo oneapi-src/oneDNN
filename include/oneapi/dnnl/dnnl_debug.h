@@ -35,6 +35,7 @@ extern "C" {
 const char DNNL_API *dnnl_status2str(dnnl_status_t v);
 const char DNNL_API *dnnl_dt2str(dnnl_data_type_t v);
 const char DNNL_API *dnnl_fpmath_mode2str(dnnl_fpmath_mode_t v);
+const char DNNL_API *dnnl_accumulation_mode2str(dnnl_accumulation_mode_t v);
 const char DNNL_API *dnnl_engine_kind2str(dnnl_engine_kind_t v);
 #ifdef DNNL_EXPERIMENTAL_SPARSE
 const char DNNL_API *dnnl_sparse_encoding2str(dnnl_sparse_encoding_t v);

@@ -43,6 +43,7 @@
 #define VERBOSE_INVALID_ENGINE_KIND "no %s device is available"
 #define VERBOSE_INVALID_ENGINE_IDX \
     "%zu %s devices are available but %zu was queried"
+#define VERBOSE_INVALID_ACC_MODE "bad accumulation mode %s"
 #define VERBOSE_NULL_ARG "one of the mandatory arguments is nullptr"
 #define VERBOSE_BAD_ENGINE_KIND "bad engine kind"
 #define VERBOSE_BAD_ALGORITHM "bad algorithm"

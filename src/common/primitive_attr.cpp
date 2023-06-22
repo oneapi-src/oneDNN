@@ -20,6 +20,7 @@
 #include "primitive_attr.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+#include "verbose.hpp"
 
 using namespace dnnl::impl;
 using namespace dnnl::impl::status;
@@ -130,6 +131,10 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
     bool gpu_attr_ok = IMPLICATION((bool)(~mask & smask_t::gpu_attr),
             !gpu_attr_ || gpu_attr_->has_default_values());
     CHECK_ARG(gpu_attr_ok);
+    CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::accumulation_mode),
+            utils::one_of(acc_mode_, dnnl::impl::accumulation_mode::strict,
+                    dnnl::impl::accumulation_mode::relaxed,
+                    dnnl::impl::accumulation_mode::any)));
     CHECK_ARG(this->defined(defined_mask));
     return ok;
 #undef CHECK_MASK
@@ -358,6 +363,18 @@ status_t primitive_attr_t::set_fpmath_mode(fpmath_mode_t fpmath_mode) {
     return st;
 }
 
+status_t primitive_attr_t::set_accumulation_mode(accumulation_mode_t am) {
+    VCONDCHECK(primitive, create, check, attr,
+            utils::one_of(am, accumulation_mode::strict,
+                    accumulation_mode::relaxed, accumulation_mode::any,
+                    accumulation_mode::s32, accumulation_mode::f32,
+                    accumulation_mode::f16),
+            invalid_arguments, VERBOSE_INVALID_ACC_MODE,
+            dnnl_accumulation_mode2str(am));
+    acc_mode_ = am;
+    return success;
+}
+
 status_t primitive_attr_t::set_scratchpad_mode(
         scratchpad_mode_t scratchpad_mode) {
     const bool ok = one_of(
@@ -417,6 +434,19 @@ status_t dnnl_primitive_attr_set_fpmath_mode(
         primitive_attr_t *attr, fpmath_mode_t mode) {
     if (any_null(attr)) return invalid_arguments;
     return attr->set_fpmath_mode(mode);
+}
+
+status_t dnnl_primitive_attr_get_accumulation_mode(
+        const primitive_attr_t *attr, accumulation_mode_t *am) {
+    if (any_null(attr, am)) return invalid_arguments;
+    *am = attr->acc_mode_;
+    return success;
+}
+
+status_t dnnl_primitive_attr_set_accumulation_mode(
+        primitive_attr_t *attr, accumulation_mode_t am) {
+    if (any_null(attr)) return invalid_arguments;
+    return attr->set_accumulation_mode(am);
 }
 
 status_t dnnl_primitive_attr_get_scratchpad_mode(

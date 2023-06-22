@@ -602,6 +602,11 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
         ss << "attr-fpmath:" << dnnl_fpmath_mode2str(fpm) << " ";
     }
 
+    const accumulation_mode_t &am = attr->acc_mode_;
+    if (am != accumulation_mode::strict) {
+        ss << "attr-acc:" << dnnl_accumulation_mode2str(am) << " ";
+    }
+
     if (attr->has_default_values()) return ss;
 
     const runtime_scales_t &os = attr->output_scales_;

@@ -200,6 +200,8 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
     seed = hash_combine(seed, static_cast<size_t>(attr.scratchpad_mode_));
     // fpmath_mode
     seed = hash_combine(seed, static_cast<size_t>(attr.fpmath_mode_));
+    // acc_mode
+    seed = hash_combine(seed, static_cast<size_t>(attr.acc_mode_));
 
     if (!attr.output_scales_.has_default_values()) {
         // output_scales: mask

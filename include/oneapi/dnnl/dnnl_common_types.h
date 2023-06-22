@@ -136,6 +136,30 @@ typedef enum {
 
 /// @} dnnl_api_fpmath_mode
 
+/// @addtogroup dnnl_api_accumulation_mode Accumulation Mode
+/// @{
+
+/// Accumulation mode
+typedef enum {
+    /// Default behavior, f32/f64 for floating point computation, s32
+    /// for integer
+    dnnl_accumulation_mode_strict,
+    /// Same as strict but allows some partial accumulators to be
+    /// rounded to src/dst datatype in memory.
+    dnnl_accumulation_mode_relaxed,
+    /// uses fastest implementation, could use src/dst datatype or
+    /// wider datatype for accumulators
+    dnnl_accumulation_mode_any,
+    /// use s32 accumulators during computation
+    dnnl_accumulation_mode_s32,
+    /// use f32 accumulators during computation
+    dnnl_accumulation_mode_f32,
+    /// use f16 accumulators during computation
+    dnnl_accumulation_mode_f16
+} dnnl_accumulation_mode_t;
+
+/// @} dnnl_api_accumulation_mode
+
 /// @addtogroup dnnl_api_engine Engine
 /// @{
 

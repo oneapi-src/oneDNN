@@ -172,6 +172,16 @@ const fpmath_mode_t tf32 = dnnl_fpmath_mode_tf32;
 const fpmath_mode_t any = dnnl_fpmath_mode_any;
 } // namespace fpmath_mode
 
+using accumulation_mode_t = dnnl_accumulation_mode_t;
+namespace accumulation_mode {
+const accumulation_mode_t strict = dnnl_accumulation_mode_strict;
+const accumulation_mode_t relaxed = dnnl_accumulation_mode_relaxed;
+const accumulation_mode_t any = dnnl_accumulation_mode_any;
+const accumulation_mode_t f32 = dnnl_accumulation_mode_f32;
+const accumulation_mode_t s32 = dnnl_accumulation_mode_s32;
+const accumulation_mode_t f16 = dnnl_accumulation_mode_f16;
+} // namespace accumulation_mode
+
 using scratchpad_mode_t = dnnl_scratchpad_mode_t;
 namespace scratchpad_mode {
 const scratchpad_mode_t library = dnnl_scratchpad_mode_library;

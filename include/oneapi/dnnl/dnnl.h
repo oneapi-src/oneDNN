@@ -294,6 +294,30 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_fpmath_mode(
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_fpmath_mode(
         dnnl_primitive_attr_t attr, dnnl_fpmath_mode_t mode);
 
+/// Returns the accumulation mode primitive attribute.
+///
+/// @param attr Primitive attributes.
+/// @param mode Output accumulation mode.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_primitive_attr_get_accumulation_mode(
+        const_dnnl_primitive_attr_t attr, dnnl_accumulation_mode_t *mode);
+
+/// Sets the accumulation mode primitive attribute.
+///
+/// @param attr Primitive attributes.
+/// @param mode Accumulation mode. The possible values are:
+///     #dnnl_accumulation_mode_strict (default), which is s32 for quantized primitives, f32/f64 otherwise
+///     #dnnl_accumulation_mode_relaxed, which is same as strict but allows intermediate accumulators to be in src/dst datatype
+///     #dnnl_accumulation_mode_any, which allows accumulators to be src/dst datatype or any wider type.
+///     #dnnl_accumulation_mode_f32,
+///     #dnnl_accumulation_mode_s32,
+///     #dnnl_accumulation_mode_f16.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_accumulation_mode(
+        dnnl_primitive_attr_t attr, dnnl_accumulation_mode_t mode);
+
 /// Returns the primitive attributes scratchpad mode.
 ///
 /// @param attr Primitive attributes.

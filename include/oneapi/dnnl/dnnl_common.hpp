@@ -439,6 +439,37 @@ inline dnnl_fpmath_mode_t convert_to_c(fpmath_mode mode) {
 
 /// @} dnnl_api_fpmath_mode
 
+/// @addtogroup dnnl_api_accumulation_mode Accumulation mode
+/// @{
+
+/// Accumulation mode
+enum class accumulation_mode {
+    /// Default behavior, f32 for floating point computation, s32 for integer
+    strict = dnnl_accumulation_mode_strict,
+    /// same as strict except some partial accumulators can be rounded to
+    /// src/dst datatype in memory.
+    relaxed = dnnl_accumulation_mode_relaxed,
+    /// uses fastest implementation, could use src/dst datatype or
+    /// wider datatype for accumulators
+    any = dnnl_accumulation_mode_any,
+    /// use s32 accumulators during computation
+    s32 = dnnl_accumulation_mode_s32,
+    /// use f32 accumulators during computation
+    f32 = dnnl_accumulation_mode_f32,
+    /// use f16 accumulators during computation
+    f16 = dnnl_accumulation_mode_f16
+};
+
+/// Converts an accumulation mode enum value from C++ API to C API type.
+///
+/// @param mode C++ API accumulation mode enum value.
+/// @returns Corresponding C API accumulation mode enum value.
+inline dnnl_accumulation_mode_t convert_to_c(accumulation_mode mode) {
+    return static_cast<dnnl_accumulation_mode_t>(mode);
+}
+
+/// @} dnnl_api_accumulation_mode
+
 /// @} dnnl_api_common
 
 } // namespace dnnl

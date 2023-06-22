@@ -53,4 +53,7 @@ const char *scratchpad_mode2str(dnnl_scratchpad_mode_t mode);
 /* fpmath mode */
 const char *fpmath_mode2str(dnnl_fpmath_mode_t mode);
 
+/* accumulation mode */
+const char *accumulation_mode2str(dnnl_accumulation_mode_t mode);
+
 #endif

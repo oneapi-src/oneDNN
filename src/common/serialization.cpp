@@ -171,6 +171,8 @@ void serialize_attr(
     sstream.write(&attr.scratchpad_mode_);
     // fpmath_mode
     sstream.write(&attr.fpmath_mode_);
+    // acc_mode
+    sstream.write(&attr.acc_mode_);
 
     if (!attr.output_scales_.has_default_values()) {
         // output_scales: mask
