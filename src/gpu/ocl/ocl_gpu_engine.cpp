@@ -104,6 +104,7 @@ status_t create_ocl_kernel_from_cache_blob(const ocl_gpu_engine_t *ocl_engine,
     auto dev = ocl_engine->device();
     auto ctx = ocl_engine->context();
     cl_int err = CL_SUCCESS;
+    *kernels = std::vector<compute::kernel_t>(kernel_names.size());
     for (size_t i = 0; i < kernel_names.size(); i++) {
         if (!kernel_names[i] && kernel_names.size() > 1) continue;
         std::string kernel_name(kernel_names[i] ? kernel_names[i] : "");
