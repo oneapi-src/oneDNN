@@ -68,6 +68,10 @@ if(DNNL_SYCL_CUDA)
     #   function call with eplicit template arguments is a C++20 extension
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++20-extensions")
 
+    # Suppress LLVM warning about not supporting latest cuda. It's safe enough
+    # as long as no new cuda features are used in SYCL kernels.
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-cuda-version")
+
     find_package(cuBLAS REQUIRED)
     find_package(cuDNN REQUIRED)
     # An ugly workaround to satisfy OpenCL dependency that is coming from
