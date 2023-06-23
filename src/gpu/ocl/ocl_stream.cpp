@@ -23,7 +23,7 @@
 #include "common/verbose.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-#include "gpu/ocl/profiler.hpp"
+#include "gpu/ocl/stream_profiler.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -32,7 +32,7 @@ namespace ocl {
 
 status_t ocl_stream_t::init() {
     if (is_profiling_enabled()) {
-        profiler_ = utils::make_unique<ocl_profiler_t>(this);
+        profiler_ = utils::make_unique<ocl_stream_profiler_t>(this);
         mdapi_helper_ = utils::make_unique<mdapi_helper_t>();
     }
     // Restore queue on successful exit, otherwise queue may be released

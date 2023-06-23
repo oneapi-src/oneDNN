@@ -18,7 +18,7 @@
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-#include "gpu/ocl/profiler.hpp"
+#include "gpu/ocl/stream_profiler.hpp"
 #include "gpu/zero_pad_struct.h"
 #include "sycl/level_zero_utils.hpp"
 #include "sycl/sycl_c_types_map.hpp"

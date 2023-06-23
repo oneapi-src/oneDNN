@@ -14,8 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <CL/cl.h>
-
 #include <atomic>
 #include <limits>
 #include <mutex>
@@ -23,26 +21,21 @@
 #include <vector>
 #include <unordered_map>
 
-#include "gpu/ocl/profiler.hpp"
+#include "sycl/stream_profiler.hpp"
 
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
-#include "gpu/ocl/mdapi_utils.hpp"
-#include "gpu/ocl/ocl_stream.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
-
-using namespace dnnl::impl;
-using namespace dnnl::impl::gpu::ocl;
+#include "sycl/sycl_stream.hpp"
+#include "sycl/sycl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
-namespace ocl {
+namespace sycl {
 
-status_t ocl_profiler_t::get_info(profiling_data_kind_t data_kind,
+status_t sycl_stream_profiler_t::get_info(profiling_data_kind_t data_kind,
         int *num_entries, uint64_t *data) const {
+    using namespace ::sycl::info;
     if (!num_entries) return status::invalid_arguments;
-    const ocl_stream_t *ocl_stream = static_cast<const ocl_stream_t *>(stream_);
     if (!data) {
         std::unordered_set<uint64_t> seen;
         for (auto &ev : events_)
@@ -51,26 +44,24 @@ status_t ocl_profiler_t::get_info(profiling_data_kind_t data_kind,
         return status::success;
     }
 
-    std::unordered_map<uint64_t, profiler_t::entry_t> stamp2entry;
+    std::unordered_map<uint64_t, stream_profiler_t::entry_t> stamp2entry;
     for (auto &ev : events_) {
+        const sycl_event_t &sycl_event
+                = *utils::downcast<sycl_event_t *>(ev.event.get());
+        assert(sycl_event.size() == 1);
+        auto beg
+                = sycl_event[0]
+                          .get_profiling_info<event_profiling::command_start>();
+        auto end = sycl_event[0]
+                           .get_profiling_info<event_profiling::command_end>();
         auto &entry = stamp2entry[ev.stamp];
-        const ocl_event_t &ocl_event
-                = *utils::downcast<ocl_event_t *>(ev.event.get());
-        cl_ulong beg, end;
-        assert(ocl_event.size() == 1);
-        OCL_CHECK(clGetEventProfilingInfo(ocl_event[0].get(),
-                CL_PROFILING_COMMAND_START, sizeof(beg), &beg, nullptr));
-        OCL_CHECK(clGetEventProfilingInfo(ocl_event[0].get(),
-                CL_PROFILING_COMMAND_END, sizeof(end), &end, nullptr));
         entry.min_nsec = std::min(entry.min_nsec, beg);
         entry.max_nsec = std::max(entry.max_nsec, end);
-        entry.freq += ocl_stream->mdapi_helper().get_freq(ocl_event[0]);
         entry.kernel_count++;
     }
-    return profiler_t::get_info_impl(stamp2entry, data_kind, data);
+    return stream_profiler_t::get_info_impl(stamp2entry, data_kind, data);
 }
 
-} // namespace ocl
-} // namespace gpu
+} // namespace sycl
 } // namespace impl
 } // namespace dnnl

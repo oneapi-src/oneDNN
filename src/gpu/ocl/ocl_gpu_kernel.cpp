@@ -27,7 +27,7 @@
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_usm_utils.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-#include "gpu/ocl/profiler.hpp"
+#include "gpu/ocl/stream_profiler.hpp"
 
 namespace dnnl {
 namespace impl {

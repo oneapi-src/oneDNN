@@ -26,7 +26,7 @@
 #include "gpu/compute/compute_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/sycl/sycl_gpu_engine.hpp"
-#include "sycl/profiler.hpp"
+#include "sycl/stream_profiler.hpp"
 #include "sycl/sycl_context.hpp"
 #include "sycl/sycl_memory_storage.hpp"
 
@@ -95,7 +95,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         return profiler_->get_info(data_kind, num_entries, data);
     }
 
-    gpu::compute::profiler_t &profiler() { return *profiler_; }
+    gpu::compute::stream_profiler_t &profiler() { return *profiler_; }
 
     ::sycl::queue &queue() { return *queue_; }
 
@@ -327,7 +327,7 @@ protected:
     }
 
     std::unique_ptr<::sycl::queue> queue_;
-    std::unique_ptr<gpu::compute::profiler_t> profiler_;
+    std::unique_ptr<gpu::compute::stream_profiler_t> profiler_;
     mutable utils::thread_local_storage_t<sycl_context_t> ctx_;
 
     // XXX: this is a temporary solution to make sycl_memory_arg_t

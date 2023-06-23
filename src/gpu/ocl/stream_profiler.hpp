@@ -14,24 +14,27 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SYCL_PROFILER_HPP
-#define SYCL_PROFILER_HPP
+#ifndef GPU_OCL_STREAM_PROFILER_HPP
+#define GPU_OCL_STREAM_PROFILER_HPP
 
 #include "common/c_types_map.hpp"
-#include "gpu/compute/profiler.hpp"
+#include "gpu/compute/stream_profiler.hpp"
+#include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace sycl {
+namespace gpu {
+namespace ocl {
 
-struct sycl_profiler_t : public gpu::compute::profiler_t {
-    sycl_profiler_t(const stream_t *stream) : profiler_t(stream) {}
+struct ocl_stream_profiler_t : public compute::stream_profiler_t {
+    ocl_stream_profiler_t(const stream_t *stream) : stream_profiler_t(stream) {}
 
     status_t get_info(profiling_data_kind_t data_kind, int *num_entries,
             uint64_t *data) const override;
 };
 
-} // namespace sycl
+} // namespace ocl
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
 

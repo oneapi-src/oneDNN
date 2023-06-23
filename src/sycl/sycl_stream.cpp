@@ -18,7 +18,7 @@
 
 #include "common/verbose.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-#include "sycl/profiler.hpp"
+#include "sycl/stream_profiler.hpp"
 #include "sycl/sycl_engine.hpp"
 
 #include <map>
@@ -35,7 +35,7 @@ status_t sycl_stream_t::init() {
         return status::invalid_arguments;
 
     if (is_profiling_enabled())
-        profiler_ = utils::make_unique<sycl_profiler_t>(this);
+        profiler_ = utils::make_unique<sycl_stream_profiler_t>(this);
 
     auto &sycl_engine = *utils::downcast<sycl_engine_base_t *>(engine());
     auto &sycl_ctx = sycl_engine.context();

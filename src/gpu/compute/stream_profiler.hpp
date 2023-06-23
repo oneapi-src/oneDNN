@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_COMPUTE_PROFILER_HPP
-#define GPU_COMPUTE_PROFILER_HPP
+#ifndef GPU_COMPUTE_STREAM_PROFILER_HPP
+#define GPU_COMPUTE_STREAM_PROFILER_HPP
 
 #include <unordered_map>
 
@@ -28,10 +28,10 @@ namespace impl {
 namespace gpu {
 namespace compute {
 
-struct profiler_t {
-    profiler_t(const stream_t *stream, int stamp = 0)
+struct stream_profiler_t {
+    stream_profiler_t(const stream_t *stream, int stamp = 0)
         : stamp_(stamp), stream_(stream) {}
-    virtual ~profiler_t() = default;
+    virtual ~stream_profiler_t() = default;
 
     struct entry_t {
         uint64_t min_nsec = std::numeric_limits<uint64_t>::max();

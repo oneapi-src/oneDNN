@@ -27,7 +27,7 @@
 #include "gpu/ocl/ocl_context.hpp"
 #include "gpu/ocl/ocl_engine.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-#include "gpu/ocl/profiler.hpp"
+#include "gpu/ocl/stream_profiler.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -119,7 +119,7 @@ struct ocl_stream_t : public compute::compute_stream_t {
         return deps[0];
     }
 
-    compute::profiler_t &profiler() { return *profiler_; }
+    compute::stream_profiler_t &profiler() { return *profiler_; }
 
 private:
     ocl_stream_t(engine_t *engine, unsigned flags)
@@ -150,7 +150,7 @@ private:
 
     cl_command_queue queue_;
     std::unique_ptr<mdapi_helper_t> mdapi_helper_;
-    std::unique_ptr<compute::profiler_t> profiler_;
+    std::unique_ptr<compute::stream_profiler_t> profiler_;
     mutable utils::thread_local_storage_t<ocl_context_t> ctx_;
 };
 
