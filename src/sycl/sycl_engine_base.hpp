@@ -108,9 +108,10 @@ public:
             CHECK(compat::make_kernel(
                     sycl_kernel, this, binary, kernel_names[i]));
 
-            kernels[i] = gpu::compute::kernel_t(
-                    new gpu::sycl::sycl_interop_gpu_kernel_t(
-                            *sycl_kernel, k->arg_types()));
+            std::shared_ptr<gpu::compute::kernel_impl_t> kernel_impl
+                    = std::make_shared<gpu::sycl::sycl_interop_gpu_kernel_t>(
+                            *sycl_kernel, k->arg_types());
+            kernels[i] = std::move(kernel_impl);
         }
         return status::success;
     }
@@ -148,9 +149,10 @@ public:
         std::unique_ptr<::sycl::kernel> sycl_kernel;
         CHECK(compat::make_kernel(sycl_kernel, this, binary, kernel_name));
 
-        kernel = gpu::compute::kernel_t(
-                new gpu::sycl::sycl_interop_gpu_kernel_t(
-                        *sycl_kernel, arg_types));
+        std::shared_ptr<gpu::compute::kernel_impl_t> kernel_impl
+                = std::make_shared<gpu::sycl::sycl_interop_gpu_kernel_t>(
+                        *sycl_kernel, arg_types);
+        kernel = std::move(kernel_impl);
         return status::success;
     }
 

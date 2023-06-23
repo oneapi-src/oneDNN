@@ -147,9 +147,9 @@ status_t create_ocl_kernel_from_cache_blob(const ocl_gpu_engine_t *ocl_engine,
         CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
         OCL_CHECK(err);
 
-        (*kernels)[i] = compute::kernel_t(
-                new ocl_gpu_kernel_t(ocl_kernel, arg_types));
-        dump_kernel_binary(ocl_engine, (*kernels)[i]);
+        std::shared_ptr<compute::kernel_impl_t> kernel_impl
+                = std::make_shared<ocl_gpu_kernel_t>(ocl_kernel, arg_types);
+        (*kernels)[i] = std::move(kernel_impl);
     }
 
     return status::success;
@@ -300,8 +300,9 @@ status_t ocl_gpu_engine_t::create_kernels_from_bundle(
         std::vector<gpu::compute::scalar_type_t> arg_types;
         CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
 
-        kernels[i] = compute::kernel_t(
-                new ocl_gpu_kernel_t(ocl_kernel, arg_types));
+        std::shared_ptr<compute::kernel_impl_t> kernel_impl
+                = std::make_shared<ocl_gpu_kernel_t>(ocl_kernel, arg_types);
+        kernels[i] = std::move(kernel_impl);
         dump_kernel_binary(this, kernels[i]);
     }
 
@@ -322,7 +323,9 @@ status_t ocl_gpu_engine_t::create_kernel_from_binary(compute::kernel_t &kernel,
     std::vector<gpu::compute::scalar_type_t> arg_types;
     CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
 
-    kernel = compute::kernel_t(new ocl_gpu_kernel_t(ocl_kernel, arg_types));
+    std::shared_ptr<compute::kernel_impl_t> kernel_impl
+            = std::make_shared<ocl_gpu_kernel_t>(ocl_kernel, arg_types);
+    kernel = std::move(kernel_impl);
     dump_kernel_binary(this, kernel);
 
     return status::success;
@@ -391,8 +394,9 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
         std::vector<gpu::compute::scalar_type_t> arg_types;
         CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
 
-        (*kernels)[i] = compute::kernel_t(
-                new ocl_gpu_kernel_t(ocl_kernel, arg_types));
+        std::shared_ptr<compute::kernel_impl_t> kernel_impl
+                = std::make_shared<ocl_gpu_kernel_t>(ocl_kernel, arg_types);
+        (*kernels)[i] = std::move(kernel_impl);
         dump_kernel_binary(this, (*kernels)[i]);
     }
 

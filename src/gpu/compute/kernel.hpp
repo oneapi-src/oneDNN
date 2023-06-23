@@ -34,12 +34,16 @@ class kernel_impl_t;
 
 class kernel_t {
 public:
-    kernel_t(kernel_impl_t *impl) : impl_(impl) {}
+    kernel_t(std::nullptr_t) : impl_(nullptr) {}
+    kernel_t(std::shared_ptr<kernel_impl_t> &impl) : impl_(impl) {}
+    kernel_t(std::shared_ptr<kernel_impl_t> &&impl) : impl_(std::move(impl)) {}
 
     kernel_t() = default;
     kernel_t(kernel_t &&other) = default;
     kernel_t(const kernel_t &other) = default;
     kernel_t &operator=(const kernel_t &other) = default;
+    kernel_t &operator=(kernel_t &&other) = default;
+
     virtual ~kernel_t() = default;
 
     operator bool() const { return bool(impl_); }
