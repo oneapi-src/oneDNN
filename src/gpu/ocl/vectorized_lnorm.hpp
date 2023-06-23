@@ -38,7 +38,7 @@ struct vectorized_lnorm_fwd_t : public gpu_primitive_t {
         using gpu_layer_normalization_fwd_pd_t::
                 gpu_layer_normalization_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T("ocL:vectorized", vectorized_lnorm_fwd_t);
+        DECLARE_COMMON_PD_T("ocl:vectorized", vectorized_lnorm_fwd_t);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
