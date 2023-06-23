@@ -133,8 +133,8 @@ __kernel void vectorized_lnorm_fwd(__global DATA_T *src, __global float *mean,
     v_mean = GROUP_REDUCE_ADD(v_mean) * rC;
     v_acc = 0;
     VECT_FLOAT_T m = 0;
-    for (int c = 0; c < C; c += SUB_GROUP_SIZE * VECT_DT_N) {
-        x[NDIMS - 1] = c;
+    for (int c = 0; c < C_BLOCK; c += SUB_GROUP_SIZE * VECT_DT_N) {
+        x[NDIMS - 1] = c + c_block_off;
         int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
 
         m = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
