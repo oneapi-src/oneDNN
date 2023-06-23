@@ -2245,7 +2245,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                         + nstl::max(0, jcp.t_pad) + nstl::max(0, jcp.b_pad))
                 : jcp.ihp;
         if (jcp.is_os_blocking)
-            hs = div_up(rnd_up(hs * jcp.iwp, jcp.brgM), jcp.iwp);
+            hs = div_up(rnd_up(hs * jcp.iwp, jcp.brgM), jcp.iwp)
+                    + jcp.kh * (jcp.dilate_h + 1);
 
         jcp.inp_buffer_size = rnd_up(
                 ds * hs * jcp.iwp * jcp.ngroups * jcp.nb_ic * jcp.LDA, P4K);
