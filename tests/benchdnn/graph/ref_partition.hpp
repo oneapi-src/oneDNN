@@ -119,7 +119,17 @@ protected:
         if (cur_op.kind_ == "Dequantize" && is_quantized_) {
             // move leading driver primitive's input memory to the
             // current primitive input
-            reverse_link_args(cur_op, graph_mem_map, res);
+
+            size_t cur_op_in_lt_id = cur_op.in_lts_.front().id_;
+            bool is_partition_input
+                    = std::find(partition_in_ids_.begin(),
+                              partition_in_ids_.end(), cur_op_in_lt_id)
+                    != partition_in_ids_.end();
+            if (is_partition_input)
+                // for patterns like conv -> dq -> q -> conv, no need to
+                // implement link args reversing for dequantize that are
+                // not inputs of the partition
+                reverse_link_args(cur_op, graph_mem_map, res);
         }
 
         link_args(cur_op, res);
