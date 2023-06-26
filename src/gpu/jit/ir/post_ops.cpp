@@ -114,7 +114,7 @@ post_op_context_t::post_op_context_t(const primitive_attr_t &attr,
     if (!is_one(src_wei_scales)) {
         auto c_scaled = c * src_wei_scales;
         post_ops_.emplace_back(c, c_scaled);
-    } else if (!is_one(src_scales) || !is_one(dst_scales)) {
+    } else if (!is_one(src_scales) || !is_one(wei_scales)) {
         auto c_scaled = c * src_scales * wei_scales;
         post_ops_.emplace_back(c, c_scaled);
     }
