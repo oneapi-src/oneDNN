@@ -137,12 +137,12 @@ INLINE vec_u16x8 sc_max(vec_u16x8 const &a, vec_u16x8 const &b) {
 INLINE vec_u16x8 sc_min(vec_u16x8 const &a, vec_u16x8 const &b) {
     return _mm_min_epu16(a.v, b.v);
 }
-INLINE vec_u16x8 sc_unpack_low(
-        vec_u16x8 const &a, vec_u16x8 const &b, int lanes) {
+INLINE vec_u16x8 sc_unpack_low_vec_u16x8_16bits(
+        vec_u16x8 const &a, vec_u16x8 const &b) {
     return _mm_unpacklo_epi16(a.v, b.v);
 }
-INLINE vec_u16x8 sc_unpack_high(
-        vec_u16x8 const &a, vec_u16x8 const &b, int lanes) {
+INLINE vec_u16x8 sc_unpack_high_vec_u16x8_16bits(
+        vec_u16x8 const &a, vec_u16x8 const &b) {
     return _mm_unpackhi_epi16(a.v, b.v);
 }
 #endif

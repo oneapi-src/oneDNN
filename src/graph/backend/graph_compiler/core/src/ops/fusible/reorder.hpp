@@ -38,10 +38,10 @@ std::vector<expr> get_reorder_block2plain_indexes(sc_graph_t &graph,
         const int target_axis = TARGET_AXIS_NOT_DEFINE);
 std::vector<expr> get_reorder_plain2block_indexes(
         const std::vector<expr> &in_indexes, const sc_data_format_t &format);
-bool can_be_fast_transpose(const context_ptr &ctx, std::vector<int> &inp_a_axis,
-        std::vector<int> &inp_b_axis, std::vector<int> &out_a_axis,
-        std::vector<int> &out_b_axis, const sc_dims &plain_dims,
-        const sc_data_format_t &input_format,
+bool can_be_fast_transpose(const sc_graph_t &graph, const context_ptr &ctx,
+        std::vector<int> &inp_a_axis, std::vector<int> &inp_b_axis,
+        std::vector<int> &out_a_axis, std::vector<int> &out_b_axis,
+        const sc_dims &plain_dims, const sc_data_format_t &input_format,
         const sc_data_format_t &output_format, const tensor_slice &src,
         const tensor_slice &dst, const sc_data_type_t &dtype, bool is_dynamic,
         bool dynamic_no_padding, bool &use_lanesx16);
@@ -52,8 +52,8 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
         const sc_dims &plain_dims, bool output_loop, any_map_t &attrs,
         const std::vector<int> &inp_a_axis, const std::vector<int> &inp_b_axis,
         const std::vector<int> &out_a_axis, const std::vector<int> &out_b_axis,
-        size_t wkld = 0UL, bool is_dynamic = false,
-        bool dynamic_no_padding = false, bool use_lanesx16 = false);
+        size_t wkld, bool is_dynamic, bool dynamic_no_padding,
+        bool use_lanesx16);
 bool can_be_vnni_reorder(const context_ptr &ctx, std::vector<int> &inp_n_axis,
         std::vector<int> &inp_k_axis, std::vector<int> &out_n_axis,
         std::vector<int> &out_k_axis, const sc_dims &plain_dims,

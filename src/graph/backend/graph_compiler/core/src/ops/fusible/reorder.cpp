@@ -1163,7 +1163,6 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
         bool is_dynamic = false, bool dynamic_no_padding = false) {
     auto input = src.get_real_tensor();
     auto output = dst.get_real_tensor();
-    int step = static_cast<int>(vectorize_step(ctx, dtype.type_code_));
     auto bld = builder::get_current_builder();
     std::vector<expr> iter_vars;
     std::vector<expr> in_indexes, out_indexes;
@@ -1186,6 +1185,23 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
             input_last_origin_axis, input_origin_axis_vectorized);
     find_vectorized_axis(output_blocking_dims_expr, output_format,
             output_last_origin_axis, output_origin_axis_vectorized);
+    int step = static_cast<int>(vectorize_step(ctx, dtype.type_code_));
+    const int max_step
+            = static_cast<int>(vectorize_step(ctx, dtype.type_code_));
+    if ((!output_loop
+                && input_blocking_dims_expr[input_origin_axis_vectorized]
+                           .isa<constant>())
+            || (output_loop
+                    && output_blocking_dims_expr[output_origin_axis_vectorized]
+                               .isa<constant>())) {
+        step = std::min(max_step,
+                (int)get_expr_as_int(!output_loop
+                                ? input_blocking_dims_expr
+                                        [input_origin_axis_vectorized]
+                                : output_blocking_dims_expr
+                                        [output_origin_axis_vectorized]));
+        step = utils::get_nearest_vector_step(step);
+    }
 
     bool can_vectorize = !is_innermost_dim_strided
             && input_last_origin_axis == output_last_origin_axis
@@ -1332,11 +1348,12 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
             input_last_origin_axis, input_origin_axis_vectorized);
     find_vectorized_axis(output_blocking_dims_expr, output_format,
             output_last_origin_axis, output_origin_axis_vectorized);
-
     int max_step = ctx->get_max_vector_lanes(dtype.type_code_);
     int step = std::min(static_cast<int>(vectorize_step(ctx, dtype.type_code_)),
             static_cast<int>(
                     input_blocking_dims[input_origin_axis_vectorized]));
+    step = utils::get_nearest_vector_step(step);
+    step = std::min(max_step, step);
     if (attrs.get_or_else(op_attr_key::no_fuse, false)) {
         while (step < max_step
                 && input_blocking_dims[input_origin_axis_vectorized]
@@ -1349,7 +1366,7 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
             && input_last_origin_axis == output_last_origin_axis
             && input_blocking_dims[input_origin_axis_vectorized] % step == 0
             && is_valid_step(step)
-            && step * utils::get_sizeof_type(dtype) * 8 >= 128;
+            && step * utils::get_sizeof_type(dtype) * byte >= avx_simd_length;
 
     bool no_padding = !is_dynamic
             && sc_data_format_t::get_padded_plain_shapes(
@@ -1458,11 +1475,21 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
             input_last_origin_axis, input_origin_axis_vectorized);
     find_vectorized_axis(output_blocking_exprs, output_format,
             output_last_origin_axis, output_origin_axis_vectorized);
-
     int max_step = ctx->get_max_vector_lanes(dtype.type_code_);
-    int step = std::min(static_cast<int>(vectorize_step(ctx, dtype.type_code_)),
-            static_cast<int>(
-                    output_blocking_dims[output_origin_axis_vectorized]));
+    int step = static_cast<int>(vectorize_step(ctx, dtype.type_code_));
+    if ((!output_loop
+                && input_blocking_exprs[input_origin_axis_vectorized]
+                           .isa<constant>())
+            || (output_loop
+                    && output_blocking_exprs[output_origin_axis_vectorized]
+                               .isa<constant>())) {
+        step = std::min(step,
+                output_loop ? static_cast<int>(
+                        output_blocking_dims[output_origin_axis_vectorized])
+                            : static_cast<int>(input_blocking_dims
+                                            [input_origin_axis_vectorized]));
+        step = utils::get_nearest_vector_step(step);
+    }
     if (attrs.get_or_else(op_attr_key::no_fuse, false)) {
         while (step < max_step
                 && output_blocking_dims[output_origin_axis_vectorized]
@@ -1476,7 +1503,7 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
             && input_last_origin_axis == output_last_origin_axis
             && output_blocking_dims[output_origin_axis_vectorized] % step == 0
             && is_valid_step(step)
-            && step * utils::get_sizeof_type(dtype) * 8 >= 128;
+            && step * utils::get_sizeof_type(dtype) * byte >= avx_simd_length;
     // Usually use input loop means no padding in static, but not in dynamic, if
     // dynamic and use input loop, need to check the static dim with blocks.
     if (!output_loop && !is_dynamic_dim(input_blocking_dims.back())
@@ -1618,7 +1645,6 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
         bool is_dynamic = false, bool dynamic_no_padding = false) {
     auto input = src.get_real_tensor();
     auto output = dst.get_real_tensor();
-    int step = static_cast<int>(vectorize_step(ctx, dtype.type_code_));
     auto bld = builder::get_current_builder();
     // walk around for bert fusion
     sc_dims plain_dims(plain_dims1);
@@ -1657,6 +1683,13 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
     bool no_padding = !is_dynamic
             && input_padded_plain_dims == output_padded_plain_dims;
     no_padding |= (is_dynamic && dynamic_no_padding);
+    int step = std::min(static_cast<int>(vectorize_step(ctx, dtype.type_code_)),
+            output_loop
+                    ? static_cast<int>(
+                            output_blocking_dims[output_origin_axis_vectorized])
+                    : static_cast<int>(
+                            input_blocking_dims[input_origin_axis_vectorized]));
+    step = utils::get_nearest_vector_step(step);
     bool can_vectorize = !is_innermost_dim_strided
             && input_block_axis == output_block_axis
             && output_blocking_dims[output_origin_axis_vectorized] % step == 0
@@ -1667,7 +1700,9 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
             && plain_dims[output_block_axis]
                             % output_blocking_dims
                                     [output_origin_axis_vectorized]
-                    == 0;
+                    == 0
+            && is_valid_step(step)
+            && step * utils::get_sizeof_type(dtype) * 8 >= 128;
 
     if (!can_vectorize) {
         cannot_convert_warning(input_format, output_format, plain_dims);
@@ -1793,6 +1828,7 @@ void compute_reorder_block(sc_graph_t &graph, const context_ptr &ctx,
                     << ".");
 
     std::vector<int> inp_a_axis, inp_b_axis, out_a_axis, out_b_axis;
+
     bool is_vnni_reorder = false, vnni_usex16step = false;
     bool dynamic_no_padding = impl_alg & impl_kind_t::no_padding;
     bool use_lanesx16 = false;
@@ -1806,9 +1842,10 @@ void compute_reorder_block(sc_graph_t &graph, const context_ptr &ctx,
                 out_a_axis, out_b_axis, wkld, is_vnni_reorder, is_dynamic,
                 dynamic_no_padding, vnni_usex16step);
     } else if (!is_innermost_dim_strided
-            && can_be_fast_transpose(ctx, inp_a_axis, inp_b_axis, out_a_axis,
-                    out_b_axis, plain_dims, input_format, output_format, src,
-                    dst, dtype, is_dynamic, dynamic_no_padding, use_lanesx16)) {
+            && can_be_fast_transpose(graph, ctx, inp_a_axis, inp_b_axis,
+                    out_a_axis, out_b_axis, plain_dims, input_format,
+                    output_format, src, dst, dtype, is_dynamic,
+                    dynamic_no_padding, use_lanesx16)) {
         compute_fast_transpose(graph, ctx, src, dst, input_format,
                 output_format, dtype, plain_dims, output_loop, attrs,
                 inp_a_axis, inp_b_axis, out_a_axis, out_b_axis, wkld,
@@ -1918,10 +1955,13 @@ bool reorder_op_t::support_output_loop() const {
 
 bool reorder_op_t::support_optimized_kernel(const context_ptr &ctx) const {
     INIT_REORDER_OP_INFO()
+    int trans_inp_a_axis = 0, trans_inp_b_axis = 0, trans_out_a_axis = 0,
+        trans_out_b_axis = 0;
     return (!is_innermost_dim_strided
-                   && can_be_fast_transpose(ctx, inp_a_axis, inp_b_axis,
-                           out_a_axis, out_b_axis, plain_dims_, input_format,
-                           output_format, src, dst, dtype, is_dynamic(),
+                   && can_be_fast_transpose(get_owner_graph(), ctx, inp_a_axis,
+                           inp_b_axis, out_a_axis, out_b_axis, plain_dims_,
+                           input_format, output_format, src, dst, dtype,
+                           is_dynamic(),
                            info_.cur_impl_ & impl_kind_t::no_padding,
                            usex16step))
             || can_be_vnni_reorder(ctx, inp_a_axis, inp_b_axis, out_a_axis,

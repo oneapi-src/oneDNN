@@ -203,24 +203,26 @@ INLINE float sc_reduce_add(vec_f32x8 const &a) {
     return _mm_cvtss_f32(v1);
 }
 
-INLINE vec_f32x8 sc_unpack_low(
-        vec_f32x8 const &a, vec_f32x8 const &b, int elem_step) {
-    if (elem_step == 32) {
-        return _mm256_unpacklo_ps(a.v, b.v);
-    } else { // elem_step == 64
-        return _mm256_castpd_ps(_mm256_unpacklo_pd(
-                _mm256_castps_pd(a.v), _mm256_castps_pd(b.v)));
-    }
+INLINE vec_f32x8 sc_unpack_low_vec_f32x8_64bits(
+        vec_f32x8 const &a, vec_f32x8 const &b) {
+    return _mm256_castpd_ps(
+            _mm256_unpacklo_pd(_mm256_castps_pd(a.v), _mm256_castps_pd(b.v)));
 }
 
-INLINE vec_f32x8 sc_unpack_high(
-        vec_f32x8 const &a, vec_f32x8 const &b, int elem_step) {
-    if (elem_step == 32) {
-        return _mm256_unpackhi_ps(a.v, b.v);
-    } else { // elem_step == 64
-        return _mm256_castpd_ps(_mm256_unpackhi_pd(
-                _mm256_castps_pd(a.v), _mm256_castps_pd(b.v)));
-    }
+INLINE vec_f32x8 sc_unpack_low_vec_f32x8_32bits(
+        vec_f32x8 const &a, vec_f32x8 const &b) {
+    return _mm256_unpacklo_ps(a.v, b.v);
+}
+
+INLINE vec_f32x8 sc_unpack_high_vec_f32x8_32bits(
+        vec_f32x8 const &a, vec_f32x8 const &b) {
+    return _mm256_unpackhi_ps(a.v, b.v);
+}
+
+INLINE vec_f32x8 sc_unpack_high_vec_f32x8_64bits(
+        vec_f32x8 const &a, vec_f32x8 const &b) {
+    return _mm256_castpd_ps(
+            _mm256_unpackhi_pd(_mm256_castps_pd(a.v), _mm256_castps_pd(b.v)));
 }
 
 #define PARAM_F32X8(X) X.v

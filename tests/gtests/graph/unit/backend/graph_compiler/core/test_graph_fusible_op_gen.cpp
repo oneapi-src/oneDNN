@@ -14,6 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include <algorithm>
 #include <iostream>
 #include "context.hpp"
 #include "gtest/gtest.h"
@@ -151,8 +152,8 @@ TEST(GCCore_CPU_fusible_op_gen, TestFusibleOpGeneratorReorder) {
     ASSERT_TRUE(reorderf);
     builder::ir_builder_t builder;
     for_loop l0, l1, l2;
-    int lanes = get_test_ctx()->get_max_vector_lanes(sc_data_etype::F32);
-    lanes = lanes == 16 ? 1 : lanes;
+    int lanes = std::min(
+            (int)get_test_ctx()->get_max_vector_lanes(sc_data_etype::F32), 8);
     _function_(datatypes::boolean, bbb,
             _arg_("out", datatypes::f32, {2UL, 4UL, 16UL, 16UL}),
             _arg_("in0", datatypes::f32, {8UL, 8UL, 4UL, 8UL})) {

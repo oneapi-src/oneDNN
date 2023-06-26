@@ -131,14 +131,44 @@ INLINE vec_s8x16 sc_select(
 
 // operator /
 
-INLINE vec_s8x16 sc_unpack_low(
-        vec_s8x16 const &a, vec_s8x16 const &b, int lanes) {
+INLINE vec_s8x16 sc_unpack_low_vec_s8x16_8bits(
+        vec_s8x16 const &a, vec_s8x16 const &b) {
     return _mm_unpacklo_epi8(a.v, b.v);
 }
 
-INLINE vec_s8x16 sc_unpack_high(
-        vec_s8x16 const &a, vec_s8x16 const &b, int lanes) {
+INLINE vec_s8x16 sc_unpack_low_vec_s8x16_16bits(
+        vec_s8x16 const &a, vec_s8x16 const &b) {
+    return _mm_unpacklo_epi16(a.v, b.v);
+}
+
+INLINE vec_s8x16 sc_unpack_low_vec_s8x16_32bits(
+        vec_s8x16 const &a, vec_s8x16 const &b) {
+    return _mm_unpacklo_epi32(a.v, b.v);
+}
+
+INLINE vec_s8x16 sc_unpack_low_vec_s8x16_64bits(
+        vec_s8x16 const &a, vec_s8x16 const &b) {
+    return _mm_unpacklo_epi64(a.v, b.v);
+}
+
+INLINE vec_s8x16 sc_unpack_high_vec_s8x16_8bits(
+        vec_s8x16 const &a, vec_s8x16 const &b) {
     return _mm_unpackhi_epi8(a.v, b.v);
+}
+
+INLINE vec_s8x16 sc_unpack_high_vec_s8x16_16bits(
+        vec_s8x16 const &a, vec_s8x16 const &b) {
+    return _mm_unpackhi_epi16(a.v, b.v);
+}
+
+INLINE vec_s8x16 sc_unpack_high_vec_s8x16_32bits(
+        vec_s8x16 const &a, vec_s8x16 const &b) {
+    return _mm_unpackhi_epi32(a.v, b.v);
+}
+
+INLINE vec_s8x16 sc_unpack_high_vec_s8x16_64bits(
+        vec_s8x16 const &a, vec_s8x16 const &b) {
+    return _mm_unpackhi_epi64(a.v, b.v);
 }
 
 INLINE vec_s8x16 sc_max(vec_s8x16 const &a, vec_s8x16 const &b) {

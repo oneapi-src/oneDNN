@@ -78,13 +78,13 @@ INLINE vec_u64x4 sc_min(vec_u64x4 const &a, vec_u64x4 const &b) {
 }
 #endif
 
-INLINE vec_u64x4 sc_unpack_low(
-        vec_u64x4 const &a, vec_u64x4 const &b, int lanes) {
+INLINE vec_u64x4 sc_unpack_low_vec_u64x4_64bits(
+        vec_u64x4 const &a, vec_u64x4 const &b) {
     return _mm256_unpacklo_epi64(a.v, b.v);
 }
 
-INLINE vec_u64x4 sc_unpack_high(
-        vec_u64x4 const &a, vec_u64x4 const &b, int lanes) {
+INLINE vec_u64x4 sc_unpack_high_vec_u64x4_64bits(
+        vec_u64x4 const &a, vec_u64x4 const &b) {
     return _mm256_unpackhi_epi64(a.v, b.v);
 }
 #define PARAM_U64X4(X) X.v

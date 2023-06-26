@@ -112,6 +112,18 @@ std::string get_error_msg(int errnum) {
 #endif
 }
 
+// select nearest even step
+int get_nearest_vector_step(const int step) {
+    assert(step > 0);
+    int nbits = 0, n = step;
+    while (n) {
+        n = n >> 1;
+        nbits++;
+    }
+    assert(nbits <= 6 || (nbits == 7 && step == 64));
+    return (1 << (nbits - 1)) == step ? step : (1 << nbits);
+}
+
 compiler_configs_t &compiler_configs_t::get() {
     static compiler_configs_t cfg {};
     return cfg;

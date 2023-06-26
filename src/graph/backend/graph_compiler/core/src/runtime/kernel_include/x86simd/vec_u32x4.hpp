@@ -134,13 +134,13 @@ INLINE vec_u32x4 sc_min(vec_u32x4 const &a, vec_u32x4 const &b) {
 }
 #endif
 
-INLINE vec_u32x4 sc_unpack_low(
-        vec_u32x4 const &a, vec_u32x4 const &b, int lanes) {
+INLINE vec_u32x4 sc_unpack_low_vec_u32x4_32bits(
+        vec_u32x4 const &a, vec_u32x4 const &b) {
     return _mm_unpacklo_epi32(a.v, b.v);
 }
 
-INLINE vec_u32x4 sc_unpack_high(
-        vec_u32x4 const &a, vec_u32x4 const &b, int lanes) {
+INLINE vec_u32x4 sc_unpack_high_vec_u32x4_32bits(
+        vec_u32x4 const &a, vec_u32x4 const &b) {
     return _mm_unpackhi_epi32(a.v, b.v);
 }
 

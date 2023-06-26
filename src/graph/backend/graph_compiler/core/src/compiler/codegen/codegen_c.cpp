@@ -461,21 +461,27 @@ void codegen_c_vis::view(intrin_call_c v) {
             trinary_func_codegen_c(v->args_, "sc_fmadd");
             break;
         case intrin_type::unpack_low:
-            *os << "sc_unpack_low(";
+            *os << "sc_unpack_low_";
+            print_type(v->dtype_);
+            *os << "_";
+            *os << v->intrin_attrs_->get<int>("elem_bits");
+            *os << "bits";
+            *os << "(";
             dispatch(v->args_[0]);
             *os << ", ";
             dispatch(v->args_[1]);
-            *os << ", ";
-            *os << v->intrin_attrs_->get<int>("elem_bits");
             *os << ')';
             break;
         case intrin_type::unpack_high:
-            *os << "sc_unpack_high(";
+            *os << "sc_unpack_high_";
+            print_type(v->dtype_);
+            *os << "_";
+            *os << v->intrin_attrs_->get<int>("elem_bits");
+            *os << "bits";
+            *os << "(";
             dispatch(v->args_[0]);
             *os << ", ";
             dispatch(v->args_[1]);
-            *os << ", ";
-            *os << v->intrin_attrs_->get<int>("elem_bits");
             *os << ')';
             break;
         case intrin_type::shuffle:

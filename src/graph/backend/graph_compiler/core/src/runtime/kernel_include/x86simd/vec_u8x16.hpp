@@ -132,19 +132,50 @@ INLINE vec_u8x16 sc_permutex2var(
 }
 #endif
 
+INLINE vec_u8x16 sc_unpack_low_vec_u8x16_8bits(
+        vec_u8x16 const &a, vec_u8x16 const &b) {
+    return _mm_unpacklo_epi8(a.v, b.v);
+}
+
+INLINE vec_u8x16 sc_unpack_low_vec_u8x16_16bits(
+        vec_u8x16 const &a, vec_u8x16 const &b) {
+    return _mm_unpacklo_epi16(a.v, b.v);
+}
+
+INLINE vec_u8x16 sc_unpack_low_vec_u8x16_32bits(
+        vec_u8x16 const &a, vec_u8x16 const &b) {
+    return _mm_unpacklo_epi32(a.v, b.v);
+}
+
+INLINE vec_u8x16 sc_unpack_low_vec_u8x16_64bits(
+        vec_u8x16 const &a, vec_u8x16 const &b) {
+    return _mm_unpacklo_epi64(a.v, b.v);
+}
+
+INLINE vec_u8x16 sc_unpack_high_vec_u8x16_8bits(
+        vec_u8x16 const &a, vec_u8x16 const &b) {
+    return _mm_unpackhi_epi8(a.v, b.v);
+}
+
+INLINE vec_u8x16 sc_unpack_high_vec_u8x16_16bits(
+        vec_u8x16 const &a, vec_u8x16 const &b) {
+    return _mm_unpackhi_epi16(a.v, b.v);
+}
+
+INLINE vec_u8x16 sc_unpack_high_vec_u8x16_32bits(
+        vec_u8x16 const &a, vec_u8x16 const &b) {
+    return _mm_unpackhi_epi32(a.v, b.v);
+}
+
+INLINE vec_u8x16 sc_unpack_high_vec_u8x16_64bits(
+        vec_u8x16 const &a, vec_u8x16 const &b) {
+    return _mm_unpackhi_epi64(a.v, b.v);
+}
+
 INLINE vec_u8x16 sc_max(vec_u8x16 const &a, vec_u8x16 const &b) {
     return _mm_max_epu8(a.v, b.v);
 }
 INLINE vec_u8x16 sc_min(vec_u8x16 const &a, vec_u8x16 const &b) {
     return _mm_min_epu8(a.v, b.v);
-}
-INLINE vec_u8x16 sc_unpack_low(
-        vec_u8x16 const &a, vec_u8x16 const &b, int lanes) {
-    return _mm_unpacklo_epi8(a.v, b.v);
-}
-
-INLINE vec_u8x16 sc_unpack_high(
-        vec_u8x16 const &a, vec_u8x16 const &b, int lanes) {
-    return _mm_unpackhi_epi8(a.v, b.v);
 }
 #endif

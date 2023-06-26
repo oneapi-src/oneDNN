@@ -209,6 +209,11 @@ SC_INTERNAL_API std::string get_error_msg(int errnum);
  * */
 SC_INTERNAL_API std::string get_dyn_lib_path(void *addr);
 
+/**
+ * Get the nearest even step of the for loop
+ */
+SC_INTERNAL_API int get_nearest_vector_step(int step);
+
 struct SC_INTERNAL_API compiler_configs_t {
     bool print_gen_code_;
     std::string dump_gen_code_;

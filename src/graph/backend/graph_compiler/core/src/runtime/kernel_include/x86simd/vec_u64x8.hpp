@@ -79,13 +79,13 @@ INLINE vec_u64x8 sc_min(vec_u64x8 const &a, vec_u64x8 const &b) {
 }
 #endif
 
-INLINE vec_u64x8 sc_unpack_low(
-        vec_u64x8 const &a, vec_u64x8 const &b, int lanes) {
+INLINE vec_u64x8 sc_unpack_low_vecu64x8_64bits(
+        vec_u64x8 const &a, vec_u64x8 const &b) {
     return _mm512_unpacklo_epi64(a.v, b.v);
 }
 
-INLINE vec_u64x8 sc_unpack_high(
-        vec_u64x8 const &a, vec_u64x8 const &b, int lanes) {
+INLINE vec_u64x8 sc_unpack_high_vecu64x8_64bits(
+        vec_u64x8 const &a, vec_u64x8 const &b) {
     return _mm512_unpackhi_epi64(a.v, b.v);
 }
 #define PARAM_U64X8(X) X.v

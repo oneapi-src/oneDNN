@@ -973,7 +973,7 @@ public:
     void view(select_c v) override {
         auto l = generate_expr(v->l_);
         auto r = generate_expr(v->r_);
-        auto cond = convert_mask(v->cond_);
+        auto cond = convert_mask(v->cond_, v->l_->dtype_.lanes_ == 4);
         current_val_ = builder_.CreateSelect(cond, l, r);
     }
 

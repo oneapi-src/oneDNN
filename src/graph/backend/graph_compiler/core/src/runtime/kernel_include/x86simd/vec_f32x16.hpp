@@ -164,24 +164,26 @@ INLINE vec_f32x16 sc_log(vec_f32x16 const &a) {
     return b;
 }
 
-INLINE vec_f32x16 sc_unpack_low(
-        vec_f32x16 const &a, vec_f32x16 const &b, int elem_step) {
-    if (elem_step == 32) {
-        return _mm512_unpacklo_ps(a.v, b.v);
-    } else { // elem_step == 64
-        return _mm512_castpd_ps(_mm512_unpacklo_pd(
-                _mm512_castps_pd(a.v), _mm512_castps_pd(b.v)));
-    }
+INLINE vec_f32x16 sc_unpack_low_vec_f32x16_32bits(
+        vec_f32x16 const &a, vec_f32x16 const &b) {
+    return _mm512_unpacklo_ps(a.v, b.v);
 }
 
-INLINE vec_f32x16 sc_unpack_high(
-        vec_f32x16 const &a, vec_f32x16 const &b, int elem_step) {
-    if (elem_step == 32) {
-        return _mm512_unpackhi_ps(a.v, b.v);
-    } else { // elem_step == 64
-        return _mm512_castpd_ps(_mm512_unpackhi_pd(
-                _mm512_castps_pd(a.v), _mm512_castps_pd(b.v)));
-    }
+INLINE vec_f32x16 sc_unpack_low_vec_f32x16_64bits(
+        vec_f32x16 const &a, vec_f32x16 const &b) {
+    return _mm512_castpd_ps(
+            _mm512_unpacklo_pd(_mm512_castps_pd(a.v), _mm512_castps_pd(b.v)));
+}
+
+INLINE vec_f32x16 sc_unpack_high_vec_f32x16_32bits(
+        vec_f32x16 const &a, vec_f32x16 const &b) {
+    return _mm512_unpackhi_ps(a.v, b.v);
+}
+
+INLINE vec_f32x16 sc_unpack_high_vec_f32x16_64bits(
+        vec_f32x16 const &a, vec_f32x16 const &b) {
+    return _mm512_castpd_ps(
+            _mm512_unpackhi_pd(_mm512_castps_pd(a.v), _mm512_castps_pd(b.v)));
 }
 
 INLINE vec_f32x16 sc_pow(vec_f32x16 const &a, vec_f32x16 const &b) {
