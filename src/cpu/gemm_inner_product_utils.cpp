@@ -203,8 +203,8 @@ pp_kernel_t *pp_kernel_t::create(size_t OC, size_t MB, dim_t dst_mb_stride,
 bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
         const bcast_set_t &enabled_bcast_strategy) {
 #if DNNL_X64
-    static constexpr auto isa_supported
-            = x64::inner_product_utils::jit_pp_kernel_supported_isa();
+    const auto isa_supported
+            = x64::inner_product_utils::get_max_jit_pp_kernel_supported_isa();
     using namespace cpu::x64;
     if (mayiuse(isa_supported)) {
         using namespace x64::injector;
@@ -231,9 +231,8 @@ bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
                         is_binary_po_per_mb_w_bcast, utils::one_of(ndims, 3, 4))
                 && IMPLICATION(
                         is_binary_po_per_w_bcast, utils::one_of(ndims, 3, 4));
-        const cpu_isa_t isa = get_max_cpu_isa();
         return supported_binary_bcast
-                && injector::post_ops_ok(post_ops_ok_args_t(isa,
+                && injector::post_ops_ok(post_ops_ok_args_t(isa_supported,
                         {binary, eltwise, sum}, post_ops, dst_d,
                         sum_at_pos_0_only, sum_requires_scale_one,
                         sum_requires_zp_zero, sum_requires_same_params,
