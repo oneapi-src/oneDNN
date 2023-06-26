@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,7 +30,15 @@ cpu::inner_product_utils::pp_kernel_t *jit_pp_kernel_create(size_t OC,
         data_type_t bias_dt, data_type_t acc_dt, const memory_desc_t *dst_md,
         bool skip_sum);
 
-constexpr cpu_isa_t jit_pp_kernel_supported_isa() {
+inline cpu_isa_t get_max_jit_pp_kernel_supported_isa() {
+#define CASE(isa) \
+    do { \
+        if (mayiuse(isa)) return isa; \
+    } while (false)
+    CASE(avx512_core_bf16);
+    CASE(avx512_core);
+    CASE(avx2);
+#undef CASE
     return sse41;
 }
 
