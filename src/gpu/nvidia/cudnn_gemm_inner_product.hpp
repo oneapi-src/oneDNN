@@ -172,30 +172,13 @@ struct cudnn_gemm_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
             using namespace prop_kind;
             using namespace data_type;
 
-            bool ok = is_fwd() && (set_default_params() == status::success);
-            if (!ok) return status::unimplemented;
-            if (has_zero_dim_memory()) return status::success;
-            bool gemm_compatible
-                    = gemm_consitency_check(src_md(), weights_md(), dst_md());
-            bool need_reorder = IMPLICATION(!gemm_compatible,
-                    reorder_check(src_md(), weights_md(), dst_md()));
-
             using sm_t = primitive_attr_t::skip_mask_t;
             const auto attr_skip_mask = sm_t::scales_runtime | sm_t::post_ops;
-
-            dnnl_data_type_t src_type = src_md()->data_type;
-            dnnl_data_type_t weights_type = weights_md(0)->data_type;
-            dnnl_data_type_t bias_type = weights_md(1)->data_type;
-            dnnl_data_type_t dst_type = dst_md()->data_type;
-            dnnl_data_type_t acc_type = desc()->accum_data_type;
-
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
 
             bool with_eltwise
                     = attr()->post_ops_.find(primitive_kind::eltwise) != -1;
             bool with_sum = attr()->post_ops_.find(primitive_kind::sum) != -1;
-            ok = ok
+            bool ok = is_fwd() && (set_default_params() == status::success)
                     && utils::one_of(true,
                             (expect_data_types(bf16, bf16, bf16, bf16, f32)
                                     && with_bias())
@@ -208,14 +191,30 @@ struct cudnn_gemm_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
                             expect_data_types(s8, s8, f32, s8, s32),
                             expect_data_types(s8, s8, f32, f32, f32),
                             expect_data_types(f32, f32, f32, f32, f32))
-                    && memory_format_ok(src_md())
-                    && memory_format_ok(weights_md(0))
-                    && memory_format_ok(dst_md())
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             utils::one_of(src_md_.data_type, s8)
                                     && attr_scales_ok())
                     && attr()->has_default_values(attr_skip_mask)
-                    && attr_post_ops_ok(attr())
+                    && attr_post_ops_ok(attr());
+            if (!ok) return status::unimplemented;
+            if (has_zero_dim_memory()) return status::success;
+            bool gemm_compatible
+                    = gemm_consitency_check(src_md(), weights_md(), dst_md());
+            bool need_reorder = IMPLICATION(!gemm_compatible,
+                    reorder_check(src_md(), weights_md(), dst_md()));
+
+            dnnl_data_type_t src_type = src_md()->data_type;
+            dnnl_data_type_t weights_type = weights_md(0)->data_type;
+            dnnl_data_type_t bias_type = weights_md(1)->data_type;
+            dnnl_data_type_t dst_type = dst_md()->data_type;
+            dnnl_data_type_t acc_type = desc()->accum_data_type;
+
+            auto *sycl_engine
+                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+
+            ok = ok && memory_format_ok(src_md())
+                    && memory_format_ok(weights_md(0))
+                    && memory_format_ok(dst_md())
                     && dense_check(src_md(), weights_md(), dst_md())
                     && IMPLICATION(utils::one_of(bf16, src_type, weights_type,
                                            bias_type, dst_type, acc_type),
