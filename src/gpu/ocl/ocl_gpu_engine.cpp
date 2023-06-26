@@ -151,6 +151,7 @@ status_t create_ocl_kernel_from_cache_blob(const ocl_gpu_engine_t *ocl_engine,
         std::shared_ptr<compute::kernel_impl_t> kernel_impl
                 = std::make_shared<ocl_gpu_kernel_t>(ocl_kernel, arg_types);
         (*kernels)[i] = std::move(kernel_impl);
+        dump_kernel_binary(ocl_engine, (*kernels)[i]);
     }
 
     return status::success;

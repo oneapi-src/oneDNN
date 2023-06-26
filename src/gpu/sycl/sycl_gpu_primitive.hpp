@@ -42,8 +42,10 @@ protected:
                 = ::sycl::get_kernel_bundle<::sycl::bundle_state::input>(
                         sycl_engine->context(), {kid});
         auto exe_bundle = ::sycl::build(input_bundle);
-        (*kernel) = compute::kernel_t(
-                new gpu::sycl::sycl_gpu_kernel_t(exe_bundle));
+
+        auto kernel_impl
+                = std::make_shared<gpu::sycl::sycl_gpu_kernel_t>(exe_bundle);
+        (*kernel) = compute::kernel_t(std::move(kernel_impl));
         return status::success;
     }
 
