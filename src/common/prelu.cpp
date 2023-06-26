@@ -46,22 +46,31 @@ status_t prelu_desc_init(prelu_desc_t *prelu_desc, prop_kind_t prop_kind,
         const memory_desc_t *diff_weights_desc,
         const memory_desc_t *diff_dst_desc) {
     const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
-    bool args_ok = !any_null(prelu_desc, src_desc, weights_desc)
-            && one_of(prop_kind, forward_training, forward_inference, backward)
-            && IMPLICATION(is_fwd, dst_desc != nullptr)
-            && IMPLICATION(!is_fwd,
-                    !any_null(diff_src_desc, diff_weights_desc, diff_dst_desc))
-            && IMPLICATION(is_fwd, !memory_desc_wrapper(src_desc).format_any());
-    if (!args_ok) return invalid_arguments;
+    VCHECK_PRELU(
+            !any_null(prelu_desc, src_desc, weights_desc), VERBOSE_NULL_ARG);
+    VCHECK_PRELU(
+            one_of(prop_kind, forward_training, forward_inference, backward),
+            VERBOSE_BAD_PROPKIND);
+    VCHECK_PRELU(IMPLICATION(is_fwd, dst_desc != nullptr), VERBOSE_NULL_ARG);
+    VCHECK_PRELU(
+            IMPLICATION(!is_fwd,
+                    !any_null(diff_src_desc, diff_weights_desc, diff_dst_desc)),
+            VERBOSE_NULL_ARG);
+    VCHECK_PRELU(
+            IMPLICATION(is_fwd, !memory_desc_wrapper(src_desc).format_any()),
+            VERBOSE_UNSUPPORTED_TAG_S, "src");
 
-    if (memory_desc_wrapper(src_desc).has_runtime_dims_or_strides()
-            || memory_desc_wrapper(weights_desc).has_runtime_dims_or_strides())
-        return unimplemented;
-    if (prop_kind == backward
-            && (memory_desc_wrapper(diff_src_desc).has_runtime_dims_or_strides()
-                    || memory_desc_wrapper(diff_weights_desc)
-                               .has_runtime_dims_or_strides()))
-        return unimplemented;
+    bool runtime_dims_or_strides
+            = memory_desc_wrapper(src_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(weights_desc).has_runtime_dims_or_strides();
+    if (!is_fwd)
+        runtime_dims_or_strides = runtime_dims_or_strides
+                || (memory_desc_wrapper(diff_src_desc)
+                                .has_runtime_dims_or_strides()
+                        || memory_desc_wrapper(diff_weights_desc)
+                                   .has_runtime_dims_or_strides());
+    VCONDCHECK(create, check, prelu, !runtime_dims_or_strides,
+            status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     auto pd = prelu_desc_t();
     pd.primitive_kind = primitive_kind::prelu;
@@ -77,9 +86,9 @@ status_t prelu_desc_init(prelu_desc_t *prelu_desc, prop_kind_t prop_kind,
     }
 
     const memory_desc_wrapper src_mdw(*src_desc);
-    if (get_rhs_arg_broadcasting_strategy(pd.weights_desc, src_mdw)
-            == broadcasting_strategy_t::unsupported)
-        return invalid_arguments;
+    VCHECK_PRELU(get_rhs_arg_broadcasting_strategy(pd.weights_desc, src_mdw)
+                    != broadcasting_strategy_t::unsupported,
+            VERBOSE_INCONSISTENT_MDS, "src", "wei");
 
     static constexpr int max_supported_ndims = 5;
     bool consistency = src_desc->ndims <= max_supported_ndims
@@ -97,7 +106,7 @@ status_t prelu_desc_init(prelu_desc_t *prelu_desc, prop_kind_t prop_kind,
                 && array_cmp(pd.diff_src_desc.dims, pd.diff_dst_desc.dims,
                         pd.diff_dst_desc.ndims);
     }
-    if (!consistency) return invalid_arguments;
+    VCHECK_PRELU(consistency, VERBOSE_INCONSISTENT_MDS, "src", "dst");
 
     *prelu_desc = pd;
     return success;
