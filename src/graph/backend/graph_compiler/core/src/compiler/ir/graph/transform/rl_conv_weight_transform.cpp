@@ -69,12 +69,22 @@ static void query_accu_info_for_rl(const context_ptr &ctx,
 
     // Note: to accommodate oneDNN BRGEMM's SW limitation
     if ((ctx->flags_.kernel_optim_ == 1) && (brgemm_k > LDA)) {
+        assert(LDA >= vnni_blk);
         SC_MODULE_WARN
                 << "split to smaller K due to oneDNN BRGEMM's limitation.";
-        num_brgemm_k = utils::divide_and_ceil(total_raw_accu, LDA);
-        total_padded_accu
-                = utils::rnd_up(total_raw_accu, num_brgemm_k * vnni_blk);
-        brgemm_k = total_padded_accu / num_brgemm_k;
+
+        brgemm_k = vnni_blk;
+        for (int k = LDA; k > 0; --k) {
+            if (k % vnni_blk == 0) {
+                brgemm_k = k;
+                break;
+            }
+        }
+        num_brgemm_k = utils::divide_and_ceil(total_raw_accu, brgemm_k);
+        total_padded_accu = num_brgemm_k * brgemm_k;
+        COMPILE_ASSERT(brgemm_k <= LDA,
+                "oneDNN BRGEMM requires K<=LDA, but got K="
+                        << brgemm_k << ", LDA=" << LDA << ".");
     }
 
     extra_padding = total_padded_accu - total_raw_accu;

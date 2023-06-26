@@ -838,6 +838,11 @@ TEST(GCCore_CPU_qconv2d_u8s8s32_rl, padding_7) {
             22, 22, 3, 3, {2, 2}, {1, 1}, {1, 2}, false, true);
     runtime_cfg.set_num_threads(orig_num_threads);
 }
+TEST(GCCore_CPU_qconv2d_u8s8s32_rl, padding_8) {
+    REQUIRE_AMX();
+    check_rl_qconv<uint8_t, int8_t, int32_t>(conv_fwd_rl_config_t(), 1, 16, 1,
+            12, 12, 7, 7, {2, 2}, {1, 1}, {1, 1}, false, true);
+}
 TEST(GCCore_CPU_qconv2d_u8s8s32_rl_bias, padding_1) {
     REQUIRE_AMX();
     check_rl_qconv<uint8_t, int8_t, int32_t>(conv_fwd_rl_config_t(), 1, 16, 3,
