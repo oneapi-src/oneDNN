@@ -771,7 +771,8 @@ std::vector<cpu_isa_t> get_supported_isa(bool is_fwd) {
 }
 
 bcast_set_t get_supported_bcast_strategies() {
-    return {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc};
+    return {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
+            broadcasting_strategy_t::no_broadcast};
 }
 } // namespace softmax_impl
 
