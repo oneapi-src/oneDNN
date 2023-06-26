@@ -150,30 +150,14 @@ struct cudnn_matmul_impl_t {
             // Initialise all gemm parameters if there are no runtime parameters
             init_parameters(src_d, weights_d, dst_d,
                     memory_desc_wrapper(pd->weights_md(1)));
-            if (with_scratchpad()) { book_scratchpad(pd, dst_d.nelems()); }
         }
 
-        if (reorder_required_ || bias_dt_mismatch_) { with_scratchpad_ = true; }
-
-        return status::success;
-    }
-
-    status_t book_scratchpad(matmul_pd_t *pd, dim_t num_elems) {
-        if (has_runtime_params_) { return status::unimplemented; }
-        // This case should only be called when no runtime parameters are
-        // specified
-        pd->scratchpad_registry().registrar().book(
-                memory_tracking::names::key_matmul_dst_in_acc_dt, num_elems,
-                types::data_type_size(get_scratchpad_type()));
         return status::success;
     }
 
     bool isbatched() { return isbatched_; }
     bool with_bias() { return with_bias_; }
-    bool with_scratchpad() { return with_scratchpad_; }
     bool has_runtime_params() { return has_runtime_params_; }
-
-    dnnl_data_type_t get_scratchpad_type() { return scratchpad_type_; }
 
     void convert_dims_matmul(
             const dnnl_dim_t *dims, int *new_dims, int n_dims) {
@@ -279,8 +263,6 @@ struct cudnn_matmul_impl_t {
             if (reorder_required_ && !bias_dt_mismatch_) {
                 // If reorder is required, we need to create a scratchpad memory
                 // to store the intermediate result
-                with_scratchpad_ = true;
-                scratchpad_type_ = data_type::f32;
                 CHECK(create_and_set_tensor_descriptor(&temp_mem_desc_,
                         cudnnDataType_t::CUDNN_DATA_FLOAT, ndims, dims[dst],
                         strides[dst]));
@@ -295,8 +277,6 @@ struct cudnn_matmul_impl_t {
                 CHECK(create_and_set_tensor_descriptor(&tensor_descs_[bias],
                         data_types[bias], ndims, dims[bias], strides[bias]));
                 if (bias_dt_mismatch_) {
-                    with_scratchpad_ = true;
-                    scratchpad_type_ = bias_d.data_type();
                     CHECK(create_and_set_tensor_descriptor(&temp_mem_desc_,
                             data_types[bias], ndims, dims[dst], strides[dst]));
                 }
@@ -447,8 +427,7 @@ private:
     bool isbatched_ = false, with_bias_ = false, bias_dt_mismatch_ = false,
          with_dst_scale_ = false;
     bool reorder_required_ = false, with_eltwise_ = false;
-    bool with_scratchpad_ = false, has_runtime_params_ = false;
-    dnnl_data_type_t scratchpad_type_;
+    bool has_runtime_params_ = false;
     cudaDataType_t src_type_, weights_type_, dst_type_;
     cudaDataType_t acc_type_ = cudaDataType_t::CUDA_R_32F;
     cublasGemmAlgo_t gemm_algo_

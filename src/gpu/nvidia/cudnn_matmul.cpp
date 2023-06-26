@@ -35,30 +35,25 @@ namespace nvidia {
 status_t cudnn_matmul_t::execute(const exec_ctx_t &ctx) const {
     if (pd()->has_zero_dim_memory()) return status::success;
 
-    const bool with_bias = matmul_impl_->with_bias();
     const bool has_runtime_args = matmul_impl_->has_runtime_params();
 
     const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
     const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
     const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
-    const auto bias_d = with_bias
-            ? ctx.memory_mdw(DNNL_ARG_BIAS, pd()->weights_md(1))
-            : nullptr;
+    const auto bias_d = ctx.memory_mdw(DNNL_ARG_BIAS, pd()->weights_md(1));
 
     status_t status;
+    size_t scratchpad_size = 0; // To avoid extra allocation in an executor.
     if (has_runtime_args) {
         // Initialise all runtime parameters
         status = matmul_impl_->init_parameters(src_d, weights_d, dst_d, bias_d);
         if (status != status::success) return status;
+
+        scratchpad_size = pd()->scratchpad_size(dst_d.md_);
     }
 
     nvidia::sycl_cuda_stream_t *cuda_stream
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
-
-    const auto scratchpad_type = matmul_impl_->get_scratchpad_type();
-    const auto scratchpad_size = matmul_impl_->with_scratchpad()
-            ? (dst_d.nelems() * types::data_type_size(scratchpad_type))
-            : 0;
 
     status = executor_->execute(
             ctx, ctx.stream()->engine(), matmul_impl_, scratchpad_size);
