@@ -90,7 +90,11 @@ jit_brdgmm_kernel_base_t<isa, Wmm>::jit_brdgmm_kernel_base_t(
         idx_vmm_s8s8_comp_ = vmm_idx_count_++;
         assert(idx_vmm_shift_ == idx_vmm_s8s8_comp_);
     }
-    if (compute_src_zp_) idx_vmm_zp_comp_ = vmm_idx_count_++;
+    if (compute_src_zp_) {
+        idx_vmm_zp_comp_ = vmm_idx_count_++;
+        if (!is_superset(brg.isa_impl, avx512_core))
+            idx_vmm_zp_bcast_ = vmm_idx_count_++;
+    }
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -190,7 +194,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::load_accumulators(
         if (is_fast_vnni_int8())
             vpbroadcastb(vmm_shift(), reg_tmp.cvt8());
         else
-            vpbroadcastd(vmm_shift(), reg_tmp.cvt32());
+            uni_vpbroadcastd(vmm_shift(), reg_tmp.cvt32());
     }
 }
 
@@ -327,7 +331,12 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::apply_post_ops(
         auto vmm_sum_zp = vmm_tmp(0);
         if (p_sum_zp_reg_set) {
             mov(reg_ptr_sum_zp, reinterpret_cast<size_t>(p_sum_zp));
-            vcvtdq2ps(vmm_sum_zp, ptr_b[reg_ptr_sum_zp]);
+            if (is_superset(brg.isa_impl, avx512_core)) {
+                vcvtdq2ps(vmm_sum_zp, ptr_b[reg_ptr_sum_zp]);
+            } else {
+                uni_vpbroadcastd(vmm_sum_zp, ptr[reg_ptr_sum_zp]);
+                vcvtdq2ps(vmm_sum_zp, vmm_sum_zp);
+            }
         }
 
         for_(int m_i = 0; m_i < m_blocks; m_i++)
@@ -380,25 +389,28 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
         for (int v_i = 0; v_i < v_substep; ++v_i) {
             const int substep_simd = get_substep_simd(n, v_i, has_n_tail);
             if (substep_simd <= 0) continue;
-            const bool mask_flag = substep_simd < simd_w_;
-            const Vmm vmm = maybe_mask(
-                    accm(m_blocks, n_blocks, m, n, v_i), mask_flag, false);
+
+            const Vmm vmm = accm(m_blocks, n_blocks, m, n, v_i);
             if (dq2ps_required) vcvtdq2ps(vmm, vmm);
-            if (IMPLICATION(mask_flag || !brg.is_oc_scale,
+
+            const bool mask_flag = substep_simd < simd_w_;
+            const bool scale_embdbcast = !brg.is_oc_scale;
+            if (IMPLICATION(mask_flag || scale_embdbcast,
                         is_superset(brg.isa_impl, avx512_core))) {
-                if (brg.is_oc_scale) {
-                    vmulps(vmm, vmm,
-                            ptr[reg_aux_scales + scales_offset(n, v_i)]);
+                const Vmm vmm_m = maybe_mask(vmm, mask_flag, false);
+                if (scale_embdbcast) {
+                    vmulps(vmm_m, vmm, ptr_b[reg_aux_scales]);
                 } else {
-                    vmulps(vmm, vmm, ptr_b[reg_aux_scales]);
+                    vmulps(vmm_m, vmm,
+                            ptr[reg_aux_scales + scales_offset(n, v_i)]);
                 }
             } else {
                 auto vmm_scale = vmm_tmp(0);
                 const auto addr = ptr[reg_aux_scales + scales_offset(n, v_i)];
-                if (brg.is_oc_scale) {
-                    load_data(data_type::f32, vmm_scale, addr, substep_simd);
-                } else {
+                if (scale_embdbcast) {
                     vbroadcastss(vmm_scale, ptr[reg_aux_scales]);
+                } else {
+                    load_data(data_type::f32, vmm_scale, addr, substep_simd);
                 }
                 vmulps(vmm, vmm, vmm_scale);
             }
@@ -439,17 +451,27 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
         for (int v_i = 0; v_i < v_substep; ++v_i) {
             const int substep_simd = get_substep_simd(n, v_i, has_n_tail);
             if (substep_simd <= 0) continue;
-            const bool mask_flag = substep_simd < simd_w_;
-            const Vmm vmm = maybe_mask(
-                    accm(m_blocks, n_blocks, m, n, v_i), mask_flag, false);
-            vmulps(vmm, vmm, ptr_b[reg_aux_dst_scales]);
+            const Vmm vmm = accm(m_blocks, n_blocks, m, n, v_i);
+            if (is_superset(brg.isa_impl, avx512_core)) {
+                vmulps(vmm, vmm, ptr_b[reg_aux_dst_scales]);
+            } else {
+                const Vmm vmm_scale = vmm_tmp(0);
+                vbroadcastss(vmm_scale, ptr[reg_aux_dst_scales]);
+                vmulps(vmm, vmm, vmm_scale);
+            }
         }
     }
 
     if (compute_dst_zp_) {
         auto vmm_dst_zp = vmm_tmp(0);
         mov(reg_dst_zero_point, ptr[rsp + dst_zp_value_]);
-        vcvtdq2ps(vmm_dst_zp, EVEX_compress_addr(reg_dst_zero_point, 0, true));
+        if (is_superset(brg.isa_impl, avx512_core)) {
+            vcvtdq2ps(vmm_dst_zp,
+                    EVEX_compress_addr(reg_dst_zero_point, 0, true));
+        } else {
+            uni_vpbroadcastd(vmm_dst_zp, ptr[reg_dst_zero_point]);
+            vcvtdq2ps(vmm_dst_zp, vmm_dst_zp);
+        }
 
         for_(int m = 0; m < m_blocks; m++)
         for_(int n = 0; n < n_blocks; n++)
@@ -514,8 +536,21 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
                     case data_type::f16:
                         vcvtps2ph(addr, r_vmm, _op_mxcsr);
                         break;
-                    case data_type::s8: vpmovsdb(addr, r_vmm); break;
-                    case data_type::u8: vpmovusdb(addr, r_vmm); break;
+                    case data_type::s8:
+                        if (is_superset(brg.isa_impl, avx512_core))
+                            vpmovsdb(addr, r_vmm);
+                        else
+                            store_data(brg.dt_d, vmm, reg_aux_D, offset,
+                                    substep_simd);
+                        break;
+                    case data_type::u8:
+                        if (is_superset(brg.isa_impl, avx512_core))
+                            vpmovusdb(addr, r_vmm);
+                        else
+                            store_data(brg.dt_d, vmm, reg_aux_D, offset,
+                                    substep_simd);
+
+                        break;
                     default: assert(!"unknown dst_dt");
                 }
             } else {
@@ -600,6 +635,8 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::compute_int8_compensation(
         mov(reg_zp_compensation, ptr[rsp + zp_compensation_]);
         lea(reg_zp_compensation,
                 ptr[reg_zp_compensation + reg_aux_N * sizeof(int32_t)]);
+        if (!is_superset(brg.isa_impl, avx512_core))
+            uni_vpbroadcastd(vmm_zp_bcast(), ptr[reg_src_zero_point]);
     }
 
     for_(int v_i = 0; v_i < v_substep; ++v_i)
@@ -617,10 +654,14 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::compute_int8_compensation(
             const Vmm vmm_zp = vmm_zp_comp();
             vmovups(vmm_zp,
                     maybe_EVEX_compress_addr(reg_zp_compensation, offset));
-            const bool src_zp_is_common = true;
-            vpmulld(vmm_zp, vmm_zp,
-                    maybe_EVEX_compress_addr(
-                            reg_src_zero_point, 0, src_zp_is_common));
+            if (is_superset(brg.isa_impl, avx512_core)) {
+                const bool src_zp_is_common = true;
+                vpmulld(vmm_zp, vmm_zp,
+                        maybe_EVEX_compress_addr(
+                                reg_src_zero_point, 0, src_zp_is_common));
+            } else {
+                vpmulld(vmm_zp, vmm_zp, vmm_zp_bcast());
+            }
         }
         for (int m = 0; m < m_blocks; m++) {
             auto vmm = accm(m_blocks, n_blocks, m, n, v_i);
@@ -704,7 +745,10 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::load_a(
                 vpmovzxbd(vmma, addr);
         }
     } else {
-        load_data(brg.dt_a, vmma, addr, substep_simd);
+        const bool preserve_8bit_sign
+                = brg.is_int8 && one_of(brg.isa_impl, avx2_vnni_2, avx2_vnni);
+        const auto dt_a = preserve_8bit_sign ? data_type::u8 : brg.dt_a;
+        load_data(dt_a, vmma, addr, substep_simd);
     }
 }
 
@@ -765,11 +809,18 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::comp_dot_product(
         compute_pad_kernel_t kernel_type, Vmm vmm_acc, Vmm vmmb) {
     switch (kernel_type) {
         case compute_pad_kernel_t::s8s8_kernel:
-            vpdpbusd(vmm_acc, vmm_shift(), vmmb);
+            vpdpbusd(vmm_acc, vmm_shift(), vmmb,
+                    is_superset(isa, avx512_core) ? Xbyak::EvexEncoding
+                                                  : Xbyak::VexEncoding);
             break;
         case compute_pad_kernel_t::zero_point_kernel:
-            vpmulld(vmm_zp_comp(), vmmb,
-                    maybe_EVEX_compress_addr(reg_src_zero_point, 0, true));
+            if (is_superset(brg.isa_impl, avx512_core)) {
+                vpmulld(vmm_zp_comp(), vmmb,
+                        maybe_EVEX_compress_addr(reg_src_zero_point, 0, true));
+            } else {
+                uni_vpbroadcastd(vmm_zp_bcast(), ptr[reg_src_zero_point]);
+                vpmulld(vmm_zp_comp(), vmmb, vmm_zp_bcast());
+            }
             vpaddd(vmm_acc, vmm_acc, vmm_zp_comp());
             break;
         default: assert(!"unsupported comp_kernel type");
@@ -901,7 +952,12 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
         } else if (brg.is_f16) {
             vfmadd231ps(vmm_acc, vmma, vmmb);
         } else if (brg.is_int8) {
-            vpdpbusd(vmm_acc, vmma, vmmb);
+            if (brg.isa_impl == avx2_vnni_2 && brg.dt_a == data_type::s8)
+                vpdpbssd(vmm_acc, vmma, vmmb);
+            else
+                vpdpbusd(vmm_acc, vmma, vmmb,
+                        is_superset(isa, avx512_core) ? Xbyak::EvexEncoding
+                                                      : Xbyak::VexEncoding);
         }
     };
 
@@ -1157,10 +1213,13 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::compute_loop() {
         {
             if (do_loop_n) {
                 if (vlen_tail_in_loop) {
+                    assert(isa_has_masks(brg.isa_impl));
                     Label done_k_mask;
                     cmp(reg_aux_N, n_loop_work - n_loop_step);
                     jl(done_k_mask, T_NEAR);
+
                     kmovd(k_mask, k_tail_mask);
+
                     L(done_k_mask);
                 }
             }
@@ -1314,6 +1373,7 @@ template struct brdgmm_kernel_t<avx512_core_bf16, Xbyak::Zmm>;
 template struct brdgmm_kernel_t<avx512_core_vnni, Xbyak::Zmm>;
 template struct brdgmm_kernel_t<avx512_core, Xbyak::Zmm>;
 template struct brdgmm_kernel_t<avx2, Xbyak::Ymm>;
+template struct brdgmm_kernel_t<avx2_vnni, Xbyak::Ymm>;
 template struct brdgmm_kernel_t<avx2_vnni_2, Xbyak::Ymm>;
 
 } // namespace x64

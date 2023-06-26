@@ -52,7 +52,11 @@ struct jit_brdgmm_kernel_base_t : public jit_generator {
         int vmm_idx_count = 0;
         if (is_fast_vnni_int8(brg)) vmm_idx_count++;
         if (brg.req_s8s8_compensation) vmm_idx_count++;
-        if (brg.zp_type_a != brgemm_broadcast_t::none) vmm_idx_count++;
+        if (brg.zp_type_a != brgemm_broadcast_t::none) {
+            vmm_idx_count++;
+            if (utils::one_of(brg.isa_impl, avx2_vnni, avx2_vnni_2))
+                vmm_idx_count++; // need extra vmm for src_zp broadcast
+        }
         return vmm_idx_count;
     }
 
@@ -64,7 +68,8 @@ private:
                     Xbyak::Zmm, Wmm>::type;
     using Vmm_low_t = typename vreg_traits<Vmm>::Vmm_lower_t;
     static constexpr cpu_isa_t po_isa_t = utils::map(isa, avx512_core, avx2,
-            avx2, avx2_vnni_2, avx2_vnni_2, avx512_core_fp16, avx512_core_fp16);
+            avx2, avx2_vnni, avx2, avx2_vnni_2, avx2_vnni_2, avx512_core_fp16,
+            avx512_core_fp16);
     using po_injector_t = injector::jit_uni_postops_injector_t<po_isa_t, Vmm>;
     std::unique_ptr<po_injector_t> postops_injector_;
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
@@ -136,6 +141,7 @@ private:
     int idx_vmm_permute_ = -1;
     int idx_vmm_shift_ = -1;
     int idx_vmm_zp_comp_ = -1;
+    int idx_vmm_zp_bcast_ = -1;
     int idx_vmm_s8s8_comp_ = -1;
     int vmm_idx_count_ = 0;
 
@@ -219,6 +225,10 @@ private:
     Vmm vmm_zp_comp() {
         assert(idx_vmm_zp_comp_ >= 0);
         return Vmm(idx_vmm_zp_comp_);
+    }
+    Vmm vmm_zp_bcast() {
+        assert(idx_vmm_zp_bcast_ >= 0);
+        return Vmm(idx_vmm_zp_bcast_);
     }
     Vmm vmm_tmp(int i) {
         const int idx

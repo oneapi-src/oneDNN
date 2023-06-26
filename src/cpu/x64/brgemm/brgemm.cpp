@@ -477,6 +477,7 @@ status_t brgemm_kernel_create(
             CASE(avx512_core_vnni);
             CASE(avx512_core);
             CASE(avx2_vnni_2);
+            CASE(avx2_vnni);
             CASE(avx2);
             default: return status::unimplemented;
         }

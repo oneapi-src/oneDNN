@@ -876,7 +876,8 @@ void init_brdgmm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
                 avx512_core_fp16, is_isa_ok(avx2_vnni_2), avx2_vnni_2);
     } else if (brg->is_int8) {
         brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(avx512_core_vnni),
-                avx512_core_vnni, is_isa_ok(avx2_vnni), avx2_vnni);
+                avx512_core_vnni, is_isa_ok(avx2_vnni_2), avx2_vnni_2,
+                is_isa_ok(avx2_vnni), avx2_vnni);
     }
 
     brg->req_s8s8_compensation = brg->is_int8 && brg->dt_a == data_type::s8
