@@ -292,7 +292,7 @@ void LoopSequencer::run(
         int l, int guaranteedMin, int guaranteedMax, int alignOffset) {
     typedef CallbackType CT;
 
-    auto alignCounter = [=](int i) {
+    auto alignCounter = [&](int i) {
         return align_up(i - alignOffset, counterAlign) + alignOffset;
     };
 

@@ -6187,7 +6187,8 @@ void gemm_kernel_generator_t<hw>::setupTeardownRemask(Type T, int index,
                     asr<int16_t>(n16, masks[0], masks[0], 15);
                 } else {
                     map(hw, Type::s16, masks, masks, strategy,
-                            [=](int simd, const RegData &r1, const RegData &) {
+                            [this](int simd, const RegData &r1,
+                                    const RegData &) {
                                 asr(simd, r1, r1, 15);
                             });
                 }

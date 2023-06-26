@@ -46,12 +46,12 @@ status_t ocl_usm_memory_storage_t::map_data(
     if (!host_ptr) return status::out_of_memory;
 
     auto leak_guard = decltype(usm_ptr_)(
-            host_ptr, [=](void *p) { usm::free(engine(), p); });
+            host_ptr, [this](void *p) { usm::free(engine(), p); });
     CHECK(usm::memcpy(stream, host_ptr, usm_ptr(), size, 0, nullptr, nullptr));
     CHECK(stream->wait());
     leak_guard.release();
 
-    auto unmap_callback = [=]() mutable {
+    auto unmap_callback = [&]() mutable {
         usm::memcpy(stream, usm_ptr(), host_ptr, size, 0, nullptr, nullptr);
         stream->wait();
         usm::free(engine(), host_ptr);
