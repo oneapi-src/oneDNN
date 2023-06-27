@@ -159,6 +159,24 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
     }
 }
 
+// Special function to handle Nvidia libraries issues showing up through the
+// timeline. Not recommended to remove instances to keep working state of any
+// cuda/cuDNN/cuBLAS versions.
+bool cuda_check_correctness(
+        const compare::compare_t::driver_check_func_args_t &args) {
+    if (!is_nvidia_gpu()) return false;
+
+    if (args.dt == dnnl_f16) {
+        // cuDNN bug: it spits f16 min value as -inf, not -65504.
+        return args.exp == lowest_dt(args.dt) && std::isinf(args.got)
+                && std::signbit(args.got);
+    } else if (args.dt == dnnl_s8) {
+        // cuDNN bug: ... and s8 min value as -127 (-INT8_MAX?), not -128.
+        return args.exp == lowest_dt(args.dt) && args.got == -127;
+    }
+    return false;
+}
+
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
     // Threshold to compensate division error. CPU could live with 6.f coeff.
@@ -174,13 +192,7 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
     const auto pooling_add_check
             = [&](const compare::compare_t::driver_check_func_args_t &args) {
-                  // cuDNN bug: it spits fp16 min value as -inf,
-                  // not -65504.
-                  if (is_nvidia_gpu() && args.dt == dnnl_f16) {
-                      return args.exp == lowest_dt(args.dt)
-                              && std::isinf(args.got) && std::signbit(args.got);
-                  }
-                  return false;
+                  return cuda_check_correctness(args);
               };
     cmp.set_driver_check_function(pooling_add_check);
 }
@@ -225,11 +237,14 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
             case DNNL_ARG_DIFF_DST:
                 SAFE(fill_data(DST, prb, cfg, mem, ref_mem, res), WARN);
                 break;
-            case DNNL_ARG_WORKSPACE:
+            case DNNL_ARG_WORKSPACE: {
+                const auto ws_dt
+                        = is_integral_dt(mem.dt()) ? dnnl_s32 : dnnl_f32;
                 ref_mem_map[exec_arg]
-                        = dnn_mem_t(mem.md_, dnnl_s32, tag::abx, ref_engine);
+                        = dnn_mem_t(mem.md_, ws_dt, tag::abx, ref_engine);
                 if (prb->dir & FLAG_FWD) SAFE(fill_ws(prb, mem, ref_mem), WARN);
                 break;
+            }
             case DNNL_ARG_DST:
                 SAFE(!check_md_consistency_with_tag(mem.md_, prb->tag), WARN);
                 break;
