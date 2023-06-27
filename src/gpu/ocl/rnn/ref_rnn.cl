@@ -871,10 +871,12 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter, __global char *scr_gates,
     MAYBE_ATOMIC DIFF_BIAS_DATA_T *diff_bias
             = diff_bias_base + diff_bias_off(strides, lay, dir, 0, 0);
 
+    if (j >= dhc) return;
+
     DIFF_DATA_T diff_bias_acc[N_BIAS] = {0};
     for (int batch_id = 0; batch_id < ELEMWISE_BWD_BATCH_BLOCK; batch_id++) {
         int i = i_ + batch_id;
-        if (j >= dhc || i >= batch) break;
+        if (i >= batch) break;
 
 #if CELL_KIND == VANILLA_LSTM
 
