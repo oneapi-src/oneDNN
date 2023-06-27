@@ -79,22 +79,6 @@ public:
         return utils::one_of(a_data_type, dnnl_f16, dnnl_f32)
                 && utils::one_of(c_data_type, dnnl_u8, dnnl_s8);
     }
-    bool matches_user_types() const {
-        if (is_fwd) {
-            return a_data_type == src_data_type && b_data_type == wei_data_type
-                    && c_data_type == dst_data_type;
-        } else if (is_bwd_d) {
-            return a_data_type == dst_data_type && b_data_type == wei_data_type
-                    && c_data_type == src_data_type;
-        } else if (is_bwd_w) {
-            return a_data_type == src_data_type && b_data_type == dst_data_type
-                    && c_data_type == wei_data_type;
-        } else {
-            ir_error_not_expected();
-            return false;
-        }
-    }
-
     bool reduce_b() const { return is_bwd_w && with_bias; }
 
     prop_kind_t prop_kind() const {
