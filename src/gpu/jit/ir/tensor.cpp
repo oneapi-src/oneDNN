@@ -25,22 +25,21 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
-layout_t::layout_t(const type_t &type, const expr_t &offset,
+layout_t::layout_t(const type_t &type, const expr_t &offset, int ndims,
         const std::vector<std::pair<int, dim_t>> &parts,
         const std::vector<dim_t> &dims, bool do_normalize)
-    : type_(type), offset_(offset) {
-    ndims_ = 0;
+    : type_(type), ndims_(ndims), offset_(offset) {
+    if (!dims.empty() && ndims_ != int(dims.size())) {
+        ir_error_not_expected() << "Format and dimensions do not match.";
+    }
     for (auto &p : parts) {
         int dim_idx = p.first;
         dim_t block = p.second;
-        ndims_ = std::max(ndims_, dim_idx + 1);
+        ir_assert(dim_idx < ndims_);
         if (block == 0 && dims.empty())
             ir_error_not_expected()
                     << "Dimensions are missing. Can't deduce them from "
                        "the format.";
-    }
-    if (!dims.empty() && ndims_ != int(dims.size())) {
-        ir_error_not_expected() << "Format and dimensions do not match.";
     }
 
     dim_t stride = 1;

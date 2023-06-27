@@ -445,15 +445,15 @@ public:
         sanity_check();
     }
 
-    layout_t(const type_t &type, const expr_t &offset,
+    layout_t(const type_t &type, const expr_t &offset, int ndims,
             const std::vector<std::pair<int, dim_t>> &parts,
             const std::vector<dim_t> &dims = {}, bool do_normalize = true);
 
     layout_t(const type_t &type, const expr_t &offset,
             const std::string &format, const std::vector<dim_t> &dims = {},
             bool do_normalize = true)
-        : layout_t(type, offset, parse_format(format, int(dims.size())), dims,
-                do_normalize) {}
+        : layout_t(type, offset, (int)dims.size(),
+                parse_format(format, int(dims.size())), dims, do_normalize) {}
 
     layout_t(const memory_desc_wrapper &mdw, const std::string &format,
             bool do_normalize = true)

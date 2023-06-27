@@ -115,7 +115,7 @@ layout_t dpas_t::a_layout() const {
     int outer_blk = sdepth;
     std::vector<std::pair<int, dim_t>> blocks
             = {{1, outer_blk}, {0, m_blk}, {1, inner_blk}};
-    return layout_t(src1_type, 0, blocks);
+    return layout_t(src1_type, 0, 2, blocks);
 }
 
 layout_t dpas_t::b_layout() const {
