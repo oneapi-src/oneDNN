@@ -59,7 +59,7 @@ layout_t::layout_t(const type_t &type, const expr_t &offset, int ndims,
         stride = block * stride;
     }
 
-    if (do_normalize) blocks_ = normalize_blocks(ndims_, blocks_);
+    if (do_normalize) blocks_ = normalize_blocks(blocks_);
     sanity_check();
 }
 
@@ -68,32 +68,9 @@ layout_t::layout_t(const memory_desc_wrapper &mdw, bool do_normalize)
     ir_assert(mdw.is_blocking_desc()) << "Expected blocking memory descriptor.";
 
     ndims_ = mdw.ndims();
-    auto &blocking = mdw.blocking_desc();
-    auto *padded_dims = mdw.padded_dims();
+    blocks_ = compute_block_structure(
+            mdw, /* inner_only */ false, /* do_normalize */ do_normalize);
 
-    dim_t stride = 1;
-    std::vector<dim_t> full_blocks(ndims_, 1);
-    for (int i = blocking.inner_nblks - 1; i >= 0; i--) {
-        int dim_idx = blocking.inner_idxs[i];
-        dim_t block = blocking.inner_blks[i];
-        blocks_.emplace_back(dim_idx, block, stride);
-        stride *= block;
-        full_blocks[dim_idx] *= block;
-    }
-
-    for (int i = 0; i < ndims_; i++) {
-        dim_t block = padded_dims[i] / full_blocks[i];
-        blocks_.emplace_back(i, block, blocking.strides[i]);
-    }
-
-    // Sort outer blocks by their stride.
-    std::sort(blocks_.begin() + blocking.inner_nblks, blocks_.end(),
-            [](const block_t &a, const block_t &b) {
-                return a.stride < b.stride
-                        || (a.stride == b.stride && a.block < b.block);
-            });
-
-    if (do_normalize) blocks_ = normalize_blocks(ndims_, blocks_);
     sanity_check();
 }
 
@@ -598,7 +575,7 @@ layout_t dim_assignment_t::map(const layout_t &layout) const {
         new_b.dim_idx = new_idx;
         new_blocks.push_back(new_b);
     }
-    new_blocks = layout_t::normalize_blocks(new_ndims(), new_blocks,
+    new_blocks = normalize_blocks(new_blocks,
             /*remove_size_1_blocks=*/false);
     auto ret = layout_t(layout.type(), new_ndims(), layout.offset(), new_blocks,
             /*do_normalize=*/false);

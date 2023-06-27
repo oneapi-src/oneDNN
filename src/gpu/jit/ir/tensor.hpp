@@ -29,6 +29,7 @@
 #include <unordered_map>
 
 #include "common/memory_desc_wrapper.hpp"
+#include "gpu/block_structure.hpp"
 #include "gpu/jit/ir/ir.hpp"
 #include "gpu/jit/pass/simplify.hpp"
 #include "gpu/jit/utils/utils.hpp"
@@ -317,126 +318,6 @@ private:
     int cur_stride_;
 };
 
-enum class stride_kind_t {
-    undef,
-    fixed,
-    unknown,
-};
-
-class stride_t {
-public:
-    stride_t() = default;
-
-    stride_t(dim_t stride) : stride_t(stride_kind_t::fixed, stride) {}
-
-    bool operator==(const stride_t &other) const {
-        return (kind_ == other.kind_) && (stride_ == other.stride_);
-    }
-
-    bool operator!=(const stride_t &other) const { return !operator==(other); }
-
-    size_t get_hash() const { return ir_utils::get_hash(kind_, stride_); }
-
-    operator dim_t() const {
-        ir_assert(kind_ == stride_kind_t::fixed);
-        return stride_;
-    }
-
-    bool is_fixed() const { return kind_ == stride_kind_t::fixed; }
-
-    bool is_unknown() const { return kind_ == stride_kind_t::unknown; }
-
-    stride_t &operator*=(const stride_t &other) {
-        if (is_fixed() && other.is_fixed()) {
-            stride_ *= other.stride_;
-        } else {
-            set_unknown();
-        }
-        return *this;
-    }
-
-    stride_t &operator/=(const stride_t &other) {
-        if (is_fixed() && other.is_fixed()) {
-            stride_ /= other.stride_;
-        } else {
-            set_unknown();
-        }
-        return *this;
-    }
-
-    std::string str() const {
-        std::ostringstream oss;
-        if (is_fixed()) {
-            oss << stride_;
-        } else {
-            oss << "(unknown)";
-        }
-        return oss.str();
-    }
-
-    IR_DEFINE_DUMP()
-
-    static stride_t unknown() { return stride_t(stride_kind_t::unknown); }
-
-private:
-    stride_t(stride_kind_t kind, dim_t stride = 0)
-        : kind_(kind), stride_(stride) {}
-
-    void set_unknown() {
-        kind_ = stride_kind_t::unknown;
-        stride_ = 0;
-    }
-
-    stride_kind_t kind_ = stride_kind_t::undef;
-    dim_t stride_ = 0;
-};
-
-inline stride_t operator*(const stride_t &a, const stride_t &b) {
-    stride_t tmp = a;
-    return tmp *= b;
-}
-
-inline stride_t operator*(const stride_t &a, dim_t b) {
-    return a * stride_t(b);
-}
-
-inline stride_t operator*(dim_t a, const stride_t &b) {
-    return stride_t(a) * b;
-}
-
-struct block_t {
-    block_t() = default;
-
-    block_t(int dim_idx, dim_t block, const stride_t &stride)
-        : dim_idx(dim_idx), block(block), stride(stride) {}
-
-    bool is_equal(const block_t &other) const {
-        return (dim_idx == other.dim_idx) && (block == other.block)
-                && (stride == other.stride);
-    }
-
-    size_t get_hash() const {
-        return ir_utils::get_hash(dim_idx, block, stride);
-    }
-
-    std::string str() const {
-        std::ostringstream oss;
-        oss << "block_t(dim_idx = " << dim_idx;
-        oss << ", block = " << block;
-        oss << ", stride = " << stride;
-        oss << ")";
-        return oss.str();
-    }
-
-    IR_DEFINE_DUMP()
-
-    bool is_empty() const { return dim_idx == -1; }
-
-    int dim_idx = -1; // Dimension index.
-    dim_t block = 0; // Block size.
-    stride_t stride; // Stride between elements of the block.
-};
-
 class layout_t {
 public:
     static const int max_ndims = 16;
@@ -475,14 +356,14 @@ public:
             blocks_.emplace_back(i, dims[i], stride);
             stride *= dims[i];
         }
-        if (do_normalize) blocks_ = normalize_blocks(ndims_, blocks_);
+        if (do_normalize) blocks_ = normalize_blocks(blocks_);
         sanity_check();
     }
 
     layout_t(const type_t &type, int ndims, const expr_t &offset,
             const std::vector<block_t> &blocks, bool do_normalize = true)
         : type_(type), ndims_(ndims), offset_(offset), blocks_(blocks) {
-        if (do_normalize) blocks_ = normalize_blocks(ndims_, blocks_);
+        if (do_normalize) blocks_ = normalize_blocks(blocks_);
         sanity_check();
     }
 
@@ -732,7 +613,7 @@ public:
     // - Size one blocks are removed
     // - Consecutive dense blocks are merged
     layout_t normalize() const {
-        auto blocks = normalize_blocks(ndims(), blocks_);
+        auto blocks = normalize_blocks(blocks_);
         return layout_t(type(), ndims(), offset(), blocks);
     }
 
@@ -1117,41 +998,6 @@ public:
 
     // Assume that layouts are normalized.
     static void align_layouts(layout_t &a, layout_t &b);
-
-    static std::vector<block_t> normalize_blocks(int ndims,
-            const std::vector<block_t> &blocks,
-            bool remove_size_1_blocks = true) {
-        auto new_blocks = blocks;
-
-        // Remove blocks of size 1.
-        if (remove_size_1_blocks) {
-            for (auto it = new_blocks.begin(); it != new_blocks.end();) {
-                if (it->block == 1) {
-                    it = new_blocks.erase(it);
-                } else {
-                    ++it;
-                }
-            }
-        }
-
-        // Merge same dimension blocks.
-        block_t prev_b;
-        prev_b.dim_idx = -1;
-        for (auto it = new_blocks.begin(); it != new_blocks.end();) {
-            if (it->dim_idx == prev_b.dim_idx
-                    && it->stride == (prev_b.stride * prev_b.block)) {
-                auto &b = *(it - 1);
-                b.block *= it->block;
-                prev_b = b;
-                it = new_blocks.erase(it);
-            } else {
-                prev_b = *it;
-                ++it;
-            }
-        }
-
-        return new_blocks;
-    }
 
     // Reinterprets layouts to wider data type (up to 4 bytes).
     // Example: 16a16b (s8 type) -> 16a4b (s32 type)
@@ -1791,7 +1637,7 @@ public:
 
     layout_t normalized_tlayout() const {
         auto blocks = move_size_1_blocks_outer();
-        blocks = layout_t::normalize_blocks(tlayout_.ndims(), blocks, false);
+        blocks = normalize_blocks(blocks, false);
         auto layout = layout_t(
                 type(), tlayout_.ndims(), tlayout_.offset(), blocks, false);
         return layout;

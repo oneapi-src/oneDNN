@@ -25,6 +25,7 @@
 #include "common/primitive_attr.hpp"
 #include "common/primitive_exec_types.hpp"
 #include "common/utils.hpp"
+#include "gpu/block_structure.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_eltwise_pd.hpp"
 
@@ -228,20 +229,6 @@ struct attr_info_t {
     bool with_dst_zpoints;
     bool with_per_ic_src_zpoints;
     bool with_per_oc_dst_zpoints;
-};
-
-struct block_t {
-    static constexpr int unknown = -1;
-    block_t() : id(unknown), size(unknown), stride(unknown) {}
-    block_t(dim_t id, dim_t size, dim_t stride)
-        : id(id), size(size), stride(stride) {}
-#if __cplusplus >= 202002L
-    bool operator==(const block_t &) const = default;
-#endif
-
-    dim_t id;
-    dim_t size;
-    dim_t stride; // Stride between elements within the block
 };
 
 struct block_layout_t {
@@ -1080,19 +1067,20 @@ inline strides_t get_outer_strides(const memory_desc_wrapper &md) {
 }
 
 inline block_layout_t get_inner_layout(const memory_desc_wrapper &md) {
-    dim_t block_dims[DNNL_MAX_NDIMS];
-    dim_t strides_compat[2][DNNL_MAX_NDIMS];
-
-    md.compute_blocks(block_dims);
-    md.compute_strides_compat(strides_compat);
+    std::vector<block_t> inner_layout
+            = compute_block_structure(md, /* inner_only */ true);
 
     block_layout_t ret;
-    for (int d = 0; d < MAX_NDIMS; ++d) {
-        if (d < md.ndims())
-            ret.blocks[d] = block_t(d, block_dims[d], strides_compat[1][d]);
-        else
-            ret.blocks[d] = block_t(d, 1, 0);
+    // Explicitly initialize to size-1 blocks
+    for (int d = 0; d < MAX_NDIMS; d++) {
+        ret.blocks[d] = block_t(d, 1, 0);
     }
+
+    // Overwrite inner blocks with their actual values
+    for (const auto &block : inner_layout) {
+        ret.blocks[block.dim_idx] = block;
+    }
+
     return ret;
 }
 
@@ -1115,8 +1103,9 @@ inline void def_block_offsets(const block_layout_t &layout,
         compute::kernel_ctx_t &kernel_ctx, const char *str) {
 
     for (auto &b : layout.blocks) {
-        kernel_ctx.define_int(utils::format("%s_B%d", str, b.id), b.size);
-        kernel_ctx.define_int(utils::format("%s_SB%d", str, b.id), b.stride);
+        kernel_ctx.define_int(utils::format("%s_B%d", str, b.dim_idx), b.block);
+        kernel_ctx.define_int(
+                utils::format("%s_SB%d", str, b.dim_idx), b.stride);
     }
 }
 
