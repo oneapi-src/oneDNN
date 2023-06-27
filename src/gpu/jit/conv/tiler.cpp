@@ -1351,6 +1351,30 @@ blocking_scheme_t bwd_w_T_io_I_ikow("l:[mb,oh,ow],T:[oc,ic],i:[ic,kw,oc,ow]");
 } // namespace conv_schemes
 // clang-format on
 
+double get_iter_dim_score(
+        const conv_dim_t &dim, const conv_config_t &cfg, int dim_size) {
+    auto &prb = cfg.prb();
+    if (utils::one_of(dim, conv_dims::ow, conv_dims::iw)) {
+        if (prb.ksp > 1 || dim_size % 16 != 0) return 16 - 1;
+        return dim_size;
+    } else if (dim == conv_dims::mb) {
+        return dim_size;
+    } else {
+        ir_error_not_expected() << "Unknown dimension: " << dim;
+    }
+    return 0;
+}
+
+conv_dim_t select_non_blocked_iter_dim(
+        const conv_config_t &cfg, const std::vector<conv_dim_t> &dims) {
+    const auto shape = get_conv_shape(cfg, /*pad=*/false);
+    std::vector<double> scores;
+    for (auto d : dims)
+        scores.push_back(get_iter_dim_score(d, cfg, shape[d]));
+    auto max_it = std::max_element(scores.begin(), scores.end());
+    return dims[max_it - scores.begin()];
+}
+
 conv_dim_t select_iter_dim(
         const conv_config_t &cfg, const std::vector<conv_dim_t> &_dims) {
     bool is_bwd_d_w_opt = utils::one_of(cfg.bwd_d_optimize_kind(),
@@ -1362,21 +1386,18 @@ conv_dim_t select_iter_dim(
         dims.push_back(d);
     }
     ir_assert(!dims.empty());
+    if (dims.size() == 1) return dims[0];
 
-    std::vector<int> dim_sizes;
     std::vector<int> dim_blocks;
-    const auto shape = get_conv_shape(cfg, /*pad=*/false);
     for (auto &d : dims) {
-        dim_sizes.push_back(shape[d]);
         dim_blocks.push_back(inner_block(cfg, d));
     }
-    int max_size = *std::max_element(dim_sizes.begin(), dim_sizes.end());
     int max_block = *std::max_element(dim_blocks.begin(), dim_blocks.end());
+    if (max_block == 1) return select_non_blocked_iter_dim(cfg, dims);
     for (int i = 0; i < (int)dims.size(); i++) {
-        if (max_block > 1 && dim_blocks[i] == max_block) return dims[i];
-        if (max_block == 1 && dim_sizes[i] == max_size) return dims[i];
+        if (dim_blocks[i] == max_block) return dims[i];
     }
-
+    ir_error_not_expected();
     return *dims.begin();
 }
 
