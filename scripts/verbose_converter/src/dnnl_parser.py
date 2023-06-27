@@ -243,12 +243,16 @@ class LogParser:
                 def convert_fpmath_mode(value):
                     return value
 
+                def convert_acc_mode(value):
+                    return value
+
                 converters = {
                     "attr-post-ops": convert_post_ops,
                     "attr-scales": convert_scales,
                     "attr-zero-points": convert_zero_points,
                     "attr-scratchpad": convert_scratchpad_mode,
                     "attr-fpmath": convert_fpmath_mode,
+                    "attr-acc": convert_acc_mode,
                 }
                 attrs = {}
                 for e in converters.keys():

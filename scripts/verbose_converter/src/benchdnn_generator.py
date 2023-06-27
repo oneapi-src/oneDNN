@@ -701,6 +701,8 @@ def convert_scratchpad_mode(scratchpad_mode, prim_kind):
 def convert_fpmath_mode(fpmath_mode, prim_kind):
     return fpmath_mode
 
+def convert_acc_mode(acc_mode, prim_kind):
+    return acc_mode
 
 def convert_attrs(exts, prim_kind):
     converters = {
@@ -709,6 +711,7 @@ def convert_attrs(exts, prim_kind):
         "attr-zero-points": convert_zero_points,
         "attr-scratchpad": convert_scratchpad_mode,
         "attr-fpmath": convert_fpmath_mode,
+        "attr-acc": convert_acc_mode,
     }
 
     benchdnn_attrs = ""
