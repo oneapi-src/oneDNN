@@ -997,6 +997,11 @@ void conv_plan_t::set_split(abc_kind_t abc, int factor) {
     if (zp) zp.set_split(abc, factor);
 }
 
+bool conv_plan_t::uses_2d_load(abc_kind_t abc) const {
+    auto &send_plan = ((abc == abc_kind_t::a) ? x2r.a_load : x2r.b_load);
+    return send_plan.send_params().hint_2d.enable;
+}
+
 grf_usage_t conv_plan_t::grf_usage() const {
     ir_assert(reserved_regs != -1);
     bool with_headers = !reuse_headers;
@@ -1124,8 +1129,15 @@ std::string conv_plan_t::str() const {
     return jit::add_indent("conv_plan", oss.str());
 }
 
-struct fma_config_t {
-    fma_config_t(const conv_config_t &cfg) {
+struct fma_layout_hint_t {
+    int vec_dim_idx = -1;
+
+    bool is_empty() const { return vec_dim_idx == -1; }
+};
+
+struct fma_context_t {
+    fma_context_t(const conv_config_t &cfg) {
+        hw = cfg.hw();
         simd = cfg.simd();
         vec_size = cfg.vec_size();
         fma = cfg.fma_kind();
@@ -1134,84 +1146,169 @@ struct fma_config_t {
         is_src1_broadcast = !cfg.prb().is_dw;
     }
 
-    int simd;
-    int vec_size;
-    fma_kind_t fma;
-    type_t a_type;
-    type_t b_type;
-    bool is_src1_broadcast;
-};
-
-layout_t get_fma_friendly_layout(const fma_config_t &fma_cfg, abc_kind_t abc,
-        const bmnk_mapper_t &mapper, const layout_t &layout) {
-    auto simd = fma_cfg.simd;
-    auto fma = fma_cfg.fma;
-    bool is_mad = (fma == fma_kind_t::mad);
-    bool is_dpas = is_dp_fma(fma);
-    bool is_a = (abc == abc_kind_t::a);
-    bool is_b = !is_a;
-    auto type = (is_a ? fma_cfg.a_type : fma_cfg.b_type);
-    int type_size = type.size();
-
-    if (is_dpas) {
-        int sdepth = 8;
-        int dword_size = 4;
-        std::vector<std::pair<int, dim_t>> blocks;
-        std::vector<bmnk_kind_t> bmnks;
-        if (is_a) {
-            // A -> src2
-            int k_blk = sdepth * dword_size / type_size;
-            blocks.emplace_back(1, k_blk);
-            bmnks.push_back(bmnk_kind_t::m);
-            bmnks.push_back(bmnk_kind_t::k);
-        } else {
-            // B -> src1
-            int k_blk0 = dword_size / type_size;
-            int n_blk = simd;
-            int k_blk1 = sdepth;
-            blocks.emplace_back(0, k_blk1);
-            blocks.emplace_back(1, n_blk);
-            blocks.emplace_back(0, k_blk0);
-            bmnks.push_back(bmnk_kind_t::k);
-            bmnks.push_back(bmnk_kind_t::n);
-        }
-        auto bmnk_layout = mapper.map_to_bmnk(abc, bmnks, layout).retype(type);
-        auto fma_layout
-                = bmnk_layout.make_with_block(layout_t(type, 0, blocks));
-        auto abc_layout = mapper.map_from_bmnk(abc, bmnks, fma_layout, layout);
-        return abc_layout;
+    fma_layout_hint_t &layout_hint(abc_kind_t abc) {
+        return (abc == abc_kind_t::a) ? a_layout_hint : b_layout_hint;
     }
 
-    if (is_mad) {
+    const fma_layout_hint_t &layout_hint(abc_kind_t abc) const {
+        return (abc == abc_kind_t::a) ? a_layout_hint : b_layout_hint;
+    }
+
+    layout_t maybe_retype_layout_for_mad(
+            bool is_a, const layout_t &layout) const {
+        bool is_b = !is_a;
         // mad with s8/u8 is not supported, promote to strided s16.
-        if (type.is_x8()) return layout.retype(type_t::s16()).make_strided(2);
+        if (layout.type().is_x8())
+            return layout.retype(type_t::s16()).make_strided(2);
 
         // mad with f16 requires aligned regioning for src1/src2.
-        if (fma_cfg.a_type.is_f16()) return layout.make_dense();
+        if (a_type.is_f16()) return layout.make_dense();
 
-        if (fma_cfg.a_type.is_bf16()) {
+        if (a_type.is_bf16()) {
             // bf16 mixed mode requires src1 to be converted to f32 when it's
             // broadcasted.
-            if (is_a && fma_cfg.is_src1_broadcast)
+            if (is_a && is_src1_broadcast)
                 return layout.retype(type_t::f32()).make_dense();
             // bf16 mixed mode mad requires src1 to be packed
             if (is_a) return layout.make_dense();
             // bf16 mixed mode mad requires src2 to be f32.
             if (is_b) return layout.retype(type_t::f32()).make_dense();
         }
-
         return layout;
     }
 
-    ir_error_not_expected();
-    return layout;
-}
+    layout_t get_fma_friendly_layout(abc_kind_t abc,
+            const bmnk_mapper_t &mapper, const layout_t &layout) const {
+        bool is_mad = (fma == fma_kind_t::mad);
+        bool is_dpas = is_dp_fma(fma);
+        bool is_a = (abc == abc_kind_t::a);
+        auto type = (is_a ? a_type : b_type);
+        int type_size = type.size();
 
-layout_t get_fma_friendly_layout(const fma_config_t &fma_cfg, abc_kind_t abc,
-        const bmnk_mapper_t &mapper, const view_t &view) {
-    return get_fma_friendly_layout(
-            fma_cfg, abc, mapper, view.create_dense_vlayout());
-}
+        if (is_dpas) {
+            int sdepth = 8;
+            int dword_size = 4;
+            std::vector<std::pair<int, dim_t>> blocks;
+            auto bmnks = get_bmnk_kinds(abc);
+            if (is_a) {
+                // A -> src2
+                int k_blk = sdepth * dword_size / type_size;
+                blocks.emplace_back(1, k_blk);
+            } else {
+                // B -> src1
+                int k_blk0 = dword_size / type_size;
+                int n_blk = simd;
+                int k_blk1 = sdepth;
+                blocks.emplace_back(0, k_blk1);
+                blocks.emplace_back(1, n_blk);
+                blocks.emplace_back(0, k_blk0);
+            }
+            auto bmnk_layout
+                    = mapper.map_to_bmnk(abc, bmnks, layout).retype(type);
+            auto fma_layout = bmnk_layout.make_with_block(
+                    layout_t(type, 0, (int)bmnks.size(), blocks));
+            auto abc_layout
+                    = mapper.map_from_bmnk(abc, bmnks, fma_layout, layout);
+            return abc_layout;
+        }
+
+        if (is_mad) {
+            // XXX: type and layout.type() may be different here when using mad
+            // with fpmath attribute. For now type is ignored and hence fpmath
+            // attribute has no effect with mad.
+            auto ret = maybe_retype_layout_for_mad(is_a, layout);
+            auto &hint = layout_hint(abc);
+            if (hint.is_empty()) return ret;
+            std::vector<std::pair<int, dim_t>> blocks;
+            blocks.emplace_back(hint.vec_dim_idx, vec_size);
+            auto bmnks = get_bmnk_kinds(abc, /*with_batch=*/true);
+            auto bmnk_layout = mapper.map_to_bmnk(abc, bmnks, ret);
+            auto fma_layout = bmnk_layout.make_with_block(
+                    layout_t(type, 0, (int)bmnks.size(), blocks));
+            auto abc_layout = mapper.map_from_bmnk(abc, bmnks, fma_layout, ret);
+            return abc_layout;
+        }
+
+        ir_error_not_expected();
+        return layout;
+    }
+
+    layout_t get_fma_friendly_layout(abc_kind_t abc,
+            const bmnk_mapper_t &mapper, const view_t &view) const {
+        return get_fma_friendly_layout(
+                abc, mapper, view.create_dense_vlayout());
+    }
+
+    static int get_vec_idx(abc_kind_t abc, bmnk_kind_t bmnk) {
+        ir_assert(utils::one_of(abc, abc_kind_t::a, abc_kind_t::b));
+        bool is_a = (abc == abc_kind_t::a);
+        switch (bmnk) {
+            case bmnk_kind_t::b: return 0;
+            case bmnk_kind_t::m: return is_a ? 1 : -1;
+            case bmnk_kind_t::n: return is_a ? -1 : 2;
+            default: ir_error_not_expected();
+        }
+        return -1;
+    }
+
+    static std::vector<bmnk_kind_t> get_bmnk_kinds(
+            abc_kind_t abc, bool with_batch = false) {
+        std::vector<bmnk_kind_t> ret;
+        if (with_batch) ret.push_back(bmnk_kind_t::b);
+        switch (abc) {
+            case abc_kind_t::a:
+                ret.push_back(bmnk_kind_t::m);
+                ret.push_back(bmnk_kind_t::k);
+                break;
+            case abc_kind_t::b:
+                ret.push_back(bmnk_kind_t::k);
+                ret.push_back(bmnk_kind_t::n);
+                break;
+            default: ir_error_not_expected();
+        }
+        return ret;
+    }
+
+    bool can_vectorize_by(
+            bmnk_kind_t bmnk, const layout_t &a, const layout_t &b) const {
+        int a_idx = get_vec_idx(abc_kind_t::a, bmnk);
+        int b_idx = get_vec_idx(abc_kind_t::b, bmnk);
+        return is_mad_compatible(a, b, a_idx, b_idx);
+    }
+
+    bool is_mad_compatible(const layout_t &a, const layout_t &b, int a_vec_idx,
+            int b_vec_idx) const {
+        if (a_vec_idx != -1 && !a.is_blocked_by(a_vec_idx, vec_size))
+            return false;
+        if (b_vec_idx != -1 && !b.is_blocked_by(b_vec_idx, vec_size))
+            return false;
+        return true;
+    }
+
+    void set_layout_hints(const layout_t &a, const layout_t &b) {
+        a_layout_hint.vec_dim_idx = -1;
+        b_layout_hint.vec_dim_idx = -1;
+        for (auto bmnk : {bmnk_kind_t::b, bmnk_kind_t::n, bmnk_kind_t::m}) {
+            int a_idx = get_vec_idx(abc_kind_t::a, bmnk);
+            int b_idx = get_vec_idx(abc_kind_t::b, bmnk);
+            if (a_idx != -1 && a.dim(a_idx) % vec_size != 0) continue;
+            if (b_idx != -1 && b.dim(b_idx) % vec_size != 0) continue;
+            if (a_idx != -1) a_layout_hint.vec_dim_idx = a_idx;
+            if (b_idx != -1) b_layout_hint.vec_dim_idx = b_idx;
+            break;
+        }
+    }
+
+    ngen::HW hw;
+    int simd;
+    int vec_size;
+    fma_kind_t fma;
+    type_t a_type;
+    type_t b_type;
+    bool is_src1_broadcast;
+    fma_layout_hint_t a_layout_hint;
+    fma_layout_hint_t b_layout_hint;
+};
 
 dim_t find_min_stride_without_conflicts(
         ngen::HW hw, dim_t inner_bytes, dim_t dense_stride_bytes) {
@@ -1298,12 +1395,11 @@ layout_t pad_slm_layout(
             layout.type(), layout.ndims(), layout.offset(), padded_blocks);
 }
 
-layout_t get_slm_layout(const conv_config_t &cfg, abc_kind_t abc,
+layout_t get_slm_layout(const fma_context_t &fma_ctx, abc_kind_t abc,
         const bmnk_mapper_t &mapper, const view_t &tg_view,
         const grid_info_t &grid) {
-    fma_config_t fma_cfg(cfg);
-    auto layout = get_fma_friendly_layout(fma_cfg, abc, mapper, tg_view);
-    layout = pad_slm_layout(cfg.hw(), layout, grid);
+    auto layout = fma_ctx.get_fma_friendly_layout(abc, mapper, tg_view);
+    layout = pad_slm_layout(fma_ctx.hw, layout, grid);
     return layout;
 }
 
@@ -1542,13 +1638,6 @@ bool is_dpas_src2_compatible(int simd, bool transpose, const layout_t &layout) {
     return src2_layout <= layout;
 }
 
-bool is_mad_compatible(int vec_size, const layout_t &a, const layout_t &b,
-        int a_vec_idx, int b_vec_idx) {
-    if (a_vec_idx != -1 && !a.is_blocked_by(a_vec_idx, vec_size)) return false;
-    if (b_vec_idx != -1 && !b.is_blocked_by(b_vec_idx, vec_size)) return false;
-    return true;
-}
-
 layout_t get_c_layout(const layout_t &a_layout, const layout_t &b_layout,
         const layout_t &c_blk_layout) {
     std::vector<block_t> blocks;
@@ -1574,17 +1663,15 @@ layout_t get_c_layout(const layout_t &a_layout, const layout_t &b_layout,
 enum class plan_status_t {
     success,
     error,
-    ab_layout_mismatch,
-    invalid_layout,
-    invalid_send,
+    ab_layout_vnni_mismatch,
+    ab_layout_k_blocks_mismatch,
+    invalid_fma_layout,
+    invalid_slm_send,
     out_of_registers,
     invalid_slm_k_slicing,
+    invalid_slm_layout,
+    invalid_direct_view,
 };
-
-bool is_layout_error(plan_status_t status) {
-    return utils::one_of(status, plan_status_t::invalid_layout,
-            plan_status_t::ab_layout_mismatch);
-}
 
 #define PLAN_CHECK(status) \
     do { \
@@ -1599,26 +1686,40 @@ public:
         , plan_ptr_(get_plan())
         , plan_(*plan_ptr_)
         , gemm_schedule_(plan_.gemm_schedule)
+        , fma_ctx_(cfg)
         , allow_slm_(cfg.hw() >= ngen::HW::XeLP) {}
 
     status_t init_plan() {
         plan_status_t status;
         status = try_init_plan();
         if (status == plan_status_t::success) return status::success;
-
-        if (is_layout_error(status)) {
-            ir_trace() << "Retry plan initialization without 2D messages"
-                       << std::endl;
-            for (auto ab : {0b01, 0b10, 0b0}) {
-                bool a = ((ab & 0b01) != 0);
-                bool b = ((ab & 0b10) != 0);
-                enable_send_2d(abc_kind_t::a, a);
-                enable_send_2d(abc_kind_t::b, b);
-                status = try_init_plan();
-                if (status == plan_status_t::success) return status::success;
-                if (!is_layout_error(status)) break;
-            }
+        switch (status) {
+            case plan_status_t::invalid_fma_layout:
+                for (auto abc : {abc_kind_t::a, abc_kind_t::b}) {
+                    auto &hint = fma_ctx_.layout_hint(abc);
+                    if (!hint.is_empty() && plan_.uses_2d_load(abc)) {
+                        hint.vec_dim_idx = -1;
+                        enable_send_2d(abc, false);
+                        status = try_init_plan();
+                        if (status == plan_status_t::success) break;
+                    }
+                }
+                if (!fma_ctx_.a_layout_hint.is_empty()
+                        || !fma_ctx_.b_layout_hint.is_empty())
+                    status = try_init_plan();
+                break;
+            case plan_status_t::ab_layout_vnni_mismatch:
+                for (auto abc : {abc_kind_t::a, abc_kind_t::b}) {
+                    if (plan_.uses_2d_load(abc)) {
+                        enable_send_2d(abc, false);
+                        status = try_init_plan();
+                        if (status == plan_status_t::success) break;
+                    }
+                }
+                break;
+            default: break;
         }
+        if (status == plan_status_t::success) return status::success;
 
         if (a_direct_view_ || b_direct_view_) {
             ir_trace() << "Retry plan initialization without direct view"
@@ -1671,7 +1772,7 @@ private:
         PLAN_CHECK(init_slm_plan(plan_.slm));
         PLAN_CHECK(init_prefetch_plan(plan_.prefetch));
         PLAN_CHECK(init_x2r_plan(plan_.slm, plan_.x2r));
-        PLAN_CHECK(init_fma_plan(plan_.x2r, plan_.fma));
+        PLAN_CHECK(init_fma_plan(plan_.x2r, fma_ctx_, plan_.fma));
         PLAN_CHECK(init_zp_plan(plan_.x2r, plan_.fma, plan_.zp));
         if (cfg_.subtiles().is_env_overridden()) {
             int a = cfg_.subtiles().a();
@@ -1806,8 +1907,8 @@ private:
         if (!use_slm(abc)) return plan_status_t::success;
         auto &tg = cfg_.thread_group_grid();
         slm_layout = get_slm_layout(
-                cfg_, abc, gemm_schedule_.bmnk_mapper(), tg_view, tg);
-        if (slm_layout == layout_t()) return plan_status_t::invalid_layout;
+                fma_ctx_, abc, gemm_schedule_.bmnk_mapper(), tg_view, tg);
+        if (slm_layout == layout_t()) return plan_status_t::invalid_slm_layout;
         auto thr_tile = slm_layout.split(tg, &grid);
         auto abs_thr_tile = tg_view.vtile().create_sub_tensor(thr_tile);
         auto slm_thr_layout = slm_layout.map(thr_tile);
@@ -1886,7 +1987,7 @@ private:
         layout = load.reg_layout();
         if (load.is_scattered()) {
             // Do not use SLM with scattered SLM load.
-            return plan_status_t::invalid_send;
+            return plan_status_t::invalid_slm_send;
         }
         return plan_status_t::success;
     }
@@ -1914,7 +2015,8 @@ private:
         auto reg_layout = load.reg_layout();
         if (direct_view) {
             reg_layout = direct_view.transform(reg_layout);
-            if (reg_layout.is_empty()) return plan_status_t::invalid_layout;
+            if (reg_layout.is_empty())
+                return plan_status_t::invalid_direct_view;
         }
 
         if (reduce_mask) {
@@ -1925,9 +2027,8 @@ private:
                     cfg_.hw(), reg_layout, reduce_layout, reduce_mask.mask);
         }
 
-        fma_config_t fma_cfg(cfg_);
-        layout = get_fma_friendly_layout(
-                fma_cfg, abc, gemm_schedule_.bmnk_mapper(), reg_layout);
+        layout = fma_ctx_.get_fma_friendly_layout(
+                abc, gemm_schedule_.bmnk_mapper(), reg_layout);
         auto &src = reg_layout;
         auto &dst = layout;
         reorder = create_reorder_plan(cfg_.hw(), src, dst);
@@ -1940,7 +2041,7 @@ private:
         int a_vnni_factor = a.enable ? a.vnni_permute_factor : 0;
         int b_vnni_factor = b.enable ? b.vnni_permute_factor : 0;
         if (a_vnni_factor != b_vnni_factor)
-            return plan_status_t::ab_layout_mismatch;
+            return plan_status_t::ab_layout_vnni_mismatch;
         return plan_status_t::success;
     }
 
@@ -2002,7 +2103,7 @@ private:
         auto b_k = k_sub_layout(abc_kind_t::b, b);
         if (a_k == b_k) return plan_status_t::success;
         if (cfg_.fma_kind() != fma_kind_t::mad)
-            return plan_status_t::ab_layout_mismatch;
+            return plan_status_t::ab_layout_k_blocks_mismatch;
 
         if (a_k.nblocks() == 2 && b_k.nblocks() == 2) {
             auto &a0 = a_k.blocks()[0];
@@ -2036,7 +2137,7 @@ private:
             }
         }
 
-        return plan_status_t::ab_layout_mismatch;
+        return plan_status_t::ab_layout_k_blocks_mismatch;
     }
 
     plan_status_t init_x2r_plan(const slm_plan_t &slm, x2r_plan_t &plan) const {
@@ -2058,7 +2159,8 @@ private:
         return plan_status_t::success;
     }
 
-    plan_status_t init_fma_plan(const x2r_plan_t &x2r, fma_plan_t &plan) const {
+    plan_status_t init_fma_plan(const x2r_plan_t &x2r, fma_context_t &fma_ctx,
+            fma_plan_t &plan) const {
         auto &mapper = gemm_schedule_.bmnk_mapper();
         auto a_layout = mapper.map_to_bmnk(abc_kind_t::a,
                 {bmnk_kind_t::b, bmnk_kind_t::m, bmnk_kind_t::k}, x2r.a_layout);
@@ -2099,19 +2201,21 @@ private:
                 break;
             }
             case fma_kind_t::mad:
-                if (is_mad_compatible(vec_size, a_layout, b_layout, 0, 0)) {
+                if (fma_ctx.can_vectorize_by(
+                            bmnk_kind_t::b, a_layout, b_layout)) {
                     b_blk = vec_size;
                     c_blk_layout = c_blk_layout.add_outer_block(0, vec_size);
-                } else if (is_mad_compatible(
-                                   vec_size, a_layout, b_layout, -1, 2)) {
+                } else if (fma_ctx.can_vectorize_by(
+                                   bmnk_kind_t::n, a_layout, b_layout)) {
                     n_blk = vec_size;
                     c_blk_layout = c_blk_layout.add_outer_block(2, vec_size);
-                } else if (is_mad_compatible(
-                                   vec_size, a_layout, b_layout, 1, -1)) {
+                } else if (fma_ctx.can_vectorize_by(
+                                   bmnk_kind_t::m, a_layout, b_layout)) {
                     m_blk = vec_size;
                     c_blk_layout = c_blk_layout.add_outer_block(1, vec_size);
                 } else {
-                    return plan_status_t::invalid_layout;
+                    fma_ctx.set_layout_hints(a_layout, b_layout);
+                    return plan_status_t::invalid_fma_layout;
                 }
                 break;
             default: ir_error_not_expected();
@@ -2233,6 +2337,7 @@ private:
     std::shared_ptr<conv_plan_t> plan_ptr_;
     conv_plan_t &plan_;
     gemm_schedule_t &gemm_schedule_;
+    fma_context_t fma_ctx_;
     direct_view_t a_direct_view_;
     direct_view_t b_direct_view_;
     bool allow_direct_view_ = true;

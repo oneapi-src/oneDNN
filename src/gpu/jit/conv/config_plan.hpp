@@ -236,6 +236,7 @@ struct conv_plan_t : public base_plan_t {
 
     bool can_split(abc_kind_t abc, int factor) const;
     void set_split(abc_kind_t abc, int factor);
+    bool uses_2d_load(abc_kind_t abc) const;
     grf_usage_t grf_usage() const;
     void reset();
     std::string str() const;
