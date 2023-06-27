@@ -114,8 +114,6 @@ if(MSVC)
         append(CMAKE_CCXX_FLAGS "/bigobj")
         # make preprocessor standard compliant
         append(CMAKE_CCXX_FLAGS "/Zc:preprocessor")
-        # int -> bool
-        append(CMAKE_CCXX_NOWARN_FLAGS "/wd4800")
         # unknown pragma
         append(CMAKE_CCXX_NOWARN_FLAGS "/wd4068")
         # UNUSED(func)
