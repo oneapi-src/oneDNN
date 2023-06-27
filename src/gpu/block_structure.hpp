@@ -23,59 +23,50 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
 #include "common/utils.hpp"
+#include "gpu/serialization.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 
-enum class stride_kind_t {
-    undef,
-    fixed,
-    unknown,
-};
-
 class stride_t {
 public:
     stride_t() = default;
 
-    stride_t(dim_t stride) : stride_t(stride_kind_t::fixed, stride) {}
+    stride_t(dim_t stride) : stride_(stride) {}
 
     bool operator==(const stride_t &other) const {
-        return (kind_ == other.kind_) && (stride_ == other.stride_);
+        return stride_ == other.stride_;
     }
 
     bool operator!=(const stride_t &other) const { return !operator==(other); }
 
-    size_t get_hash() const {
-        size_t hash = 0;
-        hash = hash_combine(hash, kind_);
-        hash = hash_combine(hash, stride_);
-        return hash;
-    }
+    size_t get_hash() const { return dnnl::impl::gpu::get_hash(this); }
 
     operator dim_t() const {
-        assert(kind_ == stride_kind_t::fixed);
+        assert(is_fixed());
         return stride_;
     }
 
-    bool is_fixed() const { return kind_ == stride_kind_t::fixed; }
-
-    bool is_unknown() const { return kind_ == stride_kind_t::unknown; }
+    bool is_fixed() const { return !is_unknown() && !is_undefined(); }
+    bool is_unknown() const { return stride_ == unknown_stride; }
+    bool is_undefined() const { return stride_ == undefined_stride; }
 
     stride_t &operator*=(const stride_t &other) {
         if (is_fixed() && other.is_fixed()) {
             stride_ *= other.stride_;
         } else {
-            set_unknown();
+            stride_ = unknown_stride;
         }
         return *this;
     }
 
+    // XXX: Ambiguous when coprime
     stride_t &operator/=(const stride_t &other) {
         if (is_fixed() && other.is_fixed()) {
             stride_ /= other.stride_;
         } else {
-            set_unknown();
+            stride_ = unknown_stride;
         }
         return *this;
     }
@@ -84,26 +75,25 @@ public:
         std::ostringstream oss;
         if (is_fixed()) {
             oss << stride_;
-        } else {
+        } else if (is_unknown()) {
             oss << "(unknown)";
+        } else {
+            oss << "(invalid)";
         }
         return oss.str();
     }
 
-    static stride_t unknown() { return stride_t(stride_kind_t::unknown); }
+    static stride_t unknown() { return stride_t(unknown_stride); }
+    static stride_t undefined() { return stride_t(undefined_stride); }
 
 private:
-    stride_t(stride_kind_t kind, dim_t stride = 0)
-        : kind_(kind), stride_(stride) {}
+    // Both negative sentinels: won't interfere with valid strides
+    static constexpr dim_t unknown_stride = std::numeric_limits<dim_t>::min();
+    static constexpr dim_t undefined_stride = unknown_stride + 1;
 
-    void set_unknown() {
-        kind_ = stride_kind_t::unknown;
-        stride_ = 0;
-    }
-
-    stride_kind_t kind_ = stride_kind_t::undef;
-    dim_t stride_ = 0;
+    dim_t stride_ = undefined_stride;
 };
+assert_trivially_serializable(stride_t);
 
 inline stride_t operator*(const stride_t &a, const stride_t &b) {
     stride_t tmp = a;
@@ -118,6 +108,8 @@ inline stride_t operator*(dim_t a, const stride_t &b) {
     return stride_t(a) * b;
 }
 
+static constexpr dim_t undefined_dim_idx = -1;
+
 struct block_t {
     block_t() = default;
 
@@ -129,13 +121,7 @@ struct block_t {
                 && (stride == other.stride);
     }
 
-    size_t get_hash() const {
-        size_t hash = 0;
-        hash = hash_combine(hash, dim_idx);
-        hash = hash_combine(hash, block);
-        hash = hash_combine(hash, stride.get_hash());
-        return hash;
-    }
+    size_t get_hash() const { return dnnl::impl::gpu::get_hash(this); }
 
     std::string str() const {
         std::ostringstream oss;
@@ -146,12 +132,13 @@ struct block_t {
         return oss.str();
     }
 
-    bool is_empty() const { return dim_idx == -1; }
+    bool is_empty() const { return dim_idx == undefined_dim_idx; }
 
-    int dim_idx = -1; // Dimension index.
+    dim_t dim_idx = undefined_dim_idx; // Dimension index.
     dim_t block = 1; // Block size.
     stride_t stride; // Stride between elements of the block.
 };
+assert_trivially_serializable(block_t);
 
 std::vector<block_t> normalize_blocks(
         const std::vector<block_t> &blocks, bool remove_size_1_blocks = true);

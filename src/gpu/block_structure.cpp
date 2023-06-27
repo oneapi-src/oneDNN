@@ -37,7 +37,7 @@ std::vector<block_t> normalize_blocks(
 
     // Merge same dimension blocks.
     block_t prev_b;
-    prev_b.dim_idx = -1;
+    prev_b.dim_idx = undefined_dim_idx;
     for (auto it = new_blocks.begin(); it != new_blocks.end();) {
         if (it->dim_idx == prev_b.dim_idx
                 && it->stride == (prev_b.stride * prev_b.block)) {
