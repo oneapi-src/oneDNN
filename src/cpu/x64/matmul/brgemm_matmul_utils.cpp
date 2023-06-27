@@ -705,7 +705,8 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
         }
 
         // Parallelize across K for shapes with big 'K' dimension
-        bool bwd_w_par_k_blk = bm_conf_utils.check_is_transposed(bgmmc.src_tag)
+        bool bwd_w_par_k_blk = bgmmc.batch == 1
+                && bm_conf_utils.check_is_transposed(bgmmc.src_tag)
                 && IMPLICATION(bm_conf_utils.is_bf16(), math::is_pow2(matmul.K))
                 && matmul.K >= 2048;
         if (bwd_w_par_k_blk) {
