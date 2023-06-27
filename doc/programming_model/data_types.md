@@ -60,11 +60,11 @@ guide.
 
 During a primitive computation, oneDNN can use different datatypes
 than those of the inputs/outputs. In particular, oneDNN uses wider
-accumulator datatypes (s32 for integral computations, and f32 for
+accumulator datatypes (s32 for integral computations, and f32/f64 for
 floating-point computations), and converts intermediate results to f32
-before applying post-ops (f64 configuration does not support post-ops).
-The following formula governs the datatypes
-dynamic during a primitive computation:
+before applying post-ops (f64 configuration does not support
+post-ops).  The following formula governs the datatypes dynamic during
+a primitive computation:
 
 \f[
 \operatorname{convert_{dst\_dt}} ( \operatorname{dst\_zero\_point_{f32}} + \operatorname{postops_{f32}} (\operatorname{oscale_{f32}} * \operatorname{convert_{f32}} (\operatorname{Op}(\operatorname{src_{src\_dt}}, \operatorname{weights_{wei\_dt}}, ...))))
@@ -79,9 +79,16 @@ The `Op` output datatype depends on the datatype of its inputs:
   datatype will be s32 if its weights are an integral datatype, or f32
   otherwise.
 
+The accumulation datatype used during `Op` computation is governed by
+the `accumulation_mode` attribute of the primitive. By default, f32 is
+used for floating-point primitives (or f64 for f64 primitives) and s32
+is used for integral primitives.
+
 No downconversions are allowed by default, but can be enabled using
 the floating-point math controls described in @ref
 dev_guide_attributes_fpmath_mode.
+
+
 
 ### Floating-point environment
 oneDNN floating-point computation behavior is controlled by the
@@ -182,8 +189,9 @@ types that oneDNN recognizes.
   double-precision floating-point.
 
 @note
-  f16 operations may accumulate to f16 on GPU architectures older than Xe-HPC.
-  Newer architectures accumulate to f32.
+  f16 operations may be faster with f16 accumulation on GPU
+  architectures older than Xe-HPC. Newer architectures accumulate to
+  f32.
 
 @note
   Boolean is only supported by the oneDNN graph API when the graph compiler
