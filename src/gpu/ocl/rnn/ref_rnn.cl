@@ -1118,7 +1118,7 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter, __global char *scr_gates,
 #endif
     }
     unroll_for(int k = 0; k < N_BIAS; k++) {
-#ifdef NEED_BIAS_ATOMIC_REDUCE
+#if NEED_BIAS_ATOMIC_REDUCE
         atomic_add_global(&diff_bias[k * dhc + j], diff_bias_acc[k]);
 #else
         diff_bias[k * dhc + j] += diff_bias_acc[k];
