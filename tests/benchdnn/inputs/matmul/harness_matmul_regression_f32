@@ -16,3 +16,7 @@
 --stag=abcd --wtag=abcd --dtag=abcd
 --attr-post-ops=add:bf16:per_dim_023:abcd
 2x2x32x16:2x2x16x64_n"small_shape_with_per_dim_023_binary_po"
+
+# test for K parallel_reduction with batched case
+--reset
+--stag=acb --wtag=abc --dtag=abc 2x16x2048:2x2048x16_n"large_K_with_batch"
