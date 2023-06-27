@@ -181,9 +181,7 @@ struct ocl_conf_t {
     bool operator==(const ocl_conf_t &) const = default;
 #endif
     serialized_t<ocl_conf_t> serialize() const {
-        static_assert(
-                serialized_data_t::is_trivially_serialized<ocl_conf_t>::value,
-                "ocl_conf_t is expected to be trivially serialized");
+        assert_trivially_serializable(ocl_conf_t);
         serialized_t<ocl_conf_t> s {};
         // Explicitly maintain zero padding to keep the implementation simple and
         // robust

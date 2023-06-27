@@ -26,6 +26,10 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 
+#define assert_trivially_serializable(cls) \
+    static_assert(serialized_data_t::is_trivially_serialized<cls>::value, \
+            #cls " must be trivially serializable.")
+
 struct serialized_data_t {
 #if defined(__cpp_lib_has_unique_object_representations) \
         && __cpp_lib_has_unique_object_representations >= 201606L
@@ -148,6 +152,15 @@ struct deserializer_t {
     size_t idx;
     const serialized_data_t &s;
 };
+
+template <typename T,
+        typename = typename std::enable_if<
+                serialized_data_t::is_trivially_serialized<T>::value>::type>
+size_t get_hash(const T *t) {
+    serialized_t<T> s {};
+    s.append(t);
+    return s.hash();
+}
 
 } // namespace gpu
 } // namespace impl
