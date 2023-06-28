@@ -146,12 +146,12 @@ const nocopy_table_t xe_hp_x8x8s32_nocopy_bad_ld_table[] = {
         {{{656, 528}, {352, 384}}, {{656, 528}, {352, 384}}}};
 
 const nocopy_table_t xe_hpc_f16_nocopy_table[] = {
-        // NN    NT      TN    TT
-        {{{8192, 8192}, {8192, 8192}}, {{0, 0}, {0, 0}}}};
+        // NN     NT       TN    TT
+        {{{14848, 12800}, {8193, 8193}}, {{0, 0}, {0, 0}}}};
 
 const nocopy_table_t xe_hpc_x8x8s32_nocopy_table[] = {
-        // NN    NT      TN    TT
-        {{{2049, 3000}, {1088, 1024}}, {{0, 0}, {0, 0}}}};
+        // NN    NT       TN  TT
+        {{{0, 10000}, {0, 0}}, {{0, 0}, {0, 0}}}};
 
 const nocopy_table_t xe_hpc_f16_nocopy_bad_ld_table[] = {
         // NN    NT      TN    TT
