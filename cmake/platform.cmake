@@ -116,8 +116,6 @@ if(MSVC)
         append(CMAKE_CCXX_FLAGS "/Zc:preprocessor")
         # unknown pragma
         append(CMAKE_CCXX_NOWARN_FLAGS "/wd4068")
-        # UNUSED(func)
-        append(CMAKE_CCXX_NOWARN_FLAGS "/wd4551")
         # int64_t -> int (tent)
         append(CMAKE_CCXX_NOWARN_FLAGS "/wd4244")
         # workaround: macro outputs defined token in msvs header
