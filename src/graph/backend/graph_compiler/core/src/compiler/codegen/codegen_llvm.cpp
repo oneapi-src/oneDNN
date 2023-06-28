@@ -43,7 +43,11 @@
 #include <llvm/IR/MDBuilder.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
+#if SC_LLVM_BACKEND > 16
+#include <llvm/TargetParser/Host.h>
+#else
 #include <llvm/Support/Host.h>
+#endif
 #if SC_LLVM_BACKEND > 13
 #include <llvm/MC/TargetRegistry.h>
 #else
@@ -60,8 +64,10 @@
 #include <util/scoped_timer.hpp>
 
 #if SC_LLVM_BACKEND > 15
+#if SC_LLVM_BACKEND < 17
 #include <llvm/ADT/None.h>
 #include <llvm/ADT/Optional.h>
+#endif
 #include <llvm/Support/ModRef.h>
 #endif
 
@@ -82,6 +88,12 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace gc {
+
+#if SC_LLVM_BACKEND > 16
+// starting from LLVM17, they use STL's optional container
+template <typename T>
+using Optional = std::optional<T>;
+#endif
 
 #define WHEN_ARCH_NAME(...) __VA_ARGS__
 #define ARCH_GraniteRapids \

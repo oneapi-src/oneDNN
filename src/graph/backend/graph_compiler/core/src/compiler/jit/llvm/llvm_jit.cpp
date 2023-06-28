@@ -39,7 +39,13 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/AlwaysInliner.h>
+#if SC_LLVM_BACKEND >= 16
+#include <llvm/IR/PassManager.h>
+#include <llvm/Passes/PassBuilder.h>
+#else
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#endif
+#include <llvm/Passes/StandardInstrumentations.h>
 #include <runtime/config.hpp>
 #include <runtime/runtime.hpp>
 #include <util/file.hpp>
@@ -60,6 +66,67 @@ static std::string dump_module_to_string(llvm::Module *m) {
     return ret;
 }
 
+#if SC_LLVM_BACKEND >= 16
+static void optimize_llvm_module(llvm::TargetMachine *tm, llvm::Module *module,
+        llvm::CodeGenOpt::Level llvm_opt) {
+#if 0
+    // these code are useful for debugging LLVM optimizations
+    std::vector<const char *> args {"gc", "-pass-remarks=loop-unroll",
+            "-pass-remarks-missed=loop-unroll"};
+    llvm::cl::ParseCommandLineOptions(args.size(), args.data());
+#endif
+    llvm::LoopAnalysisManager LAM;
+    llvm::FunctionAnalysisManager FAM;
+    llvm::CGSCCAnalysisManager CGAM;
+    llvm::ModuleAnalysisManager MAM;
+    llvm::PipelineTuningOptions PTO;
+    PTO.LoopUnrolling = true;
+    // clang sets LoopInterleaving with same value of LoopUnrolling
+    PTO.LoopInterleaving = true;
+    PTO.LoopVectorization = true;
+    // cannot enable this on LLVM16, it runs too long on a specific workload
+    // PTO.SLPVectorization = true;
+    // PTO.MergeFunctions = what?
+
+    llvm::PassInstrumentationCallbacks PIC;
+#if 0
+    // these code are useful for debugging LLVM optimizations
+    llvm::PrintPassOptions PrintPassOpts;
+    PrintPassOpts.Verbose = true;
+    PrintPassOpts.SkipAnalyses = false;
+    llvm::StandardInstrumentations SI(
+            module->getContext(), true, false, PrintPassOpts);
+    SI.registerCallbacks(PIC, &FAM);
+    PB.printPassNames(llvm::errs());
+#endif
+    llvm::PassBuilder PB {tm, PTO, std::nullopt, &PIC};
+
+    PB.registerModuleAnalyses(MAM);
+    PB.registerCGSCCAnalyses(CGAM);
+    PB.registerFunctionAnalyses(FAM);
+    PB.registerLoopAnalyses(LAM);
+    PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+
+    llvm::OptimizationLevel opt_level = llvm::OptimizationLevel::O3;
+    switch (llvm_opt) {
+        case llvm::CodeGenOpt::Level::None:
+            opt_level = llvm::OptimizationLevel::O0;
+            break;
+        case llvm::CodeGenOpt::Level::Less:
+            opt_level = llvm::OptimizationLevel::O1;
+            break;
+        case llvm::CodeGenOpt::Level::Default:
+            opt_level = llvm::OptimizationLevel::O2;
+            break;
+        case llvm::CodeGenOpt::Level::Aggressive:
+            opt_level = llvm::OptimizationLevel::O3;
+            break;
+    }
+    llvm::ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(opt_level);
+    MPM.run(*module, MAM);
+    SC_MODULE_INFO << dump_module_to_string(module);
+}
+#else
 static void optimize_llvm_module(llvm::TargetMachine *tm, llvm::Module *module,
         llvm::CodeGenOpt::Level llvm_opt) {
     llvm::PassManagerBuilder passbuilder;
@@ -91,6 +158,7 @@ static void optimize_llvm_module(llvm::TargetMachine *tm, llvm::Module *module,
     MPM.run(*module);
     SC_MODULE_INFO << dump_module_to_string(module);
 }
+#endif
 std::unique_ptr<llvm::TargetMachine> get_llvm_target_machine(
         llvm::CodeGenOpt::Level optlevel);
 
