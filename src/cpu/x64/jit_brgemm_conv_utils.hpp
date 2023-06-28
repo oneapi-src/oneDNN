@@ -41,8 +41,8 @@ bool is_amx(cpu_isa_t isa);
 bool uses_batch_elements(
         brgemm_batch_kind_t brg_type, conv_brgemm_exec_type_t exec_type);
 
-status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
-        const convolution_desc_t &cd, memory_desc_t &src_md,
+status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
+        cpu_isa_t isa, const convolution_desc_t &cd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads);
 

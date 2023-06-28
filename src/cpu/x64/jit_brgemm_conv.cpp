@@ -408,8 +408,9 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
             && !has_zero_dim_memory() && zero_points_ok() && arg_scales_ok();
     if (!ok) return status::unimplemented;
 
-    CHECK(brgemm_convolution_utils::init_conf(jcp_, isa, *desc(), src_md_,
-            weights_md_, dst_md_, bias_md_, attr_, dnnl_get_max_threads()));
+    CHECK(brgemm_convolution_utils::init_conf(jcp_, use_inversion, isa, *desc(),
+            src_md_, weights_md_, dst_md_, bias_md_, attr_,
+            dnnl_get_max_threads()));
 
     const auto adj_M = nstl::max(jcp_.M, jcp_.M_tail);
 

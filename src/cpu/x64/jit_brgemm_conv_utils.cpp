@@ -1976,6 +1976,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             && jcp.ic % jcp.vnni_block == 0) {
         // such convolutions are equivalent to
         // [iw / k][kw / k][stride_w / k][ic * k]
+        // TODO: check if it may go to kw lowering
         const bool pure_1d = (jcp.mb == 1 && jcp.id == 1 && jcp.ih == 1);
         int w_koef = 1;
         auto w_koef_max = nstl::min(jcp.kw, nstl::min(jcp.stride_w, jcp.iw));
@@ -2002,20 +2003,6 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     const bool is_depthwise
             = with_groups && jcp.ngroups > 1 && everyone_is(1, jcp.ic, jcp.oc);
     if (is_depthwise)
-        if (allow_perf_heuristics(jcp)) return status::unimplemented;
-
-    // TODO: optimize grouped convolutions with small ic
-    const bool is_grouped_small_ic
-            = jcp.prop_kind != prop_kind::backward_weights && with_groups
-            && jcp.isa != avx2 && jcp.ngroups > 1 && jcp.ic <= jcp.acc_simd_w
-            && IMPLICATION(is_amx(jcp.isa),
-                    jcp.ic < 16
-                            && jcp.oc < 16
-                            // already optimized for amx 1x1 convs
-                            && !jcp.is_1x1)
-            // Enable the shapes not supported in direct convs
-            && IMPLICATION(with_groups, is_groups_ok(jcp));
-    if (is_grouped_small_ic)
         if (allow_perf_heuristics(jcp)) return status::unimplemented;
 
     // Dispatch the shapes to VNNI for better performance
@@ -2120,8 +2107,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     return status::success;
 }
 
-status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
-        const convolution_desc_t &cd, memory_desc_t &src_md,
+status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
+        cpu_isa_t isa, const convolution_desc_t &cd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
 
@@ -2130,6 +2117,10 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     CHECK(init_jcp(
             jcp, isa, cd, src_md, weights_md, dst_md, bias_md, attr, nthreads));
+
+    const bool is_int8_convolution = everyone_is(true,
+            (jcp.src_dt == u8 || jcp.src_dt == s8), jcp.wei_dt == s8,
+            one_of(jcp.dst_dt, f32, s32, s8, u8, bf16));
 
     if (jcp.is_1x1)
         if (allow_perf_heuristics(jcp)) return status::unimplemented;
@@ -2140,7 +2131,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
 
-    // TODO: check these restrictions
     if (is_amx(isa)) {
         // disabled for two convolutions from ssd_resnet34
         if ((jcp.ic == jcp.oc) && (jcp.ic == 128 || jcp.ic == 256)
@@ -2151,13 +2141,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                 || jcp.r_pad >= jcp.ext_kw)
             return status::unimplemented;
     }
-    // disabled for first convolutions excepting 3d
-    const bool is_real_3d = (jcp.ndims == 5
-            && (jcp.id > 1 || jcp.od > 1 || jcp.kd > 1 || jcp.dilate_d > 0));
-
-    if (jcp.isa != avx2 && jcp.ic <= 4 && !is_real_3d
-            && IMPLICATION(with_groups, is_groups_ok(jcp)))
-        if (allow_perf_heuristics(jcp)) return status::unimplemented;
 
     using namespace data_type;
     // ======================= blocking =================================
@@ -2216,6 +2199,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     bool try_exec_trans = false;
     bool try_exec_base = true;
 
+    bool try_relo = false;
+
     if (!is_amx(isa) && div_up(jcp.l_pad, jcp.stride_w) < jcp.kw
             && div_up(jcp.r_pad, jcp.stride_w) < jcp.kw) {
         try_exec_vpad = true;
@@ -2241,6 +2226,46 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         try_exec_trans = true;
     }
 
+    if (jcp.vnni_block == 1
+            || (jcp.ic % jcp.vnni_block == 0
+                    && IMPLICATION(jcp.ic * jcp.kw > jcp.simd_w,
+                            jcp.ic % jcp.simd_w == 0)))
+        jcp.relo_conv_weights = false;
+    //TODO: support all 3d cases
+    const bool relo_supported_shape
+            = IMPLICATION(jcp.id > 1, jcp.relo_conv_weights == false);
+
+    const auto rnd_bd = (float)rnd_up(jcp.kw * jcp.ic, jcp.simd_w);
+    const auto rnd_kwic = (float)jcp.kw * rnd_up(jcp.ic, jcp.simd_w);
+    const auto src_per_ic
+            = (float)jcp.src_dsz * jcp.mb * jcp.id * jcp.ih * jcp.iw;
+    const auto wei_per_ic
+            = (float)jcp.wei_dsz * jcp.oc * jcp.kd * jcp.kh * jcp.kw;
+    bool perf_relo = false;
+    if (is_amx(jcp.isa)) {
+        if (jcp.ic < jcp.simd_w / 2
+                || (jcp.kw * jcp.ic > jcp.simd_w && rnd_bd / rnd_kwic < 0.5f
+                        && IMPLICATION(jcp.relo_conv_weights,
+                                wei_per_ic / src_per_ic <= 4)))
+            perf_relo = true;
+    } else {
+        if (one_of(jcp.wei_dt, f32, s8)) {
+            if (jcp.ic == 1) perf_relo = true;
+        } else {
+            if (jcp.ic < jcp.vnni_block) perf_relo = true;
+        }
+    }
+    // required for use of VPERMB instruction in weights copy kernel
+    const bool relo_supported_isa = IMPLICATION(
+            is_int8_convolution, cpu().has(Xbyak::util::Cpu::tAVX512_VBMI));
+
+    if (!use_inversion && jcp.kw > 1 && jcp.dilate_w == 0
+            && relo_supported_shape && perf_relo && relo_supported_isa) {
+        // weights and input transform kernel uses avx512
+        try_relo = is_superset(isa, avx512_core);
+        if (try_relo) try_exec_trans = true;
+    }
+
     bool must_exec_vpad = false;
 
     // TODO: in future use (kd/kh/kw) and (kd/kh/kw)_pad blocks for more
@@ -2249,16 +2274,13 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     bool try_exec_type_res = false;
 
-    if (try_exec_vpad) {
-        jcp.exec_type = exec_vpad;
-        try_exec_type_res = try_exec_type();
-        // to avoid case when both top and bottom virtual padding are non-zero
-        // TODO: remove this restriction
-        const auto iw_block = (jcp.ow_block - 1) * jcp.stride_w + 1;
-        if (!must_exec_vpad && (iw_block > jcp.iw)) try_exec_type_res = false;
-    }
     if (try_exec_type_res == false && try_exec_trans) {
         jcp.exec_type = exec_trans;
+        if (try_relo) {
+            jcp.is_relo = true;
+            jcp.relo_type = conv_brgemm_relo_type_t::wi;
+            jcp.max_batch = jcp.kd * jcp.kh;
+        }
 
         // try loop_ndhwgc always for exec_trans
         jcp.loop_order = loop_ndhwgc;
@@ -2267,13 +2289,21 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         // keep it memory
         if (jcp.loop_order == loop_ndhwgc) { jcp.copy_block_only = true; }
 
+        const auto rd_ksize = jcp.is_relo ? jcp.kw
+                        * (jcp.relo_type == conv_brgemm_relo_type_t::whi
+                                        ? jcp.kh
+                                        : 1)
+                                          : jcp.kw_sets;
         jcp.is_rd_padded_to_block = one_of(jcp.wei_dt, bf16, f16, s8)
-                && jcp.ic * jcp.kw_sets > rd_padded_block;
+                && jcp.ic * rd_ksize > rd_padded_block;
+
         jcp.is_os_blocking = jcp.f_pad < jcp.kd && jcp.back_pad < jcp.kd
                 && jcp.t_pad < jcp.kh && jcp.b_pad < jcp.kh
                 && jcp.r_pad < jcp.kw && jcp.l_pad < jcp.kw;
 
-        if (is_amx(isa) && (/* heuristic*/ jcp.kw_sets == 1 && jcp.ow < 256)) {
+        if (is_amx(isa)
+                && IMPLICATION(!jcp.is_relo,
+                        /* heuristic */ jcp.kw_sets == 1 && jcp.ow < 256)) {
             jcp.use_M_mask = jcp.is_os_blocking ? 2 : 0;
             jcp.use_uker = true;
             jcp.use_interleave_stores = true;
@@ -2298,6 +2328,14 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         }
 
         try_exec_type_res = try_exec_type();
+    }
+    if (try_exec_type_res == false && try_exec_vpad) {
+        jcp.exec_type = exec_vpad;
+        try_exec_type_res = try_exec_type();
+        // to avoid case when both top and bottom virtual padding are non-zero
+        // TODO: remove this restriction
+        const auto iw_block = (jcp.ow_block - 1) * jcp.stride_w + 1;
+        if (!must_exec_vpad && (iw_block > jcp.iw)) try_exec_type_res = false;
     }
     if (try_exec_base && try_exec_type_res == false) {
         jcp.exec_type = exec_base;
@@ -2391,24 +2429,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             || !wei_scales.has_default_values()
             || jcp.scale_adjust_factor != 1.0f;
     jcp.is_oc_scale = wei_scales.mask_ != 0;
-
-    // disables the shape with small ic but large spatial
-    // or specific large spatial shapes for int8 conv
-    const auto is_ok_large_spatial
-            = IMPLICATION(!is_amx(jcp.isa) && jcp.ic <= 128,
-                      jcp.od * jcp.oh < 100
-                              || jcp.ic * jcp.oc_block * jcp.ow_block > 8192)
-            && !(is_amx(jcp.isa) && jcp.ic < 16 && jcp.ndims == 4)
-            && IMPLICATION(is_amx(jcp.isa) && jcp.ic <= 16,
-                    jcp.ow < 2048
-                            || div_up(jcp.ow_block, selected_ur) * jcp.kd
-                                            * jcp.kh * jcp.kw
-                                    > 8192)
-            && !(!is_amx(jcp.isa) && jcp.oc == 1024
-                    && utils::everyone_is(1, jcp.od, jcp.oh, jcp.kd, jcp.kh)
-                    && jcp.ow >= 595 && jcp.kw <= 5);
-    if (one_of(jcp.src_dt, u8, s8) && !is_ok_large_spatial)
-        if (allow_perf_heuristics(jcp)) return status::unimplemented;
 
     // For padding shapes, we calculate the comp along with the computation
     // inside brgemm kernel when output size is small to get optimal perf
