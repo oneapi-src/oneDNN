@@ -353,6 +353,17 @@ void get_managed_matmul_config(const runtime::target_machine_t &tm,
         K_sub_block = 1;
     }
 }
+
+int get_dyn_conv_default_block(const bool is_1x1, const int dtype_size,
+        const bool has_pad, const bool is_f32) {
+    int default_block = 128;
+    auto dtype_block = 4 / dtype_size;
+    if (!is_1x1) {
+        default_block = dtype_block * 32;
+        if (has_pad) { default_block = is_f32 ? 64 : 128; }
+    }
+    return default_block;
+}
 } // namespace gc
 } // namespace graph
 } // namespace impl

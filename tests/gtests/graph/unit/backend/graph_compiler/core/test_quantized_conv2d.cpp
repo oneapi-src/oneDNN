@@ -308,9 +308,10 @@ void check_dynamic_netsed_qconv(nested_conv_fwd_config_t cfg, int N, int K,
     g.attrs_[sc_graph_t::attr_key_t::is_output_plain] = false;
     g.attrs_[sc_graph_t::attr_key_t::is_input_plain] = false;
 
-    graph_driver(g, get_test_ctx());
-    auto f = lower_graph(get_test_ctx(), g, args);
-    auto fptr = jit_engine_t::make(get_test_ctx())->get_entry_func(f, true);
+    graph_driver(g, get_default_context());
+    auto f = lower_graph(get_default_context(), g, args);
+    auto fptr = jit_engine_t::make(get_default_context())
+                        ->get_entry_func(f, true);
 
     if (is_dynamic) {
         if (is_dynamic_dim(N)) {
@@ -371,7 +372,8 @@ void check_dynamic_netsed_qconv(nested_conv_fwd_config_t cfg, int N, int K,
     auto plain_input = any2NCHW(g_data->get_outputs()[0]->details_.get_format(),
             input, N, C, H, W, cfg.im_ic_block);
     auto plain_weight = KCRSckc2KCRS(weight, K / cfg.im_oc_block,
-            C / cfg.im_ic_block, R, S, cfg.im_ic_block / 4, cfg.im_oc_block);
+            utils::divide_and_ceil(C, cfg.im_ic_block), R, S,
+            utils::divide_and_ceil(cfg.im_ic_block, 4), cfg.im_oc_block);
 
     test_buffer<float> plain_bias = std::move(bias);
     auto plain_output = alloc_array<dst_type>(N * K * P * Q, INIT_ZERO);
@@ -789,6 +791,131 @@ TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_1x1, ut3) {
             {0, 0}, false, true, false, true, /*real_N*/ 1, /*real_H*/ 67,
             /*real_W*/ 67);
 }
+
+TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut1) {
+    REQUIRE_AVX512();
+    check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
+            nested_conv_fwd_config_t(), -1, 256, 64, 58, 58, 3, 3, {1, 1},
+            {0, 0}, false, true, false, true, /*real_N*/ 1, /*real_H*/ 58,
+            /*real_W*/ 58);
+}
+
+TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut2) {
+    REQUIRE_AVX512();
+    check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
+            nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {1, 1},
+            {0, 0}, false, true, false, true, /*real_N*/ 1, /*real_H*/ 58,
+            /*real_W*/ 58);
+}
+
+TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut3) {
+    REQUIRE_AVX512();
+    check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
+            nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {1, 1},
+            {0, 0}, false, true, false, true, /*real_N*/ 8, /*real_H*/ 69,
+            /*real_W*/ 69);
+}
+TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut4) {
+    REQUIRE_AVX512();
+    check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
+            nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {1, 1},
+            {0, 0}, false, true, false, true, /*real_N*/ 1, /*real_H*/ 9,
+            /*real_W*/ 9);
+}
+TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut5) {
+    REQUIRE_AVX512();
+    check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
+            nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {1, 1},
+            {0, 0}, false, true, false, true, /*real_N*/ 1, /*real_H*/ 6,
+            /*real_W*/ 6);
+}
+
+TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut6) {
+    REQUIRE_AVX512();
+    check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
+            nested_conv_fwd_config_t(), -1, 256, 64, 58, 58, 3, 3, {2, 2},
+            {0, 0}, false, true, false, true, /*real_N*/ 1, /*real_H*/ 58,
+            /*real_W*/ 58);
+}
+
+TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut7) {
+    REQUIRE_AVX512();
+    check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
+            nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {2, 2},
+            {0, 0}, false, true, false, true, /*real_N*/ 8, /*real_H*/ 69,
+            /*real_W*/ 69);
+}
+
+TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, no_padding_ut8) {
+    REQUIRE_AVX512();
+    check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
+            nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {3, 2},
+            {0, 0}, false, true, false, true, /*real_N*/ 8, /*real_H*/ 69,
+            /*real_W*/ 69);
+}
+
+TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut1) {
+    REQUIRE_AVX512();
+    check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
+            nested_conv_fwd_config_t(), -1, 256, 64, 56, 56, 3, 3, {1, 1},
+            {1, 1}, false, true, false, true, /*real_N*/ 8, /*real_H*/ 56,
+            /*real_W*/ 56);
+}
+
+TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut2) {
+    REQUIRE_AVX512();
+    check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
+            nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {1, 1},
+            {1, 1}, false, true, false, true, /*real_N*/ 8, /*real_H*/ 56,
+            /*real_W*/ 56);
+}
+
+TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut3) {
+    REQUIRE_AVX512();
+    check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
+            nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {1, 1},
+            {1, 1}, false, true, false, true, /*real_N*/ 8, /*real_H*/ 67,
+            /*real_W*/ 67);
+}
+TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut4) {
+    REQUIRE_AVX512();
+    check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
+            nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {1, 1},
+            {1, 1}, false, true, false, true, /*real_N*/ 8, /*real_H*/ 67,
+            /*real_W*/ 56);
+}
+TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut5) {
+    REQUIRE_AVX512();
+    check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
+            nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {1, 1},
+            {2, 2}, false, true, false, true, /*real_N*/ 8, /*real_H*/ 56,
+            /*real_W*/ 56);
+}
+
+TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut6) {
+    REQUIRE_AVX512();
+    check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
+            nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {1, 1},
+            {1, 1}, false, true, false, true, /*real_N*/ 8, /*real_H*/ 7,
+            /*real_W*/ 7);
+}
+
+TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut7) {
+    REQUIRE_AVX512();
+    check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
+            nested_conv_fwd_config_t(), -1, 256, 64, -1, -1, 3, 3, {2, 2},
+            {1, 1}, false, true, false, true, /*real_N*/ 8, /*real_H*/ 20,
+            /*real_W*/ 20);
+}
+
+TEST(GCCore_CPU_dynamic_qconv2d_nested_u8s8s32_3x3, padding_ut8) {
+    REQUIRE_AVX512();
+    check_dynamic_netsed_qconv<uint8_t, int8_t, int32_t>(
+            nested_conv_fwd_config_t(), -1, 256, 256, 12, 12, 3, 3, {3, 3},
+            {1, 1}, false, true, false, true, /*real_N*/ 1, /*real_H*/ 12,
+            /*real_W*/ 12);
+}
+
 /* rl conv with padding */
 TEST(GCCore_CPU_qconv2d_u8s8s32_rl, padding_1) {
     // single real_pr

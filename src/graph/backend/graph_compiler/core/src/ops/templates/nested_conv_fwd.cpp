@@ -31,6 +31,7 @@
 #include <ops/convolution.hpp>
 #include <runtime/barrier.hpp>
 #include <runtime/config.hpp>
+#include <runtime/dynamic_dispatch/ops/config.hpp>
 #include <runtime/dynamic_dispatch/utils.hpp>
 #include <unordered_set>
 #include <util/any_map.hpp>
@@ -67,6 +68,22 @@ SC_CLASS_END();
 
 namespace ops {
 
+static inline int get_oc_split_factor(
+  const int weight_size, const int L2_cache_size, const int K_num_block) {
+  int oc_split = 1;
+  if (weight_size >= L2_cache_size) {
+    int expected_split_num = utils::divide_and_ceil(weight_size, L2_cache_size);
+    for (auto &factor : utils::get_factors(K_num_block)) {
+      if (factor >= expected_split_num) {
+        expected_split_num = factor;
+        break;
+      }
+    }
+    oc_split = K_num_block < expected_split_num ? 1 : expected_split_num;
+  }
+  return oc_split;
+}
+
 config_ptr_vec gen_nested_conv_fwd_t::get_dynamic_config_candidates(
   const context_ptr &ctx) const {
   config_ptr_vec ret;
@@ -88,7 +105,12 @@ config_ptr_vec gen_nested_conv_fwd_t::get_dynamic_config_candidates(
   // limit im_os_block smaller than 64.
   std::vector<int> im_w_block_candidates
     = ow_ < 0 ? std::vector<int> {64} : std::vector<int> {std::min(ow_, 64)};
-  int k_blk_ = utils::get_blocks(oc_, 1, 128).back();
+  bool has_pad = (pd_ > 0) || (ph_ > 0) || (pw_ > 0);
+
+  auto default_block = get_dyn_conv_default_block(is_1x1_conv_,
+    utils::get_sizeof_type(get_input_dtype()), has_pad,
+    get_input_dtype() == datatypes::f32);
+  int k_blk_ = utils::get_blocks(oc_, 1, default_block).back();
   if (num_threads < 5) {
     h_threads_candidates = std::vector<int> {1, num_threads};
     oc_threads_candidates = std::vector<int> {1, num_threads};
@@ -142,7 +164,10 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
     cfg.w_block = ow_;
     cfg.im_h_block = 1;
     cfg.im_w_block = 64;
-    auto default_block = 128;
+    bool has_pad = (pd_ > 0) || (ph_ > 0) || (pw_ > 0);
+    auto default_block = get_dyn_conv_default_block(is_1x1_conv_,
+      utils::get_sizeof_type(get_input_dtype()), has_pad,
+      get_input_dtype() == datatypes::f32);
     cfg.im_oc_block = utils::get_blocks(oc_, 1, default_block).back();
     cfg.im_ic_block = utils::get_blocks(ic_, 1, default_block).back();
     return std::move(ret);
@@ -158,17 +183,30 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
     cfg.h_threads = 1;
     cfg.w_threads = 1;
     auto ic_threads = 1;
-    auto default_block = 128;
+
+    bool is_int8
+      = utils::is_one_of(get_input_dtype(), datatypes::u8, datatypes::s8);
+    bool is_bf16 = get_input_dtype() == datatypes::bf16;
+
+    auto dtype_block = is_int8 ? 4 : (is_bf16 ? 2 : 1);
+    auto default_block = dtype_block * 32;
+
+    if (mb_ == 1 && num_threads == 4) { default_block = 128; };
+    bool has_pad = (pd_ > 0) || (ph_ > 0) || (pw_ > 0);
+    if (has_pad) { default_block = (is_int8 || is_bf16) ? 128 : 64; }
+
     cfg.im_oc_block = utils::get_blocks(oc_, 1, default_block).back();
     cfg.im_ic_block = utils::get_blocks(ic_, 1, default_block).back();
 
     cfg.im_h_block = 1;
     cfg.im_w_block = ow_;
 
+    if (oh_ <= 14 && ow_ <= 14) { cfg.im_h_block = oh_; }
+
     cfg.h_block = oh_;
     cfg.w_block = ow_;
 
-    if (cfg.oc_threads != 1) {
+    if (cfg.oc_threads != 1 && !has_pad) {
       int im_oc_num_block = oc_ / cfg.im_oc_block;
       if (im_oc_num_block % cfg.oc_threads != 0) {
         auto get_suitable_block
@@ -242,6 +280,32 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
           : (utils::divide_and_ceil(
                utils::divide_and_ceil(ow_, cfg.im_w_block), cfg.w_threads)
             * cfg.im_w_block);
+      }
+    } else {
+      if (!is_1x1_conv_ && has_pad) {
+        if (mb_ == 1 && oc_ / cfg.im_oc_block < cfg.oc_threads) {
+          cfg.im_w_block = utils::get_blocks(ow_, 1, 256).back();
+          if (oc_ / cfg.oc_threads > 32) {
+            cfg.bs_threads = 1;
+            cfg.h_threads = 1;
+            cfg.w_threads = 1;
+            cfg.oc_threads = num_threads;
+            cfg.im_oc_block
+              = std::min(utils::get_blocks(oc_, 1, default_block).back(),
+                oc_ / cfg.oc_threads);
+          } else {
+            cfg.bs_threads = 1;
+            cfg.oc_threads = 1;
+            cfg.h_threads = num_threads;
+            cfg.w_threads = 1;
+            cfg.im_h_block = 1;
+            cfg.h_block = cfg.h_threads == 1
+              ? oh_
+              : (utils::divide_and_ceil(
+                   utils::divide_and_ceil(oh_, cfg.im_h_block), cfg.h_threads)
+                * cfg.im_h_block);
+          }
+        }
       }
     }
 
@@ -409,8 +473,8 @@ gen_nested_conv_fwd_t::gen_nested_conv_fwd_t(sc_op *owner,
   // Note: os blocking is only valid for non_1x1, no pad and non 3D conv with
   // amx-int8 only so far.
   bool has_pad = (pd_ > 0) || (ph_ > 0) || (pw_ > 0);
-  COMPILE_ASSERT(!has_pad, "nested conv with padding has not been supported");
-  try_os_blocking_ = (!is_1x1_conv_) && (!has_pad) && (!is_3d_) && is_int8;
+  try_os_blocking_
+    = (!is_1x1_conv_) && (!has_pad) && (!is_3d_) && is_int8 && !is_dynamic();
   use_nested_2d_ = (!is_1d_ && !is_3d_);
   COMPILE_ASSERT(use_nested_2d_,
     "expect input is 2D in nested conv2d, but got " << ndims_ - 2 << "D input");
@@ -422,16 +486,16 @@ float gen_nested_conv_fwd_t::get_gflop() const {
   return result;
 }
 
-void generate_brgemm(const expr &im_s_block, int im_ic_block, int im_oc_block,
-  int ic_block, const expr &o_ic, int ic_num_block_pt, const expr &A_list,
-  const expr &B_list, const expr &out_tensor, const expr &LDA, const expr &LDC,
-  const sc_data_type_t &in_type, const sc_data_type_t &wei_type) {
+void gen_nested_conv_fwd_t::generate_brgemm(const expr &im_s_block,
+  int im_ic_block, int im_oc_block, int ic_block, const expr &o_ic,
+  int ic_num_block_pt, const expr &A_list, const expr &B_list,
+  const expr &out_tensor, const expr &LDA, const expr &LDC) const {
   brgemm::attrs_setting_t::attrs_map_t range_attr_0
     = {brgemm::attr_key::M_range_upper_bound, 64};
-  sc_brgemm_attrs_t brg_attrs
-    = sc_brgemm_attrs_t {{brgemm::attr_key::max_bs, ic_block / im_ic_block},
-      {brgemm::attr_key::use_interleave_stores, true},
-      {brgemm::attr_key::use_uker, true}, range_attr_0};
+  sc_brgemm_attrs_t brg_attrs = sc_brgemm_attrs_t {
+    {brgemm::attr_key::max_bs, kh_ * kw_ * ic_block / im_ic_block},
+    {brgemm::attr_key::use_interleave_stores, true},
+    {brgemm::attr_key::use_uker, true}, range_attr_0};
 
   if (ic_num_block_pt > 1) {
     _if_(o_ic == 0) {
@@ -441,7 +505,8 @@ void generate_brgemm(const expr &im_s_block, int im_ic_block, int im_oc_block,
         ,
         1 /*useless*/
         ,
-        ic_block / im_ic_block, in_type, wei_type, brg_attrs);
+        kh_ * kw_ * ic_block / im_ic_block, get_input_dtype(),
+        get_weight_dtype(), brg_attrs);
     }
     _else_ {
       gc::builtin::brgemm_list_update(A_list, B_list, out_tensor, 1, im_s_block,
@@ -449,7 +514,8 @@ void generate_brgemm(const expr &im_s_block, int im_ic_block, int im_oc_block,
         ,
         1 /*useless*/
         ,
-        ic_block / im_ic_block, in_type, wei_type, brg_attrs);
+        kh_ * kw_ * ic_block / im_ic_block, get_input_dtype(),
+        get_weight_dtype(), brg_attrs);
     }
   } else {
     gc::builtin::brgemm_init_list_update(A_list, B_list, out_tensor, 1,
@@ -457,7 +523,8 @@ void generate_brgemm(const expr &im_s_block, int im_ic_block, int im_oc_block,
       ,
       1 /*useless*/
       ,
-      ic_block / im_ic_block, in_type, wei_type, brg_attrs);
+      kh_ * kw_ * ic_block / im_ic_block, get_input_dtype(), get_weight_dtype(),
+      brg_attrs);
   }
 }
 
@@ -1069,8 +1136,7 @@ void gen_nested_conv_fwd_t::dynamic_compute_1x1_pack_input_nested(
                                   generate_brgemm(im_s_block, im_ic_block,
                                     im_oc_block, ic_block, o_ic,
                                     ic_num_block_pt, A_list, B_list,
-                                    tensor_ptr(output, output_pos), LDA, LDC,
-                                    get_input_dtype(), get_weight_dtype());
+                                    tensor_ptr(output, output_pos), LDA, LDC);
                                   if (fusion) {
                                     fusion->create_output_fusion_anchor(
                                       {tensor_slice(output,
@@ -1851,6 +1917,441 @@ void gen_nested_conv_fwd_t::compute_conv_no_padding_os_blocking_nested(
   loops = {lpbs, lps, lpoc, lpic, lok};
 }
 
+void gen_nested_conv_fwd_t::dynamic_compute_conv_no_padding_nested(
+  CONV_ARG_LIST) const {
+  int num_threads = runtime_config_t::get().get_num_threads();
+  int h_threads = config.h_threads;
+  int oc_threads = config.oc_threads;
+  int bs_threads = num_threads / h_threads / oc_threads;
+  int w_threads = config.w_threads;
+  int ic_threads = 1;
+  auto input_expr_dims = input.checked_as<tensor>()->dims_;
+  auto mb_expr_ = input_expr_dims[0];
+
+  auto output_expr_dims = output.checked_as<tensor>()->dims_;
+  auto oh_expr_ = input_expr_dims.size() == 4
+    ? (input_expr_dims[1] + ph_ * 2 - kh_) / sh_ + 1
+    : (input_expr_dims[2] + ph_ * 2 - kh_) / sh_ + 1;
+  auto ow_expr_ = input_expr_dims.size() == 4
+    ? (input_expr_dims[2] + pw_ * 2 - kw_) / sw_ + 1
+    : (input_expr_dims[3] + pw_ * 2 - kw_) / sw_ + 1;
+
+  int oc_block = oc_ / oc_threads;
+
+  // by observation
+  expr im_h_block = do_cast_and_fold(
+    builder::make_select(oh_expr_ <= 14 && ow_expr_ <= 14 && h_threads == 1,
+      builder::make_cast(datatypes::s32, oh_expr_), config.im_h_block));
+
+  expr h_block
+    = do_cast_and_fold(builder::make_select(oh_expr_ % h_threads == 0,
+      builder::make_cast(datatypes::s32, oh_expr_ / h_threads),
+      config.im_h_block));
+
+  expr w_block = do_cast_and_fold((ow_expr_ + w_threads - 1) / w_threads);
+
+  int ic_block = ic_ / ic_threads;
+  int im_oc_block = config.im_oc_block;
+  int im_ic_block = config.im_ic_block;
+
+  int im_w_block = config.im_w_block;
+
+  COMPILE_ASSERT(oc_block % im_oc_block == 0,
+    "oc_block % im_oc_block != 0, config is invalid")
+  COMPILE_ASSERT(ic_block % im_ic_block == 0,
+    "ic_block % im_ic_block != 0, config is invalid")
+
+  // param
+  expr output_tmp = output;
+  auto tinput = in_tensors_[0];
+  auto tweight = in_tensors_[1];
+  auto toutput = out_tensors_[0];
+  const auto &input_blocking_dims = tinput.get_blocking_dims();
+  const auto &weight_blocking_dims = tweight.get_blocking_dims();
+  const auto &output_blocking_dims = toutput.get_blocking_dims();
+
+  for_loop lpbs, lph, lpw, lpoc, lpic, loh, low, looc, loic, lioc, lih, liw,
+    lok;
+
+  int oc_num_block_pt, oc_tail_num_block_pt, ic_num_block_pt,
+    ic_tail_num_block_pt;
+
+  int oc_used_threads = block_split(utils::divide_and_ceil(oc_, oc_block),
+    oc_threads, oc_num_block_pt, oc_tail_num_block_pt);
+  expr h_num_block_pt
+    = divide_and_ceil(divide_and_ceil(oh_expr_, h_block), h_threads);
+  expr h_tail_num_block_pt = builder::make_select(
+    divide_and_ceil(oh_expr_, h_block) % h_num_block_pt == 0, h_num_block_pt,
+    divide_and_ceil(oh_expr_, h_block) % h_num_block_pt);
+  expr oh_used_threads
+    = divide_and_ceil(divide_and_ceil(oh_expr_, h_block), h_num_block_pt);
+
+  expr ow_used_threads = do_cast_and_fold((ow_expr_ + w_block - 1) / w_block);
+  expr w_num_block_pt = ow_used_threads / w_threads;
+  expr w_tail_num_block_pt
+    = builder::make_select(ow_used_threads % w_num_block_pt == 0,
+      w_num_block_pt, ow_used_threads % w_num_block_pt);
+
+  int ic_used_threads = block_split(utils::divide_and_ceil(ic_, ic_block),
+    ic_threads, ic_num_block_pt, ic_tail_num_block_pt);
+
+  if (ic_used_threads > 1) {
+    // barrier
+    // output temp buffer
+    auto out_dims = output_blocking_dims;
+    out_dims[0] *= ic_used_threads;
+    _tensor_(out_tmp, toutput.dtype_, dims_to_expr(out_dims));
+    output_tmp = out_tmp;
+  }
+
+  expr cond_tail_w = w_block % im_w_block != 0 || ow_expr_ % im_w_block != 0;
+  expr cond_tail_h = h_block % im_h_block != 0 || oh_expr_ % im_h_block != 0;
+
+  auto weight_size
+    = math_utils::get_dims_product(in_tensors_[1].get_blocking_dims())
+    * utils::get_sizeof_type(get_weight_dtype());
+  auto L2_cache_size = ctx->machine_.cpu_flags_.getDCacheSize(2);
+  int oc_split = (oc_threads == 1 && oc_num_block_pt == 1)
+    ? get_oc_split_factor(weight_size, L2_cache_size, oc_block / im_oc_block)
+    : 1;
+
+  auto LDA = blocking_input_ ? sw_ * im_ic_block : sw_ * ic_;
+  auto LDC = blocking_output_ ? im_oc_block : oc_;
+  // will update template for parallel merge in dynamic conv block
+  _named_for_(lok, outer_k, 0, oc_split, 1, for_type::PARALLEL) {
+    _named_for_(lpbs, pbs, 0, mb_expr_, 1, for_type::PARALLEL) {
+      _named_for_(lph, ph, 0, h_threads, 1) {
+        _named_for_(lpw, pw, 0, w_threads, 1) {
+          _named_for_(lpoc, poc, 0, oc_threads, 1) {
+            _named_for_(lpic, pic, 0, ic_threads, 1) {
+              expr h_num_block
+                = builder::make_select(ph < (oh_used_threads - 1),
+                  h_num_block_pt, h_tail_num_block_pt),
+                w_num_block = builder::make_select(pw < (ow_used_threads - 1),
+                  w_num_block_pt, w_tail_num_block_pt),
+                oc_num_block = builder::make_select(poc < (oc_used_threads - 1),
+                  oc_num_block_pt, oc_tail_num_block_pt);
+              _if_(ph < oh_used_threads && pw < ow_used_threads
+                && poc < oc_used_threads && pic < ic_used_threads) {
+                // single core
+                expr ic_num_block
+                  = builder::make_select(pic < (ic_used_threads - 1),
+                    ic_num_block_pt, ic_tail_num_block_pt);
+
+                expr n = pbs;
+                _named_for_(loh, o_h, 0, h_num_block_pt) {
+                  _named_for_(low, o_w, 0, w_num_block_pt) {
+                    _named_for_(looc, o_oc, 0, oc_num_block_pt) {
+                      _named_for_(loic, o_ic, 0, ic_num_block_pt) {
+                        expr cond = o_h < h_num_block && o_w < w_num_block
+                          && o_oc < oc_num_block && o_ic < ic_num_block;
+                        _if_(cond) {
+                          _named_for_(lih, i_h, 0,
+                            (h_block + im_h_block - 1) / im_h_block) {
+                            expr h = ph * h_num_block_pt * h_block
+                              + o_h * h_block + i_h * im_h_block;
+                            expr is_tail_h
+                              = cond_tail_h && (h + im_h_block > oh_expr_);
+
+                            expr real_im_h_block
+                              = builder::make_select(is_tail_h,
+                                builder::make_cast(
+                                  datatypes::s32, oh_expr_ % im_h_block),
+                                im_h_block);
+                            _if_(h < oh_expr_) {
+                              _named_for_(liw, i_w, 0,
+                                (w_block + im_w_block - 1) / im_w_block) {
+                                expr w = pw * w_num_block_pt * w_block
+                                  + o_w * w_block + i_w * im_w_block;
+                                _if_(w < ow_expr_) {
+                                  expr is_tail_w = cond_tail_w
+                                    && (w + im_w_block > ow_expr_);
+                                  expr real_im_w_block
+                                    = builder::make_select(is_tail_w,
+                                      builder::make_cast(
+                                        datatypes::s32, ow_expr_ % im_w_block),
+                                      im_w_block);
+                                  _named_for_(lioc, i_oc, 0,
+                                    oc_block / im_oc_block / oc_split) {
+                                    expr oc = poc * oc_num_block_pt * oc_block
+                                        / im_oc_block
+                                      + o_oc * oc_block / im_oc_block
+                                      + outer_k * oc_block / im_oc_block
+                                        / oc_split
+                                      + i_oc;
+                                    _if_(oc * im_oc_block < oc_) {
+                                      _for_(im_h_i, 0, im_h_block) {
+                                        _if_(h + im_h_i < oh_expr_) {
+                                          _tensor_(A_list, datatypes::pointer,
+                                            {kh_ * kw_ * ic_block
+                                              / im_ic_block});
+                                          _tensor_(B_list, datatypes::pointer,
+                                            {kh_ * kw_ * ic_block
+                                              / im_ic_block});
+
+                                          _for_(
+                                            i_c, 0, ic_block / im_ic_block) {
+                                            expr ic = pic * ic_num_block_pt
+                                                * ic_block / im_ic_block
+                                              + o_ic * ic_block / im_ic_block
+                                              + i_c;
+
+                                            _if_(ic * im_ic_block < ic_) {
+                                              _for_(r, 0, kh_) {
+                                                _for_(s, 0, kw_) {
+                                                  auto idx = i_c * kh_ * kw_
+                                                    + r * kw_ + s;
+                                                  std::vector<expr> input_pos
+                                                    = blocking_input_
+                                                    ? std::vector<expr> {n, ic,
+                                                      (h + im_h_i) * sh_
+                                                        + dh_ * r,
+                                                      w * sw_ + dw_ * s, 0}
+                                                    : std::vector<expr> {n,
+                                                      (h + im_h_i) * sh_
+                                                        + dh_ * r,
+                                                      w * sw_ + dw_ * s,
+                                                      ic * im_ic_block};
+
+                                                  A_list[idx] = tensor_ptr(
+                                                    input, input_pos);
+                                                  B_list[idx]
+                                                    = tensor_ptr(weight,
+                                                      kpack > 1
+                                                        ? std::vector<expr> {oc,
+                                                          ic, r, s, 0, 0, 0}
+                                                        : std::vector<expr> {
+                                                          oc, ic, r, s, 0, 0});
+                                                }
+                                              }
+                                            }
+                                          }
+                                          std::vector<expr> output_pos
+                                            = blocking_output_
+                                            ? std::vector<expr> {pic * mb_expr_
+                                                + n,
+                                              oc, h + im_h_i, w, 0}
+                                            : std::vector<expr> {
+                                              pic * mb_expr_ + n, h + im_h_i, w,
+                                              oc * im_oc_block};
+
+                                          generate_brgemm(real_im_w_block,
+                                            im_ic_block, im_oc_block, ic_block,
+                                            o_ic, ic_num_block_pt, A_list,
+                                            B_list,
+                                            tensor_ptr(output_tmp, output_pos),
+                                            LDA, LDC);
+
+                                          if (fusion && ic_used_threads == 1
+                                            && ic_num_block_pt == 1) {
+                                            _if_(o_ic == (ic_num_block - 1)) {
+                                              fusion
+                                                ->create_output_fusion_anchor(
+                                                  {blocking_output_
+                                                      ? tensor_slice(output,
+                                                        {{n, 1UL}, {oc, 1},
+                                                          {h + im_h_i, 1},
+                                                          {w, real_im_w_block},
+                                                          {0, im_oc_block}})
+                                                      : tensor_slice(output,
+                                                        {{n, 1UL},
+                                                          {h + im_h_i, 1},
+                                                          {w, real_im_w_block},
+                                                          {oc * im_oc_block,
+                                                            im_oc_block}})});
+                                            }
+                                          } // im_h_i
+                                        }
+                                      }
+                                      if (fusion && ic_used_threads == 1
+                                        && ic_num_block_pt == 1) {
+                                        _if_(o_ic == (ic_num_block - 1)) {
+                                          fusion->create_output_fusion_anchor(
+                                            {blocking_output_
+                                                ? tensor_slice(output,
+                                                  {{n, 1UL}, {oc, 1},
+                                                    {h, real_im_h_block},
+                                                    {w, real_im_w_block},
+                                                    {0, im_oc_block}})
+                                                : tensor_slice(output,
+                                                  {{n, 1UL},
+                                                    {h, real_im_h_block},
+                                                    {w, real_im_w_block},
+                                                    {oc * im_oc_block,
+                                                      im_oc_block}})});
+                                        }
+                                      }
+                                    } // i_oc
+                                  }
+                                  if (fusion && ic_used_threads == 1
+                                    && ic_num_block_pt == 1
+                                    && oc_block * oc_used_threads == oc_) {
+                                    _if_(o_ic == (ic_num_block - 1)) {
+                                      expr anch_c = poc * oc_num_block_pt
+                                          * oc_block / im_oc_block
+                                        + o_oc * oc_block / im_oc_block
+                                        + outer_k * oc_block / im_oc_block
+                                          / oc_split;
+                                      fusion->create_output_fusion_anchor(
+                                        {blocking_output_
+                                            ? tensor_slice(output,
+                                              {{n, 1UL}, {anch_c, 1},
+                                                {h, real_im_h_block},
+                                                {w, real_im_w_block},
+                                                {0, im_oc_block}})
+                                            : tensor_slice(output,
+                                              {{n, 1UL}, {h, real_im_h_block},
+                                                {w, real_im_w_block},
+                                                {anch_c * im_oc_block,
+                                                  im_oc_block}})});
+                                    }
+                                  }
+                                } // i_w
+                              }
+                              if (fusion && !is_dynamic_dim(ow_)
+                                && get_expr_as_int(w_block)
+                                    * get_expr_as_int(ow_used_threads)
+                                  == ow_
+                                && ic_used_threads == 1 && ic_num_block_pt == 1
+                                && oc_block * oc_used_threads == oc_) {
+                                _if_(o_ic == (ic_num_block - 1)) {
+                                  expr anch_c = poc * oc_num_block_pt * oc_block
+                                      / im_oc_block
+                                    + o_oc * oc_block / im_oc_block
+                                    + outer_k * oc_block / im_oc_block
+                                      / oc_split;
+                                  expr anch_w = pw * w_num_block_pt * w_block
+                                    + o_w * w_block;
+
+                                  fusion->create_output_fusion_anchor(
+                                    {blocking_output_ ? tensor_slice(output,
+                                       {{n, 1UL}, {anch_c, 1},
+                                         {h, real_im_h_block},
+                                         {anch_w, w_block}, {0, im_oc_block}})
+                                                      : tensor_slice(output,
+                                                        {{n, 1UL},
+                                                          {h, real_im_h_block},
+                                                          {anch_w, w_block},
+                                                          {anch_c * im_oc_block,
+                                                            oc_block}})});
+                                }
+                              }
+                            } // i_h
+                          }
+
+                          if (fusion && ic_used_threads == 1
+                            && ic_num_block_pt == 1 && !is_dynamic_dim(oh_)
+                            && !is_dynamic_dim(ow_)
+                            && oc_block * oc_used_threads == oc_
+                            && get_expr_as_int(h_block)
+                                * get_expr_as_int(oh_used_threads)
+                              == oh_
+                            && get_expr_as_int(w_block)
+                                * get_expr_as_int(ow_used_threads)
+                              == ow_) {
+                            _if_(o_ic == (ic_num_block - 1)) {
+                              expr anch_c
+                                = poc * oc_num_block_pt * oc_block / im_oc_block
+                                + o_oc * oc_block / im_oc_block
+                                + outer_k * oc_block / im_oc_block / oc_split;
+                              expr anch_h
+                                = ph * h_num_block_pt * h_block + o_h * h_block;
+                              expr anch_w = (pw * w_num_block_pt * w_block
+                                + o_w * w_block);
+                              fusion->create_output_fusion_anchor(
+                                {blocking_output_
+                                    ? tensor_slice(output,
+                                      {{n, 1UL}, {anch_c, 1},
+                                        {anch_h, oh_ / oh_used_threads},
+                                        {anch_w, ow_ / ow_used_threads},
+                                        {0, im_oc_block}})
+                                    : tensor_slice(output,
+                                      {{n, 1UL},
+                                        {anch_h, oh_ / oh_used_threads},
+                                        {anch_w, ow_ / ow_used_threads},
+                                        {anch_c * im_oc_block, oc_block}})});
+                            }
+                          }
+                        } // o_ic
+                      }
+                    }
+                  }
+                }
+              }
+
+              if (fusion && oc_threads == 1 && ic_threads == 1 && h_threads == 1
+                && w_threads == 1 && !is_dynamic_dim(oh_)
+                && !is_dynamic_dim(ow_)) {
+                fusion->create_output_fusion_anchor({blocking_output_
+                    ? tensor_slice(output,
+                      {{pbs, 1UL},
+                        {outer_k * oc_ / im_oc_block / oc_split,
+                          oc_ / im_oc_block / oc_split},
+                        {0, oh_}, {0, ow_}, {0, im_oc_block}})
+                    : tensor_slice(output,
+                      {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                        {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+              }
+            }
+
+            if (fusion && oc_threads == 1 && h_threads == 1 && w_threads == 1
+              && !is_dynamic_dim(oh_) && !is_dynamic_dim(ow_)) {
+              fusion->create_output_fusion_anchor({blocking_output_
+                  ? tensor_slice(output,
+                    {{pbs, 1UL},
+                      {outer_k * oc_ / im_oc_block / oc_split,
+                        oc_ / im_oc_block / oc_split},
+                      {0, oh_}, {0, ow_}, {0, im_oc_block}})
+                  : tensor_slice(output,
+                    {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                      {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+            }
+          }
+          if (fusion && h_threads == 1 && w_threads == 1 && !is_dynamic_dim(oh_)
+            && !is_dynamic_dim(ow_)) {
+            fusion->create_output_fusion_anchor({blocking_output_
+                ? tensor_slice(output,
+                  {{pbs, 1UL},
+                    {outer_k * oc_ / im_oc_block / oc_split,
+                      oc_ / im_oc_block / oc_split},
+                    {0, oh_}, {0, ow_}, {0, im_oc_block}})
+                : tensor_slice(output,
+                  {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                    {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+          }
+        }
+
+        if (fusion && h_threads == 1 && !is_dynamic_dim(oh_)
+          && !is_dynamic_dim(ow_)) {
+          fusion->create_output_fusion_anchor({blocking_output_
+              ? tensor_slice(output,
+                {{pbs, 1UL},
+                  {outer_k * oc_ / im_oc_block / oc_split,
+                    oc_ / im_oc_block / oc_split},
+                  {0, oh_}, {0, ow_}, {0, im_oc_block}})
+              : tensor_slice(output,
+                {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                  {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+        }
+      }
+      if (fusion && !is_dynamic_dim(oh_) && !is_dynamic_dim(ow_)) {
+        _if_(mb_expr_ > 1) {
+          fusion->create_output_fusion_anchor({blocking_output_
+              ? tensor_slice(output,
+                {{pbs, 1UL},
+                  {outer_k * oc_ / im_oc_block / oc_split,
+                    oc_ / im_oc_block / oc_split},
+                  {0, oh_}, {0, ow_}, {0, im_oc_block}})
+              : tensor_slice(output,
+                {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                  {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+        }
+      }
+    }
+  }
+  loops = {lpbs, lph, lpw, lpoc, lpic, lok};
+}
+
 void gen_nested_conv_fwd_t::compute_conv_no_padding_nested(
   CONV_ARG_LIST) const {
   int bs_threads = config.bs_threads;
@@ -2008,13 +2509,11 @@ void gen_nested_conv_fwd_t::compute_conv_no_padding_nested(
                                                 std::vector<expr> input_pos
                                                   = blocking_input_
                                                   ? std::vector<expr> {n, ic,
-                                                    (h + im_h_i) * sh_
-                                                      + dh_ * r,
-                                                    w * sw_ + dw_ * s, 0}
+                                                    (h + im_h_i) * sh_ + r,
+                                                    w * sw_ + s, 0}
                                                   : std::vector<expr> {n,
-                                                    (h + im_h_i) * sh_
-                                                      + dh_ * r,
-                                                    w * sw_ + dw_ * s,
+                                                    (h + im_h_i) * sh_ + r,
+                                                    w * sw_ + s,
                                                     ic * im_ic_block};
 
                                                 A_list[idx] = tensor_ptr(
@@ -2303,20 +2802,1494 @@ void gen_nested_conv_fwd_t::compute_conv_no_padding_nested(
   loops = {lpbs, lph, lpw, lpoc, lpic, lok};
 }
 
+void gen_nested_conv_fwd_t::single_thread_conv_padding_call(expr &output,
+  const expr &input, const expr &weight, const expr &pbs, const expr &poc,
+  const expr &ph, const expr &pw, const expr &pic, const expr &outer_k,
+  const expr &h_num_block, const int h_num_block_pt, const expr &w_num_block,
+  const int w_num_block_pt, const expr &oc_num_block, const int oc_num_block_pt,
+  const expr &ic_num_block, const int ic_num_block_pt, const expr &pbuffer,
+  for_loop &loh, for_loop &low, for_loop &looc, for_loop &loic, for_loop &lioc,
+  for_loop &lih, for_loop &liw, const int oc_split, const int src_row_tile_size,
+  const uint32_t lanes, const nested_conv_fwd_config_t &config,
+  fusion_manager *fusion, const int ic_used_threads, const int oh_used_threads,
+  const int ow_used_threads, const int y_unpad_top, const int y_unpad_bottom,
+  const int y_unpad_left, const int y_unpad_right, const int iw_padded,
+  const int kpack) const {
+  auto h_block = config.h_block;
+  auto w_block = config.w_block;
+  auto im_h_block = config.im_h_block;
+  auto im_w_block = config.im_w_block;
+
+  auto ic_block = config.C_block;
+  auto im_ic_block = config.im_ic_block;
+  auto oc_block = config.K_block;
+  auto im_oc_block = config.im_oc_block;
+
+  auto dtypeInput = get_input_dtype();
+  auto dtypeWeight = get_weight_dtype();
+  auto dtypeOutput = get_output_dtype();
+
+  auto LDA = blocking_input_ ? im_ic_block : ic_;
+  auto LDC = blocking_output_ ? im_oc_block : oc_;
+
+  expr n = pbs;
+  _named_for_(loh, o_h, 0, h_num_block_pt) {
+    _named_for_(low, o_w, 0, w_num_block_pt) {
+      _named_for_(looc, o_oc, 0, oc_num_block_pt) {
+        _named_for_(loic, o_ic, 0, ic_num_block_pt) {
+          expr cond = o_h < h_num_block && o_w < w_num_block
+            && o_oc < oc_num_block && o_ic < ic_num_block;
+          _if_(cond) {
+            _named_for_(lioc, i_oc, 0, oc_block / im_oc_block / oc_split) {
+              expr oc = poc * oc_num_block_pt * oc_block / im_oc_block
+                + o_oc * oc_block / im_oc_block
+                + outer_k * oc_block / im_oc_block / oc_split + i_oc;
+              _if_(oc * im_oc_block < oc_) {
+                _named_for_(lih, i_h, 0, h_block / im_h_block) {
+                  expr h = (ph * h_num_block_pt * h_block / im_h_block
+                             + o_h * h_block / im_h_block + i_h)
+                    * im_h_block;
+
+                  _tensor_(A_list, datatypes::pointer, {kh_ * kw_});
+                  _tensor_(B_list, datatypes::pointer, {kh_ * kw_});
+
+                  // create a sub-tensor with maximum size which
+                  // holds all the boundary
+                  // that contains padding
+                  _tensor_(
+                    sub_tensor, dtypeInput, {kh_, src_row_tile_size, LDA});
+                  _var_(pad_begin_index, datatypes::index);
+                  _var_(pad_end_index, datatypes::index);
+                  _var_(unpad_begin_index, datatypes::index);
+                  _var_(unpad_end_index, datatypes::index);
+                  _var_(real_pad_left, datatypes::u32);
+                  _var_(real_pad_right, datatypes::u32);
+                  _var_(num_pad_rows, datatypes::u32);
+                  _var_(copy_width, datatypes::u32);
+
+                  _named_for_(liw, i_w, 0, w_block / im_w_block) {
+                    expr w = (pw * w_num_block_pt * w_block / im_w_block
+                               + o_w * w_block / im_w_block + i_w)
+                      * im_w_block;
+                    _if_(w < ow_) {
+                      _for_(im_h_i, 0, im_h_block) {
+                        _if_(h + im_h_i < oh_) {
+                          std::vector<expr> output_pos = blocking_output_
+                            ? std::vector<expr> {pic * mb_ + n, oc, h + im_h_i,
+                              w, 0}
+                            : std::vector<expr> {
+                              pic * mb_ + n, h + im_h_i, w, oc * im_oc_block};
+
+                          if (ic_num_block_pt > 1) {
+                            _if_(o_ic == 0) {
+                              builtin::brgemm_init(
+                                tensor_ptr(output, output_pos), im_w_block,
+                                im_oc_block, LDC, dtypeOutput, 0);
+                            }
+                          } else {
+                            builtin::brgemm_init(tensor_ptr(output, output_pos),
+                              im_w_block, im_oc_block, LDC, dtypeOutput, 0);
+                          }
+
+                          _for_(i_c, 0, ic_block / im_ic_block) {
+                            expr ic
+                              = pic * ic_num_block_pt * ic_block / im_ic_block
+                              + o_ic * ic_block / im_ic_block + i_c;
+                            _if_(ic * im_ic_block < ic_) {
+                              // 1) top or bottom region with
+                              // padding inputs
+                              // 1.1) calculate the number of
+                              // padding rows
+                              _if_(((h + im_h_i) >= y_unpad_top)
+                                && ((h + im_h_i) <= y_unpad_bottom)) {
+                                num_pad_rows = 0;
+                                pad_begin_index = 0;
+                                pad_end_index = 0;
+                                unpad_begin_index = 0;
+                                unpad_end_index = kh_;
+                              }
+                              _else_ {
+                                _if_((h + im_h_i) < y_unpad_top) {
+                                  num_pad_rows = builder::make_min(ph_
+                                      - builder::make_cast(
+                                          datatypes::u32, h + im_h_i)
+                                        * sh_,
+                                    kh_);
+                                  pad_begin_index = 0;
+                                  pad_end_index = num_pad_rows;
+                                  unpad_begin_index = num_pad_rows;
+                                  unpad_end_index = kh_;
+                                }
+                                _else_ {
+                                  num_pad_rows = builder::make_min(
+                                    builder::make_cast(
+                                      datatypes::u32, h + im_h_i)
+                                        * sh_
+                                      + kh_ - (ih_ + ph_),
+                                    kh_);
+                                  pad_begin_index = kh_ - num_pad_rows;
+                                  pad_end_index = kh_;
+                                  unpad_begin_index = 0;
+                                  unpad_end_index = kh_ - num_pad_rows;
+                                }
+
+                                // 1.2) Add zero-padding tensor to
+                                // A_list
+                                _for_(r, pad_begin_index, pad_end_index) {
+                                  _for_(s, 0, kw_) {
+                                    _var_(idx, datatypes::u32);
+                                    idx = builder::make_cast(
+                                      datatypes::u32, r * kw_ + s);
+                                    A_list[idx] = tensor_ptr(pbuffer, {0, 0});
+                                  }
+                                }
+                              }
+
+                              // 1.3) copy sub-tensor and append
+                              // to A_list
+                              _if_(num_pad_rows < kh_) {
+                                // 1.3.1) copy sub-tensor
+                                _if_(w < y_unpad_left) {
+                                  _if_((w + im_w_block - 1) <= y_unpad_right) {
+                                    // 1.3.1.1) left pad only
+                                    real_pad_left = pw_
+                                      - builder::make_cast(
+                                        datatypes::u32, w * sw_);
+
+                                    // copy sub-tensor
+                                    _for_(
+                                      i, unpad_begin_index, unpad_end_index) {
+                                      builtin::brgemm_init(
+                                        tensor_ptr(sub_tensor,
+                                          {i - unpad_begin_index, 0, 0}),
+                                        builder::make_cast(
+                                          datatypes::s32, real_pad_left),
+                                        im_ic_block, LDA, dtypeInput, 0);
+
+                                      // mapping dst to padding
+                                      // src, then mapping padding
+                                      // src to real src to get
+                                      // the actual elements.
+                                      _for_(
+                                        j, real_pad_left, src_row_tile_size) {
+                                        _for_(k, 0, im_ic_block, (int)lanes) {
+                                          sub_tensor[span_t(
+                                            {i - unpad_begin_index, j, k},
+                                            lanes)]
+                                            = input[blocking_input_
+                                                ? span_t(
+                                                  {n, ic,
+                                                    (h + im_h_i) * sh_ + i
+                                                      - ph_,
+                                                    w * sw_ + j - pw_, k},
+                                                  lanes)
+                                                : span_t(
+                                                  {n,
+                                                    (h + im_h_i) * sh_ + i
+                                                      - ph_,
+                                                    w * sw_ + j - pw_,
+                                                    ic * im_ic_block + k},
+                                                  lanes)];
+                                        }
+                                      }
+                                    }
+
+                                    _for_(
+                                      r, unpad_begin_index, unpad_end_index) {
+                                      _for_(s, 0, kw_) {
+                                        _var_(idx, datatypes::u32);
+                                        idx = builder::make_cast(
+                                          datatypes::u32, r * kw_ + s);
+                                        A_list[idx] = tensor_ptr(sub_tensor,
+                                          {r - unpad_begin_index, s, 0});
+                                      }
+                                    }
+                                  }
+                                  _else_ {
+                                    // 1.3.1.2) both left and
+                                    // right pad
+                                    real_pad_left = pw_
+                                      - builder::make_cast(
+                                        datatypes::u32, w * sw_);
+                                    real_pad_right
+                                      = builder::make_cast(datatypes::u32,
+                                          w * sw_ + src_row_tile_size)
+                                      - (iw_padded - pw_);
+
+                                    copy_width = src_row_tile_size
+                                      - real_pad_left - real_pad_right;
+
+                                    // copy sub-tensor
+                                    _for_(
+                                      i, unpad_begin_index, unpad_end_index) {
+                                      // memzero left part
+                                      builtin::brgemm_init(
+                                        tensor_ptr(sub_tensor,
+                                          {i - unpad_begin_index, 0, 0}),
+                                        builder::make_cast(
+                                          datatypes::s32, real_pad_left),
+                                        im_ic_block, LDA, dtypeInput, 0);
+
+                                      _for_(j, real_pad_left,
+                                        copy_width + real_pad_left) {
+                                        _for_(k, 0, im_ic_block, (int)lanes) {
+                                          // N, C, H, W, c
+                                          sub_tensor[span_t(
+                                            {i - unpad_begin_index, j, k},
+                                            lanes)]
+                                            = input[blocking_input_
+                                                ? span_t(
+                                                  {n, ic,
+                                                    (h + im_h_i) * sh_ + i
+                                                      - ph_,
+                                                    w * sw_ + j - pw_, k},
+                                                  lanes)
+                                                : span_t(
+                                                  {n,
+                                                    (h + im_h_i) * sh_ + i
+                                                      - ph_,
+                                                    w * sw_ + j - pw_,
+                                                    ic * im_ic_block + k},
+                                                  lanes)];
+                                        }
+                                      }
+
+                                      builtin::brgemm_init(
+                                        tensor_ptr(sub_tensor,
+                                          {i - unpad_begin_index,
+                                            copy_width + real_pad_left, 0}),
+                                        builder::make_cast(
+                                          datatypes::s32, real_pad_right),
+                                        im_ic_block, LDA, dtypeInput, 0);
+                                    }
+
+                                    _for_(
+                                      r, unpad_begin_index, unpad_end_index) {
+                                      _for_(s, 0, kw_) {
+                                        _var_(idx, datatypes::u32);
+                                        idx = builder::make_cast(
+                                          datatypes::u32, r * kw_ + s);
+                                        A_list[idx] = tensor_ptr(sub_tensor,
+                                          {r - unpad_begin_index, s, 0});
+                                      }
+                                    }
+                                  }
+                                }
+                                _else_ {
+                                  _if_((w + im_w_block - 1) <= y_unpad_right) {
+                                    // 1.3.1.3) not using pad
+                                    // buffer, use original buffer
+                                    _for_(
+                                      r, unpad_begin_index, unpad_end_index) {
+                                      _for_(s, 0, kw_) {
+                                        _var_(idx, datatypes::u32);
+                                        idx = builder::make_cast(
+                                          datatypes::u32, r * kw_ + s);
+                                        A_list[idx] = tensor_ptr(input,
+                                          blocking_input_
+                                            ? std::vector<expr> {n, ic,
+                                              (h + im_h_i) * sh_ + r - ph_,
+                                              w * sw_ + s - pw_, 0}
+                                            : std::vector<expr> {n,
+                                              (h + im_h_i) * sh_ + r - ph_,
+                                              w * sw_ + s - pw_,
+                                              ic * im_ic_block});
+                                      }
+                                    }
+                                  }
+                                  _else_ {
+                                    // 1.3.1.4) right pad only
+                                    real_pad_right
+                                      = builder::make_cast(datatypes::u32,
+                                          w * sw_ + src_row_tile_size)
+                                      - (iw_padded - pw_);
+                                    copy_width
+                                      = src_row_tile_size - real_pad_right;
+                                    // copy sub-tensor
+
+                                    _for_(
+                                      i, unpad_begin_index, unpad_end_index) {
+                                      _for_(j, 0, copy_width) {
+                                        _for_(k, 0, im_ic_block, (int)lanes) {
+                                          sub_tensor[span_t(
+                                            {i - unpad_begin_index, j, k},
+                                            lanes)]
+                                            = input[blocking_input_
+                                                ? span_t(
+                                                  {n, ic,
+                                                    (h + im_h_i) * sh_ + i
+                                                      - ph_,
+                                                    w * sw_ + j - pw_, k},
+                                                  lanes)
+                                                : span_t(
+                                                  {n,
+                                                    (h + im_h_i) * sh_ + i
+                                                      - ph_,
+                                                    w * sw_ + j - pw_,
+                                                    ic * im_ic_block + k},
+                                                  lanes)];
+                                        }
+                                      }
+                                      builtin::brgemm_init(
+                                        tensor_ptr(sub_tensor,
+                                          {i - unpad_begin_index, copy_width,
+                                            0}),
+                                        builder::make_cast(
+                                          datatypes::s32, real_pad_right),
+                                        im_ic_block, LDA, dtypeInput, 0);
+                                    }
+
+                                    _for_(
+                                      r, unpad_begin_index, unpad_end_index) {
+                                      _for_(s, 0, kw_) {
+                                        _var_(idx, datatypes::u32);
+                                        idx = builder::make_cast(
+                                          datatypes::u32, r * kw_ + s);
+                                        A_list[idx] = tensor_ptr(sub_tensor,
+                                          {r - unpad_begin_index, s, 0});
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+
+                              // Add tensor to B_list
+                              _for_(r, 0, kh_) {
+                                _for_(s, 0, kw_) {
+                                  _var_(idx, datatypes::u32);
+                                  // inverse the idx
+                                  if (inverse_filter_) {
+                                    idx = builder::make_cast(datatypes::u32,
+                                      kh_ * kw_ - 1 - (r * kw_ + s));
+                                  } else {
+                                    idx = builder::make_cast(
+                                      datatypes::u32, r * kw_ + s);
+                                  }
+                                  B_list[idx] = tensor_ptr(weight,
+                                    kpack > 1
+                                      ? std::vector<expr> {oc, ic, r, s, 0, 0,
+                                        0}
+                                      : std::vector<expr> {oc, ic, r, s, 0, 0});
+                                }
+                              }
+
+                              const auto hint_A_size
+                                = im_w_block * im_ic_block * kh_ * kw_;
+                              const auto hint_B_size
+                                = im_oc_block * im_ic_block;
+                              const auto hint_C_size = im_w_block * im_oc_block;
+                              sc_brgemm_attrs_t brg_attrs {
+                                {brgemm::attr_key::max_bs, kh_ * kw_},
+                                {brgemm::attr_key::hint_expected_A_size,
+                                  hint_A_size},
+                                {brgemm::attr_key::hint_expected_B_size,
+                                  hint_B_size},
+                                {brgemm::attr_key::hint_expected_C_size,
+                                  hint_C_size},
+                                {brgemm::attr_key::use_interleave_stores, true},
+                                {brgemm::attr_key::use_uker, true}};
+
+                              builtin::brgemm_list_update(A_list, B_list,
+                                tensor_ptr(output, output_pos), 1, im_w_block,
+                                im_oc_block, im_ic_block, sw_ * LDA,
+                                im_oc_block, LDC, 1, 1, kh_ * kw_, dtypeInput,
+                                dtypeWeight, brg_attrs);
+                            }
+                          }
+
+                          if (fusion && ic_used_threads == 1
+                            && ic_num_block_pt == 1) {
+                            _if_(o_ic == (ic_num_block - 1)) {
+                              fusion->create_output_fusion_anchor(
+                                {blocking_output_
+                                    ? tensor_slice(output,
+                                      {{n, 1UL}, {oc, 1}, {h + im_h_i, 1},
+                                        {w, im_w_block}, {0, im_oc_block}})
+                                    : tensor_slice(output,
+                                      {{n, 1UL}, {h + im_h_i, 1},
+                                        {w, im_w_block},
+                                        {oc * im_oc_block, im_oc_block}})});
+                            }
+                          }
+                        } // im_h_i
+                      }
+                      if (fusion && ic_used_threads == 1
+                        && ic_num_block_pt == 1) {
+                        _if_(o_ic == (ic_num_block - 1)) {
+                          fusion->create_output_fusion_anchor({blocking_output_
+                              ? tensor_slice(output,
+                                {{n, 1UL}, {oc, 1}, {h, im_h_block},
+                                  {w, im_w_block}, {0, im_oc_block}})
+                              : tensor_slice(output,
+                                {{n, 1UL}, {h, im_h_block}, {w, im_w_block},
+                                  {oc * im_oc_block, im_oc_block}})});
+                        }
+                      }
+                    } // i_w
+                  }
+
+                  if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
+                    && w_block * ow_used_threads == ow_) {
+                    _if_(o_ic == (ic_num_block - 1)) {
+                      expr anch_w = (pw * w_num_block_pt * w_block / im_w_block
+                                      + o_w * w_block / im_w_block)
+                        * im_w_block;
+                      fusion->create_output_fusion_anchor({blocking_output_
+                          ? tensor_slice(output,
+                            {{n, 1UL}, {oc, 1}, {h, im_h_block},
+                              {anch_w, w_block}, {0, im_oc_block}})
+                          : tensor_slice(output,
+                            {{n, 1UL}, {h, im_h_block}, {anch_w, w_block},
+                              {oc * im_oc_block, im_oc_block}})});
+                    }
+                  }
+                } // i_h
+
+                if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
+                  && h_block * oh_used_threads == oh_
+                  && w_block * ow_used_threads == ow_) {
+                  _if_(o_ic == (ic_num_block - 1)) {
+                    expr anch_h = (ph * h_num_block_pt * h_block / im_h_block
+                                    + o_h * h_block / im_h_block)
+                      * im_h_block;
+                    expr anch_w = (pw * w_num_block_pt * w_block / im_w_block
+                                    + o_w * w_block / im_w_block)
+                      * im_w_block;
+                    fusion->create_output_fusion_anchor({blocking_output_
+                        ? tensor_slice(output,
+                          {{n, 1UL}, {oc, 1}, {anch_h, h_block},
+                            {anch_w, w_block}, {0, im_oc_block}})
+                        : tensor_slice(output,
+                          {{n, 1UL}, {anch_h, h_block}, {anch_w, w_block},
+                            {oc * im_oc_block, im_oc_block}})});
+                  }
+                }
+              } // ioc
+            }
+
+            if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
+              && h_block * oh_used_threads == oh_
+              && w_block * ow_used_threads == ow_) {
+              _if_(o_ic == (ic_num_block - 1)) {
+                expr anch_h = (ph * h_num_block_pt * h_block / im_h_block
+                                + o_h * h_block / im_h_block)
+                  * im_h_block;
+                expr anch_w = (pw * w_num_block_pt * w_block / im_w_block
+                                + o_w * w_block / im_w_block)
+                  * im_w_block;
+                expr anch_oc = poc * oc_num_block_pt * oc_block / im_oc_block
+                  + o_oc * oc_block / im_oc_block
+                  + outer_k * oc_block / im_oc_block / oc_split;
+                fusion->create_output_fusion_anchor({blocking_output_
+                    ? tensor_slice(output,
+                      {{n, 1UL}, {anch_oc, 1}, {anch_h, h_block},
+                        {anch_w, w_block}, {0, im_oc_block}})
+                    : tensor_slice(output,
+                      {{n, 1UL}, {anch_h, h_block}, {anch_w, w_block},
+                        {anch_oc * im_oc_block, im_oc_block}})});
+              }
+            } // o_ic
+          }
+        }
+      }
+    }
+  }
+}
+
+void gen_nested_conv_fwd_t::compute_conv_padding_nested(CONV_ARG_LIST) const {
+  int bs_threads = config.bs_threads;
+  int h_threads = config.h_threads;
+  int w_threads = config.w_threads;
+  int oc_threads = config.oc_threads;
+  int ic_threads = 1;
+
+  int oc_block = config.K_block;
+  int h_block = config.h_block;
+  int w_block = config.w_block;
+  int ic_block = config.C_block;
+  int im_oc_block = config.im_oc_block;
+  int im_ic_block = config.im_ic_block;
+  int im_h_block = config.im_h_block;
+  int im_w_block = config.im_w_block;
+
+  COMPILE_ASSERT(oc_block % im_oc_block == 0,
+    "oc_block % im_oc_block != 0, config is invalid")
+  COMPILE_ASSERT(ic_block % im_ic_block == 0,
+    "ic_block % im_ic_block != 0, config is invalid")
+  COMPILE_ASSERT(
+    h_block % im_h_block == 0, "h_block % im_h_block != 0, config is invalid")
+  COMPILE_ASSERT(
+    w_block % im_w_block == 0, "w_block % im_w_block != 0, config is invalid")
+
+  // param
+  expr output_tmp = output;
+  auto tinput = in_tensors_[0];
+  auto tweight = in_tensors_[1];
+  auto toutput = out_tensors_[0];
+  const auto &input_blocking_dims = tinput.get_blocking_dims();
+  const auto &weight_blocking_dims = tweight.get_blocking_dims();
+  const auto &output_blocking_dims = toutput.get_blocking_dims();
+
+  for_loop lpbs, lph, lpw, lpoc, lpic, loh, low, looc, loic, lioc, lih, liw,
+    lok;
+
+  int oc_num_block_pt, oc_tail_num_block_pt, h_num_block_pt,
+    h_tail_num_block_pt, w_num_block_pt, w_tail_num_block_pt, ic_num_block_pt,
+    ic_tail_num_block_pt;
+
+  int oc_used_threads = block_split(utils::divide_and_ceil(oc_, oc_block),
+    oc_threads, oc_num_block_pt, oc_tail_num_block_pt);
+  int oh_used_threads = block_split(utils::divide_and_ceil(oh_, h_block),
+    h_threads, h_num_block_pt, h_tail_num_block_pt);
+
+  int ow_used_threads = block_split(utils::divide_and_ceil(ow_, w_block),
+    w_threads, w_num_block_pt, w_tail_num_block_pt);
+
+  int ic_used_threads = block_split(utils::divide_and_ceil(ic_, ic_block),
+    ic_threads, ic_num_block_pt, ic_tail_num_block_pt);
+
+  if (ic_used_threads > 1) {
+    // barrier
+    // output temp buffer
+    auto out_dims = output_blocking_dims;
+    out_dims[0] *= ic_used_threads;
+    _tensor_(out_tmp, toutput.dtype_, dims_to_expr(out_dims));
+    output_tmp = out_tmp;
+  }
+  auto input_expr_dims = input.checked_as<tensor>()->dims_;
+  auto mb_expr_ = input_expr_dims[0];
+  int ih_padded = ih_ + 2 * ph_, iw_padded = iw_ + 2 * pw_;
+  auto dtypeInput = get_input_dtype();
+  uint32_t lanes = get_lanes(ctx, im_ic_block, dtypeInput);
+  const int src_row_tile_size = (im_w_block - 1) * sw_ + kw_;
+
+  /** calculate the unpadded point of spatial space in output tensor
+   *   +-----------------------+
+   *   |p p p p ...    p p p p |
+   *   |p a x x ...    x x b p |
+   *   |p x x x ...    x x x p |
+   *   |p x x x ...    x x x p |
+   *   |p x x x ...    x x x p |
+   *   |p c x x ...    x x d p |
+   *   |p p p p ...    p p p p |
+   *   +-----------------------+
+   *  where:
+   *    p: pad area
+   *    x: valid area
+   *    a: (y_unpad_top, y_unpad_left)
+   *    b: (y_unpad_top, y_unpad_right)
+   *    c: (y_unpad_bottom, y_unpad_left)
+   *    d: (y_unpad_bottom, y_unpad_right)
+   */
+
+  // some shapes might not have bottom or right pad at all
+  auto get_num_pad_end = [](int ip, int k, int s, int p) {
+    int remaining = (ip - k) % s;
+    int num_pad_end = (remaining == 0)
+      ? utils::divide_and_ceil(p, s)
+      : ((p > remaining) ? utils::divide_and_ceil(p - remaining, s) : 0);
+    return num_pad_end;
+  };
+  const int dst_num_pad_top = utils::divide_and_ceil(ph_, sh_);
+  const int dst_num_pad_left = utils::divide_and_ceil(pw_, sw_);
+  const int dst_num_pad_bottom = get_num_pad_end(ih_padded, kh_, sh_, ph_);
+  const int dst_num_pad_right = get_num_pad_end(iw_padded, kw_, sw_, pw_);
+
+  int y_unpad_top = dst_num_pad_top;
+  int y_unpad_bottom = oh_ - dst_num_pad_bottom - 1;
+  int y_unpad_left = dst_num_pad_left;
+  int y_unpad_right = ow_ - dst_num_pad_right - 1;
+
+  auto weight_size
+    = math_utils::get_dims_product(in_tensors_[1].get_blocking_dims())
+    * utils::get_sizeof_type(get_weight_dtype());
+  auto L2_cache_size = ctx->machine_.cpu_flags_.getDCacheSize(2);
+  int oc_split = (oc_threads == 1 && oc_num_block_pt == 1)
+    ? get_oc_split_factor(weight_size, L2_cache_size, oc_block / im_oc_block)
+    : 1;
+
+  // create a global shared zero-buffer referenced by padding
+  auto LDA = blocking_input_ ? im_ic_block : ic_;
+  _tensor_(pbuffer, dtypeInput, {src_row_tile_size, LDA});
+  builtin::mem_zero(pbuffer, src_row_tile_size * LDA, dtypeInput);
+
+  _named_for_(lok, outer_k, 0, oc_split, 1, for_type::PARALLEL) {
+    _named_for_(lpbs, pbs, 0, mb_expr_, 1, for_type::PARALLEL) {
+      _named_for_(lph, ph, 0, h_threads, 1) {
+        _named_for_(lpw, pw, 0, w_threads, 1) {
+          _named_for_(lpoc, poc, 0, oc_threads, 1) {
+            _named_for_(lpic, pic, 0, ic_threads, 1) {
+              expr h_num_block
+                = builder::make_select(ph < (oh_used_threads - 1),
+                  h_num_block_pt, h_tail_num_block_pt),
+                w_num_block = builder::make_select(pw < (ow_used_threads - 1),
+                  w_num_block_pt, w_tail_num_block_pt),
+                oc_num_block = builder::make_select(poc < (oc_used_threads - 1),
+                  oc_num_block_pt, oc_tail_num_block_pt);
+
+              _if_(ph < oh_used_threads && pw < ow_used_threads
+                && poc < oc_used_threads && pic < ic_used_threads) {
+                // single core
+                expr ic_num_block
+                  = builder::make_select(pic < (ic_used_threads - 1),
+                    ic_num_block_pt, ic_tail_num_block_pt);
+                // single core
+                single_thread_conv_padding_call(output, input, weight, pbs, poc,
+                  ph, pw, pic, outer_k, h_num_block, h_num_block_pt,
+                  w_num_block, w_num_block_pt, oc_num_block, oc_num_block_pt,
+                  ic_num_block, ic_num_block_pt, pbuffer, loh, low, looc, loic,
+                  lioc, lih, liw, oc_split, src_row_tile_size, lanes, config,
+                  fusion, ic_used_threads, oh_used_threads, ow_used_threads,
+                  y_unpad_top, y_unpad_bottom, y_unpad_left, y_unpad_right,
+                  iw_padded, kpack);
+              }
+
+              if (fusion && oc_threads == 1 && ic_threads == 1 && h_threads == 1
+                && w_threads == 1) {
+                fusion->create_output_fusion_anchor({blocking_output_
+                    ? tensor_slice(output,
+                      {{pbs, 1UL},
+                        {outer_k * oc_ / im_oc_block / oc_split,
+                          oc_ / im_oc_block / oc_split},
+                        {0, oh_}, {0, ow_}, {0, im_oc_block}})
+                    : tensor_slice(output,
+                      {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                        {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+              }
+            }
+
+            if (fusion && oc_threads == 1 && h_threads == 1 && w_threads == 1) {
+              fusion->create_output_fusion_anchor({blocking_output_
+                  ? tensor_slice(output,
+                    {{pbs, 1UL},
+                      {outer_k * oc_ / im_oc_block / oc_split,
+                        oc_ / im_oc_block / oc_split},
+                      {0, oh_}, {0, ow_}, {0, im_oc_block}})
+                  : tensor_slice(output,
+                    {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                      {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+            }
+          }
+          if (fusion && h_threads == 1 && w_threads == 1) {
+            fusion->create_output_fusion_anchor({blocking_output_
+                ? tensor_slice(output,
+                  {{pbs, 1UL},
+                    {outer_k * oc_ / im_oc_block / oc_split,
+                      oc_ / im_oc_block / oc_split},
+                    {0, oh_}, {0, ow_}, {0, im_oc_block}})
+                : tensor_slice(output,
+                  {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                    {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+          }
+        }
+
+        if (fusion && h_threads == 1) {
+          fusion->create_output_fusion_anchor({blocking_output_
+              ? tensor_slice(output,
+                {{pbs, 1UL},
+                  {outer_k * oc_ / im_oc_block / oc_split,
+                    oc_ / im_oc_block / oc_split},
+                  {0, oh_}, {0, ow_}, {0, im_oc_block}})
+              : tensor_slice(output,
+                {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                  {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+        }
+      }
+      if (fusion && mb_ > 1) {
+        fusion->create_output_fusion_anchor(
+          {blocking_output_ ? tensor_slice(output,
+             {{pbs, 1UL},
+               {outer_k * oc_ / im_oc_block / oc_split,
+                 oc_ / im_oc_block / oc_split},
+               {0, oh_}, {0, ow_}, {0, im_oc_block}})
+                            : tensor_slice(output,
+                              {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                                {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+      }
+    }
+  }
+  loops = {lpbs, lph, lpw, lpoc, lpic, lok};
+}
+
+void gen_nested_conv_fwd_t::single_thread_dynamic_conv_padding_call(
+  expr &output, const expr &input, const expr &weight, const expr &pbs,
+  const expr &poc, const expr &ph, const expr &pw, const expr &pic,
+  const expr &outer_k, const expr &h_num_block, const expr &h_num_block_pt,
+  const expr &w_num_block, const expr &w_num_block_pt, const expr &oc_num_block,
+  const int oc_num_block_pt, const expr &ic_num_block,
+  const int ic_num_block_pt, const expr &pbuffer, for_loop &loh, for_loop &low,
+  for_loop &looc, for_loop &loic, for_loop &lioc, for_loop &lih, for_loop &liw,
+  const int oc_split, const expr &src_row_tile_size, const uint32_t lanes,
+  const nested_conv_fwd_config_t &config, fusion_manager *fusion,
+  const int ic_used_threads, const int oc_used_threads,
+  const expr &oh_used_threads, const expr &ow_used_threads,
+  const expr &y_unpad_top, const expr &y_unpad_bottom, const expr &y_unpad_left,
+  const expr &y_unpad_right, const expr &iw_padded, const int kpack,
+  const expr &h_block, const expr &w_block, const expr &im_h_block,
+  const expr &im_w_block, const expr &oh_expr_, const expr &ow_expr_,
+  const expr &ih_expr_, const expr &iw_expr_, expr &cond_tail_h,
+  expr &cond_tail_w, int oc_block, int ic_block) const {
+  auto im_ic_block = config.im_ic_block;
+  auto im_oc_block = config.im_oc_block;
+
+  auto dtypeInput = get_input_dtype();
+  auto dtypeWeight = get_weight_dtype();
+  auto dtypeOutput = get_output_dtype();
+
+  auto LDA = blocking_input_ ? im_ic_block : ic_;
+  auto LDC = blocking_output_ ? im_oc_block : oc_;
+
+  expr n = pbs;
+  _named_for_(loh, o_h, 0, h_num_block_pt) {
+    _named_for_(low, o_w, 0, w_num_block_pt) {
+      _named_for_(looc, o_oc, 0, oc_num_block_pt) {
+        _named_for_(loic, o_ic, 0, ic_num_block_pt) {
+          expr cond = o_h < h_num_block && o_w < w_num_block
+            && o_oc < oc_num_block && o_ic < ic_num_block;
+          _if_(cond) {
+            _named_for_(lioc, i_oc, 0, oc_block / im_oc_block / oc_split) {
+              expr oc = poc * oc_num_block_pt * oc_block / im_oc_block
+                + o_oc * oc_block / im_oc_block
+                + outer_k * oc_block / im_oc_block / oc_split + i_oc;
+              _if_(oc * im_oc_block < oc_) {
+                _named_for_(
+                  lih, i_h, 0, (h_block + im_h_block - 1) / im_h_block) {
+                  expr h = ph * h_num_block_pt * h_block + o_h * h_block
+                    + i_h * im_h_block;
+                  expr is_tail_h = cond_tail_h && (h + im_h_block > oh_expr_);
+                  expr real_im_h_block = builder::make_select(is_tail_h,
+                    builder::make_cast(datatypes::s32, oh_expr_ % im_h_block),
+                    im_h_block);
+                  _tensor_(A_list, datatypes::pointer, {kh_ * kw_});
+                  _tensor_(B_list, datatypes::pointer, {kh_ * kw_});
+
+                  _named_for_(
+                    liw, i_w, 0, (w_block + im_w_block - 1) / im_w_block) {
+                    expr w = pw * w_num_block_pt * w_block + o_w * w_block
+                      + i_w * im_w_block;
+                    _if_(w < ow_expr_) {
+                      expr is_tail_w
+                        = cond_tail_w && (w + im_w_block > ow_expr_);
+                      expr real_im_w_block = builder::make_select(is_tail_w,
+                        builder::make_cast(
+                          datatypes::s32, ow_expr_ % im_w_block),
+                        im_w_block);
+                      expr real_src_row_tile_size
+                        = builder::make_select(is_tail_w,
+                          builder::make_cast(
+                            datatypes::s32, (ow_expr_ - w - 1) * sw_ + kw_),
+                          src_row_tile_size);
+
+                      _for_(im_h_i, 0, im_h_block) {
+                        _if_(h + im_h_i < oh_expr_) {
+                          // create a sub-tensor with maximum size
+                          // which holds all the boundary that
+                          // contains padding
+                          _tensor_(sub_tensor, dtypeInput,
+                            {kh_, real_src_row_tile_size, LDA});
+
+                          _var_(pad_begin_index, datatypes::index);
+                          _var_(pad_end_index, datatypes::index);
+                          _var_(unpad_begin_index, datatypes::index);
+                          _var_(unpad_end_index, datatypes::index);
+                          _var_(real_pad_left, datatypes::index);
+                          _var_(real_pad_right, datatypes::index);
+                          _var_(num_pad_rows, datatypes::index);
+                          _var_(copy_width, datatypes::index);
+                          std::vector<expr> output_pos = blocking_output_
+                            ? std::vector<expr> {pic * mb_ + n, oc, h + im_h_i,
+                              w, 0}
+                            : std::vector<expr> {
+                              pic * mb_ + n, h + im_h_i, w, oc * im_oc_block};
+
+                          if (ic_num_block_pt > 1) {
+                            _if_(o_ic == 0) {
+                              builtin::brgemm_init(
+                                tensor_ptr(output, output_pos), real_im_w_block,
+                                im_oc_block, LDC, dtypeOutput, 0);
+                            }
+                          } else {
+                            builtin::brgemm_init(tensor_ptr(output, output_pos),
+                              real_im_w_block, im_oc_block, LDC, dtypeOutput,
+                              0);
+                          }
+
+                          _for_(i_c, 0, ic_block / im_ic_block) {
+                            expr ic
+                              = pic * ic_num_block_pt * ic_block / im_ic_block
+                              + o_ic * ic_block / im_ic_block + i_c;
+                            _if_(ic * im_ic_block < ic_) {
+                              // 1) top or bottom region with
+                              // padding inputs
+                              // 1.1) calculate the number of
+                              // padding rows
+                              _if_(((h + im_h_i) >= y_unpad_top)
+                                && ((h + im_h_i) <= y_unpad_bottom)) {
+                                num_pad_rows = 0;
+                                pad_begin_index = 0;
+                                pad_end_index = 0;
+                                unpad_begin_index = 0;
+                                unpad_end_index = kh_;
+                              }
+                              _else_ {
+                                _if_((h + im_h_i) < y_unpad_top) {
+                                  num_pad_rows = builder::make_min(ph_
+                                      - builder::make_cast(
+                                          datatypes::u32, h + im_h_i)
+                                        * sh_,
+                                    kh_);
+                                  pad_begin_index = 0;
+                                  pad_end_index = num_pad_rows;
+                                  unpad_begin_index = num_pad_rows;
+                                  unpad_end_index = kh_;
+                                }
+                                _else_ {
+                                  num_pad_rows = builder::make_min(
+                                    builder::make_cast(
+                                      datatypes::u32, h + im_h_i)
+                                        * sh_
+                                      + kh_ - (ih_expr_ + ph_),
+                                    kh_);
+                                  pad_begin_index = kh_ - num_pad_rows;
+                                  pad_end_index = kh_;
+                                  unpad_begin_index = 0;
+                                  unpad_end_index = kh_ - num_pad_rows;
+                                }
+
+                                // 1.2) Add zero-padding tensor to
+                                // A_list
+                                _for_(r, pad_begin_index, pad_end_index) {
+                                  _for_(s, 0, kw_) {
+                                    _var_(idx, datatypes::u32);
+                                    idx = builder::make_cast(
+                                      datatypes::u32, r * kw_ + s);
+                                    A_list[idx] = tensor_ptr(pbuffer, {0, 0});
+                                  }
+                                }
+                              }
+
+                              // 1.3) copy sub-tensor and append
+                              // to A_list
+                              _if_(num_pad_rows < kh_) {
+                                // 1.3.1) copy sub-tensor
+                                _if_(w < y_unpad_left) {
+                                  _if_((w + real_im_w_block - 1)
+                                    <= y_unpad_right) {
+                                    // 1.3.1.1) left pad only
+                                    real_pad_left = pw_
+                                      - builder::make_cast(
+                                        datatypes::u32, w * sw_);
+
+                                    // copy sub-tensor
+                                    _for_(
+                                      i, unpad_begin_index, unpad_end_index) {
+                                      builtin::brgemm_init(
+                                        tensor_ptr(sub_tensor,
+                                          {i - unpad_begin_index, 0, 0}),
+                                        builder::make_cast(
+                                          datatypes::s32, real_pad_left),
+                                        im_ic_block, LDA, dtypeInput, 0);
+
+                                      // mapping dst to padding
+                                      // src, then mapping padding
+                                      // src to real src to get
+                                      // the actual elements.
+                                      _for_(j, real_pad_left,
+                                        real_src_row_tile_size) {
+                                        _for_(k, 0, im_ic_block, (int)lanes) {
+                                          sub_tensor[span_t(
+                                            {i - unpad_begin_index, j, k},
+                                            lanes)]
+                                            = input[blocking_input_
+                                                ? span_t(
+                                                  {n, ic,
+                                                    (h + im_h_i) * sh_ + i
+                                                      - ph_,
+                                                    w * sw_ + j - pw_, k},
+                                                  lanes)
+                                                : span_t(
+                                                  {n,
+                                                    (h + im_h_i) * sh_ + i
+                                                      - ph_,
+                                                    w * sw_ + j - pw_,
+                                                    ic * im_ic_block + k},
+                                                  lanes)];
+                                        }
+                                      }
+                                    }
+
+                                    _for_(
+                                      r, unpad_begin_index, unpad_end_index) {
+                                      _for_(s, 0, kw_) {
+                                        _var_(idx, datatypes::u32);
+                                        idx = builder::make_cast(
+                                          datatypes::u32, r * kw_ + s);
+                                        A_list[idx] = tensor_ptr(sub_tensor,
+                                          {r - unpad_begin_index, s, 0});
+                                      }
+                                    }
+                                  }
+                                  _else_ {
+                                    // 1.3.1.2) both left and
+                                    // right pad
+                                    real_pad_left = pw_
+                                      - builder::make_cast(
+                                        datatypes::u32, w * sw_);
+                                    real_pad_right
+                                      = builder::make_cast(datatypes::u32,
+                                          w * sw_ + real_src_row_tile_size)
+                                      - (iw_padded - pw_);
+
+                                    copy_width = real_src_row_tile_size
+                                      - real_pad_left - real_pad_right;
+
+                                    // copy sub-tensor
+                                    _for_(
+                                      i, unpad_begin_index, unpad_end_index) {
+                                      // memzero left part
+                                      builtin::brgemm_init(
+                                        tensor_ptr(sub_tensor,
+                                          {i - unpad_begin_index, 0, 0}),
+                                        builder::make_cast(
+                                          datatypes::s32, real_pad_left),
+                                        im_ic_block, LDA, dtypeInput, 0);
+
+                                      _for_(j, real_pad_left,
+                                        copy_width + real_pad_left) {
+                                        _for_(k, 0, im_ic_block, (int)lanes) {
+                                          // N, C, H, W, c
+                                          sub_tensor[span_t(
+                                            {i - unpad_begin_index, j, k},
+                                            lanes)]
+                                            = input[blocking_input_
+                                                ? span_t(
+                                                  {n, ic,
+                                                    (h + im_h_i) * sh_ + i
+                                                      - ph_,
+                                                    w * sw_ + j - pw_, k},
+                                                  lanes)
+                                                : span_t(
+                                                  {n,
+                                                    (h + im_h_i) * sh_ + i
+                                                      - ph_,
+                                                    w * sw_ + j - pw_,
+                                                    ic * im_ic_block + k},
+                                                  lanes)];
+                                        }
+                                      }
+
+                                      builtin::brgemm_init(
+                                        tensor_ptr(sub_tensor,
+                                          {i - unpad_begin_index,
+                                            copy_width + real_pad_left, 0}),
+                                        builder::make_cast(
+                                          datatypes::s32, real_pad_right),
+                                        im_ic_block, LDA, dtypeInput, 0);
+                                    }
+
+                                    _for_(
+                                      r, unpad_begin_index, unpad_end_index) {
+                                      _for_(s, 0, kw_) {
+                                        _var_(idx, datatypes::u32);
+                                        idx = builder::make_cast(
+                                          datatypes::u32, r * kw_ + s);
+                                        A_list[idx] = tensor_ptr(sub_tensor,
+                                          {r - unpad_begin_index, s, 0});
+                                      }
+                                    }
+                                  }
+                                }
+                                _else_ {
+                                  _if_((w + real_im_w_block - 1)
+                                    <= y_unpad_right) {
+                                    // 1.3.1.3) not using pad
+                                    // buffer, use original buffer
+                                    _for_(
+                                      r, unpad_begin_index, unpad_end_index) {
+                                      _for_(s, 0, kw_) {
+                                        _var_(idx, datatypes::u32);
+                                        idx = builder::make_cast(
+                                          datatypes::u32, r * kw_ + s);
+                                        A_list[idx] = tensor_ptr(input,
+                                          blocking_input_
+                                            ? std::vector<expr> {n, ic,
+                                              (h + im_h_i) * sh_ + r - ph_,
+                                              w * sw_ + s - pw_, 0}
+                                            : std::vector<expr> {n,
+                                              (h + im_h_i) * sh_ + r - ph_,
+                                              w * sw_ + s - pw_,
+                                              ic * im_ic_block});
+                                      }
+                                    }
+                                  }
+                                  _else_ {
+                                    // 1.3.1.4) right pad only
+                                    real_pad_right = builder::make_min(
+                                      builder::make_cast(datatypes::u32,
+                                        w * sw_ + real_src_row_tile_size)
+                                        - (iw_padded - pw_),
+                                      real_src_row_tile_size);
+                                    copy_width
+                                      = real_src_row_tile_size - real_pad_right;
+                                    // copy sub-tensor
+
+                                    _for_(
+                                      i, unpad_begin_index, unpad_end_index) {
+                                      _for_(j, 0, copy_width) {
+                                        _for_(k, 0, im_ic_block, (int)lanes) {
+                                          sub_tensor[span_t(
+                                            {i - unpad_begin_index, j, k},
+                                            lanes)]
+                                            = input[blocking_input_
+                                                ? span_t(
+                                                  {n, ic,
+                                                    (h + im_h_i) * sh_ + i
+                                                      - ph_,
+                                                    w * sw_ + j - pw_, k},
+                                                  lanes)
+                                                : span_t(
+                                                  {n,
+                                                    (h + im_h_i) * sh_ + i
+                                                      - ph_,
+                                                    w * sw_ + j - pw_,
+                                                    ic * im_ic_block + k},
+                                                  lanes)];
+                                        }
+                                      }
+                                      builtin::brgemm_init(
+                                        tensor_ptr(sub_tensor,
+                                          {i - unpad_begin_index, copy_width,
+                                            0}),
+                                        builder::make_cast(
+                                          datatypes::s32, real_pad_right),
+                                        im_ic_block, LDA, dtypeInput, 0);
+                                    }
+
+                                    _for_(
+                                      r, unpad_begin_index, unpad_end_index) {
+                                      _for_(s, 0, kw_) {
+                                        _var_(idx, datatypes::u32);
+                                        idx = builder::make_cast(
+                                          datatypes::u32, r * kw_ + s);
+                                        A_list[idx] = tensor_ptr(sub_tensor,
+                                          {r - unpad_begin_index, s, 0});
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+
+                              // Add tensor to B_list
+                              _for_(r, 0, kh_) {
+                                _for_(s, 0, kw_) {
+                                  _var_(idx, datatypes::u32);
+                                  // inverse the idx
+                                  if (inverse_filter_) {
+                                    idx = builder::make_cast(datatypes::u32,
+                                      kh_ * kw_ - 1 - (r * kw_ + s));
+                                  } else {
+                                    idx = builder::make_cast(
+                                      datatypes::u32, r * kw_ + s);
+                                  }
+                                  B_list[idx] = tensor_ptr(weight,
+                                    kpack > 1
+                                      ? std::vector<expr> {oc, ic, r, s, 0, 0,
+                                        0}
+                                      : std::vector<expr> {oc, ic, r, s, 0, 0});
+                                }
+                              }
+
+                              brgemm::attrs_setting_t::attrs_map_t range_attr_0
+                                = {brgemm::attr_key::M_range_upper_bound, 64};
+                              sc_brgemm_attrs_t brg_attrs = sc_brgemm_attrs_t {
+                                {brgemm::attr_key::max_bs, kh_ * kw_},
+                                {brgemm::attr_key::use_interleave_stores, true},
+                                {brgemm::attr_key::use_uker, true},
+                                range_attr_0};
+
+                              builtin::brgemm_list_update(A_list, B_list,
+                                tensor_ptr(output, output_pos), 1,
+                                real_im_w_block, im_oc_block, im_ic_block,
+                                sw_ * LDA, im_oc_block, LDC, 1, 1, kh_ * kw_,
+                                dtypeInput, dtypeWeight, brg_attrs);
+                            }
+                          }
+                          if (fusion && ic_used_threads == 1
+                            && ic_num_block_pt == 1) {
+                            _if_(o_ic == (ic_num_block - 1)) {
+                              fusion->create_output_fusion_anchor(
+                                {blocking_output_
+                                    ? tensor_slice(output,
+                                      {{n, 1}, {oc, 1}, {h + im_h_i, 1},
+                                        {w, real_im_w_block}, {0, im_oc_block}})
+                                    : tensor_slice(output,
+                                      {{n, 1UL}, {h + im_h_i, 1},
+                                        {w, real_im_w_block},
+                                        {oc * im_oc_block, im_oc_block}})});
+                            }
+                          } // im_h_i
+                        }
+                      }
+                      if (fusion && ic_used_threads == 1
+                        && ic_num_block_pt == 1) {
+                        _if_(o_ic == (ic_num_block - 1)) {
+                          fusion->create_output_fusion_anchor({blocking_output_
+                              ? tensor_slice(output,
+                                {{n, 1UL}, {oc, 1}, {h, real_im_h_block},
+                                  {w, real_im_w_block}, {0, im_oc_block}})
+                              : tensor_slice(output,
+                                {{n, 1UL}, {h, real_im_h_block},
+                                  {w, real_im_w_block},
+                                  {oc * im_oc_block, im_oc_block}})});
+                        }
+                      } // i_w
+                    }
+                  }
+
+                  if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
+                    && !is_dynamic_dim(ow_)
+                    && get_expr_as_int(w_block)
+                        * get_expr_as_int(ow_used_threads)
+                      == ow_) {
+                    _if_(o_ic == (ic_num_block - 1)) {
+                      expr anch_w
+                        = pw * w_num_block_pt * w_block + o_w * w_block;
+                      fusion->create_output_fusion_anchor({blocking_output_
+                          ? tensor_slice(output,
+                            {{n, 1UL}, {oc, 1}, {h, real_im_h_block},
+                              {anch_w, w_block}, {0, im_oc_block}})
+                          : tensor_slice(output,
+                            {{n, 1UL}, {h, real_im_h_block}, {anch_w, w_block},
+                              {oc * im_oc_block, im_oc_block}})});
+                    }
+                  }
+                } // i_h
+
+                if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
+                  && !is_dynamic_dim(ow_) && !is_dynamic_dim(oh_)
+                  && get_expr_as_int(w_block) * get_expr_as_int(ow_used_threads)
+                    == ow_
+                  && get_expr_as_int(h_block) * get_expr_as_int(oh_used_threads)
+                    == oh_) {
+                  _if_(o_ic == (ic_num_block - 1)) {
+                    expr anch_h = ph * h_num_block_pt * h_block + o_h * h_block;
+                    expr anch_w = pw * w_num_block_pt * w_block + o_w * w_block;
+                    fusion->create_output_fusion_anchor({blocking_output_
+                        ? tensor_slice(output,
+                          {{n, 1UL}, {oc, 1}, {anch_h, h_block},
+                            {anch_w, w_block}, {0, im_oc_block}})
+                        : tensor_slice(output,
+                          {{n, 1UL}, {anch_h, h_block}, {anch_w, w_block},
+                            {oc * im_oc_block, im_oc_block}})});
+                  }
+                } // i_oc
+              }
+            }
+
+            if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
+              && !is_dynamic_dim(ow_) && !is_dynamic_dim(oh_)
+              && get_expr_as_int(w_block) * get_expr_as_int(ow_used_threads)
+                == ow_
+              && get_expr_as_int(h_block) * get_expr_as_int(oh_used_threads)
+                == oh_
+              && oc_block * oc_used_threads == oc_) {
+              _if_(o_ic == (ic_num_block - 1)) {
+                expr anch_h = ph * h_num_block_pt * h_block + o_h * h_block;
+                expr anch_w = pw * w_num_block_pt * w_block + o_w * w_block;
+                expr anch_oc = poc * oc_num_block_pt * oc_block / im_oc_block
+                  + o_oc * oc_block / im_oc_block
+                  + outer_k * oc_block / im_oc_block / oc_split;
+                fusion->create_output_fusion_anchor({blocking_output_
+                    ? tensor_slice(output,
+                      {{n, 1UL}, {anch_oc, 1}, {anch_h, h_block},
+                        {anch_w, w_block}, {0, im_oc_block}})
+                    : tensor_slice(output,
+                      {{n, 1UL}, {anch_h, h_block}, {anch_w, w_block},
+                        {anch_oc * im_oc_block, im_oc_block}})});
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+void gen_nested_conv_fwd_t::dynamic_compute_conv_padding_nested(
+  CONV_ARG_LIST) const {
+  int num_threads = runtime_config_t::get().get_num_threads();
+  int h_threads = config.h_threads;
+  int w_threads = config.w_threads;
+  int oc_threads = config.oc_threads;
+  int ic_threads = 1;
+
+  int bs_threads = num_threads / h_threads / oc_threads;
+  int oc_block = oc_ / oc_threads;
+  int ic_block = ic_ / ic_threads;
+  int im_oc_block = config.im_oc_block;
+  int im_ic_block = config.im_ic_block;
+  int im_w_block = config.im_w_block;
+
+  COMPILE_ASSERT(oc_block % im_oc_block == 0,
+    "oc_block % im_oc_block != 0, config is invalid")
+  COMPILE_ASSERT(ic_block % im_ic_block == 0,
+    "ic_block % im_ic_block != 0, config is invalid")
+  // param
+  expr output_tmp = output;
+  auto tinput = in_tensors_[0];
+  auto tweight = in_tensors_[1];
+  auto toutput = out_tensors_[0];
+  const auto &input_blocking_dims = tinput.get_blocking_dims();
+  const auto &weight_blocking_dims = tweight.get_blocking_dims();
+  const auto &output_blocking_dims = toutput.get_blocking_dims();
+
+  for_loop lpbs, lph, lpw, lpoc, lpic, loh, low, looc, loic, lioc, lih, liw,
+    lok;
+
+  int oc_num_block_pt, oc_tail_num_block_pt, ic_num_block_pt,
+    ic_tail_num_block_pt;
+
+  int oc_used_threads = block_split(utils::divide_and_ceil(oc_, oc_block),
+    oc_threads, oc_num_block_pt, oc_tail_num_block_pt);
+
+  auto input_expr_dims = input.checked_as<tensor>()->dims_;
+  auto mb_expr_ = input_expr_dims[0];
+  auto ih_expr_
+    = input_expr_dims.size() == 4 ? input_expr_dims[1] : input_expr_dims[2];
+  auto iw_expr_
+    = input_expr_dims.size() == 4 ? input_expr_dims[2] : input_expr_dims[3];
+
+  auto oh_expr_ = input_expr_dims.size() == 4
+    ? (input_expr_dims[1] + ph_ * 2 - kh_) / sh_ + 1
+    : (input_expr_dims[2] + ph_ * 2 - kh_) / sh_ + 1;
+  auto ow_expr_ = input_expr_dims.size() == 4
+    ? (input_expr_dims[2] + pw_ * 2 - kw_) / sw_ + 1
+    : (input_expr_dims[3] + pw_ * 2 - kw_) / sw_ + 1;
+
+  // by observation
+  expr im_h_block = do_cast_and_fold(
+    builder::make_select(oh_expr_ <= 14 && ow_expr_ <= 14 && h_threads == 1,
+      builder::make_cast(datatypes::s32, oh_expr_), config.im_h_block));
+
+  expr h_block
+    = do_cast_and_fold(builder::make_select(oh_expr_ % h_threads == 0,
+      builder::make_cast(datatypes::s32, oh_expr_ / h_threads),
+      config.im_h_block));
+  expr w_block = do_cast_and_fold((ow_expr_ + w_threads - 1) / w_threads);
+
+  expr h_num_block_pt
+    = divide_and_ceil(divide_and_ceil(oh_expr_, h_block), h_threads);
+  expr h_tail_num_block_pt = builder::make_select(
+    divide_and_ceil(oh_expr_, h_block) % h_num_block_pt == 0, h_num_block_pt,
+    divide_and_ceil(oh_expr_, h_block) % h_num_block_pt);
+  expr oh_used_threads
+    = divide_and_ceil(divide_and_ceil(oh_expr_, h_block), h_num_block_pt);
+
+  expr ow_used_threads = do_cast_and_fold((ow_expr_ + w_block - 1) / w_block);
+  expr w_num_block_pt = ow_used_threads / w_threads;
+  expr w_tail_num_block_pt
+    = builder::make_select(ow_used_threads % w_num_block_pt == 0,
+      w_num_block_pt, ow_used_threads % w_num_block_pt);
+
+  int ic_used_threads = block_split(utils::divide_and_ceil(ic_, ic_block),
+    ic_threads, ic_num_block_pt, ic_tail_num_block_pt);
+
+  if (ic_used_threads > 1) {
+    // barrier
+    // output temp buffer
+    auto out_dims = output_blocking_dims;
+    out_dims[0] *= ic_used_threads;
+    _tensor_(out_tmp, toutput.dtype_, dims_to_expr(out_dims));
+    output_tmp = out_tmp;
+  }
+  expr ih_padded = ih_expr_ + 2 * ph_, iw_padded = iw_expr_ + 2 * pw_;
+  auto dtypeInput = get_input_dtype();
+  uint32_t lanes = get_lanes(ctx, im_ic_block, dtypeInput);
+
+  /** calculate the unpadded point of spatial space in output tensor
+   *   +-----------------------+
+   *   |p p p p ...    p p p p |
+   *   |p a x x ...    x x b p |
+   *   |p x x x ...    x x x p |
+   *   |p x x x ...    x x x p |
+   *   |p x x x ...    x x x p |
+   *   |p c x x ...    x x d p |
+   *   |p p p p ...    p p p p |
+   *   +-----------------------+
+   *  where:
+   *    p: pad area
+   *    x: valid area
+   *    a: (y_unpad_top, y_unpad_left)
+   *    b: (y_unpad_top, y_unpad_right)
+   *    c: (y_unpad_bottom, y_unpad_left)
+   *    d: (y_unpad_bottom, y_unpad_right)
+   */
+
+  // some shapes might not have bottom or right pad at all
+  auto get_num_pad_end = [](const expr &ip, int k, int s, int p) {
+    expr remaining = (ip - k) % s;
+    if (remaining.isa<constant>() && get_expr_as_int(remaining)) {
+      return expr(utils::divide_and_ceil(p, s));
+    }
+    return builder::make_select(p > remaining,
+      builder::make_cast(datatypes::s32, (p - remaining + s - 1) / s), expr(0));
+  };
+
+  const int dst_num_pad_top = utils::divide_and_ceil(ph_, sh_);
+  const int dst_num_pad_left = utils::divide_and_ceil(pw_, sw_);
+  expr dst_num_pad_bottom = get_num_pad_end(ih_padded, kh_, sh_, ph_);
+  expr dst_num_pad_right = get_num_pad_end(iw_padded, kw_, sw_, pw_);
+
+  int y_unpad_top = dst_num_pad_top;
+  expr y_unpad_bottom = oh_expr_ - dst_num_pad_bottom - 1;
+  int y_unpad_left = dst_num_pad_left;
+  expr y_unpad_right = ow_expr_ - dst_num_pad_right - 1;
+
+  auto weight_size
+    = math_utils::get_dims_product(in_tensors_[1].get_blocking_dims())
+    * utils::get_sizeof_type(get_weight_dtype());
+  auto L2_cache_size = ctx->machine_.cpu_flags_.getDCacheSize(2);
+  int oc_split = (oc_threads == 1 && oc_num_block_pt == 1)
+    ? get_oc_split_factor(weight_size, L2_cache_size, oc_block / im_oc_block)
+    : 1;
+
+  // create a global shared zero-buffer referenced by padding
+  expr src_row_tile_size
+    = builder::make_select(im_w_block <= ow_expr_, (im_w_block - 1) * sw_ + kw_,
+      builder::make_cast(datatypes::s32, (ow_expr_ - 1) * sw_ + kw_));
+
+  auto LDA = blocking_input_ ? im_ic_block : ic_;
+  _tensor_(pbuffer, dtypeInput, {src_row_tile_size, LDA});
+  builtin::mem_zero(pbuffer, src_row_tile_size * LDA, dtypeInput);
+  expr cond_tail_w = w_block % im_w_block != 0 || ow_expr_ % im_w_block != 0;
+  expr cond_tail_h = h_block % im_h_block != 0;
+  // will update template for parallel merge in dynamic conv block
+  _named_for_(lok, outer_k, 0, oc_split, 1, for_type::PARALLEL) {
+    _named_for_(lpbs, pbs, 0, mb_expr_, 1, for_type::PARALLEL) {
+      _named_for_(lph, ph, 0, h_threads, 1) {
+        _named_for_(lpw, pw, 0, w_threads, 1) {
+          _named_for_(lpoc, poc, 0, oc_threads, 1) {
+            _named_for_(lpic, pic, 0, ic_threads, 1) {
+              expr h_num_block
+                = builder::make_select(ph < (oh_used_threads - 1),
+                  h_num_block_pt, h_tail_num_block_pt),
+                w_num_block = builder::make_select(pw < (ow_used_threads - 1),
+                  w_num_block_pt, w_tail_num_block_pt),
+                oc_num_block = builder::make_select(poc < (oc_used_threads - 1),
+                  oc_num_block_pt, oc_tail_num_block_pt);
+
+              _if_(ph < oh_used_threads && pw < ow_used_threads
+                && poc < oc_used_threads && pic < ic_used_threads) {
+                // single core
+                expr ic_num_block
+                  = builder::make_select(pic < (ic_used_threads - 1),
+                    ic_num_block_pt, ic_tail_num_block_pt);
+
+                single_thread_dynamic_conv_padding_call(output, input, weight,
+                  pbs, poc, ph, pw, pic, outer_k, h_num_block, h_num_block_pt,
+                  w_num_block, w_num_block_pt, oc_num_block, oc_num_block_pt,
+                  ic_num_block, ic_num_block_pt, pbuffer, loh, low, looc, loic,
+                  lioc, lih, liw, oc_split, src_row_tile_size, lanes, config,
+                  fusion, ic_used_threads, oc_used_threads, oh_used_threads,
+                  ow_used_threads, y_unpad_top, y_unpad_bottom, y_unpad_left,
+                  y_unpad_right, iw_padded, kpack, h_block, w_block, im_h_block,
+                  im_w_block, oh_expr_, ow_expr_, ih_expr_, iw_expr_,
+                  cond_tail_h, cond_tail_w, oc_block, ic_block);
+              }
+
+              if (fusion && oc_threads == 1 && ic_threads == 1 && h_threads == 1
+                && w_threads == 1 && !is_dynamic_dim(ow_)
+                && !is_dynamic_dim(oh_)) {
+                fusion->create_output_fusion_anchor({blocking_output_
+                    ? tensor_slice(output,
+                      {{pbs, 1UL},
+                        {outer_k * oc_ / im_oc_block / oc_split,
+                          oc_ / im_oc_block / oc_split},
+                        {0, oh_}, {0, ow_}, {0, im_oc_block}})
+                    : tensor_slice(output,
+                      {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                        {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+              }
+            }
+
+            if (fusion && oc_threads == 1 && h_threads == 1 && w_threads == 1
+              && !is_dynamic_dim(ow_) && !is_dynamic_dim(oh_)) {
+              fusion->create_output_fusion_anchor({blocking_output_
+                  ? tensor_slice(output,
+                    {{pbs, 1UL},
+                      {outer_k * oc_ / im_oc_block / oc_split,
+                        oc_ / im_oc_block / oc_split},
+                      {0, oh_}, {0, ow_}, {0, im_oc_block}})
+                  : tensor_slice(output,
+                    {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                      {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+            }
+          }
+          if (fusion && h_threads == 1 && w_threads == 1 && !is_dynamic_dim(ow_)
+            && !is_dynamic_dim(oh_)) {
+            fusion->create_output_fusion_anchor({blocking_output_
+                ? tensor_slice(output,
+                  {{pbs, 1UL},
+                    {outer_k * oc_ / im_oc_block / oc_split,
+                      oc_ / im_oc_block / oc_split},
+                    {0, oh_expr_}, {0, ow_expr_}, {0, im_oc_block}})
+                : tensor_slice(output,
+                  {{pbs, 1UL}, {0, oh_expr_}, {0, ow_expr_},
+                    {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+          }
+        }
+
+        if (fusion && h_threads == 1 && !is_dynamic_dim(ow_)
+          && !is_dynamic_dim(oh_)) {
+          fusion->create_output_fusion_anchor({blocking_output_
+              ? tensor_slice(output,
+                {{pbs, 1UL},
+                  {outer_k * oc_ / im_oc_block / oc_split,
+                    oc_ / im_oc_block / oc_split},
+                  {0, oh_}, {0, ow_}, {0, im_oc_block}})
+              : tensor_slice(output,
+                {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                  {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+        }
+      }
+      if (fusion && !is_dynamic_dim(ow_) && !is_dynamic_dim(oh_)) {
+        fusion->create_output_fusion_anchor(
+          {blocking_output_ ? tensor_slice(output,
+             {{pbs, 1UL},
+               {outer_k * oc_ / im_oc_block / oc_split,
+                 oc_ / im_oc_block / oc_split},
+               {0, oh_}, {0, ow_}, {0, im_oc_block}})
+                            : tensor_slice(output,
+                              {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                                {outer_k * oc_ / oc_split, oc_ / oc_split}})});
+      }
+    }
+  }
+  loops = {lpbs, lph, lpw, lpoc, lpic, lok};
+}
+
 void gen_nested_conv_fwd_t::schedule_loops(context_ptr ctx,
   const nested_conv_fwd_config_t &config, stmt body,
   std::vector<for_loop> &fors) const {
-  if (use_nested_2d_ && !is_dynamic()) {
-    const auto pack_rows
-      = (config.im_w_block > 0 && ow_ % config.im_w_block != 0);
-    if (try_os_blocking_ && pack_rows) {
-      COMPILE_ASSERT(static_cast<int>(fors.size()) == 5,
-        "expected to have 4 for loops, but got " << fors.size()
-                                                 << " for loops.");
-      auto lpbs = fors[0], lps = fors[1], lpoc = fors[2], lpic = fors[3],
-           lok = fors[4];
-      lok->fuse(lpbs)->fuse(lps)->fuse(lpoc)->fuse(lpic);
-    } else {
+  if (use_nested_2d_) {
+    if (!is_dynamic()) {
+      const auto pack_rows
+        = (config.im_w_block > 0 && ow_ % config.im_w_block != 0);
+      if (try_os_blocking_ && pack_rows) {
+        COMPILE_ASSERT(static_cast<int>(fors.size()) == 5,
+          "expected to have 4 for loops, but got " << fors.size()
+                                                   << " for loops.");
+        auto lpbs = fors[0], lps = fors[1], lpoc = fors[2], lpic = fors[3],
+             lok = fors[4];
+        lok->fuse(lpbs)->fuse(lps)->fuse(lpoc)->fuse(lpic);
+      } else {
+        COMPILE_ASSERT(static_cast<int>(fors.size()) == 6,
+          "expected to have 5 for loops, but got " << fors.size()
+                                                   << " for loops.");
+        auto lpbs = fors[0], lph = fors[1], lpw = fors[2], lpoc = fors[3],
+             lpic = fors[4], lok = fors[5];
+        lok->fuse(lpbs)->fuse(lph)->fuse(lpw)->fuse(lpoc)->fuse(lpic);
+      }
+    } else if (!is_1x1_conv_) {
       COMPILE_ASSERT(static_cast<int>(fors.size()) == 6,
         "expected to have 5 for loops, but got " << fors.size()
                                                  << " for loops.");
@@ -2460,10 +4433,25 @@ bool gen_nested_conv_fwd_t::generate(context_ptr ctx,
             output, input, weight, loops, os, kpack, use_os_blocking, pack_rows,
             os_acc_size, os_mask);
         } else {
-          compute_conv_no_padding_nested(ctx, config, fusion, output, input,
-            weight, loops, os, kpack, use_os_blocking, pack_rows, os_acc_size,
-            os_mask);
+          if (is_dynamic()) {
+            dynamic_compute_conv_no_padding_nested(ctx, config, fusion, output,
+              input, weight, loops, os, kpack, use_os_blocking, pack_rows,
+              os_acc_size, os_mask);
+          } else {
+            compute_conv_no_padding_nested(ctx, config, fusion, output, input,
+              weight, loops, os, kpack, use_os_blocking, pack_rows, os_acc_size,
+              os_mask);
+          }
         }
+      }
+    } else {
+      if (is_dynamic()) {
+        dynamic_compute_conv_padding_nested(ctx, config, fusion, output, input,
+          weight, loops, os, kpack, use_os_blocking, pack_rows, os_acc_size,
+          os_mask);
+      } else {
+        compute_conv_padding_nested(ctx, config, fusion, output, input, weight,
+          loops, os, kpack, use_os_blocking, pack_rows, os_acc_size, os_mask);
       }
     }
   }

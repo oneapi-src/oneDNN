@@ -35,6 +35,15 @@ SC_CLASS(dyn_conv_fwd_runtime_info_t)
   SC_FIELD(pads_end_h)
   SC_FIELD(pads_end_w)
 SC_CLASS_END();
+
+SC_CLASS(dyn_padding_runtime_info_t)
+  SC_FIELD(pads_begin_d)
+  SC_FIELD(pads_begin_h)
+  SC_FIELD(pads_begin_w)
+  SC_FIELD(pads_end_d)
+  SC_FIELD(pads_end_h)
+  SC_FIELD(pads_end_w)
+SC_CLASS_END();
 // clang-format on
 
 } // namespace gc

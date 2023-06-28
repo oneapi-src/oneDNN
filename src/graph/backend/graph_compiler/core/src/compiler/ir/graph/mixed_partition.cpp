@@ -132,6 +132,9 @@ mixed_fuse_op_t *get_mixed_op_from_graph(sc_graph_t &graph) {
 
 void mxp_buffer_allocator::set_buffer_inplace_hint(
         const expr &target_buf, const expr &inplace_buf) {
+    // skip dynamic cases
+    // Buffer inplace currently does not support dynamic buffers
+    if (binded_mxp_->get_host_graph().is_dynamic()) { return; }
     COMPILE_ASSERT(target_buf.defined() && inplace_buf.defined(),
             "Both buffer should be defined")
     // skip same buffer
@@ -168,6 +171,14 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
                         && g2b_map_.get(inp)
                                    .static_as<tensor>()
                                    ->init_value_))) {
+            if (graph.is_dynamic()) {
+                // reset plain dims hint as do inplacement here.
+                auto &tsr = g2b_map_.get(inp);
+                tsr->attr().set(attr_keys::plain_dims,
+                        graph.dims_to_expr(
+                                op->get_outputs()[0]
+                                        ->details_.get_plain_dims()));
+            }
             g2b_map_.get(op->get_outputs()[0]) = g2b_map_.get(inp);
         } else {
             auto base_tsr = get_real_tensor(g2b_map_.get(inp));

@@ -501,6 +501,7 @@ static sc_op_ptr same_priority_pattern_fold(
                 auto new_node = graph.make(node->op_name_,
                         {node->get_inputs()[0], cal_const->get_outputs()[0]},
                         {}, node->attrs_);
+                new_node->copy_dispatch_key_set_from_op(node);
                 node->replace_uses_with_and_remove(new_node);
                 auto uses = next_node->get_outputs()[0]->uses_;
                 for (auto &use : uses) {
@@ -554,6 +555,7 @@ static sc_op_ptr diff_priority_pattern_fold(
                             {node->get_inputs()[0],
                                     cur_cal_const->get_outputs()[0]},
                             {}, node->attrs_);
+                    new_node->copy_dispatch_key_set_from_op(node);
                     node->replace_uses_with_and_remove(new_node);
                     auto next_cal_const = graph.make(next_elt_type,
                             {next_inp1->get_outputs()[0],
@@ -568,6 +570,7 @@ static sc_op_ptr diff_priority_pattern_fold(
                             {next_node->get_inputs()[0],
                                     next_cal_const->get_outputs()[0]},
                             {}, next_node->attrs_);
+                    new_next_node->copy_dispatch_key_set_from_op(next_node);
                     next_node->replace_uses_with_and_remove(new_next_node);
                     auto uses = nnext_node->get_outputs()[0]->uses_;
                     auto last_out = new_next_node->get_outputs()[0];

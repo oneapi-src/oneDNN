@@ -31,6 +31,7 @@
 #include <ops/convolution.hpp>
 #include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/padding.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <ops/fusible/ternary_elemwise.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
@@ -526,6 +527,9 @@ expr call_op_dynamic_query_function(
         return builtin::call_select_op_query_format(args[0], args[1], args[2],
                 args[3], args[4], args[5], args[6], args[7], args[8], args[9],
                 args[10]);
+    } else if (op->isa<padding_op_t>()) {
+        return builtin::call_padding_op_query_format(
+                args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
     } else {
         COMPILE_ASSERT(
                 false, "unsupported op query function: " << op->op_name_);
@@ -621,6 +625,7 @@ bool is_dyn_specific_graph(sc_graph_t &graph) {
     if (graph.dyn_info_ && graph.dyn_info_->is_specific_) { return true; }
     return false;
 }
+
 } // namespace gc
 } // namespace graph
 } // namespace impl

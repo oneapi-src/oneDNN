@@ -38,6 +38,7 @@
 #include <compiler/ir/transform/loop_transform.hpp>
 #include <ops/templates/utils.hpp>
 #include <runtime/config.hpp>
+#include <runtime/dynamic_dispatch/ops/config.hpp>
 #include <runtime/dynamic_dispatch/ops/runtime_op_info.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -721,9 +722,9 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
     auto kh = weight_plain_dims[ndims_ - 2];
     auto kw = weight_plain_dims[ndims_ - 1];
     auto ic = weight_plain_dims[1];
+    auto is_1x1 = std::all_of(weight_plain_dims.begin() + 2,
+            weight_plain_dims.end(), [](int x) { return x == 1; });
     if (!is_1d) {
-        auto is_1x1 = std::all_of(weight_plain_dims.begin() + 2,
-                weight_plain_dims.end(), [](int x) { return x == 1; });
         channel_last_support = is_1x1
                 || (ops::is_amx_dtype(ctx, src_dtype)
                         && (kh - 1) * dilation_dims[1] + 1
@@ -740,12 +741,15 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
     bool force_blocking = test_format == "NCHWc" || test_format == "NCDHWc"
             || test_format == "NCSc";
     bool use_channel_last = (channel_last_support && !force_blocking)
-            || (channel_last_support && force_channel_last) || use_rl;
+            || (channel_last_support && force_channel_last) || use_rl
+            || is_dynamic();
     auto cur_format_set = std::unordered_set<std::vector<sc_data_format_t>>();
     auto cur_dispatch_key_set = dispatch_key_set_t();
     assert(in_formats.size() == 2);
     bool is_first_format = true;
-    auto default_block = 128;
+    auto default_block = get_dyn_conv_default_block(is_1x1,
+            utils::get_sizeof_type(src_dtype), has_pad,
+            src_dtype == datatypes::f32);
     C_block = !dynamic ? C_block
                        : utils::get_blocks(ic_, 1, default_block).back();
     K_block = !dynamic ? K_block

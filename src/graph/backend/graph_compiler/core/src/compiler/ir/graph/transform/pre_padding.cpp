@@ -34,6 +34,8 @@ namespace gc {
 SC_MODULE(graph.pre_padding);
 
 void pre_padding(sc_graph_t &graph, const context_ptr &ctx) {
+    if (graph.is_dynamic()) { return; }
+    COMPILE_ASSERT(!graph.is_dynamic(), "PrePadding only support static cases");
     auto visitor = op_visitor_t::dfs_topology_sort(graph.ops_.size());
     auto is_zero_paddings = [](sc_dims &paddings) {
         bool zero_paddings = true;
@@ -59,7 +61,7 @@ void pre_padding(sc_graph_t &graph, const context_ptr &ctx) {
 
                     // TODO(xurui)
                     // Only support extract padding op from 2d conv for now.
-                    if ((input_dims != 4) || !is_amx_dtype) { return; }
+                    if (((input_dims != 4) || !is_amx_dtype)) { return; }
                     // Only apply to inference
                     bool is_weight_constant
                             = node->get_inputs()[1]

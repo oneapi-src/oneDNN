@@ -17,8 +17,6 @@
 #include "config.hpp"
 #include "impl_type.hpp"
 #include "util.hpp"
-#include <ops/templates/nested_conv_fwd.hpp>
-#include <ops/templates/utils.hpp>
 #include <runtime/config.hpp>
 #include <runtime/data_type.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
@@ -289,16 +287,15 @@ extern "C" void query_format_matmul_common_process(void *table, void *out,
 static int check_and_set_conv_fwd_impl(runtime::op_dispatch_tables_t *op_table,
         runtime::dispatch_key *data_fmt_st,
         runtime::dispatch_key *weight_fmt_st, runtime::dispatch_key *out_fmt_st,
-        int N, int P, int Q, int K, int C, bool is_bf16, bool dyn_bs,
-        bool dyn_h, bool dyn_w) {
+        int N, int P, int Q, int K, int C, int k_blk, bool is_bf16, bool dyn_bs,
+        bool dyn_h, bool dyn_w, bool is_conv_1x1) {
     // query impl kind here. default return normal impl kind.
     int impl = impl_kind_t::normal;
     auto &impl_kind_table = op_table->impl_kind_table_;
     int num_threads = runtime_config_t::get().get_num_threads();
-    int k_blk = weight_fmt_st->block1_;
     int max_thr = 1;
     size_t num_threads_candidates = 4;
-    std::vector<int> threads_candidates = ops::get_splits(num_threads);
+    std::vector<int> threads_candidates = utils::get_factors(num_threads);
     std::vector<int> h_threads_ = {};
     for (size_t i = 0; i < num_threads_candidates; ++i) {
         h_threads_.push_back(
@@ -339,12 +336,23 @@ static int check_and_set_conv_fwd_impl(runtime::op_dispatch_tables_t *op_table,
             }
             num_threads = runtime_config_t::get().get_num_threads();
             if (num_threads < 5 && N == 1) {
-                if ((K >= 512) && K % num_threads == 0) {
-                    oc_threads = num_threads;
-                    h_threads = 1;
+                if (!is_conv_1x1) {
+                    if ((K >= 256) && K % num_threads == 0
+                            && K / num_threads % k_blk == 0) {
+                        oc_threads = num_threads;
+                        h_threads = 1;
+                    } else {
+                        h_threads = P / num_threads >= 2 ? num_threads : 1;
+                        oc_threads = 1;
+                    }
                 } else {
-                    h_threads = P / num_threads >= 2 ? num_threads : 1;
-                    oc_threads = 1;
+                    if ((K >= 512) && K % num_threads == 0) {
+                        oc_threads = num_threads;
+                        h_threads = 1;
+                    } else {
+                        h_threads = P / num_threads >= 2 ? num_threads : 1;
+                        oc_threads = 1;
+                    }
                 }
             }
         }
@@ -487,10 +495,16 @@ extern "C" void query_format_conv_fwd_core_op(void *table, void *out,
 
     // 4. according to the dynamic dim and dynamic var to get the dispatch
     // key (blocking size)
-    auto default_block = 128;
+    bool is_conv_1x1
+            = weight_dyn_tsr->dims_[2] == 1 && weight_dyn_tsr->dims_[3] == 1;
+    bool has_pad = info.pads_begin_h > 0 || info.pads_begin_w > 0
+            || info.pads_begin_d > 0;
+    bool is_f32 = sc_data_etype(data_dyn_tsr->dtype_) == sc_data_etype::F32;
+    auto default_block = get_dyn_conv_default_block(is_conv_1x1,
+            utils::get_sizeof_etype(sc_data_etype(data_dyn_tsr->dtype_)),
+            has_pad, is_f32);
     int k_block = utils::get_blocks(OC, 1, default_block).back();
     int c_block = utils::get_blocks(IC, 1, default_block).back();
-
     auto &format_table = op_table->format_table_;
     if (data_fmt_st->is_plain()) {
         int n_aix = data_fmt_st->get(0);
@@ -543,11 +557,12 @@ extern "C" void query_format_conv_fwd_core_op(void *table, void *out,
     uint64_t cp_out_fmt = *out_fmt;
     auto *out_fmt_st = reinterpret_cast<runtime::dispatch_key *>(&cp_out_fmt);
     auto &kernel_table = op_table->kernel_table_;
-    bool is_bf16 = weight_dyn_tsr->dtype_ == uint32_t(sc_data_etype::BF16);
+    bool is_bf16_weight
+            = weight_dyn_tsr->dtype_ == uint32_t(sc_data_etype::BF16);
     if (kernel_table) {
         check_and_set_conv_fwd_impl(op_table, data_fmt_st, weight_fmt_st,
-                out_fmt_st, BS, OH, OW, OC, IC, is_bf16, is_BS_dynamic,
-                is_IH_dynamic, is_IW_dynamic);
+                out_fmt_st, BS, OH, OW, OC, IC, k_block, is_bf16_weight,
+                is_BS_dynamic, is_IH_dynamic, is_IW_dynamic, is_conv_1x1);
         uint64_t keys[3] = {cp_data_fmt, cp_weight_fmt, cp_out_fmt};
         void *func = runtime::run_query_and_wait(
                 op_table->kernel_dispatch_func_, kernel_table.get(), keys, 3);
@@ -558,8 +573,9 @@ extern "C" void query_format_conv_fwd_core_op(void *table, void *out,
     } else {
         assert(impl_alg);
         *impl_alg = check_and_set_conv_fwd_impl(op_table, data_fmt_st,
-                weight_fmt_st, out_fmt_st, BS, OH, OW, OC, IC, is_bf16,
-                is_BS_dynamic, is_IH_dynamic, is_IW_dynamic);
+                weight_fmt_st, out_fmt_st, BS, OH, OW, OC, IC, k_block,
+                is_bf16_weight, is_BS_dynamic, is_IH_dynamic, is_IW_dynamic,
+                is_conv_1x1);
     }
     // avoid internal status change in multi thread case.
     *data_fmt = cp_data_fmt;

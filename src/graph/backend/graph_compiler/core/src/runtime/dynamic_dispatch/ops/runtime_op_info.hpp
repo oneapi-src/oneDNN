@@ -60,6 +60,33 @@ struct dyn_conv_fwd_runtime_info_t {
         , pads_end_w(pads_end_w) {}
 };
 
+struct dyn_padding_runtime_info_t {
+    int pads_begin_d = 0;
+    int pads_begin_h = 0;
+    int pads_begin_w = 0;
+
+    int pads_end_d = 0;
+    int pads_end_h = 0;
+    int pads_end_w = 0;
+
+    dyn_padding_runtime_info_t() = default;
+
+    dyn_padding_runtime_info_t(int pads_begin_d, int pads_begin_h,
+            int pads_begin_w, int pads_end_d, int pads_end_h, int pads_end_w)
+        : pads_begin_d(pads_begin_d)
+        , pads_begin_h(pads_begin_h)
+        , pads_begin_w(pads_begin_w)
+        , pads_end_d(pads_end_d)
+        , pads_end_h(pads_end_h)
+        , pads_end_w(pads_end_w) {}
+
+    dyn_padding_runtime_info_t(
+            int pads_begin_h, int pads_begin_w, int pads_end_h, int pads_end_w)
+        : pads_begin_h(pads_begin_h)
+        , pads_begin_w(pads_begin_w)
+        , pads_end_h(pads_end_h)
+        , pads_end_w(pads_end_w) {}
+};
 } // namespace gc
 } // namespace graph
 } // namespace impl

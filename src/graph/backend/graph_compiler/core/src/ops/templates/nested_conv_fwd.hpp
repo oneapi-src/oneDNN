@@ -62,11 +62,6 @@ struct nested_conv_fwd_config_t {
     , pack_input(pack_input) {}
 };
 
-void generate_brgemm(const expr &im_s_block, int im_ic_block, int im_oc_block,
-  int ic_block, const expr &o_ic, int ic_num_block_pt, const expr &A_list,
-  const expr &B_list, const expr &out_tensor, const expr &LDA, const expr &LDC,
-  const sc_data_type_t &in_type, const sc_data_type_t &wei_type);
-
 class gen_nested_conv_fwd_t
   : public body_generator_t<nested_conv_fwd_config_t> {
 public:
@@ -115,6 +110,11 @@ public:
   sc_data_type_t get_weight_dtype() const { return in_tensors_[1].dtype_; }
   sc_data_type_t get_output_dtype() const { return out_tensors_[0].dtype_; }
 
+  void generate_brgemm(const expr &im_s_block, int im_ic_block, int im_oc_block,
+    int ic_block, const expr &o_ic, int ic_num_block_pt, const expr &A_list,
+    const expr &B_list, const expr &out_tensor, const expr &LDA,
+    const expr &LDC) const;
+
   bool generate(context_ptr ctx, const nested_conv_fwd_config_t &config,
     fusion_manager *fusion, const std::vector<expr> &inputs,
     const std::vector<expr> &outputs,
@@ -139,10 +139,49 @@ public:
               const std::vector<char> &os_mask = std::vector<char>()
   void compute_1x1_pack_input_nested(CONV_ARG_LIST) const;
   void compute_1x1_no_pack_input_nested(CONV_ARG_LIST) const;
+  void compute_conv_padding_nested(CONV_ARG_LIST) const;
   void compute_conv_no_padding_nested(CONV_ARG_LIST) const;
   void compute_conv_no_padding_os_blocking_nested(CONV_ARG_LIST) const;
+  void dynamic_compute_conv_no_padding_nested(CONV_ARG_LIST) const;
+  void dynamic_compute_conv_padding_nested(CONV_ARG_LIST) const;
   void dynamic_compute_1x1_pack_input_nested(CONV_ARG_LIST) const;
 #undef CONV_ARG_LIST
+
+  void single_thread_conv_padding_call(expr &output, const expr &input,
+    const expr &weight, const expr &pbs, const expr &poc, const expr &ph,
+    const expr &pw, const expr &pic, const expr &outer_k,
+    const expr &h_num_block, const int h_num_block_pt, const expr &w_num_block,
+    const int w_num_block_pt, const expr &oc_num_block,
+    const int oc_num_block_pt, const expr &ic_num_block,
+    const int ic_num_block_pt, const expr &pbuffer, for_loop &loh,
+    for_loop &low, for_loop &looc, for_loop &loic, for_loop &lioc,
+    for_loop &lih, for_loop &liw, const int oc_split,
+    const int src_row_tile_size, const uint32_t lanes,
+    const nested_conv_fwd_config_t &config, fusion_manager *fusion,
+    const int ic_used_threads, const int oh_used_threads,
+    const int ow_used_threads, const int y_unpad_top, const int y_unpad_bottom,
+    const int y_unpad_left, const int y_unpad_right, const int iw_padded,
+    const int kpack) const;
+
+  void single_thread_dynamic_conv_padding_call(expr &output, const expr &input,
+    const expr &weight, const expr &pbs, const expr &poc, const expr &ph,
+    const expr &pw, const expr &pic, const expr &outer_k,
+    const expr &h_num_block, const expr &h_num_block_pt,
+    const expr &w_num_block, const expr &w_num_block_pt,
+    const expr &oc_num_block, const int oc_num_block_pt,
+    const expr &ic_num_block, const int ic_num_block_pt, const expr &pbuffer,
+    for_loop &loh, for_loop &low, for_loop &looc, for_loop &loic,
+    for_loop &lioc, for_loop &lih, for_loop &liw, const int oc_split,
+    const expr &src_row_tile_size, const uint32_t lanes,
+    const nested_conv_fwd_config_t &config, fusion_manager *fusion,
+    const int ic_used_threads, const int oc_used_threads,
+    const expr &oh_used_threads, const expr &ow_used_threads,
+    const expr &y_unpad_top, const expr &y_unpad_bottom,
+    const expr &y_unpad_left, const expr &y_unpad_right, const expr &iw_padded,
+    const int kpack, const expr &h_block, const expr &w_block,
+    const expr &im_h_block, const expr &im_w_block, const expr &oh_expr_,
+    const expr &ow_expr_, const expr &ih_expr_, const expr &iw_expr_,
+    expr &cond_tail_h, expr &cond_tail_w, int oc_block, int ic_block) const;
 
   size_t ndims_ = 0;
   int mb_ = 0, ic_ = 0, id_ = 0, ih_ = 0, iw_ = 0;

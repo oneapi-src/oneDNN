@@ -22,6 +22,7 @@
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
+#include <runtime/dynamic_dispatch/ops/runtime_op_info.hpp>
 
 namespace dnnl {
 namespace impl {
@@ -73,7 +74,9 @@ padding_op_t::padding_op_t(const std::vector<graph_tensor_ptr> &ins,
                 info_.inputs_[0]->details_.dtype_));
     } else {
         COMPILE_ASSERT(outs.size() == 1, "padding expects 1 output");
-        COMPILE_ASSERT(outs[0]->details_.get_plain_dims() == expected_out_shape,
+        COMPILE_ASSERT(is_dynamic()
+                        || outs[0]->details_.get_plain_dims()
+                                == expected_out_shape,
                 "Bad output shape for padding");
         info_.outputs_ = outs;
     }
@@ -91,13 +94,49 @@ sc_dims padding_op_t::infer_out_dims(const sc_dims &input_dims,
     auto out_dims = input_dims;
     if (ndims == 2) {
         // Note, pads on the the first dim for 2D.
+        COMPILE_ASSERT(
+                !is_dynamic(), "dynamic padding op does not support 2D cases");
         out_dims[0] += pads_begin[0] + pads_end[0];
     } else {
+        out_dims[0] = is_dynamic_dim(input_dims[0]) ? dimensions::dynamic_any
+                                                    : input_dims[0];
         for (int i = 2; i < ndims; i++) {
-            out_dims[i] += pads_begin[i - 2] + pads_end[i - 2];
+            if (is_dynamic_dim(input_dims[i])) {
+                out_dims[i] = dimensions::dynamic_any;
+            } else {
+                out_dims[i]
+                        = input_dims[i] + pads_begin[i - 2] + pads_end[i - 2];
+            }
         }
     }
     return out_dims;
+}
+
+shape_rl_vec padding_op_t::get_dynamic_shape_relations() const {
+    shape_rl_vec ret;
+    auto &in_dims = get_inputs()[0]->details_.get_plain_dims();
+    auto &out_dims = get_outputs()[0]->details_.get_plain_dims();
+    if (is_dynamic_dim(in_dims[0])) {
+        ret.emplace_back(in_dims[0], out_dims[0]);
+    }
+    return ret;
+}
+
+reflection::shared_general_object_t padding_op_t::get_dynamic_runtime_info() {
+    auto ndims = info_.inputs_[0]->details_.get_plain_dims().size();
+    sc_dims pads_begin
+            = attrs_.get_or_else<sc_dims>("pads_begin", sc_dims(ndims - 2, 0));
+    sc_dims pads_end
+            = attrs_.get_or_else<sc_dims>("pads_end", sc_dims(ndims - 2, 0));
+
+    auto dyn_info = ndims == 5
+            ? dyn_padding_runtime_info_t(pads_begin[0], pads_begin[1],
+                    pads_begin[2], pads_end[0], pads_end[1], pads_end[2])
+            : dyn_padding_runtime_info_t(
+                    pads_begin[0], pads_begin[1], pads_end[0], pads_end[1]);
+    reflection::shared_general_object_t info
+            = reflection::general_object_t::make(dyn_info);
+    return info;
 }
 
 void padding_op_t::query_format(context_ptr ctx,
@@ -256,7 +295,7 @@ stmt padding_op_t::get_zero_out_stmt(
     auto out_tsl = range.empty() ? tensor_slice(out)
                                  : tensor_slice(out, std::move(range));
 
-    int N = get_expr_as_int(out_tsl.get_shape()[0]);
+    expr N = out_tsl.get_shape()[0];
     auto real_padding_axis = get_real_padding_axis();
     const auto pads_begin = attrs_.get<sc_dims>("pads_begin");
     const auto pads_end = attrs_.get<sc_dims>("pads_end");
@@ -264,7 +303,7 @@ stmt padding_op_t::get_zero_out_stmt(
 
     if (plain_ndims_ == 2) {
         // Note: padding on the first dim (km) for 2D.
-        int km = N;
+        int km = get_expr_as_int(N);
         int nm = get_expr_as_int(out_tsl.get_shape()[1]);
         int pt = static_cast<int>(pads_begin[0]);
         int pb = static_cast<int>(pads_end[0]);
@@ -298,12 +337,19 @@ stmt padding_op_t::get_zero_out_stmt(
         }
 
         // input plain format must be NCHW in conv_fwd_core
-        int w = input_plain_dims[plain_ndims_ - 1] + pads_begin[1]
-                + pads_end[1];
-        int oh_ = input_plain_dims[plain_ndims_ - 2];
-        int ow_ = input_plain_dims[plain_ndims_ - 1];
         int ph1_ = pads_begin[0], ph2_ = pads_end[0];
         int pw1_ = pads_begin[1], pw2_ = pads_end[1];
+
+        // for dynamic cases, it is NHWC format now
+        expr ih = is_dynamic()
+                ? do_cast_and_fold(out_tsl.get_shape()[1] - (ph1_ + ph2_))
+                : expr(int(input_plain_dims[plain_ndims_ - 2]));
+        expr iw = is_dynamic()
+                ? do_cast_and_fold(out_tsl.get_shape()[2] - (pw1_ + pw2_))
+                : expr(int(input_plain_dims[plain_ndims_ - 1]));
+        expr ow = is_dynamic() ? out_tsl.get_shape()[2]
+                               : expr(int(input_plain_dims[plain_ndims_ - 1]
+                                       + pads_begin[1] + pads_end[1]));
 
         for_loop ln, lk;
         builder::ir_builder_t bld;
@@ -317,9 +363,9 @@ stmt padding_op_t::get_zero_out_stmt(
                                                    {pad_n, pad_k, 0, 0}))
                         : builder::tensor_ptr(
                                 out_tptr, {pad_n, pad_k, 0, 0, 0});
-                builtin::mem_zero(ptr, ph1_ * w * c, out_dtype);
+                builtin::mem_zero(ptr, ph1_ * ow * c, out_dtype);
 
-                _for_(p1, 0, oh_) {
+                _for_(p1, 0, ih) {
                     builtin::mem_zero(
                             is_4d_out ? (is_channel_last
                                             ? builder::tensor_ptr(out_tptr,
@@ -336,17 +382,17 @@ stmt padding_op_t::get_zero_out_stmt(
                             is_4d_out ? (is_channel_last
                                             ? builder::tensor_ptr(out_tptr,
                                                     {pad_n, p1 + ph1_,
-                                                            ow_ + pw1_, 0})
+                                                            iw + pw1_, 0})
                                             : builder::tensor_ptr(out_tptr,
                                                     {
                                                             pad_n,
                                                             pad_k,
                                                             p1 + ph1_,
-                                                            ow_ + pw1_,
+                                                            iw + pw1_,
                                                     }))
                                       : builder::tensor_ptr(out_tptr,
                                               {pad_n, pad_k, p1 + ph1_,
-                                                      ow_ + pw1_, 0}),
+                                                      iw + pw1_, 0}),
 
                             pw2_ * c, out_dtype);
                 }
@@ -354,12 +400,12 @@ stmt padding_op_t::get_zero_out_stmt(
                 builtin::mem_zero(
                         is_4d_out ? (is_channel_last
                                         ? builder::tensor_ptr(out_tptr,
-                                                {pad_n, ph1_ + oh_, 0, 0})
+                                                {pad_n, ph1_ + ih, 0, 0})
                                         : builder::tensor_ptr(out_tptr,
-                                                {pad_n, pad_k, ph1_ + oh_, 0}))
+                                                {pad_n, pad_k, ph1_ + ih, 0}))
                                   : builder::tensor_ptr(out_tptr,
-                                          {pad_n, pad_k, ph1_ + oh_, 0, 0}),
-                        ph2_ * w * c, out_dtype);
+                                          {pad_n, pad_k, ph1_ + ih, 0}),
+                        ph2_ * ow * c, out_dtype);
             }
         }
         auto ret = bld.pop_scope();

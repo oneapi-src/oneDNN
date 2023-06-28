@@ -91,7 +91,9 @@ static void query_accu_info_for_rl(const context_ptr &ctx,
 }
 
 void rl_conv_weight_transform(sc_graph_t &graph, const context_ptr &ctx) {
-    if (!graph.attrs_.get_or_else("use_rl", true)) { return; }
+    if (!graph.attrs_.get_or_else("use_rl", true) || graph.is_dynamic()) {
+        return;
+    }
     auto vis = op_visitor_t::bfs();
     vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (auto op = node->dyn_cast<ops::conv_fwd_core_op_t>()) {

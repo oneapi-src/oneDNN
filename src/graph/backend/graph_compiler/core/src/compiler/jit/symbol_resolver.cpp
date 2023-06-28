@@ -100,6 +100,7 @@ const std::unordered_map<std::string, void *> &get_runtime_function_map() {
             {"query_format_binary_fusible_op",
                     (void *)query_format_binary_fusible_op},
             {"query_format_reorder_op", (void *)query_format_reorder_op},
+            {"query_format_padding_op", (void *)query_format_padding_op},
             {"query_format_reduce_op", (void *)query_format_reduce_op},
             {"query_format_tensor_view_op",
                     (void *)query_format_tensor_view_op},

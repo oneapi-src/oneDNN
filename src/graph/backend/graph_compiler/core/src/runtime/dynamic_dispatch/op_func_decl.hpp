@@ -55,6 +55,9 @@ SC_API void query_format_binary_fusible_op(void *table, void *out, void *in0,
 SC_API void query_format_reorder_op(void *table, void *out, void *in,
         uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel,
         int *impl_alg);
+SC_API void query_format_padding_op(void *table, void *out, void *in,
+        uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel,
+        int *impl_alg);
 SC_API void query_format_reduce_op(void *table, void *out, void *in,
         uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel);
 SC_API void query_format_tensor_view_op(void *table, void *out, void *in,

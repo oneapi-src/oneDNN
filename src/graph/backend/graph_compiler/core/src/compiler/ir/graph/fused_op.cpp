@@ -46,6 +46,7 @@
 #include <ops/convolution.hpp>
 #include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/padding.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <ops/fusible/shape_of_tensor.hpp>
 #include <ops/fusible/ternary_elemwise.hpp>
@@ -795,7 +796,7 @@ static bool need_inner_query(
         general_fused_params_t &gp, const sc_op_ptr &node, int &main_idx) {
     auto &inputs = node->get_inputs();
     auto &outputs = node->get_outputs();
-    if (!can_op_be_dispatched(node)) { return false; }
+    // check if the op is associated with const.
     for (size_t i = 0; i < inputs.size(); i++) {
         auto &in = inputs[i];
         // original ltensor is legal and is constant
@@ -818,6 +819,7 @@ static bool need_inner_query(
                              ->get_broadcast_input();
         main_idx = bc_idx == -1 ? 0 : 1 - bc_idx;
     }
+    // check the op is linked to output, need to query output size.
     for (size_t i = 0; i < outputs.size(); i++) {
         auto &out = outputs[i];
         for (size_t j = 0; j < out->uses_.size(); j++) {
@@ -890,23 +892,21 @@ void declare_dummy_and_combined_tsrs(
 void set_original_tensor_and_format_for_tunables(general_fused_params_t &gp,
         sc_op *node_before, const std::vector<expr> &ori_ins,
         const std::vector<expr> &ori_in_fmts, expr &ori_tsr, expr &ori_fmt) {
-    if (node_before->isa<input_op>()) {
-        assert(gp.cur_ori_inp_idx < static_cast<int>(ori_ins.size()));
-        ori_tsr = ori_ins[gp.cur_ori_inp_idx];
-        ori_fmt = ori_in_fmts[gp.cur_ori_inp_idx];
-        gp.cur_ori_inp_idx++;
+    tsr_info_t tsr_info;
+    if (node_before->isa<reorder_op_t>()) {
+        tsr_info = get_or_create_tsr_and_fmt(gp, node_before->get_inputs()[0]);
     } else {
-        tsr_info_t tsr_info;
-        if (node_before->isa<reorder_op_t>()) {
-            tsr_info = get_or_create_tsr_and_fmt(
-                    gp, node_before->get_inputs()[0]);
-        } else {
-            tsr_info = get_or_create_tsr_and_fmt(
-                    gp, node_before->get_outputs()[0]);
+        auto ltsr = node_before->get_outputs()[0];
+        auto it = gp.fmgr_2_orig.find(ltsr);
+        // if find in fmgr_2_orig, it is a input op, else is a internal ltsr.
+        if (it != gp.fmgr_2_orig.end()) {
+            assert(node_before->isa<input_op>());
+            ltsr = it->second;
         }
-        ori_tsr = tsr_info.tensor_;
-        ori_fmt = tsr_info.format_;
+        tsr_info = get_or_create_tsr_and_fmt(gp, ltsr);
     }
+    ori_tsr = tsr_info.tensor_;
+    ori_fmt = tsr_info.format_;
 }
 
 void create_query_function_by_graph(general_fused_params_t &gp,
@@ -1001,6 +1001,13 @@ void create_query_function_by_graph(general_fused_params_t &gp,
                 auto &out = op->get_outputs()[0];
                 gp.ltsr_rtsr[out] = op_ins[main_idx];
             }
+        } else if (op->isa<padding_op_t>()) {
+            add_global_table_var(gp, table_name, table_ptr, table_var);
+            initialize_dispatch_table_with_op(ctx, op, table_ptr);
+            std::vector<expr> args = {table_var, op_outs[0].tensor_,
+                    op_ins[0].tensor_, op_outs[0].format_, op_ins[0].format_,
+                    op_outs[0].size_, dummy_kernel};
+            bld.push_evaluate(call_op_dynamic_query_function(op, args));
         } else if (op->isa<binary_elementwise_op_impl_t>()) {
             if (need_inner_query(gp, op, main_idx)) {
                 add_global_table_var(gp, table_name, table_ptr, table_var);
@@ -1934,6 +1941,13 @@ ir_module_ptr mixed_fuse_op_t::get_dynamic_query_func(const context_ptr &ctx) {
         ltsr_rtsr[ltsr] = tsr_info_t(
                 outs[out_idx], expr(), out_fmts[out_idx], out_sizes[out_idx]);
         out_idx++;
+    }
+    auto query_idx = get_internal_tunable_input_indices();
+    for (size_t i = 0; i < query_idx.size(); i++) {
+        auto &ori_inp_idx = query_idx[i];
+        auto &ltsr = node_inputs[ori_inp_idx];
+        ltsr_rtsr[ltsr]
+                = tsr_info_t(ori_ins[i], expr(), ori_in_fmts[i], expr());
     }
     // create query functions of valid ops inside graph and final query
     // function.
