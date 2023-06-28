@@ -48,13 +48,13 @@ class LogParser:
         self.__writer = writer
         self.__input = input
 
-    def process(self):
+    def process(self, filter_events):
         """
         Adds data from the last log file.
 
         Parameters:
         -----------
-        None
+        filter_events -- List of events to parse, other events are ignored.
 
         Returns:
         --------
@@ -484,7 +484,7 @@ class LogParser:
                 opt = l_raw[2]
                 if opt.split(":")[0] == "template":
                     verbose_template = "onednn_verbose," + line.split(":")[1]
-            if event in ["exec", "create"]:
+            if event in filter_events:
                 l_converted = convert_primitive(
                     l_raw, verbose_template + ",exec_time", verbose_version
                 )

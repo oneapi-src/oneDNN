@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 ################################################################################
-# Copyright 2020-2023 Intel Corporation
+# Copyright 2020-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,16 @@ from src import utils
 from src import writer
 
 
-def convert(verbose_level, parser, input, action, generator, split_output, agg_keys):
+def convert(
+    verbose_level,
+    parser,
+    input,
+    action,
+    generator,
+    split_output,
+    agg_keys,
+    events=["create", "exec"],
+):
     status = utils.check_version()
     if status != utils.status.get("SUCCESS"):
         return status
@@ -40,7 +49,7 @@ def convert(verbose_level, parser, input, action, generator, split_output, agg_k
         return utils.status.get("FAILED")
 
     logger.print(f"Processing input ...", "INFO")
-    log_parser.process()
+    log_parser.process(events)
 
     output = None
     if action == "dumpIR":
@@ -92,6 +101,7 @@ def main():
         "aux",
         "shapes",
     ]
+    event_opts = ["exec", "create"]
     args_parser = argparse.ArgumentParser(
         description="oneDNN log converter", formatter_class=RawTextHelpFormatter
     )
@@ -139,6 +149,13 @@ def main():
         default="benchdnn",
         help=f"target generator (default: benchdnn). Values: {generator_opts}.",
     )
+    args_parser.add_argument(
+        "-e",
+        "--events",
+        nargs="+",
+        default=event_opts,
+        help=f"events to parse (default: create and exec).\nValues: {event_opts}.",
+    )
     args = args_parser.parse_args()
 
     # validate options
@@ -174,34 +191,42 @@ def main():
 
     output = None
 
-    status, output = convert(
-        verbose_level=args.verbose_level,
-        parser=args.parser,
-        input=input_data,
-        action=args.action,
-        generator=args.generator,
-        split_output=args.split,
-        agg_keys=args.aggregate,
-    )
+    event_sets = args.events if args.generator == 'breakdown' else [args.events]
 
-    if status != utils.status.get("SUCCESS"):
-        return status
+    for events in event_sets:
+        status, output = convert(
+            verbose_level=args.verbose_level,
+            parser=args.parser,
+            input=input_data,
+            action=args.action,
+            generator=args.generator,
+            split_output=args.split,
+            agg_keys=args.aggregate,
+            events=events
+        )
 
-    if output != None:
-        if args.output != "stdout":
-            if output != None:
-                for key, value in output.items():
-                    filename = args.output
-                    if args.split == True:
-                        filename += "." + key
-                    of = open(filename, "w")
+        if status != utils.status.get("SUCCESS"):
+            return status
+
+        if output != None:
+            if args.output != "stdout":
+                if output != None:
+                    for key, value in output.items():
+                        filename = args.output
+                        if args.split == True:
+                            filename += "." + key
+                        of = open(filename, "w")
+                    if args.generator == "breakdown":
+                        print(f"Event: {events}", file=of)
                     print(value, end="", file=of)
-        else:
-            for key, value in output.items():
-                if args.split == False:
-                    print(f"{value}")
-                else:
-                    print(f"--{key}\n{value}")
+            else:
+                if args.generator == "breakdown":
+                    print(f"Event: {events}")
+                for key, value in output.items():
+                    if args.split == False:
+                        print(f"{value}")
+                    else:
+                        print(f"--{key}\n{value}")
 
 
 if __name__ == "__main__":
