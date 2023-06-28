@@ -34,10 +34,12 @@
 #include "cpu/x64/brgemm/brgemm_containers.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/cpu_reducer.hpp"
+#include "cpu/x64/jit_avx512_core_amx_conv_kernel.hpp"
 #include "cpu/x64/jit_brgemm_conv_comp_pad_kernel.hpp"
 #include "cpu/x64/jit_brgemm_conv_trans_kernel.hpp"
 #include "cpu/x64/jit_brgemm_conv_utils.hpp"
 #include "cpu/x64/jit_brgemm_post_ops.hpp"
+#include "cpu/x64/jit_brgemm_transpose_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -236,9 +238,13 @@ private:
             char *ptr_D, const char *bias_w, int g_oc, bool do_postops,
             int comp_ker_offs, bool do_only_comp) const;
 
-    void maybe_conv_inp(const brgemm_thread_ctx_t &btc,
+    void maybe_conv_inp(brgemm_thread_ctx_t &btc,
             const brgemm_thread_ctx_t &last_btc,
             const char *__restrict src) const;
+
+    void maybe_conv_weights(const exec_ctx_t &ctx,
+            const char *__restrict input_weights,
+            const char *__restrict &wei) const;
 
     status_t add_po_kernel(brgemm_t *bcfg, int ker_idx, bool is_init);
     void add_po_kernels(int i_N, int init_bcast_dim, int po_bcast_dim);
@@ -263,6 +269,12 @@ private:
     std::unique_ptr<jit_avx512_core_brgemm_conv_trans_kernel::
                     jit_avx512_core_brgemm_conv_trans_kernel_t>
             copy_to_pbuffer_;
+    std::unique_ptr<jit_avx512_core_amx_copy_to_pbuffer_t>
+            copy_to_relo_pbuffer_;
+    std::unique_ptr<jit_brgemm_relo_copy_to_wbuffer_t> copy_to_relo_wbuffer_;
+    std::unique_ptr<jit_brgemm_relo_copy_to_wbuffer_t>
+            copy_to_relo_wbuffer_tail_;
+
     std::unique_ptr<jit_generator> comp_vpad_pbuffer_;
 
     size_t acc_dsz, bia_dsz, src_dsz, wei_dsz, dst_dsz;
