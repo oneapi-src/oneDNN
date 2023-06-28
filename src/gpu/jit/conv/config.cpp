@@ -634,27 +634,27 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
     bool dst_axb = (user_dst_req == "axb");
     bool src_matches = matches_tag(src_md, src_tag);
     bool dst_matches = matches_tag(dst_md, dst_tag);
-    bool is_small_src_ic_g1
-            = (prb.is_fwd || prb.is_bwd_w) && is_small_ic(prb) && (prb.g == 1);
-    bool is_small_dst_oc_g1 = (prb.is_bwd_d || prb.is_bwd_w) && is_small_oc(prb)
-            && (prb.g == 1);
-    if (!src_matches && !is_small_src_ic_g1 && src_axb) src_tag = "axb";
-    if (!dst_matches && !is_small_dst_oc_g1 && dst_axb) dst_tag = "axb";
-    if (prb.is_bwd_d && !user_src_req.empty()) src_tag = user_src_req;
-    if (prb.is_fwd && !user_dst_req.empty()) dst_tag = user_dst_req;
+    bool src_output = prb.is_bwd_d;
+    bool dst_output = prb.is_fwd;
+    bool is_small_ic_g1 = is_small_ic(prb) && (prb.g == 1);
+    bool is_small_oc_g1 = is_small_oc(prb) && (prb.g == 1);
 
-    // Prefer nhwc for small-channel inputs.
-    if (user_src_tag.empty() && is_small_src_ic_g1) {
-        if (!matches_tag(src_md, src_tag))
-            user_src_tag = (user_src_req.empty() ? "axb" : user_src_req);
-    }
-    if (user_dst_tag.empty() && is_small_dst_oc_g1) {
-        if (!matches_tag(dst_md, dst_tag))
-            user_dst_tag = (user_dst_req.empty() ? "axb" : user_dst_req);
-    }
+    // Use nhwc for compute for non-small channels to avoid reorders.
+    if (!src_matches && !is_small_ic_g1 && src_axb) src_tag = "axb";
+    if (!dst_matches && !is_small_oc_g1 && dst_axb) dst_tag = "axb";
+
+    // Use plain tags for user-facing activations for small-channel tensors.
+    if (!matches_tag(src_md, src_tag) && is_small_ic_g1)
+        user_src_tag = (user_src_req.empty() ? "axb" : user_src_req);
+    if (!matches_tag(dst_md, dst_tag) && is_small_oc_g1)
+        user_dst_tag = (user_dst_req.empty() ? "axb" : user_dst_req);
 
     maybe_set_plain_weights(
             cfg, src_axb && dst_axb, user_wei_req, wei_tag, user_wei_tag);
+
+    // Use plain tag for output to avoid extra reorders.
+    if (!user_src_tag.empty() && src_output) src_tag = user_src_tag;
+    if (!user_dst_tag.empty() && dst_output) dst_tag = user_dst_tag;
 
     if (user_src_tag.empty()) user_src_tag = src_tag;
     if (user_wei_tag.empty()) user_wei_tag = wei_tag;
