@@ -317,7 +317,7 @@ void deserialized_graph::load(const std::string &pass_config_json) {
         for (const auto &lt : aop.in_lts_) {
             if (lt.id_ != in_lt.first) continue;
 
-            graph_inputs_.emplace(in_lt.first, lt.shape_);
+            graph_tensors_.emplace(in_lt.first, lt.shape_);
             // collect graph input tensors memory layout
             std::string mtag
                     = strides2memory_tag(lt.shape_.size(), lt.stride_, false);
@@ -325,10 +325,16 @@ void deserialized_graph::load(const std::string &pass_config_json) {
         }
     }
 
-    for (const auto &graph_in : graph_inputs_) {
+    for (const auto &graph_in : graph_tensors_) {
         if (check_tensor_with_mb(graph_in.first)) {
             graph_inputs_with_mb_.push_back(graph_in.first);
         }
+    }
+
+    // at this very stage, put all graph_tensors_ id to input_ports_ if
+    // even if input_ports_ is not empty
+    for (const auto &item : graph_tensors_) {
+        input_ports_.emplace_back(item.first);
     }
 }
 

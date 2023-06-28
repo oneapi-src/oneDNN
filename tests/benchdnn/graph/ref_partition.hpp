@@ -35,8 +35,12 @@ public:
             const std::vector<dnnl::graph::logical_tensor> &ins,
             const std::vector<dnnl::graph::logical_tensor> &outs);
 
+    // prepare memorise in both paths, one by one ref primitive
+    void init_ref(const bench_mode_t mode,
+            const std::vector<size_t> &graph_ports,
+            partition_mem_map_t &partition_mem_map, res_t *res);
     // run partition in ref path, one by one ref primitive
-    void run(partition_mem_map_t &partition_mem_map, res_t *res);
+    void exec_ops(res_t *res);
 
     // ref execution and cmp
     void check_partition_correctness(
@@ -91,7 +95,7 @@ protected:
 
     template <typename setting_t, typename prb_t, typename init_pd_func_t,
             typename supported_exec_args_func_t, typename setup_cmp_func_t>
-    void handle_op(const deserialized_op &cur_op, const init_pd_func_t &init_pd,
+    void init_op(const deserialized_op &cur_op, const init_pd_func_t &init_pd,
             const supported_exec_args_func_t &supported_exec_args,
             const setup_cmp_func_t &setup_cmp,
             partition_mem_map_t &graph_mem_map, const engine_t &ref_eng,
@@ -101,7 +105,6 @@ protected:
         if (res->state == INVALID_ARGUMENTS) return;
 
         auto pprb = std::make_shared<prb_t>(op_setting);
-        prb_t *prb = pprb.get();
 
         init_prim<prb_t>(ref_prims_, cur_op, init_pd, supported_exec_args,
                 setup_cmp, pprb, ref_eng, res);
@@ -131,8 +134,11 @@ protected:
                 // not inputs of the partition
                 reverse_link_args(cur_op, graph_mem_map, res);
         }
-
         link_args(cur_op, res);
+    }
+
+    template <typename prb_t>
+    void exec_op(const deserialized_op &cur_op, const prb_t *prb, res_t *res) {
         execute_prim(ref_prims_, cur_op, prb, res);
     }
 

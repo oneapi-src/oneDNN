@@ -45,41 +45,6 @@ namespace graph {
 
 struct deserialized_lt;
 
-#define GRAPH_SWITCH_TYPE(type_enum, type_key, ...) \
-    switch (type_enum) { \
-        case dnnl::graph::logical_tensor::data_type::f32: { \
-            using type_key = float; \
-            __VA_ARGS__ \
-        } break; \
-        case dnnl::graph::logical_tensor::data_type::f16: { \
-            using type_key = int16_t; \
-            __VA_ARGS__ \
-        } break; \
-        case dnnl::graph::logical_tensor::data_type::bf16: { \
-            using type_key = uint16_t; \
-            __VA_ARGS__ \
-        } break; \
-        case dnnl::graph::logical_tensor::data_type::u8: { \
-            using type_key = uint8_t; \
-            __VA_ARGS__ \
-        } break; \
-        case dnnl::graph::logical_tensor::data_type::s8: { \
-            using type_key = int8_t; \
-            __VA_ARGS__ \
-        } break; \
-        case dnnl::graph::logical_tensor::data_type::s32: { \
-            using type_key = int32_t; \
-            __VA_ARGS__ \
-        } break; \
-        case dnnl::graph::logical_tensor::data_type::boolean: { \
-            using type_key = bool; \
-            __VA_ARGS__ \
-        } break; \
-        default: \
-            throw std::runtime_error( \
-                    "Not supported data type in current graph driver."); \
-    }
-
 #define DNN_GRAPH_SAFE(f, s) \
     do { \
         try { \
@@ -99,13 +64,6 @@ typedef std::function<void(dnnl::stream &,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs)>
         perf_function_t;
-
-struct cpu_deletor {
-    cpu_deletor() = default;
-    void operator()(void *ptr) {
-        if (ptr) free(ptr);
-    }
-};
 
 #ifdef DNNL_WITH_SYCL
 struct sycl_deletor {
@@ -210,37 +168,6 @@ int get_prim_arg_name_from_graph_op_input_offset(
 /// logical tensor
 dnnl::graph::logical_tensor::layout_type str2layout(
         const std::string &layout_type);
-
-// TODO: remove fill_buffer?
-// fill the memory according to the given value
-//  src -> target memory buffer
-//  total_size -> total number of bytes of this buffer
-//  val -> fixed value for initialization
-template <typename T>
-void fill_buffer(void *src, size_t total_size, int val) {
-    size_t num_elem = static_cast<size_t>(total_size / sizeof(T));
-    T *src_casted = static_cast<T *>(src);
-    // TODO: unify data filler after correctness added.
-    // POSTPONE: will be unified with correctness mode introduction.
-    for (size_t i = 0; i < num_elem; ++i)
-        *(src_casted + i) = static_cast<T>(val);
-}
-
-#ifdef DNNL_WITH_SYCL
-
-template <typename dtype>
-class init_kernel;
-
-template <typename dtype>
-void fill_buffer(sycl::queue &q, void *usm_buffer, size_t length, dtype value) {
-    dtype *usm_buffer_casted = static_cast<dtype *>(usm_buffer);
-    auto ker = [=](sycl::id<1> i) {
-        int idx = (int)i[0];
-        usm_buffer_casted[idx] = value;
-    };
-    q.parallel_for<init_kernel<dtype>>(sycl::range<1>(length), ker).wait();
-}
-#endif
 
 void change_format_to_ncx(dims_t &dims);
 

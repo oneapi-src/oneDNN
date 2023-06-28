@@ -170,7 +170,7 @@ void flex_rewrite::cal_pads(dims_t &pads_begin, dims_t &pads_end,
 }
 
 void flex_rewrite::infer_output_shape(deserialized_graph &dgraph) {
-    auto &gi = dgraph.graph_inputs_;
+    auto &gi = dgraph.graph_tensors_;
     for (auto &aop : dgraph.ops_) {
         auto kind = opstr2kind(aop.kind_);
         size_t in0, in1, out0;
@@ -700,7 +700,7 @@ void flex_rewrite::input_shape_rewrite(deserialized_graph &dgraph) {
 
     for_(auto &aop : dgraph.ops_)
     for (auto &lt : aop.in_lts_) {
-        if (dgraph.graph_inputs_.find(lt.id_) == dgraph.graph_inputs_.end()) {
+        if (dgraph.graph_tensors_.find(lt.id_) == dgraph.graph_tensors_.end()) {
             set_default_deserialized_lt(lt);
             continue;
         }
@@ -725,12 +725,12 @@ void flex_rewrite::input_shape_rewrite(deserialized_graph &dgraph) {
                 exit(2);
             }
             lt.shape_ = temp_shape;
-            dgraph.graph_inputs_[lt.id_] = temp_shape;
+            dgraph.graph_tensors_[lt.id_] = temp_shape;
             lt.stride_
                     = memory_tag2strides(lt.shape_, dgraph.lt_2_mtag_[lt.id_]);
         } else if (has_mb_rewrite) {
             lt.shape_[0] = mb_;
-            dgraph.graph_inputs_[lt.id_] = lt.shape_;
+            dgraph.graph_tensors_[lt.id_] = lt.shape_;
         }
     }
 
@@ -740,7 +740,7 @@ void flex_rewrite::input_shape_rewrite(deserialized_graph &dgraph) {
     }
 
     std::string shapes_str;
-    for (const auto &graph_input : dgraph.graph_inputs_) {
+    for (const auto &graph_input : dgraph.graph_tensors_) {
         std::string shape_str = std::to_string(graph_input.first) + ":"
                 + shape_to_string(graph_input.second) + " ";
         shapes_str += shape_str;

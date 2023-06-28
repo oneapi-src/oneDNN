@@ -36,12 +36,19 @@ public:
                 ::get_test_engine(), res); \
     } break
 
-#define CASE_HANDLE_OP(driver) \
+#define CASE_INIT_OP(driver) \
     case dnnl_driver_t::driver: { \
-        handle_op<::driver::settings_t, ::driver::prb_t>(par_op_ref, \
+        init_op<::driver::settings_t, ::driver::prb_t>(par_op_ref, \
                 ::driver::init_pd, ::driver::supported_exec_args, \
                 ::driver::setup_cmp, partition_mem_map, ::get_test_engine(), \
                 res); \
+    } break
+#define CASE_EXEC_OP(driver) \
+    case dnnl_driver_t::driver: { \
+        int op_id = static_cast<int>(par_op_ref.get().id_); \
+        const ::driver::prb_t *prb \
+                = std::get<5>(ref_prims_[op_id])->get<::driver::prb_t>(); \
+        exec_op<::driver::prb_t>(par_op_ref, prb, res); \
     } break
 
 #define CASE_CORRECTNESS_CHECK(driver) \
@@ -204,29 +211,74 @@ void ref_partition_t::get_leading_op_input_offset_to_dt_map(
     }
 }
 
-void ref_partition_t::run(partition_mem_map_t &partition_mem_map, res_t *res) {
+void ref_partition_t::init_ref(const bench_mode_t mode,
+        const std::vector<size_t> &graph_in_ports,
+        partition_mem_map_t &partition_mem_map, res_t *res) {
 
     handle_special_case_bf16(res);
     handle_special_case_int8(partition_mem_map, res);
-
     for (const auto &par_op_ref : partition_ops_ref_) {
+        // res should be independent from op to op
+        res->state = UNTESTED;
         const auto op_driver
                 = opkind2driver(opstr2kind(par_op_ref.get().kind_));
         switch (op_driver) {
-            CASE_HANDLE_OP(binary);
-            CASE_HANDLE_OP(bnorm);
-            CASE_HANDLE_OP(concat);
-            CASE_HANDLE_OP(conv);
-            CASE_HANDLE_OP(deconv);
-            CASE_HANDLE_OP(eltwise);
-            CASE_HANDLE_OP(lnorm);
-            CASE_HANDLE_OP(matmul);
-            CASE_HANDLE_OP(pool);
-            CASE_HANDLE_OP(prelu);
-            CASE_HANDLE_OP(reduction);
-            CASE_HANDLE_OP(reorder);
-            CASE_HANDLE_OP(resampling);
-            CASE_HANDLE_OP(softmax);
+            CASE_INIT_OP(binary);
+            CASE_INIT_OP(bnorm);
+            CASE_INIT_OP(concat);
+            CASE_INIT_OP(conv);
+            CASE_INIT_OP(deconv);
+            CASE_INIT_OP(eltwise);
+            CASE_INIT_OP(lnorm);
+            CASE_INIT_OP(matmul);
+            CASE_INIT_OP(pool);
+            CASE_INIT_OP(prelu);
+            CASE_INIT_OP(reduction);
+            CASE_INIT_OP(reorder);
+            CASE_INIT_OP(resampling);
+            CASE_INIT_OP(softmax);
+            default: break;
+        }
+        // Initialze the rest ops if current status is UNTESTED or EXECUTED
+        // otherwise there is no need to init memory or the rest ops
+        if (res->state != UNTESTED && res->state != EXECUTED) {
+            // But for perf mode, when the tensors in the current op is not
+            // the graph in/out, continue, otherwise return.
+            if (mode == bench_mode_t::perf) {
+                for (const auto &d_lt : par_op_ref.get().in_lts_) {
+                    auto iter_find = std::find(graph_in_ports.begin(),
+                            graph_in_ports.end(), d_lt.id_);
+                    if (iter_find != graph_in_ports.end()) { return; }
+                }
+                // if all op ids are not graph inputs, this op failure wont affect perf mode.
+                continue;
+            } else {
+                return;
+            }
+        }
+    }
+}
+
+void ref_partition_t::exec_ops(res_t *res) {
+    for (const auto &par_op_ref : partition_ops_ref_) {
+        const auto op_driver
+                = opkind2driver(opstr2kind(par_op_ref.get().kind_));
+
+        switch (op_driver) {
+            CASE_EXEC_OP(binary);
+            CASE_EXEC_OP(bnorm);
+            CASE_EXEC_OP(concat);
+            CASE_EXEC_OP(conv);
+            CASE_EXEC_OP(deconv);
+            CASE_EXEC_OP(eltwise);
+            CASE_EXEC_OP(lnorm);
+            CASE_EXEC_OP(matmul);
+            CASE_EXEC_OP(pool);
+            CASE_EXEC_OP(prelu);
+            CASE_EXEC_OP(reduction);
+            CASE_EXEC_OP(reorder);
+            CASE_EXEC_OP(resampling);
+            CASE_EXEC_OP(softmax);
             default: break;
         }
     }
