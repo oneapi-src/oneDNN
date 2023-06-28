@@ -390,67 +390,86 @@ void ref_partition_t::reverse_link_args(const deserialized_op &cur_op,
 void ref_partition_t::check_partition_correctness(
         partition_mem_map_t &partition_mem_map, res_t *res) {
 
-    const auto &last_op_ref = partition_ops_ref_.back();
-    int op_id = static_cast<int>(last_op_ref.get().id_);
-    const auto &ref_args = std::get<3>(ref_prims_[op_id]);
+    size_t errors = 0, total = 0;
+    bool mistrusted = false, has_eltwise = false, output_has_nans = false;
+    const auto &map_kind_to_alg = eltwise::get_eltwise_kind_map();
 
-    // get the args that need comparing
-    args_t output_args;
-    for (size_t out_idx = 0; out_idx < last_op_ref.get().out_lts_.size();
-            ++out_idx) {
-        int out_arg = get_prim_arg_name_from_graph_op_output_offset(
-                opstr2kind(last_op_ref.get().kind_), out_idx);
-        if (out_arg == 0) continue; // unsupported case
-
-        size_t out_lt_id = last_op_ref.get().out_lts_[out_idx].id_;
-        auto &graph_mem = partition_mem_map.at(out_lt_id);
-        const auto &par_out_mem = graph_mem.reorder_back_mem();
-        output_args.set(out_arg, par_out_mem);
-    }
-
-    // traverse partition ops to check flags used in compare
-    bool has_eltwise = false;
-    bool output_has_nans = false;
-    for (const auto &par_op_ref : partition_ops_ref_) {
-        const auto op_driver
-                = opkind2driver(opstr2kind(par_op_ref.get().kind_));
+    for (auto op : partition_ops_ref_) {
+        int op_id = static_cast<int>(op.get().id_);
 
         // if there is eltwise post-ops or binary div post-ops (GPU test), need
         // to relax compare critria.
         // Currently, both cases use set_has_eltwise_post_op flag in benchdnn
         // compare function.
         // The flag name is not very accurate, add this note to avoid confusion
-        if (op_driver == dnnl_driver_t::eltwise
-                || (opstr2kind(par_op_ref.get().kind_)
-                                == dnnl::graph::op::kind::Divide
-                        && engine_tgt_kind == dnnl_gpu))
-            has_eltwise = true;
+        const auto op_driver = opkind2driver(opstr2kind(op.get().kind_));
+        has_eltwise = has_eltwise
+                || ((op_driver == dnnl_driver_t::eltwise
+                        || (opstr2kind(op.get().kind_)
+                                        == dnnl::graph::op::kind::Divide
+                                && engine_tgt_kind == dnnl_gpu)));
+        output_has_nans = output_has_nans
+                || ((map_kind_to_alg.find(op.get().kind_)
+                            != map_kind_to_alg.end())
+                        && ::eltwise::eltwise_alg_returns_nan_or_inf(
+                                map_kind_to_alg.at(op.get().kind_)));
 
-        const auto &map_kind_to_alg = eltwise::get_eltwise_kind_map();
-        if (map_kind_to_alg.find(par_op_ref.get().kind_)
-                != map_kind_to_alg.end()) {
-            output_has_nans = ::eltwise::eltwise_alg_returns_nan_or_inf(
-                    map_kind_to_alg.at(par_op_ref.get().kind_));
+        const auto &ref_args = std::get<3>(ref_prims_[op_id]);
+
+        // get the args that need comparing
+        args_t output_args;
+        for (size_t out_idx = 0; out_idx < op.get().out_lts_.size();
+                ++out_idx) {
+            int out_arg = get_prim_arg_name_from_graph_op_output_offset(
+                    opstr2kind(op.get().kind_), out_idx);
+            if (out_arg == 0) continue; // unsupported case
+            size_t out_lt_id = op.get().out_lts_[out_idx].id_;
+            for (size_t i = 0; i < partition_out_ids_.size(); i++) {
+                if (out_lt_id == partition_out_ids_[i]) {
+                    auto &graph_mem = partition_mem_map.at(out_lt_id);
+                    const auto &par_out_mem = graph_mem.reorder_back_mem();
+                    output_args.set(out_arg, par_out_mem);
+                    break;
+                }
+            }
         }
-    }
+        if (output_args.size() == 0) continue;
 
-    const auto op_driver = opkind2driver(opstr2kind(last_op_ref.get().kind_));
-    switch (op_driver) {
-        CASE_CORRECTNESS_CHECK(binary);
-        CASE_CORRECTNESS_CHECK(bnorm);
-        CASE_CORRECTNESS_CHECK(concat);
-        CASE_CORRECTNESS_CHECK(conv);
-        CASE_CORRECTNESS_CHECK(deconv);
-        CASE_CORRECTNESS_CHECK(eltwise);
-        CASE_CORRECTNESS_CHECK(lnorm);
-        CASE_CORRECTNESS_CHECK(matmul);
-        CASE_CORRECTNESS_CHECK(pool);
-        CASE_CORRECTNESS_CHECK(prelu);
-        CASE_CORRECTNESS_CHECK(reduction);
-        CASE_CORRECTNESS_CHECK(reorder);
-        CASE_CORRECTNESS_CHECK(resampling);
-        CASE_CORRECTNESS_CHECK(softmax);
-        default: assert(!"Unsupported driver"); break;
+        // reset the state
+        res->state = EXECUTED;
+
+        switch (op_driver) {
+            CASE_CORRECTNESS_CHECK(binary);
+            CASE_CORRECTNESS_CHECK(bnorm);
+            CASE_CORRECTNESS_CHECK(concat);
+            CASE_CORRECTNESS_CHECK(conv);
+            CASE_CORRECTNESS_CHECK(deconv);
+            CASE_CORRECTNESS_CHECK(eltwise);
+            CASE_CORRECTNESS_CHECK(lnorm);
+            CASE_CORRECTNESS_CHECK(matmul);
+            CASE_CORRECTNESS_CHECK(pool);
+            CASE_CORRECTNESS_CHECK(prelu);
+            CASE_CORRECTNESS_CHECK(reduction);
+            CASE_CORRECTNESS_CHECK(reorder);
+            CASE_CORRECTNESS_CHECK(resampling);
+            CASE_CORRECTNESS_CHECK(softmax);
+            default: assert(!"Unsupported driver"); break;
+        }
+        // accumulate error count and reset the counter
+        errors += res->errors;
+        total += res->total;
+        mistrusted = mistrusted || (res->state == MISTRUSTED);
+        res->errors = 0;
+        res->total = 0;
+    }
+    res->errors = errors;
+    res->total = total;
+    if (res->errors > 0) {
+        res->state = FAILED;
+    } else if (mistrusted) {
+        res->state = MISTRUSTED;
+    } else {
+        res->state = PASSED;
     }
 }
 
