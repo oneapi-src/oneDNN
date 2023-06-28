@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,6 +39,15 @@ struct gemm_traits<double, isTransA, isTransB> {
 template <bool isTransA, bool isTransB>
 struct gemm_traits<float, isTransA, isTransB> {
     static constexpr dim_t m = 16;
+    static constexpr dim_t n = 6;
+    static constexpr dim_t BM = 4032;
+    static constexpr dim_t BN = isTransA ? 96 : 48;
+    static constexpr dim_t BK = isTransB ? 96 : 256;
+};
+
+template <bool isTransA, bool isTransB>
+struct gemm_traits<bfloat16_t, isTransA, isTransB> {
+    static constexpr dim_t m = 32;
     static constexpr dim_t n = 6;
     static constexpr dim_t BM = 4032;
     static constexpr dim_t BN = isTransA ? 96 : 48;

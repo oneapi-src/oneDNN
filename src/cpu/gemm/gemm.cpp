@@ -28,6 +28,7 @@
 #include "cpu/gemm/gemm_msan_unpoison.hpp"
 #include "cpu/gemm/os_blas.hpp"
 
+#include "cpu/gemm/bf16/ref_gemm_bf16.hpp"
 #include "cpu/gemm/f32/ref_gemm_f32.hpp"
 #include "cpu/gemm/s8x8s32/ref_gemm_s8x8s32.hpp"
 #include "cpu/gemm/s8x8s32/simple_gemm_s8s8s32.hpp"
@@ -308,7 +309,8 @@ dnnl_status_t gemm_bf16bf16f32(const char *transa, const char *transb,
 #endif
 #endif
 
-    return dnnl_unimplemented;
+    return ref_gemm_bf16bf16f32(
+            transa, transb, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
 }
 
 } // namespace cpu
