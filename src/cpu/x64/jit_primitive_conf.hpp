@@ -668,6 +668,12 @@ enum conv_brgemm_exec_type_t {
     exec_vpad,
 };
 
+enum class conv_brgemm_relo_type_t : unsigned {
+    undefined = 0,
+    whi,
+    wi,
+};
+
 struct jit_brgemm_conv_conf_t {
     cpu_isa_t isa;
     prop_kind_t prop_kind;
@@ -683,6 +689,9 @@ struct jit_brgemm_conv_conf_t {
     int id_block, ih_block, nb_id, nb_ih;
     dim_t inp_buffer_size, inp_buffer_mask_size;
     conv_brgemm_exec_type_t exec_type;
+    bool is_relo {false};
+    conv_brgemm_relo_type_t relo_type {conv_brgemm_relo_type_t::undefined};
+    bool relo_conv_weights {true};
 
     int id, ih, iw, od, oh, ow, os, is, idp, ihp, iwp, icp, odp, ohp, owp, ocp;
     int f_pad, l_pad, t_pad;
@@ -704,7 +713,7 @@ struct jit_brgemm_conv_conf_t {
     bool is_os_blocking;
     bool is_rtus;
     bool ununroll_bd_loop {false};
-    int nb_ic, ic_block;
+    int nb_ic, ic_block, inp_ic_block;
     int nb_tr_ic, tr_ic_block, tr_ic_tail;
     int nb_oc, oc_block;
     int nb_iw, iw_block, iw_tail;
@@ -754,6 +763,7 @@ struct jit_brgemm_conv_conf_t {
     bool is_rd_padded_to_block {false}, is_rd_padded_to_vnni {false},
             is_oc_padded;
     int kw_sets, kh_sets;
+    bool copy_input {true};
     bool copy_block_only;
     bool amx_tile_load_xx;
     int use_M_mask;
