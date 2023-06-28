@@ -32,7 +32,7 @@
 --ddt=s8,u8
 --stag=axb
 --attr-scales=,src:common:128*,dst:common:0.125*,src:common:64*+dst:common:0.5*
---attr-post-ops=,add:f32:per_oc,linear:0.5:-1,add:f32:common+linear:0.5:-1
+--attr-post-ops=,add:f32:per_oc,mul:f32:per_tensor,linear:0.5:-1,add:f32:common+linear:0.5:-1
 --axis=0,1
 --batch=set_0d
 --batch=shapes_2d
