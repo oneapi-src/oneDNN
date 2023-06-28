@@ -309,7 +309,8 @@ protected:
                 p.alg, eltwise_alpha, eltwise_beta);
         check_zero_tail<data_t_dst>(1, dst_ref);
 
-        compare_data<data_t_dst>(dst_ref, c_dst, 1e-2);
+        static constexpr data_t_dst threshold = static_cast<data_t_dst>(1e-2);
+        compare_data<data_t_dst>(dst_ref, c_dst, threshold);
         check_zero_tail<data_t_dst>(0, c_dst);
     }
 };

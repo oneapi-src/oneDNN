@@ -455,11 +455,12 @@ protected:
         strm.wait();
 
         // compare dst_layer and dst_iter
-        compare_data<data_t>(dst_layer_ref, dst_layer_tgt, 1e-5);
+        static constexpr data_t threshold = static_cast<data_t>(1e-5);
+        compare_data<data_t>(dst_layer_ref, dst_layer_tgt, threshold);
         if (p.fmts.dst_iter_fmt != memory::format_tag::undef) {
-            compare_data<data_t>(dst_iter_ref, dst_iter_tgt, 1e-5);
+            compare_data<data_t>(dst_iter_ref, dst_iter_tgt, threshold);
             if (std::is_same<T, lstm_forward>::value)
-                compare_data<data_t>(dst_iter_c_ref, dst_iter_c_tgt, 1e-5);
+                compare_data<data_t>(dst_iter_c_ref, dst_iter_c_tgt, threshold);
         }
     }
 };

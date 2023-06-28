@@ -63,13 +63,13 @@ static int check_attr2str() {
 
     attr = attr_t();
     attr.scales.set(DNNL_ARG_SRC_0,
-            attr_t::arg_scales_t::entry_t(policy_t::COMMON, 2.3));
+            attr_t::arg_scales_t::entry_t(policy_t::COMMON, 2.3f));
     SELF_CHECK_PRINT_EQ(attr, "--attr-scales=src:common:2.3* ");
 
     attr.scales.set(DNNL_ARG_SRC_0,
-            attr_t::arg_scales_t::entry_t(policy_t::COMMON, 2.2));
-    attr.scales.set(
-            DNNL_ARG_SRC_1, attr_t::arg_scales_t::entry_t(policy_t::COMMON, 3));
+            attr_t::arg_scales_t::entry_t(policy_t::COMMON, 2.2f));
+    attr.scales.set(DNNL_ARG_SRC_1,
+            attr_t::arg_scales_t::entry_t(policy_t::COMMON, 3.f));
     SELF_CHECK_PRINT_EQ(attr, "--attr-scales=src:common:2.2*+src1:common:3* ");
 
     return OK;

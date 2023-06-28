@@ -35,8 +35,8 @@
 using namespace dnnl::impl::graph::gc;
 
 static bool verbose = false;
-static const float the_atol = 1e-5;
-static const float the_rtol = 1e-4;
+static const float the_atol = 1e-5f;
+static const float the_rtol = 1e-4f;
 
 template <typename Dtype>
 static void do_test_reduce_op(const sc_dims &in_shape,

@@ -269,7 +269,7 @@ void check_conv_bwd_w_correctness(int N, int K, int C, int D, int H, int W,
     compute_ref_bwd_weights(N, 1, K, C, H, W, P, Q, R, S, stride, stride,
             padding, padding, &mkldnn_data[0], &mkldnn_grad_weight[0],
             &mkldnn_grad[0], dir_t::BWD_W, O, D, stride, padding, KD);
-    test_utils::compare_data(grad_weight, mkldnn_grad_weight, 1e-3, 5e-3);
+    test_utils::compare_data(grad_weight, mkldnn_grad_weight, 1e-3f, 5e-3f);
 }
 
 TEST(GCCore_CPU_conv3d_fwd, CONV3D_3x3_1) {

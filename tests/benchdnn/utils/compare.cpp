@@ -277,7 +277,7 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             // `x` or `x + 1` which can't be fixed by filling.
             if (!ok && is_integral_dt(args.dt)) {
                 // Check that original value is close to x.5f.
-                static constexpr float small_eps = 9e-6;
+                static constexpr float small_eps = 9e-6f;
                 const float floor_val = floorf(args.exp_f32);
                 const float ceil_val = ceilf(args.exp_f32);
                 if (fabsf((floor_val + 0.5f) - args.exp_f32) < small_eps) {

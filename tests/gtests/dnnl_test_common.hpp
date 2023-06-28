@@ -463,7 +463,7 @@ template <typename data_t>
 static void fill_data(const memory::dim nelems, data_t *data,
         double sparsity = 1., bool init_negs = false) {
     dnnl::impl::parallel_nd(nelems, [&](memory::dim n) {
-        data[n] = set_value<data_t>(n, data_t(1), data_t(2e-1), sparsity);
+        data[n] = set_value<data_t>(n, data_t(1), data_t(0.2f), sparsity);
 
         if (init_negs && n % 4 == 0)
             data[n] = static_cast<data_t>(

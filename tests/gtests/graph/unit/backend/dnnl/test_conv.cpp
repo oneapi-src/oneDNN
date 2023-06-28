@@ -5098,12 +5098,12 @@ TEST(Execute, ConvSumSum) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     // default engine kind is cpu.
     graph::engine_t *eng = get_engine();
-    test::vector<float> src1(1 * 8 * 112 * 112, 1.25);
-    test::vector<float> weight(8 * 8 * 3 * 3, 1.25);
-    test::vector<float> src2(1 * 8 * 110 * 110, 1.3);
-    test::vector<float> src3(1 * 8 * 110 * 110, 1.6);
-    test::vector<float> ref_dst(1 * 8 * 110 * 110, 115.4);
-    test::vector<float> dst(1 * 8 * 110 * 110, 0);
+    test::vector<float> src1(1 * 8 * 112 * 112, 1.25f);
+    test::vector<float> weight(8 * 8 * 3 * 3, 1.25f);
+    test::vector<float> src2(1 * 8 * 110 * 110, 1.3f);
+    test::vector<float> src3(1 * 8 * 110 * 110, 1.6f);
+    test::vector<float> ref_dst(1 * 8 * 110 * 110, 115.4f);
+    test::vector<float> dst(1 * 8 * 110 * 110, 0.f);
 
     graph::op_t in_op1(0, graph::op_kind::Wildcard, "Wildcard");
     graph::op_t in_op2(1, graph::op_kind::Wildcard, "Wildcard");

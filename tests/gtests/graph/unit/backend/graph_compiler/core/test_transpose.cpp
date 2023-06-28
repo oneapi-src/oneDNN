@@ -98,7 +98,7 @@ void transpose_test(const sc_dims &input_dims, const std::vector<int> &order,
     fptr->call_generic_default(gargs.data());
     std::vector<float> ref_output(input_size);
     ref_output = ref_transpose<float>(input_data, input_dims, axis);
-    test_utils::compare_data(output_data, ref_output, 1e-4, 1e-5);
+    test_utils::compare_data(output_data, ref_output, 1e-4f, 1e-5f);
 }
 
 static void check_format_correctness(const sc_dims &plain_dims,

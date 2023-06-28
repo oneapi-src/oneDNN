@@ -1522,7 +1522,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
         if (jcp.nthr <= 28 && jcp.mb < jcp.nthr
                 && nb_load * nb_bcast > jcp.nthr) {
             // Some heuristic here
-            float calc_koef = 0.01, best_cost = FLT_MAX;
+            float calc_koef = 0.01f, best_cost = FLT_MAX;
             int n_lgc = jcp.nthr;
             float ratio = (float)load_size / (float)bcast_size;
             int best_lgc = ratio > 1 ? n_lgc : 1;

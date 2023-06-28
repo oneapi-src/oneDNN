@@ -71,7 +71,7 @@ TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Standalone) {
     ref_padding_2d(
             &ref_output[0], &input_data[0], output_shape, paddings, paddings);
 
-    test_utils::compare_data(sc_output, ref_output, 1e-4, 1e-5);
+    test_utils::compare_data(sc_output, ref_output, 1e-4f, 1e-5f);
 }
 
 TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Graph) {
@@ -199,7 +199,7 @@ TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Conv_Padding_Reorder) {
     ref_padding_2d(&padding_output[0], &conv1_output[0], padding_output_shape,
             pads_begin, pads_end);
     ref_output = NCHW2NCHWc(padding_output, 1, 4, 16, 16, 16);
-    test_utils::compare_data(sc_output, ref_output, 1e-3, 1e-3);
+    test_utils::compare_data(sc_output, ref_output, 1e-3f, 1e-3f);
 }
 
 TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Conv_Padding) {
@@ -290,7 +290,7 @@ TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Conv_Padding) {
             &padding_output[0], &weight_2_data[0],
             static_cast<float *>(nullptr), &ref_output[0], FWD_I);
 
-    test_utils::compare_data(sc_output, ref_output, 1e-3, 1e-3);
+    test_utils::compare_data(sc_output, ref_output, 1e-3f, 1e-3f);
 }
 
 TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Fuse) {
@@ -342,5 +342,5 @@ TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Fuse) {
 
     std::vector<float> expected
             = {0, 0, 0, 0, 0, 45, 54, 0, 0, 81, 90, 0, 0, 0, 0, 0};
-    test_utils::compare_data(sc_output, expected, 1e-4, 1e-5);
+    test_utils::compare_data(sc_output, expected, 1e-4f, 1e-5f);
 }

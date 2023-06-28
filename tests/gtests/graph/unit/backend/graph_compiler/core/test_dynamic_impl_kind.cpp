@@ -246,5 +246,5 @@ TEST(GCCore_CPU_dynamic_impl_kind_cpp, TestImplKindMatmulCoreExec) {
     fptr->call_default(&dyn_out, &dyn_a, &dyn_b);
     gemm_params l_param = {false, false, 28, 32, 64, 1.0, 0, 64, 32, 32};
     ref_gemm(l_param, sc_a.data(), sc_b.data(), ref_out.data());
-    test_utils::compare_data(sc_out, ref_out, 1e-4, 1e-4);
+    test_utils::compare_data(sc_out, ref_out, 1e-4f, 1e-4f);
 }

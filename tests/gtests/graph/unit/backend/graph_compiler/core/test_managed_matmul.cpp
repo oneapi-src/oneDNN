@@ -165,10 +165,10 @@ void run_mmm_test(const std::shared_ptr<jit_function_t> &fptr, int M, int N,
     if (fuse_sigmoid) {
         ref_sigmoid(ref_output_s.data(), ref_output.data(), cal_size(out_dims));
         test_utils::compare_data(
-                sc_output.data(), ref_output_s.data(), out_size, 1e-3, 1e-3);
+                sc_output.data(), ref_output_s.data(), out_size, 1e-3f, 1e-3f);
     } else {
         test_utils::compare_data(
-                sc_output.data(), ref_output.data(), out_size, 1e-3, 1e-3);
+                sc_output.data(), ref_output.data(), out_size, 1e-3f, 1e-3f);
     }
 }
 

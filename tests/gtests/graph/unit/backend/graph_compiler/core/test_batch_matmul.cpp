@@ -156,7 +156,7 @@ void run_bmm_test(const std::shared_ptr<jit_function_t> &fptr, int M, int N,
         ref_gemm(gemm_param, &ref_input[b_i * input_size],
                 &ref_weight[b_w * weight_size], &ref_output[b * out_size]);
         test_utils::compare_data(sc_output.data() + b * out_size,
-                ref_output.data() + b * out_size, out_size, 1e-4, 1e-4);
+                ref_output.data() + b * out_size, out_size, 1e-4f, 1e-4f);
     }
 }
 

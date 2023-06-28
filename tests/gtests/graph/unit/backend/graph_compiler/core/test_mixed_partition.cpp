@@ -801,8 +801,8 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy0) {
     fptr2->call_default(&input0_data[0], &weight0_data[0], &input1_data[0],
             &pass_output0_data[0], &pass_output1_data[0]);
 
-    test_utils::compare_data(ori_output0_data, pass_output0_data, 1e-4, 1e-5);
-    test_utils::compare_data(ori_output1_data, pass_output1_data, 1e-4, 1e-5);
+    test_utils::compare_data(ori_output0_data, pass_output0_data, 1e-4f, 1e-5f);
+    test_utils::compare_data(ori_output1_data, pass_output1_data, 1e-4f, 1e-5f);
 }
 
 /* Case: same input_data
@@ -877,8 +877,8 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy1) {
     fptr2->call_default(&input0_data[0], &weight0_data[0], &weight1_data[0],
             &pass_output0_data[0], &pass_output1_data[0]);
 
-    test_utils::compare_data(ori_output0_data, pass_output0_data, 1e-4, 1e-5);
-    test_utils::compare_data(ori_output1_data, pass_output1_data, 1e-4, 1e-5);
+    test_utils::compare_data(ori_output0_data, pass_output0_data, 1e-4f, 1e-5f);
+    test_utils::compare_data(ori_output1_data, pass_output1_data, 1e-4f, 1e-5f);
 }
 
 /* Case: two consective MMMs
@@ -960,8 +960,8 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy2) {
     fptr2->call_default(&input0_data[0], &weight0_data[0], &weight1_data[0],
             &pass_output0_data[0], &pass_output1_data[0]);
 
-    test_utils::compare_data(ori_output0_data, pass_output0_data, 1e-4, 1e-5);
-    test_utils::compare_data(ori_output1_data, pass_output1_data, 1e-4, 1e-5);
+    test_utils::compare_data(ori_output0_data, pass_output0_data, 1e-4f, 1e-5f);
+    test_utils::compare_data(ori_output1_data, pass_output1_data, 1e-4f, 1e-5f);
 
 #ifdef DO_BENCH
     auto exec = [&]() {
@@ -1075,9 +1075,9 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitAndMergeInners_Accuracy3) {
 
     // fix-me (xxx): a special iim_block=19 will be given in this ut, making it
     // unable to converge with rtol=1e-4, atol=1e-5
-    test_utils::compare_data(pass_output0_data, ori_output0_data, 5e-2, 1e-4);
-    test_utils::compare_data(pass_output1_data, ori_output1_data, 5e-2, 1e-4);
-    test_utils::compare_data(pass_output2_data, ori_output2_data, 5e-2, 1e-4);
+    test_utils::compare_data(pass_output0_data, ori_output0_data, 5e-2f, 1e-4f);
+    test_utils::compare_data(pass_output1_data, ori_output1_data, 5e-2f, 1e-4f);
+    test_utils::compare_data(pass_output2_data, ori_output2_data, 5e-2f, 1e-4f);
 }
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, SplitOuterMostLoopWithTensorShrink) {
@@ -1177,7 +1177,7 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp,
     std::vector<float> pass_output_data(M * N);
     fptr2->call_default(&input_data[0], &weight_data[0], &pass_output_data[0]);
 
-    test_utils::compare_data(ori_output_data, pass_output_data, 1e-4, 1e-5);
+    test_utils::compare_data(ori_output_data, pass_output_data, 1e-4f, 1e-5f);
 }
 
 TEST(GCCore_CPU_graph_mixed_partition_cpp, TestGraphMarkInplaceHint1) {

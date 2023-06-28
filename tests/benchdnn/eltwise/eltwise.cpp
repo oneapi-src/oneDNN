@@ -88,10 +88,10 @@ static bool check_abs_err(const prb_t *prb, const float &s, const float &trh) {
         case alg_t::GELU_TANH: {
             // catch catastrophic cancellation
             // (4.f is magic scale for f32)
-            const float sqrt_2_over_pi = 0.797884;
-            const float fitting_const = 0.044715;
-            float v = tanhf(sqrt_2_over_pi * s * (1 + fitting_const * s * s));
-            float dg = sqrt_2_over_pi * (1 + 3 * fitting_const * s * s);
+            const float sqrt_2_over_pi = 0.797884f;
+            const float fitting_const = 0.044715f;
+            float v = tanhf(sqrt_2_over_pi * s * (1.f + fitting_const * s * s));
+            float dg = sqrt_2_over_pi * (1.f + 3.f * fitting_const * s * s);
             if (fabsf(1.f + v) <= comp_err) return true;
             return (prb->dir & FLAG_BWD) && std::signbit(s)
                     && fabsf(1.f + s * (1.f - v) * dg) <= 4.f * comp_err;
@@ -110,7 +110,7 @@ static bool check_abs_err(const prb_t *prb, const float &s, const float &trh) {
             else
                 return fabsf(1.f + erff(v)
                                + v * two_over_sqrt_pi * expf(-v * v))
-                        <= comp_err * 2;
+                        <= comp_err * 2.f;
         }
         case alg_t::TANH:
             // catch catastrophic cancellation, which occurs when err in tanh(s)
@@ -142,7 +142,7 @@ static bool check_abs_err(const prb_t *prb, const float &s, const float &trh) {
             // when s = logistic(x) ~~ 1, it leads to high relative error of
             // s * (1 - s) due to catastrohic cancellation.
             return (prb->dir & FLAG_BWD)
-                    && ((1 - s) <= comp_err || s <= comp_err);
+                    && ((1.f - s) <= comp_err || s <= comp_err);
         case alg_t::SWISH: {
             // catch cancellation happening when W(s) ~~ -1 in (1 + W(s))
             // formula part on backward.
@@ -157,7 +157,7 @@ static bool check_abs_err(const prb_t *prb, const float &s, const float &trh) {
 
 float get_eltwise_threshold(dnnl_data_type_t dt, alg_t alg, bool is_fwd) {
     // Tolerate only rounding error (1 ulp) for other than fp32 precisions.
-    float trh = (dt == dnnl_f32 || dt == dnnl_f64) ? 4e-6 : epsilon_dt(dt);
+    float trh = (dt == dnnl_f32 || dt == dnnl_f64) ? 4e-6f : epsilon_dt(dt);
     // Tolerate bigger compute errors for complex algorithms.
     const bool alg_has_higher_tolerance = alg == alg_t::GELU_TANH
             || alg == alg_t::ELU || alg == alg_t::SWISH || alg == alg_t::TANH
@@ -165,7 +165,7 @@ float get_eltwise_threshold(dnnl_data_type_t dt, alg_t alg, bool is_fwd) {
             || (is_nvidia_gpu() && alg == alg_t::POW)
             || ((alg == alg_t::ELU_DST || alg == alg_t::TANH_DST) && is_fwd);
     if ((dt == dnnl_f32 || dt == dnnl_f64) && alg_has_higher_tolerance)
-        trh = 4e-5;
+        trh = 4e-5f;
     return trh;
 }
 
@@ -233,8 +233,8 @@ int fill_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
                 case 1: value = -(float)igen(msr); break; // [0-10] neg
                 case 2: value = fgen(msr); break; // [0.-0.1) pos
                 case 3: value = -fgen(msr); break; // [0.-0.1) neg
-                case 4: value = 10 * (float)igen(msr); break; // [0-100] pos
-                case 5: value = -10 * (float)igen(msr); break; // [0-100] neg
+                case 4: value = 10.f * igen(msr); break; // [0-100] pos
+                case 5: value = -10.f * igen(msr); break; // [0-100] neg
                 case 6: value = 10.f * fgen(msr); break; // [0.-1.) pos
                 case 7: value = -10.f * fgen(msr); break; // [0.-1.) neg
                 case 8:

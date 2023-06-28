@@ -350,7 +350,7 @@ TEST(PatternMatcher, CommutativeInputBothConstrained) {
         op_t conv {0, Convolution, "conv"};
         set_conv_common_attr(conv);
         op_t elu {1, Elu, "elu"};
-        elu.set_attr<float>(op_attr::alpha, 0.1);
+        elu.set_attr<float>(op_attr::alpha, 0.1f);
         op_t abs {2, Abs, "abs"};
         op_t add {3, Add, "add"};
         std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
@@ -495,7 +495,7 @@ TEST(PatternMatcher, ConvBiasSumActivationFusion) {
     op_t bias {1, BiasAdd, "bias"};
     op_t add {2, Add, "add"};
     op_t elu {3, Elu, "elu"};
-    elu.set_attr<float>(op_attr::alpha, 0.1);
+    elu.set_attr<float>(op_attr::alpha, 0.1f);
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(8);
     conv.add_input(lt_vec[0]);

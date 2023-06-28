@@ -294,7 +294,7 @@ void check_conv_correctness_and_tuning_bwd_d(int N, int K, int C, int H, int W,
     compute_ref_direct_bwd_d(N, 1, K, C, H, W, P, Q, R, S, stride, stride,
             padding, padding, &mkldnn_grad_data[0], &mkldnn_weight[0],
             &mkldnn_bias[0], &mkldnn_grad[0]);
-    test_utils::compare_data(grad_data, mkldnn_grad_data, 1e-3, 1e-3);
+    test_utils::compare_data(grad_data, mkldnn_grad_data, 1e-3f, 1e-3f);
 }
 
 void check_conv_correctness_and_tuning_bwd_w(int N, int K, int C, int H, int W,
@@ -354,9 +354,9 @@ void check_conv_correctness_and_tuning_bwd_w(int N, int K, int C, int H, int W,
             &mkldnn_grad[0]);
 
     if (dtype == datatypes::bf16) {
-        test_utils::compare_data(grad_weight, mkldnn_grad_weight, 1e-1, 5e-1);
+        test_utils::compare_data(grad_weight, mkldnn_grad_weight, 1e-1f, 5e-1f);
     } else {
-        test_utils::compare_data(grad_weight, mkldnn_grad_weight, 1e-3, 5e-3);
+        test_utils::compare_data(grad_weight, mkldnn_grad_weight, 1e-3f, 5e-3f);
     }
 }
 

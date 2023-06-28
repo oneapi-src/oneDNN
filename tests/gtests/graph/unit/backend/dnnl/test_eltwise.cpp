@@ -244,14 +244,14 @@ static inline void test_eltwise_bwd_common(
 }
 
 TEST(Execute, ClampBackward) {
-    test::vector<float> src {
-            0, -1, 0.0723652, -0.0364869, 40, -50, 0.188521, -0.729739, 88.371};
-    test::vector<float> dst {
-            0, -1, 0.0723652, -0.0364869, 2, -1, 0.188521, -0.729739, 2};
-    test::vector<float> diff_dst {
-            3, -7, 0.0194608, -0.0559478, 70, 0, 0.754086, -0.218955, 88.5838};
-    test::vector<float> ref_diff_src {
-            3, -0, 0.0194608, -0.0559478, 0, 0, 0.754086, -0.218955, 0};
+    test::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
+            0.188521f, -0.729739f, 88.371f};
+    test::vector<float> dst {0.f, -1.f, 0.0723652f, -0.0364869f, 2.f, -1.f,
+            0.188521f, -0.729739f, 2.f};
+    test::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
+            0.754086f, -0.218955f, 88.5838f};
+    test::vector<float> ref_diff_src {3.f, -0.f, 0.0194608f, -0.0559478f, 0.f,
+            0.f, 0.754086f, -0.218955f, 0.f};
 
     graph::dims dims {1, 3, 3};
     graph::dims strides {9, 3, 1};
@@ -289,14 +289,14 @@ TEST(Execute, Elu) {
 }
 
 TEST(Execute, EluBackward) {
-    test::vector<float> src {
-            0, -1, 0.0723652, -0.0364869, 40, -50, 0.188521, -0.729739, 88.371};
-    test::vector<float> dst {0, -0.632121, 0.0723652, -0.0358293, 40, -1,
-            0.188521, -0.517965, 88.371};
-    test::vector<float> diff_dst {
-            3, -7, 0.0194608, -0.0559478, 70, 0, 0.754086, -0.218955, 88.5838};
-    test::vector<float> ref_diff_src {3, -2.57516, 0.0194608, -0.0539432, 70, 0,
-            0.754086, -0.105544, 88.5838};
+    test::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
+            0.188521f, -0.729739f, 88.371f};
+    test::vector<float> dst {0.f, -0.632121f, 0.0723652f, -0.0358293f, 40.f,
+            -1.f, 0.188521f, -0.517965f, 88.371f};
+    test::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
+            0.754086f, -0.218955f, 88.5838f};
+    test::vector<float> ref_diff_src {3.f, -2.57516f, 0.0194608f, -0.0539432f,
+            70.f, 0.f, 0.754086f, -0.105544f, 88.5838f};
 
     graph::dims dims {1, 3, 3};
     graph::dims strides {9, 3, 1};
@@ -325,7 +325,8 @@ TEST(Execute, Exp) {
 }
 
 TEST(Execute, Gelu) {
-    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0};
+    test::vector<float> src {
+            -2.f, -1.5f, -1.f, -0.5f, 0.f, 0.5f, 1.f, 1.5f, 2.f};
     test::vector<float> ref_dst {-0.0455001f, -0.10021085f, -0.15865527f,
             -0.15426877f, 0.f, 0.3457312f, 0.84134465f, 1.399789f, 1.9544998f};
 
@@ -335,12 +336,12 @@ TEST(Execute, Gelu) {
 }
 
 TEST(Execute, GeluBackward) {
-    test::vector<float> src {
-            0, -1, 0.0723652, -0.0364869, 40, -50, 0.188521, -0.729739, 88.371};
-    test::vector<float> diff_dst {
-            3, -7, 0.0194608, -0.0559478, 70, 0, 0.754086, -0.218955, 88.5838};
-    test::vector<float> ref_diff_src {1.5, 0.583208, 0.0108521, -0.0263458, 70,
-            0, 0.489138, -0.00212478, 88.5838};
+    test::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
+            0.188521f, -0.729739f, 88.371f};
+    test::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
+            0.754086f, -0.218955f, 88.5838f};
+    test::vector<float> ref_diff_src {1.5f, 0.583208f, 0.0108521f, -0.0263458f,
+            70.f, 0.f, 0.489138f, -0.00212478f, 88.5838f};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
     graph::dims strides {9, 3, 1};
@@ -386,10 +387,10 @@ TEST(Execute, HardSigmoidBackward) {
 }
 
 TEST(Execute, HardSwish) {
-    test::vector<float> src {7, -4, 0.0723652095, -0.0364869386, 60, -20,
-            0.188521415, -0.729738772, 88.3709564};
-    test::vector<float> ref_dst {7, 0, 0.0370553955, -0.0180215873, 60, 0,
-            0.100184090, -0.276116282, 88.3709564};
+    test::vector<float> src {7.f, -4.f, 0.0723652095f, -0.0364869386f, 60.f,
+            -20.f, 0.188521415f, -0.729738772f, 88.3709564f};
+    test::vector<float> ref_dst {7.f, 0.f, 0.0370553955f, -0.0180215873f, 60.f,
+            0.f, 0.100184090f, -0.276116282f, 88.3709564f};
     dnnl::impl::graph::dims dims {1, 3, 3};
 
     test_eltwise_common(
@@ -397,12 +398,12 @@ TEST(Execute, HardSwish) {
 }
 
 TEST(Execute, HardSwishBackward) {
-    test::vector<float> src {7, -4, 0.0723652095, -0.0364869386, 60, -20,
-            0.188521415, -0.729738772, 88.3709564};
-    test::vector<float> diff_dst {9, -10, 0.0194608141, -0.0559477545, 70, -20,
-            0.754085660, -0.218955040, 88.5838242};
-    test::vector<float> ref_diff_src {9, 0, 0.0101998346, -0.0272934232, 70, 0,
-            0.424429923, -0.0562175252, 88.5838242};
+    test::vector<float> src {7.f, -4.f, 0.0723652095f, -0.0364869386f, 60.f,
+            -20.f, 0.188521415f, -0.729738772f, 88.3709564f};
+    test::vector<float> diff_dst {9.f, -10.f, 0.0194608141f, -0.0559477545f,
+            70.f, -20.f, 0.754085660f, -0.218955040f, 88.5838242f};
+    test::vector<float> ref_diff_src {9.f, 0.f, 0.0101998346f, -0.0272934232f,
+            70.f, 0.f, 0.424429923f, -0.0562175252f, 88.5838242f};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
     graph::dims strides {9, 3, 1};
@@ -412,8 +413,9 @@ TEST(Execute, HardSwishBackward) {
 }
 
 TEST(Execute, Relu) {
-    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0};
-    test::vector<float> ref_dst {0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.5, 2.0};
+    test::vector<float> src {
+            -2.f, -1.5f, -1.f, -0.5f, 0.f, 0.5f, 1.f, 1.5f, 2.f};
+    test::vector<float> ref_dst {0.f, 0.f, 0.f, 0.f, 0.f, 0.5f, 1.f, 1.5f, 2.f};
 
     graph::dims dims {1, 3, 3};
 
@@ -421,14 +423,14 @@ TEST(Execute, Relu) {
 }
 
 TEST(Execute, ReluBackward) {
-    test::vector<float> src {
-            0, -1, 0.0723652, -0.0364869, 40, -50, 0.188521, -0.729739, 88.371};
+    test::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
+            0.188521f, -0.729739f, 88.371f};
     test::vector<float> dst {
-            0, -0, 0.0723652, -0, 40, -0, 0.188521, -0, 88.371};
-    test::vector<float> diff_dst {
-            3, -7, 0.0194608, -0.0559478, 70, 0, 0.754086, -0.218955, 88.5838};
+            0.f, -0.f, 0.0723652f, -0.f, 40.f, -0.f, 0.188521f, -0.f, 88.371f};
+    test::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
+            0.754086f, -0.218955f, 88.5838f};
     test::vector<float> ref_diff_src {
-            0, -0, 0.0194608, -0, 70, 0, 0.754086, -0, 88.5838};
+            0.f, -0.f, 0.0194608f, -0.f, 70.f, 0.f, 0.754086f, -0.f, 88.5838f};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
     graph::dims strides {9, 3, 1};
@@ -437,15 +439,16 @@ TEST(Execute, ReluBackward) {
     test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
             graph::op_kind::ReLUBackward, "relu_bw", strides, strides, strides);
     graph::dims strides_diff {9, 1, 3};
-    diff_dst = {
-            3, -0.0559478, 0.754086, -7, 70, -0.218955, 0.0194608, 0, 88.5838};
+    diff_dst = {3.f, -0.0559478f, 0.754086f, -7.f, 70.f, -0.218955f, 0.0194608f,
+            0.f, 88.5838f};
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
             graph::op_kind::ReLUBackward, "relu_bw", strides, strides,
             strides_diff);
     test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
             graph::op_kind::ReLUBackward, "relu_bw", strides, strides,
             strides_diff);
-    ref_diff_src = {0, -0, 0.754086, -0, 70, 0, 0.0194608, -0, 88.5838};
+    ref_diff_src = {
+            0.f, -0.f, 0.754086f, -0.f, 70.f, 0.f, 0.0194608f, -0.f, 88.5838f};
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
             graph::op_kind::ReLUBackward, "relu_bw", strides, strides_diff,
             strides_diff);
@@ -455,7 +458,7 @@ TEST(Execute, ReluBackward) {
 }
 
 TEST(Execute, Sigmoid) {
-    test::vector<float> src {-5.0, -2.5, -1.0, 0.3, 0.0, 1.2};
+    test::vector<float> src {-5.f, -2.5f, -1.f, 0.3f, 0.f, 1.2f};
     test::vector<float> ref_dst = sigmoid_func(src);
 
     dnnl::impl::graph::dims dims {1, 2, 3};
@@ -464,14 +467,14 @@ TEST(Execute, Sigmoid) {
 }
 
 TEST(Execute, SigmoidBackward) {
-    test::vector<float> src {
-            0, -1, 0.0723652, -0.0364869, 40, -50, 0.188521, -0.729739, 88.371};
-    test::vector<float> dst {0.5, 0.268941, 0.518083, 0.490879, 1, 1.92875e-22,
-            0.546991, 0.325252, 1};
-    test::vector<float> diff_dst {
-            3, -7, 0.0194608, -0.0559478, 70, 0, 0.754086, -0.218955, 88.5838};
-    test::vector<float> ref_diff_src {0.75, -1.37628, 0.00485884, -0.0139823, 0,
-            0, 0.186856, -0.0480526, 0};
+    test::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
+            0.188521f, -0.729739f, 88.371f};
+    test::vector<float> dst {0.5f, 0.268941f, 0.518083f, 0.490879f, 1.f,
+            1.92875e-22f, 0.546991f, 0.325252f, 1.f};
+    test::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
+            0.754086f, -0.218955f, 88.5838f};
+    test::vector<float> ref_diff_src {0.75f, -1.37628f, 0.00485884f,
+            -0.0139823f, 0.f, 0.f, 0.186856f, -0.0480526f, 0.f};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
     graph::dims strides {9, 3, 1};
@@ -484,16 +487,16 @@ TEST(Execute, SigmoidBackward) {
 }
 
 TEST(Execute, SoftPlus) {
-    test::vector<float> src {
-            0, -1, 0.0723652, -0.0364869, 40, -25, 0.188521, -0.729739, 44.317};
-    test::vector<float> ref_dst_case1 = {-0.693147, -1.31326, -0.657619,
-            -0.711557, -0, -25, -0.603322, -1.12315, -0};
-    test::vector<float> ref_dst_case2 = {0.693147, 0.313262, 0.729984, 0.67507,
-            40, 0, 0.791844, 0.393416, 44.317};
-    test::vector<float> ref_dst_case3 = {-0.346574, -1.06346, -0.311699,
-            -0.36515, -0, -25, -0.261146, -0.834203, -0};
-    test::vector<float> ref_dst_case4 = {0.346574, 0.063464, 0.384064, 0.328663,
-            40, 0, 0.449667, 0.104465, 44.317};
+    test::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -25.f,
+            0.188521f, -0.729739f, 44.317f};
+    test::vector<float> ref_dst_case1 = {-0.693147f, -1.31326f, -0.657619f,
+            -0.711557f, -0.f, -25.f, -0.603322f, -1.12315f, -0.f};
+    test::vector<float> ref_dst_case2 = {0.693147f, 0.313262f, 0.729984f,
+            0.67507f, 40.f, 0.f, 0.791844f, 0.393416f, 44.317f};
+    test::vector<float> ref_dst_case3 = {-0.346574f, -1.06346f, -0.311699f,
+            -0.36515f, -0.f, -25.f, -0.261146f, -0.834203f, -0.f};
+    test::vector<float> ref_dst_case4 = {0.346574f, 0.063464f, 0.384064f,
+            0.328663f, 40.f, 0.f, 0.449667f, 0.104465f, 44.317f};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
     const std::map<graph::op_attr_t, float> attrs_data_case1 {
@@ -516,18 +519,18 @@ TEST(Execute, SoftPlus) {
 }
 
 TEST(Execute, SoftPlusBackward) {
-    test::vector<float> src {
-            0, -1, 0.0723652, -0.0364869, 40, -50, 0.188521, -0.729739, 88.371};
-    test::vector<float> diff_dst {
-            3, -7, 0.0194608, -0.0559478, 70, 0, 0.754086, -0.218955, 88.5838};
-    test::vector<float> ref_diff_src_case1 {1.5, -5.11741, 0.00937849,
-            -0.0284842, 2.97385e-16, 0, 0.341607, -0.147739, 0};
-    test::vector<float> ref_diff_src_case2 {1.5, -1.88259, 0.0100823,
-            -0.0274636, 70, 0, 0.412478, -0.0712156, 88.5838};
-    test::vector<float> ref_diff_src_case3 {1.5, -6.16558, 0.00902748,
-            -0.0289941, 1.2634e-33, 0, 0.306793, -0.177672, 0};
-    test::vector<float> ref_diff_src_case4 {1.5, -0.83442, 0.0104333,
-            -0.0269537, 70, 0, 0.447293, -0.0412833, 88.5838};
+    test::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
+            0.188521f, -0.729739f, 88.371f};
+    test::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
+            0.754086f, -0.218955f, 88.5838f};
+    test::vector<float> ref_diff_src_case1 {1.5f, -5.11741f, 0.00937849f,
+            -0.0284842f, 2.97385e-16f, 0.f, 0.341607f, -0.147739f, 0.f};
+    test::vector<float> ref_diff_src_case2 {1.5f, -1.88259f, 0.0100823f,
+            -0.0274636f, 70.f, 0.f, 0.412478f, -0.0712156f, 88.5838f};
+    test::vector<float> ref_diff_src_case3 {1.5f, -6.16558f, 0.00902748f,
+            -0.0289941f, 1.2634e-33f, 0.f, 0.306793f, -0.177672f, 0.f};
+    test::vector<float> ref_diff_src_case4 {1.5f, -0.83442f, 0.0104333f,
+            -0.0269537f, 70.f, 0.f, 0.447293f, -0.0412833f, 88.5838f};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
     graph::dims strides {9, 3, 1};
@@ -555,7 +558,7 @@ TEST(Execute, SoftPlusBackward) {
 }
 
 TEST(Execute, Sqrt) {
-    test::vector<float> src {2.0, 1.5, 1.0, 0.5, 0.0, 3.5};
+    test::vector<float> src {2.f, 1.5f, 1.0f, 0.5f, 0.f, 3.5f};
     test::vector<float> ref_dst = sqrt_func(src);
 
     dnnl::impl::graph::dims dims {1, 2, 3};
@@ -564,14 +567,14 @@ TEST(Execute, Sqrt) {
 }
 
 TEST(Execute, SqrtBackward) {
-    test::vector<float> src {1, 0.0262164, 30, 0.424328, 88.1054, 22.5865,
-            44.2676, 0.0748657, 0.0429739};
-    test::vector<float> dst {1, 0.161915, 5.47723, 0.651405, 9.38645, 4.75252,
-            6.65339, 0.273616, 0.207301};
-    test::vector<float> diff_dst {4, 0.0748657, 10, 0.597313, 88.1216, 22.446,
-            44.7703, 0.0294627, 0.0618955};
-    test::vector<float> ref_diff_src {2, 0.231188, 0.912871, 0.458481, 4.69409,
-            2.36148, 3.36447, 0.0538395, 0.149289};
+    test::vector<float> src {1.f, 0.0262164f, 30.f, 0.424328f, 88.1054f,
+            22.5865f, 44.2676f, 0.0748657f, 0.0429739f};
+    test::vector<float> dst {1.f, 0.161915f, 5.47723f, 0.651405f, 9.38645f,
+            4.75252f, 6.65339f, 0.273616f, 0.207301f};
+    test::vector<float> diff_dst {4.f, 0.0748657f, 10.f, 0.597313f, 88.1216f,
+            22.446f, 44.7703f, 0.0294627f, 0.0618955f};
+    test::vector<float> ref_diff_src {2.f, 0.231188f, 0.912871f, 0.458481f,
+            4.69409f, 2.36148f, 3.36447f, 0.0538395f, 0.149289f};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
     graph::dims strides {9, 3, 1};
@@ -582,7 +585,7 @@ TEST(Execute, SqrtBackward) {
 }
 
 TEST(Execute, Square) {
-    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
+    test::vector<float> src {-2.f, -1.5f, -1.f, -0.5f, 0.f, 3.5f};
     test::vector<float> ref_dst;
     for (size_t i = 0; i < src.size(); ++i) {
         float temp = src[i] * src[i];
@@ -608,7 +611,7 @@ TEST(Execute, Log) {
 }
 
 TEST(Execute, Tanh) {
-    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
+    test::vector<float> src {-2.f, -1.5f, -1.f, -0.5f, 0.f, 3.5f};
     test::vector<float> ref_dst = tanh_func(src);
 
     dnnl::impl::graph::dims dims {1, 2, 3};
@@ -617,14 +620,14 @@ TEST(Execute, Tanh) {
 }
 
 TEST(Execute, TanhBackward) {
-    test::vector<float> src {
-            0, -1, 0.0723652, -0.0364869, 40, -50, 0.188521, -0.729739, 88.371};
-    test::vector<float> dst {
-            0, -0.761594, 0.0722392, -0.0364708, 1, -1, 0.186319, -0.622906, 1};
-    test::vector<float> diff_dst {
-            3, -7, 0.0194608, -0.0559478, 70, 0, 0.754086, -0.218955, 88.5838};
-    test::vector<float> ref_diff_src {
-            3, -2.93982, 0.0193593, -0.0558733, 0, 0, 0.727908, -0.133998, 0};
+    test::vector<float> src {0.f, -1.f, 0.0723652f, -0.0364869f, 40.f, -50.f,
+            0.188521f, -0.729739f, 88.371f};
+    test::vector<float> dst {0.f, -0.761594f, 0.0722392f, -0.0364708f, 1.f,
+            -1.f, 0.186319f, -0.622906f, 1.f};
+    test::vector<float> diff_dst {3.f, -7.f, 0.0194608f, -0.0559478f, 70.f, 0.f,
+            0.754086f, -0.218955f, 88.5838f};
+    test::vector<float> ref_diff_src {3.f, -2.93982f, 0.0193593f, -0.0558733f,
+            0.f, 0.f, 0.727908f, -0.133998f, 0.f};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
     graph::dims strides {9, 3, 1};
@@ -640,11 +643,11 @@ TEST(ExecuteSubgraphFp32, Shuffle) {
 
     const std::vector<std::pair<size_t, test::vector<float>>> configs {
             {1,
-                    {1., 1., 2., 2., 5., 5., 6., 6., 3., 3., 4., 4., 7., 7., 8.,
-                            8.}},
+                    {1.f, 1.f, 2.f, 2.f, 5.f, 5.f, 6.f, 6.f, 3.f, 3.f, 4.f, 4.f,
+                            7.f, 7.f, 8.f, 8.f}},
             {3,
-                    {1., 2., 1., 2., 3., 4., 3., 4., 5., 6., 5., 6., 7., 8., 7.,
-                            8.}}};
+                    {1.f, 2.f, 1.f, 2.f, 3.f, 4.f, 3.f, 4.f, 5.f, 6.f, 5.f, 6.f,
+                            7.f, 8.f, 7.f, 8.f}}};
     const std::vector<int64_t> base_shape {1, 2, 2, 2};
     const int64_t g = 2;
 
@@ -668,8 +671,8 @@ TEST(ExecuteSubgraphFp32, Shuffle) {
         std::iota(order.begin(), order.end(), 0);
         std::swap(order[axis], order[axis + 1]);
 
-        test::vector<float> src_data {
-                1., 1., 2., 2., 3., 3., 4., 4., 5., 5., 6., 6., 7., 7., 8., 8.};
+        test::vector<float> src_data {1.f, 1.f, 2.f, 2.f, 3.f, 3.f, 4.f, 4.f,
+                5.f, 5.f, 6.f, 6.f, 7.f, 7.f, 8.f, 8.f};
 
         graph::op_t reshape0 {0, graph::op_kind::StaticReshape, "reshape0"};
         reshape0.set_attr(graph::op_attr::shape, reshape0_dst_shape);
@@ -737,9 +740,9 @@ TEST(ExecuteSubgraphFp32, Shuffle) {
 TEST(ExecuteSubgraphFp32, ReciprocalMul) {
     graph::engine_t *eng = get_engine();
 
-    test::vector<float> src0_data {1.0, 2.0, 3.0, 10.0, 20.0, 30.0};
-    test::vector<float> src1_data {2.0, 2.0, 2.0, 5.0, 5.0, 5.0};
-    test::vector<float> ref_dst_data {0.5, 1.0, 1.5, 2.0, 4.0, 6.0};
+    test::vector<float> src0_data {1.f, 2.f, 3.f, 10.f, 20.f, 30.f};
+    test::vector<float> src1_data {2.f, 2.f, 2.f, 5.f, 5.f, 5.f};
+    test::vector<float> ref_dst_data {0.5f, 1.f, 1.5f, 2.f, 4.f, 6.f};
     test::vector<float> dst_data(ref_dst_data.size(), 0.0);
 
     graph::op_t reciprocal_op {0, graph::op_kind::Reciprocal, "reciprocal"};
@@ -966,13 +969,13 @@ public:
         graph::engine_t *eng = get_engine();
 
         std::vector<graph::dim_t> binary_src_shape = params.binary_src_shape;
-        test::vector<float> src {-2.0, -1.5, 1.0, 0.5};
+        test::vector<float> src {-2.f, -1.5f, 1.f, 0.5f};
         test::vector<float> binary_src(product(binary_src_shape));
         std::default_random_engine generator(7);
         std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
         std::generate(binary_src.begin(), binary_src.end(),
                 [&]() { return f32_distribution(generator); });
-        test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
+        test::vector<float> dst {0.f, 0.f, 0.f, 0.f};
 
         graph::op_t eltwise_op(0, params.eltwise_kind, "elt");
         if (params.eltwise_kind == graph::op_kind::Elu) {

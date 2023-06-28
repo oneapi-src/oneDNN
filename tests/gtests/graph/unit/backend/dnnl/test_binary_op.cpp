@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -2102,12 +2102,12 @@ TEST(Execute, MulAddPerChannelBroadcast) {
 TEST(Execute, MulAddAdd) {
     graph::engine_t *eng = get_engine();
 
-    test::vector<float> mul_src1(1917, 2.5);
-    test::vector<float> mul_src2(1, 1.5);
-    test::vector<float> add1_src(1917, 1.15);
-    test::vector<float> add2_src(1917, 1.07);
-    test::vector<float> ref_dst(1917, 5.97);
-    test::vector<float> dst(1917, 0.0);
+    test::vector<float> mul_src1(1917, 2.5f);
+    test::vector<float> mul_src2(1, 1.5f);
+    test::vector<float> add1_src(1917, 1.15f);
+    test::vector<float> add2_src(1917, 1.07f);
+    test::vector<float> ref_dst(1917, 5.97f);
+    test::vector<float> dst(1917, 0.f);
 
     graph::op_t mul_op(0, graph::op_kind::Multiply, "mul");
     graph::op_t add1_op(1, graph::op_kind::Add, "add");

@@ -2291,7 +2291,7 @@ expr_t nary_op_canonicalize(const expr_t &_e) {
     e = mul_nary_op_expander_t().mutate(e);
 
     ir_assert(is_nary_op_canonical(e)) << e;
-    MAYBE_UNUSED(is_nary_op_canonical);
+    MAYBE_UNUSED(is_nary_op_canonical(e));
 
     return e;
 }

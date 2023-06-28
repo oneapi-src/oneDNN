@@ -979,7 +979,7 @@ float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops,
     // the minor dyn cost is used for case `dyn_var1 + dyn_var2` and
     // `dyn_var1` only comparison.
     float minor_dyn_parallelism = 0.f;
-    const float minor_dyn_parallelism_step = 1e-4;
+    const float minor_dyn_parallelism_step = 1e-4f;
     for (size_t i = 0; i < loops.size(); i++) {
         auto &loop = loops[i];
         if (!(loop->iter_begin_.isa<constant_c>()

@@ -163,7 +163,7 @@ dim_t brgemm_calc_m_block_vanilla_rnn(dim_t nthr, dim_t M, dim_t N_blocks,
 
     //Heuristics experimentally selected.
     const float decimal_n_factor = work_by_N - std::floor(work_by_N);
-    static constexpr float thread_balance_threashold = 0.9;
+    static constexpr float thread_balance_threashold = 0.9f;
 
     dim_t m_block = M;
 
@@ -175,7 +175,7 @@ dim_t brgemm_calc_m_block_vanilla_rnn(dim_t nthr, dim_t M, dim_t N_blocks,
         const dim_t m_block_start = M / 2;
         const dim_t m_block_end = 8;
 
-        float max_decimal_mn = 0.0;
+        float max_decimal_mn = 0.0f;
         dim_t best_candidate = 0.0;
         bool found_best_solution = false;
 
@@ -189,7 +189,7 @@ dim_t brgemm_calc_m_block_vanilla_rnn(dim_t nthr, dim_t M, dim_t N_blocks,
                 const float work_by_MN_decimal
                         = work_by_MN - std::floor(work_by_MN);
 
-                static constexpr float tolerance = 0.01;
+                static constexpr float tolerance = 0.01f;
                 if (work_by_MN_decimal > (max_decimal_mn + tolerance)) {
                     best_candidate = m_block_it;
                     max_decimal_mn = work_by_MN_decimal;
@@ -1014,10 +1014,10 @@ static dim_t divide_block_to_improve_thread_balance(
     const float initial_work = static_cast<float>(initial_work_amount) / nthr_f;
     const float decimal_initial_factor
             = initial_work - std::floor(initial_work);
-    static constexpr float thread_balance_threashold = 0.8;
-    static constexpr float tolerance = 0.01;
+    static constexpr float thread_balance_threashold = 0.8f;
+    static constexpr float tolerance = 0.01f;
 
-    float max_decimal_factor = -1.0;
+    float max_decimal_factor = -1.0f;
     dim_t best_candidate = -1.0;
     bool found_best_solution = false;
 

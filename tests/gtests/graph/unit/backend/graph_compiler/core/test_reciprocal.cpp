@@ -50,7 +50,7 @@ static void check_reciprocal(const sc_dims &input_dims) {
     std::vector<float> sc_output(input_size);
     auto fptr = jit_engine_t::make(get_test_ctx())->get_entry_func(f);
     fptr->call_default(&input_data[0], &sc_output[0]);
-    test_utils::compare_data(sc_output, ref_output, 1e-4, 1e-5);
+    test_utils::compare_data(sc_output, ref_output, 1e-4f, 1e-5f);
 }
 
 TEST(GCCore_CPU_reciprocal_test, TestReciprocalOp) {

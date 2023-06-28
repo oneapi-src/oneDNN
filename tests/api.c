@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -308,7 +308,7 @@ void test3() {
 
     CHECK(dnnl_lrn_forward_primitive_desc_create(&l2_pd, engine,
             dnnl_forward_inference, dnnl_lrn_across_channels, l2_data_md,
-            l2_data_md, 5, 1e-4, 0.75, 1.0, NULL));
+            l2_data_md, 5, 1e-4f, 0.75f, 1.0f, NULL));
 
     CHECK_TRUE(dnnl_memory_desc_equal(l2_data_md,
             dnnl_primitive_desc_query_md(l2_pd, dnnl_query_src_md, 0)));

@@ -549,7 +549,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestLeakyReluOP) {
             ref_leaky_relu(ref_out_buf.data(), in_buf.data(), M * K, alpha);
         }
 
-        test_utils::compare_data(out_buf, ref_out_buf, 1e-4, 1e-4);
+        test_utils::compare_data(out_buf, ref_out_buf, 1e-4f, 1e-4f);
     };
 
     check_leaky_relu(datatypes::f32, 100, 200, 0.01);
@@ -601,7 +601,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestTanhOP) {
         fptr->call_default(in_buf.data(), out_buf.data());
         ref_tanh(ref_out_buf.data(), in_buf.data(), M * K);
 
-        test_utils::compare_data(out_buf, ref_out_buf, 5e-3, 1e-4);
+        test_utils::compare_data(out_buf, ref_out_buf, 5e-3f, 1e-4f);
     };
     // scalar version
     check_tanh(100, 200);
@@ -649,7 +649,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestErfOP) {
         fptr->call_default(in_buf.data(), out_buf.data());
         ref_erf(ref_out_buf.data(), in_buf.data(), M * K);
 
-        test_utils::compare_data(out_buf, ref_out_buf, 5e-3, 1e-4);
+        test_utils::compare_data(out_buf, ref_out_buf, 5e-3f, 1e-4f);
     };
     // scalar version
     check_erf(128, 200);
@@ -990,7 +990,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestSigmoidOP) {
 
         ref_sigmoid(ref_out_buf.data(), in_buf.data(), M * K);
 
-        test_utils::compare_data(out_buf, ref_out_buf, 1e-5, 1e-5);
+        test_utils::compare_data(out_buf, ref_out_buf, 1e-5f, 1e-5f);
     };
     // scalar version
     check_sigmoid(100, 200);
@@ -2459,13 +2459,13 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestVecterizedClampOP) {
         ref_clamp(
                 ref_out_buf.data(), in_buf.data(), M * K, clamp_min, clamp_max);
 
-        test_utils::compare_data(out_buf, ref_out_buf, 1e-5, 1e-5);
+        test_utils::compare_data(out_buf, ref_out_buf, 1e-5f, 1e-5f);
     };
     // scalar version
     // check_clamp(100, 200, false, 0.1, 0.5);
 
     // vectorization version
-    check_clamp(100, 256, true, 0.1, 0.5);
+    check_clamp(100, 256, true, 0.1f, 0.5f);
 }
 
 class check_hint_visitor_t : public ir_visitor_t {
@@ -2638,7 +2638,7 @@ TEST(GCCore_CPU_fuse_mgr_cpp, TestVecterizedRoundOP) {
 
         ref_round(ref_out_buf.data(), in_buf.data(), M * K);
 
-        test_utils::compare_data(out_buf, ref_out_buf, 1e-5, 1e-5);
+        test_utils::compare_data(out_buf, ref_out_buf, 1e-5f, 1e-5f);
     };
 
     // vectorization version

@@ -216,7 +216,7 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         // MIOpen implementation is less accurate for f16 data type therefore
         // adjust the threshold.
         if (prb->sdt == dnnl_f16 || prb->ddt == dnnl_f16)
-            cmp.set_threshold(1.5e-4 * 4);
+            cmp.set_threshold(1.5e-4f * 4.f);
     }
 }
 

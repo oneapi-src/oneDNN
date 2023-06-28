@@ -732,7 +732,7 @@ layernorm_executable_t::desc_t layernorm_executable_t::create_desc(
     }
 
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
-    float epsilon = 1e-5;
+    float epsilon = 1e-5f;
     if (op->has_attr(op_attr::epsilon))
         epsilon = op->get_attr<float>(op_attr::epsilon);
     bool keep_stats = true;

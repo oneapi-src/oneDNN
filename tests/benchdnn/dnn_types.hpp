@@ -443,7 +443,7 @@ using policy_t = attr_t::policy_t;
 struct sparse_options_t {
     static constexpr dnnl_sparse_encoding_t def_encoding
             = dnnl_sparse_encoding_undef;
-    static constexpr float def_sparsity = 0.9;
+    static constexpr float def_sparsity = 0.9f;
 
     sparse_options_t() = default;
     sparse_options_t(int arg, dnnl_sparse_encoding_t encoding, float sparsity) {

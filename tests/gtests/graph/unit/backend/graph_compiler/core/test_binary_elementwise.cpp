@@ -268,7 +268,8 @@ static void check_binary_elementwise(const std::string &op_name,
     const auto input_size = test_utils::product(input_dims);
     std::vector<T> input_data1(input_size), input_data2(input_size);
     if (utils::is_one_of(op_name, std::string("pow"))) {
-        test_utils::fill_data(&input_data1[0], input_size, (T)1e-4, (T)1.f);
+        test_utils::fill_data(&input_data1[0], input_size,
+                static_cast<T>(1e-4f), static_cast<T>(1.f));
     } else {
         test_utils::fill_data(&input_data1[0], input_size);
     }
@@ -280,12 +281,12 @@ static void check_binary_elementwise(const std::string &op_name,
     auto fptr = jit_engine_t::make(get_test_ctx())->get_entry_func(f);
     fptr->call_default(&input_data1[0], &input_data2[0], &sc_output[0]);
     if (!is_bf16) {
-        test_utils::compare_data(sc_output, ref_output, 1e-4, 1e-5);
+        test_utils::compare_data(sc_output, ref_output, 1e-4f, 1e-5f);
     } else {
         float sum = 0.f;
         std::for_each(sc_output.begin(), sc_output.end(),
                 [&sum](const T &n) { sum += std::abs(float(n)); });
-        EXPECT_TRUE(test_utils::cal_rmse(sc_output, ref_output) / sum < 1e-4);
+        EXPECT_TRUE(test_utils::cal_rmse(sc_output, ref_output) / sum < 1e-4f);
     }
 }
 

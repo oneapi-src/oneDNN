@@ -129,7 +129,7 @@ static void accuracy_test_on_graph(
     fptr1->call_generic_default(generic_args1.data());
     test_buffer<float> enable_output = arg_buffers.back().copy();
 
-    test_utils::compare_data(enable_output, disable_output, 1e-3);
+    test_utils::compare_data(enable_output, disable_output, 1e-3f);
 
 #ifdef DO_BENCH
     auto exec0 = [&]() { fptr0->call_generic_default(generic_args0.data()); };

@@ -1096,10 +1096,10 @@ private:
         return c;
     }
 
-    float learning_rate_ = 0.1;
+    float learning_rate_ = 0.1f;
     histogram_t hist_;
 
-    float f0_ = 0;
+    float f0_ = 0.f;
     std::vector<tree_t<tree_type_t>> trees_;
 };
 

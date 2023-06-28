@@ -84,7 +84,8 @@ TEST(GCCore_CPU_concat_op_t_cpp, FourDimsConcatAxis0) {
     std::vector<float> graph_output0_data((A0 + A1 + A2) * B * C * D);
     fptr->call_default(&input0_data[0], &input1_data[0], &input2_data[0],
             &graph_output0_data[0]);
-    test_utils::compare_data(graph_output0_data, ref_output0_data, 1e-4, 1e-5);
+    test_utils::compare_data(
+            graph_output0_data, ref_output0_data, 1e-4f, 1e-5f);
 }
 
 // Note: the input shapes of this function are fixed
@@ -182,7 +183,8 @@ TEST(GCCore_CPU_concat_op_t_cpp, FourDimsConcatAxis2) {
     std::vector<float> graph_output0_data(A * B * (C0 + C1 + C2) * D);
     fptr->call_default(&input0_data[0], &input1_data[0], &input2_data[0],
             &graph_output0_data[0]);
-    test_utils::compare_data(graph_output0_data, ref_output0_data, 1e-4, 1e-5);
+    test_utils::compare_data(
+            graph_output0_data, ref_output0_data, 1e-4f, 1e-5f);
 }
 
 TEST(GCCore_CPU_concat_op_t_cpp, ConcatManagedMatmulAxis0) {
@@ -260,7 +262,8 @@ TEST(GCCore_CPU_concat_op_t_cpp, ConcatManagedMatmulAxis0) {
                 &ref_output0_data[0]);
     }
 
-    test_utils::compare_data(graph_output0_data, ref_output0_data, 1e-4, 1e-5);
+    test_utils::compare_data(
+            graph_output0_data, ref_output0_data, 1e-4f, 1e-5f);
 }
 
 TEST(GCCore_CPU_concat_op_t_cpp, ConcatManagedMatmulAxis1) {
@@ -330,7 +333,8 @@ TEST(GCCore_CPU_concat_op_t_cpp, ConcatManagedMatmulAxis1) {
                 &ref_output0_data[0]);
     }
 
-    test_utils::compare_data(graph_output0_data, ref_output0_data, 1e-4, 1e-5);
+    test_utils::compare_data(
+            graph_output0_data, ref_output0_data, 1e-4f, 1e-5f);
 }
 
 /*
@@ -417,7 +421,8 @@ TEST(GCCore_CPU_concat_op_t_cpp, InceptionLikeTopoConv) {
     auto fptr1 = jit_engine_t::make(ctx)->get_entry_func(ir_mod1);
     fptr1->call_default(&input0_data[0], &weight0_data[0], &weight1_data[0],
             &weight2_data[0], &ref_output0_data[0]);
-    test_utils::compare_data(graph_output0_data, ref_output0_data, 1e-4, 1e-5);
+    test_utils::compare_data(
+            graph_output0_data, ref_output0_data, 1e-4f, 1e-5f);
 }
 
 TEST(GCCore_CPU_concat_op_t_cpp, ConcatPermuteConcat) {

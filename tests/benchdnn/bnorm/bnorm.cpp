@@ -412,9 +412,9 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     const int f32_mant_digits = 24;
     const float trh_coeff = (1 << (f32_mant_digits - digits_dt(prb->dt)));
     float trh = trh_coeff
-            * ((kind == SRC || kind == DST || kind == SRC_1) ? 6e-7 : 0);
+            * ((kind == SRC || kind == DST || kind == SRC_1) ? 6e-7f : 0);
     if ((kind == SC || kind == SH) && prb->dir & FLAG_BWD)
-        trh = trh_coeff * 5e-6;
+        trh = trh_coeff * 5e-6f;
 
 #ifdef DNNL_EXPERIMENTAL
     const bool bnorm_single_pass
@@ -433,8 +433,8 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         //
         // On Intel GPUs mean and variance could be rounded incorrectly because
         // they are calculated using fast but potentially unstable formula.
-        if (kind == MEAN) trh = 1e-7;
-        if (kind == VAR) trh = 5e-7;
+        if (kind == MEAN) trh = 1e-7f;
+        if (kind == VAR) trh = 5e-7f;
     }
     cmp.set_threshold(trh);
 
