@@ -500,12 +500,14 @@ int doit(const prb_t *prb, res_t *res) {
         c_partitions[i].execute(strm, input_ts, output_ts);
         strm.wait();
 
-        if (map_partition_in_mem(partition_mem_map, inputs) != OK) {
-            BENCHDNN_PRINT(0,
-                    "FAIL: Fail to map input memories back to host for "
-                    "partition %zu.\n",
-                    i);
-            return res->state = FAILED, FAIL;
+        if (has_bench_mode_bit(mode_bit_t::corr)) {
+            if (map_partition_in_mem(partition_mem_map, inputs) != OK) {
+                BENCHDNN_PRINT(0,
+                        "FAIL: Fail to map input memories back to host for "
+                        "partition %zu.\n",
+                        i);
+                return res->state = FAILED, FAIL;
+            }
         }
         res->state = EXECUTED;
 
