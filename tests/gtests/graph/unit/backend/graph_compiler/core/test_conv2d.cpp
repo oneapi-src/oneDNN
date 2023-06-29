@@ -65,15 +65,16 @@ const conv_fwd_config_t cfg_fwd_3x3 = {
 bool verbose = false;
 
 void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int K,
-        int C, int H, int W, int R, int S, sc_dims stride, sc_dims padding,
-        sc_dims dilation, bool fuse_bias = false, bool fuse_bn_relu = false,
-        bool fuse_eleadd = false, bool default_cfg = false,
-        bool force_blocking = false, bool force_channel_last = false) {
+        int C, int H, int W, int R, int S, sc_dims stride, sc_dims pads_begin,
+        sc_dims pads_end, sc_dims dilation, bool fuse_bias = false,
+        bool fuse_bn_relu = false, bool fuse_eleadd = false,
+        bool default_cfg = false, bool force_blocking = false,
+        bool force_channel_last = false) {
     REQUIRE_AVX2();
     int stride_h = stride[0], stride_w = stride[0];
     if (stride.size() > 1) { stride_w = stride[1]; }
-    int padding_h = padding[0], padding_w = padding[0];
-    if (padding.size() > 1) { padding_w = padding[1]; }
+    int padding_h = pads_begin[0], padding_w = pads_begin[0];
+    if (pads_begin.size() > 1) { padding_w = pads_begin[1]; }
     int dilation_h = dilation[0], dilation_w = dilation[0];
     if (dilation.size() > 1) { dilation_w = dilation[1]; }
 
@@ -84,8 +85,8 @@ void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int K,
     auto in_weight = mgr.make_input({graph_tensor::make({K, C, R, S})});
     auto conv_out = mgr.make("conv_fwd_core",
             {in_a->get_outputs()[0], in_weight->get_outputs()[0]}, {},
-            {{"strides", stride}, {"paddings", padding},
-                    {"dilations", dilation}});
+            {{"strides", stride}, {"pads_begin", pads_begin},
+                    {"pads_end", pads_end}, {"dilations", dilation}});
     COMPILE_ASSERT(!force_blocking || !force_channel_last,
             "only one of force_blocking and force_channel_last allowed");
     if (force_blocking) {
@@ -217,6 +218,16 @@ void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int K,
         check_sum(sc_output, mkldnn_output);
     }
     EXPECT_TRUE(correctness);
+}
+
+void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int K,
+        int C, int H, int W, int R, int S, sc_dims stride, sc_dims padding,
+        sc_dims dilation, bool fuse_bias = false, bool fuse_bn_relu = false,
+        bool fuse_eleadd = false, bool default_cfg = false,
+        bool force_blocking = false, bool force_channel_last = false) {
+    check_conv_correctness_and_tuning_fwd(cfg, N, K, C, H, W, R, S, stride,
+            padding, padding, {1, 1}, fuse_bias, fuse_bn_relu, fuse_eleadd,
+            default_cfg, force_blocking, force_channel_last);
 }
 
 void check_conv_correctness_and_tuning_fwd(conv_fwd_config_t cfg, int N, int K,
@@ -965,6 +976,30 @@ TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_12_NCX) {
 TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_12_NXC) {
     check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 28, 128, 256, 56, 56, 3,
             3, 2, 1, false, false, false, false, false, true);
+}
+#endif
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_13_NCX_asym_pad) {
+    check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 224, 224, 7,
+            7, sc_dims {2, 2}, sc_dims {3, 3}, sc_dims {2, 2}, sc_dims {1, 1},
+            false, false, false, false, true, false);
+}
+#if conv_padding_support_NXC
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_13_NXC_asym_pad) {
+    check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 224, 224, 7,
+            7, sc_dims {2, 2}, sc_dims {3, 3}, sc_dims {2, 2}, sc_dims {1, 1},
+            false, false, false, false, false, true);
+}
+#endif
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_14_NCX_asym_pad) {
+    check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 224, 224, 7,
+            7, sc_dims {1, 1}, sc_dims {3, 3}, sc_dims {2, 2}, sc_dims {1, 1},
+            false, false, false, false, true, false);
+}
+#if conv_padding_support_NXC
+TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_14_NXC_asym_pad) {
+    check_conv_correctness_and_tuning_fwd(cfg_fwd_3x3, 1, 64, 64, 224, 224, 4,
+            4, sc_dims {1, 1}, sc_dims {3, 3}, sc_dims {2, 2}, sc_dims {1, 1},
+            false, false, false, false, false, true);
 }
 #endif
 TEST(GCCore_CPU_conv2d_fwd_cpp, Test_2DConv_3x3_with_dilation) {

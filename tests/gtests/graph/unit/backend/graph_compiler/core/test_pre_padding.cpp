@@ -293,6 +293,97 @@ TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Conv_Padding) {
     test_utils::compare_data(sc_output, ref_output, 1e-3f, 1e-3f);
 }
 
+TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Conv_Asym_Padding) {
+    REQUIRE_AVX2();
+    auto ctx = std::make_shared<context_t>(*get_default_context());
+    ctx->flags_.mixed_fusion_ = true;
+    sc_graph_t g;
+    auto input_shape = sc_dims {1, 64, 224, 224};
+    auto weight_shape_1 = sc_dims {64, 64, 1, 1};
+    auto weight_shape_2 = sc_dims {64, 64, 7, 7};
+    auto strides = sc_dims {1, 2};
+
+    const sc_dims pads_begin = {3, 3};
+    const sc_dims pads_end = {2, 2};
+
+    auto conv1_output_shape = sc_dims {input_shape[0], weight_shape_1[0],
+            (input_shape[2] - weight_shape_1[2]) / strides[0] + 1,
+            (input_shape[3] - weight_shape_1[3]) / strides[0] + 1};
+
+    auto padding_output_shape = sc_dims {input_shape[0], weight_shape_1[0],
+            conv1_output_shape[2] + pads_begin[0] + pads_end[0],
+            conv1_output_shape[3] + pads_begin[1] + pads_end[1]};
+
+    auto out_shape = sc_dims {padding_output_shape[0], weight_shape_2[0],
+            (padding_output_shape[2] - weight_shape_2[2]) / strides[1] + 1,
+            (padding_output_shape[3] - weight_shape_2[3]) / strides[1] + 1};
+
+    auto input = g.make_input({graph_tensor::make(
+            input_shape, sc_data_format_t::NCHW(), datatypes::f32)});
+    auto weight_1 = g.make_input({std::make_shared<graph_tensor>(nullptr,
+            sc_data_format_t::KCRS(), weight_shape_1, datatypes::f32)});
+    auto weight_2 = g.make_input({std::make_shared<graph_tensor>(nullptr,
+            sc_data_format_t::KCRS(), weight_shape_2, datatypes::f32)});
+
+    auto conv_1 = g.make("conv_fwd_core",
+            {input->get_outputs()[0], weight_1->get_outputs()[0]}, {},
+            {{"strides", sc_dims {strides[0], strides[0]}},
+                    {"pads_begin", sc_dims {0, 0}},
+                    {"pads_end", sc_dims {0, 0}}});
+
+    auto padding = g.make("padding", {conv_1->get_outputs()[0]}, {},
+            {{"pads_begin", pads_begin}, {"pads_end", pads_end}});
+
+    auto conv_2 = g.make("conv_fwd_core",
+            {padding->get_outputs()[0], weight_2->get_outputs()[0]}, {},
+            {{"strides", sc_dims {strides[1], strides[1]}},
+                    {"pads_begin", sc_dims {0, 0}},
+                    {"pads_end", sc_dims {0, 0}}});
+
+    auto out = g.make_output(conv_2->get_outputs());
+    graph_driver(g, ctx);
+    std::vector<sc_op_ptr> arg_list = {input, weight_1, weight_2, out};
+    auto f = lower_graph(ctx, g, arg_list);
+
+    auto input_data = alloc_array<float>(test_utils::product(input_shape));
+
+    auto weight_1_data
+            = alloc_array<float>(test_utils::product(weight_shape_1));
+    auto weight_2_data
+            = alloc_array<float>(test_utils::product(weight_shape_2));
+
+    auto conv1_output
+            = alloc_array<float>(test_utils::product(conv1_output_shape));
+
+    auto sc_output = alloc_array<float>(test_utils::product(out_shape));
+    auto ref_output = alloc_array<float>(test_utils::product(out_shape));
+
+    auto fptr = jit_engine_t::make(ctx)->get_entry_func(f);
+    fptr->call_default(&input_data[0], &weight_1_data[0], &weight_2_data[0],
+            &sc_output[0]);
+
+    auto padding_output
+            = alloc_array<float>(test_utils::product(padding_output_shape));
+
+    compute_ref_direct_fwd(input_shape[0], 1, weight_shape_1[0], input_shape[1],
+            input_shape[2], input_shape[3], conv1_output_shape[2],
+            conv1_output_shape[3], weight_shape_1[2], weight_shape_1[3],
+            strides[0], strides[0], 0, 0, &input_data[0], &weight_1_data[0],
+            static_cast<float *>(nullptr), &conv1_output[0], FWD_I);
+
+    ref_padding_2d(&padding_output[0], &conv1_output[0], padding_output_shape,
+            pads_begin, pads_end);
+
+    compute_ref_direct_fwd(padding_output_shape[0], 1, weight_shape_2[0],
+            padding_output_shape[1], padding_output_shape[2],
+            padding_output_shape[3], out_shape[2], out_shape[3],
+            weight_shape_2[2], weight_shape_2[3], strides[1], strides[1], 0, 0,
+            &padding_output[0], &weight_2_data[0],
+            static_cast<float *>(nullptr), &ref_output[0], FWD_I);
+
+    test_utils::compare_data(sc_output, ref_output, 1e-3, 1e-3);
+}
+
 TEST(GCCore_CPU_pre_padding_test, TestPre_Padding_Fuse) {
     REQUIRE_AVX2();
     auto ctx = std::make_shared<context_t>(*get_default_context());

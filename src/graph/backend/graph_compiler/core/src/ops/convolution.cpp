@@ -507,8 +507,6 @@ conv_fwd_core_op_t::conv_fwd_core_op_t(const std::vector<graph_tensor_ptr> &ins,
         pads_begin = attrs_.get<sc_dims>("paddings");
         pads_end = pads_begin;
     }
-    COMPILE_ASSERT(pads_begin == pads_end,
-            "Current conv_fwd_core only supports symmetric padding.");
     auto &data_dtype = info_.inputs_[0]->details_.dtype_;
     auto &weight_dtype = info_.inputs_[1]->details_.dtype_;
     if (info_.outputs_.empty()) {
@@ -611,21 +609,15 @@ body_generator_ptr conv_fwd_core_op_t::create_generator() {
     auto &pads_end = attrs_.has_key("pads_end")
             ? attrs_.get<sc_dims>("pads_end")
             : attrs_.get<sc_dims>("paddings");
-    COMPILE_ASSERT(pads_begin == pads_end,
-            "Current conv_fwd generator logic only supports symmetric "
-            "padding.");
 
 #define CREATE_GENERATOR(type) \
-    utils::make_unique<type>(this, stride, dilations, pads_begin, \
+    utils::make_unique<type>(this, stride, dilations, pads_begin, pads_end, \
             graph::extract_detail_from_tensors(get_inputs()), \
             graph::extract_detail_from_tensors(get_outputs()))
     if (use_nested_conv_fwd_generator()) {
         return CREATE_GENERATOR(gen_nested_conv_fwd_t);
     } else if (attrs_.get_or_else("use_rl", false)) {
-        return utils::make_unique<gen_conv_fwd_rl_t>(this, stride, dilations,
-                pads_begin, pads_end,
-                graph::extract_detail_from_tensors(get_inputs()),
-                graph::extract_detail_from_tensors(get_outputs()));
+        return CREATE_GENERATOR(gen_conv_fwd_rl_t);
     } else {
         auto ret = CREATE_GENERATOR(gen_conv_fwd_t);
         if (attrs_.get_or_else("inverse_filter", false)) {

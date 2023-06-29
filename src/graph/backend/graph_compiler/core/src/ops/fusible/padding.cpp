@@ -53,8 +53,8 @@ padding_op_t::padding_op_t(const std::vector<graph_tensor_ptr> &ins,
                 "wrong padding dims, 2D input, but got" << pads_begin.size()
                                                         << "D paddings.");
     } else {
-        COMPILE_ASSERT(pads_begin == pads_end,
-                "Current padding op only supports symmetric padding.");
+        COMPILE_ASSERT(pads_begin.size() == pads_end.size(),
+                "The size of pads_begin should be equal to pads_end.");
 
         if (pads_begin.size() == 1) {
             pads_begin = sc_dims(ndims - 2, pads_begin[0]);

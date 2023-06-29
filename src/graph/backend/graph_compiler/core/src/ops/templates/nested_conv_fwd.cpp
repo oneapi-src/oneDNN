@@ -105,7 +105,8 @@ config_ptr_vec gen_nested_conv_fwd_t::get_dynamic_config_candidates(
   // limit im_os_block smaller than 64.
   std::vector<int> im_w_block_candidates
     = ow_ < 0 ? std::vector<int> {64} : std::vector<int> {std::min(ow_, 64)};
-  bool has_pad = (pd_ > 0) || (ph_ > 0) || (pw_ > 0);
+  bool has_pad = (pd_b_ > 0) || (ph_b_ > 0) || (pw_b_ > 0) || (pd_e_ > 0)
+    || (ph_e_ > 0) || (pw_e_ > 0);
 
   auto default_block = get_dyn_conv_default_block(is_1x1_conv_,
     utils::get_sizeof_type(get_input_dtype()), has_pad,
@@ -164,7 +165,8 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
     cfg.w_block = ow_;
     cfg.im_h_block = 1;
     cfg.im_w_block = 64;
-    bool has_pad = (pd_ > 0) || (ph_ > 0) || (pw_ > 0);
+    bool has_pad = (pd_b_ > 0) || (ph_b_ > 0) || (pw_b_ > 0) || (pd_e_ > 0)
+      || (ph_e_ > 0) || (pw_e_ > 0);
     auto default_block = get_dyn_conv_default_block(is_1x1_conv_,
       utils::get_sizeof_type(get_input_dtype()), has_pad,
       get_input_dtype() == datatypes::f32);
@@ -192,7 +194,8 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
     auto default_block = dtype_block * 32;
 
     if (mb_ == 1 && num_threads == 4) { default_block = 128; };
-    bool has_pad = (pd_ > 0) || (ph_ > 0) || (pw_ > 0);
+    bool has_pad = (pd_b_ > 0) || (ph_b_ > 0) || (pw_b_ > 0) || (pd_e_ > 0)
+      || (ph_e_ > 0) || (pw_e_ > 0);
     if (has_pad) { default_block = (is_int8 || is_bf16) ? 128 : 64; }
 
     cfg.im_oc_block = utils::get_blocks(oc_, 1, default_block).back();
@@ -371,7 +374,8 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
 
 gen_nested_conv_fwd_t::gen_nested_conv_fwd_t(sc_op *owner,
   const sc_dims &stride, const sc_dims &dilation, const sc_dims &pads_begin,
-  std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs)
+  const sc_dims &pads_end, std::vector<logical_tensor_t> &&ins,
+  std::vector<logical_tensor_t> &&outs)
   : parent(owner, std::move(ins), std::move(outs)) {
   COMPILE_ASSERT(in_tensors_.size() == 2,
     "Wrong number of inputs, expected to be 2 but got " << in_tensors_.size()
@@ -437,11 +441,17 @@ gen_nested_conv_fwd_t::gen_nested_conv_fwd_t(sc_op *owner,
   oh_ = is_1d_ ? 1 : out_plain_dims[ndims_ - 2];
   ow_ = out_plain_dims[ndims_ - 1];
   is_1x1_conv_ = (kd_ == 1 && kh_ == 1 && kw_ == 1);
-  pd_ = is_3d_ ? pads_begin[0] : 0;
-  ph_ = is_1d_ ? 0 : pads_begin[0], pw_ = pads_begin[0];
+  pd_b_ = is_3d_ ? pads_begin[0] : 0;
+  ph_b_ = is_1d_ ? 0 : pads_begin[0], pw_b_ = pads_begin[0];
+  pd_e_ = is_3d_ ? pads_end[0] : 0;
+  ph_e_ = is_1d_ ? 0 : pads_end[0], pw_e_ = pads_end[0];
   if (pads_begin.size() > 1) {
-    ph_ = pads_begin[ndims_ - 4];
-    pw_ = pads_begin[ndims_ - 3];
+    ph_b_ = pads_begin[ndims_ - 4];
+    pw_b_ = pads_begin[ndims_ - 3];
+  }
+  if (pads_end.size() > 1) {
+    ph_e_ = pads_end[ndims_ - 4];
+    pw_e_ = pads_end[ndims_ - 3];
   }
   sd_ = is_3d_ ? stride[0] : 1;
   sh_ = is_1d_ ? 1 : stride[0], sw_ = stride[0];
@@ -466,13 +476,14 @@ gen_nested_conv_fwd_t::gen_nested_conv_fwd_t(sc_op *owner,
   actual_os_ = oh_ * ow_;
   num_elems_skip_per_ow_ = ((dw_ * (kw_ - 1)) / sw_) * sh_ + (sh_ - 1) * ow_;
   adj_os_ = std::min(actual_os_ + num_elems_skip_per_ow_ * (oh_ - 1),
-    (ih_ + 2 * ph_) * (iw_ + 2 * pw_));
+    (ih_ + ph_b_ + ph_e_) * (iw_ + pw_b_ + pw_e_));
 
   bool is_int8
     = utils::is_one_of(get_input_dtype(), datatypes::u8, datatypes::s8);
   // Note: os blocking is only valid for non_1x1, no pad and non 3D conv with
   // amx-int8 only so far.
-  bool has_pad = (pd_ > 0) || (ph_ > 0) || (pw_ > 0);
+  bool has_pad = (pd_b_ > 0) || (ph_b_ > 0) || (pw_b_ > 0) || (pd_e_ > 0)
+    || (ph_e_ > 0) || (pw_e_ > 0);
   try_os_blocking_
     = (!is_1x1_conv_) && (!has_pad) && (!is_3d_) && is_int8 && !is_dynamic();
   use_nested_2d_ = (!is_1d_ && !is_3d_);
@@ -975,11 +986,11 @@ void gen_nested_conv_fwd_t::dynamic_compute_1x1_pack_input_nested(
   auto ih_expr_ = input_expr_dims[1];
   auto iw_expr_ = input_expr_dims[2];
   auto oh_expr_ = input_expr_dims.size() == 4
-    ? (input_expr_dims[1] + ph_ * 2 - kh_) / sh_ + 1
-    : (input_expr_dims[2] + ph_ * 2 - kh_) / sh_ + 1;
+    ? (input_expr_dims[1] + ph_b_ + ph_e_ - kh_) / sh_ + 1
+    : (input_expr_dims[2] + ph_b_ + ph_e_ - kh_) / sh_ + 1;
   auto ow_expr_ = input_expr_dims.size() == 4
-    ? (input_expr_dims[2] + pw_ * 2 - kw_) / sw_ + 1
-    : (input_expr_dims[3] + pw_ * 2 - kw_) / sw_ + 1;
+    ? (input_expr_dims[2] + pw_b_ + pw_e_ - kw_) / sw_ + 1
+    : (input_expr_dims[3] + pw_b_ + pw_e_ - kw_) / sw_ + 1;
 
   int lanes = get_lanes(ctx, config.im_ic_block, get_input_dtype());
   if (config.pack_input == 1 && (sd_ > 1 || sh_ > 1 || sw_ > 1)) {
@@ -1930,11 +1941,11 @@ void gen_nested_conv_fwd_t::dynamic_compute_conv_no_padding_nested(
 
   auto output_expr_dims = output.checked_as<tensor>()->dims_;
   auto oh_expr_ = input_expr_dims.size() == 4
-    ? (input_expr_dims[1] + ph_ * 2 - kh_) / sh_ + 1
-    : (input_expr_dims[2] + ph_ * 2 - kh_) / sh_ + 1;
+    ? (input_expr_dims[1] + (ph_b_ + ph_e_) - kh_) / sh_ + 1
+    : (input_expr_dims[2] + (ph_b_ + ph_e_) - kh_) / sh_ + 1;
   auto ow_expr_ = input_expr_dims.size() == 4
-    ? (input_expr_dims[2] + pw_ * 2 - kw_) / sw_ + 1
-    : (input_expr_dims[3] + pw_ * 2 - kw_) / sw_ + 1;
+    ? (input_expr_dims[2] + (pw_b_ + pw_e_) - kw_) / sw_ + 1
+    : (input_expr_dims[3] + (pw_b_ + pw_e_) - kw_) / sw_ + 1;
 
   int oc_block = oc_ / oc_threads;
 
@@ -2910,7 +2921,7 @@ void gen_nested_conv_fwd_t::single_thread_conv_padding_call(expr &output,
                               }
                               _else_ {
                                 _if_((h + im_h_i) < y_unpad_top) {
-                                  num_pad_rows = builder::make_min(ph_
+                                  num_pad_rows = builder::make_min(ph_b_
                                       - builder::make_cast(
                                           datatypes::u32, h + im_h_i)
                                         * sh_,
@@ -2925,7 +2936,7 @@ void gen_nested_conv_fwd_t::single_thread_conv_padding_call(expr &output,
                                     builder::make_cast(
                                       datatypes::u32, h + im_h_i)
                                         * sh_
-                                      + kh_ - (ih_ + ph_),
+                                      + kh_ - (ih_ + ph_b_),
                                     kh_);
                                   pad_begin_index = kh_ - num_pad_rows;
                                   pad_end_index = kh_;
@@ -2952,7 +2963,7 @@ void gen_nested_conv_fwd_t::single_thread_conv_padding_call(expr &output,
                                 _if_(w < y_unpad_left) {
                                   _if_((w + im_w_block - 1) <= y_unpad_right) {
                                     // 1.3.1.1) left pad only
-                                    real_pad_left = pw_
+                                    real_pad_left = pw_b_
                                       - builder::make_cast(
                                         datatypes::u32, w * sw_);
 
@@ -2980,14 +2991,14 @@ void gen_nested_conv_fwd_t::single_thread_conv_padding_call(expr &output,
                                                 ? span_t(
                                                   {n, ic,
                                                     (h + im_h_i) * sh_ + i
-                                                      - ph_,
-                                                    w * sw_ + j - pw_, k},
+                                                      - ph_b_,
+                                                    w * sw_ + j - pw_b_, k},
                                                   lanes)
                                                 : span_t(
                                                   {n,
                                                     (h + im_h_i) * sh_ + i
-                                                      - ph_,
-                                                    w * sw_ + j - pw_,
+                                                      - ph_b_,
+                                                    w * sw_ + j - pw_b_,
                                                     ic * im_ic_block + k},
                                                   lanes)];
                                         }
@@ -3008,13 +3019,13 @@ void gen_nested_conv_fwd_t::single_thread_conv_padding_call(expr &output,
                                   _else_ {
                                     // 1.3.1.2) both left and
                                     // right pad
-                                    real_pad_left = pw_
+                                    real_pad_left = pw_b_
                                       - builder::make_cast(
                                         datatypes::u32, w * sw_);
                                     real_pad_right
                                       = builder::make_cast(datatypes::u32,
                                           w * sw_ + src_row_tile_size)
-                                      - (iw_padded - pw_);
+                                      - (iw_padded - pw_e_);
 
                                     copy_width = src_row_tile_size
                                       - real_pad_left - real_pad_right;
@@ -3041,14 +3052,14 @@ void gen_nested_conv_fwd_t::single_thread_conv_padding_call(expr &output,
                                                 ? span_t(
                                                   {n, ic,
                                                     (h + im_h_i) * sh_ + i
-                                                      - ph_,
-                                                    w * sw_ + j - pw_, k},
+                                                      - ph_b_,
+                                                    w * sw_ + j - pw_b_, k},
                                                   lanes)
                                                 : span_t(
                                                   {n,
                                                     (h + im_h_i) * sh_ + i
-                                                      - ph_,
-                                                    w * sw_ + j - pw_,
+                                                      - ph_b_,
+                                                    w * sw_ + j - pw_b_,
                                                     ic * im_ic_block + k},
                                                   lanes)];
                                         }
@@ -3088,11 +3099,11 @@ void gen_nested_conv_fwd_t::single_thread_conv_padding_call(expr &output,
                                         A_list[idx] = tensor_ptr(input,
                                           blocking_input_
                                             ? std::vector<expr> {n, ic,
-                                              (h + im_h_i) * sh_ + r - ph_,
-                                              w * sw_ + s - pw_, 0}
+                                              (h + im_h_i) * sh_ + r - ph_b_,
+                                              w * sw_ + s - pw_b_, 0}
                                             : std::vector<expr> {n,
-                                              (h + im_h_i) * sh_ + r - ph_,
-                                              w * sw_ + s - pw_,
+                                              (h + im_h_i) * sh_ + r - ph_b_,
+                                              w * sw_ + s - pw_b_,
                                               ic * im_ic_block});
                                       }
                                     }
@@ -3102,7 +3113,7 @@ void gen_nested_conv_fwd_t::single_thread_conv_padding_call(expr &output,
                                     real_pad_right
                                       = builder::make_cast(datatypes::u32,
                                           w * sw_ + src_row_tile_size)
-                                      - (iw_padded - pw_);
+                                      - (iw_padded - pw_e_);
                                     copy_width
                                       = src_row_tile_size - real_pad_right;
                                     // copy sub-tensor
@@ -3118,14 +3129,14 @@ void gen_nested_conv_fwd_t::single_thread_conv_padding_call(expr &output,
                                                 ? span_t(
                                                   {n, ic,
                                                     (h + im_h_i) * sh_ + i
-                                                      - ph_,
-                                                    w * sw_ + j - pw_, k},
+                                                      - ph_b_,
+                                                    w * sw_ + j - pw_b_, k},
                                                   lanes)
                                                 : span_t(
                                                   {n,
                                                     (h + im_h_i) * sh_ + i
-                                                      - ph_,
-                                                    w * sw_ + j - pw_,
+                                                      - ph_b_,
+                                                    w * sw_ + j - pw_b_,
                                                     ic * im_ic_block + k},
                                                   lanes)];
                                         }
@@ -3358,7 +3369,7 @@ void gen_nested_conv_fwd_t::compute_conv_padding_nested(CONV_ARG_LIST) const {
   }
   auto input_expr_dims = input.checked_as<tensor>()->dims_;
   auto mb_expr_ = input_expr_dims[0];
-  int ih_padded = ih_ + 2 * ph_, iw_padded = iw_ + 2 * pw_;
+  int ih_padded = ih_ + (ph_b_ + ph_e_), iw_padded = iw_ + 2 * (pw_b_ + pw_e_);
   auto dtypeInput = get_input_dtype();
   uint32_t lanes = get_lanes(ctx, im_ic_block, dtypeInput);
   const int src_row_tile_size = (im_w_block - 1) * sw_ + kw_;
@@ -3390,10 +3401,10 @@ void gen_nested_conv_fwd_t::compute_conv_padding_nested(CONV_ARG_LIST) const {
       : ((p > remaining) ? utils::divide_and_ceil(p - remaining, s) : 0);
     return num_pad_end;
   };
-  const int dst_num_pad_top = utils::divide_and_ceil(ph_, sh_);
-  const int dst_num_pad_left = utils::divide_and_ceil(pw_, sw_);
-  const int dst_num_pad_bottom = get_num_pad_end(ih_padded, kh_, sh_, ph_);
-  const int dst_num_pad_right = get_num_pad_end(iw_padded, kw_, sw_, pw_);
+  const int dst_num_pad_top = utils::divide_and_ceil(ph_b_, sh_);
+  const int dst_num_pad_left = utils::divide_and_ceil(pw_b_, sw_);
+  const int dst_num_pad_bottom = get_num_pad_end(ih_padded, kh_, sh_, ph_e_);
+  const int dst_num_pad_right = get_num_pad_end(iw_padded, kw_, sw_, pw_e_);
 
   int y_unpad_top = dst_num_pad_top;
   int y_unpad_bottom = oh_ - dst_num_pad_bottom - 1;
@@ -3633,7 +3644,7 @@ void gen_nested_conv_fwd_t::single_thread_dynamic_conv_padding_call(
                               }
                               _else_ {
                                 _if_((h + im_h_i) < y_unpad_top) {
-                                  num_pad_rows = builder::make_min(ph_
+                                  num_pad_rows = builder::make_min(ph_b_
                                       - builder::make_cast(
                                           datatypes::u32, h + im_h_i)
                                         * sh_,
@@ -3648,7 +3659,7 @@ void gen_nested_conv_fwd_t::single_thread_dynamic_conv_padding_call(
                                     builder::make_cast(
                                       datatypes::u32, h + im_h_i)
                                         * sh_
-                                      + kh_ - (ih_expr_ + ph_),
+                                      + kh_ - (ih_expr_ + ph_b_),
                                     kh_);
                                   pad_begin_index = kh_ - num_pad_rows;
                                   pad_end_index = kh_;
@@ -3676,7 +3687,7 @@ void gen_nested_conv_fwd_t::single_thread_dynamic_conv_padding_call(
                                   _if_((w + real_im_w_block - 1)
                                     <= y_unpad_right) {
                                     // 1.3.1.1) left pad only
-                                    real_pad_left = pw_
+                                    real_pad_left = pw_b_
                                       - builder::make_cast(
                                         datatypes::u32, w * sw_);
 
@@ -3704,14 +3715,14 @@ void gen_nested_conv_fwd_t::single_thread_dynamic_conv_padding_call(
                                                 ? span_t(
                                                   {n, ic,
                                                     (h + im_h_i) * sh_ + i
-                                                      - ph_,
-                                                    w * sw_ + j - pw_, k},
+                                                      - ph_b_,
+                                                    w * sw_ + j - pw_b_, k},
                                                   lanes)
                                                 : span_t(
                                                   {n,
                                                     (h + im_h_i) * sh_ + i
-                                                      - ph_,
-                                                    w * sw_ + j - pw_,
+                                                      - ph_b_,
+                                                    w * sw_ + j - pw_b_,
                                                     ic * im_ic_block + k},
                                                   lanes)];
                                         }
@@ -3732,13 +3743,13 @@ void gen_nested_conv_fwd_t::single_thread_dynamic_conv_padding_call(
                                   _else_ {
                                     // 1.3.1.2) both left and
                                     // right pad
-                                    real_pad_left = pw_
+                                    real_pad_left = pw_b_
                                       - builder::make_cast(
                                         datatypes::u32, w * sw_);
                                     real_pad_right
                                       = builder::make_cast(datatypes::u32,
                                           w * sw_ + real_src_row_tile_size)
-                                      - (iw_padded - pw_);
+                                      - (iw_padded - pw_e_);
 
                                     copy_width = real_src_row_tile_size
                                       - real_pad_left - real_pad_right;
@@ -3765,14 +3776,14 @@ void gen_nested_conv_fwd_t::single_thread_dynamic_conv_padding_call(
                                                 ? span_t(
                                                   {n, ic,
                                                     (h + im_h_i) * sh_ + i
-                                                      - ph_,
-                                                    w * sw_ + j - pw_, k},
+                                                      - ph_b_,
+                                                    w * sw_ + j - pw_b_, k},
                                                   lanes)
                                                 : span_t(
                                                   {n,
                                                     (h + im_h_i) * sh_ + i
-                                                      - ph_,
-                                                    w * sw_ + j - pw_,
+                                                      - ph_b_,
+                                                    w * sw_ + j - pw_b_,
                                                     ic * im_ic_block + k},
                                                   lanes)];
                                         }
@@ -3813,11 +3824,11 @@ void gen_nested_conv_fwd_t::single_thread_dynamic_conv_padding_call(
                                         A_list[idx] = tensor_ptr(input,
                                           blocking_input_
                                             ? std::vector<expr> {n, ic,
-                                              (h + im_h_i) * sh_ + r - ph_,
-                                              w * sw_ + s - pw_, 0}
+                                              (h + im_h_i) * sh_ + r - ph_b_,
+                                              w * sw_ + s - pw_b_, 0}
                                             : std::vector<expr> {n,
-                                              (h + im_h_i) * sh_ + r - ph_,
-                                              w * sw_ + s - pw_,
+                                              (h + im_h_i) * sh_ + r - ph_b_,
+                                              w * sw_ + s - pw_b_,
                                               ic * im_ic_block});
                                       }
                                     }
@@ -3827,7 +3838,7 @@ void gen_nested_conv_fwd_t::single_thread_dynamic_conv_padding_call(
                                     real_pad_right = builder::make_min(
                                       builder::make_cast(datatypes::u32,
                                         w * sw_ + real_src_row_tile_size)
-                                        - (iw_padded - pw_),
+                                        - (iw_padded - pw_e_),
                                       real_src_row_tile_size);
                                     copy_width
                                       = real_src_row_tile_size - real_pad_right;
@@ -3844,14 +3855,14 @@ void gen_nested_conv_fwd_t::single_thread_dynamic_conv_padding_call(
                                                 ? span_t(
                                                   {n, ic,
                                                     (h + im_h_i) * sh_ + i
-                                                      - ph_,
-                                                    w * sw_ + j - pw_, k},
+                                                      - ph_b_,
+                                                    w * sw_ + j - pw_b_, k},
                                                   lanes)
                                                 : span_t(
                                                   {n,
                                                     (h + im_h_i) * sh_ + i
-                                                      - ph_,
-                                                    w * sw_ + j - pw_,
+                                                      - ph_b_,
+                                                    w * sw_ + j - pw_b_,
                                                     ic * im_ic_block + k},
                                                   lanes)];
                                         }
@@ -4059,11 +4070,11 @@ void gen_nested_conv_fwd_t::dynamic_compute_conv_padding_nested(
     = input_expr_dims.size() == 4 ? input_expr_dims[2] : input_expr_dims[3];
 
   auto oh_expr_ = input_expr_dims.size() == 4
-    ? (input_expr_dims[1] + ph_ * 2 - kh_) / sh_ + 1
-    : (input_expr_dims[2] + ph_ * 2 - kh_) / sh_ + 1;
+    ? (input_expr_dims[1] + (ph_b_ + ph_e_) - kh_) / sh_ + 1
+    : (input_expr_dims[2] + (ph_b_ + ph_e_) - kh_) / sh_ + 1;
   auto ow_expr_ = input_expr_dims.size() == 4
-    ? (input_expr_dims[2] + pw_ * 2 - kw_) / sw_ + 1
-    : (input_expr_dims[3] + pw_ * 2 - kw_) / sw_ + 1;
+    ? (input_expr_dims[2] + (pw_b_ + pw_e_) - kw_) / sw_ + 1
+    : (input_expr_dims[3] + (pw_b_ + pw_e_) - kw_) / sw_ + 1;
 
   // by observation
   expr im_h_block = do_cast_and_fold(
@@ -4101,7 +4112,8 @@ void gen_nested_conv_fwd_t::dynamic_compute_conv_padding_nested(
     _tensor_(out_tmp, toutput.dtype_, dims_to_expr(out_dims));
     output_tmp = out_tmp;
   }
-  expr ih_padded = ih_expr_ + 2 * ph_, iw_padded = iw_expr_ + 2 * pw_;
+  expr ih_padded = ih_expr_ + (ph_b_ + ph_e_),
+       iw_padded = iw_expr_ + (pw_b_ + pw_e_);
   auto dtypeInput = get_input_dtype();
   uint32_t lanes = get_lanes(ctx, im_ic_block, dtypeInput);
 
@@ -4134,10 +4146,10 @@ void gen_nested_conv_fwd_t::dynamic_compute_conv_padding_nested(
       builder::make_cast(datatypes::s32, (p - remaining + s - 1) / s), expr(0));
   };
 
-  const int dst_num_pad_top = utils::divide_and_ceil(ph_, sh_);
-  const int dst_num_pad_left = utils::divide_and_ceil(pw_, sw_);
-  expr dst_num_pad_bottom = get_num_pad_end(ih_padded, kh_, sh_, ph_);
-  expr dst_num_pad_right = get_num_pad_end(iw_padded, kw_, sw_, pw_);
+  const int dst_num_pad_top = utils::divide_and_ceil(ph_b_, sh_);
+  const int dst_num_pad_left = utils::divide_and_ceil(pw_b_, sw_);
+  expr dst_num_pad_bottom = get_num_pad_end(ih_padded, kh_, sh_, ph_e_);
+  expr dst_num_pad_right = get_num_pad_end(iw_padded, kw_, sw_, pw_e_);
 
   int y_unpad_top = dst_num_pad_top;
   expr y_unpad_bottom = oh_expr_ - dst_num_pad_bottom - 1;
@@ -4403,8 +4415,9 @@ bool gen_nested_conv_fwd_t::generate(context_ptr ctx,
   expr weight = inputs[op_params_t::in_weight];
 
   if (is_1x1_conv_) {
-    COMPILE_ASSERT(
-      pd_ == 0 && ph_ == 0 && pw_ == 0, "1x1 conv doesn't support padding!");
+    COMPILE_ASSERT(pd_b_ == 0 && ph_b_ == 0 && pw_b_ == 0 && pd_e_ == 0
+        && ph_e_ == 0 && pw_e_ == 0,
+      "1x1 conv doesn't support padding!");
     COMPILE_ASSERT(
       !inverse_filter_, "1x1 conv doesn't support inverse convolution.");
     if (pack_input == 0 && (sd_ > 1 || sh_ > 1 || sw_ > 1)) {
@@ -4420,7 +4433,8 @@ bool gen_nested_conv_fwd_t::generate(context_ptr ctx,
       }
     }
   } else {
-    if (pd_ == 0 && ph_ == 0 && pw_ == 0) {
+    if (pd_b_ == 0 && ph_b_ == 0 && pw_b_ == 0 && pd_e_ == 0 && ph_e_ == 0
+      && pw_e_ == 0) {
       COMPILE_ASSERT(!inverse_filter_,
         "conv NxN (no padding) does not support inverse "
         "convolution.");
