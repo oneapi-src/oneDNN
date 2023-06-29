@@ -140,6 +140,8 @@ void group_normalization_example(engine::kind engine_kind) {
 }
 
 int main(int argc, char **argv) {
-    return handle_example_errors(
-            group_normalization_example, engine::kind::cpu);
+    auto engine_kind = parse_engine_kind(argc, argv);
+    // GPU is not supported
+    if (engine_kind != engine::kind::cpu) return 0;
+    return handle_example_errors(group_normalization_example, engine_kind);
 }
