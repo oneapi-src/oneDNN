@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
 
+#include "cpu/ref_io_helper.hpp"
 #include "cpu/resampling_utils.hpp"
 
 #include "cpu/ref_resampling.hpp"
@@ -195,7 +196,7 @@ void ref_resampling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                 args.ctx = &ctx;
                 args.dst_md = pd()->dst_md();
                 args.l_offset = data_l_off;
-                args.dst_val = dst[data_p_off];
+                args.dst_val = io::load_float_value(dst_dt, dst, data_p_off);
                 ref_post_ops_.execute(res, args);
 
                 store_fn(res, dst, data_p_off);
