@@ -29,7 +29,7 @@
 --sdt=f32
 --ddt=f32
 --attr-post-ops=mul:f32, \
-                clip:2:10+sum:0.1+add:s8:per_oc+sum
+                clip:2:10+sum:0.1+add:s8:per_oc+sum,sum+add:f32:per_tensor
 --batch=shapes_ci
 
 # bf16
