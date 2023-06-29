@@ -960,17 +960,26 @@ private:
             m_tg = gemm_tg.at(gemm_dims::m, 1);
             n_tg = gemm_tg.at(gemm_dims::n, 1);
             k_tg = gemm_tg.at(gemm_dims::k, 1);
+            dpas_2x_depth = get_dpas_2x_depth(blk, cfg);
+        }
 
-            if (cfg.is_dp_fma() && cfg.regs() > 128) {
-                for (auto d : blk.iter()) {
-                    if (to_gemm(d, prb.prop_kind()) == gemm_dims::k) {
-                        if (is_inner_non_blocked(cfg, d)) {
-                            dpas_2x_depth = true;
-                            break;
-                        }
-                    }
+        bool get_dpas_2x_depth(
+                const blocking_t &blk, const conv_config_t &cfg) const {
+            if (!cfg.is_dp_fma() || cfg.regs() <= 128) return false;
+
+            // Use 2x reduction when the reduction dimension is dense to avoid
+            // partial cache line loads.
+            for (auto d : blk.iter()) {
+                if (to_gemm(d, cfg.prb().prop_kind()) == gemm_dims::k) {
+                    if (is_inner_non_blocked(cfg, d)) return true;
                 }
             }
+
+            // Use larger reduction when M/N are small.
+            int mn = m_iter * n_iter;
+            if (mn <= 128) return true;
+
+            return false;
         }
 
         blocking_t blk;
