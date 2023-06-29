@@ -20,21 +20,25 @@
 #include "rnn/rnn_task.hpp"
 #include "utils/parallel.hpp"
 
+extern int repeats_per_prb;
+
 template <typename prb_t, typename perf_report_t, typename create_func_t,
         typename check_cache_func_t, typename do_func_t>
 struct rnn_task_executor_t {
     virtual ~rnn_task_executor_t() { assert(tasks_.empty()); }
 
-    void submit(std::unique_ptr<prb_t> prb, const std::string &perf_template,
-            const create_func_t &create_func,
+    void submit(std::shared_ptr<const prb_t> prb,
+            const std::string &perf_template, const create_func_t &create_func,
             const check_cache_func_t &check_cache_func,
             const do_func_t &do_func) {
-        tasks_.emplace_back(std::move(prb), perf_template, create_func,
-                check_cache_func, do_func);
-        if (has_bench_mode_modifier(mode_modifier_t::par_create)
-                && static_cast<int>(tasks_.size()) < dnnl_get_max_threads())
-            return;
-        flush();
+        for (int r = 0; r < repeats_per_prb; r++) {
+            tasks_.emplace_back(
+                    prb, perf_template, create_func, check_cache_func, do_func);
+            if (has_bench_mode_modifier(mode_modifier_t::par_create)
+                    && static_cast<int>(tasks_.size()) < dnnl_get_max_threads())
+                return;
+            flush();
+        }
     }
 
     void flush() {

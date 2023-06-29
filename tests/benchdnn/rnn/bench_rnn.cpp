@@ -68,7 +68,7 @@ void check_correctness(
     for (const auto &i_fpmath_mode : s.fpmath_mode) {
         auto attr = settings_t::get_attr(i_scratchpad_mode, i_fpmath_mode);
 
-        auto prb = std::unique_ptr<prb_t>(new prb_t(s.desc,
+        auto prb = std::shared_ptr<prb_t>(new prb_t(s.desc,
                 dt_conf_t::create(i_cfg, attr), i_prop, i_alg, i_with_peephole,
                 i_with_projection, i_direction, i_scale_policy,
                 i_scale_proj_policy, i_flags, i_activation, attr, i_ctx_init,
