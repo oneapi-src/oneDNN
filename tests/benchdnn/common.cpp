@@ -128,8 +128,15 @@ void parse_result(res_t &res, const char *pstr) {
             bs.listed++;
             break;
         case INITIALIZED:
+            // TODO: workaround for failed fill functions.
+            if (bench_mode != bench_mode_t::init) {
+                state = "FAILED";
+                bs.failed++;
+            } else {
+                bs.passed++;
+            }
+
             BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-            bs.passed++;
             break;
         default: assert(!"unknown state"); SAFE_V(FAIL);
     }
