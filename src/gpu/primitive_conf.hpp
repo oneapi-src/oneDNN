@@ -1067,8 +1067,8 @@ inline strides_t get_outer_strides(const memory_desc_wrapper &md) {
 }
 
 inline block_layout_t get_inner_layout(const memory_desc_wrapper &md) {
-    std::vector<block_t> inner_layout
-            = compute_block_structure(md, /* inner_only */ true);
+    std::vector<block_t> inner_layout = normalize_blocks(
+            compute_block_structure(md, /* inner_only */ true));
 
     block_layout_t ret;
     // Explicitly initialize to size-1 blocks
