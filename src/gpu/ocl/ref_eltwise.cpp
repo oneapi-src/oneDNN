@@ -22,7 +22,7 @@ namespace gpu {
 namespace ocl {
 
 static status_t init_conf_common(
-        eltwise_conf_t &conf, const eltwise_pd_t *pd, engine_t *engine) {
+        ref_eltwise_conf_t &conf, const eltwise_pd_t *pd, engine_t *engine) {
     alg_kind_t alg = pd->desc()->alg_kind;
     const bool is_forward = pd->is_fwd();
     const auto &src_md = pd->use_dst() ? pd->dst_md() : pd->src_md();
@@ -62,7 +62,7 @@ static status_t init_conf_common(
 }
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
-        const eltwise_conf_t &conf, const post_ops_t &post_ops) {
+        const ref_eltwise_conf_t &conf, const post_ops_t &post_ops) {
     kernel_ctx.set_data_type(conf.data_type);
 
     def_eltwise_alg_kinds(kernel_ctx);

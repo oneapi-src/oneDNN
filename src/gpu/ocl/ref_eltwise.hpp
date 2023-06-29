@@ -32,6 +32,23 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
+// Elementwise
+struct ref_eltwise_conf_t {
+    int ndims;
+    int vector_size;
+    bool with_zero_padding;
+    data_type_t data_type;
+    alg_kind_t alg;
+    bool is_forward;
+    int work_group_size;
+    int sub_group_size;
+    compute::dispatch_t dispatch;
+    memory_desc_info_t data_md_info;
+    memory_desc_info_t data_diff_md_info;
+
+    attr_info_t attr_info;
+};
+
 struct ref_eltwise_fwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_eltwise_fwd_pd_t {
@@ -71,7 +88,7 @@ struct ref_eltwise_fwd_t : public gpu_primitive_t {
         status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
-        eltwise_conf_t conf;
+        ref_eltwise_conf_t conf;
     };
 
     status_t init(engine_t *engine) override {
@@ -138,7 +155,7 @@ struct ref_eltwise_bwd_t : public gpu_primitive_t {
         status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
-        eltwise_conf_t conf;
+        ref_eltwise_conf_t conf;
     };
 
     status_t init(engine_t *engine) override {
