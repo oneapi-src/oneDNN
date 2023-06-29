@@ -389,9 +389,9 @@ void jit_brgemm_matmul_copy_a_impl_t<Vmm>::copy_K_loop(
 
         // step 3: multiply by zp_b_val
         mov(reg_zp_b_neg_val_ptr, ptr[param1 + GET_OFF(zp_b_neg_value_ptr)]);
-        const auto zmm_zp_b_neg_val = get_vmm_comp_acc(is_ymm_ ? 2 : 1);
-        uni_vbroadcastss(zmm_zp_b_neg_val, ptr[reg_zp_b_neg_val_ptr]);
-        uni_vpmulld(get_vmm_comp_acc(0), get_vmm_comp_acc(0), zmm_zp_b_neg_val);
+        const auto vmm_zp_b_neg_val = get_vmm_comp_acc(is_ymm_ ? 2 : 1);
+        uni_vbroadcastss(vmm_zp_b_neg_val, ptr[reg_zp_b_neg_val_ptr]);
+        uni_vpmulld(get_vmm_comp_acc(0), get_vmm_comp_acc(0), vmm_zp_b_neg_val);
 
         // step 4: store the final result value
         if (is_ymm_)
