@@ -242,7 +242,12 @@ private:
         }
     }
 
-    Vmm vmm_tmp(int i) { return Vmm(i); }
+    Vmm vmm_tmp(int i) {
+        assert(i >= 0
+                && i < max_effective_vregs - brg.bd_block * brg.ld_block2);
+        return Vmm(i);
+    }
+
     Vmm vmm_tail_mask() { return vmm_tmp(1); }
     Vmm vmm_one_bytes() const noexcept { return Vmm(3); }
     Vmm vmm_zp_a_shift() const noexcept { return Vmm(2); }
@@ -1222,7 +1227,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_compensation(
                             reg_aux_zp_comp_b, zp_comp_b_off, true);
                     uni_vpaddd(vmm, vmm, zp_comp_b_addr);
                 } else {
-                    const auto vmm_zp_comp_b = vmm_tmp(2);
+                    const auto vmm_zp_comp_b = vmm_tmp(0);
                     uni_vpbroadcastd(vmm_zp_comp_b,
                             ptr[reg_aux_zp_comp_b + zp_comp_b_off]);
                     uni_vpaddd(vmm, vmm, vmm_zp_comp_b);
