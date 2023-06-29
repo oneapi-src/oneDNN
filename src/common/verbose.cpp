@@ -374,10 +374,15 @@ std::string md2fmt_str(const memory_desc_t *md, format_kind_t user_format) {
     ss << (offset0 ? "0" : "");
     ss << ":" << mdw.format_kind();
 
-    switch (mdw.format_kind()) {
+    // Cast is required to pass through compiler error:
+    // error: case value ‘256’ not in enumerated type
+    // ‘dnnl::impl::format_kind_t’ {aka ‘dnnl_format_kind_t’}
+    switch (static_cast<int>(mdw.format_kind())) {
         case format_kind::blocked:
             ss << ":" << md2fmt_tag_str(md) << ":" << md2fmt_strides_str(md);
             break;
+        case format_kind::wino:
+        case format_kind::rnn_packed:
         case format_kind::opaque: ss << "::"; break;
         case format_kind::sparse: ss << ":" << mdw.encoding() << ":"; break;
         case format_kind::any: ss << ":any:"; break;
