@@ -100,8 +100,8 @@ For instance, the following pseudo-code
             src = {dims={N, C, H, W}, data_type=dt_src, memory_format=fmt_src},
             dst = {dims={N, C, H, W}, data_type=dt_dst, memory_format=fmt_dst},
             attr ={
-                scales={ src={mask=0} } /* alpha */,
-                zero_points= { src={mask=0, value=shift_src}, dst={mask=0, value=shift_dst} },
+                scales={ src={mask=0} },
+                zero_points= { src={mask=0}, dst={mask=0} },
                 post-ops = { sum={scale=beta} },
             })
 ~~~
@@ -110,17 +110,17 @@ would lead to the following operation:
 
 \f[
     \dst(\overline{x}) =
-            \alpha \cdot \src(\overline{x} - shift_{src}) +
+            scale_{src} \cdot \src(\overline{x} - shift_{src}) +
             \beta  \cdot \dst(\overline{x}) + shift_{dst}
 \f]
 
 @note
     * The intermediate operations are being done using single precision
       floating point data type.
-    * \f$\alpha\f$ must be passed during execution runtime as a separate memory
-      argument. Using \f$\src\f$ scale argument will lead to multiplication of tensor
-      values by a scale value. Using \f$\dst\f$ scale argument will lead to division
-      of tensor values by a scale value.
+    * \f$scale_{src}\f$ and \f$scale_{dst}\f$ must be passed during execution runtime
+      as a separate memory argument. Using \f$scale_{src}\f$ argument will lead to
+      multiplication of tensor values by a scale value. Using \f$scale_{dst}\f$
+      argument will lead to division of tensor values by a scale value.
 
 ## Implementation Limitations
 

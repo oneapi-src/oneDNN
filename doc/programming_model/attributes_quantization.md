@@ -201,8 +201,8 @@ according to the current HW setting (for instance, on CPU according to the
 MXCSR register).
 
 
-@anchor dev_guide_attributes_quantization_output_scale
-### Output Scaling Attribute
+@anchor dev_guide_attributes_quantization_scales
+### Argument Scaling
 
 The library uses @ref dev_guide_attributes API for setting the scaling factors
 for most of the primitives. The supporting attributes can be found in the
@@ -289,7 +289,7 @@ and the number of scales should be:
 // ...
 ~~~
 
-#### Example 2: convolution with groups, with per-output-channel quantization
+#### Example 2: convolution with per-output-channel quantization
 
 This example is complementary to the previous example (which should ideally be
 the first one). Let's say we want to create an int8 convolution with per-output
@@ -300,7 +300,7 @@ channel scaling.
    const float dst_scale; // dst_f32[:] = dst_scale * dst_s8[:]
 
    // the scaling factors for quantized weights (as declared above)
-   // An unique scale for each group and output-channel.
+   // An unique scale for each output-channel.
    std::vector<float> wei_scales(OC) = {...};
 
 
@@ -326,7 +326,7 @@ channel scaling.
    dnnl::primitive_attr attr;
    const int data_mask = 0; // scale and zero-point per tensor for source and destination
    const int wei_mask = 0
-       | (1 << 1); // scale per OC dimension, which is the dim #0 on weights tensor:
+       | (1 << 0); // scale per OC dimension, which is the dim #0 on weights tensor:
                    // (   OC, IC, KH, KW)
                    //      0   1   2   3
 

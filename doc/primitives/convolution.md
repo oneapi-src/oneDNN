@@ -260,7 +260,7 @@ Consider the following pseudo-code:
 
 ~~~
     primitive_attr attr;
-    attr.set_output_scale(mask=0, alpha);
+    attr.set_scale(src, mask=0);
     attr.set_post_ops({
             { sum={scale=beta} },
             { eltwise={scale=gamma, type=tanh, alpha=ignore, beta=ignored } }
@@ -274,7 +274,7 @@ The would lead to the following:
 \f[
     \dst(\overline{x}) =
         \gamma \cdot \tanh \left(
-            \alpha \cdot conv(\src, \weights) +
+            scale_{src} \cdot conv(\src, \weights) +
             \beta  \cdot \dst(\overline{x})
         \right)
 \f]
@@ -285,7 +285,7 @@ The following pseudo-code:
 
 ~~~
     primitive_attr attr;
-    attr.set_output_scale(mask=0, alpha);
+    attr.set_scale(wei, mask=0);
     attr.set_post_ops({
             { eltwise={scale=gamma, type=relu, alpha=eta, beta=ignored } },
             { sum={scale=beta} }
@@ -300,7 +300,7 @@ That would lead to the following:
     \dst(\overline{x}) =
         \beta \cdot \dst(\overline{x}) +
         \gamma \cdot ReLU \left(
-            \alpha \cdot conv(\src, \weights),
+            scale_{weights} \cdot conv(\src, \weights),
             \eta
         \right)
 \f]
@@ -311,9 +311,9 @@ The following pseudo-code:
 
 ~~~
     primitive_attr attr;
-    attr.set_output_scale(mask=0, alpha);
-    attr.set_zero_point(src, mask=0, shift_src);
-    attr.set_zero_point(dst, mask=0, shift_dst);
+    attr.set_scale(src, mask=0);
+    attr.set_zero_point(src, mask=0);
+    attr.set_zero_point(dst, mask=0);
     attr.set_post_ops({
             { eltwise={scale=gamma, type=relu, alpha=eta, beta=ignored } }
         });
@@ -326,7 +326,7 @@ That would lead to the following:
 \f[
     \dst(\overline{x}) =
         \gamma \cdot ReLU \left(
-            \alpha \cdot conv(\src - shift_{src}, \weights),
+            scale_{src} \cdot conv(\src - shift_{src}, \weights),
             \eta
         \right) + shift_{dst}
 \f]
