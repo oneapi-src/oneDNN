@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,6 +72,14 @@ struct simple_resampling_fwd_t : public primitive_t {
                             sm::post_ops, dst_md()->data_type)
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
+
+            const bool has_binary
+                    = attr()->post_ops_.find(primitive_kind::binary) >= 0;
+            if (has_binary) {
+                if (memory_desc_matches_one_of_tag(*dst_md(0), ncw, nchw, ncdhw)
+                        == format_tag::undef)
+                    return status::unimplemented;
+            }
 
             format_tag_t dat_tag = memory_desc_matches_one_of_tag(*src_md(),
                     nCw8c, nChw8c, nCdhw8c, nCw16c, nChw16c, nCdhw16c, ncw,
