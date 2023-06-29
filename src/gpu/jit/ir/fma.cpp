@@ -53,7 +53,7 @@ fma_kind_t fma_kind::get_supported_kind(const hw_config_t &hw_cfg,
             return fma_kind_t::dpasw;
     }
     if ((hw_cfg.hw() == ngen::HW::XeLP
-                || (hw_cfg.hw() == ngen::HW::XeHP
+                || (hw_cfg.hw() >= ngen::HW::XeHP
                         && !hw_cfg.systolic_support()))
             && (a.is_x8() && b.is_x8() && c.is_s32()))
         return fma_kind_t::dp4a;
