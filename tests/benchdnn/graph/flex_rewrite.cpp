@@ -671,11 +671,25 @@ void flex_rewrite::infer_output_shape(deserialized_graph &dgraph) {
 
         for (auto &lt : aop.in_lts_) {
             lt.shape_ = gi[lt.id_];
+            if (lt.shape_.size() != dgraph.lt_2_mtag_[lt.id_].length()) {
+                fprintf(stderr,
+                        "graph: logical tensor %zd shape rank mismatch with "
+                        "strides!\n",
+                        lt.id_);
+                exit(2);
+            }
             lt.stride_
                     = memory_tag2strides(gi[lt.id_], dgraph.lt_2_mtag_[lt.id_]);
         }
         for (auto &lt : aop.out_lts_) {
             lt.shape_ = gi[lt.id_];
+            if (lt.shape_.size() != dgraph.lt_2_mtag_[lt.id_].length()) {
+                fprintf(stderr,
+                        "graph: logical tensor %zd shape rank mismatch with "
+                        "strides!\n",
+                        lt.id_);
+                exit(2);
+            }
             lt.stride_
                     = memory_tag2strides(gi[lt.id_], dgraph.lt_2_mtag_[lt.id_]);
         }
