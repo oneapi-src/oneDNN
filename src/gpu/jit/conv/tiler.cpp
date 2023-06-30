@@ -33,8 +33,6 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
-namespace {
-
 enum class gemm_dim_kind_t {
     undef = 0,
     b,
@@ -81,6 +79,8 @@ std::string to_string(level_kind_t kind) {
     }
     return oss.str();
 }
+
+namespace {
 
 using level_t = tile_key_t<level_kind_t>;
 using level_tile_t = tile_generic_t<level_t>;
@@ -1854,7 +1854,7 @@ public:
     }
 
     void shuffle(size_t seed) {
-        std::minstd_rand g(seed);
+        std::minstd_rand g(static_cast<uint32_t>(seed));
         std::shuffle(params_vec_.begin(), params_vec_.end(), g);
     }
 

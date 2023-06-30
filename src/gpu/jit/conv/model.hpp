@@ -96,7 +96,7 @@ void get_types(const std::string &type_cfg, prop_t prop, type_t &src_type,
     int idx = 0;
     while (pos < type_cfg.length() && idx < ntypes) {
         for (auto &p : all_types) {
-            int len = std::strlen(p.first);
+            size_t len = std::strlen(p.first);
             if (type_cfg.compare(pos, len, p.first) == 0) {
                 types[idx++] = p.second;
                 pos += std::strlen(p.first);
@@ -542,7 +542,7 @@ public:
     histogram_t(const vec2d<float> &X) {
         auto &x0 = X[0];
         int np = (int)X.size();
-        int nf = x0.size();
+        int nf = (int)x0.size();
         std::vector<std::map<float, int>> stats(nf);
         for (auto &x : X) {
             for (int i = 0; i < nf; i++) {
