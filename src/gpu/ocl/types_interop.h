@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,17 +14,26 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GPU_ZERO_PAD_ZERO_PAD_STRUCT_H
-#define GPU_ZERO_PAD_ZERO_PAD_STRUCT_H
+#ifndef GPU_OCL_TYPES_INTEROP_H
+#define GPU_OCL_TYPES_INTEROP_H
 
-#define ZERO_PAD_MAX_STEP_SIZE 1536
+// Structures intended for use in both OpenCL C and C++ code. This is especially
+// helpful for parameter transfer.
 
-#define ZERO_PAD_MASK_DATA_TYPE uchar
+// Due to limitations in ocl_gpu_engine.cpp:preprocess_headers(), <cstdint> must
+// be included external to this file when compiling outside of an OpenCL context
 #ifdef __OPENCL_VERSION__
-#else
-#define ZERO_PAD_MASK_DATA_TYPE unsigned char
+typedef uchar uint8_t;
+typedef long int64_t;
 #endif
+
+typedef struct {
+    int64_t array[3];
+} int64x3_t;
+
+#define ZERO_PAD_MASK_DATA_TYPE uint8_t
 #define ZERO_PAD_MASK_DT_BITS (8 * sizeof(ZERO_PAD_MASK_DATA_TYPE))
+#define ZERO_PAD_MAX_STEP_SIZE 1536
 
 #define ZERO_PAD_MASK_SIZE (ZERO_PAD_MAX_STEP_SIZE / ZERO_PAD_MASK_DT_BITS)
 #define ZERO_PAD_BIT_MODE 0

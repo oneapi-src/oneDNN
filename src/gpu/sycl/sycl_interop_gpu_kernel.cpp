@@ -19,7 +19,7 @@
 #include "common/verbose.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/stream_profiler.hpp"
-#include "gpu/zero_pad_struct.h"
+#include "gpu/ocl/types_interop.h"
 #include "sycl/level_zero_utils.hpp"
 #include "sycl/sycl_c_types_map.hpp"
 #include "sycl/sycl_stream.hpp"
@@ -32,23 +32,34 @@ namespace sycl {
 
 using namespace impl::sycl;
 
-static void set_scalar_arg(
-        ::sycl::handler &cgh, int index, size_t size, const void *value) {
-    switch (size) {
-        case sizeof(uint8_t):
+static void set_scalar_arg(::sycl::handler &cgh, int index,
+        compute::scalar_type_t type, const void *value) {
+    using scalar_type_t = compute::scalar_type_t;
+    switch (type) {
+        case scalar_type_t::_char:
+        case scalar_type_t::_uchar:
             cgh.set_arg(index, *static_cast<const uint8_t *>(value));
             break;
-        case sizeof(uint16_t):
+        case scalar_type_t::_bfloat16:
+        case scalar_type_t::_half:
+        case scalar_type_t::_short:
+        case scalar_type_t::_ushort:
             cgh.set_arg(index, *static_cast<const uint16_t *>(value));
             break;
-        case sizeof(uint32_t):
+        case scalar_type_t::_float:
+        case scalar_type_t::_int:
+        case scalar_type_t::_uint:
             cgh.set_arg(index, *static_cast<const uint32_t *>(value));
             break;
-        case sizeof(uint64_t):
+        case scalar_type_t::_long:
+        case scalar_type_t::_ulong:
             cgh.set_arg(index, *static_cast<const uint64_t *>(value));
             break;
-        case sizeof(zero_pad_mask_t):
+        case scalar_type_t::_zero_pad_mask_t:
             cgh.set_arg(index, *static_cast<const zero_pad_mask_t *>(value));
+            break;
+        case scalar_type_t::_int64x3_t:
+            cgh.set_arg(index, *static_cast<const int64x3_t *>(value));
             break;
         default:
             assert(!"Please add another case");
@@ -120,7 +131,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
                         ::sycl::range<1>(arg.size()), cgh);
                 cgh.set_arg((int)i, acc);
             } else {
-                set_scalar_arg(cgh, (int)i, arg.size(), arg.value());
+                set_scalar_arg(cgh, (int)i, arg.scalar_type(), arg.value());
             }
         }
         if (range.local_range()) {

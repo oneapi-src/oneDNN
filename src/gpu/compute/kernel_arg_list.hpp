@@ -26,8 +26,7 @@
 #include "common/memory_storage.hpp"
 #include "common/nstl.hpp"
 #include "common/verbose.hpp"
-
-#include "gpu/zero_pad_struct.h"
+#include "gpu/ocl/types_interop.h"
 
 namespace dnnl {
 namespace impl {
@@ -56,6 +55,7 @@ enum class scalar_type_t {
     _ulong,
     _ushort,
     _zero_pad_mask_t,
+    _int64x3_t,
 };
 
 template <typename T>
@@ -110,6 +110,10 @@ struct scalar_type_traits<int64_t> {
 template <>
 struct scalar_type_traits<zero_pad_mask_t> {
     static const auto type = scalar_type_t::_zero_pad_mask_t;
+};
+template <>
+struct scalar_type_traits<int64x3_t> {
+    static const auto type = scalar_type_t::_int64x3_t;
 };
 
 class kernel_arg_t {

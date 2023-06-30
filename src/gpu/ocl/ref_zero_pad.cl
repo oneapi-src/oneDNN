@@ -14,7 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include "gpu/zero_pad_struct.h"
+#include "gpu/ocl/types_interop.h"
 
 #define DEFAULT_NELEMS_BLOCK 8
 
