@@ -129,7 +129,6 @@ int init_graph_memory_args(const dnn_mem_map_t &mems,
             graph_mem_map.emplace(in_lt.id_,
                     dnn_graph_mem_t(mem, in_lt, should_use_graph_shape,
                             /* is_op_input = */ true));
-            if (!is_leading_op) graph_mem_map.at(in_lt.id_).unmap_mem();
         }
     }
 
@@ -157,7 +156,6 @@ int init_graph_memory_args(const dnn_mem_map_t &mems,
             graph_mem_map.emplace(out_lt.id_,
                     dnn_graph_mem_t(mem, out_lt, should_use_graph_shape,
                             /* is op input */ false));
-            if (!is_leading_op) graph_mem_map.at(out_lt.id_).unmap_mem();
 
         } else if (is_par_output && out_arg == 0) {
             graph_mem_map.emplace(out_lt.id_,
