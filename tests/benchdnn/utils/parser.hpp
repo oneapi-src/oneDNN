@@ -234,6 +234,10 @@ bool parse_attr_fpmath_mode(std::vector<dnnl_fpmath_mode_t> &fpmath_mode,
         const std::vector<dnnl_fpmath_mode_t> &def_fpmath_mode, const char *str,
         const std::string &option_name = "attr-fpmath");
 
+bool parse_attr_acc_mode(std::vector<dnnl_accumulation_mode_t> &acc_mode,
+        const std::vector<dnnl_accumulation_mode_t> &def_acc_mode,
+        const char *str, const std::string &option_name = "attr-acc-mode");
+
 bool parse_ctx_init(std::vector<thr_ctx_t> &ctx,
         const std::vector<thr_ctx_t> &def_ctx, const char *str);
 bool parse_ctx_exe(std::vector<thr_ctx_t> &ctx,

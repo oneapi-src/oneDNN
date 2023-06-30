@@ -65,9 +65,10 @@ void check_correctness(
     for_(const auto &i_ctx_init : s.ctx_init)
     for_(const auto &i_ctx_exe : s.ctx_exe)
     for_(const auto &i_fpmath_mode : s.fpmath_mode)
+    for_(const auto &i_acc_mode : s.acc_mode)
     for (const auto &i_bia_cfg : bia_cfg) {
         auto attr = settings_t::get_attr(i_scales, i_zero_points, i_post_ops,
-                i_scratchpad_mode, i_fpmath_mode);
+                i_scratchpad_mode, i_fpmath_mode, i_acc_mode);
 
         const prb_t prb(s.prb_vdims, i_dt, i_stag, i_wtag, i_dtag, i_strides,
                 i_bia_cfg.first, i_bia_cfg.second, i_rt_dims_masks,
@@ -189,6 +190,7 @@ int bench(int argc, char **argv) {
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_attr_fpmath_mode(
                         s.fpmath_mode, def.fpmath_mode, argv[0])
+                || parse_attr_acc_mode(s.acc_mode, def.acc_mode, argv[0])
                 || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
                 || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
                 || parse_test_pattern_match(s.pattern, argv[0])

@@ -48,9 +48,11 @@ void check_correctness(
     for_(const auto &i_mb : s.mb)
     for_(const auto &i_post_ops : s.post_ops)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
+    for_(const auto &i_acc_mode : s.acc_mode)
     for_(const auto &i_ctx_init : s.ctx_init)
     for (const auto &i_ctx_exe : s.ctx_exe) {
-        auto attr = settings_t::get_attr(i_post_ops, i_scratchpad_mode);
+        auto attr = settings_t::get_attr(
+                i_post_ops, i_scratchpad_mode, i_acc_mode);
 
         auto i_dt = i_dt_;
         if (!i_cfg.empty() && i_dt.size() == 1 && i_dt[0] == dnnl_f32) {

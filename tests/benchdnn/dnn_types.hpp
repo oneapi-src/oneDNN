@@ -319,7 +319,8 @@ struct attr_t {
 
     attr_t()
         : scratchpad_mode(get_default_scratchpad_mode())
-        , fpmath_mode(dnnl_fpmath_mode_strict) {}
+        , fpmath_mode(dnnl_fpmath_mode_strict)
+        , acc_mode(dnnl_accumulation_mode_strict) {}
 
     template <typename First, typename... Rest>
     void insert(const First &first, const Rest &...rest) {
@@ -332,6 +333,7 @@ struct attr_t {
     void insert(const post_ops_t &po) { this->post_ops = po; }
     void insert(dnnl_scratchpad_mode_t sm) { this->scratchpad_mode = sm; }
     void insert(dnnl_fpmath_mode_t fpm) { this->fpmath_mode = fpm; }
+    void insert(dnnl_accumulation_mode_t am) { this->acc_mode = am; }
 
     // When parallel creation modifier is enabled, the library scratchpad mode
     // can't be used unless "-DDNNL_ENABLE_CONCURRENT_EXEC=ON" is enabled at the
@@ -349,6 +351,7 @@ struct attr_t {
     post_ops_t post_ops;
     dnnl_scratchpad_mode_t scratchpad_mode;
     dnnl_fpmath_mode_t fpmath_mode;
+    dnnl_accumulation_mode_t acc_mode;
 
     bool is_def(bool skip_fpmath = false) const;
 };
@@ -462,6 +465,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t::kind_t &k);
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops);
 std::ostream &operator<<(std::ostream &s, dnnl_scratchpad_mode_t sm);
 std::ostream &operator<<(std::ostream &s, dnnl_fpmath_mode_t fm);
+std::ostream &operator<<(std::ostream &s, dnnl_accumulation_mode_t am);
 std::ostream &operator<<(std::ostream &s, const attr_t &attr);
 
 // A container for additional data and info, not available from user's input at
@@ -536,6 +540,7 @@ dnnl_primitive_attr_t create_dnnl_attr(
 dnnl_engine_kind_t str2engine_kind(const char *str);
 dnnl_scratchpad_mode_t str2scratchpad_mode(const char *str);
 dnnl_fpmath_mode_t str2fpmath_mode(const char *str);
+dnnl_accumulation_mode_t str2accumulation_mode(const char *str);
 
 void maybe_scale(const attr_t &attr, float &d, const float *scales, int64_t c,
         int arg, bool opposite_scale = false);

@@ -30,6 +30,8 @@ struct base_settings_t {
     std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
             attr_t::get_default_scratchpad_mode()};
     std::vector<dnnl_fpmath_mode_t> fpmath_mode {dnnl_fpmath_mode_strict};
+    std::vector<dnnl_accumulation_mode_t> acc_mode {
+            dnnl_accumulation_mode_strict};
     std::vector<thr_ctx_t> ctx_init {default_thr_ctx};
     std::vector<thr_ctx_t> ctx_exe {default_thr_ctx};
     const char *pattern = NULL;
@@ -61,7 +63,8 @@ struct base_settings_t {
         return mb.size() == 1 && inplace.size() == 1 && scales.size() == 1
                 && zero_points.size() == 1 && post_ops.size() == 1
                 && scratchpad_mode.size() == 1 && fpmath_mode.size() == 1
-                && ctx_init.size() == 1 && ctx_exe.size() == 1;
+                && acc_mode.size() == 1 && ctx_init.size() == 1
+                && ctx_exe.size() == 1;
     }
 };
 

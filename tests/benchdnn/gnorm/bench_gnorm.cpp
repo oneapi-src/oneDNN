@@ -47,11 +47,12 @@ void check_correctness(
     for_(const auto &i_post_ops : s.post_ops)
     for_(const auto &i_scales : s.scales)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
+    for_(const auto &i_acc_mode : s.acc_mode)
     for_(const auto &i_ctx_init : s.ctx_init)
     for_(const auto &i_ctx_exe : s.ctx_exe)
     for (auto i_inplace : s.inplace) {
-        auto attr
-                = settings_t::get_attr(i_post_ops, i_scales, i_scratchpad_mode);
+        auto attr = settings_t::get_attr(
+                i_post_ops, i_scales, i_scratchpad_mode, i_acc_mode);
 
         const prb_t prb(s.desc, i_mb, i_dir, i_dt, i_tag, i_flags, i_inplace,
                 attr, i_ctx_init, i_ctx_exe, s.check_alg);

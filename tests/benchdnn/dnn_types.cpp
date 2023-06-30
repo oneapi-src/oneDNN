@@ -504,8 +504,8 @@ std::vector<std::pair<int, int>> attr_t::post_ops_t::get_po_masks() const {
 bool attr_t::is_def(bool skip_fpmath) const {
     return scales.is_def() && zero_points.is_def() && post_ops.is_def()
             && scratchpad_mode == get_default_scratchpad_mode()
-            && IMPLICATION(
-                    !skip_fpmath, fpmath_mode == dnnl_fpmath_mode_strict);
+            && IMPLICATION(!skip_fpmath, fpmath_mode == dnnl_fpmath_mode_strict)
+            && acc_mode == dnnl_accumulation_mode_strict;
 }
 
 int attr_t::post_ops_t::find(pk_t kind, int start, int stop) const {
@@ -664,6 +664,11 @@ std::ostream &operator<<(std::ostream &s, dnnl_fpmath_mode_t fm) {
     return s;
 }
 
+std::ostream &operator<<(std::ostream &s, dnnl_accumulation_mode_t am) {
+    s << accumulation_mode2str(am);
+    return s;
+}
+
 std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
     if (!attr.is_def()) {
         if (!attr.scales.is_def()) s << "--attr-scales=" << attr.scales << " ";
@@ -675,6 +680,8 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
             s << "--attr-scratchpad=" << attr.scratchpad_mode << " ";
         if (attr.fpmath_mode != dnnl_fpmath_mode_strict)
             s << "--attr-fpmath=" << attr.fpmath_mode << " ";
+        if (attr.acc_mode != dnnl_accumulation_mode_strict)
+            s << "--attr-acc-mode=" << attr.acc_mode << " ";
     }
     return s;
 }
@@ -813,6 +820,28 @@ dnnl_fpmath_mode_t str2fpmath_mode(const char *str) {
 
     assert(!"not expected");
     return dnnl_fpmath_mode_strict;
+
+#undef CASE
+}
+
+dnnl_accumulation_mode_t str2accumulation_mode(const char *str) {
+
+#define CASE(am) \
+    param = #am; \
+    if (!strncasecmp(param, str, strlen(param))) \
+        return dnnl_accumulation_mode_##am;
+
+    const char *param;
+
+    CASE(strict);
+    CASE(relaxed);
+    CASE(any);
+    CASE(f32);
+    CASE(s32);
+    CASE(f16);
+
+    assert(!"not expected");
+    return dnnl_accumulation_mode_strict;
 
 #undef CASE
 }
@@ -982,6 +1011,9 @@ dnnl_primitive_attr_t create_dnnl_attr(
 
     DNN_SAFE_V(
             dnnl_primitive_attr_set_fpmath_mode(dnnl_attr, attr.fpmath_mode));
+
+    DNN_SAFE_V(dnnl_primitive_attr_set_accumulation_mode(
+            dnnl_attr, attr.acc_mode));
 
     return dnnl_attr;
 }

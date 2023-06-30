@@ -63,10 +63,12 @@ void check_correctness(
     for_(const auto &i_n_iter : s.n_iter)
     for_(const auto &i_mb : s.mb)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
+    for_(const auto &i_fpmath_mode : s.fpmath_mode)
+    for_(const auto &i_acc_mode : s.acc_mode)
     for_(const auto &i_ctx_init : s.ctx_init)
-    for_(const auto &i_ctx_exe : s.ctx_exe)
-    for (const auto &i_fpmath_mode : s.fpmath_mode) {
-        auto attr = settings_t::get_attr(i_scratchpad_mode, i_fpmath_mode);
+    for (const auto &i_ctx_exe : s.ctx_exe) {
+        auto attr = settings_t::get_attr(
+                i_scratchpad_mode, i_fpmath_mode, i_acc_mode);
 
         auto prb = std::make_shared<prb_t>(s.desc,
                 dt_conf_t::create(i_cfg, attr), i_prop, i_alg, i_with_peephole,

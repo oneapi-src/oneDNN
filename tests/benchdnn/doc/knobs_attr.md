@@ -26,6 +26,13 @@ or `any`. Refer to
 [fpmath primitve attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_fpmath_mode.html)
 for details.
 
+## --attr-acc-mode
+`--attr-acc-mode` specifies the accumulation mode to be used for
+benchmarking.  `ACCMODE` values can be any of `strict` (the default),
+`relaxed`, `any`, `f32` , `s32` or `f16`. Refer to
+[accumulation mode primitve attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_accumulation_mode.html)
+for details.
+
 ## --attr-scales
 `--attr-scales` defines per memory argument primitive scales attribute.
 `ARG` specifies which memory argument will be modified. Supported values are:

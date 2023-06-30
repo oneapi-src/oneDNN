@@ -44,9 +44,11 @@ void check_correctness(
     for_(const auto &i_p : s.p)
     for_(const auto &i_eps : s.eps)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
+    for_(const auto &i_acc_mode : s.acc_mode)
     for_(const auto &i_ctx_init : s.ctx_init)
     for (const auto &i_ctx_exe : s.ctx_exe) {
-        auto attr = settings_t::get_attr(i_post_ops, i_scratchpad_mode);
+        auto attr = settings_t::get_attr(
+                i_post_ops, i_scratchpad_mode, i_acc_mode);
 
         const prb_t prb(s.prb_vdims, i_sdt, i_ddt, i_stag, i_dtag, i_alg, i_p,
                 i_eps, attr, i_ctx_init, i_ctx_exe);

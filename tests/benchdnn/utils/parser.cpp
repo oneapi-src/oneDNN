@@ -457,6 +457,18 @@ bool parse_attr_fpmath_mode(std::vector<dnnl_fpmath_mode_t> &fpmath_mode,
             str, option_name, help);
 }
 
+bool parse_attr_acc_mode(std::vector<dnnl_accumulation_mode_t> &acc_mode,
+        const std::vector<dnnl_accumulation_mode_t> &def_acc_mode,
+        const char *str,
+        const std::string &option_name /* = "attr-acc-mode"*/) {
+    static const std::string help
+            = "MODE    (Default: `strict`)\n    Specifies accumulation mode "
+              "attribute. `MODE` values can be `strict`, `relaxed`, `any`,"
+              "`f32`, `f16` or `s32`.\n";
+    return parse_vector_option(acc_mode, def_acc_mode, str2accumulation_mode,
+            str, option_name, help);
+}
+
 bool parse_axis(std::vector<int> &axis, const std::vector<int> &def_axis,
         const char *str, const std::string &option_name /* = "axis"*/) {
     static const std::string help

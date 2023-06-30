@@ -46,9 +46,10 @@ void check_correctness(
     for_(const auto &i_group : s.group)
     for_(const auto &i_axis : s.axis)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
+    for_(const auto &i_acc_mode : s.acc_mode)
     for_(const auto &i_ctx_init : s.ctx_init)
     for (const auto &i_ctx_exe : s.ctx_exe) {
-        auto attr = settings_t::get_attr(i_scratchpad_mode);
+        auto attr = settings_t::get_attr(i_scratchpad_mode, i_acc_mode);
 
         const prb_t prb(s.prb_dims, i_dir, i_dt, i_tag, i_axis, i_group, attr,
                 i_ctx_init, i_ctx_exe);

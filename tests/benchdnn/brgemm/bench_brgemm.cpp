@@ -42,10 +42,11 @@ void check_correctness(const settings_t &s, const settings_t &def) {
     for_(const auto &i_post_ops : s.post_ops)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for_(const auto &i_fpmath_mode : s.fpmath_mode)
+    for_(const auto &i_acc_mode : s.acc_mode)
     for_(const auto &i_ctx_init : s.ctx_init)
     for (const auto &i_ctx_exe : s.ctx_exe) {
         auto attr = settings_t::get_attr(i_scales, i_zero_points, i_post_ops,
-                i_scratchpad_mode, i_fpmath_mode);
+                i_scratchpad_mode, i_fpmath_mode, i_acc_mode);
 
         const prb_t prb(s.prb_vdims, i_dt, i_stag, i_wtag, i_dtag, i_ld,
                 i_bia_dt, i_alpha, i_beta, i_batch_size, i_brgemm_attr, attr,

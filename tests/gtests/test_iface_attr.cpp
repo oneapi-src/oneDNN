@@ -54,6 +54,18 @@ TEST_F(attr_test_t, TestFPMathModeDefault) {
     }
 }
 
+TEST_F(attr_test_t, TestAccMode) {
+    dnnl::primitive_attr attr;
+    ASSERT_EQ(attr.get_accumulation_mode(), accumulation_mode::strict);
+
+    for (auto m : {accumulation_mode::strict, accumulation_mode::relaxed,
+                 accumulation_mode::any, accumulation_mode::f32,
+                 accumulation_mode::f16, accumulation_mode::s32}) {
+        attr.set_accumulation_mode(m);
+        ASSERT_EQ(m, attr.get_accumulation_mode());
+    }
+}
+
 TEST_F(attr_test_t, TestScratchpadMode) {
     dnnl::primitive_attr attr;
     for (auto m : {scratchpad_mode::library, scratchpad_mode::user}) {
