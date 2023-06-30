@@ -19,8 +19,8 @@
 
 #define ZERO_PAD_MAX_STEP_SIZE 1536
 
-#ifdef IS_OCL_KERNEL
 #define ZERO_PAD_MASK_DATA_TYPE uchar
+#ifdef __OPENCL_VERSION__
 #else
 #define ZERO_PAD_MASK_DATA_TYPE unsigned char
 #endif

@@ -14,10 +14,6 @@
  * limitations under the License.
  *******************************************************************************/
 
-// This define is required before including zero_pad_struct.h to allow reuse of
-// the same structure with the correct data types between OpenCL kernels and C++
-// code.
-#define IS_OCL_KERNEL
 #include "gpu/zero_pad_struct.h"
 
 #define DEFAULT_NELEMS_BLOCK 8
