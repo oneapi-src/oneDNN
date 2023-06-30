@@ -1312,8 +1312,8 @@
 #define GWS_OP_MOD(x, y) ((x) % (y))
 #define ROUND_UP(a,b) (((a) + (b) - 1) / (b))
 
-#ifndef GWS_GET_ID(index)
-#define GWS_GET_ID(get_global_id(index))
+#ifndef USE_CUSTOM_GWS_GET_ID
+#define GWS_GET_ID(index) get_global_id(index)
 #endif
 
 #define GWS0_GET_ID0() GWS0_OP0((GWS_GET_ID(GWS0_IDX0) / GWS0_STRIDE0), ROUND_UP(GWS0_DIM0, GWS0_BLOCK0)) / GWS0_VEC_SIZE0 * GWS0_VEC_SIZE0 * GWS0_BLOCK0

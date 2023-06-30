@@ -263,6 +263,42 @@ protected:
                 compute_stream->ctx().get_deps());
     }
 
+    // Intel GPU hardware has a limitation on the size of work group dimensions to
+    // be at most uint32_t. This function works around that by passing an offset
+    // argument. The OpenCL native offset cannot be used due to lack of SYCL
+    // interop support.
+    status_t large_parallel_for(const exec_ctx_t &ctx,
+            const compute::nd_range_t &nd_range,
+            const compute::kernel_t &kernel,
+            compute::kernel_arg_list_t &arg_list, int offset_idx) const {
+
+        auto global_range = nd_range.global_range();
+        auto local_range = nd_range.local_range();
+
+        size_t off_inc[3] = {};
+        for (int i = 0; i < 3; i++)
+            off_inc[i] = local_range ? UINT32_MAX * local_range[i] : UINT32_MAX;
+
+        int64x3_t offset_arg = {};
+        auto &offset = offset_arg.array;
+        for_(offset[2] = 0; offset[2] < global_range[2];
+                offset[2] += off_inc[2])
+        for_(offset[1] = 0; offset[1] < global_range[1];
+                offset[1] += off_inc[1])
+        for_(offset[0] = 0; offset[0] < global_range[0];
+                offset[0] += off_inc[0])
+        {
+            arg_list.set(offset_idx, offset_arg);
+            size_t range[3];
+            for (int i = 0; i < 3; i++)
+                range[i] = std::min(off_inc[i], global_range[i] - offset[i]);
+
+            CHECK(parallel_for(ctx, compute::nd_range_t(3, range, local_range),
+                    kernel, arg_list));
+        }
+        return status::success;
+    }
+
 private:
     const std::vector<compute_block_t> &compute_blocks() const {
         return registered_compute_blocks_;

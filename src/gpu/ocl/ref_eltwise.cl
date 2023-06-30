@@ -16,15 +16,18 @@
 
 #include "gpu/ocl/ocl_eltwise.h"
 #include "gpu/ocl/ocl_post_ops.h"
+#include "gpu/ocl/types_interop.h"
 
 #define DATA_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(DATA, x0, x1, x2, x3, x4, x5)
 
 #define DIFF_DATA_OFF(x0, x1, x2, x3, x4, x5) \
     OFF_MD(DIFF_DATA, x0, x1, x2, x3, x4, x5)
 
+#define GWS_GET_ID(index) (get_global_id(index) + offset.array[index])
+
 #if IS_FWD
 __kernel void ref_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
-        float alpha, float beta POST_OP_ARGS) {
+        float alpha, float beta, int64x3_t offset POST_OP_ARGS) {
 #if USE_GWS_GET
     dim_t d0 = GWS_GET_D0();
     dim_t d1 = GWS_GET_D1();
@@ -80,7 +83,7 @@ __kernel void ref_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
 #if DT_F32 == 1 || DT_BF16 == 1 || DT_F16 == 1
 
 __kernel void ref_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
-        __global DATA_T *diff_dst, float alpha, float beta) {
+        __global DATA_T *diff_dst, float alpha, float beta, int64x3_t offset) {
 
     dim_t d0 = GWS_GET_D0();
     dim_t d1 = GWS_GET_D1();
