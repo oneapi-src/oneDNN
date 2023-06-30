@@ -17,6 +17,7 @@
 #ifndef GPU_OCL_CONCAT_COMMON_H
 #define GPU_OCL_CONCAT_COMMON_H
 
+#define REDUCE_STAGE_0(cat, f)
 #define REDUCE_STAGE_1(cat, f) f(0)
 #define REDUCE_STAGE_2(cat, f) cat(REDUCE_STAGE_1(cat, f), f(1))
 #define REDUCE_STAGE_3(cat, f) cat(REDUCE_STAGE_2(cat, f), f(2))

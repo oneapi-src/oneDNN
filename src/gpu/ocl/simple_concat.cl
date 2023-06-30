@@ -34,7 +34,7 @@
 
 #define INTERNAL_CAT(a, b) a##b
 #define CAT(a, b) INTERNAL_CAT(a, b)
-#define DIV_UP(a, b) ((a) + ((b)-1)) / (b)
+#define DIV_UP(a, b) (((a) + ((b)-1)) / (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
@@ -66,13 +66,17 @@
     } while (0)
 #endif
 
-#define RW_RATIO DIV_UP(BLOCK, INNER_OFFSET)
+#define ZERO_PAD_OFFSET CAT(OFFSET, N_INPUTS)
+#define ZERO_PAD_CONCAT_DIM CAT(PADDED_OFFSET, N_INPUTS)
 
 #include "gpu/ocl/concat_common.h"
 
 #define SRC_PTR(n) __global const DATA_T *src##n
 #define SRC_PTRS REDUCE(N_INPUTS, JOIN_COMMA, SRC_PTR)
 #define JOIN_ELSE(x, y) y else x
+#define JOIN_SEMICOLON(x, y) \
+    x; \
+    y
 
 typedef union {
     DATA16_T v16[2];
@@ -114,46 +118,111 @@ DATA16_T load_vec16(const buffer_t *buf, size_t offset) {
             : buf->v16[offset / 16];
 }
 
+size_t get_concat_idx(size_t inner_idx) {
+    size_t block = 1;
+    size_t idx = 0;
+#define HANDLE(n) \
+    idx += block * ((inner_idx / (BLOCK_S##n)) % (BLOCK_B##n)); \
+    block *= BLOCK_B##n
+
+    REDUCE(BLOCK_DEPTH, JOIN_SEMICOLON, HANDLE);
+#undef HANDLE
+    return idx + block * (inner_idx / INNER_OFFSET);
+}
+
+size_t get_concat_offset(size_t concat_idx) {
+    size_t block = 1;
+    size_t idx = 0;
+#define HANDLE(n) \
+    idx += (BLOCK_S##n) * ((concat_idx / block) % (BLOCK_B##n)); \
+    block *= BLOCK_B##n
+
+    REDUCE(BLOCK_DEPTH, JOIN_SEMICOLON, HANDLE);
+#undef HANDLE
+    return idx + INNER_OFFSET * (concat_idx / block);
+}
+
+struct write_info_t {
+    size_t idx;
+    bool write;
+};
+
+struct write_info_t get_write_info(size_t src_idx, size_t src_ext_offset,
+        size_t concat_offset, size_t thread_offset, size_t concat_axis) {
+#define LOGICAL_OR(x, y) (x) || (y)
+#define HANDLE(n) CAT(OFFSET, n) % READ_OVERLAP != 0
+#define CUTOFF REDUCE(N_INPUTS, LOGICAL_OR, HANDLE) || HANDLE(N_INPUTS)
+#if READ_OVERLAP * GWS0_BLOCK > INNER_OFFSET || CUTOFF
+    const size_t ext_idx = src_idx / src_ext_offset;
+    const size_t inner_idx = src_idx % src_ext_offset;
+#else
+    const size_t ext_idx = 0;
+    const size_t inner_idx = src_idx;
+#endif
+#undef CUTOFF
+#undef HANDLE
+#undef LOGICAL_OR
+
+    struct write_info_t info;
+#if BLOCK_DEPTH > 0
+    size_t concat_idx = get_concat_idx(inner_idx);
+    size_t zero_pad_offset = ZERO_PAD_OFFSET - concat_axis + thread_offset;
+    bool write_value = concat_offset + concat_idx < concat_axis;
+    bool write_zeropad = zero_pad_offset + concat_idx < ZERO_PAD_CONCAT_DIM;
+
+    size_t write_offset = write_value ? concat_offset : zero_pad_offset;
+    info.write = write_value || write_zeropad;
+    info.idx = ext_idx * DST_EXT_OFFSET + inner_idx
+            + get_concat_offset(concat_idx + write_offset)
+            - get_concat_offset(concat_idx);
+#else
+    info.write = true;
+    info.idx = ext_idx * DST_EXT_OFFSET + INNER_OFFSET * concat_offset
+            + inner_idx;
+#endif
+    return info;
+}
+
 #if SIMD != 1
 __attribute__((intel_reqd_sub_group_size(SIMD)))
 #endif
 __kernel void
 simple_concat(__global DATA_T *dst, long dst_offset0, SRC_PTRS) {
-    const uint x = (get_global_id(0) / SIMD) * BLOCK;
     __global const DATA_T *src;
-    size_t src_ext_offset, src_offset, input_offset;
+    size_t src_ext_offset, input_offset;
+    size_t input_padded_offset, concat_axis_size;
 
 #define CHECK_AND_GET(n) \
-    if (get_global_id(2) >= OFFSET##n) { \
-        src_ext_offset = SRC##n##_EXT_OFFSET; \
-        src_offset = RW_RATIO * (get_global_id(2) - OFFSET##n) * INNER_OFFSET; \
-        src = src##n + RW_RATIO * get_global_id(1) * src_ext_offset + x \
-                + src_offset; \
+    if (get_global_id(2) >= PADDED_OFFSET##n) { \
+        src = src##n; \
         input_offset = OFFSET##n; \
+        input_padded_offset = PADDED_OFFSET##n; \
+        concat_axis_size = SRC##n##_CONCAT_AXIS; \
+        src_ext_offset = SRC##n##_EXT_OFFSET; \
     }
     REDUCE(N_INPUTS, JOIN_ELSE, CHECK_AND_GET);
 #undef CHECK_AND_GET
 
-    const size_t thr_elems = BLOCK / SIMD;
+    const size_t block_offset
+            = GWS0_BLOCK * (get_global_id(2) - input_padded_offset)
+            + (get_global_id(0) / SIMD) * READ_BLOCK;
+    const size_t thr_elems = READ_BLOCK / SIMD;
+    src += READ_OVERLAP * get_global_id(1) * src_ext_offset + block_offset;
 
-#if BLOCK > INNER_OFFSET
-#define DST_IDX(idx) \
-    ((src_offset + idx) / src_ext_offset) * DST_EXT_OFFSET \
-            + ((src_offset + idx) % src_ext_offset)
-#else
-#define DST_IDX(idx) src_offset + idx
-#endif
+#define WRITE_INFO(idx) \
+    get_write_info(block_offset + (idx), src_ext_offset, input_offset, \
+            input_padded_offset, concat_axis_size)
 #if SIMD == 1
-    dst += dst_offset0 + RW_RATIO * get_global_id(1) * DST_EXT_OFFSET + x
-            + input_offset * INNER_OFFSET;
-
-    for (int i = 0; i < thr_elems; ++i)
-        dst[DST_IDX(i)] = src[i];
+    dst += dst_offset0 + READ_OVERLAP * get_global_id(1) * DST_EXT_OFFSET;
+    for (int i = 0; i < thr_elems; ++i) {
+        struct write_info_t info = WRITE_INFO(i);
+        if (info.write) dst[info.idx] = src[i];
+    }
 #else
     const size_t lane = get_sub_group_local_id();
     buffer_t buf;
 
-#if (BLOCK * DATA_TYPE_SIZE % 4 != 0)
+#if (READ_BLOCK * DATA_TYPE_SIZE % 4 != 0)
     for (int i = 0; i < thr_elems; ++i)
         buf.v1[i] = src[i * SIMD + lane];
 #else
@@ -173,24 +242,26 @@ simple_concat(__global DATA_T *dst, long dst_offset0, SRC_PTRS) {
     MAYBE_BLOCK_READ(1, BLOCK_READ, thr_elems);
 #undef MAYBE_BLOCK_READ
 #endif // aligned for block reads
-    if (lane < BLOCK % SIMD) buf.v1[thr_elems] = src[thr_elems * SIMD + lane];
+    if (lane < READ_BLOCK % SIMD)
+        buf.v1[thr_elems] = src[thr_elems * SIMD + lane];
 
-    dst += dst_offset0 + RW_RATIO * get_global_id(1) * DST_EXT_OFFSET + x
-            + input_offset * INNER_OFFSET;
-
-#if (MIN(BLOCK, INNER_OFFSET) * DATA_TYPE_SIZE % 16 != 0)
-    for (int i = 0; i < thr_elems; ++i)
-        dst[DST_IDX(i * SIMD + lane)] = buf.v1[i];
-    if (lane < BLOCK % SIMD)
-        dst[DST_IDX(thr_elems * SIMD + lane)] = buf.v1[thr_elems];
+    dst += dst_offset0 + READ_OVERLAP * get_global_id(1) * DST_EXT_OFFSET;
+#if (WRITE_BLOCK * DATA_TYPE_SIZE % 16 != 0)
+    for (int i = 0; i < thr_elems; ++i) {
+        struct write_info_t info = WRITE_INFO(i * SIMD + lane);
+        if (info.write) dst[info.idx] = buf.v1[i];
+    }
+    if (lane < READ_BLOCK % SIMD) {
+        struct write_info_t info = WRITE_INFO(thr_elems * SIMD + lane);
+        if (info.write) dst[info.idx] = buf.v1[thr_elems];
+    }
 #else
     // Break up the data that was read into several blocks that may be written
     // sequentially. If the block size is not divisible by the subgroup size,
     // borrow values from the next block(s), if available, to fill a scattered
     // write.
-    const size_t block_elems = MIN(BLOCK, INNER_OFFSET);
-    const size_t elems_per_iteration = MAX(SIMD, block_elems);
-    const size_t iterations = DIV_UP(BLOCK, elems_per_iteration);
+    const size_t elems_per_iteration = MAX(SIMD, WRITE_BLOCK);
+    const size_t iterations = DIV_UP(READ_BLOCK, elems_per_iteration);
 
 #pragma unroll
     for (int j = 0; j < iterations; ++j) {
@@ -198,9 +269,10 @@ simple_concat(__global DATA_T *dst, long dst_offset0, SRC_PTRS) {
         const size_t block_off = buf_off * SIMD;
         // Accounting for any values borrowed from the last iteration, this
         // block only has `iter_elems` values to write:
-        const size_t iter_elems = block_elems - (block_off % block_elems);
+        const size_t iter_elems = WRITE_BLOCK - (block_off % WRITE_BLOCK);
         const size_t thr_iter_elems = iter_elems / SIMD;
-        __global DATA_T *iter_dst = dst + DST_IDX(block_off);
+        struct write_info_t info = WRITE_INFO(block_off);
+        __global DATA_T *iter_dst = dst + info.idx;
 #define MAYBE_BLOCK_WRITE(n, write, elems) \
     do { \
         if ((elems) & (n)) { \
@@ -209,20 +281,23 @@ simple_concat(__global DATA_T *dst, long dst_offset0, SRC_PTRS) {
         } \
     } while (0)
 
-        for (int i = 0; i < thr_iter_elems / 16; ++i)
-            BLOCK_WRITE16(&iter_dst[16 * i * SIMD],
-                    load_vec16(&buf, buf_off + i * 16));
-        MAYBE_BLOCK_WRITE(8, BLOCK_WRITE8, thr_iter_elems);
-        MAYBE_BLOCK_WRITE(4, BLOCK_WRITE4, thr_iter_elems);
-        MAYBE_BLOCK_WRITE(2, BLOCK_WRITE2, thr_iter_elems);
-        MAYBE_BLOCK_WRITE(1, BLOCK_WRITE, thr_iter_elems);
+        if (info.write) {
+            for (int i = 0; i < thr_iter_elems / 16; ++i)
+                BLOCK_WRITE16(&iter_dst[16 * i * SIMD],
+                        load_vec16(&buf, buf_off + i * 16));
+            MAYBE_BLOCK_WRITE(8, BLOCK_WRITE8, thr_iter_elems);
+            MAYBE_BLOCK_WRITE(4, BLOCK_WRITE4, thr_iter_elems);
+            MAYBE_BLOCK_WRITE(2, BLOCK_WRITE2, thr_iter_elems);
+            MAYBE_BLOCK_WRITE(1, BLOCK_WRITE, thr_iter_elems);
+        }
 #undef MAYBE_BLOCK_WRITE
 
         // Write tail elements + the leading elements of the next block
         if (iter_elems % SIMD) {
             const size_t written = block_off + thr_iter_elems * SIMD;
-            if (lane < MIN(SIMD, BLOCK - written))
-                dst[DST_IDX(written + lane)] = buf.v1[buf_off + thr_iter_elems];
+            struct write_info_t info = WRITE_INFO(written + lane);
+            if (info.write && lane < MIN(SIMD, READ_BLOCK - written))
+                dst[info.idx] = buf.v1[buf_off + thr_iter_elems];
         }
     }
 #endif // aligned for block writes
