@@ -328,12 +328,10 @@ void ref_partition_t::reverse_link_args(const deserialized_op &cur_op,
         res->state = FAILED;
         return;
     }
-    graph_mem_map.at(cur_op_in_lt_id).map_mem();
     graph_mem_map.erase(cur_op_in_lt_id);
     graph_mem_map.emplace(cur_op_in_lt_id,
             std::move(
                     const_cast<dnn_graph_mem_t &>(leading_op_graph_input_mem)));
-    graph_mem_map.at(cur_op_in_lt_id).unmap_mem();
 }
 
 void ref_partition_t::check_partition_correctness(
@@ -354,7 +352,6 @@ void ref_partition_t::check_partition_correctness(
         size_t out_lt_id = last_op_ref.get().out_lts_[out_idx].id_;
         auto &graph_mem = partition_mem_map.at(out_lt_id);
         const auto &par_out_mem = graph_mem.reorder_back_mem();
-        graph_mem.map_mem();
         output_args.set(out_arg, par_out_mem);
     }
 

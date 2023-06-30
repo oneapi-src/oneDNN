@@ -175,25 +175,33 @@ int find_logical_tensor(size_t lt_id, const graph::op_ref_list_t &ops,
     return FAIL;
 }
 
-/// map input graph memories back to host after primitive execution
+/// map graph memories to device before primitive execution or unmap graph
+/// memories back to host after primitive execution
 ///
-/// @param partition_mem_map a mapping from logical tensor id to graph memory
-/// @param ins a vector of input logical tensors
-int map_partition_in_mem(graph::partition_mem_map_t &partition_mem_map,
-        const std::vector<dnnl::graph::logical_tensor> &ins) {
-    for (const auto &in : ins) {
-        const auto &in_id = in.get_id();
-        const auto iter = partition_mem_map.find(in_id);
-        if (iter != partition_mem_map.end()) {
-            const auto &graph_mem = iter->second;
-            const auto &par_in_mem = graph_mem.get_mem();
-            par_in_mem.map();
-        } else {
+/// @param partition_mem_map a mapping from logical tensor ids to graph memory
+/// @param lts a vector of logical tensors
+/// @param map_flag a flag to indicate whether to do mapping or unmapping
+/// @param res a res_t struct that records the result
+int map_unmap_partition_mem(graph::partition_mem_map_t &partition_mem_map,
+        const std::vector<dnnl::graph::logical_tensor> &lts,
+        const int &map_flag, res_t *res) {
+    for (const auto &lt : lts) {
+        const auto &lt_id = lt.get_id();
+        const auto iter = partition_mem_map.find(lt_id);
+        if (iter == partition_mem_map.end()) {
             BENCHDNN_PRINT(0,
-                    "FAIL: Cannot find graph memory with lt id %zu! \n", in_id);
-            return FAIL;
+                    "FAIL: Cannot find graph memory with lt id %zu! \n", lt_id);
+            return res->state = FAILED, FAIL;
         }
+        auto &graph_mem = iter->second;
+        if (map_flag == MAP)
+            graph_mem.map_mem(); // Map graph memory to host
+        else if (map_flag == UNMAP)
+            graph_mem.unmap_mem(); // Unmap graph memory from host
+        else
+            return res->state = UNIMPLEMENTED, FAIL;
     }
+
     return OK;
 }
 
@@ -463,6 +471,17 @@ int doit(const prb_t *prb, res_t *res) {
             if (res->state == FAIL) return FAIL;
             if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
+            // unmap memory from host to device
+            map_unmap_partition_mem(partition_mem_map, inputs, UNMAP, res);
+            map_unmap_partition_mem(partition_mem_map, outputs, UNMAP, res);
+            if (res->state == FAIL) {
+                BENCHDNN_PRINT(0,
+                        "FAIL: Fail to unmap memories to host for partition "
+                        "%zu.\n",
+                        i);
+                return FAIL;
+            }
+
             const op_ref_list_t &op_list = ref_partition.get_partition_ops();
             const auto &inplace_ports = c_partitions[i].get_inplace_ports();
 
@@ -501,12 +520,15 @@ int doit(const prb_t *prb, res_t *res) {
         strm.wait();
 
         if (has_bench_mode_bit(mode_bit_t::corr)) {
-            if (map_partition_in_mem(partition_mem_map, inputs) != OK) {
+            // map memory from device back to host
+            map_unmap_partition_mem(partition_mem_map, inputs, MAP, res);
+            map_unmap_partition_mem(partition_mem_map, outputs, MAP, res);
+            if (res->state == FAIL) {
                 BENCHDNN_PRINT(0,
-                        "FAIL: Fail to map input memories back to host for "
-                        "partition %zu.\n",
+                        "FAIL: Fail to map memories back to host for partition "
+                        "%zu.\n",
                         i);
-                return res->state = FAILED, FAIL;
+                return FAIL;
             }
         }
         res->state = EXECUTED;

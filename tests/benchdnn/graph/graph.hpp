@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,9 @@
 
 #ifndef BENCHDNN_GRAPH_GRAPH_HPP
 #define BENCHDNN_GRAPH_GRAPH_HPP
+
+#define UNMAP 0
+#define MAP 1
 
 #include <iostream>
 #include <map>
