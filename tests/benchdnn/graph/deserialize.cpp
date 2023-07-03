@@ -400,6 +400,8 @@ bool deserialized_graph::check_tensor_with_mb(size_t tensor_id) const {
         } else if (aop.kind_ != "Concat" && tensor_id != aop.in_lts_[0].id_) {
             return false;
             // check consumer ops recursively
+        } else if (aop.kind_ == "End") {
+            return true;
         } else {
             return check_tensor_with_mb(aop.out_lts_[0].id_);
         }

@@ -358,6 +358,21 @@ std::string case_to_str(const std::string &json_file,
     return s.str();
 }
 
+/// @brief check if the current partition is actually an End op
+/// @param parti the current partition
+/// @param end_op_ids a collection of End op's ids
+/// @return return true, when current partition is an End op
+bool is_single_end_op_partition(const dnnl::graph::partition &parti,
+        const std::vector<size_t> &end_op_ids) {
+    const auto parti_op_ids = parti.get_ops();
+    if (!end_op_ids.empty() && parti_op_ids.size() == 1
+            && std::count(end_op_ids.begin(), end_op_ids.end(),
+                    parti_op_ids.front())) {
+        return true;
+    }
+    return false;
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == bench_mode_t::list) return res->state = LISTED, OK;
 
@@ -368,6 +383,12 @@ int doit(const prb_t *prb, res_t *res) {
     auto ograph = dg.to_graph(prb->fpmath_mode);
     DNN_GRAPH_SAFE(ograph.finalize(), WARN);
     const auto partitions = ograph.get_partitions();
+    // a collection of End op's id in this graph
+    std::vector<size_t> end_opid_v {};
+    for (const auto &aop : dg.ops_) {
+        if (aop.kind_ == "End") { end_opid_v.emplace_back(aop.id_); }
+    }
+
     if (partitions.empty()) {
         BENCHDNN_PRINT(0, "FAIL: partition empty %d.\n", 0);
         return res->state = FAILED, FAIL;
@@ -375,8 +396,13 @@ int doit(const prb_t *prb, res_t *res) {
     BENCHDNN_PRINT(1, "Partition size %zd.\n", partitions.size());
 
     for (size_t i = 0; i < partitions.size(); ++i) {
+        // Single end op partition is an unsupported partition in the library
         if (!partitions[i].is_supported()) {
             BENCHDNN_PRINT(1, "Partition %zd is unsupported!\n", i);
+            if (is_single_end_op_partition(partitions[i], end_opid_v)) {
+                BENCHDNN_PRINT(1, "Partition %zd is End op!\n", i);
+                continue;
+            }
             res->state = UNIMPLEMENTED;
             return OK;
         }
@@ -434,7 +460,14 @@ int doit(const prb_t *prb, res_t *res) {
         set_any_layout(partitions, id_to_set_any_layout);
     }
 
+    // the index offset for current partition compared with the previous partition index
+    size_t idx_offset = 0;
     for (size_t i = 0; i < partitions.size(); ++i) {
+        if (is_single_end_op_partition(partitions[i], end_opid_v)) {
+            idx_offset += 1;
+            continue;
+        }
+
         auto inputs = partitions[i].get_input_ports();
         auto outputs = partitions[i].get_output_ports();
 
@@ -452,12 +485,18 @@ int doit(const prb_t *prb, res_t *res) {
                                partitions[i].compile(inputs, outputs, eng)),
                 WARN);
 
-        record_queried_logical_tensors(
-                outputs, c_partitions[i], id_to_queried_logical_tensors);
+        record_queried_logical_tensors(outputs, c_partitions[i - idx_offset],
+                id_to_queried_logical_tensors);
     }
     if (bench_mode == bench_mode_t::init) return res->state = INITIALIZED, OK;
 
+    idx_offset = 0;
     for (size_t i = 0; i < partitions.size(); ++i) {
+        if (is_single_end_op_partition(partitions[i], end_opid_v)) {
+            idx_offset += 1;
+            continue;
+        }
+
         auto inputs = partitions[i].get_input_ports();
         auto outputs = partitions[i].get_output_ports();
 
@@ -490,7 +529,8 @@ int doit(const prb_t *prb, res_t *res) {
             }
 
             const op_ref_list_t &op_list = ref_partition.get_partition_ops();
-            const auto &inplace_ports = c_partitions[i].get_inplace_ports();
+            const auto &inplace_ports
+                    = c_partitions[i - idx_offset].get_inplace_ports();
 
             if (make_input_tensors(input_ts, partition_mem_map, op_list, inputs)
                     != OK) {
@@ -514,16 +554,16 @@ int doit(const prb_t *prb, res_t *res) {
             // performance mode
             // TODO: initialization value should be removed from this interface.
             input_ts = tm.construct_and_initialize_tensors(
-                    inputs, c_partitions[i], eng, 128);
+                    inputs, c_partitions[i - idx_offset], eng, 128);
             output_ts = tm.construct_and_initialize_tensors(
-                    outputs, c_partitions[i], eng, 0);
+                    outputs, c_partitions[i - idx_offset], eng, 0);
         }
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
         input_ts_all.emplace_back(input_ts);
         output_ts_all.emplace_back(output_ts);
 
-        c_partitions[i].execute(strm, input_ts, output_ts);
+        c_partitions[i - idx_offset].execute(strm, input_ts, output_ts);
         strm.wait();
 
         if (has_bench_mode_bit(mode_bit_t::corr)) {
