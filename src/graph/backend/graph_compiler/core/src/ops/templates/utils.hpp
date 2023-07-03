@@ -92,6 +92,11 @@ inline std::vector<expr> dims_to_expr(const sc_dims &dim) {
   return ret;
 }
 
+inline bool is_parallel_space_enough(int work_amount, int nthreads) {
+  return (work_amount % nthreads == 0
+    || utils::divide_and_ceil(work_amount, nthreads) >= 4);
+}
+
 /**
  * filter the vector by factor and tile factor, in order to adapt to the input
  * of dnnl amx.

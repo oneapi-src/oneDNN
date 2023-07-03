@@ -133,6 +133,45 @@ void gen_conv_fwd_t::validate_conv_fwd_default_config(
   }
 }
 
+void gen_conv_fwd_t::adjust_config_for_parallelisem(
+  const context_ptr &ctx, conv_fwd_config_t &cfg) const {
+  const auto nthreads = runtime_config_t::get().get_num_threads();
+  const int parallel_balance_boundary = 2 * nthreads;
+  auto is_balance_parallel = [&](int K_block, int tile_p, int tile_d) {
+    int work_amount = (oc_ / K_block) * (oh_ / tile_p) * (od_ / tile_d) * mb_;
+    return is_parallel_space_enough(work_amount, nthreads);
+  };
+
+  const auto dtype_size = utils::get_sizeof_type(get_weight_dtype());
+
+  if (!is_balance_parallel(cfg.K_block, cfg.tile_p, cfg.tile_d)) {
+    int oc_minimum_block = utils::get_blocks(oc_, 1, 32).back();
+    cfg.C_block = ic_;
+    if (is_1x1_conv_ && oc_ / oc_minimum_block >= parallel_balance_boundary) {
+      cfg.K_block = oc_minimum_block;
+    }
+    auto K_block_candidates
+      = utils::get_blocks(oc_, oc_minimum_block, cfg.K_block - 1);
+    auto tile_p_candidates = utils::get_blocks(oh_, 1, cfg.tile_p - 1);
+    auto tile_d_candidates = utils::get_blocks(od_, 1, cfg.tile_d - 1);
+    while (!is_balance_parallel(cfg.K_block, cfg.tile_p, cfg.tile_d)
+      && cfg.K_block > oc_minimum_block) {
+      cfg.K_block = K_block_candidates.back();
+      K_block_candidates.pop_back();
+    }
+    while (!is_balance_parallel(cfg.K_block, cfg.tile_p, cfg.tile_d)
+      && cfg.tile_p > 1) {
+      cfg.tile_p = tile_p_candidates.back();
+      tile_p_candidates.pop_back();
+    }
+    while (!is_balance_parallel(cfg.K_block, cfg.tile_p, cfg.tile_d)
+      && cfg.tile_d > 1) {
+      cfg.tile_d = tile_d_candidates.back();
+      tile_d_candidates.pop_back();
+    }
+  }
+}
+
 config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   auto ret = reflection::general_object_t::make<conv_fwd_config_t>();
   conv_fwd_config_t &cfg = *ret.unchecked_get_as<conv_fwd_config_t>();
@@ -196,8 +235,6 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
     }
   }
 
-  bool parallel_space_is_enough
-    = (mb_ % nthreads == 0 || utils::divide_and_ceil(mb_, nthreads) > 8);
   auto L2_cache_size = ctx->machine_.cpu_flags_.getDCacheSize(2);
   if (is_1x1_conv_ && (oc_ / ic_ >= 4 && oc_ >= 1024)) { max_oc_block = 128; }
   // tile_p
@@ -215,7 +252,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
       cfg.tile_p = 1;
     }
   } else {
-    if (ow_ >= 32 || !parallel_space_is_enough) {
+    if (ow_ >= 32 || !is_parallel_space_enough(mb_, nthreads)) {
       cfg.tile_p = 1;
     } else {
       cfg.tile_p = tile_p_list.back();
@@ -227,6 +264,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
       }
     }
   }
+  if (get_input_dtype() == datatypes::f32 && is_1x1_conv_) { cfg.tile_p = 1; }
   // tile q
   if (!is_1x1_conv_) {
     cfg.tile_q = tile_q_list.back();
@@ -241,7 +279,6 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
       cfg.tile_q = tile_q_list.back();
     }
   }
-  if (get_input_dtype() == datatypes::f32 && is_1x1_conv_) { cfg.tile_p = 1; }
   if (try_os_blocking_ && ctx->use_amx()) {
     // if use os blocking override tile p and tile q above
     cfg.tile_os = cfg.tile_q;
@@ -292,6 +329,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
       cfg.tile_p = utils::get_blocks(oh_, 1, 32).back();
     }
   }
+  adjust_config_for_parallelisem(ctx, cfg);
   validate_conv_fwd_default_config(ctx, cfg);
   if (inverse_filter_) {
     cfg.C_block = ic_ % 64 == 0 ? 64 : ic_;
@@ -473,7 +511,7 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
     || (ph_e_ > 0) || (pw_e_ > 0);
   // TODO(zhicong): check whether to use os_blocking when sh > 1
   try_os_blocking_ = (!is_1x1_conv_) && (!has_pad) && (!is_3d_) && is_int8
-    && ow_ <= 28 && sh_ == 1;
+    && ow_ <= 28 && sh_ == 1 && num_threads <= mb_;
   if (is_1d_) {
     use_conv1d = true;
     COMPILE_ASSERT((kw_ == 1 && pw_b_ == 0 && pw_e_ == 0),
@@ -1051,6 +1089,7 @@ void gen_conv_fwd_t::compute_1x1_pack_input(CONV_ARG_LIST) const {
   }
   int lanes = get_lanes(ctx, config.C_block, get_input_dtype());
   if (config.pack_input == 1 && (sd_ > 1 || sh_ > 1 || sw_ > 1)) {
+    trace_guard_t trg(ctx, "pack_input");
     if (blocking_input_) {
       _tensor_(input_tmp, get_input_dtype(),
         {mb_expr_, C_num_block, oh_expr_, ow_, config.C_block});
@@ -1959,11 +1998,8 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
   const bool large_pad = src_row_tile_size < pw_b_ || src_row_tile_size < pw_e_;
 
   const int work_amount = mb_ * K_num_block * ow_ / config.tile_q;
-  bool parallel_space_is_enough = (num_threads == 1
-    || (num_threads > 1
-      && utils::divide_and_ceil(work_amount, num_threads) >= 4));
   bool reuse_sub_tensor = sh_ < (dh_ * (kh_ - 1) + 1) && C_num_block == 1
-    && parallel_space_is_enough;
+    && is_parallel_space_enough(work_amount, num_threads);
   bool use_var_bs = attrs_.get_or_else("use_var_bs", true);
 
   // TODO(xxx): fix inverse filter correctness issue when use_var_bs==true

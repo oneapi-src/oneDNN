@@ -97,6 +97,9 @@ public:
     const sc_dims &pads_begin, const sc_dims &pads_end,
     std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs);
 
+  void adjust_config_for_parallelisem(
+    const context_ptr &ctx, conv_fwd_config_t &cfg) const;
+
   float get_gflop() const override;
 
   const sc_dims &get_input_plain_dims() const {

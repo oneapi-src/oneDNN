@@ -537,11 +537,15 @@ bool conv_fwd_core_op_t::use_nested_conv_fwd_generator() {
             [](int x) { return x == 1; });
     auto is_int8 = utils::is_one_of(
             info_.inputs_[0]->details_.dtype_, datatypes::u8, datatypes::s8);
+    const int num_threads = runtime_config_t::get().get_num_threads();
     // Only support conv 3x3 with os blocking currently
     // TODO(zhicong): the config of nested conv 3x3 with big
     // shape(150x150,300x300, 7x7 oc split) needs to be further tuned
+    // only used in throughput mode or real time mode in which the config is
+    // well tuned
     auto use_nested_conv = ndims_ == 4 && !has_pad && !is_1x1 && is_int8
-            && data_shape.back() <= 56 && output_shape.back() > 7;
+            && data_shape.back() <= 56 && output_shape.back() > 7
+            && num_threads / data_shape[0] <= 4;
     return use_nested_conv;
 }
 
@@ -597,6 +601,9 @@ bool conv_fwd_core_op_t::use_conv1d() {
         // disable conv1d to use NH fusion
         return false;
     }
+    // only used in throughput mode or real time mode in which the config is
+    // well tuned
+    if (num_threads / data_shape[0] > 4) { return false; }
     return true;
 }
 
