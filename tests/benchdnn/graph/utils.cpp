@@ -706,13 +706,17 @@ dnnl::graph::logical_tensor::dims memory_tag2strides(
         const dnnl::graph::logical_tensor::dims &shape,
         const std::string &tag) {
     std::string template_tag = "abcdefghijk";
+    const size_t ndims = shape.size();
+    // use plain tag as default if the tensor shape rank changed
+    std::string real_tag
+            = ndims == tag.length() ? tag : template_tag.substr(0, ndims);
+
     // map of {a:0, b:1, c:2, d:3, etc}
     std::unordered_map<char, size_t> char2dim;
-    for (size_t i = 0; i < tag.length(); ++i) {
+    for (size_t i = 0; i < real_tag.length(); ++i) {
         char2dim[template_tag[i]] = i;
     }
 
-    const size_t ndims = shape.size();
     dnnl::graph::logical_tensor::dims strides(ndims);
     // start from tag's last char, find corresponding dim
     // and set stride
@@ -724,7 +728,7 @@ dnnl::graph::logical_tensor::dims memory_tag2strides(
     // char2dim[a] = 0, stride[0] = stride[2] * shape[2] = 48
     dnnl_dim_t s = 1;
     for (size_t i = 0; i < ndims; ++i) {
-        size_t adim = char2dim[tag[ndims - 1 - i]];
+        size_t adim = char2dim[real_tag[ndims - 1 - i]];
         strides[adim] = s;
         // handle the 0-D tensor case
         if (shape[adim] == 0)
