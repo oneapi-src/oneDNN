@@ -1090,10 +1090,31 @@ namespace matmul {
 bool get_matmul_prb_vdims(
         const deserialized_op &base_op_ref, prb_vdims_t &prb_vdims) {
 
-    auto src_dims = base_op_ref.in_lts_[0].shape_;
-    auto wei_dims = base_op_ref.in_lts_[1].shape_;
-    auto dst_dims = base_op_ref.out_lts_[0].shape_;
-    const auto ndims = src_dims.size();
+    deserialized_op &base_op = const_cast<deserialized_op &>(base_op_ref);
+
+    auto &src_dims = base_op.in_lts_[0].shape_;
+    auto &wei_dims = base_op.in_lts_[1].shape_;
+    auto &dst_dims = base_op.out_lts_[0].shape_;
+    const auto ndims = dst_dims.size();
+
+    while (src_dims.size() < ndims)
+        src_dims.insert(src_dims.begin(), 1);
+    while (wei_dims.size() < ndims)
+        wei_dims.insert(wei_dims.begin(), 1);
+
+    size_t src_nelem = 1, wei_nelem = 1;
+    for (size_t i = 0; i < src_dims.size(); i++)
+        src_nelem *= src_dims.size();
+    for (size_t i = 0; i < wei_dims.size(); i++)
+        wei_nelem *= wei_dims.size();
+
+    auto &src_strides = base_op.in_lts_[0].stride_;
+    auto &wei_strides = base_op.in_lts_[1].stride_;
+
+    while (src_strides.size() < src_dims.size())
+        src_strides.insert(src_strides.begin(), src_nelem);
+    while (wei_strides.size() < wei_dims.size())
+        wei_strides.insert(wei_strides.begin(), wei_nelem);
 
     // transpose
     bool transpose_a = false, transpose_b = false;

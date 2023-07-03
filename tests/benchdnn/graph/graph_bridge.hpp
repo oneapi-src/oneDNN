@@ -86,7 +86,20 @@ using req = typename std::enable_if<B, bool>::type;
             req<std::is_same<setting_t, ::driver::settings_t>::value> = true> \
     setting_t get_setting(const deserialized_op &base_op_ref, \
             const std::unordered_set<size_t> &rewrite_lt_ids, res_t *res) { \
-        return driver::get_setting(base_op_ref, rewrite_lt_ids, res); \
+        deserialized_op base_op = base_op_ref; \
+        for (size_t i = 0; i < base_op.in_lts_.size(); i++) { \
+            if (base_op.in_lts_[i].shape_.size() == 0) \
+                base_op.in_lts_[i].shape_.emplace_back(1); \
+            if (base_op.in_lts_[i].stride_.size() == 0) \
+                base_op.in_lts_[i].stride_.emplace_back(1); \
+        } \
+        for (size_t i = 0; i < base_op.out_lts_.size(); i++) { \
+            if (base_op.out_lts_[i].shape_.size() == 0) \
+                base_op.out_lts_[i].shape_.emplace_back(1); \
+            if (base_op.out_lts_[i].stride_.size() == 0) \
+                base_op.out_lts_[i].stride_.emplace_back(1); \
+        } \
+        return driver::get_setting(base_op, rewrite_lt_ids, res); \
     }
 
 DECLARE_SET_PRB_CFG(conv);

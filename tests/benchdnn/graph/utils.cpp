@@ -656,7 +656,7 @@ bool is_nxc_lt_arg(const std::string &kind, const int exec_arg) {
 
 std::string strides2memory_tag(const size_t ndims,
         const dnnl::graph::logical_tensor::dims &strides, bool use_x_tag) {
-    if (ndims == 0) return use_x_tag ? "abx" : "a";
+    if (ndims == 0) return "";
     std::string template_tag = "abcdefghijk";
     std::vector<std::pair<int64_t, char>> vp;
     bool valid_strides = ndims == strides.size();
