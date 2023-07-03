@@ -37,6 +37,24 @@ using namespace dnnl::impl::utils;
 using namespace nstl;
 using namespace data_type;
 
+namespace {
+struct blk_info_t {
+    int n_lpad_blks;
+    int rpad_blk_start_idx;
+};
+blk_info_t get_blocks_info(int sp_i, int sp_o, int k, int stride, int lpad,
+        int rpad, int blk_size) {
+
+    const int max_blks = div_up(sp_o, blk_size);
+    const int blk_shift = stride * blk_size;
+    const int n_lpad_blks = nstl::min(
+            max_blks, div_up(lpad, blk_shift) + 1 /*include zero lpad*/);
+    const int rpad_blk_start_idx = saturate(
+            n_lpad_blks, max_blks, (sp_i + lpad - k + 1) / blk_shift);
+    return {n_lpad_blks, rpad_blk_start_idx};
+}
+} // namespace
+
 inline status_t init_tag(memory_desc_t &md, const memory_desc_wrapper &mdw,
         const format_tag_t tag_value, bool any_eligible) {
 
@@ -216,10 +234,8 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     // Since, we cannot always predict the blocking is 8 or 16.
     if (jcp.kd == 1 && jcp.kh == 1 && jcp.ngroups % 16 == 0) {
         jcp.batch_kind = brgemm_strd;
-    } else if ((jcp.mb * jcp.od * jcp.oh) % jcp.nthr != 0) {
-        jcp.batch_kind = brgemm_offs;
     } else {
-        jcp.batch_kind = brgemm_addr;
+        jcp.batch_kind = brgemm_offs;
     }
 
     // to avoid cache concurrent access from different threads
@@ -227,13 +243,119 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     jcp.adjusted_batch_size
             = div_up(rnd_up(jcp.kd * jcp.kh * jcp.kw * sc_size, 4096), sc_size);
     CHECK(init_brdgmm_conf());
-    CHECK(init_scratchpad());
     if (jcp.with_scale) {
         auto scratchpad = scratchpad_registry().registrar();
         book_precomputed_scales(scratchpad, attr_.scales_, OC());
     }
 
+    init_batch_elements();
     return status::success;
+}
+
+void brdgmm_dw_convolution_fwd_t::pd_t::init_batch_elements() {
+
+    auto &jcp = jcp_;
+
+    auto gen_batch_elements = [&jcp](int fpad, int backpad, int tpad, int bpad,
+                                      int lpad, int rpad, int &bs,
+                                      brgemm_batch_element_t *batches) {
+        const bool requires_batch_pad
+                = jcp.s8s8_compensation_required || jcp.src_zero_point;
+        const size_t src_w_stride = jcp.ngroups * jcp.src_dsz;
+        const size_t src_h_stride = jcp.ngroups * jcp.iw * jcp.src_dsz;
+        const size_t src_d_stride = jcp.ngroups * jcp.ih * jcp.iw * jcp.src_dsz;
+
+        const size_t wei_w_stride
+                = rnd_up(jcp.ngroups, jcp.ch_block) * jcp.wei_dsz;
+        const size_t wei_h_stride = wei_w_stride * jcp.kw;
+        const size_t wei_d_stride = wei_h_stride * jcp.kh;
+
+        const int adj_backpad = nstl::max(0, backpad);
+        const int adj_bpad = nstl::max(0, bpad);
+
+        for_(int kd = 0; kd < jcp.kd; ++kd)
+        for_(int kh = 0; kh < jcp.kh; ++kh)
+        for (int kw = 0; kw < jcp.kw; ++kw) {
+            const bool padded_bs = kd < fpad || kd >= jcp.kd - adj_backpad
+                    || kh < tpad || kh >= jcp.kh - adj_bpad;
+            if (!requires_batch_pad && padded_bs) continue;
+            auto &batch = batches[bs];
+            batch.vvpad.top = nstl::max(0, div_up(lpad - kw, jcp.stride_w));
+            batch.vvpad.bottom = nstl::max(
+                    0, div_up(rpad - jcp.kw + kw + 1, jcp.stride_w));
+            batch.has_s8s8_comp_batch_pad = padded_bs;
+            const dim_t offs_A
+                    = kd * src_d_stride + kh * src_h_stride + kw * src_w_stride;
+            const dim_t offs_B
+                    = kd * wei_d_stride + kh * wei_h_stride + kw * wei_w_stride;
+            if (jcp.batch_kind == brgemm_offs) {
+                batch.offset.A = offs_A;
+                batch.offset.B = offs_B;
+            }
+            ++bs;
+        }
+    };
+
+    const int w_shift = jcp.ow_block * jcp.stride_w;
+    const int h_shift = jcp.stride_h;
+    const int d_shift = jcp.stride_d;
+
+    const auto w_blk_info = get_blocks_info(jcp.iw, jcp.ow, jcp.kw,
+            jcp.stride_w, jcp.l_pad, jcp.r_pad, jcp.ow_block);
+    const int rpad_0
+            = (jcp.ow_block - 1) * jcp.stride_w + jcp.kw - (jcp.iw + jcp.l_pad);
+    const int rpad_1 = rpad_0 + (nstl::max(0, -rpad_0) / w_shift + 1) * w_shift;
+    const int n_uniq_rpads
+            = 1 + nstl::max(0, div_up(jcp.r_pad - (rpad_1 - w_shift), w_shift));
+
+    const auto h_blk_info = get_blocks_info(
+            jcp.ih, jcp.oh, jcp.kh, jcp.stride_h, jcp.t_pad, jcp.b_pad, 1);
+
+    const auto d_blk_info = get_blocks_info(
+            jcp.id, jcp.od, jcp.kd, jcp.stride_d, jcp.f_pad, jcp.back_pad, 1);
+
+    const int max_bs = jcp.kd * jcp.kh * jcp.kw;
+    const int n_d_uniq_blks
+            = d_blk_info.n_lpad_blks + (jcp.od - d_blk_info.rpad_blk_start_idx);
+    const int n_h_uniq_blks
+            = h_blk_info.n_lpad_blks + (jcp.oh - h_blk_info.rpad_blk_start_idx);
+    const int n_w_uniq_lpads = w_blk_info.n_lpad_blks;
+    const int uniq_blks
+            = n_d_uniq_blks * n_h_uniq_blks * n_w_uniq_lpads * n_uniq_rpads;
+
+    bs_.resize(uniq_blks, 0);
+    batches_.resize(bs_.size() * max_bs);
+    int bi = 0;
+
+    for_(int odb = 0; odb < n_d_uniq_blks; ++odb)
+    for_(int ohb = 0; ohb < n_h_uniq_blks; ++ohb)
+    for_(int owb = 0; owb < n_w_uniq_lpads; ++owb)
+    for (int rpad_i = 0; rpad_i < n_uniq_rpads; ++rpad_i) {
+        const int lpad = jcp.l_pad - owb * w_shift;
+        const int rpad = rpad_i == 0
+                ? rpad_0
+                : nstl::min(jcp.r_pad, rpad_1 + (rpad_i - 1) * w_shift);
+
+        const int tpad = jcp.t_pad - ohb * h_shift;
+        const int oh = ohb < h_blk_info.n_lpad_blks
+                ? ohb
+                : (h_blk_info.rpad_blk_start_idx
+                        + (ohb - h_blk_info.n_lpad_blks));
+        const int bpad = oh * h_shift + jcp.kh - (jcp.ih + jcp.t_pad);
+
+        const int fpad = jcp.f_pad - odb * d_shift;
+        const int od = odb < d_blk_info.n_lpad_blks
+                ? odb
+                : (d_blk_info.rpad_blk_start_idx
+                        + (odb - d_blk_info.n_lpad_blks));
+        const int backpad = od * d_shift + jcp.kd - (jcp.id + jcp.f_pad);
+
+        gen_batch_elements(fpad, backpad, tpad, bpad, lpad, rpad, bs_[bi],
+                &batches_[bi * max_bs]);
+        ++bi;
+        assert(static_cast<int>(bs_.size()) >= bi);
+    }
+    assert(static_cast<int>(bs_.size()) == bi);
 }
 
 status_t brdgmm_dw_convolution_fwd_t::pd_t::init_brdgmm_conf() {
@@ -252,8 +374,9 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init_brdgmm_conf() {
         brg_attr.max_bs = jcp.kw * jcp.kh * jcp.kd;
         brg_attr.max_top_vpad = nstl::max(0, jcp.l_pad);
         brg_attr.max_bottom_vpad = nstl::max(0, jcp.r_pad);
-        brg_attr.max_top_bpad = nstl::max(0, jcp.t_pad);
-        brg_attr.max_bottom_bpad = nstl::max(0, jcp.b_pad);
+        brg_attr.max_top_bpad = nstl::max(0, nstl::max(jcp.t_pad, jcp.f_pad));
+        brg_attr.max_bottom_bpad
+                = nstl::max(0, nstl::max(jcp.b_pad, jcp.back_pad));
 
         // only needed for strd batch_kind
         const brgemm_strides_t strides
@@ -390,16 +513,6 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init_brdgmm_conf() {
     return status::success;
 }
 
-status_t brdgmm_dw_convolution_fwd_t::pd_t::init_scratchpad() {
-    const auto &jcp = jcp_;
-    auto scratchpad = scratchpad_registry().registrar();
-
-    scratchpad.book(key_brgemm_primitive_batch,
-            static_cast<size_t>(jcp.nthr) * jcp.adjusted_batch_size,
-            sizeof(brgemm_batch_element_t), 64);
-    return status::success;
-}
-
 status_t brdgmm_dw_convolution_fwd_t::init(engine_t *engine) {
     const auto &bcps = pd()->bcps_;
     brdgmm_kernels_.resize(bcps.size());
@@ -422,10 +535,6 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
             = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
     const char *const __restrict bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     char *const __restrict dst = CTX_OUT_MEM(const char *, DNNL_ARG_DST);
-    const memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
-    brgemm_batch_element_t *const __restrict brg_batch_global
-            = scratchpad.template get<brgemm_batch_element_t>(
-                    key_brgemm_primitive_batch);
     const std::vector<const void *> post_ops_binary_rhs_arg_vec
             = binary_injector::prepare_binary_args(
                     pd()->attr()->post_ops_, ctx);
@@ -462,8 +571,8 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
     const int chb_work = div_up(jcp.ngroups, chb_step);
     const int ow_step = jcp.ow_block;
     const int work_amount = jcp.mb * jcp.od * jcp.oh * jcp.nb_ow * chb_work;
-    const bool requires_batch_pad
-            = jcp.s8s8_compensation_required || jcp.src_zero_point;
+
+    const int max_bs = jcp.kd * jcp.kh * jcp.kw;
 
     const size_t src_ch_stride = jcp.src_dsz;
     const size_t src_w_stride = jcp.ngroups * jcp.src_dsz;
@@ -471,10 +580,9 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
     const size_t src_d_stride = jcp.ngroups * jcp.ih * jcp.iw * jcp.src_dsz;
     const size_t src_mb_stride
             = jcp.ngroups * jcp.id * jcp.ih * jcp.iw * jcp.src_dsz;
+
     const size_t wei_ch_stride = jcp.wei_dsz;
-    const size_t wei_w_stride = rnd_up(jcp.ngroups, jcp.ch_block) * jcp.wei_dsz;
-    const size_t wei_h_stride = wei_w_stride * jcp.kw;
-    const size_t wei_d_stride = wei_h_stride * jcp.kh;
+
     const size_t dst_ch_stride = jcp.dst_dsz;
     const size_t dst_w_stride = jcp.ngroups * jcp.dst_dsz;
     const size_t dst_h_stride = jcp.ngroups * jcp.ow * jcp.dst_dsz;
@@ -482,14 +590,29 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
     const size_t dst_mb_stride
             = jcp.ngroups * jcp.od * jcp.oh * jcp.ow * jcp.dst_dsz;
 
+    const auto w_blk_info = get_blocks_info(jcp.iw, jcp.ow, jcp.kw,
+            jcp.stride_w, jcp.l_pad, jcp.r_pad, jcp.ow_block);
+    const auto h_blk_info = get_blocks_info(
+            jcp.ih, jcp.oh, jcp.kh, jcp.stride_h, jcp.t_pad, jcp.b_pad, 1);
+    const auto d_blk_info = get_blocks_info(
+            jcp.id, jcp.od, jcp.kd, jcp.stride_d, jcp.f_pad, jcp.back_pad, 1);
+    const int n_w_blks = w_blk_info.n_lpad_blks;
+    const int n_h_blks = h_blk_info.n_lpad_blks
+            + max(0, jcp.oh - h_blk_info.rpad_blk_start_idx);
+
+    const int w_shift = jcp.ow_block * jcp.stride_w;
+    const int rpad_0
+            = (jcp.ow_block - 1) * jcp.stride_w + jcp.kw - (jcp.iw + jcp.l_pad);
+    const int rpad_1 = rpad_0 + (nstl::max(0, -rpad_0) / w_shift + 1) * w_shift;
+    const int n_rpad_blks
+            = 1 + nstl::max(0, div_up(jcp.r_pad - (rpad_1 - w_shift), w_shift));
+
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
         int n {0}, chb {0}, od {0}, oh {0}, owb {0};
 
         auto iwork = start;
-        brgemm_batch_element_t *const __restrict brg_batch = brg_batch_global
-                + static_cast<size_t>(ithr) * jcp.adjusted_batch_size;
         const brgemm_kernel_t *kernel = nullptr;
         const brgemm_kernel_t *kernel_chb_tail
                 = brdgmm_kernels_[jcp.chb_tail_idx].get();
@@ -510,6 +633,7 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
                 continue;
             }
 
+            // Begin: get number of owb to process and its correspoinding ker_idx
             const auto rem_work = end - iwork;
             const int rem_row_owb
                     = saturate(1, jcp.nb_ow - owb, rem_work / chb_work);
@@ -534,55 +658,45 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
             }
 
             kernel = brdgmm_kernels_[ker_idx].get();
+            // end ker_idx
+
+            // Begin: get batch_element idx
+            const int ow = owb * ow_step;
+
+            const int id_s = od * jcp.stride_d - jcp.f_pad;
+            const int ih_s = oh * jcp.stride_h - jcp.t_pad;
+            const int iw_s = ow * jcp.stride_w - jcp.l_pad;
+
+            const int d_bi = nstl::min(od, d_blk_info.n_lpad_blks - 1)
+                    + nstl::max(0, od - d_blk_info.rpad_blk_start_idx + 1);
+            const int h_bi = nstl::min(oh, h_blk_info.n_lpad_blks - 1)
+                    + nstl::max(0, oh - h_blk_info.rpad_blk_start_idx + 1);
+            const int w_bi = nstl::min(owb, w_blk_info.n_lpad_blks - 1);
+
+            const int ow_e
+                    = nstl::min(ow + cur_n_owb * jcp.ow_block, jcp.ow) - 1;
+            const int rpad = ow_e * jcp.stride_w - jcp.l_pad + jcp.kw - jcp.iw;
+            const int rpad_i = rpad <= rpad_1 - w_shift
+                    ? 0
+                    : 1 + div_up(rpad - rpad_1, w_shift);
+
+            const int bi //[d_bi][h_bi][w_bi][rpad_i] _
+                    = ((d_bi * n_h_blks + h_bi) * n_w_blks + w_bi) * n_rpad_blks
+                    + rpad_i;
+            assert(static_cast<int>(pd()->batches_.size())
+                    >= (bi + 1) * max_bs);
+            const brgemm_batch_element_t *brg_batch
+                    = &(pd()->batches_[bi * max_bs]);
+            const int bs = pd()->bs_[bi];
+            // end: get batch_element idx
 
             int ch = chb * chb_step;
-            const int ow = owb * ow_step;
-            auto *ptr_A = src;
-            auto *ptr_B = weights;
-            int bs = 0;
-            for_(int kd = 0; kd < jcp.kd; ++kd)
-            for_(int kh = 0; kh < jcp.kh; ++kh)
-            for (int kw = 0; kw < jcp.kw; ++kw) {
 
-                const int id = od * jcp.stride_d - jcp.f_pad + kd;
-                const int ih = oh * jcp.stride_h - jcp.t_pad + kh;
-                const bool padded_bs
-                        = (id < 0 || id >= jcp.id || ih < 0 || ih >= jcp.ih);
-                if (!requires_batch_pad && padded_bs) continue;
-
-                const int iw_s = ow * jcp.stride_w - jcp.l_pad + kw;
-                const int ow_e
-                        = nstl::min(jcp.ow, ow + cur_n_owb * jcp.ow_block) - 1;
-                const int iw_e = ow_e * jcp.stride_w - jcp.l_pad + kw;
-
-                auto &batch = brg_batch[bs];
-                batch.has_s8s8_comp_batch_pad = padded_bs;
-                batch.vvpad.top = nstl::max(0, div_up(-iw_s, jcp.stride_w));
-                batch.vvpad.bottom = nstl::max<dim_t>(
-                        0, div_up(iw_e - (jcp.iw - 1), jcp.stride_w));
-
-                const dim_t offs_A = n * src_mb_stride + id * src_d_stride
-                        + ih * src_h_stride + iw_s * src_w_stride
-                        + ch * src_ch_stride;
-                const dim_t offs_B = kd * wei_d_stride + kh * wei_h_stride
-                        + kw * wei_w_stride + ch * wei_ch_stride;
-                if (jcp.batch_kind == brgemm_offs) {
-                    batch.offset.A = offs_A;
-                    batch.offset.B = offs_B;
-                } else if (jcp.batch_kind == brgemm_addr) {
-                    batch.ptr.A = src + offs_A;
-                    batch.ptr.B = weights + offs_B;
-                } else {
-                    assert(jcp.batch_kind == brgemm_strd);
-                    if (bs == 0) {
-                        ptr_A = src + offs_A;
-                        ptr_B = weights + offs_B;
-                    }
-                }
-                ++bs;
-            }
-
-            auto ptr_C = dst + n * dst_mb_stride + od * dst_d_stride
+            auto *ptr_A = src + n * src_mb_stride + id_s * src_d_stride
+                    + ih_s * src_h_stride + iw_s * src_w_stride
+                    + ch * src_ch_stride;
+            auto *ptr_B = weights + ch * wei_ch_stride;
+            auto *ptr_C = dst + n * dst_mb_stride + od * dst_d_stride
                     + oh * dst_h_stride + ow * dst_w_stride
                     + ch * dst_ch_stride;
             const int rem_chb_work = chb_work - chb;
@@ -592,10 +706,6 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
             iwork += cur_n_owb * nstl::min(rem_work, rem_chb_work);
 
             while (chb_loop_work) {
-                // brgemm_offs and brgemm_strd mode enables us to run this loop,
-                // without changing brg_batch elements.
-                assert(IMPLICATION(chb != 0,
-                        one_of(jcp.batch_kind, brgemm_offs, brgemm_strd)));
                 post_ops_data.bias = bias + ch * jcp.bia_dsz;
                 post_ops_data.scales = &oscales[jcp.is_oc_scale * ch];
                 post_ops_data.oc_logical_off = ch;
