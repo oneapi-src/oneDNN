@@ -266,6 +266,11 @@ static size_t get_tensor_size(const tensor &tsr, const define &def) {
 
 static size_t update_allocated_size(
         const tensor &tsr, size_t size, size_t allocated_size) {
+    if (auto absptr = any_map_t::fetch_or_else<void *>(
+                tsr->attr_.get(), attr_keys::static_global, nullptr)) {
+        tsr->attr()[attr_keys::module_global_offset] = absptr;
+        return allocated_size;
+    }
     if (size >= 64) { allocated_size = align_to_64(allocated_size); }
     tsr->attr()[attr_keys::module_global_offset] = allocated_size;
     allocated_size += size;

@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "target_specific_lower.hpp"
+#include <compiler/ir/attr_keys.hpp>
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
@@ -30,6 +31,7 @@
 #include <compiler/ir/transform/buffer_schedule.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/dead_write_eliminate.hpp>
+#include <compiler/ir/transform/module_globals_resolve.hpp>
 #include <compiler/ir/transform/tensor2var.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <runtime/config.hpp>
@@ -37,6 +39,9 @@
 #include <unordered_map>
 #include <util/any_map.hpp>
 
+extern const uint32_t sc_log_const_int_vals_1[32];
+extern const uint32_t sc_log_const_int_vals_2[32];
+extern const uint32_t sc_erf_const_int_vals[6][32];
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -724,28 +729,18 @@ static func_t create_log_func(const ir_module_ptr &mod,
             = mod->get_var_def_from_symbol(log_const_table_name_1);
     expr log_table_tsr_1, log_table_tsr_2;
     if (!global_log_consts_1.defined()) {
-        uint32_t log_const_int_vals_1[32] = {0x3f800000, 0x3f780000, 0x3f700000,
-                0x3f680000, 0x3f600000, 0x3f580000, 0x3f580000, 0x3f500000,
-                0x3f480000, 0x3f480000, 0x3f400000, 0x3f400000, 0x3f380000,
-                0x3f380000, 0x3f300000, 0x3f300000, 0x3fa80000, 0x3fa80000,
-                0x3fa00000, 0x3fa00000, 0x3fa00000, 0x3f980000, 0x3f980000,
-                0x3f900000, 0x3f900000, 0x3f900000, 0x3f900000, 0x3f880000,
-                0x3f880000, 0x3f880000, 0x3f800000, 0x3f800000};
-        uint32_t log_const_int_vals_2[32] = {0xc2b00f34, 0xc2affef2, 0xc2afee29,
-                0xc2afdccd, 0xc2afcad6, 0xc2afb837, 0xc2afb837, 0xc2afa4e4,
-                0xc2af90cf, 0xc2af90cf, 0xc2af7be9, 0xc2af7be9, 0xc2af661e,
-                0xc2af661e, 0xc2af4f5c, 0xc2af4f5c, 0xc2b09a6f, 0xc2b09a6f,
-                0xc2b08174, 0xc2b08174, 0xc2b08174, 0xc2b06731, 0xc2b06731,
-                0xc2b04b82, 0xc2b04b82, 0xc2b04b82, 0xc2b04b82, 0xc2b02e3e,
-                0xc2b02e3e, 0xc2b02e3e, 0xc2b00f34, 0xc2b00f34};
         log_table_tsr_1 = builder::make_tensor(log_const_table_name_1, {32},
                 datatypes::f32, address_space::automatic,
-                std::make_shared<static_data_t>(
-                        log_const_int_vals_1, sizeof(log_const_int_vals_1)));
+                std::make_shared<static_data_t>(sc_log_const_int_vals_1,
+                        sizeof(sc_log_const_int_vals_1)));
         log_table_tsr_2 = builder::make_tensor(log_const_table_name_2, {32},
                 datatypes::f32, address_space::automatic,
-                std::make_shared<static_data_t>(
-                        log_const_int_vals_2, sizeof(log_const_int_vals_2)));
+                std::make_shared<static_data_t>(sc_log_const_int_vals_2,
+                        sizeof(sc_log_const_int_vals_2)));
+        log_table_tsr_1->attr().set(
+                attr_keys::static_global, (void *)sc_log_const_int_vals_1);
+        log_table_tsr_2->attr().set(
+                attr_keys::static_global, (void *)sc_log_const_int_vals_2);
         mod->add_global_var(builder::make_var_tensor_def_unattached(
                 log_table_tsr_1, linkage::public_global)
                                     .checked_as<define>());
@@ -859,61 +854,15 @@ static func_t create_erf_func(const ir_module_ptr &mod,
                 = mod->get_var_def_from_symbol(erf_const_table_names[0]);
         std::vector<expr> erf_table_tsr_list(6);
         if (!global_erf_const_0.defined()) {
-            static const uint32_t erf_const_int_vals[6][32] = {
-                    {0xa6f2cb94, 0x32827792, 0x3381cc0c, 0x34523d4a, 0x351ac44d,
-                            0x35f36d88, 0x36ee8229, 0x37b8a3bb, 0x3867a213,
-                            0x3940033b, 0x3a2a5a1d, 0x3ae35863, 0x3b7828f2,
-                            0x3c08b14b, 0x3c515ed3, 0xbb503236, 0xbd8d8e5e,
-                            0xbe8abcd9, 0xbf0c19a2, 0xbeccb328, 0x3e176ced,
-                            0x3f470d99, 0x3f7abb28, 0x3f800000, 0x00000000,
-                            0x00000000, 0x00000000, 0x00000000, 0x00000000,
-                            0x00000000, 0x00000000, 0x00000000},
-                    {0x3f4c422a, 0x3f4c421f, 0x3f4c4207, 0x3f4c41cb, 0x3f4c413b,
-                            0x3f4c3fad, 0x3f4c3a2f, 0x3f4c2d40, 0x3f4c146a,
-                            0x3f4bc341, 0x3f4ad08c, 0x3f48f8cf, 0x3f45fac7,
-                            0x3f404e07, 0x3f3b980f, 0x3f48dff3, 0x3f78b21b,
-                            0x3fbb0704, 0x40019c32, 0x3fe536d6, 0x3f81331e,
-                            0x3e6c8684, 0x3c98f936, 0x00000000, 0x3f800000,
-                            0x00000000, 0x00000000, 0x00000000, 0x00000000,
-                            0x00000000, 0x00000000, 0x00000000},
-                    {0xb62173f4, 0x3735e4cf, 0x37f2ff89, 0x388c23be, 0x3917535c,
-                            0x39ab2ab0, 0x3a60fadb, 0x3af9b960, 0x3b6e5491,
-                            0x3c0a4ec5, 0x3ca5aa8c, 0x3d2138d9, 0x3d8737d4,
-                            0x3ddfb660, 0x3e0f27ab, 0x3d94004b, 0xbe0efdeb,
-                            0xbf1d96c3, 0xbf89db58, 0xbf6d9897, 0xbef69fb8,
-                            0xbdc4f8a8, 0xbbde6422, 0x00000000, 0x00000000,
-                            0x00000000, 0x00000000, 0x00000000, 0x00000000,
-                            0x00000000, 0x00000000, 0x00000000},
-                    {0xbe081a19, 0xbe084570, 0xbe08639b, 0xbe089837, 0xbe08f409,
-                            0xbe09ab95, 0xbe0b66d0, 0xbe0e400a, 0xbe124df8,
-                            0xbe1bde02, 0xbe2f19c9, 0xbe4931bf, 0xbe685fbc,
-                            0xbe89c95f, 0xbe96cbca, 0xbe8044aa, 0xbe0550f2,
-                            0x3dcfd6a1, 0x3e94c826, 0x3e79345f, 0x3decec91,
-                            0x3ca46568, 0x3aa1e00a, 0x00000000, 0x00000000,
-                            0x00000000, 0x00000000, 0x00000000, 0x00000000,
-                            0x00000000, 0x00000000, 0x00000000},
-                    {0xba3d61db, 0x39f097a3, 0x3a5845dc, 0x3ab1fa35, 0x3b0cefb8,
-                            0x3b653ab6, 0x3bcae527, 0x3c221712, 0x3c6c5840,
-                            0x3cc0a703, 0x3d1dcc19, 0x3d63656d, 0x3d955907,
-                            0x3dbf9910, 0x3dd53f69, 0x3db7dcef, 0x3d639ebe,
-                            0xba6ede48, 0xbd22be69, 0xbd041cf1, 0xbc64f5ab,
-                            0xbb097a32, 0xb8ebf380, 0x00000000, 0x00000000,
-                            0x00000000, 0x00000000, 0x00000000, 0x00000000,
-                            0x00000000, 0x00000000, 0x00000000},
-                    {0x3cb7d80c, 0x3c9b6050, 0x3c978d11, 0x3c92e850, 0x3c8d058b,
-                            0x3c848454, 0x3c6cd623, 0x3c4c824b, 0x3c2a7935,
-                            0x3be0b390, 0x3b0651ac, 0xbb232f53, 0xbbd42fa0,
-                            0xbc2c5366, 0xbc492c9e, 0xbc2a7aa6, 0xbbd55d04,
-                            0xba823a76, 0x3b102aa8, 0x3ae25a7e, 0x3a31f792,
-                            0x38b84375, 0x3689bb5a, 0x00000000, 0x00000000,
-                            0x00000000, 0x00000000, 0x00000000, 0x00000000,
-                            0x00000000, 0x00000000, 0x00000000}};
             for (int i = 0; i < 6; i++) {
-                erf_table_tsr_list[i] = builder::make_tensor(
-                        erf_const_table_names[i], {32}, datatypes::f32,
-                        address_space::automatic,
-                        std::make_shared<static_data_t>(
-                                erf_const_int_vals[i], sizeof(uint32_t) * 32));
+                erf_table_tsr_list[i]
+                        = builder::make_tensor(erf_const_table_names[i], {32},
+                                datatypes::f32, address_space::automatic,
+                                std::make_shared<static_data_t>(
+                                        sc_erf_const_int_vals[i],
+                                        sizeof(uint32_t) * 32));
+                erf_table_tsr_list[i]->attr().set(attr_keys::static_global,
+                        (void *)sc_erf_const_int_vals[i]);
                 mod->add_global_var(builder::make_var_tensor_def_unattached(
                         erf_table_tsr_list[i], linkage::public_global)
                                             .checked_as<define>());
