@@ -129,6 +129,8 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     // used for mmm_core
     bool transposed_a = attrs.get_or_else("transpose_a", false);
     bool transposed_b = attrs.get_or_else("transpose_b", false);
+    std::vector<int> post_rd_axis
+            = attrs.get_or_else("post_rd_axis", std::vector<int> {});
     transed_matmul(graph, attrs, ins->get_outputs()[0], ins->get_outputs()[1],
             trans0, trans1);
 
@@ -157,8 +159,14 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
             auto reshape_node = graph->make("tensor_view", {trans0},
                     {graph_tensor::make(reshape_dest, sc_data_format_t(),
                             trans0->details_.dtype_)},
-                    {{"shape", reshape_dest}, {"format", sc_data_format_t()}});
+                    {{"shape", reshape_dest}, {"format", sc_data_format_t()},
+                            {"forbid_penetrate", true}});
             trans0 = reshape_node->get_outputs()[0];
+            if (post_rd_axis.size() == 1
+                    && post_rd_axis.at(0)
+                            == static_cast<int>(trans0_plain_dims.size()) - 1) {
+                post_rd_axis.at(0) = 1;
+            }
         }
         // check 2d*Nd cases
         if (trans0_plain_dims.size() == 2 && trans1_plain_dims.size() > 2) {
@@ -174,7 +182,8 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
             sc_op_ptr reshape_node = graph->make("tensor_view", {trans1},
                     {graph_tensor::make(reshape_dest, reshape_fmt,
                             trans1->details_.dtype_)},
-                    {{"shape", reshape_dest}, {"format", reshape_fmt}});
+                    {{"shape", reshape_dest}, {"format", reshape_fmt},
+                            {"forbid_penetrate", true}});
             trans1 = reshape_node->get_outputs()[0];
         }
     }
@@ -200,8 +209,11 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
             matmul = graph->make("managed_matmul_core", {trans0, trans1}, {},
                     {{"transposed_a", transposed_a},
                             {"transposed_b", transposed_b},
+                            {"post_rd_axis", post_rd_axis},
                             {attr_keys::output_channel_axis,
-                                    output_channel_axis}});
+                                    output_channel_axis},
+                            {"post_binary",
+                                    attrs.get_or_else("post_binary", false)}});
         } else {
             matmul = graph->make("matmul_core", {trans0, trans1}, {},
                     {{attr_keys::output_channel_axis, output_channel_axis},

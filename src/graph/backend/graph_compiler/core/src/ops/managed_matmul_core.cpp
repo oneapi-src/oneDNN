@@ -160,7 +160,14 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
         if (!dynamic && attrs_.get_or_else("transposed_a", false)) {
             config_data_ = gen->get_default_transposed_a_config(ctx);
         } else {
-            config_data_ = create_generator()->get_default_config(ctx);
+            auto post_rd_axis
+                    = attrs_.get_or_else("post_rd_axis", std::vector<int> {});
+            if (post_rd_axis.size() == 1 && post_rd_axis.at(0) == 1) {
+                // mmm + reduce_on_N cases
+                config_data_ = gen->get_default_post_rd_config(ctx);
+            } else {
+                config_data_ = create_generator()->get_default_config(ctx);
+            }
         }
     }
 
@@ -199,6 +206,9 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
         constant_B = constant_B_parents
                 && !info_.inputs_[1]->producer_owner_->get_inputs().empty();
     }
+    // post binary check, prefer using plain output to reduce reorder in the
+    // following binary_op
+    bool post_binary = attrs_.get_or_else("post_binary", false);
 
     std::vector<int> blk_candidates = get_dynamic_block_candidates();
     std::vector<int> m_blk_candidates = get_dynamic_batch_block_candidates();
@@ -280,8 +290,8 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
                                                                 "transposed"
                                                                 "_b",
                                                                 false)
-                                                        && M <= 512
-                                                        && K < 4096))) {
+                                                        && M <= 512 && K < 4096
+                                                        && N * K < 1048576))) {
                                     // do pre-op fusion for NK -> NKkn2k
                                     // only when shapes are small.
                                     ret_B_format = B_format;
@@ -311,8 +321,8 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
                                     "managed_matmul_core only supports 2d "
                                     "yet");
                         }
-                        if (constant_B || dynamic || M % iim_block
-                                || N % iin_block) {
+                        if ((constant_B && !post_binary) || dynamic
+                                || M % iim_block || N % iin_block) {
                             ret_C_format = sc_data_format_t(
                                     sc_data_format_kind_t::
                                             get_2dblocking_by_dims(

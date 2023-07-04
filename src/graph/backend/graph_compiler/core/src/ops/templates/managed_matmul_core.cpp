@@ -234,6 +234,93 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
   return std::move(ret);
 }
 
+config_ptr gen_managed_matmul_core_t::get_default_post_rd_config(
+  const context_ptr &ctx) const {
+  // mmm + post reduce_on_N's config
+  auto ret = reflection::general_object_t::make<managed_matmul_core_config_t>();
+  managed_matmul_core_config_t &cfg
+    = *ret.unchecked_get_as<managed_matmul_core_config_t>();
+  const int num_threads = runtime_config_t::get().get_num_threads();
+  const int iim_block = iim_block_;
+  const int iin_block = iin_block_;
+  const int iik_block = iik_block_;
+  const int ori_M = in_tensors_[0].get_plain_dims()[0];
+  const int ori_N = in_tensors_[1].get_plain_dims()[1];
+  const int ori_K = in_tensors_[0].get_plain_dims()[1];
+  const int M = utils::rnd_up(ori_M, iim_block);
+  const int N = utils::rnd_up(ori_N, iin_block);
+  const int K = utils::rnd_up(ori_K, iik_block);
+  bool is_int8 = utils::is_one_of(get_A_dtype(), datatypes::u8, datatypes::s8);
+  bool is_bf16 = get_A_dtype() == datatypes::bf16;
+  const int sizeofdtypeA
+    = utils::get_sizeof_etype(in_tensors_[0].dtype_.as_etype());
+  const int sizeofdtypeC
+    = utils::get_sizeof_etype(out_tensors_[0].dtype_.as_etype());
+  bool is_special_fm = ctx->machine_.cpu_flags_.family == 6
+    && ctx->machine_.cpu_flags_.model == 143;
+
+  // should discuss int8 and f32
+  if ((M < 4096 && !is_bf16) || M / iim_block_ < num_threads) {
+    return get_default_config(ctx);
+  }
+
+  // enable to commit the anchor inside m_o
+  cfg.M_split_num = num_threads;
+  cfg.N_split_num = 1;
+  cfg.N_sub_block = 1;
+  cfg.im_loop_order = 0;
+
+  int single_M
+    = utils::divide_and_ceil(M / iim_block, cfg.M_split_num) * iim_block;
+  int single_N
+    = utils::divide_and_ceil(N / iin_block, cfg.N_split_num) * iin_block;
+  int single_K = K;
+  int L2_size = static_cast<int>(ctx->machine_.cpu_flags_.getDCacheSize(2));
+  int single_K_threshold
+    = (single_M * single_N * sizeofdtypeA < L2_size ? 2048 : 4096)
+    / sizeofdtypeA;
+  if (single_K >= single_K_threshold) {
+    cfg.K_sub_block = (is_bf16 || is_int8 || K <= 1024)
+      ? 1
+      : utils::divide_and_ceil(single_K, single_K_threshold);
+    while (K / iik_block_ < cfg.K_sub_block) {
+      cfg.K_sub_block--;
+    }
+    int L2_K = utils::divide_and_ceil(
+                 utils::divide_and_ceil(single_K, iik_block), cfg.K_sub_block)
+      * iik_block;
+    // sizeofdtypeA* (M * K) + sizeofdtypeB * (N * K) + sizeofdtypeC * (M *
+    // N)  <= L2_size, Then M = (L2_size - sizeofdtypeB * (N
+    // * K)) / (sizeofdtypeA * K + sizeofdtypeC * N)
+    int L2_MN = (L2_size - sizeofdtypeA * N * L2_K)
+      / (sizeofdtypeA * L2_K + sizeofdtypeC * N);
+    cfg.M_sub_block = L2_MN <= iim_block ? single_M / iim_block
+                                         : std::max(1, single_M / L2_MN);
+    while (cfg.M_sub_block > 1
+      && (single_M / iim_block < cfg.M_sub_block
+        || (M / iim_block % cfg.M_split_num > 0
+          && M / iim_block / cfg.M_split_num < cfg.M_sub_block))) {
+      cfg.M_sub_block--;
+    }
+
+  } else {
+    // sizeofdtypeA * M * K + sizeofdtypeB * N * K <= L2_size, then
+    // M = (L2_size - sizeofdtypeA * N * K) / (sizeofdtypeA * K)
+    int L2_MN
+      = (L2_size - sizeofdtypeA * N * single_K) / (sizeofdtypeA * single_K);
+    cfg.M_sub_block = L2_MN <= iim_block ? single_M / iim_block
+                                         : std::max(1, single_M / L2_MN);
+    while (cfg.M_sub_block > 1
+      && (single_M / iim_block < cfg.M_sub_block
+        || (M / iim_block % cfg.M_split_num > 0
+          && M / iim_block / cfg.M_split_num < cfg.M_sub_block))) {
+      cfg.M_sub_block--;
+    }
+    cfg.K_sub_block = 1;
+  }
+  return std::move(ret);
+}
+
 config_ptr gen_managed_matmul_core_t::get_default_transposed_a_config(
   const context_ptr &ctx) const {
   auto ret = reflection::general_object_t::make<managed_matmul_core_config_t>();
@@ -427,6 +514,28 @@ static int suggest_aligned_block(const size_t plain_X,
   return utils::rnd_up(utils::divide_and_ceil(plain_X, num_X_block), align);
 }
 
+static int64_t get_bf16_M_block_default(
+  const int64_t plain_M, const int num_threads) {
+  int64_t M_block_default = 64;
+  std::vector<int64_t> iim_block_candidates = {32, 64, 96};
+  for (auto i : iim_block_candidates) {
+    auto num_block = utils::divide_and_ceil(plain_M, i) / num_threads;
+    // magic number 2
+    if (plain_M % i == 0 && num_block > 2) { M_block_default = i; }
+  }
+  return M_block_default;
+}
+
+static int64_t get_bf16_N_block_default(const int64_t plain_N) {
+  int64_t N_block_default = 64;
+  std::vector<int64_t> iim_block_candidates = {64, 96};
+  for (auto i : iim_block_candidates) {
+    // magic number 2
+    if (plain_N % i == 0 && plain_N / i > 2) { N_block_default = i; }
+  }
+  return N_block_default;
+}
+
 gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
   std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs)
   : parent(owner, std::move(ins), std::move(outs)) {
@@ -460,20 +569,30 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
   if (is_f32) {
     if (is_seg) {
       // prefer small blocks
-      M_block_default = 16;
-      N_block_default = 16;
-      K_block_default = 16;
+      if (plain_M <= 4096) {
+        M_block_default = 16;
+        N_block_default = 16;
+        K_block_default = 16;
+      }
     } else {
       if (plain_M <= 256) { M_block_default = 32; }
     }
   } else if (is_bf16) {
-    M_block_default = 32;
-    N_block_default = 32;
-    K_block_default = 32;
+    if (plain_M > 4096 && plain_N >= 768 && plain_K >= 768) {
+      M_block_default = get_bf16_M_block_default(plain_M, num_threads);
+      N_block_default = get_bf16_N_block_default(plain_N);
+      K_block_default = 64;
+    } else {
+      M_block_default = 32;
+      N_block_default = 32;
+      K_block_default = 32;
+    }
   } else {
     bool is_amx = get_default_context()->use_amx();
     assert(utils::is_one_of(get_A_dtype(), datatypes::u8, datatypes::s8));
-    M_block_default = (plain_M >= 1024 && !is_amx) ? 64 : 32;
+    if (plain_M <= 1024 || (plain_M / num_threads / 64 < 4 && is_amx)) {
+      M_block_default = 32;
+    }
     // in amx, single core small M perfers using 128
     N_block_default
       = (num_threads == 1 && plain_M <= 12 && is_amx && plain_N >= 512) ? 128
@@ -508,20 +627,17 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
       if (plain_K < 16 && plain_K % 2 == 0 && plain_M <= 128 && is_scpi) {
         iik_block_ = 16;
       } else {
-        iik_block_
-          = suggest_aligned_block(plain_K, K_block_default, is_f32 ? 1 : 4, 16);
+        iik_block_ = suggest_aligned_block(plain_K, K_block_default, 1, 16);
       }
     } else if (is_int8) {
       // vnni-int8 perfers padding iik_block_ to algin 16 when M <=2048
       if (plain_M < 2048 && !get_default_context()->use_amx()) {
         iik_block_ = 16;
       } else {
-        iik_block_
-          = suggest_aligned_block(plain_K, K_block_default, is_f32 ? 1 : 4, 16);
+        iik_block_ = suggest_aligned_block(plain_K, K_block_default, 4, 16);
       }
     } else {
-      iik_block_
-        = suggest_aligned_block(plain_K, K_block_default, is_f32 ? 1 : 4, 16);
+      iik_block_ = suggest_aligned_block(plain_K, K_block_default, 4, 16);
     }
   } else if (!is_dynamic_dim(plain_K)) {
     iik_block_ = get_matmul_dyn_cfg_single(plain_K);
@@ -1177,6 +1293,25 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
               }
             }
           }
+          if (fusion && !is_partial && config.N_split_num == 1
+            && config.N_sub_block == 1 && config.im_loop_order == 0) {
+            _if_(k_b == K_sub_block - 1) {
+              fusion->create_output_fusion_anchor({tensor_slice(C,
+                !tc.get_format().is_blocking()
+                  ? std::vector<std::pair<expr,
+                    expr>> {{m_idx + m_b_idx * iim_block_
+                                + ((m_o + tid) % m_o_end) * iim_block_,
+                              expr(iim_block_)},
+                    {0, utils::rnd_up(ori_N, iin_block_)}}
+                  : std::vector<std::pair<expr, expr>> {
+                    {(m_idx + m_b_idx * iim_block_
+                       + ((m_o + tid) % m_o_end) * iim_block_)
+                        / iim_block_,
+                      1},
+                    {0, utils::divide_and_ceil(ori_N, iin_block_)},
+                    {0, expr(iim_block_)}, {0, expr(iin_block_)}})});
+            }
+          }
         }
       }
       if (fusion && !is_dynamic && !is_partial) {
@@ -1692,13 +1827,13 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   bool is_dynamic = owner_->is_dynamic();
   if (!is_dynamic) {
     COMPILE_ASSERT(M_block_size / iim_block_ >= M_sub_block
-        && M_ib_block_size / iim_block_ >= M_sub_block,
+        && M_ib_block_size / iim_block_ >= M_sub_block && M_sub_block >= 1,
       "bad M_sub_block given");
     COMPILE_ASSERT(N_block_size / iin_block_ >= N_sub_block
-        && N_ib_block_size / iin_block_ >= N_sub_block,
+        && N_ib_block_size / iin_block_ >= N_sub_block && N_sub_block >= 1,
       "bad N_sub_block given");
     COMPILE_ASSERT(K_block_size / iik_block_ >= K_sub_block
-        && K_ib_block_size / iik_block_ >= K_sub_block,
+        && K_ib_block_size / iik_block_ >= K_sub_block && K_sub_block >= 1,
       "bad K_sub_block given");
   }
   int dtype_block = 1;
@@ -1948,7 +2083,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
         }
       }
       // give explict anchor when N_split_num==1 to enable tensor shrink
-      if (fusion && N_split_num == 1) {
+      if (fusion) {
         if (M_block_size == M_ib_block_size) {
           if (out_tensors_[0].get_format().is_blocking()) {
             fusion->create_output_fusion_anchor({tensor_slice(C,

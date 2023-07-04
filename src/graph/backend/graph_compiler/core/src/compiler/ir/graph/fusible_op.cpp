@@ -222,7 +222,8 @@ void fusible_op_t::commit_into_anchor(fuse_anchor_map_t *committed_anchor) {
             outputs(out_tsrs.size());
     auto ths = this;
     auto wrap_tsr2tsl_ = [&ths](const expr &tsr,
-                                 const slice_range_list &range_list) {
+                                 const slice_range_list &range_list,
+                                 bool is_output = false) {
         std::vector<tensor_slice> multi_tsl;
         if (!range_list.empty()) {
             for (auto &range : range_list) {
@@ -232,6 +233,9 @@ void fusible_op_t::commit_into_anchor(fuse_anchor_map_t *committed_anchor) {
             COMPILE_ASSERT(ths->isa<reorder_op_t>(),
                     "only reorder op support this case, but got "
                             << ths->op_name_)
+            if (is_output) {
+                ths->attrs_.set(op_attr_key::break_post_fuse, true);
+            }
             multi_tsl.emplace_back(tensor_slice(tsr));
         }
         return multi_tsl;
@@ -246,7 +250,8 @@ void fusible_op_t::commit_into_anchor(fuse_anchor_map_t *committed_anchor) {
             outputs.begin(),
             [&wrap_tsr2tsl_, &committed_anchor](
                     const graph_tensor_ptr &gt, const expr &tsr) {
-                return wrap_tsr2tsl_(tsr, committed_anchor->fsmap_.get(gt));
+                return wrap_tsr2tsl_(
+                        tsr, committed_anchor->fsmap_.get(gt), true);
             });
     auto in_slice_size = inputs[0].size();
     COMPILE_ASSERT(in_slice_size, "No input slice found for " << op_name_);

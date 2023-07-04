@@ -140,6 +140,7 @@ public:
     const config_ptr &configs) const override;
   config_ptr get_default_config(context_ptr ctx) const override;
   config_ptr get_default_transposed_a_config(const context_ptr &ctx) const;
+  config_ptr get_default_post_rd_config(const context_ptr &ctx) const;
 
   void schedule_loops(context_ptr ctx,
     const managed_matmul_core_config_t &config, stmt body,

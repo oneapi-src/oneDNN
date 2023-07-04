@@ -556,6 +556,7 @@ tensor_view_op_t::tensor_view_op_t(graph_tensor_ptr v, const sc_dims &shapes)
 
 bool tensor_view_op_t::try_penetrate(
         sc_data_format_t &new_output_format) const {
+    if (attrs_.get_or_else("forbid_penetrate", false)) { return false; }
     auto input_plain_shapes = info_.inputs_[0]->details_.get_plain_dims();
     auto input_blocking_shapes = info_.inputs_[0]->details_.get_blocking_dims();
     auto input_format = info_.inputs_[0]->details_.get_format();

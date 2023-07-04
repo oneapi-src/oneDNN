@@ -47,6 +47,9 @@ void fuse_ops(sc_graph_t &g, const context_ptr &ctx = get_default_context());
 SC_INTERNAL_API void mixed_partition(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
+SC_INTERNAL_API void annotate_config(
+        sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+
 SC_INTERNAL_API void graph_inline(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 

@@ -57,6 +57,8 @@ create_default_graph_flow(const context_ptr &ctx) {
     pre_tune_passes.push_back(create_graph_pass("annotate_fusion_break",
             quantize::annotate_fusion_break, {}, pass_type::pre_tune, true));
     pre_tune_passes.push_back(create_graph_pass(
+            "annotate_config", annotate_config, {}, pass_type::pre_tune, true));
+    pre_tune_passes.push_back(create_graph_pass(
             "graph_inline", graph_inline, {}, pass_type::pre_tune, true));
     pre_tune_passes.push_back(create_graph_pass("constant_optimization",
             constant_optimization, {}, pass_type::pre_tune, true));
