@@ -500,7 +500,7 @@ public:
 
         int i = 0;
         for (; i < (int)self_blocks.size() - 1; i++) {
-            if (!self_blocks[i].is_equal(other_blocks[i])) return false;
+            if (self_blocks[i] != other_blocks[i]) return false;
         }
         return (self_blocks[i].dim_idx == other_blocks[i].dim_idx
                 && self_blocks[i].stride == other_blocks[i].stride

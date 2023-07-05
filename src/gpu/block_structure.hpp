@@ -116,10 +116,16 @@ struct block_t {
     block_t(int dim_idx, dim_t block, const stride_t &stride)
         : dim_idx(dim_idx), block(block), stride(stride) {}
 
-    bool is_equal(const block_t &other) const {
+#if __cplusplus >= 202002L
+    // Enabling default operator== on C++20 for validation purposes.
+    bool operator==(const block_t &) const = default;
+#else
+    bool operator==(const block_t &other) const {
         return (dim_idx == other.dim_idx) && (block == other.block)
                 && (stride == other.stride);
     }
+#endif
+    bool operator!=(const block_t &other) const { return !(*this == other); }
 
     size_t get_hash() const { return dnnl::impl::gpu::get_hash(this); }
 

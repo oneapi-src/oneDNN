@@ -264,9 +264,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     for (int i = 0; i < (int)dst_blocks.size(); i++) {
         const block_t dst_block = dst_blocks[i];
         const block_t exp_dst_block = exp_dst_blocks[i];
-        if (!dst_block.is_equal(exp_dst_block)) {
-            return status::unimplemented;
-        }
+        if (dst_block != exp_dst_block) { return status::unimplemented; }
     }
 
     const compute::compute_engine_t *compute_engine
