@@ -60,6 +60,8 @@ constexpr const char *first_prefetch_op = "first_prefetch_op";
 // size_t: used to judge op whether is small workload. If less than threshold,
 // ignore parallelism check of cost model. (Measured by 3D fp32 InstanceNorm)
 constexpr size_t small_op_workload_threshold = 1688UL;
+// Boolean: is the op which could not gather input partitions
+constexpr const char *no_gather_op = "no_gather_op";
 } // namespace mixed_partition_hint
 
 // different fusion policies prepared for dynamic shape, policies will be JIT
@@ -347,7 +349,7 @@ struct mixed_parti_t : fusion_partition_t {
 
     bool is_ok_to_add(sc_op *op);
 
-    void add(const sc_op_ptr &op);
+    bool add(const sc_op_ptr &op);
 
     void remove(const sc_op_ptr &op) {
         throw std::runtime_error("remove method is not implemented");
@@ -546,7 +548,6 @@ std::vector<mixed_parti_t::ptr> collect_parti_set(
 
 // do mixed partition
 bool do_partition(const context_ptr &ctx, sc_graph_t &g,
-        const op_dep_matrix_t &dep,
         std::vector<mixed_parti_t::ptr> &op_2_partition);
 
 // judge the given graph whether is second time retried graph

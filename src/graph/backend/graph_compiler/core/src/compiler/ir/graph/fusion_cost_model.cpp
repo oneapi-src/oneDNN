@@ -176,7 +176,7 @@ bool static_fusion_cost_model_t::make_decision_for_op(
                 nullptr);
         float standalone_parallel
                 = evaluate_loop_parallel_balance(op_parti.get_outer_loops());
-        //  if original result of partition can not meet requirement
+        // if original result of partition can not meet requirement
         if (ret
                 && !evaluate_loop_parallel_balance(
                         binded_mxp_->get_outer_loops(), true)) {

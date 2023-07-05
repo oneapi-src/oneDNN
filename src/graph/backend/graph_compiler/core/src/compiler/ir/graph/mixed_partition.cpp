@@ -2461,8 +2461,14 @@ void mixed_parti_t::set_anchor_for_op(
     }
 }
 
-void mixed_parti_t::add(const sc_op_ptr &op) {
+bool mixed_parti_t::add(const sc_op_ptr &op) {
     if (merged_to) { return get_root()->add(op); }
+    // pre-check anchor for op in avoid of throw assert during following
+    // appending stage
+    search_op_anchor_in_parti(op.get(), this);
+    // if no anchor is ready, return false
+    if (!ready_for_op(op.get())) return false;
+    /* adding op to partition */
     SC_MODULE_INFO << "================  adding op: " << op->op_name_ << "_"
                    << op->logical_op_id_ << " to partition: " << func_->name_
                    << " ================";
@@ -2475,6 +2481,7 @@ void mixed_parti_t::add(const sc_op_ptr &op) {
     SC_MODULE_INFO << func_;
     ops.insert(op);
     committed_ops_.emplace_back(op);
+    return true;
 }
 
 fuse_anchor_map_ptr mixed_parti_t::lookup_anchor_map(sc_op *op) const {
@@ -3066,16 +3073,26 @@ static mixed_parti_t::ptr try_execute_post_op_fusion(const sc_op_ptr &op,
                         parent_partition->get_root()->shared_from_this());
             } else {
                 parent_partition = inp_parti;
+                // Do not merge input partition according hint
+                if (op->attrs_.get_or_else(
+                            mixed_partition_hint::no_gather_op, false))
+                    break;
             }
         }
     }
-    if (parent_partition) parent_partition->get_root()->add(op);
+    if (parent_partition) {
+        if (!parent_partition->get_root()->add(op)) {
+            // set no gather input partition hint
+            op->attrs_.set(mixed_partition_hint::no_gather_op, true);
+        }
+    }
     return parent_partition;
 }
 
 bool do_partition(const context_ptr &ctx, sc_graph_t &g,
-        const op_dep_matrix_t &dep,
         std::vector<mixed_parti_t::ptr> &op_2_partition) {
+    // validate partition
+    bool repartition = false;
     // a speculative DFS visitor
     op_visitor_t visitor
             = op_visitor_t::dfs_topology_speculative_sort(g.ops_.size());
@@ -3127,9 +3144,15 @@ bool do_partition(const context_ptr &ctx, sc_graph_t &g,
                                   "as break pre fuse";
             }
         }
-        if (!parent_partition) {
+        if (!parent_partition || !parent_partition->contains(op.get())) {
+            // op was not added into parent partition, usually after unexpected
+            // input partition merge, as the result, set repatition flag to
+            // trigger next round of partition from the view of performance.
+            if (parent_partition && !parent_partition->contains(op.get())) {
+                repartition = true;
+            }
             parent_partition = std::make_shared<mixed_parti_t>(
-                    ctx, op, std::make_shared<op_dep_matrix_t>(dep));
+                    ctx, op, std::make_shared<op_dep_matrix_t>(g));
         }
         op_2_partition[op->logical_op_id_] = parent_partition;
     });
@@ -3145,8 +3168,6 @@ bool do_partition(const context_ptr &ctx, sc_graph_t &g,
     auto parti_set = collect_parti_set(op_2_partition);
     // assign checker
     auto checker = &check_repartition;
-    // validate partition
-    bool repartition = false;
     std::for_each(parti_set.begin(), parti_set.end(),
             [&checker, &repartition](const mixed_parti_t::ptr &parti) {
                 if ((*checker)(parti)) repartition = true;
@@ -3759,7 +3780,6 @@ static expr merge_fusion_condition_by_parti_list(
 }
 
 void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph) {
-    op_dep_matrix_t dep(graph);
     auto op_size = graph.ops_.size();
     // mapping from op id => partition
     std::vector<mixed_parti_t::ptr> op_2_partition;
@@ -3770,10 +3790,16 @@ void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph) {
     for (int i = 0; i < maxiter; i++) {
         op_2_partition.clear();
         op_2_partition.resize(op_size);
-        bool ret = do_partition(ctx, graph, dep, op_2_partition);
+        bool ret = do_partition(ctx, graph, op_2_partition);
         auto cur_cond = merge_fusion_condition_by_parti_list(op_2_partition);
         fusion_policy_condition = fusion_policy_condition || cur_cond;
-        if (ret) break;
+        if (ret)
+            break;
+        else if (i == maxiter - 1) {
+            SC_MODULE_INFO << "mixed partition exceed max iteration times, "
+                              "please enlarge limitation and try again";
+            return;
+        }
     }
     graph.attrs_.set("temp.fusion_policy_condition", fusion_policy_condition);
 

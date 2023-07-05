@@ -105,6 +105,7 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
     extract_anchor_from_fmgr_to_parti(&fmgr, parti,
             use_output_mode ? outs : ins,
             use_output_mode ? get_outputs() : get_inputs());
+    search_anchor(parti);
     append_mixed_partition(parti);
 
     auto used_anchor = parti->lookup_anchor_map(this);
@@ -165,7 +166,6 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
 }
 
 void fusible_op_t::append_mixed_partition(mixed_parti_t *parti) {
-    search_anchor(parti);
     COMPILE_ASSERT(parti->ready_for_op(this),
             "No suitable anchor found for " << op_name_ << "_"
                                             << logical_op_id_);

@@ -150,7 +150,7 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, const context_ptr &ctx) {
             && try_optimize_parti(parti.get(), g, graph2orig_ops)) {
         // redo partition
         std::vector<mixed_parti_t::ptr> op2parti(g.ops_.size());
-        do_partition(ctx, g, op_dep_matrix_t(g), op2parti);
+        do_partition(ctx, g, op2parti);
         // collect legal partition
         auto res = collect_parti_set(op2parti, false);
         // Expect only one partition found

@@ -1703,6 +1703,42 @@ TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically3) {
     EXPECT_EQ(ss.str(), expected_str);
 }
 
+TEST(GCCore_CPU_graph_mixed_partition_cpp, TestMergeMixedPartiVertically4) {
+    REQUIRE_BF16();
+    int num_threads = 56;
+    SET_THREADS_OR_SKIP(num_threads);
+
+    sc_graph_t graph;
+    auto input0 = graph.make_input({graph_tensor::make(
+            {dimensions::dynamic_any, dimensions::dynamic_any, 16, 256},
+            sc_data_format_t(), datatypes::bf16)});
+    auto weight0 = graph.make_input({graph_tensor::make(
+            {dimensions::dynamic_any, dimensions::dynamic_any, 16, 256},
+            sc_data_format_t(), datatypes::bf16)});
+    auto trans0 = graph.make("transpose", input0->get_outputs(), {},
+            {{"order", std::vector<int> {0, 2, 1, 3}}});
+    auto trans1 = graph.make("transpose", weight0->get_outputs(), {},
+            {{"order", std::vector<int> {0, 2, 3, 1}}});
+    // bmm0 may find no suitable anchor after two input partitions merged
+    auto bmm0 = graph.make("matmul_core",
+            {trans0->get_outputs()[0], trans1->get_outputs()[0]}, {}, {});
+    graph.make_output(bmm0->get_outputs());
+
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    ctx->flags_.mixed_fusion_ = true;
+    ctx->flags_.use_cost_model_ = true;
+    graph_driver(graph, ctx);
+    std::vector<sc_op_ptr> lower_args(graph.get_output_ops());
+    auto input_ops = graph.get_input_ops();
+    lower_args.insert(lower_args.end(), input_ops.begin(), input_ops.end());
+    // During dynamic dispatch stage, some `block` may cause exception if no
+    // fall-back mechanism supported
+    auto mod = lower_graph(ctx, graph, lower_args);
+    // the bmm will be fused into one of suitable input partition instead of
+    // merging them
+    EXPECT_TRUE(mod);
+}
+
 class test_prefetchable_op : public tunable_op_t,
                              public op_traits::may_prefetch_t {
 public:
