@@ -17,6 +17,7 @@
 #include "gpu/ocl/rnn/rnn_utils.hpp"
 
 #include "common/c_types_map.hpp"
+#include "gpu/getenv_utils.hpp"
 #include "gpu/ocl/rnn/ref_rnn.hpp"
 
 namespace dnnl {
@@ -140,7 +141,9 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     auto dst_layer_is_trivial_stride
             = dst_layer_d.blocking_desc().strides[0] == (dst_layer_ld * rnn.mb);
 
-    rnn.merge_gemm_layer = true;
+    rnn.merge_gemm_layer = dev_getenv("merge_gemm_layer",
+            static_cast<dim_t>(rnn.gates_ld) * rnn.gates_nld * rnn.n_iter
+                    < 256 * 1024 * 1024); // Avoid excessive memory usage
     rnn.merge_gemm_iter
             = dst_layer_is_trivial_stride && !(rnn.is_fwd || is_gru);
 
