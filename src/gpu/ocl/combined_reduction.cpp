@@ -279,7 +279,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     dim_t reduction_elems = 1;
     dim_t inner_elems = 1;
     const size_t nblocks = src_blocks.size();
-    for (int i = 0; i < nblocks; i++) {
+    for (size_t i = 0; i < nblocks; i++) {
         if (is_dim_reduced[src_blocks[i].dim_idx]) {
             reduction_elems *= src_blocks[i].block;
         } else {
