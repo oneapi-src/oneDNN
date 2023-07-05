@@ -187,6 +187,7 @@ public:
     // to avoid reading stale result of previous runs of the pass
     uint64_t run_idx;
     bool canonicalized = false;
+    int updated_at_sub_run_ = -1;
     constant_fold_analysis_result_t(const constant_fold_analysis_result_t &)
             = delete;
     constant_fold_analysis_result_t(constant_fold_analysis_result_t &&)
@@ -1137,11 +1138,24 @@ public:
     // a comparer with strict var/tensor comparison
     ir_comparer cmper;
     uint64_t run_idx_ = get_run_id();
+    int sub_run_idx_ = 0;
     int expr_depth_ = 0;
     int loop_depth_ = 0;
+    // track if rvalue of var is changed. It is used to skip redoing folding for
+    // non-fast mode
+    bool var_rvalue_changed_ = false;
     bool fast_;
 
     constant_fold_t(bool fast) : cmper(false, true, true, false), fast_(fast) {}
+    expr_c dispatch(expr_c v) override {
+        if (v.isa<var>() || v.isa<constant>()) { return v; }
+        auto ana = get_analysis(v.get(), run_idx_);
+        if (ana && ana->updated_at_sub_run_ == sub_run_idx_) { return v; }
+        auto ret = ir_consistent_visitor_t::dispatch(v);
+        get_analysis_for_edit(ret.get(), run_idx_)->updated_at_sub_run_
+                = sub_run_idx_;
+        return ret;
+    }
 
     bool is_same_op(expr_c &v1, expr_c &v2) {
         if (v1->node_type_ != v2->node_type_) return false;
@@ -1486,7 +1500,6 @@ public:
             expr_c parent, const expr_c &lhs, const expr_c &rhs) {
         auto l = fold_range_dispatch(lhs);
         auto r = fold_range_dispatch(rhs);
-
         if (l.isa<constant>() && r.isa<constant>()) {
             auto cl = l.static_as<constant_c>();
             auto cr = r.static_as<constant_c>();
@@ -1532,7 +1545,7 @@ public:
         expr_depth_++;
         expr_c old = parent;
         auto parent_type = parent->node_type_;
-        constexpr int max_iter = 5000;
+        constexpr int max_iter = 100;
         int loop_cnt = 0;
         for (;;) {
             expr_c ret = parent;
@@ -1639,20 +1652,24 @@ public:
     expr_c visit(cmp_c v) override { return fold_binary(v); }
     expr_c visit(logic_c v) override { return fold_binary(v); }
     expr_c visit(intrin_call_c v) override {
-        auto ret = ir_consistent_visitor_t::visit(std::move(v));
-        if (ret.isa<intrin_call>()) {
-            auto node = ret.static_as<intrin_call_c>();
-            switch (node->type_) {
-                case intrin_type::shl:
-                case intrin_type::shr:
-                case intrin_type::max:
-                case intrin_type::min:
-                case intrin_type::int_and:
-                case intrin_type::int_or: return fold_binary(node);
-                case intrin_type::fmadd: return fold_fmadd(node);
-                default: break;
+        switch (v->type_) {
+            case intrin_type::shl:
+            case intrin_type::shr:
+            case intrin_type::max:
+            case intrin_type::min:
+            case intrin_type::int_and:
+            case intrin_type::int_or: return fold_binary(v);
+            case intrin_type::fmadd: {
+                auto ret = ir_consistent_visitor_t::visit(std::move(v));
+                if (ret.isa<intrin_call_c>()) {
+                    return fold_fmadd(ret.static_as<intrin_call_c>());
+                } else {
+                    return ret;
+                }
             }
+            default: break;
         }
+        auto ret = ir_consistent_visitor_t::visit(std::move(v));
         return ret;
     }
     expr_c visit(logic_not_c v) override {
@@ -1683,6 +1700,28 @@ public:
                 bool is_false = is_const_equal_to(c, 0);
                 return is_false ? node->r_ : node->l_;
             }
+        }
+        return ret;
+    }
+
+    stmt_c visit(define_c v) override {
+        auto ret = ir_consistent_visitor_t::visit(v).checked_as<define_c>();
+        if (fast_) { return ret; }
+        if (v->var_.isa<var>() && v->var_->dtype_.lanes_ == 1
+                && ret->init_.defined() && !ret.ptr_same(v)
+                && ret->init_.isa<constant>()) {
+            var_rvalue_changed_ = true;
+        }
+        return ret;
+    }
+
+    stmt_c visit(assign_c v) override {
+        auto ret = ir_consistent_visitor_t::visit(v).checked_as<assign_c>();
+        if (fast_) { return ret; }
+        if (v->var_.isa<var>() && v->var_->dtype_.lanes_ == 1
+                && !v->value_.ptr_same(ret->value_)
+                && ret->value_.isa<constant>()) {
+            var_rvalue_changed_ = true;
         }
         return ret;
     }
@@ -1813,13 +1852,14 @@ public:
             func_c cur_f = v;
             func_c ret;
             for (;;) {
+                var_rvalue_changed_ = false;
                 constant_fold_analysis_t ana {run_idx_};
                 ana.dispatch(cur_f);
                 // keep the exprs alive to make sure the raw pointers in
                 // analysis result is valid
                 auto keep_alive = std::move(ana.single_assign_);
                 ret = ir_visitor_t::dispatch(cur_f);
-                if (ret == cur_f) {
+                if (!var_rvalue_changed_ || ret == cur_f) {
                     for (auto &kv : keep_alive) {
                         if (kv.first->temp_data_) {
                             kv.first->temp_data_->clear();
@@ -1828,6 +1868,7 @@ public:
                     return ret;
                 }
                 cur_f = ret;
+                sub_run_idx_++;
             }
         }
         return ir_visitor_t::dispatch(v);

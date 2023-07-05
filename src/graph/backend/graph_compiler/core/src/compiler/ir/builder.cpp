@@ -230,6 +230,8 @@ expr remake_binary(const expr_c &l, const expr_c &r, const expr_c &original) {
             case intrin_type::int_and:
             case intrin_type::int_or:
             case intrin_type::int_xor:
+            case intrin_type::shl:
+            case intrin_type::shr:
                 return copy_attr(*original,
                         make_expr<intrin_call_node>(orig_type,
                                 std::vector<expr> {
