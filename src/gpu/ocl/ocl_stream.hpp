@@ -138,9 +138,10 @@ private:
         *flags |= (props & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE)
                 ? stream_flags::out_of_order
                 : stream_flags::in_order;
-
+#ifdef DNNL_EXPERIMENTAL_PROFILING
         if (props & CL_QUEUE_PROFILING_ENABLE)
             *flags |= stream_flags::profiling;
+#endif
 
         return status::success;
     }

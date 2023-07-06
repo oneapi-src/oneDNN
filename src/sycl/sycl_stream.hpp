@@ -320,9 +320,10 @@ protected:
         *flags = queue.is_in_order() ? stream_flags::in_order
                                      : stream_flags::out_of_order;
 
+#ifdef DNNL_EXPERIMENTAL_PROFILING
         if (queue.has_property<::sycl::property::queue::enable_profiling>())
             *flags |= stream_flags::profiling;
-
+#endif
         return status::success;
     }
 
