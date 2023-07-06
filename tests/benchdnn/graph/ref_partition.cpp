@@ -143,24 +143,26 @@ bool ref_partition_t::get_leading_op_group(op_ref_list_t &leading_ops_group) {
         const auto iter = in_lt_2_ops_.find(in_id);
 
         if (iter != in_lt_2_ops_.end()) {
-            auto &leading_op = iter->second.front();
+            auto &leading_ops = iter->second;
+            for (auto &leading_op : leading_ops) {
+                if (leading_op.get().kind_ != "Dequantize") continue;
 
-            if (leading_op.get().kind_ != "Dequantize") continue;
+                int leading_op_in_offset = 0;
+                auto res = get_consumer_leading_op(
+                        leading_op, leading_op_in_offset, in_lt_2_ops_);
+                // only one dequant or dequant+typecast in the partition
+                if (!res) return false;
 
-            int leading_op_in_offset = 0;
-            auto res = get_consumer_leading_op(
-                    leading_op, leading_op_in_offset, in_lt_2_ops_);
-            // only one dequant or dequant+typecast in the partition
-            if (!res) return false;
+                if (quantized_op.find(leading_op.get().kind_)
+                        == quantized_op.end())
+                    return false;
 
-            if (quantized_op.find(leading_op.get().kind_) == quantized_op.end())
-                return false;
-
-            if (leading_op_ids.find(leading_op.get().id_)
-                    != leading_op_ids.end())
-                continue;
-            leading_ops_group.emplace_back(std::ref(leading_op));
-            leading_op_ids.emplace(leading_op.get().id_);
+                if (leading_op_ids.find(leading_op.get().id_)
+                        != leading_op_ids.end())
+                    continue;
+                leading_ops_group.emplace_back(std::ref(leading_op));
+                leading_op_ids.emplace(leading_op.get().id_);
+            }
         }
     }
 
