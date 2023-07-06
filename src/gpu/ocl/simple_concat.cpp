@@ -410,6 +410,7 @@ static status_t init_conf_common(
 
     memory_desc_t dst_md, src_md;
     int offset = 0, padded_offset = 0, nonempty_inputs = 0;
+    dim_t final_padding = 0;
     for (int i = 0; i < pd->n_inputs(); ++i) {
         if (pd->src_md(i)->padded_dims[concat_dim] == 0) continue;
         memcpy(&src_md, pd->src_md(i), sizeof(memory_desc_t));
@@ -418,18 +419,21 @@ static status_t init_conf_common(
         conf.src_extern_dim_sizes[nonempty_inputs]
                 = src_blkg.strides[axis::outer] * data_type_size;
         dim_t concat_dim = src_md.dims[axis::concat];
+        dim_t concat_pdim = src_md.padded_dims[axis::concat];
         conf.offset[nonempty_inputs] = offset;
         conf.padded_offset[nonempty_inputs] = padded_offset;
+        final_padding = concat_pdim - concat_dim;
         offset += concat_dim;
-        padded_offset += src_md.padded_dims[axis::concat];
+        padded_offset += concat_pdim;
         nonempty_inputs++;
     }
     memcpy(&dst_md, pd->dst_md(), sizeof(memory_desc_t));
     normalize(dst_md);
     const auto &dst_blkg = dst_md.format_desc.blocking;
     conf.dst_extern_dim_size = dst_blkg.strides[axis::outer] * data_type_size;
-    conf.dst_concat_axis = offset;
     conf.dst_padded_concat_axis = dst_md.padded_dims[axis::concat];
+    conf.dst_concat_axis
+            = std::min(conf.dst_padded_concat_axis, offset + final_padding);
     dim_t concat_dim_size = padded_offset;
 
     conf.n_blocks = 0;
