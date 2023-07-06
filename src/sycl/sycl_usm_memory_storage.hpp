@@ -34,6 +34,9 @@ class sycl_usm_memory_storage_t : public sycl_memory_storage_base_t {
 public:
     using sycl_memory_storage_base_t::sycl_memory_storage_base_t;
 
+    sycl_usm_memory_storage_t(engine_t *engine, ::sycl::usm::alloc usm_kind)
+        : sycl_memory_storage_base_t(engine), usm_kind_(usm_kind) {}
+
     uint8_t *usm_ptr() const { return static_cast<uint8_t *>(usm_ptr_.get()); }
 
     memory_kind_t memory_kind() const override { return memory_kind::usm; }
@@ -119,9 +122,24 @@ protected:
         auto *sycl_engine = utils::downcast<sycl_engine_base_t *>(engine());
         auto &sycl_dev = sycl_engine->device();
         auto &sycl_ctx = sycl_engine->context();
+        using ::sycl::usm::alloc;
 
-        usm_kind_ = ::sycl::usm::alloc::shared;
-        void *usm_ptr_alloc = ::sycl::malloc_shared(size, sycl_dev, sycl_ctx);
+        if (usm_kind_ == alloc::unknown) usm_kind_ = alloc::shared;
+
+        void *usm_ptr_alloc = nullptr;
+
+        switch (usm_kind_) {
+            case alloc::host:
+                usm_ptr_alloc = ::sycl::malloc_host(size, sycl_ctx);
+                break;
+            case alloc::device:
+                usm_ptr_alloc = ::sycl::malloc_device(size, sycl_dev, sycl_ctx);
+                break;
+            case alloc::shared:
+                usm_ptr_alloc = ::sycl::malloc_shared(size, sycl_dev, sycl_ctx);
+                break;
+            default: break;
+        }
         if (!usm_ptr_alloc) return status::out_of_memory;
 
         usm_ptr_ = decltype(usm_ptr_)(

@@ -29,8 +29,14 @@ namespace sycl {
 
 status_t sycl_engine_base_t::create_memory_storage(
         memory_storage_t **storage, unsigned flags, size_t size, void *handle) {
-    std::unique_ptr<memory_storage_t> _storage(
-            new sycl_buffer_memory_storage_t(this));
+    std::unique_ptr<memory_storage_t> _storage;
+
+    if (flags & memory_flags_t::prefer_device_usm) {
+        _storage.reset(new sycl_usm_memory_storage_t(
+                this, ::sycl::usm::alloc::device));
+    } else
+        _storage.reset(new sycl_buffer_memory_storage_t(this));
+
     if (!_storage) return status::out_of_memory;
 
     status_t status = _storage->init(flags, size, handle);

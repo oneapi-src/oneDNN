@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,6 +38,9 @@ class ocl_usm_memory_storage_t : public ocl_memory_storage_base_t {
 public:
     using ocl_memory_storage_base_t::ocl_memory_storage_base_t;
 
+    ocl_usm_memory_storage_t(engine_t *engine, usm::ocl_usm_kind_t kind)
+        : ocl_memory_storage_base_t(engine), usm_kind_(kind) {}
+
     void *usm_ptr() const { return usm_ptr_.get(); }
 
     memory_kind_t memory_kind() const override { return memory_kind::usm; }
@@ -68,8 +71,23 @@ public:
 
 protected:
     status_t init_allocate(size_t size) override {
-        usm_kind_ = usm::ocl_usm_kind_t::shared;
-        void *usm_ptr_alloc = usm::malloc_shared(engine(), size);
+        using kind_t = usm::ocl_usm_kind_t;
+        if (usm_kind_ == kind_t::unknown) usm_kind_ = kind_t::shared;
+
+        void *usm_ptr_alloc = nullptr;
+
+        switch (usm_kind_) {
+            case kind_t::host:
+                usm_ptr_alloc = usm::malloc_host(engine(), size);
+                break;
+            case kind_t::device:
+                usm_ptr_alloc = usm::malloc_device(engine(), size);
+                break;
+            case kind_t::shared:
+                usm_ptr_alloc = usm::malloc_shared(engine(), size);
+                break;
+            default: break;
+        }
         if (!usm_ptr_alloc) return status::out_of_memory;
 
         usm_ptr_ = decltype(usm_ptr_)(
