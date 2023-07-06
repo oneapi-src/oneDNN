@@ -679,7 +679,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::generate() {
                 reg_src_zero_point);
     }
     if (jcp.dst_scale) {
-        if (!jcp.signed_input)
+        if (!jcp.signed_input && !jcp.with_input_zp)
             mov(EVEX_compress_addr(rsp, reg_bias_data_off), reg_bias_data);
         mov(reg_ptr_dst_scale, ptr[param1 + GET_OFF(dst_scale)]);
         mov(EVEX_compress_addr(rsp, reg_dst_scale_off), reg_ptr_dst_scale);

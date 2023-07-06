@@ -551,7 +551,7 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::generate() {
         mov(ptr[rsp + reg_src_zero_point_off], reg_src_zero_point);
     }
     if (jcp.dst_scale) {
-        if (!jcp.signed_input) mov(ptr[rsp + reg_bias_data_off], reg_bias_data);
+        if (!jcp.signed_input && !jcp.with_input_zp) mov(ptr[rsp + reg_bias_data_off], reg_bias_data);
         mov(reg_ptr_dst_scale, ptr[param1 + GET_OFF(dst_scale)]);
         mov(ptr[rsp + reg_dst_scale_off], reg_ptr_dst_scale);
     }
