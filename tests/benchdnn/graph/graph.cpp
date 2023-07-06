@@ -185,8 +185,13 @@ int find_logical_tensor(size_t lt_id, const graph::op_ref_list_t &ops,
 int map_unmap_partition_mem(graph::partition_mem_map_t &partition_mem_map,
         const std::vector<dnnl::graph::logical_tensor> &lts,
         const int &map_flag, res_t *res) {
+    // In case one logical tensor is used for multiple inputs, record the
+    // processed logical tensor ids to avoid duplicate processing
+    std::unordered_set<size_t> processed_ids;
     for (const auto &lt : lts) {
         const auto &lt_id = lt.get_id();
+        if (processed_ids.find(lt_id) != processed_ids.end()) continue;
+
         const auto iter = partition_mem_map.find(lt_id);
         if (iter == partition_mem_map.end()) {
             BENCHDNN_PRINT(0,
@@ -200,6 +205,8 @@ int map_unmap_partition_mem(graph::partition_mem_map_t &partition_mem_map,
             graph_mem.unmap_mem(); // Unmap graph memory from host
         else
             return res->state = UNIMPLEMENTED, FAIL;
+
+        processed_ids.insert(lt_id);
     }
 
     return OK;
