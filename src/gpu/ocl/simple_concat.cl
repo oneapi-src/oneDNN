@@ -78,13 +78,17 @@
     x; \
     y
 
+#define DATA1_T DATA_T
+#define VECTOR(n) DATA##n##_T v##n[DIV_UP(READ_BLOCK, n)]
 typedef union {
-    DATA16_T v16[2];
-    DATA8_T v8[4];
-    DATA4_T v4[8];
-    DATA2_T v2[16];
-    DATA_T v1[32];
+    VECTOR(16);
+    VECTOR(8);
+    VECTOR(4);
+    VECTOR(2);
+    VECTOR(1);
 } buffer_t;
+#undef VECTOR
+#undef DATA1_T
 
 DATA_T load_vec1(const buffer_t *buf, size_t offset) {
     return buf->v1[offset];

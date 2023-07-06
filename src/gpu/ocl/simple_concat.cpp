@@ -313,44 +313,59 @@ struct prb_info_t {
     int messages;
 
     prb_info_t(int simd, int type_size, dim_t max_elems, dim_t max_read_size,
-            dim_t inner_size, compute::gpu_arch_t hw)
+            dim_t max_write_size, compute::gpu_arch_t hw)
         : simd(simd), type_size(type_size) {
-        int best_block = 1;
-        int best_messages = subgroup_messages(simd, 1, type_size);
-        const dim_t inner_elems = inner_size / type_size;
-        for (int i = 1; i < simd * 32; ++i) {
-            dim_t block_size = i * (dim_t)type_size;
-            if (block_size > max_block_size(hw)) break;
-            if (block_size > max_read_size) break;
-            if (i > max_elems) break;
-            if (i < inner_elems && inner_elems % i) continue;
-            if (i > inner_elems
-                    && (i % inner_elems || max_read_size % block_size))
+        dim_t best_block = 0;
+        int best_messages = 1;
+        const dim_t max_write_elems = max_write_size / type_size;
+        for (dim_t read_elems = 1; read_elems <= max_elems; ++read_elems) {
+            dim_t write_elems = std::min(max_write_elems, read_elems);
+            dim_t read_block_size = read_elems * (dim_t)type_size;
+            if (read_block_size > max_read_size) break;
+            if (read_block_size > max_block_size(hw)) break;
+            if (read_elems < max_write_elems && max_write_elems % read_elems)
                 continue;
-            int messages = subgroup_messages(simd, i, type_size);
-            if (i * best_messages < best_block * messages) continue;
-            if (i * best_messages == best_block * messages && i < best_block)
+            if (read_elems > max_write_elems
+                    && (read_elems % max_write_elems
+                            || max_read_size % read_block_size))
                 continue;
-            best_block = i;
+            int messages = subgroup_messages(
+                    simd, read_elems, write_elems, type_size, hw);
+            if (read_elems * best_messages < best_block * messages) continue;
+            if (read_elems * best_messages == best_block * messages
+                    && read_elems < best_block)
+                continue;
+            best_block = read_elems;
             best_messages = messages;
         }
         block = best_block;
         messages = best_messages;
     }
 
-    static dim_t max_block_size(compute::gpu_arch_t hw) {
-        return hw == compute::gpu_arch_t::xe_hpc ? 1024 : 512;
+    static int register_bytes(compute::gpu_arch_t hw) {
+        return hw >= compute::gpu_arch_t::xe_hpc ? 64 : 32;
     }
 
-    static int subgroup_messages(int simd, int block, int type_size) {
-        const int set_bits[] = {0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4};
-        int thread_block_elems = block / simd;
-        int max_vec_size = type_size == 1 ? 16 : 8;
-        int num_max_vecs = thread_block_elems / max_vec_size;
-        int num_small_vecs = set_bits[thread_block_elems & (max_vec_size - 1)];
-        int block_messages = num_max_vecs + num_small_vecs;
-        int scattered_messages = block % simd ? 1 : 0;
-        return block_messages + scattered_messages * scattered_message_penalty;
+    static dim_t max_block_size(compute::gpu_arch_t hw) {
+        return 16 * register_bytes(hw);
+    }
+
+    static int subgroup_messages(int simd, dim_t read_block, dim_t write_block,
+            dim_t type_size, compute::gpu_arch_t hw) {
+        const int reg_size = register_bytes(hw);
+        const bool scattered_load = read_block * type_size % 4 != 0;
+        const bool scattered_store = write_block * type_size % 16 != 0;
+        const dim_t load_type_size
+                = scattered_load ? std::max(type_size, (dim_t)4) : type_size;
+        const dim_t store_type_size
+                = scattered_store ? std::max(type_size, (dim_t)4) : type_size;
+        const int load_regs = scattered_load ? 2 : 4;
+        const int store_regs = scattered_store ? 2 : 8;
+        const dim_t load_size = load_regs * reg_size;
+        const dim_t store_size = store_regs * reg_size;
+        return utils::div_up(read_block * load_type_size, load_size)
+                + (read_block / write_block)
+                * utils::div_up(write_block * store_type_size, store_size);
     }
 
     bool operator<(const prb_info_t &other) const {
@@ -358,7 +373,9 @@ struct prb_info_t {
         auto other_average_bytes = other.type_size * other.block * messages;
         if (average_bytes != other_average_bytes)
             return average_bytes > other_average_bytes;
-        return type_size * block > other.type_size * other.block;
+        if (type_size * block != other.type_size * other.block)
+            return type_size * block > other.type_size * other.block;
+        return other.simd == 1 || (simd != 1 && simd > other.simd);
     }
 };
 
@@ -383,7 +400,9 @@ static status_t init_conf_common(
 
     // TODO: add proper scales support
     const bool has_scales = false;
-    const int eu_count = device_info->eu_count();
+    const compute::gpu_arch_t hw = device_info->gpu_arch();
+    const int register_bytes = prb_info_t::register_bytes(hw);
+    const int hw_threads = device_info->hw_threads();
     const int max_sg_size = device_info->max_subgroup_size();
     const auto data_type_size = normalize.data_type_size();
     dim_t total_bytes = data_type_size;
@@ -398,13 +417,17 @@ static status_t init_conf_common(
             if (has_scales && bytes < (int)data_type_size) break;
             if (max_write_size % bytes) continue;
             const dim_t total_elems = total_bytes / bytes;
-            const dim_t max_elems = std::max((dim_t)1, total_elems / eu_count);
+            const dim_t concurrent_elems
+                    = utils::div_up(simd * total_elems, hw_threads);
+            const dim_t elems_per_reg = register_bytes / bytes;
+            const dim_t max_elems
+                    = utils::rnd_up(concurrent_elems, elems_per_reg);
             if (simd > max_elems) continue;
             infos.emplace_back(simd, bytes, max_elems, max_read_size,
                     max_write_size, device_info->gpu_arch());
         }
     }
-    if (infos.empty()) return status::unimplemented;
+    if (infos.empty() || !infos[0].block) return status::unimplemented;
     std::sort(infos.begin(), infos.end());
     const auto &info = infos[0];
 
