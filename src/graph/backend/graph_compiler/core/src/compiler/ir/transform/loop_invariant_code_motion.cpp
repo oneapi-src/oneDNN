@@ -159,6 +159,86 @@ struct loop_analysis_viewer_t : public ssa_viewer_t {
     }
 };
 
+static std::vector<stmt_c> *find_stmt_in_map(
+        std::unordered_map<expr_c, std::vector<stmt_c>> &m, const stmt_c &st) {
+    for (auto &it : m) {
+        if (std::find_if(it.second.begin(), it.second.end(),
+                    [&st](const stmt_c &in) { return in.ptr_same(st); })
+                != it.second.end()) {
+            return &it.second;
+        }
+    }
+    return nullptr;
+}
+
+static stmt get_same_scope_owner(stmt owner, const stmt_base_t *scope) {
+    while (owner.defined()
+            && owner->temp_data().get_or_null<licm_analysis_data_t>()) {
+        auto owner_scope
+                = owner->temp_data().get<licm_analysis_data_t>().parent_;
+        if (!owner_scope || owner_scope == scope) { break; }
+        owner = owner_scope->node_ptr_from_this().remove_const();
+    }
+    return owner;
+}
+
+static void process_with_non_loop_phi(
+        std::unordered_map<expr_c, std::vector<stmt_c>> &m,
+        const std::vector<expr> &phi_values, const ssa_phi_c &phi) {
+    size_t index = 0;
+    bool dont_hoist = false;
+    std::vector<stmt_c> *hoist_scope = nullptr;
+    auto cur_scope = phi->temp_data().get<licm_analysis_data_t>().parent_;
+    cur_scope = cur_scope->temp_data().get<licm_analysis_data_t>().parent_;
+    while (index < phi_values.size()) {
+        auto owner = phi_values[index]->ssa_data_->get_owner();
+        owner = get_same_scope_owner(owner, cur_scope);
+        if (owner.defined()) {
+            hoist_scope = find_stmt_in_map(m, owner);
+            break;
+        }
+        index++;
+    }
+
+    for (size_t i = index + 1; i < phi_values.size(); i++) {
+        auto owner = phi_values[i]->ssa_data_->get_owner();
+        owner = get_same_scope_owner(owner, cur_scope);
+        if (owner.defined()) {
+            if (hoist_scope) {
+                // need all hoist in the same scope
+                if (std::find_if(hoist_scope->begin(), hoist_scope->end(),
+                            [&owner](const stmt_c &in) {
+                                return in.ptr_same(owner);
+                            })
+                        == hoist_scope->end()) {
+                    dont_hoist = true;
+                    break;
+                }
+            } else {
+                if (find_stmt_in_map(m, owner)) {
+                    dont_hoist = true;
+                    break;
+                }
+            }
+        }
+    }
+    if (dont_hoist) {
+        for (size_t i = 0; i < phi_values.size(); i++) {
+            auto owner = phi_values[i]->ssa_data_->get_owner();
+            owner = get_same_scope_owner(owner, cur_scope);
+            if (owner.defined()
+                    && owner->temp_data().get_or_null<licm_analysis_data_t>()) {
+                owner->temp_data().get<licm_analysis_data_t>().volatile_ = true;
+            }
+        }
+        auto owner = phi->ssa_data_->get_owner();
+        if (owner.defined()
+                && owner->temp_data().get_or_null<licm_analysis_data_t>()) {
+            owner->temp_data().get<licm_analysis_data_t>().volatile_ = true;
+        }
+    }
+}
+
 struct licm_analysis_viewer_t : public ssa_viewer_t {
     using ssa_viewer_t::dispatch;
     using ssa_viewer_t::view;
@@ -392,6 +472,8 @@ struct licm_analysis_viewer_t : public ssa_viewer_t {
                             = true;
                 }
             }
+        } else if (!cur_loop_vars_.empty() && v->values_.size() > 1) {
+            process_with_non_loop_phi(loop_invariant_map_, v->values_, v);
         }
     }
 };

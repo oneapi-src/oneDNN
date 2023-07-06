@@ -641,3 +641,79 @@ TEST(GCCore_CPU_licm_transform, TestLICMTransformAliasTensor) {
     ir_comparer cmper {true};
     EXPECT_TRUE(cmper.compare(out, expected, false));
 }
+
+TEST(GCCore_CPU_licm_transform, TestLICMNonLoopPHI) {
+    builder::ir_builder_t builder;
+    _function_(s32, ccc, _arg_("A", datatypes::s32, {10000}),
+            _arg_("B", datatypes::s32, {10000})) {
+        _bind_(A, B);
+        _for_(i, 0, 10) {
+            _var_init_(a, datatypes::s32, 0);
+            _if_(i > 0) { a = 2; }
+            A[0] = a;
+            _var_init_(c, datatypes::s32, 1);
+            _var_init_(d, datatypes::s32, 2);
+            _var_init_(e, datatypes::s32, c + d);
+            _if_(0) { e = 5; }
+            A[1] = e;
+            _var_init_(f, datatypes::s32, 0);
+            _if_(0) {
+                B[1] = 2;
+                f = B[0];
+            }
+            A[2] = f;
+        }
+        _return_(0);
+    }
+    ssa_transform_t s;
+    auto out = s(ccc);
+
+    loop_invariant_code_motion_t licm;
+    out = licm(out);
+
+    _function_(s32, expected, _arg_("A", datatypes::s32, {10000}),
+            _arg_("B", datatypes::s32, {10000})) {
+        _bind_(A, B);
+        _var_init_(t0, s32, 0);
+        _var_init_(t1, s32, 10);
+        _var_init_(t2, s32, 1);
+        _var_init_(t3, s32, 0);
+        _var_init_(t7, s32, 0);
+        _var_init_(c, s32, 1);
+        _var_init_(d, s32, 2);
+        _var_init_(e, s32, c + d);
+        expr e2_;
+        _var_init_(t8, s32, 0);
+        _if_(t8) { _var_init_copy_(e2, s32, 5); }
+        _var_init_(e3, s32, builder::make_phi({e, e2_}));
+        _var_init_(t12, s32, 1);
+        _var_init_(t13, s32, 0);
+        _var_init_(t19, s32, 2);
+
+        _for_(i, t0, t1, t2) {
+            _var_init_(a, s32, 0);
+            _var_init_(t4, datatypes::boolean, i > t3);
+            expr a0_;
+            _if_(t4) { _var_init_copy_(a0, s32, 2); }
+            _var_init_(a1, s32, builder::make_phi({a, a0_}));
+            A[t7] = a1;
+            A[t12] = e3;
+            _var_init_(f, s32, 0);
+            expr f4_;
+            _if_(t13) {
+                _var_init_(t14, s32, 1);
+                _var_init_(t15, s32, 2);
+                B[t14] = t15;
+                _var_init_(t16, s32, 0);
+                _var_init_copy_(f4, s32, B[t16]);
+            }
+            _var_init_(f5, s32, builder::make_phi({f, f4_}));
+            A[t19] = f5;
+        }
+
+        _var_init_(t20, s32, 0);
+        _return_(t20);
+    }
+    ir_comparer cmper {true};
+    EXPECT_TRUE(cmper.compare(out, expected, false));
+}
