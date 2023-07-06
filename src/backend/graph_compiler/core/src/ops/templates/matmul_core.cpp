@@ -64,9 +64,9 @@ static void inline validate_cfg(
   matmul_core_config_t &cfg, bool is_amx, sc_data_type_t dtype) {
   if (!is_amx) return;
   if (is_dynamic_dim(cfg.K_block)) { return; }
-  int rd_block = dtype == datatypes::bf16
-    ? 32
-    : utils::is_one_of(dtype, datatypes::u8, datatypes::s8) ? 64 : -1;
+  int rd_block = dtype == datatypes::bf16                   ? 32
+    : utils::is_one_of(dtype, datatypes::u8, datatypes::s8) ? 64
+                                                            : -1;
   if (rd_block == -1) return;
   int rdb = cfg.K_block / rd_block;
   int rdb_tail = cfg.K_block % rd_block;
