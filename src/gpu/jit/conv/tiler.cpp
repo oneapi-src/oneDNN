@@ -1027,7 +1027,8 @@ private:
         ir_assert((int)check_kind_t::_max < 64);
 
         set_check(optional_check_mask_, check_kind_t::limit_k_iter);
-
+        set_check(optional_check_mask_,
+                check_kind_t::check_k_slicing_utilization);
         set_check(check_kind_t::check_tg_size);
         set_check(check_kind_t::check_dpas);
         set_check(check_kind_t::check_grf_usage);
