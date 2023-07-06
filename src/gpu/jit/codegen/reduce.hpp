@@ -141,7 +141,9 @@ private:
         int min_step = std::min(a_grf_elems, b_grf_elems);
         int max_step = 2 * min_step;
 
-        min_step = std::min(std::min(simd_size_, min_step), (int)a0.block);
+        min_step = std::min(
+                std::min(hw_ <= ngen::HW::XeLP ? 8 : simd_size_, min_step),
+                (int)a0.block);
 
         if (a0.block % min_step != 0) {
             // TODO: Extend implementation to support this case.
