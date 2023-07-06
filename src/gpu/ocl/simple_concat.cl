@@ -166,12 +166,23 @@ struct write_info_t get_write_info(size_t src_idx, size_t src_ext_offset,
     struct write_info_t info;
 #if BLOCK_DEPTH > 0
     size_t concat_idx = get_concat_idx(inner_idx);
-    size_t zero_pad_offset = ZERO_PAD_OFFSET - concat_axis + thread_offset;
     bool write_value = concat_offset + concat_idx < concat_axis;
+
+#define CONCAT_AXIS(n) SRC##n##_CONCAT_AXIS
+#define RIGHT(x, y) y
+#if REDUCE(N_INPUTS, RIGHT, CONCAT_AXIS) < ZERO_PAD_CONCAT_DIM
+    size_t zero_pad_offset = ZERO_PAD_OFFSET - concat_axis + thread_offset;
     bool write_zeropad = zero_pad_offset + concat_idx < ZERO_PAD_CONCAT_DIM;
 
     size_t write_offset = write_value ? concat_offset : zero_pad_offset;
     info.write = write_value || write_zeropad;
+#else
+    size_t write_offset = concat_offset;
+    info.write = write_value;
+#endif
+#undef RIGHT
+#undef CONCAT_AXIS
+
     info.idx = ext_idx * DST_EXT_OFFSET + inner_idx
             + get_concat_offset(concat_idx + write_offset)
             - get_concat_offset(concat_idx);
