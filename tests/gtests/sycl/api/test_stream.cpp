@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -130,6 +130,49 @@ TEST_P(sycl_stream_test, InteropIncompatibleQueue) {
     catch_expected_failures(
             [&] { sycl_interop::make_stream(get_engine(kind), interop_queue); },
             true, dnnl_invalid_arguments);
+}
+
+#ifndef DNNL_EXPERIMENTAL_PROFILING
+extern "C" dnnl_status_t dnnl_reset_profiling(dnnl_stream_t stream);
+#endif
+
+TEST_P(sycl_stream_test, TestProfilingAPIDisabledAndEnabled) {
+    engine::kind kind = GetParam();
+    SKIP_IF(!has(kind), "Device not found.");
+    SKIP_IF(kind == engine::kind::cpu, "Test is GPU specific.");
+
+    auto sycl_queue = sycl::queue(get_context(kind), get_device(kind),
+            sycl::property_list {sycl::property::queue::in_order {},
+                    sycl::property::queue::enable_profiling {}});
+    stream strm = sycl_interop::make_stream(get_engine(kind), sycl_queue);
+
+    memory::dims tz_dims = {2, 3, 4, 5};
+    const size_t N = std::accumulate(tz_dims.begin(), tz_dims.end(), (size_t)1,
+            std::multiplies<size_t>());
+    auto usm_buffer = (float *)malloc_shared(
+            N * sizeof(float), get_device(kind), get_context(kind));
+
+    memory::desc mem_d(
+            tz_dims, memory::data_type::f32, memory::format_tag::nchw);
+
+    memory mem = sycl_interop::make_memory(mem_d, get_engine(kind),
+            sycl_interop::memory_kind::usm, usm_buffer);
+
+    auto relu_pd = eltwise_forward::primitive_desc(get_engine(kind),
+            prop_kind::forward, algorithm::eltwise_relu, mem_d, mem_d, 0.0f);
+    auto relu = eltwise_forward(relu_pd);
+    relu.execute(strm, {{DNNL_ARG_SRC, mem}, {DNNL_ARG_DST, mem}});
+    strm.wait();
+
+    auto st = dnnl_reset_profiling(strm.get());
+
+// If the experimental profiling API is not enabled then the library should not
+// enable profiling regardless of the queue's properties.
+#ifdef DNNL_EXPERIMENTAL_PROFILING
+    EXPECT_EQ(st, dnnl_success);
+#else
+    EXPECT_EQ(st, dnnl_invalid_arguments);
+#endif
 }
 
 // TODO: Enable the test below after sycl_stream_t is fixed to not reuse the
