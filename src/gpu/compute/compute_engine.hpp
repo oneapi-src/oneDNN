@@ -67,6 +67,17 @@ public:
             const compute::kernel_ctx_t &kernel_ctx,
             const cache_blob_t &cache_blob) const = 0;
 
+    status_t create_kernel_bundle(kernel_bundle_t &bundle,
+            const std::vector<const char *> &kernel_names,
+            const compute::kernel_ctx_t &kernel_ctx,
+            const cache_blob_t &cache_blob = cache_blob_t()) const {
+
+        std::vector<kernel_t> kernels;
+        CHECK(create_kernels(&kernels, kernel_names, kernel_ctx, cache_blob));
+        bundle = kernel_bundle_t(std::move(kernels), kernel_names);
+        return status::success;
+    }
+
     virtual status_t create_kernels_from_ocl_source(
             std::vector<compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,

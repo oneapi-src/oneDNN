@@ -153,6 +153,48 @@ inline std::string kernel_t::name() const {
     return impl_->name();
 }
 
+class kernel_bundle_t {
+public:
+    kernel_bundle_t() = default;
+    kernel_bundle_t(std::vector<kernel_t> &&kernels,
+            const std::vector<const char *> &kernel_names) {
+        for (size_t i = 0; i < kernels.size(); i++) {
+            bundle[kernel_names[i]] = std::move(kernels[i]);
+        }
+    }
+    // Copies may be expensive, require explicit clone
+    kernel_bundle_t(const kernel_bundle_t &other) = delete;
+    kernel_bundle_t &operator=(const kernel_bundle_t &other) = delete;
+    kernel_bundle_t(kernel_bundle_t &&other) = default;
+    kernel_bundle_t &operator=(kernel_bundle_t &&other) = default;
+
+    status_t get_kernels(std::vector<kernel_t> &kernels,
+            const std::vector<const char *> &kernel_names) const {
+        kernels = std::vector<kernel_t>(kernel_names.size());
+        for (size_t i = 0; i < kernel_names.size(); i++) {
+            auto kernel_entry = bundle.find(kernel_names[i]);
+            if (kernel_entry == bundle.end()) return status::runtime_error;
+            kernels[i] = kernel_entry->second;
+        }
+        return status::success;
+    }
+
+    status_t get_kernels(const engine_t *engine, std::vector<kernel_t> &kernels,
+            const std::vector<const char *> &kernel_names) const {
+        auto &compute_engine
+                = *utils::downcast<const compute_engine_t *>(engine);
+        if (!is_on(compute_engine)) return status::runtime_error;
+        return get_kernels(kernels, kernel_names);
+    }
+
+    bool is_on(const compute_engine_t &engine) const {
+        // All kernels are required to be located in the same context.
+        return !bundle.empty() && bundle.begin()->second.is_on(engine);
+    }
+
+    std::unordered_map<std::string, kernel_t> bundle;
+};
+
 } // namespace compute
 } // namespace gpu
 } // namespace impl
