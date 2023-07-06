@@ -134,8 +134,7 @@ int init_graph_memory_args(const dnn_mem_map_t &mems,
         partition_mem_map_t &graph_mem_map,
         const std::vector<size_t> &partition_in_ids,
         const std::vector<size_t> &partition_out_ids,
-        const deserialized_op &base_op_ref, const bool is_leading_op,
-        res_t *res);
+        const deserialized_op &base_op_ref, res_t *res);
 
 template <typename prb_t, typename init_pd_func_t,
         typename supported_exec_args_func_t, typename setup_cmp_func_t>

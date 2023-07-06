@@ -85,7 +85,7 @@ protected:
         int op_id = static_cast<int>(cur_op.id_);
         auto &mems = std::get<1>(ref_prims_[op_id]);
         init_graph_memory_args(mems, graph_mem_map, par_in_and_leading_ids,
-                partition_out_ids_, cur_op, true, res);
+                partition_out_ids_, cur_op, res);
         if (res->state == FAILED) return;
     }
 
@@ -113,7 +113,7 @@ protected:
         int op_id = static_cast<int>(cur_op.id_);
         auto &mems = std::get<1>(ref_prims_[op_id]);
         init_graph_memory_args(mems, graph_mem_map, partition_in_ids_,
-                partition_out_ids_, cur_op, false, res);
+                partition_out_ids_, cur_op, res);
         if (res->state == FAILED) return;
 
         if (cur_op.kind_ == "Dequantize" && is_quantized_) {
