@@ -419,4 +419,51 @@ TEST_F(ocl_stream_test_cpp_t, TestProfilingAPICPU) {
 
 #endif
 
+#ifndef DNNL_EXPERIMENTAL_PROFILING
+extern "C" dnnl_status_t dnnl_reset_profiling(dnnl_stream_t stream);
+#endif
+
+TEST_F(ocl_stream_test_cpp_t, TestProfilingAPIDisabledAndEnabled) {
+    SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
+            "OpenCL GPU devices not found.");
+
+    memory::dims dims = {2, 3, 4, 5};
+    memory::desc md(dims, memory::data_type::f32, memory::format_tag::nchw);
+
+    auto eltwise_pd = eltwise_forward::primitive_desc(
+            eng, prop_kind::forward, algorithm::eltwise_relu, md, md, 0.0f);
+    auto eltwise = eltwise_forward(eltwise_pd);
+    auto mem = memory(md, eng);
+
+    cl_int err;
+#ifdef CL_VERSION_2_0
+    cl_queue_properties properties[]
+            = {CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE, 0};
+    cl_command_queue ocl_queue = clCreateCommandQueueWithProperties(
+            ocl_ctx, ocl_dev, properties, &err);
+#else
+    cl_command_queue_properties properties = CL_QUEUE_PROFILING_ENABLE;
+    cl_command_queue ocl_queue
+            = clCreateCommandQueue(ocl_ctx, ocl_dev, properties, &err);
+#endif
+
+    TEST_OCL_CHECK(err);
+
+    auto stream = ocl_interop::make_stream(eng, ocl_queue);
+    TEST_OCL_CHECK(clReleaseCommandQueue(ocl_queue));
+
+    eltwise.execute(stream, {{DNNL_ARG_SRC, mem}, {DNNL_ARG_DST, mem}});
+    stream.wait();
+
+    auto st = dnnl_reset_profiling(stream.get());
+
+// If the experimental profiling API is not enabled then the library should not
+// enable profiling regardless of the queue's properties.
+#ifdef DNNL_EXPERIMENTAL_PROFILING
+    EXPECT_EQ(st, dnnl_success);
+#else
+    EXPECT_EQ(st, dnnl_invalid_arguments);
+#endif
+}
+
 } // namespace dnnl
