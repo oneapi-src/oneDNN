@@ -55,7 +55,7 @@ struct op_dispatch_tables_t {
      * the struct to hold info of a partial specialization instance of a dynamic
      * shaped op.
      * If graph_ is null, the field `name_or_postfix_` is the only
-     * valide field of `op_func_info`. `name_or_postfix_` indicates the name of
+     * valid field of `op_func_info`. `name_or_postfix_` indicates the name of
      * TIR function in the IR module for the partial specialization.
      * If graph_ is not null, the partial specialization has not been compiled
      * when `lower_graph()` is called. The field `op_` contains the dynamic
@@ -67,6 +67,7 @@ struct op_dispatch_tables_t {
         std::shared_ptr<sc_op> op_;
         std::string name_or_postfix_;
         std::shared_ptr<context_t> ctx_;
+        std::shared_ptr<const bool> use_managed_tp_;
         bool internal_;
         // only valid when `!already_compiled()`. Lower the partial
         // specialization to TIR
@@ -78,11 +79,14 @@ struct op_dispatch_tables_t {
         op_func_info(const std::shared_ptr<sc_graph_t> &graph,
                 const std::shared_ptr<sc_op> &op,
                 const std::string &name_or_postfix,
-                const std::shared_ptr<context_t> &ctx, bool internal = false)
+                const std::shared_ptr<context_t> &ctx,
+                const std::shared_ptr<const bool> &use_managed_tp,
+                bool internal = false)
             : graph_(graph)
             , op_(op)
             , name_or_postfix_(name_or_postfix)
             , ctx_(ctx)
+            , use_managed_tp_(use_managed_tp)
             , internal_(internal) {}
         /**
          * op_func_info which indicates that the partial specialization is
@@ -162,11 +166,13 @@ expr call_op_dynamic_query_function(
 void create_internal_dispatch_funcs_by_node(
         const std::shared_ptr<context_t> &ctx,
         std::shared_ptr<ir_module_t> &ret_mod, const std::string &table_name,
-        const std::shared_ptr<sc_op> &node);
+        const std::shared_ptr<sc_op> &node,
+        const std::shared_ptr<const bool> &use_mtp);
 void create_dispatch_funcs_by_keys(const std::shared_ptr<context_t> &ctx,
         std::shared_ptr<ir_module_t> &ret_mod, const std::string &table_name,
         const std::shared_ptr<sc_op> &node, const op_dispatch_key_base_t *key,
-        expr &op_dispatch_kernel, int &dyn_idx, bool internal);
+        expr &op_dispatch_kernel, int &dyn_idx,
+        const std::shared_ptr<const bool> &use_mtp, bool internal);
 int get_num_of_internal_funcs(const std::shared_ptr<sc_op> &node);
 int get_num_of_internal_funcs(const sc_graph_t &graph);
 int count_dynamic_dims(const sc_dims &in);

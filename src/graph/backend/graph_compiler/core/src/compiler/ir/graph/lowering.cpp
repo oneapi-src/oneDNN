@@ -1132,6 +1132,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     int tensor_counter = 0;
     int global_tensor_counter = 0;
     auto ret_mod = ir_module_t::from_entry_func(ctx, func);
+    auto use_managed_tp = std::make_shared<bool>(false);
 
     expr dump_out_path;
     if (graph.attrs_.get_or_else("folded_input", false)) {
@@ -1257,7 +1258,8 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                                     std::placeholders::_1,
                                     std::ref(op_dispatch_kernel
                                                     [node->logical_op_id_]),
-                                    std::ref(dyn_idx), /*internal*/ false));
+                                    std::ref(dyn_idx), use_managed_tp,
+                                    /*internal*/ false));
                     if (node->need_dynamic_internal_query()) {
                         node->info_.internal_info_->parti_in_ltsrs_
                                 = graph::extract_detail_from_tensors(
@@ -1266,7 +1268,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                                 = graph::extract_detail_from_tensors(
                                         node->get_outputs());
                         create_internal_dispatch_funcs_by_node(
-                                ctx, ret_mod, table_name, node);
+                                ctx, ret_mod, table_name, node, use_managed_tp);
                         assert(base_kernel.isa<indexing>());
                         auto ker_tsr = base_kernel.static_as<indexing>()->ptr_;
                         // index 0 is the outer dispatch kernel, elements from
@@ -1476,12 +1478,18 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     // 24-core cascade lake, 1.6Gflop is turning point of choosing
     // managed/native thread pool
     auto &rtl_cfg = runtime_config_t::get();
-    bool use_managed_thread_pool = rtl_cfg.managed_thread_pool_
-            && (num_ops > 2 || ctx->use_amx() || graph.is_dynamic()
-                    || rtl_cfg.get_num_threads() == 1
-                    || gflop / rtl_cfg.get_num_threads() > 0.0666f);
+    bool use_managed_thread_pool = false;
+    if (rtl_cfg.managed_thread_pool_) {
+        if (num_ops > 2 || rtl_cfg.get_num_threads() == 1
+                || gflop / rtl_cfg.get_num_threads() > 0.0666f) {
+            use_managed_thread_pool = true;
+        } else if (ctx->use_amx() && !graph.is_dynamic()) {
+            use_managed_thread_pool = true;
+        }
+    }
     ret_mod->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL]
             = use_managed_thread_pool;
+    *use_managed_tp = use_managed_thread_pool;
     if (graph_name != default_graph_name) {
         ret_mod->attr_[ir_module_t::attr_key_t::NAME] = graph_name;
     }

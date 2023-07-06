@@ -99,7 +99,7 @@ std::shared_ptr<ir_module_t> op_dispatch_tables_t::op_func_info::lower() {
     func->name_ += name_or_postfix_;
     func->decl_->name_ = func->name_;
 
-    mod->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL] = true;
+    mod->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL] = *use_managed_tp_;
     mod->attr_[ir_module_t::attr_key_t::STATIC_GLOBALS] = true;
     return mod;
 }
@@ -539,10 +539,10 @@ expr call_op_dynamic_query_function(
 
 void create_internal_dispatch_funcs_by_node(const context_ptr &ctx,
         ir_module_ptr &ret_mod, const std::string &table_name,
-        const sc_op_ptr &node) {
+        const sc_op_ptr &node, const std::shared_ptr<const bool> &use_mtp) {
     if (node->isa<mixed_fuse_op_t>()) {
         node->stc_cast<mixed_fuse_op_t>()->create_internal_dispatch_funcs(
-                ctx, ret_mod);
+                ctx, ret_mod, use_mtp);
     } else if (node->isa<fused_op_t>()) {
         throw std::runtime_error(
                 "Internal function call does not plan to support old fusion "
@@ -555,7 +555,7 @@ void create_internal_dispatch_funcs_by_node(const context_ptr &ctx,
                 std::bind(create_dispatch_funcs_by_keys, ctx, std::ref(ret_mod),
                         table_name, node, std::placeholders::_1,
                         std::ref(op_dispatch_kernel[node->logical_op_id_]),
-                        std::ref(dyn_idx),
+                        std::ref(dyn_idx), use_mtp,
                         /*internal*/ true));
     }
 }
@@ -563,7 +563,8 @@ void create_internal_dispatch_funcs_by_node(const context_ptr &ctx,
 void create_dispatch_funcs_by_keys(const context_ptr &ctx,
         ir_module_ptr &ret_mod, const std::string &table_name,
         const sc_op_ptr &node, const op_dispatch_key_base_t *key,
-        expr &op_dispatch_kernel, int &dyn_idx, bool internal) {
+        expr &op_dispatch_kernel, int &dyn_idx,
+        const std::shared_ptr<const bool> &use_mtp, bool internal) {
     auto cur_table = ret_mod->get_op_table_map()[table_name];
     assert(cur_table);
     bool should_compile_later = false;

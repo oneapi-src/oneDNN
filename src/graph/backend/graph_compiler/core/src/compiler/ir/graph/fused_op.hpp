@@ -180,8 +180,8 @@ public:
     // need internal dispatch func.
     bool need_dynamic_internal_query_impl() const override;
     // create internal dispatch functions with internal dispatch keys.
-    void create_internal_dispatch_funcs(
-            const context_ptr &ctx, ir_module_ptr &ret_mod);
+    void create_internal_dispatch_funcs(const context_ptr &ctx,
+            ir_module_ptr &ret_mod, const std::shared_ptr<const bool> &use_mtp);
     // return the indices of tunable op inputs in sub graph.
     std::vector<size_t> get_internal_tunable_input_indices();
     virtual dispatch_set_ptr &get_dispatch_key_set() override;

@@ -1961,8 +1961,8 @@ ir_module_ptr mixed_fuse_op_t::get_dynamic_query_func(const context_ptr &ctx) {
     return modu;
 }
 
-void mixed_fuse_op_t::create_internal_dispatch_funcs(
-        const context_ptr &ctx, ir_module_ptr &mod) {
+void mixed_fuse_op_t::create_internal_dispatch_funcs(const context_ptr &ctx,
+        ir_module_ptr &mod, const std::shared_ptr<const bool> &use_mtp) {
     // todo: currently we only support one op with internal func query.
     for (auto &op : sub_graph_.ops_) {
         if (op->need_dynamic_internal_query()) {
@@ -1979,7 +1979,7 @@ void mixed_fuse_op_t::create_internal_dispatch_funcs(
             op->get_internal_dispatch_key_set(ctx)->for_each_key_process(
                     std::bind(create_dispatch_funcs_by_keys, ctx, std::ref(mod),
                             table_name, op, std::placeholders::_1, expr(),
-                            std::ref(dyn_idx),
+                            std::ref(dyn_idx), use_mtp,
                             /*internal*/ true));
         }
     }
