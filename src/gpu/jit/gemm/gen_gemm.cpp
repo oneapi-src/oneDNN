@@ -103,6 +103,14 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
     arg_list.set(argn++, flags);
     if (k_parallel) arg_list.set(argn++, k0);
 
+    std::unique_ptr<memory_storage_t> zeros;
+    int zp_token = 0;
+    if (nocopy_info()->fusedBeta() || nocopy_info()->fusedPostOps()) {
+        CHECK(zero_pool_->claim(
+                compute_stream, zero_pool_bytes_, zeros, &zp_token));
+        arg_list.set(argn++, *zeros);
+    }
+
     if (pd()->batch_dims() >= 1) {
         arg_list.set(argn++, stride_a0);
         arg_list.set(argn++, stride_b0);
@@ -165,8 +173,8 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
 
     gws[2] *= pd()->desc()->batch();
 
-    gemm_linear_order_args(arg_list, argn, lws, gws, m, n, disable_hilbert,
-            *nocopy_info(), pd()->dev_info_);
+    gemm_linear_order_args(arg_list, argn, lws, gws, m, n, k, disable_hilbert,
+            *nocopy_info(), pd()->kernel_desc()->aux_params(), pd()->dev_info_);
 
     if (nocopy_info()->perKSLM > 0) {
         size_t slm = nocopy_info()->slm;
@@ -178,7 +186,12 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
     gws[0] *= nocopy_info()->subgroupSize;
 
     auto nd_range = compute::nd_range_t(gws, lws);
-    return parallel_for(ctx, nd_range, nocopy_kernel_, arg_list);
+    auto status = parallel_for(ctx, nd_range, nocopy_kernel_, arg_list);
+
+    if (nocopy_info()->fusedBeta() || nocopy_info()->fusedPostOps())
+        zero_pool_->async_release(zp_token, compute_stream->ctx().get_deps());
+
+    return status;
 }
 
 status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
@@ -334,7 +347,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
         k0 = block_k;
         block_k = nstl::max<dim_t>(k, 1);
 
-        if (k_parallel_global && beta != 1.0f
+        if (k_parallel_global && !nocopy_info()->fusedBeta() && beta != 1.0f
                 && (k > dim_t(k0) * nocopy_info()->wg[2])) {
             status = launch_nocopy(ctx, compute_stream, a, b, c, ao, bo, *co,
                     po_count, po_srcs, off_a0, off_b0, off_c0, int32_t(off_co0),

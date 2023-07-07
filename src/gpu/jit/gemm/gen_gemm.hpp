@@ -28,6 +28,7 @@
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/jit/gemm/gen_gemm_kernel.hpp"
 #include "gpu/jit/gemm/jit_gemm_pd.hpp"
+#include "gpu/jit/gemm/zero_pool.hpp"
 #include "gpu/jit/jit_post_op_injector.hpp"
 #include "gpu/primitive_conf.hpp"
 
@@ -397,6 +398,10 @@ struct gen_gemm_t : public gpu_gemm_t {
 
     gen_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
 
+    ~gen_gemm_t() {
+        if (zero_pool_) release_zero_pool(zero_pool_);
+    }
+
     status_t init(engine_t *engine) override { return init_nocopy(engine); }
 
     status_t init_nocopy(engine_t *engine) {
@@ -412,6 +417,29 @@ struct gen_gemm_t : public gpu_gemm_t {
             printf("onednn_verbose,info,gpu,gemm,kernel:%dx%d,%dx%dx%d\n",
                     info->unroll[LoopM], info->unroll[LoopN], info->wg[LoopM],
                     info->wg[LoopN], info->wg[LoopK]);
+        }
+
+        const auto *info = nocopy_info();
+        if (info->fusedBeta() || info->fusedPostOps()) {
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine);
+
+            bool large_grf_mode = (info->grfCount > 128);
+            auto zero_groups = pd()->dev_info_->eu_count()
+                    * pd()->dev_info_->hw_threads(large_grf_mode)
+                    / (info->wg[LoopM] * info->wg[LoopN] * info->wg[LoopK]);
+            if (info->kParallelVariable()) zero_groups *= 2;
+
+            int zg_cl = 0;
+            if (info->fusedBeta()) zg_cl++;
+            if (info->fusedPostOps()) zg_cl++;
+
+            zero_pool_bytes_ = zero_groups * 64 * zg_cl;
+
+            CHECK(lookup_zero_pool(
+                    compute_engine, zero_pool_bytes_, &zero_pool_));
+
+            nocopy_kernel_.save_output_events();
         }
 
         return status::success;
@@ -438,6 +466,8 @@ private:
 
     compute::kernel_t nocopy_kernel_;
     compute::scalar_type_t scalar_type_;
+    zero_pool_t *zero_pool_ = nullptr;
+    size_t zero_pool_bytes_ = 0;
 };
 
 } // namespace jit

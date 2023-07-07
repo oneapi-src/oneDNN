@@ -99,10 +99,14 @@ status_t gen_gemm_kernel_desc_t::finalize() {
                     * compute::device_info_t::threads_per_eu(
                             arch_, strategy_.GRFs > 128);
             if (thread_count <= thread_gpu) {
-                strategy_.persistent = false;
-                strategy_.cWalkOrder = WalkOrder::HW2D;
-                strategy_.blocking[LoopM] = 16777216;
-                strategy_.blocking[LoopN] = 16777216;
+                if (strategy_.kParallelVariable)
+                    strategy_.cWalkOrder = WalkOrder::SimpleLinear;
+                else {
+                    strategy_.persistent = false;
+                    strategy_.cWalkOrder = WalkOrder::HW2D;
+                    strategy_.blocking[LoopM] = 16777216;
+                    strategy_.blocking[LoopN] = 16777216;
+                }
             }
         }
     }
@@ -560,6 +564,9 @@ void gen_gemm_kernel_t::init_interface() {
             interface_.newArgument("recip_batch_size1", DataType::ud);
         }
     }
+    if (strategy.fuseBeta || strategy.fusePostOps)
+        interface_.newArgument("status", ExternalArgumentType::GlobalPtr,
+                GlobalAccessType::Stateless);
     if (strategy.linearOrder()) {
         interface_.newArgument("group_count_m", DataType::ud);
         interface_.newArgument("group_count_n", DataType::ud);
@@ -573,6 +580,12 @@ void gen_gemm_kernel_t::init_interface() {
     } else if (strategy.cWalkOrder == WalkOrder::Boustrophedon) {
         interface_.newArgument("bslice", DataType::d);
         interface_.newArgument("bthresh", DataType::d);
+    }
+    if (strategy.kParallelVariable) {
+        interface_.newArgument("k0", DataType::ud);
+        interface_.newArgument("k_parallel_start", DataType::ud);
+        interface_.newArgument("k_recip", DataType::ud);
+        if (strategy.fuseBeta) interface_.newArgument("k0_recip", DataType::ud);
     }
     if (strategy.persistent)
         interface_.newArgument("group_stride", DataType::ud);

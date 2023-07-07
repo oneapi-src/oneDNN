@@ -793,8 +793,8 @@ status_t xe_hp_systolic_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
     lws[1] *= compute_info_.wgExpand;
     gws[1] *= compute_info_.wgExpand;
 
-    gemm_linear_order_args(arg_list, argn, lws, gws, m, n, false, compute_info_,
-            pd()->dev_info_);
+    gemm_linear_order_args(arg_list, argn, lws, gws, m, n, k, false,
+            compute_info_, nullptr, pd()->dev_info_);
 
     lws[0] *= compute_info_.subgroupSize;
     gws[0] *= compute_info_.subgroupSize;

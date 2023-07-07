@@ -32,7 +32,8 @@ inline uint32_t uint32_reciprocal(uint32_t x) {
 
 inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
         int &argn, const size_t (&lws)[3], size_t (&gws)[3], int32_t m,
-        int32_t n, bool disable_hilbert, const CommonDriverInfo &info,
+        int32_t n, int32_t k, bool disable_hilbert,
+        const CommonDriverInfo &info, const EvaluateAuxOutput *aux,
         const compute::device_info_t *dev_info) {
     if (!info.isLinearOrder()) return;
 
@@ -145,9 +146,35 @@ inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
         arg_list.set(argn++, thresh);
     }
 
+    if (info.kParallelVariable()) {
+        uint32_t k_parallel_start = utils::rnd_dn(group_count, concurrent_tg);
+        if (aux && aux->k0 == 0)
+            k_parallel_start
+                    = group_count; /* disable variable k-slicing if indicated by kernel selector */
+        if (k_parallel_start > 0 && k_parallel_start != group_count)
+            k_parallel_start -= concurrent_tg;
+
+        auto k_padded = utils::rnd_up(k + info.kPadding(), info.unroll[LoopK]);
+        auto k_total = int64_t(k_padded) * (group_count - k_parallel_start);
+
+        uint32_t k0 = utils::div_up(k_total, concurrent_tg);
+        k0 = utils::rnd_up(k0, info.unroll[LoopK]);
+
+        uint32_t k_recip = uint32_reciprocal(k_padded);
+        uint32_t k0_recip = uint32_reciprocal(k0);
+
+        arg_list.set(argn++, k0);
+        arg_list.set(argn++, k_parallel_start);
+        arg_list.set(argn++, k_recip);
+        if (info.fusedBeta()) arg_list.set(argn++, k0_recip);
+
+        group_count = k_parallel_start;
+        if (k0 > 0) group_count += utils::div_up(k_total, k0);
+    }
+
     if (info.isPersistent()) {
         group_count = nstl::min(group_count, concurrent_tg);
-        arg_list.set(argn++, concurrent_tg);
+        arg_list.set(argn++, group_count);
     }
 
     gws[0] = lws[0] * group_count;
