@@ -143,7 +143,7 @@ struct CommonDriverInfo {
 
     int wgTile(LoopType l) const { return unroll[l] * wg[l]; }
     int kPadding() const {
-        return kParallelVariable() ? blockingAlt[LoopK] : 0;
+        return (kParallel() || kParallelVariable()) ? blockingAlt[LoopK] : 0;
     }
 };
 

@@ -66,7 +66,7 @@ AddressBase getAddressBase(char c) {
 CacheSettingsLSC getCaching(char l1, char l3) {
     if (l1 == 'd' && l3 == 'd') return CacheSettingsLSC::Default;
 
-    bool l3cached = (l3 == 'c');
+    bool l3cached = (l3 == 'c') || (l3 == 'b');
     switch (l1) {
         case 'u':
             return l3cached ? CacheSettingsLSC::L1UC_L3C
@@ -254,7 +254,7 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.cLoadAhead = true;
         else if (mod == "di")
             strategy.delayABInc = true;
-        else if (mod == "bf")
+        else if (mod == "ba")
             strategy.loadBFirst = true;
         else if (mod == "dm")
             strategy.doubleMasking = true;
@@ -342,9 +342,10 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
         else if (mod == "afb")
             strategy.fuseBeta = strategy.altFusedBeta = true;
         else if (mod == "au")
-            strategy.C.atomic = true;
+            strategy.C.atomic = strategy.CO.atomic = true;
         else if (mod == "nau")
-            strategy.C.atomic = strategy.autoatomic = false;
+            strategy.C.atomic = strategy.CO.atomic = strategy.autoatomic
+                    = false;
         else if (mod == "ff")
             strategy.forceWGUpdate = WGFixed;
         else if (mod == "wg") {
@@ -439,6 +440,7 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
                         ms >> eat >> strategy.unroll[LoopK];
                         if (!ms.eof() && (ms.peek() == '/'))
                             ms >> eat >> strategy.unrollK_masked;
+                        strategy.extraKAlign = strategy.unroll[LoopK];
                         break;
                     }
                     case 'l': strategy.optAlignAB = stoi(mod.substr(1)); break;

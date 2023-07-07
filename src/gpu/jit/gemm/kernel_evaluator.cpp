@@ -35,14 +35,54 @@ static inline T1 alignUp(T1 x, T2 y) {
     return divUp(x, y) * y;
 }
 
+static int roundDownSmallPow2(uint16_t x) {
+    if (x <= 1) return 1;
+    int y = 0;
+    if (x >= 256) {
+        x >>= 8;
+        y += 8;
+    }
+    if (x >= 16) {
+        x >>= 4;
+        y += 4;
+    }
+    if (x >= 4) {
+        x >>= 2;
+        y += 2;
+    }
+    if (x >= 2) y++;
+    return 1 << y;
+}
+
+static int roundUpSmallPow2(uint8_t x) {
+    if (x <= 1) return 1;
+    x--;
+    int y = 0;
+    if (x >= 16) {
+        x >>= 4;
+        y += 4;
+    }
+    if (x >= 4) {
+        x >>= 2;
+        y += 2;
+    }
+    if (x >= 2) y++;
+    return 2 << y;
+}
+
 double evaluateW(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
         EvaluateAuxOutput &aux) {
     static constexpr double maxPriority = 10000.;
     double priority = e.model.params[kcatalog::ParamWPriority];
 
-    if (e.driverInfo.kParallelLocal())
+    aux.wgK = 1;
+    if (e.driverInfo.kParallelLocal()) {
         aux.k0 = alignUp(divUp(dp.sizes.k, e.driverInfo.wg[LoopK]),
                 e.driverInfo.unroll[LoopK]);
+        aux.wgK = std::max(1,
+                std::min(e.driverInfo.wg[LoopK],
+                        int(divUp(dp.sizes.k, aux.k0))));
+    }
 
     if (priority > maxPriority) /* no op */
         ; // Don't adjust very high values -- these are last resort kernels (lowest priority)
@@ -75,8 +115,9 @@ double evaluateSCore(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
     auto k = dp.sizes.k;
     auto kthread = k;
     auto capacity = dp.hwThreadCapacity;
-    auto capacity1 = dp.hwMinThreadsToFill;
+    auto capacity1 = dp.hwThreadsPartialWave;
 
+    aux.wgK = 1;
     if (e.driverInfo.kParallel())
         kthread = aux.k0;
     else if (e.driverInfo.kParallelLocal()) {
@@ -85,6 +126,8 @@ double evaluateSCore(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
         kthread = std::max<decltype(kthread)>(
                 kthread, 2 * e.driverInfo.unroll[LoopK]);
         aux.k0 = kthread;
+        aux.wgK = std::max(
+                1, std::min(e.driverInfo.wg[LoopK], int(divUp(k, kthread))));
     }
 
     double threadsFull = std::floor(threads / capacity) * capacity;
@@ -192,7 +235,7 @@ double evaluateS(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
 }
 
 double evaluateECore(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
-        EvaluateAuxOutput &aux) {
+        EvaluateAuxOutput &aux, bool noKR = false) {
 #define PARAM(p) e.model.params[kcatalog::ParamE_##p]
 
     auto threads = dp.threadCount;
@@ -202,16 +245,61 @@ double evaluateECore(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
     auto k = dp.sizes.k;
     auto kthread = k;
     auto capacity = dp.hwThreadCapacity;
-    auto capacity1 = dp.hwMinThreadsToFill;
+    auto capacity1 = dp.hwThreadsPartialWave;
+    auto partialWaveCount = dp.partialWaveCount;
 
-    if (e.driverInfo.kParallel())
+    // Choose wgK and per-k thread size.
+    aux.wgK = 1;
+    if (aux.kParallel)
+        aux.wgK = std::max(1, int(divUp(k, aux.k0)));
+    else if (aux.kParallelVariable) {
+        /* Variable k-slicing + local k-reduction: use kr only to avoid competing atomics from same subslice */
+        auto wgCount = dp.wgCountM * dp.wgCountN * dp.sizes.batch;
+        if (wgCount < partialWaveCount)
+            aux.wgK = roundUpSmallPow2(divUp(partialWaveCount, int(wgCount)));
+    } else if (e.driverInfo.kParallelVariable()) {
+        /* Variable k-slicing disabled: use kr to fill GPU as much as possible */
+        if (threads < capacity && !noKR)
+            aux.wgK = roundDownSmallPow2(std::floor(capacity / threads));
+    } else
+        aux.wgK = e.driverInfo.wg[LoopK];
+
+    aux.wgK = std::min(aux.wgK, e.driverInfo.wg[LoopK]);
+
+    if (aux.kParallel)
         kthread = aux.k0;
-    else if (e.driverInfo.kParallelLocal()) {
-        kthread = alignUp(
-                divUp(k, e.driverInfo.wg[LoopK]), e.driverInfo.unroll[LoopK]);
-        kthread = std::max<decltype(kthread)>(
+    else if (e.driverInfo.kParallelLocal() && !aux.kParallelVariable) {
+        kthread = alignUp(divUp(k, aux.wgK), e.driverInfo.unroll[LoopK]);
+        kthread = aux.k0 = std::max<decltype(kthread)>(
                 kthread, 2 * e.driverInfo.unroll[LoopK]);
-        aux.k0 = kthread;
+    }
+
+    double Mc = (dp.beta == 0. || dp.autoatomic) ? PARAM(Mc) : PARAM(Mcu);
+    double C0 = PARAM(C0), C1 = PARAM(C1);
+
+    if (e.driverInfo.kParallelLocal()) {
+        C0 += aux.wgK * PARAM(Ck0);
+        C1 += aux.wgK * PARAM(Ck1);
+    }
+
+    if (aux.kParallel || aux.kParallelVariable) {
+        if (e.driverInfo.fusedBeta() && (dp.beta != 1.)) {
+            if (e.driverInfo.altFusedBeta())
+                C0 += PARAM(Cb0);
+            else {
+                C0 = PARAM(Cb0);
+                C1 = PARAM(Cb1);
+                Mc += PARAM(Mc);
+            }
+        }
+        if (e.driverInfo.fusedPostOps() && (dp.postOps || dp.cConvert))
+            Mc += PARAM(Mcu);
+    }
+
+    if (e.driverInfo.kParallelVariable()) {
+        threads *= aux.wgK;
+        capacity1 *= aux.wgK;
+        partialWaveCount /= aux.wgK;
     }
 
     double threadsFull = std::floor(threads / capacity) * capacity;
@@ -219,24 +307,6 @@ double evaluateECore(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
     double partialWaves = std::ceil(threadsPartial / capacity1);
     double npartial = std::ceil(threads / capacity1);
 
-    double Mc = (dp.beta == 0. || dp.autoatomic) ? PARAM(Mc) : PARAM(Mcu);
-    double C0 = PARAM(C0), C1 = PARAM(C1);
-    if (e.driverInfo.kParallelLocal()) {
-        int wgK = std::max(
-                1, std::min(e.driverInfo.wg[LoopK], int(divUp(k, aux.k0))));
-        C0 += wgK * PARAM(Ck0);
-        C1 += wgK * PARAM(Ck1);
-    }
-    if (e.driverInfo.fusedBeta() && (dp.beta != 1.) && aux.k0 > 0) {
-        if (!e.driverInfo.altFusedBeta()) {
-            C0 = PARAM(Cb0);
-            C1 = PARAM(Cb1);
-        }
-        Mc += PARAM(Mc);
-    }
-    if (e.driverInfo.fusedPostOps() && (dp.postOps || dp.cConvert)
-            && aux.k0 > 0)
-        Mc += PARAM(Mcu);
     double ctime = C0 + npartial * C1 + Mc * m * n * batch;
 
     double mtime = PARAM(Ma) * m + PARAM(Mb) * n;
@@ -247,7 +317,7 @@ double evaluateECore(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
     double etimeFull = Ef * threadsFull;
     double Ep = std::max(Ef,
             PARAM(Ep0)
-                    + (PARAM(Ep1) * dp.partialWaveCount)
+                    + (PARAM(Ep1) * partialWaveCount)
                             / std::max(partialWaves, 1.));
     double etimePartial = Ep * partialWaves * capacity1;
     double etimeLB = (etimeFull + etimePartial);
@@ -255,7 +325,7 @@ double evaluateECore(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
 
     double Em = PARAM(Em);
     if (threads < capacity) Em = 1.;
-    if (e.driverInfo.kParallelVariable() && aux.k0 > 0) Em = 0.;
+    if (aux.kParallelVariable) Em = 0.;
     double etime = (1 - Em) * etimeNoLB + Em * etimeLB;
     etime *= (e.driverInfo.unroll[LoopM] * e.driverInfo.unroll[LoopN]);
     etime *= kthread;
@@ -276,9 +346,11 @@ double evaluateE(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
         EvaluateAuxOutput &aux) {
     if (e.driverInfo.kParallel()) {
         // Consider choosing k0 to get as close as possible to 1 or 2 full waves.
-        int wgCountK1 = std::max(1, int(dp.hwThreadCapacity / dp.threadCount));
-        int wgCountK2
-                = std::max(1, int(2 * dp.hwThreadCapacity / dp.threadCount));
+        int padWGs = e.driverInfo.kPadding() ? 1 : 0;
+        int wgCountK1 = std::max(
+                1, int(dp.hwThreadCapacity / dp.threadCount) - padWGs);
+        int wgCountK2 = std::max(
+                1, int(2 * dp.hwThreadCapacity / dp.threadCount) - padWGs);
 
         int k0_1
                 = alignUp(divUp(dp.sizes.k, wgCountK1 * e.driverInfo.wg[LoopK]),
@@ -330,19 +402,42 @@ double evaluateE(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
 
         return score;
     } else if (e.driverInfo.kParallelVariable()) {
-        aux.k0 = 0;
+        aux.kParallelVariable = false;
         double score = evaluateECore(e, dp, aux);
+
+        if (e.driverInfo.wg[LoopK] > 1) {
+            auto auxNoKR = aux;
+            double scoreNoKR = evaluateECore(e, dp, auxNoKR, true);
+            if (scoreNoKR < score) {
+                score = scoreNoKR;
+                aux = auxNoKR;
+            }
+        }
 
         if (dp.sizes.batch > 1) return score;
 
         int64_t tcount = dp.threadCount;
         if ((tcount != dp.threadCount) || (tcount % dp.hwThreadCapacity != 0)) {
-            aux.k0 = 1;
-            double scoreKV = evaluateECore(e, dp, aux);
-            if (scoreKV < score)
+            EvaluateAuxOutput auxKV;
+            auxKV.kParallelVariable = true;
+            double scoreKV = evaluateECore(e, dp, auxKV);
+            if (scoreKV < score) {
                 score = scoreKV;
-            else
-                aux.k0 = 0;
+                aux = auxKV;
+
+                auto approxK0
+                        = dp.threadCount * dp.sizes.k / dp.hwThreadCapacity;
+                if (approxK0 <= 32) {
+                    aux.kParallel
+                            = true; /* Switch to fixed global k-slicing if k0 is too small */
+                    aux.kParallelVariable = false;
+                    int padWGs = e.driverInfo.kPadding() ? 1 : 0;
+                    int wgCountK = std::max(1,
+                            int(dp.hwThreadCapacity / dp.threadCount) - padWGs);
+                    aux.k0 = alignUp(divUp(dp.sizes.k, wgCountK * aux.wgK),
+                            e.driverInfo.unroll[LoopK]);
+                }
+            }
         }
 
         return score;
@@ -401,7 +496,9 @@ DerivedEvaluateParams getDerivedParams(
         }
     }
 
-    auto threadsPerWG = wgM * wgN * e.driverInfo.wg[LoopK];
+    auto threadsPerWG = wgM * wgN;
+    if (!e.driverInfo.kParallelVariable())
+        threadsPerWG *= e.driverInfo.wg[LoopK];
 
     dp.mPad = dp.wgCountM * wgTileM;
     dp.nPad = dp.wgCountN * wgTileN;
@@ -426,8 +523,8 @@ DerivedEvaluateParams getDerivedParams(
     }
 
     dp.hwThreadCapacity = dp.threadsPerEU * p.euCount;
-    dp.hwMinThreadsToFill = threadsPerWG * ssCount;
-    dp.partialWaveCount = divUp(dp.hwThreadCapacity, dp.hwMinThreadsToFill);
+    dp.hwThreadsPartialWave = threadsPerWG * ssCount;
+    dp.partialWaveCount = divUp(dp.hwThreadCapacity, dp.hwThreadsPartialWave);
 
     dp.autoatomic = (dp.beta == 1) && !p.cConvert && !p.postOps
             && e.driverInfo.mayUseAutoAtomic();
@@ -444,6 +541,9 @@ double evaluate(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
         EvaluateAuxOutput &aux) {
     double score = 0.;
 
+    aux.kParallel = e.driverInfo.kParallel();
+    aux.kParallelVariable = e.driverInfo.kParallelVariable();
+
     switch (e.model.id) {
         case 'E': score = evaluateE(e, dp, aux); break;
         case 'S': score = evaluateS(e, dp, aux); break;
@@ -454,6 +554,13 @@ double evaluate(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
     if (alwaysAccept(e, dp)) score = -std::numeric_limits<double>::infinity();
 
     return score;
+}
+
+void modifyStrategy(GEMMStrategy &strategy, const EvaluateAuxOutput &aux) {
+    strategy.kParallel = aux.kParallel;
+    if (strategy.kParallelVariable && !aux.kParallelVariable && !aux.kParallel)
+        strategy.C.atomic = strategy.CO.atomic = false;
+    strategy.kParallelVariable = aux.kParallelVariable;
 }
 
 } // namespace jit

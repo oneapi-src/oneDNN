@@ -396,6 +396,20 @@ static inline Type sintType(Type T) {
     }
 }
 
+static inline DataType withSignedness(DataType dt, bool signedType) {
+    switch (dt) {
+        case DataType::b:
+        case DataType::ub: return signedType ? DataType::b : DataType::ub;
+        case DataType::w:
+        case DataType::uw: return signedType ? DataType::w : DataType::uw;
+        case DataType::d:
+        case DataType::ud: return signedType ? DataType::d : DataType::ud;
+        case DataType::q:
+        case DataType::uq: return signedType ? DataType::q : DataType::uq;
+        default: return dt;
+    }
+}
+
 // Move register region to integer pipe.
 static inline void moveToIntPipe(int esize, RegData &s) {
     switch (s.getType()) {
@@ -939,9 +953,8 @@ void gemm_kernel_generator_t<hw>::emad(const InstructionModifier &mod,
             || one_of(dstType, DataType::hf, DataType::f, DataType::df)) {
         mad(mod, dst, src0, src1, src2);
     } else {
-        auto ttype = (isSigned(src1.getType()) || isSigned(src2.getType()))
-                ? DataType::d
-                : DataType::ud;
+        auto ttype = withSignedness(dst.getType(),
+                isSigned(src1.getType()) || isSigned(src2.getType()));
         auto temp = state.ra.alloc_sub(ttype);
         emul(unsaturated(mod), temp, src1, src2, strategy, state);
         eadd(mod, dst, sub ? -temp : temp, src0, strategy, state);
@@ -1141,6 +1154,18 @@ void gemm_kernel_generator_t<hw>::divDown(const Subregister &dst,
     state.ra.safeRelease(pop);
 }
 
+template <HW hw>
+template <typename DT>
+void gemm_kernel_generator_t<hw>::divUp(const Subregister &dst,
+        const Subregister &src0, const Subregister &src1,
+        const Subregister &src1Recip, const FlagRegister &flag,
+        const CommonStrategy &strategy, CommonState &state) {
+    auto adj = state.ra.alloc_sub<uint32_t>();
+    eadd3(1, adj, src0, src1, -1);
+    divDown(dst, adj, src1, src1Recip, flag, strategy, state);
+    state.ra.safeRelease(adj);
+}
+
 // Simple do-while loop macro for the backward conditional branch at end of loop.
 template <HW hw>
 void gemm_kernel_generator_t<hw>::simtDoWhileLoop(
@@ -1163,11 +1188,21 @@ void gemm_kernel_generator_t<hw>::slmBarrier(
     barrier(temp, r0_info);
 }
 
+// Global memory fence.
+template <HW hw>
+void gemm_kernel_generator_t<hw>::globalMemFence(
+        const GRF &temp, const GRF &r0_info, const CommonStrategy &strategy) {
+    if (hw >= HW::XeHPG && !strategy.multitile)
+        memfence(FenceScopeLSC::Tile, FlushTypeLSC::None, temp, r0_info);
+    else
+        memfence(temp, r0_info);
+}
+
 // Barrier with global memory fence.
 template <HW hw>
 void gemm_kernel_generator_t<hw>::globalMemBarrier(
-        const GRF &temp, const GRF &r0_info) {
-    memfence(temp, r0_info);
+        const GRF &temp, const GRF &r0_info, const CommonStrategy &strategy) {
+    globalMemFence(temp, r0_info, strategy);
     if (hw < HW::Gen12LP) mov<uint32_t>(8, null, temp);
     barrier(temp, r0_info);
 }
@@ -2181,7 +2216,7 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
             auto smode = astrategy.smode;
 
             if (block.colMajor) {
-                Y = R;
+                Y = r;
                 X = C;
                 yblock = &rblock;
                 xblock = &cblock;
@@ -2193,7 +2228,7 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                 tileX = atype.tileC;
             } else {
                 X = R;
-                Y = C;
+                Y = c;
                 xblock = &rblock;
                 yblock = &cblock;
                 maxXBlock = maxRBlock;
@@ -2260,7 +2295,9 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
             }
 
             // Try to fit a native matrix block size to X and Y.
-            auto slots = std::min(Y, maxYBlock) * consecutive / uncrosspack;
+            auto logicalSlots
+                    = std::min(Y, maxYBlock) * consecutive / uncrosspack;
+            auto slots = roundup_pow2(logicalSlots);
             if (prefetch) {
                 // Prefetch only: maximize Y usage.
                 block.simdSize = maxSIMD;
@@ -2274,8 +2311,8 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                 // Otherwise, try to maximize Y usage (larger SIMD, worse memory access).
                 block.simdSize = maxSIMD;
             }
-            block.simdSize
-                    = std::min<int>(block.simdSize, rounddown_pow2(slots));
+            block.simdSize = slots = std::min<int>(block.simdSize, slots);
+            logicalSlots = std::min<int>(block.simdSize, logicalSlots);
 
             bool no8x8DW = isGen12;
             bool no16x4QW = false;
@@ -2314,7 +2351,7 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
             *xblock = std::min<int>(X, maxXBlock);
             block.count = *xblock;
 
-            *yblock = block.simdSize * uncrosspack / consecutive;
+            *yblock = logicalSlots * uncrosspack / consecutive;
             if (tileY > 0 && tileY < *yblock) stub();
 
             if (prefetch)
@@ -2338,6 +2375,12 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                 vymask.maskRep = 1;
                 vymask.rsize = *yblock;
                 vymask.rdivide = 1;
+            } else if (logicalSlots < slots) {
+                auto &fymask = block.colMajor ? block.rowMask.fixed
+                                              : block.colMask.fixed;
+                fymask.isFixed = true;
+                fymask.rsize = *yblock;
+                fymask.value = (uint32_t(1) << logicalSlots) - 1;
             }
 
             // X remainders require fragmenting. Channel scattered float doesn't need complete fragmenting.
@@ -2665,8 +2708,8 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
 
             bool memCM = block.colMajor;
             block.colMajor ^= transpose;
-            auto X = memCM ? R : C;
-            auto Y = memCM ? C : R;
+            auto X = memCM ? r : c;
+            auto Y = memCM ? c : r;
             auto &xblock = memCM ? rblock : cblock;
             auto &yblock = memCM ? cblock : rblock;
             auto maxXBlock = memCM ? maxRBlock : maxCBlock;
@@ -2680,8 +2723,6 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                 if (atype.alignment % 4) hw_unsupported();
                 if (Tblock.size() > 8) hw_unsupported();
                 if (Tblock.size() > 4) {
-                    if (hw == HW::XeHPC && getStepping() < SteppingPVCXTB0)
-                        hw_unsupported();
                     Tblock = Type::u64;
                     maxXBlock = std::min(maxXBlock, 4);
                     maxYBlock = 8;
@@ -2690,12 +2731,14 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                     maxXBlock = std::min(maxXBlock, (8 * Tblock) / T);
                 }
             } else if (vnni) {
-                if (atype.alignment % 8) hw_unsupported();
+                if (atype.alignment % (astrategy.prefetch ? 4 : 8))
+                    hw_unsupported();
                 if (Tblock.size() >= 4) hw_unsupported();
                 if ((Y * Tblock) % 4) hw_unsupported();
                 maxXBlock = std::min(maxXBlock, 16);
             } else {
-                if (atype.alignment % 8) hw_unsupported();
+                if (atype.alignment % (astrategy.prefetch ? 4 : 8))
+                    hw_unsupported();
                 if (Tblock.size() > 8) Tblock = Type::u64;
                 block.crosspack = atype.crosspack;
             }
@@ -3137,6 +3180,19 @@ bool gemm_kernel_generator_t<hw>::getSubblocks(Type T,
             column, x1, x2, overrunOK, atype, astrategy);
 }
 
+// Update block 2D width/height/count parameters as needed after cloning an address register.
+template <HW hw>
+void gemm_kernel_generator_t<hw>::updateBlock2DSizes(GRF addr,
+        const RegisterBlock &dst, const RegisterBlock &src,
+        const MatrixAddressing &atype) {
+    int bw, bh;
+    getBlock2DWH(bw, bh, atype, dst);
+
+    if (dst.nr != src.nr || dst.nc != src.nc || dst.count != src.count)
+        mov(1, addr.ud(7),
+                (bw - 1) | ((bh - 1) << 8) | ((dst.count - 1) << 16));
+}
+
 // Adjust address registers as needed for a newly-created subblock.
 template <HW hw>
 void gemm_kernel_generator_t<hw>::adjustSubblockAddrs(Type T,
@@ -3208,11 +3264,8 @@ void gemm_kernel_generator_t<hw>::adjustSubblockAddrs(Type T,
                          : mov(1, subaddr[0].ud(3), newH);
                 }
             }
-            if (subblock.nr != block.nr || subblock.nc != block.nc
-                    || subblock.count != block.count)
-                mov(1, subaddr[0].ud(7),
-                        (bw - 1) | ((bh - 1) << 8)
-                                | ((subblock.count - 1) << 16));
+
+            updateBlock2DSizes(subaddr[0], subblock, block, atype);
         }
     }
 }
@@ -3926,6 +3979,8 @@ static bool matchLayouts(Type T, vector<RegisterBlock> &layout,
 
     if (getRegCount(layoutRef) >= 256) return false;
 
+    int lastByteAdjust = 0;
+
     for (auto &nblock : nlayout) {
         int nelems;
         const RegisterBlock *blockRef;
@@ -3951,18 +4006,29 @@ static bool matchLayouts(Type T, vector<RegisterBlock> &layout,
         auto RegisterBlock::*ny
                 = nblock.colMajor ? &RegisterBlock::nc : &RegisterBlock::nr;
 
+        if (nblock.*nx > blockRef->*nx) return false;
+        if (nblock.*ny > blockRef->*ny) return false;
+
+        //  5. Are the leading dimensions and padding compatible?
         if (nblock.*nx < blockRef->*nx) {
-            if (nblock.*ny > 1) return false;
-        } else if (nblock.*nx == blockRef->*nx) {
-            if (nblock.*ny > blockRef->*ny) return false;
-        } else
+            if (nblock.*ny > nblock.crosspack) return false;
+            if (nblock.*ny < nblock.crosspack && nblock.*ny < blockRef->*ny)
+                return false;
+        }
+
+        if (nblock.*ny > nblock.crosspack && (nblock.ld != blockRef->ld))
             return false;
 
-        if (nblock.*ny > 1 && (nblock.ld != blockRef->ld)) return false;
-
-        // It's compatible. Point this register block where it belongs.
-        nblock.offsetBytes
+        // Point this register block where it belongs.
+        auto newOffsetBytes
                 = (sr.getBase() << nblock.log2GRFBytes) + sr.getByteOffset();
+        auto byteAdjust = newOffsetBytes - nblock.offsetBytes;
+
+        // No-load blocks need to stay with their parent blocks.
+        if (nblock.simdSize == 0 && byteAdjust != lastByteAdjust) return false;
+
+        nblock.offsetBytes = newOffsetBytes;
+        lastByteAdjust = byteAdjust;
     }
 
     std::swap(nlayout, layout);
@@ -3993,12 +4059,7 @@ bool gemm_kernel_generator_t<hw>::upgradeLayoutToBlock2D(Type T,
     bool transpose = isTransposing(astrategy.accessType);
     bool regCM = isLayoutColMajor(layoutSrc);
 
-    if (transpose) {
-        if (sizeof(T) == 8) {
-            if (getStepping() < SteppingPVCXTB0) return false;
-        } else if (sizeof(T) != 4)
-            return false;
-    }
+    if (transpose && !one_of(sizeof(T), 4u, 8u)) return false;
 
     int r0 = -1, c0 = -1, b0 = -1;
     int nr = 0, nc = 0;
@@ -4066,6 +4127,8 @@ static bool allocateTokens(const vector<RegisterBlock> &layout,
     auto saveTA = state.tokenAllocator;
 
     for (size_t l = 0; l < layout.size(); l++) {
+        if (!layout[l].isLoadBlock()) continue;
+
         auto token = state.tokenAllocator.tryAlloc();
         if (token < 0)
             success = false;
@@ -4444,7 +4507,7 @@ void gemm_kernel_generator_t<hw>::loadMatrix(const GRFMultirange &dest,
         const vector<RegisterBlock> &layout, const MatrixAddressing &atype,
         const MatrixAddressingStrategy &astrategy,
         const vector<GRFRange> &addrs, const CommonStrategy &strategy,
-        CommonState &state, bool zeroMask) {
+        CommonState &state, bool readCheck) {
     auto nblocks = int(layout.size());
     if (nblocks == 0) return;
 
@@ -4460,7 +4523,7 @@ void gemm_kernel_generator_t<hw>::loadMatrix(const GRFMultirange &dest,
         auto offsetReg = contiguityCheck(hw, layout[l], dest);
         prepareSeriesRegisterBlockMasking(layout, state, l);
         loadMatrixBlock(dest[offsetReg], layout[l], atype, astrategy, addrs[l],
-                strategy, state, zeroMask, true);
+                strategy, state, readCheck, true);
     }
 
     finishRegisterBlockMasking(state);
@@ -4471,7 +4534,7 @@ template <HW hw>
 void gemm_kernel_generator_t<hw>::loadMatrixBlock(const Register &dest,
         const RegisterBlock &block, const MatrixAddressing &atype,
         const MatrixAddressingStrategy &astrategy, const GRFRange &addr,
-        const CommonStrategy &strategy, CommonState &state, bool zeroMask,
+        const CommonStrategy &strategy, CommonState &state, bool readCheck,
         bool series) {
     InstructionModifier maskMod;
     InstructionModifier mod = block.simdSize;
@@ -4566,12 +4629,6 @@ void gemm_kernel_generator_t<hw>::loadMatrixBlock(const Register &dest,
                             astrategy.base, addr);
                 else
                     hw_unsupported();
-                if (zeroMask && (astrategy.base.getModel() == ModelBTS)) {
-                    if (flag.isValid())
-                        mov<uint32_t>(block.simdSize | ~maskMod, dest, 0);
-                    if (block.simdSize <= 2) mov<uint32_t>(2, dest[2](1), 0);
-                    if (block.simdSize <= 1) mov<uint32_t>(1, dest[1], 0);
-                }
                 break;
             default: stub();
         }
@@ -5376,7 +5433,7 @@ void gemm_kernel_generator_t<hw>::doneShift(const SubregisterPair &ptr,
     if (shift > 0) doneShift(ptr.getReg(0), ptrShifted.getReg(0), shift, state);
 }
 
-static inline bool canIncAddr(const RegisterBlock &blockSrc,
+static inline bool canRelAddr(const RegisterBlock &blockSrc,
         const RegisterBlock &blockDst, const MatrixAddressing &atype,
         const MatrixAddressingStrategy &astrategy) {
     if (!blockSrc.isLoadBlock() || !blockDst.isLoadBlock()) return false;
@@ -5384,8 +5441,6 @@ static inline bool canIncAddr(const RegisterBlock &blockSrc,
             && effectiveAccessType(atype, astrategy, blockSrc)
                     == AccessType::Block)
         return true;
-    if (isBlock2D(astrategy.accessType))
-        return (blockSrc.nr == blockDst.nr && blockSrc.nc == blockDst.nc);
     return (blockSrc.simdSize >= blockDst.simdSize);
 }
 
@@ -5772,6 +5827,9 @@ void gemm_kernel_generator_t<hw>::setupAddrRel(Type T, const GRFRange &addrDst,
         offsetAddr(addrDst, addrSrc, blockDst, blockSrc, offsetFixed, offsetLD,
                 ld, atype, astrategy, strategy, state, ldMultiples);
     }
+
+    if (isBlock2D(astrategy.accessType))
+        updateBlock2DSizes(addrDst, blockDst, blockSrc, atype);
 }
 
 static inline int findBaseBlock(const RegisterBlock &block,
@@ -5781,7 +5839,7 @@ static inline int findBaseBlock(const RegisterBlock &block,
     int bbase = -1;
     for (int bb = start; bb < end; bb++) {
         auto &other = layout[bb];
-        if (canIncAddr(other, block, atype, astrategy)) {
+        if (canRelAddr(other, block, atype, astrategy)) {
             if (bbase < 0) bbase = bb;
             if (other.offsetR == block.offsetR
                     || other.offsetC == block.offsetC)
@@ -6323,13 +6381,6 @@ static inline SystolicParams systolicParams(
     params.ksys = params.sdepth * params.opsPerChan;
     params.osys = GRF::bytes(hw) / std::max(problem.Tc.real().size(), 4);
     params.rcountMax = 8;
-
-    if (hw == HW::XeHPC) {
-        // Workaround for src2 read suppression bug (TODO PVC-B: remove WA)
-        bool cColMajor = isRegisterColMajor(problem.Tc, problem.C, strategy.C);
-        if (strategy.unroll[cColMajor ? LoopN : LoopM] == 8)
-            params.rcountMax = 4;
-    }
 
     return params;
 }
@@ -6898,8 +6949,7 @@ void gemm_kernel_generator_t<hw>::outerProductSystolic(int h, int ha, int hb,
             : 0;
     bool rsFix = (strategy.readSuppressionWA
             && hasMasking(globalCM ? A_layout : B_layout));
-    bool canAtomicNon8x8
-            = (hw >= HW::XeHPC) && (getStepping() >= SteppingPVCXTB0);
+    bool canAtomicNon8x8 = (hw >= HW::XeHPC);
 
     bool sum = globalCM ? state.systolicSumA : state.systolicSumB;
 
@@ -6942,9 +6992,11 @@ void gemm_kernel_generator_t<hw>::outerProductSystolic(int h, int ha, int hb,
                     rsFix = false;
                 }
 
-                if (strategy.atomicFMA)
+                if (strategy.atomicFMA) {
                     if (!(last && (rc2 == rcount)))
                         if (rc == 8 || canAtomicNon8x8) mod |= Atomic;
+                    if (rc != 8 && strategy.extendedAtomicFMA) hw_unsupported();
+                }
 
                 useDPASW ? dpasw(mod, sdepth, rc, C0, C0, V0, N0)
                          : dpas(mod, sdepth, rc, C0, C0, V0, N0);
@@ -7542,7 +7594,8 @@ void gemm_kernel_generator_t<hw>::updateCLayout(
     }
 
     // Re-claim all the C registers we freed, so as not to disturb the caller's RegisterAllocator.
-    reclaimRanges(state.C_regs[0], state);
+    for (int b = 0; b < state.C_buffers; b++)
+        reclaimRanges(state.C_regs[b], state);
 #undef FOR_EACH_C
 }
 
@@ -8647,25 +8700,13 @@ bool gemm_kernel_generator_t<hw>::gemmPrepMaskedAB(
 template <HW hw>
 bool gemm_kernel_generator_t<hw>::gemmBody(
         GEMMProblem problem, GEMMStrategy strategy, GEMMState state) {
-    bool a2D = strategy.A.address2D;
-    bool b2D = strategy.B.address2D;
-    bool c2D = strategy.C.address2D;
-
     // Record whether we are in the first row/column for fused sum kernels.
     if (problem.sumA || problem.sumB) {
         if (problem.sumA && problem.sumB) stub();
-        auto &flags = state.inputs.flags;
         auto &y0 = problem.sumA ? state.j0 : state.i0;
-
-        if (flags.isInvalid()) {
-            flags = state.ra.alloc_sub<uint32_t>(
-                    getHint(HintType::LongTerm, strategy));
-            cmp(1 | eq | state.flagAP, flags, y0, 0);
-            and_(1, flags, flags, FlagStoreSums);
-        } else {
-            cmp(1 | eq | state.flagAP, y0, 0);
-            or_(1 | state.flagAP, flags, flags, FlagStoreSums);
-        }
+        cmp(1 | eq | state.flagAP, y0, 0);
+        or_(1 | state.flagAP, state.inputs.flags, state.inputs.flags,
+                FlagStoreSums);
     }
 
     // Out-of-bounds panel checks.
@@ -8683,11 +8724,18 @@ bool gemm_kernel_generator_t<hw>::gemmBody(
     }
 
     // Release variables that are no longer needed.
-    bool saveIJ0 = false;
+    bool saveIJ0 = false, saveH0 = false;
+    bool a2D = strategy.A.address2D
+            || (strategy.prefetchA && strategy.A_prefetch.address2D);
+    bool b2D = strategy.B.address2D
+            || (strategy.prefetchB && strategy.B_prefetch.address2D);
+    bool c2D = strategy.C.address2D
+            || (strategy.prefetchC && strategy.C_prefetch.address2D);
     saveIJ0 |= problem.hasBinaryPostOp();
+    saveH0 |= (strategy.kParallelVariable && strategy.fuseBeta);
     if (!a2D && !c2D && !saveIJ0) state.ra.safeRelease(state.i0);
     if (!b2D && !c2D && !saveIJ0) state.ra.safeRelease(state.j0);
-    if (!a2D && !b2D) state.ra.safeRelease(state.h0);
+    if (!a2D && !b2D && !saveH0) state.ra.safeRelease(state.h0);
     if (!strategy.altCRemainder && !strategy.block2DCRemainder)
         releaseFusedRemainders(state);
     state.ra.safeRelease(state.remaindersWG[LoopM]);
@@ -9882,6 +9930,23 @@ void gemm_kernel_generator_t<hw>::gemmBetaScale(const GEMMProblem &problem,
                                   : mul(esize, acc, acc,
                                           betar.getRegAvoiding(hw, acc));
                 });
+
+        if (problem.sumA || problem.sumB) {
+            auto Tc = problem.Tc;
+            auto &Xs_regs = problem.sumA ? state.As_regs : state.Bs_regs;
+            auto &Xs_layout = problem.sumA ? state.As_layout : state.Bs_layout;
+
+            int Xs_nregs = getRegCount(Xs_layout);
+            auto Xs_usedRegs = Xs_regs.subrange(0, Xs_nregs);
+
+            map(hw, Tc.real(), Xs_usedRegs, Xs_usedRegs, strategy,
+                    [&](int esize, GRF acc, GRF _) {
+                        betar.fixed()
+                                ? mul(esize, acc, acc, cast(Tc.real(), betar))
+                                : mul(esize, acc, acc,
+                                        betar.getRegAvoiding(hw, acc));
+                    });
+        }
     }
 
     gemmConvertC(problem.Tc, problem, strategy, state);
@@ -10487,8 +10552,9 @@ void gemm_kernel_generator_t<hw>::gemmApplyABOffset(const GEMMProblem &problem,
 
 // Store A/B sum data into CO.
 template <HW hw>
-void gemm_kernel_generator_t<hw>::gemmUpdateSums(const GEMMProblem &problem,
-        const GEMMStrategy &strategy, GEMMState &state) {
+void gemm_kernel_generator_t<hw>::gemmAccessSums(COperation op,
+        const GEMMProblem &problem, const GEMMStrategy &strategy,
+        GEMMState &state) {
     bool sumA = problem.sumA, sumB = problem.sumB;
 
     if (!sumA && !sumB) return;
@@ -10499,8 +10565,9 @@ void gemm_kernel_generator_t<hw>::gemmUpdateSums(const GEMMProblem &problem,
     auto cor = sumA ? strategy.unroll[LoopM] : 1;
     auto coc = sumB ? strategy.unroll[LoopN] : 1;
     bool atomic = strategy.CO.atomic;
-    bool checkBeta0 = problem.checkBeta0 && !problem.beta_real.fixed();
-    bool checkBeta1 = atomic && !problem.beta1();
+    bool loadOnly = (op == COperation::Load);
+    bool load = (op != COperation::Store && !problem.beta0()
+            && !(problem.beta1() && atomic));
 
     auto CO = problem.CO;
     auto CO_strategy = strategy.CO;
@@ -10509,7 +10576,6 @@ void gemm_kernel_generator_t<hw>::gemmUpdateSums(const GEMMProblem &problem,
     std::vector<MaskAssignment> masks;
     GRFMultirange CO_regs;
     CO_strategy.accessType = AccessType::Block;
-    FlagRegister flagBeta0;
 
     auto &Xs_regs = sumA ? state.As_regs : state.Bs_regs;
     auto &Xs_layout = sumA ? state.As_layout : state.Bs_layout;
@@ -10530,17 +10596,9 @@ void gemm_kernel_generator_t<hw>::gemmUpdateSums(const GEMMProblem &problem,
 
     bool share = (Tc == Tco) && matchLayouts(Tc, CO_layout, Xs_layout);
 
-    Label skipStore;
+    Label noAccess;
     and_(16 | ne | state.flagAP, null.ud(), state.inputs.flags, FlagStoreSums);
-    if_(16 | state.flagAP, skipStore);
-
-    if (checkBeta0) {
-        flagBeta0 = state.raVFlag.alloc();
-        cmp0(1 | eq | flagBeta0, problem.beta_real.getReg(0));
-    }
-    if (checkBeta1)
-        cmp(1 | eq | state.flagAP, problem.beta_real.getReg(0),
-                cast(problem.Ts, 1.0));
+    if_(16 | state.flagAP, noAccess);
 
     allocAddrRegs(CO_addrs, CO_layout, CO, CO_strategy, state);
     setupAddr(Tco, CO_addrs, state.effCO, CO_layout, Subregister(), CO,
@@ -10551,53 +10609,42 @@ void gemm_kernel_generator_t<hw>::gemmUpdateSums(const GEMMProblem &problem,
 
     loadMasks(masks, state.remainders, strategy, state);
 
-    if (!problem.alpha1())
-        map(hw, Tc, Xs_usedRegs, Xs_usedRegs, strategy,
-                [&](int esize, GRF acc, GRF _) {
-                    auto &alphar = problem.alpha_real;
-                    alphar.fixed()
-                            ? mul(esize, acc, acc, cast(Tc.real(), alphar))
-                            : mul(esize, acc, acc,
-                                    alphar.getRegAvoiding(hw, acc));
-                });
+    if (load) {
+        GRFMultirange CO_regsLoad, CO_regsLoadConv;
 
-    if (!problem.beta0() && !(problem.beta1() && atomic)) {
-        Label lSkipUpdate;
-        auto CO_regsLoad = state.ra.alloc_range(getRegCount(CO_layout));
-        auto CO_regsLoadConv = CO_regsLoad;
-
-        if (checkBeta0) jmpi(1 | flagBeta0, lSkipUpdate);
-        if (checkBeta1) jmpi(1 | state.flagAP, lSkipUpdate);
+        if (loadOnly) {
+            CO_regsLoadConv = CO_regsLoad = Xs_usedRegs;
+            if (!share)
+                CO_regsLoad = state.ra.alloc_range(getRegCount(CO_layout));
+        } else {
+            CO_regsLoadConv = CO_regsLoad
+                    = state.ra.alloc_range(getRegCount(CO_layout));
+            if (!share) CO_regsLoadConv = state.ra.alloc_range(Xs_nregs);
+        }
 
         loadMatrix(CO_regsLoad, CO_layout, CO, CO_strategy, CO_addrs, strategy,
                 state);
-
-        if (!share) {
-            CO_regsLoadConv = state.ra.alloc_range(Xs_nregs);
+        if (!share)
             copyRegisters(Tco, Tc, CO_layout, Xs_layout, CO_regsLoad,
                     CO_regsLoadConv, 0, 0, false, strategy, state);
-        }
 
         auto &betar = problem.beta_real;
 
-        map(hw, Tc, Xs_usedRegs, CO_regsLoadConv, strategy,
-                [&](int esize, GRF acc, GRF loaded) {
-                    if (betar == 1)
-                        add(esize, acc, acc, loaded);
-                    else if (betar.fixed())
-                        mad(esize, acc, acc, loaded, cast(Tc.real(), betar));
-                    else
-                        mad(esize, acc, acc, loaded,
-                                betar.getRegAvoiding(hw, acc));
-                });
+        if (!loadOnly)
+            map(hw, Tc, Xs_usedRegs, CO_regsLoadConv, strategy,
+                    [&](int esize, GRF acc, GRF loaded) {
+                        if (betar == 1)
+                            add(esize, acc, acc, loaded);
+                        else if (betar.fixed())
+                            mad(esize, acc, acc, loaded,
+                                    cast(Tc.real(), betar));
+                        else
+                            mad(esize, acc, acc, loaded,
+                                    betar.getRegAvoiding(hw, acc));
+                    });
 
-        state.ra.safeRelease(CO_regsLoad);
-        if (!share) state.ra.safeRelease(CO_regsLoadConv);
-
-        if (checkBeta0 || checkBeta1) {
-            state.wipeActiveVFlags();
-            mark(lSkipUpdate);
-        }
+        if (!loadOnly) safeReleaseRanges(CO_regsLoadConv, state);
+        if (!share) safeReleaseRanges(CO_regsLoad, state);
     }
 
     if (!share) {
@@ -10609,40 +10656,21 @@ void gemm_kernel_generator_t<hw>::gemmUpdateSums(const GEMMProblem &problem,
 
     auto &effCO_regs = share ? Xs_regs : CO_regs;
     if (atomic) {
-        Label lStore, lDone;
-        if (checkBeta1) {
-            if (!CO_strategy.base.isStateless() && !CO_strategy.newDP)
-                stub(); /* need to shift addresses */
-            jmpi(1 | ~state.flagAP, lStore);
-        }
         allocEAtomicAddRegs(
                 hw, Tco, CO_layout, CO, CO_strategy, state, state.flagAP);
         atomicAddMatrix(Tco, effCO_regs, CO_layout, CO, CO_strategy, CO_addrs,
                 problem, strategy, state);
         freeEAtomicAddRegs(state, state.flagAP);
-        if (checkBeta1) {
-            state.wipeActiveVFlags();
-            jmpi(1, lDone);
-            mark(lStore);
-            storeMatrix(effCO_regs, CO_layout, CO, CO_strategy, CO_addrs,
-                    strategy, state);
-            mark(lDone);
-        }
     } else
         storeMatrix(effCO_regs, CO_layout, CO, CO_strategy, CO_addrs, strategy,
                 state);
 
-    mark(skipStore);
+    mark(noAccess);
     endif(16);
 
     safeReleaseMaskAssignments(masks, state);
 
     if (!share) safeReleaseRanges(CO_regs, state);
-    safeReleaseRanges(state.As_regs, state);
-    safeReleaseRanges(state.Bs_regs, state);
-    state.raVFlag.safeRelease(flagBeta0);
-    state.As_layout.clear();
-    state.Bs_layout.clear();
 }
 
 // Generate code for summing C across k dimension through SLM.
@@ -10907,9 +10935,7 @@ void gemm_kernel_generator_t<hw>::gemmFusedBetaPOInit(
 
     if (strategy.fuseBeta) {
         auto header = state.ra.alloc_range(2);
-        auto &data = state.betaCheckReturn;
-
-        data = state.ra.alloc().ud();
+        auto data = state.ra.alloc_range(2);
         addr = state.ra.alloc_sub<uint64_t>(
                 getHint(HintType::LongTerm, strategy));
 
@@ -10921,18 +10947,24 @@ void gemm_kernel_generator_t<hw>::gemmFusedBetaPOInit(
         if (strategy.altFusedBeta && strategy.kParallel)
             cmp(1 | eq | f0[1], null.ud(), state.inputs.groupIDK, 0);
 
-        /* Regular mode: group leader does atomic OR to set bit 0 of flag.
-           If bit 0 was previously unset, beta check is our responsibility. */
+        /* Group leader check, cont'd. */
+        if (strategy.kParallelLocal)
+            cmp(1 | f0[0] | ze | f0[0], null.uw(), state.lidK, 0);
+
+        /* Regular mode: group leader does cmpxchg to change counter from 0 -> -1.
+           If successful, beta check is our responsibility. */
         shl(1, header[0].ud(2), groupID, log2(strategy.statusFlagStride()));
-        mov(1, data, 1);
+        mov<int32_t>(1, data[0], 0);
+        mov<int32_t>(1, data[1], -256);
         eadd(1, header[0].uq(0), state.inputs.statusBuffer, header[0].ud(2),
                 strategy, state);
         or_(1 | f0[0], state.inputs.flags, state.inputs.flags, FlagLeader);
         if (!strategy.altFusedBeta) {
             if (hw >= HW::XeHPG)
-                atomic(AtomicOp::or_, 1 | f0[0], data, D32, A64, header, data);
+                atomic(AtomicOp::cmpwr, 1 | f0[0], data, D32, A64, header,
+                        data);
             else
-                atomic(AtomicOp::or_, 1 | f0[0], data, scattered_dword(), A64,
+                atomic(AtomicOp::cmpwr, 1 | f0[0], data, scattered_dword(), A64,
                         header, data);
         }
         emov(1, addr, header[0].uq(0), strategy, state);
@@ -10940,12 +10972,18 @@ void gemm_kernel_generator_t<hw>::gemmFusedBetaPOInit(
             or_(1 | f0[1], state.inputs.flags, state.inputs.flags, FlagDidBeta);
 
         state.ra.safeRelease(header);
+
+        state.betaCheckReturn = data[0].d();
+        state.ra.safeRelease(data);
+        state.ra.claim(state.betaCheckReturn);
     } else if (strategy.fusePostOps) {
         addr = state.ra.alloc_sub<uint64_t>(
                 getHint(HintType::LongTerm, strategy));
 
         add(1 | ze | f0[0], null.uw(), state.lidM, state.lidN);
         shl(1, addr.ud(), groupID, log2(strategy.statusFlagStride()));
+        if (strategy.kParallelLocal)
+            cmp(1 | f0[0] | ze | f0[0], null.uw(), state.lidK, 0);
         or_(1 | f0[0], state.inputs.flags, state.inputs.flags, FlagLeader);
         eadd(1, addr, state.inputs.statusBuffer, addr.ud(), strategy, state);
     }
@@ -11029,9 +11067,10 @@ void gemm_kernel_generator_t<hw>::gemmFusedBetaScale(
     cmp(simt | le | f1[1], state.remainders[LoopN], uint16_t(0));
 
     // Skip beta scaling if we weren't elected to the job.
-    cmp(1 | ne | f1[0], state.betaCheckReturn, 0);
-    and_(1 | nz | f0[0], null.ud(), state.betaCheckReturn,
-            2); /* Is beta scaling complete? */
+    cmp(1 | ne | f1[0], state.betaCheckReturn,
+            0); /* Is beta scaling started?  */
+    cmp(1 | gt | f0[0], state.betaCheckReturn,
+            0); /* Is beta scaling complete? */
     jmpi(1 | f1[0], lNoScale);
 
     state.ra.safeRelease(state.betaCheckReturn);
@@ -11048,7 +11087,7 @@ void gemm_kernel_generator_t<hw>::gemmFusedBetaScale(
     auto &betar = problem.beta_real;
     bool checkBeta0 = !betar.fixed();
 
-    for (auto *s : {&strategy.C, &state.Cext_strategy}) {
+    for (auto *s : {&strategy.C, &strategy.CO, &state.Cext_strategy}) {
         s->atomic = false;
         s->cachingW = CacheSettingsLSC::L1UC_L3WB;
     }
@@ -11080,7 +11119,8 @@ void gemm_kernel_generator_t<hw>::gemmFusedBetaScale(
 
         if (state.useTempC) {
             gemmRedirectToTempC(modProblem, modStrategy, modState);
-            for (auto *s : {&modStrategy.C, &modState.Cext_strategy}) {
+            for (auto *s : {&modStrategy.C, &modStrategy.CO,
+                         &modState.Cext_strategy}) {
                 s->atomic = false;
                 s->cachingW = CacheSettingsLSC::L1UC_L3WB;
             }
@@ -11110,6 +11150,8 @@ void gemm_kernel_generator_t<hw>::gemmFusedBetaScale(
         }
 
         zeroMatrix(modState.C_regs[0], strategy);
+        if (problem.sumA) zeroMatrix(modState.As_regs, strategy);
+        if (problem.sumB) zeroMatrix(modState.Bs_regs, strategy);
         gemmAccessC(COperation::Store, modProblem, modStrategy, modState);
     }
 
@@ -11119,7 +11161,8 @@ void gemm_kernel_generator_t<hw>::gemmFusedBetaScale(
     auto lastC = lastCRange[lastCRange.getLen() - 1];
 
     useR0(state, [&](GRF r0_info) {
-        memfence(lastC, r0_info); /* Zeroing C will synchronize on this */
+        globalMemFence(lastC, r0_info,
+                strategy); /* Zeroing C will synchronize on this */
     });
 
     mark(lNoScale);
@@ -11137,6 +11180,30 @@ void gemm_kernel_generator_t<hw>::gemmFusedBetaScale(
     std::swap(nested, state.isNested);
 }
 
+// Calculate number of non-scaling WGs for a C tile.
+template <HW hw>
+void gemm_kernel_generator_t<hw>::gemmFusedBetaCalcWGCount(
+        const Subregister &count, const GEMMProblem &problem,
+        const GEMMStrategy &strategy, GEMMState &state) {
+    if (strategy.kParallelVariable) {
+        /* Count workgroups before this one. */
+        divUp(count, state.h0, state.inputs.k0, state.inputs.k0Recip,
+                state.flagAP, strategy, state);
+        if (!strategy.altFusedBeta) {
+            /* Count workgroups after this one. TODO: vectorize divide. */
+            auto temp = state.ra.alloc_sub<uint32_t>();
+            auto temp2 = state.ra.alloc_sub<uint32_t>();
+            eadd3(1 | sat, temp2, state.fullK, -state.h0, -state.wgK);
+            divUp(temp, temp2, state.inputs.k0, state.inputs.k0Recip,
+                    state.flagAP, strategy, state);
+            add(1, count, count, temp);
+            state.ra.safeRelease(temp2);
+            state.ra.safeRelease(temp);
+        }
+    } else
+        add(1, count, state.inputs.groupCountK, -1);
+}
+
 // Notify other threads that beta scaling is complete for this tile.
 template <HW hw>
 void gemm_kernel_generator_t<hw>::gemmFusedBetaNotifyCompletion(
@@ -11152,30 +11219,37 @@ void gemm_kernel_generator_t<hw>::gemmFusedBetaNotifyCompletion(
            << status_stream::endl;
 
     and_(1 | nz | state.flagAP, null.ud(), state.inputs.flags, FlagDidBeta);
+    if (strategy.kParallelVariable)
+        and_(1 | nz | f1[0], null.ud(), state.inputs.flags, FlagKPartitioned);
     jmpi(1 | ~state.flagAP, lSkipNotify);
+    if (strategy.kParallelVariable) jmpi(1 | ~f1[0], lSkipNotify);
 
     useTempAndR0(state, [&](GRF temp, GRF r0_info) {
         if (strategy.altFusedBeta)
-            memfence(temp, r0_info);
+            globalMemFence(temp, r0_info, strategy);
         else if (hw >= HW::Gen11)
             slmfence(temp, r0_info);
+
+        gemmFusedBetaCalcWGCount(data.ud(0), problem, strategy, state);
+
         if (hw < HW::Gen12LP) mov<uint32_t>(8, null, temp);
         barriersignal(temp, r0_info);
     });
 
     and_(1 | nz | state.flagAP, null.ud(), state.inputs.flags, FlagLeader);
     emov(1, header[0].uq(0), addr, strategy, state);
-    mov(1, data, 2);
 
     barrierwait();
 
     if (hw >= HW::XeHPG)
-        atomic(AtomicOp::or_, 1 | state.flagAP, D32, A64, header, data);
-    //store(1 | state.flagAP, D32 | CacheSettingsLSC::L1UC_L3WB, A64, header, data);
+        store(1 | state.flagAP, D32 | CacheSettingsLSC::L1UC_L3WB, A64, header,
+                data);
+    else if (hw == HW::XeHP)
+        atomic(AtomicOp::mov, 1 | state.flagAP, scattered_dword(), A64, header,
+                data);
     else
-        atomic(AtomicOp::or_, 1 | state.flagAP, scattered_dword(), A64, header,
+        store(1 | state.flagAP, scattered_dword(), A64, header,
                 data); /* no L1 */
-    //store(1 | state.flagAP, scattered_dword(), A64, header, data);     /* no L1 */
 
     state.ra.safeRelease(header);
     state.ra.safeRelease(data);
@@ -11188,7 +11262,8 @@ template <HW hw>
 void gemm_kernel_generator_t<hw>::gemmFusedBetaWaitCompletion(
         const GEMMProblem &problem, const GEMMStrategy &strategy,
         GEMMState &state) {
-    Label lSkipCheck, lCheckAgain, lCheckDone;
+    Label lSkipCheck, lCheckAgain, lFinalDec, lCheckDone;
+    bool checkIfEnabled = strategy.kParallelVariable;
 
     auto header = state.ra.alloc().uq();
     auto data = state.ra.alloc().ud();
@@ -11196,31 +11271,56 @@ void gemm_kernel_generator_t<hw>::gemmFusedBetaWaitCompletion(
 
     status << "Wait for beta scaling" << status_stream::endl;
 
-    and_(1 | nz | f1[0], null.ud(), state.inputs.flags,
-            FlagDidBeta | FlagSkipBetaCheck);
+    and_(1 | nz | f1[0], null.ud(), state.inputs.flags, FlagDidBeta);
+    if (checkIfEnabled)
+        and_(1 | ze | f1[1], null.ud(), state.inputs.flags, FlagKPartitioned);
     and_(1 | nz | state.flagAP, null.ud(), state.inputs.flags, FlagLeader);
+    if (strategy.fuseBeta && !strategy.altFusedBeta)
+        and_(1 | nz | f0[1], null.ud(), state.inputs.flags, FlagSkipBetaCheck);
+
     emov(1, header, addr, strategy, state);
-    mov(1, data, 0);
 
     jmpi(1 | f1[0],
             lSkipCheck); /* If we did beta scaling ourselves, no need to check */
+    if (checkIfEnabled)
+        jmpi(1 | f1[1], lSkipCheck); /* C tile isn't shared; no need to check */
     jmpi(1 | ~state.flagAP,
             lCheckDone); /* Followers wait for leader to check */
+    if (strategy.fuseBeta && !strategy.altFusedBeta)
+        jmpi(1 | f0[1],
+                lFinalDec); /* If beta scaling known to be complete, just decrement counter */
+
+    if (hw >= HW::XeHPG)
+        atomic(AtomicOp::dec, 1, data, D32 | CacheSettingsLSC::L1UC_L3C, A64,
+                header);
+    else
+        atomic(AtomicOp::dec, 1, data, scattered_dword(), A64, header);
+
+    cmp(1 | gt | state.flagAP, data.d(), 0);
+    jmpi(1 | state.flagAP, lCheckDone);
 
     mark(lCheckAgain);
 
     if (hw >= HW::XeHPG)
         load(1, data, D32 | CacheSettingsLSC::L1UC_L3C, A64, header);
-    else if (hw >= HW::XeLP)
+    else if (hw >= HW::XeHP) {
+        mov(1, data, 0);
         atomic(AtomicOp::or_, 1, data, scattered_dword(), A64, header, data);
-    else
+    } else
         load(1, data, scattered_dword(), A64, header); /* no L1 */
 
-    and_(1 | nz | state.flagAP, data, data, 2);
-    jmpi(1 | state.flagAP, lCheckDone);
+    cmp(1 | gt | state.flagAP, data.d(), 0);
+    jmpi(1 | state.flagAP, lFinalDec);
 
     pause(strategy);
     jmpi(1, lCheckAgain);
+
+    mark(lFinalDec);
+
+    if (hw >= HW::XeHPG)
+        atomic(AtomicOp::dec, 1, D32 | CacheSettingsLSC::L1UC_L3C, A64, header);
+    else
+        atomic(AtomicOp::dec, 1, scattered_dword(), A64, header);
 
     mark(lCheckDone);
 
@@ -12069,9 +12169,18 @@ bool gemm_kernel_generator_t<hw>::kLoopSetup(const GEMMProblem &problem,
                 / strategy.namedBarriers[LoopN];
         mov(1, barrierHeaderN.uw(5), threadsPerNBar | (threadsPerNBar << 8));
     }
+    if (strategy.kParallelLocal) {
+        if (nbM)
+            emad(1, barrierHeaderM.uw(4), barrierHeaderM.uw(4), state.lidK,
+                    strategy.namedBarriers[LoopM], strategy, state);
+        if (nbN)
+            emad(1, barrierHeaderN.uw(4), barrierHeaderN.uw(4), state.lidK,
+                    strategy.namedBarriers[LoopN], strategy, state);
+    }
     int offNBM = 0, offNBN = 0;
     if (strategy.needsUnnamedBarrier(problem)) offNBM++, offNBN++;
-    if (nbM && nbN) offNBN += strategy.namedBarriers[LoopM];
+    if (nbM && nbN)
+        offNBN += strategy.namedBarriers[LoopM] * strategy.wg[LoopK];
     if (nbM && offNBM)
         add(1, barrierHeaderM.uw(4), barrierHeaderM.uw(4), offNBM);
     if (nbN && offNBN)
@@ -12086,7 +12195,7 @@ bool gemm_kernel_generator_t<hw>::kLoopSetup(const GEMMProblem &problem,
     }
 
     if (hw >= HW::Gen12LP) {
-        if (strategy.needsBarrier())
+        if (strategy.needsKLoopBarrier() || strategy.xParallel)
             state.tokenBarrierFence[0] = state.tokenAllocator.tryAlloc();
         if (nbM && nbN)
             state.tokenBarrierFence[1] = state.tokenAllocator.tryAlloc();
@@ -12746,10 +12855,10 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     auto &kSLMStorage = state.kSLMStorage;
 
     bool needBarrier = (slmA || slmB || strategy.barrierFreq > 0);
-    bool nbM = (strategy.slmA || strategy.barrierFreq)
-            && strategy.namedBarriers[LoopM];
-    bool nbN = (strategy.slmB || strategy.barrierFreq)
-            && strategy.namedBarriers[LoopN];
+    bool nbM = (slmA || strategy.barrierFreq) && strategy.namedBarriers[LoopM];
+    bool nbN = (slmB || strategy.barrierFreq) && strategy.namedBarriers[LoopN];
+    bool needUnnamedBarrier = (slmA && !nbM) || (slmB && !nbN)
+            || (strategy.barrierFreq && !nbM && !nbN);
 
     bool needXPReset = false;
 
@@ -12801,6 +12910,8 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
         else if (hw >= HW::Gen11)
             mov<uint32_t>(8, null, slmFenceTemp);
     };
+
+    if (slmA && slmB && nbM != nbN) stub();
 
     auto kLoopBarrier = [&](bool withSLMFence, KBarrierType type) {
         withSLMFence &= (hw >= HW::Gen11); // No SLM fences needed on Gen9.
@@ -12858,7 +12969,7 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     // The caller may initialize state.K, in case its value on entry is the loop count.
     // Otherwise, it is initialized from state.k.
     auto kInput = state.k;
-    bool matchBarriers = (strategy.kParallelLocal && needBarrier);
+    bool matchBarriers = (strategy.kParallelLocal && needUnnamedBarrier);
     bool saveK = state.isNested || (problem.abOffset != ABOffset::None)
             || matchBarriers || strategy.fusePostOps;
     bool incomingK = state.K.isValid();
@@ -13021,9 +13132,12 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     ls.schedule(every(unrollK) | checkOptional(), nothing);
 
     // A prefetch.
-    auto reqPFA = every(ka_pfStride)
-            | duration(
-                    strategy.cooperativePF ? ka_pfStride : strategy.ka_prefetch)
+    int aPFDuration
+            = strategy.cooperativePF ? ka_pfStride : strategy.ka_prefetch;
+    if (isBlock2D(strategy.A_prefetch.accessType))
+        aPFDuration = 1; /* allow block 2D prefetches in k remainder */
+
+    auto reqPFA = every(ka_pfStride) | duration(aPFDuration)
             | lookahead(strategy.prefetchA);
 
     if (strategy.prefetchA && !strategy.slmA && readA) {
@@ -13035,9 +13149,11 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     }
 
     // B prefetch.
-    auto reqPFB = every(kb_pfStride)
-            | duration(
-                    strategy.cooperativePF ? kb_pfStride : strategy.kb_prefetch)
+    int bPFDuration
+            = strategy.cooperativePF ? kb_pfStride : strategy.kb_prefetch;
+    if (isBlock2D(strategy.B_prefetch.accessType)) bPFDuration = 1;
+
+    auto reqPFB = every(kb_pfStride) | duration(bPFDuration)
             | lookahead(strategy.prefetchB);
 
     if (strategy.prefetchB && !strategy.slmB && readB) {
@@ -13812,7 +13928,10 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
             if (state.kNoBarrierStart.isValid())
                 add(1, state.K, state.K, state.kNoBarrierStart);
         }
-        if (hw >= HW::Gen12LP) sync.nop(SWSB(Pipe::A, 1));
+        if (hw == HW::Gen12LP)
+            sync.nop(SWSB(1));
+        else if (hw >= HW::Gen12LP)
+            sync.nop(SWSB(Pipe::A, 1));
         jmpi(1 | state.flagAP, lBottom);
         mark(lTop);
         state.wipeActiveVFlags();
@@ -13931,7 +14050,7 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
 
         if (strategy.barrierFreq > 0 && prefetchCPeelLoops > 0) stub();
 
-        gemmCalcKLoopBarrierCount(k0Barriers, state.inputs.k0, ls.getCooldown(),
+        gemmCalcKLoopBarrierCount(k0Barriers, state.threadK0, ls.getCooldown(),
                 problem, strategy, state);
         gemmCalcKLoopBarrierCount(myBarriers, state.k, ls.getCooldown(),
                 problem, strategy, state);
@@ -13952,7 +14071,11 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
 
         state.ra.safeRelease(myBarriers);
         state.ra.safeRelease(k0Barriers);
-        if (!strategy.persistent) state.ra.safeRelease(state.inputs.k0);
+        if (!strategy.persistent && !strategy.fuseBeta
+                && !strategy.kParallelVariable) {
+            state.ra.safeRelease(state.threadK0);
+            state.ra.safeRelease(state.inputs.k0);
+        }
     }
 
     // Free resources that are no longer needed.
@@ -14017,19 +14140,20 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(
 }
 
 // Get minimum alignment for block 2D message.
-static inline int block2DCMinAlignment(const MatrixAddressing &atype,
+static inline int block2DCMinAlignment(HW hw, const MatrixAddressing &atype,
         const MatrixAddressingStrategy &astrategy) {
     return isTransposing(astrategy.accessType) ? 4 : 8;
 }
 
 static inline bool block2DDoesAll(
-        const GEMMProblem &problem, const GEMMStrategy &strategy) {
-    return (problem.C.alignment % block2DCMinAlignment(problem.C, strategy.C)
+        HW hw, const GEMMProblem &problem, const GEMMStrategy &strategy) {
+    return (problem.C.alignment
+                    % block2DCMinAlignment(hw, problem.C, strategy.C)
             == 0);
 }
 
 // Decide whether C layout needs m/n remainder handling.
-static inline void getCRemainders(const GEMMProblem &problem,
+static inline void getCRemainders(HW hw, const GEMMProblem &problem,
         const GEMMStrategy &strategy, bool &remM_C, bool &remN_C) {
     bool remainderM
             = (strategy.remHandling[LoopM] != RemainderHandling::Ignore);
@@ -14040,7 +14164,8 @@ static inline void getCRemainders(const GEMMProblem &problem,
     getGranularities(problem.C, C_mgran, C_ngran);
 
     bool noStdCRem = strategy.C.padded || strategy.altCRemainder
-            || (strategy.block2DCRemainder && block2DDoesAll(problem, strategy)
+            || (strategy.block2DCRemainder
+                    && block2DDoesAll(hw, problem, strategy)
                     && !strategy.C.atomic);
 
     remM_C = remainderM && !noStdCRem && (C_mgran < strategy.unroll[LoopM]);
@@ -14162,7 +14287,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
     bool remK_B = false;
     bool remN_B = remainderN && !strategy.B.padded;
     bool remM_C, remN_C;
-    getCRemainders(problem, strategy, remM_C, remN_C);
+    getCRemainders(hw, problem, strategy, remM_C, remN_C);
     bool remM_Ce = remM_C;
     bool remN_Ce = remN_C;
 
@@ -14610,8 +14735,16 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
                     add(1, Bi_params.offC, Bi_params.offC, B_params.offC);
             } else
                 eadd(1, state.effBi, state.effBi, temp2, strategy, state);
-            if (strategy.slmABufSize(problem) > 0)
-                add(1, state.effB, state.effB, strategy.slmABufSize(problem));
+            if (strategy.slmABufSize(problem) > 0) {
+                if (strategy.kParallelLocal) {
+                    int32_t A_perKSLM = strategy.slmABufBlockSize(problem)
+                            * strategy.wg[LoopM] * strategy.slmBuffers;
+                    emad(1, state.effB, state.effB, state.lszK, A_perKSLM,
+                            strategy, state);
+                } else
+                    add(1, state.effB, state.effB,
+                            strategy.slmABufSize(problem));
+            }
             add(1, state.effBo, state.effB, temp);
             if (problem.backward())
                 add(1, state.effB, state.effB,
@@ -14933,7 +15066,8 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
 
     // Free unneeded registers after address setup.
     if (!state.isNested) {
-        state.ra.safeRelease(state.h0);
+        if (!(strategy.kParallelVariable && strategy.fuseBeta))
+            state.ra.safeRelease(state.h0);
         if (strategy.A.address2D
                 && (!strategy.prefetchA || strategy.A_prefetch.address2D))
             state.ra.safeRelease(state.inputs.lda);
@@ -15341,6 +15475,12 @@ bool gemm_kernel_generator_t<hw>::gemmUpdateC(
 
     state.raVFlag.safeRelease(state.flagSwizzle);
 
+    // Free A/B sum data and layouts.
+    safeReleaseRanges(state.As_regs, state);
+    safeReleaseRanges(state.Bs_regs, state);
+    state.As_layout.clear();
+    state.Bs_layout.clear();
+
     // Success!
     return true;
 }
@@ -15358,6 +15498,8 @@ bool gemm_kernel_generator_t<hw>::gemmAccessC(COperation op,
     Label labelStdCRemainder, labelAltCRemainder, labelBlock2DCRemainder,
             labelCRemDone, labelSkip;
 
+    gemmAccessSums(op, problem, strategy, state);
+
     if (op == COperation::Store) {
         auto modProblem = problem;
         modProblem.setAlpha(1);
@@ -15374,7 +15516,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccessC(COperation op,
     bool remainderN
             = (strategy.remHandling[LoopN] != RemainderHandling::Ignore);
     bool remM_C, remN_C;
-    getCRemainders(problem, strategy, remM_C, remN_C);
+    getCRemainders(hw, problem, strategy, remM_C, remN_C);
     bool block2DCRemainder = strategy.block2DCRemainder && !strategy.C.padded
             && (remainderM || remainderN);
     bool block2DCFull = strategy.block2DCFull && !isPacked(problem.C.layout);
@@ -15382,7 +15524,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccessC(COperation op,
     block2DCRemainder &= !strategy.C.atomic;
     block2DCFull &= !strategy.C.atomic;
     bool block2DNoFallback
-            = block2DCRemainder && block2DDoesAll(problem, strategy);
+            = block2DCRemainder && block2DDoesAll(hw, problem, strategy);
     bool altCRemainder = strategy.altCRemainder && !block2DNoFallback
             && !strategy.C.padded
             && (remainderM || remainderN || problem.gemmt());
@@ -15685,7 +15827,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccessC(COperation op,
 
         // Check if alignment requirements are met.
         auto Tc = problem.Tc, Tc_ext = problem.Tc_ext;
-        uint16_t align = block2DCMinAlignment(problem.C, strategy.C);
+        uint16_t align = block2DCMinAlignment(hw, problem.C, strategy.C);
 
         if (!block2DNoFallback) {
             for (int q = 0; q < state.C_count; q++) {
@@ -15865,8 +16007,6 @@ bool gemm_kernel_generator_t<hw>::gemmBodyInternal(
 
     if (!strategy.fusePostOps) doLateExit(labelLateExit);
 
-    gemmUpdateSums(problem, strategy, state);
-
     // Fused post-ops for atomic update kernels.
     if (strategy.fusePostOps) {
         bool alphaScale = !state.useTempC;
@@ -15878,9 +16018,6 @@ bool gemm_kernel_generator_t<hw>::gemmBodyInternal(
                     FlagKPartitioned);
             jmpi(1 | ~f0[0], labelNoSlicing);
         }
-
-        if (strategy.altFusedBeta)
-            gemmFusedBetaWaitCompletion(problem, strategy, state);
 
         auto modProblem = problem;
         auto modStrategy = strategy;
@@ -15910,10 +16047,14 @@ bool gemm_kernel_generator_t<hw>::gemmBodyInternal(
             auto strategy0 = modStrategy;
             auto state0 = modState;
 
+            if (!problem.beta0() && !state.useTempC)
+                stub(); /* todo: implement beta scaling */
+
             and_(1 | nz | state.flagAP, null.ud(), state.inputs.flags,
                     FlagDidBeta);
             jmpi(1 | ~state.flagAP, lTileAccumulate);
-            for (auto *s : {&strategy0.C, &state0.Cext_strategy}) {
+            for (auto *s :
+                    {&strategy0.C, &strategy0.CO, &state0.Cext_strategy}) {
                 s->atomic = false;
                 s->cachingW = CacheSettingsLSC::L1UC_L3WB;
             }
@@ -15929,7 +16070,7 @@ bool gemm_kernel_generator_t<hw>::gemmBodyInternal(
         mark(labelSkipCUpdate);
 
         useTempAndR0(modState, [&](GRF temp, GRF r0_info) {
-            globalMemBarrier(temp, r0_info);
+            globalMemBarrier(temp, r0_info, strategy);
         });
 
         if (strategy.altFusedBeta)
@@ -15939,11 +16080,13 @@ bool gemm_kernel_generator_t<hw>::gemmBodyInternal(
            Consider splitting counter and doing this check earlier to absorb latency. */
         auto header = modState.ra.alloc_range(2);
         auto kDone = modState.ra.alloc().ud();
+        auto zero = modState.ra.alloc().ud();
+        auto temp = header[1].ud(0);
 
         status << "Check if post-ops need to be applied" << status_stream::endl;
 
         and_(1 | nz | f0[0], null.ud(), state.inputs.flags, FlagLeader);
-        mov(1 | sat, kDone, state.inputs.k);
+        mov(1 | sat, kDone, state.wgK);
         add<uint64_t>(
                 1, header, state.statusFlagAddr, strategy.fuseBeta ? 64 : 0);
         if (hw >= HW::XeHPG)
@@ -15961,19 +16104,28 @@ bool gemm_kernel_generator_t<hw>::gemmBodyInternal(
 
         doLateExit(labelLateExit);
 
+        and_(1 | nz | f0[0], null.ud(), state.inputs.flags, FlagLeader);
+
         /* If full k range has been accumulated, it's our responsibility to do post-ops. */
-        auto temp = header[0].ud(0);
-        add(1, temp, state.fullK, -state.inputs.k);
+        add(1, temp, state.fullK, -state.wgK);
+        mov(1, zero, 0);
         cmp(1 | lt | f1[0], kDone, temp);
         and_(1, state.inputs.flags, state.inputs.flags,
                 ~uint32_t(FlagNonfinalKBlock));
         jmpi(1 | f1[0], labelLateExit);
 
+        /* Reset counter to zero to clean up after ourselves. */
+        if (hw >= HW::XeHPG)
+            store(1 | f0[0], D32, A64, header, zero);
+        else
+            store(1 | f0[0], scattered_dword(), A64, header, zero);
+
         modState.ra.safeRelease(header);
         modState.ra.safeRelease(kDone);
+        modState.ra.safeRelease(zero);
 
         status << "Load completed C tile" << status_stream::endl;
-        modStrategy.C.atomic = false;
+        modStrategy.C.atomic = modStrategy.CO.atomic = false;
         gemmAccessC(COperation::Load, modProblem, modStrategy, modState);
 
         jmpi(1, labelFPODone);
@@ -15987,22 +16139,30 @@ bool gemm_kernel_generator_t<hw>::gemmBodyInternal(
         mark(labelFPODone);
 
         /* Update problem to reflect remaining post-op work. */
-        if (problem.cOffset == COffset::Pre) problem.cOffset = COffset::None;
-
         if (alphaScale) problem.setAlpha(1);
         if (!strategy.kParallelVariable && !state.useTempC) problem.setBeta(0);
 
         bool disableAtomics = (problem.beta_real.fixed() && !problem.beta1())
                 || (!useAutoAtomic(hw, problem, strategy));
         if (disableAtomics) {
-            strategy.C.atomic = false;
+            strategy.C.atomic = strategy.CO.atomic = false;
             state.Cext_strategy.atomic = false;
         }
     }
 
-    if (strategy.fuseBeta && strategy.altFusedBeta) {
-        strategy.C.cachingW = CacheSettingsLSC::L1UC_L3WB;
-        state.Cext_strategy.cachingW = CacheSettingsLSC::L1UC_L3WB;
+    bool checkUC = strategy.altFusedBeta && strategy.kParallelVariable
+            && !strategy.fusePostOps && strategy.C.newDP;
+
+    auto C_l1UCW = makeL1Uncacheable(strategy.C.cachingW);
+    auto Ce_l1UCW = makeL1Uncacheable(state.Cext_strategy.cachingW);
+
+    checkUC = checkUC
+            && (C_l1UCW != strategy.C.cachingW
+                    || Ce_l1UCW != state.Cext_strategy.cachingW);
+
+    if (strategy.altFusedBeta && !checkUC && !strategy.fusePostOps) {
+        strategy.C.cachingW = C_l1UCW;
+        state.Cext_strategy.cachingW = Ce_l1UCW;
     }
 
     // Update C. If configured, choose between regular beta and beta = 0 or beta = 1 updates now.
@@ -16019,8 +16179,10 @@ bool gemm_kernel_generator_t<hw>::gemmBodyInternal(
     if (strategy.fuseBeta && strategy.altFusedBeta) state.isNested = true;
 
     if (strategy.fusePostOps) {
-        fuseCheckBeta0 |= strategy.kParallelVariable;
-        checkBeta0 |= fuseCheckBeta0;
+        if (!state.useTempC) {
+            fuseCheckBeta0 |= strategy.kParallelVariable;
+            checkBeta0 |= fuseCheckBeta0;
+        }
     } else if (strategy.fuseBeta) {
         if (strategy.kParallelVariable || strategy.altFusedBeta) {
             fuseCheckBeta1 = !problem.beta1();
@@ -16031,13 +16193,19 @@ bool gemm_kernel_generator_t<hw>::gemmBodyInternal(
 
     if (checkTRMMBeta1 && (checkBeta0 || checkBeta1)) stub();
 
-    if (!checkBeta0 && !checkBeta1 && !checkTRMMBeta1) {
+    if (!checkBeta0 && !checkBeta1 && !checkTRMMBeta1 && !checkUC) {
         if (!gemmUpdateC(problem, strategy, state)) return false;
     } else {
-        Label labelBeta0, labelBeta1, labelBetaDone;
+        Label labelBeta0, labelBeta1, labelCached, labelBeta0Cached,
+                labelBetaDone;
         InstructionModifier mod0 = 1 | f0[0];
         InstructionModifier mod1 = 1 | f0[1];
+        InstructionModifier modC = 1 | f1[0];
         bool simtCF1 = false;
+
+        if (checkUC)
+            and_(1 | ze | f1[0], null.ud(), state.inputs.flags,
+                    FlagKPartitioned);
 
         if (checkBeta1 && !betar.fixed()) {
             cmp(1 | eq | f0[1], betar.getReg(0), cast(problem.Ts, 1.0));
@@ -16051,7 +16219,7 @@ bool gemm_kernel_generator_t<hw>::gemmBodyInternal(
             if (strategy.altFusedBeta) {
                 auto mod = betar.fixed() ? (1 | ze | f0[1])
                                          : (1 | ~f0[1] | ze | f0[1]);
-                if (strategy.kParallelVariable) {
+                if (strategy.kParallelVariable && !checkUC) {
                     auto temp = state.ra.alloc_sub<uint32_t>();
                     xor_(1, temp, state.inputs.flags, FlagKPartitioned);
                     and_(mod, null.ud(), temp, FlagDidBeta | FlagKPartitioned);
@@ -16071,6 +16239,8 @@ bool gemm_kernel_generator_t<hw>::gemmBodyInternal(
             and_(mod, null.ud(), state.inputs.flags, FlagKPartitioned);
         }
 
+        if (checkUC) jmpi(modC, labelCached);
+
         if (checkBeta0 && !fuseCheckBeta1) jmpi(mod0, labelBeta0);
 
         if (checkBeta1 || checkTRMMBeta1) {
@@ -16089,8 +16259,12 @@ bool gemm_kernel_generator_t<hw>::gemmBodyInternal(
             if (strategy.C.atomic && !strategy.C.base.isStateless()
                     && !strategy.C.newDP)
                 stub(); /* need to shift addresses */
-            substrategy.C.atomic = false;
+            substrategy.C.atomic = substrategy.CO.atomic = false;
             substate.Cext_strategy.atomic = false;
+            if (checkUC) {
+                substrategy.C.cachingW = C_l1UCW;
+                substate.Cext_strategy.cachingW = Ce_l1UCW;
+            }
 
             if (!gemmUpdateC(subproblem, substrategy, substate)) return false;
         }
@@ -16133,19 +16307,57 @@ bool gemm_kernel_generator_t<hw>::gemmBodyInternal(
             auto substate = state;
 
             subproblem.setBeta(0);
-
-            if (subproblem.postOps.len() > 0) {
-                auto &lastPO = subproblem.postOps
-                                       .entry_[subproblem.postOps.len() - 1];
-                if (lastPO.kind == primitive_kind::sum)
-                    subproblem.postOps.entry_.resize(
-                            subproblem.postOps.len() - 1);
+            subproblem.removeFinalSumPostOp();
+            if (checkUC) {
+                substrategy.C.cachingW = C_l1UCW;
+                substate.Cext_strategy.cachingW = Ce_l1UCW;
             }
 
-            substrategy.C.atomic = false;
+            substrategy.C.atomic = substrategy.CO.atomic = false;
             substate.Cext_strategy.atomic = false;
 
             if (!gemmUpdateC(subproblem, substrategy, substate)) return false;
+        }
+
+        // Updates with L1 caching enabled for non-k-sliced tiles.
+        if (checkUC) {
+            state.isNested ? jmpi(1, labelBetaDone) : epilogue(strategy, state);
+
+            status << "Special path: L1 caching enabled" << status_stream::endl;
+            mark(labelCached);
+            if (checkBeta0) jmpi(mod0, labelBeta0Cached);
+
+            {
+                auto subproblem = problem;
+                auto substrategy = strategy;
+                auto substate = state;
+
+                substrategy.C.atomic = substrategy.CO.atomic = false;
+                substate.Cext_strategy.atomic = false;
+                if (!gemmUpdateC(subproblem, substrategy, substate))
+                    return false;
+            }
+
+            if (checkBeta0) {
+                state.isNested ? jmpi(1, labelBetaDone)
+                               : epilogue(strategy, state);
+
+                status << "Special path: beta = 0, L1 caching enabled"
+                       << status_stream::endl;
+                mark(labelBeta0Cached);
+
+                auto subproblem = problem;
+                auto substrategy = strategy;
+                auto substate = state;
+
+                subproblem.setBeta(0);
+                subproblem.removeFinalSumPostOp();
+                substrategy.C.atomic = substrategy.CO.atomic = false;
+                substate.Cext_strategy.atomic = false;
+
+                if (!gemmUpdateC(subproblem, substrategy, substate))
+                    return false;
+            }
         }
 
         mark(labelBetaDone);
@@ -16163,7 +16375,7 @@ bool gemm_kernel_generator_t<hw>::gemmBodyInternal(
         if (strategy.fused) join(16);
     }
 
-    if (strategy.fuseBeta && strategy.altFusedBeta && !strategy.fusePostOps)
+    if (strategy.altFusedBeta && !strategy.fusePostOps)
         gemmFusedBetaNotifyCompletion(problem, strategy, state);
 
     state.isNested = oldNested;
@@ -16552,9 +16764,9 @@ void gemm_kernel_generator_t<hw>::gemmInitInterface(GEMMProblem &problem,
     interface.requireStatelessWrites(needStatelessWrites);
 
     int nb = int(strategy.needsNamedBarriersM(problem))
-                    * strategy.namedBarriers[LoopM]
+                    * strategy.namedBarriers[LoopM] * strategy.wg[LoopK]
             + int(strategy.needsNamedBarriersN(problem))
-                    * strategy.namedBarriers[LoopN];
+                    * strategy.namedBarriers[LoopN] * strategy.wg[LoopK];
     if (nb) {
         if (strategy.needsUnnamedBarrier(problem)) nb++;
         interface.requireBarriers(nb);
@@ -16653,9 +16865,7 @@ void gemm_kernel_generator_t<hw>::gemmInitInterface(GEMMProblem &problem,
     state.inputs.k = interface.getArgumentIfExists("k");
     state.inputs.k0 = interface.getArgumentIfExists("k0");
     state.inputs.alpha_real = interface.getArgumentIfExists("alpha_real");
-    state.inputs.alpha_imag = interface.getArgumentIfExists("alpha_imag");
     state.inputs.beta_real = interface.getArgumentIfExists("beta_real");
-    state.inputs.beta_imag = interface.getArgumentIfExists("beta_imag");
     if (problem.batch == BatchMode::Variable) {
         state.inputs.alpha_array = interface.getArgumentIfExists("alpha_array");
         state.inputs.beta_array = interface.getArgumentIfExists("beta_array");
@@ -16691,8 +16901,12 @@ void gemm_kernel_generator_t<hw>::gemmInitInterface(GEMMProblem &problem,
             state.inputs.kParallelStart
                     = interface.getArgument("k_parallel_start");
             state.inputs.kRecip = interface.getArgument("k_recip");
+            if (strategy.fuseBeta)
+                state.inputs.k0Recip = interface.getArgument("k0_recip");
         }
     }
+    if (strategy.kParallel && strategy.fuseBeta)
+        state.inputs.groupCountK = interface.getArgument("group_count_k");
     if (strategy.fuseBeta || strategy.fusePostOps)
         state.inputs.statusBuffer = interface.getArgumentIfExists("status");
 
@@ -16813,8 +17027,18 @@ void gemm_kernel_generator_t<hw>::gemmInitInterface(GEMMProblem &problem,
             || strategy.kParallelVariable)
         state.ra.claim(state.inputs.k0);
 
-    if (!problem.alpha_real.fixed()) state.ra.claim(state.inputs.alpha_real);
-    if (!problem.beta_real.fixed()) state.ra.claim(state.inputs.beta_real);
+    bool alphaIsPtr = state.inputs.alphaPtr.isValid();
+    bool betaIsPtr = state.inputs.betaPtr.isValid();
+
+    if (alphaIsPtr)
+        state.ra.claim(state.inputs.alphaPtr);
+    else if (!problem.alpha_real.fixed())
+        state.ra.claim(state.inputs.alpha_real);
+
+    if (betaIsPtr)
+        state.ra.claim(state.inputs.betaPtr);
+    else if (!problem.beta_real.fixed())
+        state.ra.claim(state.inputs.beta_real);
 
     if (!inSK) {
         state.ra.claim(state.inputs.localIDM);
@@ -16878,11 +17102,16 @@ void gemm_kernel_generator_t<hw>::gemmInitInterface(GEMMProblem &problem,
         state.ra.claim(state.inputs.groupStride);
         if (state.inputs.groupCountMN.isValid())
             state.ra.claim(state.inputs.groupCountMN);
-        if (strategy.kParallelVariable) {
-            state.ra.claim(state.inputs.kParallelStart);
-            state.ra.claim(state.inputs.kRecip);
-        }
     }
+
+    if (strategy.kParallelVariable) {
+        state.ra.claim(state.inputs.kParallelStart);
+        state.ra.claim(state.inputs.kRecip);
+        if (strategy.fuseBeta) state.ra.claim(state.inputs.k0Recip);
+    }
+
+    if (strategy.kParallel && strategy.fuseBeta)
+        state.ra.claim(state.inputs.groupCountK);
 
     if (strategy.fuseBeta || strategy.fusePostOps)
         state.ra.claim(state.inputs.statusBuffer);
@@ -16895,9 +17124,11 @@ void gemm_kernel_generator_t<hw>::gemmInitInterface(GEMMProblem &problem,
 template <HW hw>
 size_t gemm_kernel_generator_t<hw>::gemmSLMSize(
         const GEMMProblem &problem, const GEMMStrategy &strategy) {
+    size_t slmSize = 0;
+
     // Space needed by SLM copies.
-    size_t slmSize
-            = strategy.slmABufSize(problem) + strategy.slmBBufSize(problem);
+    slmSize = strategy.slmABufSize(problem) + strategy.slmBBufSize(problem);
+    if (strategy.kParallelLocal) slmSize /= strategy.wg[LoopK];
 
     // Space needed for row/column sum reduction/sharing.
     if ((problem.needsASums() && strategy.slmA)
@@ -16929,6 +17160,15 @@ size_t gemm_kernel_generator_t<hw>::gemmPerKSLMSize(
         int concurrentK = std::max(
                 1, threadsPerEU(hw, strategy) * eusPerSubslice(hw) / mnThreads);
         slmSize = rounddown_pow2(slmCapacity(hw) / concurrentK);
+        if (!problem.sumA && !problem.sumB)
+            slmSize = std::min<size_t>(slmSize,
+                    strategy.wgTile(LoopM) * strategy.wgTile(LoopN)
+                            * problem.Tc);
+
+        // Calculate space needed by SLM copies.
+        size_t totalSLM
+                = strategy.slmABufSize(problem) + strategy.slmBBufSize(problem);
+        slmSize = std::max<size_t>(slmSize, totalSLM / strategy.wg[LoopK]);
     }
 
     return slmSize;
@@ -17170,17 +17410,15 @@ void gemm_kernel_generator_t<hw>::gemmOffsetABC(bool initial, Subregister i0,
     if (c2D && cp2D) doC = false;
 
     if (doA && (a2D != ap2D)) {
-        if (!initial) stub();
-        if (offsetAp.isInvalid()) {
+        if (offsetAp.isInvalid() || offsetA == offsetAp) {
             offsetAp = state.ra.alloc_sub(
                     offsetA.getType(), getHint(HintType::LongTerm, strategy));
-            emov(1, state.offsetAp, offsetA, strategy, state);
+            emov(1, offsetAp, offsetA, strategy, state);
         } else if (a2D && !ap2D)
             std::swap(offsetA, offsetAp);
     }
     if (doB && (b2D != bp2D)) {
-        if (!initial) stub();
-        if (offsetBp.isInvalid()) {
+        if (offsetBp.isInvalid() || offsetB == offsetBp) {
             offsetBp = state.ra.alloc_sub(
                     offsetB.getType(), getHint(HintType::LongTerm, strategy));
             emov(1, offsetBp, offsetB, strategy, state);
@@ -17188,8 +17426,7 @@ void gemm_kernel_generator_t<hw>::gemmOffsetABC(bool initial, Subregister i0,
             std::swap(offsetB, offsetBp);
     }
     if (doC && (c2D != cp2D)) {
-        if (!initial) stub();
-        if (offsetCp.isInvalid()) {
+        if (offsetCp.isInvalid() || offsetC0 == offsetCp) {
             offsetCp = state.ra.alloc_sub(
                     offsetC0.getType(), getHint(HintType::LongTerm, strategy));
             emov(1, offsetCp, offsetC0, strategy, state);
@@ -17351,32 +17588,6 @@ void gemm_kernel_generator_t<hw>::gemmOffsetABC(bool initial, Subregister i0,
 template <ngen::HW hw>
 void gemm_kernel_generator_t<hw>::gemmOffsetBatchABC(const GEMMProblem &problem,
         const GEMMStrategy &strategy, GEMMState &state) {
-    auto Ts = problem.Ts;
-
-    // Non-strided batch support.
-    if (problem.batch == BatchMode::Nonstrided) {
-        auto temp = state.ra.alloc().uq();
-        auto boffset = state.ra.alloc_sub<uint32_t>();
-
-        add(1, boffset, state.inputs.offsetBatch, state.inputs.groupIDK);
-        mov(1, state.flagAP, 0x7);
-        shl(1, boffset, boffset, uint16_t(3));
-
-        eadd(1, temp[0], state.inputs.A, boffset, strategy, state);
-        eadd(1, temp[1], state.inputs.B, boffset, strategy, state);
-        eadd(1, temp[2], state.inputs.C[0], boffset, strategy, state);
-
-        load(4 | state.flagAP, temp, scattered_qword(1), strategy.A.base, temp);
-
-        emov(1, state.effA, temp[0], strategy, state);
-        emov(1, state.effB, temp[1], strategy, state);
-        emov(1, state.effC[0], temp[2], strategy, state);
-
-        state.ra.safeRelease(temp);
-        state.ra.safeRelease(boffset);
-        if (!strategy.persistent)
-            state.ra.safeRelease(state.inputs.offsetBatch);
-    }
 
     // Strided batch support.
     if (problem.batch == BatchMode::Strided) {
@@ -17421,122 +17632,6 @@ void gemm_kernel_generator_t<hw>::gemmOffsetBatchABC(const GEMMProblem &problem,
                 state.ra.safeRelease(bOffsetB[b]);
             if (strategy.C.base.isStateless())
                 state.ra.safeRelease(bOffsetC[b]);
-        }
-    }
-
-    // Non-strided variable batch support.
-    if (problem.batch == BatchMode::Variable) {
-        auto tempA = state.ra.alloc().uq();
-        auto tempB = state.ra.alloc().uq();
-        auto tempC = state.ra.alloc().uq();
-        auto tempIDK = state.ra.alloc().ud();
-        auto offset_scalar = state.ra.alloc().uq();
-        auto offset_pointer = state.ra.alloc().uq();
-        auto tempAlphaReal = state.ra.alloc().uq();
-        auto tempAlphaImag = state.ra.alloc().uq();
-        auto tempBetaReal = state.ra.alloc().uq();
-        auto tempBetaImag = state.ra.alloc().uq();
-
-        eshl(1, tempIDK, state.inputs.groupIDK, uint16_t(log2(Ts.size())),
-                strategy, state);
-
-        // load and set alpha
-        emul(1, offset_scalar, tempIDK, state.inputs.incr_alpha.uw(), strategy,
-                state);
-        eadd(1, tempAlphaReal[0], state.inputs.alpha_array, offset_scalar,
-                strategy, state);
-        if (Ts.isComplex()) {
-            eadd(1, tempAlphaImag[0], tempAlphaReal[0], Ts.real().size(),
-                    strategy, state);
-        }
-        if (Ts.real().size() == 4) {
-            load(1, tempAlphaReal, scattered_dword(1), A64, tempAlphaReal);
-            if (Ts.isComplex()) {
-                load(1, tempAlphaImag, scattered_dword(1), A64, tempAlphaImag);
-            }
-        } else if (Ts.real().size() == 2) {
-            load(1, tempAlphaReal, scattered_byte(2), A64, tempAlphaReal);
-            if (Ts.isComplex()) {
-                load(1, tempAlphaImag, scattered_byte(2), A64, tempAlphaImag);
-            }
-        } else {
-            load(1, tempAlphaReal, scattered_qword(1), A64, tempAlphaReal);
-            if (Ts.isComplex()) {
-                load(1, tempAlphaImag, scattered_qword(1), A64, tempAlphaImag);
-            }
-        }
-        mov(1, state.inputs.alpha_real, tempAlphaReal.sub(0, Ts.real().ngen()));
-        if (Ts.isComplex())
-            mov(1, state.inputs.alpha_imag,
-                    tempAlphaImag.sub(0, Ts.real().ngen()));
-        // end load and set alpha
-
-        // load and set beta
-        emul(1, offset_scalar, tempIDK, state.inputs.incr_beta.uw(), strategy,
-                state);
-        eadd(1, tempBetaReal[0], state.inputs.beta_array, offset_scalar,
-                strategy, state);
-        if (Ts.isComplex()) {
-            eadd(1, tempBetaImag[0], tempBetaReal[0], Ts.real().size(),
-                    strategy, state);
-        }
-        if (Ts.real().size() == 4) {
-            load(1, tempBetaReal, scattered_dword(1), A64, tempBetaReal);
-            if (Ts.isComplex()) {
-                load(1, tempBetaImag, scattered_dword(1), A64, tempBetaImag);
-            }
-        } else if (Ts.real().size() == 2) {
-            load(1, tempBetaReal, scattered_byte(2), A64, tempBetaReal);
-            if (Ts.isComplex()) {
-                load(1, tempBetaImag, scattered_byte(2), A64, tempBetaImag);
-            }
-        } else {
-            load(1, tempBetaReal, scattered_qword(1), A64, tempBetaReal);
-            if (Ts.isComplex()) {
-                load(1, tempBetaImag, scattered_qword(1), A64, tempBetaImag);
-            }
-        }
-        mov(1, state.inputs.beta_real, tempBetaReal.sub(0, Ts.real().ngen()));
-        if (Ts.isComplex())
-            mov(1, state.inputs.beta_imag,
-                    tempBetaImag.sub(0, Ts.real().ngen()));
-        // end load and set beta
-
-        eshl(1, tempIDK, state.inputs.groupIDK, uint16_t(3), strategy, state);
-        emul(1, offset_pointer, tempIDK, state.inputs.incr_a_array.uw(),
-                strategy, state);
-        eadd(1, tempA[0], state.inputs.A, offset_pointer, strategy, state);
-        load(1, tempA, scattered_qword(1), strategy.A.base, tempA);
-
-        emul(1, offset_pointer, tempIDK, state.inputs.incr_b_array.uw(),
-                strategy, state);
-        eadd(1, tempB[0], state.inputs.B, offset_pointer, strategy, state);
-        load(1, tempB, scattered_qword(1), strategy.B.base, tempB);
-
-        eadd(1, tempC[0], state.inputs.C[0], tempIDK, strategy, state);
-        load(1, tempC, scattered_qword(1), strategy.C.base, tempC);
-
-        emov(1, state.effA, tempA, strategy, state);
-        emov(1, state.effB, tempB, strategy, state);
-        emov(1, state.effC[0], tempC, strategy, state);
-
-        state.ra.safeRelease(tempA);
-        state.ra.safeRelease(tempB);
-        state.ra.safeRelease(tempC);
-        state.ra.safeRelease(tempIDK);
-        state.ra.safeRelease(offset_scalar);
-        state.ra.safeRelease(offset_pointer);
-        state.ra.safeRelease(tempAlphaReal);
-        state.ra.safeRelease(tempAlphaImag);
-        state.ra.safeRelease(tempBetaReal);
-        state.ra.safeRelease(tempBetaImag);
-        if (!strategy.persistent) {
-            state.ra.safeRelease(state.inputs.incr_a_array);
-            state.ra.safeRelease(state.inputs.incr_b_array);
-            state.ra.safeRelease(state.inputs.incr_alpha);
-            state.ra.safeRelease(state.inputs.incr_beta);
-            state.ra.safeRelease(state.inputs.alpha_array);
-            state.ra.safeRelease(state.inputs.beta_array);
         }
     }
 }
@@ -18377,6 +18472,18 @@ void gemm_kernel_generator_t<hw>::gemmCacheLDCMultiples(
                 a64, nc, state.inputs.ldc[q], strategy, state);
 }
 
+// Calculate actual amount of k-padding for variable k-slicing.
+template <HW hw>
+Subregister gemm_kernel_generator_t<hw>::gemmCalcKPadding(
+        const GEMMProblem &problem, const GEMMStrategy &strategy,
+        GEMMState &state) {
+    // kpad = min(strategy.kPadding, 2*k0).
+    auto effKPad = state.ra.alloc_sub<uint32_t>();
+    shl(1, effKPad, state.inputs.k0, 1);
+    min_(1, effKPad, effKPad, strategy.kPadding);
+    return effKPad;
+}
+
 template <HW hw>
 void gemm_kernel_generator_t<hw>::gemmAutoTypeConversions(
         GEMMProblem &problem, const GEMMStrategy &strategy) {
@@ -18456,7 +18563,7 @@ void gemm_kernel_generator_t<hw>::gemm(
 
     // Initialize flags if needed and not provided as a kernel argument.
     bool needsFlags = strategy.kParallelVariable || strategy.fuseBeta
-            || strategy.fusePostOps;
+            || strategy.fusePostOps || problem.sumA || problem.sumB;
 
     if (needsFlags && !state.inputs.flags.isValid()) {
         state.inputs.flags = state.ra.alloc_sub<uint32_t>(
@@ -18501,6 +18608,10 @@ void gemm_kernel_generator_t<hw>::gemm(
         }
     } else
         state.fullK = state.inputs.k;
+
+    if (strategy.kParallelVariable)
+        state.k0Rem = copySubregister(
+                state.inputs.k0, state, getHint(HintType::LongTerm, strategy));
 
     // Load ao/bo from memory if needed.
     if (problem.abOffset != ABOffset::None && state.inputs.abo.isInvalid()) {
@@ -18555,10 +18666,9 @@ void gemm_kernel_generator_t<hw>::gemm(
     // Variable k-slicing logic.
     if (strategy.kParallelVariable) {
         if (!strategy.persistent) stub();
-        if (strategy.kParallelLocal) stub(); /* not yet implemented */
 
         state.h0 = state.ra.alloc_sub<uint32_t>(
-                getHint(HintType::TempComp0, strategy));
+                getHint(HintType::LongTerm, strategy));
         Label lNoKSlice, lAlreadySliced;
 
         auto slicedGroupIdx = state.ra.alloc_sub<int32_t>();
@@ -18577,6 +18687,7 @@ void gemm_kernel_generator_t<hw>::gemm(
         mov(1, state.h0, 0);
         mov(1 | lt | f1[1], temp, state.fullK);
         jmpi(1 | f0[1], lAlreadySliced);
+        if (strategy.kParallelLocal) mov(1, state.inputs.k, state.fullK);
         jmpi(1 | ~f0[0], lNoKSlice);
 
         // Reverse ordering of slices so each WG traverses its tiles in reverse order.
@@ -18598,10 +18709,13 @@ void gemm_kernel_generator_t<hw>::gemm(
         //        h0 <- remainder
         //   groupID <- quotient + kParallelStart
         // Also save groupID - kParallelStart back in slicedGroupIdx.
+        Subregister effKPad;
+        if (strategy.kPadding)
+            effKPad = gemmCalcKPadding(problem, strategy, state);
         alignUp(kpad, state.inputs.k, strategy.kAlign(problem), strategy,
                 state);
         mul(1, temp, state.inputs.k0, temp.uw());
-        if (strategy.kPadding) add(1, kpad, kpad, strategy.kPadding);
+        if (strategy.kPadding) add(1, kpad, kpad, effKPad);
         or_(1, state.inputs.flags, state.inputs.flags, FlagKSlicing);
         divDown(slicedGroupIdx.ud(), temp, kpad, state.inputs.kRecip, f1[0],
                 strategy, state);
@@ -18635,12 +18749,23 @@ void gemm_kernel_generator_t<hw>::gemm(
         cmp(1 | lt | f0[0], state.inputs.groupIDMN.d(),
                 state.inputs.kParallelStart);
         if (problem.cOffset == COffset::Pre) cmp(1 | gt | f0[1], state.h0, 0);
-        min_(1, state.inputs.k, temp.d(),
-                state.inputs.k0); /* temp holds k - h0 */
+        min_(1, state.inputs.k, temp.d(), state.k0Rem); /* temp holds k - h0 */
         jmpi(1 | f0[0], lLeavePersistentLoop);
         if (problem.cOffset == COffset::Pre)
             or_(1 | f0[1], state.inputs.flags, state.inputs.flags,
                     FlagNonfinalKBlock);
+
+        // Update k0Rem with remaining work.
+        if (strategy.kPadding) {
+            auto temp4 = gemmCalcKPadding(problem, strategy, state);
+            add(1, temp4, state.inputs.k, temp4);
+            mov(1 | sat, state.inputs.k.ud(),
+                    state.inputs
+                            .k); /* k may have been negative in padded region */
+            add(1 | sat, state.k0Rem.ud(), state.k0Rem, -temp4);
+            state.ra.safeRelease(temp4);
+        } else
+            add(1 | sat, state.k0Rem.ud(), state.k0Rem, -state.inputs.k);
 
         // With k padding, we might have a zero-size slice. Handle appropriately.
         if (strategy.kPadding) {
@@ -18668,6 +18793,31 @@ void gemm_kernel_generator_t<hw>::gemm(
 
         mark(lNoKSlice);
 
+        // Further slice k range within workgroup if requested.
+        // k local size must be a power of 2.
+        state.wgK = state.inputs.k;
+        if (strategy.kParallelLocal) {
+            if (!is_zero_or_pow2(strategy.wg[LoopK])) stub();
+            state.threadK0 = state.ra.alloc_sub<uint32_t>(
+                    getHint(HintType::LongTerm, strategy));
+            if ((strategy.fuseBeta && !strategy.altFusedBeta)
+                    || strategy.fusePostOps) {
+                state.wgK = state.ra.alloc_sub<uint32_t>(
+                        getHint(HintType::LongTerm, strategy));
+                mov(1, state.wgK, state.inputs.k);
+            }
+            fbl(1, temp, state.lszK);
+            eadd3(1, state.threadK0, state.inputs.k, state.lszK, -1);
+            shr(1, state.threadK0, state.threadK0, temp);
+            alignUp(state.threadK0, state.threadK0, strategy.kAlign(problem),
+                    strategy, state);
+            mul(1, temp, state.threadK0, state.lidK.uw());
+            add(1 | sat, state.inputs.k.ud(), state.inputs.k, -temp);
+            add(1, state.h0, state.h0, temp);
+            min_(1, state.inputs.k, state.inputs.k, state.threadK0);
+        }
+
+        state.ra.safeRelease(effKPad);
         state.ra.safeRelease(slicedGroupIdx);
         state.ra.safeRelease(slicedGroups);
         state.ra.safeRelease(kpad);
@@ -18725,13 +18875,29 @@ void gemm_kernel_generator_t<hw>::gemm(
     if (strategy.fixedWG(problem)) {
         mulConstant(1, idM, state.inputs.groupIDM, strategy.wg[LoopM]);
         mulConstant(1, idN, state.inputs.groupIDN, strategy.wg[LoopN]);
-        if (strategy.kParallel)
-            mulConstant(1, idK, state.inputs.groupIDK, strategy.wg[LoopK]);
     } else {
         mul(1, idM, state.inputs.groupIDM, state.inputs.localSizeM.uw());
         mul(1, idN, state.inputs.groupIDN, state.inputs.localSizeN.uw());
-        if (strategy.kParallel)
-            mul(1, idK, state.inputs.groupIDK, state.inputs.localSizeK.uw());
+    }
+    if (strategy.kParallel) {
+        mul(1, idK, state.inputs.groupIDK, state.inputs.localSizeK.uw());
+        if (strategy.kPadding) {
+            add(1 | lt | state.flagAP, idK.d(), idK, -state.inputs.localSizeK);
+            mov(1 | state.flagAP, state.inputs.k0, 0);
+        }
+        if (strategy.fusePostOps) {
+            state.wgK = state.inputs.k;
+            if (strategy.kParallelLocal) {
+                state.wgK = state.ra.alloc_sub<uint32_t>(
+                        getHint(HintType::LongTerm, strategy));
+                auto temp = state.ra.alloc_sub<uint32_t>();
+                emul(1, state.wgK, idK, state.inputs.k0, strategy, state);
+                mul(1, temp, state.inputs.k0, state.inputs.localSizeK.uw());
+                add(1 | sat, state.wgK, state.inputs.k, -state.wgK);
+                min_(1, state.wgK, state.wgK, temp);
+                state.ra.safeRelease(temp);
+            }
+        }
     }
 
     if (wgCheck || gemmtBarriers) {
@@ -18750,7 +18916,9 @@ void gemm_kernel_generator_t<hw>::gemm(
     mulConstant(1, state.i0, idM, strategy.unroll[LoopM]);
     mulConstant(1, state.j0, idN, strategy.unroll[LoopN]);
 
-    if (strategy.kParallel) {
+    if (strategy.kParallelVariable)
+        noop(); /* h0 already calculated */
+    else if (strategy.kParallel) {
         emul(1, state.h0, idK, state.inputs.k0, strategy, state);
         if (state.inputs.flags.isValid() && problem.cOffset == COffset::Pre)
             or_(1 | state.flagAP, state.inputs.flags, state.inputs.flags,
@@ -18778,8 +18946,8 @@ void gemm_kernel_generator_t<hw>::gemm(
 
     moveR0(strategy, state);
 
-    // Adjust k range as needed.
-    if (anyKParallelFixed) {
+    // Adjust k range for local/global k-reduction.
+    if (anyKParallelFixed && !strategy.kParallelVariable) {
         add(1, state.inputs.k,
                 strategy.persistent ? state.fullK : state.inputs.k, -state.h0);
         min_(1, state.inputs.k, state.inputs.k, state.inputs.k0);
@@ -18789,7 +18957,10 @@ void gemm_kernel_generator_t<hw>::gemm(
                 && (strategy.barrierFreq > 0 || strategy.slmBuffers > 0);
         keepK0 |= strategy.persistent;
 
-        if (!keepK0) state.ra.safeRelease(state.inputs.k0);
+        if (keepK0)
+            state.threadK0 = state.inputs.k0;
+        else
+            state.ra.safeRelease(state.inputs.k0);
     }
 
     state.ra.safeRelease(state.inputs.localIDM);
@@ -18842,6 +19013,7 @@ void gemm_kernel_generator_t<hw>::gemm(
         if (strategy.fusePostOps) flagsToClear |= FlagKPartitioned;
         if (strategy.kParallelVariable && problem.cOffset == COffset::Pre)
             flagsToClear |= FlagNonfinalKBlock;
+        if (problem.sumA || problem.sumB) flagsToClear |= FlagStoreSums;
 
         if (flagsToClear)
             and_(1, state.inputs.flags, state.inputs.flags,
@@ -18853,16 +19025,11 @@ void gemm_kernel_generator_t<hw>::gemm(
         if (strategy.kParallelVariable) {
             Label lNotKSliced;
             and_(1 | ze | f0[0], null.ud(), state.inputs.flags, FlagKSlicing);
-            cmp(1 | gt | f1[0], state.inputs.k0, 0);
+            cmp(1 | gt | f1[0], state.k0Rem, 0);
             jmpi(1 | f0[0], lNotKSliced);
-            if (strategy.kPadding > 0)
-                add(1, state.inputs.k, state.inputs.k, strategy.kPadding);
-            add(1 | sat, state.inputs.k0.ud(), state.inputs.k0,
-                    -state.inputs.k);
             add(1, state.inputs.groupIDMN, state.inputs.groupIDMN, -1);
-            alignDown(1 | gt | f0[1], state.inputs.k0.ud(),
-                    state.inputs.k0.ud(), strategy.kAlign(problem), strategy,
-                    state);
+            alignDown(1 | gt | f0[1], state.k0Rem.ud(), state.k0Rem.ud(),
+                    strategy.kAlign(problem), strategy, state);
             persistentRestore();
             jmpi(1 | f0[1], lReentry);
             jmpi(1, lLeavePersistentLoop);
@@ -19435,7 +19602,8 @@ CommonDriverInfo gemm_kernel_generator_t<hw>::driverInfo(
     info.support4GB[0] = (strategy.A.base.getModel() == ModelA64);
     info.support4GB[1] = (strategy.B.base.getModel() == ModelA64);
     info.support4GB[2] = (strategy.C.base.getModel() == ModelA64);
-    if (strategy.kParallelVariable) info.blockingAlt[LoopK] = strategy.kPadding;
+    if (strategy.kParallel || strategy.kParallelVariable)
+        info.blockingAlt[LoopK] = strategy.kPadding;
 
     return info;
 }
@@ -19449,7 +19617,7 @@ CommonDriverInfo gemm_kernel_generator_t<hw>::driverInfo(
 
 // Check if a non-named barrier is needed in addition to named barriers.
 bool GEMMStrategy::needsUnnamedBarrier(const GEMMProblem &problem) const {
-    if (needsBarrier() && (!namedBarriers[LoopM] || !namedBarriers[LoopN]))
+    if (needsKLoopBarrier() && (!namedBarriers[LoopM] || !namedBarriers[LoopN]))
         return true;
     if (slmBuffers > 0) {
         if (persistent) return true;
@@ -19508,17 +19676,22 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem) {
 
     // Remove variable k-parallelization when batching.
     if (kParallelVariable && problem.batch != BatchMode::None)
-        C.atomic = kParallelVariable = false;
+        C.atomic = CO.atomic = kParallelVariable = kParallelLocal = false;
 
     C.atomic |= useAutoAtomic(hw, problem, *this);
 
     if (C.atomic && !C.base.isStateless() && !C.newDP) C.forceA64();
 
+    fuseBeta &= (kParallel || kParallelVariable);
+    fusePostOps &= (kParallel || kParallelVariable);
+
     bool needsFusedPostOps = false;
 
     needsFusedPostOps |= (problem.cOffset == COffset::Post);
     needsFusedPostOps |= (Tc.size() != Tc_ext.size());
-    needsFusedPostOps |= (problem.postOps.len() > 0);
+    for (int i = 0; i < problem.postOps.len(); i++)
+        needsFusedPostOps
+                |= (problem.postOps.entry_[i].kind != primitive_kind::sum);
     if (problem.Ts != problem.Tc) {
         needsFusedPostOps |= !(problem.alpha1() || problem.alphaM1());
         needsFusedPostOps |= !(problem.beta0() || problem.beta1());
@@ -19531,6 +19704,10 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem) {
     fuseBeta &= !problem.beta1();
 
     fuseBeta |= (fusePostOps && needsTempC(problem));
+
+    altFusedBeta &= fuseBeta;
+
+    if (!(kParallelVariable || (kParallel && altFusedBeta))) kPadding = 0;
 
     slmA &= (slmBuffers > 0);
     slmB &= (slmBuffers > 0);
@@ -19739,7 +19916,8 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem) {
     auto defaultMBlock = isZ ? 2048 : 4096;
     if (hw >= HW::XeHP) defaultMBlock *= 2;
     auto defaultNBlock = defaultMBlock;
-    auto defaultMNBlockNonHilbert = defaultMBlock;
+    auto defaultMBlockNonHilbert = defaultMBlock;
+    auto defaultNBlockNonHilbert = defaultNBlock;
 
     /* No more than (2^16 - 1) workgroups in m/n dimensions for linear orders, plus a huge safety margin. */
     if (linearOrder()) {
@@ -19759,8 +19937,13 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem) {
     auto defaultBlockAltK = blocking[LoopK];
     if (hw == HW::XeHP) defaultBlockAltK = std::min(defaultBlockAltK, 1024);
 
-    if (blockingAlt[LoopM] <= 0) blockingAlt[LoopM] = defaultMNBlockNonHilbert;
-    if (blockingAlt[LoopN] <= 0) blockingAlt[LoopN] = defaultMNBlockNonHilbert;
+    if (hw > HW::XeHP) {
+        defaultMBlockNonHilbert = defaultMBlock;
+        defaultNBlockNonHilbert = defaultNBlock;
+    }
+
+    if (blockingAlt[LoopM] <= 0) blockingAlt[LoopM] = defaultMBlockNonHilbert;
+    if (blockingAlt[LoopN] <= 0) blockingAlt[LoopN] = defaultNBlockNonHilbert;
     if (blockingAlt[LoopK] <= 0) blockingAlt[LoopK] = defaultBlockAltK;
 
     // Default workgroups.
@@ -19777,12 +19960,15 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem) {
     }
 
     kParallelLocal &= (wg[LoopK] > 1);
+    if (!kParallelLocal) wg[LoopK] = 1;
 
     skewLocalIDs &= (wg[LoopM] * wg[LoopN] > eusPerSubslice(hw));
 
     if (skewLocalIDs) forceWGUpdate = WGFixed;
 
     avoidIncConflicts &= (hw >= HW::XeHP);
+
+    kPadding = align_up(kPadding, kAlign(problem));
 
     CommonStrategy::preflight(hw, problem);
 }
@@ -19837,6 +20023,7 @@ bool GEMMStrategy::minimize(HW hw, const GEMMProblem &problem) {
 // Return preferred k alignment for this kernel (avoiding remainder loads).
 int GEMMStrategy::kAlign(const GEMMProblem &problem) const {
     int align = lcm(ka_load, kb_load);
+    align = lcm(align, extraKAlign);
     if (slmBuffers > 0) align = lcm(align, unrollKSLM);
 
     return align;
@@ -19850,6 +20037,7 @@ bool GEMMStrategy::needsTempC(const GEMMProblem &problem) const {
         if (!problem.beta0() && !problem.beta1()) return true;
     }
     if (problem.Tc.size() != problem.Tc_ext.size()) return true;
+    if (!problem.beta0() && !problem.beta1() && altFusedBeta) return true;
     for (int i = 1; i < problem.postOps.len(); i++)
         if (problem.postOps.entry_[i].kind == primitive_kind::sum) return true;
     return false;
@@ -20184,7 +20372,7 @@ bool gemm_kernel_generator_t<hw>::sysgemmAccumulateC(
     // Set up C external layout.
     state.copyC = true;
     bool remM_Ce, remN_Ce;
-    getCRemainders(problem, strategy, remM_Ce, remN_Ce);
+    getCRemainders(hw, problem, strategy, remM_Ce, remN_Ce);
 
     if (!getRegLayout(problem.Tc_ext, state.C_layoutExt, unrollM, unrollN,
                 remM_Ce, remN_Ce, true, AllowFragDesc, 0, 0, problem.C,
@@ -21633,7 +21821,7 @@ bool gemm_kernel_generator_t<hw>::sysgemm2AccumulateC(
     // Set up C external layout.
     state.copyC = true;
     bool remM_Ce, remN_Ce;
-    getCRemainders(problem, strategy, remM_Ce, remN_Ce);
+    getCRemainders(hw, problem, strategy, remM_Ce, remN_Ce);
 
     if (!getRegLayout(problem.Tc_ext, state.C_layoutExt, unrollM, unrollN,
                 remM_Ce, remN_Ce, true, AllowFragDesc, 0, 0, problem.C,
@@ -23221,7 +23409,8 @@ bool gemm_kernel_generator_t<hw>::copyBodyRemCheck(
 
         bool recalc = false;
 
-        if (strategy.xLoop && !isTransposing(modStrategy.D.accessType)
+        if (strategy.xLoop && !strategy.doubleMasking
+                && !isTransposing(modStrategy.D.accessType)
                 && !isLargeCrosspack(problem.Td, problem.D.crosspack)) {
             // Change D access to use scattered stores so masking is possible.
             modStrategy.D.accessType = AccessType::Scattered;
@@ -24142,6 +24331,7 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                     if (((eoffY + sblock.*offsetY) & (periodY - 1)) != phaseY)
                         continue;
                     for (int qCX = qCXMin; qCX <= qCXMax; qCX++) {
+
                         for (int eoffX = 0; eoffX < sblock.*nx;) {
                             auto eoffR = sblock.colMajor ? eoffX : eoffY;
                             auto eoffC = sblock.colMajor ? eoffY : eoffX;
@@ -24223,7 +24413,7 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                             && scrosspack > 1)
                                     || (Td_real.size() == 1
                                             && Td_real.isInteger()
-                                            && Ts_real == Type::f32
+                                            && Ts_real.size() == 4
                                             && (dreg.getOffset() & 2))
                                     || (Td_real.size() == 2 && Td_real.isFP()
                                             && !Ts_real.isFP()
@@ -24299,6 +24489,9 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                             dregConverted);
                                                     sreg = sreg.reinterpret(0,
                                                             sregConverted
+                                                                    .getType());
+                                                    dreg = dreg.reinterpret(0,
+                                                            dregConverted
                                                                     .getType());
                                                 }
                                             }

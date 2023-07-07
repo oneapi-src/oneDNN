@@ -801,9 +801,9 @@ struct CommonStrategy {
     bool sipR0WA = false; // Avoid using r0 to avoid clobbering by SIP.
     bool readSuppressionWA
             = true; // Workaround for HW issue with read suppression after fused sends.
+    bool multitile = true; // Enable multitile (implicit scaling) support?
     bool wgInSS
             = false; // Pretend to use barriers so that each WG belongs to 1 SS/DSS.
-    uint8_t pad0[1] = {};
     int GRFs = 128; // # of GRFs to use.
     bool finalFence = false; // Issue global memory fence before EOT.
     uint8_t pad1[3] = {};
@@ -899,6 +899,13 @@ struct GEMMProblem : public CommonProblem {
     bool hasSum1PostOpAtEnd() const {
         return postOps.len() > 0 && postOps.entry_[postOps.len() - 1].is_sum();
     }
+    void removeFinalSumPostOp() {
+        if (postOps.len() > 0) {
+            auto &lastPO = postOps.entry_[postOps.len() - 1];
+            if (lastPO.kind == primitive_kind::sum)
+                postOps.entry_.resize(postOps.len() - 1);
+        }
+    }
 
     bool beta0() const {
         return (beta_real == 0) && (!Tc.isComplex() || (beta_imag == 0));
@@ -989,6 +996,7 @@ struct GEMMStrategyPOD : public CommonStrategy {
     //     k alternate is for multi-tile execution with implicit scaling.
     int unroll[3]; // Unrolls in each dimension (m/n/k), indexed by LoopType.
     int unrollK_masked = 0; // k unroll to use when masking.
+    int extraKAlign = 1; // Additional k alignment when blocking.
     LoopType loopOrder[3] = {LoopM, LoopN,
             LoopK}; // Expected order of loops in driver code (in order from innermost to outermost).
     LoopType fusedLoop = LoopM; // Direction of fusing if threads fused.
@@ -1072,7 +1080,7 @@ struct GEMMStrategyPOD : public CommonStrategy {
     bool altFusedBeta
             = false; //   Enable alternate beta fusion implementation? (requires sequential dispatch)
     int kPadding
-            = 0; //   Pad k dimension when load balancing (kParallelVariable)
+            = 32; //   Pad k dimension when load balancing (kParallelVariable)
     bool doubleWA
             = false; // Use explicit double broadcast instructions? (Gen9 only)
     uint8_t pad8[3] = {};
@@ -1197,12 +1205,16 @@ struct GEMMStrategy : public GEMMStrategyPOD {
 
     bool needsMNLocalIDs() const {
         return xParallel || (slmBuffers > 0) || cooperativePF || kParallelLocal
-                || persistent || namedBarriers[0] || (dpasw && !fixedSystolic);
+                || persistent || namedBarriers[LoopM] || namedBarriers[LoopN]
+                || (dpasw && !fixedSystolic);
     }
     bool needsKLocalIDs() const { return kParallelLocal || persistent; }
+    bool needsKLoopBarrier() const {
+        return (barrierFreq > 0) || (slmBuffers > 0);
+    }
     bool needsBarrier() const {
-        return (barrierFreq > 0) || (slmBuffers > 0) || xParallel
-                || kParallelLocal;
+        return needsKLoopBarrier() || xParallel || kParallelLocal || fuseBeta
+                || fusePostOps;
     }
 
     bool needsUnnamedBarrier(const GEMMProblem &problem) const;
@@ -1214,7 +1226,8 @@ struct GEMMStrategy : public GEMMStrategyPOD {
 
     WGType getWGType(const GEMMProblem &problem) const {
         if (forceWGUpdate == WGFixed) return WGFixed;
-        if ((slmBuffers > 0) || (forceWGUpdate == WGFixed) || namedBarriers[0])
+        if ((slmBuffers > 0) || (forceWGUpdate == WGFixed)
+                || namedBarriers[LoopM] || namedBarriers[LoopN])
             return WGFixed;
         if (cooperativePF)
             return WGFixed; /* until flexible cooperative PF enabled */
@@ -1260,15 +1273,16 @@ struct GEMMState : public CommonState {
         ngen::Subregister m, n, k, k0; // d
         ngen::Subregister alpha_real, alpha_imag; // T_real
         ngen::Subregister beta_real, beta_imag; // T_real
+        ngen::Subregister alphaPtr, betaPtr; // q
         ngen::Subregister groupIDM, groupIDN, groupIDK; // ud
         ngen::Subregister groupIDMN; // ud
         ngen::GRF localIDM, localIDN, localIDK; // uw
         ngen::Subregister localSizeM, localSizeN, localSizeK; // ud
-        ngen::Subregister groupCountM, groupCountN; // ud
+        ngen::Subregister groupCountM, groupCountN, groupCountK; // ud
         ngen::Subregister groupCountMN; // ud
         ngen::Subregister gcMNRecip; // ud
         ngen::Subregister groupStride; // ud
-        ngen::Subregister kParallelStart, kRecip; // ud
+        ngen::Subregister kParallelStart, kRecip, k0Recip; // ud
         ngen::Subregister hilbertVD, hilbertUVDRecip; // ud
         ngen::Subregister hilbertBail; // ud
         ngen::Subregister bslice, bthresh; // d
@@ -1332,6 +1346,7 @@ struct GEMMState : public CommonState {
     ngen::GRFRange broadcast_regs;
     std::vector<ngen::GRFRange> tempMul_regs;
     ngen::Subregister i0, j0, h0; // d
+    ngen::Subregister threadK0, k0Rem, wgK; // ud
     ngen::Subregister remainders[3]; // d (todo: w)
     ngen::Subregister remaindersFused[2]; // w
     ngen::Subregister remaindersWG[2]; // d (todo: w)
@@ -1505,8 +1520,6 @@ struct CopyStrategy : public CommonStrategy {
     int wgW = 0, wgZ = 0; // Fixed workgroup sizes (0 if variable).
 
     int unrollX, unrollY; // Unrolls for each dimension.
-    bool duplicateAlpha
-            = true; // True to make two copies of alpha, one for each register bank
     bool xLoop
             = false; // True to loop over x, false to loop over y within a kernel
 
@@ -1515,6 +1528,10 @@ struct CopyStrategy : public CommonStrategy {
     int barrierFreq = 0; // If > 0, set a barrier every barrierFreq loops
     int optionalAlignS
             = 0; // If > 0, generate code to check if S is aligned to this #elements and branch to specific code for that case.
+    bool doubleMasking = false; // Allow S to be masked in both dimensions
+
+    bool duplicateAlpha
+            = true; // True to make two copies of alpha, one for each register bank
 
     CopyStrategy() {}
     CopyStrategy(ngen::HW hw, int stepping = 0)
@@ -1882,19 +1899,27 @@ protected:
     void alignUp(const ngen::Subregister &dst, const ngen::Subregister &src,
             uint16_t align, const CommonStrategy &strategy, CommonState &state);
     template <typename DT = void>
+    void divDown(const ngen::Subregister &dst, const ngen::Subregister &src,
+            uint16_t divisor, const CommonStrategy &strategy,
+            CommonState &state);
+    template <typename DT = void>
     void divDown(const ngen::Subregister &dst, const ngen::Subregister &src0,
             const ngen::Subregister &src1, const ngen::Subregister &src1Recip,
             const ngen::FlagRegister &flag, const CommonStrategy &strategy,
             CommonState &state);
     template <typename DT = void>
-    void divDown(const ngen::Subregister &dst, const ngen::Subregister &src,
-            uint16_t divisor, const CommonStrategy &strategy,
+    void divUp(const ngen::Subregister &dst, const ngen::Subregister &src0,
+            const ngen::Subregister &src1, const ngen::Subregister &src1Recip,
+            const ngen::FlagRegister &flag, const CommonStrategy &strategy,
             CommonState &state);
 
     void simtDoWhileLoop(
             const ngen::InstructionModifier &mod, ngen::Label &dest);
     void slmBarrier(const ngen::GRF &temp, const ngen::GRF &r0_info = r0);
-    void globalMemBarrier(const ngen::GRF &temp, const ngen::GRF &r0_info = r0);
+    void globalMemFence(const ngen::GRF &temp, const ngen::GRF &r0_info,
+            const CommonStrategy &strategy);
+    void globalMemBarrier(const ngen::GRF &temp, const ngen::GRF &r0_info,
+            const CommonStrategy &strategy);
     void pause(const CommonStrategy &strategy);
 
     void duplicateScalar(SubregisterPair &val, CommonState &state);
@@ -1989,6 +2014,8 @@ protected:
     int checkDescriptorRemainder(Type T, int r, int c, bool column,
             bool writable, const MatrixAddressing &atype,
             const MatrixAddressingStrategy &astrategy);
+    void updateBlock2DSizes(ngen::GRF addr, const RegisterBlock &dst,
+            const RegisterBlock &src, const MatrixAddressing &atype);
     void adjustSubblockAddrs(Type T,
             const std::vector<RegisterBlock> &sublayout,
             const std::vector<ngen::GRFRange> &subaddrs,
@@ -2050,14 +2077,14 @@ protected:
             const RegisterBlock &layout, const MatrixAddressing &atype,
             const MatrixAddressingStrategy &astrategy,
             const ngen::GRFRange &addr, const CommonStrategy &strategy,
-            CommonState &state, bool zeroMask = false, bool series = false);
+            CommonState &state, bool readCheck = false, bool series = false);
     void loadMatrix(const GRFMultirange &dest,
             const std::vector<RegisterBlock> &layout,
             const MatrixAddressing &atype,
             const MatrixAddressingStrategy &astrategy,
             const std::vector<ngen::GRFRange> &addrs,
             const CommonStrategy &strategy, CommonState &state,
-            bool zeroMask = false);
+            bool readCheck = false);
     void prefetchMatrix(const std::vector<RegisterBlock> &layout,
             const MatrixAddressing &atype,
             const MatrixAddressingStrategy &astrategy,
@@ -2334,7 +2361,7 @@ protected:
             const GEMMStrategy &strategy, GEMMState &state);
     void gemmApplyABOffset(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
-    void gemmUpdateSums(const GEMMProblem &problem,
+    void gemmAccessSums(COperation op, const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
     bool gemmBinaryOpC(BinaryOp op, bool row, bool column, Type Tco,
             MatrixAddressing CO, MatrixAddressingStrategy CO_strategy,
@@ -2541,6 +2568,8 @@ protected:
     void gemmReorderLocalIDs(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
 
+    ngen::Subregister gemmCalcKPadding(const GEMMProblem &problem,
+            const GEMMStrategy &strategy, GEMMState &state);
     void broadcastToWG(ngen::FlagRegister leaderFlag, ngen::GRF value,
             CommonState &state, int slmOffset = 0);
     void gemmFusedBetaPOInit(const ngen::Subregister &groupID,
@@ -2548,6 +2577,9 @@ protected:
             GEMMState &state);
     void gemmFusedBetaScale(
             GEMMProblem problem, GEMMStrategy strategy, GEMMState &state);
+    void gemmFusedBetaCalcWGCount(const ngen::Subregister &count,
+            const GEMMProblem &problem, const GEMMStrategy &strategy,
+            GEMMState &state);
     void gemmFusedBetaNotifyCompletion(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
     void gemmFusedBetaWaitCompletion(const GEMMProblem &problem,
